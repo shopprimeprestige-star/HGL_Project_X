@@ -1,0 +1,93 @@
+# Prepara il database Supabase nuovo (jrezhxbuetpfhvsrkrwo).
+# Si lancia a mano: Actions → «Database Supabase» → Run workflow.
+# Si può rilanciare: ogni passo salta quello che è già fatto.
+#
+# Secrets richiesti (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN      supabase.com → Account → Access Tokens
+#   SUPABASE_DB_PASSWORD       la password del database del progetto
+#   SUPABASE_SERVICE_ROLE_KEY  Project Settings → API → service_role
+name: Database Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      sito:
+        description: "Indirizzo definitivo del sito (es. https://hgl-webapp.xxx.workers.dev) — per i lavori periodici. Vuoto = salta."
+        required: false
+        default: ""
+      copia_anteprime:
+        description: "Copia le immagini «anteprime» dal progetto vecchio"
+        type: boolean
+        default: true
+
+env:
+  PROJECT_REF: jrezhxbuetpfhvsrkrwo
+  SUPABASE_URL: https://jrezhxbuetpfhvsrkrwo.supabase.co
+  # La chiave anon è pubblica: finisce comunque nel sito.
+  ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyZXpoeGJ1ZXRwZmh2c3JrcndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1Mzk1NTQsImV4cCI6MjEwNzExNTU1NH0.nsDm_WGid2fSPdtqtwx8bGH3HKXl2iCVmAUVBUTnNC0
+  VECCHIO: https://jawteeupnkzyrnyaxxwj.supabase.co
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Tabelle (migrazioni, in ordine)
+        run: |
+          supabase link --project-ref "$PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
+          supabase db push -p "$SUPABASE_DB_PASSWORD" --include-all
+
+      - name: Funzione edge «capi»
+        run: supabase functions deploy capi --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Contenitori dei file
+        run: |
+          crea() {
+            code=$(curl -sS -o /tmp/r.json -w '%{http_code}' -X POST "$SUPABASE_URL/storage/v1/bucket" \
+              -H "Authorization: Bearer $SERVICE_KEY" -H "apikey: $SERVICE_KEY" -H 'Content-Type: application/json' \
+              -d "{\"id\":\"$1\",\"name\":\"$1\",\"public\":$2}")
+            echo "$1 (pubblico=$2): $code $(cat /tmp/r.json)"
+          }
+          for b in registrazioni media documenti prova-capelli copie sorgente; do crea "$b" false; done
+          crea anteprime true
+
+      - name: Immagini «anteprime» dal progetto vecchio
+        if: ${{ inputs.copia_anteprime }}
+        run: |
+          ok=0; ko=0
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            if curl -sSfL "$VECCHIO/storage/v1/object/public/anteprime/$p" -o /tmp/f; then
+              ct=$(file -b --mime-type /tmp/f)
+              if curl -sSf -X POST "$SUPABASE_URL/storage/v1/object/anteprime/$p" \
+                  -H "Authorization: Bearer $SERVICE_KEY" -H "apikey: $SERVICE_KEY" \
+                  -H "Content-Type: $ct" -H 'x-upsert: true' --data-binary @/tmp/f -o /dev/null; then
+                ok=$((ok+1)); else ko=$((ko+1)); echo "caricamento fallito: $p"; fi
+            else ko=$((ko+1)); echo "non trovato nel vecchio: $p"; fi
+          done < supabase/anteprime-da-copiare.txt
+          echo "copiati $ok, falliti $ko"
+
+      - name: Lavori periodici (cron)
+        if: ${{ inputs.sito != '' }}
+        env:
+          SITO: ${{ inputs.sito }}
+        run: |
+          H=(-H "Authorization: Bearer $SERVICE_KEY" -H "apikey: $SERVICE_KEY" -H 'Content-Type: application/json')
+          curl -sSf -X POST "$SUPABASE_URL/rest/v1/app_config?on_conflict=key" "${H[@]}" \
+            -H 'Prefer: resolution=merge-duplicates' \
+            -d "[{\"key\":\"cron_sito\",\"value\":\"$SITO\"},{\"key\":\"cron_chiave\",\"value\":\"$ANON_KEY\"}]"
+          for j in "meta-lead-sync-5min|*/5 * * * *|/hooks/meta-lead-sync" \
+                   "touch-history-backfill-daily|15 3 * * *|/hooks/touch-history-backfill"; do
+            IFS='|' read -r nome quando percorso <<< "$j"
+            echo -n "$nome: "
+            curl -sSf -X POST "$SUPABASE_URL/rest/v1/rpc/programma_hook_cron" "${H[@]}" \
+              -d "{\"nome\":\"$nome\",\"quando\":\"$quando\",\"percorso\":\"$percorso\"}"; echo
+          done

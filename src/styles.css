@@ -1,0 +1,2036 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── ⚠️ UNA SOGLIA IN PIÙ, SOLO PER LA SALA DEL WEBINAR ─────────────────────
+   Da 900 punti in su il palco e la chat stanno affiancati. Serve una soglia
+   sua perché `lg` è 1024, e una finestra di Chrome su un portatile è larga
+   MILLE punti: a mille il programma trattava un desktop da tablet — palco e
+   chat impilati, la chat spinta fuori.
+
+   ⚠️ SI DICHIARA QUI E NON SI SCRIVE `min-[900px]:` NELLE CLASSI. Ci ho
+    provato: quelle classi Tailwind NON le genera in questo progetto, e il
+    risultato è stato peggiore del difetto — sparite le regole delle due
+    colonne, la chat non compariva più a NESSUNA larghezza. Una classe che non
+    esiste non dà nessun errore: semplicemente non fa niente, ed è il modo più
+    silenzioso di rompere un disegno.
+   ⚠️ E si chiama `sala`, non `md2` o `xl0`: chi la legge fra sei mesi deve
+    capire A COSA serve, non doverla misurare. */
+@theme {
+  --breakpoint-sala: 900px;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-navy: var(--navy);
+  --color-navy-deep: var(--navy-deep);
+  --color-navy-light: var(--navy-light);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-light-panel: var(--light-panel);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-grid: var(--grid);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Brand palette — Bio-mimetic Implant */
+  --navy: oklch(0.21 0.05 255);
+  --navy-deep: oklch(0.15 0.045 258);
+  --navy-light: oklch(0.28 0.055 255);
+  --brand: oklch(0.65 0.19 252);
+  --brand-foreground: oklch(0.99 0 0);
+  --light-panel: oklch(0.96 0.005 250);
+  --ink: oklch(0.18 0.02 255);
+  --ink-muted: oklch(0.5 0.02 255);
+  --line: oklch(0.4 0.05 255 / 0.35);
+  --grid: oklch(1 0 0 / 0.04);
+
+  --background: var(--navy-deep);
+  --foreground: oklch(0.98 0 0);
+  --card: var(--navy);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.005 250);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.95 0.005 250);
+  --muted-foreground: oklch(0.55 0.02 255);
+  --accent: var(--brand);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.6 0.22 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.62 0.17 152);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.78 0.15 78);
+  --warning-foreground: oklch(0.18 0.02 255);
+  --info: oklch(0.65 0.14 230);
+  --info-foreground: oklch(0.99 0 0);
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(1 0 0 / 0.15);
+  --ring: var(--brand);
+
+  --chart-1: var(--brand);
+  --chart-2: oklch(0.7 0.15 240);
+  --chart-3: oklch(0.6 0.18 260);
+  --chart-4: oklch(0.55 0.16 230);
+  --chart-5: oklch(0.5 0.14 280);
+
+  --sidebar: var(--navy);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: var(--navy-light);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(1 0 0 / 0.08);
+  --sidebar-ring: var(--brand);
+}
+
+/* ── GATE OSPITE ────────────────────────────────────────────────────────────
+   Con un link ospite (?watch=) la classe .hg-guest-gated viene messa su <html>
+   PRIMA del primo paint: il contenuto della pagina resta invisibile finché
+   l'ospite non ha visto l'attesa brandizzata e inserito il proprio nome.
+   L'elemento resta nel DOM (serve a ricevere lo stato della diretta), ma non è
+   né visibile né interattivo. */
+html.hg-guest-gated #hg-outlet {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+html.hg-guest-gated,
+html.hg-guest-gated body {
+  background-color: #050f24;
+  zoom: normal;
+}
+/* iOS Safari ingrandisce la pagina quando prende il fuoco un campo con font < 16px
+   (e non torna indietro): sulle pagine ospite tutti i campi partono da 16px. */
+html.hg-guest input,
+html.hg-guest textarea,
+html.hg-guest select {
+  font-size: 16px;
+}
+/* nessuno zoom/scala ereditata sulle pagine ospite: sempre adattate al display */
+html.hg-guest,
+html.hg-guest body {
+  zoom: normal;
+  transform: none;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+  img,
+  video,
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* Dark blueprint — matches reference: deep navy with subtle radial highlight + grid */
+.bg-blueprint {
+  background-color: #0a1a3a;
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.05) 1px, transparent 1px),
+    radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      rgba(56, 110, 220, 0.28),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 50% 100%,
+      rgba(20, 50, 120, 0.35),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      #0c1f44 0%,
+      #081634 50%,
+      #0a1a3a 100%
+    );
+  background-size:
+    72px 72px,
+    72px 72px,
+    auto,
+    auto,
+    auto;
+}
+
+/* Footer — deep navy with soft top vignette like screenshot 3 */
+.bg-footer {
+  background-color: #07142e;
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.035) 1px, transparent 1px),
+    radial-gradient(
+      ellipse 70% 50% at 50% 0%,
+      rgba(40, 90, 200, 0.25),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #0a1a3c 0%, #050f24 100%);
+  background-size:
+    64px 64px,
+    64px 64px,
+    auto,
+    auto;
+}
+
+/* Riempimento brandizzato per le aree "vuote" attorno a video/immagini
+   (letterbox object-contain, tile camere, wrapper iframe): MAI nero.
+   Stesso linguaggio visivo di .bg-blueprint — navy profondo + griglia + glow. */
+.bg-brandfill {
+  background-color: #081634;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(
+      ellipse 70% 55% at 50% 0%,
+      rgba(56, 110, 220, 0.3),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 50% 100%,
+      rgba(20, 50, 120, 0.35),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #0b1e42 0%, #081634 55%, #0a1a3a 100%);
+  background-size:
+    28px 28px,
+    28px 28px,
+    auto,
+    auto,
+    auto;
+}
+
+.bg-blueprint-fine {
+  background-color: oklch(0.18 0.045 258);
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-light-panel {
+  background-color: var(--light-panel);
+  background-image:
+    linear-gradient(oklch(0.5 0.04 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.5 0.04 255 / 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.bg-light-grid {
+  background-color: var(--light-panel);
+  background-image:
+    linear-gradient(oklch(0.55 0.02 255 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.55 0.02 255 / 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-white-trama {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(oklch(0.6 0.04 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.6 0.04 255 / 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* White background with crisp square grid pattern */
+.bg-white-grid {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(oklch(0.5 0.04 255 / 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.5 0.04 255 / 0.09) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Corner brackets utility */
+.brackets {
+  position: relative;
+}
+.brackets::before,
+.brackets::after,
+.brackets > .br-tr,
+.brackets > .br-bl {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--brand);
+}
+.brackets::before {
+  top: 8px;
+  left: 8px;
+  border-top: 1.5px solid;
+  border-left: 1.5px solid;
+}
+.brackets::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 1.5px solid;
+  border-right: 1.5px solid;
+}
+.brackets > .br-tr {
+  top: 8px;
+  right: 8px;
+  border-top: 1.5px solid var(--brand);
+  border-right: 1.5px solid var(--brand);
+}
+.brackets > .br-bl {
+  bottom: 8px;
+  left: 8px;
+  border-bottom: 1.5px solid var(--brand);
+  border-left: 1.5px solid var(--brand);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+/* ============================================================
+   Premium CTA — deep navy con shine animato (booking funnel)
+   ============================================================ */
+@keyframes cta-shine {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  60% { transform: translateX(250%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
+}
+.btn-premium {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0c1f44 0%, #14306b 50%, #0a1a3a 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 10px 30px -10px rgba(20, 48, 107, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.btn-premium:hover {
+  box-shadow:
+    0 14px 38px -10px rgba(20, 48, 107, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.btn-premium:active {
+  transform: scale(0.985);
+}
+.btn-premium::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 100%
+  );
+  animation: cta-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Shine effect — riutilizzabile su badge / pulsanti landing
+   ============================================================ */
+@keyframes shine-sweep {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  60% { transform: translateX(250%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
+}
+.shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: shine-sweep 3.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+.shine-soft::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%
+  );
+}
+
+/* ============================================================
+   Float-soft — leggero galleggiamento per badge "sospesi"
+   ============================================================ */
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.float-soft {
+  animation: float-soft 3.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ============================================================
+   Glass CTA — pulsante header con effetto vetro/luce
+   ============================================================ */
+.glass-cta {
+  position: relative;
+  isolation: isolate;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, white 14%, transparent) 0%,
+      color-mix(in oklab, white 3%, transparent) 45%,
+      transparent 100%),
+    linear-gradient(135deg,
+      color-mix(in oklab, var(--brand) 60%, black 40%) 0%,
+      color-mix(in oklab, var(--brand) 35%, black 60%) 100%);
+  border: 1px solid color-mix(in oklab, white 18%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 28%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, black 35%, transparent),
+    0 6px 18px -8px color-mix(in oklab, black 70%, transparent),
+    0 1px 0 color-mix(in oklab, white 12%, transparent);
+  backdrop-filter: blur(6px);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.glass-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.22) 0%,
+    rgba(255,255,255,0.04) 38%,
+    transparent 60%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 0;
+}
+.glass-cta > * { position: relative; z-index: 1; }
+.glass-cta:hover {
+  filter: brightness(1.1);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 35%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, black 35%, transparent),
+    0 10px 24px -8px color-mix(in oklab, black 75%, transparent),
+    0 1px 0 color-mix(in oklab, white 18%, transparent);
+}
+.glass-cta:active { transform: translateY(1px) scale(0.99); }
+
+
+/* Ripple click feedback (per pulsanti termometro) */
+@keyframes ripple-pop {
+  0% { transform: scale(0); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.ripple-on-tap { position: relative; overflow: hidden; }
+.ripple-on-tap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.7);
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+.ripple-on-tap:active::before {
+  animation: ripple-pop 0.45s ease-out;
+}
+
+/* ============================================================
+   Disagio thermometer — gradient cold→hot (1→10)
+   ============================================================ */
+.thermo-grad {
+  background: linear-gradient(
+    90deg,
+    #2563eb 0%,    /* freddo - blu */
+    #06b6d4 22%,   /* ciano */
+    #84cc16 44%,   /* verde */
+    #facc15 62%,   /* giallo */
+    #f97316 80%,   /* arancio */
+    #dc2626 100%   /* rosso caldo */
+  );
+}
+
+/* ============================================================
+   CRM minimal theme — Linear/Notion style
+   Override locale dei design token solo dentro .crm-theme.
+   Niente glow, palette neutra, tipografia compatta, bordi sottili.
+   ============================================================ */
+.crm-theme {
+  /* Surface */
+  --background: oklch(0.995 0.002 250);
+  --foreground: oklch(0.18 0.015 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.015 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.015 255);
+
+  /* Accent ridotto: usato SOLO su CTA principali e stato attivo */
+  --primary: oklch(0.55 0.16 252);
+  --primary-foreground: oklch(0.99 0 0);
+
+  /* Neutral secondary/muted */
+  --secondary: oklch(0.965 0.003 250);
+  --secondary-foreground: oklch(0.25 0.015 255);
+  --muted: oklch(0.965 0.003 250);
+  --muted-foreground: oklch(0.48 0.012 255);
+  --accent: oklch(0.95 0.005 250);
+  --accent-foreground: oklch(0.18 0.015 255);
+
+  --destructive: oklch(0.58 0.21 27);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  /* Bordi sottili e leggibili su sfondo chiaro */
+  --border: oklch(0.9 0.005 250);
+  --input: oklch(0.92 0.005 250);
+  --ring: oklch(0.55 0.16 252 / 0.4);
+
+  /* Sidebar grigio chiarissimo, separato dal main */
+  --sidebar: oklch(0.975 0.003 250);
+  --sidebar-foreground: oklch(0.25 0.015 255);
+  --sidebar-primary: oklch(0.55 0.16 252);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.005 250);
+  --sidebar-accent-foreground: oklch(0.18 0.015 255);
+  --sidebar-border: oklch(0.9 0.005 250);
+  --sidebar-ring: oklch(0.55 0.16 252 / 0.4);
+
+  --radius: 0.5rem;
+
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LA SCALA DEI TESTI DEL CRM — cinque passi, non sedici mezzi passi
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ⚠️ IL PROBLEMA, CONTATO E NON SUPPOSTO. Nel CRM si usavano SEDICI misure
+   diverse (9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 16,
+   17, 19, 20) e le cinque più frequenti — 11, 12, 11.5, 13, 12.5, per
+   millesettecento usi — stanno tutte dentro due pixel. Mezzo pixel non è un
+   livello: l'occhio non lo ordina, e il risultato è che sulla riga di un lead
+   il NOME e la parola «oggi» pesano uguale.
+
+   Sul monitor si sopravvive lo stesso, perché la gerarchia la fanno le COLONNE:
+   il nome sta nella sua, lo stato nella sua. Sul telefono le colonne non ci
+   sono — la misura del carattere è l'unica gerarchia rimasta, e appiattita non
+   ne resta nessuna. È il difetto segnalato dal committente.
+
+   Cinque passi, ognuno un passo vero (rapporto ~1.15, che si vede):
+
+     t-titolo     20   il titolo della pagina
+     t-riga       15   quello per cui si guarda la riga: il nome, l'importo
+     t-corpo      13   il testo normale, i valori
+     t-nota       12   il secondario: stato, quando, note di riga
+     t-etichetta  11   il maiuscoletto e le minuzie
+
+   ⚠️ E SUL MONITOR RESTANO LE MISURE DI PRIMA. Le pagine del CRM sono dense di
+   proposito — ottocento righe si leggono perché sono strette — e allargare i
+   caratteri su uno schermo grande vorrebbe dire meno righe a vista, cioè più
+   scorrimento per lo stesso lavoro. Il problema è del telefono e si corregge
+   sul telefono: da 768 in su ogni classe torna al valore che aveva.
+
+   ⚠️ SOTTO GLI 11 PIXEL NON SI SCENDE SUL TELEFONO. C'erano 283 usi fra 9 e
+   10.5: su un vetro tenuto a mezzo braccio, con il sole, non si leggono — e
+   qualcosa che non si legge tanto vale non scriverlo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.crm-theme .t-titolo {
+  font-size: 20px;
+  line-height: 1.2;
+}
+.crm-theme .t-riga {
+  font-size: 15px;
+  line-height: 1.25;
+}
+.crm-theme .t-corpo {
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.crm-theme .t-nota {
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.crm-theme .t-etichetta {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+@media (min-width: 1024px) {
+  .crm-theme .t-riga {
+    font-size: 13px;
+  }
+  .crm-theme .t-corpo {
+    font-size: 12.5px;
+  }
+  .crm-theme .t-nota {
+    font-size: 11.5px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LE VECCHIE MISURE, RIPORTATE SULLA SCALA — SOLO SUL TELEFONO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Sopra c'è la scala (t-titolo · t-riga · t-corpo · t-nota · t-etichetta), e le
+   pagine nuove usano quella. Ma nel CRM ci sono DUEMILADUECENTOSESSANTASEI
+   misure scritte a mano, sparse su tutte le schermate, e sedici valori diversi
+   fra 9 e 20 pixel — con le cinque più frequenti tutte dentro due pixel.
+
+   ⚠️ PERCHÉ SI FA QUI E NON RISCRIVENDO LE PAGINE. Duemiladuecento sostituzioni
+   automatiche su schermate che non si possono aprire una per una si scoprono
+   rotte in produzione, e non da chi le ha fatte. Qui invece: un punto solo da
+   leggere, un punto solo da disfare, e vale su OGNI pagina insieme — comprese
+   quelle a cui nessuno ha ancora pensato.
+
+   ⚠️ E VALE SOTTO I 1024 PIXEL — telefono E TABLET. Il tablet sta con il
+   telefono e non col monitor, e non è una scelta di comodo: un iPad si tiene
+   in mano, a mezzo braccio, spesso in piedi e con la luce di fuori. È la
+   stessa distanza e la stessa luce del telefono, non quelle di un monitor a
+   sessanta centimetri al chiuso. Sopra i 1024, ogni classe rende esattamente il
+   valore che ha sempre reso: le pagine del CRM sono dense di proposito, e
+   allargare i caratteri su uno schermo grande vuol dire meno righe a vista,
+   cioè più scorrimento per lo stesso lavoro. Il difetto è del telefono e si
+   corregge sul telefono.
+
+   ⚠️ SI LEGGE «text-[11.5px]» NEL CODICE E SI VEDE 12.5 SUL TELEFONO, e va
+   saputo: è il prezzo di non aver toccato duemiladuecento righe. Chi scrive una
+   pagina nuova usi le classi della scala qui sopra, che dicono quello che fanno.
+
+   ⚠️ Le varianti con prefisso (sm:text-[13px] e simili, quattordici in tutto)
+   NON sono qui: valgono da 640 in su, cioè quasi solo su tablet, e allungare
+   l'elenco per quattordici casi lo renderebbe illeggibile.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* le minuzie e il maiuscoletto */
+  .crm-theme .text-\[9px\],
+  .crm-theme .text-\[9\.5px\],
+  .crm-theme .text-\[10px\],
+  .crm-theme .text-\[10\.5px\],
+  .crm-theme .text-\[11px\] {
+    font-size: 11px;
+  }
+  /* il secondario: stato, quando, note di riga */
+  .crm-theme .text-\[11\.5px\],
+  .crm-theme .text-\[12px\] {
+    font-size: 12.5px;
+  }
+  /* il corpo e i valori */
+  .crm-theme .text-\[12\.5px\],
+  .crm-theme .text-\[13px\] {
+    font-size: 13.5px;
+  }
+  /* quello per cui si guarda la riga: nome, importo */
+  .crm-theme .text-\[13\.5px\],
+  .crm-theme .text-\[14px\],
+  .crm-theme .text-\[14\.5px\],
+  .crm-theme .text-\[15px\] {
+    font-size: 15px;
+  }
+  /* i titoli di sezione */
+  .crm-theme .text-\[16px\],
+  .crm-theme .text-\[17px\] {
+    font-size: 17px;
+  }
+  /* il titolo della pagina */
+  .crm-theme .text-\[19px\],
+  .crm-theme .text-\[20px\] {
+    font-size: 20px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   I COLORI CHE SUL TELEFONO NON SI LEGGONO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ⚠️ IL SISTEMA C'È GIÀ, E NON SI TOCCA. Il CRM ha CINQUE colori con un
+   significato dichiarato (crm/types.ts, CLASSI_TONO): sky «da lavorare»,
+   indigo «in corso», ambra «in sospeso», emerald «vinta», rose «persa» — più
+   lo slate del neutro. Quello funziona. Il difetto è un altro, ed è di CONTRASTO: certe tinte sono così
+   chiare che su un vetro tenuto a mezzo braccio, con la luce di fuori,
+   spariscono. Misurato con la formula del contrasto WCAG, su fondo bianco:
+
+     slate-300   1.48        slate-400   2.56        amber-500   2.15
+     amber-600   3.19        emerald-500 2.54        emerald-600 3.77
+     rose-500    3.67        rose-600    4.48        sky-500     2.77
+     sky-600     4.10
+
+   La soglia leggibile per un testo normale è 4.5. NESSUNO di questi la passa,
+   e sono 168 usi — fra cui gli orari, i «manca l'orario» in ambra e le spunte
+   verdi, cioè proprio i segni che si guardano di sfuggita.
+
+   Qui ognuno sale al primo gradino che passa, e non oltre: il colore resta
+   quello, cambia solo quanto è carico.
+
+     slate-400               -> slate-500     4.76
+     amber-500 · amber-600   -> amber-700     5.02
+     emerald-500 · -600      -> emerald-700   5.48
+     rose-500 · rose-600     -> rose-700      6.29
+     sky-500 · sky-600       -> sky-700       5.93
+
+   ⚠️ CONTROLLATO CHE NON PEGGIORI NIENTE: nessuna di queste tinte sta su un
+   fondo scuro dentro il CRM (cercato: un solo accostamento fondo scuro/testo
+   colorato in tutto il progetto, ed è uno slate-600 che qui non si tocca).
+   Scurire su fondo chiaro non può che migliorare.
+
+   ⚠️ E VALE SOTTO I 1024 PIXEL — telefono e tablet — come per le misure dei
+   caratteri, e per lo stesso motivo: la luce di fuori non guarda quanti pixel
+   ha lo schermo. Al
+   monitor, al chiuso, quelle tinte si leggono e sono la gradazione con cui la
+   pagina respira: caricarle tutte lì vorrebbe dire una schermata che urla.
+   Se un domani si vuole la stessa correzione anche sul monitor, si toglie la
+   riga della media query e vale ovunque — ma è una decisione diversa.
+
+   ⚠️ Le varianti `hover:` e `dark:` NON sono toccate: generano classi loro
+   («.hover\:text-slate-700»), e sul telefono il passaggio del mouse non
+   esiste.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /*  ⚠️ SLATE-300 NON C'È, ed è stato tolto dopo averlo cercato invece che
+      dopo averlo rotto: è l'unica di queste tinte che nel CRM sta su fondo
+      SCURO — il tooltip delle metriche (bg-slate-800) e la schermata di
+      accesso. Lì scurirla non la rende leggibile, la cancella. Le altre due
+      segnalazioni erano falsi allarmi: `bg-slate-900/5` e `bg-slate-50/60`
+      sono fondi chiari, non scuri. */
+  .crm-theme .text-slate-400 {
+    color: #64748b;
+  }
+  .crm-theme .text-amber-500,
+  .crm-theme .text-amber-600 {
+    color: #b45309;
+  }
+  .crm-theme .text-emerald-500,
+  .crm-theme .text-emerald-600 {
+    color: #047857;
+  }
+  /*  ⚠️ ANCHE IL 600, e l'ho scoperto misurando invece che fidandomi: il
+      rose-600 di Tailwind sta a 4.48, cioè sotto la soglia per un pelo. Un
+      «per un pelo» su un colore che segna le cose in ritardo — la riga che si
+      guarda di sfuggita, spesso fuori — non è un dettaglio da arrotondare.
+      Va al 700 come tutte le altre famiglie, invece che al gradino appena
+      sopra: così la regola è una sola da ricordare. */
+  .crm-theme .text-rose-500,
+  .crm-theme .text-rose-600 {
+    color: #be123c;
+  }
+  .crm-theme .text-sky-500,
+  .crm-theme .text-sky-600 {
+    color: #0369a1;
+  }
+}
+
+/* Tipografia coerente: titoli più calmi, gerarchia chiara */
+.crm-theme h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.crm-theme h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.crm-theme h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Card più calme: niente ombre pesanti */
+.crm-theme [data-slot="card"],
+.crm-theme .card-flat {
+  box-shadow: none !important;
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  border-radius: 0.5rem;
+}
+
+/* Tabelle leggibili */
+.crm-theme table {
+  font-size: 0.8125rem;
+}
+.crm-theme th {
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.75rem;
+}
+
+/* Badge / pill compatti */
+.crm-theme [data-slot="badge"] {
+  font-weight: 500;
+  font-size: 0.7rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.125rem;
+}
+
+/* Focus accessibile e morbido */
+.crm-theme :focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Pattern decorativi della landing OFF nel CRM */
+.crm-theme .bg-blueprint,
+.crm-theme .bg-blueprint-fine,
+.crm-theme .bg-light-panel,
+.crm-theme .bg-light-grid,
+.crm-theme .bg-white-trama,
+.crm-theme .bg-white-grid {
+  background-image: none;
+}
+
+
+/* ===================================================================
+   "non è" — next-gen highlight: gradient text, animated shine,
+   subtle underline glow. Designed to feel premium without being loud.
+   =================================================================== */
+.hl-nextgen {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(
+    100deg,
+    var(--brand) 0%,
+    color-mix(in oklab, var(--brand) 70%, white 30%) 45%,
+    var(--brand) 90%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: hl-nextgen-shine 4.2s ease-in-out infinite;
+  padding: 0 0.05em;
+}
+.hl-nextgen::after {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -0.06em;
+  height: 0.12em;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--brand) 90%, transparent) 30%,
+    color-mix(in oklab, var(--brand) 95%, white 5%) 50%,
+    color-mix(in oklab, var(--brand) 90%, transparent) 70%,
+    transparent 100%
+  );
+  filter: blur(0.5px);
+  opacity: 0.85;
+  transform-origin: center;
+  animation: hl-nextgen-underline 4.2s ease-in-out infinite;
+}
+@keyframes hl-nextgen-shine {
+  0%   { background-position: 100% 50%; }
+  50%  { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+@keyframes hl-nextgen-underline {
+  0%, 100% { transform: scaleX(0.9); opacity: 0.7; }
+  50%      { transform: scaleX(1); opacity: 1; }
+}
+
+/* ===================================================================
+   NEXT-GEN UI TOOLKIT
+   Reusable premium effects — keep performant via transform/opacity.
+   =================================================================== */
+
+/* -- Aurora gradient text: grandi heading "vivi" -- */
+.text-aurora {
+  background: linear-gradient(
+    100deg,
+    var(--brand) 0%,
+    color-mix(in oklab, var(--brand) 65%, white 35%) 30%,
+    color-mix(in oklab, var(--brand) 80%, oklch(0.7 0.18 200) 20%) 55%,
+    color-mix(in oklab, var(--brand) 70%, white 30%) 80%,
+    var(--brand) 100%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: aurora-shift 6s ease-in-out infinite;
+}
+@keyframes aurora-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* -- Holographic conic ring (badge premium / eyebrow) -- */
+.ring-holo {
+  position: relative;
+  isolation: isolate;
+}
+.ring-holo::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in oklab, var(--brand) 90%, white 10%),
+    color-mix(in oklab, var(--brand) 50%, oklch(0.75 0.18 200) 50%),
+    color-mix(in oklab, var(--brand) 60%, oklch(0.75 0.18 320) 40%),
+    color-mix(in oklab, var(--brand) 90%, white 10%)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: ring-spin 6s linear infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+@keyframes ring-spin {
+  to { transform: rotate(1turn); }
+}
+
+/* -- Glass card premium: depth + reflection top edge -- */
+.glass-card {
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, white 7%, transparent) 0%,
+      color-mix(in oklab, white 1%, transparent) 100%),
+    color-mix(in oklab, var(--navy) 80%, black 20%);
+  border: 1px solid color-mix(in oklab, white 10%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 16%, transparent),
+    0 24px 60px -28px color-mix(in oklab, var(--brand) 30%, transparent),
+    0 8px 24px -12px color-mix(in oklab, black 60%, transparent);
+  backdrop-filter: blur(8px);
+}
+.glass-card-light {
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,0.6) 0%,
+      rgba(255,255,255,0.85) 100%);
+  border: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    0 24px 60px -28px color-mix(in oklab, var(--brand) 18%, transparent),
+    0 8px 24px -12px rgba(0,0,0,0.08);
+  backdrop-filter: blur(10px);
+}
+
+/* -- Magnetic outline pulse (CTA invitanti) -- */
+@keyframes magnet-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand) 45%, transparent); }
+  70%  { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.magnet-pulse {
+  animation: magnet-pulse 2.6s ease-out infinite;
+}
+
+/* -- Holographic data-stripe (immagini hero / video placeholder) -- */
+.holo-stripe {
+  position: relative;
+  isolation: isolate;
+}
+.holo-stripe::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      115deg,
+      transparent 0 22px,
+      color-mix(in oklab, var(--brand) 16%, transparent) 22px 23px,
+      transparent 23px 60px
+    ),
+    linear-gradient(
+      120deg,
+      transparent 0%,
+      color-mix(in oklab, var(--brand) 15%, transparent) 45%,
+      color-mix(in oklab, white 18%, transparent) 50%,
+      color-mix(in oklab, var(--brand) 15%, transparent) 55%,
+      transparent 100%
+    );
+  background-size: 100% 100%, 220% 100%;
+  animation: holo-sweep 5.5s ease-in-out infinite;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0.22;
+}
+@keyframes holo-sweep {
+  0%, 100% { background-position: 0 0, 0% 50%; }
+  50%      { background-position: 0 0, 100% 50%; }
+}
+
+/* -- Grid-pulse animato: blueprint che "respira" -- */
+.bg-blueprint-pulse {
+  background-color: var(--navy);
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--brand) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--brand) 22%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: grid-pulse 8s ease-in-out infinite;
+}
+@keyframes grid-pulse {
+  0%, 100% { background-size: 40px 40px; opacity: 1; }
+  50%      { background-size: 44px 44px; opacity: 0.92; }
+}
+
+/* -- Spotlight cursor (hero) -- */
+.spotlight {
+  position: relative;
+  overflow: hidden;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(
+    600px circle at 30% 20%,
+    color-mix(in oklab, var(--brand) 22%, transparent) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  animation: spotlight-drift 12s ease-in-out infinite;
+}
+@keyframes spotlight-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(8%, 5%); }
+}
+
+/* -- Number tab premium (calendar days hover) -- */
+.day-pop {
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease;
+}
+.day-pop:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -6px color-mix(in oklab, var(--brand) 50%, transparent);
+}
+
+/* -- Scanline (per video placeholder) -- */
+.scanlines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 3px,
+    rgba(0,0,0,0.018) 3px 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+  opacity: 0.5;
+}
+
+/* ===================================================================
+   NEXT-GEN icons & micro-animations (v3)
+   =================================================================== */
+
+@keyframes icon-check-pop {
+  0%   { transform: scale(0.6) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.icon-pop { animation: icon-check-pop .55s cubic-bezier(.2,.9,.3,1.2) both; }
+
+@keyframes ring-pulse-success-kf {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 18px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.ring-pulse-success { animation: ring-pulse-success-kf 2.4s ease-out infinite; }
+
+@keyframes ring-pulse-brand-kf {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand) 50%, transparent); }
+  70%  { box-shadow: 0 0 0 16px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.ring-pulse-brand { animation: ring-pulse-brand-kf 2.6s ease-out infinite; }
+
+@keyframes icon-float-kf {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+.icon-float { animation: icon-float-kf 2.4s ease-in-out infinite; }
+
+@keyframes reveal-up-kf {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reveal-up { animation: reveal-up-kf .8s cubic-bezier(.2,.8,.2,1) both; }
+
+.card-lift {
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease;
+  will-change: transform;
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 18px 40px -18px color-mix(in oklab, var(--brand) 35%, transparent),
+    0 6px 16px -8px rgba(0,0,0,0.12);
+}
+
+.grad-border {
+  position: relative;
+  isolation: isolate;
+}
+.grad-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    color-mix(in oklab, var(--brand) 70%, transparent) 0%,
+    color-mix(in oklab, var(--brand) 10%, transparent) 35%,
+    color-mix(in oklab, white 25%, transparent) 60%,
+    color-mix(in oklab, var(--brand) 60%, transparent) 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+@keyframes arrow-nudge-kf {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(4px); }
+}
+
+/* ===================================================================
+   NEXT-GEN pill badges (Vivi la tua vita)
+   =================================================================== */
+.ng-pill {
+  background: linear-gradient(135deg,
+    color-mix(in oklab, white 100%, transparent),
+    color-mix(in oklab, var(--brand) 5%, white)
+  );
+  border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, white 80%, transparent) inset,
+    0 8px 22px -12px color-mix(in oklab, var(--brand) 45%, transparent);
+  transition: transform .28s cubic-bezier(.2,.9,.3,1.2), box-shadow .28s ease, border-color .28s ease;
+}
+.ng-pill:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--brand) 45%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, white 90%, transparent) inset,
+    0 14px 30px -14px color-mix(in oklab, var(--brand) 60%, transparent);
+}
+.ng-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 120deg,
+    color-mix(in oklab, var(--brand) 60%, transparent),
+    transparent 35%,
+    color-mix(in oklab, var(--brand) 30%, transparent) 60%,
+    transparent 85%,
+    color-mix(in oklab, var(--brand) 60%, transparent)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity .3s ease;
+  animation: ng-pill-rot 6s linear infinite;
+  pointer-events: none;
+}
+.ng-pill:hover::before { opacity: 1; }
+@keyframes ng-pill-rot {
+  to { transform: rotate(360deg); }
+}
+
+.ng-pill__icon {
+  background:
+    radial-gradient(120% 120% at 30% 20%,
+      color-mix(in oklab, white 35%, transparent) 0%,
+      transparent 55%),
+    linear-gradient(135deg,
+      color-mix(in oklab, var(--brand) 95%, black),
+      color-mix(in oklab, var(--brand) 60%, white));
+}
+.ng-pill__icon::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in oklab, var(--brand) 70%, transparent),
+    transparent 40%,
+    color-mix(in oklab, white 40%, transparent) 55%,
+    transparent 70%,
+    color-mix(in oklab, var(--brand) 70%, transparent));
+  -webkit-mask: radial-gradient(farthest-side, transparent 60%, #000 62%);
+          mask: radial-gradient(farthest-side, transparent 60%, #000 62%);
+  animation: ng-pill-rot 4s linear infinite;
+  opacity: .55;
+}
+
+/* Per-icona micro animazioni */
+@keyframes ng-icon-flame-kf {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-1px) scale(1.08); }
+}
+.ng-icon-flame { animation: ng-icon-flame-kf 1.6s ease-in-out infinite; transform-origin: center bottom; }
+
+@keyframes ng-icon-drip-kf {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50%      { transform: translateY(1.5px); opacity: .75; }
+}
+.ng-icon-drip { animation: ng-icon-drip-kf 2.2s ease-in-out infinite; }
+
+@keyframes ng-icon-wave-kf {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(1.5px); }
+}
+.ng-icon-wave { animation: ng-icon-wave-kf 2.4s ease-in-out infinite; }
+
+@keyframes ng-icon-sun-kf {
+  to { transform: rotate(360deg); }
+}
+.ng-icon-sun { animation: ng-icon-sun-kf 14s linear infinite; transform-origin: center; }
+
+.arrow-nudge { animation: arrow-nudge-kf 1.6s ease-in-out infinite; display: inline-block; }
+
+/* ===================================================================
+   NEXT-GEN Pillar Cards (i 3 Pilastri)
+   =================================================================== */
+.ng-pillar {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, white 96%, var(--brand) 4%) 100%);
+  border: 1px solid color-mix(in oklab, var(--ink) 8%, transparent);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform .35s cubic-bezier(.2,.9,.3,1.2), box-shadow .35s ease, border-color .35s ease;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.9) inset,
+    0 18px 40px -24px color-mix(in oklab, var(--brand) 18%, transparent),
+    0 4px 14px -8px rgba(0,0,0,0.06);
+}
+.ng-pillar::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in oklab, var(--brand) 90%, white),
+    transparent);
+  opacity: .8;
+}
+.ng-pillar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 50% at 100% 0%,
+    color-mix(in oklab, var(--brand) 14%, transparent) 0%,
+    transparent 60%);
+  opacity: .9;
+  pointer-events: none;
+  z-index: 0;
+}
+.ng-pillar:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in oklab, var(--brand) 35%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.95) inset,
+    0 30px 60px -28px color-mix(in oklab, var(--brand) 40%, transparent),
+    0 10px 24px -12px rgba(0,0,0,0.10);
+}
+.ng-pillar > * { position: relative; z-index: 1; }
+.ng-pillar__num {
+  position: absolute;
+  top: 14px; right: 18px;
+  font-weight: 800;
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--brand) 28%, transparent),
+    color-mix(in oklab, var(--brand) 8%, transparent));
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  z-index: 1;
+}
+.ng-pillar__icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  color: #fff;
+  background:
+    radial-gradient(120% 120% at 25% 20%,
+      color-mix(in oklab, var(--brand) 95%, white 5%) 0%,
+      color-mix(in oklab, var(--brand) 70%, oklch(0.62 0.19 230) 30%) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    0 10px 22px -10px color-mix(in oklab, var(--brand) 60%, transparent);
+}
+/* static ring removed for less visual noise */
+.ng-pillar__kicker {
+  display: inline-block;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--brand) 10%, transparent);
+  color: var(--brand);
+  border: 1px solid color-mix(in oklab, var(--brand) 20%, transparent);
+}
+/* Icone pillar: statiche, micro-fade su hover. Stile identico per 01/02/03 */
+.ng-ic-dumb,
+.ng-ic-wave2,
+.ng-ic-sun2 {
+  transition: transform .18s ease;
+}
+.ng-pillar:hover .ng-ic-dumb,
+.ng-pillar:hover .ng-ic-wave2,
+.ng-pillar:hover .ng-ic-sun2 {
+  transform: scale(1.05);
+}
+
+/* ===================================================================
+   NEXT-GEN Hero Stats Panel
+   =================================================================== */
+.ng-stats {
+  position: relative;
+  isolation: isolate;
+  border-radius: 12px;
+  padding: 16px 14px;
+  background: color-mix(in oklab, white 3%, transparent);
+  border: 1px solid color-mix(in oklab, white 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+  backdrop-filter: blur(2px);
+  overflow: hidden;
+}
+@media (min-width: 640px) {
+  .ng-stats { padding: 20px 24px; }
+}
+.ng-stats::before {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in oklab, var(--brand) 55%, transparent),
+    transparent);
+  opacity: .55;
+}
+.ng-stats > * { position: relative; z-index: 1; }
+.ng-stats__divider {
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent,
+    color-mix(in oklab, var(--brand) 60%, transparent),
+    transparent);
+}
+.ng-stats__dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--brand) 80%, transparent);
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: ng-stats-dot 2.4s ease-in-out infinite;
+}
+@keyframes ng-stats-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .45; transform: scale(0.85); }
+}
+
+/* ===================================================================
+   NEXT-GEN Flaws panel — chiaro, trasparente, < 300ms scan
+   =================================================================== */
+.ng-flaws {
+  position: relative;
+  isolation: isolate;
+  border-radius: 14px;
+  padding: 18px 18px 16px;
+  background: color-mix(in oklab, var(--ink) 3%, transparent);
+  border: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 70%, transparent),
+    0 8px 24px -18px color-mix(in oklab, var(--ink) 35%, transparent);
+  backdrop-filter: blur(3px);
+  overflow: hidden;
+}
+.ng-flaws::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 60% at 0% 0%, color-mix(in oklab, var(--destructive) 7%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in oklab, white 50%, transparent), transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+.ng-flaws::after {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    color-mix(in oklab, var(--destructive) 55%, transparent),
+    transparent);
+  opacity: .7;
+}
+.ng-flaws__head { margin-bottom: 12px; }
+.ng-flaws__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--destructive) 25%, transparent);
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+.ng-flaws__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px 18px;
+}
+@media (min-width: 640px) {
+  .ng-flaws__grid { grid-template-columns: 1fr 1fr; }
+}
+.ng-flaw {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in oklab, white 55%, transparent);
+  border: 1px solid color-mix(in oklab, var(--ink) 7%, transparent);
+  transition: transform .25s cubic-bezier(.2,.9,.3,1.2), border-color .2s, background .2s;
+}
+.ng-flaw:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--destructive) 30%, transparent);
+  background: color-mix(in oklab, white 75%, transparent);
+}
+.ng-flaw__icon {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--destructive) 14%, transparent);
+  color: var(--destructive);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--destructive) 30%, transparent);
+}
+.ng-flaw__body { display: flex; flex-direction: column; line-height: 1.25; }
+.ng-flaw__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.ng-flaw__sub {
+  margin-top: 1px;
+  font-size: 0.78rem;
+  color: color-mix(in oklab, var(--ink) 60%, transparent);
+  font-weight: 500;
+}
+
+
+/* ===================================================================
+   ngFade — micro-fade riutilizzabile (.15s)
+   =================================================================== */
+@keyframes ngFade {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===================================================================
+   ng-choice — card scelta (Portatore step) hover minimo, no scanline
+   =================================================================== */
+.ng-choice {
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--ink) 4%, transparent);
+}
+.ng-choice:hover {
+  box-shadow: 0 4px 14px -8px color-mix(in oklab, var(--brand) 28%, transparent);
+}
+.ng-choice--active {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--brand) 35%, transparent),
+    0 6px 18px -10px color-mix(in oklab, var(--brand) 30%, transparent);
+}
+.ng-choice__icon {
+  transition: transform .15s ease-out, background-color .15s ease-out, color .15s ease-out;
+}
+.ng-choice:hover .ng-choice__icon { transform: scale(1.04); }
+
+/* ===================================================================
+   Hero eyebrow — next-gen mobile typography
+   =================================================================== */
+.ng-hero-eyebrow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+.ng-hero-eyebrow__line {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: color-mix(in oklab, white 70%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+.ng-hero-eyebrow__line--accent {
+  color: var(--brand);
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+@media (min-width: 768px) {
+  .ng-hero-eyebrow { flex-direction: row; gap: 8px; align-items: baseline; }
+  .ng-hero-eyebrow__line { font-size: 0.78rem; }
+}
+
+/* ===================================================================
+   Error pill — patch/protesi (X rossa next-gen)
+   =================================================================== */
+.ng-error-pill {
+  background:
+    linear-gradient(135deg,
+      color-mix(in oklab, oklch(0.6 0.22 27) 14%, transparent) 0%,
+      color-mix(in oklab, oklch(0.6 0.22 27) 6%, transparent) 100%);
+  border: 1px solid color-mix(in oklab, oklch(0.6 0.22 27) 35%, transparent);
+  backdrop-filter: blur(4px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
+    0 6px 18px -10px color-mix(in oklab, oklch(0.6 0.22 27) 40%, transparent);
+}
+.ng-error-pill__icon {
+  background: linear-gradient(135deg, oklch(0.6 0.22 27) 0%, oklch(0.5 0.2 22) 100%);
+  color: white;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 30%, transparent),
+    0 4px 12px -4px color-mix(in oklab, oklch(0.6 0.22 27) 60%, transparent);
+}
+
+/* ===================================================================
+   Header CTA — next-gen visibile (orange-amber gradient)
+   =================================================================== */
+.ng-header-cta {
+  position: relative;
+  isolation: isolate;
+  color: white;
+  background: linear-gradient(135deg,
+    oklch(0.72 0.18 45) 0%,
+    oklch(0.62 0.2 30) 100%);
+  border: 1px solid color-mix(in oklab, oklch(0.7 0.18 40) 60%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 30%, transparent),
+    0 6px 16px -6px color-mix(in oklab, oklch(0.65 0.2 35) 55%, transparent);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.ng-header-cta:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 40%, transparent),
+    0 10px 22px -6px color-mix(in oklab, oklch(0.65 0.2 35) 65%, transparent);
+}
+.ng-header-cta:active { transform: translateY(1px) scale(0.98); }
+
+/* ===================================================================
+   ng-urgenza — opzioni urgenza con micro-interazioni
+   =================================================================== */
+.ng-urgenza {
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent);
+}
+.ng-urgenza:hover {
+  background: color-mix(in oklab, var(--brand) 4%, white);
+}
+.ng-urgenza--active {
+  box-shadow: 0 4px 14px -6px color-mix(in oklab, var(--brand) 35%, transparent);
+}
+
+/* ── Diretta live: lo spettatore vede tutto in tempo reale ma non può interagire ── */
+.live-viewer button,
+.live-viewer input,
+.live-viewer textarea,
+.live-viewer select,
+.live-viewer a,
+.live-viewer label {
+  pointer-events: none !important;
+}
+.live-viewer input,
+.live-viewer textarea {
+  user-select: none;
+}
+/*  ── ⚠️ …TRANNE I COMANDI CHE DEVONO RESTARE VIVI ────────────────────────
+    Questa regola spegne la pagina di chi sta guardando, ed è giusta: lo
+    spettatore non deve poter toccare il preventivo che gli stai mostrando.
+    Ma da quando il preventivo può essere SUO, sulla stessa pagina ci sono due
+    comandi che non possono spegnersi mai:
+     · «Riprendi tu», con cui il cliente si riprende la penna del proprio
+       preventivo (è la regola del committente: può sempre riprendersela);
+     · la plancia del gruppo, con cui il consulente — che mentre guarda
+       lavorare un cliente è anch'egli uno spettatore — restituisce la penna.
+    Senza questa eccezione, chi prende la penna la tiene per sempre: nessuno
+    dei due ha più un pulsante da premere. */
+.live-viewer [data-hg-sempre],
+.live-viewer [data-hg-sempre] button,
+.live-viewer [data-hg-sempre] a,
+.live-viewer [data-hg-sempre] input,
+.live-viewer [data-hg-sempre] label {
+  pointer-events: auto !important;
+}
+
+/* ── Stampa / PDF: mantiene il design scuro, nasconde i controlli, impagina pulito ── */
+@media print {
+  @page { size: A4; margin: 10mm; }
+  html, body {
+    background: #081634 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\:hidden, header, .no-print { display: none !important; }
+  .bg-blueprint { background: #081634 !important; }
+
+  /* niente altezze minime che generano pagine mezze vuote */
+  .min-h-screen { min-height: 0 !important; }
+  .bg-blueprint { min-height: 0 !important; }
+  main { max-width: 100% !important; padding: 0 !important; margin: 0 auto !important; }
+  main > * { margin-left: 0 !important; margin-right: 0 !important; }
+
+  /* le SEZIONI grandi possono scorrere tra le pagine (evita gap enormi),
+     solo i box piccoli restano interi */
+  section, .rounded-3xl, .rounded-2xl { break-inside: auto !important; page-break-inside: auto !important; }
+  .rounded-lg, .rounded-xl, dl > * , .grid > * { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2 { break-after: avoid; }
+
+  /* compattazione verticale per far stare più contenuto per pagina */
+  .py-8 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+  .py-12, .py-14 { padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; }
+  .mb-8, .mb-6 { margin-bottom: 0.85rem !important; }
+  .space-y-4 > * + * { margin-top: 0.6rem !important; }
+
+  .blur-3xl { display: none !important; }        /* i bagliori sfocati stampano male */
+  * { box-shadow: none !important; }
+  a[href]::after { content: none !important; }
+}
+
+/* ── BARRA DEL TOTALE (mobile) ───────────────────────────────────────────────
+   Il prezzo "scatta" quando cambia: è il segnale che la scelta appena fatta ha
+   avuto un effetto sul preventivo. Micro-animazione, non un effetto vistoso. */
+@keyframes hg-price-pop {
+  0%   { transform: translateY(4px) scale(0.94); opacity: 0.35; }
+  60%  { transform: translateY(0)   scale(1.04); opacity: 1; }
+  100% { transform: translateY(0)   scale(1); }
+}
+.hg-price-pop { animation: hg-price-pop .34s cubic-bezier(.2,.8,.25,1) both; display: inline-block; }
+
+/* Riflesso lento sul pulsante: attira l'occhio senza lampeggiare. */
+@keyframes hg-cta-sweep {
+  0%   { transform: translateX(-140%); }
+  55%  { transform: translateX(140%); }
+  100% { transform: translateX(140%); }
+}
+.hg-cta-glow::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 35%, rgba(255,255,255,.28) 50%, transparent 65%);
+  animation: hg-cta-sweep 3.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hg-price-pop { animation: none; }
+  .hg-cta-glow::after { animation: none; display: none; }
+}
+
+/* ── APERTURA DEL PREVENTIVO ─────────────────────────────────────────────────
+   Comparsa scalata degli elementi: guida l'occhio dall'alto verso il basso una
+   volta sola, all'apertura. Nessun ciclo continuo che distrae mentre si legge. */
+@keyframes hg-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hg-rise { animation: hg-rise .5s cubic-bezier(.22,.8,.28,1) both; }
+
+/* Lo sfondo "respira": movimento lentissimo, percepito ma mai notato. */
+@keyframes hg-aurora {
+  0%, 100% { transform: translate(-50%, 0) scale(1);    opacity: .75; }
+  50%      { transform: translate(-50%, 8px) scale(1.1); opacity: 1; }
+}
+@keyframes hg-aurora-slow {
+  0%, 100% { transform: translate(0, 0) scale(1);      opacity: .55; }
+  50%      { transform: translate(-14px, -10px) scale(1.15); opacity: .8; }
+}
+.hg-aurora      { animation: hg-aurora 9s ease-in-out infinite; }
+.hg-aurora-slow { animation: hg-aurora-slow 13s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hg-rise { animation: none; }
+  .hg-aurora, .hg-aurora-slow { animation: none; }
+}
+
+/* Nessuno scorrimento orizzontale: una scheda troppo larga non deve poter
+   spostare l'intera pagina, altrimenti nell'anteprima dispositivo il contenuto
+   esce dal telaio e sembra un difetto di impaginazione.
+   ⚠️ `clip` e NON `hidden`: `overflow: hidden` trasforma la pagina in un
+   contenitore di scorrimento e ANNULLA ogni `position: sticky` al suo interno —
+   era il motivo per cui il riepilogo non restava in alto sul desktop.
+   `clip` taglia allo stesso modo ma non crea il contenitore. */
+html, body { overflow-x: clip; }
+
+/* Indicatore "prezzo in aggiornamento": un anello che pulsa piano attorno
+   all'icona della barra del totale. Segnala che il numero è vivo senza
+   lampeggiare né spostare nulla. */
+@keyframes hg-pulse-ring {
+  0%   { transform: scale(1);    opacity: .9; }
+  70%  { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+.hg-pulse-ring { animation: hg-pulse-ring 2.4s cubic-bezier(.25,.6,.3,1) infinite; }
+@media (prefers-reduced-motion: reduce) { .hg-pulse-ring { animation: none; } }
+
+/* ── VETRO DELLA BARRA DEL TOTALE ────────────────────────────────────────────
+   Lama di luce che attraversa la scheda ogni 6 secondi: dà l'idea del vetro
+   senza lampeggiare. Ampia pausa fra un passaggio e l'altro, così non diventa
+   un elemento che chiede attenzione mentre si legge. */
+@keyframes hg-sheen {
+  0%   { transform: translateX(-120%) skewX(-14deg); opacity: 0; }
+  8%   { opacity: 1; }
+  38%  { transform: translateX(120%) skewX(-14deg); opacity: 0; }
+  100% { transform: translateX(120%) skewX(-14deg); opacity: 0; }
+}
+.hg-sheen {
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.10) 48%, rgba(147,197,253,.16) 52%, transparent 70%);
+  animation: hg-sheen 6s ease-in-out infinite;
+}
+/* bordo interno appena percepibile: stacca il vetro dal contenuto sottostante */
+.hg-glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 -10px 44px rgba(0,0,0,.5); }
+
+@media (prefers-reduced-motion: reduce) { .hg-sheen { animation: none; opacity: 0; } }
+
+/* ── ICONE CHE ENTRANO ──────────────────────────────────────────────────────
+   Un'icona che compare di colpo sembra un errore di caricamento; una che si
+   posa (scala + mezzo giro appena accennato) sembra parte del documento.
+   Durata breve e una sola volta: l'animazione accompagna, non intrattiene. */
+@keyframes hg-icon-in {
+  from { opacity: 0; transform: scale(.5) rotate(-25deg); }
+  60%  { opacity: 1; transform: scale(1.12) rotate(4deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0); }
+}
+.hg-icon-in { animation: hg-icon-in .5s cubic-bezier(.2,.9,.3,1.4) both; }
+
+@keyframes hg-pop {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.hg-pop { animation: hg-pop .45s cubic-bezier(.2,.7,.3,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hg-icon-in, .hg-pop { animation: none; opacity: 1; transform: none; }
+}
+
+/* ── CAMPO CHE CHIEDE DI ESSERE COMPILATO ───────────────────────────────────
+   Il bordo respira finché il campo è vuoto. Non lampeggia (fastidioso e legge
+   come errore): pulsa piano, come un cursore. Si spegne appena c'è del testo. */
+@keyframes hg-pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,.42); }
+  50%      { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+}
+.hg-pulse-border { animation: hg-pulse-border 2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .hg-pulse-border { animation: none; } }
+
+/* ── NIENTE PULSANTE "PLAY" SULLE CAMERE ────────────────────────────────────
+   iOS Safari disegna il proprio pulsante di riproduzione sopra ogni <video>
+   che non è ancora partito. Sulle camere della videochiamata è un elemento
+   estraneo — e cliccabile — che non deve esistere. */
+video::-webkit-media-controls,
+video::-webkit-media-controls-start-playback-button,
+video::-webkit-media-controls-panel,
+video::-webkit-media-controls-panel-container,
+video::-webkit-media-controls-enclosure,
+video::-webkit-media-controls-overlay-enclosure,
+video::-webkit-media-controls-play-button,
+video::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+/*  Su Chrome/Android il pulsante vive in una parte interna con un nome diverso,
+    e su iOS ricompare a ogni aggiornamento del sistema: si nasconde anche di lì.
+    Vale solo per i video SENZA comandi — quelli del presentatore, dove i comandi
+    servono davvero, restano intatti. */
+video:not([controls])::-webkit-media-controls,
+video:not([controls])::-internal-media-controls-overlay-cast-button {
+  display: none !important;
+}
+
+/* ── RIFLESSO CHE SCORRE ────────────────────────────────────────────────────
+   Una luce diagonale che attraversa il riquadro ogni tanto, come il riflesso su
+   una superficie lucida. Serve a due cose: dice che l'elemento è VIVO e quindi
+   toccabile, e riporta l'occhio lì senza lampeggiare né muovere nulla di
+   strutturale — un movimento lento, che non disturba chi sta leggendo.
+   Non si applica a chi ha chiesto meno animazioni. */
+@keyframes hg-shine {
+  0%   { transform: translateX(-140%) skewX(-18deg); }
+  55%  { transform: translateX(240%)  skewX(-18deg); }
+  100% { transform: translateX(240%)  skewX(-18deg); }
+}
+.hg-shine { position: relative; overflow: hidden; }
+.hg-shine::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.16) 45%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.16) 55%, transparent 100%);
+  animation: hg-shine 5.5s cubic-bezier(.25,.7,.3,1) infinite;
+}
+.hg-shine:hover::after { animation-duration: 2.4s; }
+@media (prefers-reduced-motion: reduce) { .hg-shine::after { animation: none; opacity: 0; } }
+
+/* ── BARRA CHE CRESCE ───────────────────────────────────────────────────────
+   Un rapporto si capisce meglio mentre si forma che guardando due rettangoli
+   già fermi: la larghezza finale la porta la variabile --w. */
+@keyframes hg-grow { from { width: 0; } to { width: var(--w, 100%); } }
+.hg-grow { width: var(--w, 100%); animation: hg-grow .9s cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .hg-grow { animation: none; } }
+
+/* conferma "copiato": entra da sotto, senza rimbalzi */
+@keyframes hg-copied { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* ============================================================
+   ⚠️ IL TASTO «PARTECIPA» DELLA SALA WEBINAR
+   Sta nell'intestazione, in mezzo a marchio, titolo e pastiglie: è l'unica
+   cosa CLICCABILE fra elementi che si leggono e basta, e senza qualcosa che si
+   muove si legge come un'altra etichetta. Lo shine è quello che lo separa —
+   non è decorazione, è la differenza fra un comando e una scritta.
+   ⚠️ Il riflesso passa OGNI 4,5 SECONDI e non di continuo: una luce che scorre
+   senza sosta accanto a un video diventa fastidiosa in trenta secondi, e la si
+   smette di vedere in un minuto. Il tempo morto è quello che la tiene viva.
+   ⚠️ E si ferma su `prefers-reduced-motion`: per chi soffre di vertigini un
+   riflesso ripetuto accanto a un video in movimento è esattamente ciò che
+   chiede di non vedere.
+   ============================================================ */
+@keyframes webinar-shine {
+  0%   { transform: translateX(-160%) skewX(-20deg); }
+  55%  { transform: translateX(320%) skewX(-20deg); }
+  100% { transform: translateX(320%) skewX(-20deg); }
+}
+.tasto-partecipa {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.tasto-partecipa::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  animation: webinar-shine 4.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+/*  Il contenuto sta SOPRA il riflesso: passandoci sotto, il testo sbiadirebbe
+    per un istante — e un'etichetta che sfarfalla si legge come un guasto. */
+.tasto-partecipa > * {
+  position: relative;
+  z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tasto-partecipa::after { animation: none; opacity: 0; }
+}
+
+/* ============================================================
+   LA SALA WEBINAR — LA SCALA
+   ============================================================
+   ⚠️ NASCE DA UN CONTEGGIO, non da un'idea di stile: in questa
+   schermata c'erano DICIANNOVE misure di carattere diverse —
+   9.5, 10, 10.5, 11, 12, 12.5, 13, 13.5, 14, 15, 16, 17, 19, 24,
+   28, 30, 36, 38, 40, 56 — nessuna scelta, solo il residuo di
+   venti modifiche fatte una alla volta. Il risultato è che niente
+   sembrava più importante di niente: la gerarchia si legge dai
+   SALTI fra le misure, e con diciannove misure i salti non ci
+   sono.
+   Qui ce ne sono SEI. Se una schermata ne chiede una settima, o
+   la settima serve davvero e va aggiunta qui — dove si vede — o
+   (quasi sempre) il problema è un altro.
+
+   ⚠️ E I COLORI SONO TRE, con un mestiere ciascuno:
+    · BLU     = si può premere. Uno solo, e solo per questo.
+    · ROSA    = è in diretta. Solo il bollino, niente altro.
+    · VERDE   = questa persona sta parlando adesso.
+   Tutto il resto è bianco a tre intensità. Il testo verde per
+   dire «è cominciata» era proprio l'errore: il verde qui vuol
+   dire una persona che parla, e usarlo per uno stato lo svuota.
+   ============================================================ */
+.sala-mega   { font-size: 40px; line-height: 1; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.sala-titolo { font-size: 20px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em; }
+.sala-testo  { font-size: 15px; line-height: 1.5; }
+.sala-piccolo{ font-size: 13px; line-height: 1.45; }
+.sala-etichetta { font-size: 11px; line-height: 1.2; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+/*  ⚠️ LA DIMENSIONE NON DECIDE IL CASO. Qui c'era anche `text-transform:
+    uppercase`, e sembrava comodo perche' quasi tutti gli usi sono pastiglie.
+    Poi e' servito lo stesso corpo per il NOME del relatore sulla targhetta, e
+    ne usciva «FILIPPO CONA»: piu' largo, e con l'aria di un'etichetta invece
+    che di una persona. Peggio, `normal-case` di Tailwind non lo vinceva —
+    stessa specificita', e questo foglio viene dopo — quindi il rimedio ovvio
+    non funzionava e non si capiva perche'.
+    Adesso questa classe dice solo QUANTO E' GRANDE. Il maiuscolo lo mette chi
+    lo vuole, dove lo vuole. */
+.sala-micro  { font-size: 10px; line-height: 1.2; font-weight: 600; }
+
+/*  Da tablet in su i due estremi crescono: il resto NO.
+    ⚠️ Far crescere anche il corpo del testo su schermi grandi è
+    l'errore che rende tutto «grande e vuoto»: un testo di quindici
+    punti si legge alla stessa distanza su un telefono e su un
+    monitor — quello che cambia è quanta roba ci sta intorno. */
+@media (min-width: 640px) {
+  .sala-mega   { font-size: 56px; }
+  .sala-titolo { font-size: 24px; }
+}
+
+/* ── ⚠️ TRE MATTONI, USATI OVUNQUE ────────────────────────────────────────
+ *  La prova capelli è cresciuta in fretta e ogni schermata si era portata la
+ *  sua idea di riquadro: sfumature diverse, bordi diversi, angoli diversi. Da
+ *  lontano non sembrava un programma solo, sembravano tre programmi.
+ *  Questi tre nomi sono l'unico vocabolario: `hg-vetro` per una superficie,
+ *  `hg-lucido` per il riflesso al passaggio, `hg-alone` per la luce sotto un
+ *  elemento importante. Chi aggiunge una schermata domani non deve inventarsi
+ *  niente — e soprattutto non deve inventarsi qualcosa di DIVERSO.
+ */
+.hg-vetro {
+  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.09);
+  backdrop-filter: blur(10px);
+}
+.hg-vetro-forte {
+  background: linear-gradient(180deg, rgba(255,255,255,0.085), rgba(255,255,255,0.03));
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(14px);
+}
+
+/*  ⚠️ Il riflesso PASSA SOLO AL PASSAGGIO DEL MOUSE, al contrario di
+ *   `hg-shine` che gira da solo. Sulle superfici grandi un riflesso perpetuo
+ *   è un cartellone; qui è una risposta al gesto, e su un telefono — dove
+ *   l'hover non esiste — semplicemente non succede niente, che è giusto. */
+.hg-lucido { position: relative; overflow: hidden; }
+.hg-lucido::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.10) 45%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.hg-lucido:hover::after { transform: translateX(100%); }
+
+/*  La luce sotto: si accende sotto l'elemento su cui si sta decidendo. */
+.hg-alone { box-shadow: 0 12px 40px -12px rgba(59, 130, 246, 0.45); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hg-lucido::after { transition: none; opacity: 0; }
+}
