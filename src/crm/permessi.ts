@@ -167,6 +167,17 @@ export type RuoloCRM = "admin" | "consulente" | "setter";
  *  regala permessi a chi non li ha mai avuti. */
 export const RUOLO_MINIMO: RuoloCRM = "setter";
 
+/** ── LA BASE DI CHI NON HA ANCORA UN LIVELLO SCRITTO: VEDE TUTTO ────────────
+ *  Richiesta del committente: «di default tutti i consulenti vedono tutto come
+ *  base, poi posso cambiare autorizzazione dal setting consulenti».
+ *  Vale SOLO quando il livello non c'è proprio (persona nuova, PIN appena
+ *  dato, riga nata col valore di serie della colonna). Un livello scritto si
+ *  rispetta com'è, e uno scritto ma illeggibile resta RUOLO_MINIMO: lì
+ *  qualcuno ha deciso qualcosa, e non sappiamo cosa.
+ *  Per restringere: Collaboratori → la persona → «Che cosa può fare» —
+ *  spegnere ADMIN la passa ai mestieri, oppure si spengono le singole voci. */
+export const RUOLO_DI_PARTENZA: RuoloCRM = "admin";
+
 /** I permessi. Il nome dice la COSA, non la pagina: le pagine si spostano, il
  *  mestiere no. `lead.propri` è la base che ha chiunque entri. */
 export type Permesso =
@@ -602,11 +613,11 @@ export function risolviAccesso(grezzo: unknown, datiConsulente?: unknown): Acces
 
   //  Il livello grezzo si guarda una volta sola e in tre modi: che livello è
   //  oggi, se era davvero scritto, e che cosa dava ieri quel nome se era un nome
-  //  vecchio. Il ripiego è RUOLO_MINIMO — un livello illeggibile non è il
-  //  permesso di niente.
+  //  vecchio. Un livello illeggibile vale RUOLO_MINIMO — non è il permesso di
+  //  niente; un livello che MANCA vale RUOLO_DI_PARTENZA (vedi la sua nota).
   const scritta = typeof p.ruolo === "string" ? p.ruolo : "";
   const tradotto = ruoloDaScritta(scritta);
-  const ruolo: RuoloCRM = tradotto ?? RUOLO_MINIMO;
+  const ruolo: RuoloCRM = tradotto ?? (scritta === "" ? RUOLO_DI_PARTENZA : RUOLO_MINIMO);
   const dichiarato = tradotto !== null;
 
   //  ── QUALE DELLE DUE REGOLE VALE SU QUESTA RIGA ─────────────────────────
@@ -636,7 +647,11 @@ export function risolviAccesso(grezzo: unknown, datiConsulente?: unknown): Acces
   //   `canChangePayment:false` rimasto in archivio continua a vietare gli
   //   incassi a chi il mestiere del consulente lo fa — senza che si veda da
   //   nessuna parte. Su tutte le altre righe comandano esattamente come prima.
-  if (!secondoMestieri) {
+  //  ⚠️ Né su chi il livello non lo ha scritto: lì le bandiere sono quasi
+  //   sempre il valore di serie della colonna (canDeleteLead:false…), non una
+  //   decisione, e toglierebbero tre cose alla base «vede tutto» senza che la
+  //   scheda le mostri. Per restringere si usano le deroghe, che si vedono.
+  if (!secondoMestieri && dichiarato) {
     for (const { campo, permesso } of DA_LEGACY) {
       const v = p[campo];
       if (typeof v === "boolean") {

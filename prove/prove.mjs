@@ -4645,6 +4645,20 @@ function proveDeiPermessi() {
   //   permesso: mandare qualcuno su una schermata vietata per «aiutarlo»
   //   sarebbe il guasto di partenza, al contrario.
   c("chi non ha niente non viene mandato in un vicolo cieco", "/CRM", paginaIniziale(() => false));
+
+  /*  ── LA BASE È «VEDE TUTTO», POI SI RESTRINGE DAI COLLABORATORI ─────────
+      Richiesta del committente: chi non ha ancora un livello scritto parte da
+      tutto. Un livello scritto, o scritto male, non cambia. */
+  const { risolviAccesso } = PRM;
+  const tutti = TUTTI_I_PERMESSI.length;
+  c("senza livello vede tutto", tutti, risolviAccesso(undefined).elenco.length);
+  c("anche la riga di serie della colonna", tutti,
+    risolviAccesso({ canChangeStatus: true, canDeleteLead: false, canAddLead: false, canChangePayment: false }).elenco.length);
+  c("e le impostazioni comprese", true, risolviAccesso({}).puo("impostazioni"));
+  c("un setter scritto resta setter", "setter", risolviAccesso({ ruolo: "setter" }).ruolo);
+  c("un livello illeggibile resta il minimo", "setter", risolviAccesso({ ruolo: "boh" }).ruolo);
+  c("una voce spenta a mano si spegne anche sulla base", false,
+    risolviAccesso({ extra: { impostazioni: false } }).puo("impostazioni"));
 }
 
 /** ── OGNI STATO, OGNI MESSAGGIO: IL GIRO COMPLETO ─────────────────────────
