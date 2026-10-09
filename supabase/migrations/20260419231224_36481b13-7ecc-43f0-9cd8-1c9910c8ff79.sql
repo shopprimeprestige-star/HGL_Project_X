@@ -1,0 +1,1 @@
+ALTER TABLE public.tracking_config ADD COLUMN IF NOT EXISTS ads_history_start DATE;

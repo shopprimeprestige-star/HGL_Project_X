@@ -1,0 +1,84 @@
+# Pubblica il sito su Cloudflare Workers (worker «hgl-webapp») a ogni push su
+# main, oppure a mano da Actions → «Pubblica su Cloudflare» → Run workflow.
+#
+# Usa `npm run pubblica` (non `wrangler deploy` secco): tiene online i pezzi
+# delle versioni precedenti — vedi DEPLOY.md. L'archivio `.storico-assets`
+# passa da una pubblicazione all'altra nella cache di GitHub.
+#
+# Secrets richiesti (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN       token con il modello «Edit Cloudflare Workers»
+#   CLOUDFLARE_ACCOUNT_ID      Cloudflare → Workers & Pages → Account ID
+#   SUPABASE_SERVICE_ROLE_KEY  Supabase → Project Settings → API → service_role
+# Facoltativi: CRM_ADMIN_EMAIL, CRM_MAGIC_TOKEN, OPENROUTER_API_KEY,
+#   RESEND_API_KEY, SUMUP_API_KEY, SUMUP_MERCHANT_CODE
+name: Pubblica su Cloudflare
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pubblica
+  cancel-in-progress: false
+
+env:
+  SUPABASE_URL: https://jrezhxbuetpfhvsrkrwo.supabase.co
+  # La chiave anon è pubblica: finisce comunque dentro il sito.
+  ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyZXpoeGJ1ZXRwZmh2c3JrcndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1Mzk1NTQsImV4cCI6MjEwNzExNTU1NH0.nsDm_WGid2fSPdtqtwx8bGH3HKXl2iCVmAUVBUTnNC0
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_SUPABASE_URL: https://jrezhxbuetpfhvsrkrwo.supabase.co
+      VITE_SUPABASE_PROJECT_ID: jrezhxbuetpfhvsrkrwo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tipi (vite build non li controlla)
+        run: npx tsc --noEmit
+
+      - name: Archivio dei pezzi già pubblicati
+        uses: actions/cache@v4
+        with:
+          path: .storico-assets
+          key: storico-assets-${{ github.run_id }}
+          restore-keys: storico-assets-
+
+      - name: Costruisci e pubblica
+        env:
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ env.ANON_KEY }}
+        run: npm run pubblica
+
+      - name: Variabili del worker
+        env:
+          CRM_ADMIN_EMAIL: ${{ secrets.CRM_ADMIN_EMAIL }}
+          CRM_MAGIC_TOKEN: ${{ secrets.CRM_MAGIC_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
+          SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
+        run: |
+          node -e '
+            const e = process.env, out = {
+              SUPABASE_URL: e.SUPABASE_URL,
+              SUPABASE_PUBLISHABLE_KEY: e.ANON_KEY,
+              SUPABASE_ANON_KEY: e.ANON_KEY,
+              SUPABASE_SERVICE_ROLE_KEY: e.SUPABASE_SERVICE_ROLE_KEY,
+            };
+            for (const k of ["CRM_ADMIN_EMAIL","CRM_MAGIC_TOKEN","OPENROUTER_API_KEY","RESEND_API_KEY","SUMUP_API_KEY","SUMUP_MERCHANT_CODE"])
+              if (e[k]) out[k] = e[k];
+            require("fs").writeFileSync(process.env.RUNNER_TEMP + "/segreti.json", JSON.stringify(out));
+          '
+          npx wrangler secret bulk "$RUNNER_TEMP/segreti.json" --name hgl-webapp
+          rm -f "$RUNNER_TEMP/segreti.json"

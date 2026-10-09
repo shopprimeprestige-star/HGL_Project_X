@@ -1,0 +1,64 @@
+  {
+    chiave: "ricci_morbidi",
+    famiglia: "ricci",
+    nome: "Ricci morbidi",
+    descrizione: "Come nella foto IMG_3368, riprodotto sul nostro modello.",
+    inglese:
+      "Tapered sides and back, gradually shortening from medium-short length; medium length with natural volume on top, styled back and up; no distinct parting; naturally curly texture throughout, with a soft, brushed-up fringe.",
+  },
+  {
+    chiave: "sfumato_con_frangia",
+    famiglia: "sfumati",
+    nome: "Sfumato con frangia",
+    descrizione: "Come nella foto IMG_3385, riprodotto sul nostro modello.",
+    inglese:
+      "Mid-skin fade with a textured, voluminous top swept back and to the right, no discernible part, maintaining its natural wave, with a soft, falling fringe.",
+  },
+  {
+    chiave: "lungo_mosso_di_lato",
+    famiglia: "lunghi",
+    nome: "Lungo mosso di lato",
+    descrizione: "Come nella foto IMG_3390, riprodotto sul nostro modello.",
+    inglese:
+      "Sides and back are left long, cascading to the shoulders; top is medium-long with significant volume, styled back and to the sides with no distinct parting, featuring a naturally wavy, curly texture and a swept-back fringe.",
+  },
+  {
+    chiave: "ricci_sfumatura_netta",
+    famiglia: "ricci",
+    nome: "Ricci con sfumatura netta",
+    descrizione: "Come nella foto IMG_3392, riprodotto sul nostro modello.",
+    inglese:
+      "High skin fade at the sides and back, medium volume on top styled forward and up, no discernible parting, defined tight curls, with a textured curly fringe slightly obscuring the forehead.",
+  },
+  {
+    chiave: "mosso_alzato",
+    famiglia: "mossi",
+    nome: "Mosso alzato",
+    descrizione: "Come nella foto IMG_3395, riprodotto sul nostro modello.",
+    inglese:
+      "Mid-tapered sides and back, with medium-length, high-volume, swept-back top, no distinct parting, featuring a wet, curly texture and a softly curled fringe styled away from the face.",
+  },
+  {
+    chiave: "mosso_indietro",
+    famiglia: "mossi",
+    nome: "Mosso indietro",
+    descrizione: "Come nella foto IMG_3396, riprodotto sul nostro modello.",
+    inglese:
+      "Sides and back are left long, blended; top is medium length with high volume, swept back and to the right, parted on the left; hair is naturally wavy, with a long, swept-back fringe blending into the top.",
+  },
+  {
+    chiave: "mosso_in_avanti",
+    famiglia: "mossi",
+    nome: "Mosso in avanti",
+    descrizione: "Come nella foto IMG_3398, riprodotto sul nostro modello.",
+    inglese:
+      "Sides and back are tapered, blending into a full, voluminous top styled messily forward and to the sides, with no defined parting, featuring a wet-look, wavy texture, and a soft, full fringe that sweeps across the forehead.",
+  },
+  {
+    chiave: "mosso_con_volume",
+    famiglia: "mossi",
+    nome: "Mosso con volume",
+    descrizione: "Come nella foto IMG_3399, riprodotto sul nostro modello.",
+    inglese:
+      "Sides and back left long, blending into voluminous, medium-length curly hair on top, styled back and to the left without a distinct parting, showcasing natural texture and a soft, full fringe swept back.",
+  },

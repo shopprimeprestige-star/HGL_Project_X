@@ -1,0 +1,45 @@
+# ── ⚠️ I PEZZI DELL'APP SI TENGONO, E NON SI RICHIEDONO OGNI VOLTA ────────
+#  Segnalazione del committente: «su mobile dà errore, carica all'infinito e
+#  dice try again» (iPhone).
+#
+#  COSA SUCCEDEVA. Cloudflare serviva i file di /assets con
+#  `cache-control: public, max-age=0, must-revalidate`. Quel `max-age=0` non
+#  vuol dire «non tenerlo»: vuol dire «tienilo ma CHIEDIMI OGNI VOLTA se va
+#  ancora bene». Il CRM è fatto di 146 pezzi: ogni apertura erano 146 andate e
+#  ritorni al server prima di poter disegnare qualcosa. Su fibra non si nota;
+#  su un telefono in giro, dove ogni richiesta costa un paio di decimi di
+#  secondo e ogni tanto una si perde per strada, sono decine di secondi di
+#  attesa — e il pezzo che non arriva manda la schermata in caricamento
+#  infinito e poi sulla pagina d'errore con «Try again».
+#
+#  ⚠️ `immutable` QUI SI PUÒ, e non è una scommessa: il nome di questi file
+#   contiene l'impronta del loro contenuto (index-R2N_3R-o.js). Contenuto
+#   diverso = nome diverso = richiesta diversa. Un file con questo nome non
+#   cambierà mai, quindi richiederlo è tempo buttato per definizione.
+#  ⚠️ E LA PAGINA RESTA `no-cache` (la rotta radice lo dichiara a parte): è
+#   l'HTML a dire quali pezzi servono, e quello va sempre riletto. Altrimenti
+#   un telefono resterebbe sulla versione di ieri — l'errore opposto, e peggiore.
+#  ⚠️ Funziona INSIEME all'archivio dei pezzi pubblicati (.storico-assets, vedi
+#   strumenti/pubblica.mjs): il telefono che ha in mano un pezzo vecchio lo
+#   riusa senza chiedere, e quando ne chiede uno che non ha, quello c'è ancora.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# ── ⚠️ LE FOTO DEI TAGLI SI TENGONO IN CACHE ──────────────────────────────
+#  Cloudflare serve i file non versionati con `cache-control: no-cache`, e per
+#  questa pagina voleva dire riscaricare TRENTASEI fotografie — un megabyte e
+#  mezzo — a ogni singola apertura. Su un telefono in giro sono i sei secondi
+#  di attesa segnalati dal committente, con la griglia vuota nel frattempo.
+#
+#  ⚠️ NON «immutable», e non un anno: il nome del file non cambia quando si
+#   rigenera un taglio dal gestionale, quindi con una cache eterna chi l'ha
+#   già visto continuerebbe a vedere quello vecchio per sempre. Un giorno di
+#   validità più un mese di «usa quella che hai mentre ne scarichi una nuova»:
+#   istantaneo per chi torna, e comunque aggiornato entro il giorno dopo.
+/tagli/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=2592000
+
+#  ⚠️ NIENTE regola generica su *.jpg: le due regole si sommavano e l'header
+#   usciva scritto due volte («public, max-age=…, public, max-age=…»). Un
+#   browser lo digerisce, ma è il genere di sciatteria che poi confonde chi
+#   deve capire perché una cosa non si aggiorna.

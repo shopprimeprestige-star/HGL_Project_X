@@ -1,0 +1,160 @@
+  {
+    chiave: "sfumato_mosso_voluminoso",
+    famiglia: "mossi",
+    nome: "Sfumato mosso voluminoso",
+    descrizione: "Lati sfoltiti, sopra mosso alzato.",
+    inglese:
+      "The sides and back feature a medium taper that blends smoothly into the slightly longer top, creating a voluminous wavy texture styled upwards and slightly forward for an undone look. No defined parting or fringe is present.",
+  },
+  {
+    chiave: "sfumato_all_indietro",
+    famiglia: "classici",
+    nome: "Sfumato all'indietro",
+    descrizione: "Lati sfoltiti, sopra mosso portato indietro.",
+    inglese:
+      "The sides and back feature a clean tapered cut, gradually fading from short at the nape and ears to longer on top. The top hair, approximately 7cm long and wavy, is styled backward with significant volume and no defined parting or fringe, creating a sleek, mature look.",
+  },
+  {
+    chiave: "sfumato_laterale_lungo",
+    famiglia: "classici",
+    nome: "Sfumato Laterale Lungo",
+    descrizione: "Lati corti a forbice, sopra mosso portato di lato, con la frangia.",
+    inglese:
+      "The sides and back are scissor-cut short to a medium length, maintaining some weight. The top hair is approximately 10cm long with natural wavy texture, styled to the side with significant volume and a soft side part. The front forms a long, swept fringe.",
+  },
+  {
+    chiave: "sfumato_laterale_mosso",
+    famiglia: "sfumati",
+    nome: "Sfumato Laterale Mosso",
+    descrizione: "Lati sfumati, sopra mosso portato indietro.",
+    inglese:
+      "High fade on the sides and back, blending into approximately 10cm of wavy hair on top, styled back with significant volume; no defined parting or fringe. ",
+  },
+  {
+    chiave: "sfumato_textured_crop",
+    famiglia: "sfumati",
+    nome: "Sfumato textured crop",
+    descrizione: "Lati sfumati, sopra mosso portato in avanti, con la frangia.",
+    inglese:
+      "This haircut features a high skin fade on the sides and back, blending sharply into the longer top. The top hair is approximately 6cm long, styled forward with a natural, wavy texture creating a textured crop, and finished with a short, choppy fringe. No distinct parting is present.",
+  },
+  {
+    chiave: "sfumato_mosso",
+    famiglia: "sfumati",
+    nome: "Sfumato mosso",
+    descrizione: "Lati sfumati, sopra mosso portato in avanti, con la frangia.",
+    inglese:
+      "This is a high fade on the sides and back, blending into a medium-length, wavy top around 10cm, styled forward with a textured, messy finish. It features a short, choppy fringe and no defined parting.",
+  },
+  {
+    chiave: "sfumatura_alta_strutturata",
+    famiglia: "sfumati",
+    nome: "Sfumatura alta strutturata",
+    descrizione: "Lati sfumati, sopra liscio alzato.",
+    inglese:
+      "High skin fade on the sides and back, with the top hair kept at a medium length, styled upwards and slightly back for volume, maintaining a straight texture. No specific parting or fringe is present, emphasizing a clean transition from short sides to the longer top.",
+  },
+  {
+    chiave: "ricci_naturali_scalati",
+    famiglia: "ricci",
+    nome: "Ricci naturali scalati",
+    descrizione: "Lati sfoltiti, sopra riccio portato in avanti, con la frangia.",
+    inglese:
+      "The sides and back are tapered to blend with the natural curly texture, maintaining a fuller look around the ears and nape. The top is left medium-long at approximately 7cm, allowing the natural curls to fall forward as a short fringe, giving it a natural, voluminous appearance without any defined parting.",
+  },
+  {
+    chiave: "wavy_lunghezza_media",
+    famiglia: "mossi",
+    nome: "Wavy Lunghezza Media",
+    descrizione: "Lati corti a forbice, sopra mosso alzato, con la frangia.",
+    inglese:
+      "The sides and back are scissor-cut short, gradually blending into the top. The top hair is medium length, with significant volume and texture, styled upwards and slightly forward, creating a messy, natural look with no defined parting and a long, tousled fringe.",
+  },
+  {
+    chiave: "sfumato_riccio_corto",
+    famiglia: "ricci",
+    nome: "Sfumato riccio corto",
+    descrizione: "Lati sfumati, sopra riccio portato in avanti, con la frangia.",
+    inglese:
+      "This is a mid-fade on the sides and back, with the top hair being short at approximately 3.5 cm in length, maintaining its natural curly texture styled forward as a short fringe without any parting.",
+  },
+  {
+    chiave: "classico_pettinato_indietro",
+    famiglia: "classici",
+    nome: "Classico Pettinato Indietro",
+    descrizione: "Lati corti a forbice, sopra mosso portato indietro.",
+    inglese:
+      "The sides and back are scissor-cut short to a uniform length, transitioning into a medium top length of approximately 6cm, with wavy texture styled back for a sleek, voluminous look without a defined parting or fringe.",
+  },
+  {
+    chiave: "capelli_mossi_lunghi",
+    famiglia: "lunghi",
+    nome: "Capelli mossi lunghi",
+    descrizione: "Lati lunghi, sopra mosso portato di lato, con la frangia.",
+    inglese:
+      "The sides and back are left long, matching the top length which is around 15cm. The hair has a natural wavy texture, styled to fall to the sides and slightly back with no specific parting, creating a long fringe that blends with the rest of the hair.",
+  },
+  {
+    chiave: "capelli_lunghi_pettinati_all",
+    famiglia: "lunghi",
+    nome: "Capelli lunghi pettinati all'indietro",
+    descrizione: "Lati lunghi, sopra liscio portato indietro.",
+    inglese:
+      "The sides and back are kept long, blended to the top. The top hair is long, approximately 15cm, with straight texture, styled neatly backward with a soft side part, and no fringe.",
+  },
+  {
+    chiave: "capelli_mossi_naturali",
+    famiglia: "lunghi",
+    nome: "Capelli mossi naturali",
+    descrizione: "Lati lunghi, sopra mosso portato in avanti, con la frangia.",
+    inglese:
+      "The sides and back are kept long, styled down and slightly tucked behind the ears. The top hair is long, wavy, and has significant volume, styled forward to create a long fringe that gently covers the forehead, with no distinct parting.",
+  },
+  {
+    chiave: "riccio_naturale",
+    famiglia: "ricci",
+    nome: "Riccio Naturale",
+    descrizione: "Lati corti a forbice, sopra riccio che cade, con la frangia.",
+    inglese:
+      "The sides and back are scissor-cut short, maintaining natural curly volume without a fade. The top hair is medium length, approximately 6cm, with natural curly texture styled down. There is no defined parting, and a long fringe blends into the overall style.",
+  },
+  {
+    chiave: "sfumato_riccio_indietro",
+    famiglia: "ricci",
+    nome: "Sfumato Riccio Indietro",
+    descrizione: "Lati sfoltiti, sopra riccio portato indietro.",
+    inglese:
+      "This cut features tapered sides and back, leaving the natural curls longer around the nape. The top hair is approximately 10cm long, showcasing voluminous, shiny curls styled backward, with no distinct parting or fringe.",
+  },
+  {
+    chiave: "corto_mosso",
+    famiglia: "mossi",
+    nome: "Corto mosso",
+    descrizione: "Lati sfoltiti, sopra mosso portato in avanti, con la frangia.",
+    inglese:
+      "The sides and back feature a clean tapered cut, maintaining some length that blends smoothly into the top. The top hair is around 6 cm long with a natural wavy texture, styled forward and slightly tousled to create a casual, textured look with a short fringe that subtly touches the forehead.",
+  },
+  {
+    chiave: "wavy_con_frangia",
+    famiglia: "mossi",
+    nome: "Wavy con Frangia",
+    descrizione: "Lati corti a forbice, sopra mosso portato in avanti, con la frangia.",
+    inglese:
+      "The sides and back are scissor-cut short, leaving length around the ears and nape. The top hair is medium-length, wavy, and styled forward and down with a natural volume, framing the face with a long fringe, and no visible parting.",
+  },
+  {
+    chiave: "ricci_naturali",
+    famiglia: "mossi",
+    nome: "Ricci naturali",
+    descrizione: "Lati lunghi, sopra mosso portato in avanti.",
+    inglese:
+      "The sides and back are left long, seamlessly blending into the top. The top hair is medium length, approximately 10cm, styled forward with natural volume. The hair has a natural wavy texture, with no specific parting or fringe.",
+  },
+  {
+    chiave: "capelli_mossi_lunghi_2",
+    famiglia: "lunghi",
+    nome: "Capelli mossi lunghi",
+    descrizione: "Lati lunghi, sopra mosso alzato, con la frangia.",
+    inglese:
+      "The sides and back are kept long, styled back and slightly tucked behind the ears. The top hair is long, approximately 15cm, with significant volume due to its wavy texture, styled upwards and backwards. There is no defined part, and the long fringe blends into the overall length, creating a soft, natural flow.",
+  },
