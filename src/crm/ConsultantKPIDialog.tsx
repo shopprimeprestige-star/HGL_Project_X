@@ -1582,7 +1582,7 @@ function SezionePermessi({
           <span className="block">
             I permessi di {nome || "questa persona"} seguono ancora il vecchio livello{" "}
             <strong>{ETICHETTA_RUOLO[ruolo]}</strong>
-            {!dichiarato && " (che però non le ha mai assegnato nessuno: vale il più basso)"}.
+            {!dichiarato && " (che però non le ha mai assegnato nessuno: vale quello di partenza, cioè vede tutto)"}.
             Salvando qui passano ai <strong>mestieri accesi</strong> qui sotto, e da quel momento si
             cambiano accendendo e spegnendo quelle spunte.
           </span>
