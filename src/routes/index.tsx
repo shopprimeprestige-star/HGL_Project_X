@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SITO, datiStrutturatiAttivita, jsonLd } from "@/seo/regole";
 import React, { useEffect, useState } from "react";
 import {
   Sparkles,
@@ -66,6 +67,9 @@ function getCountdown() {
 export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
+    //  SEO: indirizzo canonico e scheda dell'attività (seo/regole.ts).
+    links: [{ rel: "canonical", href: `${SITO}/` }],
+    scripts: [{ type: "application/ld+json", children: jsonLd(datiStrutturatiAttivita(SITO)) }],
     meta: [
       { title: "Bio-Mimetic™ — Indistinguibile dalla cute" },
       {
