@@ -23,8 +23,7 @@ export const MARCHIO = "Hair Genius Labs";
 /** Pagine pubbliche fisse che vanno nella mappa del sito. */
 export const PAGINE_PUBBLICHE: readonly string[] = [
   "/",
-  //  "/blog" entra qui quando la pagina del blog esiste: un indirizzo che
-  //  risponde 404 nella mappa del sito è un errore per Google.
+  "/blog",
   "/shop",
   "/privacy-policy",
   "/cookie-policy",
@@ -197,4 +196,119 @@ export function datiStrutturatiAttivita(sito: string = SITO): object {
 /** Testo sicuro da mettere dentro <script type="application/ld+json">. */
 export function jsonLd(dati: object): string {
   return JSON.stringify(dati).replace(/</g, "\\u003c");
+}
+
+/** ── DAL TESTO DELL'ARTICOLO ALLA PAGINA ───────────────────────────────────
+ *  Gli articoli si scrivono in un Markdown ridotto: `## ` e `### ` per i
+ *  sottotitoli, righe che iniziano con `- ` o `1. ` per gli elenchi, `> ` per
+ *  una citazione, **grassetto**, *corsivo* e [testo](indirizzo).
+ *
+ *  ⚠️ PRIMA SI SCAPPA TUTTO, POI SI RICOSTRUISCE. Il testo arriva da AIOS e da
+ *   chi lo ritocca nel CRM: qualunque `<` diventa testo, quindi un articolo non
+ *   può mai portare uno script dentro il sito. I link accettano solo indirizzi
+ *   https, mailto, tel e percorsi del sito: niente `javascript:`. */
+function htmlSicuro(testo: string): string {
+  return testo.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function inLinea(riga: string): string {
+  let t = htmlSicuro(riga);
+  t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, testo: string, url: string) => {
+    const buono = /^(https:\/\/|mailto:|tel:|\/(?!\/))/.test(url);
+    if (!buono) return testo;
+    const esterno = url.startsWith("https://") && !url.startsWith(SITO);
+    return `<a href="${url}"${esterno ? ' rel="noopener" target="_blank"' : ""}>${testo}</a>`;
+  });
+  t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  t = t.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>");
+  return t;
+}
+
+export function markdownInHtml(md: string): string {
+  const righe = (md || "").replace(/\r\n?/g, "\n").split("\n");
+  const out: string[] = [];
+  let paragrafo: string[] = [];
+  let elenco: { tipo: "ul" | "ol"; voci: string[] } | null = null;
+  const chiudiParagrafo = () => {
+    if (paragrafo.length) out.push(`<p>${paragrafo.map(inLinea).join(" ")}</p>`);
+    paragrafo = [];
+  };
+  const chiudiElenco = () => {
+    if (elenco) out.push(`<${elenco.tipo}>${elenco.voci.map((v) => `<li>${inLinea(v)}</li>`).join("")}</${elenco.tipo}>`);
+    elenco = null;
+  };
+  for (const grezza of righe) {
+    const riga = grezza.trim();
+    let m: RegExpExecArray | null;
+    if (!riga) { chiudiParagrafo(); chiudiElenco(); continue; }
+    if ((m = /^(#{2,3})\s+(.+)$/.exec(riga))) {
+      chiudiParagrafo(); chiudiElenco();
+      const livello = m[1].length;
+      out.push(`<h${livello} id="${slugDaTitolo(m[2])}">${inLinea(m[2])}</h${livello}>`);
+      continue;
+    }
+    if ((m = /^[-*]\s+(.+)$/.exec(riga)) || (m = /^\d+[.)]\s+(.+)$/.exec(riga))) {
+      chiudiParagrafo();
+      const tipo = /^\d/.test(riga) ? "ol" : "ul";
+      if (elenco && elenco.tipo !== tipo) chiudiElenco();
+      if (!elenco) elenco = { tipo, voci: [] };
+      elenco.voci.push(m[1]);
+      continue;
+    }
+    if ((m = /^>\s?(.*)$/.exec(riga))) {
+      chiudiParagrafo(); chiudiElenco();
+      out.push(`<blockquote><p>${inLinea(m[1])}</p></blockquote>`);
+      continue;
+    }
+    chiudiElenco();
+    //  Un "# " nel corpo non diventa un secondo H1: resta testo, e
+    //  controllaArticolo lo segnala prima della pubblicazione.
+    paragrafo.push(riga);
+  }
+  chiudiParagrafo(); chiudiElenco();
+  return out.join("\n");
+}
+
+/** ── LA RIGA DEL DATABASE ──────────────────────────────────────────────────
+ *  Com'è fatta una riga di `blog_articoli` (vedi la migrazione del blog). */
+export type RigaArticolo = {
+  id: string;
+  slug: string;
+  titolo: string;
+  descrizione: string;
+  corpo: string;
+  parola_chiave: string;
+  autore: string;
+  stato: "bozza" | "pubblicato" | "ritirato";
+  faq: Faq[] | null;
+  immagine: string | null;
+  fonte: string | null;
+  note: string | null;
+  creato_il: string;
+  aggiornato_il: string | null;
+  pubblicato_il: string | null;
+};
+
+export function articoloDaRiga(r: RigaArticolo): Articolo {
+  return {
+    slug: r.slug,
+    titolo: r.titolo,
+    descrizione: r.descrizione,
+    corpo: r.corpo,
+    parolaChiave: r.parola_chiave,
+    autore: r.autore,
+    pubblicato: r.pubblicato_il,
+    aggiornato: r.aggiornato_il,
+    immagine: r.immagine,
+    faq: Array.isArray(r.faq) ? r.faq : [],
+  };
+}
+
+/** Data leggibile in italiano, a partire dal solo giorno (niente fusi orari). */
+export function dataItaliana(valore: string | null | undefined): string {
+  const g = giornoIso(valore);
+  if (!g) return "";
+  const [a, m, d] = g.split("-").map(Number);
+  const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+  return `${d} ${MESI[m - 1]} ${a}`;
 }

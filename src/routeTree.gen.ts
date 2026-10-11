@@ -33,6 +33,7 @@ import { Route as CRMRouteImport } from './routes/CRM'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShopIndexRouteImport } from './routes/shop.index'
 import { Route as ConsulenteIndexRouteImport } from './routes/consulente.index'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as CRMIndexRouteImport } from './routes/CRM.index'
 import { Route as WebinarCodeRouteImport } from './routes/webinar_.$code'
 import { Route as VideochiamataCodeRouteImport } from './routes/videochiamata_.$code'
@@ -58,6 +59,7 @@ import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-histor
 import { Route as ConsulenteRegistratiRouteImport } from './routes/consulente.registrati'
 import { Route as ConsulenteLeadsRouteImport } from './routes/consulente.leads'
 import { Route as ConsulenteKpiRouteImport } from './routes/consulente.kpi'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as ApiWhatsappTemplatesRouteImport } from './routes/api.whatsapp-templates'
 import { Route as ApiWhatsappSendRouteImport } from './routes/api.whatsapp-send'
 import { Route as ApiWhatsappDiagnoseRouteImport } from './routes/api.whatsapp-diagnose'
@@ -89,6 +91,7 @@ import { Route as CRMContabilitaRouteImport } from './routes/CRM.contabilita'
 import { Route as CRMConsulentiRouteImport } from './routes/CRM.consulenti'
 import { Route as CRMCampagneTiktokRouteImport } from './routes/CRM.campagne-tiktok'
 import { Route as CRMCampagneMetaRouteImport } from './routes/CRM.campagne-meta'
+import { Route as CRMBlogRouteImport } from './routes/CRM.blog'
 import { Route as CRMAvanzamentoRouteImport } from './routes/CRM.avanzamento'
 import { Route as CRMAttribuzioneRouteImport } from './routes/CRM.attribuzione'
 import { Route as CRMAgendaRouteImport } from './routes/CRM.agenda'
@@ -168,6 +171,7 @@ import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
+import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
@@ -175,6 +179,7 @@ import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
 import { Route as ApiConsulenteLoginRouteImport } from './routes/api.consulente.login'
 import { Route as ApiConsulenteLeadsRouteImport } from './routes/api.consulente.leads'
 import { Route as ApiConsulenteAzioneRouteImport } from './routes/api.consulente.azione'
+import { Route as ApiBlogBozzaRouteImport } from './routes/api.blog.bozza'
 import { Route as CRMKpiManualeRouteImport } from './routes/CRM.kpi.manuale'
 import { Route as CRMInstallazioniOggiRouteImport } from './routes/CRM.installazioni.oggi'
 import { Route as ApiOgAnteprimaTipoCodiceRouteImport } from './routes/api.og.anteprima.$tipo.$codice'
@@ -298,6 +303,11 @@ const ConsulenteIndexRoute = ConsulenteIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ConsulenteRoute,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CRMIndexRoute = CRMIndexRouteImport.update({
   id: '/',
@@ -424,6 +434,11 @@ const ConsulenteKpiRoute = ConsulenteKpiRouteImport.update({
   id: '/kpi',
   path: '/kpi',
   getParentRoute: () => ConsulenteRoute,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWhatsappTemplatesRoute = ApiWhatsappTemplatesRouteImport.update({
   id: '/api/whatsapp-templates',
@@ -578,6 +593,11 @@ const CRMCampagneTiktokRoute = CRMCampagneTiktokRouteImport.update({
 const CRMCampagneMetaRoute = CRMCampagneMetaRouteImport.update({
   id: '/campagne-meta',
   path: '/campagne-meta',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMBlogRoute = CRMBlogRouteImport.update({
+  id: '/blog',
+  path: '/blog',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMAvanzamentoRoute = CRMAvanzamentoRouteImport.update({
@@ -985,6 +1005,11 @@ const ApiCrmConsulentePinRoute = ApiCrmConsulentePinRouteImport.update({
   path: '/api/crm/consulente-pin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmBlogRoute = ApiCrmBlogRouteImport.update({
+  id: '/api/crm/blog',
+  path: '/api/crm/blog',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmBackupRoute = ApiCrmBackupRouteImport.update({
   id: '/api/crm/backup',
   path: '/api/crm/backup',
@@ -1018,6 +1043,11 @@ const ApiConsulenteLeadsRoute = ApiConsulenteLeadsRouteImport.update({
 const ApiConsulenteAzioneRoute = ApiConsulenteAzioneRouteImport.update({
   id: '/api/consulente/azione',
   path: '/api/consulente/azione',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBlogBozzaRoute = ApiBlogBozzaRouteImport.update({
+  id: '/api/blog/bozza',
+  path: '/api/blog/bozza',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CRMKpiManualeRoute = CRMKpiManualeRouteImport.update({
@@ -1064,6 +1094,7 @@ export interface FileRoutesByFullPath {
   '/CRM/agenda': typeof CRMAgendaRoute
   '/CRM/attribuzione': typeof CRMAttribuzioneRoute
   '/CRM/avanzamento': typeof CRMAvanzamentoRoute
+  '/CRM/blog': typeof CRMBlogRoute
   '/CRM/campagne-meta': typeof CRMCampagneMetaRoute
   '/CRM/campagne-tiktok': typeof CRMCampagneTiktokRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
@@ -1095,6 +1126,7 @@ export interface FileRoutesByFullPath {
   '/api/whatsapp-diagnose': typeof ApiWhatsappDiagnoseRoute
   '/api/whatsapp-send': typeof ApiWhatsappSendRoute
   '/api/whatsapp-templates': typeof ApiWhatsappTemplatesRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
@@ -1120,10 +1152,12 @@ export interface FileRoutesByFullPath {
   '/videochiamata/$code': typeof VideochiamataCodeRoute
   '/webinar/$code': typeof WebinarCodeRoute
   '/CRM/': typeof CRMIndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/consulente/': typeof ConsulenteIndexRoute
   '/shop/': typeof ShopIndexRoute
   '/CRM/installazioni/oggi': typeof CRMInstallazioniOggiRoute
   '/CRM/kpi/manuale': typeof CRMKpiManualeRoute
+  '/api/blog/bozza': typeof ApiBlogBozzaRoute
   '/api/consulente/azione': typeof ApiConsulenteAzioneRoute
   '/api/consulente/leads': typeof ApiConsulenteLeadsRoute
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
@@ -1131,6 +1165,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
+  '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
@@ -1232,6 +1267,7 @@ export interface FileRoutesByTo {
   '/CRM/agenda': typeof CRMAgendaRoute
   '/CRM/attribuzione': typeof CRMAttribuzioneRoute
   '/CRM/avanzamento': typeof CRMAvanzamentoRoute
+  '/CRM/blog': typeof CRMBlogRoute
   '/CRM/campagne-meta': typeof CRMCampagneMetaRoute
   '/CRM/campagne-tiktok': typeof CRMCampagneTiktokRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
@@ -1261,6 +1297,7 @@ export interface FileRoutesByTo {
   '/api/whatsapp-diagnose': typeof ApiWhatsappDiagnoseRoute
   '/api/whatsapp-send': typeof ApiWhatsappSendRoute
   '/api/whatsapp-templates': typeof ApiWhatsappTemplatesRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
@@ -1286,10 +1323,12 @@ export interface FileRoutesByTo {
   '/videochiamata/$code': typeof VideochiamataCodeRoute
   '/webinar/$code': typeof WebinarCodeRoute
   '/CRM': typeof CRMIndexRoute
+  '/blog': typeof BlogIndexRoute
   '/consulente': typeof ConsulenteIndexRoute
   '/shop': typeof ShopIndexRoute
   '/CRM/installazioni/oggi': typeof CRMInstallazioniOggiRoute
   '/CRM/kpi/manuale': typeof CRMKpiManualeRoute
+  '/api/blog/bozza': typeof ApiBlogBozzaRoute
   '/api/consulente/azione': typeof ApiConsulenteAzioneRoute
   '/api/consulente/leads': typeof ApiConsulenteLeadsRoute
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
@@ -1297,6 +1336,7 @@ export interface FileRoutesByTo {
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
+  '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
@@ -1402,6 +1442,7 @@ export interface FileRoutesById {
   '/CRM/agenda': typeof CRMAgendaRoute
   '/CRM/attribuzione': typeof CRMAttribuzioneRoute
   '/CRM/avanzamento': typeof CRMAvanzamentoRoute
+  '/CRM/blog': typeof CRMBlogRoute
   '/CRM/campagne-meta': typeof CRMCampagneMetaRoute
   '/CRM/campagne-tiktok': typeof CRMCampagneTiktokRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
@@ -1433,6 +1474,7 @@ export interface FileRoutesById {
   '/api/whatsapp-diagnose': typeof ApiWhatsappDiagnoseRoute
   '/api/whatsapp-send': typeof ApiWhatsappSendRoute
   '/api/whatsapp-templates': typeof ApiWhatsappTemplatesRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
@@ -1458,10 +1500,12 @@ export interface FileRoutesById {
   '/videochiamata_/$code': typeof VideochiamataCodeRoute
   '/webinar_/$code': typeof WebinarCodeRoute
   '/CRM/': typeof CRMIndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/consulente/': typeof ConsulenteIndexRoute
   '/shop/': typeof ShopIndexRoute
   '/CRM/installazioni/oggi': typeof CRMInstallazioniOggiRoute
   '/CRM/kpi/manuale': typeof CRMKpiManualeRoute
+  '/api/blog/bozza': typeof ApiBlogBozzaRoute
   '/api/consulente/azione': typeof ApiConsulenteAzioneRoute
   '/api/consulente/leads': typeof ApiConsulenteLeadsRoute
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
@@ -1469,6 +1513,7 @@ export interface FileRoutesById {
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
+  '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
@@ -1575,6 +1620,7 @@ export interface FileRouteTypes {
     | '/CRM/agenda'
     | '/CRM/attribuzione'
     | '/CRM/avanzamento'
+    | '/CRM/blog'
     | '/CRM/campagne-meta'
     | '/CRM/campagne-tiktok'
     | '/CRM/consulenti'
@@ -1606,6 +1652,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp-diagnose'
     | '/api/whatsapp-send'
     | '/api/whatsapp-templates'
+    | '/blog/$slug'
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
@@ -1631,10 +1678,12 @@ export interface FileRouteTypes {
     | '/videochiamata/$code'
     | '/webinar/$code'
     | '/CRM/'
+    | '/blog/'
     | '/consulente/'
     | '/shop/'
     | '/CRM/installazioni/oggi'
     | '/CRM/kpi/manuale'
+    | '/api/blog/bozza'
     | '/api/consulente/azione'
     | '/api/consulente/leads'
     | '/api/consulente/login'
@@ -1642,6 +1691,7 @@ export interface FileRouteTypes {
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
     | '/api/crm/backup'
+    | '/api/crm/blog'
     | '/api/crm/consulente-pin'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
@@ -1743,6 +1793,7 @@ export interface FileRouteTypes {
     | '/CRM/agenda'
     | '/CRM/attribuzione'
     | '/CRM/avanzamento'
+    | '/CRM/blog'
     | '/CRM/campagne-meta'
     | '/CRM/campagne-tiktok'
     | '/CRM/consulenti'
@@ -1772,6 +1823,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp-diagnose'
     | '/api/whatsapp-send'
     | '/api/whatsapp-templates'
+    | '/blog/$slug'
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
@@ -1797,10 +1849,12 @@ export interface FileRouteTypes {
     | '/videochiamata/$code'
     | '/webinar/$code'
     | '/CRM'
+    | '/blog'
     | '/consulente'
     | '/shop'
     | '/CRM/installazioni/oggi'
     | '/CRM/kpi/manuale'
+    | '/api/blog/bozza'
     | '/api/consulente/azione'
     | '/api/consulente/leads'
     | '/api/consulente/login'
@@ -1808,6 +1862,7 @@ export interface FileRouteTypes {
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
     | '/api/crm/backup'
+    | '/api/crm/blog'
     | '/api/crm/consulente-pin'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
@@ -1912,6 +1967,7 @@ export interface FileRouteTypes {
     | '/CRM/agenda'
     | '/CRM/attribuzione'
     | '/CRM/avanzamento'
+    | '/CRM/blog'
     | '/CRM/campagne-meta'
     | '/CRM/campagne-tiktok'
     | '/CRM/consulenti'
@@ -1943,6 +1999,7 @@ export interface FileRouteTypes {
     | '/api/whatsapp-diagnose'
     | '/api/whatsapp-send'
     | '/api/whatsapp-templates'
+    | '/blog/$slug'
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
@@ -1968,10 +2025,12 @@ export interface FileRouteTypes {
     | '/videochiamata_/$code'
     | '/webinar_/$code'
     | '/CRM/'
+    | '/blog/'
     | '/consulente/'
     | '/shop/'
     | '/CRM/installazioni/oggi'
     | '/CRM/kpi/manuale'
+    | '/api/blog/bozza'
     | '/api/consulente/azione'
     | '/api/consulente/leads'
     | '/api/consulente/login'
@@ -1979,6 +2038,7 @@ export interface FileRouteTypes {
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
     | '/api/crm/backup'
+    | '/api/crm/blog'
     | '/api/crm/consulente-pin'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
@@ -2087,6 +2147,7 @@ export interface RootRouteChildren {
   ApiWhatsappDiagnoseRoute: typeof ApiWhatsappDiagnoseRoute
   ApiWhatsappSendRoute: typeof ApiWhatsappSendRoute
   ApiWhatsappTemplatesRoute: typeof ApiWhatsappTemplatesRoute
+  BlogSlugRoute: typeof BlogSlugRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
@@ -2106,6 +2167,8 @@ export interface RootRouteChildren {
   RegiaCodiceRoute: typeof RegiaCodiceRoute
   VideochiamataCodeRoute: typeof VideochiamataCodeRoute
   WebinarCodeRoute: typeof WebinarCodeRoute
+  BlogIndexRoute: typeof BlogIndexRoute
+  ApiBlogBozzaRoute: typeof ApiBlogBozzaRoute
   ApiConsulenteAzioneRoute: typeof ApiConsulenteAzioneRoute
   ApiConsulenteLeadsRoute: typeof ApiConsulenteLeadsRoute
   ApiConsulenteLoginRoute: typeof ApiConsulenteLoginRoute
@@ -2113,6 +2176,7 @@ export interface RootRouteChildren {
   ApiCrmAiRoute: typeof ApiCrmAiRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
+  ApiCrmBlogRoute: typeof ApiCrmBlogRoute
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
@@ -2357,6 +2421,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsulenteIndexRouteImport
       parentRoute: typeof ConsulenteRoute
     }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/CRM/': {
       id: '/CRM/'
       path: '/'
@@ -2531,6 +2602,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/consulente/kpi'
       preLoaderRoute: typeof ConsulenteKpiRouteImport
       parentRoute: typeof ConsulenteRoute
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/whatsapp-templates': {
       id: '/api/whatsapp-templates'
@@ -2747,6 +2825,13 @@ declare module '@tanstack/react-router' {
       path: '/campagne-meta'
       fullPath: '/CRM/campagne-meta'
       preLoaderRoute: typeof CRMCampagneMetaRouteImport
+      parentRoute: typeof CRMRoute
+    }
+    '/CRM/blog': {
+      id: '/CRM/blog'
+      path: '/blog'
+      fullPath: '/CRM/blog'
+      preLoaderRoute: typeof CRMBlogRouteImport
       parentRoute: typeof CRMRoute
     }
     '/CRM/avanzamento': {
@@ -3302,6 +3387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmConsulentePinRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/blog': {
+      id: '/api/crm/blog'
+      path: '/api/crm/blog'
+      fullPath: '/api/crm/blog'
+      preLoaderRoute: typeof ApiCrmBlogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/backup': {
       id: '/api/crm/backup'
       path: '/api/crm/backup'
@@ -3349,6 +3441,13 @@ declare module '@tanstack/react-router' {
       path: '/api/consulente/azione'
       fullPath: '/api/consulente/azione'
       preLoaderRoute: typeof ApiConsulenteAzioneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/blog/bozza': {
+      id: '/api/blog/bozza'
+      path: '/api/blog/bozza'
+      fullPath: '/api/blog/bozza'
+      preLoaderRoute: typeof ApiBlogBozzaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/CRM/kpi/manuale': {
@@ -3406,6 +3505,7 @@ interface CRMRouteChildren {
   CRMAgendaRoute: typeof CRMAgendaRoute
   CRMAttribuzioneRoute: typeof CRMAttribuzioneRoute
   CRMAvanzamentoRoute: typeof CRMAvanzamentoRoute
+  CRMBlogRoute: typeof CRMBlogRoute
   CRMCampagneMetaRoute: typeof CRMCampagneMetaRoute
   CRMCampagneTiktokRoute: typeof CRMCampagneTiktokRoute
   CRMConsulentiRoute: typeof CRMConsulentiRoute
@@ -3438,6 +3538,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMAgendaRoute: CRMAgendaRoute,
   CRMAttribuzioneRoute: CRMAttribuzioneRoute,
   CRMAvanzamentoRoute: CRMAvanzamentoRoute,
+  CRMBlogRoute: CRMBlogRoute,
   CRMCampagneMetaRoute: CRMCampagneMetaRoute,
   CRMCampagneTiktokRoute: CRMCampagneTiktokRoute,
   CRMConsulentiRoute: CRMConsulentiRoute,
@@ -3543,6 +3644,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappDiagnoseRoute: ApiWhatsappDiagnoseRoute,
   ApiWhatsappSendRoute: ApiWhatsappSendRoute,
   ApiWhatsappTemplatesRoute: ApiWhatsappTemplatesRoute,
+  BlogSlugRoute: BlogSlugRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
@@ -3562,6 +3664,8 @@ const rootRouteChildren: RootRouteChildren = {
   RegiaCodiceRoute: RegiaCodiceRoute,
   VideochiamataCodeRoute: VideochiamataCodeRoute,
   WebinarCodeRoute: WebinarCodeRoute,
+  BlogIndexRoute: BlogIndexRoute,
+  ApiBlogBozzaRoute: ApiBlogBozzaRoute,
   ApiConsulenteAzioneRoute: ApiConsulenteAzioneRoute,
   ApiConsulenteLeadsRoute: ApiConsulenteLeadsRoute,
   ApiConsulenteLoginRoute: ApiConsulenteLoginRoute,
@@ -3569,6 +3673,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmAiRoute: ApiCrmAiRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,
+  ApiCrmBlogRoute: ApiCrmBlogRoute,
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,

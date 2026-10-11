@@ -85,6 +85,7 @@ const INDIRIZZI_VERI: { via: string; nome: string }[] = [
   { via: "/CRM/campagne-meta", nome: "Campagne Meta" },
   { via: "/CRM/campagne-tiktok", nome: "Campagne TikTok" },
   { via: "/CRM/landing-page", nome: "Landing page" },
+  { via: "/CRM/blog", nome: "Blog" },
   { via: "/CRM/whatsapp", nome: "WhatsApp" },
   { via: "/CRM/preventivi", nome: "Preventivi" },
   { via: "/CRM/sede", nome: "Sede" },

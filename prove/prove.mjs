@@ -11626,7 +11626,7 @@ function proveDellaSeo() {
   c("sitemap: i caratteri speciali sono sicuri", true, xml.includes("/blog/a&amp;b"));
   c("sitemap: la data è il solo giorno", true, xml.includes("<lastmod>2026-10-11</lastmod>"));
   c("sitemap: un percorso relativo si scarta", false, xml.includes("fuori"));
-  c("sitemap: senza il blog finché non esiste", false, SEO.PAGINE_PUBBLICHE.includes("/blog"));
+  c("sitemap: il blog è fra le pagine pubbliche", true, SEO.PAGINE_PUBBLICHE.includes("/blog"));
 
   c("slug: accenti e apostrofi", "protesi-capillare-si-vede-e-un-problema", SEO.slugDaTitolo("Protesi capillare: si vede? È un problema"));
   c("slug: l'apostrofo separa", "l-attaccatura-naturale", SEO.slugDaTitolo("L'attaccatura naturale"));
@@ -11658,6 +11658,22 @@ function proveDellaSeo() {
   c("dati strutturati: solo le FAQ compilate", 1, dati[2].mainEntity.length);
   c("json-ld: nessun </script> possibile", false, SEO.jsonLd({ x: "</script>" }).includes("</script>"));
   c("attività: senza telefono finché i numeri non coincidono", false, "telephone" in SEO.datiStrutturatiAttivita());
+
+  /*  ⚠️ Il corpo degli articoli entra nella pagina come HTML: niente di quello
+      che scrive AIOS o il CRM deve poter diventare codice. */
+  const md = SEO.markdownInHtml;
+  c("markdown: sottotitolo con ancora", '<h2 id="come-funziona">Come funziona</h2>', md("## Come funziona"));
+  c("markdown: paragrafo con grassetto e corsivo", "<p>Una <strong>protesi</strong> e un <em>sistema</em></p>", md("Una **protesi** e un *sistema*"));
+  c("markdown: elenco puntato", "<ul><li>uno</li><li>due</li></ul>", md("- uno\n- due"));
+  c("markdown: elenco numerato", "<ol><li>primo</li><li>secondo</li></ol>", md("1. primo\n2. secondo"));
+  c("markdown: uno script resta testo", false, md("<script>alert(1)</script>").includes("<script"));
+  c("markdown: un attributo non si apre", false, md('<img src=x onerror="alert(1)">').includes("<img"));
+  c("markdown: link javascript scartato", false, md("[clic](javascript:alert(1))").includes("href"));
+  c("markdown: link interno tenuto", true, md("[prenota](/#prenota)").includes('<a href="/#prenota">'));
+  c("markdown: link esterno in nuova scheda", true, md("[fonte](https://esempio.it)").includes('rel="noopener"'));
+  c("markdown: le virgolette non escono dall'href", false, md('[x](https://a.it/"onmouseover=alert(1))').includes('"onmouseover'));
+  c("markdown: un # nel corpo non diventa H1", false, md("# Titolo").includes("<h1"));
+  c("data in italiano", "11 ottobre 2026", SEO.dataItaliana("2026-10-11T22:30:00Z"));
 }
 
 function proveDelQuandoPerStato() {
