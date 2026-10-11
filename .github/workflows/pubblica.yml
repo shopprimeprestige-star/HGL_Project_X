@@ -10,7 +10,8 @@
 #   CLOUDFLARE_ACCOUNT_ID      Cloudflare → Workers & Pages → Account ID
 #   SUPABASE_SERVICE_ROLE_KEY  Supabase → Project Settings → API → service_role
 # Facoltativi: CRM_ADMIN_EMAIL, CRM_MAGIC_TOKEN, OPENROUTER_API_KEY,
-#   RESEND_API_KEY, SUMUP_API_KEY, SUMUP_MERCHANT_CODE
+#   RESEND_API_KEY, SUMUP_API_KEY, SUMUP_MERCHANT_CODE,
+#   BLOG_AIOS_TOKEN (la chiave con cui AIOS carica le bozze del blog: senza, la porta resta chiusa)
 name: Pubblica su Cloudflare
 
 on:
@@ -68,6 +69,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
+          BLOG_AIOS_TOKEN: ${{ secrets.BLOG_AIOS_TOKEN }}
         run: |
           node -e '
             const e = process.env, out = {
@@ -76,7 +78,7 @@ jobs:
               SUPABASE_ANON_KEY: e.ANON_KEY,
               SUPABASE_SERVICE_ROLE_KEY: e.SUPABASE_SERVICE_ROLE_KEY,
             };
-            for (const k of ["CRM_ADMIN_EMAIL","CRM_MAGIC_TOKEN","OPENROUTER_API_KEY","RESEND_API_KEY","SUMUP_API_KEY","SUMUP_MERCHANT_CODE"])
+            for (const k of ["CRM_ADMIN_EMAIL","CRM_MAGIC_TOKEN","OPENROUTER_API_KEY","RESEND_API_KEY","SUMUP_API_KEY","SUMUP_MERCHANT_CODE","BLOG_AIOS_TOKEN"])
               if (e[k]) out[k] = e[k];
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/segreti.json", JSON.stringify(out));
           '
