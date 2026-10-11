@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_settings ADD COLUMN IF NOT EXISTS disabled_template_statuses text[] NOT NULL DEFAULT '{}'::text[];
