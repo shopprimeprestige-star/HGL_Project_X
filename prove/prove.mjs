@@ -11672,6 +11672,10 @@ function proveDellaSeo() {
   c("markdown: link interno tenuto", true, md("[prenota](/#prenota)").includes('<a href="/#prenota">'));
   c("markdown: link esterno in nuova scheda", true, md("[fonte](https://esempio.it)").includes('rel="noopener"'));
   c("markdown: le virgolette non escono dall'href", false, md('[x](https://a.it/"onmouseover=alert(1))').includes('"onmouseover'));
+  c("markdown: //altro sito scartato", false, md("[x](//altro.it)").includes("href"));
+  c("markdown: /\\altro sito scartato", false, md("[x](/\\altro.it)").includes("href"));
+  c("markdown: un dominio che imita il nostro è esterno", true, md("[x](https://hair-genius-hub.hair.altro.it/a)").includes('rel="noopener"'));
+  c("markdown: il nostro sito resta interno", false, md("[x](https://hair-genius-hub.hair/blog)").includes('rel="noopener"'));
   c("markdown: un # nel corpo non diventa H1", false, md("# Titolo").includes("<h1"));
   c("data in italiano", "11 ottobre 2026", SEO.dataItaliana("2026-10-11T22:30:00Z"));
 }

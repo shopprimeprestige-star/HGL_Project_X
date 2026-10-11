@@ -33,6 +33,7 @@ type Q = {
   update: (v: Record<string, unknown>) => Q;
   delete: () => Q;
   eq: (k: string, v: string) => Q;
+  is: (k: string, v: null) => Q;
   in: (k: string, v: string[]) => Q;
   order: (k: string, o: { ascending: boolean }) => Q;
   maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
@@ -75,6 +76,17 @@ export const Route = createFileRoute("/api/crm/blog")({
         const riga = prima as RigaArticolo | null;
         if (!riga) return json({ ok: false, reason: "Articolo non trovato: forse è stato cancellato." }, 404);
         const adesso = new Date().toISOString();
+        /*  ⚠️ SI SCRIVE SOLO SE L'ARTICOLO È ANCORA QUELLO CONTROLLATO. Fra la
+            lettura qui sopra e la scrittura qualcun altro può aver pubblicato o
+            corretto lo stesso articolo: senza questa condizione una correzione
+            non controllata finirebbe online, o si pubblicherebbe un testo
+            diverso da quello appena verificato. Se la riga è cambiata, non si
+            scrive niente e si chiede di ricaricare. */
+        const versione = (q: Q) => {
+          const conStato = q.eq("id", id).eq("stato", riga.stato);
+          return (riga.aggiornato_il ? conStato.eq("aggiornato_il", riga.aggiornato_il) : conStato.is("aggiornato_il", null)).select("id");
+        };
+        const cambiato = () => json({ ok: false, reason: "Qualcun altro ha appena cambiato questo articolo: ricarica e riprova." }, 409);
 
         switch (b.azione) {
           case "salva": {
@@ -92,18 +104,20 @@ export const Route = createFileRoute("/api/crm/blog")({
               const problemi = controllaArticolo(prova);
               if (problemi.length) return json({ ok: false, reason: "La correzione va online subito: prima sistema questi punti.", problemi }, 422);
             }
-            const { error } = await tabella().update({ ...modifica, aggiornato_il: adesso }).eq("id", id);
+            const { data: scritte, error } = await versione(tabella().update({ ...modifica, aggiornato_il: adesso }));
             if (error) return json({ ok: false, reason: error.message }, 500);
+            if (!(scritte as unknown[] | null)?.length) return cambiato();
             return json({ ok: true, problemi: controllaArticolo(prova) });
           }
 
           case "pubblica": {
             const problemi = controllaArticolo(articoloDaRiga(riga));
             if (problemi.length) return json({ ok: false, reason: "Non ancora pubblicabile.", problemi }, 422);
-            const { error } = await tabella()
-              .update({ stato: "pubblicato", pubblicato_il: riga.pubblicato_il || adesso, aggiornato_il: adesso })
-              .eq("id", id);
+            const { data: scritte, error } = await versione(
+              tabella().update({ stato: "pubblicato", pubblicato_il: riga.pubblicato_il || adesso, aggiornato_il: adesso }),
+            );
             if (error) return json({ ok: false, reason: error.message }, 500);
+            if (!(scritte as unknown[] | null)?.length) return cambiato();
             return json({ ok: true });
           }
 
@@ -117,8 +131,9 @@ export const Route = createFileRoute("/api/crm/blog")({
             //  Si cancella solo ciò che non è online: un articolo pubblicato
             //  prima si ritira, così nessuno lo toglie con un clic solo.
             if (riga.stato === "pubblicato") return json({ ok: false, reason: "Prima ritiralo, poi si può cancellare." }, 409);
-            const { error } = await tabella().delete().eq("id", id);
+            const { data: tolte, error } = await versione(tabella().delete());
             if (error) return json({ ok: false, reason: error.message }, 500);
+            if (!(tolte as unknown[] | null)?.length) return cambiato();
             return json({ ok: true });
           }
 

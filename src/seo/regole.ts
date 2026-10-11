@@ -214,9 +214,13 @@ function htmlSicuro(testo: string): string {
 function inLinea(riga: string): string {
   let t = htmlSicuro(riga);
   t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, testo: string, url: string) => {
-    const buono = /^(https:\/\/|mailto:|tel:|\/(?!\/))/.test(url);
+    //  ⚠️ «/\\altro.it» e «//altro.it» i browser li leggono come un altro sito:
+    //   un percorso interno non può iniziare così, e nessun link può contenere
+    //   barre rovesciate o spazi.
+    const buono = !/[\\\s]/.test(url) && /^(https:\/\/|mailto:|tel:|\/(?![/\\]))/.test(url);
     if (!buono) return testo;
-    const esterno = url.startsWith("https://") && !url.startsWith(SITO);
+    //  «https://hair-genius-hub.hair.altro.it» non è il nostro sito.
+    const esterno = url.startsWith("https://") && url !== SITO && !url.startsWith(`${SITO}/`);
     return `<a href="${url}"${esterno ? ' rel="noopener" target="_blank"' : ""}>${testo}</a>`;
   });
   t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
