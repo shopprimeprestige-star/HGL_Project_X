@@ -67,11 +67,12 @@ const VERSIONE = (() => {
   } catch { return "sconosciuta"; }
 })();
 import { statoDiretta } from "./sfu";
+import { intestazioniCRM } from "@/crm/AuthContext";
 
 async function chiedi(corpo: unknown) {
   const r = await fetch("/api/crm/webinar", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await intestazioniCRM({ "Content-Type": "application/json" }),
     body: JSON.stringify(corpo),
   });
   const j = await r.json().catch(() => ({}));
@@ -260,7 +261,7 @@ export function PopupTrasmissione({
     if (!aperto) return;
     void (async () => {
       try {
-        const r = await fetch("/api/crm/webinar?azione=elenco");
+        const r = await fetch("/api/crm/webinar?azione=elenco", { headers: await intestazioniCRM() });
         const j = await r.json();
         setSale(Array.isArray(j?.stanze) ? j.stanze : []);
       } catch {
@@ -722,7 +723,7 @@ export function ConsoleSala({
       //   l'interruttore resterebbe finto per la seconda volta.
       let conSimulcast = true;
       try {
-        const r = await fetch("/api/crm/webinar?azione=config");
+        const r = await fetch("/api/crm/webinar?azione=config", { headers: await intestazioniCRM() });
         const c = (await r.json()) as { simulcast?: boolean };
         if (r.ok && typeof c?.simulcast === "boolean") conSimulcast = c.simulcast;
       } catch { /* si resta come prima */ }

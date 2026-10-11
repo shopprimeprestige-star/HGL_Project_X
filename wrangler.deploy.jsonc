@@ -1,5 +1,5 @@
 {
-  "name": "hgl-webapp",
+  "name": "hair-genius",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "dist/server/server.js",

@@ -26,7 +26,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const DEPOSITO =
-  "https://jrezhxbuetpfhvsrkrwo.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
+  "https://izxvzyirjniukxkkedjp.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
 const NOSTRA = "https://hair-genius-hub.hair/api/og/anteprima/invito/_predefinita.jpg";
 
 export const Route = createFileRoute("/prova-anteprima/$caso")({

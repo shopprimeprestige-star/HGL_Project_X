@@ -1,3 +1,9 @@
+# ⚠️ NON LANCIARE (11/10/2026). Era per il progetto Supabase nuovo
+#  jrezhxbuetpfhvsrkrwo, che non si usa: il sito pubblica sul database «HGL TES»
+#  (izxvzyirjniukxkkedjp), creato a mano. Lanciata su quello rifarebbe da capo
+#  tutte le migrazioni su un database già pieno. Le tabelle nuove (es. il blog)
+#  si applicano a mano dal SQL Editor, una migrazione alla volta.
+#
 # Prepara il database Supabase nuovo (jrezhxbuetpfhvsrkrwo).
 # Si lancia a mano: Actions → «Database Supabase» → Run workflow.
 # Si può rilanciare: ogni passo salta quello che è già fatto.

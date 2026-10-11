@@ -1,4 +1,4 @@
-# Pubblica il sito su Cloudflare Workers (worker «hgl-webapp») a ogni push su
+# Pubblica il sito su Cloudflare Workers (worker «hair-genius», cioè hair-genius-hub.hair, database «HGL TES») a ogni push su
 # main, oppure a mano da Actions → «Pubblica su Cloudflare» → Run workflow.
 #
 # Usa `npm run pubblica` (non `wrangler deploy` secco): tiene online i pezzi
@@ -24,9 +24,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SUPABASE_URL: https://jrezhxbuetpfhvsrkrwo.supabase.co
+  SUPABASE_URL: https://izxvzyirjniukxkkedjp.supabase.co
   # La chiave anon è pubblica: finisce comunque dentro il sito.
-  ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyZXpoeGJ1ZXRwZmh2c3JrcndvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1Mzk1NTQsImV4cCI6MjEwNzExNTU1NH0.nsDm_WGid2fSPdtqtwx8bGH3HKXl2iCVmAUVBUTnNC0
+  ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6eHZ6eWlyam5pdWt4a2tlZGpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyOTY4NDMsImV4cCI6MjEwNjg3Mjg0M30.GFTkbav4yKr00uPf6vr09nOP_TLK3blzBpbNSp00DbQ
 
 jobs:
   pubblica:
@@ -35,9 +35,20 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      VITE_SUPABASE_URL: https://jrezhxbuetpfhvsrkrwo.supabase.co
-      VITE_SUPABASE_PROJECT_ID: jrezhxbuetpfhvsrkrwo
+      VITE_SUPABASE_URL: https://izxvzyirjniukxkkedjp.supabase.co
+      VITE_SUPABASE_PROJECT_ID: izxvzyirjniukxkkedjp
     steps:
+      #  ⚠️ PUBBLICA SUL SITO VERO (hair-genius-hub.hair). Senza queste chiavi
+      #   ci si ferma QUI, prima di toccarlo: l'ultimo passo scrive la chiave del
+      #   database nel worker, e una chiave vuota spegnerebbe il sito intero.
+      - name: Chiavi presenti
+        run: |
+          manca=""
+          for k in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SUPABASE_SERVICE_ROLE_KEY; do
+            [ -n "${!k}" ] || manca="$manca $k"
+          done
+          if [ -n "$manca" ]; then echo "::error::Mancano i segreti:$manca (Settings → Secrets and variables → Actions). Il sito non è stato toccato."; exit 1; fi
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -82,5 +93,5 @@ jobs:
               if (e[k]) out[k] = e[k];
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/segreti.json", JSON.stringify(out));
           '
-          npx wrangler secret bulk "$RUNNER_TEMP/segreti.json" --name hgl-webapp
+          npx wrangler secret bulk "$RUNNER_TEMP/segreti.json" --name hair-genius
           rm -f "$RUNNER_TEMP/segreti.json"

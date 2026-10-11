@@ -95,7 +95,7 @@ const D = "Invisible Derm Protocol. Una raccolta privata, da sfogliare.";
      quelli già mandati bisogna anche alzare questo numero di uno e rilasciare.
      Sono due cose diverse e conviene ricordarsele insieme. */
 const IMG =
-  "https://jrezhxbuetpfhvsrkrwo.supabase.co/storage/v1/object/public/anteprime/_contenuti.jpg?v=2";
+  "https://izxvzyirjniukxkkedjp.supabase.co/storage/v1/object/public/anteprime/_contenuti.jpg?v=2";
 
 export const Route = createFileRoute("/media/$codice")({
   head: () => ({

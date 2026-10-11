@@ -171,8 +171,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Setup listener BEFORE getSession (per Supabase best practice)
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      //  ⚠️ STESSA PERSONA = STESSO OGGETTO. Tornando sulla scheda del browser
+      //   Supabase rinnova la sessione (TOKEN_REFRESHED / SIGNED_IN) e consegna
+      //   un `user` nuovo ma identico: ogni effetto che dipende da `user` si
+      //   rimetteva a caricare dal database e cancellava quello che uno stava
+      //   scrivendo e non aveva ancora salvato (segnalato sulle chiavi
+      //   WhatsApp). Si cambia oggetto solo se cambia la persona o se i suoi
+      //   dati sono cambiati davvero (USER_UPDATED).
+      const prossimo = session?.user ?? null;
+      setUser((prima) =>
+        prima && prossimo && prima.id === prossimo.id && event !== "USER_UPDATED"
+          ? prima
+          : prossimo,
+      );
       // Caduta la sessione Supabase, il consulente collegato non ha più dati da
       // vedere: tenerlo scritto significherebbe mostrare il suo nome sopra
       // schermate vuote.

@@ -20,7 +20,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 
-const IMG = "https://jrezhxbuetpfhvsrkrwo.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
+const IMG = "https://izxvzyirjniukxkkedjp.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
 const T = "Prova anteprima A — Hair Genius Labs";
 const D = "Pagina di prova: se vedi l'immagine qui sopra, l'anteprima funziona.";
 
