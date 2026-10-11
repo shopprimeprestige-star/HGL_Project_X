@@ -13,7 +13,9 @@ import { Route as WebRouteImport } from './routes/web'
 import { Route as VideochiamataRouteImport } from './routes/videochiamata'
 import { Route as TerminiECondizioniRouteImport } from './routes/termini-e-condizioni'
 import { Route as SlideRouteImport } from './routes/slide'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShopRouteImport } from './routes/shop'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ProvaCapelliRouteImport } from './routes/prova-capelli'
 import { Route as ProvaAnteprimaBRouteImport } from './routes/prova-anteprima-b'
 import { Route as ProvaAnteprimaARouteImport } from './routes/prova-anteprima-a'
@@ -197,9 +199,19 @@ const SlideRoute = SlideRouteImport.update({
   path: '/slide',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopRoute = ShopRouteImport.update({
   id: '/shop',
   path: '/shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProvaCapelliRoute = ProvaCapelliRouteImport.update({
@@ -1041,7 +1053,9 @@ export interface FileRoutesByFullPath {
   '/prova-anteprima-a': typeof ProvaAnteprimaARoute
   '/prova-anteprima-b': typeof ProvaAnteprimaBRoute
   '/prova-capelli': typeof ProvaCapelliRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/slide': typeof SlideRoute
   '/termini-e-condizioni': typeof TerminiECondizioniRoute
   '/videochiamata': typeof VideochiamataRoute
@@ -1208,6 +1222,8 @@ export interface FileRoutesByTo {
   '/prova-anteprima-a': typeof ProvaAnteprimaARoute
   '/prova-anteprima-b': typeof ProvaAnteprimaBRoute
   '/prova-capelli': typeof ProvaCapelliRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/slide': typeof SlideRoute
   '/termini-e-condizioni': typeof TerminiECondizioniRoute
   '/videochiamata': typeof VideochiamataRoute
@@ -1375,7 +1391,9 @@ export interface FileRoutesById {
   '/prova-anteprima-a': typeof ProvaAnteprimaARoute
   '/prova-anteprima-b': typeof ProvaAnteprimaBRoute
   '/prova-capelli': typeof ProvaCapelliRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/slide': typeof SlideRoute
   '/termini-e-condizioni': typeof TerminiECondizioniRoute
   '/videochiamata': typeof VideochiamataRoute
@@ -1546,7 +1564,9 @@ export interface FileRouteTypes {
     | '/prova-anteprima-a'
     | '/prova-anteprima-b'
     | '/prova-capelli'
+    | '/robots.txt'
     | '/shop'
+    | '/sitemap.xml'
     | '/slide'
     | '/termini-e-condizioni'
     | '/videochiamata'
@@ -1713,6 +1733,8 @@ export interface FileRouteTypes {
     | '/prova-anteprima-a'
     | '/prova-anteprima-b'
     | '/prova-capelli'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/slide'
     | '/termini-e-condizioni'
     | '/videochiamata'
@@ -1879,7 +1901,9 @@ export interface FileRouteTypes {
     | '/prova-anteprima-a'
     | '/prova-anteprima-b'
     | '/prova-capelli'
+    | '/robots.txt'
     | '/shop'
+    | '/sitemap.xml'
     | '/slide'
     | '/termini-e-condizioni'
     | '/videochiamata'
@@ -2049,7 +2073,9 @@ export interface RootRouteChildren {
   ProvaAnteprimaARoute: typeof ProvaAnteprimaARoute
   ProvaAnteprimaBRoute: typeof ProvaAnteprimaBRoute
   ProvaCapelliRoute: typeof ProvaCapelliRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShopRoute: typeof ShopRouteWithChildren
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SlideRoute: typeof SlideRoute
   TerminiECondizioniRoute: typeof TerminiECondizioniRoute
   VideochiamataRoute: typeof VideochiamataRoute
@@ -2191,11 +2217,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SlideRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop': {
       id: '/shop'
       path: '/shop'
       fullPath: '/shop'
       preLoaderRoute: typeof ShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/prova-capelli': {
@@ -3489,7 +3529,9 @@ const rootRouteChildren: RootRouteChildren = {
   ProvaAnteprimaARoute: ProvaAnteprimaARoute,
   ProvaAnteprimaBRoute: ProvaAnteprimaBRoute,
   ProvaCapelliRoute: ProvaCapelliRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   ShopRoute: ShopRouteWithChildren,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SlideRoute: SlideRoute,
   TerminiECondizioniRoute: TerminiECondizioniRoute,
   VideochiamataRoute: VideochiamataRoute,
