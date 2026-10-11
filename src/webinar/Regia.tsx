@@ -16,6 +16,7 @@ import { Clock, Eye, EyeOff, Plus, Send, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatSala, ElencoPalco, type ComandiChat } from "./ChatSala";
 import type { InPalco, MessaggioChat, MessaggioProgrammato } from "./tipi";
+import { intestazioniCRM } from "@/crm/AuthContext";
 
 interface Sala {
   presenti: number;
@@ -174,7 +175,9 @@ export function Regia({
    *   a schermo si può solo ricopiare a mano. */
   const scaricaDiagnostica = async () => {
     try {
-      const r = await fetch(`/api/crm/webinar?azione=diagnostica&codice=${encodeURIComponent(codice)}`);
+      const r = await fetch(`/api/crm/webinar?azione=diagnostica&codice=${encodeURIComponent(codice)}`, {
+        headers: await intestazioniCRM(),
+      });
       const j = (await r.json()) as { diari?: { quando: string; apparecchio: string; codice: string; righe: RigaDiario[] }[] };
       if (!r.ok) throw new Error("la diagnostica non si legge");
       const diari = j.diari ?? [];
@@ -473,7 +476,8 @@ function NumeroWhatsapp() {
   const [salvo, setSalvo] = useState(false);
 
   useEffect(() => {
-    void fetch("/api/crm/webinar?azione=whatsapp")
+    void intestazioniCRM()
+      .then((headers) => fetch("/api/crm/webinar?azione=whatsapp", { headers }))
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => setNumero(String(j?.numero || "")))
       .catch(() => { /* resta vuoto: si può scrivere lo stesso */ })
@@ -485,7 +489,7 @@ function NumeroWhatsapp() {
     try {
       const r = await fetch("/api/crm/webinar", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await intestazioniCRM({ "Content-Type": "application/json" }),
         body: JSON.stringify({ azione: "whatsapp", codice: "-", numero }),
       });
       const j = (await r.json()) as { numero?: string };

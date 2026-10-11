@@ -57,7 +57,7 @@ import { chiaveInvitoDiLead } from "@/crm/invito";
 //  non arrivava mai e si finiva sul rimando, cioè di nuovo sul comportamento
 //  che stavamo togliendo. Il file sorgente resta in public/ come copia
 //  leggibile, ma quello servito è questo.
-const RIPIEGO = "https://jrezhxbuetpfhvsrkrwo.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
+const RIPIEGO = "https://izxvzyirjniukxkkedjp.supabase.co/storage/v1/object/public/anteprime/_predefinita.jpg";
 
 /** ⚠️ Le intestazioni stanno in un posto solo perché GET e HEAD DEVONO dire la
  *  stessa identica cosa. Due gestori che si contraddicono sul tipo del

@@ -20,6 +20,7 @@
  *   di scarto. È accettabile perché una slide si commenta per un minuto, non
  *   per due secondi — e in cambio la vedono tutti invece di nessuno.
  */
+import { intestazioniCRM } from "@/crm/AuthContext";
 
 /** Quello che il presentatore manda: l'ultimo valore di ogni evento, non la
  *  cronologia. Chi arriva a metà deve trovare lo stato ADESSO, non doverselo
@@ -63,11 +64,15 @@ export function pubblicaContenuti(evento: string, payload: unknown): void {
      *  La regola giusta è più semplice: si sceglie SU QUALE schermata lavorare
      *  (vedi le tre schermate della regia) e quello che si fa lì arriva a
      *  tutti, ciascuno impaginato per il proprio schermo. */
-    void fetch("/api/crm/webinar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ azione: "contenuti", codice: codiceSala, stato }),
-    }).catch(() => { /* al pacchetto dopo */ });
+    void intestazioniCRM({ "Content-Type": "application/json" })
+      .then((headers) =>
+        fetch("/api/crm/webinar", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ azione: "contenuti", codice: codiceSala, stato }),
+        }),
+      )
+      .catch(() => { /* al pacchetto dopo */ });
   }, 250);
 }
 

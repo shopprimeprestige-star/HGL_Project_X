@@ -729,6 +729,14 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         alias: "lp performance pagine funnel",
       },
       {
+        titolo: "Blog",
+        descrizione: "Articoli per Google: bozze di AIOS da leggere e pubblicare",
+        url: "/CRM/blog",
+        icon: FileText,
+        scheme: "performance",
+        alias: "blog articoli seo google bozze aios protesi patch",
+      },
+      {
         titolo: "Campagne Meta",
         descrizione: "Campagne Facebook e Instagram",
         url: "/CRM/campagne-meta",

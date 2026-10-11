@@ -2034,3 +2034,18 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
 @media (prefers-reduced-motion: reduce) {
   .hg-lucido::after { transition: none; opacity: 0; }
 }
+
+/* ── Testo degli articoli del blog (src/routes/blog.$slug.tsx) ─────────────
+   Il corpo arriva come HTML già ripulito da markdownInHtml: qui solo la
+   tipografia, leggibile anche da telefono. */
+.articolo-blog { font-size: 1.075rem; line-height: 1.75; color: var(--ink); }
+.articolo-blog > * + * { margin-top: 1.1em; }
+.articolo-blog h2 { margin-top: 2.2em; font-size: 1.6rem; line-height: 1.25; font-weight: 700; letter-spacing: -0.01em; scroll-margin-top: 5rem; }
+.articolo-blog h3 { margin-top: 1.8em; font-size: 1.25rem; line-height: 1.3; font-weight: 650; scroll-margin-top: 5rem; }
+.articolo-blog ul, .articolo-blog ol { padding-left: 1.4em; }
+.articolo-blog ul { list-style: disc; }
+.articolo-blog ol { list-style: decimal; }
+.articolo-blog li + li { margin-top: 0.4em; }
+.articolo-blog a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+.articolo-blog strong { font-weight: 650; }
+.articolo-blog blockquote { border-left: 3px solid var(--brand); padding-left: 1em; color: var(--ink-muted); font-style: italic; }

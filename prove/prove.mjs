@@ -429,6 +429,10 @@ const MODULI = [
   //   a cifra fissa. Vedi proveDellaGaranzia.
   "shop/garanzia-codici",
   "shop/promo-garanzia",
+  //  ⚠️ robots.txt, sitemap.xml e il controllo degli articoli del blog prima
+  //   della pubblicazione (niente prezzi, titolo e descrizione giusti). Vedi
+  //   proveDellaSeo.
+  "seo/regole",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -440,7 +444,7 @@ for (const m of MODULI) {
       "esbuild",
       //  `webinar/` sta in `src/`, `fatture/` dentro `src/crm/`: due rami
       //  diversi, e confonderli fa fallire il bundle di TUTTE le prove.
-      m.startsWith("webinar/") || m.startsWith("prova/")
+      m.startsWith("webinar/") || m.startsWith("prova/") || m.startsWith("seo/")
         ? `src/${m}.ts`
         : m.startsWith("shop/") || m === "versione-aperta"
           ? `src/${m}.ts`
@@ -11603,6 +11607,79 @@ function proveDelModoFascia() {
   c("una capienza storta non azzera i posti", 1, spuntaSoloUno({ capienza: 0 }).posti);
 }
 
+function proveDellaSeo() {
+  const SEO = mod["seo/regole"];
+  gruppo("SEO: ROBOTS, SITEMAP E ARTICOLI DEL BLOG");
+
+  const robots = SEO.robotsTxt("https://esempio.it");
+  c("robots: dichiara la mappa del sito", true, robots.includes("Sitemap: https://esempio.it/sitemap.xml"));
+  c("robots: blocca le API", true, /Disallow: \/api\//.test(robots));
+  /*  ⚠️ Le pagine private si tolgono con noindex, non con robots: bloccarle qui
+      impedirebbe a Google di leggere il noindex. */
+  c("robots: NON blocca il preventivo", false, robots.includes("/preventivo"));
+
+  const xml = SEO.sitemapXml(
+    [{ percorso: "/" }, { percorso: "/blog/a&b", aggiornato: "2026-10-11T10:00:00Z" }, { percorso: "/" }, { percorso: "fuori" }],
+    "https://esempio.it",
+  );
+  c("sitemap: ogni indirizzo una volta sola", 2, (xml.match(/<url>/g) || []).length);
+  c("sitemap: i caratteri speciali sono sicuri", true, xml.includes("/blog/a&amp;b"));
+  c("sitemap: la data è il solo giorno", true, xml.includes("<lastmod>2026-10-11</lastmod>"));
+  c("sitemap: un percorso relativo si scarta", false, xml.includes("fuori"));
+  c("sitemap: il blog è fra le pagine pubbliche", true, SEO.PAGINE_PUBBLICHE.includes("/blog"));
+
+  c("slug: accenti e apostrofi", "protesi-capillare-si-vede-e-un-problema", SEO.slugDaTitolo("Protesi capillare: si vede? È un problema"));
+  c("slug: l'apostrofo separa", "l-attaccatura-naturale", SEO.slugDaTitolo("L'attaccatura naturale"));
+
+  const corpo =
+    "La protesi capillare è una delle soluzioni più cercate. " +
+    "parola ".repeat(620) +
+    "\n\n## Come funziona\n\nTesto.\n\n## Per chi non va bene\n\nTesto.";
+  const buono = {
+    slug: "protesi-capillare-come-funziona",
+    titolo: "Protesi capillare: come funziona davvero",
+    descrizione: "Cos'è una protesi capillare, come si applica, pro e contro onesti e le alternative non chirurgiche a confronto.",
+    corpo,
+    parolaChiave: "protesi capillare",
+    autore: "Hair Genius Labs",
+  };
+  c("articolo completo: nessun problema", 0, SEO.controllaArticolo(buono).length);
+  /*  ⚠️ Decisione del titolare: il prezzo non si scrive mai. */
+  c("articolo con un prezzo: bloccato", true, SEO.controllaArticolo({ ...buono, corpo: corpo + " Costa 1.200 €." }).some((x) => /prezzo/.test(x.messaggio)));
+  c("articolo con 'euro' a parole: bloccato", true, SEO.controllaArticolo({ ...buono, corpo: corpo + " Parte da 900 euro." }).some((x) => /prezzo/.test(x.messaggio)));
+  c("articolo con un segnaposto: bloccato", true, SEO.controllaArticolo({ ...buono, corpo: corpo + " {{il tuo numero}}" }).some((x) => /segnaposto/.test(x.messaggio)));
+  c("titolo senza parola chiave: segnalato", true, SEO.controllaArticolo({ ...buono, titolo: "Come funziona davvero il nostro sistema" }).some((x) => x.campo === "titolo"));
+  c("articolo troppo corto: segnalato", true, SEO.controllaArticolo({ ...buono, corpo: "La protesi capillare. ## Uno" }).some((x) => /parole/.test(x.messaggio)));
+  c("senza autore: segnalato", true, SEO.controllaArticolo({ ...buono, autore: " " }).some((x) => x.campo === "autore"));
+  c("con un H1 nel corpo: segnalato", true, SEO.controllaArticolo({ ...buono, corpo: "# Titolo\n" + corpo }).some((x) => /H1/.test(x.messaggio)));
+
+  const dati = SEO.datiStrutturatiArticolo({ ...buono, faq: [{ domanda: "Si vede?", risposta: "Da vicino no." }, { domanda: " ", risposta: "" }] }, "https://esempio.it");
+  c("dati strutturati: articolo, percorso e FAQ", ["BlogPosting", "BreadcrumbList", "FAQPage"], dati.map((d) => d["@type"]));
+  c("dati strutturati: solo le FAQ compilate", 1, dati[2].mainEntity.length);
+  c("json-ld: nessun </script> possibile", false, SEO.jsonLd({ x: "</script>" }).includes("</script>"));
+  c("attività: senza telefono finché i numeri non coincidono", false, "telephone" in SEO.datiStrutturatiAttivita());
+
+  /*  ⚠️ Il corpo degli articoli entra nella pagina come HTML: niente di quello
+      che scrive AIOS o il CRM deve poter diventare codice. */
+  const md = SEO.markdownInHtml;
+  c("markdown: sottotitolo con ancora", '<h2 id="come-funziona">Come funziona</h2>', md("## Come funziona"));
+  c("markdown: paragrafo con grassetto e corsivo", "<p>Una <strong>protesi</strong> e un <em>sistema</em></p>", md("Una **protesi** e un *sistema*"));
+  c("markdown: elenco puntato", "<ul><li>uno</li><li>due</li></ul>", md("- uno\n- due"));
+  c("markdown: elenco numerato", "<ol><li>primo</li><li>secondo</li></ol>", md("1. primo\n2. secondo"));
+  c("markdown: uno script resta testo", false, md("<script>alert(1)</script>").includes("<script"));
+  c("markdown: un attributo non si apre", false, md('<img src=x onerror="alert(1)">').includes("<img"));
+  c("markdown: link javascript scartato", false, md("[clic](javascript:alert(1))").includes("href"));
+  c("markdown: link interno tenuto", true, md("[prenota](/#prenota)").includes('<a href="/#prenota">'));
+  c("markdown: link esterno in nuova scheda", true, md("[fonte](https://esempio.it)").includes('rel="noopener"'));
+  c("markdown: le virgolette non escono dall'href", false, md('[x](https://a.it/"onmouseover=alert(1))').includes('"onmouseover'));
+  c("markdown: //altro sito scartato", false, md("[x](//altro.it)").includes("href"));
+  c("markdown: /\\altro sito scartato", false, md("[x](/\\altro.it)").includes("href"));
+  c("markdown: un dominio che imita il nostro è esterno", true, md("[x](https://hair-genius-hub.hair.altro.it/a)").includes('rel="noopener"'));
+  c("markdown: il nostro sito resta interno", false, md("[x](https://hair-genius-hub.hair/blog)").includes('rel="noopener"'));
+  c("markdown: un # nel corpo non diventa H1", false, md("# Titolo").includes("<h1"));
+  c("data in italiano", "11 ottobre 2026", SEO.dataItaliana("2026-10-11T22:30:00Z"));
+}
+
 function proveDelQuandoPerStato() {
   const { QUANDO_PER_STATO, STATI_CON_DATA, chiedeUnaData } = QPS;
   gruppo("GLI STATI CHE PROMETTONO UN MOMENTO");
@@ -14653,6 +14730,7 @@ provePalco();
   proveDelRestaInLista();
   proveDelModoFascia();
   proveDelQuandoPerStato();
+  proveDellaSeo();
   proveDelloScorrimento();
   provePersoneDelPannello();
   proveDoveSiConduce();

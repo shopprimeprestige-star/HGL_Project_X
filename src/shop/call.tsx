@@ -12539,7 +12539,7 @@ export function CallLayer() {
         <AvvisoCameraSpenta st={st} />
         <AvvisoMiaCamera st={st} />
         <GuestChat st={st} />
-        {st.joined && st.active && st.camOn && <TastoGiraCamera fluttuante />}
+        <GiraCameraInChiamata st={st} />
       </GuestSafe>
     );
   return (
@@ -15894,6 +15894,25 @@ function useCamereDelDispositivo(): { id: string; nome?: string }[] {
  *   spento con il perché scritto (chi lo cerca lo trova), sullo schermo
  *   dell'ospite non compare affatto — lì ogni pixel coperto è la faccia del
  *   cliente. */
+/** ── SULLO SCHERMO DELL'OSPITE: SOLO IN VIDEOCHIAMATA ──────────────────────
+ *  Segnalazione del committente: «il pulsante per girare la camera sta in
+ *  mezzo, deve stare solo in videochiamata, piccolo, non sui contenuti».
+ *  Mentre il consulente mostra preventivo, slide o sito (`content`), o mentre
+ *  il cliente compila il suo preventivo, il tasto copriva proprio quello che
+ *  stava leggendo — e lì la sua camera è al massimo un riquadrino.
+ *  Compare quindi solo quando le camere SONO la schermata: la videochiamata
+ *  (`call`) e «Solo lui» quando il focalizzato è lui stesso — cioè il momento
+ *  del «fammi vedere dietro».
+ *  ⚠️ Gancio PRIMA di ogni uscita anticipata: vedi `proveDegliHook`. */
+function GiraCameraInChiamata({ st }: { st: State }) {
+  const [suoPreventivo, setSuoPreventivo] = useState(restaSulMioPreventivo);
+  useEffect(() => ascoltaMioPreventivo(setSuoPreventivo), []);
+  if (!st.joined || !st.active || !st.camOn || suoPreventivo) return null;
+  const lui = st.mode === "client" && (!st.focusPid || st.focusPid === st.myPid);
+  if (st.mode !== "call" && !lui) return null;
+  return <TastoGiraCamera fluttuante />;
+}
+
 function TastoGiraCamera({ fluttuante }: { fluttuante?: boolean }) {
   const camere = useCamereDelDispositivo();
   const [giro, setGiro] = useState(false);
@@ -15919,12 +15938,14 @@ function TastoGiraCamera({ fluttuante }: { fluttuante?: boolean }) {
           type="button"
           onClick={premi}
           title={titolo}
-          className="fixed bottom-4 left-4 z-[98] flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-[#0b1730]/90 text-white shadow-2xl shadow-black/40 backdrop-blur transition hover:bg-[#0b1730] active:scale-95"
+          aria-label={titolo}
+          className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 z-[98] flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/90 backdrop-blur-sm transition hover:bg-black/60 active:scale-90 disabled:opacity-60"
+          disabled={giro}
         >
-          <SwitchCamera className={`h-6 w-6 ${giro ? "animate-pulse" : ""}`} />
+          <SwitchCamera className={`h-4 w-4 ${giro ? "animate-spin" : ""}`} />
         </button>
         {guaio && (
-          <p className="fixed bottom-20 left-4 z-[98] max-w-[60vw] rounded-lg border border-amber-400/40 bg-[#1a1406]/95 px-2.5 py-1.5 text-[11px] leading-snug text-amber-100 shadow-xl">
+          <p className="fixed bottom-14 left-3 z-[98] max-w-[60vw] rounded-lg border border-amber-400/40 bg-[#1a1406]/95 px-2.5 py-1.5 text-[11px] leading-snug text-amber-100 shadow-xl">
             {guaio}
           </p>
         )}

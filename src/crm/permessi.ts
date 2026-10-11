@@ -823,6 +823,7 @@ const PERMESSO_DI_PAGINA: { percorso: string; permesso: Permesso }[] = [
   { percorso: "/CRM/campagne-tiktok", permesso: "marketing" },
   { percorso: "/CRM/attribuzione", permesso: "marketing" },
   { percorso: "/CRM/landing-page", permesso: "marketing" },
+  { percorso: "/CRM/blog", permesso: "marketing" },
   { percorso: "/CRM/installazioni", permesso: "installazioni" },
   { percorso: "/CRM/trattative-perse", permesso: "lead.tutti" },
   { percorso: "/CRM/trattative", permesso: "lead.tutti" },

@@ -1802,6 +1802,36 @@ const EMPTY_WA: WhatsAppSettingsState = {
   mode: "live",
 };
 
+/** ── LA BOZZA DELLE CHIAVI WHATSAPP ──────────────────────────────────────
+ *  Segnalazione: «scrivo qualcosa, cambio scheda, torno e non c'è più».
+ *  Cambiando linguetta in Impostazioni la sezione si smonta, e con lei
+ *  tutto ciò che non era ancora salvato. Quello che si scrive resta quindi
+ *  in una bozza finché non si preme Salva.
+ *  ⚠️ IN sessionStorage, NON in localStorage: dentro ci sono token e segreti.
+ *   La bozza vive solo in questa scheda del browser e sparisce quando la si
+ *   chiude; salvata la configurazione, si cancella subito. */
+const bozzaWa = (userId: string) => `wa-bozza:${userId}`;
+function leggiBozzaWa(userId: string): WhatsAppSettingsState | null {
+  try {
+    const grezzo = sessionStorage.getItem(bozzaWa(userId));
+    return grezzo
+      ? { ...EMPTY_WA, ...(JSON.parse(grezzo) as Partial<WhatsAppSettingsState>) }
+      : null;
+  } catch {
+    return null;
+  }
+}
+function scriviBozzaWa(userId: string, v: WhatsAppSettingsState | null) {
+  try {
+    if (v) sessionStorage.setItem(bozzaWa(userId), JSON.stringify(v));
+    else sessionStorage.removeItem(bozzaWa(userId));
+  } catch {
+    /* senza archiviazione la bozza vive solo finché la sezione è aperta */
+  }
+}
+const stessiValoriWa = (a: WhatsAppSettingsState, b: WhatsAppSettingsState) =>
+  (Object.keys(EMPTY_WA) as (keyof WhatsAppSettingsState)[]).every((k) => a[k] === b[k]);
+
 interface WhatsAppDiagnose {
   ok: boolean;
   requestedMode: "live" | "sandbox";
@@ -1851,6 +1881,8 @@ function WhatsAppSettingsSection() {
   const [copied, setCopied] = useState<string | null>(null);
   const [diag, setDiag] = useState<WhatsAppDiagnose | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
+  /** gli ultimi valori letti o scritti nel database: la bozza si misura su questi */
+  const salvatoWa = useRef<WhatsAppSettingsState>(EMPTY_WA);
 
   const webhookUrl =
     typeof window !== "undefined" ? `${window.location.origin}/api/public/whatsapp-webhook` : "";
@@ -1894,24 +1926,35 @@ function WhatsAppSettingsSection() {
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (data) {
-        setWa({
-          phone_number_id: data.phone_number_id ?? "",
-          business_account_id: data.business_account_id ?? "",
-          access_token: data.access_token ?? "",
-          webhook_verify_token: data.webhook_verify_token ?? "",
-          app_secret: data.app_secret ?? "",
-          mode: ((data as unknown as { mode?: string }).mode as "live" | "sandbox") ?? "live",
-        });
-        // Diagnosi automatica se le credenziali ci sono
-        if (data.phone_number_id && data.business_account_id && data.access_token) {
-          void runDiagnose();
-        }
+      const salvato: WhatsAppSettingsState = data
+        ? {
+            phone_number_id: data.phone_number_id ?? "",
+            business_account_id: data.business_account_id ?? "",
+            access_token: data.access_token ?? "",
+            webhook_verify_token: data.webhook_verify_token ?? "",
+            app_secret: data.app_secret ?? "",
+            mode: ((data as unknown as { mode?: string }).mode as "live" | "sandbox") ?? "live",
+          }
+        : EMPTY_WA;
+      salvatoWa.current = salvato;
+      //  Una bozza non salvata vince sul database: è quello che si stava scrivendo.
+      setWa(leggiBozzaWa(user.id) ?? salvato);
+      // Diagnosi automatica se le credenziali ci sono
+      if (data?.phone_number_id && data.business_account_id && data.access_token) {
+        void runDiagnose();
       }
       setLoading(false);
     };
     void load();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  //  Ogni modifica finisce nella bozza; tornati ai valori salvati, la bozza sparisce.
+  useEffect(() => {
+    if (!user || loading) return;
+    scriviBozzaWa(user.id, stessiValoriWa(wa, salvatoWa.current) ? null : wa);
+  }, [wa, user, loading]);
+  const nonSalvato = !loading && !stessiValoriWa(wa, salvatoWa.current);
 
   const save = async () => {
     if (!user) return;
@@ -1943,6 +1986,8 @@ function WhatsAppSettingsSection() {
     if (error) {
       toast.error(error.message);
     } else {
+      salvatoWa.current = wa;
+      scriviBozzaWa(user.id, null);
       toast.success("Credenziali WhatsApp salvate");
       void runDiagnose();
     }
@@ -2237,6 +2282,12 @@ function WhatsAppSettingsSection() {
             <Button onClick={save} disabled={saving} className="w-full">
               {saving ? "Salvataggio…" : "Salva credenziali WhatsApp"}
             </Button>
+            {nonSalvato && (
+              <p className="-mt-2 text-center text-[11.5px] text-amber-700 dark:text-amber-300">
+                Modifiche non ancora salvate: restano qui anche se cambi scheda, ma valgono solo
+                dopo «Salva».
+              </p>
+            )}
 
             <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 space-y-2 dark:bg-blue-950/20 dark:border-blue-900/40">
               <div className="font-semibold text-sm flex items-center gap-1.5 text-blue-900 dark:text-blue-200">
