@@ -418,6 +418,9 @@ const MODULI = [
   //  ⚠️ Un link per ciascuno dentro la stessa stanza. Vedi
   //   proveDelLinkPerCiascuno.
   "shop/chi-dal-link",
+  //  ⚠️ Nome e cognome nel testo dell'anteprima del link. Vedi
+  //   proveDellAnteprimaConIlNome.
+  "seo/chi-riceve-il-link",
   "shop/stanza-ancora-vuota",
   "shop/conta-suoni",
   "chi-ha-fissato",
@@ -14830,6 +14833,58 @@ provePalco();
   proveDellaRicercaManutenzione();
 proveDelleMenzioni();
 proveDelTetris();
+function proveDellAnteprimaConIlNome() {
+  const A = mod["seo/chi-riceve-il-link"];
+  gruppo("ANTEPRIMA DEL LINK CON NOME E COGNOME (Meetly e preventivo)");
+  /*  Segnalazione del titolare (12/10/2026): «quando invio il link Meetly non
+      dà l'anteprima con nome e cognome della persona; anche quando crea il
+      preventivo». Il nome stava solo nell'immagine depositata dal browser del
+      consulente: senza deposito, testo e immagine generici. Ora il testo lo
+      scrive il server, e queste prove ne fissano le regole. */
+  const mario = { nome: "Mario", cognome: "Rossi", giorno: "2026-10-15", ora: "18:00" };
+  c("stanza: il titolo porta nome e cognome", "Mario Rossi · la tua videoconsulenza Meetly",
+    A.testoAnteprimaStanza(mario).titolo);
+  c("stanza: la descrizione porta giorno e ora", true,
+    A.testoAnteprimaStanza(mario).descrizione.startsWith("Giovedì 15 ottobre alle 18:00."));
+  c("stanza senza persona: il testo di sempre", A.TESTO_STANZA.titolo, A.testoAnteprimaStanza(null).titolo);
+  c("preventivo: il titolo porta nome e cognome", "Mario Rossi · il tuo preventivo Hair Genius Labs",
+    A.testoAnteprimaPreventivo({ nome: "Mario", cognome: "Rossi" }).titolo);
+  c("preventivo: mai un prezzo nell'anteprima", false,
+    /€|\d+[.,]\d{2}/.test(JSON.stringify(A.testoAnteprimaPreventivo(mario))));
+  c("preventivo senza persona: il testo di sempre", A.TESTO_PREVENTIVO.titolo, A.testoAnteprimaPreventivo(undefined).titolo);
+  c("solo il nome se manca il cognome", "Luca · la tua videoconsulenza Meetly",
+    A.testoAnteprimaStanza({ nome: "Luca", cognome: "" }).titolo);
+  //  ⚠️ Il valore finisce dentro un meta: niente virgolette né tag.
+  c("niente virgolette o tag nel nome", false,
+    /["<>]/.test(A.nomeCompleto({ nome: 'Ma"rio<b>', cognome: "Rossi" })));
+  c("data storta: nessuna data inventata", "", A.quandoLeggibile({ nome: "M", cognome: "", giorno: "15/10" }));
+  //  Gruppo: chi ha il gettone ha il SUO nome; senza gettone in un gruppo, nessuno.
+  const attesi = [{ leadId: "aaaa1111", nome: "Anna", cognome: "Bianchi" }, { leadId: "bbbb2222", nome: "Bruno" }];
+  const gAnna = FAS.gettoneDi(attesi[0]);
+  c("gruppo con gettone: la persona giusta", "Anna", A.sceltoFraGliAttesi(attesi, gAnna)?.nome);
+  c("gruppo senza gettone: nessun nome indovinato", null, A.sceltoFraGliAttesi(attesi, ""));
+  c("una persona sola, senza gettone: è lei", "Anna", A.sceltoFraGliAttesi([attesi[0]], "")?.nome);
+  c("codice stanza storto: rifiutato", "", A.codiceStanzaValido("../x"));
+  //  Il ripiego sulle chiavi `meet:` (stanze senza elenco degli attesi).
+  c("un lead solo: è lui", "lead1", A.leadUnicoDalleChiavi(["meet:lead1"]));
+  c("chiave a coppia lead:consulente: il lead", "lead1", A.leadUnicoDalleChiavi(["meet:lead1:cons9"]));
+  c("stesso lead due volte: è lui", "lead1", A.leadUnicoDalleChiavi(["meet:lead1", "meet:lead1:cons9"]));
+  c("gruppo senza attesi: nessun nome a caso", "", A.leadUnicoDalleChiavi(["meet:lead1", "meet:lead2"]));
+  c("nessuna chiave: niente", "", A.leadUnicoDalleChiavi([]));
+  //  E le due pagine lo usano davvero (la regola provata da sola non basta).
+  const meetly = readFileSync(join(radice, "src/routes/meetly_.$code.tsx"), "utf8");
+  const prev = readFileSync(join(radice, "src/routes/preventivo.tsx"), "utf8");
+  c("la stanza legge la persona dal server", true,
+    meetly.includes("leggiDestinatarioStanza(") && meetly.includes("testoAnteprimaStanza(persona)"));
+  //  ⚠️ og:url senza il gettone farebbe rileggere a Facebook la pagina della
+  //   stanza intera: in un gruppo, il nome di un altro. Qui non deve esserci.
+  c("la stanza non dichiara un og:url senza gettone", false, meetly.includes('"og:url"'));
+  c("il nome si legge solo sul server, mai nel browser", true,
+    meetly.includes('typeof window !== "undefined"') && prev.includes('typeof window === "undefined"'));
+  c("il preventivo legge la persona dal server", true,
+    prev.includes("leggiDestinatarioPreventivo(") && prev.includes("testoAnteprimaPreventivo(persona)"));
+}
+
 proveDelContoWebinar();
 proveDelTag();
 proveDeiTipi();
@@ -14853,6 +14908,7 @@ proveDellaRegiaPalco();
 proveDellInvito();
 proveDelTeleprompter();
 proveDegliHook();
+proveDellAnteprimaConIlNome();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

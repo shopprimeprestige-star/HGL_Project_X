@@ -25,9 +25,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { watchId as getWatch, useLiveNav } from "@/shop/live";
 import { CHIAVE_CHI, codiceAnteprimaDi } from "@/shop/chi-dal-link";
+import { leggiDestinatarioStanza } from "@/seo/chi-riceve-il-link.functions";
+import { entro, testoAnteprimaStanza, type Destinatario } from "@/seo/chi-riceve-il-link";
 
-const OG_TITLE = "Meetly — la tua videoconsulenza con Hair Genius Labs";
-const OG_DESC = "Tocca per entrare: il tuo consulente ti aspetta. Consulenza personalizzata in video, dal browser, senza installare nulla.";
 /** L'anteprima di QUESTA stanza: l'indirizzo è fisso e decide al momento della
  *  richiesta (vedi api.og.anteprima). Il biglietto viene depositato dal CRM nel
  *  momento in cui il consulente lo guarda, sotto il codice della stanza. */
@@ -58,24 +58,41 @@ const anteprimaStanza = (code: string, chi?: string) =>
   )}.jpg`;
 
 export const Route = createFileRoute("/meetly_/$code")({
+  //  ── NOME E COGNOME NEL TESTO DELL'ANTEPRIMA ──────────────────────────────
+  //   Letti dal server (vedi seo/chi-riceve-il-link): ci sono anche quando il
+  //   biglietto illustrato non è stato depositato.
+  loaderDeps: ({ search }) => ({
+    chi: String(((search as Record<string, unknown>)?.[CHIAVE_CHI] ?? "") as string),
+  }),
+  //  ⚠️ SOLO SUL SERVER: il nome serve al lettore di anteprime, che chiede la
+  //   pagina al server. Nel browser (navigazione interna, «segue il
+  //   consulente») non serve a nessuno e farebbe aspettare il cliente.
+  loader: async ({ params, deps }): Promise<{ chi: Destinatario | null }> => ({
+    chi:
+      typeof window !== "undefined"
+        ? null
+        : await entro(leggiDestinatarioStanza({ data: { codice: params.code, chi: deps.chi } })),
+  }),
   //  ── L'ANTEPRIMA È DI QUESTA STANZA ──────────────────────────────────────
   //   Il codice della stanza sta nell'indirizzo dell'immagine, quindi ogni
   //   cliente vede nel riquadro il biglietto preparato per lui — lo stesso che
   //   il consulente ha visto e mandato. Se non è stato depositato, l'indirizzo
   //   risponde col marchio dello studio (api.og.anteprima): mai un buco.
-  head: ({ params, match }) => {
+  head: ({ params, match, loaderData }) => {
     const cerca = (match as { search?: Record<string, unknown> } | undefined)?.search;
     const chi = String((cerca?.[CHIAVE_CHI] ?? "") as string);
     const IMG = anteprimaStanza(params.code, chi);
+    const persona = (loaderData as { chi?: Destinatario | null } | undefined)?.chi ?? null;
+    const { titolo: TITOLO, descrizione: DESC } = testoAnteprimaStanza(persona);
     return {
       meta: [
-        { title: OG_TITLE },
+        { title: TITOLO },
         { name: "robots", content: "noindex" },
-        { name: "description", content: OG_DESC },
+        { name: "description", content: DESC },
         { property: "og:type", content: "website" },
         { property: "og:site_name", content: "Meetly — Hair Genius Labs" },
-        { property: "og:title", content: OG_TITLE },
-        { property: "og:description", content: OG_DESC },
+        { property: "og:title", content: TITOLO },
+        { property: "og:description", content: DESC },
         //  Vedi il commento gemello su invito.$codice: og:image da solo non
         //  basta a tutti i lettori di anteprime.
         { property: "og:image", content: IMG },
@@ -85,8 +102,8 @@ export const Route = createFileRoute("/meetly_/$code")({
         { property: "og:image:height", content: "675" },
         { property: "og:locale", content: "it_IT" },
         { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: OG_TITLE },
-        { name: "twitter:description", content: OG_DESC },
+        { name: "twitter:title", content: TITOLO },
+        { name: "twitter:description", content: DESC },
         { name: "twitter:image", content: IMG },
         { name: "theme-color", content: "#050f24" },
       ],
