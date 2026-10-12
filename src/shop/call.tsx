@@ -112,7 +112,8 @@ import {
   sogliaParte,
   tocca,
 } from "@/shop/ritmo-registrazione";
-import { cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
+import { bloccati, cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
+import { OGNI_MS, rigaChiamata, type CampioneVideo } from "@/shop/scatola-chiamata";
 import {
   gettoneInMemoria,
   miaPersonaDi,
@@ -2977,9 +2978,49 @@ async function sondaBanda() {
   }
 }
 
+/** ── LA SCATOLA NERA DELLA CHIAMATA (vedi shop/scatola-chiamata) ─────────
+ *  I numeri che `sampleUsage` legge già ogni dieci secondi, una riga ogni
+ *  trenta nel diario della chiamata. Solo dal consulente: è lui ad avere la
+ *  sessione, e dal suo lato si vede anche come arriva il video all'ospite
+ *  (le perdite «su» sono quelle che l'ospite riporta). */
+let scatolaUltima = 0;
+let scatolaDaBlocchi = 0;
+const scatolaPrima = new Map<string, { congelamenti: number; secondi: number }>();
+function scriviScatola(campioni: CampioneVideo[]) {
+  if (S.role !== "host" || !campioni.length) return;
+  const adesso = Date.now();
+  if (scatolaUltima && adesso - scatolaUltima < OGNI_MS) return;
+  scatolaUltima = adesso;
+  const nuovi = bloccati().filter((b) => b.da > scatolaDaBlocchi);
+  scatolaDaBlocchi = performance.now() / 1000;
+  const peggiore = nuovi.reduce((m, b) => (b.ms > m.ms ? b : m), { ms: 0, cosa: "", da: 0 });
+  const riga = rigaChiamata({
+    campioni,
+    linea: S.linea,
+    prima: scatolaPrima,
+    blocchi: { quanti: nuovi.length, peggioreMs: peggiore.ms, cosa: peggiore.cosa },
+  });
+  for (const c of campioni)
+    scatolaPrima.set(c.pid, {
+      congelamenti: Number(c.congelamenti) || 0,
+      secondi: Number(c.secondiCongelati) || 0,
+    });
+  try {
+    void fetch("/api/presenter/diario", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ voce: riga, diario: "chiamata" }),
+    }).catch(() => {});
+  } catch {
+    /* mai in mezzo a una consulenza */
+  }
+}
+
 async function sampleUsage() {
   const u = usage;
   if (!u) return;
+  const campioni: CampioneVideo[] = [];
   // getStats() viene invocata SUBITO su tutti i peer (prima di qualsiasi await):
   // così l'ultimo campionamento a fine chiamata parte prima della chiusura.
   const jobs: { pid: string; req: Promise<RTCStatsReport> }[] = [];
@@ -2993,6 +3034,7 @@ async function sampleUsage() {
   for (const { pid, req } of jobs) {
     let sent = 0,
       recv = 0;
+    const camp: CampioneVideo = { pid };
     try {
       const stats = await req;
       let pairSent = 0,
@@ -3019,6 +3061,10 @@ async function sampleUsage() {
               `[CAM] uscita → ${pid}: ${Math.round(Number(r.framesPerSecond) || 0)}fps ${r.frameWidth || "?"}×${r.frameHeight || "?"} limite=${why} codificati=${Number(r.framesEncoded) || 0} keyframe=${Number(r.keyFramesEncoded) || 0} richiesteRinvio=${Number(r.nackCount) || 0}`,
             );
             cpuLimited = why === "cpu" ? cpuLimited + 1 : 0;
+            camp.fpsSu = Number(r.framesPerSecond) || 0;
+            camp.larghezzaSu = Number(r.frameWidth) || 0;
+            camp.altezzaSu = Number(r.frameHeight) || 0;
+            camp.limiteSu = why;
           }
         } else if (r.type === "inbound-rtp" && !r.isRemote) {
           rtpRecv += Number(r.bytesReceived) || 0;
@@ -3029,12 +3075,18 @@ async function sampleUsage() {
             console.log(
               `[CAM] entrata ← ${pid}: ${Math.round(Number(r.framesPerSecond) || 0)}fps ${r.frameWidth || "?"}×${r.frameHeight || "?"} persi=${Number(r.framesDropped) || 0} congelamenti=${Number(r.freezeCount) || 0} (${Math.round((Number(r.totalFreezesDuration) || 0) * 10) / 10}s) decodificati=${Number(r.framesDecoded) || 0} richiesteKeyframe=${Number(r.pliCount) || 0}`,
             );
+            camp.fpsGiu = Number(r.framesPerSecond) || 0;
+            camp.larghezzaGiu = Number(r.frameWidth) || 0;
+            camp.altezzaGiu = Number(r.frameHeight) || 0;
+            camp.congelamenti = Number(r.freezeCount) || 0;
+            camp.secondiCongelati = Number(r.totalFreezesDuration) || 0;
           }
         }
       });
       // preferisco il candidate-pair (include overhead reale); fallback su RTP
       sent = pairSent || rtpSent;
       recv = pairRecv || rtpRecv;
+      campioni.push(camp);
     } catch {
       continue;
     }
@@ -3045,6 +3097,7 @@ async function sampleUsage() {
   }
   const g = S.roster.filter((r) => r.role === "viewer").length;
   if (g > u.maxGuests) u.maxGuests = g;
+  scriviScatola(campioni);
 
   // ── LA VOCE ARRIVA DAVVERO? ───────────────────────────────────────────────
   //  Controllo esplicito: ogni connessione deve avere una traccia audio VIVA in

@@ -415,6 +415,8 @@ const MODULI = [
   //  ⚠️ Quanto pesa una registrazione e quando si spezza.
   //   Vedi proveDelRitmoDellaRegistrazione.
   "shop/ritmo-registrazione",
+  //  ⚠️ La scatola nera della videochiamata. Vedi proveDellaScatolaNera.
+  "shop/scatola-chiamata",
   //  ⚠️ Dove si blocca, detto dall'applicazione stessa. Vedi proveDellaLentezza.
   "shop/lentezza",
   //  ⚠️ L'archivio del CRM non si riscarica tutto a ogni apertura.
@@ -578,6 +580,7 @@ const MIO = mod["shop/mio-preventivo"];
 const VEC = mod["shop/versione-vecchia"];
 const TELA = mod["shop/tela-registrazione"];
 const RITMO = mod["shop/ritmo-registrazione"];
+const SCATOLA = mod["shop/scatola-chiamata"];
 const LEN = mod["shop/lentezza"];
 const COP = mod["copia-archivio"];
 const LNK = mod["shop/link-ospite"];
@@ -15233,6 +15236,32 @@ function proveDelRitmoDellaRegistrazione() {
   c("il primo fotogramma passa sempre", true, tocca(0, 5));
 }
 
+/** ── LA SCATOLA NERA DELLA CHIAMATA ────────────────────────────────────────
+ *  «Va a scatti» ha tre cause (rete, computer, pagina): la riga deve dirle
+ *  tutte e tre, e i contatori del browser vanno letti come differenze. */
+function proveDellaScatolaNera() {
+  const { rigaChiamata, differenza } = SCATOLA;
+  gruppo("LA SCATOLA NERA DELLA CHIAMATA");
+  c("differenza normale", 3, differenza(5, 2));
+  c("contatore ripartito (riconnessione): si conta da zero", 1, differenza(1, 9));
+  c("nessun giro prima", 4, differenza(4, undefined));
+  const prima = new Map([["abcdef12", { congelamenti: 2, secondi: 1.5 }]]);
+  const r = rigaChiamata({
+    campioni: [{ pid: "abcdef12", fpsSu: 14.6, larghezzaSu: 1280, altezzaSu: 720, limiteSu: "cpu",
+      fpsGiu: 9, larghezzaGiu: 640, altezzaGiu: 360, congelamenti: 5, secondiCongelati: 4 }],
+    linea: { kbit: 1800, ponte: true, rttMs: 210, persiSu: 0.031, persiGiu: 0 },
+    prima,
+    blocchi: { quanti: 2, peggioreMs: 1400, cosa: "registrazione" },
+  });
+  c("dice se passa dal TURN", true, r.includes("via TURN"));
+  c("dice chi frena l'invio", true, r.includes("freno cpu"));
+  c("i congelamenti sono quelli NUOVI", true, r.includes("congelamenti +3 (2.5s)"));
+  c("le perdite in percentuale", true, r.includes("persi su 3.1% giù 0%"));
+  c("i blocchi della pagina", true, r.includes("pagina bloccata 2 volte, la peggiore 1.4s (registrazione)"));
+  c("dell'identificativo solo quattro lettere", false, r.includes("abcdef12"));
+  c("una riga non supera i 600 caratteri", true, rigaChiamata({ campioni: Array.from({ length: 30 }, (_, i) => ({ pid: "p" + i })) }).length <= 600);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15257,6 +15286,7 @@ proveDelTeleprompter();
 proveDegliHook();
 proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
+proveDellaScatolaNera();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
