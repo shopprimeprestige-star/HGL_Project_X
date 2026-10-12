@@ -3060,6 +3060,11 @@ function proveDegliHook() {
     "src/crm/importa/FiltriLista.tsx",
     "src/crm/importa/RigaChiamata.tsx",
     "src/crm/importa/MenuAltro.tsx",
+    //  ⚠️ L'ANTEPRIMA DEI FILE E LA SCHEDA CHE LA RIUSA (T8): il pannello ha
+    //   tutti gli hook in cima e un'uscita anticipata e' facile da aggiungere
+    //   quando si pensa a «nessun file scelto».
+    "src/crm/importa/PannelloCarica.tsx",
+    "src/crm/kpi/DaFareScheda.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -4732,7 +4737,7 @@ function proveDelRiallineamento() {
     Object.keys(l1.datiFile ?? {}).filter((k) => /ad name|full name|phone|email|campaign|adset|created|platform|status/.test(k)).join(","));
   c("le risposte non si ripetono in datiFile", "",
     Object.keys(l1.datiFile ?? {}).filter((k) => /problematica|infastidisce|gia fatto|già fatto/.test(k)).join(","));
-  c("l'alias vecchio dice la stessa cosa", m.colonneConservate.join("|"), m.colonneIgnorate.join("|"));
+  c("l'alias vecchio non c'e' piu'", false, "colonneIgnorate" in m);
 
   //  Un file dritto con una colonna sconosciuta.
   const dritta = traduciCsv("nome;telefono;colore_preferito\nMario;3331234567;blu");
@@ -5111,8 +5116,8 @@ function proveDelModulo() {
       ignorate manderebbe chi guarda l'anteprima a cercare un guasto che non
       c'e'. */
   c("le domande non risultano piu' ignorate", false,
-    r.colonneIgnorate.some((x) => /consideri|conosci|zona|quando/.test(x)));
-  c("la campagna nemmeno", false, r.colonneIgnorate.some((x) => /campaign|ad_name/.test(x)));
+    r.colonneConservate.some((x) => /consideri|conosci|zona|quando/.test(x)));
+  c("la campagna nemmeno", false, r.colonneConservate.some((x) => /campaign|ad_name/.test(x)));
 
   /*  ── ⚠️ LE PAROLE ESATTE DEL MODULO SONO REGISTRATE ───────────────────
       Il committente ha mandato il file dicendo «l'elenco ce l'hai nel CSV,
@@ -16681,6 +16686,90 @@ function proveDellaScatolaNera() {
   c("una riga non supera i 600 caratteri", true, rigaChiamata({ campioni: Array.from({ length: 30 }, (_, i) => ({ pid: "p" + i })) }).length <= 600);
 }
 
+/** ── L'ANTEPRIMA D'IMPORTAZIONE (T8) ──────────────────────────────────────
+ *  Le regole stanno in `traduciCsv` (T5) e `riepilogoImport` (T4): qui si
+ *  controlla che il pannello le USI tutte, e che il file vero (finto) dia
+ *  l'anteprima promessa: avviso di riallineamento, BROAD | ITALIA con 3 lead,
+ *  Problema androgenetica 1 e areata 2.
+ *  ⚠️ Sono prove sul sorgente per quello che e' cablaggio (un pannello non si
+ *   monta qui): servono a non far tornare «Colonne rimaste fuori», la strada
+ *   senza `arrivo` per i ritorni o la lettura che non guarda gli .xlsx. */
+function proveDellAnteprimaDiImportazione() {
+  const { traduciCsv, conListaOrigine, eFileExcel, MESSAGGIO_FILE_EXCEL, separaRitorni } = IMP;
+  const { riepilogoImport } = RIE;
+  gruppo("L'ANTEPRIMA D'IMPORTAZIONE");
+
+  //  ── Il file di prova, come lo vedra' il titolare ──────────────────────────
+  const letto = traduciCsv(META_STORTO);
+  c("META_STORTO: l'avviso di riallineamento c'e'", true, letto.intestazioniRiallineate > 0);
+  const rie = riepilogoImport(letto.leads);
+  c("META_STORTO: un gruppo, BROAD | ITALIA", "BROAD | ITALIA", rie.perGruppo[0].gruppo);
+  c("META_STORTO: con 3 lead", 3, rie.perGruppo[0].n);
+  const problema = rie.perDomanda.find((d) => d.campo === "problema");
+  c("META_STORTO: Problema, androgenetica 1 e areata 2",
+    [["Alopecia areata", 2], ["Alopecia androgenetica", 1]],
+    problema.risposte.map((x) => [x.etichetta, x.n]));
+  c("META_STORTO: le conservate non sono vuote (is organic)", true, letto.colonneConservate.includes("is organic"));
+
+  //  ── Il nome del file e il giorno si scrivono sulle schede NUOVE ───────────
+  const ora = new Date("2026-10-12T10:00:00Z");
+  const scritta = conListaOrigine(letto.leads[0], "lead-12-ottobre.csv", ora);
+  c("conListaOrigine: il nome del file", "lead-12-ottobre.csv", scritta.listaOrigine.file);
+  c("conListaOrigine: il momento del caricamento, in ISO", "2026-10-12T10:00:00.000Z", scritta.listaOrigine.il);
+  c("conListaOrigine: il dataDalFile di T5 si conserva", letto.leads[0].listaOrigine.dataDalFile, scritta.listaOrigine.dataDalFile);
+  c("conListaOrigine: non tocca il resto della scheda", { ...letto.leads[0], listaOrigine: scritta.listaOrigine }, scritta);
+  c("conListaOrigine: l'originale non cambia", "", letto.leads[0].listaOrigine.file);
+  const senza = conListaOrigine({ nome: "Prova", telefono: "+393330000199" }, "a.json", ora);
+  c("conListaOrigine: su una scheda senza listaOrigine (backup JSON)",
+    { file: "a.json", il: "2026-10-12T10:00:00.000Z" }, senza.listaOrigine);
+
+  //  ── Un ritorno porta con se' annuncio e risposte di questa volta ──────────
+  const archivio = [{ id: "vecchio-1", data: { nome: "Mario", cognome: "Esempio", telefono: "+393330000101", stato: "non_risponde" } }];
+  const { nuovi, ritorni } = separaRitorni(letto.leads, archivio);
+  c("META_STORTO su un archivio con Mario: 1 ritorno, 2 nuovi", [1, 2], [ritorni.length, nuovi.length]);
+  c("il ritorno porta l'annuncio di stavolta", "589\u20ac - 001 - ok", ritorni[0].letto.tracking?.ad_name);
+  c("e le risposte di stavolta", "androgenetica", ritorni[0].letto.modulo?.problema);
+  const attuale = archivio[0].data;
+  const patch = RIC.patchRicarico(attuale, "lead-12-ottobre.csv", ora, { tracking: ritorni[0].letto.tracking, modulo: ritorni[0].letto.modulo });
+  c("patchRicarico con arrivo: ricarico.arrivo.ad_name", "589\u20ac - 001 - ok", patch.ricarico?.arrivo?.ad_name);
+  c("e non tocca stato ne' note", false, "stato" in patch || "note" in patch);
+
+  //  ── Excel: il messaggio dice cosa fare, il pannello lo usa ───────────────
+  c("il messaggio dice di scaricare in CSV", true, /CSV/.test(MESSAGGIO_FILE_EXCEL) && /Google Fogli/.test(MESSAGGIO_FILE_EXCEL));
+  c("un .xlsx si riconosce", true, eFileExcel(new Uint8Array([1, 2]), "lista.xlsx"));
+
+  //  ── Il cablaggio nel pannello e nella scheda KPI ──────────────────────────
+  const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
+  const daFare = readFileSync(join(radice, "src/crm/kpi/DaFareScheda.tsx"), "utf8");
+  const backup = readFileSync(join(radice, "src/crm/import-backup.ts"), "utf8");
+  c("l'alias colonneIgnorate e' stato tolto da import-backup", false, /colonneIgnorate/.test(backup));
+  for (const [nome, src] of [["PannelloCarica", pannello], ["DaFareScheda", daFare]]) {
+    c(`${nome}: non usa piu' colonneIgnorate`, false, /colonneIgnorate/.test(src));
+    c(`${nome}: legge i byte con leggiTestoFile (UTF-16 del Centro lead)`, true, /new Uint8Array\(await f\.arrayBuffer\(\)\)/.test(src) && /leggiTestoFile\(byte\)|leggiTestoFile\(/.test(src) && !/await f\.text\(\)/.test(src));
+    c(`${nome}: riconosce l'Excel prima di leggere`, true, /eFileExcel\(/.test(src) && /MESSAGGIO_FILE_EXCEL/.test(src));
+    c(`${nome}: dice «Conservate ma non usate»`, true, /Conservate ma non usate/.test(src));
+    c(`${nome}: la frase «rimaste fuori… rinominala» non c'e' piu'`, false, /rimaste fuori|rinominala/.test(src));
+    c(`${nome}: scrive nome del file e giorno con conListaOrigine`, true, /conListaOrigine\(/.test(src));
+    c(`${nome}: l'avviso delle intestazioni spostate`, true, /intestazioniRiallineate/.test(src) && /Intestazioni spostate di/.test(src));
+  }
+  c("PannelloCarica: l'anteprima divisa viene da riepilogoImport", true, /riepilogoImport\(/.test(pannello));
+  c("PannelloCarica: le due colonne hanno i loro titoli", true,
+    /Per gruppo e annuncio/i.test(pannello) && /Per risposta/i.test(pannello));
+  c("PannelloCarica: i ritorni passano l'arrivo (tracking e modulo) a patchRicarico", true,
+    /patchRicarico\(\s*attuale,\s*fileDi,\s*new Date\(\),\s*\{\s*tracking:[^}]*modulo:/.test(pannello));
+  c("PannelloCarica: l'arrivo viene dalla riga letta del file", true, /new Map\(ritorni\.map\(\(r\) => \[r\.scheda\.id, r\.letto\]\)\)/.test(pannello));
+  c("PannelloCarica: accetta anche .xlsx per poter dire cosa fare", true, /accept="[^"]*\.xlsx/.test(pannello));
+
+  //  ── ⚠️ `datiFile` non esce dalla scheda ──────────────────────────────────
+  //  Ne' nell'esportazione CSV ne' nei messaggi: sono colonne altrui, anche
+  //  con numeri di telefono o testi lunghi. Si guarda dove si fabbricano i testi.
+  const ui = readFileSync(join(radice, "src/crm/ui.tsx"), "utf8");
+  const daEsporta = ui.indexOf("export function esportaCsvLead");
+  c("esportaCsvLead esiste ancora", true, daEsporta > 0);
+  c("esportaCsvLead non riversa datiFile", false, /datiFile/.test(ui.slice(daEsporta, daEsporta + 4000)));
+  c("DaFareScheda non riversa datiFile", false, /datiFile/.test(daFare));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -16695,6 +16784,7 @@ proveDelRitornoInBozza();
 proveDelQuandoStato();
 proveDellaListaImportata();
 proveDelRiallineamento();
+proveDellAnteprimaDiImportazione();
 proveDeiPermessi();
 proveDiTuttiIMessaggi();
 proveDelMessaggioGiusto();
