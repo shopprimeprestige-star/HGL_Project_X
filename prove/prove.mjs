@@ -3052,6 +3052,13 @@ function proveDegliHook() {
     "src/shop/PresenterBar.tsx",
     "src/routes/prova-capelli.tsx",
     "src/routes/CRM.prova-capelli.tsx",
+    //  ⚠️ LA PAGINA DEI LEAD IMPORTATI E I SUOI PEZZI. Un hook sotto
+    //   un'uscita anticipata qui spegne la pagina del setter in piena giornata
+    //   di telefonate (la lista è 4.000 righe di componente unico).
+    "src/routes/CRM.importa.tsx",
+    "src/crm/importa/FiltriLista.tsx",
+    "src/crm/importa/RigaChiamata.tsx",
+    "src/crm/importa/MenuAltro.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -10372,7 +10379,7 @@ function proveDelLinkPerCiascuno() {
 function proveDiChiChiamare() {
   const {
     inLista, eCaldo, eLaSuaOra, motivoChiamata, NOME_MOTIVO, ordinaChiamate, listaDaChiamare,
-    contaPromesse, patchEsito,
+    contaPromesse, patchEsito, fraseVerdetto,
   } = CHIAM;
   const { etichettaRisposta } = MDL;
   gruppo("CHI SI CHIAMA PER PRIMO, E PERCHÉ");
@@ -10539,6 +10546,50 @@ function proveDiChiChiamare() {
   c("un saltato con una promessa scaduta non si conta", "0|0",
     (() => { const x = contaPromesse([L("SP", { stato: "richiamo", dataRicontatto: "2026-10-01", saltatoIl: alle(5, 10) })], ADESSO); return `${x.tutte}|${x.scadute}`; })());
 
+  //  ── ⚠️ DUE NOTE DEL REVISORE (T3), CHIUSE IN T7 ──────────────────────
+  //  1. Una data «zero» di un vecchio gestionale (`0000-00-00`, `2026-10-00`)
+  //     ha la forma giusta ma non è un giorno: passava per «leggibile» e finiva
+  //     in cima come PROMESSA «scaduta da 739.000 giorni», contata nel verdetto.
+  for (const zero of ["0000-00-00", "2026-10-00", "2026-02-30", "2026-13-01", "0001-01-01"]) {
+    const x = m(L("Z0", { stato: "richiamo", dataRicontatto: zero }));
+    c(`la data «${zero}» non è un giorno: ritento, senza giorno`, "ritento|richiamo senza giorno",
+      `${x.motivo}|${x.testo}`);
+    c(`e non entra nel verdetto (${zero})`, "0|0",
+      (() => { const v = contaPromesse([L("Z0", { stato: "richiamo", dataRicontatto: zero })], ADESSO); return `${v.tutte}|${v.scadute}`; })());
+  }
+  c("la data zero in dataRicontatto lascia valere callbackAt", "promessa",
+    m(L("ZC", { stato: "richiamo", dataRicontatto: "0000-00-00", callbackAt: "2026-10-11T09:00:00" })).motivo);
+  c("un callbackAt zero non fa una promessa", "ritento",
+    m(L("ZB", { stato: "richiamo", callbackAt: "0000-00-00T00:00:00" })).motivo);
+  //  2. L'ora salvata vale solo per un «richiamo» con il suo giorno in
+  //     `dataRicontatto`. «Mi richiama lui» non ha un'ora nostra da rispettare
+  //     (il testo dice «doveva farsi vivo lui oggi») e un giorno preso da
+  //     `callbackAt` non è quello a cui l'ora si riferiva.
+  const LUI10 = L("L10", { stato: "ci_ricontatta_lui", dataRicontatto: "2026-10-12", oraRicontatto: "10:00" });
+  c("«mi richiama lui» di oggi con un'ora passata: promessa, ma non scaduta", "promessa|doveva farsi vivo lui oggi|1|0",
+    (() => { const x = m(LUI10); const v = contaPromesse([LUI10], ADESSO); return `${x.motivo}|${x.testo}|${v.tutte}|${v.scadute}`; })());
+  const CB = L("CB", { stato: "richiamo", callbackAt: "2026-10-12T09:00:00", oraRicontatto: "10:00" });
+  c("il giorno preso da callbackAt non eredita l'ora salvata", "promessa|richiamo di oggi|1|0",
+    (() => { const x = m(CB); const v = contaPromesse([CB], ADESSO); return `${x.motivo}|${x.testo}|${v.tutte}|${v.scadute}`; })());
+  c("un vero richiamo con la sua ora passata resta scaduto", "promessa|richiamo alle 12:00, scaduto da 1 h|1|1",
+    (() => { const x = m(P1); const v = contaPromesse([P1], ADESSO); return `${x.motivo}|${x.testo}|${v.tutte}|${v.scadute}`; })());
+
+  //  ── LA FRASE DEL VERDETTO ────────────────────────────────────────────
+  //  ⚠️ Il numero in testata è `contaPromesse` e il testo sta qui, provato: la
+  //  frase e le righe dello Stato «Promesse» devono dire la stessa cosa.
+  c("nessuna promessa: nessuna frase", "", fraseVerdetto({ tutte: 0, scadute: 0 }));
+  c("quattro promesse, due scadute", "4 promesse da mantenere, di cui 2 scadute: sono in cima",
+    fraseVerdetto({ tutte: 4, scadute: 2 }));
+  c("una promessa, scaduta", "1 promessa da mantenere, scaduta: è in cima",
+    fraseVerdetto({ tutte: 1, scadute: 1 }));
+  c("una promessa, una scadenza sola su tre", "3 promesse da mantenere, di cui 1 scaduta: sono in cima",
+    fraseVerdetto({ tutte: 3, scadute: 1 }));
+  c("promesse ma nessuna scaduta", "2 promesse da mantenere, nessuna scaduta",
+    fraseVerdetto({ tutte: 2, scadute: 0 }));
+  c("una promessa non ancora scaduta", "1 promessa da mantenere, non ancora scaduta",
+    fraseVerdetto({ tutte: 1, scadute: 0 }));
+  c("numeri strani non danno frasi strane", "", fraseVerdetto({ tutte: -3, scadute: Number.NaN }));
+
   //  ── L'ESITO CHE SI SCRIVE ────────────────────────────────────────────
   c("non risponde senza contatore: 1", 1, patchEsito({}, "non_risponde").noRispondeCount);
   c("segreteria da 2: 3", 3, patchEsito({ noRispondeCount: 2 }, "segreteria").noRispondeCount);
@@ -10546,61 +10597,144 @@ function proveDiChiChiamare() {
   c("senza scheda non esplode", 1, patchEsito(null, "non_risponde").noRispondeCount);
 }
 
-function proveDelleTrePorte() {
-  const { REPARTI, repartoDi, contoReparto, sottoViste, repartiDaMostrare, vistaDiIngresso } = REP;
-  gruppo("TRE PORTE, NON OTTO");
+function proveDelleLinguette() {
+  const {
+    LINGUETTE, ALTRO, linguettaDi, percorsoVista, contoLinguetta, stanzeDi, linguetteDaMostrare,
+    vistaDiIngresso,
+  } = REP;
+  gruppo("TRE LINGUETTE E UN MENU «ALTRO»");
 
-  /*  Segnalazione del committente: «riorganizza tutto da 0, ora è troppo
-      caotico e si perdono funzioni importanti». Otto linguette sulla stessa
-      riga chiedono di scegliere fra otto cose ogni volta. */
-  const tutte = REPARTI.flatMap((r) => r.viste.map((v) => v.vista));
-  c("le porte sono tre", 3, REPARTI.length);
-  //  ⚠️ IL CUORE: nessuna vista è stata persa per strada — né le otto di
-  //   allora, né le due del magazzino aggiunte il 7/10 (Ripesca, Doppioni).
-  //   Il numero si aggiorna quando una stanza nasce; quello che NON deve
-  //   cambiare è che siano tutte dentro una porta e una sola.
-  c("ogni stanza sta in una porta e una sola", tutte.length, new Set(tutte).size);
-  for (const v of [
-    "coda", "oggi", "ritorno", "tutti", "whatsapp", "rimandati", "saltati", "miei",
-    "ripesca", "doppioni",
-  ]) {
-    c(`«${v}» ha ancora una porta`, true, tutte.includes(v));
+  /*  Richiesta del titolare (12/10): una lista sola «Da chiamare», tre
+      linguette, e tutto il resto in «Altro». ⚠️ NIENTE SI TOGLIE: le dieci
+      viste di prima ci sono ancora, solo in un altro posto. */
+  const DIECI = ["coda", "oggi", "ritorno", "tutti", "whatsapp", "rimandati", "saltati", "miei", "ripesca", "doppioni"];
+  c("le linguette sono tre", 3, LINGUETTE.length);
+  c("e si chiamano come nella spec", "Da chiamare,In attesa,Fissati da me", LINGUETTE.map((l) => l.nome).join(","));
+  for (const v of DIECI) {
+    const p = percorsoVista(v);
+    c(`«${v}» si raggiunge con uno o due passi`, true, p.length >= 1 && p.length <= 2);
+    c(`«${v}» ha una linguetta o sta in «Altro»`, true, ["dachiamare", "attesa", "miei", "altro"].includes(linguettaDi(v)));
   }
+  //  Ogni vista sta in un posto solo: nelle stanze di una linguetta, oppure in Altro.
+  const stanze = LINGUETTE.flatMap((l) => l.viste.map((v) => v.vista));
+  const inAltro = ALTRO.filter((x) => x.vista).map((x) => x.vista);
+  c("nessuna stanza è in due posti", stanze.length + inAltro.length, new Set([...stanze, ...inAltro]).size);
+  c("«coda» (la lista) sta in «Da chiamare»", "dachiamare", linguettaDi("coda"));
+  c("«ritorno» si raggiunge dalla lista, con lo Stato", "dachiamare", linguettaDi("ritorno"));
+  c("il percorso di «ritorno»", ["Da chiamare", "Stato: Di ritorno"], percorsoVista("ritorno"));
+  c("il percorso della lista", ["Da chiamare"], percorsoVista("coda"));
+  c("«ripesca» sta in Altro", "Altro", percorsoVista("ripesca")[0]);
+  c("il percorso di «Ripesca»", ["Altro", "Ripesca"], percorsoVista("ripesca"));
+  c("«Tutta la lista» sta in Altro", ["Altro", "Tutta la lista"], percorsoVista("tutti"));
+  c("«Doppioni» sta in Altro", "altro", linguettaDi("doppioni"));
+  c("«Note e promemoria» è la vecchia «Oggi», nella stessa scheda", ["Altro", "Note e promemoria"], percorsoVista("oggi"));
+  c("«Vedi dopo» resta in «In attesa»", ["In attesa", "Vedi dopo"], percorsoVista("rimandati"));
+  c("«Fissati da me» è una linguetta", ["Fissati da me"], percorsoVista("miei"));
 
+  //  ── Il menu Altro: le cinque cose che non si toglie ─────────────────────
+  c("Altro contiene Tutta la lista, Ripesca, Doppioni, Note e promemoria", "doppioni,oggi,ripesca,tutti",
+    [...inAltro].sort().join(","));
+  c("e l'Elenco completo, che è un'altra pagina", "/CRM/avanzamento",
+    ALTRO.find((x) => x.href)?.href);
+  c("Altro ha cinque voci", 5, ALTRO.length);
+  c("ogni voce di Altro ha un nome e una spiegazione", true, ALTRO.every((x) => x.nome && x.titolo));
+
+  //  ── I numeri ────────────────────────────────────────────────────────────
   const conti = { coda: 17, oggi: 2, ritorno: 21, tutti: 17, whatsapp: 16, rimandati: 7, saltati: 7, miei: 128 };
-  /*  ⚠️ IL NUMERO SULLA PORTA NON È LA SOMMA: i contatti di ritorno e i
-      richiami scaduti stanno GIÀ in coda, e sommarli direbbe che c'è il doppio
-      del lavoro che c'è. */
-  c("la porta «adesso» conta solo la coda", 17, contoReparto("adesso", conti));
-  c("«in attesa» invece somma le sue tre stanze", 30, contoReparto("attesa", conti));
-  c("«il mio lavoro» porta il suo numero", 128, contoReparto("mio", conti));
+  c("«Da chiamare» conta la lista", 17, contoLinguetta("dachiamare", conti));
+  /*  «Di ritorno» e le note scadute stanno GIÀ nella lista o in Altro:
+      sommarle direbbe che c'è il doppio del lavoro che c'è. */
+  c("«In attesa» somma le sue tre stanze", 30, contoLinguetta("attesa", conti));
+  c("«Fissati da me» porta il suo numero", 128, contoLinguetta("miei", conti));
+  c("numeri mancanti o storti valgono zero", 0, contoLinguetta("attesa", { whatsapp: Number.NaN }));
 
-  c("una vista sa in che porta sta", "attesa", repartoDi("whatsapp"));
-  c("e anche quella del setter", "mio", repartoDi("miei"));
-
-  //  Le stanze vuote non si mostrano...
+  //  ── Quali linguette si vedono, quali stanze, dove si entra ──────────────
   const vuoto = { coda: 0, oggi: 0, miei: 0 };
-  c("una stanza vuota non compare", false,
-    sottoViste("attesa", vuoto, "coda").some((v) => v.vista === "saltati"));
-  //  ...ma quelle di tutti i giorni sì, anche a zero.
-  c("la coda c'è anche quando sei in pari", true,
-    sottoViste("adesso", vuoto, "coda").some((v) => v.vista === "coda"));
-  //  ⚠️ E quella APERTA non sparisce sotto le dita quando si svuota.
-  c("la stanza aperta non sparisce mai", true,
-    sottoViste("attesa", vuoto, "saltati").some((v) => v.vista === "saltati"));
-  c("nemmeno la sua porta", true,
-    repartiDaMostrare(vuoto, "saltati").some((r) => r.reparto === "attesa"));
-  c("ma a porta chiusa e stanze vuote la porta non c'è", false,
-    repartiDaMostrare(vuoto, "coda").some((r) => r.reparto === "attesa"));
-
-  /*  Premendo una porta si entra dove c'è da lavorare, non sulla prima stanza
-      per ordine alfabetico. */
+  c("«Da chiamare» c'è anche quando sei in pari", true,
+    linguetteDaMostrare(vuoto, "coda").some((l) => l.linguetta === "dachiamare"));
+  c("«Fissati da me» c'è sempre", true, linguetteDaMostrare(vuoto, "coda").some((l) => l.linguetta === "miei"));
+  c("«In attesa» vuota non si mostra", false,
+    linguetteDaMostrare(vuoto, "coda").some((l) => l.linguetta === "attesa"));
+  c("ma se ci sei dentro non sparisce sotto le dita", true,
+    linguetteDaMostrare(vuoto, "saltati").some((l) => l.linguetta === "attesa"));
+  c("una stanza vuota non compare", false, stanzeDi("attesa", vuoto, "coda").some((v) => v.vista === "saltati"));
+  c("la stanza aperta non sparisce mai", true, stanzeDi("attesa", vuoto, "saltati").some((v) => v.vista === "saltati"));
   c("si entra dove c'è qualcosa", "whatsapp", vistaDiIngresso("attesa", conti, "coda"));
-  c("a porta tutta vuota si entra nella stanza di sempre", "coda",
-    vistaDiIngresso("adesso", vuoto, "miei"));
-  //  ⚠️ Ripremere la porta che si sta già guardando non sposta nessuno.
-  c("ripremere la porta aperta non sposta niente", "rimandati",
-    vistaDiIngresso("attesa", conti, "rimandati"));
+  c("ripremere la linguetta aperta non sposta niente", "rimandati", vistaDiIngresso("attesa", conti, "rimandati"));
+  c("a linguetta vuota si entra nella prima stanza", "whatsapp", vistaDiIngresso("attesa", vuoto, "coda"));
+  c("«Da chiamare» porta alla lista", "coda", vistaDiIngresso("dachiamare", conti, "miei"));
+  //  Da una stanza di Altro, premere «Da chiamare» riporta alla lista.
+  c("da Ripesca si torna alla lista", "coda", vistaDiIngresso("dachiamare", conti, "ripesca"));
+
+  //  ── ⚠️ I MENU SONO DI RADIX, E LE SCORCIATOIE LO SANNO ──────────────────
+  //  Un «1» premuto dentro un menu aperto non deve dare l'esito «Non risponde»
+  //  al lead che si sta guardando. Il freno è in `useScorciatoie`: tace se nella
+  //  pagina c'è un contenuto di Radix aperto. Ma lo fa solo con i menu di Radix:
+  //  un menu fatto a mano con un <div> non ha quell'attributo e il freno non
+  //  scatta. Lo si legge dal sorgente, perché è una proprietà del codice.
+  const ui = readFileSync("src/crm/ui.tsx", "utf8");
+  c("il freno delle scorciatoie guarda i menu di Radix", true,
+    ui.includes('document.querySelector("[data-radix-popper-content-wrapper]")'));
+  for (const f of ["src/crm/importa/FiltriLista.tsx", "src/crm/importa/MenuAltro.tsx"]) {
+    const src = readFileSync(f, "utf8");
+    c(`${f}: i menu sono i componenti di Radix già nel progetto`, true,
+      /from "@\/components\/ui\/(popover|dropdown-menu)"/.test(src));
+    c(`${f}: nessun menu fatto a mano`, false,
+      /<select\b|role="(listbox|menu)"/.test(src));
+  }
+  const filtri = readFileSync("src/crm/importa/FiltriLista.tsx", "utf8");
+  c("i tre filtri hanno i tre nomi della spec", true,
+    ["Annuncio", "Risposta", "Stato"].every((n) => filtri.includes(`"${n}"`)));
+  c("c'è «Azzera filtri»", true, filtri.includes("Azzera filtri"));
+  const altro = readFileSync("src/crm/importa/MenuAltro.tsx", "utf8");
+  c("il menu Altro porta all'elenco completo con un collegamento vero", true,
+    altro.includes('to="/CRM/avanzamento"'));
+
+  //  ── ⚠️ IL NUMERO DEL VERDETTO NON SI SMENTISCE AL PRIMO TOCCO ───────────
+  //  Prima la testata contava anche le note del setter e i saltati, e usava
+  //  l'ora: premendo «3 richiami scaduti» si trovavano altre righe. Ora il
+  //  numero è `contaPromesse` e lo Stato «Promesse» mostra le stesse righe.
+  //  Qui si incrociano i due moduli: è possibile solo adesso che sono tutti e
+  //  due nel ramo.
+  const { listaDaChiamare, motivoChiamata, contaPromesse, fraseVerdetto } = CHIAM;
+  const { applicaFiltri, opzioniFiltri } = FIL;
+  const ADESSO = new Date(2026, 9, 12, 13, 0);
+  const alle = (g, mm, h = 0, min = 0) => new Date(2026, mm - 1, g, h, min).toISOString();
+  const base = { importato: true, nome: "Prova", createdAt: alle(1, 10) };
+  const L = (id, data) => ({ id, data: { ...base, ...data } });
+  const MISTI = [
+    L("p-ieri", { stato: "richiamo", dataRicontatto: "2026-10-11" }),
+    L("p-ora-passata", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "12:00" }),
+    L("p-ora-futura", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "17:00" }),
+    L("p-lui", { stato: "ci_ricontatta_lui", dataRicontatto: "2026-10-12", oraRicontatto: "10:00" }),
+    L("p-callback", { stato: "richiamo", callbackAt: "2026-10-10T09:00:00" }),
+    //  …e quelli che NON sono promesse in lista:
+    L("f-futuro", { stato: "richiamo", dataRicontatto: "2026-10-20" }),
+    L("f-senza-giorno", { stato: "richiamo", dataRicontatto: "boh" }),
+    L("f-zero", { stato: "richiamo", dataRicontatto: "0000-00-00" }),
+    L("f-saltato", { stato: "richiamo", dataRicontatto: "2026-10-01", saltatoIl: alle(10, 10) }),
+    L("f-fissato", { stato: "appuntamento_fissato" }),
+    L("f-ritorno", { stato: "no_show", ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } }),
+    L("f-prima", { stato: "da_contattare" }),
+    L("f-ritento", { stato: "non_risponde", noRispondeCount: 2 }),
+    L("f-altro-lead", { stato: "richiamo", dataRicontatto: "2026-10-09", importato: false }),
+  ];
+  const lista = listaDaChiamare(MISTI, ADESSO);
+  const righe = lista.map((l) => ({ id: l.id, data: l.data, motivo: motivoChiamata(l, ADESSO).motivo, modulo: l.data.modulo }));
+  const conto = contaPromesse(MISTI, ADESSO);
+  const dello_stato = applicaFiltri(righe, { stato: "promesse" }, "2026-10-12");
+  c("il numero del verdetto è il numero di righe dello Stato «Promesse»", conto.tutte, dello_stato.length);
+  c("sono proprio le cinque promesse", "p-callback,p-ieri,p-lui,p-ora-futura,p-ora-passata",
+    dello_stato.map((r) => r.id).sort().join(","));
+  c("le scadute sono quelle con il momento passato", 3, conto.scadute);
+  c("il numero accanto alla voce «Promesse» del menu è lo stesso", conto.tutte,
+    opzioniFiltri(righe, {}, "2026-10-12").stato.find((x) => x.valore === "promesse").n);
+  c("la frase del verdetto dice quel numero", true,
+    fraseVerdetto(conto).startsWith(`${conto.tutte} promesse da mantenere, di cui ${conto.scadute} scadute`));
+  //  Con un altro filtro acceso il verdetto resta quello della lista intera:
+  //  il clic azzera Annuncio e Risposta e imposta solo lo Stato.
+  c("lo Stato «Promesse» da solo mostra esattamente N righe", conto.tutte,
+    applicaFiltri(righe, { stato: "promesse", quando: "sempre" }, "2026-10-12").length);
 }
 
 /** ── I FILTRI DELLA LISTA DEI LEAD IMPORTATI ───────────────────────────────
@@ -15926,7 +16060,7 @@ provePalco();
   proveDellaRigaPulita();
   proveDellaRegistrazione();
   proveDiChiEAncoraDentro();
-  proveDelleTrePorte();
+  proveDelleLinguette();
   proveDiChiChiamare();
   proveDiChiHaFissato();
   proveDelContaSuoni();

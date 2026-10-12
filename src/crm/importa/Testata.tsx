@@ -42,18 +42,22 @@
  *      persone; ed è l'unico che può accendersi, in ambra e non in rosso,
  *      quando qualcuno è lì da troppo.
  *
- *  ⚠️ IL NUMERO DELLE SCADUTE NON SI CALCOLA QUI. Arriva da
- *   crm/importa/scadenze, che è lo stesso conto della sotto-scheda «Oggi»:
- *   premere il verdetto porta là, e la fascia in cima e l'elenco che si apre
- *   devono dire lo stesso numero. Due conti separati per la stessa parola
- *   («scaduto») sono due conti che un giorno divergono, e quel giorno la
- *   testata comincia a mentire.
+ *  ⚠️ IL NUMERO DEL VERDETTO NON SI CALCOLA QUI, E CONTA LE PROMESSE DELLA
+ *   LISTA. Arriva da `contaPromesse` (crm/importa/chi-chiamare) e la frase da
+ *   `fraseVerdetto`: «N promesse da mantenere, di cui M scadute: sono in
+ *   cima». Premendolo si apre «Da chiamare» con lo Stato su «Promesse», che
+ *   mostra ESATTAMENTE N righe (la prova incrocia i due moduli). Prima il
+ *   numero veniva da crm/importa/scadenze, che conta anche le note che il
+ *   setter si scrive e i saltati, e usa l'ora: «3 richiami scaduti» in cima e
+ *   altre righe sotto il dito, cioè un verdetto che si smentisce al primo
+ *   tocco. Le note scadute hanno il loro numero in Altro → Note e promemoria.
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, ChevronRight, SkipForward } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Clock, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SALTATO_DA_TROPPO } from "@/crm/importa/saltati";
+import { fraseVerdetto } from "@/crm/importa/chi-chiamare";
 
 /** Un numero di contorno. Piccolo, tabellare, grigio, con l'etichetta ACCANTO:
  *  in colonna (numero sopra, etichetta sotto) occupava l'altezza di una riga
@@ -101,25 +105,25 @@ function Dato({
 }
 
 export function Testata({
-  scadute,
+  promesse,
   daProvare,
   inCoda,
   segnate,
   saltati,
   saltatiFermi,
-  onVediScadute,
+  onVediPromesse,
   onVediSaltati,
   ricerca,
 }: {
-  /** Le promesse non mantenute. È il protagonista, e arriva da
-   *  crm/importa/scadenze: vedi l'intestazione. */
-  scadute: number;
+  /** Le promesse della lista «Da chiamare»: quante sono e quante già scadute.
+   *  È il protagonista, e arriva da `contaPromesse`: vedi l'intestazione. */
+  promesse: { tutte: number; scadute: number };
   daProvare: number;
   inCoda: number;
   segnate: number;
   saltati: number;
   saltatiFermi: number;
-  onVediScadute: () => void;
+  onVediPromesse: () => void;
   onVediSaltati: () => void;
   /** La ricerca resta un pezzo della pagina e non di questo file: è l'unico
    *  comando della testata che scrive nello stato del giro (chi va in testa
@@ -127,7 +131,8 @@ export function Testata({
    *  componente metà della pagina. */
   ricerca: ReactNode;
 }) {
-  const inRitardo = scadute > 0;
+  const inRitardo = promesse.scadute > 0;
+  const conPromesse = promesse.tutte > 0;
   /** La frazione del giro. `inCoda` a zero non è «tutto fatto», è «non c'è
    *  niente»: la barra in quel caso non si disegna, perché una barra piena su
    *  una coda vuota si legge come una giornata finita che non è mai cominciata. */
@@ -144,55 +149,66 @@ export function Testata({
             il modo migliore per far ignorare l'allarme. */}
         <button
           type="button"
-          onClick={inRitardo ? onVediScadute : undefined}
-          disabled={!inRitardo}
+          onClick={conPromesse ? onVediPromesse : undefined}
+          disabled={!conPromesse}
           className={cn(
             "flex min-w-0 items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors",
-            inRitardo && "-mx-2 hover:bg-rose-50",
+            conPromesse && "-mx-2",
+            conPromesse && (inRitardo ? "hover:bg-rose-50" : "hover:bg-accent"),
           )}
         >
           <span
             className={cn(
               "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-              inRitardo ? "bg-rose-600 text-white" : "bg-emerald-50 text-emerald-600",
+              inRitardo
+                ? "bg-rose-600 text-white"
+                : conPromesse
+                  ? "bg-muted text-foreground"
+                  : "bg-emerald-50 text-emerald-600",
             )}
           >
             {inRitardo ? (
               <AlertTriangle className="h-5 w-5" />
+            ) : conPromesse ? (
+              <Clock className="h-5 w-5" />
             ) : (
               <CheckCircle2 className="h-5 w-5" />
             )}
           </span>
           <span className="min-w-0">
-            <span className="flex items-baseline gap-2">
-              <span
-                className={cn(
-                  "text-[30px] font-semibold leading-none tabular-nums",
-                  inRitardo ? "text-rose-600" : "text-foreground",
-                )}
-              >
-                {inRitardo ? scadute : daProvare}
+            {conPromesse ? (
+              <span className="flex items-baseline gap-2">
+                <span
+                  className={cn(
+                    "text-[17px] font-semibold leading-tight",
+                    inRitardo ? "text-rose-700" : "text-foreground",
+                  )}
+                >
+                  {fraseVerdetto(promesse)}
+                </span>
+                <ChevronRight
+                  className={cn(
+                    "h-4 w-4 shrink-0 self-center",
+                    inRitardo ? "text-rose-400" : "text-muted-foreground",
+                  )}
+                />
               </span>
-              <span
-                className={cn(
-                  "truncate text-[15px] font-semibold",
-                  inRitardo ? "text-rose-700" : "text-foreground",
-                )}
-              >
-                {inRitardo
-                  ? scadute === 1
-                    ? "richiamo scaduto"
-                    : "richiami scaduti"
-                  : daProvare === 1
+            ) : (
+              <span className="flex items-baseline gap-2">
+                <span className="text-[30px] font-semibold leading-none tabular-nums text-foreground">
+                  {daProvare}
+                </span>
+                <span className="truncate text-[15px] font-semibold text-foreground">
+                  {daProvare === 1
                     ? "da provare in questo giro"
                     : "ancora da provare in questo giro"}
+                </span>
               </span>
-              {inRitardo && <ChevronRight className="h-4 w-4 shrink-0 text-rose-400" />}
-            </span>
+            )}
             <span className="mt-1 block text-[12px] text-muted-foreground">
-              {inRitardo
-                ? "Promesse fatte al cliente e non ancora mantenute: vengono prima di tutto il resto"
-                : "Sei in pari: nessuna promessa scaduta"}
+              {conPromesse
+                ? "Richiami concordati con il cliente: premi per vederli, sono le prime righe della lista"
+                : "Sei in pari: nessuna promessa da mantenere"}
             </span>
           </span>
         </button>

@@ -1,45 +1,36 @@
-/** ── TRE PORTE, NON OTTO ───────────────────────────────────────────────────
+/** ── TRE LINGUETTE E UN MENU «ALTRO» ───────────────────────────────────────
  *
- *  Segnalazione del committente: «riorganizza tutto da 0, ripensa tutto senza
- *  perdere progressi: ora è troppo caotico, difficile, e si perdono funzioni
- *  importanti».
+ *  Richiesta del titolare (12/10): la setter apre «Lead importati» per una cosa
+ *  sola, sapere chi chiamare adesso. Con tre porte e dieci sotto-schede doveva
+ *  scegliere fra venti cose prima della prima telefonata.
  *
  *  ── COM'ERA ──────────────────────────────────────────────────────────────
- *  Otto linguette tutte sulla stessa riga, tutte allo stesso livello: Da
- *  chiamare, Oggi, Lead saltati, Di ritorno, Scritti su WhatsApp, Vedi dopo,
- *  Fissati da me, Da chiamare in lista. Ognuna è nata da una richiesta vera e
- *  nessuna è di troppo — ma messe in fila chiedono a chi lavora di scegliere
- *  fra OTTO cose ogni volta che alza gli occhi, e in mezzo a otto una si
- *  perde: è successo proprio con «Fissati da me», che per mesi mostrava un
- *  quinto di quello che il setter aveva fissato senza che nessuno se ne
- *  accorgesse.
+ *  Tre porte (Da fare adesso, In attesa, Il mio lavoro) con le stanze dentro:
+ *  la prima ne aveva sei (Coda, Oggi, Di ritorno, Tutta la lista, Ripesca,
+ *  Doppioni). La stessa persona stava in due stanze — un ritorno era in cima
+ *  alla Coda e anche in «Di ritorno» — e il numero sulla porta non era la somma.
  *
  *  ── COM'È ADESSO ─────────────────────────────────────────────────────────
- *  Le domande vere di chi apre questa pagina sono tre, e sono queste:
+ *    DA CHIAMARE    una lista sola, in ordine di «chi chiamare adesso», con la
+ *                   targhetta del perché (crm/importa/chi-chiamare). Anche chi è
+ *                   di ritorno e chi ha una promessa sono lì: si trovano con il
+ *                   filtro Stato.
+ *    IN ATTESA      la palla non è mia: WhatsApp, Vedi dopo, Messi da parte
+ *    FISSATI DA ME  quello che ho fissato io, com'è finito
+ *    ALTRO          il menu per le cose che si usano ogni tanto: Tutta la lista
+ *                   (azioni a gruppi), Ripesca, Doppioni, Note e promemoria,
+ *                   Elenco completo (un'altra pagina)
  *
- *    DA FARE ADESSO   la palla è mia e si muove col telefono in mano
- *                     (la coda, i richiami scaduti, i contatti di ritorno da
- *                      decidere, la lista intera)
- *    IN ATTESA        la palla non è mia: si guarda da quanto aspetta
- *                     (scritti su WhatsApp, vedi dopo, messi da parte)
- *    IL MIO LAVORO    quello che ho fissato io, com'è finito
- *
- *  Le otto viste non spariscono: diventano le stanze DENTRO le tre porte, e si
- *  vedono solo quando quella porta è aperta. La scelta, in ogni istante, è fra
- *  tre cose.
- *
- *  ⚠️ NIENTE VIENE CANCELLATO. Questo file sposta soltanto: ogni vista ha lo
- *   stesso nome, lo stesso contenuto e gli stessi gesti di prima. Era la
- *   condizione del committente — «senza perdere progressi» — ed è anche
- *   l'unico modo di rifare una navigazione senza rifare le regole, che stanno
- *   nei moduli provati qui accanto.
+ *  ⚠️ NIENTE VIENE CANCELLATO. Il tipo `Vista` ha ancora i dieci nomi di prima
+ *   e ogni vista ha lo stesso contenuto e gli stessi gesti: si è spostato solo
+ *   il modo di arrivarci (`percorsoVista` lo scrive a parole, e la prova
+ *   controlla che nessuna sia rimasta senza strada). «Di ritorno» non ha più
+ *   una stanza sua: è la voce «Di ritorno» del filtro Stato.
  *  ⚠️ UNA STANZA VUOTA NON SI MOSTRA, MA QUELLA APERTA SÌ: nascondere la vista
  *   in cui si sta guardando la farebbe sparire sotto le dita appena si svuota.
- *  ⚠️ DUE STANZE DELLA STESSA PORTA POSSONO CONTENERE LE STESSE PERSONE — i
- *   contatti di ritorno stanno anche in cima alla coda, i richiami scaduti pure
- *   — e allora il numero sulla PORTA non è la somma: sommarle direbbe che c'è
- *   il doppio del lavoro che c'è. Chi somma e chi no è dichiarato qui sotto,
- *   una volta sola.
+ *  ⚠️ IL NUMERO SU «DA CHIAMARE» È LA LISTA E BASTA. Le note scadute, i ritorni
+ *   e le promesse stanno già dentro la lista o dentro Altro: sommarli direbbe
+ *   che c'è il doppio del lavoro che c'è.
  *  ───────────────────────────────────────────────────────────────────────── */
 
 export type Vista =
@@ -54,7 +45,7 @@ export type Vista =
   | "saltati"
   | "miei";
 
-export type Reparto = "adesso" | "attesa" | "mio";
+export type Linguetta = "dachiamare" | "attesa" | "miei";
 
 export interface DescrizioneVista {
   vista: Vista;
@@ -62,94 +53,35 @@ export interface DescrizioneVista {
   nome: string;
   /** La spiegazione al passaggio del dito. */
   titolo: string;
-  /** C'è sempre, anche a zero: è il lavoro di tutti i giorni, e una porta che
-   *  sparisce quando è in pari non si ritrova più. */
-  sempre?: boolean;
-  /** Il suo numero NON si somma su quello della porta. Due motivi, tutti e
-   *  due buoni:
-   *   · le sue righe stanno già dentro un'altra stanza (i contatti di ritorno
-   *     sono anche in cima alla coda): sommarle direbbe che c'è il doppio del
-   *     lavoro che c'è;
-   *   · è un magazzino, non una coda di oggi (Ripesca, Doppioni): ottocento
-   *     schede ferme da mesi sul numero della porta farebbero sembrare
-   *     impossibile una giornata in cui ci sono diciassette telefonate. */
-  nonSomma?: boolean;
 }
 
-export interface DescrizioneReparto {
-  reparto: Reparto;
+export interface DescrizioneLinguetta {
+  linguetta: Linguetta;
   nome: string;
   titolo: string;
+  /** Le stanze che si aprono da questa linguetta. */
   viste: DescrizioneVista[];
+  /** C'è sempre, anche a zero: è il lavoro di tutti i giorni, e una linguetta
+   *  che sparisce quando è in pari non si ritrova più. */
+  sempre?: boolean;
 }
 
-export const REPARTI: DescrizioneReparto[] = [
+export const LINGUETTE: DescrizioneLinguetta[] = [
   {
-    reparto: "adesso",
-    nome: "Da fare adesso",
-    titolo: "La palla è tua: si lavora col telefono in mano",
+    linguetta: "dachiamare",
+    nome: "Da chiamare",
+    titolo: "Chi chiamare adesso, in ordine, con il motivo scritto su ogni riga",
+    sempre: true,
     viste: [
       {
         vista: "coda",
-        nome: "Coda",
-        titolo: "Chi c'è da chiamare adesso, uno alla volta",
-        sempre: true,
-      },
-      {
-        vista: "oggi",
-        nome: "Oggi",
-        titolo: "I richiami che hai promesso e le note che ti sei scritto, in ordine di orologio",
-        sempre: true,
-        //  Un richiamo scaduto è già in coda: contarlo due volte raddoppierebbe
-        //  il lavoro che si legge sulla porta.
-        nonSomma: true,
-      },
-      {
-        vista: "ritorno",
-        nome: "Di ritorno",
-        titolo:
-          "Chi è già passato di qui e si rifà vivo: ricomparso in una lista, oppure ha detto che richiama lui",
-        //  Stanno anche in cima alla coda, apposta: è la telefonata migliore
-        //  della giornata.
-        nonSomma: true,
-      },
-      {
-        vista: "tutti",
-        nome: "Tutta la lista",
-        titolo:
-          "Tutti i contatti arrivati da una lista che devono ancora essere telefonati: da qui si prendono a gruppi",
-        nonSomma: true,
-      },
-      /*  ── ⚠️ IL MAGAZZINO, DIETRO LA STESSA PORTA ───────────────────────
-          Misurato il 7/10/2026: 823 schede su 1.081 ferme in «annullato»,
-          «non si è presentato» o «da ricontattare», e diciassette in coda. Il
-          lavoro vero non era in coda: era in un magazzino che nessuna
-          schermata apriva, e l'unico modo di riaprirlo era ricaricare un file
-          che per caso contenesse quelle persone.
-          Sta qui perché è lavoro che si fa col telefono in mano, come il
-          resto di questa porta; non si somma perché non è lavoro di oggi. */
-      {
-        vista: "ripesca",
-        nome: "Ripesca",
-        titolo:
-          "Le schede ferme da mesi che nessuno riapre più: si scelgono da quanto tacciono e si riscrive, con il messaggio giusto per com'era finita",
-        sempre: true,
-        nonSomma: true,
-      },
-      /*  Ventinove numeri con due schede a testa, la stessa persona con due
-          storie. L'avviso del campo rosso ferma i doppioni NUOVI; quelli già
-          dentro non li trovava e non li univa nessuno. */
-      {
-        vista: "doppioni",
-        nome: "Doppioni",
-        titolo:
-          "Due schede con lo stesso numero: si guardano una accanto all'altra, si uniscono senza perdere niente, oppure si dichiara che sono due persone",
-        nonSomma: true,
+        nome: "Da chiamare",
+        titolo: "Una lista sola: promesse, contatti di ritorno, nuovi, prime chiamate e ritenti",
       },
     ],
   },
   {
-    reparto: "attesa",
+    linguetta: "attesa",
     nome: "In attesa",
     titolo: "La palla non è tua: qui si guarda da quanto aspettano",
     viste: [
@@ -171,17 +103,61 @@ export const REPARTI: DescrizioneReparto[] = [
     ],
   },
   {
-    reparto: "mio",
-    nome: "Il mio lavoro",
+    linguetta: "miei",
+    nome: "Fissati da me",
     titolo: "Le consulenze che hai fissato tu, com'è finita compresa",
+    sempre: true,
     viste: [
       {
         vista: "miei",
         nome: "Fissati da me",
         titolo: "Le consulenze che hai preso tu: da qui si aprono e si correggono",
-        sempre: true,
       },
     ],
+  },
+];
+
+/** Una voce del menu «Altro»: una vista della pagina, oppure un'altra pagina
+ *  (`href`). Sono le cinque cose che non si usano a ogni telefonata. */
+export interface VoceAltro {
+  vista?: Vista;
+  href?: string;
+  nome: string;
+  titolo: string;
+}
+
+export const ALTRO: VoceAltro[] = [
+  {
+    vista: "tutti",
+    nome: "Tutta la lista",
+    titolo:
+      "Tutti i contatti arrivati da una lista che devono ancora essere telefonati: da qui si prendono a gruppi",
+  },
+  {
+    vista: "ripesca",
+    nome: "Ripesca",
+    titolo:
+      "Le schede ferme da mesi che nessuno riapre più: si scelgono da quanto tacciono e si riscrive, con il messaggio giusto per com'era finita",
+  },
+  {
+    vista: "doppioni",
+    nome: "Doppioni",
+    titolo:
+      "Due schede con lo stesso numero: si guardano una accanto all'altra, si uniscono senza perdere niente, oppure si dichiara che sono due persone",
+  },
+  {
+    //  La vista si chiama ancora `oggi` (e la prova la cerca con quel nome), ma la
+    //  setter la conosce per quello che contiene.
+    vista: "oggi",
+    nome: "Note e promemoria",
+    titolo:
+      "Le note che ti sei scritto e i richiami, in ordine di orologio: si scrive anche una nota nuova",
+  },
+  {
+    href: "/CRM/avanzamento",
+    nome: "Elenco completo",
+    titolo:
+      "La stessa roba in tabella: filtri per stato e consulente, azioni su venti righe insieme, esportazione in CSV",
   },
 ];
 
@@ -190,51 +166,74 @@ export type Conti = Partial<Record<Vista, number>>;
 
 const quante = (c: Conti, v: Vista): number => Math.max(0, Number(c?.[v] ?? 0) || 0);
 
-/** In quale porta sta questa vista. */
-export function repartoDi(vista: Vista): Reparto {
-  return REPARTI.find((r) => r.viste.some((v) => v.vista === vista))?.reparto ?? "adesso";
+const NOME_ALTRO = (v: Vista): string => ALTRO.find((x) => x.vista === v)?.nome ?? v;
+
+const STANZA = (v: Vista): { linguetta: DescrizioneLinguetta; vista: DescrizioneVista } | null => {
+  for (const linguetta of LINGUETTE) {
+    const vista = linguetta.viste.find((x) => x.vista === v);
+    if (vista) return { linguetta, vista };
+  }
+  return null;
+};
+
+/** Da quale linguetta si arriva a questa vista; «altro» se sta nel menu.
+ *  «Di ritorno» non ha più una stanza: è il filtro Stato della lista. */
+export function linguettaDi(vista: Vista): Linguetta | "altro" {
+  if (vista === "ritorno") return "dachiamare";
+  const s = STANZA(vista);
+  if (s) return s.linguetta.linguetta;
+  return "altro";
 }
 
-/** Il numero da scrivere sulla porta: solo le stanze che non si ripetono. */
-export function contoReparto(reparto: Reparto, conti: Conti): number {
-  const r = REPARTI.find((x) => x.reparto === reparto);
-  if (!r) return 0;
-  return r.viste.filter((v) => !v.nonSomma).reduce((t, v) => t + quante(conti, v.vista), 0);
+/** La strada a parole, uno o due passi: serve alla prova (nessuna vista senza
+ *  strada) e alla riga che dice dove si è quando si è dentro «Altro». */
+export function percorsoVista(vista: Vista): string[] {
+  if (vista === "ritorno") return ["Da chiamare", "Stato: Di ritorno"];
+  const l = linguettaDi(vista);
+  if (l === "altro") return ["Altro", NOME_ALTRO(vista)];
+  const linguetta = LINGUETTE.find((x) => x.linguetta === l)!;
+  //  Le linguette con una stanza sola non ripetono il nome.
+  if (linguetta.viste.length === 1) return [linguetta.nome];
+  return [linguetta.nome, STANZA(vista)?.vista.nome ?? vista];
 }
 
-/** Le stanze da mostrare dentro la porta aperta: quelle che hanno qualcosa,
- *  quelle che ci sono sempre, e — qualunque cosa succeda — quella aperta. */
-export function sottoViste(
-  reparto: Reparto,
+/** Il numero da scrivere sulla linguetta. */
+export function contoLinguetta(linguetta: Linguetta, conti: Conti): number {
+  const l = LINGUETTE.find((x) => x.linguetta === linguetta);
+  if (!l) return 0;
+  if (linguetta === "dachiamare") return quante(conti, "coda");
+  return l.viste.reduce((t, v) => t + quante(conti, v.vista), 0);
+}
+
+/** Le stanze da mostrare dentro la linguetta aperta: quelle che hanno qualcosa
+ *  e — qualunque cosa succeda — quella aperta. */
+export function stanzeDi(
+  linguetta: Linguetta,
   conti: Conti,
   attiva?: Vista | null,
 ): DescrizioneVista[] {
-  const r = REPARTI.find((x) => x.reparto === reparto);
-  if (!r) return [];
-  return r.viste.filter((v) => v.sempre || quante(conti, v.vista) > 0 || v.vista === attiva);
+  const l = LINGUETTE.find((x) => x.linguetta === linguetta);
+  if (!l) return [];
+  return l.viste.filter((v) => quante(conti, v.vista) > 0 || v.vista === attiva);
 }
 
-/** Una porta si mostra se ha qualcosa dentro, o se è quella aperta, o se una
- *  delle sue stanze c'è sempre. */
-export function repartiDaMostrare(conti: Conti, attiva?: Vista | null): DescrizioneReparto[] {
-  const aperta = attiva ? repartoDi(attiva) : null;
-  return REPARTI.filter(
-    (r) =>
-      r.reparto === aperta ||
-      r.viste.some((v) => v.sempre) ||
-      r.viste.some((v) => quante(conti, v.vista) > 0),
+/** Una linguetta si mostra se è di tutti i giorni, se ha qualcosa dentro o se è
+ *  quella in cui si sta guardando. */
+export function linguetteDaMostrare(conti: Conti, attiva?: Vista | null): DescrizioneLinguetta[] {
+  const aperta = attiva ? linguettaDi(attiva) : null;
+  return LINGUETTE.filter(
+    (l) => l.sempre || l.linguetta === aperta || l.viste.some((v) => quante(conti, v.vista) > 0),
   );
 }
 
-/** Premendo una porta, dove si entra: la prima stanza che ha qualcosa da fare;
- *  se sono tutte vuote, la prima che c'è sempre; se non ce n'è, la prima.
- *  ⚠️ Se la porta è già quella aperta non si sposta niente: premerla di nuovo
- *   non deve far saltare altrove chi sta leggendo. */
-export function vistaDiIngresso(reparto: Reparto, conti: Conti, attiva?: Vista | null): Vista {
-  const r = REPARTI.find((x) => x.reparto === reparto);
-  if (!r || !r.viste.length) return "coda";
-  if (attiva && repartoDi(attiva) === reparto) return attiva;
-  const piena = r.viste.find((v) => quante(conti, v.vista) > 0);
-  if (piena) return piena.vista;
-  return (r.viste.find((v) => v.sempre) ?? r.viste[0]).vista;
+/** Premendo una linguetta, dove si entra: la prima stanza che ha qualcosa da
+ *  fare, altrimenti la prima. ⚠️ Se la linguetta è già quella aperta non si
+ *  sposta niente: premerla di nuovo non deve far saltare altrove chi sta
+ *  leggendo. */
+export function vistaDiIngresso(linguetta: Linguetta, conti: Conti, attiva?: Vista | null): Vista {
+  const l = LINGUETTE.find((x) => x.linguetta === linguetta);
+  if (!l || !l.viste.length) return "coda";
+  if (attiva && linguettaDi(attiva) === linguetta) return attiva;
+  const piena = l.viste.find((v) => quante(conti, v.vista) > 0);
+  return (piena ?? l.viste[0]).vista;
 }
