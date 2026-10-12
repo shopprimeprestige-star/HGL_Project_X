@@ -161,7 +161,7 @@ function Index() {
                 <span className="ng-hero-eyebrow__line">{text("hero.eyebrow1")}</span>
                 <span className="ng-hero-eyebrow__line ng-hero-eyebrow__line--accent">{text("hero.eyebrow2")}</span>
               </p>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05]">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05] text-balance">
                 <RichText value={text("hero.h1")} highlightClass="hl-nextgen" />
               </h1>
 
@@ -178,12 +178,12 @@ function Index() {
                 <RichText value={text("hero.body")} highlightClass="text-white font-semibold" />
               </p>
 
-              <div className="mt-10 border-l-2 border-brand pl-5 max-w-md">
+              <div className="mt-10 border-l border-brand pl-5 max-w-md">
                 <div className="eyebrow text-etichetta">
                   {text("hero.priceLabel")}
                 </div>
                 <div className="mt-2 flex items-baseline gap-3">
-                  <span className="text-white/40 line-through text-lg">
+                  <span className="text-white/60 line-through text-lg">
                     {text("hero.priceOld")}
                   </span>
                   <span className="text-2xl md:text-3xl font-bold text-white">
@@ -226,7 +226,7 @@ function Index() {
                 <RichText value={text("s02.body")} highlightClass="text-brand font-semibold" />
               </p>
 
-              <div className="mt-6 border-l-2 border-ink pl-5 text-ink-muted max-w-xl">
+              <div className="mt-6 border-l border-ink pl-5 text-ink-muted max-w-xl">
                 <p>
                   <RichText value={text("s02.note")} highlightClass="font-bold text-ink" />
                 </p>
@@ -382,7 +382,7 @@ function Index() {
                 </div>
                 <h3 className="text-lg font-bold text-ink tracking-tight">{title}</h3>
                 <p className="mt-2 text-sm font-semibold text-brand leading-snug">{hook}</p>
-                <div className="ng-pillar__kicker mt-3 text-etichetta!">{kicker}</div>
+                <div className="ng-pillar__kicker mt-3">{kicker}</div>
                 <p className="mt-3 text-sm text-ink-muted leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -417,7 +417,7 @@ function Index() {
               />
             </div>
             <div>
-              <div className="shine inline-block bg-brand text-brand-foreground text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-md mb-3">
+              <div className="shine inline-block bg-brand-scuro text-brand-foreground text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-md mb-3">
                 Zero-Edge del Bio-Mimetic™
               </div>
               <MediaSlot
@@ -492,13 +492,13 @@ function Index() {
           </div>
 
           <div className="mt-12 max-w-md mx-auto">
-            <div className="bg-brand text-brand-foreground px-5 py-2.5 flex items-center justify-between text-etichetta tracking-widest uppercase font-semibold rounded-t-md">
+            <div className="bg-brand-scuro text-brand-foreground px-5 py-2.5 flex items-center justify-between text-etichetta tracking-widest uppercase font-semibold rounded-t-md">
               <span>{text("s08.priceLabel")}</span>
               <span>Ultimi {daysLeft} giorni</span>
             </div>
             <div className="bg-navy/60 border border-white/10 border-t-0 rounded-b-md px-5 py-8 text-center">
               <div className="flex items-baseline justify-center gap-3">
-                <span className="text-3xl text-white/30 line-through">47€</span>
+                <span className="text-3xl text-white/60 line-through">47€</span>
                 <span className="hl-nextgen text-5xl md:text-6xl font-extrabold tracking-tight">
                   GRATIS
                 </span>
