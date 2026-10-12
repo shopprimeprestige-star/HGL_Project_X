@@ -133,7 +133,7 @@ export function FaqAccordion() {
         return (
           <div
             key={i}
-            className={`bg-white rounded-sm border shadow-sm transition-colors ${
+            className={`bg-white rounded-md border transition-colors ${
               isOpen ? "border-brand/60" : "border-ink/10"
             }`}
           >
@@ -143,7 +143,7 @@ export function FaqAccordion() {
             >
               <span className="flex items-center gap-4">
                 <span
-                  className={`flex items-center justify-center w-7 h-7 text-[0.7rem] font-bold rounded-sm shrink-0 ${
+                  className={`flex items-center justify-center w-7 h-7 text-[0.7rem] font-bold rounded-md shrink-0 ${
                     isOpen
                       ? "bg-brand text-brand-foreground"
                       : "bg-brand/10 text-brand"
@@ -154,7 +154,7 @@ export function FaqAccordion() {
                 <span className="font-semibold text-ink">{item.q}</span>
               </span>
               <span
-                className={`flex items-center justify-center w-7 h-7 rounded-sm border transition-colors shrink-0 ${
+                className={`flex items-center justify-center w-7 h-7 rounded-md border transition-colors shrink-0 ${
                   isOpen
                     ? "border-brand text-brand bg-brand/10"
                     : "border-brand/40 text-brand"
