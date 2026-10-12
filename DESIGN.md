@@ -38,6 +38,131 @@ typography:
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "11px"
     lineHeight: 1.3
+  quote-display-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "27.2px"
+    lineHeight: 1.05
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-display-md:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "36px"
+    lineHeight: 1.05
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-display-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "46.4px"
+    lineHeight: 1.05
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-doc-title-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "22px"
+    lineHeight: 1.25
+    fontWeight: 700
+    letterSpacing: "-0.025em"
+  quote-doc-title-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "26px"
+    lineHeight: 1.25
+    fontWeight: 700
+    letterSpacing: "-0.025em"
+  quote-section:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "18px"
+    lineHeight: 1.4
+    fontWeight: 600
+  quote-phase-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "16px"
+    lineHeight: 1.25
+    fontWeight: 600
+  quote-phase-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "17px"
+    lineHeight: 1.25
+    fontWeight: 600
+  quote-body:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "14px"
+    lineHeight: 1.6
+  quote-field:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "15px"
+    lineHeight: 1.4
+  quote-desc:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "13px"
+    lineHeight: 1.4
+  quote-note:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "12.5px"
+    lineHeight: 1.35
+  quote-label:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "11px"
+    lineHeight: 1.3
+    fontWeight: 600
+    letterSpacing: "0.08em"
+  quote-price-hero-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "44px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-hero-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "52px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-guarantee-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "40px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-guarantee-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "46px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-second-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "42px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-second-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "48px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-total-sheet:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "36px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-total:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "30px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-cell:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "24px"
+    lineHeight: 1
+    fontWeight: 700
+  quote-price-card:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "18px"
+    lineHeight: 1.2
+    fontWeight: 700
 rounded:
   md: "0.5rem"
   lg: "0.75rem"
@@ -124,6 +249,56 @@ si fa con dimensione, peso e spazio, non con caratteri diversi.
 
 ### Named Rules
 **La regola degli 11 pixel.** Sotto gli 11 px non si scende: sul telefono, al sole, non si legge.
+
+## Pagina scura del preventivo
+
+La pagina `/preventivo` (configuratore e preventivo creato) è il mondo pubblico scuro: fondo navy, testo
+bianco a più livelli, una sola voce di accento. Ha una scala sua, con i token `quote-*` qui sopra; i
+token del CRM (`title`, `row`, `body`, `note`, `label`) non si usano su questa pagina. In YAML ogni
+gradino è un token con un solo valore. Dove la misura cresce con lo schermo, ogni misura ha il suo
+token, con il suffisso `-sm` (telefono), `-md` (da `sm`, 640px) o `-lg` (computer): le classi
+`sm:`/`md:` passano dall'uno all'altro. Se il codice cambia, si allinea questo elenco, non il contrario.
+
+### Scala
+
+| Ruolo | Token | Dove si usa |
+|---|---|---|
+| Titolo del configuratore | `quote-display-sm` 27.2px, poi `-md` 36px, poi `-lg` 46.4px (peso 800) | Apertura della pagina. |
+| Nome della soluzione | `quote-doc-title-sm` 22px, poi `-lg` 26px (peso 700) | Preventivo già creato. |
+| Titolo di sezione | `quote-section` 18px (peso 600) | I titoli di sezione del configuratore. |
+| Titolo di fase | `quote-phase-sm` 16px, poi `-lg` 17px (peso 600) | `FaseTitolo`. |
+| Testo descrittivo | `quote-body` 14px (interlinea 1.6) | Spiegazioni e paragrafi. |
+| Testo nei campi | `quote-field` 15px | Campi, righe da scegliere. |
+| Descrizione di scheda | `quote-desc` 13px | Descrizioni delle schede e note. |
+| Rassicurazione | `quote-note` 12.5px | Frasi sotto i pulsanti. |
+| Etichetta | `quote-label` 11px (peso 600, maiuscolo, spaziatura da 0.08 a 0.14em) | Il minimo assoluto. |
+| Totale del preventivo creato | `quote-price-hero-sm` 44px, poi `-lg` 52px (peso 800) | Totale in evidenza. |
+| Totale della garanzia | `quote-price-guarantee-sm` 40px, poi `-lg` 46px | Della stessa famiglia del totale. |
+| Secondo impianto | `quote-price-second-sm` 42px, poi `-lg` 48px | Della stessa famiglia del totale. |
+| Totale del riepilogo | `quote-price-total-sheet` 36px (riepilogo a tutto schermo sul telefono) · `quote-price-total` 30px (riepilogo sul computer e barra del telefono) | Il totale non si rimpicciolisce mai. |
+| Cella «Ora / Alla consegna» | `quote-price-cell` 24px (peso 700) | Celle a due prezzi. |
+| Prezzo nella scheda di una strada | `quote-price-card` 18px (peso 700, cifre tabellari) | Schede delle strade. |
+
+Il prezzo barrato resta a 15px (`BARRATO_CLASSI`). Sulle etichette maiuscole la spaziatura non supera 0.14em.
+
+### Contrasto
+
+Il testo bianco si regola con l'opacità sul navy; i rapporti sono calcolati sul navy della pagina
+(`blueprint-navy`) e sul suo tono più chiaro (`blueprint-navy-light`).
+- **100%** titoli e cifre; **80-85%** testo forte; **65-70%** testo secondario consigliato (da 7 a 9:1).
+- **Minimo 50% per qualunque testo informativo** (circa 4,8:1 sul tono più chiaro, 5,2:1 sul navy; al 45% scende
+  a 4,1:1 e non passa il 4,5:1). Vale anche per i segnaposto dei campi, tutti allo stesso valore.
+- Solo le icone decorative possono stare al 40%.
+- Non si scende sotto 50% per «attenuare» una frase: se è meno importante si rimpicciolisce o si sposta, non si sbiadisce.
+
+### Named Rules
+**La regola dell'effetto unico.** Effetti animati: al massimo uno per sezione, e solo con un perché
+(entrata `hg-rise`, cambio prezzo `hg-price-pop`, segnale dal vivo `hg-pulse-ring`). Niente animazioni
+infinite decorative (aurora, luccichio, bagliore), niente vetro sfocato sopra il testo che scorre. Ogni
+animazione rispetta `prefers-reduced-motion`: chi aggiunge una classe animata in `styles.css` le dà la
+sua regola `@media (prefers-reduced-motion: reduce)`.
+**La regola dei colori della pagina scura.** Il blu segnale sull'azione e sullo stato attivo; l'ambra
+solo per i prezzi scontati; il verde per gratis e risparmio.
 
 ## Layout
 
