@@ -434,6 +434,10 @@ const MODULI = [
   "shop/conta-suoni",
   "chi-ha-fissato",
   "importa/reparti",
+  //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
+  //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
+  "importa/filtri-lista",
+  "importa/riepilogo-import",
   //  ⚠️ Il riquadro del cliente che spariva e tornava ogni pochi secondi:
   //   vedi proveDelRestaInLista.
   "shop/resta-in-lista",
@@ -600,6 +604,8 @@ const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
 const FISSA = mod["chi-ha-fissato"];
 const REP = mod["importa/reparti"];
+const FIL = mod["importa/filtri-lista"];
+const RIE = mod["importa/riepilogo-import"];
 const COPIA = mod["copia-sezioni"];
 const ANT = mod["shop/anteprima-quanto-dura"];
 const LNM = mod["preventivi/link-nei-messaggi"];
@@ -10156,6 +10162,183 @@ function proveDelleTrePorte() {
     vistaDiIngresso("attesa", conti, "rimandati"));
 }
 
+/** ── I FILTRI DELLA LISTA DEI LEAD IMPORTATI ───────────────────────────────
+ *  Annuncio, Risposta e Stato sono funzioni pure: la pagina le chiama, l'indirizzo
+ *  le conserva. Il pericolo è un numero accanto a una voce che si smentisce al
+ *  primo tocco, e una risposta con la virgola spezzata a metà dall'indirizzo. */
+function proveDeiFiltriDellaLista() {
+  const { etichettaAnnuncio, statoDelFiltro, valoriRisposta, applicaFiltri, opzioniFiltri, leggiRicercaImporta } = FIL;
+  const { riepilogoImport } = RIE;
+  gruppo("I FILTRI DELLA LISTA DEI LEAD IMPORTATI");
+
+  //  ── L'annuncio ──────────────────────────────────────────────────────────
+  const e1 = etichettaAnnuncio({ adset_name: "BROAD | ITALIA", ad_name: "589€ - 001 - ok" });
+  c("il gruppo è l'adset", "BROAD | ITALIA", e1.gruppo);
+  c("l'annuncio è l'ad_name", "589€ - 001 - ok", e1.annuncio);
+  c("chiave del gruppo", "g:BROAD | ITALIA", e1.chiaveGruppo);
+  c("chiave dell'annuncio: gruppo, separatore, annuncio", "a:BROAD | ITALIA\u241F589€ - 001 - ok", e1.chiaveAnnuncio);
+  c("senza adset si ripiega sulla campagna", "Campagna X",
+    etichettaAnnuncio({ campaign_name: "Campagna X", ad_name: "A" }).gruppo);
+  c("senza niente: «Liste senza annuncio»", "Liste senza annuncio", etichettaAnnuncio(undefined).gruppo);
+  c("senza niente: chiave «senza»", "senza", etichettaAnnuncio(undefined).chiaveGruppo);
+  c("senza niente: nessun annuncio", null, etichettaAnnuncio({}).annuncio);
+  c("nomi di soli spazi valgono come mancanti", "senza",
+    etichettaAnnuncio({ adset_name: "   ", ad_name: " " }).chiaveGruppo);
+
+  //  ── Lo stato del filtro ─────────────────────────────────────────────────
+  c("promessa → promesse", "promesse", statoDelFiltro("promessa", "richiamo"));
+  c("ritorno → ritorno", "ritorno", statoDelFiltro("ritorno", "da_contattare"));
+  c("nuovo → mai", "mai", statoDelFiltro("nuovo", "da_contattare"));
+  c("prima → mai", "mai", statoDelFiltro("prima", "da_contattare"));
+  c("ritento → ritentare", "ritentare", statoDelFiltro("ritento", "non_risponde"));
+  c("la sua ora, mai chiamato → mai", "mai", statoDelFiltro("suaOra", "da_contattare"));
+  c("la sua ora, già chiamato → ritentare", "ritentare", statoDelFiltro("suaOra", "non_risponde"));
+
+  //  ── Le risposte ─────────────────────────────────────────────────────────
+  const v1 = valoriRisposta({ zona: "nord" })[0];
+  c("risposta col codice: chiave", "zona|nord", v1.chiave);
+  c("risposta col codice: etichetta", "Nord Italia", v1.etichetta);
+  c("risposta col codice: campo", "zona", v1.campo);
+  const v2 = valoriRisposta({ risposte: [{ domanda: "Zona", risposta: "Svizzera italiana" }] })[0];
+  c("risposta scritta com'è: chiave", "zona|t:svizzera italiana", v2.chiave);
+  c("risposta scritta com'è: etichetta", "Svizzera italiana", v2.etichetta);
+  c("domanda nuova: la chiave usa il codice", "problema|areata", valoriRisposta({ problema: "areata" })[0].chiave);
+  c("domanda nuova: campo", "problema", valoriRisposta({ problema: "areata" })[0].campo);
+  c("una domanda sconosciuta non entra nel filtro", 0,
+    valoriRisposta({ risposte: [{ domanda: "Quanti anni hai?", risposta: "Quaranta" }] }).length);
+  c("senza modulo, nessuna voce", 0, valoriRisposta(undefined).length);
+  c("una voce sola per domanda: il codice vince sul testo", ["zona|nord"],
+    valoriRisposta({ zona: "nord", risposte: [{ domanda: "Zona", risposta: "Nord Italia", campo: "zona" }] }).map((v) => v.chiave));
+  c("«quando» scritto a mano", "quando|t:giovedi dopo le 19",
+    valoriRisposta({ quandoTesto: "Giovedì dopo le 19" })[0].chiave);
+
+  //  ── Sei righe: la prova dei conti ───────────────────────────────────────
+  const A1 = { adset_name: "BROAD | ITALIA", ad_name: "589€ - 001 - ok" };
+  const A2 = { adset_name: "BROAD | ITALIA", ad_name: "589€ - 002 - ok" };
+  const riga = (id, tracking, modulo, motivo, createdAt, stato = "da_contattare") => ({
+    id, data: { tracking, createdAt, stato }, motivo, modulo,
+  });
+  const OGGI = "2026-10-12";
+  const righe = [
+    riga("r1", A1, { problema: "areata", zona: "nord" }, "promessa", "2026-10-12T10:00:00Z"),
+    riga("r2", A1, { problema: "areata", risposte: [{ domanda: "Zona", risposta: "Svizzera italiana" }] }, "nuovo", "2026-10-11T10:00:00Z"),
+    riga("r3", A1, { problema: "androgenetica", zona: "nord" }, "promessa", "2026-10-05T10:00:00Z", "richiamo"),
+    riga("r4", A2, { problema: "areata", zona: "sud" }, "ritento", "2026-10-09T10:00:00Z", "non_risponde"),
+    riga("r5", A2, { problema: "areata", zona: "nord" }, "suaOra", "2026-10-12T10:00:00Z"),
+    riga("r6", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+  ];
+  const chiaveA1 = etichettaAnnuncio(A1).chiaveAnnuncio;
+  const chiaveA2 = etichettaAnnuncio(A2).chiaveAnnuncio;
+  const ids = (r) => r.map((x) => x.id);
+
+  c("nessun filtro: tutte le righe", ["r1", "r2", "r3", "r4", "r5", "r6"], ids(applicaFiltri(righe, {}, OGGI)));
+  c("annuncio A1", ["r1", "r2", "r3"], ids(applicaFiltri(righe, { annuncio: chiaveA1 }, OGGI)));
+  c("gruppo intero", ["r1", "r2", "r3", "r4", "r5"], ids(applicaFiltri(righe, { annuncio: "g:BROAD | ITALIA" }, OGGI)));
+  c("liste senza annuncio", ["r6"], ids(applicaFiltri(righe, { annuncio: "senza" }, OGGI)));
+  c("annuncio A1 e risposta areata → 2 righe", ["r1", "r2"],
+    ids(applicaFiltri(righe, { annuncio: chiaveA1, risposte: ["problema|areata"] }, OGGI)));
+  c("stato promesse → solo il motivo promessa", ["r1", "r3"],
+    ids(applicaFiltri(righe, { stato: "promesse" }, OGGI)));
+  c("stato «mai» include nuovo, prima e la sua ora mai chiamato", ["r2", "r5", "r6"],
+    ids(applicaFiltri(righe, { stato: "mai" }, OGGI)));
+  c("stato «tutti» non filtra", 6, applicaFiltri(righe, { stato: "tutti" }, OGGI).length);
+  c("domande diverse si combinano in E", ["r1", "r5"],
+    ids(applicaFiltri(righe, { risposte: ["problema|areata", "zona|nord"], annuncio: "g:BROAD | ITALIA", quando: "oggi" }, OGGI)));
+  c("la risposta scritta com'è si trova", ["r2"],
+    ids(applicaFiltri(righe, { risposte: ["zona|t:svizzera italiana"] }, OGGI)));
+  c("due risposte alla stessa domanda: vale l'ultima", ["r4"],
+    ids(applicaFiltri(righe, { risposte: ["zona|nord", "zona|sud"] }, OGGI)));
+  c("fetta «oggi»", ["r1", "r5"], ids(applicaFiltri(righe, { quando: "oggi" }, OGGI)));
+  c("fetta «ieri»", ["r2"], ids(applicaFiltri(righe, { quando: "ieri" }, OGGI)));
+  c("le righe di partenza non cambiano", 6, righe.length);
+
+  //  ── I conti accanto alle voci ───────────────────────────────────────────
+  const op = opzioniFiltri(righe, { annuncio: chiaveA1 }, OGGI);
+  const voce = (campo, chiave) => op.risposte.find((d) => d.campo === campo)?.voci.find((x) => x.chiave === chiave)?.n;
+  c("con l'annuncio A1: areata 2", 2, voce("problema", "problema|areata"));
+  c("con l'annuncio A1: androgenetica 1", 1, voce("problema", "problema|androgenetica"));
+  const annunci = op.annuncio[0].annunci;
+  c("il conto degli annunci ignora il filtro annuncio: A1", 3, annunci.find((x) => x.chiave === chiaveA1).n);
+  c("il conto degli annunci ignora il filtro annuncio: A2", 2, annunci.find((x) => x.chiave === chiaveA2).n);
+  c("il gruppo conta tutti i suoi", 5, op.annuncio[0].n);
+  c("le liste senza annuncio sono un gruppo", 1, op.annuncio.find((g) => g.chiave === "senza")?.n);
+  c("lo stato si conta sulle righe già filtrate", 3, op.stato.find((x) => x.valore === "tutti").n);
+  c("stato promesse con A1", 2, op.stato.find((x) => x.valore === "promesse").n);
+
+  //  Il numero accanto a una voce è quello che esce premendola.
+  const tutteLeVoci = [];
+  for (const f of [{}, { annuncio: chiaveA1 }, { stato: "mai" }, { quando: "oggi" }, { risposte: ["problema|areata"] }]) {
+    const o = opzioniFiltri(righe, f, OGGI);
+    for (const d of o.risposte) for (const x of d.voci) {
+      //  Si preme la voce tenendo gli altri filtri, tranne quelli della stessa domanda.
+      const altri = (f.risposte ?? []).filter((k) => !k.startsWith(d.campo + "|"));
+      tutteLeVoci.push([x.n, applicaFiltri(righe, { ...f, risposte: [...altri, x.chiave] }, OGGI).length]);
+    }
+    for (const g of o.annuncio) {
+      tutteLeVoci.push([g.n, applicaFiltri(righe, { ...f, annuncio: g.chiave }, OGGI).length]);
+      for (const a of g.annunci) tutteLeVoci.push([a.n, applicaFiltri(righe, { ...f, annuncio: a.chiave }, OGGI).length]);
+    }
+    for (const s of o.stato) tutteLeVoci.push([s.n, applicaFiltri(righe, { ...f, stato: s.valore }, OGGI).length]);
+    for (const q of o.quando) tutteLeVoci.push([q.n, applicaFiltri(righe, { ...f, quando: q.valore }, OGGI).length]);
+  }
+  c("ogni numero accanto a una voce combacia con le righe che escono", true,
+    tutteLeVoci.length > 30 && tutteLeVoci.every(([n, k]) => n === k));
+
+  //  ── Un annuncio che non c'è più ─────────────────────────────────────────
+  const sparito = "a:BROAD | ITALIA\u241Fannuncio spento";
+  c("annuncio sparito: lista vuota", 0, applicaFiltri(righe, { annuncio: sparito }, OGGI).length);
+  const opS = opzioniFiltri(righe, { annuncio: sparito }, OGGI);
+  c("annuncio sparito: la voce c'è lo stesso", 0,
+    opS.annuncio.find((g) => g.chiave === "g:BROAD | ITALIA").annunci.find((x) => x.chiave === sparito)?.n);
+  c("annuncio sparito: gli altri si vedono ancora", 3,
+    opS.annuncio.find((g) => g.chiave === "g:BROAD | ITALIA").annunci.find((x) => x.chiave === chiaveA1).n);
+  const opG = opzioniFiltri(righe, { annuncio: "g:Gruppo spento" }, OGGI);
+  c("gruppo sparito: la voce c'è lo stesso", 0, opG.annuncio.find((g) => g.chiave === "g:Gruppo spento")?.n);
+  const opR = opzioniFiltri(righe, { risposte: ["fastidio|molto"] }, OGGI);
+  c("risposta senza nessuno: la voce c'è lo stesso", 0,
+    opR.risposte.find((d) => d.campo === "fastidio")?.voci.find((x) => x.chiave === "fastidio|molto")?.n);
+
+  //  ── L'indirizzo ─────────────────────────────────────────────────────────
+  c("valori sconosciuti scartati", { risposte: ["zona|nord", "problema|areata"], quando: "ieri" },
+    leggiRicercaImporta({ stato: "boh", risposte: ["zona|nord", "problema|areata"], quando: "ieri" }));
+  c("una stringa sola resta una chiave, la virgola non la spezza", { risposte: ["problema|t:chiazze, sulla nuca"] },
+    leggiRicercaImporta({ risposte: "problema|t:chiazze, sulla nuca" }));
+  c("un array con la virgola resta intero", { risposte: ["problema|t:chiazze, sulla nuca", "zona|nord"] },
+    leggiRicercaImporta({ risposte: ["problema|t:chiazze, sulla nuca", "zona|nord"] }));
+  c("nell'array si tengono solo le stringhe", { risposte: ["zona|nord"] },
+    leggiRicercaImporta({ risposte: [1, null, "zona|nord"] }));
+  c("una domanda che non esiste non entra", {}, leggiRicercaImporta({ risposte: ["colore|rosso", "senza-barra", "zona|"] }));
+  c("due risposte alla stessa domanda: resta l'ultima", { risposte: ["zona|sud"] },
+    leggiRicercaImporta({ risposte: ["zona|nord", "zona|sud"] }));
+  c("stato valido", { stato: "promesse" }, leggiRicercaImporta({ stato: "promesse" }));
+  c("annuncio valido", { annuncio: chiaveA1 }, leggiRicercaImporta({ annuncio: chiaveA1 }));
+  c("annuncio senza prefisso scartato", {}, leggiRicercaImporta({ annuncio: "BROAD" }));
+  c("annuncio «senza» valido", { annuncio: "senza" }, leggiRicercaImporta({ annuncio: "senza" }));
+  c("tutto sbagliato → niente", {}, leggiRicercaImporta({ annuncio: 5, stato: {}, quando: ["oggi"], risposte: 7 }));
+  c("indirizzo vuoto → niente", {}, leggiRicercaImporta({}));
+  //  Il giro dell'indirizzo: quello che la pagina scrive, la pagina lo rilegge.
+  const giro = { annuncio: chiaveA1, risposte: ["problema|t:chiazze, sulla nuca"], stato: "mai", quando: "settimana" };
+  c("scritto e riletto da JSON: uguale", giro, leggiRicercaImporta(JSON.parse(JSON.stringify(giro))));
+
+  //  ── Il riepilogo dell'anteprima ─────────────────────────────────────────
+  const leads = righe.map((r) => ({ ...r.data, modulo: r.modulo }));
+  const rie = riepilogoImport(leads);
+  c("riepilogo: un solo gruppo con annunci", 1, rie.perGruppo.length);
+  c("riepilogo: il gruppo conta 5", 5, rie.perGruppo[0].n);
+  c("riepilogo: nome del gruppo", "BROAD | ITALIA", rie.perGruppo[0].gruppo);
+  c("riepilogo: annunci in ordine di numero", [["589€ - 001 - ok", 3], ["589€ - 002 - ok", 2]],
+    rie.perGruppo[0].annunci.map((a) => [a.annuncio, a.n]));
+  c("riepilogo: senza annuncio", 1, rie.senzaAnnuncio);
+  const zona = rie.perDomanda.find((d) => d.campo === "zona");
+  c("riepilogo: la domanda zona", "Zona", zona.titolo);
+  c("riepilogo: le etichette di zona per numero", [["Nord Italia", 3], ["Sud e isole", 1], ["Svizzera italiana", 1]],
+    zona.risposte.map((x) => [x.etichetta, x.n]));
+  c("riepilogo: problema, 4 contro 1", [4, 1], rie.perDomanda.find((d) => d.campo === "problema").risposte.map((x) => x.n));
+  c("riepilogo: le domande senza risposte non compaiono", false, rie.perDomanda.some((d) => d.campo === "fastidio"));
+  const vuoto = riepilogoImport([]);
+  c("riepilogo di niente", { perGruppo: [], perDomanda: [], senzaAnnuncio: 0 }, vuoto);
+}
+
 function proveDiChiHaFissato() {
   const { chiHaFissato, fissataDa, patchChiFissa, esitoFissato } = FISSA;
   gruppo("CHI HA FISSATO QUESTA CONSULENZA");
@@ -15419,6 +15602,7 @@ function proveDellAnteprimaConIlNome() {
 
 proveDelContoWebinar();
 proveDelTag();
+proveDeiFiltriDellaLista();
 /** ── IL RITMO DELLA REGISTRAZIONE ──────────────────────────────────────────
  *  Segnalazione del committente: «registra 1,30 minuti a botta». Misurato: 61
  *  fotogrammi al secondo e parti chiuse a 40 MB fissi. Vedi
