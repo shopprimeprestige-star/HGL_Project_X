@@ -68,6 +68,145 @@ typography:
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "0.22em"
+  quote-display-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "27.2px"
+    lineHeight: 1.05
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-display-md:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "36px"
+    lineHeight: 1.05
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-display-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "46.4px"
+    lineHeight: 1.05
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-doc-title-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "22px"
+    lineHeight: 1.25
+    fontWeight: 700
+    letterSpacing: "-0.025em"
+  quote-doc-title-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "26px"
+    lineHeight: 1.25
+    fontWeight: 700
+    letterSpacing: "-0.025em"
+  quote-section:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "18px"
+    lineHeight: 1.4
+    fontWeight: 600
+  quote-phase-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "16px"
+    lineHeight: 1.25
+    fontWeight: 600
+  quote-phase-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "17px"
+    lineHeight: 1.25
+    fontWeight: 600
+  quote-body:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "14px"
+    lineHeight: 1.6
+  quote-field:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "15px"
+    lineHeight: 1.4
+  quote-desc:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "13px"
+    lineHeight: 1.4
+  quote-note:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "12.5px"
+    lineHeight: 1.35
+  quote-label:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "11px"
+    lineHeight: 1.3
+    fontWeight: 600
+    letterSpacing: "0.08em"
+  quote-price-hero-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "44px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-hero-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "52px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-guarantee-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "40px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-guarantee-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "46px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-second-sm:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "42px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-second-lg:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "48px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-total-sheet:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "36px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-total:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "30px"
+    lineHeight: 1
+    fontWeight: 800
+    letterSpacing: "-0.025em"
+  quote-price-cell:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "24px"
+    lineHeight: 1
+    fontWeight: 700
+  quote-price-card:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "18px"
+    lineHeight: 1.2
+    fontWeight: 700
+  quote-savings:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "28px"
+    fontWeight: 800
+    lineHeight: 1
+  quote-second-title:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "19px"
+    fontWeight: 700
+  quote-price-second-compact:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "32px"
+    fontWeight: 800
+    lineHeight: 1
 rounded:
   sm: "4px"
   md: "6px"
@@ -197,7 +336,7 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 
 **The Colore-e-Informazione Rule.** Nel CRM il colore dice lo stato di una trattativa e basta. Un tono, un significato; niente colore decorativo. (confermato nel codice di `src/crm/ui.tsx`)
 
-**The Nessun-Testo-Sfumato Rule.** Il testo con sfumatura (`bg-clip-text` + gradiente) e un anti-pattern da togliere. Le classi `.hl-nextgen` e `.text-aurora` (`src/styles.css`, usate in `src/routes/index.tsx`, nel funnel di prenotazione e nei testi dell'editor della landing) restano con lo stesso nome ma ora sono blu `brand` pieno, fermo, senza sottolineatura animata. Resta da togliere `src/routes/preventivo.tsx` riga 5565 (`bg-gradient-to-r from-brand via-sky-300 to-brand bg-clip-text text-transparent`), schermata della chiamata: fase 4.
+**The Nessun-Testo-Sfumato Rule.** Il testo con sfumatura (`bg-clip-text` + gradiente) e un anti-pattern da togliere. Le classi `.hl-nextgen` e `.text-aurora` (`src/styles.css`, usate in `src/routes/index.tsx`, nel funnel di prenotazione e nei testi dell'editor della landing) restano con lo stesso nome ma ora sono blu `brand` pieno, fermo, senza sottolineatura animata. Nel preventivo il testo sfumato non c'è più (tolto dal restyling «design-preventivo» arrivato da `main`).
 
 **La regola dell'accento raro.** Nel CRM il blu compare solo sull'azione principale e su ciò che è attivo. Se tutto è blu, niente lo è.
 **Regola del blu.** Un solo blu pieno, `primary`: dove sei e cosa è acceso (cella di oggi, giorno scelto, linea "adesso", filtro acceso, azione principale). `sky` solo come tinta di segnale "da fare adesso/oggi" (fondo 50, bordo 200/300, testo 700): mai pieno, mai bianco su sky. I filtri personali ("Solo i miei") sono neutri.
@@ -221,7 +360,7 @@ La scala del CRM ha cinque passi con classi `t-*` (`src/styles.css`); sotto i 10
 - **Nota** (12.5px mobile / 11.5px desktop, 1.35): `t-nota`, stato, quando, note di riga.
 - **Etichetta** (11px, 1.3, maiuscoletto con tracking 0.08em nella sala webinar `.sala-etichetta`, peso 700): minuzie.
 - **Eyebrow del sito** (600, 0.72rem, tracking 0.22em, maiuscolo, colore brand): sopra i titoli della landing.
-- **Cifre grandi** (700, 24px, tabular-nums): importi del preventivo; nel CRM numero grande 19px/600 tabular-nums.
+- **Cifre grandi** (700, 24px, tabular-nums): le celle a due prezzi del preventivo (gli altri importi del preventivo hanno la scala della sua pagina scura, sotto); nel CRM numero grande 19px/600 tabular-nums.
 
 ### Named Rules
 **The Cinque-Passi Rule.** Il CRM ha cinque misure di testo, non sedici. Le pagine vecchie usano ancora circa 2.260 misure scritte a mano (`text-[11.5px]` e simili) che una media query rimappa solo su telefono; le pagine nuove usano le classi `t-*`. Mai sotto 11px sul telefono.
@@ -230,6 +369,59 @@ La scala del CRM ha cinque passi con classi `t-*` (`src/styles.css`); sotto i 10
 
 **La regola degli 11 pixel.** Sotto gli 11 px non si scende: sul telefono, al sole, non si legge.
 
+## Pagina scura del preventivo
+
+La pagina `/preventivo` (configuratore e preventivo creato) è il mondo pubblico scuro: fondo navy, testo
+bianco a più livelli, una sola voce di accento. Ha una scala sua, con i token `quote-*` qui sopra (carattere `Inter` di sistema, non `InterHGL`: la chiamata lo adotta con la fase 4); i
+token del CRM (`title`, `row`, `body`, `note`, `label`) non si usano su questa pagina. In YAML ogni
+gradino è un token con un solo valore. Dove la misura cresce con lo schermo, ogni misura ha il suo
+token, con il suffisso `-sm` (la misura di base, telefono), `-md` e `-lg` (i gradini successivi: secondo il
+elemento scattano già da `sm`, 640px, o da `md`, 768px, quindi `-lg` non vuol dire «solo computer»).
+Le classi `sm:`/`md:` del codice dicono quando si passa da uno all'altro. Se il codice cambia, si allinea questo elenco, non il contrario.
+
+### Scala
+
+| Ruolo | Token | Dove si usa |
+|---|---|---|
+| Titolo del configuratore | `quote-display-sm` 27.2px, poi `-md` 36px, poi `-lg` 46.4px (peso 800) | Apertura della pagina. |
+| Nome della soluzione | `quote-doc-title-sm` 22px, poi `-lg` 26px (peso 700) | Preventivo già creato. |
+| Titolo di sezione | `quote-section` 18px (peso 600) | I titoli di sezione del configuratore. |
+| Titolo di fase | `quote-phase-sm` 16px, poi `-lg` 17px (peso 600) | `FaseTitolo`. |
+| Testo descrittivo | `quote-body` 14px (interlinea 1.6) | Spiegazioni e paragrafi. |
+| Testo nei campi | `quote-field` 15px | Campi, righe da scegliere. |
+| Descrizione di scheda | `quote-desc` 13px | Descrizioni delle schede e note. |
+| Rassicurazione | `quote-note` 12.5px | Frasi sotto i pulsanti. |
+| Etichetta | `quote-label` 11px (peso 600, maiuscolo, spaziatura da 0.08 a 0.14em) | Il minimo assoluto. |
+| Totale del preventivo creato | `quote-price-hero-sm` 44px, poi `-lg` 52px (peso 800) | Totale in evidenza. |
+| Totale della garanzia | `quote-price-guarantee-sm` 40px, poi `-lg` 46px | Della stessa famiglia del totale. |
+| Secondo impianto | `quote-price-second-sm` 42px, poi `-lg` 48px | Della stessa famiglia del totale. |
+| Totale del riepilogo | `quote-price-total-sheet` 36px (riepilogo, sia a tutto schermo sul telefono sia sul computer) · `quote-price-total` 30px (barra del totale sul telefono) | Il totale non si rimpicciolisce mai. |
+| Cella «Ora / Alla consegna» | `quote-price-cell` 24px (peso 700) | Celle a due prezzi. |
+| Prezzo nella scheda di una strada | `quote-price-card` 18px (peso 700, cifre tabellari) | Schede delle strade. |
+| Risparmio totale | `quote-savings` 28px (peso 800, verde) | Riga «sconti» del riepilogo. |
+| Titolo «Dal secondo impianto» | `quote-second-title` 19px (versione grande; 15.5px in quella compatta) | Riquadro del secondo impianto. |
+| Secondo impianto, versione compatta | `quote-price-second-compact` 32px | Quando il riquadro è piccolo. |
+
+Il prezzo barrato resta a 15px (`BARRATO_CLASSI`). Sulle etichette maiuscole la spaziatura non supera 0.14em.
+
+### Contrasto
+
+Il testo bianco si regola con l'opacità sul navy; i rapporti sono calcolati sul navy della pagina
+(`blueprint-navy`) e sul suo tono più chiaro (`blueprint-navy-light`).
+- **100%** titoli e cifre; **80-85%** testo forte; **65-70%** testo secondario consigliato (da 7 a 9:1).
+- **Minimo 50% per qualunque testo informativo** (circa 4,8:1 sul tono più chiaro, 5,2:1 sul navy; al 45% scende
+  a 4,1:1 e non passa il 4,5:1). Vale anche per i segnaposto dei campi, tutti allo stesso valore.
+- Solo le icone decorative possono stare al 40%.
+- Non si scende sotto 50% per «attenuare» una frase: se è meno importante si rimpicciolisce o si sposta, non si sbiadisce.
+
+### Named Rules
+**La regola dell'effetto unico.** Al massimo **un effetto continuo** per sezione, e solo con un perché (le entrate brevi e i veli di attesa non contano)
+(entrata `hg-rise`, cambio prezzo `hg-price-pop`, segnale dal vivo `hg-pulse-ring`). Niente animazioni
+infinite decorative (aurora, luccichio, bagliore), niente vetro sfocato sopra il testo che scorre. Ogni
+animazione rispetta `prefers-reduced-motion`: chi aggiunge una classe animata in `styles.css` le dà la
+sua regola `@media (prefers-reduced-motion: reduce)`.
+**La regola dei colori della pagina scura.** Il blu segnale sull'azione e sullo stato attivo; l'ambra
+solo per i prezzi scontati; il verde per gratis e risparmio.
 
 ## Layout
 
@@ -319,7 +511,7 @@ Schermata scura a piena pagina con vetro, cifre grandi tabulari, prezzo che "sca
 - **Do** riservare l'effetto (riflesso, alone) a un solo elemento per schermata sul sito scuro. (da confermare)
 
 ### Don't:
-- **Don't** usare testo con sfumatura (`bg-clip-text` con gradiente): `.hl-nextgen` / `.text-aurora` ora sono colore pieno; resta `preventivo.tsx` riga 5565 (fase 4).
+- **Don't** usare testo con sfumatura (`bg-clip-text` con gradiente): `.hl-nextgen` / `.text-aurora` ora sono colore pieno; nel preventivo non ce n'è più dopo il restyling di `main`.
 - **Don't** aggiungere ombre alle schede del CRM ne decorazioni da landing (le griglie sono spente apposta dal tema).
 - **Don't** inventare un secondo accento: l'arancio di `.ng-header-cta` e stato tolto (blu `brand-scuro`).
 - **Don't** scrivere misure di testo a mano tipo `text-[11.5px]` nelle pagine nuove.
@@ -332,4 +524,8 @@ Schermata scura a piena pagina con vetro, cifre grandi tabulari, prezzo che "sca
 3. **[risolto] Inter dichiarato ma non caricato.** Di fatto si vede il font di sistema, quindi cambia da Mac a Windows a Android.
 4. **[in parte: scala e due ombre definite, applicate ai file toccati; il resto e fase 3-4] Troppi raggi e ombre.** Sette raggi in uso e cinque livelli di ombra Tailwind piu quattro ombre proprie; `shadow-2xl` e `shadow-lg` compaiono oltre 60 volte ciascuno.
 5. **[risolto per la sidebar; il resto dei colori scritti a mano e fase 3] Colori scritti a mano.** Esadecimali ripetuti nelle pagine del sito (`#050f24` 28 volte, `#0b1730` 19, `#081634` 18, `#0b1224`, `#081226`, `#0b1a38`) invece dei token `navy`: almeno sei navy quasi uguali. (La sidebar del CRM ora usa il primary per la voce attiva.)
-6. **[risolto nel CSS; resta il preventivo, fase 4] Arancio CTA isolato** e testo con sfumatura animata in piu punti.
+6. **[risolto, anche nel preventivo] Arancio CTA isolato** e testo con sfumatura animata in piu punti.
+
+## Da decidere (due regole che si toccano, unione con `main`)
+1. **Carattere del preventivo.** La scala `quote-*` (arrivata da `main`) dichiara `Inter` di sistema; la nostra Typography porta Inter (`InterHGL`) su homepage, blog e CRM e lascia la chiamata al carattere di sistema fino alla fase 4. Le due cose oggi coincidono (il preventivo resta com'è). Quando la fase 4 darà `InterHGL` alla chiamata, i token `quote-*` vanno aggiornati insieme: da decidere con la prova di chiamata vera.
+2. **Ambra.** Nella pagina scura del preventivo l'ambra è solo per i prezzi scontati; nel CRM l'ambra è uno stato (`in sospeso`, avvisi). Sono due superfici diverse e non si incrociano; se un giorno una pagina le mescola, serve una regola unica.

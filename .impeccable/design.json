@@ -260,7 +260,7 @@
       },
       {
         "name": "The Nessun-Testo-Sfumato Rule",
-        "body": "Testo con gradiente (preventivo.tsx riga 5565, .hl-nextgen, .text-aurora) da sostituire con colore pieno.",
+        "body": "Testo con gradiente (.hl-nextgen, .text-aurora): ora colore pieno; nel preventivo non c'è più (restyling di main).",
         "section": "colors"
       },
       {

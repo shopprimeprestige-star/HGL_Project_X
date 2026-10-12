@@ -180,6 +180,7 @@ import { Route as ApiConsulenteLoginRouteImport } from './routes/api.consulente.
 import { Route as ApiConsulenteLeadsRouteImport } from './routes/api.consulente.leads'
 import { Route as ApiConsulenteAzioneRouteImport } from './routes/api.consulente.azione'
 import { Route as ApiBlogBozzaRouteImport } from './routes/api.blog.bozza'
+import { Route as ApiAiosKpiRouteImport } from './routes/api.aios.kpi'
 import { Route as CRMKpiManualeRouteImport } from './routes/CRM.kpi.manuale'
 import { Route as CRMInstallazioniOggiRouteImport } from './routes/CRM.installazioni.oggi'
 import { Route as ApiOgAnteprimaTipoCodiceRouteImport } from './routes/api.og.anteprima.$tipo.$codice'
@@ -1050,6 +1051,11 @@ const ApiBlogBozzaRoute = ApiBlogBozzaRouteImport.update({
   path: '/api/blog/bozza',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiosKpiRoute = ApiAiosKpiRouteImport.update({
+  id: '/api/aios/kpi',
+  path: '/api/aios/kpi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CRMKpiManualeRoute = CRMKpiManualeRouteImport.update({
   id: '/manuale',
   path: '/manuale',
@@ -1157,6 +1163,7 @@ export interface FileRoutesByFullPath {
   '/shop/': typeof ShopIndexRoute
   '/CRM/installazioni/oggi': typeof CRMInstallazioniOggiRoute
   '/CRM/kpi/manuale': typeof CRMKpiManualeRoute
+  '/api/aios/kpi': typeof ApiAiosKpiRoute
   '/api/blog/bozza': typeof ApiBlogBozzaRoute
   '/api/consulente/azione': typeof ApiConsulenteAzioneRoute
   '/api/consulente/leads': typeof ApiConsulenteLeadsRoute
@@ -1328,6 +1335,7 @@ export interface FileRoutesByTo {
   '/shop': typeof ShopIndexRoute
   '/CRM/installazioni/oggi': typeof CRMInstallazioniOggiRoute
   '/CRM/kpi/manuale': typeof CRMKpiManualeRoute
+  '/api/aios/kpi': typeof ApiAiosKpiRoute
   '/api/blog/bozza': typeof ApiBlogBozzaRoute
   '/api/consulente/azione': typeof ApiConsulenteAzioneRoute
   '/api/consulente/leads': typeof ApiConsulenteLeadsRoute
@@ -1505,6 +1513,7 @@ export interface FileRoutesById {
   '/shop/': typeof ShopIndexRoute
   '/CRM/installazioni/oggi': typeof CRMInstallazioniOggiRoute
   '/CRM/kpi/manuale': typeof CRMKpiManualeRoute
+  '/api/aios/kpi': typeof ApiAiosKpiRoute
   '/api/blog/bozza': typeof ApiBlogBozzaRoute
   '/api/consulente/azione': typeof ApiConsulenteAzioneRoute
   '/api/consulente/leads': typeof ApiConsulenteLeadsRoute
@@ -1683,6 +1692,7 @@ export interface FileRouteTypes {
     | '/shop/'
     | '/CRM/installazioni/oggi'
     | '/CRM/kpi/manuale'
+    | '/api/aios/kpi'
     | '/api/blog/bozza'
     | '/api/consulente/azione'
     | '/api/consulente/leads'
@@ -1854,6 +1864,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/CRM/installazioni/oggi'
     | '/CRM/kpi/manuale'
+    | '/api/aios/kpi'
     | '/api/blog/bozza'
     | '/api/consulente/azione'
     | '/api/consulente/leads'
@@ -2030,6 +2041,7 @@ export interface FileRouteTypes {
     | '/shop/'
     | '/CRM/installazioni/oggi'
     | '/CRM/kpi/manuale'
+    | '/api/aios/kpi'
     | '/api/blog/bozza'
     | '/api/consulente/azione'
     | '/api/consulente/leads'
@@ -2168,6 +2180,7 @@ export interface RootRouteChildren {
   VideochiamataCodeRoute: typeof VideochiamataCodeRoute
   WebinarCodeRoute: typeof WebinarCodeRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  ApiAiosKpiRoute: typeof ApiAiosKpiRoute
   ApiBlogBozzaRoute: typeof ApiBlogBozzaRoute
   ApiConsulenteAzioneRoute: typeof ApiConsulenteAzioneRoute
   ApiConsulenteLeadsRoute: typeof ApiConsulenteLeadsRoute
@@ -3450,6 +3463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBlogBozzaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/aios/kpi': {
+      id: '/api/aios/kpi'
+      path: '/api/aios/kpi'
+      fullPath: '/api/aios/kpi'
+      preLoaderRoute: typeof ApiAiosKpiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/CRM/kpi/manuale': {
       id: '/CRM/kpi/manuale'
       path: '/manuale'
@@ -3665,6 +3685,7 @@ const rootRouteChildren: RootRouteChildren = {
   VideochiamataCodeRoute: VideochiamataCodeRoute,
   WebinarCodeRoute: WebinarCodeRoute,
   BlogIndexRoute: BlogIndexRoute,
+  ApiAiosKpiRoute: ApiAiosKpiRoute,
   ApiBlogBozzaRoute: ApiBlogBozzaRoute,
   ApiConsulenteAzioneRoute: ApiConsulenteAzioneRoute,
   ApiConsulenteLeadsRoute: ApiConsulenteLeadsRoute,
