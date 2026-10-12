@@ -11744,6 +11744,21 @@ function proveDelCarattere() {
   if (spostati.length) console.log("      token spostati: " + spostati.join(", ") + " (si cambiano solo con la fase 4)");
   c(`i ${TOKEN_DELLA_CHIAMATA.length} token della chiamata non si spostano`, [], spostati);
 
+  /* Il carattere di PARTENZA è quello di sempre. È il valore che isola la
+     chiamata: se `--font-sans` o `--font-display` di base nominano `InterHGL`,
+     il preventivo cambia lettere e nessun'altra prova se ne accorge (lo vedrebbe
+     solo il banco, in collaudo). `InterHGL` può comparire solo nei @font-face e
+     nella regola per rotta `html[data-carattere="inter"]`. */
+  const CARATTERE_DI_BASE = '"Inter", ui-sans-serif, system-ui, sans-serif';
+  const base = blocco("\n@theme static {");
+  c("--font-sans di partenza com'era a 069f33f", CARATTERE_DI_BASE, (base.match(/^\s*--font-sans:\s*(.+);\s*$/m) ?? [])[1]);
+  c("--font-display di partenza com'era a 069f33f", CARATTERE_DI_BASE, (base.match(/^\s*--font-display:\s*(.+);\s*$/m) ?? [])[1]);
+  const fuoriPosto = css
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/@font-face\s*\{[^}]*\}/g, "")
+    .replace(/html\[data-carattere="inter"\]\s*\{[^}]*\}/g, "");
+  c("InterHGL compare solo nei @font-face e nella regola per rotta", false, /InterHGL/.test(fuoriPosto));
+
   /* La radice */
   c("la radice precarica CARATTERE_INTER", true, /preload\(\s*CARATTERE_INTER\s*,/.test(radice));
   c("il precaricamento ha crossOrigin anonymous", true, /preload\(\s*CARATTERE_INTER\s*,[^)]*crossOrigin:\s*"anonymous"/.test(radice));

@@ -15,7 +15,7 @@
     ⚠️ Il router non distingue maiuscole e minuscole (`/CRM/Webinar` apre la
      regia), quindi il confronto è tutto in minuscolo. */
 
-/** Il file del carattere da precaricare: lo stesso indirizzo del primo @font-face di styles.css. */
+/** Il file del carattere da precaricare: lo stesso indirizzo del @font-face `latin` di styles.css (il secondo: il primo è latin-ext). */
 export const CARATTERE_INTER = "/fonts/inter/5.3.0/inter-latin-wght-normal.woff2";
 
 /** Il percorso come lo legge il router: senza `?…`, senza `#…`, senza barra finale, in minuscolo. */
