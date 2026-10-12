@@ -795,6 +795,18 @@ function dataDellaCella(cella: string): { createdAt: string; dataDalFile: boolea
     : { createdAt: t, dataDalFile: false };
 }
 
+/** ── DA QUALE FILE È ARRIVATA UNA SCHEDA NUOVA ────────────────────────────
+ *  `traduciCsv` non conosce il nome del file (riceve il testo) e lascia
+ *  `listaOrigine.file` vuoto: lo scrive chi sta per importare, nel momento di
+ *  scrivere, insieme al giorno del caricamento. ⚠️ Si SPARGE il `listaOrigine`
+ *  che c'era invece di rifarlo: `dataDalFile` (la data è quella scritta nel
+ *  file, non quella del caricamento) è ciò che decide se una scheda può dirsi
+ *  «NUOVO» e «arrivato il …», e sostituirlo a mano lo perderebbe. Non modifica
+ *  la scheda ricevuta. */
+export function conListaOrigine(d: LeadData, file: string, ora: Date = new Date()): LeadData {
+  return { ...d, listaOrigine: { ...d.listaOrigine, file, il: ora.toISOString() } };
+}
+
 /** Quanto può essere lungo un valore conservato, e quante colonne al massimo
  *  per scheda: una cella con un tema dentro, o un file di cento colonne, non
  *  devono gonfiare la scheda nel database. */
@@ -809,16 +821,13 @@ export function traduciCsv(testo: string): {
   leads: LeadData[];
   /** I nomi (quelli di `datiFile`) delle colonne conservate senza essere usate. */
   colonneConservate: string[];
-  /** ⚠️ da togliere in T8: stessa cosa di `colonneConservate`, tenuta perché
-   *  `PannelloCarica` e `DaFareScheda` continuino a compilare. */
-  colonneIgnorate: string[];
   scartate: number;
   /** Di quante colonne era spostata l'intestazione (0 = a posto). */
   intestazioniRiallineate: number;
 } {
   const righe = testo.split(/\r?\n/).filter((r) => r.trim().length > 0);
   if (!righe.length)
-    return { leads: [], colonneConservate: [], colonneIgnorate: [], scartate: 0, intestazioniRiallineate: 0 };
+    return { leads: [], colonneConservate: [], scartate: 0, intestazioniRiallineate: 0 };
   const sep = separatore(righe[0]);
 
   //  Tutte le righe di dati, divise una volta sola: servono due volte — per
@@ -1014,7 +1023,6 @@ export function traduciCsv(testo: string): {
   return {
     leads,
     colonneConservate,
-    colonneIgnorate: colonneConservate,
     scartate,
     intestazioniRiallineate: riallineate.spostamento,
   };
