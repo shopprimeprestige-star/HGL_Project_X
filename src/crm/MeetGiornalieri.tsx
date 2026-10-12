@@ -143,6 +143,7 @@ import {
   dataBreve,
   BadgeCarico,
   CLASSE_BADGE_STATO,
+  Chip,
   ChipAttesa,
   ESITI,
   LENTI_ESITO,
@@ -671,19 +672,21 @@ export function Sezione({
   //  era una terza tinta che non voleva dire niente di diverso.
   const bordo =
     accento === "urgente"
-      ? "border-sky-300 ring-1 ring-sky-200"
+      ? "border-sky-300"
       : accento === "arretrato"
         ? "border-amber-300"
         : "border-border";
   return (
-    <section id={id} className={`scroll-mt-16 rounded-xl border bg-card ${bordo}`}>
+    <section
+      id={id}
+      data-slot="scheda"
+      className={`scroll-mt-16 rounded-xl border bg-card ${bordo}`}
+    >
       <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Icona className={`h-4 w-4 shrink-0 ${tinta || "text-muted-foreground"}`} />
         <h2 className="text-[13px] font-semibold text-foreground">{titolo}</h2>
         {conteggio !== undefined && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
-            {conteggio}
-          </span>
+          <Chip className="py-px leading-4 tabular-nums">{conteggio}</Chip>
         )}
         {azione && <div className="ml-auto flex items-center gap-1">{azione}</div>}
       </header>
@@ -1205,7 +1208,7 @@ export function RigaLead({
     vociInvia.push({
       chiave: "link",
       icona: Video,
-      tinta: "text-sky-600",
+      tinta: "text-muted-foreground",
       testo: "Link della consulenza",
       nota: "Solo il link, e che non serve scaricare nulla",
       href: buildWhatsAppLink(l.data.telefono, buildLinkConsulenzaMessage(l, consulente)),
@@ -1215,7 +1218,7 @@ export function RigaLead({
     vociInvia.push({
       chiave: "promemoria",
       icona: Bell,
-      tinta: "text-amber-600",
+      tinta: "text-muted-foreground",
       testo: "Promemoria dell'appuntamento",
       nota: "Giorno, ora e link, con richiesta di conferma",
       href: buildWhatsAppLink(l.data.telefono, buildMeetReminderMessage(l, consulente)),
@@ -1229,7 +1232,7 @@ export function RigaLead({
     vociInvia.push({
       chiave: "invito",
       icona: CalendarCheck,
-      tinta: "text-violet-600",
+      tinta: "text-muted-foreground",
       testo: "Pagina dell'appuntamento",
       nota: "Crea il link e lo copia: quando, quanto dura, come si svolge",
       onScegli: () => void generaInvito(l),
@@ -1297,7 +1300,7 @@ export function RigaLead({
           onClick={() => onEvidenzia(l)}
           title="Segna come da seguire"
           aria-label="Segna come da seguire"
-          className={`shrink-0 rounded p-1 transition ${l.data.highlighted ? "text-amber-500" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
+          className={`shrink-0 rounded-md p-1 transition ${l.data.highlighted ? "text-amber-500" : "text-muted-foreground/40 hover:text-muted-foreground"}`}
         >
           <Star className="h-4 w-4" fill={l.data.highlighted ? "currentColor" : "none"} />
         </button>
@@ -1595,7 +1598,7 @@ export function RigaLead({
                 });
               });
             }}
-            className="shrink-0 rounded-md p-1.5 text-violet-600 transition hover:bg-violet-50"
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <CalendarCheck className="h-4 w-4" />
           </button>
@@ -1689,8 +1692,8 @@ export function SchedaAdesso({
   //  una tavolozza nuova da imparare.
   const inRitardo = attesa?.tono === "ritardo";
   const cornice = inRitardo
-    ? "border-rose-300 ring-1 ring-rose-200"
-    : "border-sky-300 ring-1 ring-sky-200";
+    ? "border-rose-300"
+    : "border-sky-300";
   const testata = inRitardo ? "border-rose-200 bg-rose-50/70" : "border-sky-200 bg-sky-50/70";
   const iconaTestata = inRitardo ? "text-rose-600" : "text-sky-600";
 
@@ -1700,7 +1703,7 @@ export function SchedaAdesso({
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-card transition hover:bg-muted";
 
   return (
-    <section className={`overflow-hidden rounded-xl border bg-card ${cornice}`}>
+    <section data-slot="scheda" className={`overflow-hidden rounded-xl border bg-card ${cornice}`}>
       <header className={`flex items-center gap-2 border-b px-3 py-2 ${testata}`}>
         <Clock className={`h-4 w-4 shrink-0 ${iconaTestata}`} />
         <h2 className="text-[13px] font-semibold uppercase tracking-wide">Adesso</h2>
@@ -2088,8 +2091,8 @@ function StrisciaGiorni({
      scritto per esteso perché è l'unica via d'uscita rimasta. */
   if (storico) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-brand/40 bg-brand/5 px-2.5 py-2">
-        <History className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+      <div className="flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-2.5 py-2">
+        <History className="h-4 w-4 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1">
           {/*  `aria-live` è la CINTURA, non le bretelle: chi usa il lettore di
               schermo preme un pulsante in fondo alla striscia e si ritrova la
@@ -2122,7 +2125,7 @@ function StrisciaGiorni({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <div data-slot="scheda" className="rounded-xl border border-border bg-card">
       {/* ── LA BARRA: CHE GIORNO SI STA GUARDANDO ──────────────────────────
           Dice il giorno e quanto pesa, ed è essa stessa il gesto che apre il
           mese: il bersaglio più grande della riga fa la cosa più richiesta. */}
@@ -2240,14 +2243,14 @@ function StrisciaGiorni({
               className={cn(
                 "flex min-w-[3.25rem] shrink-0 snap-start flex-col items-center gap-0.5 rounded-xl border px-2 py-1.5 transition",
                 scelto
-                  ? "border-brand bg-brand text-white shadow-sm"
-                  : "border-border bg-card hover:border-brand/40 hover:bg-accent/60",
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card hover:border-primary/40 hover:bg-accent/60",
               )}
             >
               <span
                 className={cn(
-                  "text-[10px] uppercase tracking-wide",
-                  scelto ? "text-white/75" : "text-muted-foreground",
+                  "text-[11px] uppercase tracking-wide",
+                  scelto ? "text-primary-foreground/75" : "text-muted-foreground",
                 )}
               >
                 {g.settimana}
@@ -2262,10 +2265,10 @@ function StrisciaGiorni({
                   quanti === 0
                     ? "bg-transparent"
                     : scelto
-                      ? "bg-white"
+                      ? "bg-primary-foreground"
                       : quanti >= 5
                         ? "bg-amber-500"
-                        : "bg-brand",
+                        : "bg-primary",
                 )}
                 aria-hidden
               />
@@ -2275,7 +2278,7 @@ function StrisciaGiorni({
               <span
                 className={cn(
                   "h-0.5 w-4 rounded-full",
-                  eOggi ? (scelto ? "bg-white/70" : "bg-brand/70") : "bg-transparent",
+                  eOggi ? (scelto ? "bg-primary-foreground/70" : "bg-primary/70") : "bg-transparent",
                 )}
                 aria-hidden
               />
@@ -2383,7 +2386,7 @@ function StrisciaGiorni({
                     className={cn(
                       "flex h-[20px] min-w-[20px] items-center justify-center rounded-full px-1 text-[13px] font-semibold leading-none tabular-nums",
                       c.oggi
-                        ? "bg-sky-600 text-white"
+                        ? "bg-primary text-primary-foreground"
                         : c.passato
                           ? "text-muted-foreground"
                           : "text-foreground",
@@ -2426,9 +2429,7 @@ function StrisciaGiorni({
           <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
             Tutte le date fino a oggi in un elenco solo
           </span>
-          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
-            {quantiStorico}
-          </span>
+          <Chip className="shrink-0 py-px leading-4 tabular-nums">{quantiStorico}</Chip>
         </button>
         {/*  ── DAL … AL … ───────────────────────────────────────────────────
              Richiesta del committente: «anche da data a data, minimale».
@@ -3009,6 +3010,7 @@ export function MeetGiornalieri({
                     stanno in crm/ui e sono già quelli) e porta la spunta.
                     Colore E forma: chi non distingue il rosso dall'ambra vede
                     comunque la spunta, chi guarda di sfuggita vede la macchia. */
+                data-slot="scheda"
                 className={cn(
                   "rounded-xl border px-3 py-2 text-left transition",
                   attivo ? e.acceso : e.spento,
