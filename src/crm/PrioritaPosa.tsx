@@ -74,9 +74,10 @@ export function SegnoPriorita({
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)}>
       <span
+        data-slot="etichetta"
         className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-md border border-violet-300 bg-violet-50",
-          "px-1.5 py-0.5 text-[11px] font-semibold leading-none text-violet-700",
+          "inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-300 bg-violet-50",
+          "px-2 py-0.5 text-[11px] font-medium leading-none text-violet-700",
         )}
         title="Messa in cima all'elenco a mano. Si toglie dallo stesso pulsante «Anticipa»"
       >

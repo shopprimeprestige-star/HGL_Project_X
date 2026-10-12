@@ -628,7 +628,7 @@ function SegnoAzione({ cosa }: { cosa: string }) {
       role="img"
       className={
         segno.inSede
-          ? "grid h-4 w-4 shrink-0 place-items-center rounded border border-slate-300 bg-slate-100 text-slate-600"
+          ? "grid h-4 w-4 shrink-0 place-items-center rounded-md border border-slate-300 bg-slate-100 text-slate-600"
           : "inline-flex shrink-0 text-muted-foreground"
       }
     >
@@ -895,7 +895,7 @@ function NoteAComparsa({
             sensibile di 10 punti per lato (36 punti in tutto) SENZA spostare
             un pixel di quello che si vede, e sparisce da `sm` in su, dove
             allargarla ruberebbe i passaggi del mouse alle colonne vicine. */
-        className={`relative shrink-0 rounded p-0.5 transition before:absolute before:-inset-2.5 before:content-[''] sm:before:hidden ${
+        className={`relative shrink-0 rounded-md p-0.5 transition before:absolute before:-inset-2.5 before:content-[''] sm:before:hidden ${
           aperto ? "text-slate-700" : "text-slate-400 hover:text-slate-700"
         }`}
       >
@@ -922,8 +922,8 @@ function NoteAComparsa({
             }}
             className={
               posizione.foglio
-                ? "z-[60] rounded-t-2xl border-t border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-2xl"
-                : "z-[60] rounded-xl border border-slate-200 bg-white p-2.5 text-left shadow-xl"
+                ? "z-[60] rounded-t-xl border-t border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-galleggiante"
+                : "z-[60] rounded-xl border border-slate-200 bg-white p-2.5 text-left shadow-galleggiante"
             }
             onMouseEnter={annulla}
             onMouseLeave={chiudiConRitardo}
@@ -1174,7 +1174,7 @@ function VoceFiltro({
       }`}
     >
       <span
-        className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
+        className={`grid h-4 w-4 shrink-0 place-items-center rounded-md border ${
           attivo ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"
         }`}
       >
@@ -1226,7 +1226,7 @@ function BloccoDomanda({
               onClick={onAzzera}
               title={`Azzera «${titolo}»`}
               aria-label={`Azzera i filtri di ${titolo}`}
-              className="shrink-0 rounded p-0.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+              className="shrink-0 rounded-md p-0.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -1293,7 +1293,7 @@ function ScelteRapide({
           >
             <span className="min-w-0 truncate">{v.titolo}</span>
             <span
-              className={`shrink-0 rounded px-1 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
+              className={`shrink-0 rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
             >
               {v.conteggio}
             </span>
@@ -2637,7 +2637,7 @@ function LeadsPage() {
                 >
                   <span className="truncate">{e.breve}</span>
                   <span
-                    className={`rounded px-1 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
+                    className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
                   >
                     {conteggi.esito[e.stato]}
                   </span>
@@ -2710,7 +2710,7 @@ function LeadsPage() {
         >
           <span className="truncate">Solo i miei</span>
           <span
-            className={`shrink-0 rounded px-1 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
+            className={`shrink-0 rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
           >
             {conteggi.consulente[ioId] || 0}
           </span>
@@ -3130,7 +3130,7 @@ function LeadsPage() {
           un telefono lasciava due lead visibili sotto di sé. */}
       <div
         className={`z-20 -mx-4 flex flex-col gap-1.5 border-b border-border bg-background/95 px-4 py-2 backdrop-blur transition-shadow md:sticky md:top-12 md:-mx-6 md:px-6 ${
-          scrolled ? "md:shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : ""
+          scrolled ? "md:shadow-galleggiante" : ""
         }`}
       >
         <div className="flex items-center gap-1.5">
@@ -3182,7 +3182,7 @@ function LeadsPage() {
                       <Icona className="mr-1 h-3.5 w-3.5 shrink-0 opacity-60" />
                       <span className="truncate">{riassuntoDomanda(d.chiave)}</span>
                       {n > 1 && (
-                        <span className="ml-1.5 shrink-0 rounded bg-foreground px-1 text-[11px] tabular-nums text-background">
+                        <span className="ml-1.5 shrink-0 rounded-full bg-foreground px-1.5 text-[11px] tabular-nums text-background">
                           {n}
                         </span>
                       )}
@@ -3235,7 +3235,7 @@ function LeadsPage() {
                 >
                   <span>{v.titolo}</span>
                   <span
-                    className={`rounded px-1 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
+                    className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
                   >
                     {conteggi.quando[v.chiave] || 0}
                   </span>
@@ -3264,7 +3264,7 @@ function LeadsPage() {
               <UserRound className="h-3.5 w-3.5 shrink-0 sm:hidden" />
               <span className="hidden sm:inline">Solo i miei</span>
               <span
-                className={`rounded px-1 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
+                className={`rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
               >
                 {conteggi.consulente[ioId] || 0}
               </span>
@@ -3384,7 +3384,7 @@ function LeadsPage() {
           scorciatoie, due calendari e il confronto con il periodo precedente.
           Chiuso per default, non toglie niente a chi non lo usa. */}
       {periodoAperto && (
-        <div className="rounded-xl border border-border bg-card p-3">
+        <div data-slot="scheda" className="rounded-xl border border-border bg-card p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Periodo di ingresso
@@ -3431,6 +3431,7 @@ function LeadsPage() {
 
           <div
             ref={listaRef}
+            data-slot="scheda"
             className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
           >
             {filtrati.length === 0 && (
@@ -3492,7 +3493,7 @@ function LeadsPage() {
                     <span
                       className={
                         sel
-                          ? "absolute inset-y-0 left-0 w-[3px] rounded-r bg-primary"
+                          ? "absolute inset-y-0 left-0 w-[3px] rounded-r-md bg-primary"
                           : "absolute inset-y-0 left-0 w-[2px] bg-primary/50"
                       }
                     />
@@ -3540,7 +3541,8 @@ function LeadsPage() {
                       <SegnoPriorita lead={l} />
                       {(l.data.giaPresenteCount ?? 0) > 1 && (
                         <span
-                          className="shrink-0 rounded bg-muted px-1 text-[11px] text-muted-foreground"
+                          data-slot="etichetta"
+                          className="shrink-0 rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground"
                           title="Rientrato più volte"
                         >
                           ×{l.data.giaPresenteCount}
@@ -3812,7 +3814,7 @@ function LeadsPage() {
 
         {/* ── PANNELLO: tutto il resto del lead, senza cambiare pagina ─────── */}
         {dettaglio && (
-          <aside className="fixed inset-x-0 bottom-0 z-40 max-h-[75vh] overflow-y-auto border-t border-border bg-card shadow-lg lg:sticky lg:top-[7.5rem] lg:z-auto lg:max-h-[calc(100vh-9rem)] lg:w-[21rem] lg:shrink-0 lg:rounded-xl lg:border lg:shadow-none xl:w-[23rem]">
+          <aside className="fixed inset-x-0 bottom-0 z-40 max-h-[75vh] overflow-y-auto border-t border-border bg-card shadow-galleggiante lg:sticky lg:top-[7.5rem] lg:z-auto lg:max-h-[calc(100vh-9rem)] lg:w-[21rem] lg:shrink-0 lg:rounded-xl lg:border lg:shadow-none xl:w-[23rem]">
             <div className="flex items-start justify-between gap-2 border-b border-border p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
