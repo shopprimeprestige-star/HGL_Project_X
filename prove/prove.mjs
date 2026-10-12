@@ -8273,6 +8273,17 @@ function proveDelRitornoDallAnnuncio() {
   c("provenienza senza tracking: niente", [], provenienzaLead({ nome: "Ada" }).voci);
   c("provenienza: il giorno viene dalla lista d'origine", "2026-10-10T08:00:00Z",
     provenienzaLead({ listaOrigine: { file: "f.csv", il: "2026-10-10T08:00:00Z" } }).il);
+  //  ⚠️ `il` è il CARICAMENTO: una lista di marzo caricata a ottobre non è «arrivata a ottobre».
+  const LISTA = { file: "marzo.csv", il: "2026-10-12T10:00:00Z" };
+  c("provenienza: data letta dal file → «arrivato il» con createdAt", "arrivato il 04/03/2026",
+    provenienzaLead({ createdAt: "2026-03-04T10:00:00Z", listaOrigine: { ...LISTA, dataDalFile: true } }).quando);
+  c("provenienza: data NON dal file → file e giorno del caricamento", "dal file «marzo.csv», caricato il 12/10/2026",
+    provenienzaLead({ createdAt: "2026-10-12T10:00:00Z", listaOrigine: LISTA }).quando);
+  c("provenienza: dataDalFile falso come senza", "dal file «marzo.csv», caricato il 12/10/2026",
+    provenienzaLead({ createdAt: "2026-03-04T10:00:00Z", listaOrigine: { ...LISTA, dataDalFile: false } }).quando);
+  c("provenienza: dataDalFile ma createdAt illeggibile → caricamento", "dal file «marzo.csv», caricato il 12/10/2026",
+    provenienzaLead({ createdAt: "boh", listaOrigine: { ...LISTA, dataDalFile: true } }).quando);
+  c("provenienza: senza lista d'origine nessuna frase", undefined, provenienzaLead({ createdAt: "2026-03-04T10:00:00Z" }).quando);
   c("provenienza: nome del file", "f.csv",
     provenienzaLead({ listaOrigine: { file: "f.csv", il: "2026-10-10T08:00:00Z" } }).file);
   c("provenienza: spazi e valori non testo si ignorano", [],

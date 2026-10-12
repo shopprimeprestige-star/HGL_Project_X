@@ -1814,11 +1814,6 @@ function BloccoModulo({ form }: { form: LeadData }) {
     medio: "da_lavorare",
     neutro: "neutro",
   };
-  const arrivatoIl = origine.il ? new Date(origine.il) : null;
-  const giornoArrivo =
-    arrivatoIl && !Number.isNaN(arrivatoIl.getTime())
-      ? arrivatoIl.toLocaleDateString("it-IT", { day: "numeric", month: "long" })
-      : "";
   return (
     <SezioneFinestra
       titolo={voci.length ? "Quello che ha detto nel modulo" : "Da dove arriva"}
@@ -1856,7 +1851,7 @@ function BloccoModulo({ form }: { form: LeadData }) {
           ))}
         </div>
       )}
-      {(origine.voci.length > 0 || giornoArrivo) && (
+      {(origine.voci.length > 0 || origine.quando) && (
         <p
           className={cn(
             "break-words text-[12.5px] text-slate-600",
@@ -1869,9 +1864,10 @@ function BloccoModulo({ form }: { form: LeadData }) {
               <span className="text-slate-500">{v.titolo}</span> {v.valore}
             </span>
           ))}
-          {giornoArrivo && (
+          {origine.quando && (
             <span className="text-slate-500">
-              {origine.voci.length > 0 ? " · " : ""}arrivato il {giornoArrivo}
+              {origine.voci.length > 0 ? " · " : ""}
+              {origine.quando}
             </span>
           )}
         </p>

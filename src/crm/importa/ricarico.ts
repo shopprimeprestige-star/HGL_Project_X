@@ -931,6 +931,12 @@ export interface ProvenienzaLead {
   file?: string;
   /** Il momento (ISO) in cui è stato caricato, se c'è. */
   il?: string;
+  /** Quando è entrato, già scritto per la scheda. ⚠️ `listaOrigine.il` è il
+   *  momento del CARICAMENTO, non dell'arrivo: una lista di marzo caricata
+   *  oggi non dice «arrivato il 12 ottobre». «Arrivato il» solo se la data
+   *  `createdAt` è stata letta dal file; altrimenti si dice di che file si
+   *  tratta e quando è stato caricato. Vuota se non si sa niente. */
+  quando?: string;
 }
 
 export function provenienzaLead(d?: Partial<LeadData> | null): ProvenienzaLead {
@@ -947,7 +953,14 @@ export function provenienzaLead(d?: Partial<LeadData> | null): ProvenienzaLead {
   const o = d?.listaOrigine && typeof d.listaOrigine === "object" ? d.listaOrigine : undefined;
   const file = testoDi(o?.file);
   const il = testoDi(o?.il);
-  return { voci, ...(file ? { file } : {}), ...(il ? { il } : {}) };
+  const arrivo = o?.dataDalFile === true ? giorno(d?.createdAt) : "";
+  const caricato = giorno(il);
+  const quando = arrivo
+    ? `arrivato il ${arrivo}`
+    : caricato
+      ? `${file ? `dal file «${file}», ` : ""}caricato il ${caricato}`
+      : "";
+  return { voci, ...(file ? { file } : {}), ...(il ? { il } : {}), ...(quando ? { quando } : {}) };
 }
 
 /** ── «DATI ORIGINALI DEL FILE» ────────────────────────────────────────────
