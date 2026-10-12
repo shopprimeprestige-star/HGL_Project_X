@@ -29,9 +29,10 @@
 //    singolo lead: escono solo conteggi, mediane e somme;
 //  · i motivi di perdita sono una categoria chiusa, mai la nota libera;
 //  · niente dati per consulente.
-//  ⚠️ I rapporti (cpl, cac…) si calcolano sui numeri veri e non sui mascherati:
-//   un costo per lead su tre lead non rivela nessuna persona, ma resta un
-//   numero che chi legge non può rifare a mano. È il contratto.
+//  · i rapporti seguono la stessa soglia del conteggio che li divide: cpl solo
+//    con almeno 5 lead, costo_per_fatta con 5 consulenze fatte, cac e roas con
+//    5 clienti, altrimenti null. Spesa ÷ 3 permetterebbe di rifare il 3
+//    nascosto. Si calcolano sui numeri veri, ma escono solo sopra soglia.
 
 import type { AdSpending, Lead } from "@/crm/types";
 import { eAppuntamento, fasePer } from "@/crm/types";
@@ -65,6 +66,9 @@ const tondo = (n: number, cifre = 2): number => {
 };
 /** Rapporto, o null se non si può dire (denominatore zero o numeratore nullo). */
 const rapporto = (a: number, b: number): number | null => (b > 0 && a > 0 ? tondo(a / b) : null);
+/** Un costo unitario esce solo se il conteggio sotto è almeno la soglia: con 1-4
+ *  persone, spesa ÷ conteggio permetterebbe di risalire al numero nascosto. */
+const rapportoSicuro = (a: number, b: number): number | null => (b >= SOGLIA_MIN ? rapporto(a, b) : null);
 
 // ── LE RIGHE CHE ARRIVANO DAL DATABASE ──────────────────────────────────────
 export interface RigaSpesaMeta {
@@ -428,9 +432,9 @@ function kpi(righe: LeadLetto[], spesa: ReturnType<typeof sommaSpesa>): KpiFeed 
       tiktok_stimata: tondo(spesa.stimata),
       totale: tondo(totale),
     },
-    cpl: rapporto(totale, lead),
-    costo_per_fatta: rapporto(totale, fatte),
-    cac: rapporto(totale, clienti),
+    cpl: rapportoSicuro(totale, lead),
+    costo_per_fatta: rapportoSicuro(totale, fatte),
+    cac: rapportoSicuro(totale, clienti),
     roas: abbastanza ? rapporto(incasso, totale) : null,
     show_rate: frazione(conMeeting.length - mancati, conMeeting.length),
     close_rate: frazione(clienti, fatte),
@@ -547,8 +551,8 @@ function perAnnuncio(
       fatte: maschera(c.fatte),
       no_show: maschera(c.noShow),
       clienti: maschera(c.clienti),
-      cpl: rapporto(a.spesa, c.lead),
-      costo_per_fatta: rapporto(a.spesa, c.fatte),
+      cpl: rapportoSicuro(a.spesa, c.lead),
+      costo_per_fatta: rapportoSicuro(a.spesa, c.fatte),
       hook_rate: a.v1 > 0 && a.impressioni > 0 ? tondo(a.v1 / a.impressioni, 4) : null,
       hold_rate: a.v1 > 0 && a.v2 > 0 ? tondo(a.v2 / a.v1, 4) : null,
     }));
@@ -594,9 +598,9 @@ export function costruisciFeedKpi(ingresso: IngressoFeed) {
       fissate: maschera(fissate),
       fatte: maschera(fatte),
       clienti: maschera(clienti),
-      cpl: rapporto(costo, lead),
-      costo_per_fatta: rapporto(costo, fatte),
-      cac: rapporto(costo, clienti),
+      cpl: rapportoSicuro(costo, lead),
+      costo_per_fatta: rapportoSicuro(costo, fatte),
+      cac: rapportoSicuro(costo, clienti),
     };
   };
   const org = trenta.filter((x) => x.canale === "organico" || x.canale === "passaparola" || x.canale === "store");
@@ -691,7 +695,7 @@ export function costruisciFeedKpi(ingresso: IngressoFeed) {
         fatte: maschera(r.filter((x) => x.fatta).length),
         clienti: maschera(clienti),
         spesa: tondo(totale),
-        cac: rapporto(totale, clienti),
+        cac: rapportoSicuro(totale, clienti),
       };
     }),
     per_piattaforma: {

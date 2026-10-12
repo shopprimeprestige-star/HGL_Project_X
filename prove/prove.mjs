@@ -3731,6 +3731,39 @@ function proveDelFeedAios() {
   c("incasso 6170 arrotondato alle centinaia", 6200, cinque.periodi.settimana.kpi.incasso);
   c("il roas c'è con cinque clienti (6170 su 1000)", 6.17, cinque.periodi.settimana.kpi.roas);
   c("costo per cliente = spesa / clienti", 200, cinque.periodi.settimana.kpi.cac);
+  /*  ── I COSTI UNITARI SEGUONO LA STESSA SOGLIA ───────────────────────────
+      Spesa 1000 su 3 clienti darebbe 333: chi legge rifarebbe il «3» nascosto.
+      Sotto 5 lead / 5 consulenze fatte / 5 clienti il rapporto è nullo. */
+  const sotto = feed(
+    [1, 2, 3, 4].map(() => chiuso("2026-10-06T10:00:00Z", 1500)),
+    { spesaMeta: [{ spend_date: "2026-10-06", ad_id: "A", spend: 1000 }] },
+  );
+  const ks = sotto.periodi.settimana.kpi;
+  c("4 lead: costo per lead nullo", null, ks.cpl);
+  c("4 consulenze fatte: costo per fatta nullo", null, ks.costo_per_fatta);
+  c("4 clienti: cac nullo", null, ks.cac);
+  c("4 clienti: roas nullo", null, ks.roas);
+  c("la spesa si vede lo stesso", 1000, ks.spesa.totale);
+  c("anche nell'elenco delle settimane il cac è nullo", null, sotto.settimane[7].cac);
+  c("per piattaforma: cpl e cac nulli sotto soglia", [null, null], [sotto.per_piattaforma.meta.cpl, sotto.per_piattaforma.meta.cac]);
+  //  Sopra soglia: 5 lead, 5 fatte, 5 clienti → tutti i costi escono.
+  const sopra = feed(
+    [1, 2, 3, 4, 5].map(() => chiuso("2026-10-06T10:00:00Z", 1500, { piattaformaAds: "meta", tracking: { source: "meta", ad_id: "A" } })),
+    { spesaMeta: [{ spend_date: "2026-10-06", ad_id: "A", spend: 1000 }] },
+  );
+  const kx = sopra.periodi.settimana.kpi;
+  c("5 lead: costo per lead 200", 200, kx.cpl);
+  c("5 fatte: costo per fatta 200", 200, kx.costo_per_fatta);
+  c("5 clienti: cac 200", 200, kx.cac);
+  //  Il 6 ottobre è nei 30 giorni: lo stesso vale per piattaforma e per annuncio.
+  c("per piattaforma sopra soglia", [200, 200, 200], [sopra.per_piattaforma.meta.cpl, sopra.per_piattaforma.meta.costo_per_fatta, sopra.per_piattaforma.meta.cac]);
+  c("per annuncio sopra soglia", [200, 200], [sopra.per_annuncio[0].cpl, sopra.per_annuncio[0].costo_per_fatta]);
+  //  Quattro lead sull'annuncio: i costi per annuncio spariscono.
+  const quattroAd = feed(
+    [1, 2, 3, 4].map(() => chiuso("2026-10-06T10:00:00Z", 1500, { piattaformaAds: "meta", tracking: { source: "meta", ad_id: "A" } })),
+    { spesaMeta: [{ spend_date: "2026-10-06", ad_id: "A", spend: 1000 }] },
+  );
+  c("per annuncio sotto soglia: cpl e costo per fatta nulli", [null, null], [quattroAd.per_annuncio[0].cpl, quattroAd.per_annuncio[0].costo_per_fatta]);
   const zero = feed([]);
   c("senza clienti l'incasso è nullo, non zero", null, zero.periodi.settimana.kpi.incasso);
 
