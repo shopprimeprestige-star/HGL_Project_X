@@ -342,7 +342,7 @@ export function Pannello({
     <PopoverContent
       sideOffset={6}
       className={cn(
-        "z-50 w-72 overflow-hidden rounded-xl border p-0 shadow-galleggiante!",
+        "z-50 w-72 overflow-hidden rounded-xl border p-0 shadow-galleggiante",
         FONDO_FINESTRA,
         BORDO_FINESTRA,
         className,

@@ -848,7 +848,7 @@ function FinestraRicerca({
            pieno quando il tema sbagliato vinceva la gara. */}
         <DialogContent
           className={cn(
-            "crm-theme gap-0 overflow-hidden p-0 shadow-galleggiante! [&>button]:hidden",
+            "crm-theme gap-0 overflow-hidden p-0 shadow-galleggiante [&>button]:hidden",
             FONDO_FINESTRA,
             BORDO_FINESTRA,
             //  TELEFONO: foglio dal basso come tutte le altre finestre — la

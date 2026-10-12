@@ -167,7 +167,7 @@ export const LENTI_ESITO = [
     //  Non si preme per assegnarlo: si può solo guardarci dentro.
     assegnabile: false,
     spento: "border-emerald-300 bg-emerald-50 text-emerald-700 hover:brightness-95",
-    acceso: "border-emerald-600 bg-emerald-600 text-white",
+    acceso: "border-emerald-700 bg-emerald-700 text-white",
   },
   {
     //  ── UNO SOLO DEI DUE STATI SOPRAVVIVE ──────────────────────────────
@@ -198,7 +198,7 @@ export const LENTI_ESITO = [
     nome: "Da riprogrammare",
     assegnabile: true,
     spento: "border-amber-300 bg-amber-50 text-amber-700 hover:brightness-95",
-    acceso: "border-amber-600 bg-amber-600 text-white",
+    acceso: "border-amber-700 bg-amber-700 text-white",
   },
 ] as const;
 
@@ -232,17 +232,17 @@ export const ESITI = LENTI_ESITO.filter(
  *
  *  Prima erano tutte e due rosse e si finiva per trattare come persi anche gli
  *  appuntamenti che bastava rifissare.
- *  La tinta resta bassissima (fondo /60, filetto laterale 2px): un elenco con
+ *  La tinta resta bassissima (fondo /60, filetto laterale 1px): un elenco con
  *  metà righe colorate a pieno campo stanca dopo dieci minuti, e il colore
  *  smette di essere un segnale. */
 export function classiRigaStato(stato: LeadStatus | string | undefined | null): string {
   if (stato === "da_spostare")
-    return "border-l-2 border-l-amber-400 bg-amber-50/60 hover:bg-amber-50";
+    return "border-l border-l-amber-400 bg-amber-50/60 hover:bg-amber-50";
   if (stato === "non_fatto" || stato === "no_show")
-    return "border-l-2 border-l-rose-400 bg-rose-50/50 hover:bg-rose-50/80";
+    return "border-l border-l-rose-400 bg-rose-50/50 hover:bg-rose-50/80";
   //  Il filetto trasparente c'è anche sulle righe normali: senza, le righe
-  //  colorate sarebbero larghe 2px più delle altre e l'elenco "ballerebbe".
-  return "border-l-2 border-l-transparent hover:bg-muted/40";
+  //  colorate sarebbero larghe 1px più delle altre e l'elenco "ballerebbe".
+  return "border-l border-l-transparent hover:bg-muted/40";
 }
 
 /* ── QUANTO PESA LA GIORNATA ───────────────────────────────────────────────
@@ -274,8 +274,8 @@ export function caricoGiornata(n: number): CaricoGiornata {
  *  non si vede con la coda dell'occhio, e questo badge deve farsi notare mentre
  *  si guarda altrove. */
 export const CLASSI_CARICO: Record<CaricoGiornata, string> = {
-  leggero: "bg-emerald-600 text-white",
-  pieno: "bg-amber-500 text-white",
+  leggero: "bg-emerald-700 text-white",
+  pieno: "bg-amber-400 text-amber-950",
   sovraccarico: "bg-rose-600 text-white",
 };
 
@@ -320,7 +320,7 @@ export function BadgeCarico({
       title={titolo ?? `${n} in agenda`}
       className={cn(
         "inline-flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full px-1.5",
-        "text-[11px] font-semibold leading-none tabular-nums",
+        "text-[11px] font-medium leading-none tabular-nums",
         tenue ? CLASSI_CARICO_TENUE[carico] : CLASSI_CARICO[carico],
         className,
       )}
@@ -412,7 +412,7 @@ export function ChipAttesa({
     <span
       data-slot="etichetta"
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full border font-semibold",
+        "inline-flex shrink-0 items-center rounded-full border font-medium",
         grande ? "px-2 py-0.5 text-[12px]" : "px-2 py-px text-[11px]",
         CLASSI_ATTESA[attesa.tono],
         className,
@@ -456,8 +456,8 @@ export type UrgenzaBadge = "ritardo" | "oggi" | "pronto" | "info";
 
 export const CLASSI_BADGE: Record<UrgenzaBadge, string> = {
   ritardo: "bg-rose-600 text-white",
-  oggi: "bg-amber-500 text-white",
-  pronto: "bg-emerald-600 text-white",
+  oggi: "bg-amber-400 text-amber-950",
+  pronto: "bg-emerald-700 text-white",
   info: "bg-slate-500/15 text-slate-700",
 };
 
@@ -556,7 +556,7 @@ export function Segmento({
       {conteggio !== undefined && (
         <span
           className={cn(
-            "rounded-md px-1 text-[11px] font-semibold tabular-nums",
+            "rounded-full px-1 text-[11px] font-semibold tabular-nums",
             attivo ? "bg-background/20" : "bg-muted text-muted-foreground",
           )}
         >
@@ -1273,10 +1273,10 @@ export function prossimaAzione(l: Lead): Azione {
 //  colpo d'occhio delle pastiglie di stato, senza introdurre un rosso a parte.
 export const TONO_AZIONE: Record<TonoAzione, string> = {
   ritardo: "text-rose-600",
-  oggi: "text-amber-600",
+  oggi: "text-amber-700",
   futuro: "text-muted-foreground",
   aperto: "text-muted-foreground",
-  chiuso: "text-muted-foreground/60",
+  chiuso: "text-muted-foreground",
 };
 
 /** La prossima azione in una riga sola: gesto + quando, con il ritardo gi\u00e0

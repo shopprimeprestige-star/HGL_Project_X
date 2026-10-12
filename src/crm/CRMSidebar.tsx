@@ -1272,7 +1272,7 @@ export function CRMSidebar() {
           <div className="flex items-center gap-1.5 px-2 pt-1 text-[11px] text-muted-foreground">
             <span className="truncate">{user.email}</span>
             {isAdmin && (
-              <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
                 ADMIN
               </span>
             )}
