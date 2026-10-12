@@ -4473,7 +4473,7 @@ function proveDellaListaImportata() {
   //  Le risposte del modulo finiscono nelle note: chi telefona sa gia' con chi
   //  sta parlando. ⚠️ Senza l'etichetta della domanda, perche' su questo file
   //   l'intestazione e' spostata e scriverla sarebbe stampare una bugia.
-  c("le risposte del modulo restano", true, /alopecia androgenetica/.test(m.leads[0].note || ""));
+  c("le risposte del modulo restano", "androgenetica", m.leads[0].modulo?.problema);
   c("e non ci finisce il nome del modulo", false, /Modulo senza titolo/.test(m.leads[0].note || ""));
   c("ne' il nome della campagna", false, /BROAD|Hair Genius/.test(m.leads[0].note || ""));
 
@@ -4584,7 +4584,7 @@ function proveDellaRicercaManutenzione() {
 }
 
 function proveDelCvrPerRisposta() {
-  const { domandeDeiLead, rispostaMigliore } = RSL;
+  const { domandeDeiLead, rispostaMigliore, haRisposte } = RSL;
   gruppo("QUALE RISPOSTA COMPRA");
 
   const scheda = (risposte, vinto) => ({ data: { modulo: { risposte }, vinto } });
@@ -4610,6 +4610,35 @@ function proveDelCvrPerRisposta() {
   c("50% su chi valuta", 50, d.righe[0].cvrPct);
   c("0% su chi si informa", 0, d.righe[1].cvrPct);
   c("i clienti della domanda", 2, d.clienti);
+
+  //  ⚠️ LA STESSA DOMANDA CON DUE NOMI SI UNISCE. Le schede vecchie hanno la
+  //   voce con l'intestazione del file come domanda, le nuove con il nostro
+  //   nome: nei KPI devono essere una domanda sola, non due con metà dei lead.
+  const unite = domandeDeiLead([
+    scheda([{ domanda: "quanto ti infastidisce la calvizie?", risposta: "Abbastanza" }], true),
+    scheda([{ domanda: "Fastidio", campo: "fastidio", risposta: "Abbastanza" }], false),
+  ], vinto);
+  c("una domanda sola, non due", 1, unite.length);
+  c("che si chiama «Fastidio»", "Fastidio", unite[0].domanda);
+  c("con tutte e due le schede", 2, unite[0].lead);
+  //  Le schede che hanno solo la riga «Dal modulo:» nelle note entrano nel conto.
+  const dallaNota = domandeDeiLead([
+    { data: { note: "Dal modulo: alopecia areata · poco", vinto: false } },
+  ], vinto);
+  c("una scheda con la sola nota entra nei conti", "Fastidio|Problema",
+    dallaNota.map((x) => x.domanda).sort().join("|"));
+  //  ⚠️ Ma la pagina filtra le schede PRIMA di contarle: la prova deve passare
+  //   da quel filtro, non solo dalla funzione che conta. Un lead vecchio ha
+  //   `modulo` vuoto e solo la nota.
+  const soloNota = { data: { modulo: {}, note: "Dal modulo: alopecia androgenetica \u00b7 abbastanza \u00b7 nulla" } };
+  c("il filtro della pagina fa passare chi ha la sola nota", true, haRisposte(soloNota));
+  c("e non chi non ha risposto a niente", false, haRisposte({ data: { note: "richiamare" } }));
+  c("nemmeno con un questionario vuoto", false, haRisposte({ data: { modulo: {} } }));
+  //  La pagina usa quel filtro (non uno suo): senza questo controllo basta una
+  //  riga rimessa com'era per far tornare a zero le schede vecchie.
+  const paginaKpi = readFileSync(join(radice, "src/crm/kpi/RisposteAdsScheda.tsx"), "utf8");
+  c("la scheda KPI filtra con haRisposte", true, /haRisposte\(l\)/.test(paginaKpi));
+  c("e non guarda piu' solo modulo.risposte", false, /modulo\?\.risposte\?\.length/.test(paginaKpi));
 
   //  ⚠️ UNA SCHEDA CONTA UNA VOLTA SOLA PER DOMANDA. Un file storto puo'
   //   portare due risposte alla stessa domanda: contandole entrambe, il
@@ -4905,11 +4934,11 @@ function proveDelModulo() {
       si possono prevedere: la loro domanda si legge dall'intestazione, e la
       risposta diventa una voce come le altre invece di finire nelle note. */
   const altre = traduciCsv(
-    "full_name,phone_number,quanto_ti_infastidisce_la_calvizie?\nMario Esempio,p:+393330000101,alopecia_androgenetica",
+    "full_name,phone_number,hai_mai_fatto_una_consulenza?\nMario Esempio,p:+393330000101,\"s\u00ec,_una_volta\"",
   );
-  c("una domanda che non conosciamo diventa una voce", "quanto ti infastidisce la calvizie?",
+  c("una domanda che non conosciamo diventa una voce", "hai mai fatto una consulenza?",
     altre.leads[0].modulo.risposte[0].domanda);
-  c("con la sua risposta", "Alopecia androgenetica", altre.leads[0].modulo.risposte[0].risposta);
+  c("con la sua risposta", "S\u00ec, una volta", altre.leads[0].modulo.risposte[0].risposta);
   c("e non resta anche nelle note", undefined, altre.leads[0].note);
   //  Senza `campo`: non è una delle quattro che sappiamo interpretare, e la
   //  scheda non deve darle un colore che sarebbe un giudizio inventato.
@@ -4925,10 +4954,232 @@ function proveDelModulo() {
       "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,mario.esempio@example.com,Mario Esempio,p:+393330000101",
     ].join("\n"),
   );
-  c("con l'intestazione spostata non si inventa nessuna domanda", undefined, storto.leads[0].modulo);
-  c("e la risposta resta nelle note", true,
-    /alopecia androgenetica/.test(storto.leads[0].note || ""));
+  //  ⚠️ Nessuna risposta ha come domanda l'intestazione del file («quanto ti
+  //   infastidisce?» sopra «alopecia androgenetica» sarebbe una bugia). Ma il
+  //   VALORE si riconosce da solo: il problema si legge lo stesso.
+  c("con l'intestazione spostata non si inventa nessuna domanda", 0,
+    (storto.leads[0].modulo?.risposte ?? []).filter((x) => /infastidisce/.test(x.domanda)).length);
+  c("e la risposta si riconosce dal valore", "androgenetica", storto.leads[0].modulo?.problema);
   c("mentre il telefono e' comunque quello giusto", "+393330000101", storto.leads[0].telefono);
+}
+
+/** ── LE TRE DOMANDE NUOVE: PROBLEMA, FASTIDIO, GIÀ PROVATO ─────────────────
+ *  ⚠️ Sul file vero queste tre finivano nelle note («Dal modulo: …»), dove non
+ *   si contano e non si filtrano. Qui si prova come si riconoscono, chi vince
+ *   fra colonna e valore, e come si leggono le schede vecchie SENZA scriverci
+ *   sopra (criterio 6 della spec: nel database non si scrive niente). */
+function proveDelleDomandeNuove() {
+  const {
+    riconosciRisposta, leggiRisposte, vociModulo, campoDellaColonna,
+    intestazioneLeggibile, riassuntoModulo, risposteDaNotaVecchia, moduloLetto,
+  } = MDL;
+  gruppo("LE TRE DOMANDE NUOVE DEL MODULO");
+
+  //  ── LE INTESTAZIONI ─────────────────────────────────────────────────
+  //   ⚠️ «che problematica hai?» contiene «problema»: con il riconoscitore di
+  //   «Come vive il problema» le risposte finivano sotto la domanda sbagliata.
+  c("«che problematica hai?» è il Problema", "problema", campoDellaColonna("che_problematica_hai?"));
+  c("e non «Come vive il problema»", false, campoDellaColonna("che_problematica_hai?") === "urgenza");
+  c("«come consideri il tuo problema?» resta l'urgenza", "urgenza",
+    campoDellaColonna("come_consideri_il_tuo_problema?"));
+  c("«quanto ti infastidisce la calvizie?» è il Fastidio", "fastidio",
+    campoDellaColonna("quanto_ti_infastidisce_la_calvizie?"));
+  c("«cosa hai già fatto?» è il Già provato", "giaFatto", campoDellaColonna("cosa_hai_giá_fatto?"));
+  c("un'intestazione qualunque non è nessuna domanda", undefined, campoDellaColonna("full_name"));
+  c("e nemmeno una vuota", undefined, campoDellaColonna(""));
+  c("l'intestazione si legge come una frase", "cosa hai già fatto?", intestazioneLeggibile("cosa_hai_giá_fatto?"));
+  c("senza doppi spazi né spazio in coda", "quanto ti infastidisce?",
+    intestazioneLeggibile("  quanto__ti_infastidisce?  "));
+  c("la «á» scomposta è una «à»", "cosa hai già fatto?", intestazioneLeggibile("cosa_hai_gia\u0301_fatto?"));
+  c("e la maiuscola pure", "Cosa hai gi\u00c0 fatto?", intestazioneLeggibile("Cosa_hai_gi\u00c1_fatto?"));
+
+  //  ── LE RISPOSTE, DAL VALORE ─────────────────────────────────────────
+  const dove = (t, campo) => {
+    const r = riconosciRisposta(t, campo);
+    return r ? `${r.campo}/${r.opzione.id}` : undefined;
+  };
+  c("alopecia androgenetica", "problema/androgenetica", dove("alopecia_androgenetica"));
+  c("alopecia areata", "problema/areata", dove("alopecia_areata"));
+  c("diradamento", "problema/diradamento", dove("diradamento"));
+  c("stempiatura", "problema/stempiatura", dove("stempiatura"));
+  c("abbastanza, come lo scrive Meta (con il trattino basso in coda)", "fastidio/abbastanza", dove("abbastanza_"));
+  c("poco", "fastidio/poco", dove("poco"));
+  c("molto", "fastidio/molto", dove("molto"));
+  c("per niente", "fastidio/perNiente", dove("per_niente"));
+  c("trapianto", "giaFatto/trapianto", dove("trapianto"));
+  c("lozioni", "giaFatto/lozioni", dove("lozioni"));
+  c("farmaci", "giaFatto/farmaci", dove("farmaci"));
+  //  ⚠️ «nulla» può essere la risposta a due domande: da solo non si assegna.
+  c("«nulla» da solo è ambiguo", undefined, dove("nulla"));
+  c("«nulla» sotto «già provato» è Niente", "giaFatto/niente", dove("nulla", "giaFatto"));
+  c("«nulla» sotto «fastidio» è Per niente", "fastidio/perNiente", dove("nulla", "fastidio"));
+  //  Con la domanda si cerca solo fra le sue opzioni.
+  c("con la domanda sbagliata non si trova", undefined, dove("trapianto", "fastidio"));
+  //  ⚠️ Gli ancorati all'intera cella: una frase lunga delle domande classiche
+  //   non deve accendere «Poco» o «Niente».
+  c("una frase con «poco» dentro non è il Fastidio", undefined,
+    dove("ne_so_poco,_vorrei_capire_meglio"));
+  c("e una con «niente» nemmeno", undefined, dove("non_ho_niente_in_contrario"));
+  //  Le classiche si comportano come prima.
+  c("una classica resta una classica", "zona/sud", dove("sud_italia_e_isole"));
+  //  ⚠️ Quando una classica si scontra con una parola delle nuove, vince la
+  //   classica (come in 13e8039): prima di queste tre domande le due frasi
+  //   erano conoscenza/settore e urgenza/subito.
+  c("«ho già provato farmaci» resta «Conosce il settore»", "conoscenza/settore",
+    dove("Sì, ho già provato farmaci"));
+  c("«mi condiziona, ho un diradamento» resta «subito»", "urgenza/subito",
+    dove("Mi condiziona, ho un diradamento"));
+  //  Con la colonna affidabile il valore resta una risposta con il suo codice.
+  const frase = leggiRisposte(["conosci_hair_genius_labs?"], ["Sì, ho già provato farmaci"], new Set(), true);
+  c("e con la colonna affidabile ha il suo codice", "settore", frase.conoscenza);
+  c("un valore qualunque non è nessuna risposta", undefined, dove("Mario Esempio"));
+
+  //  ── COLONNA O VALORE: CHI COMANDA ───────────────────────────────────
+  const a = leggiRisposte(["che_problematica_hai?", "full_name"], ["alopecia_areata", "Mario Esempio"], new Set([1]), true);
+  c("il problema si legge", "areata", a.problema);
+  c("e non diventa un'urgenza", undefined, a.urgenza);
+  c("la voce ha il nome nostro", "Problema", a.risposte[0].domanda);
+
+  //  Colonna affidabile, risposta scritta a mano: sta sotto la SUA domanda.
+  const mano = leggiRisposte(["Problema"], ["chiazze sulla nuca"], new Set(), true);
+  c("la risposta libera sta sotto «Problema»", "Problema", mano.risposte[0].domanda);
+  c("com'è scritta", "Chiazze sulla nuca", mano.risposte[0].risposta);
+  c("senza un campo nostro", undefined, mano.risposte[0].campo);
+  c("e senza inventare un problema", undefined, mano.problema);
+
+  //  ⚠️ Se il valore appartiene senza dubbio a un'altra domanda, vince il valore.
+  const vince = leggiRisposte(["Fastidio"], ["alopecia_androgenetica"], new Set(), true);
+  c("vince il valore: è un problema", "androgenetica", vince.problema);
+  c("e sotto «Fastidio» non c'è niente", 0, (vince.risposte ?? []).filter((x) => x.domanda === "Fastidio").length);
+
+  //  ⚠️ Senza una colonna affidabile, un valore ambiguo non va a nessuna.
+  c("senza colonna affidabile «nulla» non va a nessuna", undefined,
+    leggiRisposte(["a", "b"], ["nulla", "x"], new Set(), false));
+  //  Con la colonna affidabile sì.
+  const gia = leggiRisposte(["cosa_hai_giá_fatto?"], ["nulla"], new Set(), true);
+  c("«nulla» sotto «cosa hai già fatto?» è Niente", "niente", gia.giaFatto);
+  c("e la frase sua si conserva", "Nulla", gia.risposte[0].testo);
+  const fast = leggiRisposte(["quanto_ti_infastidisce_la_calvizie?"], ["nulla"], new Set(), true);
+  c("«nulla» sotto «quanto ti infastidisce» è Per niente", "perNiente", fast.fastidio);
+
+  //  ── QUALI COLONNE SONO FINITE NELLE RISPOSTE ────────────────────────
+  const usate = new Set();
+  leggiRisposte(
+    ["che_problematica_hai?", "quanto_ti_infastidisce?", "full_name"],
+    ["alopecia_areata", "poco", "Mario Esempio"],
+    new Set([2]), true, usate,
+  );
+  c("le colonne lette sono segnate", "0,1", [...usate].sort().join(","));
+  c("il nome non c'è", false, usate.has(2));
+  //  Una seconda risposta alla stessa domanda non si legge: la sua colonna
+  //  non è «usata», così chi legge il file la conserva altrove.
+  const doppie = new Set();
+  leggiRisposte(["a", "b"], ["poco", "abbastanza"], new Set(), true, doppie);
+  c("la risposta scartata non è «usata»", "0", [...doppie].join(","));
+
+  //  ── IL RIASSUNTO PER LA RIGA ────────────────────────────────────────
+  const tre = { problema: "androgenetica", fastidio: "abbastanza", giaFatto: "niente" };
+  c("due voci di solito", "Problema: Alopecia androgenetica · Fastidio: Abbastanza", riassuntoModulo(tre));
+  c("tre se si chiedono", "Problema: Alopecia androgenetica · Fastidio: Abbastanza · Già provato: Niente",
+    riassuntoModulo(tre, 3));
+  c("senza modulo è vuoto", "", riassuntoModulo(undefined));
+  c("e anche con un modulo vuoto", "", riassuntoModulo({}));
+  c("le classiche vengono dopo", "Problema: Diradamento · Zona: Nord Italia",
+    riassuntoModulo({ zona: "nord", problema: "diradamento" }));
+
+  //  ── LE SCHEDE VECCHIE: LA RIGA «DAL MODULO:» DELLE NOTE ─────────────
+  const n1 = risposteDaNotaVecchia("chiamato ieri\nDal modulo: alopecia androgenetica · abbastanza · nulla");
+  c("dalla nota: il problema", "androgenetica", n1.problema);
+  c("dalla nota: il fastidio", "abbastanza", n1.fastidio);
+  //  ⚠️ Per esclusione: il Fastidio c'è già, quindi «nulla» può essere solo Già provato.
+  c("dalla nota: «nulla» per esclusione è Niente", "niente", n1.giaFatto);
+  const n2 = risposteDaNotaVecchia("Dal modulo: alopecia areata · nulla");
+  c("senza appiglio il problema si legge", "areata", n2.problema);
+  c("ma «nulla» resta ambiguo: niente Fastidio", undefined, n2.fastidio);
+  c("e niente Già provato", undefined, n2.giaFatto);
+  c("una nota senza la riga non dà niente", undefined, risposteDaNotaVecchia("richiamare giovedì"));
+  c("e senza nota nemmeno", undefined, risposteDaNotaVecchia(undefined));
+  c("la riga che non dice niente di nostro non dà niente", undefined,
+    risposteDaNotaVecchia("Dal modulo: qualcosa di strano"));
+  //  La frase sua si conserva, come per le risposte del file.
+  c("la frase sua resta", "Alopecia areata", n2.risposte.find((x) => x.campo === "problema").testo);
+
+  // ── moduloLetto: UN PUNTO SOLO PER LEGGERE UNA SCHEDA ────────────────
+  const m1 = moduloLetto({ note: "Dal modulo: alopecia areata · poco" });
+  c("dalla sola nota: problema", "areata", m1.problema);
+  c("dalla sola nota: fastidio", "poco", m1.fastidio);
+  c("senza modulo né nota non c'è niente", undefined, moduloLetto({ nome: "Anna" }));
+  c("senza scheda nemmeno", undefined, moduloLetto(undefined));
+  c("con null nemmeno", undefined, moduloLetto(null));
+
+  //  ⚠️ Salvato e nota insieme: vince il salvato, e nessuna voce due volte.
+  const ambo = moduloLetto({
+    modulo: { problema: "diradamento", risposte: [{ domanda: "Problema", risposta: "Diradamento", campo: "problema" }] },
+    note: "Dal modulo: alopecia areata · poco",
+  });
+  c("vince il modulo salvato", "diradamento", ambo.problema);
+  c("e la nota completa quello che manca", "poco", ambo.fastidio);
+  const titoli = vociModulo(ambo).map((v) => v.titolo);
+  c("nessuna voce compare due volte", titoli.length, new Set(titoli).size);
+  c("e il Problema è uno solo", 1, titoli.filter((t) => t === "Problema").length);
+
+  //  Una voce vecchia, salvata con l'intestazione del file come domanda.
+  const vecchia = moduloLetto({
+    modulo: { risposte: [{ domanda: "quanto ti infastidisce la calvizie?", risposta: "Abbastanza" }] },
+  });
+  c("la voce vecchia diventa un Fastidio", "abbastanza", vecchia.fastidio);
+  c("e sta sotto «Fastidio»", "Fastidio", vecchia.risposte[0].domanda);
+  c("la voce si vede una volta sola", 1, vociModulo(vecchia).filter((v) => v.titolo === "Fastidio").length);
+  //  ⚠️ L'errore nascosto: «che problematica hai?» finiva sotto «Come vive il problema».
+  const nascosto = moduloLetto({
+    modulo: { risposte: [{ domanda: "Come vive il problema", risposta: "Alopecia androgenetica" }] },
+  });
+  c("l'errore nascosto torna sotto «Problema»", "androgenetica", nascosto.problema);
+  c("non resta sotto «Come vive il problema»", undefined, nascosto.urgenza);
+  c("la voce ha la domanda giusta", "Problema", nascosto.risposte[0].domanda);
+  //  La risposta vera a «Come vive il problema» non si sposta.
+  const vera = moduloLetto({
+    modulo: { urgenza: "valutando", risposte: [{ domanda: "Come vive il problema", risposta: "Lo sta valutando sul serio", campo: "urgenza" }] },
+  });
+  c("la risposta giusta resta dov'è", "valutando", vera.urgenza);
+  c("senza spostare niente", 1, vera.risposte.length);
+  c("e senza inventare un problema", undefined, vera.problema);
+  //  Una voce vecchia di una domanda che non conosciamo non si tocca.
+  const altra = moduloLetto({
+    modulo: { risposte: [{ domanda: "hai mai fatto una consulenza?", risposta: "Sì, una volta" }] },
+  });
+  c("una domanda sconosciuta resta com'è", "hai mai fatto una consulenza?", altra.risposte[0].domanda);
+
+  //  ⚠️ CRITERIO 6 DELLA SPEC: LEGGERE NON SCRIVE. Una scheda congelata in
+  //   profondità non deve far lanciare eccezioni, e dopo è identica.
+  const scheda = {
+    nome: "Anna",
+    note: "ricontattare\nDal modulo: alopecia areata · abbastanza · nulla",
+    modulo: {
+      zona: "nord",
+      risposte: [
+        { domanda: "quanto ti infastidisce la calvizie?", risposta: "Poco" },
+        { domanda: "Come vive il problema", risposta: "Alopecia androgenetica" },
+        { domanda: "Zona", risposta: "Nord Italia", campo: "zona" },
+      ],
+    },
+  };
+  scheda.modulo.risposte.forEach((x) => Object.freeze(x));
+  Object.freeze(scheda.modulo.risposte);
+  Object.freeze(scheda.modulo);
+  Object.freeze(scheda);
+  const prima = JSON.stringify(scheda);
+  let lanciata = "";
+  let letta;
+  try {
+    letta = moduloLetto(scheda);
+  } catch (e) {
+    lanciata = String(e);
+  }
+  c("su una scheda congelata non lancia", "", lanciata);
+  c("la scheda dopo la lettura è identica", prima, JSON.stringify(scheda));
+  //  Il Fastidio salvato (voce vecchia «Poco») vince sulla nota («abbastanza»).
+  c("e la lettura ha letto il salvato prima della nota", "poco|androgenetica", `${letta?.fastidio}|${letta?.problema}`);
 }
 
 /** ── CHI PUÒ FARE CHE COSA ────────────────────────────────────────────────
@@ -15362,6 +15613,7 @@ provePalco();
   proveDellIscrizione();
   proveDellaTracciaSola();
   proveDelModulo();
+  proveDelleDomandeNuove();
   proveDeiClicLiberi();
   proveDelCvrPerRisposta();
   proveDellaRicercaManutenzione();
