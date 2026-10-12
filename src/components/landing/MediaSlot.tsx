@@ -38,7 +38,7 @@ export function MediaSlot({
   }
   const resolved = detectType(src, type);
   const wrap =
-    "relative overflow-hidden rounded-sm min-h-[360px] " +
+    "relative overflow-hidden rounded-md min-h-[360px] " +
     (light ? "bg-light-grid" : "bg-blueprint-fine") +
     " " +
     className;

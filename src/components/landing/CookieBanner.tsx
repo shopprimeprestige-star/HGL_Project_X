@@ -34,7 +34,7 @@ export function CookieBanner() {
       aria-label="Preferenze cookie"
       className="fixed bottom-3 left-3 right-3 sm:left-4 sm:right-auto sm:bottom-4 sm:max-w-sm z-50"
     >
-      <div className="relative bg-navy-deep/95 backdrop-blur-md border border-brand/30 rounded-sm shadow-xl px-4 py-3.5 text-white">
+      <div className="relative bg-navy-deep/95 backdrop-blur-md border border-brand/30 rounded-md shadow-galleggiante px-4 py-3.5 text-white">
         <button
           aria-label="Chiudi"
           onClick={() => close("reject")}
@@ -42,7 +42,7 @@ export function CookieBanner() {
         >
           <X className="h-3.5 w-3.5" />
         </button>
-        <div className="text-[0.6rem] tracking-[0.22em] uppercase text-brand font-semibold mb-1.5">
+        <div className="text-etichetta tracking-[0.22em] uppercase text-brand font-semibold mb-1.5">
           Cookie
         </div>
         <p className="text-xs leading-relaxed text-white/75 pr-4">
@@ -55,13 +55,13 @@ export function CookieBanner() {
         <div className="mt-3 flex items-center gap-2">
           <button
             onClick={() => close("accept")}
-            className="flex-1 bg-brand hover:bg-brand/90 text-brand-foreground text-[0.7rem] tracking-widest uppercase font-semibold py-2 rounded-sm transition-colors"
+            className="flex-1 bg-brand hover:bg-brand/90 text-brand-foreground text-[0.7rem] tracking-widest uppercase font-semibold py-2 rounded-md transition-colors"
           >
             Accetta
           </button>
           <button
             onClick={() => close("reject")}
-            className="flex-1 border border-white/20 hover:border-white/40 text-white/80 hover:text-white text-[0.7rem] tracking-widest uppercase font-semibold py-2 rounded-sm transition-colors"
+            className="flex-1 border border-white/20 hover:border-white/40 text-white/80 hover:text-white text-[0.7rem] tracking-widest uppercase font-semibold py-2 rounded-md transition-colors"
           >
             Rifiuta
           </button>

@@ -140,7 +140,7 @@ function Index() {
     <main id="top" className="min-h-screen overflow-x-hidden">
       <StickyHeader />
       {/* HERO */}
-      <section className="bg-blueprint relative overflow-hidden spotlight">
+      <section className="bg-blueprint relative overflow-hidden before:pointer-events-none before:absolute before:inset-[-20%] before:content-[''] before:bg-[radial-gradient(600px_circle_at_30%_20%,var(--brand-velo-22)_0%,transparent_60%)] before:animate-[spotlight-drift_12s_ease-in-out_infinite] motion-reduce:before:animate-none">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-10 pb-20 lg:pt-14 lg:pb-28 relative">
           {/* Logo stamp */}
           <div className="brackets inline-flex items-center justify-center px-5 py-3 mb-12">
@@ -179,7 +179,7 @@ function Index() {
               </p>
 
               <div className="mt-10 border-l-2 border-brand pl-5 max-w-md">
-                <div className="eyebrow text-[0.65rem]">
+                <div className="eyebrow text-etichetta">
                   {text("hero.priceLabel")}
                 </div>
                 <div className="mt-2 flex items-baseline gap-3">
@@ -283,7 +283,7 @@ function Index() {
 
               <div className="mt-10 flex items-center gap-2 mb-5 justify-center">
                 <span className="ng-stats__dot" />
-                <span className="text-[0.6rem] tracking-[0.28em] uppercase text-brand font-bold">
+                <span className="text-etichetta tracking-[0.28em] uppercase text-brand font-bold">
                   Scheda Tecnica · Bio-Mimetic™
                 </span>
               </div>
@@ -298,7 +298,7 @@ function Index() {
                       <div className="text-aurora text-xl md:text-2xl font-bold tracking-tight">
                         {s.big}
                       </div>
-                      <div className="mt-2 text-[0.65rem] tracking-widest uppercase text-white/60 whitespace-pre-line leading-relaxed">
+                      <div className="mt-2 text-etichetta tracking-widest uppercase text-white/60 whitespace-pre-line leading-relaxed">
                         {s.sub}
                       </div>
                     </div>
@@ -336,7 +336,7 @@ function Index() {
                   key={label}
                   className="ng-pill group relative inline-flex items-center gap-2.5 rounded-full pl-1.5 pr-4 py-1.5 text-sm font-semibold text-ink"
                 >
-                  <span className="ng-pill__icon relative grid place-items-center w-7 h-7 rounded-full text-white shadow-[0_4px_12px_-4px_color-mix(in_oklab,var(--brand)_60%,transparent)]">
+                  <span className="ng-pill__icon relative grid place-items-center w-7 h-7 rounded-full text-white">
                     <Icon className={`h-3.5 w-3.5 relative z-10 ${anim}`} strokeWidth={2.25} />
                   </span>
                   <span>{label}</span>
@@ -382,7 +382,7 @@ function Index() {
                 </div>
                 <h3 className="text-lg font-bold text-ink tracking-tight">{title}</h3>
                 <p className="mt-2 text-sm font-semibold text-brand leading-snug">{hook}</p>
-                <div className="ng-pillar__kicker mt-3">{kicker}</div>
+                <div className="ng-pillar__kicker mt-3 text-etichetta!">{kicker}</div>
                 <p className="mt-3 text-sm text-ink-muted leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -405,7 +405,7 @@ function Index() {
 
           <div className="mt-12 grid md:grid-cols-2 gap-8">
             <div>
-              <div className="inline-block bg-navy-light text-white text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-sm mb-3">
+              <div className="inline-block bg-navy-light text-white text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-md mb-3">
                 Prima · Patch cutanea
               </div>
               <MediaSlot
@@ -417,7 +417,7 @@ function Index() {
               />
             </div>
             <div>
-              <div className="shine inline-block bg-brand text-brand-foreground text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-sm mb-3">
+              <div className="shine inline-block bg-brand text-brand-foreground text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-md mb-3">
                 Zero-Edge del Bio-Mimetic™
               </div>
               <MediaSlot
@@ -492,11 +492,11 @@ function Index() {
           </div>
 
           <div className="mt-12 max-w-md mx-auto">
-            <div className="bg-brand text-brand-foreground px-5 py-2.5 flex items-center justify-between text-[0.65rem] tracking-widest uppercase font-semibold rounded-t-sm">
+            <div className="bg-brand text-brand-foreground px-5 py-2.5 flex items-center justify-between text-etichetta tracking-widest uppercase font-semibold rounded-t-md">
               <span>{text("s08.priceLabel")}</span>
               <span>Ultimi {daysLeft} giorni</span>
             </div>
-            <div className="bg-navy/60 border border-white/10 border-t-0 rounded-b-sm px-5 py-8 text-center">
+            <div className="bg-navy/60 border border-white/10 border-t-0 rounded-b-md px-5 py-8 text-center">
               <div className="flex items-baseline justify-center gap-3">
                 <span className="text-3xl text-white/30 line-through">47€</span>
                 <span className="hl-nextgen text-5xl md:text-6xl font-extrabold tracking-tight">

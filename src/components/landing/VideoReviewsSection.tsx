@@ -22,7 +22,7 @@ function Stars({ n }: { n: number }) {
 function ReviewCard({ review }: { review: Review }) {
   const [playing, setPlaying] = useState(false);
   return (
-    <article className="group relative bg-navy/60 border border-white/10 hover:border-brand/40 transition-colors rounded-sm overflow-hidden flex flex-col">
+    <article className="group relative bg-navy/60 border border-white/10 hover:border-brand/40 transition-colors rounded-md overflow-hidden flex flex-col">
       {/* Video / poster */}
       <div className="relative aspect-[4/5] bg-navy-light overflow-hidden">
         {review.videoUrl ? (
@@ -67,13 +67,13 @@ function ReviewCard({ review }: { review: Review }) {
             }}
             className="absolute inset-0 grid place-items-center bg-navy/30 hover:bg-navy/10 transition-colors"
           >
-            <span className="grid place-items-center w-16 h-16 rounded-full bg-brand text-brand-foreground shadow-[0_10px_30px_-6px_color-mix(in_oklab,var(--brand)_60%,transparent)] group-hover:scale-110 transition-transform">
+            <span className="grid place-items-center w-16 h-16 rounded-full bg-brand text-brand-foreground group-hover:scale-110 transition-transform">
               <Play className="h-6 w-6 ml-0.5" fill="currentColor" strokeWidth={0} />
             </span>
           </button>
         )}
 
-        <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 bg-brand text-brand-foreground text-[0.6rem] tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded-sm shine">
+        <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 bg-brand text-brand-foreground text-etichetta tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded-md shine">
           <ShieldCheck className="h-3 w-3" strokeWidth={2.5} /> Verificato
         </div>
       </div>
@@ -83,7 +83,7 @@ function ReviewCard({ review }: { review: Review }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-white font-semibold text-sm">{review.name}</div>
-            <div className="text-[0.65rem] tracking-[0.22em] uppercase text-white/50 mt-0.5">
+            <div className="text-etichetta tracking-[0.22em] uppercase text-white/50 mt-0.5">
               Cliente verificato
             </div>
           </div>
@@ -106,7 +106,7 @@ export function VideoReviewsSection() {
     <section className="bg-blueprint" id="recensioni">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
         <div className="text-center max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-sm border border-brand/40 bg-brand/10 text-brand text-[0.6rem] tracking-[0.28em] uppercase font-bold">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md border border-brand/40 bg-brand/10 text-brand text-etichetta tracking-[0.28em] uppercase font-bold">
             <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
             {content.reviewsBadge}
           </div>
