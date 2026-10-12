@@ -1389,7 +1389,7 @@ html.hg-guest body {
 /* static ring removed for less visual noise */
 .ng-pillar__kicker {
   display: inline-block;
-  font-size: 0.65rem;
+  font-size: var(--text-etichetta); /* 11 px: il minimo ammesso sul telefono */
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 700;
