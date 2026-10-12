@@ -628,7 +628,7 @@ function SegnoAzione({ cosa }: { cosa: string }) {
       role="img"
       className={
         segno.inSede
-          ? "grid h-4 w-4 shrink-0 place-items-center rounded border border-slate-300 bg-slate-100 text-slate-600"
+          ? "grid h-4 w-4 shrink-0 place-items-center rounded-md border border-slate-300 bg-slate-100 text-slate-600"
           : "inline-flex shrink-0 text-muted-foreground"
       }
     >
@@ -895,7 +895,7 @@ function NoteAComparsa({
             sensibile di 10 punti per lato (36 punti in tutto) SENZA spostare
             un pixel di quello che si vede, e sparisce da `sm` in su, dove
             allargarla ruberebbe i passaggi del mouse alle colonne vicine. */
-        className={`relative shrink-0 rounded p-0.5 transition before:absolute before:-inset-2.5 before:content-[''] sm:before:hidden ${
+        className={`relative shrink-0 rounded-md p-0.5 transition before:absolute before:-inset-2.5 before:content-[''] sm:before:hidden ${
           aperto ? "text-slate-700" : "text-slate-400 hover:text-slate-700"
         }`}
       >
@@ -922,8 +922,8 @@ function NoteAComparsa({
             }}
             className={
               posizione.foglio
-                ? "z-[60] rounded-t-2xl border-t border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-2xl"
-                : "z-[60] rounded-xl border border-slate-200 bg-white p-2.5 text-left shadow-xl"
+                ? "z-[60] rounded-t-xl border-t border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-galleggiante"
+                : "z-[60] rounded-xl border border-slate-200 bg-white p-2.5 text-left shadow-galleggiante"
             }
             onMouseEnter={annulla}
             onMouseLeave={chiudiConRitardo}
@@ -1174,7 +1174,7 @@ function VoceFiltro({
       }`}
     >
       <span
-        className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
+        className={`grid h-4 w-4 shrink-0 place-items-center rounded-md border ${
           attivo ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"
         }`}
       >
@@ -1226,7 +1226,7 @@ function BloccoDomanda({
               onClick={onAzzera}
               title={`Azzera «${titolo}»`}
               aria-label={`Azzera i filtri di ${titolo}`}
-              className="shrink-0 rounded p-0.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+              className="shrink-0 rounded-md p-0.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -1293,7 +1293,7 @@ function ScelteRapide({
           >
             <span className="min-w-0 truncate">{v.titolo}</span>
             <span
-              className={`shrink-0 rounded px-1 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
+              className={`shrink-0 rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
             >
               {v.conteggio}
             </span>
@@ -1450,7 +1450,7 @@ function PulsanteChiamate({
         premuto
           ? "bg-slate-200 text-slate-900"
           : mostrato > 0
-            ? "text-sky-700 hover:bg-sky-50"
+            ? "text-foreground hover:bg-muted"
             : "text-muted-foreground hover:bg-muted"
       }`}
       //  touch-action: la pressione lunga non deve diventare uno scorrimento
@@ -2035,6 +2035,16 @@ function LeadsPage() {
     () => leads.find((l) => l.id === dettaglioId) || null,
     [leads, dettaglioId],
   );
+  //  ⚠️ Il pannello del lead sta a fianco dell'elenco da `lg` in su e gli
+  //  toglie 21-23 rem. Le colonne a larghezza fissa (41,5 rem) non lasciavano
+  //  più niente alla colonna del nome, che spariva da tutte le righe. Con il
+  //  pannello aperto cedono le colonne che il pannello già mostra: il
+  //  consulente (sotto «Assegnazione»), la prossima azione (si stringe, e sotto
+  //  1400 px va via) e i gesti al passaggio (stesse azioni nel pannello). Il
+  //  CONTATORE DELLE CHIAMATE no: resta in riga in una colonna stretta, fra `lg`
+  //  e `2xl` (da `2xl` tornano anche gli altri gesti). Il nome e lo stato
+  //  restano sempre. A pannello chiuso: come prima.
+  const conPannello = dettaglio != null;
 
   /* ── LE PASTIGLIE: I FILTRI ACCESI, SEMPRE IN VISTA ──────────────────────
      Una per filtro attivo, ognuna con la sua X. È l'unico posto in cui si
@@ -2637,7 +2647,7 @@ function LeadsPage() {
                 >
                   <span className="truncate">{e.breve}</span>
                   <span
-                    className={`rounded px-1 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
+                    className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
                   >
                     {conteggi.esito[e.stato]}
                   </span>
@@ -2704,13 +2714,13 @@ function LeadsPage() {
           title="Mostra solo i lead assegnati a me"
           className={`mb-1.5 flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-medium transition ${
             consulenteId === ioId
-              ? "border-sky-600 bg-sky-600 text-white"
-              : "border-sky-200 bg-sky-50 text-sky-700 hover:brightness-95"
+              ? "border-foreground bg-foreground text-background"
+              : "border-border bg-background text-foreground hover:bg-muted"
           }`}
         >
           <span className="truncate">Solo i miei</span>
           <span
-            className={`shrink-0 rounded px-1 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
+            className={`shrink-0 rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-background/20" : "bg-muted"}`}
           >
             {conteggi.consulente[ioId] || 0}
           </span>
@@ -3130,7 +3140,7 @@ function LeadsPage() {
           un telefono lasciava due lead visibili sotto di sé. */}
       <div
         className={`z-20 -mx-4 flex flex-col gap-1.5 border-b border-border bg-background/95 px-4 py-2 backdrop-blur transition-shadow md:sticky md:top-12 md:-mx-6 md:px-6 ${
-          scrolled ? "md:shadow-[0_1px_3px_rgba(0,0,0,0.06)]" : ""
+          scrolled ? "md:shadow-galleggiante" : ""
         }`}
       >
         <div className="flex items-center gap-1.5">
@@ -3182,7 +3192,7 @@ function LeadsPage() {
                       <Icona className="mr-1 h-3.5 w-3.5 shrink-0 opacity-60" />
                       <span className="truncate">{riassuntoDomanda(d.chiave)}</span>
                       {n > 1 && (
-                        <span className="ml-1.5 shrink-0 rounded bg-foreground px-1 text-[11px] tabular-nums text-background">
+                        <span className="ml-1.5 shrink-0 rounded-full bg-foreground px-1.5 text-[11px] tabular-nums text-background">
                           {n}
                         </span>
                       )}
@@ -3229,13 +3239,13 @@ function LeadsPage() {
                     on
                       ? v.chiave === "ritardo"
                         ? "border-rose-600 bg-rose-600 text-white"
-                        : "border-sky-600 bg-sky-600 text-white"
+                        : "border-primary bg-primary text-primary-foreground"
                       : `${v.classe} hover:brightness-95`
                   }`}
                 >
                   <span>{v.titolo}</span>
                   <span
-                    className={`rounded px-1 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
+                    className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/20" : "bg-white/70"}`}
                   >
                     {conteggi.quando[v.chiave] || 0}
                   </span>
@@ -3247,8 +3257,8 @@ function LeadsPage() {
           {/*  "Solo i miei" è il filtro più premuto della giornata, e per questo
               è l'unico dei quotidiani che NON si nasconde mai: resta nella riga
               anche sul telefono, dove diventa la sola icona di una persona.
-              Sky è la famiglia di "da fare adesso", la stessa delle righe in
-              scadenza. */}
+              Un filtro personale è neutro: il blu pieno è solo del filtro
+              «Oggi» e dell'azione principale (regola del blu, DESIGN.md). */}
           {ioId && (
             <button
               type="button"
@@ -3257,14 +3267,14 @@ function LeadsPage() {
               title="Mostra solo i lead assegnati a me"
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px] font-medium transition ${
                 consulenteId === ioId
-                  ? "border-sky-600 bg-sky-600 text-white"
-                  : "border-sky-200 bg-sky-50 text-sky-700 hover:brightness-95"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-background text-foreground hover:bg-muted"
               }`}
             >
               <UserRound className="h-3.5 w-3.5 shrink-0 sm:hidden" />
               <span className="hidden sm:inline">Solo i miei</span>
               <span
-                className={`rounded px-1 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
+                className={`rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-background/20" : "bg-muted"}`}
               >
                 {conteggi.consulente[ioId] || 0}
               </span>
@@ -3384,7 +3394,7 @@ function LeadsPage() {
           scorciatoie, due calendari e il confronto con il periodo precedente.
           Chiuso per default, non toglie niente a chi non lo usa. */}
       {periodoAperto && (
-        <div className="rounded-xl border border-border bg-card p-3">
+        <div data-slot="scheda" className="rounded-xl border border-border bg-card p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Periodo di ingresso
@@ -3424,13 +3434,32 @@ function LeadsPage() {
             </div>
             <span className="min-w-0 flex-1">Nome</span>
             <span className="hidden w-[11.5rem] shrink-0 md:block">Stato</span>
-            <span className="hidden w-[12rem] shrink-0 md:block">Prossima azione</span>
-            <span className="hidden w-[8rem] shrink-0 lg:block">Consulente</span>
-            <span className="w-[8.25rem] shrink-0 text-right md:w-[10rem]">Azioni</span>
+            <span
+              className={
+                conPannello
+                  ? "hidden w-[12rem] shrink-0 md:block lg:max-[1399px]:hidden min-[1400px]:w-[10rem]"
+                  : "hidden w-[12rem] shrink-0 md:block"
+              }
+            >
+              Prossima azione
+            </span>
+            <span className={conPannello ? "hidden w-[8rem] shrink-0" : "hidden w-[8rem] shrink-0 lg:block"}>
+              Consulente
+            </span>
+            <span
+              className={
+                conPannello
+                  ? "w-[8.25rem] shrink-0 text-right md:w-[10rem] lg:w-[3.5rem] 2xl:w-[10rem]"
+                  : "w-[8.25rem] shrink-0 text-right md:w-[10rem]"
+              }
+            >
+              Azioni
+            </span>
           </div>
 
           <div
             ref={listaRef}
+            data-slot="scheda"
             className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
           >
             {filtrati.length === 0 && (
@@ -3492,7 +3521,7 @@ function LeadsPage() {
                     <span
                       className={
                         sel
-                          ? "absolute inset-y-0 left-0 w-[3px] rounded-r bg-primary"
+                          ? "absolute inset-y-0 left-0 w-[3px] rounded-r-md bg-primary"
                           : "absolute inset-y-0 left-0 w-[2px] bg-primary/50"
                       }
                     />
@@ -3540,7 +3569,8 @@ function LeadsPage() {
                       <SegnoPriorita lead={l} />
                       {(l.data.giaPresenteCount ?? 0) > 1 && (
                         <span
-                          className="shrink-0 rounded bg-muted px-1 text-[11px] text-muted-foreground"
+                          data-slot="etichetta"
+                          className="shrink-0 rounded-full border border-border bg-muted px-1.5 text-[11px] text-muted-foreground"
                           title="Rientrato più volte"
                         >
                           ×{l.data.giaPresenteCount}
@@ -3647,7 +3677,13 @@ function LeadsPage() {
 
                   {/* PROSSIMA AZIONE — il segno dice DOVE (in sede, a distanza,
                       al telefono, in cantiere), il colore dice QUANDO. */}
-                  <div className="hidden w-[12rem] shrink-0 flex-col leading-tight md:flex">
+                  <div
+                    className={
+                      conPannello
+                        ? "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex lg:max-[1399px]:hidden min-[1400px]:w-[10rem]"
+                        : "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex"
+                    }
+                  >
                     <span className="flex items-center gap-1.5 text-[12.5px]">
                       <SegnoAzione cosa={az.cosa} />
                       <span className="truncate">{az.cosa}</span>
@@ -3671,7 +3707,9 @@ function LeadsPage() {
                   </div>
 
                   {/* CONSULENTE */}
-                  <div className="hidden w-[8rem] shrink-0 truncate text-[12.5px] text-muted-foreground lg:block">
+                  <div
+                    className={`hidden w-[8rem] shrink-0 truncate text-[12.5px] text-muted-foreground ${conPannello ? "" : "lg:block"}`}
+                  >
                     {consultantName(l.data.consulenteId)}
                   </div>
 
@@ -3703,6 +3741,8 @@ function LeadsPage() {
                       fatto col pollice subito dopo la chiamata. */}
                   <div
                     className={`flex shrink-0 items-center justify-end gap-0.5 transition-opacity md:w-[10rem] ${
+                      conPannello ? "lg:w-[3.5rem] 2xl:w-[10rem]" : ""
+                    } ${
                       sottoCursore || aperto
                         ? "opacity-100"
                         : "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
@@ -3712,7 +3752,7 @@ function LeadsPage() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="hidden h-7 w-7 md:inline-flex"
+                      className={`hidden h-7 w-7 md:inline-flex ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                       title="Segna come da seguire (F)"
                       onClick={() => void updateLead(l.id, { highlighted: !l.data.highlighted })}
                     >
@@ -3731,7 +3771,7 @@ function LeadsPage() {
                           asChild
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                           title="Chiama (C)"
                         >
                           <a href={`tel:${l.data.telefono}`}>
@@ -3741,7 +3781,7 @@ function LeadsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                           title="Scrivi su WhatsApp (W)"
                           onClick={() => apriWhatsApp(l)}
                         >
@@ -3750,14 +3790,14 @@ function LeadsPage() {
                       </>
                     )}
 
-                    {/*  LA VIDEOCONSULENZA — cielo, perché è la cosa che si fa
+                    {/*  LA VIDEOCONSULENZA — blu del marchio, perché è la cosa che si fa
                         adesso. Stessa videocamera dell'agenda: chi la riconosce
                         lì la riconosce qui, ed è la stessa stanza. */}
                     {puoAvviareConsulenza(l) && (
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-sky-600 hover:bg-sky-50 hover:text-sky-700"
+                        className={`h-7 w-7 text-primary hover:bg-primary/10 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                         title="Avvia la videoconsulenza (V)"
                         aria-label="Avvia la videoconsulenza"
                         onClick={() => void avviaConsulenza(l)}
@@ -3777,7 +3817,7 @@ function LeadsPage() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className={`h-7 w-7 ${
+                            className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""} ${
                               fissata
                                 ? "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                                 : "text-amber-600 hover:bg-amber-50 hover:text-amber-700"
@@ -3812,7 +3852,7 @@ function LeadsPage() {
 
         {/* ── PANNELLO: tutto il resto del lead, senza cambiare pagina ─────── */}
         {dettaglio && (
-          <aside className="fixed inset-x-0 bottom-0 z-40 max-h-[75vh] overflow-y-auto border-t border-border bg-card shadow-lg lg:sticky lg:top-[7.5rem] lg:z-auto lg:max-h-[calc(100vh-9rem)] lg:w-[21rem] lg:shrink-0 lg:rounded-xl lg:border lg:shadow-none xl:w-[23rem]">
+          <aside className="fixed inset-x-0 bottom-0 z-40 max-h-[75vh] overflow-y-auto border-t border-border bg-card shadow-galleggiante lg:sticky lg:top-[7.5rem] lg:z-auto lg:max-h-[calc(100vh-9rem)] lg:w-[21rem] lg:shrink-0 lg:rounded-xl lg:border lg:shadow-none xl:w-[23rem]">
             <div className="flex items-start justify-between gap-2 border-b border-border p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -3890,6 +3930,7 @@ function LeadsPage() {
                 </Button>
                 <Button
                   size="sm"
+                  variant={puoAvviareConsulenza(dettaglio) ? "outline" : "default"}
                   className="flex-1"
                   onClick={() => {
                     setEditing(dettaglio);
@@ -3903,7 +3944,7 @@ function LeadsPage() {
               {puoAvviareConsulenza(dettaglio) && (
                 <Button
                   size="sm"
-                  className="w-full bg-sky-600 text-white hover:bg-sky-700"
+                  className="w-full"
                   onClick={() => void avviaConsulenza(dettaglio)}
                 >
                   <Video className="mr-1 h-3.5 w-3.5" /> Avvia la videoconsulenza

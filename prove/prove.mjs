@@ -445,6 +445,10 @@ const MODULI = [
   //   della pubblicazione (niente prezzi, titolo e descrizione giusti). Vedi
   //   proveDellaSeo.
   "seo/regole",
+  //  ⚠️ Su quali pagine vale il carattere Inter: vedi proveDelCarattere. Se
+  //   questa regola sbaglia per eccesso, il carattere cambia in chiamata
+  //   davanti al cliente.
+  "lib/carattere",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -456,7 +460,7 @@ for (const m of MODULI) {
       "esbuild",
       //  `webinar/` sta in `src/`, `fatture/` dentro `src/crm/`: due rami
       //  diversi, e confonderli fa fallire il bundle di TUTTE le prove.
-      m.startsWith("webinar/") || m.startsWith("prova/") || m.startsWith("seo/")
+      m.startsWith("webinar/") || m.startsWith("prova/") || m.startsWith("seo/") || m.startsWith("lib/")
         ? `src/${m}.ts`
         : m.startsWith("shop/") || m === "versione-aperta"
           ? `src/${m}.ts`
@@ -11925,6 +11929,162 @@ function proveDelModoFascia() {
   c("una capienza storta non azzera i posti", 1, spuntaSoloUno({ capienza: 0 }).posti);
 }
 
+/* ── IL CARATTERE: DOVE VALE, E CHE LA CHIAMATA NON SE NE ACCORGA ──────────
+   Inter (famiglia `InterHGL`) vale solo con `<html data-carattere="inter">`,
+   messo dalla radice sulle sole rotte ammesse. Qui si prova la regola delle
+   rotte (codice vero) e si controllano, sui file, le promesse che nessun'altra
+   prova guarda: i due @font-face, nessun servizio esterno, niente testo
+   sfumato, e i token della chiamata fermi com'erano a `069f33f`. */
+function proveDelCarattere() {
+  const CAR = mod["lib/carattere"];
+  gruppo("CARATTERE: ROTTE AMMESSE E TOKEN FERMI");
+
+  for (const p of ["/", "/blog", "/blog/", "/blog/un-articolo", "/CRM", "/CRM/", "/CRM/agenda", "/CRM/trattative?x=1", "/CRM/kpi/manuale", "/crm/agenda", "/CRM/agenda#oggi"]) {
+    c(`Inter vale su ${p}`, true, CAR.usaInter(p));
+  }
+  for (const p of [
+    "/preventivo", "/preventivo?watch=abc", "/meetly", "/meetly/abc-defg-hij", "/videochiamata/abc",
+    "/presenta", "/presentatore", "/slide", "/regia/xyz", "/webinar/abc", "/prova-capelli",
+    "/prova-anteprima/a", "/CRM/webinar", "/CRM/webinar/", "/CRM/webinar/abc", "/shop", "/nuova",
+    "/consulente", "/blogger", "/CRMx", "/CRM/Webinar", "/crm/webinar", "/CRM/WEBINAR/?x=1",
+  ]) {
+    c(`Inter NON vale su ${p}`, false, CAR.usaInter(p));
+  }
+  c("il file da precaricare è il latin della 5.3.0", "/fonts/inter/5.3.0/inter-latin-wght-normal.woff2", CAR.CARATTERE_INTER);
+
+  const css = readFileSync("src/styles.css", "utf8");
+  const radice = readFileSync("src/routes/__root.tsx", "utf8");
+
+  /* I due @font-face */
+  const facce = css.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+  c("esattamente 2 @font-face", 2, facce.length);
+  c("tutti e due si chiamano InterHGL", true, facce.every((f) => /font-family:\s*"InterHGL"/.test(f)));
+  c("tutti e due con font-display: swap", true, facce.every((f) => /font-display:\s*swap/.test(f)));
+  c("uno dei due punta al file da precaricare", true, facce.some((f) => f.includes(`url("${CAR.CARATTERE_INTER}")`)));
+  const sorgenti = facce.map((f) => (f.match(/url\("([^"]+)"\)/) ?? [])[1]);
+  c("i file del carattere esistono in public/", true, sorgenti.every((u) => u && existsSync(join("public", u))));
+  const latin = join("public", CAR.CARATTERE_INTER);
+  c("il file latin pesa al massimo 150 000 byte", true, existsSync(latin) && readFileSync(latin).length <= 150000);
+  const licenza = join(dirname(latin), "LICENSE");
+  c("accanto c'è la licenza (OFL)", true, existsSync(licenza) && /SIL Open Font License/.test(readFileSync(licenza, "utf8")));
+  c("la famiglia col nome proprio sta dentro la regola per rotta", true, /html\[data-carattere="inter"\]\s*\{[^}]*"InterHGL"/.test(css));
+
+  /* Nessun servizio esterno per i caratteri */
+  const esterni = [];
+  const visita = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const f = join(d, e.name);
+      if (e.isDirectory()) visita(f);
+      else if (/\.(tsx?|css|html)$/.test(e.name) && /fonts\.googleapis|fonts\.gstatic|use\.typekit|fonts\.bunny/.test(readFileSync(f, "utf8"))) esterni.push(f);
+    }
+  };
+  visita("src");
+  c("nessun servizio esterno di caratteri in src/", [], esterni);
+
+  /* Niente testo sfumato nelle parole evidenziate */
+  for (const sel of [".hl-nextgen", ".text-aurora", ".ng-pillar__num"]) {
+    const blocchi = css.match(new RegExp("^" + sel.replace(".", "\\.") + "(?![\\w-])[^{]*\\{[^}]*\\}", "gm")) ?? [];
+    c(`${sel}: il blocco c'è`, true, blocchi.length > 0);
+    c(`${sel}: niente background-clip né testo trasparente`, false, blocchi.some((b) => /background-clip|text-fill-color:\s*transparent/.test(b)));
+  }
+
+  /* I token della chiamata non si spostano. Sono i valori di `:root` e i
+     raggi com'erano a 069f33f: se uno cambia, la chiamata (preventivo, Meetly,
+     prova capelli) cambia aspetto davanti al cliente. Si cambiano solo nella
+     fase 4, con la prova di chiamata vera. */
+  const TOKEN_DELLA_CHIAMATA = [
+    ["--radius", "0.5rem"],
+    ["--navy", "oklch(0.21 0.05 255)"],
+    ["--navy-deep", "oklch(0.15 0.045 258)"],
+    ["--navy-light", "oklch(0.28 0.055 255)"],
+    ["--brand", "oklch(0.65 0.19 252)"],
+    ["--brand-foreground", "oklch(0.99 0 0)"],
+    ["--light-panel", "oklch(0.96 0.005 250)"],
+    ["--ink", "oklch(0.18 0.02 255)"],
+    ["--ink-muted", "oklch(0.5 0.02 255)"],
+    ["--line", "oklch(0.4 0.05 255 / 0.35)"],
+    ["--grid", "oklch(1 0 0 / 0.04)"],
+    ["--background", "var(--navy-deep)"],
+    ["--foreground", "oklch(0.98 0 0)"],
+    ["--card", "var(--navy)"],
+    ["--card-foreground", "oklch(0.98 0 0)"],
+    ["--popover", "oklch(1 0 0)"],
+    ["--popover-foreground", "var(--ink)"],
+    ["--primary", "var(--brand)"],
+    ["--primary-foreground", "oklch(0.99 0 0)"],
+    ["--secondary", "oklch(0.96 0.005 250)"],
+    ["--secondary-foreground", "var(--ink)"],
+    ["--muted", "oklch(0.95 0.005 250)"],
+    ["--muted-foreground", "oklch(0.55 0.02 255)"],
+    ["--accent", "var(--brand)"],
+    ["--accent-foreground", "oklch(0.99 0 0)"],
+    ["--destructive", "oklch(0.6 0.22 27)"],
+    ["--destructive-foreground", "oklch(0.98 0 0)"],
+    ["--success", "oklch(0.62 0.17 152)"],
+    ["--success-foreground", "oklch(0.99 0 0)"],
+    ["--warning", "oklch(0.78 0.15 78)"],
+    ["--warning-foreground", "oklch(0.18 0.02 255)"],
+    ["--info", "oklch(0.65 0.14 230)"],
+    ["--info-foreground", "oklch(0.99 0 0)"],
+    ["--border", "oklch(1 0 0 / 0.1)"],
+    ["--input", "oklch(1 0 0 / 0.15)"],
+    ["--ring", "var(--brand)"],
+    ["--chart-1", "var(--brand)"],
+    ["--chart-2", "oklch(0.7 0.15 240)"],
+    ["--chart-3", "oklch(0.6 0.18 260)"],
+    ["--chart-4", "oklch(0.55 0.16 230)"],
+    ["--chart-5", "oklch(0.5 0.14 280)"],
+    ["--sidebar", "var(--navy)"],
+    ["--sidebar-foreground", "oklch(0.98 0 0)"],
+    ["--sidebar-primary", "var(--brand)"],
+    ["--sidebar-primary-foreground", "oklch(0.99 0 0)"],
+    ["--sidebar-accent", "var(--navy-light)"],
+    ["--sidebar-accent-foreground", "oklch(0.98 0 0)"],
+    ["--sidebar-border", "oklch(1 0 0 / 0.08)"],
+    ["--sidebar-ring", "var(--brand)"],
+    ["--radius-sm", "calc(var(--radius) - 4px)"],
+    ["--radius-md", "calc(var(--radius) - 2px)"],
+    ["--radius-lg", "var(--radius)"],
+    ["--radius-xl", "calc(var(--radius) + 4px)"],
+  ];
+  const blocco = (apertura) => {
+    const i = css.indexOf(apertura);
+    return i < 0 ? "" : css.slice(i, css.indexOf("\n}", i));
+  };
+  const letti = new Map();
+  for (const b of [blocco("\n:root {"), blocco("\n@theme inline {")]) {
+    for (const r of b.split("\n")) {
+      const m = r.match(/^\s*(--[\w-]+):\s*(.+);\s*$/);
+      if (m) letti.set(m[1], m[2]);
+    }
+  }
+  const spostati = TOKEN_DELLA_CHIAMATA.filter(([k, v]) => letti.get(k) !== v).map(([k]) => k);
+  if (spostati.length) console.log("      token spostati: " + spostati.join(", ") + " (si cambiano solo con la fase 4)");
+  c(`i ${TOKEN_DELLA_CHIAMATA.length} token della chiamata non si spostano`, [], spostati);
+
+  /* Il carattere di PARTENZA è quello di sempre. È il valore che isola la
+     chiamata: se `--font-sans` o `--font-display` di base nominano `InterHGL`,
+     il preventivo cambia lettere e nessun'altra prova se ne accorge (lo vedrebbe
+     solo il banco, in collaudo). `InterHGL` può comparire solo nei @font-face e
+     nella regola per rotta `html[data-carattere="inter"]`. */
+  const CARATTERE_DI_BASE = '"Inter", ui-sans-serif, system-ui, sans-serif';
+  const base = blocco("\n@theme static {");
+  c("--font-sans di partenza com'era a 069f33f", CARATTERE_DI_BASE, (base.match(/^\s*--font-sans:\s*(.+);\s*$/m) ?? [])[1]);
+  c("--font-display di partenza com'era a 069f33f", CARATTERE_DI_BASE, (base.match(/^\s*--font-display:\s*(.+);\s*$/m) ?? [])[1]);
+  const fuoriPosto = css
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/@font-face\s*\{[^}]*\}/g, "")
+    .replace(/html\[data-carattere="inter"\]\s*\{[^}]*\}/g, "");
+  c("InterHGL compare solo nei @font-face e nella regola per rotta", false, /InterHGL/.test(fuoriPosto));
+
+  /* La radice */
+  c("la radice precarica CARATTERE_INTER", true, /preload\(\s*CARATTERE_INTER\s*,/.test(radice));
+  c("il precaricamento ha crossOrigin anonymous", true, /preload\(\s*CARATTERE_INTER\s*,[^)]*crossOrigin:\s*"anonymous"/.test(radice));
+  c("il precaricamento solo se vale Inter", true, /if\s*\(\s*inter\s*\)\s*\{?\s*preload\(/.test(radice));
+  c("l'attributo è data-carattere (mai className su <html>)", true, /<html\s+lang="en"\s+data-carattere=\{inter \? "inter" : undefined\}\s*>/.test(radice));
+  c("la pagina è quella risolta, non quella in arrivo", true, /resolvedLocation\?\.pathname\s*\?\?\s*s\.location\.pathname/.test(radice));
+}
+
 function proveDellaSeo() {
   const SEO = mod["seo/regole"];
   gruppo("SEO: ROBOTS, SITEMAP E ARTICOLI DEL BLOG");
@@ -15284,6 +15444,7 @@ proveDellaRegiaPalco();
 proveDellInvito();
 proveDelTeleprompter();
 proveDegliHook();
+proveDelCarattere();
 proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();

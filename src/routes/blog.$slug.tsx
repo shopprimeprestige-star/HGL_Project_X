@@ -70,7 +70,7 @@ function PaginaArticolo() {
           {a.aggiornato && a.pubblicato && dataItaliana(a.aggiornato) !== dataItaliana(a.pubblicato) ? ` · aggiornato il ${dataItaliana(a.aggiornato)}` : ""}
           {` · ${minutiDiLettura(a.corpo)} min di lettura`}
         </p>
-        {a.immagine ? <img src={a.immagine} alt="" className="mt-8 w-full rounded-2xl" loading="eager" /> : null}
+        {a.immagine ? <img src={a.immagine} alt="" className="mt-8 w-full rounded-xl" loading="eager" /> : null}
 
         <div className="articolo-blog mt-10" dangerouslySetInnerHTML={{ __html: markdownInHtml(a.corpo) }} />
 
@@ -88,7 +88,7 @@ function PaginaArticolo() {
           </section>
         ) : null}
 
-        <aside className="mt-14 rounded-2xl bg-blueprint text-white p-6 md:p-8">
+        <aside className="mt-14 rounded-xl bg-blueprint text-white p-6 md:p-8">
           <p className="text-xl font-bold">Vuoi capire cosa va bene per te?</p>
           <p className="mt-2 text-white/80">
             Nella consulenza gratuita guardiamo insieme la tua situazione e ti diciamo con franchezza quale soluzione ha senso, anche se non è la nostra.

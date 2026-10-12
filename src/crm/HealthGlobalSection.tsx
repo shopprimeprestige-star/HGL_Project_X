@@ -367,7 +367,7 @@ export function HealthGlobalSection() {
   };
 
   return (
-    <Card className={`${TONE[worst].border} border-2 ${TONE[worst].bg}`}>
+    <Card className={`${TONE[worst].border} ${TONE[worst].bg}`}>
       <div className="p-4 md:p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -407,7 +407,7 @@ function KpiTile({ card }: { card: KpiCard }) {
     <Link
       to={card.to}
       title={card.hint}
-      className={`group block rounded-lg border ${t.border} bg-white p-3 hover:shadow-md transition-all`}
+      className={`group block rounded-lg border ${t.border} bg-card p-3 hover:bg-accent/60 transition-colors`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
@@ -425,7 +425,7 @@ function KpiTile({ card }: { card: KpiCard }) {
           </div>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground/70 group-hover:text-foreground">
+      <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground group-hover:text-foreground">
         Apri <ArrowRight className="h-3 w-3" />
       </div>
     </Link>

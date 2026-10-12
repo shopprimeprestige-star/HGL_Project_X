@@ -9,8 +9,11 @@
  *  Qui il linguaggio visivo è definito UNA volta e importato ovunque.
  *
  *  REGOLE DEL LINGUAGGIO VISIVO (valgono per tutte le pagine)
- *   · Raggi:      schede e riquadri numerici rounded-xl · pastiglia di stato e
- *                 controlli rounded-md · filtri a segmento rounded-lg
+ *   · Raggi:      schede e riquadri numerici rounded-xl · etichette e badge
+ *                 rounded-full · controlli rounded-md · filtri a segmento
+ *                 rounded-lg
+ *   · Ombre:      nessuna sulle schede (il CRM è piatto); solo shadow-galleggiante
+ *                 per ciò che sta sopra la pagina
  *   · Spaziature: pagina p-4 md:p-6 · dentro le schede px-3/px-4 py-2.5 ·
  *                 gap fra blocchi 4
  *   · Testo:      titolo pagina 1.25rem/600 · titolo blocco 13px/600 ·
@@ -110,7 +113,7 @@ export const ETICHETTA_STATO: Record<LeadStatus, string> = LEAD_STATUS_LABEL;
  *  la forma è una sola, e chi la vede sa già che si può premere.
  *  Il colore NON sta qui: si aggiunge con classiStato(stato). */
 export const CLASSE_BADGE_STATO =
-  "inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 text-[11px] font-medium leading-5";
+  "inline-flex max-w-full items-center gap-1 rounded-full border px-2 text-[11px] font-medium leading-5";
 
 /** Etichetta di uno stato, con rete di sicurezza: se un giorno arriva dal DB
  *  uno stato che qui non è mappato, si mostra il valore grezzo invece di una
@@ -164,7 +167,7 @@ export const LENTI_ESITO = [
     //  Non si preme per assegnarlo: si può solo guardarci dentro.
     assegnabile: false,
     spento: "border-emerald-300 bg-emerald-50 text-emerald-700 hover:brightness-95",
-    acceso: "border-emerald-600 bg-emerald-600 text-white",
+    acceso: "border-emerald-700 bg-emerald-700 text-white",
   },
   {
     //  ── UNO SOLO DEI DUE STATI SOPRAVVIVE ──────────────────────────────
@@ -195,7 +198,7 @@ export const LENTI_ESITO = [
     nome: "Da riprogrammare",
     assegnabile: true,
     spento: "border-amber-300 bg-amber-50 text-amber-700 hover:brightness-95",
-    acceso: "border-amber-600 bg-amber-600 text-white",
+    acceso: "border-amber-700 bg-amber-700 text-white",
   },
 ] as const;
 
@@ -229,17 +232,17 @@ export const ESITI = LENTI_ESITO.filter(
  *
  *  Prima erano tutte e due rosse e si finiva per trattare come persi anche gli
  *  appuntamenti che bastava rifissare.
- *  La tinta resta bassissima (fondo /60, filetto laterale 2px): un elenco con
+ *  La tinta resta bassissima (fondo /60, filetto laterale 1px): un elenco con
  *  metà righe colorate a pieno campo stanca dopo dieci minuti, e il colore
  *  smette di essere un segnale. */
 export function classiRigaStato(stato: LeadStatus | string | undefined | null): string {
   if (stato === "da_spostare")
-    return "border-l-2 border-l-amber-400 bg-amber-50/60 hover:bg-amber-50";
+    return "border-l border-l-amber-400 bg-amber-50/60 hover:bg-amber-50";
   if (stato === "non_fatto" || stato === "no_show")
-    return "border-l-2 border-l-rose-400 bg-rose-50/50 hover:bg-rose-50/80";
+    return "border-l border-l-rose-400 bg-rose-50/50 hover:bg-rose-50/80";
   //  Il filetto trasparente c'è anche sulle righe normali: senza, le righe
-  //  colorate sarebbero larghe 2px più delle altre e l'elenco "ballerebbe".
-  return "border-l-2 border-l-transparent hover:bg-muted/40";
+  //  colorate sarebbero larghe 1px più delle altre e l'elenco "ballerebbe".
+  return "border-l border-l-transparent hover:bg-muted/40";
 }
 
 /* ── QUANTO PESA LA GIORNATA ───────────────────────────────────────────────
@@ -271,8 +274,8 @@ export function caricoGiornata(n: number): CaricoGiornata {
  *  non si vede con la coda dell'occhio, e questo badge deve farsi notare mentre
  *  si guarda altrove. */
 export const CLASSI_CARICO: Record<CaricoGiornata, string> = {
-  leggero: "bg-emerald-600 text-white",
-  pieno: "bg-amber-500 text-white",
+  leggero: "bg-emerald-700 text-white",
+  pieno: "bg-amber-400 text-amber-950",
   sovraccarico: "bg-rose-600 text-white",
 };
 
@@ -311,12 +314,13 @@ export function BadgeCarico({
   const carico = caricoGiornata(n);
   return (
     <span
+      data-slot="etichetta"
       //  Il titolo dice QUANTI, non che cosa converrebbe fare: il commento sulla
       //  giornata è stato tolto apposta (vedi sopra).
       title={titolo ?? `${n} in agenda`}
       className={cn(
         "inline-flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full px-1.5",
-        "text-[11px] font-semibold leading-none tabular-nums",
+        "text-[11px] font-medium leading-none tabular-nums",
         tenue ? CLASSI_CARICO_TENUE[carico] : CLASSI_CARICO[carico],
         className,
       )}
@@ -347,6 +351,7 @@ export function Chip({
 } & Omit<HTMLAttributes<HTMLSpanElement>, "children">) {
   return (
     <span
+      data-slot="etichetta"
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5",
         "text-[11px] font-medium leading-5 whitespace-nowrap",
@@ -372,7 +377,7 @@ export function ChipStato({
   className?: string;
 }) {
   return (
-    <span className={cn(CLASSE_BADGE_STATO, classiStato(stato), className)}>
+    <span data-slot="etichetta" className={cn(CLASSE_BADGE_STATO, classiStato(stato), className)}>
       <span className="truncate">{etichettaStato(stato)}</span>
     </span>
   );
@@ -405,9 +410,10 @@ export function ChipAttesa({
   if (!attesa) return null;
   return (
     <span
+      data-slot="etichetta"
       className={cn(
-        "inline-flex shrink-0 items-center rounded border font-semibold",
-        grande ? "px-2 py-0.5 text-[12px]" : "px-1.5 py-px text-[10.5px]",
+        "inline-flex shrink-0 items-center rounded-full border font-medium",
+        grande ? "px-2 py-0.5 text-[12px]" : "px-2 py-px text-[11px]",
         CLASSI_ATTESA[attesa.tono],
         className,
       )}
@@ -450,8 +456,8 @@ export type UrgenzaBadge = "ritardo" | "oggi" | "pronto" | "info";
 
 export const CLASSI_BADGE: Record<UrgenzaBadge, string> = {
   ritardo: "bg-rose-600 text-white",
-  oggi: "bg-amber-500 text-white",
-  pronto: "bg-emerald-600 text-white",
+  oggi: "bg-amber-400 text-amber-950",
+  pronto: "bg-emerald-700 text-white",
   info: "bg-slate-500/15 text-slate-700",
 };
 
@@ -482,10 +488,11 @@ export function Badge({
   if (!testo && (!n || n <= 0)) return null;
   return (
     <span
+      data-slot="etichetta"
       title={titolo}
       className={cn(
         "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1",
-        "text-[10.5px] font-semibold leading-none tabular-nums",
+        "text-[11px] font-medium leading-none tabular-nums",
         CLASSI_BADGE[urgenza],
         className,
       )}
@@ -549,7 +556,7 @@ export function Segmento({
       {conteggio !== undefined && (
         <span
           className={cn(
-            "rounded px-1 text-[11px] font-semibold tabular-nums",
+            "rounded-full px-1 text-[11px] font-semibold tabular-nums",
             attivo ? "bg-background/20" : "bg-muted text-muted-foreground",
           )}
         >
@@ -677,7 +684,10 @@ export function Scheda({
   children?: ReactNode;
 }) {
   return (
-    <section className={cn("overflow-hidden rounded-xl border border-border bg-card", className)}>
+    <section
+      data-slot="scheda"
+      className={cn("overflow-hidden rounded-xl border border-border bg-card", className)}
+    >
       {(titolo || azioni) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2">
@@ -727,6 +737,7 @@ export function Kpi({
   const Elemento = onClick ? "button" : "div";
   return (
     <Elemento
+      data-slot="scheda"
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
@@ -831,8 +842,8 @@ export function Tasto({ children, className }: { children: ReactNode; className?
   return (
     <kbd
       className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1.5",
-        "font-sans text-[10px] font-medium text-muted-foreground",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border bg-muted px-1.5",
+        "font-sans text-[11px] font-medium text-muted-foreground",
         className,
       )}
     >
@@ -1262,10 +1273,10 @@ export function prossimaAzione(l: Lead): Azione {
 //  colpo d'occhio delle pastiglie di stato, senza introdurre un rosso a parte.
 export const TONO_AZIONE: Record<TonoAzione, string> = {
   ritardo: "text-rose-600",
-  oggi: "text-amber-600",
+  oggi: "text-amber-700",
   futuro: "text-muted-foreground",
   aperto: "text-muted-foreground",
-  chiuso: "text-muted-foreground/60",
+  chiuso: "text-muted-foreground",
 };
 
 /** La prossima azione in una riga sola: gesto + quando, con il ritardo gi\u00e0
@@ -1878,7 +1889,7 @@ export function BarraSelezione({
     <div
       className={cn(
         "sticky bottom-4 z-30 mx-auto flex w-fit max-w-full flex-wrap items-center gap-2",
-        "rounded-2xl border border-white/10 bg-slate-900 px-2.5 py-2 text-white shadow-xl",
+        "rounded-xl border border-white/10 bg-slate-900 px-2.5 py-2 text-white shadow-galleggiante",
         "ring-1 ring-black/5",
         className,
       )}
@@ -2082,7 +2093,7 @@ export function AiutoScorciatoie({
           onClick={() => onCambia(false)}
         >
           <div
-            className="w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-lg"
+            className="w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-galleggiante"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between">

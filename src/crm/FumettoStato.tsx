@@ -91,7 +91,7 @@ export function FumettoStato({
       <PopoverTrigger asChild>
         <span className={cn("inline-flex min-w-0 cursor-pointer", className)}>{children}</span>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[19rem] p-0">
+      <PopoverContent align="start" className="w-[19rem] rounded-xl p-0 shadow-galleggiante">
         <div className="border-b border-border px-3 py-2.5">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {LEAD_STATUS_LABEL[stato as LeadStatus] ?? stato}

@@ -22,6 +22,62 @@
   --breakpoint-sala: 900px;
 }
 
+/* ===================================================================
+   IL CARATTERE: Inter, servito dal nostro sito (OFL-1.1, v5.3.0).
+   ⚠️ La famiglia si chiama `InterHGL`, NON `Inter`: le pagine della chiamata
+    dichiarano già "Inter" e, con quel nome, lo scaricherebbero anche loro.
+    `InterHGL` entra in gioco solo dove la radice mette
+    `<html data-carattere="inter">` (vedi la regola sotto).
+   ⚠️ `font-display: swap`: il testo si vede subito col carattere di sistema,
+    poi passa a Inter appena arriva. Mai testo invisibile in attesa.
+   ⚠️ Due file, scaricati solo se la pagina usa quei segni: `latin` (circa
+    48 KB, tutte le lettere italiane) e `latin-ext` (il resto).
+   =================================================================== */
+@font-face {
+  font-family: "InterHGL";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/inter/5.3.0/inter-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "InterHGL";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/inter/5.3.0/inter-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Il carattere e le due ombre stanno in un @theme NORMALE (non `inline`):
+   così la classe `font-sans` legge la variabile e la si può cambiare per
+   rotta. Il valore di partenza è identico a prima.
+   ⚠️ `static`: Tailwind toglie dal CSS le variabili che nessuna classe usa
+    ancora, e queste servono ai compiti che seguono (ombre, etichetta). */
+@theme static {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Due ombre sole (DESIGN.md, «Elevation»). Il resto è piatto.
+     galleggiante = ciò che sta sopra la pagina: finestre, menu, tooltip,
+     barre fisse. alone = solo sito scuro, un elemento per schermata. */
+  --shadow-galleggiante: 0 1px 2px oklch(0.15 0.045 258 / 0.08), 0 8px 24px -6px oklch(0.15 0.045 258 / 0.18);
+  --shadow-alone: 0 12px 40px -12px rgba(59, 130, 246, 0.45);
+
+  /* La misura «etichetta» di DESIGN.md: 11 px, il minimo ammesso sul telefono. */
+  --text-etichetta: 0.6875rem;
+  --text-etichetta--line-height: 1.3;
+}
+
+/* Inter solo dove la radice lo chiede (homepage, blog, CRM). L'attributo sta
+   su <html> perché menu e finestre (portali) escono dai contenitori ma restano
+   sotto <html>. Le pagine della chiamata non lo ricevono: restano com'erano. */
+html[data-carattere="inter"] {
+  --font-sans: "InterHGL", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "InterHGL", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -58,14 +114,13 @@
   --color-navy-light: var(--navy-light);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-scuro: var(--brand-scuro);
   --color-light-panel: var(--light-panel);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-line: var(--line);
   --color-grid: var(--grid);
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -77,6 +132,26 @@
   --navy-light: oklch(0.28 0.055 255);
   --brand: oklch(0.65 0.19 252);
   --brand-foreground: oklch(0.99 0 0);
+  /* Il blu del marchio un gradino più scuro: bianco sopra fa 4,88:1. È il blu
+     dei pulsanti del CRM e del pulsante in alto del sito. */
+  --brand-scuro: oklch(0.55 0.16 252);
+  /* Il blu del marchio sui fondi CHIARI del sito (pannello chiaro, trama
+     bianca): `brand` lì fa 2,90-3,26:1, questo gradino 4,72-5,31:1. Si applica
+     da solo con la regola sotto `.bg-white-grid`. */
+  --brand-su-chiaro: oklch(0.53 0.16 252);
+  /* Il blu del marchio con l'alfa GIÀ DENTRO, per i veli. ⚠️ Non usare
+     `color-mix(... transparent)` per questi: sui browser senza color-mix
+     (iPhone fermi a iOS 15) la build ripiega sul blu PIENO e il testo sopra
+     diventa illeggibile. */
+  --brand-velo: oklch(0.65 0.19 252 / 0.06);
+  --brand-velo-forte: oklch(0.65 0.19 252 / 0.25);
+  --brand-velo-10: oklch(0.65 0.19 252 / 0.1);
+  --brand-velo-14: oklch(0.65 0.19 252 / 0.14);
+  --brand-velo-22: oklch(0.65 0.19 252 / 0.22);
+  /* Il blu del marchio mescolato al bianco, già opaco (stesso risultato del
+     color-mix che sostituisce): per i fondi chiari che hanno testo sopra. */
+  --brand-su-bianco-4: oklab(98.600% -0.00235 -0.00723);
+  --brand-su-bianco-5: oklab(98.250% -0.00294 -0.00904);
   --light-panel: oklch(0.96 0.005 250);
   --ink: oklch(0.18 0.02 255);
   --ink-muted: oklch(0.5 0.02 255);
@@ -212,16 +287,16 @@ html.hg-guest body {
 
 /* Footer — deep navy with soft top vignette like screenshot 3 */
 .bg-footer {
-  background-color: #07142e;
+  background-color: var(--navy);
   background-image:
     linear-gradient(oklch(1 0 0 / 0.035) 1px, transparent 1px),
     linear-gradient(90deg, oklch(1 0 0 / 0.035) 1px, transparent 1px),
     radial-gradient(
       ellipse 70% 50% at 50% 0%,
-      rgba(40, 90, 200, 0.25),
+      var(--brand-velo-forte),
       transparent 70%
     ),
-    linear-gradient(180deg, #0a1a3c 0%, #050f24 100%);
+    linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
   background-size:
     64px 64px,
     64px 64px,
@@ -295,6 +370,15 @@ html.hg-guest body {
     linear-gradient(oklch(0.5 0.04 255 / 0.09) 1px, transparent 1px),
     linear-gradient(90deg, oklch(0.5 0.04 255 / 0.09) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+/* Sui fondi chiari il blu del marchio scende di un gradino: eyebrow, parole
+   evidenziate, briciole e collegamenti che leggono `--brand` restano leggibili
+   (4,5:1) senza toccare una classe. Vale per chi sta DENTRO queste sezioni. */
+.bg-light-panel,
+.bg-white-trama,
+.bg-white-grid {
+  --brand: var(--brand-su-chiaro);
 }
 
 /* Corner brackets utility */
@@ -541,7 +625,7 @@ html.hg-guest body {
   --popover-foreground: oklch(0.18 0.015 255);
 
   /* Accent ridotto: usato SOLO su CTA principali e stato attivo */
-  --primary: oklch(0.55 0.16 252);
+  --primary: var(--brand-scuro);
   --primary-foreground: oklch(0.99 0 0);
 
   /* Neutral secondary/muted */
@@ -563,7 +647,7 @@ html.hg-guest body {
   /* Sidebar grigio chiarissimo, separato dal main */
   --sidebar: oklch(0.975 0.003 250);
   --sidebar-foreground: oklch(0.25 0.015 255);
-  --sidebar-primary: oklch(0.55 0.16 252);
+  --sidebar-primary: var(--brand-scuro);
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.93 0.005 250);
   --sidebar-accent-foreground: oklch(0.18 0.015 255);
@@ -817,13 +901,16 @@ html.hg-guest body {
   font-weight: 600;
 }
 
-/* Card più calme: niente ombre pesanti */
-.crm-theme [data-slot="card"],
-.crm-theme .card-flat {
+/* Una scheda sola: bordo sottile, niente ombra, angolo da contenitore (12 px).
+   ⚠️ SOLO LA FORMA, mai i colori: bordo e fondo di stato passati con
+    `className` (salute globale, orari disponibili…) devono sopravvivere.
+   ⚠️ 12 px scritti come `radius + 4px` e non `var(--radius-xl)`: quella
+    variabile sta in `@theme inline` e a runtime può non esistere. */
+.crm-theme [data-slot="card"] {
   box-shadow: none !important;
-  border: 1px solid var(--border);
-  background-color: var(--card);
-  border-radius: 0.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: calc(var(--radius) + 4px);
 }
 
 /* Tabelle leggibili */
@@ -838,12 +925,20 @@ html.hg-guest body {
   font-size: 0.75rem;
 }
 
-/* Badge / pill compatti */
-.crm-theme [data-slot="badge"] {
-  font-weight: 500;
-  font-size: 0.7rem;
-  padding-inline: 0.5rem;
-  padding-block: 0.125rem;
+/* Un'etichetta sola: pillola compatta. Il Badge ha già da solo pillola, peso
+   500 e `px-2`: questa è solo una rete di sicurezza.
+   ⚠️ Sta DENTRO `@layer components`: fuori dai livelli il suo `padding`
+    schiaccerebbe le classi delle singole istanze (`py-0 h-4` del «TU» in
+    impostazioni) e l'etichetta uscirebbe dal bordo.
+   ⚠️ Niente `font-size`: vincerebbe su ogni classe, portando il Badge da 12 a
+    11 px anche sull'iPhone. */
+@layer components {
+  .crm-theme [data-slot="badge"] {
+    font-weight: 500;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    box-shadow: none;
+  }
 }
 
 /* Focus accessibile e morbido */
@@ -864,55 +959,21 @@ html.hg-guest body {
 
 
 /* ===================================================================
-   "non è" — next-gen highlight: gradient text, animated shine,
-   subtle underline glow. Designed to feel premium without being loud.
+   "non è" — la parola evidenziata. Prima era un testo sfumato con un
+   riflesso animato; ora è blu pieno, fermo. La classe resta perché
+   arriva anche dai testi dell'editor della landing (RichText).
    =================================================================== */
 .hl-nextgen {
   position: relative;
   display: inline-block;
-  background: linear-gradient(
-    100deg,
-    var(--brand) 0%,
-    color-mix(in oklab, var(--brand) 70%, white 30%) 45%,
-    var(--brand) 90%
-  );
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: hl-nextgen-shine 4.2s ease-in-out infinite;
+  color: var(--brand);
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  animation: none;
   padding: 0 0.05em;
 }
 .hl-nextgen::after {
-  content: "";
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  bottom: -0.06em;
-  height: 0.12em;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in oklab, var(--brand) 90%, transparent) 30%,
-    color-mix(in oklab, var(--brand) 95%, white 5%) 50%,
-    color-mix(in oklab, var(--brand) 90%, transparent) 70%,
-    transparent 100%
-  );
-  filter: blur(0.5px);
-  opacity: 0.85;
-  transform-origin: center;
-  animation: hl-nextgen-underline 4.2s ease-in-out infinite;
-}
-@keyframes hl-nextgen-shine {
-  0%   { background-position: 100% 50%; }
-  50%  { background-position: 0% 50%; }
-  100% { background-position: 100% 50%; }
-}
-@keyframes hl-nextgen-underline {
-  0%, 100% { transform: scaleX(0.9); opacity: 0.7; }
-  50%      { transform: scaleX(1); opacity: 1; }
+  content: none;
 }
 
 /* ===================================================================
@@ -920,26 +981,13 @@ html.hg-guest body {
    Reusable premium effects — keep performant via transform/opacity.
    =================================================================== */
 
-/* -- Aurora gradient text: grandi heading "vivi" -- */
+/* -- Aurora: l'evidenziazione dei grandi titoli. Blu pieno, fermo (come
+   .hl-nextgen: la classe resta, cambia solo l'aspetto). -- */
 .text-aurora {
-  background: linear-gradient(
-    100deg,
-    var(--brand) 0%,
-    color-mix(in oklab, var(--brand) 65%, white 35%) 30%,
-    color-mix(in oklab, var(--brand) 80%, oklch(0.7 0.18 200) 20%) 55%,
-    color-mix(in oklab, var(--brand) 70%, white 30%) 80%,
-    var(--brand) 100%
-  );
-  background-size: 240% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: aurora-shift 6s ease-in-out infinite;
-}
-@keyframes aurora-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50%      { background-position: 100% 50%; }
+  color: var(--brand);
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  animation: none;
 }
 
 /* -- Holographic conic ring (badge premium / eyebrow) -- */
@@ -1078,6 +1126,7 @@ html.hg-guest body {
   pointer-events: none;
   animation: spotlight-drift 12s ease-in-out infinite;
 }
+/* usata anche dall'hero della homepage (index.tsx:143): non cancellarla quando la fase 4 rifà .spotlight */
 @keyframes spotlight-drift {
   0%, 100% { transform: translate(0, 0); }
   50%      { transform: translate(8%, 5%); }
@@ -1189,8 +1238,8 @@ html.hg-guest body {
    =================================================================== */
 .ng-pill {
   background: linear-gradient(135deg,
-    color-mix(in oklab, white 100%, transparent),
-    color-mix(in oklab, var(--brand) 5%, white)
+    white,
+    var(--brand-su-bianco-5)
   );
   border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent);
   box-shadow:
@@ -1292,7 +1341,7 @@ html.hg-guest body {
   position: relative;
   isolation: isolate;
   background:
-    linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, white 96%, var(--brand) 4%) 100%);
+    linear-gradient(180deg, #ffffff 0%, var(--brand-su-bianco-4) 100%);
   border: 1px solid color-mix(in oklab, var(--ink) 8%, transparent);
   border-radius: 14px;
   overflow: hidden;
@@ -1318,7 +1367,7 @@ html.hg-guest body {
   position: absolute;
   inset: 0;
   background: radial-gradient(60% 50% at 100% 0%,
-    color-mix(in oklab, var(--brand) 14%, transparent) 0%,
+    var(--brand-velo-14) 0%,
     transparent 60%);
   opacity: .9;
   pointer-events: none;
@@ -1340,13 +1389,7 @@ html.hg-guest body {
   font-size: 3rem;
   line-height: 1;
   letter-spacing: -0.02em;
-  background: linear-gradient(180deg,
-    color-mix(in oklab, var(--brand) 28%, transparent),
-    color-mix(in oklab, var(--brand) 8%, transparent));
-  -webkit-background-clip: text;
-          background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: var(--brand-velo-22);
   z-index: 1;
 }
 .ng-pillar__icon {
@@ -1367,13 +1410,13 @@ html.hg-guest body {
 /* static ring removed for less visual noise */
 .ng-pillar__kicker {
   display: inline-block;
-  font-size: 0.65rem;
+  font-size: var(--text-etichetta); /* 11 px: il minimo ammesso sul telefono */
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 4px;
-  background: color-mix(in oklab, var(--brand) 10%, transparent);
+  background: var(--brand-velo-10);
   color: var(--brand);
   border: 1px solid color-mix(in oklab, var(--brand) 20%, transparent);
 }
@@ -1610,28 +1653,23 @@ html.hg-guest body {
 }
 
 /* ===================================================================
-   Header CTA — next-gen visibile (orange-amber gradient)
+   Header CTA — blu del marchio pieno (scelta del titolare, 12/10/2026)
    =================================================================== */
 .ng-header-cta {
   position: relative;
   isolation: isolate;
   color: white;
-  background: linear-gradient(135deg,
-    oklch(0.72 0.18 45) 0%,
-    oklch(0.62 0.2 30) 100%);
-  border: 1px solid color-mix(in oklab, oklch(0.7 0.18 40) 60%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 30%, transparent),
-    0 6px 16px -6px color-mix(in oklab, oklch(0.65 0.2 35) 55%, transparent);
-  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+  background: var(--brand-scuro);
+  border: 1px solid var(--brand-scuro);
+  box-shadow: none;
+  transition: transform .18s ease, background-color .18s ease, border-color .18s ease;
 }
 .ng-header-cta:hover {
-  filter: brightness(1.08);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 40%, transparent),
-    0 10px 22px -6px color-mix(in oklab, oklch(0.65 0.2 35) 65%, transparent);
+  background: color-mix(in oklab, var(--brand-scuro) 85%, black);
+  border-color: color-mix(in oklab, var(--brand-scuro) 85%, black);
 }
 .ng-header-cta:active { transform: translateY(1px) scale(0.98); }
+.ng-header-cta:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* ===================================================================
    ng-urgenza — opzioni urgenza con micro-interazioni
@@ -1640,7 +1678,7 @@ html.hg-guest body {
   box-shadow: 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent);
 }
 .ng-urgenza:hover {
-  background: color-mix(in oklab, var(--brand) 4%, white);
+  background: var(--brand-su-bianco-4);
 }
 .ng-urgenza--active {
   box-shadow: 0 4px 14px -6px color-mix(in oklab, var(--brand) 35%, transparent);
@@ -2048,4 +2086,4 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
 .articolo-blog li + li { margin-top: 0.4em; }
 .articolo-blog a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
 .articolo-blog strong { font-weight: 650; }
-.articolo-blog blockquote { border-left: 3px solid var(--brand); padding-left: 1em; color: var(--ink-muted); font-style: italic; }
+.articolo-blog blockquote { padding: 0.75em 1em; border-radius: var(--radius); background: var(--brand-velo); color: var(--ink-muted); }

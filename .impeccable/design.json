@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-12T01:44:26.969356+00:00",
+  "title": "Design System: Hair Genius Labs CRM e sito",
+  "extensions": {
+    "colorMeta": {
+      "brand": {
+        "role": "primary",
+        "displayName": "Blu Brand",
+        "canonical": "oklch(0.65 0.19 252)",
+        "tonalRamp": [
+          "oklch(15% 0.19 252)",
+          "oklch(25% 0.19 252)",
+          "oklch(35% 0.19 252)",
+          "oklch(45% 0.19 252)",
+          "oklch(55% 0.19 252)",
+          "oklch(65% 0.19 252)",
+          "oklch(80% 0.19 252)",
+          "oklch(95% 0.19 252)"
+        ]
+      },
+      "crm-primary": {
+        "role": "primary",
+        "displayName": "Blu CRM",
+        "canonical": "oklch(0.55 0.16 252)",
+        "tonalRamp": [
+          "oklch(15% 0.16 252)",
+          "oklch(25% 0.16 252)",
+          "oklch(35% 0.16 252)",
+          "oklch(45% 0.16 252)",
+          "oklch(55% 0.16 252)",
+          "oklch(65% 0.16 252)",
+          "oklch(80% 0.16 252)",
+          "oklch(95% 0.16 252)"
+        ]
+      },
+      "brand-scuro": {
+        "role": "primary",
+        "displayName": "Blu Scuro",
+        "canonical": "oklch(0.55 0.16 252)",
+        "tonalRamp": [
+          "oklch(15% 0.16 252)",
+          "oklch(25% 0.16 252)",
+          "oklch(35% 0.16 252)",
+          "oklch(45% 0.16 252)",
+          "oklch(55% 0.16 252)",
+          "oklch(65% 0.16 252)",
+          "oklch(80% 0.16 252)",
+          "oklch(95% 0.16 252)"
+        ]
+      },
+      "navy": {
+        "role": "neutral",
+        "displayName": "Navy",
+        "canonical": "oklch(0.21 0.05 255)",
+        "tonalRamp": [
+          "oklch(15% 0.05 255)",
+          "oklch(25% 0.05 255)",
+          "oklch(35% 0.05 255)",
+          "oklch(45% 0.05 255)",
+          "oklch(55% 0.05 255)",
+          "oklch(65% 0.05 255)",
+          "oklch(80% 0.05 255)",
+          "oklch(95% 0.05 255)"
+        ]
+      },
+      "navy-deep": {
+        "role": "neutral",
+        "displayName": "Navy Profondo",
+        "canonical": "oklch(0.15 0.045 258)",
+        "tonalRamp": [
+          "oklch(15% 0.045 258)",
+          "oklch(25% 0.045 258)",
+          "oklch(35% 0.045 258)",
+          "oklch(45% 0.045 258)",
+          "oklch(55% 0.045 258)",
+          "oklch(65% 0.045 258)",
+          "oklch(80% 0.045 258)",
+          "oklch(95% 0.045 258)"
+        ]
+      },
+      "crm-background": {
+        "role": "neutral",
+        "displayName": "Carta CRM",
+        "canonical": "oklch(0.995 0.002 250)",
+        "tonalRamp": [
+          "oklch(15% 0.004 250)",
+          "oklch(25% 0.004 250)",
+          "oklch(35% 0.004 250)",
+          "oklch(45% 0.004 250)",
+          "oklch(55% 0.004 250)",
+          "oklch(65% 0.004 250)",
+          "oklch(80% 0.004 250)",
+          "oklch(95% 0.004 250)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Titolo pagina",
+        "purpose": "Titolo di pagina del CRM, 20px."
+      },
+      "title": {
+        "displayName": "Riga",
+        "purpose": "Nome e importo della riga (15px mobile, 13px desktop)."
+      },
+      "body": {
+        "displayName": "Corpo",
+        "purpose": "Testo normale e valori."
+      },
+      "label": {
+        "displayName": "Etichetta",
+        "purpose": "Minuzie e maiuscoletto, mai sotto 11px."
+      }
+    },
+    "shadows": [
+      {
+        "name": "galleggiante",
+        "value": "0 1px 2px oklch(0.15 0.045 258 / 0.08), 0 8px 24px -6px oklch(0.15 0.045 258 / 0.18)",
+        "purpose": "Ciò che sta sopra la pagina: finestre, menu, tooltip, barre fisse, banner dei cookie."
+      },
+      {
+        "name": "alone",
+        "value": "0 12px 40px -12px rgba(59, 130, 246, 0.45)",
+        "purpose": "Solo sito scuro, un elemento per schermata: quello su cui si decide."
+      },
+      {
+        "name": "btn-premium",
+        "value": "0 10px 30px -10px rgba(20, 48, 107, 0.55), inset 0 1px 0 rgba(255,255,255,0.12)",
+        "purpose": "Pulsante del funnel di prenotazione. Da portare ai due ruoli nella fase 3."
+      },
+      {
+        "name": "barra-totale",
+        "value": "inset 0 1px 0 rgba(255,255,255,.07), 0 -10px 44px rgba(0,0,0,.5)",
+        "purpose": "Barra fissa del totale nel preventivo su telefono. Schermata della chiamata: fase 4."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-rise",
+        "value": "cubic-bezier(.22,.8,.28,1)",
+        "purpose": "Apertura del preventivo (.hg-rise, .5s)."
+      },
+      {
+        "name": "ease-pop",
+        "value": "cubic-bezier(.2,.7,.3,1)",
+        "purpose": "Prezzi e icone che entrano (.34-.45s)."
+      },
+      {
+        "name": "shine-loop",
+        "value": "3.2s ease-in-out infinite",
+        "purpose": "Riflesso del pulsante premium (da rivedere nelle schermate in chiamata)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "sala",
+        "value": "900px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Pulsante principale",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Azione principale; blu brand sul sito, blu CRM nel CRM.",
+      "html": "<button class=\"ds-btn-primary\">Salva</button>",
+      "css": ".ds-btn-primary{background:oklch(0.55 0.16 252);color:oklch(0.99 0 0);height:36px;padding:8px 16px;border:0;border-radius:6px;font:500 14px Inter,system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:background .15s}.ds-btn-primary:hover{background:oklch(0.55 0.16 252 / .9)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 2px oklch(0.55 0.16 252 / .4)}"
+    },
+    {
+      "name": "Pulsante secondario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Azione secondaria nel CRM.",
+      "html": "<button class=\"ds-btn-secondary\">Annulla</button>",
+      "css": ".ds-btn-secondary{background:oklch(0.965 0.003 250);color:oklch(0.25 0.015 255);height:36px;padding:8px 16px;border:0;border-radius:6px;font:500 14px Inter,system-ui,sans-serif;transition:background .15s}.ds-btn-secondary:hover{background:oklch(0.93 0.005 250)}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 2px oklch(0.55 0.16 252 / .4)}"
+    },
+    {
+      "name": "Pulsante in alto (sito)",
+      "kind": "button",
+      "refersTo": "button-header-sito",
+      "description": "Pulsante d'intestazione del sito: blu del marchio pieno, un gradino più scuro (scelta del titolare, 12/10/2026).",
+      "html": "<button class=\"ds-btn-header\">PRENOTA</button>",
+      "css": ".ds-btn-header{color:#fff;background:oklch(0.55 0.16 252);border:1px solid oklch(0.55 0.16 252);border-radius:6px;padding:10px 20px;font:700 12px Inter,system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;transition:background .18s}.ds-btn-header:hover{background:color-mix(in oklab,oklch(0.55 0.16 252) 85%,black)}.ds-btn-header:active{transform:translateY(1px) scale(.98)}"
+    },
+    {
+      "name": "Campo di testo",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo standard, 36px.",
+      "html": "<input class=\"ds-input\" placeholder=\"Cerca un lead\"/>",
+      "css": ".ds-input{height:36px;width:220px;border:1px solid oklch(0.92 0.005 250);border-radius:6px;background:transparent;padding:4px 12px;font:400 14px Inter,system-ui,sans-serif;color:oklch(0.18 0.015 255);box-shadow:0 1px 2px rgba(0,0,0,.05)}.ds-input::placeholder{color:oklch(0.48 0.012 255)}.ds-input:focus-visible{outline:none;box-shadow:0 0 0 2px oklch(0.55 0.16 252 / .4)}"
+    },
+    {
+      "name": "Chip di stato",
+      "kind": "chip",
+      "refersTo": "chip-stato",
+      "description": "Pillola di stato della trattativa (esempio: vinta).",
+      "html": "<span class=\"ds-chip\"><i></i>Vinta</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;border-radius:9999px;border:1px solid rgba(16,185,129,.3);background:rgba(16,185,129,.15);color:#047857;padding:2px 8px;font:500 11px/20px Inter,system-ui,sans-serif}.ds-chip i{width:6px;height:6px;border-radius:50%;background:#10b981}"
+    },
+    {
+      "name": "Scheda CRM",
+      "kind": "card",
+      "refersTo": "card-crm",
+      "description": "Scheda piatta con intestazione, senza ombra.",
+      "html": "<section class=\"ds-card\"><header><h2>Oggi</h2><p>3 consulenze</p></header><div>Contenuto</div></section>",
+      "css": ".ds-card{overflow:hidden;border:1px solid oklch(0.9 0.005 250);border-radius:12px;background:#fff;font-family:Inter,system-ui,sans-serif;width:260px}.ds-card header{padding:10px 16px;border-bottom:1px solid oklch(0.9 0.005 250)}.ds-card h2{margin:0;font:600 13px/1.2 Inter,system-ui,sans-serif}.ds-card p{margin:0;font-size:11px;color:oklch(0.48 0.012 255)}.ds-card div{padding:16px;font-size:13px}"
+    },
+    {
+      "name": "Scheda vetro (sito)",
+      "kind": "card",
+      "refersTo": "card-navy",
+      "description": "Superficie in vetro sul navy.",
+      "html": "<div class=\"ds-glass\"><span>Totale</span><strong>3.450 EUR</strong></div>",
+      "css": ".ds-glass{background:#0a1a3a;color:#fff;padding:24px;border-radius:24px;font-family:Inter,system-ui,sans-serif;display:flex;flex-direction:column;gap:6px;width:220px;background-image:linear-gradient(180deg,rgba(255,255,255,.085),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 40px -12px rgba(59,130,246,.45)}.ds-glass span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}.ds-glass strong{font:700 24px/1 Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Voce di sidebar attiva",
+      "kind": "nav",
+      "refersTo": "sidebar-crm",
+      "description": "Voce attiva con barra verticale azzurra.",
+      "html": "<nav class=\"ds-nav\"><a class=\"on\">Trattative</a><a>Agenda</a></nav>",
+      "css": ".ds-nav{width:200px;background:oklch(0.975 0.003 250);padding:8px;font-family:Inter,system-ui,sans-serif}.ds-nav a{display:block;position:relative;padding:8px 12px;border-radius:8px;font-size:13px;color:oklch(0.25 0.015 255)}.ds-nav a:hover{background:oklch(0.93 0.005 250)}.ds-nav a.on{background:oklch(0.93 0.005 250);font-weight:500}.ds-nav a.on::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:9999px;background:#0ea5e9}"
+    }
+  ],
+  "narrative": {
+    "northStar": "DA SCEGLIERE: A Il Tavolo Tecnico (consigliata) / B La Sala Consulenza / C Il Laboratorio Pulito",
+    "overview": "Due superfici su un marchio: sito e pagine cliente in blueprint navy con blu brand, CRM chiaro, denso e piatto. Il comune e Inter, la tinta blu 252 e le linee fini. Bozza da confermare dal titolare.",
+    "keyCharacteristics": [
+      "Due temi, un solo blu",
+      "Linee fini al posto delle ombre nel CRM",
+      "Colore del CRM solo per lo stato",
+      "Cifre tabulari per gli importi",
+      "Decorazione animata sul sito, spenta nel CRM"
+    ],
+    "rules": [
+      {
+        "name": "The Un-Solo-Blu Rule",
+        "body": "Tutto il sistema ruota sulla tinta 252. Un secondo accento deve avere un ruolo scritto.",
+        "section": "colors"
+      },
+      {
+        "name": "The Colore-e-Informazione Rule",
+        "body": "Nel CRM il colore dice lo stato di una trattativa e basta.",
+        "section": "colors"
+      },
+      {
+        "name": "The Nessun-Testo-Sfumato Rule",
+        "body": "Testo con gradiente (.hl-nextgen, .text-aurora): ora colore pieno; nel preventivo non c'è più (restyling di main).",
+        "section": "colors"
+      },
+      {
+        "name": "The Cinque-Passi Rule",
+        "body": "Il CRM ha cinque misure di testo, non sedici; mai sotto 11px sul telefono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Importi-Allineati Rule",
+        "body": "Ogni importo usa cifre tabulari.",
+        "section": "typography"
+      },
+      {
+        "name": "The Piatto-Nel-CRM Rule",
+        "body": "Nel CRM niente ombre e aloni: bordi da 1px e due livelli di grigio.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Tre-Mattoni Rule",
+        "body": "Sul fondo scuro: hg-vetro, hg-lucido, hg-alone e nient'altro.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usare brand sul fondo scuro e crm-primary sul fondo chiaro",
+      "Do usare le classi t-* e le cifre tabulari",
+      "Do usare i toni di src/crm/ui.tsx per ogni stato",
+      "Do tenere bordi da 1px e raggi dalla scala nel CRM"
+    ],
+    "donts": [
+      "Don't usare testo con sfumatura",
+      "Don't aggiungere ombre alle schede del CRM",
+      "Don't inventare un secondo accento",
+      "Don't scrivere misure di testo a mano nelle pagine nuove",
+      "Don't mettere animazioni in loop sulle schermate usate in chiamata"
+    ]
+  }
+}

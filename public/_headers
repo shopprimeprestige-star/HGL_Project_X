@@ -43,3 +43,15 @@
 #   usciva scritto due volte («public, max-age=…, public, max-age=…»). Un
 #   browser lo digerisce, ma è il genere di sciatteria che poi confonde chi
 #   deve capire perché una cosa non si aggiorna.
+
+# ── ⚠️ IL CARATTERE SI TIENE PER UN ANNO ──────────────────────────────────
+#  Inter è servito da noi (niente Google Fonts: privacy e un'andata e ritorno
+#  in meno). Sono due file, circa 130 KB in tutto, e il telefono non deve
+#  riscaricarli a ogni visita.
+#
+#  ⚠️ `immutable` QUI SI PUÒ per lo stesso motivo di /assets: la versione sta
+#   nel nome della cartella (/fonts/inter/5.3.0/). Per cambiare carattere si
+#   crea una cartella nuova, non si sostituiscono i file: il nome nuovo è una
+#   richiesta nuova, e quello vecchio non verrà mai riletto.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
