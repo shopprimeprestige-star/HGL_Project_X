@@ -4383,6 +4383,16 @@ function proveDelQuandoStato() {
   c("e nemmeno la settimana", false, dentroLaFetta({}, "settimana", OGGI));
 }
 
+/** Il file vero di Meta, ridotto a tre righe con dati FINTI (il repository è pubblico):
+ *  19 intestazioni e 19 valori che non combaciano, dalla dodicesima colonna in
+ *  poi l'intestazione è spostata di una. */
+const META_STORTO = [
+  "  ,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,lead_status,che_problematica_hai?",
+  'l:1000000000000001,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Mario Esempio,mario.esempio@example.com,p:+393330000101,',
+  'l:1000000000000002,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Anna Prova,anna.prova@example.com,p:+393330000102,',
+  'l:1000000000000003,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,pinco,pinco@example.com,p:0200000001,',
+].join("\n");
+
 /** ── LEGGERE UNA LISTA DI CONTATTI ────────────────────────────────────────
  *  ⚠️ Il file che ha fatto nascere queste prove e' una lista Meta passata da
  *   Fogli Google: diciannove colonne di intestazione, diciannove valori per
@@ -4438,13 +4448,8 @@ function proveDellaListaImportata() {
   c("la scheda in archivio si ritrova col numero scritto diverso", 1, esito3.ritorni.length);
   c("e non si crea niente di nuovo", 0, esito3.nuovi.length);
 
-  //  Il file vero, ridotto a tre righe: stessa intestazione, stesso scarto.
-  const META_STORTO = [
-    "  ,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,lead_status,che_problematica_hai?",
-    'l:1000000000000001,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Mario Esempio,mario.esempio@example.com,p:+393330000101,',
-    'l:1000000000000002,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Anna Prova,anna.prova@example.com,p:+393330000102,',
-    'l:1000000000000003,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,pinco,pinco@example.com,p:0200000001,',
-  ].join("\n");
+  //  Il file vero, ridotto a tre righe: stessa intestazione, stesso scarto
+  //  (`META_STORTO`, sopra la funzione: lo usano anche le prove del riallineamento).
   const m = traduciCsv(META_STORTO);
   c("legge tutte le righe, non ne scarta nessuna", 3, m.leads.length);
   c("nessuna scartata", 0, m.scartate);
@@ -4480,10 +4485,13 @@ function proveDellaListaImportata() {
   c("anche da Instagram", "ADV", m.leads[1].fonte);
   c("la data del modulo diventa la data d'arrivo", true, /^2026-09-21/.test(m.leads[0].createdAt));
 
-  //  Le risposte del modulo finiscono nelle note: chi telefona sa gia' con chi
-  //  sta parlando. ⚠️ Senza l'etichetta della domanda, perche' su questo file
-  //   l'intestazione e' spostata e scriverla sarebbe stampare una bugia.
-  c("le risposte del modulo restano", "androgenetica", m.leads[0].modulo?.problema);
+  //  Le risposte del modulo restano, come VOCI della scheda (non piu' nelle
+  //  note): chi telefona sa gia' con chi sta parlando. Lo scopo e' lo stesso di
+  //  prima, non perdere le risposte; cambia dove stanno. ⚠️ Il riallineamento
+  //  dell'intestazione le mette sotto la domanda giusta (vedi
+  //  `proveDelRiallineamento`), non sotto quella sbagliata.
+  c("le risposte del modulo restano, come voci", "androgenetica|abbastanza|niente",
+    [m.leads[0].modulo?.problema, m.leads[0].modulo?.fastidio, m.leads[0].modulo?.giaFatto].join("|"));
   c("e non ci finisce il nome del modulo", false, /Modulo senza titolo/.test(m.leads[0].note || ""));
   c("ne' il nome della campagna", false, /BROAD|Hair Genius/.test(m.leads[0].note || ""));
 
@@ -4513,6 +4521,274 @@ function proveDellaListaImportata() {
   const vuote = traduciCsv("nome;telefono\nMario;3331234567\n;");
   c("le righe vuote si scartano", 1, vuote.leads.length);
   c("e si contano", 1, vuote.scartate);
+}
+
+/** ── IL RIALLINEAMENTO DELL'INTESTAZIONE E I DATI DEL FILE ─────────────────
+ *  ⚠️ Una risposta sotto la domanda sbagliata è peggio di una risposta senza
+ *   domanda: si legge e si crede. Per questo il riallineamento è STRETTO
+ *   (decisione 3 del piano) e le prove qui sotto sono quasi tutte casi in cui
+ *   NON deve scattare. Dati finti ovunque: il repository è pubblico. */
+function proveDelRiallineamento() {
+  const { riallineaIntestazioni, traduciCsv, leggiTestoFile, eFileExcel } = IMP;
+  gruppo("IL RIALLINEAMENTO DELL'INTESTAZIONE");
+
+  //  Divide una riga con le virgolette, come fa il lettore vero.
+  const dividi = (riga) => {
+    const out = [];
+    let cur = "", dentro = false;
+    for (const ch of riga) {
+      if (ch === '"') dentro = !dentro;
+      else if (ch === "," && !dentro) { out.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out.map((x) => x.trim());
+  };
+  const tabella = (testo) => testo.split("\n").map(dividi);
+  const [testa, ...righe] = tabella(META_STORTO);
+
+  //  ── IL FILE VERO: SPOSTATO DI UNO ───────────────────────────────────
+  const r = riallineaIntestazioni(testa, righe);
+  c("il file di Meta e' spostato di uno", 1, r.spostamento);
+  c("e dopo si puo' credere all'intestazione", true, r.affidabili);
+  c("la domanda in coda torna sopra le sue risposte", "che_problematica_hai?", r.intestazioni[12]);
+  c("le altre due scalano di una", "quanto_ti_infastidisce_la_calvizie?|cosa_hai_gia_fatto?",
+    `${r.intestazioni[13]}|${r.intestazioni[14]}`);
+  c("il nome sta sopra il nome", "full_name", r.intestazioni[15]);
+  c("l'email sopra l'email", "email", r.intestazioni[16]);
+  c("il telefono sopra il telefono", "phone_number", r.intestazioni[17]);
+  c("quelle prima del punto di partenza non si toccano", testa.slice(0, 12).join("|"),
+    r.intestazioni.slice(0, 12).join("|"));
+  c("lo stesso numero di intestazioni", testa.length, r.intestazioni.length);
+  c("l'intestazione di partenza non viene modificata", "che_problematica_hai?", testa[18]);
+
+  //  ── SPOSTATA DI DUE, CON DUE DOMANDE IN CODA ────────────────────────
+  const due = tabella([
+    "created_time,full_name,email,phone_number,che_problematica_hai?,quanto_ti_infastidisce_la_calvizie?",
+    "2026-09-21T01:33:01-05:00,alopecia_androgenetica,abbastanza_,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "2026-09-21T01:37:25-05:00,alopecia_areata,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const r2 = riallineaIntestazioni(due[0], due.slice(1));
+  c("spostata di due", "2|true", `${r2.spostamento}|${r2.affidabili}`);
+  c("con due domande tirate su", "created_time|che_problematica_hai?|quanto_ti_infastidisce_la_calvizie?|full_name|email|phone_number",
+    r2.intestazioni.join("|"));
+
+  //  ── CASI IN CUI NON DEVE SCATTARE ──────────────────────────────────
+  //  Sette colonne, ancore spostate una di +1 e una di -1: k diversi.
+  const stortoTesto = [
+    "  ,created_time,ad_id,quanto_ti_infastidisce?,full_name,email,phone_number",
+    "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,mario.esempio@example.com,Mario Esempio,p:+393330000101",
+  ].join("\n");
+  const [ts, ...rs] = tabella(stortoTesto);
+  const r3 = riallineaIntestazioni(ts, rs);
+  c("ancore spostate in versi opposti: non si riallinea", "0|false", `${r3.spostamento}|${r3.affidabili}`);
+  c("e l'intestazione resta com'e'", ts.join("|"), r3.intestazioni.join("|"));
+
+  const dritto = tabella("created_time,full_name,email,phone_number\n2026-09-21T01:33:01-05:00,Anna Verdi,anna.verdi@example.com,p:+393330000111");
+  const r4 = riallineaIntestazioni(dritto[0], dritto.slice(1));
+  c("un'intestazione dritta e' affidabile e non si tocca", "0|true|" + dritto[0].join("|"),
+    `${r4.spostamento}|${r4.affidabili}|${r4.intestazioni.join("|")}`);
+
+  //  La coda non e' una domanda che conosciamo: non si indovina.
+  const misteriosa = [...testa.slice(0, 18), "colonna_misteriosa"];
+  const r5 = riallineaIntestazioni(misteriosa, righe);
+  c("coda non riconoscibile: non si riallinea", "0|false", `${r5.spostamento}|${r5.affidabili}`);
+  c("e l'intestazione resta com'e'", misteriosa.join("|"), r5.intestazioni.join("|"));
+
+  //  Righe di lunghezze diverse: nessuna eccezione e nessun riallineamento.
+  let r6;
+  let lanciato = false;
+  try {
+    r6 = riallineaIntestazioni(testa, [righe[0], righe[1].slice(0, 15), righe[2].concat(["x", "y"])]);
+  } catch { lanciato = true; }
+  c("righe di lunghezze diverse non lanciano", false, lanciato);
+  c("e non si riallinea", "0|false", `${r6?.spostamento}|${r6?.affidabili}`);
+
+  //  Colonne della coda non contigue: non si riallinea.
+  const nonContigue = tabella([
+    "created_time,full_name,email,phone_number,che_problematica_hai?,quanto_ti_infastidisce_la_calvizie?",
+    "alopecia_androgenetica,2026-09-21T01:33:01-05:00,abbastanza_,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "alopecia_areata,2026-09-21T01:37:25-05:00,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const r7 = riallineaIntestazioni(nonContigue[0], nonContigue.slice(1));
+  c("colonne della coda non contigue: non si riallinea", "0|false", `${r7.spostamento}|${r7.affidabili}`);
+
+  //  ⚠️ Colonne-domanda di MEZZO scambiate (fastidio e gia' provato): coda e
+  //   ancore tornano lo stesso, ma «abbastanza» finirebbe sotto «Gia' provato»
+  //   e «nulla» sotto «Fastidio». Non si riallinea.
+  const scambiate = tabella([
+    "quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,che_problematica_hai?",
+    "alopecia_androgenetica,nulla,abbastanza,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "alopecia_areata,trapianto,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const rsc = riallineaIntestazioni(scambiate[0], scambiate.slice(1));
+  c("colonne di mezzo scambiate: non si riallinea", "0|false", `${rsc.spostamento}|${rsc.affidabili}`);
+  c("e l'intestazione resta com'e'", scambiate[0].join("|"), rsc.intestazioni.join("|"));
+  const lettaScambiata = traduciCsv(scambiate.map((r) => r.join(",")).join("\n"));
+  //  Il «nulla» sotto intestazioni non affidabili resta senza domanda; «abbastanza»
+  //  si legge dal valore (e' Fastidio, senza dubbio), mai «Per niente».
+  c("nessun «Fastidio: Per niente» inventato", "abbastanza|undefined",
+    `${lettaScambiata.leads[0].modulo?.fastidio}|${lettaScambiata.leads[0].modulo?.giaFatto}`);
+
+  //  Nessuna ancora nell'intestazione: non c'e' niente su cui fidarsi.
+  const senzaAncore = riallineaIntestazioni(["a", "b"], [["x", "y"], ["z", "w"]]);
+  c("senza ancore non si sa niente", "0|false", `${senzaAncore.spostamento}|${senzaAncore.affidabili}`);
+  c("campione vuoto: nessuna eccezione", "0|false",
+    ((x) => `${x.spostamento}|${x.affidabili}`)(riallineaIntestazioni(testa, [])));
+
+  //  ── LEGGERE IL FILE: traduciCsv(META_STORTO) ────────────────────────
+  gruppo("LEGGERE IL FILE: RISPOSTE, ANNUNCIO, COLONNE CONSERVATE");
+  const m = traduciCsv(META_STORTO);
+  const [l1, l2, l3] = m.leads;
+  c("riallineata una volta", 1, m.intestazioniRiallineate);
+  c("lead 1: problema", "androgenetica", l1.modulo?.problema);
+  c("lead 1: fastidio", "abbastanza", l1.modulo?.fastidio);
+  c("lead 1: gia' provato", "niente", l1.modulo?.giaFatto);
+  c("lead 1: le sue parole restano", "Nulla",
+    (l1.modulo?.risposte ?? []).find((x) => x.campo === "giaFatto")?.testo);
+  c("lead 2: gia' provato", "trapianto", l2.modulo?.giaFatto);
+  c("lead 2: problema", "areata", l2.modulo?.problema);
+  c("lead 3: fastidio", "poco", l3.modulo?.fastidio);
+  c("lead 3: il «nulla» e' Gia' provato, non Fastidio", "niente", l3.modulo?.giaFatto);
+  c("le domande ci sono con il nostro titolo", "Problema|Fastidio|Già provato",
+    (l1.modulo?.risposte ?? []).filter((x) => x.campo).map((x) => x.domanda).join("|"));
+  c("mai due volte la stessa domanda", 3, (l1.modulo?.risposte ?? []).length);
+
+  //  ⚠️ Niente «Dal modulo: nulla» nelle note: la riga storta non lascia piu'
+  //   un «nulla» ambiguo (T2).
+  c("nessuna nota sulle tre schede", "undefined|undefined|undefined", `${l1.note}|${l2.note}|${l3.note}`);
+  c("nessuna nota «Dal modulo» in nessuna", 0, m.leads.filter((l) => /Dal modulo/.test(l.note || "")).length);
+
+  //  Annuncio, gruppo, campagna.
+  c("il gruppo", "BROAD | ITALIA", l1.tracking?.adset_name);
+  c("l'annuncio", "589\u20ac - 001 - ok", l1.tracking?.ad_name);
+  c("la campagna", "Hair Genius | Copy 2", l1.tracking?.campaign_name);
+  c("e si sa che e' Meta", "meta", l1.tracking?.source);
+
+  //  Data: dal file, e si dice.
+  c("la data viene dal file", true, l1.listaOrigine?.dataDalFile);
+  c("la lista d'origine ha un momento di caricamento", true, !Number.isNaN(Date.parse(l1.listaOrigine?.il ?? "")));
+  c("il nome del file lo scrive l'anteprima, qui e' vuoto", "", l1.listaOrigine?.file);
+  const senzaData = traduciCsv("nome;telefono\nMario;3331234567");
+  c("senza colonna data non viene dal file", false, senzaData.leads[0].listaOrigine?.dataDalFile);
+  c("e createdAt e' l'ora del caricamento", true, Date.now() - Date.parse(senzaData.leads[0].createdAt) < 60_000);
+  const dataVuota = traduciCsv("created_time,full_name,phone_number\n,Anna Verdi,3331234567");
+  c("cella data vuota: non viene dal file", false, dataVuota.leads[0].listaOrigine?.dataDalFile);
+  const dataIllegibile = traduciCsv("created_time,full_name,phone_number\nieri sera,Anna Verdi,3331234567");
+  c("cella data illeggibile: non viene dal file", false, dataIllegibile.leads[0].listaOrigine?.dataDalFile);
+
+  //  ── LE DATE: GIORNO PRIMA DEL MESE ─────────────────────────────────
+  const dataDi = (cella) => traduciCsv(`created_time,full_name,phone_number\n${cella},Anna Verdi,3331234567`).leads[0];
+  const it = dataDi("12/10/2026 09:15");
+  c("«12/10/2026 09:15» e' il 12 ottobre", "2026-10-12 09:15", (() => {
+    const d = new Date(it.createdAt);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  })());
+  c("e viene dal file", true, it.listaOrigine?.dataDalFile);
+  c("createdAt e' scritto in ISO", true, /^\d{4}-\d{2}-\d{2}T/.test(it.createdAt));
+  const senzaOra = new Date(dataDi("03/04/2026").createdAt);
+  c("«03/04/2026» e' il 3 aprile, non il 4 marzo", "3/4", `${senzaOra.getDate()}/${senzaOra.getMonth() + 1}`);
+  c("«13/10/2026» si legge (prima era illeggibile)", true, dataDi("13/10/2026").listaOrigine?.dataDalFile);
+  //  ⚠️ Quando viene dal file, createdAt e' SEMPRE un ISO: la scheda lo rilegge
+  //   cosi' e il testo grezzo lo leggerebbe all'americana.
+  c("«03/04/2026» → createdAt comincia per 2026-04-03", "2026-04-03", dataDi("03/04/2026").createdAt.slice(0, 10));
+  c("«13/04/2026» → createdAt comincia per 2026-04-13", "2026-04-13", dataDi("13/04/2026").createdAt.slice(0, 10));
+  c("la data solo giorno e' un ISO completo", true, /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(dataDi("03/04/2026").createdAt));
+  c("anche «2026-09-21 10:00» diventa ISO completo", true, /^2026-09-21T[\d:.]+Z$/.test(dataDi("2026-09-21 10:00").createdAt));
+  c("e l'ISO con la T non si tocca", "2026-09-21T10:00:00Z", dataDi("2026-09-21T10:00:00Z").createdAt);
+  c("l'ISO resta com'e'", "2026-09-21T01:33:01-05:00|true",
+    `${traduciCsv(META_STORTO).leads[0].createdAt}|${traduciCsv(META_STORTO).leads[0].listaOrigine?.dataDalFile}`);
+  const illeggibile = dataDi("45678");
+  c("un numero qualunque non e' una data", false, illeggibile.listaOrigine?.dataDalFile);
+  c("e createdAt resta il testo, come prima", "45678", illeggibile.createdAt);
+  c("«ieri sera» non e' una data", false, dataDi("ieri sera").listaOrigine?.dataDalFile);
+  c("nemmeno il 31 febbraio", false, dataDi("31/02/2026").listaOrigine?.dataDalFile);
+  //  Un lead di ieri, scritto all'italiana, risulta NUOVO per chi chiama.
+  {
+    const adesso = new Date();
+    const ieri = new Date(adesso.getTime() - 6 * 3600_000);
+    const p = (n) => String(n).padStart(2, "0");
+    const cella = `${p(ieri.getDate())}/${p(ieri.getMonth() + 1)}/${ieri.getFullYear()} ${p(ieri.getHours())}:${p(ieri.getMinutes())}`;
+    const recente = dataDi(cella);
+    c("un lead di poche ore fa, data all'italiana, e' NUOVO", "nuovo",
+      CHIAM.motivoChiamata({ id: "x", data: { ...recente, stato: "da_contattare" } }, adesso).motivo);
+  }
+
+  //  Colonne che non sono diventate niente: si conservano.
+  c("«is organic» e' conservata", "false", l1.datiFile?.["is organic"]);
+  c("la colonna senza intestazione e' «colonna 1»", true, /^l:/.test(l1.datiFile?.["colonna 1"] ?? ""));
+  c("e l'elenco la nomina", true, m.colonneConservate.includes("is organic"));
+  c("e anche l'altra", true, m.colonneConservate.includes("colonna 1"));
+  c("quello che e' diventato un campo non si ripete in datiFile", "",
+    Object.keys(l1.datiFile ?? {}).filter((k) => /ad name|full name|phone|email|campaign|adset|created|platform|status/.test(k)).join(","));
+  c("le risposte non si ripetono in datiFile", "",
+    Object.keys(l1.datiFile ?? {}).filter((k) => /problematica|infastidisce|gia fatto|già fatto/.test(k)).join(","));
+  c("l'alias vecchio dice la stessa cosa", m.colonneConservate.join("|"), m.colonneIgnorate.join("|"));
+
+  //  Un file dritto con una colonna sconosciuta.
+  const dritta = traduciCsv("nome;telefono;colore_preferito\nMario;3331234567;blu");
+  c("colonna sconosciuta su file dritto: col nome leggibile", "blu", dritta.leads[0].datiFile?.["colore preferito"]);
+  c("e nell'elenco", true, dritta.colonneConservate.includes("colore preferito"));
+  c("e non finisce nelle note", undefined, dritta.leads[0].note);
+  c("l'intestazione dritta non e' stata riallineata", 0, dritta.intestazioniRiallineate);
+  //  Una domanda sconosciuta con il «?» va nel modulo, non in datiFile.
+  const domandaNuova = traduciCsv(
+    "full_name,phone_number,hai_mai_fatto_una_consulenza?\nMario Esempio,p:+393330000101,\"s\u00ec,_una_volta\"",
+  );
+  c("una domanda sconosciuta va nel modulo", "hai mai fatto una consulenza?",
+    domandaNuova.leads[0].modulo?.risposte?.[0]?.domanda);
+  c("e non in datiFile", undefined, domandaNuova.leads[0].datiFile);
+  c("nemmeno nell'elenco delle colonne conservate", 0, domandaNuova.colonneConservate.length);
+  c("niente datiFile vuoto: non c'e' niente da conservare", undefined, traduciCsv("nome;telefono\nMario;3331234567").leads[0].datiFile);
+
+  //  Le note sono solo la colonna «note» del file.
+  const conNote = traduciCsv("nome;telefono;note;colore_preferito\nMario;3331234567;ha chiesto di richiamare;blu");
+  c("la colonna note del file resta nota", "ha chiesto di richiamare", conNote.leads[0].note);
+
+  //  Intestazioni non affidabili: «colonna N», mai un nome inventato.
+  const storto = traduciCsv(stortoTesto);
+  const chiavi = Object.keys(storto.leads[0].datiFile ?? {});
+  c("con l'intestazione smentita le chiavi sono «colonna N»", true,
+    chiavi.length > 0 && chiavi.every((k) => /^colonna \d+$/.test(k)));
+  c("e non si riallinea", 0, storto.intestazioniRiallineate);
+  c("il problema si legge lo stesso dal valore", "androgenetica", storto.leads[0].modulo?.problema);
+  c("senza nessuna nota «Dal modulo»", 0, storto.leads.filter((l) => /Dal modulo/.test(l.note || "")).length);
+  c("il valore non riconosciuto non finisce nelle note ma in datiFile", true,
+    traduciCsv("nome;telefono;zzz\nMario;3331234567;cose varie").leads[0].datiFile?.["zzz"] === "cose varie");
+
+  //  I tetti: 200 caratteri per valore, 40 chiavi, nomi ripetuti numerati.
+  const lungo = traduciCsv(`nome;telefono;extra\nMario;3331234567;${"a".repeat(300)}`);
+  c("il valore si taglia a 200 caratteri", 200, lungo.leads[0].datiFile?.extra?.length);
+  const tante = traduciCsv(
+    `nome;telefono;${Array.from({ length: 50 }, (_, i) => `x${i}`).join(";")}\nMario;3331234567;${Array.from({ length: 50 }, (_, i) => `v${i}`).join(";")}`,
+  );
+  c("al massimo quaranta chiavi", 40, Object.keys(tante.leads[0].datiFile ?? {}).length);
+  const doppi = traduciCsv("nome;telefono;extra;extra\nMario;3331234567;uno;due");
+  c("un nome ripetuto riceve (2)", "uno|due", `${doppi.leads[0].datiFile?.extra}|${doppi.leads[0].datiFile?.["extra (2)"]}`);
+  const celleVuote = traduciCsv("nome;telefono;a;b\nMario;3331234567;;x");
+  c("le celle vuote si saltano", "b", Object.keys(celleVuote.leads[0].datiFile ?? {}).join(","));
+
+  //  ── LEGGERE I BYTE DEL FILE ─────────────────────────────────────────
+  gruppo("LEGGERE I BYTE DEL FILE");
+  const byte = (testo, codifica = "utf8", bom = []) => new Uint8Array([...bom, ...Buffer.from(testo, codifica)]);
+  c("il BOM di UTF-8 si toglie", "a,b", leggiTestoFile(byte("a,b", "utf8", [0xef, 0xbb, 0xbf])));
+  c("UTF-16 con BOM", "nome\ttelefono", leggiTestoFile(byte("nome\ttelefono", "utf16le", [0xff, 0xfe])));
+  c("UTF-16 big endian con BOM", "nome\ttelefono",
+    leggiTestoFile(new Uint8Array([0xfe, 0xff, ...Buffer.from("nome\ttelefono", "utf16le").swap16()])));
+  c("UTF-8 con gli accenti", "città", leggiTestoFile(byte("città")));
+  c("UTF-16 senza BOM", "nome\ttelefono", leggiTestoFile(byte("nome\ttelefono", "utf16le")));
+  c("file vuoto", "", leggiTestoFile(new Uint8Array()));
+  const utf16 = byte("full_name\tphone_number\nMario Esempio\t+393330000101", "utf16le", [0xff, 0xfe]);
+  const daUtf16 = traduciCsv(leggiTestoFile(utf16));
+  c("un file UTF-16 con tab legge una scheda", "1|Mario|+393330000101",
+    `${daUtf16.leads.length}|${daUtf16.leads[0]?.nome}|${daUtf16.leads[0]?.telefono}`);
+
+  //  Excel non si legge: si riconosce, cosi' l'anteprima puo' dire cosa fare.
+  c("un .xlsx si riconosce dal nome", true, eFileExcel(byte("a,b"), "lista.xlsx"));
+  c("e dai byte di uno zip", true, eFileExcel(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0])));
+  c("e il vecchio .xls dai suoi byte", true, eFileExcel(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1])));
+  c("un csv no", false, eFileExcel(byte("nome,telefono"), "lista.csv"));
 }
 
 /*  ═══════════════════════════════════════════════════════════════════════
@@ -16135,6 +16411,7 @@ proveDelTipoProposto();
 proveDelRitornoInBozza();
 proveDelQuandoStato();
 proveDellaListaImportata();
+proveDelRiallineamento();
 proveDeiPermessi();
 proveDiTuttiIMessaggi();
 proveDelMessaggioGiusto();

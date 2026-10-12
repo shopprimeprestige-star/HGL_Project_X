@@ -12,15 +12,16 @@ import { ALL_LEAD_STATUSES } from "./types";
 //  «Stesso numero» si decide in un posto solo in tutto il CRM: è la funzione
 //  che fa diventare rosso il campo quando si scrive un numero che c'è già.
 import { chiaveTelefono } from "./telefono-doppio";
+//  Le date dei fogli italiani si leggono col giorno PRIMA del mese: una regola
+//  sola, la stessa dell'importazione delle installazioni.
+import { dataDaCella, oraDaCella } from "./installazioni-csv";
 import type { AdSpending, ConsultantData, LeadData, LeadStatus, TrackingInfo } from "./types";
 //  Le risposte del modulo si riconoscono in UN punto solo: vedi la nota in
 //  testa a crm/modulo-lead.ts (si guarda il valore, non l'intestazione).
 import {
-  DOMANDE_MODULO,
+  campoDellaColonna,
+  intestazioneLeggibile,
   leggiRisposte,
-  paDomanda,
-  paRisposta,
-  pulisci,
   riconosciRisposta,
 } from "./modulo-lead";
 
@@ -596,34 +597,249 @@ function colonnaCheContiene(righe: string[][], pare: (v: string) => boolean): nu
   return migliore;
 }
 
-/** Traduce un CSV in schede pronte. Le colonne che non riconosce le ignora,
- *  ma le RIPORTA: così si vede subito se una colonna importante è rimasta
- *  fuori perché scritta in un modo imprevisto. */
+/** La chiave di `COLONNE` a cui appartiene questa intestazione (la prima che
+ *  combacia, come ha sempre fatto `traduciCsv`), o niente. */
+function chiaveDellaColonna(h: string): string | undefined {
+  const t = senzaAccenti(h);
+  if (!t) return undefined;
+  return Object.entries(COLONNE).find(([, alias]) => alias.some((a) => senzaAccenti(a) === t))?.[0];
+}
+
+/* ── ⚠️ RIALLINEARE L'INTESTAZIONE: STRETTO, E NEL DUBBIO NIENTE ────────────
+   Sul file vero di Meta le ultime colonne del foglio (le domande del modulo)
+   sono finite in mezzo ai dati, e le intestazioni sono rimaste indietro di una
+   (o due) colonne: sotto `phone_number` c'è l'email, sotto `full_name` la
+   risposta. Le risposte si leggevano lo stesso, ma senza domanda: «Dal modulo:
+   alopecia androgenetica · abbastanza · nulla».
+   Rimettere le intestazioni a posto è l'unico modo per sapere sotto QUALE
+   domanda sta «nulla» (Fastidio: per niente, oppure Già provato: niente). Ma
+   una risposta sotto la domanda sbagliata è peggio di una risposta senza
+   domanda: si legge e si crede. Per questo scatta solo se:
+    · telefono, email e nome (le ancore: cose che si riconoscono guardandole)
+      sono spostate TUTTE dello stesso k, e k è 1 o 2;
+    · le ultime k intestazioni sono domande che conosciamo, e si ritrovano nei
+      dati dalle loro risposte, in colonne vicine, a sinistra delle ancore;
+    · rimesse a posto, ogni ancora cade sulla sua colonna.
+   In tutti gli altri casi l'intestazione resta com'è e NON è affidabile. */
+export interface IntestazioniRiallineate {
+  intestazioni: string[];
+  /** Di quante colonne era spostata (0 = non toccata). */
+  spostamento: number;
+  /** Ci si può credere, adesso? Falso = le domande non si scrivono. */
+  affidabili: boolean;
+}
+
+const ANCORE: { chiave: string; pare: (v: string) => boolean }[] = [
+  { chiave: "telefono", pare: paTelefono },
+  { chiave: "email", pare: paEmail },
+  { chiave: "nomeCompleto", pare: paNomeIntero },
+];
+
+/** Dove sta davvero questa cosa nei dati. Se la colonna dichiarata dall'intestazione
+ *  la contiene (la stessa soglia di `quadra` in `traduciCsv`) è quella; altrimenti
+ *  quella che la contiene di più. */
+function doveStaDavvero(campione: string[][], dichiarata: number, pare: (v: string) => boolean): number {
+  const soglia = Math.max(1, Math.ceil((campione.length || 1) / 2));
+  const centri = campione.filter((r) => pare((r[dichiarata] || "").trim())).length;
+  return centri >= soglia ? dichiarata : colonnaCheContiene(campione, pare);
+}
+
+/** La colonna dei dati che porta le risposte di questa domanda: quella in cui la
+ *  MAGGIORANZA dei valori pieni è una risposta riconosciuta. -1 se non ce n'è
+ *  una sola, anche se due colonne sono ugualmente buone: non si indovina. */
+function colonnaDelleRisposte(campione: string[][], campo: NonNullable<ReturnType<typeof campoDellaColonna>>, escluse: Set<number>): number {
+  const larghezza = campione.reduce((m, r) => Math.max(m, r.length), 0);
+  let migliore = -1;
+  let rapporto = 0;
+  let pari = false;
+  for (let i = 0; i < larghezza; i++) {
+    if (escluse.has(i)) continue;
+    const pieni = campione.map((r) => (r[i] || "").trim()).filter(Boolean);
+    if (!pieni.length) continue;
+    const giuste = pieni.filter((v) => riconosciRisposta(v, campo)).length;
+    const r = giuste / pieni.length;
+    if (r <= 0.5) continue;
+    if (r > rapporto) {
+      migliore = i;
+      rapporto = r;
+      pari = false;
+    } else if (r === rapporto) pari = true;
+  }
+  return pari ? -1 : migliore;
+}
+
+/** Le tre domande dove, in `leggiRisposte`, la colonna comanda: sono quelle che
+ *  un riallineamento sbagliato metterebbe sotto la domanda sbagliata. */
+const DOMANDE_NUOVE: (ReturnType<typeof campoDellaColonna>)[] = ["problema", "fastidio", "giaFatto"];
+
+export function riallineaIntestazioni(intestazioni: string[], campione: string[][]): IntestazioniRiallineate {
+  const invariata = (affidabili: boolean): IntestazioniRiallineate => ({
+    intestazioni,
+    spostamento: 0,
+    affidabili,
+  });
+  //  1. Le ancore: solo quelle che l'intestazione dichiara e che nei dati si ritrovano.
+  const ancore: { chiave: string; dichiarata: number; trovata: number }[] = [];
+  for (const { chiave, pare } of ANCORE) {
+    const dichiarata = intestazioni.findIndex((h) => chiaveDellaColonna(h) === chiave);
+    if (dichiarata < 0) continue;
+    const trovata = doveStaDavvero(campione, dichiarata, pare);
+    if (trovata >= 0) ancore.push({ chiave, dichiarata, trovata });
+  }
+  //  2. Nessuna ancora: non c'è niente su cui fidarsi. Tutte a posto: non c'è niente da fare.
+  if (!ancore.length) return invariata(false);
+  if (ancore.every((a) => a.trovata === a.dichiarata)) return invariata(true);
+  //  3. Lo stesso k per tutte, 1 o 2, e righe larghe quanto l'intestazione.
+  const k = ancore[0].trovata - ancore[0].dichiarata;
+  if (!(k === 1 || k === 2)) return invariata(false);
+  if (ancore.some((a) => a.trovata - a.dichiarata !== k)) return invariata(false);
+  const H = intestazioni.length;
+  if (campione.some((r) => r.length !== H)) return invariata(false);
+  //  4. Le ultime k intestazioni sono domande che conosciamo, e si ritrovano nei dati.
+  const coda = intestazioni.slice(H - k);
+  const escluse = new Set(ancore.map((a) => a.trovata));
+  const posizioni: number[] = [];
+  for (const h of coda) {
+    const campo = campoDellaColonna(h);
+    if (!campo) return invariata(false);
+    const p = colonnaDelleRisposte(campione, campo, escluse);
+    if (p < 0) return invariata(false);
+    posizioni.push(p);
+  }
+  const s = posizioni[0];
+  if (posizioni.some((p, j) => p !== s + j)) return invariata(false);   // vicine e nell'ordine
+  if (s > Math.min(...ancore.map((a) => a.dichiarata))) return invariata(false);
+  //  5. Le intestazioni nuove, e la controprova: ogni ancora sulla sua colonna.
+  const nuove = [...intestazioni.slice(0, s), ...coda, ...intestazioni.slice(s, H - k)];
+  const regge = ancore.every((a) => nuove.findIndex((h) => chiaveDellaColonna(h) === a.chiave) === a.trovata);
+  if (!regge) return invariata(false);
+  //  6. ⚠️ Anche le colonne-domanda che si spostano IN MEZZO devono ritrovare le
+  //     loro risposte. Con due colonne scambiate (fastidio e già provato) coda e
+  //     ancore tornano lo stesso, ma «abbastanza» finirebbe sotto «Già provato»
+  //     e «nulla» sotto «Fastidio»: una bugia stampata. Le colonne tutte vuote
+  //     non dicono niente e si saltano.
+  for (let j = s; j < H; j++) {
+    const campo = campoDellaColonna(nuove[j]);
+    if (!campo || !DOMANDE_NUOVE.includes(campo)) continue;
+    const pieni = campione.map((r) => (r[j] || "").trim()).filter(Boolean);
+    if (!pieni.length) continue;
+    const giuste = pieni.filter((v) => riconosciRisposta(v, campo)).length;
+    if (giuste / pieni.length <= 0.5) return invariata(false);
+  }
+  return { intestazioni: nuove, spostamento: k, affidabili: true };
+}
+
+/** ── I BYTE DEL FILE, IN TESTO ─────────────────────────────────────────────
+ *  `File.text()` legge sempre UTF-8, e un foglio salvato da Excel come «Testo
+ *  Unicode» è UTF-16: ogni lettera seguita da uno zero, il separatore invisibile,
+ *  e il file «non ha righe». Si guarda il BOM; senza BOM, gli zeri nelle
+ *  posizioni dispari (UTF-16LE) o pari (UTF-16BE) dicono la codifica. */
+export function leggiTestoFile(byte: Uint8Array): string {
+  const decodifica = (codifica: string, da: number) =>
+    new TextDecoder(codifica, { fatal: false }).decode(byte.subarray(da));
+  if (byte.length >= 3 && byte[0] === 0xef && byte[1] === 0xbb && byte[2] === 0xbf) return decodifica("utf-8", 3);
+  if (byte.length >= 2 && byte[0] === 0xff && byte[1] === 0xfe) return decodifica("utf-16le", 2);
+  if (byte.length >= 2 && byte[0] === 0xfe && byte[1] === 0xff) return decodifica("utf-16be", 2);
+  if (byte.length >= 2) {
+    let zeriDispari = 0;
+    let zeriPari = 0;
+    for (let i = 0; i < byte.length; i++) if (byte[i] === 0) (i % 2 ? zeriDispari++ : zeriPari++);
+    const posti = Math.floor(byte.length / 2);
+    if (zeriDispari / posti > 0.3) return decodifica("utf-16le", 0);
+    if (zeriPari / posti > 0.3) return decodifica("utf-16be", 0);
+  }
+  return decodifica("utf-8", 0);
+}
+
+/** ── EXCEL NON SI LEGGE ────────────────────────────────────────────────────
+ *  Servirebbe una libreria pesante per un caso raro. Si riconosce, così
+ *  l'anteprima dice cosa fare invece di «File non leggibile». */
+export const MESSAGGIO_FILE_EXCEL =
+  "File Excel: da Google Fogli fai File → Scarica → CSV, poi ricaricalo qui.";
+
+/** `.xlsx`/`.xls` dal nome, oppure dai primi byte: uno zip («PK») o il vecchio
+ *  formato di Office. */
+export function eFileExcel(byte: Uint8Array, nome = ""): boolean {
+  if (/\.(xlsx|xlsm|xls)$/i.test(nome)) return true;
+  const inizia = (...b: number[]) => b.every((x, i) => byte[i] === x);
+  return inizia(0x50, 0x4b, 0x03, 0x04) || inizia(0xd0, 0xcf, 0x11, 0xe0);
+}
+
+/** ── LA DATA D'ARRIVO, COME LA SCRIVE UN FOGLIO ITALIANO ──────────────────
+ *  Meta scrive `2026-09-21T01:33:01-05:00` e vale com'è. Un foglio fatto a mano
+ *  scrive «12/10/2026 09:15»: per un CRM italiano è il 12 ottobre. ⚠️ Lasciarla
+ *  a `Date.parse` la legge all'americana (il 10 dicembre, o niente se il giorno
+ *  supera il 12) e sposta di mesi l'ordine di arrivo e i periodi. Quindi: ISO
+ *  com'è; altrimenti giorno/mese/anno (+ ora) e si scrive in ISO. Se non si
+ *  legge, `dataDalFile` è falso e `createdAt` resta quello che era: nessuno
+ *  deve credere che «è arrivato adesso» per una data che non si è capita. */
+function dataDellaCella(cella: string): { createdAt: string; dataDalFile: boolean } {
+  const t = cella.trim();
+  if (!t) return { createdAt: "", dataDalFile: false };
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) {
+    const quando = new Date(t);
+    if (!Number.isFinite(quando.getTime())) return { createdAt: t, dataDalFile: false };
+    //  ⚠️ Quando la data viene dal file, `createdAt` è SEMPRE un ISO completo:
+    //   chi la rilegge con `new Date` o ne taglia i primi dieci caratteri
+    //   (la scheda del lead) deve trovare lo stesso giorno. Quella di Meta
+    //   (`…T…-05:00`) è già così e resta com'è.
+    return { createdAt: /^\d{4}-\d{2}-\d{2}T/.test(t) ? t : quando.toISOString(), dataDalFile: true };
+  }
+  const giorno = dataDaCella(t);
+  if (!giorno) return { createdAt: t, dataDalFile: false };
+  //  ⚠️ Senza l'ora, MEZZOGIORNO e non mezzanotte: a mezzanotte locale l'ISO in
+  //   UTC cade il giorno prima («03/04» diventerebbe «2026-04-02T22:00Z»).
+  const quando = new Date(`${giorno}T${oraDaCella(t) || "12:00"}:00`);
+  return Number.isFinite(quando.getTime())
+    ? { createdAt: quando.toISOString(), dataDalFile: true }
+    : { createdAt: t, dataDalFile: false };
+}
+
+/** Quanto può essere lungo un valore conservato, e quante colonne al massimo
+ *  per scheda: una cella con un tema dentro, o un file di cento colonne, non
+ *  devono gonfiare la scheda nel database. */
+const MAX_CARATTERI_DATI_FILE = 200;
+const MAX_CHIAVI_DATI_FILE = 40;
+
+/** Traduce un CSV in schede pronte. Quello che non diventa un campo della
+ *  scheda si CONSERVA in `datiFile` e si riporta (`colonneConservate`): così si
+ *  vede subito se una colonna importante è rimasta fuori perché scritta in un
+ *  modo imprevisto, e non si perde niente. */
 export function traduciCsv(testo: string): {
   leads: LeadData[];
+  /** I nomi (quelli di `datiFile`) delle colonne conservate senza essere usate. */
+  colonneConservate: string[];
+  /** ⚠️ da togliere in T8: stessa cosa di `colonneConservate`, tenuta perché
+   *  `PannelloCarica` e `DaFareScheda` continuino a compilare. */
   colonneIgnorate: string[];
   scartate: number;
+  /** Di quante colonne era spostata l'intestazione (0 = a posto). */
+  intestazioniRiallineate: number;
 } {
   const righe = testo.split(/\r?\n/).filter((r) => r.trim().length > 0);
-  if (!righe.length) return { leads: [], colonneIgnorate: [], scartate: 0 };
+  if (!righe.length)
+    return { leads: [], colonneConservate: [], colonneIgnorate: [], scartate: 0, intestazioniRiallineate: 0 };
   const sep = separatore(righe[0]);
-  const intestGrezze = dividiRiga(righe[0], sep);
-  const intest = intestGrezze.map(senzaAccenti);
-
-  const indice: Record<string, number> = {};
-  const fuoriElenco: number[] = [];
-  intest.forEach((h, i) => {
-    const nostro = Object.entries(COLONNE).find(([, alias]) =>
-      alias.some((a) => senzaAccenti(a) === h),
-    );
-    if (nostro && indice[nostro[0]] === undefined) indice[nostro[0]] = i;
-    else if (!nostro && h) fuoriElenco.push(i);
-  });
 
   //  Tutte le righe di dati, divise una volta sola: servono due volte — per
   //  controllare l'intestazione e per costruire le schede — e dividerle due
   //  volte su un file da ottocento righe si sente.
   const dati = righe.slice(1).map((r) => dividiRiga(r, sep));
+  const campione = dati.slice(0, 20);
+
+  /* ── ⚠️ PRIMA SI RIMETTE A POSTO L'INTESTAZIONE, POI SI COSTRUISCE `indice` ─
+     Vedi la nota lunga sopra `riallineaIntestazioni`: se le domande in coda
+     stanno in realtà in mezzo ai dati, `indice` si deve costruire sulle
+     intestazioni già sistemate, altrimenti i campi spostati restano spostati. */
+  const riallineate = riallineaIntestazioni(dividiRiga(righe[0], sep), campione);
+  const intestGrezze = riallineate.intestazioni;
+  const intest = intestGrezze.map(senzaAccenti);
+
+  const indice: Record<string, number> = {};
+  intest.forEach((h, i) => {
+    const nostro = chiaveDellaColonna(h);
+    if (nostro && indice[nostro] === undefined) indice[nostro] = i;
+  });
 
   /* ── ⚠️ L'INTESTAZIONE PROPONE, I DATI DECIDONO ────────────────────────
      Si guardano le prime righe: se sotto la colonna che l'intestazione chiama
@@ -631,7 +847,6 @@ export function traduciCsv(testo: string): {
      nota lunga sopra `colonnaCheContiene`: questo file esiste davvero, ed è
      il motivo per cui una lista di trenta persone entrava con l'email nel
      campo del telefono. */
-  const campione = dati.slice(0, 20);
   /** ⚠️ NON BASTA CHE QUALCHE VALORE COMBACI: la colonna sbagliata ne ha
    *  sempre uno per caso — «nulla» è una parola e passa per un nome. Si chiede
    *  la MAGGIORANZA delle righe, la stessa soglia di `colonnaCheContiene`, e
@@ -639,9 +854,10 @@ export function traduciCsv(testo: string): {
   /*  ── ⚠️ CI SI PUÒ CREDERE, A QUESTA INTESTAZIONE? ──────────────────────
       Serve a decidere una cosa sola ma delicata: se scrivere la DOMANDA
       accanto a una risposta del questionario che non riconosciamo (vedi
-      crm/modulo-lead). Su un file con le intestazioni spostate di una colonna
-      si stamperebbe «in quale zona d'Italia: mattina (9:00–12:00)» dentro la
-      scheda di una persona — e una bugia stampata si crede.
+      crm/modulo-lead) e se dare alle colonne conservate il loro nome. Su un
+      file con le intestazioni spostate si stamperebbe «in quale zona d'Italia:
+      mattina (9:00–12:00)» dentro la scheda di una persona — e una bugia
+      stampata si crede.
       Il verdetto si ricava da quello che stiamo già facendo qui sotto: se una
       colonna che l'intestazione dichiarava (telefono, email, nome) NON
       conteneva quel dato, l'intestazione di questo file non descrive le sue
@@ -667,34 +883,27 @@ export function traduciCsv(testo: string): {
   if (indice.nome === undefined) quadra("nomeCompleto", paNomeIntero);
   //  Nessuna àncora dichiarata vuol dire un'intestazione che non nomina
   //  nemmeno il telefono: non si è verificato niente, e non si scrive niente.
-  const intestazioniAffidabili = ancoreDichiarate > 0 && ancoreSbagliate === 0;
+  const intestazioniAffidabili = riallineate.affidabili && ancoreDichiarate > 0 && ancoreSbagliate === 0;
 
-  /*  ── ⚠️ «COLONNA IGNORATA» DEVE VOLER DIRE IGNORATA ───────────────────
-      Le domande del modulo non hanno un nome di colonna che possiamo
-      prevedere — sono la domanda per esteso, punto interrogativo compreso, e
-      cambiano a ogni modulo — quindi non stanno e non possono stare in
-      `COLONNE`. Ma ADESSO vengono lette (diventano voci della scheda), e
-      continuare a elencarle fra le ignorate direbbe una bugia a chi guarda
-      l'anteprima: cercherebbe un guasto che non c'è.
-      Si riconoscono come si riconoscono le risposte: guardando i valori nelle
-      prime righe, e l'intestazione solo per la domanda che ammette una
-      risposta scritta a mano. */
-  const colonneDelModulo = new Set(
-    fuoriElenco.filter((i) => {
-      if (campione.some((r) => riconosciRisposta((r[i] || "").trim()))) return true;
-      const testa = pulisci(intestGrezze[i] ?? "");
-      if (!!testa && DOMANDE_MODULO.some((d) => d.aMano && d.intestazione.test(testa))) return true;
-      //  Una domanda che non conosciamo, con sotto risposte vere: da oggi si
-      //  legge anche quella (è «tutte le risposte del questionario»), quindi
-      //  non è una colonna ignorata.
-      return (
-        intestazioniAffidabili &&
-        paDomanda(intestGrezze[i] ?? "") &&
-        campione.some((r) => paRisposta((r[i] || "").trim()))
-      );
-    }),
-  );
-  const ignorate = fuoriElenco.filter((i) => !colonneDelModulo.has(i)).map((i) => intestGrezze[i]);
+  /*  ── ⚠️ I NOMI DELLE COLONNE CONSERVATE ───────────────────────────────
+      Con le intestazioni affidabili il nome è l'intestazione, letta da una
+      persona («is_organic» → «is organic»). Se non lo sono, o se la cella
+      d'intestazione è vuota, è «colonna N»: scrivere «full name: alopecia
+      androgenetica» sarebbe stampare una bugia. Un nome ripetuto riceve « (2)». */
+  //  ⚠️ `reduce` e non `Math.max(...)`: con centomila righe lo spread sfora lo stack.
+  const larghezza = dati.reduce((m, r) => Math.max(m, r.length), intestGrezze.length);
+  const nomiColonna: string[] = [];
+  const visti = new Map<string, number>();
+  for (let i = 0; i < larghezza; i++) {
+    const letta = intestazioniAffidabili ? intestazioneLeggibile(intestGrezze[i] ?? "") : "";
+    const base = letta || `colonna ${i + 1}`;
+    const volte = (visti.get(base) ?? 0) + 1;
+    visti.set(base, volte);
+    nomiColonna.push(volte > 1 ? `${base} (${volte})` : base);
+  }
+  const presi = new Set(Object.values(indice));
+  const conservate = new Set<number>();
+  const caricatoIl = new Date().toISOString();
 
   const leads: LeadData[] = [];
   let scartate = 0;
@@ -732,20 +941,21 @@ export function traduciCsv(testo: string): {
         Richiesta del committente: «in base alle domande dentro al lead, ci
         siano anche queste info, ma non nelle note, ma proprio come voce a sé
         stante — così posso tenere traccia bene».
-        Quello che si riconosce (come vive il problema, se ci conosce, zona,
-        quando chiamarlo) entra in `modulo`, dove si può contare e filtrare.
-        Quello che NON si riconosce continua a finire nelle note come prima:
-        buttarlo sarebbe peggio, e inventargli una voce anche. */
-    const modulo = leggiRisposte(
-      intestGrezze,
-      c,
-      new Set(Object.values(indice)),
-      intestazioniAffidabili,
-    );
-    //  ⚠️ Confronto RIPULITO da entrambe le parti: nel file la risposta è
-    //   «abbastanza», nella scheda diventa «Abbastanza», e senza questo la
-    //   stessa risposta finirebbe due volte — una come voce e una nelle note.
-    const dettoDalModulo = new Set((modulo?.risposte ?? []).map((r) => pulisci(r.risposta)));
+        Quello che si riconosce (problema, fastidio, già provato, come vive il
+        problema, se ci conosce, zona, quando chiamarlo) entra in `modulo`, dove
+        si può contare e filtrare. `usate` dice quali colonne ci sono finite:
+        tutte le altre si conservano in `datiFile`. Niente va nelle note. */
+    const usate = new Set<number>();
+    const modulo = leggiRisposte(intestGrezze, c, presi, intestazioniAffidabili, usate);
+    const datiFile: Record<string, string> = {};
+    for (let i = 0; i < c.length; i++) {
+      if (presi.has(i) || usate.has(i)) continue;
+      const valore = (c[i] || "").trim();
+      if (!valore) continue;
+      if (Object.keys(datiFile).length >= MAX_CHIAVI_DATI_FILE) break;
+      datiFile[nomiColonna[i]] = valore.slice(0, MAX_CARATTERI_DATI_FILE);
+      conservate.add(i);
+    }
     const tracking: TrackingInfo = {};
     //  Solo i campi di testo: `source` ha un elenco chiuso di valori e si
     //  scrive più sotto, dove si sa da quale piattaforma arriva.
@@ -774,6 +984,10 @@ export function traduciCsv(testo: string): {
     const piattaforma = senzaAccenti(v("fonte"));
     if (Object.keys(tracking).length && /fb|facebook|ig|instagram|meta/.test(piattaforma))
       tracking.source = "meta";
+    //  ⚠️ La data d'arrivo è del file solo se la cella è piena e leggibile:
+    //   altrimenti `createdAt` è l'ora del caricamento e «arrivato 40 minuti
+    //   fa» sarebbe una bugia su una lista vecchia caricata oggi.
+    const { createdAt, dataDalFile } = dataDellaCella(v("createdAt"));
     leads.push({
       nome,
       cognome,
@@ -785,56 +999,25 @@ export function traduciCsv(testo: string): {
       modulo,
       tracking: Object.keys(tracking).length ? tracking : undefined,
       piattaformaAds: tracking.source === "meta" ? "meta" : undefined,
-      note: v("note") || rispostePerNota(c, indice, dettoDalModulo) || undefined,
-      createdAt: v("createdAt") || new Date().toISOString(),
+      //  Solo la colonna «note» del file: le risposte del modulo non si
+      //  riscrivono qui, sono voci. (Il nome del file lo scrive l'anteprima.)
+      note: v("note") || undefined,
+      datiFile: Object.keys(datiFile).length ? datiFile : undefined,
+      listaOrigine: { file: "", il: caricatoIl, dataDalFile },
+      createdAt: createdAt || new Date().toISOString(),
       consulenteId: null,
       durataMeeting: 45,
       importato: true,
     } as LeadData);
   }
-  return { leads, colonneIgnorate: [...new Set(ignorate)], scartate };
-}
-
-/** ── LE RISPOSTE DEL MODULO, DENTRO LE NOTE ────────────────────────────────
- *  Una lista Meta porta anche le risposte alle domande del modulo — «alopecia
- *  androgenetica», «abbastanza», «nulla» — e sono la cosa più utile che ci sia
- *  per chi poi telefona: sa già con chi sta parlando prima di dire pronto.
- *  Finivano buttate, perché non corrispondono a nessuna nostra colonna.
- *
- *  ⚠️ SENZA L'ETICHETTA DELLA DOMANDA, ed è una scelta: su questo file
- *   l'intestazione è spostata di una colonna (vedi sopra), quindi scrivere
- *   «quanto ti infastidisce: alopecia androgenetica» vorrebbe dire stampare
- *   una bugia dentro la scheda. I valori invece sono giusti comunque. Tre
- *   parole in fila si leggono in un secondo; una domanda sbagliata si legge e
- *   si crede.
- *  ⚠️ E SOLO QUELLE CHE SEMBRANO RISPOSTE: identificativi (`l:`, `ag:`),
- *   date, `true`/`false` e i nomi di campagne e moduli non dicono niente a chi
- *   chiama e riempirebbero la scheda di rumore. */
-function rispostePerNota(
-  riga: string[],
-  indice: Record<string, number>,
-  /*  ⚠️ Quello che è già diventato una VOCE della scheda non si ripete qui:
-      la stessa risposta scritta in due posti diventa, il giorno in cui una
-      delle due si corregge, due risposte diverse — e non si sa più quale
-      valga. */
-  giaVoci: Set<string> = new Set(),
-): string {
-  const presi = new Set(Object.values(indice));
-  const fuori: string[] = [];
-  riga.forEach((valore, i) => {
-    if (presi.has(i)) return;
-    const t = (valore || "").trim();
-    if (riconosciRisposta(t) || giaVoci.has(pulisci(t))) return;
-    if (!t || t.length > 60) return;
-    if (/^\w{1,3}:/.test(t)) return; // l: ag: as: c: f: p:
-    if (/^(true|false)$/i.test(t)) return;
-    if (/\d{4}-\d{2}-\d{2}/.test(t)) return;
-    if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(t)) return; // «Modulo senza titolo 30/11/24»
-    if (/^\d+$/.test(t)) return;
-    if (/[|€]/.test(t)) return; // nomi di campagne e inserzioni
-    fuori.push(t.replace(/_/g, " ").trim());
-  });
-  return fuori.length ? `Dal modulo: ${fuori.join(" · ")}` : "";
+  const colonneConservate = [...conservate].sort((a, b) => a - b).map((i) => nomiColonna[i]);
+  return {
+    leads,
+    colonneConservate,
+    colonneIgnorate: colonneConservate,
+    scartate,
+    intestazioniRiallineate: riallineate.spostamento,
+  };
 }
 
 // ── DIVISIONE DEI LEAD FRA I CONSULENTI ─────────────────────────────────────
