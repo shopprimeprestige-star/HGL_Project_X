@@ -1,5 +1,7 @@
 import { useEffect } from "react";
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouterState } from "@tanstack/react-router";
+import { preload } from "react-dom";
+import { CARATTERE_INTER, usaInter } from "@/lib/carattere";
 /*  ── ⚠️ IL MOTORE DELLA CONSULENZA NON STA PIÙ NEL PEZZO D'AVVIO ──────────
     Misurato: 849 kB il pezzo d'avvio, di cui 400 il motore — caricato su ogni
     pagina, CRM compreso, dove non disegna niente. Adesso arriva a parte: vedi
@@ -159,8 +161,19 @@ m.setAttribute('content','width=device-width, initial-scale=1, maximum-scale=5, 
 document.documentElement.style.zoom='';}}catch(e){}`;
 
 function RootShell({ children }: { children: React.ReactNode }) {
+  /*  ── IL CARATTERE INTER SOLO SULLE ROTTE AMMESSE ──────────────────────
+      L'attributo sta su <html> (così copre anche i portali di menu e finestre)
+      e si calcola dalla pagina RISOLTA, non da quella in arrivo: passando dal
+      CRM a una pagina della chiamata il carattere cambia quando la pagina
+      nuova è pronta, non mentre quella vecchia è ancora a schermo.
+      ⚠️ `data-`, mai `className`: le classi dell'ospite (`hg-guest`,
+       `hg-guest-gated`) le mette lo script d'avvio su <html> e React, a ogni
+       disegno, cancellerebbe quelle che non conosce. Vedi lib/carattere. */
+  const percorso = useRouterState({ select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname });
+  const inter = usaInter(percorso);
+  if (inter) preload(CARATTERE_INTER, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
   return (
-    <html lang="en">
+    <html lang="en" data-carattere={inter ? "inter" : undefined}>
       <head>
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: SPIA_PEZZI }} />

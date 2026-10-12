@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight } from "lucide-react";
+import { Chip } from "./ui";
 import { useCapiHealth } from "./useCapiHealth";
 
 export function CapiHealthAlert() {
@@ -7,7 +8,10 @@ export function CapiHealthAlert() {
   if (h.loading || !h.triggered) return null;
 
   return (
-    <div className="rounded-xl border border-rose-300 bg-gradient-to-br from-rose-50 to-orange-50 p-4 flex flex-wrap gap-3 items-start">
+    <div
+      data-slot="scheda"
+      className="rounded-xl border border-rose-300 bg-rose-50 p-4 flex flex-wrap gap-3 items-start"
+    >
       <AlertTriangle className="h-6 w-6 text-rose-600 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-[260px]">
         <div className="font-semibold text-rose-900 text-[14px]">
@@ -20,12 +24,9 @@ export function CapiHealthAlert() {
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {h.badDays.map((d) => (
-            <span
-              key={d.day}
-              className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 border border-rose-200 text-rose-800 tabular-nums"
-            >
+            <Chip key={d.day} tono="persa" className="py-px leading-4 tabular-nums">
               {d.day}: {d.rate.toFixed(0)}% ({d.capi}/{d.total})
-            </span>
+            </Chip>
           ))}
         </div>
       </div>

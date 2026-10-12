@@ -735,7 +735,10 @@ function DashboardPage() {
             nomeConsulente={nomeConsulente}
           />
         ) : (
-          <section className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-4">
+          <section
+            data-slot="scheda"
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-4"
+          >
             {/*  Il segno di spunta verde vuol dire una cosa sola: non c'è più
                 niente da fare. Se qualcosa c'è ancora — arretrato, ricontatti,
                 pose senza data — il verde è una rassicurazione falsa, e si
@@ -1115,6 +1118,7 @@ function DashboardPage() {
                 principale={
                   <Button
                     size="sm"
+                    variant="outline"
                     className="h-8 shrink-0 text-[11.5px]"
                     onClick={() => apriInstallazione(l)}
                   >
@@ -1223,12 +1227,13 @@ function Salto({
       onClick={onClick}
       title={titolo}
       aria-label={titolo ?? `${n} ${etichetta}`}
+      data-slot="scheda"
       className={`rounded-xl border px-2.5 py-2 text-left transition hover:brightness-95 ${colore}`}
     >
       <div className="text-[19px] font-semibold leading-none tabular-nums">{n}</div>
       <div className="mt-1 truncate text-[11px] font-medium opacity-80">{etichetta}</div>
       {nota ? (
-        <div className="truncate text-[10px] font-medium uppercase tracking-wide opacity-55">
+        <div className="truncate text-[11px] font-medium uppercase tracking-wide opacity-55">
           {nota}
         </div>
       ) : null}
@@ -1252,6 +1257,7 @@ function Totale({
   return (
     <Link
       to={to}
+      data-slot="scheda"
       className="rounded-xl border border-border bg-card px-3 py-2.5 transition hover:border-foreground/25"
     >
       <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

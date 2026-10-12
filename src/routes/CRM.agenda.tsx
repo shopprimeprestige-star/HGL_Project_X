@@ -364,7 +364,7 @@ function CellaGiorno({
           className={cn(
             "flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 text-[13px] font-semibold leading-none tabular-nums",
             g.oggi
-              ? "bg-sky-600 text-white"
+              ? "bg-primary text-primary-foreground"
               : !g.nelMese
                 ? "text-muted-foreground/50"
                 : g.passato
@@ -787,14 +787,8 @@ function AgendaPage() {
           classeCorpo="p-2.5 sm:p-4"
         >
           <div className="mb-1.5 grid grid-cols-7 gap-1 sm:gap-1.5">
-            {DOW_SHORT.map((d, i) => (
-              <div
-                key={d}
-                className={cn(
-                  "py-1 text-center text-[11px] font-medium",
-                  i >= 5 ? "text-muted-foreground/60" : "text-muted-foreground",
-                )}
-              >
+            {DOW_SHORT.map((d) => (
+              <div key={d} className="py-1 text-center text-[11px] font-medium text-muted-foreground">
                 {d}
               </div>
             ))}
@@ -831,7 +825,7 @@ function AgendaPage() {
               esiti da segnare
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-sky-600 text-[10px] font-semibold text-white">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                 {oggi.getDate()}
               </span>
               oggi

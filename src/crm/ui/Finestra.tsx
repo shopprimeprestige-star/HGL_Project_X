@@ -205,12 +205,12 @@ export function Finestra({
           className={cn(
             // telefono: foglio dal basso, a tutta larghezza
             "fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] w-full flex-col overflow-hidden outline-none",
-            "rounded-t-2xl border-t shadow-2xl",
+            "rounded-t-xl border-t shadow-galleggiante",
             FONDO_FINESTRA,
             BORDO_FINESTRA,
             // desktop: finestra centrata
             "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[88vh] sm:w-[calc(100%-2rem)]",
-            "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border",
+            "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:border",
             // entrata/uscita: dal basso sul telefono, in dissolvenza sul desktop
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
@@ -280,7 +280,7 @@ export function Foglio({
           className={cn(
             // telefono: foglio dal basso
             "fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] w-full flex-col overflow-hidden outline-none",
-            "rounded-t-2xl border-t shadow-2xl",
+            "rounded-t-xl border-t shadow-galleggiante",
             FONDO_FINESTRA,
             BORDO_FINESTRA,
             // desktop: colonna a destra, tutta altezza
@@ -342,7 +342,7 @@ export function Pannello({
     <PopoverContent
       sideOffset={6}
       className={cn(
-        "z-50 w-72 overflow-hidden rounded-xl border p-0 shadow-lg",
+        "z-50 w-72 overflow-hidden rounded-xl border p-0 shadow-galleggiante",
         FONDO_FINESTRA,
         BORDO_FINESTRA,
         className,

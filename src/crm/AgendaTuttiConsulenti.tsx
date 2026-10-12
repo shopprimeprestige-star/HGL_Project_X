@@ -526,7 +526,7 @@ export function AgendaTuttiConsulenti({
               <thead>
                 <tr>
                   <th
-                    className="sticky left-0 top-0 z-30 w-14 min-w-14 border-b border-r border-border bg-card text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                    className="sticky left-0 top-0 z-30 w-14 min-w-14 border-b border-r border-border bg-card text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
                     style={{ height: ROW_H }}
                   >
                     Ora
@@ -563,14 +563,14 @@ export function AgendaTuttiConsulenti({
                           "sticky left-0 z-10 border-b border-r border-border bg-card text-center align-middle tabular-nums",
                           isOra
                             ? "text-[11px] font-semibold text-foreground"
-                            : "text-[10.5px] text-muted-foreground",
+                            : "text-[11px] text-muted-foreground",
                         )}
                         style={{ height: ROW_H }}
                       >
                         <span className="inline-flex items-center gap-1">
                           {adesso && (
                             <span
-                              className="h-1.5 w-1.5 rounded-full bg-sky-500"
+                              className="h-1.5 w-1.5 rounded-full bg-primary"
                               title="Siamo qui"
                             />
                           )}
@@ -610,7 +610,7 @@ export function AgendaTuttiConsulenti({
                                   aria-hidden
                                 />
                                 <span className="min-w-0 flex-1">
-                                  <span className="flex items-center gap-1 text-[10.5px] font-semibold tabular-nums text-muted-foreground">
+                                  <span className="flex items-center gap-1 text-[11px] font-semibold tabular-nums text-muted-foreground">
                                     <Icon className="h-3 w-3 shrink-0" />
                                     {fmtMin(ev.startMin)}–{fmtMin(ev.endMin)}
                                   </span>
@@ -660,11 +660,11 @@ export function AgendaTuttiConsulenti({
           {/* Legenda: senza, il tratteggio e il grigio si leggono allo stesso modo */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded border border-dashed border-border" />
+              <span className="h-3 w-3 rounded-md border border-dashed border-border" />
               libero, premi per fissare
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded border border-border bg-muted" />
+              <span className="h-3 w-3 rounded-md border border-border bg-muted" />
               fuori orario, pausa, indisponibilità o tempo di strada
             </span>
             <span className="inline-flex items-center gap-1.5">

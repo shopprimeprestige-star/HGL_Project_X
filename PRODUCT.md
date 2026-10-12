@@ -66,8 +66,8 @@ non è la scelta giusta.
 
 - Logo: `src/assets/logo-hair-genius.png`, `src/assets/logo-hair-genius-dark.png`.
 - Contenuti della landing modificabili dal CRM (LandingContentEditor) e video recensioni nella homepage.
-- **Da non inventare:** il punteggio Trustpilot sul sito non è verificato (sospeso dal titolare);
-  niente numeri, recensioni, casi o prezzi che non vengano dal titolare. Nei contenuti pubblici il
+- **Da non inventare:** recensioni, punteggi e numeri si usano solo se il titolare li conferma con la
+  fonte; niente numeri, recensioni, casi o prezzi che non vengano dal titolare. Nei contenuti pubblici il
   prezzo non si scrive mai (il preventivo in chiamata è un'altra cosa).
 
 ## Product Principles
