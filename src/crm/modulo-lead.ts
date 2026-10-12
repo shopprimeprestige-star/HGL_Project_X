@@ -159,10 +159,9 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
       { id: "lozioni", nome: "Lozioni", tono: "buono", testi: ["lozioni"], quando: /lozion/ },
       { id: "farmaci", nome: "Farmaci", tono: "buono", testi: ["farmaci"], quando: /farmac/ },
       //  Aggiunte dopo la misura sui lead veri (27 schede): sono due opzioni vere del
-      //  modulo. Tono «medio» e non «buono»: la definizione di lead caldo (piano,
-      //  decisione 2) elenca solo trapianto, lozioni e farmaci.
-      { id: "tricologia", nome: "Tricologia / PRP / polverine", tono: "medio", testi: ["tricologia / prp / polverine"], quando: /tricologi|\bprp\b|polverin/ },
-      { id: "tricopigmentazione", nome: "Tricopigmentazione", tono: "medio", testi: ["trico-pigmentazione (tatuaggio)"], quando: /trico[- ]?pigmentazion|tatuagg/ },
+      //  modulo. Come le altre, valgono un lead caldo («ha già provato qualcosa»).
+      { id: "tricologia", nome: "Tricologia / PRP / polverine", tono: "buono", testi: ["tricologia / prp / polverine"], quando: /tricologi|\bprp\b|polverin/ },
+      { id: "tricopigmentazione", nome: "Tricopigmentazione", tono: "buono", testi: ["trico-pigmentazione (tatuaggio)"], quando: /trico[- ]?pigmentazion|tatuagg/ },
     ],
   },
   {

@@ -120,9 +120,11 @@ export function eCaldo(m?: RisposteModulo): boolean {
     m.fastidio === "abbastanza" ||
     m.urgenza === "subito" ||
     m.urgenza === "valutando" ||
-    m.giaFatto === "trapianto" ||
-    m.giaFatto === "lozioni" ||
-    m.giaFatto === "farmaci"
+    //  ⚠️ «Ha già provato QUALCOSA»: ogni risposta tranne «niente». Così
+    //   tricologia e tricopigmentazione (aggiunte dopo la misura sui lead
+    //   veri) scaldano come trapianto, lozioni e farmaci, e una risposta
+    //   nuova del modulo non resta fredda per una riga dimenticata.
+    (!!m.giaFatto && m.giaFatto !== "niente")
   );
 }
 

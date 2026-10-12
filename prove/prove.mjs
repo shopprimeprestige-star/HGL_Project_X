@@ -16985,6 +16985,15 @@ function proveDelleCorrezioniKpi() {
     ["BROAD | ITALIA", undefined],
   ];
   for (const [frase, atteso] of COME_PRIMA) c(`come prima: «${frase}»`, atteso, dove(frase));
+
+  /*  ── «CALDO» = HA GIÀ PROVATO QUALCOSA ──────────────────────────────
+      Decisione del titolare: le due risposte aggiunte rendono il lead caldo
+      come trapianto, lozioni e farmaci. «Niente» no. */
+  const { eCaldo } = CHIAM;
+  for (const id of ["trapianto", "lozioni", "farmaci", "tricologia", "tricopigmentazione"])
+    c(`già provato «${id}»: caldo`, true, eCaldo({ giaFatto: id }));
+  c("già provato «niente»: non basta", false, eCaldo({ giaFatto: "niente" }));
+  c("e senza nessun già provato nemmeno", false, eCaldo({ problema: "areata" }));
 }
 
 proveDeiTipi();
