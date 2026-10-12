@@ -848,7 +848,7 @@ function FinestraRicerca({
            pieno quando il tema sbagliato vinceva la gara. */}
         <DialogContent
           className={cn(
-            "crm-theme gap-0 overflow-hidden p-0 shadow-2xl [&>button]:hidden",
+            "crm-theme gap-0 overflow-hidden p-0 shadow-galleggiante! [&>button]:hidden",
             FONDO_FINESTRA,
             BORDO_FINESTRA,
             //  TELEFONO: foglio dal basso come tutte le altre finestre — la
@@ -856,10 +856,10 @@ function FinestraRicerca({
             //  con ⌘K, e una finestra centrata lascerebbe i risultati sotto la
             //  tastiera che si apre da sola.
             "inset-x-0 bottom-0 top-auto max-w-none translate-x-0 translate-y-0",
-            "rounded-b-none rounded-t-2xl",
+            "rounded-b-none rounded-t-xl",
             //  DA TABLET IN SU: finestra centrata.
             "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-w-2xl",
-            "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl",
+            "sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl",
           )}
           /*  ESC TORNA INDIETRO DI UN PASSO, NON CHIUDE TUTTO.
               Va intercettato QUI e non nei pannelli: Radix ascolta Escape sul
@@ -1552,7 +1552,7 @@ function Evidenzia({ testo, pezzi }: { testo: string; pezzi: Pezzi | null }) {
   return (
     <>
       {pezzi[0]}
-      <span className="rounded-[3px] bg-sky-100 text-slate-900">{pezzi[1]}</span>
+      <span className="rounded-md bg-sky-100 text-slate-900">{pezzi[1]}</span>
       {pezzi[2]}
     </>
   );

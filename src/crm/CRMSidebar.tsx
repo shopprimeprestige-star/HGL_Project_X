@@ -1178,7 +1178,7 @@ export function CRMSidebar() {
             {/* A barra chiusa l'etichetta sparisce da sola (classe della UI):
                 al suo posto la riga di separazione tiene i gruppi distinti. */}
             {collapsed && i > 0 ? <SidebarSeparator className="my-1" /> : null}
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-wider">
+            <SidebarGroupLabel className="text-[11px] uppercase tracking-wider">
               {gruppo.titolo}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -1227,7 +1227,10 @@ export function CRMSidebar() {
                               A barra chiusa non serve: lì l'unica icona con lo
                               sfondo acceso è già inequivocabile. */}
                           {attiva && !collapsed && (
-                            <span className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-sky-500" />
+                            <span
+                              data-slot="indicatore-attivo"
+                              className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-primary"
+                            />
                           )}
                           <voce.icon className="h-4 w-4" />
                           {collapsed ? (
@@ -1269,7 +1272,7 @@ export function CRMSidebar() {
           <div className="flex items-center gap-1.5 px-2 pt-1 text-[11px] text-muted-foreground">
             <span className="truncate">{user.email}</span>
             {isAdmin && (
-              <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
                 ADMIN
               </span>
             )}

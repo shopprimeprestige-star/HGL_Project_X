@@ -9,8 +9,11 @@
  *  Qui il linguaggio visivo è definito UNA volta e importato ovunque.
  *
  *  REGOLE DEL LINGUAGGIO VISIVO (valgono per tutte le pagine)
- *   · Raggi:      schede e riquadri numerici rounded-xl · pastiglia di stato e
- *                 controlli rounded-md · filtri a segmento rounded-lg
+ *   · Raggi:      schede e riquadri numerici rounded-xl · etichette e badge
+ *                 rounded-full · controlli rounded-md · filtri a segmento
+ *                 rounded-lg
+ *   · Ombre:      nessuna sulle schede (il CRM è piatto); solo shadow-galleggiante
+ *                 per ciò che sta sopra la pagina
  *   · Spaziature: pagina p-4 md:p-6 · dentro le schede px-3/px-4 py-2.5 ·
  *                 gap fra blocchi 4
  *   · Testo:      titolo pagina 1.25rem/600 · titolo blocco 13px/600 ·
@@ -110,7 +113,7 @@ export const ETICHETTA_STATO: Record<LeadStatus, string> = LEAD_STATUS_LABEL;
  *  la forma è una sola, e chi la vede sa già che si può premere.
  *  Il colore NON sta qui: si aggiunge con classiStato(stato). */
 export const CLASSE_BADGE_STATO =
-  "inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 text-[11px] font-medium leading-5";
+  "inline-flex max-w-full items-center gap-1 rounded-full border px-2 text-[11px] font-medium leading-5";
 
 /** Etichetta di uno stato, con rete di sicurezza: se un giorno arriva dal DB
  *  uno stato che qui non è mappato, si mostra il valore grezzo invece di una
@@ -311,6 +314,7 @@ export function BadgeCarico({
   const carico = caricoGiornata(n);
   return (
     <span
+      data-slot="etichetta"
       //  Il titolo dice QUANTI, non che cosa converrebbe fare: il commento sulla
       //  giornata è stato tolto apposta (vedi sopra).
       title={titolo ?? `${n} in agenda`}
@@ -347,6 +351,7 @@ export function Chip({
 } & Omit<HTMLAttributes<HTMLSpanElement>, "children">) {
   return (
     <span
+      data-slot="etichetta"
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5",
         "text-[11px] font-medium leading-5 whitespace-nowrap",
@@ -372,7 +377,7 @@ export function ChipStato({
   className?: string;
 }) {
   return (
-    <span className={cn(CLASSE_BADGE_STATO, classiStato(stato), className)}>
+    <span data-slot="etichetta" className={cn(CLASSE_BADGE_STATO, classiStato(stato), className)}>
       <span className="truncate">{etichettaStato(stato)}</span>
     </span>
   );
@@ -405,9 +410,10 @@ export function ChipAttesa({
   if (!attesa) return null;
   return (
     <span
+      data-slot="etichetta"
       className={cn(
-        "inline-flex shrink-0 items-center rounded border font-semibold",
-        grande ? "px-2 py-0.5 text-[12px]" : "px-1.5 py-px text-[10.5px]",
+        "inline-flex shrink-0 items-center rounded-full border font-semibold",
+        grande ? "px-2 py-0.5 text-[12px]" : "px-2 py-px text-[11px]",
         CLASSI_ATTESA[attesa.tono],
         className,
       )}
@@ -482,10 +488,11 @@ export function Badge({
   if (!testo && (!n || n <= 0)) return null;
   return (
     <span
+      data-slot="etichetta"
       title={titolo}
       className={cn(
         "inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1",
-        "text-[10.5px] font-semibold leading-none tabular-nums",
+        "text-[11px] font-medium leading-none tabular-nums",
         CLASSI_BADGE[urgenza],
         className,
       )}
@@ -549,7 +556,7 @@ export function Segmento({
       {conteggio !== undefined && (
         <span
           className={cn(
-            "rounded px-1 text-[11px] font-semibold tabular-nums",
+            "rounded-md px-1 text-[11px] font-semibold tabular-nums",
             attivo ? "bg-background/20" : "bg-muted text-muted-foreground",
           )}
         >
@@ -677,7 +684,10 @@ export function Scheda({
   children?: ReactNode;
 }) {
   return (
-    <section className={cn("overflow-hidden rounded-xl border border-border bg-card", className)}>
+    <section
+      data-slot="scheda"
+      className={cn("overflow-hidden rounded-xl border border-border bg-card", className)}
+    >
       {(titolo || azioni) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2">
@@ -727,6 +737,7 @@ export function Kpi({
   const Elemento = onClick ? "button" : "div";
   return (
     <Elemento
+      data-slot="scheda"
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
@@ -831,8 +842,8 @@ export function Tasto({ children, className }: { children: ReactNode; className?
   return (
     <kbd
       className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1.5",
-        "font-sans text-[10px] font-medium text-muted-foreground",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-border bg-muted px-1.5",
+        "font-sans text-[11px] font-medium text-muted-foreground",
         className,
       )}
     >
@@ -1878,7 +1889,7 @@ export function BarraSelezione({
     <div
       className={cn(
         "sticky bottom-4 z-30 mx-auto flex w-fit max-w-full flex-wrap items-center gap-2",
-        "rounded-2xl border border-white/10 bg-slate-900 px-2.5 py-2 text-white shadow-xl",
+        "rounded-xl border border-white/10 bg-slate-900 px-2.5 py-2 text-white shadow-galleggiante",
         "ring-1 ring-black/5",
         className,
       )}
@@ -2082,7 +2093,7 @@ export function AiutoScorciatoie({
           onClick={() => onCambia(false)}
         >
           <div
-            className="w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-lg"
+            className="w-full max-w-sm rounded-xl border border-border bg-card p-4 shadow-galleggiante"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between">
