@@ -34,6 +34,7 @@ import { leadRevenue, shouldDispatchLeadToAds } from "./lead-analytics";
 import { codiceStanzaDi, haStanzaNostra, impostaLinkPreventivi } from "./whatsapp";
 import { linkPerOgniCliente } from "./preventivi/link-nei-messaggi";
 import { copiaAttendibile, filoDellArchivio, fondiSchede } from "./copia-archivio";
+import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, type Motivo } from "./rinfresco-archivio";
 //  Chi ha PRESO l'appuntamento (≠ chi ha toccato lo stato per ultimo, ≠ chi lo
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
@@ -576,6 +577,51 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  /*  ── ⚠️ L'ELENCO SI AGGIORNA ANCHE SUL TELEFONO ────────────────────────
+      Segnalazione del committente: «quando fisso un meet sul PC i lead si
+      tolgono, ma sul telefono non si aggiorna». I salvataggi c'erano: era
+      l'elenco dell'altro dispositivo a restare quello dell'apertura, perché
+      si rileggeva solo al segnale del tempo reale — che il telefono perde a
+      schermo spento. Si rilegge quindi tornando sulla pagina, tornando in
+      rete e ogni minuto mentre la pagina si guarda (regola e perché in
+      crm/rinfresco-archivio). Una rilettura alla volta: se ne parte una
+      mentre l'altra è in corso, la seconda non parte. */
+  const reloadAttuale = useRef(reload);
+  reloadAttuale.current = reload;
+  useEffect(() => {
+    if (!user || typeof window === "undefined") return;
+    let ultima = Date.now();
+    let inCorso = false;
+    const prova = (motivo: Motivo) => {
+      const adesso = Date.now();
+      if (inCorso) return;
+      if (!daRileggere({ motivo, visibile: document.visibilityState === "visible", ultima, adesso }))
+        return;
+      ultima = adesso;
+      inCorso = true;
+      void reloadAttuale
+        .current()
+        .catch(() => {
+          /* rete assente: si riprova al prossimo giro */
+        })
+        .finally(() => {
+          inCorso = false;
+        });
+    };
+    const alRitorno = () => prova("ritorno");
+    const allaRete = () => prova("rete");
+    document.addEventListener("visibilitychange", alRitorno);
+    window.addEventListener("pageshow", alRitorno);
+    window.addEventListener("online", allaRete);
+    const orologio = window.setInterval(() => prova("orologio"), RILEGGI_OGNI_MS);
+    return () => {
+      document.removeEventListener("visibilitychange", alRitorno);
+      window.removeEventListener("pageshow", alRitorno);
+      window.removeEventListener("online", allaRete);
+      clearInterval(orologio);
+    };
+  }, [user]);
 
   /*  ── ⚠️ QUANTE PERSONE STANNO IN UNA FASCIA, LETTO UNA VOLTA SOLA ──────
       Richiesta del committente: «fai che posso cambiare il numero dalle

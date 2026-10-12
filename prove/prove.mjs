@@ -422,6 +422,8 @@ const MODULI = [
   //  ⚠️ L'archivio del CRM non si riscarica tutto a ogni apertura.
   //   Vedi proveDellaCopiaArchivio.
   "copia-archivio",
+  //  ⚠️ L'elenco si aggiorna anche sul telefono. Vedi proveDelRinfresco.
+  "rinfresco-archivio",
   //  ⚠️ Quando serve il motore della consulenza (400 kB): vedi proveDelMotore.
   "shop/link-ospite",
   //  ⚠️ Un link per ciascuno dentro la stessa stanza. Vedi
@@ -587,6 +589,7 @@ const RITMO = mod["shop/ritmo-registrazione"];
 const SCATOLA = mod["shop/scatola-chiamata"];
 const LEN = mod["shop/lentezza"];
 const COP = mod["copia-archivio"];
+const RINF = mod["rinfresco-archivio"];
 const LNK = mod["shop/link-ospite"];
 const RIL = mod["shop/resta-in-lista"];
 const GAR = mod["shop/garanzia-codici"];
@@ -15422,6 +15425,22 @@ function proveDellaScatolaNera() {
   c("una riga non supera i 600 caratteri", true, rigaChiamata({ campioni: Array.from({ length: 30 }, (_, i) => ({ pid: "p" + i })) }).length <= 600);
 }
 
+/** ── L'ELENCO SI AGGIORNA ANCHE SUL TELEFONO ───────────────────────────────
+ *  «Fisso un meet sul PC, sul telefono non si aggiorna»: la rilettura non può
+ *  dipendere solo dal segnale del tempo reale. Vedi crm/rinfresco-archivio. */
+function proveDelRinfresco() {
+  const { daRileggere, OGNI_MS, MINIMO_FRA_RILETTURE_MS } = RINF;
+  gruppo("L'ELENCO SI AGGIORNA ANCHE SUL TELEFONO");
+  const t = 1_000_000;
+  c("tornando sulla pagina si rilegge", true, daRileggere({ motivo: "ritorno", visibile: true, ultima: t - 30_000, adesso: t }));
+  c("tornando in rete si rilegge", true, daRileggere({ motivo: "rete", visibile: true, ultima: t - 30_000, adesso: t }));
+  c("una pagina che non si vede non chiede niente", false, daRileggere({ motivo: "orologio", visibile: false, ultima: 0, adesso: t }));
+  c("due riletture attaccate sono una", false, daRileggere({ motivo: "ritorno", visibile: true, ultima: t - (MINIMO_FRA_RILETTURE_MS - 1), adesso: t }));
+  c("l'orologio rilegge dopo un minuto", true, daRileggere({ motivo: "orologio", visibile: true, ultima: t - OGNI_MS, adesso: t }));
+  c("l'orologio non rilegge se l'ha appena fatto il ritorno", false, daRileggere({ motivo: "orologio", visibile: true, ultima: t - 20_000, adesso: t }));
+  c("mai riletto: si rilegge", true, daRileggere({ motivo: "orologio", visibile: true, ultima: 0, adesso: t }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15448,6 +15467,7 @@ proveDelCarattere();
 proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
+proveDelRinfresco();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
