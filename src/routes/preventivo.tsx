@@ -6387,7 +6387,7 @@ function QuoteBuilder() {
               pagina la corrispondenza saltava e il cliente non riusciva più a
               seguirti. Come per le schede-opzione affiancate, un blocco che cambia
               posizione fra i due layout non può fare da riferimento. */}
-          <section className="lg:hidden">
+          <section id="riepilogo-telefono" className="scroll-mt-20 lg:hidden">
             <div className="rounded-2xl border border-brand/40 bg-brand/[0.07] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
               <Summary
                 soloConsulente={isViewer}
@@ -6489,80 +6489,93 @@ function QuoteBuilder() {
           <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
             {/* Fondo pieno: quello che scorre sotto non traspare dietro la cifra. */}
             <div className="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-brand/40 bg-[#081a3d] shadow-[0_-10px_44px_rgba(0,0,0,.5)]">
-              <div className="relative px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="hg-pulse-ring absolute inset-0 rounded-full bg-brand" />
-                      <span className="relative h-1.5 w-1.5 rounded-full bg-brand" />
+              <div className="relative flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="hg-pulse-ring absolute inset-0 rounded-full bg-brand" />
+                        <span className="relative h-1.5 w-1.5 rounded-full bg-brand" />
+                      </span>
+                      Totale stimato
                     </span>
-                    Totale stimato
-                  </span>
-                  {/*  ── ⚠️ IL 35% DELLA GARANZIA QUI NON SI VEDE ──────────
-                       Decisione del committente: «quello di default del 35%
-                       fai che lo mostra solo nel riepilogo prima di confermare
-                       e poi nel preventivo sotto, nel badge garanzia 15 mesi.
-                       E non fa nulla sullo sticky».
-                       Ha ragione: questa barra è il PREZZO, e un prezzo
-                       barrato che compare da solo, senza il riquadro che lo
-                       spiega, si legge come un listino gonfiato. Il barrato e
-                       la pastiglia del risparmio restano per gli sconti che
-                       hanno un perché visibile qui — un codice, la quantità.
-                       ⚠️ E il barrato è il prezzo VERO di partenza di questi
-                        sconti (totale + quello che tolgono), non il lordo
-                        pieno: scrivere il lordo mentre una parte dello sconto
-                        non è nominata farebbe un conto che non torna. */}
-                  {discountEur > 0 && (
-                    <span className={`${BARRATO_CLASSI} text-[15px]`}>
-                      {formatPrice(gross)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-1 flex items-end justify-between gap-3">
-                  <span
-                    key={total}
-                    className="hg-price-pop text-[30px] font-extrabold leading-none tracking-tight text-white"
-                  >
-                    {formatPrice(total)}
-                  </span>
-                  {discountEur > 0 && (
-                    /* niente icona: su schermi stretti finiva a capo sopra la
-                       cifra e sembrava un elemento staccato */
-                    <span
-                      key={`s${discountEur}`}
-                      className="hg-price-pop mb-0.5 whitespace-nowrap rounded-lg bg-emerald-400/15 px-2.5 py-1 text-[12px] font-bold text-emerald-300 ring-1 ring-emerald-400/25"
-                    >
-                      −{formatPrice(discountEur)}
-                    </span>
-                  )}
-                </div>
-
-                {/*  ── ⚠️ IL SECONDO IMPIANTO — UNA RIGA SUA, NON UN BARRATO
-                     SU QUESTO PREZZO ────────────────────────────────────
-                     Richiesta del committente: «non fa che cancella il prezzo
-                     attuale, ma crea una nuova riga dopo che dice prezzo
-                     intero cancellato e mette quello che pagherà».
-                     Sono due cose che non c'entrano niente: quanto paga OGGI e
-                     quanto pagherà per il SECONDO. Barrare il primo per
-                     annunciare il secondo vuol dire promettere uno sconto su
-                     ciò che sta per firmare — e alla firma, quando il conto
-                     non torna, quella riga è scritta nel suo preventivo. */}
-                {secondoImpianto && (
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-emerald-400/20 pt-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
-                      Dal secondo impianto
-                    </span>
-                    <span className="flex items-baseline gap-2">
-                      {secondoImpianto.risparmio > 0 && (
-                        <span className={`${BARRATO_CLASSI} text-[13px]`}>{formatPrice(gross)}</span>
-                      )}
-                      <b className="text-[17px] font-extrabold leading-none text-emerald-300">
-                        {formatPrice(secondoImpianto.prezzo)}
-                      </b>
-                    </span>
+                    {/*  ── ⚠️ IL 35% DELLA GARANZIA QUI NON SI VEDE ──────────
+                         Decisione del committente: «quello di default del 35%
+                         fai che lo mostra solo nel riepilogo prima di confermare
+                         e poi nel preventivo sotto, nel badge garanzia 15 mesi.
+                         E non fa nulla sullo sticky».
+                         Ha ragione: questa barra è il PREZZO, e un prezzo
+                         barrato che compare da solo, senza il riquadro che lo
+                         spiega, si legge come un listino gonfiato. Il barrato e
+                         la pastiglia del risparmio restano per gli sconti che
+                         hanno un perché visibile qui — un codice, la quantità.
+                         ⚠️ E il barrato è il prezzo VERO di partenza di questi
+                          sconti (totale + quello che tolgono), non il lordo
+                          pieno: scrivere il lordo mentre una parte dello sconto
+                          non è nominata farebbe un conto che non torna. */}
+                    {discountEur > 0 && (
+                      <span className={`${BARRATO_CLASSI} text-[15px]`}>
+                        {formatPrice(gross)}
+                      </span>
+                    )}
                   </div>
-                )}
+
+                  <div className="mt-1 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                    <span
+                      key={total}
+                      className="hg-price-pop text-[30px] font-extrabold leading-none tracking-tight text-white"
+                    >
+                      {formatPrice(total)}
+                    </span>
+                    {discountEur > 0 && (
+                      /* niente icona: su schermi stretti finiva a capo sopra la
+                         cifra e sembrava un elemento staccato */
+                      <span
+                        key={`s${discountEur}`}
+                        className="hg-price-pop mb-0.5 whitespace-nowrap rounded-lg bg-emerald-400/15 px-2.5 py-1 text-[12px] font-bold text-emerald-300 ring-1 ring-emerald-400/25"
+                      >
+                        −{formatPrice(discountEur)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/*  ── ⚠️ IL SECONDO IMPIANTO — UNA RIGA SUA, NON UN BARRATO
+                       SU QUESTO PREZZO ────────────────────────────────────
+                       Richiesta del committente: «non fa che cancella il prezzo
+                       attuale, ma crea una nuova riga dopo che dice prezzo
+                       intero cancellato e mette quello che pagherà».
+                       Sono due cose che non c'entrano niente: quanto paga OGGI e
+                       quanto pagherà per il SECONDO. Barrare il primo per
+                       annunciare il secondo vuol dire promettere uno sconto su
+                       ciò che sta per firmare — e alla firma, quando il conto
+                       non torna, quella riga è scritta nel suo preventivo. */}
+                  {secondoImpianto && (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-emerald-400/20 pt-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
+                        Dal secondo impianto
+                      </span>
+                      <span className="flex items-baseline gap-2">
+                        {secondoImpianto.risparmio > 0 && (
+                          <span className={`${BARRATO_CLASSI} text-[13px]`}>{formatPrice(gross)}</span>
+                        )}
+                        <b className="text-[17px] font-extrabold leading-none text-emerald-300">
+                          {formatPrice(secondoImpianto.prezzo)}
+                        </b>
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* Il passo successivo: porta al riepilogo in fondo (lì c'è «Crea il tuo
+                    preventivo»). Solo un'ancora, nessun codice: il tocco è di 44 px e,
+                    sotto i 360 px, resta l'icona con il nome per il lettore di schermo. */}
+                <a
+                  href="#riepilogo-telefono"
+                  aria-label="Vai al riepilogo"
+                  className="flex min-h-[44px] min-w-[76px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand px-3 text-[13px] font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white max-[359px]:min-w-[44px] max-[359px]:px-0"
+                >
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                  <span className="max-[359px]:sr-only">Riepilogo</span>
+                </a>
               </div>
             </div>
           </div>
