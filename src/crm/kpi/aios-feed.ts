@@ -51,6 +51,33 @@ export interface Frazione {
   d: Conteggio;
 }
 
+/** ── TESTO CHE ARRIVA DA FUORI ─────────────────────────────────────────────
+ *  Nomi di annunci e campagne li scrive chi crea l'inserzione su Meta o TikTok
+ *  e finiscono davanti ad AIOS (un modello): niente a capo, caratteri di
+ *  controllo, invisibili o di direzione del testo, niente `<` `>` o apici
+ *  inversi che sembrino markup o istruzioni. Uno spazio, mai un buco:
+ *  «a\nb» non deve diventare «ab». Massimo 80 caratteri. */
+const CARATTERI_STRANI = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g;
+export function testoSicuro(valore: unknown): string {
+  return String(valore ?? "")
+    .normalize("NFKC")
+    .replace(CARATTERI_STRANI, " ")
+    .replace(/[<>`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80)
+    .trim();
+}
+
+/** L'id di un annuncio Meta o TikTok è solo numerico. Qualunque altra cosa
+ *  (testo libero scritto in un campo di tracciamento) non è un annuncio: il
+ *  lead conta come «senza annuncio». */
+const AD_ID_VALIDO = /^\d{6,25}$/;
+const adIdSicuro = (v: unknown): string => {
+  const t = String(v ?? "").trim();
+  return AD_ID_VALIDO.test(t) ? t : "";
+};
+
 /** La maschera della privacy. 0 resta 0, da 1 a 4 diventa "<5". */
 export function maschera(n: number): Conteggio {
   return n > 0 && n < SOGLIA_MIN ? "<5" : n;
@@ -341,7 +368,8 @@ function leggi(l: Lead, pubblici: Record<string, AnnuncioPubblico>): LeadLetto {
   const fase = fasePer(d.stato);
   const idPubblico = d.publicLeadId;
   // L'annuncio: prima quello copiato sul lead, poi quello della riga pubblica.
-  const adId = String(d.tracking?.ad_id || (idPubblico ? pubblici[idPubblico]?.ad_id : "") || "").trim();
+  //  Se l'id copiato sulla scheda non è valido si prova quello della riga pubblica.
+  const adId = adIdSicuro(d.tracking?.ad_id) || adIdSicuro(idPubblico ? pubblici[idPubblico]?.ad_id : "");
   return {
     l,
     giorno: giornoRoma(d.createdAt),
@@ -382,7 +410,12 @@ export interface KpiFeed {
   lead_fissate: Frazione;
 }
 
-const frazione = (n: number, d: number): Frazione => ({ n: maschera(n), d: maschera(d) });
+/** Se i «mancanti» (d - n) sono 1-4 si maschera anche n: altrimenti d e n
+ *  permetterebbero di ricavare il numero nascosto per sottrazione. */
+const frazione = (n: number, d: number): Frazione => ({
+  n: n > 0 && d - n >= 1 && d - n < SOGLIA_MIN ? "<5" : maschera(n),
+  d: maschera(d),
+});
 
 function kpi(righe: LeadLetto[], spesa: ReturnType<typeof sommaSpesa>): KpiFeed {
   const conteggiabili = righe.filter((r) => r.conteggiabile);
@@ -449,6 +482,8 @@ const mediana = (v: number[]): number | null => {
   const m = Math.floor(o.length / 2);
   return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
 };
+/** Una mediana su 1-4 valori è quasi il valore di una persona: sotto soglia null. */
+const medianaSicura = (v: number[]): number | null => (v.length >= SOGLIA_MIN ? mediana(v) : null);
 
 /** Il primo `AAAA-MM-GG-parole` dentro il nome dell'annuncio, in minuscolo. */
 export function slugDalNome(nome: string | null | undefined): string | null {
@@ -491,16 +526,18 @@ function perAnnuncio(
   // La spesa è quella DELLA RIGA dell'annuncio, non il registro del giorno: una
   // registrazione a mano copre il giorno intero e non si può dividere per annuncio.
   for (const r of ingresso.spesaMeta ?? []) {
-    if (!r?.ad_id || !dentro(giornoDi(r.spend_date))) continue;
-    const a = voce(r.ad_id, "meta", r.ad_name, r.campaign_name);
+    const id = adIdSicuro(r?.ad_id);
+    if (!id || !dentro(giornoDi(r.spend_date))) continue;
+    const a = voce(id, "meta", r.ad_name, r.campaign_name);
     a.spesa += num(r.spend);
     a.impressioni += num(r.impressions);
     a.v1 += num(r.video_3_sec_watched);
     a.v2 += num(r.video_thruplays);
   }
   for (const r of ingresso.spesaTiktok ?? []) {
-    if (!r?.ad_id || !dentro(giornoDi(r.spend_date))) continue;
-    const a = voce(r.ad_id, "tiktok", r.ad_name, r.campaign_name);
+    const id = adIdSicuro(r?.ad_id);
+    if (!id || !dentro(giornoDi(r.spend_date))) continue;
+    const a = voce(id, "tiktok", r.ad_name, r.campaign_name);
     a.spesa += num(r.spend);
     a.impressioni += num(r.impressions);
     a.v1 += num(r.video_watched_2s);
@@ -540,10 +577,10 @@ function perAnnuncio(
     .slice(0, 30)
     .map(({ a, c }) => ({
       ad_id: a.ad_id,
-      nome: a.nome,
-      campagna: a.campagna,
+      nome: testoSicuro(a.nome),
+      campagna: testoSicuro(a.campagna),
       piattaforma: a.piattaforma,
-      slug: slugDalNome(a.nome),
+      slug: slugDalNome(testoSicuro(a.nome)),
       spesa: tondo(a.spesa),
       impressioni: Math.round(a.impressioni),
       lead: maschera(c.lead),
@@ -621,7 +658,9 @@ export function costruisciFeedKpi(ingresso: IngressoFeed) {
     const d = r.l.data;
     const creato = new Date(d.createdAt).getTime();
     const primo = d.firstContactAt ? new Date(d.firstContactAt).getTime() : NaN;
-    if (Number.isFinite(creato) && Number.isFinite(primo) && primo >= creato) minuti.push((primo - creato) / 60_000);
+    //  Un lead importato da una lista vecchia non ha una «prima risposta» al
+    //  lead nuovo: il suo createdAt è quello dell'importazione.
+    if (!d.importato && Number.isFinite(creato) && Number.isFinite(primo) && primo >= creato) minuti.push((primo - creato) / 60_000);
     const meeting = giornoDi(d.dataMeeting);
     if (r.fatta && meeting) {
       const dist = giorniTra(r.giorno, meeting);
@@ -711,10 +750,10 @@ export function costruisciFeedKpi(ingresso: IngressoFeed) {
     per_annuncio: perAnnuncio(trenta, w.trenta, ingresso, pubblici),
     motivi_perdita: Object.fromEntries(MOTIVI.map((m) => [m, maschera(motivi[m])])) as Record<(typeof MOTIVI)[number], Conteggio>,
     tempi: {
-      prima_risposta_min: arr(mediana(minuti)),
+      prima_risposta_min: arr(medianaSicura(minuti)),
       entro_1h: frazione(minuti.filter((m) => m <= 60).length, minuti.length),
-      giorni_lead_consulenza: arr(mediana(giorniConsulenza), 1),
-      giorni_consulenza_chiusura: arr(mediana(giorniChiusura), 1),
+      giorni_lead_consulenza: arr(medianaSicura(giorniConsulenza), 1),
+      giorni_consulenza_chiusura: arr(medianaSicura(giorniChiusura), 1),
     },
     attese: {
       da_contattare_oltre_2h: maschera(daContattare),
@@ -722,7 +761,7 @@ export function costruisciFeedKpi(ingresso: IngressoFeed) {
       in_valutazione_oltre_7g: maschera(inValutazione),
     },
     qualita: {
-      lead_senza_annuncio_pct: pagati.length ? tondo((senzaAnnuncio / pagati.length) * 100, 1) : 0,
+      lead_senza_annuncio_pct: pagati.length >= SOGLIA_MIN ? tondo((senzaAnnuncio / pagati.length) * 100, 1) : null,
       giorni_tiktok_stimati: spesa30.giorniStimati,
       ultimo_sync_meta: ultimo(ingresso.spesaMeta),
       ultimo_sync_tiktok: ultimo(ingresso.spesaTiktok),

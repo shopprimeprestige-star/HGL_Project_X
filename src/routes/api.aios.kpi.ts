@@ -64,12 +64,18 @@ const tabella = (nome: string) =>
 
 class ErroreLettura extends Error {}
 
+/** Gli id delle righe pubbliche vanno nell'indirizzo della richiesta: solo
+ *  uuid veri. Un valore storto sulla scheda non deve diventare una richiesta
+ *  malformata (né finire in un messaggio d'errore). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function leggiTutto<T>(nome: string, costruisci: (q: Interrogazione) => Interrogazione): Promise<T[]> {
   const out: T[] = [];
   for (let da = 0; ; da += PAGINA) {
     const { data, error } = await costruisci(tabella(nome)).range(da, da + PAGINA - 1);
     if (error) {
-      console.error(`[aios-kpi] lettura di ${nome} non riuscita: ${error.message}`);
+      //  Solo il nome della tabella: il messaggio del database può citare il valore cercato.
+      console.error(`[aios-kpi] lettura di ${nome} non riuscita`);
       throw new ErroreLettura(nome);
     }
     const righe = (data ?? []) as T[];
@@ -137,6 +143,7 @@ export const Route = createFileRoute("/api/aios/kpi")({
             ...new Set(
               leads
                 .filter((l) => l.data?.publicLeadId && !l.data.tracking?.ad_id && giornoRoma(l.data.createdAt) >= da30)
+                .filter((l) => UUID.test(String(l.data.publicLeadId)))
                 .map((l) => l.data.publicLeadId as string),
             ),
           ];
