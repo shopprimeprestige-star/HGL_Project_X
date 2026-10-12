@@ -1,5 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { depositaAnteprimaPreventivo } from "@/shop/anteprima-preventivo";
+import { leggiDestinatarioPreventivo } from "@/seo/chi-riceve-il-link.functions";
+import { entro, testoAnteprimaPreventivo, type Destinatario } from "@/seo/chi-riceve-il-link";
 import { readPointerPref, writePointerPref, makePointerHysteresis } from "@/shop/pointer";
 import { PointerDot, type PtrTarget } from "@/shop/PointerDot";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -163,6 +165,25 @@ import {
 import { useIndirizziSuggeriti, type IndirizzoScelto } from "@/crm/indirizzo-suggerito";
 
 export const Route = createFileRoute("/preventivo")({
+  //  ── NOME E COGNOME NEL TESTO DELL'ANTEPRIMA ──────────────────────────────
+  //   Letti dal server (seo/chi-riceve-il-link): ci sono anche quando la scheda
+  //   illustrata del preventivo non è ancora stata depositata.
+  loaderDeps: ({ search }) => {
+    const s = (search ?? {}) as Record<string, unknown>;
+    return {
+      id: String((s.id ?? s.ref ?? "") as string),
+      sess: String((s.sess ?? "") as string),
+      persona: String((s.persona ?? "") as string),
+    };
+  },
+  //  ⚠️ SOLO SUL SERVER (vedi /meetly/CODICE): nel browser la pagina «segue il
+  //   consulente» cambiando indirizzo, e non deve aspettare il database.
+  loader: async ({ deps }): Promise<{ chi: Destinatario | null }> => ({
+    chi:
+      typeof window === "undefined" && (deps.id || deps.sess)
+        ? await entro(leggiDestinatarioPreventivo({ data: deps }))
+        : null,
+  }),
   // ── ANTEPRIMA DEL LINK ────────────────────────────────────────────────────
   //  Chi riceve il link su WhatsApp vede un riquadro: senza queste righe era
   //  quello generico del sito. Ora dice cosa si sta per aprire.
@@ -174,17 +195,16 @@ export const Route = createFileRoute("/preventivo")({
   //   ⚠️ Se il numero non c'è (la pagina aperta per costruire un preventivo
   //   nuovo, non per rileggerne uno) l'indirizzo resta senza codice e la rotta
   //   risponde col marchio dello studio: mai un riquadro rotto.
-  head: ({ match }) => {
+  head: ({ match, loaderData }) => {
     const cerca = (match as { search?: Record<string, unknown> } | undefined)?.search;
+    const persona = (loaderData as { chi?: Destinatario | null } | undefined)?.chi ?? null;
     //  ⚠️ `sess` come ripiego non è una svista: il link mandato al cliente
     //  prima che il preventivo esista porta SOLO quello, ed è il caso più
     //  frequente. Non è nemmeno un dato in più esposto: chi legge questa
     //  pagina per farne l'anteprima ha già `sess` davanti, sta dentro
     //  l'indirizzo che sta leggendo.
     const rif = String((cerca?.id ?? cerca?.ref ?? cerca?.sess ?? "") as string).trim();
-    const T = "Il tuo preventivo, costruito insieme";
-    const D =
-      "Scegli tu ogni dettaglio: il prezzo si aggiorna mentre decidi. Nessun pagamento adesso.";
+    const { titolo: T, descrizione: D } = testoAnteprimaPreventivo(persona);
     const IMG = `https://hair-genius-hub.hair/api/og/anteprima/preventivo/${encodeURIComponent(rif)}.jpg`;
     return {
       meta: [
