@@ -11099,7 +11099,7 @@ function proveDiChiChiamare() {
 function proveDelleLinguette() {
   const {
     LINGUETTE, ALTRO, linguettaDi, percorsoVista, contoLinguetta, stanzeDi, linguetteDaMostrare,
-    vistaDiIngresso, voceStatoAttiva, fasciaDeiRitorni, nessunRitornoInLista,
+    vistaDiIngresso, voceStatoAttiva, fasciaDeiRitorni, nessunRitornoInLista, fuoriDallaLista,
   } = REP;
   gruppo("TRE LINGUETTE E UN MENU «ALTRO»");
 
@@ -11185,15 +11185,32 @@ function proveDelleLinguette() {
   //  Con lo Stato «Di ritorno» e nessuna riga in lista, sotto ci sono i due
   //  blocchi con le persone: la schermata «vuota» sopra le contraddice. Si dice
   //  in una riga, e solo se i blocchi hanno qualcuno.
-  c("Stato «Di ritorno», 0 righe, 6 nei blocchi: una riga e non la schermata vuota", true,
-    nessunRitornoInLista("ritorno", 6) !== "");
-  c("Stato «Di ritorno» e blocchi vuoti: resta la schermata vuota", "", nessunRitornoInLista("ritorno", 0));
-  c("altri Stati: resta la schermata vuota", "", nessunRitornoInLista("promesse", 6));
-  c("nessuno Stato: resta la schermata vuota", "", nessunRitornoInLista("tutti", 6));
-  c("la riga rimanda ai blocchi qui sotto", true, /qui sotto/i.test(nessunRitornoInLista("ritorno", 1)));
+  c("Stato «Di ritorno», 0 righe, 6 che si fanno vivi: una riga e non la schermata vuota", true,
+    nessunRitornoInLista("ritorno", 0, 6) !== "");
+  c("Stato «Di ritorno» e blocchi vuoti: resta la schermata vuota", "", nessunRitornoInLista("ritorno", 0, 0));
+  c("altri Stati: resta la schermata vuota", "", nessunRitornoInLista("promesse", 2, 6));
+  c("nessuno Stato: resta la schermata vuota", "", nessunRitornoInLista("tutti", 2, 6));
+  c("la riga rimanda ai blocchi qui sotto", true, /qui sotto/i.test(nessunRitornoInLista("ritorno", 1, 0)));
   c("la riga non dice «nessuno con questi filtri»", false,
-    /nessuno con questi filtri/i.test(nessunRitornoInLista("ritorno", 3)));
+    /nessuno con questi filtri/i.test(nessunRitornoInLista("ritorno", 3, 3)));
+  //  La frase nomina solo il blocco che c'è: niente «chi aspetta una decisione» se non c'è nessuno.
+  c("solo chi si fa vivo: non parla di decisioni", false, /decisione/.test(nessunRitornoInLista("ritorno", 0, 4)));
+  c("solo chi aspetta una decisione: non parla di chi si fa vivo", false, /vivo/.test(nessunRitornoInLista("ritorno", 2, 0)));
+  c("tutti e due: li nomina entrambi", true,
+    /decisione/.test(nessunRitornoInLista("ritorno", 2, 4)) && /vivo/.test(nessunRitornoInLista("ritorno", 2, 4)));
+
+  //  ── ⚠️ LA STESSA PERSONA NON COMPARE DUE VOLTE ────────────────────────
+  //  Con lo Stato «Di ritorno» chi è in lista sta già nella scheda grande e nel
+  //  «Poi», con le stesse decisioni: il blocco sotto mostra SOLO chi in lista non
+  //  entra (promessa per un altro giorno, messo da parte…).
+  const rit = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  c("fuoriDallaLista: toglie chi è già in lista", "b", fuoriDallaLista(rit, new Set(["a", "c", "z"])).map((x) => x.id).join(","));
+  c("fuoriDallaLista: lista vuota, restano tutti", "a,b,c", fuoriDallaLista(rit, new Set()).map((x) => x.id).join(","));
+  c("fuoriDallaLista: tutti in lista, nessuno sotto", 0, fuoriDallaLista(rit, new Set(["a", "b", "c"])).length);
+  c("fuoriDallaLista: non tocca l'elenco ricevuto", 3, rit.length);
   const pagina = readFileSync("src/routes/CRM.importa.tsx", "utf8");
+  c("la pagina passa al blocco solo chi è fuori dalla lista e lo nasconde se è vuoto", true,
+    /fuoriDallaLista\(/.test(pagina) && /diRitornoFuori\.length\s*>\s*0\s*&&\s*\(\s*<SchedaRimandati/.test(pagina));
   c("la pagina rimette la fascia dei ritorni, che apre lo Stato «Di ritorno»", true,
     pagina.includes("Aprili tutti") && pagina.includes("fasciaDeiRitorni("));
   c("la pagina usa la riga al posto della schermata vuota, con lo Stato «Di ritorno»", true,
@@ -16862,6 +16879,8 @@ function proveDellAnteprimaDiImportazione() {
   c("una riga di META_STORTO ha Problema e Fastidio pieni", true, celle0.length === 5 && !!celle0[2] && !!celle0[3]);
   c("e l'annuncio", "589\u20ac - 001 - ok", celle0[4]);
   const daFareSrc = readFileSync(join(radice, "src/crm/kpi/DaFareScheda.tsx"), "utf8");
+  c("DaFareScheda tiene la colonna Città (si vede se è stata letta, prima di importare)", true,
+    /"Città"/.test(daFareSrc) && /d\.citta/.test(daFareSrc));
   c("DaFareScheda usa le stesse colonne (Problema, Fastidio, Annuncio)", true,
     /celleAnteprima\(/.test(daFareSrc) && /COLONNE_ANTEPRIMA/.test(daFareSrc));
   const schedaTutti = readFileSync(join(radice, "src/crm/importa/SchedaTutti.tsx"), "utf8");

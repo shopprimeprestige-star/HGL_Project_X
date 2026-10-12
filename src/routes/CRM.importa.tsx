@@ -186,6 +186,7 @@ import {
   fasciaDeiRitorni,
   linguettaDi,
   linguetteDaMostrare,
+  fuoriDallaLista,
   nessunRitornoInLista,
   percorsoVista,
   stanzeDi,
@@ -1838,6 +1839,14 @@ function LeadImportatiUnoAllaVolta() {
     [leads],
   );
 
+  /** Chi di ritorno NON è già nella lista «Da chiamare»: è l'unico a stare nel blocco
+   *  sotto, con lo Stato «Di ritorno». Gli altri sono già nella scheda grande o nel
+   *  «Poi», con le stesse decisioni: ripeterli li farebbe sembrare due persone. */
+  const diRitornoFuori = useMemo(
+    () => fuoriDallaLista(diRitorno, new Set(coda.map((l) => l.id))),
+    [diRitorno, coda],
+  );
+
   /** ── ⚠️ GLI APPUNTAMENTI CHE HO FISSATO IO ──────────────────────────────
    *  Richiesta del committente: «i lead che ha schedulato il setter deve avere
    *  sempre lì il filtro dei suoi lead che ha schedulato, che se vuole
@@ -2959,19 +2968,21 @@ function LeadImportatiUnoAllaVolta() {
                primo ritocco, e la stessa persona si leggerebbe in tre modi a
                seconda di dove la guardi. */
     <div className="space-y-3">
-      <SchedaRimandati
-        rimandati={diRitorno}
-        titolo="Di ritorno"
-        nota={`${diRitorno.length === 1 ? "1 contatto" : `${diRitorno.length} contatti`} · ricomparsi in una lista e ancora da decidere · appena gli scrivi su WhatsApp si spostano nel loro reparto`}
-        icona={RotateCcw}
-        vuotoTitolo="Nessun contatto di ritorno da decidere"
-        vuotoTesto="Qui finisce chi era già in archivio e ricompare in una lista importata. Appena ne arriva uno lo trovi qui, con le due scelte: confermarlo com'è, o rimetterlo fra i da contattare."
-        onConferma={(l) => void confermaRitorno(l)}
-        onRimetti={(l) => void rimettiFraIDaContattare(l)}
-        onApri={(l) => setScheda(l)}
-        nomeConsulente={(id) => mestieriDelCentro.get(String(id ?? ""))?.nome ?? ""}
-        onWhatsApp={(l) => void segnaWhatsApp(l)}
-      />
+      {diRitornoFuori.length > 0 && (
+        <SchedaRimandati
+          rimandati={diRitornoFuori}
+          titolo="Di ritorno"
+          nota={`${diRitornoFuori.length === 1 ? "1 contatto" : `${diRitornoFuori.length} contatti`} · ricomparsi in una lista e ancora da decidere${diRitornoFuori.length < diRitorno.length ? " · gli altri sono già nella lista qui sopra" : ""} · appena gli scrivi su WhatsApp si spostano nel loro reparto`}
+          icona={RotateCcw}
+          vuotoTitolo="Nessun contatto di ritorno da decidere"
+          vuotoTesto="Qui finisce chi era già in archivio e ricompare in una lista importata. Appena ne arriva uno lo trovi qui, con le due scelte: confermarlo com'è, o rimetterlo fra i da contattare."
+          onConferma={(l) => void confermaRitorno(l)}
+          onRimetti={(l) => void rimettiFraIDaContattare(l)}
+          onApri={(l) => setScheda(l)}
+          nomeConsulente={(id) => mestieriDelCentro.get(String(id ?? ""))?.nome ?? ""}
+          onWhatsApp={(l) => void segnaWhatsApp(l)}
+        />
+      )}
       {/*  ── CHI HA DETTO CHE RICHIAMA LUI ──────────────────────────────
                  La seconda metà di «tutte le persone di ritorno». Qui non ci sono
                  le due decisioni — non avrebbero niente da scrivere — ma c'è
@@ -3835,12 +3846,24 @@ function LeadImportatiUnoAllaVolta() {
                 </Scheda>
               )}
             </>
-          ) : nessunRitornoInLista(filtri.stato, diRitorno.length + siFannoViviLoro.length) ? (
+          ) : nessunRitornoInLista(filtri.stato, diRitornoFuori.length, siFannoViviLoro.length) ? (
             /*  Con lo Stato «Di ritorno» e nessuna riga in lista, i blocchi sotto
-                hanno le persone: una riga, non «Nessuno con questi filtri». */
-            <p className="rounded-lg border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
-              {nessunRitornoInLista(filtri.stato, diRitorno.length + siFannoViviLoro.length)}
-            </p>
+                hanno le persone: una riga, non «Nessuno con questi filtri». I
+                saltati restano a un clic anche da qui. */
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
+              <p>
+                {nessunRitornoInLista(
+                  filtri.stato,
+                  diRitornoFuori.length,
+                  siFannoViviLoro.length,
+                )}
+              </p>
+              {saltati.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setVista("saltati")}>
+                  <SkipForward className="mr-1.5 h-3.5 w-3.5" /> Vedi i saltati ({saltati.length})
+                </Button>
+              )}
+            </div>
           ) : nFiltri > 0 && coda.length > 0 ? (
             /*  ── ⚠️ LA FETTA FINITA NON È LA LISTA FINITA ─────────────────
                 Chiamando solo «Da ritentare» si arriva in fondo a quella fetta

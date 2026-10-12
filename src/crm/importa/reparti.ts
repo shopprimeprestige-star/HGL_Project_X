@@ -194,14 +194,39 @@ export function fasciaDeiRitorni(daDecidere: number, siFannoVivi: number): strin
 }
 
 /** ── LISTA SENZA RIGHE, MA CON LO STATO «DI RITORNO» ───────────────────────
- *  Sotto la lista, con quello Stato, stanno i blocchi dei ritorni (chi aspetta
- *  una decisione e chi «si fa vivo lui»). Se lì c'è qualcuno, «Nessuno con questi
+ *  Sotto la lista, con quello Stato, stanno i blocchi dei ritorni: chi aspetta
+ *  una decisione e chi «si fa vivo lui». Se lì c'è qualcuno, «Nessuno con questi
  *  filtri» in grande sopra di loro dice il contrario di ciò che si vede: allora
- *  basta una riga che rimanda ai blocchi. Vuota = non vale, si usa la schermata
- *  vuota di sempre. `nSotto` = persone nei due blocchi. */
-export function nessunRitornoInLista(stato: string | undefined, nSotto: number): string {
-  if (stato !== "ritorno" || !(nSotto > 0)) return "";
-  return "Nessun ritorno da chiamare adesso in lista. Qui sotto trovi chi aspetta una decisione e chi si fa vivo da sé.";
+ *  basta una riga che rimanda ai blocchi, e nomina solo quelli che ci sono.
+ *  Vuota = non vale, si usa la schermata vuota di sempre.
+ *  `nDaDecidere` e `nSiFannoVivi` = persone che i due blocchi mostrano davvero. */
+export function nessunRitornoInLista(
+  stato: string | undefined,
+  nDaDecidere: number,
+  nSiFannoVivi: number,
+): string {
+  const d = Math.max(0, Math.floor(nDaDecidere) || 0);
+  const v = Math.max(0, Math.floor(nSiFannoVivi) || 0);
+  if (stato !== "ritorno" || d + v === 0) return "";
+  const chi =
+    d > 0 && v > 0
+      ? "chi aspetta una decisione e chi si fa vivo da sé"
+      : d > 0
+        ? "chi aspetta una decisione"
+        : "chi si fa vivo da sé";
+  return `Nessun ritorno da chiamare adesso in lista. Qui sotto trovi ${chi}.`;
+}
+
+/** Chi, fra i contatti di ritorno, NON è già nella lista «Da chiamare». Con lo
+ *  Stato «Di ritorno» chi è in lista sta già nella scheda grande e nel «Poi», con
+ *  le stesse decisioni: il blocco sotto non lo ripete (sembrerebbero due persone).
+ *  Chi resta è chi in lista non entra: una promessa per un altro giorno, un
+ *  contatto messo da parte. Non modifica l'elenco ricevuto. */
+export function fuoriDallaLista<T extends { id: string }>(
+  ritorni: T[],
+  inLista: ReadonlySet<string>,
+): T[] {
+  return ritorni.filter((r) => !inLista.has(r.id));
 }
 
 /** Quante righe ha ogni vista. Chi non c'è vale zero. */

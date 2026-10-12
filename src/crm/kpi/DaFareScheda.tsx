@@ -478,14 +478,15 @@ interface EsitoLettura {
 
 /** Le colonne dell'anteprima: le stesse di /CRM/importa (`COLONNE_ANTEPRIMA`,
  *  `celleAnteprima`), perché da lì si vede se il modulo è stato letto a posto:
- *  se sotto «Problema» c'è un telefono, il file è storto. In più qui Stato e
+ *  se sotto «Problema» c'è un telefono, il file è storto. In più qui Città (si vede se è stata letta), Stato e
  *  Data, che il file può portare e che l'importazione scrive. */
-const COLONNE_RIGA = [...COLONNE_ANTEPRIMA, "Stato", "Data"] as const;
+const COLONNE_RIGA = [...COLONNE_ANTEPRIMA, "Città", "Stato", "Data"] as const;
 
 /** Le celle di una riga: quelle di /CRM/importa, poi lo Stato e la Data. */
 function celleRiga(d: LeadData): string[] {
   return [
     ...celleAnteprima(d),
+    d.citta ?? "",
     d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "",
     d.createdAt ? dataBreve(String(d.createdAt)) : "",
   ];
@@ -674,7 +675,7 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
 
           {letto.leads.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[720px] text-left text-[12.5px]">
+              <table className="w-full min-w-[800px] text-left text-[12.5px]">
                 <thead className="border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
                     {COLONNE_RIGA.map((c) => (
