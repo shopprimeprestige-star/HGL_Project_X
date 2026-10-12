@@ -41,6 +41,10 @@ export function MenuAltro({
   disabilitato?: boolean;
 }) {
   const aperta = ALTRO.find((x) => x.vista === vista);
+  //  ⚠️ Le note e i richiami scaduti del setter stanno qui dentro: senza il
+  //   numero sul tasto si vedrebbero solo aprendo il menu, e una nota scaduta
+  //   che nessuno vede è una promemoria che non ha fatto il suo mestiere.
+  const noteScadute = Number(conti.oggi ?? 0) || 0;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,8 +54,13 @@ export function MenuAltro({
           variant={aperta ? "default" : "outline"}
           disabled={disabilitato}
           className="h-8 gap-1.5 text-[12px]"
+          title={
+            noteScadute > 0
+              ? `${noteScadute} note o richiami scaduti in «Note e promemoria»`
+              : undefined
+          }
         >
-          {aperta ? `Altro · ${aperta.nome}` : "Altro"}
+          {aperta ? `Altro · ${aperta.nome}` : noteScadute > 0 ? `Altro · ${noteScadute}` : "Altro"}
           <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>

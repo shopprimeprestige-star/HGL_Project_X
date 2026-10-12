@@ -161,6 +161,38 @@ export const ALTRO: VoceAltro[] = [
   },
 ];
 
+/** ── LA VOCE «DI RITORNO» DEL FILTRO STATO, ACCESA O SPENTA ────────────────
+ *  Una voce a zero si spegne (se sparisse, la fila si accorcerebbe sotto il
+ *  dito) e quella scelta non si spegne mai. Ma «Di ritorno» ha un conto in più:
+ *  la vecchia stanza mostrava anche chi NON è in lista — i «mi richiama lui»
+ *  arrivati dal sito, quelli con un giorno futuro, i ritorni con una promessa
+ *  per dopo — e quelle persone si trovano solo da lì. Finché ce n'è anche una,
+ *  la voce resta accesa anche se nella lista non c'è nessuna riga di ritorno.
+ *  `nInLista` = righe della lista con quello Stato; `ritorni` = tutti i contatti
+ *  di ritorno e «si fanno vivi loro» (`Conti.ritorno`). */
+export function voceStatoAttiva(
+  valore: string,
+  nInLista: number,
+  scelto: string,
+  ritorni: number,
+): boolean {
+  if (valore === scelto) return true;
+  if (nInLista > 0) return true;
+  return valore === "ritorno" && ritorni > 0;
+}
+
+/** La riga della fascia che richiama i contatti di ritorno: «N contatti di
+ *  ritorno da decidere, più M che si fanno vivi loro». Vuota = niente fascia. */
+export function fasciaDeiRitorni(daDecidere: number, siFannoVivi: number): string {
+  const n = Math.max(0, Math.floor(daDecidere) || 0);
+  const m = Math.max(0, Math.floor(siFannoVivi) || 0);
+  if (n === 0 && m === 0) return "";
+  if (n === 0) return m === 1 ? "1 si fa vivo lui" : `${m} si fanno vivi loro`;
+  const prima =
+    n === 1 ? "1 contatto di ritorno da decidere" : `${n} contatti di ritorno da decidere`;
+  return m === 0 ? prima : `${prima}, più ${m} che si fanno vivi loro`;
+}
+
 /** Quante righe ha ogni vista. Chi non c'è vale zero. */
 export type Conti = Partial<Record<Vista, number>>;
 

@@ -30,8 +30,8 @@
  *  /CRM/avanzamento, crm/kpi/DaFareScheda.tsx) e «Lead importati · uno alla
  *  volta» (questa). Adesso ne resta una, questa, e si chiama «Lead importati».
  *  L'elenco NON è stato cancellato: è uscito dal menu (`nascosta: true` in
- *  crm/CRMSidebar.tsx) e si raggiunge dal pulsante «Elenco completo» qui nella
- *  testata. La divisione del lavoro è la stessa di prima —
+ *  crm/CRMSidebar.tsx) e si raggiunge dalla voce «Elenco completo» del menu
+ *  «Altro» qui sopra la lista. La divisione del lavoro è la stessa di prima —
  *   · l'ELENCO serve a GUARDARE: venti righe, filtri per stato e consulente,
  *     azioni di gruppo su una selezione, esportazione in CSV, e la lente «Tutta
  *     la coda», che è l'unico posto in cui si vede cosa è in ritardo su tutto
@@ -183,6 +183,7 @@ import { chiHaFissato, esitoFissato, fissataDa } from "@/crm/chi-ha-fissato";
 //  nessuna delle dieci viste di prima si sia persa.
 import {
   contoLinguetta,
+  fasciaDeiRitorni,
   linguettaDi,
   linguetteDaMostrare,
   percorsoVista,
@@ -1793,10 +1794,11 @@ function LeadImportatiUnoAllaVolta() {
    *  filtro».
    *  Finora i contatti di ritorno stavano SOLO in cima alla coda delle
    *  telefonate, mescolati alle prime chiamate: non si potevano contare, né
-   *  lavorare tutti insieme, né ritrovare il giorno dopo. Adesso hanno la loro
-   *  linguetta — e restano anche in cima alla coda, con una fascia che li
-   *  richiama, perché è la telefonata che rende di più della giornata e
-   *  nasconderla dentro un reparto vorrebbe dire non farla più.
+   *  lavorare tutti insieme, né ritrovare il giorno dopo. Adesso hanno la voce
+   *  «Di ritorno» del filtro Stato — e restano anche in cima alla lista, con la
+   *  targhetta DI RITORNO e una fascia che li richiama, perché è la telefonata
+   *  che rende di più della giornata e nasconderla dentro un filtro vorrebbe
+   *  dire non farla più.
    *  ⚠️ CHI È STATO SCRITTO O RIMANDATO NON È QUI: ha già il suo reparto. Una
    *   persona sta in un elenco solo — è tutta la richiesta. */
   const diRitorno = useMemo(
@@ -1818,9 +1820,9 @@ function LeadImportatiUnoAllaVolta() {
    *   contattare») su di lui non scriverebbero niente, e sarebbero due
    *   pulsanti che non fanno niente. Qui i gesti sono i suoi: aprire la scheda
    *   e vedere quando l'ha detto.
-   *  ⚠️ Chi ha una promessa scaduta compare ANCHE in «Oggi»: quella è la
-   *   linguetta dell'orologio, non un reparto, e serve proprio a non far
-   *   scadere le promesse. */
+   *  ⚠️ Chi ha una promessa scaduta compare ANCHE in «Altro → Note e
+   *   promemoria» (la vecchia «Oggi»): quella è la scheda dell'orologio, non un
+   *   reparto, e serve proprio a non far scadere le promesse. */
   const siFannoViviLoro = useMemo(
     () =>
       (leads ?? [])
@@ -1981,7 +1983,11 @@ function LeadImportatiUnoAllaVolta() {
    *  visibile — il caso per cui la ricerca esiste. Allora i filtri si
    *  azzerano: chi cerca un nome vuole quel nome, non «quel nome, se passa». */
   const portaInTesta = (l: Lead) => {
-    if (idInCoda.has(l.id) && !idVisibili.has(l.id)) cambiaFiltri({});
+    if (idInCoda.has(l.id) && !idVisibili.has(l.id)) {
+      cambiaFiltri({});
+      //  Il cambio si dice: chi stava facendo ritenti si ritrova la lista intera.
+      toast.info(`Filtri azzerati per mostrare ${nomeDi(l, "il contatto")}`);
+    }
     setForzato(l.id);
     setVista("coda");
   };
@@ -3248,13 +3254,42 @@ function LeadImportatiUnoAllaVolta() {
           pari; il tempo («quando ho messo quello stato») è adesso dentro Stato.
           ⚠️ COMPARE ANCHE A LISTA VUOTA SE C'È UN FILTRO ACCESO: un indirizzo
            con un annuncio che non ha più nessuno deve poter essere spento. */}
-      {vista === "coda" && (coda.length > 0 || nFiltri > 0) && (
+      {vista === "coda" && (coda.length > 0 || nFiltri > 0 || contiViste.ritorno > 0) && (
         <BarraFiltri
           filtri={filtri}
           opzioni={opzioni}
+          ritorni={contiViste.ritorno ?? 0}
           onCambia={cambiaFiltri}
           disabilitato={!!avanzamento}
         />
+      )}
+
+      {/*  ── ⚠️ LA FASCIA DEI CONTATTI DI RITORNO ────────────────────────
+           Richiesta del committente: «tutte le persone di ritorno stanno nel
+           loro filtro», e decisione 3 del titolare: niente si toglie. «Di
+           ritorno» non è più una stanza ma la voce di un filtro, e la voce da
+           sola non si nota: questa riga dice che ci sono, quanti sono e quanti
+           «si fanno vivi loro», e con un clic apre lo Stato «Di ritorno».
+           ⚠️ COMPARE ANCHE A LISTA VUOTA: i «mi richiama lui» arrivati dal sito,
+            quelli con un giorno futuro e i ritorni con una promessa per dopo
+            NON sono in lista, e questo è l'unico posto in cui si vedono.
+           ⚠️ Compare SOLO se ce n'è, e non quando lo Stato è già «Di ritorno»:
+            una fascia che dice «zero» o che rimanda dove si è già è una riga in
+            meno per la persona da chiamare. */}
+      {vista === "coda" && filtri.stato !== "ritorno" && contiViste.ritorno > 0 && (
+        <button
+          type="button"
+          onClick={() => cambiaFiltri({ stato: "ritorno" })}
+          disabled={!!avanzamento}
+          className="flex w-full items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left text-[12.5px] text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
+          title="Apre lo Stato «Di ritorno»: sono tutti qui, e da lì si lavorano uno dietro l'altro"
+        >
+          <RotateCcw className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1 font-medium">
+            {fasciaDeiRitorni(diRitorno.length, siFannoViviLoro.length)}
+          </span>
+          <span className="shrink-0 font-semibold underline underline-offset-2">Aprili tutti</span>
+        </button>
       )}
 
       {/* ── ⚠️ COM'È MESSO QUEL GIORNO ─────────────────────────────────────

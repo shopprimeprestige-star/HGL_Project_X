@@ -10600,7 +10600,7 @@ function proveDiChiChiamare() {
 function proveDelleLinguette() {
   const {
     LINGUETTE, ALTRO, linguettaDi, percorsoVista, contoLinguetta, stanzeDi, linguetteDaMostrare,
-    vistaDiIngresso,
+    vistaDiIngresso, voceStatoAttiva, fasciaDeiRitorni,
   } = REP;
   gruppo("TRE LINGUETTE E UN MENU «ALTRO»");
 
@@ -10665,6 +10665,28 @@ function proveDelleLinguette() {
   c("«Da chiamare» porta alla lista", "coda", vistaDiIngresso("dachiamare", conti, "miei"));
   //  Da una stanza di Altro, premere «Da chiamare» riporta alla lista.
   c("da Ripesca si torna alla lista", "coda", vistaDiIngresso("dachiamare", conti, "ripesca"));
+
+  //  ── ⚠️ «DI RITORNO» RESTA RAGGIUNGIBILE (decisione 3: niente si toglie) ──
+  //  La vecchia stanza mostrava anche chi NON è in lista: i «mi richiama lui»
+  //  arrivati dal sito, quelli con un giorno futuro, i ritorni con una promessa
+  //  per dopo. Il filtro Stato non deve spegnere la voce «Di ritorno» solo
+  //  perché nella lista non c'è nessuna riga di ritorno: 0 in lista, 6 fuori.
+  c("«Di ritorno» con 0 in lista e 6 fuori resta accesa", true, voceStatoAttiva("ritorno", 0, "tutti", 6));
+  c("«Di ritorno» con 0 e 0 è spenta", false, voceStatoAttiva("ritorno", 0, "tutti", 0));
+  c("«Di ritorno» con righe in lista è accesa", true, voceStatoAttiva("ritorno", 2, "tutti", 0));
+  c("la voce scelta non si spegne mai", true, voceStatoAttiva("ritorno", 0, "ritorno", 0));
+  c("i ritorni fuori lista non accendono le altre voci", false, voceStatoAttiva("promesse", 0, "tutti", 6));
+  c("fascia: 4 da decidere e 2 che si fanno vivi",
+    "4 contatti di ritorno da decidere, più 2 che si fanno vivi loro", fasciaDeiRitorni(4, 2));
+  c("fascia: uno solo", "1 contatto di ritorno da decidere", fasciaDeiRitorni(1, 0));
+  c("fascia: solo «si fanno vivi loro»", "6 si fanno vivi loro", fasciaDeiRitorni(0, 6));
+  c("fascia: uno che si fa vivo", "1 si fa vivo lui", fasciaDeiRitorni(0, 1));
+  c("fascia: niente, niente fascia", "", fasciaDeiRitorni(0, 0));
+  const pagina = readFileSync("src/routes/CRM.importa.tsx", "utf8");
+  c("la pagina rimette la fascia dei ritorni, che apre lo Stato «Di ritorno»", true,
+    pagina.includes("Aprili tutti") && pagina.includes("fasciaDeiRitorni("));
+  c("e la barra dei filtri si vede anche a lista vuota se ci sono ritorni", true,
+    /contiViste\.ritorno\s*>\s*0\)\s*&&\s*\(\s*<BarraFiltri/.test(pagina));
 
   //  ── ⚠️ I MENU SONO DI RADIX, E LE SCORCIATOIE LO SANNO ──────────────────
   //  Un «1» premuto dentro un menu aperto non deve dare l'esito «Non risponde»

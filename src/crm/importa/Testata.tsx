@@ -244,7 +244,7 @@ export function Testata({
         <Dato
           valore={inCoda}
           etichetta="in coda"
-          titolo="I contatti arrivati da una lista con la prima chiamata ancora aperta, più quelli di ritorno del file appena letto. I saltati non ci sono: stanno nella scheda «Lead saltati»"
+          titolo="I contatti arrivati da una lista con la prima chiamata ancora aperta, più quelli di ritorno del file appena letto. I saltati non ci sono: stanno in «In attesa → Messi da parte»"
         />
         <Dato
           valore={daProvare}

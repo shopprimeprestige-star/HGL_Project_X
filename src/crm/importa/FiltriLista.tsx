@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NOME_FETTA_TEMPO, SPIEGA_FETTA_TEMPO, type FettaTempo } from "@/crm/quando-stato";
 import type { FiltriLista, OpzioniFiltri, StatoFiltro } from "./filtri-lista";
+import { voceStatoAttiva } from "./reparti";
 
 /** I nomi delle cinque voci di Stato, come nella spec. */
 export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
@@ -301,14 +302,19 @@ function MenuStato({
   filtri,
   opzioni,
   onCambia,
+  ritorni,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  ritorni: number;
 }) {
   const stato = filtri.stato ?? "tutti";
   const quando = filtri.quando ?? "sempre";
   const nStato = (v: StatoFiltro) => opzioni.stato.find((x) => x.valore === v)?.n ?? 0;
+  //  «Di ritorno» porta il numero della vecchia stanza (ritorni + «si fanno vivi
+  //  loro»), che comprende anche chi è fuori dalla lista.
+  const nVoce = (v: StatoFiltro) => (v === "ritorno" ? Math.max(nStato(v), ritorni) : nStato(v));
   const nQuando = (v: FettaTempo) => opzioni.quando.find((x) => x.valore === v)?.n ?? 0;
   const valore =
     quando !== "sempre"
@@ -329,11 +335,11 @@ function MenuStato({
               key={v}
               value={v}
               title={SPIEGA_STATO_FILTRO[v]}
-              disabled={nStato(v) === 0 && stato !== v}
+              disabled={!voceStatoAttiva(v, nStato(v), stato, ritorni)}
               className="text-[12.5px]"
             >
               <span className="flex-1">{NOME_STATO_FILTRO[v]}</span>
-              <span className="ml-3 tabular-nums text-muted-foreground">{nStato(v)}</span>
+              <span className="ml-3 tabular-nums text-muted-foreground">{nVoce(v)}</span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -386,10 +392,15 @@ export function BarraFiltri({
   opzioni,
   onCambia,
   disabilitato,
+  ritorni = 0,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Quanti contatti di ritorno e «si fanno vivi loro» ci sono in tutto, anche
+   *  fuori dalla lista: finché sono più di zero la voce Stato «Di ritorno» resta
+   *  accesa (vedi `voceStatoAttiva`). */
+  ritorni?: number;
   /** Mentre una scrittura di gruppo lavora, cambiare la fetta di elenco farebbe
    *  sparire la barra con il contatore: i menu si spengono. */
   disabilitato?: boolean;
@@ -405,7 +416,7 @@ export function BarraFiltri({
       >
         <MenuAnnuncio filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
         <MenuRisposta filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
-        <MenuStato filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
+        <MenuStato filtri={filtri} opzioni={opzioni} onCambia={onCambia} ritorni={ritorni} />
         {accesi > 0 && (
           <Button
             type="button"
