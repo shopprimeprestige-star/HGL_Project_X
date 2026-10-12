@@ -1450,7 +1450,7 @@ function PulsanteChiamate({
         premuto
           ? "bg-slate-200 text-slate-900"
           : mostrato > 0
-            ? "text-sky-700 hover:bg-sky-50"
+            ? "text-foreground hover:bg-muted"
             : "text-muted-foreground hover:bg-muted"
       }`}
       //  touch-action: la pressione lunga non deve diventare uno scorrimento
@@ -2704,13 +2704,13 @@ function LeadsPage() {
           title="Mostra solo i lead assegnati a me"
           className={`mb-1.5 flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[12.5px] font-medium transition ${
             consulenteId === ioId
-              ? "border-sky-600 bg-sky-600 text-white"
-              : "border-sky-200 bg-sky-50 text-sky-700 hover:brightness-95"
+              ? "border-foreground bg-foreground text-background"
+              : "border-border bg-background text-foreground hover:bg-muted"
           }`}
         >
           <span className="truncate">Solo i miei</span>
           <span
-            className={`shrink-0 rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
+            className={`shrink-0 rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-background/20" : "bg-muted"}`}
           >
             {conteggi.consulente[ioId] || 0}
           </span>
@@ -3229,7 +3229,7 @@ function LeadsPage() {
                     on
                       ? v.chiave === "ritardo"
                         ? "border-rose-600 bg-rose-600 text-white"
-                        : "border-sky-600 bg-sky-600 text-white"
+                        : "border-primary bg-primary text-primary-foreground"
                       : `${v.classe} hover:brightness-95`
                   }`}
                 >
@@ -3247,8 +3247,8 @@ function LeadsPage() {
           {/*  "Solo i miei" è il filtro più premuto della giornata, e per questo
               è l'unico dei quotidiani che NON si nasconde mai: resta nella riga
               anche sul telefono, dove diventa la sola icona di una persona.
-              Sky è la famiglia di "da fare adesso", la stessa delle righe in
-              scadenza. */}
+              Un filtro personale è neutro: il blu pieno è solo del filtro
+              «Oggi» e dell'azione principale (regola del blu, DESIGN.md). */}
           {ioId && (
             <button
               type="button"
@@ -3257,14 +3257,14 @@ function LeadsPage() {
               title="Mostra solo i lead assegnati a me"
               className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px] font-medium transition ${
                 consulenteId === ioId
-                  ? "border-sky-600 bg-sky-600 text-white"
-                  : "border-sky-200 bg-sky-50 text-sky-700 hover:brightness-95"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-background text-foreground hover:bg-muted"
               }`}
             >
               <UserRound className="h-3.5 w-3.5 shrink-0 sm:hidden" />
               <span className="hidden sm:inline">Solo i miei</span>
               <span
-                className={`rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-white/20" : "bg-white/70"}`}
+                className={`rounded-full px-1.5 text-[11px] tabular-nums ${consulenteId === ioId ? "bg-background/20" : "bg-muted"}`}
               >
                 {conteggi.consulente[ioId] || 0}
               </span>
@@ -3542,7 +3542,7 @@ function LeadsPage() {
                       {(l.data.giaPresenteCount ?? 0) > 1 && (
                         <span
                           data-slot="etichetta"
-                          className="shrink-0 rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground"
+                          className="shrink-0 rounded-full border border-border bg-muted px-1.5 text-[11px] text-muted-foreground"
                           title="Rientrato più volte"
                         >
                           ×{l.data.giaPresenteCount}
@@ -3752,14 +3752,14 @@ function LeadsPage() {
                       </>
                     )}
 
-                    {/*  LA VIDEOCONSULENZA — cielo, perché è la cosa che si fa
+                    {/*  LA VIDEOCONSULENZA — blu del marchio, perché è la cosa che si fa
                         adesso. Stessa videocamera dell'agenda: chi la riconosce
                         lì la riconosce qui, ed è la stessa stanza. */}
                     {puoAvviareConsulenza(l) && (
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-sky-600 hover:bg-sky-50 hover:text-sky-700"
+                        className="h-7 w-7 text-primary hover:bg-primary/10"
                         title="Avvia la videoconsulenza (V)"
                         aria-label="Avvia la videoconsulenza"
                         onClick={() => void avviaConsulenza(l)}
@@ -3892,6 +3892,7 @@ function LeadsPage() {
                 </Button>
                 <Button
                   size="sm"
+                  variant={puoAvviareConsulenza(dettaglio) ? "outline" : "default"}
                   className="flex-1"
                   onClick={() => {
                     setEditing(dettaglio);
@@ -3905,7 +3906,7 @@ function LeadsPage() {
               {puoAvviareConsulenza(dettaglio) && (
                 <Button
                   size="sm"
-                  className="w-full bg-sky-600 text-white hover:bg-sky-700"
+                  className="w-full"
                   onClick={() => void avviaConsulenza(dettaglio)}
                 >
                   <Video className="mr-1 h-3.5 w-3.5" /> Avvia la videoconsulenza
