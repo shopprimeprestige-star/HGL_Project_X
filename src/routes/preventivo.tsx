@@ -5594,7 +5594,7 @@ function QuoteBuilder() {
                 già le scelte incluse, e non conta ancora installazione, quantità e sconti.
               </p>
               <div
-                className={`grid gap-3 ${menu.base.length === 3 ? "sm:grid-cols-3" : menu.base.length > 1 ? "sm:grid-cols-2" : ""}`}
+                className={`grid gap-3 ${menu.base.length > 1 ? "sm:grid-cols-2" : ""}`}
               >
                 {menu.base.map((b) => {
                   const active = baseId === b.id;
@@ -6571,7 +6571,7 @@ function QuoteBuilder() {
                 <a
                   href="#riepilogo-telefono"
                   aria-label="Vai al riepilogo"
-                  className="flex min-h-[44px] min-w-[76px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand px-3 text-[13px] font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white max-[359px]:min-w-[44px] max-[359px]:px-0"
+                  className="flex min-h-[44px] min-w-[76px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand px-3 text-[13px] font-semibold text-navy-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white max-[359px]:min-w-[44px] max-[359px]:px-0"
                 >
                   <ChevronDown className="h-4 w-4" aria-hidden />
                   <span className="max-[359px]:sr-only">Riepilogo</span>

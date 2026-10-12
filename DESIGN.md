@@ -163,6 +163,20 @@ typography:
     fontSize: "18px"
     lineHeight: 1.2
     fontWeight: 700
+  quote-savings:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "28px"
+    fontWeight: 800
+    lineHeight: 1
+  quote-second-title:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "19px"
+    fontWeight: 700
+  quote-price-second-compact:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "32px"
+    fontWeight: 800
+    lineHeight: 1
 rounded:
   md: "0.5rem"
   lg: "0.75rem"
@@ -279,6 +293,9 @@ Le classi `sm:`/`md:` del codice dicono quando si passa da uno all'altro. Se il 
 | Totale del riepilogo | `quote-price-total-sheet` 36px (riepilogo, sia a tutto schermo sul telefono sia sul computer) · `quote-price-total` 30px (barra del totale sul telefono) | Il totale non si rimpicciolisce mai. |
 | Cella «Ora / Alla consegna» | `quote-price-cell` 24px (peso 700) | Celle a due prezzi. |
 | Prezzo nella scheda di una strada | `quote-price-card` 18px (peso 700, cifre tabellari) | Schede delle strade. |
+| Risparmio totale | `quote-savings` 28px (peso 800, verde) | Riga «sconti» del riepilogo. |
+| Titolo «Dal secondo impianto» | `quote-second-title` 19px (versione grande; 15.5px in quella compatta) | Riquadro del secondo impianto. |
+| Secondo impianto, versione compatta | `quote-price-second-compact` 32px | Quando il riquadro è piccolo. |
 
 Il prezzo barrato resta a 15px (`BARRATO_CLASSI`). Sulle etichette maiuscole la spaziatura non supera 0.14em.
 
