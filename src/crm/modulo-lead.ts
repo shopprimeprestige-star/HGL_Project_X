@@ -133,6 +133,8 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
       { id: "areata", nome: "Alopecia areata", tono: "neutro", testi: ["alopecia areata"], quando: /\bareata\b/ },
       { id: "diradamento", nome: "Diradamento", tono: "neutro", quando: /diradament/ },
       { id: "stempiatura", nome: "Stempiatura", tono: "neutro", quando: /stempiat/ },
+      //  Aggiunta dopo la misura sui lead veri: 33 schede la avevano e non si leggeva.
+      { id: "universale", nome: "Alopecia universale", tono: "neutro", testi: ["alopecia universale"], quando: /universal/ },
     ],
   },
   {
@@ -156,6 +158,11 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
       { id: "trapianto", nome: "Trapianto", tono: "buono", testi: ["trapianto"], quando: /trapiant/ },
       { id: "lozioni", nome: "Lozioni", tono: "buono", testi: ["lozioni"], quando: /lozion/ },
       { id: "farmaci", nome: "Farmaci", tono: "buono", testi: ["farmaci"], quando: /farmac/ },
+      //  Aggiunte dopo la misura sui lead veri (27 schede): sono due opzioni vere del
+      //  modulo. Tono «medio» e non «buono»: la definizione di lead caldo (piano,
+      //  decisione 2) elenca solo trapianto, lozioni e farmaci.
+      { id: "tricologia", nome: "Tricologia / PRP / polverine", tono: "medio", testi: ["tricologia / prp / polverine"], quando: /tricologi|\bprp\b|polverin/ },
+      { id: "tricopigmentazione", nome: "Tricopigmentazione", tono: "medio", testi: ["trico-pigmentazione (tatuaggio)"], quando: /trico[- ]?pigmentazion|tatuagg/ },
     ],
   },
   {
@@ -188,7 +195,7 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
   {
     campo: "conoscenza",
     titolo: "Ci conosce",
-    intestazione: /conosci|hair genius|infoltiment/,
+    intestazione: /conosc[ie]|hair genius|infoltiment/,
     opzioni: [
       {
         id: "segue",
@@ -428,7 +435,14 @@ export function leggiRisposte(
     //   a un'altra domanda («alopecia androgenetica» sotto «Fastidio»), vince
     //   il valore. Sulle classiche non cambia niente: si guarda il valore.
     const colonnaNuova = intestazioniAffidabili && colonna && CAMPI_NUOVI.has(colonna) ? colonna : undefined;
-    const trovata = (colonnaNuova && riconosciRisposta(grezzo, colonnaNuova)) || riconosciRisposta(grezzo);
+    let trovata = (colonnaNuova && riconosciRisposta(grezzo, colonnaNuova)) || riconosciRisposta(grezzo);
+    //  ⚠️ «Abbastanza» è anche una risposta a «Conosci Hair Genius Labs…?»: sotto
+    //   una colonna classica affidabile, un Fastidio o un Già provato letto dal
+    //   solo valore NON vince. La risposta resta alla sua domanda (strada 1,
+    //   qui sotto). Il valore vince solo sul Problema: è l'errore nascosto di
+    //   «che problematica hai?» finita sotto «Come vive il problema».
+    const colonnaClassica = intestazioniAffidabili && colonna && !CAMPI_NUOVI.has(colonna);
+    if (trovata && colonnaClassica && (trovata.campo === "fastidio" || trovata.campo === "giaFatto")) trovata = undefined;
     if (trovata) {
       if (out[trovata.campo]) return;        // la prima vince
       out[trovata.campo] = trovata.opzione.id;
@@ -566,6 +580,14 @@ export function riassuntoModulo(m?: RisposteModulo, max = 2): string {
     .join(" · ");
 }
 
+/** La domanda classica a cui appartiene un testo, per titolo («Ci conosce») o
+ *  per intestazione del file («conosci hair genius labs…?»). */
+function campoClassico(domanda: string): CampoModulo | undefined {
+  const t = pulisci(domanda);
+  const c = DOMANDE_MODULO.find((d) => pulisci(d.titolo) === t)?.campo ?? campoDellaColonna(domanda);
+  return c && !CAMPI_NUOVI.has(c) ? c : undefined;
+}
+
 type VoceSalvata = NonNullable<RisposteModulo["risposte"]>[number];
 
 /** ── LA RIGA «DAL MODULO:» DELLE NOTE VECCHIE ──────────────────────────────
@@ -603,6 +625,16 @@ export function risposteDaNotaVecchia(note?: string): RisposteModulo | undefined
     }
     if (out[t.campo]) continue;            // la prima vince
     aggiungi(t.campo, t.opzione.id, t.opzione.nome, parte);
+  }
+  //  ⚠️ «abbastanza» o «poco» da soli non sono un Fastidio: nel modulo classico
+  //   sono le risposte a «Conosci Hair Genius Labs…?» (misura sui lead veri: 88
+  //   schede). Il Fastidio vale solo se la stessa riga ha anche un Problema o un
+  //   Già provato, cioè se la riga è del modulo che ha quelle domande. È la
+  //   stessa regola per esclusione di «nulla», che qui sotto ne dipende.
+  if (out.fastidio && !out.problema && !out.giaFatto) {
+    delete out.fastidio;
+    const i = risposte.findIndex((r) => r.campo === "fastidio");
+    if (i >= 0) risposte.splice(i, 1);
   }
   //  Il secondo passaggio, per esclusione.
   if (out.fastidio && !out.giaFatto) {
@@ -648,8 +680,16 @@ export function moduloLetto(d?: Partial<LeadData> | null): RisposteModulo | unde
     //  Come in `leggiRisposte`: la domanda nuova cerca fra le sue opzioni, ma
     //  se il valore è senza dubbio di un'altra, vince il valore.
     const t = (colonnaNuova && riconosciRisposta(r.risposta, colonnaNuova)) || riconosciRisposta(r.risposta);
-    //  ⚠️ Si riportano solo le tre domande nuove: una voce vecchia che ha già
-    //   una classica per valore non si tocca, i suoi conti restano come oggi.
+    //  ⚠️ Una voce salvata sotto una domanda classica («Ci conosce», «Zona»…, per
+    //   titolo o per intestazione) resta com'è: «Abbastanza» sotto «Ci conosce»
+    //   non è un Fastidio. Si sposta solo un Problema: è l'errore nascosto di
+    //   «che problematica hai?» finita sotto «Come vive il problema».
+    if (campoClassico(String(r.domanda ?? "")) && t?.campo !== "problema") {
+      risposte.push({ ...r });
+      continue;
+    }
+    //  Si riportano solo le tre domande nuove: una voce che ha già una
+    //  classica per valore non si tocca, i suoi conti restano come oggi.
     if (t && CAMPI_NUOVI.has(t.campo)) {
       //  La domanda ha già la sua risposta: questa voce sarebbe la stessa due volte.
       if (out[t.campo]) continue;
