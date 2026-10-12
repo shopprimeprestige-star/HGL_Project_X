@@ -1118,6 +1118,7 @@ function DashboardPage() {
                 principale={
                   <Button
                     size="sm"
+                    variant="outline"
                     className="h-8 shrink-0 text-[11.5px]"
                     onClick={() => apriInstallazione(l)}
                   >

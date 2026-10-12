@@ -425,7 +425,7 @@ function KpiTile({ card }: { card: KpiCard }) {
           </div>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground/70 group-hover:text-foreground">
+      <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground group-hover:text-foreground">
         Apri <ArrowRight className="h-3 w-3" />
       </div>
     </Link>

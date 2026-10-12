@@ -1637,7 +1637,7 @@ export function RigaLead({
               e.stopPropagation();
               void avviaConsulenza(l, nomeConsulente);
             }}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1.5 text-[11px] font-semibold text-primary-foreground transition hover:brightness-110"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-background px-2 py-1.5 text-[11px] font-semibold text-primary transition hover:bg-primary/10"
           >
             <Play className="h-3 w-3" fill="currentColor" /> Avvia
           </button>
@@ -2250,7 +2250,7 @@ function StrisciaGiorni({
               <span
                 className={cn(
                   "text-[11px] uppercase tracking-wide",
-                  scelto ? "text-primary-foreground/75" : "text-muted-foreground",
+                  scelto ? "text-primary-foreground" : "text-muted-foreground",
                 )}
               >
                 {g.settimana}
@@ -2268,7 +2268,7 @@ function StrisciaGiorni({
                       ? "bg-primary-foreground"
                       : quanti >= 5
                         ? "bg-amber-500"
-                        : "bg-primary",
+                        : "bg-foreground/40",
                 )}
                 aria-hidden
               />
@@ -2325,16 +2325,8 @@ function StrisciaGiorni({
           </div>
 
           <div className="mb-1 grid grid-cols-7 gap-1">
-            {COLONNE_SETTIMANA.map((d, i) => (
-              <div
-                key={d}
-                className={cn(
-                  "text-center text-[11px] font-medium",
-                  //  Sabato e domenica più tenui: sono giorni in cui di norma
-                  //  non si fissa, e devono pesare meno nel colpo d'occhio.
-                  i >= 5 ? "text-muted-foreground/60" : "text-muted-foreground",
-                )}
-              >
+            {COLONNE_SETTIMANA.map((d) => (
+              <div key={d} className="text-center text-[11px] font-medium text-muted-foreground">
                 {d}
               </div>
             ))}

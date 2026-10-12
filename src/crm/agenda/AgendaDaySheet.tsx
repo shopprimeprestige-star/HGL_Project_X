@@ -704,7 +704,7 @@ export function LineaDelGiorno({
           (adesso == null ? undefined : r.orari.find((o) => aMinuti(o) >= adesso)) ?? r.orari[0];
         return (
           <li key={r.chiave} className="flex gap-2">
-            <span className="flex h-[30px] w-10 shrink-0 items-center justify-end text-[11px] tabular-nums text-muted-foreground/70">
+            <span className="flex h-[30px] w-10 shrink-0 items-center justify-end text-[11px] tabular-nums text-muted-foreground">
               {r.da}
             </span>
             {/*  Il buco ha un pallino vuoto: sulla rotaia si distingue da un

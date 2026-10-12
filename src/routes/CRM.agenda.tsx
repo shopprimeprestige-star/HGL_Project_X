@@ -787,14 +787,8 @@ function AgendaPage() {
           classeCorpo="p-2.5 sm:p-4"
         >
           <div className="mb-1.5 grid grid-cols-7 gap-1 sm:gap-1.5">
-            {DOW_SHORT.map((d, i) => (
-              <div
-                key={d}
-                className={cn(
-                  "py-1 text-center text-[11px] font-medium",
-                  i >= 5 ? "text-muted-foreground/60" : "text-muted-foreground",
-                )}
-              >
+            {DOW_SHORT.map((d) => (
+              <div key={d} className="py-1 text-center text-[11px] font-medium text-muted-foreground">
                 {d}
               </div>
             ))}
