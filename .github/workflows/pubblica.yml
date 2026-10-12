@@ -12,6 +12,8 @@
 # Facoltativi: CRM_ADMIN_EMAIL, CRM_MAGIC_TOKEN, OPENROUTER_API_KEY,
 #   RESEND_API_KEY, SUMUP_API_KEY, SUMUP_MERCHANT_CODE,
 #   BLOG_AIOS_TOKEN (la chiave con cui AIOS carica le bozze del blog: senza, la porta resta chiusa)
+#   AIOS_KPI_TOKEN (la chiave con cui AIOS legge i numeri aggregati da /api/aios/kpi: senza, la porta resta chiusa)
+#   AIOS_OWNER_USER_ID (facoltativo: l'id del titolare del CRM; se manca si usa l'unica riga di tracking_config)
 name: Pubblica su Cloudflare
 
 on:
@@ -81,6 +83,8 @@ jobs:
           SUMUP_API_KEY: ${{ secrets.SUMUP_API_KEY }}
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
           BLOG_AIOS_TOKEN: ${{ secrets.BLOG_AIOS_TOKEN }}
+          AIOS_KPI_TOKEN: ${{ secrets.AIOS_KPI_TOKEN }}
+          AIOS_OWNER_USER_ID: ${{ secrets.AIOS_OWNER_USER_ID }}
         run: |
           node -e '
             const e = process.env, out = {
@@ -89,7 +93,7 @@ jobs:
               SUPABASE_ANON_KEY: e.ANON_KEY,
               SUPABASE_SERVICE_ROLE_KEY: e.SUPABASE_SERVICE_ROLE_KEY,
             };
-            for (const k of ["CRM_ADMIN_EMAIL","CRM_MAGIC_TOKEN","OPENROUTER_API_KEY","RESEND_API_KEY","SUMUP_API_KEY","SUMUP_MERCHANT_CODE","BLOG_AIOS_TOKEN"])
+            for (const k of ["CRM_ADMIN_EMAIL","CRM_MAGIC_TOKEN","OPENROUTER_API_KEY","RESEND_API_KEY","SUMUP_API_KEY","SUMUP_MERCHANT_CODE","BLOG_AIOS_TOKEN","AIOS_KPI_TOKEN","AIOS_OWNER_USER_ID"])
               if (e[k]) out[k] = e[k];
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/segreti.json", JSON.stringify(out));
           '

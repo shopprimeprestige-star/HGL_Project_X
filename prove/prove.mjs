@@ -271,6 +271,10 @@ const MODULI = [
   "clic-liberi",
   //  ⚠️ Il tasso di conversione per risposta: vedi proveDelCvrPerRisposta.
   "kpi/risposte-lead",
+  //  ⚠️ I numeri che escono da GET /api/aios/kpi: vedi proveDelFeedAios. Il
+  //   calcolo è puro e va a un sistema esterno; la privacy ("<5", incasso
+  //   nullo sotto cinque clienti) la applica lui, quindi la fermano le prove.
+  "kpi/aios-feed",
   //  ⚠️ DA QUANDO una scheda e' nello stato in cui sta: il giorno LOCALE, non
   //   quello di Greenwich. Un «segreteria» messo all'una di notte finiva
   //   catalogato il giorno prima.
@@ -612,6 +616,7 @@ const IMP = mod["import-backup"];
 const MDL = mod["modulo-lead"];
 const CLC = mod["clic-liberi"];
 const RSL = mod["kpi/risposte-lead"];
+const AIOSF = mod["kpi/aios-feed"];
 const QST = mod["quando-stato"];
 const LVA = mod["lavori-attivi"];
 const SCR = mod["scritti"];
@@ -3628,6 +3633,218 @@ function proveDelloSconto() {
   c("uno sconto negativo non e' un aumento", 650, prezzoScontato(650, -50));
   c("i centesimi restano in ordine", 599.9, prezzoScontato(650, 50.1));
   c("un prezzo illeggibile vale zero", 0, prezzoScontato("boh", 50));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   I NUMERI PER AIOS (GET /api/aios/kpi)
+   ═══════════════════════════════════════════════════════════════════════════
+   Il calcolo è puro (crm/kpi/aios-feed): qui lead finti, nessuna rete. Si prova
+   quello che il contratto promette e che, sbagliato, non dà errore ma un
+   numero storto o un dato personale in mano a un sistema esterno:
+   la soglia «<5», l'incasso nullo sotto cinque clienti, la settimana
+   lunedì-domenica nel fuso di Roma, l'annuncio preso dalla riga pubblica, la
+   regola della spesa, e che nella risposta non ci sia nessun dato personale. */
+function proveDelFeedAios() {
+  gruppo("I NUMERI PER AIOS");
+  const { costruisciFeedKpi, finestre, maschera, slugDalNome } = AIOSF;
+
+  //  Mercoledì 14 ottobre 2026. La settimana CHIUSA è 5-11 ottobre, quella
+  //  prima 28 settembre - 4 ottobre. Il lunedì 12 è già la settimana aperta.
+  const OGGI = "2026-10-14";
+  const adesso = new Date("2026-10-14T10:00:00Z");
+
+  /*  Un lead con dei dati personali ben riconoscibili: se UNA di queste stringhe
+      compare nella risposta, la privacy è rotta. */
+  const SEGRETI = ["Mario", "Rossi", "3331234567", "mario@esempio.it", "NOTA-SEGRETA", "lead-id-", "pl-"];
+  let n = 0;
+  const lead = (data, extra = {}) => {
+    n++;
+    return {
+      id: `lead-id-${n}`,
+      user_id: "u",
+      created_at: data.createdAt,
+      updated_at: data.createdAt,
+      data: {
+        nome: "Mario",
+        cognome: "Rossi",
+        telefono: "3331234567",
+        email: "mario@esempio.it",
+        note: "NOTA-SEGRETA",
+        stato: "da_contattare",
+        ...data,
+      },
+      ...extra,
+    };
+  };
+  const chiuso = (createdAt, prezzo, extra = {}) =>
+    lead({ createdAt, stato: "posa_in_sede", payment: { prezzoFinaleVendita: prezzo }, ...extra });
+  const feed = (leads, resto = {}) =>
+    costruisciFeedKpi({ adesso, oggi: OGGI, leads, pubblici: {}, spesaMeta: [], spesaTiktok: [], aMano: [], tiktokAlGiorno: 0, ...resto });
+
+  /*  ── LE FINESTRE ───────────────────────────────────────────────────────── */
+  const w = finestre(OGGI);
+  c("l'ultima settimana chiusa è lunedì 5 - domenica 11", ["2026-10-05", "2026-10-11"], [w.settimana.da, w.settimana.a]);
+  c("quella prima finisce il 4", ["2026-09-28", "2026-10-04"], [w.settimana_prima.da, w.settimana_prima.a]);
+  c("il mese in corso: 14 giorni su 31", [14, 31], [w.mese.giorni_passati, w.mese.giorni_totali]);
+  c("il mese prima è settembre intero", ["2026-09-01", "2026-09-30"], [w.mese_prima.da, w.mese_prima.a]);
+  c("gli ultimi 30 giorni comprendono oggi", ["2026-09-15", "2026-10-14"], [w.trenta.da, w.trenta.a]);
+  c("otto settimane chiuse, dalla più vecchia", ["2026-08-17", "2026-10-05"], [w.settimane[0].da, w.settimane[7].da]);
+  //  Di lunedì la settimana appena finita è chiusa, quella che comincia no.
+  c("di lunedì l'ultima chiusa è la precedente", ["2026-10-05", "2026-10-11"], [finestre("2026-10-12").settimana.da, finestre("2026-10-12").settimana.a]);
+  //  Di domenica la settimana non è ancora chiusa.
+  c("di domenica si guarda a quella prima", "2026-09-28", finestre("2026-10-11").settimana.da);
+
+  /*  ── LA SOGLIA «<5» ─────────────────────────────────────────────────────── */
+  c("0 resta 0", 0, maschera(0));
+  c("1 diventa <5", "<5", maschera(1));
+  c("4 diventa <5", "<5", maschera(4));
+  c("5 si vede", 5, maschera(5));
+
+  /*  ── LA SETTIMANA È LUNEDÌ-DOMENICA NEL FUSO DI ROMA ───────────────────────
+      Il Worker gira in UTC. Cinque lead per lato così si vedono i numeri: se il
+      fuso fosse sbagliato, quelli «a cavallo» cambierebbero settimana. */
+  const bordo = [
+    //  lunedì 5 alle 00:30 a Roma = domenica 4 alle 22:30 UTC: è nella settimana CHIUSA
+    ...[1, 2, 3, 4, 5].map(() => lead({ createdAt: "2026-10-04T22:30:00Z" })),
+    //  domenica 11 alle 23:30 a Roma = 21:30 UTC: ancora nella settimana chiusa
+    ...[1, 2, 3, 4, 5].map(() => lead({ createdAt: "2026-10-11T21:30:00Z" })),
+    //  lunedì 12 alle 00:30 a Roma = domenica 11 alle 22:30 UTC: settimana APERTA, fuori
+    ...[1, 2].map(() => lead({ createdAt: "2026-10-11T22:30:00Z" })),
+    //  domenica 4 alle 23:30 a Roma: ultimo minuto della settimana prima
+    ...[1, 2, 3].map(() => lead({ createdAt: "2026-10-04T21:30:00Z" })),
+  ];
+  const fb = feed(bordo);
+  c("lunedì 00:30 di Roma è nella settimana nuova (e domenica 23:30 pure)", 10, fb.periodi.settimana.kpi.lead);
+  c("domenica sera di Roma resta nella settimana prima", "<5", fb.periodi.settimana_prima.kpi.lead);
+  //  Nell'elenco da 8 settimane l'ultima è la 5-11: i 2 del lunedì 12 non ci sono.
+  c("il lunedì della settimana aperta non è contato", 10, fb.settimane[7].lead);
+
+  /*  ── L'INCASSO: MAI SOTTO CINQUE CLIENTI, E ALLE CENTINAIA ──────────────── */
+  const tre = feed([1, 2, 3].map(() => chiuso("2026-10-06T10:00:00Z", 1500)));
+  c("tre clienti: il numero si nasconde", "<5", tre.periodi.settimana.kpi.clienti);
+  c("tre clienti: incasso nullo", null, tre.periodi.settimana.kpi.incasso);
+  c("tre clienti: roas nullo", null, tre.periodi.settimana.kpi.roas);
+  const cinque = feed([1, 2, 3, 4, 5].map(() => chiuso("2026-10-06T10:00:00Z", 1234)), {
+    spesaMeta: [{ spend_date: "2026-10-06", ad_id: "A", spend: 1000 }],
+  });
+  c("cinque clienti: si vedono", 5, cinque.periodi.settimana.kpi.clienti);
+  c("incasso 6170 arrotondato alle centinaia", 6200, cinque.periodi.settimana.kpi.incasso);
+  c("il roas c'è con cinque clienti (6170 su 1000)", 6.17, cinque.periodi.settimana.kpi.roas);
+  c("costo per cliente = spesa / clienti", 200, cinque.periodi.settimana.kpi.cac);
+  const zero = feed([]);
+  c("senza clienti l'incasso è nullo, non zero", null, zero.periodi.settimana.kpi.incasso);
+
+  /*  ── LA SPESA: LA REGOLA DEL REGISTRO UNICO, SENZA REACT ────────────────────
+      Meta 100 al giorno per i sette giorni; TikTok ha una riga sola (5 ottobre,
+      20); il budget TikTok è 50 al giorno; il 6 ottobre qualcuno ha scritto a
+      mano 300. Quel giorno vince la riga a mano e basta: né Meta, né stima. */
+  const giorni = ["05", "06", "07", "08", "09", "10", "11"];
+  const sp = feed([], {
+    spesaMeta: giorni.map((g) => ({ spend_date: `2026-10-${g}`, ad_id: "A", spend: 100 })),
+    spesaTiktok: [{ spend_date: "2026-10-05", ad_id: "T", spend: 20 }],
+    aMano: [{ id: "m1", user_id: "u", created_at: "", updated_at: "", data: { data: "2026-10-06", campagna: "x", fonte: "ADV", importoSpeso: 300, leadGenerati: 0, meetFissati: 0, conversioni: 0 } }],
+    tiktokAlGiorno: 50,
+  });
+  const s = sp.periodi.settimana.kpi.spesa;
+  c("Meta: sei giorni, quello a mano la sostituisce", 600, s.meta);
+  c("TikTok vero: la sola riga sincronizzata", 20, s.tiktok);
+  c("TikTok stimato: i 5 giorni senza righe e senza registrazione", 250, s.tiktok_stimata);
+  c("totale = Meta + TikTok + stima + la riga a mano senza canale", 1170, s.totale);
+
+  /*  ── L'ANNUNCIO VIENE DALLA RIGA PUBBLICA ──────────────────────────────── */
+  const daPubblico = lead({
+    createdAt: "2026-10-08T10:00:00Z",
+    publicLeadId: "pl-1",
+    piattaformaAds: "meta",
+    tracking: { source: "meta" },
+  });
+  const copiato = lead({
+    createdAt: "2026-10-08T10:00:00Z",
+    piattaformaAds: "meta",
+    tracking: { source: "meta", ad_id: "AD2", ad_name: "2026-10-02-secondo | Meta" },
+  });
+  const senzaAnnuncio = lead({ createdAt: "2026-10-08T10:00:00Z", piattaformaAds: "meta", tracking: { source: "meta" } });
+  const fa = feed([daPubblico, copiato, senzaAnnuncio], {
+    pubblici: { "pl-1": { ad_id: "AD1", ad_name: "2026-10-01-prova-hook | Meta" } },
+    spesaMeta: [
+      { spend_date: "2026-10-08", ad_id: "AD1", ad_name: "2026-10-01-prova-hook | Meta", campaign_name: "Camp A", spend: 80, impressions: 1000, video_3_sec_watched: 300, video_thruplays: 60 },
+    ],
+  });
+  const ad1 = fa.per_annuncio.find((x) => x.ad_id === "AD1");
+  c("l'annuncio del lead pubblico è trovato", true, !!ad1);
+  c("con il nome dalla spesa e lo slug del video", "2026-10-01-prova-hook", ad1?.slug);
+  c("un lead sotto soglia è «<5»", "<5", ad1?.lead);
+  c("la spesa dell'annuncio", 80, ad1?.spesa);
+  c("hook rate = 3 secondi / impressioni", 0.3, ad1?.hook_rate);
+  c("hold rate = thruplay / 3 secondi", 0.2, ad1?.hold_rate);
+  const ad2 = fa.per_annuncio.find((x) => x.ad_id === "AD2");
+  c("l'annuncio copiato sul lead conta anche senza spesa", "<5", ad2?.lead);
+  c("e ne prende lo slug dal nome", "2026-10-02-secondo", ad2?.slug);
+  c("un lead pagato su tre non ha annuncio: 33,3%", 33.3, fa.qualita.lead_senza_annuncio_pct);
+  c("nessun annuncio senza spesa né lead", 2, fa.per_annuncio.length);
+  c("lo slug si cerca nel nome, minuscolo", "2026-10-11-esempio-epilessia", slugDalNome("Video 2026-10-11-Esempio-Epilessia | v2"));
+  c("senza data nel nome non c'è slug", null, slugDalNome("Campagna generica"));
+
+  /*  ── I CANALI ───────────────────────────────────────────────────────────── */
+  const cn = feed([
+    ...[1, 2, 3, 4, 5].map(() => lead({ createdAt: "2026-10-07T10:00:00Z", fonte: "Passa parola", piattaformaAds: "none" })),
+    lead({ createdAt: "2026-10-07T10:00:00Z", fonte: "Store", piattaformaAds: "none" }),
+    lead({ createdAt: "2026-10-07T10:00:00Z", tracking: { utm_source: "tiktok" } }),
+  ]);
+  const lc = cn.periodi.settimana.kpi.lead_per_canale;
+  c("passaparola, store e tiktok separati", [5, "<5", "<5", 0, 0], [lc.passaparola, lc.store, lc.tiktok, lc.meta, lc.organico]);
+
+  /*  ── I MOTIVI DI PERDITA: SOLO LA CATEGORIA ─────────────────────────────── */
+  const mp = feed([
+    ...[1, 2, 3, 4, 5].map(() => lead({ createdAt: "2026-10-07T10:00:00Z", stato: "perdi_tempo", lostReason: "prezzo", lostReasonNote: "NOTA-SEGRETA sul prezzo" })),
+    lead({ createdAt: "2026-10-07T10:00:00Z", stato: "concluso", lostReason: "motivo-inventato" }),
+  ]);
+  c("5 perdite per prezzo", 5, mp.motivi_perdita.prezzo);
+  c("un motivo sconosciuto va in «altro»", "<5", mp.motivi_perdita.altro);
+  c("quelli mai usati restano 0", 0, mp.motivi_perdita.concorrenza);
+
+  /*  ── I TEMPI E LE ATTESE ────────────────────────────────────────────────── */
+  const t = feed([
+    lead({ createdAt: "2026-10-08T10:00:00Z", stato: "sta_valutando", firstContactAt: "2026-10-08T10:20:00Z" }),
+    lead({ createdAt: "2026-10-08T10:00:00Z", stato: "sta_valutando", firstContactAt: "2026-10-08T12:00:00Z" }),
+    lead({ createdAt: "2026-10-08T10:00:00Z", stato: "sta_valutando" }),
+  ]);
+  c("prima risposta: mediana di 20 e 120 minuti", 70, t.tempi.prima_risposta_min);
+  c("entro un'ora: 1 su 2 (sotto soglia, mascherato)", { n: "<5", d: "<5" }, t.tempi.entro_1h);
+  c("senza dato la mediana è nulla", null, feed([lead({ createdAt: "2026-10-08T10:00:00Z" })]).tempi.prima_risposta_min);
+  const a = feed([
+    //  da contattare da 4 ore: in ritardo. Importato: archivio, non ritardo.
+    lead({ createdAt: "2026-10-14T06:00:00Z" }),
+    lead({ createdAt: "2026-09-01T06:00:00Z", importato: true }),
+    //  appuntamento di 5 giorni fa mai chiuso
+    lead({ createdAt: "2026-10-01T06:00:00Z", stato: "appuntamento_fissato", dataMeeting: "2026-10-09" }),
+    //  in valutazione da 10 giorni (scritto in UTC: a Roma è lo stesso giorno)
+    lead({ createdAt: "2026-09-20T06:00:00Z", stato: "sta_valutando", statoPrecedenteIl: "2026-10-04T10:00:00Z" }),
+  ]);
+  c("una sola attesa da contattare, l'importato no", "<5", a.attese.da_contattare_oltre_2h);
+  c("un appuntamento passato senza esito", "<5", a.attese.fatte_senza_esito_3g);
+  c("una valutazione ferma da oltre 7 giorni", "<5", a.attese.in_valutazione_oltre_7g);
+
+  /*  ── NESSUN DATO PERSONALE ───────────────────────────────────────────────
+      Tutti i lead qui sopra portano nome, telefono, email, nota, id e
+      publicLeadId riconoscibili. Nel JSON non ne deve comparire nemmeno uno,
+      e non devono esserci chiavi che li nominano. */
+  const tuttoIlResto = feed(
+    [...bordo, ...[1, 2, 3, 4, 5].map(() => chiuso("2026-10-06T10:00:00Z", 1500, { consulenteId: "cons-1", publicLeadId: "pl-9" })), daPubblico, copiato, senzaAnnuncio],
+    { pubblici: { "pl-1": { ad_id: "AD1", ad_name: "2026-10-01-prova-hook | Meta" } } },
+  );
+  const testo = JSON.stringify(tuttoIlResto) + JSON.stringify(fa) + JSON.stringify(mp) + JSON.stringify(t) + JSON.stringify(a);
+  for (const x of SEGRETI) c(`nella risposta non compare «${x}»`, false, testo.includes(x));
+  const chiavi = new Set();
+  (function giro(v) {
+    if (Array.isArray(v)) return v.forEach(giro);
+    if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) (chiavi.add(k), giro(x));
+  })(tuttoIlResto);
+  for (const vietata of ["cognome", "telefono", "email", "note", "id", "lead_id", "publicLeadId", "consulenteId", "consulente", "lostReasonNote", "citta", "data"])
+    c(`nessuna chiave «${vietata}»`, false, chiavi.has(vietata));
+  c("la versione del contratto", 1, tuttoIlResto.versione);
+  c("il fuso dichiarato", "Europe/Rome", tuttoIlResto.fuso);
+  c("la soglia dichiarata", 5, tuttoIlResto.soglia_min);
 }
 
 function proveDelCanale() {
@@ -14838,6 +15055,7 @@ proveDelCodiceFiscale();
 proveDelDivario();
 proveDelloSconto();
 proveDelCanale();
+proveDelFeedAios();
 proveDelloStatoScelto();
 proveDellaLetturaDocumento();
 proveDelTipoProposto();
