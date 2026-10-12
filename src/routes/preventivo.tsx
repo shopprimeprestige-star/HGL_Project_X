@@ -476,7 +476,7 @@ function PromoNote({ until, onApri }: { until: Date; onApri?: () => void }) {
             }
           : undefined
       }
-      className={`hg-shine block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16]" : ""}`}
+      className={`block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16]" : ""}`}
     >
       <span className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 flex-shrink-0 text-amber-300" />
@@ -665,11 +665,7 @@ function FaseTitolo({ n, titolo, quando }: { n: number; titolo: string; quando: 
     //  numero, titolo e tempo IMPILATI, ciascuno sulla sua riga — dentro una
     //  carta con la sua cornice: si legge dall'alto in basso, e si vede dove
     //  finisce una fase e comincia l'altra anche scorrendo in fretta.
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent px-4 py-3.5">
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent"
-      />
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-brand/40 bg-brand/15 text-[16px] font-bold text-brand">
           {n}
@@ -4092,8 +4088,12 @@ function QuoteBuilder() {
   //  apri il documento, quindi non va mai chiuso a mano.
   const lookupVeil =
     remoteLookup && (isMirror || isViewer) ? (
-      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/88 px-6 backdrop-blur-sm print:hidden">
-        <div className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl">
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/88 px-6 print:hidden">
+        <div
+          role="status"
+          aria-live="polite"
+          className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl"
+        >
           <span className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-brand/35 bg-brand/10">
             <span className="hg-pulse-ring absolute inset-0 rounded-2xl border border-brand/40" />
             <FileText className="hg-icon-in h-6 w-6 text-brand" />
@@ -4101,12 +4101,9 @@ function QuoteBuilder() {
           <p className="mt-4 text-[17px] font-bold leading-tight text-white">
             Stiamo recuperando il tuo preventivo
           </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-white/55">
+          <p className="mt-1.5 text-[14px] leading-relaxed text-white/70">
             Il consulente sta aprendo il documento a tuo nome. Resta in linea, ci vuole un istante.
           </p>
-          <span className="mx-auto mt-5 block h-px w-24 overflow-hidden rounded-full bg-white/10">
-            <span className="hg-sheen block h-full w-full bg-gradient-to-r from-transparent via-brand to-transparent" />
-          </span>
         </div>
       </div>
     ) : null;
@@ -4118,8 +4115,12 @@ function QuoteBuilder() {
       lavoro in corso di un altro. */
   const veloGruppo =
     isViewer && !!mioGettone && vedoDelGruppo === "niente" ? (
-      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/92 px-6 backdrop-blur-sm print:hidden">
-        <div className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl">
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/92 px-6 print:hidden">
+        <div
+          role="status"
+          aria-live="polite"
+          className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl"
+        >
           <span className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-brand/35 bg-brand/10">
             <span className="hg-pulse-ring absolute inset-0 rounded-2xl border border-brand/40" />
             <FileText className="hg-icon-in h-6 w-6 text-brand" />
@@ -4127,12 +4128,9 @@ function QuoteBuilder() {
           <p className="mt-4 text-[17px] font-bold leading-tight text-white">
             Il consulente sta preparando il preventivo
           </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-white/55">
+          <p className="mt-1.5 text-[14px] leading-relaxed text-white/70">
             Compare qui appena è pronto. Resta pure su questa pagina: non serve fare altro.
           </p>
-          <span className="mx-auto mt-5 block h-px w-24 overflow-hidden rounded-full bg-white/10">
-            <span className="hg-sheen block h-full w-full bg-gradient-to-r from-transparent via-brand to-transparent" />
-          </span>
         </div>
       </div>
     ) : null;
@@ -4552,16 +4550,8 @@ function QuoteBuilder() {
               ancora, ma si incontra dopo, in forma di aritmetica. */}
           <section
             data-hg-anchor="res-cliente"
-            className="relative mb-5 overflow-hidden rounded-3xl border border-brand/45 bg-gradient-to-br from-brand/[0.18] via-brand/[0.06] to-transparent px-5 py-6 sm:px-7 sm:py-7"
+            className="relative mb-5 overflow-hidden rounded-3xl border border-brand/45 bg-brand/[0.08] px-5 py-6 sm:px-7 sm:py-7"
           >
-            <span
-              aria-hidden
-              className="hg-aurora pointer-events-none absolute -top-24 left-1/2 h-56 w-72 -translate-x-1/2 rounded-full bg-brand/25 blur-3xl"
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent"
-            />
             <div className="relative">
               {/*  ⚠️ IL BOLLO STA ATTACCATO AL NUMERO, non solo nel riquadro in
                    cima: questa pagina si stampa e si manda in PDF, e in un
@@ -4683,7 +4673,7 @@ function QuoteBuilder() {
                 <a
                   href="#res-pagamento"
                   onClick={() => sfx.select()}
-                  className="hg-cta-glow hg-rise relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-brand px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/25 transition hover:brightness-110 print:hidden"
+                  className="hg-rise relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-brand px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/25 transition hover:brightness-110 print:hidden"
                   style={{ animationDelay: "250ms" }}
                 >
                   <span className="relative z-10 flex items-center gap-2">
@@ -4731,11 +4721,11 @@ function QuoteBuilder() {
                     <button
                       type="button"
                       onClick={() => setPercheScade(true)}
-                      className="hg-shine mr-1 inline-flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-400/[0.10] px-2.5 py-1.5 align-middle text-[14px] font-medium text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/15"
+                      className="mr-1 inline-flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-400/[0.10] px-2.5 py-1.5 align-middle text-[14px] font-medium text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/15"
                     >
                       Prezzo bloccato fino al{" "}
                       <b className="font-bold text-white">{formatDeadline(rPromo)}</b>
-                      <span className="rounded-full bg-amber-300/25 px-2 py-0.5 text-[12px] font-bold text-amber-100">
+                      <span className="text-[13px] font-semibold text-amber-200 underline underline-offset-2">
                         perché?
                       </span>
                     </button>
@@ -4981,7 +4971,7 @@ function QuoteBuilder() {
                 setPercorsoOpen(true);
               }}
               data-hg-anchor="res-percorso"
-              className="hg-shine group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-gradient-to-r from-brand/[0.10] to-transparent px-4 py-3.5 text-left transition hover:from-brand/[0.16] print:hidden"
+              className="group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-brand/[0.08] px-4 py-3.5 text-left transition hover:bg-brand/[0.14] print:hidden"
             >
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/20 text-brand">
                 <RouteIcon className="h-4 w-4" />
@@ -5540,17 +5530,14 @@ function QuoteBuilder() {
             mezza schermata e si leggevano come un elenco qualsiasi. Ora sono una
             riga sola, in griglia, con icona sopra e testo sotto — leggibile in un
             colpo d'occhio anche sul telefono. Il titolo entra con una comparsa
-            scalata e lo sfondo respira lentamente: movimento, non animazione. */}
+            scalata. */}
         <section
           data-hg-anchor="cfg-hero"
-          className="relative mb-5 overflow-hidden rounded-2xl border border-brand/25 bg-gradient-to-b from-brand/[0.14] via-white/[0.02] to-transparent px-4 py-7 text-center sm:mb-7 sm:rounded-3xl sm:px-6 sm:py-10"
+          className="relative mb-5 overflow-hidden rounded-2xl border border-brand/25 bg-white/[0.03] px-4 py-5 text-center sm:mb-7 sm:rounded-3xl sm:px-6 sm:py-8"
         >
-          <div className="hg-aurora pointer-events-none absolute -top-28 left-1/2 h-64 w-[22rem] -translate-x-1/2 rounded-full bg-brand/25 blur-3xl" />
-          <div className="hg-aurora-slow pointer-events-none absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-brand/15 blur-3xl" />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
           <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-3.5 sm:gap-4">
             <span
-              className="hg-rise inline-flex items-center gap-1.5 rounded-full border border-brand/35 bg-brand/12 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.22em] text-brand sm:text-[10px]"
+              className="hg-rise inline-flex items-center gap-1.5 rounded-full border border-brand/35 bg-brand/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand"
               style={{ animationDelay: "0ms" }}
             >
               <Fingerprint className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> Il tuo preventivo, costruito con
@@ -5562,9 +5549,7 @@ function QuoteBuilder() {
             >
               Scegli tu ogni dettaglio.
               <br />
-              <span className="bg-gradient-to-r from-brand via-sky-300 to-brand bg-clip-text text-transparent">
-                Impossibile da riconoscere.
-              </span>
+              <span className="text-brand">Impossibile da riconoscere.</span>
             </h1>
             <p
               className="hg-rise max-w-xl text-balance text-sm leading-relaxed text-white/65 sm:text-base"
@@ -6407,7 +6392,7 @@ function QuoteBuilder() {
               seguirti. Come per le schede-opzione affiancate, un blocco che cambia
               posizione fra i due layout non può fare da riferimento. */}
           <section className="lg:hidden">
-            <div className="rounded-2xl border border-brand/40 bg-gradient-to-b from-brand/[0.10] to-white/[0.03] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+            <div className="rounded-2xl border border-brand/40 bg-brand/[0.07] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
               <Summary
                 soloConsulente={isViewer}
                 mobile
@@ -6506,18 +6491,11 @@ function QuoteBuilder() {
               che contano — il totale e quanto si risparmia — allineati agli
               estremi. Il prezzo resta l'elemento più grande della schermata. */}
           <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
-            {/* Vetro: sfondo semitrasparente + sfocatura di ciò che scorre sotto. Si
-                  intuisce il contenuto dietro, la scheda resta leggibile. */}
-            <div className="hg-glass relative mx-auto max-w-md overflow-hidden rounded-2xl border border-brand/30 bg-[#081a3d]/60 shadow-[0_-10px_44px_rgba(0,0,0,.5)] backdrop-blur-2xl backdrop-saturate-150">
-              <div className="hg-aurora pointer-events-none absolute -top-14 left-1/2 h-24 w-52 rounded-full bg-brand/25 blur-3xl" />
-              {/* filo superiore: separa la scheda dal contenuto che scorre sotto */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand to-transparent" />
-              {/* luccichio: una lama di luce che attraversa il vetro ogni 6s */}
-              <span className="hg-sheen pointer-events-none absolute inset-0" />
-
+            {/* Fondo pieno: quello che scorre sotto non traspare dietro la cifra. */}
+            <div className="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-brand/40 bg-[#081a3d] shadow-[0_-10px_44px_rgba(0,0,0,.5)]">
               <div className="relative px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="hg-pulse-ring absolute inset-0 rounded-full bg-brand" />
                       <span className="relative h-1.5 w-1.5 rounded-full bg-brand" />
@@ -8387,14 +8365,10 @@ function SecondoImpianto({
   return (
     <section
       data-hg-anchor="res-secondo"
-      className={`overflow-hidden rounded-2xl border border-emerald-400/30 bg-gradient-to-b from-emerald-400/[0.13] to-emerald-400/[0.04] ${
+      className={`overflow-hidden rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] ${
         grande ? "mb-5" : "mt-4"
       }`}
     >
-      {/*  Il filo di luce in cima: la stessa lingua del riquadro del totale,
-           che è l'altro blocco «premium» della pagina. Ripetere il segno vuol
-           dire dire «questi due contano», senza scriverlo. */}
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent" />
       <div className={grande ? "p-5 sm:p-6" : "p-4"}>
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-emerald-100 ring-1 ring-emerald-300/30">
@@ -8705,12 +8679,10 @@ function Summary(p: any) {
       <div className="my-4 border-t border-white/10" />
       {/* Il totale è l'informazione più importante del riquadro: deve essere la
           prima cosa che l'occhio trova, non una riga fra le altre. */}
-      {/* stesso vetro della barra in basso: la stessa informazione deve avere
-          la stessa veste ovunque compaia */}
-      <div className="hg-glass relative overflow-hidden rounded-xl border border-brand/30 bg-brand/[0.10] px-4 py-3.5 backdrop-blur-2xl backdrop-saturate-150">
-        <span className="hg-sheen pointer-events-none absolute inset-0" />
+      {/* stessa veste della barra in basso: fondo pieno, niente vetro */}
+      <div className="relative rounded-xl border border-brand/30 bg-brand/[0.12] px-4 py-3.5">
         <div className="relative flex items-baseline justify-between gap-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/50">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
             Totale stimato
           </span>
           {discountEur > 0 && (
@@ -8721,7 +8693,7 @@ function Summary(p: any) {
         </div>
         <p
           key={total}
-          className={`hg-price-pop relative mt-0.5 font-extrabold leading-none tracking-tight text-white ${mobile ? "text-4xl" : "text-3xl"}`}
+          className="hg-price-pop relative mt-0.5 text-4xl font-extrabold leading-none tracking-tight text-white"
         >
           {formatPrice(total)}
         </p>
@@ -8742,7 +8714,7 @@ function Summary(p: any) {
           </>
         )}
       </button>
-      <p className="mt-2 text-center text-[11px] text-white/40">
+      <p className="mt-2 text-center text-[12.5px] leading-snug text-white/65">
         {p.soloConsulente
           /*  Il cliente deve capire che non gli manca un passaggio: ha finito
               lui, tocca a chi conduce. Un pulsante spento senza una riga che
