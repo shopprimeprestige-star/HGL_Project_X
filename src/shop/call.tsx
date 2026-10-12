@@ -107,7 +107,6 @@ import {
 } from "@/shop/versione-vecchia";
 import { avviaTela, type MotoreDiDisegno } from "@/shop/tela-registrazione";
 import {
-  FOTOGRAMMI_REGISTRAZIONE,
   SOGLIA_PIANO_GRATUITO,
   sogliaParte,
   tocca,
@@ -4020,12 +4019,14 @@ async function catturaSchermo(): Promise<MediaStream | null> {
     (navigator.mediaDevices as any).getDisplayMedia(opts) as Promise<MediaStream>;
   try {
     return await call({
-      //  `max`, non solo `ideal`: un «ideale» il browser lo prende come un
-      //  consiglio, e lo schermo arrivava a 60 (vedi shop/ritmo-registrazione).
-      video: {
-        displaySurface: "monitor",
-        frameRate: { ideal: FOTOGRAMMI_REGISTRAZIONE, max: FOTOGRAMMI_REGISTRAZIONE },
-      },
+      /*  ⚠️ LO SCHERMO NON SI LIMITA A 15 FOTOGRAMMI (12-13/10/2026). Il
+          limite `max: 15` messo qui il 12/10 ha fatto tacere il registratore:
+          nel diario, da quel giorno, ogni registrazione dello SCHERMO scrive
+          «NIENTE dopo 6000 ms» e compare l'avviso «non sta scrivendo», e il
+          consulente la ferma (14 e 22 secondi). Le CAMERE, limitate sulla
+          tela e non sulla cattura, partono subito. Lo schermo torna come
+          prima: 30 ideali, deciso dal browser. */
+      video: { displaySurface: "monitor", frameRate: { ideal: 30 } },
       audio: true,
       selfBrowserSurface: "include",
       systemAudio: "include",
@@ -4320,14 +4321,8 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     const dvt = display?.getVideoTracks()[0];
     const usaSchermo = catturaUsabile(display?.getTracks() ?? []);
     if (dvt && usaSchermo) {
-      //  Anche sulla traccia già aperta: lo schermo tenuto da «Videochiamata»
-      //  e quello del ripiego `video: true` non hanno chiesto un ritmo.
-      //  Questo schermo va SOLO nel file, il cliente non lo riceve.
-      void dvt
-        .applyConstraints({ frameRate: { max: FOTOGRAMMI_REGISTRAZIONE } })
-        .catch(() => {
-          /* il browser tiene il suo ritmo: si registra lo stesso */
-        });
+      //  ⚠️ Qui c'era un `applyConstraints({ frameRate: { max: 15 } })` sulla
+      //   traccia dello schermo: tolto, vedi `catturaSchermo`.
       mix.addTrack(dvt);
       dvt.addEventListener("ended", () => fermaRegistratore()); // "Interrompi condivisione"
     } else {
