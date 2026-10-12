@@ -14849,8 +14849,15 @@ function proveDellAnteprimaConIlNome() {
   c("stanza senza persona: il testo di sempre", A.TESTO_STANZA.titolo, A.testoAnteprimaStanza(null).titolo);
   c("preventivo: il titolo porta nome e cognome", "Mario Rossi · il tuo preventivo Hair Genius Labs",
     A.testoAnteprimaPreventivo({ nome: "Mario", cognome: "Rossi" }).titolo);
-  c("preventivo: mai un prezzo nell'anteprima", false,
-    /€|\d+[.,]\d{2}/.test(JSON.stringify(A.testoAnteprimaPreventivo(mario))));
+  //  ⚠️ Il prezzo C'È (decisione del titolare, 12/10/2026): il link è suo.
+  const conTotale = A.testoAnteprimaPreventivo({ nome: "Mario", cognome: "Rossi", totale: 4500 });
+  c("preventivo: nome e totale nel titolo", true,
+    conTotale.titolo.startsWith("Mario Rossi · il tuo preventivo: ") && /4\.?500\s*€/.test(conTotale.titolo));
+  c("preventivo: il totale anche nella descrizione", true, /^Totale 4\.?500\s*€\./.test(conTotale.descrizione));
+  c("preventivo con i centesimi: si vedono", true,
+    /4\.?499,50\s*€/.test(A.testoAnteprimaPreventivo({ nome: "Mario", cognome: "", totale: 4499.5 }).titolo));
+  c("totale zero: nessuna cifra inventata", false,
+    /€/.test(JSON.stringify(A.testoAnteprimaPreventivo({ nome: "Mario", cognome: "", totale: 0 }))));
   c("preventivo senza persona: il testo di sempre", A.TESTO_PREVENTIVO.titolo, A.testoAnteprimaPreventivo(undefined).titolo);
   c("solo il nome se manca il cognome", "Luca · la tua videoconsulenza Meetly",
     A.testoAnteprimaStanza({ nome: "Luca", cognome: "" }).titolo);

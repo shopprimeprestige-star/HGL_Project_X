@@ -3,6 +3,7 @@
  *  /meetly/CODICE e /preventivo (che scrivono titolo e descrizione). Stanno qui
  *  perché le prove (`npm test`) le possano controllare senza Supabase. */
 import { attesoDalGettone, type PersonaAttesa } from "@/crm/fascia-consulenza";
+import { euroLeggibile } from "@/shop/anteprima-preventivo";
 
 export interface Destinatario {
   nome: string;
@@ -11,6 +12,8 @@ export interface Destinatario {
   giorno?: string;
   /** HH:MM */
   ora?: string;
+  /** Il totale del preventivo, in euro (solo per i link del preventivo). */
+  totale?: number;
 }
 
 /** Niente che possa uscire dal valore di un meta (virgolette, a capo, tag). */
@@ -86,14 +89,19 @@ export function testoAnteprimaStanza(d: Destinatario | null | undefined) {
   };
 }
 
-/** Titolo e descrizione del link del preventivo. ⚠️ Mai il prezzo: l'anteprima
- *  la vede chiunque abbia il telefono in mano. */
+/** Titolo e descrizione del link del preventivo, con il totale.
+ *  ⚠️ Il prezzo C'È (decisione del titolare, 12/10/2026): il link è personale,
+ *   lo riceve solo quel cliente, e il totale è la prima cosa che cerca. Lo
+ *   stesso «4.500 €» della scheda illustrata (euroLeggibile), mai una cifra
+ *   diversa. Senza totale (preventivo non ancora salvato) si scrive solo il nome. */
 export function testoAnteprimaPreventivo(d: Destinatario | null | undefined) {
   const nome = nomeCompleto(d);
+  const tot = Number(d?.totale);
+  const prezzo = Number.isFinite(tot) && tot > 0 ? euroLeggibile(tot) : "";
   if (!nome) return TESTO_PREVENTIVO;
   return {
-    titolo: `${nome} · il tuo preventivo Hair Genius Labs`,
-    descrizione: "Il preventivo preparato per te in consulenza: rileggilo con calma. Nessun pagamento adesso.",
+    titolo: prezzo ? `${nome} · il tuo preventivo: ${prezzo}` : `${nome} · il tuo preventivo Hair Genius Labs`,
+    descrizione: `${prezzo ? `Totale ${prezzo}. ` : ""}Il preventivo preparato per te in consulenza: rileggilo con calma. Nessun pagamento adesso.`,
   };
 }
 

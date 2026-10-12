@@ -104,11 +104,17 @@ export async function destinatarioDelPreventivo(p: {
     if (/^[A-Za-z0-9-]{3,40}$/.test(ref)) {
       const { data } = await (await db())
         .from("quote_requests")
-        .select("nome,cognome")
+        .select("nome,cognome,total")
         .eq("quote_ref", ref)
         .maybeSingle();
-      const r = data as { nome?: string; cognome?: string } | null;
-      if (r && pulito(r.nome)) return { nome: pulito(r.nome), cognome: pulito(r.cognome) };
+      const r = data as { nome?: string; cognome?: string; total?: number | string | null } | null;
+      const totale = Number(r?.total);
+      if (r && pulito(r.nome))
+        return {
+          nome: pulito(r.nome),
+          cognome: pulito(r.cognome),
+          ...(Number.isFinite(totale) && totale > 0 ? { totale } : {}),
+        };
     }
     if (p.sess) return await destinatarioDellaStanza(p.sess, p.persona);
     return null;
