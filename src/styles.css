@@ -140,6 +140,13 @@ html[data-carattere="inter"] {
      diventa illeggibile. */
   --brand-velo: oklch(0.65 0.19 252 / 0.06);
   --brand-velo-forte: oklch(0.65 0.19 252 / 0.25);
+  --brand-velo-10: oklch(0.65 0.19 252 / 0.1);
+  --brand-velo-14: oklch(0.65 0.19 252 / 0.14);
+  --brand-velo-22: oklch(0.65 0.19 252 / 0.22);
+  /* Il blu del marchio mescolato al bianco, già opaco (stesso risultato del
+     color-mix che sostituisce): per i fondi chiari che hanno testo sopra. */
+  --brand-su-bianco-4: oklab(98.600% -0.00235 -0.00723);
+  --brand-su-bianco-5: oklab(98.250% -0.00294 -0.00904);
   --light-panel: oklch(0.96 0.005 250);
   --ink: oklch(0.18 0.02 255);
   --ink-muted: oklch(0.5 0.02 255);
@@ -1210,8 +1217,8 @@ html.hg-guest body {
    =================================================================== */
 .ng-pill {
   background: linear-gradient(135deg,
-    color-mix(in oklab, white 100%, transparent),
-    color-mix(in oklab, var(--brand) 5%, white)
+    white,
+    var(--brand-su-bianco-5)
   );
   border: 1px solid color-mix(in oklab, var(--brand) 22%, transparent);
   box-shadow:
@@ -1313,7 +1320,7 @@ html.hg-guest body {
   position: relative;
   isolation: isolate;
   background:
-    linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, white 96%, var(--brand) 4%) 100%);
+    linear-gradient(180deg, #ffffff 0%, var(--brand-su-bianco-4) 100%);
   border: 1px solid color-mix(in oklab, var(--ink) 8%, transparent);
   border-radius: 14px;
   overflow: hidden;
@@ -1339,7 +1346,7 @@ html.hg-guest body {
   position: absolute;
   inset: 0;
   background: radial-gradient(60% 50% at 100% 0%,
-    color-mix(in oklab, var(--brand) 14%, transparent) 0%,
+    var(--brand-velo-14) 0%,
     transparent 60%);
   opacity: .9;
   pointer-events: none;
@@ -1361,7 +1368,7 @@ html.hg-guest body {
   font-size: 3rem;
   line-height: 1;
   letter-spacing: -0.02em;
-  color: color-mix(in oklab, var(--brand) 22%, transparent);
+  color: var(--brand-velo-22);
   z-index: 1;
 }
 .ng-pillar__icon {
@@ -1388,7 +1395,7 @@ html.hg-guest body {
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 4px;
-  background: color-mix(in oklab, var(--brand) 10%, transparent);
+  background: var(--brand-velo-10);
   color: var(--brand);
   border: 1px solid color-mix(in oklab, var(--brand) 20%, transparent);
 }
@@ -1650,7 +1657,7 @@ html.hg-guest body {
   box-shadow: 0 1px 0 color-mix(in oklab, var(--ink) 3%, transparent);
 }
 .ng-urgenza:hover {
-  background: color-mix(in oklab, var(--brand) 4%, white);
+  background: var(--brand-su-bianco-4);
 }
 .ng-urgenza--active {
   box-shadow: 0 4px 14px -6px color-mix(in oklab, var(--brand) 35%, transparent);
