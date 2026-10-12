@@ -14,6 +14,15 @@
  *  è quella della connessione.
  *
  *  POST { filename } -> { ok, path, token, url }
+ *  GET               -> { ok, tetto }   il limite per file del secchio (0 = nessuno)
+ *
+ *  ── PERCHÉ IL REGISTRATORE CHIEDE IL TETTO ────────────────────────────────
+ *  Segnalazione del committente: «registra 1,30 minuti a botta». Il
+ *  registratore spezzava a 40 MB fissi per stare sotto i 50 MB del piano
+ *  gratuito. Adesso la soglia la decide il tetto vero del secchio (vedi
+ *  shop/ritmo-registrazione): alzato il tetto, la consulenza sta in un file
+ *  solo. ⚠️ Un secchio SENZA tetto proprio risponde 0, e 0 vuol dire «resta
+ *  sulla soglia sicura»: il tetto del progetto da qui non si legge.
  *
  *  ── SOLO A CHI HA L'ACCESSO ───────────────────────────────────────────────
  *  Questo consegna un permesso di SCRITTURA sulla Storage: senza controllo,
@@ -26,7 +35,7 @@ import { INTESTAZIONI_CONSENTITE, guardia } from "./api.presenter.consultant";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": INTESTAZIONI_CONSENTITE,
 };
 const json = (o: unknown, status = 200) =>
@@ -41,6 +50,16 @@ export const Route = createFileRoute("/api/presenter/upload-url")({
   server: {
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: cors }),
+      GET: async ({ request }) => {
+        const no = await guardia(request, cors);
+        if (no) return no;
+        try {
+          const { data: info } = await supabaseAdmin.storage.getBucket(BUCKET);
+          return json({ ok: true, tetto: Number(info?.file_size_limit) || 0 });
+        } catch {
+          return json({ ok: true, tetto: 0 });
+        }
+      },
       POST: async ({ request }) => {
         const no = await guardia(request, cors);
         if (no) return no;

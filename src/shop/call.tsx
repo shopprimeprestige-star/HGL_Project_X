@@ -106,6 +106,12 @@ import {
   versioneVecchia,
 } from "@/shop/versione-vecchia";
 import { avviaTela, type MotoreDiDisegno } from "@/shop/tela-registrazione";
+import {
+  FOTOGRAMMI_REGISTRAZIONE,
+  SOGLIA_PIANO_GRATUITO,
+  sogliaParte,
+  tocca,
+} from "@/shop/ritmo-registrazione";
 import { cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
 import {
   gettoneInMemoria,
@@ -3408,6 +3414,19 @@ function salvaInLocale(blob: Blob, filename: string) {
 const TENTATIVI = 3;
 const respiro = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Il limite per file del secchio delle registrazioni, in byte. 0 = non si sa
+ *  (rete assente, sessione scaduta, secchio senza limite proprio): chi lo usa
+ *  resta allora sulla soglia del piano gratuito. */
+async function tettoArchivio(): Promise<number> {
+  try {
+    const r = await fetch("/api/presenter/upload-url", { credentials: "same-origin" });
+    const j = (await r.json().catch(() => null)) as { tetto?: number } | null;
+    return r.ok ? Number(j?.tetto) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function caricaDiretto(blob: Blob, filename: string): Promise<Esito> {
   let ultimo: Esito = { motivo: "caricamento non tentato" };
   for (let i = 0; i < TENTATIVI; i += 1) {
@@ -3885,8 +3904,17 @@ function startRecCompositor(): MediaStream {
       chi le mette in fila adesso è un pezzo solo, che si può provare senza
       aprire un browser. Vedi shop/tela-registrazione. */
   motoreTela?.ferma();
+  /*  ⚠️ A 15 FOTOGRAMMI, NON A OGNI GIRO DELLO SCHERMO. `requestAnimationFrame`
+      chiama 60 volte al secondo, e ogni chiamata consegnava un fotogramma:
+      file da 61 fotogrammi/s, quattro volte più pesanti, con i tempi interni
+      fuori ordine (vedi shop/ritmo-registrazione). Si disegna e si consegna
+      solo quando tocca. */
+  let ultimoFotogramma = 0;
   motoreTela = avviaTela(
     () => {
+      const adesso = performance.now();
+      if (!tocca(ultimoFotogramma, adesso)) return;
+      ultimoFotogramma = adesso;
       staFacendo("registrazione");
       frame();
       consegna();
@@ -3939,7 +3967,12 @@ async function catturaSchermo(): Promise<MediaStream | null> {
     (navigator.mediaDevices as any).getDisplayMedia(opts) as Promise<MediaStream>;
   try {
     return await call({
-      video: { displaySurface: "monitor", frameRate: { ideal: 30 } },
+      //  `max`, non solo `ideal`: un «ideale» il browser lo prende come un
+      //  consiglio, e lo schermo arrivava a 60 (vedi shop/ritmo-registrazione).
+      video: {
+        displaySurface: "monitor",
+        frameRate: { ideal: FOTOGRAMMI_REGISTRAZIONE, max: FOTOGRAMMI_REGISTRAZIONE },
+      },
       audio: true,
       selfBrowserSurface: "include",
       systemAudio: "include",
@@ -4234,6 +4267,14 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     const dvt = display?.getVideoTracks()[0];
     const usaSchermo = catturaUsabile(display?.getTracks() ?? []);
     if (dvt && usaSchermo) {
+      //  Anche sulla traccia già aperta: lo schermo tenuto da «Videochiamata»
+      //  e quello del ripiego `video: true` non hanno chiesto un ritmo.
+      //  Questo schermo va SOLO nel file, il cliente non lo riceve.
+      void dvt
+        .applyConstraints({ frameRate: { max: FOTOGRAMMI_REGISTRAZIONE } })
+        .catch(() => {
+          /* il browser tiene il suo ritmo: si registra lo stesso */
+        });
       mix.addTrack(dvt);
       dvt.addEventListener("ended", () => fermaRegistratore()); // "Interrompi condivisione"
     } else {
@@ -4412,9 +4453,15 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
       audioBitsPerSecond: 96_000,
     };
     /** Sopra questo peso la parte in corso si chiude e se ne apre un'altra.
-     *  Sta sotto il tetto vero (50 MB) con margine: il conteggio dei pezzi
-     *  arriva a scatti di un secondo, e l'ultimo pezzo non deve far sforare. */
-    const SOGLIA_PARTE = 40 * 1024 * 1024;
+     *  ⚠️ Segue il tetto VERO del secchio, chiesto all'archivio mentre si
+     *   registra (vedi shop/ritmo-registrazione): sul piano gratuito resta
+     *   40 MB come prima, col tetto alzato la consulenza sta in un file solo.
+     *   Finché la risposta non arriva vale la soglia sicura. */
+    let SOGLIA_PARTE = SOGLIA_PIANO_GRATUITO;
+    void tettoArchivio().then((t) => {
+      SOGLIA_PARTE = sogliaParte(t);
+      annota(`parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t / (1024 * 1024))} MB)`);
+    });
 
     let numeroParte = 1;
     let pesoParte = 0;
