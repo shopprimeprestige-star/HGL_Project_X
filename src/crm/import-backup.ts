@@ -12,6 +12,9 @@ import { ALL_LEAD_STATUSES } from "./types";
 //  «Stesso numero» si decide in un posto solo in tutto il CRM: è la funzione
 //  che fa diventare rosso il campo quando si scrive un numero che c'è già.
 import { chiaveTelefono } from "./telefono-doppio";
+//  Le date dei fogli italiani si leggono col giorno PRIMA del mese: una regola
+//  sola, la stessa dell'importazione delle installazioni.
+import { dataDaCella, oraDaCella } from "./installazioni-csv";
 import type { AdSpending, ConsultantData, LeadData, LeadStatus, TrackingInfo } from "./types";
 //  Le risposte del modulo si riconoscono in UN punto solo: vedi la nota in
 //  testa a crm/modulo-lead.ts (si guarda il valore, non l'intestazione).
@@ -645,7 +648,7 @@ function doveStaDavvero(campione: string[][], dichiarata: number, pare: (v: stri
  *  MAGGIORANZA dei valori pieni è una risposta riconosciuta. -1 se non ce n'è
  *  una sola, anche se due colonne sono ugualmente buone: non si indovina. */
 function colonnaDelleRisposte(campione: string[][], campo: NonNullable<ReturnType<typeof campoDellaColonna>>, escluse: Set<number>): number {
-  const larghezza = Math.max(0, ...campione.map((r) => r.length));
+  const larghezza = campione.reduce((m, r) => Math.max(m, r.length), 0);
   let migliore = -1;
   let rapporto = 0;
   let pari = false;
@@ -664,6 +667,10 @@ function colonnaDelleRisposte(campione: string[][], campo: NonNullable<ReturnTyp
   }
   return pari ? -1 : migliore;
 }
+
+/** Le tre domande dove, in `leggiRisposte`, la colonna comanda: sono quelle che
+ *  un riallineamento sbagliato metterebbe sotto la domanda sbagliata. */
+const DOMANDE_NUOVE: (ReturnType<typeof campoDellaColonna>)[] = ["problema", "fastidio", "giaFatto"];
 
 export function riallineaIntestazioni(intestazioni: string[], campione: string[][]): IntestazioniRiallineate {
   const invariata = (affidabili: boolean): IntestazioniRiallineate => ({
@@ -706,6 +713,19 @@ export function riallineaIntestazioni(intestazioni: string[], campione: string[]
   const nuove = [...intestazioni.slice(0, s), ...coda, ...intestazioni.slice(s, H - k)];
   const regge = ancore.every((a) => nuove.findIndex((h) => chiaveDellaColonna(h) === a.chiave) === a.trovata);
   if (!regge) return invariata(false);
+  //  6. ⚠️ Anche le colonne-domanda che si spostano IN MEZZO devono ritrovare le
+  //     loro risposte. Con due colonne scambiate (fastidio e già provato) coda e
+  //     ancore tornano lo stesso, ma «abbastanza» finirebbe sotto «Già provato»
+  //     e «nulla» sotto «Fastidio»: una bugia stampata. Le colonne tutte vuote
+  //     non dicono niente e si saltano.
+  for (let j = s; j < H; j++) {
+    const campo = campoDellaColonna(nuove[j]);
+    if (!campo || !DOMANDE_NUOVE.includes(campo)) continue;
+    const pieni = campione.map((r) => (r[j] || "").trim()).filter(Boolean);
+    if (!pieni.length) continue;
+    const giuste = pieni.filter((v) => riconosciRisposta(v, campo)).length;
+    if (giuste / pieni.length <= 0.5) return invariata(false);
+  }
   return { intestazioni: nuove, spostamento: k, affidabili: true };
 }
 
@@ -743,6 +763,36 @@ export function eFileExcel(byte: Uint8Array, nome = ""): boolean {
   if (/\.(xlsx|xlsm|xls)$/i.test(nome)) return true;
   const inizia = (...b: number[]) => b.every((x, i) => byte[i] === x);
   return inizia(0x50, 0x4b, 0x03, 0x04) || inizia(0xd0, 0xcf, 0x11, 0xe0);
+}
+
+/** ── LA DATA D'ARRIVO, COME LA SCRIVE UN FOGLIO ITALIANO ──────────────────
+ *  Meta scrive `2026-09-21T01:33:01-05:00` e vale com'è. Un foglio fatto a mano
+ *  scrive «12/10/2026 09:15»: per un CRM italiano è il 12 ottobre. ⚠️ Lasciarla
+ *  a `Date.parse` la legge all'americana (il 10 dicembre, o niente se il giorno
+ *  supera il 12) e sposta di mesi l'ordine di arrivo e i periodi. Quindi: ISO
+ *  com'è; altrimenti giorno/mese/anno (+ ora) e si scrive in ISO. Se non si
+ *  legge, `dataDalFile` è falso e `createdAt` resta quello che era: nessuno
+ *  deve credere che «è arrivato adesso» per una data che non si è capita. */
+function dataDellaCella(cella: string): { createdAt: string; dataDalFile: boolean } {
+  const t = cella.trim();
+  if (!t) return { createdAt: "", dataDalFile: false };
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) {
+    const quando = new Date(t);
+    if (!Number.isFinite(quando.getTime())) return { createdAt: t, dataDalFile: false };
+    //  ⚠️ Quando la data viene dal file, `createdAt` è SEMPRE un ISO completo:
+    //   chi la rilegge con `new Date` o ne taglia i primi dieci caratteri
+    //   (la scheda del lead) deve trovare lo stesso giorno. Quella di Meta
+    //   (`…T…-05:00`) è già così e resta com'è.
+    return { createdAt: /^\d{4}-\d{2}-\d{2}T/.test(t) ? t : quando.toISOString(), dataDalFile: true };
+  }
+  const giorno = dataDaCella(t);
+  if (!giorno) return { createdAt: t, dataDalFile: false };
+  //  ⚠️ Senza l'ora, MEZZOGIORNO e non mezzanotte: a mezzanotte locale l'ISO in
+  //   UTC cade il giorno prima («03/04» diventerebbe «2026-04-02T22:00Z»).
+  const quando = new Date(`${giorno}T${oraDaCella(t) || "12:00"}:00`);
+  return Number.isFinite(quando.getTime())
+    ? { createdAt: quando.toISOString(), dataDalFile: true }
+    : { createdAt: t, dataDalFile: false };
 }
 
 /** Quanto può essere lungo un valore conservato, e quante colonne al massimo
@@ -840,7 +890,8 @@ export function traduciCsv(testo: string): {
       persona («is_organic» → «is organic»). Se non lo sono, o se la cella
       d'intestazione è vuota, è «colonna N»: scrivere «full name: alopecia
       androgenetica» sarebbe stampare una bugia. Un nome ripetuto riceve « (2)». */
-  const larghezza = Math.max(intestGrezze.length, ...dati.map((r) => r.length));
+  //  ⚠️ `reduce` e non `Math.max(...)`: con centomila righe lo spread sfora lo stack.
+  const larghezza = dati.reduce((m, r) => Math.max(m, r.length), intestGrezze.length);
   const nomiColonna: string[] = [];
   const visti = new Map<string, number>();
   for (let i = 0; i < larghezza; i++) {
@@ -936,8 +987,7 @@ export function traduciCsv(testo: string): {
     //  ⚠️ La data d'arrivo è del file solo se la cella è piena e leggibile:
     //   altrimenti `createdAt` è l'ora del caricamento e «arrivato 40 minuti
     //   fa» sarebbe una bugia su una lista vecchia caricata oggi.
-    const dataDelFile = v("createdAt");
-    const dataDalFile = !!dataDelFile && Number.isFinite(Date.parse(dataDelFile));
+    const { createdAt, dataDalFile } = dataDellaCella(v("createdAt"));
     leads.push({
       nome,
       cognome,
@@ -954,7 +1004,7 @@ export function traduciCsv(testo: string): {
       note: v("note") || undefined,
       datiFile: Object.keys(datiFile).length ? datiFile : undefined,
       listaOrigine: { file: "", il: caricatoIl, dataDalFile },
-      createdAt: dataDelFile || new Date().toISOString(),
+      createdAt: createdAt || new Date().toISOString(),
       consulenteId: null,
       durataMeeting: 45,
       importato: true,

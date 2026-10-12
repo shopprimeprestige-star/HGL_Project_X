@@ -4613,6 +4613,23 @@ function proveDelRiallineamento() {
   const r7 = riallineaIntestazioni(nonContigue[0], nonContigue.slice(1));
   c("colonne della coda non contigue: non si riallinea", "0|false", `${r7.spostamento}|${r7.affidabili}`);
 
+  //  ⚠️ Colonne-domanda di MEZZO scambiate (fastidio e gia' provato): coda e
+  //   ancore tornano lo stesso, ma «abbastanza» finirebbe sotto «Gia' provato»
+  //   e «nulla» sotto «Fastidio». Non si riallinea.
+  const scambiate = tabella([
+    "quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,che_problematica_hai?",
+    "alopecia_androgenetica,nulla,abbastanza,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "alopecia_areata,trapianto,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const rsc = riallineaIntestazioni(scambiate[0], scambiate.slice(1));
+  c("colonne di mezzo scambiate: non si riallinea", "0|false", `${rsc.spostamento}|${rsc.affidabili}`);
+  c("e l'intestazione resta com'e'", scambiate[0].join("|"), rsc.intestazioni.join("|"));
+  const lettaScambiata = traduciCsv(scambiate.map((r) => r.join(",")).join("\n"));
+  //  Il «nulla» sotto intestazioni non affidabili resta senza domanda; «abbastanza»
+  //  si legge dal valore (e' Fastidio, senza dubbio), mai «Per niente».
+  c("nessun «Fastidio: Per niente» inventato", "abbastanza|undefined",
+    `${lettaScambiata.leads[0].modulo?.fastidio}|${lettaScambiata.leads[0].modulo?.giaFatto}`);
+
   //  Nessuna ancora nell'intestazione: non c'e' niente su cui fidarsi.
   const senzaAncore = riallineaIntestazioni(["a", "b"], [["x", "y"], ["z", "w"]]);
   c("senza ancore non si sa niente", "0|false", `${senzaAncore.spostamento}|${senzaAncore.affidabili}`);
@@ -4659,6 +4676,44 @@ function proveDelRiallineamento() {
   c("cella data vuota: non viene dal file", false, dataVuota.leads[0].listaOrigine?.dataDalFile);
   const dataIllegibile = traduciCsv("created_time,full_name,phone_number\nieri sera,Anna Verdi,3331234567");
   c("cella data illeggibile: non viene dal file", false, dataIllegibile.leads[0].listaOrigine?.dataDalFile);
+
+  //  ── LE DATE: GIORNO PRIMA DEL MESE ─────────────────────────────────
+  const dataDi = (cella) => traduciCsv(`created_time,full_name,phone_number\n${cella},Anna Verdi,3331234567`).leads[0];
+  const it = dataDi("12/10/2026 09:15");
+  c("«12/10/2026 09:15» e' il 12 ottobre", "2026-10-12 09:15", (() => {
+    const d = new Date(it.createdAt);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  })());
+  c("e viene dal file", true, it.listaOrigine?.dataDalFile);
+  c("createdAt e' scritto in ISO", true, /^\d{4}-\d{2}-\d{2}T/.test(it.createdAt));
+  const senzaOra = new Date(dataDi("03/04/2026").createdAt);
+  c("«03/04/2026» e' il 3 aprile, non il 4 marzo", "3/4", `${senzaOra.getDate()}/${senzaOra.getMonth() + 1}`);
+  c("«13/10/2026» si legge (prima era illeggibile)", true, dataDi("13/10/2026").listaOrigine?.dataDalFile);
+  //  ⚠️ Quando viene dal file, createdAt e' SEMPRE un ISO: la scheda lo rilegge
+  //   cosi' e il testo grezzo lo leggerebbe all'americana.
+  c("«03/04/2026» → createdAt comincia per 2026-04-03", "2026-04-03", dataDi("03/04/2026").createdAt.slice(0, 10));
+  c("«13/04/2026» → createdAt comincia per 2026-04-13", "2026-04-13", dataDi("13/04/2026").createdAt.slice(0, 10));
+  c("la data solo giorno e' un ISO completo", true, /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(dataDi("03/04/2026").createdAt));
+  c("anche «2026-09-21 10:00» diventa ISO completo", true, /^2026-09-21T[\d:.]+Z$/.test(dataDi("2026-09-21 10:00").createdAt));
+  c("e l'ISO con la T non si tocca", "2026-09-21T10:00:00Z", dataDi("2026-09-21T10:00:00Z").createdAt);
+  c("l'ISO resta com'e'", "2026-09-21T01:33:01-05:00|true",
+    `${traduciCsv(META_STORTO).leads[0].createdAt}|${traduciCsv(META_STORTO).leads[0].listaOrigine?.dataDalFile}`);
+  const illeggibile = dataDi("45678");
+  c("un numero qualunque non e' una data", false, illeggibile.listaOrigine?.dataDalFile);
+  c("e createdAt resta il testo, come prima", "45678", illeggibile.createdAt);
+  c("«ieri sera» non e' una data", false, dataDi("ieri sera").listaOrigine?.dataDalFile);
+  c("nemmeno il 31 febbraio", false, dataDi("31/02/2026").listaOrigine?.dataDalFile);
+  //  Un lead di ieri, scritto all'italiana, risulta NUOVO per chi chiama.
+  {
+    const adesso = new Date();
+    const ieri = new Date(adesso.getTime() - 6 * 3600_000);
+    const p = (n) => String(n).padStart(2, "0");
+    const cella = `${p(ieri.getDate())}/${p(ieri.getMonth() + 1)}/${ieri.getFullYear()} ${p(ieri.getHours())}:${p(ieri.getMinutes())}`;
+    const recente = dataDi(cella);
+    c("un lead di poche ore fa, data all'italiana, e' NUOVO", "nuovo",
+      CHIAM.motivoChiamata({ id: "x", data: { ...recente, stato: "da_contattare" } }, adesso).motivo);
+  }
 
   //  Colonne che non sono diventate niente: si conservano.
   c("«is organic» e' conservata", "false", l1.datiFile?.["is organic"]);
