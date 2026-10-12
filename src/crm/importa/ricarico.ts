@@ -40,7 +40,14 @@
  *   automatica cancellabile con un colpo di tastiera, cioè il contrario di
  *   quello che è stato chiesto.
  *  ───────────────────────────────────────────────────────────────────────── */
-import type { Lead, LeadData, LeadStatus, RicaricoLead } from "@/crm/types";
+import type {
+  Lead,
+  LeadData,
+  LeadStatus,
+  RicaricoLead,
+  RisposteModulo,
+  TrackingInfo,
+} from "@/crm/types";
 import { LEAD_STATUS_LABEL, eStatoNonSvolta } from "@/crm/types";
 //  ⚠️ I TESTI NON STANNO PIÙ QUI: stanno nei modelli, con tutti gli altri
 //   messaggi che partono ai clienti, e si modificano dal pannello senza
@@ -49,6 +56,9 @@ import { componiMessaggio, modelloDi, type ChiaveModello } from "@/crm/whatsapp"
 //  «Messo da parte» è un gesto sulla telefonata e vive lì: qui serve soltanto
 //  a sapere che quella persona è fuori dal giro (vedi `repartoDelRitorno`).
 import { eSaltato } from "./saltati";
+//  Il riassunto delle risposte di stavolta si compone con la stessa funzione
+//  della riga e della scheda: una sola, o dicono cose diverse.
+import { riassuntoModulo } from "@/crm/modulo-lead";
 
 /** Lo stato in cui torna chi viene rimesso in circolo. Uno solo, scritto qui:
  *  «resetta lo stato» deve voler dire la stessa cosa ovunque lo si legga. */
@@ -271,9 +281,11 @@ export function patchRicarico(
   d?: Partial<LeadData> | null,
   lista?: string,
   ora: Date = new Date(),
+  arrivo?: { tracking?: TrackingInfo; modulo?: RisposteModulo },
 ): Partial<LeadData> {
   const prima = ricaricoDi(d);
-  return {
+  const daDove = arrivoDaFile(arrivo);
+  const patch: Partial<LeadData> = {
     ricarico: {
       volte: (prima?.volte ?? 0) + 1,
       ultimo: ora.toISOString(),
@@ -284,8 +296,82 @@ export function patchRicarico(
       //  contattare. Senza, la riga «era in appuntamento fissato» sparirebbe
       //  proprio nel caso in cui serve saperlo.
       ...(d?.stato ? { statoAllora: d.stato } : {}),
+      ...(daDove.ricarico ? { arrivo: daDove.ricarico } : {}),
     },
   };
+  //  ⚠️ LE RISPOSTE GIÀ DATE NON SI SOVRASCRIVONO. Se la scheda non ne ha, le
+  //   prende dal file; se ne ha, il file di stavolta le racconta soltanto
+  //   (`ricarico.arrivo.riassunto`) e la scheda resta com'era.
+  if (daDove.modulo && !haValori(d?.modulo)) patch.modulo = daDove.modulo;
+  //  ⚠️ IL TRACKING SI RIEMPIE, NON SI SOSTITUISCE. `updateLead` fonde solo al
+  //   primo livello: un `tracking` nuovo al posto del vecchio cancellerebbe
+  //   `utm_source` e `gclid` di chi era arrivato dal sito, e i KPI delle
+  //   campagne cambierebbero attribuzione. Vince sempre quello che c'era.
+  const tracking = riempiTracking(d?.tracking, daDove.tracking);
+  if (tracking) patch.tracking = tracking;
+  return patch;
+}
+
+/** Un valore c'è solo se è testo non vuoto (o un numero): il resto, in un
+ *  archivio dove `data` contiene di tutto, vale «non c'è». */
+const testoDi = (v: unknown): string =>
+  typeof v === "string" ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : "";
+
+/** Il modulo ha almeno una risposta? Le chiavi vuote non contano. */
+function haValori(m?: RisposteModulo | null): boolean {
+  if (!m || typeof m !== "object") return false;
+  return Object.values(m).some((v) => (Array.isArray(v) ? v.length > 0 : !!testoDi(v)));
+}
+
+/** Quello che porta il file di stavolta, ripulito: niente chiavi vuote, niente
+ *  valori che non sono testo. */
+function arrivoDaFile(arrivo: unknown): {
+  tracking?: Record<string, string>;
+  modulo?: RisposteModulo;
+  ricarico?: NonNullable<RicaricoLead["arrivo"]>;
+} {
+  if (!arrivo || typeof arrivo !== "object") return {};
+  const a = arrivo as { tracking?: unknown; modulo?: unknown };
+  const tracking: Record<string, string> = {};
+  if (a.tracking && typeof a.tracking === "object") {
+    for (const [k, v] of Object.entries(a.tracking)) {
+      const t = testoDi(v);
+      if (t) tracking[k] = t;
+    }
+  }
+  const modulo = a.modulo && typeof a.modulo === "object" && haValori(a.modulo as RisposteModulo)
+    ? (a.modulo as RisposteModulo)
+    : undefined;
+  const riassunto = modulo ? riassuntoModulo(modulo, 3) : "";
+  const ricarico: NonNullable<RicaricoLead["arrivo"]> = {
+    ...(tracking.ad_name ? { ad_name: tracking.ad_name } : {}),
+    ...(tracking.adset_name ? { adset_name: tracking.adset_name } : {}),
+    ...(tracking.campaign_name ? { campaign_name: tracking.campaign_name } : {}),
+    ...(riassunto ? { riassunto } : {}),
+  };
+  return {
+    tracking: Object.keys(tracking).length ? tracking : undefined,
+    modulo,
+    ricarico: Object.keys(ricarico).length ? ricarico : undefined,
+  };
+}
+
+/** Il tracking della scheda con in più le sole chiavi che mancavano. `undefined`
+ *  se non manca niente: così il patch non ha nemmeno la chiave. */
+function riempiTracking(
+  attuale: TrackingInfo | undefined | null,
+  arrivo: Record<string, string> | undefined,
+): TrackingInfo | undefined {
+  if (!arrivo) return undefined;
+  const base: Record<string, unknown> =
+    attuale && typeof attuale === "object" ? { ...(attuale as Record<string, unknown>) } : {};
+  let cambiato = false;
+  for (const [k, v] of Object.entries(arrivo)) {
+    if (testoDi(base[k])) continue;
+    base[k] = v;
+    cambiato = true;
+  }
+  return cambiato ? (base as TrackingInfo) : undefined;
 }
 
 /** «Conferma»: resta esattamente com'è e torna fra i lead normali, dov'era.
@@ -405,6 +491,20 @@ export function righeRicarico(d?: Partial<LeadData> | null): string[] {
       : `Già in archivio: è ricomparso in una lista importata ${r.volte} volte${quando ? `, l'ultima il ${quando}` : ""}.`,
   );
   if (r.lista) righe.push(`Ultima lista: «${r.lista}».`);
+  //  Da quale annuncio è tornato, e cosa ha risposto stavolta. Testo e basta:
+  //  sono parole del file, chi le mostra non le legge mai come codice.
+  const arrivo = r.arrivo;
+  if (arrivo && typeof arrivo === "object") {
+    const ad = testoDi(arrivo.ad_name);
+    const gruppo = testoDi(arrivo.adset_name);
+    const campagna = testoDi(arrivo.campaign_name);
+    if (ad && gruppo) righe.push(`Ricomparso dall'annuncio «${ad}» (gruppo «${gruppo}»).`);
+    else if (ad) righe.push(`Ricomparso dall'annuncio «${ad}».`);
+    else if (gruppo) righe.push(`Ricomparso dal gruppo «${gruppo}».`);
+    else if (campagna) righe.push(`Ricomparso dalla campagna «${campagna}».`);
+    const riassunto = testoDi(arrivo.riassunto);
+    if (riassunto) righe.push(`Stavolta ha risposto: ${riassunto}.`);
+  }
   if (r.statoAllora) {
     const etichetta = LEAD_STATUS_LABEL[r.statoAllora] ?? r.statoAllora;
     righe.push(`Quando è ricomparso era «${etichetta}».`);
@@ -820,4 +920,48 @@ export function etichettaRicarico(d?: Partial<LeadData> | null): string {
   const volte = volteRicaricato(d);
   if (!volte) return "";
   return volte === 1 ? "Di ritorno" : `Di ritorno · ${volte}ª volta`;
+}
+
+/** ── DA DOVE ARRIVA, PER LA SCHEDA ────────────────────────────────────────
+ *  Annuncio, gruppo e campagna dal tracking, più il file e il giorno in cui è
+ *  entrato. Sta qui e non nella scheda per poterlo provare: la scheda stampa. */
+export interface ProvenienzaLead {
+  voci: { titolo: string; valore: string }[];
+  /** Il nome del file da cui è entrato, se c'è. */
+  file?: string;
+  /** Il momento (ISO) in cui è stato caricato, se c'è. */
+  il?: string;
+}
+
+export function provenienzaLead(d?: Partial<LeadData> | null): ProvenienzaLead {
+  const t = d?.tracking && typeof d.tracking === "object" ? (d.tracking as Record<string, unknown>) : {};
+  const voci: ProvenienzaLead["voci"] = [];
+  for (const [titolo, chiave] of [
+    ["Annuncio", "ad_name"],
+    ["Gruppo", "adset_name"],
+    ["Campagna", "campaign_name"],
+  ] as const) {
+    const valore = testoDi(t[chiave]);
+    if (valore) voci.push({ titolo, valore });
+  }
+  const o = d?.listaOrigine && typeof d.listaOrigine === "object" ? d.listaOrigine : undefined;
+  const file = testoDi(o?.file);
+  const il = testoDi(o?.il);
+  return { voci, ...(file ? { file } : {}), ...(il ? { il } : {}) };
+}
+
+/** ── «DATI ORIGINALI DEL FILE» ────────────────────────────────────────────
+ *  Le colonne che non sono diventate un campo, nel loro ordine, senza quelle
+ *  vuote. Solo da leggere. */
+export function datiOriginaliDelFile(
+  d?: Partial<LeadData> | null,
+): { colonna: string; valore: string }[] {
+  const f = d?.datiFile;
+  if (!f || typeof f !== "object" || Array.isArray(f)) return [];
+  const out: { colonna: string; valore: string }[] = [];
+  for (const [colonna, v] of Object.entries(f)) {
+    const valore = testoDi(v);
+    if (valore) out.push({ colonna, valore });
+  }
+  return out;
 }

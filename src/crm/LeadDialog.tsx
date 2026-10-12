@@ -138,6 +138,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useCRM } from "./CRMContext";
@@ -180,7 +181,7 @@ import {
 import { NotaSoloConsulenti, consulentiPerConsulenza } from "./chi-fa-la-consulenza";
 //  Le risposte che la persona ha dato nel modulo dell'inserzione: come si
 //  riconoscono e come si leggono sta tutto in crm/modulo-lead.
-import { vociModulo } from "./modulo-lead";
+import { moduloLetto, vociModulo } from "./modulo-lead";
 import {
   BORDO_FINESTRA,
   Finestra,
@@ -261,7 +262,7 @@ import {
 } from "lucide-react";
 //  Le righe non modificabili di chi è già ricomparso in una lista: la regola —
 //  e il modo di contare le volte — sta tutta nel modulo.
-import { righeRicarico } from "@/crm/importa/ricarico";
+import { datiOriginaliDelFile, provenienzaLead, righeRicarico } from "@/crm/importa/ricarico";
 //  ⚠️ La finestra dei preventivi di una persona è UNA in tutto il CRM
 //   (crm/preventivi/DelLead), la stessa che si apre dall'elenco Trattative:
 //   due elenchi «i suoi preventivi» con due regole di aggancio diverse
@@ -1801,43 +1802,116 @@ function RigheRicarico({ dati }: { dati?: Partial<LeadData> | null }) {
 }
 
 function BloccoModulo({ form }: { form: LeadData }) {
-  const voci = vociModulo(form.modulo);
-  if (!voci.length) return null;
+  //  `moduloLetto` e non `form.modulo`: i lead importati prima delle tre
+  //  domande nuove hanno le risposte solo nella riga «Dal modulo:» delle note.
+  //  Si leggono da lì, senza scrivere niente sulla scheda.
+  const voci = vociModulo(moduloLetto(form));
+  const origine = provenienzaLead(form);
+  const originali = datiOriginaliDelFile(form);
+  if (!voci.length && !origine.voci.length && !originali.length) return null;
   const TONO: Record<string, "vinta" | "da_lavorare" | "neutro"> = {
     buono: "vinta",
     medio: "da_lavorare",
     neutro: "neutro",
   };
+  const arrivatoIl = origine.il ? new Date(origine.il) : null;
+  const giornoArrivo =
+    arrivatoIl && !Number.isNaN(arrivatoIl.getTime())
+      ? arrivatoIl.toLocaleDateString("it-IT", { day: "numeric", month: "long" })
+      : "";
   return (
     <SezioneFinestra
-      titolo="Quello che ha detto nel modulo"
-      nota="Risposte sue, dall'inserzione: non si modificano"
+      titolo={voci.length ? "Quello che ha detto nel modulo" : "Da dove arriva"}
+      nota={
+        voci.length
+          ? "Risposte sue, dall'inserzione: non si modificano"
+          : "Dal file importato: non si modifica"
+      }
       icona={ClipboardList}
       classeCorpo="p-4"
     >
-      <div className="grid gap-2 sm:grid-cols-2">
-        {voci.map((v) => (
-          <div key={v.campo} className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-              {v.titolo}
-            </p>
-            {/*  ⚠️ `whitespace-normal`: il chip di serie tiene tutto su una
-                riga, e una risposta scritta a mano («giovedì dopo le 19, non
-                prima») uscirebbe dalla scheda invece di andare a capo. */}
-            {/*  Il nome corto è nostro: la frase che la persona ha scelto per
-                intero si legge passandoci sopra, così non si perde niente di
-                quello che ha detto senza riempire la scheda. */}
-            <Chip
-              tono={TONO[v.tono] ?? "neutro"}
-              className="mt-1 h-auto whitespace-normal py-1"
-              title={v.testo && v.testo !== v.valore ? v.testo : undefined}
-            >
-              {v.valore}
-            </Chip>
-          </div>
-        ))}
-      </div>
+      {/*  Tutto testo di React: i valori vengono da un file e da una persona,
+          e non si interpretano mai come HTML. */}
+      {voci.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {voci.map((v) => (
+            <div key={v.campo} className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                {v.titolo}
+              </p>
+              {/*  ⚠️ `whitespace-normal`: il chip di serie tiene tutto su una
+                  riga, e una risposta scritta a mano («giovedì dopo le 19, non
+                  prima») uscirebbe dalla scheda invece di andare a capo. */}
+              {/*  Il nome corto è nostro: la frase che la persona ha scelto per
+                  intero si legge passandoci sopra, così non si perde niente di
+                  quello che ha detto senza riempire la scheda. */}
+              <Chip
+                tono={TONO[v.tono] ?? "neutro"}
+                className="mt-1 h-auto whitespace-normal break-words py-1"
+                title={v.testo && v.testo !== v.valore ? v.testo : undefined}
+              >
+                {v.valore}
+              </Chip>
+            </div>
+          ))}
+        </div>
+      )}
+      {(origine.voci.length > 0 || giornoArrivo) && (
+        <p
+          className={cn(
+            "break-words text-[12.5px] text-slate-600",
+            voci.length > 0 && "mt-3 border-t border-slate-100 pt-3",
+          )}
+        >
+          {origine.voci.map((v, i) => (
+            <span key={v.titolo}>
+              {i > 0 && <span className="text-slate-300"> · </span>}
+              <span className="text-slate-500">{v.titolo}</span> {v.valore}
+            </span>
+          ))}
+          {giornoArrivo && (
+            <span className="text-slate-500">
+              {origine.voci.length > 0 ? " · " : ""}arrivato il {giornoArrivo}
+            </span>
+          )}
+        </p>
+      )}
+      {originali.length > 0 && <DatiOriginaliDelFile righe={originali} aSeparare={voci.length > 0 || origine.voci.length > 0} />}
     </SezioneFinestra>
+  );
+}
+
+/** ── «DATI ORIGINALI DEL FILE» ────────────────────────────────────────────
+ *  Le colonne che il file aveva e che non sono diventate un campo della
+ *  scheda. Si conservano per non perdere niente; stanno CHIUSE perché sono
+ *  rumore finché non servono, e non si modificano. */
+function DatiOriginaliDelFile({
+  righe,
+  aSeparare,
+}: {
+  righe: { colonna: string; valore: string }[];
+  aSeparare: boolean;
+}) {
+  return (
+    <Collapsible className={cn(aSeparare && "mt-3 border-t border-slate-100 pt-3")}>
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 text-left text-[12.5px] font-medium text-slate-700">
+        <span className="flex-1">
+          Dati originali del file
+          <span className="ml-1.5 font-normal text-slate-500">· {righe.length}</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
+          {righe.map((r) => (
+            <div key={r.colonna} className="contents">
+              <dt className="break-words text-[11px] font-medium text-slate-500">{r.colonna}</dt>
+              <dd className="mb-1 break-words text-[12.5px] text-slate-800 sm:mb-0">{r.valore}</dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

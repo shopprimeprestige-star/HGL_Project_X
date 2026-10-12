@@ -3043,6 +3043,7 @@ function proveDegliHook() {
     "src/routes/webinar_.$code.tsx",
     "src/routes/regia_.$codice.tsx",
     "src/crm/fatture/BadgeDaFatturare.tsx",
+    "src/crm/LeadDialog.tsx",
     //  ⚠️ AGGIUNTO DOPO AVERCI SBATTUTO CONTRO. Questo file ha un cartello
     //   dentro che dice «tutti gli hook stanno sopra questa riga, è già
     //   successo una volta»: ci ho messo un useState sotto lo stesso, e la
@@ -8180,6 +8181,120 @@ function proveDelRicarico() {
   c("alla prima volta è «Di ritorno»", "Di ritorno", etichettaRicarico(dopo1));
   c("dalla seconda si conta", "Di ritorno · 2ª volta", etichettaRicarico(dopo2));
   c("e su una scheda normale non c'è", "", etichettaRicarico(scheda));
+}
+
+/*  ═══════════════════════════════════════════════════════════════════════
+    IL RITORNO DALL'ANNUNCIO E LA SCHEDA DEL LEAD
+    ───────────────────────────────────────────────────────────────────────
+    Quando un lead già in archivio ricompare in un file di Meta, il file sa
+    una cosa che la scheda non sa: da quale annuncio è tornato e cosa ha
+    risposto stavolta. Si aggiunge, non si sovrascrive: lo stato, le note, le
+    risposte già date e il tracking che c'era restano come sono.
+    ⚠️ `updateLead` fonde solo al primo livello: mettere un `tracking` nuovo al
+     posto del vecchio cancellerebbe `utm_source` e `gclid` di chi è arrivato
+     dal sito, e i conti delle campagne cambierebbero attribuzione.
+    ═══════════════════════════════════════════════════════════════════════ */
+function proveDelRitornoDallAnnuncio() {
+  const { patchRicarico, righeRicarico, provenienzaLead, datiOriginaliDelFile } = RIC;
+  gruppo("IL RITORNO DALL'ANNUNCIO");
+  const ORA = new Date("2026-10-12T10:00:00Z");
+  const ARRIVO = {
+    tracking: { ad_name: "A1", adset_name: "G1", utm_source: "meta" },
+    modulo: { problema: "androgenetica", fastidio: "molto", giaFatto: "niente" },
+  };
+  const vecchia = {
+    nome: "Ada", cognome: "Prova", telefono: "+390000000000",
+    stato: "appuntamento_fissato", note: "Richiamare di sera",
+  };
+
+  const p = patchRicarico(vecchia, "lista.csv", ORA, ARRIVO);
+  c("il patch con arrivo non tocca lo stato", false, "stato" in p);
+  c("e non tocca le note", false, "note" in p);
+  c("l'annuncio di ritorno si legge sul ricarico", "A1", p.ricarico.arrivo?.ad_name);
+  c("e il gruppo", "G1", p.ricarico.arrivo?.adset_name);
+  c("una chiave vuota non c'è", false, "campaign_name" in (p.ricarico.arrivo ?? {}));
+  c("il riassunto ha le risposte di stavolta", true,
+    /Problema/.test(p.ricarico.arrivo?.riassunto ?? "") && /Fastidio/.test(p.ricarico.arrivo?.riassunto ?? ""));
+
+  //  Le risposte: entrano solo dove non ce n'erano.
+  c("scheda senza modulo: prende quello dell'arrivo", ARRIVO.modulo, p.modulo);
+  const conModulo = patchRicarico({ ...vecchia, modulo: { zona: "nord" } }, "l.csv", ORA, ARRIVO);
+  c("scheda con modulo: il modulo non si tocca", false, "modulo" in conModulo);
+  c("modulo con soli valori vuoti conta come vuoto", ARRIVO.modulo,
+    patchRicarico({ ...vecchia, modulo: { zona: "" } }, "l.csv", ORA, ARRIVO).modulo);
+
+  //  Il tracking: si riempiono solo le chiavi che mancano.
+  const sito = { ...vecchia, tracking: { utm_source: "google", gclid: "x" } };
+  c("il tracking riempie solo i campi mancanti, utm_source resta «google»",
+    { utm_source: "google", gclid: "x", ad_name: "A1", adset_name: "G1" },
+    patchRicarico(sito, "l.csv", ORA, ARRIVO).tracking);
+  c("l'utm_source di Meta non sostituisce quello del sito", "google",
+    patchRicarico(sito, "l.csv", ORA, ARRIVO).tracking.utm_source);
+  const completa = { ...vecchia, tracking: { utm_source: "google", ad_name: "X", adset_name: "Y" } };
+  c("se non manca niente il patch non ha la chiave tracking", false,
+    "tracking" in patchRicarico(completa, "l.csv", ORA, ARRIVO));
+  c("un campo vuoto sulla scheda conta come mancante", "A1",
+    patchRicarico({ ...vecchia, tracking: { ad_name: "  " } }, "l.csv", ORA, ARRIVO).tracking.ad_name);
+  c("la scheda in mano non viene cambiata", { utm_source: "google", gclid: "x" }, sito.tracking);
+  c("valori vuoti dell'arrivo non entrano", false,
+    "ad_id" in (patchRicarico(sito, "l.csv", ORA, { tracking: { ad_id: "", ad_name: "A1" } }).tracking ?? {}));
+
+  //  Le righe da leggere.
+  const righe = righeRicarico(p);
+  c("la riga dice da quale annuncio e gruppo", true,
+    righe.includes("Ricomparso dall'annuncio «A1» (gruppo «G1»)."));
+  c("e cosa ha risposto stavolta", true, righe.some((r) => /^Stavolta ha risposto: .*Problema/.test(r)));
+  c("solo il gruppo", true,
+    righeRicarico(patchRicarico(vecchia, "l.csv", ORA, { tracking: { adset_name: "G1" } }))
+      .includes("Ricomparso dal gruppo «G1»."));
+  c("solo l'annuncio", true,
+    righeRicarico(patchRicarico(vecchia, "l.csv", ORA, { tracking: { ad_name: "A1" } }))
+      .includes("Ricomparso dall'annuncio «A1»."));
+
+  //  Senza arrivo tutto è come prima.
+  const senza = patchRicarico(vecchia, "l.csv", ORA);
+  c("senza arrivo il patch ha solo il ricarico", ["ricarico"], Object.keys(senza));
+  c("senza arrivo il ricarico non ha la chiave arrivo", false, "arrivo" in senza.ricarico);
+  c("senza arrivo le righe sono quelle di oggi", false, righeRicarico(senza).some((r) => /Ricomparso dal|Stavolta/.test(r)));
+  c("arrivo vuoto = come senza", senza, patchRicarico(vecchia, "l.csv", ORA, { tracking: {}, modulo: {} }));
+  c("arrivo non oggetto = come senza", senza, patchRicarico(vecchia, "l.csv", ORA, "x"));
+
+  //  Il testo del modulo è del cliente: si passa com'è, mai come codice.
+  const strano = '<img src=x onerror="alert(1)">';
+  c("un nome di annuncio strano resta testo", true,
+    righeRicarico(patchRicarico(vecchia, "l.csv", ORA, { tracking: { ad_name: strano } }))
+      .includes(`Ricomparso dall'annuncio «${strano}».`));
+
+  //  ── LA SCHEDA ──────────────────────────────────────────────────────
+  c("provenienza: annuncio, gruppo e campagna", ["A1", "G1", "C1"],
+    provenienzaLead({ tracking: { ad_name: "A1", adset_name: "G1", campaign_name: "C1" } }).voci.map((v) => v.valore));
+  c("provenienza: le etichette", ["Annuncio", "Gruppo", "Campagna"],
+    provenienzaLead({ tracking: { ad_name: "A1", adset_name: "G1", campaign_name: "C1" } }).voci.map((v) => v.titolo));
+  c("provenienza senza tracking: niente", [], provenienzaLead({ nome: "Ada" }).voci);
+  c("provenienza: il giorno viene dalla lista d'origine", "2026-10-10T08:00:00Z",
+    provenienzaLead({ listaOrigine: { file: "f.csv", il: "2026-10-10T08:00:00Z" } }).il);
+  c("provenienza: nome del file", "f.csv",
+    provenienzaLead({ listaOrigine: { file: "f.csv", il: "2026-10-10T08:00:00Z" } }).file);
+  c("provenienza: spazi e valori non testo si ignorano", [],
+    provenienzaLead({ tracking: { ad_name: "  ", adset_name: {} } }).voci);
+  c("provenienza: tracking storto non lancia", [], provenienzaLead({ tracking: "x" }).voci);
+
+  c("dati originali: colonna e valore", [{ colonna: "campagna_x", valore: "ciao" }],
+    datiOriginaliDelFile({ datiFile: { campagna_x: "ciao" } }));
+  c("dati originali: le colonne vuote non si mostrano", [],
+    datiOriginaliDelFile({ datiFile: { a: "", b: "   " } }));
+  c("dati originali: senza datiFile niente", [], datiOriginaliDelFile({ nome: "Ada" }));
+  c("dati originali: valori che non sono testo si mostrano come testo", [{ colonna: "n", valore: "3" }],
+    datiOriginaliDelFile({ datiFile: { n: 3 } }));
+  c("dati originali: datiFile storto non lancia", [], datiOriginaliDelFile({ datiFile: "x" }));
+  c("dati originali: HTML resta testo", strano,
+    datiOriginaliDelFile({ datiFile: { k: strano } })[0].valore);
+
+  //  La scheda mostra il testo come testo: niente HTML grezzo né prima né dopo.
+  const dialogo = readFileSync("src/crm/LeadDialog.tsx", "utf8");
+  c("la scheda non inserisce HTML grezzo", false, /dangerouslySetInnerHTML/.test(dialogo));
+  c("la scheda legge il modulo anche dalle note vecchie", true,
+    /vociModulo\(moduloLetto\(form\)\)/.test(dialogo));
 }
 
 /*  ═══════════════════════════════════════════════════════════════════════
@@ -15957,6 +16072,7 @@ provePalco();
   proveDellaRipesca();
   proveDelleChiamateCRM();
   proveDelRicarico();
+  proveDelRitornoDallAnnuncio();
   proveDellAttesaWhatsApp();
   proveDellElencoStabile();
   proveDellaNotaInBreve();
