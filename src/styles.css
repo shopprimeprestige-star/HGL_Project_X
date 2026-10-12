@@ -134,6 +134,12 @@ html[data-carattere="inter"] {
   /* Il blu del marchio un gradino più scuro: bianco sopra fa 4,88:1. È il blu
      dei pulsanti del CRM e del pulsante in alto del sito. */
   --brand-scuro: oklch(0.55 0.16 252);
+  /* Il blu del marchio con l'alfa GIÀ DENTRO, per i veli. ⚠️ Non usare
+     `color-mix(... transparent)` per questi: sui browser senza color-mix
+     (iPhone fermi a iOS 15) la build ripiega sul blu PIENO e il testo sopra
+     diventa illeggibile. */
+  --brand-velo: oklch(0.65 0.19 252 / 0.06);
+  --brand-velo-forte: oklch(0.65 0.19 252 / 0.25);
   --light-panel: oklch(0.96 0.005 250);
   --ink: oklch(0.18 0.02 255);
   --ink-muted: oklch(0.5 0.02 255);
@@ -275,7 +281,7 @@ html.hg-guest body {
     linear-gradient(90deg, oklch(1 0 0 / 0.035) 1px, transparent 1px),
     radial-gradient(
       ellipse 70% 50% at 50% 0%,
-      color-mix(in oklab, var(--brand) 25%, transparent),
+      var(--brand-velo-forte),
       transparent 70%
     ),
     linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
@@ -2052,4 +2058,4 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
 .articolo-blog li + li { margin-top: 0.4em; }
 .articolo-blog a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
 .articolo-blog strong { font-weight: 650; }
-.articolo-blog blockquote { padding: 0.75em 1em; border-radius: var(--radius); background: color-mix(in oklab, var(--brand) 6%, transparent); color: var(--ink-muted); }
+.articolo-blog blockquote { padding: 0.75em 1em; border-radius: var(--radius); background: var(--brand-velo); color: var(--ink-muted); }
