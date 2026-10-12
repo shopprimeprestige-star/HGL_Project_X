@@ -11,12 +11,16 @@
 
 import type { CampoModulo, LeadData } from "../types";
 import { CAMPI_MODULO } from "../types";
-import { etichettaAnnuncio, valoriRisposta } from "./filtri-lista";
+import { etichettaAnnuncio, SENZA, valoriRisposta } from "./filtri-lista";
 
 export interface RiepilogoImport {
   perGruppo: { gruppo: string; n: number; annunci: { annuncio: string; n: number }[] }[];
   perDomanda: { campo: CampoModulo; titolo: string; risposte: { etichetta: string; n: number }[] }[];
+  /** I lead senza gruppo né campagna (anche se hanno un ad_name). */
   senzaAnnuncio: number;
+  /** Fra quelli senza gruppo, i nomi di annuncio che il file ha dato lo stesso:
+   *  non si perdono. */
+  annunciSenzaGruppo: { annuncio: string; n: number }[];
 }
 
 const perNumero = <T extends { n: number }>(a: T, b: T, nome: (x: T) => string) =>
@@ -26,11 +30,13 @@ export function riepilogoImport(leads: Partial<LeadData>[]): RiepilogoImport {
   const gruppi = new Map<string, { gruppo: string; n: number; annunci: Map<string, number> }>();
   const domande = new Map<CampoModulo, { titolo: string; risposte: Map<string, { etichetta: string; n: number }> }>();
   let senzaAnnuncio = 0;
+  const senzaGruppo = new Map<string, number>();
 
   for (const l of leads) {
     const e = etichettaAnnuncio(l.tracking);
-    if (e.chiaveGruppo === "senza") {
+    if (e.chiaveGruppo === SENZA) {
       senzaAnnuncio++;
+      if (e.annuncio) senzaGruppo.set(e.annuncio, (senzaGruppo.get(e.annuncio) ?? 0) + 1);
     } else {
       const g = gruppi.get(e.chiaveGruppo) ?? { gruppo: e.gruppo, n: 0, annunci: new Map<string, number>() };
       g.n++;
@@ -64,5 +70,8 @@ export function riepilogoImport(leads: Partial<LeadData>[]): RiepilogoImport {
         risposte: [...d.risposte.values()].sort((a, b) => perNumero(a, b, (x) => x.etichetta)),
       })),
     senzaAnnuncio,
+    annunciSenzaGruppo: [...senzaGruppo]
+      .map(([annuncio, n]) => ({ annuncio, n }))
+      .sort((a, b) => perNumero(a, b, (x) => x.annuncio)),
   };
 }

@@ -53,7 +53,7 @@ export interface RigaDaFiltrare {
 /** Il separatore fra gruppo e annuncio nelle chiavi: un carattere che nei nomi
  *  di Meta non c'è («|», «-», «€» sì). */
 const SEP = "␟";
-const SENZA = "senza";
+export const SENZA = "senza";
 export const GRUPPO_SENZA_ANNUNCIO = "Liste senza annuncio";
 
 const pulito = (t: string | undefined) => String(t ?? "").replace(/\s+/g, " ").trim();
@@ -268,7 +268,9 @@ export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: str
       n: g.n,
       annunci: [...g.annunci.values()].sort((a, b) => perNumero(a, b, (x) => x.annuncio)),
     }))
-    .sort((a, b) => perNumero(a, b, (x) => x.gruppo));
+    //  ⚠️ «Liste senza annuncio» sta sempre in fondo, anche se ha più lead: non è
+    //   un annuncio da scegliere ma il mucchio di quelli che non ne hanno uno.
+    .sort((a, b) => Number(a.chiave === SENZA) - Number(b.chiave === SENZA) || perNumero(a, b, (x) => x.gruppo));
 
   //  ── Risposte: ogni domanda si conta senza il proprio filtro ─────────────
   const scelte = unaPerDomanda(f.risposte ?? []);

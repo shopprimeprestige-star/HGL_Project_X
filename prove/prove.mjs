@@ -10336,7 +10336,23 @@ function proveDeiFiltriDellaLista() {
   c("riepilogo: problema, 4 contro 1", [4, 1], rie.perDomanda.find((d) => d.campo === "problema").risposte.map((x) => x.n));
   c("riepilogo: le domande senza risposte non compaiono", false, rie.perDomanda.some((d) => d.campo === "fastidio"));
   const vuoto = riepilogoImport([]);
-  c("riepilogo di niente", { perGruppo: [], perDomanda: [], senzaAnnuncio: 0 }, vuoto);
+  c("riepilogo di niente", { perGruppo: [], perDomanda: [], senzaAnnuncio: 0, annunciSenzaGruppo: [] }, vuoto);
+  c("riepilogo: senza gruppo ma con ad_name, l'annuncio non si perde",
+    { senza: 3, annunci: [{ annuncio: "Solo annuncio", n: 2 }] },
+    (() => {
+      const r = riepilogoImport([{ tracking: { ad_name: "Solo annuncio" } }, { tracking: { ad_name: "Solo annuncio" } }, {}]);
+      return { senza: r.senzaAnnuncio, annunci: r.annunciSenzaGruppo };
+    })());
+
+  //  «Liste senza annuncio» sta in fondo anche quando è il mucchio più grosso.
+  const piene = [
+    riga("s1", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+    riga("s2", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+    riga("s3", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+    riga("g1", { adset_name: "Gruppo piccolo", ad_name: "X" }, undefined, "prima", "2026-10-01T10:00:00Z"),
+  ];
+  c("«Liste senza annuncio» in fondo, anche se ha più lead", ["g:Gruppo piccolo", "senza"],
+    opzioniFiltri(piene, {}, OGGI).annuncio.map((g) => g.chiave));
 }
 
 function proveDiChiHaFissato() {
