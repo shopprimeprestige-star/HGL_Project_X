@@ -258,7 +258,23 @@ function arrivatoIl(d: Partial<LeadData>): number {
   return s ? Date.parse(s) : Number.NaN;
 }
 
-function etàLeggibile(ms: number): string {
+/** La data del file non aveva l'ora: l'importazione ha messo mezzogiorno locale
+ *  (data all'italiana) o mezzanotte UTC (ISO senza `T`). Nessuna ora vera cade
+ *  al millisecondo su uno di questi due momenti: quindi l'ora è nostra. */
+function senzaOraVera(t: number): boolean {
+  const q = new Date(t);
+  const mezzogiornoLocale =
+    q.getHours() === 12 && q.getMinutes() === 0 && q.getSeconds() === 0 && q.getMilliseconds() === 0;
+  const mezzanotteUtc =
+    q.getUTCHours() === 0 && q.getUTCMinutes() === 0 && q.getUTCSeconds() === 0 && q.getUTCMilliseconds() === 0;
+  return mezzogiornoLocale || mezzanotteUtc;
+}
+
+/** «arrivato 3 ore fa» solo se l'ora è vera; senza, si dice il giorno. */
+function etàLeggibile(ms: number, adesso: Date, arrivo: number): string {
+  if (senzaOraVera(arrivo)) {
+    return ymd(new Date(arrivo)) === ymd(adesso) ? "arrivato oggi" : "arrivato ieri";
+  }
   const min = Math.max(0, Math.floor(ms / 60_000));
   if (min < 1) return "arrivato adesso";
   if (min < 60) return `arrivato ${min} ${min === 1 ? "minuto" : "minuti"} fa`;
@@ -306,7 +322,7 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   }
 
   //  3. NUOVO
-  if (eNuovo(d, adesso)) return fatto("nuovo", etàLeggibile(adesso.getTime() - arrivatoIl(d)));
+  if (eNuovo(d, adesso)) return fatto("nuovo", etàLeggibile(adesso.getTime() - arrivatoIl(d), adesso, arrivatoIl(d)));
 
   //  4. È LA SUA ORA — per i mai chiamati e per i ritento.
   const mai = d.stato === "da_contattare" && tentativiDi(d) === 0;

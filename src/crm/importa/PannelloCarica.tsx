@@ -30,8 +30,14 @@ import { mestieriDi } from "@/crm/kpi-setter";
 import { LEAD_STATUS_LABEL, type Lead, type LeadData } from "@/crm/types";
 import { Kpi, KpiRiga } from "@/crm/ui";
 import { patchRicarico } from "@/crm/importa/ricarico";
-import { SENZA, etichettaAnnuncio, valoriRisposta } from "@/crm/importa/filtri-lista";
-import { riepilogoImport, type RiepilogoImport } from "@/crm/importa/riepilogo-import";
+import {
+  COLONNE_ANTEPRIMA,
+  celleAnteprima,
+  fraseFileSenzaAnnunci,
+  fraseNelFile,
+  riepilogoImport,
+  type RiepilogoImport,
+} from "@/crm/importa/riepilogo-import";
 import {
   MESSAGGIO_FILE_EXCEL,
   conListaOrigine,
@@ -45,31 +51,6 @@ import {
   type ArchivioCrm,
   type EsitoTraduzione,
 } from "@/crm/import-backup";
-
-/** Le colonne dell'anteprima: quelle da cui si vede se un valore è finito
- *  nella casella sbagliata. Il nome e il telefono dicono CHI è; Problema,
- *  Fastidio e Annuncio dicono che il modulo è stato letto a posto (se sotto
- *  «Problema» compare un numero di telefono, il file è storto). */
-const COLONNE_ANTEPRIMA = ["Nome", "Telefono", "Problema", "Fastidio", "Annuncio"] as const;
-
-/** Le cinque celle di una riga d'anteprima. Nessuna regola qui: le etichette
- *  sono quelle dei filtri (`valoriRisposta`, `etichettaAnnuncio`), così quello
- *  che si legge adesso è quello che si ritroverà nei menu della lista. */
-function celleAnteprima(d: LeadData): string[] {
-  const risposta = (campo: string) =>
-    valoriRisposta(d.modulo)
-      .filter((v) => v.campo === campo)
-      .map((v) => v.etichetta)
-      .join(", ");
-  const a = etichettaAnnuncio(d.tracking);
-  return [
-    [d.nome, d.cognome].filter(Boolean).join(" "),
-    d.telefono ?? "",
-    risposta("problema"),
-    risposta("fastidio"),
-    a.annuncio ?? (a.chiaveGruppo !== SENZA ? a.gruppo : ""),
-  ];
-}
 
 /** I campi che si sperano riconosciuti. L'ordine è quello dell'importanza: il
  *  telefono è la ragione per cui si carica una lista. */
@@ -101,7 +82,15 @@ const CAMPI_ATTESI: { chiave: keyof LeadData; etichetta: string }[] = [
  *   fuori dallo schermo. Le risposte oltre le prime sei si riassumono. */
 const RISPOSTE_VISIBILI = 6;
 
-function RiepilogoLista({ riepilogo }: { riepilogo: RiepilogoImport }) {
+function RiepilogoLista({
+  riepilogo,
+  nuove,
+  ritorni,
+}: {
+  riepilogo: RiepilogoImport;
+  nuove: number;
+  ritorni: number;
+}) {
   const { perGruppo, perDomanda, senzaAnnuncio, annunciSenzaGruppo } = riepilogo;
   const titolo = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
@@ -112,88 +101,94 @@ function RiepilogoLista({ riepilogo }: { riepilogo: RiepilogoImport }) {
   if (perGruppo.length === 0 && perDomanda.length === 0) {
     return (
       <p className="rounded-lg border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
-        Nel file non ci sono né annunci né risposte del modulo: le {senzaAnnuncio} schede entrano
-        senza, e nella lista compaiono sotto «Liste senza annuncio».
+        {fraseFileSenzaAnnunci(nuove + ritorni)}
       </p>
     );
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <section aria-label="Per gruppo e annuncio" className="rounded-lg border border-border p-3">
-        <h3 className={titolo}>Per gruppo e annuncio</h3>
-        <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto text-[12.5px]">
-          {perGruppo.map((g) => (
-            <li key={g.gruppo}>
-              <div className="flex items-baseline justify-between gap-3 font-medium">
-                <span className="truncate" title={g.gruppo}>
-                  {g.gruppo}
-                </span>
-                <span className="tabular-nums">{g.n}</span>
-              </div>
-              {g.annunci.length > 0 && (
-                <ul className="mt-0.5 space-y-0.5 pl-3 text-muted-foreground">
-                  {g.annunci.map((a) => (
-                    <li key={a.annuncio} className="flex items-baseline justify-between gap-3">
-                      <span className="truncate" title={a.annuncio}>
-                        {a.annuncio}
-                      </span>
-                      <span className="tabular-nums">{a.n}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-          {senzaAnnuncio > 0 && (
-            <li>
-              <div className="flex items-baseline justify-between gap-3 font-medium">
-                <span>Senza annuncio</span>
-                <span className="tabular-nums">{senzaAnnuncio}</span>
-              </div>
-              {annunciSenzaGruppo.length > 0 && (
-                <ul className="mt-0.5 space-y-0.5 pl-3 text-muted-foreground">
-                  {annunciSenzaGruppo.map((a) => (
-                    <li key={a.annuncio} className="flex items-baseline justify-between gap-3">
-                      <span className="truncate" title={a.annuncio}>
-                        {a.annuncio}
-                      </span>
-                      <span className="tabular-nums">{a.n}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          )}
-        </ul>
-      </section>
-
-      <section aria-label="Per risposta" className="rounded-lg border border-border p-3">
-        <h3 className={titolo}>Per risposta</h3>
-        {perDomanda.length === 0 ? (
-          <p className="mt-2 text-[12.5px] text-muted-foreground">
-            Nel file non ci sono risposte del modulo.
-          </p>
-        ) : (
-          <dl className="mt-2 max-h-56 space-y-1.5 overflow-y-auto text-[12.5px]">
-            {perDomanda.map((d) => {
-              const altre = d.risposte.length - RISPOSTE_VISIBILI;
-              return (
-                <div key={d.campo}>
-                  <dt className="inline font-medium">{d.titolo}: </dt>
-                  <dd className="inline text-muted-foreground">
-                    {d.risposte
-                      .slice(0, RISPOSTE_VISIBILI)
-                      .map((r) => `${r.etichetta} ${r.n}`)
-                      .join(" · ")}
-                    {altre > 0 && ` · e altre ${altre}`}
-                  </dd>
+    <div className="space-y-2">
+      {/*  Il riepilogo conta tutte le persone del file, non solo le schede da
+          creare: lo si dice, o accanto a «Importa 30» si legge «BROAD 41». */}
+      <p className="text-[12px] text-muted-foreground">
+        <b className="text-foreground">Persone nel file:</b> {fraseNelFile(nuove, ritorni)}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <section aria-label="Per gruppo e annuncio" className="rounded-lg border border-border p-3">
+          <h3 className={titolo}>Per gruppo e annuncio</h3>
+          <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto text-[12.5px]">
+            {perGruppo.map((g) => (
+              <li key={g.gruppo}>
+                <div className="flex items-baseline justify-between gap-3 font-medium">
+                  <span className="truncate" title={g.gruppo}>
+                    {g.gruppo}
+                  </span>
+                  <span className="tabular-nums">{g.n}</span>
                 </div>
-              );
-            })}
-          </dl>
-        )}
-      </section>
+                {g.annunci.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 pl-3 text-muted-foreground">
+                    {g.annunci.map((a) => (
+                      <li key={a.annuncio} className="flex items-baseline justify-between gap-3">
+                        <span className="truncate" title={a.annuncio}>
+                          {a.annuncio}
+                        </span>
+                        <span className="tabular-nums">{a.n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+            {senzaAnnuncio > 0 && (
+              <li>
+                <div className="flex items-baseline justify-between gap-3 font-medium">
+                  <span>Senza annuncio</span>
+                  <span className="tabular-nums">{senzaAnnuncio}</span>
+                </div>
+                {annunciSenzaGruppo.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 pl-3 text-muted-foreground">
+                    {annunciSenzaGruppo.map((a) => (
+                      <li key={a.annuncio} className="flex items-baseline justify-between gap-3">
+                        <span className="truncate" title={a.annuncio}>
+                          {a.annuncio}
+                        </span>
+                        <span className="tabular-nums">{a.n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )}
+          </ul>
+        </section>
+
+        <section aria-label="Per risposta" className="rounded-lg border border-border p-3">
+          <h3 className={titolo}>Per risposta</h3>
+          {perDomanda.length === 0 ? (
+            <p className="mt-2 text-[12.5px] text-muted-foreground">
+              Nel file non ci sono risposte del modulo.
+            </p>
+          ) : (
+            <dl className="mt-2 max-h-56 space-y-1.5 overflow-y-auto text-[12.5px]">
+              {perDomanda.map((d) => {
+                const altre = d.risposte.length - RISPOSTE_VISIBILI;
+                return (
+                  <div key={d.campo}>
+                    <dt className="inline font-medium">{d.titolo}: </dt>
+                    <dd className="inline text-muted-foreground">
+                      {d.risposte
+                        .slice(0, RISPOSTE_VISIBILI)
+                        .map((r) => `${r.etichetta} ${r.n}`)
+                        .join(" · ")}
+                      {altre > 0 && ` · e altre ${altre}`}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -550,7 +545,7 @@ export function PannelloCarica({
             <Kpi
               etichetta="Di ritorno"
               valore={ritorni.length}
-              nota="già in archivio: aspettano una decisione"
+              nota="già in archivio, da decidere"
               tono={ritorni.length > 0 ? "in_sospeso" : "neutro"}
             />
             <Kpi
@@ -588,7 +583,7 @@ export function PannelloCarica({
           )}
 
           {/* ── COSA STA PER ENTRARE, DIVISO ───────────────────────────────── */}
-          <RiepilogoLista riepilogo={riepilogo} />
+          <RiepilogoLista riepilogo={riepilogo} nuove={nuovi.length} ritorni={ritorni.length} />
 
           {/*  Non è un guasto: niente di ciò che il file porta si perde. Le
               colonne che non sono diventate un campo restano sulla scheda. */}

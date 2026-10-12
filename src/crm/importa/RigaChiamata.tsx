@@ -105,7 +105,9 @@ export function RigaChiamata({
             </span>
             <Targhetta motivo={motivo} />
           </span>
-          <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">
+          {/*  Sul telefono la riga va a capo (due righe): una sola tagliava Fastidio e
+              Annuncio, che sono il motivo per cui si sceglie quel nome. */}
+          <span className="mt-0.5 block line-clamp-2 text-[11.5px] text-muted-foreground sm:line-clamp-1">
             {[
               d.telefono || "senza telefono",
               riassunto || null,

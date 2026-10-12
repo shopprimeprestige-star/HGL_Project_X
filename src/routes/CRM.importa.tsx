@@ -186,6 +186,7 @@ import {
   fasciaDeiRitorni,
   linguettaDi,
   linguetteDaMostrare,
+  nessunRitornoInLista,
   percorsoVista,
   stanzeDi,
   vistaDiIngresso,
@@ -1221,7 +1222,9 @@ function RicercaContatto({
             }
             if (e.key === "Escape") setQ("");
           }}
-          placeholder="Ha richiamato? nome o numero  ( / )"
+          //  Corto di proposito: con quello lungo il campo tagliava le ultime parole.
+          placeholder="Ha richiamato? Nome o numero"
+          title="Scorciatoia: premi / per scrivere qui"
           aria-label="Cerca un contatto in tutto l'archivio"
           className="h-9 pl-8 pr-8 text-[13px]"
         />
@@ -3200,6 +3203,8 @@ function LeadImportatiUnoAllaVolta() {
             conteggio={contoLinguetta(l.linguetta, contiViste)}
             disabilitato={!!avanzamento}
             titolo={l.titolo}
+            //  Sul telefono il dito vuole almeno 36 px di altezza.
+            className="min-h-9 sm:min-h-0"
           >
             {l.nome}
           </Segmento>
@@ -3492,6 +3497,7 @@ function LeadImportatiUnoAllaVolta() {
       ) : vista === "tutti" ? (
         <SchedaTutti
           importati={importati}
+          moduloDi={moduloDi}
           //  Chi ho appena sistemato da qui: resta a schermo finché non cambio
           //  linguetta (vedi importa/elenco-stabile).
           restano={appenaSistemati}
@@ -3829,6 +3835,12 @@ function LeadImportatiUnoAllaVolta() {
                 </Scheda>
               )}
             </>
+          ) : nessunRitornoInLista(filtri.stato, diRitorno.length + siFannoViviLoro.length) ? (
+            /*  Con lo Stato «Di ritorno» e nessuna riga in lista, i blocchi sotto
+                hanno le persone: una riga, non «Nessuno con questi filtri». */
+            <p className="rounded-lg border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
+              {nessunRitornoInLista(filtri.stato, diRitorno.length + siFannoViviLoro.length)}
+            </p>
           ) : nFiltri > 0 && coda.length > 0 ? (
             /*  ── ⚠️ LA FETTA FINITA NON È LA LISTA FINITA ─────────────────
                 Chiamando solo «Da ritentare» si arriva in fondo a quella fetta

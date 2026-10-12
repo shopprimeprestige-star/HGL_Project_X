@@ -94,6 +94,7 @@ import { AvvisoExtra, richiedeChiusura, useChiusura } from "@/crm/ChiusuraDialog
 //  qui la riga aveva la sua tendina.
 import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
 import { buildWhatsAppLink } from "@/crm/whatsapp";
+import { COLONNE_ANTEPRIMA, celleAnteprima } from "@/crm/importa/riepilogo-import";
 //  IL RICONOSCIMENTO DEL CSV NON STA QUI. Intestazioni in italiano e in
 //  inglese, separatore, stati con un altro nome, righe scartate, colonne
 //  conservate: tutto in crm/import-backup, che è lo stesso motore di /CRM/importa
@@ -475,24 +476,19 @@ interface EsitoLettura {
   nomeFile: string;
 }
 
-/** Le colonne dell'anteprima: le stesse che si guardano per capire se il file
- *  è stato letto storto. */
-const COLONNE_ANTEPRIMA: { chiave: keyof LeadData; etichetta: string }[] = [
-  { chiave: "nome", etichetta: "Nome" },
-  { chiave: "cognome", etichetta: "Cognome" },
-  { chiave: "telefono", etichetta: "Telefono" },
-  { chiave: "citta", etichetta: "Città" },
-  { chiave: "stato", etichetta: "Stato" },
-  { chiave: "createdAt", etichetta: "Data" },
-];
+/** Le colonne dell'anteprima: le stesse di /CRM/importa (`COLONNE_ANTEPRIMA`,
+ *  `celleAnteprima`), perché da lì si vede se il modulo è stato letto a posto:
+ *  se sotto «Problema» c'è un telefono, il file è storto. In più qui Stato e
+ *  Data, che il file può portare e che l'importazione scrive. */
+const COLONNE_RIGA = [...COLONNE_ANTEPRIMA, "Stato", "Data"] as const;
 
-/** Il valore di un campo scritto come finirà a schermo. */
-function valoreAnteprima(d: LeadData, k: keyof LeadData): string {
-  const v = d[k];
-  if (v == null || v === "") return "";
-  if (k === "stato") return LEAD_STATUS_LABEL[v as LeadStatus] ?? String(v);
-  if (k === "createdAt") return dataBreve(String(v));
-  return String(v);
+/** Le celle di una riga: quelle di /CRM/importa, poi lo Stato e la Data. */
+function celleRiga(d: LeadData): string[] {
+  return [
+    ...celleAnteprima(d),
+    d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "",
+    d.createdAt ? dataBreve(String(d.createdAt)) : "",
+  ];
 }
 
 function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
@@ -678,12 +674,12 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
 
           {letto.leads.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[560px] text-left text-[12.5px]">
+              <table className="w-full min-w-[720px] text-left text-[12.5px]">
                 <thead className="border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    {COLONNE_ANTEPRIMA.map((c) => (
-                      <th key={String(c.chiave)} className="px-3 py-2 font-medium">
-                        {c.etichetta}
+                    {COLONNE_RIGA.map((c) => (
+                      <th key={c} className="px-3 py-2 font-medium">
+                        {c}
                       </th>
                     ))}
                   </tr>
@@ -691,9 +687,13 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
                 <tbody className="divide-y divide-border">
                   {letto.leads.slice(0, 5).map((d, i) => (
                     <tr key={i}>
-                      {COLONNE_ANTEPRIMA.map((c) => (
-                        <td key={String(c.chiave)} className="max-w-[180px] truncate px-3 py-2">
-                          {valoreAnteprima(d, c.chiave) || "—"}
+                      {celleRiga(d).map((v, k) => (
+                        <td
+                          key={k}
+                          className="max-w-[180px] truncate px-3 py-2"
+                          title={v || undefined}
+                        >
+                          {v || "—"}
                         </td>
                       ))}
                     </tr>

@@ -193,6 +193,17 @@ export function fasciaDeiRitorni(daDecidere: number, siFannoVivi: number): strin
   return m === 0 ? prima : `${prima}, più ${m} che si fanno vivi loro`;
 }
 
+/** ── LISTA SENZA RIGHE, MA CON LO STATO «DI RITORNO» ───────────────────────
+ *  Sotto la lista, con quello Stato, stanno i blocchi dei ritorni (chi aspetta
+ *  una decisione e chi «si fa vivo lui»). Se lì c'è qualcuno, «Nessuno con questi
+ *  filtri» in grande sopra di loro dice il contrario di ciò che si vede: allora
+ *  basta una riga che rimanda ai blocchi. Vuota = non vale, si usa la schermata
+ *  vuota di sempre. `nSotto` = persone nei due blocchi. */
+export function nessunRitornoInLista(stato: string | undefined, nSotto: number): string {
+  if (stato !== "ritorno" || !(nSotto > 0)) return "";
+  return "Nessun ritorno da chiamare adesso in lista. Qui sotto trovi chi aspetta una decisione e chi si fa vivo da sé.";
+}
+
 /** Quante righe ha ogni vista. Chi non c'è vale zero. */
 export type Conti = Partial<Record<Vista, number>>;
 

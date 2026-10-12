@@ -75,3 +75,55 @@ export function riepilogoImport(leads: Partial<LeadData>[]): RiepilogoImport {
       .sort((a, b) => perNumero(a, b, (x) => x.annuncio)),
   };
 }
+
+/** ── LE PRIME RIGHE DELL'ANTEPRIMA ─────────────────────────────────────────
+ *  Le colonne da cui si vede se un valore è finito nella casella sbagliata. Il
+ *  nome e il telefono dicono CHI è; Problema, Fastidio e Annuncio dicono che il
+ *  modulo è stato letto a posto (se sotto «Problema» compare un numero di
+ *  telefono, il file è storto). Le usano le due anteprime (`PannelloCarica` e
+ *  la scheda «Da fare» dei KPI): una sola copia, perché due si scostano. */
+export const COLONNE_ANTEPRIMA = ["Nome", "Telefono", "Problema", "Fastidio", "Annuncio"] as const;
+
+/** Le cinque celle di una riga d'anteprima. Nessuna regola qui: le etichette
+ *  sono quelle dei filtri (`valoriRisposta`, `etichettaAnnuncio`), così quello
+ *  che si legge adesso è quello che si ritroverà nei menu della lista. */
+export function celleAnteprima(d: Partial<LeadData>): string[] {
+  const risposta = (campo: string) =>
+    valoriRisposta(d.modulo)
+      .filter((v) => v.campo === campo)
+      .map((v) => v.etichetta)
+      .join(", ");
+  const a = etichettaAnnuncio(d.tracking);
+  return [
+    [d.nome, d.cognome].filter(Boolean).join(" "),
+    d.telefono ?? "",
+    risposta("problema"),
+    risposta("fastidio"),
+    a.annuncio ?? (a.chiaveGruppo !== SENZA ? a.gruppo : ""),
+  ];
+}
+
+/** Chi c'è nel file, in una riga: «30 nuove + 11 di ritorno». Il riepilogo per
+ *  gruppo e per risposta conta TUTTE queste persone (chi torna porta l'annuncio
+ *  di stavolta): senza questa riga, accanto a «Importa 30» si leggerebbe
+ *  «BROAD 41» e sembrerebbe un errore. Vuota = nessuno. */
+export function fraseNelFile(nuove: number, ritorni: number): string {
+  const n = Math.max(0, Math.floor(nuove) || 0);
+  const r = Math.max(0, Math.floor(ritorni) || 0);
+  const nuoveTesto = n === 1 ? "1 nuova" : `${n} nuove`;
+  if (n > 0 && r > 0) return `${nuoveTesto} + ${r} di ritorno`;
+  if (n > 0) return nuoveTesto;
+  if (r > 0) return `${r} di ritorno`;
+  return "";
+}
+
+/** Un file senza annunci né risposte del modulo (fatto a mano): una riga che
+ *  dice com'è. `persone` = nuove + di ritorno, non solo le schede da creare. */
+export function fraseFileSenzaAnnunci(persone: number): string {
+  const n = Math.max(0, Math.floor(persone) || 0);
+  const chi =
+    n === 1
+      ? "1 persona nel file, senza annuncio né risposte del modulo."
+      : `${n} persone nel file, nessuna con annuncio o risposte del modulo.`;
+  return `${chi} Nella lista compaiono sotto «Liste senza annuncio».`;
+}

@@ -92,7 +92,7 @@ const TastoMenu = forwardRef<
     size="sm"
     variant="outline"
     className={cn(
-      "h-8 max-w-[15rem] gap-1.5 text-[12px] font-normal",
+      "h-9 max-w-[15rem] gap-1.5 text-[12px] font-normal sm:h-8",
       acceso && "border-foreground/40 bg-foreground/[0.05]",
     )}
     {...resto}
@@ -423,7 +423,7 @@ export function BarraFiltri({
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 text-[12px] text-muted-foreground hover:text-foreground"
+            className="h-9 text-[12px] text-muted-foreground hover:text-foreground sm:h-8"
             onClick={() => onCambia({})}
           >
             Azzera filtri

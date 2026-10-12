@@ -145,6 +145,7 @@ import {
   type Lead,
   type LeadData,
   type LeadStatus,
+  type RisposteModulo,
 } from "@/crm/types";
 //  Le due domande che dicono se uno stato può essere dato a venti schede
 //  insieme. Sono di chi possiede le finestre, non di questa scheda: il giorno in
@@ -174,7 +175,6 @@ import {
   dettoIlInChiaro,
   prossimaAzione,
 } from "@/crm/ui";
-import { moduloLetto } from "@/crm/modulo-lead";
 import { eSaltato } from "./saltati";
 //  I due menu e le regole sono quelli della pagina «Da chiamare».
 import { MenuAnnuncio, MenuRisposta } from "./FiltriLista";
@@ -249,12 +249,17 @@ export function SchedaTutti({
   onEliminaUno,
   onEliminaMolti,
   onApri,
+  moduloDi,
 }: {
   /** TUTTI i lead arrivati da una lista, senza nessun altro filtro. Il filtro
    *  lo fa questa scheda, e lo fa a vista: quale sia lo dicono le pastiglie in
    *  cima, accese. Arriva già filtrato per `importato` dalla pagina, che è
    *  l'unica cosa che «lead importato» vuol dire. */
   importati: Lead[];
+  /** Le risposte del modulo di un lead, già lette dalla pagina (una volta per
+   *  lead, `moduloLetto`): non si rileggono qui. Stessa funzione della lista
+   *  «Da chiamare», quindi stessi numeri nei menu. */
+  moduloDi: (d: Partial<LeadData>) => RisposteModulo | undefined;
   /** Chi è nella coda di oggi: serve solo a scriverlo sulla riga. La coda la
    *  calcola la pagina, e non si ricalcola qui — due idee di «chi è da
    *  chiamare» nella stessa schermata smettono presto di coincidere. */
@@ -374,7 +379,7 @@ export function SchedaTutti({
 
   /** ── ANNUNCIO E RISPOSTA (vedi il cartello in cima) ─────────────────────
    *  Dall'indirizzo si prendono solo questi due. `righeTutte` è ogni lead con
-   *  le risposte lette da `moduloLetto` una volta sola; il `motivo` serve alla
+   *  le risposte che la pagina ha già letto (`moduloDi`, una volta per lead); il `motivo` serve alla
    *  forma della riga e non conta, perché Stato e tempo non entrano nel filtro. */
   const filtri = useSearch({ from: "/CRM/importa" });
   const navigate = useNavigate({ from: "/CRM/importa" });
@@ -389,9 +394,9 @@ export function SchedaTutti({
         id: l.id,
         data: l.data ?? ({} as LeadData),
         motivo: "prima" as const,
-        modulo: moduloLetto(l.data),
+        modulo: moduloDi(l.data ?? {}),
       })),
-    [importati],
+    [importati, moduloDi],
   );
   /** Chi passa Annuncio e Risposta, fra TUTTI i lead importati. */
   const passano = useMemo(

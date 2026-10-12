@@ -10966,6 +10966,22 @@ function proveDiChiChiamare() {
       stato: "da_contattare", createdAt: alle(11, 10, 12, 0),
       listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
     })).motivo);
+  //  ── ⚠️ SENZA L'ORA NON SI DICE «ARRIVATO N ORE FA» ───────────────────
+  //  Una data senza ora diventa mezzogiorno (o mezzanotte UTC se è un ISO senza
+  //  `T`): «arrivato 1 ora fa» sarebbe un'ora inventata da noi. Si dice il giorno.
+  const dalFile = (createdAt) => L("H", {
+    stato: "da_contattare", createdAt,
+    listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
+  });
+  c("data senza ora (mezzogiorno di oggi): «arrivato oggi»", "nuovo|arrivato oggi",
+    (() => { const x = m(dalFile(alle(12, 10, 12, 0))); return `${x.motivo}|${x.testo}`; })());
+  c("ISO senza ora (mezzanotte UTC di oggi): «arrivato oggi»", "arrivato oggi",
+    m(dalFile(new Date(Date.UTC(2026, 9, 12)).toISOString())).testo);
+  c("mezzogiorno di ieri, letto al mattino: «arrivato ieri»", "nuovo|arrivato ieri",
+    (() => { const x = motivoChiamata(dalFile(alle(11, 10, 12, 0)), new Date(2026, 9, 12, 10, 0)); return `${x.motivo}|${x.testo}`; })());
+  c("con l'ora vera resta «arrivato N ore fa»", "arrivato 3 ore fa", m(dalFile(alle(12, 10, 9, 50))).testo);
+  c("e un'ora vera con i minuti non è scambiata per mezzogiorno", "arrivato 40 minuti fa",
+    m(dalFile(alle(12, 10, 12, 20))).testo);
   c("un nuovo che è già stato chiamato è un ritento", "ritento",
     m(L("W", {
       stato: "da_contattare", noRispondeCount: 1, createdAt: alle(12, 10, 12, 20),
@@ -11083,7 +11099,7 @@ function proveDiChiChiamare() {
 function proveDelleLinguette() {
   const {
     LINGUETTE, ALTRO, linguettaDi, percorsoVista, contoLinguetta, stanzeDi, linguetteDaMostrare,
-    vistaDiIngresso, voceStatoAttiva, fasciaDeiRitorni,
+    vistaDiIngresso, voceStatoAttiva, fasciaDeiRitorni, nessunRitornoInLista,
   } = REP;
   gruppo("TRE LINGUETTE E UN MENU «ALTRO»");
 
@@ -11165,9 +11181,23 @@ function proveDelleLinguette() {
   c("fascia: solo «si fanno vivi loro»", "6 si fanno vivi loro", fasciaDeiRitorni(0, 6));
   c("fascia: uno che si fa vivo", "1 si fa vivo lui", fasciaDeiRitorni(0, 1));
   c("fascia: niente, niente fascia", "", fasciaDeiRitorni(0, 0));
+  //  ── ⚠️ «NESSUNO CON QUESTI FILTRI» NON VA SOPRA I BLOCCHI DI RITORNO ──
+  //  Con lo Stato «Di ritorno» e nessuna riga in lista, sotto ci sono i due
+  //  blocchi con le persone: la schermata «vuota» sopra le contraddice. Si dice
+  //  in una riga, e solo se i blocchi hanno qualcuno.
+  c("Stato «Di ritorno», 0 righe, 6 nei blocchi: una riga e non la schermata vuota", true,
+    nessunRitornoInLista("ritorno", 6) !== "");
+  c("Stato «Di ritorno» e blocchi vuoti: resta la schermata vuota", "", nessunRitornoInLista("ritorno", 0));
+  c("altri Stati: resta la schermata vuota", "", nessunRitornoInLista("promesse", 6));
+  c("nessuno Stato: resta la schermata vuota", "", nessunRitornoInLista("tutti", 6));
+  c("la riga rimanda ai blocchi qui sotto", true, /qui sotto/i.test(nessunRitornoInLista("ritorno", 1)));
+  c("la riga non dice «nessuno con questi filtri»", false,
+    /nessuno con questi filtri/i.test(nessunRitornoInLista("ritorno", 3)));
   const pagina = readFileSync("src/routes/CRM.importa.tsx", "utf8");
   c("la pagina rimette la fascia dei ritorni, che apre lo Stato «Di ritorno»", true,
     pagina.includes("Aprili tutti") && pagina.includes("fasciaDeiRitorni("));
+  c("la pagina usa la riga al posto della schermata vuota, con lo Stato «Di ritorno»", true,
+    pagina.includes("nessunRitornoInLista("));
   c("e la barra dei filtri si vede anche a lista vuota se ci sono ritorni", true,
     /contiViste\.ritorno\s*>\s*0\)\s*&&\s*\(\s*<BarraFiltri/.test(pagina));
 
@@ -16813,6 +16843,32 @@ function proveDellAnteprimaDiImportazione() {
   //  ── Excel: il messaggio dice cosa fare, il pannello lo usa ───────────────
   c("il messaggio dice di scaricare in CSV", true, /CSV/.test(MESSAGGIO_FILE_EXCEL) && /Google Fogli/.test(MESSAGGIO_FILE_EXCEL));
   c("un .xlsx si riconosce", true, eFileExcel(new Uint8Array([1, 2]), "lista.xlsx"));
+
+  //  ── T10: le frasi dell'anteprima ──────────────────────────────────────────
+  const { fraseNelFile, fraseFileSenzaAnnunci, celleAnteprima, COLONNE_ANTEPRIMA } = RIE;
+  c("persone nel file: nuove e di ritorno", "30 nuove + 11 di ritorno", fraseNelFile(30, 11));
+  c("persone nel file: solo nuove", "30 nuove", fraseNelFile(30, 0));
+  c("persone nel file: una nuova", "1 nuova", fraseNelFile(1, 0));
+  c("persone nel file: solo ritorni", "11 di ritorno", fraseNelFile(0, 11));
+  c("persone nel file: niente, niente riga", "", fraseNelFile(0, 0));
+  c("file a mano: conta le persone, anche i ritorni (un backup JSON)",
+    "5 persone nel file, nessuna con annuncio o risposte del modulo. Nella lista compaiono sotto «Liste senza annuncio».",
+    fraseFileSenzaAnnunci(5));
+  c("file a mano: una persona", true, /^1 persona nel file, senza annuncio/.test(fraseFileSenzaAnnunci(1)));
+  c("file a mano: non dice «le N schede entrano senza»", false, /entrano senza/.test(fraseFileSenzaAnnunci(5)));
+  //  L'anteprima di «Da fare» mostra Problema, Fastidio e Annuncio come l'altra.
+  c("le colonne d'anteprima sono cinque e comuni", "Nome,Telefono,Problema,Fastidio,Annuncio", COLONNE_ANTEPRIMA.join(","));
+  const celle0 = celleAnteprima(letto.leads[0]);
+  c("una riga di META_STORTO ha Problema e Fastidio pieni", true, celle0.length === 5 && !!celle0[2] && !!celle0[3]);
+  c("e l'annuncio", "589\u20ac - 001 - ok", celle0[4]);
+  const daFareSrc = readFileSync(join(radice, "src/crm/kpi/DaFareScheda.tsx"), "utf8");
+  c("DaFareScheda usa le stesse colonne (Problema, Fastidio, Annuncio)", true,
+    /celleAnteprima\(/.test(daFareSrc) && /COLONNE_ANTEPRIMA/.test(daFareSrc));
+  const schedaTutti = readFileSync(join(radice, "src/crm/importa/SchedaTutti.tsx"), "utf8");
+  c("SchedaTutti riceve moduloDi dalla pagina e non rilegge le risposte", true,
+    /moduloDi:\s*\(d: Partial<LeadData>\)/.test(schedaTutti) && !/moduloLetto\(/.test(schedaTutti));
+  c("e la pagina glielo passa", true,
+    /<SchedaTutti\s+importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
 
   //  ── Il cablaggio nel pannello e nella scheda KPI ──────────────────────────
   const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");

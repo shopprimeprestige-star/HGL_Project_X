@@ -53,7 +53,14 @@ export function MenuAltro({
           size="sm"
           variant={aperta ? "default" : "outline"}
           disabled={disabilitato}
-          className="h-8 gap-1.5 text-[12px]"
+          //  Il numero sul tasto non si capisce da solo: a chi legge con la voce
+          //  si dice cosa conta.
+          aria-label={
+            !aperta && noteScadute > 0
+              ? `Altro, ${noteScadute} ${noteScadute === 1 ? "nota o richiamo scaduto" : "note o richiami scaduti"}`
+              : undefined
+          }
+          className="h-9 gap-1.5 text-[12px] sm:h-8"
           title={
             noteScadute > 0
               ? `${noteScadute} note o richiami scaduti in «Note e promemoria»`
