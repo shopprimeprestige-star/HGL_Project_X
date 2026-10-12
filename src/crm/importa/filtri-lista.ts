@@ -128,14 +128,14 @@ export function valoriRisposta(m?: RisposteModulo): ValoreRisposta[] {
   if (!m) return [];
   const out: ValoreRisposta[] = [];
   for (const campo of CAMPI_MODULO) {
-    const titolo = titoloDomanda(campo as DomandaModulo["campo"]);
+    const titolo = titoloDomanda(campo);
     const id = m[campo];
     if (id) {
       out.push({
         campo,
         titolo,
         chiave: `${campo}|${id}`,
-        etichetta: etichettaRisposta(campo as DomandaModulo["campo"], id),
+        etichetta: etichettaRisposta(campo, id),
       });
       continue;
     }
@@ -170,7 +170,7 @@ function etichettaDiChiave(chiave: string): string {
     const t = a.resto.slice(2);
     return t.charAt(0).toUpperCase() + t.slice(1);
   }
-  return etichettaRisposta(a.campo as DomandaModulo["campo"], a.resto);
+  return etichettaRisposta(a.campo, a.resto);
 }
 
 /** Al massimo una risposta per domanda: se ce ne sono due, vale l'ultima
@@ -277,7 +277,7 @@ export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: str
   const risposte: OpzioniFiltri["risposte"] = [];
   for (const campo of CAMPI_MODULO) {
     const voci = new Map<string, { chiave: string; etichetta: string; n: number }>();
-    let titolo = titoloDomanda(campo as DomandaModulo["campo"]);
+    let titolo = titoloDomanda(campo);
     for (const r of righe) {
       if (!passa(r, f, oggi, { campo })) continue;
       const v = valoriRisposta(r.modulo).find((x) => x.campo === campo);

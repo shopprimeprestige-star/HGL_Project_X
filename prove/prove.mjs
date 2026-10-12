@@ -10431,6 +10431,13 @@ function proveDeiFiltriDellaLista() {
   const { riepilogoImport } = RIE;
   gruppo("I FILTRI DELLA LISTA DEI LEAD IMPORTATI");
 
+  //  ── Le domande nuove hanno titolo ed etichetta veri, non l'id ─────────────
+  //   Finché T2 non c'era il filtro passava da una conversione di tipo, e una
+  //   domanda sconosciuta al modulo avrebbe mostrato «problema» e «areata».
+  const vr = valoriRisposta({ problema: "areata" }).find((v) => v.campo === "problema");
+  c("la domanda nuova ha il suo titolo", "Problema", vr?.titolo);
+  c("la risposta nuova ha la sua etichetta", "Alopecia areata", vr?.etichetta);
+
   //  ── L'annuncio ──────────────────────────────────────────────────────────
   const e1 = etichettaAnnuncio({ adset_name: "BROAD | ITALIA", ad_name: "589€ - 001 - ok" });
   c("il gruppo è l'adset", "BROAD | ITALIA", e1.gruppo);
