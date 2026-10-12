@@ -156,26 +156,45 @@ export function eLaSuaOra(m: RisposteModulo | undefined, adesso: Date): boolean 
 const GIORNO_LEGGIBILE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Il giorno `AAAA-MM-GG` di una data scritta in uno dei modi della scheda.
- *  Vuoto = illeggibile (e «non si sa» non è «oggi»). */
+ *  Vuoto = illeggibile (e «non si sa» non è «oggi»).
+ *  ⚠️ LA FORMA NON BASTA. Un vecchio gestionale scrive la data «zero»
+ *   (`0000-00-00`, `2026-10-00`) e `2026-02-30` ha la forma giusta, ma nessuna è
+ *   un giorno: passavano per «leggibili» e finivano in cima come PROMESSA
+ *   «scaduta da 739.000 giorni», contata anche nel verdetto. Il giorno deve
+ *   esistere davvero (si rifà il giro: il 30 febbraio per JavaScript è il 2
+ *   marzo) e cadere da quando esiste il CRM (dal 2000). */
 function giornoDi(v: unknown): string {
   const g = String(v ?? "").slice(0, 10);
   if (!GIORNO_LEGGIBILE.test(g)) return "";
-  return Number.isNaN(new Date(`${g}T00:00:00`).getTime()) ? "" : g;
+  const [a, m, gg] = g.split("-").map(Number);
+  if (a < 2000) return "";
+  const d = new Date(a, m - 1, gg);
+  return d.getFullYear() === a && d.getMonth() === m - 1 && d.getDate() === gg ? g : "";
 }
 
 /** Il giorno promesso: `giornoPromesso` e, se manca, il giorno di `callbackAt`,
  *  come fa `prossimaAzione` (crm/ui). Solo per i due stati con una promessa. */
 function giornoDellaPromessa(d: Partial<LeadData>): string {
   if (d.stato !== "richiamo" && d.stato !== "ci_ricontatta_lui") return "";
-  return giornoPromesso(d) || giornoDi(d.callbackAt);
+  //  ⚠️ `giornoPromesso` guarda solo la forma: il giorno si ricontrolla qui.
+  return giornoDi(giornoPromesso(d)) || giornoDi(d.callbackAt);
 }
 
-/** Il momento in cui la promessa è dovuta. Senza ora vale «inizio del giorno». */
+/** Il momento in cui la promessa è dovuta. Senza ora vale «inizio del giorno».
+ *  ⚠️ L'ORA VALE SOLO PER UN «RICHIAMO» CON IL SUO GIORNO IN `dataRicontatto`.
+ *   «Mi richiama lui» non ha un'ora nostra da rispettare (il testo dice
+ *   «doveva farsi vivo lui oggi», e con un'ora salvata risultava «scaduta» alle
+ *   dieci mentre la frase diceva «oggi»); e un giorno preso da `callbackAt` non
+ *   è quello a cui l'ora si riferiva. */
 function momentoDovuto(d: Partial<LeadData>, giorno: string): { quando: number; conOra: boolean } {
-  const ora = /^(\d{1,2}):(\d{2})/.exec(String(d.oraRicontatto ?? ""));
+  const valeLOra = d.stato === "richiamo" && giornoDi(d.dataRicontatto) === giorno;
+  const ora = valeLOra ? /^(\d{1,2}):(\d{2})/.exec(String(d.oraRicontatto ?? "")) : null;
   const [a, m, g] = giorno.split("-").map(Number);
   if (ora && Number(ora[1]) < 24 && Number(ora[2]) < 60) {
-    return { quando: new Date(a, m - 1, g, Number(ora[1]), Number(ora[2])).getTime(), conOra: true };
+    return {
+      quando: new Date(a, m - 1, g, Number(ora[1]), Number(ora[2])).getTime(),
+      conOra: true,
+    };
   }
   return { quando: new Date(a, m - 1, g).getTime(), conOra: false };
 }
@@ -214,7 +233,10 @@ function testoPromessa(d: Partial<LeadData>, giorno: string, adesso: Date): stri
   }
   if (m.conOra) {
     const hhmm = String(d.oraRicontatto).slice(0, 5).padStart(5, "0");
-    if (oggi) return m.quando <= adesso.getTime() ? `richiamo alle ${hhmm}, ${scadutoDa(m, adesso)}` : `richiamo alle ${hhmm}`;
+    if (oggi)
+      return m.quando <= adesso.getTime()
+        ? `richiamo alle ${hhmm}, ${scadutoDa(m, adesso)}`
+        : `richiamo alle ${hhmm}`;
     return `richiamo di ${giornoScritto(giorno)} alle ${hhmm}, ${scadutoDa(m, adesso)}`;
   }
   if (passata) return `richiamo di ${giornoScritto(giorno)}, ${scadutoDa(m, adesso)}`;
@@ -267,7 +289,11 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   const leggi = o?.moduloDi ?? ((x: Partial<LeadData>) => x.modulo);
   const modulo = leggi(d);
   const caldo = eCaldo(modulo);
-  const fatto = (motivo: MotivoChiamata, testo: string): MotivoDiChiamata => ({ motivo, testo, caldo });
+  const fatto = (motivo: MotivoChiamata, testo: string): MotivoDiChiamata => ({
+    motivo,
+    testo,
+    caldo,
+  });
 
   //  1. PROMESSA — solo con un giorno leggibile, già arrivato.
   const giorno = giornoDellaPromessa(d);
@@ -275,7 +301,7 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
 
   //  2. DI RITORNO
   if (eDiRitorno(l, o)) {
-    const stato = d.stato ? LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato) : "";
+    const stato = d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "";
     return fatto("ritorno", stato ? `era «${stato}»` : "è tornato in una lista");
   }
 
@@ -284,7 +310,8 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
 
   //  4. È LA SUA ORA — per i mai chiamati e per i ritento.
   const mai = d.stato === "da_contattare" && tentativiDi(d) === 0;
-  const ritento = d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare";
+  const ritento =
+    d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare";
   if ((mai || ritento) && modulo && eLaSuaOra(modulo, adesso)) {
     return fatto("suaOra", `ha chiesto: ${etichettaRisposta("quando", String(modulo.quando))}`);
   }
@@ -296,12 +323,15 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   if (d.stato === "richiamo" || d.stato === "ci_ricontatta_lui") {
     const quando = giornoDellaPromessa(d);
     if (quando) return fatto("ritento", `richiamo previsto il ${gg_mm(quando)}`);
-    return fatto("ritento", d.stato === "richiamo" ? "richiamo senza giorno" : "doveva farsi vivo lui, senza giorno");
+    return fatto(
+      "ritento",
+      d.stato === "richiamo" ? "richiamo senza giorno" : "doveva farsi vivo lui, senza giorno",
+    );
   }
   if (d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare") {
     return fatto("ritento", `${Math.max(1, tentativiDi(d)) + 1}° tentativo`);
   }
-  const stato = d.stato ? LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato) : "";
+  const stato = d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "";
   return fatto("ritento", stato ? `stato «${stato}»` : "da richiamare");
 }
 
@@ -317,7 +347,11 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
  *   5. da più tempo in lista. Una data illeggibile va in fondo, senza `NaN` nel
  *      confronto: un confronto con `NaN` non è né minore né maggiore e
  *      scombina l'ordinamento intero. */
-export function ordinaChiamate<L extends LeadLike>(leads: L[], adesso: Date, o?: OpzioniChiamata): L[] {
+export function ordinaChiamate<L extends LeadLike>(
+  leads: L[],
+  adesso: Date,
+  o?: OpzioniChiamata,
+): L[] {
   const righe = leads.map((l) => {
     const d = l.data ?? {};
     const m = motivoChiamata(l, adesso, o);
@@ -346,7 +380,11 @@ export function ordinaChiamate<L extends LeadLike>(leads: L[], adesso: Date, o?:
 }
 
 /** Chi è in lista, già in ordine. */
-export function listaDaChiamare<L extends LeadLike>(leads: L[], adesso: Date, o?: OpzioniChiamata): L[] {
+export function listaDaChiamare<L extends LeadLike>(
+  leads: L[],
+  adesso: Date,
+  o?: OpzioniChiamata,
+): L[] {
   return ordinaChiamate(
     leads.filter((l) => inLista(l, adesso, o)),
     adesso,
@@ -374,6 +412,23 @@ export function contaPromesse<L extends LeadLike>(
   return { tutte, scadute };
 }
 
+/** La frase del verdetto in testata, dal conto di `contaPromesse`. Vuota =
+ *  nessuna promessa (la testata dice «sei in pari»). Sta qui e non nella
+ *  testata perché il numero e la frase non si possano separare: il clic porta
+ *  allo Stato «Promesse», che mostra esattamente `tutte` righe. */
+export function fraseVerdetto(c: { tutte: number; scadute: number }): string {
+  const tutte = Number.isFinite(c.tutte) ? Math.max(0, Math.floor(c.tutte)) : 0;
+  const scadute = Number.isFinite(c.scadute)
+    ? Math.max(0, Math.min(tutte, Math.floor(c.scadute)))
+    : 0;
+  if (tutte === 0) return "";
+  const promesse = tutte === 1 ? "1 promessa da mantenere" : `${tutte} promesse da mantenere`;
+  if (scadute === 0)
+    return tutte === 1 ? `${promesse}, non ancora scaduta` : `${promesse}, nessuna scaduta`;
+  if (tutte === 1) return `${promesse}, scaduta: è in cima`;
+  return `${promesse}, di cui ${scadute} scadut${scadute === 1 ? "a" : "e"}: sono in cima`;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    L'ESITO CHE SI SCRIVE
    ═════════════════════════════════════════════════════════════════════════ */
@@ -385,7 +440,10 @@ export function contaPromesse<L extends LeadLike>(
  *   porte: una scheda per volta e a gruppi. Un contatore che vale solo se si
  *   passa dalla porta giusta è peggio di nessun contatore, perché l'ordine
  *   sembra comunque motivato. Spostata dalla pagina, identica a prima. */
-export function patchEsito(d: Partial<LeadData> | null | undefined, stato: LeadStatus): Partial<LeadData> {
+export function patchEsito(
+  d: Partial<LeadData> | null | undefined,
+  stato: LeadStatus,
+): Partial<LeadData> {
   const patch: Partial<LeadData> = { stato };
   if (stato === "non_risponde" || stato === "segreteria") {
     patch.noRispondeCount = (Number(d?.noRispondeCount) || 0) + 1;
