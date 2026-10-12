@@ -378,7 +378,7 @@ const EMPTY: Profile = {
   provincia: "",
 };
 const OPT = (
-  <span className="ml-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/60">
+  <span className="ml-1 rounded bg-white/10 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/60">
     Opzionale
   </span>
 );
@@ -476,7 +476,7 @@ function PromoNote({ until, onApri }: { until: Date; onApri?: () => void }) {
             }
           : undefined
       }
-      className={`hg-shine block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16]" : ""}`}
+      className={`block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand" : ""}`}
     >
       <span className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 flex-shrink-0 text-amber-300" />
@@ -665,11 +665,7 @@ function FaseTitolo({ n, titolo, quando }: { n: number; titolo: string; quando: 
     //  numero, titolo e tempo IMPILATI, ciascuno sulla sua riga — dentro una
     //  carta con la sua cornice: si legge dall'alto in basso, e si vede dove
     //  finisce una fase e comincia l'altra anche scorrendo in fretta.
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent px-4 py-3.5">
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent"
-      />
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-brand/40 bg-brand/15 text-[16px] font-bold text-brand">
           {n}
@@ -3567,7 +3563,6 @@ function QuoteBuilder() {
         (sec) => !sec.requiresAnyOf || sec.requiresAnyOf.some((id) => selected.has(id)),
       )
     : [];
-  const profileNum = 3 + visibleUpsellSecs.length + (canPersonalize && menu.simulation ? 1 : 0); // il profilo è l'ultimo step
   const chooseBase = (id: string) => {
     if (id !== baseId) {
       // La soluzione base è la scelta più importante della pagina: le si dà il
@@ -4065,7 +4060,7 @@ function QuoteBuilder() {
 
   const copy = (t: string, label: string) => copyLink(t, `${label} copiato`);
   const inputCls =
-    "w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30";
+    "w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30";
 
   // ── BANNER DELLA DIRETTA ───────────────────────────────────────────────────
   //  Prima era `fixed`: non occupava spazio, quindi COPRIVA i primi ~28px del
@@ -4092,8 +4087,12 @@ function QuoteBuilder() {
   //  apri il documento, quindi non va mai chiuso a mano.
   const lookupVeil =
     remoteLookup && (isMirror || isViewer) ? (
-      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/88 px-6 backdrop-blur-sm print:hidden">
-        <div className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl">
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/88 px-6 print:hidden">
+        <div
+          role="status"
+          aria-live="polite"
+          className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl"
+        >
           <span className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-brand/35 bg-brand/10">
             <span className="hg-pulse-ring absolute inset-0 rounded-2xl border border-brand/40" />
             <FileText className="hg-icon-in h-6 w-6 text-brand" />
@@ -4101,12 +4100,9 @@ function QuoteBuilder() {
           <p className="mt-4 text-[17px] font-bold leading-tight text-white">
             Stiamo recuperando il tuo preventivo
           </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-white/55">
+          <p className="mt-1.5 text-[14px] leading-relaxed text-white/70">
             Il consulente sta aprendo il documento a tuo nome. Resta in linea, ci vuole un istante.
           </p>
-          <span className="mx-auto mt-5 block h-px w-24 overflow-hidden rounded-full bg-white/10">
-            <span className="hg-sheen block h-full w-full bg-gradient-to-r from-transparent via-brand to-transparent" />
-          </span>
         </div>
       </div>
     ) : null;
@@ -4118,8 +4114,12 @@ function QuoteBuilder() {
       lavoro in corso di un altro. */
   const veloGruppo =
     isViewer && !!mioGettone && vedoDelGruppo === "niente" ? (
-      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/92 px-6 backdrop-blur-sm print:hidden">
-        <div className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl">
+      <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#040d1f]/92 px-6 print:hidden">
+        <div
+          role="status"
+          aria-live="polite"
+          className="hg-rise w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center shadow-2xl"
+        >
           <span className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-brand/35 bg-brand/10">
             <span className="hg-pulse-ring absolute inset-0 rounded-2xl border border-brand/40" />
             <FileText className="hg-icon-in h-6 w-6 text-brand" />
@@ -4127,12 +4127,9 @@ function QuoteBuilder() {
           <p className="mt-4 text-[17px] font-bold leading-tight text-white">
             Il consulente sta preparando il preventivo
           </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-white/55">
+          <p className="mt-1.5 text-[14px] leading-relaxed text-white/70">
             Compare qui appena è pronto. Resta pure su questa pagina: non serve fare altro.
           </p>
-          <span className="mx-auto mt-5 block h-px w-24 overflow-hidden rounded-full bg-white/10">
-            <span className="hg-sheen block h-full w-full bg-gradient-to-r from-transparent via-brand to-transparent" />
-          </span>
         </div>
       </div>
     ) : null;
@@ -4191,8 +4188,8 @@ function QuoteBuilder() {
     ) : null;
   const viewerBanner = showBanner ? (
     <div className="relative z-[80] flex items-center justify-center gap-2 bg-brand px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden">
-      <Radio className="h-3.5 w-3.5 animate-pulse" /> Diretta — stai vedendo la configurazione in
-      tempo reale
+      <Radio className="h-3.5 w-3.5 motion-safe:animate-pulse" /> Diretta — stai vedendo la
+      configurazione in tempo reale
     </div>
   ) : null;
 
@@ -4552,16 +4549,8 @@ function QuoteBuilder() {
               ancora, ma si incontra dopo, in forma di aritmetica. */}
           <section
             data-hg-anchor="res-cliente"
-            className="relative mb-5 overflow-hidden rounded-3xl border border-brand/45 bg-gradient-to-br from-brand/[0.18] via-brand/[0.06] to-transparent px-5 py-6 sm:px-7 sm:py-7"
+            className="relative mb-5 overflow-hidden rounded-3xl border border-brand/45 bg-brand/[0.08] px-5 py-6 sm:px-7 sm:py-7"
           >
-            <span
-              aria-hidden
-              className="hg-aurora pointer-events-none absolute -top-24 left-1/2 h-56 w-72 -translate-x-1/2 rounded-full bg-brand/25 blur-3xl"
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent"
-            />
             <div className="relative">
               {/*  ⚠️ IL BOLLO STA ATTACCATO AL NUMERO, non solo nel riquadro in
                    cima: questa pagina si stampa e si manda in PDF, e in un
@@ -4580,7 +4569,7 @@ function QuoteBuilder() {
                   {numeroPrev ? "· Ordine" : "Preventivo"} {r.ref}
                 </span>
                 {annullatoDa && annullatoDa !== r.ref && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/50 bg-rose-500/15 px-2 py-[3px] text-[10px] font-bold tracking-[0.16em] text-rose-200">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/50 bg-rose-500/15 px-2 py-[3px] text-[11px] font-bold tracking-[0.14em] text-rose-200">
                     <Ban className="h-3 w-3" /> Annullato
                   </span>
                 )}
@@ -4683,7 +4672,7 @@ function QuoteBuilder() {
                 <a
                   href="#res-pagamento"
                   onClick={() => sfx.select()}
-                  className="hg-cta-glow hg-rise relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-brand px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/25 transition hover:brightness-110 print:hidden"
+                  className="hg-rise relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-brand px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/25 transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand print:hidden"
                   style={{ animationDelay: "250ms" }}
                 >
                   <span className="relative z-10 flex items-center gap-2">
@@ -4731,11 +4720,11 @@ function QuoteBuilder() {
                     <button
                       type="button"
                       onClick={() => setPercheScade(true)}
-                      className="hg-shine mr-1 inline-flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-400/[0.10] px-2.5 py-1.5 align-middle text-[14px] font-medium text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/15"
+                      className="mr-1 inline-flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-400/[0.10] px-2.5 py-1.5 align-middle text-[14px] font-medium text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     >
                       Prezzo bloccato fino al{" "}
                       <b className="font-bold text-white">{formatDeadline(rPromo)}</b>
-                      <span className="rounded-full bg-amber-300/25 px-2 py-0.5 text-[12px] font-bold text-amber-100">
+                      <span className="text-[13px] font-semibold text-amber-200 underline underline-offset-2">
                         perché?
                       </span>
                     </button>
@@ -4794,7 +4783,7 @@ function QuoteBuilder() {
                 provincia: profile.provincia,
               }}
               formatPrice={formatPrice}
-              inputCls="w-full rounded-lg border border-white/15 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-white/35 focus:bg-white/[0.08] focus:outline-none"
+              inputCls="w-full rounded-lg border border-white/15 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder:text-white/50 focus:border-white/35 focus:bg-white/[0.08] focus:outline-none"
             />
           )}
 
@@ -4871,7 +4860,7 @@ function QuoteBuilder() {
               </div>
               {r.problemi && (
                 <div className="border-b border-amber-400/10 px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">
                     Dichiarato dal cliente
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-white/80">
@@ -4881,7 +4870,7 @@ function QuoteBuilder() {
               )}
               {(quoteEdit?.notes ?? []).length > 0 && (
                 <div className="px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40">
                     Note di consulenza
                   </p>
                   <ul className="mt-2 space-y-2">
@@ -4981,7 +4970,7 @@ function QuoteBuilder() {
                 setPercorsoOpen(true);
               }}
               data-hg-anchor="res-percorso"
-              className="hg-shine group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-gradient-to-r from-brand/[0.10] to-transparent px-4 py-3.5 text-left transition hover:from-brand/[0.16] print:hidden"
+              className="group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-brand/[0.08] px-4 py-3.5 text-left transition hover:bg-brand/[0.14] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand print:hidden"
             >
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/20 text-brand">
                 <RouteIcon className="h-4 w-4" />
@@ -5277,13 +5266,13 @@ function QuoteBuilder() {
               {/* I recapiti sono la riga su cui il cliente controlla che sia
                   proprio il SUO preventivo: al 30% di bianco non si controlla
                   niente. Restano in coda — è il posto giusto — ma leggibili. */}
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">
                 Recapiti
               </p>
               <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[14px] text-white/60">
                 {r.email && <span className="break-all">{r.email}</span>}
                 {r.telefono && <span className="tabular-nums">{r.telefono}</span>}
-                <span className="font-mono text-white/45">{r.ref}</span>
+                <span className="font-mono text-white/65">{r.ref}</span>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -5436,8 +5425,15 @@ function QuoteBuilder() {
 
   if (loadingRef) {
     return (
-      <div className="bg-blueprint flex min-h-screen items-center justify-center text-white/60">
-        Caricamento preventivo…
+      <div className="bg-blueprint flex min-h-screen items-center justify-center px-6">
+        <div
+          role="status"
+          aria-live="polite"
+          className="w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center"
+        >
+          <BrandLogo className="mx-auto h-7 w-auto" />
+          <p className="mt-4 text-[15px] text-white/80">Caricamento preventivo…</p>
+        </div>
       </div>
     );
   }
@@ -5540,17 +5536,14 @@ function QuoteBuilder() {
             mezza schermata e si leggevano come un elenco qualsiasi. Ora sono una
             riga sola, in griglia, con icona sopra e testo sotto — leggibile in un
             colpo d'occhio anche sul telefono. Il titolo entra con una comparsa
-            scalata e lo sfondo respira lentamente: movimento, non animazione. */}
+            scalata. */}
         <section
           data-hg-anchor="cfg-hero"
-          className="relative mb-5 overflow-hidden rounded-2xl border border-brand/25 bg-gradient-to-b from-brand/[0.14] via-white/[0.02] to-transparent px-4 py-7 text-center sm:mb-7 sm:rounded-3xl sm:px-6 sm:py-10"
+          className="relative mb-5 overflow-hidden rounded-2xl border border-brand/25 bg-white/[0.03] px-4 py-5 text-center sm:mb-7 sm:rounded-3xl sm:px-6 sm:py-8"
         >
-          <div className="hg-aurora pointer-events-none absolute -top-28 left-1/2 h-64 w-[22rem] -translate-x-1/2 rounded-full bg-brand/25 blur-3xl" />
-          <div className="hg-aurora-slow pointer-events-none absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-brand/15 blur-3xl" />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
           <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-3.5 sm:gap-4">
             <span
-              className="hg-rise inline-flex items-center gap-1.5 rounded-full border border-brand/35 bg-brand/12 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.22em] text-brand sm:text-[10px]"
+              className="hg-rise inline-flex items-center gap-1.5 rounded-full border border-brand/35 bg-brand/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand"
               style={{ animationDelay: "0ms" }}
             >
               <Fingerprint className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> Il tuo preventivo, costruito con
@@ -5562,9 +5555,7 @@ function QuoteBuilder() {
             >
               Scegli tu ogni dettaglio.
               <br />
-              <span className="bg-gradient-to-r from-brand via-sky-300 to-brand bg-clip-text text-transparent">
-                Impossibile da riconoscere.
-              </span>
+              <span className="text-brand">Impossibile da riconoscere.</span>
             </h1>
             <p
               className="hg-rise max-w-xl text-balance text-sm leading-relaxed text-white/65 sm:text-base"
@@ -5594,9 +5585,7 @@ function QuoteBuilder() {
           <div className="min-w-0 space-y-8">
             {/* soluzione base */}
             <section data-hg-anchor="cfg-step-01">
-              <h2 className="mb-1 text-lg font-semibold">
-                <span className="text-brand">01</span> — Da dove partiamo
-              </h2>
+              <h2 className="mb-1 text-lg font-semibold">Da dove partiamo</h2>
               {/* il titolo da solo non diceva nulla: qui si spiega che si sceglie
                   la STRADA, e che tutto il resto dipende da questa scelta */}
               <p className="mb-3 text-sm leading-relaxed text-white/55">
@@ -5604,7 +5593,9 @@ function QuoteBuilder() {
                 preventivo si adatta di conseguenza. Il prezzo che leggi su ogni scheda comprende
                 già le scelte incluse, e non conta ancora installazione, quantità e sconti.
               </p>
-              <div className={`grid gap-3 ${menu.base.length > 1 ? "sm:grid-cols-2" : ""}`}>
+              <div
+                className={`grid gap-3 ${menu.base.length > 1 ? "sm:grid-cols-2" : ""}`}
+              >
                 {menu.base.map((b) => {
                   const active = baseId === b.id;
                   /*  ── ⚠️ IL PREZZO DELLA SCHEDA È QUELLO "FINO A QUI" ─────
@@ -5642,7 +5633,8 @@ function QuoteBuilder() {
                       key={b.id}
                       onClick={() => chooseBase(b.id)}
                       data-hg-anchor={`cfg-base-${b.id}`}
-                      className={`rounded-xl border p-4 text-left transition ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                      aria-pressed={active}
+                      className={`flex flex-col rounded-xl border p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold">{b.name}</span>
@@ -5655,54 +5647,51 @@ function QuoteBuilder() {
                       {b.badge && (
                         // il badge distingue le tre strade a colpo d'occhio:
                         // ha bisogno di peso, non di essere un dettaglio
-                        <span
-                          className={`mt-1.5 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide ${
-                            /top di gamma/i.test(b.badge)
-                              ? "bg-gradient-to-r from-amber-400/90 to-amber-300/80 text-[#2b1c00] shadow-sm shadow-amber-500/30"
-                              : /economico/i.test(b.badge)
-                                ? "bg-white/12 text-white/80 ring-1 ring-white/20"
-                                : "bg-brand text-white shadow-sm shadow-brand/30"
-                          }`}
-                        >
+                        <span className="mt-1.5 inline-flex items-center gap-1.5 self-start rounded-md bg-white/12 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-white ring-1 ring-white/20">
                           {b.badge}
                         </span>
                       )}
-                      <p className="mt-2 text-xs text-white/55">{b.desc}</p>
-                      {/*  ⚠️ `flex-wrap`: la cifra, il barrato e la riga che
-                          spiega devono poter andare a capo. Senza, su schermo
-                          stretto il prezzo spingeva fuori la scheda. */}
-                      <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        {/*  ⚠️ Barrato solo se c'è davvero uno sconto: un
-                            "prima" uguale (o più basso) del prezzo non è
-                            un'offerta, è un numero che confonde. */}
-                        {par.listino ? (
-                          <span className={`${BARRATO_CLASSI} text-[15px]`}>
-                            {formatPrice(par.listino)}
+                      <p className="mt-2 text-[13px] leading-snug text-white/70">{b.desc}</p>
+                      {/* Prezzo e riga che lo spiega stanno in un blocco solo, ancorato in
+                          fondo alla scheda: con tre schede affiancate le cifre si
+                          allineano e si confrontano a colpo d'occhio. */}
+                      <div className="mt-auto pt-2">
+                        {/*  ⚠️ `flex-wrap`: la cifra, il barrato e la riga che
+                            spiega devono poter andare a capo. Senza, su schermo
+                            stretto il prezzo spingeva fuori la scheda. */}
+                        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                          {/*  ⚠️ Barrato solo se c'è davvero uno sconto: un
+                              "prima" uguale (o più basso) del prezzo non è
+                              un'offerta, è un numero che confonde. */}
+                          {par.listino ? (
+                            <span className={`${BARRATO_CLASSI} text-[15px]`}>
+                              {formatPrice(par.listino)}
+                            </span>
+                          ) : null}
+                          <span
+                            className={`text-lg font-bold tabular-nums ${par.totale === 0 ? "text-emerald-300" : "text-white"}`}
+                          >
+                            {par.totale === 0 ? "GRATIS" : formatPrice(par.totale)}
                           </span>
-                        ) : null}
-                        <span
-                          className={`inline-block rounded-lg px-2.5 py-1 text-sm font-bold ${par.totale === 0 ? "bg-emerald-500/20 text-emerald-300" : "bg-white/[0.08] text-white"}`}
-                        >
-                          {par.totale === 0 ? "GRATIS" : formatPrice(par.totale)}
-                        </span>
-                      </p>
-                      {/*  Com'è fatta quella cifra: senza questa riga il numero
-                          non combacerebbe con nessun prezzo di listino e
-                          sembrerebbe uscito dal nulla. */}
-                      {par.voci.length > 0 && (
-                        <p className="mt-1 text-[11.5px] leading-snug text-white/45">
-                          {par.extra > 0 ? (
-                            <>
-                              {formatPrice(b.price)} di base + {formatPrice(par.extra)} di scelte
-                              già incluse
-                            </>
-                          ) : (
-                            <>
-                              {par.voci.length} scelte già incluse, senza sovrapprezzo
-                            </>
-                          )}
                         </p>
-                      )}
+                        {/*  Com'è fatta quella cifra: senza questa riga il numero
+                            non combacerebbe con nessun prezzo di listino e
+                            sembrerebbe uscito dal nulla. */}
+                        {par.voci.length > 0 && (
+                          <p className="mt-1 text-[11.5px] leading-snug text-white/65">
+                            {par.extra > 0 ? (
+                              <>
+                                {formatPrice(b.price)} di base + {formatPrice(par.extra)} di scelte
+                                già incluse
+                              </>
+                            ) : (
+                              <>
+                                {par.voci.length} scelte già incluse, senza sovrapprezzo
+                              </>
+                            )}
+                          </p>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
@@ -5721,7 +5710,7 @@ function QuoteBuilder() {
                   scritto in testa cosa succede e quanto dura: si capisce
                   scorrendo, senza dover leggere tutto. */}
                 <h2 className="mb-1 text-lg font-semibold">
-                  <span className="text-brand">02</span> — Dallo studio del volto all'installazione
+                  Dallo studio del volto all'installazione
                 </h2>
                 <p className="mb-4 text-sm leading-relaxed text-white/55">
                   Due fasi, in quest'ordine. La prima decide{" "}
@@ -5940,7 +5929,7 @@ function QuoteBuilder() {
                       non scoperte dopo. */}
                       {installOn && acceso("dove") && (
                         <div className="border-t border-white/10 bg-white/[0.02] px-4 py-3">
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                             Dove
                           </p>
                           <div className="flex flex-wrap gap-2">
@@ -6036,14 +6025,11 @@ function QuoteBuilder() {
                 const visibleSecs = visibleUpsellSecs;
                 return (
                   <>
-                    {visibleSecs.map((sec, idx) => {
+                    {visibleSecs.map((sec) => {
                       const groupIds = sec.items.map((i) => i.id);
                       return (
                         <section key={sec.num} data-hg-anchor={`cfg-sez-${sec.num}`}>
-                          <h2 className="mb-1 text-lg font-semibold">
-                            <span className="text-brand">{String(idx + 3).padStart(2, "0")}</span> —{" "}
-                            {sec.title}
-                          </h2>
+                          <h2 className="mb-1 text-lg font-semibold">{sec.title}</h2>
                           {/* chiarimento della sezione: quando le opzioni si somigliano,
                       dice in una riga che cosa cambia davvero fra loro */}
                           {"note" in sec && (sec as { note?: string }).note && (
@@ -6057,7 +6043,7 @@ function QuoteBuilder() {
                             </p>
                           )}
                           {sec.single && (
-                            <p className="mb-3 text-xs text-white/45">Scegli una sola opzione.</p>
+                            <p className="mb-3 text-xs text-white/65">Scegli una sola opzione.</p>
                           )}
                           {!sec.single && <div className="mb-3" />}
                           <div className="space-y-2.5">
@@ -6071,7 +6057,8 @@ function QuoteBuilder() {
                                   key={item.id}
                                   onClick={onClick}
                                   data-hg-anchor={`cfg-opt-${item.id}`}
-                                  className={`block w-full overflow-hidden rounded-xl border text-left transition ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                                  aria-pressed={active}
+                                  className={`block w-full overflow-hidden rounded-xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                                 >
                                   <span className="flex items-start gap-3 p-4">
                                     <span
@@ -6111,7 +6098,7 @@ function QuoteBuilder() {
                               voce e non finiva da nessuna parte. */}
                                   {active && item.variants && (
                                     <span className="hg-rise block border-t border-white/10 bg-white/[0.03] px-4 py-3">
-                                      <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                                      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                                         {item.variants.title}
                                       </span>
                                       <span className="grid grid-cols-3 gap-1.5">
@@ -6136,14 +6123,15 @@ function QuoteBuilder() {
                                                   setVarianti((v) => ({ ...v, [item.id]: o.id }));
                                                 }
                                               }}
-                                              className={`block cursor-pointer rounded-lg border px-2 py-2 text-center transition ${sel ? "border-brand bg-brand/20 shadow-sm shadow-brand/20" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                                              aria-pressed={sel}
+                                              className={`block cursor-pointer rounded-lg border px-2 py-2 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${sel ? "border-brand bg-brand/20 shadow-sm shadow-brand/20" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                                             >
                                               <span
                                                 className={`block text-[12px] font-semibold leading-tight ${sel ? "text-white" : "text-white/75"}`}
                                               >
                                                 {o.name}
                                               </span>
-                                              <span className="mt-0.5 block text-[10px] leading-snug text-white/45">
+                                              <span className="mt-0.5 block text-[11px] leading-snug text-white/65">
                                                 {o.desc}
                                               </span>
                                             </span>
@@ -6167,12 +6155,7 @@ function QuoteBuilder() {
                     })}
                     {menu.simulation && (
                       <section data-hg-anchor="cfg-simulazione">
-                        <h2 className="mb-3 text-lg font-semibold">
-                          <span className="text-brand">
-                            {String(visibleSecs.length + 3).padStart(2, "0")}
-                          </span>{" "}
-                          — Come starà su di te
-                        </h2>
+                        <h2 className="mb-3 text-lg font-semibold">Come starà su di te</h2>
                         {/* ── SCHEDA RICOSTRUITA ──────────────────────────────────────
                     Prima: icona, titolo, prezzo e spunta tutti sulla stessa riga,
                     con il titolo spezzato su quattro righe e la spunta a metà
@@ -6186,7 +6169,8 @@ function QuoteBuilder() {
                             simOn ? sfx.deselect() : sfx.selectDeal();
                             setSimOn((v) => !v);
                           }}
-                          className={`block w-full overflow-hidden rounded-2xl border text-left transition ${simOn ? "border-brand bg-brand/[0.09] shadow-lg shadow-brand/10" : "border-white/12 bg-white/[0.03] hover:border-brand/40"}`}
+                          aria-pressed={simOn}
+                          className={`block w-full overflow-hidden rounded-2xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${simOn ? "border-brand bg-brand/[0.09] shadow-lg shadow-brand/10" : "border-white/12 bg-white/[0.03] hover:border-brand/40"}`}
                         >
                           <div className="flex items-center gap-3 px-4 pt-4">
                             <span
@@ -6244,10 +6228,7 @@ function QuoteBuilder() {
 
             {/* profilo — ultimo step, da compilare per confermare */}
             <section data-hg-anchor="cfg-dati">
-              <h2 className="mb-1.5 text-lg font-semibold">
-                <span className="text-brand">{String(profileNum).padStart(2, "0")}</span> — Il
-                preventivo a tuo nome
-              </h2>
+              <h2 className="mb-1.5 text-lg font-semibold">Il preventivo a tuo nome</h2>
               <p className="mb-4 text-sm leading-relaxed text-white/60">
                 L'età calibra densità e attaccatura. Nessun pagamento: vedi subito il riepilogo.
               </p>
@@ -6315,7 +6296,7 @@ function QuoteBuilder() {
                     farebbero sembrare il preventivo una pratica burocratica. */}
                 <div className="sm:col-span-2">
                   <p className="mb-1 text-[13px] font-medium text-white/80">Per la fattura {OPT}</p>
-                  <p className="mb-3 text-[12px] leading-relaxed text-white/45">
+                  <p className="mb-3 text-[12px] leading-relaxed text-white/65">
                     Il preventivo si crea anche senza. Ma se li scrivi adesso, quando arriva
                     l&apos;acconto la fattura è già pronta da emettere.
                   </p>
@@ -6406,8 +6387,8 @@ function QuoteBuilder() {
               pagina la corrispondenza saltava e il cliente non riusciva più a
               seguirti. Come per le schede-opzione affiancate, un blocco che cambia
               posizione fra i due layout non può fare da riferimento. */}
-          <section className="lg:hidden">
-            <div className="rounded-2xl border border-brand/40 bg-gradient-to-b from-brand/[0.10] to-white/[0.03] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+          <section id="riepilogo-telefono" className="scroll-mt-20 lg:hidden">
+            <div className="rounded-2xl border border-brand/40 bg-brand/[0.07] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
               <Summary
                 soloConsulente={isViewer}
                 mobile
@@ -6506,89 +6487,95 @@ function QuoteBuilder() {
               che contano — il totale e quanto si risparmia — allineati agli
               estremi. Il prezzo resta l'elemento più grande della schermata. */}
           <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
-            {/* Vetro: sfondo semitrasparente + sfocatura di ciò che scorre sotto. Si
-                  intuisce il contenuto dietro, la scheda resta leggibile. */}
-            <div className="hg-glass relative mx-auto max-w-md overflow-hidden rounded-2xl border border-brand/30 bg-[#081a3d]/60 shadow-[0_-10px_44px_rgba(0,0,0,.5)] backdrop-blur-2xl backdrop-saturate-150">
-              <div className="hg-aurora pointer-events-none absolute -top-14 left-1/2 h-24 w-52 rounded-full bg-brand/25 blur-3xl" />
-              {/* filo superiore: separa la scheda dal contenuto che scorre sotto */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand to-transparent" />
-              {/* luccichio: una lama di luce che attraversa il vetro ogni 6s */}
-              <span className="hg-sheen pointer-events-none absolute inset-0" />
-
-              <div className="relative px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="hg-pulse-ring absolute inset-0 rounded-full bg-brand" />
-                      <span className="relative h-1.5 w-1.5 rounded-full bg-brand" />
+            {/* Fondo pieno: quello che scorre sotto non traspare dietro la cifra. */}
+            <div className="relative mx-auto max-w-md overflow-hidden rounded-2xl border border-brand/40 bg-[#081a3d] shadow-[0_-10px_44px_rgba(0,0,0,.5)]">
+              <div className="relative flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="hg-pulse-ring absolute inset-0 rounded-full bg-brand" />
+                        <span className="relative h-1.5 w-1.5 rounded-full bg-brand" />
+                      </span>
+                      Totale stimato
                     </span>
-                    Totale stimato
-                  </span>
-                  {/*  ── ⚠️ IL 35% DELLA GARANZIA QUI NON SI VEDE ──────────
-                       Decisione del committente: «quello di default del 35%
-                       fai che lo mostra solo nel riepilogo prima di confermare
-                       e poi nel preventivo sotto, nel badge garanzia 15 mesi.
-                       E non fa nulla sullo sticky».
-                       Ha ragione: questa barra è il PREZZO, e un prezzo
-                       barrato che compare da solo, senza il riquadro che lo
-                       spiega, si legge come un listino gonfiato. Il barrato e
-                       la pastiglia del risparmio restano per gli sconti che
-                       hanno un perché visibile qui — un codice, la quantità.
-                       ⚠️ E il barrato è il prezzo VERO di partenza di questi
-                        sconti (totale + quello che tolgono), non il lordo
-                        pieno: scrivere il lordo mentre una parte dello sconto
-                        non è nominata farebbe un conto che non torna. */}
-                  {discountEur > 0 && (
-                    <span className={`${BARRATO_CLASSI} text-[15px]`}>
-                      {formatPrice(gross)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-1 flex items-end justify-between gap-3">
-                  <span
-                    key={total}
-                    className="hg-price-pop text-[30px] font-extrabold leading-none tracking-tight text-white"
-                  >
-                    {formatPrice(total)}
-                  </span>
-                  {discountEur > 0 && (
-                    /* niente icona: su schermi stretti finiva a capo sopra la
-                       cifra e sembrava un elemento staccato */
-                    <span
-                      key={`s${discountEur}`}
-                      className="hg-price-pop mb-0.5 whitespace-nowrap rounded-lg bg-emerald-400/15 px-2.5 py-1 text-[12px] font-bold text-emerald-300 ring-1 ring-emerald-400/25"
-                    >
-                      −{formatPrice(discountEur)}
-                    </span>
-                  )}
-                </div>
-
-                {/*  ── ⚠️ IL SECONDO IMPIANTO — UNA RIGA SUA, NON UN BARRATO
-                     SU QUESTO PREZZO ────────────────────────────────────
-                     Richiesta del committente: «non fa che cancella il prezzo
-                     attuale, ma crea una nuova riga dopo che dice prezzo
-                     intero cancellato e mette quello che pagherà».
-                     Sono due cose che non c'entrano niente: quanto paga OGGI e
-                     quanto pagherà per il SECONDO. Barrare il primo per
-                     annunciare il secondo vuol dire promettere uno sconto su
-                     ciò che sta per firmare — e alla firma, quando il conto
-                     non torna, quella riga è scritta nel suo preventivo. */}
-                {secondoImpianto && (
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-emerald-400/20 pt-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
-                      Dal secondo impianto
-                    </span>
-                    <span className="flex items-baseline gap-2">
-                      {secondoImpianto.risparmio > 0 && (
-                        <span className={`${BARRATO_CLASSI} text-[13px]`}>{formatPrice(gross)}</span>
-                      )}
-                      <b className="text-[17px] font-extrabold leading-none text-emerald-300">
-                        {formatPrice(secondoImpianto.prezzo)}
-                      </b>
-                    </span>
+                    {/*  ── ⚠️ IL 35% DELLA GARANZIA QUI NON SI VEDE ──────────
+                         Decisione del committente: «quello di default del 35%
+                         fai che lo mostra solo nel riepilogo prima di confermare
+                         e poi nel preventivo sotto, nel badge garanzia 15 mesi.
+                         E non fa nulla sullo sticky».
+                         Ha ragione: questa barra è il PREZZO, e un prezzo
+                         barrato che compare da solo, senza il riquadro che lo
+                         spiega, si legge come un listino gonfiato. Il barrato e
+                         la pastiglia del risparmio restano per gli sconti che
+                         hanno un perché visibile qui — un codice, la quantità.
+                         ⚠️ E il barrato è il prezzo VERO di partenza di questi
+                          sconti (totale + quello che tolgono), non il lordo
+                          pieno: scrivere il lordo mentre una parte dello sconto
+                          non è nominata farebbe un conto che non torna. */}
+                    {discountEur > 0 && (
+                      <span className={`${BARRATO_CLASSI} text-[15px]`}>
+                        {formatPrice(gross)}
+                      </span>
+                    )}
                   </div>
-                )}
+
+                  <div className="mt-1 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                    <span
+                      key={total}
+                      className="hg-price-pop text-[30px] font-extrabold leading-none tracking-tight text-white"
+                    >
+                      {formatPrice(total)}
+                    </span>
+                    {discountEur > 0 && (
+                      /* niente icona: su schermi stretti finiva a capo sopra la
+                         cifra e sembrava un elemento staccato */
+                      <span
+                        key={`s${discountEur}`}
+                        className="hg-price-pop mb-0.5 whitespace-nowrap rounded-lg bg-emerald-400/15 px-2.5 py-1 text-[12px] font-bold text-emerald-300 ring-1 ring-emerald-400/25"
+                      >
+                        −{formatPrice(discountEur)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/*  ── ⚠️ IL SECONDO IMPIANTO — UNA RIGA SUA, NON UN BARRATO
+                       SU QUESTO PREZZO ────────────────────────────────────
+                       Richiesta del committente: «non fa che cancella il prezzo
+                       attuale, ma crea una nuova riga dopo che dice prezzo
+                       intero cancellato e mette quello che pagherà».
+                       Sono due cose che non c'entrano niente: quanto paga OGGI e
+                       quanto pagherà per il SECONDO. Barrare il primo per
+                       annunciare il secondo vuol dire promettere uno sconto su
+                       ciò che sta per firmare — e alla firma, quando il conto
+                       non torna, quella riga è scritta nel suo preventivo. */}
+                  {secondoImpianto && (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-emerald-400/20 pt-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
+                        Dal secondo impianto
+                      </span>
+                      <span className="flex items-baseline gap-2">
+                        {secondoImpianto.risparmio > 0 && (
+                          <span className={`${BARRATO_CLASSI} text-[13px]`}>{formatPrice(gross)}</span>
+                        )}
+                        <b className="text-[17px] font-extrabold leading-none text-emerald-300">
+                          {formatPrice(secondoImpianto.prezzo)}
+                        </b>
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* Il passo successivo: porta al riepilogo in fondo (lì c'è «Crea il tuo
+                    preventivo»). Solo un'ancora, nessun codice: il tocco è di 44 px e,
+                    sotto i 360 px, resta l'icona con il nome per il lettore di schermo. */}
+                <a
+                  href="#riepilogo-telefono"
+                  aria-label="Vai al riepilogo"
+                  className="flex min-h-[44px] min-w-[76px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-brand px-3 text-[13px] font-semibold text-navy-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white max-[359px]:min-w-[44px] max-[359px]:px-0"
+                >
+                  <ChevronDown className="h-4 w-4" aria-hidden />
+                  <span className="max-[359px]:sr-only">Riepilogo</span>
+                </a>
               </div>
             </div>
           </div>
@@ -8319,7 +8306,7 @@ function PromoLock({
           <>
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2.5">
               <CalendarClock className="h-4 w-4 shrink-0 text-white/40" />
-              <span className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-white/40">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                 Prezzo bloccato fino a
               </span>
               <span className="text-[15px] font-semibold text-white">
@@ -8387,17 +8374,13 @@ function SecondoImpianto({
   return (
     <section
       data-hg-anchor="res-secondo"
-      className={`overflow-hidden rounded-2xl border border-emerald-400/30 bg-gradient-to-b from-emerald-400/[0.13] to-emerald-400/[0.04] ${
+      className={`overflow-hidden rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] ${
         grande ? "mb-5" : "mt-4"
       }`}
     >
-      {/*  Il filo di luce in cima: la stessa lingua del riquadro del totale,
-           che è l'altro blocco «premium» della pagina. Ripetere il segno vuol
-           dire dire «questi due contano», senza scriverlo. */}
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent" />
       <div className={grande ? "p-5 sm:p-6" : "p-4"}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-emerald-100 ring-1 ring-emerald-300/30">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-100 ring-1 ring-emerald-300/30">
             <BadgeCheck className="h-3.5 w-3.5" />
             {offerta.titolo?.trim() || "Prezzo riservato"}
           </span>
@@ -8409,7 +8392,7 @@ function SecondoImpianto({
                cifra sposta l'attenzione dal prezzo allo sconto: chi legge si
                mette a controllare il conto invece di guardare quanto pagherà. */}
           {tipoOfferta(offerta) === "percento" && secondo.percento > 0 && (
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white/80">
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/80">
               −{secondo.percento}%
             </span>
           )}
@@ -8490,7 +8473,7 @@ function SecondoImpianto({
               <CalendarClock className="h-[18px] w-[18px]" />
             </span>
             <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-white/45">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                 Questo prezzo resta tuo fino a
               </p>
               <p className={`font-bold leading-tight text-white ${grande ? "text-[17px]" : "text-[15px]"}`}>
@@ -8563,14 +8546,16 @@ function Summary(p: any) {
       </h2>
       <div className={`space-y-1.5 pr-1 text-sm ${mobile ? "" : "max-h-64 overflow-auto"}`}>
         {/* soluzione base — voce principale */}
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-brand/10 px-2.5 py-2">
-          <span className="min-w-0 flex-1 truncate font-semibold text-white">{base.name}</span>
+        <div className="flex items-start justify-between gap-2 rounded-lg bg-brand/10 px-2.5 py-2">
+          <span className="min-w-0 flex-1 break-words font-semibold leading-snug text-white">
+            {base.name}
+          </span>
           <span className="whitespace-nowrap font-bold text-white">{formatPrice(base.price)}</span>
         </div>
         {/* add-on: prima i GRATIS, poi dal più caro al meno caro */}
         {sortedAddons.map((u: any) => (
-          <div key={u.key} className="flex items-center justify-between gap-2 px-2.5 py-1">
-            <span className="min-w-0 flex-1 truncate text-white/70">{u.name}</span>
+          <div key={u.key} className="flex items-start justify-between gap-2 px-2.5 py-1">
+            <span className="min-w-0 flex-1 break-words leading-snug text-white/70">{u.name}</span>
             <PromoPrice price={u.price} wasPrice={u.wasPrice} />
           </div>
         ))}
@@ -8589,7 +8574,8 @@ function Summary(p: any) {
               sfx.deselect();
               setQty((q: number) => Math.max(1, q - 1));
             }}
-            className="px-2.5 py-1.5 text-white/70 hover:text-white"
+            aria-label="Diminuisci la quantità"
+            className="flex h-11 w-11 items-center justify-center text-white/70 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -8600,7 +8586,8 @@ function Summary(p: any) {
               sfx.select();
               setQty((q: number) => Math.min(9, q + 1));
             }}
-            className="px-2.5 py-1.5 text-white/70 hover:text-white"
+            aria-label="Aumenta la quantità"
+            className="flex h-11 w-11 items-center justify-center text-white/70 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -8705,12 +8692,10 @@ function Summary(p: any) {
       <div className="my-4 border-t border-white/10" />
       {/* Il totale è l'informazione più importante del riquadro: deve essere la
           prima cosa che l'occhio trova, non una riga fra le altre. */}
-      {/* stesso vetro della barra in basso: la stessa informazione deve avere
-          la stessa veste ovunque compaia */}
-      <div className="hg-glass relative overflow-hidden rounded-xl border border-brand/30 bg-brand/[0.10] px-4 py-3.5 backdrop-blur-2xl backdrop-saturate-150">
-        <span className="hg-sheen pointer-events-none absolute inset-0" />
+      {/* stessa veste della barra in basso: fondo pieno, niente vetro */}
+      <div className="relative rounded-xl border border-brand/30 bg-brand/[0.12] px-4 py-3.5">
         <div className="relative flex items-baseline justify-between gap-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/50">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
             Totale stimato
           </span>
           {discountEur > 0 && (
@@ -8721,7 +8706,7 @@ function Summary(p: any) {
         </div>
         <p
           key={total}
-          className={`hg-price-pop relative mt-0.5 font-extrabold leading-none tracking-tight text-white ${mobile ? "text-4xl" : "text-3xl"}`}
+          className="hg-price-pop relative mt-0.5 text-4xl font-extrabold leading-none tracking-tight text-white"
         >
           {formatPrice(total)}
         </p>
@@ -8730,7 +8715,7 @@ function Summary(p: any) {
         type="submit"
         disabled={submitting || !!p.soloConsulente}
         title={p.soloConsulente ? "Il preventivo lo conferma il consulente" : undefined}
-        className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white transition hover:brightness-110 disabled:opacity-60 ${mobile ? "py-4 text-base shadow-lg shadow-brand/25" : "py-3"}`}
+        className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white transition hover:brightness-110 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${mobile ? "py-4 text-base shadow-lg shadow-brand/25" : "py-3"}`}
       >
         {submitting ? (
           "Creazione in corso…"
@@ -8742,7 +8727,7 @@ function Summary(p: any) {
           </>
         )}
       </button>
-      <p className="mt-2 text-center text-[11px] text-white/40">
+      <p className="mt-2 text-center text-[12.5px] leading-snug text-white/65">
         {p.soloConsulente
           /*  Il cliente deve capire che non gli manca un passaggio: ha finito
               lui, tocca a chi conduce. Un pulsante spento senza una riga che
@@ -8804,10 +8789,10 @@ function CampoIndirizzoScuro({
           onBlur={() => window.setTimeout(chiudi, 150)}
           placeholder="Via Verdi"
           autoComplete="off"
-          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         {cercando && !aperto && (
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-white/40">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-white/65">
             cerco…
           </span>
         )}
@@ -8831,7 +8816,7 @@ function CampoIndirizzoScuro({
                     <span className="block text-[14px] text-white">
                       {[sg.indirizzo, sg.civico].filter(Boolean).join(" ")}
                     </span>
-                    <span className="block text-[12px] text-white/45">
+                    <span className="block text-[12px] text-white/65">
                       {[sg.cap, sg.comune, sg.provincia && `(${sg.provincia})`]
                         .filter(Boolean)
                         .join(" ")}
@@ -8875,7 +8860,7 @@ function Field({
           <span className="min-w-0 truncate">{label}</span>
           {req && <span className="text-brand">*</span>}
           {opt && (
-            <span className="text-[9px] font-normal uppercase tracking-wide text-white/35">
+            <span className="text-[11px] font-normal uppercase tracking-wide text-white/65">
               opz.
             </span>
           )}
@@ -8890,7 +8875,7 @@ function Field({
             primeSfx();
             sfx.field();
           }}
-          className="w-full rounded-lg border border-white/20 bg-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-white/20 bg-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </label>
     );
@@ -8914,7 +8899,7 @@ function Field({
             primeSfx();
             sfx.field();
           }}
-          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
     </label>
