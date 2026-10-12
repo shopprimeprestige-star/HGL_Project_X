@@ -49,9 +49,13 @@ const json = (o: unknown, status = 200) =>
 const DIARI = {
   registrazione: { chiave: "diario_registrazione", quante: 40 },
   chiamata: { chiave: "diario_chiamata", quante: 200 },
+  //  La scatola nera del preventivo (shop/scatola-preventivo): una riga ogni
+  //  trenta secondi, solo quando succede qualcosa.
+  preventivo: { chiave: "diario_preventivo", quante: 200 },
 } as const;
 type Diario = keyof typeof DIARI;
-const quale = (v: unknown): Diario => (v === "chiamata" ? "chiamata" : "registrazione");
+const quale = (v: unknown): Diario =>
+  v === "chiamata" ? "chiamata" : v === "preventivo" ? "preventivo" : "registrazione";
 
 interface Voce {
   quando: string;
