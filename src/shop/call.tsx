@@ -6431,8 +6431,8 @@ async function guestEnterApproved() {
       apre affatto (`if (!S.active) return`, la riga qui sotto), e allora il
       cliente salutava una volta sola: dopo dieci secondi il consulente lo
       buttava fuori dall'elenco come fantasma.
-      Da lì tutto quello che il committente ha visto: «Daniele Francesco
-      Ferlazzo · non ancora» mentre Daniele era collegato e guardava, e il
+      Da lì tutto quello che il committente ha visto: «Dario Franco
+      Esempio · non ancora» mentre Dario era collegato e guardava, e il
       pannello che non offriva nemmeno il rimedio.
       Annunciarsi è una cosa che si fa perché si è ENTRATI, non perché si ha
       una camera: e siccome si può essere in consulenza senza camera (permesso
@@ -12931,7 +12931,7 @@ function PlanciaDelGruppo({ st }: { st: State }) {
   //   `AvvisoPreparazione`: fuori dalla pagina del preventivo.)
   const ospiti = ospitiOra;
   /*  ⚠️ ANCHE CHI NON SI È PRESENTATO È DENTRO. Fotografia del committente:
-      «Daniele Francesco Ferlazzo · non ancora» mentre Daniele era collegato e
+      «Dario Franco Esempio · non ancora» mentre Dario era collegato e
       guardava la videochiamata. Il riconoscimento passa dal gettone che
       annuncia il cliente, e una scheda aperta da prima di un aggiornamento non
       lo manda: la sua riga restava senza nome, il pannello diceva «non è

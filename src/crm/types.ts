@@ -1014,15 +1014,6 @@ export interface QualificaInfo {
   urgenza?: "si" | "valutando" | "subito" | "1mese" | "convince" | "2_3mesi" | "valuto";
 }
 
-/** ── LE RISPOSTE DEL MODULO, COME VOCI DELLA SCHEDA ───────────────────────
- *  Richiesta del committente: «in base alle domande dentro al lead, ci siano
- *  anche queste info, ma non nelle note, ma proprio come voce a sé stante».
- *  Prima finivano in fondo alle note, in fila: si leggevano una volta prima di
- *  telefonare e poi sparivano — non si potevano contare né filtrare.
- *  Gli id (non le frasi) perché su questi si conta: «quanti al Sud», «quanti
- *  da chiamare di sera». Le frasi, che cambiano a ogni modulo riscritto,
- *  stanno in `risposte` e servono a leggere, mai a decidere.
- *  Chi le riconosce: crm/modulo-lead.ts, in un punto solo. */
 /** I sette campi del modulo che sappiamo leggere, nell'ordine in cui si
  *  mostrano. Stanno qui e non in `modulo-lead.ts` perché li usano in tanti
  *  (il lettore, i filtri, i KPI) e così il tipo è uno solo: se ne nasce un
@@ -1046,6 +1037,15 @@ export const CAMPI_MODULO: CampoModulo[] = [
   "quando",
 ];
 
+/** ── LE RISPOSTE DEL MODULO, COME VOCI DELLA SCHEDA ───────────────────────
+ *  Richiesta del committente: «in base alle domande dentro al lead, ci siano
+ *  anche queste info, ma non nelle note, ma proprio come voce a sé stante».
+ *  Prima finivano in fondo alle note, in fila: si leggevano una volta prima di
+ *  telefonare e poi sparivano — non si potevano contare né filtrare.
+ *  Gli id (non le frasi) perché su questi si conta: «quanti al Sud», «quanti
+ *  da chiamare di sera». Le frasi, che cambiano a ogni modulo riscritto,
+ *  stanno in `risposte` e servono a leggere, mai a decidere.
+ *  Chi le riconosce: crm/modulo-lead.ts, in un punto solo. */
 export interface RisposteModulo {
   /** Che problema ha: `androgenetica` | `areata` | `diradamento` | `stempiatura`. */
   problema?: string;
@@ -2186,7 +2186,7 @@ export const COSTO_SPEDIZIONE_PREDEFINITO = 8;
  *  ⚠️ SERVE PERCHÉ UNA REGOLA AUTOMATICA NON PUÒ SCAVALCARE UNA DECISIONE.
  *   Segnalazione del committente: da «Acconto incassato» non si riusciva a
  *   passare a nessun altro stato — si sceglieva, compariva pure la conferma
- *   «Michele Porrozzi → Cliente assente», e la riga restava «Acconto
+ *   «Mario Esempio → Cliente assente», e la riga restava «Acconto
  *   incassato». Non era un salvataggio mancato: la scrittura partiva e poi la
  *   riga qui sotto la riportava indietro, perché in cassa c'erano dei soldi.
  *   La regola dell'acconto è un'INDUZIONE — «se è entrato un acconto allora la

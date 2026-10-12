@@ -3,8 +3,8 @@
  *  ── IL NUMERO CHE HA FATTO NASCERE QUESTO FILE ───────────────────────────
  *  Misurato in archivio il 7/10/2026: **ventinove numeri di telefono con due
  *  schede a testa, cinquantotto schede in tutto**. Non casi di scuola —
- *  *Cristiano Sibilia* stava sia in «da ricontattare» che in «acconto
- *  incassato»; *Roberto Tola* in «sta valutando» e in «da gestire in chat».
+ *  *Carlo Esempio* stava sia in «da ricontattare» che in «acconto
+ *  incassato»; *Rita Prova* in «sta valutando» e in «da gestire in chat».
  *  Due storie della stessa persona, e chi la chiama ne legge una a caso.
  *
  *  L'avviso del campo rosso (crm/telefono-doppio) scatta solo quando si DIGITA

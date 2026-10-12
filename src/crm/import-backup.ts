@@ -538,7 +538,7 @@ const senzaSigla = (v: string) => v.replace(/^[a-z]{1,3}:/i, "").trim();
 /** Un telefono: da otto a quindici cifre, e si accetta il prefisso `p:` che
  *  Meta mette davanti ai numeri.
  *  ⚠️ IL TETTO DELLE QUINDICI CIFRE NON È PIGNOLERIA. Le liste Meta portano
- *   identificativi lunghissimi tutti di cifre (`l:2055445158436359`), e senza
+ *   identificativi lunghissimi tutti di cifre (`l:1000000000000001`), e senza
  *   un limite superiore la colonna degli id vince su quella dei telefoni: la
  *   prima prova di questo controllo ha importato trenta schede con il numero
  *   di riferimento di Facebook al posto del cellulare. Quindici è il massimo
@@ -702,8 +702,8 @@ export function traduciCsv(testo: string): {
     const v = (k: string) => (indice[k] === undefined ? "" : (c[indice[k]] || "").trim());
     /* ── ⚠️ «Mario Esempio» IN UNA CASELLA SOLA ────────────────────────
        Meta esporta `full_name`. La prima parola è il nome, il resto il
-       cognome: su «Giovanni Battista Zito» si sbaglia — diventa «Giovanni» +
-       «Battista Zito» — ed è il taglio meno sbagliato possibile senza un
+       cognome: su «Gian Maria Esempio» si sbaglia — diventa «Gian» +
+       «Maria Esempio» — ed è il taglio meno sbagliato possibile senza un
        elenco di nomi doppi. Quello che conta è che la scheda abbia un nome:
        al telefono si dice quello, e il cognome si corregge in un secondo. */
     let nome = v("nome");

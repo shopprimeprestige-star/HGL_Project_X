@@ -3187,8 +3187,13 @@ function proveDeiDatiFinti() {
     return /^333000/.test(cifre) || /1234567|9876543/.test(cifre) || /(\d)\1{3}/.test(cifre);
   };
 
+  //  L'identificativo del lead di Meta (`l:` + sedici cifre) identifica la
+  //  persona che ha compilato il modulo: nelle prove sono ammessi solo quelli
+  //  costruiti: un uno, tredici zeri e due cifre (sedici in tutto).
+  const ID_META = /(?<![A-Za-z0-9])l:(\d{10,})/g;
   const email = [];
   const telefoni = [];
+  const identificativi = [];
   let righeLette = 0;
   for (const f of FILE_CONTROLLATI) {
     const righe = readFileSync(f, "utf8").split("\n");
@@ -3196,6 +3201,9 @@ function proveDeiDatiFinti() {
     righe.forEach((riga, i) => {
       if (POSTA.test(riga)) email.push(`${f}:${i + 1}`);
       POSTA.lastIndex = 0;
+      for (const m of riga.matchAll(ID_META)) {
+        if (!/^10000000000000\d\d$/.test(m[1])) identificativi.push(`${f}:${i + 1}`);
+      }
       for (const m of riga.matchAll(CELLULARE)) {
         if (!evidenteMenteFinto(m[1])) telefoni.push(`${f}:${i + 1}`);
       }
@@ -3205,6 +3213,7 @@ function proveDeiDatiFinti() {
   c("i due file si leggono davvero", true, righeLette > 1000);
   c("nessuna email di un gestore vero", "", email.join(" | "));
   c("nessun cellulare che sembri vero", "", [...new Set(telefoni)].join(" | "));
+  c("nessun identificativo di lead di Meta vero", "", [...new Set(identificativi)].join(" | "));
   //  Il controllo stesso riconosce quello che deve (altrimenti passa a vuoto).
   c("un cellulare con prefisso vero è visto", false, evidenteMenteFinto(["+39", "340", "555", "8921"].join(" ")));
   c("un cellulare a dieci cifre vero è visto", false, evidenteMenteFinto(["340", "555", "8921"].join("")));
@@ -3633,7 +3642,7 @@ function proveDelDivario() {
 
 /** ── LO STATO SCELTO A MANO VINCE SULLA REGOLA AUTOMATICA ─────────────────
  *  ⚠️ Segnalazione del committente: da «Acconto incassato» non si riusciva a
- *   passare a nessun altro stato. La conferma compariva — «Michele Porrozzi →
+ *   passare a nessun altro stato. La conferma compariva — «Mario Esempio →
  *   Cliente assente» — e la riga restava com'era: la scrittura partiva e
  *   `applyAutoStatus` la riportava indietro perche' in cassa c'erano dei soldi.
  *   Un guasto cosi' non si vede da nessuna parte: nessun errore, nessuna riga
@@ -4019,19 +4028,19 @@ function proveDelCanale() {
   c("e il tracciato non va sotto zero", 0, divisioneMovimento(430, 600).tracciato);
 
   /*  ── ⚠️ IL CASO CHE HA FATTO NASCERE QUESTO FILE ───────────────────────
-      Michele Porrozzi: prezzo 530, versati 100, alla vendita dichiarati 250 in
-      contanti sul totale. Adesso salda 430, tutti in contanti. Sommando le due
-      dichiarazioni verrebbero 680 di contanti su una pratica da 530. */
+      Mario Esempio: prezzo 600, versati 100, alla vendita dichiarati 250 in
+      contanti sul totale. Adesso salda 500, tutti in contanti. Sommando le due
+      dichiarazioni verrebbero 750 di contanti su una pratica da 600. */
   const mp = canaleDopoIncasso({
     versatoPrima: 100,
-    tracciatoPrima: 280,
+    tracciatoPrima: 350,
     contantiPrima: 250,
-    incassato: 430,
-    contantiOra: 430,
+    incassato: 500,
+    contantiOra: 500,
   });
-  c("i contanti non superano il prezzo", true, mp.contanti + mp.tracciato <= 530.01);
-  c("della vendita vale solo la quota gia' entrata", 100, Math.round((mp.contanti + mp.tracciato - 430) * 100) / 100);
-  c("e il saldo di adesso vale per intero", true, mp.contanti >= 430);
+  c("i contanti non superano il prezzo", true, mp.contanti + mp.tracciato <= 600.01);
+  c("della vendita vale solo la quota gia' entrata", 100, Math.round((mp.contanti + mp.tracciato - 500) * 100) / 100);
+  c("e il saldo di adesso vale per intero", true, mp.contanti >= 500);
 
   /*  ── SENZA DICHIARAZIONE ALLA VENDITA ──────────────────────────────────
       La parte gia' in cassa resta NON attribuita: nessuno ha mai detto com'e'
@@ -4422,9 +4431,9 @@ function proveDellaListaImportata() {
   //  Il file vero, ridotto a tre righe: stessa intestazione, stesso scarto.
   const META_STORTO = [
     "  ,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,lead_status,che_problematica_hai?",
-    'l:2055445158436359,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Mario Esempio,mario.esempio@example.com,p:+393330000101,',
-    'l:1116838917697560,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Anna Prova,anna.prova@example.com,p:+393330000102,',
-    'l:1682429130145308,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,pinco,pinco@example.com,p:0200000001,',
+    'l:1000000000000001,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Mario Esempio,mario.esempio@example.com,p:+393330000101,',
+    'l:1000000000000002,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Anna Prova,anna.prova@example.com,p:+393330000102,',
+    'l:1000000000000003,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,pinco,pinco@example.com,p:0200000001,',
   ].join("\n");
   const m = traduciCsv(META_STORTO);
   c("legge tutte le righe, non ne scarta nessuna", 3, m.leads.length);
@@ -4727,9 +4736,9 @@ function proveDelModulo() {
   const D4 = "quando_preferiresti_ricevere_una_telefonata_per_concordare_l'appuntamento_di_consulenza_gratuita_e_ottenere_maggiori_informazioni?_(indica_giorno_e_ora_indicativi)";
   const FILE = [
     `id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,${D1},${D2},${D3},${D4},full_name,email,phone_number,lead_status`,
-    'l:1103256495617278,2026-09-24T05:36:57-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,pausa_pranzo_(12:00\u201314:00),Prova Luca,luca.prova@example.com,p:+393330000103,CREATED',
-    'l:1475300417840584,2026-09-24T05:39:38-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,\u00e8_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.,s\u00ec:_vi_seguo_da_un_po\u2019.,nord_italia,mattina_(9:00\u201312:00),Prova Gianni,gianni.prova@example.com,p:+393330000104,CREATED',
-    'l:2172570616997524,2026-09-24T05:39:56-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,sera_(dopo_le_18:00),Prova Amos,amos.prova@example.com,p:+393330000105,CREATED',
+    'l:1000000000000004,2026-09-24T05:36:57-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,pausa_pranzo_(12:00\u201314:00),Prova Luca,luca.prova@example.com,p:+393330000103,CREATED',
+    'l:1000000000000005,2026-09-24T05:39:38-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,\u00e8_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.,s\u00ec:_vi_seguo_da_un_po\u2019.,nord_italia,mattina_(9:00\u201312:00),Prova Gianni,gianni.prova@example.com,p:+393330000104,CREATED',
+    'l:1000000000000006,2026-09-24T05:39:56-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,sera_(dopo_le_18:00),Prova Amos,amos.prova@example.com,p:+393330000105,CREATED',
   ].join("\n");
 
   const r = traduciCsv(FILE);
@@ -4831,7 +4840,7 @@ function proveDelModulo() {
   //  ⚠️ E NON SI INVENTA NIENTE: un valore che non somiglia a nessuna
   //   risposta non diventa una voce. Una voce sbagliata si crede.
   c("un valore qualunque non diventa una voce", undefined, riconosciRisposta("Mario Esempio"));
-  c("nemmeno un identificativo", undefined, riconosciRisposta("l:2055445158436359"));
+  c("nemmeno un identificativo", undefined, riconosciRisposta("l:1000000000000001"));
   c("nemmeno il nome di una campagna", undefined, riconosciRisposta("BROAD | ITALIA"));
   c("nemmeno una riga vuota", undefined, riconosciRisposta(""));
   c("una riga senza risposte non fa un modulo", undefined,
@@ -7377,7 +7386,7 @@ function proveDelTelefonoDoppio() {
   c("sei modi di scrivere, una sola impronta", 1, chiavi.size);
   c("ed è fatta di nove cifre", 9, chiaveTelefono(modi[0]).length);
   c("due modi diversi sono lo stesso numero", true, stessoNumero("339 1234567", "+393391234567"));
-  c("due numeri diversi no", false, stessoNumero("3391234567", "3339876543"));
+  c("due numeri diversi no", false, stessoNumero("3391234567", "3399876543"));
 
   /*  ⚠️ MENTRE SI SCRIVE NON SI DICE NIENTE: tre cifre somigliano a mezzo
       archivio, e un campo rosso che non significa niente dopo due volte non lo
@@ -7591,18 +7600,18 @@ function proveDeiDoppioni() {
   gruppo("LA STESSA PERSONA, DUE SCHEDE");
 
   /*  Misurato in archivio il 7/10/2026: ventinove numeri con due schede a
-      testa. *Cristiano Sibilia* stava sia in «da ricontattare» che in «acconto
+      testa. *Carlo Esempio* stava sia in «da ricontattare» che in «acconto
       incassato»: due storie della stessa persona, e chi chiama ne legge una a
       caso. In tutto il programma non esisteva nessun modo di unirle. */
   const scheda = (id, data, creata = "2026-01-01T00:00:00Z") => ({
     id, created_at: creata, updated_at: creata, data,
   });
   const vecchia = scheda("A", {
-    nome: "Cristiano", cognome: "Sibilia", telefono: "+39 333 1234567",
+    nome: "Carlo", cognome: "Esempio", telefono: "+39 333 1234567",
     stato: "acconto", note: "Vuole la posa di sabato", citta: "Napoli",
   }, "2026-01-01T00:00:00Z");
   const nuova = scheda("B", {
-    nome: "Cristiano", telefono: "3331234567",
+    nome: "Carlo", telefono: "3331234567",
     stato: "da_ricontattare", note: "Chiede il preventivo via mail", email: "c@x.it",
   }, "2026-09-01T00:00:00Z");
 
@@ -9208,7 +9217,7 @@ function proveDeiPreventiviDiGruppo() {
       accendeva «lo vede lui» e sul telefono del cliente non c'era nessuno a
       cui quell'interruttore parlasse. Vedi personaDaAdottare. */
   const uno = [{ gettone: "pa0f63cb9", nome: "Bruno Neri" }];
-  const due = [...uno, { gettone: "p33562954", nome: "Daniele Ferlazzo" }];
+  const due = [...uno, { gettone: "p33562954", nome: "Dario Esempio" }];
   c("una persona sola attesa: sono io", "pa0f63cb9", personaDaAdottare("", uno));
   c("…anche se l'elenco arriva dopo", "pa0f63cb9", personaDaAdottare(null, uno));
   c("in due non si indovina", "", personaDaAdottare("", due));
@@ -9360,8 +9369,8 @@ function proveDeiPreventiviDiGruppo() {
   c("e se lo conferma vale la sua parola", "suo", statoDelloSchermo({ acceso: true, collegato: null, lodice: true }));
 
   /*  ── CHI È IN LINEA, ANCHE SE NON SI È PRESENTATO ───────────────────
-      Fotografia del committente: «Daniele Francesco Ferlazzo · non ancora»
-      mentre Daniele era collegato e guardava la videochiamata. Senza
+      Fotografia del committente: «Dario Franco Esempio · non ancora»
+      mentre Dario era collegato e guardava la videochiamata. Senza
       riconoscerlo il pannello non offriva nemmeno il pulsante per
       aggiornargli lo schermo — che era l'unica cosa che gli serviva. */
   const bruno = { gettone: "pa0f63cb9", leadId: "a0f63cb9-1111" };
@@ -12281,8 +12290,8 @@ function provePersoneDelPannello() {
   c("e si sa che non ha una scheda", true, soloOspite[0].senzaScheda);
 
   //  Il nome vero dell'archivio batte quello digitato, quando c'è.
-  c("il nome dell'archivio ha la precedenza", "Daniele Ferlazzo",
-    personeDelPannello({ attesi: [], ospiti: [{ name: "dani", nomeVero: "Daniele Ferlazzo" }] })[0].nome);
+  c("il nome dell'archivio ha la precedenza", "Dario Esempio",
+    personeDelPannello({ attesi: [], ospiti: [{ name: "dani", nomeVero: "Dario Esempio" }] })[0].nome);
 
   /*  ⚠️ UNA RIGA SOLA ANCHE IN DUE. Senza gettone non hanno un preventivo per
       uno: vedono tutti lo stesso. Due righe direbbero che si possono governare

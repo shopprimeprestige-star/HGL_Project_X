@@ -1,7 +1,7 @@
 /** ── DOPPIONI — LA STESSA PERSONA, DUE SCHEDE ──────────────────────────────
  *
  *  Misurato in archivio il 7/10/2026: ventinove numeri con due schede a testa,
- *  cinquantotto schede in tutto. *Cristiano Sibilia* stava sia in «da
+ *  cinquantotto schede in tutto. *Carlo Esempio* stava sia in «da
  *  ricontattare» che in «acconto incassato». Due storie della stessa persona, e
  *  chi la chiama ne legge una a caso.
  *

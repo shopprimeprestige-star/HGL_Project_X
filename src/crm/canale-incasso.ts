@@ -10,9 +10,9 @@
  *     cliente ce l'ha appena messo in mano o l'ha appena bonificato.
  *
  *  ⚠️ QUESTO FILE ESISTE PERCHÉ SOMMARE LE DUE DICHIARAZIONI È SBAGLIATO.
- *   Su Michele Porrozzi — prezzo 530, versati 100, «250 in contanti sul
- *   totale» detto alla vendita — dichiarare poi 430 di saldo tutto in contanti
- *   e sommare farebbe 680 di contanti su una pratica da 530: un numero che non
+ *   Su Mario Esempio — prezzo 600, versati 100, «250 in contanti sul
+ *   totale» detto alla vendita — dichiarare poi 500 di saldo tutto in contanti
+ *   e sommare farebbe 750 di contanti su una pratica da 600: un numero che non
  *   esiste, dentro la scheda che la contabilità legge per sapere quanto è
  *   passato dalla banca.
  *
