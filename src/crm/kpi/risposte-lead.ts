@@ -34,7 +34,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import type { Lead } from "@/crm/types";
-import { domandaCorta } from "@/crm/modulo-lead";
+import { domandaCorta, moduloLetto } from "@/crm/modulo-lead";
 
 export interface RigaRisposta {
   /** La risposta, come si legge. È anche la chiave: sono testo, non codici. */
@@ -67,7 +67,10 @@ export function domandeDeiLead(
   const mappa = new Map<string, Map<string, { lead: number; clienti: number }>>();
 
   for (const l of leads) {
-    const risposte = l.data?.modulo?.risposte ?? [];
+    //  ⚠️ `moduloLetto`, non `modulo.risposte`: mette sotto la domanda nostra le
+    //   voci vecchie salvate con l'intestazione del file, e legge anche la riga
+    //   «Dal modulo:» delle note. Così una domanda non compare due volte.
+    const risposte = moduloLetto(l.data)?.risposte ?? [];
     if (!risposte.length) continue;
     const vinto = convertito(l);
     //  ⚠️ Una scheda conta UNA volta per domanda. Se un file storto avesse
