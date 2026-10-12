@@ -106,7 +106,14 @@ import {
   versioneVecchia,
 } from "@/shop/versione-vecchia";
 import { avviaTela, type MotoreDiDisegno } from "@/shop/tela-registrazione";
-import { cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
+import {
+  FOTOGRAMMI_REGISTRAZIONE,
+  SOGLIA_PIANO_GRATUITO,
+  sogliaParte,
+  tocca,
+} from "@/shop/ritmo-registrazione";
+import { bloccati, cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
+import { OGNI_MS, rigaChiamata, type CampioneVideo } from "@/shop/scatola-chiamata";
 import {
   gettoneInMemoria,
   miaPersonaDi,
@@ -2971,9 +2978,49 @@ async function sondaBanda() {
   }
 }
 
+/** ── LA SCATOLA NERA DELLA CHIAMATA (vedi shop/scatola-chiamata) ─────────
+ *  I numeri che `sampleUsage` legge già ogni dieci secondi, una riga ogni
+ *  trenta nel diario della chiamata. Solo dal consulente: è lui ad avere la
+ *  sessione, e dal suo lato si vede anche come arriva il video all'ospite
+ *  (le perdite «su» sono quelle che l'ospite riporta). */
+let scatolaUltima = 0;
+let scatolaDaBlocchi = 0;
+const scatolaPrima = new Map<string, { congelamenti: number; secondi: number }>();
+function scriviScatola(campioni: CampioneVideo[]) {
+  if (S.role !== "host" || !campioni.length) return;
+  const adesso = Date.now();
+  if (scatolaUltima && adesso - scatolaUltima < OGNI_MS) return;
+  scatolaUltima = adesso;
+  const nuovi = bloccati().filter((b) => b.da > scatolaDaBlocchi);
+  scatolaDaBlocchi = performance.now() / 1000;
+  const peggiore = nuovi.reduce((m, b) => (b.ms > m.ms ? b : m), { ms: 0, cosa: "", da: 0 });
+  const riga = rigaChiamata({
+    campioni,
+    linea: S.linea,
+    prima: scatolaPrima,
+    blocchi: { quanti: nuovi.length, peggioreMs: peggiore.ms, cosa: peggiore.cosa },
+  });
+  for (const c of campioni)
+    scatolaPrima.set(c.pid, {
+      congelamenti: Number(c.congelamenti) || 0,
+      secondi: Number(c.secondiCongelati) || 0,
+    });
+  try {
+    void fetch("/api/presenter/diario", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ voce: riga, diario: "chiamata" }),
+    }).catch(() => {});
+  } catch {
+    /* mai in mezzo a una consulenza */
+  }
+}
+
 async function sampleUsage() {
   const u = usage;
   if (!u) return;
+  const campioni: CampioneVideo[] = [];
   // getStats() viene invocata SUBITO su tutti i peer (prima di qualsiasi await):
   // così l'ultimo campionamento a fine chiamata parte prima della chiusura.
   const jobs: { pid: string; req: Promise<RTCStatsReport> }[] = [];
@@ -2987,6 +3034,7 @@ async function sampleUsage() {
   for (const { pid, req } of jobs) {
     let sent = 0,
       recv = 0;
+    const camp: CampioneVideo = { pid };
     try {
       const stats = await req;
       let pairSent = 0,
@@ -3013,6 +3061,10 @@ async function sampleUsage() {
               `[CAM] uscita → ${pid}: ${Math.round(Number(r.framesPerSecond) || 0)}fps ${r.frameWidth || "?"}×${r.frameHeight || "?"} limite=${why} codificati=${Number(r.framesEncoded) || 0} keyframe=${Number(r.keyFramesEncoded) || 0} richiesteRinvio=${Number(r.nackCount) || 0}`,
             );
             cpuLimited = why === "cpu" ? cpuLimited + 1 : 0;
+            camp.fpsSu = Number(r.framesPerSecond) || 0;
+            camp.larghezzaSu = Number(r.frameWidth) || 0;
+            camp.altezzaSu = Number(r.frameHeight) || 0;
+            camp.limiteSu = why;
           }
         } else if (r.type === "inbound-rtp" && !r.isRemote) {
           rtpRecv += Number(r.bytesReceived) || 0;
@@ -3023,12 +3075,18 @@ async function sampleUsage() {
             console.log(
               `[CAM] entrata ← ${pid}: ${Math.round(Number(r.framesPerSecond) || 0)}fps ${r.frameWidth || "?"}×${r.frameHeight || "?"} persi=${Number(r.framesDropped) || 0} congelamenti=${Number(r.freezeCount) || 0} (${Math.round((Number(r.totalFreezesDuration) || 0) * 10) / 10}s) decodificati=${Number(r.framesDecoded) || 0} richiesteKeyframe=${Number(r.pliCount) || 0}`,
             );
+            camp.fpsGiu = Number(r.framesPerSecond) || 0;
+            camp.larghezzaGiu = Number(r.frameWidth) || 0;
+            camp.altezzaGiu = Number(r.frameHeight) || 0;
+            camp.congelamenti = Number(r.freezeCount) || 0;
+            camp.secondiCongelati = Number(r.totalFreezesDuration) || 0;
           }
         }
       });
       // preferisco il candidate-pair (include overhead reale); fallback su RTP
       sent = pairSent || rtpSent;
       recv = pairRecv || rtpRecv;
+      campioni.push(camp);
     } catch {
       continue;
     }
@@ -3039,6 +3097,7 @@ async function sampleUsage() {
   }
   const g = S.roster.filter((r) => r.role === "viewer").length;
   if (g > u.maxGuests) u.maxGuests = g;
+  scriviScatola(campioni);
 
   // ── LA VOCE ARRIVA DAVVERO? ───────────────────────────────────────────────
   //  Controllo esplicito: ogni connessione deve avere una traccia audio VIVA in
@@ -3407,6 +3466,19 @@ function salvaInLocale(blob: Blob, filename: string) {
  */
 const TENTATIVI = 3;
 const respiro = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Il limite per file del secchio delle registrazioni, in byte. 0 = non si sa
+ *  (rete assente, sessione scaduta, secchio senza limite proprio): chi lo usa
+ *  resta allora sulla soglia del piano gratuito. */
+async function tettoArchivio(): Promise<number> {
+  try {
+    const r = await fetch("/api/presenter/upload-url", { credentials: "same-origin" });
+    const j = (await r.json().catch(() => null)) as { tetto?: number } | null;
+    return r.ok ? Number(j?.tetto) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
 
 async function caricaDiretto(blob: Blob, filename: string): Promise<Esito> {
   let ultimo: Esito = { motivo: "caricamento non tentato" };
@@ -3885,8 +3957,17 @@ function startRecCompositor(): MediaStream {
       chi le mette in fila adesso è un pezzo solo, che si può provare senza
       aprire un browser. Vedi shop/tela-registrazione. */
   motoreTela?.ferma();
+  /*  ⚠️ A 15 FOTOGRAMMI, NON A OGNI GIRO DELLO SCHERMO. `requestAnimationFrame`
+      chiama 60 volte al secondo, e ogni chiamata consegnava un fotogramma:
+      file da 61 fotogrammi/s, quattro volte più pesanti, con i tempi interni
+      fuori ordine (vedi shop/ritmo-registrazione). Si disegna e si consegna
+      solo quando tocca. */
+  let ultimoFotogramma = 0;
   motoreTela = avviaTela(
     () => {
+      const adesso = performance.now();
+      if (!tocca(ultimoFotogramma, adesso)) return;
+      ultimoFotogramma = adesso;
       staFacendo("registrazione");
       frame();
       consegna();
@@ -3939,7 +4020,12 @@ async function catturaSchermo(): Promise<MediaStream | null> {
     (navigator.mediaDevices as any).getDisplayMedia(opts) as Promise<MediaStream>;
   try {
     return await call({
-      video: { displaySurface: "monitor", frameRate: { ideal: 30 } },
+      //  `max`, non solo `ideal`: un «ideale» il browser lo prende come un
+      //  consiglio, e lo schermo arrivava a 60 (vedi shop/ritmo-registrazione).
+      video: {
+        displaySurface: "monitor",
+        frameRate: { ideal: FOTOGRAMMI_REGISTRAZIONE, max: FOTOGRAMMI_REGISTRAZIONE },
+      },
       audio: true,
       selfBrowserSurface: "include",
       systemAudio: "include",
@@ -4234,6 +4320,14 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     const dvt = display?.getVideoTracks()[0];
     const usaSchermo = catturaUsabile(display?.getTracks() ?? []);
     if (dvt && usaSchermo) {
+      //  Anche sulla traccia già aperta: lo schermo tenuto da «Videochiamata»
+      //  e quello del ripiego `video: true` non hanno chiesto un ritmo.
+      //  Questo schermo va SOLO nel file, il cliente non lo riceve.
+      void dvt
+        .applyConstraints({ frameRate: { max: FOTOGRAMMI_REGISTRAZIONE } })
+        .catch(() => {
+          /* il browser tiene il suo ritmo: si registra lo stesso */
+        });
       mix.addTrack(dvt);
       dvt.addEventListener("ended", () => fermaRegistratore()); // "Interrompi condivisione"
     } else {
@@ -4412,9 +4506,15 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
       audioBitsPerSecond: 96_000,
     };
     /** Sopra questo peso la parte in corso si chiude e se ne apre un'altra.
-     *  Sta sotto il tetto vero (50 MB) con margine: il conteggio dei pezzi
-     *  arriva a scatti di un secondo, e l'ultimo pezzo non deve far sforare. */
-    const SOGLIA_PARTE = 40 * 1024 * 1024;
+     *  ⚠️ Segue il tetto VERO del secchio, chiesto all'archivio mentre si
+     *   registra (vedi shop/ritmo-registrazione): sul piano gratuito resta
+     *   40 MB come prima, col tetto alzato la consulenza sta in un file solo.
+     *   Finché la risposta non arriva vale la soglia sicura. */
+    let SOGLIA_PARTE = SOGLIA_PIANO_GRATUITO;
+    void tettoArchivio().then((t) => {
+      SOGLIA_PARTE = sogliaParte(t);
+      annota(`parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t / (1024 * 1024))} MB)`);
+    });
 
     let numeroParte = 1;
     let pesoParte = 0;

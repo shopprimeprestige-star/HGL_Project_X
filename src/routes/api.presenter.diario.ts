@@ -22,8 +22,14 @@
  *   vecchie non servono a nessuno e la riga di configurazione non deve
  *   crescere senza fine.
  *
- *  POST { voce }  → aggiunge una riga
- *  GET            → le righe, dalla più recente
+ *  POST { voce, diario? }  → aggiunge una riga
+ *  GET ?diario=…           → le righe, dalla più recente
+ *
+ *  ── DUE DIARI, NON UNO ────────────────────────────────────────────────────
+ *  `diario: "chiamata"` è la scatola nera della videochiamata (vedi
+ *  shop/scatola-chiamata): una riga ogni trenta secondi. Sta in una chiave sua
+ *  perché in una consulenza ne scrive novanta, e nello stesso diario avrebbe
+ *  spinto fuori in un'ora le righe del registratore.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -40,8 +46,12 @@ const json = (o: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
-const CHIAVE = "diario_registrazione";
-const QUANTE = 40;
+const DIARI = {
+  registrazione: { chiave: "diario_registrazione", quante: 40 },
+  chiamata: { chiave: "diario_chiamata", quante: 200 },
+} as const;
+type Diario = keyof typeof DIARI;
+const quale = (v: unknown): Diario => (v === "chiamata" ? "chiamata" : "registrazione");
 
 interface Voce {
   quando: string;
@@ -49,8 +59,8 @@ interface Voce {
   testo: string;
 }
 
-async function leggi(): Promise<Voce[]> {
-  const { data } = await supabaseAdmin.from("app_config").select("value").eq("key", CHIAVE).maybeSingle();
+async function leggi(d: Diario): Promise<Voce[]> {
+  const { data } = await supabaseAdmin.from("app_config").select("value").eq("key", DIARI[d].chiave).maybeSingle();
   try {
     const v = JSON.parse(data?.value ?? "[]") as Voce[];
     return Array.isArray(v) ? v : [];
@@ -67,20 +77,21 @@ export const Route = createFileRoute("/api/presenter/diario")({
       GET: async ({ request }) => {
         const chi = await autorizzaPresentatore(request);
         if (!chi) return nonAutorizzato(cors);
-        return json({ voci: await leggi() });
+        return json({ voci: await leggi(quale(new URL(request.url).searchParams.get("diario"))) });
       },
 
       POST: async ({ request }) => {
         const chi = await autorizzaPresentatore(request);
         if (!chi) return nonAutorizzato(cors);
-        let body: { voce?: unknown } = {};
+        let body: { voce?: unknown; diario?: unknown } = {};
         try { body = (await request.json()) as typeof body; } catch { /* corpo illeggibile */ }
         const testo = String(body.voce ?? "").trim().slice(0, 600);
         if (!testo) return json({ ok: false, reason: "voce vuota" }, 400);
-        const voci = await leggi();
+        const d = quale(body.diario);
+        const voci = await leggi(d);
         voci.unshift({ quando: new Date().toISOString(), chi: chi.nome || "", testo });
         await supabaseAdmin.from("app_config").upsert(
-          { key: CHIAVE, value: JSON.stringify(voci.slice(0, QUANTE)), updated_at: new Date().toISOString() },
+          { key: DIARI[d].chiave, value: JSON.stringify(voci.slice(0, DIARI[d].quante)), updated_at: new Date().toISOString() },
           { onConflict: "key" },
         );
         return json({ ok: true });
