@@ -476,7 +476,7 @@ function PromoNote({ until, onApri }: { until: Date; onApri?: () => void }) {
             }
           : undefined
       }
-      className={`block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" : ""}`}
+      className={`block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand" : ""}`}
     >
       <span className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 flex-shrink-0 text-amber-300" />
@@ -4970,7 +4970,7 @@ function QuoteBuilder() {
                 setPercorsoOpen(true);
               }}
               data-hg-anchor="res-percorso"
-              className="group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-brand/[0.08] px-4 py-3.5 text-left transition hover:bg-brand/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand print:hidden"
+              className="group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-brand/[0.08] px-4 py-3.5 text-left transition hover:bg-brand/[0.14] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand print:hidden"
             >
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/20 text-brand">
                 <RouteIcon className="h-4 w-4" />
@@ -6169,7 +6169,8 @@ function QuoteBuilder() {
                             simOn ? sfx.deselect() : sfx.selectDeal();
                             setSimOn((v) => !v);
                           }}
-                          className={`block w-full overflow-hidden rounded-2xl border text-left transition ${simOn ? "border-brand bg-brand/[0.09] shadow-lg shadow-brand/10" : "border-white/12 bg-white/[0.03] hover:border-brand/40"}`}
+                          aria-pressed={simOn}
+                          className={`block w-full overflow-hidden rounded-2xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${simOn ? "border-brand bg-brand/[0.09] shadow-lg shadow-brand/10" : "border-white/12 bg-white/[0.03] hover:border-brand/40"}`}
                         >
                           <div className="flex items-center gap-3 px-4 pt-4">
                             <span
