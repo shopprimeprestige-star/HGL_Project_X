@@ -5593,7 +5593,9 @@ function QuoteBuilder() {
                 preventivo si adatta di conseguenza. Il prezzo che leggi su ogni scheda comprende
                 già le scelte incluse, e non conta ancora installazione, quantità e sconti.
               </p>
-              <div className={`grid gap-3 ${menu.base.length > 1 ? "sm:grid-cols-2" : ""}`}>
+              <div
+                className={`grid gap-3 ${menu.base.length === 3 ? "sm:grid-cols-3" : menu.base.length > 1 ? "sm:grid-cols-2" : ""}`}
+              >
                 {menu.base.map((b) => {
                   const active = baseId === b.id;
                   /*  ── ⚠️ IL PREZZO DELLA SCHEDA È QUELLO "FINO A QUI" ─────
@@ -5632,7 +5634,7 @@ function QuoteBuilder() {
                       onClick={() => chooseBase(b.id)}
                       data-hg-anchor={`cfg-base-${b.id}`}
                       aria-pressed={active}
-                      className={`rounded-xl border p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                      className={`flex flex-col rounded-xl border p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold">{b.name}</span>
@@ -5645,54 +5647,51 @@ function QuoteBuilder() {
                       {b.badge && (
                         // il badge distingue le tre strade a colpo d'occhio:
                         // ha bisogno di peso, non di essere un dettaglio
-                        <span
-                          className={`mt-1.5 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide ${
-                            /top di gamma/i.test(b.badge)
-                              ? "bg-gradient-to-r from-amber-400/90 to-amber-300/80 text-[#2b1c00] shadow-sm shadow-amber-500/30"
-                              : /economico/i.test(b.badge)
-                                ? "bg-white/12 text-white/80 ring-1 ring-white/20"
-                                : "bg-brand text-white shadow-sm shadow-brand/30"
-                          }`}
-                        >
+                        <span className="mt-1.5 inline-flex items-center gap-1.5 self-start rounded-md bg-white/12 px-2.5 py-1 text-[12px] font-bold uppercase tracking-wide text-white ring-1 ring-white/20">
                           {b.badge}
                         </span>
                       )}
-                      <p className="mt-2 text-xs text-white/55">{b.desc}</p>
-                      {/*  ⚠️ `flex-wrap`: la cifra, il barrato e la riga che
-                          spiega devono poter andare a capo. Senza, su schermo
-                          stretto il prezzo spingeva fuori la scheda. */}
-                      <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        {/*  ⚠️ Barrato solo se c'è davvero uno sconto: un
-                            "prima" uguale (o più basso) del prezzo non è
-                            un'offerta, è un numero che confonde. */}
-                        {par.listino ? (
-                          <span className={`${BARRATO_CLASSI} text-[15px]`}>
-                            {formatPrice(par.listino)}
+                      <p className="mt-2 text-[13px] leading-snug text-white/70">{b.desc}</p>
+                      {/* Prezzo e riga che lo spiega stanno in un blocco solo, ancorato in
+                          fondo alla scheda: con tre schede affiancate le cifre si
+                          allineano e si confrontano a colpo d'occhio. */}
+                      <div className="mt-auto pt-2">
+                        {/*  ⚠️ `flex-wrap`: la cifra, il barrato e la riga che
+                            spiega devono poter andare a capo. Senza, su schermo
+                            stretto il prezzo spingeva fuori la scheda. */}
+                        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                          {/*  ⚠️ Barrato solo se c'è davvero uno sconto: un
+                              "prima" uguale (o più basso) del prezzo non è
+                              un'offerta, è un numero che confonde. */}
+                          {par.listino ? (
+                            <span className={`${BARRATO_CLASSI} text-[15px]`}>
+                              {formatPrice(par.listino)}
+                            </span>
+                          ) : null}
+                          <span
+                            className={`text-lg font-bold tabular-nums ${par.totale === 0 ? "text-emerald-300" : "text-white"}`}
+                          >
+                            {par.totale === 0 ? "GRATIS" : formatPrice(par.totale)}
                           </span>
-                        ) : null}
-                        <span
-                          className={`inline-block rounded-lg px-2.5 py-1 text-sm font-bold ${par.totale === 0 ? "bg-emerald-500/20 text-emerald-300" : "bg-white/[0.08] text-white"}`}
-                        >
-                          {par.totale === 0 ? "GRATIS" : formatPrice(par.totale)}
-                        </span>
-                      </p>
-                      {/*  Com'è fatta quella cifra: senza questa riga il numero
-                          non combacerebbe con nessun prezzo di listino e
-                          sembrerebbe uscito dal nulla. */}
-                      {par.voci.length > 0 && (
-                        <p className="mt-1 text-[11.5px] leading-snug text-white/65">
-                          {par.extra > 0 ? (
-                            <>
-                              {formatPrice(b.price)} di base + {formatPrice(par.extra)} di scelte
-                              già incluse
-                            </>
-                          ) : (
-                            <>
-                              {par.voci.length} scelte già incluse, senza sovrapprezzo
-                            </>
-                          )}
                         </p>
-                      )}
+                        {/*  Com'è fatta quella cifra: senza questa riga il numero
+                            non combacerebbe con nessun prezzo di listino e
+                            sembrerebbe uscito dal nulla. */}
+                        {par.voci.length > 0 && (
+                          <p className="mt-1 text-[11.5px] leading-snug text-white/65">
+                            {par.extra > 0 ? (
+                              <>
+                                {formatPrice(b.price)} di base + {formatPrice(par.extra)} di scelte
+                                già incluse
+                              </>
+                            ) : (
+                              <>
+                                {par.voci.length} scelte già incluse, senza sovrapprezzo
+                              </>
+                            )}
+                          </p>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
