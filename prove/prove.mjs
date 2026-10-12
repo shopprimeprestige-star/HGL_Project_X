@@ -296,6 +296,9 @@ const MODULI = [
   //  ⚠️ Chi si telefona oggi e chi aspetta la sua data di richiamo. Vedi
   //   proveDiChiSiTelefonaOggi.
   "importa/da-telefonare",
+  //  ⚠️ Chi si chiama per primo e perché: l'ordine che vede la setter. Vedi
+  //   proveDiChiChiamare.
+  "importa/chi-chiamare",
   //  ⚠️ Lo stesso numero scritto in dieci modi è lo stesso numero. Vedi
   //   proveDelTelefonoDoppio.
   "telefono-doppio",
@@ -611,6 +614,7 @@ const OSP = mod["shop/ospiti"];
 const SPM = mod["spostamento-meet"];
 const DOPPI = mod["doppioni"];
 const RIC = mod["importa/ricarico"];
+const CHIAM = mod["importa/chi-chiamare"];
 const RIP = mod["importa/ripesca"];
 const STAB = mod["importa/elenco-stabile"];
 const NOTA = mod["importa/nota-breve"];
@@ -10099,6 +10103,183 @@ function proveDelLinkPerCiascuno() {
   c("il segno non è il trattino", true, SEGNO_CHI !== "-");
 }
 
+function proveDiChiChiamare() {
+  const {
+    inLista, eCaldo, eLaSuaOra, motivoChiamata, NOME_MOTIVO, ordinaChiamate, listaDaChiamare,
+    contaPromesse, patchEsito,
+  } = CHIAM;
+  const { etichettaRisposta } = MDL;
+  gruppo("CHI SI CHIAMA PER PRIMO, E PERCHÉ");
+
+  /*  ⚠️ LE DATE SI COSTRUISCONO IN ORA LOCALE: `new Date("2026-10-12T13:00")`
+      è locale, ma `toISOString()` no, e la prova cambierebbe esito con il
+      fuso del computer che la lancia. Il giorno si scrive a mano. */
+  const ADESSO = new Date(2026, 9, 12, 13, 0);
+  const alle = (g, m, h = 0, min = 0) => new Date(2026, m - 1, g, h, min).toISOString();
+  const base = { importato: true, nome: "Prova", createdAt: alle(1, 10) };
+  const L = (id, data) => ({ id, data: { ...base, ...data } });
+
+  const P2 = L("P2", { stato: "richiamo", dataRicontatto: "2026-10-11" });
+  const LUI = L("L", { stato: "ci_ricontatta_lui", dataRicontatto: "2026-10-12" });
+  const P1 = L("P1", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "12:00" });
+  const P3 = L("P3", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "17:00" });
+  const R = L("R", { stato: "no_show", ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } });
+  const N = L("N", {
+    stato: "da_contattare", createdAt: alle(12, 10, 12, 20),
+    listaOrigine: { file: "lista.csv", il: alle(12, 10, 12, 30), dataDalFile: true },
+  });
+  const N0 = L("N0", {
+    stato: "da_contattare", createdAt: alle(12, 10, 12, 20),
+    listaOrigine: { file: "lista.csv", il: alle(12, 10, 12, 20) },
+  });
+  const O = L("O", { stato: "da_contattare", modulo: { quando: "pranzo" } });
+  const Q = L("Q", { stato: "non_risponde", noRispondeCount: 1, modulo: { quando: "pranzo" } });
+  const C1 = L("C1", { stato: "da_contattare", createdAt: alle(5, 10), modulo: { fastidio: "molto" } });
+  const C0 = L("C0", { stato: "da_contattare", createdAt: alle(2, 10), modulo: { fastidio: "poco" } });
+  const P4 = L("P4", { stato: "richiamo", dataRicontatto: "boh" });
+  const T1 = L("T1", { stato: "non_risponde", noRispondeCount: 1 });
+  const T2 = L("T2", { stato: "non_risponde", noRispondeCount: 3 });
+  const F = L("F", { stato: "richiamo", dataRicontatto: "2026-10-20" });
+  const S = L("S", { stato: "da_contattare", saltatoIl: alle(10, 10) });
+  const A = L("A", { stato: "appuntamento_fissato" });
+
+  //  Mescolati di proposito: l'ordine non deve dipendere da come arrivano.
+  const TUTTI = [T2, A, C0, F, P3, T1, N0, S, P4, C1, Q, O, N, R, P1, LUI, P2];
+  const ordine = (ls) => ls.map((l) => l.id).join(",");
+
+  //  ── L'ORDINE DEL TITOLARE ────────────────────────────────────────────
+  c("l'ordine: promessa, di ritorno, nuovo, è la sua ora, prima chiamata, ritento",
+    "P2,L,P1,P3,R,N,O,Q,C1,C0,N0,P4,T1,T2", ordine(listaDaChiamare(TUTTI, ADESSO)));
+  c("chi aspetta un giorno futuro, chi è saltato e chi ha già un appuntamento non sono in lista",
+    false, ["F", "S", "A"].some((id) => listaDaChiamare(TUTTI, ADESSO).some((l) => l.id === id)));
+  c("ordinaChiamate ordina e basta: non toglie nessuno", TUTTI.length, ordinaChiamate(TUTTI, ADESSO).length);
+  c("e non tocca l'elenco che riceve", "T2", TUTTI[0].id);
+  c("i nomi dei motivi",
+    "PROMESSA,DI RITORNO,NUOVO,È LA SUA ORA,PRIMA CHIAMATA,RITENTO",
+    ["promessa", "ritorno", "nuovo", "suaOra", "prima", "ritento"].map((m) => NOME_MOTIVO[m]).join(","));
+
+  //  ── I MOTIVI E I LORO TESTI ──────────────────────────────────────────
+  const m = (l, o) => motivoChiamata(l, ADESSO, o);
+  c("promessa con l'ora passata", "promessa|richiamo alle 12:00, scaduto da 1 h",
+    `${m(P1).motivo}|${m(P1).testo}`);
+  //  Il giorno della settimana evita «del/dell'»: «di domenica 11/10».
+  c("promessa di ieri, senza ora", "promessa|richiamo di domenica 11/10, scaduto da 1 giorno",
+    `${m(P2).motivo}|${m(P2).testo}`);
+  c("promessa di oggi con l'ora che deve ancora arrivare", "promessa|richiamo alle 17:00",
+    `${m(P3).motivo}|${m(P3).testo}`);
+  //  ⚠️ «Mi richiama lui» non è un richiamo nostro: la telefonata la fa lui.
+  c("«mi richiama lui» ha il suo testo e non dice mai «richiamo»", "promessa|doveva farsi vivo lui oggi",
+    `${m(LUI).motivo}|${m(LUI).testo}`);
+  c("un contatto di ritorno dice com'era", "ritorno|era «Cliente assente»",
+    `${m(R).motivo}|${m(R).testo}`);
+  c("un contatto appena arrivato dal file", "nuovo|arrivato 40 minuti fa", `${m(N).motivo}|${m(N).testo}`);
+  c("la sua fascia", "suaOra|ha chiesto: " + etichettaRisposta("quando", "pranzo"),
+    `${m(O).motivo}|${m(O).testo}`);
+  c("un ritento nella sua fascia è «è la sua ora»", "suaOra", m(Q).motivo);
+  c("prima chiamata calda", "prima|fastidio molto|true", `${m(C1).motivo}|${m(C1).testo}|${m(C1).caldo}`);
+  c("prima chiamata fredda", "prima|mai chiamato|false", `${m(C0).motivo}|${m(C0).testo}|${m(C0).caldo}`);
+  c("ritento", "ritento|2° tentativo", `${m(T1).motivo}|${m(T1).testo}`);
+  c("terzo squillo a vuoto: 4° tentativo", "4° tentativo", m(T2).testo);
+  c("già provato un trapianto: caldo", "prima|ha già provato: trapianto|true",
+    (() => { const x = m(L("G", { stato: "da_contattare", modulo: { giaFatto: "trapianto" } })); return `${x.motivo}|${x.testo}|${x.caldo}`; })());
+  c("vuole risolvere ora: caldo", "true",
+    String(m(L("U", { stato: "da_contattare", modulo: { urgenza: "subito" } })).caldo));
+
+  //  ── ⚠️ PROMESSA SOLO CON UN GIORNO LEGGIBILE ─────────────────────────
+  //  Negli archivi le date illeggibili sono centinaia: se contassero come
+  //  promesse finirebbero tutte sopra i ritorni e i nuovi.
+  c("un richiamo con la data illeggibile non è una promessa", "ritento|richiamo senza giorno",
+    `${m(P4).motivo}|${m(P4).testo}`);
+  c("un richiamo senza nessuna data nemmeno",
+    "ritento|richiamo senza giorno",
+    (() => { const x = m(L("X", { stato: "richiamo" })); return `${x.motivo}|${x.testo}`; })());
+  c("«mi richiama lui» senza giorno: ritento, e lo dice", "ritento|doveva farsi vivo lui, senza giorno",
+    (() => { const x = m(L("Y", { stato: "ci_ricontatta_lui" })); return `${x.motivo}|${x.testo}`; })());
+  //  Come `prossimaAzione`: se il giorno non è in `dataRicontatto` ma in `callbackAt`, vale quello.
+  c("il giorno può stare in callbackAt", "promessa",
+    m(L("K", { stato: "richiamo", callbackAt: "2026-10-11T09:00:00" })).motivo);
+  c("un richiamo di domani non è una promessa di oggi", "ritento",
+    m(L("D", { stato: "richiamo", dataRicontatto: "2026-10-13" })).motivo);
+
+  //  ── ⚠️ «NUOVO» SOLO SE LA DATA VIENE DAL FILE ────────────────────────
+  //  Senza la colonna data `createdAt` è l'ora del caricamento: una lista
+  //  vecchia caricata a mano sarebbe tutta «arrivata 40 minuti fa».
+  c("senza la data dal file non è «nuovo»", "prima|mai chiamato", `${m(N0).motivo}|${m(N0).testo}`);
+  c("arrivato 25 ore fa: non è più nuovo", "prima",
+    m(L("V", {
+      stato: "da_contattare", createdAt: alle(11, 10, 12, 0),
+      listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
+    })).motivo);
+  c("un nuovo che è già stato chiamato è un ritento", "ritento",
+    m(L("W", {
+      stato: "da_contattare", noRispondeCount: 1, createdAt: alle(12, 10, 12, 20),
+      listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
+    })).motivo);
+  const SENZA_DATA = L("Z", { stato: "da_contattare", createdAt: "",
+    listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true } });
+  c("con la data vuota non è «nuovo»", "prima", m(SENZA_DATA).motivo);
+  const ILLEGGIBILE = L("Z2", { stato: "da_contattare", createdAt: "ieri sera" });
+  c("la data illeggibile non fa esplodere l'ordine e va in fondo al suo gruppo",
+    "C1,C0,N0,Z2",
+    (() => {
+      const r = ordine(ordinaChiamate([ILLEGGIBILE, N0, C0, C1], ADESSO));
+      return r.includes("NaN") ? "NaN" : r;
+    })());
+  c("la data vuota va in fondo al suo gruppo", "C0,Z", ordine(ordinaChiamate([SENZA_DATA, C0], ADESSO)));
+
+  //  ── È LA SUA ORA ─────────────────────────────────────────────────────
+  const alleOre = (h) => new Date(2026, 9, 12, h, 0);
+  c("pranzo vale alle 12:00 (l'inizio è compreso)", true, eLaSuaOra({ quando: "pranzo" }, alleOre(12)));
+  c("e non alle 14:00 (la fine è esclusa)", false, eLaSuaOra({ quando: "pranzo" }, alleOre(14)));
+  c("mattina alle 9", true, eLaSuaOra({ quando: "mattina" }, alleOre(9)));
+  c("sera alle 20", true, eLaSuaOra({ quando: "sera" }, alleOre(20)));
+  c("sera alle 21: finita", false, eLaSuaOra({ quando: "sera" }, alleOre(21)));
+  c("l'orario scritto a mano non conta mai", false, eLaSuaOra({ quandoTesto: "dopo le 13" }, alleOre(13)));
+  c("senza risposta no", false, eLaSuaOra(undefined, alleOre(13)));
+
+  //  ── CALDO: LE TRE REGOLE DEL TITOLARE ────────────────────────────────
+  c("fastidio abbastanza è caldo", true, eCaldo({ fastidio: "abbastanza" }));
+  c("vuole valutare è caldo", true, eCaldo({ urgenza: "valutando" }));
+  c("ha provato i farmaci è caldo", true, eCaldo({ giaFatto: "farmaci" }));
+  c("non ha provato niente non basta", false, eCaldo({ giaFatto: "niente" }));
+  c("poco fastidio non basta", false, eCaldo({ fastidio: "poco" }));
+  c("senza risposte non è caldo", false, eCaldo(undefined));
+
+  //  ── I RITORNI E LE RISPOSTE LETTE DALLE NOTE ─────────────────────────
+  const APP = L("APP", { stato: "appuntamento_fissato", importato: false });
+  c("un lead non importato è fuori lista", false, inLista(APP, ADESSO));
+  c("ma con l'id fra i ritorni di questa schermata entra, come oggi", "ritorno",
+    (() => { const o = { idRitorno: new Set(["APP"]) }; return inLista(APP, ADESSO, o) && m(APP, o).motivo; })());
+  c("rimandato con «vedi dopo» non rientra dai ritorni", false,
+    inLista(L("RM", { stato: "no_show", importato: false,
+      ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true, rimandatoIl: alle(12, 10) } }),
+      ADESSO, { idRitorno: new Set(["RM"]) }));
+  c("chi ha una promessa per dopo non entra nemmeno se è di ritorno", false,
+    inLista(L("FR", { stato: "richiamo", dataRicontatto: "2026-10-20",
+      ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } }), ADESSO));
+  c("le risposte si leggono con la funzione della pagina", "prima|fastidio molto|true",
+    (() => {
+      const x = m(L("MD", { stato: "da_contattare" }),
+        { moduloDi: () => ({ fastidio: "molto" }) });
+      return `${x.motivo}|${x.testo}|${x.caldo}`;
+    })());
+
+  //  ── CHI ASPETTA UN RICHIAMO, PER IL VERDETTO IN TESTATA ──────────────
+  //  ⚠️ Non conta le note del setter né i saltati: solo le promesse della lista.
+  c("le promesse sono quattro, due scadute", "4|2",
+    (() => { const x = contaPromesse(TUTTI, ADESSO); return `${x.tutte}|${x.scadute}`; })());
+  c("il numero è quello delle righe «promessa» della lista", 4,
+    listaDaChiamare(TUTTI, ADESSO).filter((l) => m(l).motivo === "promessa").length);
+  c("un saltato con una promessa scaduta non si conta", "0|0",
+    (() => { const x = contaPromesse([L("SP", { stato: "richiamo", dataRicontatto: "2026-10-01", saltatoIl: alle(5, 10) })], ADESSO); return `${x.tutte}|${x.scadute}`; })());
+
+  //  ── L'ESITO CHE SI SCRIVE ────────────────────────────────────────────
+  c("non risponde senza contatore: 1", 1, patchEsito({}, "non_risponde").noRispondeCount);
+  c("segreteria da 2: 3", 3, patchEsito({ noRispondeCount: 2 }, "segreteria").noRispondeCount);
+  c("richiamo scrive lo stato e basta", '{"stato":"richiamo"}', JSON.stringify(patchEsito({ noRispondeCount: 2 }, "richiamo")));
+  c("senza scheda non esplode", 1, patchEsito(null, "non_risponde").noRispondeCount);
+}
+
 function proveDelleTrePorte() {
   const { REPARTI, repartoDi, contoReparto, sottoViste, repartiDaMostrare, vistaDiIngresso } = REP;
   gruppo("TRE PORTE, NON OTTO");
@@ -15280,6 +15461,7 @@ provePalco();
   proveDellaRegistrazione();
   proveDiChiEAncoraDentro();
   proveDelleTrePorte();
+  proveDiChiChiamare();
   proveDiChiHaFissato();
   proveDelContaSuoni();
   proveDellaStanzaVuota();
