@@ -3170,6 +3170,16 @@ function QuoteBuilder() {
          il consulente veda comporsi quello che sta compilando. Scrive nella
          sua stanza, mai nel comune (vedi `stanzaScritta`). */
     if (!isClient || scrivoIlMio) pushServerState();
+    /*  ⚠️ IL CLIENTE CHE COMPILA IL SUO LO DICE ANCHE SUL CANALE. Prima lo
+        scriveva soltanto sul server, e il consulente lo vedeva comporsi solo
+        rileggendo il server ogni secondo; la vista in parallelo
+        (shop/VistaParallela) ascolta le stanze di tutti insieme, e lì il
+        canale è l'unica strada istantanea. Il canale della sua stanza ce l'ha
+        già aperto (`nellaSuaStanza`, più sopra): solo il suo, mai il comune. */
+    if (scrivoIlMio && !canBroadcast) {
+      chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current });
+      return;
+    }
     if (!canBroadcast) return;
     chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps
