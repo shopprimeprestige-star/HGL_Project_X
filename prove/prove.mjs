@@ -5449,8 +5449,8 @@ function proveDelleDomandeNuove() {
   //  Una seconda risposta alla stessa domanda non si legge: la sua colonna
   //  non è «usata», così chi legge il file la conserva altrove.
   const doppie = new Set();
-  leggiRisposte(["a", "b"], ["poco", "abbastanza"], new Set(), true, doppie);
-  c("la risposta scartata non è «usata»", "0", [...doppie].join(","));
+  leggiRisposte(["a", "b", "c"], ["alopecia_areata", "poco", "abbastanza"], new Set(), true, doppie);
+  c("la risposta scartata non è «usata»", "0,1", [...doppie].sort().join(","));
 
   //  ── IL RIASSUNTO PER LA RIGA ────────────────────────────────────────
   const tre = { problema: "androgenetica", fastidio: "abbastanza", giaFatto: "niente" };
@@ -16922,9 +16922,50 @@ function proveDelleCorrezioniKpi() {
   const dalFile = leggiRisposte(["conosci_hair_genius_labs?"], ["abbastanza_"], new Set(), true);
   c("dal file: «abbastanza» sotto «Conosci…» non è un Fastidio", undefined, dalFile.fastidio);
   c("ma resta una risposta di «Ci conosce»", "Ci conosce|Abbastanza", `${dalFile.risposte[0].domanda}|${dalFile.risposte[0].risposta}`);
-  //  Senza una colonna affidabile il valore da solo resta quello che è.
-  c("senza colonna affidabile «abbastanza» si legge dal valore", "abbastanza",
-    leggiRisposte(["a"], ["abbastanza_"], new Set(), false).fastidio);
+  /*  ── A5. SENZA COLONNA AFFIDABILE: «ABBASTANZA» DA SOLO NON È UN FASTIDIO ──
+      È il caso vero di Meta: le intestazioni spostate di una colonna. Il
+      valore da solo non dice di quale domanda sia, e nel modulo classico
+      «abbastanza» risponde a «Conosci Hair Genius Labs…?». Vale come Fastidio
+      solo in compagnia di un Problema o di un Già provato; altrimenti si toglie
+      e la colonna non è «usata», quindi finisce nei «Dati originali». */
+  const usateClassica = new Set();
+  const rigaClassica = leggiRisposte(
+    ["a", "b", "c"], ["\u00e8_importante:_sto_valutando_seriamente", "abbastanza_", "sud_italia_e_isole"],
+    new Set(), false, usateClassica);
+  c("riga classica non affidabile: niente Fastidio", undefined, rigaClassica.fastidio);
+  c("e nessuna voce «Fastidio»", 0, rigaClassica.risposte.filter((r) => r.campo === "fastidio").length);
+  c("le altre risposte restano", "valutando|sud", `${rigaClassica.urgenza}|${rigaClassica.zona}`);
+  c("la colonna di «abbastanza» non è «usata»", "0,2", [...usateClassica].sort().join(","));
+  //  La riga del modulo nuovo, sempre non affidabile: il Fastidio resta.
+  const usateNuova = new Set();
+  const rigaNuova = leggiRisposte(["a", "b"], ["alopecia_areata", "abbastanza_"], new Set(), false, usateNuova);
+  c("riga nuova non affidabile con un Problema: il Fastidio resta", "areata|abbastanza", `${rigaNuova.problema}|${rigaNuova.fastidio}`);
+  c("e le due colonne sono «usate»", "0,1", [...usateNuova].sort().join(","));
+  c("con un Già provato nella riga resta", "poco",
+    leggiRisposte(["a", "b"], ["poco", "trapianto"], new Set(), false).fastidio);
+  //  Il Problema può stare DOPO nella riga: conta lo stesso.
+  c("anche se il Problema viene dopo", "abbastanza",
+    leggiRisposte(["a", "b"], ["abbastanza_", "alopecia_areata"], new Set(), false).fastidio);
+  //  Una colonna «Fastidio» affidabile dice di quale domanda è: vale da sola.
+  c("una colonna Fastidio affidabile vale da sola", "abbastanza",
+    leggiRisposte(["quanto_ti_infastidisce_la_calvizie?"], ["abbastanza_"], new Set(), true).fastidio);
+
+  //  ── Lo stesso, passando da un file vero (intestazioni spostate) ──────
+  const spostato = (urgenza, seconda) => IMP.traduciCsv([
+    "  ,created_time,ad_id,come_consideri_il_tuo_problema?,conosci_hair_genius_labs?,full_name,email,phone_number",
+    `l:1,2026-09-21T01:33:01-05:00,ag:12,${urgenza},${seconda},anna.prova@example.com,Anna Prova,p:+393330000102`,
+    `l:2,2026-09-21T01:34:01-05:00,ag:12,${urgenza},${seconda},luca.prova@example.com,Luca Prova,p:+393330000103`,
+  ].join("\n"));
+  const fileClassico = spostato("\u00e8_importante:_sto_valutando_seriamente", "abbastanza_");
+  c("file classico spostato: le intestazioni non sono affidabili", 0, fileClassico.intestazioniRiallineate);
+  c("file classico spostato: niente Fastidio su nessun lead", 0,
+    fileClassico.leads.filter((l) => l.modulo?.fastidio).length);
+  c("file classico spostato: l'urgenza si legge", "valutando", fileClassico.leads[0].modulo?.urgenza);
+  c("file classico spostato: «abbastanza» è nei dati originali", true,
+    Object.values(fileClassico.leads[0].datiFile ?? {}).some((v) => /^abbastanza/.test(v)));
+  const fileNuovo = spostato("alopecia_areata", "abbastanza_");
+  c("file nuovo spostato: il Fastidio resta con il Problema", "areata|abbastanza",
+    `${fileNuovo.leads[0].modulo?.problema}|${fileNuovo.leads[0].modulo?.fastidio}`);
 
   // ── B. ALOPECIA UNIVERSALE ───────────────────────────────────────────
   const dove = (t) => { const r = riconosciRisposta(t); return r ? `${r.campo}/${r.opzione.id}` : undefined; };

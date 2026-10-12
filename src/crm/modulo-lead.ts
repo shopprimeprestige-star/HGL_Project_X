@@ -421,6 +421,9 @@ export function leggiRisposte(
 ): RisposteModulo | undefined {
   const out: RisposteModulo = {};
   const risposte: { domanda: string; risposta: string; campo?: string; testo?: string }[] = [];
+  /** La colonna da cui è venuto un Fastidio letto dal SOLO valore (non da una
+   *  colonna «Fastidio» affidabile). Serve alla verifica qui in fondo. */
+  let fastidioDalValore: number | undefined;
 
   riga.forEach((cella, i) => {
     if (presi.has(i)) return;
@@ -445,6 +448,7 @@ export function leggiRisposte(
     if (trovata) {
       if (out[trovata.campo]) return;        // la prima vince
       out[trovata.campo] = trovata.opzione.id;
+      if (trovata.campo === "fastidio" && colonnaNuova !== "fastidio") fastidioDalValore = i;
       usate?.add(i);
       risposte.push({
         domanda: titoloDomanda(trovata.campo),
@@ -505,6 +509,20 @@ export function leggiRisposte(
     usate?.add(i);
     risposte.push({ domanda: intera, risposta: leggibile(grezzo) });
   });
+
+  /*  ⚠️ UN FASTIDIO LETTO DAL SOLO VALORE VALE SOLO IN COMPAGNIA. «Abbastanza» è
+      anche la risposta a «Conosci Hair Genius Labs…?» del modulo classico, e
+      su un file con le intestazioni spostate (il caso vero di Meta) nessuna
+      colonna dice di quale domanda sia. Come nelle note vecchie: vale solo se
+      la stessa riga ha anche un Problema o un Già provato, cioè se è del
+      modulo che ha quelle domande. Altrimenti si toglie, e la sua colonna non
+      risulta «usata»: finisce nei «Dati originali» del file e non si perde. */
+  if (fastidioDalValore !== undefined && out.fastidio && !out.problema && !out.giaFatto) {
+    delete out.fastidio;
+    const i = risposte.findIndex((r) => r.campo === "fastidio");
+    if (i >= 0) risposte.splice(i, 1);
+    usate?.delete(fastidioDalValore);
+  }
 
   if (risposte.length) out.risposte = risposte;
   return Object.keys(out).length ? out : undefined;
