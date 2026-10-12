@@ -3042,6 +3042,9 @@ function proveDegliHook() {
     "src/webinar/FasciaRelatori.tsx",
     "src/routes/webinar_.$code.tsx",
     "src/routes/regia_.$codice.tsx",
+    //  «Tutta la lista» ha i suoi filtri Annuncio e Risposta (hook di Radix e di
+    //   TanStack Router): un hook sotto l'uscita «Nessuna lista importata» la spegne.
+    "src/crm/importa/SchedaTutti.tsx",
     "src/crm/fatture/BadgeDaFatturare.tsx",
     "src/crm/LeadDialog.tsx",
     //  ⚠️ AGGIUNTO DOPO AVERCI SBATTUTO CONTRO. Questo file ha un cartello
@@ -3081,6 +3084,76 @@ function proveDegliHook() {
     }
   }
   c("nessun hook sotto un'uscita anticipata", "", colpevoli.join(" | "));
+}
+
+/** ── «TUTTA LA LISTA» CON I FILTRI ANNUNCIO E RISPOSTA ─────────────────────
+ *
+ *  Gli stessi due menu e le stesse regole della pagina «Da chiamare»
+ *  (FiltriLista.tsx, filtri-lista.ts), e lo stesso indirizzo: scegliere un
+ *  annuncio qui lo ritrova anche di là. Lo Stato e il tempo restano della
+ *  scheda (le sue pastiglie): non si leggono dall'indirizzo, o «Promesse»
+ *  scelto in «Da chiamare» farebbe sparire righe da un elenco che non ha
+ *  quel filtro. Si leggono invece i sorgenti, perché sono proprietà del codice. */
+function proveDellaListaIntera() {
+  gruppo("TUTTA LA LISTA: FILTRI ANNUNCIO E RISPOSTA");
+  const src = readFileSync("src/crm/importa/SchedaTutti.tsx", "utf8");
+  const menu = readFileSync("src/crm/importa/FiltriLista.tsx", "utf8");
+
+  //  ── Si riusano i menu di Radix della pagina, non se ne fanno di nuovi ───
+  c("i menu Annuncio e Risposta sono quelli di FiltriLista.tsx", true,
+    /import \{[^}]*\bMenuAnnuncio\b[^}]*\bMenuRisposta\b[^}]*\} from "\.\/FiltriLista"/s.test(src) ||
+      /import \{[^}]*\bMenuRisposta\b[^}]*\bMenuAnnuncio\b[^}]*\} from "\.\/FiltriLista"/s.test(src));
+  c("e FiltriLista.tsx li esporta", true,
+    /export function MenuAnnuncio\b/.test(menu) && /export function MenuRisposta\b/.test(menu));
+  c("le regole sono quelle di filtri-lista (applicaFiltri, opzioniFiltri)", true,
+    /\bapplicaFiltri\(/.test(src) && /\bopzioniFiltri\(/.test(src));
+  c("nessun menu fatto a mano", false, /<select\b|role="(listbox|menu)"/.test(src));
+
+  //  ── I filtri stanno nell'indirizzo, e si scrivono senza riempire la cronologia
+  c("i filtri si leggono dall'indirizzo", true, /\buseSearch\(\{\s*from: "\/CRM\/importa"/.test(src));
+  c("e si scrivono con replace, tenendo Stato e tempo della pagina", true,
+    /\breplace: true\b/.test(src) && /\.\.\.filtri\b/.test(src));
+  //  Lo Stato dell'indirizzo non è di questa scheda: nei conti entrano solo
+  //  Annuncio e Risposta.
+  c("Stato e tempo dell'indirizzo non filtrano questa scheda", true,
+    /\{\s*annuncio: filtri\.annuncio,\s*risposte: filtri\.risposte\s*\}/.test(src));
+
+  //  ── Il comportamento: lo stesso dei sei lead della prova di T4 ─────────
+  const { applicaFiltri, opzioniFiltri } = FIL;
+  const L = (id, ad, adset, problema) => ({
+    id,
+    data: { importato: true, nome: id, tracking: adset ? { ad_name: ad, adset_name: adset } : undefined },
+    motivo: "prima",
+    modulo: problema ? { problema } : undefined,
+  });
+  const righe = [
+    L("a1-areata-1", "A1", "G1", "areata"),
+    L("a1-areata-2", "A1", "G1", "areata"),
+    L("a1-andro", "A1", "G1", "androgenetica"),
+    L("a2-areata-1", "A2", "G1", "areata"),
+    L("a2-areata-2", "A2", "G1", "areata"),
+    L("senza", undefined, undefined, undefined),
+  ];
+  const OGGI = "2026-10-12";
+  const annA1 = "a:G1\u241fA1";
+  c("senza filtri si vedono tutte le righe", 6, applicaFiltri(righe, {}, OGGI).length);
+  c("il filtro per annuncio riduce le righe", 3, applicaFiltri(righe, { annuncio: annA1 }, OGGI).length);
+  c("annuncio e risposta insieme (E)", 2,
+    applicaFiltri(righe, { annuncio: annA1, risposte: ["problema|areata"] }, OGGI).length);
+  //  Lo Stato dell'indirizzo, se arrivasse, farebbe sparire righe: la scheda
+  //  non lo passa (vedi sopra). Qui si fissa perché.
+  c("con lo Stato «promesse» le stesse righe sparirebbero", 0,
+    applicaFiltri(righe, { annuncio: annA1, stato: "promesse" }, OGGI).length);
+  const op = opzioniFiltri(righe, { annuncio: annA1 }, OGGI);
+  c("i numeri della Risposta contano dentro l'annuncio scelto", "androgenetica:1,areata:2",
+    op.risposte.find((r) => r.campo === "problema").voci.map((v) => `${v.chiave.split("|")[1]}:${v.n}`).sort().join(","));
+  c("i numeri dell'Annuncio ignorano il proprio filtro (A1 3, A2 2)", "3,2",
+    op.annuncio.find((g) => g.chiave === "g:G1").annunci.map((a) => a.n).join(","));
+  //  Un annuncio che non c'è più: elenco vuoto, ma la voce resta e si spegne.
+  const orfano = opzioniFiltri(righe, { annuncio: "a:G1\u241fSPENTO" }, OGGI);
+  c("un annuncio sparito dà zero righe", 0, applicaFiltri(righe, { annuncio: "a:G1\u241fSPENTO" }, OGGI).length);
+  c("ma la sua voce resta nel menu, a zero", 0,
+    orfano.annuncio.find((g) => g.chiave === "g:G1").annunci.find((a) => a.annuncio === "SPENTO")?.n);
 }
 
 /** ── NESSUNA CHIAMATA AL CRM SENZA CREDENZIALI ─────────────────────────────
@@ -16704,6 +16777,7 @@ proveDellaRegiaPalco();
 proveDellInvito();
 proveDelTeleprompter();
 proveDegliHook();
+proveDellaListaIntera();
 proveDeiDatiFinti();
 proveDelCarattere();
 proveDellAnteprimaConIlNome();
