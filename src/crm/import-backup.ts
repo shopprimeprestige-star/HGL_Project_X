@@ -479,7 +479,7 @@ const COLONNE: Record<string, string[]> = {
   cognome: ["cognome", "lastname", "last_name", "surname"],
   /** ── ⚠️ IL NOME TUTTO ATTACCATO ─────────────────────────────────────────
    *  Le esportazioni di Meta (Facebook/Instagram Lead Ads) non hanno nome e
-   *  cognome separati: hanno `full_name`, «Michele Ruggiero» in una casella
+   *  cognome separati: hanno `full_name`, «Mario Esempio» in una casella
    *  sola. Finché non c'era questa riga, quelle liste entravano SENZA NOME —
    *  e una scheda senza nome, per chi telefona, è un numero e basta. */
   nomeCompleto: ["fullname", "nomecompleto", "nomeecognome", "nominativo"],
@@ -568,7 +568,7 @@ const paEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v.trim());
  *   ventotto persone. Con due parole la colonna giusta vince e quella delle
  *   risposte perde, perché i nomi veri quasi sempre sono due.
  *   Una volta scelta la colonna, i nomi di una parola sola dentro ci restano:
- *   «antonio» e «aksi» sono in questo file, e sono persone. */
+ *   «pinco» e «tizio» sono in questo file, e sono persone. */
 const paNomeIntero = (v: string) => {
   const t = v.trim();
   if (!t || t.length > 60 || /[_/@\d]/.test(t)) return false;
@@ -700,7 +700,7 @@ export function traduciCsv(testo: string): {
   let scartate = 0;
   for (const c of dati) {
     const v = (k: string) => (indice[k] === undefined ? "" : (c[indice[k]] || "").trim());
-    /* ── ⚠️ «Michele Ruggiero» IN UNA CASELLA SOLA ────────────────────────
+    /* ── ⚠️ «Mario Esempio» IN UNA CASELLA SOLA ────────────────────────
        Meta esporta `full_name`. La prima parola è il nome, il resto il
        cognome: su «Giovanni Battista Zito» si sbaglia — diventa «Giovanni» +
        «Battista Zito» — ed è il taglio meno sbagliato possibile senza un

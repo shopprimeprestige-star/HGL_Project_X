@@ -1023,7 +1023,36 @@ export interface QualificaInfo {
  *  da chiamare di sera». Le frasi, che cambiano a ogni modulo riscritto,
  *  stanno in `risposte` e servono a leggere, mai a decidere.
  *  Chi le riconosce: crm/modulo-lead.ts, in un punto solo. */
+/** I sette campi del modulo che sappiamo leggere, nell'ordine in cui si
+ *  mostrano. Stanno qui e non in `modulo-lead.ts` perché li usano in tanti
+ *  (il lettore, i filtri, i KPI) e così il tipo è uno solo: se ne nasce un
+ *  ottavo, il compilatore dice dove manca. */
+export type CampoModulo =
+  | "problema"
+  | "fastidio"
+  | "giaFatto"
+  | "urgenza"
+  | "conoscenza"
+  | "zona"
+  | "quando";
+
+export const CAMPI_MODULO: CampoModulo[] = [
+  "problema",
+  "fastidio",
+  "giaFatto",
+  "urgenza",
+  "conoscenza",
+  "zona",
+  "quando",
+];
+
 export interface RisposteModulo {
+  /** Che problema ha: `androgenetica` | `areata` | `diradamento` | `stempiatura`. */
+  problema?: string;
+  /** Quanto lo infastidisce: `molto` | `abbastanza` | `poco` | `perNiente`. */
+  fastidio?: string;
+  /** Cosa ha già provato: `niente` | `trapianto` | `lozioni` | `farmaci`. */
+  giaFatto?: string;
   /** Come vive il problema: `subito` | `valutando` | `informativo`. */
   urgenza?: string;
   /** Ci conosce: `segue` | `settore` | `nuovo`. */
@@ -1342,7 +1371,21 @@ export interface RicaricoLead {
   whatsappConfermatoDa?: string;
   /** Quando qualcuno ha detto «no, non l'ho mandato» (la X). */
   whatsappAnnullatoIl?: string;
+  /** Da quale annuncio è tornata e cosa ha risposto stavolta. Serve a
+   *  raccontare il ritorno senza toccare la scheda: nome dell'inserzione,
+   *  del gruppo e della campagna, più una riga con le risposte. */
+  arrivo?: {
+    ad_name?: string;
+    adset_name?: string;
+    campaign_name?: string;
+    riassunto?: string;
+  };
 }
+
+/** Il perché di una riga nella lista «Da chiamare», dal più urgente al meno.
+ *  Lo decide `importa/chi-chiamare.ts`; qui sta solo il tipo, così lo usano
+ *  la lista, i filtri e le prove senza dipendere uno dall'altro. */
+export type MotivoChiamata = "promessa" | "ritorno" | "nuovo" | "suaOra" | "prima" | "ritento";
 
 export interface LeadData {
   // anagrafica
@@ -1523,6 +1566,15 @@ export interface LeadData {
   /** Le risposte date nel modulo dell'inserzione, come voci e non come note.
    *  Vedi RisposteModulo, e crm/modulo-lead.ts per chi le riconosce. */
   modulo?: RisposteModulo;
+  /** Le colonne del file importato che non sono diventate un campo della
+   *  scheda, con il nome che avevano. Si conservano per non perdere niente;
+   *  si leggono nella scheda, mai nei messaggi né nelle esportazioni. */
+  datiFile?: Record<string, string>;
+  /** Da quale file è entrato: nome, momento del caricamento (ISO) e se
+   *  `createdAt` è stato letto dal file. ⚠️ Senza la colonna data,
+   *  `createdAt` è l'ora del caricamento e non dice niente sull'arrivo:
+   *  «nuovo» si decide solo con `dataDalFile` vero. */
+  listaOrigine?: { file: string; il: string; dataDalFile?: boolean };
   // origine pubblica (id del public_lead se importato)
   publicLeadId?: string;
   // ── LAVORAZIONE IN CHAT ────────────────────────────────────────────────

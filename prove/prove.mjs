@@ -3165,6 +3165,56 @@ function proveDelleChiamateCRM() {
     (fasce.match(/(?<![A-Za-z0-9_$])fetch\s*\(/g) || []).length);
 }
 
+/** ── NIENTE DATI VERI NELLE PROVE ─────────────────────────────────────────
+ *  Le prove copiavano righe di file veri: nomi, email e cellulari di persone
+ *  che hanno compilato un modulo. Il repository è pubblico, quindi quei dati
+ *  erano pubblici. Qui si controllano le due cose che si riconoscono da
+ *  sole: gli indirizzi dei gestori di posta e i cellulari italiani.
+ *  ⚠️ Un telefono è ammesso solo se si vede che è finto: `333000xxxx`, o una
+ *   sequenza ovvia (1234567, 9876543, quattro cifre uguali di fila). Tutto il
+ *   resto è un numero che potrebbe rispondere.
+ *  ⚠️ I nomi non si possono riconoscere da una regola: restano a chi scrive
+ *   (e al revisore). Gli indirizzi giusti sono `@example.com`. */
+function proveDeiDatiFinti() {
+  const FILE_CONTROLLATI = ["prove/prove.mjs", "src/crm/import-backup.ts"];
+  const POSTA = /@(gmail|libero|hotmail|yahoo|icloud|outlook|live|alice|tiscali|virgilio)\./gi;
+  //  Cellulare italiano fra due non-cifre: gli identificativi di Facebook
+  //  (sedici cifre) e le date non possono combaciare, perché il numero deve
+  //  finire dopo 3-4 cifre di coda e senza altre cifre attaccate.
+  const CELLULARE = /(?<![0-9])((?:\+39|0039)?\s?3\d{2}[\s.-]?\d{3}[\s.-]?\d{3,4})(?![0-9])/g;
+  const evidenteMenteFinto = (numero) => {
+    const cifre = numero.replace(/^(\+39|0039)/, "").replace(/\D/g, "");
+    return /^333000/.test(cifre) || /1234567|9876543/.test(cifre) || /(\d)\1{3}/.test(cifre);
+  };
+
+  const email = [];
+  const telefoni = [];
+  let righeLette = 0;
+  for (const f of FILE_CONTROLLATI) {
+    const righe = readFileSync(f, "utf8").split("\n");
+    righeLette += righe.length;
+    righe.forEach((riga, i) => {
+      if (POSTA.test(riga)) email.push(`${f}:${i + 1}`);
+      POSTA.lastIndex = 0;
+      for (const m of riga.matchAll(CELLULARE)) {
+        if (!evidenteMenteFinto(m[1])) telefoni.push(`${f}:${i + 1}`);
+      }
+    });
+  }
+  //  Un controllo che non legge niente passerebbe sempre.
+  c("i due file si leggono davvero", true, righeLette > 1000);
+  c("nessuna email di un gestore vero", "", email.join(" | "));
+  c("nessun cellulare che sembri vero", "", [...new Set(telefoni)].join(" | "));
+  //  Il controllo stesso riconosce quello che deve (altrimenti passa a vuoto).
+  c("un cellulare con prefisso vero è visto", false, evidenteMenteFinto(["+39", "340", "555", "8921"].join(" ")));
+  c("un cellulare a dieci cifre vero è visto", false, evidenteMenteFinto(["340", "555", "8921"].join("")));
+  c("333000xxxx è finto", true, evidenteMenteFinto("+393330000101"));
+  c("una sequenza ovvia è finta", true, evidenteMenteFinto("339 1234567"));
+  c("quattro cifre uguali sono finte", true, evidenteMenteFinto("3331112222"));
+  c("l'indirizzo di prova non è un gestore", false, POSTA.test("mario@example.com"));
+  POSTA.lastIndex = 0;
+}
+
 
 /** ── IL TELEPROMPTER CHE SEGUE CHI PARLA ───────────────────────────────────
  *  Si rompe in silenzio, e in due modi opposti: il copione che salta a meta'
@@ -3419,7 +3469,7 @@ function proveDelFoglioInstallazioni() {
   c("una data col punto non e' un'ora", "", oraDaCella("27.11.05"));
 
   /*  ── IL TELEFONO ────────────────────────────────────────────────────── */
-  c("un numero e' un numero", "351 324 4425", telefonoDaCella("351 324 4425"));
+  c("un numero e' un numero", "333 000 0101", telefonoDaCella("333 000 0101"));
   //  ⚠️ Almeno otto cifre: «0,03» e' uno spessore e «20» un prezzo, e presi
   //   per telefono farebbero nascere schede fantasma.
   c("uno spessore non e' un telefono", "", telefonoDaCella("0,03"));
@@ -3427,12 +3477,12 @@ function proveDelFoglioInstallazioni() {
 
   /*  ── UNA RIGA INTERA ────────────────────────────────────────────────── */
   const r = interpretaRiga([
-    "Maurizio Baio", "3494110105", "maurizio.baio@gmail.com", "189", "€589",
+    "Mario Esempio", "3330000102", "mario.esempio@example.com", "189", "€589",
     "7.1 40% di bianco 0.04mm", "", "19/04/26", "14:00", "", "", "", "", "", "",
   ]);
-  c("prende il nome", "Maurizio Baio", r.nome);
-  c("prende il telefono", "3494110105", r.telefono);
-  c("prende l'email", "maurizio.baio@gmail.com", r.email);
+  c("prende il nome", "Mario Esempio", r.nome);
+  c("prende il telefono", "3330000102", r.telefono);
+  c("prende l'email", "mario.esempio@example.com", r.email);
   c("prende l'acconto", 189, r.pagato);
   c("prende il prezzo", 589, r.totale);
   c("trova la data dove capita", "2026-04-19", r.dataInstallazione);
@@ -3440,12 +3490,12 @@ function proveDelFoglioInstallazioni() {
   //  Tutto il resto finisce nelle note: e' quello che il committente ha
   //  chiesto di non perdere.
   c("il modello finisce nelle note", true, r.note.includes("7.1 40% di bianco"));
-  c("e i dati gia' presi non ci finiscono", false, r.note.includes("3494110105"));
+  c("e i dati gia' presi non ci finiscono", false, r.note.includes("3330000102"));
 
   //  ⚠️ La data puo' stare in fondo alla riga: sul foglio vero e' nella
   //   tredicesima colonna su certe righe e nella settima su altre.
   const tardi = interpretaRiga([
-    "Maurizio Montemagno", "331 577 2594", "", "100", "€589", "", "", "", "", "",
+    "Luca Prova", "333 000 0103", "", "100", "€589", "", "", "", "", "",
     "16/02 ALLE ORE: QUALSIASI", "", "16/03/26", "dare kit provvisorio", "",
   ]);
   c("la data si trova anche in fondo", "2026-03-16", tardi.dataInstallazione);
@@ -3459,9 +3509,9 @@ function proveDelFoglioInstallazioni() {
   /*  ── IL FOGLIO INTERO ───────────────────────────────────────────────── */
   const foglio = [
     "Nome e Cognome,Telefono,E-mail,Pagato,Importo Totale,Modello/Prodotto,Nota",
-    "Mario Rossi,3491112223,,100,€589,1b40,,19/04/26,10:00",
+    "Mario Rossi,3330000104,,100,€589,1b40,,19/04/26,10:00",
     ",,,,,,",
-    "Luigi Bianchi,3492223334,,50 + 350,289 x2,castano,,",
+    "Luigi Bianchi,3330000105,,50 + 350,289 x2,castano,,",
   ].join("\n");
   const esito = importaCsv(foglio);
   c("legge due pratiche", 2, esito.righe.length);
@@ -4372,9 +4422,9 @@ function proveDellaListaImportata() {
   //  Il file vero, ridotto a tre righe: stessa intestazione, stesso scarto.
   const META_STORTO = [
     "  ,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,lead_status,che_problematica_hai?",
-    'l:2055445158436359,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Michele Ruggiero,leleruggiero@gmail.com,p:+393473478192,',
-    'l:1116838917697560,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Valter Ciaparrone,valtercia06@gmail.com,p:+393883733705,',
-    'l:1682429130145308,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,antonio,ingrassiaa528@gmail.com,p:0277002845,',
+    'l:2055445158436359,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Mario Esempio,mario.esempio@example.com,p:+393330000101,',
+    'l:1116838917697560,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Anna Prova,anna.prova@example.com,p:+393330000102,',
+    'l:1682429130145308,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,pinco,pinco@example.com,p:0200000001,',
   ].join("\n");
   const m = traduciCsv(META_STORTO);
   c("legge tutte le righe, non ne scarta nessuna", 3, m.leads.length);
@@ -4382,17 +4432,17 @@ function proveDellaListaImportata() {
 
   //  ⚠️ IL NOME. L'intestazione lo mette sotto «email»; guardando i dati si
   //   trova dov'e' davvero. E «full_name» e' una casella sola: si divide.
-  c("il nome arriva giusto", "Michele", m.leads[0].nome);
-  c("e il cognome pure", "Ruggiero", m.leads[0].cognome);
-  //  Un nome di una parola sola resta una persona: «antonio» e' in quel file.
-  c("un nome solo resta un nome", "antonio", m.leads[2].nome);
+  c("il nome arriva giusto", "Mario", m.leads[0].nome);
+  c("e il cognome pure", "Esempio", m.leads[0].cognome);
+  //  Un nome di una parola sola resta una persona: «pinco» e' in quel file.
+  c("un nome solo resta un nome", "pinco", m.leads[2].nome);
 
   //  ⚠️ IL TELEFONO. L'intestazione lo mette sotto «lead_status», e il prefisso
   //   «p:» e' di Meta: lasciato dentro non si chiama e non si cerca piu'.
-  c("il telefono arriva giusto", "+393473478192", m.leads[0].telefono);
+  c("il telefono arriva giusto", "+393330000101", m.leads[0].telefono);
   c("il prefisso p: sparisce", true, !/^p:/.test(m.leads[1].telefono));
   //  ⚠️ E un fisso senza prefisso internazionale e' un telefono lo stesso.
-  c("anche un numero fisso", "0277002845", m.leads[2].telefono);
+  c("anche un numero fisso", "0200000001", m.leads[2].telefono);
   //  ⚠️ Le due prove che tengono in piedi tutto il resto: nella colonna del
   //   telefono NON deve finire ne' l'identificativo di Facebook (sedici cifre)
   //   ne' il nome del modulo (che di cifre ne ha dieci).
@@ -4401,7 +4451,7 @@ function proveDellaListaImportata() {
   c("nessun nome di modulo come telefono", 0,
     m.leads.filter((l) => /[A-Za-z]/.test(l.telefono || "")).length);
 
-  c("l'email arriva giusta", "leleruggiero@gmail.com", m.leads[0].email);
+  c("l'email arriva giusta", "mario.esempio@example.com", m.leads[0].email);
   c("nessuna email finita nel telefono", 0,
     m.leads.filter((l) => /@/.test(l.telefono || "")).length);
 
@@ -4434,11 +4484,11 @@ function proveDellaListaImportata() {
 
   //  Un'intestazione Meta scritta bene: niente da indovinare, stesso esito.
   const dritto = traduciCsv(
-    "created_time,full_name,email,phone_number\n2026-09-21T01:33:01-05:00,Anna Verdi,a@v.it,p:+393331112223",
+    "created_time,full_name,email,phone_number\n2026-09-21T01:33:01-05:00,Anna Verdi,a@v.it,p:+393330000111",
   );
   c("intestazione giusta: nome", "Anna", dritto.leads[0].nome);
   c("intestazione giusta: cognome", "Verdi", dritto.leads[0].cognome);
-  c("intestazione giusta: telefono", "+393331112223", dritto.leads[0].telefono);
+  c("intestazione giusta: telefono", "+393330000111", dritto.leads[0].telefono);
 
   //  Una riga senza niente di utile non diventa una scheda vuota in archivio.
   const vuote = traduciCsv("nome;telefono\nMario;3331234567\n;");
@@ -4677,15 +4727,15 @@ function proveDelModulo() {
   const D4 = "quando_preferiresti_ricevere_una_telefonata_per_concordare_l'appuntamento_di_consulenza_gratuita_e_ottenere_maggiori_informazioni?_(indica_giorno_e_ora_indicativi)";
   const FILE = [
     `id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,${D1},${D2},${D3},${D4},full_name,email,phone_number,lead_status`,
-    'l:1103256495617278,2026-09-24T05:36:57-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,pausa_pranzo_(12:00\u201314:00),Malpasso Luca,lucamalpasso@libero.it,p:+393334651639,CREATED',
-    'l:1475300417840584,2026-09-24T05:39:38-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,\u00e8_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.,s\u00ec:_vi_seguo_da_un_po\u2019.,nord_italia,mattina_(9:00\u201312:00),Gianni Mellino,mellinogiovanni7@gmail.com,p:+393471388386,CREATED',
-    'l:2172570616997524,2026-09-24T05:39:56-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,sera_(dopo_le_18:00),Amos Amorigi,amosamorigi@hotmail.it,p:+393384492970,CREATED',
+    'l:1103256495617278,2026-09-24T05:36:57-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,pausa_pranzo_(12:00\u201314:00),Prova Luca,luca.prova@example.com,p:+393330000103,CREATED',
+    'l:1475300417840584,2026-09-24T05:39:38-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,\u00e8_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.,s\u00ec:_vi_seguo_da_un_po\u2019.,nord_italia,mattina_(9:00\u201312:00),Prova Gianni,gianni.prova@example.com,p:+393330000104,CREATED',
+    'l:2172570616997524,2026-09-24T05:39:56-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,sera_(dopo_le_18:00),Prova Amos,amos.prova@example.com,p:+393330000105,CREATED',
   ].join("\n");
 
   const r = traduciCsv(FILE);
   c("il file si legge tutto", 3, r.leads.length);
   c("nessuna riga scartata", 0, r.scartate);
-  c("il telefono arriva pulito", "+393334651639", r.leads[0].telefono);
+  c("il telefono arriva pulito", "+393330000103", r.leads[0].telefono);
 
   //  ── LE QUATTRO RISPOSTE, COME VOCI ──────────────────────────────────
   const uno = r.leads[0].modulo ?? {};
@@ -4780,7 +4830,7 @@ function proveDelModulo() {
 
   //  ⚠️ E NON SI INVENTA NIENTE: un valore che non somiglia a nessuna
   //   risposta non diventa una voce. Una voce sbagliata si crede.
-  c("un valore qualunque non diventa una voce", undefined, riconosciRisposta("Michele Ruggiero"));
+  c("un valore qualunque non diventa una voce", undefined, riconosciRisposta("Mario Esempio"));
   c("nemmeno un identificativo", undefined, riconosciRisposta("l:2055445158436359"));
   c("nemmeno il nome di una campagna", undefined, riconosciRisposta("BROAD | ITALIA"));
   c("nemmeno una riga vuota", undefined, riconosciRisposta(""));
@@ -4846,7 +4896,7 @@ function proveDelModulo() {
       si possono prevedere: la loro domanda si legge dall'intestazione, e la
       risposta diventa una voce come le altre invece di finire nelle note. */
   const altre = traduciCsv(
-    "full_name,phone_number,quanto_ti_infastidisce_la_calvizie?\nMichele Ruggiero,p:+393473478192,alopecia_androgenetica",
+    "full_name,phone_number,quanto_ti_infastidisce_la_calvizie?\nMario Esempio,p:+393330000101,alopecia_androgenetica",
   );
   c("una domanda che non conosciamo diventa una voce", "quanto ti infastidisce la calvizie?",
     altre.leads[0].modulo.risposte[0].domanda);
@@ -4863,13 +4913,13 @@ function proveDelModulo() {
   const storto = traduciCsv(
     [
       "  ,created_time,ad_id,quanto_ti_infastidisce?,full_name,email,phone_number",
-      "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,leleruggiero@gmail.com,Michele Ruggiero,p:+393473478192",
+      "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,mario.esempio@example.com,Mario Esempio,p:+393330000101",
     ].join("\n"),
   );
   c("con l'intestazione spostata non si inventa nessuna domanda", undefined, storto.leads[0].modulo);
   c("e la risposta resta nelle note", true,
     /alopecia androgenetica/.test(storto.leads[0].note || ""));
-  c("mentre il telefono e' comunque quello giusto", "+393473478192", storto.leads[0].telefono);
+  c("mentre il telefono e' comunque quello giusto", "+393330000101", storto.leads[0].telefono);
 }
 
 /** ── CHI PUÒ FARE CHE COSA ────────────────────────────────────────────────
@@ -5272,7 +5322,7 @@ function proveDelDaSaldare() {
 function provePosaAggiunta() {
   //  Esattamente cio' che scrive la finestra, caso passaparola.
   const dati = {
-    nome: "Mario", cognome: "Rossi", telefono: "3331112233", citta: "Bari",
+    nome: "Mario", cognome: "Rossi", telefono: "3330000112", citta: "Bari",
     fonte: "Passa parola", consulenteId: null, stato: "venduto",
     createdAt: "2026-09-01T10:00:00.000Z", note: "mandato da un altro cliente",
     payment: { prezzoTotale: 1500, accontoPagato: 500 },
@@ -6840,15 +6890,15 @@ function proveDeiLeadDiMeta() {
       com'erano scritte. Cercare solo il nome esatto vuol dire un lead senza
       numero: cioè un lead che non si può chiamare. */
   const italiano = schedaDaLead(lead({
-    "Nome e cognome": "Luca De Santis",
+    "Nome e cognome": "Luca Esempio",
     "Qual è la tua email?": "luca@esempio.it",
-    "Numero di telefono (cellulare)": "3401112223",
+    "Numero di telefono (cellulare)": "3330000113",
     "In quale città vivi?": "Torino",
   }));
   c("il nome scritto in italiano si trova", "Luca", italiano.nome);
-  c("e il cognome pure", "De Santis", italiano.cognome);
+  c("e il cognome pure", "Esempio", italiano.cognome);
   c("l'email con la domanda per esteso si trova", "luca@esempio.it", italiano.email);
-  c("il telefono con la domanda per esteso si trova", "3401112223", italiano.telefono);
+  c("il telefono con la domanda per esteso si trova", "3330000113", italiano.telefono);
   c("e la città", "Torino", italiano.citta);
 
   //  Il nome esatto vince su quello che somiglia: due campi con dentro la
@@ -7327,7 +7377,7 @@ function proveDelTelefonoDoppio() {
   c("sei modi di scrivere, una sola impronta", 1, chiavi.size);
   c("ed è fatta di nove cifre", 9, chiaveTelefono(modi[0]).length);
   c("due modi diversi sono lo stesso numero", true, stessoNumero("339 1234567", "+393391234567"));
-  c("due numeri diversi no", false, stessoNumero("3391234567", "3397654321"));
+  c("due numeri diversi no", false, stessoNumero("3391234567", "3339876543"));
 
   /*  ⚠️ MENTRE SI SCRIVE NON SI DICE NIENTE: tre cifre somigliano a mezzo
       archivio, e un campo rosso che non significa niente dopo due volte non lo
@@ -7340,7 +7390,7 @@ function proveDelTelefonoDoppio() {
 
   const archivio = [
     { id: "A", data: { telefono: "+39 339 1234567", nome: "Mario", cognome: "Rossi" } },
-    { id: "B", data: { telefono: "3397654321", nome: "Lucia", cognome: "Bianchi" } },
+    { id: "B", data: { telefono: "3339876543", nome: "Lucia", cognome: "Bianchi" } },
     { id: "C", data: { telefono: "339 123 45 67", nome: "Mario", cognome: "R." } },
   ];
   c("trova chi ha già quel numero", "A,C",
@@ -8747,9 +8797,9 @@ function proveDelPreventivoCitato() {
   const { preventivoDaCitare } = PDT;
   gruppo("QUALE PREVENTIVO CITA LA FATTURA");
 
-  const scheda = (extra = {}) => ({ id: "L1", data: { telefono: "+39 331 260 6318", ...extra } });
+  const scheda = (extra = {}) => ({ id: "L1", data: { telefono: "+39 333 000 0106", ...extra } });
   const p = (ref, giorno, extra = {}) => ({
-    quote_ref: ref, telefono: "331 2606318", created_at: `2026-09-${giorno}T10:00:00Z`, ...extra,
+    quote_ref: ref, telefono: "333 0000106", created_at: `2026-09-${giorno}T10:00:00Z`, ...extra,
   });
 
   //  ── IL LEGAME DICHIARATO COMANDA ────────────────────────────────────
@@ -8776,7 +8826,7 @@ function proveDelPreventivoCitato() {
 
   //  ── QUANDO NON SI SA, NON SI INVENTA ────────────────────────────────
   c("nessun preventivo, nessuna citazione", null, preventivoDaCitare(scheda(), []));
-  c("numero di un altro: non si cita", null, preventivoDaCitare(scheda({ telefono: "333 1112223" }), [p("IDX", 20)]));
+  c("numero di un altro: non si cita", null, preventivoDaCitare(scheda({ telefono: "333 111 2222" }), [p("IDX", 20)]));
   //  ⚠️ Poche cifre non bastano: con quattro in comune si attribuirebbe a
   //   questo cliente mezzo archivio.
   c("un telefono troppo corto non aggancia niente", null,
@@ -15444,6 +15494,7 @@ proveDellaRegiaPalco();
 proveDellInvito();
 proveDelTeleprompter();
 proveDegliHook();
+proveDeiDatiFinti();
 proveDelCarattere();
 proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
