@@ -138,7 +138,7 @@ components:
   badge:
     backgroundColor: "{colors.crm-primary}"
     textColor: "{colors.brand-foreground}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.full}"
     padding: "2px 8px"
   sidebar-crm:
     backgroundColor: "{colors.crm-sidebar}"
@@ -175,6 +175,7 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 ### Primary
 - **Blu Brand** (oklch(0.65 0.19 252), token `brand`): accento unico del sito: eyebrow, parentesi d'angolo, focus ring, link, pulsanti principali sul navy. Anche `--primary`, `--accent` e `--ring` del tema base.
 - **Blu Scuro** (oklch(0.55 0.16 252), `brand-scuro`, nel CSS `--brand-scuro`; `crm-primary` ne e l'alias nel CRM): lo stesso blu piu scuro e meno saturo, per il fondo chiaro del CRM (CTA principali, voce attiva, focus) e per il pulsante in alto del sito sul navy. Bianco sopra fa 4,88:1; sul blu chiaro `brand` farebbe 3,25:1.
+- **Blu sui fondi chiari** (oklch(0.53 0.16 252), `--brand-su-chiaro`): un gradino piu scuro per il testo blu sui fondi chiari del sito. Lo applica da solo `--brand` dentro `.bg-light-panel`, `.bg-white-trama`, `.bg-white-grid` (4,72-5,31:1 invece di 2,90-3,26:1): gradino sui fondi chiari del sito, nessuna classe da cambiare.
 
 ### Secondary
 - Nessun secondo accento. Il pulsante arancio dell'intestazione e stato portato sul Blu Scuro pieno (scelta del titolare, 12/10/2026): se le prenotazioni da quel pulsante calano nelle due settimane dopo, rimetterlo arancio e un lavoro di pochi minuti.
@@ -199,6 +200,8 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 **The Nessun-Testo-Sfumato Rule.** Il testo con sfumatura (`bg-clip-text` + gradiente) e un anti-pattern da togliere. Le classi `.hl-nextgen` e `.text-aurora` (`src/styles.css`, usate in `src/routes/index.tsx`, nel funnel di prenotazione e nei testi dell'editor della landing) restano con lo stesso nome ma ora sono blu `brand` pieno, fermo, senza sottolineatura animata. Resta da togliere `src/routes/preventivo.tsx` riga 5565 (`bg-gradient-to-r from-brand via-sky-300 to-brand bg-clip-text text-transparent`), schermata della chiamata: fase 4.
 
 **La regola dell'accento raro.** Nel CRM il blu compare solo sull'azione principale e su ciò che è attivo. Se tutto è blu, niente lo è.
+**Regola del blu.** Un solo blu pieno, `primary`: dove sei e cosa è acceso (cella di oggi, giorno scelto, linea "adesso", filtro acceso, azione principale). `sky` solo come tinta di segnale "da fare adesso/oggi" (fondo 50, bordo 200/300, testo 700): mai pieno, mai bianco su sky. I filtri personali ("Solo i miei") sono neutri.
+**Filetti laterali.** Solo a 1 px; lo stato lo porta la tinta di fondo. Nessuna eccezione.
 **La regola dello schermo condiviso.** Nelle schermate che il cliente vede in chiamata, nessun colore d'allarme per informazioni interne e nessun dato di altri clienti.
 
 
@@ -279,13 +282,13 @@ Per portare un angolo fuori scala sulla scala: `rounded` e `rounded-sm` diventan
 
 ### Chips
 - **Stato (CRM):** `Chip` in `src/crm/ui.tsx`: pillola (`rounded-full`), 11px peso 500, bordo 1px, tinta di fondo al 15% con testo 700; pallino pieno facoltativo da 6px.
-- **Badge (libreria UI):** `rounded-md`, 12px peso 600, varianti default / secondary / destructive / outline. Nel CRM `[data-slot="badge"]` prende la forma a pillola della `Chip` (resta a 12px); il componente non emette ancora `data-slot`, lo aggiunge la consegna dei pezzi comuni del CRM.
+- **Badge (libreria UI):** pillola `rounded-full`, 12px peso 500, `px-2`, `data-slot="badge"`, senza ombra; varianti default / secondary / destructive / outline. La regola `.crm-theme [data-slot="badge"]` e solo una rete di sicurezza, dentro `@layer components`.
 
 ### Cards / Containers
 - **CRM, `Scheda`:** `rounded-xl`, bordo 1px, fondo bianco, intestazione con titolo 13px/600 e nota 11px, bordo inferiore, azioni a destra.
-- **Libreria UI, `Card`:** `rounded-xl border bg-card shadow`, padding 24px (`p-6`).
+- **Libreria UI, `Card`:** `rounded-xl border bg-card`, senza ombra, `data-slot="card"`, padding 24px (`p-6`).
 - **Sito scuro:** vetro (`hg-vetro`), `glass-card` (gradiente + riflesso + alone blu), `rounded-3xl` per le schede del preventivo.
-- **Riquadri numerici (`Kpi`, `KpiPill`):** numero 19px o 12px bold tabular-nums con etichetta 10-11px maiuscola.
+- **Riquadri numerici (`Kpi`, `KpiPill`):** numero 19px o 12px bold tabular-nums con etichetta 11px maiuscola.
 
 ### Inputs / Fields
 - **Style:** altezza 36px, `rounded-md`, bordo 1px `input`, fondo trasparente, padding 4px 12px, testo base 16px che scende a `text-sm` da md in su.
@@ -293,7 +296,7 @@ Per portare un angolo fuori scala sulla scala: `rounded` e `rounded-sm` diventan
 - **Error / Disabled:** disabled al 50% di opacita, cursore bloccato. Stato errore dei campi non standardizzato (da confermare); nel preventivo esiste un bordo che pulsa per "campo da compilare" (`.hg-pulse-border`).
 
 ### Navigation
-- **Sidebar CRM:** fondo grigio chiarissimo, gruppi con titolo 10px maiuscolo, voci con icona da 16px, indicatore verticale di 3px sulla voce attiva (oggi `sky-500`, non il blu `primary`: passa al blu del marchio con la consegna dei pezzi comuni del CRM), ricerca con scorciatoia da tastiera, pie di pagina con email e ruolo. Si comprime a sole icone.
+- **Sidebar CRM:** fondo grigio chiarissimo, gruppi con titolo 11px maiuscolo, voci con icona da 16px, indicatore verticale di 3px sulla voce attiva in `bg-primary` (`data-slot="indicatore-attivo"`), ricerca con scorciatoia da tastiera, pie di pagina con email e ruolo. Si comprime a sole icone.
 - **Intestazione sito:** `bg-blueprint` fissa, 64px, logo 32-36px, un solo pulsante in maiuscolo con tracking 0.2em.
 - **Tab, segmenti:** `Segmento` rounded-lg per i filtri del CRM.
 
@@ -325,8 +328,8 @@ Schermata scura a piena pagina con vetro, cifre grandi tabulari, prezzo che "sca
 
 ## Incoerenze di coerenza visiva trovate (per la revisione)
 1. **Due sistemi di colore.** (in parte: i colori dei file toccati vengono da token; il riordino dei toni chiari del tema scuro va con la fase 4) Il tema base (`:root`) e scuro e il suo `--popover`, `--secondary`, `--muted` sono pero chiari (testo scuro su fondo bianco) mentre `--background` e navy: i componenti shadcn sono pensati per un solo tema e restano a meta. Il CRM ridefinisce quasi tutto in `.crm-theme`.
-2. **[risolto nel CSS; manca l'attributo `data-slot` sui componenti, lo mette la consegna dei pezzi comuni] Regole del CRM che non si applicano.** `.crm-theme [data-slot="card"]` (niente ombra, raggio 0.5rem) e `[data-slot="badge"]` non colpiscono nulla: `Card` e `Badge` della libreria non hanno `data-slot`. Il risultato e che `Card` ha ombra e raggio 12px nel CRM, mentre `Scheda` ha 12px senza ombra: due modelli di scheda.
-3. **[risolto con C2: il file c'è, l'attributo sulla radice lo mette il compito successivo] Inter dichiarato ma non caricato.** Di fatto si vede il font di sistema, quindi cambia da Mac a Windows a Android.
+2. **[risolto] Regole del CRM che non si applicano.** `.crm-theme [data-slot="card"]` (niente ombra, raggio 0.5rem) e `[data-slot="badge"]` non colpiscono nulla: `Card` e `Badge` della libreria non hanno `data-slot`. Il risultato e che `Card` ha ombra e raggio 12px nel CRM, mentre `Scheda` ha 12px senza ombra: due modelli di scheda.
+3. **[risolto] Inter dichiarato ma non caricato.** Di fatto si vede il font di sistema, quindi cambia da Mac a Windows a Android.
 4. **[in parte: scala e due ombre definite, applicate ai file toccati; il resto e fase 3-4] Troppi raggi e ombre.** Sette raggi in uso e cinque livelli di ombra Tailwind piu quattro ombre proprie; `shadow-2xl` e `shadow-lg` compaiono oltre 60 volte ciascuno.
-5. **[in parte: footer e blocchi comuni su token; il resto e fase 3] Colori scritti a mano.** Esadecimali ripetuti nelle pagine del sito (`#050f24` 28 volte, `#0b1730` 19, `#081634` 18, `#0b1224`, `#081226`, `#0b1a38`) invece dei token `navy`: almeno sei navy quasi uguali. Sidebar CRM con indicatore `sky-500` invece del primary.
+5. **[risolto per la sidebar; il resto dei colori scritti a mano e fase 3] Colori scritti a mano.** Esadecimali ripetuti nelle pagine del sito (`#050f24` 28 volte, `#0b1730` 19, `#081634` 18, `#0b1224`, `#081226`, `#0b1a38`) invece dei token `navy`: almeno sei navy quasi uguali. (La sidebar del CRM ora usa il primary per la voce attiva.)
 6. **[risolto nel CSS; resta il preventivo, fase 4] Arancio CTA isolato** e testo con sfumatura animata in piu punti.
