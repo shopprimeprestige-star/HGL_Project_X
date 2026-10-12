@@ -20,7 +20,7 @@ export function ComparisonTable() {
           <div className="px-4 py-3 border-b border-l border-white/15 bg-destructive/15 text-destructive font-bold">
             ✕ {STD_LABEL}
           </div>
-          <div className="shine shine-soft px-4 py-3 border-b border-l border-white/15 text-brand-foreground font-bold bg-brand">
+          <div className="shine shine-soft px-4 py-3 border-b border-l border-white/15 text-brand-foreground font-bold bg-brand-scuro">
             ✓ Bio-mimetic
           </div>
         </div>
@@ -39,7 +39,7 @@ export function ComparisonTable() {
               <span>{std}</span>
             </div>
             <div
-              className="shine shine-soft px-4 py-4 border-l border-white/15 text-white font-semibold flex items-start gap-2 bg-brand/15 border-l-2 border-l-brand"
+              className="shine shine-soft px-4 py-4 border-l border-white/15 text-white font-semibold flex items-start gap-2 bg-brand/15 border-l-brand"
             >
               <Check className="h-3.5 w-3.5 mt-0.5 text-brand shrink-0" strokeWidth={2.5} />
               <span>{bio}</span>
@@ -56,7 +56,7 @@ export function ComparisonTable() {
             className={`${i > 0 ? "border-t border-white/15" : ""}`}
           >
             {/* Prominent label header bar */}
-            <div className="bg-brand/15 border-l-2 border-brand px-4 py-3.5 flex items-center gap-2">
+            <div className="bg-brand/15 border-l border-brand px-4 py-3.5 flex items-center gap-2">
               <span className="text-brand text-etichetta tracking-[0.25em] uppercase font-bold">
                 {String(i + 1).padStart(2, "0")}
               </span>
@@ -66,7 +66,7 @@ export function ComparisonTable() {
               </span>
             </div>
             <div className="grid grid-cols-2">
-              <div className="px-4 py-4 bg-destructive/10 border-l-2 border-destructive">
+              <div className="px-4 py-4 bg-destructive/10 border-l border-destructive">
                 <div className="flex items-center gap-2 text-etichetta tracking-widest uppercase text-destructive font-bold">
                   <X className="h-3 w-3" strokeWidth={2.5} />
                   <span>{STD_LABEL}</span>
@@ -74,7 +74,7 @@ export function ComparisonTable() {
                 <div className="mt-2 text-sm text-white/65">{std}</div>
               </div>
               <div
-                className="shine shine-soft px-4 py-4 bg-brand/20 border-l-2 border-brand"
+                className="shine shine-soft px-4 py-4 bg-brand/20 border-l border-brand"
               >
                 <div className="flex items-center gap-2 text-etichetta tracking-widest uppercase text-brand font-bold">
                   <Check className="h-3 w-3" strokeWidth={2.5} />

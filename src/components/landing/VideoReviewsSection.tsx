@@ -45,7 +45,7 @@ function ReviewCard({ review }: { review: Review }) {
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-navy via-navy-light to-navy grid place-items-center">
-            <span className="text-[0.7rem] tracking-[0.22em] uppercase text-white/35">
+            <span className="text-[0.7rem] tracking-[0.22em] uppercase text-white/60">
               Video recensione
             </span>
           </div>
@@ -73,7 +73,7 @@ function ReviewCard({ review }: { review: Review }) {
           </button>
         )}
 
-        <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 bg-brand text-brand-foreground text-etichetta tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded-md shine">
+        <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 bg-brand-scuro text-brand-foreground text-etichetta tracking-[0.22em] uppercase font-bold px-2.5 py-1 rounded-md shine">
           <ShieldCheck className="h-3 w-3" strokeWidth={2.5} /> Verificato
         </div>
       </div>
@@ -92,7 +92,7 @@ function ReviewCard({ review }: { review: Review }) {
         <h3 className="text-base font-bold text-white leading-snug tracking-tight">
           {review.title}
         </h3>
-        <p className="text-sm text-white/65 leading-relaxed border-l-2 border-brand/60 pl-3">
+        <p className="text-sm text-white/65 leading-relaxed border-l border-brand/60 pl-3">
           {review.text}
         </p>
       </div>
