@@ -15,8 +15,7 @@ colors:
   success: "oklch(0.62 0.17 152)"
   warning: "oklch(0.78 0.15 78)"
   info: "oklch(0.65 0.14 230)"
-  cta-warm: "oklch(0.72 0.18 45)"
-  cta-warm-deep: "oklch(0.62 0.2 30)"
+  brand-scuro: "oklch(0.55 0.16 252)"
   crm-background: "oklch(0.995 0.002 250)"
   crm-foreground: "oklch(0.18 0.015 255)"
   crm-primary: "oklch(0.55 0.16 252)"
@@ -28,43 +27,43 @@ colors:
   crm-destructive: "oklch(0.58 0.21 27)"
 typography:
   display:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "24px"
     fontWeight: 700
     lineHeight: 1
     letterSpacing: "normal"
   headline:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "20px"
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "15px"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.015em"
   body:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "13.5px"
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "-0.005em"
   note:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "12.5px"
     fontWeight: 400
     lineHeight: 1.35
     letterSpacing: "-0.005em"
   label:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "11px"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "0.08em"
   eyebrow:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "InterHGL, Inter, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.72rem"
     fontWeight: 600
     lineHeight: 1.3
@@ -104,8 +103,8 @@ components:
     rounded: "{rounded.md}"
     height: "36px"
     padding: "8px 16px"
-  button-cta-warm:
-    backgroundColor: "{colors.cta-warm}"
+  button-header-sito:
+    backgroundColor: "{colors.brand-scuro}"
     textColor: "{colors.brand-foreground}"
     rounded: "{rounded.md}"
     padding: "10px 20px"
@@ -163,11 +162,11 @@ Scartate: "La Sala Consulenza" (calma e leggibile, ma poca identità per il sito
 **Uso reale.** Il consulente usa il programma durante la videochiamata con il cliente (Meetly, preventivo in tempo reale), poi il titolare che gestisce tutto, poi setter e tecnici. Computer e iPhone; le pagine per i clienti soprattutto da telefono. Dati dei clienti protetti, velocita in chiamata. Per questo il CRM e denso di proposito ("ottocento righe si leggono perche sono strette") e il telefono ha una scala di testo propria.
 
 **Key Characteristics:**
-- Due temi, un solo blu: brand 252 su navy (sito) e 252 piu scuro e sobrio sul CRM chiaro.
+- Due temi, un solo blu: brand 252 su navy (sito) e 252 piu scuro e sobrio (`brand-scuro`) sul CRM chiaro e sul pulsante in alto del sito.
 - Linee fini al posto delle ombre nel CRM; vetro, aloni e riflessi sul sito scuro.
 - Il colore del CRM porta solo stato (cinque toni con significato fisso).
 - Numeri tabulari ovunque ci siano importi.
-- Molta decorazione animata sul sito e sul preventivo (riflessi, aurore, anelli) che il CRM spegne.
+- Decorazione animata ridotta: le parole evidenziate sono blu pieno e ferme; restano riflessi e anelli sul preventivo e sul modulo di prenotazione (fase 3-4), che il CRM spegne.
 
 ## Colors
 
@@ -175,10 +174,10 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 
 ### Primary
 - **Blu Brand** (oklch(0.65 0.19 252), token `brand`): accento unico del sito: eyebrow, parentesi d'angolo, focus ring, link, pulsanti principali sul navy. Anche `--primary`, `--accent` e `--ring` del tema base.
-- **Blu CRM** (oklch(0.55 0.16 252), `crm-primary`): lo stesso blu piu scuro e meno saturo per il fondo chiaro del CRM; solo CTA principali, voce attiva, focus.
+- **Blu Scuro** (oklch(0.55 0.16 252), `brand-scuro`, nel CSS `--brand-scuro`; `crm-primary` ne e l'alias nel CRM): lo stesso blu piu scuro e meno saturo, per il fondo chiaro del CRM (CTA principali, voce attiva, focus) e per il pulsante in alto del sito sul navy. Bianco sopra fa 4,88:1; sul blu chiaro `brand` farebbe 3,25:1.
 
 ### Secondary
-- **Arancio CTA caldo** (oklch(0.72 0.18 45) fino a oklch(0.62 0.2 30), `cta-warm`): sfumatura usata solo dal pulsante d'intestazione del sito (`.ng-header-cta`). E il solo colore caldo del sistema: o diventa un accento dichiarato oppure va riportato sul blu (da confermare).
+- Nessun secondo accento. Il pulsante arancio dell'intestazione e stato portato sul Blu Scuro pieno (scelta del titolare, 12/10/2026): se le prenotazioni da quel pulsante calano nelle due settimane dopo, rimetterlo arancio e un lavoro di pochi minuti.
 
 ### Neutral
 - **Navy Profondo** (oklch(0.15 0.045 258), `navy-deep`): sfondo base del tema pubblico (`--background`).
@@ -193,11 +192,11 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 - Stato delle trattative nel CRM, da `types.ts` (`LEAD_PHASE_COLOR`): sky "da lavorare", indigo "in corso", ambra "in sospeso", emerald "vinta", rose "persa", slate "chiusa", tutti come tinta al 15% con testo 700 e bordo al 30%.
 
 ### Named Rules
-**The Un-Solo-Blu Rule.** Tutto il sistema ruota sulla tinta 252. Un secondo accento (oggi l'arancio del pulsante di intestazione) deve avere un ruolo scritto, non essere un'eccezione.
+**The Un-Solo-Blu Rule.** Tutto il sistema ruota sulla tinta 252, in due luminosita (`brand` sul navy, `brand-scuro` dove serve testo bianco o fondo chiaro). L'arancio non c'e piu: un secondo accento deve avere un ruolo scritto, non essere un'eccezione.
 
 **The Colore-e-Informazione Rule.** Nel CRM il colore dice lo stato di una trattativa e basta. Un tono, un significato; niente colore decorativo. (confermato nel codice di `src/crm/ui.tsx`)
 
-**The Nessun-Testo-Sfumato Rule.** Il testo con sfumatura (`bg-clip-text` + gradiente) e un anti-pattern da togliere. Il rilevatore di Impeccable lo trova in `src/routes/preventivo.tsx` riga 5565 (`bg-gradient-to-r from-brand via-sky-300 to-brand bg-clip-text text-transparent`); lo stesso effetto esiste come classi riusabili `.hl-nextgen` e `.text-aurora` in `src/styles.css` (animate), usate in `src/routes/index.tsx` e nel funnel di prenotazione. Un solo colore pieno (brand) al loro posto.
+**The Nessun-Testo-Sfumato Rule.** Il testo con sfumatura (`bg-clip-text` + gradiente) e un anti-pattern da togliere. Le classi `.hl-nextgen` e `.text-aurora` (`src/styles.css`, usate in `src/routes/index.tsx`, nel funnel di prenotazione e nei testi dell'editor della landing) restano con lo stesso nome ma ora sono blu `brand` pieno, fermo, senza sottolineatura animata. Resta da togliere `src/routes/preventivo.tsx` riga 5565 (`bg-gradient-to-r from-brand via-sky-300 to-brand bg-clip-text text-transparent`), schermata della chiamata: fase 4.
 
 **La regola dell'accento raro.** Nel CRM il blu compare solo sull'azione principale e su ciò che è attivo. Se tutto è blu, niente lo è.
 **La regola dello schermo condiviso.** Nelle schermate che il cliente vede in chiamata, nessun colore d'allarme per informazioni interne e nessun dato di altri clienti.
@@ -205,11 +204,11 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 
 ## Typography
 
-**Display Font:** Inter (con ui-sans-serif, system-ui, sans-serif)
-**Body Font:** Inter (stesso stack)
+**Display Font:** InterHGL, cioe Inter (con "Inter", ui-sans-serif, system-ui, sans-serif come ripiego)
+**Body Font:** InterHGL (stesso stack)
 **Label/Mono Font:** nessun mono dichiarato nel tema; `font-mono` di Tailwind compare 81 volte nelle pagine
 
-**Character:** una sola famiglia sans neutra, dichiarata in `--font-sans` e `--font-display`. La gerarchia la fanno peso, misura e spaziatura, non il carattere. Nota: nel codice non ho trovato nessun caricamento di Inter (niente `@font-face`, niente link ai font), quindi di fatto si vede il carattere di sistema (San Francisco su Apple).
+**Character:** una sola famiglia sans neutra, dichiarata in `--font-sans` e `--font-display`. La gerarchia la fanno peso, misura e spaziatura, non il carattere. Inter e caricato dal sito (famiglia `InterHGL`, file `public/fonts/inter/5.3.0/`, licenza OFL, `font-display: swap`, niente servizi esterni) su homepage, blog e CRM: stesse lettere su Mac, Windows e iPhone. Vale solo dove la radice mette `<html data-carattere="inter">`; la chiamata (preventivo, Meetly, prova capelli, presentazione, regia) usa ancora il carattere di sistema fino alla fase 4.
 
 ### Hierarchy
 La scala del CRM ha cinque passi con classi `t-*` (`src/styles.css`); sotto i 1024px sono piu grandi per leggere meglio da telefono, da 1024 in su tornano ai valori densi da monitor.
@@ -239,23 +238,34 @@ Scala di spaziatura osservata (da confermare, non c'e un token): 4, 8, 16, 24; g
 
 ## Elevation & Depth
 
-Sistema ibrido, diverso per superficie. Il CRM e piatto: le schede hanno solo un bordo da 1px e `box-shadow: none` (regola in `.crm-theme`, che pero colpisce solo gli elementi con `data-slot="card"`, mai assegnato: vedi coerenza). Il sito scuro costruisce profondita con vetro (sfondo bianco al 2-8% con `backdrop-filter: blur(10-14px)`), riflessi interni sul bordo alto e aloni blu sotto gli elementi da decidere.
+Due ombre sole, per due ruoli. Il CRM e piatto: le schede hanno solo un bordo da 1px e `box-shadow: none` (regola in `.crm-theme` su `data-slot="card"`). Il sito scuro costruisce profondita con vetro (sfondo bianco al 2-8% con `backdrop-filter: blur(10-14px)`) e, per l'elemento su cui si decide, con l'alone.
 
 ### Shadow Vocabulary
-- **Alone** (`box-shadow: 0 12px 40px -12px rgba(59, 130, 246, 0.45)`, `.hg-alone`): sotto l'elemento su cui si sta decidendo.
+I due ruoli (token Tailwind in `src/styles.css`, classi `shadow-galleggiante` e `shadow-alone`):
+- **Galleggiante** (`0 1px 2px oklch(0.15 0.045 258 / 0.08), 0 8px 24px -6px oklch(0.15 0.045 258 / 0.18)`, `--shadow-galleggiante`): ogni cosa che sta sopra la pagina: finestre, menu, tooltip, barre fisse, banner dei cookie.
+- **Alone** (`0 12px 40px -12px rgba(59, 130, 246, 0.45)`, `--shadow-alone`, stesso valore di `.hg-alone`): solo sito scuro, un elemento per schermata, quello su cui si sta decidendo.
+- Tutto il resto senza ombra.
+
+Ancora presenti, da portare ai due ruoli nelle fasi 3-4 (schermate della chiamata e pagine non toccate):
 - **Vetro** (`.hg-vetro`: gradiente bianco 5.5% a 2%, bordo `rgba(255,255,255,0.09)`, blur 10px; `.hg-vetro-forte`: 8.5% a 3%, bordo 0.14, blur 14px): superfici sul navy.
 - **Pulsante premium** (`0 10px 30px -10px rgba(20, 48, 107, 0.55)` piu riflesso interno): `.btn-premium`.
 - **Barra del totale** (`inset 0 1px 0 rgba(255,255,255,.07), 0 -10px 44px rgba(0,0,0,.5)`, `.hg-glass`): barra fissa del preventivo su telefono.
 - **Tailwind generico**: `shadow-2xl` (65 usi), `shadow-lg` (64), `shadow-sm` (37), `shadow-md` (12), `shadow-xl` (11).
 
 ### Named Rules
-**The Piatto-Nel-CRM Rule.** Nel CRM niente ombre e niente aloni: profondita solo con bordi da 1px e due livelli di grigio.
+**The Piatto-Nel-CRM Rule.** Nel CRM niente ombre e niente aloni, salvo `shadow-galleggiante` per finestre e menu che escono dalla pagina: profondita solo con bordi da 1px e due livelli di grigio.
 
 **The Tre-Mattoni Rule.** Sul fondo scuro le superfici usano `hg-vetro`, `hg-lucido`, `hg-alone` e nient'altro (sono state create proprio per fermare la proliferazione di sfumature). (confermato dal commento nel codice)
 
 ## Shapes
 
-Raggio base `--radius: 0.5rem` (8px); scala derivata `sm` 4px, `md` 6px, `lg` 8px, `xl` 12px. Uso reale (conteggi nelle pagine): `rounded-lg` 670, `rounded-full` 479, `rounded-xl` 392, `rounded-md` 342, `rounded-2xl` 212, `rounded-sm` 52, `rounded-3xl` 15. Regola scritta in `src/crm/ui.tsx`: schede e riquadri numerici `rounded-xl`, pastiglie di stato `rounded-full`, controlli `rounded-md`, filtri a segmento `rounded-lg`. Il sito aggiunge 2xl e 3xl (16 e 24px) per le schede grandi del preventivo. Bordi sottili di 1px sempre; motivo ricorrente del sito: parentesi d'angolo da 14px in blu brand (`.brackets`) sopra una griglia a linee fini.
+Tre misure di angolo piu la pillola, con i nomi Tailwind che esistono gia (raggio base `--radius: 0.5rem`):
+- **`rounded-md` 6px, i controlli:** pulsanti, campi, tasti, segmenti.
+- **`rounded-lg` 8px, le cose dentro una scheda:** righe evidenziate, riquadri interni, tooltip, menu.
+- **`rounded-xl` 12px, i contenitori:** schede, finestre, pannelli.
+- **`rounded-full`, le pillole:** etichette, contatori, pallini, avatar.
+
+Per portare un angolo fuori scala sulla scala: `rounded` e `rounded-sm` diventano `md`, `rounded-2xl` e `rounded-3xl` diventano `xl`, `rounded-[Npx]` va al piu vicino. Nei file toccati dalla prima consegna vale gia; il preventivo, il sito scuro non toccato (`/nuova`, shop, media, invito, webinar) e il resto del CRM usano ancora 2xl e 3xl (16 e 24px) e `rounded-sm`: fasi 3-4. Bordi sottili di 1px sempre; motivo ricorrente del sito: parentesi d'angolo da 14px in blu brand (`.brackets`) sopra una griglia a linee fini.
 
 ## Components
 
@@ -265,11 +275,11 @@ Raggio base `--radius: 0.5rem` (8px); scala derivata `sm` 4px, `md` 6px, `lg` 8p
 - **Secondary / Outline / Ghost / Link:** grigio chiaro, bordo `input`, trasparente con fondo accent in hover, testo sottolineato.
 - **Destructive:** rosso con testo bianco.
 - **Focus:** nel componente `ring-1` sul colore ring; nel CRM un anello pieno da 2px a 40% (`box-shadow: 0 0 0 2px var(--ring)`).
-- **Pulsanti speciali del sito:** `.btn-premium` (gradiente navy con riflesso che scorre in loop, 3.2s) per il funnel di prenotazione; `.ng-header-cta` (gradiente arancio) per l'intestazione. Entrambi sono fuori dal componente `Button`.
+- **Pulsanti speciali del sito:** `.btn-premium` (gradiente navy con riflesso che scorre in loop, 3.2s) per il funnel di prenotazione; `.ng-header-cta` (blu `brand-scuro` pieno, testo bianco, senza ombra) per l'intestazione. Entrambi sono fuori dal componente `Button`.
 
 ### Chips
 - **Stato (CRM):** `Chip` in `src/crm/ui.tsx`: pillola (`rounded-full`), 11px peso 500, bordo 1px, tinta di fondo al 15% con testo 700; pallino pieno facoltativo da 6px.
-- **Badge (libreria UI):** `rounded-md`, 12px peso 600, varianti default / secondary / destructive / outline. Nel CRM `[data-slot="badge"]` a 0.7rem; ma il componente non emette `data-slot`.
+- **Badge (libreria UI):** `rounded-md`, 12px peso 600, varianti default / secondary / destructive / outline. Nel CRM `[data-slot="badge"]` prende la forma a pillola della `Chip` (resta a 12px); il componente non emette ancora `data-slot`, lo aggiunge la consegna dei pezzi comuni del CRM.
 
 ### Cards / Containers
 - **CRM, `Scheda`:** `rounded-xl`, bordo 1px, fondo bianco, intestazione con titolo 13px/600 e nota 11px, bordo inferiore, azioni a destra.
@@ -283,7 +293,7 @@ Raggio base `--radius: 0.5rem` (8px); scala derivata `sm` 4px, `md` 6px, `lg` 8p
 - **Error / Disabled:** disabled al 50% di opacita, cursore bloccato. Stato errore dei campi non standardizzato (da confermare); nel preventivo esiste un bordo che pulsa per "campo da compilare" (`.hg-pulse-border`).
 
 ### Navigation
-- **Sidebar CRM:** fondo grigio chiarissimo, gruppi con titolo 10px maiuscolo, voci con icona da 16px, indicatore verticale `sky-500` di 3px sulla voce attiva (non e il blu `primary`), ricerca con scorciatoia da tastiera, pie di pagina con email e ruolo. Si comprime a sole icone.
+- **Sidebar CRM:** fondo grigio chiarissimo, gruppi con titolo 10px maiuscolo, voci con icona da 16px, indicatore verticale di 3px sulla voce attiva (oggi `sky-500`, non il blu `primary`: passa al blu del marchio con la consegna dei pezzi comuni del CRM), ricerca con scorciatoia da tastiera, pie di pagina con email e ruolo. Si comprime a sole icone.
 - **Intestazione sito:** `bg-blueprint` fissa, 64px, logo 32-36px, un solo pulsante in maiuscolo con tracking 0.2em.
 - **Tab, segmenti:** `Segmento` rounded-lg per i filtri del CRM.
 
@@ -306,17 +316,17 @@ Schermata scura a piena pagina con vetro, cifre grandi tabulari, prezzo che "sca
 - **Do** riservare l'effetto (riflesso, alone) a un solo elemento per schermata sul sito scuro. (da confermare)
 
 ### Don't:
-- **Don't** usare testo con sfumatura (`bg-clip-text` con gradiente): `preventivo.tsx` riga 5565 e le classi `.hl-nextgen` / `.text-aurora` vanno sostituite con colore pieno.
+- **Don't** usare testo con sfumatura (`bg-clip-text` con gradiente): `.hl-nextgen` / `.text-aurora` ora sono colore pieno; resta `preventivo.tsx` riga 5565 (fase 4).
 - **Don't** aggiungere ombre alle schede del CRM ne decorazioni da landing (le griglie sono spente apposta dal tema).
-- **Don't** inventare un secondo accento: l'arancio di `.ng-header-cta` e l'eccezione da risolvere, non un modello.
+- **Don't** inventare un secondo accento: l'arancio di `.ng-header-cta` e stato tolto (blu `brand-scuro`).
 - **Don't** scrivere misure di testo a mano tipo `text-[11.5px]` nelle pagine nuove.
 - **Don't** mettere animazioni in loop (riflessi, anelli, aurore) su schermate usate in chiamata, dove distraggono dal numero. (da confermare)
 - **Don't** dipendere da classi Tailwind arbitrarie con `min-[900px]:` (nel commento del codice risultano non generate); si usa il breakpoint `sala`.
 
 ## Incoerenze di coerenza visiva trovate (per la revisione)
-1. **Due sistemi di colore.** Il tema base (`:root`) e scuro e il suo `--popover`, `--secondary`, `--muted` sono pero chiari (testo scuro su fondo bianco) mentre `--background` e navy: i componenti shadcn sono pensati per un solo tema e restano a meta. Il CRM ridefinisce quasi tutto in `.crm-theme`.
-2. **Regole del CRM che non si applicano.** `.crm-theme [data-slot="card"]` (niente ombra, raggio 0.5rem) e `[data-slot="badge"]` non colpiscono nulla: `Card` e `Badge` della libreria non hanno `data-slot`. Il risultato e che `Card` ha ombra e raggio 12px nel CRM, mentre `Scheda` ha 12px senza ombra: due modelli di scheda.
-3. **Inter dichiarato ma non caricato.** Di fatto si vede il font di sistema, quindi cambia da Mac a Windows a Android.
-4. **Troppi raggi e ombre.** Sette raggi in uso e cinque livelli di ombra Tailwind piu quattro ombre proprie; `shadow-2xl` e `shadow-lg` compaiono oltre 60 volte ciascuno.
-5. **Colori scritti a mano.** Esadecimali ripetuti nelle pagine del sito (`#050f24` 28 volte, `#0b1730` 19, `#081634` 18, `#0b1224`, `#081226`, `#0b1a38`) invece dei token `navy`: almeno sei navy quasi uguali. Sidebar CRM con indicatore `sky-500` invece del primary.
-6. **Arancio CTA isolato** e testo con sfumatura animata in piu punti.
+1. **Due sistemi di colore.** (in parte: i colori dei file toccati vengono da token; il riordino dei toni chiari del tema scuro va con la fase 4) Il tema base (`:root`) e scuro e il suo `--popover`, `--secondary`, `--muted` sono pero chiari (testo scuro su fondo bianco) mentre `--background` e navy: i componenti shadcn sono pensati per un solo tema e restano a meta. Il CRM ridefinisce quasi tutto in `.crm-theme`.
+2. **[risolto nel CSS; manca l'attributo `data-slot` sui componenti, lo mette la consegna dei pezzi comuni] Regole del CRM che non si applicano.** `.crm-theme [data-slot="card"]` (niente ombra, raggio 0.5rem) e `[data-slot="badge"]` non colpiscono nulla: `Card` e `Badge` della libreria non hanno `data-slot`. Il risultato e che `Card` ha ombra e raggio 12px nel CRM, mentre `Scheda` ha 12px senza ombra: due modelli di scheda.
+3. **[risolto] Inter dichiarato ma non caricato.** Di fatto si vede il font di sistema, quindi cambia da Mac a Windows a Android.
+4. **[in parte: scala e due ombre definite, applicate ai file toccati; il resto e fase 3-4] Troppi raggi e ombre.** Sette raggi in uso e cinque livelli di ombra Tailwind piu quattro ombre proprie; `shadow-2xl` e `shadow-lg` compaiono oltre 60 volte ciascuno.
+5. **[in parte: footer e blocchi comuni su token; il resto e fase 3] Colori scritti a mano.** Esadecimali ripetuti nelle pagine del sito (`#050f24` 28 volte, `#0b1730` 19, `#081634` 18, `#0b1224`, `#081226`, `#0b1a38`) invece dei token `navy`: almeno sei navy quasi uguali. Sidebar CRM con indicatore `sky-500` invece del primary.
+6. **[risolto nel CSS; resta il preventivo, fase 4] Arancio CTA isolato** e testo con sfumatura animata in piu punti.
