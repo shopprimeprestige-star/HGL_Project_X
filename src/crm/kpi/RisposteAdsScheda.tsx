@@ -31,7 +31,7 @@ import { Scheda, Segmento, VuotoRiga } from "@/crm/ui";
 import { leadIsConverted } from "@/crm/lead-analytics";
 import type { FiltroPeriodo } from "@/crm/kpi-calcoli";
 import { VOLUME_MINIMO_LPS } from "./soglie";
-import { domandeDeiLead, rispostaMigliore } from "./risposte-lead";
+import { domandeDeiLead, haRisposte, rispostaMigliore } from "./risposte-lead";
 
 /** Percentuali a un decimale, come nella scheda accanto. */
 const pct = (n: number) => `${n.toFixed(1)}%`;
@@ -44,7 +44,7 @@ export function RisposteAdsScheda({ dentro }: { dentro: FiltroPeriodo }) {
   //  tenere dentro anche chi non ha mai visto un questionario abbasserebbe
   //  ogni percentuale senza che nessuna riga lo spieghi.
   const conRisposte = useMemo(
-    () => leads.filter((l) => dentro(l.data.createdAt) && (l.data.modulo?.risposte?.length ?? 0) > 0),
+    () => leads.filter((l) => dentro(l.data.createdAt) && haRisposte(l)),
     [leads, dentro],
   );
 

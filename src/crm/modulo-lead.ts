@@ -261,8 +261,10 @@ export function campoDellaColonna(h: string): CampoModulo | undefined {
  *  con i trattini bassi e una «á» al posto della «à». Il punto interrogativo resta. */
 export function intestazioneLeggibile(h: string): string {
   return String(h ?? "")
+    .normalize("NFC")                     // una «á» scomposta (a + accento) è una sola lettera
     .replace(/[_\u00a0]+/g, " ")
     .replace(/á/g, "à")
+    .replace(/Á/g, "À")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -297,8 +299,14 @@ export function riconosciRisposta(
     const trovate = combacia(vale);
     if (!trovate.length) continue;
     if (!campo) {
-      const campi = new Set(trovate.map((x) => x.campo));
-      if (campi.size > 1 && [...campi].some((x) => CAMPI_NUOVI.has(x))) return undefined;
+      //  ⚠️ Se fra quelle che combaciano c'è una classica, vince la classica:
+      //   «Sì, ho già provato farmaci» è ancora «Conosce il settore» e «Mi
+      //   condiziona, ho un diradamento» è ancora «subito», come prima delle
+      //   tre domande nuove. Si lascia il valore senza domanda SOLO se
+      //   combaciano due domande nuove (il caso «nulla»).
+      const classica = trovate.find((x) => !CAMPI_NUOVI.has(x.campo));
+      if (classica) return classica;
+      if (new Set(trovate.map((x) => x.campo)).size > 1) return undefined;
     }
     return trovate[0];
   }

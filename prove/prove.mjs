@@ -4575,7 +4575,7 @@ function proveDellaRicercaManutenzione() {
 }
 
 function proveDelCvrPerRisposta() {
-  const { domandeDeiLead, rispostaMigliore } = RSL;
+  const { domandeDeiLead, rispostaMigliore, haRisposte } = RSL;
   gruppo("QUALE RISPOSTA COMPRA");
 
   const scheda = (risposte, vinto) => ({ data: { modulo: { risposte }, vinto } });
@@ -4618,6 +4618,18 @@ function proveDelCvrPerRisposta() {
   ], vinto);
   c("una scheda con la sola nota entra nei conti", "Fastidio|Problema",
     dallaNota.map((x) => x.domanda).sort().join("|"));
+  //  ⚠️ Ma la pagina filtra le schede PRIMA di contarle: la prova deve passare
+  //   da quel filtro, non solo dalla funzione che conta. Un lead vecchio ha
+  //   `modulo` vuoto e solo la nota.
+  const soloNota = { data: { modulo: {}, note: "Dal modulo: alopecia androgenetica \u00b7 abbastanza \u00b7 nulla" } };
+  c("il filtro della pagina fa passare chi ha la sola nota", true, haRisposte(soloNota));
+  c("e non chi non ha risposto a niente", false, haRisposte({ data: { note: "richiamare" } }));
+  c("nemmeno con un questionario vuoto", false, haRisposte({ data: { modulo: {} } }));
+  //  La pagina usa quel filtro (non uno suo): senza questo controllo basta una
+  //  riga rimessa com'era per far tornare a zero le schede vecchie.
+  const paginaKpi = readFileSync(join(radice, "src/crm/kpi/RisposteAdsScheda.tsx"), "utf8");
+  c("la scheda KPI filtra con haRisposte", true, /haRisposte\(l\)/.test(paginaKpi));
+  c("e non guarda piu' solo modulo.risposte", false, /modulo\?\.risposte\?\.length/.test(paginaKpi));
 
   //  ⚠️ UNA SCHEDA CONTA UNA VOLTA SOLA PER DOMANDA. Un file storto puo'
   //   portare due risposte alla stessa domanda: contandole entrambe, il
@@ -4969,6 +4981,8 @@ function proveDelleDomandeNuove() {
   c("l'intestazione si legge come una frase", "cosa hai già fatto?", intestazioneLeggibile("cosa_hai_giá_fatto?"));
   c("senza doppi spazi né spazio in coda", "quanto ti infastidisce?",
     intestazioneLeggibile("  quanto__ti_infastidisce?  "));
+  c("la «á» scomposta è una «à»", "cosa hai già fatto?", intestazioneLeggibile("cosa_hai_gia\u0301_fatto?"));
+  c("e la maiuscola pure", "Cosa hai gi\u00c0 fatto?", intestazioneLeggibile("Cosa_hai_gi\u00c1_fatto?"));
 
   //  ── LE RISPOSTE, DAL VALORE ─────────────────────────────────────────
   const dove = (t, campo) => {
@@ -4999,6 +5013,16 @@ function proveDelleDomandeNuove() {
   c("e una con «niente» nemmeno", undefined, dove("non_ho_niente_in_contrario"));
   //  Le classiche si comportano come prima.
   c("una classica resta una classica", "zona/sud", dove("sud_italia_e_isole"));
+  //  ⚠️ Quando una classica si scontra con una parola delle nuove, vince la
+  //   classica (come in 13e8039): prima di queste tre domande le due frasi
+  //   erano conoscenza/settore e urgenza/subito.
+  c("«ho già provato farmaci» resta «Conosce il settore»", "conoscenza/settore",
+    dove("Sì, ho già provato farmaci"));
+  c("«mi condiziona, ho un diradamento» resta «subito»", "urgenza/subito",
+    dove("Mi condiziona, ho un diradamento"));
+  //  Con la colonna affidabile il valore resta una risposta con il suo codice.
+  const frase = leggiRisposte(["conosci_hair_genius_labs?"], ["Sì, ho già provato farmaci"], new Set(), true);
+  c("e con la colonna affidabile ha il suo codice", "settore", frase.conoscenza);
   c("un valore qualunque non è nessuna risposta", undefined, dove("Mario Esempio"));
 
   //  ── COLONNA O VALORE: CHI COMANDA ───────────────────────────────────

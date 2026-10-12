@@ -56,6 +56,14 @@ export interface DomandaConteggiata {
   righe: RigaRisposta[];
 }
 
+/** Questa scheda ha risposto a qualcosa? Si guarda con `moduloLetto`, come il
+ *  conto: i lead vecchi che hanno solo la riga «Dal modulo:» nelle note hanno
+ *  `modulo` vuoto e, con un filtro su `modulo.risposte`, restavano fuori dalla
+ *  pagina anche se il conto li sapeva leggere. Un filtro solo, qui, per tutti. */
+export function haRisposte(l: Pick<Lead, "data">): boolean {
+  return (moduloLetto(l.data)?.risposte?.length ?? 0) > 0;
+}
+
 /** Il conto. `convertito` arriva da fuori ed è SEMPRE quello del resto del CRM
  *  (crm/lead-analytics → leadIsConverted): una seconda definizione di «ha
  *  comprato» dentro questo file vorrebbe dire due pagine che si smentiscono. */
