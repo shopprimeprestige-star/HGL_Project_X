@@ -1401,6 +1401,13 @@ export interface LeadData {
   // non viene più segnata da nessuna parte e le vendite tornano ad attribuirsi
   // al giorno in cui è arrivato il numero di telefono.
   convertedAt?: string;
+  /** ── QUANDO È STATO CONTATTATO LA PRIMA VOLTA ────────────────────────────
+   *  ISO, scritto da `updateLead` (crm/CRMContext) la prima volta che il lead
+   *  lascia «Da contattare», e mai più riscritto: misura quanto ci si mette a
+   *  rispondere a un lead nuovo (tempo di prima risposta, rotta /api/aios/kpi).
+   *  ⚠️ Assente sulle schede più vecchie di questo campo: si legge come «non
+   *   si sa», mai come «subito». */
+  firstContactAt?: string;
   /** ── L'ACQUISTO È GIÀ STATO ANNUNCIATO ALLE PIATTAFORME ─────────────────
    *  ISO, scritto la prima e unica volta che parte il Purchase verso Meta.
    *
@@ -1719,6 +1726,13 @@ export interface PublicLead {
   accepted_at?: string | null;
   accepted_by_consultant_id?: string | null;
   reminder_sent_at?: string | null;
+  /** L'annuncio che ha portato la persona: la tabella li ha sempre avuti, il
+   *  tipo no. Servono ad `assign` (CRM.nuovi-contatti) per copiarli sulla scheda. */
+  ad_id?: string | null;
+  adset_id?: string | null;
+  campaign_id?: string | null;
+  ad_name?: string | null;
+  creative_name?: string | null;
 }
 
 export function detectPublicLeadSource(p: PublicLead): "meta" | "tiktok" | "organic" {

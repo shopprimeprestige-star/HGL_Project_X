@@ -277,6 +277,17 @@ function NuoviLeadPage() {
         fbc: p.fbc ?? undefined,
         ttclid: p.ttclid ?? undefined,
         event_id: p.event_id ?? undefined,
+        //  ── L'ANNUNCIO RESTA SUL LEAD ─────────────────────────────────────
+        //  Prima si copiavano solo utm e click-id: dell'annuncio che aveva
+        //  portato la persona restava traccia solo nella riga pubblica, e chi
+        //  voleva sapere «quanti clienti da questo video?» doveva risalirci
+        //  ogni volta. Adesso li porta la scheda (i campi esistono già in
+        //  TrackingInfo, li scrive già l'importazione di Meta).
+        ad_id: p.ad_id ?? undefined,
+        adset_id: p.adset_id ?? undefined,
+        campaign_id: p.campaign_id ?? undefined,
+        ad_name: p.ad_name ?? undefined,
+        creative_name: p.creative_name ?? undefined,
       },
       publicLeadId: p.id,
     };

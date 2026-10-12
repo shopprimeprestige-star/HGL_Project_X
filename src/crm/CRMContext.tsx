@@ -819,6 +819,21 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (!wasConv && isConv && !merged.convertedAt) {
       merged = { ...merged, convertedAt: new Date().toISOString() };
     }
+    /*  ── L'ORA DEL PRIMO CONTATTO ────────────────────────────────────────
+        La prima volta che la scheda lascia «Da contattare» qualcuno l'ha
+        presa in mano: quell'istante è il tempo di risposta al lead, e serve
+        a chi misura quanto si ci mette (rotta /api/aios/kpi).
+        ⚠️ SI SCRIVE UNA VOLTA SOLA: un lead rimesso «Da contattare» e
+         lavorato di nuovo non cancella la prima risposta, che è quella vera.
+        ⚠️ Qui, e non dove si preme il tasto: gli stati si cambiano da sei
+         schermate, e questo è l'unico punto da cui passano tutte. */
+    if (
+      current.data.stato === "da_contattare" &&
+      merged.stato !== "da_contattare" &&
+      !merged.firstContactAt
+    ) {
+      merged = { ...merged, firstContactAt: new Date().toISOString() };
+    }
     /*  ── L'ACQUISTO SI ANNUNCIA UNA VOLTA SOLA ───────────────────────────
         La soglia «prima non era vinto, adesso sì» dice che è successo un
         fatto, non che quel fatto sia NUOVO: una vendita riaperta e richiusa la
