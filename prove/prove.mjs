@@ -399,6 +399,8 @@ const MODULI = [
   //  ⚠️ I preventivi quando sono in più di uno: le stanze, la penna, e che
   //   cosa vede ciascuno. Vedi proveDeiPreventiviDiGruppo.
   "shop/preventivi-di-gruppo",
+  //  ⚠️ Tutti i preventivi del gruppo in parallelo. Vedi proveDellaVistaParallela.
+  "shop/vista-parallela",
   "shop/errori-esterni",
   //  ⚠️ La precedenza del preventivo personale: chi la alza, chi la ascolta.
   //   Vedi proveDellaPrecedenza.
@@ -580,6 +582,7 @@ const CDP = mod["shop/causale-di-un-preventivo"];
 const SAL = mod["shop/sala-attesa"];
 const FAS = mod["fascia-consulenza"];
 const PDG = mod["shop/preventivi-di-gruppo"];
+const VPA = mod["shop/vista-parallela"];
 const MUTI = mod["shop/ospiti-muti"];
 const EXT = mod["shop/errori-esterni"];
 const MIO = mod["shop/mio-preventivo"];
@@ -15441,6 +15444,58 @@ function proveDelRinfresco() {
   c("mai riletto: si rilegge", true, daRileggere({ motivo: "orologio", visibile: true, ultima: 0, adesso: t }));
 }
 
+/** ── IL CLIENTE NON VEDEVA IL PREVENTIVO ───────────────────────────────────
+ *  Stanza della sera della segnalazione: preventivo personale aperto,
+ *  nessuno acceso, comune spento. Vedi shop/preventivi-di-gruppo. */
+function proveDelPreventivoCheNonVede() {
+  const { accendiAprendo, ilClienteNonLoVede, leggiRegia } = PDG;
+  gruppo("IL CLIENTE NON VEDEVA IL PREVENTIVO");
+  c("un cliente solo: si accende aprendolo", true, accendiAprendo({ persone: 1 }));
+  c("in due: resta spento", false, accendiAprendo({ persone: 2 }));
+  c("nessuno in elenco: non si accende niente", false, accendiAprendo({ persone: 0 }));
+  const quellaSera = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: [], aperto: "abc123", at: 1 }));
+  c("la stanza di quella sera: il cliente NON lo vedeva", true, ilClienteNonLoVede({ regia: quellaSera, aperto: "abc123" }));
+  const accesa = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: ["abc123"], aperto: "abc123", at: 2 }));
+  c("acceso per lui: niente avviso", false, ilClienteNonLoVede({ regia: accesa, aperto: "abc123" }));
+  c("sul preventivo comune: niente avviso", false, ilClienteNonLoVede({ regia: quellaSera, aperto: "" }));
+  c("regia non ancora arrivata: nessun avviso che lampeggia", false, ilClienteNonLoVede({ regia: null, aperto: "abc123" }));
+}
+
+/** ── TUTTI I PREVENTIVI DEL GRUPPO, IN PARALLELO ───────────────────────────
+ *  «Se assegno che devono compilare voglio vederli tutti in contemporanea».
+ *  Vedi shop/vista-parallela. */
+function proveDellaVistaParallela() {
+  const { schedaDelPreventivo, chiCompila, attivita, SOGLIA_VIVO_MS } = VPA;
+  const { buildMenu, sectionsFor } = QMN;
+  const { leggiRegia } = PDG;
+  gruppo("TUTTI I PREVENTIVI DEL GRUPPO, IN PARALLELO");
+  const menu = buildMenu({});
+  const base = menu.base.find((b) => b.id !== "trapianto" && sectionsFor(menu.sections, b.id).some((x) => x.items.length));
+  const voce = sectionsFor(menu.sections, base.id).flatMap((x) => x.items)[0];
+  const vuota = schedaDelPreventivo({}, menu);
+  c("chi non ha scelto niente ha la scheda vuota", true, vuota.vuoto);
+  const fit = menu.fitting[0];
+  const sc = schedaDelPreventivo({ baseId: base.id, selected: [voce.id], qty: 2, fitting: fit.id }, menu);
+  c("la soluzione scelta col suo nome", base.name, sc.soluzione);
+  c("le voci scelte col loro nome", voce.name, sc.voci[0]);
+  c("la quantità", 2, sc.quantita);
+  c("la stima: (base + voce) × 2 + applicazione", (base.price + voce.price) * 2 + fit.price, sc.totale);
+  c("mentre si compone è una stima", false, sc.esatto);
+  const conCodice = schedaDelPreventivo({ baseId: base.id, qty: 1, fitting: fit.id, manual: { code: "PROVA", discount_eur: 100 } }, menu);
+  c("il codice sconto si vede", "PROVA", conCodice.codice);
+  c("e toglie i suoi euro dalla stima", Math.max(0, base.price + fit.price - 100), conCodice.totale);
+  const creato = schedaDelPreventivo({ baseId: base.id, qty: 1, result: { total: 1234 } }, menu);
+  c("a preventivo creato vale il SUO totale", 1234, creato.totale);
+  c("ed è esatto", true, creato.esatto);
+  const regia = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: ["aaa111", "bbb222"], aperto: "", at: 1 }));
+  const attesi = [{ gettone: "aaa111", nome: "A" }, { gettone: "ccc333", nome: "C" }, { gettone: "bbb222", nome: "B" }, { gettone: "", nome: "senza" }];
+  c("le schede sono di chi ha il preventivo acceso, in ordine", "A,B", chiCompila({ regia, attesi }).map((p) => p.nome).join(","));
+  c("regia non arrivata: nessuna scheda", 0, chiCompila({ regia: null, attesi }).length);
+  c("appena toccato: sta compilando", true, attivita(1000, 1000 + SOGLIA_VIVO_MS - 1).vivo);
+  c("fermo da 3 minuti", "fermo da 3 min", attivita(1000, 1000 + 3 * 60_000 + 5).testo);
+  c("mai toccato", "non ha ancora toccato niente", attivita(0, 5000).testo);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15468,6 +15523,8 @@ proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
 proveDelRinfresco();
+proveDelPreventivoCheNonVede();
+proveDellaVistaParallela();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
