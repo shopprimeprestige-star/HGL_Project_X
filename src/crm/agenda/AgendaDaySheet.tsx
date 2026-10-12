@@ -59,7 +59,7 @@ import { buildWhatsAppLink, getWhatsAppMessageForStatus } from "@/crm/whatsapp";
 import { formatDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
-import { ChipStato, PUNTO_TONO, tonoStato } from "@/crm/ui";
+import { Chip, ChipStato, PUNTO_TONO, tonoStato } from "@/crm/ui";
 import {
   CampoFinestra,
   CLASSE_AREA,
@@ -325,7 +325,7 @@ export function TastoOra({
            ZERO: «0/1» è l'unica cosa che distingue «tenuta e ancora libera»
            da «libera per tutti», e senza di quello le due erano identiche. */}
       {(soloUno || presi > 0) && capienza ? (
-        <span className="text-[10px] font-semibold leading-none opacity-80">
+        <span className="text-[11px] font-semibold leading-none opacity-80">
           {presi}/{soloUno ? 1 : capienza}
         </span>
       ) : null}
@@ -584,13 +584,13 @@ export function LineaDelGiorno({
             <li key={r.chiave} className="flex gap-2">
               {/*  30px di altezza: metà è 15px, cioè esattamente il centro del
                   pallino sulla rotaia. Ora, pallino e filo restano in linea. */}
-              <span className="flex h-[30px] w-10 shrink-0 items-center justify-end text-[11.5px] font-semibold tabular-nums text-sky-700">
+              <span className="flex h-[30px] w-10 shrink-0 items-center justify-end text-[11.5px] font-semibold tabular-nums text-primary">
                 {r.ora}
               </span>
-              <PallinoRotaia classe="bg-sky-500" primo={primo} ultimo={ultimo} />
+              <PallinoRotaia classe="bg-primary" primo={primo} ultimo={ultimo} />
               <div className="flex h-[30px] min-w-0 flex-1 items-center gap-2">
-                <span className="h-px flex-1 bg-sky-500/40" aria-hidden />
-                <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-wide text-sky-700">
+                <span className="h-px flex-1 bg-primary/40" aria-hidden />
+                <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-primary">
                   adesso
                 </span>
               </div>
@@ -1037,7 +1037,6 @@ export function AgendaDaySheet({
                 setSlotTime(null);
                 setGiornoDest(date ?? "");
               }}
-              className="border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
             >
               Annulla lo spostamento
             </Button>
@@ -1055,11 +1054,7 @@ export function AgendaDaySheet({
           </>
         ) : (
           <>
-            <Button
-              variant="outline"
-              onClick={handleOpenFullForm}
-              className="border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-            >
+            <Button variant="outline" onClick={handleOpenFullForm}>
               Apri la scheda completa
             </Button>
             <Button onClick={handleQuickCreate} disabled={!quickName.trim() || !quickPhone.trim()}>
@@ -1117,24 +1112,18 @@ export function AgendaDaySheet({
                   <span className="italic text-slate-400">nessuna per questo giorno</span>
                 ) : (
                   activeFasce.map((f, i) => (
-                    <span
-                      key={i}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 tabular-nums"
-                    >
+                    <Chip key={i} className="py-px leading-4 tabular-nums">
                       {f.inizio}–{f.fine}
-                    </span>
+                    </Chip>
                   ))
                 )}
                 {dayBlocks.length > 0 && (
                   <>
                     <span className="uppercase tracking-wide text-slate-400">Bloccato</span>
                     {dayBlocks.map((b, i) => (
-                      <span
-                        key={i}
-                        className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 tabular-nums text-amber-900"
-                      >
+                      <Chip key={i} tono="in_sospeso" className="py-px leading-4 tabular-nums">
                         {b.inizio && b.fine ? `${b.inizio}–${b.fine}` : "tutto il giorno"}
-                      </span>
+                      </Chip>
                     ))}
                   </>
                 )}

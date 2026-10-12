@@ -364,7 +364,7 @@ function CellaGiorno({
           className={cn(
             "flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 text-[13px] font-semibold leading-none tabular-nums",
             g.oggi
-              ? "bg-sky-600 text-white"
+              ? "bg-primary text-primary-foreground"
               : !g.nelMese
                 ? "text-muted-foreground/50"
                 : g.passato
@@ -831,7 +831,7 @@ function AgendaPage() {
               esiti da segnare
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-sky-600 text-[10px] font-semibold text-white">
+              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                 {oggi.getDate()}
               </span>
               oggi
