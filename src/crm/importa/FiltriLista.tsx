@@ -158,7 +158,8 @@ function nomeAnnuncio(chiave: string, opzioni: OpzioniFiltri): string {
   return chiave;
 }
 
-function MenuAnnuncio({
+/*  Esportato per «Tutta la lista» (SchedaTutti): stessi menu, stesse regole. */
+export function MenuAnnuncio({
   filtri,
   opzioni,
   onCambia,
@@ -235,7 +236,7 @@ function etichettaRispostaScelta(chiave: string, opzioni: OpzioniFiltri): string
   return chiave;
 }
 
-function MenuRisposta({
+export function MenuRisposta({
   filtri,
   opzioni,
   onCambia,
