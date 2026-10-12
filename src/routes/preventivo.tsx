@@ -94,6 +94,7 @@ import {
   cosaVede,
   haIlSuo,
   hoLaPenna,
+  ilClienteNonLoVede,
   loScorrimentoMiRiguarda,
   siScriveInDue,
   stanzaDelPreventivo,
@@ -4185,13 +4186,33 @@ function QuoteBuilder() {
        facendo insieme» e «glielo sto preparando», e cambia come parli. */
   const chiGuardo = attesiDelGruppo.find((a) => a.gettone === apertoDaMe)?.nome || "questa persona";
   const luiLoVede = guardoIlSuo && haIlSuo(regiaDelConsulente, apertoDaMe);
+  /*  ⚠️ «LUI NON LO VEDE» DEVE SALTARE AGLI OCCHI. Segnalazione del
+      committente: «seleziono e scorro il preventivo e all'ospite non arriva»,
+      con il preventivo personale aperto e spento (misurato sulla regia di
+      quella sera). Questa riga c'era, azzurra e piccola, senza un modo di
+      rimediare: adesso è ambra, dice che cosa NON arriva e ha il tasto per
+      accenderglielo. Regola in shop/preventivi-di-gruppo. */
+  const nonLoVede = guardoIlSuo && ilClienteNonLoVede({ regia: regiaDelConsulente, aperto: apertoDaMe });
   const bandaGuardo =
     guardoIlSuo ? (
-      <div data-hg-sempre className={`relative z-[80] flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden ${luiLoVede ? "bg-emerald-700" : "bg-sky-800"}`}>
+      <div data-hg-sempre className={`relative z-[80] flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 text-center font-semibold print:hidden ${luiLoVede ? "bg-emerald-700 py-1.5 text-xs text-white" : nonLoVede ? "bg-amber-400 py-2 text-[13px] text-[#1a1406]" : "bg-sky-800 py-1.5 text-xs text-white"}`}>
         <FileText className="h-3.5 w-3.5" />
         {luiLoVede
           ? `Stai lavorando al preventivo di ${chiGuardo}: lo vede e lo state compilando insieme`
-          : `Stai preparando il preventivo di ${chiGuardo}: lui non lo vede ancora`}
+          : nonLoVede
+            ? `${chiGuardo} NON vede questo preventivo: quello che selezioni e scorri non gli arriva`
+            : `Stai preparando il preventivo di ${chiGuardo}: lui non lo vede ancora`}
+        {nonLoVede && (
+          <button
+            type="button"
+            onClick={() => {
+              void cambiaRegia(hostId, { individuale: { chi: apertoDaMe, acceso: true } });
+            }}
+            className="rounded-full bg-[#1a1406] px-3 py-0.5 text-[12px] font-bold text-amber-200 hover:bg-black"
+          >
+            Mostraglielo
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {

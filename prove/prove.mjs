@@ -15441,6 +15441,23 @@ function proveDelRinfresco() {
   c("mai riletto: si rilegge", true, daRileggere({ motivo: "orologio", visibile: true, ultima: 0, adesso: t }));
 }
 
+/** ── IL CLIENTE NON VEDEVA IL PREVENTIVO ───────────────────────────────────
+ *  Stanza della sera della segnalazione: preventivo personale aperto,
+ *  nessuno acceso, comune spento. Vedi shop/preventivi-di-gruppo. */
+function proveDelPreventivoCheNonVede() {
+  const { accendiAprendo, ilClienteNonLoVede, leggiRegia } = PDG;
+  gruppo("IL CLIENTE NON VEDEVA IL PREVENTIVO");
+  c("un cliente solo: si accende aprendolo", true, accendiAprendo({ persone: 1 }));
+  c("in due: resta spento", false, accendiAprendo({ persone: 2 }));
+  c("nessuno in elenco: non si accende niente", false, accendiAprendo({ persone: 0 }));
+  const quellaSera = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: [], aperto: "abc123", at: 1 }));
+  c("la stanza di quella sera: il cliente NON lo vedeva", true, ilClienteNonLoVede({ regia: quellaSera, aperto: "abc123" }));
+  const accesa = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: ["abc123"], aperto: "abc123", at: 2 }));
+  c("acceso per lui: niente avviso", false, ilClienteNonLoVede({ regia: accesa, aperto: "abc123" }));
+  c("sul preventivo comune: niente avviso", false, ilClienteNonLoVede({ regia: quellaSera, aperto: "" }));
+  c("regia non ancora arrivata: nessun avviso che lampeggia", false, ilClienteNonLoVede({ regia: null, aperto: "abc123" }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15468,6 +15485,7 @@ proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
 proveDelRinfresco();
+proveDelPreventivoCheNonVede();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

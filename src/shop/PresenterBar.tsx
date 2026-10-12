@@ -69,6 +69,7 @@ import { sfx, primeSfx } from "@/shop/sfx";
 //  quando le persone sono più d'una: vedi PlanciaGruppo).
 import { useAttesiDelConsulente } from "@/shop/PlanciaGruppo";
 import { cambiaRegia } from "@/shop/regia-gruppo";
+import { accendiAprendo } from "@/shop/preventivi-di-gruppo";
 
 /** Chiude un pannello aperto con il tasto Esc. Un menu si chiude toccando
  *  fuori — e ci pensa il velo trasparente sotto — ma da tastiera la via
@@ -731,7 +732,19 @@ export function PresenterBar({ page }: { page?: Page }) {
          diretta e non può toccare (vedi `cosaVede`). Prima la riga girava
          solo in gruppo, e con un cliente solo restava aperto quello di
          prima. */
-    void cambiaRegia(liveId, chi ? { aperto: chi.gettone } : { aperto: "" });
+    /*  ⚠️ CON UN CLIENTE SOLO SI ACCENDE (decisione del committente,
+        13/10/2026). Era spento anche così, e il consulente compilava nella
+        stanza del cliente mentre il cliente guardava il comune: «seleziono e
+        scorro e non gli arriva niente». In due o più resta spento, e la
+        pagina del preventivo lo dice (vedi `ilClienteNonLoVede`). */
+    void cambiaRegia(
+      liveId,
+      chi
+        ? accendiAprendo({ persone: attesiQui.length })
+          ? { aperto: chi.gettone, individuale: { chi: chi.gettone, acceso: true } }
+          : { aperto: chi.gettone }
+        : { aperto: "" },
+    );
     try { localStorage.setItem("hg_new_quote_chi", chi ? chi.gettone : ""); } catch { /* */ }
     // ── OGNI PREVENTIVO NUOVO APRE UNA SESSIONE SUA ─────────────────────────
     //  Anche senza videochiamata: è il codice che lega il link mandato al
