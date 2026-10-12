@@ -2035,6 +2035,14 @@ function LeadsPage() {
     () => leads.find((l) => l.id === dettaglioId) || null,
     [leads, dettaglioId],
   );
+  //  ⚠️ Il pannello del lead sta a fianco dell'elenco da `lg` in su e gli
+  //  toglie 21-23 rem. Le colonne a larghezza fissa (41,5 rem) non lasciavano
+  //  più niente alla colonna del nome, che spariva da tutte le righe. Con il
+  //  pannello aperto cedono le colonne che il pannello già mostra: il
+  //  consulente (sotto «Assegnazione»), la prossima azione (si stringe, e sotto
+  //  `xl` va via) e i gesti al passaggio (stesse azioni nel pannello, sotto
+  //  `2xl`). Il nome e lo stato restano sempre. A pannello chiuso: come prima.
+  const conPannello = dettaglio != null;
 
   /* ── LE PASTIGLIE: I FILTRI ACCESI, SEMPRE IN VISTA ──────────────────────
      Una per filtro attivo, ognuna con la sua X. È l'unico posto in cui si
@@ -3424,9 +3432,27 @@ function LeadsPage() {
             </div>
             <span className="min-w-0 flex-1">Nome</span>
             <span className="hidden w-[11.5rem] shrink-0 md:block">Stato</span>
-            <span className="hidden w-[12rem] shrink-0 md:block">Prossima azione</span>
-            <span className="hidden w-[8rem] shrink-0 lg:block">Consulente</span>
-            <span className="w-[8.25rem] shrink-0 text-right md:w-[10rem]">Azioni</span>
+            <span
+              className={
+                conPannello
+                  ? "hidden w-[12rem] shrink-0 md:block lg:hidden xl:block xl:w-[10rem]"
+                  : "hidden w-[12rem] shrink-0 md:block"
+              }
+            >
+              Prossima azione
+            </span>
+            <span className={conPannello ? "hidden w-[8rem] shrink-0" : "hidden w-[8rem] shrink-0 lg:block"}>
+              Consulente
+            </span>
+            <span
+              className={
+                conPannello
+                  ? "w-[8.25rem] shrink-0 text-right md:w-[10rem] lg:hidden 2xl:block"
+                  : "w-[8.25rem] shrink-0 text-right md:w-[10rem]"
+              }
+            >
+              Azioni
+            </span>
           </div>
 
           <div
@@ -3649,7 +3675,13 @@ function LeadsPage() {
 
                   {/* PROSSIMA AZIONE — il segno dice DOVE (in sede, a distanza,
                       al telefono, in cantiere), il colore dice QUANDO. */}
-                  <div className="hidden w-[12rem] shrink-0 flex-col leading-tight md:flex">
+                  <div
+                    className={
+                      conPannello
+                        ? "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex lg:hidden xl:flex xl:w-[10rem]"
+                        : "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex"
+                    }
+                  >
                     <span className="flex items-center gap-1.5 text-[12.5px]">
                       <SegnoAzione cosa={az.cosa} />
                       <span className="truncate">{az.cosa}</span>
@@ -3673,7 +3705,9 @@ function LeadsPage() {
                   </div>
 
                   {/* CONSULENTE */}
-                  <div className="hidden w-[8rem] shrink-0 truncate text-[12.5px] text-muted-foreground lg:block">
+                  <div
+                    className={`hidden w-[8rem] shrink-0 truncate text-[12.5px] text-muted-foreground ${conPannello ? "" : "lg:block"}`}
+                  >
                     {consultantName(l.data.consulenteId)}
                   </div>
 
@@ -3705,6 +3739,8 @@ function LeadsPage() {
                       fatto col pollice subito dopo la chiamata. */}
                   <div
                     className={`flex shrink-0 items-center justify-end gap-0.5 transition-opacity md:w-[10rem] ${
+                      conPannello ? "lg:hidden 2xl:flex" : ""
+                    } ${
                       sottoCursore || aperto
                         ? "opacity-100"
                         : "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
