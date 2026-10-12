@@ -399,6 +399,8 @@ const MODULI = [
   //  ⚠️ I preventivi quando sono in più di uno: le stanze, la penna, e che
   //   cosa vede ciascuno. Vedi proveDeiPreventiviDiGruppo.
   "shop/preventivi-di-gruppo",
+  //  ⚠️ La scatola nera del preventivo. Vedi proveDellaScatolaPreventivo.
+  "shop/scatola-preventivo",
   //  ⚠️ Tutti i preventivi del gruppo in parallelo. Vedi proveDellaVistaParallela.
   "shop/vista-parallela",
   "shop/errori-esterni",
@@ -582,6 +584,7 @@ const CDP = mod["shop/causale-di-un-preventivo"];
 const SAL = mod["shop/sala-attesa"];
 const FAS = mod["fascia-consulenza"];
 const PDG = mod["shop/preventivi-di-gruppo"];
+const SPV = mod["shop/scatola-preventivo"];
 const VPA = mod["shop/vista-parallela"];
 const MUTI = mod["shop/ospiti-muti"];
 const EXT = mod["shop/errori-esterni"];
@@ -15496,6 +15499,28 @@ function proveDellaVistaParallela() {
   c("mai toccato", "non ha ancora toccato niente", attivita(0, 5000).testo);
 }
 
+/** ── LA SCATOLA NERA DEL PREVENTIVO ────────────────────────────────────────
+ *  «Controlla il preventivo nella scatola nera per capire se funziona bene».
+ *  Vedi shop/scatola-preventivo. */
+function proveDellaScatolaPreventivo() {
+  const { contatoriVuoti, daScrivere, firmaRegole, rigaPreventivo } = SPV;
+  gruppo("LA SCATOLA NERA DEL PREVENTIVO");
+  const r = { stanza: "personale", luiLoVede: false, personeAccese: 0, trasmette: true, scorre: true, videochiamata: false };
+  const conti = { ...contatoriVuoti(), statoInviati: 4, scorriInviati: 12, saluti: 1, canale: "SUBSCRIBED", salvatiOk: 3, salvatiKo: 1, ultimoErrore: "HTTP 401" };
+  const riga = rigaPreventivo(r, conti);
+  c("dice la stanza e se lui la vede (il caso della segnalazione)", true, riga.includes("stanza personale (lui NON la vede)"));
+  c("quanti ospiti ascoltano la stanza", true, riga.includes("ospiti in ascolto 1"));
+  c("lo stato del canale", true, riga.includes("canale SUBSCRIBED"));
+  c("gli invii", true, riga.includes("inviati stato 4 scorri 12"));
+  c("i salvataggi falliti col motivo", true, riga.includes("falliti 1 (HTTP 401)"));
+  c("in videochiamata lo scorrimento si dice spento e perché", true,
+    rigaPreventivo({ ...r, scorre: false, videochiamata: true }, contatoriVuoti()).includes("scorrimento no (videochiamata)"));
+  c("niente successo e regole uguali: non si scrive", false, daScrivere(contatoriVuoti(), false));
+  c("regole cambiate: si scrive anche senza traffico", true, daScrivere(contatoriVuoti(), true));
+  c("un invio basta per scrivere", true, daScrivere({ ...contatoriVuoti(), statoInviati: 1 }, false));
+  c("la firma cambia se cambia la stanza", false, firmaRegole(r) === firmaRegole({ ...r, stanza: "comune" }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15525,6 +15550,7 @@ proveDellaScatolaNera();
 proveDelRinfresco();
 proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
+proveDellaScatolaPreventivo();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

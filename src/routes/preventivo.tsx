@@ -100,6 +100,14 @@ import {
   stanzaDelPreventivo,
 } from "@/shop/preventivi-di-gruppo";
 import { cambiaRegia, useRegiaGruppo } from "@/shop/regia-gruppo";
+import {
+  contatoriVuoti,
+  daScrivere,
+  firmaRegole,
+  rigaPreventivo,
+  type ContatoriPreventivo,
+  type RegolePreventivo,
+} from "@/shop/scatola-preventivo";
 import { useAttesiDelConsulente } from "@/shop/PlanciaGruppo";
 import {
   readAnchor,
@@ -731,6 +739,15 @@ const conSessione = (url: string) => {
         });
   return c ? `${url}${url.includes("?") ? "&" : "?"}sess=${encodeURIComponent(c)}` : url;
 };
+
+/*  ── LA SCATOLA NERA DEL PREVENTIVO (vedi shop/scatola-preventivo) ─────────
+    Contatori di questa scheda, azzerati a ogni riga scritta nel diario. Sono
+    fuori dal componente apposta: si incrementano nei gestori del canale, che
+    vengono creati una volta sola, e un gancio di React lì dentro non serve. */
+const contaPrev: ContatoriPreventivo = contatoriVuoti();
+/** Gli ospiti che hanno salutato, riconosciuti dalla misura dello schermo:
+ *  ognuno saluta cinque volte, e contarli tutti gonfierebbe il numero. */
+const salutiPrev = new Set<string>();
 
 function QuoteBuilder() {
   const [baseId, setBaseId] = useState<string>(BASE_SOLUTIONS[0].id);
@@ -2127,6 +2144,46 @@ function QuoteBuilder() {
   const callSt = useCall();
   const inVideocall = callSt.active && callSt.mode === "call";
   const canSendLive = !!hostId && !isViewer && !isClient && !inVideocall;
+  /*  ── LA RIGA DELLA SCATOLA NERA, OGNI TRENTA SECONDI ───────────────────
+      Solo dal consulente: è lui ad avere la sessione per scrivere nel diario,
+      e dal suo lato si vede tutto il giro (quanti ospiti ascoltano la sua
+      stanza, cosa riceve dalla stanza di chi compila). */
+  const regolePrevRef = useRef<RegolePreventivo>({
+    stanza: "nessuna", luiLoVede: null, personeAccese: 0, trasmette: false, scorre: false, videochiamata: false,
+  });
+  regolePrevRef.current = {
+    stanza: !hostId ? "nessuna" : guardoIlSuo ? "personale" : "comune",
+    luiLoVede: guardoIlSuo ? haIlSuo(regiaDelConsulente, apertoDaMe) : null,
+    personeAccese: regiaDelConsulente?.individuali?.length ?? 0,
+    trasmette: canBroadcast,
+    scorre: canSendLive,
+    videochiamata: inVideocall,
+  };
+  useEffect(() => {
+    if (!hostId || isViewer || isClient) return;
+    let firmaPrima = "";
+    const scrivi = () => {
+      const r = regolePrevRef.current;
+      const firma = firmaRegole(r);
+      if (!daScrivere(contaPrev, firma !== firmaPrima)) return;
+      firmaPrima = firma;
+      const voce = rigaPreventivo(r, contaPrev);
+      Object.assign(contaPrev, contatoriVuoti(), { canale: contaPrev.canale });
+      salutiPrev.clear();
+      try {
+        void fetch("/api/presenter/diario", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ voce, diario: "preventivo" }),
+        }).catch(() => {});
+      } catch {
+        /* mai in mezzo a una consulenza */
+      }
+    };
+    const t = window.setInterval(scrivi, 30_000);
+    return () => window.clearInterval(t);
+  }, [hostId, isViewer, isClient]);
   // letto dai gestori del canale (creato una volta): una variabile catturata
   // resterebbe ferma al valore del momento in cui il canale è stato aperto
   const bcastRef = useRef(false);
@@ -2180,6 +2237,7 @@ function QuoteBuilder() {
       p.panelAnchors === undefined
     )
       return;
+    contaPrev.scorriInviati += 1;
     chanRef.current.send({ type: "broadcast", event: "live", payload: p });
   };
   const queueOut = (patch: OutPatch) => {
@@ -2877,6 +2935,7 @@ function QuoteBuilder() {
       canale che c'è: quello di trasmissione se la pagina ne ha uno, quello di
       ascolto altrimenti. */
   const suStato = (payload: unknown) => {
+    contaPrev.statoRicevuti += 1;
     if (applicaDaRemoto) {
       //  Il canale funziona: da qui il polling può rallentare (vedi sotto).
       canaleVistoIl.current = Date.now();
@@ -2885,6 +2944,7 @@ function QuoteBuilder() {
     guestContentSeen();
   };
   const suLive = (payload: unknown) => {
+    contaPrev.scorriRicevuti += 1;
     try {
       const p = payload as OutPatch;
       if (p.ptr) {
@@ -2948,6 +3008,7 @@ function QuoteBuilder() {
     //   l'altro, e la pulizia azzera solo se il riferimento è ancora suo.
     if (!chanRef.current) chanRef.current = ch;
     ch.subscribe((status) => {
+      contaPrev.canale = String(status);
       console.log(`[DITO] ascolto ${chanCode}: ${status}`);
       if (status !== "SUBSCRIBED") return;
       // Il saluto porta le dimensioni REALI dello schermo: così l'anteprima del
@@ -3010,6 +3071,8 @@ function QuoteBuilder() {
       // Dimensioni dello schermo di chi guarda: l'anteprima "come lo vede il
       // cliente" si adatta anche senza videochiamata.
       const vp = (payload as { vp?: { w?: number; h?: number; dpr?: number } } | undefined)?.vp;
+      salutiPrev.add(JSON.stringify(vp ?? null));
+      contaPrev.saluti = salutiPrev.size;
       if (vp?.w && vp?.h) reportGuestViewport(Number(vp.w), Number(vp.h), Number(vp.dpr) || 1);
       // ── CHI ENTRA DOPO DEVE POTER CHIEDERE "DOVE SEI?" ──────────────────
       //  Tolto il battito periodico, la posizione viaggiava SOLO mentre il
@@ -3039,12 +3102,16 @@ function QuoteBuilder() {
       }
       if (!bcastRef.current) return; // allo stato risponde solo il contesto eletto
       snapRef.current = buildSnapshot();
+      contaPrev.statoInviati += 1;
       ch.send({ type: "broadcast", event: "state", payload: snapRef.current });
     });
     //  Lo stato dell'iscrizione si scrive: quando il dito o lo stato non
     //  arrivano, la prima cosa da sapere è se il canale è davvero agganciato
     //  (SUBSCRIBED) o è rimasto per strada (CHANNEL_ERROR, TIMED_OUT).
-    ch.subscribe((stato) => console.log(`[DITO] parlo+ascolto ${chanCode}: ${stato}`));
+    ch.subscribe((stato) => {
+      contaPrev.canale = String(stato);
+      console.log(`[DITO] parlo+ascolto ${chanCode}: ${stato}`);
+    });
     chanRef.current = ch;
     return () => {
       supabase.removeChannel(ch);
@@ -3151,7 +3218,12 @@ function QuoteBuilder() {
         //   facendo»). Scrivere nel codice nudo vorrebbe dire sovrascrivere
         //   il preventivo comune con il suo.
         body: JSON.stringify({ ...snap, sess: stanzaScrittaRef.current || getLiveId() || "" }),
-      }).catch(() => {});
+      })
+        .then((r) => {
+          if (r.ok) contaPrev.salvatiOk += 1;
+          else { contaPrev.salvatiKo += 1; contaPrev.ultimoErrore = `HTTP ${r.status}`; }
+        })
+        .catch(() => { contaPrev.salvatiKo += 1; contaPrev.ultimoErrore = "rete"; });
     }, 250);
   };
   useEffect(
@@ -3177,11 +3249,11 @@ function QuoteBuilder() {
         canale è l'unica strada istantanea. Il canale della sua stanza ce l'ha
         già aperto (`nellaSuaStanza`, più sopra): solo il suo, mai il comune. */
     if (scrivoIlMio && !canBroadcast) {
-      chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current });
+      (contaPrev.statoInviati += 1, chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current }));
       return;
     }
     if (!canBroadcast) return;
-    chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current });
+    (contaPrev.statoInviati += 1, chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     canBroadcast,
@@ -3298,7 +3370,7 @@ function QuoteBuilder() {
     if (!canBroadcast) return;
     const iv = setInterval(() => {
       snapRef.current = buildSnapshot();
-      chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current });
+      (contaPrev.statoInviati += 1, chanRef.current?.send({ type: "broadcast", event: "state", payload: snapRef.current }));
     }, 4000);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
