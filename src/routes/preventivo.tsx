@@ -378,7 +378,7 @@ const EMPTY: Profile = {
   provincia: "",
 };
 const OPT = (
-  <span className="ml-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/60">
+  <span className="ml-1 rounded bg-white/10 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/60">
     Opzionale
   </span>
 );
@@ -476,7 +476,7 @@ function PromoNote({ until, onApri }: { until: Date; onApri?: () => void }) {
             }
           : undefined
       }
-      className={`block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16]" : ""}`}
+      className={`block border-t border-amber-400/30 bg-amber-400/[0.09] px-4 py-2.5 text-[12px] leading-snug text-amber-100 transition ${onApri ? "cursor-pointer hover:bg-amber-400/[0.16] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" : ""}`}
     >
       <span className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 flex-shrink-0 text-amber-300" />
@@ -3563,7 +3563,6 @@ function QuoteBuilder() {
         (sec) => !sec.requiresAnyOf || sec.requiresAnyOf.some((id) => selected.has(id)),
       )
     : [];
-  const profileNum = 3 + visibleUpsellSecs.length + (canPersonalize && menu.simulation ? 1 : 0); // il profilo è l'ultimo step
   const chooseBase = (id: string) => {
     if (id !== baseId) {
       // La soluzione base è la scelta più importante della pagina: le si dà il
@@ -4061,7 +4060,7 @@ function QuoteBuilder() {
 
   const copy = (t: string, label: string) => copyLink(t, `${label} copiato`);
   const inputCls =
-    "w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30";
+    "w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30";
 
   // ── BANNER DELLA DIRETTA ───────────────────────────────────────────────────
   //  Prima era `fixed`: non occupava spazio, quindi COPRIVA i primi ~28px del
@@ -4189,8 +4188,8 @@ function QuoteBuilder() {
     ) : null;
   const viewerBanner = showBanner ? (
     <div className="relative z-[80] flex items-center justify-center gap-2 bg-brand px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden">
-      <Radio className="h-3.5 w-3.5 animate-pulse" /> Diretta — stai vedendo la configurazione in
-      tempo reale
+      <Radio className="h-3.5 w-3.5 motion-safe:animate-pulse" /> Diretta — stai vedendo la
+      configurazione in tempo reale
     </div>
   ) : null;
 
@@ -4570,7 +4569,7 @@ function QuoteBuilder() {
                   {numeroPrev ? "· Ordine" : "Preventivo"} {r.ref}
                 </span>
                 {annullatoDa && annullatoDa !== r.ref && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/50 bg-rose-500/15 px-2 py-[3px] text-[10px] font-bold tracking-[0.16em] text-rose-200">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/50 bg-rose-500/15 px-2 py-[3px] text-[11px] font-bold tracking-[0.14em] text-rose-200">
                     <Ban className="h-3 w-3" /> Annullato
                   </span>
                 )}
@@ -4673,7 +4672,7 @@ function QuoteBuilder() {
                 <a
                   href="#res-pagamento"
                   onClick={() => sfx.select()}
-                  className="hg-rise relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-brand px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/25 transition hover:brightness-110 print:hidden"
+                  className="hg-rise relative mt-4 flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-brand px-5 py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/25 transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand print:hidden"
                   style={{ animationDelay: "250ms" }}
                 >
                   <span className="relative z-10 flex items-center gap-2">
@@ -4721,7 +4720,7 @@ function QuoteBuilder() {
                     <button
                       type="button"
                       onClick={() => setPercheScade(true)}
-                      className="mr-1 inline-flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-400/[0.10] px-2.5 py-1.5 align-middle text-[14px] font-medium text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/15"
+                      className="mr-1 inline-flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-400/[0.10] px-2.5 py-1.5 align-middle text-[14px] font-medium text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     >
                       Prezzo bloccato fino al{" "}
                       <b className="font-bold text-white">{formatDeadline(rPromo)}</b>
@@ -4784,7 +4783,7 @@ function QuoteBuilder() {
                 provincia: profile.provincia,
               }}
               formatPrice={formatPrice}
-              inputCls="w-full rounded-lg border border-white/15 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-white/35 focus:bg-white/[0.08] focus:outline-none"
+              inputCls="w-full rounded-lg border border-white/15 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder:text-white/50 focus:border-white/35 focus:bg-white/[0.08] focus:outline-none"
             />
           )}
 
@@ -4861,7 +4860,7 @@ function QuoteBuilder() {
               </div>
               {r.problemi && (
                 <div className="border-b border-amber-400/10 px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">
                     Dichiarato dal cliente
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-white/80">
@@ -4871,7 +4870,7 @@ function QuoteBuilder() {
               )}
               {(quoteEdit?.notes ?? []).length > 0 && (
                 <div className="px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40">
                     Note di consulenza
                   </p>
                   <ul className="mt-2 space-y-2">
@@ -4971,7 +4970,7 @@ function QuoteBuilder() {
                 setPercorsoOpen(true);
               }}
               data-hg-anchor="res-percorso"
-              className="group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-brand/[0.08] px-4 py-3.5 text-left transition hover:bg-brand/[0.14] print:hidden"
+              className="group flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-brand/25 bg-brand/[0.08] px-4 py-3.5 text-left transition hover:bg-brand/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand print:hidden"
             >
               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/20 text-brand">
                 <RouteIcon className="h-4 w-4" />
@@ -5267,13 +5266,13 @@ function QuoteBuilder() {
               {/* I recapiti sono la riga su cui il cliente controlla che sia
                   proprio il SUO preventivo: al 30% di bianco non si controlla
                   niente. Restano in coda — è il posto giusto — ma leggibili. */}
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">
                 Recapiti
               </p>
               <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[14px] text-white/60">
                 {r.email && <span className="break-all">{r.email}</span>}
                 {r.telefono && <span className="tabular-nums">{r.telefono}</span>}
-                <span className="font-mono text-white/45">{r.ref}</span>
+                <span className="font-mono text-white/65">{r.ref}</span>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 print:hidden">
@@ -5426,8 +5425,15 @@ function QuoteBuilder() {
 
   if (loadingRef) {
     return (
-      <div className="bg-blueprint flex min-h-screen items-center justify-center text-white/60">
-        Caricamento preventivo…
+      <div className="bg-blueprint flex min-h-screen items-center justify-center px-6">
+        <div
+          role="status"
+          aria-live="polite"
+          className="w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-6 py-8 text-center"
+        >
+          <BrandLogo className="mx-auto h-7 w-auto" />
+          <p className="mt-4 text-[15px] text-white/80">Caricamento preventivo…</p>
+        </div>
       </div>
     );
   }
@@ -5579,9 +5585,7 @@ function QuoteBuilder() {
           <div className="min-w-0 space-y-8">
             {/* soluzione base */}
             <section data-hg-anchor="cfg-step-01">
-              <h2 className="mb-1 text-lg font-semibold">
-                <span className="text-brand">01</span> — Da dove partiamo
-              </h2>
+              <h2 className="mb-1 text-lg font-semibold">Da dove partiamo</h2>
               {/* il titolo da solo non diceva nulla: qui si spiega che si sceglie
                   la STRADA, e che tutto il resto dipende da questa scelta */}
               <p className="mb-3 text-sm leading-relaxed text-white/55">
@@ -5627,7 +5631,8 @@ function QuoteBuilder() {
                       key={b.id}
                       onClick={() => chooseBase(b.id)}
                       data-hg-anchor={`cfg-base-${b.id}`}
-                      className={`rounded-xl border p-4 text-left transition ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                      aria-pressed={active}
+                      className={`rounded-xl border p-4 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold">{b.name}</span>
@@ -5675,7 +5680,7 @@ function QuoteBuilder() {
                           non combacerebbe con nessun prezzo di listino e
                           sembrerebbe uscito dal nulla. */}
                       {par.voci.length > 0 && (
-                        <p className="mt-1 text-[11.5px] leading-snug text-white/45">
+                        <p className="mt-1 text-[11.5px] leading-snug text-white/65">
                           {par.extra > 0 ? (
                             <>
                               {formatPrice(b.price)} di base + {formatPrice(par.extra)} di scelte
@@ -5706,7 +5711,7 @@ function QuoteBuilder() {
                   scritto in testa cosa succede e quanto dura: si capisce
                   scorrendo, senza dover leggere tutto. */}
                 <h2 className="mb-1 text-lg font-semibold">
-                  <span className="text-brand">02</span> — Dallo studio del volto all'installazione
+                  Dallo studio del volto all'installazione
                 </h2>
                 <p className="mb-4 text-sm leading-relaxed text-white/55">
                   Due fasi, in quest'ordine. La prima decide{" "}
@@ -5925,7 +5930,7 @@ function QuoteBuilder() {
                       non scoperte dopo. */}
                       {installOn && acceso("dove") && (
                         <div className="border-t border-white/10 bg-white/[0.02] px-4 py-3">
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                             Dove
                           </p>
                           <div className="flex flex-wrap gap-2">
@@ -6021,14 +6026,11 @@ function QuoteBuilder() {
                 const visibleSecs = visibleUpsellSecs;
                 return (
                   <>
-                    {visibleSecs.map((sec, idx) => {
+                    {visibleSecs.map((sec) => {
                       const groupIds = sec.items.map((i) => i.id);
                       return (
                         <section key={sec.num} data-hg-anchor={`cfg-sez-${sec.num}`}>
-                          <h2 className="mb-1 text-lg font-semibold">
-                            <span className="text-brand">{String(idx + 3).padStart(2, "0")}</span> —{" "}
-                            {sec.title}
-                          </h2>
+                          <h2 className="mb-1 text-lg font-semibold">{sec.title}</h2>
                           {/* chiarimento della sezione: quando le opzioni si somigliano,
                       dice in una riga che cosa cambia davvero fra loro */}
                           {"note" in sec && (sec as { note?: string }).note && (
@@ -6042,7 +6044,7 @@ function QuoteBuilder() {
                             </p>
                           )}
                           {sec.single && (
-                            <p className="mb-3 text-xs text-white/45">Scegli una sola opzione.</p>
+                            <p className="mb-3 text-xs text-white/65">Scegli una sola opzione.</p>
                           )}
                           {!sec.single && <div className="mb-3" />}
                           <div className="space-y-2.5">
@@ -6056,7 +6058,8 @@ function QuoteBuilder() {
                                   key={item.id}
                                   onClick={onClick}
                                   data-hg-anchor={`cfg-opt-${item.id}`}
-                                  className={`block w-full overflow-hidden rounded-xl border text-left transition ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                                  aria-pressed={active}
+                                  className={`block w-full overflow-hidden rounded-xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand bg-brand/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                                 >
                                   <span className="flex items-start gap-3 p-4">
                                     <span
@@ -6096,7 +6099,7 @@ function QuoteBuilder() {
                               voce e non finiva da nessuna parte. */}
                                   {active && item.variants && (
                                     <span className="hg-rise block border-t border-white/10 bg-white/[0.03] px-4 py-3">
-                                      <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                                      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                                         {item.variants.title}
                                       </span>
                                       <span className="grid grid-cols-3 gap-1.5">
@@ -6121,14 +6124,15 @@ function QuoteBuilder() {
                                                   setVarianti((v) => ({ ...v, [item.id]: o.id }));
                                                 }
                                               }}
-                                              className={`block cursor-pointer rounded-lg border px-2 py-2 text-center transition ${sel ? "border-brand bg-brand/20 shadow-sm shadow-brand/20" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
+                                              aria-pressed={sel}
+                                              className={`block cursor-pointer rounded-lg border px-2 py-2 text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${sel ? "border-brand bg-brand/20 shadow-sm shadow-brand/20" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`}
                                             >
                                               <span
                                                 className={`block text-[12px] font-semibold leading-tight ${sel ? "text-white" : "text-white/75"}`}
                                               >
                                                 {o.name}
                                               </span>
-                                              <span className="mt-0.5 block text-[10px] leading-snug text-white/45">
+                                              <span className="mt-0.5 block text-[11px] leading-snug text-white/65">
                                                 {o.desc}
                                               </span>
                                             </span>
@@ -6152,12 +6156,7 @@ function QuoteBuilder() {
                     })}
                     {menu.simulation && (
                       <section data-hg-anchor="cfg-simulazione">
-                        <h2 className="mb-3 text-lg font-semibold">
-                          <span className="text-brand">
-                            {String(visibleSecs.length + 3).padStart(2, "0")}
-                          </span>{" "}
-                          — Come starà su di te
-                        </h2>
+                        <h2 className="mb-3 text-lg font-semibold">Come starà su di te</h2>
                         {/* ── SCHEDA RICOSTRUITA ──────────────────────────────────────
                     Prima: icona, titolo, prezzo e spunta tutti sulla stessa riga,
                     con il titolo spezzato su quattro righe e la spunta a metà
@@ -6229,10 +6228,7 @@ function QuoteBuilder() {
 
             {/* profilo — ultimo step, da compilare per confermare */}
             <section data-hg-anchor="cfg-dati">
-              <h2 className="mb-1.5 text-lg font-semibold">
-                <span className="text-brand">{String(profileNum).padStart(2, "0")}</span> — Il
-                preventivo a tuo nome
-              </h2>
+              <h2 className="mb-1.5 text-lg font-semibold">Il preventivo a tuo nome</h2>
               <p className="mb-4 text-sm leading-relaxed text-white/60">
                 L'età calibra densità e attaccatura. Nessun pagamento: vedi subito il riepilogo.
               </p>
@@ -6300,7 +6296,7 @@ function QuoteBuilder() {
                     farebbero sembrare il preventivo una pratica burocratica. */}
                 <div className="sm:col-span-2">
                   <p className="mb-1 text-[13px] font-medium text-white/80">Per la fattura {OPT}</p>
-                  <p className="mb-3 text-[12px] leading-relaxed text-white/45">
+                  <p className="mb-3 text-[12px] leading-relaxed text-white/65">
                     Il preventivo si crea anche senza. Ma se li scrivi adesso, quando arriva
                     l&apos;acconto la fattura è già pronta da emettere.
                   </p>
@@ -6554,7 +6550,7 @@ function QuoteBuilder() {
                      non torna, quella riga è scritta nel suo preventivo. */}
                 {secondoImpianto && (
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-emerald-400/20 pt-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
                       Dal secondo impianto
                     </span>
                     <span className="flex items-baseline gap-2">
@@ -8297,7 +8293,7 @@ function PromoLock({
           <>
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2.5">
               <CalendarClock className="h-4 w-4 shrink-0 text-white/40" />
-              <span className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-white/40">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                 Prezzo bloccato fino a
               </span>
               <span className="text-[15px] font-semibold text-white">
@@ -8371,7 +8367,7 @@ function SecondoImpianto({
     >
       <div className={grande ? "p-5 sm:p-6" : "p-4"}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-emerald-100 ring-1 ring-emerald-300/30">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-100 ring-1 ring-emerald-300/30">
             <BadgeCheck className="h-3.5 w-3.5" />
             {offerta.titolo?.trim() || "Prezzo riservato"}
           </span>
@@ -8383,7 +8379,7 @@ function SecondoImpianto({
                cifra sposta l'attenzione dal prezzo allo sconto: chi legge si
                mette a controllare il conto invece di guardare quanto pagherà. */}
           {tipoOfferta(offerta) === "percento" && secondo.percento > 0 && (
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-white/80">
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/80">
               −{secondo.percento}%
             </span>
           )}
@@ -8464,7 +8460,7 @@ function SecondoImpianto({
               <CalendarClock className="h-[18px] w-[18px]" />
             </span>
             <div className="min-w-0">
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-white/45">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/65">
                 Questo prezzo resta tuo fino a
               </p>
               <p className={`font-bold leading-tight text-white ${grande ? "text-[17px]" : "text-[15px]"}`}>
@@ -8537,14 +8533,16 @@ function Summary(p: any) {
       </h2>
       <div className={`space-y-1.5 pr-1 text-sm ${mobile ? "" : "max-h-64 overflow-auto"}`}>
         {/* soluzione base — voce principale */}
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-brand/10 px-2.5 py-2">
-          <span className="min-w-0 flex-1 truncate font-semibold text-white">{base.name}</span>
+        <div className="flex items-start justify-between gap-2 rounded-lg bg-brand/10 px-2.5 py-2">
+          <span className="min-w-0 flex-1 break-words font-semibold leading-snug text-white">
+            {base.name}
+          </span>
           <span className="whitespace-nowrap font-bold text-white">{formatPrice(base.price)}</span>
         </div>
         {/* add-on: prima i GRATIS, poi dal più caro al meno caro */}
         {sortedAddons.map((u: any) => (
-          <div key={u.key} className="flex items-center justify-between gap-2 px-2.5 py-1">
-            <span className="min-w-0 flex-1 truncate text-white/70">{u.name}</span>
+          <div key={u.key} className="flex items-start justify-between gap-2 px-2.5 py-1">
+            <span className="min-w-0 flex-1 break-words leading-snug text-white/70">{u.name}</span>
             <PromoPrice price={u.price} wasPrice={u.wasPrice} />
           </div>
         ))}
@@ -8563,7 +8561,8 @@ function Summary(p: any) {
               sfx.deselect();
               setQty((q: number) => Math.max(1, q - 1));
             }}
-            className="px-2.5 py-1.5 text-white/70 hover:text-white"
+            aria-label="Diminuisci la quantità"
+            className="flex h-11 w-11 items-center justify-center text-white/70 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -8574,7 +8573,8 @@ function Summary(p: any) {
               sfx.select();
               setQty((q: number) => Math.min(9, q + 1));
             }}
-            className="px-2.5 py-1.5 text-white/70 hover:text-white"
+            aria-label="Aumenta la quantità"
+            className="flex h-11 w-11 items-center justify-center text-white/70 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -8702,7 +8702,7 @@ function Summary(p: any) {
         type="submit"
         disabled={submitting || !!p.soloConsulente}
         title={p.soloConsulente ? "Il preventivo lo conferma il consulente" : undefined}
-        className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white transition hover:brightness-110 disabled:opacity-60 ${mobile ? "py-4 text-base shadow-lg shadow-brand/25" : "py-3"}`}
+        className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-white transition hover:brightness-110 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${mobile ? "py-4 text-base shadow-lg shadow-brand/25" : "py-3"}`}
       >
         {submitting ? (
           "Creazione in corso…"
@@ -8776,10 +8776,10 @@ function CampoIndirizzoScuro({
           onBlur={() => window.setTimeout(chiudi, 150)}
           placeholder="Via Verdi"
           autoComplete="off"
-          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
         {cercando && !aperto && (
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-white/40">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-white/65">
             cerco…
           </span>
         )}
@@ -8803,7 +8803,7 @@ function CampoIndirizzoScuro({
                     <span className="block text-[14px] text-white">
                       {[sg.indirizzo, sg.civico].filter(Boolean).join(" ")}
                     </span>
-                    <span className="block text-[12px] text-white/45">
+                    <span className="block text-[12px] text-white/65">
                       {[sg.cap, sg.comune, sg.provincia && `(${sg.provincia})`]
                         .filter(Boolean)
                         .join(" ")}
@@ -8847,7 +8847,7 @@ function Field({
           <span className="min-w-0 truncate">{label}</span>
           {req && <span className="text-brand">*</span>}
           {opt && (
-            <span className="text-[9px] font-normal uppercase tracking-wide text-white/35">
+            <span className="text-[11px] font-normal uppercase tracking-wide text-white/65">
               opz.
             </span>
           )}
@@ -8862,7 +8862,7 @@ function Field({
             primeSfx();
             sfx.field();
           }}
-          className="w-full rounded-lg border border-white/20 bg-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-lg border border-white/20 bg-white/[0.06] px-3 py-2.5 text-sm text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </label>
     );
@@ -8886,7 +8886,7 @@ function Field({
             primeSfx();
             sfx.field();
           }}
-          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/40 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.06] px-3.5 py-3 text-[15px] text-white placeholder:text-white/50 transition focus:border-brand focus:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-brand/30"
         />
       </div>
     </label>
