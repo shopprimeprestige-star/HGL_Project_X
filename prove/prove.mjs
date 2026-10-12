@@ -5449,8 +5449,8 @@ function proveDelleDomandeNuove() {
   //  Una seconda risposta alla stessa domanda non si legge: la sua colonna
   //  non è «usata», così chi legge il file la conserva altrove.
   const doppie = new Set();
-  leggiRisposte(["a", "b"], ["poco", "abbastanza"], new Set(), true, doppie);
-  c("la risposta scartata non è «usata»", "0", [...doppie].join(","));
+  leggiRisposte(["a", "b", "c"], ["alopecia_areata", "poco", "abbastanza"], new Set(), true, doppie);
+  c("la risposta scartata non è «usata»", "0,1", [...doppie].sort().join(","));
 
   //  ── IL RIASSUNTO PER LA RIGA ────────────────────────────────────────
   const tre = { problema: "androgenetica", fastidio: "abbastanza", giaFatto: "niente" };
@@ -16918,6 +16918,181 @@ function proveDelRinfresco() {
   c("mai riletto: si rilegge", true, daRileggere({ motivo: "orologio", visibile: true, ultima: 0, adesso: t }));
 }
 
+/** ── LA MISURA SUI LEAD VERI: «ABBASTANZA» NON È SEMPRE UN FASTIDIO ─────────
+ *  ⚠️ Il modulo classico ha «Abbastanza» fra le risposte a «Conosci Hair
+ *   Genius Labs…?». Il riconoscitore lo prendeva per «Fastidio: Abbastanza»:
+ *   88 persone contate come «calde» senza esserlo (misura T10 sui dati veri;
+ *   qui solo dati finti). Si prova ogni strada da cui arrivava l'errore, le
+ *   due opzioni aggiunte a Problema e a Già provato, e che le frasi delle
+ *   quattro domande classiche si leggano come prima (commit 13e8039). */
+function proveDelleCorrezioniKpi() {
+  const { riconosciRisposta, leggiRisposte, vociModulo, campoDellaColonna, riassuntoModulo, risposteDaNotaVecchia, moduloLetto } = MDL;
+  gruppo("ABBASTANZA, UNIVERSALE E LE DUE RISPOSTE IN PIÙ");
+
+  //  ── A1. LA VOCE SALVATA COME «Ci conosce», SENZA CAMPO ───────────────
+  const ciConosce = moduloLetto({
+    modulo: { risposte: [{ domanda: "Ci conosce", risposta: "Abbastanza" }] },
+  });
+  c("«Ci conosce» è la domanda sulla conoscenza", "conoscenza", campoDellaColonna("Ci conosce"));
+  c("«Abbastanza» sotto «Ci conosce» non è un Fastidio", undefined, ciConosce.fastidio);
+  c("la voce resta com'è", "Ci conosce|Abbastanza", `${ciConosce.risposte[0].domanda}|${ciConosce.risposte[0].risposta}`);
+  c("e si vede sotto «Ci conosce»", "Ci conosce", vociModulo(ciConosce)[0].titolo);
+
+  //  ── A2. LA VOCE CON L'INTESTAZIONE DEL FILE COME DOMANDA ─────────────
+  const lunga = "conosci hair genius labs e il mondo dell'infoltimento capelli non chirurgico?";
+  const conIntestazione = moduloLetto({ modulo: { risposte: [{ domanda: lunga, risposta: "Abbastanza" }] } });
+  c("con l'intestazione del file non è un Fastidio", undefined, conIntestazione.fastidio);
+  c("e la domanda resta quella", lunga, conIntestazione.risposte[0].domanda);
+  //  Anche le altre classiche salvate senza campo restano com'erano.
+  const zonaStorta = moduloLetto({ modulo: { risposte: [{ domanda: "Zona", risposta: "Poco" }] } });
+  c("una voce di «Zona» non si sposta", "Zona", zonaStorta.risposte[0].domanda);
+  c("e non diventa un Fastidio", undefined, zonaStorta.fastidio);
+  //  ⚠️ Un solo spostamento resta: l'errore nascosto, «che problematica hai?»
+  //   finito sotto «Come vive il problema» (il valore è un problema).
+  const nascosto = moduloLetto({ modulo: { risposte: [{ domanda: "Come vive il problema", risposta: "Alopecia areata" }] } });
+  c("l'errore nascosto torna sotto «Problema»", "areata", nascosto.problema);
+
+  //  ── A3. LA NOTA «Dal modulo: abbastanza» DA SOLA ─────────────────────
+  c("«abbastanza» da solo nella nota non è un Fastidio", undefined, risposteDaNotaVecchia("Dal modulo: abbastanza"));
+  c("nemmeno «poco» da solo", undefined, risposteDaNotaVecchia("Dal modulo: poco"));
+  c("nemmeno con un'altra parola che non è una risposta", undefined,
+    risposteDaNotaVecchia("Dal modulo: abbastanza · created"));
+  const classica = moduloLetto({
+    modulo: { urgenza: "valutando", zona: "sud", quando: "sera" },
+    note: "Dal modulo: abbastanza",
+  });
+  c("su una scheda del modulo classico la nota non aggiunge un Fastidio", undefined, classica.fastidio);
+  c("e le risposte salvate restano", "valutando|sud|sera", `${classica.urgenza}|${classica.zona}|${classica.quando}`);
+  //  Con un Problema o un Già provato nella stessa riga, il Fastidio c'è.
+  c("con un Problema nella riga il Fastidio vale", "abbastanza",
+    risposteDaNotaVecchia("Dal modulo: alopecia areata · abbastanza").fastidio);
+  c("con un Già provato nella riga vale", "poco", risposteDaNotaVecchia("Dal modulo: poco · trapianto").fastidio);
+  //  «nulla» per esclusione continua a funzionare, perché il Fastidio ha l'appiglio.
+  c("«nulla» per esclusione resta Niente", "niente",
+    risposteDaNotaVecchia("Dal modulo: alopecia androgenetica · abbastanza · nulla").giaFatto);
+  c("ma senza Problema né Già provato non c'è nemmeno quello", undefined,
+    risposteDaNotaVecchia("Dal modulo: abbastanza · nulla"));
+
+  //  ── A4. LO STESSO ERRORE ALL'IMPORTAZIONE ────────────────────────────
+  //   Colonna affidabile di una classica + «abbastanza»: è la sua risposta.
+  const dalFile = leggiRisposte(["conosci_hair_genius_labs?"], ["abbastanza_"], new Set(), true);
+  c("dal file: «abbastanza» sotto «Conosci…» non è un Fastidio", undefined, dalFile.fastidio);
+  c("ma resta una risposta di «Ci conosce»", "Ci conosce|Abbastanza", `${dalFile.risposte[0].domanda}|${dalFile.risposte[0].risposta}`);
+  /*  ── A5. SENZA COLONNA AFFIDABILE: «ABBASTANZA» DA SOLO NON È UN FASTIDIO ──
+      È il caso vero di Meta: le intestazioni spostate di una colonna. Il
+      valore da solo non dice di quale domanda sia, e nel modulo classico
+      «abbastanza» risponde a «Conosci Hair Genius Labs…?». Vale come Fastidio
+      solo in compagnia di un Problema o di un Già provato; altrimenti si toglie
+      e la colonna non è «usata», quindi finisce nei «Dati originali». */
+  const usateClassica = new Set();
+  const rigaClassica = leggiRisposte(
+    ["a", "b", "c"], ["\u00e8_importante:_sto_valutando_seriamente", "abbastanza_", "sud_italia_e_isole"],
+    new Set(), false, usateClassica);
+  c("riga classica non affidabile: niente Fastidio", undefined, rigaClassica.fastidio);
+  c("e nessuna voce «Fastidio»", 0, rigaClassica.risposte.filter((r) => r.campo === "fastidio").length);
+  c("le altre risposte restano", "valutando|sud", `${rigaClassica.urgenza}|${rigaClassica.zona}`);
+  c("la colonna di «abbastanza» non è «usata»", "0,2", [...usateClassica].sort().join(","));
+  //  La riga del modulo nuovo, sempre non affidabile: il Fastidio resta.
+  const usateNuova = new Set();
+  const rigaNuova = leggiRisposte(["a", "b"], ["alopecia_areata", "abbastanza_"], new Set(), false, usateNuova);
+  c("riga nuova non affidabile con un Problema: il Fastidio resta", "areata|abbastanza", `${rigaNuova.problema}|${rigaNuova.fastidio}`);
+  c("e le due colonne sono «usate»", "0,1", [...usateNuova].sort().join(","));
+  c("con un Già provato nella riga resta", "poco",
+    leggiRisposte(["a", "b"], ["poco", "trapianto"], new Set(), false).fastidio);
+  //  Il Problema può stare DOPO nella riga: conta lo stesso.
+  c("anche se il Problema viene dopo", "abbastanza",
+    leggiRisposte(["a", "b"], ["abbastanza_", "alopecia_areata"], new Set(), false).fastidio);
+  //  Una colonna «Fastidio» affidabile dice di quale domanda è: vale da sola.
+  c("una colonna Fastidio affidabile vale da sola", "abbastanza",
+    leggiRisposte(["quanto_ti_infastidisce_la_calvizie?"], ["abbastanza_"], new Set(), true).fastidio);
+
+  //  ── Lo stesso, passando da un file vero (intestazioni spostate) ──────
+  const spostato = (urgenza, seconda) => IMP.traduciCsv([
+    "  ,created_time,ad_id,come_consideri_il_tuo_problema?,conosci_hair_genius_labs?,full_name,email,phone_number",
+    `l:1,2026-09-21T01:33:01-05:00,ag:12,${urgenza},${seconda},anna.prova@example.com,Anna Prova,p:+393330000102`,
+    `l:2,2026-09-21T01:34:01-05:00,ag:12,${urgenza},${seconda},luca.prova@example.com,Luca Prova,p:+393330000103`,
+  ].join("\n"));
+  const fileClassico = spostato("\u00e8_importante:_sto_valutando_seriamente", "abbastanza_");
+  c("file classico spostato: le intestazioni non sono affidabili", 0, fileClassico.intestazioniRiallineate);
+  c("file classico spostato: niente Fastidio su nessun lead", 0,
+    fileClassico.leads.filter((l) => l.modulo?.fastidio).length);
+  c("file classico spostato: l'urgenza si legge", "valutando", fileClassico.leads[0].modulo?.urgenza);
+  c("file classico spostato: «abbastanza» è nei dati originali", true,
+    Object.values(fileClassico.leads[0].datiFile ?? {}).some((v) => /^abbastanza/.test(v)));
+  const fileNuovo = spostato("alopecia_areata", "abbastanza_");
+  c("file nuovo spostato: il Fastidio resta con il Problema", "areata|abbastanza",
+    `${fileNuovo.leads[0].modulo?.problema}|${fileNuovo.leads[0].modulo?.fastidio}`);
+
+  // ── B. ALOPECIA UNIVERSALE ───────────────────────────────────────────
+  const dove = (t) => { const r = riconosciRisposta(t); return r ? `${r.campo}/${r.opzione.id}` : undefined; };
+  c("alopecia universale è un Problema", "problema/universale", dove("alopecia_universale"));
+  c("con il nome nostro", "Alopecia universale", riconosciRisposta("alopecia_universale").opzione.nome);
+  const uni = risposteDaNotaVecchia("Dal modulo: alopecia universale · abbastanza");
+  c("dalla nota: il problema", "universale", uni.problema);
+  c("e il Fastidio che lo accompagna", "abbastanza", uni.fastidio);
+  c("la voce vecchia sotto «Come vive il problema» passa a Problema", "universale",
+    moduloLetto({ modulo: { risposte: [{ domanda: "Come vive il problema", risposta: "Alopecia universale" }] } }).problema);
+
+  // ── C. LE DUE RISPOSTE DI GIÀ PROVATO IN PIÙ ─────────────────────────
+  c("tricologia / prp / polverine", "giaFatto/tricologia", dove("tricologia_/_prp_/_polverine"));
+  c("trico-pigmentazione (tatuaggio)", "giaFatto/tricopigmentazione", dove("trico-pigmentazione_(tatuaggio)"));
+  c("il nome nostro della prima", "Tricologia / PRP / polverine", riconosciRisposta("tricologia / prp / polverine").opzione.nome);
+  c("il nome nostro della seconda", "Tricopigmentazione", riconosciRisposta("trico-pigmentazione (tatuaggio)").opzione.nome);
+  const nota = risposteDaNotaVecchia("Dal modulo: alopecia areata · poco · tricologia / prp / polverine");
+  c("dalla nota: la tricologia", "tricologia", nota.giaFatto);
+  c("e si legge nel riassunto", "Problema: Alopecia areata · Fastidio: Poco · Già provato: Tricologia / PRP / polverine",
+    riassuntoModulo(nota, 3));
+  c("dalla nota: la tricopigmentazione", "tricopigmentazione",
+    risposteDaNotaVecchia("Dal modulo: alopecia areata · poco · trico-pigmentazione (tatuaggio)").giaFatto);
+
+  /*  ── LE QUATTRO DOMANDE CLASSICHE NON CAMBIANO ──────────────────────
+      Le attese sono quelle di 13e8039 (prima delle tre domande nuove),
+      calcolate sul codice di allora. Le due frasi con una parola delle nuove
+      («farmaci», «diradamento», «trapianto») restano classiche. */
+  const COME_PRIMA = [
+    ["voglio risolverlo subito", "urgenza/subito"],
+    ["Mi condiziona, ho un diradamento", "urgenza/subito"],
+    ["non ne posso più", "urgenza/subito"],
+    ["è urgente", "urgenza/subito"],
+    ["intervenire subito", "urgenza/subito"],
+    ["sto valutando seriamente", "urgenza/valutando"],
+    ["solo per informazioni", "urgenza/informativo"],
+    ["non è un problema", "urgenza/informativo"],
+    ["vi seguo da tempo", "conoscenza/segue"],
+    ["vi conosco già", "conoscenza/segue"],
+    ["conosco l'ambiente", "conoscenza/settore"],
+    ["Sì, ho già provato farmaci", "conoscenza/settore"],
+    ["ho già provato altri sistemi", "conoscenza/settore"],
+    ["ho gia avuto un trapianto", "conoscenza/settore"],
+    ["non conosco niente", "conoscenza/nuovo"],
+    ["è il mio primo approccio", "conoscenza/nuovo"],
+    ["nord", "zona/nord"],
+    ["centro italia", "zona/centro"],
+    ["sud", "zona/sud"],
+    ["isole", "zona/sud"],
+    ["estero", "zona/estero"],
+    ["svizzera", "zona/estero"],
+    ["mattina", "quando/mattina"],
+    ["pausa pranzo", "quando/pranzo"],
+    ["pomeriggio", "quando/pomeriggio"],
+    ["dopo le 18", "quando/sera"],
+    ["sera", "quando/sera"],
+    ["giovedì", undefined],
+    ["Mario Esempio", undefined],
+    ["BROAD | ITALIA", undefined],
+  ];
+  for (const [frase, atteso] of COME_PRIMA) c(`come prima: «${frase}»`, atteso, dove(frase));
+
+  /*  ── «CALDO» = HA GIÀ PROVATO QUALCOSA ──────────────────────────────
+      Decisione del titolare: le due risposte aggiunte rendono il lead caldo
+      come trapianto, lozioni e farmaci. «Niente» no. */
+  const { eCaldo } = CHIAM;
+  for (const id of ["trapianto", "lozioni", "farmaci", "tricologia", "tricopigmentazione"])
+    c(`già provato «${id}»: caldo`, true, eCaldo({ giaFatto: id }));
+  c("già provato «niente»: non basta", false, eCaldo({ giaFatto: "niente" }));
+  c("e senza nessun già provato nemmeno", false, eCaldo({ problema: "areata" }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -16949,6 +17124,7 @@ proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
 proveDelRinfresco();
+proveDelleCorrezioniKpi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
