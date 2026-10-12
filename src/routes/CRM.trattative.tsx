@@ -2040,8 +2040,10 @@ function LeadsPage() {
   //  più niente alla colonna del nome, che spariva da tutte le righe. Con il
   //  pannello aperto cedono le colonne che il pannello già mostra: il
   //  consulente (sotto «Assegnazione»), la prossima azione (si stringe, e sotto
-  //  `xl` va via) e i gesti al passaggio (stesse azioni nel pannello, sotto
-  //  `2xl`). Il nome e lo stato restano sempre. A pannello chiuso: come prima.
+  //  1400 px va via) e i gesti al passaggio (stesse azioni nel pannello). Il
+  //  CONTATORE DELLE CHIAMATE no: resta in riga in una colonna stretta, fra `lg`
+  //  e `2xl` (da `2xl` tornano anche gli altri gesti). Il nome e lo stato
+  //  restano sempre. A pannello chiuso: come prima.
   const conPannello = dettaglio != null;
 
   /* ── LE PASTIGLIE: I FILTRI ACCESI, SEMPRE IN VISTA ──────────────────────
@@ -3435,7 +3437,7 @@ function LeadsPage() {
             <span
               className={
                 conPannello
-                  ? "hidden w-[12rem] shrink-0 md:block lg:hidden xl:block xl:w-[10rem]"
+                  ? "hidden w-[12rem] shrink-0 md:block lg:max-[1399px]:hidden min-[1400px]:w-[10rem]"
                   : "hidden w-[12rem] shrink-0 md:block"
               }
             >
@@ -3447,7 +3449,7 @@ function LeadsPage() {
             <span
               className={
                 conPannello
-                  ? "w-[8.25rem] shrink-0 text-right md:w-[10rem] lg:hidden 2xl:block"
+                  ? "w-[8.25rem] shrink-0 text-right md:w-[10rem] lg:w-[3.5rem] 2xl:w-[10rem]"
                   : "w-[8.25rem] shrink-0 text-right md:w-[10rem]"
               }
             >
@@ -3678,7 +3680,7 @@ function LeadsPage() {
                   <div
                     className={
                       conPannello
-                        ? "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex lg:hidden xl:flex xl:w-[10rem]"
+                        ? "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex lg:max-[1399px]:hidden min-[1400px]:w-[10rem]"
                         : "hidden w-[12rem] shrink-0 flex-col leading-tight md:flex"
                     }
                   >
@@ -3739,7 +3741,7 @@ function LeadsPage() {
                       fatto col pollice subito dopo la chiamata. */}
                   <div
                     className={`flex shrink-0 items-center justify-end gap-0.5 transition-opacity md:w-[10rem] ${
-                      conPannello ? "lg:hidden 2xl:flex" : ""
+                      conPannello ? "lg:w-[3.5rem] 2xl:w-[10rem]" : ""
                     } ${
                       sottoCursore || aperto
                         ? "opacity-100"
@@ -3750,7 +3752,7 @@ function LeadsPage() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="hidden h-7 w-7 md:inline-flex"
+                      className={`hidden h-7 w-7 md:inline-flex ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                       title="Segna come da seguire (F)"
                       onClick={() => void updateLead(l.id, { highlighted: !l.data.highlighted })}
                     >
@@ -3769,7 +3771,7 @@ function LeadsPage() {
                           asChild
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                           title="Chiama (C)"
                         >
                           <a href={`tel:${l.data.telefono}`}>
@@ -3779,7 +3781,7 @@ function LeadsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                           title="Scrivi su WhatsApp (W)"
                           onClick={() => apriWhatsApp(l)}
                         >
@@ -3795,7 +3797,7 @@ function LeadsPage() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 text-primary hover:bg-primary/10"
+                        className={`h-7 w-7 text-primary hover:bg-primary/10 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
                         title="Avvia la videoconsulenza (V)"
                         aria-label="Avvia la videoconsulenza"
                         onClick={() => void avviaConsulenza(l)}
@@ -3815,7 +3817,7 @@ function LeadsPage() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className={`h-7 w-7 ${
+                            className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""} ${
                               fissata
                                 ? "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                                 : "text-amber-600 hover:bg-amber-50 hover:text-amber-700"
