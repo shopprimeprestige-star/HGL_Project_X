@@ -256,8 +256,9 @@ La pagina `/preventivo` (configuratore e preventivo creato) è il mondo pubblico
 bianco a più livelli, una sola voce di accento. Ha una scala sua, con i token `quote-*` qui sopra; i
 token del CRM (`title`, `row`, `body`, `note`, `label`) non si usano su questa pagina. In YAML ogni
 gradino è un token con un solo valore. Dove la misura cresce con lo schermo, ogni misura ha il suo
-token, con il suffisso `-sm` (telefono), `-md` (da `sm`, 640px) o `-lg` (computer): le classi
-`sm:`/`md:` passano dall'uno all'altro. Se il codice cambia, si allinea questo elenco, non il contrario.
+token, con il suffisso `-sm` (la misura di base, telefono), `-md` e `-lg` (i gradini successivi: secondo il
+elemento scattano già da `sm`, 640px, o da `md`, 768px, quindi `-lg` non vuol dire «solo computer»).
+Le classi `sm:`/`md:` del codice dicono quando si passa da uno all'altro. Se il codice cambia, si allinea questo elenco, non il contrario.
 
 ### Scala
 
@@ -275,7 +276,7 @@ token, con il suffisso `-sm` (telefono), `-md` (da `sm`, 640px) o `-lg` (compute
 | Totale del preventivo creato | `quote-price-hero-sm` 44px, poi `-lg` 52px (peso 800) | Totale in evidenza. |
 | Totale della garanzia | `quote-price-guarantee-sm` 40px, poi `-lg` 46px | Della stessa famiglia del totale. |
 | Secondo impianto | `quote-price-second-sm` 42px, poi `-lg` 48px | Della stessa famiglia del totale. |
-| Totale del riepilogo | `quote-price-total-sheet` 36px (riepilogo a tutto schermo sul telefono) · `quote-price-total` 30px (riepilogo sul computer e barra del telefono) | Il totale non si rimpicciolisce mai. |
+| Totale del riepilogo | `quote-price-total-sheet` 36px (riepilogo, sia a tutto schermo sul telefono sia sul computer) · `quote-price-total` 30px (barra del totale sul telefono) | Il totale non si rimpicciolisce mai. |
 | Cella «Ora / Alla consegna» | `quote-price-cell` 24px (peso 700) | Celle a due prezzi. |
 | Prezzo nella scheda di una strada | `quote-price-card` 18px (peso 700, cifre tabellari) | Schede delle strade. |
 
@@ -292,7 +293,7 @@ Il testo bianco si regola con l'opacità sul navy; i rapporti sono calcolati sul
 - Non si scende sotto 50% per «attenuare» una frase: se è meno importante si rimpicciolisce o si sposta, non si sbiadisce.
 
 ### Named Rules
-**La regola dell'effetto unico.** Effetti animati: al massimo uno per sezione, e solo con un perché
+**La regola dell'effetto unico.** Al massimo **un effetto continuo** per sezione, e solo con un perché (le entrate brevi e i veli di attesa non contano)
 (entrata `hg-rise`, cambio prezzo `hg-price-pop`, segnale dal vivo `hg-pulse-ring`). Niente animazioni
 infinite decorative (aurora, luccichio, bagliore), niente vetro sfocato sopra il testo che scorre. Ogni
 animazione rispetta `prefers-reduced-motion`: chi aggiunge una classe animata in `styles.css` le dà la
