@@ -90,7 +90,9 @@ export function rigaPreventivo(r: RegolePreventivo, c: ContatoriPreventivo): str
     `scorrimento ${r.scorre ? "sì" : r.videochiamata ? "no (videochiamata)" : "no"}`,
     `inviati stato ${c.statoInviati} scorri ${c.scorriInviati}`,
     `ricevuti stato ${c.statoRicevuti} scorri ${c.scorriRicevuti}`,
-    `ospiti in ascolto ${c.saluti}`,
+    //  Sono i SALUTI arrivati in questi trenta secondi: chi si è appena
+    //  collegato alla stanza, non chi c'era già (si saluta solo entrando).
+    `nuovi in ascolto ${c.saluti}`,
     `salvati ${c.salvatiOk}${c.salvatiKo ? ` falliti ${c.salvatiKo} (${c.ultimoErrore || "?"})` : ""}`,
   ];
   return parti.join(" · ").slice(0, 600);
