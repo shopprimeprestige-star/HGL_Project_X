@@ -15531,6 +15531,32 @@ function proveDelCampanello() {
   c("clienti dentro ma microfono spento: suona", true, campanaUdibile({ collegati: 1, micAcceso: false }));
 }
 
+/** ── IL RINVIO È DI CHI È STATO SPOSTATO, NON DELLA STANZA ─────────────────
+ *  Il caso del 13/10: stanza delle 15:00 condivisa, una persona spostata a
+ *  domani, il consulente avvia la stanza vecchia e il cliente rimasto viene
+ *  rinviato nella stanza di domani. Vedi crm/spostamento-meet. */
+function proveDelRinvioPerChi() {
+  const { rinvioPerChi } = SPM;
+  gruppo("IL RINVIO È DI CHI È STATO SPOSTATO, NON DELLA STANZA");
+  const riga = { code: "rfn-whmx-gsc", leadId: "4964aa0e-0e52-4a32" };
+  const spostato = "p4964aa0e";
+  const rimasto = "p6f65d79e";
+  c("il caso del 13/10: stanza avviata → nessun rinvio", "",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: true, persona: rimasto, altriAttesi: 1 }));
+  c("chi è rimasto non viene rinviato nemmeno a stanza ferma", "",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: rimasto, altriAttesi: 1 }));
+  c("la persona spostata sì", "rfn-whmx-gsc",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: spostato, altriAttesi: 1 }));
+  c("senza sapere chi è, in una stanza condivisa: nessun rinvio", "",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 1 }));
+  c("senza sapere chi è, stanza di una persona sola: rinvio come prima", "rfn-whmx-gsc",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 0 }));
+  c("nessuna riga di rinvio: niente", "",
+    rinvioPerChi({ rinvio: null, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: spostato, altriAttesi: 0 }));
+  c("rinvio verso sé stessa: niente", "",
+    rinvioPerChi({ rinvio: { code: "dhx-cxrw-gpz" }, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 0 }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15562,6 +15588,7 @@ proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();
 proveDelCampanello();
+proveDelRinvioPerChi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

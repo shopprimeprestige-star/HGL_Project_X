@@ -16,7 +16,8 @@ import { chiaveSessione } from "@/shop/chiave-sessione";
 import { consulenzaDaChiudere } from "@/shop/consulenza-aperta";
 //  La chiave del rinvio la scrive lo spostamento di un appuntamento: vedi
 //  crm/spostamento-meet.ts e routes/api.crm.meeting-session.ts.
-import { chiaveRinvio } from "@/crm/spostamento-meet";
+import { chiaveRinvio, rinvioPerChi } from "@/crm/spostamento-meet";
+import { chiaveAttesi, leggiAttesi } from "@/crm/fascia-consulenza";
 //  ⚠️ CHI STA AVVIANDO QUESTA CONSULENZA LO SA IL SERVER, NON IL BROWSER.
 //   Vedi il perché per esteso dentro il POST: da questa riga dipende il prezzo
 //   che legge il cliente.
@@ -86,18 +87,33 @@ function parse(value: string | null | undefined): Sess {
  *  altre di questa rotta.
  *  ⚠️ Un rinvio verso sé stessi non si restituisce: manderebbe la pagina del
  *   cliente a ricaricarsi all'infinito sullo stesso indirizzo. */
-async function leggiRinvio(codice: string | null): Promise<string> {
+async function leggiRinvio(codice: string | null): Promise<{ code: string; leadId: string } | null> {
   const c = String(codice || "").trim();
-  if (!c) return "";
+  if (!c) return null;
   try {
     const { data } = await supabaseAdmin
       .from("app_config").select("value").eq("key", chiaveRinvio(c)).maybeSingle();
     const v = (data as { value?: string | null } | null)?.value;
-    if (!v) return "";
-    const nuovo = String((JSON.parse(v) as { code?: string })?.code || "").trim();
-    return nuovo && nuovo !== c ? nuovo : "";
+    if (!v) return null;
+    const j = JSON.parse(v) as { code?: string; leadId?: string };
+    const nuovo = String(j?.code || "").trim();
+    return nuovo && nuovo !== c ? { code: nuovo, leadId: String(j?.leadId || "") } : null;
   } catch {
-    return "";
+    return null;
+  }
+}
+
+/** Quante persone attese in questa stanza NON sono quella del rinvio: se ce
+ *  n'è anche una sola, la stanza non è «sua» e non la si rinvia a scatola
+ *  chiusa (vedi `rinvioPerChi`). Si legge solo quando un rinvio c'è. */
+async function altriAttesiDi(codice: string, leadId: string): Promise<number> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_config").select("value").eq("key", chiaveAttesi(codice)).maybeSingle();
+    return leggiAttesi((data as { value?: string | null } | null)?.value).filter((p) => p.leadId !== leadId).length;
+  } catch {
+    //  Non si sa: meglio non rinviare chi forse appartiene a questa stanza.
+    return 1;
   }
 }
 
@@ -139,7 +155,7 @@ export const Route = createFileRoute("/api/presenter/session")({
             che in questa pagina non si può rallentare.
             ⚠️ Si legge SEMPRE, anche a sessione viva: il consulente può
              spostare l'appuntamento mentre il cliente ha la pagina aperta. */
-        const rinvio = await leggiRinvio(q);
+        const rigaRinvio = await leggiRinvio(q);
         let sess = parse(grezzo);
         /*  ── ⚠️ LE CONSULENZE CHE NESSUNO HA CHIUSO ─────────────────────
             Misurato in archivio: 13 righe dichiarate «vive», ferme da 4 a 102
@@ -178,6 +194,18 @@ export const Route = createFileRoute("/api/presenter/session")({
         //  consulenza (è ciò che tiene dentro il cliente).
         //  `inChiamata` = la videochiamata è davvero avviata (è ciò che fa
         //  riprendere una chiamata al consulente che ricarica la pagina).
+        //  ⚠️ Il rinvio è di chi è stato spostato, non della stanza (vedi
+        //   `rinvioPerChi`): una stanza avviata non rinvia nessuno, e una
+        //   stanza condivisa rinvia solo la persona spostata.
+        const rinvio = rigaRinvio
+          ? rinvioPerChi({
+              rinvio: rigaRinvio,
+              stanza: String(q || ""),
+              stanzaViva: vivo,
+              persona: new URL(request.url).searchParams.get("persona") || "",
+              altriAttesi: await altriAttesiDi(String(q || ""), rigaRinvio.leadId),
+            })
+          : "";
         return json({ ...sess, callActive: vivo, inChiamata: vivo && !!sess.inChiamata, rinvio });
       },
       POST: async ({ request }) => {

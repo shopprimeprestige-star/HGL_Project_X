@@ -235,6 +235,24 @@ async function segnaAtteso(code: string, leadId: string): Promise<void> {
   }
 }
 
+/** Toglie una persona dagli attesi di una stanza (appuntamento spostato). */
+async function togliAtteso(code: string, leadId: string): Promise<void> {
+  if (!code || !leadId) return;
+  try {
+    const chiave = chiaveAttesi(code);
+    const { data: riga } = await supabaseAdmin.from("app_config").select("value").eq("key", chiave).maybeSingle();
+    const prima = leggiAttesi((riga as { value?: string | null } | null)?.value);
+    const dopo = prima.filter((p) => p.leadId !== leadId);
+    if (dopo.length === prima.length) return;
+    await supabaseAdmin.from("app_config").upsert(
+      { key: chiave, value: scriviAttesi(dopo), updated_at: new Date().toISOString() } as never,
+      { onConflict: "key" },
+    );
+  } catch {
+    /* l'elenco è una comodità: al peggio resta un nome di troppo */
+  }
+}
+
 export const Route = createFileRoute("/api/crm/meeting-session")({
   server: {
     handlers: {
@@ -317,6 +335,10 @@ export const Route = createFileRoute("/api/crm/meeting-session")({
             } as never,
             { onConflict: "key" },
           );
+          //  ⚠️ E chi se ne va non resta fra gli attesi della stanza vecchia:
+          //   restandoci, la porta di quella stanza lo proponeva ancora agli
+          //   altri («chi sei?») e la stanza sembrava sua.
+          await togliAtteso(esistente.code, leadId);
         }
         const s: Sessione = {
           code,

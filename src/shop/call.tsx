@@ -10330,7 +10330,15 @@ export function CallMount() {
         pollBusy.current = true;
         // il guest controlla se la sessione è stata avviata (altrimenti vede l'attesa).
         fetch(
-          `/api/presenter/session?sess=${encodeURIComponent(S.sessionId || watchIdDaIndirizzo() || "")}`,
+          `/api/presenter/session?sess=${encodeURIComponent(S.sessionId || watchIdDaIndirizzo() || "")}` +
+            //  Chi chiede: il rinvio di un appuntamento spostato vale solo per
+            //  la persona spostata, non per chi divideva la stanza con lei.
+            ((): string => {
+              const io =
+                miaPersonaDi(S.sessionId || watchIdDaIndirizzo() || "") ||
+                (typeof window !== "undefined" ? gettoneDalLink(window.location.search) : "");
+              return io ? `&persona=${encodeURIComponent(io)}` : "";
+            })(),
         )
           .then((r) => r.json())
           .then((j) => {
@@ -10349,7 +10357,9 @@ export function CallMount() {
               ⚠️ `replace`: l'indirizzo vecchio non deve restare nella
                cronologia, o il tasto «indietro» ci riporta dentro. */
             const rinvio = typeof j.rinvio === "string" ? j.rinvio.trim() : "";
-            if (rinvio && rinvio !== guestCodeRef.current && !S.sessionLive && !S.joined) {
+            //  ⚠️ E mai da una stanza che il server dice AVVIATA: il consulente
+            //   è lì (lo controlla anche il server, ma un server vecchio no).
+            if (rinvio && rinvio !== guestCodeRef.current && !S.sessionLive && !S.joined && !j.live) {
               if (!rinviatoUnaVolta) {
                 rinviatoUnaVolta = true;
                 console.log("[GUEST] appuntamento spostato: questa stanza è diventata", rinvio);
