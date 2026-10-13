@@ -1275,6 +1275,17 @@ export function contaSuono(nome: string) {
 }
 if (typeof window !== "undefined") setSpiaSuoni(contaSuono);
 
+/** Un'altra scheda ha deciso: la sua scrittura sul server arriva un attimo
+ *  dopo il messaggio, quindi si rilegge la sala fra poco. */
+let rilettura: ReturnType<typeof setTimeout> | null = null;
+function rileggiSalaFraPoco() {
+  if (rilettura) return;
+  rilettura = setTimeout(() => {
+    rilettura = null;
+    void leggiSalaDAttesa();
+  }, 1500);
+}
+
 /** Toglie dallo schermo la richiesta di entrare di chi non aspetta più. */
 function togliRichiesta(pid: string, dev = "") {
   if (!pid && !dev) return;
@@ -2105,6 +2116,11 @@ function gcRoster() {
     improntaPresenti = presenti;
     emit();
   }
+  //  Chi è collegato davvero (una connessione vera, non un messaggio che
+  //  chiunque potrebbe scrivere sul canale) non sta più alla porta.
+  if (S.role === "host" && S.knocks.length)
+    for (const r of S.roster)
+      if (r.role === "viewer" && presenteDavvero(r.pid, now)) togliRichiesta(r.pid, deviceOf.get(r.pid) || "");
   for (const r of S.roster.slice()) {
     // L'OSPITE non rimuove il presentatore CONNESSO dalla propria lista (batte il
     // ciclo di presenza solo mentre ha i media aperti → il GC lo faceva sparire
@@ -5143,8 +5159,6 @@ function attachChannel(sessionId: string) {
         removePeer(r.pid, "dedupe-host");
       }
     }
-    //  Chi si annuncia DENTRO la chiamata non sta più alla porta.
-    if (!isViewer() && role === "viewer") togliRichiesta(pid, dev);
     const known = S.roster.some((r) => r.pid === pid);
     lastSeen.set(pid, Date.now());
     if (!firstSeen.has(pid)) firstSeen.set(pid, Date.now());
@@ -5584,8 +5598,11 @@ function attachChannel(sessionId: string) {
   ch.on("broadcast", { event: "admit" }, ({ payload }: any) => {
     //  Un'altra scheda del consulente l'ha fatto entrare: qui la richiesta
     //  non deve restare a schermo.
+    //  ⚠️ Il messaggio sul canale non si prende per buono (chiunque nella
+    //   stanza può scriverlo): si rilegge la sala dal server, che è l'unico a
+    //   sapere chi aspetta ancora (vedi `nonAspettaPiu`).
     if (!isViewer()) {
-      togliRichiesta(String(payload?.to || ""), String(payload?.dev || ""));
+      rileggiSalaFraPoco();
       return;
     }
     if (!perMe(payload)) return;
@@ -5593,7 +5610,7 @@ function attachChannel(sessionId: string) {
   });
   ch.on("broadcast", { event: "deny" }, ({ payload }: any) => {
     if (!isViewer()) {
-      togliRichiesta(String(payload?.to || ""), String(payload?.dev || ""));
+      rileggiSalaFraPoco();
       return;
     }
     if (!perMe(payload)) return;
