@@ -396,6 +396,8 @@ const MODULI = [
   //  ⚠️ Più persone nella stessa consulenza: quando due appuntamenti sono la
   //   stessa stanza, e chi è atteso dentro. Vedi proveDellaFascia.
   "fascia-consulenza",
+  //  ⚠️ Quanti posti restano e a che ora. Vedi proveDegliSlotLiberi.
+  "slot-liberi",
   //  ⚠️ I preventivi quando sono in più di uno: le stanze, la penna, e che
   //   cosa vede ciascuno. Vedi proveDeiPreventiviDiGruppo.
   "shop/preventivi-di-gruppo",
@@ -586,6 +588,7 @@ const CAU = mod["shop/causale-bonifico"];
 const CDP = mod["shop/causale-di-un-preventivo"];
 const SAL = mod["shop/sala-attesa"];
 const FAS = mod["fascia-consulenza"];
+const SLOT = mod["slot-liberi"];
 const PDG = mod["shop/preventivi-di-gruppo"];
 const SPV = mod["shop/scatola-preventivo"];
 const VPA = mod["shop/vista-parallela"];
@@ -15598,6 +15601,50 @@ function proveDelRinvioPerChi() {
  *  «Se l'utente esce dalla sala d'attesa l'avviso deve sparire», «chi esce da
  *  Meetly resta dentro con camera spenta». Vedi shop/sala-attesa e
  *  shop/resta-in-lista. */
+/** ── GLI SLOT LIBERI ───────────────────────────────────────────────────────
+ *  «Quanti slot ho liberi ancora e che orari, ottimizzato». Si contano POSTI
+ *  (una fascia aperta ne tiene tre) e si propongono prima le ore già iniziate.
+ *  Vedi crm/slot-liberi. */
+function proveDegliSlotLiberi() {
+  const { postiDi, riassumiGiorno, daRiempirePrima, testoDaCopiare, totali } = SLOT;
+  gruppo("GLI SLOT LIBERI");
+  const s = (ora, libero, presi, capienza = 3) => ({ ora, libero, presi, capienza });
+  c("fascia vuota: 3 posti", 3, postiDi(s("10:00", true, 0)));
+  c("con una persona dentro: 2", 2, postiDi(s("10:00", true, 1)));
+  c("non libera: zero, anche se il conto direbbe altro", 0, postiDi(s("10:00", false, 1)));
+  c("ora tenuta per uno (capienza 1) con lui dentro: zero", 0, postiDi(s("10:00", true, 1, 1)));
+  const g = riassumiGiorno({
+    data: "2026-10-14",
+    persone: [
+      { id: "a", nome: "Anna", slot: [s("09:00", true, 0), s("10:00", false, 3), s("11:00", true, 1)] },
+      { id: "b", nome: "Bruno", slot: [s("09:00", true, 0), s("10:00", false, 1, 1), s("15:00", true, 0)] },
+    ],
+  });
+  c("ore di lavoro contate una volta", 4, g.fasceTotali);
+  c("le 10 sono piene per tutti", 1, g.fascePiene);
+  c("orari con posto in ordine", "09:00,11:00,15:00", g.fasce.map((f) => f.ora).join());
+  c("alle 9 i posti si sommano (3+3)", 6, g.fasce[0].posti);
+  c("posti del giorno", 6 + 2 + 3, g.posti);
+  c("le 11 sono iniziate", true, g.fasce[1].iniziata);
+  c("alle 9 nessuno dentro", false, g.fasce[0].iniziata);
+  const oggi = riassumiGiorno({ data: "2026-10-14", persone: [{ id: "a", nome: "Anna", slot: [s("09:00", true, 0), s("16:00", true, 0)] }], dopo: 12 * 60 });
+  c("oggi le ore passate non si offrono", "16:00", oggi.fasce.map((f) => f.ora).join());
+  const pieno = riassumiGiorno({ data: "2026-10-15", persone: [{ id: "a", nome: "Anna", slot: [s("09:00", false, 3)] }] });
+  const chiuso = riassumiGiorno({ data: "2026-10-18", persone: [{ id: "a", nome: "Anna", slot: [] }] });
+  const ordine = daRiempirePrima([g, pieno], 3);
+  c("prima l'ora già iniziata", "11:00 Anna", `${ordine[0].ora} ${ordine[0].chi.nome}`);
+  c("poi la prima libera", "09:00", ordine[1].ora);
+  c("quanti se ne chiedono", 3, ordine.length);
+  const t = totali([g, pieno, chiuso]);
+  c("un giorno pieno è pieno, uno di chiusura no", 1, t.giorniPieni);
+  c("giorni con posto", 1, t.giorniConPosto);
+  c("posti totali", 11, t.posti);
+  const testo = testoDaCopiare([g, pieno]);
+  c("il testo da copiare ha solo i giorni con posto", 1, testo.split("\n").length);
+  c("il testo dice le ore", true, testo.endsWith("09:00, 11:00, 15:00"));
+  c("nessun nome nel testo per il cliente", false, /Anna|Bruno/.test(testo));
+}
+
 function proveDiChiEsce() {
   const { bussateVive, BUSSATA_VIVA_MS } = SAL;
   const { verdettoSuOspite, SALUTO_SPARITO_MS } = RIL;
@@ -15656,6 +15703,7 @@ proveDellAnteprimaDelPreventivoGiusta();
 proveDiChiEntra();
 proveDelRinvioPerChi();
 proveDiChiEsce();
+proveDegliSlotLiberi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
