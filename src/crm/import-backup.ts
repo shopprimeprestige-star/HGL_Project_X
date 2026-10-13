@@ -743,7 +743,11 @@ export function leggiTestoFile(byte: Uint8Array): string {
   if (byte.length >= 2) {
     let zeriDispari = 0;
     let zeriPari = 0;
-    for (let i = 0; i < byte.length; i++) if (byte[i] === 0) (i % 2 ? zeriDispari++ : zeriPari++);
+    for (let i = 0; i < byte.length; i++) {
+      if (byte[i] !== 0) continue;
+      if (i % 2) zeriDispari++;
+      else zeriPari++;
+    }
     const posti = Math.floor(byte.length / 2);
     if (zeriDispari / posti > 0.3) return decodifica("utf-16le", 0);
     if (zeriPari / posti > 0.3) return decodifica("utf-16be", 0);

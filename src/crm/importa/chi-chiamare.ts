@@ -266,9 +266,15 @@ function arrivatoIl(d: Partial<LeadData>): number {
 function senzaOraVera(t: number): boolean {
   const q = new Date(t);
   const mezzogiornoLocale =
-    q.getHours() === 12 && q.getMinutes() === 0 && q.getSeconds() === 0 && q.getMilliseconds() === 0;
+    q.getHours() === 12 &&
+    q.getMinutes() === 0 &&
+    q.getSeconds() === 0 &&
+    q.getMilliseconds() === 0;
   const mezzanotteUtc =
-    q.getUTCHours() === 0 && q.getUTCMinutes() === 0 && q.getUTCSeconds() === 0 && q.getUTCMilliseconds() === 0;
+    q.getUTCHours() === 0 &&
+    q.getUTCMinutes() === 0 &&
+    q.getUTCSeconds() === 0 &&
+    q.getUTCMilliseconds() === 0;
   return mezzogiornoLocale || mezzanotteUtc;
 }
 
@@ -330,7 +336,8 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   }
 
   //  3. NUOVO
-  if (eNuovo(d, adesso)) return fatto("nuovo", etàLeggibile(adesso.getTime() - arrivatoIl(d), adesso, arrivatoIl(d)));
+  if (eNuovo(d, adesso))
+    return fatto("nuovo", etàLeggibile(adesso.getTime() - arrivatoIl(d), adesso, arrivatoIl(d)));
 
   //  4. È LA SUA ORA — per i mai chiamati e per i ritento.
   const mai = d.stato === "da_contattare" && tentativiDi(d) === 0;

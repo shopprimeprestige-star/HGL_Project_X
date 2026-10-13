@@ -23,7 +23,14 @@
  *   contenere una virgola («chiazze, sulla nuca»): spezzare una stringa sulle
  *   virgole la romperebbe a metà e il filtro non troverebbe più nessuno. */
 
-import type { LeadData, LeadStatus, MotivoChiamata, RisposteModulo, TrackingInfo, CampoModulo } from "../types";
+import type {
+  LeadData,
+  LeadStatus,
+  MotivoChiamata,
+  RisposteModulo,
+  TrackingInfo,
+  CampoModulo,
+} from "../types";
 import { CAMPI_MODULO } from "../types";
 import { dentroLaFetta, FETTE_TEMPO, type FettaTempo } from "../quando-stato";
 import { etichettaRisposta, pulisci, titoloDomanda, type DomandaModulo } from "../modulo-lead";
@@ -56,7 +63,10 @@ const SEP = "␟";
 export const SENZA = "senza";
 export const GRUPPO_SENZA_ANNUNCIO = "Liste senza annuncio";
 
-const pulito = (t: string | undefined) => String(t ?? "").replace(/\s+/g, " ").trim();
+const pulito = (t: string | undefined) =>
+  String(t ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /* ═══ ANNUNCIO ═══════════════════════════════════════════════════════════ */
 
@@ -79,9 +89,15 @@ export function etichettaAnnuncio(t?: TrackingInfo): {
 
 /** Il gruppo e l'annuncio dentro una chiave dell'indirizzo, per mostrare una
  *  voce accesa che non esiste più. */
-function apriChiaveAnnuncio(chiave: string): { chiaveGruppo: string; gruppo: string; annuncio: string | null } {
-  if (chiave === SENZA) return { chiaveGruppo: SENZA, gruppo: GRUPPO_SENZA_ANNUNCIO, annuncio: null };
-  if (chiave.startsWith("g:")) return { chiaveGruppo: chiave, gruppo: chiave.slice(2), annuncio: null };
+function apriChiaveAnnuncio(chiave: string): {
+  chiaveGruppo: string;
+  gruppo: string;
+  annuncio: string | null;
+} {
+  if (chiave === SENZA)
+    return { chiaveGruppo: SENZA, gruppo: GRUPPO_SENZA_ANNUNCIO, annuncio: null };
+  if (chiave.startsWith("g:"))
+    return { chiaveGruppo: chiave, gruppo: chiave.slice(2), annuncio: null };
   const resto = chiave.slice(2);
   const i = resto.indexOf(SEP);
   const gruppo = resto.slice(0, i);
@@ -95,7 +111,10 @@ function apriChiaveAnnuncio(chiave: string): { chiaveGruppo: string; gruppo: str
 /* ═══ STATO ══════════════════════════════════════════════════════════════ */
 
 /** In quale voce del filtro Stato cade una riga, dato il suo motivo. */
-export function statoDelFiltro(motivo: MotivoChiamata, stato?: LeadStatus): Exclude<StatoFiltro, "tutti"> {
+export function statoDelFiltro(
+  motivo: MotivoChiamata,
+  stato?: LeadStatus,
+): Exclude<StatoFiltro, "tutti"> {
   switch (motivo) {
     case "promessa":
       return "promesse";
@@ -144,7 +163,8 @@ export function valoriRisposta(m?: RisposteModulo): ValoreRisposta[] {
     const testo =
       campo === "quando" && m.quandoTesto
         ? m.quandoTesto
-        : (m.risposte ?? []).find((r) => r.campo === campo || (!r.campo && r.domanda === titolo))?.risposta;
+        : (m.risposte ?? []).find((r) => r.campo === campo || (!r.campo && r.domanda === titolo))
+            ?.risposta;
     const chiaveTesto = pulisci(testo ?? "");
     if (!chiaveTesto) continue;
     out.push({ campo, titolo, chiave: `${campo}|t:${chiaveTesto}`, etichetta: pulito(testo) });
@@ -213,7 +233,11 @@ function passa(r: RigaDaFiltrare, f: FiltriLista, oggi: string, no: Escludi = {}
 
 /** Le righe che passano tutti i filtri, in E. Non cambia l'ordine né l'elenco
  *  di partenza. */
-export function applicaFiltri<R extends RigaDaFiltrare>(righe: R[], f: FiltriLista, oggi: string): R[] {
+export function applicaFiltri<R extends RigaDaFiltrare>(
+  righe: R[],
+  f: FiltriLista,
+  oggi: string,
+): R[] {
   return righe.filter((r) => passa(r, f, oggi));
 }
 
@@ -226,7 +250,11 @@ export interface OpzioniFiltri {
     n: number;
     annunci: { chiave: string; annuncio: string; n: number }[];
   }[];
-  risposte: { campo: CampoModulo; titolo: string; voci: { chiave: string; etichetta: string; n: number }[] }[];
+  risposte: {
+    campo: CampoModulo;
+    titolo: string;
+    voci: { chiave: string; etichetta: string; n: number }[];
+  }[];
   stato: { valore: StatoFiltro; n: number }[];
   quando: { valore: FettaTempo; n: number }[];
 }
@@ -234,9 +262,21 @@ export interface OpzioniFiltri {
 const perNumero = <T extends { n: number }>(a: T, b: T, nome: (x: T) => string) =>
   b.n - a.n || nome(a).localeCompare(nome(b), "it");
 
-export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: string): OpzioniFiltri {
+export function opzioniFiltri(
+  righe: RigaDaFiltrare[],
+  f: FiltriLista,
+  oggi: string,
+): OpzioniFiltri {
   //  ── Annuncio: conta senza il filtro annuncio ────────────────────────────
-  const gruppi = new Map<string, { chiave: string; gruppo: string; n: number; annunci: Map<string, { chiave: string; annuncio: string; n: number }> }>();
+  const gruppi = new Map<
+    string,
+    {
+      chiave: string;
+      gruppo: string;
+      n: number;
+      annunci: Map<string, { chiave: string; annuncio: string; n: number }>;
+    }
+  >();
   const gruppoDi = (chiave: string, gruppo: string) => {
     let g = gruppi.get(chiave);
     if (!g) gruppi.set(chiave, (g = { chiave, gruppo, n: 0, annunci: new Map() }));
@@ -248,7 +288,11 @@ export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: str
     const g = gruppoDi(e.chiaveGruppo, e.gruppo);
     g.n++;
     if (e.chiaveAnnuncio && e.annuncio) {
-      const a = g.annunci.get(e.chiaveAnnuncio) ?? { chiave: e.chiaveAnnuncio, annuncio: e.annuncio, n: 0 };
+      const a = g.annunci.get(e.chiaveAnnuncio) ?? {
+        chiave: e.chiaveAnnuncio,
+        annuncio: e.annuncio,
+        n: 0,
+      };
       a.n++;
       g.annunci.set(e.chiaveAnnuncio, a);
     }
@@ -270,7 +314,10 @@ export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: str
     }))
     //  ⚠️ «Liste senza annuncio» sta sempre in fondo, anche se ha più lead: non è
     //   un annuncio da scegliere ma il mucchio di quelli che non ne hanno uno.
-    .sort((a, b) => Number(a.chiave === SENZA) - Number(b.chiave === SENZA) || perNumero(a, b, (x) => x.gruppo));
+    .sort(
+      (a, b) =>
+        Number(a.chiave === SENZA) - Number(b.chiave === SENZA) || perNumero(a, b, (x) => x.gruppo),
+    );
 
   //  ── Risposte: ogni domanda si conta senza il proprio filtro ─────────────
   const scelte = unaPerDomanda(f.risposte ?? []);
@@ -288,9 +335,14 @@ export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: str
       voci.set(v.chiave, x);
     }
     const accesa = scelte.find((k) => apriChiaveRisposta(k)?.campo === campo);
-    if (accesa && !voci.has(accesa)) voci.set(accesa, { chiave: accesa, etichetta: etichettaDiChiave(accesa), n: 0 });
+    if (accesa && !voci.has(accesa))
+      voci.set(accesa, { chiave: accesa, etichetta: etichettaDiChiave(accesa), n: 0 });
     if (!voci.size) continue;
-    risposte.push({ campo, titolo, voci: [...voci.values()].sort((a, b) => perNumero(a, b, (x) => x.etichetta)) });
+    risposte.push({
+      campo,
+      titolo,
+      voci: [...voci.values()].sort((a, b) => perNumero(a, b, (x) => x.etichetta)),
+    });
   }
 
   //  ── Stato e tempo: contano con tutti gli altri filtri ───────────────────
@@ -316,13 +368,24 @@ export function opzioniFiltri(righe: RigaDaFiltrare[], f: FiltriLista, oggi: str
 export function leggiRicercaImporta(raw: Record<string, unknown>): FiltriLista {
   const out: FiltriLista = {};
   const a = raw.annuncio;
-  if (typeof a === "string" && (a === SENZA || (/^[ag]:./.test(a) && (a[0] === "g" || a.includes(SEP))))) {
+  if (
+    typeof a === "string" &&
+    (a === SENZA || (/^[ag]:./.test(a) && (a[0] === "g" || a.includes(SEP))))
+  ) {
     out.annuncio = a;
   }
-  const grezze = Array.isArray(raw.risposte) ? raw.risposte : typeof raw.risposte === "string" ? [raw.risposte] : [];
-  const buone = unaPerDomanda(grezze.filter((k): k is string => typeof k === "string" && apriChiaveRisposta(k) !== null));
+  const grezze = Array.isArray(raw.risposte)
+    ? raw.risposte
+    : typeof raw.risposte === "string"
+      ? [raw.risposte]
+      : [];
+  const buone = unaPerDomanda(
+    grezze.filter((k): k is string => typeof k === "string" && apriChiaveRisposta(k) !== null),
+  );
   if (buone.length) out.risposte = buone;
-  if (typeof raw.stato === "string" && (STATI_FILTRO as string[]).includes(raw.stato)) out.stato = raw.stato as StatoFiltro;
-  if (typeof raw.quando === "string" && (FETTE_TEMPO as string[]).includes(raw.quando)) out.quando = raw.quando as FettaTempo;
+  if (typeof raw.stato === "string" && (STATI_FILTRO as string[]).includes(raw.stato))
+    out.stato = raw.stato as StatoFiltro;
+  if (typeof raw.quando === "string" && (FETTE_TEMPO as string[]).includes(raw.quando))
+    out.quando = raw.quando as FettaTempo;
   return out;
 }

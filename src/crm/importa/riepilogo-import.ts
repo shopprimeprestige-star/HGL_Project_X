@@ -15,7 +15,11 @@ import { etichettaAnnuncio, SENZA, valoriRisposta } from "./filtri-lista";
 
 export interface RiepilogoImport {
   perGruppo: { gruppo: string; n: number; annunci: { annuncio: string; n: number }[] }[];
-  perDomanda: { campo: CampoModulo; titolo: string; risposte: { etichetta: string; n: number }[] }[];
+  perDomanda: {
+    campo: CampoModulo;
+    titolo: string;
+    risposte: { etichetta: string; n: number }[];
+  }[];
   /** I lead senza gruppo né campagna (anche se hanno un ad_name). */
   senzaAnnuncio: number;
   /** Fra quelli senza gruppo, i nomi di annuncio che il file ha dato lo stesso:
@@ -28,7 +32,10 @@ const perNumero = <T extends { n: number }>(a: T, b: T, nome: (x: T) => string) 
 
 export function riepilogoImport(leads: Partial<LeadData>[]): RiepilogoImport {
   const gruppi = new Map<string, { gruppo: string; n: number; annunci: Map<string, number> }>();
-  const domande = new Map<CampoModulo, { titolo: string; risposte: Map<string, { etichetta: string; n: number }> }>();
+  const domande = new Map<
+    CampoModulo,
+    { titolo: string; risposte: Map<string, { etichetta: string; n: number }> }
+  >();
   let senzaAnnuncio = 0;
   const senzaGruppo = new Map<string, number>();
 
@@ -38,7 +45,11 @@ export function riepilogoImport(leads: Partial<LeadData>[]): RiepilogoImport {
       senzaAnnuncio++;
       if (e.annuncio) senzaGruppo.set(e.annuncio, (senzaGruppo.get(e.annuncio) ?? 0) + 1);
     } else {
-      const g = gruppi.get(e.chiaveGruppo) ?? { gruppo: e.gruppo, n: 0, annunci: new Map<string, number>() };
+      const g = gruppi.get(e.chiaveGruppo) ?? {
+        gruppo: e.gruppo,
+        n: 0,
+        annunci: new Map<string, number>(),
+      };
       g.n++;
       if (e.annuncio) g.annunci.set(e.annuncio, (g.annunci.get(e.annuncio) ?? 0) + 1);
       gruppi.set(e.chiaveGruppo, g);
@@ -57,7 +68,9 @@ export function riepilogoImport(leads: Partial<LeadData>[]): RiepilogoImport {
       .map((g) => ({
         gruppo: g.gruppo,
         n: g.n,
-        annunci: [...g.annunci].map(([annuncio, n]) => ({ annuncio, n })).sort((a, b) => perNumero(a, b, (x) => x.annuncio)),
+        annunci: [...g.annunci]
+          .map(([annuncio, n]) => ({ annuncio, n }))
+          .sort((a, b) => perNumero(a, b, (x) => x.annuncio)),
       }))
       .sort((a, b) => perNumero(a, b, (x) => x.gruppo)),
     //  Le domande nell'ordine del modulo (CAMPI_MODULO), non per numero: si
