@@ -259,3 +259,20 @@ export function inAttesa(persone: PersonaInAttesa[], adesso = Date.now()): Perso
     .filter((p) => p.stato === "attesa")
     .sort((a, b) => a.at - b.at);
 }
+
+
+/** ── LA RICHIESTA DI ENTRARE SPARISCE QUANDO CHI BUSSA SE NE VA ────────────
+ *  Segnalazione del committente (13/10/2026): «se l'utente esce dalla sala
+ *  d'attesa, l'avviso deve scomparire al presentatore». La riga sul server
+ *  scade da sola (ATTESA_TTL_MS), ma l'elenco nella scheda del consulente no:
+ *  la richiesta restava a schermo finché qualcuno non la accettava o
+ *  rifiutava, anche a pagina del cliente chiusa.
+ *  Chi aspetta ribussa ogni quattro secondi: senza notizie da così tanto, non
+ *  c'è più. (Chiudendo la pagina manda anche un «esco», che la toglie subito.) */
+export const BUSSATA_VIVA_MS = 20_000;
+
+/** Le bussate di cui si ha notizia da poco. `visto` = l'ultima notizia (canale
+ *  o server); se manca vale `at`. */
+export function bussateVive<T extends { at: number; visto?: number }>(lista: T[], adesso = Date.now()): T[] {
+  return lista.filter((k) => adesso - (Number(k.visto) || Number(k.at) || 0) < BUSSATA_VIVA_MS);
+}

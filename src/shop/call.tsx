@@ -85,6 +85,7 @@ import {
 //  server, il consulente la legge di lì, e la decisione torna indietro anche
 //  se il filo in tempo reale non c'è (shop/sala-attesa).
 import type { StatoAttesa } from "@/shop/sala-attesa";
+import { BUSSATA_VIVA_MS, bussateVive } from "@/shop/sala-attesa";
 //  Per portare il consulente sulla pagina del preventivo quando apre quello
 //  di una persona: è quella pagina che il cliente segue (api.presenter.curpage).
 //  ⚠️ Si può usare perché <CallMount> è montato dentro la radice del router
@@ -386,6 +387,8 @@ interface State {
     name: string;
     dev: string;
     at: number;
+    /** l'ultima notizia di questa bussata (canale o server): vedi `bussateVive` */
+    visto?: number;
     atteso?: boolean;
     leadId?: string;
   }[]; // (presentatore) in attesa
@@ -2063,6 +2066,12 @@ function guestResumeCall() {
  *  oppure è arrivato da poco). Chi non ha né peer né hello sparisce subito. */
 function gcRoster() {
   const now = Date.now();
+  //  Le richieste di entrare di chi non bussa più da un po' spariscono (vedi
+  //  `bussateVive` in shop/sala-attesa): il cliente ha chiuso, non aspetta più.
+  if (S.role === "host" && S.knocks.length) {
+    const vive = bussateVive(S.knocks, now);
+    if (vive.length !== S.knocks.length) set({ knocks: vive });
+  }
   for (const r of S.roster.slice()) {
     // L'OSPITE non rimuove il presentatore CONNESSO dalla propria lista (batte il
     // ciclo di presenza solo mentre ha i media aperti → il GC lo faceva sparire
@@ -5111,6 +5120,10 @@ function attachChannel(sessionId: string) {
     if (payload?.pid) salutoDelPid.delete(String(payload.pid));
     if (!payload?.pid) return;
     removePeer(payload.pid, "bye");
+    //  Chi chiude la pagina mentre bussa se ne va anche dalla porta: la sua
+    //  richiesta di entrare sparisce subito dallo schermo del consulente.
+    if (S.knocks.some((k) => k.pid === String(payload.pid)))
+      set({ knocks: S.knocks.filter((k) => k.pid !== String(payload.pid)) });
     // se ad uscire è il PRESENTATORE, l'ospite torna subito in attesa: niente
     // più attesa dei 10s di silenzio né camera "spenta" appesa.
     if (payload.role === "host" && isViewer())
@@ -5273,6 +5286,7 @@ function attachChannel(sessionId: string) {
       name,
       dev,
       at: i >= 0 ? list[i].at : Date.now(),
+      visto: Date.now(),
       atteso: !!atteso,
       ...(atteso ? { leadId: atteso.leadId } : {}),
     };
@@ -6722,10 +6736,17 @@ async function leggiSalaDAttesa() {
         name: String(p.nome || "Ospite"),
         dev,
         at: Number(p.at) || Date.now(),
+        //  La riga del server la riscrive chi bussa: il suo `at` è l'ultima
+        //  volta che si è fatto vivo.
+        visto: Number(p.at) || Date.now(),
         atteso: !!p.atteso,
         ...(p.leadId ? { leadId: String(p.leadId) } : {}),
       };
       const i = nuove.findIndex((k) => k.pid === pid || (dev && k.dev === dev));
+      if (i >= 0 && (nuove[i].visto || 0) < voce.visto) {
+        nuove[i] = { ...nuove[i], visto: voce.visto };
+        cambiato = true;
+      }
       if (i >= 0) {
         /*  ── IL NOME VERO ARRIVA DI QUI ─────────────────────────────────
             Sul canale la bussata può portare un gettone che questa scheda
@@ -6755,6 +6776,10 @@ async function leggiSalaDAttesa() {
         }
         continue;
       }
+      //  ⚠️ Una riga che nessuno riscrive da un po' è di chi se n'è andato:
+      //   non si rimette in elenco (e non si suona), anche se il server la
+      //   tiene ancora per qualche decina di secondi.
+      if (Date.now() - voce.visto >= BUSSATA_VIVA_MS) continue;
       //  Porta aperta: entra senza passare dall'elenco, anche se la sua
       //  bussata è arrivata solo dal server (canale muto).
       if (S.portaAperta) {

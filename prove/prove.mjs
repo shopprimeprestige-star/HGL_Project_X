@@ -15594,6 +15594,33 @@ function proveDelRinvioPerChi() {
     rinvioPerChi({ rinvio: { code: "dhx-cxrw-gpz" }, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 0 }));
 }
 
+/** ── CHI ESCE, ESCE DAVVERO ────────────────────────────────────────────────
+ *  «Se l'utente esce dalla sala d'attesa l'avviso deve sparire», «chi esce da
+ *  Meetly resta dentro con camera spenta». Vedi shop/sala-attesa e
+ *  shop/resta-in-lista. */
+function proveDiChiEsce() {
+  const { bussateVive, BUSSATA_VIVA_MS } = SAL;
+  const { verdettoSuOspite, SALUTO_SPARITO_MS } = RIL;
+  gruppo("CHI ESCE, ESCE DAVVERO");
+  const T = 1_000_000;
+  const bussate = [
+    { pid: "a", at: T - 60_000, visto: T - 3_000 },
+    { pid: "b", at: T - 60_000, visto: T - BUSSATA_VIVA_MS - 1 },
+    { pid: "c", at: T - 5_000 },
+  ];
+  c("chi ribussa resta in elenco", true, bussateVive(bussate, T).some((k) => k.pid === "a"));
+  c("chi non bussa da 20 s sparisce", false, bussateVive(bussate, T).some((k) => k.pid === "b"));
+  c("senza «visto» vale l'ora della bussata", true, bussateVive(bussate, T).some((k) => k.pid === "c"));
+  c("ospite uscito, flusso ancora «vivo», connessione giù, zitto da 25 s: via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 25_000, stato: "disconnected", haMedia: true, primaVolta: T - 600_000 }));
+  c("lo stesso a connessione fallita: via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - SALUTO_SPARITO_MS - 1, stato: "failed", haMedia: true, primaVolta: T - 600_000 }));
+  c("un singhiozzo di rete (zitto da 5 s) non lo butta fuori", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 5_000, stato: "disconnected", haMedia: true, primaVolta: T - 600_000 }));
+  c("collegato resta anche se la sua scheda è in secondo piano", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 120_000, stato: "connected", haMedia: true, primaVolta: T - 600_000 }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15628,6 +15655,7 @@ proveDelCampanello();
 proveDellAnteprimaDelPreventivoGiusta();
 proveDiChiEntra();
 proveDelRinvioPerChi();
+proveDiChiEsce();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
