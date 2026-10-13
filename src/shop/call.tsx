@@ -85,7 +85,7 @@ import {
 //  server, il consulente la legge di lì, e la decisione torna indietro anche
 //  se il filo in tempo reale non c'è (shop/sala-attesa).
 import type { StatoAttesa } from "@/shop/sala-attesa";
-import { BUSSATA_VIVA_MS, bussateVive } from "@/shop/sala-attesa";
+import { BUSSATA_VIVA_MS, bussateVive, nonAspettaPiu, senzaChiEntrato } from "@/shop/sala-attesa";
 //  Per portare il consulente sulla pagina del preventivo quando apre quello
 //  di una persona: è quella pagina che il cliente segue (api.presenter.curpage).
 //  ⚠️ Si può usare perché <CallMount> è montato dentro la radice del router
@@ -138,7 +138,7 @@ import {
 import { PlanciaGruppo, useAttesiDelConsulente } from "@/shop/PlanciaGruppo";
 import { ancoraDentro, segnaChiCÈ, type MemoriaPresenze } from "@/shop/chi-e-ancora-dentro";
 import { prossimaCamera, siPuoGirare } from "@/shop/gira-camera";
-import { verdettoSuOspite } from "@/shop/resta-in-lista";
+import { siVedeNeiRiquadri, verdettoSuOspite } from "@/shop/resta-in-lista";
 import { cambiaRegia, useRegiaGruppo } from "@/shop/regia-gruppo";
 //  Come si dispongono le camere: quadrate, tutte uguali, grandi quanto l'area
 //  lo consente (shop/griglia-camere).
@@ -627,6 +627,19 @@ const lastSeen = new Map<string, number>();
 const firstSeen = new Map<string, number>();
 /** pid → da quando la RTCPeerConnection è in stato failed/closed/disconnected. */
 const badSince = new Map<string, number>();
+/** pid → l'ultima volta che la connessione con lui era collegata. Decide chi si
+ *  vede nei riquadri (vedi `siVedeNeiRiquadri` in shop/resta-in-lista). */
+const ultimoCollegato = new Map<string, number>();
+const statoPrima = new Map<string, string>();
+/** Si vede nei riquadri? Solo chi è dentro davvero, come su Google Meet. */
+function presenteDavvero(pid: string, adesso = Date.now()): boolean {
+  const st = peers.get(pid)?.connectionState;
+  if (st === "connected") ultimoCollegato.set(pid, adesso);
+  return siVedeNeiRiquadri({ adesso, stato: st, ultimoCollegato: ultimoCollegato.get(pid) || 0 });
+}
+/** L'impronta di chi si vede: se cambia (uno è caduto da dieci secondi) si
+ *  ridisegna, anche se nessun altro stato è cambiato. */
+let improntaPresenti = "";
 let chan: ReturnType<typeof supabase.channel> | null = null;
 let helloTimer: ReturnType<typeof setInterval> | null = null;
 let gcTimer: ReturnType<typeof setInterval> | null = null;
@@ -1262,6 +1275,13 @@ export function contaSuono(nome: string) {
 }
 if (typeof window !== "undefined") setSpiaSuoni(contaSuono);
 
+/** Toglie dallo schermo la richiesta di entrare di chi non aspetta più. */
+function togliRichiesta(pid: string, dev = "") {
+  if (!pid && !dev) return;
+  const resto = senzaChiEntrato(S.knocks, { pid, dev });
+  if (resto.length !== S.knocks.length) set({ knocks: resto });
+}
+
 /** ACCETTA l'ingresso di chi ha bussato. */
 export function admitGuest(pid: string, devNoto = "") {
   const k = S.knocks.find((x) => x.pid === pid);
@@ -1540,6 +1560,10 @@ function makePeer(pid: string): RTCPeerConnection {
   p.onconnectionstatechange = () => {
     const st = p.connectionState;
     console.log("[PEER] connectionState", pid, st);
+    //  Collegato adesso, o fino a un istante fa: il riquadro tiene conto di
+    //  tutti e due (vedi `presenteDavvero`).
+    if (st === "connected" || statoPrima.get(pid) === "connected") ultimoCollegato.set(pid, Date.now());
+    statoPrima.set(pid, st);
     if (st === "connected") {
       try {
         tuneVideoSenders();
@@ -1957,6 +1981,8 @@ function removePeer(pid: string, why = "unspecified") {
   lastSeen.delete(pid);
   firstSeen.delete(pid);
   badSince.delete(pid);
+  ultimoCollegato.delete(pid);
+  statoPrima.delete(pid);
   deviceOf.delete(pid);
   lastIceRestart.delete(pid);
   gettoneDelPid.delete(pid);
@@ -2068,6 +2094,16 @@ function gcRoster() {
   if (S.role === "host" && S.knocks.length) {
     const vive = bussateVive(S.knocks, now);
     if (vive.length !== S.knocks.length) set({ knocks: vive });
+  }
+  //  Chi è caduto da dieci secondi esce dai riquadri anche se nient'altro è
+  //  cambiato: si ridisegna quando cambia l'elenco di chi si vede.
+  const presenti = S.roster
+    .filter((r) => r.role === "viewer" && presenteDavvero(r.pid, now))
+    .map((r) => r.pid)
+    .join(",");
+  if (presenti !== improntaPresenti) {
+    improntaPresenti = presenti;
+    emit();
   }
   for (const r of S.roster.slice()) {
     // L'OSPITE non rimuove il presentatore CONNESSO dalla propria lista (batte il
@@ -5107,6 +5143,8 @@ function attachChannel(sessionId: string) {
         removePeer(r.pid, "dedupe-host");
       }
     }
+    //  Chi si annuncia DENTRO la chiamata non sta più alla porta.
+    if (!isViewer() && role === "viewer") togliRichiesta(pid, dev);
     const known = S.roster.some((r) => r.pid === pid);
     lastSeen.set(pid, Date.now());
     if (!firstSeen.has(pid)) firstSeen.set(pid, Date.now());
@@ -5544,11 +5582,21 @@ function attachChannel(sessionId: string) {
   const perMe = (payload: any): boolean =>
     payload?.to === S.myPid || (!!payload?.dev && payload.dev === myDeviceId());
   ch.on("broadcast", { event: "admit" }, ({ payload }: any) => {
-    if (!isViewer() || !perMe(payload)) return;
+    //  Un'altra scheda del consulente l'ha fatto entrare: qui la richiesta
+    //  non deve restare a schermo.
+    if (!isViewer()) {
+      togliRichiesta(String(payload?.to || ""), String(payload?.dev || ""));
+      return;
+    }
+    if (!perMe(payload)) return;
     void guestEnterApproved();
   });
   ch.on("broadcast", { event: "deny" }, ({ payload }: any) => {
-    if (!isViewer() || !perMe(payload)) return;
+    if (!isViewer()) {
+      togliRichiesta(String(payload?.to || ""), String(payload?.dev || ""));
+      return;
+    }
+    if (!perMe(payload)) return;
     if (knockTimer) {
       clearInterval(knockTimer);
       knockTimer = 0;
@@ -6863,7 +6911,18 @@ async function leggiSalaDAttesa() {
       console.log("[HOST] bussata arrivata dal server (canale muto?):", pid, voce.name);
       suonaBussata("server");
     }
-    if (cambiato) set({ knocks: nuove });
+    //  ⚠️ IL SERVER DICE CHI ASPETTA ANCORA: chi lì non è più «in attesa»
+    //   (entrato, rifiutato, andato via) sparisce subito — anche se l'ha fatto
+    //   entrare un'altra scheda e qui nessuno ha premuto niente.
+    const ancora = nonAspettaPiu({
+      bussate: nuove,
+      sulServer: j.attesa.map((p) => ({ pid: String(p.pid || ""), dev: String(p.dev || "") })),
+      adesso: Date.now(),
+    });
+    if (ancora.length !== nuove.length) {
+      console.log("[HOST] richieste di entrare non più valide sul server:", nuove.length - ancora.length);
+      set({ knocks: ancora });
+    } else if (cambiato) set({ knocks: nuove });
   } catch {
     /* rete: si riprova al giro dopo */
   } finally {
@@ -10129,6 +10188,9 @@ export function requestPresenterState() {
   } catch {
     /* */
   }
+  //  ⚠️ Chi è ancora alla porta non dice «sono dentro»: era un riquadro
+  //   «camera spenta» per una persona che non era entrata.
+  if (!S.joined) return;
   try {
     send("hello", {
       pid: S.myPid,
@@ -11171,11 +11233,16 @@ function buildTiles(st: State, ls: MediaStream | null, includeLocal = true): Til
   // MAI la propria voce tra "gli altri" (si conterebbe due volte: tile locale +
   // voce di roster eternamente in "connessione…") e mai il segnaposto host se
   // esiste una voce host reale.
+  //  ⚠️ GLI OSPITI SI VEDONO SOLO SE SONO DENTRO DAVVERO (come su Google
+  //   Meet): connessione collegata, o caduta da meno di dieci secondi. Chi ha
+  //   solo detto «ci sono» senza mai collegarsi era il riquadro «camera spenta»
+  //   di una persona che non c'era (vedi `siVedeNeiRiquadri`).
   const roster = st.roster.filter(
     (r) =>
       r.pid !== st.myPid &&
       r.pid !== HOST_PLACEHOLDER_PID &&
-      (r.role !== "host" || r.pid === keepHost),
+      (r.role !== "host" || r.pid === keepHost) &&
+      (r.role !== "viewer" || presenteDavvero(r.pid)),
   );
   // ospite senza il presentatore in lista → segnaposto (mai la schermata "solo tu").
   // MAI insieme a una voce host reale: il segnaposto è solo un ripiego.

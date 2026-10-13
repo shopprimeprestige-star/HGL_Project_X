@@ -268,11 +268,46 @@ export function inAttesa(persone: PersonaInAttesa[], adesso = Date.now()): Perso
  *  la richiesta restava a schermo finché qualcuno non la accettava o
  *  rifiutava, anche a pagina del cliente chiusa.
  *  Chi aspetta ribussa ogni quattro secondi: senza notizie da così tanto, non
- *  c'è più. (Chiudendo la pagina manda anche un «esco», che la toglie subito.) */
-export const BUSSATA_VIVA_MS = 20_000;
+ *  c'è più. (Chiudendo la pagina manda anche un «esco», che la toglie subito.)
+ *  ⚠️ DIECI SECONDI, NON VENTI (13/10/2026: «nel momento che non sta più in
+ *   attesa la notifica deve sparire»): due bussate e mezza mancate bastano.
+ *   Il resto lo fanno `nonAspettaPiu` e i segnali espliciti (esco, entrato,
+ *   deciso da un'altra scheda). */
+export const BUSSATA_VIVA_MS = 10_000;
 
 /** Le bussate di cui si ha notizia da poco. `visto` = l'ultima notizia (canale
  *  o server); se manca vale `at`. */
 export function bussateVive<T extends { at: number; visto?: number }>(lista: T[], adesso = Date.now()): T[] {
   return lista.filter((k) => adesso - (Number(k.visto) || Number(k.at) || 0) < BUSSATA_VIVA_MS);
+}
+
+/** ── CHI NON ASPETTA PIÙ, DETTO DAL SERVER ─────────────────────────────────
+ *  La riga della stanza sul server la riscrive chi bussa. Se lì una persona
+ *  non è più «in attesa» (è entrata, è stata rifiutata, o la riga è scaduta)
+ *  la sua richiesta sparisce subito dallo schermo del consulente — anche da
+ *  quello di un'altra scheda o di un altro dispositivo, dove nessuno ha
+ *  premuto niente.
+ *  ⚠️ Una bussata arrivata dal canale da POCO resta: il canale arriva prima
+ *   del server, e la riga può non esserci ancora. */
+export const CANALE_FRESCO_MS = 6_000;
+
+export function nonAspettaPiu<T extends { pid: string; dev?: string; at: number; visto?: number }>(p: {
+  bussate: T[];
+  sulServer: { pid: string; dev?: string }[];
+  adesso: number;
+}): T[] {
+  return p.bussate.filter((k) => {
+    const sta = p.sulServer.some((x) => x.pid === k.pid || (!!k.dev && !!x.dev && x.dev === k.dev));
+    if (sta) return true;
+    return p.adesso - (Number(k.visto) || Number(k.at) || 0) < CANALE_FRESCO_MS;
+  });
+}
+
+/** Chi è appena ENTRATO (si annuncia dentro la chiamata) non sta più alla
+ *  porta: la sua richiesta si toglie. */
+export function senzaChiEntrato<T extends { pid: string; dev?: string }>(
+  bussate: T[],
+  entrato: { pid: string; dev?: string },
+): T[] {
+  return bussate.filter((k) => !(k.pid === entrato.pid || (!!k.dev && !!entrato.dev && k.dev === entrato.dev)));
 }
