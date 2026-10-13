@@ -17381,6 +17381,35 @@ function proveDiChiEsce() {
     verdettoSuOspite({ adesso: T, ultimoSaluto: T - 120_000, stato: "connected", haMedia: true, primaVolta: T - 600_000 }));
 }
 
+/** ── LA PERSONA IN CIMA RESTA FERMA ────────────────────────────────────────
+ *  Revisione finale: alle 12:00 «È la sua ora» riordinava la lista, la scheda
+ *  grande passava a un'altra persona e il «1» premuto parlando con la prima
+ *  finiva sulla seconda. Vedi `tieniInTesta` in importa/chi-chiamare. */
+function proveDellaCimaFerma() {
+  const { tieniInTesta } = CHIAM;
+  gruppo("LA PERSONA IN CIMA RESTA FERMA");
+  const ids = (r) => r.map((x) => x.id).join(",");
+  const A = { id: "A" }, B = { id: "B" }, N = { id: "N" };
+  //  11:59 la lista è A,B: la setter vede A. 12:00 B diventa «è la sua ora».
+  c("alle 12:00 la lista si riordina, ma in cima resta A", "A,B", ids(tieniInTesta([B, A], "A")));
+  c("arriva un «Nuovo» da un altro dispositivo: A resta in cima", "A,N,B", ids(tieniInTesta([N, A, B], "A")));
+  c("senza nessuno fermo vale l'ordine", "B,A", ids(tieniInTesta([B, A], null)));
+  c("chi era fermo è stato lavorato altrove: cima al primo", "B,N", ids(tieniInTesta([B, N], "A")));
+  c("già primo: niente cambia", "A,B", ids(tieniInTesta([A, B], "A")));
+  c("lista vuota", "", ids(tieniInTesta([], "A")));
+  c("non tocca la lista che riceve", "B,A", (() => { const l = [B, A]; tieniInTesta(l, "A"); return ids(l); })());
+  //  La pagina: la cima passa da `tieniInTesta`, e i gesti la liberano.
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("la pagina ordina con tieniInTesta", true, /tieniInTesta\(tutti, fermo\)/.test(pagina));
+  for (const gesto of ["const segna = async", "const salta = async", "const vediDopo = async"]) {
+    const da = pagina.indexOf(gesto);
+    c(`${gesto.replace("const ", "").replace(" = async", "")} libera la cima`, true,
+      da >= 0 && pagina.slice(da, da + 3500).includes("setFermo(null)"));
+  }
+  const filtri = pagina.indexOf("const cambiaFiltri");
+  c("cambiare i filtri libera la cima", true, filtri >= 0 && pagina.slice(filtri, filtri + 300).includes("setFermo(null)"));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17413,6 +17442,7 @@ proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
 proveDelRinfresco();
 proveDelleCorrezioniKpi();
+proveDellaCimaFerma();
 proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();

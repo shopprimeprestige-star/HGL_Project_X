@@ -474,3 +474,20 @@ export function patchEsito(
   }
   return patch;
 }
+
+/** ── LA PERSONA IN CIMA RESTA FERMA ───────────────────────────────────────
+ *  Revisione finale: la lista si riordina da sola ogni minuto — «È la sua
+ *  ora» scatta alle 9, 12, 14, 18 e 21, «Nuovo» scade dopo 24 ore, e un lead
+ *  caricato su un altro dispositivo arriva entro un minuto. Se in quel momento
+ *  la scheda grande passava a un'altra persona, il «1» premuto dalla setter
+ *  mentre parlava con la prima finiva sulla seconda.
+ *  ⚠️ Chi è mostrato resta in cima finché la setter non fa un gesto (esito,
+ *   salto, «Vedi dopo», una scelta, un cambio di filtri): sono quei gesti a
+ *   azzerare `fermo`. Si riordina solo la lista sotto.
+ *  ⚠️ Se chi era fermo esce dalla lista (lavorato su un altro dispositivo) la
+ *   cima passa al primo della lista: non c'è più nessuno da tenere fermo. */
+export function tieniInTesta<T extends { id: string }>(righe: T[], fermo: string | null): T[] {
+  if (!fermo) return righe;
+  const i = righe.findIndex((r) => r.id === fermo);
+  return i > 0 ? [righe[i], ...righe.slice(0, i), ...righe.slice(i + 1)] : righe;
+}

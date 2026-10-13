@@ -300,6 +300,7 @@ import {
   motivoChiamata,
   ordinaChiamate,
   patchEsito,
+  tieniInTesta,
   type MotivoDiChiamata,
   type OpzioniChiamata,
 } from "@/crm/importa/chi-chiamare";
@@ -1407,6 +1408,9 @@ function LeadImportatiUnoAllaVolta() {
    *  scegliere chi sia — uno per l'elenco, uno per la ricerca — vorrebbero dire
    *  due schede che si contendono la testa della pagina. */
   const [forzato, setForzato] = useState<string | null>(null);
+  /** Chi è mostrato nella scheda grande adesso: resta in cima finché la setter
+   *  non fa un gesto. Vedi `tieniInTesta` in importa/chi-chiamare. */
+  const [fermo, setFermo] = useState<string | null>(null);
 
   /** ── LE QUATTRO VISTE ──────────────────────────────────────────────────
    *  La stessa pagina, gli stessi contatti, quattro domande diverse: «chi chiamo
@@ -1481,7 +1485,10 @@ function LeadImportatiUnoAllaVolta() {
   const filtri = Route.useSearch();
   const navigate = useNavigate({ from: "/CRM/importa" });
   const cambiaFiltri = useCallback(
-    (f: FiltriListaRicerca) => void navigate({ search: f as never, replace: true }),
+    (f: FiltriListaRicerca) => {
+      setFermo(null);
+      void navigate({ search: f as never, replace: true });
+    },
     [navigate],
   );
   //  Il giorno di lavoro, non quello di Greenwich: vedi `giornoLocale`.
@@ -1975,10 +1982,16 @@ function LeadImportatiUnoAllaVolta() {
     const prima = codaFetta.filter((l) => !inFondo.has(l.id));
     const dopo = codaFetta.filter((l) => inFondo.has(l.id));
     const tutti = [...prima, ...dopo];
-    if (!forzato) return tutti;
+    if (!forzato) return tieniInTesta(tutti, fermo);
     const i = tutti.findIndex((l) => l.id === forzato);
     return i > 0 ? [tutti[i], ...tutti.slice(0, i), ...tutti.slice(i + 1)] : tutti;
-  }, [codaFetta, inFondo, forzato]);
+  }, [codaFetta, inFondo, forzato, fermo]);
+  //  Chi arriva in cima ci resta: si ferma qui e lo libera solo un gesto.
+  useEffect(() => {
+    if (forzato) return;
+    const testa = ordinata[0]?.id ?? null;
+    if (testa !== fermo) setFermo(testa);
+  }, [ordinata, forzato, fermo]);
 
   /** Chi è in coda, per id: serve alla ricerca (che deve DIRE se il risultato
    *  è in coda o no) e a riconoscere il forzato che in coda non c'è. */
@@ -2562,6 +2575,7 @@ function LeadImportatiUnoAllaVolta() {
       });
       return;
     }
+    setFermo(null);
     toast.success(`${chi}: lo vedi dopo`, {
       description:
         "Esce dalla cima della coda e lo ritrovi nella linguetta «Vedi dopo», con le stesse due scelte. Lo stato non è stato toccato e resta chiamabile come tutti gli altri.",
@@ -2735,6 +2749,7 @@ function LeadImportatiUnoAllaVolta() {
       });
       return;
     }
+    setFermo(null);
     setForzato((f) => (f === l.id ? null : f));
     //  ── LA VIA DEL RITORNO STA NEL MESSAGGIO ──────────────────────────
     //   Il salto adesso DURA, quindi anche un salto premuto per sbaglio dura:
@@ -2843,6 +2858,7 @@ function LeadImportatiUnoAllaVolta() {
       });
       return;
     }
+    setFermo(null);
     //  ⚠️ Si fotografa com'era DOPO la scrittura riuscita e non prima: se la
     //   scrittura fallisce non c'è niente da disfare, e un tasto «torna
     //   indietro» che compare dopo un salvataggio mai avvenuto rimetterebbe a
