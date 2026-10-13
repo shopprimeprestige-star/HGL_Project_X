@@ -20,6 +20,7 @@ import {
  FileText,} from "lucide-react";
 import { toast } from "sonner";
 import { copyLink } from "@/shop/copied";
+import { anteprimaDrive, idDrive } from "@/shop/drive-registrazioni";
 import { usePresenterLink } from "@/shop/consultant";
 import { CasesManager, type Caso } from "@/shop/CasesManager";
 import { usePresenter, clearPresenter, type Presenter } from "@/shop/presenter";
@@ -599,6 +600,9 @@ const SPEEDS = [0.5, 1, 1.25, 1.5, 2];
 function RecordingPlayer({ rec, onClose, onDelete }: { rec: Registrazione; onClose: () => void; onDelete: () => void }) {
   const vidRef = useRef<HTMLVideoElement | null>(null);
   const [speed, setSpeed] = useState(1);
+  //  Le consulenze lunghe stanno su Google Drive: lì si guardano col lettore
+  //  di Google (il file resta privato, lo apre solo chi ha accesso al Drive).
+  const drive = idDrive(rec.url);
   useEffect(() => { if (vidRef.current) vidRef.current.playbackRate = speed; }, [speed, rec.url]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -614,16 +618,20 @@ function RecordingPlayer({ rec, onClose, onDelete }: { rec: Registrazione; onClo
           <span className="text-xs text-white/45">{rec.presenterName}{rec.guestName ? ` · ospite: ${rec.guestName}` : ""}</span>
           <button onClick={onClose} className="ml-auto rounded-md border border-white/15 p-1.5 hover:bg-white/10"><X className="h-4 w-4" /></button>
         </div>
-        <video ref={vidRef} src={rec.url} controls autoPlay playsInline className="max-h-[70vh] w-full bg-black" />
+        {drive ? (
+          <iframe src={anteprimaDrive(drive)} title="Registrazione su Google Drive" allow="autoplay; fullscreen" className="aspect-video max-h-[70vh] w-full bg-black" />
+        ) : (
+          <video ref={vidRef} src={rec.url} controls autoPlay playsInline className="max-h-[70vh] w-full bg-black" />
+        )}
         <div className="flex flex-wrap items-center gap-2 border-t border-white/10 px-4 py-2.5 text-white">
-          <span className="text-[11px] uppercase tracking-wide text-white/45">Velocità</span>
-          {SPEEDS.map((s) => (
+          {!drive && <span className="text-[11px] uppercase tracking-wide text-white/45">Velocità</span>}
+          {!drive && SPEEDS.map((s) => (
             <button key={s} onClick={() => setSpeed(s)}
               className={`rounded-md border px-2 py-1 text-xs font-medium ${speed === s ? "border-brand bg-brand/25" : "border-white/15 bg-white/5 hover:bg-white/10"}`}>
               {s}x
             </button>
           ))}
-          <a href={rec.url} download target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-xs hover:bg-white/10">Scarica</a>
+          <a href={rec.url} download target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-xs hover:bg-white/10">{drive ? "Apri su Google Drive" : "Scarica"}</a>
           <button onClick={() => { onDelete(); onClose(); }} className="rounded-md border border-white/15 p-1.5 text-red-400 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
       </div>

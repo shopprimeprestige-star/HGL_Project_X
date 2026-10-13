@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { intestazioniCRM, fetchCRM } from "./AuthContext";
+import { GoogleDriveRegistrazioni } from "./GoogleDriveRegistrazioni";
 
 type Esito =
   | { stato: "fermo" }
@@ -256,6 +257,9 @@ export function ImpostazioniMeetly() {
           </p>
         )}
       </div>
+
+      {/* ══ DOVE VANNO LE REGISTRAZIONI ════════════════════════════════ */}
+      <GoogleDriveRegistrazioni />
 
       {/* ══ IL SERVER TURN ═════════════════════════════════════════════ */}
       <div className="space-y-3 rounded-xl border p-4">
