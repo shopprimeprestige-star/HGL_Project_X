@@ -15509,7 +15509,7 @@ function proveDellaScatolaPreventivo() {
   const conti = { ...contatoriVuoti(), statoInviati: 4, scorriInviati: 12, saluti: 1, canale: "SUBSCRIBED", salvatiOk: 3, salvatiKo: 1, ultimoErrore: "HTTP 401" };
   const riga = rigaPreventivo(r, conti);
   c("dice la stanza e se lui la vede (il caso della segnalazione)", true, riga.includes("stanza personale (lui NON la vede)"));
-  c("quanti ospiti ascoltano la stanza", true, riga.includes("ospiti in ascolto 1"));
+  c("quanti si sono collegati alla stanza", true, riga.includes("nuovi in ascolto 1"));
   c("lo stato del canale", true, riga.includes("canale SUBSCRIBED"));
   c("gli invii", true, riga.includes("inviati stato 4 scorri 12"));
   c("i salvataggi falliti col motivo", true, riga.includes("falliti 1 (HTTP 401)"));
@@ -15519,6 +15519,16 @@ function proveDellaScatolaPreventivo() {
   c("regole cambiate: si scrive anche senza traffico", true, daScrivere(contatoriVuoti(), true));
   c("un invio basta per scrivere", true, daScrivere({ ...contatoriVuoti(), statoInviati: 1 }, false));
   c("la firma cambia se cambia la stanza", false, firmaRegole(r) === firmaRegole({ ...r, stanza: "comune" }));
+}
+
+/** ── IL CAMPANELLO NON DEVE ARRIVARE AI CLIENTI ────────────────────────────
+ *  «Solo i clienti sentono un campanello a due note». Vedi shop/bussata. */
+function proveDelCampanello() {
+  const { campanaUdibile } = BUS;
+  gruppo("IL CAMPANELLO NON DEVE ARRIVARE AI CLIENTI");
+  c("nessuno dentro: suona", true, campanaUdibile({ collegati: 0, micAcceso: true }));
+  c("clienti dentro e microfono acceso: tace", false, campanaUdibile({ collegati: 2, micAcceso: true }));
+  c("clienti dentro ma microfono spento: suona", true, campanaUdibile({ collegati: 1, micAcceso: false }));
 }
 
 proveDeiTipi();
@@ -15551,6 +15561,7 @@ proveDelRinfresco();
 proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();
+proveDelCampanello();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

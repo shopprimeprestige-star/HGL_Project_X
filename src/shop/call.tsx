@@ -25,7 +25,7 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
-import { chiaveBussata, esitoBussata } from "@/shop/bussata";
+import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
 import { copyLink } from "@/shop/copied";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -5300,7 +5300,7 @@ function attachChannel(sessionId: string) {
       //  ⚠️ E la campana suona ANCHE sul gestionale: adesso lì la richiesta si
       //   vede (in piccolo), quindi il suono non è più un allarme senza
       //   pulsante — è l'unica cosa che fa alzare gli occhi dallo schermo.
-      sfx.knock();
+      suonaBussata("canale");
     }
     set({ knocks: list });
   });
@@ -6634,6 +6634,32 @@ function decidiSulServer(pid: string, stato: StatoAttesa, dev = "", ritenta = tr
     });
 }
 
+/** ── IL CAMPANELLO DI CHI BUSSA (vedi `campanaUdibile` in shop/bussata) ────
+ *  Con persone già in chiamata e microfono acceso tace: le casse del
+ *  consulente finivano nel suo microfono e i clienti sentivano il campanello.
+ *  Ogni volta lascia una riga nel diario della chiamata: da dove è arrivata la
+ *  bussata, quante ce ne sono in attesa, se è suonato. Niente nomi. */
+function suonaBussata(origine: "canale" | "server") {
+  const collegati = peers.size;
+  const suona = campanaUdibile({ collegati, micAcceso: !!S.micOn });
+  if (suona) sfx.knock();
+  try {
+    void fetch("/api/presenter/diario", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        diario: "chiamata",
+        voce: `campanello · bussata dal ${origine} · in attesa ${S.knocks.length + 1} · collegati ${collegati} · ${
+          suona ? "suonato" : "zitto (clienti in chiamata, microfono acceso)"
+        }`,
+      }),
+    }).catch(() => {});
+  } catch {
+    /* mai in mezzo a una consulenza */
+  }
+}
+
 /** ── IL CONSULENTE LEGGE CHI STA ASPETTANDO ───────────────────────────────
  *  Gira finché questa scheda è padrona di casa. Aggiunge alle bussate SOLO chi
  *  non c'è già: la riga del server e il canale portano le stesse persone, e
@@ -6738,7 +6764,7 @@ async function leggiSalaDAttesa() {
       nuove.push(voce);
       cambiato = true;
       console.log("[HOST] bussata arrivata dal server (canale muto?):", pid, voce.name);
-      sfx.knock();
+      suonaBussata("server");
     }
     if (cambiato) set({ knocks: nuove });
   } catch {
