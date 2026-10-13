@@ -275,7 +275,13 @@ function senzaOraVera(t: number): boolean {
 /** «arrivato 3 ore fa» solo se l'ora è vera; senza, si dice il giorno. */
 function etàLeggibile(ms: number, adesso: Date, arrivo: number): string {
   if (senzaOraVera(arrivo)) {
-    return ymd(new Date(arrivo)) === ymd(adesso) ? "arrivato oggi" : "arrivato ieri";
+    //  ⚠️ Un ISO senza ora («2026-10-12») è mezzanotte UTC: il suo giorno è
+    //   quello scritto, non quello del fuso di chi guarda. Letto nel fuso
+    //   locale, a ovest di Greenwich diventava il giorno prima («ieri»).
+    const q = new Date(arrivo);
+    const mezzogiornoLocale = q.getHours() === 12 && q.getMinutes() === 0;
+    const giorno = mezzogiornoLocale ? ymd(q) : q.toISOString().slice(0, 10);
+    return giorno === ymd(adesso) ? "arrivato oggi" : "arrivato ieri";
   }
   const min = Math.max(0, Math.floor(ms / 60_000));
   if (min < 1) return "arrivato adesso";
