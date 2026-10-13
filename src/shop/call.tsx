@@ -120,7 +120,7 @@ import {
   tieniInMemoria,
 } from "@/shop/gettone-cliente";
 //  Il gettone scritto nel link: un link per ciascuno, nella stessa stanza.
-import { gettoneDalLink } from "@/shop/chi-dal-link";
+import { chiEntra, gettoneDalLink } from "@/shop/chi-dal-link";
 //  ⚠️ «L'ho accettato e non riesce a entrare»: la regola che impedisce lo
 //   schermo nero a chi è appena entrato. Il perché, misurato, sta lì dentro.
 import { stanzaAncoraVuota } from "@/shop/stanza-ancora-vuota";
@@ -10330,7 +10330,15 @@ export function CallMount() {
         pollBusy.current = true;
         // il guest controlla se la sessione è stata avviata (altrimenti vede l'attesa).
         fetch(
-          `/api/presenter/session?sess=${encodeURIComponent(S.sessionId || watchIdDaIndirizzo() || "")}`,
+          `/api/presenter/session?sess=${encodeURIComponent(S.sessionId || watchIdDaIndirizzo() || "")}` +
+            //  Chi chiede: il rinvio di un appuntamento spostato vale solo per
+            //  la persona spostata, non per chi divideva la stanza con lei.
+            ((): string => {
+              const io =
+                miaPersonaDi(S.sessionId || watchIdDaIndirizzo() || "") ||
+                (typeof window !== "undefined" ? gettoneDalLink(window.location.search) : "");
+              return io ? `&persona=${encodeURIComponent(io)}` : "";
+            })(),
         )
           .then((r) => r.json())
           .then((j) => {
@@ -10349,7 +10357,9 @@ export function CallMount() {
               ⚠️ `replace`: l'indirizzo vecchio non deve restare nella
                cronologia, o il tasto «indietro» ci riporta dentro. */
             const rinvio = typeof j.rinvio === "string" ? j.rinvio.trim() : "";
-            if (rinvio && rinvio !== guestCodeRef.current && !S.sessionLive && !S.joined) {
+            //  ⚠️ E mai da una stanza che il server dice AVVIATA: il consulente
+            //   è lì (lo controlla anche il server, ma un server vecchio no).
+            if (rinvio && rinvio !== guestCodeRef.current && !S.sessionLive && !S.joined && !j.live) {
               if (!rinviatoUnaVolta) {
                 rinviatoUnaVolta = true;
                 console.log("[GUEST] appuntamento spostato: questa stanza è diventata", rinvio);
@@ -14379,13 +14389,20 @@ function GuestJoinGate({ st }: { st: State }) {
   const attesi = useAttesi(st.sessionId);
   const [scriviIoIlNome, setScriviIoIlNome] = useState(false);
   const daSolo = useRef(false);
-  //  Una persona sola: entra lei, senza che nessuno tocchi niente.
+  //  Entra da sola la persona del LINK (il gettone `?chi=` che le è stato
+  //  mandato), o l'unica attesa: nessuno deve scegliere il proprio nome
+  //  (vedi `chiEntra` in shop/chi-dal-link).
   useEffect(() => {
-    if (!attesi || attesi.length !== 1 || daSolo.current || st.joined || st.knocking) return;
+    if (!attesi || daSolo.current || st.joined || st.knocking) return;
+    const mio =
+      miaPersonaDi(st.sessionId) ||
+      (typeof window !== "undefined" ? gettoneDalLink(window.location.search) : "");
+    const chi = chiEntra({ attesi, mio });
+    if (!chi) return;
     daSolo.current = true;
-    console.log("[GUEST] atteso riconosciuto dal link:", attesi[0].nome);
-    void viewerJoin(attesi[0].nome, attesi[0].gettone);
-  }, [attesi, st.joined, st.knocking]);
+    console.log("[GUEST] atteso riconosciuto dal link:", chi.nome);
+    void viewerJoin(chi.nome, chi.gettone);
+  }, [attesi, st.joined, st.knocking, st.sessionId]);
   // iOS Safari ingrandisce (pinch) la pagina quando prende il fuoco un campo con
   // font < 16px: qui il font è 16px e su touch NON usiamo autoFocus → niente zoom.
   const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;

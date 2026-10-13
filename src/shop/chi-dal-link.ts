@@ -138,3 +138,30 @@ export function codiceAnteprimaDi(codice?: string | null, gettone?: string | nul
   if (!base || !g || !PARE_UN_GETTONE.test(g)) return base;
   return `${base}${SEGNO_CHI}${g}`;
 }
+
+/** ── CHI ENTRA, SENZA SCEGLIERE IL PROPRIO NOME ─────────────────────────────
+ *  Richiesta del committente (13/10/2026): «la persona non deve selezionare il
+ *  suo nome: dal link dove entra deve entrare già col suo nome e cognome».
+ *
+ *  Il link mandato su WhatsApp porta già il gettone di chi lo riceve
+ *  (`linkPerPersona`), e il motore della chiamata lo legge appena la pagina si
+ *  apre. La porta però guardava solo QUANTE persone erano attese: con una
+ *  entrava da sola, con due o più mostrava l'elenco «chi sei?» anche a chi il
+ *  link l'aveva personale.
+ *  Adesso: se la persona di questo dispositivo (dal link o già scelta prima) è
+ *  fra gli attesi, entra lei. Con una persona sola attesa, entra quella come
+ *  prima. Altrimenti — link inoltrato, gettone di un'altra stanza — resta
+ *  l'elenco: indovinare vorrebbe dire mettere qualcuno al posto di un altro. */
+export function chiEntra<P extends { gettone: string }>(p: {
+  attesi: P[] | null | undefined;
+  /** il gettone di questo dispositivo ("" = non si sa) */
+  mio?: string | null;
+}): P | null {
+  const attesi = p.attesi ?? [];
+  const mio = pulito(p.mio);
+  if (mio) {
+    const trovato = attesi.find((a) => pulito(a.gettone) === mio);
+    if (trovato) return trovato;
+  }
+  return attesi.length === 1 ? attesi[0] : null;
+}
