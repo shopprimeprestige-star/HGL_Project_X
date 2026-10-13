@@ -34,7 +34,7 @@ import { leadRevenue, shouldDispatchLeadToAds } from "./lead-analytics";
 import { codiceStanzaDi, haStanzaNostra, impostaLinkPreventivi } from "./whatsapp";
 import { linkPerOgniCliente } from "./preventivi/link-nei-messaggi";
 import { copiaAttendibile, filoDellArchivio, fondiSchede } from "./copia-archivio";
-import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, type Motivo } from "./rinfresco-archivio";
+import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, mostraLaCopia, type Motivo } from "./rinfresco-archivio";
 //  Chi ha PRESO l'appuntamento (≠ chi ha toccato lo stato per ultimo, ≠ chi lo
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
@@ -409,10 +409,12 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         davanti invece che con una rotella, e nel frattempo si chiede al
         server solo quello che è cambiato. */
     const copia = leggiCopia();
-    if (copia) {
+    //  Solo all'apertura: con le schede già in memoria la copia (più vecchia)
+    //  le farebbe tornare indietro per un istante. Vedi rinfresco-archivio.
+    if (copia && mostraLaCopia({ inMemoria: leadsRef.current.length, copia: copia.length })) {
       setLeads(copia);
       setLoading(false);
-    } else setLoading(true);
+    } else if (!copia) setLoading(true);
 
     const [c, a] = await Promise.all([
       supabase.from("crm_consultants").select("*").order("created_at", { ascending: false }),

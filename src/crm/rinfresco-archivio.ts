@@ -52,3 +52,17 @@ export function daRileggere(p: {
   if (p.motivo === "orologio") return passati >= OGNI_MS - 1_000;
   return true;
 }
+
+/** ── LA COPIA SALVATA SI MOSTRA SOLO ALL'APERTURA ─────────────────────────
+ *  Revisione finale della commessa «lead importati»: `reload` rimetteva la
+ *  copia salvata a OGNI rilettura, cioè ogni minuto da quando c'è l'orologio.
+ *  La copia si riscrive solo a fine rilettura, quindi è sempre un po' vecchia:
+ *  per 1-2 secondi gli esiti dell'ultimo minuto sparivano, una persona appena
+ *  fissata tornava in cima alla lista e un tasto premuto in quel momento le
+ *  scriveva sopra.
+ *  ⚠️ La copia serve a una cosa sola: aprire il CRM con l'archivio davanti
+ *   invece che con una rotella. Con le schede già in memoria non si mostra:
+ *   si chiede al server il cambiato e lo si aggiunge, senza tornare indietro. */
+export function mostraLaCopia(p: { inMemoria: number; copia: number }): boolean {
+  return p.inMemoria === 0 && p.copia > 0;
+}

@@ -16958,6 +16958,14 @@ function proveDelRinfresco() {
   c("l'orologio rilegge dopo un minuto", true, daRileggere({ motivo: "orologio", visibile: true, ultima: t - OGNI_MS, adesso: t }));
   c("l'orologio non rilegge se l'ha appena fatto il ritorno", false, daRileggere({ motivo: "orologio", visibile: true, ultima: t - 20_000, adesso: t }));
   c("mai riletto: si rilegge", true, daRileggere({ motivo: "orologio", visibile: true, ultima: 0, adesso: t }));
+  //  ── La copia salvata solo all'apertura ────────────────────────────────
+  const { mostraLaCopia } = RINF;
+  c("all'apertura la copia si mostra subito", true, mostraLaCopia({ inMemoria: 0, copia: 1200 }));
+  c("con le schede in memoria NON si rimette la copia vecchia", false, mostraLaCopia({ inMemoria: 1200, copia: 1200 }));
+  c("copia vuota: niente da mostrare", false, mostraLaCopia({ inMemoria: 0, copia: 0 }));
+  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
+  c("reload passa da mostraLaCopia prima di rimettere la copia", true,
+    /mostraLaCopia\(\{ inMemoria: leadsRef\.current\.length/.test(ctx));
 }
 
 /** ── LA MISURA SUI LEAD VERI: «ABBASTANZA» NON È SEMPRE UN FASTIDIO ─────────
