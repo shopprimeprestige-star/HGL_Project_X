@@ -42,9 +42,12 @@ export function sessionePreventivo(ref?: string | null): string {
  *  È volutamente SINCRONA: il link si costruisce e si copia dentro lo stesso
  *  clic, perché gli appunti del browser non aspettano una risposta di rete.
  *  La registrazione sul server viaggia per conto suo, un istante dopo. */
-export function linkPreventivo(ref?: string | null): string {
+export function linkPreventivo(ref?: string | null, persona?: string | null): string {
   const code = sessionePreventivo(ref);
-  const q = `client=1&sess=${encodeURIComponent(code)}${ref ? `&id=${encodeURIComponent(ref)}` : ""}`;
+  //  Senza preventivo creato il link porta anche PER CHI è: un cliente, un
+  //  indirizzo, una sua anteprima (vedi shop/anteprima-link-preventivo).
+  const per = !ref && persona ? `&persona=${encodeURIComponent(persona)}` : "";
+  const q = `client=1&sess=${encodeURIComponent(code)}${ref ? `&id=${encodeURIComponent(ref)}` : ""}${per}`;
   //  Dominio pubblico: questo link lo apre il CLIENTE (vedi lib/sito).
   return urlPubblico(`preventivo?${q}`);
 }

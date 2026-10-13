@@ -433,6 +433,9 @@ const MODULI = [
   //  ⚠️ Un link per ciascuno dentro la stessa stanza. Vedi
   //   proveDelLinkPerCiascuno.
   "shop/chi-dal-link",
+  //  ⚠️ L'anteprima del link «solo preventivo» è di chi lo riceve.
+  //   Vedi proveDellAnteprimaDelPreventivoGiusta.
+  "shop/anteprima-link-preventivo",
   //  ⚠️ Nome e cognome nel testo dell'anteprima del link. Vedi
   //   proveDellAnteprimaConIlNome.
   "seo/chi-riceve-il-link",
@@ -605,6 +608,7 @@ const RGZ = mod["shop/registrazione"];
 const DENTRO = mod["shop/chi-e-ancora-dentro"];
 const GIRA = mod["shop/gira-camera"];
 const LINKCHI = mod["shop/chi-dal-link"];
+const ALP = mod["shop/anteprima-link-preventivo"];
 const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
 const FISSA = mod["chi-ha-fissato"];
@@ -15531,6 +15535,25 @@ function proveDelCampanello() {
   c("clienti dentro ma microfono spento: suona", true, campanaUdibile({ collegati: 1, micAcceso: false }));
 }
 
+/** ── L'ANTEPRIMA DEL LINK «SOLO PREVENTIVO» È DI CHI LO RICEVE ─────────────
+ *  «Passo al prossimo cliente e l'anteprima mostra quello di prima».
+ *  Vedi shop/anteprima-link-preventivo. */
+function proveDellAnteprimaDelPreventivoGiusta() {
+  const { chiaveAnteprimaPreventivo, personaDelPreventivo } = ALP;
+  gruppo("L'ANTEPRIMA DEL LINK «SOLO PREVENTIVO» È DI CHI LO RICEVE");
+  const anna = personaDelPreventivo({ leadCorrente: { id: "aaaa1111-2222", nome: "Anna" } });
+  const bruno = personaDelPreventivo({ leadCorrente: { id: "bbbb3333-4444", nome: "Bruno" } });
+  c("due clienti della stessa consulenza hanno due chiavi diverse", false,
+    chiaveAnteprimaPreventivo({ sess: "abc-defg-hij", persona: anna }) === chiaveAnteprimaPreventivo({ sess: "abc-defg-hij", persona: bruno }));
+  c("la chiave è consulenza_persona", `abc-defg-hij_${anna}`, chiaveAnteprimaPreventivo({ sess: "abc-defg-hij", persona: anna }));
+  c("col preventivo creato vale il suo numero", "IDP1234", chiaveAnteprimaPreventivo({ id: "IDP1234", sess: "abc-defg-hij", persona: anna }));
+  c("senza persona resta la consulenza, come prima", "abc-defg-hij", chiaveAnteprimaPreventivo({ sess: "abc-defg-hij" }));
+  c("la persona scelta con «Nuovo preventivo per…» vince sul cliente avviato", "pzzz999",
+    personaDelPreventivo({ scelta: "pzzz999", leadCorrente: { id: "aaaa1111", nome: "Anna" } }));
+  c("scelta vuota: il cliente con cui è stata avviata", anna, personaDelPreventivo({ scelta: "", leadCorrente: { id: "aaaa1111-2222", nome: "Anna" } }));
+  c("nessuno: niente persona", "", personaDelPreventivo({}));
+}
+
 /** ── CHI ENTRA, SENZA SCEGLIERE IL PROPRIO NOME ────────────────────────────
  *  «Dal link deve entrare già col suo nome». Vedi shop/chi-dal-link. */
 function proveDiChiEntra() {
@@ -15602,6 +15625,7 @@ proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();
 proveDelCampanello();
+proveDellAnteprimaDelPreventivoGiusta();
 proveDiChiEntra();
 proveDelRinvioPerChi();
 rmSync(dove, { recursive: true, force: true });
