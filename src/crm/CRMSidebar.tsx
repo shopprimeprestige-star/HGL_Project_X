@@ -269,6 +269,16 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         alias: "lead nuovi arrivo assegnare accettare funnel",
       },
       {
+        //  Quanti posti restano per le consulenze e a che ora: serve a chi
+        //  telefona, quindi sta accanto ai contatti (richiesta del 13/10/2026).
+        titolo: "Slot liberi",
+        descrizione: "Posti liberi per le consulenze, a che ora e con chi",
+        url: "/CRM/slot-liberi",
+        icon: CalendarClock,
+        permesso: "agenda",
+        alias: "orari liberi disponibilità posti calendario quando fissare appuntamento slot",
+      },
+      {
         //  Si dice LEAD: era "Trattative" qui e "lead" dappertutto nella
         //  scheda, e chi cercava l'elenco doveva tradurre. L'indirizzo NON
         //  cambia (/CRM/trattative): i link salvati e le rotte restano validi.

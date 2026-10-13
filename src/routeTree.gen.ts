@@ -71,6 +71,7 @@ import { Route as CRMWhatsappRouteImport } from './routes/CRM.whatsapp'
 import { Route as CRMWebinarRouteImport } from './routes/CRM.webinar'
 import { Route as CRMTrattativePerseRouteImport } from './routes/CRM.trattative-perse'
 import { Route as CRMTrattativeRouteImport } from './routes/CRM.trattative'
+import { Route as CRMSlotLiberiRouteImport } from './routes/CRM.slot-liberi'
 import { Route as CRMSedeRouteImport } from './routes/CRM.sede'
 import { Route as CRMScontiRouteImport } from './routes/CRM.sconti'
 import { Route as CRMProvaCapelliRouteImport } from './routes/CRM.prova-capelli'
@@ -497,6 +498,11 @@ const CRMTrattativePerseRoute = CRMTrattativePerseRouteImport.update({
 const CRMTrattativeRoute = CRMTrattativeRouteImport.update({
   id: '/trattative',
   path: '/trattative',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMSlotLiberiRoute = CRMSlotLiberiRouteImport.update({
+  id: '/slot-liberi',
+  path: '/slot-liberi',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMSedeRoute = CRMSedeRouteImport.update({
@@ -1140,6 +1146,7 @@ export interface FileRoutesByFullPath {
   '/CRM/prova-capelli': typeof CRMProvaCapelliRoute
   '/CRM/sconti': typeof CRMScontiRoute
   '/CRM/sede': typeof CRMSedeRoute
+  '/CRM/slot-liberi': typeof CRMSlotLiberiRoute
   '/CRM/trattative': typeof CRMTrattativeRoute
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
@@ -1315,6 +1322,7 @@ export interface FileRoutesByTo {
   '/CRM/prova-capelli': typeof CRMProvaCapelliRoute
   '/CRM/sconti': typeof CRMScontiRoute
   '/CRM/sede': typeof CRMSedeRoute
+  '/CRM/slot-liberi': typeof CRMSlotLiberiRoute
   '/CRM/trattative': typeof CRMTrattativeRoute
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
@@ -1496,6 +1504,7 @@ export interface FileRoutesById {
   '/CRM/prova-capelli': typeof CRMProvaCapelliRoute
   '/CRM/sconti': typeof CRMScontiRoute
   '/CRM/sede': typeof CRMSedeRoute
+  '/CRM/slot-liberi': typeof CRMSlotLiberiRoute
   '/CRM/trattative': typeof CRMTrattativeRoute
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
@@ -1678,6 +1687,7 @@ export interface FileRouteTypes {
     | '/CRM/prova-capelli'
     | '/CRM/sconti'
     | '/CRM/sede'
+    | '/CRM/slot-liberi'
     | '/CRM/trattative'
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
@@ -1853,6 +1863,7 @@ export interface FileRouteTypes {
     | '/CRM/prova-capelli'
     | '/CRM/sconti'
     | '/CRM/sede'
+    | '/CRM/slot-liberi'
     | '/CRM/trattative'
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
@@ -2033,6 +2044,7 @@ export interface FileRouteTypes {
     | '/CRM/prova-capelli'
     | '/CRM/sconti'
     | '/CRM/sede'
+    | '/CRM/slot-liberi'
     | '/CRM/trattative'
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
@@ -2738,6 +2750,13 @@ declare module '@tanstack/react-router' {
       path: '/trattative'
       fullPath: '/CRM/trattative'
       preLoaderRoute: typeof CRMTrattativeRouteImport
+      parentRoute: typeof CRMRoute
+    }
+    '/CRM/slot-liberi': {
+      id: '/CRM/slot-liberi'
+      path: '/slot-liberi'
+      fullPath: '/CRM/slot-liberi'
+      preLoaderRoute: typeof CRMSlotLiberiRouteImport
       parentRoute: typeof CRMRoute
     }
     '/CRM/sede': {
@@ -3607,6 +3626,7 @@ interface CRMRouteChildren {
   CRMProvaCapelliRoute: typeof CRMProvaCapelliRoute
   CRMScontiRoute: typeof CRMScontiRoute
   CRMSedeRoute: typeof CRMSedeRoute
+  CRMSlotLiberiRoute: typeof CRMSlotLiberiRoute
   CRMTrattativeRoute: typeof CRMTrattativeRoute
   CRMTrattativePerseRoute: typeof CRMTrattativePerseRoute
   CRMWebinarRoute: typeof CRMWebinarRoute
@@ -3640,6 +3660,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMProvaCapelliRoute: CRMProvaCapelliRoute,
   CRMScontiRoute: CRMScontiRoute,
   CRMSedeRoute: CRMSedeRoute,
+  CRMSlotLiberiRoute: CRMSlotLiberiRoute,
   CRMTrattativeRoute: CRMTrattativeRoute,
   CRMTrattativePerseRoute: CRMTrattativePerseRoute,
   CRMWebinarRoute: CRMWebinarRoute,
