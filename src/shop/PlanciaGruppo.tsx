@@ -40,7 +40,7 @@
  *   che non fa niente è peggio di un comando che manca.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, RefreshCw, Users } from "lucide-react";
+import { Columns3, Eye, EyeOff, RefreshCw, Users } from "lucide-react";
 import {
   conAperto,
   conStatoPersona,
@@ -53,6 +53,8 @@ import {
   type StatoPersona,
 } from "@/shop/preventivi-di-gruppo";
 import { cambiaRegia } from "@/shop/regia-gruppo";
+import { chiCompila } from "@/shop/vista-parallela";
+import { VistaParallela } from "@/shop/VistaParallela";
 
 export interface AttesoDelGruppo { gettone: string; nome: string; leadId: string }
 
@@ -185,6 +187,8 @@ export function PlanciaGruppo({
   const [subito, setSubito] = useState<RegiaGruppo | null>(null);
   //  ⚠️ Tutti i ganci PRIMA di qualunque uscita: vedi `proveDegliHook`.
   const riassunti = useRiassunti(code, aperta && attesi.length >= 1);
+  /** La vista a schede di tutti quelli che compilano (shop/VistaParallela). */
+  const [parallelo, setParallelo] = useState(false);
 
   /*  ⚠️ BASTA UNA PERSONA, e la soglia a due era l'errore che ha reso questo
       lavoro invisibile: in archivio, su 201 stanze di appuntamento, quelle con
@@ -267,6 +271,26 @@ export function PlanciaGruppo({
     copiare in una stanza che leggono tutti una riga nata nella stanza di una
     persona sola. */
 
+  /*  ── TUTTI QUELLI CHE COMPILANO, IN PARALLELO ─────────────────────────
+      Richiesta del committente: «se assegno che devono compilare il
+      preventivo voglio vederli tutti in contemporanea e poter intervenire».
+      Le schede sono di chi ha «Il suo» acceso; «Intervieni» fa la stessa mossa
+      di «guarda il suo da me» — il suo preventivo sul mio schermo, e lo
+      compiliamo insieme — senza cambiare quello che vede lui. */
+  const compilano = chiCompila({ regia: vista, attesi: attesi.filter((p) => !p.senzaScheda) });
+  const vistaParallela = parallelo && code ? (
+    <VistaParallela
+      code={code}
+      persone={compilano.map((p) => ({ gettone: p.gettone, nome: p.nome }))}
+      onChiudi={() => setParallelo(false)}
+      onIntervieni={(chi) => {
+        const p = attesi.find((a) => a.gettone === chi.gettone);
+        setParallelo(false);
+        if (p) guardaDaMe(p, true);
+      }}
+    />
+  ) : null;
+
   return (
     <div
       data-hg-noptr
@@ -280,6 +304,7 @@ export function PlanciaGruppo({
       style={{ top: "calc(var(--hg-barra-alta, 72px) + 8px)" }}
       className={`fixed right-3 z-[140] print:hidden ${aperta ? "w-[min(92vw,320px)]" : "w-auto"}`}
     >
+      {vistaParallela}
       <div className="overflow-hidden rounded-2xl border border-white/12 bg-[#0b1a38]/96 shadow-2xl shadow-black/50 backdrop-blur">
         <button
           type="button"
@@ -309,6 +334,17 @@ export function PlanciaGruppo({
 
         {aperta && (
           <div className="space-y-1.5 px-2.5 pb-2.5">
+            {compilano.length >= 1 && (
+              <button
+                type="button"
+                onClick={() => setParallelo(true)}
+                title="Una scheda per ognuno che compila il suo preventivo, aggiornata mentre lo fa"
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-[12px] font-semibold text-white hover:brightness-110"
+              >
+                <Columns3 className="h-4 w-4" />
+                {compilano.length >= 2 ? `Vedi tutti in parallelo · ${compilano.length}` : "Vedi cosa sta compilando"}
+              </button>
+            )}
             {/*  ⚠️ QUI C'ERA L'INTERRUTTORE «PREVENTIVO COMUNE» (acceso/spento).
                  Tolto con lo stesso ragionamento del pulsante qui sopra: il
                  comune non si accende più, è semplicemente quello che stai

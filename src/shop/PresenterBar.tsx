@@ -69,6 +69,8 @@ import { sfx, primeSfx } from "@/shop/sfx";
 //  quando le persone sono più d'una: vedi PlanciaGruppo).
 import { useAttesiDelConsulente } from "@/shop/PlanciaGruppo";
 import { cambiaRegia } from "@/shop/regia-gruppo";
+import { accendiAprendo } from "@/shop/preventivi-di-gruppo";
+import { chiaveAnteprimaPreventivo, personaDelPreventivo } from "@/shop/anteprima-link-preventivo";
 
 /** Chiude un pannello aperto con il tasto Esc. Un menu si chiude toccando
  *  fuori — e ci pensa il velo trasparente sotto — ma da tastiera la via
@@ -575,13 +577,26 @@ export function PresenterBar({ page }: { page?: Page }) {
    *  comunque qualcosa, perché il link parte adesso e l'anteprima si legge una
    *  volta sola. */
   /** Chi c'è in consulenza adesso: lo scrive il CRM avviando la consulenza. */
-  const leggiLeadCorrente = (): { nome?: string; cognome?: string } | null => {
+  const leggiLeadCorrente = (): { id?: string; nome?: string; cognome?: string } | null => {
     try {
       const g = localStorage.getItem("hg_lead_corrente");
-      return g ? (JSON.parse(g) as { nome?: string; cognome?: string }) : null;
+      return g ? (JSON.parse(g) as { id?: string; nome?: string; cognome?: string }) : null;
     } catch {
       return null;
     }
+  };
+
+  /** Per chi è il preventivo che si compone adesso (gettone), e il suo nome. */
+  const destinatarioDelLink = (): { persona: string; nome: string; cognome: string } => {
+    let scelta = "";
+    try { scelta = localStorage.getItem("hg_new_quote_chi") || ""; } catch { /* */ }
+    const lead = leggiLeadCorrente();
+    const persona = personaDelPreventivo({ scelta, leadCorrente: lead });
+    //  Il nome: quello della persona scelta fra chi è in consulenza, se è lei;
+    //  altrimenti quello del cliente con cui è stata avviata.
+    const dalGruppo = attesiQui.find((a) => a.gettone === persona);
+    if (dalGruppo && scelta) return { persona, nome: dalGruppo.nome, cognome: "" };
+    return { persona, nome: lead?.nome || "", cognome: lead?.cognome || "" };
   };
 
   const anteprimaDelLinkPreventivo = async (ref: string) => {
@@ -593,12 +608,14 @@ export function PresenterBar({ page }: { page?: Page }) {
     //  L'immagine del preventivo confermato la scrive la pagina del preventivo,
     //  che il totale ce l'ha in mano.
     if (ref) return;
-    const lead = leggiLeadCorrente();
-    if (!lead?.nome && !lead?.cognome) return;
+    const chi = destinatarioDelLink();
+    if (!chi.nome && !chi.cognome) return;
     await depositaAnteprimaPreventivo({
-      ref: sessionePreventivo(null),
-      nome: lead.nome || "",
-      cognome: lead.cognome || "",
+      //  ⚠️ Sotto la consulenza PIÙ la persona: depositata sotto la sola
+      //   consulenza, il cliente successivo ereditava questa immagine.
+      ref: chiaveAnteprimaPreventivo({ sess: sessionePreventivo(null), persona: chi.persona }),
+      nome: chi.nome,
+      cognome: chi.cognome,
       //  Nessun totale: è esattamente ciò che fa scegliere la seconda scheda.
       totale: 0,
       base: "",
@@ -610,7 +627,7 @@ export function PresenterBar({ page }: { page?: Page }) {
     //  Il numero si rilegge ADESSO, non da quello che la barra aveva in mano
     //  quando si è disegnata: fra i due momenti può esserci un preventivo nuovo.
     const ref = getQuoteRef();
-    const url = linkPreventivo(ref || null);
+    const url = linkPreventivo(ref || null, ref ? null : destinatarioDelLink().persona);
     //  L'indirizzo di QUESTA pagina si allinea al link appena copiato: stessa
     //  sessione, stesso preventivo. Da qui in poi un ricaricamento — tuo o di
     //  un secondo schermo — ti riporta esattamente dove sei adesso.
@@ -731,7 +748,19 @@ export function PresenterBar({ page }: { page?: Page }) {
          diretta e non può toccare (vedi `cosaVede`). Prima la riga girava
          solo in gruppo, e con un cliente solo restava aperto quello di
          prima. */
-    void cambiaRegia(liveId, chi ? { aperto: chi.gettone } : { aperto: "" });
+    /*  ⚠️ CON UN CLIENTE SOLO SI ACCENDE (decisione del committente,
+        13/10/2026). Era spento anche così, e il consulente compilava nella
+        stanza del cliente mentre il cliente guardava il comune: «seleziono e
+        scorro e non gli arriva niente». In due o più resta spento, e la
+        pagina del preventivo lo dice (vedi `ilClienteNonLoVede`). */
+    void cambiaRegia(
+      liveId,
+      chi
+        ? accendiAprendo({ persone: attesiQui.length })
+          ? { aperto: chi.gettone, individuale: { chi: chi.gettone, acceso: true } }
+          : { aperto: chi.gettone }
+        : { aperto: "" },
+    );
     try { localStorage.setItem("hg_new_quote_chi", chi ? chi.gettone : ""); } catch { /* */ }
     // ── OGNI PREVENTIVO NUOVO APRE UNA SESSIONE SUA ─────────────────────────
     //  Anche senza videochiamata: è il codice che lega il link mandato al

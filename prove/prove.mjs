@@ -399,9 +399,15 @@ const MODULI = [
   //  ⚠️ Più persone nella stessa consulenza: quando due appuntamenti sono la
   //   stessa stanza, e chi è atteso dentro. Vedi proveDellaFascia.
   "fascia-consulenza",
+  //  ⚠️ Quanti posti restano e a che ora. Vedi proveDegliSlotLiberi.
+  "slot-liberi",
   //  ⚠️ I preventivi quando sono in più di uno: le stanze, la penna, e che
   //   cosa vede ciascuno. Vedi proveDeiPreventiviDiGruppo.
   "shop/preventivi-di-gruppo",
+  //  ⚠️ La scatola nera del preventivo. Vedi proveDellaScatolaPreventivo.
+  "shop/scatola-preventivo",
+  //  ⚠️ Tutti i preventivi del gruppo in parallelo. Vedi proveDellaVistaParallela.
+  "shop/vista-parallela",
   "shop/errori-esterni",
   //  ⚠️ La precedenza del preventivo personale: chi la alza, chi la ascolta.
   //   Vedi proveDellaPrecedenza.
@@ -418,6 +424,8 @@ const MODULI = [
   //  ⚠️ Quanto pesa una registrazione e quando si spezza.
   //   Vedi proveDelRitmoDellaRegistrazione.
   "shop/ritmo-registrazione",
+  //  ⚠️ Le consulenze intere su Google Drive. Vedi proveDiDrive.
+  "shop/drive-registrazioni",
   //  ⚠️ La scatola nera della videochiamata. Vedi proveDellaScatolaNera.
   "shop/scatola-chiamata",
   //  ⚠️ Dove si blocca, detto dall'applicazione stessa. Vedi proveDellaLentezza.
@@ -432,6 +440,9 @@ const MODULI = [
   //  ⚠️ Un link per ciascuno dentro la stessa stanza. Vedi
   //   proveDelLinkPerCiascuno.
   "shop/chi-dal-link",
+  //  ⚠️ L'anteprima del link «solo preventivo» è di chi lo riceve.
+  //   Vedi proveDellAnteprimaDelPreventivoGiusta.
+  "shop/anteprima-link-preventivo",
   //  ⚠️ Nome e cognome nel testo dell'anteprima del link. Vedi
   //   proveDellAnteprimaConIlNome.
   "seo/chi-riceve-il-link",
@@ -586,13 +597,17 @@ const CAU = mod["shop/causale-bonifico"];
 const CDP = mod["shop/causale-di-un-preventivo"];
 const SAL = mod["shop/sala-attesa"];
 const FAS = mod["fascia-consulenza"];
+const SLOT = mod["slot-liberi"];
 const PDG = mod["shop/preventivi-di-gruppo"];
+const SPV = mod["shop/scatola-preventivo"];
+const VPA = mod["shop/vista-parallela"];
 const MUTI = mod["shop/ospiti-muti"];
 const EXT = mod["shop/errori-esterni"];
 const MIO = mod["shop/mio-preventivo"];
 const VEC = mod["shop/versione-vecchia"];
 const TELA = mod["shop/tela-registrazione"];
 const RITMO = mod["shop/ritmo-registrazione"];
+const DRIVE = mod["shop/drive-registrazioni"];
 const SCATOLA = mod["shop/scatola-chiamata"];
 const LEN = mod["shop/lentezza"];
 const COP = mod["copia-archivio"];
@@ -606,6 +621,7 @@ const RGZ = mod["shop/registrazione"];
 const DENTRO = mod["shop/chi-e-ancora-dentro"];
 const GIRA = mod["shop/gira-camera"];
 const LINKCHI = mod["shop/chi-dal-link"];
+const ALP = mod["shop/anteprima-link-preventivo"];
 const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
 const FISSA = mod["chi-ha-fissato"];
@@ -6620,8 +6636,15 @@ function proveDeiMessaggiPerStato() {
   c("e non esce nessun nome inglese", false, /monday|tuesday|wednesday|thursday|friday|saturday|sunday/i.test(testoGiorno));
   //  ⚠️ Oltre la settimana serve anche il giorno del mese: «martedì» da solo
   //   puo' essere uno qualsiasi dei martedì che verranno.
-  const fraUnMese = { id: "x", data: { nome: "Marco", stato: "appuntamento_fissato", dataMeeting: "2026-10-20", oraMeeting: "15:30" } };
-  c("oltre la settimana si dice anche la data", true, /20 ottobre/.test(WA.getWhatsAppMessageForStatus(fraUnMese)));
+  //  ⚠️ La data è a un mese DA OGGI, non scritta fissa: «2026-10-20» era oltre
+  //   la settimana il giorno in cui è stata scritta e dal 14 ottobre non lo è
+  //   più — la prova falliva senza che il messaggio fosse cambiato.
+  const traUnMese = new Date(Date.now() + 30 * 86_400_000);
+  const mesiIt = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+  const isoUnMese = `${traUnMese.getFullYear()}-${String(traUnMese.getMonth() + 1).padStart(2, "0")}-${String(traUnMese.getDate()).padStart(2, "0")}`;
+  const fraUnMese = { id: "x", data: { nome: "Marco", stato: "appuntamento_fissato", dataMeeting: isoUnMese, oraMeeting: "15:30" } };
+  c("oltre la settimana si dice anche la data", true,
+    new RegExp(`\\b${traUnMese.getDate()} ${mesiIt[traUnMese.getMonth()]}`).test(WA.getWhatsAppMessageForStatus(fraUnMese)));
 
   c("sede_disdetta: parla della visita, non del meet", true,
     /visita|passare/i.test(MODELLI_ORIGINALI.sede_disdetta));
@@ -17112,6 +17135,252 @@ function proveDelleCorrezioniKpi() {
   c("e senza nessun già provato nemmeno", false, eCaldo({ problema: "areata" }));
 }
 
+/** ── IL CLIENTE NON VEDEVA IL PREVENTIVO ───────────────────────────────────
+ *  Stanza della sera della segnalazione: preventivo personale aperto,
+ *  nessuno acceso, comune spento. Vedi shop/preventivi-di-gruppo. */
+function proveDelPreventivoCheNonVede() {
+  const { accendiAprendo, ilClienteNonLoVede, leggiRegia } = PDG;
+  gruppo("IL CLIENTE NON VEDEVA IL PREVENTIVO");
+  c("un cliente solo: si accende aprendolo", true, accendiAprendo({ persone: 1 }));
+  c("in due: resta spento", false, accendiAprendo({ persone: 2 }));
+  c("nessuno in elenco: non si accende niente", false, accendiAprendo({ persone: 0 }));
+  const quellaSera = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: [], aperto: "abc123", at: 1 }));
+  c("la stanza di quella sera: il cliente NON lo vedeva", true, ilClienteNonLoVede({ regia: quellaSera, aperto: "abc123" }));
+  const accesa = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: ["abc123"], aperto: "abc123", at: 2 }));
+  c("acceso per lui: niente avviso", false, ilClienteNonLoVede({ regia: accesa, aperto: "abc123" }));
+  c("sul preventivo comune: niente avviso", false, ilClienteNonLoVede({ regia: quellaSera, aperto: "" }));
+  c("regia non ancora arrivata: nessun avviso che lampeggia", false, ilClienteNonLoVede({ regia: null, aperto: "abc123" }));
+}
+
+/** ── TUTTI I PREVENTIVI DEL GRUPPO, IN PARALLELO ───────────────────────────
+ *  «Se assegno che devono compilare voglio vederli tutti in contemporanea».
+ *  Vedi shop/vista-parallela. */
+function proveDellaVistaParallela() {
+  const { schedaDelPreventivo, chiCompila, attivita, SOGLIA_VIVO_MS } = VPA;
+  const { buildMenu, sectionsFor } = QMN;
+  const { leggiRegia } = PDG;
+  gruppo("TUTTI I PREVENTIVI DEL GRUPPO, IN PARALLELO");
+  const menu = buildMenu({});
+  const base = menu.base.find((b) => b.id !== "trapianto" && sectionsFor(menu.sections, b.id).some((x) => x.items.length));
+  const voce = sectionsFor(menu.sections, base.id).flatMap((x) => x.items)[0];
+  const vuota = schedaDelPreventivo({}, menu);
+  c("chi non ha scelto niente ha la scheda vuota", true, vuota.vuoto);
+  const fit = menu.fitting[0];
+  const sc = schedaDelPreventivo({ baseId: base.id, selected: [voce.id], qty: 2, fitting: fit.id }, menu);
+  c("la soluzione scelta col suo nome", base.name, sc.soluzione);
+  c("le voci scelte col loro nome", voce.name, sc.voci[0]);
+  c("la quantità", 2, sc.quantita);
+  c("la stima: (base + voce) × 2 + applicazione", (base.price + voce.price) * 2 + fit.price, sc.totale);
+  c("mentre si compone è una stima", false, sc.esatto);
+  const conCodice = schedaDelPreventivo({ baseId: base.id, qty: 1, fitting: fit.id, manual: { code: "PROVA", discount_eur: 100 } }, menu);
+  c("il codice sconto si vede", "PROVA", conCodice.codice);
+  c("e toglie i suoi euro dalla stima", Math.max(0, base.price + fit.price - 100), conCodice.totale);
+  const creato = schedaDelPreventivo({ baseId: base.id, qty: 1, result: { total: 1234 } }, menu);
+  c("a preventivo creato vale il SUO totale", 1234, creato.totale);
+  c("ed è esatto", true, creato.esatto);
+  const regia = leggiRegia(JSON.stringify({ comune: false, penne: {}, individuali: ["aaa111", "bbb222"], aperto: "", at: 1 }));
+  const attesi = [{ gettone: "aaa111", nome: "A" }, { gettone: "ccc333", nome: "C" }, { gettone: "bbb222", nome: "B" }, { gettone: "", nome: "senza" }];
+  c("le schede sono di chi ha il preventivo acceso, in ordine", "A,B", chiCompila({ regia, attesi }).map((p) => p.nome).join(","));
+  c("regia non arrivata: nessuna scheda", 0, chiCompila({ regia: null, attesi }).length);
+  c("appena toccato: sta compilando", true, attivita(1000, 1000 + SOGLIA_VIVO_MS - 1).vivo);
+  c("fermo da 3 minuti", "fermo da 3 min", attivita(1000, 1000 + 3 * 60_000 + 5).testo);
+  c("mai toccato", "non ha ancora toccato niente", attivita(0, 5000).testo);
+}
+
+/** ── LA SCATOLA NERA DEL PREVENTIVO ────────────────────────────────────────
+ *  «Controlla il preventivo nella scatola nera per capire se funziona bene».
+ *  Vedi shop/scatola-preventivo. */
+function proveDellaScatolaPreventivo() {
+  const { contatoriVuoti, daScrivere, firmaRegole, rigaPreventivo } = SPV;
+  gruppo("LA SCATOLA NERA DEL PREVENTIVO");
+  const r = { stanza: "personale", luiLoVede: false, personeAccese: 0, trasmette: true, scorre: true, videochiamata: false };
+  const conti = { ...contatoriVuoti(), statoInviati: 4, scorriInviati: 12, saluti: 1, canale: "SUBSCRIBED", salvatiOk: 3, salvatiKo: 1, ultimoErrore: "HTTP 401" };
+  const riga = rigaPreventivo(r, conti);
+  c("dice la stanza e se lui la vede (il caso della segnalazione)", true, riga.includes("stanza personale (lui NON la vede)"));
+  c("quanti si sono collegati alla stanza", true, riga.includes("nuovi in ascolto 1"));
+  c("lo stato del canale", true, riga.includes("canale SUBSCRIBED"));
+  c("gli invii", true, riga.includes("inviati stato 4 scorri 12"));
+  c("i salvataggi falliti col motivo", true, riga.includes("falliti 1 (HTTP 401)"));
+  c("in videochiamata lo scorrimento si dice spento e perché", true,
+    rigaPreventivo({ ...r, scorre: false, videochiamata: true }, contatoriVuoti()).includes("scorrimento no (videochiamata)"));
+  c("niente successo e regole uguali: non si scrive", false, daScrivere(contatoriVuoti(), false));
+  c("regole cambiate: si scrive anche senza traffico", true, daScrivere(contatoriVuoti(), true));
+  c("un invio basta per scrivere", true, daScrivere({ ...contatoriVuoti(), statoInviati: 1 }, false));
+  c("la firma cambia se cambia la stanza", false, firmaRegole(r) === firmaRegole({ ...r, stanza: "comune" }));
+}
+
+/** ── IL CAMPANELLO NON DEVE ARRIVARE AI CLIENTI ────────────────────────────
+ *  «Solo i clienti sentono un campanello a due note». Vedi shop/bussata. */
+function proveDelCampanello() {
+  const { campanaUdibile } = BUS;
+  gruppo("IL CAMPANELLO NON DEVE ARRIVARE AI CLIENTI");
+  c("nessuno dentro: suona", true, campanaUdibile({ collegati: 0, micAcceso: true }));
+  c("clienti dentro e microfono acceso: tace", false, campanaUdibile({ collegati: 2, micAcceso: true }));
+  c("clienti dentro ma microfono spento: suona", true, campanaUdibile({ collegati: 1, micAcceso: false }));
+}
+
+/** ── L'ANTEPRIMA DEL LINK «SOLO PREVENTIVO» È DI CHI LO RICEVE ─────────────
+ *  «Passo al prossimo cliente e l'anteprima mostra quello di prima».
+ *  Vedi shop/anteprima-link-preventivo. */
+function proveDellAnteprimaDelPreventivoGiusta() {
+  const { chiaveAnteprimaPreventivo, personaDelPreventivo } = ALP;
+  gruppo("L'ANTEPRIMA DEL LINK «SOLO PREVENTIVO» È DI CHI LO RICEVE");
+  const anna = personaDelPreventivo({ leadCorrente: { id: "aaaa1111-2222", nome: "Anna" } });
+  const bruno = personaDelPreventivo({ leadCorrente: { id: "bbbb3333-4444", nome: "Bruno" } });
+  c("due clienti della stessa consulenza hanno due chiavi diverse", false,
+    chiaveAnteprimaPreventivo({ sess: "abc-defg-hij", persona: anna }) === chiaveAnteprimaPreventivo({ sess: "abc-defg-hij", persona: bruno }));
+  c("la chiave è consulenza_persona", `abc-defg-hij_${anna}`, chiaveAnteprimaPreventivo({ sess: "abc-defg-hij", persona: anna }));
+  c("col preventivo creato vale il suo numero", "IDP1234", chiaveAnteprimaPreventivo({ id: "IDP1234", sess: "abc-defg-hij", persona: anna }));
+  c("senza persona resta la consulenza, come prima", "abc-defg-hij", chiaveAnteprimaPreventivo({ sess: "abc-defg-hij" }));
+  c("la persona scelta con «Nuovo preventivo per…» vince sul cliente avviato", "pzzz999",
+    personaDelPreventivo({ scelta: "pzzz999", leadCorrente: { id: "aaaa1111", nome: "Anna" } }));
+  c("scelta vuota: il cliente con cui è stata avviata", anna, personaDelPreventivo({ scelta: "", leadCorrente: { id: "aaaa1111-2222", nome: "Anna" } }));
+  c("nessuno: niente persona", "", personaDelPreventivo({}));
+}
+
+/** ── CHI ENTRA, SENZA SCEGLIERE IL PROPRIO NOME ────────────────────────────
+ *  «Dal link deve entrare già col suo nome». Vedi shop/chi-dal-link. */
+function proveDiChiEntra() {
+  const { chiEntra } = LINKCHI;
+  gruppo("CHI ENTRA, SENZA SCEGLIERE IL PROPRIO NOME");
+  const tre = [{ gettone: "aaa111", nome: "Anna Verdi" }, { gettone: "bbb222", nome: "Bruno Neri" }, { gettone: "ccc333", nome: "Carla Bianchi" }];
+  c("in tre, il link di Bruno fa entrare Bruno", "Bruno Neri", chiEntra({ attesi: tre, mio: "bbb222" })?.nome);
+  c("il gettone si legge anche scritto male", "Carla Bianchi", chiEntra({ attesi: tre, mio: " CCC-333 " })?.nome);
+  c("in tre, senza gettone: resta l'elenco", null, chiEntra({ attesi: tre, mio: "" }));
+  c("in tre, gettone di un'altra stanza: resta l'elenco", null, chiEntra({ attesi: tre, mio: "zzz999" }));
+  c("una persona sola: entra lei, come prima", "Anna Verdi", chiEntra({ attesi: [tre[0]], mio: "" })?.nome);
+  c("elenco non ancora arrivato: nessuno", null, chiEntra({ attesi: null, mio: "aaa111" }));
+}
+
+/** ── IL RINVIO È DI CHI È STATO SPOSTATO, NON DELLA STANZA ─────────────────
+ *  Il caso del 13/10: stanza delle 15:00 condivisa, una persona spostata a
+ *  domani, il consulente avvia la stanza vecchia e il cliente rimasto viene
+ *  rinviato nella stanza di domani. Vedi crm/spostamento-meet. */
+function proveDelRinvioPerChi() {
+  const { rinvioPerChi } = SPM;
+  gruppo("IL RINVIO È DI CHI È STATO SPOSTATO, NON DELLA STANZA");
+  const riga = { code: "rfn-whmx-gsc", leadId: "4964aa0e-0e52-4a32" };
+  const spostato = "p4964aa0e";
+  const rimasto = "p6f65d79e";
+  c("il caso del 13/10: stanza avviata → nessun rinvio", "",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: true, persona: rimasto, altriAttesi: 1 }));
+  c("chi è rimasto non viene rinviato nemmeno a stanza ferma", "",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: rimasto, altriAttesi: 1 }));
+  c("la persona spostata sì", "rfn-whmx-gsc",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: spostato, altriAttesi: 1 }));
+  c("senza sapere chi è, in una stanza condivisa: nessun rinvio", "",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 1 }));
+  c("senza sapere chi è, stanza di una persona sola: rinvio come prima", "rfn-whmx-gsc",
+    rinvioPerChi({ rinvio: riga, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 0 }));
+  c("nessuna riga di rinvio: niente", "",
+    rinvioPerChi({ rinvio: null, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: spostato, altriAttesi: 0 }));
+  c("rinvio verso sé stessa: niente", "",
+    rinvioPerChi({ rinvio: { code: "dhx-cxrw-gpz" }, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 0 }));
+}
+
+/** ── GLI SLOT LIBERI ───────────────────────────────────────────────────────
+ *  «Quanti slot ho liberi ancora e che orari, ottimizzato». Si contano POSTI
+ *  (una fascia aperta ne tiene tre) e si propongono prima le ore già iniziate.
+ *  Vedi crm/slot-liberi. */
+function proveDegliSlotLiberi() {
+  const { postiDi, riassumiGiorno, daRiempirePrima, testoDaCopiare, totali } = SLOT;
+  gruppo("GLI SLOT LIBERI");
+  const s = (ora, libero, presi, capienza = 3) => ({ ora, libero, presi, capienza });
+  c("fascia vuota: 3 posti", 3, postiDi(s("10:00", true, 0)));
+  c("con una persona dentro: 2", 2, postiDi(s("10:00", true, 1)));
+  c("non libera: zero, anche se il conto direbbe altro", 0, postiDi(s("10:00", false, 1)));
+  c("ora tenuta per uno (capienza 1) con lui dentro: zero", 0, postiDi(s("10:00", true, 1, 1)));
+  const g = riassumiGiorno({
+    data: "2026-10-14",
+    persone: [
+      { id: "a", nome: "Anna", slot: [s("09:00", true, 0), s("10:00", false, 3), s("11:00", true, 1)] },
+      { id: "b", nome: "Bruno", slot: [s("09:00", true, 0), s("10:00", false, 1, 1), s("15:00", true, 0)] },
+    ],
+  });
+  c("ore di lavoro contate una volta", 4, g.fasceTotali);
+  c("le 10 sono piene per tutti", 1, g.fascePiene);
+  c("orari con posto in ordine", "09:00,11:00,15:00", g.fasce.map((f) => f.ora).join());
+  c("alle 9 i posti si sommano (3+3)", 6, g.fasce[0].posti);
+  c("posti del giorno", 6 + 2 + 3, g.posti);
+  c("le 11 sono iniziate", true, g.fasce[1].iniziata);
+  c("alle 9 nessuno dentro", false, g.fasce[0].iniziata);
+  const oggi = riassumiGiorno({ data: "2026-10-14", persone: [{ id: "a", nome: "Anna", slot: [s("09:00", true, 0), s("16:00", true, 0)] }], dopo: 12 * 60 });
+  c("oggi le ore passate non si offrono", "16:00", oggi.fasce.map((f) => f.ora).join());
+  const pieno = riassumiGiorno({ data: "2026-10-15", persone: [{ id: "a", nome: "Anna", slot: [s("09:00", false, 3)] }] });
+  const chiuso = riassumiGiorno({ data: "2026-10-18", persone: [{ id: "a", nome: "Anna", slot: [] }] });
+  const ordine = daRiempirePrima([g, pieno], 3);
+  c("prima l'ora già iniziata", "11:00 Anna", `${ordine[0].ora} ${ordine[0].chi.nome}`);
+  c("poi la prima libera", "09:00", ordine[1].ora);
+  c("quanti se ne chiedono", 3, ordine.length);
+  const t = totali([g, pieno, chiuso]);
+  c("un giorno pieno è pieno, uno di chiusura no", 1, t.giorniPieni);
+  c("giorni con posto", 1, t.giorniConPosto);
+  c("posti totali", 11, t.posti);
+  const testo = testoDaCopiare([g, pieno]);
+  c("il testo da copiare ha solo i giorni con posto", 1, testo.split("\n").length);
+  c("il testo dice le ore", true, testo.endsWith("09:00, 11:00, 15:00"));
+  c("nessun nome nel testo per il cliente", false, /Anna|Bruno/.test(testo));
+}
+
+/** ── LE CONSULENZE INTERE SU GOOGLE DRIVE ──────────────────────────────────
+ *  «Fai che registra tutto in un'unica soluzione, al massimo salva su Google
+ *  Drive». Vedi shop/drive-registrazioni. */
+function proveDiDrive() {
+  const { sogliaDellaParte, doveVa, blocchiDrive, intervallo, linkDrive, idDrive, anteprimaDrive, TETTO_GRATUITO } = DRIVE;
+  const { SOGLIA_MASSIMA, SOGLIA_PIANO_GRATUITO } = RITMO;
+  gruppo("LE CONSULENZE INTERE SU GOOGLE DRIVE");
+  const MB = 1024 * 1024;
+  c("senza Drive si spezza come prima", SOGLIA_PIANO_GRATUITO, sogliaDellaParte({ tetto: 0, drive: false }));
+  c("con Drive la consulenza è un file solo", SOGLIA_MASSIMA, sogliaDellaParte({ tetto: 50 * MB, drive: true }));
+  c("piccola: resta su Supabase", "supabase", doveVa({ peso: 30 * MB, tetto: 50 * MB, drive: true }));
+  c("tetto ignoto vale 50 MB", "supabase", doveVa({ peso: 30 * MB, tetto: 0, drive: true }));
+  c("grande con Drive: va su Drive", "drive", doveVa({ peso: 300 * MB, tetto: 50 * MB, drive: true }));
+  c("sfiora il tetto: meglio Drive", "drive", doveVa({ peso: 49 * MB, tetto: 0, drive: true }));
+  c("grande senza Drive: si tenta Supabase (e lo dice lui)", "supabase", doveVa({ peso: 300 * MB, tetto: 0, drive: false }));
+  c("il tetto gratuito è 50 MB", 50 * MB, TETTO_GRATUITO);
+  const b = blocchiDrive(40 * MB);
+  c("40 MB in blocchi da 16: tre", 3, b.length);
+  c("primo blocco", "0-16777215", b[0].join("-"));
+  c("ultimo blocco finisce all'ultimo byte", 40 * MB - 1, b[2][1]);
+  c("ogni blocco tranne l'ultimo è multiplo di 256 KB", true, b.slice(0, -1).every(([da, a]) => (a - da + 1) % (256 * 1024) === 0));
+  c("blocco storto arrotondato a 256 KB", 256 * 1024, blocchiDrive(1 * MB, 300 * 1024)[0][1] + 1);
+  c("file vuoto: nessun blocco", 0, blocchiDrive(0).length);
+  c("file più piccolo di un blocco: uno solo", "0-999", blocchiDrive(1000).map((x) => x.join("-")).join());
+  c("intestazione del pezzo", "bytes 0-9/100", intervallo(0, 9, 100));
+  c("link di Drive", "https://drive.google.com/file/d/abc_1-Z/view", linkDrive("abc_1-Z"));
+  c("dal link si riprende l'id", "abc_1-Z", idDrive(linkDrive("abc_1-Z")));
+  c("un link di Supabase non è di Drive", "", idDrive("https://x.supabase.co/storage/v1/object/public/presenter-videos/a.webm"));
+  c("niente link, niente id", "", idDrive(undefined));
+  c("anteprima nella cornice", "https://drive.google.com/file/d/abc/preview", anteprimaDrive("abc"));
+}
+
+/** ── CHI ESCE, ESCE DAVVERO ────────────────────────────────────────────────
+ *  «Se l'utente esce dalla sala d'attesa l'avviso deve sparire», «chi esce da
+ *  Meetly resta dentro con camera spenta». Vedi shop/sala-attesa e
+ *  shop/resta-in-lista. */
+function proveDiChiEsce() {
+  const { bussateVive, BUSSATA_VIVA_MS } = SAL;
+  const { verdettoSuOspite, SALUTO_SPARITO_MS } = RIL;
+  gruppo("CHI ESCE, ESCE DAVVERO");
+  const T = 1_000_000;
+  const bussate = [
+    { pid: "a", at: T - 60_000, visto: T - 3_000 },
+    { pid: "b", at: T - 60_000, visto: T - BUSSATA_VIVA_MS - 1 },
+    { pid: "c", at: T - 5_000 },
+  ];
+  c("chi ribussa resta in elenco", true, bussateVive(bussate, T).some((k) => k.pid === "a"));
+  c("chi non bussa da 20 s sparisce", false, bussateVive(bussate, T).some((k) => k.pid === "b"));
+  c("senza «visto» vale l'ora della bussata", true, bussateVive(bussate, T).some((k) => k.pid === "c"));
+  c("ospite uscito, flusso ancora «vivo», connessione giù, zitto da 25 s: via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 25_000, stato: "disconnected", haMedia: true, primaVolta: T - 600_000 }));
+  c("lo stesso a connessione fallita: via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - SALUTO_SPARITO_MS - 1, stato: "failed", haMedia: true, primaVolta: T - 600_000 }));
+  c("un singhiozzo di rete (zitto da 5 s) non lo butta fuori", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 5_000, stato: "disconnected", haMedia: true, primaVolta: T - 600_000 }));
+  c("collegato resta anche se la sua scheda è in secondo piano", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 120_000, stato: "connected", haMedia: true, primaVolta: T - 600_000 }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17144,6 +17413,16 @@ proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
 proveDelRinfresco();
 proveDelleCorrezioniKpi();
+proveDelPreventivoCheNonVede();
+proveDellaVistaParallela();
+proveDellaScatolaPreventivo();
+proveDelCampanello();
+proveDellAnteprimaDelPreventivoGiusta();
+proveDiChiEntra();
+proveDelRinvioPerChi();
+proveDiChiEsce();
+proveDegliSlotLiberi();
+proveDiDrive();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

@@ -25,7 +25,7 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
-import { chiaveBussata, esitoBussata } from "@/shop/bussata";
+import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
 import { copyLink } from "@/shop/copied";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -85,6 +85,7 @@ import {
 //  server, il consulente la legge di lì, e la decisione torna indietro anche
 //  se il filo in tempo reale non c'è (shop/sala-attesa).
 import type { StatoAttesa } from "@/shop/sala-attesa";
+import { BUSSATA_VIVA_MS, bussateVive } from "@/shop/sala-attesa";
 //  Per portare il consulente sulla pagina del preventivo quando apre quello
 //  di una persona: è quella pagina che il cliente segue (api.presenter.curpage).
 //  ⚠️ Si può usare perché <CallMount> è montato dentro la radice del router
@@ -106,12 +107,8 @@ import {
   versioneVecchia,
 } from "@/shop/versione-vecchia";
 import { avviaTela, type MotoreDiDisegno } from "@/shop/tela-registrazione";
-import {
-  FOTOGRAMMI_REGISTRAZIONE,
-  SOGLIA_PIANO_GRATUITO,
-  sogliaParte,
-  tocca,
-} from "@/shop/ritmo-registrazione";
+import { SOGLIA_PIANO_GRATUITO, tocca } from "@/shop/ritmo-registrazione";
+import { blocchiDrive, doveVa, intervallo, linkDrive, sogliaDellaParte } from "@/shop/drive-registrazioni";
 import { bloccati, cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
 import { OGNI_MS, rigaChiamata, type CampioneVideo } from "@/shop/scatola-chiamata";
 import {
@@ -121,7 +118,7 @@ import {
   tieniInMemoria,
 } from "@/shop/gettone-cliente";
 //  Il gettone scritto nel link: un link per ciascuno, nella stessa stanza.
-import { gettoneDalLink } from "@/shop/chi-dal-link";
+import { chiEntra, gettoneDalLink } from "@/shop/chi-dal-link";
 //  ⚠️ «L'ho accettato e non riesce a entrare»: la regola che impedisce lo
 //   schermo nero a chi è appena entrato. Il perché, misurato, sta lì dentro.
 import { stanzaAncoraVuota } from "@/shop/stanza-ancora-vuota";
@@ -387,6 +384,8 @@ interface State {
     name: string;
     dev: string;
     at: number;
+    /** l'ultima notizia di questa bussata (canale o server): vedi `bussateVive` */
+    visto?: number;
     atteso?: boolean;
     leadId?: string;
   }[]; // (presentatore) in attesa
@@ -2064,6 +2063,12 @@ function guestResumeCall() {
  *  oppure è arrivato da poco). Chi non ha né peer né hello sparisce subito. */
 function gcRoster() {
   const now = Date.now();
+  //  Le richieste di entrare di chi non bussa più da un po' spariscono (vedi
+  //  `bussateVive` in shop/sala-attesa): il cliente ha chiuso, non aspetta più.
+  if (S.role === "host" && S.knocks.length) {
+    const vive = bussateVive(S.knocks, now);
+    if (vive.length !== S.knocks.length) set({ knocks: vive });
+  }
   for (const r of S.roster.slice()) {
     // L'OSPITE non rimuove il presentatore CONNESSO dalla propria lista (batte il
     // ciclo di presenza solo mentre ha i media aperti → il GC lo faceva sparire
@@ -3467,16 +3472,63 @@ function salvaInLocale(blob: Blob, filename: string) {
 const TENTATIVI = 3;
 const respiro = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Il limite per file del secchio delle registrazioni, in byte. 0 = non si sa
- *  (rete assente, sessione scaduta, secchio senza limite proprio): chi lo usa
- *  resta allora sulla soglia del piano gratuito. */
-async function tettoArchivio(): Promise<number> {
+/** Il limite per file del secchio delle registrazioni, in byte, e se Google
+ *  Drive è collegato. tetto 0 = non si sa (rete assente, sessione scaduta,
+ *  secchio senza limite proprio): chi lo usa resta allora sulla soglia del
+ *  piano gratuito. */
+async function tettoArchivio(): Promise<{ tetto: number; drive: boolean }> {
   try {
     const r = await fetch("/api/presenter/upload-url", { credentials: "same-origin" });
-    const j = (await r.json().catch(() => null)) as { tetto?: number } | null;
-    return r.ok ? Number(j?.tetto) || 0 : 0;
+    const j = (await r.json().catch(() => null)) as { tetto?: number; drive?: boolean } | null;
+    return r.ok ? { tetto: Number(j?.tetto) || 0, drive: j?.drive === true } : { tetto: 0, drive: false };
   } catch {
-    return 0;
+    return { tetto: 0, drive: false };
+  }
+}
+
+/** ── LE CONSULENZE INTERE VANNO SU GOOGLE DRIVE ───────────────────────────
+ *  Il file va dal browser a Google a blocchi da 16 MB (vedi
+ *  shop/drive-registrazioni): il server apre solo la sessione. Un blocco che
+ *  cade per la rete si riprova da solo, senza ricominciare da capo. */
+async function caricaSuDrive(blob: Blob, filename: string): Promise<Esito> {
+  try {
+    const tipo = (blob.type || "video/webm").split(";")[0];
+    const r = await fetch("/api/presenter/drive-upload-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ filename, size: blob.size, type: tipo }),
+    });
+    const p = (await r.json().catch(() => null)) as { ok?: boolean; sessione?: string } | null;
+    if (!r.ok || !p?.ok || !p.sessione) return { motivo: `Google Drive: ${motivoRisposta(r.status, p)}` };
+    const tot = blob.size;
+    for (const [da, a] of blocchiDrive(tot)) {
+      let risposta: Response | null = null;
+      for (let i = 0; i < TENTATIVI && !risposta; i += 1) {
+        if (i) await respiro(2000 * i);
+        try {
+          risposta = await fetch(p.sessione, {
+            method: "PUT",
+            headers: { "Content-Range": intervallo(da, a, tot) },
+            body: blob.slice(da, a + 1),
+          });
+        } catch (e) {
+          console.warn(`[REC] Drive: blocco ${da}-${a} tentativo ${i + 1} non riuscito`, e);
+        }
+      }
+      if (!risposta) return { motivo: "Google Drive: la connessione non ha retto il caricamento — il video non è perduto" };
+      //  308 = «blocco ricevuto, manda il prossimo»; 200/201 = file completo.
+      if (risposta.status === 308) continue;
+      if (risposta.ok) {
+        const j = (await risposta.json().catch(() => null)) as { id?: string } | null;
+        if (j?.id) return { url: linkDrive(j.id) };
+        return { motivo: "Google Drive non ha restituito il file" };
+      }
+      return { motivo: `Google Drive ha rifiutato il caricamento (${risposta.status})` };
+    }
+    return { motivo: "Google Drive non ha confermato il file" };
+  } catch (e) {
+    return { motivo: `Google Drive: ${(e as Error)?.message || "caricamento interrotto"}` };
   }
 }
 
@@ -3630,20 +3682,44 @@ interface RegInSospeso {
 }
 let regInSospeso: RegInSospeso | null = null;
 
+/** Il file, dove ci sta: Supabase se sta sotto il suo tetto, altrimenti Google
+ *  Drive (se collegato); e Drive anche quando Supabase dice di no. "" = fatto,
+ *  e `p.url` è l'indirizzo. */
+async function caricaFile(p: RegInSospeso, blob: Blob): Promise<string> {
+  const archivio = await tettoArchivio();
+  if (doveVa({ peso: blob.size, ...archivio }) === "drive") {
+    const suDrive = await caricaSuDrive(blob, p.filename);
+    if (!suDrive.url) return suDrive.motivo || "Google Drive: caricamento non riuscito";
+    p.url = suDrive.url;
+    return "";
+  }
+  const diretto = await caricaDiretto(blob, p.filename);
+  if (diretto.url) {
+    p.url = diretto.url;
+    return "";
+  }
+  const motivoDiretto = diretto.motivo || "caricamento non riuscito";
+  if (archivio.drive) {
+    const ripiego = await caricaSuDrive(blob, p.filename);
+    if (ripiego.url) {
+      p.url = ripiego.url;
+      return "";
+    }
+    if (blob.size > SOGLIA_WORKER) return `${motivoDiretto} (e ${ripiego.motivo || "Drive non riuscito"})`;
+  }
+  if (blob.size > SOGLIA_WORKER) return motivoDiretto;
+  const viaServer = await caricaDalServer(blob, p.filename);
+  if (!viaServer.url) return `${motivoDiretto} (anche dal server: ${viaServer.motivo || "rifiutato"})`;
+  p.url = viaServer.url;
+  return "";
+}
+
 /** Chiude la catena partendo da dove si era fermata. "" = archiviata. */
 async function archivia(p: RegInSospeso): Promise<string> {
   if (!p.url) {
     if (!p.blob) return "il file della registrazione non è più in memoria";
-    const diretto = await caricaDiretto(p.blob, p.filename);
-    const motivoDiretto = diretto.motivo || "caricamento non riuscito";
-    if (diretto.url) p.url = diretto.url;
-    else if (p.blob.size > SOGLIA_WORKER) return motivoDiretto;
-    else {
-      const viaServer = await caricaDalServer(p.blob, p.filename);
-      if (!viaServer.url)
-        return `${motivoDiretto} (anche dal server: ${viaServer.motivo || "rifiutato"})`;
-      p.url = viaServer.url;
-    }
+    const motivo = await caricaFile(p, p.blob);
+    if (motivo) return motivo;
   }
   const scheda = await registraInArchivio(p.url, p.duration);
   return scheda.url ? "" : scheda.motivo || "scheda non salvata";
@@ -4020,12 +4096,14 @@ async function catturaSchermo(): Promise<MediaStream | null> {
     (navigator.mediaDevices as any).getDisplayMedia(opts) as Promise<MediaStream>;
   try {
     return await call({
-      //  `max`, non solo `ideal`: un «ideale» il browser lo prende come un
-      //  consiglio, e lo schermo arrivava a 60 (vedi shop/ritmo-registrazione).
-      video: {
-        displaySurface: "monitor",
-        frameRate: { ideal: FOTOGRAMMI_REGISTRAZIONE, max: FOTOGRAMMI_REGISTRAZIONE },
-      },
+      /*  ⚠️ LO SCHERMO NON SI LIMITA A 15 FOTOGRAMMI (12-13/10/2026). Il
+          limite `max: 15` messo qui il 12/10 ha fatto tacere il registratore:
+          nel diario, da quel giorno, ogni registrazione dello SCHERMO scrive
+          «NIENTE dopo 6000 ms» e compare l'avviso «non sta scrivendo», e il
+          consulente la ferma (14 e 22 secondi). Le CAMERE, limitate sulla
+          tela e non sulla cattura, partono subito. Lo schermo torna come
+          prima: 30 ideali, deciso dal browser. */
+      video: { displaySurface: "monitor", frameRate: { ideal: 30 } },
       audio: true,
       selfBrowserSurface: "include",
       systemAudio: "include",
@@ -4320,14 +4398,8 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     const dvt = display?.getVideoTracks()[0];
     const usaSchermo = catturaUsabile(display?.getTracks() ?? []);
     if (dvt && usaSchermo) {
-      //  Anche sulla traccia già aperta: lo schermo tenuto da «Videochiamata»
-      //  e quello del ripiego `video: true` non hanno chiesto un ritmo.
-      //  Questo schermo va SOLO nel file, il cliente non lo riceve.
-      void dvt
-        .applyConstraints({ frameRate: { max: FOTOGRAMMI_REGISTRAZIONE } })
-        .catch(() => {
-          /* il browser tiene il suo ritmo: si registra lo stesso */
-        });
+      //  ⚠️ Qui c'era un `applyConstraints({ frameRate: { max: 15 } })` sulla
+      //   traccia dello schermo: tolto, vedi `catturaSchermo`.
       mix.addTrack(dvt);
       dvt.addEventListener("ended", () => fermaRegistratore()); // "Interrompi condivisione"
     } else {
@@ -4512,8 +4584,12 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
      *   Finché la risposta non arriva vale la soglia sicura. */
     let SOGLIA_PARTE = SOGLIA_PIANO_GRATUITO;
     void tettoArchivio().then((t) => {
-      SOGLIA_PARTE = sogliaParte(t);
-      annota(`parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t / (1024 * 1024))} MB)`);
+      //  Con Google Drive collegato la consulenza è un file solo.
+      SOGLIA_PARTE = sogliaDellaParte(t);
+      annota(
+        `parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t.tetto / (1024 * 1024))} MB` +
+          `, Drive ${t.drive ? "collegato" : "no"})`,
+      );
     });
 
     let numeroParte = 1;
@@ -5116,6 +5192,10 @@ function attachChannel(sessionId: string) {
     if (payload?.pid) salutoDelPid.delete(String(payload.pid));
     if (!payload?.pid) return;
     removePeer(payload.pid, "bye");
+    //  Chi chiude la pagina mentre bussa se ne va anche dalla porta: la sua
+    //  richiesta di entrare sparisce subito dallo schermo del consulente.
+    if (S.knocks.some((k) => k.pid === String(payload.pid)))
+      set({ knocks: S.knocks.filter((k) => k.pid !== String(payload.pid)) });
     // se ad uscire è il PRESENTATORE, l'ospite torna subito in attesa: niente
     // più attesa dei 10s di silenzio né camera "spenta" appesa.
     if (payload.role === "host" && isViewer())
@@ -5278,6 +5358,7 @@ function attachChannel(sessionId: string) {
       name,
       dev,
       at: i >= 0 ? list[i].at : Date.now(),
+      visto: Date.now(),
       atteso: !!atteso,
       ...(atteso ? { leadId: atteso.leadId } : {}),
     };
@@ -5305,7 +5386,7 @@ function attachChannel(sessionId: string) {
       //  ⚠️ E la campana suona ANCHE sul gestionale: adesso lì la richiesta si
       //   vede (in piccolo), quindi il suono non è più un allarme senza
       //   pulsante — è l'unica cosa che fa alzare gli occhi dallo schermo.
-      sfx.knock();
+      suonaBussata("canale");
     }
     set({ knocks: list });
   });
@@ -6639,6 +6720,32 @@ function decidiSulServer(pid: string, stato: StatoAttesa, dev = "", ritenta = tr
     });
 }
 
+/** ── IL CAMPANELLO DI CHI BUSSA (vedi `campanaUdibile` in shop/bussata) ────
+ *  Con persone già in chiamata e microfono acceso tace: le casse del
+ *  consulente finivano nel suo microfono e i clienti sentivano il campanello.
+ *  Ogni volta lascia una riga nel diario della chiamata: da dove è arrivata la
+ *  bussata, quante ce ne sono in attesa, se è suonato. Niente nomi. */
+function suonaBussata(origine: "canale" | "server") {
+  const collegati = peers.size;
+  const suona = campanaUdibile({ collegati, micAcceso: !!S.micOn });
+  if (suona) sfx.knock();
+  try {
+    void fetch("/api/presenter/diario", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        diario: "chiamata",
+        voce: `campanello · bussata dal ${origine} · in attesa ${S.knocks.length + 1} · collegati ${collegati} · ${
+          suona ? "suonato" : "zitto (clienti in chiamata, microfono acceso)"
+        }`,
+      }),
+    }).catch(() => {});
+  } catch {
+    /* mai in mezzo a una consulenza */
+  }
+}
+
 /** ── IL CONSULENTE LEGGE CHI STA ASPETTANDO ───────────────────────────────
  *  Gira finché questa scheda è padrona di casa. Aggiunge alle bussate SOLO chi
  *  non c'è già: la riga del server e il canale portano le stesse persone, e
@@ -6701,10 +6808,17 @@ async function leggiSalaDAttesa() {
         name: String(p.nome || "Ospite"),
         dev,
         at: Number(p.at) || Date.now(),
+        //  La riga del server la riscrive chi bussa: il suo `at` è l'ultima
+        //  volta che si è fatto vivo.
+        visto: Number(p.at) || Date.now(),
         atteso: !!p.atteso,
         ...(p.leadId ? { leadId: String(p.leadId) } : {}),
       };
       const i = nuove.findIndex((k) => k.pid === pid || (dev && k.dev === dev));
+      if (i >= 0 && (nuove[i].visto || 0) < voce.visto) {
+        nuove[i] = { ...nuove[i], visto: voce.visto };
+        cambiato = true;
+      }
       if (i >= 0) {
         /*  ── IL NOME VERO ARRIVA DI QUI ─────────────────────────────────
             Sul canale la bussata può portare un gettone che questa scheda
@@ -6734,6 +6848,10 @@ async function leggiSalaDAttesa() {
         }
         continue;
       }
+      //  ⚠️ Una riga che nessuno riscrive da un po' è di chi se n'è andato:
+      //   non si rimette in elenco (e non si suona), anche se il server la
+      //   tiene ancora per qualche decina di secondi.
+      if (Date.now() - voce.visto >= BUSSATA_VIVA_MS) continue;
       //  Porta aperta: entra senza passare dall'elenco, anche se la sua
       //  bussata è arrivata solo dal server (canale muto).
       if (S.portaAperta) {
@@ -6743,7 +6861,7 @@ async function leggiSalaDAttesa() {
       nuove.push(voce);
       cambiato = true;
       console.log("[HOST] bussata arrivata dal server (canale muto?):", pid, voce.name);
-      sfx.knock();
+      suonaBussata("server");
     }
     if (cambiato) set({ knocks: nuove });
   } catch {
@@ -10309,7 +10427,15 @@ export function CallMount() {
         pollBusy.current = true;
         // il guest controlla se la sessione è stata avviata (altrimenti vede l'attesa).
         fetch(
-          `/api/presenter/session?sess=${encodeURIComponent(S.sessionId || watchIdDaIndirizzo() || "")}`,
+          `/api/presenter/session?sess=${encodeURIComponent(S.sessionId || watchIdDaIndirizzo() || "")}` +
+            //  Chi chiede: il rinvio di un appuntamento spostato vale solo per
+            //  la persona spostata, non per chi divideva la stanza con lei.
+            ((): string => {
+              const io =
+                miaPersonaDi(S.sessionId || watchIdDaIndirizzo() || "") ||
+                (typeof window !== "undefined" ? gettoneDalLink(window.location.search) : "");
+              return io ? `&persona=${encodeURIComponent(io)}` : "";
+            })(),
         )
           .then((r) => r.json())
           .then((j) => {
@@ -10328,7 +10454,9 @@ export function CallMount() {
               ⚠️ `replace`: l'indirizzo vecchio non deve restare nella
                cronologia, o il tasto «indietro» ci riporta dentro. */
             const rinvio = typeof j.rinvio === "string" ? j.rinvio.trim() : "";
-            if (rinvio && rinvio !== guestCodeRef.current && !S.sessionLive && !S.joined) {
+            //  ⚠️ E mai da una stanza che il server dice AVVIATA: il consulente
+            //   è lì (lo controlla anche il server, ma un server vecchio no).
+            if (rinvio && rinvio !== guestCodeRef.current && !S.sessionLive && !S.joined && !j.live) {
               if (!rinviatoUnaVolta) {
                 rinviatoUnaVolta = true;
                 console.log("[GUEST] appuntamento spostato: questa stanza è diventata", rinvio);
@@ -14358,13 +14486,20 @@ function GuestJoinGate({ st }: { st: State }) {
   const attesi = useAttesi(st.sessionId);
   const [scriviIoIlNome, setScriviIoIlNome] = useState(false);
   const daSolo = useRef(false);
-  //  Una persona sola: entra lei, senza che nessuno tocchi niente.
+  //  Entra da sola la persona del LINK (il gettone `?chi=` che le è stato
+  //  mandato), o l'unica attesa: nessuno deve scegliere il proprio nome
+  //  (vedi `chiEntra` in shop/chi-dal-link).
   useEffect(() => {
-    if (!attesi || attesi.length !== 1 || daSolo.current || st.joined || st.knocking) return;
+    if (!attesi || daSolo.current || st.joined || st.knocking) return;
+    const mio =
+      miaPersonaDi(st.sessionId) ||
+      (typeof window !== "undefined" ? gettoneDalLink(window.location.search) : "");
+    const chi = chiEntra({ attesi, mio });
+    if (!chi) return;
     daSolo.current = true;
-    console.log("[GUEST] atteso riconosciuto dal link:", attesi[0].nome);
-    void viewerJoin(attesi[0].nome, attesi[0].gettone);
-  }, [attesi, st.joined, st.knocking]);
+    console.log("[GUEST] atteso riconosciuto dal link:", chi.nome);
+    void viewerJoin(chi.nome, chi.gettone);
+  }, [attesi, st.joined, st.knocking, st.sessionId]);
   // iOS Safari ingrandisce (pinch) la pagina quando prende il fuoco un campo con
   // font < 16px: qui il font è 16px e su touch NON usiamo autoFocus → niente zoom.
   const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;

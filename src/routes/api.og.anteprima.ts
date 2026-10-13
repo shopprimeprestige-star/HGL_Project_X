@@ -281,7 +281,10 @@ export async function serviAnteprima(
 
   //  Niente sotto questo codice: se è una stanza, si risale al suo invito.
   if (!personale && !soloSuo) {
-    if (gettone) {
+    //  ⚠️ Il preventivo di UNA persona non ripiega mai su quello della stanza:
+    //   lì c'è il nome di un altro cliente (vedi shop/anteprima-link-preventivo).
+    //   Finché il suo non è depositato vale il marchio, a cache corta.
+    if (gettone && tipo !== "preventivo") {
       const dellaStanza = await anteprimaDepositata(tipo, base);
       personale = dellaStanza.url;
       quando = dellaStanza.quando;

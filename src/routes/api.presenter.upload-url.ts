@@ -14,7 +14,9 @@
  *  è quella della connessione.
  *
  *  POST { filename } -> { ok, path, token, url }
- *  GET               -> { ok, tetto }   il limite per file del secchio (0 = nessuno)
+ *  GET               -> { ok, tetto, drive }   il limite per file del secchio
+ *                       (0 = nessuno) e se Google Drive è collegato: con Drive
+ *                       la consulenza si registra in un file solo
  *
  *  ── PERCHÉ IL REGISTRATORE CHIEDE IL TETTO ────────────────────────────────
  *  Segnalazione del committente: «registra 1,30 minuti a botta». Il
@@ -32,6 +34,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { INTESTAZIONI_CONSENTITE, guardia } from "./api.presenter.consultant";
+import { leggiCollegamento } from "@/shop/google-drive.server";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -53,11 +56,12 @@ export const Route = createFileRoute("/api/presenter/upload-url")({
       GET: async ({ request }) => {
         const no = await guardia(request, cors);
         if (no) return no;
+        const drive = !!(await leggiCollegamento().catch(() => null));
         try {
           const { data: info } = await supabaseAdmin.storage.getBucket(BUCKET);
-          return json({ ok: true, tetto: Number(info?.file_size_limit) || 0 });
+          return json({ ok: true, tetto: Number(info?.file_size_limit) || 0, drive });
         } catch {
-          return json({ ok: true, tetto: 0 });
+          return json({ ok: true, tetto: 0, drive });
         }
       },
       POST: async ({ request }) => {

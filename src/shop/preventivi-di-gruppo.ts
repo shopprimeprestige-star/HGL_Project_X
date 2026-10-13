@@ -617,3 +617,37 @@ export function loScorrimentoMiRiguarda(p: {
 }): boolean {
   return !!p.guardo && !p.scrivo;
 }
+
+/** ── IL CLIENTE NON VEDEVA IL PREVENTIVO, E NESSUNO LO DICEVA ──────────────
+ *  Segnalazione del committente: «quando seleziono le cose o scorro il
+ *  preventivo, non viene trasmesso all'ospite», ed era in «Contenuti».
+ *
+ *  ⚠️ MISURATO SULLA STANZA DI QUELLA SERA (regia_gruppo): `aperto` = il
+ *   gettone del cliente, `individuali` vuoto, `comune` spento. Il consulente
+ *   lavorava nella stanza PERSONALE del cliente — aperta con «Nuovo preventivo
+ *   per…», che per decisione di allora nasce spento — e il cliente guardava il
+ *   preventivo comune. Due stanze diverse: tutto funzionava, e niente
+ *   arrivava. Sulla pagina del consulente nessun segno lo diceva.
+ *
+ *  Decisione del committente (13/10/2026): «con un cliente solo si accende».
+ *  In due o più resta spento — mettere una persona davanti al configuratore
+ *  senza volerlo è il problema che lo spento era nato a evitare — ma la pagina
+ *  del consulente lo DICE, con il tasto per accenderlo (`ilClienteNonLoVede`). */
+
+/** Aprendo il preventivo di una persona, glielo si accende subito? */
+export function accendiAprendo(p: { persone: number }): boolean {
+  return Number(p.persone) === 1;
+}
+
+/** Il consulente sta lavorando sul preventivo di una persona che non lo vede? */
+export function ilClienteNonLoVede(p: {
+  regia?: RegiaGruppo | null;
+  /** il gettone del preventivo aperto sul consulente ("" = il comune) */
+  aperto?: unknown;
+}): boolean {
+  if (!gettone(p.aperto)) return false;
+  //  Finché lo stato non è arrivato dal server non si sa: un avviso che
+  //  lampeggia a ogni apertura di pagina insegna a non guardarlo.
+  if (!p.regia) return false;
+  return !haIlSuo(p.regia, p.aperto);
+}

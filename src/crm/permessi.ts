@@ -836,6 +836,7 @@ const PERMESSO_DI_PAGINA: { percorso: string; permesso: Permesso }[] = [
   //   sta nei preferiti — e questa riga è quella che chiude la porta davvero.
   { percorso: "/CRM/sede", permesso: "preventivi" },
   { percorso: "/CRM/agenda", permesso: "agenda" },
+  { percorso: "/CRM/slot-liberi", permesso: "agenda" },
 ];
 
 /** ── DOVE SI ATTERRA APPENA ENTRATI ────────────────────────────────────────

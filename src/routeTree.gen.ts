@@ -71,6 +71,7 @@ import { Route as CRMWhatsappRouteImport } from './routes/CRM.whatsapp'
 import { Route as CRMWebinarRouteImport } from './routes/CRM.webinar'
 import { Route as CRMTrattativePerseRouteImport } from './routes/CRM.trattative-perse'
 import { Route as CRMTrattativeRouteImport } from './routes/CRM.trattative'
+import { Route as CRMSlotLiberiRouteImport } from './routes/CRM.slot-liberi'
 import { Route as CRMSedeRouteImport } from './routes/CRM.sede'
 import { Route as CRMScontiRouteImport } from './routes/CRM.sconti'
 import { Route as CRMProvaCapelliRouteImport } from './routes/CRM.prova-capelli'
@@ -141,6 +142,7 @@ import { Route as ApiPresenterLinksRouteImport } from './routes/api.presenter.li
 import { Route as ApiPresenterGallerieRouteImport } from './routes/api.presenter.gallerie'
 import { Route as ApiPresenterFatturaBozzaRouteImport } from './routes/api.presenter.fattura-bozza'
 import { Route as ApiPresenterErrorsRouteImport } from './routes/api.presenter.errors'
+import { Route as ApiPresenterDriveUploadUrlRouteImport } from './routes/api.presenter.drive-upload-url'
 import { Route as ApiPresenterDiarioRouteImport } from './routes/api.presenter.diario'
 import { Route as ApiPresenterCurpageRouteImport } from './routes/api.presenter.curpage'
 import { Route as ApiPresenterCouponsRouteImport } from './routes/api.presenter.coupons'
@@ -153,6 +155,7 @@ import { Route as ApiOgVideochiamataRouteImport } from './routes/api.og.videochi
 import { Route as ApiOgMeetlyRouteImport } from './routes/api.og.meetly'
 import { Route as ApiOgCardRouteImport } from './routes/api.og.card'
 import { Route as ApiOgAnteprimaRouteImport } from './routes/api.og.anteprima'
+import { Route as ApiGoogleDriveCallbackRouteImport } from './routes/api.google-drive.callback'
 import { Route as ApiCrmWebinarRegistrazioniRouteImport } from './routes/api.crm.webinar-registrazioni'
 import { Route as ApiCrmWebinarRouteImport } from './routes/api.crm.webinar'
 import { Route as ApiCrmSumupRouteImport } from './routes/api.crm.sumup'
@@ -166,6 +169,7 @@ import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-up
 import { Route as ApiCrmMediaEliminaRouteImport } from './routes/api.crm.media-elimina'
 import { Route as ApiCrmLeadSyncRouteImport } from './routes/api.crm.lead-sync'
 import { Route as ApiCrmInvitoRouteImport } from './routes/api.crm.invito'
+import { Route as ApiCrmGoogleDriveRouteImport } from './routes/api.crm.google-drive'
 import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-modo'
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
@@ -494,6 +498,11 @@ const CRMTrattativePerseRoute = CRMTrattativePerseRouteImport.update({
 const CRMTrattativeRoute = CRMTrattativeRouteImport.update({
   id: '/trattative',
   path: '/trattative',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMSlotLiberiRoute = CRMSlotLiberiRouteImport.update({
+  id: '/slot-liberi',
+  path: '/slot-liberi',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMSedeRoute = CRMSedeRouteImport.update({
@@ -854,6 +863,12 @@ const ApiPresenterErrorsRoute = ApiPresenterErrorsRouteImport.update({
   path: '/api/presenter/errors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPresenterDriveUploadUrlRoute =
+  ApiPresenterDriveUploadUrlRouteImport.update({
+    id: '/api/presenter/drive-upload-url',
+    path: '/api/presenter/drive-upload-url',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPresenterDiarioRoute = ApiPresenterDiarioRouteImport.update({
   id: '/api/presenter/diario',
   path: '/api/presenter/diario',
@@ -913,6 +928,11 @@ const ApiOgCardRoute = ApiOgCardRouteImport.update({
 const ApiOgAnteprimaRoute = ApiOgAnteprimaRouteImport.update({
   id: '/api/og/anteprima',
   path: '/api/og/anteprima',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGoogleDriveCallbackRoute = ApiGoogleDriveCallbackRouteImport.update({
+  id: '/api/google-drive/callback',
+  path: '/api/google-drive/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmWebinarRegistrazioniRoute =
@@ -979,6 +999,11 @@ const ApiCrmLeadSyncRoute = ApiCrmLeadSyncRouteImport.update({
 const ApiCrmInvitoRoute = ApiCrmInvitoRouteImport.update({
   id: '/api/crm/invito',
   path: '/api/crm/invito',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmGoogleDriveRoute = ApiCrmGoogleDriveRouteImport.update({
+  id: '/api/crm/google-drive',
+  path: '/api/crm/google-drive',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmFasciaModoRoute = ApiCrmFasciaModoRouteImport.update({
@@ -1121,6 +1146,7 @@ export interface FileRoutesByFullPath {
   '/CRM/prova-capelli': typeof CRMProvaCapelliRoute
   '/CRM/sconti': typeof CRMScontiRoute
   '/CRM/sede': typeof CRMSedeRoute
+  '/CRM/slot-liberi': typeof CRMSlotLiberiRoute
   '/CRM/trattative': typeof CRMTrattativeRoute
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
@@ -1178,6 +1204,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
+  '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
@@ -1191,6 +1218,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
+  '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
   '/api/og/card': typeof ApiOgCardRoute
   '/api/og/meetly': typeof ApiOgMeetlyRoute
@@ -1203,6 +1231,7 @@ export interface FileRoutesByFullPath {
   '/api/presenter/coupons': typeof ApiPresenterCouponsRoute
   '/api/presenter/curpage': typeof ApiPresenterCurpageRoute
   '/api/presenter/diario': typeof ApiPresenterDiarioRoute
+  '/api/presenter/drive-upload-url': typeof ApiPresenterDriveUploadUrlRoute
   '/api/presenter/errors': typeof ApiPresenterErrorsRoute
   '/api/presenter/fattura-bozza': typeof ApiPresenterFatturaBozzaRoute
   '/api/presenter/gallerie': typeof ApiPresenterGallerieRoute
@@ -1293,6 +1322,7 @@ export interface FileRoutesByTo {
   '/CRM/prova-capelli': typeof CRMProvaCapelliRoute
   '/CRM/sconti': typeof CRMScontiRoute
   '/CRM/sede': typeof CRMSedeRoute
+  '/CRM/slot-liberi': typeof CRMSlotLiberiRoute
   '/CRM/trattative': typeof CRMTrattativeRoute
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
@@ -1350,6 +1380,7 @@ export interface FileRoutesByTo {
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
+  '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
@@ -1363,6 +1394,7 @@ export interface FileRoutesByTo {
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
+  '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
   '/api/og/card': typeof ApiOgCardRoute
   '/api/og/meetly': typeof ApiOgMeetlyRoute
@@ -1375,6 +1407,7 @@ export interface FileRoutesByTo {
   '/api/presenter/coupons': typeof ApiPresenterCouponsRoute
   '/api/presenter/curpage': typeof ApiPresenterCurpageRoute
   '/api/presenter/diario': typeof ApiPresenterDiarioRoute
+  '/api/presenter/drive-upload-url': typeof ApiPresenterDriveUploadUrlRoute
   '/api/presenter/errors': typeof ApiPresenterErrorsRoute
   '/api/presenter/fattura-bozza': typeof ApiPresenterFatturaBozzaRoute
   '/api/presenter/gallerie': typeof ApiPresenterGallerieRoute
@@ -1471,6 +1504,7 @@ export interface FileRoutesById {
   '/CRM/prova-capelli': typeof CRMProvaCapelliRoute
   '/CRM/sconti': typeof CRMScontiRoute
   '/CRM/sede': typeof CRMSedeRoute
+  '/CRM/slot-liberi': typeof CRMSlotLiberiRoute
   '/CRM/trattative': typeof CRMTrattativeRoute
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
@@ -1528,6 +1562,7 @@ export interface FileRoutesById {
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
+  '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
@@ -1541,6 +1576,7 @@ export interface FileRoutesById {
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
+  '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
   '/api/og/card': typeof ApiOgCardRoute
   '/api/og/meetly': typeof ApiOgMeetlyRoute
@@ -1553,6 +1589,7 @@ export interface FileRoutesById {
   '/api/presenter/coupons': typeof ApiPresenterCouponsRoute
   '/api/presenter/curpage': typeof ApiPresenterCurpageRoute
   '/api/presenter/diario': typeof ApiPresenterDiarioRoute
+  '/api/presenter/drive-upload-url': typeof ApiPresenterDriveUploadUrlRoute
   '/api/presenter/errors': typeof ApiPresenterErrorsRoute
   '/api/presenter/fattura-bozza': typeof ApiPresenterFatturaBozzaRoute
   '/api/presenter/gallerie': typeof ApiPresenterGallerieRoute
@@ -1650,6 +1687,7 @@ export interface FileRouteTypes {
     | '/CRM/prova-capelli'
     | '/CRM/sconti'
     | '/CRM/sede'
+    | '/CRM/slot-liberi'
     | '/CRM/trattative'
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
@@ -1707,6 +1745,7 @@ export interface FileRouteTypes {
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
+    | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
     | '/api/crm/media-elimina'
@@ -1720,6 +1759,7 @@ export interface FileRouteTypes {
     | '/api/crm/sumup'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
+    | '/api/google-drive/callback'
     | '/api/og/anteprima'
     | '/api/og/card'
     | '/api/og/meetly'
@@ -1732,6 +1772,7 @@ export interface FileRouteTypes {
     | '/api/presenter/coupons'
     | '/api/presenter/curpage'
     | '/api/presenter/diario'
+    | '/api/presenter/drive-upload-url'
     | '/api/presenter/errors'
     | '/api/presenter/fattura-bozza'
     | '/api/presenter/gallerie'
@@ -1822,6 +1863,7 @@ export interface FileRouteTypes {
     | '/CRM/prova-capelli'
     | '/CRM/sconti'
     | '/CRM/sede'
+    | '/CRM/slot-liberi'
     | '/CRM/trattative'
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
@@ -1879,6 +1921,7 @@ export interface FileRouteTypes {
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
+    | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
     | '/api/crm/media-elimina'
@@ -1892,6 +1935,7 @@ export interface FileRouteTypes {
     | '/api/crm/sumup'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
+    | '/api/google-drive/callback'
     | '/api/og/anteprima'
     | '/api/og/card'
     | '/api/og/meetly'
@@ -1904,6 +1948,7 @@ export interface FileRouteTypes {
     | '/api/presenter/coupons'
     | '/api/presenter/curpage'
     | '/api/presenter/diario'
+    | '/api/presenter/drive-upload-url'
     | '/api/presenter/errors'
     | '/api/presenter/fattura-bozza'
     | '/api/presenter/gallerie'
@@ -1999,6 +2044,7 @@ export interface FileRouteTypes {
     | '/CRM/prova-capelli'
     | '/CRM/sconti'
     | '/CRM/sede'
+    | '/CRM/slot-liberi'
     | '/CRM/trattative'
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
@@ -2056,6 +2102,7 @@ export interface FileRouteTypes {
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
+    | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
     | '/api/crm/media-elimina'
@@ -2069,6 +2116,7 @@ export interface FileRouteTypes {
     | '/api/crm/sumup'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
+    | '/api/google-drive/callback'
     | '/api/og/anteprima'
     | '/api/og/card'
     | '/api/og/meetly'
@@ -2081,6 +2129,7 @@ export interface FileRouteTypes {
     | '/api/presenter/coupons'
     | '/api/presenter/curpage'
     | '/api/presenter/diario'
+    | '/api/presenter/drive-upload-url'
     | '/api/presenter/errors'
     | '/api/presenter/fattura-bozza'
     | '/api/presenter/gallerie'
@@ -2195,6 +2244,7 @@ export interface RootRouteChildren {
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
   ApiCrmFasciaModoRoute: typeof ApiCrmFasciaModoRoute
+  ApiCrmGoogleDriveRoute: typeof ApiCrmGoogleDriveRoute
   ApiCrmInvitoRoute: typeof ApiCrmInvitoRoute
   ApiCrmLeadSyncRoute: typeof ApiCrmLeadSyncRoute
   ApiCrmMediaEliminaRoute: typeof ApiCrmMediaEliminaRoute
@@ -2208,6 +2258,7 @@ export interface RootRouteChildren {
   ApiCrmSumupRoute: typeof ApiCrmSumupRoute
   ApiCrmWebinarRoute: typeof ApiCrmWebinarRoute
   ApiCrmWebinarRegistrazioniRoute: typeof ApiCrmWebinarRegistrazioniRoute
+  ApiGoogleDriveCallbackRoute: typeof ApiGoogleDriveCallbackRoute
   ApiOgAnteprimaRoute: typeof ApiOgAnteprimaRouteWithChildren
   ApiOgCardRoute: typeof ApiOgCardRoute
   ApiOgMeetlyRoute: typeof ApiOgMeetlyRoute
@@ -2220,6 +2271,7 @@ export interface RootRouteChildren {
   ApiPresenterCouponsRoute: typeof ApiPresenterCouponsRoute
   ApiPresenterCurpageRoute: typeof ApiPresenterCurpageRoute
   ApiPresenterDiarioRoute: typeof ApiPresenterDiarioRoute
+  ApiPresenterDriveUploadUrlRoute: typeof ApiPresenterDriveUploadUrlRoute
   ApiPresenterErrorsRoute: typeof ApiPresenterErrorsRoute
   ApiPresenterFatturaBozzaRoute: typeof ApiPresenterFatturaBozzaRoute
   ApiPresenterGallerieRoute: typeof ApiPresenterGallerieRoute
@@ -2698,6 +2750,13 @@ declare module '@tanstack/react-router' {
       path: '/trattative'
       fullPath: '/CRM/trattative'
       preLoaderRoute: typeof CRMTrattativeRouteImport
+      parentRoute: typeof CRMRoute
+    }
+    '/CRM/slot-liberi': {
+      id: '/CRM/slot-liberi'
+      path: '/slot-liberi'
+      fullPath: '/CRM/slot-liberi'
+      preLoaderRoute: typeof CRMSlotLiberiRouteImport
       parentRoute: typeof CRMRoute
     }
     '/CRM/sede': {
@@ -3190,6 +3249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPresenterErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/presenter/drive-upload-url': {
+      id: '/api/presenter/drive-upload-url'
+      path: '/api/presenter/drive-upload-url'
+      fullPath: '/api/presenter/drive-upload-url'
+      preLoaderRoute: typeof ApiPresenterDriveUploadUrlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/presenter/diario': {
       id: '/api/presenter/diario'
       path: '/api/presenter/diario'
@@ -3272,6 +3338,13 @@ declare module '@tanstack/react-router' {
       path: '/api/og/anteprima'
       fullPath: '/api/og/anteprima'
       preLoaderRoute: typeof ApiOgAnteprimaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/google-drive/callback': {
+      id: '/api/google-drive/callback'
+      path: '/api/google-drive/callback'
+      fullPath: '/api/google-drive/callback'
+      preLoaderRoute: typeof ApiGoogleDriveCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/webinar-registrazioni': {
@@ -3363,6 +3436,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/invito'
       fullPath: '/api/crm/invito'
       preLoaderRoute: typeof ApiCrmInvitoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/google-drive': {
+      id: '/api/crm/google-drive'
+      path: '/api/crm/google-drive'
+      fullPath: '/api/crm/google-drive'
+      preLoaderRoute: typeof ApiCrmGoogleDriveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/fascia-modo': {
@@ -3546,6 +3626,7 @@ interface CRMRouteChildren {
   CRMProvaCapelliRoute: typeof CRMProvaCapelliRoute
   CRMScontiRoute: typeof CRMScontiRoute
   CRMSedeRoute: typeof CRMSedeRoute
+  CRMSlotLiberiRoute: typeof CRMSlotLiberiRoute
   CRMTrattativeRoute: typeof CRMTrattativeRoute
   CRMTrattativePerseRoute: typeof CRMTrattativePerseRoute
   CRMWebinarRoute: typeof CRMWebinarRoute
@@ -3579,6 +3660,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMProvaCapelliRoute: CRMProvaCapelliRoute,
   CRMScontiRoute: CRMScontiRoute,
   CRMSedeRoute: CRMSedeRoute,
+  CRMSlotLiberiRoute: CRMSlotLiberiRoute,
   CRMTrattativeRoute: CRMTrattativeRoute,
   CRMTrattativePerseRoute: CRMTrattativePerseRoute,
   CRMWebinarRoute: CRMWebinarRoute,
@@ -3700,6 +3782,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,
   ApiCrmFasciaModoRoute: ApiCrmFasciaModoRoute,
+  ApiCrmGoogleDriveRoute: ApiCrmGoogleDriveRoute,
   ApiCrmInvitoRoute: ApiCrmInvitoRoute,
   ApiCrmLeadSyncRoute: ApiCrmLeadSyncRoute,
   ApiCrmMediaEliminaRoute: ApiCrmMediaEliminaRoute,
@@ -3713,6 +3796,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmSumupRoute: ApiCrmSumupRoute,
   ApiCrmWebinarRoute: ApiCrmWebinarRoute,
   ApiCrmWebinarRegistrazioniRoute: ApiCrmWebinarRegistrazioniRoute,
+  ApiGoogleDriveCallbackRoute: ApiGoogleDriveCallbackRoute,
   ApiOgAnteprimaRoute: ApiOgAnteprimaRouteWithChildren,
   ApiOgCardRoute: ApiOgCardRoute,
   ApiOgMeetlyRoute: ApiOgMeetlyRoute,
@@ -3725,6 +3809,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPresenterCouponsRoute: ApiPresenterCouponsRoute,
   ApiPresenterCurpageRoute: ApiPresenterCurpageRoute,
   ApiPresenterDiarioRoute: ApiPresenterDiarioRoute,
+  ApiPresenterDriveUploadUrlRoute: ApiPresenterDriveUploadUrlRoute,
   ApiPresenterErrorsRoute: ApiPresenterErrorsRoute,
   ApiPresenterFatturaBozzaRoute: ApiPresenterFatturaBozzaRoute,
   ApiPresenterGallerieRoute: ApiPresenterGallerieRoute,

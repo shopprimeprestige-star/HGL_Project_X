@@ -50,6 +50,15 @@ export const SALUTO_VIVO_MS = 45_000;
 export const GRAZIA_AVVIO_MS = 12_000;
 /** Connessione guasta da tanto: si riprova (ICE restart). */
 export const GUASTO_MS = 30_000;
+/** ── CHI È USCITO MA HA LASCIATO IL FLUSSO «VIVO» ───────────────────────
+ *  Segnalazione del committente (13/10/2026): «quando una persona esce da
+ *  Meetly resta dentro, con "camera spenta"». Se il suo «esco» si perde — sui
+ *  telefoni succede spesso — il browser continua a dare per vive le tracce che
+ *  arrivavano da lei (lo stesso difetto già trovato sul presentatore, vedi
+ *  `gcRoster`), e `haMedia` la teneva in elenco per sempre.
+ *  Il flusso non basta più: a connessione non attiva e senza un «ci sono» da
+ *  così tanto (ne manda uno ogni tre secondi), è uscita. */
+export const SALUTO_SPARITO_MS = 20_000;
 
 export type VerdettoOspite = "resta" | "riprova" | "via";
 
@@ -68,8 +77,8 @@ export function verdettoSuOspite(p: {
 }): VerdettoOspite {
   const saluto = Number(p.ultimoSaluto) || 0;
   const stato = p.stato || "assente";
-  //  Collegato o con media che arriva: non c'è niente da decidere.
-  if (stato === "connected" || p.haMedia) return "resta";
+  //  Collegato: non c'è niente da decidere.
+  if (stato === "connected") return "resta";
   //  ⚠️ APPENA ARRIVATO: NON SI TOCCA. La connessione si sta creando, e rifare
   //   l'offerta adesso la fa ricominciare da capo — è il minuto di «camera
   //   spenta e senza audio» misurato dal committente. Vedi `GRAZIA_AVVIO_MS`.
@@ -79,6 +88,10 @@ export function verdettoSuOspite(p: {
   //   mai stato nessuno (una voce fantasma), e se tace da troppo se n'è andato
   //   senza dirlo. In mezzo, c'è: qualunque cosa faccia la connessione.
   if (!saluto || p.adesso - saluto > SALUTO_VIVO_MS) return "via";
+  //  ⚠️ Il media che «arriva» non tiene dentro chi, a connessione giù, tace da
+  //   venti secondi: è il flusso che il browser dà per vivo anche quando
+  //   dall'altra parte non c'è più nessuno (vedi SALUTO_SPARITO_MS).
+  if (p.haMedia) return p.adesso - saluto > SALUTO_SPARITO_MS ? "via" : "resta";
   //  Saluta ancora, ma il filo è rotto o non si è mai formato: si riprova.
   const guasto = Number(p.guastoDa) || 0;
   if (stato === "closed" || stato === "failed" || stato === "assente") {

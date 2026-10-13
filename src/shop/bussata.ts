@@ -74,3 +74,23 @@ export function esitoBussata(p: {
   });
   return gia ? "giaInAttesa" : "nuovo";
 }
+
+/** ── IL CAMPANELLO NON DEVE ARRIVARE AI CLIENTI ────────────────────────────
+ *  Segnalazione del committente (13/10/2026): «mentre le persone stanno dentro
+ *  sentono continuamente un campanello a due note, ogni 2 secondi — solo i
+ *  clienti». È il suono «qualcuno bussa» (`sfx.knock`), che per regola non si
+ *  annuncia al cliente: sui loro telefoni infatti non parte mai (la spia dei
+ *  suoni dei clienti, shop/conta-suoni, non l'ha mai contato). Parte sul
+ *  computer del CONSULENTE, e in chiamata il suo microfono lo riprende dalle
+ *  casse e lo consegna a tutti — chi lo produce quasi non ci fa caso.
+ *
+ *  Quindi: con almeno una persona già in chiamata e il microfono acceso, il
+ *  campanello tace. La richiesta di entrare resta a schermo (KnockPopup), che
+ *  è dove si accetta; chi bussa non va perso. Senza nessuno dentro, o a
+ *  microfono spento, suona come sempre.
+ *  ⚠️ PERCHÉ OGNI DUE SECONDI non è dimostrato dai dati di quella mattina (le
+ *   bussate sul server sono normali): ogni campanello lascia ora una riga nel
+ *   diario della chiamata, che lo dirà alla prossima occasione. */
+export function campanaUdibile(p: { collegati: number; micAcceso: boolean }): boolean {
+  return !(Number(p.collegati) > 0 && p.micAcceso);
+}
