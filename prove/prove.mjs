@@ -421,6 +421,8 @@ const MODULI = [
   //  ⚠️ Quanto pesa una registrazione e quando si spezza.
   //   Vedi proveDelRitmoDellaRegistrazione.
   "shop/ritmo-registrazione",
+  //  ⚠️ Le consulenze intere su Google Drive. Vedi proveDiDrive.
+  "shop/drive-registrazioni",
   //  ⚠️ La scatola nera della videochiamata. Vedi proveDellaScatolaNera.
   "shop/scatola-chiamata",
   //  ⚠️ Dove si blocca, detto dall'applicazione stessa. Vedi proveDellaLentezza.
@@ -598,6 +600,7 @@ const MIO = mod["shop/mio-preventivo"];
 const VEC = mod["shop/versione-vecchia"];
 const TELA = mod["shop/tela-registrazione"];
 const RITMO = mod["shop/ritmo-registrazione"];
+const DRIVE = mod["shop/drive-registrazioni"];
 const SCATOLA = mod["shop/scatola-chiamata"];
 const LEN = mod["shop/lentezza"];
 const COP = mod["copia-archivio"];
@@ -15597,10 +15600,6 @@ function proveDelRinvioPerChi() {
     rinvioPerChi({ rinvio: { code: "dhx-cxrw-gpz" }, stanza: "dhx-cxrw-gpz", stanzaViva: false, persona: "", altriAttesi: 0 }));
 }
 
-/** ── CHI ESCE, ESCE DAVVERO ────────────────────────────────────────────────
- *  «Se l'utente esce dalla sala d'attesa l'avviso deve sparire», «chi esce da
- *  Meetly resta dentro con camera spenta». Vedi shop/sala-attesa e
- *  shop/resta-in-lista. */
 /** ── GLI SLOT LIBERI ───────────────────────────────────────────────────────
  *  «Quanti slot ho liberi ancora e che orari, ottimizzato». Si contano POSTI
  *  (una fascia aperta ne tiene tre) e si propongono prima le ore già iniziate.
@@ -15645,6 +15644,42 @@ function proveDegliSlotLiberi() {
   c("nessun nome nel testo per il cliente", false, /Anna|Bruno/.test(testo));
 }
 
+/** ── LE CONSULENZE INTERE SU GOOGLE DRIVE ──────────────────────────────────
+ *  «Fai che registra tutto in un'unica soluzione, al massimo salva su Google
+ *  Drive». Vedi shop/drive-registrazioni. */
+function proveDiDrive() {
+  const { sogliaDellaParte, doveVa, blocchiDrive, intervallo, linkDrive, idDrive, anteprimaDrive, TETTO_GRATUITO } = DRIVE;
+  const { SOGLIA_MASSIMA, SOGLIA_PIANO_GRATUITO } = RITMO;
+  gruppo("LE CONSULENZE INTERE SU GOOGLE DRIVE");
+  const MB = 1024 * 1024;
+  c("senza Drive si spezza come prima", SOGLIA_PIANO_GRATUITO, sogliaDellaParte({ tetto: 0, drive: false }));
+  c("con Drive la consulenza è un file solo", SOGLIA_MASSIMA, sogliaDellaParte({ tetto: 50 * MB, drive: true }));
+  c("piccola: resta su Supabase", "supabase", doveVa({ peso: 30 * MB, tetto: 50 * MB, drive: true }));
+  c("tetto ignoto vale 50 MB", "supabase", doveVa({ peso: 30 * MB, tetto: 0, drive: true }));
+  c("grande con Drive: va su Drive", "drive", doveVa({ peso: 300 * MB, tetto: 50 * MB, drive: true }));
+  c("sfiora il tetto: meglio Drive", "drive", doveVa({ peso: 49 * MB, tetto: 0, drive: true }));
+  c("grande senza Drive: si tenta Supabase (e lo dice lui)", "supabase", doveVa({ peso: 300 * MB, tetto: 0, drive: false }));
+  c("il tetto gratuito è 50 MB", 50 * MB, TETTO_GRATUITO);
+  const b = blocchiDrive(40 * MB);
+  c("40 MB in blocchi da 16: tre", 3, b.length);
+  c("primo blocco", "0-16777215", b[0].join("-"));
+  c("ultimo blocco finisce all'ultimo byte", 40 * MB - 1, b[2][1]);
+  c("ogni blocco tranne l'ultimo è multiplo di 256 KB", true, b.slice(0, -1).every(([da, a]) => (a - da + 1) % (256 * 1024) === 0));
+  c("blocco storto arrotondato a 256 KB", 256 * 1024, blocchiDrive(1 * MB, 300 * 1024)[0][1] + 1);
+  c("file vuoto: nessun blocco", 0, blocchiDrive(0).length);
+  c("file più piccolo di un blocco: uno solo", "0-999", blocchiDrive(1000).map((x) => x.join("-")).join());
+  c("intestazione del pezzo", "bytes 0-9/100", intervallo(0, 9, 100));
+  c("link di Drive", "https://drive.google.com/file/d/abc_1-Z/view", linkDrive("abc_1-Z"));
+  c("dal link si riprende l'id", "abc_1-Z", idDrive(linkDrive("abc_1-Z")));
+  c("un link di Supabase non è di Drive", "", idDrive("https://x.supabase.co/storage/v1/object/public/presenter-videos/a.webm"));
+  c("niente link, niente id", "", idDrive(undefined));
+  c("anteprima nella cornice", "https://drive.google.com/file/d/abc/preview", anteprimaDrive("abc"));
+}
+
+/** ── CHI ESCE, ESCE DAVVERO ────────────────────────────────────────────────
+ *  «Se l'utente esce dalla sala d'attesa l'avviso deve sparire», «chi esce da
+ *  Meetly resta dentro con camera spenta». Vedi shop/sala-attesa e
+ *  shop/resta-in-lista. */
 function proveDiChiEsce() {
   const { bussateVive, BUSSATA_VIVA_MS } = SAL;
   const { verdettoSuOspite, SALUTO_SPARITO_MS } = RIL;
@@ -15704,6 +15739,7 @@ proveDiChiEntra();
 proveDelRinvioPerChi();
 proveDiChiEsce();
 proveDegliSlotLiberi();
+proveDiDrive();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

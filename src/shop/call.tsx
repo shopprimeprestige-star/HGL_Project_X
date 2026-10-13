@@ -107,11 +107,8 @@ import {
   versioneVecchia,
 } from "@/shop/versione-vecchia";
 import { avviaTela, type MotoreDiDisegno } from "@/shop/tela-registrazione";
-import {
-  SOGLIA_PIANO_GRATUITO,
-  sogliaParte,
-  tocca,
-} from "@/shop/ritmo-registrazione";
+import { SOGLIA_PIANO_GRATUITO, tocca } from "@/shop/ritmo-registrazione";
+import { blocchiDrive, doveVa, intervallo, linkDrive, sogliaDellaParte } from "@/shop/drive-registrazioni";
 import { bloccati, cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
 import { OGNI_MS, rigaChiamata, type CampioneVideo } from "@/shop/scatola-chiamata";
 import {
@@ -3475,16 +3472,63 @@ function salvaInLocale(blob: Blob, filename: string) {
 const TENTATIVI = 3;
 const respiro = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Il limite per file del secchio delle registrazioni, in byte. 0 = non si sa
- *  (rete assente, sessione scaduta, secchio senza limite proprio): chi lo usa
- *  resta allora sulla soglia del piano gratuito. */
-async function tettoArchivio(): Promise<number> {
+/** Il limite per file del secchio delle registrazioni, in byte, e se Google
+ *  Drive è collegato. tetto 0 = non si sa (rete assente, sessione scaduta,
+ *  secchio senza limite proprio): chi lo usa resta allora sulla soglia del
+ *  piano gratuito. */
+async function tettoArchivio(): Promise<{ tetto: number; drive: boolean }> {
   try {
     const r = await fetch("/api/presenter/upload-url", { credentials: "same-origin" });
-    const j = (await r.json().catch(() => null)) as { tetto?: number } | null;
-    return r.ok ? Number(j?.tetto) || 0 : 0;
+    const j = (await r.json().catch(() => null)) as { tetto?: number; drive?: boolean } | null;
+    return r.ok ? { tetto: Number(j?.tetto) || 0, drive: j?.drive === true } : { tetto: 0, drive: false };
   } catch {
-    return 0;
+    return { tetto: 0, drive: false };
+  }
+}
+
+/** ── LE CONSULENZE INTERE VANNO SU GOOGLE DRIVE ───────────────────────────
+ *  Il file va dal browser a Google a blocchi da 16 MB (vedi
+ *  shop/drive-registrazioni): il server apre solo la sessione. Un blocco che
+ *  cade per la rete si riprova da solo, senza ricominciare da capo. */
+async function caricaSuDrive(blob: Blob, filename: string): Promise<Esito> {
+  try {
+    const tipo = (blob.type || "video/webm").split(";")[0];
+    const r = await fetch("/api/presenter/drive-upload-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ filename, size: blob.size, type: tipo }),
+    });
+    const p = (await r.json().catch(() => null)) as { ok?: boolean; sessione?: string } | null;
+    if (!r.ok || !p?.ok || !p.sessione) return { motivo: `Google Drive: ${motivoRisposta(r.status, p)}` };
+    const tot = blob.size;
+    for (const [da, a] of blocchiDrive(tot)) {
+      let risposta: Response | null = null;
+      for (let i = 0; i < TENTATIVI && !risposta; i += 1) {
+        if (i) await respiro(2000 * i);
+        try {
+          risposta = await fetch(p.sessione, {
+            method: "PUT",
+            headers: { "Content-Range": intervallo(da, a, tot) },
+            body: blob.slice(da, a + 1),
+          });
+        } catch (e) {
+          console.warn(`[REC] Drive: blocco ${da}-${a} tentativo ${i + 1} non riuscito`, e);
+        }
+      }
+      if (!risposta) return { motivo: "Google Drive: la connessione non ha retto il caricamento — il video non è perduto" };
+      //  308 = «blocco ricevuto, manda il prossimo»; 200/201 = file completo.
+      if (risposta.status === 308) continue;
+      if (risposta.ok) {
+        const j = (await risposta.json().catch(() => null)) as { id?: string } | null;
+        if (j?.id) return { url: linkDrive(j.id) };
+        return { motivo: "Google Drive non ha restituito il file" };
+      }
+      return { motivo: `Google Drive ha rifiutato il caricamento (${risposta.status})` };
+    }
+    return { motivo: "Google Drive non ha confermato il file" };
+  } catch (e) {
+    return { motivo: `Google Drive: ${(e as Error)?.message || "caricamento interrotto"}` };
   }
 }
 
@@ -3638,20 +3682,44 @@ interface RegInSospeso {
 }
 let regInSospeso: RegInSospeso | null = null;
 
+/** Il file, dove ci sta: Supabase se sta sotto il suo tetto, altrimenti Google
+ *  Drive (se collegato); e Drive anche quando Supabase dice di no. "" = fatto,
+ *  e `p.url` è l'indirizzo. */
+async function caricaFile(p: RegInSospeso, blob: Blob): Promise<string> {
+  const archivio = await tettoArchivio();
+  if (doveVa({ peso: blob.size, ...archivio }) === "drive") {
+    const suDrive = await caricaSuDrive(blob, p.filename);
+    if (!suDrive.url) return suDrive.motivo || "Google Drive: caricamento non riuscito";
+    p.url = suDrive.url;
+    return "";
+  }
+  const diretto = await caricaDiretto(blob, p.filename);
+  if (diretto.url) {
+    p.url = diretto.url;
+    return "";
+  }
+  const motivoDiretto = diretto.motivo || "caricamento non riuscito";
+  if (archivio.drive) {
+    const ripiego = await caricaSuDrive(blob, p.filename);
+    if (ripiego.url) {
+      p.url = ripiego.url;
+      return "";
+    }
+    if (blob.size > SOGLIA_WORKER) return `${motivoDiretto} (e ${ripiego.motivo || "Drive non riuscito"})`;
+  }
+  if (blob.size > SOGLIA_WORKER) return motivoDiretto;
+  const viaServer = await caricaDalServer(blob, p.filename);
+  if (!viaServer.url) return `${motivoDiretto} (anche dal server: ${viaServer.motivo || "rifiutato"})`;
+  p.url = viaServer.url;
+  return "";
+}
+
 /** Chiude la catena partendo da dove si era fermata. "" = archiviata. */
 async function archivia(p: RegInSospeso): Promise<string> {
   if (!p.url) {
     if (!p.blob) return "il file della registrazione non è più in memoria";
-    const diretto = await caricaDiretto(p.blob, p.filename);
-    const motivoDiretto = diretto.motivo || "caricamento non riuscito";
-    if (diretto.url) p.url = diretto.url;
-    else if (p.blob.size > SOGLIA_WORKER) return motivoDiretto;
-    else {
-      const viaServer = await caricaDalServer(p.blob, p.filename);
-      if (!viaServer.url)
-        return `${motivoDiretto} (anche dal server: ${viaServer.motivo || "rifiutato"})`;
-      p.url = viaServer.url;
-    }
+    const motivo = await caricaFile(p, p.blob);
+    if (motivo) return motivo;
   }
   const scheda = await registraInArchivio(p.url, p.duration);
   return scheda.url ? "" : scheda.motivo || "scheda non salvata";
@@ -4516,8 +4584,12 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
      *   Finché la risposta non arriva vale la soglia sicura. */
     let SOGLIA_PARTE = SOGLIA_PIANO_GRATUITO;
     void tettoArchivio().then((t) => {
-      SOGLIA_PARTE = sogliaParte(t);
-      annota(`parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t / (1024 * 1024))} MB)`);
+      //  Con Google Drive collegato la consulenza è un file solo.
+      SOGLIA_PARTE = sogliaDellaParte(t);
+      annota(
+        `parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t.tetto / (1024 * 1024))} MB` +
+          `, Drive ${t.drive ? "collegato" : "no"})`,
+      );
     });
 
     let numeroParte = 1;
