@@ -15531,6 +15531,20 @@ function proveDelCampanello() {
   c("clienti dentro ma microfono spento: suona", true, campanaUdibile({ collegati: 1, micAcceso: false }));
 }
 
+/** ── CHI ENTRA, SENZA SCEGLIERE IL PROPRIO NOME ────────────────────────────
+ *  «Dal link deve entrare già col suo nome». Vedi shop/chi-dal-link. */
+function proveDiChiEntra() {
+  const { chiEntra } = LINKCHI;
+  gruppo("CHI ENTRA, SENZA SCEGLIERE IL PROPRIO NOME");
+  const tre = [{ gettone: "aaa111", nome: "Anna Verdi" }, { gettone: "bbb222", nome: "Bruno Neri" }, { gettone: "ccc333", nome: "Carla Bianchi" }];
+  c("in tre, il link di Bruno fa entrare Bruno", "Bruno Neri", chiEntra({ attesi: tre, mio: "bbb222" })?.nome);
+  c("il gettone si legge anche scritto male", "Carla Bianchi", chiEntra({ attesi: tre, mio: " CCC-333 " })?.nome);
+  c("in tre, senza gettone: resta l'elenco", null, chiEntra({ attesi: tre, mio: "" }));
+  c("in tre, gettone di un'altra stanza: resta l'elenco", null, chiEntra({ attesi: tre, mio: "zzz999" }));
+  c("una persona sola: entra lei, come prima", "Anna Verdi", chiEntra({ attesi: [tre[0]], mio: "" })?.nome);
+  c("elenco non ancora arrivato: nessuno", null, chiEntra({ attesi: null, mio: "aaa111" }));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15562,6 +15576,7 @@ proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();
 proveDelCampanello();
+proveDiChiEntra();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

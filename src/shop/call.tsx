@@ -120,7 +120,7 @@ import {
   tieniInMemoria,
 } from "@/shop/gettone-cliente";
 //  Il gettone scritto nel link: un link per ciascuno, nella stessa stanza.
-import { gettoneDalLink } from "@/shop/chi-dal-link";
+import { chiEntra, gettoneDalLink } from "@/shop/chi-dal-link";
 //  ⚠️ «L'ho accettato e non riesce a entrare»: la regola che impedisce lo
 //   schermo nero a chi è appena entrato. Il perché, misurato, sta lì dentro.
 import { stanzaAncoraVuota } from "@/shop/stanza-ancora-vuota";
@@ -14379,13 +14379,20 @@ function GuestJoinGate({ st }: { st: State }) {
   const attesi = useAttesi(st.sessionId);
   const [scriviIoIlNome, setScriviIoIlNome] = useState(false);
   const daSolo = useRef(false);
-  //  Una persona sola: entra lei, senza che nessuno tocchi niente.
+  //  Entra da sola la persona del LINK (il gettone `?chi=` che le è stato
+  //  mandato), o l'unica attesa: nessuno deve scegliere il proprio nome
+  //  (vedi `chiEntra` in shop/chi-dal-link).
   useEffect(() => {
-    if (!attesi || attesi.length !== 1 || daSolo.current || st.joined || st.knocking) return;
+    if (!attesi || daSolo.current || st.joined || st.knocking) return;
+    const mio =
+      miaPersonaDi(st.sessionId) ||
+      (typeof window !== "undefined" ? gettoneDalLink(window.location.search) : "");
+    const chi = chiEntra({ attesi, mio });
+    if (!chi) return;
     daSolo.current = true;
-    console.log("[GUEST] atteso riconosciuto dal link:", attesi[0].nome);
-    void viewerJoin(attesi[0].nome, attesi[0].gettone);
-  }, [attesi, st.joined, st.knocking]);
+    console.log("[GUEST] atteso riconosciuto dal link:", chi.nome);
+    void viewerJoin(chi.nome, chi.gettone);
+  }, [attesi, st.joined, st.knocking, st.sessionId]);
   // iOS Safari ingrandisce (pinch) la pagina quando prende il fuoco un campo con
   // font < 16px: qui il font è 16px e su touch NON usiamo autoFocus → niente zoom.
   const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
