@@ -100,6 +100,7 @@ import {
   stanzaDelPreventivo,
 } from "@/shop/preventivi-di-gruppo";
 import { cambiaRegia, useRegiaGruppo } from "@/shop/regia-gruppo";
+import { chiaveAnteprimaPreventivo } from "@/shop/anteprima-link-preventivo";
 import {
   contatoriVuoti,
   daScrivere,
@@ -212,7 +213,14 @@ export const Route = createFileRoute("/preventivo")({
     //  frequente. Non è nemmeno un dato in più esposto: chi legge questa
     //  pagina per farne l'anteprima ha già `sess` davanti, sta dentro
     //  l'indirizzo che sta leggendo.
-    const rif = String((cerca?.id ?? cerca?.ref ?? cerca?.sess ?? "") as string).trim();
+    //  ⚠️ Senza numero, la consulenza PIÙ la persona del link: è lo stesso
+    //   codice sotto cui la barra deposita l'immagine (vedi
+    //   shop/anteprima-link-preventivo), e fa sì che ogni cliente abbia la sua.
+    const rif = chiaveAnteprimaPreventivo({
+      id: cerca?.id ?? cerca?.ref,
+      sess: cerca?.sess,
+      persona: cerca?.persona,
+    });
     const { titolo: T, descrizione: D } = testoAnteprimaPreventivo(persona);
     const IMG = `https://hair-genius-hub.hair/api/og/anteprima/preventivo/${encodeURIComponent(rif)}.jpg`;
     return {
