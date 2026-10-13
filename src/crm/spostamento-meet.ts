@@ -41,6 +41,7 @@
  *  link veri per niente. Vedi proveDelloSpostamento in prove/prove.mjs.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { dataPulita, durataPulita, oraPulita } from "./invito";
+import { gettoneDi } from "./fascia-consulenza";
 
 /** Quello che serve sapere di una scheda per rispondere alle domande qui sotto.
  *  Volutamente MINIMO: così la regola si prova con tre campi, senza costruire
@@ -113,3 +114,43 @@ export function anteprimaDaRifare(
  *  cliente che resta fuori dalla stanza, ed è il guasto che questa riga esiste
  *  per evitare. */
 export const chiaveRinvio = (codice: string) => `meet-rinvio:${String(codice || "").trim()}`;
+
+/** ── IL RINVIO È DI CHI È STATO SPOSTATO, NON DELLA STANZA ─────────────────
+ *  Segnalazione del committente (13/10/2026): «il cliente prova a entrare, gli
+ *  dice "sta per iniziare", e a me come presentatore non arriva niente».
+ *
+ *  ⚠️ MISURATO: la stanza delle 15:00 era condivisa da due persone (la fascia
+ *   di quel consulente). La mattina una delle due è stata spostata a domani
+ *   con un altro consulente: codice nuovo per lei, e un rinvio «chi apre la
+ *   stanza vecchia vada nella nuova» scritto sulla STANZA. Alle 15:00 il
+ *   consulente ha avviato la stanza vecchia — giusta per l'altra persona — e il
+ *   server rispondeva «avviata» E «rinvio»: il telefono di quel cliente seguiva
+ *   il rinvio prima di accorgersi che la stanza era viva, e finiva ad aspettare
+ *   nella stanza di domani. Nessuna bussata, nessun avviso.
+ *
+ *  La regola adesso:
+ *   · una stanza AVVIATA non rinvia nessuno: dentro c'è il consulente;
+ *   · se si sa chi chiede (il gettone del suo link), il rinvio vale solo per
+ *     la persona spostata;
+ *   · se non si sa, vale solo se nella stanza non è atteso nessun altro — il
+ *     caso di sempre, la consulenza di una persona sola. */
+export function rinvioPerChi(p: {
+  /** la riga del rinvio: dove, e per chi è stata scritta */
+  rinvio: { code?: unknown; leadId?: unknown } | null | undefined;
+  /** il codice chiesto */
+  stanza: string;
+  /** la stanza chiesta è avviata, con il consulente dentro adesso */
+  stanzaViva: boolean;
+  /** il gettone di chi chiede ("" = non si sa) */
+  persona?: string | null;
+  /** quante persone attese in questa stanza NON sono quella spostata */
+  altriAttesi: number;
+}): string {
+  const dove = String(p.rinvio?.code ?? "").trim();
+  if (!dove || dove === String(p.stanza || "").trim()) return "";
+  if (p.stanzaViva) return "";
+  const chi = String(p.persona ?? "").trim().toLowerCase();
+  const leadId = String(p.rinvio?.leadId ?? "").trim();
+  if (chi && leadId) return chi === gettoneDi({ leadId, nome: "" }) ? dove : "";
+  return p.altriAttesi > 0 ? "" : dove;
+}
