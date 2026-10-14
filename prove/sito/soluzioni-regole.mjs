@@ -409,4 +409,269 @@ const LIBERE = { "v3.trapiantoChi": "titolare", "v3.macroChi": "titolare" };
     c(`${campo.key}: un file giusto non dà avvisi`, [], R.avvisiFile({ tipo: campo.type === "video" ? "video/mp4" : "image/webp", larghezza: campo.formato === "1200x630" ? 1200 : campo.formato.split(":")[0] * 100, altezza: campo.formato === "1200x630" ? 630 : campo.formato.split(":")[1] * 100, byte: 1024 }, campo));
 }
 
+/* ══ S1.2 · il codice d'anteprima ═══════════════════════════════════════ */
+const A = await carica("src/landing/sito/soluzioni/anteprima.ts", "anteprima-s1");
+{
+  const ADESSO = new Date("2026-10-14T10:00:00.000Z");
+  c("la chiave in app_config", "anteprima-soluzioni", A.CHIAVE_ANTEPRIMA);
+  const n = A.nuovoCodice(ADESSO);
+  c("nuovoCodice: 32 caratteri esadecimali", true, /^[0-9a-f]{32}$/.test(n.codice));
+  c("nuovoCodice: scade fra 30 minuti (ISO)", "2026-10-14T10:30:00.000Z", n.scade);
+  c("nuovoCodice: usa i byte che gli dà il generatore sicuro", "ab".repeat(16), A.nuovoCodice(ADESSO, (b) => b.fill(0xab)).codice);
+  //  Mai Math.random: il codice è una chiave, non un numero da lotteria.
+  const vero_random = Math.random;
+  Math.random = () => { throw new Error("Math.random non si usa per il codice"); };
+  let codici;
+  try { codici = new Set(Array.from({ length: 200 }, () => A.nuovoCodice().codice)); } finally { Math.random = vero_random; }
+  c("200 codici, 200 diversi, senza toccare Math.random", 200, codici.size);
+  const sorgenteA = leggi("src/landing/sito/soluzioni/anteprima.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  vero("anteprima.ts nasce da crypto.getRandomValues", /crypto\.getRandomValues/.test(sorgenteA));
+  vero("anteprima.ts non nomina Math.random", !/Math\.random/.test(sorgenteA));
+
+  const salvato = { codice: "a".repeat(32), scade: "2026-10-14T10:30:00.000Z" };
+  const giusto = "a".repeat(32);
+  c("valido: codice giusto, non scaduto", true, A.codiceValido(salvato, giusto, ADESSO));
+  c("valido: il valore salvato come testo JSON (app_config.value è testo)", true, A.codiceValido(JSON.stringify(salvato), giusto, ADESSO));
+  c("valido fino all'ultimo istante", true, A.codiceValido(salvato, giusto, new Date("2026-10-14T10:29:59.999Z")));
+  c("scaduto allo scadere", false, A.codiceValido(salvato, giusto, new Date("2026-10-14T10:30:00.000Z")));
+  c("scaduto dopo", false, A.codiceValido(salvato, giusto, new Date("2026-10-14T11:00:00.000Z")));
+  c("sbagliato di un carattere", false, A.codiceValido(salvato, "a".repeat(31) + "b", ADESSO));
+  c("sbagliato di lunghezza", false, A.codiceValido(salvato, "a".repeat(31), ADESSO));
+  c("con uno spazio in fondo", false, A.codiceValido(salvato, giusto + " ", ADESSO));
+  c("maiuscolo non è lo stesso codice", false, A.codiceValido({ ...salvato, codice: "ab".repeat(16) }, "AB".repeat(16), ADESSO));
+  for (const dato of ["", undefined, null, 1, {}, [giusto], true]) c(`assente o non testo (${JSON.stringify(dato)})`, false, A.codiceValido(salvato, dato, ADESSO));
+  for (const rotto of [null, undefined, "", "non json", "[]", "42", {}, [], { codice: giusto }, { scade: salvato.scade }, { codice: 1, scade: salvato.scade }, { codice: giusto, scade: "ieri" }, { codice: giusto, scade: 12 }, { codice: "corto", scade: salvato.scade }])
+    c(`salvato rotto (${JSON.stringify(rotto)}) → mai valido`, false, A.codiceValido(rotto, giusto, ADESSO));
+  c("un salvato corto con un dato corto uguale non apre", false, A.codiceValido({ codice: "", scade: salvato.scade }, "", ADESSO));
+  //  Riuso: titolare e collaboratore che guardano insieme non si annullano a vicenda.
+  c("riuso: un codice ancora valido si ricorda com'è", salvato, A.codiceDaRiusare(salvato, ADESSO));
+  c("riuso: anche dal testo JSON", salvato, A.codiceDaRiusare(JSON.stringify(salvato), ADESSO));
+  c("riuso: scaduto → null (se ne fa uno nuovo)", null, A.codiceDaRiusare(salvato, new Date("2026-10-14T10:31:00.000Z")));
+  c("riuso: rotto → null", null, A.codiceDaRiusare("non json", ADESSO));
+  c("riuso: assente → null", null, A.codiceDaRiusare(null, ADESSO));
+}
+
+/* ══ S1.2 · leggiSoluzioni, con un client finto ═════════════════════════ */
+const C = await carica("src/landing/sito/soluzioni/contenuti.ts", "contenuti-s1");
+{
+  const ADESSO = new Date("2026-10-14T10:00:00.000Z");
+  const CODICE = "c".repeat(32);
+  const CONFIG = JSON.stringify({ codice: CODICE, scade: "2026-10-14T10:30:00.000Z" });
+  const avvisi = [];
+  const veraWarn = console.warn;
+  console.warn = (...a) => avvisi.push(a.join(" "));
+
+  /** Un client finto che somiglia a quello vero e registra cosa gli viene chiesto. */
+  function cliente({ landing = { data: { data: null }, error: null }, config = { data: { value: CONFIG }, error: null }, comportamento = "risponde" } = {}) {
+    const reg = { letture: [], segnali: [] };
+    return {
+      reg,
+      from(tabella) {
+        if (comportamento === "lancia") throw new Error("client rotto");
+        return {
+          select(colonne) {
+            return {
+              eq(k, v) {
+                return {
+                  abortSignal(segnale) {
+                    reg.segnali.push(segnale);
+                    return {
+                      maybeSingle() {
+                        reg.letture.push({ tabella, colonne, k, v });
+                        if (comportamento === "muto") return new Promise(() => {});
+                        if (comportamento === "muto-ma-abortisce")
+                          return new Promise((_, no) => segnale.addEventListener("abort", () => no(new Error("abortito")), { once: true }));
+                        return Promise.resolve(tabella === "app_config" ? config : landing);
+                      },
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+  }
+  const dati = (m = {}, t = {}) => ({ media: media(m), texts: { "v3.invisibleSottotitoli": "1", ...t } });
+  const conLanding = (m, t) => ({ data: { data: dati(m, t) }, error: null });
+  const dip = (cl, extra = {}) => ({ client: cl, origineStorage: ORIGINE, fotoPatchRipiego: null, verificaClip: async () => false, adesso: () => ADESSO, ...extra });
+  const chiusa = (mancanti) => ({ ...R.VISTA_VUOTA, mancanti });
+
+  //  Una pagina pronta, senza codice: nessuna lettura di app_config.
+  {
+    const cl = cliente({ landing: conLanding() });
+    const v = await C.leggiVista(dip(cl), "");
+    c("pagina pronta: pubblicabile, non anteprima, con il video", [true, false, f("video.mp4")], [v.pubblicabile, v.anteprima, v.video?.slot.src]);
+    c("una sola lettura: landing_content, id = default, solo la colonna data", [{ tabella: "landing_content", colonne: "data", k: "id", v: "default" }], cl.reg.letture);
+    c("la lettura porta un AbortSignal", [true], cl.reg.segnali.map((s) => s instanceof AbortSignal));
+  }
+  //  Il cancello chiuso, con tutti i modi di bussare.
+  {
+    const chiuso = { m: { "v3.invisibleVideo": "" }, t: LIBERE };
+    const lettura = () => conLanding(chiuso.m, chiuso.t);
+    c("cancello chiuso, nessun codice → vista vuota, con i mancanti, nemmeno il ritratto", chiusa(["video"]), await C.leggiVista(dip(cliente({ landing: lettura() })), ""));
+    c("cancello chiuso, codice sbagliato → vista vuota", chiusa(["video"]), await C.leggiVista(dip(cliente({ landing: lettura() })), "d".repeat(32)));
+    c("cancello chiuso, codice giusto ma scaduto → vista vuota", chiusa(["video"]), await C.leggiVista(dip(cliente({ landing: lettura() }), { adesso: () => new Date("2026-10-14T11:00:00.000Z") }), CODICE));
+    c("cancello chiuso, app_config senza il codice → vista vuota", chiusa(["video"]), await C.leggiVista(dip(cliente({ landing: lettura(), config: { data: null, error: null } })), CODICE));
+    c("cancello chiuso, app_config con un valore rotto → vista vuota", chiusa(["video"]), await C.leggiVista(dip(cliente({ landing: lettura(), config: { data: { value: "non json" }, error: null } })), CODICE));
+    c("cancello chiuso, lettura del codice in errore → vista vuota", chiusa(["video"]), await C.leggiVista(dip(cliente({ landing: lettura(), config: { data: null, error: { message: "boom" } } })), CODICE));
+    const buona = await C.leggiVista(dip(cliente({ landing: lettura() })), CODICE);
+    c("cancello chiuso, codice giusto → anteprima: il resto si vede, il video no", [false, true, ["video"], null, true], [buona.pubblicabile, buona.anteprima, buona.mancanti, buona.video, !!buona.ritratto]);
+    const cl2 = cliente({ landing: lettura() });
+    await C.leggiVista(dip(cl2), CODICE);
+    c("col codice si legge anche app_config, alla chiave giusta", [{ tabella: "app_config", colonne: "value", k: "key", v: "anteprima-soluzioni" }], cl2.reg.letture.filter((l) => l.tabella === "app_config"));
+    //  Cancello aperto: un codice sbagliato non cambia niente, uno giusto accende l'anteprima.
+    c("cancello aperto, codice sbagliato → pagina normale, non anteprima", [true, false], ((v) => [v.pubblicabile, v.anteprima])(await C.leggiVista(dip(cliente({ landing: conLanding() })), "d".repeat(32))));
+    c("cancello aperto, codice giusto → anteprima", [true, true], ((v) => [v.pubblicabile, v.anteprima])(await C.leggiVista(dip(cliente({ landing: conLanding() })), CODICE)));
+    c("cancello aperto, lettura del codice in errore → pagina normale", [true, false], ((v) => [v.pubblicabile, v.anteprima])(await C.leggiVista(dip(cliente({ landing: conLanding(), config: { data: null, error: { message: "boom" } } })), CODICE)));
+  }
+  //  Errori, righe che mancano, storage ignoto: sempre la vista vuota, mai un'eccezione.
+  {
+    c("riga mancante (data nulla) → vista vuota", R.VISTA_VUOTA, await C.leggiVista(dip(cliente({ landing: { data: null, error: null } })), ""));
+    c("errore del database → vista vuota", R.VISTA_VUOTA, await C.leggiVista(dip(cliente({ landing: { data: null, error: { message: "boom" } } })), ""));
+    c("client che lancia → vista vuota", R.VISTA_VUOTA, await C.leggiVista(dip(cliente({ comportamento: "lancia" })), ""));
+    c("storage ignoto → il cancello resta chiuso", chiusa(["video", "copertina"]), await C.leggiVista(dip(cliente({ landing: conLanding() }), { origineStorage: "" }), ""));
+    vero("gli errori si dicono in una riga, senza segreti", avvisi.length >= 3 && avvisi.every((a) => a.length < 200 && !/service|secret|key/i.test(a)));
+  }
+  //  Il tetto: Supabase che non risponde non tiene la pagina appesa.
+  {
+    const partenza = Date.now();
+    const clMuto = cliente({ comportamento: "muto" });
+    const clAbort = cliente({ comportamento: "muto-ma-abortisce" });
+    const [a, b] = await Promise.all([C.leggiVista(dip(clMuto), ""), C.leggiVista(dip(clAbort), "")]);
+    const durata = Date.now() - partenza;
+    c("lettura che non risponde (ignora l'abort) → vista vuota", R.VISTA_VUOTA, a);
+    c("lettura che non risponde (rispetta l'abort) → vista vuota", R.VISTA_VUOTA, b);
+    vero(`il tetto regge: ${durata} ms < 1600`, durata < 1600);
+    vero(`…e non scatta prima di 1,4 s (${durata} ms): una lettura lenta ma viva ha il suo tempo`, durata >= 1400);
+    await new Promise((r) => setTimeout(r, 120));
+    c("l'abort è arrivato alla lettura", [true, true], [clMuto.reg.segnali[0].aborted, clAbort.reg.segnali[0].aborted]);
+    vero("il tetto è 1500 ms", C.TETTO_MS === 1500);
+    vero("la lettura vera usa .abortSignal(AbortSignal.timeout(…))", /AbortSignal\.timeout\(TETTO_MS\)/.test(leggi("src/landing/sito/soluzioni/contenuti.ts")) && /\.abortSignal\(/.test(leggi("src/landing/sito/soluzioni/contenuti.ts")));
+  }
+  //  I testi di descrizione cancellati nel CRM tornano quelli di fabbrica (accessibilità).
+  {
+    const v = await C.leggiVista(dip(cliente({ landing: conLanding({}, { "protocol.titolareFotoAlt": "  ", "v3.invisibleVideoAlt": "" }) })), "");
+    c("ritratto: descrizione cancellata → quella di fabbrica", L.DEFAULT_TEXTS["protocol.titolareFotoAlt"], v.ritratto?.alt);
+    c("video: descrizione cancellata → quella di fabbrica", L.DEFAULT_TEXTS["v3.invisibleVideoAlt"], v.video?.slot.alt);
+    c("una descrizione scritta dal titolare resta sua", "Una mia descrizione", (await C.leggiVista(dip(cliente({ landing: conLanding({}, { "protocol.titolareFotoAlt": "Una mia descrizione" }) })), "")).ritratto?.alt);
+  }
+  //  La foto di ripiego della patch passa com'è.
+  {
+    const v = await C.leggiVista(dip(cliente({ landing: conLanding({ "home.cartaCatalogoFoto": "" }, LIBERE) }), { fotoPatchRipiego: "/assets/shop/patch.webp" }), "");
+    c("fotoPatchRipiego arriva alla miniatura della patch", "/assets/shop/patch.webp", v.miniature?.patch.src);
+  }
+  //  La HEAD della clip: solo quando serve, dentro un tetto suo.
+  {
+    const base = { "protocol.macroVideo": "", "s03.media": f("s03.mp4") };
+    let teste = [];
+    const verifica = (esito) => async (url, segnale) => { teste.push([url, segnale instanceof AbortSignal]); return esito; };
+    const vai = async (m, t, esito, opz = {}, codice = "") => { teste = []; return C.leggiVista(dip(cliente({ landing: conLanding(m, t) }), { verificaClip: verifica(esito), ...opz }), codice); };
+    const si = await vai(base, LIBERE, true);
+    c("ripiego s03 controllato e buono → la clip c'è", [f("s03.mp4"), [[f("s03.mp4"), true]]], [si.macro?.src, teste]);
+    c("…ma senza la copertina della macro, niente clip", null, (await vai({ ...base, "protocol.macroPoster": "" }, LIBERE, true)).macro);
+    c("ripiego s03 controllato e cattivo (troppo grande, non video) → niente clip", null, (await vai(base, LIBERE, false)).macro);
+    await vai({ "s03.media": f("s03.mp4") }, LIBERE, true);
+    c("la clip propria c'è → nessuna HEAD", 0, teste.length);
+    await vai(base, {}, true);
+    c("«chi si vede» vuoto (come oggi in produzione) → nessuna HEAD", 0, teste.length);
+    await vai({ ...base, "v3.invisibleVideo": "" }, LIBERE, true);
+    c("cancello chiuso e niente anteprima → nessuna HEAD", 0, teste.length);
+    await vai({ ...base, "v3.invisibleVideo": "" }, LIBERE, true, {}, CODICE);
+    c("cancello chiuso ma anteprima → la HEAD si fa", 1, teste.length);
+    //  HEAD che non risponde: ha un tetto suo (500 ms) e la pagina esce lo stesso.
+    const partenza = Date.now();
+    const lenta = await C.leggiVista(dip(cliente({ landing: conLanding(base, LIBERE) }), { verificaClip: () => new Promise(() => {}) }), "");
+    const durata = Date.now() - partenza;
+    c("HEAD muta → la pagina c'è, senza la clip", [true, null], [lenta.pubblicabile, lenta.macro]);
+    vero(`HEAD muta: tetto suo (${durata} ms fra 450 e 900)`, durata >= 450 && durata < 900);
+    c("HEAD che lancia → la pagina c'è, senza la clip", [true, null], await (async () => { const v = await C.leggiVista(dip(cliente({ landing: conLanding(base, LIBERE) }), { verificaClip: async () => { throw new Error("rete"); } }), ""); return [v.pubblicabile, v.macro]; })());
+  }
+  console.warn = veraWarn;
+}
+
+/* ── I pezzi del server che si provano da soli ─────────────────────────── */
+{
+  c("input: il codice si ripulisce (testo, al massimo 64 caratteri)", ["abc", "", "", ""], [C.codiceDaInput({ anteprima: "abc" }), C.codiceDaInput({ anteprima: 5 }), C.codiceDaInput(undefined), C.codiceDaInput({})]);
+  c("input: un codice enorme si taglia", 64, C.codiceDaInput({ anteprima: "z".repeat(5000) }).length);
+  c("ricerca per il cancello: testo, al massimo 1000", ["?a=1", "", 1000], [C.ricercaDaInput({ search: "?a=1" }), C.ricercaDaInput({ search: 7 }), C.ricercaDaInput({ search: "x".repeat(4000) }).length]);
+  c("ripiego della patch: il primo articolo in stock con una foto", "/assets/b.webp", C.fotoPatchRipiegoDa([{ stock: 0, image: "/assets/a.webp" }, { stock: 3 }, { stock: 2, image: "/assets/b.webp" }, { stock: 9, image: "/assets/c.webp" }]));
+  c("ripiego della patch: nessun articolo con foto (oggi) → null", null, C.fotoPatchRipiegoDa([{ stock: 5 }, { stock: 0, image: "/x.webp" }]));
+  c("ripiego della patch: un'immagine vuota non vale", null, C.fotoPatchRipiegoDa([{ stock: 5, image: "  " }]));
+}
+/* ── La HEAD vera della clip (fetch finto) ─────────────────────────────── */
+{
+  const risposta = (over = {}) => ({ ok: true, headers: new Headers({ "content-type": "video/mp4", "content-length": String(1024 * 1024), ...(over.headers ?? {}) }), ...over, headers: new Headers({ "content-type": "video/mp4", "content-length": String(1024 * 1024), ...(over.headers ?? {}) }) });
+  const chiamate = [];
+  const finto = (r) => async (url, opz) => { chiamate.push([url, opz?.method, opz?.signal instanceof AbortSignal]); if (r instanceof Error) throw r; return r; };
+  const url = f("s03.mp4");
+  const seg = AbortSignal.timeout(1000);
+  c("video mp4 da 1 MB → buono", true, await C.headClip(url, seg, finto(risposta())));
+  c("la richiesta è una HEAD, con il segnale", [[url, "HEAD", true]], chiamate);
+  c("esattamente 1,5 MB → buono", true, await C.headClip(url, seg, finto(risposta({ headers: { "content-length": String(1.5 * 1024 * 1024) } }))));
+  c("più di 1,5 MB → no", false, await C.headClip(url, seg, finto(risposta({ headers: { "content-length": String(1.5 * 1024 * 1024 + 1) } }))));
+  c("non è un video → no", false, await C.headClip(url, seg, finto(risposta({ headers: { "content-type": "text/html" } }))));
+  c("peso ignoto → no (prudente)", false, await C.headClip(url, seg, finto({ ok: true, headers: new Headers({ "content-type": "video/mp4" }) })));
+  c("peso zero → no", false, await C.headClip(url, seg, finto(risposta({ headers: { "content-length": "0" } }))));
+  c("peso che non è un numero → no", false, await C.headClip(url, seg, finto(risposta({ headers: { "content-length": "molto" } }))));
+  c("risposta non ok (404) → no", false, await C.headClip(url, seg, finto(risposta({ ok: false }))));
+  c("rete caduta → no, senza eccezione", false, await C.headClip(url, seg, finto(new Error("rete"))));
+}
+/* ── Le visite fermate dal cancello (decisione 15) ─────────────────────── */
+{
+  const riga = C.rigaCancello("?apri=invisible-derm&utm_source=ig&utm_campaign=autunno&fbclid=FB1&ad_id=11&adset_id=22&campaign_id=33&gclid=G&email=a@b.it&telefono=3331234567", "sess-1");
+  c("evento e voce", ["soluzioni_cancello", { voce: "cancello", pagina: "/soluzioni" }, "sess-1", null], [riga.event_name, riga.payload, riga.session_id, riga.step]);
+  c("la fonte dell'annuncio", ["ig", "autunno", "FB1", "11", "22", "33"], [riga.utm_source, riga.utm_campaign, riga.fbclid, riga.ad_id, riga.adset_id, riga.campaign_id]);
+  c("nessun dato personale, nessun «apri»", false, /a@b\.it|3331234567|invisible-derm/.test(JSON.stringify(riga)));
+  c("senza fonte: utm_source nullo", null, C.rigaCancello("", "s").utm_source);
+  //  Le stesse colonne di trackEvent (BookingFunnel/tracking.ts): se là ne nasce una, la prova lo dice.
+  const sorgente = leggi("src/landing/booking/tracking.ts");
+  const blocco = sorgente.match(/from\("lp_events"\)\.insert\(\{([\s\S]*?)\n    \}\);/);
+  vero("trovo l'insert di trackEvent", !!blocco);
+  const colonne = [...(blocco ? blocco[1] : "").matchAll(/^      ([a-z_]+)\s*[:,]/gm)].map((x) => x[1]).sort();
+  vero("trackEvent scrive una ventina di colonne", colonne.length >= 18);
+  c("rigaCancello ha le stesse colonne di trackEvent", colonne, Object.keys(riga).sort());
+  c("nessun IP, nessun user agent", [null, null], [riga.user_agent, riga.ip_hash ?? null]);
+
+  const scritture = [];
+  const clienteScrive = (comportamento) => ({
+    from(t) {
+      return {
+        insert(r) {
+          scritture.push([t, r]);
+          if (comportamento === "muto") return new Promise(() => {});
+          if (comportamento === "errore") return Promise.resolve({ error: { message: "boom" } });
+          if (comportamento === "lancia") throw new Error("rotto");
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+  });
+  await C.scriviCancello(clienteScrive("ok"), "?utm_source=ig", "sess-2");
+  c("scrive una riga in lp_events", [["lp_events", "soluzioni_cancello", "ig"]], scritture.map(([t, r]) => [t, r.event_name, r.utm_source]));
+  const veraWarn = console.warn;
+  console.warn = () => {};
+  for (const comportamento of ["errore", "lancia"]) {
+    let lanciata = false;
+    try { await C.scriviCancello(clienteScrive(comportamento), "", "s"); } catch { lanciata = true; }
+    c(`scrittura in ${comportamento}: nessuna eccezione, il 302 parte lo stesso`, false, lanciata);
+  }
+  const partenza = Date.now();
+  await C.scriviCancello(clienteScrive("muto"), "", "s");
+  const durata = Date.now() - partenza;
+  console.warn = veraWarn;
+  vero(`scrittura che non risponde: ritarda al più 300 ms (${durata} ms)`, durata >= 250 && durata < 450);
+  vero("il tetto della scrittura è 300 ms", C.TETTO_CANCELLO_MS === 300);
+}
+/* ── Il codice va dove deve ────────────────────────────────────────────── */
+{
+  const src = leggi("src/landing/sito/soluzioni/contenuti.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  vero("supabaseAdmin si importa dentro la funzione, non in cima", /await import\("@\/integrations\/supabase\/client\.server"\)/.test(src) && !/^import .*client\.server/m.test(src));
+  vero("il catalogo si importa dentro la funzione", /await import\("@\/shop\/catalog"\)/.test(src) && !/^import .*shop\/catalog/m.test(src));
+  vero("leggiSoluzioni è una funzione del server in GET", /export const leggiSoluzioni = createServerFn\(\{ method: "GET" \}\)/.test(src));
+  vero("registraCancello è una funzione del server (può girare anche dal browser nel passaggio fra pagine)", /export const registraCancello = createServerFn\(\{ method: "POST" \}\)/.test(src));
+  vero("nessun log del codice d'anteprima", !/console\.\w+\([^)]*(anteprima|codice)/.test(src));
+}
+
 finisci();
