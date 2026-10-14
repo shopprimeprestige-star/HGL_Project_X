@@ -102,6 +102,11 @@ import { QuickStatusDialog, requiresAnyDialog } from "@/crm/QuickStatusDialog";
 import { useChiusura } from "@/crm/ChiusuraDialog";
 import { CapiHealthAlert } from "@/crm/CapiHealthAlert";
 import { HealthGlobalSection } from "@/crm/HealthGlobalSection";
+//  Chi non fa consulenze (la setter) vede «Oggi» in sola lettura: lo decide
+//  vistaOggi, una tabella di sì/no provata, non una serie di `if` qui dentro.
+import { useConsulenteCollegato, usePuo } from "@/crm/AuthContext";
+import { vistaOggi } from "@/crm/vista-oggi";
+import { StrisciaPosti } from "@/crm/StrisciaPosti";
 
 export const Route = createFileRoute("/CRM/")({
   component: DashboardPage,
@@ -177,6 +182,16 @@ function scartoDelMeseVicino(scarto: number, delta: number): number {
 
 function DashboardPage() {
   const { leads, consultants, updateLead } = useCRM();
+  /*  ── CHE COSA SI VEDE, E CHI È ───────────────────────────────────────────
+      Richiesta del titolare (14/10/2026): chi non fa consulenze vede la
+      giornata di tutti in sola lettura, con la striscia dei posti liberi e
+      «fissato da te»; niente esiti, Avvia, contatori, arretrati, Andamento.
+      Consulenti e titolare vedono la pagina come prima.
+      ⚠️ GLI HOOK QUI, IN CIMA, E NESSUNA USCITA ANTICIPATA PER LA VISTA: solo
+       condizioni nel JSX (React #310, già successo in produzione). */
+  const puo = usePuo();
+  const io = useConsulenteCollegato()?.id;
+  const vista = vistaOggi(puo);
 
   // ── Schede e finestre ────────────────────────────────────────────────────
   const [editing, setEditing] = useState<Lead | null>(null);
@@ -723,122 +738,131 @@ function DashboardPage() {
       )}
 
       {/* ── 1. ADESSO ────────────────────────────────────────────────────────
-          La sola cosa che non può aspettare, e l'unica in evidenza. */}
-      <div id="adesso" className="scroll-mt-16">
-        {prossimo ? (
-          <SchedaAdesso
-            lead={prossimo.l}
-            attesa={attesaDi(prossimo.m, adesso)}
-            prossimi={dopo}
-            onApri={apriLead}
-            onStato={cambiaStato}
-            nomeConsulente={nomeConsulente}
-          />
-        ) : (
-          <section
-            data-slot="scheda"
-            className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-4"
-          >
-            {/*  Il segno di spunta verde vuol dire una cosa sola: non c'è più
+          La sola cosa che non può aspettare, e l'unica in evidenza.
+          Per chi non fa consulenze al suo posto c'è la striscia dei posti
+          liberi: la sua domanda non è «chi ho adesso» ma «quando c'è posto». */}
+      {vista.striscia && (
+        <StrisciaPosti className="rounded-xl border border-border bg-card px-2 py-1" />
+      )}
+      {vista.adesso && (
+        <div id="adesso" className="scroll-mt-16">
+          {prossimo ? (
+            <SchedaAdesso
+              lead={prossimo.l}
+              attesa={attesaDi(prossimo.m, adesso)}
+              prossimi={dopo}
+              onApri={apriLead}
+              onStato={cambiaStato}
+              nomeConsulente={nomeConsulente}
+            />
+          ) : (
+            <section
+              data-slot="scheda"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-4"
+            >
+              {/*  Il segno di spunta verde vuol dire una cosa sola: non c'è più
                 niente da fare. Se qualcosa c'è ancora — arretrato, ricontatti,
                 pose senza data — il verde è una rassicurazione falsa, e si
                 chiude la pagina con il lavoro dentro. In quel caso il cerchio è
                 arancione, come tutto il resto che "manca un passaggio". */}
-            <span
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
-                passo ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"
-              }`}
-            >
-              {passo ? (
-                <History className="h-4 w-4 text-amber-600" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold leading-tight">
-                {appuntamentiOggi.length === 0
-                  ? "Oggi non ci sono appuntamenti"
-                  : daRifissareOggi > 0
-                    ? "Nessuna consulenza da fare adesso"
-                    : "Gli appuntamenti di oggi sono tutti chiusi"}
-              </p>
-              <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-                {passo?.testo ?? "Niente in sospeso. Buona giornata."}
-              </p>
-            </div>
-            {passo && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-9 w-full shrink-0 sm:w-auto"
-                onClick={() => vaiA(passo.dove)}
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
+                  passo ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"
+                }`}
               >
-                {passo.azione}
-              </Button>
-            )}
-          </section>
-        )}
-      </div>
+                {passo ? (
+                  <History className="h-4 w-4 text-amber-600" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold leading-tight">
+                  {appuntamentiOggi.length === 0
+                    ? "Oggi non ci sono appuntamenti"
+                    : daRifissareOggi > 0
+                      ? "Nessuna consulenza da fare adesso"
+                      : "Gli appuntamenti di oggi sono tutti chiusi"}
+                </p>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                  {passo?.testo ?? "Niente in sospeso. Buona giornata."}
+                </p>
+              </div>
+              {passo && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 w-full shrink-0 sm:w-auto"
+                  onClick={() => vaiA(passo.dove)}
+                >
+                  {passo.azione}
+                </Button>
+              )}
+            </section>
+          )}
+        </div>
+      )}
 
       {/* ── 2. LA CODA DI OGGI, IN UNA RIGA ──────────────────────────────────
           Cinque numeri e un colpo d'occhio: premuti, portano al blocco giusto.
           Serve a sapere cosa resta senza scorrere la pagina fino in fondo. */}
-      <nav className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-        {/*  Ogni riquadro dice anche SU QUALE PERIODO è calcolato: "Da
+      {vista.contatori && (
+        <nav className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {/*  Ogni riquadro dice anche SU QUALE PERIODO è calcolato: "Da
             recuperare 14" letto accanto a quattro numeri di oggi si leggeva
             come "quattordici da recuperare oggi", e faceva sembrare la giornata
             il doppio di quello che è. */}
-        <Salto
-          etichetta="Da fare oggi"
-          nota="Oggi"
-          n={imminenti.length}
-          tono="urgente"
-          titolo={`${imminenti.length} appuntamenti di oggi ancora da fare`}
-          //  ⚠️ ANCHE QUESTO È UN COMANDO CHE PARLA DI GIORNI, quindi spegne lo
-          //  storico come le frecce e il tasto O. Il riquadro promette «oggi» e
-          //  conta gli appuntamenti di oggi: senza queste due righe portava
-          //  dritto a un'agenda intitolata «Tutto lo storico», con dentro
-          //  duecento righe di sette mesi e un conteggio che non c'entrava
-          //  niente con il numero appena premuto.
-          onClick={() => {
-            setScarto(0);
-            setStorico(false);
-            vaiA("agenda");
-          }}
-        />
-        <Salto
-          etichetta="Da recuperare"
-          nota="All time"
-          n={arretrati.length}
-          tono="arretrato"
-          titolo={`${arretrati.length} contatti rimasti indietro, di tutti i giorni passati`}
-          onClick={() => vaiA("recuperare")}
-        />
-        <Salto
-          etichetta="Ricontatti"
-          nota="Oggi"
-          n={ricontattiOggi.length}
-          titolo={`${ricontattiOggi.length} persone da ricontattare oggi`}
-          onClick={() => vaiA("ricontatti")}
-        />
-        <Salto
-          etichetta="In sede"
-          nota="Tutti"
-          n={inSede.length}
-          titolo={`${inSede.length} clienti attesi in sede, oggi e nei prossimi giorni`}
-          onClick={() => vaiA("sede")}
-        />
-        <Salto
-          etichetta="Installazioni"
-          nota="Oggi + pose"
-          n={installazioniOggi.length + daProgrammare.length}
-          titolo={`${installazioniOggi.length} installazioni oggi · ${daProgrammare.length} pose ancora da programmare`}
-          onClick={() => vaiA("installazioni")}
-        />
-      </nav>
+          <Salto
+            etichetta="Da fare oggi"
+            nota="Oggi"
+            n={imminenti.length}
+            tono="urgente"
+            titolo={`${imminenti.length} appuntamenti di oggi ancora da fare`}
+            //  ⚠️ ANCHE QUESTO È UN COMANDO CHE PARLA DI GIORNI, quindi spegne lo
+            //  storico come le frecce e il tasto O. Il riquadro promette «oggi» e
+            //  conta gli appuntamenti di oggi: senza queste due righe portava
+            //  dritto a un'agenda intitolata «Tutto lo storico», con dentro
+            //  duecento righe di sette mesi e un conteggio che non c'entrava
+            //  niente con il numero appena premuto.
+            onClick={() => {
+              setScarto(0);
+              setStorico(false);
+              vaiA("agenda");
+            }}
+          />
+          <Salto
+            etichetta="Da recuperare"
+            nota="All time"
+            n={arretrati.length}
+            tono="arretrato"
+            titolo={`${arretrati.length} contatti rimasti indietro, di tutti i giorni passati`}
+            onClick={() => vaiA("recuperare")}
+          />
+          <Salto
+            etichetta="Ricontatti"
+            nota="Oggi"
+            n={ricontattiOggi.length}
+            titolo={`${ricontattiOggi.length} persone da ricontattare oggi`}
+            onClick={() => vaiA("ricontatti")}
+          />
+          <Salto
+            etichetta="In sede"
+            nota="Tutti"
+            n={inSede.length}
+            titolo={`${inSede.length} clienti attesi in sede, oggi e nei prossimi giorni`}
+            onClick={() => vaiA("sede")}
+          />
+          <Salto
+            etichetta="Installazioni"
+            nota="Oggi + pose"
+            n={installazioniOggi.length + daProgrammare.length}
+            titolo={`${installazioniOggi.length} installazioni oggi · ${daProgrammare.length} pose ancora da programmare`}
+            onClick={() => vaiA("installazioni")}
+          />
+        </nav>
+      )}
 
-      <CapiHealthAlert />
+      {vista.andamento && <CapiHealthAlert />}
 
       {/* ── 3. LA GIORNATA ───────────────────────────────────────────────────
           L'agenda vera e propria: la barra del giorno (chiusa mostra oggi, un
@@ -868,8 +892,14 @@ function DashboardPage() {
           leads={cercati}
           consulenti={consultants}
           onApri={apriLead}
-          onEvidenzia={(l) => void updateLead(l.id, { highlighted: !l.data.highlighted })}
-          onStato={cambiaStato}
+          onEvidenzia={
+            vista.gesti
+              ? (l) => void updateLead(l.id, { highlighted: !l.data.highlighted })
+              : undefined
+          }
+          onStato={vista.gesti ? cambiaStato : undefined}
+          solaLettura={!vista.gesti}
+          fissatiDa={vista.fissatiDaMe ? io : undefined}
           nomeConsulente={nomeConsulente}
           consulenteId={chi}
           onConsulenteId={setChi}
@@ -882,61 +912,115 @@ function DashboardPage() {
       </div>
 
       {/* ── 4. DA RECUPERARE ─────────────────────────────────────────────── */}
-      <Sezione
-        id="recuperare"
-        titolo="Da recuperare"
-        icona={History}
-        tinta="text-amber-600"
-        conteggio={arretrati.length}
-        accento={arretrati.length > 0 ? "arretrato" : undefined}
-        nota={
-          arretrati.length > 0
-            ? "Appuntamenti dei giorni scorsi rimasti senza esito, clienti assenti e appuntamenti da rifissare. Le righe arancioni non sono perse: manca solo una data nuova, e il calendario a sinistra della riga la mette."
-            : undefined
-        }
-        azione={
-          arretrati.length > MAX_ARRETRATI ? (
-            <Button asChild size="sm" variant="ghost" className="h-7 text-[12px]">
-              <Link to="/CRM/trattative">Apri l'elenco trattative</Link>
-            </Button>
-          ) : undefined
-        }
-      >
-        {arretrati.length === 0 ? (
-          <VuotoRiga testo="Niente da recuperare. Tutti gli appuntamenti hanno un esito." />
-        ) : (
-          <>
-            {/*  Filtri per motivo: le code restano distinguibili con un tocco.
+      {vista.recuperare && (
+        <Sezione
+          id="recuperare"
+          titolo="Da recuperare"
+          icona={History}
+          tinta="text-amber-600"
+          conteggio={arretrati.length}
+          accento={arretrati.length > 0 ? "arretrato" : undefined}
+          nota={
+            arretrati.length > 0
+              ? "Appuntamenti dei giorni scorsi rimasti senza esito, clienti assenti e appuntamenti da rifissare. Le righe arancioni non sono perse: manca solo una data nuova, e il calendario a sinistra della riga la mette."
+              : undefined
+          }
+          azione={
+            arretrati.length > MAX_ARRETRATI ? (
+              <Button asChild size="sm" variant="ghost" className="h-7 text-[12px]">
+                <Link to="/CRM/trattative">Apri l'elenco trattative</Link>
+              </Button>
+            ) : undefined
+          }
+        >
+          {arretrati.length === 0 ? (
+            <VuotoRiga testo="Niente da recuperare. Tutti gli appuntamenti hanno un esito." />
+          ) : (
+            <>
+              {/*  Filtri per motivo: le code restano distinguibili con un tocco.
                 ⚠️ SUL TELEFONO NON VANNO A CAPO: scorrono di lato. Andando a
                  capo diventano due o tre righe di intestazione sopra un elenco
                  che spesso ha tre righe — cioè più cornice che contenuto, e il
                  recupero degli arretrati è proprio la sezione che si smette di
                  guardare per prima quando costa fatica. Sul monitor restano
                  come sono, dove ci stanno su una riga sola. */}
-            <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/60 px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-wrap lg:overflow-x-visible [&::-webkit-scrollbar]:hidden">
-              <Segmento
-                attivo={!soloArretrato}
-                conteggio={arretrati.length}
-                onClick={() => setSoloArretrato(null)}
-              >
-                Tutti
-              </Segmento>
-              {(Object.keys(ETICHETTA_ARRETRATO) as TipoArretrato[])
-                .filter((t) => contiArretrato[t] > 0)
-                .map((t) => (
-                  <Segmento
-                    key={t}
-                    attivo={soloArretrato === t}
-                    conteggio={contiArretrato[t]}
-                    onClick={() => setSoloArretrato(soloArretrato === t ? null : t)}
-                  >
-                    {ETICHETTA_ARRETRATO[t]}
-                  </Segmento>
+              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/60 px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-wrap lg:overflow-x-visible [&::-webkit-scrollbar]:hidden">
+                <Segmento
+                  attivo={!soloArretrato}
+                  conteggio={arretrati.length}
+                  onClick={() => setSoloArretrato(null)}
+                >
+                  Tutti
+                </Segmento>
+                {(Object.keys(ETICHETTA_ARRETRATO) as TipoArretrato[])
+                  .filter((t) => contiArretrato[t] > 0)
+                  .map((t) => (
+                    <Segmento
+                      key={t}
+                      attivo={soloArretrato === t}
+                      conteggio={contiArretrato[t]}
+                      onClick={() => setSoloArretrato(soloArretrato === t ? null : t)}
+                    >
+                      {ETICHETTA_ARRETRATO[t]}
+                    </Segmento>
+                  ))}
+              </div>
+              {arretratiVisti.length === 0 && <VuotoRiga testo="Nessuna riga con questo motivo." />}
+              <Elenco>
+                {arretratiVisti.slice(0, MAX_ARRETRATI).map(({ l, tipo, quando }) => (
+                  <RigaLead
+                    key={l.id}
+                    lead={l}
+                    onApri={apriLead}
+                    onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
+                    onStato={cambiaStato}
+                    nomeConsulente={nomeConsulente}
+                    //  ── DOVE VA LA DATA, E PERCHÉ NON SEMPRE NELLA COLONNA ──
+                    //   Su "Esito da segnare" e "Cliente assente" la data è quella
+                    //   del fatto avvenuto: sta incolonnata a sinistra, che è come
+                    //   si scorre un elenco di recupero (prima i giorni vicini).
+                    //   Su "Da riprogrammare" invece la data vecchia è lo slot
+                    //   saltato, non un appuntamento ancora in piedi: messa nella
+                    //   colonna faceva credere che ci fosse una data, e teneva
+                    //   occupato il posto dell'icona del calendario — cioè
+                    //   dell'unico gesto che serve su quella riga. Lì la data
+                    //   scende accanto al motivo e la colonna diventa il pulsante.
+                    quando={tipo === "riprogrammare" ? undefined : giornoBreve(quando)}
+                    motivo={
+                      tipo === "riprogrammare" && quando
+                        ? `${ETICHETTA_ARRETRATO[tipo]} · ${giornoBreve(quando)}`
+                        : ETICHETTA_ARRETRATO[tipo]
+                    }
+                  />
                 ))}
-            </div>
-            {arretratiVisti.length === 0 && <VuotoRiga testo="Nessuna riga con questo motivo." />}
+              </Elenco>
+              {arretratiVisti.length > MAX_ARRETRATI && (
+                <p className="px-3 py-2 text-[11.5px] text-muted-foreground">
+                  Mostrati i {MAX_ARRETRATI} più recenti di {arretratiVisti.length}.{" "}
+                  <Link to="/CRM/trattative" className="font-medium text-primary hover:underline">
+                    Vedi tutte nell'elenco
+                  </Link>
+                </p>
+              )}
+            </>
+          )}
+        </Sezione>
+      )}
+
+      {/* ── 5. LE ALTRE CODE ─────────────────────────────────────────────── */}
+      {vista.ricontatti && (
+        <Sezione
+          id="ricontatti"
+          titolo="Da ricontattare oggi"
+          icona={PhoneCall}
+          tinta="text-indigo-600"
+          conteggio={ricontattiOggi.length}
+        >
+          {ricontattiOggi.length === 0 ? (
+            <VuotoRiga testo="Nessun ricontatto in programma per oggi." />
+          ) : (
             <Elenco>
-              {arretratiVisti.slice(0, MAX_ARRETRATI).map(({ l, tipo, quando }) => (
+              {ricontattiOggi.map((l) => (
                 <RigaLead
                   key={l.id}
                   lead={l}
@@ -944,236 +1028,209 @@ function DashboardPage() {
                   onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
                   onStato={cambiaStato}
                   nomeConsulente={nomeConsulente}
-                  //  ── DOVE VA LA DATA, E PERCHÉ NON SEMPRE NELLA COLONNA ──
-                  //   Su "Esito da segnare" e "Cliente assente" la data è quella
-                  //   del fatto avvenuto: sta incolonnata a sinistra, che è come
-                  //   si scorre un elenco di recupero (prima i giorni vicini).
-                  //   Su "Da riprogrammare" invece la data vecchia è lo slot
-                  //   saltato, non un appuntamento ancora in piedi: messa nella
-                  //   colonna faceva credere che ci fosse una data, e teneva
-                  //   occupato il posto dell'icona del calendario — cioè
-                  //   dell'unico gesto che serve su quella riga. Lì la data
-                  //   scende accanto al motivo e la colonna diventa il pulsante.
-                  quando={tipo === "riprogrammare" ? undefined : giornoBreve(quando)}
-                  motivo={
-                    tipo === "riprogrammare" && quando
-                      ? `${ETICHETTA_ARRETRATO[tipo]} · ${giornoBreve(quando)}`
-                      : ETICHETTA_ARRETRATO[tipo]
-                  }
+                  quando={l.data.oraRicontatto || "—"}
+                  esiti={false}
+                  //  Il promemoria parla di un appuntamento: si mostra solo se ce
+                  //  n'è uno, altrimenti manderebbe un messaggio che non sta in piedi.
+                  promemoria={!!l.data.dataMeeting}
+                  principale={null}
                 />
               ))}
             </Elenco>
-            {arretratiVisti.length > MAX_ARRETRATI && (
-              <p className="px-3 py-2 text-[11.5px] text-muted-foreground">
-                Mostrati i {MAX_ARRETRATI} più recenti di {arretratiVisti.length}.{" "}
-                <Link to="/CRM/trattative" className="font-medium text-primary hover:underline">
-                  Vedi tutte nell'elenco
-                </Link>
-              </p>
-            )}
-          </>
-        )}
-      </Sezione>
+          )}
+        </Sezione>
+      )}
 
-      {/* ── 5. LE ALTRE CODE ─────────────────────────────────────────────── */}
-      <Sezione
-        id="ricontatti"
-        titolo="Da ricontattare oggi"
-        icona={PhoneCall}
-        tinta="text-indigo-600"
-        conteggio={ricontattiOggi.length}
-      >
-        {ricontattiOggi.length === 0 ? (
-          <VuotoRiga testo="Nessun ricontatto in programma per oggi." />
-        ) : (
-          <Elenco>
-            {ricontattiOggi.map((l) => (
-              <RigaLead
-                key={l.id}
-                lead={l}
-                onApri={apriLead}
-                onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
-                onStato={cambiaStato}
-                nomeConsulente={nomeConsulente}
-                quando={l.data.oraRicontatto || "—"}
-                esiti={false}
-                //  Il promemoria parla di un appuntamento: si mostra solo se ce
-                //  n'è uno, altrimenti manderebbe un messaggio che non sta in piedi.
-                promemoria={!!l.data.dataMeeting}
-                principale={null}
-              />
-            ))}
-          </Elenco>
-        )}
-      </Sezione>
-
-      <Sezione
-        id="sede"
-        titolo="Appuntamento in sede"
-        icona={MapPin}
-        tinta="text-indigo-600"
-        conteggio={inSede.length}
-      >
-        {inSede.length === 0 ? (
-          <VuotoRiga testo="Nessun appuntamento in sede." />
-        ) : (
-          <Elenco>
-            {inSede.map((l) => (
-              <RigaLead
-                key={l.id}
-                lead={l}
-                onApri={apriLead}
-                onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
-                onStato={cambiaStato}
-                nomeConsulente={nomeConsulente}
-                quando={
-                  soloGiorno(l.data.dataVieneInSede) === oggi
-                    ? "oggi"
-                    : giornoBreve(l.data.dataVieneInSede)
-                }
-                motivo={l.data.oraVieneInSede ? `ore ${l.data.oraVieneInSede}` : undefined}
-                esiti={false}
-                principale={null}
-              />
-            ))}
-          </Elenco>
-        )}
-      </Sezione>
+      {vista.sede && (
+        <Sezione
+          id="sede"
+          titolo="Appuntamento in sede"
+          icona={MapPin}
+          tinta="text-indigo-600"
+          conteggio={inSede.length}
+        >
+          {inSede.length === 0 ? (
+            <VuotoRiga testo="Nessun appuntamento in sede." />
+          ) : (
+            <Elenco>
+              {inSede.map((l) => (
+                <RigaLead
+                  key={l.id}
+                  lead={l}
+                  onApri={apriLead}
+                  onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
+                  onStato={cambiaStato}
+                  nomeConsulente={nomeConsulente}
+                  quando={
+                    soloGiorno(l.data.dataVieneInSede) === oggi
+                      ? "oggi"
+                      : giornoBreve(l.data.dataVieneInSede)
+                  }
+                  motivo={l.data.oraVieneInSede ? `ore ${l.data.oraVieneInSede}` : undefined}
+                  esiti={false}
+                  principale={null}
+                />
+              ))}
+            </Elenco>
+          )}
+        </Sezione>
+      )}
 
       {/* ── INSTALLAZIONI ────────────────────────────────────────────────────
           Due code diverse ma dello stesso lavoro: quelle di oggi da seguire e
           quelle pagate che aspettano una data. Vicine, perché chi guarda l'una
-          guarda anche l'altra. */}
-      <Sezione
-        id="installazioni"
-        titolo="Installazioni di oggi"
-        icona={Wrench}
-        tinta="text-sky-600"
-        conteggio={installazioniOggi.length}
-        azione={
-          <Button asChild size="sm" variant="ghost" className="h-7 text-[12px]">
-            <Link to="/CRM/installazioni/oggi">Apri la pagina</Link>
-          </Button>
-        }
-      >
-        {installazioniOggi.length === 0 ? (
-          <VuotoRiga testo="Nessuna installazione programmata per oggi." />
-        ) : (
-          <Elenco>
-            {installazioniOggi.map((l) => {
-              const inst = l.data.installazione;
-              const tecnico =
-                consultants.find((c) => c.id === inst?.consulenteInstallazioneId)?.data.nome ||
-                inst?.tecnicoAssegnato ||
-                "Installatore da assegnare";
-              return (
-                <RigaLead
-                  key={l.id}
-                  lead={l}
-                  onApri={apriLead}
-                  onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
-                  onStato={cambiaStato}
-                  nomeConsulente={nomeConsulente}
-                  quando={inst?.orarioInstallazione || "—"}
-                  motivo={`${tecnico}${inst?.durataInstallazione ? ` · ${inst.durataInstallazione} min` : ""}`}
-                  esiti={false}
-                  //  Dopo la vendita la temperatura è storia vecchia.
-                  temperatura={false}
-                  principale={
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 shrink-0 text-[11.5px]"
-                      onClick={() => apriInstallazione(l)}
-                    >
-                      Modifica
-                    </Button>
-                  }
-                />
-              );
-            })}
-          </Elenco>
-        )}
-      </Sezione>
+          guarda anche l'altra.
+          ⚠️ Le vede chi fa consulenze E chi le installazioni le fa davvero
+          (installatore, manutentore…: correzione del revisore, 14/10), e quelle
+          righe tengono lo stato premibile: seguono vista.installazioni e non
+          la sola lettura della giornata (decisione del capo progetto), perché
+          l'installatore deve poter segnare le sue. */}
+      {vista.installazioni && (
+        <>
+          <Sezione
+            id="installazioni"
+            titolo="Installazioni di oggi"
+            icona={Wrench}
+            tinta="text-sky-600"
+            conteggio={installazioniOggi.length}
+            azione={
+              <Button asChild size="sm" variant="ghost" className="h-7 text-[12px]">
+                <Link to="/CRM/installazioni/oggi">Apri la pagina</Link>
+              </Button>
+            }
+          >
+            {installazioniOggi.length === 0 ? (
+              <VuotoRiga testo="Nessuna installazione programmata per oggi." />
+            ) : (
+              <Elenco>
+                {installazioniOggi.map((l) => {
+                  const inst = l.data.installazione;
+                  const tecnico =
+                    consultants.find((c) => c.id === inst?.consulenteInstallazioneId)?.data.nome ||
+                    inst?.tecnicoAssegnato ||
+                    "Installatore da assegnare";
+                  return (
+                    <RigaLead
+                      key={l.id}
+                      lead={l}
+                      onApri={apriLead}
+                      onEvidenzia={(x) =>
+                        void updateLead(x.id, { highlighted: !x.data.highlighted })
+                      }
+                      onStato={cambiaStato}
+                      nomeConsulente={nomeConsulente}
+                      quando={inst?.orarioInstallazione || "—"}
+                      motivo={`${tecnico}${inst?.durataInstallazione ? ` · ${inst.durataInstallazione} min` : ""}`}
+                      esiti={false}
+                      //  Dopo la vendita la temperatura è storia vecchia.
+                      temperatura={false}
+                      principale={
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 shrink-0 text-[11.5px]"
+                          onClick={() => apriInstallazione(l)}
+                        >
+                          Modifica
+                        </Button>
+                      }
+                    />
+                  );
+                })}
+              </Elenco>
+            )}
+          </Sezione>
 
-      <Sezione
-        titolo="Installazioni da programmare"
-        icona={Wrench}
-        tinta="text-amber-600"
-        conteggio={daProgrammare.length}
-        nota={daProgrammare.length > 0 ? "Hanno pagato l'acconto e aspettano una data." : undefined}
-      >
-        {daProgrammare.length === 0 ? (
-          <VuotoRiga testo="Tutte le installazioni pagate hanno una data." />
-        ) : (
-          <Elenco>
-            {daProgrammare.map((l) => (
-              <RigaLead
-                key={l.id}
-                lead={l}
-                onApri={apriLead}
-                onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
-                onStato={cambiaStato}
-                nomeConsulente={nomeConsulente}
-                motivo={`Acconto € ${l.data.payment?.accontoPagato || 0}`}
-                esiti={false}
-                temperatura={false}
-                principale={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 shrink-0 text-[11.5px]"
-                    onClick={() => apriInstallazione(l)}
-                  >
-                    Programma
-                  </Button>
-                }
-              />
-            ))}
-          </Elenco>
-        )}
-      </Sezione>
+          <Sezione
+            titolo="Installazioni da programmare"
+            icona={Wrench}
+            tinta="text-amber-600"
+            conteggio={daProgrammare.length}
+            nota={
+              daProgrammare.length > 0 ? "Hanno pagato l'acconto e aspettano una data." : undefined
+            }
+          >
+            {daProgrammare.length === 0 ? (
+              <VuotoRiga testo="Tutte le installazioni pagate hanno una data." />
+            ) : (
+              <Elenco>
+                {daProgrammare.map((l) => (
+                  <RigaLead
+                    key={l.id}
+                    lead={l}
+                    onApri={apriLead}
+                    onEvidenzia={(x) => void updateLead(x.id, { highlighted: !x.data.highlighted })}
+                    onStato={cambiaStato}
+                    nomeConsulente={nomeConsulente}
+                    motivo={`Acconto € ${l.data.payment?.accontoPagato || 0}`}
+                    esiti={false}
+                    temperatura={false}
+                    principale={
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 shrink-0 text-[11.5px]"
+                        onClick={() => apriInstallazione(l)}
+                      >
+                        Programma
+                      </Button>
+                    }
+                  />
+                ))}
+              </Elenco>
+            )}
+          </Sezione>
+        </>
+      )}
 
       {/* ── 6. ANDAMENTO ─────────────────────────────────────────────────────
           I numeri stanno in fondo: si guardano una volta al giorno, mentre
           quello che c'è sopra si guarda venti volte. Prima erano in cima e
-          spingevano il lavoro sotto la piega dello schermo. */}
-      <div className="space-y-3 pt-2">
-        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Andamento
-        </h2>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <Totale etichetta="Trattative" valore={leads.length} to="/CRM/trattative" icona={Users} />
-          <Totale
-            etichetta="Appuntamenti oggi"
-            valore={leads.filter((l) => soloGiorno(l.data.dataMeeting) === oggi).length}
-            to="/CRM/agenda"
-            icona={CalendarDays}
-          />
-          <Totale
-            etichetta="Venduti e acconti"
-            /*  ⚠️ Contava a mano "venduto" e "acconto", cioè i due stati vinti
+          spingevano il lavoro sotto la piega dello schermo.
+          ⚠️ Non a chi non fa consulenze: il fatturato a 30 giorni non le serve. */}
+      {vista.andamento && (
+        <div className="space-y-3 pt-2">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Andamento
+          </h2>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <Totale
+              etichetta="Trattative"
+              valore={leads.length}
+              to="/CRM/trattative"
+              icona={Users}
+            />
+            <Totale
+              etichetta="Appuntamenti oggi"
+              valore={leads.filter((l) => soloGiorno(l.data.dataMeeting) === oggi).length}
+              to="/CRM/agenda"
+              icona={CalendarDays}
+            />
+            <Totale
+              etichetta="Venduti e acconti"
+              /*  ⚠️ Contava a mano "venduto" e "acconto", cioè i due stati vinti
                 di ieri. Le vendite di oggi portano una delle tre chiusure e da
                 qui erano invisibili: il riquadro della dashboard restava fermo
                 mentre la pagina dei numeri saliva, e due schermate che contano
                 le stesse vendite in modo diverso fanno perdere fiducia a
                 entrambe. `eChiusuraVinta` è l'elenco unico di types.ts. */
-            valore={leads.filter((l) => eChiusuraVinta(l.data.stato)).length}
-            to="/CRM/avanzamento"
-            icona={Wrench}
-          />
-          <Totale
-            //  Il numero è tutta l'anagrafica — consulenti, setter, driver,
-            //  installatori, accompagnatori — e portava il nome di uno solo dei
-            //  cinque: adesso dice quello della sezione che apre.
-            etichetta="Collaboratori"
-            valore={consultants.length}
-            to="/CRM/consulenti"
-            icona={Users}
-          />
+              valore={leads.filter((l) => eChiusuraVinta(l.data.stato)).length}
+              to="/CRM/avanzamento"
+              icona={Wrench}
+            />
+            <Totale
+              //  Il numero è tutta l'anagrafica — consulenti, setter, driver,
+              //  installatori, accompagnatori — e portava il nome di uno solo dei
+              //  cinque: adesso dice quello della sezione che apre.
+              etichetta="Collaboratori"
+              valore={consultants.length}
+              to="/CRM/consulenti"
+              icona={Users}
+            />
+          </div>
+          <HealthGlobalSection />
         </div>
-        <HealthGlobalSection />
-      </div>
+      )}
 
       <LeadDialog open={editOpen} onOpenChange={setEditOpen} lead={editing} />
       <InstallationScheduleDialog

@@ -18141,6 +18141,107 @@ export const disegna = (cosa, props) =>
     /<span class="sr-only">Freddo<\/span><\/span>\s*16:30|title="Freddo[^"]*"><span aria-hidden="true"[^>]*><\/span><span class="sr-only">Freddo<\/span>/.test(adesso),
   );
   c("POI senza risposte: niente pallino", 1, adesso.split('class="sr-only"').length - 1);
+
+  gruppo("«OGGI» IN SOLA LETTURA PER CHI NON FA CONSULENZE");
+  c("la pagina chiede a vistaOggi che cosa si vede", true, indice.includes("vistaOggi(puo)"));
+  c("la giornata in sola lettura senza gesti", true, indice.includes("solaLettura={!vista.gesti}"));
+  c(
+    "lo stato si cambia dalla giornata solo con i gesti",
+    true,
+    indice.includes("onStato={vista.gesti ? cambiaStato : undefined}"),
+  );
+  c(
+    "«fissato da te» con l'id di chi è collegato",
+    true,
+    indice.includes("fissatiDa={vista.fissatiDaMe ? io : undefined}"),
+  );
+  for (const [voce, cosa] of [
+    ["andamento", "Andamento e salute dei conti"],
+    ["striscia", "la striscia dei posti"],
+    ["adesso", "il riquadro ADESSO"],
+    ["contatori", "i cinque contatori"],
+    ["recuperare", "Da recuperare"],
+    ["ricontatti", "Da ricontattare oggi"],
+    ["sede", "In sede"],
+    ["installazioni", "le installazioni"],
+  ])
+    c(`${cosa}: si decide con vista.${voce}`, true, indice.includes(`vista.${voce} &&`));
+  c("la striscia al posto di ADESSO", true, /vista\.striscia && \(?\s*<StrisciaPosti/.test(indice));
+  c(
+    "nessuna uscita anticipata per la vista (solo condizioni nel JSX)",
+    false,
+    /^\s{2}if \([^)]*vista[^)]*\)\s*return/m.test(indice),
+  );
+  c(
+    "l'id di chi è collegato e i permessi si chiedono in cima",
+    true,
+    /const puo = usePuo\(\);[\s\S]{0,400}const io = useConsulenteCollegato\(\)\?\.id;/.test(indice),
+  );
+  //  Decisione del capo progetto (14/10): l'installatore continua a cambiare lo
+  //  stato delle sue installazioni. Quelle righe seguono vista.installazioni,
+  //  non vista.gesti.
+  const daInst = indice.indexOf("{/* ── INSTALLAZIONI");
+  const aInst = indice.indexOf("{/* ── 6. ANDAMENTO");
+  const inst = daInst < 0 || aInst < 0 ? "" : indice.slice(daInst, aInst);
+  c("le installazioni stanno sotto vista.installazioni", true, inst.includes("vista.installazioni &&"));
+  c("le righe delle installazioni cambiano lo stato", 2, inst.split("onStato={cambiaStato}").length - 1);
+  c("e non dipendono da vista.gesti", false, inst.includes("vista.gesti"));
+  c("MeetGiornalieri riconosce le consulenze fissate da chi guarda", true, giornata.includes("fissataDa("));
+  c("MeetGiornalieri ha la sola lettura", true, giornata.includes("solaLettura"));
+
+  //  La riga in sola lettura, disegnata: anche con `onStato` passato per
+  //  sbaglio, restano solo nome, Chiama e WhatsApp.
+  const sola = oggi(archivio, null, "riga", {
+    lead: finto("h", {
+      modulo: { urgenza: "subito" },
+      fissatoDa: "setter-prova",
+      linkMeeting: "https://esempio.invalid/stanza",
+    }),
+    onStato() {},
+    onEvidenzia() {},
+    nomeConsulente: () => "Marco Prova",
+    solaLettura: true,
+    fissatiDa: "setter-prova",
+  });
+  const tutta = oggi(archivio, null, "riga", {
+    lead: finto("h", { modulo: { urgenza: "subito" }, fissatoDa: "setter-prova" }),
+    onStato() {},
+    onEvidenzia() {},
+    nomeConsulente: () => "Marco Prova",
+  });
+  //  I due controlli sulla riga normale dicono che la prova sa vedere quello
+  //  che poi cerca di NON trovare in sola lettura.
+  c("riga normale: Avvia c'è (controllo della prova)", true, testoRiga(tutta).includes("Avvia"));
+  c("riga normale: gli esiti ci sono (controllo della prova)", true, tutta.includes('title="Cliente assente"'));
+  c("sola lettura: niente Avvia", false, /Avvia/.test(sola));
+  c("sola lettura: niente esiti", false, sola.includes('title="Cliente assente"'));
+  c("sola lettura: niente stella", false, sola.includes("Segna come da seguire"));
+  c("sola lettura: niente note dopo la consulenza", false, /Note dopo la consulenza|Note<\/span>/.test(sola));
+  c("sola lettura: niente promemoria né invii", false, /Manda il promemoria|Pagina dell&#x27;appuntamento|Altri invii|Manda il link/.test(sola));
+  c("sola lettura: restano Chiama e WhatsApp", true, sola.includes('aria-label="Chiama"') && /WhatsApp/.test(sola));
+  c(
+    "sola lettura: lo stato è un'etichetta, non un pulsante",
+    1,
+    (sola.match(/<button/g) ?? []).length,
+  );
+  c("sola lettura: la temperatura resta", true, testoRiga(sola).includes("Caldo · vuole risolvere ora"));
+  c("«fissato da te» sulle sue", true, testoRiga(sola).endsWith("fissato da te") || testoRiga(sola).includes("fissato da te"));
+  c(
+    "«fissato da te» non sulle altre",
+    false,
+    testoRiga(
+      oggi(archivio, null, "riga", {
+        lead: finto("i", { fissatoDa: "un-collega" }),
+        solaLettura: true,
+        fissatiDa: "setter-prova",
+      }),
+    ).includes("fissato da te"),
+  );
+  c(
+    "«fissato da te» non compare a chi non lo chiede (consulenti)",
+    false,
+    testoRiga(tutta).includes("fissato da te"),
+  );
 }
 
 /** La finestra «Dove c'è posto» e Slot liberi, sugli stessi dati finti, dicono
