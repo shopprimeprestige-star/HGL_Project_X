@@ -24,7 +24,14 @@ import {
   nonAutorizzato,
 } from "./api.presenter.consultant";
 import { leggiRigaSala, scriviRigaSala } from "./api.public.sala-attesa";
-import { decidi, inAttesa, rigaPerIlConsulente, type StatoAttesa } from "@/shop/sala-attesa";
+import {
+  decidi,
+  inAttesa,
+  rigaPerIlConsulente,
+  rigaUscitaPerIlConsulente,
+  uscitiDellaSala,
+  type StatoAttesa,
+} from "@/shop/sala-attesa";
 //  Chi era atteso in questa stanza: serve a scrivere sul riquadro il nome
 //  della SCHEDA invece di quello digitato al volo dal cliente.
 import { attesiDellaStanza } from "./api.public.attesi";
@@ -70,6 +77,17 @@ export const Route = createFileRoute("/api/presenter/sala-attesa")({
             nome: `${p.nome}${p.cognome ? ` ${p.cognome}` : ""}`.trim(),
             leadId: p.leadId,
           })),
+          /*  ── CHI È USCITO CON «ESCI» ──────────────────────────────────
+              Solo dalle righe `uscito` scritte dal server (mai dal canale, che
+              non è autenticato): il consulente può invitarlo di nuovo. Il
+              nome è quello della scheda, quando la persona era fra gli attesi. */
+          usciti: uscitiDellaSala(persone).map((p) => {
+            const atteso = attesoDalGettone(attesi, p.chi);
+            return {
+              ...rigaUscitaPerIlConsulente(p),
+              ...(atteso ? { nome: `${atteso.nome}${atteso.cognome ? ` ${atteso.cognome}` : ""}`.trim() } : {}),
+            };
+          }),
           attesa: inAttesa(persone).map((p) => {
             //  ⚠️ Nome diverso da `chi`, che qui sopra è il CONSULENTE
             //   autorizzato: due cose diverse con lo stesso nome, in una

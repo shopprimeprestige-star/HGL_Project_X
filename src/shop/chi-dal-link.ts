@@ -54,20 +54,49 @@ export function gettoneDalLink(ricerca?: string | null): string {
   }
 }
 
-/** Lo stesso link, con dentro chi lo riceve. Senza gettone — o se non è una
- *  stanza nostra — torna il link così com'era. */
-export function linkPerPersona(link?: string | null, gettone?: string | null): string {
-  const indirizzo = String(link || "").trim();
+/** ── IL GIRO DEL LINK ───────────────────────────────────────────────────────
+ *  Dopo «Esci» il vecchio link non vale più; «Invita di nuovo» ne dà uno con
+ *  un giro nuovo e casuale: `...?chi=p3f91a2c&k=9f3a1c7e22b04d58`. Un link
+ *  senza `k` è del giro «0», quello di sempre.
+ *  ⚠️ `k` vive solo nell'indirizzo e nelle POST al server: mai in `hello` né
+ *   nel roster, che arrivano a tutta la stanza. */
+export const CHIAVE_GIRO = "k";
+
+const pulitoGiro = (v: unknown): string =>
+  String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 32);
+
+/** Il giro scritto nel link, se c'è ("" = link senza `k`, cioè il giro «0»). */
+export function giroDalLink(ricerca?: string | null): string {
+  try {
+    return pulitoGiro(new URLSearchParams(String(ricerca || "")).get(CHIAVE_GIRO));
+  } catch {
+    return "";
+  }
+}
+
+/** Lo stesso link, con dentro chi lo riceve (e, se c'è, il giro). Senza
+ *  gettone — o se non è una stanza nostra — torna il link così com'era. */
+export function linkPerPersona(link?: string | null, gettone?: string | null, giro?: string | null): string {
+  let indirizzo = String(link || "").trim();
   const g = pulito(gettone);
   if (!indirizzo || !g) return indirizzo;
   //  Solo le stanze nostre: /meetly/<codice> (e il vecchio /videochiamata/).
   if (!/\/(?:meetly|videochiamata)\//i.test(indirizzo)) return indirizzo;
-  if (new RegExp(`[?&]${CHIAVE_CHI}=`, "i").test(indirizzo)) return indirizzo;
-  const separatore = indirizzo.includes("?") ? "&" : "?";
   //  ⚠️ L'ancora resta in fondo: «…/meetly/abc#x» con la domanda appiccicata
   //   dopo il cancelletto non arriva al programma.
-  const [prima, ancora] = indirizzo.split("#");
-  return `${prima}${separatore}${CHIAVE_CHI}=${g}${ancora ? `#${ancora}` : ""}`;
+  //  ⚠️ E NON SI SOVRASCRIVE: se il link ne porta già una, è quella buona.
+  const aggiungi = (chiave: string, valore: string) => {
+    if (!valore || new RegExp(`[?&]${chiave}=`, "i").test(indirizzo)) return;
+    const [prima, ancora] = indirizzo.split("#");
+    indirizzo = `${prima}${prima.includes("?") ? "&" : "?"}${chiave}=${valore}${ancora ? `#${ancora}` : ""}`;
+  };
+  aggiungi(CHIAVE_CHI, g);
+  aggiungi(CHIAVE_GIRO, pulitoGiro(giro));
+  return indirizzo;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

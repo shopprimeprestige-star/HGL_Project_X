@@ -132,8 +132,10 @@ export function leggiRegistro(grezzo?: string | null): RegistroLink {
 }
 export const scriviRegistro = (r: RegistroLink): string => JSON.stringify(r);
 
-/** Il giro scritto in un link: senza `k` è «0». */
-export const giroDelLink = (k?: string | null): string => testo(k).slice(0, 32) || GIRO_BASE;
+/** Il giro scritto in un link: senza `k` è «0». Stessa ripulita di
+ *  `giroDalLink` (chi-dal-link): minuscole e cifre, 32 al massimo. */
+export const giroDelLink = (k?: string | null): string =>
+  testo(k).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 32) || GIRO_BASE;
 
 export const linkValido = (r: RegistroLink, k?: string | null): boolean =>
   !!r.giro && giroDelLink(k) === r.giro;
@@ -170,6 +172,7 @@ export interface Trattata {
   body: Record<string, unknown>;
 }
 const no403: Trattata = { status: 403, body: { ok: false } };
+const noLink: Trattata = { status: 403, body: { ok: false, reason: "link" } };
 
 async function leggiLaSala(a: Archivio, sess: string) {
   return leggiSala(await a.leggi(chiaveSala(sess)));
@@ -202,6 +205,8 @@ export interface Bussata {
   persona?: string;
   chi?: string;
   segreto?: string;
+  /** Il giro del link con cui bussa (`?k=`). */
+  k?: string;
 }
 
 /** POST «busso». Torna lo stato di CHI chiede, mai quello di un altro. */
@@ -216,6 +221,10 @@ export async function trattaBussata(a: Archivio, b: Bussata, adesso = Date.now()
   //   `dev` o `pid` di un altro non scopre né eredita il suo stato.
   const di = chiTocca(prima, { pid, dev, segretoH }, adesso);
   if (di === "altrui") return no403;
+  //  ⚠️ SECONDA SERRATURA: un link chiuso non fa bussare, anche se chi lo apre
+  //   salta il controllo della pagina (`trattaLink`). Risposta neutra.
+  const gettone = gettonePulito(b.chi);
+  if (gettone && !linkValido(leggiRegistro(await a.leggi(chiaveLink(sess, gettone))), b.k)) return noLink;
   const chi = { pid, dev, segretoH };
   const stato = statoDi(prima, chi, adesso);
   const adottabile = !!segretoH && prima.some((p) => !p.segretoH && (p.pid === pid || (dev && p.dev === dev)));
@@ -312,4 +321,36 @@ export async function trattaEsci(a: Archivio, b: Uscita, adesso = Date.now()): P
   );
   if (!chiuso) return { status: 409, body: { ok: false } };
   return { status: 200, body: { ok: true, chiuso: true } };
+}
+
+/** GET «questo link vale ancora?». Un link senza nome (senza gettone) non si
+ *  chiude mai: chiuderebbe tutti. Non dice altro che sì o no. */
+export async function trattaLink(a: Archivio, q: { sess?: string; chi?: string; k?: string }): Promise<Trattata> {
+  const sess = testo(q.sess);
+  if (!sess) return { status: 400, body: { ok: false, reason: "manca la stanza" } };
+  const g = gettonePulito(q.chi);
+  if (!g) return { status: 200, body: { ok: true, valido: true } };
+  const reg = leggiRegistro(await a.leggi(chiaveLink(sess, g)));
+  return { status: 200, body: { ok: true, valido: linkValido(reg, q.k) } };
+}
+
+/** POST «Invita di nuovo» (solo il consulente): chiude il giro corrente e ne
+ *  apre uno nuovo, casuale. Il giro lo sceglie UNA volta: i tentativi di
+ *  `scriviConRilettura` riscrivono lo stesso. */
+export async function trattaReinvito(
+  a: Archivio,
+  q: { sess?: string; chi?: string },
+  adesso = Date.now(),
+): Promise<Trattata> {
+  const sess = testo(q.sess);
+  const g = gettonePulito(q.chi);
+  if (!sess || !g) return { status: 400, body: { ok: false, reason: "manca la persona" } };
+  const giro = giroCasuale();
+  const fatto = await scriviConRilettura(
+    a,
+    chiaveLink(sess, g),
+    (letto) => scriviRegistro(nuovoGiro(leggiRegistro(letto), adesso, giro)),
+    (letto) => leggiRegistro(letto).giro === giro,
+  );
+  return fatto ? { status: 200, body: { ok: true, giro } } : { status: 409, body: { ok: false } };
 }

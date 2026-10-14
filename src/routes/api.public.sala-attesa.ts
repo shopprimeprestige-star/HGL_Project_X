@@ -118,6 +118,7 @@ export const Route = createFileRoute("/api/public/sala-attesa")({
           persona: String(b.persona ?? ""),
           chi: String(b.chi ?? ""),
           segreto: String(b.segreto ?? ""),
+          k: String(b.k ?? ""),
         });
         return json(r.body, r.status);
       },

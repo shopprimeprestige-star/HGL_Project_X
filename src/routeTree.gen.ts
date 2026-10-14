@@ -114,6 +114,7 @@ import { Route as ApiPublicProvaAnteprimaRouteImport } from './routes/api.public
 import { Route as ApiPublicProvaAcquistoRouteImport } from './routes/api.public.prova-acquisto'
 import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricing'
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
+import { Route as ApiPublicLinkOspiteRouteImport } from './routes/api.public.link-ospite'
 import { Route as ApiPublicInvitoRouteImport } from './routes/api.public.invito'
 import { Route as ApiPublicGalleriaRouteImport } from './routes/api.public.galleria'
 import { Route as ApiPublicEsciRouteImport } from './routes/api.public.esci'
@@ -126,6 +127,7 @@ import { Route as ApiPresenterStatsRouteImport } from './routes/api.presenter.st
 import { Route as ApiPresenterSlidecfgRouteImport } from './routes/api.presenter.slidecfg'
 import { Route as ApiPresenterSessionRouteImport } from './routes/api.presenter.session'
 import { Route as ApiPresenterSalaAttesaRouteImport } from './routes/api.presenter.sala-attesa'
+import { Route as ApiPresenterReinvitaRouteImport } from './routes/api.presenter.reinvita'
 import { Route as ApiPresenterRecordingsRouteImport } from './routes/api.presenter.recordings'
 import { Route as ApiPresenterQuotestateRouteImport } from './routes/api.presenter.quotestate'
 import { Route as ApiPresenterQuotesRouteImport } from './routes/api.presenter.quotes'
@@ -720,6 +722,11 @@ const ApiPublicMetaLeadgenWebhookRoute =
     path: '/api/public/meta-leadgen-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicLinkOspiteRoute = ApiPublicLinkOspiteRouteImport.update({
+  id: '/api/public/link-ospite',
+  path: '/api/public/link-ospite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicInvitoRoute = ApiPublicInvitoRouteImport.update({
   id: '/api/public/invito',
   path: '/api/public/invito',
@@ -778,6 +785,11 @@ const ApiPresenterSessionRoute = ApiPresenterSessionRouteImport.update({
 const ApiPresenterSalaAttesaRoute = ApiPresenterSalaAttesaRouteImport.update({
   id: '/api/presenter/sala-attesa',
   path: '/api/presenter/sala-attesa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPresenterReinvitaRoute = ApiPresenterReinvitaRouteImport.update({
+  id: '/api/presenter/reinvita',
+  path: '/api/presenter/reinvita',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPresenterRecordingsRoute = ApiPresenterRecordingsRouteImport.update({
@@ -1255,6 +1267,7 @@ export interface FileRoutesByFullPath {
   '/api/presenter/quotes': typeof ApiPresenterQuotesRoute
   '/api/presenter/quotestate': typeof ApiPresenterQuotestateRoute
   '/api/presenter/recordings': typeof ApiPresenterRecordingsRoute
+  '/api/presenter/reinvita': typeof ApiPresenterReinvitaRoute
   '/api/presenter/sala-attesa': typeof ApiPresenterSalaAttesaRoute
   '/api/presenter/session': typeof ApiPresenterSessionRoute
   '/api/presenter/slidecfg': typeof ApiPresenterSlidecfgRoute
@@ -1267,6 +1280,7 @@ export interface FileRoutesByFullPath {
   '/api/public/esci': typeof ApiPublicEsciRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
+  '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
@@ -1432,6 +1446,7 @@ export interface FileRoutesByTo {
   '/api/presenter/quotes': typeof ApiPresenterQuotesRoute
   '/api/presenter/quotestate': typeof ApiPresenterQuotestateRoute
   '/api/presenter/recordings': typeof ApiPresenterRecordingsRoute
+  '/api/presenter/reinvita': typeof ApiPresenterReinvitaRoute
   '/api/presenter/sala-attesa': typeof ApiPresenterSalaAttesaRoute
   '/api/presenter/session': typeof ApiPresenterSessionRoute
   '/api/presenter/slidecfg': typeof ApiPresenterSlidecfgRoute
@@ -1444,6 +1459,7 @@ export interface FileRoutesByTo {
   '/api/public/esci': typeof ApiPublicEsciRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
+  '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
@@ -1615,6 +1631,7 @@ export interface FileRoutesById {
   '/api/presenter/quotes': typeof ApiPresenterQuotesRoute
   '/api/presenter/quotestate': typeof ApiPresenterQuotestateRoute
   '/api/presenter/recordings': typeof ApiPresenterRecordingsRoute
+  '/api/presenter/reinvita': typeof ApiPresenterReinvitaRoute
   '/api/presenter/sala-attesa': typeof ApiPresenterSalaAttesaRoute
   '/api/presenter/session': typeof ApiPresenterSessionRoute
   '/api/presenter/slidecfg': typeof ApiPresenterSlidecfgRoute
@@ -1627,6 +1644,7 @@ export interface FileRoutesById {
   '/api/public/esci': typeof ApiPublicEsciRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
+  '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
@@ -1799,6 +1817,7 @@ export interface FileRouteTypes {
     | '/api/presenter/quotes'
     | '/api/presenter/quotestate'
     | '/api/presenter/recordings'
+    | '/api/presenter/reinvita'
     | '/api/presenter/sala-attesa'
     | '/api/presenter/session'
     | '/api/presenter/slidecfg'
@@ -1811,6 +1830,7 @@ export interface FileRouteTypes {
     | '/api/public/esci'
     | '/api/public/galleria'
     | '/api/public/invito'
+    | '/api/public/link-ospite'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
@@ -1976,6 +1996,7 @@ export interface FileRouteTypes {
     | '/api/presenter/quotes'
     | '/api/presenter/quotestate'
     | '/api/presenter/recordings'
+    | '/api/presenter/reinvita'
     | '/api/presenter/sala-attesa'
     | '/api/presenter/session'
     | '/api/presenter/slidecfg'
@@ -1988,6 +2009,7 @@ export interface FileRouteTypes {
     | '/api/public/esci'
     | '/api/public/galleria'
     | '/api/public/invito'
+    | '/api/public/link-ospite'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
@@ -2158,6 +2180,7 @@ export interface FileRouteTypes {
     | '/api/presenter/quotes'
     | '/api/presenter/quotestate'
     | '/api/presenter/recordings'
+    | '/api/presenter/reinvita'
     | '/api/presenter/sala-attesa'
     | '/api/presenter/session'
     | '/api/presenter/slidecfg'
@@ -2170,6 +2193,7 @@ export interface FileRouteTypes {
     | '/api/public/esci'
     | '/api/public/galleria'
     | '/api/public/invito'
+    | '/api/public/link-ospite'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
@@ -2301,6 +2325,7 @@ export interface RootRouteChildren {
   ApiPresenterQuotesRoute: typeof ApiPresenterQuotesRoute
   ApiPresenterQuotestateRoute: typeof ApiPresenterQuotestateRoute
   ApiPresenterRecordingsRoute: typeof ApiPresenterRecordingsRoute
+  ApiPresenterReinvitaRoute: typeof ApiPresenterReinvitaRoute
   ApiPresenterSalaAttesaRoute: typeof ApiPresenterSalaAttesaRoute
   ApiPresenterSessionRoute: typeof ApiPresenterSessionRoute
   ApiPresenterSlidecfgRoute: typeof ApiPresenterSlidecfgRoute
@@ -2313,6 +2338,7 @@ export interface RootRouteChildren {
   ApiPublicEsciRoute: typeof ApiPublicEsciRoute
   ApiPublicGalleriaRoute: typeof ApiPublicGalleriaRoute
   ApiPublicInvitoRoute: typeof ApiPublicInvitoRoute
+  ApiPublicLinkOspiteRoute: typeof ApiPublicLinkOspiteRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
   ApiPublicPricingRoute: typeof ApiPublicPricingRoute
   ApiPublicProvaAcquistoRoute: typeof ApiPublicProvaAcquistoRoute
@@ -3066,6 +3092,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaLeadgenWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/link-ospite': {
+      id: '/api/public/link-ospite'
+      path: '/api/public/link-ospite'
+      fullPath: '/api/public/link-ospite'
+      preLoaderRoute: typeof ApiPublicLinkOspiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/invito': {
       id: '/api/public/invito'
       path: '/api/public/invito'
@@ -3148,6 +3181,13 @@ declare module '@tanstack/react-router' {
       path: '/api/presenter/sala-attesa'
       fullPath: '/api/presenter/sala-attesa'
       preLoaderRoute: typeof ApiPresenterSalaAttesaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/presenter/reinvita': {
+      id: '/api/presenter/reinvita'
+      path: '/api/presenter/reinvita'
+      fullPath: '/api/presenter/reinvita'
+      preLoaderRoute: typeof ApiPresenterReinvitaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/presenter/recordings': {
@@ -3847,6 +3887,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPresenterQuotesRoute: ApiPresenterQuotesRoute,
   ApiPresenterQuotestateRoute: ApiPresenterQuotestateRoute,
   ApiPresenterRecordingsRoute: ApiPresenterRecordingsRoute,
+  ApiPresenterReinvitaRoute: ApiPresenterReinvitaRoute,
   ApiPresenterSalaAttesaRoute: ApiPresenterSalaAttesaRoute,
   ApiPresenterSessionRoute: ApiPresenterSessionRoute,
   ApiPresenterSlidecfgRoute: ApiPresenterSlidecfgRoute,
@@ -3859,6 +3900,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicEsciRoute: ApiPublicEsciRoute,
   ApiPublicGalleriaRoute: ApiPublicGalleriaRoute,
   ApiPublicInvitoRoute: ApiPublicInvitoRoute,
+  ApiPublicLinkOspiteRoute: ApiPublicLinkOspiteRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,
   ApiPublicPricingRoute: ApiPublicPricingRoute,
   ApiPublicProvaAcquistoRoute: ApiPublicProvaAcquistoRoute,

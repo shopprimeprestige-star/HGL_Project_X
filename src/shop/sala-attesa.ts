@@ -163,6 +163,16 @@ export function ripulisci(persone: PersonaInAttesa[], adesso = Date.now()): Pers
  *   al consulente — che ne farebbe entrare una e lascerebbe l'altra alla porta.
  *   La decisione presa per il dispositivo vale per il pid nuovo: è la stessa
  *   persona, e ripetergliela non ha senso. */
+/** ── CHI È USCITO E BUSSA DI NUOVO ─────────────────────────────────────────
+ *  Succede solo col link nuovo («Invita di nuovo») e con il suo segreto: la
+ *  riga torna «in attesa», così il consulente lo vede e lo fa entrare. Senza
+ *  questo restava `uscito` e il reinvitato non compariva a nessuno. */
+const riapri = (p: PersonaInAttesa): PersonaInAttesa => {
+  if (!p.uscito) return p;
+  const { uscito: _uscito, ...resto } = p;
+  return { ...resto, stato: "attesa" };
+};
+
 export function bussa(
   persone: PersonaInAttesa[],
   chi: { pid: string; nome?: string; dev?: string; persona?: string; segretoH?: string; chi?: string },
@@ -183,7 +193,7 @@ export function bussa(
   const lista = ripulisci(persone, adesso);
   const i = lista.findIndex((p) => p.pid === pid);
   if (i >= 0) {
-    lista[i] = { ...lista[i], nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), ...sigilli, at: adesso };
+    lista[i] = { ...riapri(lista[i]), nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), ...sigilli, at: adesso };
     return lista;
   }
   //  Stesso dispositivo, pid nuovo: è la stessa persona che ha ricaricato.
@@ -191,7 +201,7 @@ export function bussa(
   //  una seconda.
   const j = dev ? lista.findIndex((p) => p.dev && p.dev === dev) : -1;
   if (j >= 0) {
-    lista[j] = { ...lista[j], pid, nome, ...(persona ? { persona } : {}), ...sigilli, at: adesso };
+    lista[j] = { ...riapri(lista[j]), pid, nome, ...(persona ? { persona } : {}), ...sigilli, at: adesso };
     return lista;
   }
   lista.push({ pid, nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), ...sigilli, stato: "attesa", at: adesso });
@@ -363,4 +373,31 @@ export function segnaUscito(
  *  gettone del link. */
 export function rigaPerIlConsulente(p: PersonaInAttesa): { pid: string; nome: string; dev: string; at: number } {
   return { pid: p.pid, nome: p.nome, dev: p.dev ?? "", at: p.at };
+}
+
+/** Chi è uscito con «Esci», dal più recente: ogni persona una volta sola. Si
+ *  costruisce SOLO dalle righe `uscito` scritte dal server. */
+export function uscitiDellaSala(persone: PersonaInAttesa[], adesso = Date.now()): PersonaInAttesa[] {
+  const visti = new Set<string>();
+  return ripulisci(persone, adesso)
+    .filter((p) => !!p.uscito)
+    .sort((a, b) => (b.uscito ?? 0) - (a.uscito ?? 0))
+    .filter((p) => {
+      const chiave = p.dev || p.pid;
+      if (visti.has(chiave)) return false;
+      visti.add(chiave);
+      return true;
+    });
+}
+
+/** Una riga «uscito» per il consulente: serve il gettone (`chi`) per generare
+ *  il link nuovo, mai l'impronta. */
+export function rigaUscitaPerIlConsulente(p: PersonaInAttesa): {
+  pid: string;
+  nome: string;
+  dev: string;
+  uscito: number;
+  chi: string;
+} {
+  return { pid: p.pid, nome: p.nome, dev: p.dev ?? "", uscito: p.uscito ?? 0, chi: p.chi ?? "" };
 }
