@@ -500,9 +500,17 @@ export function tieniInTesta<T extends { id: string }>(righe: T[], fermo: string
  *  mai insieme), richiamo, appuntamento, non interessato — con i tasti 1…4.
  *  Gli altri esiti validi per QUESTO lead vanno nel menu «Altro», nello stesso
  *  ordine: nessun esito sparisce, cambia solo dove sta. */
-const ESITI_IN_VISTA = ["non_risponde", "irreperibile", "richiamo", "appuntamento_fissato", "annullato"];
+const ESITI_IN_VISTA = [
+  "non_risponde",
+  "irreperibile",
+  "richiamo",
+  "appuntamento_fissato",
+  "annullato",
+];
 
-export function dividiEsiti<S extends string>(validi: readonly S[]): { inVista: S[]; inAltro: S[] } {
+export function dividiEsiti<S extends string>(
+  validi: readonly S[],
+): { inVista: S[]; inAltro: S[] } {
   const inVista = validi.filter((s) => ESITI_IN_VISTA.includes(s));
   const inAltro = validi.filter((s) => !ESITI_IN_VISTA.includes(s));
   return { inVista, inAltro };
