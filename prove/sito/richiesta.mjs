@@ -40,16 +40,40 @@ for (const [raw, atteso] of casi) c(`telefonoValido(${JSON.stringify(raw)})`, at
 }
 
 /* ── telefonoDaInviare: come lo salva il modulo lungo ──────────────────── */
+//  Sempre «+39» e le sole cifre. Il taglio del 39 guarda le CIFRE, non la stringa con gli spazi:
+//  391/392/393/397 sono cellulari veri (WindTre) e iniziano per «39».
 for (const [raw, atteso] of [
-  ["333 1234567", "+39 333 1234567"],
-  ["+39 333 1234567", "+39 333 1234567"],
+  ["333 1234567", "+39 3331234567"],
+  ["+39 333 1234567", "+39 3331234567"],
   ["  3331234567 ", "+39 3331234567"],
-  ["0039 333 1234567", "+39 333 1234567"],
-  ["39 333 1234567", "+39 333 1234567"],
+  ["0039 333 1234567", "+39 3331234567"],
+  ["39 333 1234567", "+39 3331234567"],
   ["333-123-4567", "+39 3331234567"],
+  ["06 1234567", "+39 061234567"],
+  ["+39 06 1234567", "+39 061234567"],
   ["", ""],
   ["abc", ""],
+  //  I tre casi segnalati dal revisore
+  ["393 1234567", "+39 3931234567"],
+  ["+39 393 1234567", "+39 3931234567"],
+  ["392 555 1234", "+39 3925551234"],
 ]) c(`telefonoDaInviare(${JSON.stringify(raw)})`, atteso, R.telefonoDaInviare(raw));
+//  Tutti i prefissi mobili italiani (320…399), con e senza +39, 0039, 39, spazi e trattini.
+{
+  const sbagliati = [];
+  for (let p = 320; p <= 399; p++) {
+    const nudo = `${p}1234567`;
+    const atteso = `+39 ${nudo}`;
+    const varianti = [nudo, `${p} 1234567`, `${p} 123 4567`, `${p}-123-4567`, `+39 ${nudo}`, `+39 ${p} 1234567`, `+39${nudo}`, `0039${nudo}`, `0039 ${p} 1234567`, `39${nudo}`, `39 ${p} 1234567`, ` ${p} 1234567 `];
+    for (const v of varianti) {
+      if (R.telefonoDaInviare(v) !== atteso) sbagliati.push([v, R.telefonoDaInviare(v)]);
+      //  Il modulo accetta anche «0039…» (telefonoValido, come il modulo lungo, vuole il numero senza).
+      const errori = R.controllaModulo({ nome: "x", telefono: v, fascia: "sera", problema: null, problemaAltro: "", consensoWhatsapp: false }, { problemaObbligatorio: false });
+      if (errori.telefono) sbagliati.push([v, "il modulo lo rifiuta"]);
+    }
+  }
+  c("tutti i prefissi mobili 320-399, in tutte le forme: numero giusto e valido", [], sbagliati);
+}
 
 /* ── controllaModulo ───────────────────────────────────────────────────── */
 c("tutto vuoto, Protocol → 3 errori con le frasi del Copywriter", {
@@ -67,6 +91,8 @@ c("dati giusti, Protocol senza problema → nessun errore", {}, R.controllaModul
 c("dati giusti, shop senza problema → solo il problema", { problema: "Scegli il problema principale." }, R.controllaModulo(ok, { problemaObbligatorio: true }));
 c("shop con problema scelto → nessun errore", {}, R.controllaModulo({ ...ok, problema: "tenuta" }, { problemaObbligatorio: true }));
 c("shop con «Altro» senza testo → va bene (la riga è facoltativa)", {}, R.controllaModulo({ ...ok, problema: "altro" }, { problemaObbligatorio: true }));
+c("0039 + 8 cifre → rifiutato (non diventa valido per sbaglio)", "Controlla il numero: servono solo cifre.", R.controllaModulo({ ...ok, telefono: "0039 12345678" }, { problemaObbligatorio: false }).telefono);
+c("8 cifre → rifiutato", "Controlla il numero: servono solo cifre.", R.controllaModulo({ ...ok, telefono: "12345678" }, { problemaObbligatorio: false }).telefono);
 c("nome di soli spazi → errore", "Scrivi il tuo nome.", R.controllaModulo({ ...ok, nome: "   " }, { problemaObbligatorio: false }).nome);
 c("la casella del consenso non dà mai errori", {}, R.controllaModulo({ ...ok, consensoWhatsapp: false }, { problemaObbligatorio: false }));
 

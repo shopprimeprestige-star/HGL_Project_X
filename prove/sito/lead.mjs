@@ -217,6 +217,7 @@ const { pieno, senzaConsenso, riserva } = L.costruisciPayload({ dati, richiesta,
   c("Pixel: una sola chiamata «Lead» con l'eventId del payload", [1, "Lead", r.eventId], [L.chiamate.firePixel.length, L.chiamate.firePixel[0]?.[0], L.chiamate.firePixel[0]?.[2]]);
   c("Pixel: stesso content_name del modulo lungo", "booking_lead", L.chiamate.firePixel[0]?.[1]?.content_name);
   c("CAPI: una sola chiamata con lo stesso eventId", [1, "Lead", r.eventId, "booking_lead"], [L.chiamate.fireCapi.length, L.chiamate.fireCapi[0]?.[0], L.chiamate.fireCapi[0]?.[1], L.chiamate.fireCapi[0]?.[3]?.content_name]);
+  c("CAPI: telefono con +39, come il modulo lungo (impronta delle sole cifre)", "+39 3331234567", L.chiamate.fireCapi[0]?.[2]?.phone);
   const lead = L.chiamate.trackEvent.filter((x) => x[0] === "Lead");
   c("trackEvent «Lead» passo 6, una volta, con event_id", [1, 6, r.eventId], [lead.length, lead[0]?.[1], lead[0]?.[2]?.event_id]);
   //  Nemmeno dopo una ricarica (stessa scheda) il Lead riparte.

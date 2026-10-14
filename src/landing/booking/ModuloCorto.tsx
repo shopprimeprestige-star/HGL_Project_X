@@ -16,7 +16,7 @@
  *  il modulo lungo: B7 va unito PRIMA di questo file (o insieme).
  *  ⚠️ Nome e telefono passano solo nel lead. Mai negli eventi, mai nei log.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -38,20 +38,16 @@ import {
   type ClienteLead,
   type RichiestaConservata,
 } from "./lead-comune";
-import { controllaModulo, type CampoErrore, type ModuloCortoDati, type PuntoSito } from "@/landing/sito/richiesta";
+import { caricaCalendarioSicuro, ProteggiCalendario, type PropsCalendario } from "./calendario-sicuro";
+import { controllaModulo, telefonoDaInviare, type CampoErrore, type ModuloCortoDati, type PuntoSito } from "@/landing/sito/richiesta";
 import { nomeEventoModulo } from "@/landing/sito/eventi";
 import { traccia, usaVariante } from "@/landing/sito/traccia";
 import { FASCE, TESTI_MODULO_CORTO as T, type Fascia } from "@/landing/sito/testi-modulo-corto";
 
-//  Il calendario: lo stesso di oggi, in modo «solo-calendario» (B7). Caricato solo al tocco.
-interface PropsCalendario {
-  variant?: "light" | "dark";
-  modo: "solo-calendario";
-  onOrarioScelto: (data: string, ora: string) => void;
-}
-const Calendario = lazy(() =>
-  import("./BookingFunnel").then((m) => ({ default: m.BookingFunnel as unknown as ComponentType<PropsCalendario> })),
-);
+//  Il calendario: lo stesso di oggi, in modo «solo-calendario» (B7). Caricato solo al tocco,
+//  e se non arriva non rompe la pagina (`calendario-sicuro.tsx`).
+const importaCalendario = () =>
+  import("./BookingFunnel").then((m) => ({ default: m.BookingFunnel as unknown as ComponentType<PropsCalendario> }));
 
 export interface ModuloCortoProps {
   origine: Provenienza;
@@ -88,7 +84,11 @@ export function ModuloCorto({ origine, punto, problemaObbligatorio, titolo, vari
   const [quando, setQuando] = useState("");
   const variante = usaVariante();
 
+  //  Un componente nuovo a ogni giro: se il caricamento è fallito, il tocco successivo riprova davvero.
+  const Calendario = useMemo(() => lazy(() => caricaCalendarioSicuro(importaCalendario)), [giro]);
+
   const inizioFatto = useRef(false);
+  const fissandoRif = useRef(false);
   const invioInCorso = useRef(false);
   const rif = useRef<Record<string, HTMLElement | null>>({});
   const confermaRif = useRef<HTMLDivElement | null>(null);
@@ -186,7 +186,7 @@ export function ModuloCorto({ origine, punto, problemaObbligatorio, titolo, vari
         return;
       }
       conservaRichiesta(r, esito);
-      annunciaLead(r.eventId, { nome, telefono });
+      annunciaLead(r.eventId, { nome, telefono: telefonoDaInviare(telefono) });
       eventoModulo("invio", { voce: problema ?? undefined });
       const conservata = richiestaConservata();
       setRichiesta(esito === "salvato_riserva" || !hash ? null : conservata);
@@ -206,7 +206,9 @@ export function ModuloCorto({ origine, punto, problemaObbligatorio, titolo, vari
   };
 
   const orarioScelto = async (data: string, ora: string) => {
-    if (!richiesta || fissando) return;
+    //  Un ref blocca subito il secondo tocco; lo stato `fissando` arriverebbe dopo il disegno.
+    if (!richiesta || fissandoRif.current) return;
+    fissandoRif.current = true;
     setFissando(true);
     try {
       const esito = await fissaOrario(CLIENTE, richiesta.id, richiesta.chiave, data, ora);
@@ -229,8 +231,15 @@ export function ModuloCorto({ origine, punto, problemaObbligatorio, titolo, vari
         setCalendarioAperto(false);
       }
     } finally {
+      fissandoRif.current = false;
       setFissando(false);
     }
+  };
+
+  //  Il calendario non si carica o si rompe: si chiude, la richiesta è salvata e la conferma resta.
+  const calendarioNonDisponibile = () => {
+    setCalendarioAperto(false);
+    setGiro((g) => g + 1);
   };
 
   /* ── Aspetto ─────────────────────────────────────────────────────────── */
@@ -303,7 +312,9 @@ export function ModuloCorto({ origine, punto, problemaObbligatorio, titolo, vari
                     </div>
                   }
                 >
-                  <Calendario key={giro} variant={variant} modo="solo-calendario" onOrarioScelto={orarioScelto} />
+                  <ProteggiCalendario alErrore={calendarioNonDisponibile}>
+                    <Calendario variant={variant} modo="solo-calendario" onOrarioScelto={orarioScelto} alErrore={calendarioNonDisponibile} />
+                  </ProteggiCalendario>
                 </Suspense>
               </div>
             )}

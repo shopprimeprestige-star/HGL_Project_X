@@ -74,14 +74,15 @@ export async function carica(sorgenteRel, nome, { reactFinto = false, reactVero 
     reactFinto_,
     `export const chiusure = [];
 export const useEffect = (f) => { const c = f(); if (typeof c === "function") chiusure.push(c); };
-export const useState = (v) => [v, () => {}];`,
+export const useState = (v) => [v, () => {}];
+export class Component { constructor(props) { this.props = props; this.state = {}; } setState() {} }`,
   );
   const fuori = join(dove, `${nome}.cjs`);
   //  Entrata di prova: il file vero + il registro delle chiamate del tracking finto.
   const entrata = join(dove, `${nome}-entrata.ts`);
   writeFileSync(
     entrata,
-    `export * from ${JSON.stringify(join(radice, sorgenteRel))};\nexport { chiamate } from ${JSON.stringify(trackingFinto)};\n`,
+    `export * from ${JSON.stringify(join(radice, sorgenteRel))};\nexport { chiamate } from ${JSON.stringify(trackingFinto)};\n${reactFinto ? `export { chiusure } from ${JSON.stringify(reactFinto_)};\n` : ""}`,
   );
   await esbuild.build({
     entryPoints: [entrata],

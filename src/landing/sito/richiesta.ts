@@ -29,19 +29,22 @@ export function telefonoValido(raw: string): boolean {
   return (cifre.length >= 9 && cifre.length <= 10) || (cifre.startsWith("39") && cifre.length >= 11 && cifre.length <= 12);
 }
 
-/** Il numero come lo salva il modulo lungo: sempre «+39 …», senza prefisso doppio. */
+/** Il numero come lo salva il modulo lungo: sempre «+39» e le sole cifre, senza prefisso doppio.
+ *  ⚠️ Il prefisso si taglia guardando le CIFRE, mai la stringa con gli spazi: 391, 392, 393 e 397 sono
+ *  cellulari veri e iniziano per «39». Un numero italiano ha 9-10 cifre: con 11 o più, il «39» iniziale
+ *  è il prefisso. */
 export function telefonoDaInviare(raw: string): string {
-  let s = (raw ?? "").replace(/^\+39\s?/, "").replace(/[^\d\s]/g, "").trim();
-  if (s.startsWith("0039")) s = s.slice(4).trim();
-  else if (s.startsWith("39") && s.length > 10) s = s.slice(2).trim();
-  return s ? `+39 ${s}` : "";
+  const cifre = (raw ?? "").replace(/\D/g, "");
+  const numero = cifre.startsWith("0039") ? cifre.slice(4) : cifre.startsWith("39") && cifre.length >= 11 ? cifre.slice(2) : cifre;
+  return numero ? `+39 ${numero}` : "";
 }
 
 /** Gli errori, con le frasi del Copywriter. Il consenso WhatsApp non dà mai errori. */
 export function controllaModulo(d: ModuloCortoDati, o: { problemaObbligatorio: boolean }): Partial<Record<CampoErrore, string>> {
   const e: Partial<Record<CampoErrore, string>> = {};
   if (!d.nome.trim()) e.nome = TESTI_MODULO_CORTO.errori.nome;
-  if (!telefonoValido(d.telefono)) e.telefono = TESTI_MODULO_CORTO.errori.telefono;
+  //  «0039 …» si accetta (il modulo lungo lo toglie mentre si scrive); `telefonoDaInviare` lo porta a «+39 …».
+  if (!telefonoValido(d.telefono.replace(/^\s*\+?\s*0039/, ""))) e.telefono = TESTI_MODULO_CORTO.errori.telefono;
   if (!d.fascia) e.fascia = TESTI_MODULO_CORTO.errori.fascia;
   if (o.problemaObbligatorio && !d.problema) e.problema = TESTI_MODULO_CORTO.errori.problema;
   return e;

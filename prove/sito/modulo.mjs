@@ -48,4 +48,36 @@ for (const [parola, re] of [["€", /€/], ["cura", /\bcura\b/i], ["ricrescita"
 }
 vero("il componente non scrive in localStorage e non usa dangerouslySetInnerHTML", !/localStorage|dangerouslySetInnerHTML/.test(leggi("src/landing/booking/ModuloCorto.tsx").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")));
 
+/* ── Il calendario che non arriva non rompe la pagina ──────────────────── */
+{
+  const S = await carica("src/landing/booking/calendario-sicuro.tsx", "calendario-sicuro", { reactFinto: true });
+  const vero_ = () => null;
+  const bene = await S.caricaCalendarioSicuro(async () => ({ default: vero_ }));
+  vero("calendario che arriva: è il vero", bene.default === vero_);
+  let fallita = false;
+  const male = await S.caricaCalendarioSicuro(() => Promise.reject(new Error("Failed to fetch dynamically imported module"))).catch(() => {
+    fallita = true;
+  });
+  c("calendario che NON arriva: la promessa non fallisce (niente schermata d'errore)", false, fallita);
+  vero("…torna un componente di riserva", typeof male?.default === "function" && male.default !== vero_);
+  let chiamato = 0;
+  male.default({ alErrore: () => chiamato++ });
+  c("…che chiude il calendario (si torna alla conferma)", 1, chiamato);
+  //  Errore dentro il calendario già caricato: lo ferma il riparo.
+  c("riparo: dopo un errore mostra niente invece della pagina rotta", { errore: true }, S.ProteggiCalendario.getDerivedStateFromError());
+  let chiuso = 0;
+  const riparo = new S.ProteggiCalendario({ alErrore: () => chiuso++, children: "figlio" });
+  riparo.componentDidCatch(new Error("rotto"));
+  c("riparo: avvisa che il calendario va chiuso", 1, chiuso);
+  riparo.state = { errore: true };
+  c("riparo: con l'errore non disegna nulla", null, riparo.render());
+  riparo.state = { errore: false };
+  c("riparo: senza errore disegna il figlio", "figlio", riparo.render());
+  const sorgente = leggi("src/landing/booking/ModuloCorto.tsx").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  vero("ModuloCorto usa il caricamento sicuro e il riparo", /caricaCalendarioSicuro/.test(sorgente) && /<ProteggiCalendario/.test(sorgente));
+  vero("ModuloCorto non importa BookingFunnel con un lazy nudo", !/lazy\(\s*\(\)\s*=>\s*import\("\.\/BookingFunnel"\)\s*\.then\([^)]*\)\s*\)/.test(sorgente.replace(/\s+/g, " ")) || /caricaCalendarioSicuro/.test(sorgente));
+  //  Doppio tocco sull'orario: il blocco è un ref (subito), non uno stato (dopo il render).
+  vero("doppio tocco sull'orario: blocco con useRef", /fissandoRif\.current/.test(sorgente) && /useRef\(false\)/.test(sorgente));
+}
+
 finisci();

@@ -70,12 +70,15 @@ export function usaTracciamentoPagina(pagina: string): void {
   useEffect(() => {
     captureSourceData();
     let pulizie: Array<() => void> = [];
+    //  La pagina si smonta (cambio pagina, doppio montaggio in sviluppo) prima che il controllo
+    //  amministratore risponda: allora non si attacca più niente.
+    let chiuso = false;
     const spegni = () => {
       pulizie.forEach((p) => p());
       pulizie = [];
     };
     void initAdminCheck().then((isAdmin) => {
-      if (isAdmin || pulizie.length) return;
+      if (chiuso || isAdmin || pulizie.length) return;
       const pvId = eventId();
       firePixel("PageView", {}, pvId, { dedupKey: "global" });
       void fireCapi("PageView", pvId, {}, {});
@@ -102,6 +105,7 @@ export function usaTracciamentoPagina(pagina: string): void {
       if (isAdmin) spegni();
     });
     return () => {
+      chiuso = true;
       smetti();
       spegni();
     };

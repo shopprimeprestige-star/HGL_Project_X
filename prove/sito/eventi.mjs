@@ -104,6 +104,31 @@ c("acceso, salvata rotta → si estrae di nuovo", ["A", "B"], [E.varianteBottone
   delete globalThis.window;
   delete globalThis.document;
 }
+/* ── Smontata prima che il controllo amministratore risponda ──────────── */
+{
+  const T = await carica("src/landing/sito/traccia.ts", "traccia-smontata", { reactFinto: true });
+  const ascoltatori = [];
+  globalThis.window = {
+    location: { pathname: "/protocol" },
+    sessionStorage: { getItem: () => null, setItem() {} },
+    scrollY: 0,
+    innerHeight: 800,
+    addEventListener: (n, f) => ascoltatori.push([n, f]),
+    removeEventListener() {},
+  };
+  globalThis.document = { body: { scrollHeight: 2000 }, documentElement: { scrollHeight: 2000 } };
+  T.usaTracciamentoPagina("protocol");
+  T.chiusure.forEach((chiudi) => chiudi()); // la pagina si smonta subito (StrictMode, cambio pagina)
+  await new Promise((r) => setTimeout(r, 20));
+  c("smontata prima della risposta: nessun ascoltatore resta attaccato", [0, []], [ascoltatori.length, T.chiamate.avviati]);
+  c("smontata prima della risposta: nessun PageView parte", 0, T.chiamate.firePixel.length);
+  delete globalThis.window;
+  delete globalThis.document;
+}
+//  Percorsi lunghi con la data dentro (/blog/2026-10-14-…) non sono telefoni.
+c("pagina con la data nel percorso passa", { pagina: "/blog/2026-10-14-capelli" }, E.ripulisciDettagli({ pagina: "/blog/2026-10-14-capelli" }));
+c("percorso con molte cifre passa se inizia con /", { percorso: "/shop/prodotto/thin-skin-003" }, E.ripulisciDettagli({ percorso: "/shop/prodotto/thin-skin-003" }));
+c("un telefono in «pagina» non passa", {}, E.ripulisciDettagli({ pagina: "3331234567" }));
 vero("traccia.ts non scrive in localStorage", !/localStorage/.test(leggi("src/landing/sito/traccia.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")));
 
 finisci();

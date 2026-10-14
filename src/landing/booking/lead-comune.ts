@@ -261,7 +261,9 @@ export function annunciaLead(eventId: string, contatti: { nome: string; telefono
   annunciati.add(eventId);
   if (salvata?.eventId === eventId) scrivi({ ...salvata, annunciato: true });
   const { nome, cognome } = dividiNome(contatti.nome);
-  const telefono = contatti.telefono.trim();
+  //  Lo stesso numero «+39 …» del lead (e del modulo lungo): CAPI ne fa l'impronta delle sole cifre,
+  //  senza prefisso l'abbinamento peggiora proprio sul traffico delle ads.
+  const telefono = telefonoDaInviare(contatti.telefono);
   firePixel("Lead", { content_name: "booking_lead", value: 1, currency: "EUR" }, eventId, { customName: EVENTO_LEAD });
   void fireCapi(
     "Lead",

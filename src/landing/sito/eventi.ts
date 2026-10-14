@@ -41,12 +41,14 @@ export const DETTAGLI_AMMESSI = ["bottone", "sezione", "percorso", "campo", "voc
 const LUNGHEZZA_MASSIMA = 60;
 
 /** Un valore ammesso è breve e non assomiglia a un telefono né a un'email. */
-function valoreAmmesso(v: unknown): v is string | number | boolean {
+function valoreAmmesso(v: unknown, chiave?: string): v is string | number | boolean {
   if (typeof v === "boolean") return true;
   if (typeof v === "number") return Number.isFinite(v);
   if (typeof v !== "string") return false;
   const t = v.trim();
   if (!t || t.length > LUNGHEZZA_MASSIMA || t.includes("@")) return false;
+  //  Un percorso («/blog/2026-10-14-…») ha molte cifre ma non è un telefono: inizia per «/» e non ha spazi.
+  if ((chiave === "pagina" || chiave === "percorso") && /^\/[^\s]*$/.test(t)) return true;
   return !/\d{7,}/.test(t.replace(/[\s.\-+]/g, ""));
 }
 
@@ -55,7 +57,7 @@ export function ripulisciDettagli(d: unknown): Record<string, string | number | 
   if (!d || typeof d !== "object" || Array.isArray(d)) return fuori;
   const x = d as Record<string, unknown>;
   for (const k of DETTAGLI_AMMESSI) {
-    if (k in x && valoreAmmesso(x[k])) fuori[k] = x[k] as string | number | boolean;
+    if (k in x && valoreAmmesso(x[k], k)) fuori[k] = x[k] as string | number | boolean;
   }
   return fuori;
 }
