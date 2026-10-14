@@ -94,11 +94,20 @@ import { AvvisoExtra, richiedeChiusura, useChiusura } from "@/crm/ChiusuraDialog
 //  qui la riga aveva la sua tendina.
 import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
 import { buildWhatsAppLink } from "@/crm/whatsapp";
+import { COLONNE_ANTEPRIMA, celleAnteprima } from "@/crm/importa/riepilogo-import";
 //  IL RICONOSCIMENTO DEL CSV NON STA QUI. Intestazioni in italiano e in
 //  inglese, separatore, stati con un altro nome, righe scartate, colonne
-//  ignorate: tutto in crm/import-backup, che è lo stesso motore di /CRM/importa
+//  conservate: tutto in crm/import-backup, che è lo stesso motore di /CRM/importa
 //  e dell'importazione di un archivio intero. Qui si CHIAMA e si mostra.
-import { noteDelLead, separaRitorni, traduciCsv } from "@/crm/import-backup";
+import {
+  MESSAGGIO_FILE_EXCEL,
+  conListaOrigine,
+  eFileExcel,
+  leggiTestoFile,
+  noteDelLead,
+  separaRitorni,
+  traduciCsv,
+} from "@/crm/import-backup";
 import {
   AiutoScorciatoie,
   BarraAzioni,
@@ -125,6 +134,7 @@ import {
   type Scorciatoia,
 } from "@/crm/ui";
 import {
+  AlertTriangle,
   ChevronDown,
   Copy,
   Download,
@@ -447,7 +457,7 @@ function BottoneChiama({ lead, className }: { lead: Lead; className?: string }) 
    La regola è quella di /CRM/importa e non cambia: aprire un file NON tocca il
    database. Si legge, si mostra come è stato capito (quante righe, quante
    verrebbero create, quante sono contatti già in archivio, quante scartate,
-   quali colonne sono rimaste fuori) e solo dopo compare il pulsante che scrive.
+   quali colonne sono state tenute da parte) e solo dopo compare il pulsante che scrive.
 
    ⚠️ QUI NON C'È UNA RIGA DI RICONOSCIMENTO. Intestazioni, separatore,
    traduzione degli stati, righe scartate: tutto `traduciCsv`; chi è nuovo e chi
@@ -458,35 +468,36 @@ function BottoneChiama({ lead, className }: { lead: Lead; className?: string }) 
 
 interface EsitoLettura {
   leads: LeadData[];
-  colonneIgnorate: string[];
+  /** Le colonne tenute da parte sulla scheda senza essere usate. */
+  colonneConservate: string[];
+  /** Di quante colonne era spostata l'intestazione (0 = a posto). */
+  intestazioniRiallineate: number;
   scartate: number;
   nomeFile: string;
 }
 
-/** Le colonne dell'anteprima: le stesse che si guardano per capire se il file
- *  è stato letto storto. */
-const COLONNE_ANTEPRIMA: { chiave: keyof LeadData; etichetta: string }[] = [
-  { chiave: "nome", etichetta: "Nome" },
-  { chiave: "cognome", etichetta: "Cognome" },
-  { chiave: "telefono", etichetta: "Telefono" },
-  { chiave: "citta", etichetta: "Città" },
-  { chiave: "stato", etichetta: "Stato" },
-  { chiave: "createdAt", etichetta: "Data" },
-];
+/** Le colonne dell'anteprima: le stesse di /CRM/importa (`COLONNE_ANTEPRIMA`,
+ *  `celleAnteprima`), perché da lì si vede se il modulo è stato letto a posto:
+ *  se sotto «Problema» c'è un telefono, il file è storto. In più qui Città (si vede se è stata letta), Stato e
+ *  Data, che il file può portare e che l'importazione scrive. */
+const COLONNE_RIGA = [...COLONNE_ANTEPRIMA, "Città", "Stato", "Data"] as const;
 
-/** Il valore di un campo scritto come finirà a schermo. */
-function valoreAnteprima(d: LeadData, k: keyof LeadData): string {
-  const v = d[k];
-  if (v == null || v === "") return "";
-  if (k === "stato") return LEAD_STATUS_LABEL[v as LeadStatus] ?? String(v);
-  if (k === "createdAt") return dataBreve(String(v));
-  return String(v);
+/** Le celle di una riga: quelle di /CRM/importa, poi lo Stato e la Data. */
+function celleRiga(d: LeadData): string[] {
+  return [
+    ...celleAnteprima(d),
+    d.citta ?? "",
+    d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "",
+    d.createdAt ? dataBreve(String(d.createdAt)) : "",
+  ];
 }
 
 function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
   const { leads, reload } = useCRM();
   const { user } = useAuth();
   const [letto, setLetto] = useState<EsitoLettura | null>(null);
+  //  Il rifiuto di un Excel resta scritto finché non si sceglie un altro file.
+  const [avviso, setAvviso] = useState("");
   const [lavoro, setLavoro] = useState<{ fatti: number; totale: number } | null>(null);
   const [fine, setFine] = useState<{
     inseriti: number;
@@ -505,12 +516,20 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
 
   const leggi = async (f: File) => {
     setFine(null);
+    setAvviso("");
     try {
-      const testo = await f.text();
-      const r = traduciCsv(testo);
+      //  I byte, non `f.text()`: il CSV del Centro lead di Meta può essere UTF-16.
+      const byte = new Uint8Array(await f.arrayBuffer());
+      if (eFileExcel(byte, f.name)) {
+        setLetto(null);
+        setAvviso(MESSAGGIO_FILE_EXCEL);
+        return;
+      }
+      const r = traduciCsv(leggiTestoFile(byte));
       setLetto({
         leads: r.leads,
-        colonneIgnorate: r.colonneIgnorate,
+        colonneConservate: r.colonneConservate,
+        intestazioniRiallineate: r.intestazioniRiallineate,
         scartate: r.scartate,
         nomeFile: f.name,
       });
@@ -534,9 +553,11 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
     //  per farsi respingere dal database a metà strada.
     const BLOCCO = 50;
     for (let i = 0; i < nuovi.length; i += BLOCCO) {
-      const parte = nuovi
-        .slice(i, i + BLOCCO)
-        .map((d) => ({ user_id: user.id, data: { ...d, importato: true } as never }));
+      const parte = nuovi.slice(i, i + BLOCCO).map((d) => ({
+        user_id: user.id,
+        //  Da quale file e quando, come in /CRM/importa.
+        data: { ...conListaOrigine(d, letto.nomeFile), importato: true } as never,
+      }));
       const { error } = await supabase.from("crm_leads").insert(parte as never);
       if (error) {
         console.error(error);
@@ -566,7 +587,7 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
         <input
           ref={fileRef}
           type="file"
-          accept=".csv,.tsv,.txt,text/csv"
+          accept=".csv,.tsv,.txt,text/csv,.xlsx,.xls"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -583,6 +604,15 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
             : "Formati: .csv · .tsv · .txt, con l'intestazione sulla prima riga"}
         </span>
       </div>
+
+      {avviso && (
+        <p
+          role="alert"
+          className="mt-3 flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50/40 px-3 py-2 text-[12px] leading-relaxed text-amber-900"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {avviso}
+        </p>
+      )}
 
       {letto && (
         <div className="mt-3 space-y-3">
@@ -620,22 +650,37 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
             />
           </KpiRiga>
 
-          {letto.colonneIgnorate.length > 0 && (
-            <p className="rounded-lg border border-amber-300 bg-amber-50/40 px-3 py-2 text-[12px] leading-relaxed text-amber-900">
-              Colonne del file rimaste fuori: <b>{letto.colonneIgnorate.join(", ")}</b>. Se una di
-              queste contiene un dato che ti serve, rinominala nel file (per esempio «telefono»,
-              «email», «città») e ricarica: non è stata ancora scritta nessuna riga.
+          {letto.intestazioniRiallineate > 0 && (
+            <p className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50/40 px-3 py-2 text-[12px] leading-relaxed text-amber-900">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Intestazioni spostate di {letto.intestazioniRiallineate}{" "}
+                {letto.intestazioniRiallineate === 1 ? "colonna" : "colonne"}: le ho rimesse a posto
+                guardando i dati. Controlla le righe qui sotto.
+              </span>
+            </p>
+          )}
+
+          {/*  Non è un guasto: le colonne che non sono diventate un campo
+              restano sulla scheda, in «Dati originali del file». */}
+          {letto.colonneConservate.length > 0 && (
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              <b className="text-foreground">Conservate ma non usate:</b>{" "}
+              {letto.colonneConservate.slice(0, 12).join(", ")}
+              {letto.colonneConservate.length > 12 &&
+                ` e altre ${letto.colonneConservate.length - 12}`}
+              . Restano sulla scheda, in «Dati originali del file».
             </p>
           )}
 
           {letto.leads.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[560px] text-left text-[12.5px]">
+              <table className="w-full min-w-[800px] text-left text-[12.5px]">
                 <thead className="border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    {COLONNE_ANTEPRIMA.map((c) => (
-                      <th key={String(c.chiave)} className="px-3 py-2 font-medium">
-                        {c.etichetta}
+                    {COLONNE_RIGA.map((c) => (
+                      <th key={c} className="px-3 py-2 font-medium">
+                        {c}
                       </th>
                     ))}
                   </tr>
@@ -643,9 +688,13 @@ function PannelloImportCsv({ onImportata }: { onImportata: () => void }) {
                 <tbody className="divide-y divide-border">
                   {letto.leads.slice(0, 5).map((d, i) => (
                     <tr key={i}>
-                      {COLONNE_ANTEPRIMA.map((c) => (
-                        <td key={String(c.chiave)} className="max-w-[180px] truncate px-3 py-2">
-                          {valoreAnteprima(d, c.chiave) || "—"}
+                      {celleRiga(d).map((v, k) => (
+                        <td
+                          key={k}
+                          className="max-w-[180px] truncate px-3 py-2"
+                          title={v || undefined}
+                        >
+                          {v || "—"}
                         </td>
                       ))}
                     </tr>

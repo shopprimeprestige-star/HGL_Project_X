@@ -28,10 +28,22 @@ import { useAuth } from "@/crm/AuthContext";
 import { useCRM } from "@/crm/CRMContext";
 import { mestieriDi } from "@/crm/kpi-setter";
 import { LEAD_STATUS_LABEL, type Lead, type LeadData } from "@/crm/types";
-import { Kpi, KpiRiga, dataBreve, etichettaStato } from "@/crm/ui";
+import { Kpi, KpiRiga } from "@/crm/ui";
 import { patchRicarico } from "@/crm/importa/ricarico";
 import {
+  COLONNE_ANTEPRIMA,
+  celleAnteprima,
+  fraseFileSenzaAnnunci,
+  fraseNelFile,
+  riepilogoImport,
+  type RiepilogoImport,
+} from "@/crm/importa/riepilogo-import";
+import {
+  MESSAGGIO_FILE_EXCEL,
+  conListaOrigine,
   dividiLead,
+  eFileExcel,
+  leggiTestoFile,
   noteDelLead,
   separaRitorni,
   traduciArchivio,
@@ -39,17 +51,6 @@ import {
   type ArchivioCrm,
   type EsitoTraduzione,
 } from "@/crm/import-backup";
-
-/** Le colonne dell'anteprima: cinque, quelle da cui si vede se un valore è
- *  finito nella casella sbagliata. Le altre quattro che c'erano prima non
- *  rispondevano a nessuna domanda che qualcuno si fa davanti a un CSV. */
-const COLONNE_ANTEPRIMA: { chiave: keyof LeadData; etichetta: string }[] = [
-  { chiave: "nome", etichetta: "Nome" },
-  { chiave: "cognome", etichetta: "Cognome" },
-  { chiave: "telefono", etichetta: "Telefono" },
-  { chiave: "citta", etichetta: "Città" },
-  { chiave: "stato", etichetta: "Stato" },
-];
 
 /** I campi che si sperano riconosciuti. L'ordine è quello dell'importanza: il
  *  telefono è la ragione per cui si carica una lista. */
@@ -71,12 +72,125 @@ const CAMPI_ATTESI: { chiave: keyof LeadData; etichetta: string }[] = [
   { chiave: "note", etichetta: "note" },
 ];
 
-function valoreAnteprima(d: LeadData, k: keyof LeadData): string {
-  const v = d[k];
-  if (v == null || v === "") return "";
-  if (k === "stato") return etichettaStato(String(v));
-  if (k === "createdAt") return dataBreve(String(v));
-  return String(v);
+/** ── «SUDDIVISO QUANDO IMPORTO» ─────────────────────────────────────────────
+ *  Prima di premere «Importa» si vede com'è fatta la lista: quante persone per
+ *  gruppo di inserzioni e per annuncio, e cosa hanno risposto alle domande del
+ *  modulo. Nessun conto qui: è `riepilogoImport`, con le stesse etichette dei
+ *  filtri della lista.
+ *  ⚠️ Gli elenchi lunghi scorrono dentro il loro riquadro (un file di Meta può
+ *   avere trenta annunci): l'anteprima non deve spingere il pulsante «Importa»
+ *   fuori dallo schermo. Le risposte oltre le prime sei si riassumono. */
+const RISPOSTE_VISIBILI = 6;
+
+function RiepilogoLista({
+  riepilogo,
+  nuove,
+  ritorni,
+}: {
+  riepilogo: RiepilogoImport;
+  nuove: number;
+  ritorni: number;
+}) {
+  const { perGruppo, perDomanda, senzaAnnuncio, annunciSenzaGruppo } = riepilogo;
+  const titolo = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+
+  if (perGruppo.length === 0 && senzaAnnuncio === 0 && perDomanda.length === 0) return null;
+
+  //  Un file fatto a mano: nessun annuncio e nessuna risposta del modulo. Due
+  //  riquadri vuoti sembrerebbero un guasto; una riga dice com'è.
+  if (perGruppo.length === 0 && perDomanda.length === 0) {
+    return (
+      <p className="rounded-lg border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
+        {fraseFileSenzaAnnunci(nuove + ritorni)}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/*  Il riepilogo conta tutte le persone del file, non solo le schede da
+          creare: lo si dice, o accanto a «Importa 30» si legge «BROAD 41». */}
+      <p className="text-[12px] text-muted-foreground">
+        <b className="text-foreground">Persone nel file:</b> {fraseNelFile(nuove, ritorni)}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <section aria-label="Per gruppo e annuncio" className="rounded-lg border border-border p-3">
+          <h3 className={titolo}>Per gruppo e annuncio</h3>
+          <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto text-[12.5px]">
+            {perGruppo.map((g) => (
+              <li key={g.gruppo}>
+                <div className="flex items-baseline justify-between gap-3 font-medium">
+                  <span className="truncate" title={g.gruppo}>
+                    {g.gruppo}
+                  </span>
+                  <span className="tabular-nums">{g.n}</span>
+                </div>
+                {g.annunci.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 pl-3 text-muted-foreground">
+                    {g.annunci.map((a) => (
+                      <li key={a.annuncio} className="flex items-baseline justify-between gap-3">
+                        <span className="truncate" title={a.annuncio}>
+                          {a.annuncio}
+                        </span>
+                        <span className="tabular-nums">{a.n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+            {senzaAnnuncio > 0 && (
+              <li>
+                <div className="flex items-baseline justify-between gap-3 font-medium">
+                  <span>Senza annuncio</span>
+                  <span className="tabular-nums">{senzaAnnuncio}</span>
+                </div>
+                {annunciSenzaGruppo.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 pl-3 text-muted-foreground">
+                    {annunciSenzaGruppo.map((a) => (
+                      <li key={a.annuncio} className="flex items-baseline justify-between gap-3">
+                        <span className="truncate" title={a.annuncio}>
+                          {a.annuncio}
+                        </span>
+                        <span className="tabular-nums">{a.n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )}
+          </ul>
+        </section>
+
+        <section aria-label="Per risposta" className="rounded-lg border border-border p-3">
+          <h3 className={titolo}>Per risposta</h3>
+          {perDomanda.length === 0 ? (
+            <p className="mt-2 text-[12.5px] text-muted-foreground">
+              Nel file non ci sono risposte del modulo.
+            </p>
+          ) : (
+            <dl className="mt-2 max-h-56 space-y-1.5 overflow-y-auto text-[12.5px]">
+              {perDomanda.map((d) => {
+                const altre = d.risposte.length - RISPOSTE_VISIBILI;
+                return (
+                  <div key={d.campo}>
+                    <dt className="inline font-medium">{d.titolo}: </dt>
+                    <dd className="inline text-muted-foreground">
+                      {d.risposte
+                        .slice(0, RISPOSTE_VISIBILI)
+                        .map((r) => `${r.etichetta} ${r.n}`)
+                        .join(" · ")}
+                      {altre > 0 && ` · e altre ${altre}`}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
 
 export function PannelloCarica({
@@ -97,7 +211,12 @@ export function PannelloCarica({
   const { user, consulente } = useAuth();
   const [esito, setEsito] = useState<EsitoTraduzione | null>(null);
   const [nomeFile, setNomeFile] = useState("");
-  const [colonneIgnorate, setColonneIgnorate] = useState<string[]>([]);
+  //  Cosa il file ha portato oltre le schede: le colonne tenute da parte,
+  //  di quante colonne era spostata l'intestazione, e l'eventuale rifiuto
+  //  (un Excel) che resta scritto finché non si sceglie un altro file.
+  const [conservate, setConservate] = useState<string[]>([]);
+  const [riallineate, setRiallineate] = useState(0);
+  const [avviso, setAvviso] = useState("");
   const [lavoro, setLavoro] = useState<{ fatti: number; totale: number } | null>(null);
   const [fine, setFine] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -108,6 +227,15 @@ export function PannelloCarica({
   const { nuovi, ritorni, ripetute } = useMemo(
     () => separaRitorni(esito?.leads ?? [], leads ?? []),
     [esito, leads],
+  );
+
+  /** Com'è fatta la lista che sta per entrare: per gruppo e annuncio, per
+   *  risposta. Si contano le PERSONE del file (nuove e di ritorno): anche
+   *  chi torna porta l'annuncio di stavolta, e un file fatto solo di ritorni
+   *  non deve mostrare un'anteprima vuota. */
+  const riepilogo = useMemo(
+    () => riepilogoImport([...nuovi, ...ritorni.map((r) => r.letto)]),
+    [nuovi, ritorni],
   );
 
   /** Quali campi sono arrivati pieni almeno una volta. È la sola domanda che
@@ -128,9 +256,22 @@ export function PannelloCarica({
 
   const leggi = async (f: File) => {
     setFine(null);
-    setColonneIgnorate([]);
+    setConservate([]);
+    setRiallineate(0);
+    setAvviso("");
     try {
-      const testo = await f.text();
+      //  I byte, non `f.text()`: il CSV scaricato dal Centro lead di Meta può
+      //  essere UTF-16, e letto come UTF-8 «non ha righe».
+      const byte = new Uint8Array(await f.arrayBuffer());
+      //  Un Excel non si legge, ma non basta dire «non leggibile»: si dice cosa
+      //  fare. Resta scritto sulla pagina (un avviso a tempo si perde).
+      if (eFileExcel(byte, f.name)) {
+        setEsito(null);
+        setNomeFile("");
+        setAvviso(MESSAGGIO_FILE_EXCEL);
+        return;
+      }
+      const testo = leggiTestoFile(byte);
       //  Dalla stessa porta entrano due cose diverse: una lista di contatti
       //  (CSV) e il backup completo di un CRM (JSON, con consulenti e spese).
       //  Si distinguono dall'estensione e, se manca, dalla prima parentesi.
@@ -147,7 +288,8 @@ export function PannelloCarica({
           statiTradotti: {},
           scartate: r.scartate,
         };
-        setColonneIgnorate(r.colonneIgnorate);
+        setConservate(r.colonneConservate);
+        setRiallineate(r.intestazioniRiallineate);
       } else {
         letto = traduciArchivio(JSON.parse(testo) as ArchivioCrm);
       }
@@ -208,7 +350,8 @@ export function PannelloCarica({
       const parte = nuovi.slice(i, i + BLOCCO).map((d) => ({
         user_id: user.id,
         data: {
-          ...d,
+          //  Da quale file e quando: serve a dire «dalla lista del 12/10».
+          ...conListaOrigine(d, fileDi),
           importato: true,
           ...(mioId && !d.consulenteId ? { consulenteId: mioId } : {}),
         } as never,
@@ -241,6 +384,9 @@ export function PannelloCarica({
          un'occasione in più di fallire a metà. */
     let segnati = 0;
     const idRitorni = ritorni.map((r) => r.scheda.id);
+    //  Cosa ha portato la riga del file: da quale annuncio è tornato e cosa ha
+    //  risposto stavolta. Va a `patchRicarico`, che riempie solo i buchi.
+    const lettoDi = new Map(ritorni.map((r) => [r.scheda.id, r.letto]));
     /*  ── ⚠️ SI SCRIVE COME SCRIVE TUTTO IL RESTO DEL CRM ────────────────
         Qui c'era una strada sua: si rileggeva un blocco di cinquanta schede e
         si faceva un `upsert`. Rileggere era già meglio di scrivere la copia a
@@ -270,7 +416,14 @@ export function PannelloCarica({
       //   pagina ha in memoria — che è vecchia di tutto il tempo
       //   dell'importazione.
       const esiti = await Promise.all(
-        onda.map((id) => updateLead(id, (attuale) => patchRicarico(attuale, fileDi))),
+        onda.map((id) =>
+          updateLead(id, (attuale) =>
+            patchRicarico(attuale, fileDi, new Date(), {
+              tracking: lettoDi.get(id)?.tracking,
+              modulo: lettoDi.get(id)?.modulo,
+            }),
+          ),
+        ),
       );
       const falliti = esiti.filter((ok) => !ok).length;
       segnati += esiti.length - falliti;
@@ -346,7 +499,7 @@ export function PannelloCarica({
         <input
           ref={fileRef}
           type="file"
-          accept="application/json,.json,.csv,.tsv,.txt,text/csv"
+          accept="application/json,.json,.csv,.tsv,.txt,text/csv,.xlsx,.xls"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -361,6 +514,15 @@ export function PannelloCarica({
           {nomeFile || "CSV o TSV di contatti · oppure il backup JSON di un CRM"}
         </span>
       </div>
+
+      {avviso && (
+        <p
+          role="alert"
+          className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50/40 px-2.5 py-1.5 text-[12.5px] text-amber-900"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {avviso}
+        </p>
+      )}
 
       {fine && (
         <p className="flex items-start gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12.5px] text-emerald-800">
@@ -383,7 +545,7 @@ export function PannelloCarica({
             <Kpi
               etichetta="Di ritorno"
               valore={ritorni.length}
-              nota="già in archivio: aspettano una decisione"
+              nota="già in archivio, da decidere"
               tono={ritorni.length > 0 ? "in_sospeso" : "neutro"}
             />
             <Kpi
@@ -398,16 +560,6 @@ export function PannelloCarica({
           <p className="text-[12px] leading-relaxed text-muted-foreground">
             <b className="text-foreground">Capiti:</b> {capiti.dentro.join(", ") || "nessun campo"}.
             {capiti.fuori.length > 0 && ` Vuoti o assenti: ${capiti.fuori.join(", ")}.`}
-            {colonneIgnorate.length > 0 && (
-              <>
-                {" "}
-                <AlertTriangle className="inline h-3.5 w-3.5 -translate-y-px text-amber-600" />{" "}
-                Colonne del file rimaste fuori:{" "}
-                <b className="text-foreground">{colonneIgnorate.join(", ")}</b>. Se una contiene un
-                dato che ti serve, rinominala nel file (per esempio «telefono», «email», «città») e
-                ricarica: nessuna riga è stata ancora scritta.
-              </>
-            )}
             {Object.keys(esito.statiTradotti).length > 0 && (
               <>
                 {" "}
@@ -420,15 +572,39 @@ export function PannelloCarica({
             )}
           </p>
 
+          {riallineate > 0 && (
+            <p className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50/40 px-2.5 py-1.5 text-[12.5px] text-amber-900">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Intestazioni spostate di {riallineate} {riallineate === 1 ? "colonna" : "colonne"}:
+                le ho rimesse a posto guardando i dati. Controlla le righe qui sotto.
+              </span>
+            </p>
+          )}
+
+          {/* ── COSA STA PER ENTRARE, DIVISO ───────────────────────────────── */}
+          <RiepilogoLista riepilogo={riepilogo} nuove={nuovi.length} ritorni={ritorni.length} />
+
+          {/*  Non è un guasto: niente di ciò che il file porta si perde. Le
+              colonne che non sono diventate un campo restano sulla scheda. */}
+          {conservate.length > 0 && (
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              <b className="text-foreground">Conservate ma non usate:</b>{" "}
+              {conservate.slice(0, 12).join(", ")}
+              {conservate.length > 12 && ` e altre ${conservate.length - 12}`}. Restano sulla
+              scheda, in «Dati originali del file».
+            </p>
+          )}
+
           {/* ── LE PRIME RIGHE, COME VERRANNO SCRITTE ─────────────────────── */}
           {esito.leads.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[520px] text-left text-[12.5px]">
+              <table className="w-full min-w-[560px] text-left text-[12.5px]">
                 <thead className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
                     {COLONNE_ANTEPRIMA.map((c) => (
-                      <th key={String(c.chiave)} className="px-3 py-1.5 font-medium">
-                        {c.etichetta}
+                      <th key={c} className="px-3 py-1.5 font-medium">
+                        {c}
                       </th>
                     ))}
                   </tr>
@@ -436,9 +612,13 @@ export function PannelloCarica({
                 <tbody className="divide-y divide-border">
                   {esito.leads.slice(0, 3).map((d, i) => (
                     <tr key={i}>
-                      {COLONNE_ANTEPRIMA.map((c) => (
-                        <td key={String(c.chiave)} className="max-w-[180px] truncate px-3 py-1.5">
-                          {valoreAnteprima(d, c.chiave) || "—"}
+                      {celleAnteprima(d).map((v, k) => (
+                        <td
+                          key={k}
+                          className="max-w-[180px] truncate px-3 py-1.5"
+                          title={v || undefined}
+                        >
+                          {v || "—"}
                         </td>
                       ))}
                     </tr>

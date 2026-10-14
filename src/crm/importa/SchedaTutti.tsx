@@ -107,8 +107,26 @@
  *  LOTTI, aggiornando il conteggio fra un lotto e l'altro: `avanzamento` è
  *  quel conto, e la barra lo mostra al posto del rifiuto. Il tetto resta come
  *  soglia da DIRE («sono più di 50, andrà a lotti»), non più come divieto.
+ *
+ *  ── ANNUNCIO E RISPOSTA: GLI STESSI DI «DA CHIAMARE» ──────────────────────
+ *  Chi ha importato duecento nomi da tre annunci vuole spezzarli per annuncio e
+ *  per risposta del modulo anche qui, dove si lavora a gruppi: «segna non
+ *  interessati tutti quelli del gruppo che non ha portato niente». Sono gli
+ *  stessi due menu della pagina «Da chiamare» (FiltriLista) con le stesse
+ *  regole (filtri-lista), e stanno nello stesso indirizzo: scegliere un
+ *  annuncio qui lo ritrova anche di là, e dopo una ricarica restano.
+ *  ⚠️ LO STATO E IL TEMPO DELL'INDIRIZZO NON SONO DI QUESTA SCHEDA. Qui ci sono
+ *   le pastiglie degli stati e «Da quando», con i loro conti: se lo Stato
+ *   «Promesse» scelto in «Da chiamare» filtrasse anche questo elenco, righe
+ *   sparirebbero senza che nessun filtro visibile lo dica. Si leggono dall'indirizzo
+ *   solo Annuncio e Risposta, e scrivendoli si tiene il resto com'è.
+ *  ⚠️ I NUMERI DICONO QUELLO CHE SI TROVA PREMENDO: le voci dei menu contano
+ *   dentro lo stato e il tempo già scelti qui, e le pastiglie contano dentro
+ *   Annuncio e Risposta. La selezione a gruppi lavora sulle righe che si vedono,
+ *   quindi dopo un filtro «Seleziona tutti» prende solo quelle.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { AlertTriangle, ChevronDown, ListChecks, Trash2, Undo2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -127,6 +145,7 @@ import {
   type Lead,
   type LeadData,
   type LeadStatus,
+  type RisposteModulo,
 } from "@/crm/types";
 //  Le due domande che dicono se uno stato può essere dato a venti schede
 //  insieme. Sono di chi possiede le finestre, non di questa scheda: il giorno in
@@ -157,6 +176,9 @@ import {
   prossimaAzione,
 } from "@/crm/ui";
 import { eSaltato } from "./saltati";
+//  I due menu e le regole sono quelli della pagina «Da chiamare».
+import { MenuAnnuncio, MenuRisposta } from "./FiltriLista";
+import { applicaFiltri, opzioniFiltri, type FiltriLista } from "./filtri-lista";
 //  La riga appena sistemata non sparisce sotto le dita: la regola sta lì.
 import { restaNellElenco, targhettaSistemato } from "./elenco-stabile";
 //  Chi si telefona oggi e chi aspetta la sua data: la stessa regola della coda.
@@ -227,12 +249,17 @@ export function SchedaTutti({
   onEliminaUno,
   onEliminaMolti,
   onApri,
+  moduloDi,
 }: {
   /** TUTTI i lead arrivati da una lista, senza nessun altro filtro. Il filtro
    *  lo fa questa scheda, e lo fa a vista: quale sia lo dicono le pastiglie in
    *  cima, accese. Arriva già filtrato per `importato` dalla pagina, che è
    *  l'unica cosa che «lead importato» vuol dire. */
   importati: Lead[];
+  /** Le risposte del modulo di un lead, già lette dalla pagina (una volta per
+   *  lead, `moduloLetto`): non si rileggono qui. Stessa funzione della lista
+   *  «Da chiamare», quindi stessi numeri nei menu. */
+  moduloDi: (d: Partial<LeadData>) => RisposteModulo | undefined;
   /** Chi è nella coda di oggi: serve solo a scriverlo sulla riga. La coda la
    *  calcola la pagina, e non si ricalcola qui — due idee di «chi è da
    *  chiamare» nella stessa schermata smettono presto di coincidere. */
@@ -350,6 +377,46 @@ export function SchedaTutti({
     [importati, restano, ancheSistemati],
   );
 
+  /** ── ANNUNCIO E RISPOSTA (vedi il cartello in cima) ─────────────────────
+   *  Dall'indirizzo si prendono solo questi due. `righeTutte` è ogni lead con
+   *  le risposte che la pagina ha già letto (`moduloDi`, una volta per lead); il `motivo` serve alla
+   *  forma della riga e non conta, perché Stato e tempo non entrano nel filtro. */
+  const filtri = useSearch({ from: "/CRM/importa" });
+  const navigate = useNavigate({ from: "/CRM/importa" });
+  const filtriQui = useMemo<FiltriLista>(
+    () => ({ annuncio: filtri.annuncio, risposte: filtri.risposte }),
+    [filtri.annuncio, filtri.risposte],
+  );
+  const nFiltriQui = (filtriQui.annuncio ? 1 : 0) + (filtriQui.risposte?.length ?? 0);
+  const righeTutte = useMemo(
+    () =>
+      importati.map((l) => ({
+        id: l.id,
+        data: l.data ?? ({} as LeadData),
+        motivo: "prima" as const,
+        modulo: moduloDi(l.data ?? {}),
+      })),
+    [importati, moduloDi],
+  );
+  /** Chi passa Annuncio e Risposta, fra TUTTI i lead importati. */
+  const passano = useMemo(
+    () => new Set(applicaFiltri(righeTutte, filtriQui, oggiQui).map((r) => r.id)),
+    [righeTutte, filtriQui, oggiQui],
+  );
+  /** L'elenco di prima, già ristretto: da qui in giù tutti i conti partono da lui. */
+  const baseFiltrata = useMemo(() => base.filter((l) => passano.has(l.id)), [base, passano]);
+  /** Le voci dei menu e i loro numeri: contano dentro lo stato e il tempo scelti
+   *  in questa scheda, e ognuna con l'altro filtro già acceso. */
+  const opzioni = useMemo(() => {
+    const perId = new Map(righeTutte.map((r) => [r.id, r]));
+    const righeMenu = base
+      .filter(
+        (l) => (!filtro || l.data?.stato === filtro) && dentroLaFetta(l.data, quando, oggiQui),
+      )
+      .flatMap((l) => perId.get(l.id) ?? []);
+    return opzioniFiltri(righeMenu, filtriQui, oggiQui);
+  }, [righeTutte, base, filtro, quando, oggiQui, filtriQui]);
+
   /** Quanti per stato, sull'elenco INTERO: il numero sulla pastiglia deve dire
    *  quanti ne troverò premendola, quindi non può essere calcolato su un elenco
    *  già filtrato da lei stessa. */
@@ -359,23 +426,23 @@ export function SchedaTutti({
   //   guarda più nessuno. È la stessa regola della coda di chiamata.
   const conteggi = useMemo(() => {
     const m = new Map<string, number>();
-    for (const l of base) {
+    for (const l of baseFiltrata) {
       if (!dentroLaFetta(l.data, quando, oggiQui)) continue;
       const s = String(l.data?.stato ?? "");
       m.set(s, (m.get(s) ?? 0) + 1);
     }
     return m;
-  }, [base, quando, oggiQui]);
+  }, [baseFiltrata, quando, oggiQui]);
 
   /** Quanti per fetta di tempo, dentro lo stato scelto: il verso opposto. */
   const contiQuando = useMemo(() => {
-    const perStato = filtro ? base.filter((l) => l.data?.stato === filtro) : base;
+    const perStato = filtro ? baseFiltrata.filter((l) => l.data?.stato === filtro) : baseFiltrata;
     const m = new Map<FettaTempo, number>();
     for (const q of FETTE_TEMPO) {
       m.set(q, perStato.filter((l) => dentroLaFetta(l.data, q, oggiQui)).length);
     }
     return m;
-  }, [base, filtro, oggiQui]);
+  }, [baseFiltrata, filtro, oggiQui]);
 
   /** Le pastiglie: solo gli stati presenti, nell'ordine canonico di crm/types.
    *  ⚠️ QUELLA ACCESA C'È SEMPRE, anche se la coda lunga l'avrebbe tagliata
@@ -397,11 +464,11 @@ export function SchedaTutti({
    *  della vista da cui la si guarda. È anche l'ordine su cui Maiusc+clic
    *  calcola il blocco — «da qui a lì» vuol dire quello che si vede. */
   const righe = useMemo(() => {
-    const scelte = base.filter(
+    const scelte = baseFiltrata.filter(
       (l) => (!filtro || l.data?.stato === filtro) && dentroLaFetta(l.data, quando, oggiQui),
     );
     return ordinaPerUrgenza(scelte);
-  }, [base, filtro, quando, oggiQui]);
+  }, [baseFiltrata, filtro, quando, oggiQui]);
 
   const {
     selezione,
@@ -467,6 +534,19 @@ export function SchedaTutti({
     //   continua a dire il numero giusto, perché conta solo quello che si vede.
     annullaConferme();
     setFiltro(s);
+  };
+  /** Scrive Annuncio e Risposta nell'indirizzo, tenendo il resto (Stato e tempo
+   *  della pagina «Da chiamare») com'è, senza chiavi vuote e senza riempire la
+   *  cronologia. Come per le pastiglie la selezione non si svuota: si ricalcola
+   *  sulle righe che restano. */
+  const cambiaFiltriQui = (f: FiltriLista) => {
+    annullaConferme();
+    const search: Record<string, unknown> = { ...filtri };
+    delete search.annuncio;
+    delete search.risposte;
+    if (f.annuncio) search.annuncio = f.annuncio;
+    if (f.risposte?.length) search.risposte = f.risposte;
+    void navigate({ search: search as never, replace: true });
   };
 
   /** Propone uno stato dal menu di gruppo. Passa da qui e non da `setProposto`
@@ -548,6 +628,11 @@ export function SchedaTutti({
     }
   };
 
+  /** Dice che l'elenco è ristretto da Annuncio/Risposta: senza, «12 su 200» non
+   *  spiega dove sono finiti gli altri. */
+  const suFiltri =
+    nFiltriQui > 0 ? ` (su ${importati.length} importati, filtrati per annuncio o risposta)` : "";
+
   if (importati.length === 0) {
     return (
       <Vuoto
@@ -564,10 +649,10 @@ export function SchedaTutti({
         titolo={ancheSistemati ? "Tutti i lead importati" : "Da chiamare, di tutte le liste"}
         nota={
           filtro
-            ? `${righe.length} con stato «${etichettaStato(filtro)}» su ${base.length}`
+            ? `${righe.length} con stato «${etichettaStato(filtro)}» su ${baseFiltrata.length}${suFiltri}`
             : ancheSistemati
-              ? `${importati.length} arrivati da una lista, compresi i già sistemati · clic sulla riga per prenderla, Maiusc+clic per un blocco, clic sullo stato per cambiarlo`
-              : `${base.length} con la prima chiamata ancora aperta · clic sulla riga per prenderla, Maiusc+clic per un blocco, clic sullo stato per cambiarlo`
+              ? `${passano.size} arrivati da una lista, compresi i già sistemati${suFiltri} · clic sulla riga per prenderla, Maiusc+clic per un blocco, clic sullo stato per cambiarlo`
+              : `${baseFiltrata.length} con la prima chiamata ancora aperta${suFiltri} · clic sulla riga per prenderla, Maiusc+clic per un blocco, clic sullo stato per cambiarlo`
         }
         icona={ListChecks}
         azioni={
@@ -592,7 +677,7 @@ export function SchedaTutti({
               <>
                 <Segmento
                   attivo={!ancheSistemati}
-                  conteggio={daChiamare.length}
+                  conteggio={daChiamare.filter((l) => passano.has(l.id)).length}
                   onClick={() => setAncheSistemati(false)}
                   titolo="Solo chi si telefona OGGI: la prima chiamata è ancora aperta e non c'è una promessa per un altro giorno. Chi hai rimandato torna qui il giorno che gli hai detto"
                 >
@@ -600,7 +685,7 @@ export function SchedaTutti({
                 </Segmento>
                 <Segmento
                   attivo={ancheSistemati}
-                  conteggio={importati.length}
+                  conteggio={passano.size}
                   onClick={() => setAncheSistemati(true)}
                   titolo="Tutti i contatti arrivati da una lista, in qualunque stato: appuntamenti fissati, vendite chiuse, chi ha già detto di no e chi aspetta la sua data di richiamo"
                 >
@@ -649,7 +734,7 @@ export function SchedaTutti({
           <Segmento
             attivo={filtro === null}
             onClick={() => cambiaFiltro(null)}
-            conteggio={importati.length}
+            conteggio={passano.size}
             disabilitato={occupato}
             titolo="Tutti i contatti arrivati da una lista, qualunque stato abbiano"
           >
@@ -669,6 +754,41 @@ export function SchedaTutti({
           ))}
         </div>
 
+        {/* ── ANNUNCIO E RISPOSTA ─────────────────────────────────────────
+            Gli stessi due menu di «Da chiamare»: stessa forma, stessi numeri,
+            stesso indirizzo. Compaiono solo se c'è qualcosa da scegliere (liste
+            senza annuncio né risposte non ne hanno bisogno) o se un filtro è
+            già acceso — anche per un annuncio che non c'è più, per poterlo
+            spegnere.
+            ⚠️ SPENTI MENTRE UNA SCRITTURA DI GRUPPO LAVORA, per lo stesso
+             motivo delle pastiglie: cambiare la fetta a metà di un lotto porta
+             a zero la selezione e con lei sparisce il conto «Scrivo… 40/300».
+             Un <fieldset disabled> spegne anche la tastiera, non solo il clic. */}
+        {(opzioni.annuncio.length > 0 || opzioni.risposte.length > 0 || nFiltriQui > 0) && (
+          <fieldset
+            disabled={occupato}
+            className={cn(
+              "flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2",
+              occupato && "opacity-50",
+            )}
+          >
+            <legend className="sr-only">Filtra per annuncio e per risposta del modulo</legend>
+            <MenuAnnuncio filtri={filtriQui} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            <MenuRisposta filtri={filtriQui} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            {nFiltriQui > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-[12px] text-muted-foreground hover:text-foreground"
+                onClick={() => cambiaFiltriQui({})}
+              >
+                Azzera annuncio e risposta
+              </Button>
+            )}
+          </fieldset>
+        )}
+
         {/* ── ⚠️ DA QUANDO ─────────────────────────────────────────────────
             Richiesta del committente: il filtro sul tempo c'era solo sulla
             coda di chiamata, quella che porta avanti una persona per volta.
@@ -686,7 +806,7 @@ export function SchedaTutti({
              delle pastiglie qui sopra: cambiare la fetta di elenco a metà di
              un lotto porta a zero la selezione e con lei sparisce la barra che
              dice «Scrivo… 40/300». */}
-        {(contiQuando.get("oggi") ?? 0) !== base.length && (
+        {(contiQuando.get("oggi") ?? 0) !== baseFiltrata.length && (
           <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-1.5">
             <span className="pr-0.5 text-[11px] uppercase tracking-wide text-muted-foreground/70">
               Da quando

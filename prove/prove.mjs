@@ -296,6 +296,9 @@ const MODULI = [
   //  ⚠️ Chi si telefona oggi e chi aspetta la sua data di richiamo. Vedi
   //   proveDiChiSiTelefonaOggi.
   "importa/da-telefonare",
+  //  ⚠️ Chi si chiama per primo e perché: l'ordine che vede la setter. Vedi
+  //   proveDiChiChiamare.
+  "importa/chi-chiamare",
   //  ⚠️ Lo stesso numero scritto in dieci modi è lo stesso numero. Vedi
   //   proveDelTelefonoDoppio.
   "telefono-doppio",
@@ -447,6 +450,10 @@ const MODULI = [
   "shop/conta-suoni",
   "chi-ha-fissato",
   "importa/reparti",
+  //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
+  //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
+  "importa/filtri-lista",
+  "importa/riepilogo-import",
   //  ⚠️ Il riquadro del cliente che spariva e tornava ogni pochi secondi:
   //   vedi proveDelRestaInLista.
   "shop/resta-in-lista",
@@ -619,6 +626,8 @@ const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
 const FISSA = mod["chi-ha-fissato"];
 const REP = mod["importa/reparti"];
+const FIL = mod["importa/filtri-lista"];
+const RIE = mod["importa/riepilogo-import"];
 const COPIA = mod["copia-sezioni"];
 const ANT = mod["shop/anteprima-quanto-dura"];
 const LNM = mod["preventivi/link-nei-messaggi"];
@@ -630,6 +639,7 @@ const OSP = mod["shop/ospiti"];
 const SPM = mod["spostamento-meet"];
 const DOPPI = mod["doppioni"];
 const RIC = mod["importa/ricarico"];
+const CHIAM = mod["importa/chi-chiamare"];
 const RIP = mod["importa/ripesca"];
 const STAB = mod["importa/elenco-stabile"];
 const NOTA = mod["importa/nota-breve"];
@@ -3051,7 +3061,11 @@ function proveDegliHook() {
     "src/webinar/FasciaRelatori.tsx",
     "src/routes/webinar_.$code.tsx",
     "src/routes/regia_.$codice.tsx",
+    //  «Tutta la lista» ha i suoi filtri Annuncio e Risposta (hook di Radix e di
+    //   TanStack Router): un hook sotto l'uscita «Nessuna lista importata» la spegne.
+    "src/crm/importa/SchedaTutti.tsx",
     "src/crm/fatture/BadgeDaFatturare.tsx",
+    "src/crm/LeadDialog.tsx",
     //  ⚠️ AGGIUNTO DOPO AVERCI SBATTUTO CONTRO. Questo file ha un cartello
     //   dentro che dice «tutti gli hook stanno sopra questa riga, è già
     //   successo una volta»: ci ho messo un useState sotto lo stesso, e la
@@ -3061,6 +3075,18 @@ function proveDegliHook() {
     "src/shop/PresenterBar.tsx",
     "src/routes/prova-capelli.tsx",
     "src/routes/CRM.prova-capelli.tsx",
+    //  ⚠️ LA PAGINA DEI LEAD IMPORTATI E I SUOI PEZZI. Un hook sotto
+    //   un'uscita anticipata qui spegne la pagina del setter in piena giornata
+    //   di telefonate (la lista è 4.000 righe di componente unico).
+    "src/routes/CRM.importa.tsx",
+    "src/crm/importa/FiltriLista.tsx",
+    "src/crm/importa/RigaChiamata.tsx",
+    "src/crm/importa/MenuAltro.tsx",
+    //  ⚠️ L'ANTEPRIMA DEI FILE E LA SCHEDA CHE LA RIUSA (T8): il pannello ha
+    //   tutti gli hook in cima e un'uscita anticipata e' facile da aggiungere
+    //   quando si pensa a «nessun file scelto».
+    "src/crm/importa/PannelloCarica.tsx",
+    "src/crm/kpi/DaFareScheda.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -3082,6 +3108,76 @@ function proveDegliHook() {
     }
   }
   c("nessun hook sotto un'uscita anticipata", "", colpevoli.join(" | "));
+}
+
+/** ── «TUTTA LA LISTA» CON I FILTRI ANNUNCIO E RISPOSTA ─────────────────────
+ *
+ *  Gli stessi due menu e le stesse regole della pagina «Da chiamare»
+ *  (FiltriLista.tsx, filtri-lista.ts), e lo stesso indirizzo: scegliere un
+ *  annuncio qui lo ritrova anche di là. Lo Stato e il tempo restano della
+ *  scheda (le sue pastiglie): non si leggono dall'indirizzo, o «Promesse»
+ *  scelto in «Da chiamare» farebbe sparire righe da un elenco che non ha
+ *  quel filtro. Si leggono invece i sorgenti, perché sono proprietà del codice. */
+function proveDellaListaIntera() {
+  gruppo("TUTTA LA LISTA: FILTRI ANNUNCIO E RISPOSTA");
+  const src = readFileSync("src/crm/importa/SchedaTutti.tsx", "utf8");
+  const menu = readFileSync("src/crm/importa/FiltriLista.tsx", "utf8");
+
+  //  ── Si riusano i menu di Radix della pagina, non se ne fanno di nuovi ───
+  c("i menu Annuncio e Risposta sono quelli di FiltriLista.tsx", true,
+    /import \{[^}]*\bMenuAnnuncio\b[^}]*\bMenuRisposta\b[^}]*\} from "\.\/FiltriLista"/s.test(src) ||
+      /import \{[^}]*\bMenuRisposta\b[^}]*\bMenuAnnuncio\b[^}]*\} from "\.\/FiltriLista"/s.test(src));
+  c("e FiltriLista.tsx li esporta", true,
+    /export function MenuAnnuncio\b/.test(menu) && /export function MenuRisposta\b/.test(menu));
+  c("le regole sono quelle di filtri-lista (applicaFiltri, opzioniFiltri)", true,
+    /\bapplicaFiltri\(/.test(src) && /\bopzioniFiltri\(/.test(src));
+  c("nessun menu fatto a mano", false, /<select\b|role="(listbox|menu)"/.test(src));
+
+  //  ── I filtri stanno nell'indirizzo, e si scrivono senza riempire la cronologia
+  c("i filtri si leggono dall'indirizzo", true, /\buseSearch\(\{\s*from: "\/CRM\/importa"/.test(src));
+  c("e si scrivono con replace, tenendo Stato e tempo della pagina", true,
+    /\breplace: true\b/.test(src) && /\.\.\.filtri\b/.test(src));
+  //  Lo Stato dell'indirizzo non è di questa scheda: nei conti entrano solo
+  //  Annuncio e Risposta.
+  c("Stato e tempo dell'indirizzo non filtrano questa scheda", true,
+    /\{\s*annuncio: filtri\.annuncio,\s*risposte: filtri\.risposte\s*\}/.test(src));
+
+  //  ── Il comportamento: lo stesso dei sei lead della prova di T4 ─────────
+  const { applicaFiltri, opzioniFiltri } = FIL;
+  const L = (id, ad, adset, problema) => ({
+    id,
+    data: { importato: true, nome: id, tracking: adset ? { ad_name: ad, adset_name: adset } : undefined },
+    motivo: "prima",
+    modulo: problema ? { problema } : undefined,
+  });
+  const righe = [
+    L("a1-areata-1", "A1", "G1", "areata"),
+    L("a1-areata-2", "A1", "G1", "areata"),
+    L("a1-andro", "A1", "G1", "androgenetica"),
+    L("a2-areata-1", "A2", "G1", "areata"),
+    L("a2-areata-2", "A2", "G1", "areata"),
+    L("senza", undefined, undefined, undefined),
+  ];
+  const OGGI = "2026-10-12";
+  const annA1 = "a:G1\u241fA1";
+  c("senza filtri si vedono tutte le righe", 6, applicaFiltri(righe, {}, OGGI).length);
+  c("il filtro per annuncio riduce le righe", 3, applicaFiltri(righe, { annuncio: annA1 }, OGGI).length);
+  c("annuncio e risposta insieme (E)", 2,
+    applicaFiltri(righe, { annuncio: annA1, risposte: ["problema|areata"] }, OGGI).length);
+  //  Lo Stato dell'indirizzo, se arrivasse, farebbe sparire righe: la scheda
+  //  non lo passa (vedi sopra). Qui si fissa perché.
+  c("con lo Stato «promesse» le stesse righe sparirebbero", 0,
+    applicaFiltri(righe, { annuncio: annA1, stato: "promesse" }, OGGI).length);
+  const op = opzioniFiltri(righe, { annuncio: annA1 }, OGGI);
+  c("i numeri della Risposta contano dentro l'annuncio scelto", "androgenetica:1,areata:2",
+    op.risposte.find((r) => r.campo === "problema").voci.map((v) => `${v.chiave.split("|")[1]}:${v.n}`).sort().join(","));
+  c("i numeri dell'Annuncio ignorano il proprio filtro (A1 3, A2 2)", "3,2",
+    op.annuncio.find((g) => g.chiave === "g:G1").annunci.map((a) => a.n).join(","));
+  //  Un annuncio che non c'è più: elenco vuoto, ma la voce resta e si spegne.
+  const orfano = opzioniFiltri(righe, { annuncio: "a:G1\u241fSPENTO" }, OGGI);
+  c("un annuncio sparito dà zero righe", 0, applicaFiltri(righe, { annuncio: "a:G1\u241fSPENTO" }, OGGI).length);
+  c("ma la sua voce resta nel menu, a zero", 0,
+    orfano.annuncio.find((g) => g.chiave === "g:G1").annunci.find((a) => a.annuncio === "SPENTO")?.n);
 }
 
 /** ── NESSUNA CHIAMATA AL CRM SENZA CREDENZIALI ─────────────────────────────
@@ -3182,6 +3278,65 @@ function proveDelleChiamateCRM() {
     (fasce.match(/fetchCRM\(/g) || []).length);
   c("e non resta nessun fetch nudo lì dentro", 0,
     (fasce.match(/(?<![A-Za-z0-9_$])fetch\s*\(/g) || []).length);
+}
+
+/** ── NIENTE DATI VERI NELLE PROVE ─────────────────────────────────────────
+ *  Le prove copiavano righe di file veri: nomi, email e cellulari di persone
+ *  che hanno compilato un modulo. Il repository è pubblico, quindi quei dati
+ *  erano pubblici. Qui si controllano le due cose che si riconoscono da
+ *  sole: gli indirizzi dei gestori di posta e i cellulari italiani.
+ *  ⚠️ Un telefono è ammesso solo se si vede che è finto: `333000xxxx`, o una
+ *   sequenza ovvia (1234567, 9876543, quattro cifre uguali di fila). Tutto il
+ *   resto è un numero che potrebbe rispondere.
+ *  ⚠️ I nomi non si possono riconoscere da una regola: restano a chi scrive
+ *   (e al revisore). Gli indirizzi giusti sono `@example.com`. */
+function proveDeiDatiFinti() {
+  const FILE_CONTROLLATI = ["prove/prove.mjs", "src/crm/import-backup.ts"];
+  const POSTA = /@(gmail|libero|hotmail|yahoo|icloud|outlook|live|alice|tiscali|virgilio)\./gi;
+  //  Cellulare italiano fra due non-cifre: gli identificativi di Facebook
+  //  (sedici cifre) e le date non possono combaciare, perché il numero deve
+  //  finire dopo 3-4 cifre di coda e senza altre cifre attaccate.
+  const CELLULARE = /(?<![0-9])((?:\+39|0039)?\s?3\d{2}[\s.-]?\d{3}[\s.-]?\d{3,4})(?![0-9])/g;
+  const evidenteMenteFinto = (numero) => {
+    const cifre = numero.replace(/^(\+39|0039)/, "").replace(/\D/g, "");
+    return /^333000/.test(cifre) || /1234567|9876543/.test(cifre) || /(\d)\1{3}/.test(cifre);
+  };
+
+  //  L'identificativo del lead di Meta (`l:` + sedici cifre) identifica la
+  //  persona che ha compilato il modulo: nelle prove sono ammessi solo quelli
+  //  costruiti: un uno, tredici zeri e due cifre (sedici in tutto).
+  const ID_META = /(?<![A-Za-z0-9])l:(\d{10,})/g;
+  const email = [];
+  const telefoni = [];
+  const identificativi = [];
+  let righeLette = 0;
+  for (const f of FILE_CONTROLLATI) {
+    const righe = readFileSync(f, "utf8").split("\n");
+    righeLette += righe.length;
+    righe.forEach((riga, i) => {
+      if (POSTA.test(riga)) email.push(`${f}:${i + 1}`);
+      POSTA.lastIndex = 0;
+      for (const m of riga.matchAll(ID_META)) {
+        if (!/^10000000000000\d\d$/.test(m[1])) identificativi.push(`${f}:${i + 1}`);
+      }
+      for (const m of riga.matchAll(CELLULARE)) {
+        if (!evidenteMenteFinto(m[1])) telefoni.push(`${f}:${i + 1}`);
+      }
+    });
+  }
+  //  Un controllo che non legge niente passerebbe sempre.
+  c("i due file si leggono davvero", true, righeLette > 1000);
+  c("nessuna email di un gestore vero", "", email.join(" | "));
+  c("nessun cellulare che sembri vero", "", [...new Set(telefoni)].join(" | "));
+  c("nessun identificativo di lead di Meta vero", "", [...new Set(identificativi)].join(" | "));
+  //  Il controllo stesso riconosce quello che deve (altrimenti passa a vuoto).
+  c("un cellulare con prefisso vero è visto", false, evidenteMenteFinto(["+39", "340", "555", "8921"].join(" ")));
+  c("un cellulare a dieci cifre vero è visto", false, evidenteMenteFinto(["340", "555", "8921"].join("")));
+  c("333000xxxx è finto", true, evidenteMenteFinto("+393330000101"));
+  c("una sequenza ovvia è finta", true, evidenteMenteFinto("339 1234567"));
+  c("quattro cifre uguali sono finte", true, evidenteMenteFinto("3331112222"));
+  c("l'indirizzo di prova non è un gestore", false, POSTA.test("mario@example.com"));
+  POSTA.lastIndex = 0;
 }
 
 
@@ -3438,7 +3593,7 @@ function proveDelFoglioInstallazioni() {
   c("una data col punto non e' un'ora", "", oraDaCella("27.11.05"));
 
   /*  ── IL TELEFONO ────────────────────────────────────────────────────── */
-  c("un numero e' un numero", "351 324 4425", telefonoDaCella("351 324 4425"));
+  c("un numero e' un numero", "333 000 0101", telefonoDaCella("333 000 0101"));
   //  ⚠️ Almeno otto cifre: «0,03» e' uno spessore e «20» un prezzo, e presi
   //   per telefono farebbero nascere schede fantasma.
   c("uno spessore non e' un telefono", "", telefonoDaCella("0,03"));
@@ -3446,12 +3601,12 @@ function proveDelFoglioInstallazioni() {
 
   /*  ── UNA RIGA INTERA ────────────────────────────────────────────────── */
   const r = interpretaRiga([
-    "Maurizio Baio", "3494110105", "maurizio.baio@gmail.com", "189", "€589",
+    "Mario Esempio", "3330000102", "mario.esempio@example.com", "189", "€589",
     "7.1 40% di bianco 0.04mm", "", "19/04/26", "14:00", "", "", "", "", "", "",
   ]);
-  c("prende il nome", "Maurizio Baio", r.nome);
-  c("prende il telefono", "3494110105", r.telefono);
-  c("prende l'email", "maurizio.baio@gmail.com", r.email);
+  c("prende il nome", "Mario Esempio", r.nome);
+  c("prende il telefono", "3330000102", r.telefono);
+  c("prende l'email", "mario.esempio@example.com", r.email);
   c("prende l'acconto", 189, r.pagato);
   c("prende il prezzo", 589, r.totale);
   c("trova la data dove capita", "2026-04-19", r.dataInstallazione);
@@ -3459,12 +3614,12 @@ function proveDelFoglioInstallazioni() {
   //  Tutto il resto finisce nelle note: e' quello che il committente ha
   //  chiesto di non perdere.
   c("il modello finisce nelle note", true, r.note.includes("7.1 40% di bianco"));
-  c("e i dati gia' presi non ci finiscono", false, r.note.includes("3494110105"));
+  c("e i dati gia' presi non ci finiscono", false, r.note.includes("3330000102"));
 
   //  ⚠️ La data puo' stare in fondo alla riga: sul foglio vero e' nella
   //   tredicesima colonna su certe righe e nella settima su altre.
   const tardi = interpretaRiga([
-    "Maurizio Montemagno", "331 577 2594", "", "100", "€589", "", "", "", "", "",
+    "Luca Prova", "333 000 0103", "", "100", "€589", "", "", "", "", "",
     "16/02 ALLE ORE: QUALSIASI", "", "16/03/26", "dare kit provvisorio", "",
   ]);
   c("la data si trova anche in fondo", "2026-03-16", tardi.dataInstallazione);
@@ -3478,9 +3633,9 @@ function proveDelFoglioInstallazioni() {
   /*  ── IL FOGLIO INTERO ───────────────────────────────────────────────── */
   const foglio = [
     "Nome e Cognome,Telefono,E-mail,Pagato,Importo Totale,Modello/Prodotto,Nota",
-    "Mario Rossi,3491112223,,100,€589,1b40,,19/04/26,10:00",
+    "Mario Rossi,3330000104,,100,€589,1b40,,19/04/26,10:00",
     ",,,,,,",
-    "Luigi Bianchi,3492223334,,50 + 350,289 x2,castano,,",
+    "Luigi Bianchi,3330000105,,50 + 350,289 x2,castano,,",
   ].join("\n");
   const esito = importaCsv(foglio);
   c("legge due pratiche", 2, esito.righe.length);
@@ -3602,7 +3757,7 @@ function proveDelDivario() {
 
 /** ── LO STATO SCELTO A MANO VINCE SULLA REGOLA AUTOMATICA ─────────────────
  *  ⚠️ Segnalazione del committente: da «Acconto incassato» non si riusciva a
- *   passare a nessun altro stato. La conferma compariva — «Michele Porrozzi →
+ *   passare a nessun altro stato. La conferma compariva — «Mario Esempio →
  *   Cliente assente» — e la riga restava com'era: la scrittura partiva e
  *   `applyAutoStatus` la riportava indietro perche' in cassa c'erano dei soldi.
  *   Un guasto cosi' non si vede da nessuna parte: nessun errore, nessuna riga
@@ -3988,19 +4143,19 @@ function proveDelCanale() {
   c("e il tracciato non va sotto zero", 0, divisioneMovimento(430, 600).tracciato);
 
   /*  ── ⚠️ IL CASO CHE HA FATTO NASCERE QUESTO FILE ───────────────────────
-      Michele Porrozzi: prezzo 530, versati 100, alla vendita dichiarati 250 in
-      contanti sul totale. Adesso salda 430, tutti in contanti. Sommando le due
-      dichiarazioni verrebbero 680 di contanti su una pratica da 530. */
+      Mario Esempio: prezzo 600, versati 100, alla vendita dichiarati 250 in
+      contanti sul totale. Adesso salda 500, tutti in contanti. Sommando le due
+      dichiarazioni verrebbero 750 di contanti su una pratica da 600. */
   const mp = canaleDopoIncasso({
     versatoPrima: 100,
-    tracciatoPrima: 280,
+    tracciatoPrima: 350,
     contantiPrima: 250,
-    incassato: 430,
-    contantiOra: 430,
+    incassato: 500,
+    contantiOra: 500,
   });
-  c("i contanti non superano il prezzo", true, mp.contanti + mp.tracciato <= 530.01);
-  c("della vendita vale solo la quota gia' entrata", 100, Math.round((mp.contanti + mp.tracciato - 430) * 100) / 100);
-  c("e il saldo di adesso vale per intero", true, mp.contanti >= 430);
+  c("i contanti non superano il prezzo", true, mp.contanti + mp.tracciato <= 600.01);
+  c("della vendita vale solo la quota gia' entrata", 100, Math.round((mp.contanti + mp.tracciato - 500) * 100) / 100);
+  c("e il saldo di adesso vale per intero", true, mp.contanti >= 500);
 
   /*  ── SENZA DICHIARAZIONE ALLA VENDITA ──────────────────────────────────
       La parte gia' in cassa resta NON attribuita: nessuno ha mai detto com'e'
@@ -4333,6 +4488,16 @@ function proveDelQuandoStato() {
   c("e nemmeno la settimana", false, dentroLaFetta({}, "settimana", OGGI));
 }
 
+/** Il file vero di Meta, ridotto a tre righe con dati FINTI (il repository è pubblico):
+ *  19 intestazioni e 19 valori che non combaciano, dalla dodicesima colonna in
+ *  poi l'intestazione è spostata di una. */
+const META_STORTO = [
+  "  ,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,lead_status,che_problematica_hai?",
+  'l:1000000000000001,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Mario Esempio,mario.esempio@example.com,p:+393330000101,',
+  'l:1000000000000002,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Anna Prova,anna.prova@example.com,p:+393330000102,',
+  'l:1000000000000003,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,pinco,pinco@example.com,p:0200000001,',
+].join("\n");
+
 /** ── LEGGERE UNA LISTA DI CONTATTI ────────────────────────────────────────
  *  ⚠️ Il file che ha fatto nascere queste prove e' una lista Meta passata da
  *   Fogli Google: diciannove colonne di intestazione, diciannove valori per
@@ -4388,30 +4553,25 @@ function proveDellaListaImportata() {
   c("la scheda in archivio si ritrova col numero scritto diverso", 1, esito3.ritorni.length);
   c("e non si crea niente di nuovo", 0, esito3.nuovi.length);
 
-  //  Il file vero, ridotto a tre righe: stessa intestazione, stesso scarto.
-  const META_STORTO = [
-    "  ,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,lead_status,che_problematica_hai?",
-    'l:2055445158436359,2026-09-21T01:33:01-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_androgenetica,abbastanza_,nulla,Michele Ruggiero,leleruggiero@gmail.com,p:+393473478192,',
-    'l:1116838917697560,2026-09-21T01:37:25-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,ig,alopecia_areata,abbastanza_,trapianto,Valter Ciaparrone,valtercia06@gmail.com,p:+393883733705,',
-    'l:1682429130145308,2026-09-21T01:37:38-05:00,ag:1202518,589\u20ac - 001 - ok,as:1202518,BROAD | ITALIA,c:1202518,Hair Genius | Copy 2,f:928920,"Modulo senza titolo 30/11/24, 01:36",false,fb,alopecia_areata,poco,nulla,antonio,ingrassiaa528@gmail.com,p:0277002845,',
-  ].join("\n");
+  //  Il file vero, ridotto a tre righe: stessa intestazione, stesso scarto
+  //  (`META_STORTO`, sopra la funzione: lo usano anche le prove del riallineamento).
   const m = traduciCsv(META_STORTO);
   c("legge tutte le righe, non ne scarta nessuna", 3, m.leads.length);
   c("nessuna scartata", 0, m.scartate);
 
   //  ⚠️ IL NOME. L'intestazione lo mette sotto «email»; guardando i dati si
   //   trova dov'e' davvero. E «full_name» e' una casella sola: si divide.
-  c("il nome arriva giusto", "Michele", m.leads[0].nome);
-  c("e il cognome pure", "Ruggiero", m.leads[0].cognome);
-  //  Un nome di una parola sola resta una persona: «antonio» e' in quel file.
-  c("un nome solo resta un nome", "antonio", m.leads[2].nome);
+  c("il nome arriva giusto", "Mario", m.leads[0].nome);
+  c("e il cognome pure", "Esempio", m.leads[0].cognome);
+  //  Un nome di una parola sola resta una persona: «pinco» e' in quel file.
+  c("un nome solo resta un nome", "pinco", m.leads[2].nome);
 
   //  ⚠️ IL TELEFONO. L'intestazione lo mette sotto «lead_status», e il prefisso
   //   «p:» e' di Meta: lasciato dentro non si chiama e non si cerca piu'.
-  c("il telefono arriva giusto", "+393473478192", m.leads[0].telefono);
+  c("il telefono arriva giusto", "+393330000101", m.leads[0].telefono);
   c("il prefisso p: sparisce", true, !/^p:/.test(m.leads[1].telefono));
   //  ⚠️ E un fisso senza prefisso internazionale e' un telefono lo stesso.
-  c("anche un numero fisso", "0277002845", m.leads[2].telefono);
+  c("anche un numero fisso", "0200000001", m.leads[2].telefono);
   //  ⚠️ Le due prove che tengono in piedi tutto il resto: nella colonna del
   //   telefono NON deve finire ne' l'identificativo di Facebook (sedici cifre)
   //   ne' il nome del modulo (che di cifre ne ha dieci).
@@ -4420,7 +4580,7 @@ function proveDellaListaImportata() {
   c("nessun nome di modulo come telefono", 0,
     m.leads.filter((l) => /[A-Za-z]/.test(l.telefono || "")).length);
 
-  c("l'email arriva giusta", "leleruggiero@gmail.com", m.leads[0].email);
+  c("l'email arriva giusta", "mario.esempio@example.com", m.leads[0].email);
   c("nessuna email finita nel telefono", 0,
     m.leads.filter((l) => /@/.test(l.telefono || "")).length);
 
@@ -4430,10 +4590,13 @@ function proveDellaListaImportata() {
   c("anche da Instagram", "ADV", m.leads[1].fonte);
   c("la data del modulo diventa la data d'arrivo", true, /^2026-09-21/.test(m.leads[0].createdAt));
 
-  //  Le risposte del modulo finiscono nelle note: chi telefona sa gia' con chi
-  //  sta parlando. ⚠️ Senza l'etichetta della domanda, perche' su questo file
-  //   l'intestazione e' spostata e scriverla sarebbe stampare una bugia.
-  c("le risposte del modulo restano", true, /alopecia androgenetica/.test(m.leads[0].note || ""));
+  //  Le risposte del modulo restano, come VOCI della scheda (non piu' nelle
+  //  note): chi telefona sa gia' con chi sta parlando. Lo scopo e' lo stesso di
+  //  prima, non perdere le risposte; cambia dove stanno. ⚠️ Il riallineamento
+  //  dell'intestazione le mette sotto la domanda giusta (vedi
+  //  `proveDelRiallineamento`), non sotto quella sbagliata.
+  c("le risposte del modulo restano, come voci", "androgenetica|abbastanza|niente",
+    [m.leads[0].modulo?.problema, m.leads[0].modulo?.fastidio, m.leads[0].modulo?.giaFatto].join("|"));
   c("e non ci finisce il nome del modulo", false, /Modulo senza titolo/.test(m.leads[0].note || ""));
   c("ne' il nome della campagna", false, /BROAD|Hair Genius/.test(m.leads[0].note || ""));
 
@@ -4453,16 +4616,284 @@ function proveDellaListaImportata() {
 
   //  Un'intestazione Meta scritta bene: niente da indovinare, stesso esito.
   const dritto = traduciCsv(
-    "created_time,full_name,email,phone_number\n2026-09-21T01:33:01-05:00,Anna Verdi,a@v.it,p:+393331112223",
+    "created_time,full_name,email,phone_number\n2026-09-21T01:33:01-05:00,Anna Verdi,a@v.it,p:+393330000111",
   );
   c("intestazione giusta: nome", "Anna", dritto.leads[0].nome);
   c("intestazione giusta: cognome", "Verdi", dritto.leads[0].cognome);
-  c("intestazione giusta: telefono", "+393331112223", dritto.leads[0].telefono);
+  c("intestazione giusta: telefono", "+393330000111", dritto.leads[0].telefono);
 
   //  Una riga senza niente di utile non diventa una scheda vuota in archivio.
   const vuote = traduciCsv("nome;telefono\nMario;3331234567\n;");
   c("le righe vuote si scartano", 1, vuote.leads.length);
   c("e si contano", 1, vuote.scartate);
+}
+
+/** ── IL RIALLINEAMENTO DELL'INTESTAZIONE E I DATI DEL FILE ─────────────────
+ *  ⚠️ Una risposta sotto la domanda sbagliata è peggio di una risposta senza
+ *   domanda: si legge e si crede. Per questo il riallineamento è STRETTO
+ *   (decisione 3 del piano) e le prove qui sotto sono quasi tutte casi in cui
+ *   NON deve scattare. Dati finti ovunque: il repository è pubblico. */
+function proveDelRiallineamento() {
+  const { riallineaIntestazioni, traduciCsv, leggiTestoFile, eFileExcel } = IMP;
+  gruppo("IL RIALLINEAMENTO DELL'INTESTAZIONE");
+
+  //  Divide una riga con le virgolette, come fa il lettore vero.
+  const dividi = (riga) => {
+    const out = [];
+    let cur = "", dentro = false;
+    for (const ch of riga) {
+      if (ch === '"') dentro = !dentro;
+      else if (ch === "," && !dentro) { out.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out.map((x) => x.trim());
+  };
+  const tabella = (testo) => testo.split("\n").map(dividi);
+  const [testa, ...righe] = tabella(META_STORTO);
+
+  //  ── IL FILE VERO: SPOSTATO DI UNO ───────────────────────────────────
+  const r = riallineaIntestazioni(testa, righe);
+  c("il file di Meta e' spostato di uno", 1, r.spostamento);
+  c("e dopo si puo' credere all'intestazione", true, r.affidabili);
+  c("la domanda in coda torna sopra le sue risposte", "che_problematica_hai?", r.intestazioni[12]);
+  c("le altre due scalano di una", "quanto_ti_infastidisce_la_calvizie?|cosa_hai_gia_fatto?",
+    `${r.intestazioni[13]}|${r.intestazioni[14]}`);
+  c("il nome sta sopra il nome", "full_name", r.intestazioni[15]);
+  c("l'email sopra l'email", "email", r.intestazioni[16]);
+  c("il telefono sopra il telefono", "phone_number", r.intestazioni[17]);
+  c("quelle prima del punto di partenza non si toccano", testa.slice(0, 12).join("|"),
+    r.intestazioni.slice(0, 12).join("|"));
+  c("lo stesso numero di intestazioni", testa.length, r.intestazioni.length);
+  c("l'intestazione di partenza non viene modificata", "che_problematica_hai?", testa[18]);
+
+  //  ── SPOSTATA DI DUE, CON DUE DOMANDE IN CODA ────────────────────────
+  const due = tabella([
+    "created_time,full_name,email,phone_number,che_problematica_hai?,quanto_ti_infastidisce_la_calvizie?",
+    "2026-09-21T01:33:01-05:00,alopecia_androgenetica,abbastanza_,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "2026-09-21T01:37:25-05:00,alopecia_areata,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const r2 = riallineaIntestazioni(due[0], due.slice(1));
+  c("spostata di due", "2|true", `${r2.spostamento}|${r2.affidabili}`);
+  c("con due domande tirate su", "created_time|che_problematica_hai?|quanto_ti_infastidisce_la_calvizie?|full_name|email|phone_number",
+    r2.intestazioni.join("|"));
+
+  //  ── CASI IN CUI NON DEVE SCATTARE ──────────────────────────────────
+  //  Sette colonne, ancore spostate una di +1 e una di -1: k diversi.
+  const stortoTesto = [
+    "  ,created_time,ad_id,quanto_ti_infastidisce?,full_name,email,phone_number",
+    "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,mario.esempio@example.com,Mario Esempio,p:+393330000101",
+  ].join("\n");
+  const [ts, ...rs] = tabella(stortoTesto);
+  const r3 = riallineaIntestazioni(ts, rs);
+  c("ancore spostate in versi opposti: non si riallinea", "0|false", `${r3.spostamento}|${r3.affidabili}`);
+  c("e l'intestazione resta com'e'", ts.join("|"), r3.intestazioni.join("|"));
+
+  const dritto = tabella("created_time,full_name,email,phone_number\n2026-09-21T01:33:01-05:00,Anna Verdi,anna.verdi@example.com,p:+393330000111");
+  const r4 = riallineaIntestazioni(dritto[0], dritto.slice(1));
+  c("un'intestazione dritta e' affidabile e non si tocca", "0|true|" + dritto[0].join("|"),
+    `${r4.spostamento}|${r4.affidabili}|${r4.intestazioni.join("|")}`);
+
+  //  La coda non e' una domanda che conosciamo: non si indovina.
+  const misteriosa = [...testa.slice(0, 18), "colonna_misteriosa"];
+  const r5 = riallineaIntestazioni(misteriosa, righe);
+  c("coda non riconoscibile: non si riallinea", "0|false", `${r5.spostamento}|${r5.affidabili}`);
+  c("e l'intestazione resta com'e'", misteriosa.join("|"), r5.intestazioni.join("|"));
+
+  //  Righe di lunghezze diverse: nessuna eccezione e nessun riallineamento.
+  let r6;
+  let lanciato = false;
+  try {
+    r6 = riallineaIntestazioni(testa, [righe[0], righe[1].slice(0, 15), righe[2].concat(["x", "y"])]);
+  } catch { lanciato = true; }
+  c("righe di lunghezze diverse non lanciano", false, lanciato);
+  c("e non si riallinea", "0|false", `${r6?.spostamento}|${r6?.affidabili}`);
+
+  //  Colonne della coda non contigue: non si riallinea.
+  const nonContigue = tabella([
+    "created_time,full_name,email,phone_number,che_problematica_hai?,quanto_ti_infastidisce_la_calvizie?",
+    "alopecia_androgenetica,2026-09-21T01:33:01-05:00,abbastanza_,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "alopecia_areata,2026-09-21T01:37:25-05:00,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const r7 = riallineaIntestazioni(nonContigue[0], nonContigue.slice(1));
+  c("colonne della coda non contigue: non si riallinea", "0|false", `${r7.spostamento}|${r7.affidabili}`);
+
+  //  ⚠️ Colonne-domanda di MEZZO scambiate (fastidio e gia' provato): coda e
+  //   ancore tornano lo stesso, ma «abbastanza» finirebbe sotto «Gia' provato»
+  //   e «nulla» sotto «Fastidio». Non si riallinea.
+  const scambiate = tabella([
+    "quanto_ti_infastidisce_la_calvizie?,cosa_hai_gia_fatto?,full_name,email,phone_number,che_problematica_hai?",
+    "alopecia_androgenetica,nulla,abbastanza,Mario Esempio,mario.esempio@example.com,p:+393330000101",
+    "alopecia_areata,trapianto,poco,Anna Prova,anna.prova@example.com,p:+393330000102",
+  ].join("\n"));
+  const rsc = riallineaIntestazioni(scambiate[0], scambiate.slice(1));
+  c("colonne di mezzo scambiate: non si riallinea", "0|false", `${rsc.spostamento}|${rsc.affidabili}`);
+  c("e l'intestazione resta com'e'", scambiate[0].join("|"), rsc.intestazioni.join("|"));
+  const lettaScambiata = traduciCsv(scambiate.map((r) => r.join(",")).join("\n"));
+  //  Il «nulla» sotto intestazioni non affidabili resta senza domanda; «abbastanza»
+  //  si legge dal valore (e' Fastidio, senza dubbio), mai «Per niente».
+  c("nessun «Fastidio: Per niente» inventato", "abbastanza|undefined",
+    `${lettaScambiata.leads[0].modulo?.fastidio}|${lettaScambiata.leads[0].modulo?.giaFatto}`);
+
+  //  Nessuna ancora nell'intestazione: non c'e' niente su cui fidarsi.
+  const senzaAncore = riallineaIntestazioni(["a", "b"], [["x", "y"], ["z", "w"]]);
+  c("senza ancore non si sa niente", "0|false", `${senzaAncore.spostamento}|${senzaAncore.affidabili}`);
+  c("campione vuoto: nessuna eccezione", "0|false",
+    ((x) => `${x.spostamento}|${x.affidabili}`)(riallineaIntestazioni(testa, [])));
+
+  //  ── LEGGERE IL FILE: traduciCsv(META_STORTO) ────────────────────────
+  gruppo("LEGGERE IL FILE: RISPOSTE, ANNUNCIO, COLONNE CONSERVATE");
+  const m = traduciCsv(META_STORTO);
+  const [l1, l2, l3] = m.leads;
+  c("riallineata una volta", 1, m.intestazioniRiallineate);
+  c("lead 1: problema", "androgenetica", l1.modulo?.problema);
+  c("lead 1: fastidio", "abbastanza", l1.modulo?.fastidio);
+  c("lead 1: gia' provato", "niente", l1.modulo?.giaFatto);
+  c("lead 1: le sue parole restano", "Nulla",
+    (l1.modulo?.risposte ?? []).find((x) => x.campo === "giaFatto")?.testo);
+  c("lead 2: gia' provato", "trapianto", l2.modulo?.giaFatto);
+  c("lead 2: problema", "areata", l2.modulo?.problema);
+  c("lead 3: fastidio", "poco", l3.modulo?.fastidio);
+  c("lead 3: il «nulla» e' Gia' provato, non Fastidio", "niente", l3.modulo?.giaFatto);
+  c("le domande ci sono con il nostro titolo", "Problema|Fastidio|Già provato",
+    (l1.modulo?.risposte ?? []).filter((x) => x.campo).map((x) => x.domanda).join("|"));
+  c("mai due volte la stessa domanda", 3, (l1.modulo?.risposte ?? []).length);
+
+  //  ⚠️ Niente «Dal modulo: nulla» nelle note: la riga storta non lascia piu'
+  //   un «nulla» ambiguo (T2).
+  c("nessuna nota sulle tre schede", "undefined|undefined|undefined", `${l1.note}|${l2.note}|${l3.note}`);
+  c("nessuna nota «Dal modulo» in nessuna", 0, m.leads.filter((l) => /Dal modulo/.test(l.note || "")).length);
+
+  //  Annuncio, gruppo, campagna.
+  c("il gruppo", "BROAD | ITALIA", l1.tracking?.adset_name);
+  c("l'annuncio", "589\u20ac - 001 - ok", l1.tracking?.ad_name);
+  c("la campagna", "Hair Genius | Copy 2", l1.tracking?.campaign_name);
+  c("e si sa che e' Meta", "meta", l1.tracking?.source);
+
+  //  Data: dal file, e si dice.
+  c("la data viene dal file", true, l1.listaOrigine?.dataDalFile);
+  c("la lista d'origine ha un momento di caricamento", true, !Number.isNaN(Date.parse(l1.listaOrigine?.il ?? "")));
+  c("il nome del file lo scrive l'anteprima, qui e' vuoto", "", l1.listaOrigine?.file);
+  const senzaData = traduciCsv("nome;telefono\nMario;3331234567");
+  c("senza colonna data non viene dal file", false, senzaData.leads[0].listaOrigine?.dataDalFile);
+  c("e createdAt e' l'ora del caricamento", true, Date.now() - Date.parse(senzaData.leads[0].createdAt) < 60_000);
+  const dataVuota = traduciCsv("created_time,full_name,phone_number\n,Anna Verdi,3331234567");
+  c("cella data vuota: non viene dal file", false, dataVuota.leads[0].listaOrigine?.dataDalFile);
+  const dataIllegibile = traduciCsv("created_time,full_name,phone_number\nieri sera,Anna Verdi,3331234567");
+  c("cella data illeggibile: non viene dal file", false, dataIllegibile.leads[0].listaOrigine?.dataDalFile);
+
+  //  ── LE DATE: GIORNO PRIMA DEL MESE ─────────────────────────────────
+  const dataDi = (cella) => traduciCsv(`created_time,full_name,phone_number\n${cella},Anna Verdi,3331234567`).leads[0];
+  const it = dataDi("12/10/2026 09:15");
+  c("«12/10/2026 09:15» e' il 12 ottobre", "2026-10-12 09:15", (() => {
+    const d = new Date(it.createdAt);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  })());
+  c("e viene dal file", true, it.listaOrigine?.dataDalFile);
+  c("createdAt e' scritto in ISO", true, /^\d{4}-\d{2}-\d{2}T/.test(it.createdAt));
+  const senzaOra = new Date(dataDi("03/04/2026").createdAt);
+  c("«03/04/2026» e' il 3 aprile, non il 4 marzo", "3/4", `${senzaOra.getDate()}/${senzaOra.getMonth() + 1}`);
+  c("«13/10/2026» si legge (prima era illeggibile)", true, dataDi("13/10/2026").listaOrigine?.dataDalFile);
+  //  ⚠️ Quando viene dal file, createdAt e' SEMPRE un ISO: la scheda lo rilegge
+  //   cosi' e il testo grezzo lo leggerebbe all'americana.
+  c("«03/04/2026» → createdAt comincia per 2026-04-03", "2026-04-03", dataDi("03/04/2026").createdAt.slice(0, 10));
+  c("«13/04/2026» → createdAt comincia per 2026-04-13", "2026-04-13", dataDi("13/04/2026").createdAt.slice(0, 10));
+  c("la data solo giorno e' un ISO completo", true, /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(dataDi("03/04/2026").createdAt));
+  c("anche «2026-09-21 10:00» diventa ISO completo", true, /^2026-09-21T[\d:.]+Z$/.test(dataDi("2026-09-21 10:00").createdAt));
+  c("e l'ISO con la T non si tocca", "2026-09-21T10:00:00Z", dataDi("2026-09-21T10:00:00Z").createdAt);
+  c("l'ISO resta com'e'", "2026-09-21T01:33:01-05:00|true",
+    `${traduciCsv(META_STORTO).leads[0].createdAt}|${traduciCsv(META_STORTO).leads[0].listaOrigine?.dataDalFile}`);
+  const illeggibile = dataDi("45678");
+  c("un numero qualunque non e' una data", false, illeggibile.listaOrigine?.dataDalFile);
+  c("e createdAt resta il testo, come prima", "45678", illeggibile.createdAt);
+  c("«ieri sera» non e' una data", false, dataDi("ieri sera").listaOrigine?.dataDalFile);
+  c("nemmeno il 31 febbraio", false, dataDi("31/02/2026").listaOrigine?.dataDalFile);
+  //  Un lead di ieri, scritto all'italiana, risulta NUOVO per chi chiama.
+  {
+    const adesso = new Date();
+    const ieri = new Date(adesso.getTime() - 6 * 3600_000);
+    const p = (n) => String(n).padStart(2, "0");
+    const cella = `${p(ieri.getDate())}/${p(ieri.getMonth() + 1)}/${ieri.getFullYear()} ${p(ieri.getHours())}:${p(ieri.getMinutes())}`;
+    const recente = dataDi(cella);
+    c("un lead di poche ore fa, data all'italiana, e' NUOVO", "nuovo",
+      CHIAM.motivoChiamata({ id: "x", data: { ...recente, stato: "da_contattare" } }, adesso).motivo);
+  }
+
+  //  Colonne che non sono diventate niente: si conservano.
+  c("«is organic» e' conservata", "false", l1.datiFile?.["is organic"]);
+  c("la colonna senza intestazione e' «colonna 1»", true, /^l:/.test(l1.datiFile?.["colonna 1"] ?? ""));
+  c("e l'elenco la nomina", true, m.colonneConservate.includes("is organic"));
+  c("e anche l'altra", true, m.colonneConservate.includes("colonna 1"));
+  c("quello che e' diventato un campo non si ripete in datiFile", "",
+    Object.keys(l1.datiFile ?? {}).filter((k) => /ad name|full name|phone|email|campaign|adset|created|platform|status/.test(k)).join(","));
+  c("le risposte non si ripetono in datiFile", "",
+    Object.keys(l1.datiFile ?? {}).filter((k) => /problematica|infastidisce|gia fatto|già fatto/.test(k)).join(","));
+  c("l'alias vecchio non c'e' piu'", false, "colonneIgnorate" in m);
+
+  //  Un file dritto con una colonna sconosciuta.
+  const dritta = traduciCsv("nome;telefono;colore_preferito\nMario;3331234567;blu");
+  c("colonna sconosciuta su file dritto: col nome leggibile", "blu", dritta.leads[0].datiFile?.["colore preferito"]);
+  c("e nell'elenco", true, dritta.colonneConservate.includes("colore preferito"));
+  c("e non finisce nelle note", undefined, dritta.leads[0].note);
+  c("l'intestazione dritta non e' stata riallineata", 0, dritta.intestazioniRiallineate);
+  //  Una domanda sconosciuta con il «?» va nel modulo, non in datiFile.
+  const domandaNuova = traduciCsv(
+    "full_name,phone_number,hai_mai_fatto_una_consulenza?\nMario Esempio,p:+393330000101,\"s\u00ec,_una_volta\"",
+  );
+  c("una domanda sconosciuta va nel modulo", "hai mai fatto una consulenza?",
+    domandaNuova.leads[0].modulo?.risposte?.[0]?.domanda);
+  c("e non in datiFile", undefined, domandaNuova.leads[0].datiFile);
+  c("nemmeno nell'elenco delle colonne conservate", 0, domandaNuova.colonneConservate.length);
+  c("niente datiFile vuoto: non c'e' niente da conservare", undefined, traduciCsv("nome;telefono\nMario;3331234567").leads[0].datiFile);
+
+  //  Le note sono solo la colonna «note» del file.
+  const conNote = traduciCsv("nome;telefono;note;colore_preferito\nMario;3331234567;ha chiesto di richiamare;blu");
+  c("la colonna note del file resta nota", "ha chiesto di richiamare", conNote.leads[0].note);
+
+  //  Intestazioni non affidabili: «colonna N», mai un nome inventato.
+  const storto = traduciCsv(stortoTesto);
+  const chiavi = Object.keys(storto.leads[0].datiFile ?? {});
+  c("con l'intestazione smentita le chiavi sono «colonna N»", true,
+    chiavi.length > 0 && chiavi.every((k) => /^colonna \d+$/.test(k)));
+  c("e non si riallinea", 0, storto.intestazioniRiallineate);
+  c("il problema si legge lo stesso dal valore", "androgenetica", storto.leads[0].modulo?.problema);
+  c("senza nessuna nota «Dal modulo»", 0, storto.leads.filter((l) => /Dal modulo/.test(l.note || "")).length);
+  c("il valore non riconosciuto non finisce nelle note ma in datiFile", true,
+    traduciCsv("nome;telefono;zzz\nMario;3331234567;cose varie").leads[0].datiFile?.["zzz"] === "cose varie");
+
+  //  I tetti: 200 caratteri per valore, 40 chiavi, nomi ripetuti numerati.
+  const lungo = traduciCsv(`nome;telefono;extra\nMario;3331234567;${"a".repeat(300)}`);
+  c("il valore si taglia a 200 caratteri", 200, lungo.leads[0].datiFile?.extra?.length);
+  const tante = traduciCsv(
+    `nome;telefono;${Array.from({ length: 50 }, (_, i) => `x${i}`).join(";")}\nMario;3331234567;${Array.from({ length: 50 }, (_, i) => `v${i}`).join(";")}`,
+  );
+  c("al massimo quaranta chiavi", 40, Object.keys(tante.leads[0].datiFile ?? {}).length);
+  const doppi = traduciCsv("nome;telefono;extra;extra\nMario;3331234567;uno;due");
+  c("un nome ripetuto riceve (2)", "uno|due", `${doppi.leads[0].datiFile?.extra}|${doppi.leads[0].datiFile?.["extra (2)"]}`);
+  const celleVuote = traduciCsv("nome;telefono;a;b\nMario;3331234567;;x");
+  c("le celle vuote si saltano", "b", Object.keys(celleVuote.leads[0].datiFile ?? {}).join(","));
+
+  //  ── LEGGERE I BYTE DEL FILE ─────────────────────────────────────────
+  gruppo("LEGGERE I BYTE DEL FILE");
+  const byte = (testo, codifica = "utf8", bom = []) => new Uint8Array([...bom, ...Buffer.from(testo, codifica)]);
+  c("il BOM di UTF-8 si toglie", "a,b", leggiTestoFile(byte("a,b", "utf8", [0xef, 0xbb, 0xbf])));
+  c("UTF-16 con BOM", "nome\ttelefono", leggiTestoFile(byte("nome\ttelefono", "utf16le", [0xff, 0xfe])));
+  c("UTF-16 big endian con BOM", "nome\ttelefono",
+    leggiTestoFile(new Uint8Array([0xfe, 0xff, ...Buffer.from("nome\ttelefono", "utf16le").swap16()])));
+  c("UTF-8 con gli accenti", "città", leggiTestoFile(byte("città")));
+  c("UTF-16 senza BOM", "nome\ttelefono", leggiTestoFile(byte("nome\ttelefono", "utf16le")));
+  c("file vuoto", "", leggiTestoFile(new Uint8Array()));
+  const utf16 = byte("full_name\tphone_number\nMario Esempio\t+393330000101", "utf16le", [0xff, 0xfe]);
+  const daUtf16 = traduciCsv(leggiTestoFile(utf16));
+  c("un file UTF-16 con tab legge una scheda", "1|Mario|+393330000101",
+    `${daUtf16.leads.length}|${daUtf16.leads[0]?.nome}|${daUtf16.leads[0]?.telefono}`);
+
+  //  Excel non si legge: si riconosce, cosi' l'anteprima puo' dire cosa fare.
+  c("un .xlsx si riconosce dal nome", true, eFileExcel(byte("a,b"), "lista.xlsx"));
+  c("e dai byte di uno zip", true, eFileExcel(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0])));
+  c("e il vecchio .xls dai suoi byte", true, eFileExcel(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1])));
+  c("un csv no", false, eFileExcel(byte("nome,telefono"), "lista.csv"));
 }
 
 /*  ═══════════════════════════════════════════════════════════════════════
@@ -4544,7 +4975,7 @@ function proveDellaRicercaManutenzione() {
 }
 
 function proveDelCvrPerRisposta() {
-  const { domandeDeiLead, rispostaMigliore } = RSL;
+  const { domandeDeiLead, rispostaMigliore, haRisposte } = RSL;
   gruppo("QUALE RISPOSTA COMPRA");
 
   const scheda = (risposte, vinto) => ({ data: { modulo: { risposte }, vinto } });
@@ -4570,6 +5001,35 @@ function proveDelCvrPerRisposta() {
   c("50% su chi valuta", 50, d.righe[0].cvrPct);
   c("0% su chi si informa", 0, d.righe[1].cvrPct);
   c("i clienti della domanda", 2, d.clienti);
+
+  //  ⚠️ LA STESSA DOMANDA CON DUE NOMI SI UNISCE. Le schede vecchie hanno la
+  //   voce con l'intestazione del file come domanda, le nuove con il nostro
+  //   nome: nei KPI devono essere una domanda sola, non due con metà dei lead.
+  const unite = domandeDeiLead([
+    scheda([{ domanda: "quanto ti infastidisce la calvizie?", risposta: "Abbastanza" }], true),
+    scheda([{ domanda: "Fastidio", campo: "fastidio", risposta: "Abbastanza" }], false),
+  ], vinto);
+  c("una domanda sola, non due", 1, unite.length);
+  c("che si chiama «Fastidio»", "Fastidio", unite[0].domanda);
+  c("con tutte e due le schede", 2, unite[0].lead);
+  //  Le schede che hanno solo la riga «Dal modulo:» nelle note entrano nel conto.
+  const dallaNota = domandeDeiLead([
+    { data: { note: "Dal modulo: alopecia areata · poco", vinto: false } },
+  ], vinto);
+  c("una scheda con la sola nota entra nei conti", "Fastidio|Problema",
+    dallaNota.map((x) => x.domanda).sort().join("|"));
+  //  ⚠️ Ma la pagina filtra le schede PRIMA di contarle: la prova deve passare
+  //   da quel filtro, non solo dalla funzione che conta. Un lead vecchio ha
+  //   `modulo` vuoto e solo la nota.
+  const soloNota = { data: { modulo: {}, note: "Dal modulo: alopecia androgenetica \u00b7 abbastanza \u00b7 nulla" } };
+  c("il filtro della pagina fa passare chi ha la sola nota", true, haRisposte(soloNota));
+  c("e non chi non ha risposto a niente", false, haRisposte({ data: { note: "richiamare" } }));
+  c("nemmeno con un questionario vuoto", false, haRisposte({ data: { modulo: {} } }));
+  //  La pagina usa quel filtro (non uno suo): senza questo controllo basta una
+  //  riga rimessa com'era per far tornare a zero le schede vecchie.
+  const paginaKpi = readFileSync(join(radice, "src/crm/kpi/RisposteAdsScheda.tsx"), "utf8");
+  c("la scheda KPI filtra con haRisposte", true, /haRisposte\(l\)/.test(paginaKpi));
+  c("e non guarda piu' solo modulo.risposte", false, /modulo\?\.risposte\?\.length/.test(paginaKpi));
 
   //  ⚠️ UNA SCHEDA CONTA UNA VOLTA SOLA PER DOMANDA. Un file storto puo'
   //   portare due risposte alla stessa domanda: contandole entrambe, il
@@ -4696,15 +5156,15 @@ function proveDelModulo() {
   const D4 = "quando_preferiresti_ricevere_una_telefonata_per_concordare_l'appuntamento_di_consulenza_gratuita_e_ottenere_maggiori_informazioni?_(indica_giorno_e_ora_indicativi)";
   const FILE = [
     `id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,${D1},${D2},${D3},${D4},full_name,email,phone_number,lead_status`,
-    'l:1103256495617278,2026-09-24T05:36:57-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,pausa_pranzo_(12:00\u201314:00),Malpasso Luca,lucamalpasso@libero.it,p:+393334651639,CREATED',
-    'l:1475300417840584,2026-09-24T05:39:38-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,\u00e8_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.,s\u00ec:_vi_seguo_da_un_po\u2019.,nord_italia,mattina_(9:00\u201312:00),Gianni Mellino,mellinogiovanni7@gmail.com,p:+393471388386,CREATED',
-    'l:2172570616997524,2026-09-24T05:39:56-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,sera_(dopo_le_18:00),Amos Amorigi,amosamorigi@hotmail.it,p:+393384492970,CREATED',
+    'l:1000000000000004,2026-09-24T05:36:57-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,pausa_pranzo_(12:00\u201314:00),Prova Luca,luca.prova@example.com,p:+393330000103,CREATED',
+    'l:1000000000000005,2026-09-24T05:39:38-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,\u00e8_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.,s\u00ec:_vi_seguo_da_un_po\u2019.,nord_italia,mattina_(9:00\u201312:00),Prova Gianni,gianni.prova@example.com,p:+393330000104,CREATED',
+    'l:1000000000000006,2026-09-24T05:39:56-05:00,ag:120253730513900721,589\u20ac - 001 - ok,as:120253730513890721,BROAD | ITALIA,c:120253730513880721,Hair Genius Labs | 24 giugno - Copy 3,f:1623446622641118,"Modulo senza titolo 30/11/24, 01:36-copy",false,fb,"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi_",per_me_\u00e8_un_mondo_tutto_nuovo.,sud_italia_e_isole,sera_(dopo_le_18:00),Prova Amos,amos.prova@example.com,p:+393330000105,CREATED',
   ].join("\n");
 
   const r = traduciCsv(FILE);
   c("il file si legge tutto", 3, r.leads.length);
   c("nessuna riga scartata", 0, r.scartate);
-  c("il telefono arriva pulito", "+393334651639", r.leads[0].telefono);
+  c("il telefono arriva pulito", "+393330000103", r.leads[0].telefono);
 
   //  ── LE QUATTRO RISPOSTE, COME VOCI ──────────────────────────────────
   const uno = r.leads[0].modulo ?? {};
@@ -4748,8 +5208,8 @@ function proveDelModulo() {
       ignorate manderebbe chi guarda l'anteprima a cercare un guasto che non
       c'e'. */
   c("le domande non risultano piu' ignorate", false,
-    r.colonneIgnorate.some((x) => /consideri|conosci|zona|quando/.test(x)));
-  c("la campagna nemmeno", false, r.colonneIgnorate.some((x) => /campaign|ad_name/.test(x)));
+    r.colonneConservate.some((x) => /consideri|conosci|zona|quando/.test(x)));
+  c("la campagna nemmeno", false, r.colonneConservate.some((x) => /campaign|ad_name/.test(x)));
 
   /*  ── ⚠️ LE PAROLE ESATTE DEL MODULO SONO REGISTRATE ───────────────────
       Il committente ha mandato il file dicendo «l'elenco ce l'hai nel CSV,
@@ -4799,8 +5259,8 @@ function proveDelModulo() {
 
   //  ⚠️ E NON SI INVENTA NIENTE: un valore che non somiglia a nessuna
   //   risposta non diventa una voce. Una voce sbagliata si crede.
-  c("un valore qualunque non diventa una voce", undefined, riconosciRisposta("Michele Ruggiero"));
-  c("nemmeno un identificativo", undefined, riconosciRisposta("l:2055445158436359"));
+  c("un valore qualunque non diventa una voce", undefined, riconosciRisposta("Mario Esempio"));
+  c("nemmeno un identificativo", undefined, riconosciRisposta("l:1000000000000001"));
   c("nemmeno il nome di una campagna", undefined, riconosciRisposta("BROAD | ITALIA"));
   c("nemmeno una riga vuota", undefined, riconosciRisposta(""));
   c("una riga senza risposte non fa un modulo", undefined,
@@ -4865,11 +5325,11 @@ function proveDelModulo() {
       si possono prevedere: la loro domanda si legge dall'intestazione, e la
       risposta diventa una voce come le altre invece di finire nelle note. */
   const altre = traduciCsv(
-    "full_name,phone_number,quanto_ti_infastidisce_la_calvizie?\nMichele Ruggiero,p:+393473478192,alopecia_androgenetica",
+    "full_name,phone_number,hai_mai_fatto_una_consulenza?\nMario Esempio,p:+393330000101,\"s\u00ec,_una_volta\"",
   );
-  c("una domanda che non conosciamo diventa una voce", "quanto ti infastidisce la calvizie?",
+  c("una domanda che non conosciamo diventa una voce", "hai mai fatto una consulenza?",
     altre.leads[0].modulo.risposte[0].domanda);
-  c("con la sua risposta", "Alopecia androgenetica", altre.leads[0].modulo.risposte[0].risposta);
+  c("con la sua risposta", "S\u00ec, una volta", altre.leads[0].modulo.risposte[0].risposta);
   c("e non resta anche nelle note", undefined, altre.leads[0].note);
   //  Senza `campo`: non è una delle quattro che sappiamo interpretare, e la
   //  scheda non deve darle un colore che sarebbe un giudizio inventato.
@@ -4882,13 +5342,235 @@ function proveDelModulo() {
   const storto = traduciCsv(
     [
       "  ,created_time,ad_id,quanto_ti_infastidisce?,full_name,email,phone_number",
-      "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,leleruggiero@gmail.com,Michele Ruggiero,p:+393473478192",
+      "l:1,2026-09-21T01:33:01-05:00,ag:12,alopecia_androgenetica,mario.esempio@example.com,Mario Esempio,p:+393330000101",
     ].join("\n"),
   );
-  c("con l'intestazione spostata non si inventa nessuna domanda", undefined, storto.leads[0].modulo);
-  c("e la risposta resta nelle note", true,
-    /alopecia androgenetica/.test(storto.leads[0].note || ""));
-  c("mentre il telefono e' comunque quello giusto", "+393473478192", storto.leads[0].telefono);
+  //  ⚠️ Nessuna risposta ha come domanda l'intestazione del file («quanto ti
+  //   infastidisce?» sopra «alopecia androgenetica» sarebbe una bugia). Ma il
+  //   VALORE si riconosce da solo: il problema si legge lo stesso.
+  c("con l'intestazione spostata non si inventa nessuna domanda", 0,
+    (storto.leads[0].modulo?.risposte ?? []).filter((x) => /infastidisce/.test(x.domanda)).length);
+  c("e la risposta si riconosce dal valore", "androgenetica", storto.leads[0].modulo?.problema);
+  c("mentre il telefono e' comunque quello giusto", "+393330000101", storto.leads[0].telefono);
+}
+
+/** ── LE TRE DOMANDE NUOVE: PROBLEMA, FASTIDIO, GIÀ PROVATO ─────────────────
+ *  ⚠️ Sul file vero queste tre finivano nelle note («Dal modulo: …»), dove non
+ *   si contano e non si filtrano. Qui si prova come si riconoscono, chi vince
+ *   fra colonna e valore, e come si leggono le schede vecchie SENZA scriverci
+ *   sopra (criterio 6 della spec: nel database non si scrive niente). */
+function proveDelleDomandeNuove() {
+  const {
+    riconosciRisposta, leggiRisposte, vociModulo, campoDellaColonna,
+    intestazioneLeggibile, riassuntoModulo, risposteDaNotaVecchia, moduloLetto,
+  } = MDL;
+  gruppo("LE TRE DOMANDE NUOVE DEL MODULO");
+
+  //  ── LE INTESTAZIONI ─────────────────────────────────────────────────
+  //   ⚠️ «che problematica hai?» contiene «problema»: con il riconoscitore di
+  //   «Come vive il problema» le risposte finivano sotto la domanda sbagliata.
+  c("«che problematica hai?» è il Problema", "problema", campoDellaColonna("che_problematica_hai?"));
+  c("e non «Come vive il problema»", false, campoDellaColonna("che_problematica_hai?") === "urgenza");
+  c("«come consideri il tuo problema?» resta l'urgenza", "urgenza",
+    campoDellaColonna("come_consideri_il_tuo_problema?"));
+  c("«quanto ti infastidisce la calvizie?» è il Fastidio", "fastidio",
+    campoDellaColonna("quanto_ti_infastidisce_la_calvizie?"));
+  c("«cosa hai già fatto?» è il Già provato", "giaFatto", campoDellaColonna("cosa_hai_giá_fatto?"));
+  c("un'intestazione qualunque non è nessuna domanda", undefined, campoDellaColonna("full_name"));
+  c("e nemmeno una vuota", undefined, campoDellaColonna(""));
+  c("l'intestazione si legge come una frase", "cosa hai già fatto?", intestazioneLeggibile("cosa_hai_giá_fatto?"));
+  c("senza doppi spazi né spazio in coda", "quanto ti infastidisce?",
+    intestazioneLeggibile("  quanto__ti_infastidisce?  "));
+  c("la «á» scomposta è una «à»", "cosa hai già fatto?", intestazioneLeggibile("cosa_hai_gia\u0301_fatto?"));
+  c("e la maiuscola pure", "Cosa hai gi\u00c0 fatto?", intestazioneLeggibile("Cosa_hai_gi\u00c1_fatto?"));
+
+  //  ── LE RISPOSTE, DAL VALORE ─────────────────────────────────────────
+  const dove = (t, campo) => {
+    const r = riconosciRisposta(t, campo);
+    return r ? `${r.campo}/${r.opzione.id}` : undefined;
+  };
+  c("alopecia androgenetica", "problema/androgenetica", dove("alopecia_androgenetica"));
+  c("alopecia areata", "problema/areata", dove("alopecia_areata"));
+  c("diradamento", "problema/diradamento", dove("diradamento"));
+  c("stempiatura", "problema/stempiatura", dove("stempiatura"));
+  c("abbastanza, come lo scrive Meta (con il trattino basso in coda)", "fastidio/abbastanza", dove("abbastanza_"));
+  c("poco", "fastidio/poco", dove("poco"));
+  c("molto", "fastidio/molto", dove("molto"));
+  c("per niente", "fastidio/perNiente", dove("per_niente"));
+  c("trapianto", "giaFatto/trapianto", dove("trapianto"));
+  c("lozioni", "giaFatto/lozioni", dove("lozioni"));
+  c("farmaci", "giaFatto/farmaci", dove("farmaci"));
+  //  ⚠️ «nulla» può essere la risposta a due domande: da solo non si assegna.
+  c("«nulla» da solo è ambiguo", undefined, dove("nulla"));
+  c("«nulla» sotto «già provato» è Niente", "giaFatto/niente", dove("nulla", "giaFatto"));
+  c("«nulla» sotto «fastidio» è Per niente", "fastidio/perNiente", dove("nulla", "fastidio"));
+  //  Con la domanda si cerca solo fra le sue opzioni.
+  c("con la domanda sbagliata non si trova", undefined, dove("trapianto", "fastidio"));
+  //  ⚠️ Gli ancorati all'intera cella: una frase lunga delle domande classiche
+  //   non deve accendere «Poco» o «Niente».
+  c("una frase con «poco» dentro non è il Fastidio", undefined,
+    dove("ne_so_poco,_vorrei_capire_meglio"));
+  c("e una con «niente» nemmeno", undefined, dove("non_ho_niente_in_contrario"));
+  //  Le classiche si comportano come prima.
+  c("una classica resta una classica", "zona/sud", dove("sud_italia_e_isole"));
+  //  ⚠️ Quando una classica si scontra con una parola delle nuove, vince la
+  //   classica (come in 13e8039): prima di queste tre domande le due frasi
+  //   erano conoscenza/settore e urgenza/subito.
+  c("«ho già provato farmaci» resta «Conosce il settore»", "conoscenza/settore",
+    dove("Sì, ho già provato farmaci"));
+  c("«mi condiziona, ho un diradamento» resta «subito»", "urgenza/subito",
+    dove("Mi condiziona, ho un diradamento"));
+  //  Con la colonna affidabile il valore resta una risposta con il suo codice.
+  const frase = leggiRisposte(["conosci_hair_genius_labs?"], ["Sì, ho già provato farmaci"], new Set(), true);
+  c("e con la colonna affidabile ha il suo codice", "settore", frase.conoscenza);
+  c("un valore qualunque non è nessuna risposta", undefined, dove("Mario Esempio"));
+
+  //  ── COLONNA O VALORE: CHI COMANDA ───────────────────────────────────
+  const a = leggiRisposte(["che_problematica_hai?", "full_name"], ["alopecia_areata", "Mario Esempio"], new Set([1]), true);
+  c("il problema si legge", "areata", a.problema);
+  c("e non diventa un'urgenza", undefined, a.urgenza);
+  c("la voce ha il nome nostro", "Problema", a.risposte[0].domanda);
+
+  //  Colonna affidabile, risposta scritta a mano: sta sotto la SUA domanda.
+  const mano = leggiRisposte(["Problema"], ["chiazze sulla nuca"], new Set(), true);
+  c("la risposta libera sta sotto «Problema»", "Problema", mano.risposte[0].domanda);
+  c("com'è scritta", "Chiazze sulla nuca", mano.risposte[0].risposta);
+  c("senza un campo nostro", undefined, mano.risposte[0].campo);
+  c("e senza inventare un problema", undefined, mano.problema);
+
+  //  ⚠️ Se il valore appartiene senza dubbio a un'altra domanda, vince il valore.
+  const vince = leggiRisposte(["Fastidio"], ["alopecia_androgenetica"], new Set(), true);
+  c("vince il valore: è un problema", "androgenetica", vince.problema);
+  c("e sotto «Fastidio» non c'è niente", 0, (vince.risposte ?? []).filter((x) => x.domanda === "Fastidio").length);
+
+  //  ⚠️ Senza una colonna affidabile, un valore ambiguo non va a nessuna.
+  c("senza colonna affidabile «nulla» non va a nessuna", undefined,
+    leggiRisposte(["a", "b"], ["nulla", "x"], new Set(), false));
+  //  Con la colonna affidabile sì.
+  const gia = leggiRisposte(["cosa_hai_giá_fatto?"], ["nulla"], new Set(), true);
+  c("«nulla» sotto «cosa hai già fatto?» è Niente", "niente", gia.giaFatto);
+  c("e la frase sua si conserva", "Nulla", gia.risposte[0].testo);
+  const fast = leggiRisposte(["quanto_ti_infastidisce_la_calvizie?"], ["nulla"], new Set(), true);
+  c("«nulla» sotto «quanto ti infastidisce» è Per niente", "perNiente", fast.fastidio);
+
+  //  ── QUALI COLONNE SONO FINITE NELLE RISPOSTE ────────────────────────
+  const usate = new Set();
+  leggiRisposte(
+    ["che_problematica_hai?", "quanto_ti_infastidisce?", "full_name"],
+    ["alopecia_areata", "poco", "Mario Esempio"],
+    new Set([2]), true, usate,
+  );
+  c("le colonne lette sono segnate", "0,1", [...usate].sort().join(","));
+  c("il nome non c'è", false, usate.has(2));
+  //  Una seconda risposta alla stessa domanda non si legge: la sua colonna
+  //  non è «usata», così chi legge il file la conserva altrove.
+  const doppie = new Set();
+  leggiRisposte(["a", "b", "c"], ["alopecia_areata", "poco", "abbastanza"], new Set(), true, doppie);
+  c("la risposta scartata non è «usata»", "0,1", [...doppie].sort().join(","));
+
+  //  ── IL RIASSUNTO PER LA RIGA ────────────────────────────────────────
+  const tre = { problema: "androgenetica", fastidio: "abbastanza", giaFatto: "niente" };
+  c("due voci di solito", "Problema: Alopecia androgenetica · Fastidio: Abbastanza", riassuntoModulo(tre));
+  c("tre se si chiedono", "Problema: Alopecia androgenetica · Fastidio: Abbastanza · Già provato: Niente",
+    riassuntoModulo(tre, 3));
+  c("senza modulo è vuoto", "", riassuntoModulo(undefined));
+  c("e anche con un modulo vuoto", "", riassuntoModulo({}));
+  c("le classiche vengono dopo", "Problema: Diradamento · Zona: Nord Italia",
+    riassuntoModulo({ zona: "nord", problema: "diradamento" }));
+
+  //  ── LE SCHEDE VECCHIE: LA RIGA «DAL MODULO:» DELLE NOTE ─────────────
+  const n1 = risposteDaNotaVecchia("chiamato ieri\nDal modulo: alopecia androgenetica · abbastanza · nulla");
+  c("dalla nota: il problema", "androgenetica", n1.problema);
+  c("dalla nota: il fastidio", "abbastanza", n1.fastidio);
+  //  ⚠️ Per esclusione: il Fastidio c'è già, quindi «nulla» può essere solo Già provato.
+  c("dalla nota: «nulla» per esclusione è Niente", "niente", n1.giaFatto);
+  const n2 = risposteDaNotaVecchia("Dal modulo: alopecia areata · nulla");
+  c("senza appiglio il problema si legge", "areata", n2.problema);
+  c("ma «nulla» resta ambiguo: niente Fastidio", undefined, n2.fastidio);
+  c("e niente Già provato", undefined, n2.giaFatto);
+  c("una nota senza la riga non dà niente", undefined, risposteDaNotaVecchia("richiamare giovedì"));
+  c("e senza nota nemmeno", undefined, risposteDaNotaVecchia(undefined));
+  c("la riga che non dice niente di nostro non dà niente", undefined,
+    risposteDaNotaVecchia("Dal modulo: qualcosa di strano"));
+  //  La frase sua si conserva, come per le risposte del file.
+  c("la frase sua resta", "Alopecia areata", n2.risposte.find((x) => x.campo === "problema").testo);
+
+  // ── moduloLetto: UN PUNTO SOLO PER LEGGERE UNA SCHEDA ────────────────
+  const m1 = moduloLetto({ note: "Dal modulo: alopecia areata · poco" });
+  c("dalla sola nota: problema", "areata", m1.problema);
+  c("dalla sola nota: fastidio", "poco", m1.fastidio);
+  c("senza modulo né nota non c'è niente", undefined, moduloLetto({ nome: "Anna" }));
+  c("senza scheda nemmeno", undefined, moduloLetto(undefined));
+  c("con null nemmeno", undefined, moduloLetto(null));
+
+  //  ⚠️ Salvato e nota insieme: vince il salvato, e nessuna voce due volte.
+  const ambo = moduloLetto({
+    modulo: { problema: "diradamento", risposte: [{ domanda: "Problema", risposta: "Diradamento", campo: "problema" }] },
+    note: "Dal modulo: alopecia areata · poco",
+  });
+  c("vince il modulo salvato", "diradamento", ambo.problema);
+  c("e la nota completa quello che manca", "poco", ambo.fastidio);
+  const titoli = vociModulo(ambo).map((v) => v.titolo);
+  c("nessuna voce compare due volte", titoli.length, new Set(titoli).size);
+  c("e il Problema è uno solo", 1, titoli.filter((t) => t === "Problema").length);
+
+  //  Una voce vecchia, salvata con l'intestazione del file come domanda.
+  const vecchia = moduloLetto({
+    modulo: { risposte: [{ domanda: "quanto ti infastidisce la calvizie?", risposta: "Abbastanza" }] },
+  });
+  c("la voce vecchia diventa un Fastidio", "abbastanza", vecchia.fastidio);
+  c("e sta sotto «Fastidio»", "Fastidio", vecchia.risposte[0].domanda);
+  c("la voce si vede una volta sola", 1, vociModulo(vecchia).filter((v) => v.titolo === "Fastidio").length);
+  //  ⚠️ L'errore nascosto: «che problematica hai?» finiva sotto «Come vive il problema».
+  const nascosto = moduloLetto({
+    modulo: { risposte: [{ domanda: "Come vive il problema", risposta: "Alopecia androgenetica" }] },
+  });
+  c("l'errore nascosto torna sotto «Problema»", "androgenetica", nascosto.problema);
+  c("non resta sotto «Come vive il problema»", undefined, nascosto.urgenza);
+  c("la voce ha la domanda giusta", "Problema", nascosto.risposte[0].domanda);
+  //  La risposta vera a «Come vive il problema» non si sposta.
+  const vera = moduloLetto({
+    modulo: { urgenza: "valutando", risposte: [{ domanda: "Come vive il problema", risposta: "Lo sta valutando sul serio", campo: "urgenza" }] },
+  });
+  c("la risposta giusta resta dov'è", "valutando", vera.urgenza);
+  c("senza spostare niente", 1, vera.risposte.length);
+  c("e senza inventare un problema", undefined, vera.problema);
+  //  Una voce vecchia di una domanda che non conosciamo non si tocca.
+  const altra = moduloLetto({
+    modulo: { risposte: [{ domanda: "hai mai fatto una consulenza?", risposta: "Sì, una volta" }] },
+  });
+  c("una domanda sconosciuta resta com'è", "hai mai fatto una consulenza?", altra.risposte[0].domanda);
+
+  //  ⚠️ CRITERIO 6 DELLA SPEC: LEGGERE NON SCRIVE. Una scheda congelata in
+  //   profondità non deve far lanciare eccezioni, e dopo è identica.
+  const scheda = {
+    nome: "Anna",
+    note: "ricontattare\nDal modulo: alopecia areata · abbastanza · nulla",
+    modulo: {
+      zona: "nord",
+      risposte: [
+        { domanda: "quanto ti infastidisce la calvizie?", risposta: "Poco" },
+        { domanda: "Come vive il problema", risposta: "Alopecia androgenetica" },
+        { domanda: "Zona", risposta: "Nord Italia", campo: "zona" },
+      ],
+    },
+  };
+  scheda.modulo.risposte.forEach((x) => Object.freeze(x));
+  Object.freeze(scheda.modulo.risposte);
+  Object.freeze(scheda.modulo);
+  Object.freeze(scheda);
+  const prima = JSON.stringify(scheda);
+  let lanciata = "";
+  let letta;
+  try {
+    letta = moduloLetto(scheda);
+  } catch (e) {
+    lanciata = String(e);
+  }
+  c("su una scheda congelata non lancia", "", lanciata);
+  c("la scheda dopo la lettura è identica", prima, JSON.stringify(scheda));
+  //  Il Fastidio salvato (voce vecchia «Poco») vince sulla nota («abbastanza»).
+  c("e la lettura ha letto il salvato prima della nota", "poco|androgenetica", `${letta?.fastidio}|${letta?.problema}`);
 }
 
 /** ── CHI PUÒ FARE CHE COSA ────────────────────────────────────────────────
@@ -5291,7 +5973,7 @@ function proveDelDaSaldare() {
 function provePosaAggiunta() {
   //  Esattamente cio' che scrive la finestra, caso passaparola.
   const dati = {
-    nome: "Mario", cognome: "Rossi", telefono: "3331112233", citta: "Bari",
+    nome: "Mario", cognome: "Rossi", telefono: "3330000112", citta: "Bari",
     fonte: "Passa parola", consulenteId: null, stato: "venduto",
     createdAt: "2026-09-01T10:00:00.000Z", note: "mandato da un altro cliente",
     payment: { prezzoTotale: 1500, accontoPagato: 500 },
@@ -5954,8 +6636,15 @@ function proveDeiMessaggiPerStato() {
   c("e non esce nessun nome inglese", false, /monday|tuesday|wednesday|thursday|friday|saturday|sunday/i.test(testoGiorno));
   //  ⚠️ Oltre la settimana serve anche il giorno del mese: «martedì» da solo
   //   puo' essere uno qualsiasi dei martedì che verranno.
-  const fraUnMese = { id: "x", data: { nome: "Marco", stato: "appuntamento_fissato", dataMeeting: "2026-10-20", oraMeeting: "15:30" } };
-  c("oltre la settimana si dice anche la data", true, /20 ottobre/.test(WA.getWhatsAppMessageForStatus(fraUnMese)));
+  //  ⚠️ La data è a un mese DA OGGI, non scritta fissa: «2026-10-20» era oltre
+  //   la settimana il giorno in cui è stata scritta e dal 14 ottobre non lo è
+  //   più — la prova falliva senza che il messaggio fosse cambiato.
+  const traUnMese = new Date(Date.now() + 30 * 86_400_000);
+  const mesiIt = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+  const isoUnMese = `${traUnMese.getFullYear()}-${String(traUnMese.getMonth() + 1).padStart(2, "0")}-${String(traUnMese.getDate()).padStart(2, "0")}`;
+  const fraUnMese = { id: "x", data: { nome: "Marco", stato: "appuntamento_fissato", dataMeeting: isoUnMese, oraMeeting: "15:30" } };
+  c("oltre la settimana si dice anche la data", true,
+    new RegExp(`\\b${traUnMese.getDate()} ${mesiIt[traUnMese.getMonth()]}`).test(WA.getWhatsAppMessageForStatus(fraUnMese)));
 
   c("sede_disdetta: parla della visita, non del meet", true,
     /visita|passare/i.test(MODELLI_ORIGINALI.sede_disdetta));
@@ -6859,15 +7548,15 @@ function proveDeiLeadDiMeta() {
       com'erano scritte. Cercare solo il nome esatto vuol dire un lead senza
       numero: cioè un lead che non si può chiamare. */
   const italiano = schedaDaLead(lead({
-    "Nome e cognome": "Luca De Santis",
+    "Nome e cognome": "Luca Esempio",
     "Qual è la tua email?": "luca@esempio.it",
-    "Numero di telefono (cellulare)": "3401112223",
+    "Numero di telefono (cellulare)": "3330000113",
     "In quale città vivi?": "Torino",
   }));
   c("il nome scritto in italiano si trova", "Luca", italiano.nome);
-  c("e il cognome pure", "De Santis", italiano.cognome);
+  c("e il cognome pure", "Esempio", italiano.cognome);
   c("l'email con la domanda per esteso si trova", "luca@esempio.it", italiano.email);
-  c("il telefono con la domanda per esteso si trova", "3401112223", italiano.telefono);
+  c("il telefono con la domanda per esteso si trova", "3330000113", italiano.telefono);
   c("e la città", "Torino", italiano.citta);
 
   //  Il nome esatto vince su quello che somiglia: due campi con dentro la
@@ -7346,7 +8035,7 @@ function proveDelTelefonoDoppio() {
   c("sei modi di scrivere, una sola impronta", 1, chiavi.size);
   c("ed è fatta di nove cifre", 9, chiaveTelefono(modi[0]).length);
   c("due modi diversi sono lo stesso numero", true, stessoNumero("339 1234567", "+393391234567"));
-  c("due numeri diversi no", false, stessoNumero("3391234567", "3397654321"));
+  c("due numeri diversi no", false, stessoNumero("3391234567", "3399876543"));
 
   /*  ⚠️ MENTRE SI SCRIVE NON SI DICE NIENTE: tre cifre somigliano a mezzo
       archivio, e un campo rosso che non significa niente dopo due volte non lo
@@ -7359,7 +8048,7 @@ function proveDelTelefonoDoppio() {
 
   const archivio = [
     { id: "A", data: { telefono: "+39 339 1234567", nome: "Mario", cognome: "Rossi" } },
-    { id: "B", data: { telefono: "3397654321", nome: "Lucia", cognome: "Bianchi" } },
+    { id: "B", data: { telefono: "3339876543", nome: "Lucia", cognome: "Bianchi" } },
     { id: "C", data: { telefono: "339 123 45 67", nome: "Mario", cognome: "R." } },
   ];
   c("trova chi ha già quel numero", "A,C",
@@ -7560,18 +8249,18 @@ function proveDeiDoppioni() {
   gruppo("LA STESSA PERSONA, DUE SCHEDE");
 
   /*  Misurato in archivio il 7/10/2026: ventinove numeri con due schede a
-      testa. *Cristiano Sibilia* stava sia in «da ricontattare» che in «acconto
+      testa. *Carlo Esempio* stava sia in «da ricontattare» che in «acconto
       incassato»: due storie della stessa persona, e chi chiama ne legge una a
       caso. In tutto il programma non esisteva nessun modo di unirle. */
   const scheda = (id, data, creata = "2026-01-01T00:00:00Z") => ({
     id, created_at: creata, updated_at: creata, data,
   });
   const vecchia = scheda("A", {
-    nome: "Cristiano", cognome: "Sibilia", telefono: "+39 333 1234567",
+    nome: "Carlo", cognome: "Esempio", telefono: "+39 333 1234567",
     stato: "acconto", note: "Vuole la posa di sabato", citta: "Napoli",
   }, "2026-01-01T00:00:00Z");
   const nuova = scheda("B", {
-    nome: "Cristiano", telefono: "3331234567",
+    nome: "Carlo", telefono: "3331234567",
     stato: "da_ricontattare", note: "Chiede il preventivo via mail", email: "c@x.it",
   }, "2026-09-01T00:00:00Z");
 
@@ -7879,6 +8568,131 @@ function proveDelRicarico() {
   c("alla prima volta è «Di ritorno»", "Di ritorno", etichettaRicarico(dopo1));
   c("dalla seconda si conta", "Di ritorno · 2ª volta", etichettaRicarico(dopo2));
   c("e su una scheda normale non c'è", "", etichettaRicarico(scheda));
+}
+
+/*  ═══════════════════════════════════════════════════════════════════════
+    IL RITORNO DALL'ANNUNCIO E LA SCHEDA DEL LEAD
+    ───────────────────────────────────────────────────────────────────────
+    Quando un lead già in archivio ricompare in un file di Meta, il file sa
+    una cosa che la scheda non sa: da quale annuncio è tornato e cosa ha
+    risposto stavolta. Si aggiunge, non si sovrascrive: lo stato, le note, le
+    risposte già date e il tracking che c'era restano come sono.
+    ⚠️ `updateLead` fonde solo al primo livello: mettere un `tracking` nuovo al
+     posto del vecchio cancellerebbe `utm_source` e `gclid` di chi è arrivato
+     dal sito, e i conti delle campagne cambierebbero attribuzione.
+    ═══════════════════════════════════════════════════════════════════════ */
+function proveDelRitornoDallAnnuncio() {
+  const { patchRicarico, righeRicarico, provenienzaLead, datiOriginaliDelFile } = RIC;
+  gruppo("IL RITORNO DALL'ANNUNCIO");
+  const ORA = new Date("2026-10-12T10:00:00Z");
+  const ARRIVO = {
+    tracking: { ad_name: "A1", adset_name: "G1", utm_source: "meta" },
+    modulo: { problema: "androgenetica", fastidio: "molto", giaFatto: "niente" },
+  };
+  const vecchia = {
+    nome: "Ada", cognome: "Prova", telefono: "+390000000000",
+    stato: "appuntamento_fissato", note: "Richiamare di sera",
+  };
+
+  const p = patchRicarico(vecchia, "lista.csv", ORA, ARRIVO);
+  c("il patch con arrivo non tocca lo stato", false, "stato" in p);
+  c("e non tocca le note", false, "note" in p);
+  c("l'annuncio di ritorno si legge sul ricarico", "A1", p.ricarico.arrivo?.ad_name);
+  c("e il gruppo", "G1", p.ricarico.arrivo?.adset_name);
+  c("una chiave vuota non c'è", false, "campaign_name" in (p.ricarico.arrivo ?? {}));
+  c("il riassunto ha le risposte di stavolta", true,
+    /Problema/.test(p.ricarico.arrivo?.riassunto ?? "") && /Fastidio/.test(p.ricarico.arrivo?.riassunto ?? ""));
+
+  //  Le risposte: entrano solo dove non ce n'erano.
+  c("scheda senza modulo: prende quello dell'arrivo", ARRIVO.modulo, p.modulo);
+  const conModulo = patchRicarico({ ...vecchia, modulo: { zona: "nord" } }, "l.csv", ORA, ARRIVO);
+  c("scheda con modulo: il modulo non si tocca", false, "modulo" in conModulo);
+  c("modulo con soli valori vuoti conta come vuoto", ARRIVO.modulo,
+    patchRicarico({ ...vecchia, modulo: { zona: "" } }, "l.csv", ORA, ARRIVO).modulo);
+
+  //  Il tracking: si riempiono solo le chiavi che mancano.
+  const sito = { ...vecchia, tracking: { utm_source: "google", gclid: "x" } };
+  c("il tracking riempie solo i campi mancanti, utm_source resta «google»",
+    { utm_source: "google", gclid: "x", ad_name: "A1", adset_name: "G1" },
+    patchRicarico(sito, "l.csv", ORA, ARRIVO).tracking);
+  c("l'utm_source di Meta non sostituisce quello del sito", "google",
+    patchRicarico(sito, "l.csv", ORA, ARRIVO).tracking.utm_source);
+  const completa = { ...vecchia, tracking: { utm_source: "google", ad_name: "X", adset_name: "Y" } };
+  c("se non manca niente il patch non ha la chiave tracking", false,
+    "tracking" in patchRicarico(completa, "l.csv", ORA, ARRIVO));
+  c("un campo vuoto sulla scheda conta come mancante", "A1",
+    patchRicarico({ ...vecchia, tracking: { ad_name: "  " } }, "l.csv", ORA, ARRIVO).tracking.ad_name);
+  c("la scheda in mano non viene cambiata", { utm_source: "google", gclid: "x" }, sito.tracking);
+  c("valori vuoti dell'arrivo non entrano", false,
+    "ad_id" in (patchRicarico(sito, "l.csv", ORA, { tracking: { ad_id: "", ad_name: "A1" } }).tracking ?? {}));
+
+  //  Le righe da leggere.
+  const righe = righeRicarico(p);
+  c("la riga dice da quale annuncio e gruppo", true,
+    righe.includes("Ricomparso dall'annuncio «A1» (gruppo «G1»)."));
+  c("e cosa ha risposto stavolta", true, righe.some((r) => /^Stavolta ha risposto: .*Problema/.test(r)));
+  c("solo il gruppo", true,
+    righeRicarico(patchRicarico(vecchia, "l.csv", ORA, { tracking: { adset_name: "G1" } }))
+      .includes("Ricomparso dal gruppo «G1»."));
+  c("solo l'annuncio", true,
+    righeRicarico(patchRicarico(vecchia, "l.csv", ORA, { tracking: { ad_name: "A1" } }))
+      .includes("Ricomparso dall'annuncio «A1»."));
+
+  //  Senza arrivo tutto è come prima.
+  const senza = patchRicarico(vecchia, "l.csv", ORA);
+  c("senza arrivo il patch ha solo il ricarico", ["ricarico"], Object.keys(senza));
+  c("senza arrivo il ricarico non ha la chiave arrivo", false, "arrivo" in senza.ricarico);
+  c("senza arrivo le righe sono quelle di oggi", false, righeRicarico(senza).some((r) => /Ricomparso dal|Stavolta/.test(r)));
+  c("arrivo vuoto = come senza", senza, patchRicarico(vecchia, "l.csv", ORA, { tracking: {}, modulo: {} }));
+  c("arrivo non oggetto = come senza", senza, patchRicarico(vecchia, "l.csv", ORA, "x"));
+
+  //  Il testo del modulo è del cliente: si passa com'è, mai come codice.
+  const strano = '<img src=x onerror="alert(1)">';
+  c("un nome di annuncio strano resta testo", true,
+    righeRicarico(patchRicarico(vecchia, "l.csv", ORA, { tracking: { ad_name: strano } }))
+      .includes(`Ricomparso dall'annuncio «${strano}».`));
+
+  //  ── LA SCHEDA ──────────────────────────────────────────────────────
+  c("provenienza: annuncio, gruppo e campagna", ["A1", "G1", "C1"],
+    provenienzaLead({ tracking: { ad_name: "A1", adset_name: "G1", campaign_name: "C1" } }).voci.map((v) => v.valore));
+  c("provenienza: le etichette", ["Annuncio", "Gruppo", "Campagna"],
+    provenienzaLead({ tracking: { ad_name: "A1", adset_name: "G1", campaign_name: "C1" } }).voci.map((v) => v.titolo));
+  c("provenienza senza tracking: niente", [], provenienzaLead({ nome: "Ada" }).voci);
+  c("provenienza: il giorno viene dalla lista d'origine", "2026-10-10T08:00:00Z",
+    provenienzaLead({ listaOrigine: { file: "f.csv", il: "2026-10-10T08:00:00Z" } }).il);
+  //  ⚠️ `il` è il CARICAMENTO: una lista di marzo caricata a ottobre non è «arrivata a ottobre».
+  const LISTA = { file: "marzo.csv", il: "2026-10-12T10:00:00Z" };
+  c("provenienza: data letta dal file → «arrivato il» con createdAt", "arrivato il 04/03/2026",
+    provenienzaLead({ createdAt: "2026-03-04T10:00:00Z", listaOrigine: { ...LISTA, dataDalFile: true } }).quando);
+  c("provenienza: data NON dal file → file e giorno del caricamento", "dal file «marzo.csv», caricato il 12/10/2026",
+    provenienzaLead({ createdAt: "2026-10-12T10:00:00Z", listaOrigine: LISTA }).quando);
+  c("provenienza: dataDalFile falso come senza", "dal file «marzo.csv», caricato il 12/10/2026",
+    provenienzaLead({ createdAt: "2026-03-04T10:00:00Z", listaOrigine: { ...LISTA, dataDalFile: false } }).quando);
+  c("provenienza: dataDalFile ma createdAt illeggibile → caricamento", "dal file «marzo.csv», caricato il 12/10/2026",
+    provenienzaLead({ createdAt: "boh", listaOrigine: { ...LISTA, dataDalFile: true } }).quando);
+  c("provenienza: senza lista d'origine nessuna frase", undefined, provenienzaLead({ createdAt: "2026-03-04T10:00:00Z" }).quando);
+  c("provenienza: nome del file", "f.csv",
+    provenienzaLead({ listaOrigine: { file: "f.csv", il: "2026-10-10T08:00:00Z" } }).file);
+  c("provenienza: spazi e valori non testo si ignorano", [],
+    provenienzaLead({ tracking: { ad_name: "  ", adset_name: {} } }).voci);
+  c("provenienza: tracking storto non lancia", [], provenienzaLead({ tracking: "x" }).voci);
+
+  c("dati originali: colonna e valore", [{ colonna: "campagna_x", valore: "ciao" }],
+    datiOriginaliDelFile({ datiFile: { campagna_x: "ciao" } }));
+  c("dati originali: le colonne vuote non si mostrano", [],
+    datiOriginaliDelFile({ datiFile: { a: "", b: "   " } }));
+  c("dati originali: senza datiFile niente", [], datiOriginaliDelFile({ nome: "Ada" }));
+  c("dati originali: valori che non sono testo si mostrano come testo", [{ colonna: "n", valore: "3" }],
+    datiOriginaliDelFile({ datiFile: { n: 3 } }));
+  c("dati originali: datiFile storto non lancia", [], datiOriginaliDelFile({ datiFile: "x" }));
+  c("dati originali: HTML resta testo", strano,
+    datiOriginaliDelFile({ datiFile: { k: strano } })[0].valore);
+
+  //  La scheda mostra il testo come testo: niente HTML grezzo né prima né dopo.
+  const dialogo = readFileSync("src/crm/LeadDialog.tsx", "utf8");
+  c("la scheda non inserisce HTML grezzo", false, /dangerouslySetInnerHTML/.test(dialogo));
+  c("la scheda legge il modulo anche dalle note vecchie", true,
+    /vociModulo\(moduloLetto\(form\)\)/.test(dialogo));
 }
 
 /*  ═══════════════════════════════════════════════════════════════════════
@@ -8766,9 +9580,9 @@ function proveDelPreventivoCitato() {
   const { preventivoDaCitare } = PDT;
   gruppo("QUALE PREVENTIVO CITA LA FATTURA");
 
-  const scheda = (extra = {}) => ({ id: "L1", data: { telefono: "+39 331 260 6318", ...extra } });
+  const scheda = (extra = {}) => ({ id: "L1", data: { telefono: "+39 333 000 0106", ...extra } });
   const p = (ref, giorno, extra = {}) => ({
-    quote_ref: ref, telefono: "331 2606318", created_at: `2026-09-${giorno}T10:00:00Z`, ...extra,
+    quote_ref: ref, telefono: "333 0000106", created_at: `2026-09-${giorno}T10:00:00Z`, ...extra,
   });
 
   //  ── IL LEGAME DICHIARATO COMANDA ────────────────────────────────────
@@ -8795,7 +9609,7 @@ function proveDelPreventivoCitato() {
 
   //  ── QUANDO NON SI SA, NON SI INVENTA ────────────────────────────────
   c("nessun preventivo, nessuna citazione", null, preventivoDaCitare(scheda(), []));
-  c("numero di un altro: non si cita", null, preventivoDaCitare(scheda({ telefono: "333 1112223" }), [p("IDX", 20)]));
+  c("numero di un altro: non si cita", null, preventivoDaCitare(scheda({ telefono: "333 111 2222" }), [p("IDX", 20)]));
   //  ⚠️ Poche cifre non bastano: con quattro in comune si attribuirebbe a
   //   questo cliente mezzo archivio.
   c("un telefono troppo corto non aggancia niente", null,
@@ -9177,7 +9991,7 @@ function proveDeiPreventiviDiGruppo() {
       accendeva «lo vede lui» e sul telefono del cliente non c'era nessuno a
       cui quell'interruttore parlasse. Vedi personaDaAdottare. */
   const uno = [{ gettone: "pa0f63cb9", nome: "Bruno Neri" }];
-  const due = [...uno, { gettone: "p33562954", nome: "Daniele Ferlazzo" }];
+  const due = [...uno, { gettone: "p33562954", nome: "Dario Esempio" }];
   c("una persona sola attesa: sono io", "pa0f63cb9", personaDaAdottare("", uno));
   c("…anche se l'elenco arriva dopo", "pa0f63cb9", personaDaAdottare(null, uno));
   c("in due non si indovina", "", personaDaAdottare("", due));
@@ -9329,8 +10143,8 @@ function proveDeiPreventiviDiGruppo() {
   c("e se lo conferma vale la sua parola", "suo", statoDelloSchermo({ acceso: true, collegato: null, lodice: true }));
 
   /*  ── CHI È IN LINEA, ANCHE SE NON SI È PRESENTATO ───────────────────
-      Fotografia del committente: «Daniele Francesco Ferlazzo · non ancora»
-      mentre Daniele era collegato e guardava la videochiamata. Senza
+      Fotografia del committente: «Dario Franco Esempio · non ancora»
+      mentre Dario era collegato e guardava la videochiamata. Senza
       riconoscerlo il pannello non offriva nemmeno il pulsante per
       aggiornargli lo schermo — che era l'unica cosa che gli serviva. */
   const bruno = { gettone: "pa0f63cb9", leadId: "a0f63cb9-1111" };
@@ -10068,61 +10882,634 @@ function proveDelLinkPerCiascuno() {
   c("il segno non è il trattino", true, SEGNO_CHI !== "-");
 }
 
-function proveDelleTrePorte() {
-  const { REPARTI, repartoDi, contoReparto, sottoViste, repartiDaMostrare, vistaDiIngresso } = REP;
-  gruppo("TRE PORTE, NON OTTO");
+function proveDiChiChiamare() {
+  const {
+    inLista, eCaldo, eLaSuaOra, motivoChiamata, NOME_MOTIVO, ordinaChiamate, listaDaChiamare,
+    contaPromesse, patchEsito, fraseVerdetto,
+  } = CHIAM;
+  const { etichettaRisposta } = MDL;
+  gruppo("CHI SI CHIAMA PER PRIMO, E PERCHÉ");
 
-  /*  Segnalazione del committente: «riorganizza tutto da 0, ora è troppo
-      caotico e si perdono funzioni importanti». Otto linguette sulla stessa
-      riga chiedono di scegliere fra otto cose ogni volta. */
-  const tutte = REPARTI.flatMap((r) => r.viste.map((v) => v.vista));
-  c("le porte sono tre", 3, REPARTI.length);
-  //  ⚠️ IL CUORE: nessuna vista è stata persa per strada — né le otto di
-  //   allora, né le due del magazzino aggiunte il 7/10 (Ripesca, Doppioni).
-  //   Il numero si aggiorna quando una stanza nasce; quello che NON deve
-  //   cambiare è che siano tutte dentro una porta e una sola.
-  c("ogni stanza sta in una porta e una sola", tutte.length, new Set(tutte).size);
-  for (const v of [
-    "coda", "oggi", "ritorno", "tutti", "whatsapp", "rimandati", "saltati", "miei",
-    "ripesca", "doppioni",
-  ]) {
-    c(`«${v}» ha ancora una porta`, true, tutte.includes(v));
+  /*  ⚠️ LE DATE SI COSTRUISCONO IN ORA LOCALE: `new Date("2026-10-12T13:00")`
+      è locale, ma `toISOString()` no, e la prova cambierebbe esito con il
+      fuso del computer che la lancia. Il giorno si scrive a mano. */
+  const ADESSO = new Date(2026, 9, 12, 13, 0);
+  const alle = (g, m, h = 0, min = 0) => new Date(2026, m - 1, g, h, min).toISOString();
+  const base = { importato: true, nome: "Prova", createdAt: alle(1, 10) };
+  const L = (id, data) => ({ id, data: { ...base, ...data } });
+
+  const P2 = L("P2", { stato: "richiamo", dataRicontatto: "2026-10-11" });
+  const LUI = L("L", { stato: "ci_ricontatta_lui", dataRicontatto: "2026-10-12" });
+  const P1 = L("P1", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "12:00" });
+  const P3 = L("P3", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "17:00" });
+  const R = L("R", { stato: "no_show", ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } });
+  const N = L("N", {
+    stato: "da_contattare", createdAt: alle(12, 10, 12, 20),
+    listaOrigine: { file: "lista.csv", il: alle(12, 10, 12, 30), dataDalFile: true },
+  });
+  const N0 = L("N0", {
+    stato: "da_contattare", createdAt: alle(12, 10, 12, 20),
+    listaOrigine: { file: "lista.csv", il: alle(12, 10, 12, 20) },
+  });
+  const O = L("O", { stato: "da_contattare", modulo: { quando: "pranzo" } });
+  const Q = L("Q", { stato: "non_risponde", noRispondeCount: 1, modulo: { quando: "pranzo" } });
+  const C1 = L("C1", { stato: "da_contattare", createdAt: alle(5, 10), modulo: { fastidio: "molto" } });
+  const C0 = L("C0", { stato: "da_contattare", createdAt: alle(2, 10), modulo: { fastidio: "poco" } });
+  const P4 = L("P4", { stato: "richiamo", dataRicontatto: "boh" });
+  const T1 = L("T1", { stato: "non_risponde", noRispondeCount: 1 });
+  const T2 = L("T2", { stato: "non_risponde", noRispondeCount: 3 });
+  const F = L("F", { stato: "richiamo", dataRicontatto: "2026-10-20" });
+  const S = L("S", { stato: "da_contattare", saltatoIl: alle(10, 10) });
+  const A = L("A", { stato: "appuntamento_fissato" });
+
+  //  Mescolati di proposito: l'ordine non deve dipendere da come arrivano.
+  const TUTTI = [T2, A, C0, F, P3, T1, N0, S, P4, C1, Q, O, N, R, P1, LUI, P2];
+  const ordine = (ls) => ls.map((l) => l.id).join(",");
+
+  //  ── L'ORDINE DEL TITOLARE ────────────────────────────────────────────
+  c("l'ordine: promessa, di ritorno, nuovo, è la sua ora, prima chiamata, ritento",
+    "P2,L,P1,P3,R,N,O,Q,C1,C0,N0,P4,T1,T2", ordine(listaDaChiamare(TUTTI, ADESSO)));
+  c("chi aspetta un giorno futuro, chi è saltato e chi ha già un appuntamento non sono in lista",
+    false, ["F", "S", "A"].some((id) => listaDaChiamare(TUTTI, ADESSO).some((l) => l.id === id)));
+  c("ordinaChiamate ordina e basta: non toglie nessuno", TUTTI.length, ordinaChiamate(TUTTI, ADESSO).length);
+  c("e non tocca l'elenco che riceve", "T2", TUTTI[0].id);
+  c("i nomi dei motivi",
+    "PROMESSA,DI RITORNO,NUOVO,È LA SUA ORA,PRIMA CHIAMATA,RITENTO",
+    ["promessa", "ritorno", "nuovo", "suaOra", "prima", "ritento"].map((m) => NOME_MOTIVO[m]).join(","));
+
+  //  ── I MOTIVI E I LORO TESTI ──────────────────────────────────────────
+  const m = (l, o) => motivoChiamata(l, ADESSO, o);
+  c("promessa con l'ora passata", "promessa|richiamo alle 12:00, scaduto da 1 h",
+    `${m(P1).motivo}|${m(P1).testo}`);
+  //  Il giorno della settimana evita «del/dell'»: «di domenica 11/10».
+  c("promessa di ieri, senza ora", "promessa|richiamo di domenica 11/10, scaduto da 1 giorno",
+    `${m(P2).motivo}|${m(P2).testo}`);
+  c("promessa di oggi con l'ora che deve ancora arrivare", "promessa|richiamo alle 17:00",
+    `${m(P3).motivo}|${m(P3).testo}`);
+  //  ⚠️ «Mi richiama lui» non è un richiamo nostro: la telefonata la fa lui.
+  c("«mi richiama lui» ha il suo testo e non dice mai «richiamo»", "promessa|doveva farsi vivo lui oggi",
+    `${m(LUI).motivo}|${m(LUI).testo}`);
+  c("un contatto di ritorno dice com'era", "ritorno|era «Cliente assente»",
+    `${m(R).motivo}|${m(R).testo}`);
+  c("un contatto appena arrivato dal file", "nuovo|arrivato 40 minuti fa", `${m(N).motivo}|${m(N).testo}`);
+  c("la sua fascia", "suaOra|ha chiesto: " + etichettaRisposta("quando", "pranzo"),
+    `${m(O).motivo}|${m(O).testo}`);
+  c("un ritento nella sua fascia è «è la sua ora»", "suaOra", m(Q).motivo);
+  c("prima chiamata calda", "prima|fastidio molto|true", `${m(C1).motivo}|${m(C1).testo}|${m(C1).caldo}`);
+  c("prima chiamata fredda", "prima|mai chiamato|false", `${m(C0).motivo}|${m(C0).testo}|${m(C0).caldo}`);
+  c("ritento", "ritento|2° tentativo", `${m(T1).motivo}|${m(T1).testo}`);
+  c("terzo squillo a vuoto: 4° tentativo", "4° tentativo", m(T2).testo);
+  c("già provato un trapianto: caldo", "prima|ha già provato: trapianto|true",
+    (() => { const x = m(L("G", { stato: "da_contattare", modulo: { giaFatto: "trapianto" } })); return `${x.motivo}|${x.testo}|${x.caldo}`; })());
+  c("vuole risolvere ora: caldo", "true",
+    String(m(L("U", { stato: "da_contattare", modulo: { urgenza: "subito" } })).caldo));
+
+  //  ── ⚠️ PROMESSA SOLO CON UN GIORNO LEGGIBILE ─────────────────────────
+  //  Negli archivi le date illeggibili sono centinaia: se contassero come
+  //  promesse finirebbero tutte sopra i ritorni e i nuovi.
+  c("un richiamo con la data illeggibile non è una promessa", "ritento|richiamo senza giorno",
+    `${m(P4).motivo}|${m(P4).testo}`);
+  c("un richiamo senza nessuna data nemmeno",
+    "ritento|richiamo senza giorno",
+    (() => { const x = m(L("X", { stato: "richiamo" })); return `${x.motivo}|${x.testo}`; })());
+  c("«mi richiama lui» senza giorno: ritento, e lo dice", "ritento|doveva farsi vivo lui, senza giorno",
+    (() => { const x = m(L("Y", { stato: "ci_ricontatta_lui" })); return `${x.motivo}|${x.testo}`; })());
+  //  Come `prossimaAzione`: se il giorno non è in `dataRicontatto` ma in `callbackAt`, vale quello.
+  c("il giorno può stare in callbackAt", "promessa",
+    m(L("K", { stato: "richiamo", callbackAt: "2026-10-11T09:00:00" })).motivo);
+  c("un richiamo di domani non è una promessa di oggi", "ritento",
+    m(L("D", { stato: "richiamo", dataRicontatto: "2026-10-13" })).motivo);
+
+  //  ── ⚠️ «NUOVO» SOLO SE LA DATA VIENE DAL FILE ────────────────────────
+  //  Senza la colonna data `createdAt` è l'ora del caricamento: una lista
+  //  vecchia caricata a mano sarebbe tutta «arrivata 40 minuti fa».
+  c("senza la data dal file non è «nuovo»", "prima|mai chiamato", `${m(N0).motivo}|${m(N0).testo}`);
+  c("arrivato 25 ore fa: non è più nuovo", "prima",
+    m(L("V", {
+      stato: "da_contattare", createdAt: alle(11, 10, 12, 0),
+      listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
+    })).motivo);
+  //  ── ⚠️ SENZA L'ORA NON SI DICE «ARRIVATO N ORE FA» ───────────────────
+  //  Una data senza ora diventa mezzogiorno (o mezzanotte UTC se è un ISO senza
+  //  `T`): «arrivato 1 ora fa» sarebbe un'ora inventata da noi. Si dice il giorno.
+  const dalFile = (createdAt) => L("H", {
+    stato: "da_contattare", createdAt,
+    listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
+  });
+  c("data senza ora (mezzogiorno di oggi): «arrivato oggi»", "nuovo|arrivato oggi",
+    (() => { const x = m(dalFile(alle(12, 10, 12, 0))); return `${x.motivo}|${x.testo}`; })());
+  c("ISO senza ora (mezzanotte UTC di oggi): «arrivato oggi»", "arrivato oggi",
+    m(dalFile(new Date(Date.UTC(2026, 9, 12)).toISOString())).testo);
+  c("mezzogiorno di ieri, letto al mattino: «arrivato ieri»", "nuovo|arrivato ieri",
+    (() => { const x = motivoChiamata(dalFile(alle(11, 10, 12, 0)), new Date(2026, 9, 12, 10, 0)); return `${x.motivo}|${x.testo}`; })());
+  c("con l'ora vera resta «arrivato N ore fa»", "arrivato 3 ore fa", m(dalFile(alle(12, 10, 9, 50))).testo);
+  c("e un'ora vera con i minuti non è scambiata per mezzogiorno", "arrivato 40 minuti fa",
+    m(dalFile(alle(12, 10, 12, 20))).testo);
+  c("un nuovo che è già stato chiamato è un ritento", "ritento",
+    m(L("W", {
+      stato: "da_contattare", noRispondeCount: 1, createdAt: alle(12, 10, 12, 20),
+      listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true },
+    })).motivo);
+  const SENZA_DATA = L("Z", { stato: "da_contattare", createdAt: "",
+    listaOrigine: { file: "f.csv", il: alle(12, 10), dataDalFile: true } });
+  c("con la data vuota non è «nuovo»", "prima", m(SENZA_DATA).motivo);
+  const ILLEGGIBILE = L("Z2", { stato: "da_contattare", createdAt: "ieri sera" });
+  c("la data illeggibile non fa esplodere l'ordine e va in fondo al suo gruppo",
+    "C1,C0,N0,Z2",
+    (() => {
+      const r = ordine(ordinaChiamate([ILLEGGIBILE, N0, C0, C1], ADESSO));
+      return r.includes("NaN") ? "NaN" : r;
+    })());
+  c("la data vuota va in fondo al suo gruppo", "C0,Z", ordine(ordinaChiamate([SENZA_DATA, C0], ADESSO)));
+
+  //  ── È LA SUA ORA ─────────────────────────────────────────────────────
+  const alleOre = (h) => new Date(2026, 9, 12, h, 0);
+  c("pranzo vale alle 12:00 (l'inizio è compreso)", true, eLaSuaOra({ quando: "pranzo" }, alleOre(12)));
+  c("e non alle 14:00 (la fine è esclusa)", false, eLaSuaOra({ quando: "pranzo" }, alleOre(14)));
+  c("mattina alle 9", true, eLaSuaOra({ quando: "mattina" }, alleOre(9)));
+  c("sera alle 20", true, eLaSuaOra({ quando: "sera" }, alleOre(20)));
+  c("sera alle 21: finita", false, eLaSuaOra({ quando: "sera" }, alleOre(21)));
+  c("l'orario scritto a mano non conta mai", false, eLaSuaOra({ quandoTesto: "dopo le 13" }, alleOre(13)));
+  c("senza risposta no", false, eLaSuaOra(undefined, alleOre(13)));
+
+  //  ── CALDO: LE TRE REGOLE DEL TITOLARE ────────────────────────────────
+  c("fastidio abbastanza è caldo", true, eCaldo({ fastidio: "abbastanza" }));
+  c("vuole valutare è caldo", true, eCaldo({ urgenza: "valutando" }));
+  c("ha provato i farmaci è caldo", true, eCaldo({ giaFatto: "farmaci" }));
+  c("non ha provato niente non basta", false, eCaldo({ giaFatto: "niente" }));
+  c("poco fastidio non basta", false, eCaldo({ fastidio: "poco" }));
+  c("senza risposte non è caldo", false, eCaldo(undefined));
+
+  //  ── I RITORNI E LE RISPOSTE LETTE DALLE NOTE ─────────────────────────
+  const APP = L("APP", { stato: "appuntamento_fissato", importato: false });
+  c("un lead non importato è fuori lista", false, inLista(APP, ADESSO));
+  c("ma con l'id fra i ritorni di questa schermata entra, come oggi", "ritorno",
+    (() => { const o = { idRitorno: new Set(["APP"]) }; return inLista(APP, ADESSO, o) && m(APP, o).motivo; })());
+  c("rimandato con «vedi dopo» non rientra dai ritorni", false,
+    inLista(L("RM", { stato: "no_show", importato: false,
+      ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true, rimandatoIl: alle(12, 10) } }),
+      ADESSO, { idRitorno: new Set(["RM"]) }));
+  c("chi ha una promessa per dopo non entra nemmeno se è di ritorno", false,
+    inLista(L("FR", { stato: "richiamo", dataRicontatto: "2026-10-20",
+      ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } }), ADESSO));
+  c("le risposte si leggono con la funzione della pagina", "prima|fastidio molto|true",
+    (() => {
+      const x = m(L("MD", { stato: "da_contattare" }),
+        { moduloDi: () => ({ fastidio: "molto" }) });
+      return `${x.motivo}|${x.testo}|${x.caldo}`;
+    })());
+
+  //  ── CHI ASPETTA UN RICHIAMO, PER IL VERDETTO IN TESTATA ──────────────
+  //  ⚠️ Non conta le note del setter né i saltati: solo le promesse della lista.
+  c("le promesse sono quattro, due scadute", "4|2",
+    (() => { const x = contaPromesse(TUTTI, ADESSO); return `${x.tutte}|${x.scadute}`; })());
+  c("il numero è quello delle righe «promessa» della lista", 4,
+    listaDaChiamare(TUTTI, ADESSO).filter((l) => m(l).motivo === "promessa").length);
+  c("un saltato con una promessa scaduta non si conta", "0|0",
+    (() => { const x = contaPromesse([L("SP", { stato: "richiamo", dataRicontatto: "2026-10-01", saltatoIl: alle(5, 10) })], ADESSO); return `${x.tutte}|${x.scadute}`; })());
+
+  //  ── ⚠️ DUE NOTE DEL REVISORE (T3), CHIUSE IN T7 ──────────────────────
+  //  1. Una data «zero» di un vecchio gestionale (`0000-00-00`, `2026-10-00`)
+  //     ha la forma giusta ma non è un giorno: passava per «leggibile» e finiva
+  //     in cima come PROMESSA «scaduta da 739.000 giorni», contata nel verdetto.
+  for (const zero of ["0000-00-00", "2026-10-00", "2026-02-30", "2026-13-01", "0001-01-01"]) {
+    const x = m(L("Z0", { stato: "richiamo", dataRicontatto: zero }));
+    c(`la data «${zero}» non è un giorno: ritento, senza giorno`, "ritento|richiamo senza giorno",
+      `${x.motivo}|${x.testo}`);
+    c(`e non entra nel verdetto (${zero})`, "0|0",
+      (() => { const v = contaPromesse([L("Z0", { stato: "richiamo", dataRicontatto: zero })], ADESSO); return `${v.tutte}|${v.scadute}`; })());
   }
+  c("la data zero in dataRicontatto lascia valere callbackAt", "promessa",
+    m(L("ZC", { stato: "richiamo", dataRicontatto: "0000-00-00", callbackAt: "2026-10-11T09:00:00" })).motivo);
+  c("un callbackAt zero non fa una promessa", "ritento",
+    m(L("ZB", { stato: "richiamo", callbackAt: "0000-00-00T00:00:00" })).motivo);
+  //  2. L'ora salvata vale solo per un «richiamo» con il suo giorno in
+  //     `dataRicontatto`. «Mi richiama lui» non ha un'ora nostra da rispettare
+  //     (il testo dice «doveva farsi vivo lui oggi») e un giorno preso da
+  //     `callbackAt` non è quello a cui l'ora si riferiva.
+  const LUI10 = L("L10", { stato: "ci_ricontatta_lui", dataRicontatto: "2026-10-12", oraRicontatto: "10:00" });
+  c("«mi richiama lui» di oggi con un'ora passata: promessa, ma non scaduta", "promessa|doveva farsi vivo lui oggi|1|0",
+    (() => { const x = m(LUI10); const v = contaPromesse([LUI10], ADESSO); return `${x.motivo}|${x.testo}|${v.tutte}|${v.scadute}`; })());
+  const CB = L("CB", { stato: "richiamo", callbackAt: "2026-10-12T09:00:00", oraRicontatto: "10:00" });
+  c("il giorno preso da callbackAt non eredita l'ora salvata", "promessa|richiamo di oggi|1|0",
+    (() => { const x = m(CB); const v = contaPromesse([CB], ADESSO); return `${x.motivo}|${x.testo}|${v.tutte}|${v.scadute}`; })());
+  c("un vero richiamo con la sua ora passata resta scaduto", "promessa|richiamo alle 12:00, scaduto da 1 h|1|1",
+    (() => { const x = m(P1); const v = contaPromesse([P1], ADESSO); return `${x.motivo}|${x.testo}|${v.tutte}|${v.scadute}`; })());
 
+  //  ── LA FRASE DEL VERDETTO ────────────────────────────────────────────
+  //  ⚠️ Il numero in testata è `contaPromesse` e il testo sta qui, provato: la
+  //  frase e le righe dello Stato «Promesse» devono dire la stessa cosa.
+  c("nessuna promessa: nessuna frase", "", fraseVerdetto({ tutte: 0, scadute: 0 }));
+  c("quattro promesse, due scadute", "4 promesse da mantenere, di cui 2 scadute: sono in cima",
+    fraseVerdetto({ tutte: 4, scadute: 2 }));
+  c("una promessa, scaduta", "1 promessa da mantenere, scaduta: è in cima",
+    fraseVerdetto({ tutte: 1, scadute: 1 }));
+  c("una promessa, una scadenza sola su tre", "3 promesse da mantenere, di cui 1 scaduta: sono in cima",
+    fraseVerdetto({ tutte: 3, scadute: 1 }));
+  c("promesse ma nessuna scaduta", "2 promesse da mantenere, nessuna scaduta",
+    fraseVerdetto({ tutte: 2, scadute: 0 }));
+  c("una promessa non ancora scaduta", "1 promessa da mantenere, non ancora scaduta",
+    fraseVerdetto({ tutte: 1, scadute: 0 }));
+  c("numeri strani non danno frasi strane", "", fraseVerdetto({ tutte: -3, scadute: Number.NaN }));
+
+  //  ── L'ESITO CHE SI SCRIVE ────────────────────────────────────────────
+  c("non risponde senza contatore: 1", 1, patchEsito({}, "non_risponde").noRispondeCount);
+  c("segreteria da 2: 3", 3, patchEsito({ noRispondeCount: 2 }, "segreteria").noRispondeCount);
+  c("richiamo scrive lo stato e basta", '{"stato":"richiamo"}', JSON.stringify(patchEsito({ noRispondeCount: 2 }, "richiamo")));
+  c("senza scheda non esplode", 1, patchEsito(null, "non_risponde").noRispondeCount);
+}
+
+function proveDelleLinguette() {
+  const {
+    LINGUETTE, ALTRO, linguettaDi, percorsoVista, contoLinguetta, stanzeDi, linguetteDaMostrare,
+    vistaDiIngresso, voceStatoAttiva, fasciaDeiRitorni, nessunRitornoInLista, fuoriDallaLista,
+  } = REP;
+  gruppo("TRE LINGUETTE E UN MENU «ALTRO»");
+
+  /*  Richiesta del titolare (12/10): una lista sola «Da chiamare», tre
+      linguette, e tutto il resto in «Altro». ⚠️ NIENTE SI TOGLIE: le dieci
+      viste di prima ci sono ancora, solo in un altro posto. */
+  const DIECI = ["coda", "oggi", "ritorno", "tutti", "whatsapp", "rimandati", "saltati", "miei", "ripesca", "doppioni"];
+  c("le linguette sono tre", 3, LINGUETTE.length);
+  c("e si chiamano come nella spec", "Da chiamare,In attesa,Fissati da me", LINGUETTE.map((l) => l.nome).join(","));
+  for (const v of DIECI) {
+    const p = percorsoVista(v);
+    c(`«${v}» si raggiunge con uno o due passi`, true, p.length >= 1 && p.length <= 2);
+    c(`«${v}» ha una linguetta o sta in «Altro»`, true, ["dachiamare", "attesa", "miei", "altro"].includes(linguettaDi(v)));
+  }
+  //  Ogni vista sta in un posto solo: nelle stanze di una linguetta, oppure in Altro.
+  const stanze = LINGUETTE.flatMap((l) => l.viste.map((v) => v.vista));
+  const inAltro = ALTRO.filter((x) => x.vista).map((x) => x.vista);
+  c("nessuna stanza è in due posti", stanze.length + inAltro.length, new Set([...stanze, ...inAltro]).size);
+  c("«coda» (la lista) sta in «Da chiamare»", "dachiamare", linguettaDi("coda"));
+  c("«ritorno» si raggiunge dalla lista, con lo Stato", "dachiamare", linguettaDi("ritorno"));
+  c("il percorso di «ritorno»", ["Da chiamare", "Stato: Di ritorno"], percorsoVista("ritorno"));
+  c("il percorso della lista", ["Da chiamare"], percorsoVista("coda"));
+  c("«ripesca» sta in Altro", "Altro", percorsoVista("ripesca")[0]);
+  c("il percorso di «Ripesca»", ["Altro", "Ripesca"], percorsoVista("ripesca"));
+  c("«Tutta la lista» sta in Altro", ["Altro", "Tutta la lista"], percorsoVista("tutti"));
+  c("«Doppioni» sta in Altro", "altro", linguettaDi("doppioni"));
+  c("«Note e promemoria» è la vecchia «Oggi», nella stessa scheda", ["Altro", "Note e promemoria"], percorsoVista("oggi"));
+  c("«Vedi dopo» resta in «In attesa»", ["In attesa", "Vedi dopo"], percorsoVista("rimandati"));
+  c("«Fissati da me» è una linguetta", ["Fissati da me"], percorsoVista("miei"));
+
+  //  ── Il menu Altro: le cinque cose che non si toglie ─────────────────────
+  c("Altro contiene Tutta la lista, Ripesca, Doppioni, Note e promemoria", "doppioni,oggi,ripesca,tutti",
+    [...inAltro].sort().join(","));
+  c("e l'Elenco completo, che è un'altra pagina", "/CRM/avanzamento",
+    ALTRO.find((x) => x.href)?.href);
+  c("Altro ha cinque voci", 5, ALTRO.length);
+  c("ogni voce di Altro ha un nome e una spiegazione", true, ALTRO.every((x) => x.nome && x.titolo));
+
+  //  ── I numeri ────────────────────────────────────────────────────────────
   const conti = { coda: 17, oggi: 2, ritorno: 21, tutti: 17, whatsapp: 16, rimandati: 7, saltati: 7, miei: 128 };
-  /*  ⚠️ IL NUMERO SULLA PORTA NON È LA SOMMA: i contatti di ritorno e i
-      richiami scaduti stanno GIÀ in coda, e sommarli direbbe che c'è il doppio
-      del lavoro che c'è. */
-  c("la porta «adesso» conta solo la coda", 17, contoReparto("adesso", conti));
-  c("«in attesa» invece somma le sue tre stanze", 30, contoReparto("attesa", conti));
-  c("«il mio lavoro» porta il suo numero", 128, contoReparto("mio", conti));
+  c("«Da chiamare» conta la lista", 17, contoLinguetta("dachiamare", conti));
+  /*  «Di ritorno» e le note scadute stanno GIÀ nella lista o in Altro:
+      sommarle direbbe che c'è il doppio del lavoro che c'è. */
+  c("«In attesa» somma le sue tre stanze", 30, contoLinguetta("attesa", conti));
+  c("«Fissati da me» porta il suo numero", 128, contoLinguetta("miei", conti));
+  c("numeri mancanti o storti valgono zero", 0, contoLinguetta("attesa", { whatsapp: Number.NaN }));
 
-  c("una vista sa in che porta sta", "attesa", repartoDi("whatsapp"));
-  c("e anche quella del setter", "mio", repartoDi("miei"));
-
-  //  Le stanze vuote non si mostrano...
+  //  ── Quali linguette si vedono, quali stanze, dove si entra ──────────────
   const vuoto = { coda: 0, oggi: 0, miei: 0 };
-  c("una stanza vuota non compare", false,
-    sottoViste("attesa", vuoto, "coda").some((v) => v.vista === "saltati"));
-  //  ...ma quelle di tutti i giorni sì, anche a zero.
-  c("la coda c'è anche quando sei in pari", true,
-    sottoViste("adesso", vuoto, "coda").some((v) => v.vista === "coda"));
-  //  ⚠️ E quella APERTA non sparisce sotto le dita quando si svuota.
-  c("la stanza aperta non sparisce mai", true,
-    sottoViste("attesa", vuoto, "saltati").some((v) => v.vista === "saltati"));
-  c("nemmeno la sua porta", true,
-    repartiDaMostrare(vuoto, "saltati").some((r) => r.reparto === "attesa"));
-  c("ma a porta chiusa e stanze vuote la porta non c'è", false,
-    repartiDaMostrare(vuoto, "coda").some((r) => r.reparto === "attesa"));
-
-  /*  Premendo una porta si entra dove c'è da lavorare, non sulla prima stanza
-      per ordine alfabetico. */
+  c("«Da chiamare» c'è anche quando sei in pari", true,
+    linguetteDaMostrare(vuoto, "coda").some((l) => l.linguetta === "dachiamare"));
+  c("«Fissati da me» c'è sempre", true, linguetteDaMostrare(vuoto, "coda").some((l) => l.linguetta === "miei"));
+  c("«In attesa» vuota non si mostra", false,
+    linguetteDaMostrare(vuoto, "coda").some((l) => l.linguetta === "attesa"));
+  c("ma se ci sei dentro non sparisce sotto le dita", true,
+    linguetteDaMostrare(vuoto, "saltati").some((l) => l.linguetta === "attesa"));
+  c("una stanza vuota non compare", false, stanzeDi("attesa", vuoto, "coda").some((v) => v.vista === "saltati"));
+  c("la stanza aperta non sparisce mai", true, stanzeDi("attesa", vuoto, "saltati").some((v) => v.vista === "saltati"));
   c("si entra dove c'è qualcosa", "whatsapp", vistaDiIngresso("attesa", conti, "coda"));
-  c("a porta tutta vuota si entra nella stanza di sempre", "coda",
-    vistaDiIngresso("adesso", vuoto, "miei"));
-  //  ⚠️ Ripremere la porta che si sta già guardando non sposta nessuno.
-  c("ripremere la porta aperta non sposta niente", "rimandati",
-    vistaDiIngresso("attesa", conti, "rimandati"));
+  c("ripremere la linguetta aperta non sposta niente", "rimandati", vistaDiIngresso("attesa", conti, "rimandati"));
+  c("a linguetta vuota si entra nella prima stanza", "whatsapp", vistaDiIngresso("attesa", vuoto, "coda"));
+  c("«Da chiamare» porta alla lista", "coda", vistaDiIngresso("dachiamare", conti, "miei"));
+  //  Da una stanza di Altro, premere «Da chiamare» riporta alla lista.
+  c("da Ripesca si torna alla lista", "coda", vistaDiIngresso("dachiamare", conti, "ripesca"));
+
+  //  ── ⚠️ «DI RITORNO» RESTA RAGGIUNGIBILE (decisione 3: niente si toglie) ──
+  //  La vecchia stanza mostrava anche chi NON è in lista: i «mi richiama lui»
+  //  arrivati dal sito, quelli con un giorno futuro, i ritorni con una promessa
+  //  per dopo. Il filtro Stato non deve spegnere la voce «Di ritorno» solo
+  //  perché nella lista non c'è nessuna riga di ritorno: 0 in lista, 6 fuori.
+  c("«Di ritorno» con 0 in lista e 6 fuori resta accesa", true, voceStatoAttiva("ritorno", 0, "tutti", 6));
+  c("«Di ritorno» con 0 e 0 è spenta", false, voceStatoAttiva("ritorno", 0, "tutti", 0));
+  c("«Di ritorno» con righe in lista è accesa", true, voceStatoAttiva("ritorno", 2, "tutti", 0));
+  c("la voce scelta non si spegne mai", true, voceStatoAttiva("ritorno", 0, "ritorno", 0));
+  c("i ritorni fuori lista non accendono le altre voci", false, voceStatoAttiva("promesse", 0, "tutti", 6));
+  c("fascia: 4 da decidere e 2 che si fanno vivi",
+    "4 contatti di ritorno da decidere, più 2 che si fanno vivi loro", fasciaDeiRitorni(4, 2));
+  c("fascia: uno solo", "1 contatto di ritorno da decidere", fasciaDeiRitorni(1, 0));
+  c("fascia: solo «si fanno vivi loro»", "6 si fanno vivi loro", fasciaDeiRitorni(0, 6));
+  c("fascia: uno che si fa vivo", "1 si fa vivo lui", fasciaDeiRitorni(0, 1));
+  c("fascia: niente, niente fascia", "", fasciaDeiRitorni(0, 0));
+  //  ── ⚠️ «NESSUNO CON QUESTI FILTRI» NON VA SOPRA I BLOCCHI DI RITORNO ──
+  //  Con lo Stato «Di ritorno» e nessuna riga in lista, sotto ci sono i due
+  //  blocchi con le persone: la schermata «vuota» sopra le contraddice. Si dice
+  //  in una riga, e solo se i blocchi hanno qualcuno.
+  c("Stato «Di ritorno», 0 righe, 6 che si fanno vivi: una riga e non la schermata vuota", true,
+    nessunRitornoInLista("ritorno", 0, 6) !== "");
+  c("Stato «Di ritorno» e blocchi vuoti: resta la schermata vuota", "", nessunRitornoInLista("ritorno", 0, 0));
+  c("altri Stati: resta la schermata vuota", "", nessunRitornoInLista("promesse", 2, 6));
+  c("nessuno Stato: resta la schermata vuota", "", nessunRitornoInLista("tutti", 2, 6));
+  c("la riga rimanda ai blocchi qui sotto", true, /qui sotto/i.test(nessunRitornoInLista("ritorno", 1, 0)));
+  c("la riga non dice «nessuno con questi filtri»", false,
+    /nessuno con questi filtri/i.test(nessunRitornoInLista("ritorno", 3, 3)));
+  //  La frase nomina solo il blocco che c'è: niente «chi aspetta una decisione» se non c'è nessuno.
+  c("solo chi si fa vivo: non parla di decisioni", false, /decisione/.test(nessunRitornoInLista("ritorno", 0, 4)));
+  c("solo chi aspetta una decisione: non parla di chi si fa vivo", false, /vivo/.test(nessunRitornoInLista("ritorno", 2, 0)));
+  c("tutti e due: li nomina entrambi", true,
+    /decisione/.test(nessunRitornoInLista("ritorno", 2, 4)) && /vivo/.test(nessunRitornoInLista("ritorno", 2, 4)));
+
+  //  ── ⚠️ LA STESSA PERSONA NON COMPARE DUE VOLTE ────────────────────────
+  //  Con lo Stato «Di ritorno» chi è in lista sta già nella scheda grande e nel
+  //  «Poi», con le stesse decisioni: il blocco sotto mostra SOLO chi in lista non
+  //  entra (promessa per un altro giorno, messo da parte…).
+  const rit = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  c("fuoriDallaLista: toglie chi è già in lista", "b", fuoriDallaLista(rit, new Set(["a", "c", "z"])).map((x) => x.id).join(","));
+  c("fuoriDallaLista: lista vuota, restano tutti", "a,b,c", fuoriDallaLista(rit, new Set()).map((x) => x.id).join(","));
+  c("fuoriDallaLista: tutti in lista, nessuno sotto", 0, fuoriDallaLista(rit, new Set(["a", "b", "c"])).length);
+  c("fuoriDallaLista: non tocca l'elenco ricevuto", 3, rit.length);
+  const pagina = readFileSync("src/routes/CRM.importa.tsx", "utf8");
+  c("la pagina passa al blocco solo chi è fuori dalla lista e lo nasconde se è vuoto", true,
+    /fuoriDallaLista\(/.test(pagina) && /diRitornoFuori\.length\s*>\s*0\s*&&\s*\(\s*<SchedaRimandati/.test(pagina));
+  c("la pagina rimette la fascia dei ritorni, che apre lo Stato «Di ritorno»", true,
+    pagina.includes("Aprili tutti") && pagina.includes("fasciaDeiRitorni("));
+  c("la pagina usa la riga al posto della schermata vuota, con lo Stato «Di ritorno»", true,
+    pagina.includes("nessunRitornoInLista("));
+  c("e la barra dei filtri si vede anche a lista vuota se ci sono ritorni", true,
+    /contiViste\.ritorno\s*>\s*0\)\s*&&\s*\(\s*<BarraFiltri/.test(pagina));
+
+  //  ── ⚠️ I MENU SONO DI RADIX, E LE SCORCIATOIE LO SANNO ──────────────────
+  //  Un «1» premuto dentro un menu aperto non deve dare l'esito «Non risponde»
+  //  al lead che si sta guardando. Il freno è in `useScorciatoie`: tace se nella
+  //  pagina c'è un contenuto di Radix aperto. Ma lo fa solo con i menu di Radix:
+  //  un menu fatto a mano con un <div> non ha quell'attributo e il freno non
+  //  scatta. Lo si legge dal sorgente, perché è una proprietà del codice.
+  const ui = readFileSync("src/crm/ui.tsx", "utf8");
+  c("il freno delle scorciatoie guarda i menu di Radix", true,
+    ui.includes('document.querySelector("[data-radix-popper-content-wrapper]")'));
+  for (const f of ["src/crm/importa/FiltriLista.tsx", "src/crm/importa/MenuAltro.tsx"]) {
+    const src = readFileSync(f, "utf8");
+    c(`${f}: i menu sono i componenti di Radix già nel progetto`, true,
+      /from "@\/components\/ui\/(popover|dropdown-menu)"/.test(src));
+    c(`${f}: nessun menu fatto a mano`, false,
+      /<select\b|role="(listbox|menu)"/.test(src));
+  }
+  const filtri = readFileSync("src/crm/importa/FiltriLista.tsx", "utf8");
+  c("i tre filtri hanno i tre nomi della spec", true,
+    ["Annuncio", "Risposta", "Stato"].every((n) => filtri.includes(`"${n}"`)));
+  c("c'è «Azzera filtri»", true, filtri.includes("Azzera filtri"));
+  const altro = readFileSync("src/crm/importa/MenuAltro.tsx", "utf8");
+  c("il menu Altro porta all'elenco completo con un collegamento vero", true,
+    altro.includes('to="/CRM/avanzamento"'));
+
+  //  ── ⚠️ IL NUMERO DEL VERDETTO NON SI SMENTISCE AL PRIMO TOCCO ───────────
+  //  Prima la testata contava anche le note del setter e i saltati, e usava
+  //  l'ora: premendo «3 richiami scaduti» si trovavano altre righe. Ora il
+  //  numero è `contaPromesse` e lo Stato «Promesse» mostra le stesse righe.
+  //  Qui si incrociano i due moduli: è possibile solo adesso che sono tutti e
+  //  due nel ramo.
+  const { listaDaChiamare, motivoChiamata, contaPromesse, fraseVerdetto } = CHIAM;
+  const { applicaFiltri, opzioniFiltri } = FIL;
+  const ADESSO = new Date(2026, 9, 12, 13, 0);
+  const alle = (g, mm, h = 0, min = 0) => new Date(2026, mm - 1, g, h, min).toISOString();
+  const base = { importato: true, nome: "Prova", createdAt: alle(1, 10) };
+  const L = (id, data) => ({ id, data: { ...base, ...data } });
+  const MISTI = [
+    L("p-ieri", { stato: "richiamo", dataRicontatto: "2026-10-11" }),
+    L("p-ora-passata", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "12:00" }),
+    L("p-ora-futura", { stato: "richiamo", dataRicontatto: "2026-10-12", oraRicontatto: "17:00" }),
+    L("p-lui", { stato: "ci_ricontatta_lui", dataRicontatto: "2026-10-12", oraRicontatto: "10:00" }),
+    L("p-callback", { stato: "richiamo", callbackAt: "2026-10-10T09:00:00" }),
+    //  …e quelli che NON sono promesse in lista:
+    L("f-futuro", { stato: "richiamo", dataRicontatto: "2026-10-20" }),
+    L("f-senza-giorno", { stato: "richiamo", dataRicontatto: "boh" }),
+    L("f-zero", { stato: "richiamo", dataRicontatto: "0000-00-00" }),
+    L("f-saltato", { stato: "richiamo", dataRicontatto: "2026-10-01", saltatoIl: alle(10, 10) }),
+    L("f-fissato", { stato: "appuntamento_fissato" }),
+    L("f-ritorno", { stato: "no_show", ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } }),
+    L("f-prima", { stato: "da_contattare" }),
+    L("f-ritento", { stato: "non_risponde", noRispondeCount: 2 }),
+    L("f-altro-lead", { stato: "richiamo", dataRicontatto: "2026-10-09", importato: false }),
+  ];
+  const lista = listaDaChiamare(MISTI, ADESSO);
+  const righe = lista.map((l) => ({ id: l.id, data: l.data, motivo: motivoChiamata(l, ADESSO).motivo, modulo: l.data.modulo }));
+  const conto = contaPromesse(MISTI, ADESSO);
+  const dello_stato = applicaFiltri(righe, { stato: "promesse" }, "2026-10-12");
+  c("il numero del verdetto è il numero di righe dello Stato «Promesse»", conto.tutte, dello_stato.length);
+  c("sono proprio le cinque promesse", "p-callback,p-ieri,p-lui,p-ora-futura,p-ora-passata",
+    dello_stato.map((r) => r.id).sort().join(","));
+  c("le scadute sono quelle con il momento passato", 3, conto.scadute);
+  c("il numero accanto alla voce «Promesse» del menu è lo stesso", conto.tutte,
+    opzioniFiltri(righe, {}, "2026-10-12").stato.find((x) => x.valore === "promesse").n);
+  c("la frase del verdetto dice quel numero", true,
+    fraseVerdetto(conto).startsWith(`${conto.tutte} promesse da mantenere, di cui ${conto.scadute} scadute`));
+  //  Con un altro filtro acceso il verdetto resta quello della lista intera:
+  //  il clic azzera Annuncio e Risposta e imposta solo lo Stato.
+  c("lo Stato «Promesse» da solo mostra esattamente N righe", conto.tutte,
+    applicaFiltri(righe, { stato: "promesse", quando: "sempre" }, "2026-10-12").length);
+}
+
+/** ── I FILTRI DELLA LISTA DEI LEAD IMPORTATI ───────────────────────────────
+ *  Annuncio, Risposta e Stato sono funzioni pure: la pagina le chiama, l'indirizzo
+ *  le conserva. Il pericolo è un numero accanto a una voce che si smentisce al
+ *  primo tocco, e una risposta con la virgola spezzata a metà dall'indirizzo. */
+function proveDeiFiltriDellaLista() {
+  const { etichettaAnnuncio, statoDelFiltro, valoriRisposta, applicaFiltri, opzioniFiltri, leggiRicercaImporta } = FIL;
+  const { riepilogoImport } = RIE;
+  gruppo("I FILTRI DELLA LISTA DEI LEAD IMPORTATI");
+
+  //  ── Le domande nuove hanno titolo ed etichetta veri, non l'id ─────────────
+  //   Finché T2 non c'era il filtro passava da una conversione di tipo, e una
+  //   domanda sconosciuta al modulo avrebbe mostrato «problema» e «areata».
+  const vr = valoriRisposta({ problema: "areata" }).find((v) => v.campo === "problema");
+  c("la domanda nuova ha il suo titolo", "Problema", vr?.titolo);
+  c("la risposta nuova ha la sua etichetta", "Alopecia areata", vr?.etichetta);
+
+  //  ── L'annuncio ──────────────────────────────────────────────────────────
+  const e1 = etichettaAnnuncio({ adset_name: "BROAD | ITALIA", ad_name: "589€ - 001 - ok" });
+  c("il gruppo è l'adset", "BROAD | ITALIA", e1.gruppo);
+  c("l'annuncio è l'ad_name", "589€ - 001 - ok", e1.annuncio);
+  c("chiave del gruppo", "g:BROAD | ITALIA", e1.chiaveGruppo);
+  c("chiave dell'annuncio: gruppo, separatore, annuncio", "a:BROAD | ITALIA\u241F589€ - 001 - ok", e1.chiaveAnnuncio);
+  c("senza adset si ripiega sulla campagna", "Campagna X",
+    etichettaAnnuncio({ campaign_name: "Campagna X", ad_name: "A" }).gruppo);
+  c("senza niente: «Liste senza annuncio»", "Liste senza annuncio", etichettaAnnuncio(undefined).gruppo);
+  c("senza niente: chiave «senza»", "senza", etichettaAnnuncio(undefined).chiaveGruppo);
+  c("senza niente: nessun annuncio", null, etichettaAnnuncio({}).annuncio);
+  c("nomi di soli spazi valgono come mancanti", "senza",
+    etichettaAnnuncio({ adset_name: "   ", ad_name: " " }).chiaveGruppo);
+
+  //  ── Lo stato del filtro ─────────────────────────────────────────────────
+  c("promessa → promesse", "promesse", statoDelFiltro("promessa", "richiamo"));
+  c("ritorno → ritorno", "ritorno", statoDelFiltro("ritorno", "da_contattare"));
+  c("nuovo → mai", "mai", statoDelFiltro("nuovo", "da_contattare"));
+  c("prima → mai", "mai", statoDelFiltro("prima", "da_contattare"));
+  c("ritento → ritentare", "ritentare", statoDelFiltro("ritento", "non_risponde"));
+  c("la sua ora, mai chiamato → mai", "mai", statoDelFiltro("suaOra", "da_contattare"));
+  c("la sua ora, già chiamato → ritentare", "ritentare", statoDelFiltro("suaOra", "non_risponde"));
+
+  //  ── Le risposte ─────────────────────────────────────────────────────────
+  const v1 = valoriRisposta({ zona: "nord" })[0];
+  c("risposta col codice: chiave", "zona|nord", v1.chiave);
+  c("risposta col codice: etichetta", "Nord Italia", v1.etichetta);
+  c("risposta col codice: campo", "zona", v1.campo);
+  const v2 = valoriRisposta({ risposte: [{ domanda: "Zona", risposta: "Svizzera italiana" }] })[0];
+  c("risposta scritta com'è: chiave", "zona|t:svizzera italiana", v2.chiave);
+  c("risposta scritta com'è: etichetta", "Svizzera italiana", v2.etichetta);
+  c("domanda nuova: la chiave usa il codice", "problema|areata", valoriRisposta({ problema: "areata" })[0].chiave);
+  c("domanda nuova: campo", "problema", valoriRisposta({ problema: "areata" })[0].campo);
+  c("una domanda sconosciuta non entra nel filtro", 0,
+    valoriRisposta({ risposte: [{ domanda: "Quanti anni hai?", risposta: "Quaranta" }] }).length);
+  c("senza modulo, nessuna voce", 0, valoriRisposta(undefined).length);
+  c("una voce sola per domanda: il codice vince sul testo", ["zona|nord"],
+    valoriRisposta({ zona: "nord", risposte: [{ domanda: "Zona", risposta: "Nord Italia", campo: "zona" }] }).map((v) => v.chiave));
+  c("«quando» scritto a mano", "quando|t:giovedi dopo le 19",
+    valoriRisposta({ quandoTesto: "Giovedì dopo le 19" })[0].chiave);
+
+  //  ── Sei righe: la prova dei conti ───────────────────────────────────────
+  const A1 = { adset_name: "BROAD | ITALIA", ad_name: "589€ - 001 - ok" };
+  const A2 = { adset_name: "BROAD | ITALIA", ad_name: "589€ - 002 - ok" };
+  const riga = (id, tracking, modulo, motivo, createdAt, stato = "da_contattare") => ({
+    id, data: { tracking, createdAt, stato }, motivo, modulo,
+  });
+  const OGGI = "2026-10-12";
+  const righe = [
+    riga("r1", A1, { problema: "areata", zona: "nord" }, "promessa", "2026-10-12T10:00:00Z"),
+    riga("r2", A1, { problema: "areata", risposte: [{ domanda: "Zona", risposta: "Svizzera italiana" }] }, "nuovo", "2026-10-11T10:00:00Z"),
+    riga("r3", A1, { problema: "androgenetica", zona: "nord" }, "promessa", "2026-10-05T10:00:00Z", "richiamo"),
+    riga("r4", A2, { problema: "areata", zona: "sud" }, "ritento", "2026-10-09T10:00:00Z", "non_risponde"),
+    riga("r5", A2, { problema: "areata", zona: "nord" }, "suaOra", "2026-10-12T10:00:00Z"),
+    riga("r6", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+  ];
+  const chiaveA1 = etichettaAnnuncio(A1).chiaveAnnuncio;
+  const chiaveA2 = etichettaAnnuncio(A2).chiaveAnnuncio;
+  const ids = (r) => r.map((x) => x.id);
+
+  c("nessun filtro: tutte le righe", ["r1", "r2", "r3", "r4", "r5", "r6"], ids(applicaFiltri(righe, {}, OGGI)));
+  c("annuncio A1", ["r1", "r2", "r3"], ids(applicaFiltri(righe, { annuncio: chiaveA1 }, OGGI)));
+  c("gruppo intero", ["r1", "r2", "r3", "r4", "r5"], ids(applicaFiltri(righe, { annuncio: "g:BROAD | ITALIA" }, OGGI)));
+  c("liste senza annuncio", ["r6"], ids(applicaFiltri(righe, { annuncio: "senza" }, OGGI)));
+  c("annuncio A1 e risposta areata → 2 righe", ["r1", "r2"],
+    ids(applicaFiltri(righe, { annuncio: chiaveA1, risposte: ["problema|areata"] }, OGGI)));
+  c("stato promesse → solo il motivo promessa", ["r1", "r3"],
+    ids(applicaFiltri(righe, { stato: "promesse" }, OGGI)));
+  c("stato «mai» include nuovo, prima e la sua ora mai chiamato", ["r2", "r5", "r6"],
+    ids(applicaFiltri(righe, { stato: "mai" }, OGGI)));
+  c("stato «tutti» non filtra", 6, applicaFiltri(righe, { stato: "tutti" }, OGGI).length);
+  c("domande diverse si combinano in E", ["r1", "r5"],
+    ids(applicaFiltri(righe, { risposte: ["problema|areata", "zona|nord"], annuncio: "g:BROAD | ITALIA", quando: "oggi" }, OGGI)));
+  c("la risposta scritta com'è si trova", ["r2"],
+    ids(applicaFiltri(righe, { risposte: ["zona|t:svizzera italiana"] }, OGGI)));
+  c("due risposte alla stessa domanda: vale l'ultima", ["r4"],
+    ids(applicaFiltri(righe, { risposte: ["zona|nord", "zona|sud"] }, OGGI)));
+  c("fetta «oggi»", ["r1", "r5"], ids(applicaFiltri(righe, { quando: "oggi" }, OGGI)));
+  c("fetta «ieri»", ["r2"], ids(applicaFiltri(righe, { quando: "ieri" }, OGGI)));
+  c("le righe di partenza non cambiano", 6, righe.length);
+
+  //  ── I conti accanto alle voci ───────────────────────────────────────────
+  const op = opzioniFiltri(righe, { annuncio: chiaveA1 }, OGGI);
+  const voce = (campo, chiave) => op.risposte.find((d) => d.campo === campo)?.voci.find((x) => x.chiave === chiave)?.n;
+  c("con l'annuncio A1: areata 2", 2, voce("problema", "problema|areata"));
+  c("con l'annuncio A1: androgenetica 1", 1, voce("problema", "problema|androgenetica"));
+  const annunci = op.annuncio[0].annunci;
+  c("il conto degli annunci ignora il filtro annuncio: A1", 3, annunci.find((x) => x.chiave === chiaveA1).n);
+  c("il conto degli annunci ignora il filtro annuncio: A2", 2, annunci.find((x) => x.chiave === chiaveA2).n);
+  c("il gruppo conta tutti i suoi", 5, op.annuncio[0].n);
+  c("le liste senza annuncio sono un gruppo", 1, op.annuncio.find((g) => g.chiave === "senza")?.n);
+  c("lo stato si conta sulle righe già filtrate", 3, op.stato.find((x) => x.valore === "tutti").n);
+  c("stato promesse con A1", 2, op.stato.find((x) => x.valore === "promesse").n);
+
+  //  Il numero accanto a una voce è quello che esce premendola.
+  const tutteLeVoci = [];
+  for (const f of [{}, { annuncio: chiaveA1 }, { stato: "mai" }, { quando: "oggi" }, { risposte: ["problema|areata"] }]) {
+    const o = opzioniFiltri(righe, f, OGGI);
+    for (const d of o.risposte) for (const x of d.voci) {
+      //  Si preme la voce tenendo gli altri filtri, tranne quelli della stessa domanda.
+      const altri = (f.risposte ?? []).filter((k) => !k.startsWith(d.campo + "|"));
+      tutteLeVoci.push([x.n, applicaFiltri(righe, { ...f, risposte: [...altri, x.chiave] }, OGGI).length]);
+    }
+    for (const g of o.annuncio) {
+      tutteLeVoci.push([g.n, applicaFiltri(righe, { ...f, annuncio: g.chiave }, OGGI).length]);
+      for (const a of g.annunci) tutteLeVoci.push([a.n, applicaFiltri(righe, { ...f, annuncio: a.chiave }, OGGI).length]);
+    }
+    for (const s of o.stato) tutteLeVoci.push([s.n, applicaFiltri(righe, { ...f, stato: s.valore }, OGGI).length]);
+    for (const q of o.quando) tutteLeVoci.push([q.n, applicaFiltri(righe, { ...f, quando: q.valore }, OGGI).length]);
+  }
+  c("ogni numero accanto a una voce combacia con le righe che escono", true,
+    tutteLeVoci.length > 30 && tutteLeVoci.every(([n, k]) => n === k));
+
+  //  ── Un annuncio che non c'è più ─────────────────────────────────────────
+  const sparito = "a:BROAD | ITALIA\u241Fannuncio spento";
+  c("annuncio sparito: lista vuota", 0, applicaFiltri(righe, { annuncio: sparito }, OGGI).length);
+  const opS = opzioniFiltri(righe, { annuncio: sparito }, OGGI);
+  c("annuncio sparito: la voce c'è lo stesso", 0,
+    opS.annuncio.find((g) => g.chiave === "g:BROAD | ITALIA").annunci.find((x) => x.chiave === sparito)?.n);
+  c("annuncio sparito: gli altri si vedono ancora", 3,
+    opS.annuncio.find((g) => g.chiave === "g:BROAD | ITALIA").annunci.find((x) => x.chiave === chiaveA1).n);
+  const opG = opzioniFiltri(righe, { annuncio: "g:Gruppo spento" }, OGGI);
+  c("gruppo sparito: la voce c'è lo stesso", 0, opG.annuncio.find((g) => g.chiave === "g:Gruppo spento")?.n);
+  const opR = opzioniFiltri(righe, { risposte: ["fastidio|molto"] }, OGGI);
+  c("risposta senza nessuno: la voce c'è lo stesso", 0,
+    opR.risposte.find((d) => d.campo === "fastidio")?.voci.find((x) => x.chiave === "fastidio|molto")?.n);
+
+  //  ── L'indirizzo ─────────────────────────────────────────────────────────
+  c("valori sconosciuti scartati", { risposte: ["zona|nord", "problema|areata"], quando: "ieri" },
+    leggiRicercaImporta({ stato: "boh", risposte: ["zona|nord", "problema|areata"], quando: "ieri" }));
+  c("una stringa sola resta una chiave, la virgola non la spezza", { risposte: ["problema|t:chiazze, sulla nuca"] },
+    leggiRicercaImporta({ risposte: "problema|t:chiazze, sulla nuca" }));
+  c("un array con la virgola resta intero", { risposte: ["problema|t:chiazze, sulla nuca", "zona|nord"] },
+    leggiRicercaImporta({ risposte: ["problema|t:chiazze, sulla nuca", "zona|nord"] }));
+  c("nell'array si tengono solo le stringhe", { risposte: ["zona|nord"] },
+    leggiRicercaImporta({ risposte: [1, null, "zona|nord"] }));
+  c("una domanda che non esiste non entra", {}, leggiRicercaImporta({ risposte: ["colore|rosso", "senza-barra", "zona|"] }));
+  c("due risposte alla stessa domanda: resta l'ultima", { risposte: ["zona|sud"] },
+    leggiRicercaImporta({ risposte: ["zona|nord", "zona|sud"] }));
+  c("stato valido", { stato: "promesse" }, leggiRicercaImporta({ stato: "promesse" }));
+  c("annuncio valido", { annuncio: chiaveA1 }, leggiRicercaImporta({ annuncio: chiaveA1 }));
+  c("annuncio senza prefisso scartato", {}, leggiRicercaImporta({ annuncio: "BROAD" }));
+  c("annuncio «senza» valido", { annuncio: "senza" }, leggiRicercaImporta({ annuncio: "senza" }));
+  c("tutto sbagliato → niente", {}, leggiRicercaImporta({ annuncio: 5, stato: {}, quando: ["oggi"], risposte: 7 }));
+  c("indirizzo vuoto → niente", {}, leggiRicercaImporta({}));
+  //  Il giro dell'indirizzo: quello che la pagina scrive, la pagina lo rilegge.
+  const giro = { annuncio: chiaveA1, risposte: ["problema|t:chiazze, sulla nuca"], stato: "mai", quando: "settimana" };
+  c("scritto e riletto da JSON: uguale", giro, leggiRicercaImporta(JSON.parse(JSON.stringify(giro))));
+
+  //  ── Il riepilogo dell'anteprima ─────────────────────────────────────────
+  const leads = righe.map((r) => ({ ...r.data, modulo: r.modulo }));
+  const rie = riepilogoImport(leads);
+  c("riepilogo: un solo gruppo con annunci", 1, rie.perGruppo.length);
+  c("riepilogo: il gruppo conta 5", 5, rie.perGruppo[0].n);
+  c("riepilogo: nome del gruppo", "BROAD | ITALIA", rie.perGruppo[0].gruppo);
+  c("riepilogo: annunci in ordine di numero", [["589€ - 001 - ok", 3], ["589€ - 002 - ok", 2]],
+    rie.perGruppo[0].annunci.map((a) => [a.annuncio, a.n]));
+  c("riepilogo: senza annuncio", 1, rie.senzaAnnuncio);
+  const zona = rie.perDomanda.find((d) => d.campo === "zona");
+  c("riepilogo: la domanda zona", "Zona", zona.titolo);
+  c("riepilogo: le etichette di zona per numero", [["Nord Italia", 3], ["Sud e isole", 1], ["Svizzera italiana", 1]],
+    zona.risposte.map((x) => [x.etichetta, x.n]));
+  c("riepilogo: problema, 4 contro 1", [4, 1], rie.perDomanda.find((d) => d.campo === "problema").risposte.map((x) => x.n));
+  c("riepilogo: le domande senza risposte non compaiono", false, rie.perDomanda.some((d) => d.campo === "fastidio"));
+  const vuoto = riepilogoImport([]);
+  c("riepilogo di niente", { perGruppo: [], perDomanda: [], senzaAnnuncio: 0, annunciSenzaGruppo: [] }, vuoto);
+  c("riepilogo: senza gruppo ma con ad_name, l'annuncio non si perde",
+    { senza: 3, annunci: [{ annuncio: "Solo annuncio", n: 2 }] },
+    (() => {
+      const r = riepilogoImport([{ tracking: { ad_name: "Solo annuncio" } }, { tracking: { ad_name: "Solo annuncio" } }, {}]);
+      return { senza: r.senzaAnnuncio, annunci: r.annunciSenzaGruppo };
+    })());
+
+  //  «Liste senza annuncio» sta in fondo anche quando è il mucchio più grosso.
+  const piene = [
+    riga("s1", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+    riga("s2", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+    riga("s3", undefined, undefined, "prima", "2026-10-01T10:00:00Z"),
+    riga("g1", { adset_name: "Gruppo piccolo", ad_name: "X" }, undefined, "prima", "2026-10-01T10:00:00Z"),
+  ];
+  c("«Liste senza annuncio» in fondo, anche se ha più lead", ["g:Gruppo piccolo", "senza"],
+    opzioniFiltri(piene, {}, OGGI).annuncio.map((g) => g.chiave));
 }
 
 function proveDiChiHaFissato() {
@@ -12250,8 +13637,8 @@ function provePersoneDelPannello() {
   c("e si sa che non ha una scheda", true, soloOspite[0].senzaScheda);
 
   //  Il nome vero dell'archivio batte quello digitato, quando c'è.
-  c("il nome dell'archivio ha la precedenza", "Daniele Ferlazzo",
-    personeDelPannello({ attesi: [], ospiti: [{ name: "dani", nomeVero: "Daniele Ferlazzo" }] })[0].nome);
+  c("il nome dell'archivio ha la precedenza", "Dario Esempio",
+    personeDelPannello({ attesi: [], ospiti: [{ name: "dani", nomeVero: "Dario Esempio" }] })[0].nome);
 
   /*  ⚠️ UNA RIGA SOLA ANCHE IN DUE. Senza gettone non hanno un preventivo per
       uno: vedono tutti lo stesso. Due righe direbbero che si possono governare
@@ -15248,7 +16635,8 @@ provePalco();
   proveDellaRigaPulita();
   proveDellaRegistrazione();
   proveDiChiEAncoraDentro();
-  proveDelleTrePorte();
+  proveDelleLinguette();
+  proveDiChiChiamare();
   proveDiChiHaFissato();
   proveDelContaSuoni();
   proveDellaStanzaVuota();
@@ -15278,6 +16666,7 @@ provePalco();
   proveDellaRipesca();
   proveDelleChiamateCRM();
   proveDelRicarico();
+  proveDelRitornoDallAnnuncio();
   proveDellAttesaWhatsApp();
   proveDellElencoStabile();
   proveDellaNotaInBreve();
@@ -15322,6 +16711,7 @@ provePalco();
   proveDellIscrizione();
   proveDellaTracciaSola();
   proveDelModulo();
+  proveDelleDomandeNuove();
   proveDeiClicLiberi();
   proveDelCvrPerRisposta();
   proveDellaRicercaManutenzione();
@@ -15388,6 +16778,7 @@ function proveDellAnteprimaConIlNome() {
 
 proveDelContoWebinar();
 proveDelTag();
+proveDeiFiltriDellaLista();
 /** ── IL RITMO DELLA REGISTRAZIONE ──────────────────────────────────────────
  *  Segnalazione del committente: «registra 1,30 minuti a botta». Misurato: 61
  *  fotogrammi al secondo e parti chiuse a 40 MB fissi. Vedi
@@ -15441,6 +16832,118 @@ function proveDellaScatolaNera() {
   c("una riga non supera i 600 caratteri", true, rigaChiamata({ campioni: Array.from({ length: 30 }, (_, i) => ({ pid: "p" + i })) }).length <= 600);
 }
 
+/** ── L'ANTEPRIMA D'IMPORTAZIONE (T8) ──────────────────────────────────────
+ *  Le regole stanno in `traduciCsv` (T5) e `riepilogoImport` (T4): qui si
+ *  controlla che il pannello le USI tutte, e che il file vero (finto) dia
+ *  l'anteprima promessa: avviso di riallineamento, BROAD | ITALIA con 3 lead,
+ *  Problema androgenetica 1 e areata 2.
+ *  ⚠️ Sono prove sul sorgente per quello che e' cablaggio (un pannello non si
+ *   monta qui): servono a non far tornare «Colonne rimaste fuori», la strada
+ *   senza `arrivo` per i ritorni o la lettura che non guarda gli .xlsx. */
+function proveDellAnteprimaDiImportazione() {
+  const { traduciCsv, conListaOrigine, eFileExcel, MESSAGGIO_FILE_EXCEL, separaRitorni } = IMP;
+  const { riepilogoImport } = RIE;
+  gruppo("L'ANTEPRIMA D'IMPORTAZIONE");
+
+  //  ── Il file di prova, come lo vedra' il titolare ──────────────────────────
+  const letto = traduciCsv(META_STORTO);
+  c("META_STORTO: l'avviso di riallineamento c'e'", true, letto.intestazioniRiallineate > 0);
+  const rie = riepilogoImport(letto.leads);
+  c("META_STORTO: un gruppo, BROAD | ITALIA", "BROAD | ITALIA", rie.perGruppo[0].gruppo);
+  c("META_STORTO: con 3 lead", 3, rie.perGruppo[0].n);
+  const problema = rie.perDomanda.find((d) => d.campo === "problema");
+  c("META_STORTO: Problema, androgenetica 1 e areata 2",
+    [["Alopecia areata", 2], ["Alopecia androgenetica", 1]],
+    problema.risposte.map((x) => [x.etichetta, x.n]));
+  c("META_STORTO: le conservate non sono vuote (is organic)", true, letto.colonneConservate.includes("is organic"));
+
+  //  ── Il nome del file e il giorno si scrivono sulle schede NUOVE ───────────
+  const ora = new Date("2026-10-12T10:00:00Z");
+  const scritta = conListaOrigine(letto.leads[0], "lead-12-ottobre.csv", ora);
+  c("conListaOrigine: il nome del file", "lead-12-ottobre.csv", scritta.listaOrigine.file);
+  c("conListaOrigine: il momento del caricamento, in ISO", "2026-10-12T10:00:00.000Z", scritta.listaOrigine.il);
+  c("conListaOrigine: il dataDalFile di T5 si conserva", letto.leads[0].listaOrigine.dataDalFile, scritta.listaOrigine.dataDalFile);
+  c("conListaOrigine: non tocca il resto della scheda", { ...letto.leads[0], listaOrigine: scritta.listaOrigine }, scritta);
+  c("conListaOrigine: l'originale non cambia", "", letto.leads[0].listaOrigine.file);
+  const senza = conListaOrigine({ nome: "Prova", telefono: "+393330000199" }, "a.json", ora);
+  c("conListaOrigine: su una scheda senza listaOrigine (backup JSON)",
+    { file: "a.json", il: "2026-10-12T10:00:00.000Z" }, senza.listaOrigine);
+
+  //  ── Un ritorno porta con se' annuncio e risposte di questa volta ──────────
+  const archivio = [{ id: "vecchio-1", data: { nome: "Mario", cognome: "Esempio", telefono: "+393330000101", stato: "non_risponde" } }];
+  const { nuovi, ritorni } = separaRitorni(letto.leads, archivio);
+  c("META_STORTO su un archivio con Mario: 1 ritorno, 2 nuovi", [1, 2], [ritorni.length, nuovi.length]);
+  c("il ritorno porta l'annuncio di stavolta", "589\u20ac - 001 - ok", ritorni[0].letto.tracking?.ad_name);
+  c("e le risposte di stavolta", "androgenetica", ritorni[0].letto.modulo?.problema);
+  const attuale = archivio[0].data;
+  const patch = RIC.patchRicarico(attuale, "lead-12-ottobre.csv", ora, { tracking: ritorni[0].letto.tracking, modulo: ritorni[0].letto.modulo });
+  c("patchRicarico con arrivo: ricarico.arrivo.ad_name", "589\u20ac - 001 - ok", patch.ricarico?.arrivo?.ad_name);
+  c("e non tocca stato ne' note", false, "stato" in patch || "note" in patch);
+
+  //  ── Excel: il messaggio dice cosa fare, il pannello lo usa ───────────────
+  c("il messaggio dice di scaricare in CSV", true, /CSV/.test(MESSAGGIO_FILE_EXCEL) && /Google Fogli/.test(MESSAGGIO_FILE_EXCEL));
+  c("un .xlsx si riconosce", true, eFileExcel(new Uint8Array([1, 2]), "lista.xlsx"));
+
+  //  ── T10: le frasi dell'anteprima ──────────────────────────────────────────
+  const { fraseNelFile, fraseFileSenzaAnnunci, celleAnteprima, COLONNE_ANTEPRIMA } = RIE;
+  c("persone nel file: nuove e di ritorno", "30 nuove + 11 di ritorno", fraseNelFile(30, 11));
+  c("persone nel file: solo nuove", "30 nuove", fraseNelFile(30, 0));
+  c("persone nel file: una nuova", "1 nuova", fraseNelFile(1, 0));
+  c("persone nel file: solo ritorni", "11 di ritorno", fraseNelFile(0, 11));
+  c("persone nel file: niente, niente riga", "", fraseNelFile(0, 0));
+  c("file a mano: conta le persone, anche i ritorni (un backup JSON)",
+    "5 persone nel file, nessuna con annuncio o risposte del modulo. Nella lista compaiono sotto «Liste senza annuncio».",
+    fraseFileSenzaAnnunci(5));
+  c("file a mano: una persona", true, /^1 persona nel file, senza annuncio/.test(fraseFileSenzaAnnunci(1)));
+  c("file a mano: non dice «le N schede entrano senza»", false, /entrano senza/.test(fraseFileSenzaAnnunci(5)));
+  //  L'anteprima di «Da fare» mostra Problema, Fastidio e Annuncio come l'altra.
+  c("le colonne d'anteprima sono cinque e comuni", "Nome,Telefono,Problema,Fastidio,Annuncio", COLONNE_ANTEPRIMA.join(","));
+  const celle0 = celleAnteprima(letto.leads[0]);
+  c("una riga di META_STORTO ha Problema e Fastidio pieni", true, celle0.length === 5 && !!celle0[2] && !!celle0[3]);
+  c("e l'annuncio", "589\u20ac - 001 - ok", celle0[4]);
+  const daFareSrc = readFileSync(join(radice, "src/crm/kpi/DaFareScheda.tsx"), "utf8");
+  c("DaFareScheda tiene la colonna Città (si vede se è stata letta, prima di importare)", true,
+    /"Città"/.test(daFareSrc) && /d\.citta/.test(daFareSrc));
+  c("DaFareScheda usa le stesse colonne (Problema, Fastidio, Annuncio)", true,
+    /celleAnteprima\(/.test(daFareSrc) && /COLONNE_ANTEPRIMA/.test(daFareSrc));
+  const schedaTutti = readFileSync(join(radice, "src/crm/importa/SchedaTutti.tsx"), "utf8");
+  c("SchedaTutti riceve moduloDi dalla pagina e non rilegge le risposte", true,
+    /moduloDi:\s*\(d: Partial<LeadData>\)/.test(schedaTutti) && !/moduloLetto\(/.test(schedaTutti));
+  c("e la pagina glielo passa", true,
+    /<SchedaTutti\s+importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
+
+  //  ── Il cablaggio nel pannello e nella scheda KPI ──────────────────────────
+  const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
+  const daFare = readFileSync(join(radice, "src/crm/kpi/DaFareScheda.tsx"), "utf8");
+  const backup = readFileSync(join(radice, "src/crm/import-backup.ts"), "utf8");
+  c("l'alias colonneIgnorate e' stato tolto da import-backup", false, /colonneIgnorate/.test(backup));
+  for (const [nome, src] of [["PannelloCarica", pannello], ["DaFareScheda", daFare]]) {
+    c(`${nome}: non usa piu' colonneIgnorate`, false, /colonneIgnorate/.test(src));
+    c(`${nome}: legge i byte con leggiTestoFile (UTF-16 del Centro lead)`, true, /new Uint8Array\(await f\.arrayBuffer\(\)\)/.test(src) && /leggiTestoFile\(byte\)|leggiTestoFile\(/.test(src) && !/await f\.text\(\)/.test(src));
+    c(`${nome}: riconosce l'Excel prima di leggere`, true, /eFileExcel\(/.test(src) && /MESSAGGIO_FILE_EXCEL/.test(src));
+    c(`${nome}: dice «Conservate ma non usate»`, true, /Conservate ma non usate/.test(src));
+    c(`${nome}: la frase «rimaste fuori… rinominala» non c'e' piu'`, false, /rimaste fuori|rinominala/.test(src));
+    c(`${nome}: scrive nome del file e giorno con conListaOrigine`, true, /conListaOrigine\(/.test(src));
+    c(`${nome}: l'avviso delle intestazioni spostate`, true, /intestazioniRiallineate/.test(src) && /Intestazioni spostate di/.test(src));
+  }
+  c("PannelloCarica: l'anteprima divisa viene da riepilogoImport", true, /riepilogoImport\(/.test(pannello));
+  c("PannelloCarica: le due colonne hanno i loro titoli", true,
+    /Per gruppo e annuncio/i.test(pannello) && /Per risposta/i.test(pannello));
+  c("PannelloCarica: i ritorni passano l'arrivo (tracking e modulo) a patchRicarico", true,
+    /patchRicarico\(\s*attuale,\s*fileDi,\s*new Date\(\),\s*\{\s*tracking:[^}]*modulo:/.test(pannello));
+  c("PannelloCarica: l'arrivo viene dalla riga letta del file", true, /new Map\(ritorni\.map\(\(r\) => \[r\.scheda\.id, r\.letto\]\)\)/.test(pannello));
+  c("PannelloCarica: accetta anche .xlsx per poter dire cosa fare", true, /accept="[^"]*\.xlsx/.test(pannello));
+
+  //  ── ⚠️ `datiFile` non esce dalla scheda ──────────────────────────────────
+  //  Ne' nell'esportazione CSV ne' nei messaggi: sono colonne altrui, anche
+  //  con numeri di telefono o testi lunghi. Si guarda dove si fabbricano i testi.
+  const ui = readFileSync(join(radice, "src/crm/ui.tsx"), "utf8");
+  const daEsporta = ui.indexOf("export function esportaCsvLead");
+  c("esportaCsvLead esiste ancora", true, daEsporta > 0);
+  c("esportaCsvLead non riversa datiFile", false, /datiFile/.test(ui.slice(daEsporta, daEsporta + 4000)));
+  c("DaFareScheda non riversa datiFile", false, /datiFile/.test(daFare));
+}
+
 /** ── L'ELENCO SI AGGIORNA ANCHE SUL TELEFONO ───────────────────────────────
  *  «Fisso un meet sul PC, sul telefono non si aggiorna»: la rilettura non può
  *  dipendere solo dal segnale del tempo reale. Vedi crm/rinfresco-archivio. */
@@ -15455,6 +16958,191 @@ function proveDelRinfresco() {
   c("l'orologio rilegge dopo un minuto", true, daRileggere({ motivo: "orologio", visibile: true, ultima: t - OGNI_MS, adesso: t }));
   c("l'orologio non rilegge se l'ha appena fatto il ritorno", false, daRileggere({ motivo: "orologio", visibile: true, ultima: t - 20_000, adesso: t }));
   c("mai riletto: si rilegge", true, daRileggere({ motivo: "orologio", visibile: true, ultima: 0, adesso: t }));
+  //  ── La copia salvata solo all'apertura ────────────────────────────────
+  const { mostraLaCopia } = RINF;
+  c("all'apertura la copia si mostra subito", true, mostraLaCopia({ inMemoria: 0, copia: 1200 }));
+  c("con le schede in memoria NON si rimette la copia vecchia", false, mostraLaCopia({ inMemoria: 1200, copia: 1200 }));
+  c("copia vuota: niente da mostrare", false, mostraLaCopia({ inMemoria: 0, copia: 0 }));
+  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
+  c("reload passa da mostraLaCopia prima di rimettere la copia", true,
+    /mostraLaCopia\(\{ inMemoria, copia/.test(ctx));
+  c("le schede in memoria contano solo se sono dell'utente di adesso", true,
+    /leadsDiRef\.current === user\.id \? leadsRef\.current\.length : 0/.test(ctx));
+}
+
+/** ── LA MISURA SUI LEAD VERI: «ABBASTANZA» NON È SEMPRE UN FASTIDIO ─────────
+ *  ⚠️ Il modulo classico ha «Abbastanza» fra le risposte a «Conosci Hair
+ *   Genius Labs…?». Il riconoscitore lo prendeva per «Fastidio: Abbastanza»:
+ *   88 persone contate come «calde» senza esserlo (misura T10 sui dati veri;
+ *   qui solo dati finti). Si prova ogni strada da cui arrivava l'errore, le
+ *   due opzioni aggiunte a Problema e a Già provato, e che le frasi delle
+ *   quattro domande classiche si leggano come prima (commit 13e8039). */
+function proveDelleCorrezioniKpi() {
+  const { riconosciRisposta, leggiRisposte, vociModulo, campoDellaColonna, riassuntoModulo, risposteDaNotaVecchia, moduloLetto } = MDL;
+  gruppo("ABBASTANZA, UNIVERSALE E LE DUE RISPOSTE IN PIÙ");
+
+  //  ── A1. LA VOCE SALVATA COME «Ci conosce», SENZA CAMPO ───────────────
+  const ciConosce = moduloLetto({
+    modulo: { risposte: [{ domanda: "Ci conosce", risposta: "Abbastanza" }] },
+  });
+  c("«Ci conosce» è la domanda sulla conoscenza", "conoscenza", campoDellaColonna("Ci conosce"));
+  c("«Abbastanza» sotto «Ci conosce» non è un Fastidio", undefined, ciConosce.fastidio);
+  c("la voce resta com'è", "Ci conosce|Abbastanza", `${ciConosce.risposte[0].domanda}|${ciConosce.risposte[0].risposta}`);
+  c("e si vede sotto «Ci conosce»", "Ci conosce", vociModulo(ciConosce)[0].titolo);
+
+  //  ── A2. LA VOCE CON L'INTESTAZIONE DEL FILE COME DOMANDA ─────────────
+  const lunga = "conosci hair genius labs e il mondo dell'infoltimento capelli non chirurgico?";
+  const conIntestazione = moduloLetto({ modulo: { risposte: [{ domanda: lunga, risposta: "Abbastanza" }] } });
+  c("con l'intestazione del file non è un Fastidio", undefined, conIntestazione.fastidio);
+  c("e la domanda resta quella", lunga, conIntestazione.risposte[0].domanda);
+  //  Anche le altre classiche salvate senza campo restano com'erano.
+  const zonaStorta = moduloLetto({ modulo: { risposte: [{ domanda: "Zona", risposta: "Poco" }] } });
+  c("una voce di «Zona» non si sposta", "Zona", zonaStorta.risposte[0].domanda);
+  c("e non diventa un Fastidio", undefined, zonaStorta.fastidio);
+  //  ⚠️ Un solo spostamento resta: l'errore nascosto, «che problematica hai?»
+  //   finito sotto «Come vive il problema» (il valore è un problema).
+  const nascosto = moduloLetto({ modulo: { risposte: [{ domanda: "Come vive il problema", risposta: "Alopecia areata" }] } });
+  c("l'errore nascosto torna sotto «Problema»", "areata", nascosto.problema);
+
+  //  ── A3. LA NOTA «Dal modulo: abbastanza» DA SOLA ─────────────────────
+  c("«abbastanza» da solo nella nota non è un Fastidio", undefined, risposteDaNotaVecchia("Dal modulo: abbastanza"));
+  c("nemmeno «poco» da solo", undefined, risposteDaNotaVecchia("Dal modulo: poco"));
+  c("nemmeno con un'altra parola che non è una risposta", undefined,
+    risposteDaNotaVecchia("Dal modulo: abbastanza · created"));
+  const classica = moduloLetto({
+    modulo: { urgenza: "valutando", zona: "sud", quando: "sera" },
+    note: "Dal modulo: abbastanza",
+  });
+  c("su una scheda del modulo classico la nota non aggiunge un Fastidio", undefined, classica.fastidio);
+  c("e le risposte salvate restano", "valutando|sud|sera", `${classica.urgenza}|${classica.zona}|${classica.quando}`);
+  //  Con un Problema o un Già provato nella stessa riga, il Fastidio c'è.
+  c("con un Problema nella riga il Fastidio vale", "abbastanza",
+    risposteDaNotaVecchia("Dal modulo: alopecia areata · abbastanza").fastidio);
+  c("con un Già provato nella riga vale", "poco", risposteDaNotaVecchia("Dal modulo: poco · trapianto").fastidio);
+  //  «nulla» per esclusione continua a funzionare, perché il Fastidio ha l'appiglio.
+  c("«nulla» per esclusione resta Niente", "niente",
+    risposteDaNotaVecchia("Dal modulo: alopecia androgenetica · abbastanza · nulla").giaFatto);
+  c("ma senza Problema né Già provato non c'è nemmeno quello", undefined,
+    risposteDaNotaVecchia("Dal modulo: abbastanza · nulla"));
+
+  //  ── A4. LO STESSO ERRORE ALL'IMPORTAZIONE ────────────────────────────
+  //   Colonna affidabile di una classica + «abbastanza»: è la sua risposta.
+  const dalFile = leggiRisposte(["conosci_hair_genius_labs?"], ["abbastanza_"], new Set(), true);
+  c("dal file: «abbastanza» sotto «Conosci…» non è un Fastidio", undefined, dalFile.fastidio);
+  c("ma resta una risposta di «Ci conosce»", "Ci conosce|Abbastanza", `${dalFile.risposte[0].domanda}|${dalFile.risposte[0].risposta}`);
+  /*  ── A5. SENZA COLONNA AFFIDABILE: «ABBASTANZA» DA SOLO NON È UN FASTIDIO ──
+      È il caso vero di Meta: le intestazioni spostate di una colonna. Il
+      valore da solo non dice di quale domanda sia, e nel modulo classico
+      «abbastanza» risponde a «Conosci Hair Genius Labs…?». Vale come Fastidio
+      solo in compagnia di un Problema o di un Già provato; altrimenti si toglie
+      e la colonna non è «usata», quindi finisce nei «Dati originali». */
+  const usateClassica = new Set();
+  const rigaClassica = leggiRisposte(
+    ["a", "b", "c"], ["\u00e8_importante:_sto_valutando_seriamente", "abbastanza_", "sud_italia_e_isole"],
+    new Set(), false, usateClassica);
+  c("riga classica non affidabile: niente Fastidio", undefined, rigaClassica.fastidio);
+  c("e nessuna voce «Fastidio»", 0, rigaClassica.risposte.filter((r) => r.campo === "fastidio").length);
+  c("le altre risposte restano", "valutando|sud", `${rigaClassica.urgenza}|${rigaClassica.zona}`);
+  c("la colonna di «abbastanza» non è «usata»", "0,2", [...usateClassica].sort().join(","));
+  //  La riga del modulo nuovo, sempre non affidabile: il Fastidio resta.
+  const usateNuova = new Set();
+  const rigaNuova = leggiRisposte(["a", "b"], ["alopecia_areata", "abbastanza_"], new Set(), false, usateNuova);
+  c("riga nuova non affidabile con un Problema: il Fastidio resta", "areata|abbastanza", `${rigaNuova.problema}|${rigaNuova.fastidio}`);
+  c("e le due colonne sono «usate»", "0,1", [...usateNuova].sort().join(","));
+  c("con un Già provato nella riga resta", "poco",
+    leggiRisposte(["a", "b"], ["poco", "trapianto"], new Set(), false).fastidio);
+  //  Il Problema può stare DOPO nella riga: conta lo stesso.
+  c("anche se il Problema viene dopo", "abbastanza",
+    leggiRisposte(["a", "b"], ["abbastanza_", "alopecia_areata"], new Set(), false).fastidio);
+  //  Una colonna «Fastidio» affidabile dice di quale domanda è: vale da sola.
+  c("una colonna Fastidio affidabile vale da sola", "abbastanza",
+    leggiRisposte(["quanto_ti_infastidisce_la_calvizie?"], ["abbastanza_"], new Set(), true).fastidio);
+
+  //  ── Lo stesso, passando da un file vero (intestazioni spostate) ──────
+  const spostato = (urgenza, seconda) => IMP.traduciCsv([
+    "  ,created_time,ad_id,come_consideri_il_tuo_problema?,conosci_hair_genius_labs?,full_name,email,phone_number",
+    `l:1,2026-09-21T01:33:01-05:00,ag:12,${urgenza},${seconda},anna.prova@example.com,Anna Prova,p:+393330000102`,
+    `l:2,2026-09-21T01:34:01-05:00,ag:12,${urgenza},${seconda},luca.prova@example.com,Luca Prova,p:+393330000103`,
+  ].join("\n"));
+  const fileClassico = spostato("\u00e8_importante:_sto_valutando_seriamente", "abbastanza_");
+  c("file classico spostato: le intestazioni non sono affidabili", 0, fileClassico.intestazioniRiallineate);
+  c("file classico spostato: niente Fastidio su nessun lead", 0,
+    fileClassico.leads.filter((l) => l.modulo?.fastidio).length);
+  c("file classico spostato: l'urgenza si legge", "valutando", fileClassico.leads[0].modulo?.urgenza);
+  c("file classico spostato: «abbastanza» è nei dati originali", true,
+    Object.values(fileClassico.leads[0].datiFile ?? {}).some((v) => /^abbastanza/.test(v)));
+  const fileNuovo = spostato("alopecia_areata", "abbastanza_");
+  c("file nuovo spostato: il Fastidio resta con il Problema", "areata|abbastanza",
+    `${fileNuovo.leads[0].modulo?.problema}|${fileNuovo.leads[0].modulo?.fastidio}`);
+
+  // ── B. ALOPECIA UNIVERSALE ───────────────────────────────────────────
+  const dove = (t) => { const r = riconosciRisposta(t); return r ? `${r.campo}/${r.opzione.id}` : undefined; };
+  c("alopecia universale è un Problema", "problema/universale", dove("alopecia_universale"));
+  c("con il nome nostro", "Alopecia universale", riconosciRisposta("alopecia_universale").opzione.nome);
+  const uni = risposteDaNotaVecchia("Dal modulo: alopecia universale · abbastanza");
+  c("dalla nota: il problema", "universale", uni.problema);
+  c("e il Fastidio che lo accompagna", "abbastanza", uni.fastidio);
+  c("la voce vecchia sotto «Come vive il problema» passa a Problema", "universale",
+    moduloLetto({ modulo: { risposte: [{ domanda: "Come vive il problema", risposta: "Alopecia universale" }] } }).problema);
+
+  // ── C. LE DUE RISPOSTE DI GIÀ PROVATO IN PIÙ ─────────────────────────
+  c("tricologia / prp / polverine", "giaFatto/tricologia", dove("tricologia_/_prp_/_polverine"));
+  c("trico-pigmentazione (tatuaggio)", "giaFatto/tricopigmentazione", dove("trico-pigmentazione_(tatuaggio)"));
+  c("il nome nostro della prima", "Tricologia / PRP / polverine", riconosciRisposta("tricologia / prp / polverine").opzione.nome);
+  c("il nome nostro della seconda", "Tricopigmentazione", riconosciRisposta("trico-pigmentazione (tatuaggio)").opzione.nome);
+  const nota = risposteDaNotaVecchia("Dal modulo: alopecia areata · poco · tricologia / prp / polverine");
+  c("dalla nota: la tricologia", "tricologia", nota.giaFatto);
+  c("e si legge nel riassunto", "Problema: Alopecia areata · Fastidio: Poco · Già provato: Tricologia / PRP / polverine",
+    riassuntoModulo(nota, 3));
+  c("dalla nota: la tricopigmentazione", "tricopigmentazione",
+    risposteDaNotaVecchia("Dal modulo: alopecia areata · poco · trico-pigmentazione (tatuaggio)").giaFatto);
+
+  /*  ── LE QUATTRO DOMANDE CLASSICHE NON CAMBIANO ──────────────────────
+      Le attese sono quelle di 13e8039 (prima delle tre domande nuove),
+      calcolate sul codice di allora. Le due frasi con una parola delle nuove
+      («farmaci», «diradamento», «trapianto») restano classiche. */
+  const COME_PRIMA = [
+    ["voglio risolverlo subito", "urgenza/subito"],
+    ["Mi condiziona, ho un diradamento", "urgenza/subito"],
+    ["non ne posso più", "urgenza/subito"],
+    ["è urgente", "urgenza/subito"],
+    ["intervenire subito", "urgenza/subito"],
+    ["sto valutando seriamente", "urgenza/valutando"],
+    ["solo per informazioni", "urgenza/informativo"],
+    ["non è un problema", "urgenza/informativo"],
+    ["vi seguo da tempo", "conoscenza/segue"],
+    ["vi conosco già", "conoscenza/segue"],
+    ["conosco l'ambiente", "conoscenza/settore"],
+    ["Sì, ho già provato farmaci", "conoscenza/settore"],
+    ["ho già provato altri sistemi", "conoscenza/settore"],
+    ["ho gia avuto un trapianto", "conoscenza/settore"],
+    ["non conosco niente", "conoscenza/nuovo"],
+    ["è il mio primo approccio", "conoscenza/nuovo"],
+    ["nord", "zona/nord"],
+    ["centro italia", "zona/centro"],
+    ["sud", "zona/sud"],
+    ["isole", "zona/sud"],
+    ["estero", "zona/estero"],
+    ["svizzera", "zona/estero"],
+    ["mattina", "quando/mattina"],
+    ["pausa pranzo", "quando/pranzo"],
+    ["pomeriggio", "quando/pomeriggio"],
+    ["dopo le 18", "quando/sera"],
+    ["sera", "quando/sera"],
+    ["giovedì", undefined],
+    ["Mario Esempio", undefined],
+    ["BROAD | ITALIA", undefined],
+  ];
+  for (const [frase, atteso] of COME_PRIMA) c(`come prima: «${frase}»`, atteso, dove(frase));
+
+  /*  ── «CALDO» = HA GIÀ PROVATO QUALCOSA ──────────────────────────────
+      Decisione del titolare: le due risposte aggiunte rendono il lead caldo
+      come trapianto, lozioni e farmaci. «Niente» no. */
+  const { eCaldo } = CHIAM;
+  for (const id of ["trapianto", "lozioni", "farmaci", "tricologia", "tricopigmentazione"])
+    c(`già provato «${id}»: caldo`, true, eCaldo({ giaFatto: id }));
+  c("già provato «niente»: non basta", false, eCaldo({ giaFatto: "niente" }));
+  c("e senza nessun già provato nemmeno", false, eCaldo({ problema: "areata" }));
 }
 
 /** ── IL CLIENTE NON VEDEVA IL PREVENTIVO ───────────────────────────────────
@@ -15703,6 +17391,38 @@ function proveDiChiEsce() {
     verdettoSuOspite({ adesso: T, ultimoSaluto: T - 120_000, stato: "connected", haMedia: true, primaVolta: T - 600_000 }));
 }
 
+/** ── LA PERSONA IN CIMA RESTA FERMA ────────────────────────────────────────
+ *  Revisione finale: alle 12:00 «È la sua ora» riordinava la lista, la scheda
+ *  grande passava a un'altra persona e il «1» premuto parlando con la prima
+ *  finiva sulla seconda. Vedi `tieniInTesta` in importa/chi-chiamare. */
+function proveDellaCimaFerma() {
+  const { tieniInTesta } = CHIAM;
+  gruppo("LA PERSONA IN CIMA RESTA FERMA");
+  const ids = (r) => r.map((x) => x.id).join(",");
+  const A = { id: "A" }, B = { id: "B" }, N = { id: "N" };
+  //  11:59 la lista è A,B: la setter vede A. 12:00 B diventa «è la sua ora».
+  c("alle 12:00 la lista si riordina, ma in cima resta A", "A,B", ids(tieniInTesta([B, A], "A")));
+  c("arriva un «Nuovo» da un altro dispositivo: A resta in cima", "A,N,B", ids(tieniInTesta([N, A, B], "A")));
+  c("senza nessuno fermo vale l'ordine", "B,A", ids(tieniInTesta([B, A], null)));
+  c("chi era fermo è stato lavorato altrove: cima al primo", "B,N", ids(tieniInTesta([B, N], "A")));
+  c("già primo: niente cambia", "A,B", ids(tieniInTesta([A, B], "A")));
+  c("lista vuota", "", ids(tieniInTesta([], "A")));
+  c("non tocca la lista che riceve", "B,A", (() => { const l = [B, A]; tieniInTesta(l, "A"); return ids(l); })());
+  //  La pagina: la cima passa da `tieniInTesta`, e i gesti la liberano.
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("la pagina ordina con tieniInTesta", true, /tieniInTesta\(tutti, fermo\)/.test(pagina));
+  for (const gesto of ["const segna = async", "const salta = async", "const vediDopo = async"]) {
+    const da = pagina.indexOf(gesto);
+    c(`${gesto.replace("const ", "").replace(" = async", "")} libera la cima`, true,
+      da >= 0 && pagina.slice(da, da + 3500).includes("setFermo(null)"));
+  }
+  const giu = pagina.indexOf("const mandaInFondo");
+  c("chi scende in fondo (finestra annullata, vendita) libera la cima", true,
+    giu >= 0 && pagina.slice(giu, giu + 600).includes("setFermo((f) => (f === id ? null : f))"));
+  const filtri = pagina.indexOf("const cambiaFiltri");
+  c("cambiare i filtri libera la cima", true, filtri >= 0 && pagina.slice(filtri, filtri + 300).includes("setFermo(null)"));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -15716,6 +17436,8 @@ proveDelTipoProposto();
 proveDelRitornoInBozza();
 proveDelQuandoStato();
 proveDellaListaImportata();
+proveDelRiallineamento();
+proveDellAnteprimaDiImportazione();
 proveDeiPermessi();
 proveDiTuttiIMessaggi();
 proveDelMessaggioGiusto();
@@ -15725,11 +17447,15 @@ proveDellaRegiaPalco();
 proveDellInvito();
 proveDelTeleprompter();
 proveDegliHook();
+proveDellaListaIntera();
+proveDeiDatiFinti();
 proveDelCarattere();
 proveDellAnteprimaConIlNome();
 proveDelRitmoDellaRegistrazione();
 proveDellaScatolaNera();
 proveDelRinfresco();
+proveDelleCorrezioniKpi();
+proveDellaCimaFerma();
 proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();

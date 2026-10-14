@@ -1014,6 +1014,29 @@ export interface QualificaInfo {
   urgenza?: "si" | "valutando" | "subito" | "1mese" | "convince" | "2_3mesi" | "valuto";
 }
 
+/** I sette campi del modulo che sappiamo leggere, nell'ordine in cui si
+ *  mostrano. Stanno qui e non in `modulo-lead.ts` perché li usano in tanti
+ *  (il lettore, i filtri, i KPI) e così il tipo è uno solo: se ne nasce un
+ *  ottavo, il compilatore dice dove manca. */
+export type CampoModulo =
+  | "problema"
+  | "fastidio"
+  | "giaFatto"
+  | "urgenza"
+  | "conoscenza"
+  | "zona"
+  | "quando";
+
+export const CAMPI_MODULO: CampoModulo[] = [
+  "problema",
+  "fastidio",
+  "giaFatto",
+  "urgenza",
+  "conoscenza",
+  "zona",
+  "quando",
+];
+
 /** ── LE RISPOSTE DEL MODULO, COME VOCI DELLA SCHEDA ───────────────────────
  *  Richiesta del committente: «in base alle domande dentro al lead, ci siano
  *  anche queste info, ma non nelle note, ma proprio come voce a sé stante».
@@ -1024,6 +1047,12 @@ export interface QualificaInfo {
  *  stanno in `risposte` e servono a leggere, mai a decidere.
  *  Chi le riconosce: crm/modulo-lead.ts, in un punto solo. */
 export interface RisposteModulo {
+  /** Che problema ha: `androgenetica` | `areata` | `diradamento` | `stempiatura`. */
+  problema?: string;
+  /** Quanto lo infastidisce: `molto` | `abbastanza` | `poco` | `perNiente`. */
+  fastidio?: string;
+  /** Cosa ha già provato: `niente` | `trapianto` | `lozioni` | `farmaci`. */
+  giaFatto?: string;
   /** Come vive il problema: `subito` | `valutando` | `informativo`. */
   urgenza?: string;
   /** Ci conosce: `segue` | `settore` | `nuovo`. */
@@ -1342,7 +1371,21 @@ export interface RicaricoLead {
   whatsappConfermatoDa?: string;
   /** Quando qualcuno ha detto «no, non l'ho mandato» (la X). */
   whatsappAnnullatoIl?: string;
+  /** Da quale annuncio è tornata e cosa ha risposto stavolta. Serve a
+   *  raccontare il ritorno senza toccare la scheda: nome dell'inserzione,
+   *  del gruppo e della campagna, più una riga con le risposte. */
+  arrivo?: {
+    ad_name?: string;
+    adset_name?: string;
+    campaign_name?: string;
+    riassunto?: string;
+  };
 }
+
+/** Il perché di una riga nella lista «Da chiamare», dal più urgente al meno.
+ *  Lo decide `importa/chi-chiamare.ts`; qui sta solo il tipo, così lo usano
+ *  la lista, i filtri e le prove senza dipendere uno dall'altro. */
+export type MotivoChiamata = "promessa" | "ritorno" | "nuovo" | "suaOra" | "prima" | "ritento";
 
 export interface LeadData {
   // anagrafica
@@ -1523,6 +1566,15 @@ export interface LeadData {
   /** Le risposte date nel modulo dell'inserzione, come voci e non come note.
    *  Vedi RisposteModulo, e crm/modulo-lead.ts per chi le riconosce. */
   modulo?: RisposteModulo;
+  /** Le colonne del file importato che non sono diventate un campo della
+   *  scheda, con il nome che avevano. Si conservano per non perdere niente;
+   *  si leggono nella scheda, mai nei messaggi né nelle esportazioni. */
+  datiFile?: Record<string, string>;
+  /** Da quale file è entrato: nome, momento del caricamento (ISO) e se
+   *  `createdAt` è stato letto dal file. ⚠️ Senza la colonna data,
+   *  `createdAt` è l'ora del caricamento e non dice niente sull'arrivo:
+   *  «nuovo» si decide solo con `dataDalFile` vero. */
+  listaOrigine?: { file: string; il: string; dataDalFile?: boolean };
   // origine pubblica (id del public_lead se importato)
   publicLeadId?: string;
   // ── LAVORAZIONE IN CHAT ────────────────────────────────────────────────
@@ -2134,7 +2186,7 @@ export const COSTO_SPEDIZIONE_PREDEFINITO = 8;
  *  ⚠️ SERVE PERCHÉ UNA REGOLA AUTOMATICA NON PUÒ SCAVALCARE UNA DECISIONE.
  *   Segnalazione del committente: da «Acconto incassato» non si riusciva a
  *   passare a nessun altro stato — si sceglieva, compariva pure la conferma
- *   «Michele Porrozzi → Cliente assente», e la riga restava «Acconto
+ *   «Mario Esempio → Cliente assente», e la riga restava «Acconto
  *   incassato». Non era un salvataggio mancato: la scrittura partiva e poi la
  *   riga qui sotto la riportava indietro, perché in cassa c'erano dei soldi.
  *   La regola dell'acconto è un'INDUZIONE — «se è entrato un acconto allora la

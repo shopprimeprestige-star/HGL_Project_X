@@ -312,7 +312,7 @@ export const firmaDegliAttesi = (attesi: { gettone?: string }[] | null | undefin
  *  poteva funzionare. Misurato sul canale della stanza vera, mentre il
  *  committente lo provava: il cliente collegato annunciava `persona: ""` ogni
  *  tre secondi — sul suo dispositivo non c'era nessun nome. Un interruttore
- *  acceso su «Daniele» non parlava di lui, e nessuna regola scritta di là
+ *  acceso su «Dario» non parlava di lui, e nessuna regola scritta di là
  *  avrebbe potuto cambiarlo: quel dispositivo può avere il codice di ieri,
  *  la memoria della scheda svuotata da un aggiornamento, o essere entrato da
  *  un link inoltrato.
@@ -384,9 +384,9 @@ export function statoDelloSchermo(p: {
 }
 
 /** ── CHI È IN LINEA, ANCHE SE NON SI È PRESENTATO ──────────────────────────
- *  Segnalazione del committente, con la fotografia del pannello: «Daniele
- *  Francesco Ferlazzo · non ancora» e «acceso, ma lui non è dentro» — mentre
- *  Daniele era collegato e stava guardando la videochiamata.
+ *  Segnalazione del committente, con la fotografia del pannello: «Dario
+ *  Franco Esempio · non ancora» e «acceso, ma lui non è dentro» — mentre
+ *  Dario era collegato e stava guardando la videochiamata.
  *
  *  Il consulente riconosce un cliente dal gettone che quello annuncia. Un
  *  dispositivo che non lo manda (una scheda aperta da prima di un

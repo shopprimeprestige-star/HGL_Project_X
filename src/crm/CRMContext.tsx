@@ -34,7 +34,7 @@ import { leadRevenue, shouldDispatchLeadToAds } from "./lead-analytics";
 import { codiceStanzaDi, haStanzaNostra, impostaLinkPreventivi } from "./whatsapp";
 import { linkPerOgniCliente } from "./preventivi/link-nei-messaggi";
 import { copiaAttendibile, filoDellArchivio, fondiSchede } from "./copia-archivio";
-import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, type Motivo } from "./rinfresco-archivio";
+import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, mostraLaCopia, type Motivo } from "./rinfresco-archivio";
 //  Chi ha PRESO l'appuntamento (≠ chi ha toccato lo stato per ultimo, ≠ chi lo
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
@@ -213,6 +213,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       successivo: chi salva legge sempre l'ultima verità. */
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
+  /** Di chi sono le schede in memoria: con un altro utente entrato senza
+   *  logout (link magico) non contano, e la copia si mostra come all'apertura. */
+  const leadsDiRef = useRef<string>("");
   const [consultants, setConsultants] = useState<Consultant[]>([]);
   //  Stesso motivo del riferimento qui sopra: il nome del consulente serve
   //  mentre si deposita un biglietto, che succede dopo un salvataggio — quando
@@ -409,10 +412,13 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         davanti invece che con una rotella, e nel frattempo si chiede al
         server solo quello che è cambiato. */
     const copia = leggiCopia();
-    if (copia) {
+    //  Solo all'apertura: con le schede già in memoria la copia (più vecchia)
+    //  le farebbe tornare indietro per un istante. Vedi rinfresco-archivio.
+    const inMemoria = leadsDiRef.current === user.id ? leadsRef.current.length : 0;
+    if (copia && mostraLaCopia({ inMemoria, copia: copia.length })) {
       setLeads(copia);
       setLoading(false);
-    } else setLoading(true);
+    } else if (!copia) setLoading(true);
 
     const [c, a] = await Promise.all([
       supabase.from("crm_consultants").select("*").order("created_at", { ascending: false }),
@@ -463,6 +469,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     }
     if (schede) {
       setLeads(schede);
+      leadsDiRef.current = user.id;
       scriviCopia(schede);
     }
     setLoading(false);
