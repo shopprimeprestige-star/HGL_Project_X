@@ -482,6 +482,10 @@ const MODULI = [
   //  ⚠️ Le regole del WhatsApp automatico: quando scade ogni messaggio, chi ha
   //   dato il consenso, quanti ne escono. Vedi proveDelWaAutomatico.
   "wa-auto-regole",
+  //  ⚠️ La chiamata a Meta (numero, payload, codici d'errore), tolta da
+  //   api.whatsapp-send per usarla anche nel motore automatico. Vedi
+  //   proveDellaChiamataAMeta: l'invio a mano non deve cambiare di una virgola.
+  "wa-graph.server",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -555,6 +559,7 @@ const KN = mod["kpi-netto"];
 const KC = mod["kpi-calcoli"];
 const LA = mod["lead-analytics"];
 const WAR = mod["wa-auto-regole"];
+const WG = mod["wa-graph.server"];
 const DI = mod["webinar/diario"];
 const DP = mod["webinar/diagnostica-palco"];
 const ME = mod["webinar/menzioni"];
@@ -17730,6 +17735,96 @@ function proveDelWaAutomatico() {
   c("template che non esiste: non si manda", { ok: false, motivo: "template sconosciuto" }, pt("inventato", {}));
 }
 
+/** ── LA CHIAMATA A META (GRAPH API) ───────────────────────────────────────
+ *  Sono le funzioni estratte da `api.whatsapp-send.ts` per usarle anche nel
+ *  motore automatico. Il punto è che l'invio a mano NON cambia: stessi
+ *  numeri normalizzati, stesso payload, stesse categorie e stessi suggerimenti
+ *  per ogni codice d'errore di Meta. Le prove fissano i valori com'erano. */
+async function proveDellaChiamataAMeta() {
+  const G = WG;
+  gruppo("LA CHIAMATA A META (GRAPH API)");
+  //  ── il numero ──
+  c("normalizePhone: già E.164", "+393331234567", G.normalizePhone("+393331234567"));
+  c("normalizePhone: spazi e trattini tolti", "+393331234567", G.normalizePhone("+39 333-123 4567"));
+  c("normalizePhone: senza + lo aggiunge", "+393331234567", G.normalizePhone("393331234567"));
+  c("normalizePhone: parentesi e punti", "+39061234567", G.normalizePhone("(+39) 06.1234567"));
+  //  ── il numero di prova di Meta ──
+  c("numero di prova: verified_name «Test Number»", true, G.isMetaTestNumber({ verified_name: "Test Number" }));
+  c("numero di prova: display con 555-", true, G.isMetaTestNumber({ display_phone_number: "+1 555-025-3483" }));
+  c("numero vero: non è di prova", false, G.isMetaTestNumber({ display_phone_number: "+39 06 1234567", verified_name: "Hair Genius Labs" }));
+  c("nessuna risposta di Meta: non è di prova", false, G.isMetaTestNumber(null));
+  c("risposta vuota: non è di prova", false, G.isMetaTestNumber({}));
+  //  ── live con il numero di prova: blocco ──
+  const meta = { display_phone_number: "+1 555-025-3483", verified_name: "Test Number" };
+  const blocco = G.erroreModoNonCoerente("live", true, meta, "123");
+  c("live + numero di prova: errore test_phone_number_configured", ["test_phone_number_configured", "mode_mismatch"], [blocco.error, blocco.code]);
+  c("live + numero di prova: il messaggio nomina il numero", true, blocco.message.includes("(+1 555-025-3483)") && blocco.message.startsWith("Modalità impostata su LIVE"));
+  c("live + numero di prova: porta la risposta di Meta", meta, blocco.raw);
+  c("live + numero di prova senza display: nomina il Phone Number ID", true, G.erroreModoNonCoerente("live", true, {}, "123").message.includes("(123)"));
+  c("sandbox + numero di prova: nessun blocco", null, G.erroreModoNonCoerente("sandbox", true, meta, "123"));
+  c("live + numero vero: nessun blocco", null, G.erroreModoNonCoerente("live", false, {}, "123"));
+  //  ── il payload ──
+  c("payload testo", {
+    messaging_product: "whatsapp", recipient_type: "individual", to: "393331234567",
+    type: "text", text: { preview_url: false, body: "ciao" },
+  }, G.costruisciPayload("+393331234567", { body: "ciao" }));
+  c("payload template senza parametri (lingua di serie «it»)", {
+    messaging_product: "whatsapp", recipient_type: "individual", to: "393331234567",
+    type: "template", template: { name: "ringraziamento_neutro", language: { code: "it" } },
+  }, G.costruisciPayload("+393331234567", { templateName: "ringraziamento_neutro" }));
+  c("payload template con parametri, lingua scelta", {
+    messaging_product: "whatsapp", recipient_type: "individual", to: "393331234567",
+    type: "template", template: {
+      name: "promemoria_meet", language: { code: "en" },
+      components: [{ type: "body", parameters: [{ type: "text", text: "Mario" }, { type: "text", text: "12" }, { type: "text", text: "" }] }],
+    },
+  }, G.costruisciPayload("+393331234567", { templateName: "promemoria_meet", templateLang: "en", templateParams: ["Mario", 12, null] }));
+  c("payload: col template il testo si ignora", "template",
+    G.costruisciPayload("+393331234567", { templateName: "x", body: "ciao" }).type);
+  c("payload: parametri vuoti = nessun components", false,
+    "components" in G.costruisciPayload("+393331234567", { templateName: "x", templateParams: [] }).template);
+  //  ── gli errori di Meta ──
+  const err = (code, extra = {}) => G.classificaErrore({ error: { message: "boh", code, ...extra } }, 400, false);
+  const categorie = [
+    [131030, "recipient_not_allowed"], [131031, "outside_24h_window"], [131047, "outside_24h_window"], [131026, "outside_24h_window"],
+    [132000, "template_invalid"], [132001, "template_invalid"], [132005, "template_invalid"], [132007, "template_invalid"], [132012, "template_invalid"],
+    [190, "token_expired"], [102, "token_expired"], [200, "missing_permission"], [10, "missing_permission"],
+    [100, "bad_parameter"], [80007, "rate_limit"], [4, "rate_limit"],
+  ];
+  for (const [codice, categoria] of categorie) c(`errore ${codice} → ${categoria}`, categoria, err(codice).category);
+  c("errore sconosciuto: categoria unknown, nessun suggerimento", ["unknown", undefined, "boh"],
+    [err(999999).category, err(999999).hint, err(999999).fullMsg]);
+  c("errore con suggerimento: «messaggio — suggerimento»", true, err(190).fullMsg.startsWith("boh — Access token scaduto"));
+  c("errore 131030 con numero di prova: suggerisce il Phone Number ID live", true,
+    G.classificaErrore({ error: { message: "x", code: 131030 } }, 400, true).hint.startsWith("Hai ancora configurato il numero di test Meta"));
+  c("errore 131030 senza numero di prova: suggerisce App mode Live", true,
+    err(131030).hint.startsWith("L'app Meta è in Development mode"));
+  c("errore 131047: finestra 24 ore", true, err(131047).hint.startsWith("Sei fuori dalla finestra di 24h"));
+  c("errore 80007: rate limit", true, err(80007).hint.startsWith("Rate limit Meta raggiunto"));
+  c("senza messaggio di Meta: HTTP + stato", "HTTP 502", G.classificaErrore({}, 502, false).msg);
+  c("errore: porta code e subcode", [190, 463], [err(190, { error_subcode: 463 }).code, err(190, { error_subcode: 463 }).sub]);
+  //  ── la chiamata ──
+  const chiamate = [];
+  const finto = (risposte) => async (url, opzioni) => {
+    chiamate.push([url, opzioni]);
+    const r = risposte.shift();
+    return { ok: r.ok, status: r.status ?? 200, json: async () => r.json };
+  };
+  const n = await G.leggiNumero(finto([{ ok: true, json: { display_phone_number: "+39 06", verified_name: "HGL" } }]), "999", "TOKEN");
+  c("leggiNumero: l'indirizzo di Meta è quello di prima", "https://graph.facebook.com/v21.0/999?fields=display_phone_number,verified_name", chiamate[0][0]);
+  c("leggiNumero: il token va nell'intestazione", { Authorization: "Bearer TOKEN" }, chiamate[0][1].headers);
+  c("leggiNumero: restituisce ok e risposta", [true, "HGL"], [n.ok, n.meta.verified_name]);
+  const r = await G.chiamaGraph(finto([{ ok: true, json: { messages: [{ id: "wamid.1" }] } }]), "999", "TOKEN", { type: "text" });
+  c("chiamaGraph: indirizzo, metodo e intestazioni come prima", [
+    "https://graph.facebook.com/v21.0/999/messages", "POST", { "Content-Type": "application/json", Authorization: "Bearer TOKEN" }, JSON.stringify({ type: "text" }),
+  ], [chiamate[1][0], chiamate[1][1].method, chiamate[1][1].headers, chiamate[1][1].body]);
+  c("chiamaGraph: restituisce ok e json", [true, "wamid.1"], [r.ok, r.json.messages[0].id]);
+  const rf = await G.chiamaGraph(finto([{ ok: false, status: 400, json: { error: { message: "no", code: 190 } } }]), "999", "TOKEN", {});
+  c("chiamaGraph: un errore di Meta resta un errore (non lancia)", [false, 190], [rf.ok, rf.json.error.code]);
+  c("chiamaGraph: ok anche se HTTP 200 ma con error nel corpo = errore", false,
+    (await G.chiamaGraph(finto([{ ok: true, json: { error: { message: "x" } } }]), "999", "T", {})).ok);
+}
+
 /** La temperatura: una funzione sola, così lo stesso lead ha lo stesso livello
  *  in «Oggi», in Lead importati e nella scheda. Vedi crm/temperatura-lead. */
 function proveDellaTemperatura() {
@@ -19194,6 +19289,7 @@ proveDellaVistaDiOggi();
 proveDellaStriscia();
 proveDelTelefonoDelModulo();
 proveDelWaAutomatico();
+await proveDellaChiamataAMeta();
 await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();

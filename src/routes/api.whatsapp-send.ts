@@ -6,6 +6,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  chiamaGraph,
+  classificaErrore,
+  costruisciPayload,
+  erroreModoNonCoerente,
+  isMetaTestNumber,
+  leggiNumero,
+  normalizePhone,
+} from "@/crm/wa-graph.server";
 
 // Cast helper: i tipi generati per whatsapp_messages/whatsapp_contacts non includono ancora
 // tutti i campi nuovi (user_id ecc.). Uso un client untyped per le insert/upsert.
@@ -29,22 +38,6 @@ interface SendBody {
   leadId?: string | null;
   /** Parametri posizionali del body del template, in ordine {{1}}, {{2}}, ... */
   templateParams?: string[];
-}
-
-interface PhoneNumberMeta {
-  display_phone_number?: string;
-  verified_name?: string;
-  error?: { message?: string };
-}
-
-function normalizePhone(p: string): string {
-  const digits = p.replace(/[^\d+]/g, "");
-  return digits.startsWith("+") ? digits : `+${digits}`;
-}
-
-function isMetaTestNumber(meta: PhoneNumberMeta | null): boolean {
-  const display = meta?.display_phone_number ?? "";
-  return meta?.verified_name === "Test Number" || display.includes("555-");
 }
 
 export const Route = createFileRoute("/api/whatsapp-send")({
@@ -96,112 +89,20 @@ export const Route = createFileRoute("/api/whatsapp-send")({
           );
         }
 
-        const phoneMetaRes = await fetch(
-          `https://graph.facebook.com/v21.0/${phoneNumberId}?fields=display_phone_number,verified_name`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        const phoneMeta = (await phoneMetaRes.json()) as PhoneNumberMeta;
-        const detectedSandbox = phoneMetaRes.ok && isMetaTestNumber(phoneMeta);
+        const { ok: phoneMetaOk, meta: phoneMeta } = await leggiNumero(fetch, phoneNumberId, accessToken);
+        const detectedSandbox = phoneMetaOk && isMetaTestNumber(phoneMeta);
 
         // Se la modalità richiesta è "live" ma il numero è di test, blocco con errore chiaro.
-        if (mode === "live" && detectedSandbox) {
-          return Response.json(
-            {
-              error: "test_phone_number_configured",
-              code: "mode_mismatch",
-              message:
-                `Modalità impostata su LIVE ma il Phone Number ID configurato (${phoneMeta.display_phone_number ?? phoneNumberId}) è il numero di TEST Meta. ` +
-                "Sostituiscilo con il Phone Number ID del numero WhatsApp Business reale, oppure cambia modalità in Sandbox.",
-              hint:
-                "Apri Meta → WhatsApp Manager / API Setup del numero live e copia il Phone Number ID del numero finale.",
-              raw: phoneMeta,
-            },
-            { status: 400 },
-          );
+        const blocco = erroreModoNonCoerente(mode, detectedSandbox, phoneMeta, phoneNumberId);
+        if (blocco) {
+          return Response.json(blocco, { status: 400 });
         }
 
-        const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
-        const payload: Record<string, unknown> = {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: to.replace(/^\+/, ""),
-        };
-        if (body.templateName) {
-          payload.type = "template";
-          const template: Record<string, unknown> = {
-            name: body.templateName,
-            language: { code: body.templateLang || "it" },
-          };
-          const params = body.templateParams;
-          if (Array.isArray(params) && params.length > 0) {
-            template.components = [
-              {
-                type: "body",
-                parameters: params.map((text) => ({
-                  type: "text",
-                  text: String(text ?? ""),
-                })),
-              },
-            ];
-          }
-          payload.template = template;
-        } else {
-          payload.type = "text";
-          payload.text = { preview_url: false, body: body.body };
-        }
+        const payload = costruisciPayload(to, body);
+        const { ok: inviato, status, json } = await chiamaGraph(fetch, phoneNumberId, accessToken, payload);
 
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        const json = (await res.json()) as {
-          messages?: Array<{ id: string }>;
-          error?: {
-            message: string;
-            code?: number;
-            error_subcode?: number;
-            type?: string;
-            error_data?: { details?: string };
-            fbtrace_id?: string;
-          };
-        };
-
-        if (!res.ok || json.error) {
-          const code = json.error?.code;
-          const sub = json.error?.error_subcode;
-          let msg = json.error?.message || `HTTP ${res.status}`;
-          let hint: string | undefined;
-          let category = "unknown";
-          if (code === 131030) {
-            category = "recipient_not_allowed";
-            hint = detectedSandbox
-              ? "Hai ancora configurato il numero di test Meta. Inserisci il Phone Number ID del numero WhatsApp Business live, altrimenti Meta accetterà solo destinatari whitelisted."
-              : "L'app Meta è in Development mode e accetta solo numeri whitelisted. Su Meta for Developers → app → switch 'App mode: Live'. Servono privacy policy URL, business verification e display name WhatsApp approvato.";
-          } else if (code === 131031 || code === 131047 || code === 131026) {
-            category = "outside_24h_window";
-            hint =
-              "Sei fuori dalla finestra di 24h. Per messaggi di testo liberi serve che il destinatario ti abbia scritto nelle ultime 24h. Usa un template approvato.";
-          } else if (code === 132000 || code === 132001 || code === 132005 || code === 132007 || code === 132012) {
-            category = "template_invalid";
-            hint = "Template non valido, non approvato o parametri mancanti. Verifica nome, lingua e variabili.";
-          } else if (code === 190 || code === 102) {
-            category = "token_expired";
-            hint = "Access token scaduto o non valido. Rigenera un System User Token permanente con permessi whatsapp_business_messaging + whatsapp_business_management.";
-          } else if (code === 200 || code === 10) {
-            category = "missing_permission";
-            hint = "Permessi insufficienti sul token. Aggiungi whatsapp_business_messaging e whatsapp_business_management e rigenera.";
-          } else if (code === 100) {
-            category = "bad_parameter";
-            hint = "Parametro non valido (Phone Number ID o destinatario). Verifica gli ID Meta nelle impostazioni.";
-          } else if (code === 80007 || code === 4) {
-            category = "rate_limit";
-            hint = "Rate limit Meta raggiunto. Aspetta qualche secondo e riprova.";
-          }
-          const fullMsg = hint ? `${msg} — ${hint}` : msg;
+        if (!inviato) {
+          const { category, code, sub, msg, hint, fullMsg } = classificaErrore(json, status, detectedSandbox);
           // Log dettagliato lato server per capire l'errore
           console.error("[whatsapp-send] Meta error", {
             category,
