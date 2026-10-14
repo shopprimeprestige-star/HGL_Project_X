@@ -5,6 +5,7 @@
  *  calendario: quelli li guarda Playwright (collaudo P2, P3).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createRequire } from "node:module";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { carica, leggi, nuovaProva, radice } from "./_comune.mjs";
 
@@ -131,6 +132,24 @@ vero("il componente non scrive in localStorage e non usa dangerouslySetInnerHTML
   vero("nessun #FF3B3B nel sorgente", !/#ff3b3b/i.test(sorgente));
   vero("la conferma ha il fuoco e aria-live (come oggi)", /confermaRif\.current\?\.focus\(\)/.test(sorgente) && /aria-live="polite"/.test(sorgente) && /tabIndex=\{-1\}/.test(sorgente));
   vero("il primo campo sbagliato prende il fuoco", /fuocoSu\(primo\)/.test(sorgente));
+}
+
+/* ── S4.4 · Il link alla consulenza è scritto in un posto solo ───────────────
+ *  «/#prenota» sta in `testi-sito.ts` (LINK_CONSULENZA); gli articoli del blog lo importano, non lo riscrivono. */
+{
+  const scritto = [];
+  const cerca = (d) => {
+    for (const v of readdirSync(join(radice, d), { withFileTypes: true })) {
+      const p = `${d}/${v.name}`;
+      if (v.isDirectory()) cerca(p);
+      else if (/\.tsx?$/.test(v.name) && /["'`]\/#prenota["'`]/.test(readFileSync(join(radice, p), "utf8"))) scritto.push(p);
+    }
+  };
+  cerca("src");
+  c('«"/#prenota"» scritto a mano solo in testi-sito.ts', ["src/landing/testi-sito.ts"], scritto);
+  const articolo = leggi("src/routes/blog.$slug.tsx");
+  vero("l'articolo del blog importa LINK_CONSULENZA da testi-sito", /import\s*\{[^}]*\bLINK_CONSULENZA\b[^}]*\}\s*from\s*"@\/landing\/testi-sito"/.test(articolo));
+  vero("il bottone dell'articolo usa LINK_CONSULENZA", /<a href=\{LINK_CONSULENZA\}/.test(articolo));
 }
 
 finisci();
