@@ -1077,6 +1077,8 @@ function DashboardPage() {
                   quando={inst?.orarioInstallazione || "—"}
                   motivo={`${tecnico}${inst?.durataInstallazione ? ` · ${inst.durataInstallazione} min` : ""}`}
                   esiti={false}
+                  //  Dopo la vendita la temperatura è storia vecchia.
+                  temperatura={false}
                   principale={
                     <Button
                       size="sm"
@@ -1115,6 +1117,7 @@ function DashboardPage() {
                 nomeConsulente={nomeConsulente}
                 motivo={`Acconto € ${l.data.payment?.accontoPagato || 0}`}
                 esiti={false}
+                temperatura={false}
                 principale={
                   <Button
                     size="sm"

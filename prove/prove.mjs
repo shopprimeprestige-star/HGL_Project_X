@@ -3105,6 +3105,11 @@ function proveDegliHook() {
     //  I due pezzi riusabili: l'hook in prima riga, il `return null` dopo.
     "src/crm/Temperatura.tsx",
     "src/crm/StrisciaPosti.tsx",
+    //  «Oggi» (commessa 2026-10-14, compiti 9-10): la pagina più usata dai
+    //  consulenti, ora con la vista della setter fatta di sole condizioni nel
+    //  JSX. Un hook sotto un'uscita qui spegne la giornata di tutti.
+    "src/routes/CRM.index.tsx",
+    "src/crm/MeetGiornalieri.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -18042,6 +18047,100 @@ export const disegna = (caldo, m, q, senza) =>
     /if \(!voci\.length && !origine\.voci\.length && !originali\.length\) return null;/.test(blocco),
   );
   c("nessun hook nel blocco (solo funzioni pure)", false, /\buse[A-Z]\w*\(/.test(blocco));
+
+  gruppo("«OGGI» DEL CONSULENTE: LA TEMPERATURA SULLE RIGHE");
+  const indice = leggi("src/routes/CRM.index.tsx");
+  const giornata = leggi("src/crm/MeetGiornalieri.tsx");
+  c(
+    "le due righe delle installazioni senza temperatura",
+    2,
+    indice.split("temperatura={false}").length - 1,
+  );
+  c(
+    "ADESSO, POI e la riga disegnano la temperatura",
+    true,
+    giornata.split("<TemperaturaRiga").length - 1 >= 3,
+  );
+  c("niente temperatura sui lead già venduti", true, giornata.includes("mostraTemperatura("));
+
+  const oggi = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { RigaLead, SchedaAdesso } from "@/crm/MeetGiornalieri";
+export const disegna = (cosa, props) =>
+  renderToStaticMarkup(
+    createElement(cosa === "adesso" ? SchedaAdesso : RigaLead, { onApri() {}, ...props }),
+  );`,
+    "righe-di-oggi",
+  );
+  //  Nomi inventati, numeri finti.
+  const finto = (id, extra = {}) => ({
+    id,
+    data: {
+      nome: "Cliente",
+      cognome: `Finto ${id}`,
+      telefono: "+39 000 0000000",
+      citta: "Città Finta",
+      stato: "appuntamento_fissato",
+      dataMeeting: "2026-10-14",
+      oraMeeting: "15:30",
+      ...extra,
+    },
+  });
+  const archivio = { leads: [], consultants: [], updateLead: async () => {} };
+  const testoRiga = (html) =>
+    html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const caldoRiga = oggi(archivio, null, "riga", {
+    lead: finto("a", { modulo: { urgenza: "subito", fastidio: "molto" } }),
+    nomeConsulente: () => "Marco Prova",
+  });
+  c(
+    "riga: pallino, parola e due risposte in testa alla riga piccola",
+    true,
+    testoRiga(caldoRiga).includes("Caldo · vuole risolvere ora · fastidio: molto Marco Prova Città Finta"),
+  );
+  c(
+    "riga senza risposte: niente in più",
+    false,
+    /Caldo|Medio|Freddo/.test(testoRiga(oggi(archivio, null, "riga", { lead: finto("b") }))),
+  );
+  c(
+    "riga di un lead già venduto: niente temperatura",
+    false,
+    /Caldo/.test(
+      testoRiga(
+        oggi(archivio, null, "riga", {
+          lead: finto("c", { stato: TY.STATI_VINTI[0], modulo: { urgenza: "subito" } }),
+        }),
+      ),
+    ),
+  );
+  c(
+    "riga con temperatura spenta (installazioni): niente",
+    false,
+    /Caldo/.test(
+      testoRiga(
+        oggi(archivio, null, "riga", {
+          lead: finto("d", { modulo: { urgenza: "subito" } }),
+          temperatura: false,
+        }),
+      ),
+    ),
+  );
+  const adesso = oggi(archivio, null, "adesso", {
+    lead: finto("e", { modulo: { fastidio: "abbastanza" } }),
+    prossimi: [finto("f", { oraMeeting: "16:30", modulo: { giaFatto: "niente" } }), finto("g", { oraMeeting: "17:30" })],
+  });
+  c("ADESSO: pallino, parola e risposte", true, testoRiga(adesso).includes("Medio · fastidio: abbastanza"));
+  c(
+    "POI: solo il pallino, la parola per il lettore di schermo",
+    true,
+    /<span class="sr-only">Freddo<\/span><\/span>\s*16:30|title="Freddo[^"]*"><span aria-hidden="true"[^>]*><\/span><span class="sr-only">Freddo<\/span>/.test(adesso),
+  );
+  c("POI senza risposte: niente pallino", 1, adesso.split('class="sr-only"').length - 1);
 }
 
 /** La finestra «Dove c'è posto» e Slot liberi, sugli stessi dati finti, dicono
@@ -18123,10 +18222,20 @@ async function disegnatore(sorgente, nome) {
     const reactVero = JSON.stringify(chiedi.resolve("react", { paths: [radice] }));
     const F = {
       "crm.js": "export const useCRM = () => globalThis.__slotFinti;",
-      "auth.js": "export const intestazioniCRM = async () => ({});",
+      //  Le righe di «Oggi» (commessa 2026-10-14, compiti 9-10) chiedono anche
+      //  chi è collegato e che cosa può fare: rispondono i valori dati alla prova.
+      "auth.js": `export const intestazioniCRM = async () => ({});
+export const fetchCRM = async () => ({ ok: false, status: 0, json: async () => ({}) });
+export const useAuth = () => globalThis.__slotFinti?.auth ?? {};
+export const usePuo = () => globalThis.__slotFinti?.puo ?? (() => true);
+export const useConsulenteCollegato = () => globalThis.__slotFinti?.io ?? null;`,
       "router.js": `import { createElement } from "react";
 export const createFileRoute = () => (o) => ({ options: o });
-export const Link = ({ to, children, ...resto }) => createElement("a", { href: to, ...resto }, children);`,
+export const Link = ({ to, children, ...resto }) => createElement("a", { href: to, ...resto }, children);
+export const useNavigate = () => () => {};
+export const useRouter = () => ({ navigate() {}, state: { location: { pathname: "/CRM" } } });
+export const useLocation = () => ({ pathname: "/CRM", search: {} });
+export const useRouterState = (o) => (o?.select ? o.select({ location: { pathname: "/CRM", search: {} } }) : {});`,
       "sonner.js": "export const toast = { success() {}, error() {} };",
       "react.js": `import * as R from ${reactVero};
 export * from ${reactVero};
@@ -18163,6 +18272,11 @@ export function useState(i) {
             { filter: /^(@\/crm\/(CRMContext|AuthContext)|@tanstack\/react-router|sonner)$/ },
             (a) => ({ path: join(finti, SOST[a.path]) }),
           );
+          //  Gli stessi due finti anche quando il file li chiama per strada
+          //  relativa (`./CRMContext`, come fa MeetGiornalieri).
+          b.onResolve({ filter: /^\.\.?\/(?:[\w-]+\/)*(CRMContext|AuthContext)$/ }, (a) => ({
+            path: join(finti, SOST[`@/crm/${a.path.split("/").pop()}`]),
+          }));
           b.onResolve({ filter: /^react$/ }, (a) =>
             a.importer === join(finti, "react.js") ? undefined : { path: join(finti, "react.js") },
           );

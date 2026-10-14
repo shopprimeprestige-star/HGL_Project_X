@@ -98,6 +98,8 @@ import { useCRM } from "./CRMContext";
 //  iOS di ingrandire la pagina al primo tocco sul campo. Presa dov'è già
 //  definita invece di riscriverne una quarta versione.
 import { CLASSI_AREA } from "./SchedaCliente";
+import { mostraTemperatura } from "./temperatura-lead";
+import { TemperaturaRiga } from "./Temperatura";
 import { Finestra } from "./ui/Finestra";
 //  Le stesse porte che usa la pagina pubblica dell'invito per leggere una data
 //  e un'ora dell'archivio: qui servono a decidere se il tasto ha senso, e sono
@@ -1125,6 +1127,7 @@ export function RigaLead({
   esiti = true,
   promemoria,
   principale,
+  temperatura = true,
 }: {
   lead: Lead;
   onApri: (l: Lead) => void;
@@ -1144,6 +1147,9 @@ export function RigaLead({
   promemoria?: boolean;
   /** azione principale della sezione: undefined = "Avvia", null = nessuna */
   principale?: ReactNode | null;
+  /** com'è messo il cliente (pallino + 2 risposte brevi). Spenta sulle
+   *  installazioni: dopo la vendita è storia vecchia e sarebbe rumore. */
+  temperatura?: boolean;
 }) {
   const l = lead;
   //  ⚠️ HOOK: sta qui, in cima, prima di qualunque uscita anticipata. In questo
@@ -1361,6 +1367,14 @@ export function RigaLead({
           )}
         </button>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+          {/*  ── COM'È MESSO IL CLIENTE, IN TESTA ──────────────────────────
+              Richiesta del titolare (14/10/2026): si legge dalla riga senza
+              aprire la scheda. Nella riga piccola che c'è già, non in una
+              nuova: pallino + parola + al massimo due risposte brevi, e niente
+              se non ha risposto (vedi crm/Temperatura). */}
+          {temperatura && mostraTemperatura(l.data.stato) && (
+            <TemperaturaRiga dati={l.data} className="min-w-0 truncate" />
+          )}
           <ChipAttesa attesa={attesa} />
           {motivo && <span className="truncate">{motivo}</span>}
           {consulente && <span className="truncate">{consulente}</span>}
@@ -1750,6 +1764,11 @@ export function SchedaAdesso({
             {consulente && <span className="truncate">{consulente}</span>}
             {l.data.citta && <span className="truncate">{l.data.citta}</span>}
             {l.data.durataMeeting ? <span>{l.data.durataMeeting} min</span> : null}
+            {/*  Com'è messo il cliente che sta per entrare: la stessa riga di
+                «La giornata», due risposte al massimo. */}
+            {mostraTemperatura(l.data.stato) && (
+              <TemperaturaRiga dati={l.data} className="min-w-0 truncate" />
+            )}
           </div>
         </div>
       </div>
@@ -1888,6 +1907,11 @@ export function SchedaAdesso({
               <span className="font-semibold tabular-nums text-foreground">
                 {p.data.oraMeeting}
               </span>{" "}
+              {/*  Lo spazio è una riga sola: solo il pallino, la parola nel
+                  suggerimento e per il lettore di schermo. */}
+              {mostraTemperatura(p.data.stato) && (
+                <TemperaturaRiga dati={p.data} soloPallino className="mr-1" />
+              )}
               {p.data.nome} {p.data.cognome}
             </button>
           ))}
