@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCRM } from "@/crm/CRMContext";
 import { useAuth } from "@/crm/AuthContext";
+import { useUserSettings } from "@/crm/UserSettingsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import {
   Eye,
 } from "lucide-react";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
+import { WaAutomaticoPannello } from "@/crm/WaAutomaticoPannello";
 import { LeadDialog } from "@/crm/LeadDialog";
 import { QuickStatusDialog, requiresAnyDialog } from "@/crm/QuickStatusDialog";
 import { useChiusura } from "@/crm/ChiusuraDialog";
@@ -77,7 +79,7 @@ export const Route = createFileRoute("/CRM/whatsapp")({
 });
 
 /** Le due viste della pagina: le conversazioni vere e i testi che le popolano. */
-type Vista = "chat" | "modelli";
+type Vista = "chat" | "modelli" | "automatico";
 
 type WhatsAppFilter = "all" | "unread" | "with-lead" | "unknown";
 
@@ -172,6 +174,7 @@ function previewText(body: string | null): string {
 
 function WhatsAppPage() {
   const { user } = useAuth();
+  const { isAdmin } = useUserSettings();
   const { leads, updateLead, consultants } = useCRM();
   const [vista, setVista] = useState<Vista>("chat");
   const [filter, setFilter] = useState<WhatsAppFilter>("all");
@@ -629,14 +632,16 @@ function WhatsAppPage() {
                 ? "Credenziali non configurate"
                 : vista === "chat"
                   ? "Conversazioni in tempo reale"
-                  : "I testi che partono da tutto il CRM"}
+                  : vista === "modelli"
+                    ? "I testi che partono da tutto il CRM"
+                    : "Promemoria ai lead, regole e registro"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/*  Due viste, non due pagine: i messaggi si correggono mentre si
               scrive, non andando a cercare un pannello di impostazioni. */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Segmento attivo={vista === "chat"} onClick={() => setVista("chat")}>
               Conversazioni
             </Segmento>
@@ -647,6 +652,16 @@ function WhatsAppPage() {
             >
               Messaggi preimpostati
             </Segmento>
+            {/*  Solo l'admin: accende il motore e riattiva i numeri che hanno detto STOP. */}
+            {isAdmin && (
+              <Segmento
+                attivo={vista === "automatico"}
+                onClick={() => setVista("automatico")}
+                titolo="I promemoria che partono da soli ai lead con consenso"
+              >
+                Messaggi automatici
+              </Segmento>
+            )}
           </div>
           {hasConfig === false && (
             <Badge
@@ -671,6 +686,7 @@ function WhatsAppPage() {
       </div>
 
       {vista === "modelli" && <EditorMessaggi />}
+      {vista === "automatico" && isAdmin && <WaAutomaticoPannello />}
 
       {/*  La chat resta montata mentre si guardano i modelli: tornando indietro
           si ritrova la conversazione aperta e lo scorrimento dov'era. */}
