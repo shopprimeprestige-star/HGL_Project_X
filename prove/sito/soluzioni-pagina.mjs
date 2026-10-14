@@ -6,7 +6,7 @@
  *  ma solo ciò che decide S3 (struttura, ordine, regole).
  *  ───────────────────────────────────────────────────────────────────────────────────────────────── */
 import { createRequire } from "node:module";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { leggi, nuovaProva, radice } from "./_comune.mjs";
@@ -47,15 +47,14 @@ let contatore = 0;
 async function impacchetta(sorgente, finti = []) {
   const n = ++contatore;
   const fuori = join(dove, `fuori-${n}.cjs`);
-  const file = (nome, codice) => {
-    const p = join(dove, nome);
-    writeFileSync(p, codice);
-    return p;
-  };
-  const tracking = file(`tracking-${n}.js`, TRACKING_FINTO);
-  const router = file(`router-${n}.js`, ROUTER_FINTO);
-  const client = file(`client-${n}.js`, "export const supabase = {};");
-  const sostituti = finti.map(([filtro, codice], i) => [filtro, file(`finto-${n}-${i}.ts`, codice)]);
+  //  Ogni modulo finto è codice in memoria che si risolve dalla radice del progetto (così trova `react`).
+  const standard = [
+    [/(^|\/)tracking$/, "tracking", TRACKING_FINTO],
+    [/^@tanstack\/react-router$/, "router", ROUTER_FINTO],
+    [/^@\/integrations\/supabase\/client$/, "client", "export const supabase = {};"],
+  ];
+  const tutti = [...finti.map(([filtro, codice], i) => [filtro, `utente-${i}`, codice]), ...standard];
+  const codici = new Map(tutti.map(([, nome, codice]) => [nome, codice]));
   await esbuild.build({
     stdin: { contents: sorgente, resolveDir: radice, loader: "ts", sourcefile: `entrata-${n}.ts` },
     outfile: fuori,
@@ -71,10 +70,8 @@ async function impacchetta(sorgente, finti = []) {
       {
         name: "finti",
         setup(b) {
-          for (const [filtro, percorso] of sostituti) b.onResolve({ filter: filtro }, () => ({ path: percorso }));
-          b.onResolve({ filter: /(^|\/)tracking$/ }, () => ({ path: tracking }));
-          b.onResolve({ filter: /^@tanstack\/react-router$/ }, () => ({ path: router }));
-          b.onResolve({ filter: /^@\/integrations\/supabase\/client$/ }, () => ({ path: client }));
+          for (const [filtro, nome] of tutti) b.onResolve({ filter: filtro }, () => ({ path: nome, namespace: "finto" }));
+          b.onLoad({ filter: /.*/, namespace: "finto" }, (a) => ({ contents: codici.get(a.path), loader: "ts", resolveDir: radice }));
         },
       },
     ],
@@ -244,6 +241,246 @@ export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStati
   const ostile = m.spiegazione(true, true, { ...PIENA, video: { slot: { ...PIENA.video.slot, alt: 'x" onerror="alert(1)' }, trascrizione: "</script><img src=x onerror=alert(1)>" } });
   vero("la trascrizione ostile non diventa HTML (</script><img … onerror> è scritto come testo)", !ostile.includes("<img src=x") && !ostile.includes("</script><img") && ostile.includes("&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;"));
   vero("l'alt ostile non esce dall'attributo (nessun tag ha un attributo onerror)", !/<[^>]+\sonerror=/.test(ostile.replace(/"[^"]*"/g, '""')) && ostile.includes("&quot; onerror=&quot;alert(1)"));
+}
+
+/* ═══ S3.3 · LA PAGINA INTERA, LA ROTTA E L'API DELL'ANTEPRIMA ════════════════════════════════════ */
+const TRACCIA_FINTA = `
+export const usaTracciamentoPagina = (p) => { (globalThis.__tracciati ??= []).push(p); };
+export const traccia = () => {};
+`;
+{
+  const m = await impacchetta(
+    `${PRELUDIO}
+import { PaginaSoluzioni } from ${rel("src/landing/sito/soluzioni/PaginaSoluzioni")};
+export const pagina = (vista, apriDalServer = false) => { globalThis.__tracciati = []; return renderToStaticMarkup(h(PaginaSoluzioni, { vista, apriDalServer })); };
+export const tracciati = () => globalThis.__tracciati;
+`,
+    [[/landing\/sito\/traccia$/, TRACCIA_FINTA]],
+  );
+  const T = await impacchetta(`export * from ${rel("src/landing/testi-sito")};`);
+  const S = T.TESTI_SOLUZIONI;
+
+  const chiusa = m.pagina(PIENA);
+  const aperta = m.pagina(PIENA, true);
+  const hrefs = (html) => [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((x) => x[1]);
+
+  /* ── Cosa c'è e cosa non c'è ── */
+  vero("pagina: la radice è lang=\"it\" con la classe del tema", /<div[^>]*class="[^"]*tema-soluzioni[^"]*"[^>]*lang="it"|<div[^>]*lang="it"[^>]*class="[^"]*tema-soluzioni/.test(chiusa));
+  c("pagina: un solo <h1> e un solo <main>", [1, 1], [conta(chiusa, /<h1[\s>]/g), conta(chiusa, /<main[\s>]/g)]);
+  vero("pagina: il footer sta fuori da <main> (altrimenti non è più il piè di pagina)", chiusa.indexOf("</main>") < chiusa.indexOf("<footer") && chiusa.indexOf("<footer") > 0);
+  c("pagina: le sole uscite sono il catalogo (barra + riga 02) e i link legali del footer", ["/cookie-policy", "/privacy-policy", "/shop", "/shop", "/termini-e-condizioni"], hrefs(chiusa).sort());
+  vero("pagina: niente menu, WhatsApp, telefono, email, blog, social", !/<nav|wa\.me|whatsapp|tel:|mailto:|href="\/blog|instagram|facebook/i.test(chiusa));
+  vero("pagina: niente StickyHeader, BarraConsulenza, MediaSlot, PlaceholderBox", !/data-barra-consulenza|placeholder|data-sticky/i.test(chiusa));
+  vero("pagina: l'ordine è testata → tavola → spiegazione → footer", (() => { const i = [chiusa.indexOf("<h1"), chiusa.indexOf("<ol"), chiusa.indexOf("<section"), chiusa.indexOf("<footer")]; return i.every((v, k) => v > -1 && (k === 0 || v > i[k - 1])); })());
+  c("pagina: la barra delle patch c'è una volta, dal primo disegno (è nell'HTML del server), con la sua etichetta accessibile", 1, conta(chiusa, /Vai al catalogo delle patch pronte in stock/g));
+  vero("pagina: il foglio del modulo non occupa posto a foglio chiuso", !/role="dialog"/.test(chiusa));
+  c("pagina chiusa: il bottone «Prenota la consulenza gratuita» c'è 3 volte (alto a destra da 1024, sotto la tavola su telefono, nel passo della spiegazione chiusa)", 3, conta(chiusa, /Prenota la consulenza gratuita/g));
+  c("pagina: nessuno script d'apertura quando non c'è ?apri", 0, conta(chiusa, /data-scriptonce/g));
+  vero("pagina chiusa: la spiegazione è nascosta e senza video", /<section[^>]*id="spiegazione-invisible-derm"[^>]*\shidden=""/.test(chiusa) && !/<video/.test(chiusa));
+  c("pagina chiusa: l'unico <img> nel titolo e nella tavola sono ritratto, logo e tre miniature", 5, conta(chiusa, /<img[\s>]/g));
+
+  /* ── Aperta dal server (?apri=invisible-derm) ── */
+  vero("?apri: il pannello è già aperto nell'HTML (nessun hidden)", /<section[^>]*id="spiegazione-invisible-derm"/.test(aperta) && !/<section[^>]*\shidden/.test(aperta));
+  vero("?apri: la copertina del video e la clip ci sono già", aperta.includes('alt="Alt di video"') && /<video/.test(aperta));
+  c("?apri: il blu sotto la tavola non si disegna (nel pannello c'è il suo gemello): 2 bottoni in tutto", 2, conta(aperta, /Prenota la consulenza gratuita/g));
+  {
+    const script = /<script data-scriptonce="">([\s\S]*?)<\/script>/.exec(aperta)?.[1] ?? "";
+    vero("?apri: UNO script che porta la cella 03 in cima prima del primo disegno", conta(aperta, /data-scriptonce/g) === 1 && script.includes('getElementById("invisible-derm")') && script.includes("scrollIntoView"));
+    vero("?apri: lo script sta dopo il pannello (a quel punto la pagina è già abbastanza alta per scorrere)", aperta.indexOf("data-scriptonce") > aperta.indexOf("</section>"));
+    vero("?apri: lo script non tocca il fuoco", !/focus\(/.test(script));
+  }
+
+  /* ── Tracciamento: sul sito sì, nell'anteprima del CRM no ── */
+  m.pagina(PIENA);
+  c("tracciamento: sul sito la visita si conta con il percorso /soluzioni", ["/soluzioni"], m.tracciati());
+  m.pagina({ ...PIENA, anteprima: true });
+  c("tracciamento: nell'anteprima del CRM i numeri del titolare non sporcano le visite", [], m.tracciati());
+
+  /* ── Anteprima: nemmeno gli eventi della pagina (hanno l'indirizzo con il codice) ── */
+{
+  const w = await impacchetta(
+    `import { tracciaSoluzioni, inAnteprima } from ${rel("src/landing/sito/soluzioni/traccia-soluzioni")};
+export { tracciaSoluzioni, inAnteprima };
+export const spedizioni = () => globalThis.__spedite;`,
+    [[/(^|\/)ponte$/, `export const tracciaSoluzioni = (n, d) => { (globalThis.__spedite ??= []).push([n, d]); };`]],
+  );
+  globalThis.__spedite = [];
+  globalThis.window = { location: { search: "?anteprima=abc" } };
+  w.tracciaSoluzioni("invisible_apri", { origine: "tocco" });
+  c("anteprima: con ?anteprima nell'indirizzo non parte nessun evento", [true, []], [w.inAnteprima(), w.spedizioni()]);
+  globalThis.window = { location: { search: "?utm_source=meta" } };
+  w.tracciaSoluzioni("invisible_apri", { origine: "tocco" });
+  c("sul sito gli eventi partono", [false, [["invisible_apri", { origine: "tocco" }]]], [w.inAnteprima(), w.spedizioni()]);
+  delete globalThis.window;
+}
+
+/* ── Quando manca qualcosa la pagina non si rompe e non ha riquadri grigi ── */
+  const povera = m.pagina({ ...PIENA, ritratto: null, miniature: null, macro: null }, true);
+  c("pagina povera: solo il logo come immagine (la copertina del video è nel pannello)", 1, conta(povera.replace(/<button[^>]*aria-label[\s\S]*?<\/button>/g, ""), /<img[\s>]/g));
+  vero("pagina povera: ci sono lo stesso titolo, tre righe, spiegazione e bottone", conta(povera, /<h1[\s>]/g) === 1 && conta(povera, /<li[\s>]/g) >= 6 && povera.includes(S.spiegazione.passo.bottone));
+  vero("nessuna parola vietata nella pagina intera (prezzi, «invisibile», «Indistinguibile», {{, «da confermare», stelle)", !/€|\binvisibil[ei]/i.test(testoVisibile(chiusa + aperta + povera)) && !/Indistinguibil|\{\{|da confermare|Verificato|1326|★/.test(chiusa + aperta + povera));
+}
+
+/* ── La rotta: cancello, 302, testa, cache ─────────────────────────────────────────────────────── */
+{
+  const PONTE_FINTO = `
+export const VISTA_VUOTA = { pubblicabile: false, anteprima: false, mancanti: ["video","copertina","sottotitoli"], ritratto: null, miniature: null, video: null, macro: null, ogImage: null };
+export const chiamate = { leggi: [], registra: [] };
+export const leggiSoluzioni = async (o) => { chiamate.leggi.push(o); if (globalThis.__leggiLancia) throw new Error("db giù"); return globalThis.__vista; };
+export const registraCancello = (o) => { chiamate.registra.push(o); if (globalThis.__registraLancia) return Promise.reject(new Error("lp_events giù")); return globalThis.__registraMuta ? new Promise(() => {}) : Promise.resolve(); };
+export const destinazioneCancello = (s) => { const t = new URLSearchParams(); new URLSearchParams(s).forEach((v, k) => { if (/^(utm_[a-z0-9_]+|fbclid|gclid|ttclid|ad_id|adset_id|campaign_id)$/i.test(k)) t.append(k, v); }); return t.toString() ? "/?" + t : "/"; };
+export const apriDaRicerca = (s) => !!s && typeof s === "object" && s.apri === "invisible-derm";
+`;
+  const R = await impacchetta(
+    `export { Route } from ${rel("src/routes/soluzioni")}; export { chiamate } from "@/landing/sito/soluzioni/ponte";`,
+    [
+      [/soluzioni\/ponte$/, PONTE_FINTO],
+      [/soluzioni\/ponte-ui$/, `export const PRECARICA_FONT_SOLUZIONI = [{ rel: "preload", href: "/fonts/anton.woff2", as: "font" }];`],
+      [/soluzioni\/PaginaSoluzioni$/, `export const PaginaSoluzioni = () => null;`],
+    ],
+  );
+  const { options } = R.Route;
+  const VUOTA = { pubblicabile: false, anteprima: false, mancanti: ["video", "copertina", "sottotitoli"], ritratto: null, miniature: null, video: null, macro: null, ogImage: null };
+  const lancia = async (searchStr, search = {}) => {
+    R.chiamate.leggi.length = 0;
+    R.chiamate.registra.length = 0;
+    try {
+      const deps = options.loaderDeps({ search });
+      return { ok: await options.loader({ deps, location: { searchStr } }) };
+    } catch (e) {
+      return { redirezione: e.redirezione, errore: e.redirezione ? null : e.message };
+    }
+  };
+
+  c("rotta: /soluzioni", "/soluzioni", R.Route.path);
+  c("rotta: cache e ricarica (decisione 11): staleTime infinito e mai ricaricata", [Infinity, false], [options.staleTime, options.shouldReload]);
+
+  globalThis.__vista = VUOTA;
+  let r = await lancia("?utm_source=meta&utm_campaign=ottobre&apri=invisible-derm&anteprima=sbagliato&x=1", { utm_source: "meta", apri: "invisible-derm", anteprima: "sbagliato" });
+  c("cancello chiuso: 302 verso la home con i soli parametri delle campagne (mai 301)", { href: "/?utm_source=meta&utm_campaign=ottobre", statusCode: 302 }, r.redirezione);
+  c("cancello chiuso: il codice d'anteprima sbagliato arriva al server e basta, non apre niente", [{ data: { anteprima: "sbagliato" } }], R.chiamate.leggi);
+  c("cancello chiuso: la visita fermata si registra con la stessa query ({ data: { search } })", [{ data: { search: "?utm_source=meta&utm_campaign=ottobre&apri=invisible-derm&anteprima=sbagliato&x=1" } }], R.chiamate.registra);
+  r = await lancia("", {});
+  c("cancello chiuso senza parametri: 302 alla home pulita", { href: "/", statusCode: 302 }, r.redirezione);
+  c("senza codice: leggiSoluzioni riceve anteprima undefined", [{ data: { anteprima: undefined } }], R.chiamate.leggi);
+
+  globalThis.__registraMuta = true;
+  const t0 = Date.now();
+  r = await lancia("?utm_source=meta", { utm_source: "meta" });
+  const ms = Date.now() - t0;
+  vero(`cancello chiuso con la registrazione che non risponde: il 302 parte entro ~300 ms (${ms} ms)`, r.redirezione?.statusCode === 302 && ms >= 250 && ms < 1000);
+  globalThis.__registraMuta = false;
+  globalThis.__registraLancia = true;
+  r = await lancia("?utm_source=meta", { utm_source: "meta" });
+  c("cancello chiuso con la registrazione che fallisce: 302 lo stesso, nessuna eccezione", 302, r.redirezione?.statusCode);
+  globalThis.__registraLancia = false;
+  globalThis.__leggiLancia = true;
+  r = await lancia("?utm_source=meta", { utm_source: "meta" });
+  c("lettura che lancia: mai un 500, cancello chiuso e 302", [302, null], [r.redirezione?.statusCode, r.errore ?? null]);
+  globalThis.__leggiLancia = false;
+
+  globalThis.__vista = { ...VUOTA, pubblicabile: true, mancanti: [] };
+  r = await lancia("?apri=invisible-derm", { apri: "invisible-derm" });
+  c("pubblicabile: la vista arriva alla pagina, niente 302 e niente registrazione", [true, 0], [r.ok?.pubblicabile, R.chiamate.registra.length]);
+  globalThis.__vista = { ...VUOTA, anteprima: true };
+  r = await lancia("?anteprima=codice-giusto", { anteprima: "codice-giusto" });
+  c("anteprima valida: la pagina si vede anche col cancello chiuso, niente 302", [true, false], [r.ok?.anteprima, !!r.redirezione]);
+
+  /* ── La testa della pagina ── */
+  const testa = (loaderData, search = {}) => options.head({ loaderData, match: { search } });
+  const cerca = (t, chiave, valore) => t.meta.find((x) => x[chiave] === valore);
+  let t = testa({ ...VUOTA, pubblicabile: true });
+  c("testa: titolo della 3.6", "Trapianto, patch o Invisible Derm | Hair Genius Labs Roma", t.meta.find((x) => x.title)?.title);
+  vero("testa: noindex", !!t.meta.find((x) => x.name === "robots" && /noindex/.test(x.content)));
+  c("testa: canonical /soluzioni", [{ rel: "canonical", href: "https://hair-genius-hub.hair/soluzioni" }], t.links.filter((l) => l.rel === "canonical"));
+  vero("testa: i caratteri precaricati di S2 ci sono", t.links.some((l) => l.rel === "preload" && /anton/.test(l.href)));
+  c("testa: descrizione normale", "Facciamo trapianto, patch e Invisible Derm. In consulenza gratuita, anche in videochiamata, ti diciamo quale serve davvero a te.", cerca(t, "name", "description")?.content);
+  t = testa({ ...VUOTA, pubblicabile: true }, { apri: "invisible-derm" });
+  c("testa: con ?apri la descrizione per gli annunci", "Che cos'è Invisible Derm: un sistema di capelli su misura, sottile e naturale, senza chirurgia. Te lo spiega il titolare in 30 secondi.", cerca(t, "name", "description")?.content);
+  c("testa: titolo per la condivisione social", "Trapianto, patch o Invisible Derm? Li facciamo tutti e tre.", cerca(t, "property", "og:title")?.content);
+  vero("testa: og:image assente se non c'è", !t.meta.some((x) => x.property === "og:image"));
+  t = testa({ ...VUOTA, pubblicabile: true, ogImage: "https://progetto.supabase.co/storage/v1/object/public/landing-media/og.jpg", video: { slot: { src: "", poster: "", alt: "Alt del poster" }, trascrizione: null } });
+  c("testa: og:image dalla vista (e il suo alt)", ["https://progetto.supabase.co/storage/v1/object/public/landing-media/og.jpg", "Alt del poster"], [cerca(t, "property", "og:image")?.content, cerca(t, "property", "og:image:alt")?.content]);
+  vero("testa: senza dati della rotta (errore) non lancia", (() => { try { return !!testa(undefined).meta.length; } catch { return false; } })());
+
+  /* ── La sorgente: nessun import vietato nella rotta ── */
+  const rotta = leggi("src/routes/soluzioni.tsx");
+  vero("rotta: nessun import del contenuto grezzo, né di MediaSlot, PlaceholderBox, useLandingContent, traccia-provvisoria", !/landing-content|MediaSlot|PlaceholderBox|useLandingContent|traccia-provvisoria|StickyHeader|BarraConsulenza/.test(rotta));
+  vero("rotta: il 302 è temporaneo, mai 301", /statusCode:\s*302/.test(rotta) && !/\b301\b/.test(rotta.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "")));
+}
+
+/* ── L'API dell'anteprima: codice breve per il CRM, mai il token nell'indirizzo ───────────────────── */
+{
+  const PONTE_API = `
+export const nuovoCodice = () => { const codice = (globalThis.__prossimo ?? "N").repeat(32); return { codice, scade: new Date(globalThis.__adesso + 30 * 60000).toISOString() }; };
+export const codiceValido = (salvato, dato, adesso) => !!salvato && typeof dato === "string" && salvato.codice === dato && Date.parse(salvato.scade) > adesso.getTime();
+`;
+  const ACCESSO_FINTO = `
+export const guardiaCRM = async (request, cors, permesso) => {
+  (globalThis.__guardie ??= []).push(permesso);
+  return globalThis.__sessione ? { ok: true, chi: {} } : { ok: false, risposta: new Response(JSON.stringify({ ok: false }), { status: 401, headers: cors }) };
+};`;
+  const DB_FINTO = `
+export const supabaseAdmin = {
+  from: (tabella) => ({
+    select: () => ({ eq: (_c, chiave) => ({ maybeSingle: async () => { (globalThis.__letture ??= []).push([tabella, chiave]); if (globalThis.__dbGiu) throw new Error("db giù"); return { data: globalThis.__riga ?? null }; } }) }),
+    upsert: async (riga, opzioni) => { (globalThis.__scritture ??= []).push([tabella, riga, opzioni]); if (globalThis.__dbGiu) throw new Error("db giù"); globalThis.__riga = { value: riga.value }; return { error: null }; },
+  }),
+};`;
+  const A = await impacchetta(`export { Route } from ${rel("src/routes/api.crm.anteprima-soluzioni")};`, [
+    [/soluzioni\/ponte$/, PONTE_API],
+    [/\/api\.crm\.accesso$/, ACCESSO_FINTO],
+    [/integrations\/supabase\/client\.server$/, DB_FINTO],
+  ]);
+  const gestori = A.Route.options.server.handlers;
+  const chiedi = async (metodo = "POST") => {
+    const risposta = await gestori[metodo]({ request: new Request("https://sito.test/api/crm/anteprima-soluzioni", { method: metodo, headers: { "X-CRM-Sessione": "x" } }) });
+    return { stato: risposta.status, cache: risposta.headers.get("Cache-Control"), corpo: await risposta.json().catch(() => null) };
+  };
+  const rimetti = () => { globalThis.__guardie = []; globalThis.__scritture = []; globalThis.__letture = []; globalThis.__riga = null; globalThis.__dbGiu = false; globalThis.__sessione = true; globalThis.__adesso = Date.parse("2026-10-14T20:00:00Z"); globalThis.__prossimo = "A"; };
+  //  La data «adesso» dell'API è quella vera: i codici di prova usano date vere, lontane e vicine.
+  const FRA_UN_MINUTO = new Date(Date.now() + 60_000).toISOString();
+  const IERI = new Date(Date.now() - 86_400_000).toISOString();
+
+  rimetti();
+  globalThis.__sessione = false;
+  let r = await chiedi();
+  c("api: senza sessione del CRM 401 e non scrive né legge niente", [401, 0, 0], [r.stato, globalThis.__scritture.length, globalThis.__letture.length]);
+  c("api: chiede il permesso della pagina Landing del CRM (marketing)", ["marketing"], globalThis.__guardie);
+
+  rimetti();
+  globalThis.__adesso = Date.now();
+  r = await chiedi();
+  c("api: con la sessione crea un codice e lo scrive in app_config sotto la chiave unica", [200, true, "A".repeat(32), "app_config", "anteprima-soluzioni", { onConflict: "key" }],
+    [r.stato, r.corpo?.ok, r.corpo?.codice, globalThis.__scritture[0]?.[0], globalThis.__scritture[0]?.[1]?.key, globalThis.__scritture[0]?.[2]]);
+  c("api: nel database c'è lo stesso codice e la scadenza (JSON), non il token di sessione", { codice: "A".repeat(32), scade: r.corpo?.scade }, JSON.parse(globalThis.__scritture[0][1].value));
+  vero("api: la risposta non si tiene in cache (no-store)", /no-store/.test(r.cache ?? ""));
+
+  globalThis.__riga = { value: JSON.stringify({ codice: "B".repeat(32), scade: FRA_UN_MINUTO }) };
+  globalThis.__scritture = [];
+  r = await chiedi();
+  c("api: se c'è già un codice ancora valido lo riusa (titolare e collaboratore non si annullano a vicenda)", [200, "B".repeat(32), 0], [r.stato, r.corpo?.codice, globalThis.__scritture.length]);
+
+  globalThis.__riga = { value: JSON.stringify({ codice: "B".repeat(32), scade: IERI }) };
+  globalThis.__adesso = Date.now();
+  r = await chiedi();
+  c("api: un codice scaduto si sostituisce", [200, "A".repeat(32), 1], [r.stato, r.corpo?.codice, globalThis.__scritture.length]);
+
+  for (const rovinato of ["non è json", "null", "[]", JSON.stringify({ codice: 5 })]) {
+    globalThis.__riga = { value: rovinato };
+    globalThis.__scritture = [];
+    r = await chiedi();
+    c(`api: riga illeggibile (${rovinato.slice(0, 12)}) → ne crea una nuova, nessuna eccezione`, [200, 1], [r.stato, globalThis.__scritture.length]);
+  }
+  rimetti();
+  globalThis.__dbGiu = true;
+  r = await chiedi();
+  c("api: database giù → 500 con un motivo, mai un'eccezione né un codice finto", [500, false], [r.stato, r.corpo?.ok]);
+
+  const api = leggi("src/routes/api.crm.anteprima-soluzioni.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  vero("api: la guardia viene prima di ogni accesso al database", api.indexOf("guardiaCRM(request") > -1 && api.indexOf("guardiaCRM(request") < api.indexOf("supabaseAdmin.from"));
+  vero("api: il codice non nasce da Math.random", !/Math\.random/.test(api));
+  vero("api: nessun GET (il codice non si legge con un indirizzo)", !/\bGET\s*:/.test(api));
 }
 
 finisci();

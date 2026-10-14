@@ -75,13 +75,13 @@ export function fraseSemaforo(m: Mancante[]): string {
   return `Non va online: manca ${m.map((x) => nomi[x]).join(", ")}`;
 }
 
-/** IPOTESI: `createServerFn` si chiama `leggiSoluzioni({ data: { anteprima } })`. Qui: sempre la vista vuota (cancello chiuso). */
+/** `leggiSoluzioni({ data: { anteprima } })` (S1.2). Qui: sempre la vista vuota (cancello chiuso). */
 export async function leggiSoluzioni(_opzioni: { data: { anteprima?: string } }): Promise<VistaSoluzioni> {
   return VISTA_VUOTA;
 }
 
-/** IPOTESI: `registraCancello({ data: search })`, mai bloccante oltre 300 ms. Qui: non scrive niente. */
-export async function registraCancello(_opzioni: { data: string }): Promise<void> {}
+/** `registraCancello({ data: { search } })` (S1.2), mai bloccante oltre 300 ms. Qui: non scrive niente. */
+export async function registraCancello(_opzioni: { data: { search: string } }): Promise<void> {}
 
 /** Il codice d'anteprima (S1, `anteprima.ts`): da `crypto.getRandomValues`, mai `Math.random`; vale 30 minuti. */
 export function nuovoCodice(adesso: Date = new Date()): { codice: string; scade: string } {

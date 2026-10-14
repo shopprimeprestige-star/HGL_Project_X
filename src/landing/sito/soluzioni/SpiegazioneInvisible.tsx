@@ -9,9 +9,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Clock, Ruler, Wrench } from "lucide-react";
 import { TESTI_SOLUZIONI as T } from "@/landing/testi-sito";
-import { fraseSemaforo, tracciaSoluzioni, type VistaSoluzioni } from "./ponte";
+import { fraseSemaforo, type VistaSoluzioni } from "./ponte";
 import { BottonePrimario, ClipLoop, LinkAzione, VideoParlato } from "./ponte-ui";
 import { segnaVideo } from "./stato-pagina";
+import { tracciaSoluzioni } from "./traccia-soluzioni";
 import { ANTON, INTER, STILE_CHIARO } from "./stile";
 import { ID_CELLA, ID_SPIEGAZIONE } from "./TavolaSoluzioni";
 import type { AlPrenotare } from "./Testata";
@@ -75,7 +76,8 @@ export function usaSpiegazione(apertaDalServer: boolean): StatoSpiegazione {
       titolo.scrollIntoView({ block: "start", behavior: senzaMoto ? "auto" : "smooth" });
       //  Il fuoco va al titolo solo se è stata una persona ad aprire; da un link la pagina non si muove da sola.
       if (origine === "tocco") titolo.focus({ preventScroll: true });
-    }, senzaMoto ? 0 : 240);
+    //  240 ms di animazione + i due disegni prima che parta: scorrere prima della fine si fermerebbe a metà (la pagina è ancora bassa).
+    }, senzaMoto ? 0 : 320);
   }, []);
 
   const chiudi = useCallback(() => {

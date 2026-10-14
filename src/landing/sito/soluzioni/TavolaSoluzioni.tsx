@@ -10,8 +10,8 @@ import { Plus } from "lucide-react";
 import { vaiDopo } from "@/landing/sito/pezzi";
 import { LINK_CATALOGO, TESTI_SOLUZIONI as T } from "@/landing/testi-sito";
 import type { VistaSoluzioni } from "./ponte";
-import { tracciaSoluzioni } from "./ponte";
 import { BottoneContorno, Foto, LinkAzione } from "./ponte-ui";
+import { tracciaSoluzioni } from "./traccia-soluzioni";
 import { BloccoConsulenza, type AlPrenotare } from "./Testata";
 import { ANTON, CONTENITORE, ETICHETTA, INTER } from "./stile";
 
@@ -94,22 +94,23 @@ export function TavolaSoluzioni({ miniature, aperta, onAlterna, onPrenota, botto
                   )}
                 </div>
                 <div role={e03 ? "group" : undefined} aria-label={e03 ? invisibile.etichettaAccessibile : undefined}>
-                  <p className={`${ETICHETTA} flex items-center gap-3`}>
+                  {e03 ? (
+                    <p className={`${ETICHETTA} mb-1.5 flex items-center gap-1.5 text-[var(--hgl-titoli,#5CB6FF)]`}>
+                      <span aria-hidden="true" className="size-1.5 bg-current" />
+                      {invisibile.etichetta}
+                    </p>
+                  ) : null}
+                  {/* Il numero e il nome stanno sulla stessa riga: tre righe intere nella prima schermata (4.2). */}
+                  <div className="flex items-baseline gap-3">
                     {solaScritta ? null : (
-                      <span aria-hidden="true" className="text-[var(--hgl-dettagli,#C9D6FF)]">
+                      <span aria-hidden="true" className={`${ETICHETTA} text-[var(--hgl-dettagli,#C9D6FF)]`}>
                         {voce.numero}
                       </span>
                     )}
-                    {e03 ? (
-                      <span className="flex items-center gap-1.5 text-[var(--hgl-titoli,#5CB6FF)]">
-                        <span aria-hidden="true" className="size-1.5 bg-current" />
-                        {invisibile.etichetta}
-                      </span>
-                    ) : null}
-                  </p>
-                  <h2 className={`${ANTON} mt-2 text-[22px] leading-none tracking-[0.005em] text-white lg:text-[32px]`}>{voce.nome}</h2>
-                  <p className={`${INTER} mt-2 text-[15px] leading-[1.35] text-[var(--hgl-dettagli,#C9D6FF)] lg:text-[17px]`}>{voce.riga}</p>
-                  <div className="mt-3 text-white">{azioni[i]}</div>
+                    <h2 className={`${ANTON} text-[22px] leading-none tracking-[0.005em] text-white lg:text-[32px]`}>{voce.nome}</h2>
+                  </div>
+                  <p className={`${INTER} mt-1.5 text-[15px] leading-[1.35] text-[var(--hgl-dettagli,#C9D6FF)] lg:text-[17px]`}>{voce.riga}</p>
+                  <div className="mt-2 text-white">{azioni[i]}</div>
                 </div>
               </li>
             );

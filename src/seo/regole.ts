@@ -33,8 +33,10 @@ export const PAGINE_PUBBLICHE: readonly string[] = [
 /** Pagine che esistono ma sono NASCOSTE: dichiarano `noindex` nella loro testata e NON stanno nella mappa
  *  (una mappa che elenca un `noindex` è un errore per Google). `/protocol` e `/catalogo` (pagina provvisoria «in preparazione») aspettano che il redesign di home e
  *  Protocol sia approvato dal titolare (14/10/2026): quando lo è, si toglie da qui, si mette in
- *  `PAGINE_PUBBLICHE` e si toglie `noindex` da `routes/protocol.tsx` / `routes/catalogo.tsx` (la prova `prove/sito/rotte.mjs` lo ricorda). */
-export const PAGINE_NASCOSTE: readonly string[] = ["/protocol", "/catalogo"];
+ *  `PAGINE_PUBBLICHE` e si toglie `noindex` da `routes/protocol.tsx` / `routes/catalogo.tsx` (la prova `prove/sito/rotte.mjs` lo ricorda).
+ *  `/soluzioni` (landing «Tre soluzioni», 14/10/2026) aspetta l'APPROVATO del marketing e il «pubblica» del titolare; poi
+ *  diventa la home e `/soluzioni` un 301 verso `/`. Mentre manca il video del titolare, chi la apre va alla home (302). */
+export const PAGINE_NASCOSTE: readonly string[] = ["/protocol", "/catalogo", "/soluzioni"];
 
 /** Percorsi che non sono pagine da leggere: si chiedono ai motori di non visitarli. */
 export const NON_VISITARE: readonly string[] = ["/api/", "/CRM"];
