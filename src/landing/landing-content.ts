@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 export type Review = {
   id: string;
@@ -47,9 +48,9 @@ export const LANDING_SCHEMA: SectionDef[] = [
     fields: [
       { key: "hero.eyebrow1", label: "Eyebrow 1", type: "text", default: "Il problema non è averlo." },
       { key: "hero.eyebrow2", label: "Eyebrow 2 (accent)", type: "text", default: "È che non si noti." },
-      { key: "hero.h1", label: "Titolo H1 (usa [a]...[/a] per highlight)", type: "textarea", default: "Bio-Mimetic™: il [a]nuovo[/a]\nimpianto 2026.\n[a]Invisibile[/a]. Davvero!" },
+      { key: "hero.h1", label: "Titolo H1 (usa [a]...[/a] per highlight)", type: "textarea", default: "" + NOME_PRODOTTO + ": il [a]nuovo[/a]\nimpianto 2026.\n[a]Invisibile[/a]. Davvero!" },
       { key: "hero.errorPill", label: "Pillola rossa", type: "text", default: "Una patch cutanea si vede sempre." },
-      { key: "hero.body", label: "Body sotto H1", type: "textarea", default: "Il [a]Bio-Mimetic™[/a] no. Ho fuso l'invisibilità di una [a]0.03mm[/a] con la resistenza di una [a]0.08mm[/a]. Un impianto che non tradisce mai — neanche a distanza di contatto." },
+      { key: "hero.body", label: "Body sotto H1", type: "textarea", default: "Il [a]" + NOME_PRODOTTO + "[/a] no. Ho fuso l'invisibilità di una [a]0.03mm[/a] con la resistenza di una [a]0.08mm[/a]. Un impianto che non tradisce mai — neanche a distanza di contatto." },
       { key: "hero.priceLabel", label: "Etichetta prezzo", type: "text", default: "Valutazione professionale" },
       { key: "hero.priceOld", label: "Prezzo barrato", type: "text", default: "47€" },
       { key: "hero.priceNew", label: "Prezzo attuale (label)", type: "text", default: "Oggi:" },
@@ -64,7 +65,7 @@ export const LANDING_SCHEMA: SectionDef[] = [
     fields: [
       { key: "s02.eyebrow", label: "Eyebrow", type: "text", default: "02 · Resistenza & Tecnologia" },
       { key: "s02.h2", label: "Titolo H2", type: "textarea", default: "Invisibilità Skin.\nForza HD.\nSenza compromessi." },
-      { key: "s02.body", label: "Body", type: "textarea", default: "La [a]Reticolazione Molecolare[/a] del [a]Bio-Mimetic™[/a] permette alla membrana skin di scomparire sulla pelle pur mantenendo una forza di trazione mai vista." },
+      { key: "s02.body", label: "Body", type: "textarea", default: "La [a]Reticolazione Molecolare[/a] del [a]" + NOME_PRODOTTO + "[/a] permette alla membrana skin di scomparire sulla pelle pur mantenendo una forza di trazione mai vista." },
       { key: "s02.note", label: "Nota laterale", type: "textarea", default: "[a]Non è Lace.[/a] È una membrana continua: zero reti, zero nodi. Invisibilità totale. Resistenza da 0.08. Questo si che è assurdo." },
       { key: "s02.media", label: "Video / immagine destra", type: "video", default: "" },
     ],
@@ -78,9 +79,9 @@ export const LANDING_SCHEMA: SectionDef[] = [
       { key: "s03.media", label: "Video del test", type: "video", default: "" },
       { key: "s03.bodyL1", label: "Paragrafo 1", type: "textarea", default: "Nessun nodo. Nessun riflesso sintetico. Il trattamento [a]Derm-Sync[/a] rende l'impianto indistinguibile dalla tua cute anche a distanza di contatto." },
       { key: "s03.bodyL2", label: "Paragrafo 2 (brand)", type: "textarea", default: "Questa è la distanza a cui ti guarda una persona. Guardala tu per primo." },
-      { key: "s03.h2R", label: "Titolo destro", type: "textarea", default: "Patch cutanea vs Bio-Mimetic™.\n[a]La differenza è misurabile.[/a]" },
+      { key: "s03.h2R", label: "Titolo destro", type: "textarea", default: "Patch cutanea vs " + NOME_PRODOTTO + ".\n[a]La differenza è misurabile.[/a]" },
       { key: "s03.stat1Big", label: "Stat 1 big", type: "text", default: "INVISIBILE" },
-      { key: "s03.stat1Sub", label: "Stat 1 sub", type: "text", default: "Attaccatura\nbio-mimetica" },
+      { key: "s03.stat1Sub", label: "Stat 1 sub", type: "text", default: "Attaccatura\ninvisibile" },
       { key: "s03.stat2Big", label: "Stat 2 big", type: "text", default: "X5" },
       { key: "s03.stat2Sub", label: "Stat 2 sub", type: "text", default: "Forza\nreticolata" },
       { key: "s03.stat3Big", label: "Stat 3 big", type: "text", default: "120 MIN" },
@@ -93,7 +94,7 @@ export const LANDING_SCHEMA: SectionDef[] = [
     fields: [
       { key: "s04.eyebrow", label: "Eyebrow", type: "text", default: "04 · I 3 Pilastri" },
       { key: "s04.h2", label: "Titolo H2", type: "textarea", default: "Vivi la tua vita.\nL'impianto resta invisibile." },
-      { key: "s04.intro", label: "Intro", type: "textarea", default: "Sport, sudore, mare, sole o doccia: il [a]Bio-Mimetic™[/a] resta naturale e indistinguibile in ogni condizione." },
+      { key: "s04.intro", label: "Intro", type: "textarea", default: "Sport, sudore, mare, sole o doccia: il [a]" + NOME_PRODOTTO + "[/a] resta naturale e indistinguibile in ogni condizione." },
       { key: "s04.pill1", label: "Pill 1", type: "text", default: "Sport intenso" },
       { key: "s04.pill2", label: "Pill 2", type: "text", default: "Sudore prolungato" },
       { key: "s04.pill3", label: "Pill 3", type: "text", default: "Mare e piscina" },
@@ -117,10 +118,10 @@ export const LANDING_SCHEMA: SectionDef[] = [
     title: "Sezione 05 — Il Confronto (immagini)",
     fields: [
       { key: "s05.eyebrow", label: "Eyebrow", type: "text", default: "05 · Il Confronto" },
-      { key: "s05.h2", label: "Titolo H2", type: "text", default: "Patch cutanea vs Bio-Mimetic™." },
-      { key: "s05.body", label: "Body", type: "textarea", default: "A sinistra la patch cutanea comune. A destra la nostra attaccatura ad effetto cute viva — [a]Zero-Edge del Bio-Mimetic™[/a]." },
+      { key: "s05.h2", label: "Titolo H2", type: "text", default: "Patch cutanea vs " + NOME_PRODOTTO + "." },
+      { key: "s05.body", label: "Body", type: "textarea", default: "A sinistra la patch cutanea comune. A destra la nostra attaccatura ad effetto cute viva — [a]Zero-Edge del " + NOME_PRODOTTO + "[/a]." },
       { key: "s05.beforeImage", label: "Immagine PRIMA (patch cutanea)", type: "image", default: "" },
-      { key: "s05.afterImage", label: "Immagine DOPO (Bio-Mimetic)", type: "image", default: "" },
+      { key: "s05.afterImage", label: "Immagine DOPO (" + NOME_PRODOTTO + ")", type: "image", default: "" },
     ],
   },
   {
@@ -157,7 +158,7 @@ export const LANDING_SCHEMA: SectionDef[] = [
     id: "slogan",
     title: "Slogan finale",
     fields: [
-      { key: "slogan.eyebrow", label: "Eyebrow", type: "text", default: "— Bio-Mimetic™ —" },
+      { key: "slogan.eyebrow", label: "Eyebrow", type: "text", default: "— " + NOME_PRODOTTO + " —" },
       { key: "slogan.h2", label: "Titolo H2", type: "textarea", default: "Se non si vede,\n[a]è reale.[/a]" },
       { key: "slogan.body", label: "Body", type: "text", default: "Indistinguibile dalla cute. Anche a distanza di contatto." },
     ],
@@ -227,7 +228,7 @@ export const DEFAULT_LANDING: LandingContent = {
   reviewsCount: "Oltre 1326 Clienti Soddisfatti",
   reviewsHeadline: "Storie vere. Risultati veri.",
   reviewsSubhead:
-    "Scopri le esperienze autentiche di chi ha trasformato la propria vita con il Bio-Mimetic™.",
+    "Scopri le esperienze autentiche di chi ha trasformato la propria vita con il " + NOME_PRODOTTO + ".",
   reviews: DEFAULT_REVIEWS,
 };
 

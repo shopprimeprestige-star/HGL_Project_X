@@ -40,6 +40,7 @@ import {
 //  volta sola in SchedaCliente: qui si importano.
 import { ScorciatoieFinestra, useSalvaConTastiera } from "@/crm/SchedaCliente";
 import { cn } from "@/lib/utils";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 /** Due campi affiancati sul monitor, uno sotto l'altro sul telefono: metà
  *  larghezza di uno schermo da 375px è un bersaglio troppo stretto per il
@@ -217,7 +218,7 @@ export function PublicLeadDetailSheet({ lead, open, onOpenChange, onSaved }: Pro
             <a
               href={buildWhatsAppLink(
                 draft.telefono,
-                `Ciao ${draft.nome}, ho ricevuto la tua richiesta per Bio-Mimetic™. Ti contatto a breve!`,
+                `Ciao ${draft.nome}, ho ricevuto la tua richiesta per ${NOME_PRODOTTO}. Ti contatto a breve!`,
               )}
               target="_blank"
               rel="noreferrer"

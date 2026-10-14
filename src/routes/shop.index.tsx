@@ -6,6 +6,7 @@ import { CATEGORIES, PRODUCTS, formatPrice, type CategoryKey, type Product } fro
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
 import { toast } from "sonner";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 export const Route = createFileRoute("/shop/")({
   component: Storefront,
@@ -108,7 +109,7 @@ function Storefront() {
         <div className="absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-brand/25 blur-3xl" />
         <div className="relative mx-auto max-w-2xl space-y-4">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70">
-            <Sparkles className="h-3.5 w-3.5 text-brand" /> Collezione Bio-Mimetic™
+            <Sparkles className="h-3.5 w-3.5 text-brand" /> Collezione {NOME_PRODOTTO}
           </span>
           <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
             Toupee <span className="text-brand">indistinguibili</span> e tutto per curarli.
