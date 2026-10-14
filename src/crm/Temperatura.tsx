@@ -80,7 +80,9 @@ export function TemperaturaRiga(p: {
   if (t.livello === "nessuna") return null;
   if (p.soloPallino) return <PallinoTemperatura t={t} soloPallino className={p.className} />;
   return (
-    <span className={p.className}>
+    //  Il testo intero al passaggio del mouse: sul monitor la riga si accorcia
+    //  e la seconda risposta breve resta tagliata (revisione finale).
+    <span className={p.className} title={[t.parola, ...brevi].join(" · ")}>
       <PallinoTemperatura t={t} />
       {brevi.map((b) => (
         <span key={b}>

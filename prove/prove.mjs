@@ -17920,6 +17920,13 @@ export const disegna = (cosa, dati, o = {}) =>
     riga({ modulo: { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" } }),
   );
   c("riga senza risposte: niente", "", riga({ modulo: { zona: "nord" } }));
+  c(
+    "il testo intero sta nel title: sul monitor la riga si accorcia",
+    true,
+    disegna(null, null, "riga", { modulo: { urgenza: "subito", giaFatto: "farmaci" } }).includes(
+      'title="Caldo · vuole risolvere ora · ha provato: farmaci"',
+    ),
+  );
   c("riga dal quiz del sito", "Medio · disagio 8/10", riga({ qualifica: { disagio: 8 } }));
   const solo = disegna(null, null, "riga", { modulo: { fastidio: "poco" } }, { soloPallino: true });
   c(
