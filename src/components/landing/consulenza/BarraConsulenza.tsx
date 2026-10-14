@@ -10,7 +10,7 @@
  *  - La X la chiude per tutta la visita. Mai su carrello, cassa, CRM, Meetly…
  *  ⚠️ Metterla dopo il piè di pagina: lo spazio riservato sta dove sta lei.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { traccia } from "@/landing/consulenza/eventi";
@@ -20,9 +20,9 @@ import { TESTI_CONSULENZA } from "@/landing/testi-sito";
 
 const PannelloProblemi = lazy(() => import("./PannelloProblemi"));
 
-/** Altezza della barra e quanto margine tenere prima di nasconderla. */
+/** Altezza minima della barra e aria in più da tenere prima del blocco d'acquisto. */
 const ALTEZZA = 56;
-const MARGINE_FONDO = 72;
+const ARIA_FONDO = 16;
 const SPAZIO = `calc(${ALTEZZA}px + env(safe-area-inset-bottom, 0px))`;
 
 interface Props {
@@ -35,7 +35,10 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [montata, setMontata] = useState(false);
   const [chiusa, setChiusa] = useState(false);
-  const [nascosta, setNascosta] = useState(false);
+  //  Parte nascosta: la barra si mostra (e si conta) solo dopo il primo controllo
+  //  delle posizioni, fatto prima del disegno. Mai un fotogramma sopra un modulo.
+  const [nascosta, setNascosta] = useState(true);
+  const barra = useRef<HTMLDivElement | null>(null);
   const [pannelloMontato, setPannelloMontato] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   const t = TESTI_CONSULENZA.barra;
@@ -50,19 +53,22 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
 
   //  Controllo delle posizioni: a ogni scorrimento, ridimensionamento o
   //  cambio di altezza della pagina (contenuti che arrivano dopo).
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!presente) return;
     let raf = 0;
     const verifica = () => {
       raf = 0;
       const alto = window.innerHeight;
+      //  Il margine segue l'altezza vera della barra (zona dei gesti dell'iPhone compresa).
+      const margine =
+        Math.max(barra.current?.getBoundingClientRect().height ?? 0, ALTEZZA) + ARIA_FONDO;
       let copre = false;
       document.querySelectorAll<HTMLElement>("[data-barra-nascondi]").forEach((el) => {
         const r = el.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) return;
         const tipo = el.dataset.barraNascondi;
         if (tipo === "vista" && r.bottom > 0 && r.top < alto) copre = true;
-        if (tipo === "fondo" && r.bottom > alto - MARGINE_FONDO && r.top < alto) copre = true;
+        if (tipo === "fondo" && r.bottom > alto - margine && r.top < alto) copre = true;
       });
       setNascosta(copre);
     };
@@ -104,6 +110,7 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
       {presente && <div aria-hidden="true" data-barra-spazio="" style={{ height: SPAZIO }} />}
       {presente && (
         <div
+          ref={barra}
           role="region"
           aria-label={t.bottone}
           data-barra-consulenza=""
