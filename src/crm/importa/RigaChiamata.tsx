@@ -14,11 +14,18 @@
  *  ⚠️ «CALDO» È UNA PAROLA, NON UN'EMOJI NÉ UN COLORE IN PIÙ: si vede a colpo
  *   d'occhio ma non fa concorrenza alla targhetta, che è la risposta alla
  *   domanda «perché lui adesso?».
+ *  ⚠️ DAL 14/10/2026 È IL PALLINO DELLA TEMPERATURA (Caldo, Medio, Freddo),
+ *   lo stesso di «Oggi» e della scheda del lead: una regola sola
+ *   (crm/temperatura-lead). Chi non passa la temperatura vede la parola
+ *   «caldo» di prima. L'ordine della coda non cambia: lo decide ancora
+ *   `eCaldo`, che è solo-modulo.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { ChevronRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CLASSE_BADGE_STATO } from "@/crm/ui";
 import type { Lead, LeadData, MotivoChiamata } from "@/crm/types";
+import type { TemperaturaLead } from "@/crm/temperatura-lead";
+import { PallinoTemperatura } from "@/crm/Temperatura";
 import { NOME_MOTIVO, type MotivoDiChiamata } from "./chi-chiamare";
 
 const CLASSE_MOTIVO: Record<MotivoChiamata, string> = {
@@ -30,8 +37,18 @@ const CLASSE_MOTIVO: Record<MotivoChiamata, string> = {
   ritento: "border-border bg-muted text-muted-foreground",
 };
 
-/** Il motivo, scritto: la parola in targhetta, il perché accanto, «caldo» se lo è. */
-export function Targhetta({ motivo, className }: { motivo: MotivoDiChiamata; className?: string }) {
+/** Il motivo, scritto: la parola in targhetta, il perché accanto, e com'è
+ *  messo il cliente (il pallino; senza `temperatura`, «caldo» se lo è). */
+export function Targhetta({
+  motivo,
+  temperatura,
+  className,
+}: {
+  motivo: MotivoDiChiamata;
+  /** `temperaturaLead(modulo, qualifica)`: se c'è, il pallino prende il posto di «caldo». */
+  temperatura?: TemperaturaLead;
+  className?: string;
+}) {
   return (
     <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5", className)}>
       <span
@@ -40,13 +57,17 @@ export function Targhetta({ motivo, className }: { motivo: MotivoDiChiamata; cla
         {NOME_MOTIVO[motivo.motivo]}
       </span>
       <span className="min-w-0 text-[12px] text-muted-foreground">{motivo.testo}</span>
-      {motivo.caldo && (
-        <span
-          className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-orange-700"
-          title="Vuole risolvere subito o ha già provato qualcosa"
-        >
-          caldo
-        </span>
+      {temperatura ? (
+        <PallinoTemperatura t={temperatura} className="shrink-0 text-[12px]" />
+      ) : (
+        motivo.caldo && (
+          <span
+            className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-orange-700"
+            title="Vuole risolvere subito o ha già provato qualcosa"
+          >
+            caldo
+          </span>
+        )
       )}
     </span>
   );
@@ -56,6 +77,7 @@ export function Targhetta({ motivo, className }: { motivo: MotivoDiChiamata; cla
 export function RigaChiamata({
   lead,
   motivo,
+  temperatura,
   riassunto,
   annuncio,
   posizione,
@@ -65,6 +87,8 @@ export function RigaChiamata({
 }: {
   lead: Lead;
   motivo: MotivoDiChiamata;
+  /** `temperaturaLead(modulo, qualifica)`, la regola di «Oggi» e della scheda. */
+  temperatura: TemperaturaLead;
   /** `riassuntoModulo(...)`: Problema e Fastidio. Vuoto se non c'è. */
   riassunto: string;
   /** «Annuncio · Gruppo», già scritto. Vuoto se non c'è. */
@@ -103,7 +127,7 @@ export function RigaChiamata({
                 />
               )}
             </span>
-            <Targhetta motivo={motivo} />
+            <Targhetta motivo={motivo} temperatura={temperatura} />
           </span>
           {/*  Sul telefono la riga va a capo (due righe): una sola tagliava Fastidio e
               Annuncio, che sono il motivo per cui si sceglie quel nome. */}

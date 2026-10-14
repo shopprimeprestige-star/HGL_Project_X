@@ -17932,6 +17932,83 @@ export const disegna = (cosa, dati, o = {}) =>
   c("nessuna temperatura: nessun pallino", "", disegna(null, null, "pallino", {}));
 }
 
+
+/** ── COMPITI 7-10: DOVE SI VEDONO IL PALLINO E LA STRISCIA ─────────────────
+ *  Lead importati, la scheda del lead, «Oggi» del consulente e «Oggi» in sola
+ *  lettura. Le regole sono già provate sopra (temperatura, vistaOggi,
+ *  strisciaPosti): qui si controlla che le pagine le usino, leggendo i
+ *  sorgenti e disegnando i pezzi con dati finti (nomi inventati). */
+async function proveDeiPostiDelPallino() {
+  const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
+  gruppo("LEAD IMPORTATI: IL PALLINO AL POSTO DI «CALDO», E LA STRISCIA");
+  const rigaChiamata = leggi("src/crm/importa/RigaChiamata.tsx");
+  const importa = leggi("src/routes/CRM.importa.tsx");
+  c("la targhetta disegna il pallino", true, rigaChiamata.includes("<PallinoTemperatura"));
+  c(
+    "l'elenco «Poi» passa la temperatura, col modulo già in cache",
+    true,
+    importa.includes("temperaturaLead(moduloDi(l.data)"),
+  );
+  c(
+    "anche la scheda grande passa la temperatura alla targhetta",
+    true,
+    importa.includes("temperatura={temperaturaLead(modulo, d.qualifica)}"),
+  );
+  c("la striscia solo a chi ha agenda", true, importa.includes('puo("agenda") && <StrisciaPosti'));
+  c(
+    "la coda non cambia: eCaldo resta solo-modulo",
+    true,
+    /return temperaturaLead\(m\)\.livello === "caldo";/.test(leggi("src/crm/importa/chi-chiamare.ts")),
+  );
+
+  const targhetta = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Targhetta } from "@/crm/importa/RigaChiamata";
+import { temperaturaLead } from "@/crm/temperatura-lead";
+export const disegna = (caldo, m, q, senza) =>
+  renderToStaticMarkup(
+    createElement(Targhetta, {
+      motivo: { motivo: "prima", testo: "mai chiamato", caldo },
+      ...(senza ? {} : { temperatura: temperaturaLead(m, q) }),
+    }),
+  );`,
+    "targhetta",
+  );
+  const testoDi = (html) =>
+    html
+      .replace(/<[^>]+>/g, "|")
+      .replace(/\|+/g, "|")
+      .replace(/^\||\|$/g, "");
+  const caldo = targhetta(null, null, true, { giaFatto: "farmaci" });
+  c("caldo: pallino e parola, non più «caldo» minuscolo", "PRIMA CHIAMATA|mai chiamato|Caldo", testoDi(caldo));
+  c(
+    "medio: il pallino si vede anche per gli altri livelli",
+    "PRIMA CHIAMATA|mai chiamato|Medio",
+    testoDi(targhetta(null, null, false, { fastidio: "molto" })),
+  );
+  c(
+    "freddo: idem",
+    "PRIMA CHIAMATA|mai chiamato|Freddo",
+    testoDi(targhetta(null, null, false, { giaFatto: "niente" })),
+  );
+  c(
+    "dal quiz del sito: lo stesso pallino",
+    "PRIMA CHIAMATA|mai chiamato|Medio",
+    testoDi(targhetta(null, null, false, undefined, { disagio: 8 })),
+  );
+  c(
+    "nessuna risposta: niente in più",
+    "PRIMA CHIAMATA|mai chiamato",
+    testoDi(targhetta(null, null, false, { zona: "nord" })),
+  );
+  c(
+    "senza temperatura la targhetta resta com'era (nessun chiamante rotto)",
+    "PRIMA CHIAMATA|mai chiamato|caldo",
+    testoDi(targhetta(null, null, true, undefined, undefined, true)),
+  );
+}
+
 /** La finestra «Dove c'è posto» e Slot liberi, sugli stessi dati finti, dicono
  *  lo stesso numero per ogni giorno (lead nuovo, durata di serie, tutta la
  *  squadra: il caso della setter). Si usano i due motori veri — gli orari della
@@ -18279,6 +18356,7 @@ await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();
 await proveDeiDuePezzi();
+await proveDeiPostiDelPallino();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

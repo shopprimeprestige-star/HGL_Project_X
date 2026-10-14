@@ -323,6 +323,8 @@ import {
 } from "@/crm/importa/filtri-lista";
 import { BarraFiltri, filtriAccesi } from "@/crm/importa/FiltriLista";
 import { RigaChiamata, Targhetta } from "@/crm/importa/RigaChiamata";
+import { temperaturaLead } from "@/crm/temperatura-lead";
+import { StrisciaPosti } from "@/crm/StrisciaPosti";
 import { MenuAltro } from "@/crm/importa/MenuAltro";
 //  ⚠️ Il pannello che legge il CSV vive in un file suo da quando lo usano DUE
 //   pagine: questa e la scheda «Importa lead». Vedi crm/importa/PannelloCarica.
@@ -718,7 +720,13 @@ function SchedaProssimo({
                 </span>
               )}
             </div>
-            {motivo && <Targhetta motivo={motivo} className="mt-1" />}
+            {motivo && (
+              <Targhetta
+                motivo={motivo}
+                temperatura={temperaturaLead(modulo, d.qualifica)}
+                className="mt-1"
+              />
+            )}
             <p className="mt-1 text-[12px] text-muted-foreground">
               {[
                 d.citta || null,
@@ -3187,6 +3195,15 @@ function LeadImportatiUnoAllaVolta() {
         }
       />
 
+      {/* ── I POSTI LIBERI, A COLPO D'OCCHIO ──────────────────────────────
+          Richiesta del titolare (14/10/2026): è qui che la setter ha il
+          telefono in mano e il cliente chiede «quando?». Una riga sola, i
+          numeri di Slot liberi (stesso aggancio); un tocco porta là.
+          ⚠️ Solo a chi ha `agenda`: senza, le ore tenute per una persona sola
+           non arrivano e i numeri sarebbero più alti del vero. `puo` c'è già:
+           nessun hook nuovo in questa pagina. */}
+      {puo("agenda") && <StrisciaPosti className="-mt-1 px-1" />}
+
       {/* ── I DUE PANNELLI DI SERVIZIO ────────────────────────────────────
           Sopra la coda perché è lì che si va a cercarli subito dopo averli
           aperti, e chiusi per difetto perché il resto della giornata sono
@@ -3867,6 +3884,8 @@ function LeadImportatiUnoAllaVolta() {
                           key={l.id}
                           lead={l}
                           motivo={perche}
+                          //  Il modulo è già in cache (moduliPerDati): costo nullo.
+                          temperatura={temperaturaLead(moduloDi(l.data), l.data.qualifica)}
                           riassunto={riassuntoModulo(moduloDi(l.data))}
                           annuncio={annuncioScritto(l)}
                           //  Il numero 1 è la scheda grande: l'elenco comincia da 2.
