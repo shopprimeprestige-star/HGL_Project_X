@@ -74,6 +74,35 @@ c("acceso, salvata rotta → si estrae di nuovo", ["A", "B"], [E.varianteBottone
   c("traccia: un evento fuori elenco non parte", 1, T.chiamate.trackEvent.length);
   delete globalThis.window;
 }
+/* ── usaTracciamentoPagina: le pagine nuove non montano BookingFunnel ──── */
+{
+  const T = await carica("src/landing/sito/traccia.ts", "traccia-pagina", { reactFinto: true });
+  const ascoltatori = [];
+  globalThis.window = {
+    location: { pathname: "/protocol" },
+    sessionStorage: { getItem: () => null, setItem() {} },
+    scrollY: 0,
+    innerHeight: 800,
+    addEventListener: (n, f) => ascoltatori.push([n, f]),
+    removeEventListener() {},
+  };
+  globalThis.document = { body: { scrollHeight: 2000 }, documentElement: { scrollHeight: 2000 } };
+  T.usaTracciamentoPagina("protocol");
+  c("la fonte (utm, fbclid) si salva subito, al montaggio", 1, T.chiamate.captureSourceData.length);
+  await new Promise((r) => setTimeout(r, 20));
+  c("PageView di Meta (Pixel) una volta, con un id", ["PageView", true], [T.chiamate.firePixel[0]?.[0], typeof T.chiamate.firePixel[0]?.[2] === "string"]);
+  c("PageView di Meta (CAPI) con lo stesso id del Pixel", T.chiamate.firePixel[0]?.[2], T.chiamate.fireCapi[0]?.[1]);
+  const pv = T.chiamate.trackEvent.find((x) => x[0] === "PageView");
+  c("PageView di lp_events come la home di oggi (Visita_Landing)", [0, "Visita_Landing", "protocol"], [pv?.[1], pv?.[2]?.custom_event, pv?.[2]?.pagina]);
+  c("vista_pagina una volta", 1, T.chiamate.trackEvent.filter((x) => x[0] === "vista_pagina").length);
+  c("nessun scroll_50 prima di scorrere", 0, T.chiamate.trackEvent.filter((x) => x[0] === "scroll_50").length);
+  globalThis.window.scrollY = 1000;
+  ascoltatori.filter(([n]) => n === "scroll").forEach(([, f]) => f());
+  await new Promise((r) => setTimeout(r, 20));
+  c("scroll_50 a metà pagina", 1, T.chiamate.trackEvent.filter((x) => x[0] === "scroll_50").length);
+  delete globalThis.window;
+  delete globalThis.document;
+}
 vero("traccia.ts non scrive in localStorage", !/localStorage/.test(leggi("src/landing/sito/traccia.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")));
 
 finisci();

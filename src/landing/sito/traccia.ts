@@ -12,6 +12,10 @@
 import { useEffect, useState } from "react";
 import * as TestiSito from "@/landing/testi-sito";
 import {
+  captureSourceData,
+  eventId,
+  fireCapi,
+  firePixel,
   initAdminCheck,
   initClickTracking,
   initHeartbeat,
@@ -24,6 +28,8 @@ import {
 import { EVENTI_SITO, ripulisciDettagli, varianteBottone, type NomeEventoSito } from "./eventi";
 
 const CHIAVE_VARIANTE = "hgl_variante_bottone_v1";
+/** Lo stesso valore di `CUSTOM_EVENTS.pageView` in `BookingFunnel`: le statistiche di oggi contano questo. */
+const NOME_VISITA_LANDING = "Visita_Landing";
 
 function leggiVariante(): "A" | "B" | null {
   try {
@@ -49,20 +55,30 @@ export function traccia(
   void initAdminCheck().then(() => trackEvent(nome, null, ripulisciDettagli(fuori), opzioni));
 }
 
-/** Tracciamento di una pagina intera, come fa la home di oggi: se chi visita è
- *  un amministratore NON si traccia nulla. In più `vista_pagina` e `scroll_50`,
- *  una volta per visita. */
+/** Tracciamento di una pagina intera. Fa quello che oggi fa la home vecchia
+ *  insieme a `BookingFunnel`, perché le pagine nuove non montano il calendario:
+ *  - SUBITO salva la fonte (`captureSourceData`: utm_*, fbclid, fbp/fbc) in
+ *    sessionStorage, così segue la persona fino al lead anche se prima passa da
+ *    un'altra pagina (home → /protocol). Senza questo i lead dagli annunci
+ *    perdono l'attribuzione;
+ *  - poi, se chi visita NON è un amministratore: «PageView» di Meta (Pixel e
+ *    CAPI, stesso id) e di `lp_events`, `vista_pagina` e `scroll_50` una volta,
+ *    scorrimento, clic, battito, presenza e visita di qualità come oggi. */
 export function usaTracciamentoPagina(pagina: string): void {
   useEffect(() => {
+    captureSourceData();
     let pulizie: Array<() => void> = [];
     const spegni = () => {
       pulizie.forEach((p) => p());
       pulizie = [];
     };
     void initAdminCheck().then((isAdmin) => {
-      if (isAdmin) return;
+      if (isAdmin || pulizie.length) return;
+      const pvId = eventId();
+      firePixel("PageView", {}, pvId, { dedupKey: "global" });
+      void fireCapi("PageView", pvId, {}, {});
+      void trackEvent("PageView", 0, { custom_event: NOME_VISITA_LANDING, pagina }, { dedupKey: "global" });
       traccia("vista_pagina", { percorso: pagina }, { dedupKey: `vista:${pagina}` });
-      pulizie.push(initScrollTracking(), initClickTracking(), initHeartbeat(), initLivePresence(), initHighQualityVisit(40, 50));
       const suScroll = () => {
         const alto = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
         if (alto > 0 && (window.scrollY + window.innerHeight) / alto >= 0.5) {
@@ -71,7 +87,14 @@ export function usaTracciamentoPagina(pagina: string): void {
         }
       };
       window.addEventListener("scroll", suScroll, { passive: true });
-      pulizie.push(() => window.removeEventListener("scroll", suScroll));
+      pulizie.push(
+        () => window.removeEventListener("scroll", suScroll),
+        initScrollTracking(),
+        initClickTracking(),
+        initHeartbeat(),
+        initLivePresence(),
+        initHighQualityVisit(40, 50),
+      );
     });
     const smetti = subscribeAdminStatus((isAdmin) => {
       if (isAdmin) spegni();

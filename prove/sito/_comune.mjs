@@ -40,7 +40,7 @@ export function nuovaProva(titolo) {
 
 /** Quanto di `src/landing/booking/tracking` serve alle prove: registra le chiamate. */
 const TRACKING_FINTO = `
-export const chiamate = { trackEvent: [], firePixel: [], fireCapi: [] };
+export const chiamate = { trackEvent: [], firePixel: [], fireCapi: [], captureSourceData: [] };
 let n = 0;
 export const eventId = () => "evt-finto-" + (++n);
 export const trackEvent = async (...a) => { chiamate.trackEvent.push(a); };
@@ -54,13 +54,13 @@ export const initLivePresence = () => () => {};
 export const initScrollTracking = () => () => {};
 export const initClickTracking = () => () => {};
 export const initHighQualityVisit = () => () => {};
-export const captureSourceData = () => ({ utm_source: "prova" });
+export const captureSourceData = () => { chiamate.captureSourceData.push(1); return { utm_source: "prova" }; };
 export const buildJourneySnapshot = () => ({ touch_history: [], touch_count: 0, first_channel: null, last_channel: null, journey_type: "cold_direct", days_to_convert: 0, hours_to_convert: 0 });
 export const detectSource = () => "organic";
 `;
 
 /** Impacchetta un file del progetto (alias `@` = src) e lo carica. Il tracking vero e il client Supabase sono sostituiti da finti. */
-export async function carica(sorgenteRel, nome) {
+export async function carica(sorgenteRel, nome, { reactFinto = false } = {}) {
   //  realpath: su macOS /var è un collegamento a /private/var, e senza esbuild carica il finto due volte.
   mkdirSync(join(tmpdir(), "prove-sito-c"), { recursive: true });
   const dove = realpathSync(join(tmpdir(), "prove-sito-c"));
@@ -68,6 +68,14 @@ export async function carica(sorgenteRel, nome) {
   writeFileSync(trackingFinto, TRACKING_FINTO);
   const clientFinto = join(dove, "client-finto.js");
   writeFileSync(clientFinto, "export const supabase = {};");
+  //  React finto (solo se serve): gli effetti girano subito, così si prova un gancio senza schermo.
+  const reactFinto_ = join(dove, "react-finto.js");
+  writeFileSync(
+    reactFinto_,
+    `export const chiusure = [];
+export const useEffect = (f) => { const c = f(); if (typeof c === "function") chiusure.push(c); };
+export const useState = (v) => [v, () => {}];`,
+  );
   const fuori = join(dove, `${nome}.cjs`);
   //  Entrata di prova: il file vero + il registro delle chiamate del tracking finto.
   const entrata = join(dove, `${nome}-entrata.ts`);
@@ -90,6 +98,7 @@ export async function carica(sorgenteRel, nome) {
         name: "finti",
         setup(b) {
           b.onResolve({ filter: /(^|\/)tracking$/ }, () => ({ path: trackingFinto }));
+          if (reactFinto) b.onResolve({ filter: /^react$/ }, () => ({ path: reactFinto_ }));
           b.onResolve({ filter: /^@\/integrations\/supabase\/client$/ }, () => ({ path: clientFinto }));
         },
       },
