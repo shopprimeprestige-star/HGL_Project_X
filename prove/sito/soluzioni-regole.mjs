@@ -462,7 +462,7 @@ const C = await carica("src/landing/sito/soluzioni/contenuti.ts", "contenuti-s1"
   console.warn = (...a) => avvisi.push(a.join(" "));
 
   /** Un client finto che somiglia a quello vero e registra cosa gli viene chiesto. */
-  function cliente({ landing = { data: { data: null }, error: null }, config = { data: { value: CONFIG }, error: null }, comportamento = "risponde" } = {}) {
+  function cliente({ landing = { data: { data: null }, error: null }, config = { data: { value: CONFIG }, error: null }, comportamento = "risponde", ritardo = 0 } = {}) {
     const reg = { letture: [], segnali: [] };
     return {
       reg,
@@ -481,7 +481,7 @@ const C = await carica("src/landing/sito/soluzioni/contenuti.ts", "contenuti-s1"
                         if (comportamento === "muto") return new Promise(() => {});
                         if (comportamento === "muto-ma-abortisce")
                           return new Promise((_, no) => segnale.addEventListener("abort", () => no(new Error("abortito")), { once: true }));
-                        return Promise.resolve(tabella === "app_config" ? config : landing);
+                        return new Promise((ok) => setTimeout(() => ok(tabella === "app_config" ? config : landing), ritardo));
                       },
                     };
                   },
@@ -548,6 +548,7 @@ const C = await carica("src/landing/sito/soluzioni/contenuti.ts", "contenuti-s1"
     await new Promise((r) => setTimeout(r, 120));
     c("l'abort è arrivato alla lettura", [true, true], [clMuto.reg.segnali[0].aborted, clAbort.reg.segnali[0].aborted]);
     vero("il tetto è 1500 ms", C.TETTO_MS === 1500);
+    vero("la descrizione cancellata si cerca nella sezione «v3» per id, non per posizione", /find\(\(?s\)? => s\.id === "v3"\)/.test(leggi("src/landing/sito/soluzioni/contenuti.ts")) && !/LANDING_SCHEMA\.at\(-1\)/.test(leggi("src/landing/sito/soluzioni/contenuti.ts")));
     vero("la lettura vera usa .abortSignal(AbortSignal.timeout(…))", /AbortSignal\.timeout\(TETTO_MS\)/.test(leggi("src/landing/sito/soluzioni/contenuti.ts")) && /\.abortSignal\(/.test(leggi("src/landing/sito/soluzioni/contenuti.ts")));
   }
   //  I testi di descrizione cancellati nel CRM tornano quelli di fabbrica (accessibilità).
@@ -586,6 +587,14 @@ const C = await carica("src/landing/sito/soluzioni/contenuti.ts", "contenuti-s1"
     const durata = Date.now() - partenza;
     c("HEAD muta → la pagina c'è, senza la clip", [true, null], [lenta.pubblicabile, lenta.macro]);
     vero(`HEAD muta: tetto suo (${durata} ms fra 450 e 900)`, durata >= 450 && durata < 900);
+    //  Una lettura lenta ma viva + la HEAD non possono superare insieme il tetto: la HEAD sta FUORI da 1,5 s.
+    {
+      const partenza2 = Date.now();
+      const lenta2 = await C.leggiVista(dip(cliente({ landing: conLanding(base, LIBERE), ritardo: 1200 }), { verificaClip: () => new Promise((ok) => setTimeout(() => ok(true), 400)) }), "");
+      const durata2 = Date.now() - partenza2;
+      c("lettura da 1,2 s + HEAD da 0,4 s: la pagina pubblicata c'è, con la clip", [true, f("s03.mp4")], [lenta2.pubblicabile, lenta2.macro?.src]);
+      vero(`…in ${durata2} ms, oltre il tetto di lettura ma senza rimandare alla home`, durata2 > 1500);
+    }
     c("HEAD che lancia → la pagina c'è, senza la clip", [true, null], await (async () => { const v = await C.leggiVista(dip(cliente({ landing: conLanding(base, LIBERE) }), { verificaClip: async () => { throw new Error("rete"); } }), ""); return [v.pubblicabile, v.macro]; })());
   }
   console.warn = veraWarn;

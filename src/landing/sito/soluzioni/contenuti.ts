@@ -75,17 +75,20 @@ function conTetto<T>(p: PromiseLike<T>, ms: number): Promise<T> {
 /** Una descrizione cancellata nel CRM non lascia un'immagine senza alt: torna quella di fabbrica. */
 function conDescrizioni(c: LandingContent): LandingContent {
   const texts = { ...c.texts };
-  for (const f of LANDING_SCHEMA.at(-1)?.fields ?? []) {
+  for (const f of LANDING_SCHEMA.find((s) => s.id === "v3")?.fields ?? []) {
     if (f.type === "text" && !texts[f.key]?.trim()) texts[f.key] = DEFAULT_TEXTS[f.key] ?? "";
   }
   return { ...c, texts };
 }
 
-/** La logica vera, con tutto ciò che tocca il mondo passato dal di fuori (così si prova con un client finto). */
+/** La logica vera, con tutto ciò che tocca il mondo passato dal di fuori (così si prova con un client finto).
+ *  Il tetto di 1,5 s vale per la LETTURA. La `HEAD` della clip di ripiego viene dopo e ha il suo tetto di 500 ms:
+ *  una lettura lenta ma viva non deve rimandare alla home una pagina già pubblicata. */
 export async function leggiVista(d: DipendenzeSoluzioni, anteprima: string): Promise<VistaSoluzioni> {
   const segnale = AbortSignal.timeout(TETTO_MS);
+  let letto: { contenuto: LandingContent; inAnteprima: boolean };
   try {
-    return await conTetto(
+    letto = await conTetto(
       (async () => {
         const leggi = (tabella: string, colonna: string, chiave: string, valore: string) =>
           d.client.from(tabella).select(colonna).eq(chiave, valore).abortSignal(segnale).maybeSingle();
@@ -99,21 +102,23 @@ export async function leggiVista(d: DipendenzeSoluzioni, anteprima: string): Pro
         const contenuto = conDescrizioni(mergeLandingContent((landing.data as { data?: unknown }).data));
         //  Un errore nel leggere il codice vale «nessun codice»: la pagina pronta si vede lo stesso, quella chiusa no.
         const salvato = config && !config.error ? (config.data as { value?: unknown } | null)?.value : null;
-        const inAnteprima = !!anteprima && codiceValido(salvato, anteprima, d.adesso());
-
-        //  La HEAD costa tempo: solo se la pagina si mostrerà e la clip di ripiego serve davvero.
-        let macroRipiegoOk = false;
-        const daControllare = mancantiSoluzioni(contenuto, d.origineStorage).length === 0 || inAnteprima ? ripiegoMacroDaVerificare(contenuto, d.origineStorage) : null;
-        if (daControllare) {
-          macroRipiegoOk = await conTetto(d.verificaClip(daControllare, AbortSignal.timeout(TETTO_HEAD_MS)), TETTO_HEAD_MS).catch(() => false);
-        }
-        return vistaSoluzioni(contenuto, { origineStorage: d.origineStorage, fotoPatchRipiego: d.fotoPatchRipiego, macroRipiegoOk, anteprima: inAnteprima });
+        return { contenuto, inAnteprima: !!anteprima && codiceValido(salvato, anteprima, d.adesso()) };
       })(),
       TETTO_MS,
     );
   } catch (e) {
     //  Una riga, senza segreti: se Supabase resta giù, le ads vanno alla home e qualcuno deve poterlo capire.
     console.warn("[soluzioni] contenuti non letti, cancello chiuso:", e instanceof Error ? e.message.slice(0, 120) : "errore");
+    return VISTA_VUOTA;
+  }
+  try {
+    const { contenuto, inAnteprima } = letto;
+    //  La HEAD costa tempo: solo se la pagina si mostrerà e la clip di ripiego serve davvero.
+    const daControllare = mancantiSoluzioni(contenuto, d.origineStorage).length === 0 || inAnteprima ? ripiegoMacroDaVerificare(contenuto, d.origineStorage) : null;
+    const macroRipiegoOk = daControllare ? await conTetto(d.verificaClip(daControllare, AbortSignal.timeout(TETTO_HEAD_MS)), TETTO_HEAD_MS).catch(() => false) : false;
+    return vistaSoluzioni(contenuto, { origineStorage: d.origineStorage, fotoPatchRipiego: d.fotoPatchRipiego, macroRipiegoOk, anteprima: inAnteprima });
+  } catch (e) {
+    console.warn("[soluzioni] vista non costruita, cancello chiuso:", e instanceof Error ? e.message.slice(0, 120) : "errore");
     return VISTA_VUOTA;
   }
 }
