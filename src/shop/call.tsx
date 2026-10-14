@@ -2217,6 +2217,9 @@ function gcRoster() {
       }
       continue;
     }
+    //  Trenta secondi di silenzio sono già la grazia: la Plancia non ne aggiunge
+    //   un'altra (vedi `haPremutoEsci`; se torna a salutare il segno cade).
+    if (r.leadId) uscitiOra.set(r.leadId, now);
     removePeer(
       r.pid,
       "non saluta più da " + Math.round((now - (lastSeen.get(r.pid) || now)) / 1000) + "s",
@@ -2384,11 +2387,45 @@ async function openMedia(): Promise<MediaStream> {
   return s;
 }
 
+/** ── IL BATTITO DI `hello` SU UN WORKER ────────────────────────────────────
+ *  Chi tace da più di 30 secondi sparisce dalla lista (shop/resta-in-lista), ma
+ *  una scheda nascosta ha i timer rallentati dal browser fino a uno al minuto:
+ *  col `setInterval` di prima il consulente avrebbe cacciato un cliente che
+ *  sta guardando un'altra scheda. Un Worker non viene rallentato allo stesso
+ *  modo, e il suo messaggio arriva alla scheda come un evento qualunque.
+ *  ⚠️ Se il Worker non parte (CSP che vieta i `blob:`, browser vecchio) si
+ *   ripiega sul `setInterval` di sempre: peggio, ma come prima. */
+let battitoWorker: Worker | null = null;
+let battitoUrl = "";
+function avviaBattito() {
+  const ripiega = () => {
+    if (battitoWorker) {
+      battitoWorker.terminate();
+      battitoWorker = null;
+    }
+    if (!helloTimer) helloTimer = setInterval(sendHello, 3000);
+  };
+  try {
+    battitoUrl = URL.createObjectURL(
+      new Blob(["let t=0;onmessage=(e)=>{clearInterval(t);t=setInterval(()=>postMessage(0),e.data)}"], {
+        type: "text/javascript",
+      }),
+    );
+    const w = new Worker(battitoUrl);
+    battitoWorker = w;
+    w.onmessage = () => sendHello();
+    w.onerror = ripiega; // il blocco arriva anche dopo, come evento
+    w.postMessage(3000);
+  } catch {
+    ripiega();
+  }
+}
+
 // presenza: annuncio periodico + raccolta dei peer scomparsi
 function startPresence() {
   stopPresence();
   sendHello();
-  helloTimer = setInterval(sendHello, 3000);
+  avviaBattito();
   // il presentatore pubblica la lista autorevole ogni 5s (l'ospite riconcilia)
   if (!isViewer() && !rosterTimer) rosterTimer = setInterval(broadcastRoster, 5000);
   startRosterGC();
@@ -2397,6 +2434,14 @@ function stopPresence() {
   if (helloTimer) {
     clearInterval(helloTimer);
     helloTimer = null;
+  }
+  if (battitoWorker) {
+    battitoWorker.terminate();
+    battitoWorker = null;
+  }
+  if (battitoUrl) {
+    URL.revokeObjectURL(battitoUrl);
+    battitoUrl = "";
   }
   if (rosterTimer) {
     clearInterval(rosterTimer);

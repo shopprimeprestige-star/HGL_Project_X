@@ -25,7 +25,7 @@
  *  permessi non dati, rete che sta ancora trattando.
  *  ⚠️ E NON SI ASPETTA PER NIENTE: chi chiude davvero la scheda manda «bye» e
  *   sparisce nell'istante stesso. Questa finestra riguarda solo chi sparisce
- *   SENZA dirlo (scheda uccisa, telefono spento), e allora quarantacinque
+ *   SENZA dirlo (scheda uccisa, telefono spento), e allora trenta (erano quarantacinque)
  *   secondi di riquadro fermo sono un prezzo molto più basso di un riquadro
  *   che lampeggia in mezzo a una consulenza.
  *  ⚠️ «Resta» non vuol dire «non si fa niente»: se la connessione è guasta si
@@ -33,8 +33,14 @@
  *   CANCELLARLO dalla lista.
  *  ───────────────────────────────────────────────────────────────────────── */
 
-/** Da quanto può tacere un partecipante prima di sparire dai riquadri. */
-export const SALUTO_VIVO_MS = 45_000;
+/** Da quanto può tacere un partecipante prima di sparire dai riquadri.
+ *  ⚠️ TRENTA SECONDI, non quarantacinque (14/10/2026): «dopo 30 secondi senza
+ *   segnale la persona sparisce da lista e camere». È il tempo di una caduta
+ *   di rete o di un browser chiuso senza `bye`; il link NON si chiude (può
+ *   rientrare). Regge solo perché il battito di `hello` gira su un Worker
+ *   (call.tsx, `avviaBattito`): una scheda nascosta ha i timer rallentati fino
+ *   a uno al minuto, e con trenta secondi verrebbe cacciata mentre è lì. */
+export const SALUTO_VIVO_MS = 30_000;
 
 /** ── ⚠️ QUANTO SI LASCIA IN PACE UNA CONNESSIONE CHE STA NASCENDO ────────
  *  Segnalazione del committente: ammettendo un cliente, per circa un minuto si

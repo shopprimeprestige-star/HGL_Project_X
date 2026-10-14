@@ -19068,6 +19068,64 @@ async function proveDellUscitaVera() {
   c("chiudere la scheda NON è un'uscita voluta", [true, false], [/send\("bye"/.test(pagehide), /uscita/.test(pagehide)]);
 }
 
+/* ── RETE CADUTA O BROWSER CHIUSO: TRENTA SECONDI ─────────────────────────
+ *  Spec: dopo 30 secondi senza segnale la persona sparisce da lista e camere,
+ *  e il suo link RESTA valido (può rientrare). Chiudere il browser è una
+ *  caduta di rete, non un'uscita voluta: niente POST «esci».
+ *  ⚠️ Il battito `hello` gira su un Worker: le schede nascoste hanno i timer
+ *   rallentati fino a uno al minuto, e con 30 secondi li farebbero cacciare. */
+async function proveDeiTrentaSecondi() {
+  const { verdettoSuOspite, SALUTO_VIVO_MS } = RIL;
+  const { trattaBussata, trattaStato, leggiRegistro, linkValido, chiaveLink } = USC;
+  const { bussa, inAttesa, ATTESA_TTL_MS, BUSSATA_VIVA_MS } = SAL;
+  gruppo("RETE CADUTA O BROWSER CHIUSO: TRENTA SECONDI");
+  const T = 1_700_000_000_000;
+  const vecchio = T - 600_000;
+
+  c("il silenzio ammesso è di 30 secondi", 30_000, SALUTO_VIVO_MS);
+  c("zitto da 29 secondi, connessione giù: resta", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 29_000, stato: "disconnected", primaVolta: vecchio }));
+  c("zitto da 31 secondi: va via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 31_000, stato: "disconnected", primaVolta: vecchio }));
+  c("zitto da 29 secondi, filo rotto: si riprova, non si toglie", "riprova",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 29_000, stato: "closed", primaVolta: vecchio }));
+  c("zitto da 31 secondi, filo rotto: va via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 31_000, stato: "closed", primaVolta: vecchio }));
+  c("collegato e zitto: resta (ci pensa il consenso ICE)", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 5 * 60_000, stato: "connected", primaVolta: vecchio }));
+
+  //  ── BROWSER CHIUSO: NIENTE «ESCI», IL LINK VALE ANCORA ──────────────────
+  const SESS = "abc-defg-hij";
+  const SA = "a1".repeat(32);
+  const arch = new Map();
+  const a = { leggi: async (k) => arch.get(k) ?? null, scrivi: async (k, v) => (arch.set(k, v), "") };
+  const A = { sess: SESS, pid: "pidA", dev: "devA", nome: "Anna", chi: "pa1b2c3d", segreto: SA };
+  await trattaBussata(a, A, T);
+  arch.set(`sala_attesa:${SESS}`, arch.get(`sala_attesa:${SESS}`).replace('"attesa"', '"ammesso"'));
+  //  La scheda si chiude: parte solo un `bye` sul canale. Il server non sente niente.
+  c("browser chiuso: il link vale ancora", true, linkValido(leggiRegistro(arch.get(chiaveLink(SESS, "pa1b2c3d"))), undefined));
+  const rientro = await trattaBussata(a, A, T + 40_000);
+  c("…e al rientro è ancora ammesso", { status: 200, stato: "ammesso" }, { status: rientro.status, stato: rientro.body.stato });
+  c("…e lo stato lo conferma", "ammesso", (await trattaStato(a, A, T + 41_000)).body.stato);
+
+  //  ── CHI HA SOLO BUSSATO NON È TOCCATO ──────────────────────────────────
+  const sala = bussa([], { pid: "pidZ", dev: "devZ", nome: "Zeno" }, T);
+  c("chi aspetta in sala resta 31 secondi dopo", 1, inAttesa(sala, T + 31_000).length);
+  c("le regole della sala non sono cambiate", [60_000, 20_000], [ATTESA_TTL_MS, BUSSATA_VIVA_MS]);
+
+  //  ── IL CLIENTE ─────────────────────────────────────────────────────────
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  const presenza = call.slice(call.indexOf("let battitoWorker"), call.indexOf("// ── UN SOLO CONTESTO AUDIO"));
+  c("il battito di hello gira su un Worker inline", true,
+    /new Worker\(/.test(call) && /new Blob\(/.test(call) && /URL\.createObjectURL/.test(call));
+  c("…con il ripiego su setInterval se non parte", true, /setInterval\(sendHello/.test(presenza) && /onerror/.test(call));
+  c("…e si ferma davvero", true, /\.terminate\(\)/.test(presenza));
+  const gc = call.slice(call.indexOf("function gcRoster"), call.indexOf('/** "Pulisci lista"'));
+  c("chi tace da troppo sparisce subito anche dalla Plancia", true, /uscitiOra\.set\(r\.leadId/.test(gc));
+  const pagehide = call.slice(call.indexOf("function hookLeave"), call.indexOf("function hookLeave") + 700);
+  c("chiudere la scheda non chiama «esci» sul server", false, /fetch|api\/public\/esci/.test(pagehide));
+}
+
 /* ── IL PRIMO EVENTO DI UNA VISITA NON SI PERDE (tracking.ts) ─────────────
  *  ⚠️ `isAdminLogged()` risponde «sì» per prudenza finché `getSession` non ha
  *   risposto, e `trackEvent`/`firePixel`/`fireCapi` scartavano tutto in quei
@@ -19210,6 +19268,7 @@ await proveDeiPostiDelPallino();
 await proveDellaConsulenza();
 await proveDelPrimoEventoDellaVisita();
 await proveDellUscitaVera();
+await proveDeiTrentaSecondi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
