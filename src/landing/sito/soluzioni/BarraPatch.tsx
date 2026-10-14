@@ -8,32 +8,18 @@
  *  è fissa in alto e non occupa posto: la pagina riserva i 44 px in alto da sé (`lg:pt-11` sulla radice).
  *  ───────────────────────────────────────────────────────────────────────── */
 //  I ganci hanno nomi italiani fissati dal contratto («usa…», non «use…»): la regola non li riconosce, sono ganci veri.
-/* eslint-disable react-hooks/rules-of-hooks */
-import { useRef, useSyncExternalStore } from "react";
+
+import { useRef } from "react";
 import { LINK_CATALOGO, TESTI_SOLUZIONI } from "@/landing/testi-sito";
 import { traccia } from "@/landing/sito/traccia";
+import { usaComputer } from "./stato-pagina";
 import { usaZonaBarra } from "./usaZonaBarra";
 
 const SPAZIO = "calc(44px + env(safe-area-inset-bottom))";
-const DA_COMPUTER = "(min-width: 1024px)";
-
-/** Telefono e tablet (sotto 1024) sono «telefono». Sul server: telefono, così il primo disegno è quello mobile. */
-function usaTelefono(): boolean {
-  return useSyncExternalStore(
-    (avvisa) => {
-      const m = window.matchMedia(DA_COMPUTER);
-      m.addEventListener("change", avvisa);
-      return () => m.removeEventListener("change", avvisa);
-    },
-    () => !window.matchMedia(DA_COMPUTER).matches,
-    () => true,
-  );
-}
-
 export function BarraPatch() {
   const t = TESTI_SOLUZIONI.barra;
   const rif = useRef<HTMLAnchorElement | null>(null);
-  const telefono = usaTelefono();
+  const telefono = !usaComputer();
   const { nascosta } = usaZonaBarra(rif, { lato: telefono ? "basso" : "alto", fondo: telefono });
   //  La freccia del testo («Patch pronte in stock →») ha il suo colore; il nome accessibile è l'etichetta.
   const [parole, freccia] = t.testo.split("→");

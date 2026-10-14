@@ -13,15 +13,8 @@
  *    toccato PRIMA di mettere `aperto` a vero.
  *  ───────────────────────────────────────────────────────────────────────── */
 //  I ganci hanno nomi italiani fissati dal contratto («usa…», non «use…»): la regola non li riconosce, sono ganci veri.
-/* eslint-disable react-hooks/rules-of-hooks */
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type RefObject,
-} from "react";
+
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Check, X } from "lucide-react";
@@ -43,7 +36,7 @@ import { ModuloCorto, type Interesse } from "@/landing/booking/ModuloCorto";
 import { traccia } from "@/landing/sito/traccia";
 import { TESTI_SOLUZIONI } from "@/landing/testi-sito";
 import { comportamentoScorrimento } from "./movimento";
-import { segnaFoglio } from "./stato-pagina";
+import { segnaFoglio, usaComputer } from "./stato-pagina";
 
 export interface FoglioModuloProps {
   aperto: boolean;
@@ -51,21 +44,6 @@ export interface FoglioModuloProps {
   onChiudi: () => void;
   /** L'elemento a cui rendere il fuoco alla chiusura (il bottone da cui si è aperto). */
   rientro: RefObject<HTMLElement | null>;
-}
-
-const DA_COMPUTER = "(min-width: 1024px)";
-
-/** Sul server e al primo disegno: telefono. Il foglio è chiuso finché la persona non tocca, quindi non c'è salto. */
-function usaComputer(): boolean {
-  return useSyncExternalStore(
-    (avvisa) => {
-      const m = window.matchMedia(DA_COMPUTER);
-      m.addEventListener("change", avvisa);
-      return () => m.removeEventListener("change", avvisa);
-    },
-    () => window.matchMedia(DA_COMPUTER).matches,
-    () => false,
-  );
 }
 
 const T = TESTI_SOLUZIONI.modulo;
@@ -77,6 +55,8 @@ export function FoglioModulo({ aperto, interesse, onChiudi, rientro }: FoglioMod
   const [inviato, setInviato] = useState(false);
   const contenuto = useRef<HTMLDivElement | null>(null);
   const alChiudi = useRef(onChiudi);
+  //  Un secondo tocco sulla X prima che arrivi `popstate` non deve fare un secondo `back()` (si uscirebbe dalla pagina).
+  const inChiusura = useRef(false);
   useEffect(() => {
     alChiudi.current = onChiudi;
   });
@@ -85,6 +65,7 @@ export function FoglioModulo({ aperto, interesse, onChiudi, rientro }: FoglioMod
   //  Cronologia, stato della pagina, evento: all'apertura e alla chiusura, una volta.
   useEffect(() => {
     if (!aperto) return;
+    inChiusura.current = false;
     if (window.history.state?.foglio !== "modulo")
       window.history.pushState({ ...window.history.state, foglio: "modulo" }, "");
     segnaFoglio(true);
@@ -122,6 +103,8 @@ export function FoglioModulo({ aperto, interesse, onChiudi, rientro }: FoglioMod
 
   //  Ogni chiusura passa da qui. Con la voce di cronologia nostra, `back()` fa partire `popstate`, che chiude.
   const chiudi = useCallback(() => {
+    if (inChiusura.current) return;
+    inChiusura.current = true;
     if (window.history.state?.foglio === "modulo") window.history.back();
     else alChiudi.current();
   }, []);

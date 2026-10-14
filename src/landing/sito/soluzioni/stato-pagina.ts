@@ -44,3 +44,19 @@ export function usaStatoPagina(): StatoPagina {
     () => INIZIALE,
   );
 }
+
+const DA_COMPUTER = "(min-width: 1024px)";
+
+/** Da 1024 in su è «computer» (foglio di lato, barra in alto); sotto, telefono e tablet. Sul server: telefono,
+ *  così il primo disegno è quello mobile e il browser corregge subito dopo l'idratazione. */
+export function usaComputer(): boolean {
+  return useSyncExternalStore(
+    (avvisa) => {
+      const m = window.matchMedia(DA_COMPUTER);
+      m.addEventListener("change", avvisa);
+      return () => m.removeEventListener("change", avvisa);
+    },
+    () => window.matchMedia(DA_COMPUTER).matches,
+    () => false,
+  );
+}
