@@ -354,4 +354,47 @@ vero("movimento.ts: usaMovimentoRidotto legge matchMedia del movimento ridotto",
   c("CSS: il cerchio del play è 48 px, blu con triangolo blu notte", ["48px", "var(--hgl-elettrico)", "var(--hgl-notte)"], [dichiarazioni(regola(".tema-soluzioni .sol-pillola-play")[0]?.corpo ?? "").width, dichiarazioni(regola(".tema-soluzioni .sol-pillola-play")[0]?.corpo ?? "").background, dichiarazioni(regola(".tema-soluzioni .sol-pillola-play")[0]?.corpo ?? "").color]);
 }
 
+/* ── S2.2 · Footer: quello di oggi identico, e la variante minimo ───────── */
+{
+  const { writeFileSync, rmSync } = await import("node:fs");
+  const R = richiedi("react");
+  const { renderToStaticMarkup: disegna } = richiedi("react-dom/server");
+  const norma = (html) => html.replace(/© \d{4}/g, "© AAAA");
+
+  const FT = await carica("src/components/landing/Footer.tsx", "footer-s22", { reactVero: true, routerFinto: true });
+  const oggi = disegna(R.createElement(FT.Footer));
+  c("<Footer /> e <Footer variante=\"completo\" /> sono lo stesso HTML", oggi, disegna(R.createElement(FT.Footer, { variante: "completo" })));
+
+  //  Il Footer di d42e5d9 (git), disegnato con gli stessi caricatori: il file si scrive dentro prove/ per trovare node_modules.
+  let vecchio = null;
+  try {
+    const sorgente = execFileSync("git", ["show", "d42e5d9:src/components/landing/Footer.tsx"], { cwd: radice, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    const temp = join(radice, "prove/sito/.footer-d42e5d9.tmp.tsx");
+    writeFileSync(temp, sorgente);
+    try {
+      const FV = await carica("prove/sito/.footer-d42e5d9.tmp.tsx", "footer-d42e5d9", { reactVero: true, routerFinto: true });
+      vecchio = disegna(R.createElement(FV.Footer));
+    } finally {
+      rmSync(temp, { force: true });
+    }
+  } catch {
+    console.log("  (git non risponde: confronto del Footer con d42e5d9 saltato)");
+  }
+  if (vecchio !== null) vero("<Footer /> = HTML del Footer di d42e5d9, byte per byte", norma(oggi) === norma(vecchio));
+  //  La fotografia G1 della commessa, se c'è su questa macchina.
+  const g1 = "/Users/admin/Documents/Reel Studio/11-tecnico/commesse/2026-10-14-sito-catalogo-protocol/collaudo-soluzioni/g1-prima/footer.html";
+  if (existsSync(g1)) vero("<Footer /> = fotografia G1 (g1-prima/footer.html)", norma(oggi) === norma(readFileSync(g1, "utf8").replace(/\n$/, "")));
+  vero("Footer di oggi: promessa, contatti e P.IVA ancora lì", oggi.includes("Indistinguibile dalla cute.") && oggi.includes("mailto:") && oggi.includes("tel:") && oggi.includes("P.IVA 18486531009"));
+
+  const minimo = disegna(R.createElement(FT.Footer, { variante: "minimo" }));
+  vero("minimo: ragione sociale, indirizzo, P.IVA", minimo.includes("HAIR GENIUS LABS SRLS") && minimo.includes("Via degli Scipioni 132, 00192 Roma (RM)") && minimo.includes("18486531009"));
+  vero("minimo: il logo con l'alt «Hair Genius Labs»", /<img[^>]*alt="Hair Genius Labs"/.test(minimo));
+  vero("minimo: Privacy, Cookie, Termini", ["/privacy-policy", "/cookie-policy", "/termini-e-condizioni"].every((h) => minimo.includes(`href="${h}"`)) && ["Privacy Policy", "Cookie Policy", "Termini e condizioni"].every((x) => minimo.includes(x)));
+  vero("minimo: niente promessa («Indistinguibile»)", !/indistinguibil/i.test(minimo));
+  vero("minimo: niente tel:, mailto:, WhatsApp", !/tel:|mailto:|wa\.me|whatsapp/i.test(minimo));
+  vero("minimo: niente «Contatti»", !/contatti/i.test(minimo));
+  c("minimo: sono tre i collegamenti, e basta", 3, (minimo.match(/<a /g) ?? []).length);
+  vero("minimo: porta il tema (caratteri e fuoco della pagina)", /<footer[^>]*class="[^"]*tema-soluzioni/.test(minimo));
+}
+
 finisci();

@@ -2,7 +2,11 @@ import { Mail, Phone } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import logo from "@/assets/logo-hair-genius.png";
 
-export function Footer() {
+/** `completo` è il piè di pagina di sempre (home, shop, blog). `minimo` è quello della pagina `/soluzioni`:
+ *  solo logo, ragione sociale, indirizzo, P.IVA, Privacy, Cookie, Termini. Niente promessa («Indistinguibile…»,
+ *  vietata) e niente contatti cliccabili (`tel:`, `mailto:`): sono uscite dalla pagina. */
+export function Footer({ variante = "completo" }: { variante?: "completo" | "minimo" }) {
+  if (variante === "minimo") return <FooterMinimo />;
   return (
     <footer className="bg-footer text-white/75 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16">
@@ -81,6 +85,39 @@ export function Footer() {
         <div className="mt-14 pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-3 text-[0.7rem] tracking-[0.18em] uppercase text-white/45">
           <div>© {new Date().getFullYear()} Hair Genius Labs SRLS · Tutti i diritti riservati</div>
           <div>P.IVA 18486531009</div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function FooterMinimo() {
+  return (
+    <footer className="tema-soluzioni">
+      <div className="sol-fondo-notte border-t border-white/10">
+        <div className="mx-auto max-w-[1200px] px-5 py-10 lg:px-10">
+          <img
+            src={logo}
+            alt="Hair Genius Labs"
+            className="h-10 w-auto select-none"
+            draggable={false}
+          />
+          <div className="sol-didascalia mt-5 text-[var(--hgl-dettagli)]">
+            <div className="font-semibold text-white">HAIR GENIUS LABS SRLS</div>
+            <div>Via degli Scipioni 132, 00192 Roma (RM)</div>
+            <div>P.IVA 18486531009</div>
+          </div>
+          <nav aria-label="Informazioni legali" className="mt-4 flex flex-wrap gap-x-6">
+            <Link to="/privacy-policy" className="sol-link text-[0.9375rem]">
+              Privacy Policy
+            </Link>
+            <Link to="/cookie-policy" className="sol-link text-[0.9375rem]">
+              Cookie Policy
+            </Link>
+            <Link to="/termini-e-condizioni" className="sol-link text-[0.9375rem]">
+              Termini e condizioni
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>
