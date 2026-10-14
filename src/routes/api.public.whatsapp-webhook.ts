@@ -9,7 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizePhone } from "@/crm/wa-graph.server";
-import { eRichiestaStop } from "@/crm/wa-auto-regole";
+import { aggiornamentoQualita, eRichiestaStop } from "@/crm/wa-auto-regole";
 
 //  `update(...).eq(...).eq(...)` si può aspettare a qualsiasi livello: serve
 //  anche per `whatsapp_settings`, che con una sola chiave (user_id) non ha il
@@ -85,10 +85,6 @@ async function findSettingsByBusinessAccountId(
   const row = data as { user_id?: string; app_secret?: string | null } | null;
   return row?.user_id ? { userId: row.user_id, appSecret: row.app_secret ?? null } : null;
 }
-
-//  Qualità che scende: FLAGGED (segnalato) e DOWNGRADE (limite abbassato).
-//  UPGRADE e ONBOARDING non fermano niente.
-const EVENTI_QUALITA_PEGGIORE = new Set(["FLAGGED", "DOWNGRADE"]);
 
 async function findUserIdByPhoneNumberId(phoneNumberId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
@@ -191,19 +187,12 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 console.warn("[wa-webhook] qualità ignorata: firma non verificata per", entry.id);
                 continue;
               }
-              if (v.event && EVENTI_QUALITA_PEGGIORE.has(v.event)) {
-                const { error } = await adminUntyped
-                  .from("whatsapp_settings")
-                  .update({
-                    auto_attivo: false,
-                    auto_qualita: v.event,
-                    auto_sospeso_motivo: `qualità del numero: ${v.event}`,
-                    auto_sospeso_il: new Date().toISOString(),
-                  })
-                  .eq("user_id", impostazioni.userId);
+              const patch = aggiornamentoQualita(v.event);
+              if (patch) {
+                const { error } = await adminUntyped.from("whatsapp_settings").update(patch).eq("user_id", impostazioni.userId);
                 //  Colonne mancanti (migrazione non ancora applicata): il motore
-                //  non può essere acceso, quindi non c'è niente da spegnere.
-                if (error) console.warn("[wa-webhook] stop per qualità non scritto:", error.message);
+                //  non può essere acceso, quindi non c'è niente da aggiornare.
+                if (error) console.warn("[wa-webhook] qualità non scritta:", error.message);
               }
               continue;
             }

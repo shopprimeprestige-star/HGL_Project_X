@@ -131,11 +131,31 @@ export function regoleEffettive(righe: Array<Partial<RegolaWa> & { codice?: stri
  *  accettate restano validi, e cambiare un testo sotto una versione già
  *  usata falsificherebbe la prova.
  *  `wa-2026-10-14` è il testo provvisorio della casella di BookingFunnel (il
- *  titolare lo conferma): la casella deve scrivere ESATTAMENTE questo. */
+ *  titolare lo conferma): la casella deve scrivere ESATTAMENTE questo, e una
+ *  prova in `npm test` lo confronta con il sorgente di BookingFunnel. */
 export const VERSIONI_CONSENSO_WA: Record<string, string> = {
   "wa-sito-2026-10-14": "Ok a ricevere promemoria su WhatsApp",
-  "wa-2026-10-14": "Ok a ricevere promemoria su WhatsApp",
+  "wa-2026-10-14": "Ok a ricevere su WhatsApp il promemoria della consulenza e l'eventuale messaggio di ricontatto.",
 };
+
+/** ── LA QUALITÀ DEL NUMERO (evento firmato di Meta) ───────────────────────
+ *  Cosa scrivere in `whatsapp_settings` quando arriva `phone_number_quality_update`.
+ *  Peggiora (FLAGGED, DOWNGRADE): il motore si spegne da solo e lascia il
+ *  motivo. Migliora (UNFLAGGED, UPGRADE): solo `auto_qualita` torna GREEN, SENZA
+ *  riaccendere niente (riaccende il titolare), altrimenti il live resterebbe
+ *  rifiutato per sempre. Altri eventi (ONBOARDING…): niente. */
+export function aggiornamentoQualita(evento: string | null | undefined, adesso: Date = new Date()): Record<string, unknown> | null {
+  if (evento === "FLAGGED" || evento === "DOWNGRADE") {
+    return {
+      auto_attivo: false,
+      auto_qualita: evento,
+      auto_sospeso_motivo: `qualità del numero: ${evento}`,
+      auto_sospeso_il: adesso.toISOString(),
+    };
+  }
+  if (evento === "UNFLAGGED" || evento === "UPGRADE") return { auto_qualita: "GREEN" };
+  return null;
+}
 
 /** Il lead del CRM, per quanto serve qui (`crm_leads`: id + `data`). */
 export interface LeadWa {

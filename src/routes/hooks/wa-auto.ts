@@ -14,7 +14,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { eseguiGiro, type DbWa } from "@/crm/wa-auto-invio.server";
+import { chiaveGiroValida, eseguiGiro, type DbWa } from "@/crm/wa-auto-invio.server";
 
 const json = (o: unknown, status = 200) =>
   new Response(JSON.stringify(o), {
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/hooks/wa-auto")({
       POST: async ({ request }) => {
         const auth = request.headers.get("authorization");
         const attesa = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
-        if (!auth || !auth.includes(attesa || "__mancante__")) return json({ error: "unauthorized" }, 401);
+        if (!chiaveGiroValida(auth, attesa)) return json({ error: "unauthorized" }, 401);
 
         try {
           const esito = await eseguiGiro({

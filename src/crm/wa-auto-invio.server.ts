@@ -119,6 +119,16 @@ const vuoto = (user_id: string, esito: EsitoUtente["esito"], motivo?: string): E
   user_id, esito, motivo, mandati: 0, simulati: 0, falliti: 0, saltati: 0,
 });
 
+/** ── LA GUARDIA DELL'HOOK ─────────────────────────────────────────────────
+ *  `programma_hook_cron` manda esattamente `Bearer <chiave pubblicabile>`: si
+ *  confronta quello, per intero. Con la chiave non configurata sul server non
+ *  passa nessuno (un `includes` con un valore di ripiego faceva passare chiunque
+ *  scrivesse quel valore). Resta un rischio noto: la chiave pubblicabile non è
+ *  un segreto; il giro in più non manda niente di nuovo (indice unico, lucchetto, tetto). */
+export function chiaveGiroValida(auth: string | null | undefined, attesa: string | null | undefined): boolean {
+  return !!attesa && auth === `Bearer ${attesa}`;
+}
+
 export async function eseguiGiro(o: { db: DbWa; fetchFn: FetchGraph; adesso: Date }): Promise<EsitoGiro> {
   const { db, adesso } = o;
   const base: EsitoGiro = { ok: true, adesso: adesso.toISOString(), utenti: [] };
@@ -163,6 +173,10 @@ async function giroDiUnUtente(
         await db.from("whatsapp_settings").update({ auto_sospeso_motivo: rifiuto, auto_sospeso_il: adesso.toISOString() }).eq("user_id", user);
       }
       return { ...esito, esito: "rifiutato", motivo: rifiuto };
+    }
+    //  Controlli passati: lo stop di prima (app_secret mancante, qualità) è risolto, il banner non deve restare.
+    if (imp.auto_sospeso_motivo) {
+      await db.from("whatsapp_settings").update({ auto_sospeso_motivo: null, auto_sospeso_il: null }).eq("user_id", user);
     }
   }
 

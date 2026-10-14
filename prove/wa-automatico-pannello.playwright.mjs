@@ -57,16 +57,16 @@ function nuovoDb({ admin = true, migrazione = true } = {}) {
     migrazione,
     settings: { auto_attivo: false, auto_simulato: true, auto_tetto_giorno: 40, auto_qualita: null, auto_sospeso_motivo: null, auto_sospeso_il: null },
     regole: [
-      { id: "r1", user_id: UID, codice: "ricontatto", descrizione: "Ricontatto alla data fissata", attiva: true, riferimento: "ricontatto", stato_lead: null, giorni_prima: 0, ora_fissa: "09:00", minuti_prima: null, template: "promemoria_ricontatto", ora_da: "09:00", ora_a: "20:00" },
-      { id: "r2", user_id: UID, codice: "consulenza-vigilia", descrizione: "Promemoria il giorno prima", attiva: true, riferimento: "consulenza", stato_lead: null, giorni_prima: 1, ora_fissa: "18:00", minuti_prima: null, template: "promemoria_meet", ora_da: "09:00", ora_a: "20:00" },
-      { id: "r3", user_id: UID, codice: "consulenza-10min", descrizione: "Promemoria 10 minuti prima", attiva: false, riferimento: "consulenza", stato_lead: null, giorni_prima: 0, ora_fissa: null, minuti_prima: 10, template: "promemoria_meet", ora_da: "08:45", ora_a: "21:30" },
+      { id: "r1", user_id: UID, codice: "ricontatto_data", descrizione: "Ricontatto alla data fissata", attiva: true, riferimento: "ricontatto", stato_lead: null, giorni_prima: 0, ora_fissa: "09:00", minuti_prima: null, template: "promemoria_ricontatto", ora_da: "09:00", ora_a: "20:00" },
+      { id: "r2", user_id: UID, codice: "consulenza_giorno_prima", descrizione: "Promemoria il giorno prima", attiva: true, riferimento: "consulenza", stato_lead: null, giorni_prima: 1, ora_fissa: "18:00", minuti_prima: null, template: "promemoria_meet", ora_da: "09:00", ora_a: "20:00" },
+      { id: "r3", user_id: UID, codice: "consulenza_10_minuti", descrizione: "Promemoria 10 minuti prima", attiva: false, riferimento: "consulenza", stato_lead: null, giorni_prima: 0, ora_fissa: null, minuti_prima: 10, template: "promemoria_meet", ora_da: "08:45", ora_a: "21:30" },
     ],
     invii: [
-      { id: "i1", user_id: UID, lead_id: "L1", regola: "ricontatto", scadenza: "2026-10-14T07:00:00Z", telefono_e164: "393331234567", template: "promemoria_ricontatto", stato: "simulato", motivo: null, simulato: true, wa_message_id: null, prenotato_il: "2026-10-14T07:00:05Z", esito_il: "2026-10-14T07:00:06Z" },
-      { id: "i2", user_id: UID, lead_id: "L2", regola: "consulenza-10min", scadenza: "2026-10-14T08:50:00Z", telefono_e164: "393339876543", template: "promemoria_meet", stato: "saltato", motivo: "fuori fascia", simulato: true, wa_message_id: null, prenotato_il: "2026-10-14T08:50:05Z", esito_il: "2026-10-14T08:50:05Z" },
+      { id: "i1", user_id: UID, lead_id: "L1", regola: "ricontatto_data", scadenza: "2026-10-14T07:00:00Z", telefono_e164: "+393331234567", template: "promemoria_ricontatto", stato: "simulato", motivo: null, simulato: true, wa_message_id: null, prenotato_il: "2026-10-14T07:00:05Z", esito_il: "2026-10-14T07:00:06Z" },
+      { id: "i2", user_id: UID, lead_id: "L2", regola: "consulenza_10_minuti", scadenza: "2026-10-14T08:50:00Z", telefono_e164: "+393339876543", template: "promemoria_meet", stato: "saltato", motivo: "fuori fascia", simulato: true, wa_message_id: null, prenotato_il: "2026-10-14T08:50:05Z", esito_il: "2026-10-14T08:50:05Z" },
     ],
     esclusi: [
-      { id: "e1", user_id: UID, telefono_e164: "393331112222", motivo: "stop", testo: "STOP", created_at: "2026-10-13T10:00:00Z" },
+      { id: "e1", user_id: UID, telefono_e164: "+393331112222", motivo: "stop", testo: "STOP", created_at: "2026-10-13T10:00:00Z" },
     ],
   };
 }
@@ -110,10 +110,13 @@ async function apri(browser, opzioni = {}, larghezza = 1280) {
       return rispondi([{ ...db.settings }]);
     }
     if (tabella === "wa_auto_regole") {
-      if (metodo === "PATCH") {
-        const r = db.regole.find((x) => x.id === idDaQuery);
-        if (r) Object.assign(r, corpo);
-        return json(200, r ? [r] : []);
+      //  Il salvataggio è un upsert: POST con on_conflict=user_id,codice (e Prefer merge-duplicates).
+      if (metodo === "POST") {
+        const riga = Array.isArray(corpo) ? corpo[0] : corpo;
+        const esiste = db.regole.find((x) => x.user_id === riga.user_id && x.codice === riga.codice);
+        if (esiste) Object.assign(esiste, riga);
+        else db.regole.push({ id: `nuova-${db.regole.length + 1}`, ...riga });
+        return json(201, [{ id: (esiste ?? db.regole[db.regole.length - 1]).id }]);
       }
       return rispondi(db.regole);
     }
@@ -166,11 +169,14 @@ async function provaAdmin(browser) {
   verifica("2. «Simulato» acceso", (await interruttore(t, "Simulato").getAttribute("aria-checked")) === "true");
   verifica("2. «Invii automatici» spento", (await interruttore(t, "Invii automatici").getAttribute("aria-checked")) === "false");
   verifica("2. tre regole", (await p.locator("[data-regola]").count()) === 3);
-  verifica("2. la regola spenta si vede spenta", (await p.locator('[data-regola="consulenza-10min"]').getByRole("switch").getAttribute("aria-checked")) === "false");
-  verifica("2. fascia 8:45-21:30 del promemoria dei 10 minuti", (await p.locator('[data-regola="consulenza-10min"] input[type="time"]').evaluateAll((i) => i.map((x) => x.value).join())).includes("08:45") );
+  verifica("2. la regola spenta si vede spenta", (await p.locator('[data-regola="consulenza_10_minuti"]').getByRole("switch").getAttribute("aria-checked")) === "false");
+  verifica("2. fascia 8:45-21:30 del promemoria dei 10 minuti", (await p.locator('[data-regola="consulenza_10_minuti"] input[type="time"]').evaluateAll((i) => i.map((x) => x.value).join())).includes("08:45") );
   verifica("2. due invii nel registro", (await p.locator("[data-invio]").count()) === 2);
   verifica("2. esito «Simulato» e «Saltato» con il motivo", (await p.getByText("fuori fascia").count()) > 0);
-  verifica("2. un escluso con la sua risposta", (await p.locator('[data-escluso="393331112222"]').count()) === 1);
+  verifica("2. un escluso con la sua risposta", (await p.locator('[data-escluso="+393331112222"]').count()) === 1);
+  const testo = await p.innerText();
+  verifica("2. i telefoni hanno un solo «+» (il database lo scrive già)", !testo.includes("++") && testo.includes("+393331112222"), testo.match(/.{0,10}\+\+.{0,12}/)?.[0]);
+  verifica("2. anche nel registro (numero dei lead non in memoria)", (await p.locator('[data-invio="i1"]').innerText()).includes("+393331234567"));
   const lettureSettings = t.richieste.filter((r) => r.tabella === "whatsapp_settings" && r.metodo === "GET" && t.richieste.indexOf(r) >= t.dopoClic);
   verifica("2. whatsapp_settings letta dal pannello", lettureSettings.length >= 1);
   const colonne = lettureSettings.map((r) => decodeURIComponent(new URLSearchParams(r.query).get("select") || "")).join(",");
@@ -209,10 +215,12 @@ async function provaInterruttori(browser) {
   await t.context.close();
 }
 
+const upsertRegole = (t) => t.richieste.filter((r) => r.metodo === "POST" && r.tabella === "wa_auto_regole");
+
 async function provaRegola(browser) {
   const t = await apri(browser);
   await apriPannello(t);
-  const riga = pannello(t.page).locator('[data-regola="ricontatto"]');
+  const riga = pannello(t.page).locator('[data-regola="ricontatto_data"]');
   const salva = riga.getByRole("button", { name: "Salva" });
   verifica("4. «Salva» spento finché non cambia niente", await salva.isDisabled());
   await riga.getByLabel("Fino alle").fill("21:00");
@@ -220,18 +228,33 @@ async function provaRegola(browser) {
   await salva.click();
   await t.page.waitForTimeout(600);
   verifica("4. fascia salvata", t.db.regole[0].ora_a === "21:00", t.db.regole[0].ora_a);
-  const patch = t.richieste.filter((r) => r.metodo === "PATCH" && r.tabella === "wa_auto_regole");
-  verifica("4. una sola richiesta, sulla riga giusta", patch.length === 1 && patch[0].query.includes("id=eq.r1"), patch[0]?.query);
-  verifica("4. solo i campi della regola, mai user_id o codice", patch[0] && !("user_id" in patch[0].corpo) && !("codice" in patch[0].corpo), JSON.stringify(patch[0]?.corpo));
+  const su = upsertRegole(t);
+  verifica("4. una sola richiesta: un upsert sulla chiave (user_id, codice)", su.length === 1 && decodeURIComponent(su[0].query).includes("on_conflict=user_id,codice"), su[0]?.query);
+  verifica("4. l'upsert porta user_id e codice", su[0]?.corpo?.user_id === UID && su[0]?.corpo?.codice === "ricontatto_data", JSON.stringify(su[0]?.corpo));
+  verifica("4. l'upsert porta la riga intera (riferimento e template, che il database vuole)",
+    su[0]?.corpo?.riferimento === "ricontatto" && su[0]?.corpo?.template === "promemoria_ricontatto" && su[0]?.corpo?.ora_a === "21:00", JSON.stringify(su[0]?.corpo));
+  verifica("4. nessuna PATCH sulle regole", !t.richieste.some((r) => r.metodo === "PATCH" && r.tabella === "wa_auto_regole"));
+  verifica("4. la riga esistente è aggiornata, non duplicata", t.db.regole.length === 3);
   // fascia storta
   await riga.getByLabel("Dalle").fill("21:30");
   await salva.click();
   await riga.getByRole("alert").waitFor({ timeout: 5000 });
   verifica("4. fascia storta: errore a schermo", (await riga.getByRole("alert").innerText()).length > 5);
   await t.page.waitForTimeout(400);
-  verifica("4. fascia storta: nessuna scrittura", t.richieste.filter((r) => r.metodo === "PATCH" && r.tabella === "wa_auto_regole").length === 1);
+  verifica("4. fascia storta: nessuna scrittura", upsertRegole(t).length === 1);
+  // l'orario fisso deve stare DENTRO la fascia: «fino alle» è escluso, quindi 09:00 su 08:00-09:00 non c'è
+  await riga.getByLabel("Dalle").fill("08:00");
+  await riga.getByLabel("Fino alle").fill("09:00");
+  await riga.getByLabel("Parte alle").fill("09:00");
+  await salva.click();
+  await t.page.waitForTimeout(400);
+  verifica("4. orario uguale a «fino alle»: rifiutato (l'ora finale è esclusa)", (await riga.getByRole("alert").count()) === 1 && upsertRegole(t).length === 1);
+  await riga.getByLabel("Parte alle").fill("08:59");
+  await salva.click();
+  await t.page.waitForTimeout(600);
+  verifica("4. un minuto prima della fine: accettato", upsertRegole(t).length === 2 && t.db.regole[0].ora_fissa === "08:59", JSON.stringify(t.db.regole[0]));
   // accendere la regola spenta: subito
-  const r3 = pannello(t.page).locator('[data-regola="consulenza-10min"]').getByRole("switch");
+  const r3 = pannello(t.page).locator('[data-regola="consulenza_10_minuti"]').getByRole("switch");
   await r3.click();
   await t.page.waitForTimeout(600);
   verifica("4. l'interruttore della regola scrive subito", t.db.regole[2].attiva === true);
@@ -241,14 +264,14 @@ async function provaRegola(browser) {
 async function provaRiattiva(browser) {
   const t = await apri(browser);
   await apriPannello(t);
-  const riga = pannello(t.page).locator('[data-escluso="393331112222"]');
+  const riga = pannello(t.page).locator('[data-escluso="+393331112222"]');
   await riga.getByRole("button", { name: "Riattiva" }).click();
   verifica("5. «Riattiva» non cancella al primo clic", t.db.esclusi.length === 1);
   await riga.getByRole("button", { name: "Annulla" }).click();
   verifica("5. «Annulla» lascia tutto com'era", t.db.esclusi.length === 1 && (await riga.getByRole("button", { name: "Riattiva" }).count()) === 1);
   await riga.getByRole("button", { name: "Riattiva" }).click();
   await riga.getByRole("button", { name: /Conferma/ }).click();
-  await pannello(t.page).locator('[data-escluso="393331112222"]').waitFor({ state: "detached", timeout: 10000 });
+  await pannello(t.page).locator('[data-escluso="+393331112222"]').waitFor({ state: "detached", timeout: 10000 });
   verifica("5. riga cancellata dal database finto", t.db.esclusi.length === 0);
   verifica("5. cancellata con il filtro sulla riga", t.richieste.some((r) => r.metodo === "DELETE" && r.query.includes("id=eq.e1")));
   verifica("5. stato vuoto spiegato", (await pannello(t.page).getByText(/Nessun numero escluso/i).count()) === 1);
@@ -279,8 +302,25 @@ async function provaVuoto(browser) {
   const p = pannello(t.page);
   await p.getByText(/Nessun invio ancora/i).waitFor({ timeout: 10000 });
   verifica("vuoto: nessun invio spiegato", true);
-  verifica("vuoto: nessuna regola spiegata", (await p.getByText(/Nessuna regola/i).count()) === 1);
+  //  Tabella vuota: il motore usa le 3 regole di serie, e il titolare deve vederle e poterle ritoccare.
+  verifica("vuoto: le tre regole di serie si vedono", (await p.locator("[data-regola]").count()) === 3);
+  verifica("vuoto: nessun «Nessuna regola»", (await p.getByText(/Nessuna regola/i).count()) === 0);
   verifica("vuoto: nessun escluso spiegato", (await p.getByText(/Nessun numero escluso/i).count()) === 1);
+  const dieci = p.locator('[data-regola="consulenza_10_minuti"]');
+  verifica("vuoto: la regola di serie dei 10 minuti ha la sua fascia 08:45-21:30",
+    (await dieci.locator('input[type="time"]').evaluateAll((i) => i.map((x) => x.value).join())) === "08:45,21:30");
+  await dieci.getByLabel("Fino alle").fill("21:00");
+  await dieci.getByRole("button", { name: "Salva" }).click();
+  await t.page.waitForTimeout(600);
+  const su = upsertRegole(t);
+  verifica("vuoto: salvando una regola di serie nasce la riga (upsert con codice)", su.length === 1 && su[0].corpo.codice === "consulenza_10_minuti" && su[0].corpo.user_id === UID, JSON.stringify(su[0]?.corpo));
+  verifica("vuoto: la riga nuova è completa", su[0]?.corpo?.riferimento === "consulenza" && su[0]?.corpo?.template === "promemoria_meet" && su[0]?.corpo?.minuti_prima === 10 && su[0]?.corpo?.ora_a === "21:00", JSON.stringify(su[0]?.corpo));
+  verifica("vuoto: nel database finto c'è una riga sola, le altre due restano di serie", t.db.regole.length === 1);
+  // spegnere una regola di serie: una riga con attiva = false
+  await p.locator('[data-regola="ricontatto_data"]').getByRole("switch").click();
+  await t.page.waitForTimeout(600);
+  const spenta = t.db.regole.find((x) => x.codice === "ricontatto_data");
+  verifica("vuoto: spegnere una regola di serie scrive attiva = false", spenta?.attiva === false, JSON.stringify(spenta));
   await t.context.close();
 }
 

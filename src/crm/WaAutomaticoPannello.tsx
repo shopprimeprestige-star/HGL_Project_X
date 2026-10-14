@@ -7,6 +7,11 @@
  *  ritocca le regole (quando parte ogni messaggio e in che fascia), guarda gli
  *  ultimi invii e riattiva a mano chi aveva risposto STOP.
  *
+ *  LE REGOLE CHE SI VEDONO SONO QUELLE CHE IL MOTORE USA
+ *  Con la tabella vuota il motore usa le 3 regole di serie (`regoleEffettive`):
+ *  il pannello mostra le stesse, e salvando una modifica scrive la riga con un
+ *  upsert su (user_id, codice). Spegnere una regola è una riga con `attiva = false`.
+ *
  *  REGOLE CHE QUESTO FILE NON PUÒ ROMPERE
  *   · Legge e scrive SOLO `wa_auto_*` e `whatsapp_settings`. Di `whatsapp_settings`
  *     chiede soltanto le colonne `auto_*`: token e segreto dell'app non passano
@@ -31,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CLASSI_TONO, Vuoto, type Tono } from "@/crm/ui";
+import { regoleEffettive, type RegolaWa } from "@/crm/wa-auto-regole";
 import { cn } from "@/lib/utils";
 
 /* ── Forma delle righe (le colonne della migrazione 20261014120000) ───────── */
@@ -41,19 +47,6 @@ interface Impostazioni {
   auto_qualita: string | null;
   auto_sospeso_motivo: string | null;
   auto_sospeso_il: string | null;
-}
-interface Regola {
-  id: string;
-  codice: string;
-  descrizione: string;
-  attiva: boolean;
-  riferimento: "ricontatto" | "consulenza" | string;
-  giorni_prima: number;
-  ora_fissa: string | null;
-  minuti_prima: number | null;
-  template: string;
-  ora_da: string;
-  ora_a: string;
 }
 interface Invio {
   id: string;
@@ -74,7 +67,7 @@ interface Escluso {
 }
 interface Dati {
   settings: Impostazioni | null;
-  regole: Regola[];
+  regole: RegolaWa[];
   invii: Invio[];
   esclusi: Escluso[];
 }
@@ -118,7 +111,7 @@ const STATO_TESTO = {
 } as const;
 
 /** Il momento in cui parte la regola, a parole. */
-function descriviMomento(r: Regola): string {
+function descriviMomento(r: RegolaWa): string {
   const cosa = r.riferimento === "consulenza" ? "consulenza" : "ricontatto";
   if (r.minuti_prima != null) return `${r.minuti_prima} minuti prima della ${cosa}`;
   const ora = hhmm(r.ora_fissa);
@@ -152,7 +145,8 @@ export function WaAutomaticoPannello() {
     }
     setDati({
       settings: (s.data as Impostazioni | null) ?? null,
-      regole: (r.data as Regola[]) ?? [],
+      //  Quelle che il motore userebbe davvero: di serie, con sopra le righe salvate.
+      regole: regoleEffettive(r.data as Parameters<typeof regoleEffettive>[0]),
       invii: (i.data as Invio[]) ?? [],
       esclusi: (e.data as Escluso[]) ?? [],
     });
@@ -314,19 +308,16 @@ export function WaAutomaticoPannello() {
           <p className="mt-1 text-[12px] text-muted-foreground">
             Quando parte ogni messaggio e in quale fascia oraria è permesso (ora di Roma). Fuori fascia il messaggio si salta e lo vedi nel registro.
           </p>
-          {dati.regole.length === 0 ? (
-            <Vuoto className="mt-3" titolo="Nessuna regola salvata" testo="Qui compariranno le regole di invio, una per messaggio." />
-          ) : (
-            <ul className="mt-1 divide-y divide-border">
-              {dati.regole.map((r) => (
-                <RigaRegola
-                  key={r.id}
-                  regola={r}
-                  onSalvata={(nuova) => setDati((d) => (d ? { ...d, regole: d.regole.map((x) => (x.id === nuova.id ? nuova : x)) } : d))}
-                />
-              ))}
-            </ul>
-          )}
+          <ul className="mt-1 divide-y divide-border">
+            {dati.regole.map((r) => (
+              <RigaRegola
+                key={r.codice}
+                regola={r}
+                userId={user?.id ?? ""}
+                onSalvata={(nuova) => setDati((d) => (d ? { ...d, regole: d.regole.map((x) => (x.codice === nuova.codice ? nuova : x)) } : d))}
+              />
+            ))}
+          </ul>
         </div>
 
         {/* ── Ultimi invii ── */}
@@ -348,7 +339,7 @@ export function WaAutomaticoPannello() {
                   <li key={i.id} data-invio={i.id} className="py-2.5">
                     <div className="flex items-start justify-between gap-3">
                       <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                        {nomi.get(i.lead_id) ?? `+${i.telefono_e164}`}
+                        {nomi.get(i.lead_id) ?? i.telefono_e164}
                       </span>
                       <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium", CLASSI_TONO[esito.tono])}>
                         {esito.etichetta}
@@ -356,7 +347,7 @@ export function WaAutomaticoPannello() {
                     </div>
                     <p className="mt-0.5 text-[12px] text-muted-foreground">
                       {quando(i.prenotato_il)} · {i.regola}
-                      {nomi.has(i.lead_id) ? ` · +${i.telefono_e164}` : ""}
+                      {nomi.has(i.lead_id) ? ` · ${i.telefono_e164}` : ""}
                     </p>
                     {i.motivo && <p className="mt-0.5 text-[12px] text-muted-foreground">{i.motivo}</p>}
                   </li>
@@ -440,7 +431,7 @@ function Campo({ id, etichetta, children }: { id: string; etichetta: string; chi
 }
 
 /** Una regola: l'interruttore scrive subito, orari e fascia si salvano col pulsante. */
-function RigaRegola({ regola, onSalvata }: { regola: Regola; onSalvata: (r: Regola) => void }) {
+function RigaRegola({ regola, userId, onSalvata }: { regola: RegolaWa; userId: string; onSalvata: (r: RegolaWa) => void }) {
   const [attiva, setAttiva] = useState(regola.attiva);
   const [fissa, setFissa] = useState(hhmm(regola.ora_fissa));
   const [minuti, setMinuti] = useState(regola.minuti_prima != null ? String(regola.minuti_prima) : "");
@@ -455,19 +446,21 @@ function RigaRegola({ regola, onSalvata }: { regola: Regola; onSalvata: (r: Rego
     a !== hhmm(regola.ora_a) ||
     (usaOraFissa ? fissa !== hhmm(regola.ora_fissa) : minuti !== String(regola.minuti_prima));
 
-  async function scrivi(patch: Partial<Regola>) {
+  /** Upsert sulla riga intera: se la regola è ancora quella di serie la riga nasce adesso. */
+  async function scrivi(patch: Partial<RegolaWa>) {
     setSalvo(true);
     setErrore(null);
-    const { data, error } = (await db().from("wa_auto_regole").update(patch).eq("id", regola.id).select("id")) as {
-      data: unknown[] | null;
-      error: ErroreDb | null;
-    };
+    const nuova = { ...regola, ...patch };
+    const { data, error } = (await db()
+      .from("wa_auto_regole")
+      .upsert({ user_id: userId, ...nuova, descrizione: nuova.descrizione ?? "" }, { onConflict: "user_id,codice" })
+      .select("id")) as { data: unknown[] | null; error: ErroreDb | null };
     setSalvo(false);
     if (error || !data?.length) {
-      setErrore(error ? `Non sono riuscito a salvare: ${error.message}` : "Non sono riuscito a salvare: la regola non c'è più, ricarica la pagina.");
+      setErrore(error ? `Non sono riuscito a salvare: ${error.message}` : "Non sono riuscito a salvare: ricarica la pagina e riprova.");
       return false;
     }
-    onSalvata({ ...regola, ...patch });
+    onSalvata(nuova);
     return true;
   }
 
@@ -479,10 +472,11 @@ function RigaRegola({ regola, onSalvata }: { regola: Regola; onSalvata: (r: Rego
   async function salva() {
     if (!ORA.test(da) || !ORA.test(a)) return setErrore("Scrivi la fascia con ore e minuti, per esempio 09:00.");
     if (da >= a) return setErrore("La fascia deve cominciare prima di finire.");
-    const patch: Partial<Regola> = { ora_da: da, ora_a: a };
+    const patch: Partial<RegolaWa> = { ora_da: da, ora_a: a };
     if (usaOraFissa) {
       if (!ORA.test(fissa)) return setErrore("Scrivi l'orario con ore e minuti, per esempio 18:00.");
-      if (fissa < da || fissa > a) return setErrore("L'orario è fuori dalla fascia: il messaggio verrebbe sempre saltato.");
+      //  `ora_a` è escluso (come `inFascia`): alle 20:00 su 09:00-20:00 il messaggio verrebbe saltato.
+      if (fissa < da || fissa >= a) return setErrore("L'orario è fuori dalla fascia: il messaggio verrebbe sempre saltato.");
       patch.ora_fissa = fissa;
     } else {
       const n = Number(minuti);
@@ -558,7 +552,7 @@ function RigaEscluso({ escluso, onRiattivato }: { escluso: Escluso; onRiattivato
     <li data-escluso={escluso.telefono_e164} className="py-2.5">
       <div className="flex items-start justify-between gap-3">
         <span className="min-w-0">
-          <span className="block text-[13px] font-medium text-foreground">+{escluso.telefono_e164}</span>
+          <span className="block text-[13px] font-medium text-foreground">{escluso.telefono_e164}</span>
           <span className="block text-[12px] text-muted-foreground">
             {escluso.motivo === "stop" ? "Ha risposto STOP" : escluso.motivo}
             {escluso.testo ? ` («${escluso.testo}»)` : ""} · {quando(escluso.created_at)}

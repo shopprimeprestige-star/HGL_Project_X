@@ -17631,6 +17631,30 @@ function proveDelWaAutomatico() {
   });
   c("le due versioni accettate", ["wa-2026-10-14", "wa-sito-2026-10-14"], Object.keys(VERSIONI_CONSENSO_WA).sort());
   c("ogni versione porta il testo della casella", true, Object.values(VERSIONI_CONSENSO_WA).every((t) => typeof t === "string" && t.length > 10));
+  //  Il testo che il lead legge accanto alla casella (BookingFunnel) e quello che
+  //  l'archivio dà per accettato devono essere lo stesso, lettera per lettera:
+  //  è la prova di cosa ha accettato. BookingFunnel è React e non entra nel
+  //  bundle delle prove, quindi se ne legge il sorgente come testo.
+  {
+    const funnel = readFileSync(join(radice, "src/landing/booking/BookingFunnel.tsx"), "utf8");
+    const versioneCasella = /export const VERSIONE_CONSENSO_WA = "([^"]+)"/.exec(funnel)?.[1];
+    const testoCasella = /export const TESTO_CONSENSO_WA =\s*"([^"]+)"/.exec(funnel)?.[1];
+    c("la casella dichiara una versione e un testo", true, Boolean(versioneCasella && testoCasella));
+    c("il testo della casella è identico a quello della versione che scrive", testoCasella, VERSIONI_CONSENSO_WA[versioneCasella ?? ""]);
+  }
+  //  ── LA QUALITÀ DEL NUMERO (evento firmato di Meta) ──
+  {
+    const { aggiornamentoQualita } = WAR;
+    const peggio = (e) => aggiornamentoQualita(e);
+    c("FLAGGED: spegne il motore e scrive il motivo", [false, "FLAGGED", "qualità del numero: FLAGGED"],
+      [peggio("FLAGGED")?.auto_attivo, peggio("FLAGGED")?.auto_qualita, peggio("FLAGGED")?.auto_sospeso_motivo]);
+    c("DOWNGRADE: spegne il motore", [false, "DOWNGRADE"], [peggio("DOWNGRADE")?.auto_attivo, peggio("DOWNGRADE")?.auto_qualita]);
+    for (const e of ["UNFLAGGED", "UPGRADE"]) {
+      c(`${e}: la qualità torna GREEN`, "GREEN", peggio(e)?.auto_qualita);
+      c(`${e}: non riaccende e non tocca il resto (solo auto_qualita)`, ["auto_qualita"], Object.keys(peggio(e) ?? {}));
+    }
+    c("ONBOARDING e eventi sconosciuti: niente da scrivere", [null, null, null], [peggio("ONBOARDING"), peggio("boh"), peggio(undefined)]);
+  }
   c("consenso wa-sito-2026-10-14: valido", true, consensoValido(crm(), modulo()));
   c("consenso wa-2026-10-14: valido", true, consensoValido(crm(), modulo({ consenso_whatsapp_versione: "wa-2026-10-14" })));
   c("versione sconosciuta: no", false, consensoValido(crm(), modulo({ consenso_whatsapp_versione: "wa-inventata" })));
@@ -18202,6 +18226,37 @@ async function proveDelMotoreWa() {
     c("simulato: app_secret e qualità non contano", ["ok", 1], [r5.u.esito, r5.invii.length]);
     const r6 = await giro(live({ phone_number_id: null }));
     c("live senza credenziali: rifiutato", ["rifiutato", 0], [r6.u.esito, r6.f.chiamate.length]);
+  }
+  {
+    //  Dopo il rifiuto il titolare sistema (mette l'app_secret, la qualità torna
+    //  GREEN) e riaccende: il banner dell'ultimo stop non deve restare per sempre.
+    const motivoVecchio = "manca l'app_secret: senza firma verificata STOP e qualità non contano, il live non si accende";
+    const t = live({ auto_sospeso_motivo: motivoVecchio, auto_sospeso_il: "2026-07-09T10:00:00.000Z" });
+    const r = await giro(t);
+    c("live che passa i controlli: il vecchio motivo di stop viene azzerato", [null, null, 1],
+      [t.whatsapp_settings[0].auto_sospeso_motivo, t.whatsapp_settings[0].auto_sospeso_il, r.f.invii().length]);
+    const t2 = live({ app_secret: null, auto_sospeso_motivo: motivoVecchio, auto_sospeso_il: "2026-07-09T10:00:00.000Z" });
+    await giro(t2);
+    c("live ancora rifiutato: il motivo resta", motivoVecchio, t2.whatsapp_settings[0].auto_sospeso_motivo);
+    const t3 = live({ auto_qualita: "GREEN", auto_sospeso_motivo: null });
+    const log = (await giro(t3)).db.log.filter((q) => q.tabella === "whatsapp_settings" && q.op === "update");
+    c("live pulito: nessuna scrittura inutile su whatsapp_settings", 0, log.length);
+    const t4 = base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_simulato: true, auto_sospeso_motivo: "qualità del numero: FLAGGED" }] });
+    await giro(t4);
+    c("simulato: il motivo di stop non si tocca (conta solo al passaggio dal live)", "qualità del numero: FLAGGED", t4.whatsapp_settings[0].auto_sospeso_motivo);
+  }
+  {
+    //  La guardia di /hooks/wa-auto: confronto ESATTO con ciò che manda pg_cron.
+    const { chiaveGiroValida } = WAI;
+    c("guardia: Bearer + chiave giusta", true, chiaveGiroValida("Bearer CHIAVE", "CHIAVE"));
+    c("guardia: nessuna intestazione", false, chiaveGiroValida(null, "CHIAVE"));
+    c("guardia: chiave sbagliata", false, chiaveGiroValida("Bearer ALTRA", "CHIAVE"));
+    c("guardia: la chiave dentro un testo più lungo non basta", false, chiaveGiroValida("Bearer xCHIAVEx", "CHIAVE"));
+    c("guardia: senza «Bearer» non passa", false, chiaveGiroValida("CHIAVE", "CHIAVE"));
+    c("guardia: chiave non configurata sul server → nessuno passa", [false, false, false],
+      [chiaveGiroValida("Bearer __mancante__", undefined), chiaveGiroValida("Bearer undefined", undefined), chiaveGiroValida("Bearer ", "")]);
+    const hook = readFileSync(join(radice, "src/routes/hooks/wa-auto.ts"), "utf8");
+    c("l'hook usa la guardia esatta, non «includes»", [true, false], [hook.includes("chiaveGiroValida("), /auth[^\n]*\.includes\(/.test(hook)]);
   }
   {
     //  live ma il numero è quello di PROVA di Meta: si ferma prima di prenotare
