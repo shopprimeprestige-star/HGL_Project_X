@@ -139,7 +139,7 @@ import {
 import { PlanciaGruppo, useAttesiDelConsulente } from "@/shop/PlanciaGruppo";
 import { ancoraDentro, segnaChiCÈ, type MemoriaPresenze } from "@/shop/chi-e-ancora-dentro";
 import { prossimaCamera, siPuoGirare } from "@/shop/gira-camera";
-import { verdettoSuOspite } from "@/shop/resta-in-lista";
+import { SALUTO_VIVO_MS, verdettoSuOspite } from "@/shop/resta-in-lista";
 import { cambiaRegia, useRegiaGruppo } from "@/shop/regia-gruppo";
 //  Come si dispongono le camere: quadrate, tutte uguali, grandi quanto l'area
 //  lo consente (shop/griglia-camere).
@@ -13299,7 +13299,8 @@ function PlanciaDelGruppo({ st }: { st: State }) {
       righe: così, se se n'è andato l'unico atteso e intanto è entrato
       qualcun altro dal link, il pannello mostra chi c'è davvero invece di
       restare appeso al nome di chi ha chiuso (vedi `personeDelPannello`). */
-  const attesiDentro = ancoraDentro(attesiVeri, { memoria: visti, inLinea: presenti, ignoti }).filter(
+  //  Browser chiuso = rete caduta: 30 secondi (una ricarica rientra in pochi), non il minuto di prima.
+  const attesiDentro = ancoraDentro(attesiVeri, { memoria: visti, inLinea: presenti, ignoti, grazia: SALUTO_VIVO_MS }).filter(
     (x) => !haPremutoEsci(x.leadId, presenti),
   );
   const attesi = personeDelPannello({ attesi: attesiDentro, ospiti: ospitiOra });

@@ -42,6 +42,7 @@ import {
   scriviSala,
   segnaUscito,
   statoDi,
+  type PersonaInAttesa,
 } from "@/shop/sala-attesa";
 
 /** Le intestazioni che la rotta pubblica accetta. ⚠️ `x-sala-segreto` ci deve
@@ -140,10 +141,11 @@ export const giroDelLink = (k?: string | null): string =>
 export const linkValido = (r: RegistroLink, k?: string | null): boolean =>
   !!r.giro && giroDelLink(k) === r.giro;
 
-/** Chiude il giro corrente: lo SPOSTA in `chiusi`, non lo cancella. */
+/** Chiude il giro corrente: lo SPOSTA in `chiusi`, non lo cancella. Il titolare
+ *  resta scritto: serve a `uscitiVerificati` per dire chi è davvero uscito. */
 export function chiudiLink(r: RegistroLink, adesso = Date.now()): RegistroLink {
   if (!r.giro) return r;
-  return { giro: "", chiusi: [...r.chiusi, { giro: r.giro, at: adesso }] };
+  return { giro: "", chiusi: [...r.chiusi, { giro: r.giro, at: adesso }], ...(r.titolare ? { titolare: r.titolare } : {}) };
 }
 
 /** Un giro nuovo e casuale (mai ricavato dal gettone o dall'ora). */
@@ -321,6 +323,28 @@ export async function trattaEsci(a: Archivio, b: Uscita, adesso = Date.now()): P
   );
   if (!chiuso) return { status: 409, body: { ok: false } };
   return { status: 200, body: { ok: true, chiuso: true } };
+}
+
+/** ── IL GETTONE DI UN USCITO VALE SOLO SE È IL TITOLARE DEL LINK ──────────
+ *  Il gettone viaggia nel `hello` a tutta la stanza: B può bussare con quello
+ *  di A ed uscire, e la sua riga «uscito» porta `chi` = A. Il consulente
+ *  vedrebbe il nome di A col tasto «Invita di nuovo», che chiude il link di A
+ *  mentre A è dentro. Qui `chi` resta solo alle righe il cui segreto è quello
+ *  del titolare scritto nel registro; alle altre si toglie (nome digitato,
+ *  niente tasto). */
+export async function uscitiVerificati(
+  a: Archivio,
+  sess: string,
+  righe: PersonaInAttesa[],
+): Promise<PersonaInAttesa[]> {
+  return Promise.all(
+    righe.map(async (p) => {
+      const g = gettonePulito(p.chi);
+      if (!g) return { ...p, chi: "" };
+      const titolare = leggiRegistro(await a.leggi(chiaveLink(sess, g))).titolare;
+      return titolare && titolare === p.segretoH ? p : { ...p, chi: "" };
+    }),
+  );
 }
 
 /** GET «questo link vale ancora?». Un link senza nome (senza gettone) non si

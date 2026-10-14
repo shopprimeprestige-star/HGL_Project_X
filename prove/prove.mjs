@@ -19253,6 +19253,35 @@ async function proveDelLinkChiuso() {
   c("k non viaggia mai in hello né nel roster", false,
     /\bk:\s*giro/.test(call.slice(call.indexOf('send("hello", {'), call.indexOf("});", call.indexOf('send("hello", {')))));
 
+  //  ── ⚠️ «USCITI»: IL GETTONE VALE SOLO PER IL TITOLARE DEL LINK ────────
+  //   B sente il gettone di A nel `hello`, bussa con `chi=A` ed esce: la sua
+  //   riga «uscito» porta chi=A. Il consulente non deve vedere il nome di A né
+  //   avere il tasto «Invita di nuovo» (chiuderebbe il link di A, che è dentro).
+  a = arch();
+  const BX = { sess: SESS, pid: "pidB", dev: "devB", nome: "Bruno", chi: GA, segreto: SB };
+  await trattaBussata(a, A, T0);
+  await trattaBussata(a, BX, T0 + 1000);
+  ammetti(a, "pidA", "devA", T0 + 2000);
+  ammetti(a, "pidB", "devB", T0 + 2000);
+  r = await trattaEsci(a, { ...BX, ultima: true }, T0 + 5000);
+  c("B col gettone di A esce: il link di A non si chiude", [false, true], [r.body.chiuso, await valido(a, GA, undefined)]);
+  let verif = await USC.uscitiVerificati(a, SESS, uscitiDellaSala(salaDi(a), T0 + 6000));
+  c("…B è fra gli usciti col nome digitato", ["Bruno"], verif.map((p) => p.nome));
+  c("…ma senza il gettone di A: niente nome di A, niente tasto", [""], verif.map((p) => p.chi));
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 7000);
+  verif = await USC.uscitiVerificati(a, SESS, uscitiDellaSala(salaDi(a), T0 + 8000));
+  c("A, il titolare, esce davvero: il suo gettone resta", ["Anna", GA],
+    [verif.find((p) => p.pid === "pidA")?.nome, verif.find((p) => p.pid === "pidA")?.chi]);
+  c("…e B resta senza gettone", "", verif.find((p) => p.pid === "pidB")?.chi);
+  const rottaPres = readFileSync(join(radice, "src/routes/api.presenter.sala-attesa.ts"), "utf8");
+  c("la rotta del consulente passa gli usciti dal controllo del titolare", true,
+    /uscitiVerificati\(/.test(rottaPres) && /attesoDalGettone\(attesi, p\.chi\)/.test(rottaPres));
+
+  //  ── BROWSER CHIUSO: LA PLANCIA TIENE IL NOME 30 SECONDI, NON 60 ────────
+  const plancia = call.slice(call.indexOf("const attesiDentro = ancoraDentro("), call.indexOf("const attesiDentro = ancoraDentro(") + 260);
+  c("la Plancia toglie chi è andato dopo SALUTO_VIVO_MS (30 s)", true,
+    /grazia:\s*SALUTO_VIVO_MS/.test(plancia));
+
   //  ── ⚠️ «USCITI»: SOLO DAL SERVER, MAI DAL CANALE ──────────────────────
   const byeCanale = call.slice(call.indexOf('{ event: "bye" }'), call.indexOf('{ event: "roster" }'));
   c("il bye del canale non scrive fra gli «Usciti»", false, /\busciti\b/.test(byeCanale.replace(/\/\/.*$/gm, "")));

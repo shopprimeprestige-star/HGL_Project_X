@@ -23,7 +23,7 @@ import {
   autorizzaPresentatore,
   nonAutorizzato,
 } from "./api.presenter.consultant";
-import { leggiRigaSala, scriviRigaSala } from "./api.public.sala-attesa";
+import { archivioSala, leggiRigaSala, scriviRigaSala } from "./api.public.sala-attesa";
 import {
   decidi,
   inAttesa,
@@ -36,6 +36,7 @@ import {
 //  della SCHEDA invece di quello digitato al volo dal cliente.
 import { attesiDellaStanza } from "./api.public.attesi";
 import { attesoDalGettone, gettoneDi } from "@/crm/fascia-consulenza";
+import { uscitiVerificati } from "@/shop/uscita";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +61,8 @@ export const Route = createFileRoute("/api/presenter/sala-attesa")({
         const chi = await autorizzaPresentatore(request, u.searchParams.get("code"));
         if (!chi) return nonAutorizzato(cors);
         const [persone, attesi] = await Promise.all([leggiRigaSala(sess), attesiDellaStanza(sess)]);
+        //  ⚠️ `chi` di un uscito vale solo se è il titolare del link (vedi `uscitiVerificati`).
+        const usciti = await uscitiVerificati(archivioSala, sess, uscitiDellaSala(persone));
         /*  ── IL NOME VERO, NON QUELLO DIGITATO ────────────────────────
             Chi è entrato scegliendo il proprio nome porta con sé il gettone
             della sua scheda: al consulente si scrive il nome e cognome che ha
@@ -81,8 +84,8 @@ export const Route = createFileRoute("/api/presenter/sala-attesa")({
               Solo dalle righe `uscito` scritte dal server (mai dal canale, che
               non è autenticato): il consulente può invitarlo di nuovo. Il
               nome è quello della scheda, quando la persona era fra gli attesi. */
-          usciti: uscitiDellaSala(persone).map((p) => {
-            const atteso = attesoDalGettone(attesi, p.chi);
+          usciti: usciti.map((p) => {
+            const atteso = p.chi ? attesoDalGettone(attesi, p.chi) : undefined;
             return {
               ...rigaUscitaPerIlConsulente(p),
               ...(atteso ? { nome: `${atteso.nome}${atteso.cognome ? ` ${atteso.cognome}` : ""}`.trim() } : {}),
