@@ -2499,7 +2499,9 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
       è nascosto con `display:none !important` per TUTTI i video, anche con `controls`.
       Il video del titolare ha l'audio: deve potersi mettere in pausa (WCAG 1.4.2) e
       muovere da tastiera (2.1.1). Un `!important` dentro un layer batte quello senza layer,
-      quindi basta rimetterli qui, solo per i video di questa pagina. I video della home
+      quindi basta rimetterli qui, solo per i video di questa pagina. Anche `appearance` va
+      riportato con `revert !important` (quella vecchia lo mette a `none !important`: senza,
+      la barra esce ma senza il tasto play/pausa). I video della home
       (`MediaSlot`) restano come oggi (problema noto, nel registro tecnico). */
   .tema-soluzioni video[controls]::-webkit-media-controls,
   .tema-soluzioni video[controls]::-webkit-media-controls-enclosure,
@@ -2510,8 +2512,8 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
     display: revert !important;
     opacity: 1 !important;
     pointer-events: auto !important;
-    -webkit-appearance: auto;
-    appearance: auto;
+    -webkit-appearance: revert !important;
+    appearance: revert !important;
   }
 
   /* ── Sul computer (1024 e oltre) ───────────────────────────────────────── */

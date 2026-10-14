@@ -114,7 +114,7 @@ export function VideoParlato({
           src={slot.src}
           preload="none"
           playsInline
-          tabIndex={-1}
+          tabIndex={fase === "in-corso" ? 0 : -1}
           controls={fase === "in-corso"}
           className="sol-video-file"
           onPlay={alPlay}

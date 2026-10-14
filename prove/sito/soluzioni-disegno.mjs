@@ -152,8 +152,50 @@ try {
   const senza = await p.screenshot({ clip: { x: box.x, y: box.y + box.height - 60, width: box.width, height: 60 } });
   vero("video del titolare: la barra dei comandi è davvero disegnata in basso", !conComandi.equals(senza));
   await p.locator(".sol-video video").evaluate((v) => v.setAttribute("controls", ""));
-  //  Messo in pausa dai comandi, la barra delle patch riappare e il video è fermo.
   vero("video del titolare: si può mettere in pausa", await p.locator(".sol-video video").evaluate((v) => v.paused));
+
+  //  Il tasto play/pausa nativo (dentro la shadow DOM del browser) esiste, ha misura e un aspetto da controllo, e funziona.
+  //  Una regola `appearance: none !important` lo lascia senza disegno: la barra c'è ma senza tasto.
+  const cdp = await ctx.newCDPSession(p);
+  await cdp.send("DOM.enable");
+  await cdp.send("CSS.enable");
+  const tastoNativo = async () => {
+    const { nodes } = await cdp.send("DOM.getFlattenedDocument", { depth: -1, pierce: true });
+    const n = nodes.find((x) => x.attributes?.includes("-webkit-media-controls-play-button"));
+    if (!n) return null;
+    const stile = Object.fromEntries((await cdp.send("CSS.getComputedStyleForNode", { nodeId: n.nodeId })).computedStyle.map((s) => [s.name, s.value]));
+    const q = (await cdp.send("DOM.getBoxModel", { nodeId: n.nodeId })).model.content;
+    return { display: stile.display, aspetto: stile.appearance, eventi: stile["pointer-events"], opacita: stile.opacity, x: (q[0] + q[2]) / 2, y: (q[1] + q[5]) / 2, larghezza: q[2] - q[0] };
+  };
+  const play = await tastoNativo();
+  vero("video del titolare: il tasto play/pausa nativo esiste", !!play);
+  c("tasto play/pausa nativo: visibile e toccabile", ["block", "auto", "1"], [play?.display, play?.eventi, play?.opacita]);
+  c("tasto play/pausa nativo: aspetto da controllo del browser (appearance non azzerata)", "-internal-media-control", play?.aspetto);
+  vero("tasto play/pausa nativo: ha una misura (≥ 30 px)", (play?.larghezza ?? 0) >= 30);
+  //  E funziona: un clic sul tasto fa partire e un altro ferma.
+  await p.mouse.click(play.x, play.y);
+  await p.waitForTimeout(400);
+  const parte = await p.locator(".sol-video video").evaluate((v) => !v.paused);
+  await p.mouse.click(play.x, play.y);
+  await p.waitForTimeout(300);
+  const ferma = await p.locator(".sol-video video").evaluate((v) => v.paused);
+  vero("video del titolare: il clic sul tasto play/pausa lo fa partire e poi lo ferma", parte && ferma);
+
+  //  Da tastiera: durante il video si può tornare sul video (Shift+Tab dal link dopo il video) e fermarlo con Spazio.
+  await p.reload();
+  await p.waitForSelector(".sol-copertina");
+  const tabPrima = await p.evaluate(() => document.querySelector(".sol-video video").tabIndex);
+  c("prima del tocco il video non è nell'ordine del Tab (c'è la copertina)", -1, tabPrima);
+  await p.locator(".sol-copertina").focus();
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => document.querySelector(".sol-video video")?.currentTime > 0.3, null, { timeout: 8000 });
+  c("durante il video: tabindex 0 (si raggiunge con la tastiera)", 0, await p.evaluate(() => document.querySelector(".sol-video video").tabIndex));
+  await p.keyboard.press("Tab");
+  await p.keyboard.press("Shift+Tab");
+  c("Tab e Shift+Tab riportano il fuoco sul video", "VIDEO", await p.evaluate(() => document.activeElement?.tagName));
+  await p.keyboard.press("Space");
+  await p.waitForTimeout(300);
+  vero("Spazio sul video lo mette in pausa", await p.locator(".sol-video video").evaluate((v) => v.paused));
 
   /* ── Il fuoco ──────────────────────────────────────────────────────────── */
   await p.reload();
