@@ -104,7 +104,7 @@
  *  ⚠️ NIENTE SI È TOLTO: Tutta la lista, Ripesca, Doppioni, Note e promemoria
  *   (la vecchia «Oggi») ed Elenco completo sono nel menu Altro; «Di ritorno» è
  *   la voce «Di ritorno» del filtro Stato, con i suoi due blocchi sotto la
- *   lista. Le scorciatoie 1…9, S, A e / funzionano come prima.
+ *   lista. Le scorciatoie 1…4, S, A e / funzionano come prima.
  *  ───────────────────────────────────────────────────────────────────────── */
 import {
   useEffect,
@@ -141,7 +141,15 @@ import {
   User,
   Users,
   X,
+  ChevronDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -299,6 +307,7 @@ import {
   listaDaChiamare,
   motivoChiamata,
   ordinaChiamate,
+  dividiEsiti,
   patchEsito,
   tieniInTesta,
   type MotivoDiChiamata,
@@ -551,6 +560,7 @@ function SchedaProssimo({
   totale,
   onEsito,
   onAltri,
+  esitiAltri,
   onSalta,
   onApri,
 }: {
@@ -565,10 +575,12 @@ function SchedaProssimo({
   /** «Annuncio · Gruppo», già scritto; vuoto se la lista non ha un annuncio. */
   annuncio: string;
   /** gli esiti a un tocco, già filtrati sugli stati validi per questo lead.
-   *  Arrivano dalla pagina e non si ricalcolano qui: le scorciatoie 1…9 devono
+   *  Arrivano dalla pagina e non si ricalcolano qui: le scorciatoie 1…4 devono
    *  puntare esattamente ai pulsanti che si vedono, e due elenchi calcolati in
    *  due punti diversi prima o poi si sfasano di una voce. */
   esiti: LeadStatus[];
+  /** Gli esiti validi che non stanno in vista: vanno nel menu «Altro». */
+  esitiAltri: LeadStatus[];
   /** era già in archivio e il file appena caricato lo ha riportato a galla */
   diRitorno: boolean;
   /** ── LA DECISIONE SUL CONTATTO DI RITORNO ──────────────────────────────
@@ -920,9 +932,29 @@ function SchedaProssimo({
                 </Button>
               );
             })}
-            <Button size="sm" variant="ghost" className="h-10 text-[13px]" onClick={onAltri}>
-              <MoreHorizontal className="mr-1.5 h-3.5 w-3.5" /> Altro stato
-            </Button>
+            {/*  ⚠️ DI RADIX: con il menu aperto le scorciatoie 1…4 tacciono, così
+                 un tasto premuto qui dentro non dà un esito al lead. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-10 text-[13px]">
+                  <MoreHorizontal className="mr-1.5 h-3.5 w-3.5" /> Altro
+                  <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {esitiAltri.map((s) => {
+                  const Icona = ICONA_STATO[s];
+                  return (
+                    <DropdownMenuItem key={s} onSelect={() => onEsito(s)}>
+                      {Icona && <Icona className="mr-2 h-3.5 w-3.5" />}
+                      {LEAD_STATUS_LABEL[s]}
+                    </DropdownMenuItem>
+                  );
+                })}
+                {esitiAltri.length > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem onSelect={onAltri}>Tutti gli stati…</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {/*  ⚠️ «Salta» NON È UN ESITO, ma non è più nemmeno gratis: scrive
                 due campi sulla scheda (crm/importa/saltati.ts), quindi il gesto
                 dura oltre la giornata e lo vede anche il collega. Serve a chi
@@ -1332,7 +1364,7 @@ const PROSSIMI_VISIBILI = 5;
 const PASSO_OROLOGIO_MS = 15_000;
 
 const SCORCIATOIE: Scorciatoia[] = [
-  ["1…9", "Segna l'esito"],
+  ["1…4", "Segna l'esito (gli altri sono in «Altro»)"],
   //  La frase dice cosa succede DAVVERO adesso: prima il saltato tornava in
   //  fondo alla stessa coda, oggi esce dal giro e va nella sua scheda. Una
   //  scorciatoia che promette una cosa e ne fa un'altra è peggio che assente.
@@ -2796,7 +2828,7 @@ function LeadImportatiUnoAllaVolta() {
    *  passata di telefonate» — e da quando lo stato si cambia anche dalla
    *  pastiglia di una riga qualunque («Tutti», «Saltati») la stessa funzione
    *  serve due gesti che gesti uguali non sono:
-   *   · DAL GIRO (la scheda del prossimo, le scorciatoie 1…9, la griglia degli
+   *   · DAL GIRO (la scheda del prossimo, le scorciatoie 1…4, la griglia degli
    *     altri stati, una riga scaduta di «Oggi») si è appena telefonato: la
    *     persona scende in fondo, «da provare adesso» cala di uno, e il nome
    *     tirato in testa a mano si libera. È il gesto per cui questa pagina
@@ -2926,13 +2958,15 @@ function LeadImportatiUnoAllaVolta() {
     toast.success(`${d.nome}: tornato com'era`);
   };
 
-  /** Gli esiti proposti al lead in testa: servono anche alle scorciatoie 1…9,
+  /** Gli esiti proposti al lead in testa: servono anche alle scorciatoie 1…4,
    *  che devono puntare esattamente ai pulsanti che si vedono. */
   const esitiProssimo = useMemo(() => {
     if (!prossimo) return [] as LeadStatus[];
     const validi = new Set(statiSelezionabili(prossimo.data ?? {}));
     return ESITI_RAPIDI.filter((s) => validi.has(s));
   }, [prossimo]);
+  /** I quattro in vista (tasti 1…4) e gli altri nel menu «Altro». */
+  const esitiDivisi = useMemo(() => dividiEsiti(esitiProssimo), [esitiProssimo]);
 
   //  ⚠️ Gli hook stanno TUTTI sopra qualunque uscita anticipata: questo è
   //  l'ultimo, e sotto non c'è nessun `return` che lo salti.
@@ -2946,7 +2980,7 @@ function LeadImportatiUnoAllaVolta() {
       //  un campo, quindi la «s» di un cognome non fa più saltare nessuno.
       "/": () => cercaRef.current?.focus(),
       ...Object.fromEntries(
-        esitiProssimo
+        esitiDivisi.inVista
           .slice(0, 9)
           .map((s, i) => [String(i + 1), () => prossimo && void segna(prossimo, s)]),
       ),
@@ -3126,8 +3160,6 @@ function LeadImportatiUnoAllaVolta() {
             Il totale vero non si perde — sta scritto sul filtro «Tutti», che è
             sempre a un colpo d'occhio. */
         inCoda={codaFetta.length}
-        segnate={segnate}
-        saltati={saltati.length}
         saltatiFermi={saltatiFermi}
         //  ⚠️ Il verdetto porta alla lista con lo Stato su «Promesse» e NIENT'ALTRO:
         //   gli altri filtri toglierebbero righe, e il numero N della frase non
@@ -3763,7 +3795,8 @@ function LeadImportatiUnoAllaVolta() {
                 motivo={percheDi.get(prossimo.id) ?? null}
                 modulo={moduloDi(prossimo.data)}
                 annuncio={annuncioScritto(prossimo)}
-                esiti={esitiProssimo}
+                esiti={esitiDivisi.inVista}
+                esitiAltri={esitiDivisi.inAltro}
                 diRitorno={idRitorno.has(prossimo.id)}
                 nomeConsulente={
                   mestieriDelCentro.get(String(prossimo.data?.consulenteId ?? ""))?.nome ?? ""

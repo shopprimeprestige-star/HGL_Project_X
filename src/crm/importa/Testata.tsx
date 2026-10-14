@@ -1,230 +1,102 @@
 /** ── LA TESTATA DI «LEAD IMPORTATI» ────────────────────────────────────────
  *
- *  ── COS'ERA, E PERCHÉ NON FUNZIONAVA ──────────────────────────────────────
- *  Titolo, una riga di spiegazione, CINQUE NUMERI IN FILA tutti disegnati
- *  uguali (in coda · da provare · segnati · richiami scaduti · saltati) e la
- *  ricerca. Il difetto non era il gusto: era che i cinque numeri si leggevano
- *  con la stessa attenzione, e quindi con nessuna. «Richiami scaduti» era rosso,
- *  ma era rosso ACCANTO ad altri quattro numeri della stessa misura, nella
- *  stessa riga, con la stessa etichetta minuscola sotto — a mezzo metro di
- *  distanza, con il telefono all'orecchio, è un numero fra cinque. E i cinque
- *  numeri insieme non rispondevano alla sola domanda che si fa chi apre la
- *  pagina la mattina: SONO IN PARI O SONO IN RITARDO?
+ *  Una fascia sola, tre cose:
+ *   1. L'ALLARME, SOLO QUANDO C'È: «N richiami scaduti: sono in cima», in
+ *      rosso, cliccabile (apre lo Stato «Promesse»). Senza ritardo al suo
+ *      posto c'è il lavoro di adesso: «N da chiamare». ⚠️ È l'unico colore
+ *      della testata: il rosso si vede perché è solo.
+ *   2. IL GIRO: una barra e «X di Y fatti oggi».
+ *   3. LA RICERCA.
+ *  Più la riga dei «messi da parte da troppo», che compare solo quando serve.
  *
- *  ── COM'È FATTA ADESSO, E PERCHÉ ──────────────────────────────────────────
- *  Una fascia sola, e dentro tre livelli di lettura ben diversi fra loro:
+ *  ── COSA C'ERA PRIMA ─────────────────────────────────────────────────────
+ *  Cinque numeri in fila (in coda · da provare · segnati · saltati) più «N di
+ *  M provati in questo giro», e una frase grande sulle promesse anche quando
+ *  non era scaduto niente: ripeteva le prime righe della lista. Tolti su
+ *  richiesta del titolare (14/10: «poche funzioni ma buone»). I saltati restano
+ *  in «In attesa → Messi da parte» e nella riga qui sotto; gli esiti segnati
+ *  nei KPI.
  *
- *   1. IL VERDETTO (il protagonista). Una frase grande che dice se si è in
- *      pari o in ritardo, e un numero solo. Il numero protagonista è quello
- *      delle PROMESSE SCADUTE — i richiami concordati con il cliente e non
- *      ancora fatti — perché è l'unico dei cinque che descriva un DEBITO: gli
- *      altri quattro descrivono una fotografia («ce ne sono 48 in coda» non è
- *      né buono né cattivo, dipende dall'ora del giorno). Un debito, sì: o è
- *      zero, e si è in pari, o non lo è, e c'è qualcuno che aspetta una
- *      telefonata promessa.
- *      Lo SLOT è fisso, il CONTENUTO cambia: a zero diventa verde e dice «Sei
- *      in pari», e il numero grande passa a «quanti ancora da provare in questo
- *      giro» — cioè al lavoro di adesso. Così la posizione più importante della
- *      pagina non è mai occupata da uno zero.
- *      ⚠️ È l'unica cosa colorata della testata. È tutto il meccanismo: il
- *       rosso non si vede perché è più rosso di prima, si vede perché è l'unico
- *       colore in una fascia grigia. Aggiungere qui un secondo colore vuol dire
- *       spegnere questo.
- *
- *   2. LA BARRA DEL GIRO. Quanti ne hai già provati sul totale della coda, come
- *      barra e non come numero: «sono in pari con la giornata?» si legge dalla
- *      lunghezza di una barra in un decimo di secondo, da una frazione no.
- *
- *   3. I NUMERI DI CONTORNO. Gli stessi di prima, ma piccoli, su una riga, in
- *      grigio, e con il nome accanto alla cifra invece che sotto: sono dati da
- *      consultare («quanti ne ho segnati oggi?»), non allarmi. Uno solo può
- *      diventare un pulsante — i saltati — perché è l'unico che nasconde delle
- *      persone; ed è l'unico che può accendersi, in ambra e non in rosso,
- *      quando qualcuno è lì da troppo.
- *
- *  ⚠️ IL NUMERO DEL VERDETTO NON SI CALCOLA QUI, E CONTA LE PROMESSE DELLA
- *   LISTA. Arriva da `contaPromesse` (crm/importa/chi-chiamare) e la frase da
- *   `fraseVerdetto`: «N promesse da mantenere, di cui M scadute: sono in
- *   cima». Premendolo si apre «Da chiamare» con lo Stato su «Promesse», che
- *   mostra ESATTAMENTE N righe (la prova incrocia i due moduli). Prima il
- *   numero veniva da crm/importa/scadenze, che conta anche le note che il
- *   setter si scrive e i saltati, e usa l'ora: «3 richiami scaduti» in cima e
- *   altre righe sotto il dito, cioè un verdetto che si smentisce al primo
- *   tocco. Le note scadute hanno il loro numero in Altro → Note e promemoria.
+ *  ⚠️ Il numero dei richiami scaduti arriva da `contaPromesse`
+ *   (crm/importa/chi-chiamare), lo stesso che conta le righe dello Stato
+ *   «Promesse»: la prova incrocia i due moduli.
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, ChevronRight, Clock, SkipForward } from "lucide-react";
+import { AlertTriangle, ChevronRight, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SALTATO_DA_TROPPO } from "@/crm/importa/saltati";
-import { fraseVerdetto } from "@/crm/importa/chi-chiamare";
-
-/** Un numero di contorno. Piccolo, tabellare, grigio, con l'etichetta ACCANTO:
- *  in colonna (numero sopra, etichetta sotto) occupava l'altezza di una riga
- *  intera a testa ed era esattamente ciò che rendeva i cinque numeri di prima
- *  tutti uguali fra loro. Qui sono un elenco di dati, e si leggono come tali. */
-function Dato({
-  valore,
-  etichetta,
-  titolo,
-  acceso,
-  onClick,
-}: {
-  valore: number;
-  etichetta: string;
-  titolo: string;
-  /** L'unico contorno che può accendersi, e in ambra: vedi l'intestazione. */
-  acceso?: boolean;
-  onClick?: () => void;
-}) {
-  const Elemento = onClick ? "button" : "div";
-  return (
-    <Elemento
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      title={titolo}
-      className={cn(
-        "inline-flex items-baseline gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] transition-colors",
-        acceso ? "text-amber-700" : "text-muted-foreground",
-        onClick && "hover:bg-accent",
-      )}
-    >
-      <span
-        className={cn(
-          "text-[15px] font-semibold tabular-nums",
-          acceso ? "text-amber-700" : "text-foreground",
-        )}
-      >
-        {valore}
-      </span>
-      <span className={cn(onClick && "underline decoration-dotted underline-offset-4")}>
-        {etichetta}
-      </span>
-    </Elemento>
-  );
-}
 
 export function Testata({
   promesse,
   daProvare,
   inCoda,
-  segnate,
-  saltati,
   saltatiFermi,
   onVediPromesse,
   onVediSaltati,
   ricerca,
 }: {
   /** Le promesse della lista «Da chiamare»: quante sono e quante già scadute.
-   *  È il protagonista, e arriva da `contaPromesse`: vedi l'intestazione. */
+   *  Arriva da `contaPromesse`: vedi l'intestazione. */
   promesse: { tutte: number; scadute: number };
   daProvare: number;
   inCoda: number;
-  segnate: number;
-  saltati: number;
   saltatiFermi: number;
   onVediPromesse: () => void;
   onVediSaltati: () => void;
   /** La ricerca resta un pezzo della pagina e non di questo file: è l'unico
-   *  comando della testata che scrive nello stato del giro (chi va in testa
-   *  alla coda), e portarlo qui dentro vorrebbe dire far passare da questo
-   *  componente metà della pagina. */
+   *  comando della testata che scrive nello stato del giro. */
   ricerca: ReactNode;
 }) {
+  /*  ── UN NUMERO SOLO, E L'ALLARME SOLO QUANDO C'È ────────────────────────
+      Richiesta del titolare (14/10): «poche funzioni ma buone». Qui c'erano
+      cinque numeri in fila (in coda · da provare · segnati · saltati) più
+      «N di M provati in questo giro», e una frase grande sulle promesse anche
+      quando non era scaduto niente — che ripeteva le prime righe della lista.
+      Adesso: il rosso compare SOLO con richiami scaduti, e il giro è una barra
+      con una frase. I saltati restano raggiungibili da «In attesa → Messi da parte» e dalla riga
+      dei dimenticati qui sotto, che si accende quando qualcuno è fermo da
+      troppo. */
   const inRitardo = promesse.scadute > 0;
-  const conPromesse = promesse.tutte > 0;
-  /** La frazione del giro. `inCoda` a zero non è «tutto fatto», è «non c'è
-   *  niente»: la barra in quel caso non si disegna, perché una barra piena su
-   *  una coda vuota si legge come una giornata finita che non è mai cominciata. */
-  const provati = Math.max(0, inCoda - daProvare);
-  const percento = inCoda > 0 ? Math.round((provati / inCoda) * 100) : 0;
+  /** `inCoda` a zero non è «tutto fatto», è «non c'è niente»: la barra in quel
+   *  caso non si disegna. */
+  const fatti = Math.max(0, inCoda - daProvare);
+  const percento = inCoda > 0 ? Math.round((fatti / inCoda) * 100) : 0;
 
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-        {/* ── 1. IL VERDETTO ──────────────────────────────────────────────
-            Un blocco solo, cliccabile quando c'è del ritardo: il gesto più
-            probabile dopo aver letto «3 richiami scaduti» è volerli vedere, e
-            costringere a cercare la scheda giusta dopo aver dato l'allarme è
-            il modo migliore per far ignorare l'allarme. */}
-        <button
-          type="button"
-          onClick={conPromesse ? onVediPromesse : undefined}
-          disabled={!conPromesse}
-          className={cn(
-            "flex min-w-0 items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors",
-            conPromesse && "-mx-2",
-            conPromesse && (inRitardo ? "hover:bg-rose-50" : "hover:bg-accent"),
-          )}
-        >
-          <span
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
-              inRitardo
-                ? "bg-rose-600 text-white"
-                : conPromesse
-                  ? "bg-muted text-foreground"
-                  : "bg-emerald-50 text-emerald-600",
-            )}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        {inRitardo ? (
+          <button
+            type="button"
+            onClick={onVediPromesse}
+            className="-mx-2 flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-1 text-left transition-colors hover:bg-rose-50"
           >
-            {inRitardo ? (
-              <AlertTriangle className="h-5 w-5" />
-            ) : conPromesse ? (
-              <Clock className="h-5 w-5" />
-            ) : (
-              <CheckCircle2 className="h-5 w-5" />
-            )}
-          </span>
-          <span className="min-w-0">
-            {conPromesse ? (
-              <span className="flex items-baseline gap-2">
-                <span
-                  className={cn(
-                    "text-[17px] font-semibold leading-tight",
-                    inRitardo ? "text-rose-700" : "text-foreground",
-                  )}
-                >
-                  {fraseVerdetto(promesse)}
-                </span>
-                <ChevronRight
-                  className={cn(
-                    "h-4 w-4 shrink-0 self-center",
-                    inRitardo ? "text-rose-400" : "text-muted-foreground",
-                  )}
-                />
-              </span>
-            ) : (
-              <span className="flex items-baseline gap-2">
-                <span className="text-[30px] font-semibold leading-none tabular-nums text-foreground">
-                  {daProvare}
-                </span>
-                <span className="truncate text-[15px] font-semibold text-foreground">
-                  {daProvare === 1
-                    ? "da provare in questo giro"
-                    : "ancora da provare in questo giro"}
-                </span>
-              </span>
-            )}
-            <span className="mt-1 block text-[12px] text-muted-foreground">
-              {conPromesse
-                ? "Richiami concordati con il cliente: premi per vederli, sono le prime righe della lista"
-                : "Sei in pari: nessuna promessa da mantenere"}
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-600 text-white">
+              <AlertTriangle className="h-4 w-4" />
             </span>
-          </span>
-        </button>
-
+            <span className="text-[15px] font-semibold leading-tight text-rose-700">
+              {promesse.scadute === 1
+                ? "1 richiamo scaduto: è in cima"
+                : `${promesse.scadute} richiami scaduti: sono in cima`}
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-rose-400" />
+          </button>
+        ) : (
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="text-[26px] font-semibold leading-none tabular-nums text-foreground">
+              {daProvare}
+            </span>
+            <span className="truncate text-[15px] font-semibold text-foreground">da chiamare</span>
+          </div>
+        )}
         <div className="min-w-[14rem] flex-1 sm:max-w-sm">{ricerca}</div>
       </div>
 
-      {/* ── 2. LA BARRA DEL GIRO ───────────────────────────────────────────
-          Non è un doppione dei numeri qui sotto: quelli dicono QUANTI, questa
-          dice A CHE PUNTO SEI — ed è la sola delle due letture che si fa senza
-          leggere. Resta grigia anche quando c'è del ritardo: il colore in
-          questa fascia appartiene al verdetto, e basta. */}
       {inCoda > 0 && (
-        <div className="mt-4">
+        <div className="mt-3 flex items-center gap-3">
           <div
-            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
             role="progressbar"
             aria-valuenow={percento}
             aria-valuemin={0}
@@ -236,55 +108,15 @@ export function Testata({
               style={{ width: `${percento}%` }}
             />
           </div>
+          <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
+            {fatti} di {inCoda} fatti oggi
+          </span>
         </div>
       )}
 
-      {/* ── 3. I NUMERI DI CONTORNO ────────────────────────────────────── */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-1 gap-y-1">
-        <Dato
-          valore={inCoda}
-          etichetta="in coda"
-          titolo="I contatti arrivati da una lista con la prima chiamata ancora aperta, più quelli di ritorno del file appena letto. I saltati non ci sono: stanno in «In attesa → Messi da parte»"
-        />
-        <Dato
-          valore={daProvare}
-          etichetta="da provare"
-          titolo="Quanti non hai ancora toccato in QUESTO giro: chi non risponde resta in coda ma non si ripresenta finché non ricominci"
-        />
-        <Dato
-          valore={segnate}
-          etichetta="segnati"
-          titolo="Gli esiti scritti da questa postazione da quando hai aperto la pagina"
-        />
-        {/*  Il quinto numero è un pulsante perché è l'unico che nasconde delle
-            persone: chi è stato messo da parte non lo sta chiamando nessuno, e
-            l'unico modo perché non venga dimenticato è che si arrivi al suo
-            elenco da qui. Si accende solo quando qualcuno è lì da troppo: un
-            salto di stamattina è un gesto normale, uno di quattro giorni fa è
-            una persona persa. */}
-        <Dato
-          valore={saltati}
-          etichetta="saltati"
-          titolo={
-            saltatiFermi > 0
-              ? `Messi da parte e fuori dalla coda: ${saltatiFermi} sono fermi da più di ${SALTATO_DA_TROPPO} giorni. Premi per vederli e rimetterli in coda`
-              : "Messi da parte e fuori dalla coda. Il salto resta anche domani e lo vedono anche gli altri: premi per vederli e rimetterli in coda"
-          }
-          acceso={saltatiFermi > 0}
-          onClick={onVediSaltati}
-        />
-        {inCoda > 0 && (
-          <span className="ml-auto text-[11.5px] text-muted-foreground">
-            {provati} di {inCoda} provati in questo giro
-          </span>
-        )}
-      </div>
-
       {/*  ── I DIMENTICATI, QUANDO CE NE SONO ─────────────────────────────
            Un saltato che nessuno rimette in coda esce dal lavoro in silenzio:
-           non è in coda, non ha un esito, non scade niente. Il numero qui sopra
-           lo conta sempre, ma un numero di contorno si legge di sfuggita;
-           questa riga compare solo quando qualcuno è fermo da troppo e sparisce
+           non è in coda, non ha un esito, non scade niente. Questa riga compare solo quando qualcuno è fermo da troppo e sparisce
            da sola appena la si sistema — così quando c'è vuol dire qualcosa.
            Sta DENTRO la testata e non sotto, come stava prima: era un riquadro
            in più fra il setter e la persona da chiamare, e diceva una cosa che

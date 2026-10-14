@@ -111,28 +111,21 @@ export function inLista(l: LeadLike, adesso: Date, o?: OpzioniChiamata): boolean
    CALDO E FASCIA
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** Lead «caldo» (decisione del titolare): molto o abbastanza infastidito, OPPURE
- *  vuole risolvere ora o sta valutando, OPPURE ha già provato qualcosa. */
+/** Lead «caldo».
+ *  ⚠️ STRETTO APPOSTA (decisione del titolare, 14/10/2026). Con la prima
+ *   regola — fastidio molto/abbastanza, sta valutando, ha già provato — sui
+ *   lead veri erano caldi 240 su 340: una targhetta su sette righe su dieci
+ *   non distingue più nessuno. Adesso è caldo solo chi vuole risolvere ORA o
+ *   ha GIÀ PROVATO qualcosa (ogni risposta tranne «niente»). Il fastidio resta
+ *   scritto sulla riga, ma da solo non basta. */
 export function eCaldo(m?: RisposteModulo): boolean {
   if (!m) return false;
-  return (
-    m.fastidio === "molto" ||
-    m.fastidio === "abbastanza" ||
-    m.urgenza === "subito" ||
-    m.urgenza === "valutando" ||
-    //  ⚠️ «Ha già provato QUALCOSA»: ogni risposta tranne «niente». Così
-    //   tricologia e tricopigmentazione (aggiunte dopo la misura sui lead
-    //   veri) scaldano come trapianto, lozioni e farmaci, e una risposta
-    //   nuova del modulo non resta fredda per una riga dimenticata.
-    (!!m.giaFatto && m.giaFatto !== "niente")
-  );
+  return m.urgenza === "subito" || (!!m.giaFatto && m.giaFatto !== "niente");
 }
 
 /** Perché è caldo, in poche parole: il primo motivo vero. */
 function perchéCaldo(m: RisposteModulo): string {
-  if (m.fastidio === "molto" || m.fastidio === "abbastanza") return `fastidio ${m.fastidio}`;
   if (m.urgenza === "subito") return "vuole risolvere ora";
-  if (m.urgenza === "valutando") return "sta valutando";
   return `ha già provato: ${m.giaFatto}`;
 }
 
@@ -497,4 +490,28 @@ export function tieniInTesta<T extends { id: string }>(righe: T[], fermo: string
   if (!fermo) return righe;
   const i = righe.findIndex((r) => r.id === fermo);
   return i > 0 ? [righe[i], ...righe.slice(0, i), ...righe.slice(i + 1)] : righe;
+}
+
+/** ── QUATTRO ESITI IN VISTA, IL RESTO IN «ALTRO» ───────────────────────────
+ *  Richiesta del titolare (14/10): la pagina della setter deve avere «poche
+ *  funzioni ma buone». Sotto la scheda c'erano fino a nove pulsanti di esito,
+ *  più «Altro stato» e «Salta». In vista restano i quattro che si premono di
+ *  più — non risponde (o irreperibile, sui contatti di ritorno: non compaiono
+ *  mai insieme), richiamo, appuntamento, non interessato — con i tasti 1…4.
+ *  Gli altri esiti validi per QUESTO lead vanno nel menu «Altro», nello stesso
+ *  ordine: nessun esito sparisce, cambia solo dove sta. */
+const ESITI_IN_VISTA = [
+  "non_risponde",
+  "irreperibile",
+  "richiamo",
+  "appuntamento_fissato",
+  "annullato",
+];
+
+export function dividiEsiti<S extends string>(
+  validi: readonly S[],
+): { inVista: S[]; inAltro: S[] } {
+  const inVista = validi.filter((s) => ESITI_IN_VISTA.includes(s));
+  const inAltro = validi.filter((s) => !ESITI_IN_VISTA.includes(s));
+  return { inVista, inAltro };
 }
