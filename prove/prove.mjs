@@ -13393,8 +13393,9 @@ function proveDelCarattere() {
   const css = readFileSync("src/styles.css", "utf8");
   const radice = readFileSync("src/routes/__root.tsx", "utf8");
 
-  /* I due @font-face */
-  const facce = css.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+  /* I due @font-face di Inter. I caratteri della pagina /soluzioni (AntonHGL, InterTightHGL e i loro ripieghi) hanno
+     i @font-face loro e li guarda `prove/sito/soluzioni-media.mjs`: qui si contano solo quelli di InterHGL. */
+  const facce = (css.match(/@font-face\s*\{[^}]*\}/g) ?? []).filter((f) => /font-family:\s*"InterHGL"/.test(f));
   c("esattamente 2 @font-face", 2, facce.length);
   c("tutti e due si chiamano InterHGL", true, facce.every((f) => /font-family:\s*"InterHGL"/.test(f)));
   c("tutti e due con font-display: swap", true, facce.every((f) => /font-display:\s*swap/.test(f)));
