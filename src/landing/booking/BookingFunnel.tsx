@@ -28,6 +28,7 @@ import {
   Phone as PhoneIcon,
 } from "lucide-react";
 import { formatBookingPhrase } from "@/lib/date-format";
+import { numeroNazionale, telefonoDaCampo } from "./telefono";
 import { haptic, sound, setAudioMode, setReverbWet } from "@/hooks/use-haptic";
 import {
   buildJourneySnapshot,
@@ -1592,14 +1593,8 @@ function PhoneField({
   labelCls?: string;
   valid?: boolean;
 }) {
-  // Strip eventuale +39 dall'inizio per visualizzare solo il numero "puro"
-  const stripPrefix = (raw: string) => {
-    let s = raw.replace(/[^\d\s]/g, "").trim();
-    if (s.startsWith("0039")) s = s.slice(4).trim();
-    else if (s.startsWith("39") && s.length > 10) s = s.slice(2).trim();
-    return s;
-  };
-  const display = stripPrefix(value.replace(/^\+39\s?/, ""));
+  // Il +39 è fisso nel campo: qui si mostra solo il numero "puro" (vedi telefono.ts)
+  const display = numeroNazionale(value);
   const showCheck = valid && display.length > 0;
   return (
     <div>
@@ -1620,8 +1615,7 @@ function PhoneField({
             placeholder="333 1234567"
             value={display}
             onChange={(e) => {
-              const cleaned = stripPrefix(e.target.value);
-              onChange(cleaned ? `+39 ${cleaned}` : "");
+              onChange(telefonoDaCampo(e.target.value));
             }}
             className={`h-full w-full text-base text-ink placeholder:text-ink-muted/60 border-0 rounded-none bg-white pl-9 focus-visible:ring-0 focus-visible:ring-offset-0 ${showCheck ? "pr-10" : ""}`}
           />
