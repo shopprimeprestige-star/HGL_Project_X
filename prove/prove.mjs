@@ -18802,6 +18802,92 @@ export { PROBLEMI } from "@/landing/testi-sito";`,
   c("«Bio-Mimetic» resta solo nei modelli Meta", [], restano);
 }
 
+/* ── IL PRIMO EVENTO DI UNA VISITA NON SI PERDE (tracking.ts) ─────────────
+ *  ⚠️ `isAdminLogged()` risponde «sì» per prudenza finché `getSession` non ha
+ *   risposto, e `trackEvent`/`firePixel`/`fireCapi` scartavano tutto in quei
+ *   millisecondi: la prima pagina di ogni visita, cioè quella delle ads, senza
+ *   un solo evento. Ora aspettano la risposta; un amministratore resta fuori.
+ *  Si prova sul file vero, con una Supabase finta che risponde quando decide la
+ *  prova. */
+async function proveDelPrimoEventoDellaVisita() {
+  const esbuild = chiedi("esbuild");
+  gruppo("TRACCIAMENTO: IL PRIMO EVENTO DI UNA VISITA NON SI PERDE");
+  const finta = join(dove, "supabase-finta.js");
+  writeFileSync(
+    finta,
+    `export const supabase = {
+  auth: { getSession: () => new Promise((r) => { globalThis.__sb.risolvi = (admin) => r({ data: { session: admin ? { user: {} } : null } }); }) },
+  from: () => ({ insert: async (x) => { globalThis.__sb.inserti.push(x); return {}; } }),
+};`,
+  );
+  const r = await esbuild.build({
+    entryPoints: [join(radice, "src/landing/booking/tracking.ts")],
+    bundle: true,
+    format: "cjs",
+    platform: "node",
+    write: false,
+    logLevel: "error",
+    alias: { "@/integrations/supabase/client": finta },
+    define: {
+      "import.meta.env.VITE_SUPABASE_URL": '"http://127.0.0.1:9"',
+      "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": '"finta"',
+    },
+  });
+  const scenario = async (nome, { admin, cache, bloccata }) => {
+    const memoria = new Map(cache ? [["lp_admin_skip", cache]] : []);
+    const pixel = [];
+    const ripristina = [];
+    const metti = (k, v) => {
+      ripristina.push([k, Object.getOwnPropertyDescriptor(globalThis, k)]);
+      Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+    };
+    const store = () => ({
+      getItem: (k) => {
+        if (bloccata) throw new Error("SecurityError");
+        return memoria.has(k) ? memoria.get(k) : null;
+      },
+      setItem: (k, v) => void memoria.set(k, String(v)),
+      removeItem: (k) => void memoria.delete(k),
+    });
+    globalThis.__sb = { inserti: [], risolvi: null };
+    metti("window", {
+      location: { href: "https://sito.test/", search: "", pathname: "/", hostname: "sito.test" },
+      sessionStorage: store(),
+      localStorage: store(),
+      fbq: (...a) => pixel.push(a),
+      addEventListener() {},
+      innerWidth: 390,
+    });
+    metti("document", { referrer: "", cookie: "", addEventListener() {} });
+    metti("sessionStorage", globalThis.window.sessionStorage);
+    metti("localStorage", globalThis.window.localStorage);
+    metti("navigator", { userAgent: "Mozilla/5.0 (iPhone) Safari" });
+    const m = { exports: {} };
+    new Function("module", "exports", "require", r.outputFiles[0].text)(m, m.exports, chiedi);
+    const T = m.exports;
+    const prima = T.trackEvent("prova_evento", null, { a: 1 });
+    T.firePixel("PageView", {}, "id1");
+    await new Promise((ok) => setTimeout(ok, 5));
+    const durante = { inserti: globalThis.__sb.inserti.length, pixel: pixel.length };
+    if (globalThis.__sb.risolvi) globalThis.__sb.risolvi(admin);
+    await prima;
+    await new Promise((ok) => setTimeout(ok, 5));
+    const dopo = { inserti: globalThis.__sb.inserti.length, pixel: pixel.length };
+    for (const [k, d] of ripristina.reverse()) d ? Object.defineProperty(globalThis, k, d) : delete globalThis[k];
+    return { nome, durante, dopo };
+  };
+
+  const visitatore = await scenario("visitatore", { admin: false });
+  c("in attesa della risposta non parte niente", { inserti: 0, pixel: 0 }, visitatore.durante);
+  c("risposto «non sei admin»: l'evento e il pixel partono", { inserti: 1, pixel: 1 }, visitatore.dopo);
+  const admin = await scenario("admin", { admin: true });
+  c("risposto «sei admin»: niente evento, niente pixel", { inserti: 0, pixel: 0 }, admin.dopo);
+  const noto = await scenario("noto", { cache: "0" });
+  c("controllo già noto (visita in corso): parte subito", { inserti: 1, pixel: 1 }, noto.durante);
+  const adminNoto = await scenario("adminNoto", { cache: "1" });
+  c("admin già noto: mai niente", { inserti: 0, pixel: 0 }, adminNoto.dopo);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -18855,6 +18941,7 @@ proveDellaFinestraInPosti();
 await proveDeiDuePezzi();
 await proveDeiPostiDelPallino();
 await proveDellaConsulenza();
+await proveDelPrimoEventoDellaVisita();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

@@ -340,6 +340,20 @@ export function isAdminLogged(): boolean {
   return true; // safe default: NON tracciare finché non sappiamo
 }
 
+/** Aspetta l'esito del controllo amministratore se non c'è ancora.
+ *  ⚠️ Al primo caricamento di una visita `isAdminLogged()` dice «sì» per
+ *  prudenza finché `getSession` non risponde, e ogni evento sparato in quei
+ *  millisecondi veniva scartato: proprio la prima pagina, quella delle ads.
+ *  Ora si aspetta la risposta, poi si decide (un amministratore resta escluso). */
+async function attendiAdmin(): Promise<void> {
+  if (typeof window === "undefined" || adminResolved !== null) return;
+  try {
+    await initAdminCheck();
+  } catch {
+    // memoria bloccata: poi decide isAdminLogged
+  }
+}
+
 const firedOnce = new Set<string>();
 
 function markFiredOnce(key: string): boolean {
@@ -355,6 +369,7 @@ export async function trackEvent(
   payload: Record<string, unknown> = {},
   options: { dedupKey?: string } = {},
 ) {
+  await attendiAdmin();
   if (isAdminLogged()) return;
   // Dedup: se viene passata una dedupKey, garantisce 1 invio per sessione
   if (options.dedupKey && !markFiredOnce(`evt:${eventName}:${options.dedupKey}`)) {
@@ -405,6 +420,19 @@ export function firePixel(
   evtId?: string,
   options: { dedupKey?: string; customName?: string } = {},
 ) {
+  if (typeof window !== "undefined" && adminResolved === null) {
+    void attendiAdmin().then(() => emettiPixel(event, params, evtId, options));
+    return;
+  }
+  emettiPixel(event, params, evtId, options);
+}
+
+function emettiPixel(
+  event: "PageView" | "ViewContent" | "AddToCart" | "Lead",
+  params: Record<string, unknown>,
+  evtId: string | undefined,
+  options: { dedupKey?: string; customName?: string },
+) {
   if (isAdminLogged()) return;
   if (options.dedupKey && !markFiredOnce(`px:${event}:${options.dedupKey}`)) {
     return;
@@ -441,6 +469,7 @@ export async function fireCapi(
   customData: { value?: number; currency?: string; content_name?: string } & Record<string, unknown> = {},
 ) {
   if (typeof window === "undefined") return;
+  await attendiAdmin();
   if (isAdminLogged()) return;
   const source = captureSourceData();
   try {
