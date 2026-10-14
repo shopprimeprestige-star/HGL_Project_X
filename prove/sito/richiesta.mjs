@@ -39,6 +39,18 @@ for (const [raw, atteso] of casi) c(`telefonoValido(${JSON.stringify(raw)})`, at
   c("stessa regola di BookingFunnel su tutti gli ingressi", [], diversi);
 }
 
+/* ── telefonoDaInviare: come lo salva il modulo lungo ──────────────────── */
+for (const [raw, atteso] of [
+  ["333 1234567", "+39 333 1234567"],
+  ["+39 333 1234567", "+39 333 1234567"],
+  ["  3331234567 ", "+39 3331234567"],
+  ["0039 333 1234567", "+39 333 1234567"],
+  ["39 333 1234567", "+39 333 1234567"],
+  ["333-123-4567", "+39 3331234567"],
+  ["", ""],
+  ["abc", ""],
+]) c(`telefonoDaInviare(${JSON.stringify(raw)})`, atteso, R.telefonoDaInviare(raw));
+
 /* ── controllaModulo ───────────────────────────────────────────────────── */
 c("tutto vuoto, Protocol → 3 errori con le frasi del Copywriter", {
   nome: "Scrivi il tuo nome.",

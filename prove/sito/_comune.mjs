@@ -1,6 +1,6 @@
 /** Aiuti comuni delle prove del sito: confronto, impacchettamento con esbuild. */
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,7 @@ export const subscribeAdminStatus = (f) => { f(false); return () => {}; };
 export const initHeartbeat = () => () => {};
 export const initLivePresence = () => () => {};
 export const initScrollTracking = () => () => {};
+export const initClickTracking = () => () => {};
 export const initHighQualityVisit = () => () => {};
 export const captureSourceData = () => ({ utm_source: "prova" });
 export const buildJourneySnapshot = () => ({ touch_history: [], touch_count: 0, first_channel: null, last_channel: null, journey_type: "cold_direct", days_to_convert: 0, hours_to_convert: 0 });
@@ -60,8 +61,9 @@ export const detectSource = () => "organic";
 
 /** Impacchetta un file del progetto (alias `@` = src) e lo carica. Il tracking vero e il client Supabase sono sostituiti da finti. */
 export async function carica(sorgenteRel, nome) {
-  const dove = join(tmpdir(), "prove-sito-c");
-  mkdirSync(dove, { recursive: true });
+  //  realpath: su macOS /var è un collegamento a /private/var, e senza esbuild carica il finto due volte.
+  mkdirSync(join(tmpdir(), "prove-sito-c"), { recursive: true });
+  const dove = realpathSync(join(tmpdir(), "prove-sito-c"));
   const trackingFinto = join(dove, "tracking-finto.js");
   writeFileSync(trackingFinto, TRACKING_FINTO);
   const clientFinto = join(dove, "client-finto.js");
