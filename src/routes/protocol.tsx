@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SITO } from "@/seo/regole";
 import { PaginaProtocol } from "@/landing/sito/PaginaProtocol";
-import { TESTI_PROTOCOL } from "@/landing/sito/testi-pagine";
+import { TESTI_PROTOCOL } from "@/landing/testi-sito";
 
 /** /protocol: la pagina che le ads e la home portano alla consulenza. La pagina vera sta in `landing/sito`. */
 export const Route = createFileRoute("/protocol")({

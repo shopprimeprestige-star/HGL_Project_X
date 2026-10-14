@@ -117,8 +117,8 @@ export function usaTracciamentoPagina(pagina: string): void {
 export function usaVariante(): "A" | "B" {
   const [variante, setVariante] = useState<"A" | "B">("A");
   useEffect(() => {
-    //  L'interruttore sta in `testi-sito.ts` (con B8); finché non c'è vale spento.
-    const acceso = (TestiSito.INTERRUTTORI as { testBottone?: boolean }).testBottone === true;
+    //  L'interruttore sta in `testi-sito.ts`: spento di base, acceso = una parola e pubblicare.
+    const acceso: boolean = TestiSito.INTERRUTTORI.testBottone;
     const scelta = varianteBottone(acceso, leggiVariante(), Math.random);
     setVariante(scelta);
     if (acceso) {

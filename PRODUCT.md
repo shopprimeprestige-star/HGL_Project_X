@@ -56,8 +56,8 @@ non è la scelta giusta.
 
 ## Brand Commitments
 
-- Nome: Hair Genius Labs. Prodotto: Invisible Derm (sul sito compare anche «Bio-Mimetic™»: il nome
-  definitivo è ancora da decidere).
+- Nome: Hair Genius Labs. Prodotto: Invisible Derm («Invisible Derm Protocol®» per esteso).
+  «Bio-Mimetic» non si usa più da nessuna parte; il nome sta in `src/landing/testi-sito.ts`.
 - **Stile del marchio da mantenere:** il look attuale (blu «Blueprint», navy, logo Hair Genius) si
   migliora, non si stravolge.
 - Voce: diretta, onesta, concreta; niente promesse mediche né paure esagerate.

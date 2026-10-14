@@ -43,7 +43,7 @@ function impacchetta(sorgente, nome) {
   );
   return createRequire(import.meta.url)(join(dove, `${nome}.cjs`));
 }
-const FILE_TESTI = "src/landing/sito/testi-pagine.ts";
+const FILE_TESTI = "src/landing/testi-sito.ts";
 const FILE_REGOLE = "src/landing/sito/pagine-regole.ts";
 if (!existsSync(join(radice, FILE_TESTI)) || !existsSync(join(radice, FILE_REGOLE))) {
   console.error(`✗ mancano ${FILE_TESTI} o ${FILE_REGOLE}`);
@@ -69,7 +69,7 @@ c("3 passi della consulenza", 3, T.TESTI_PROTOCOL.consulenza.passi.length);
 c("titolo scheda Protocol", "Invisible Derm Protocol® · consulenza gratuita", T.TESTI_PROTOCOL.meta.titolo);
 c("titolo catalogo", "Catalogo", T.TESTI_CATALOGO.titolo);
 c("frase onesta del catalogo", "Il catalogo è in preparazione.", T.TESTI_CATALOGO.testo);
-c("le due carte puntano alle strade nuove", ["/catalogo", "/protocol#modulo"], [T.LINK_CATALOGO, T.LINK_CONSULENZA]);
+c("le due carte puntano a /catalogo e all'ancora della consulenza", ["/catalogo", "/#prenota"], [T.LINK_CATALOGO, T.LINK_CONSULENZA]);
 c("link allo shop di prova", "/shop", T.LINK_SHOP_DI_PROVA);
 
 /* ── 3. INTERRUTTORI: tutti spenti, elenchi vuoti ───────────────────────── */

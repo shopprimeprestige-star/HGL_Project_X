@@ -6,7 +6,7 @@ import { carica, leggi, nuovaProva } from "./_comune.mjs";
 
 const { c, vero, finisci } = nuovaProva("richiesta del modulo corto");
 const R = await carica("src/landing/sito/richiesta.ts", "richiesta");
-const T = await carica("src/landing/sito/testi-modulo-corto.ts", "testi-modulo-corto");
+const T = await carica("src/landing/testi-sito.ts", "testi-sito");
 
 const vuoto = { nome: "", telefono: "", fascia: "", problema: null, problemaAltro: "", consensoWhatsapp: false };
 const ok = { nome: "Prova", telefono: "333 1234567", fascia: "pomeriggio", problema: null, problemaAltro: "", consensoWhatsapp: false };
@@ -151,7 +151,7 @@ c("la casella del consenso non dà mai errori", {}, R.controllaModulo({ ...ok, c
 c("casella non spuntata → nessuna chiave", {}, R.campiConsenso({ ...ok, consensoWhatsapp: false }));
 c("casella spuntata → true + versione", { consenso_whatsapp: true, consenso_whatsapp_versione: T.VERSIONE_CONSENSO_WA }, R.campiConsenso({ ...ok, consensoWhatsapp: true }));
 c("la versione è quella del contratto", "wa-sito-2026-10-14", T.VERSIONE_CONSENSO_WA);
-vero("il testo provvisorio della casella è annotato accanto alla versione", /Ok a ricevere promemoria su WhatsApp/.test(leggi("src/landing/sito/testi-modulo-corto.ts")));
+vero("il testo della casella è annotato accanto alla versione", /Ok a ricevere promemoria su WhatsApp/.test(leggi("src/landing/testi-sito.ts")));
 
 /* ── Differenze ammesse col modulo lungo ───────────────────────────────── */
 c("DIFFERENZE_AMMESSE", [

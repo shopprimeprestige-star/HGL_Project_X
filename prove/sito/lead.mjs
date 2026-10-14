@@ -21,7 +21,7 @@ nuovaFinestra();
 
 const L = await carica("src/landing/booking/lead-comune.ts", "lead-comune");
 const R = await carica("src/landing/sito/richiesta.ts", "richiesta-per-lead");
-const T = await carica("src/landing/sito/testi-modulo-corto.ts", "testi-per-lead");
+const T = await carica("src/landing/testi-sito.ts", "testi-per-lead");
 
 /* ── Client finto ──────────────────────────────────────────────────────── */
 function cliente(risposte = [], rispostaRpc = { data: "fissato", error: null }) {

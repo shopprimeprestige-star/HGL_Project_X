@@ -29,7 +29,7 @@ import {
   INTERRUTTORI,
   NOME_PRODOTTO_ESTESO,
   TESTI_PROTOCOL,
-} from "./testi-pagine";
+} from "@/landing/testi-sito";
 import { traccia, usaTracciamentoPagina, usaVariante } from "./traccia-provvisoria";
 
 type Dove = "testata" | "cose" | "consulenza";

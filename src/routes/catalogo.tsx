@@ -21,7 +21,7 @@ import {
   LINK_CONSULENZA,
   LINK_SHOP_DI_PROVA,
   TESTI_CATALOGO,
-} from "@/landing/sito/testi-pagine";
+} from "@/landing/testi-sito";
 import { traccia, usaTracciamentoPagina, usaVariante } from "@/landing/sito/traccia-provvisoria";
 
 export const Route = createFileRoute("/catalogo")({

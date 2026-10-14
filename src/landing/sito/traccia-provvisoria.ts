@@ -34,7 +34,7 @@ import {
   subscribeAdminStatus,
   trackEvent,
 } from "@/landing/booking/tracking";
-import { INTERRUTTORI } from "./testi-pagine";
+import { INTERRUTTORI } from "@/landing/testi-sito";
 
 export type Variante = "A" | "B";
 

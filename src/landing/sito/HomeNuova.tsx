@@ -39,7 +39,7 @@ import {
   LINK_CATALOGO,
   LINK_CONSULENZA,
   TESTI_HOME,
-} from "./testi-pagine";
+} from "@/landing/testi-sito";
 import { traccia, usaTracciamentoPagina, usaVariante } from "./traccia-provvisoria";
 
 type Dove = "testata" | "percorsi" | "chiusura";

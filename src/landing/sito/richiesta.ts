@@ -6,9 +6,8 @@
  *  ⚠️ Nome e telefono passano solo nel lead. Nel testo libero ("Altro") si tiene
  *  una riga sola di al massimo 120 caratteri, sempre trattata come testo.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { PROBLEMI, type IdProblema } from "@/landing/testi-sito";
+import { PROBLEMI, TESTI_MODULO_CORTO, VERSIONE_CONSENSO_WA, type Fascia, type IdProblema } from "@/landing/testi-sito";
 import { pulisciTesto, type Provenienza, type PuntoIngresso } from "@/landing/consulenza/regole";
-import { TESTI_MODULO_CORTO, VERSIONE_CONSENSO_WA, type Fascia } from "./testi-modulo-corto";
 
 export type PuntoSito = PuntoIngresso | "protocol" | "catalogo" | "blog";
 

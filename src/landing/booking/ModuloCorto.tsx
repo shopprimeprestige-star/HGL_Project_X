@@ -21,7 +21,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { formatBookingPhrase } from "@/lib/date-format";
-import { PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
+import { FASCE, PROBLEMI, TESTI_CONSULENZA, TESTI_MODULO_CORTO as T, type Fascia, type IdProblema } from "@/landing/testi-sito";
 import { EVENTO_SCELTA, leggiScelta } from "@/landing/consulenza/scelta";
 import type { Provenienza } from "@/landing/consulenza/regole";
 import { buildJourneySnapshot, captureSourceData } from "./tracking";
@@ -42,7 +42,6 @@ import { caricaCalendarioSicuro, ProteggiCalendario, type PropsCalendario } from
 import { controllaModulo, telefonoDaInviare, type CampoErrore, type ModuloCortoDati, type PuntoSito } from "@/landing/sito/richiesta";
 import { nomeEventoModulo } from "@/landing/sito/eventi";
 import { traccia, usaVariante } from "@/landing/sito/traccia";
-import { FASCE, TESTI_MODULO_CORTO as T, type Fascia } from "@/landing/sito/testi-modulo-corto";
 
 //  Il calendario: lo stesso di oggi, in modo «solo-calendario» (B7). Caricato solo al tocco,
 //  e se non arriva non rompe la pagina (`calendario-sicuro.tsx`).
