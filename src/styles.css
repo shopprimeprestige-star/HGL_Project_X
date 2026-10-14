@@ -2226,7 +2226,7 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
   }
   .tema-soluzioni .sol-h2-nome {
     font-family: var(--hgl-font-titoli);
-    font-size: clamp(1.375rem, 2.2vw, 2rem);
+    font-size: clamp(1.375rem, 2.23vw, 2rem);
     font-weight: 400;
     font-synthesis: none;
     line-height: 1.05;
@@ -2358,38 +2358,6 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
     text-decoration-color: var(--hgl-elettrico-su-chiaro);
   }
 
-  /* ── I mirini agli angoli della tavola (16 px, dettagli al 50%) ────────── */
-  .tema-soluzioni .brackets::before,
-  .tema-soluzioni .brackets::after,
-  .tema-soluzioni .brackets > .br-tr,
-  .tema-soluzioni .brackets > .br-bl {
-    width: 16px;
-    height: 16px;
-    border-color: rgb(201 214 255 / 50%);
-  }
-  .tema-soluzioni .sol-fondo-chiaro .brackets::before,
-  .tema-soluzioni .sol-fondo-chiaro .brackets::after,
-  .tema-soluzioni .sol-fondo-chiaro .brackets > .br-tr,
-  .tema-soluzioni .sol-fondo-chiaro .brackets > .br-bl {
-    border-color: rgb(10 20 48 / 50%);
-  }
-  .tema-soluzioni .brackets::before {
-    top: 0;
-    left: 0;
-  }
-  .tema-soluzioni .brackets::after {
-    right: 0;
-    bottom: 0;
-  }
-  .tema-soluzioni .brackets > .br-tr {
-    top: 0;
-    right: 0;
-  }
-  .tema-soluzioni .brackets > .br-bl {
-    bottom: 0;
-    left: 0;
-  }
-
   /* ── La spiegazione che si apre sul posto (4.1) ───────────────────────────
      Apertura 240 ms (chiusura 200), il contenuto entra in 180 ms e sale di 8 px.
      Il pannello dice `data-aperto="true|false"`; il corpo sta in `.sol-pannello-interno`. */
@@ -2518,6 +2486,34 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
     height: 18px;
   }
 
+  /* ── Il fuoco dentro i riquadri che tagliano ─────────────────────────────
+     `.sol-video` ha overflow:hidden e la copertina lo riempie: un anello fuori
+     dal bordo verrebbe tagliato. Qui l'anello sta DENTRO. */
+  .tema-soluzioni .sol-copertina:focus-visible,
+  .tema-soluzioni .sol-video-file:focus-visible {
+    outline-offset: -4px;
+  }
+
+  /* ── I comandi del video del titolare ─────────────────────────────────────
+     ⚠️ Più su, tra le regole delle camere della videochiamata, `video::-webkit-media-controls*`
+      è nascosto con `display:none !important` per TUTTI i video, anche con `controls`.
+      Il video del titolare ha l'audio: deve potersi mettere in pausa (WCAG 1.4.2) e
+      muovere da tastiera (2.1.1). Un `!important` dentro un layer batte quello senza layer,
+      quindi basta rimetterli qui, solo per i video di questa pagina. I video della home
+      (`MediaSlot`) restano come oggi (problema noto, nel registro tecnico). */
+  .tema-soluzioni video[controls]::-webkit-media-controls,
+  .tema-soluzioni video[controls]::-webkit-media-controls-enclosure,
+  .tema-soluzioni video[controls]::-webkit-media-controls-panel,
+  .tema-soluzioni video[controls]::-webkit-media-controls-panel-container,
+  .tema-soluzioni video[controls]::-webkit-media-controls-play-button,
+  .tema-soluzioni video[controls]::-webkit-media-controls-overlay-play-button {
+    display: revert !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    -webkit-appearance: auto;
+    appearance: auto;
+  }
+
   /* ── Sul computer (1024 e oltre) ───────────────────────────────────────── */
   @media (min-width: 1024px) {
     .tema-soluzioni .sol-sottotitolo {
@@ -2552,4 +2548,41 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* ── I mirini agli angoli della tavola (16 px, dettagli al 50%) ────────────
+   ⚠️ FUORI da `@layer components`, apposta: il `.brackets` di oggi (più su) non sta
+    in nessun layer, e una regola fuori dai layer vince sempre su una dentro un
+    layer, qualunque sia la specificità. Dentro il tema questi vincono per
+    specificità (`.tema-soluzioni .brackets…` batte `.brackets…`); fuori dal tema
+    la home resta com'è. La prova `soluzioni-disegno.mjs` lo guarda a schermo. */
+.tema-soluzioni .brackets::before,
+.tema-soluzioni .brackets::after,
+.tema-soluzioni .brackets > .br-tr,
+.tema-soluzioni .brackets > .br-bl {
+  width: 16px;
+  height: 16px;
+  border-color: rgb(201 214 255 / 50%);
+}
+.tema-soluzioni .sol-fondo-chiaro .brackets::before,
+.tema-soluzioni .sol-fondo-chiaro .brackets::after,
+.tema-soluzioni .sol-fondo-chiaro .brackets > .br-tr,
+.tema-soluzioni .sol-fondo-chiaro .brackets > .br-bl {
+  border-color: rgb(10 20 48 / 50%);
+}
+.tema-soluzioni .brackets::before {
+  top: 0;
+  left: 0;
+}
+.tema-soluzioni .brackets::after {
+  right: 0;
+  bottom: 0;
+}
+.tema-soluzioni .brackets > .br-tr {
+  top: 0;
+  right: 0;
+}
+.tema-soluzioni .brackets > .br-bl {
+  bottom: 0;
+  left: 0;
 }

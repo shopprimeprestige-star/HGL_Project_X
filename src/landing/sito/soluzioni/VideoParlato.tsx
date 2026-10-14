@@ -40,10 +40,20 @@ export function VideoParlato({
   priorita?: "alta" | "subito" | "pigra";
 }) {
   const rif = useRef<HTMLVideoElement>(null);
+  const copertina = useRef<HTMLButtonElement>(null);
+  //  Il fuoco segue il gesto: se era sulla copertina passa al video, e alla fine torna alla copertina (non va mai perso nel body).
+  const riportaFuoco = useRef(false);
   //  copertina: si vede la poster · avvio: tocco fatto, il primo fotogramma non c'è ancora (la copertina resta, così non c'è un vuoto)
   //  · in-corso: video con controlli nativi · fine: di nuovo la copertina, con «Riguarda»
   const [fase, setFase] = useState<"copertina" | "avvio" | "in-corso" | "fine">("copertina");
   const visto = useRef({ play: false, meta: false });
+
+  useEffect(() => {
+    if (fase === "fine" && riportaFuoco.current) {
+      riportaFuoco.current = false;
+      copertina.current?.focus();
+    }
+  }, [fase]);
 
   //  Se la pagina cambia mentre il video gira, la barra non deve restare nascosta.
   useEffect(() => () => segnaVideo(false), []);
@@ -70,6 +80,13 @@ export function VideoParlato({
     spedisci("video_play", VOCE);
   }
 
+  function alPlaying() {
+    //  La copertina sta per sparire: se ha il fuoco, lo si dà al video prima che si smonti.
+    if (copertina.current && document.activeElement === copertina.current)
+      rif.current?.focus({ preventScroll: true });
+    setFase("in-corso");
+  }
+
   function alTempo() {
     const v = rif.current;
     if (!v || visto.current.meta || !v.duration || v.currentTime / v.duration < 0.5) return;
@@ -82,6 +99,7 @@ export function VideoParlato({
     segnaVideo(false);
     spedisci("video_fine", VOCE);
     const v = rif.current;
+    riportaFuoco.current = !!v && document.activeElement === v;
     if (v) v.currentTime = 0;
     setFase("fine");
   }
@@ -96,16 +114,18 @@ export function VideoParlato({
           src={slot.src}
           preload="none"
           playsInline
+          tabIndex={-1}
           controls={fase === "in-corso"}
           className="sol-video-file"
           onPlay={alPlay}
-          onPlaying={() => setFase("in-corso")}
+          onPlaying={alPlaying}
           onPause={() => segnaVideo(false)}
           onTimeUpdate={alTempo}
           onEnded={allaFine}
         />
         {copertinaVisibile && (
           <button
+            ref={copertina}
             type="button"
             className="sol-copertina"
             aria-label={testi.etichettaPlay}
