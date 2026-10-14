@@ -330,6 +330,7 @@ Palette a due registri: navy profondo con un blu elettrico per le superfici pubb
 ### Semantici
 - **Rosso** destructive oklch(0.6 0.22 27) (CRM oklch(0.58 0.21 27)), **Verde** success oklch(0.62 0.17 152), **Ambra** warning oklch(0.78 0.15 78), **Azzurro** info oklch(0.65 0.14 230).
 - Stato delle trattative nel CRM, da `types.ts` (`LEAD_PHASE_COLOR`): sky "da lavorare", indigo "in corso", ambra "in sospeso", emerald "vinta", rose "persa", slate "chiusa", tutti come tinta al 15% con testo 700 e bordo al 30%.
+- Temperatura del lead (`src/crm/Temperatura.tsx`, commessa 2026-10-14): pallino 8 px + parola sempre scritta. Caldo `orange-600` con testo `orange-700`; Medio `orange-300` con testo `slate-700` (non ambra: nel CRM l'ambra vuol dire «in sospeso»); Freddo `slate-400` con testo `slate-600`. «Nessuna» non si disegna.
 
 ### Named Rules
 **The Un-Solo-Blu Rule.** Tutto il sistema ruota sulla tinta 252, in due luminosita (`brand` sul navy, `brand-scuro` dove serve testo bianco o fondo chiaro). L'arancio non c'e piu: un secondo accento deve avere un ruolo scritto, non essere un'eccezione.

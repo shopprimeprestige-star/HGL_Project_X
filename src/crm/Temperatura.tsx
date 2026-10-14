@@ -24,11 +24,14 @@ import {
 } from "@/crm/temperatura-lead";
 import type { LeadData } from "@/crm/types";
 
-/** Rosso-arancio, ambra, grigio-azzurro: i tre colori della SPEC, niente altro.
+/** Rosso-arancio, arancio chiaro, grigio-azzurro, niente altro.
+ *  ⚠️ MEDIO NON È AMBRA (capo progetto, 14/10, nota del revisore): nel CRM
+ *   l'ambra vuol dire «in sospeso» e il Chip di stato ha già un pallino ambra.
+ *   Pallino arancio chiaro, parola in grigio scuro (lo dice anche DESIGN.md).
  *  I testi 700/600 stanno sopra 4,5:1 sul fondo chiaro del CRM. */
 const STILE: Record<Exclude<LivelloTemperatura, "nessuna">, { pallino: string; testo: string }> = {
   caldo: { pallino: "bg-orange-600", testo: "text-orange-700" },
-  medio: { pallino: "bg-amber-500", testo: "text-amber-700" },
+  medio: { pallino: "bg-orange-300", testo: "text-slate-700" },
   freddo: { pallino: "bg-slate-400", testo: "text-slate-600" },
 };
 

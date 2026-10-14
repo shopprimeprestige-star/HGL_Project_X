@@ -17987,6 +17987,22 @@ export const disegna = (caldo, m, q, senza) =>
     "PRIMA CHIAMATA|mai chiamato|Medio",
     testoDi(targhetta(null, null, false, { fastidio: "molto" })),
   );
+  //  Decisione del capo progetto (14/10, nota del revisore): nel CRM l'ambra
+  //  vuol dire «in sospeso» (e il Chip di stato ha già un pallino ambra), quindi
+  //  Medio è un arancio chiaro con la parola in grigio scuro.
+  const medio = targhetta(null, null, false, { fastidio: "molto" });
+  c("medio: pallino arancio chiaro, non ambra", true, /class="[^"]*bg-orange-300/.test(medio));
+  c(
+    "medio: la parola in grigio scuro",
+    true,
+    /class="font-medium text-slate-700[^"]*"><span aria-hidden/.test(medio),
+  );
+  c("medio: nessuna ambra nel pallino", false, /amber/.test(medio));
+  c(
+    "DESIGN.md dice che Medio non è ambra",
+    true,
+    /Temperatura del lead[^\n]*Medio[^\n]*orange-300/.test(leggi("DESIGN.md")),
+  );
   c(
     "freddo: idem",
     "PRIMA CHIAMATA|mai chiamato|Freddo",
