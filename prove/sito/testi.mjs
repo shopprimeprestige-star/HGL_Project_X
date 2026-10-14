@@ -166,7 +166,7 @@ c("spiegazione: titolo", "Che cos'è Invisible Derm", E.titolo);
 c("spiegazione: prima riga", "Invisible Derm è un sistema di capelli su misura, sottile e naturale, senza chirurgia.", E.primaRiga);
 c("spiegazione: video, pillola · Riguarda · play · testo", ["Te lo spiego in 30 secondi", "Riguarda", "Guarda il video: che cos'è Invisible Derm, con audio", "Leggi il testo del video"], [E.video.pillola, E.video.riguarda, E.video.etichettaPlay, E.video.leggiTesto]);
 c("spiegazione: macro, didascalia", "Da 10 centimetri, alla luce dello studio.", E.macro.didascalia);
-c("spiegazione: macro, tasti (4.3)", ["Ferma il video", "Fai partire il video"], [E.macro.ferma, E.macro.riparti]);
+c("spiegazione: macro, tasti (4.3)", ["Metti in pausa il video", "Fai partire il video"], [E.macro.ferma, E.macro.riparti]);
 c("spiegazione: le tre righe visibili", [
   ["Cos'è.", "Fatto sul tuo colore, sulla tua densità, sulla tua attaccatura."],
   ["Come si mette.", "In studio, senza intervento. La posa dura meno di 2 ore."],
@@ -177,6 +177,7 @@ c("spiegazione: le due righe piccole", [
   ["Solo da noi.", "Invisible Derm lo installiamo in esclusiva, qui a Roma."],
 ], E.piccole.map((r) => [r.titolo, r.testo]));
 c("spiegazione: il passo (bottone, riga, link)", ["Prenota la consulenza gratuita", "La guardi da vicino, senza impegno. Gratis, anche in videochiamata.", "Chiudi la spiegazione"], [E.passo.bottone, E.passo.riga, E.passo.chiudi]);
+c("spiegazione: prefisso dell'anteprima quando manca altro che il video", "Anteprima.", E.anteprima.prefisso);
 c("spiegazione: riga dell'anteprima (4.7)", 'Anteprima: manca il video "Che cos\'è Invisible Derm". La pagina non è online.', E.anteprima.senzaVideo);
 vero("il limite vero contiene la frase ammessa, intera", E.righe[2].testo.includes(FRASI_AMMESSE[0]));
 vero("la riga 5 è la frase ammessa, intera", E.piccole[1].testo === FRASI_AMMESSE[2]);

@@ -2,8 +2,8 @@
  *  `node prove/sito/soluzioni-pagina.mjs`. Disegna sul server i componenti veri (`renderToStaticMarkup`) con una
  *  `VistaSoluzioni` costruita qui, e guarda l'HTML: cosa c'è, cosa non c'è, in che ordine. Il comportamento nel
  *  browser (apertura, fuoco, Esc, barra, foglio) lo prova Playwright in S4.5.
- *  Le parti di S1, S2 e S4 entrano da `ponte.ts` / `ponte-ui.tsx`: qui non si guarda come sono disegnate,
- *  ma solo ciò che decide S3 (struttura, ordine, regole).
+ *  I componenti di S2 e le funzioni di S1 sono quelli veri; S4 (foglio e barra) è ancora un segnaposto in `ponte-s4.tsx`.
+ *  Qui si guarda ciò che decide S3 (struttura, ordine, regole).
  *  ───────────────────────────────────────────────────────────────────────────────────────────────── */
 import { createRequire } from "node:module";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
@@ -110,7 +110,7 @@ import { Testata } from ${rel("src/landing/sito/soluzioni/Testata")};
 import { TavolaSoluzioni } from ${rel("src/landing/sito/soluzioni/TavolaSoluzioni")};
 const no = () => {};
 export const testata = (p) => renderToStaticMarkup(h(Testata, { onPrenota: no, ...p }));
-export const tavola = (p) => renderToStaticMarkup(h(TavolaSoluzioni, { aperta: false, onAlterna: no, onPrenota: no, bottoneRef: { current: null }, cellaRef: { current: null }, ...p }));
+export const tavola = (p) => renderToStaticMarkup(h(TavolaSoluzioni, { aperta: false, onAlterna: no, onPrenota: no, cellaRef: { current: null }, ...p }));
 `,
   );
   const T = await impacchetta(`export * from ${rel("src/landing/testi-sito")};`);
@@ -142,6 +142,8 @@ export const tavola = (p) => renderToStaticMarkup(h(TavolaSoluzioni, { aperta: f
   c("tavola: tre H2 con i nomi in ordine", ["Trapianto", "Patch", "Invisible Derm"], [...v.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map((x) => testoVisibile(x[1])));
   vero("tavola: ogni riga ha la sua riga di testo", S.voci.every((voce, i) => testoVisibile(righe[i]).includes(voce.riga)));
   vero("tavola: il link esteso (::after su tutta la riga) su ogni azione", righe.every((r) => /after:absolute/.test(r) && /after:inset-0/.test(r)));
+  vero("tavola: l'azione non gonfia la riga (min-h-0: l'area di tocco è già la riga)", righe.every((r) => /class="[^"]*\bmin-h-0\b/.test(r)));
+  vero("tavola: un solo «+» nel bottone della cella 03 (lo disegna S2)", conta(righe[2], /<svg/g) === 1);
   vero("tavola: la terza riga è la cella con id=\"invisible-derm\"", /^<li[^>]*id="invisible-derm"/.test(righe[2]) && !/id="invisible-derm"/.test(righe[0] + righe[1]));
   vero("tavola: 01 è un bottone (apre il modulo), senza href", /<button/.test(righe[0]) && !/<a[\s>]/.test(righe[0]) && testoVisibile(righe[0]).includes("Si può fare nel mio caso?"));
   vero("tavola: 02 è un link al catalogo", /<a [^>]*href="\/shop"/.test(righe[1]) && testoVisibile(righe[1]).includes("Patch pronte in stock →"));
@@ -172,13 +174,22 @@ export const tavola = (p) => renderToStaticMarkup(h(TavolaSoluzioni, { aperta: f
   vero("nessuna parola vietata nell'HTML (prezzi, «invisibile», «Indistinguibile», {{ , «da confermare»)", !/€|\binvisibil[ei]/i.test(tutto) && !/Indistinguibil|\{\{|da confermare|Verificato|1326/.test(t + v + testo));
 }
 
+/* ── Niente copie di ciò che ha già S2 (caratteri, fondi, animazione, scala tipografica) ── */
+{
+  const sorgenti = ["Testata", "TavolaSoluzioni", "SpiegazioneInvisible", "PaginaSoluzioni", "stile"].map((f) => leggi(`src/landing/sito/soluzioni/${f}.${f === "stile" ? "ts" : "tsx"}`)).join("\n");
+  vero("niente @font-face né famiglie scritte a mano: i caratteri sono quelli di S2 (sol-h1, sol-h2-*, token --hgl-font-*)", !/AntonHGL|InterTightHGL|font-\[family-name:(?!var\(--hgl-font)/.test(sorgenti));
+  vero("niente fondi o griglie scritti a mano: sol-fondo-notte e sol-fondo-chiaro", !/STILE_NOTTE|STILE_CHIARO|linear-gradient|backgroundImage/.test(sorgenti) && /sol-fondo-notte/.test(sorgenti) && /sol-fondo-chiaro/.test(sorgenti));
+  vero("l'animazione del pannello è sol-pannello (S2)", /sol-pannello"/.test(sorgenti) && !/grid-rows-\[/.test(sorgenti));
+  vero("nessuna copia dei segnaposto dei contratti di S1 e S2 (ponte.ts, ponte-ui.tsx, traccia-soluzioni.ts)", !/from "\.\/ponte"|from "\.\/ponte-ui"|traccia-soluzioni/.test(sorgenti));
+}
+
 /* ═══ S3.2 · LA SPIEGAZIONE «CHE COS'È INVISIBLE DERM?» ═══════════════════════════════════════════ */
 {
   const m = await impacchetta(
     `${PRELUDIO}
 import { SpiegazioneInvisible } from ${rel("src/landing/sito/soluzioni/SpiegazioneInvisible")};
 const no = () => {};
-const stato = (aperta, montata) => ({ aperta, montata, chiudi: no, apri: no, alterna: no, titoloRef: { current: null }, bottoneRef: { current: null }, cellaRef: { current: null } });
+const stato = (aperta, montata) => ({ aperta, montata, istantanea: false, chiudi: no, apri: no, alterna: no, titoloRef: { current: null }, cellaRef: { current: null } });
 export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStaticMarkup(h(SpiegazioneInvisible, { stato: stato(aperta, montata), vista, onPrenota: no, priorita: false, ...extra }));
 `,
   );
@@ -204,12 +215,12 @@ export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStati
   /* ── Aperta dal server (?apri) o dopo il tocco: niente hidden, i media ci sono ── */
   const aperta = m.spiegazione(true, true, PIENA);
   vero("aperta: nessun attributo hidden", !/<section[^>]*\shidden/.test(aperta));
-  vero("aperta: il video del titolare (copertina) e la clip ci sono", aperta.includes("video-poster.webp") && /<video[\s>]/.test(aperta) && aperta.includes("data-src=\"https://progetto.supabase.co/storage/v1/object/public/landing-media/macro.webp\""));
+  vero("aperta: il video del titolare (copertina) e la clip ci sono", aperta.includes("video-poster.webp") && aperta.includes("macro-poster.webp") && conta(aperta, /<video[\s>]/g) === 2 && /class="sol-clip"/.test(aperta));
   vero("aperta: la clip ha la sua descrizione e la didascalia dei testi", aperta.includes(PIENA.macro.alt) && testoVisibile(aperta).includes(E.macro.didascalia));
   vero("aperta: la trascrizione (se c'è) è nell'HTML come testo", testoVisibile(aperta).includes("Le parole dette davvero."));
 
   /* ── L'ordine della 3.2: titolo → prima riga → video → macro → righe → limite → piccole → passo → chiudi ── */
-  const ordine = [E.titolo, E.primaRiga, 'alt="Alt di video"', "<video", E.righe[0].testo, E.righe[1].testo, E.righe[2].testo, E.piccole[0].testo, E.piccole[1].testo, E.passo.bottone, E.passo.riga, E.passo.chiudi];
+  const ordine = [E.titolo, E.primaRiga, 'class="sol-video"', 'class="sol-clip"', E.righe[0].testo, E.righe[1].testo, E.righe[2].testo, E.piccole[0].testo, E.piccole[1].testo, E.passo.bottone, E.passo.riga, E.passo.chiudi];
   const normale = decodifica(aperta);
   const indici = ordine.map((x) => normale.indexOf(x));
   c("ordine: ogni pezzo c'è", [], indici.map((v, i) => (v < 0 ? ordine[i] : null)).filter(Boolean));
@@ -220,8 +231,10 @@ export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStati
     vero("le tre righe hanno un'icona ciascuna (aria-hidden), le due piccole nessuna", conta(righe, /<svg[^>]*aria-hidden="true"/g) === 3 && conta(piccole, /<svg/g) === 0);
   }
   c("passo: il bottone «Prenota la consulenza gratuita» c'è una volta, nel pannello", 1, conta(aperta, new RegExp(E.passo.bottone, "g")));
-  vero("passo: il bordo del bottone blu sul chiaro è #0B5FB0 (mai #0F90FE per il testo)", /<button[^>]*data-ruolo="primario"[^>]*class="[^"]*border-\[var\(--hgl-elettrico-su-chiaro,#0B5FB0\)\]/.test(aperta));
-  vero("«Chiudi la spiegazione» in fondo è un link d'azione (bottone senza href)", /<button[^>]*data-ruolo="link"[^>]*>\s*Chiudi la spiegazione/.test(aperta));
+  //  I colori (bordo #0B5FB0 del blu sul chiaro, testo notte dei link) li dà S2 dentro `.sol-fondo-chiaro`: qui si guarda che la sezione ce l'abbia
+  //  e che il blu e il link stiano dentro; il colore calcolato lo prova il browser (vedi la LAVAGNA).
+  vero("fondo: la spiegazione è `sol-fondo-chiaro` (classe di S2, nessun colore copiato)", /<section[^>]*class="sol-fondo-chiaro[^"]*"/.test(aperta) && !/style="[^"]*background/.test(aperta));
+  vero("passo: il bottone blu e «Chiudi la spiegazione» stanno dentro quel fondo, con i ruoli di S2", /class="sol-btn-primario"/.test(aperta) && /<button[^>]*class="sol-link[^"]*"[^>]*><span>Chiudi la spiegazione<\/span>/.test(aperta));
 
   /* ── Quando manca qualcosa ── */
   const senzaMacro = m.spiegazione(true, true, { ...PIENA, macro: null });
@@ -235,6 +248,8 @@ export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStati
   vero("anteprima senza video: nessun riquadro grigio al posto del video", !/bg-gray|bg-neutral|placeholder/i.test(senzaVideoAnteprima));
   const soloSottotitoli = m.spiegazione(true, true, { ...PIENA, pubblicabile: false, anteprima: true, mancanti: ["sottotitoli"] });
   vero("anteprima con il video ma senza conferma dei sottotitoli: il video si vede e la riga dice cosa manca davvero", soloSottotitoli.includes("video-poster.webp") && /border-dashed/.test(soloSottotitoli) && testoVisibile(soloSottotitoli).includes("manca la conferma dei sottotitoli") && !testoVisibile(soloSottotitoli).includes("manca il video"));
+  const senzaCopertina = m.spiegazione(true, true, { ...PIENA, pubblicabile: false, anteprima: true, mancanti: ["copertina"], video: null });
+  vero("anteprima con il video ma senza copertina: la riga dice la copertina, NON «manca il video» (sarebbe falso)", testoVisibile(senzaCopertina).includes("Anteprima. Non va online: manca la copertina.") && !testoVisibile(senzaCopertina).includes("manca il video"));
   vero("anteprima pubblicabile: nessuna riga tratteggiata", !/border-dashed/.test(m.spiegazione(true, true, { ...PIENA, anteprima: true })));
 
   /* ── Il testo che arriva dal CRM (trascrizione, alt) resta testo: mai HTML ── */
@@ -269,7 +284,8 @@ export const tracciati = () => globalThis.__tracciati;
   c("pagina: un solo <h1> e un solo <main>", [1, 1], [conta(chiusa, /<h1[\s>]/g), conta(chiusa, /<main[\s>]/g)]);
   vero("pagina: il footer sta fuori da <main> (altrimenti non è più il piè di pagina)", chiusa.indexOf("</main>") < chiusa.indexOf("<footer") && chiusa.indexOf("<footer") > 0);
   c("pagina: le sole uscite sono il catalogo (barra + riga 02) e i link legali del footer", ["/cookie-policy", "/privacy-policy", "/shop", "/shop", "/termini-e-condizioni"], hrefs(chiusa).sort());
-  vero("pagina: niente menu, WhatsApp, telefono, email, blog, social", !/<nav|wa\.me|whatsapp|tel:|mailto:|href="\/blog|instagram|facebook/i.test(chiusa));
+  vero("pagina: niente WhatsApp, telefono, email, blog, social", !/wa\.me|whatsapp|tel:|mailto:|href="\/blog|instagram|facebook/i.test(chiusa));
+  c("pagina: l'unico <nav> è quello dei link legali del footer (niente menu)", ['aria-label="Informazioni legali"'], [...chiusa.matchAll(/<nav[^>]*>/g)].map((x) => /aria-label="[^"]*"/.exec(x[0])?.[0]));
   vero("pagina: niente StickyHeader, BarraConsulenza, MediaSlot, PlaceholderBox", !/data-barra-consulenza|placeholder|data-sticky/i.test(chiusa));
   vero("pagina: l'ordine è testata → tavola → spiegazione → footer", (() => { const i = [chiusa.indexOf("<h1"), chiusa.indexOf("<ol"), chiusa.indexOf("<section"), chiusa.indexOf("<footer")]; return i.every((v, k) => v > -1 && (k === 0 || v > i[k - 1])); })());
   c("pagina: la barra delle patch c'è una volta, dal primo disegno (è nell'HTML del server), con la sua etichetta accessibile", 1, conta(chiusa, /Vai al catalogo delle patch pronte in stock/g));
@@ -277,7 +293,7 @@ export const tracciati = () => globalThis.__tracciati;
   c("pagina chiusa: il bottone «Prenota la consulenza gratuita» c'è 3 volte (alto a destra da 1024, sotto la tavola su telefono, nel passo della spiegazione chiusa)", 3, conta(chiusa, /Prenota la consulenza gratuita/g));
   c("pagina: nessuno script d'apertura quando non c'è ?apri", 0, conta(chiusa, /data-scriptonce/g));
   vero("pagina chiusa: la spiegazione è nascosta e senza video", /<section[^>]*id="spiegazione-invisible-derm"[^>]*\shidden=""/.test(chiusa) && !/<video/.test(chiusa));
-  c("pagina chiusa: l'unico <img> nel titolo e nella tavola sono ritratto, logo e tre miniature", 5, conta(chiusa, /<img[\s>]/g));
+  c("pagina chiusa: le immagini sono logo, ritratto, tre miniature e il logo del footer", 6, conta(chiusa, /<img[\s>]/g));
 
   /* ── Aperta dal server (?apri=invisible-derm) ── */
   vero("?apri: il pannello è già aperto nell'HTML (nessun hidden)", /<section[^>]*id="spiegazione-invisible-derm"/.test(aperta) && !/<section[^>]*\shidden/.test(aperta));
@@ -288,6 +304,7 @@ export const tracciati = () => globalThis.__tracciati;
     vero("?apri: UNO script che porta la cella 03 in cima prima del primo disegno", conta(aperta, /data-scriptonce/g) === 1 && script.includes('getElementById("invisible-derm")') && script.includes("scrollIntoView"));
     vero("?apri: lo script sta dopo il pannello (a quel punto la pagina è già abbastanza alta per scorrere)", aperta.indexOf("data-scriptonce") > aperta.indexOf("</section>"));
     vero("?apri: lo script non tocca il fuoco", !/focus\(/.test(script));
+    vero("?apri: lo script scrive anche #invisible-derm (senza, dopo l'idratazione il router rimette la pagina in cima)", script.includes("replaceState") && script.includes("#invisible-derm") && script.includes("location.search"));
   }
 
   /* ── Tracciamento: sul sito sì, nell'anteprima del CRM no ── */
@@ -296,46 +313,25 @@ export const tracciati = () => globalThis.__tracciati;
   m.pagina({ ...PIENA, anteprima: true });
   c("tracciamento: nell'anteprima del CRM i numeri del titolare non sporcano le visite", [], m.tracciati());
 
-  /* ── Anteprima: nemmeno gli eventi della pagina (hanno l'indirizzo con il codice) ── */
-{
-  const w = await impacchetta(
-    `import { tracciaSoluzioni, inAnteprima } from ${rel("src/landing/sito/soluzioni/traccia-soluzioni")};
-export { tracciaSoluzioni, inAnteprima };
-export const spedizioni = () => globalThis.__spedite;`,
-    [[/(^|\/)ponte$/, `export const tracciaSoluzioni = (n, d) => { (globalThis.__spedite ??= []).push([n, d]); };`]],
-  );
-  globalThis.__spedite = [];
-  globalThis.window = { location: { search: "?anteprima=abc" } };
-  w.tracciaSoluzioni("invisible_apri", { origine: "tocco" });
-  c("anteprima: con ?anteprima nell'indirizzo non parte nessun evento", [true, []], [w.inAnteprima(), w.spedizioni()]);
-  globalThis.window = { location: { search: "?utm_source=meta" } };
-  w.tracciaSoluzioni("invisible_apri", { origine: "tocco" });
-  c("sul sito gli eventi partono", [false, [["invisible_apri", { origine: "tocco" }]]], [w.inAnteprima(), w.spedizioni()]);
-  delete globalThis.window;
-}
-
-/* ── Quando manca qualcosa la pagina non si rompe e non ha riquadri grigi ── */
+  /* ── Quando manca qualcosa la pagina non si rompe e non ha riquadri grigi ── */
   const povera = m.pagina({ ...PIENA, ritratto: null, miniature: null, macro: null }, true);
-  c("pagina povera: solo il logo come immagine (la copertina del video è nel pannello)", 1, conta(povera.replace(/<button[^>]*aria-label[\s\S]*?<\/button>/g, ""), /<img[\s>]/g));
+  c("pagina povera: solo i due loghi (testata e footer) come immagini (la copertina del video è nel pannello)", 2, conta(povera.replace(/<button[^>]*aria-label[\s\S]*?<\/button>/g, ""), /<img[\s>]/g));
   vero("pagina povera: ci sono lo stesso titolo, tre righe, spiegazione e bottone", conta(povera, /<h1[\s>]/g) === 1 && conta(povera, /<li[\s>]/g) >= 6 && povera.includes(S.spiegazione.passo.bottone));
   vero("nessuna parola vietata nella pagina intera (prezzi, «invisibile», «Indistinguibile», {{, «da confermare», stelle)", !/€|\binvisibil[ei]/i.test(testoVisibile(chiusa + aperta + povera)) && !/Indistinguibil|\{\{|da confermare|Verificato|1326|★/.test(chiusa + aperta + povera));
 }
 
 /* ── La rotta: cancello, 302, testa, cache ─────────────────────────────────────────────────────── */
 {
-  const PONTE_FINTO = `
-export const VISTA_VUOTA = { pubblicabile: false, anteprima: false, mancanti: ["video","copertina","sottotitoli"], ritratto: null, miniature: null, video: null, macro: null, ogImage: null };
+  const CONTENUTI_FINTO = `
 export const chiamate = { leggi: [], registra: [] };
 export const leggiSoluzioni = async (o) => { chiamate.leggi.push(o); if (globalThis.__leggiLancia) throw new Error("db giù"); return globalThis.__vista; };
-export const registraCancello = (o) => { chiamate.registra.push(o); if (globalThis.__registraLancia) return Promise.reject(new Error("lp_events giù")); return globalThis.__registraMuta ? new Promise(() => {}) : Promise.resolve(); };
-export const destinazioneCancello = (s) => { const t = new URLSearchParams(); new URLSearchParams(s).forEach((v, k) => { if (/^(utm_[a-z0-9_]+|fbclid|gclid|ttclid|ad_id|adset_id|campaign_id)$/i.test(k)) t.append(k, v); }); return t.toString() ? "/?" + t : "/"; };
-export const apriDaRicerca = (s) => !!s && typeof s === "object" && s.apri === "invisible-derm";
+export const registraCancello = (o) => { chiamate.registra.push(o); if (globalThis.__registraLancia) return Promise.reject(new Error("lp_events giù")); return Promise.resolve(); };
 `;
+  //  `regole` (destinazioneCancello, apriDaRicerca, VISTA_VUOTA) è quella vera di S1: la rotta la usa com'è.
   const R = await impacchetta(
-    `export { Route } from ${rel("src/routes/soluzioni")}; export { chiamate } from "@/landing/sito/soluzioni/ponte";`,
+    `export { Route } from ${rel("src/routes/soluzioni")}; export { chiamate } from "@/landing/sito/soluzioni/contenuti";`,
     [
-      [/soluzioni\/ponte$/, PONTE_FINTO],
-      [/soluzioni\/ponte-ui$/, `export const PRECARICA_FONT_SOLUZIONI = [{ rel: "preload", href: "/fonts/anton.woff2", as: "font" }];`],
+      [/soluzioni\/contenuti$/, CONTENUTI_FINTO],
       [/soluzioni\/PaginaSoluzioni$/, `export const PaginaSoluzioni = () => null;`],
     ],
   );
@@ -364,12 +360,6 @@ export const apriDaRicerca = (s) => !!s && typeof s === "object" && s.apri === "
   c("cancello chiuso senza parametri: 302 alla home pulita", { href: "/", statusCode: 302 }, r.redirezione);
   c("senza codice: leggiSoluzioni riceve anteprima undefined", [{ data: { anteprima: undefined } }], R.chiamate.leggi);
 
-  globalThis.__registraMuta = true;
-  const t0 = Date.now();
-  r = await lancia("?utm_source=meta", { utm_source: "meta" });
-  const ms = Date.now() - t0;
-  vero(`cancello chiuso con la registrazione che non risponde: il 302 parte entro ~300 ms (${ms} ms)`, r.redirezione?.statusCode === 302 && ms >= 250 && ms < 1000);
-  globalThis.__registraMuta = false;
   globalThis.__registraLancia = true;
   r = await lancia("?utm_source=meta", { utm_source: "meta" });
   c("cancello chiuso con la registrazione che fallisce: 302 lo stesso, nessuna eccezione", 302, r.redirezione?.statusCode);
@@ -399,8 +389,12 @@ export const apriDaRicerca = (s) => !!s && typeof s === "object" && s.apri === "
   c("testa: con ?apri la descrizione per gli annunci", "Che cos'è Invisible Derm: un sistema di capelli su misura, sottile e naturale, senza chirurgia. Te lo spiega il titolare in 30 secondi.", cerca(t, "name", "description")?.content);
   c("testa: titolo per la condivisione social", "Trapianto, patch o Invisible Derm? Li facciamo tutti e tre.", cerca(t, "property", "og:title")?.content);
   vero("testa: og:image assente se non c'è", !t.meta.some((x) => x.property === "og:image"));
-  t = testa({ ...VUOTA, pubblicabile: true, ogImage: "https://progetto.supabase.co/storage/v1/object/public/landing-media/og.jpg", video: { slot: { src: "", poster: "", alt: "Alt del poster" }, trascrizione: null } });
-  c("testa: og:image dalla vista (e il suo alt)", ["https://progetto.supabase.co/storage/v1/object/public/landing-media/og.jpg", "Alt del poster"], [cerca(t, "property", "og:image")?.content, cerca(t, "property", "og:image:alt")?.content]);
+  const OG = "https://progetto.supabase.co/storage/v1/object/public/landing-media/og.jpg";
+  const conVideo = (poster) => ({ ...VUOTA, pubblicabile: true, ogImage: OG, video: { slot: { src: "", poster, alt: "Alt del poster" }, trascrizione: null } });
+  t = testa(conVideo(OG));
+  c("testa: og:image dalla vista, con l'alt della copertina quando l'immagine è la copertina", [OG, "Alt del poster"], [cerca(t, "property", "og:image")?.content, cerca(t, "property", "og:image:alt")?.content]);
+  t = testa(conVideo("https://progetto.supabase.co/storage/v1/object/public/landing-media/poster.webp"));
+  c("testa: se l'immagine di condivisione NON è la copertina, niente og:image:alt (non è il suo alt)", [OG, undefined], [cerca(t, "property", "og:image")?.content, cerca(t, "property", "og:image:alt")?.content]);
   vero("testa: senza dati della rotta (errore) non lancia", (() => { try { return !!testa(undefined).meta.length; } catch { return false; } })());
 
   /* ── La sorgente: nessun import vietato nella rotta ── */
@@ -411,10 +405,6 @@ export const apriDaRicerca = (s) => !!s && typeof s === "object" && s.apri === "
 
 /* ── L'API dell'anteprima: codice breve per il CRM, mai il token nell'indirizzo ───────────────────── */
 {
-  const PONTE_API = `
-export const nuovoCodice = () => { const codice = (globalThis.__prossimo ?? "N").repeat(32); return { codice, scade: new Date(globalThis.__adesso + 30 * 60000).toISOString() }; };
-export const codiceValido = (salvato, dato, adesso) => !!salvato && typeof dato === "string" && salvato.codice === dato && Date.parse(salvato.scade) > adesso.getTime();
-`;
   const ACCESSO_FINTO = `
 export const guardiaCRM = async (request, cors, permesso) => {
   (globalThis.__guardie ??= []).push(permesso);
@@ -428,7 +418,6 @@ export const supabaseAdmin = {
   }),
 };`;
   const A = await impacchetta(`export { Route } from ${rel("src/routes/api.crm.anteprima-soluzioni")};`, [
-    [/soluzioni\/ponte$/, PONTE_API],
     [/\/api\.crm\.accesso$/, ACCESSO_FINTO],
     [/integrations\/supabase\/client\.server$/, DB_FINTO],
   ]);
@@ -437,10 +426,11 @@ export const supabaseAdmin = {
     const risposta = await gestori[metodo]({ request: new Request("https://sito.test/api/crm/anteprima-soluzioni", { method: metodo, headers: { "X-CRM-Sessione": "x" } }) });
     return { stato: risposta.status, cache: risposta.headers.get("Cache-Control"), corpo: await risposta.json().catch(() => null) };
   };
-  const rimetti = () => { globalThis.__guardie = []; globalThis.__scritture = []; globalThis.__letture = []; globalThis.__riga = null; globalThis.__dbGiu = false; globalThis.__sessione = true; globalThis.__adesso = Date.parse("2026-10-14T20:00:00Z"); globalThis.__prossimo = "A"; };
-  //  La data «adesso» dell'API è quella vera: i codici di prova usano date vere, lontane e vicine.
+  const rimetti = () => { globalThis.__guardie = []; globalThis.__scritture = []; globalThis.__letture = []; globalThis.__riga = null; globalThis.__dbGiu = false; globalThis.__sessione = true; };
   const FRA_UN_MINUTO = new Date(Date.now() + 60_000).toISOString();
   const IERI = new Date(Date.now() - 86_400_000).toISOString();
+  const CODICE_B = "b".repeat(32);
+  const FORMA = /^[0-9a-f]{32}$/;
 
   rimetti();
   globalThis.__sessione = false;
@@ -449,24 +439,23 @@ export const supabaseAdmin = {
   c("api: chiede il permesso della pagina Landing del CRM (marketing)", ["marketing"], globalThis.__guardie);
 
   rimetti();
-  globalThis.__adesso = Date.now();
   r = await chiedi();
-  c("api: con la sessione crea un codice e lo scrive in app_config sotto la chiave unica", [200, true, "A".repeat(32), "app_config", "anteprima-soluzioni", { onConflict: "key" }],
-    [r.stato, r.corpo?.ok, r.corpo?.codice, globalThis.__scritture[0]?.[0], globalThis.__scritture[0]?.[1]?.key, globalThis.__scritture[0]?.[2]]);
-  c("api: nel database c'è lo stesso codice e la scadenza (JSON), non il token di sessione", { codice: "A".repeat(32), scade: r.corpo?.scade }, JSON.parse(globalThis.__scritture[0][1].value));
+  vero("api: con la sessione crea un codice di 32 caratteri esadecimali (crypto, non Math.random)", r.stato === 200 && r.corpo?.ok === true && FORMA.test(r.corpo?.codice));
+  c("api: lo scrive in app_config sotto la chiave unica, con onConflict", ["app_config", "anteprima-soluzioni", { onConflict: "key" }], [globalThis.__scritture[0]?.[0], globalThis.__scritture[0]?.[1]?.key, globalThis.__scritture[0]?.[2]]);
+  c("api: nel database c'è lo stesso codice e la scadenza (JSON), non il token di sessione", { codice: r.corpo?.codice, scade: r.corpo?.scade }, JSON.parse(globalThis.__scritture[0][1].value));
+  vero("api: la scadenza è fra circa 30 minuti", Math.abs(Date.parse(r.corpo?.scade) - Date.now() - 30 * 60_000) < 5_000);
   vero("api: la risposta non si tiene in cache (no-store)", /no-store/.test(r.cache ?? ""));
 
-  globalThis.__riga = { value: JSON.stringify({ codice: "B".repeat(32), scade: FRA_UN_MINUTO }) };
+  globalThis.__riga = { value: JSON.stringify({ codice: CODICE_B, scade: FRA_UN_MINUTO }) };
   globalThis.__scritture = [];
   r = await chiedi();
-  c("api: se c'è già un codice ancora valido lo riusa (titolare e collaboratore non si annullano a vicenda)", [200, "B".repeat(32), 0], [r.stato, r.corpo?.codice, globalThis.__scritture.length]);
+  c("api: se c'è già un codice ancora valido lo riusa (titolare e collaboratore non si annullano a vicenda)", [200, CODICE_B, 0], [r.stato, r.corpo?.codice, globalThis.__scritture.length]);
 
-  globalThis.__riga = { value: JSON.stringify({ codice: "B".repeat(32), scade: IERI }) };
-  globalThis.__adesso = Date.now();
+  globalThis.__riga = { value: JSON.stringify({ codice: CODICE_B, scade: IERI }) };
   r = await chiedi();
-  c("api: un codice scaduto si sostituisce", [200, "A".repeat(32), 1], [r.stato, r.corpo?.codice, globalThis.__scritture.length]);
+  vero("api: un codice scaduto si sostituisce", r.stato === 200 && r.corpo?.codice !== CODICE_B && globalThis.__scritture.length === 1);
 
-  for (const rovinato of ["non è json", "null", "[]", JSON.stringify({ codice: 5 })]) {
+  for (const rovinato of ["non è json", "null", "[]", JSON.stringify({ codice: 5 }), JSON.stringify({ codice: "corto", scade: FRA_UN_MINUTO })]) {
     globalThis.__riga = { value: rovinato };
     globalThis.__scritture = [];
     r = await chiedi();

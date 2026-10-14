@@ -17,13 +17,11 @@
  *  `noindex`, in `PAGINE_NASCOSTE` (seo/regole.ts) e fuori dalla mappa, finché il titolare non dice «pubblica». */
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { PaginaSoluzioni } from "@/landing/sito/soluzioni/PaginaSoluzioni";
-import { apriDaRicerca, destinazioneCancello, leggiSoluzioni, registraCancello, VISTA_VUOTA, type VistaSoluzioni } from "@/landing/sito/soluzioni/ponte";
-import { PRECARICA_FONT_SOLUZIONI } from "@/landing/sito/soluzioni/ponte-ui";
+import { leggiSoluzioni, registraCancello } from "@/landing/sito/soluzioni/contenuti";
+import { PRECARICA_FONT_SOLUZIONI } from "@/landing/sito/soluzioni/font";
+import { apriDaRicerca, destinazioneCancello, VISTA_VUOTA, type VistaSoluzioni } from "@/landing/sito/soluzioni/regole";
 import { TESTI_SOLUZIONI } from "@/landing/testi-sito";
 import { SITO } from "@/seo/regole";
-
-/** La registrazione della visita fermata non ritarda mai il 302 oltre questo tempo. */
-const ATTESA_REGISTRAZIONE_MS = 300;
 
 export const Route = createFileRoute("/soluzioni")({
   loaderDeps: ({ search }) => {
@@ -37,10 +35,8 @@ export const Route = createFileRoute("/soluzioni")({
     const vista = await leggiSoluzioni({ data: { anteprima: deps.anteprima || undefined } }).catch(() => VISTA_VUOTA);
     if (vista.pubblicabile || vista.anteprima) return vista;
     const ricerca = location.searchStr;
-    await Promise.race([
-      Promise.resolve(registraCancello({ data: { search: ricerca } })).catch(() => undefined),
-      new Promise((fine) => setTimeout(fine, ATTESA_REGISTRAZIONE_MS)),
-    ]);
+    //  `registraCancello` aspetta al massimo 300 ms da sé (S1): il 302 non dipende dalla scrittura. Un errore non lo ferma.
+    await Promise.resolve(registraCancello({ data: { search: ricerca } })).catch(() => undefined);
     throw redirect({ href: destinazioneCancello(ricerca), statusCode: 302 });
   },
   head: ({ loaderData, match }) => {
@@ -64,7 +60,8 @@ export const Route = createFileRoute("/soluzioni")({
         ...(immagine
           ? [
               { property: "og:image", content: immagine },
-              ...(loaderData?.video?.slot.alt ? [{ property: "og:image:alt", content: loaderData.video.slot.alt }] : []),
+              //  L'alt è quello della copertina: vale solo quando l'immagine di condivisione è la copertina.
+              ...(loaderData?.video && immagine === loaderData.video.slot.poster ? [{ property: "og:image:alt", content: loaderData.video.slot.alt }] : []),
               { name: "twitter:card", content: "summary_large_image" },
               { name: "twitter:image", content: immagine },
             ]

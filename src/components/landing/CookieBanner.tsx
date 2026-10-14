@@ -3,7 +3,10 @@ import { X } from "lucide-react";
 
 const STORAGE_KEY = "hgl_cookie_consent_v1";
 
-export function CookieBanner() {
+/** `completo` è il banner di sempre (home, shop, blog). `compatto` è quello di `/soluzioni`: una striscia in basso, bassa
+ *  quanto la barra delle patch, senza blu pieno (la schermata ha già il suo) e con «Accetta» e «Rifiuta» dello stesso peso,
+ *  in contorno. Non copre la tavola delle tre soluzioni. */
+export function CookieBanner({ variante = "completo" }: { variante?: "completo" | "compatto" }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -26,6 +29,35 @@ export function CookieBanner() {
   };
 
   if (!visible) return null;
+
+  if (variante === "compatto") {
+    //  Alto 36 da vedere, 44 da toccare (::before): tutta la striscia sta nei ~50 px della barra delle patch.
+    const tasto =
+      "relative h-9 min-w-[64px] shrink-0 rounded-md border border-white/60 px-2.5 text-xs font-semibold uppercase tracking-wider text-white before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] hover:border-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white";
+    return (
+      <div
+        role="dialog"
+        aria-live="polite"
+        aria-label="Preferenze cookie"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-white/20 bg-[#0A1430] px-3 pb-[max(0.375rem,env(safe-area-inset-bottom))] pt-1.5 text-white"
+      >
+        <div className="mx-auto flex max-w-[1200px] items-center gap-2.5">
+          <p className="min-w-0 flex-1 text-[13px] leading-[1.25] text-white/85">
+            Usiamo cookie tecnici e, previo consenso, di analytics.{" "}
+            <a href="/cookie-policy" className="underline">
+              Cookie Policy
+            </a>
+          </p>
+          <button onClick={() => close("accept")} className={tasto}>
+            Accetta
+          </button>
+          <button onClick={() => close("reject")} className={tasto}>
+            Rifiuta
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

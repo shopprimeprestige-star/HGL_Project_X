@@ -13,16 +13,18 @@ import { useCallback, useRef, useState } from "react";
 import { ScriptOnce } from "@tanstack/react-router";
 import { CookieBanner } from "@/components/landing/CookieBanner";
 import { usaTracciamentoPagina } from "@/landing/sito/traccia";
-import type { Interesse, VistaSoluzioni } from "./ponte";
-import { BarraPatch, FoglioModulo, FooterMinimo } from "./ponte-ui";
+import { Footer } from "@/components/landing/Footer";
+import { BarraPatch, FoglioModulo } from "./ponte-s4";
+import type { Interesse, VistaSoluzioni } from "./regole";
 import { SpiegazioneInvisible, usaSpiegazione } from "./SpiegazioneInvisible";
-import { INTER, STILE_NOTTE } from "./stile";
 import { ID_CELLA, TavolaSoluzioni } from "./TavolaSoluzioni";
 import { Testata, type AlPrenotare } from "./Testata";
 
 /** Con `?apri` il server disegna il pannello già aperto; questo porta la cella 03 in cima prima del primo disegno
- *  (scorrimento, non spostamento: nessun salto dopo il caricamento). Il fuoco non si muove. */
-const PORTA_LA_CELLA_IN_CIMA = `(function(){var e=document.getElementById(${JSON.stringify(ID_CELLA)});if(e)e.scrollIntoView({block:"start"})})()`;
+ *  (scorrimento, non spostamento: nessun salto dopo il caricamento). Il fuoco non si muove.
+ *  ⚠️ Scrive anche `#invisible-derm` nell'indirizzo: dopo l'idratazione il router rimette la pagina in cima (`scrollTo(0)`) se
+ *  non c'è nessuna ancora; con l'ancora, invece, fa lui lo `scrollIntoView` della cella. Stessa ancora di quando si apre col tocco. */
+const PORTA_LA_CELLA_IN_CIMA = `(function(){var h=${JSON.stringify(`#${ID_CELLA}`)};try{if(location.hash!==h)history.replaceState(history.state,"",location.pathname+location.search+h)}catch(x){}var e=document.getElementById(${JSON.stringify(ID_CELLA)});if(e)e.scrollIntoView({block:"start"})})()`;
 
 /** Le visite si contano solo sul sito: l'anteprima del CRM non sporca i numeri. */
 function Tracciamento() {
@@ -43,7 +45,7 @@ export function PaginaSoluzioni({ vista, apriDalServer }: { vista: VistaSoluzion
   const chiudiFoglio = useCallback(() => setFoglio((f) => ({ ...f, aperto: false })), []);
 
   return (
-    <div lang="it" className={`tema-soluzioni ${INTER} min-h-screen overflow-x-clip text-white`} style={STILE_NOTTE}>
+    <div lang="it" className="tema-soluzioni sol-fondo-notte min-h-screen overflow-x-clip">
       {vista.anteprima ? null : <Tracciamento />}
       <main>
         <Testata ritratto={vista.ritratto} onPrenota={prenota} />
@@ -52,7 +54,6 @@ export function PaginaSoluzioni({ vista, apriDalServer }: { vista: VistaSoluzion
           aperta={spiegazione.aperta}
           onAlterna={spiegazione.alterna}
           onPrenota={prenota}
-          bottoneRef={spiegazione.bottoneRef}
           cellaRef={spiegazione.cellaRef}
         >
           <SpiegazioneInvisible stato={spiegazione} vista={vista} onPrenota={prenota} priorita={apriDalServer} />
@@ -60,8 +61,8 @@ export function PaginaSoluzioni({ vista, apriDalServer }: { vista: VistaSoluzion
         {apriDalServer ? <ScriptOnce>{PORTA_LA_CELLA_IN_CIMA}</ScriptOnce> : null}
         <div aria-hidden="true" className="h-10 lg:h-14" />
       </main>
-      <FooterMinimo />
-      <CookieBanner />
+      <Footer variante="minimo" />
+      <CookieBanner variante="compatto" />
       <FoglioModulo aperto={foglio.aperto} interesse={foglio.interesse} onChiudi={chiudiFoglio} rientro={rientro} />
       <BarraPatch />
     </div>

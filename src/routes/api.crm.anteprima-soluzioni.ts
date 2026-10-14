@@ -20,7 +20,7 @@
  *  più); serve una scrittura condizionale solo se capita davvero. */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { codiceValido, nuovoCodice } from "@/landing/sito/soluzioni/ponte";
+import { CHIAVE_ANTEPRIMA, codiceDaRiusare, nuovoCodice } from "@/landing/sito/soluzioni/anteprima";
 import { guardiaCRM } from "./api.crm.accesso";
 
 const cors = {
@@ -34,20 +34,6 @@ const json = (o: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
-const CHIAVE = "anteprima-soluzioni";
-
-type Salvato = { codice: string; scade: string };
-
-/** Quello che sta in `app_config`: un JSON `{ codice, scade }`. Qualunque altra cosa vale «niente». */
-function leggiSalvato(valore: unknown): Salvato | null {
-  try {
-    const x = JSON.parse(String(valore ?? "")) as Partial<Salvato> | null;
-    return x && typeof x.codice === "string" && typeof x.scade === "string" ? { codice: x.codice, scade: x.scade } : null;
-  } catch {
-    return null;
-  }
-}
-
 export const Route = createFileRoute("/api/crm/anteprima-soluzioni")({
   server: {
     handlers: {
@@ -58,14 +44,14 @@ export const Route = createFileRoute("/api/crm/anteprima-soluzioni")({
         const g = await guardiaCRM(request, cors, "marketing");
         if (!g.ok) return g.risposta;
         try {
-          const { data } = await supabaseAdmin.from("app_config").select("value").eq("key", CHIAVE).maybeSingle();
-          const salvato = leggiSalvato((data as { value?: string | null } | null)?.value);
-          if (salvato && codiceValido(salvato, salvato.codice, new Date())) return json({ ok: true, ...salvato });
+          const { data } = await supabaseAdmin.from("app_config").select("value").eq("key", CHIAVE_ANTEPRIMA).maybeSingle();
+          const buono = codiceDaRiusare((data as { value?: string | null } | null)?.value, new Date());
+          if (buono) return json({ ok: true, ...buono });
 
           const nuovo = nuovoCodice();
           const { error } = await supabaseAdmin
             .from("app_config")
-            .upsert({ key: CHIAVE, value: JSON.stringify(nuovo), updated_at: new Date().toISOString() } as never, { onConflict: "key" });
+            .upsert({ key: CHIAVE_ANTEPRIMA, value: JSON.stringify(nuovo), updated_at: new Date().toISOString() } as never, { onConflict: "key" });
           if (error) return json({ ok: false, reason: "scrittura" }, 500);
           return json({ ok: true, ...nuovo });
         } catch {

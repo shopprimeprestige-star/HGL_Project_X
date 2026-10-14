@@ -383,7 +383,7 @@ export const TESTI_SOLUZIONI = {
     macro: {
       didascalia: "Da 10 centimetri, alla luce dello studio.",
       /** Tasto pausa/play da 44 px (4.3, WCAG 2.2.2). */
-      ferma: "Ferma il video",
+      ferma: "Metti in pausa il video",
       riparti: "Fai partire il video",
     },
     /** Le tre righe sempre visibili. «Il limite vero» sta prima del bottone (Neuromarketing 7-8). */
@@ -412,6 +412,7 @@ export const TESTI_SOLUZIONI = {
     },
     /** Solo nell'anteprima del CRM, mai sul sito (4.7). */
     anteprima: {
+      prefisso: "Anteprima.",
       senzaVideo: `Anteprima: manca il video "Che cos'è ${NOME_PRODOTTO}". La pagina non è online.`,
     },
   },

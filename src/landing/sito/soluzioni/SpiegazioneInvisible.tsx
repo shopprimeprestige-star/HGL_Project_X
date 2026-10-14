@@ -4,17 +4,20 @@
  *  Si apre dal bottone della cella 03 (animazione di 240 ms), da `?apri=invisible-derm` (il server lo disegna già
  *  aperto), da `#invisible-derm` e dalla ricerca nella pagina (`beforematch`): questi ultimi senza animazione.
  *  Aprire scrive `#invisible-derm` con `replaceState` (nessuna voce nuova nella cronologia); chiudere lo toglie.
+ *  Fondo, caratteri, animazione (`sol-pannello`) e colori dei link sono le classi di S2: nessuna copia qui.
  *  La macchina dell'apertura sta nel gancio `usaSpiegazione`, perché la comandano due pezzi: il bottone nella
  *  cella 03 (in `TavolaSoluzioni`) e il pannello qui sotto. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Clock, Ruler, Wrench } from "lucide-react";
+import { traccia } from "@/landing/sito/traccia";
 import { TESTI_SOLUZIONI as T } from "@/landing/testi-sito";
-import { fraseSemaforo, type VistaSoluzioni } from "./ponte";
-import { BottonePrimario, ClipLoop, LinkAzione, VideoParlato } from "./ponte-ui";
+import { BottonePrimario, LinkAzione } from "./Azioni";
+import { fraseSemaforo } from "./cancello";
+import { ClipLoop } from "./ClipLoop";
+import type { VistaSoluzioni } from "./regole";
 import { segnaVideo } from "./stato-pagina";
-import { tracciaSoluzioni } from "./traccia-soluzioni";
-import { ANTON, INTER, STILE_CHIARO } from "./stile";
 import { ID_CELLA, ID_SPIEGAZIONE } from "./TavolaSoluzioni";
+import { VideoParlato } from "./VideoParlato";
 import type { AlPrenotare } from "./Testata";
 
 export const ID_TITOLO = "titolo-invisible-derm";
@@ -26,10 +29,11 @@ export interface StatoSpiegazione {
   aperta: boolean;
   /** Il pannello è disegnato (senza `hidden`): resta così fino alla fine dell'animazione di chiusura. */
   montata: boolean;
+  /** Apertura da link o dalla ricerca: nessuna transizione (il pannello si vede già aperto). */
+  istantanea: boolean;
   apri: (origine: OrigineApertura, animato?: boolean) => void;
   chiudi: () => void;
   alterna: () => void;
-  bottoneRef: RefObject<HTMLElement | null>;
   cellaRef: RefObject<HTMLLIElement | null>;
   titoloRef: RefObject<HTMLHeadingElement | null>;
 }
@@ -50,46 +54,66 @@ function scriviAncora(presente: boolean) {
 export function usaSpiegazione(apertaDalServer: boolean): StatoSpiegazione {
   const [aperta, setAperta] = useState(apertaDalServer);
   const [montata, setMontata] = useState(apertaDalServer);
+  const [istantanea, setIstantanea] = useState(false);
   //  Lo stato «logico» cambia subito; quello che si vede (`aperta`) dopo un disegno, per far partire l'animazione.
   const logica = useRef(apertaDalServer);
-  const bottoneRef = useRef<HTMLElement>(null);
   const cellaRef = useRef<HTMLLIElement>(null);
   const titoloRef = useRef<HTMLHeadingElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const contataDalServer = useRef(false);
+  const scorriAlTitolo = useRef<OrigineApertura | null>(null);
 
   const apri = useCallback((origine: OrigineApertura, animato = true) => {
     if (logica.current) return;
     logica.current = true;
     clearTimeout(timer.current);
     const senzaMoto = !animato || ridotto();
+    setIstantanea(!animato);
     setMontata(true);
     if (senzaMoto) setAperta(true);
     else requestAnimationFrame(() => requestAnimationFrame(() => setAperta(true)));
     scriviAncora(true);
-    tracciaSoluzioni("invisible_apri", { origine });
+    traccia("invisible_apri", { origine });
     //  Dalla ricerca nella pagina il browser ha già portato a schermo il testo trovato: non si sposta niente.
     if (origine === "ricerca") return;
-    timer.current = setTimeout(() => {
-      const titolo = titoloRef.current;
-      if (!titolo) return;
-      titolo.scrollIntoView({ block: "start", behavior: senzaMoto ? "auto" : "smooth" });
-      //  Il fuoco va al titolo solo se è stata una persona ad aprire; da un link la pagina non si muove da sola.
-      if (origine === "tocco") titolo.focus({ preventScroll: true });
-    //  240 ms di animazione + i due disegni prima che parta: scorrere prima della fine si fermerebbe a metà (la pagina è ancora bassa).
-    }, senzaMoto ? 0 : 320);
+    //  Senza animazione: lo scorrimento lo fa l'effetto qui sotto, appena il pannello già aperto è nel DOM (un timer qui sarebbe
+    //  una corsa col disegno di React). Con l'animazione: 240 ms + i due disegni prima che parta (scorrere prima si fermerebbe a metà).
+    if (senzaMoto) {
+      scorriAlTitolo.current = origine;
+    } else {
+      timer.current = setTimeout(() => {
+        const titolo = titoloRef.current;
+        if (!titolo) return;
+        titolo.scrollIntoView({ block: "start", behavior: "smooth" });
+        //  Il fuoco va al titolo solo se è stata una persona ad aprire; da un link la pagina non si muove da sola.
+        if (origine === "tocco") titolo.focus({ preventScroll: true });
+      }, 320);
+    }
   }, []);
+
+  //  Aperta senza animazione (da `#invisible-derm`, o con «riduci movimento»): subito dopo il disegno il titolo va in cima.
+  useLayoutEffect(() => {
+    const origine = scorriAlTitolo.current;
+    if (!origine || !aperta || !montata) return;
+    scorriAlTitolo.current = null;
+    const titolo = titoloRef.current;
+    if (!titolo) return;
+    titolo.scrollIntoView({ block: "start", behavior: "auto" });
+    if (origine === "tocco") titolo.focus({ preventScroll: true });
+  }, [aperta, montata]);
 
   const chiudi = useCallback(() => {
     if (!logica.current) return;
     logica.current = false;
     clearTimeout(timer.current);
     const senzaMoto = ridotto();
+    setIstantanea(false);
     setAperta(false);
     //  Se il video girava, la barra delle patch deve tornare anche se il video si smonta senza dirlo.
     segnaVideo(false);
     scriviAncora(false);
-    bottoneRef.current?.focus({ preventScroll: true });
+    //  Il fuoco torna al bottone della cella 03 (lo disegna `BottoneContorno`: lo si trova dalla cella).
+    cellaRef.current?.querySelector<HTMLElement>("[aria-controls]")?.focus({ preventScroll: true });
     timer.current = setTimeout(
       () => {
         setMontata(false);
@@ -106,7 +130,7 @@ export function usaSpiegazione(apertaDalServer: boolean): StatoSpiegazione {
     if (apertaDalServer) {
       if (!contataDalServer.current) {
         contataDalServer.current = true;
-        tracciaSoluzioni("invisible_apri", { origine: "link" });
+        traccia("invisible_apri", { origine: "link" });
       }
     } else if (window.location.hash === HASH) {
       apri("link", false);
@@ -121,16 +145,19 @@ export function usaSpiegazione(apertaDalServer: boolean): StatoSpiegazione {
     };
   }, [apri, apertaDalServer]);
 
-  return { aperta, montata, apri, chiudi, alterna, bottoneRef, cellaRef, titoloRef };
+  return { aperta, montata, istantanea, apri, chiudi, alterna, cellaRef, titoloRef };
 }
 
 /** La riga a contorno tratteggiato dell'anteprima del CRM. Mai sul sito. */
 function RigaAnteprima({ children }: { children: ReactNode }) {
   return (
-    <p className={`${INTER} rounded-lg border-2 border-dashed border-[var(--hgl-elettrico-su-chiaro,#0B5FB0)] p-4 text-[15px] font-medium leading-snug text-[var(--hgl-notte,#0A1430)]`}>
-      {children}
-    </p>
+    <p className="sol-riga rounded-lg border-2 border-dashed border-[var(--hgl-elettrico-su-chiaro)] p-4 font-medium text-[var(--hgl-notte)]">{children}</p>
   );
+}
+
+/** Cosa dice la riga dell'anteprima: il testo della 4.7 solo se manca davvero il video, altrimenti ciò che manca. */
+function frasePerAnteprima(mancanti: VistaSoluzioni["mancanti"]): string {
+  return mancanti.includes("video") ? E.anteprima.senzaVideo : `${E.anteprima.prefisso} ${fraseSemaforo(mancanti)}.`;
 }
 
 const ICONE = { cose: Ruler, come: Clock, limite: Wrench } as const;
@@ -148,7 +175,7 @@ export function SpiegazioneInvisible({
   /** Aperta dal server: la copertina del video si carica subito. */
   priorita: boolean;
 }) {
-  const { aperta, montata, apri, chiudi, titoloRef } = stato;
+  const { aperta, montata, istantanea, apri, chiudi, titoloRef } = stato;
   const sezione = useRef<HTMLElement>(null);
 
   //  La ricerca nella pagina trova il testo nel pannello chiuso: il browser lo scopre e ci avvisa con `beforematch`.
@@ -176,6 +203,8 @@ export function SpiegazioneInvisible({
 
   const conMacro = !!vista.macro;
   const rigaAnteprima = vista.anteprima && !vista.pubblicabile;
+  //  Aperto da link o dalla ricerca: niente transizione (altrimenti il titolo si riallinea mentre il pannello cresce).
+  const senzaTransizione = istantanea ? { transition: "none" } : undefined;
 
   return (
     <section
@@ -184,30 +213,21 @@ export function SpiegazioneInvisible({
       aria-labelledby={ID_TITOLO}
       hidden={!montata}
       onKeyDown={suTasto}
-      style={STILE_CHIARO}
-      className={`${INTER} relative -mx-5 text-[var(--hgl-notte,#0A1430)] lg:mx-0`}
+      className="sol-fondo-chiaro relative -mx-5 lg:mx-0"
     >
       {/* Il triangolo che lega il foglio alla sua cella (la 03 è la terza colonna): solo da 1024. */}
       <span
         aria-hidden="true"
-        className="absolute -top-2 left-[calc(100%*5/6-8px)] hidden size-0 border-x-8 border-b-8 border-x-transparent border-b-[var(--hgl-chiaro,#EEF2FF)] lg:block"
+        className="absolute -top-2 left-[calc(100%*5/6-8px)] hidden size-0 border-x-8 border-b-8 border-x-transparent border-b-[var(--hgl-chiaro)] lg:block"
       />
-      <div
-        className={`grid ease-[cubic-bezier(0.2,0.8,0.2,1)] transition-[grid-template-rows] motion-reduce:transition-none ${
-          aperta ? "grid-rows-[1fr] duration-[240ms]" : "grid-rows-[0fr] duration-200"
-        }`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div
-            className={`px-5 pb-10 pt-8 transition-[opacity,transform] motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none lg:grid lg:grid-cols-12 lg:gap-x-10 lg:px-8 lg:py-10 ${
-              aperta ? "translate-y-0 opacity-100 duration-[180ms]" : "translate-y-2 opacity-0 duration-150"
-            }`}
-          >
+      <div className="sol-pannello" data-aperto={aperta ? "true" : "false"} style={senzaTransizione}>
+        <div className="sol-pannello-interno" style={senzaTransizione}>
+          <div className="px-5 pb-10 pt-8 lg:grid lg:grid-cols-12 lg:gap-x-10 lg:px-8 lg:py-10">
             <h2
               ref={titoloRef}
               id={ID_TITOLO}
               tabIndex={-1}
-              className={`${ANTON} scroll-mt-4 text-[28px] leading-none lg:col-span-7 lg:col-start-6 lg:row-start-1 lg:scroll-mt-[60px] lg:text-[44px]`}
+              className="sol-h2-spiegazione scroll-mt-4 lg:col-span-7 lg:col-start-6 lg:row-start-1 lg:scroll-mt-[60px]"
             >
               {E.titolo}
             </h2>
@@ -215,10 +235,16 @@ export function SpiegazioneInvisible({
 
             {/* Il video del titolare (4:5). Chiuso, non c'è: nessun file si scarica prima del tocco sul bottone. */}
             <div className="mt-6 space-y-3 lg:col-span-5 lg:col-start-1 lg:row-span-4 lg:row-start-1 lg:mt-0">
-              {rigaAnteprima && vista.video ? <RigaAnteprima>{`Anteprima. ${fraseSemaforo(vista.mancanti)}.`}</RigaAnteprima> : null}
-              {!vista.video && vista.anteprima ? <RigaAnteprima>{E.anteprima.senzaVideo}</RigaAnteprima> : null}
+              {rigaAnteprima && vista.video ? <RigaAnteprima>{frasePerAnteprima(vista.mancanti)}</RigaAnteprima> : null}
+              {!vista.video && vista.anteprima ? <RigaAnteprima>{frasePerAnteprima(vista.mancanti)}</RigaAnteprima> : null}
               {montata && vista.video ? (
-                <VideoParlato slot={vista.video.slot} formato="4:5" testi={E.video} trascrizione={vista.video.trascrizione} priorita={priorita} />
+                <VideoParlato
+                  slot={vista.video.slot}
+                  formato="4:5"
+                  testi={E.video}
+                  trascrizione={vista.video.trascrizione}
+                  priorita={priorita ? "subito" : "pigra"}
+                />
               ) : null}
             </div>
 
@@ -241,21 +267,18 @@ export function SpiegazioneInvisible({
                     const Icona = ICONE[r.id as keyof typeof ICONE];
                     const limite = r.id === "limite";
                     return (
-                      <li
-                        key={r.id}
-                        className={`flex gap-3 ${limite ? "border-l-2 border-[var(--hgl-notte,#0A1430)] bg-[var(--hgl-carta,#FFFFFF)] py-3 pl-4 pr-3" : ""}`}
-                      >
-                        <Icona aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--hgl-elettrico-su-chiaro,#0B5FB0)]" />
-                        <p className="text-[17px] leading-[1.55] lg:text-lg">
+                      <li key={r.id} className={`flex gap-3 ${limite ? "border-l-2 border-[var(--hgl-notte)] bg-[var(--hgl-carta)] py-3 pl-4 pr-3" : ""}`}>
+                        <Icona aria-hidden="true" className="sol-icona mt-0.5 size-5 shrink-0" />
+                        <p className="sol-testo">
                           <strong className="font-semibold">{r.titolo}</strong> {r.testo}
                         </p>
                       </li>
                     );
                   })}
                 </ul>
-                <ul className="mt-5 space-y-3 border-t border-[var(--hgl-notte,#0A1430)]/15 pt-4">
+                <ul className="mt-5 space-y-3 border-t border-[var(--hgl-notte)]/15 pt-4">
                   {E.piccole.map((r) => (
-                    <li key={r.id} className="text-[15px] leading-[1.5]">
+                    <li key={r.id} className="sol-riga">
                       <strong className="font-semibold">{r.titolo}</strong> {r.testo}
                     </li>
                   ))}
@@ -265,17 +288,9 @@ export function SpiegazioneInvisible({
 
             {/* Il passo: dopo il limite, mai prima. Il bottone blu qui sostituisce quello sotto la tavola. */}
             <div className="mt-8 lg:col-span-7 lg:col-start-6 lg:row-start-4 lg:mt-6">
-              <BottonePrimario
-                onClick={(e) => onPrenota("invisible-derm", e.currentTarget)}
-                className="w-full border border-[var(--hgl-elettrico-su-chiaro,#0B5FB0)] lg:w-[360px]"
-              >
-                {E.passo.bottone}
-              </BottonePrimario>
-              <p className="mt-3 text-sm font-medium leading-snug">{E.passo.riga}</p>
-              <LinkAzione
-                onClick={chiudi}
-                className="mt-4 inline-flex min-h-11 items-center text-base font-semibold underline decoration-2 underline-offset-4 decoration-[var(--hgl-elettrico-su-chiaro,#0B5FB0)]"
-              >
+              <BottonePrimario onClick={(e) => onPrenota("invisible-derm", e.currentTarget)}>{E.passo.bottone}</BottonePrimario>
+              <p className="sol-didascalia mt-3">{E.passo.riga}</p>
+              <LinkAzione onClick={chiudi} className="mt-4">
                 {E.passo.chiudi}
               </LinkAzione>
             </div>
