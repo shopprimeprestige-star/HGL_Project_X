@@ -469,6 +469,9 @@ const MODULI = [
   //   questa regola sbaglia per eccesso, il carattere cambia in chiamata
   //   davanti al cliente.
   "lib/carattere",
+  //  ⚠️ La temperatura del lead (Caldo/Medio/Freddo): una regola sola per
+  //   «Oggi», Lead importati e la scheda. Vedi proveDellaTemperatura.
+  "temperatura-lead",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -678,6 +681,7 @@ const ICS = mod["installazioni-csv"];
 const GR = mod["webinar/griglia"];
 const MI = mod["webinar/messaggio-invito"];
 const SP = mod["webinar/segui-parole"];
+const TEMP = mod["temperatura-lead"];
 
 /** ── LA VALIDAZIONE CONTRO LO SCHEMA ──────────────────────────────────────
  *  Torna `"ok"`, oppure il motivo per cui lo SDI lo scarterebbe. Se sul
@@ -17445,6 +17449,109 @@ function proveDeiQuattroEsiti() {
   c("il menu «Altro» degli esiti è di Radix (i tasti tacciono dentro)", true, /<DropdownMenuItem key=\{s\} onSelect=\{\(\) => onEsito\(s\)\}/.test(pagina));
 }
 
+/** ── OGGI CON LA TEMPERATURA E LA SETTER (commessa 2026-10-14) ──────────────
+ *  Il consulente legge dalla riga com'è messo il cliente (Caldo/Medio/Freddo);
+ *  la setter vede «Oggi» in sola lettura con i posti liberi per giorno. Le
+ *  regole sono pure e stanno qui sotto; le pagine si provano sul sorgente. */
+
+/** La temperatura: una funzione sola, così lo stesso lead ha lo stesso livello
+ *  in «Oggi», in Lead importati e nella scheda. Vedi crm/temperatura-lead. */
+function proveDellaTemperatura() {
+  const { temperaturaLead, risposteBrevi, mostraTemperatura, temperaturaDi } = TEMP;
+  const { eCaldo } = CHIAM;
+  gruppo("LA TEMPERATURA DEL LEAD (MODULO)");
+  const casi = [
+    ["caldo", { urgenza: "subito" }],
+    ["caldo", { giaFatto: "farmaci" }],
+    ["caldo", { giaFatto: "farmaci", fastidio: "perNiente" }],
+    ["medio", { fastidio: "molto" }],
+    ["medio", { fastidio: "abbastanza" }],
+    ["medio", { urgenza: "valutando" }],
+    ["medio", { fastidio: "molto", giaFatto: "niente" }],
+    ["freddo", { fastidio: "poco" }],
+    ["freddo", { giaFatto: "niente" }],
+    ["freddo", { urgenza: "informativo" }],
+    ["freddo", { fastidio: "perNiente", giaFatto: "niente" }],
+    ["nessuna", undefined],
+    ["nessuna", {}],
+    ["nessuna", { zona: "nord", quando: "mattina" }],
+    ["nessuna", { problema: "diradamento" }],
+    ["nessuna", { conoscenza: "segue" }],
+    ["nessuna", { fastidio: "boh" }],
+    ["nessuna", { urgenza: "boh" }],
+  ];
+  const PAROLA = { caldo: "Caldo", medio: "Medio", freddo: "Freddo", nessuna: "" };
+  for (const [livello, m] of casi) {
+    const t = temperaturaLead(m);
+    const nome = JSON.stringify(m ?? null);
+    c(`${nome} → ${livello}`, livello, t.livello);
+    c(`${nome}: eCaldo dice lo stesso`, eCaldo(m), t.livello === "caldo");
+    c(`${nome}: la parola`, PAROLA[livello], t.parola);
+    c(`${nome}: la fonte`, livello === "nessuna" ? null : "modulo", t.fonte);
+    if (livello === "nessuna") c(`${nome}: nessun perché`, "", t.perche);
+    else c(`${nome}: un perché scritto`, true, t.perche.length > 0);
+  }
+  c("il perché dice la risposta che ha deciso", "vuole risolvere ora", temperaturaLead({ urgenza: "subito", giaFatto: "farmaci" }).perche);
+
+  gruppo("LA TEMPERATURA DAL QUIZ DEL SITO (RIPIEGO)");
+  const quiz = [
+    ["caldo", { urgenza: "subito" }],
+    ["caldo", { urgenza: "si" }],
+    ["caldo", { urgenza: "convince" }],
+    ["medio", { disagio: 7 }],
+    ["medio", { disagio: "8" }],
+    ["medio", { urgenza: "1mese" }],
+    ["medio", { urgenza: "valuto" }],
+    ["medio", { urgenza: "valutando" }],
+    ["freddo", { disagio: 6 }],
+    ["freddo", { urgenza: "2_3mesi" }],
+    ["nessuna", { disagio: 0 }],
+    ["nessuna", { painPoints: ["x"] }],
+    ["nessuna", null],
+  ];
+  for (const [livello, q] of quiz) {
+    const t = temperaturaLead(undefined, q);
+    const nome = `quiz ${JSON.stringify(q)}`;
+    c(`${nome} → ${livello}`, livello, t.livello);
+    c(`${nome}: la fonte`, livello === "nessuna" ? null : "sito", t.fonte);
+  }
+  c("il perché del quiz dice da dove viene", true, temperaturaLead(undefined, { urgenza: "subito" }).perche.startsWith("dal quiz del sito: "));
+  const precedenza = temperaturaLead({ fastidio: "poco" }, { urgenza: "subito" });
+  c("il modulo vince sul quiz: freddo", "freddo", precedenza.livello);
+  c("…e la fonte è il modulo", "modulo", precedenza.fonte);
+  const ripiego = temperaturaLead({ zona: "nord" }, { urgenza: "subito" });
+  c("modulo muto sulla temperatura: decide il quiz", "caldo", ripiego.livello);
+  c("…e la fonte è il sito", "sito", ripiego.fonte);
+  c("eCaldo resta solo-modulo (la coda non cambia)", false, eCaldo({ zona: "nord" }));
+
+  gruppo("LE RISPOSTE BREVI SULLA RIGA");
+  const tutte = { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" };
+  c("al massimo due, urgenza poi già provato", ["vuole risolvere ora", "ha provato: farmaci"], risposteBrevi(tutte));
+  c("con max 3 il fastidio è terzo", "fastidio: molto", risposteBrevi(tutte, undefined, 3)[2]);
+  c("nessuna risposta: niente", [], risposteBrevi({}));
+  c("zona e orario non sono temperatura", [], risposteBrevi({ zona: "nord", quando: "mattina" }));
+  c("dal quiz: urgenza poi disagio", ["entro 1 mese", "disagio 8/10"], risposteBrevi(undefined, { urgenza: "1mese", disagio: 8 }));
+  c("se parla il modulo, il quiz tace", ["fastidio: poco"], risposteBrevi({ fastidio: "poco" }, { urgenza: "subito" }));
+  c("mai provato nulla", ["mai provato nulla"], risposteBrevi({ giaFatto: "niente" }));
+  c("valuta sul serio, poi il fastidio", ["valuta sul serio", "fastidio: per niente"], risposteBrevi({ urgenza: "valutando", fastidio: "perNiente" }));
+  c("si sta informando", ["si sta informando"], risposteBrevi({ urgenza: "informativo" }));
+
+  gruppo("QUANDO SI MOSTRA LA TEMPERATURA");
+  for (const s of TY.STATI_VINTI) c(`venduto («${s}»): niente pallino`, false, mostraTemperatura(s));
+  c("appuntamento fissato: sì", true, mostraTemperatura("appuntamento_fissato"));
+  c("senza stato: sì", true, mostraTemperatura(undefined));
+
+  gruppo("TEMPERATURA DAI DATI DELLA SCHEDA");
+  c("dal modulo salvato", "caldo", temperaturaDi({ modulo: { urgenza: "subito" } }).t.livello);
+  c("dal quiz del sito", "medio", temperaturaDi({ qualifica: { disagio: 8 } }).t.livello);
+  c("le brevi vengono insieme", ["vuole risolvere ora"], temperaturaDi({ modulo: { urgenza: "subito" } }).brevi);
+  c("scheda vuota: nessuna", "nessuna", temperaturaDi(null).t.livello);
+  const sorgente = readFileSync(join(radice, "src/crm/temperatura-lead.ts"), "utf8");
+  c("temperatura-lead non importa chi-chiamare (niente giro di import)", false, /chi-chiamare/.test(sorgente.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "")));
+  const chiama = readFileSync(join(radice, "src/crm/importa/chi-chiamare.ts"), "utf8");
+  c("eCaldo delega a temperaturaLead", true, /return temperaturaLead\(m\)\.livello === "caldo";/.test(chiama));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17489,6 +17596,7 @@ proveDelRinvioPerChi();
 proveDiChiEsce();
 proveDegliSlotLiberi();
 proveDiDrive();
+proveDellaTemperatura();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
