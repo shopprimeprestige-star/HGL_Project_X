@@ -472,6 +472,9 @@ const MODULI = [
   //  ⚠️ La temperatura del lead (Caldo/Medio/Freddo): una regola sola per
   //   «Oggi», Lead importati e la scheda. Vedi proveDellaTemperatura.
   "temperatura-lead",
+  //  ⚠️ Che cosa vede in «Oggi» chi non fa consulenze (la setter in sola
+  //   lettura). Vedi proveDellaVistaDiOggi.
+  "vista-oggi",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -682,6 +685,7 @@ const GR = mod["webinar/griglia"];
 const MI = mod["webinar/messaggio-invito"];
 const SP = mod["webinar/segui-parole"];
 const TEMP = mod["temperatura-lead"];
+const VISTA = mod["vista-oggi"];
 
 /** ── LA VALIDAZIONE CONTRO LO SCHEMA ──────────────────────────────────────
  *  Torna `"ok"`, oppure il motivo per cui lo SDI lo scarterebbe. Se sul
@@ -17552,6 +17556,51 @@ function proveDellaTemperatura() {
   c("eCaldo delega a temperaturaLead", true, /return temperaturaLead\(m\)\.livello === "caldo";/.test(chiama));
 }
 
+/** Chi fa consulenze lo dice `faConsulenze` (una domanda sola, la stessa della
+ *  porta d'ingresso); che cosa si vede in «Oggi» lo dice `vistaOggi`. Vedi
+ *  crm/vista-oggi. */
+function proveDellaVistaDiOggi() {
+  const { faConsulenze, PERMESSI_RUOLO, permessiDeiMestieri } = PRM;
+  const { vistaOggi } = VISTA;
+  const con = (elenco) => (p) => elenco.includes(p);
+  const setter = con(PERMESSI_RUOLO.setter);
+  const consulente = con(PERMESSI_RUOLO.consulente);
+  const admin = con(PERMESSI_RUOLO.admin);
+  const tuttiEDue = con(permessiDeiMestieri({ faSetter: true, faConsulente: true }));
+  const installatore = con(permessiDeiMestieri({ faInstallatore: true }));
+  gruppo("CHI FA CONSULENZE");
+  c("la setter no", false, faConsulenze(setter));
+  c("il consulente sì", true, faConsulenze(consulente));
+  c("l'admin sì", true, faConsulenze(admin));
+  c("chi fa setter e consulente sì", true, faConsulenze(tuttiEDue));
+  c("chi non ha niente no", false, faConsulenze(() => false));
+  const permessi = readFileSync(join(radice, "src/crm/permessi.ts"), "utf8");
+  c("la porta d'ingresso legge faConsulenze", true, /if \(faConsulenze\(puo\)\) return "\/CRM"/.test(permessi));
+
+  gruppo("CHE COSA SI VEDE IN «OGGI»");
+  const vs = vistaOggi(setter);
+  for (const k of ["andamento", "gesti", "recuperare", "ricontatti", "installazioni", "sede", "contatori", "adesso"])
+    c(`la setter non vede «${k}»`, false, vs[k]);
+  c("la setter vede la striscia dei posti", true, vs.striscia);
+  c("la setter vede «fissato da te»", true, vs.fissatiDaMe);
+  const vc = vistaOggi(consulente);
+  c("consulente e admin vedono lo stesso «Oggi»", true, uguali(vc, vistaOggi(admin)));
+  c("e così chi fa setter e consulente", true, uguali(vc, vistaOggi(tuttiEDue)));
+  c("il consulente ha i gesti", true, vc.gesti);
+  c("il consulente vede tutte le sezioni di prima", true,
+    ["adesso", "contatori", "recuperare", "ricontatti", "sede", "installazioni", "andamento"].every((k) => vc[k] === true));
+  c("al consulente niente striscia («Oggi» resta com'è)", false, vc.striscia);
+  c("al consulente niente «fissato da te»", false, vc.fissatiDaMe);
+  c("senza agenda niente striscia (i numeri sarebbero gonfiati)", false, vistaOggi(() => false).striscia);
+  //  Correzione 1 del revisore: i mestieri di campo vedevano le Installazioni
+  //  e nessuno ha deciso di togliergliele.
+  c("l'installatore vede ancora le installazioni", true, vistaOggi(installatore).installazioni);
+  c("l'installatore non ha i gesti della consulenza", false, vistaOggi(installatore).gesti);
+  c("la setter semplice non ha le installazioni", false, vs.installazioni);
+  const sorgente = readFileSync(join(radice, "src/crm/vista-oggi.ts"), "utf8");
+  c("vista-oggi non importa React", false, /from "react"/.test(sorgente));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17597,6 +17646,7 @@ proveDiChiEsce();
 proveDegliSlotLiberi();
 proveDiDrive();
 proveDellaTemperatura();
+proveDellaVistaDiOggi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
