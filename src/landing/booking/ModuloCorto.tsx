@@ -87,8 +87,9 @@ export interface ModuloCortoProps {
   mostraTitolo?: boolean;
   /** L'id del contenitore. Il foglio passa `null`: niente id, l'ancora `#modulo` non c'è due volte. */
   ancora?: string | null;
-  /** Dice all'involucro se ci sono dati scritti: con dati scritti il foglio non si chiude con un gesto sbagliato. */
-  onModifica?: (haDati: boolean) => void;
+  /** Dice all'involucro (il foglio) se c'è qualcosa di scritto e se la richiesta è già partita: con dati scritti
+   *  e non ancora inviati il foglio non si chiude con un gesto sbagliato. Solo conteggi, mai il contenuto. */
+  onStato?: (stato: { haDati: boolean; inviato: boolean }) => void;
 }
 
 type Fase = "modulo" | "inviato";
@@ -108,7 +109,7 @@ export function ModuloCorto({
   mostraProblema = true,
   mostraTitolo = true,
   ancora = "modulo",
-  onModifica,
+  onStato,
 }: ModuloCortoProps) {
   const chiaro = variant === "light";
   const [nome, setNome] = useState("");
@@ -181,10 +182,10 @@ export function ModuloCorto({
     [origine, punto, interesse],
   );
 
-  //  L'involucro (il foglio) vuole sapere se c'è qualcosa di scritto: solo conteggio, mai il contenuto.
+  //  L'involucro (il foglio) vuole sapere se c'è qualcosa di scritto e se la richiesta è già partita.
   useEffect(() => {
-    onModifica?.(Boolean(nome.trim() || telefono.trim() || fascia));
-  }, [nome, telefono, fascia, onModifica]);
+    onStato?.({ haDati: Boolean(nome.trim() || telefono.trim() || fascia), inviato: fase === "inviato" });
+  }, [nome, telefono, fascia, fase, onStato]);
 
   const primoTocco = () => {
     if (inizioFatto.current) return;
@@ -304,7 +305,7 @@ export function ModuloCorto({
   const selezione = testi ? "border-[#0B5FB0] bg-[#0B5FB0]/10 " : "border-brand bg-brand/10 ";
   const altezzaCampo = testi ? "h-14" : "h-12";
   const campo = chiaro
-    ? `bg-white text-ink border-ink/30 placeholder:text-ink-muted/60 ${fuoco}`
+    ? `bg-white text-ink border-ink/30 placeholder:text-ink-muted/60 ${fuoco}${testi ? " focus-visible:ring-offset-2" : ""}`
     : `bg-white/10 text-white border-white/30 placeholder:text-white/50 ${fuoco}`;
   //  Un campo sbagliato prende il bordo rosso (oltre al testo e all'icona sotto): il rosso del modulo chiaro di oggi.
   const campoDi = (k: CampoErrore) => (testi && errori[k] ? campo.replace(/border-(ink|white)\/30/, "border-red-700") : campo);
@@ -355,7 +356,13 @@ export function ModuloCorto({
             {!calendarioAperto ? (
               <>
                 <p className="text-[15px] font-semibold">{T.calendario.domanda}</p>
-                <Button type="button" onClick={apriCalendario} variant="outline" className="mt-3 h-12 w-full text-base font-semibold">
+                <Button type="button" onClick={apriCalendario} variant="outline"
+                  className={
+                    testi
+                      ? "mt-3 h-14 w-full rounded-lg border-[#0A1430]/40 bg-white text-base font-semibold text-[#0A1430] hover:bg-[#0A1430]/5 hover:text-[#0A1430]"
+                      : "mt-3 h-12 w-full text-base font-semibold"
+                  }
+                >
                   {T.calendario.bottone}
                 </Button>
               </>

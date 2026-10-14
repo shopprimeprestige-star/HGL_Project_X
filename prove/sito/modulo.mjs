@@ -132,6 +132,8 @@ vero("il componente non scrive in localStorage e non usa dangerouslySetInnerHTML
   vero("nessun #FF3B3B nel sorgente", !/#ff3b3b/i.test(sorgente));
   vero("la conferma ha il fuoco e aria-live (come oggi)", /confermaRif\.current\?\.focus\(\)/.test(sorgente) && /aria-live="polite"/.test(sorgente) && /tabIndex=\{-1\}/.test(sorgente));
   vero("il primo campo sbagliato prende il fuoco", /fuocoSu\(primo\)/.test(sorgente));
+  vero("onStato dice al foglio se ci sono dati e se è inviato (solo conteggi)", /onStato\?\.\(\{\s*haDati:[^}]*inviato:\s*fase === "inviato"\s*\}\)/.test(sorgente));
+  vero("il pulsante del calendario, coi testi, non eredita il fondo scuro del tema", /testi\s*\?[^:]*border-\[#0A1430\]\/40 bg-white/.test(sorgente.replace(/\s+/g, " ")));
 }
 
 /* ── S4.4 · Il link alla consulenza è scritto in un posto solo ───────────────
