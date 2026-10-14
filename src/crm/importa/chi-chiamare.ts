@@ -111,28 +111,21 @@ export function inLista(l: LeadLike, adesso: Date, o?: OpzioniChiamata): boolean
    CALDO E FASCIA
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** Lead «caldo» (decisione del titolare): molto o abbastanza infastidito, OPPURE
- *  vuole risolvere ora o sta valutando, OPPURE ha già provato qualcosa. */
+/** Lead «caldo».
+ *  ⚠️ STRETTO APPOSTA (decisione del titolare, 14/10/2026). Con la prima
+ *   regola — fastidio molto/abbastanza, sta valutando, ha già provato — sui
+ *   lead veri erano caldi 240 su 340: una targhetta su sette righe su dieci
+ *   non distingue più nessuno. Adesso è caldo solo chi vuole risolvere ORA o
+ *   ha GIÀ PROVATO qualcosa (ogni risposta tranne «niente»). Il fastidio resta
+ *   scritto sulla riga, ma da solo non basta. */
 export function eCaldo(m?: RisposteModulo): boolean {
   if (!m) return false;
-  return (
-    m.fastidio === "molto" ||
-    m.fastidio === "abbastanza" ||
-    m.urgenza === "subito" ||
-    m.urgenza === "valutando" ||
-    //  ⚠️ «Ha già provato QUALCOSA»: ogni risposta tranne «niente». Così
-    //   tricologia e tricopigmentazione (aggiunte dopo la misura sui lead
-    //   veri) scaldano come trapianto, lozioni e farmaci, e una risposta
-    //   nuova del modulo non resta fredda per una riga dimenticata.
-    (!!m.giaFatto && m.giaFatto !== "niente")
-  );
+  return m.urgenza === "subito" || (!!m.giaFatto && m.giaFatto !== "niente");
 }
 
 /** Perché è caldo, in poche parole: il primo motivo vero. */
 function perchéCaldo(m: RisposteModulo): string {
-  if (m.fastidio === "molto" || m.fastidio === "abbastanza") return `fastidio ${m.fastidio}`;
   if (m.urgenza === "subito") return "vuole risolvere ora";
-  if (m.urgenza === "valutando") return "sta valutando";
   return `ha già provato: ${m.giaFatto}`;
 }
 

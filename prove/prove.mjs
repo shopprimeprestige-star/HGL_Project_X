@@ -10913,7 +10913,7 @@ function proveDiChiChiamare() {
   });
   const O = L("O", { stato: "da_contattare", modulo: { quando: "pranzo" } });
   const Q = L("Q", { stato: "non_risponde", noRispondeCount: 1, modulo: { quando: "pranzo" } });
-  const C1 = L("C1", { stato: "da_contattare", createdAt: alle(5, 10), modulo: { fastidio: "molto" } });
+  const C1 = L("C1", { stato: "da_contattare", createdAt: alle(5, 10), modulo: { urgenza: "subito" } });
   const C0 = L("C0", { stato: "da_contattare", createdAt: alle(2, 10), modulo: { fastidio: "poco" } });
   const P4 = L("P4", { stato: "richiamo", dataRicontatto: "boh" });
   const T1 = L("T1", { stato: "non_risponde", noRispondeCount: 1 });
@@ -10955,7 +10955,7 @@ function proveDiChiChiamare() {
   c("la sua fascia", "suaOra|ha chiesto: " + etichettaRisposta("quando", "pranzo"),
     `${m(O).motivo}|${m(O).testo}`);
   c("un ritento nella sua fascia è «è la sua ora»", "suaOra", m(Q).motivo);
-  c("prima chiamata calda", "prima|fastidio molto|true", `${m(C1).motivo}|${m(C1).testo}|${m(C1).caldo}`);
+  c("prima chiamata calda", "prima|vuole risolvere ora|true", `${m(C1).motivo}|${m(C1).testo}|${m(C1).caldo}`);
   c("prima chiamata fredda", "prima|mai chiamato|false", `${m(C0).motivo}|${m(C0).testo}|${m(C0).caldo}`);
   c("ritento", "ritento|2° tentativo", `${m(T1).motivo}|${m(T1).testo}`);
   c("terzo squillo a vuoto: 4° tentativo", "4° tentativo", m(T2).testo);
@@ -11032,9 +11032,13 @@ function proveDiChiChiamare() {
   c("l'orario scritto a mano non conta mai", false, eLaSuaOra({ quandoTesto: "dopo le 13" }, alleOre(13)));
   c("senza risposta no", false, eLaSuaOra(undefined, alleOre(13)));
 
-  //  ── CALDO: LE TRE REGOLE DEL TITOLARE ────────────────────────────────
-  c("fastidio abbastanza è caldo", true, eCaldo({ fastidio: "abbastanza" }));
-  c("vuole valutare è caldo", true, eCaldo({ urgenza: "valutando" }));
+  //  ── CALDO: STRETTO (decisione del titolare, 14/10) ───────────────────
+  //   Con la prima regola erano caldi 240 lead veri su 340: adesso solo chi
+  //   vuole risolvere ora o ha già provato qualcosa.
+  c("vuole risolvere ora è caldo", true, eCaldo({ urgenza: "subito" }));
+  c("fastidio abbastanza da solo non basta più", false, eCaldo({ fastidio: "abbastanza" }));
+  c("fastidio molto da solo non basta più", false, eCaldo({ fastidio: "molto" }));
+  c("sta valutando da solo non basta più", false, eCaldo({ urgenza: "valutando" }));
   c("ha provato i farmaci è caldo", true, eCaldo({ giaFatto: "farmaci" }));
   c("non ha provato niente non basta", false, eCaldo({ giaFatto: "niente" }));
   c("poco fastidio non basta", false, eCaldo({ fastidio: "poco" }));
@@ -11052,10 +11056,10 @@ function proveDiChiChiamare() {
   c("chi ha una promessa per dopo non entra nemmeno se è di ritorno", false,
     inLista(L("FR", { stato: "richiamo", dataRicontatto: "2026-10-20",
       ricarico: { volte: 1, ultimo: alle(12, 10), daDecidere: true } }), ADESSO));
-  c("le risposte si leggono con la funzione della pagina", "prima|fastidio molto|true",
+  c("le risposte si leggono con la funzione della pagina", "prima|vuole risolvere ora|true",
     (() => {
       const x = m(L("MD", { stato: "da_contattare" }),
-        { moduloDi: () => ({ fastidio: "molto" }) });
+        { moduloDi: () => ({ urgenza: "subito" }) });
       return `${x.motivo}|${x.testo}|${x.caldo}`;
     })());
 
