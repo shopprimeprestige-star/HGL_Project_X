@@ -86,6 +86,7 @@ import {
 //  se il filo in tempo reale non c'è (shop/sala-attesa).
 import type { StatoAttesa } from "@/shop/sala-attesa";
 import { BUSSATA_VIVA_MS, bussateVive } from "@/shop/sala-attesa";
+import { chiudeIlLink } from "@/shop/uscita";
 //  Per portare il consulente sulla pagina del preventivo quando apre quello
 //  di una persona: è quella pagina che il cliente segue (api.presenter.curpage).
 //  ⚠️ Si può usare perché <CallMount> è montato dentro la radice del router
@@ -180,6 +181,7 @@ import {
   PinOff,
   Ban,
   UserX,
+  LogOut,
   ShieldOff,
   Disc3,
   Sparkles,
@@ -417,7 +419,7 @@ interface State {
   specchio: boolean;
   audio: AudioPrefs; // PRESENTATORE: soppressione rumore + soglia di attivazione
   guestVeil: boolean; // OSPITE: velo di caricamento attivo (contenuti non ancora pronti)
-  kicked: "" | "removed" | "blocked"; // OSPITE: rimosso/bloccato dal presentatore
+  kicked: "" | "removed" | "blocked" | "left"; // OSPITE: rimosso/bloccato dal presentatore, o uscito lui («Esci»)
   blocked: BlockedDevice[]; // PRESENTATORE: dispositivi bloccati (server-side)
   /** PRESENTATORE — ultimo errore di render segnalato dal dispositivo del cliente.
    *  L'ospite NON vede mai una schermata tecnica: mostra il caricamento brandizzato
@@ -989,6 +991,41 @@ export function myDeviceId(): string {
     return "";
   }
 }
+/** ── IL SEGRETO DI QUESTO BROWSER ───────────────────────────────────────────
+ *  `pid`, `dev` e il gettone del link viaggiano in `hello` a tutta la stanza:
+ *  non provano chi sei. Quello che lo prova è questo segreto, creato qui dal
+ *  browser (32 byte casuali) e tenuto in `localStorage` accanto a `dev`: le
+ *  schede dello stesso browser lo condividono.
+ *  ⚠️ VIAGGIA SOLO NEL CORPO DELLE POST (bussata, esci) E NELL'INTESTAZIONE
+ *   `x-sala-segreto`. MAI in `hello`, `roster`, BroadcastChannel, indirizzo o
+ *   log. Il server ne conserva solo l'impronta e non lo restituisce mai
+ *   (vedi shop/uscita).
+ *  Senza `localStorage` vive in memoria della scheda (e allora manca anche
+ *  `dev`: la persona busserà come nuova). */
+const SEGRETO_KEY = "hg_guest_segreto";
+let segretoInMemoria = "";
+export function mioSegreto(): string {
+  const nuovo = () => {
+    const b = new Uint8Array(32);
+    crypto.getRandomValues(b);
+    return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  };
+  try {
+    let v = localStorage.getItem(SEGRETO_KEY);
+    if (!v || !/^[0-9a-f]{64}$/.test(v)) {
+      v = segretoInMemoria || nuovo();
+      localStorage.setItem(SEGRETO_KEY, v);
+    }
+    segretoInMemoria = v;
+    return v;
+  } catch {
+    if (!segretoInMemoria) segretoInMemoria = nuovo();
+    return segretoInMemoria;
+  }
+}
+/** Il gettone del link con cui questa persona è entrata ("" = link senza nome). */
+const ilMioGettone = (): string => miaPersonaDi(S.sessionId) || gettoneInMemoria();
+
 /** pid → id dispositivo (lato presentatore, ricavato dai messaggi "hello"). */
 const deviceOf = new Map<string, string>();
 const blockedSet = () => new Set(S.blocked.map((b) => b.id));
@@ -1068,6 +1105,7 @@ function helloName(): string {
 //  ("In attesa degli altri…") pur avendo il presentatore dall'altra parte.
 function sendHello(req = false) {
   if (!S.myPid) return;
+  if (staEscendo) return; // ha premuto «Esci»: non deve riannunciarsi
   if (isViewer() && !(S.joined && guestSticky)) return; // non è ancora entrato: niente presenza
   // `dev` = id DISPOSITIVO stabile. Lo manda anche il PRESENTATORE: se ricarica la
   // pagina il suo pid cambia, e senza identità stabile l'ospite si ritrovava DUE
@@ -1904,6 +1942,20 @@ const gettoneDelPid = new Map<string, string>();
  *  subito. */
 const SALUTO_VALE_MS = 90_000;
 const salutoDelPid = new Map<string, { at: number; leadId: string }>();
+/** ── CHI HA PREMUTO «ESCI», PER IL CONSULENTE ──────────────────────────────
+ *  leadId → quando. Serve solo a togliere SUBITO la persona dalla Plancia, che
+ *  altrimenti la tiene un minuto di grazia (`GRAZIA_USCITA_MS`). Se quella
+ *  persona torna a salutare (è rientrata, o il `bye` era falso) il segno cade
+ *  da solo. ⚠️ Non alimenta niente altro: gli «Usciti» vengono dal server. */
+const uscitiOra = new Map<string, number>();
+function haPremutoEsci(leadId: string | undefined, presenti: string[]): boolean {
+  if (!leadId || !uscitiOra.has(leadId)) return false;
+  if (presenti.includes(leadId)) {
+    uscitiOra.delete(leadId);
+    return false;
+  }
+  return true;
+}
 
 /** Gli ospiti che hanno salutato di recente e che l'elenco dei riquadri non
  *  ha più (vedi il cartello sopra). */
@@ -5191,6 +5243,14 @@ function attachChannel(sessionId: string) {
     //  Chiudere la scheda è un'uscita vera: si dimentica subito il saluto.
     if (payload?.pid) salutoDelPid.delete(String(payload.pid));
     if (!payload?.pid) return;
+    //  «Esci» vero: il consulente lo toglie SUBITO anche dalla Plancia. ⚠️ Il
+    //   canale non è autenticato: qui si decide solo cosa NON mostrare (e chi
+    //   torna a salutare ricompare da sé). Gli «Usciti» col tasto «Invita di
+    //   nuovo» si costruiscono solo dalle righe del server, mai da qui.
+    if (payload.uscita === true && !isViewer()) {
+      const chi = S.roster.find((r) => r.pid === String(payload.pid));
+      if (chi?.leadId) uscitiOra.set(chi.leadId, Date.now());
+    }
     removePeer(payload.pid, "bye");
     //  Chi chiude la pagina mentre bussa se ne va anche dalla porta: la sua
     //  richiesta di entrare sparisce subito dallo schermo del consulente.
@@ -6579,6 +6639,86 @@ export function endCall() {
   window.setTimeout(() => teardownMedia(), 320);
 }
 
+/** ── «ESCI» DALLA CONSULENZA (OSPITE) ─────────────────────────────────────
+ *  Segnalazione del committente (13/10/2026): chi esce deve sparire subito
+ *  dalla lista, dalle camere e dalla sala d'attesa, e il suo vecchio link non
+ *  deve più valere. Prima l'ospite poteva solo chiudere la scheda.
+ *
+ *  Il giro, nell'ordine:
+ *   1. schermata neutra SUBITO, e niente più «ci sono» (`staEscendo`);
+ *   2. «c'è un'altra scheda viva con questa consulenza?» (stesso browser, via
+ *      BroadcastChannel, risposta entro 300 ms): se sì questa NON è l'ultima e
+ *      il server non tocca né la sala né il link;
+ *   3. `bye` con `uscita:true` sul canale (ripetuto a 120 ms, come `endCall`);
+ *   4. POST al server, con una seconda prova dopo un secondo se fallisce;
+ *   5. si smonta tutto dopo 320 ms.
+ *  ⚠️ Chiudere la scheda o perdere la rete NON passa di qui: manda il solito
+ *   `bye` senza `uscita`, e il link resta valido (può rientrare). */
+const CANALE_SCHEDE = "hg-meetly-schede";
+const ATTESA_ALTRE_SCHEDE_MS = 300;
+let staEscendo = false;
+
+/** Ogni scheda entrata risponde a «ci sei?» se è della stessa consulenza e
+ *  dello stesso gettone: serve a sapere se chi esce è l'ultima. */
+function ascoltaLeAltreSchede() {
+  if (typeof BroadcastChannel === "undefined") return;
+  const bc = new BroadcastChannel(CANALE_SCHEDE);
+  bc.onmessage = (e: MessageEvent) => {
+    const m = e.data as { t?: string; sess?: string; chi?: string; id?: string } | null;
+    if (m?.t !== "ci-sei" || !m.id) return;
+    if (S.role !== "viewer" || !S.joined || staEscendo) return;
+    if (m.sess !== S.sessionId || (m.chi || "") !== ilMioGettone()) return;
+    bc.postMessage({ t: "ci-sono", id: m.id });
+  };
+}
+if (typeof window !== "undefined") ascoltaLeAltreSchede();
+
+function altraSchedaViva(): Promise<boolean> {
+  if (typeof BroadcastChannel === "undefined") return Promise.resolve(false);
+  return new Promise((risolvi) => {
+    const id = genPid();
+    const bc = new BroadcastChannel(CANALE_SCHEDE);
+    const chiudi = (v: boolean) => {
+      clearTimeout(t);
+      bc.close();
+      risolvi(v);
+    };
+    const t = window.setTimeout(() => chiudi(false), ATTESA_ALTRE_SCHEDE_MS);
+    bc.onmessage = (e: MessageEvent) => {
+      if ((e.data as { t?: string; id?: string } | null)?.t === "ci-sono" && e.data.id === id) chiudi(true);
+    };
+    bc.postMessage({ t: "ci-sei", id, sess: S.sessionId, chi: ilMioGettone() });
+  });
+}
+
+export async function esciDallaConsulenza() {
+  if (S.role !== "viewer" || !S.joined || staEscendo) return;
+  staEscendo = true;
+  const dati = { sess: S.sessionId, pid: S.myPid, dev: myDeviceId(), segreto: mioSegreto(), chi: ilMioGettone() };
+  const ruolo = S.role;
+  forgetGuestEntry(); // se ricarica la pagina non rientra da solo
+  set({ kicked: "left" });
+  const ultima = chiudeIlLink({ altreSchedeVive: await altraSchedaViva() });
+  const congedo = () => send("bye", { pid: dati.pid, role: ruolo, persona: dati.chi, uscita: ultima });
+  congedo();
+  window.setTimeout(congedo, 120);
+  const avvisaIlServer = (ritenta: boolean) =>
+    fetch("/api/public/esci", {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...dati, ultima }),
+    })
+      .then((r) => {
+        if (!r.ok && ritenta) window.setTimeout(() => avvisaIlServer(false), 1000);
+      })
+      .catch(() => {
+        if (ritenta) window.setTimeout(() => avvisaIlServer(false), 1000);
+      });
+  void avvisaIlServer(true);
+  window.setTimeout(() => teardownMedia(), 320);
+}
+
 // ── BATTITO DELLA CHIAMATA (giudice: il SERVER) ───────────────────────────
 //  Finché il presentatore è davvero in videochiamata aggiorna `hb` sul server.
 //  Se la scheda viene chiusa senza premere Termina il battito si ferma: la
@@ -6674,6 +6814,10 @@ async function bussaSulServer(): Promise<StatoAttesa | "sconosciuto" | ""> {
         nome: S.myName || "Ospite",
         dev: myDeviceId(),
         persona: miaPersona,
+        //  La serratura della riga (vedi `mioSegreto`) e il link con cui sono
+        //  entrato: solo qui, nel corpo, mai sul canale.
+        segreto: mioSegreto(),
+        chi: ilMioGettone(),
       }),
     });
     const j = (await r.json()) as { ok?: boolean; stato?: string };
@@ -12737,6 +12881,7 @@ export function CallLayer() {
   if (dentroUnWebinar) return null;
   if (!st.sessionId || !st.role) return isGuestLink() ? <WaitingScreen /> : null;
   // guest: finché il presentatore non avvia, mostra la schermata d'attesa (stile Meet)
+  if (st.role === "viewer" && st.kicked === "left") return <UscitoScreen />;
   if (st.role === "viewer" && st.kicked) return <KickedScreen blocked={st.kicked === "blocked"} />;
   if (st.role === "viewer" && !st.sessionLive) return <WaitingScreen />;
   // GATE OBBLIGATORIO: nessun contenuto prima che l'ospite abbia inserito il nome.
@@ -12764,6 +12909,7 @@ export function CallLayer() {
         <DebugPanel />
         <MioPreventivoInPrimoPiano st={st} />
         <ViewerOverlay st={st} ls={ls} />
+        <TastoEsci />
         <AvvisoCameraSpenta st={st} />
         <AvvisoMiaCamera st={st} />
         <GuestChat st={st} />
@@ -13048,7 +13194,9 @@ function PlanciaDelGruppo({ st }: { st: State }) {
       righe: così, se se n'è andato l'unico atteso e intanto è entrato
       qualcun altro dal link, il pannello mostra chi c'è davvero invece di
       restare appeso al nome di chi ha chiuso (vedi `personeDelPannello`). */
-  const attesiDentro = ancoraDentro(attesiVeri, { memoria: visti, inLinea: presenti, ignoti });
+  const attesiDentro = ancoraDentro(attesiVeri, { memoria: visti, inLinea: presenti, ignoti }).filter(
+    (x) => !haPremutoEsci(x.leadId, presenti),
+  );
   const attesi = personeDelPannello({ attesi: attesiDentro, ospiti: ospitiOra });
   const { regia } = useRegiaGruppo(codice, attesi.length >= 1);
   if (inAnteprima || !consulenzaViva) return null;
@@ -13410,6 +13558,43 @@ function GuestErrorBadge({ st }: { st: State }) {
 }
 
 // ── Guest: rimosso / bloccato dal presentatore ────────────────────────────
+/** Dopo «Esci»: nessun messaggio al consulente, nessun «rientra» — il link
+ *  vecchio può non valere più, e per tornare serve un invito nuovo. */
+function UscitoScreen() {
+  return (
+    <div className="fixed inset-0 z-[130] flex flex-col items-center justify-center gap-6 overflow-hidden bg-brandfill px-6 text-center text-white">
+      <div className="relative z-10 flex flex-col items-center gap-6">
+        <BrandLogo className="h-9 w-auto" />
+        <span className="flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-white/70">
+          <LogOut className="h-7 w-7" />
+        </span>
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Sei uscito dalla consulenza</h1>
+          <p className="mx-auto max-w-sm text-sm leading-relaxed text-white/55">
+            Puoi chiudere questa pagina. Per rientrare chiedi un nuovo invito a chi te l'ha mandato.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Il tasto «Esci» dell'ospite: sta nella chiamata, mai nelle schermate prima
+ *  dell'ingresso. In alto a destra, piccolo: non deve coprire i contenuti. */
+function TastoEsci() {
+  return (
+    <button
+      type="button"
+      onClick={() => void esciDallaConsulenza()}
+      aria-label="Esci dalla consulenza"
+      className="fixed right-3 top-3 z-[98] inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[12px] font-semibold text-white/90 backdrop-blur-sm transition hover:bg-black/65 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70 print:hidden"
+    >
+      <LogOut className="h-3.5 w-3.5" />
+      Esci
+    </button>
+  );
+}
+
 function KickedScreen({ blocked }: { blocked: boolean }) {
   return (
     <div className="fixed inset-0 z-[130] flex flex-col items-center justify-center gap-6 overflow-hidden bg-brandfill px-6 text-center text-white">

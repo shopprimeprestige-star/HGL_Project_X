@@ -116,6 +116,7 @@ import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricin
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
 import { Route as ApiPublicInvitoRouteImport } from './routes/api.public.invito'
 import { Route as ApiPublicGalleriaRouteImport } from './routes/api.public.galleria'
+import { Route as ApiPublicEsciRouteImport } from './routes/api.public.esci'
 import { Route as ApiPublicAttesiRouteImport } from './routes/api.public.attesi'
 import { Route as ApiPresenterVideosRouteImport } from './routes/api.presenter.videos'
 import { Route as ApiPresenterUsageRouteImport } from './routes/api.presenter.usage'
@@ -729,6 +730,11 @@ const ApiPublicGalleriaRoute = ApiPublicGalleriaRouteImport.update({
   path: '/api/public/galleria',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicEsciRoute = ApiPublicEsciRouteImport.update({
+  id: '/api/public/esci',
+  path: '/api/public/esci',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAttesiRoute = ApiPublicAttesiRouteImport.update({
   id: '/api/public/attesi',
   path: '/api/public/attesi',
@@ -1258,6 +1264,7 @@ export interface FileRoutesByFullPath {
   '/api/presenter/usage': typeof ApiPresenterUsageRoute
   '/api/presenter/videos': typeof ApiPresenterVideosRoute
   '/api/public/attesi': typeof ApiPublicAttesiRoute
+  '/api/public/esci': typeof ApiPublicEsciRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
@@ -1434,6 +1441,7 @@ export interface FileRoutesByTo {
   '/api/presenter/usage': typeof ApiPresenterUsageRoute
   '/api/presenter/videos': typeof ApiPresenterVideosRoute
   '/api/public/attesi': typeof ApiPublicAttesiRoute
+  '/api/public/esci': typeof ApiPublicEsciRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
@@ -1616,6 +1624,7 @@ export interface FileRoutesById {
   '/api/presenter/usage': typeof ApiPresenterUsageRoute
   '/api/presenter/videos': typeof ApiPresenterVideosRoute
   '/api/public/attesi': typeof ApiPublicAttesiRoute
+  '/api/public/esci': typeof ApiPublicEsciRoute
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
@@ -1799,6 +1808,7 @@ export interface FileRouteTypes {
     | '/api/presenter/usage'
     | '/api/presenter/videos'
     | '/api/public/attesi'
+    | '/api/public/esci'
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/meta-leadgen-webhook'
@@ -1975,6 +1985,7 @@ export interface FileRouteTypes {
     | '/api/presenter/usage'
     | '/api/presenter/videos'
     | '/api/public/attesi'
+    | '/api/public/esci'
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/meta-leadgen-webhook'
@@ -2156,6 +2167,7 @@ export interface FileRouteTypes {
     | '/api/presenter/usage'
     | '/api/presenter/videos'
     | '/api/public/attesi'
+    | '/api/public/esci'
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/meta-leadgen-webhook'
@@ -2298,6 +2310,7 @@ export interface RootRouteChildren {
   ApiPresenterUsageRoute: typeof ApiPresenterUsageRoute
   ApiPresenterVideosRoute: typeof ApiPresenterVideosRoute
   ApiPublicAttesiRoute: typeof ApiPublicAttesiRoute
+  ApiPublicEsciRoute: typeof ApiPublicEsciRoute
   ApiPublicGalleriaRoute: typeof ApiPublicGalleriaRoute
   ApiPublicInvitoRoute: typeof ApiPublicInvitoRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
@@ -3065,6 +3078,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/galleria'
       fullPath: '/api/public/galleria'
       preLoaderRoute: typeof ApiPublicGalleriaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/esci': {
+      id: '/api/public/esci'
+      path: '/api/public/esci'
+      fullPath: '/api/public/esci'
+      preLoaderRoute: typeof ApiPublicEsciRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/attesi': {
@@ -3836,6 +3856,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPresenterUsageRoute: ApiPresenterUsageRoute,
   ApiPresenterVideosRoute: ApiPresenterVideosRoute,
   ApiPublicAttesiRoute: ApiPublicAttesiRoute,
+  ApiPublicEsciRoute: ApiPublicEsciRoute,
   ApiPublicGalleriaRoute: ApiPublicGalleriaRoute,
   ApiPublicInvitoRoute: ApiPublicInvitoRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,

@@ -55,6 +55,19 @@ export interface PersonaInAttesa {
    *  quello digitato, e legare più avanti il preventivo individuale alla
    *  persona giusta. Assente per chi arriva da un link inoltrato. */
   persona?: string;
+  /** ── LA SERRATURA DELLA RIGA ───────────────────────────────────────────
+   *  Impronta (SHA-256) del segreto che il BROWSER del cliente tiene accanto
+   *  al dispositivo. `pid` e `dev` viaggiano in `hello` a tutta la stanza: chi
+   *  li conosce non deve poter bussare, uscire o ereditare il «ammesso» di un
+   *  altro. Il segreto in chiaro non arriva mai qui, e questo campo non esce
+   *  mai dalla rotta del consulente (vedi `rigaPerIlConsulente`). */
+  segretoH?: string;
+  /** Il gettone del link con cui è entrato (`?chi=`): serve a sapere QUALE
+   *  link chiudere quando esce. Non è `persona`, che oggi viaggia vuota. */
+  chi?: string;
+  /** Quando ha premuto «Esci» (millisecondi). Una riga uscita non conta più né
+   *  fra chi aspetta né fra chi è stato ammesso. */
+  uscito?: number;
 }
 
 /** La base della chiave in `app_config`: la riga vera è
@@ -78,10 +91,14 @@ export const DECISIONE_TTL_MS = 30 * 60_000;
  *  Due minuti: il tempo di leggere l'avviso, e poi si può bussare di nuovo. Chi
  *  non deve proprio entrare si blocca (il blocco è un'altra cosa e non scade). */
 export const RIFIUTO_TTL_MS = 2 * 60_000;
+/** Chi è uscito resta in archivio abbastanza da comparire fra gli «Usciti» del
+ *  consulente (che può invitarlo di nuovo). shortcut: tre ore fisse, non
+ *  configurabili; da cambiare se le consulenze durano di più. */
+export const USCITO_TTL_MS = 3 * 60 * 60_000;
 
 /** Quanto vale ancora una riga, secondo il suo stato. */
 export const duraFinoA = (p: PersonaInAttesa): number =>
-  p.stato === "attesa" ? ATTESA_TTL_MS : p.stato === "rifiutato" ? RIFIUTO_TTL_MS : DECISIONE_TTL_MS;
+  p.uscito ? USCITO_TTL_MS : p.stato === "attesa" ? ATTESA_TTL_MS : p.stato === "rifiutato" ? RIFIUTO_TTL_MS : DECISIONE_TTL_MS;
 /** Non più di così: la riga è un campo di testo, non un archivio. Chi arriva
  *  oltre il tetto non viene scartato — si buttano i più vecchi. */
 export const MAX_PERSONE = 40;
@@ -110,6 +127,9 @@ export function leggiSala(grezzo?: string | null): PersonaInAttesa[] {
         stato,
         at: Number(x?.at) || 0,
         ...(testo(x?.persona) ? { persona: testo(x.persona) } : {}),
+        ...(testo(x?.segretoH) ? { segretoH: testo(x.segretoH) } : {}),
+        ...(testo(x?.chi) ? { chi: testo(x.chi) } : {}),
+        ...(Number(x?.uscito) ? { uscito: Number(x.uscito) } : {}),
       });
     }
     return out;
@@ -145,18 +165,25 @@ export function ripulisci(persone: PersonaInAttesa[], adesso = Date.now()): Pers
  *   persona, e ripetergliela non ha senso. */
 export function bussa(
   persone: PersonaInAttesa[],
-  chi: { pid: string; nome?: string; dev?: string; persona?: string },
+  chi: { pid: string; nome?: string; dev?: string; persona?: string; segretoH?: string; chi?: string },
   adesso = Date.now(),
 ): PersonaInAttesa[] {
   const pid = testo(chi.pid);
   if (!pid) return persone;
+  //  ⚠️ LA RIGA DI UN ALTRO NON SI TOCCA: né nome, né stato, né ora.
+  if (chiTocca(persone, chi, adesso) === "altrui") return persone;
   const dev = testo(chi.dev);
   const nome = testo(chi.nome) || "Ospite";
   const persona = testo(chi.persona);
+  //  Chi ha un'impronta la scrive (o la adotta, se la riga non ne aveva).
+  const sigilli = {
+    ...(testo(chi.segretoH) ? { segretoH: testo(chi.segretoH) } : {}),
+    ...(testo(chi.chi) ? { chi: testo(chi.chi) } : {}),
+  };
   const lista = ripulisci(persone, adesso);
   const i = lista.findIndex((p) => p.pid === pid);
   if (i >= 0) {
-    lista[i] = { ...lista[i], nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), at: adesso };
+    lista[i] = { ...lista[i], nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), ...sigilli, at: adesso };
     return lista;
   }
   //  Stesso dispositivo, pid nuovo: è la stessa persona che ha ricaricato.
@@ -164,10 +191,10 @@ export function bussa(
   //  una seconda.
   const j = dev ? lista.findIndex((p) => p.dev && p.dev === dev) : -1;
   if (j >= 0) {
-    lista[j] = { ...lista[j], pid, nome, ...(persona ? { persona } : {}), at: adesso };
+    lista[j] = { ...lista[j], pid, nome, ...(persona ? { persona } : {}), ...sigilli, at: adesso };
     return lista;
   }
-  lista.push({ pid, nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), stato: "attesa", at: adesso });
+  lista.push({ pid, nome, ...(dev ? { dev } : {}), ...(persona ? { persona } : {}), ...sigilli, stato: "attesa", at: adesso });
   //  ⚠️ Il tetto si rimette DOPO l'inserimento, non solo prima: tagliare a
   //   quaranta e poi aggiungerne uno fa quarantuno, e la riga cresce di uno a
   //   ogni bussata.
@@ -238,14 +265,22 @@ export function decidi(
  *   recente, che è l'ultima cosa che il consulente ha voluto. */
 export function statoDi(
   persone: PersonaInAttesa[],
-  chi: { pid: string; dev?: string },
+  chi: { pid: string; dev?: string; segretoH?: string },
   adesso = Date.now(),
 ): StatoAttesa | "sconosciuto" {
   const pid = testo(chi.pid);
   const dev = testo(chi.dev);
   if (!pid && !dev) return "sconosciuto";
   const lista = ripulisci(persone, adesso);
-  const mie = lista.filter((p) => (pid && p.pid === pid) || (dev && p.dev === dev));
+  //  ⚠️ Una riga con impronta si legge solo con la stessa impronta: sapere
+  //   `dev` o `pid` di un altro non basta per ereditare il suo «ammesso».
+  //   Chi è uscito non ha più uno stato: di lui non si sa niente.
+  const mie = lista.filter(
+    (p) =>
+      ((pid && p.pid === pid) || (dev && p.dev === dev)) &&
+      !p.uscito &&
+      (!p.segretoH || p.segretoH === testo(chi.segretoH)),
+  );
   if (!mie.length) return "sconosciuto";
   const decise = mie.filter((p) => p.stato !== "attesa");
   if (!decise.length) return "attesa";
@@ -256,7 +291,7 @@ export function statoDi(
  *  bussato è il primo che il consulente deve vedere. */
 export function inAttesa(persone: PersonaInAttesa[], adesso = Date.now()): PersonaInAttesa[] {
   return ripulisci(persone, adesso)
-    .filter((p) => p.stato === "attesa")
+    .filter((p) => p.stato === "attesa" && !p.uscito)
     .sort((a, b) => a.at - b.at);
 }
 
@@ -275,4 +310,57 @@ export const BUSSATA_VIVA_MS = 20_000;
  *  o server); se manca vale `at`. */
 export function bussateVive<T extends { at: number; visto?: number }>(lista: T[], adesso = Date.now()): T[] {
   return lista.filter((k) => adesso - (Number(k.visto) || Number(k.at) || 0) < BUSSATA_VIVA_MS);
+}
+
+
+/** ── DI CHI È LA RIGA CHE QUESTA BUSSATA TOCCHEREBBE ───────────────────────
+ *  «nuova»: nessuna riga con quel `pid` o `dev`. «mia»: le righe che combaciano
+ *  sono sue (stessa impronta) o senza impronta (nate prima del rilascio o da
+ *  «fai entrare»: le adotta il primo che bussa). «altrui»: almeno una riga ha
+ *  un'impronta diversa, o lui non ne ha — non si fonde e non si scrive niente. */
+export function chiTocca(
+  persone: PersonaInAttesa[],
+  chi: { pid: string; dev?: string; segretoH?: string },
+  adesso = Date.now(),
+): "nuova" | "mia" | "altrui" {
+  const pid = testo(chi.pid);
+  const dev = testo(chi.dev);
+  const toccate = ripulisci(persone, adesso).filter((p) => (pid && p.pid === pid) || (dev && p.dev === dev));
+  if (!toccate.length) return "nuova";
+  const mio = testo(chi.segretoH);
+  return toccate.some((p) => p.segretoH && p.segretoH !== mio) ? "altrui" : "mia";
+}
+
+/** Le righe che sono SUE per certo: stessa impronta, e non vuota. */
+export function righeDi(
+  persone: PersonaInAttesa[],
+  chi: { pid: string; dev?: string; segretoH?: string },
+  adesso = Date.now(),
+): PersonaInAttesa[] {
+  const pid = testo(chi.pid);
+  const dev = testo(chi.dev);
+  const mio = testo(chi.segretoH);
+  if (!mio) return [];
+  return ripulisci(persone, adesso).filter(
+    (p) => p.segretoH === mio && ((pid && p.pid === pid) || (dev && p.dev === dev)),
+  );
+}
+
+/** ── HA PREMUTO «ESCI» ─────────────────────────────────────────────────────
+ *  Segna `uscito` sulle SUE righe (e solo quelle). Non le cancella: il
+ *  consulente le vede fra gli «Usciti» e può invitarlo di nuovo. */
+export function segnaUscito(
+  persone: PersonaInAttesa[],
+  chi: { pid: string; dev?: string; segretoH?: string },
+  adesso = Date.now(),
+): PersonaInAttesa[] {
+  const sue = new Set(righeDi(persone, chi, adesso).map((p) => p.pid));
+  if (!sue.size) return persone;
+  return ripulisci(persone, adesso).map((p) => (sue.has(p.pid) ? { ...p, uscito: adesso, at: adesso } : p));
+}
+
+/** Quello che il consulente può vedere di una riga: mai l'impronta, mai il
+ *  gettone del link. */
+export function rigaPerIlConsulente(p: PersonaInAttesa): { pid: string; nome: string; dev: string; at: number } {
+  return { pid: p.pid, nome: p.nome, dev: p.dev ?? "", at: p.at };
 }

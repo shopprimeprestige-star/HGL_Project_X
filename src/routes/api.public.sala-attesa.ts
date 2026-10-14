@@ -10,8 +10,14 @@
  *  seconda strada: chi aspetta si SCRIVE nella riga della consulenza e rilegge
  *  la decisione presa per lui.
  *
- *  POST { sess, pid, nome?, dev? } -> { ok, stato }   busso (e richiedo lo stato)
- *  GET  ?sess=&pid=&dev=           -> { ok, stato }   com'è andata?
+ *  POST { sess, pid, nome?, dev?, chi?, segreto? } -> { ok, stato }   busso
+ *  GET  ?sess=&pid=&dev=  (+ intestazione x-sala-segreto) -> { ok, stato }
+ *
+ *  ⚠️ IL SEGRETO: lo crea il browser e tiene in localStorage; qui arriva solo
+ *   nel corpo della POST e nell'intestazione della GET, e sul server ne resta
+ *   l'impronta. Chi conosce `dev` o `pid` di un altro senza il suo segreto non
+ *   fonde la sua riga, non la legge e non eredita il suo «ammesso». Le regole
+ *   stanno in shop/uscita, dov'è provata.
  *
  *  `stato`: "attesa" | "ammesso" | "rifiutato" | "sconosciuto"
  *
@@ -29,12 +35,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { chiaveSessione } from "@/shop/chiave-sessione";
-import { BASE_SALA, bussa, leggiSala, scriviSala, statoDi } from "@/shop/sala-attesa";
+import { BASE_SALA, leggiSala, scriviSala } from "@/shop/sala-attesa";
+import { INTESTAZIONI_SALA, SEGRETO_INTESTAZIONE, trattaBussata, trattaStato, type Archivio } from "@/shop/uscita";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": INTESTAZIONI_SALA,
 };
 const json = (o: unknown, status = 200) =>
   new Response(JSON.stringify(o), {
@@ -63,6 +70,21 @@ export async function scriviRigaSala(code: string, persone: Parameters<typeof sc
   return error?.message ?? "";
 }
 
+/** L'archivio di `app_config`, nella forma che shop/uscita si aspetta. */
+export const archivioSala: Archivio = {
+  leggi: async (chiave) => {
+    const { data } = await configSala().select("value").eq("key", chiave).maybeSingle();
+    return data?.value ?? null;
+  },
+  scrivi: async (chiave, valore) => {
+    const { error } = await configSala().upsert(
+      { key: chiave, value: valore, updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+    return error?.message ?? "";
+  },
+};
+
 export const Route = createFileRoute("/api/public/sala-attesa")({
   server: {
     handlers: {
@@ -70,37 +92,34 @@ export const Route = createFileRoute("/api/public/sala-attesa")({
 
       GET: async ({ request }) => {
         const u = new URL(request.url);
-        const sess = String(u.searchParams.get("sess") || "").trim();
-        const pid = String(u.searchParams.get("pid") || "").trim();
-        if (!sess || !pid) return json({ ok: false, reason: "manca la stanza" }, 400);
-        const persone = await leggiRigaSala(sess);
-        return json({ ok: true, stato: statoDi(persone, { pid, dev: String(u.searchParams.get("dev") || "") }) });
+        const r = await trattaStato(archivioSala, {
+          sess: u.searchParams.get("sess") ?? "",
+          pid: u.searchParams.get("pid") ?? "",
+          dev: u.searchParams.get("dev") ?? "",
+          segreto: request.headers.get(SEGRETO_INTESTAZIONE) ?? "",
+        });
+        return json(r.body, r.status);
       },
 
       POST: async ({ request }) => {
-        let b: { sess?: string; pid?: string; nome?: string; dev?: string; persona?: string } = {};
+        let b: Record<string, unknown> = {};
         try { b = (await request.json()) as typeof b; } catch { /* corpo illeggibile */ }
-        const sess = String(b.sess || "").trim();
-        const pid = String(b.pid || "").trim();
-        if (!sess || !pid) return json({ ok: false, reason: "manca la stanza" }, 400);
-        const prima = await leggiRigaSala(sess);
-        /*  ── ⚠️ SE LA DECISIONE C'È GIÀ, NON SI SCRIVE NIENTE ────────────
-            Chi è appena stato fatto entrare continua a bussare per qualche
-            secondo (il via libera e la sua bussata si incrociano): riscrivere
-            la riga a ogni bussata vorrebbe dire una scrittura al secondo per
-            ogni persona dentro, e soprattutto una corsa con la decisione del
-            consulente. Se lo stato è già deciso si risponde e basta. */
-        const stato = statoDi(prima, { pid, dev: String(b.dev || "") });
-        if (stato === "ammesso" || stato === "rifiutato") return json({ ok: true, stato });
         /*  ⚠️ LETTURA-MODIFICA-SCRITTURA, senza transazione: due clienti che
             bussano nello stesso istante possono sovrascriversi. Va bene così —
             chi aspetta ribussa ogni quattro secondi, quindi una scrittura persa
             si rimette da sé al giro dopo — e l'alternativa (una tabella con un
-            lock) vorrebbe dire una migrazione su un archivio di produzione. */
-        const dopo = bussa(prima, { pid, nome: String(b.nome || ""), dev: String(b.dev || ""), persona: String(b.persona || "") });
-        const errore = await scriviRigaSala(sess, dopo);
-        if (errore) return json({ ok: false, reason: errore }, 500);
-        return json({ ok: true, stato: statoDi(dopo, { pid, dev: String(b.dev || "") }) });
+            lock) vorrebbe dire una migrazione su un archivio di produzione.
+            Se la decisione c'è già non si scrive niente (vedi `trattaBussata`). */
+        const r = await trattaBussata(archivioSala, {
+          sess: String(b.sess ?? ""),
+          pid: String(b.pid ?? ""),
+          nome: String(b.nome ?? ""),
+          dev: String(b.dev ?? ""),
+          persona: String(b.persona ?? ""),
+          chi: String(b.chi ?? ""),
+          segreto: String(b.segreto ?? ""),
+        });
+        return json(r.body, r.status);
       },
     },
   },

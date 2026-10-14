@@ -24,7 +24,7 @@ import {
   nonAutorizzato,
 } from "./api.presenter.consultant";
 import { leggiRigaSala, scriviRigaSala } from "./api.public.sala-attesa";
-import { decidi, inAttesa, type StatoAttesa } from "@/shop/sala-attesa";
+import { decidi, inAttesa, rigaPerIlConsulente, type StatoAttesa } from "@/shop/sala-attesa";
 //  Chi era atteso in questa stanza: serve a scrivere sul riquadro il nome
 //  della SCHEDA invece di quello digitato al volo dal cliente.
 import { attesiDellaStanza } from "./api.public.attesi";
@@ -76,10 +76,10 @@ export const Route = createFileRoute("/api/presenter/sala-attesa")({
             //   rotta che decide chi entra, è il modo di sbagliarsi.
             const atteso = attesoDalGettone(attesi, p.persona);
             return {
-              pid: p.pid,
+              //  ⚠️ Dalla riga esce solo quello che il consulente deve vedere
+              //   (mai l'impronta del segreto): vedi `rigaPerIlConsulente`.
+              ...rigaPerIlConsulente(p),
               nome: atteso ? `${atteso.nome}${atteso.cognome ? ` ${atteso.cognome}` : ""}`.trim() : p.nome,
-              dev: p.dev ?? "",
-              at: p.at,
               //  ⚠️ «non era fra gli attesi» è un'informazione che il
               //   consulente deve avere: con la porta aperta entra anche chi
               //   ha ricevuto il link inoltrato da un amico.
