@@ -89,7 +89,7 @@ export const Route = createFileRoute("/api/presenter/diario")({
         if (!chi) return nonAutorizzato(cors);
         let body: { voce?: unknown; diario?: unknown } = {};
         try { body = (await request.json()) as typeof body; } catch { /* corpo illeggibile */ }
-        const testo = String(body.voce ?? "").trim().slice(0, 600);
+        const testo = String(body.voce ?? "").trim().slice(0, 900);
         if (!testo) return json({ ok: false, reason: "voce vuota" }, 400);
         const d = quale(body.diario);
         const voci = await leggi(d);

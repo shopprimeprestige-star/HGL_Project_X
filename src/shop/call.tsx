@@ -107,10 +107,11 @@ import {
   versioneVecchia,
 } from "@/shop/versione-vecchia";
 import { avviaTela, type MotoreDiDisegno } from "@/shop/tela-registrazione";
-import { SOGLIA_PIANO_GRATUITO, tocca } from "@/shop/ritmo-registrazione";
+import { SOGLIA_MASSIMA, tocca } from "@/shop/ritmo-registrazione";
+import { nomeRegistrazione } from "@/shop/registrazione-sul-computer";
 import { blocchiDrive, doveVa, intervallo, linkDrive, sogliaDellaParte } from "@/shop/drive-registrazioni";
 import { bloccati, cosaSta, inParole, segnaBlocco, staFacendo } from "@/shop/lentezza";
-import { OGNI_MS, rigaChiamata, type CampioneVideo } from "@/shop/scatola-chiamata";
+import { OGNI_MS, rigaChiamata, rigaOspite, type CampioneVideo } from "@/shop/scatola-chiamata";
 import {
   gettoneInMemoria,
   miaPersonaDi,
@@ -627,6 +628,8 @@ const lastSeen = new Map<string, number>();
 const firstSeen = new Map<string, number>();
 /** pid → da quando la RTCPeerConnection è in stato failed/closed/disconnected. */
 const badSince = new Map<string, number>();
+/** pid → quando è nato il collegamento con lui (per la scatola nera). */
+const nataIl = new Map<string, number>();
 let chan: ReturnType<typeof supabase.channel> | null = null;
 let helloTimer: ReturnType<typeof setInterval> | null = null;
 let gcTimer: ReturnType<typeof setInterval> | null = null;
@@ -1500,6 +1503,7 @@ function makePeer(pid: string): RTCPeerConnection {
   if (existing) return existing; // mai due connessioni per lo stesso pid
   console.log("[PEER] create", pid);
   const p = new RTCPeerConnection({ iceServers: cachedIce });
+  nataIl.set(pid, Date.now());
   peers.set(pid, p); // set PRIMA di qualsiasi await del chiamante (anti-glare/duplicati)
   if (localStream) localStream.getTracks().forEach((t) => p.addTrack(t, localStream!));
   // parametri encoder appena il sender esiste (e di nuovo a connessione stabilita)
@@ -1749,11 +1753,41 @@ async function reoffer(pid: string, chiestaDalPeer = false) {
 }
 
 // regola deterministica anti-glare: offre solo il pid lessicograficamente minore
+/** ── LA CONNESSIONE PARTE ANCHE SENZA CAMERA (come Google Meet) ───────────
+ *  Segnalazione del committente (14/10/2026): «le persone non mi vedono e io
+ *  non vedo loro». La scatola nera: connessione nata dal lato del consulente,
+ *  zero fotogrammi in entrambe le direzioni, nessuna strada scambiata.
+ *  La causa: la connessione partiva solo DOPO che il cliente aveva camera e
+ *  microfono aperti. Se non li apriva — «Consenti» non ancora premuto,
+ *  permesso negato, camera occupata da un'altra app sul telefono — scartava
+ *  le offerte e non ne faceva: nessuna connessione, e quindi non vedeva
+ *  nemmeno il consulente.
+ *  Adesso si collega lo stesso, solo in ricezione: vede e sente subito, e dal
+ *  consulente compare «camera spenta». Quando la camera si apre,
+ *  `attachLocalMediaToPeers` rifà la connessione con le sue tracce.
+ *  ⚠️ IL LUCCHETTO ERA LA CAMERA, ORA È L'INGRESSO: la camera si apriva solo
+ *   dopo il via libera, ed era quello a tenere fuori chi è in sala d'attesa.
+ *   Tolta la condizione sulla camera, la regola si scrive esplicita: un ospite
+ *   non si collega finché non è entrato (`puoCollegarsi`). */
+function puoCollegarsi(): boolean {
+  return !isViewer() || (S.joined && !S.kicked);
+}
+
 async function maybeInitiate(pid: string) {
-  if (!localStream || !(S.myPid < pid)) return;
+  if (!puoCollegarsi() || !(S.myPid < pid)) return;
   let p = peers.get(pid);
   if (!p) {
     p = makePeer(pid);
+    //  Senza camera né microfono l'offerta non avrebbe niente da proporre:
+    //  si chiede di RICEVERE audio e video, così il collegamento nasce lo stesso.
+    if (!localStream) {
+      try {
+        p.addTransceiver("audio", { direction: "recvonly" });
+        p.addTransceiver("video", { direction: "recvonly" });
+      } catch {
+        /* browser vecchio: si aspetta la camera come prima */
+      }
+    }
     const o = await p.createOffer();
     await p.setLocalDescription(o);
     send("offer", { from: S.myPid, to: pid, sdp: p.localDescription });
@@ -3039,7 +3073,16 @@ async function sampleUsage() {
   for (const { pid, req } of jobs) {
     let sent = 0,
       recv = 0;
-    const camp: CampioneVideo = { pid };
+    const pcc = peers.get(pid);
+    const camp: CampioneVideo = {
+      pid,
+      conn: pcc?.connectionState,
+      ice: pcc?.iceConnectionState,
+      segnale: pcc?.signalingState,
+      candIo: { host: 0, srflx: 0, relay: 0 },
+      candLui: { host: 0, srflx: 0, relay: 0 },
+      eta: nataIl.has(pid) ? (Date.now() - (nataIl.get(pid) || 0)) / 1000 : undefined,
+    };
     try {
       const stats = await req;
       let pairSent = 0,
@@ -3047,6 +3090,14 @@ async function sampleUsage() {
         rtpSent = 0,
         rtpRecv = 0;
       stats.forEach((r: any) => {
+        //  Le strade trovate dai due lati: dicono DOVE si ferma una chiamata
+        //  che non parte (vedi `doveSiFerma` in shop/scatola-chiamata).
+        if (r.type === "local-candidate" || r.type === "remote-candidate") {
+          const quale = r.type === "local-candidate" ? camp.candIo! : camp.candLui!;
+          const t = String(r.candidateType || "");
+          if (t === "host" || t === "srflx" || t === "relay") quale[t] += 1;
+          else if (t === "prflx") quale.srflx += 1;
+        }
         if (r.type === "candidate-pair" && (r.nominated || r.state === "succeeded")) {
           pairSent += Number(r.bytesSent) || 0;
           pairRecv += Number(r.bytesReceived) || 0;
@@ -3753,6 +3804,33 @@ function archiviata(url: string) {
   }
 }
 
+/** ── IL FILE VA NEI DOWNLOAD ───────────────────────────────────────────────
+ *  Niente archivio, niente caricamento: il browser scarica il file e un
+ *  avviso verde dice come si chiama. */
+function salvaSulComputer(
+  blob: Blob,
+  filename: string,
+  vuota: { titolo: string; motivo: string } = {
+    titolo: "Registrazione vuota",
+    motivo: "il registratore non ha prodotto alcun dato: non c'è file da salvare.",
+  },
+) {
+  if (!blob || !blob.size) {
+    console.warn("[REC] file vuoto:", vuota.titolo, "·", vuota.motivo);
+    avvisoRegistrazione({ ...vuota, tono: "ambra" });
+    return;
+  }
+  const mb = Math.max(1, Math.round(blob.size / (1024 * 1024)));
+  console.log("[REC] scarico sul computer", filename, `${mb} MB`);
+  salvaInLocale(blob, filename);
+  avvisoRegistrazione({
+    titolo: "Registrazione scaricata",
+    motivo: `${filename} · ${mb} MB`,
+    dettaglio: "La trovi nella cartella Download del computer. Se il browser chiede il permesso di scaricare, premi Consenti.",
+    tono: "emerald",
+  });
+}
+
 async function uploadRecording(
   blob: Blob,
   filename: string,
@@ -3921,7 +3999,9 @@ function avvisoRegistrazione(o: {
 //  facile di perdere il lavoro di un'ora: il browser chiede conferma.
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", (e) => {
-    if (!regInSospeso) return;
+    //  La registrazione vive in memoria fino alla fine della consulenza:
+    //  chiudere la scheda mentre registra la perderebbe.
+    if (!regInSospeso && !S.recording) return;
     e.preventDefault();
     e.returnValue = "";
   });
@@ -4582,15 +4662,12 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
      *   registra (vedi shop/ritmo-registrazione): sul piano gratuito resta
      *   40 MB come prima, col tetto alzato la consulenza sta in un file solo.
      *   Finché la risposta non arriva vale la soglia sicura. */
-    let SOGLIA_PARTE = SOGLIA_PIANO_GRATUITO;
-    void tettoArchivio().then((t) => {
-      //  Con Google Drive collegato la consulenza è un file solo.
-      SOGLIA_PARTE = sogliaDellaParte(t);
-      annota(
-        `parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t.tetto / (1024 * 1024))} MB` +
-          `, Drive ${t.drive ? "collegato" : "no"})`,
-      );
-    });
+    //  ⚠️ UN FILE SOLO (14/10/2026): la registrazione va sul computer del
+    //   consulente, non in archivio, quindi il tetto di Supabase non conta
+    //   più. Si chiude una parte solo oltre il massimo che si tiene in
+    //   memoria (1,5 GB, ore di consulenza). Vedi shop/registrazione-sul-computer.
+    const SOGLIA_PARTE = SOGLIA_MASSIMA;
+    annota("file unico · si scarica sul computer a fine consulenza");
 
     let numeroParte = 1;
     let pesoParte = 0;
@@ -4603,12 +4680,11 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
       finePerDavvero = true;
     };
 
-    const nomeDellaParte = (n: number, ext: string) => {
-      const t = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-      //  Il nome del file porta quello del software: nella cartella Download
-      //  di chi la riceve una registrazione anonima non si riconosce più.
-      return n === 1 && finePerDavvero ? `meetly-${t}.${ext}` : `meetly-${t}-parte${n}.${ext}`;
-    };
+    //  Il nome porta l'ora ITALIANA d'inizio e il cliente: nella cartella
+    //  Download una registrazione anonima non si riconosce più.
+    const inizioRegistrazione = new Date();
+    const nomeDellaParte = (n: number, ext: string) =>
+      nomeRegistrazione({ quando: inizioRegistrazione, cliente: clienteDellaConsulenza().nome, parte: n, ext });
 
     const nuovoRegistratore = (): MediaRecorder => {
       const r = mime
@@ -4662,18 +4738,16 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         pesoParte = 0;
 
         if (finePerDavvero) {
-          // ── NIENTE DOWNLOAD AUTOMATICO ────────────────────────────────
-          //  Chiudere una consulenza faceva partire da solo lo scaricamento
-          //  del video: file pesanti nella cartella Download, a ogni
-          //  chiamata, senza che nessuno li avesse chiesti. La registrazione
-          //  va SOLO in archivio (Impostazioni → Registrazioni).
+          // ── SUL COMPUTER, NON NELL'APP (richiesta del 14/10/2026) ─────
+          //  «Dopo la consulenza scaricale direttamente sul computer, così
+          //  le ho e le posso caricare su Google Drive se voglio.»
           recorder = null;
           set({ recording: false, recScreen: false });
           const durata = Math.round((Date.now() - avviataIl) / 1000);
           annota(
             `fine · ${durata}s · parti ${numeroParte} · pezzi ${quanti} · ${Math.round(blob.size / 1024)} KB`,
           );
-          uploadRecording(blob, fname, durataParte, perchéVuota({ cera, secondi: durata }));
+          salvaSulComputer(blob, fname, perchéVuota({ cera, secondi: durata }));
           stopRecCompositor();
           composed?.getTracks().forEach((t) => t.stop());
           recDisplay?.getTracks().forEach((t) => t.stop());
@@ -4694,7 +4768,7 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         annota(
           `parte ${numeroParte} chiusa · ${durataParte}s · ${Math.round(blob.size / 1024)} KB · continuo`,
         );
-        uploadRecording(blob, fname, durataParte);
+        salvaSulComputer(blob, fname);
         numeroParte += 1;
         inizioParte = Date.now();
         const prossimo = nuovoRegistratore();
@@ -4708,9 +4782,9 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           avvisoRegistrazione({
             titolo: "La registrazione si è fermata",
             motivo:
-              "la parte precedente è stata archiviata, ma non è stato possibile aprirne una nuova.",
+              "la parte precedente è stata scaricata sul computer, ma non è stato possibile aprirne una nuova.",
             dettaglio:
-              "Quello che hai registrato fino a qui è al sicuro in Registrazioni. Puoi ripremere REC per continuare.",
+              "Quello che hai registrato fino a qui è nei tuoi Download. Puoi ripremere REC per continuare.",
             tono: "ambra",
           });
         }
@@ -5257,8 +5331,12 @@ function attachChannel(sessionId: string) {
   //  la connessione è davvero in attesa di risposta, ed eventuali errori vengono
   //  registrati in console senza allarmare nessuno.
   ch.on("broadcast", { event: "offer" }, ({ payload }: any) => {
-    if (payload?.to !== S.myPid || !localStream) return; // serve prima il consenso ai media
+    //  ⚠️ Non serve più la camera (vedi `puoCollegarsi`): serve essere dentro.
+    if (payload?.to !== S.myPid || !puoCollegarsi()) return;
     const from = String(payload.from);
+    //  Il consulente risponde solo a chi è nei suoi partecipanti: un'offerta da
+    //  una pagina che non ha mai detto «sono entrato» non riceve il suo video.
+    if (!isViewer() && !S.roster.some((r) => r.pid === from)) return;
     const prev = offerQueue.get(from) || Promise.resolve();
     const next = prev.then(async () => {
       let p = peers.get(from);
@@ -6539,14 +6617,94 @@ async function viewerEnsureMedia() {
   //   negata questa riga era l'unica differenza fra «in linea» e «non
   //   entrato» sul pannello del consulente.
   startPresence();
+  avviaDiarioOspite();
+  esitoCameraOspite = "in corso";
   try {
     await openMedia();
+    //  `openMedia` ha appena riempito `localStream` (TypeScript non lo sa).
+    const aperto = localStream as MediaStream | null;
+    esitoCameraOspite = aperto?.getVideoTracks().length ? "ok" : "solo microfono";
     attachLocalMediaToPeers("chiamata avviata");
     startSpeakingRings();
     console.log("[GUEST] media aperti all'avvio chiamata");
   } catch (e) {
+    esitoCameraOspite = String((e as Error)?.name || (e as Error)?.message || "errore");
     console.warn("[GUEST] media non disponibili", e);
   }
+}
+
+/** ── IL DIARIO DAL TELEFONO DEL CLIENTE ────────────────────────────────────
+ *  Ogni venti secondi, finché non è collegato al consulente, una riga che
+ *  dice perché (vedi `rigaOspite` in shop/scatola-chiamata); una volta quando
+ *  ci riesce. Al massimo sei righe per ingresso: un diario, non un rubinetto. */
+let esitoCameraOspite = "";
+let diarioOspiteTimer: ReturnType<typeof setInterval> | null = null;
+function avviaDiarioOspite() {
+  if (typeof window === "undefined" || diarioOspiteTimer) return;
+  const da = Date.now();
+  let righe = 0;
+  const scrivi = (riga: string) => {
+    righe += 1;
+    void fetch("/api/presenter/errors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        msg: riga,
+        name: S.myName || "Cliente",
+        page: location.pathname,
+        ua: navigator.userAgent,
+      }),
+    }).catch(() => {
+      /* il diario è un di più */
+    });
+  };
+  diarioOspiteTimer = setInterval(async () => {
+    if (!isViewer() || !S.joined || righe >= 6) {
+      if (diarioOspiteTimer) clearInterval(diarioOspiteTimer);
+      diarioOspiteTimer = null;
+      return;
+    }
+    const host = bestHost(S);
+    const pc = host ? peers.get(host.pid) : undefined;
+    const collegato = pc?.connectionState === "connected";
+    let campione: CampioneVideo | null = null;
+    if (pc) {
+      campione = {
+        pid: host!.pid,
+        conn: pc.connectionState,
+        ice: pc.iceConnectionState,
+        segnale: pc.signalingState,
+        candIo: { host: 0, srflx: 0, relay: 0 },
+        candLui: { host: 0, srflx: 0, relay: 0 },
+        eta: (Date.now() - (nataIl.get(host!.pid) || Date.now())) / 1000,
+      };
+      try {
+        (await pc.getStats()).forEach((r: any) => {
+          if (r.type !== "local-candidate" && r.type !== "remote-candidate") return;
+          const quale = r.type === "local-candidate" ? campione!.candIo! : campione!.candLui!;
+          const t = String(r.candidateType || "");
+          if (t === "host" || t === "srflx" || t === "relay") quale[t] += 1;
+          else if (t === "prflx") quale.srflx += 1;
+        });
+      } catch {
+        /* le statistiche sono un di più */
+      }
+    }
+    scrivi(
+      rigaOspite({
+        camera: esitoCameraOspite,
+        secondi: (Date.now() - da) / 1000,
+        collegato,
+        campione,
+        scheda: document.visibilityState,
+      }),
+    );
+    //  Collegato: quella riga basta, il diario si ferma.
+    if (collegato) {
+      if (diarioOspiteTimer) clearInterval(diarioOspiteTimer);
+      diarioOspiteTimer = null;
+    }
+  }, 20_000);
 }
 
 export function endCall() {
@@ -8786,6 +8944,10 @@ async function camAcquire(): Promise<boolean> {
     await replaceVideoTrackAll(track, "camera riaccesa");
     const old = localStream?.getVideoTracks() || [];
     setLocalTrack("video", track);
+    //  Chi era entrato senza camera ha una connessione solo in ricezione: la
+    //  camera accesa adesso la fa rinascere con il suo video (vedi
+    //  `maybeInitiate`). Se la connessione aveva già il posto, non fa niente.
+    attachLocalMediaToPeers("camera accesa dopo l'ingresso");
     old.forEach((t) => {
       if (!isPlaceholder(t) && t !== track && t !== blurRaw) {
         try {
@@ -9612,6 +9774,9 @@ async function micAcquire(): Promise<boolean> {
     await replaceAudioTrackAll(track);
     const old = localStream?.getAudioTracks() || [];
     setLocalTrack("audio", track);
+    //  Lo stesso della camera: chi era entrato senza microfono si ricollega
+    //  con la voce (vedi `camAcquire`).
+    attachLocalMediaToPeers("microfono acceso dopo l'ingresso");
     old.forEach((t) => {
       if (!isPlaceholder(t) && t !== track && t !== raw) {
         try {

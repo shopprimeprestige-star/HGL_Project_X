@@ -421,6 +421,8 @@ const MODULI = [
   //  ⚠️ Quanto pesa una registrazione e quando si spezza.
   //   Vedi proveDelRitmoDellaRegistrazione.
   "shop/ritmo-registrazione",
+  //  ⚠️ La registrazione scaricata sul computer. Vedi proveDellaRegistrazioneSulComputer.
+  "shop/registrazione-sul-computer",
   //  ⚠️ Le consulenze intere su Google Drive. Vedi proveDiDrive.
   "shop/drive-registrazioni",
   //  ⚠️ La scatola nera della videochiamata. Vedi proveDellaScatolaNera.
@@ -600,6 +602,7 @@ const MIO = mod["shop/mio-preventivo"];
 const VEC = mod["shop/versione-vecchia"];
 const TELA = mod["shop/tela-registrazione"];
 const RITMO = mod["shop/ritmo-registrazione"];
+const SUL_PC = mod["shop/registrazione-sul-computer"];
 const DRIVE = mod["shop/drive-registrazioni"];
 const SCATOLA = mod["shop/scatola-chiamata"];
 const LEN = mod["shop/lentezza"];
@@ -5954,8 +5957,13 @@ function proveDeiMessaggiPerStato() {
   c("e non esce nessun nome inglese", false, /monday|tuesday|wednesday|thursday|friday|saturday|sunday/i.test(testoGiorno));
   //  ⚠️ Oltre la settimana serve anche il giorno del mese: «martedì» da solo
   //   puo' essere uno qualsiasi dei martedì che verranno.
-  const fraUnMese = { id: "x", data: { nome: "Marco", stato: "appuntamento_fissato", dataMeeting: "2026-10-20", oraMeeting: "15:30" } };
-  c("oltre la settimana si dice anche la data", true, /20 ottobre/.test(WA.getWhatsAppMessageForStatus(fraUnMese)));
+  //  ⚠️ La data si calcola da oggi: scritta fissa («2026-10-20») la prova
+  //   scadeva da sola il giorno in cui quella data entrava nella settimana.
+  const tra30 = new Date(Date.now() + 30 * 86_400_000);
+  const isoTra30 = `${tra30.getFullYear()}-${String(tra30.getMonth() + 1).padStart(2, "0")}-${String(tra30.getDate()).padStart(2, "0")}`;
+  const meseTra30 = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"][tra30.getMonth()];
+  const fraUnMese = { id: "x", data: { nome: "Marco", stato: "appuntamento_fissato", dataMeeting: isoTra30, oraMeeting: "15:30" } };
+  c("oltre la settimana si dice anche la data", true, new RegExp(`${tra30.getDate()} ${meseTra30}`).test(WA.getWhatsAppMessageForStatus(fraUnMese)));
 
   c("sede_disdetta: parla della visita, non del meet", true,
     /visita|passare/i.test(MODELLI_ORIGINALI.sede_disdetta));
@@ -15438,7 +15446,7 @@ function proveDellaScatolaNera() {
   c("le perdite in percentuale", true, r.includes("persi su 3.1% giù 0%"));
   c("i blocchi della pagina", true, r.includes("pagina bloccata 2 volte, la peggiore 1.4s (registrazione)"));
   c("dell'identificativo solo quattro lettere", false, r.includes("abcdef12"));
-  c("una riga non supera i 600 caratteri", true, rigaChiamata({ campioni: Array.from({ length: 30 }, (_, i) => ({ pid: "p" + i })) }).length <= 600);
+  c("una riga non supera i 900 caratteri", true, rigaChiamata({ campioni: Array.from({ length: 30 }, (_, i) => ({ pid: "p" + i })) }).length <= 900);
 }
 
 /** ── L'ELENCO SI AGGIORNA ANCHE SUL TELEFONO ───────────────────────────────
@@ -15644,6 +15652,43 @@ function proveDegliSlotLiberi() {
   c("nessun nome nel testo per il cliente", false, /Anna|Bruno/.test(testo));
 }
 
+/** ── DOVE SI FERMA UNA CHIAMATA CHE NON PARTE ──────────────────────────────
+ *  «Le persone non mi vedono e io non vedo loro». Vedi shop/scatola-chiamata. */
+function proveDiDoveSiFerma() {
+  const { doveSiFerma, rigaOspite, rigaChiamata } = SCATOLA;
+  gruppo("DOVE SI FERMA UNA CHIAMATA CHE NON PARTE");
+  const zero = { host: 0, srflx: 0, relay: 0 };
+  c("chiamata che va: niente da dire", "", doveSiFerma({ pid: "a", fpsSu: 15, fpsGiu: 14, conn: "connected" }));
+  const senzaRisposta = doveSiFerma({ pid: "a", conn: "new", ice: "new", segnale: "have-local-offer", candIo: { host: 2, srflx: 1, relay: 2 }, candLui: zero, eta: 80 });
+  c("offerta senza risposta: lo dice", true, senzaRisposta.includes("la risposta dell'altro dispositivo non è arrivata"));
+  c("e scrive le strade", true, senzaRisposta.includes("strade mie h2 s1 r2") && senzaRisposta.includes("sue h0 s0 r0"));
+  c("e da quanto", true, senzaRisposta.includes("da 80s"));
+  c("nessuna strada dall'altro", true, doveSiFerma({ pid: "a", conn: "connecting", ice: "checking", segnale: "stable", candIo: { host: 1, srflx: 1, relay: 1 }, candLui: zero }).includes("nessuna strada"));
+  c("TURN senza strade", true, doveSiFerma({ pid: "a", conn: "connecting", ice: "checking", segnale: "stable", candIo: { host: 1, srflx: 1, relay: 0 }, candLui: { host: 1, srflx: 1, relay: 0 } }).includes("il TURN non mi ha dato strade"));
+  c("tutte provate, nessuna va", true, doveSiFerma({ pid: "a", conn: "failed", ice: "failed", segnale: "stable", candIo: { host: 1, srflx: 1, relay: 1 }, candLui: { host: 1, srflx: 1, relay: 1 } }).includes("nessuna strada ha funzionato"));
+  const riga = rigaChiamata({ campioni: [{ pid: "yxlg968z", conn: "connecting", ice: "checking", segnale: "have-local-offer", candIo: zero, candLui: zero }] });
+  c("la riga del diario lo porta", true, riga.includes("trattativa have-local-offer"));
+  const os = rigaOspite({ camera: "NotAllowedError", secondi: 40, collegato: false, campione: null, scheda: "visible" });
+  c("lato cliente: camera negata", true, os.includes("camera NotAllowedError") && os.includes("nessuna connessione col consulente"));
+  c("lato cliente: riuscito", true, rigaOspite({ camera: "ok", secondi: 4, collegato: true }).startsWith("COLLEGAMENTO riuscito in 4s"));
+}
+
+/** ── LA REGISTRAZIONE SCARICATA SUL COMPUTER ───────────────────────────────
+ *  «Dopo la consulenza scaricale direttamente sul computer». Vedi
+ *  shop/registrazione-sul-computer. */
+function proveDellaRegistrazioneSulComputer() {
+  const { nomeRegistrazione, perNomeFile } = SUL_PC;
+  gruppo("LA REGISTRAZIONE SCARICATA SUL COMPUTER");
+  const q = new Date(2026, 9, 14, 9, 4);
+  c("nome con ora italiana e cliente", "meetly-2026-10-14-09-04-Mario-Rossi.mp4", nomeRegistrazione({ quando: q, cliente: "Mario Rossi", ext: "mp4" }));
+  c("senza cliente", "meetly-2026-10-14-09-04.webm", nomeRegistrazione({ quando: q, ext: "webm" }));
+  c("parte 1 non si scrive", "meetly-2026-10-14-09-04.mp4", nomeRegistrazione({ quando: q, parte: 1, ext: "mp4" }));
+  c("parte 2 sì", "meetly-2026-10-14-09-04-Anna-parte2.mp4", nomeRegistrazione({ quando: q, cliente: "Anna", parte: 2, ext: "mp4" }));
+  c("accenti e simboli via", "Nicolo-D-Amico", perNomeFile("Nicolò D'Amico!"));
+  c("vuoto resta vuoto", "", perNomeFile(""));
+  c("nome lunghissimo tagliato", 40, perNomeFile("x".repeat(80)).length);
+}
+
 /** ── LE CONSULENZE INTERE SU GOOGLE DRIVE ──────────────────────────────────
  *  «Fai che registra tutto in un'unica soluzione, al massimo salva su Google
  *  Drive». Vedi shop/drive-registrazioni. */
@@ -15740,6 +15785,8 @@ proveDelRinvioPerChi();
 proveDiChiEsce();
 proveDegliSlotLiberi();
 proveDiDrive();
+proveDellaRegistrazioneSulComputer();
+proveDiDoveSiFerma();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
