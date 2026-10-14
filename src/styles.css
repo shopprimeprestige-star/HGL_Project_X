@@ -2087,3 +2087,365 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
 .articolo-blog a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
 .articolo-blog strong { font-weight: 650; }
 .articolo-blog blockquote { padding: 0.75em 1em; border-radius: var(--radius); background: var(--brand-velo); color: var(--ink-muted); }
+
+/* ═══ LANDING «TRE SOLUZIONI» (`/soluzioni`) · tema, caratteri, bottoni ═════
+   Tutto quello che segue vive sotto `.tema-soluzioni` (la classe della <main>
+   della pagina): la home, `/protocol` e il resto del sito restano com'erano.
+   Fanno eccezione i `@font-face` (un carattere non usato non si scarica) e i
+   `@keyframes` (qui non ce ne sono: la pagina quasi non si muove).
+   ⚠️ Le regole stanno in `@layer components`, SOTTO le utility di Tailwind:
+    chi usa un `hidden`, un `lg:w-[360px]` o un `mt-4` su un bottone o su un
+    titolo vince lui, come ci si aspetta. Fuori dal layer vincerebbe il tema.
+   ⚠️ Le misure e i colori sono quelli della sezione 4.1 del documento
+    `20-sito/2026-10-14-landing-v3.md`. I contrasti (WCAG 2.2) li ricontrolla
+    `prove/sito/soluzioni-media.mjs`. Il testo del bottone blu è SEMPRE blu
+    notte (bianco su #0F90FE fa 3,26:1: vietato); `#0F90FE` non è mai il colore
+    di un testo o di un'icona su fondo chiaro (2,92:1): lì si usa
+    `--hgl-elettrico-su-chiaro`.
+   ⚠️ Anton ha solo il peso 400: i titoli dicono `font-synthesis: none`, così
+    il browser non gli inventa un grassetto sbavato.
+   ⚠️ `size-adjust` dei ripieghi: misurato in Chrome sulle stesse frasi
+    (Anton/Arial Bold 0,70; Inter Tight/Arial 0,955, in grassetto 0,93).
+   shortcut: niente `ascent-override` dei ripieghi (servirebbe leggere le
+    metriche dei file), il salto al cambio di carattere lo contiene
+    l'interlinea fissa dei titoli; da rivedere se Lighthouse misura un CLS
+    dovuto ai caratteri. */
+
+@font-face {
+  font-family: "AntonHGL";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/anton/5.3.0/anton-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "AntonHGL";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/anton/5.3.0/anton-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "InterTightHGL";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-tight/5.3.0/inter-tight-latin-ext-wght-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "InterTightHGL";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-tight/5.3.0/inter-tight-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/*  I ripieghi: il carattere di sistema, ridimensionato perché occupi lo stesso spazio mentre il vero arriva. */
+@font-face {
+  font-family: "AntonHGL Ripiego";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica Bold"), local("Helvetica-Bold");
+  size-adjust: 70%;
+}
+@font-face {
+  font-family: "InterTightHGL Ripiego";
+  font-style: normal;
+  font-weight: 100 599;
+  font-display: swap;
+  src: local("Arial"), local("ArialMT"), local("Helvetica");
+  size-adjust: 95.5%;
+}
+@font-face {
+  font-family: "InterTightHGL Ripiego";
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica Bold"), local("Helvetica-Bold");
+  size-adjust: 93%;
+}
+
+@layer components {
+  /* ── I token ─────────────────────────────────────────────────────────── */
+  .tema-soluzioni {
+    --hgl-notte: #0A1430;
+    --hgl-elettrico: #0F90FE;
+    --hgl-titoli: #5CB6FF;
+    --hgl-chiaro: #EEF2FF;
+    --hgl-carta: #FFFFFF;
+    --hgl-dettagli: #C9D6FF;
+    --hgl-elettrico-su-chiaro: #0B5FB0;
+    --hgl-notte-barra: #111C3D;
+    --hgl-font-titoli: "AntonHGL", "AntonHGL Ripiego", Impact, "Arial Narrow", sans-serif;
+    --hgl-font-testo: "InterTightHGL", "InterTightHGL Ripiego", ui-sans-serif, system-ui, sans-serif;
+    --sol-fuoco: var(--hgl-carta);
+    font-family: var(--hgl-font-testo);
+    color: var(--hgl-carta);
+    font-size: 1rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* ── I due fondi: blu notte e chiaro, entrambi con la griglia da 72 px ── */
+  .tema-soluzioni .sol-fondo-notte {
+    background-color: var(--hgl-notte);
+    background-image: linear-gradient(to right, rgb(255 255 255 / 4%) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 4%) 1px, transparent 1px);
+    background-size: 72px 72px;
+    color: var(--hgl-carta);
+  }
+  .tema-soluzioni .sol-fondo-chiaro {
+    --sol-fuoco: var(--hgl-notte);
+    background-color: var(--hgl-chiaro);
+    background-image: linear-gradient(to right, rgb(10 20 48 / 5%) 1px, transparent 1px), linear-gradient(to bottom, rgb(10 20 48 / 5%) 1px, transparent 1px);
+    background-size: 72px 72px;
+    color: var(--hgl-notte);
+  }
+  /* Le icone sul chiaro: il blu scuro, mai il blu elettrico (2,92:1). */
+  .tema-soluzioni .sol-fondo-chiaro .sol-icona {
+    color: var(--hgl-elettrico-su-chiaro);
+  }
+
+  /* ── Il fuoco: anello 2 px a 2 px su ogni elemento attivo ─────────────── */
+  .tema-soluzioni :focus-visible {
+    outline: 2px solid var(--sol-fuoco);
+    outline-offset: 2px;
+  }
+
+  /* ── La scala tipografica (telefono 390 · computer 1440) ──────────────── */
+  .tema-soluzioni .sol-h1 {
+    font-family: var(--hgl-font-titoli);
+    font-size: clamp(2rem, 4.5vw, 4rem);
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+  }
+  .tema-soluzioni .sol-h2-nome {
+    font-family: var(--hgl-font-titoli);
+    font-size: clamp(1.375rem, 2.2vw, 2rem);
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1.05;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+  }
+  .tema-soluzioni .sol-h2-spiegazione {
+    font-family: var(--hgl-font-titoli);
+    font-size: clamp(1.75rem, 3.1vw, 2.75rem);
+    font-weight: 400;
+    font-synthesis: none;
+    line-height: 1.05;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+  }
+  .tema-soluzioni .sol-etichetta {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .tema-soluzioni .sol-sottotitolo {
+    font-size: 0.9375rem;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+  .tema-soluzioni .sol-riga {
+    font-size: 0.9375rem;
+    font-weight: 400;
+    line-height: 1.35;
+  }
+  .tema-soluzioni .sol-testo {
+    font-size: 1.0625rem;
+    font-weight: 400;
+    line-height: 1.55;
+    max-width: 62ch;
+  }
+  .tema-soluzioni .sol-didascalia {
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* ── Bottoni: tre ruoli, mai altri ─────────────────────────────────────── */
+  .tema-soluzioni .sol-btn-primario {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 56px;
+    padding: 0 24px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--hgl-elettrico);
+    color: var(--hgl-notte);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 150ms ease;
+  }
+  .tema-soluzioni .sol-btn-primario:hover {
+    background: var(--hgl-titoli);
+  }
+  .tema-soluzioni .sol-fondo-chiaro .sol-btn-primario {
+    border: 1px solid var(--hgl-elettrico-su-chiaro);
+  }
+
+  .tema-soluzioni .sol-btn-contorno {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 16px;
+    border: 1.5px solid var(--hgl-dettagli);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--hgl-carta);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: left;
+    cursor: pointer;
+  }
+  /*  Alto 40 da vedere, 44 da toccare. Si usa ::before: ::after serve alla riga della tavola (link esteso). */
+  .tema-soluzioni .sol-btn-contorno::before {
+    content: "";
+    position: absolute;
+    inset: -2px 0;
+  }
+  .tema-soluzioni .sol-btn-icona {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    transition: transform 200ms ease;
+  }
+  .tema-soluzioni .sol-btn-contorno[aria-expanded="true"] .sol-btn-icona {
+    transform: rotate(45deg);
+  }
+
+  .tema-soluzioni .sol-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--hgl-carta);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: left;
+    text-decoration-line: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    text-decoration-color: var(--hgl-titoli);
+    cursor: pointer;
+  }
+  .tema-soluzioni .sol-link-freccia {
+    flex: none;
+    width: 1em;
+    height: 1em;
+  }
+  .tema-soluzioni .sol-fondo-chiaro .sol-link {
+    color: var(--hgl-notte);
+    text-decoration-color: var(--hgl-elettrico-su-chiaro);
+  }
+
+  /* ── I mirini agli angoli della tavola (16 px, dettagli al 50%) ────────── */
+  .tema-soluzioni .brackets::before,
+  .tema-soluzioni .brackets::after,
+  .tema-soluzioni .brackets > .br-tr,
+  .tema-soluzioni .brackets > .br-bl {
+    width: 16px;
+    height: 16px;
+    border-color: rgb(201 214 255 / 50%);
+  }
+  .tema-soluzioni .sol-fondo-chiaro .brackets::before,
+  .tema-soluzioni .sol-fondo-chiaro .brackets::after,
+  .tema-soluzioni .sol-fondo-chiaro .brackets > .br-tr,
+  .tema-soluzioni .sol-fondo-chiaro .brackets > .br-bl {
+    border-color: rgb(10 20 48 / 50%);
+  }
+  .tema-soluzioni .brackets::before {
+    top: 0;
+    left: 0;
+  }
+  .tema-soluzioni .brackets::after {
+    right: 0;
+    bottom: 0;
+  }
+  .tema-soluzioni .brackets > .br-tr {
+    top: 0;
+    right: 0;
+  }
+  .tema-soluzioni .brackets > .br-bl {
+    bottom: 0;
+    left: 0;
+  }
+
+  /* ── La spiegazione che si apre sul posto (4.1) ───────────────────────────
+     Apertura 240 ms (chiusura 200), il contenuto entra in 180 ms e sale di 8 px.
+     Il pannello dice `data-aperto="true|false"`; il corpo sta in `.sol-pannello-interno`. */
+  .tema-soluzioni .sol-pannello {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .tema-soluzioni .sol-pannello[data-aperto="true"] {
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .tema-soluzioni .sol-pannello-interno {
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .tema-soluzioni .sol-pannello[data-aperto="true"] .sol-pannello-interno {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ── Sul computer (1024 e oltre) ───────────────────────────────────────── */
+  @media (min-width: 1024px) {
+    .tema-soluzioni .sol-sottotitolo {
+      font-size: 1.25rem;
+    }
+    .tema-soluzioni .sol-riga {
+      font-size: 1.0625rem;
+    }
+    .tema-soluzioni .sol-testo {
+      font-size: 1.125rem;
+    }
+    .tema-soluzioni .sol-didascalia {
+      font-size: 0.9375rem;
+    }
+    .tema-soluzioni .sol-btn-primario {
+      width: 360px;
+      font-size: 1.125rem;
+    }
+    .tema-soluzioni .sol-link {
+      font-size: 1.125rem;
+    }
+  }
+
+  /* ── «Riduci movimento»: tutto fermo, tutto subito ─────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    .tema-soluzioni,
+    .tema-soluzioni *,
+    .tema-soluzioni *::before,
+    .tema-soluzioni *::after {
+      transition: none !important;
+      animation: none !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
