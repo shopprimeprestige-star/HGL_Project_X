@@ -1381,14 +1381,26 @@ export function RigaLead({
             </span>
           )}
         </button>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+        {/*  ⚠️ SUL MONITOR UNA RIGA SOLA, CHE SI TAGLIA E NON VA A CAPO
+            (14/10/2026). Con la temperatura in testa la riga piccola andava a
+            capo anche a 1280 px, e la SPEC chiede righe non più alte di prima.
+            Ogni voce ha già il suo `truncate`: da `sm` in su serve davvero.
+            La temperatura si ferma a metà riga e si accorcia per prima
+            (`shrink-[100]`), tenendo pallino e parola: senza il tetto anche
+            consulente e città perdevano qualche pixel e diventavano «Mar…».
+            Sul telefono invece si va a capo come prima: tagliando, a 360 px
+            sparivano consulente e città. */}
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground sm:flex-nowrap sm:overflow-hidden">
           {/*  ── COM'È MESSO IL CLIENTE, IN TESTA ──────────────────────────
               Richiesta del titolare (14/10/2026): si legge dalla riga senza
               aprire la scheda. Nella riga piccola che c'è già, non in una
               nuova: pallino + parola + al massimo due risposte brevi, e niente
               se non ha risposto (vedi crm/Temperatura). */}
           {temperatura && mostraTemperatura(l.data.stato) && (
-            <TemperaturaRiga dati={l.data} className="min-w-0 truncate" />
+            <TemperaturaRiga
+              dati={l.data}
+              className="min-w-[4.5rem] shrink-[100] truncate sm:max-w-[50%]"
+            />
           )}
           <ChipAttesa attesa={attesa} />
           {motivo && <span className="truncate">{motivo}</span>}
