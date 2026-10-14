@@ -475,6 +475,10 @@ const MODULI = [
   //  ⚠️ Che cosa vede in «Oggi» chi non fa consulenze (la setter in sola
   //   lettura). Vedi proveDellaVistaDiOggi.
   "vista-oggi",
+  //  ⚠️ Come il modulo di prenotazione del sito scrive il telefono nel lead:
+  //   vedi proveDelTelefonoDelModulo. Un cellulare 391/392/393/397 scritto con
+  //   lo spazio finiva «+39 3 1234567» e il lead non era piu' richiamabile.
+  "landing/booking/telefono",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -486,7 +490,7 @@ for (const m of MODULI) {
       "esbuild",
       //  `webinar/` sta in `src/`, `fatture/` dentro `src/crm/`: due rami
       //  diversi, e confonderli fa fallire il bundle di TUTTE le prove.
-      m.startsWith("webinar/") || m.startsWith("prova/") || m.startsWith("seo/") || m.startsWith("lib/")
+      m.startsWith("webinar/") || m.startsWith("landing/") || m.startsWith("prova/") || m.startsWith("seo/") || m.startsWith("lib/")
         ? `src/${m}.ts`
         : m.startsWith("shop/") || m === "versione-aperta"
           ? `src/${m}.ts`
@@ -686,6 +690,7 @@ const MI = mod["webinar/messaggio-invito"];
 const SP = mod["webinar/segui-parole"];
 const TEMP = mod["temperatura-lead"];
 const VISTA = mod["vista-oggi"];
+const TELMOD = mod["landing/booking/telefono"];
 
 /** ── LA VALIDAZIONE CONTRO LO SCHEMA ──────────────────────────────────────
  *  Torna `"ok"`, oppure il motivo per cui lo SDI lo scarterebbe. Se sul
@@ -17473,6 +17478,48 @@ function proveDeiQuattroEsiti() {
  *  la setter vede «Oggi» in sola lettura con i posti liberi per giorno. Le
  *  regole sono pure e stanno qui sotto; le pagine si provano sul sorgente. */
 
+/** ── IL TELEFONO DEL MODULO DI PRENOTAZIONE ───────────────────────────────
+ *  Il campo ha il +39 fisso. Chi scrive «393 1234567» (il prefisso mobile 393)
+ *  si vedeva togliere le prime due cifre come se fossero il «39» del paese:
+ *  «+39 3 1234567». Stessa sorte per 391, 392, 397 con lo spazio. Il lead
+ *  arrivava senza un numero richiamabile. Si guarda il numero che ESCE (solo
+ *  cifre, con il +): quello che il CRM salva e che chiama. */
+function proveDelTelefonoDelModulo() {
+  const { telefonoDaCampo, numeroNazionale } = TELMOD;
+  gruppo("IL TELEFONO DEL MODULO DI PRENOTAZIONE");
+  const e164 = (raw) => telefonoDaCampo(raw).replace(/[^\d+]/g, "");
+  const casi = [
+    ["393 1234567", "+393931234567"],
+    ["391 234 5678", "+393912345678"],
+    ["392 1234567", "+393921234567"],
+    ["397 1234567", "+393971234567"],
+    ["+39 393 1234567", "+393931234567"],
+    ["+39 391 234 5678", "+393912345678"],
+    ["0039 3931234567", "+393931234567"],
+    ["0039 393 1234567", "+393931234567"],
+    ["3931234567", "+393931234567"],
+    ["393-123-4567", "+393931234567"],
+    ["39 393 1234567", "+393931234567"],
+    ["393931234567", "+393931234567"],
+    ["333 1234567", "+393331234567"],
+    ["3331234567", "+393331234567"],
+    ["+39 333 1234567", "+393331234567"],
+    ["06 1234567", "+39061234567"],
+    ["+39 06 1234567", "+39061234567"],
+    ["0039 06 1234567", "+39061234567"],
+    ["02 12345678", "+390212345678"],
+    ["", ""],
+  ];
+  for (const [scritto, atteso] of casi) c(`«${scritto}» → ${atteso || "(vuoto)"}`, atteso, e164(scritto));
+  //  Quello che salva il campo, riletto dal campo (il valore torna come
+  //  «+39 …» e si rilegge a ogni tasto): dev'essere stabile, senza mangiare cifre.
+  for (const [scritto] of casi.filter(([, a]) => a)) {
+    const salvato = telefonoDaCampo(scritto);
+    c(`«${scritto}»: riletto dal campo resta uguale`, salvato, telefonoDaCampo(salvato));
+    c(`«${scritto}»: il campo mostra il numero senza +39`, salvato.slice(4), numeroNazionale(salvato));
+  }
+}
+
 /** La temperatura: una funzione sola, così lo stesso lead ha lo stesso livello
  *  in «Oggi», in Lead importati e nella scheda. Vedi crm/temperatura-lead. */
 function proveDellaTemperatura() {
@@ -18609,6 +18656,7 @@ proveDiDrive();
 proveDellaTemperatura();
 proveDellaVistaDiOggi();
 proveDellaStriscia();
+proveDelTelefonoDelModulo();
 await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();
