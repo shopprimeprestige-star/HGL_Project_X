@@ -2414,6 +2414,110 @@ video:not([controls])::-internal-media-controls-overlay-cast-button {
     transform: none;
   }
 
+  /* ── I media: il video del titolare e la clip della macro ─────────────────
+     Nessuno sfondo grigio: prima che arrivi il file si vede il colore della sezione. */
+  .tema-soluzioni .sol-video,
+  .tema-soluzioni .sol-clip {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 12px;
+  }
+  .tema-soluzioni .sol-video-file {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .tema-soluzioni .sol-copertina {
+    position: absolute;
+    inset: 0;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--hgl-carta);
+    cursor: pointer;
+  }
+  .tema-soluzioni .sol-copertina-foto {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  /*  La pillola sta in basso a sinistra: il volto è al centro, mai coperto. */
+  .tema-soluzioni .sol-pillola {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-right: 18px;
+    border-radius: 999px;
+    background: rgb(10 20 48 / 88%);
+    color: var(--hgl-carta);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: left;
+  }
+  .tema-soluzioni .sol-pillola-play {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--hgl-elettrico);
+    color: var(--hgl-notte);
+  }
+  .tema-soluzioni .sol-pillola-triangolo {
+    width: 20px;
+    height: 20px;
+    margin-left: 2px;
+  }
+  .tema-soluzioni .sol-trascrizione {
+    margin-top: 8px;
+  }
+  .tema-soluzioni .sol-trascrizione > summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  .tema-soluzioni .sol-trascrizione > summary::-webkit-details-marker {
+    display: none;
+  }
+  .tema-soluzioni .sol-trascrizione-testo {
+    margin-top: 8px;
+    white-space: pre-line;
+  }
+  .tema-soluzioni .sol-clip-figura {
+    margin: 0;
+  }
+  .tema-soluzioni .sol-clip-figura > .sol-didascalia {
+    margin-top: 8px;
+  }
+  /*  Play/pausa della clip: 44 px, sempre visibile (WCAG 2.2.2). */
+  .tema-soluzioni .sol-media-tasto {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1.5px solid var(--hgl-dettagli);
+    border-radius: 50%;
+    background: rgb(10 20 48 / 88%);
+    color: var(--hgl-carta);
+    cursor: pointer;
+  }
+  .tema-soluzioni .sol-media-tasto > svg {
+    width: 18px;
+    height: 18px;
+  }
+
   /* ── Sul computer (1024 e oltre) ───────────────────────────────────────── */
   @media (min-width: 1024px) {
     .tema-soluzioni .sol-sottotitolo {

@@ -264,4 +264,94 @@ vero("i file precaricati esistono davvero", F2.PRECARICA_FONT_SOLUZIONI.every((l
 const mov = leggi("src/landing/sito/soluzioni/movimento.ts");
 vero("movimento.ts: usaMovimentoRidotto legge matchMedia del movimento ridotto", /export function usaMovimentoRidotto\b/.test(mov) && /prefers-reduced-motion:\s*reduce/.test(mov) && /matchMedia/.test(mov));
 
+/* ── S2.1 · Foto, VideoParlato, ClipLoop ───────────────────────────────── */
+{
+  const DIR = "src/landing/sito/soluzioni";
+  const foto = leggi(`${DIR}/Foto.tsx`);
+  const video = leggi(`${DIR}/VideoParlato.tsx`);
+  const clip = leggi(`${DIR}/ClipLoop.tsx`);
+  const tutti = { Foto: foto, VideoParlato: video, ClipLoop: clip };
+
+  for (const [nome, sorgente] of Object.entries(tutti)) {
+    vero(`${nome}: esporta la funzione col suo nome`, new RegExp(`export function ${nome}\\b`).test(sorgente));
+    vero(`${nome}: niente autoPlay`, !/autoPlay/i.test(sorgente.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")));
+    vero(`${nome}: non importa MediaSlot, PlaceholderBox né LandingContent`, !/MediaSlot|PlaceholderBox|LandingContent/.test(sorgente.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")));
+    vero(`${nome}: nessun colore scritto a mano`, !/#[0-9a-f]{6}\b/i.test(sorgente));
+  }
+  vero("VideoParlato: preload none, playsInline, controlli solo dopo il tocco", /preload="none"/.test(video) && /playsInline/.test(video) && /controls=\{/.test(video));
+  vero("VideoParlato: l'audio non è mai spento", !/\bmuted\b/.test(video.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")));
+  vero("VideoParlato: avvisa la barra (segnaVideo true e false)", /segnaVideo\(true\)/.test(video) && /segnaVideo\(false\)/.test(video));
+  vero("VideoParlato: gli eventi del video", ["invisible_video_play", "invisible_video_50", "video_play", "video_50", "video_fine"].every((e) => video.includes(`"${e}"`)) && /voce:\s*"invisibleVideo"/.test(video));
+  vero("VideoParlato: la trascrizione è un <details> solo se c'è", /<details/.test(video) && /trascrizione\?\.trim\(\)|trascrizione\s*&&|trim\(\)/.test(video));
+  vero("ClipLoop: muted, loop, preload none, playsInline, aria-hidden", ["muted", "loop", 'preload="none"', "playsInline", 'aria-hidden="true"'].every((x) => clip.includes(x)));
+  vero("ClipLoop: legge il movimento ridotto e usa IntersectionObserver", /usaMovimentoRidotto/.test(clip) && /IntersectionObserver/.test(clip) && /threshold:\s*0\.5/.test(clip) && /200px/.test(clip));
+  vero("ClipLoop: descrizione nascosta e figcaption", /sr-only/.test(clip) && /<figcaption/.test(clip));
+  vero("Foto: aspect-ratio, width/height, fetchPriority, decoding", ["aspectRatio", "width={", "height={", "fetchPriority", 'decoding="async"', "objectPosition"].every((x) => foto.includes(x)));
+
+  const R = richiedi("react");
+  const { renderToStaticMarkup: disegna } = richiedi("react-dom/server");
+  const h = R.createElement;
+  const slot = { src: "https://x.test/storage/v1/object/public/landing-media/v.mp4", poster: "https://x.test/storage/v1/object/public/landing-media/p.webp", alt: "Il titolare ti guarda in camera." };
+
+  /* Foto */
+  const FO = await carica(`${DIR}/Foto.tsx`, "foto-s2", { reactVero: true });
+  c("Foto con slot null → stringa vuota", "", disegna(h(FO.Foto, { slot: null, formato: "1:1", larghezza: 72, altezza: 72 })));
+  c("Foto con src vuoto → stringa vuota", "", disegna(h(FO.Foto, { slot: { ...slot, src: "" }, formato: "1:1", larghezza: 72, altezza: 72 })));
+  {
+    const html = disegna(h(FO.Foto, { slot: { src: slot.poster, poster: "", alt: "Una patch tenuta in mano." }, formato: "3:2", larghezza: 373, altezza: 249, posizione: "50% 30%" }));
+    vero("Foto: una sola <img> con src, alt, width e height", (html.match(/<img /g) ?? []).length === 1 && html.includes(`src="${slot.poster}"`) && html.includes('alt="Una patch tenuta in mano."') && html.includes('width="373"') && html.includes('height="249"'));
+    vero("Foto: aspect-ratio 3 / 2, cover, object-position", html.includes("aspect-ratio:3 / 2") && html.includes("object-fit:cover") && html.includes("object-position:50% 30%"));
+    vero("Foto: di base subito, decodifica asincrona", html.includes('loading="eager"') && html.includes('decoding="async"') && !html.includes("fetchpriority"));
+    const alta = disegna(h(FO.Foto, { slot, formato: "1:1", larghezza: 96, altezza: 96, priorita: "alta" }));
+    vero("Foto alta: fetchpriority high, mai lazy", alta.includes('fetchPriority="high"') || alta.includes('fetchpriority="high"'));
+    vero("Foto alta: niente loading lazy", !alta.includes('loading="lazy"'));
+    vero("Foto pigra: loading lazy", disegna(h(FO.Foto, { slot, formato: "4:5", larghezza: 481, altezza: 601, priorita: "pigra" })).includes('loading="lazy"'));
+    vero("Foto: className passa", disegna(h(FO.Foto, { slot, formato: "1:1", larghezza: 72, altezza: 72, className: "rounded-full" })).includes('class="rounded-full"'));
+    //  Un alt con virgolette o tag resta testo.
+    vero("Foto: l'alt è testo, non HTML", !disegna(h(FO.Foto, { slot: { ...slot, alt: '"><script>x</script>' }, formato: "1:1", larghezza: 1, altezza: 1 })).includes("<script"));
+  }
+
+  /* VideoParlato */
+  const VP = await carica(`${DIR}/VideoParlato.tsx`, "video-s2", { reactVero: true });
+  const testi = { pillola: "Te lo spiego in 30 secondi", riguarda: "Riguarda", etichettaPlay: "Guarda il video: che cos'è Invisible Derm, con audio", leggiTesto: "Leggi il testo del video" };
+  {
+    const html = disegna(h(VP.VideoParlato, { slot, formato: "4:5", testi, trascrizione: "Ciao, sono io. Ti spiego." }));
+    c("VideoParlato: un solo <button> (la copertina)", 1, (html.match(/<button\b/g) ?? []).length);
+    vero("VideoParlato: il bottone ha l'etichetta del play", html.includes(`aria-label="${testi.etichettaPlay.replace(/'/g, "&#x27;")}"`));
+    vero("VideoParlato: la pillola dice il testo, in HTML", html.includes(testi.pillola));
+    vero("VideoParlato: la copertina è la poster", html.includes(`src="${slot.poster}"`));
+    vero("VideoParlato: video preload none, playsinline, senza autoplay né controlli", /<video\b[^>]*preload="none"/.test(html) && /<video\b[^>]*playsinline/i.test(html) && !/autoplay/i.test(html) && !/<video\b[^>]*\bcontrols/.test(html));
+    vero("VideoParlato: il video non si scarica da solo (src solo dopo il tocco o con preload none)", !/<video\b[^>]*preload="auto"/.test(html));
+    vero("VideoParlato: <details> con «Leggi il testo del video» e la trascrizione", html.includes("<details") && html.includes("<summary") && html.includes(testi.leggiTesto) && html.includes("Ciao, sono io. Ti spiego."));
+    vero("VideoParlato: «Riguarda» non si vede prima di finire", !html.includes(">Riguarda<"));
+  }
+  vero("VideoParlato senza trascrizione (vuota o spazi): niente <details>", ["", "   ", null].every((tr) => !disegna(h(VP.VideoParlato, { slot, formato: "4:5", testi, trascrizione: tr })).includes("<details")));
+  {
+    //  Il testo scritto nel CRM resta testo (nota g del revisore).
+    const html = disegna(h(VP.VideoParlato, { slot, formato: "4:5", testi, trascrizione: "</script><img src=x onerror=alert(1)>" }));
+    vero("VideoParlato: la trascrizione è escapata", !html.includes("<img src=x") && html.includes("&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;"));
+  }
+
+  /* ClipLoop */
+  const CL = await carica(`${DIR}/ClipLoop.tsx`, "clip-s2", { reactVero: true });
+  {
+    const etichette = { ferma: "Metti in pausa il video", riparti: "Fai partire il video" };
+    const html = disegna(h(CL.ClipLoop, { slot, formato: "4:5", descrizione: "Primo piano dell'attaccatura. Video breve senza audio.", didascalia: "Da 10 centimetri, alla luce dello studio.", etichette }));
+    vero("ClipLoop: <video> muted loop playsinline preload none aria-hidden", /<video\b[^>]*\bmuted/.test(html) && /<video\b[^>]*\bloop/.test(html) && /<video\b[^>]*playsinline/i.test(html) && /<video\b[^>]*preload="none"/.test(html) && /<video\b[^>]*aria-hidden="true"/.test(html));
+    vero("ClipLoop: nessun autoplay e nessun src prima dei 200 px", !/autoplay/i.test(html) && !/<video\b[^>]*\bsrc=/.test(html));
+    vero("ClipLoop: la copertina è la poster", html.includes(`poster="${slot.poster}"`));
+    vero("ClipLoop: <figure> con <figcaption> e descrizione nascosta", html.startsWith("<figure") && html.includes("<figcaption") && html.includes("Da 10 centimetri, alla luce dello studio.") && /class="[^"]*sr-only[^"]*"[^>]*>Primo piano/.test(html));
+    c("ClipLoop: un solo bottone (play/pausa)", 1, (html.match(/<button\b/g) ?? []).length);
+    vero("ClipLoop: il bottone, da fermo, dice «Fai partire il video»", html.includes('aria-label="Fai partire il video"'));
+    vero("ClipLoop: il bottone è alto e largo 44 (classe del tema)", /<button\b[^>]*class="[^"]*sol-media-tasto/.test(html));
+  }
+  //  Il CSS dei pezzi nuovi sta nel tema (la regola generale sopra lo controlla); qui che le classi usate esistano.
+  for (const cl of ["sol-copertina", "sol-pillola", "sol-pillola-play", "sol-media-tasto", "sol-video", "sol-clip"]) {
+    vero(`CSS: .${cl} definita`, regola(`.tema-soluzioni .${cl}`).length > 0);
+  }
+  c("CSS: il tasto della clip è 44 × 44", ["44px", "44px"], [dichiarazioni(regola(".tema-soluzioni .sol-media-tasto")[0]?.corpo ?? "").width, dichiarazioni(regola(".tema-soluzioni .sol-media-tasto")[0]?.corpo ?? "").height]);
+  c("CSS: la pillola è blu notte all'88%, in basso a sinistra", ["rgb(10 20 48 / 88%)", "12px", "12px"], [dichiarazioni(regola(".tema-soluzioni .sol-pillola")[0]?.corpo ?? "").background, dichiarazioni(regola(".tema-soluzioni .sol-pillola")[0]?.corpo ?? "").left, dichiarazioni(regola(".tema-soluzioni .sol-pillola")[0]?.corpo ?? "").bottom]);
+  c("CSS: il cerchio del play è 48 px, blu con triangolo blu notte", ["48px", "var(--hgl-elettrico)", "var(--hgl-notte)"], [dichiarazioni(regola(".tema-soluzioni .sol-pillola-play")[0]?.corpo ?? "").width, dichiarazioni(regola(".tema-soluzioni .sol-pillola-play")[0]?.corpo ?? "").background, dichiarazioni(regola(".tema-soluzioni .sol-pillola-play")[0]?.corpo ?? "").color]);
+}
+
 finisci();

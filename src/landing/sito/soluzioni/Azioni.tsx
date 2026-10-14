@@ -11,16 +11,31 @@ function unisci(...classi: Array<string | undefined | false>): string {
 }
 
 /** `data-barra-nascondi="fondo"`: la barra delle patch si fa da parte quando questo bottone le arriva sopra. */
-export function BottonePrimario({ className, type = "button", children, ...resto }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function BottonePrimario({
+  className,
+  type = "button",
+  children,
+  ...resto
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button type={type} data-barra-nascondi="fondo" className={unisci("sol-btn-primario", className)} {...resto}>
+    <button
+      type={type}
+      data-barra-nascondi="fondo"
+      className={unisci("sol-btn-primario", className)}
+      {...resto}
+    >
       {children}
     </button>
   );
 }
 
 /** Il «+» ruota in «×» quando `aria-expanded` è "true": lo passa chi lo usa, come per ogni bottone che apre. */
-export function BottoneContorno({ className, type = "button", children, ...resto }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function BottoneContorno({
+  className,
+  type = "button",
+  children,
+  ...resto
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button type={type} className={unisci("sol-btn-contorno", className)} {...resto}>
       <Plus className="sol-btn-icona" aria-hidden="true" strokeWidth={2} />
@@ -32,7 +47,13 @@ export function BottoneContorno({ className, type = "button", children, ...resto
 type PropsLink = { freccia?: boolean; children: ReactNode; className?: string };
 
 /** Con `href` è un collegamento, senza è un bottone (apre il foglio). `freccia`: aggiunge «→» (di base no: il testo può già averla). */
-export function LinkAzione(props: PropsLink & (({ href: string } & AnchorHTMLAttributes<HTMLAnchorElement>) | ({ href?: undefined } & ButtonHTMLAttributes<HTMLButtonElement>))) {
+export function LinkAzione(
+  props: PropsLink &
+    (
+      | ({ href: string } & AnchorHTMLAttributes<HTMLAnchorElement>)
+      | ({ href?: undefined } & ButtonHTMLAttributes<HTMLButtonElement>)
+    ),
+) {
   const { freccia = false, className, children, ...resto } = props;
   const dentro = (
     <>
@@ -42,7 +63,10 @@ export function LinkAzione(props: PropsLink & (({ href: string } & AnchorHTMLAtt
   );
   if (typeof resto.href === "string") {
     return (
-      <a className={unisci("sol-link", className)} {...(resto as AnchorHTMLAttributes<HTMLAnchorElement>)}>
+      <a
+        className={unisci("sol-link", className)}
+        {...(resto as AnchorHTMLAttributes<HTMLAnchorElement>)}
+      >
         {dentro}
       </a>
     );
