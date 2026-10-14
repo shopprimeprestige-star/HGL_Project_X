@@ -60,7 +60,7 @@ export const detectSource = () => "organic";
 `;
 
 /** Impacchetta un file del progetto (alias `@` = src) e lo carica. Il tracking vero e il client Supabase sono sostituiti da finti. */
-export async function carica(sorgenteRel, nome, { reactFinto = false } = {}) {
+export async function carica(sorgenteRel, nome, { reactFinto = false, reactVero = false } = {}) {
   //  realpath: su macOS /var è un collegamento a /private/var, e senza esbuild carica il finto due volte.
   mkdirSync(join(tmpdir(), "prove-sito-c"), { recursive: true });
   const dove = realpathSync(join(tmpdir(), "prove-sito-c"));
@@ -98,6 +98,8 @@ export const useState = (v) => [v, () => {}];`,
         name: "finti",
         setup(b) {
           b.onResolve({ filter: /(^|\/)tracking$/ }, () => ({ path: trackingFinto }));
+          //  React vero ma UNO solo (quello del progetto, lo stesso che usa la prova): fuori dal pacchetto.
+          if (reactVero) b.onResolve({ filter: /^react(\/jsx-runtime|\/jsx-dev-runtime)?$/ }, (a) => ({ path: richiedi.resolve(a.path), external: true }));
           if (reactFinto) b.onResolve({ filter: /^react$/ }, () => ({ path: reactFinto_ }));
           b.onResolve({ filter: /^@\/integrations\/supabase\/client$/ }, () => ({ path: clientFinto }));
         },

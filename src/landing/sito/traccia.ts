@@ -9,6 +9,8 @@
  *  è un amministratore: qui si aspetta l'esito (`initAdminCheck`) prima di
  *  spedire, altrimenti un evento sparato al montaggio andrebbe perso.
  *  ───────────────────────────────────────────────────────────────────────── */
+//  I ganci hanno nomi italiani fissati dal contratto («usa…», non «use…»): la regola non li riconosce, sono ganci veri.
+/* eslint-disable react-hooks/rules-of-hooks */
 import { useEffect, useState } from "react";
 import * as TestiSito from "@/landing/testi-sito";
 import {
