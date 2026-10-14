@@ -15725,6 +15725,38 @@ function proveDiDrive() {
  *  «Se l'utente esce dalla sala d'attesa l'avviso deve sparire», «chi esce da
  *  Meetly resta dentro con camera spenta». Vedi shop/sala-attesa e
  *  shop/resta-in-lista. */
+/** ── L'ACCESSO COME GOOGLE MEET ────────────────────────────────────────────
+ *  «Se l'utente non è presente dentro il link non me lo mostrare nel meet»;
+ *  «la richiesta di accedere, nel momento che non sta più in attesa, deve
+ *  sparire». Vedi shop/resta-in-lista e shop/sala-attesa. */
+function proveDellAccessoComeMeet() {
+  const { siVedeNeiRiquadri, ASSENTE_DOPO_MS } = RIL;
+  const { nonAspettaPiu, senzaChiEntrato, bussateVive, BUSSATA_VIVA_MS, CANALE_FRESCO_MS } = SAL;
+  gruppo("L'ACCESSO COME GOOGLE MEET");
+  const T = 1_000_000;
+  c("collegato: si vede (anche a camera spenta)", true, siVedeNeiRiquadri({ adesso: T, stato: "connected" }));
+  c("mai collegato: non si vede", false, siVedeNeiRiquadri({ adesso: T, stato: "connecting" }));
+  c("nessuna connessione: non si vede", false, siVedeNeiRiquadri({ adesso: T }));
+  c("singhiozzo di 3 s: resta", true, siVedeNeiRiquadri({ adesso: T, stato: "disconnected", ultimoCollegato: T - 3000 }));
+  c("caduto da più di 10 s: sparisce", false, siVedeNeiRiquadri({ adesso: T, stato: "disconnected", ultimoCollegato: T - ASSENTE_DOPO_MS - 1 }));
+  c("chiuso: sparisce dopo 10 s", false, siVedeNeiRiquadri({ adesso: T, stato: "closed", ultimoCollegato: T - 11_000 }));
+  c("la richiesta muore in 10 s", 10_000, BUSSATA_VIVA_MS);
+  c("bussata ferma da 11 s: via", 0, bussateVive([{ pid: "a", at: T - 11_000 }], T).length);
+  const b = [
+    { pid: "a", dev: "d1", at: T - 30_000, visto: T - 2000 },
+    { pid: "b", dev: "d2", at: T - 30_000, visto: T - 8000 },
+    { pid: "c", at: T - 30_000, visto: T - 1000 },
+  ];
+  const r = nonAspettaPiu({ bussate: b, sulServer: [{ pid: "zz", dev: "d1" }], adesso: T });
+  c("sul server per dispositivo: resta", true, r.some((k) => k.pid === "a"));
+  c("non più sul server e notizia vecchia: via", false, r.some((k) => k.pid === "b"));
+  c("appena arrivata dal canale: aspetta il server", true, r.some((k) => k.pid === "c"));
+  c("il canale fresco vale 6 s", 6000, CANALE_FRESCO_MS);
+  c("entrato per pid: la sua richiesta sparisce", "b,c", senzaChiEntrato(b, { pid: "a" }).map((k) => k.pid).join());
+  c("entrato per dispositivo (pid nuovo): sparisce", "a,c", senzaChiEntrato(b, { pid: "nuovo", dev: "d2" }).map((k) => k.pid).join());
+  c("dispositivo vuoto non toglie nessuno", 3, senzaChiEntrato(b, { pid: "x", dev: "" }).length);
+}
+
 function proveDiChiEsce() {
   const { bussateVive, BUSSATA_VIVA_MS } = SAL;
   const { verdettoSuOspite, SALUTO_SPARITO_MS } = RIL;
@@ -15787,6 +15819,7 @@ proveDegliSlotLiberi();
 proveDiDrive();
 proveDellaRegistrazioneSulComputer();
 proveDiDoveSiFerma();
+proveDellAccessoComeMeet();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

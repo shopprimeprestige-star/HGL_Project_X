@@ -100,3 +100,30 @@ export function verdettoSuOspite(p: {
   }
   return "resta";
 }
+
+/** ── SI VEDE SOLO CHI È DENTRO DAVVERO (come Google Meet) ─────────────────
+ *  Segnalazione del committente (13/10/2026): «se l'utente non è presente
+ *  dentro il link non me lo devi mostrare nel meet: ora me lo mostra e dice
+ *  camera spenta». La scatola nera lo conferma: un ospite in elenco con zero
+ *  fotogrammi in entrata e in uscita, nessuna connessione mai nata.
+ *
+ *  Stare in ELENCO (ha detto «ci sono») e stare nei RIQUADRI sono due cose:
+ *  nel riquadro ci va solo chi ha la connessione con te collegata. Chi è
+ *  collegato con la camera spenta si vede, con «camera spenta» — è lì
+ *  davvero, come su Meet. Chi non si è mai collegato, o è caduto da più di
+ *  `ASSENTE_DOPO_MS`, non si vede.
+ *  ⚠️ IL SINGHIOZZO NON FA SPARIRE NESSUNO: una connessione che passa per un
+ *   attimo a «disconnected» (cambio di rete) tiene il riquadro per dieci
+ *   secondi, il tempo che serve di solito a riprendersi. */
+export const ASSENTE_DOPO_MS = 10_000;
+
+export function siVedeNeiRiquadri(p: {
+  adesso: number;
+  stato?: string;
+  /** L'ultima volta che la connessione con lui risultava collegata (0 = mai). */
+  ultimoCollegato?: number;
+}): boolean {
+  if (p.stato === "connected") return true;
+  const ultimo = Number(p.ultimoCollegato) || 0;
+  return ultimo > 0 && p.adesso - ultimo < ASSENTE_DOPO_MS;
+}
