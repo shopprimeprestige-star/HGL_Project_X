@@ -80,4 +80,57 @@ vero("il componente non scrive in localStorage e non usa dangerouslySetInnerHTML
   vero("doppio tocco sull'orario: blocco con useRef", /fissandoRif\.current/.test(sorgente) && /useRef\(false\)/.test(sorgente));
 }
 
+/* ── S4.1 · Le opzioni nuove per /soluzioni, senza cambiare lo shop ──────────
+ *  Senza le prop nuove il disegno è IDENTICO alla fotografia G1 (prove/sito/g1/, scattata a d42e5d9
+ *  con `collaudo-soluzioni/foto-html.mjs`). Con le prop nuove: testi del Copywriter, niente otto voci,
+ *  titolo come nome accessibile, nessun id, rosso e rimandi di oggi. */
+{
+  const leggiFoto = (nome) => leggi(`prove/sito/g1/${nome}`).trim();
+  c("shop (stock/barra, problema obbligatorio): HTML identico alla fotografia G1", leggiFoto("modulo-shop.html"), disegna({ origine: "stock", punto: "barra", problemaObbligatorio: true, titolo: "Consulenza gratuita" }).trim());
+  c("Protocol (variante scura): HTML identico alla fotografia G1", leggiFoto("modulo-protocol.html"), disegna({ ...base, variant: "dark" }).trim());
+  c("le prop nuove NON dichiarate = come non averle (undefined)", disegna(base), disegna({ ...base, interesse: undefined, testi: undefined, mostraProblema: undefined, mostraTitolo: undefined, ancora: undefined }));
+
+  //  Valori di comodo: la prova guarda che i testi PASSATI arrivino nel disegno, non cosa dice il Copywriter (lo guarda testi.mjs).
+  const testi = {
+    nome: { etichetta: "ETICHETTA-NOME", segnaposto: "SEGNAPOSTO-NOME" },
+    telefono: { etichetta: "ETICHETTA-TEL", segnaposto: "SEGNAPOSTO-TEL", aiuto: "AIUTO-TEL" },
+    fascia: { etichetta: "ETICHETTA-FASCIA" },
+    bottone: "BOTTONE-PROVA",
+    sotto: "SOTTO-PROVA",
+    errori: { nome: "ERR-NOME", telefono: "ERR-TEL", fascia: "ERR-FASCIA", invio: "ERR-INVIO" },
+    conferma: { titolo: "CONFERMA-TITOLO", testo: "CONFERMA-TESTO" },
+  };
+  const foglio = { origine: "consulenza", punto: "soluzioni", problemaObbligatorio: false, titolo: "TITOLO-ACCESSIBILE", testi, mostraProblema: false, mostraTitolo: false, ancora: null, interesse: "trapianto" };
+  const h = disegna(foglio);
+  const t = decodifica(h);
+
+  c("mostraProblema=false: restano solo i 3 tasti della fascia, niente 8 voci", 3, (h.match(/role="radio"/g) ?? []).length);
+  vero("mostraProblema=false: nemmeno la legenda del problema", !t.includes("Qual è il problema") && !/Altro: scrivilo tu/.test(t));
+  vero("mostraTitolo=false: nessun titolo h3", !/<h3/.test(h));
+  vero("mostraTitolo=false: il titolo passato è il nome accessibile", /<section[^>]*aria-label="TITOLO-ACCESSIBILE"/.test(h) && !/aria-labelledby="mc-titolo"/.test(h));
+  vero("ancora=null: nessun id sul contenitore", !/<section[^>]*\bid=/.test(h));
+  vero("ancora='x': l'id è quello dato", /<section[^>]*id="x"/.test(disegna({ ...base, ancora: "x" })));
+  vero("senza ancora: id=modulo come oggi", /<section[^>]*id="modulo"/.test(disegna(base)));
+  vero("etichette e segnaposto dei testi", t.includes("ETICHETTA-NOME") && t.includes("ETICHETTA-TEL") && t.includes("ETICHETTA-FASCIA") && h.includes('placeholder="SEGNAPOSTO-NOME"') && h.includes('placeholder="SEGNAPOSTO-TEL"'));
+  vero("aiuto sotto il telefono, legato al campo (aria-describedby)", t.includes("AIUTO-TEL") && /id="mc-aiuto-tel"/.test(h) && /<input[^>]*id="mc-tel"[^>]*aria-describedby="mc-aiuto-tel"|<input[^>]*aria-describedby="mc-aiuto-tel"[^>]*id="mc-tel"/.test(h));
+  vero("bottone e riga sotto dei testi (mai la variante B)", t.includes("BOTTONE-PROVA") && t.includes("SOTTO-PROVA") && !t.includes("Prenota la consulenza gratuita") && !t.includes("Ti richiamiamo noi nell'orario che scegli."));
+  vero("le etichette di oggi non ci sono più", !t.includes("Come ti chiami?") && !t.includes("Il tuo numero di telefono") && !t.includes("Quando preferisci essere richiamato?"));
+  vero("riga privacy IDENTICA a quella di oggi (testo e link)", t.includes("I tuoi dati sono al sicuro · Trattati secondo il GDPR") && h.includes('href="/privacy-policy"'));
+  vero("la casella del promemoria resta com'è: una, non spuntata", (h.match(/type="checkbox"/g) ?? []).length === 1 && !/type="checkbox"[^>]*checked/.test(h) && t.includes("Ok a ricevere promemoria su WhatsApp"));
+  vero("nessun collegamento a WhatsApp né telefono cliccabile", !/href="[^"]*(wa\.me|whatsapp|tel:)/i.test(h));
+  vero("nessun rosso #FF3B3B nel disegno", !/#ff3b3b/i.test(h));
+  vero("fasce di oggi (mattina, pomeriggio, sera)", ["Mattina", "Pomeriggio", "Sera"].every((f) => t.includes(f)));
+  vero("nessuna parola vietata nel testo visibile anche col foglio", [/€/, /\bcura\b/i, /garantit/i, /solo noi/i].every((re) => !re.test(t)));
+
+  //  Il codice: il lead e gli eventi portano l'interesse, gli errori vengono dai testi, il rosso è quello di oggi.
+  const sorgente = leggi("src/landing/booking/ModuloCorto.tsx").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  vero("l'interesse va nel lead (sito: …)", /sito[^;]*interesse/.test(sorgente.replace(/\s+/g, " ")));
+  vero("l'interesse va negli eventi del modulo", /eventoModulo[\s\S]{0,400}interesse/.test(sorgente));
+  vero("gli errori dei campi vengono dai testi (testi.errori)", /testi\.errori/.test(sorgente));
+  vero("l'errore d'invio dei testi, senza rimando a WhatsApp", /testi\?*\.errori\.invio/.test(sorgente) && !/wa\.me|api\.whatsapp/i.test(sorgente));
+  vero("nessun #FF3B3B nel sorgente", !/#ff3b3b/i.test(sorgente));
+  vero("la conferma ha il fuoco e aria-live (come oggi)", /confermaRif\.current\?\.focus\(\)/.test(sorgente) && /aria-live="polite"/.test(sorgente) && /tabIndex=\{-1\}/.test(sorgente));
+  vero("il primo campo sbagliato prende il fuoco", /fuocoSu\(primo\)/.test(sorgente));
+}
+
 finisci();
