@@ -147,6 +147,34 @@ c("la casella del consenso non dà mai errori", {}, R.controllaModulo({ ...ok, c
   c("riserva senza problema (Protocol)", ["Provenienza: consulenza", "Ingresso: protocol", "Richiamo: pomeriggio"], R.painPointsDiRiserva(R.colonneSito(ok, { origine: "consulenza", punto: "protocol" })));
 }
 
+/* ── Landing «Tre soluzioni»: il punto d'origine e il motivo (`interesse`) ─ */
+{
+  const sorgente = leggi("src/landing/sito/richiesta.ts");
+  vero("PuntoSito ammette «soluzioni» (e conserva gli altri)", /export type PuntoSito = PuntoIngresso \| "protocol" \| "catalogo" \| "blog" \| "soluzioni";/.test(sorgente));
+  const s = { origine: "consulenza", punto: "soluzioni" };
+  c("punto «soluzioni» passa nelle colonne", "soluzioni", R.colonneSito(ok, s).punto_ingresso);
+  c("l'etichetta delle tre voci", { trapianto: "Trapianto", "invisible-derm": "Invisible Derm", "non-so": "Non so quale" }, R.ETICHETTE_INTERESSE);
+  //  Quando S3 avrà `TESTI_SOLUZIONI.interesse` nel suo file, le due devono coincidere: la prova si accende da sola.
+  if (T.TESTI_SOLUZIONI?.interesse) c("le etichette sono quelle di TESTI_SOLUZIONI.interesse", T.TESTI_SOLUZIONI.interesse, R.ETICHETTE_INTERESSE);
+  const col = R.colonneSito({ ...ok, problema: "tenuta" }, s);
+  const senza = R.colonneSito(ok, s);
+  c("con le colonne, senza interesse: come oggi", ["Tenuta: si stacca presto"], R.painPointsConColonne(col));
+  c("con le colonne, interesse undefined: come oggi", ["Tenuta: si stacca presto"], R.painPointsConColonne(col, undefined));
+  c("con le colonne, trapianto: la riga in fondo", ["Tenuta: si stacca presto", "Interesse: Trapianto"], R.painPointsConColonne(col, "trapianto"));
+  c("con le colonne, invisible-derm", ["Tenuta: si stacca presto", "Interesse: Invisible Derm"], R.painPointsConColonne(col, "invisible-derm"));
+  c("con le colonne, non-so", ["Tenuta: si stacca presto", "Interesse: Non so quale"], R.painPointsConColonne(col, "non-so"));
+  c("con le colonne, nessun problema (la landing non li chiede): solo la riga", ["Interesse: Trapianto"], R.painPointsConColonne(senza, "trapianto"));
+  c("riserva, senza interesse: come oggi", ["Provenienza: consulenza", "Ingresso: soluzioni", "Richiamo: pomeriggio"], R.painPointsDiRiserva(senza));
+  c("riserva, interesse undefined: come oggi", R.painPointsDiRiserva(senza), R.painPointsDiRiserva(senza, undefined));
+  c("riserva, con interesse: la riga in fondo, dopo il richiamo", ["Provenienza: consulenza", "Ingresso: soluzioni", "Richiamo: pomeriggio", "Interesse: Invisible Derm"], R.painPointsDiRiserva(senza, "invisible-derm"));
+  c("riserva con problema e interesse: la riga resta ultima", "Interesse: Trapianto", R.painPointsDiRiserva(col, "trapianto").at(-1));
+  //  Un valore che non è una delle tre voci non scrive niente (e non pesca nelle proprietà dell'oggetto).
+  for (const strano of ["altro", "", "constructor", "__proto__", "toString", 5, null, {}, ["trapianto"], "Trapianto", " trapianto"]) {
+    c(`interesse ${JSON.stringify(strano)}: nessuna riga (colonne)`, ["Tenuta: si stacca presto"], R.painPointsConColonne(col, strano));
+    c(`interesse ${JSON.stringify(strano)}: nessuna riga (riserva)`, R.painPointsDiRiserva(col), R.painPointsDiRiserva(col, strano));
+  }
+}
+
 /* ── Consenso WhatsApp ─────────────────────────────────────────────────── */
 c("casella non spuntata → nessuna chiave", {}, R.campiConsenso({ ...ok, consensoWhatsapp: false }));
 c("casella spuntata → true + versione", { consenso_whatsapp: true, consenso_whatsapp_versione: T.VERSIONE_CONSENSO_WA }, R.campiConsenso({ ...ok, consensoWhatsapp: true }));

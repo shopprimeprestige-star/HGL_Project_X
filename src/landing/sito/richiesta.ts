@@ -6,10 +6,25 @@
  *  ⚠️ Nome e telefono passano solo nel lead. Nel testo libero ("Altro") si tiene
  *  una riga sola di al massimo 120 caratteri, sempre trattata come testo.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { PROBLEMI, TESTI_MODULO_CORTO, VERSIONE_CONSENSO_WA, type Fascia, type IdProblema } from "@/landing/testi-sito";
+import { NOME_PRODOTTO, PROBLEMI, TESTI_MODULO_CORTO, VERSIONE_CONSENSO_WA, type Fascia, type IdProblema } from "@/landing/testi-sito";
 import { pulisciTesto, type Provenienza, type PuntoIngresso } from "@/landing/consulenza/regole";
+import type { Interesse } from "@/landing/sito/soluzioni/regole";
 
-export type PuntoSito = PuntoIngresso | "protocol" | "catalogo" | "blog";
+export type PuntoSito = PuntoIngresso | "protocol" | "catalogo" | "blog" | "soluzioni";
+
+/** Il motivo da cui parte la richiesta dalla landing «Tre soluzioni»: non lo chiede il modulo, è il bottone toccato.
+ *  Va in una riga di `pain_points` (nessuna colonna nuova). Le stesse parole di `TESTI_SOLUZIONI.interesse`
+ *  (la prova di `richiesta.mjs` le confronta appena quel testo esiste). */
+export const ETICHETTE_INTERESSE: Record<Interesse, string> = {
+  trapianto: "Trapianto",
+  "invisible-derm": NOME_PRODOTTO,
+  "non-so": "Non so quale",
+};
+
+/** La riga `Interesse: …`, o niente se il valore non è una delle tre voci (mai un valore pescato dalle proprietà dell'oggetto). */
+function rigaInteresse(interesse?: Interesse): string[] {
+  return typeof interesse === "string" && Object.hasOwn(ETICHETTE_INTERESSE, interesse) ? [`Interesse: ${ETICHETTE_INTERESSE[interesse]}`] : [];
+}
 
 export interface ModuloCortoDati {
   nome: string;
@@ -75,12 +90,12 @@ export function colonneSito(d: ModuloCortoDati, s: { origine: Provenienza; punto
 }
 
 /** Con le colonne, `pain_points` porta solo l'etichetta (le statistiche delle risposte restano pulite). */
-export function painPointsConColonne(c: ColonneSito): string[] {
-  return c.problema_principale ? [c.problema_principale] : [];
+export function painPointsConColonne(c: ColonneSito, interesse?: Interesse): string[] {
+  return [...(c.problema_principale ? [c.problema_principale] : []), ...rigaInteresse(interesse)];
 }
 
 /** Senza le colonne (migrazione non applicata): tutto in `pain_points`, formato del giro 1 + `Richiamo`. */
-export function painPointsDiRiserva(c: ColonneSito): string[] {
+export function painPointsDiRiserva(c: ColonneSito, interesse?: Interesse): string[] {
   const righe: string[] = [];
   if (c.problema_principale) {
     const voce = c.problema_principale === "Altro" ? PROBLEMI.find((p) => p.id === "altro") : null;
@@ -91,6 +106,7 @@ export function painPointsDiRiserva(c: ColonneSito): string[] {
   righe.push(`Ingresso: ${c.punto_ingresso}`);
   if (c.prodotto_stock) righe.push(`Protesi: ${c.prodotto_stock}`);
   righe.push(`Richiamo: ${c.fascia_oraria}`);
+  righe.push(...rigaInteresse(interesse));
   return righe;
 }
 
