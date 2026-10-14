@@ -3095,6 +3095,11 @@ function proveDegliHook() {
     //   quando si pensa a «nessun file scelto».
     "src/crm/importa/PannelloCarica.tsx",
     "src/crm/kpi/DaFareScheda.tsx",
+    //  ⚠️ SLOT LIBERI E IL SUO AGGANCIO (commessa 2026-10-14): l'aggancio è
+    //   usato anche dalla striscia dei posti in «Oggi» e in Lead importati, e
+    //   un hook sotto un'uscita lì spegne tre pagine insieme.
+    "src/routes/CRM.slot-liberi.tsx",
+    "src/crm/useGiorniLiberi.ts",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -17647,6 +17652,22 @@ function proveDellaStriscia() {
   c("domenica 1 novembre", "Dom 1", et("2026-11-01"));
 }
 
+/** Le pagine si provano sul sorgente: le regole vere sono provate sopra, qui
+ *  si controlla che le pagine le usino davvero. */
+function proveDelleFontiDiOggi() {
+  const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
+  gruppo("LE FONTI DI «OGGI» E DELLA SETTER");
+  const slot = leggi("src/routes/CRM.slot-liberi.tsx");
+  const aggancio = leggi("src/crm/useGiorniLiberi.ts");
+  c("Slot liberi usa l'aggancio useGiorniLiberi", true, /import \{[^}]*\buseGiorniLiberi\b[^}]*\} from "@\/crm\/useGiorniLiberi"/.test(slot));
+  c("Slot liberi non calcola più i giorni da sé", false, slot.includes("slotDelGiorno("));
+  //  Correzione 2 del revisore: si cerca la chiamata, non la parola (il
+  //  cartello di testa della pagina la nomina, ed è un commento utile).
+  c("Slot liberi non legge più le ore tenute da sé", false, slot.includes('fetch("/api/crm/fascia-modo'));
+  c("l'aggancio riassume i giorni con le regole di Slot liberi", true, aggancio.includes("riassumiGiorno("));
+  c("l'aggancio legge le ore tenute per una persona sola", true, aggancio.includes('"/api/crm/fascia-modo?tutte=1"'));
+}
+
 /** ── UNA PAGINA VERA, DISEGNATA CON DATI FINTI ─────────────────────────────
  *  Per le prove che devono guardare i NUMERI di una pagina e non il suo
  *  sorgente: si impacchetta il componente vero con esbuild, sostituendo solo
@@ -17848,6 +17869,7 @@ proveDellaTemperatura();
 proveDellaVistaDiOggi();
 proveDellaStriscia();
 await proveDeiNumeriDiSlotLiberi();
+proveDelleFontiDiOggi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

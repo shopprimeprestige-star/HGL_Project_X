@@ -9,28 +9,19 @@
  *   richiesta sola (api.crm.fascia-modo?tutte=1), come fa la finestra che
  *   fissa gli appuntamenti: senza, un'ora «solo» con il suo cliente dentro
  *   risulterebbe «1 di 3, c'è posto».
+ *  ⚠️ IL CALCOLO DEI GIORNI STA IN crm/useGiorniLiberi (commessa 2026-10-14):
+ *   lo usa anche la striscia dei posti della setter, e stesso aggancio vuol
+ *   dire stesso numero per lo stesso giorno. Qui restano il periodo e «di chi».
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CalendarClock, Copy, Sparkles, Users } from "lucide-react";
-import { useCRM } from "@/crm/CRMContext";
-import { intestazioniCRM } from "@/crm/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarraAzioni, Kpi, KpiRiga, Pagina, Scheda, Segmento, Titolo, Vuoto } from "@/crm/ui";
-import { slotDelGiorno } from "@/crm/booking-utils";
-import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
-import { DURATA_PREDEFINITA } from "@/crm/invito";
-import type { ModoFascia } from "@/crm/fascia-consulenza";
-import {
-  daRiempirePrima,
-  etichettaGiorno,
-  riassumiGiorno,
-  testoDaCopiare,
-  totali,
-  type GiornoLibero,
-} from "@/crm/slot-liberi";
+import { daRiempirePrima, etichettaGiorno, testoDaCopiare, totali, type GiornoLibero } from "@/crm/slot-liberi";
+import { useGiorniLiberi } from "@/crm/useGiorniLiberi";
 
 export const Route = createFileRoute("/CRM/slot-liberi")({
   component: PaginaSlotLiberi,
@@ -43,88 +34,12 @@ const PERIODI = [
   { giorni: 30, nome: "30 giorni" },
 ] as const;
 
-const iso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-/** Le ore tenute per una persona sola, «AAAA-MM-GG HH:MM» in ora locale. */
-function useOreTenute(): Record<string, "solo"> {
-  const [ore, setOre] = useState<Record<string, "solo">>({});
-  useEffect(() => {
-    let vivo = true;
-    void intestazioniCRM()
-      .then((headers) => fetch("/api/crm/fascia-modo?tutte=1", { headers }))
-      .then((r: Response) => (r.ok ? r.json() : null))
-      .then((j: { ok?: boolean; solo?: Record<string, string[]> } | null) => {
-        if (!vivo || !j?.ok || !j.solo) return;
-        const fuori: Record<string, "solo"> = {};
-        for (const quandi of Object.values(j.solo)) {
-          for (const q of quandi) {
-            //  Le chiavi arrivano in UTC: qui diventano locali, come le ore disegnate.
-            const d = new Date(`${q}Z`);
-            if (Number.isNaN(d.getTime())) continue;
-            const ora = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-            fuori[`${iso(d)} ${ora}`] = "solo";
-          }
-        }
-        setOre(fuori);
-      })
-      .catch(() => {
-        /* senza, si conta come se nessuna ora fosse tenuta */
-      });
-    return () => {
-      vivo = false;
-    };
-  }, []);
-  return ore;
-}
-
 function PaginaSlotLiberi() {
-  const { leads, consultants } = useCRM();
-  const oreTenute = useOreTenute();
   const [periodo, setPeriodo] = useState<number>(7);
   const [chi, setChi] = useState<string>("tutti");
-  //  L'ora corrente, rinfrescata ogni minuto: le ore di oggi già passate escono.
-  const [adesso, setAdesso] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setAdesso(new Date()), 60_000);
-    return () => clearInterval(t);
-  }, []);
-
-  const squadra = useMemo(() => {
-    const { elenco } = consulentiPerConsulenza(Array.isArray(consultants) ? consultants : []);
-    return elenco.filter((c) => c?.data && c.data.attivo !== false && Array.isArray(c.data.giorniLavorativi));
-  }, [consultants]);
-
-  const scelti = useMemo(() => (chi === "tutti" ? squadra : squadra.filter((c) => c.id === chi)), [squadra, chi]);
-
-  const giorni = useMemo<GiornoLibero[]>(() => {
-    const elenco = Array.isArray(leads) ? leads.filter((l) => l && l.data) : [];
-    const oggi = new Date(adesso);
-    oggi.setHours(0, 0, 0, 0);
-    const minutiAdesso = adesso.getHours() * 60 + adesso.getMinutes();
-    const out: GiornoLibero[] = [];
-    for (let i = 0; i < periodo; i++) {
-      const d = new Date(oggi);
-      d.setDate(oggi.getDate() + i);
-      const data = iso(d);
-      const modi = new Map<string, ModoFascia>();
-      for (const [k, v] of Object.entries(oreTenute)) {
-        const [g, ora] = k.split(" ");
-        if (g === data && ora) modi.set(ora, v);
-      }
-      const persone = scelti.map((c) => {
-        let slot: ReturnType<typeof slotDelGiorno> = [];
-        try {
-          slot = slotDelGiorno(c, data, DURATA_PREDEFINITA, elenco, undefined, undefined, modi);
-        } catch {
-          /* un consulente con orari illeggibili non ferma la pagina */
-        }
-        return { id: c.id, nome: c.data.nome || "Senza nome", slot };
-      });
-      out.push(riassumiGiorno({ data, persone, dopo: i === 0 ? minutiAdesso : undefined }));
-    }
-    return out;
-  }, [leads, scelti, periodo, oreTenute, adesso]);
+  //  Il calcolo dei giorni (orari, ore tenute, orologio) sta nell'aggancio:
+  //  lo usa anche la striscia dei posti, e così i numeri sono gli stessi.
+  const { squadra, giorni } = useGiorniLiberi({ quanti: periodo, chi });
 
   const tot = useMemo(() => totali(giorni), [giorni]);
   const consigliati = useMemo(() => daRiempirePrima(giorni, 6), [giorni]);
