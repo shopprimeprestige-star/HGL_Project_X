@@ -486,6 +486,9 @@ const MODULI = [
   //   api.whatsapp-send per usarla anche nel motore automatico. Vedi
   //   proveDellaChiamataAMeta: l'invio a mano non deve cambiare di una virgola.
   "wa-graph.server",
+  //  ⚠️ Il motore del WhatsApp automatico, con un Supabase e un fetch finti:
+  //   vedi proveDelMotoreWa. Non parte mai niente verso WhatsApp.
+  "wa-auto-invio.server",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -560,6 +563,7 @@ const KC = mod["kpi-calcoli"];
 const LA = mod["lead-analytics"];
 const WAR = mod["wa-auto-regole"];
 const WG = mod["wa-graph.server"];
+const WAI = mod["wa-auto-invio.server"];
 const DI = mod["webinar/diario"];
 const DP = mod["webinar/diagnostica-palco"];
 const ME = mod["webinar/menzioni"];
@@ -17825,6 +17829,429 @@ async function proveDellaChiamataAMeta() {
     (await G.chiamaGraph(finto([{ ok: true, json: { error: { message: "x" } } }]), "999", "T", {})).ok);
 }
 
+/** ── IL MOTORE DEL WHATSAPP AUTOMATICO ────────────────────────────────────
+ *  Un giro intero, con un Supabase finto che si ricorda ogni domanda e un
+ *  `fetch` finto: non parte MAI niente verso WhatsApp. Si guarda cosa finisce
+ *  nel registro, cosa viene chiesto a Meta, e soprattutto cosa NON succede:
+ *  nessun invio senza consenso, nessun invio doppio, nessun token in giro,
+ *  nessuna ricerca del consenso per telefono. */
+async function proveDelMotoreWa() {
+  const { eseguiGiro } = WAI;
+  const { inizioGiornoRoma, REGOLE_PREDEFINITE } = WAR;
+  gruppo("IL MOTORE DEL WHATSAPP AUTOMATICO");
+  const utc = (anno, mese, giorno, ore, min) => new Date(Date.UTC(anno, mese - 1, giorno, ore, min));
+  const adesso = utc(2026, 7, 10, 7, 5); // 09:05 a Roma, il 10 luglio
+
+  //  ── il giorno di Roma comincia a mezzanotte di Roma ──
+  c("inizio giorno (estate): 10/07 a Roma = 9/07 22:00 UTC", "2026-07-09T22:00:00.000Z", inizioGiornoRoma(adesso).toISOString());
+  c("inizio giorno (inverno): 10/12 = 9/12 23:00 UTC", "2026-12-09T23:00:00.000Z", inizioGiornoRoma(utc(2026, 12, 10, 12, 0)).toISOString());
+  c("inizio giorno (cambio d'ora d'autunno 25/10): 24/10 22:00 UTC", "2026-10-24T22:00:00.000Z", inizioGiornoRoma(utc(2026, 10, 25, 12, 0)).toISOString());
+  c("inizio giorno (cambio d'ora di primavera 29/03): 28/03 23:00 UTC", "2026-03-28T23:00:00.000Z", inizioGiornoRoma(utc(2026, 3, 29, 12, 0)).toISOString());
+  c("00:30 a Roma (22:30 UTC) è ancora il giorno nuovo", "2026-07-10T22:00:00.000Z", inizioGiornoRoma(utc(2026, 7, 10, 22, 30)).toISOString());
+
+  //  ── il Supabase finto ──
+  //  Ricorda ogni domanda in `log`. Applica eq / neq / in / gte / lt; `or` lo
+  //  registra e basta (la prova non finge di verificarlo). Sull'indice unico
+  //  del registro risponde 23505 come Postgres.
+  const FOGLIA = /^(\w+)->>(\w+)$/;
+  function dbFinto(tabelle, { errori = {}, lucchetto = [] } = {}) {
+    const log = [];
+    let n = 0;
+    const leggi = (riga, k) => { const m = FOGLIA.exec(k); return m ? riga[m[1]]?.[m[2]] : riga[k]; };
+    const db = {
+      log, tabelle,
+      rpc(nome, args) {
+        log.push({ rpc: nome, args });
+        if (errori.rpc) return Promise.resolve({ data: null, error: errori.rpc });
+        return Promise.resolve({ data: lucchetto.length ? lucchetto.shift() : true, error: null });
+      },
+      from(nome) {
+        const q = { tabella: nome, op: "select", filtri: [] };
+        const b = {};
+        for (const f of ["eq", "neq", "gte", "lt", "in", "or"]) b[f] = (k, v) => { q.filtri.push([f, k, v]); return b; };
+        b.select = (cols) => { q.cols = cols; return b; };
+        b.order = () => b;
+        b.limit = () => b;
+        b.insert = (v) => { q.op = "insert"; q.valore = v; return b; };
+        b.update = (v) => { q.op = "update"; q.valore = v; return b; };
+        b.upsert = (v) => { q.op = "upsert"; q.valore = v; return b; };
+        const esegui = async () => {
+          log.push(q);
+          const err = errori[`${nome}:${q.op}`] ?? errori[nome];
+          if (err) return { data: null, error: err };
+          const righe = (tabelle[nome] ??= []);
+          const ok = (r) => q.filtri.every(([f, k, v]) => {
+            if (f === "or") return true;
+            const x = leggi(r, k);
+            if (f === "eq") return String(x) === String(v);
+            if (f === "neq") return String(x) !== String(v);
+            if (f === "in") return v.map(String).includes(String(x));
+            if (f === "gte") return x >= v;
+            if (f === "lt") return x < v;
+            return true;
+          });
+          if (q.op === "select") {
+            const dati = righe.filter(ok).map((r) => ({ ...r }));
+            return { data: q.uno ? (dati[0] ?? null) : dati, error: null };
+          }
+          if (q.op === "insert") {
+            const v = { ...q.valore };
+            if (nome === "wa_auto_invii") {
+              const chiave = (r) => `${r.lead_id}|${r.regola}|${new Date(r.scadenza).getTime()}`;
+              if (righe.some((r) => chiave(r) === chiave(v))) return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
+              v.prenotato_il ??= adesso.toISOString();
+            }
+            v.id ??= `R${++n}`;
+            righe.push(v);
+            return { data: q.cols ? { ...v } : null, error: null };
+          }
+          if (q.op === "update") {
+            for (const r of righe.filter(ok)) Object.assign(r, q.valore);
+            return { data: null, error: null };
+          }
+          const v = { ...q.valore };
+          const i = righe.findIndex((r) => r.user_id === v.user_id && r.phone_e164 === v.phone_e164);
+          if (i >= 0) Object.assign(righe[i], v); else righe.push(v);
+          return { data: null, error: null };
+        };
+        b.maybeSingle = () => { q.uno = true; return esegui(); };
+        b.single = b.maybeSingle;
+        b.then = (res, rej) => esegui().then(res, rej);
+        return b;
+      },
+    };
+    return db;
+  }
+  //  Il fetch finto: registra ogni chiamata e risponde come Meta.
+  function fetchFinto({ errore = null, numero = { display_phone_number: "+39 06 1234567", verified_name: "Hair Genius Labs" } } = {}) {
+    const chiamate = [];
+    let k = 0;
+    const f = async (url, init = {}) => {
+      chiamate.push({ url, metodo: init.method ?? "GET", headers: init.headers, corpo: init.body ? JSON.parse(init.body) : null });
+      if (init.method === "POST") {
+        if (errore) return { ok: false, status: 400, json: async () => ({ error: errore }) };
+        return { ok: true, status: 200, json: async () => ({ messages: [{ id: `wamid.${++k}` }] }) };
+      }
+      return { ok: true, status: 200, json: async () => numero };
+    };
+    f.chiamate = chiamate;
+    f.invii = () => chiamate.filter((x) => x.metodo === "POST");
+    return f;
+  }
+  const base = (extra = {}) => ({
+    whatsapp_settings: [{ user_id: "U1", phone_number_id: "PN1", access_token: "TOKEN-SEGRETO", app_secret: "SEGRETO", mode: "live", auto_attivo: true, auto_simulato: true, auto_tetto_giorno: 40, auto_qualita: null, auto_sospeso_motivo: null }],
+    wa_auto_regole: [],
+    crm_leads: [lead("L1", "P1", "+39 333 1234567")],
+    crm_consultants: [{ id: "C1", user_id: "U1", data: { nome: "Luca" } }],
+    public_leads: [modulo("P1", "+39 333 1234567")],
+    wa_auto_esclusi: [], wa_auto_invii: [], whatsapp_messages: [], whatsapp_contacts: [],
+    ...extra,
+  });
+  function lead(id, publicLeadId, telefono, data = {}) {
+    return { id, user_id: "U1", data: { stato: "da_ricontattare", nome: "Mario", telefono, publicLeadId, consulenteId: "C1", dataRicontatto: "2026-07-10", oraRicontatto: "15:30", ...data } };
+  }
+  function modulo(id, telefono, extra = {}) {
+    return { id, telefono, consenso_whatsapp: true, consenso_whatsapp_il: "2026-07-01T10:00:00Z", consenso_whatsapp_versione: "wa-sito-2026-10-14", ...extra };
+  }
+  const giro = async (tabelle, opzioni = {}, quando = adesso) => {
+    const db = dbFinto(tabelle, opzioni);
+    const f = fetchFinto(opzioni.fetch);
+    const esito = await eseguiGiro({ db, fetchFn: f, adesso: quando });
+    return { db, f, esito, u: esito.utenti[0], invii: tabelle.wa_auto_invii };
+  };
+  //  Su public_leads l'UNICA domanda ammessa è «queste righe, per id».
+  const soloPerId = (db) => db.log.filter((q) => q.tabella === "public_leads").every(
+    (q) => q.op === "select" && q.filtri.length === 1 && q.filtri[0][0] === "in" && q.filtri[0][1] === "id");
+  const statiRegistro = (invii) => invii.map((r) => [r.lead_id, r.regola, r.stato]);
+
+  //  ── simulato (la partenza): si scrive il registro, non parte niente ──
+  {
+    const t = base();
+    const r = await giro(t);
+    c("simulato: una riga nel registro, «simulato»", [["L1", "ricontatto_data", "simulato"]], statiRegistro(r.invii));
+    c("simulato: nessuna chiamata a WhatsApp", 0, r.f.chiamate.length);
+    c("simulato: niente in whatsapp_messages", 0, t.whatsapp_messages.length);
+    c("simulato: la riga porta telefono normalizzato, template e scadenza", ["+393331234567", "promemoria_ricontatto", "2026-07-10T07:00:00.000Z", true, "U1"],
+      [r.invii[0].telefono_e164, r.invii[0].template, new Date(r.invii[0].scadenza).toISOString(), r.invii[0].simulato, r.invii[0].user_id]);
+    c("simulato: l'esito del giro", ["ok", 1, 1, 0], [r.u.esito, r.u.mandati, r.u.simulati, r.u.falliti]);
+    c("public_leads: solo «per id», mai per telefono", true, soloPerId(r.db));
+    c("public_leads: letto con l'id che sta nel lead (P1) e nessun altro",
+      [["in", "id", ["P1"]]], r.db.log.filter((q) => q.tabella === "public_leads").map((q) => q.filtri[0]));
+    c("il lucchetto è stato chiesto per l'utente giusto", [{ rpc: "wa_auto_prendi_giro", args: { p_user: "U1" } }], r.db.log.filter((q) => q.rpc));
+    c("in simulato si toccano solo queste tabelle", true,
+      r.db.log.filter((q) => q.tabella).every((q) => ["whatsapp_settings", "wa_auto_regole", "crm_leads", "crm_consultants", "public_leads", "wa_auto_esclusi", "wa_auto_invii"].includes(q.tabella)));
+    //  secondo giro, stesso minuto: la riga c'è già, non si rifà
+    const r2 = await giro(t);
+    c("secondo giro: nessuna riga in più", 1, r2.invii.length);
+    c("secondo giro: niente da fare", [0, 0], [r2.u.mandati, r2.u.simulati]);
+  }
+
+  //  ── spento / lucchetto / tabelle che mancano ──
+  {
+    const t = base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_attivo: false }] });
+    const r = await giro(t);
+    c("spento: nessun utente da servire", [], r.esito.utenti);
+    c("spento: nessuna riga, nessun lucchetto, nessun fetch", [0, 0, 0], [t.wa_auto_invii.length, r.db.log.filter((q) => q.rpc).length, r.f.chiamate.length]);
+  }
+  {
+    const r = await giro(base(), { lucchetto: [false] });
+    c("lucchetto già preso: «occupato», niente scritto", ["occupato", 0], [r.u.esito, r.invii.length]);
+    c("lucchetto già preso: non guarda nemmeno i lead", 0, r.db.log.filter((q) => q.tabella === "crm_leads").length);
+  }
+  for (const [nome, errori] of [
+    ["tabella delle regole mancante", { wa_auto_regole: { code: "42P01", message: 'relation "wa_auto_regole" does not exist' } }],
+    ["registro mancante", { wa_auto_invii: { code: "42P01", message: 'relation "wa_auto_invii" does not exist' } }],
+    ["colonna del consenso mancante", { public_leads: { code: "42703", message: "column public_leads.consenso_whatsapp does not exist" } }],
+    ["colonna del consenso mancante (PostgREST)", { public_leads: { code: "PGRST204", message: "Could not find the 'consenso_whatsapp' column of 'public_leads' in the schema cache" } }],
+    ["lucchetto mancante", { rpc: { code: "PGRST202", message: "Could not find the function public.wa_auto_prendi_giro" } }],
+  ]) {
+    const t = base();
+    const r = await giro(t, { errori });
+    c(`${nome}: «saltato», non lancia`, "saltato", r.u.esito);
+    c(`${nome}: non parte niente e il registro non cresce`, [0, 0], [r.f.chiamate.length, t.wa_auto_invii.length]);
+  }
+  {
+    const t = base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_attivo: undefined }] });
+    const r = await giro(t, { errori: { whatsapp_settings: { code: "42703", message: "column whatsapp_settings.auto_attivo does not exist" } } });
+    c("colonne auto_* mancanti (migrazione non applicata): nessun utente, nessun errore", [true, []], [r.esito.ok, r.esito.utenti]);
+  }
+
+  //  ── il consenso ──
+  {
+    const t = base({ public_leads: [modulo("P1", "+39 333 1234567", { consenso_whatsapp: false })] });
+    const r = await giro(t);
+    c("consenso false: nessuna riga, nessun invio", [0, 0], [r.invii.length, r.f.chiamate.length]);
+  }
+  {
+    const t = base({ crm_leads: [lead("L1", undefined, "+39 333 1234567")] });
+    const r = await giro(t);
+    c("lead senza publicLeadId (Meta, a mano): niente consenso, niente riga", 0, r.invii.length);
+    c("lead senza publicLeadId: public_leads non viene nemmeno letta", 0, r.db.log.filter((q) => q.tabella === "public_leads").length);
+  }
+  {
+    //  Un altro modulo con lo STESSO telefono e consenso pieno: non vale, il lead è nato da P1.
+    const t = base({
+      public_leads: [modulo("P1", "+39 333 1234567", { consenso_whatsapp: null, consenso_whatsapp_il: null, consenso_whatsapp_versione: null }), modulo("P2", "+39 333 1234567")],
+    });
+    const r = await giro(t);
+    c("un altro modulo con lo stesso telefono e il consenso: non conta", 0, r.invii.length);
+    c("…e si è letto solo P1, mai cercato per telefono", [["in", "id", ["P1"]]], r.db.log.filter((q) => q.tabella === "public_leads").map((q) => q.filtri[0]));
+  }
+  {
+    const t = base({ public_leads: [modulo("P1", "+39 333 9876543")] });
+    const r = await giro(t);
+    c("telefono del lead diverso da quello del modulo: nessuna riga", 0, r.invii.length);
+  }
+  {
+    const t = base({ public_leads: [modulo("P1", "+39 333 1234567", { consenso_whatsapp_versione: "wa-2026-10-14" })] });
+    c("versione wa-2026-10-14: parte", 1, (await giro(t)).invii.length);
+    const t2 = base({ public_leads: [modulo("P1", "+39 333 1234567", { consenso_whatsapp_versione: "wa-boh" })] });
+    c("versione sconosciuta: no", 0, (await giro(t2)).invii.length);
+  }
+
+  //  ── gli stati e le scadenze ──
+  {
+    const t = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { stato: "non_risponde" })] });
+    c("stato che non promette niente: nessuna riga", 0, (await giro(t)).invii.length);
+    const t2 = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { dataRicontatto: "2026-07-11" })] });
+    c("ricontatto domani: non ancora", 0, (await giro(t2)).invii.length);
+    c("ricontatto ieri: troppo tardi, non parte", 0, (await giro(base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { dataRicontatto: "2026-07-09" })] }))).invii.length);
+  }
+  {
+    //  consulenza alle 9:15 (a Roma): il promemoria dei 10 minuti scade alle 9:05
+    const t = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { stato: "appuntamento_fissato", dataRicontatto: undefined, dataMeeting: "2026-07-10", oraMeeting: "09:15", linkMeeting: "https://meet.example.com/abc" })] });
+    const r = await giro(t);
+    c("consulenza alle 9:15: promemoria dei 10 minuti alle 9:05", [["L1", "consulenza_10_minuti", "simulato"]], statiRegistro(r.invii));
+    c("…con il template del meet", "promemoria_meet", r.invii[0].template);
+  }
+  {
+    const t = base({ wa_auto_regole: [{ user_id: "U1", codice: "ricontatto_data", attiva: false, riferimento: "ricontatto", stato_lead: "da_ricontattare", giorni_prima: 0, ora_fissa: "09:00", minuti_prima: null, template: "promemoria_ricontatto", ora_da: "09:00", ora_a: "20:00" }] });
+    c("regola spenta dal titolare nella tabella: non parte", 0, (await giro(t)).invii.length);
+    const riga = { user_id: "U1", attiva: true, riferimento: "ricontatto", stato_lead: null, giorni_prima: 0, ora_fissa: "09:00", minuti_prima: null, template: "promemoria_ricontatto", ora_da: "09:00", ora_a: "20:00" };
+    const t2 = base({ wa_auto_regole: [{ ...riga, codice: "mia" }, { ...riga, codice: "ricontatto_data", attiva: false }] });
+    c("una regola nuova si aggiunge, e quella di serie spenta non parte", [["L1", "mia", "simulato"]], statiRegistro((await giro(t2)).invii));
+    const t3 = base({ wa_auto_regole: [{ ...riga, codice: "mia", attiva: false }] });
+    c("una tabella con una regola sola non fa sparire quelle di serie", [["L1", "ricontatto_data", "simulato"]], statiRegistro((await giro(t3)).invii));
+  }
+
+  //  ── i limiti ──
+  {
+    const molti = Array.from({ length: 7 }, (_, i) => lead(`L${i + 1}`, `P${i + 1}`, `+39 333 00${String(i + 10).padStart(5, "0")}`));
+    const mod = Array.from({ length: 7 }, (_, i) => modulo(`P${i + 1}`, `+39 333 00${String(i + 10).padStart(5, "0")}`));
+    const t = base({ crm_leads: molti, public_leads: mod });
+    const r = await giro(t);
+    c("7 candidati: 5 nel giro", 5, r.invii.length);
+    const r2 = await giro(t, {}, utc(2026, 7, 10, 7, 6));
+    c("giro dopo (un minuto): gli altri 2", 7, t.wa_auto_invii.length);
+    c("giro dopo: i primi 5 non si rifanno", [2, 2], [r2.u.mandati, r2.u.simulati]);
+  }
+  {
+    const gia = Array.from({ length: 40 }, (_, i) => ({ id: `X${i}`, user_id: "U1", lead_id: `Z${i}`, regola: "ricontatto_data", scadenza: "2026-07-09T07:00:00Z", telefono_e164: `+3933300${String(i).padStart(5, "0")}`, stato: "simulato", prenotato_il: "2026-07-10T05:00:00Z" }));
+    const t = base({ wa_auto_invii: gia });
+    const r = await giro(t);
+    c("40 righe prenotate oggi: il 41° non parte", [40, "ok", 0], [t.wa_auto_invii.length, r.u.esito, r.u.mandati]);
+    //  le righe di ieri sera (21:30 UTC del 9/07 = 23:30 a Roma) non contano per oggi
+    const ieri = gia.map((x) => ({ ...x, prenotato_il: "2026-07-09T21:30:00Z" }));
+    const t2 = base({ wa_auto_invii: ieri });
+    c("40 righe di ieri sera (a Roma): oggi si riparte", 41, (await giro(t2)).invii.length);
+    //  le righe «saltato» non consumano il tetto
+    const saltate = gia.map((x) => ({ ...x, stato: "saltato" }));
+    c("40 righe «saltato»: non contano per il tetto", 41, (await giro(base({ wa_auto_invii: saltate }))).invii.length);
+    //  il tetto si cambia dalle impostazioni
+    const t4 = base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_tetto_giorno: 2 }], wa_auto_invii: gia.slice(0, 2) });
+    c("tetto del titolare a 2, già 2 oggi: non parte", 2, (await giro(t4)).invii.length);
+  }
+  {
+    //  lo stesso telefono su due lead (scritto in due modi): parte uno solo
+    const t = base({
+      crm_leads: [lead("L1", "P1", "+39 333 1234567"), lead("L2", "P2", "3331234567")],
+      public_leads: [modulo("P1", "+39 333 1234567"), modulo("P2", "333 123 4567")],
+    });
+    const r = await giro(t);
+    c("lo stesso telefono su due lead: una sola riga", 1, r.invii.length);
+    const t2 = base({ wa_auto_invii: [{ id: "X", user_id: "U1", lead_id: "ALTRO", regola: "consulenza_giorno_prima", scadenza: "2026-07-09T16:00:00Z", telefono_e164: "+393331234567", stato: "inviato", prenotato_il: "2026-07-10T06:55:00Z" }] });
+    const r2 = await giro(t2);
+    c("scritto 10 minuti fa a quel numero (altro lead): silenzio", 1, r2.invii.length);
+  }
+  {
+    //  lo stop: chi ha scritto STOP non riceve e il motivo si registra
+    const t = base({ wa_auto_esclusi: [{ user_id: "U1", telefono_e164: "+393331234567", motivo: "stop" }] });
+    const r = await giro(t);
+    c("escluso: nessun invio", 0, r.f.chiamate.length);
+    c("escluso: si registra «saltato» con il motivo", [["L1", "ricontatto_data", "saltato"]], statiRegistro(r.invii));
+    c("escluso: il motivo è scritto", "escluso", r.invii[0].motivo);
+    const r2 = await giro(t);
+    c("escluso: il giro dopo non riscrive", 1, r2.invii.length);
+  }
+  {
+    const t = base();
+    const r = await giro(t, {}, utc(2026, 7, 10, 18, 5)); // 20:05: ricontatto delle 9 fuori finestra
+    c("ricontatto scaduto da ore: niente", 0, r.invii.length);
+    const t2 = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { dataRicontatto: undefined, stato: "appuntamento_fissato", dataMeeting: "2026-07-10", oraMeeting: "20:10", linkMeeting: "https://meet.example.com/x" })] });
+    const r2 = await giro(t2, {}, utc(2026, 7, 10, 18, 2)); // 20:02, scadenza 20:00 (10 min prima di 20:10)
+    c("promemoria dei 10 minuti alle 20:00 (fascia larga): parte", [["L1", "consulenza_10_minuti", "simulato"]], statiRegistro(r2.invii));
+    const regole = [{ ...REGOLE_PREDEFINITE[0], codice: "tardi", ora_fissa: "19:55", ora_da: "09:00", ora_a: "20:00" }].map((x) => ({ user_id: "U1", ...x }));
+    const r3 = await giro(base({ wa_auto_regole: regole }), {}, utc(2026, 7, 10, 18, 2));
+    //  ricontatto del 10/07 alle 19:55; sono le 20:02: fuori fascia → registrato «saltato»
+    c("fuori fascia (20:02): non parte, si registra", [["L1", "tardi", "saltato"]], statiRegistro(r3.invii));
+    c("fuori fascia: il motivo", "fuori_fascia", r3.invii[0].motivo);
+  }
+
+  //  ── dati che mancano: non si inventa ──
+  {
+    const t = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { oraRicontatto: undefined })] });
+    const r = await giro(t);
+    c("ricontatto senza ora: «saltato» con il motivo, nessun invio", [["L1", "ricontatto_data", "saltato"], "manca recontact_time", 0],
+      [statiRegistro(r.invii)[0], r.invii[0].motivo, r.f.chiamate.length]);
+    const t2 = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { consulenteId: null })] });
+    c("senza consulente: «saltato», motivo", "manca consultant_name", (await giro(t2)).invii[0].motivo);
+    const t3 = base({ crm_leads: [lead("L1", "P1", "+39 333 1234567", { stato: "appuntamento_fissato", dataRicontatto: undefined, dataMeeting: "2026-07-10", oraMeeting: "09:15" })] });
+    c("consulenza senza link: «saltato», motivo", "manca meet_link", (await giro(t3)).invii[0].motivo);
+  }
+
+  //  ── LIVE ──
+  const live = (extra = {}) => base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_simulato: false, ...extra }] });
+  {
+    const t = live();
+    const r = await giro(t);
+    c("live: una riga «inviato» con l'id di WhatsApp", [["L1", "ricontatto_data", "inviato"], "wamid.1"], [statiRegistro(r.invii)[0], r.invii[0].wa_message_id]);
+    c("live: una sola richiesta di invio, prima la lettura del numero", ["GET", "POST"], r.f.chiamate.map((x) => x.metodo));
+    c("live: il template e i parametri partono come nell'invio a mano",
+      { name: "promemoria_ricontatto", language: { code: "it" }, components: [{ type: "body", parameters: ["Mario", "10/07/2026", "15:30", "Luca"].map((text) => ({ type: "text", text })) }] },
+      r.f.invii()[0].corpo.template);
+    c("live: destinatario senza +", "393331234567", r.f.invii()[0].corpo.to);
+    c("live: il token va solo nell'intestazione", "Bearer TOKEN-SEGRETO", r.f.invii()[0].headers.Authorization);
+    c("live: nella chat compare il messaggio", [["outbound", "+393331234567", "[template:promemoria_ricontatto]", "sent", "wamid.1", "L1", "U1"]],
+      t.whatsapp_messages.map((m) => [m.direction, m.to_number, m.body, m.status, m.wa_message_id, m.lead_id, m.user_id]));
+    c("live: il contatto è aggiornato", [["U1", "+393331234567", "L1"]], t.whatsapp_contacts.map((x) => [x.user_id, x.phone_e164, x.lead_id]));
+    c("live: il token non è nel registro, né nell'esito, né nella chat", false,
+      JSON.stringify([t.wa_auto_invii, r.esito, t.whatsapp_messages]).includes("TOKEN-SEGRETO"));
+    const r2 = await giro(t);
+    c("live: secondo giro, nessun invio doppio", [1, 1], [r2.f.invii().length + r.f.invii().length, t.wa_auto_invii.length]);
+  }
+  {
+    const t = live();
+    const r = await giro(t, { fetch: { errore: { message: "Re-engagement", code: 131047, fbtrace_id: "ABC" } } });
+    c("live, Meta rifiuta (131047): la riga è «fallito» con la categoria", [["L1", "ricontatto_data", "fallito"], true],
+      [statiRegistro(r.invii)[0], String(r.invii[0].motivo).startsWith("outside_24h_window")]);
+    c("live, Meta rifiuta: nella chat il messaggio «failed»", ["failed", true], [t.whatsapp_messages[0].status, !!t.whatsapp_messages[0].error_message]);
+    c("live, Meta rifiuta: nessun token negli errori scritti", false, JSON.stringify([t.wa_auto_invii, t.whatsapp_messages, r.esito]).includes("TOKEN-SEGRETO"));
+    c("live, Meta rifiuta: l'esito conta la riga prenotata e il fallimento", [1, 1], [r.u.mandati, r.u.falliti]);
+    const r2 = await giro(t, { fetch: {} });
+    c("live, dopo un fallimento: non si ritenta da solo", [0, 1], [r2.f.invii().length, t.wa_auto_invii.length]);
+  }
+  {
+    //  il primo fallimento ferma il giro: gli altri non provano
+    const molti = Array.from({ length: 3 }, (_, i) => lead(`L${i + 1}`, `P${i + 1}`, `+39 333 00${String(i + 10).padStart(5, "0")}`));
+    const mod = Array.from({ length: 3 }, (_, i) => modulo(`P${i + 1}`, `+39 333 00${String(i + 10).padStart(5, "0")}`));
+    const t = live(); t.crm_leads = molti; t.public_leads = mod;
+    const r = await giro(t, { fetch: { errore: { message: "token", code: 190 } } });
+    c("live, primo fallimento: gli altri non partono nel giro", [1, 1], [r.f.invii().length, t.wa_auto_invii.length]);
+  }
+  {
+    const r = await giro(live({ app_secret: null }));
+    c("live senza app_secret: rifiutato, niente parte", ["rifiutato", 0, 0], [r.u.esito, r.f.chiamate.length, r.invii.length]);
+    c("live senza app_secret: il motivo è scritto sulle impostazioni", true, /app_secret/.test(String(r.db.tabelle.whatsapp_settings[0].auto_sospeso_motivo)));
+    const r2 = await giro(live({ app_secret: "" }));
+    c("live con app_secret vuoto: rifiutato", "rifiutato", r2.u.esito);
+    const r3 = await giro(live({ auto_qualita: "YELLOW" }));
+    c("live con qualità del numero non GREEN: rifiutato", ["rifiutato", 0], [r3.u.esito, r3.f.chiamate.length]);
+    const r4 = await giro(live({ auto_qualita: "GREEN" }));
+    c("live con qualità GREEN: parte", 1, r4.f.invii().length);
+    const r5 = await giro(base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_simulato: true, app_secret: null, auto_qualita: "RED" }] }));
+    c("simulato: app_secret e qualità non contano", ["ok", 1], [r5.u.esito, r5.invii.length]);
+    const r6 = await giro(live({ phone_number_id: null }));
+    c("live senza credenziali: rifiutato", ["rifiutato", 0], [r6.u.esito, r6.f.chiamate.length]);
+  }
+  {
+    //  live ma il numero è quello di PROVA di Meta: si ferma prima di prenotare
+    const t = live();
+    const r = await giro(t, { fetch: { numero: { display_phone_number: "+1 555-025-3483", verified_name: "Test Number" } } });
+    c("live con il numero di prova di Meta: rifiutato, nessun invio, registro vuoto", ["rifiutato", 0, 0], [r.u.esito, r.f.invii().length, t.wa_auto_invii.length]);
+    const r2 = await giro(base({ whatsapp_settings: [{ ...base().whatsapp_settings[0], auto_simulato: false, mode: "sandbox" }] }),
+      { fetch: { numero: { display_phone_number: "+1 555-025-3483", verified_name: "Test Number" } } });
+    c("modalità sandbox con il numero di prova: si può", 1, r2.f.invii().length);
+  }
+  {
+    //  due giri che si sovrappongono davvero: l'altro prenota la stessa cosa un attimo prima di noi
+    const t = live();
+    const db = dbFinto(t);
+    const daFinto = db.from;
+    let preso = false;
+    db.from = (nome) => {
+      const b = daFinto(nome);
+      if (nome === "wa_auto_invii") {
+        const ins = b.insert;
+        b.insert = (v) => {
+          if (!preso && v.stato === "prenotato") { preso = true; t.wa_auto_invii.push({ id: "ALTRO", ...v }); }
+          return ins(v);
+        };
+      }
+      return b;
+    };
+    const f = fetchFinto();
+    const esito = await eseguiGiro({ db, fetchFn: f, adesso });
+    c("prenotazione persa (23505): non manda", [0, 1], [f.invii().length, t.wa_auto_invii.length]);
+    c("prenotazione persa: non è un fallimento", [0, 0], [esito.utenti[0].mandati, esito.utenti[0].falliti]);
+  }
+  {
+    //  un errore di rete NON fa saltare tutto: la riga è «fallito», senza token
+    const t = live();
+    const db = dbFinto(t);
+    const f = async (url, init = {}) => { if (init.method === "POST") throw new Error("socket hang up"); return { ok: true, status: 200, json: async () => ({ display_phone_number: "+39 06 1234567", verified_name: "HGL" }) }; };
+    const esito = await eseguiGiro({ db, fetchFn: f, adesso });
+    c("rete caduta durante l'invio: «fallito», il giro finisce bene", [["L1", "ricontatto_data", "fallito"], true], [statiRegistro(t.wa_auto_invii)[0], /rete/.test(String(t.wa_auto_invii[0].motivo))]);
+    c("rete caduta: l'esito conta un fallimento", 1, esito.utenti[0].falliti);
+  }
+  {
+    //  il caso che conta di più: STOP e consenso valgono anche in live
+    const t = live({}); t.wa_auto_esclusi.push({ user_id: "U1", telefono_e164: "+393331234567", motivo: "stop" });
+    c("live + escluso: nessuna richiesta a Meta", 0, (await giro(t)).f.invii().length);
+    const t2 = live(); t2.public_leads[0].consenso_whatsapp = null;
+    c("live + nessun consenso: nessuna richiesta a Meta", 0, (await giro(t2)).f.invii().length);
+  }
+}
+
 /** La temperatura: una funzione sola, così lo stesso lead ha lo stesso livello
  *  in «Oggi», in Lead importati e nella scheda. Vedi crm/temperatura-lead. */
 function proveDellaTemperatura() {
@@ -19290,6 +19717,7 @@ proveDellaStriscia();
 proveDelTelefonoDelModulo();
 proveDelWaAutomatico();
 await proveDellaChiamataAMeta();
+await proveDelMotoreWa();
 await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();

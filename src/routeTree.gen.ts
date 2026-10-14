@@ -44,6 +44,7 @@ import { Route as ProvaAnteprimaCasoRouteImport } from './routes/prova-anteprima
 import { Route as MeetlyCodeRouteImport } from './routes/meetly_.$code'
 import { Route as MediaCodiceRouteImport } from './routes/media.$codice'
 import { Route as InvitoCodiceRouteImport } from './routes/invito.$codice'
+import { Route as HooksWaAutoRouteImport } from './routes/hooks/wa-auto'
 import { Route as HooksTouchHistoryBackfillRouteImport } from './routes/hooks/touch-history-backfill'
 import { Route as HooksTiktokSpendSyncRouteImport } from './routes/hooks/tiktok-spend-sync'
 import { Route as HooksTiktokAdUpdateRouteImport } from './routes/hooks/tiktok-ad-update'
@@ -362,6 +363,11 @@ const MediaCodiceRoute = MediaCodiceRouteImport.update({
 const InvitoCodiceRoute = InvitoCodiceRouteImport.update({
   id: '/invito/$codice',
   path: '/invito/$codice',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksWaAutoRoute = HooksWaAutoRouteImport.update({
+  id: '/hooks/wa-auto',
+  path: '/hooks/wa-auto',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksTouchHistoryBackfillRoute =
@@ -1174,6 +1180,7 @@ export interface FileRoutesByFullPath {
   '/hooks/tiktok-ad-update': typeof HooksTiktokAdUpdateRoute
   '/hooks/tiktok-spend-sync': typeof HooksTiktokSpendSyncRoute
   '/hooks/touch-history-backfill': typeof HooksTouchHistoryBackfillRoute
+  '/hooks/wa-auto': typeof HooksWaAutoRoute
   '/invito/$codice': typeof InvitoCodiceRoute
   '/media/$codice': typeof MediaCodiceRoute
   '/meetly/$code': typeof MeetlyCodeRoute
@@ -1350,6 +1357,7 @@ export interface FileRoutesByTo {
   '/hooks/tiktok-ad-update': typeof HooksTiktokAdUpdateRoute
   '/hooks/tiktok-spend-sync': typeof HooksTiktokSpendSyncRoute
   '/hooks/touch-history-backfill': typeof HooksTouchHistoryBackfillRoute
+  '/hooks/wa-auto': typeof HooksWaAutoRoute
   '/invito/$codice': typeof InvitoCodiceRoute
   '/media/$codice': typeof MediaCodiceRoute
   '/meetly/$code': typeof MeetlyCodeRoute
@@ -1532,6 +1540,7 @@ export interface FileRoutesById {
   '/hooks/tiktok-ad-update': typeof HooksTiktokAdUpdateRoute
   '/hooks/tiktok-spend-sync': typeof HooksTiktokSpendSyncRoute
   '/hooks/touch-history-backfill': typeof HooksTouchHistoryBackfillRoute
+  '/hooks/wa-auto': typeof HooksWaAutoRoute
   '/invito/$codice': typeof InvitoCodiceRoute
   '/media/$codice': typeof MediaCodiceRoute
   '/meetly_/$code': typeof MeetlyCodeRoute
@@ -1715,6 +1724,7 @@ export interface FileRouteTypes {
     | '/hooks/tiktok-ad-update'
     | '/hooks/tiktok-spend-sync'
     | '/hooks/touch-history-backfill'
+    | '/hooks/wa-auto'
     | '/invito/$codice'
     | '/media/$codice'
     | '/meetly/$code'
@@ -1891,6 +1901,7 @@ export interface FileRouteTypes {
     | '/hooks/tiktok-ad-update'
     | '/hooks/tiktok-spend-sync'
     | '/hooks/touch-history-backfill'
+    | '/hooks/wa-auto'
     | '/invito/$codice'
     | '/media/$codice'
     | '/meetly/$code'
@@ -2072,6 +2083,7 @@ export interface FileRouteTypes {
     | '/hooks/tiktok-ad-update'
     | '/hooks/tiktok-spend-sync'
     | '/hooks/touch-history-backfill'
+    | '/hooks/wa-auto'
     | '/invito/$codice'
     | '/media/$codice'
     | '/meetly_/$code'
@@ -2221,6 +2233,7 @@ export interface RootRouteChildren {
   HooksTiktokAdUpdateRoute: typeof HooksTiktokAdUpdateRoute
   HooksTiktokSpendSyncRoute: typeof HooksTiktokSpendSyncRoute
   HooksTouchHistoryBackfillRoute: typeof HooksTouchHistoryBackfillRoute
+  HooksWaAutoRoute: typeof HooksWaAutoRoute
   InvitoCodiceRoute: typeof InvitoCodiceRoute
   MediaCodiceRoute: typeof MediaCodiceRoute
   MeetlyCodeRoute: typeof MeetlyCodeRoute
@@ -2561,6 +2574,13 @@ declare module '@tanstack/react-router' {
       path: '/invito/$codice'
       fullPath: '/invito/$codice'
       preLoaderRoute: typeof InvitoCodiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/wa-auto': {
+      id: '/hooks/wa-auto'
+      path: '/hooks/wa-auto'
+      fullPath: '/hooks/wa-auto'
+      preLoaderRoute: typeof HooksWaAutoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/touch-history-backfill': {
@@ -3759,6 +3779,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksTiktokAdUpdateRoute: HooksTiktokAdUpdateRoute,
   HooksTiktokSpendSyncRoute: HooksTiktokSpendSyncRoute,
   HooksTouchHistoryBackfillRoute: HooksTouchHistoryBackfillRoute,
+  HooksWaAutoRoute: HooksWaAutoRoute,
   InvitoCodiceRoute: InvitoCodiceRoute,
   MediaCodiceRoute: MediaCodiceRoute,
   MeetlyCodeRoute: MeetlyCodeRoute,

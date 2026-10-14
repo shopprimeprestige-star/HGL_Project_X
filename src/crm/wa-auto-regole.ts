@@ -94,6 +94,33 @@ export const REGOLE_PREDEFINITE: RegolaWa[] = [
   },
 ];
 
+/** ── LE REGOLE CHE VALGONO DAVVERO ────────────────────────────────────────
+ *  Quelle di serie, con sopra le righe di `wa_auto_regole` (stesso `codice` =
+ *  la riga prende il posto di quella di serie; codice nuovo = si aggiunge).
+ *  Così spegnere una regola è una riga con `attiva = false`, e una tabella
+ *  vuota o con una riga sola non fa sparire le altre. Le righe con un
+ *  riferimento sconosciuto si scartano. */
+export function regoleEffettive(righe: Array<Partial<RegolaWa> & { codice?: string }> | null | undefined): RegolaWa[] {
+  const per = new Map<string, RegolaWa>(REGOLE_PREDEFINITE.map((r) => [r.codice, r]));
+  for (const r of righe ?? []) {
+    if (!r?.codice || (r.riferimento !== "ricontatto" && r.riferimento !== "consulenza") || !r.template) continue;
+    per.set(r.codice, {
+      codice: r.codice,
+      descrizione: r.descrizione,
+      attiva: r.attiva !== false,
+      riferimento: r.riferimento,
+      stato_lead: r.stato_lead ?? null,
+      giorni_prima: Number.isFinite(r.giorni_prima) ? Number(r.giorni_prima) : 0,
+      ora_fissa: r.ora_fissa ?? null,
+      minuti_prima: r.minuti_prima ?? null,
+      template: r.template,
+      ora_da: r.ora_da || "09:00",
+      ora_a: r.ora_a || "20:00",
+    });
+  }
+  return [...per.values()];
+}
+
 /* ── 2. IL CONSENSO ───────────────────────────────────────────────────────── */
 
 /** ── ⚠️ LE VERSIONI DEL CONSENSO ACCETTATE ────────────────────────────────
@@ -208,6 +235,11 @@ function istanteRoma(data: string, ora: string): Date | null {
     if (`${r.data} ${r.ora}` === voluto) return prova;
   }
   return null; // l'ora che salta nel cambio d'ora (02:30 del 29/03): non esiste
+}
+
+/** La mezzanotte di Roma del giorno in cui cade `d`: da qui si contano le righe «di oggi» per il tetto. */
+export function inizioGiornoRoma(d: Date): Date {
+  return istanteRoma(oraRoma(d).data, "00:00") ?? d;
 }
 
 /** `ora_da` incluso, `ora_a` escluso: "09:00"-"20:00" vale fino alle 19:59. */
