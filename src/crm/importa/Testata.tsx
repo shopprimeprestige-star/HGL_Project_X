@@ -14,7 +14,8 @@
  *  M provati in questo giro», e una frase grande sulle promesse anche quando
  *  non era scaduto niente: ripeteva le prime righe della lista. Tolti su
  *  richiesta del titolare (14/10: «poche funzioni ma buone»). I saltati restano
- *  in «Altro» e nella riga qui sotto; gli esiti segnati nei KPI.
+ *  in «In attesa → Messi da parte» e nella riga qui sotto; gli esiti segnati
+ *  nei KPI.
  *
  *  ⚠️ Il numero dei richiami scaduti arriva da `contaPromesse`
  *   (crm/importa/chi-chiamare), lo stesso che conta le righe dello Stato
@@ -40,10 +41,6 @@ export function Testata({
   promesse: { tutte: number; scadute: number };
   daProvare: number;
   inCoda: number;
-  /** Restano nel contratto: la pagina li passa ancora, e il numero dei
-   *  saltati vive nel menu «Altro» e nella riga dei dimenticati. */
-  segnate?: number;
-  saltati?: number;
   saltatiFermi: number;
   onVediPromesse: () => void;
   onVediSaltati: () => void;
@@ -57,7 +54,7 @@ export function Testata({
       «N di M provati in questo giro», e una frase grande sulle promesse anche
       quando non era scaduto niente — che ripeteva le prime righe della lista.
       Adesso: il rosso compare SOLO con richiami scaduti, e il giro è una barra
-      con una frase. I saltati restano raggiungibili da «Altro» e dalla riga
+      con una frase. I saltati restano raggiungibili da «In attesa → Messi da parte» e dalla riga
       dei dimenticati qui sotto, che si accende quando qualcuno è fermo da
       troppo. */
   const inRitardo = promesse.scadute > 0;
@@ -119,9 +116,7 @@ export function Testata({
 
       {/*  ── I DIMENTICATI, QUANDO CE NE SONO ─────────────────────────────
            Un saltato che nessuno rimette in coda esce dal lavoro in silenzio:
-           non è in coda, non ha un esito, non scade niente. Il numero qui sopra
-           lo conta sempre, ma un numero di contorno si legge di sfuggita;
-           questa riga compare solo quando qualcuno è fermo da troppo e sparisce
+           non è in coda, non ha un esito, non scade niente. Questa riga compare solo quando qualcuno è fermo da troppo e sparisce
            da sola appena la si sistema — così quando c'è vuol dire qualcosa.
            Sta DENTRO la testata e non sotto, come stava prima: era un riquadro
            in più fra il setter e la persona da chiamare, e diceva una cosa che

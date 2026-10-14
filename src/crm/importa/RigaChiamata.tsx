@@ -43,7 +43,7 @@ export function Targhetta({ motivo, className }: { motivo: MotivoDiChiamata; cla
       {motivo.caldo && (
         <span
           className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-orange-700"
-          title="Ha risposto che il problema lo infastidisce, che vuole risolverlo, o ha già provato qualcosa"
+          title="Vuole risolvere subito o ha già provato qualcosa"
         >
           caldo
         </span>
