@@ -17601,6 +17601,52 @@ function proveDellaVistaDiOggi() {
   c("vista-oggi non importa React", false, /from "react"/.test(sorgente));
 }
 
+/** Posti, non orari: la striscia, la finestra «Dove c'è posto» e Slot liberi
+ *  devono dire lo stesso numero per lo stesso giorno. Vedi crm/slot-liberi. */
+function proveDellaStriscia() {
+  const { riassumiGiorno, totali, postiLiberi, strisciaPosti } = SLOT;
+  gruppo("POSTI LIBERI, NON ORARI");
+  c("capienza meno presi, sommati", 5, postiLiberi([{ presi: 1, capienza: 3 }, { presi: 0, capienza: 3 }, { presi: 1, capienza: 1 }]));
+  c("nessun orario: zero", 0, postiLiberi([]));
+  c("senza numeri non inventa posti", 0, postiLiberi([{}]));
+  const s = (ora, libero, presi, capienza = 3) => ({ ora, libero, presi, capienza });
+  const liberi = [s("09:00", true, 0), s("10:00", true, 2), s("11:00", true, 0, 1)];
+  c("stessa regola di Slot liberi (riassumiGiorno)",
+    riassumiGiorno({ data: "2026-10-14", persone: [{ id: "a", nome: "Anna", slot: liberi }] }).posti,
+    postiLiberi(liberi));
+
+  gruppo("LA STRISCIA DEI POSTI LIBERI");
+  //  Gli stessi giorni di proveDegliSlotLiberi: uno con posto, uno pieno, uno chiuso.
+  const g = riassumiGiorno({
+    data: "2026-10-14",
+    persone: [
+      { id: "a", nome: "Anna", slot: [s("09:00", true, 0), s("10:00", false, 3), s("11:00", true, 1)] },
+      { id: "b", nome: "Bruno", slot: [s("09:00", true, 0), s("10:00", false, 1, 1), s("15:00", true, 0)] },
+    ],
+  });
+  const pieno = riassumiGiorno({ data: "2026-10-15", persone: [{ id: "a", nome: "Anna", slot: [s("09:00", false, 3)] }] });
+  const chiuso = riassumiGiorno({ data: "2026-10-18", persone: [{ id: "a", nome: "Anna", slot: [] }] });
+  const st = strisciaPosti([g, pieno, chiuso]);
+  c("il giorno di chiusura non compare", 2, st.length);
+  c("il giorno con posto: 11, non pieno", { posti: 11, pieno: false }, { posti: st[0].posti, pieno: st[0].pieno });
+  c("con le fasce ma zero posti: pieno", { posti: 0, pieno: true }, { posti: st[1].posti, pieno: st[1].pieno });
+  c("la data resta quella del giorno", "2026-10-15", st[1].data);
+  //  Nove giorni lavorativi di fila (dal 14 al 22 ottobre), ognuno con posto.
+  const nove = Array.from({ length: 9 }, (_, i) =>
+    riassumiGiorno({ data: `2026-10-${String(14 + i).padStart(2, "0")}`, persone: [{ id: "a", nome: "Anna", slot: [s("09:00", true, i % 3)] }] }));
+  c("con max 7 ne escono 7", 7, strisciaPosti(nove, { max: 7 }).length);
+  c("senza max pure 7", 7, strisciaPosti(nove).length);
+  c("con i chiusi in mezzo si contano solo i lavorativi", 7, strisciaPosti([chiuso, ...nove]).length);
+  const tenuti = nove.slice(0, 7);
+  c("la somma della striscia = totali di Slot liberi sugli stessi giorni",
+    totali(tenuti).posti, strisciaPosti(nove).reduce((t, x) => t + x.posti, 0));
+  const et = (data) => strisciaPosti([riassumiGiorno({ data, persone: [{ id: "a", nome: "Anna", slot: [s("09:00", true, 0)] }] })], { oggi: "2026-10-14" })[0].etichetta;
+  c("oggi si chiama «Oggi»", "Oggi", et("2026-10-14"));
+  c("giovedì 15", "Gio 15", et("2026-10-15"));
+  c("lunedì 19", "Lun 19", et("2026-10-19"));
+  c("domenica 1 novembre", "Dom 1", et("2026-11-01"));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17647,6 +17693,7 @@ proveDegliSlotLiberi();
 proveDiDrive();
 proveDellaTemperatura();
 proveDellaVistaDiOggi();
+proveDellaStriscia();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

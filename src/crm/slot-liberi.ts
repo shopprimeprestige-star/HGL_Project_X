@@ -158,3 +158,43 @@ export function totali(giorni: GiornoLibero[]): {
   }
   return { posti, fasce, giorniConPosto, giorniPieni };
 }
+
+/* ── POSTI, NON ORARI: UN NUMERO SOLO PER LO STESSO GIORNO ──────────────────
+   Richiesta del titolare (14/10/2026): la setter vede una striscia con i posti
+   liberi dei prossimi giorni, e la finestra che fissa («Dove c'è posto»)
+   contava gli ORARI liberi (consulente × ora) mentre questa pagina conta i
+   POSTI. Due numeri diversi per lo stesso giovedì, a un clic di distanza, li
+   fanno credere sbagliati tutti e due. Striscia, finestra e Slot liberi
+   contano con `postiDi`: nessun conto nuovo. */
+
+/** I posti ancora fissabili in un elenco di orari già liberi (capienza meno presi). */
+export function postiLiberi(orari: { presi?: number; capienza?: number }[]): number {
+  return orari.reduce(
+    (t, o) => t + postiDi({ ora: "", libero: true, presi: Number(o.presi) || 0, capienza: Number(o.capienza) || 0 }),
+    0,
+  );
+}
+
+export type GiornoStriscia = { data: string; etichetta: string; posti: number; pieno: boolean };
+
+/** Il giorno scritto corto con un elenco fisso, non con `toLocaleDateString`:
+ *  così non dipende dalla lingua del browser né da quella di Node nelle prove. */
+const GIORNO_CORTO = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+
+function etichettaCorta(data: string, oggi?: string): string {
+  if (oggi && data === oggi) return "Oggi";
+  const d = new Date(`${data}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return data;
+  return `${GIORNO_CORTO[d.getUTCDay()]} ${d.getUTCDate()}`;
+}
+
+/** La striscia dei posti: i giorni lavorativi (con almeno un'ora di lavoro),
+ *  al massimo `max`. Un giorno con le ore ma zero posti è «pieno»; un giorno
+ *  di chiusura non compare (non è pieno, è chiuso: come in `totali`). */
+export function strisciaPosti(giorni: GiornoLibero[], o?: { max?: number; oggi?: string }): GiornoStriscia[] {
+  const max = Math.max(0, o?.max ?? 7);
+  return giorni
+    .filter((g) => g.fasceTotali > 0)
+    .slice(0, max)
+    .map((g) => ({ data: g.data, etichetta: etichettaCorta(g.data, o?.oggi), posti: g.posti, pieno: g.posti === 0 }));
+}
