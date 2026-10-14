@@ -170,7 +170,14 @@ export function totali(giorni: GiornoLibero[]): {
 /** I posti ancora fissabili in un elenco di orari già liberi (capienza meno presi). */
 export function postiLiberi(orari: { presi?: number; capienza?: number }[]): number {
   return orari.reduce(
-    (t, o) => t + postiDi({ ora: "", libero: true, presi: Number(o.presi) || 0, capienza: Number(o.capienza) || 0 }),
+    (t, o) =>
+      t +
+      postiDi({
+        ora: "",
+        libero: true,
+        presi: Number(o.presi) || 0,
+        capienza: Number(o.capienza) || 0,
+      }),
     0,
   );
 }
@@ -191,10 +198,18 @@ function etichettaCorta(data: string, oggi?: string): string {
 /** La striscia dei posti: i giorni lavorativi (con almeno un'ora di lavoro),
  *  al massimo `max`. Un giorno con le ore ma zero posti è «pieno»; un giorno
  *  di chiusura non compare (non è pieno, è chiuso: come in `totali`). */
-export function strisciaPosti(giorni: GiornoLibero[], o?: { max?: number; oggi?: string }): GiornoStriscia[] {
+export function strisciaPosti(
+  giorni: GiornoLibero[],
+  o?: { max?: number; oggi?: string },
+): GiornoStriscia[] {
   const max = Math.max(0, o?.max ?? 7);
   return giorni
     .filter((g) => g.fasceTotali > 0)
     .slice(0, max)
-    .map((g) => ({ data: g.data, etichetta: etichettaCorta(g.data, o?.oggi), posti: g.posti, pieno: g.posti === 0 }));
+    .map((g) => ({
+      data: g.data,
+      etichetta: etichettaCorta(g.data, o?.oggi),
+      posti: g.posti,
+      pieno: g.posti === 0,
+    }));
 }

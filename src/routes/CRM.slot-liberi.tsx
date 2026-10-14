@@ -20,7 +20,13 @@ import { CalendarClock, Copy, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarraAzioni, Kpi, KpiRiga, Pagina, Scheda, Segmento, Titolo, Vuoto } from "@/crm/ui";
-import { daRiempirePrima, etichettaGiorno, testoDaCopiare, totali, type GiornoLibero } from "@/crm/slot-liberi";
+import {
+  daRiempirePrima,
+  etichettaGiorno,
+  testoDaCopiare,
+  totali,
+  type GiornoLibero,
+} from "@/crm/slot-liberi";
 import { useGiorniLiberi } from "@/crm/useGiorniLiberi";
 
 export const Route = createFileRoute("/CRM/slot-liberi")({

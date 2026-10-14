@@ -88,7 +88,10 @@ const FASTIDIO: Record<string, { livello: LivelloTemperatura; testo: string }> =
 function giaProvato(id?: string): { livello: LivelloTemperatura; testo: string } | undefined {
   if (!id) return undefined;
   if (id === "niente") return { livello: "freddo", testo: "mai provato nulla" };
-  return { livello: "caldo", testo: `ha provato: ${etichettaRisposta("giaFatto", id).toLowerCase()}` };
+  return {
+    livello: "caldo",
+    testo: `ha provato: ${etichettaRisposta("giaFatto", id).toLowerCase()}`,
+  };
 }
 
 /** Le risposte di temperatura del modulo, nell'ordine in cui si leggono:
@@ -146,7 +149,12 @@ function decidi(voci: { livello: LivelloTemperatura; testo: string }[]) {
 export function temperaturaLead(m?: RisposteModulo, q?: QualificaInfo | null): TemperaturaLead {
   const dalModulo = decidi(vociDelModulo(m));
   if (dalModulo)
-    return { livello: dalModulo.livello, parola: PAROLA[dalModulo.livello], perche: dalModulo.testo, fonte: "modulo" };
+    return {
+      livello: dalModulo.livello,
+      parola: PAROLA[dalModulo.livello],
+      perche: dalModulo.testo,
+      fonte: "modulo",
+    };
   const dalQuiz = decidi(vociDelQuiz(q));
   if (dalQuiz)
     return {
@@ -172,9 +180,13 @@ export function mostraTemperatura(stato?: LeadStatus | string | null): boolean {
   return !eChiusuraVinta(stato);
 }
 
-/** Comodità per i componenti: `moduloLetto(d)` + `qualifica`, una volta sola. */
-export function temperaturaDi(d?: Partial<LeadData> | null): { t: TemperaturaLead; brevi: string[] } {
+/** Comodità per i componenti: `moduloLetto(d)` + `qualifica`, una volta sola.
+ *  `max` = quante risposte brevi (di serie 2, come sulle righe). */
+export function temperaturaDi(
+  d?: Partial<LeadData> | null,
+  max = 2,
+): { t: TemperaturaLead; brevi: string[] } {
   const m = moduloLetto(d);
   const q = d?.qualifica;
-  return { t: temperaturaLead(m, q), brevi: risposteBrevi(m, q) };
+  return { t: temperaturaLead(m, q), brevi: risposteBrevi(m, q, max) };
 }

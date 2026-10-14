@@ -1394,7 +1394,9 @@ function giorniDellaSquadra(
         posti: postiLiberi(utili.map((s) => ({ presi: s.presi, capienza: s.posti }))),
         perFascia: FASCE.map((_, i) =>
           postiLiberi(
-            utili.filter((s) => dentroFascia(i, s.ora)).map((s) => ({ presi: s.presi, capienza: s.posti })),
+            utili
+              .filter((s) => dentroFascia(i, s.ora))
+              .map((s) => ({ presi: s.presi, capienza: s.posti })),
           ),
         ),
         consulenti: new Set(utili.map((s) => s.consulente.id)).size,
@@ -2138,8 +2140,8 @@ function ProceduraQuando({
             />
             <p className="text-[11px] leading-snug text-slate-500">
               Il numero sono i posti ancora liberi di quel giorno (clienti che puoi fissare).
-              Premendo il giorno vedi tutti gli orari — mattina, pomeriggio e sera insieme — e sceglierne uno decide insieme
-              consulente, giorno e ora.
+              Premendo il giorno vedi tutti gli orari — mattina, pomeriggio e sera insieme — e
+              sceglierne uno decide insieme consulente, giorno e ora.
             </p>
             {/*  Se qui dentro ci sono tutti perché nessuno è ancora segnato
                 consulente, va detto proprio accanto alla frase che spiega che

@@ -83,10 +83,15 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
 
   const squadra = useMemo(() => {
     const { elenco } = consulentiPerConsulenza(Array.isArray(consultants) ? consultants : []);
-    return elenco.filter((c) => c?.data && c.data.attivo !== false && Array.isArray(c.data.giorniLavorativi));
+    return elenco.filter(
+      (c) => c?.data && c.data.attivo !== false && Array.isArray(c.data.giorniLavorativi),
+    );
   }, [consultants]);
 
-  const scelti = useMemo(() => (chi === "tutti" ? squadra : squadra.filter((c) => c.id === chi)), [squadra, chi]);
+  const scelti = useMemo(
+    () => (chi === "tutti" ? squadra : squadra.filter((c) => c.id === chi)),
+    [squadra, chi],
+  );
 
   const giorni = useMemo<GiornoLibero[]>(() => {
     const elenco = Array.isArray(leads) ? leads.filter((l) => l && l.data) : [];
