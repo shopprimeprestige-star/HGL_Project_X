@@ -1,10 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Star, ShieldCheck, Truck, RotateCcw, Check, Minus, Plus, ChevronRight, ShoppingBag } from "lucide-react";
 import { CATEGORIES, PRODUCTS, formatPrice, getProduct } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
 import { toast } from "sonner";
+import { trackEvent } from "@/landing/booking/tracking";
+import { BoxProdottoGiusto } from "@/components/landing/consulenza/BoxProdottoGiusto";
+import { PopupUscita } from "@/components/landing/consulenza/PopupUscita";
 
 export const Route = createFileRoute("/shop/prodotto/$slug")({
   component: ProductDetail,
@@ -22,6 +25,12 @@ function ProductDetail() {
     return init;
   });
 
+  //  Una scheda vista: solo un conteggio, con il nome pubblico del prodotto.
+  useEffect(() => {
+    if (!getProduct(slug)) return;
+    void trackEvent("stock_vista_scheda", null, { prodotto: slug }, { dedupKey: `scheda:${slug}` });
+  }, [slug]);
+
   if (!product) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] py-20 text-center">
@@ -34,6 +43,8 @@ function ProductDetail() {
   }
 
   const category = CATEGORIES.find((c) => c.key === product.category);
+  //  Il box «Non è il prodotto giusto per te?» e il pop-up stanno solo sulle protesi.
+  const eProtesi = product.category === "toupee";
   const related = PRODUCTS.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
 
   const addToCart = (go: boolean) => {
@@ -78,14 +89,17 @@ function ProductDetail() {
           <div className="space-y-2">
             <span className="text-xs uppercase tracking-[0.2em] text-brand">{category?.label}</span>
             <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="flex items-center gap-0.5 text-amber-300">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className="h-4 w-4" fill={i < Math.round(product.rating) ? "currentColor" : "none"} strokeWidth={1.5} />
-                ))}
-              </span>
-              <span className="text-white/50">{product.rating} · {product.reviews} recensioni</span>
-            </div>
+            {/* Stelle e numero di recensioni sono dati d'esempio: nelle protesi, dove c'è il box, si nascondono (i dati restano nel catalogo). */}
+            {!eProtesi && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="flex items-center gap-0.5 text-amber-300">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className="h-4 w-4" fill={i < Math.round(product.rating) ? "currentColor" : "none"} strokeWidth={1.5} />
+                  ))}
+                </span>
+                <span className="text-white/50">{product.rating} · {product.reviews} recensioni</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-end gap-3">
@@ -126,30 +140,33 @@ function ProductDetail() {
             </div>
           ))}
 
-          {/* qty + add */}
-          <div className="flex items-center gap-3 pt-1">
-            <div className="flex items-center rounded-lg border border-white/15 bg-white/5">
-              <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2.5 text-white/70 hover:text-white">
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="w-8 text-center text-sm font-medium">{qty}</span>
-              <button onClick={() => setQty((q) => Math.min(99, q + 1))} className="px-3 py-2.5 text-white/70 hover:text-white">
-                <Plus className="h-4 w-4" />
+          {/* Il blocco d'acquisto: la barra della consulenza non lo copre mai (si nasconde quando gli arriva sotto). */}
+          <div data-barra-nascondi="fondo" className="space-y-5">
+            {/* qty + add */}
+            <div className="flex items-center gap-3 pt-1">
+              <div className="flex items-center rounded-lg border border-white/15 bg-white/5">
+                <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2.5 text-white/70 hover:text-white">
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="w-8 text-center text-sm font-medium">{qty}</span>
+                <button onClick={() => setQty((q) => Math.min(99, q + 1))} className="px-3 py-2.5 text-white/70 hover:text-white">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => addToCart(false)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand bg-brand/10 px-5 py-3 font-medium text-white transition hover:bg-brand/20"
+              >
+                <ShoppingBag className="h-4 w-4" /> Aggiungi al carrello
               </button>
             </div>
             <button
-              onClick={() => addToCart(false)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand bg-brand/10 px-5 py-3 font-medium text-white transition hover:bg-brand/20"
+              onClick={() => addToCart(true)}
+              className="w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110"
             >
-              <ShoppingBag className="h-4 w-4" /> Aggiungi al carrello
+              Acquista ora
             </button>
           </div>
-          <button
-            onClick={() => addToCart(true)}
-            className="w-full rounded-lg bg-brand py-3 font-semibold text-white transition hover:brightness-110"
-          >
-            Acquista ora
-          </button>
 
           <p className="text-xs text-white/40">
             {product.stock > 0 ? (
@@ -159,6 +176,8 @@ function ProductDetail() {
             )}{" "}
             · Spedizione gratuita per ordini superiori a €59
           </p>
+
+          {eProtesi && <BoxProdottoGiusto prodotto={product.name} />}
 
           {/* bullets */}
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -213,6 +232,8 @@ function ProductDetail() {
           </div>
         </section>
       )}
+
+      {eProtesi && <PopupUscita prodotto={product.name} />}
     </div>
   );
 }
