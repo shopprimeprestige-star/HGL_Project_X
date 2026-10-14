@@ -20,7 +20,7 @@ c("nome esteso", "Invisible Derm Protocol®", T.NOME_PRODOTTO_ESTESO);
 /* ── 2. INTERRUTTORI, LINK E DATI DEL CONTRATTO (tutti spenti / vuoti) ───── */
 c("interruttori: solo le quattro chiavi del contratto", ["fotoConConsenso", "linkShopDiProva", "popupUscita", "testBottone"], Object.keys(T.INTERRUTTORI).sort());
 c("interruttori: tutti spenti", [false, false, false, false], ["popupUscita", "fotoConConsenso", "testBottone", "linkShopDiProva"].map((k) => T.INTERRUTTORI[k]));
-c("link catalogo", "/catalogo", T.LINK_CATALOGO);
+c("link catalogo: lo shop di oggi, finché il redesign non è approvato", "/shop", T.LINK_CATALOGO);
 c("link consulenza: l'ancora della home di oggi, finché Protocol non è approvata", "/#prenota", T.LINK_CONSULENZA);
 vero("l'ancora #prenota esiste nella home di oggi", /id="prenota"/.test(leggi("src/routes/index.tsx")));
 c("link shop di prova", "/shop", T.LINK_SHOP_DI_PROVA);
@@ -32,7 +32,7 @@ c("problemi: 8 voci, «Altro» per ultima", 8, T.PROBLEMI.length);
 c("problemi: etichetta di «tenuta» identica al Copywriter", "Tenuta: si stacca presto", T.PROBLEMI.find((p) => p.id === "tenuta")?.etichetta);
 
 /* ── 3. LE DUE CARTE PUNTANO ALLE STRADE NUOVE ──────────────────────────── */
-c("carta Stock → /catalogo", "/catalogo", T.TESTI_STRADE.carte[0].href);
+c("carta Stock → LINK_CATALOGO", T.LINK_CATALOGO, T.TESTI_STRADE.carte[0].href);
 c("carta Protocol → LINK_CONSULENZA", T.LINK_CONSULENZA, T.TESTI_STRADE.carte[1].href);
 c("carta Protocol porta il nome esteso", T.NOME_PRODOTTO_ESTESO, T.TESTI_STRADE.carte[1].titolo);
 

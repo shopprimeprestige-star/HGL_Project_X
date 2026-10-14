@@ -69,7 +69,7 @@ c("3 passi della consulenza", 3, T.TESTI_PROTOCOL.consulenza.passi.length);
 c("titolo scheda Protocol", "Invisible Derm Protocol® · consulenza gratuita", T.TESTI_PROTOCOL.meta.titolo);
 c("titolo catalogo", "Catalogo", T.TESTI_CATALOGO.titolo);
 c("frase onesta del catalogo", "Il catalogo è in preparazione.", T.TESTI_CATALOGO.testo);
-c("le due carte puntano a /catalogo e all'ancora della consulenza", ["/catalogo", "/#prenota"], [T.LINK_CATALOGO, T.LINK_CONSULENZA]);
+c("le due carte puntano a /shop e all'ancora della consulenza", ["/shop", "/#prenota"], [T.LINK_CATALOGO, T.LINK_CONSULENZA]);
 c("link allo shop di prova", "/shop", T.LINK_SHOP_DI_PROVA);
 
 /* ── 3. INTERRUTTORI: tutti spenti, elenchi vuoti ───────────────────────── */

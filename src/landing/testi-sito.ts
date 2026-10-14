@@ -24,7 +24,10 @@ export const INTERRUTTORI = {
   linkShopDiProva: false,
 } as const;
 
-export const LINK_CATALOGO = "/catalogo";
+/** ⚠️ Finché home e catalogo non sono ridisegnati e approvati (14/10/2026) il bottone «Scegli dal catalogo»
+ *  della home online porta allo shop di oggi, non alla pagina provvisoria `/catalogo` (nascosta).
+ *  Quando il redesign è approvato: "/catalogo" (una riga). */
+export const LINK_CATALOGO = "/shop";
 /** ⚠️ Finché la home e la pagina Protocol non sono ridisegnate e approvate (cambio di piano del titolare,
  *  14/10/2026) la consulenza resta sul calendario della home di oggi (`id="prenota"` in `routes/index.tsx`).
  *  Quando /protocol va online: "/protocol#modulo" (una riga). */

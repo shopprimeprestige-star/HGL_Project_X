@@ -31,6 +31,8 @@ export const Route = createFileRoute("/catalogo")({
     meta: [
       { title: TESTI_CATALOGO.meta.titolo },
       { name: "description", content: TESTI_CATALOGO.meta.descrizione },
+      //  Nascosta finché il redesign non è approvato (vedi PAGINE_NASCOSTE in seo/regole.ts).
+      { name: "robots", content: "noindex" },
       { property: "og:title", content: TESTI_CATALOGO.meta.titolo },
       { property: "og:description", content: TESTI_CATALOGO.meta.descrizione },
       { property: "og:type", content: "website" },
