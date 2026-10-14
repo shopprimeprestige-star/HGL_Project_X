@@ -24,5 +24,13 @@ export function traccia(
   dettaglio: Record<string, string | number | boolean> = {},
   opzioni: { dedupKey?: string } = {},
 ): void {
-  void initAdminCheck().then(() => trackEvent(nome, null, dettaglio, opzioni));
+  //  Con tutti i cookie bloccati leggere `sessionStorage` lancia: un evento perso
+  //  è niente, una scheda bianca no.
+  try {
+    void initAdminCheck()
+      .then(() => trackEvent(nome, null, dettaglio, opzioni))
+      .catch(() => {});
+  } catch {
+    // memoria bloccata: niente evento
+  }
 }

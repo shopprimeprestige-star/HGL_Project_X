@@ -98,7 +98,13 @@ function ShopFooter() {
 function BarraShop() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const slug = path.match(/^\/shop\/prodotto\/([^/]+)/)?.[1];
-  const prodotto = slug ? getProduct(decodeURIComponent(slug)) : undefined;
+  let prodotto: ReturnType<typeof getProduct>;
+  try {
+    prodotto = slug ? getProduct(decodeURIComponent(slug)) : undefined;
+  } catch {
+    //  Indirizzo rotto (es. %E0): niente protesi, e il negozio resta in piedi.
+    prodotto = undefined;
+  }
   return <BarraConsulenza provenienza="stock" prodotto={prodotto?.category === "toupee" ? prodotto.name : undefined} />;
 }
 
