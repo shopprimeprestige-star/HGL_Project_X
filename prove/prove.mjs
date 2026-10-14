@@ -18562,6 +18562,246 @@ export const disegna = () => renderToStaticMarkup(createElement(Route.options.co
   }
 }
 
+/* ── LA CONSULENZA A UN TOCCO (commessa 2026-10-14-sito-catalogo-protocol, compito A) ──
+ *  ⚠️ Barra, pannello dei problemi, box nella scheda e pop-up decidono con
+ *   funzioni pure (`src/landing/consulenza/regole.ts`): quando la barra si
+ *   vede, quando il pop-up può partire, che cosa finisce nell'elenco dei
+ *   problemi del lead. Sbagliarle non rompe niente che si veda: una barra su
+ *   «Aggiungi al carrello» fa perdere un acquisto, un pop-up su un modulo
+ *   aperto fa perdere un lead, e un nome dentro un'etichetta finisce in un
+ *   repository pubblico. Si provano sul codice vero, impacchettato.
+ *  ⚠️ Il disegno (altezze, sovrapposizioni) lo prova Playwright, non questo file. */
+async function proveDellaConsulenza() {
+  const esbuild = chiedi("esbuild");
+  const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
+  gruppo("CONSULENZA A UN TOCCO: BARRA, POP-UP, PROBLEMA NEL LEAD");
+
+  //  Il codice vero, impacchettato con gli alias; `window` lo finge la prova.
+  const r = await esbuild.build({
+    stdin: {
+      contents: `export * from "@/landing/consulenza/regole";
+export * from "@/landing/consulenza/scelta";
+export { PROBLEMI } from "@/landing/testi-sito";`,
+      resolveDir: radice,
+      loader: "ts",
+    },
+    bundle: true,
+    format: "cjs",
+    platform: "node",
+    write: false,
+    logLevel: "error",
+    absWorkingDir: radice,
+    alias: { "@": join(radice, "src") },
+  });
+  const modulo = { exports: {} };
+  new Function("module", "exports", "require", r.outputFiles[0].text)(modulo, modulo.exports, chiedi);
+  const R = modulo.exports;
+
+  /* ── Quale strada: stock o consulenza ─────────────────────────────── */
+  c("/shop è stock", "stock", R.provenienzaDaPercorso("/shop"));
+  c("la scheda di un prodotto è stock", "stock", R.provenienzaDaPercorso("/shop/prodotto/thin-skin-003-vlooped"));
+  c("/shop/ con la barra finale è stock", "stock", R.provenienzaDaPercorso("/shop/"));
+  c("la home è consulenza", "consulenza", R.provenienzaDaPercorso("/"));
+  c("il blog è consulenza", "consulenza", R.provenienzaDaPercorso("/blog/un-articolo"));
+  c("«/shopping» non è lo shop", "consulenza", R.provenienzaDaPercorso("/shopping"));
+
+  /* ── La barra: dove non c'è mai ───────────────────────────────────── */
+  c("barra sulla scheda prodotto", true, R.barraVisibile("/shop/prodotto/x", false));
+  c("barra sul catalogo", true, R.barraVisibile("/shop", false));
+  c("barra sulla home", true, R.barraVisibile("/", false));
+  c("barra chiusa con la X: non torna", false, R.barraVisibile("/shop", true));
+  c("nessuna barra sul carrello", false, R.barraVisibile("/shop/carrello", false));
+  c("nessuna barra sulla cassa", false, R.barraVisibile("/shop/checkout", false));
+  c("nessuna barra sul carrello con la barra finale", false, R.barraVisibile("/shop/carrello/", false));
+  for (const p of ["/CRM", "/CRM/nuovi-contatti", "/crm", "/meetly", "/meetly/ABC", "/preventivo", "/invito/XYZ"]) {
+    c(`nessuna barra su ${p}`, false, R.barraVisibile(p, false));
+  }
+  for (const p of ["/videochiamata", "/consulente/leads", "/presenta", "/webinar/abc"]) {
+    c(`nessuna barra su ${p}`, false, R.barraVisibile(p, false));
+  }
+
+  /* ── Il pop-up: spento, una volta, mai sopra il modulo ────────────── */
+  const base = {
+    attivo: true,
+    pathname: "/shop/prodotto/thin-skin-003-vlooped",
+    giaMostrato: false,
+    pannelloAperto: false,
+    moduloAperto: false,
+    motivo: "40s",
+    secondi: 40,
+    telefono: false,
+  };
+  const puo = (x) => R.popupPuoPartire({ ...base, ...x });
+  c("pop-up acceso, 40 secondi sulla scheda: parte", true, puo({}));
+  c("interruttore spento: mai", false, puo({ attivo: false }));
+  c("interruttore spento, anche all'uscita", false, puo({ attivo: false, motivo: "uscita", secondi: 90 }));
+  c("già mostrato in questa visita: mai più", false, puo({ giaMostrato: true }));
+  c("pannello già aperto: mai", false, puo({ pannelloAperto: true }));
+  c("modulo aperto: mai", false, puo({ moduloAperto: true }));
+  c("a 39 secondi non ancora", false, puo({ secondi: 39 }));
+  c("sul carrello: mai", false, puo({ pathname: "/shop/carrello" }));
+  c("sulla cassa: mai", false, puo({ pathname: "/shop/checkout" }));
+  c("sul catalogo: solo le schede prodotto", false, puo({ pathname: "/shop" }));
+  c("sulla home: mai", false, puo({ pathname: "/" }));
+  c("computer, uscita del mouse dopo un po': parte", true, puo({ motivo: "uscita", secondi: 12 }));
+  c("computer, uscita al primo caricamento: no", false, puo({ motivo: "uscita", secondi: 1 }));
+  c("telefono, uscita: mai (solo 40 secondi)", false, puo({ telefono: true, motivo: "uscita", secondi: 90 }));
+  c("telefono, 40 secondi: parte", true, puo({ telefono: true, motivo: "40s", secondi: 40 }));
+  c("telefono, 20 secondi: no", false, puo({ telefono: true, motivo: "40s", secondi: 20 }));
+
+  /* ── Il problema è obbligatorio solo dallo shop ───────────────────── */
+  c("dallo shop il problema è obbligatorio", true, R.problemaObbligatorio("stock"));
+  c("dalla consulenza è facoltativo", false, R.problemaObbligatorio("consulenza"));
+
+  /* ── Le etichette nel lead ────────────────────────────────────────── */
+  const voci = R.PROBLEMI.map((p) => p.etichetta);
+  c("le voci sono 8, con «Altro» ultima", 8, voci.length);
+  c("etichetta «Tenuta»", "Tenuta: si stacca presto", R.PROBLEMI.find((p) => p.id === "tenuta")?.etichetta);
+  c("etichetta «Si annoda»", "Si annoda: in doccia o al mare", R.PROBLEMI.find((p) => p.id === "annoda")?.etichetta);
+  c("nessuna scelta: nessuna riga", [], R.campiLead(null).painPoints);
+  c(
+    "barra dallo shop, con la protesi guardata",
+    [
+      "Problema: Tenuta: si stacca presto",
+      "Provenienza: stock",
+      "Ingresso: barra",
+      "Protesi: Thin Skin 0.03mm V-looped",
+    ],
+    R.campiLead({ problema: "tenuta", provenienza: "stock", punto: "barra", prodotto: "Thin Skin 0.03mm V-looped" })
+      .painPoints,
+  );
+  c(
+    "pannello dalla home",
+    ["Problema: Si annoda: in doccia o al mare", "Provenienza: consulenza", "Ingresso: pannello"],
+    R.campiLead({ problema: "annoda", provenienza: "consulenza", punto: "pannello" }).painPoints,
+  );
+  c(
+    "senza problema restano provenienza e ingresso",
+    ["Provenienza: consulenza", "Ingresso: home"],
+    R.campiLead({ problema: null, provenienza: "consulenza", punto: "home" }).painPoints,
+  );
+  const lungo = "x".repeat(300);
+  const altro = R.campiLead({ problema: "altro", problemaAltro: `  ${lungo}  `, provenienza: "stock", punto: "box" })
+    .painPoints;
+  c("«Altro»: l'etichetta scelta", "Problema: Altro: scrivilo tu", altro[0]);
+  c("«Altro»: il testo tagliato a 120 caratteri", `Problema (altro): ${"x".repeat(120)}`, altro[1]);
+  c(
+    "«Altro» senza testo: niente riga vuota",
+    ["Problema: Altro: scrivilo tu", "Provenienza: stock", "Ingresso: box"],
+    R.campiLead({ problema: "altro", problemaAltro: "   ", provenienza: "stock", punto: "box" }).painPoints,
+  );
+  c(
+    "il testo libero va su una riga sola",
+    "Problema (altro): si stacca e basta",
+    R.campiLead({ problema: "altro", problemaAltro: "si stacca\ne  basta", provenienza: "stock", punto: "box" })
+      .painPoints[1],
+  );
+  const sporco = R.campiLead({
+    problema: "tenuta",
+    provenienza: "stock",
+    punto: "barra",
+    nome: "Mario Rossi",
+    telefono: "3331234567",
+  }).painPoints.join("|");
+  c("nome e telefono non entrano mai", false, /Mario|Rossi|333/.test(sporco));
+  c(
+    "una voce che non esiste si scarta",
+    ["Provenienza: stock", "Ingresso: barra"],
+    R.campiLead({ problema: "inventato", provenienza: "stock", punto: "barra" }).painPoints,
+  );
+
+  /* ── La scelta ricordata per la visita ────────────────────────────── */
+  const memoria = new Map();
+  const eventi = [];
+  globalThis.window = {
+    sessionStorage: {
+      getItem: (k) => (memoria.has(k) ? memoria.get(k) : null),
+      setItem: (k, v) => void memoria.set(k, String(v)),
+      removeItem: (k) => void memoria.delete(k),
+    },
+    dispatchEvent: (e) => (eventi.push(e), true),
+  };
+  globalThis.CustomEvent ??= class CustomEvent {
+    constructor(type, init) {
+      this.type = type;
+      this.detail = init?.detail;
+    }
+  };
+  c("niente salvato: nessuna scelta", null, R.leggiScelta());
+  R.salvaScelta({ problema: "tenuta", provenienza: "stock", punto: "barra", prodotto: "Thin Skin" });
+  c("la scelta salvata si rilegge", "tenuta", R.leggiScelta()?.problema);
+  c("l'evento parte una volta, col nome fisso", ["hgl:consulenza-scelta"], eventi.map((e) => e.type));
+  c("la scelta viaggia nell'evento", "tenuta", eventi[0]?.detail?.problema);
+  c("il pannello non risulta aperto", false, R.pannelloGiaAperto());
+  R.segnaPannelloAperto();
+  c("segnato il pannello aperto", true, R.pannelloGiaAperto());
+  c("la scelta resta dopo aver segnato il pannello", "tenuta", R.leggiScelta()?.problema);
+  R.segnaPopupMostrato();
+  c("pop-up segnato come mostrato", true, R.popupGiaMostrato());
+  R.segnaBarraChiusa();
+  c("barra chiusa ricordata per la visita", true, R.barraChiusaInSessione());
+  c("la scelta resta dopo la chiusura della barra", "tenuta", R.leggiScelta()?.problema);
+  memoria.set("hgl_consulenza_v1", "{non è json");
+  c("dati rotti: nessuna scelta, nessun errore", null, R.leggiScelta());
+  c("dati rotti: pannello non aperto", false, R.pannelloGiaAperto());
+  memoria.set("hgl_consulenza_v1", JSON.stringify({ scelta: { problema: 7, provenienza: "x", punto: [] } }));
+  c("dati di forma sbagliata: nessuna scelta", null, R.leggiScelta());
+  memoria.set("hgl_consulenza_v1", JSON.stringify("ciao"));
+  c("un testo al posto dell'oggetto: nessuna scelta", null, R.leggiScelta());
+  globalThis.window = {
+    sessionStorage: {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    },
+    dispatchEvent: () => true,
+  };
+  c("memoria bloccata (Safari privato): nessuna scelta", null, R.leggiScelta());
+  let lancia = false;
+  try {
+    R.salvaScelta({ problema: "tenuta", provenienza: "stock", punto: "barra" });
+    R.segnaPannelloAperto();
+    R.segnaBarraChiusa();
+  } catch {
+    lancia = true;
+  }
+  c("memoria bloccata: salvare non rompe la pagina", false, lancia);
+  delete globalThis.window;
+
+  /* ── I testi: niente parole vietate, niente prezzi, nome in un posto ── */
+  const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/ .*$/gm, "");
+  const cartelle = ["src/components/landing/consulenza", "src/landing/consulenza"];
+  const nuovi = ["src/landing/testi-sito.ts"];
+  for (const d of cartelle) {
+    const dir = join(radice, d);
+    if (existsSync(dir)) for (const f of readdirSync(dir)) if (/\.tsx?$/.test(f)) nuovi.push(`${d}/${f}`);
+  }
+  c("i file nuovi ci sono (testi, regole, barra, pannello, box, pop-up)", true, nuovi.length >= 7);
+  const vietate = [/€/, /\bcura/i, /ricrescita/i, /definitiv/i, /garantit/i, /guarisc/i, /solo noi/i, /trustpilot/i, /bio-mimetic/i];
+  const trovate = [];
+  for (const f of nuovi) {
+    const t = senzaCommenti(leggi(f));
+    for (const v of vietate) if (v.test(t)) trovate.push(`${f}: ${v}`);
+  }
+  c("nei testi nuovi niente prezzi né parole vietate", [], trovate);
+
+  //  «Bio-Mimetic» sopravvive solo nel testo dei due modelli approvati da Meta.
+  const restano = [];
+  const cerca = (d) => {
+    for (const voce of readdirSync(join(radice, d), { withFileTypes: true })) {
+      const p = `${d}/${voce.name}`;
+      if (voce.isDirectory()) cerca(p);
+      else if (/\.(tsx?|css|json|md)$/.test(voce.name) && p !== "src/crm/wa-meta-templates.ts" && /bio-mimetic/i.test(leggi(p)))
+        restano.push(p);
+    }
+  };
+  cerca("src");
+  c("«Bio-Mimetic» resta solo nei modelli Meta", [], restano);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -18614,6 +18854,7 @@ proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();
 await proveDeiDuePezzi();
 await proveDeiPostiDelPallino();
+await proveDellaConsulenza();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
