@@ -50,11 +50,18 @@ export function traccia(
   opzioni: { dedupKey?: string } = {},
 ): void {
   if (!(EVENTI_SITO as readonly string[]).includes(nome)) return;
-  const pulito = ripulisciDettagli(dettagli);
-  const pagina = typeof window !== "undefined" ? window.location.pathname : undefined;
-  const variante = leggiVariante();
-  const fuori: Record<string, string | number | boolean> = { ...pulito, ...(pagina ? { pagina } : {}), ...(variante ? { variante } : {}) };
-  void initAdminCheck().then(() => trackEvent(nome, null, ripulisciDettagli(fuori), opzioni));
+  //  Il tracciamento non rompe mai la pagina: `sessionStorage` bloccato (Safari privato) fa lanciare `initAdminCheck`.
+  try {
+    const pulito = ripulisciDettagli(dettagli);
+    const pagina = typeof window !== "undefined" ? window.location.pathname : undefined;
+    const variante = leggiVariante();
+    const fuori: Record<string, string | number | boolean> = { ...pulito, ...(pagina ? { pagina } : {}), ...(variante ? { variante } : {}) };
+    void initAdminCheck()
+      .then(() => trackEvent(nome, null, ripulisciDettagli(fuori), opzioni))
+      .catch(() => undefined);
+  } catch {
+    // un evento perso non vale una pagina rotta
+  }
 }
 
 /** Tracciamento di una pagina intera. Fa quello che oggi fa la home vecchia
@@ -68,7 +75,6 @@ export function traccia(
  *    scorrimento, clic, battito, presenza e visita di qualità come oggi. */
 export function usaTracciamentoPagina(pagina: string): void {
   useEffect(() => {
-    captureSourceData();
     let pulizie: Array<() => void> = [];
     //  La pagina si smonta (cambio pagina, doppio montaggio in sviluppo) prima che il controllo
     //  amministratore risponda: allora non si attacca più niente.
@@ -77,33 +83,43 @@ export function usaTracciamentoPagina(pagina: string): void {
       pulizie.forEach((p) => p());
       pulizie = [];
     };
-    void initAdminCheck().then((isAdmin) => {
-      if (chiuso || isAdmin || pulizie.length) return;
-      const pvId = eventId();
-      firePixel("PageView", {}, pvId, { dedupKey: "global" });
-      void fireCapi("PageView", pvId, {}, {});
-      void trackEvent("PageView", 0, { custom_event: NOME_VISITA_LANDING, pagina }, { dedupKey: "global" });
-      traccia("vista_pagina", { percorso: pagina }, { dedupKey: `vista:${pagina}` });
-      const suScroll = () => {
-        const alto = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        if (alto > 0 && (window.scrollY + window.innerHeight) / alto >= 0.5) {
-          traccia("scroll_50", { percorso: pagina }, { dedupKey: `scroll50:${pagina}` });
-          window.removeEventListener("scroll", suScroll);
-        }
-      };
-      window.addEventListener("scroll", suScroll, { passive: true });
-      pulizie.push(
-        () => window.removeEventListener("scroll", suScroll),
-        initScrollTracking(),
-        initClickTracking(),
-        initHeartbeat(),
-        initLivePresence(),
-        initHighQualityVisit(40, 50),
-      );
-    });
-    const smetti = subscribeAdminStatus((isAdmin) => {
-      if (isAdmin) spegni();
-    });
+    let smetti: () => void = () => undefined;
+    //  Come in `traccia`: se la memoria del browser è bloccata il tracciamento si ferma, la pagina no.
+    //  La pulizia sotto si restituisce comunque, qualunque cosa sia successa prima.
+    try {
+      captureSourceData();
+      void initAdminCheck()
+        .then((isAdmin) => {
+          if (chiuso || isAdmin || pulizie.length) return;
+          const pvId = eventId();
+          firePixel("PageView", {}, pvId, { dedupKey: "global" });
+          void fireCapi("PageView", pvId, {}, {});
+          void trackEvent("PageView", 0, { custom_event: NOME_VISITA_LANDING, pagina }, { dedupKey: "global" });
+          traccia("vista_pagina", { percorso: pagina }, { dedupKey: `vista:${pagina}` });
+          const suScroll = () => {
+            const alto = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+            if (alto > 0 && (window.scrollY + window.innerHeight) / alto >= 0.5) {
+              traccia("scroll_50", { percorso: pagina }, { dedupKey: `scroll50:${pagina}` });
+              window.removeEventListener("scroll", suScroll);
+            }
+          };
+          window.addEventListener("scroll", suScroll, { passive: true });
+          pulizie.push(
+            () => window.removeEventListener("scroll", suScroll),
+            initScrollTracking(),
+            initClickTracking(),
+            initHeartbeat(),
+            initLivePresence(),
+            initHighQualityVisit(40, 50),
+          );
+        })
+        .catch(() => undefined);
+      smetti = subscribeAdminStatus((isAdmin) => {
+        if (isAdmin) spegni();
+      });
+    } catch {
+      // tracciamento fermo, pagina intatta
+    }
     return () => {
       chiuso = true;
       smetti();

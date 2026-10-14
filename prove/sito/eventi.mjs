@@ -1,7 +1,11 @@
 /** ── PROVA C2 · GLI EVENTI DEL SITO (nomi fissi, nessun dato personale) ────
  *  `src/landing/sito/eventi.ts` e `traccia.ts`.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { carica, leggi, nuovaProva } from "./_comune.mjs";
+import { createRequire } from "node:module";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { carica, leggi, nuovaProva, radice } from "./_comune.mjs";
 
 const { c, vero, finisci } = nuovaProva("eventi del sito");
 const E = await carica("src/landing/sito/eventi.ts", "eventi");
@@ -144,5 +148,101 @@ c("pagina con la data nel percorso passa", { pagina: "/blog/2026-10-14-capelli" 
 c("percorso con molte cifre passa se inizia con /", { percorso: "/shop/prodotto/thin-skin-003" }, E.ripulisciDettagli({ percorso: "/shop/prodotto/thin-skin-003" }));
 c("un telefono in «pagina» non passa", {}, E.ripulisciDettagli({ pagina: "3331234567" }));
 vero("traccia.ts non scrive in localStorage", !/localStorage/.test(leggi("src/landing/sito/traccia.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")));
+
+/* ── S1.3 · il tracciamento non rompe mai la pagina ────────────────────────
+ *  Nella realtà la causa è `sessionStorage.getItem` non protetto dentro `tracking.ts`
+ *  (modalità privata di Safari): `initAdminCheck` e `captureSourceData` lanciano.
+ *  Qui un `tracking` finto che lancia (o rifiuta) quando glielo si chiede. */
+{
+  const dove = realpathSync(mkdtempSync(join(tmpdir(), "prove-eventi-rotto-")));
+  process.on("exit", () => rmSync(dove, { recursive: true, force: true }));
+  const esbuild = createRequire(join(radice, "package.json"))("esbuild");
+  const trackingRotto = join(dove, "tracking-rotto.js");
+  writeFileSync(
+    trackingRotto,
+    `const rompi = () => globalThis.__rompi;
+export const eventId = () => "e";
+export const trackEvent = async () => { globalThis.__eventi.push("trackEvent"); };
+export const firePixel = () => { globalThis.__eventi.push("firePixel"); };
+export const fireCapi = async () => {};
+export const initAdminCheck = () => {
+  if (rompi() === "iniz-sync") throw new Error("sessionStorage bloccato");
+  if (rompi() === "iniz-async") return Promise.reject(new Error("rifiutata"));
+  return Promise.resolve(false);
+};
+export const subscribeAdminStatus = () => { if (rompi() === "iscrizione") throw new Error("rotta"); return () => { globalThis.__eventi.push("smesso"); }; };
+export const captureSourceData = () => { if (rompi() === "fonte") throw new Error("sessionStorage bloccato"); return {}; };
+export const initHeartbeat = () => () => {};
+export const initLivePresence = () => () => {};
+export const initScrollTracking = () => () => {};
+export const initClickTracking = () => () => {};
+export const initHighQualityVisit = () => () => {};
+`,
+  );
+  const reactFinto = join(dove, "react-finto.js");
+  writeFileSync(reactFinto, `export const useEffect = (f) => { const c = f(); globalThis.__chiusure.push(c); };\nexport const useState = (v) => [v, () => {}];`);
+  const entrata = join(dove, "entrata.ts");
+  writeFileSync(entrata, `export * from ${JSON.stringify(join(radice, "src/landing/sito/traccia.ts"))};`);
+  await esbuild.build({
+    entryPoints: [entrata],
+    outfile: join(dove, "traccia-rotta.cjs"),
+    bundle: true,
+    format: "cjs",
+    platform: "node",
+    logLevel: "error",
+    absWorkingDir: radice,
+    alias: { "@": join(radice, "src") },
+    plugins: [
+      {
+        name: "finti",
+        setup(b) {
+          b.onResolve({ filter: /(^|\/)tracking$/ }, () => ({ path: trackingRotto }));
+          b.onResolve({ filter: /^react$/ }, () => ({ path: reactFinto }));
+          b.onResolve({ filter: /^@\/integrations\/supabase\/client$/ }, () => ({ path: trackingRotto }));
+        },
+      },
+    ],
+  });
+  const T = createRequire(import.meta.url)(join(dove, "traccia-rotta.cjs"));
+  const nonGestite = [];
+  const registra = (e) => nonGestite.push(String(e?.message ?? e));
+  process.on("unhandledRejection", registra);
+  const finestra = () => {
+    globalThis.window = { location: { pathname: "/soluzioni" }, sessionStorage: { getItem() { throw new Error("bloccata"); }, setItem() { throw new Error("bloccata"); } }, addEventListener() {}, removeEventListener() {}, scrollY: 0, innerHeight: 800 };
+    globalThis.document = { body: { scrollHeight: 2000 }, documentElement: { scrollHeight: 2000 } };
+    globalThis.__eventi = [];
+    globalThis.__chiusure = [];
+  };
+  const prova = async (nome, rompi, fn) => {
+    finestra();
+    globalThis.__rompi = rompi;
+    let lanciata = null;
+    try { await fn(); } catch (e) { lanciata = e?.message ?? String(e); }
+    await new Promise((r) => setTimeout(r, 20));
+    c(`${nome}: nessuna eccezione`, null, lanciata);
+  };
+  await prova("traccia con sessionStorage che lancia (e tracking sano)", "", () => T.traccia("modulo_apri", { interesse: "trapianto" }));
+  await prova("traccia con initAdminCheck che lancia subito", "iniz-sync", () => T.traccia("modulo_apri", { interesse: "trapianto" }));
+  await prova("traccia con initAdminCheck che rifiuta", "iniz-async", () => T.traccia("modulo_apri", { interesse: "trapianto" }));
+  c("nessuna promessa rifiutata rimasta senza gestione (traccia)", [], nonGestite);
+  await prova("pagina: captureSourceData che lancia", "fonte", () => T.usaTracciamentoPagina("soluzioni"));
+  c("pagina: l'effetto restituisce comunque la sua pulizia", "function", typeof globalThis.__chiusure[0]);
+  await prova("pagina: la pulizia non lancia", "fonte", () => globalThis.__chiusure[0]?.());
+  await prova("pagina: initAdminCheck che lancia subito", "iniz-sync", () => T.usaTracciamentoPagina("soluzioni"));
+  c("pagina: pulizia presente anche qui", "function", typeof globalThis.__chiusure[0]);
+  await prova("pagina: la pulizia non lancia (2)", "iniz-sync", () => globalThis.__chiusure[0]?.());
+  await prova("pagina: initAdminCheck che rifiuta", "iniz-async", () => T.usaTracciamentoPagina("soluzioni"));
+  await prova("pagina: iscrizione che lancia", "iscrizione", () => T.usaTracciamentoPagina("soluzioni"));
+  c("pagina: pulizia presente anche con l'iscrizione rotta", "function", typeof globalThis.__chiusure[0]);
+  c("nessuna promessa rifiutata rimasta senza gestione (pagina)", [], nonGestite);
+  //  Con tutto sano gli eventi partono come prima.
+  await prova("pagina sana", "", () => T.usaTracciamentoPagina("soluzioni"));
+  c("pagina sana: PageView e vista partono", true, globalThis.__eventi.includes("firePixel") && globalThis.__eventi.includes("trackEvent"));
+  globalThis.__chiusure.forEach((x) => x?.());
+  c("pagina sana: la pulizia chiude l'iscrizione", true, globalThis.__eventi.includes("smesso"));
+  process.off("unhandledRejection", registra);
+  delete globalThis.window;
+  delete globalThis.document;
+}
 
 finisci();
