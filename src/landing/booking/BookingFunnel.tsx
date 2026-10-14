@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CheckCircle2,
@@ -75,6 +76,24 @@ const URGENZA_OPTIONS = [
   { v: "2_3mesi", l: "Tra 2–3 mesi, mi organizzo" },
   { v: "valuto", l: "Sto valutando diverse opzioni" },
 ] as const;
+
+/** ── IL CONSENSO A WHATSAPP ────────────────────────────────────────────────
+ *  La casella NON è mai pre-spuntata. Solo con la spunta il lead parte con
+ *  `consenso_whatsapp` e `consenso_whatsapp_versione`; l'ora la scrive il
+ *  database (trigger), mai il browser.
+ *  ⚠️ Testo nuovo = versione nuova: si AGGIUNGE una voce a `VERSIONI_CONSENSO_WA`
+ *   (`crm/wa-auto-regole.ts`) con il testo esatto, e le vecchie non si tolgono
+ *   mai (chi le ha accettate resta valido). Il testo è provvisorio: lo conferma
+ *   il titolare. */
+export const VERSIONE_CONSENSO_WA = "wa-2026-10-14";
+export const TESTO_CONSENSO_WA =
+  "Ok a ricevere su WhatsApp il promemoria della consulenza e l'eventuale messaggio di ricontatto.";
+const NOTA_CONSENSO_WA = "Per non riceverne più basta rispondere STOP.";
+
+/** Colonna che il database non ha ancora (codice online prima della migrazione). */
+function colonnaMancante(err: { code?: string } | null): boolean {
+  return err?.code === "PGRST204" || err?.code === "42703";
+}
 
 interface Props {
   variant?: "light" | "dark";
@@ -197,6 +216,8 @@ export function BookingFunnel({ variant = "light" }: Props) {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  //  Fuori da `form` apposta: non si salva in localStorage, ogni visita riparte senza spunta.
+  const [consensoWa, setConsensoWa] = useState(false);
   const [portatoreMotivoOpen, setPortatoreMotivoOpen] = useState(false);
   //  Da dove arriva la richiesta (sul server è sempre «consulenza»: si aggiorna al montaggio).
   const [provenienza, setProvenienza] = useState<Provenienza>("consulenza");
@@ -603,7 +624,17 @@ export function BookingFunnel({ variant = "light" }: Props) {
       days_to_convert: journey.days_to_convert,
       hours_to_convert: journey.hours_to_convert,
     };
-    const { error: err } = await supabase.from("public_leads").insert(insertPayload as never);
+    if (consensoWa) {
+      insertPayload.consenso_whatsapp = true;
+      insertPayload.consenso_whatsapp_versione = VERSIONE_CONSENSO_WA;
+    }
+    let { error: err } = await supabase.from("public_leads").insert(insertPayload as never);
+    //  Codice online prima della migrazione: il lead non si perde. Un solo secondo invio, identico
+    //  (stesso `event_id`) ma senza il consenso: quello di questo lead si perde, il lead no.
+    if (err && consensoWa && colonnaMancante(err)) {
+      const { consenso_whatsapp: _c, consenso_whatsapp_versione: _v, ...senzaConsenso } = insertPayload;
+      ({ error: err } = await supabase.from("public_leads").insert(senzaConsenso as never));
+    }
     setSubmitting(false);
     if (err) {
       setError("Errore invio: " + err.message);
@@ -1275,7 +1306,22 @@ export function BookingFunnel({ variant = "light" }: Props) {
               labelCls={labelCls}
               valid={telefonoValid}
             />
-            {error && error !== TESTI_CONSULENZA.campo.errore && <p className="text-xs text-red-500">{error}</p>}
+            <label
+              htmlFor="consenso-whatsapp"
+              className="flex items-start gap-3 rounded-lg border border-ink/15 p-3 cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
+            >
+              <Checkbox
+                id="consenso-whatsapp"
+                checked={consensoWa}
+                onCheckedChange={(v) => setConsensoWa(v === true)}
+                className="mt-0.5 h-5 w-5"
+              />
+              <span className="text-sm leading-snug text-ink">
+                {TESTO_CONSENSO_WA}
+                <span className="block text-[11px] mt-0.5 text-ink-muted">{NOTA_CONSENSO_WA}</span>
+              </span>
+            </label>
+            {error && error !== TESTI_CONSULENZA.campo.errore && <p role="alert" className="text-xs text-red-500">{error}</p>}
 
             {/* CTA premium navy con shine animato */}
             <Button
