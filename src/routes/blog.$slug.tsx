@@ -10,6 +10,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Footer } from "@/components/landing/Footer";
 import { articoloPubblicato } from "@/blog/dati";
+import { LINK_CONSULENZA } from "@/landing/testi-sito";
 import {
   MARCHIO,
   SITO,
@@ -93,7 +94,7 @@ function PaginaArticolo() {
           <p className="mt-2 text-white/80">
             Nella consulenza gratuita guardiamo insieme la tua situazione e ti diciamo con franchezza quale soluzione ha senso, anche se non è la nostra.
           </p>
-          <a href="/#prenota" className="mt-5 inline-block rounded-full bg-white text-ink px-6 py-3 font-semibold hover:bg-white/90">
+          <a href={LINK_CONSULENZA} className="mt-5 inline-block rounded-full bg-white text-ink px-6 py-3 font-semibold hover:bg-white/90">
             Prenota la consulenza gratuita
           </a>
         </aside>
