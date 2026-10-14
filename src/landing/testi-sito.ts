@@ -279,6 +279,10 @@ export const TESTI_MODULO_CORTO = {
   calendario: {
     domanda: "Preferisci fissare subito la videoconsulenza?",
     bottone: "Scegli giorno e ora",
+    /** Dentro il calendario (`BookingFunnel` in modo «solo-calendario»): niente durata né programma di chiamata, finché non li conferma Operativo. */
+    titolo: "Scegli il giorno e l'ora",
+    sotto: "Videoconsulenza online, gratuita.",
+    scelto: "Orario scelto",
     occupato: "Quell'orario è appena stato preso: scegline un altro.",
     nonValido: "Non siamo riusciti a fissarla da qui: ti richiamiamo noi per scegliere l'orario insieme.",
     fissata: (quando: string) => `Videoconsulenza fissata ${quando}. Il link te lo mandiamo noi.`,

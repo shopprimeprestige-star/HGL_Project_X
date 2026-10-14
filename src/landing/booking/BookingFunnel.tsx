@@ -39,7 +39,8 @@ import {
   firePixel,
   trackEvent,
 } from "./tracking";
-import { PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
+import { PROBLEMI, TESTI_CONSULENZA, TESTI_MODULO_CORTO, type IdProblema } from "@/landing/testi-sito";
+import { adessoARoma, orariDelGiorno } from "./calendario-regole";
 import {
   MAX_TESTO_LIBERO,
   campiLead,
@@ -78,6 +79,12 @@ const URGENZA_OPTIONS = [
 
 interface Props {
   variant?: "light" | "dark";
+  /** «completo» (predefinito): il funnel lungo di sempre. «solo-calendario»: solo il passo 0 (giorno e ora),
+   *  per il modulo corto: niente stato salvato, niente eventi di montaggio, niente intestazione a passi,
+   *  orari già passati esclusi (sul calendario di Roma, come la funzione SQL che poi fissa l'orario). */
+  modo?: "completo" | "solo-calendario";
+  /** Solo in «solo-calendario»: scelta l'ora arriva qui (data `AAAA-MM-GG`, ora `HH:MM`) invece del passo 1. */
+  onOrarioScelto?: (data: string, ora: string) => void;
 }
 
 // Step flow: 0=Calendar+Time, 1=Portatore, 2=Disagio, 3=Urgenza, 4=Contact, 5=ThankYou
@@ -192,7 +199,8 @@ function isoFromDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function BookingFunnel({ variant = "light" }: Props) {
+export function BookingFunnel({ variant = "light", modo = "completo", onOrarioScelto }: Props) {
+  const solo = modo === "solo-calendario";
   const [step, setStep] = useState<Step>(0);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
@@ -215,11 +223,24 @@ export function BookingFunnel({ variant = "light" }: Props) {
   const [blockedSlots, setBlockedSlots] = useState<Record<string, string[]>>({});
   const [busyByDate, setBusyByDate] = useState<Record<string, Set<string>>>({});
 
+  //  «Adesso» per gli orari passati: solo in «solo-calendario», e si aggiorna ogni minuto.
+  const [adesso, setAdesso] = useState<Date>(() => new Date());
+  useEffect(() => {
+    if (!solo) return;
+    const t = setInterval(() => setAdesso(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, [solo]);
+
   const today = useMemo(() => {
     const t = new Date();
+    if (solo) {
+      //  Il «oggi» del server è quello di Roma: il calendario non offre un giorno che per lui è già passato.
+      const [y, m, d] = adessoARoma(t).oggi.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
     t.setHours(0, 0, 0, 0);
     return t;
-  }, []);
+  }, [solo]);
   const [viewMonth, setViewMonth] = useState<{ y: number; m: number }>(() => ({
     y: today.getFullYear(),
     m: today.getMonth(),
@@ -227,6 +248,11 @@ export function BookingFunnel({ variant = "light" }: Props) {
 
   // === Hydrate da localStorage al mount + prefill da query string (Meta/TikTok lead forms) ===
   useEffect(() => {
+    //  «solo-calendario»: nessuno stato salvato da leggere, nessun precompilato (i contatti sono nel modulo).
+    if (solo) {
+      hydratedRef.current = true;
+      return;
+    }
     const persisted = loadPersisted();
     //  Uno stato salvato prima dei campi nuovi non li ha: si parte da EMPTY.
     let baseForm: FormState = persisted ? { ...EMPTY, ...persisted.form } : EMPTY;
@@ -287,6 +313,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
 
   //  Una nuova scelta mentre il modulo è già aperto (pannello toccato dopo): la prende.
   useEffect(() => {
+    if (solo) return;
     const suScelta = (e: Event) => {
       const nuova = (e as CustomEvent<SceltaConsulenza>).detail ?? leggiScelta();
       if (!nuova) return;
@@ -297,13 +324,13 @@ export function BookingFunnel({ variant = "light" }: Props) {
     };
     window.addEventListener(EVENTO_SCELTA, suScelta);
     return () => window.removeEventListener(EVENTO_SCELTA, suScelta);
-  }, []);
+  }, [solo]);
 
   // === Persist ad ogni cambio (dopo hydrate) ===
   useEffect(() => {
-    if (!hydratedRef.current) return;
+    if (!hydratedRef.current || solo) return;
     savePersisted(step, form);
-  }, [step, form]);
+  }, [step, form, solo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,6 +339,9 @@ export function BookingFunnel({ variant = "light" }: Props) {
         supabase
           .from("funnel_settings")
           .select("time_slots,blocked_weekdays,blocked_dates,blocked_slots")
+          //  La riga più vecchia: è la stessa che legge la funzione SQL `fissa_orario_lead_sito`
+          //  (con una riga sola non cambia niente). Vale in tutti e due i modi.
+          .order("created_at", { ascending: true })
           .limit(1)
           .maybeSingle(),
         supabase
@@ -357,10 +387,13 @@ export function BookingFunnel({ variant = "light" }: Props) {
   }, []);
 
   useEffect(() => {
-    captureSourceData();
     // Modalità "low" durante il funnel: volume e wet ridotti, riverbero impercettibile.
     try { setAudioMode("low"); } catch { /* ignore */ }
     try { setReverbWet(0.03); } catch { /* ignore */ }
+    //  «solo-calendario»: la pagina ha già misurato la visita e il Lead è già partito col modulo.
+    //  Niente PageView, ViewContent, StepView, FunnelStep al montaggio (si contarebbero due volte).
+    if (solo) return;
+    captureSourceData();
     const pvId = makeEventId();
     firePixel("PageView", {}, pvId, { dedupKey: "global" });
     void fireCapi("PageView", pvId, {}, {});
@@ -373,7 +406,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
     trackEvent("PageView", 0, { custom_event: CUSTOM_EVENTS.pageView }, { dedupKey: "global" });
     trackEvent("StepView", 0, { step_name: "calendar", custom_event: CUSTOM_EVENTS.viewCalendario }, { dedupKey: "step:0" });
     trackEvent("FunnelStep", 1, { step_name: "calendar", custom_event: CUSTOM_EVENTS.viewCalendario }, { dedupKey: "fstep:1" });
-  }, []);
+  }, [solo]);
 
   // Wet del convolver scende leggermente avanzando negli step (debounced internamente).
   useEffect(() => {
@@ -453,6 +486,12 @@ export function BookingFunnel({ variant = "light" }: Props) {
     haptic("date");
     const iso = isoFromDate(date);
     setForm((f) => ({ ...f, date: iso, time: "" }));
+    if (solo) {
+      //  Niente eventi del funnel lungo: la misura del modulo corto sono `meetly_aperto` e `consulenza_prenotata`.
+      setAdesso(new Date());
+      requestAnimationFrame(() => setTimeout(() => scrollToEl(timeRef.current), 80));
+      return;
+    }
     const id = makeEventId();
     firePixel("AddToCart", { content_name: "date_pick", value: 0 }, id, {
       dedupKey: "date_pick",
@@ -467,6 +506,11 @@ export function BookingFunnel({ variant = "light" }: Props) {
   const handleTimePick = (t: string) => {
     haptic("time");
     setForm((f) => ({ ...f, time: t }));
+    if (solo) {
+      //  Non c'è un passo dopo: chi ha chiamato il calendario fissa l'orario.
+      onOrarioScelto?.(form.date, t);
+      return;
+    }
     const id = makeEventId();
     firePixel("AddToCart", { content_name: "time_pick" }, id, {
       dedupKey: "time_pick",
@@ -659,17 +703,30 @@ export function BookingFunnel({ variant = "light" }: Props) {
 
   const availableSlotsForDate = useMemo(() => {
     if (!form.date) return [] as string[];
-    const blockedForDay = blockedSlots[form.date] || [];
-    const busyForDay = busyByDate[form.date] || new Set<string>();
-    return timeSlots.filter((t) => !blockedForDay.includes(t) && !busyForDay.has(t));
-  }, [form.date, timeSlots, blockedSlots, busyByDate]);
+    return orariDelGiorno({
+      data: form.date,
+      orari: timeSlots,
+      bloccati: blockedSlots[form.date] || [],
+      occupati: busyByDate[form.date] || new Set<string>(),
+      //  Solo nel modulo corto gli orari già passati non si offrono; il funnel lungo resta com'è.
+      adesso: solo ? adesso : undefined,
+    });
+  }, [form.date, timeSlots, blockedSlots, busyByDate, solo, adesso]);
 
   // (secondsOnFunnel rimosso assieme al popup exit-intent)
 
   return (
     <>
-    <div ref={rootRef} className={`rounded-xl shadow-sm w-full overflow-hidden ${wrapper}`}>
-      {/* Header sticky con progress bar + step counter + tempo stimato */}
+    <div
+      ref={rootRef}
+      className={
+        solo
+          ? `w-full ${lightSurface ? "text-ink" : "text-white"}`
+          : `rounded-xl shadow-sm w-full overflow-hidden ${wrapper}`
+      }
+    >
+      {/* Header sticky con progress bar + step counter + tempo stimato (non c'è in «solo-calendario») */}
+      {!solo && (
       <div
         className={`sticky top-0 z-10 backdrop-blur-md border-b border-current/10 ${
           isLight || forceWhite ? "bg-white/95" : "bg-navy-light/80"
@@ -709,16 +766,23 @@ export function BookingFunnel({ variant = "light" }: Props) {
           </div>
         )}
       </div>
+      )}
 
-      <div className="px-4 sm:px-5 py-4 sm:py-5">
+      <div className={solo ? "" : "px-4 sm:px-5 py-4 sm:py-5"}>
         {/* STEP 0 — CALENDAR */}
         {step === 0 && (
           <div>
             <h3 className="text-base sm:text-lg font-semibold leading-tight">
-              Scegli giorno e orario per la consulenza
+              {solo ? TESTI_MODULO_CORTO.calendario.titolo : "Scegli giorno e orario per la consulenza"}
             </h3>
             <p className={`text-sm mt-1 mb-4 ${mutedText}`}>
-              Online · 30 min · <span className="hl-nextgen font-semibold">gratis</span> · Google Meet
+              {solo ? (
+                TESTI_MODULO_CORTO.calendario.sotto
+              ) : (
+                <>
+                  Online · 30 min · <span className="hl-nextgen font-semibold">gratis</span> · Google Meet
+                </>
+              )}
             </p>
 
             {/* Quando l'utente ha già selezionato data + ora, mostriamo SOLO la conferma
@@ -736,16 +800,19 @@ export function BookingFunnel({ variant = "light" }: Props) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-emerald-600">
-                      Slot bloccato per te
+                      {solo ? TESTI_MODULO_CORTO.calendario.scelto : "Slot bloccato per te"}
                     </div>
                     <div className={`mt-1 text-sm sm:text-base font-bold capitalize ${lightSurface ? "text-ink" : "text-white"}`}>
                       {bookingPhrase.replace(/^per\s+/, "")}
                     </div>
-                    <div className={`mt-1 text-xs ${mutedText}`}>
-                      Online · 30 min · Google Meet
-                    </div>
+                    {!solo && (
+                      <div className={`mt-1 text-xs ${mutedText}`}>
+                        Online · 30 min · Google Meet
+                      </div>
+                    )}
                   </div>
                 </div>
+                {!solo && (
                 <button
                   type="button"
                   onClick={() => {
@@ -756,6 +823,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
                 >
                   Cambia data o orario
                 </button>
+                )}
               </div>
             ) : (
               <>
@@ -898,9 +966,11 @@ export function BookingFunnel({ variant = "light" }: Props) {
                         ))}
                       </div>
                     )}
-                    <p className={`mt-3 text-xs text-center ${mutedText}`}>
-                      Dopo la selezione passi al prossimo step automaticamente
-                    </p>
+                    {!solo && (
+                      <p className={`mt-3 text-xs text-center ${mutedText}`}>
+                        Dopo la selezione passi al prossimo step automaticamente
+                      </p>
+                    )}
                   </div>
                 )}
               </>

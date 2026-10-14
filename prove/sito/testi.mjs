@@ -83,6 +83,7 @@ c("modulo: errori del Copywriter", ["Scrivi il tuo nome.", "Controlla il numero:
 c("modulo: conferma", ["Fatto. Ti richiamiamo noi.", "Ti richiamiamo nell'orario che hai scelto e guardiamo il tuo caso insieme."], [M.conferma.titolo, M.conferma.testo]);
 c("modulo: privacy come nel modulo di oggi", ["I tuoi dati sono al sicuro · Trattati secondo il GDPR", "/privacy-policy"], [M.privacy.testo, M.privacy.link]);
 c("modulo: calendario", ["Preferisci fissare subito la videoconsulenza?", "Scegli giorno e ora", "Quell'orario è appena stato preso: scegline un altro.", "Non siamo riusciti a fissarla da qui: ti richiamiamo noi per scegliere l'orario insieme."], [M.calendario.domanda, M.calendario.bottone, M.calendario.occupato, M.calendario.nonValido]);
+c("modulo: testi dentro il calendario (senza durata né programma di chiamata)", ["Scegli il giorno e l'ora", "Videoconsulenza online, gratuita.", "Orario scelto"], [M.calendario.titolo, M.calendario.sotto, M.calendario.scelto]);
 c("modulo: «fissata» lascia il segnaposto quando non c'è l'orario", "Videoconsulenza fissata {{giorno e ora}}. Il link te lo mandiamo noi.", M.calendario.fissata("{{giorno e ora}}"));
 c("modulo: casella del consenso (facoltativa, mai spuntata)", "Ok a ricevere promemoria su WhatsApp", M.consenso);
 
