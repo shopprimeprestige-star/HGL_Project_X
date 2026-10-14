@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebRouteImport } from './routes/web'
 import { Route as VideochiamataRouteImport } from './routes/videochiamata'
 import { Route as TerminiECondizioniRouteImport } from './routes/termini-e-condizioni'
+import { Route as SoluzioniRouteImport } from './routes/soluzioni'
 import { Route as SlideRouteImport } from './routes/slide'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShopRouteImport } from './routes/shop'
@@ -180,6 +181,7 @@ import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consul
 import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
+import { Route as ApiCrmAnteprimaSoluzioniRouteImport } from './routes/api.crm.anteprima-soluzioni'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
 import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
 import { Route as ApiConsulenteLoginRouteImport } from './routes/api.consulente.login'
@@ -204,6 +206,11 @@ const VideochiamataRoute = VideochiamataRouteImport.update({
 const TerminiECondizioniRoute = TerminiECondizioniRouteImport.update({
   id: '/termini-e-condizioni',
   path: '/termini-e-condizioni',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoluzioniRoute = SoluzioniRouteImport.update({
+  id: '/soluzioni',
+  path: '/soluzioni',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SlideRoute = SlideRouteImport.update({
@@ -1058,6 +1065,12 @@ const ApiCrmAnteprimeStatoRoute = ApiCrmAnteprimeStatoRouteImport.update({
   path: '/api/crm/anteprime-stato',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmAnteprimaSoluzioniRoute =
+  ApiCrmAnteprimaSoluzioniRouteImport.update({
+    id: '/api/crm/anteprima-soluzioni',
+    path: '/api/crm/anteprima-soluzioni',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCrmAiRoute = ApiCrmAiRouteImport.update({
   id: '/api/crm/ai',
   path: '/api/crm/ai',
@@ -1132,6 +1145,7 @@ export interface FileRoutesByFullPath {
   '/shop': typeof ShopRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/slide': typeof SlideRoute
+  '/soluzioni': typeof SoluzioniRoute
   '/termini-e-condizioni': typeof TerminiECondizioniRoute
   '/videochiamata': typeof VideochiamataRoute
   '/web': typeof WebRoute
@@ -1210,6 +1224,7 @@ export interface FileRoutesByFullPath {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-soluzioni': typeof ApiCrmAnteprimaSoluzioniRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
@@ -1312,6 +1327,7 @@ export interface FileRoutesByTo {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/slide': typeof SlideRoute
+  '/soluzioni': typeof SoluzioniRoute
   '/termini-e-condizioni': typeof TerminiECondizioniRoute
   '/videochiamata': typeof VideochiamataRoute
   '/web': typeof WebRoute
@@ -1388,6 +1404,7 @@ export interface FileRoutesByTo {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-soluzioni': typeof ApiCrmAnteprimaSoluzioniRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
@@ -1494,6 +1511,7 @@ export interface FileRoutesById {
   '/shop': typeof ShopRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/slide': typeof SlideRoute
+  '/soluzioni': typeof SoluzioniRoute
   '/termini-e-condizioni': typeof TerminiECondizioniRoute
   '/videochiamata': typeof VideochiamataRoute
   '/web': typeof WebRoute
@@ -1572,6 +1590,7 @@ export interface FileRoutesById {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-soluzioni': typeof ApiCrmAnteprimaSoluzioniRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
@@ -1679,6 +1698,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap.xml'
     | '/slide'
+    | '/soluzioni'
     | '/termini-e-condizioni'
     | '/videochiamata'
     | '/web'
@@ -1757,6 +1777,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-soluzioni'
     | '/api/crm/anteprime-stato'
     | '/api/crm/backup'
     | '/api/crm/blog'
@@ -1859,6 +1880,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/slide'
+    | '/soluzioni'
     | '/termini-e-condizioni'
     | '/videochiamata'
     | '/web'
@@ -1935,6 +1957,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-soluzioni'
     | '/api/crm/anteprime-stato'
     | '/api/crm/backup'
     | '/api/crm/blog'
@@ -2040,6 +2063,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap.xml'
     | '/slide'
+    | '/soluzioni'
     | '/termini-e-condizioni'
     | '/videochiamata'
     | '/web'
@@ -2118,6 +2142,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-soluzioni'
     | '/api/crm/anteprime-stato'
     | '/api/crm/backup'
     | '/api/crm/blog'
@@ -2224,6 +2249,7 @@ export interface RootRouteChildren {
   ShopRoute: typeof ShopRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SlideRoute: typeof SlideRoute
+  SoluzioniRoute: typeof SoluzioniRoute
   TerminiECondizioniRoute: typeof TerminiECondizioniRoute
   VideochiamataRoute: typeof VideochiamataRoute
   WebRoute: typeof WebRoute
@@ -2262,6 +2288,7 @@ export interface RootRouteChildren {
   ApiConsulenteLoginRoute: typeof ApiConsulenteLoginRoute
   ApiCrmAccessoRoute: typeof ApiCrmAccessoRoute
   ApiCrmAiRoute: typeof ApiCrmAiRoute
+  ApiCrmAnteprimaSoluzioniRoute: typeof ApiCrmAnteprimaSoluzioniRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
   ApiCrmBlogRoute: typeof ApiCrmBlogRoute
@@ -2363,6 +2390,13 @@ declare module '@tanstack/react-router' {
       path: '/termini-e-condizioni'
       fullPath: '/termini-e-condizioni'
       preLoaderRoute: typeof TerminiECondizioniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/soluzioni': {
+      id: '/soluzioni'
+      path: '/soluzioni'
+      fullPath: '/soluzioni'
+      preLoaderRoute: typeof SoluzioniRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/slide': {
@@ -3541,6 +3575,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmAnteprimeStatoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/anteprima-soluzioni': {
+      id: '/api/crm/anteprima-soluzioni'
+      path: '/api/crm/anteprima-soluzioni'
+      fullPath: '/api/crm/anteprima-soluzioni'
+      preLoaderRoute: typeof ApiCrmAnteprimaSoluzioniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/ai': {
       id: '/api/crm/ai'
       path: '/api/crm/ai'
@@ -3778,6 +3819,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShopRoute: ShopRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SlideRoute: SlideRoute,
+  SoluzioniRoute: SoluzioniRoute,
   TerminiECondizioniRoute: TerminiECondizioniRoute,
   VideochiamataRoute: VideochiamataRoute,
   WebRoute: WebRoute,
@@ -3816,6 +3858,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConsulenteLoginRoute: ApiConsulenteLoginRoute,
   ApiCrmAccessoRoute: ApiCrmAccessoRoute,
   ApiCrmAiRoute: ApiCrmAiRoute,
+  ApiCrmAnteprimaSoluzioniRoute: ApiCrmAnteprimaSoluzioniRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,
   ApiCrmBlogRoute: ApiCrmBlogRoute,
