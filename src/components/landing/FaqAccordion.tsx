@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Minus } from "lucide-react";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 type FaqItem = {
   q: string;
@@ -99,7 +100,7 @@ const FAQS: FaqItem[] = [
     a: (
       <>
         Assolutamente no. Le irritazioni derivano spesso da membrane non
-        traspiranti e residui di collanti di bassa qualità. Il Bio-Mimetic™
+        traspiranti e residui di collanti di bassa qualità. Il {NOME_PRODOTTO}
         utilizza materiali bio-compatibili e{" "}
         <H>adesivi medici ipoallergenici certificati</H>. La capacità osmotica
         della membrana permette alla pelle di «respirare» e mantenere il pH

@@ -654,7 +654,7 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
                 <Input
                   value={prodotto}
                   onChange={(e) => setProdotto(e.target.value)}
-                  placeholder="es. Bio-Mimetic L"
+                  placeholder="es. Invisible Derm L"
                   className={CLASSE_CAMPO}
                 />
               </CampoFinestra>

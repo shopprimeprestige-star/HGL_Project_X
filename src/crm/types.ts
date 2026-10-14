@@ -1,4 +1,4 @@
-// Tipi condivisi per il CRM Bio-Mimetic
+// Tipi condivisi per il CRM Invisible Derm
 // I lead sono salvati come JSONB in DB ma esposti tipizzati lato client.
 
 //  L'unico import di questo file, ed è di SOLO TIPO: "video" | "image" è già

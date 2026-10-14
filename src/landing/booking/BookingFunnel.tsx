@@ -38,6 +38,16 @@ import {
   firePixel,
   trackEvent,
 } from "./tracking";
+import { PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
+import {
+  MAX_TESTO_LIBERO,
+  campiLead,
+  problemaObbligatorio,
+  provenienzaDaPercorso,
+  type Provenienza,
+  type SceltaConsulenza,
+} from "@/landing/consulenza/regole";
+import { EVENTO_SCELTA, leggiScelta } from "@/landing/consulenza/scelta";
 
 function scrollToEl(el: HTMLElement | null) {
   if (!el) return;
@@ -83,6 +93,10 @@ interface FormState {
   disagio: number;
   portatore: "si" | "no" | "";
   portatoreMotivo: string;
+  /** Il problema principale (le voci di `testi-sito.ts`); vuoto = non scelto. */
+  problema: IdProblema | "";
+  /** Solo con «Altro»: due parole scritte dalla persona. */
+  problemaAltro: string;
 }
 
 const EMPTY: FormState = {
@@ -96,6 +110,8 @@ const EMPTY: FormState = {
   disagio: 0,
   portatore: "",
   portatoreMotivo: "",
+  problema: "",
+  problemaAltro: "",
 };
 
 // === Persistenza localStorage (TTL 2h) ===
@@ -181,6 +197,10 @@ export function BookingFunnel({ variant = "light" }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [portatoreMotivoOpen, setPortatoreMotivoOpen] = useState(false);
+  //  Da dove arriva la richiesta (sul server è sempre «consulenza»: si aggiorna al montaggio).
+  const [provenienza, setProvenienza] = useState<Provenienza>("consulenza");
+  const [scelta, setScelta] = useState<SceltaConsulenza | null>(null);
+  const problemaRef = useRef<HTMLDivElement | null>(null);
   // Exit-intent popup rimosso su richiesta utente
   const funnelStartRef = useRef<number>(Date.now());
   // Hidratato → evita flicker e duplicati nel salvataggio LS
@@ -207,7 +227,8 @@ export function BookingFunnel({ variant = "light" }: Props) {
   // === Hydrate da localStorage al mount + prefill da query string (Meta/TikTok lead forms) ===
   useEffect(() => {
     const persisted = loadPersisted();
-    let baseForm: FormState = persisted ? persisted.form : EMPTY;
+    //  Uno stato salvato prima dei campi nuovi non li ha: si parte da EMPTY.
+    let baseForm: FormState = persisted ? { ...EMPTY, ...persisted.form } : EMPTY;
     let baseStep: Step = persisted ? persisted.step : 0;
 
     try {
@@ -249,9 +270,32 @@ export function BookingFunnel({ variant = "light" }: Props) {
       /* ignore prefill errors */
     }
 
+    //  Se il visitatore ha già scelto il problema (pannello, box, pop-up) la voce
+    //  è lì ad aspettarlo: non deve riscegliere nel modulo.
+    const scelta = leggiScelta();
+    if (scelta?.problema) {
+      baseForm = { ...baseForm, problema: scelta.problema, problemaAltro: scelta.problemaAltro ?? baseForm.problemaAltro };
+    }
+    setScelta(scelta);
+    setProvenienza(provenienzaDaPercorso(window.location.pathname));
+
     setForm(baseForm);
     setStep(baseStep);
     hydratedRef.current = true;
+  }, []);
+
+  //  Una nuova scelta mentre il modulo è già aperto (pannello toccato dopo): la prende.
+  useEffect(() => {
+    const suScelta = (e: Event) => {
+      const nuova = (e as CustomEvent<SceltaConsulenza>).detail ?? leggiScelta();
+      if (!nuova) return;
+      setScelta(nuova);
+      if (nuova.problema) {
+        setForm((f) => ({ ...f, problema: nuova.problema!, problemaAltro: nuova.problemaAltro ?? "" }));
+      }
+    };
+    window.addEventListener(EVENTO_SCELTA, suScelta);
+    return () => window.removeEventListener(EVENTO_SCELTA, suScelta);
   }, []);
 
   // === Persist ad ogni cambio (dopo hydrate) ===
@@ -463,6 +507,12 @@ export function BookingFunnel({ variant = "light" }: Props) {
   };
 
   const validateContacts = () => {
+    //  Dallo shop il problema è obbligatorio; da home e consulenza è facoltativo.
+    if (problemaObbligatorio(provenienza) && !form.problema) {
+      setError(TESTI_CONSULENZA.campo.errore);
+      problemaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return false;
+    }
     // Solo nome (prima parola) e telefono sono realmente obbligatori.
     // Email, città e cognome sono facoltativi: non lo diciamo nel frontend.
     if (!form.fullName.trim()) {
@@ -498,6 +548,19 @@ export function BookingFunnel({ variant = "light" }: Props) {
     const journey = buildJourneySnapshot();
     const evt_id = makeEventId();
     const { nome, cognome } = splitName(form.fullName);
+    //  Senza scelta e senza voce nel modulo il lead parte com'era: `pain_points` vuoto.
+    //  La provenienza è quella della pagina in cui si trova il modulo, non quella ricordata.
+    const provenienzaInvio = provenienzaDaPercorso(window.location.pathname);
+    const sceltaPerLead: SceltaConsulenza | null =
+      scelta || form.problema
+        ? {
+            problema: form.problema || null,
+            problemaAltro: form.problema === "altro" ? form.problemaAltro : undefined,
+            provenienza: provenienzaInvio,
+            punto: scelta?.punto ?? "home",
+            prodotto: scelta?.prodotto,
+          }
+        : null;
     const baseDisagio = form.disagio || 5;
     const finalDisagio = form.portatore === "si" ? Math.min(10, baseDisagio + 2) : baseDisagio;
     const insertPayload: Record<string, unknown> = {
@@ -509,7 +572,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
       data_slot: form.date,
       ora_slot: form.time,
       disagio_score: finalDisagio,
-      pain_points: [],
+      pain_points: campiLead(sceltaPerLead).painPoints,
       urgenza: form.urgenza,
       portatore: form.portatore === "si" ? true : form.portatore === "no" ? false : null,
       portatore_motivo: form.portatore === "si" && form.portatoreMotivo.trim() ? form.portatoreMotivo.trim() : null,
@@ -566,6 +629,12 @@ export function BookingFunnel({ variant = "light" }: Props) {
       { value: 1, currency: "EUR", content_name: "booking_lead" },
     );
     trackEvent("Lead", 6, { event_id: evt_id, custom_event: CUSTOM_EVENTS.leadInviato });
+    //  Solo conteggi: la voce scelta, da dove arriva e da quale tocco. Mai nome, telefono o testo libero.
+    trackEvent("consulenza_modulo_invio", null, {
+      problema: form.problema || null,
+      provenienza: provenienzaInvio,
+      punto: sceltaPerLead?.punto ?? null,
+    });
     trackEvent("FunnelStep", 6, { step_name: "lead_submitted", custom_event: CUSTOM_EVENTS.leadInviato }, { dedupKey: "fstep:6:lead" });
     clearPersisted();
     goNext(5);
@@ -1098,6 +1167,68 @@ export function BookingFunnel({ variant = "light" }: Props) {
               )}
             </div>
 
+            {/* Il problema principale: a tocco, voci identiche a quelle del pannello. */}
+            <div ref={problemaRef} className="scroll-mt-24">
+              <div className={`${labelCls} text-sm font-semibold`} id="problema-principale">
+                {TESTI_CONSULENZA.campo.etichetta}
+                {!problemaObbligatorio(provenienza) && (
+                  <span className={`ml-1.5 font-normal ${mutedText}`}>(facoltativo)</span>
+                )}
+              </div>
+              <div
+                role="radiogroup"
+                aria-labelledby="problema-principale"
+                aria-invalid={error === TESTI_CONSULENZA.campo.errore}
+                className="mt-2 grid grid-cols-1 gap-1.5"
+              >
+                {PROBLEMI.map((p) => {
+                  const attivo = form.problema === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={attivo}
+                      data-track="funnel_problema"
+                      onClick={() => {
+                        haptic("select");
+                        setForm((f) => ({ ...f, problema: p.id, problemaAltro: p.id === "altro" ? f.problemaAltro : "" }));
+                        if (error === TESTI_CONSULENZA.campo.errore) setError(null);
+                      }}
+                      className={`w-full min-h-11 text-left px-3 py-2.5 rounded-xl border text-[14px] sm:text-[15px] font-medium leading-snug transition-[border-color,background-color] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                        attivo
+                          ? "border-brand bg-brand text-brand-foreground"
+                          : "border-zinc-200 bg-white text-ink/80 hover:border-brand/40"
+                      }`}
+                    >
+                      {p.etichetta}
+                    </button>
+                  );
+                })}
+              </div>
+              {form.problema === "altro" && (
+                <div className="mt-2">
+                  <Label htmlFor="problema-altro" className={`${labelCls} text-sm`}>
+                    {TESTI_CONSULENZA.campo.altro}
+                    <span className={`ml-1.5 font-normal ${mutedText}`}>(facoltativo)</span>
+                  </Label>
+                  <Input
+                    id="problema-altro"
+                    value={form.problemaAltro}
+                    maxLength={MAX_TESTO_LIBERO}
+                    onChange={(e) => setForm({ ...form, problemaAltro: e.target.value })}
+                    className={inputCls}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              {error === TESTI_CONSULENZA.campo.errore && (
+                <p role="alert" className="mt-2 text-xs text-red-600">
+                  {error}
+                </p>
+              )}
+            </div>
+
             <EmailField
               label="Email"
               hint="Niente spam. Solo informazioni utili."
@@ -1143,7 +1274,7 @@ export function BookingFunnel({ variant = "light" }: Props) {
               labelCls={labelCls}
               valid={telefonoValid}
             />
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && error !== TESTI_CONSULENZA.campo.errore && <p className="text-xs text-red-500">{error}</p>}
 
             {/* CTA premium navy con shine animato */}
             <Button

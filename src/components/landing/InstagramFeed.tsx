@@ -1,5 +1,6 @@
 import { Instagram, Heart, MessageCircle, ExternalLink } from "lucide-react";
 import { PlaceholderBox } from "./PlaceholderBox";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 const PROFILE = {
   handle: "hairgeniuslabs.hair",
@@ -8,7 +9,7 @@ const PROFILE = {
   followers: "12.4K",
   following: "284",
   posts: "147",
-  bio: "Bio-Mimetic™ · Impianto di grado clinico\nIndistinguibile dalla cute · Milano 🇮🇹",
+  bio: `${NOME_PRODOTTO} · Impianto di grado clinico\nIndistinguibile dalla cute · Milano 🇮🇹`,
 };
 
 const POSTS = [

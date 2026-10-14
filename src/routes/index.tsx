@@ -27,11 +27,13 @@ import { FaqAccordion } from "@/components/landing/FaqAccordion";
 import { Footer } from "@/components/landing/Footer";
 import { ComparisonTable } from "@/components/landing/ComparisonTable";
 import { CookieBanner } from "@/components/landing/CookieBanner";
+import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { StickyHeader } from "@/components/landing/StickyHeader";
 import { VideoReviewsSection } from "@/components/landing/VideoReviewsSection";
 import { RichText } from "@/components/landing/RichText";
 import { MediaSlot } from "@/components/landing/MediaSlot";
 import { useLandingContent } from "@/landing/landing-content";
+import { NOME_PRODOTTO, TESTI_STRADE } from "@/landing/testi-sito";
 import logo from "@/assets/logo-hair-genius.png";
 import logoDark from "@/assets/logo-hair-genius-dark.png";
 
@@ -71,7 +73,7 @@ export const Route = createFileRoute("/")({
     links: [{ rel: "canonical", href: `${SITO}/` }],
     scripts: [{ type: "application/ld+json", children: jsonLd(datiStrutturatiAttivita(SITO)) }],
     meta: [
-      { title: "Bio-Mimetic™ — Indistinguibile dalla cute" },
+      { title: `${NOME_PRODOTTO} — Indistinguibile dalla cute` },
       {
         name: "description",
         content:
@@ -199,7 +201,11 @@ function Index() {
             </div>
 
             {/* Right col - calendar */}
-            <div className="lg:pt-2 w-full max-w-md md:max-w-lg lg:max-w-none mx-auto">
+            <div
+              id="prenota-hero"
+              data-barra-nascondi="vista"
+              className="lg:pt-2 w-full max-w-md md:max-w-lg lg:max-w-none mx-auto"
+            >
               <div className="text-center text-[0.7rem] tracking-[0.22em] uppercase text-white/55 mb-3">
                 {text("hero.calendarTopLabel")}
               </div>
@@ -209,6 +215,50 @@ function Index() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* DUE STRADE — subito dopo l'hero: stock o consulenza, due carte di pari peso.
+          Niente prezzi. Testi e collegamenti da testi-sito.ts. */}
+      <section id="due-strade" className="bg-light-panel scroll-mt-20" aria-labelledby="due-strade-titolo">
+        <div className="max-w-5xl mx-auto px-6 lg:px-10 py-16 lg:py-24">
+          <div className="text-center max-w-3xl mx-auto">
+            <div className="eyebrow">{TESTI_STRADE.sopratitolo}</div>
+            <h2
+              id="due-strade-titolo"
+              className="mt-4 text-3xl md:text-5xl font-bold tracking-tight text-ink leading-[1.05] text-balance"
+            >
+              {TESTI_STRADE.titolo}
+            </h2>
+            <p className="mt-5 text-base md:text-lg text-ink-muted leading-relaxed text-pretty">
+              {TESTI_STRADE.sottotitolo}
+            </p>
+          </div>
+
+          <ul className="mt-10 lg:mt-14 grid md:grid-cols-2 gap-5 lg:gap-8 list-none p-0">
+            {TESTI_STRADE.carte.map((carta) => (
+              <li
+                key={carta.id}
+                className="flex flex-col rounded-md border border-ink/15 bg-white p-6 lg:p-8"
+              >
+                <h3 className="text-sm tracking-[0.18em] uppercase font-bold text-brand">
+                  {carta.titolo}
+                </h3>
+                <p className="mt-4 text-2xl md:text-3xl font-bold tracking-tight text-ink leading-tight">
+                  {carta.frase}
+                </p>
+                <p className="mt-3 text-ink-muted leading-relaxed">{carta.testo}</p>
+                <div className="mt-auto pt-8">
+                  <a
+                    href={carta.href}
+                    className="inline-flex items-center justify-center min-h-12 w-full rounded-md bg-brand-scuro px-5 text-base font-semibold text-brand-foreground transition-colors hover:bg-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-scuro"
+                  >
+                    {carta.bottone}
+                  </a>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -284,7 +334,7 @@ function Index() {
               <div className="mt-10 flex items-center gap-2 mb-5 justify-center">
                 <span className="ng-stats__dot" />
                 <span className="text-etichetta tracking-[0.28em] uppercase text-brand font-bold">
-                  Scheda Tecnica · Bio-Mimetic™
+                  Scheda Tecnica · {NOME_PRODOTTO}
                 </span>
               </div>
               <div className="grid grid-cols-[1fr_1px_1fr_1px_1fr] items-stretch gap-x-4 text-center">
@@ -418,13 +468,13 @@ function Index() {
             </div>
             <div>
               <div className="shine inline-block bg-brand-scuro text-brand-foreground text-[0.7rem] tracking-[0.22em] uppercase font-semibold px-3 py-1.5 rounded-md mb-3">
-                Zero-Edge del Bio-Mimetic™
+                Zero-Edge del {NOME_PRODOTTO}
               </div>
               <MediaSlot
                 src={media("s05.afterImage")}
                 type="image"
                 light={false}
-                caption="DOPO · Bio-Mimetic™ · Zero-Edge"
+                caption={`DOPO · ${NOME_PRODOTTO} · Zero-Edge`}
                 className="min-h-[460px]"
               />
             </div>
@@ -473,7 +523,7 @@ function Index() {
       </section>
 
       {/* SECTION 08 — Booking */}
-      <section id="prenota" className="bg-blueprint scroll-mt-20">
+      <section id="prenota" data-barra-nascondi="vista" className="bg-blueprint scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
           <div className="text-center max-w-3xl mx-auto">
             <Eyebrow>{text("s08.eyebrow")}</Eyebrow>
@@ -542,6 +592,9 @@ function Index() {
       </section>
 
       <Footer />
+      {/* La barra della consulenza sta dopo il piè di pagina (riserva il suo spazio lì)
+          e prima del banner dei cookie, che resta sopra finché non si risponde. */}
+      <BarraConsulenza provenienza="consulenza" />
       <CookieBanner />
     </main>
   );

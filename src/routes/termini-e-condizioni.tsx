@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Footer } from "@/components/landing/Footer";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 export const Route = createFileRoute("/termini-e-condizioni")({
   component: TerminiPage,
@@ -9,7 +10,7 @@ export const Route = createFileRoute("/termini-e-condizioni")({
       {
         name: "description",
         content:
-          "Termini e condizioni di utilizzo dei servizi Hair Genius Labs SRLS — Bio-Mimetic™.",
+          `Termini e condizioni di utilizzo dei servizi Hair Genius Labs SRLS — ${NOME_PRODOTTO}.`,
       },
     ],
   }),
@@ -42,7 +43,7 @@ function TerminiPage() {
           Il presente sito ha finalità informative e consente di prenotare
           un'<strong>analisi tecnica gratuita</strong> finalizzata alla
           valutazione dell'idoneità all'applicazione del{" "}
-          <strong>Bio-Mimetic™</strong>, un impianto estetico non
+          <strong>{NOME_PRODOTTO}</strong>, un impianto estetico non
           chirurgico di grado clinico. L'analisi non costituisce prestazione
           medica.
         </Section>

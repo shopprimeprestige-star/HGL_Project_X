@@ -1,6 +1,8 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { ShoppingBag, Menu } from "lucide-react";
 import { CartProvider, useCart } from "@/shop/CartContext";
+import { getProduct } from "@/shop/catalog";
+import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { Toaster } from "@/components/ui/sonner";
 import logo from "@/assets/logo-hair-genius.png";
 
@@ -92,6 +94,20 @@ function ShopFooter() {
   );
 }
 
+/** La barra della consulenza: nella scheda di una protesi sa quale protesi si guarda. */
+function BarraShop() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const slug = path.match(/^\/shop\/prodotto\/([^/]+)/)?.[1];
+  let prodotto: ReturnType<typeof getProduct>;
+  try {
+    prodotto = slug ? getProduct(decodeURIComponent(slug)) : undefined;
+  } catch {
+    //  Indirizzo rotto (es. %E0): niente protesi, e il negozio resta in piedi.
+    prodotto = undefined;
+  }
+  return <BarraConsulenza provenienza="stock" prodotto={prodotto?.category === "toupee" ? prodotto.name : undefined} />;
+}
+
 function ShopLayout() {
   return (
     <CartProvider>
@@ -101,6 +117,8 @@ function ShopLayout() {
           <Outlet />
         </main>
         <ShopFooter />
+        {/* Dopo il piè di pagina: lo spazio che la barra riserva sta qui, sotto tutto. */}
+        <BarraShop />
         <Toaster />
       </div>
     </CartProvider>

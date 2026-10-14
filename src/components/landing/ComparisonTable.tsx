@@ -1,4 +1,5 @@
 import { X, Check } from "lucide-react";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 const ROWS = [
   { label: "Frontale", std: "Netto e percepibile", bio: "Effetto cute viva" },
@@ -21,7 +22,7 @@ export function ComparisonTable() {
             ✕ {STD_LABEL}
           </div>
           <div className="shine shine-soft px-4 py-3 border-b border-l border-white/15 text-brand-foreground font-bold bg-brand-scuro">
-            ✓ Bio-mimetic
+            ✓ {NOME_PRODOTTO}
           </div>
         </div>
         {ROWS.map(({ label, std, bio }, idx) => (
@@ -78,7 +79,7 @@ export function ComparisonTable() {
               >
                 <div className="flex items-center gap-2 text-etichetta tracking-widest uppercase text-brand font-bold">
                   <Check className="h-3 w-3" strokeWidth={2.5} />
-                  <span>Bio-mimetic</span>
+                  <span>{NOME_PRODOTTO}</span>
                 </div>
                 <div className="mt-2 text-sm text-white font-semibold">
                   {bio}

@@ -9,6 +9,7 @@ import { CARATTERE_INTER, usaInter } from "@/lib/carattere";
 import { lazy, Suspense, useCallback, useState } from "react";
 import { ConfineOspite, SchermataUnAttimo } from "@/shop/ConfineOspite";
 import { linkDaCliente, motoreSubito } from "@/shop/link-ospite";
+import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
 /*  ⚠️ E SE IL PEZZO NON ARRIVA, LA PAGINA RESTA IN PIEDI. Una scheda aperta
     prima di una pubblicazione chiede pezzi con i nomi di ieri: prima questo
@@ -75,11 +76,11 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Bio-mimetic Implant™" },
+      { title: NOME_PRODOTTO },
       {
         name: "description",
         content:
-          "Bio-mimetic Implant™ — impianto di grado clinico, indistinguibile dalla cute. Analisi tecnica gratuita.",
+          `${NOME_PRODOTTO} — impianto di grado clinico, indistinguibile dalla cute. Analisi tecnica gratuita.`,
       },
       { name: "author", content: "Hair Genius Labs" },
       // ── ANTEPRIME: LE DICHIARA OGNI PAGINA ─────────────────────────────
