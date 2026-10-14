@@ -1,6 +1,6 @@
 /** Aiuti comuni delle prove del sito: confronto, impacchettamento con esbuild. */
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +38,11 @@ export function nuovaProva(titolo) {
   return { c, vero, finisci };
 }
 
+//  Una cartella per ogni lancio, cancellata alla fine: due worktree che provano insieme non si pestano i file.
+//  realpath: su macOS /var è un collegamento a /private/var, e senza esbuild carica il finto due volte.
+const dove = realpathSync(mkdtempSync(join(tmpdir(), "prove-sito-c-")));
+process.on("exit", () => rmSync(dove, { recursive: true, force: true }));
+
 /** Quanto di `src/landing/booking/tracking` serve alle prove: registra le chiamate. */
 const TRACKING_FINTO = `
 export const chiamate = { trackEvent: [], firePixel: [], fireCapi: [], captureSourceData: [], avviati: [] };
@@ -60,10 +65,7 @@ export const detectSource = () => "organic";
 `;
 
 /** Impacchetta un file del progetto (alias `@` = src) e lo carica. Il tracking vero e il client Supabase sono sostituiti da finti. */
-export async function carica(sorgenteRel, nome, { reactFinto = false, reactVero = false } = {}) {
-  //  realpath: su macOS /var è un collegamento a /private/var, e senza esbuild carica il finto due volte.
-  mkdirSync(join(tmpdir(), "prove-sito-c"), { recursive: true });
-  const dove = realpathSync(join(tmpdir(), "prove-sito-c"));
+export async function carica(sorgenteRel, nome, { reactFinto = false, reactVero = false, routerFinto = false } = {}) {
   const trackingFinto = join(dove, "tracking-finto.js");
   writeFileSync(trackingFinto, TRACKING_FINTO);
   const clientFinto = join(dove, "client-finto.js");
@@ -77,6 +79,9 @@ export const useEffect = (f) => { const c = f(); if (typeof c === "function") ch
 export const useState = (v) => [v, () => {}];
 export class Component { constructor(props) { this.props = props; this.state = {}; } setState() {} }`,
   );
+  //  Router finto (solo se serve): `Link` diventa un `<a href>`, così un componente con collegamenti si disegna senza router.
+  const routerFinto_ = join(dove, "router-finto.js");
+  writeFileSync(routerFinto_, `import { createElement } from "react";\nexport const Link = ({ to, children, ...resto }) => createElement("a", { href: to, ...resto }, children);\n`);
   const fuori = join(dove, `${nome}.cjs`);
   //  Entrata di prova: il file vero + il registro delle chiamate del tracking finto.
   const entrata = join(dove, `${nome}-entrata.ts`);
@@ -91,6 +96,8 @@ export class Component { constructor(props) { this.props = props; this.state = {
     format: "cjs",
     platform: "node",
     jsx: "automatic",
+    //  Le immagini importate dai componenti (il logo) diventano un testo qualunque: qui si guarda il codice, non il disegno.
+    loader: { ".png": "dataurl", ".webp": "dataurl", ".svg": "dataurl" },
     logLevel: "error",
     absWorkingDir: radice,
     alias: { "@": join(radice, "src") },
@@ -101,6 +108,7 @@ export class Component { constructor(props) { this.props = props; this.state = {
           b.onResolve({ filter: /(^|\/)tracking$/ }, () => ({ path: trackingFinto }));
           //  React vero ma UNO solo (quello del progetto, lo stesso che usa la prova): fuori dal pacchetto.
           if (reactVero) b.onResolve({ filter: /^react(\/jsx-runtime|\/jsx-dev-runtime)?$/ }, (a) => ({ path: richiedi.resolve(a.path), external: true }));
+          if (routerFinto) b.onResolve({ filter: /^@tanstack\/react-router$/ }, () => ({ path: routerFinto_ }));
           if (reactFinto) b.onResolve({ filter: /^react$/ }, () => ({ path: reactFinto_ }));
           b.onResolve({ filter: /^@\/integrations\/supabase\/client$/ }, () => ({ path: clientFinto }));
         },

@@ -19,10 +19,11 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { togliFrasiAmmesse } from "./sito/_frasi-ammesse.mjs";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,8 @@ const radice = join(qui, "..");
  *  Il file e' la versione 1.2.2 pubblicata dall'Agenzia. Sta qui dentro perche'
  *  una prova che dipende da un file che qualcuno deve procurarsi non gira mai. */
 const SCHEMA = join(qui, "fatturapa-v1.2.2.xsd");
-const dove = join(tmpdir(), "prove-contabilita");
+//  Una cartella nuova per ogni lancio: due worktree che provano insieme non si cancellano i file a vicenda.
+const dove = mkdtempSync(join(tmpdir(), "prove-contabilita-"));
 
 /* ── 1. SI IMPACCHETTA IL CODICE VERO ─────────────────────────────────────
    Non una copia delle regole: i moduli di `src/crm`, quelli che vanno in
@@ -480,8 +482,6 @@ const MODULI = [
   //   lo spazio finiva «+39 3 1234567» e il lead non era piu' richiamabile.
   "landing/booking/telefono",
 ];
-rmSync(dove, { recursive: true, force: true });
-mkdirSync(dove, { recursive: true });
 for (const m of MODULI) {
   mkdirSync(dirname(join(dove, `${m}.cjs`)), { recursive: true });
   execFileSync(
@@ -18830,7 +18830,7 @@ export { PROBLEMI } from "@/landing/testi-sito";`,
   const vietate = [/€/, /\bcura/i, /ricrescita/i, /definitiv/i, /garantit/i, /guarisc/i, /solo noi/i, /trustpilot/i, /bio-mimetic/i];
   const trovate = [];
   for (const f of nuovi) {
-    const t = senzaCommenti(leggi(f));
+    const t = togliFrasiAmmesse(senzaCommenti(leggi(f)));
     for (const v of vietate) if (v.test(t)) trovate.push(`${f}: ${v}`);
   }
   c("nei testi nuovi niente prezzi né parole vietate", [], trovate);
@@ -18996,4 +18996,5 @@ console.log("");
 console.log(
   rotti ? `✖ ${rotti} controlli falliti su ${fatti}` : `✓ tutti i ${fatti} controlli passano`,
 );
+rmSync(dove, { recursive: true, force: true });
 process.exit(rotti ? 1 : 0);

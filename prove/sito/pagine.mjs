@@ -11,14 +11,16 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..", "..");
-const dove = join(tmpdir(), "prove-sito-pagine");
+//  Cartella nuova per ogni lancio (due worktree insieme non si cancellano i file), tolta all'uscita.
+const dove = mkdtempSync(join(tmpdir(), "prove-sito-pagine-"));
+process.on("exit", () => rmSync(dove, { recursive: true, force: true }));
 
 let fallite = 0;
 let totale = 0;
@@ -33,8 +35,6 @@ function c(nome, atteso, ottenuto) {
 }
 
 /* ── 1. SI IMPACCHETTA IL CODICE VERO ───────────────────────────────────── */
-rmSync(dove, { recursive: true, force: true });
-mkdirSync(dove, { recursive: true });
 function impacchetta(sorgente, nome) {
   execFileSync(
     "npx",
