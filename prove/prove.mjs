@@ -18023,6 +18023,25 @@ export const disegna = (caldo, m, q, senza) =>
     "PRIMA CHIAMATA|mai chiamato|caldo",
     testoDi(targhetta(null, null, true, undefined, undefined, true)),
   );
+
+  gruppo("SCHEDA DEL LEAD: LA TEMPERATURA NEL BLOCCO DEL MODULO");
+  const scheda = leggi("src/crm/LeadDialog.tsx");
+  const inizio = scheda.indexOf("function BloccoModulo");
+  const dopo = scheda.indexOf("\nfunction ", inizio + 1);
+  const blocco = inizio < 0 ? "" : scheda.slice(inizio, dopo < 0 ? undefined : dopo);
+  c("il blocco calcola la temperatura con la regola unica", true, blocco.includes("temperaturaLead("));
+  c("legge anche il quiz del sito", true, /temperaturaLead\([^;]*,\s*form\.qualifica\s*\)/.test(blocco));
+  c("disegna il pallino", true, blocco.includes("<PallinoTemperatura"));
+  c("e il perché, in una frase", true, blocco.includes("t.perche"));
+  //  Correzione 3 del revisore, decisa dal capo progetto: la riga resta (SPEC §2).
+  c("senza risposte dice «Nessuna risposta al modulo»", true, blocco.includes("Nessuna risposta al modulo"));
+  c("un lead con solo il quiz ha il suo titolo", true, blocco.includes("Quello che ha detto nel quiz del sito"));
+  c(
+    "il blocco non si nasconde più quando non c'è niente (la riga deve leggersi)",
+    false,
+    /if \(!voci\.length && !origine\.voci\.length && !originali\.length\) return null;/.test(blocco),
+  );
+  c("nessun hook nel blocco (solo funzioni pure)", false, /\buse[A-Z]\w*\(/.test(blocco));
 }
 
 /** La finestra «Dove c'è posto» e Slot liberi, sugli stessi dati finti, dicono
