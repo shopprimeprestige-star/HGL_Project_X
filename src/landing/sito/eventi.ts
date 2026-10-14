@@ -31,12 +31,23 @@ export const EVENTI_SITO = [
   "consulenza_popup_click",
   "consulenza_modulo_inizio",
   "consulenza_modulo_invio",
+  // landing «Tre soluzioni» (/soluzioni): solo aggiunte, in fondo
+  "video_play",
+  "video_50",
+  "video_fine",
+  "invisible_apri",
+  "invisible_video_play",
+  "invisible_video_50",
+  "modulo_apri",
+  "card_patch_clic",
+  "barra_shop_clic",
+  "soluzioni_cancello",
 ] as const;
 
 export type NomeEventoSito = (typeof EVENTI_SITO)[number];
 
 /** Le sole chiavi che un evento può portare. */
-export const DETTAGLI_AMMESSI = ["bottone", "sezione", "percorso", "campo", "voce", "motivo", "origine", "punto", "variante", "pagina"] as const;
+export const DETTAGLI_AMMESSI = ["bottone", "sezione", "percorso", "campo", "voce", "motivo", "origine", "punto", "variante", "pagina", "interesse"] as const;
 
 const LUNGHEZZA_MASSIMA = 60;
 

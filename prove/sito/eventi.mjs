@@ -15,12 +15,26 @@ const DA_SPEC = [
   "consulenza_pannello_aperto", "consulenza_problema_scelto", "consulenza_popup_mostrato",
   "consulenza_popup_click", "consulenza_modulo_inizio", "consulenza_modulo_invio",
 ];
-c("EVENTI_SITO = elenco della SPEC", [...DA_SPEC].sort(), [...E.EVENTI_SITO].sort());
+//  Landing «Tre soluzioni» (SPEC landing v3, «Cosa si misura»): 10 nomi nuovi, solo aggiunte.
+const SOLUZIONI = [
+  "video_play", "video_50", "video_fine", "invisible_apri", "invisible_video_play", "invisible_video_50",
+  "modulo_apri", "card_patch_clic", "barra_shop_clic", "soluzioni_cancello",
+];
+c("EVENTI_SITO = elenco della SPEC + i 10 della landing «Tre soluzioni»", [...DA_SPEC, ...SOLUZIONI].sort(), [...E.EVENTI_SITO].sort());
+c("i primi 22 nomi restano al loro posto (solo aggiunte in fondo)", DA_SPEC, E.EVENTI_SITO.slice(0, DA_SPEC.length));
+for (const nome of SOLUZIONI) vero(`ammesso: ${nome}`, E.EVENTI_SITO.includes(nome));
 c("nessun nome doppio", E.EVENTI_SITO.length, new Set(E.EVENTI_SITO).size);
 vero("niente stock_acquisto né stock_abbandono_carrello (fase 2)", !E.EVENTI_SITO.some((n) => /acquisto|abbandono/.test(n)));
 
 /* ── Dettagli ammessi ──────────────────────────────────────────────────── */
-c("DETTAGLI_AMMESSI", ["bottone", "sezione", "percorso", "campo", "voce", "motivo", "origine", "punto", "variante", "pagina"], [...E.DETTAGLI_AMMESSI]);
+c("DETTAGLI_AMMESSI", ["bottone", "sezione", "percorso", "campo", "voce", "motivo", "origine", "punto", "variante", "pagina", "interesse"], [...E.DETTAGLI_AMMESSI]);
+for (const v of ["trapianto", "invisible-derm", "non-so"]) c(`interesse «${v}» passa`, { interesse: v }, E.ripulisciDettagli({ interesse: v }));
+c("un telefono in «interesse» non passa", {}, E.ripulisciDettagli({ interesse: "333 1234567" }));
+c("un'email in «interesse» non passa", {}, E.ripulisciDettagli({ interesse: "mario@esempio.it" }));
+c("«interesse» lungo non passa", {}, E.ripulisciDettagli({ interesse: "x".repeat(80) }));
+c("il video del titolare si distingue con «voce»", { voce: "invisibleVideo" }, E.ripulisciDettagli({ voce: "invisibleVideo" }));
+c("il cancello si distingue con «voce»", { voce: "cancello", pagina: "/soluzioni" }, E.ripulisciDettagli({ voce: "cancello", pagina: "/soluzioni" }));
+c("«origine» dell'apertura (tocco, link, ricerca) passa", ["tocco", "link", "ricerca"], ["tocco", "link", "ricerca"].filter((o) => E.ripulisciDettagli({ origine: o }).origine === o));
 c("nome e telefono non passano, voce sì", { voce: "tenuta" }, E.ripulisciDettagli({ nome: "x", telefono: "3", voce: "tenuta" }));
 c("email, testo libero e altre chiavi non passano", { campo: "telefono" }, E.ripulisciDettagli({ email: "a@b.it", testo: "ciao", problemaAltro: "ciao", note: "n", campo: "telefono" }));
 c("valori vuoti o non semplici scartati", {}, E.ripulisciDettagli({ voce: undefined, motivo: null, punto: { a: 1 }, bottone: ["x"] }));
