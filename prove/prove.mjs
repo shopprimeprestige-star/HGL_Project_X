@@ -3100,6 +3100,8 @@ function proveDegliHook() {
     //   un hook sotto un'uscita lì spegne tre pagine insieme.
     "src/routes/CRM.slot-liberi.tsx",
     "src/crm/useGiorniLiberi.ts",
+    //  La finestra che fissa: è il flusso che porta i soldi.
+    "src/crm/QuickStatusDialog.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -17666,6 +17668,41 @@ function proveDelleFontiDiOggi() {
   c("Slot liberi non legge più le ore tenute da sé", false, slot.includes('fetch("/api/crm/fascia-modo'));
   c("l'aggancio riassume i giorni con le regole di Slot liberi", true, aggancio.includes("riassumiGiorno("));
   c("l'aggancio legge le ore tenute per una persona sola", true, aggancio.includes('"/api/crm/fascia-modo?tutte=1"'));
+
+  const finestra = leggi("src/crm/QuickStatusDialog.tsx");
+  c("«Dove c'è posto»: il numero grande è in posti", true, finestra.includes("{g.posti}"));
+  c("«Dove c'è posto»: non più gli orari", false, finestra.includes("{g.slot.length}"));
+  c("«Dove c'è posto» conta con postiLiberi (capienza dello slot)", true,
+    finestra.includes("postiLiberi(utili.map((s) => ({ presi: s.presi, capienza: s.posti })))"));
+  c("anche le mezze giornate in posti", true, /perFascia: FASCE\.map\(\(_, i\) =>\s*postiLiberi\(/.test(finestra));
+  c("la frase sotto la griglia parla di posti", true, finestra.includes("Il numero sono i posti ancora liberi di quel giorno"));
+}
+
+/** La finestra «Dove c'è posto» e Slot liberi, sugli stessi dati finti, dicono
+ *  lo stesso numero per ogni giorno (lead nuovo, durata di serie, tutta la
+ *  squadra: il caso della setter). Si usano i due motori veri — gli orari della
+ *  finestra da `generateAvailability`, quelli di Slot liberi da `slotDelGiorno`
+ *  — e la stessa lettura che fa `giorniDellaSquadra`. */
+function proveDellaFinestraInPosti() {
+  const { generateAvailability, slotDelGiorno } = BKG;
+  const { riassumiGiorno, postiLiberi } = SLOT;
+  gruppo("«DOVE C'È POSTO» E SLOT LIBERI: STESSO NUMERO");
+  const { dati, oreTenute } = squadraFinta();
+  const squadra = dati.consultants.filter((x) => x.data.faConsulente && x.data.attivo !== false);
+  //  La finestra: per ogni consulente gli orari liberi del giorno, con presi e capienza.
+  const finestra = new Map();
+  for (const cons of squadra)
+    for (const g of generateAvailability(cons, 60, dati.leads, 8, "2026-10-15", undefined, undefined, oreTenute)) {
+      const statoDi = new Map((g.ore ?? []).map((x) => [x.ora, x]));
+      const riga = finestra.get(g.date) ?? [];
+      for (const o of g.slots) riga.push({ presi: statoDi.get(o)?.presi ?? 0, capienza: statoDi.get(o)?.capienza ?? 0 });
+      finestra.set(g.date, riga);
+    }
+  for (const data of ["2026-10-15", "2026-10-16", "2026-10-17", "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"]) {
+    const modi = new Map(Object.entries(oreTenute).filter(([k]) => k.startsWith(data)).map(([k, v]) => [k.slice(11), v]));
+    const slot = riassumiGiorno({ data, persone: squadra.map((x) => ({ id: x.id, nome: x.data.nome, slot: slotDelGiorno(x, data, 60, dati.leads, undefined, undefined, modi) })) });
+    c(`${data}: finestra = Slot liberi (${slot.posti})`, slot.posti, postiLiberi(finestra.get(data) ?? []));
+  }
 }
 
 /** ── UNA PAGINA VERA, DISEGNATA CON DATI FINTI ─────────────────────────────
@@ -17870,6 +17907,7 @@ proveDellaVistaDiOggi();
 proveDellaStriscia();
 await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
+proveDellaFinestraInPosti();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
