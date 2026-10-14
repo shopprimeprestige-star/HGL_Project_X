@@ -6,7 +6,7 @@
  *  Evento `stock_box_visto` quando il box entra nello schermo (una volta).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { trackEvent } from "@/landing/booking/tracking";
+import { traccia } from "@/landing/consulenza/eventi";
 import { PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
 import { VociProblema } from "./VociProblema";
 
@@ -28,7 +28,7 @@ export function BoxProdottoGiusto({ prodotto }: { prodotto: string }) {
     const o = new IntersectionObserver(
       (voci) => {
         if (!voci.some((v) => v.isIntersecting)) return;
-        void trackEvent("stock_box_visto", null, {}, { dedupKey: "box" });
+        traccia("stock_box_visto", {}, { dedupKey: "box" });
         o.disconnect();
       },
       { threshold: 0.5 },

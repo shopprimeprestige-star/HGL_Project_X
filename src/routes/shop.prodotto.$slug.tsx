@@ -5,7 +5,7 @@ import { CATEGORIES, PRODUCTS, formatPrice, getProduct } from "@/shop/catalog";
 import { ShopVisual } from "@/shop/ShopVisual";
 import { useCart } from "@/shop/CartContext";
 import { toast } from "sonner";
-import { trackEvent } from "@/landing/booking/tracking";
+import { traccia } from "@/landing/consulenza/eventi";
 import { BoxProdottoGiusto } from "@/components/landing/consulenza/BoxProdottoGiusto";
 import { PopupUscita } from "@/components/landing/consulenza/PopupUscita";
 
@@ -28,7 +28,7 @@ function ProductDetail() {
   //  Una scheda vista: solo un conteggio, con il nome pubblico del prodotto.
   useEffect(() => {
     if (!getProduct(slug)) return;
-    void trackEvent("stock_vista_scheda", null, { prodotto: slug }, { dedupKey: `scheda:${slug}` });
+    traccia("stock_vista_scheda", { prodotto: slug }, { dedupKey: `scheda:${slug}` });
   }, [slug]);
 
   if (!product) {

@@ -6,11 +6,11 @@
  *  solo dopo 40 secondi, al computer anche all'uscita del mouse dalla finestra.
  *  Si chiude con X, «No, grazie» ed Esc.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRouterState } from "@tanstack/react-router";
 import { X } from "lucide-react";
-import { trackEvent } from "@/landing/booking/tracking";
+import { traccia } from "@/landing/consulenza/eventi";
 import { popupPuoPartire, SECONDI_POPUP } from "@/landing/consulenza/regole";
 import { pannelloGiaAperto, popupGiaMostrato, segnaPopupMostrato } from "@/landing/consulenza/scelta";
 import { INTERRUTTORI, PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
@@ -21,6 +21,7 @@ const PannelloProblemi = lazy(() => import("./PannelloProblemi"));
 export function PopupUscita({ prodotto }: { prodotto?: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const t = TESTI_CONSULENZA.popup;
+  const finestra = useRef<HTMLDivElement | null>(null);
   const [attivo, setAttivo] = useState(false);
   const [aperto, setAperto] = useState(false);
   const [pannello, setPannello] = useState<{ aperto: boolean; problema: IdProblema | null } | null>(null);
@@ -47,7 +48,7 @@ export function PopupUscita({ prodotto }: { prodotto?: string }) {
       });
       if (!ok) return;
       segnaPopupMostrato();
-      void trackEvent("consulenza_popup_mostrato", null, { motivo });
+      traccia("consulenza_popup_mostrato", { motivo });
       setAperto(true);
     };
     //  Il timer scatta un soffio prima dei 40 secondi veri: si passa il valore nominale.
@@ -63,13 +64,13 @@ export function PopupUscita({ prodotto }: { prodotto?: string }) {
   }, [attivo, pathname]);
 
   const chiudi = (azione: "x" | "no_grazie") => {
-    void trackEvent("consulenza_popup_click", null, { azione });
+    traccia("consulenza_popup_click", { azione });
     setAperto(false);
   };
 
   const scegli = (id: IdProblema) => {
     const voce = PROBLEMI.find((p) => p.id === id);
-    void trackEvent("consulenza_popup_click", null, { azione: "problema", voce: voce?.etichetta ?? id });
+    traccia("consulenza_popup_click", { azione: "problema", voce: voce?.etichetta ?? id });
     setAperto(false);
     setPannello({ aperto: true, problema: id });
   };
@@ -84,7 +85,13 @@ export function PopupUscita({ prodotto }: { prodotto?: string }) {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/70 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 motion-reduce:animate-none" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-[60] flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-white/15 bg-[#0a1a3a] text-white shadow-[0_20px_60px_rgba(0,0,0,0.5)] focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 motion-reduce:animate-none">
+          <Dialog.Content
+            ref={finestra}
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              finestra.current?.focus();
+            }}
+            className="fixed left-1/2 top-1/2 z-[60] flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-white/15 bg-[#0a1a3a] text-white shadow-[0_20px_60px_rgba(0,0,0,0.5)] focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 motion-reduce:animate-none">
             <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-4">
               <div className="min-w-0">
                 <Dialog.Title className="text-xl font-bold leading-tight tracking-tight">{t.titolo}</Dialog.Title>
@@ -98,7 +105,7 @@ export function PopupUscita({ prodotto }: { prodotto?: string }) {
               </Dialog.Close>
             </div>
             <div className="overflow-y-auto overscroll-contain px-4 pb-4 pt-2">
-              <VociProblema voci={PROBLEMI} onScegli={scegli} />
+              <VociProblema compatta voci={PROBLEMI} onScegli={scegli} />
               <button
                 type="button"
                 onClick={() => chiudi("no_grazie")}

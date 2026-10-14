@@ -13,7 +13,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { X } from "lucide-react";
-import { trackEvent } from "@/landing/booking/tracking";
+import { traccia } from "@/landing/consulenza/eventi";
 import { barraVisibile, type Provenienza } from "@/landing/consulenza/regole";
 import { barraChiusaInSessione, segnaBarraChiusa } from "@/landing/consulenza/scelta";
 import { TESTI_CONSULENZA } from "@/landing/testi-sito";
@@ -83,16 +83,16 @@ export function BarraConsulenza({ provenienza, prodotto }: Props) {
   }, [presente, pathname]);
 
   useEffect(() => {
-    if (visibile) void trackEvent("consulenza_barra_vista", null, { provenienza }, { dedupKey: "barra" });
+    if (visibile) traccia("consulenza_barra_vista", { provenienza }, { dedupKey: "barra" });
   }, [visibile, provenienza]);
 
   const apri = () => {
-    void trackEvent("consulenza_barra_click", null, { provenienza });
+    traccia("consulenza_barra_click", { provenienza });
     setPannelloMontato(true);
     setPannelloAperto(true);
   };
   const chiudi = () => {
-    void trackEvent("consulenza_barra_chiusa", null, { provenienza });
+    traccia("consulenza_barra_chiusa", { provenienza });
     segnaBarraChiusa();
     setChiusa(true);
   };

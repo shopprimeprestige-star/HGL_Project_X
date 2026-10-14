@@ -11,7 +11,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowLeft, Loader2, X } from "lucide-react";
-import { trackEvent } from "@/landing/booking/tracking";
+import { traccia } from "@/landing/consulenza/eventi";
 import { salvaScelta, segnaPannelloAperto } from "@/landing/consulenza/scelta";
 import type { Provenienza, PuntoIngresso } from "@/landing/consulenza/regole";
 import { LINK_CONSULENZA, PROBLEMI, TESTI_CONSULENZA, type IdProblema } from "@/landing/testi-sito";
@@ -54,10 +54,11 @@ export function PannelloProblemi({
   const [fase, setFase] = useState<"voci" | "modulo">("voci");
   const t = TESTI_CONSULENZA.pannello;
   const eraAperto = useRef(false);
+  const foglio = useRef<HTMLDivElement | null>(null);
 
   const scegli = (id: IdProblema) => {
     const voce = PROBLEMI.find((p) => p.id === id);
-    void trackEvent("consulenza_problema_scelto", null, { voce: voce?.etichetta ?? id, punto, provenienza });
+    traccia("consulenza_problema_scelto", { voce: voce?.etichetta ?? id, punto, provenienza });
     salvaScelta({ problema: id, provenienza, punto, ...(prodotto ? { prodotto } : {}) });
     if (provenienza === "stock") {
       setFase("modulo");
@@ -75,7 +76,7 @@ export function PannelloProblemi({
     if (eraAperto.current) return;
     eraAperto.current = true;
     segnaPannelloAperto();
-    void trackEvent("consulenza_pannello_aperto", null, { punto, provenienza });
+    traccia("consulenza_pannello_aperto", { punto, provenienza });
     setFase("voci");
     if (problemaIniziale) scegli(problemaIniziale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,6 +87,12 @@ export function PannelloProblemi({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/70 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 motion-reduce:animate-none" />
         <Dialog.Content
+          ref={foglio}
+          //  Il fuoco parte dal foglio, non dalla X: niente anello su un tasto che nessuno ha toccato.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            foglio.current?.focus();
+          }}
           data-consulenza-foglio=""
           className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex max-h-[92dvh] w-full max-w-xl flex-col rounded-t-2xl border border-b-0 border-white/15 bg-[#0a1a3a] text-white shadow-[0_-12px_40px_rgba(0,0,0,0.45)] focus:outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom motion-reduce:animate-none"
         >
