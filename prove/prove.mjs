@@ -16965,7 +16965,9 @@ function proveDelRinfresco() {
   c("copia vuota: niente da mostrare", false, mostraLaCopia({ inMemoria: 0, copia: 0 }));
   const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
   c("reload passa da mostraLaCopia prima di rimettere la copia", true,
-    /mostraLaCopia\(\{ inMemoria: leadsRef\.current\.length/.test(ctx));
+    /mostraLaCopia\(\{ inMemoria, copia/.test(ctx));
+  c("le schede in memoria contano solo se sono dell'utente di adesso", true,
+    /leadsDiRef\.current === user\.id \? leadsRef\.current\.length : 0/.test(ctx));
 }
 
 /** ── LA MISURA SUI LEAD VERI: «ABBASTANZA» NON È SEMPRE UN FASTIDIO ─────────
@@ -17414,6 +17416,9 @@ function proveDellaCimaFerma() {
     c(`${gesto.replace("const ", "").replace(" = async", "")} libera la cima`, true,
       da >= 0 && pagina.slice(da, da + 3500).includes("setFermo(null)"));
   }
+  const giu = pagina.indexOf("const mandaInFondo");
+  c("chi scende in fondo (finestra annullata, vendita) libera la cima", true,
+    giu >= 0 && pagina.slice(giu, giu + 600).includes("setFermo((f) => (f === id ? null : f))"));
   const filtri = pagina.indexOf("const cambiaFiltri");
   c("cambiare i filtri libera la cima", true, filtri >= 0 && pagina.slice(filtri, filtri + 300).includes("setFermo(null)"));
 }

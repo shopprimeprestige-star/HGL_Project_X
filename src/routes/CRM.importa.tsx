@@ -2194,6 +2194,10 @@ function LeadImportatiUnoAllaVolta() {
    *  nota su `inFondo`. */
   const mandaInFondo = (id: string) => {
     setForzato((f) => (f === id ? null : f));
+    //  Chi scende in fondo non resta fermo in cima: senza questa riga la
+    //  finestra rapida annullata o la vendita registrata riproponevano la
+    //  stessa persona all'infinito (vedi `tieniInTesta`).
+    setFermo((f) => (f === id ? null : f));
     setInFondo((s) => {
       const n = new Set(s);
       n.add(id);

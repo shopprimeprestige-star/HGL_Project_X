@@ -213,6 +213,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       successivo: chi salva legge sempre l'ultima verità. */
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
+  /** Di chi sono le schede in memoria: con un altro utente entrato senza
+   *  logout (link magico) non contano, e la copia si mostra come all'apertura. */
+  const leadsDiRef = useRef<string>("");
   const [consultants, setConsultants] = useState<Consultant[]>([]);
   //  Stesso motivo del riferimento qui sopra: il nome del consulente serve
   //  mentre si deposita un biglietto, che succede dopo un salvataggio — quando
@@ -411,7 +414,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     const copia = leggiCopia();
     //  Solo all'apertura: con le schede già in memoria la copia (più vecchia)
     //  le farebbe tornare indietro per un istante. Vedi rinfresco-archivio.
-    if (copia && mostraLaCopia({ inMemoria: leadsRef.current.length, copia: copia.length })) {
+    const inMemoria = leadsDiRef.current === user.id ? leadsRef.current.length : 0;
+    if (copia && mostraLaCopia({ inMemoria, copia: copia.length })) {
       setLeads(copia);
       setLoading(false);
     } else if (!copia) setLoading(true);
@@ -465,6 +469,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     }
     if (schede) {
       setLeads(schede);
+      leadsDiRef.current = user.id;
       scriviCopia(schede);
     }
     setLoading(false);
