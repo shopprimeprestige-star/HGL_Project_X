@@ -8,16 +8,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { normalizePhone } from "@/crm/wa-graph.server";
+import { eRichiestaStop } from "@/crm/wa-auto-regole";
+
+//  `update(...).eq(...).eq(...)` si può aspettare a qualsiasi livello: serve
+//  anche per `whatsapp_settings`, che con una sola chiave (user_id) non ha il
+//  secondo `eq`.
+interface QueryAggiorna extends PromiseLike<{ error: { message: string } | null }> {
+  eq: (k: string, v: string) => QueryAggiorna;
+}
 
 const adminUntyped = supabaseAdmin as unknown as {
   from: (t: string) => {
     insert: (v: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
     upsert: (v: Record<string, unknown>, o?: { onConflict?: string; ignoreDuplicates?: boolean }) => Promise<{ error: { message: string } | null }>;
-    update: (v: Record<string, unknown>) => {
-      eq: (k: string, v: string) => {
-        eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
-      };
-    };
+    update: (v: Record<string, unknown>) => QueryAggiorna;
     select: (s: string) => {
       eq: (k: string, v: string) => {
         maybeSingle: () => Promise<{ data: Record<string, unknown> | null }>;
@@ -43,6 +48,7 @@ interface WaChange {
       timestamp: string;
       type: string;
       text?: { body: string };
+      button?: { text?: string; payload?: string };
       image?: { id: string; mime_type?: string; caption?: string };
       audio?: { id: string; mime_type?: string };
       video?: { id: string; mime_type?: string; caption?: string };
@@ -56,6 +62,8 @@ interface WaChange {
       errors?: Array<{ message: string }>;
     }>;
     contacts?: Array<{ profile?: { name?: string }; wa_id: string }>;
+    //  Solo nel campo `phone_number_quality_update` (non c'è `metadata`).
+    event?: string;
   };
 }
 
@@ -64,10 +72,23 @@ interface WaWebhookPayload {
   entry: Array<{ id: string; changes: WaChange[] }>;
 }
 
-function normalizePhone(p: string): string {
-  const digits = p.replace(/[^\d+]/g, "");
-  return digits.startsWith("+") ? digits : `+${digits}`;
+//  Gli eventi di qualità del numero non portano il phone_number_id: arrivano
+//  con l'id dell'account WhatsApp Business (`entry.id`).
+async function findSettingsByBusinessAccountId(
+  wabaId: string,
+): Promise<{ userId: string; appSecret: string | null } | null> {
+  const { data } = await supabaseAdmin
+    .from("whatsapp_settings")
+    .select("user_id, app_secret")
+    .eq("business_account_id", wabaId)
+    .maybeSingle();
+  const row = data as { user_id?: string; app_secret?: string | null } | null;
+  return row?.user_id ? { userId: row.user_id, appSecret: row.app_secret ?? null } : null;
 }
+
+//  Qualità che scende: FLAGGED (segnalato) e DOWNGRADE (limite abbassato).
+//  UPGRADE e ONBOARDING non fermano niente.
+const EVENTI_QUALITA_PEGGIORE = new Set(["FLAGGED", "DOWNGRADE"]);
 
 async function findUserIdByPhoneNumberId(phoneNumberId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
@@ -160,6 +181,33 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
         for (const entry of payload.entry ?? []) {
           for (const change of entry.changes ?? []) {
             const v = change.value;
+
+            //  Qualità del numero: se scende, il motore automatico si spegne da
+            //  solo. Conta SOLO con la firma verificata: senza app_secret (o con
+            //  la firma sbagliata) chiunque potrebbe spegnere gli invii.
+            if (change.field === "phone_number_quality_update") {
+              const impostazioni = await findSettingsByBusinessAccountId(entry.id);
+              if (!impostazioni?.appSecret || !verifySignature(rawBody, sigHeader, impostazioni.appSecret)) {
+                console.warn("[wa-webhook] qualità ignorata: firma non verificata per", entry.id);
+                continue;
+              }
+              if (v.event && EVENTI_QUALITA_PEGGIORE.has(v.event)) {
+                const { error } = await adminUntyped
+                  .from("whatsapp_settings")
+                  .update({
+                    auto_attivo: false,
+                    auto_qualita: v.event,
+                    auto_sospeso_motivo: `qualità del numero: ${v.event}`,
+                    auto_sospeso_il: new Date().toISOString(),
+                  })
+                  .eq("user_id", impostazioni.userId);
+                //  Colonne mancanti (migrazione non ancora applicata): il motore
+                //  non può essere acceso, quindi non c'è niente da spegnere.
+                if (error) console.warn("[wa-webhook] stop per qualità non scritto:", error.message);
+              }
+              continue;
+            }
+
             const phoneNumberId = v.metadata?.phone_number_id;
             if (!phoneNumberId) continue;
             const userId = await findUserIdByPhoneNumberId(phoneNumberId);
@@ -172,9 +220,27 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
               continue;
             }
 
+            //  Se c'è un app_secret, qui la firma è già stata verificata (sopra,
+            //  sennò si è fatto `continue`). Senza app_secret NON lo è.
+            const firmaVerificata = Boolean(appSecret);
+
             // Inbound messages
             for (const m of v.messages ?? []) {
               const fromE164 = normalizePhone(m.from);
+
+              //  STOP/«basta»: quel numero esce dagli invii automatici (resta nel
+              //  CRM, lo chiama il consulente). Solo con firma verificata, sennò
+              //  chiunque potrebbe escludere i lead altrui. Il «Riattiva» c'è solo
+              //  nel pannello del titolare.
+              const testoStop = m.text?.body ?? m.button?.text ?? "";
+              if (firmaVerificata && eRichiestaStop(testoStop)) {
+                const { error } = await adminUntyped.from("wa_auto_esclusi").upsert(
+                  { user_id: userId, telefono_e164: fromE164, motivo: "stop", testo: testoStop.slice(0, 200) },
+                  { onConflict: "user_id,telefono_e164", ignoreDuplicates: true },
+                );
+                if (error) console.warn("[wa-webhook] esclusione STOP non scritta:", error.message);
+              }
+
               const { leadId, displayName } = await autoLinkLead(userId, fromE164);
               const text =
                 m.text?.body ??

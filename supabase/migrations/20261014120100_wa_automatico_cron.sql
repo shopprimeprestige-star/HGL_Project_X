@@ -1,0 +1,14 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHATSAPP AUTOMATICO — giro ogni minuto
+--
+-- Chiama /hooks/wa-auto con la stessa guardia di /hooks/meta-lead-sync. Ogni
+-- giro manda al massimo 5 messaggi e non fa pause: la pausa è il minuto del
+-- cron. Se il giro precedente è ancora in corso il lucchetto (wa_auto_giro) fa
+-- rispondere «occupato». Finché whatsapp_settings.auto_attivo è false il giro
+-- non fa niente.
+--
+-- programma_hook_cron legge sito e chiave pubblica da app_config e, se mancano,
+-- NON programma e lo dice (vedi 20261005150000). Per spegnerlo:
+--     SELECT cron.unschedule('wa-auto-1min');
+-- ─────────────────────────────────────────────────────────────────────────────
+SELECT public.programma_hook_cron('wa-auto-1min', '* * * * *', '/hooks/wa-auto');
