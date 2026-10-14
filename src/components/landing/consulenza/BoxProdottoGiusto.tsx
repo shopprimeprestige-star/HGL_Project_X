@@ -43,7 +43,10 @@ export function BoxProdottoGiusto({ prodotto }: { prodotto: string }) {
       aria-labelledby="box-giusto-titolo"
       className="rounded-xl border border-white/15 bg-white/[0.04] p-4"
     >
-      <h2 id="box-giusto-titolo" className="text-lg font-bold leading-tight tracking-tight text-white">
+      <h2
+        id="box-giusto-titolo"
+        className="text-lg font-bold leading-tight tracking-tight text-white"
+      >
         {t.titolo}
       </h2>
       <p className="mt-2 max-w-prose text-sm leading-relaxed text-white/75">{t.testo}</p>

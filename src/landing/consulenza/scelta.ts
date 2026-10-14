@@ -25,7 +25,12 @@ const PUNTI = ["barra", "pannello", "box", "popup", "home"];
 const PROVENIENZE = ["stock", "consulenza"];
 
 function leggiMemoria(): Memoria {
-  const vuota: Memoria = { scelta: null, pannelloAperto: false, popupMostrato: false, barraChiusa: false };
+  const vuota: Memoria = {
+    scelta: null,
+    pannelloAperto: false,
+    popupMostrato: false,
+    barraChiusa: false,
+  };
   try {
     if (typeof window === "undefined") return vuota;
     const grezzo = window.sessionStorage.getItem(CHIAVE_SCELTA);
@@ -77,7 +82,8 @@ export function salvaScelta(s: SceltaConsulenza): void {
   if (!scelta) return;
   scriviMemoria({ ...leggiMemoria(), scelta });
   try {
-    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENTO_SCELTA, { detail: scelta }));
+    if (typeof window !== "undefined")
+      window.dispatchEvent(new CustomEvent(EVENTO_SCELTA, { detail: scelta }));
   } catch {
     // niente evento: il modulo la legge comunque al montaggio
   }

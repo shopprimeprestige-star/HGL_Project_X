@@ -10,7 +10,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowLeft, Loader2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { traccia } from "@/landing/consulenza/eventi";
 import { salvaScelta, segnaPannelloAperto } from "@/landing/consulenza/scelta";
 import type { Provenienza, PuntoIngresso } from "@/landing/consulenza/regole";
@@ -99,21 +99,18 @@ export function PannelloProblemi({
           <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-4">
             {fase === "voci" ? (
               <div className="min-w-0">
-                <Dialog.Title className="text-xl font-bold leading-tight tracking-tight">{t.titolo}</Dialog.Title>
-                <Dialog.Description className="mt-1 text-sm text-white/75">{t.sottotitolo}</Dialog.Description>
+                <Dialog.Title className="text-xl font-bold leading-tight tracking-tight">
+                  {t.titolo}
+                </Dialog.Title>
+                <Dialog.Description className="mt-1 text-sm text-white/75">
+                  {t.sottotitolo}
+                </Dialog.Description>
               </div>
             ) : (
+              //  Il problema si cambia nel modulo stesso (passo dei contatti): qui basta la X.
               <div className="min-w-0">
                 <Dialog.Title className="sr-only">{TESTI_CONSULENZA.barra.bottone}</Dialog.Title>
                 <Dialog.Description className="sr-only">{t.sottotitolo}</Dialog.Description>
-                <button
-                  type="button"
-                  onClick={() => setFase("voci")}
-                  className="-ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm text-white/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                >
-                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                  {t.titolo}
-                </button>
               </div>
             )}
             <Dialog.Close
@@ -131,7 +128,10 @@ export function PannelloProblemi({
               <Suspense
                 fallback={
                   <div className="flex min-h-40 items-center justify-center text-white/70">
-                    <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" aria-label="Caricamento" />
+                    <Loader2
+                      className="h-5 w-5 animate-spin motion-reduce:animate-none"
+                      aria-label="Caricamento"
+                    />
                   </div>
                 }
               >

@@ -98,8 +98,12 @@ export function problemaObbligatorio(p: Provenienza): boolean {
 /** Una riga sola, senza invii né spazi doppi, al massimo `MAX_TESTO_LIBERO`. */
 export function pulisciTesto(t: unknown): string {
   if (typeof t !== "string") return "";
-  // eslint-disable-next-line no-control-regex
-  return t.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TESTO_LIBERO).trim();
+  //  I caratteri di controllo (invio, tabulazione, nulli) diventano spazi.
+  const senzaControlli = Array.from(t, (ch) => {
+    const codice = ch.charCodeAt(0);
+    return codice < 32 || codice === 127 ? " " : ch;
+  }).join("");
+  return senzaControlli.replace(/\s+/g, " ").trim().slice(0, MAX_TESTO_LIBERO).trim();
 }
 
 /** Cosa si aggiunge al lead. Giro 1: tutto nell'elenco dei problemi (`pain_points`). */
@@ -112,8 +116,10 @@ export function campiLead(s: SceltaConsulenza | null): { painPoints: string[] } 
     const altro = voce.id === "altro" ? pulisciTesto(s.problemaAltro) : "";
     if (altro) righe.push(`Problema (altro): ${altro}`);
   }
-  if (s.provenienza === "stock" || s.provenienza === "consulenza") righe.push(`Provenienza: ${s.provenienza}`);
-  if (["barra", "pannello", "box", "popup", "home"].includes(s.punto)) righe.push(`Ingresso: ${s.punto}`);
+  if (s.provenienza === "stock" || s.provenienza === "consulenza")
+    righe.push(`Provenienza: ${s.provenienza}`);
+  if (["barra", "pannello", "box", "popup", "home"].includes(s.punto))
+    righe.push(`Ingresso: ${s.punto}`);
   const protesi = pulisciTesto(s.prodotto);
   if (protesi) righe.push(`Protesi: ${protesi}`);
   return { painPoints: righe };

@@ -53,7 +53,9 @@ export function VociProblema({ voci, onScegli, scelta, compatta = false }: Props
                 </span>
               ) : (
                 <>
-                  <span className="text-[15px] font-semibold leading-tight text-white">{testa}</span>
+                  <span className="text-[15px] font-semibold leading-tight text-white">
+                    {testa}
+                  </span>
                   {coda && <span className="text-[13px] leading-tight text-white/70">{coda}</span>}
                 </>
               )}
