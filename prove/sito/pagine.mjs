@@ -156,6 +156,29 @@ c("rotta /catalogo: dichiara il suo percorso", true, /createFileRoute\("\/catalo
 c("rotta /catalogo: il link allo shop dipende dall'interruttore", true, /mostraLinkShop\(/.test(senzaCommenti(rottaC)));
 c("rotta /catalogo: monta la barra", true, /<BarraConsulenza\s+provenienza="consulenza"/.test(senzaCommenti(rottaC)));
 
+/* ── 7. TRACCIAMENTO: come la home di oggi ──────────────────────────────────
+   La vecchia home monta initScrollTracking e initClickTracking: sono gli
+   eventi «Scroll» (25/50/75/100) che il CRM legge per la profondità di
+   scorrimento per annuncio. Se la pagina nuova non li fa partire, quelle
+   misure vanno a zero su tutto il traffico nuovo senza che nessuno se ne
+   accorga. Una volta sola ciascuno, dentro `avvia()` (dopo il controllo
+   amministratore) e con la loro pulizia. */
+const tracc = senzaCommenti(readFileSync(join(radice, "src/landing/sito/traccia-provvisoria.ts"), "utf8"));
+const avvia = /const avvia = \(\) => \{[\s\S]*?\n    \};/.exec(tracc)?.[0] ?? "";
+c("tracciamento: esiste avvia()", true, avvia.length > 0);
+c("tracciamento: initScrollTracking una volta, in avvia()", 1, (avvia.match(/initScrollTracking\(\)/g) ?? []).length);
+c("tracciamento: initClickTracking una volta, in avvia()", 1, (avvia.match(/initClickTracking\(\)/g) ?? []).length);
+c("tracciamento: la pulizia di Scroll e Click è registrata", true, /pulizie\.push\(initScrollTracking\(\)\)/.test(avvia) && /pulizie\.push\(initClickTracking\(\)\)/.test(avvia));
+c("tracciamento: né Scroll né Click fuori da avvia()", 2, (tracc.match(/initScrollTracking\(|initClickTracking\(/g) ?? []).length);
+
+/* ── 8. IL PIÈ DI PAGINA STA FUORI DA <main> (lettori di schermo) ─────────── */
+for (const f of ["src/landing/sito/HomeNuova.tsx", "src/landing/sito/PaginaProtocol.tsx"]) {
+  const s = senzaCommenti(sorgenti[f]);
+  const dopo = s.slice(s.lastIndexOf("</main>"));
+  c(`${f}: il Footer sta dopo </main>`, true, s.includes("</main>") && /<Footer\s*\/>/.test(dopo));
+  c(`${f}: la barra sta dopo </main>`, true, /<BarraConsulenza/.test(dopo));
+}
+
 if (fallite) {
   console.error(`\n✗ pagine: ${fallite} prove fallite su ${totale}`);
   process.exit(1);

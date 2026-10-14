@@ -27,8 +27,10 @@ import {
   firePixel,
   initAdminCheck,
   initHeartbeat,
+  initClickTracking,
   initHighQualityVisit,
   initLivePresence,
+  initScrollTracking,
   subscribeAdminStatus,
   trackEvent,
 } from "@/landing/booking/tracking";
@@ -93,6 +95,10 @@ export function usaTracciamentoPagina(pagina: string): void {
       };
       window.addEventListener("scroll", sulloScroll, { passive: true });
       pulizie.push(() => window.removeEventListener("scroll", sulloScroll));
+      //  Gli eventi «Scroll» (25/50/75/100) e i clic su [data-track], come la home di oggi:
+      //  il CRM legge `payload.scroll` per la profondità di scorrimento per annuncio.
+      pulizie.push(initScrollTracking());
+      pulizie.push(initClickTracking());
       pulizie.push(initHeartbeat());
       pulizie.push(initLivePresence());
       pulizie.push(initHighQualityVisit(40, 50));
