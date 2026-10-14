@@ -40,7 +40,7 @@ export function nuovaProva(titolo) {
 
 /** Quanto di `src/landing/booking/tracking` serve alle prove: registra le chiamate. */
 const TRACKING_FINTO = `
-export const chiamate = { trackEvent: [], firePixel: [], fireCapi: [], captureSourceData: [] };
+export const chiamate = { trackEvent: [], firePixel: [], fireCapi: [], captureSourceData: [], avviati: [] };
 let n = 0;
 export const eventId = () => "evt-finto-" + (++n);
 export const trackEvent = async (...a) => { chiamate.trackEvent.push(a); };
@@ -49,10 +49,10 @@ export const fireCapi = async (...a) => { chiamate.fireCapi.push(a); };
 export const initAdminCheck = () => Promise.resolve(false);
 export const isAdminLogged = () => false;
 export const subscribeAdminStatus = (f) => { f(false); return () => {}; };
-export const initHeartbeat = () => () => {};
-export const initLivePresence = () => () => {};
-export const initScrollTracking = () => () => {};
-export const initClickTracking = () => () => {};
+export const initHeartbeat = () => { chiamate.avviati.push("initHeartbeat"); return () => {}; };
+export const initLivePresence = () => { chiamate.avviati.push("initLivePresence"); return () => {}; };
+export const initScrollTracking = () => { chiamate.avviati.push("initScrollTracking"); return () => {}; };
+export const initClickTracking = () => { chiamate.avviati.push("initClickTracking"); return () => {}; };
 export const initHighQualityVisit = () => () => {};
 export const captureSourceData = () => { chiamate.captureSourceData.push(1); return { utm_source: "prova" }; };
 export const buildJourneySnapshot = () => ({ touch_history: [], touch_count: 0, first_channel: null, last_channel: null, journey_type: "cold_direct", days_to_convert: 0, hours_to_convert: 0 });

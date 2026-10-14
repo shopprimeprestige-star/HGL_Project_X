@@ -99,6 +99,7 @@ c("acceso, salvata rotta → si estrae di nuovo", ["A", "B"], [E.varianteBottone
   globalThis.window.scrollY = 1000;
   ascoltatori.filter(([n]) => n === "scroll").forEach(([, f]) => f());
   await new Promise((r) => setTimeout(r, 20));
+  c("Scroll e Click come la home di oggi, una volta sola per pagina", [1, 1], [T.chiamate.avviati.filter((x) => x === "initScrollTracking").length, T.chiamate.avviati.filter((x) => x === "initClickTracking").length]);
   c("scroll_50 a metà pagina", 1, T.chiamate.trackEvent.filter((x) => x[0] === "scroll_50").length);
   delete globalThis.window;
   delete globalThis.document;
