@@ -502,6 +502,48 @@ Per portare un angolo fuori scala sulla scala: `rounded` e `rounded-sm` diventan
 ### Preventivo in tempo reale (componente firma)
 Schermata scura a piena pagina con vetro, cifre grandi tabulari, prezzo che "scatta" quando cambia (`.hg-price-pop`), barra del totale fissa su telefono con vetro e ombra verso l'alto, importi barrati in rosso per gli sconti. E il componente piu importante per il consulente in chiamata e il piu carico di effetti.
 
+## Tema «Tre soluzioni» (pagina `/soluzioni`)
+
+Una terza superficie, solo per la landing `/soluzioni` (noindex finché il titolare non dice «pubblica»): il mondo dei caroselli HGL Blueprint, non quello del CRM né quello della home. **Tutto sta sotto la classe `.tema-soluzioni`** (la `<main>` della pagina e il `<footer>` minimo): niente di questo tema esce sul resto del sito, e la home resta in Inter. Fonte: sezione 4.1 di `20-sito/2026-10-14-landing-v3.md`; le regole sono in fondo a `src/styles.css`, dentro `@layer components` (sotto le utility di Tailwind: un `hidden` o un `lg:w-[360px]` messo su un bottone vince lui). La prova `prove/sito/soluzioni-media.mjs` controlla che ogni regola nuova inizi con `.tema-soluzioni`, i contrasti e le misure.
+
+### Token (`--hgl-*`, definiti su `.tema-soluzioni`)
+| token | valore | uso |
+|---|---|---|
+| `--hgl-notte` | `#0A1430` | fondo; testo del bottone blu |
+| `--hgl-elettrico` | `#0F90FE` | solo il bottone primario e il fuoco/filetti attivi sul notte |
+| `--hgl-titoli` | `#5CB6FF` | parola in accento, «Solo da noi», sottolineature, hover del primario |
+| `--hgl-chiaro` | `#EEF2FF` | fondo della spiegazione e del foglio del modulo |
+| `--hgl-carta` | `#FFFFFF` | testo sul notte |
+| `--hgl-dettagli` | `#C9D6FF` | righe, didascalie, bordo del contorno, mirini |
+| `--hgl-elettrico-su-chiaro` | `#0B5FB0` | link, icone e bordo del primario sui fondi chiari |
+| `--hgl-notte-barra` | `#111C3D` | barra delle patch (6% più chiara del notte) |
+
+**Contrasti (WCAG 2.2, ricalcolati dalla prova):** bianco su notte 18,17 · dettagli su notte 12,59 · titoli su notte 8,30 · **notte su elettrico 5,57** · notte su chiaro 16,25 · su-chiaro su chiaro 5,73 · bianco su barra 16,70. **Vietati:** bianco su `#0F90FE` (3,26) e `#0F90FE` come colore di testo o icona sul chiaro (2,92).
+
+### Caratteri
+Anton (solo titoli, solo 400: `font-synthesis: none`, maiuscolo da CSS) e Inter Tight (tutto il resto), serviti dal sito: `public/fonts/anton/5.3.0/` e `public/fonts/inter-tight/5.3.0/` (OFL, stessi byte di `@fontsource/anton` e `@fontsource-variable/inter-tight` 5.3.0), famiglie `AntonHGL` e `InterTightHGL`, `font-display: swap`, ripieghi di sistema con `size-adjust` misurato. Precaricati solo i due `latin` (`PRECARICA_FONT_SOLUZIONI`, `soluzioni/font.ts`). Instrument Serif non si carica: nella pagina non c'è citazione. Mai Google Fonts.
+
+### Scala (telefono 390 · computer 1440; il passaggio è a 1024, i titoli scorrono con `clamp`)
+`sol-h1` Anton 32→64, interlinea 1 · `sol-h2-nome` Anton 22→32 · `sol-h2-spiegazione` Anton 28→44 · `sol-etichetta` Inter Tight 600 13 px maiuscolo, tracking 0,14em · `sol-sottotitolo` 15→20 · `sol-riga` 15→17 · `sol-testo` 17→18, interlinea 1,55, 62ch · `sol-didascalia` 500 14→15. **Mai sotto 13 px.**
+
+### Bottoni: tre ruoli, mai altri (`soluzioni/Azioni.tsx`)
+- **Primario** (`BottonePrimario`, `sol-btn-primario`): l'unico blu pieno per schermata. Fondo elettrico, **testo sempre `#0A1430`**, 56 px, raggio 8, peso 600; sul chiaro bordo 1 px `#0B5FB0`; hover `#5CB6FF` in 150 ms; 100% su telefono, 360 px su computer. Porta `data-barra-nascondi="fondo"`.
+- **Contorno** (`BottoneContorno`, `sol-btn-contorno`): bordo 1,5 px dettagli, testo bianco, trasparente, 40 px visibili / 44 di tocco (con `::before`: `::after` serve al «link esteso» della riga), icona + che ruota in × con `aria-expanded="true"`. Solo per aprire/chiudere la spiegazione.
+- **Link d'azione** (`LinkAzione`, `sol-link`): testo 600, sottolineatura 2 px a 4 px (titoli sul notte, `#0B5FB0` sul chiaro), area 44 px; con `href` è un collegamento, senza è un bottone.
+**Fuoco:** anello 2 px a distanza 2 px, bianco sul notte, `#0A1430` sul chiaro (`--sol-fuoco`), su ogni `:focus-visible`.
+
+### Fondi e mirini
+`sol-fondo-notte` e `sol-fondo-chiaro` danno colore e griglia da 72 px. ⚠️ `.tema-soluzioni` va su un elemento **antenato** di quello che porta `sol-fondo-*` (le regole sono `.tema-soluzioni .sol-fondo-…`): sulla stessa classe non funzionano. `.brackets` dentro il tema: mirini da 16 px, dettagli al 50% (notte al 50% sul chiaro).
+
+### Movimento
+Nessuna animazione nella prima schermata. Spiegazione: `sol-pannello` (`grid-template-rows` 0fr→1fr in 240 ms, chiusura 200, curva `cubic-bezier(0.2, 0.8, 0.2, 1)`) con `sol-pannello-interno` che entra in 180 ms e sale di 8 px. Vietati: lampi, glitch, strobo, `.shine`, parallasse, contatori, rimbalzi, cose che pulsano. **Con `prefers-reduced-motion: reduce` tutto è istantaneo** (CSS) e `usaMovimentoRidotto()` (`soluzioni/movimento.ts`) lo dice al codice: la clip della macro non parte, lo scorrimento non è morbido.
+
+### Media (`Foto`, `VideoParlato`, `ClipLoop`)
+Mai riquadri grigi: prima che arrivi il file si vede il colore della sezione; slot vuoto = niente nel DOM. `aspect-ratio` in CSS e `width`/`height` sull'elemento. Il video del titolare parte solo al tocco, con audio; la clip della macro è muta, in loop, parte solo a schermo, ha il tasto da 44 px. Pillola del play in basso a sinistra, mai sul volto.
+
+### Piè di pagina
+`<Footer variante="minimo" />`: logo, ragione sociale, indirizzo, P.IVA, Privacy, Cookie, Termini. Niente promessa, niente `tel:`/`mailto:`. Il `Footer` senza prop è identico a prima.
+
 ## Do's and Don'ts
 
 ### Do:

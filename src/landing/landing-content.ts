@@ -23,12 +23,21 @@ export type LandingContent = {
   reviews: Review[];
 };
 
+/** Proporzioni (o misura fissa) che un media deve avere: l'editor le scrive sotto il campo e avvisa, senza bloccare. */
+export type Formato = "16:9" | "9:16" | "4:5" | "4:3" | "3:2" | "1:1" | "1200x630";
+
 export type FieldDef = {
   key: string;
   label: string;
-  type: "text" | "textarea" | "image" | "video";
+  /** `interruttore` si salva come "1" (acceso) o "" (spento); `scelta` come il `valore` di una delle `opzioni`.
+   *  Tutti e due vivono in `texts`, con predefinito "". */
+  type: "text" | "textarea" | "image" | "video" | "interruttore" | "scelta";
   default: string;
   hint?: string;
+  formato?: Formato;
+  /** Peso massimo consigliato, scritto come lo legge il titolare: "120 KB", "1,5 MB". */
+  pesoMax?: string;
+  opzioni?: { valore: string; etichetta: string }[];
 };
 
 export type SectionDef = {
@@ -163,12 +172,39 @@ export const LANDING_SCHEMA: SectionDef[] = [
       { key: "slogan.body", label: "Body", type: "text", default: "Indistinguibile dalla cute. Anche a distanza di contatto." },
     ],
   },
+  {
+    id: "v3",
+    title: "Landing «Tre soluzioni»",
+    fields: [
+      { key: "v3.invisibleVideo", label: "Video del titolare: Che cos'è " + NOME_PRODOTTO, type: "video", default: "", formato: "9:16", pesoMax: "10 MB", hint: "Verticale 9:16 (sulla pagina si vede 4:5). mp4 H.264 720×1280, 25-35 secondi, audio AAC, al massimo 10 MB. Sottotitoli già impressi nel video, fra y 1300 e 1550 su 1920. Senza questo video la pagina non va online." },
+      { key: "v3.invisiblePoster", label: "Copertina del video", type: "image", default: "", formato: "4:5", pesoMax: "120 KB", hint: "4:5, webp, al massimo 120 KB. Un fotogramma fermo dell'inizio del video. Senza copertina la pagina non va online." },
+      { key: "v3.invisibleVideoAlt", label: "Descrizione della copertina (per chi non vede)", type: "text", default: "Il titolare di Hair Genius Labs ti guarda in camera, nello studio di Roma, e sta per spiegarti " + NOME_PRODOTTO + "." },
+      { key: "v3.invisibleSottotitoli", label: "Ho controllato: i sottotitoli sono impressi nel video", type: "interruttore", default: "", hint: "Senza questa conferma la pagina non va online." },
+      { key: "v3.invisibleTrascrizione", label: "Testo del video (le parole dette davvero)", type: "textarea", default: "", hint: "Se è vuoto, il link «Leggi il testo del video» non compare." },
+      { key: "protocol.titolareFoto", label: "Ritratto del titolare", type: "image", default: "", formato: "4:5", hint: "4:5, il volto al centro (sulla pagina si vede in un cerchio). Se manca, il cerchio non compare." },
+      { key: "protocol.titolareFotoAlt", label: "Descrizione del ritratto", type: "text", default: "Il titolare di Hair Genius Labs, in studio, ti guarda e sorride." },
+      { key: "v3.trapiantoFoto", label: "Foto del trapianto", type: "image", default: "", formato: "3:2", pesoMax: "80 KB", hint: "3:2, il titolare nel quadrato centrale, webp, al massimo 80 KB. Se manca, le tre soluzioni diventano solo testo." },
+      { key: "v3.trapiantoFotoAlt", label: "Descrizione della foto del trapianto", type: "text", default: "Il titolare di Hair Genius Labs in consulenza: ti guarda in camera, con una mano aperta, nello studio di Roma." },
+      { key: "v3.trapiantoChi", label: "Chi si vede nella foto del trapianto", type: "scelta", default: "", opzioni: [{ valore: "titolare", etichetta: "Solo il titolare o un collaboratore" }, { valore: "cliente", etichetta: "C'è un cliente" }], hint: "Se non scegli, vale «C'è un cliente»: la foto non si vede finché non accendi la liberatoria." },
+      { key: "v3.trapiantoLiberatoria", label: "Ho la liberatoria scritta", type: "interruttore", default: "", hint: "Accendilo solo se la liberatoria firmata è in 14-legale o nella scheda del cliente." },
+      { key: "home.cartaCatalogoFoto", label: "Foto della patch", type: "image", default: "", formato: "4:3", hint: "4:3 (si ritaglia al centro in 3:2 e 1:1). Se manca, si usa la foto del primo articolo in stock del negozio." },
+      { key: "home.cartaCatalogoFotoAlt", label: "Descrizione della foto della patch", type: "text", default: "Una patch tenuta in mano su fondo chiaro." },
+      { key: "v3.invisibleMiniatura", label: "Foto ferma di " + NOME_PRODOTTO + " (scheda chiusa)", type: "image", default: "", formato: "3:2", pesoMax: "80 KB", hint: "3:2, soggetto nel quadrato centrale (va bene anche 1:1), webp, al massimo 80 KB. Se manca, si usa la copertina della clip del pettine." },
+      { key: "v3.invisibleMiniaturaAlt", label: "Descrizione della foto ferma", type: "text", default: "Il pettine solleva l'attaccatura in primo piano, alla luce dello studio." },
+      { key: "protocol.macroVideo", label: "Clip del pettine sull'attaccatura", type: "video", default: "", formato: "4:5", pesoMax: "1,5 MB", hint: "4:5, muta, 6-8 secondi, senza lampi né stacchi al giro, al massimo 1,5 MB." },
+      { key: "protocol.macroPoster", label: "Copertina della clip", type: "image", default: "", formato: "4:5", hint: "4:5. Senza copertina la clip non compare." },
+      { key: "protocol.macroVideoAlt", label: "Descrizione della clip", type: "text", default: "Primo piano dell'attaccatura frontale di un uomo, con un pettine che solleva i capelli. Video breve senza audio." },
+      { key: "v3.macroChi", label: "Chi si vede nella clip", type: "scelta", default: "", opzioni: [{ valore: "titolare", etichetta: "Solo il titolare o un collaboratore" }, { valore: "cliente", etichetta: "C'è un cliente" }], hint: "Se non scegli, vale «C'è un cliente»: la clip non si vede finché non accendi la liberatoria." },
+      { key: "v3.macroLiberatoria", label: "Ho la liberatoria scritta", type: "interruttore", default: "", hint: "Accendilo solo se la liberatoria firmata è in 14-legale o nella scheda del cliente." },
+      { key: "v3.condivisioneImmagine", label: "Immagine per la condivisione (WhatsApp, social)", type: "image", default: "", formato: "1200x630", pesoMax: "200 KB", hint: "1200×630, webp o jpg, al massimo 200 KB. Se manca, si usa la copertina del video." },
+    ],
+  },
 ];
 
 export const DEFAULT_TEXTS: Record<string, string> = LANDING_SCHEMA.reduce(
   (acc, sec) => {
     sec.fields.forEach((f) => {
-      if (f.type === "text" || f.type === "textarea") acc[f.key] = f.default;
+      if (f.type === "text" || f.type === "textarea" || f.type === "interruttore" || f.type === "scelta") acc[f.key] = f.default;
     });
     return acc;
   },

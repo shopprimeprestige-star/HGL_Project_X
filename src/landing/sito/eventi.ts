@@ -31,12 +31,23 @@ export const EVENTI_SITO = [
   "consulenza_popup_click",
   "consulenza_modulo_inizio",
   "consulenza_modulo_invio",
+  // landing «Tre soluzioni» (/soluzioni): solo aggiunte, in fondo
+  "video_play",
+  "video_50",
+  "video_fine",
+  "invisible_apri",
+  "invisible_video_play",
+  "invisible_video_50",
+  "modulo_apri",
+  "card_patch_clic",
+  "barra_shop_clic",
+  "soluzioni_cancello",
 ] as const;
 
 export type NomeEventoSito = (typeof EVENTI_SITO)[number];
 
 /** Le sole chiavi che un evento può portare. */
-export const DETTAGLI_AMMESSI = ["bottone", "sezione", "percorso", "campo", "voce", "motivo", "origine", "punto", "variante", "pagina"] as const;
+export const DETTAGLI_AMMESSI = ["bottone", "sezione", "percorso", "campo", "voce", "motivo", "origine", "punto", "variante", "pagina", "interesse"] as const;
 
 const LUNGHEZZA_MASSIMA = 60;
 
@@ -89,4 +100,15 @@ export function varianteBottone(acceso: boolean, salvata: string | null, caso: (
   if (!acceso) return "A";
   if (salvata === "A" || salvata === "B") return salvata;
   return caso() < 0.5 ? "A" : "B";
+}
+
+/** `?anteprima=<codice>`: il titolare guarda la pagina dal CRM. Il codice non deve mai arrivare a Meta, quindi in anteprima
+ *  non parte nessun evento, Pixel o CAPI. Il confronto è sul nome del parametro, esatto. */
+export function inAnteprima(search: unknown): boolean {
+  return typeof search === "string" && new URLSearchParams(search).has("anteprima");
+}
+
+/** La pagina aperta ora è in anteprima dal CRM (`?anteprima=…`): niente evento, Pixel o CAPI. Fuori dal browser vale «no». */
+export function paginaInAnteprima(): boolean {
+  return typeof window !== "undefined" && inAnteprima(window.location?.search);
 }

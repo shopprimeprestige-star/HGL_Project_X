@@ -144,6 +144,45 @@ const { pieno, senzaConsenso, riserva } = L.costruisciPayload({ dati, richiesta,
   vero("il modulo lungo manda ancora content_name «booking_lead»", /content_name:\s*"booking_lead"/.test(sorgente));
 }
 
+/* ── Landing «Tre soluzioni»: lo stesso lead di oggi, con il motivo (G3) ── */
+{
+  const sol = (interesse) => ({ origine: "consulenza", punto: "soluzioni", ...(interesse ? { interesse } : {}) });
+  const base = { ...dati, problema: null, consensoWhatsapp: false };
+  const costruisci = (sito, d = base) => L.costruisciPayload({ dati: d, richiesta, hash: "h".repeat(64), sito, fonte, percorso });
+  const protocol = costruisci({ origine: "consulenza", punto: "protocol" });
+  for (const i of ["trapianto", "invisible-derm", "non-so"]) {
+    const p = costruisci(sol(i));
+    const etichetta = R.ETICHETTE_INTERESSE[i];
+    c(`${i}: punto_ingresso «soluzioni» e origine «consulenza»`, ["soluzioni", "consulenza"], [p.pieno.punto_ingresso, p.pieno.origine]);
+    c(`${i}: le colonne sono quelle del lead di oggi (stesse chiavi del modulo corto del Protocol)`, Object.keys(protocol.pieno).sort(), Object.keys(p.pieno).sort());
+    c(`${i}: nessuna colonna «interesse»: il motivo sta in pain_points`, [false, false, false], [("interesse" in p.pieno), ("interesse" in p.senzaConsenso), ("interesse" in p.riserva)]);
+    c(`${i}: pain_points con le colonne, la riga una volta sola`, [`Interesse: ${etichetta}`], p.pieno.pain_points);
+    c(`${i}: anche senza il consenso`, [`Interesse: ${etichetta}`], p.senzaConsenso.pain_points);
+    c(`${i}: nella riserva la riga c'è una volta, in fondo`, [1, `Interesse: ${etichetta}`, "Ingresso: soluzioni"], [p.riserva.pain_points.filter((x) => x.startsWith("Interesse:")).length, p.riserva.pain_points.at(-1), p.riserva.pain_points.find((x) => x.startsWith("Ingresso:"))]);
+    c(`${i}: la riserva non ha colonne nuove`, [], ["origine", "punto_ingresso", "problema_principale", "problema_altro", "fascia_oraria", "prodotto_stock", "chiave_orario_hash", "interesse"].filter((k) => k in p.riserva));
+  }
+  //  Senza interesse il lead è quello di oggi, identico, salvo il punto d'origine.
+  const senza = costruisci(sol());
+  c("senza interesse: stesso payload di prima (con «soluzioni» al posto di «protocol»)", JSON.stringify({ ...protocol.pieno, punto_ingresso: "soluzioni" }), JSON.stringify(senza.pieno));
+  c("senza interesse: pain_points vuoto come oggi (nessun problema scelto)", [], senza.pieno.pain_points);
+  c("senza interesse, la riserva è quella di oggi", JSON.stringify({ ...protocol.riserva, pain_points: protocol.riserva.pain_points.map((x) => x.replace("protocol", "soluzioni")) }), JSON.stringify(senza.riserva));
+  //  Un modulo di oggi (stock, con problema): il payload non cambia di un byte passando dal nuovo codice.
+  const oggi = L.costruisciPayload({ dati, richiesta, hash: "h".repeat(64), sito, fonte, percorso });
+  c("modulo di oggi (shop): pain_points identici", ["Tenuta: si stacca presto"], oggi.pieno.pain_points);
+  c("modulo di oggi (shop): riserva identica", ["Problema: Tenuta: si stacca presto", "Provenienza: stock", "Ingresso: barra", "Protesi: Protesi di prova", "Richiamo: sera"], oggi.riserva.pain_points);
+  //  Deriva: le chiavi del lead da /soluzioni = quelle del modulo lungo, salvo le differenze ammesse (senza toccare l'elenco).
+  const sorgente = leggi("src/landing/booking/BookingFunnel.tsx");
+  const m = sorgente.match(/const insertPayload: Record<string, unknown> = \{([\s\S]*?)\n    \};/);
+  const chiaviFunnel = new Set([...(m ? m[1] : "").matchAll(/^      ([a-z_]+)\s*[:,]/gm)].map((x) => x[1]));
+  const ammesse = new Set(R.DIFFERENZE_AMMESSE);
+  const chiaviSol = new Set(Object.keys(costruisci(sol("trapianto")).pieno));
+  const fuori = [...new Set([...[...chiaviSol].filter((k) => !chiaviFunnel.has(k)), ...[...chiaviFunnel].filter((k) => !chiaviSol.has(k))])].filter((k) => !ammesse.has(k)).sort();
+  c("deriva: il lead da /soluzioni non ha chiavi fuori dall'elenco delle differenze ammesse", [], fuori);
+  c("DIFFERENZE_AMMESSE non è stato toccato (10 voci)", 10, R.DIFFERENZE_AMMESSE.length);
+  //  Il motivo non è mai un dato personale: né il nome né il telefono finiscono nella riga.
+  vero("nella riga dell'interesse non c'è né il nome né il telefono", !JSON.stringify(costruisci(sol("trapianto")).pieno.pain_points).match(/Prova|333/));
+}
+
 /* ── inviaRichiesta ────────────────────────────────────────────────────── */
 {
   const cl = cliente([{ error: null }]);
@@ -227,6 +266,15 @@ const { pieno, senzaConsenso, riserva } = L.costruisciPayload({ dati, richiesta,
   vero("la chiave non compare in nessuna chiamata di tracciamento", !tutto.includes(r.chiave) && !tutto.includes(p1.chiave_orario_hash));
   vero("nome e telefono arrivano solo a CAPI (come oggi), mai a trackEvent né Pixel", !JSON.stringify([L.chiamate.trackEvent, L.chiamate.firePixel]).match(/Prova|333 1234567|3331234567/));
   vero("la chiave non è nemmeno nel payload «riserva» né nel «senza consenso»", !JSON.stringify([p2, p3]).includes(r.chiave) && !JSON.stringify(p1).includes(r.chiave));
+}
+
+/* ── Anteprima dal CRM: nessun Lead verso Meta ─────────────────────────── */
+{
+  globalThis.window.location.search = "?anteprima=abcdef0123456789";
+  const prima = [L.chiamate.firePixel.length, L.chiamate.fireCapi.length, L.chiamate.trackEvent.length];
+  c("in anteprima annunciaLead non parte (né Pixel, né CAPI, né evento)", [false, ...prima], [L.annunciaLead("evt-anteprima", { nome: "Prova Uno", telefono: "333 1234567" }), L.chiamate.firePixel.length, L.chiamate.fireCapi.length, L.chiamate.trackEvent.length]);
+  globalThis.window.location.search = "";
+  c("senza anteprima, lo stesso evento parte", true, L.annunciaLead("evt-anteprima", { nome: "Prova Uno", telefono: "333 1234567" }));
 }
 
 /* ── Ricarica vera: un modulo nuovo (memoria vuota) non rilancia il Lead ── */

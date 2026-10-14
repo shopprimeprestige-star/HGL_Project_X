@@ -34,7 +34,9 @@ import {
   type ModuloCortoDati,
   type PuntoSito,
 } from "@/landing/sito/richiesta";
+import { paginaInAnteprima } from "@/landing/sito/eventi";
 import type { Provenienza } from "@/landing/consulenza/regole";
+import type { Interesse } from "@/landing/sito/soluzioni/regole";
 
 /** Lo stesso valore di `CUSTOM_EVENTS.leadInviato` in `BookingFunnel` (la prova di deriva lo confronta). */
 export const EVENTO_LEAD = "Lead_Prenotazione_Inviato";
@@ -202,7 +204,7 @@ export function costruisciPayload(p: {
   richiesta: RichiestaSito;
   /** L'impronta della chiave; `null` se il browser non sa calcolarla (il calendario allora non si propone). */
   hash: string | null;
-  sito: { origine: Provenienza; punto: PuntoSito; prodotto?: string };
+  sito: { origine: Provenienza; punto: PuntoSito; prodotto?: string; interesse?: Interesse };
   fonte: SourceData;
   percorso: ReturnType<typeof buildJourneySnapshot>;
 }): { pieno: Payload; senzaConsenso: Payload; riserva: Payload } {
@@ -213,10 +215,10 @@ export function costruisciPayload(p: {
     id: p.richiesta.id,
     ...(p.hash ? { chiave_orario_hash: p.hash } : {}),
     ...colonne,
-    pain_points: painPointsConColonne(colonne),
+    pain_points: painPointsConColonne(colonne, p.sito.interesse),
   };
   const pieno: Payload = { ...senzaConsenso, ...campiConsenso(p.dati) };
-  const riserva: Payload = { ...base, id: p.richiesta.id, pain_points: painPointsDiRiserva(colonne) };
+  const riserva: Payload = { ...base, id: p.richiesta.id, pain_points: painPointsDiRiserva(colonne, p.sito.interesse) };
   return { pieno, senzaConsenso, riserva };
 }
 
@@ -252,6 +254,8 @@ const annunciati = new Set<string>();
 
 /** Le stesse tre righe di `BookingFunnel`: Pixel «Lead», CAPI, evento «Lead». Torna `true` se è partito ora. */
 export function annunciaLead(eventId: string, contatti: { nome: string; telefono: string }): boolean {
+  //  Anteprima dal CRM (`?anteprima=…`): il codice è nell'indirizzo e non deve arrivare a Meta. Il lead si salva, il Lead non si annuncia.
+  if (paginaInAnteprima()) return false;
   if (annunciati.has(eventId)) return false;
   const salvata = richiestaConservata();
   if (salvata?.eventId === eventId && salvata.annunciato) {
