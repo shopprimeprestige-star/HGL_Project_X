@@ -91,6 +91,7 @@ import {
 //  giovedì pomeriggio danno due risposte diverse per lo stesso pomeriggio, e
 //  quella sbagliata la scopre il cliente davanti a una porta chiusa.
 import { capienzaConsulenza, generateAvailability } from "./booking-utils";
+import { postiLiberi } from "./slot-liberi";
 import { DURATA_PREDEFINITA } from "./invito";
 //  La spunta «quest'ora solo per questa persona»: la stessa di tutto il CRM.
 import { SpuntaSoloUnaPersona, useModiFascia } from "@/crm/ModoDellaFascia";
@@ -1283,13 +1284,21 @@ interface SlotSquadra {
       del lead — quella provata — così la stessa mezz'ora si legge uguale
       ovunque la si guardi. */
   presi: number;
+  /** ⚠️ la CAPIENZA dell'ora (quanti ci stanno), non i posti rimasti: si legge
+   *  così e non si rinomina, lo usa la scelta dell'orario. */
   posti: number;
 }
 interface GiornoSquadra {
   data: string;
   etichetta: string;
   slot: SlotSquadra[];
-  /** quanti orari liberi per ciascuna fascia, nell'ordine di FASCE */
+  /** ── POSTI, NON ORARI (commessa 2026-10-14) ─────────────────────────
+   *  Quanti clienti si possono ancora fissare quel giorno: capienza meno
+   *  presi, con `postiLiberi` (la regola di Slot liberi). Prima era il numero
+   *  di orari liberi, e per lo stesso giovedì la finestra e Slot liberi
+   *  dicevano due numeri diversi a un clic di distanza. */
+  posti: number;
+  /** quanti posti liberi per ciascuna fascia, nell'ordine di FASCE */
   perFascia: number[];
   /** quante persone diverse hanno almeno un buco quel giorno */
   consulenti: number;
@@ -1382,7 +1391,14 @@ function giorniDellaSquadra(
         data,
         etichetta: etichettaGiorno(data),
         slot: utili,
-        perFascia: FASCE.map((_, i) => utili.filter((s) => dentroFascia(i, s.ora)).length),
+        posti: postiLiberi(utili.map((s) => ({ presi: s.presi, capienza: s.posti }))),
+        perFascia: FASCE.map((_, i) =>
+          postiLiberi(
+            utili
+              .filter((s) => dentroFascia(i, s.ora))
+              .map((s) => ({ presi: s.presi, capienza: s.posti })),
+          ),
+        ),
         consulenti: new Set(utili.map((s) => s.consulente.id)).size,
       });
     });
@@ -1443,15 +1459,16 @@ function GrigliaSquadra({
                 {g.consulenti === 1 ? "consulente" : "consulenti"}
               </span>
             </span>
-            {/*  Il numero è il totale della giornata: è la risposta alla
-                domanda «quel giorno c'è posto?», che è quella che si fa. */}
+            {/*  Il numero è il totale della giornata, in POSTI: è la risposta
+                alla domanda «quel giorno c'è posto?», ed è lo stesso numero di
+                Slot liberi e della striscia dei posti. */}
             <span
               className={cn(
                 "flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-[14px] font-bold tabular-nums",
                 attivo ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-800",
               )}
             >
-              {g.slot.length}
+              {g.posti}
             </span>
           </button>
         );
@@ -2122,9 +2139,9 @@ function ProceduraQuando({
               }}
             />
             <p className="text-[11px] leading-snug text-slate-500">
-              Il numero sono gli orari ancora liberi di quel giorno. Premendo il giorno li vedi
-              tutti — mattina, pomeriggio e sera insieme — e sceglierne uno decide insieme
-              consulente, giorno e ora.
+              Il numero sono i posti ancora liberi di quel giorno (clienti che puoi fissare).
+              Premendo il giorno vedi tutti gli orari — mattina, pomeriggio e sera insieme — e
+              sceglierne uno decide insieme consulente, giorno e ora.
             </p>
             {/*  Se qui dentro ci sono tutti perché nessuno è ancora segnato
                 consulente, va detto proprio accanto alla frase che spiega che

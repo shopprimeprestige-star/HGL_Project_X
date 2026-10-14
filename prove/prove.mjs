@@ -469,6 +469,12 @@ const MODULI = [
   //   questa regola sbaglia per eccesso, il carattere cambia in chiamata
   //   davanti al cliente.
   "lib/carattere",
+  //  ⚠️ La temperatura del lead (Caldo/Medio/Freddo): una regola sola per
+  //   «Oggi», Lead importati e la scheda. Vedi proveDellaTemperatura.
+  "temperatura-lead",
+  //  ⚠️ Che cosa vede in «Oggi» chi non fa consulenze (la setter in sola
+  //   lettura). Vedi proveDellaVistaDiOggi.
+  "vista-oggi",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -678,6 +684,8 @@ const ICS = mod["installazioni-csv"];
 const GR = mod["webinar/griglia"];
 const MI = mod["webinar/messaggio-invito"];
 const SP = mod["webinar/segui-parole"];
+const TEMP = mod["temperatura-lead"];
+const VISTA = mod["vista-oggi"];
 
 /** ── LA VALIDAZIONE CONTRO LO SCHEMA ──────────────────────────────────────
  *  Torna `"ok"`, oppure il motivo per cui lo SDI lo scarterebbe. Se sul
@@ -3087,6 +3095,21 @@ function proveDegliHook() {
     //   quando si pensa a «nessun file scelto».
     "src/crm/importa/PannelloCarica.tsx",
     "src/crm/kpi/DaFareScheda.tsx",
+    //  ⚠️ SLOT LIBERI E IL SUO AGGANCIO (commessa 2026-10-14): l'aggancio è
+    //   usato anche dalla striscia dei posti in «Oggi» e in Lead importati, e
+    //   un hook sotto un'uscita lì spegne tre pagine insieme.
+    "src/routes/CRM.slot-liberi.tsx",
+    "src/crm/useGiorniLiberi.ts",
+    //  La finestra che fissa: è il flusso che porta i soldi.
+    "src/crm/QuickStatusDialog.tsx",
+    //  I due pezzi riusabili: l'hook in prima riga, il `return null` dopo.
+    "src/crm/Temperatura.tsx",
+    "src/crm/StrisciaPosti.tsx",
+    //  «Oggi» (commessa 2026-10-14, compiti 9-10): la pagina più usata dai
+    //  consulenti, ora con la vista della setter fatta di sole condizioni nel
+    //  JSX. Un hook sotto un'uscita qui spegne la giornata di tutti.
+    "src/routes/CRM.index.tsx",
+    "src/crm/MeetGiornalieri.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -17445,6 +17468,1100 @@ function proveDeiQuattroEsiti() {
   c("il menu «Altro» degli esiti è di Radix (i tasti tacciono dentro)", true, /<DropdownMenuItem key=\{s\} onSelect=\{\(\) => onEsito\(s\)\}/.test(pagina));
 }
 
+/** ── OGGI CON LA TEMPERATURA E LA SETTER (commessa 2026-10-14) ──────────────
+ *  Il consulente legge dalla riga com'è messo il cliente (Caldo/Medio/Freddo);
+ *  la setter vede «Oggi» in sola lettura con i posti liberi per giorno. Le
+ *  regole sono pure e stanno qui sotto; le pagine si provano sul sorgente. */
+
+/** La temperatura: una funzione sola, così lo stesso lead ha lo stesso livello
+ *  in «Oggi», in Lead importati e nella scheda. Vedi crm/temperatura-lead. */
+function proveDellaTemperatura() {
+  const { temperaturaLead, risposteBrevi, mostraTemperatura, temperaturaDi } = TEMP;
+  const { eCaldo } = CHIAM;
+  gruppo("LA TEMPERATURA DEL LEAD (MODULO)");
+  const casi = [
+    ["caldo", { urgenza: "subito" }],
+    ["caldo", { giaFatto: "farmaci" }],
+    ["caldo", { giaFatto: "farmaci", fastidio: "perNiente" }],
+    ["medio", { fastidio: "molto" }],
+    ["medio", { fastidio: "abbastanza" }],
+    ["medio", { urgenza: "valutando" }],
+    ["medio", { fastidio: "molto", giaFatto: "niente" }],
+    ["freddo", { fastidio: "poco" }],
+    ["freddo", { giaFatto: "niente" }],
+    ["freddo", { urgenza: "informativo" }],
+    ["freddo", { fastidio: "perNiente", giaFatto: "niente" }],
+    ["nessuna", undefined],
+    ["nessuna", {}],
+    ["nessuna", { zona: "nord", quando: "mattina" }],
+    ["nessuna", { problema: "diradamento" }],
+    ["nessuna", { conoscenza: "segue" }],
+    ["nessuna", { fastidio: "boh" }],
+    ["nessuna", { urgenza: "boh" }],
+  ];
+  const PAROLA = { caldo: "Caldo", medio: "Medio", freddo: "Freddo", nessuna: "" };
+  for (const [livello, m] of casi) {
+    const t = temperaturaLead(m);
+    const nome = JSON.stringify(m ?? null);
+    c(`${nome} → ${livello}`, livello, t.livello);
+    c(`${nome}: eCaldo dice lo stesso`, eCaldo(m), t.livello === "caldo");
+    c(`${nome}: la parola`, PAROLA[livello], t.parola);
+    c(`${nome}: la fonte`, livello === "nessuna" ? null : "modulo", t.fonte);
+    if (livello === "nessuna") c(`${nome}: nessun perché`, "", t.perche);
+    else c(`${nome}: un perché scritto`, true, t.perche.length > 0);
+  }
+  c(
+    "il perché dice la risposta che ha deciso",
+    "vuole risolvere ora",
+    temperaturaLead({ urgenza: "subito", giaFatto: "farmaci" }).perche,
+  );
+
+  gruppo("LA TEMPERATURA DAL QUIZ DEL SITO (RIPIEGO)");
+  const quiz = [
+    ["caldo", { urgenza: "subito" }],
+    ["caldo", { urgenza: "si" }],
+    ["caldo", { urgenza: "convince" }],
+    ["medio", { disagio: 7 }],
+    ["medio", { disagio: "8" }],
+    ["medio", { urgenza: "1mese" }],
+    ["medio", { urgenza: "valuto" }],
+    ["medio", { urgenza: "valutando" }],
+    ["freddo", { disagio: 6 }],
+    ["freddo", { urgenza: "2_3mesi" }],
+    ["nessuna", { disagio: 0 }],
+    ["nessuna", { painPoints: ["x"] }],
+    ["nessuna", null],
+  ];
+  for (const [livello, q] of quiz) {
+    const t = temperaturaLead(undefined, q);
+    const nome = `quiz ${JSON.stringify(q)}`;
+    c(`${nome} → ${livello}`, livello, t.livello);
+    c(`${nome}: la fonte`, livello === "nessuna" ? null : "sito", t.fonte);
+  }
+  c(
+    "il perché del quiz dice da dove viene",
+    true,
+    temperaturaLead(undefined, { urgenza: "subito" }).perche.startsWith("dal quiz del sito: "),
+  );
+  const precedenza = temperaturaLead({ fastidio: "poco" }, { urgenza: "subito" });
+  c("il modulo vince sul quiz: freddo", "freddo", precedenza.livello);
+  c("…e la fonte è il modulo", "modulo", precedenza.fonte);
+  const ripiego = temperaturaLead({ zona: "nord" }, { urgenza: "subito" });
+  c("modulo muto sulla temperatura: decide il quiz", "caldo", ripiego.livello);
+  c("…e la fonte è il sito", "sito", ripiego.fonte);
+  c("eCaldo resta solo-modulo (la coda non cambia)", false, eCaldo({ zona: "nord" }));
+
+  gruppo("LE RISPOSTE BREVI SULLA RIGA");
+  const tutte = { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" };
+  c(
+    "al massimo due, urgenza poi già provato",
+    ["vuole risolvere ora", "ha provato: farmaci"],
+    risposteBrevi(tutte),
+  );
+  c("con max 3 il fastidio è terzo", "fastidio: molto", risposteBrevi(tutte, undefined, 3)[2]);
+  c("nessuna risposta: niente", [], risposteBrevi({}));
+  c("zona e orario non sono temperatura", [], risposteBrevi({ zona: "nord", quando: "mattina" }));
+  c(
+    "dal quiz: urgenza poi disagio",
+    ["entro 1 mese", "disagio 8/10"],
+    risposteBrevi(undefined, { urgenza: "1mese", disagio: 8 }),
+  );
+  c(
+    "se parla il modulo, il quiz tace",
+    ["fastidio: poco"],
+    risposteBrevi({ fastidio: "poco" }, { urgenza: "subito" }),
+  );
+  c("mai provato nulla", ["mai provato nulla"], risposteBrevi({ giaFatto: "niente" }));
+  c(
+    "valuta sul serio, poi il fastidio",
+    ["valuta sul serio", "fastidio: per niente"],
+    risposteBrevi({ urgenza: "valutando", fastidio: "perNiente" }),
+  );
+  c("si sta informando", ["si sta informando"], risposteBrevi({ urgenza: "informativo" }));
+
+  gruppo("QUANDO SI MOSTRA LA TEMPERATURA");
+  for (const s of TY.STATI_VINTI)
+    c(`venduto («${s}»): niente pallino`, false, mostraTemperatura(s));
+  c("appuntamento fissato: sì", true, mostraTemperatura("appuntamento_fissato"));
+  c("senza stato: sì", true, mostraTemperatura(undefined));
+
+  gruppo("TEMPERATURA DAI DATI DELLA SCHEDA");
+  c("dal modulo salvato", "caldo", temperaturaDi({ modulo: { urgenza: "subito" } }).t.livello);
+  c("dal quiz del sito", "medio", temperaturaDi({ qualifica: { disagio: 8 } }).t.livello);
+  c(
+    "le brevi vengono insieme",
+    ["vuole risolvere ora"],
+    temperaturaDi({ modulo: { urgenza: "subito" } }).brevi,
+  );
+  c("scheda vuota: nessuna", "nessuna", temperaturaDi(null).t.livello);
+  c(
+    "con max 3 le brevi sono tre",
+    3,
+    temperaturaDi({ modulo: { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" } }, 3)
+      .brevi.length,
+  );
+  const sorgente = readFileSync(join(radice, "src/crm/temperatura-lead.ts"), "utf8");
+  c(
+    "temperatura-lead non importa chi-chiamare (niente giro di import)",
+    false,
+    /chi-chiamare/.test(sorgente.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "")),
+  );
+  const chiama = readFileSync(join(radice, "src/crm/importa/chi-chiamare.ts"), "utf8");
+  c(
+    "eCaldo delega a temperaturaLead",
+    true,
+    /return temperaturaLead\(m\)\.livello === "caldo";/.test(chiama),
+  );
+}
+
+/** Chi fa consulenze lo dice `faConsulenze` (una domanda sola, la stessa della
+ *  porta d'ingresso); che cosa si vede in «Oggi» lo dice `vistaOggi`. Vedi
+ *  crm/vista-oggi. */
+function proveDellaVistaDiOggi() {
+  const { faConsulenze, PERMESSI_RUOLO, permessiDeiMestieri } = PRM;
+  const { vistaOggi } = VISTA;
+  const con = (elenco) => (p) => elenco.includes(p);
+  const setter = con(PERMESSI_RUOLO.setter);
+  const consulente = con(PERMESSI_RUOLO.consulente);
+  const admin = con(PERMESSI_RUOLO.admin);
+  const tuttiEDue = con(permessiDeiMestieri({ faSetter: true, faConsulente: true }));
+  const installatore = con(permessiDeiMestieri({ faInstallatore: true }));
+  gruppo("CHI FA CONSULENZE");
+  c("la setter no", false, faConsulenze(setter));
+  c("il consulente sì", true, faConsulenze(consulente));
+  c("l'admin sì", true, faConsulenze(admin));
+  c("chi fa setter e consulente sì", true, faConsulenze(tuttiEDue));
+  c(
+    "chi non ha niente no",
+    false,
+    faConsulenze(() => false),
+  );
+  const permessi = readFileSync(join(radice, "src/crm/permessi.ts"), "utf8");
+  c(
+    "la porta d'ingresso legge faConsulenze",
+    true,
+    /if \(faConsulenze\(puo\)\) return "\/CRM"/.test(permessi),
+  );
+
+  gruppo("CHE COSA SI VEDE IN «OGGI»");
+  const vs = vistaOggi(setter);
+  for (const k of [
+    "andamento",
+    "gesti",
+    "recuperare",
+    "ricontatti",
+    "installazioni",
+    "sede",
+    "contatori",
+    "adesso",
+  ])
+    c(`la setter non vede «${k}»`, false, vs[k]);
+  c("la setter vede la striscia dei posti", true, vs.striscia);
+  c("la setter vede «fissato da te»", true, vs.fissatiDaMe);
+  const vc = vistaOggi(consulente);
+  c("consulente e admin vedono lo stesso «Oggi»", true, uguali(vc, vistaOggi(admin)));
+  c("e così chi fa setter e consulente", true, uguali(vc, vistaOggi(tuttiEDue)));
+  c("il consulente ha i gesti", true, vc.gesti);
+  c(
+    "il consulente vede tutte le sezioni di prima",
+    true,
+    ["adesso", "contatori", "recuperare", "ricontatti", "sede", "installazioni", "andamento"].every(
+      (k) => vc[k] === true,
+    ),
+  );
+  c("al consulente niente striscia («Oggi» resta com'è)", false, vc.striscia);
+  c("al consulente niente «fissato da te»", false, vc.fissatiDaMe);
+  c(
+    "senza agenda niente striscia (i numeri sarebbero gonfiati)",
+    false,
+    vistaOggi(() => false).striscia,
+  );
+  //  Correzione 1 del revisore: i mestieri di campo vedevano le Installazioni
+  //  e nessuno ha deciso di togliergliele.
+  c("l'installatore vede ancora le installazioni", true, vistaOggi(installatore).installazioni);
+  c("l'installatore non ha i gesti della consulenza", false, vistaOggi(installatore).gesti);
+  c("la setter semplice non ha le installazioni", false, vs.installazioni);
+  const sorgente = readFileSync(join(radice, "src/crm/vista-oggi.ts"), "utf8");
+  c("vista-oggi non importa React", false, /from "react"/.test(sorgente));
+}
+
+/** Posti, non orari: la striscia, la finestra «Dove c'è posto» e Slot liberi
+ *  devono dire lo stesso numero per lo stesso giorno. Vedi crm/slot-liberi. */
+function proveDellaStriscia() {
+  const { riassumiGiorno, totali, postiLiberi, strisciaPosti } = SLOT;
+  gruppo("POSTI LIBERI, NON ORARI");
+  c(
+    "capienza meno presi, sommati",
+    5,
+    postiLiberi([
+      { presi: 1, capienza: 3 },
+      { presi: 0, capienza: 3 },
+      { presi: 1, capienza: 1 },
+    ]),
+  );
+  c("nessun orario: zero", 0, postiLiberi([]));
+  c("senza numeri non inventa posti", 0, postiLiberi([{}]));
+  const s = (ora, libero, presi, capienza = 3) => ({ ora, libero, presi, capienza });
+  const liberi = [s("09:00", true, 0), s("10:00", true, 2), s("11:00", true, 0, 1)];
+  c(
+    "stessa regola di Slot liberi (riassumiGiorno)",
+    riassumiGiorno({ data: "2026-10-14", persone: [{ id: "a", nome: "Anna", slot: liberi }] })
+      .posti,
+    postiLiberi(liberi),
+  );
+
+  gruppo("LA STRISCIA DEI POSTI LIBERI");
+  //  Gli stessi giorni di proveDegliSlotLiberi: uno con posto, uno pieno, uno chiuso.
+  const g = riassumiGiorno({
+    data: "2026-10-14",
+    persone: [
+      {
+        id: "a",
+        nome: "Anna",
+        slot: [s("09:00", true, 0), s("10:00", false, 3), s("11:00", true, 1)],
+      },
+      {
+        id: "b",
+        nome: "Bruno",
+        slot: [s("09:00", true, 0), s("10:00", false, 1, 1), s("15:00", true, 0)],
+      },
+    ],
+  });
+  const pieno = riassumiGiorno({
+    data: "2026-10-15",
+    persone: [{ id: "a", nome: "Anna", slot: [s("09:00", false, 3)] }],
+  });
+  const chiuso = riassumiGiorno({
+    data: "2026-10-18",
+    persone: [{ id: "a", nome: "Anna", slot: [] }],
+  });
+  const st = strisciaPosti([g, pieno, chiuso]);
+  c("il giorno di chiusura non compare", 2, st.length);
+  c(
+    "il giorno con posto: 11, non pieno",
+    { posti: 11, pieno: false },
+    { posti: st[0].posti, pieno: st[0].pieno },
+  );
+  c(
+    "con le fasce ma zero posti: pieno",
+    { posti: 0, pieno: true },
+    { posti: st[1].posti, pieno: st[1].pieno },
+  );
+  c("la data resta quella del giorno", "2026-10-15", st[1].data);
+  //  Nove giorni lavorativi di fila (dal 14 al 22 ottobre), ognuno con posto.
+  const nove = Array.from({ length: 9 }, (_, i) =>
+    riassumiGiorno({
+      data: `2026-10-${String(14 + i).padStart(2, "0")}`,
+      persone: [{ id: "a", nome: "Anna", slot: [s("09:00", true, i % 3)] }],
+    }),
+  );
+  c("con max 7 ne escono 7", 7, strisciaPosti(nove, { max: 7 }).length);
+  c("senza max pure 7", 7, strisciaPosti(nove).length);
+  c(
+    "con i chiusi in mezzo si contano solo i lavorativi",
+    7,
+    strisciaPosti([chiuso, ...nove]).length,
+  );
+  const tenuti = nove.slice(0, 7);
+  c(
+    "la somma della striscia = totali di Slot liberi sugli stessi giorni",
+    totali(tenuti).posti,
+    strisciaPosti(nove).reduce((t, x) => t + x.posti, 0),
+  );
+  const et = (data) =>
+    strisciaPosti(
+      [riassumiGiorno({ data, persone: [{ id: "a", nome: "Anna", slot: [s("09:00", true, 0)] }] })],
+      { oggi: "2026-10-14" },
+    )[0].etichetta;
+  c("oggi si chiama «Oggi»", "Oggi", et("2026-10-14"));
+  c("giovedì 15", "Gio 15", et("2026-10-15"));
+  c("lunedì 19", "Lun 19", et("2026-10-19"));
+  c("domenica 1 novembre", "Dom 1", et("2026-11-01"));
+}
+
+/** Le pagine si provano sul sorgente: le regole vere sono provate sopra, qui
+ *  si controlla che le pagine le usino davvero. */
+function proveDelleFontiDiOggi() {
+  const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
+  gruppo("LE FONTI DI «OGGI» E DELLA SETTER");
+  const slot = leggi("src/routes/CRM.slot-liberi.tsx");
+  const aggancio = leggi("src/crm/useGiorniLiberi.ts");
+  c(
+    "Slot liberi usa l'aggancio useGiorniLiberi",
+    true,
+    /import \{[^}]*\buseGiorniLiberi\b[^}]*\} from "@\/crm\/useGiorniLiberi"/.test(slot),
+  );
+  c("Slot liberi non calcola più i giorni da sé", false, slot.includes("slotDelGiorno("));
+  //  Correzione 2 del revisore: si cerca la chiamata, non la parola (il
+  //  cartello di testa della pagina la nomina, ed è un commento utile).
+  c(
+    "Slot liberi non legge più le ore tenute da sé",
+    false,
+    slot.includes('fetch("/api/crm/fascia-modo'),
+  );
+  c(
+    "l'aggancio riassume i giorni con le regole di Slot liberi",
+    true,
+    aggancio.includes("riassumiGiorno("),
+  );
+  c(
+    "l'aggancio legge le ore tenute per una persona sola",
+    true,
+    aggancio.includes('"/api/crm/fascia-modo?tutte=1"'),
+  );
+
+  const finestra = leggi("src/crm/QuickStatusDialog.tsx");
+  c("«Dove c'è posto»: il numero grande è in posti", true, finestra.includes("{g.posti}"));
+  c("«Dove c'è posto»: non più gli orari", false, finestra.includes("{g.slot.length}"));
+  c(
+    "«Dove c'è posto» conta con postiLiberi (capienza dello slot)",
+    true,
+    finestra.includes("postiLiberi(utili.map((s) => ({ presi: s.presi, capienza: s.posti })))"),
+  );
+  c(
+    "anche le mezze giornate in posti",
+    true,
+    /perFascia: FASCE\.map\(\(_, i\) =>\s*postiLiberi\(/.test(finestra),
+  );
+  c(
+    "la frase sotto la griglia parla di posti",
+    true,
+    finestra.includes("Il numero sono i posti ancora liberi di quel giorno"),
+  );
+
+  const striscia = leggi("src/crm/StrisciaPosti.tsx");
+  c(
+    "la striscia usa strisciaPosti",
+    true,
+    /import \{[^}]*\bstrisciaPosti\b[^}]*\} from "@\/crm\/slot-liberi"/.test(striscia),
+  );
+  c(
+    "la striscia usa l'aggancio di Slot liberi",
+    true,
+    /import \{[^}]*\buseGiorniLiberi\b[^}]*\} from "@\/crm\/useGiorniLiberi"/.test(striscia),
+  );
+  c("ogni tocco porta a Slot liberi", true, striscia.includes('"/CRM/slot-liberi"'));
+  const pallino = leggi("src/crm/Temperatura.tsx");
+  c(
+    "la riga calcola la temperatura una volta (useMemo)",
+    true,
+    /useMemo\(\s*\(\)\s*=>\s*temperaturaDi\(/.test(pallino),
+  );
+}
+
+/** I due pezzi disegnati davvero, con dati finti: la striscia dice gli stessi
+ *  numeri di Slot liberi (annotati sopra), il pallino dice la parola. */
+async function proveDeiDuePezzi() {
+  gruppo("LA STRISCIA E IL PALLINO, DISEGNATI");
+  const disegna = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { StrisciaPosti } from "@/crm/StrisciaPosti";
+import { TemperaturaRiga, PallinoTemperatura } from "@/crm/Temperatura";
+import { temperaturaLead } from "@/crm/temperatura-lead";
+export const disegna = (cosa, dati, o = {}) =>
+  renderToStaticMarkup(
+    cosa === "striscia" ? createElement(StrisciaPosti)
+    : cosa === "pallino" ? createElement(PallinoTemperatura, { t: temperaturaLead(dati), ...o })
+    : createElement(TemperaturaRiga, { dati, ...o }),
+  );`,
+    "due-pezzi",
+  );
+  const { dati, oreTenute } = squadraFinta();
+  const iniziali = new Map([["{}", oreTenute]]);
+  const html = disegna(dati, iniziali, "striscia");
+  const testo = html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+  const giorni = [...html.matchAll(/<a href="\/CRM\/slot-liberi"[^>]*>(.*?)<\/a>/g)].map((m) =>
+    m[1]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+  //  Gli stessi giorni di «Slot liberi 14 tutti» annotati in proveDeiNumeriDiSlotLiberi.
+  c(
+    "sette giorni lavorativi, gli stessi numeri di Slot liberi",
+    [
+      "Oggi 22",
+      "Gio 15 30",
+      "Ven 16 24",
+      "Sab 17 pieno",
+      "Lun 19 36",
+      "Mar 20 35",
+      "Mer 21 33",
+      "Tutti gli orari",
+    ],
+    giorni,
+  );
+  c("si presenta con «Posti liberi»", true, testo.startsWith("|Posti liberi|"));
+  c(
+    "«pieno» è scritto in rosso, con la parola",
+    true,
+    /class="[^"]*text-rose-600[^"]*">pieno</.test(html),
+  );
+  c(
+    "ogni giorno dice al lettore di schermo che cosa conta",
+    true,
+    html.includes('aria-label="Gio 15: 30 posti liberi"'),
+  );
+  c(
+    "senza squadra la striscia non si disegna",
+    "",
+    disegna({ leads: [], consultants: [] }, iniziali, "striscia"),
+  );
+
+  const riga = (d, o) =>
+    disegna(null, null, "riga", d, o)
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  c(
+    "riga calda: pallino, parola e due risposte",
+    "Caldo · vuole risolvere ora · ha provato: farmaci",
+    riga({ modulo: { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" } }),
+  );
+  c("riga senza risposte: niente", "", riga({ modulo: { zona: "nord" } }));
+  c(
+    "il testo intero sta nel title: sul monitor la riga si accorcia",
+    true,
+    disegna(null, null, "riga", { modulo: { urgenza: "subito", giaFatto: "farmaci" } }).includes(
+      'title="Caldo · vuole risolvere ora · ha provato: farmaci"',
+    ),
+  );
+  c("riga dal quiz del sito", "Medio · disagio 8/10", riga({ qualifica: { disagio: 8 } }));
+  const solo = disegna(null, null, "riga", { modulo: { fastidio: "poco" } }, { soloPallino: true });
+  c(
+    "solo pallino: la parola resta per il lettore di schermo",
+    true,
+    /class="sr-only">Freddo</.test(solo),
+  );
+  c("solo pallino: e nel suggerimento", true, /title="Freddo/.test(solo));
+  c("solo pallino: nessuna parola visibile oltre a quella", "Freddo", solo.replace(/<[^>]+>/g, ""));
+  c(
+    "il pallino è decorativo (aria-hidden)",
+    true,
+    /aria-hidden="true"/.test(disegna(null, null, "pallino", { urgenza: "subito" })),
+  );
+  c("nessuna temperatura: nessun pallino", "", disegna(null, null, "pallino", {}));
+}
+
+
+/** ── COMPITI 7-10: DOVE SI VEDONO IL PALLINO E LA STRISCIA ─────────────────
+ *  Lead importati, la scheda del lead, «Oggi» del consulente e «Oggi» in sola
+ *  lettura. Le regole sono già provate sopra (temperatura, vistaOggi,
+ *  strisciaPosti): qui si controlla che le pagine le usino, leggendo i
+ *  sorgenti e disegnando i pezzi con dati finti (nomi inventati). */
+async function proveDeiPostiDelPallino() {
+  const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
+  gruppo("LEAD IMPORTATI: IL PALLINO AL POSTO DI «CALDO», E LA STRISCIA");
+  const rigaChiamata = leggi("src/crm/importa/RigaChiamata.tsx");
+  const importa = leggi("src/routes/CRM.importa.tsx");
+  c("la targhetta disegna il pallino", true, rigaChiamata.includes("<PallinoTemperatura"));
+  c(
+    "l'elenco «Poi» passa la temperatura, col modulo già in cache",
+    true,
+    importa.includes("temperaturaLead(moduloDi(l.data)"),
+  );
+  c(
+    "anche la scheda grande passa la temperatura alla targhetta",
+    true,
+    importa.includes("temperatura={temperaturaLead(modulo, d.qualifica)}"),
+  );
+  c("la striscia solo a chi ha agenda", true, importa.includes('puo("agenda") && <StrisciaPosti'));
+  c(
+    "la coda non cambia: eCaldo resta solo-modulo",
+    true,
+    /return temperaturaLead\(m\)\.livello === "caldo";/.test(leggi("src/crm/importa/chi-chiamare.ts")),
+  );
+
+  const targhetta = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Targhetta } from "@/crm/importa/RigaChiamata";
+import { temperaturaLead } from "@/crm/temperatura-lead";
+export const disegna = (caldo, m, q, senza) =>
+  renderToStaticMarkup(
+    createElement(Targhetta, {
+      motivo: { motivo: "prima", testo: "mai chiamato", caldo },
+      ...(senza ? {} : { temperatura: temperaturaLead(m, q) }),
+    }),
+  );`,
+    "targhetta",
+  );
+  const testoDi = (html) =>
+    html
+      .replace(/<[^>]+>/g, "|")
+      .replace(/\|+/g, "|")
+      .replace(/^\||\|$/g, "");
+  const caldo = targhetta(null, null, true, { giaFatto: "farmaci" });
+  c("caldo: pallino e parola, non più «caldo» minuscolo", "PRIMA CHIAMATA|mai chiamato|Caldo", testoDi(caldo));
+  c(
+    "medio: il pallino si vede anche per gli altri livelli",
+    "PRIMA CHIAMATA|mai chiamato|Medio",
+    testoDi(targhetta(null, null, false, { fastidio: "molto" })),
+  );
+  //  Decisione del capo progetto (14/10, nota del revisore): nel CRM l'ambra
+  //  vuol dire «in sospeso» (e il Chip di stato ha già un pallino ambra), quindi
+  //  Medio è un arancio chiaro con la parola in grigio scuro.
+  const medio = targhetta(null, null, false, { fastidio: "molto" });
+  c("medio: pallino arancio chiaro, non ambra", true, /class="[^"]*bg-orange-300/.test(medio));
+  c(
+    "medio: la parola in grigio scuro",
+    true,
+    /class="font-medium text-slate-700[^"]*"><span aria-hidden/.test(medio),
+  );
+  c("medio: nessuna ambra nel pallino", false, /amber/.test(medio));
+  c(
+    "DESIGN.md dice che Medio non è ambra",
+    true,
+    /Temperatura del lead[^\n]*Medio[^\n]*orange-300/.test(leggi("DESIGN.md")),
+  );
+  c(
+    "freddo: idem",
+    "PRIMA CHIAMATA|mai chiamato|Freddo",
+    testoDi(targhetta(null, null, false, { giaFatto: "niente" })),
+  );
+  c(
+    "dal quiz del sito: lo stesso pallino",
+    "PRIMA CHIAMATA|mai chiamato|Medio",
+    testoDi(targhetta(null, null, false, undefined, { disagio: 8 })),
+  );
+  c(
+    "nessuna risposta: niente in più",
+    "PRIMA CHIAMATA|mai chiamato",
+    testoDi(targhetta(null, null, false, { zona: "nord" })),
+  );
+  c(
+    "senza temperatura la targhetta resta com'era (nessun chiamante rotto)",
+    "PRIMA CHIAMATA|mai chiamato|caldo",
+    testoDi(targhetta(null, null, true, undefined, undefined, true)),
+  );
+
+  gruppo("SCHEDA DEL LEAD: LA TEMPERATURA NEL BLOCCO DEL MODULO");
+  const scheda = leggi("src/crm/LeadDialog.tsx");
+  const inizio = scheda.indexOf("function BloccoModulo");
+  const dopo = scheda.indexOf("\nfunction ", inizio + 1);
+  const blocco = inizio < 0 ? "" : scheda.slice(inizio, dopo < 0 ? undefined : dopo);
+  c("il blocco calcola la temperatura con la regola unica", true, blocco.includes("temperaturaLead("));
+  c("legge anche il quiz del sito", true, /temperaturaLead\([^;]*,\s*form\.qualifica\s*\)/.test(blocco));
+  c("disegna il pallino", true, blocco.includes("<PallinoTemperatura"));
+  c("e il perché, in una frase", true, blocco.includes("t.perche"));
+  //  Correzione 3 del revisore, decisa dal capo progetto: la riga resta (SPEC §2).
+  c("senza risposte dice «Nessuna risposta al modulo»", true, blocco.includes("Nessuna risposta al modulo"));
+  c("un lead con solo il quiz ha il suo titolo", true, blocco.includes("Quello che ha detto nel quiz del sito"));
+  c(
+    "il blocco non si nasconde più quando non c'è niente (la riga deve leggersi)",
+    false,
+    /if \(!voci\.length && !origine\.voci\.length && !originali\.length\) return null;/.test(blocco),
+  );
+  c("nessun hook nel blocco (solo funzioni pure)", false, /\buse[A-Z]\w*\(/.test(blocco));
+
+  gruppo("«OGGI» DEL CONSULENTE: LA TEMPERATURA SULLE RIGHE");
+  const indice = leggi("src/routes/CRM.index.tsx");
+  const giornata = leggi("src/crm/MeetGiornalieri.tsx");
+  c(
+    "le due righe delle installazioni senza temperatura",
+    2,
+    indice.split("temperatura={false}").length - 1,
+  );
+  c(
+    "ADESSO, POI e la riga disegnano la temperatura",
+    true,
+    giornata.split("<TemperaturaRiga").length - 1 >= 3,
+  );
+  c("niente temperatura sui lead già venduti", true, giornata.includes("mostraTemperatura("));
+
+  const oggi = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { RigaLead, SchedaAdesso } from "@/crm/MeetGiornalieri";
+export const disegna = (cosa, props) =>
+  renderToStaticMarkup(
+    createElement(cosa === "adesso" ? SchedaAdesso : RigaLead, { onApri() {}, ...props }),
+  );`,
+    "righe-di-oggi",
+  );
+  //  Nomi inventati, numeri finti.
+  const finto = (id, extra = {}) => ({
+    id,
+    data: {
+      nome: "Cliente",
+      cognome: `Finto ${id}`,
+      telefono: "+39 000 0000000",
+      citta: "Città Finta",
+      stato: "appuntamento_fissato",
+      dataMeeting: "2026-10-14",
+      oraMeeting: "15:30",
+      ...extra,
+    },
+  });
+  const archivio = { leads: [], consultants: [], updateLead: async () => {} };
+  const testoRiga = (html) =>
+    html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const caldoRiga = oggi(archivio, null, "riga", {
+    lead: finto("a", { modulo: { urgenza: "subito", fastidio: "molto" } }),
+    nomeConsulente: () => "Marco Prova",
+  });
+  c(
+    "riga: pallino, parola e due risposte in testa alla riga piccola",
+    true,
+    testoRiga(caldoRiga).includes("Caldo · vuole risolvere ora · fastidio: molto Marco Prova Città Finta"),
+  );
+  c(
+    "riga senza risposte: niente in più",
+    false,
+    /Caldo|Medio|Freddo/.test(testoRiga(oggi(archivio, null, "riga", { lead: finto("b") }))),
+  );
+  c(
+    "riga di un lead già venduto: niente temperatura",
+    false,
+    /Caldo/.test(
+      testoRiga(
+        oggi(archivio, null, "riga", {
+          lead: finto("c", { stato: TY.STATI_VINTI[0], modulo: { urgenza: "subito" } }),
+        }),
+      ),
+    ),
+  );
+  c(
+    "riga con temperatura spenta (installazioni): niente",
+    false,
+    /Caldo/.test(
+      testoRiga(
+        oggi(archivio, null, "riga", {
+          lead: finto("d", { modulo: { urgenza: "subito" } }),
+          temperatura: false,
+        }),
+      ),
+    ),
+  );
+  const adesso = oggi(archivio, null, "adesso", {
+    lead: finto("e", { modulo: { fastidio: "abbastanza" } }),
+    prossimi: [finto("f", { oraMeeting: "16:30", modulo: { giaFatto: "niente" } }), finto("g", { oraMeeting: "17:30" })],
+  });
+  c("ADESSO: pallino, parola e risposte", true, testoRiga(adesso).includes("Medio · fastidio: abbastanza"));
+  c(
+    "POI: solo il pallino, la parola per il lettore di schermo",
+    true,
+    /<span class="sr-only">Freddo<\/span><\/span>\s*16:30|title="Freddo[^"]*"><span aria-hidden="true"[^>]*><\/span><span class="sr-only">Freddo<\/span>/.test(adesso),
+  );
+  c("POI senza risposte: niente pallino", 1, adesso.split('class="sr-only"').length - 1);
+
+  gruppo("«OGGI» IN SOLA LETTURA PER CHI NON FA CONSULENZE");
+  c("la pagina chiede a vistaOggi che cosa si vede", true, indice.includes("vistaOggi(puo)"));
+  c("la giornata in sola lettura senza gesti", true, indice.includes("solaLettura={!vista.gesti}"));
+  c(
+    "lo stato si cambia dalla giornata solo con i gesti",
+    true,
+    indice.includes("onStato={vista.gesti ? cambiaStato : undefined}"),
+  );
+  c(
+    "«fissato da te» con l'id di chi è collegato",
+    true,
+    indice.includes("fissatiDa={vista.fissatiDaMe ? io : undefined}"),
+  );
+  for (const [voce, cosa] of [
+    ["andamento", "Andamento e salute dei conti"],
+    ["striscia", "la striscia dei posti"],
+    ["adesso", "il riquadro ADESSO"],
+    ["contatori", "i cinque contatori"],
+    ["recuperare", "Da recuperare"],
+    ["ricontatti", "Da ricontattare oggi"],
+    ["sede", "In sede"],
+    ["installazioni", "le installazioni"],
+  ])
+    c(`${cosa}: si decide con vista.${voce}`, true, indice.includes(`vista.${voce} &&`));
+  c("la striscia al posto di ADESSO", true, /vista\.striscia && \(?\s*<StrisciaPosti/.test(indice));
+  c(
+    "nessuna uscita anticipata per la vista (solo condizioni nel JSX)",
+    false,
+    /^\s{2}if \([^)]*vista[^)]*\)\s*return/m.test(indice),
+  );
+  c(
+    "l'id di chi è collegato e i permessi si chiedono in cima",
+    true,
+    /const puo = usePuo\(\);[\s\S]{0,400}const io = useConsulenteCollegato\(\)\?\.id;/.test(indice),
+  );
+  //  Decisione del capo progetto (14/10): l'installatore continua a cambiare lo
+  //  stato delle sue installazioni. Quelle righe seguono vista.installazioni,
+  //  non vista.gesti.
+  const daInst = indice.indexOf("{/* ── INSTALLAZIONI");
+  const aInst = indice.indexOf("{/* ── 6. ANDAMENTO");
+  const inst = daInst < 0 || aInst < 0 ? "" : indice.slice(daInst, aInst);
+  c("le installazioni stanno sotto vista.installazioni", true, inst.includes("vista.installazioni &&"));
+  c("le righe delle installazioni cambiano lo stato", 2, inst.split("onStato={cambiaStato}").length - 1);
+  c("e non dipendono da vista.gesti", false, inst.includes("vista.gesti"));
+  c("MeetGiornalieri riconosce le consulenze fissate da chi guarda", true, giornata.includes("fissataDa("));
+  c("MeetGiornalieri ha la sola lettura", true, giornata.includes("solaLettura"));
+
+  //  La riga in sola lettura, disegnata: anche con `onStato` passato per
+  //  sbaglio, restano solo nome, Chiama e WhatsApp.
+  const sola = oggi(archivio, null, "riga", {
+    lead: finto("h", {
+      modulo: { urgenza: "subito" },
+      fissatoDa: "setter-prova",
+      linkMeeting: "https://esempio.invalid/stanza",
+    }),
+    onStato() {},
+    onEvidenzia() {},
+    nomeConsulente: () => "Marco Prova",
+    solaLettura: true,
+    fissatiDa: "setter-prova",
+  });
+  const tutta = oggi(archivio, null, "riga", {
+    lead: finto("h", { modulo: { urgenza: "subito" }, fissatoDa: "setter-prova" }),
+    onStato() {},
+    onEvidenzia() {},
+    nomeConsulente: () => "Marco Prova",
+  });
+  //  I due controlli sulla riga normale dicono che la prova sa vedere quello
+  //  che poi cerca di NON trovare in sola lettura.
+  c("riga normale: Avvia c'è (controllo della prova)", true, testoRiga(tutta).includes("Avvia"));
+  c("riga normale: gli esiti ci sono (controllo della prova)", true, tutta.includes('title="Cliente assente"'));
+  c("sola lettura: niente Avvia", false, /Avvia/.test(sola));
+  c("sola lettura: niente esiti", false, sola.includes('title="Cliente assente"'));
+  c("sola lettura: niente stella", false, sola.includes("Segna come da seguire"));
+  c("sola lettura: niente note dopo la consulenza", false, /Note dopo la consulenza|Note<\/span>/.test(sola));
+  c("sola lettura: niente promemoria né invii", false, /Manda il promemoria|Pagina dell&#x27;appuntamento|Altri invii|Manda il link/.test(sola));
+  c("sola lettura: restano Chiama e WhatsApp", true, sola.includes('aria-label="Chiama"') && /WhatsApp/.test(sola));
+  c(
+    "sola lettura: lo stato è un'etichetta, non un pulsante",
+    1,
+    (sola.match(/<button/g) ?? []).length,
+  );
+  c("sola lettura: la temperatura resta", true, testoRiga(sola).includes("Caldo · vuole risolvere ora"));
+  c("«fissato da te» sulle sue", true, testoRiga(sola).endsWith("fissato da te") || testoRiga(sola).includes("fissato da te"));
+  c(
+    "«fissato da te» non sulle altre",
+    false,
+    testoRiga(
+      oggi(archivio, null, "riga", {
+        lead: finto("i", { fissatoDa: "un-collega" }),
+        solaLettura: true,
+        fissatiDa: "setter-prova",
+      }),
+    ).includes("fissato da te"),
+  );
+  c(
+    "«fissato da te» non compare a chi non lo chiede (consulenti)",
+    false,
+    testoRiga(tutta).includes("fissato da te"),
+  );
+}
+
+/** La finestra «Dove c'è posto» e Slot liberi, sugli stessi dati finti, dicono
+ *  lo stesso numero per ogni giorno (lead nuovo, durata di serie, tutta la
+ *  squadra: il caso della setter). Si usano i due motori veri — gli orari della
+ *  finestra da `generateAvailability`, quelli di Slot liberi da `slotDelGiorno`
+ *  — e la stessa lettura che fa `giorniDellaSquadra`. */
+function proveDellaFinestraInPosti() {
+  const { generateAvailability, slotDelGiorno } = BKG;
+  const { riassumiGiorno, postiLiberi } = SLOT;
+  gruppo("«DOVE C'È POSTO» E SLOT LIBERI: STESSO NUMERO");
+  const { dati, oreTenute } = squadraFinta();
+  const squadra = dati.consultants.filter((x) => x.data.faConsulente && x.data.attivo !== false);
+  //  La finestra: per ogni consulente gli orari liberi del giorno, con presi e capienza.
+  const finestra = new Map();
+  for (const cons of squadra)
+    for (const g of generateAvailability(
+      cons,
+      60,
+      dati.leads,
+      8,
+      "2026-10-15",
+      undefined,
+      undefined,
+      oreTenute,
+    )) {
+      const statoDi = new Map((g.ore ?? []).map((x) => [x.ora, x]));
+      const riga = finestra.get(g.date) ?? [];
+      for (const o of g.slots)
+        riga.push({ presi: statoDi.get(o)?.presi ?? 0, capienza: statoDi.get(o)?.capienza ?? 0 });
+      finestra.set(g.date, riga);
+    }
+  for (const data of [
+    "2026-10-15",
+    "2026-10-16",
+    "2026-10-17",
+    "2026-10-19",
+    "2026-10-20",
+    "2026-10-21",
+    "2026-10-22",
+  ]) {
+    const modi = new Map(
+      Object.entries(oreTenute)
+        .filter(([k]) => k.startsWith(data))
+        .map(([k, v]) => [k.slice(11), v]),
+    );
+    const slot = riassumiGiorno({
+      data,
+      persone: squadra.map((x) => ({
+        id: x.id,
+        nome: x.data.nome,
+        slot: slotDelGiorno(x, data, 60, dati.leads, undefined, undefined, modi),
+      })),
+    });
+    c(
+      `${data}: finestra = Slot liberi (${slot.posti})`,
+      slot.posti,
+      postiLiberi(finestra.get(data) ?? []),
+    );
+  }
+}
+
+/** ── UNA PAGINA VERA, DISEGNATA CON DATI FINTI ─────────────────────────────
+ *  Per le prove che devono guardare i NUMERI di una pagina e non il suo
+ *  sorgente: si impacchetta il componente vero con esbuild, sostituendo solo
+ *  quello che parla col mondo (l'archivio di useCRM, le intestazioni, il
+ *  router, i toast) con finti che leggono `globalThis.__slotFinti`, e lo si
+ *  disegna con react-dom/server a un'ora fissa (mercoledì 14/10/2026, 11:00).
+ *  ⚠️ IL DISEGNO SUL SERVER NON ESEGUE GLI EFFETTI: le ore tenute per una
+ *   persona sola e il periodo scelto entrano dal valore di partenza degli
+ *   useState (`globalThis.__iniziali`: 7 → periodo, "tutti" → chi, {} → ore
+ *   tenute). È un trucco della prova, la pagina non ne sa niente. */
+let finti = null;
+async function disegnatore(sorgente, nome) {
+  const esbuild = chiedi("esbuild");
+  if (!finti) {
+    finti = join(dove, "finti-pagine");
+    mkdirSync(finti, { recursive: true });
+    const reactVero = JSON.stringify(chiedi.resolve("react", { paths: [radice] }));
+    const F = {
+      "crm.js": "export const useCRM = () => globalThis.__slotFinti;",
+      //  Le righe di «Oggi» (commessa 2026-10-14, compiti 9-10) chiedono anche
+      //  chi è collegato e che cosa può fare: rispondono i valori dati alla prova.
+      "auth.js": `export const intestazioniCRM = async () => ({});
+export const fetchCRM = async () => ({ ok: false, status: 0, json: async () => ({}) });
+export const useAuth = () => globalThis.__slotFinti?.auth ?? {};
+export const usePuo = () => globalThis.__slotFinti?.puo ?? (() => true);
+export const useConsulenteCollegato = () => globalThis.__slotFinti?.io ?? null;`,
+      "router.js": `import { createElement } from "react";
+export const createFileRoute = () => (o) => ({ options: o });
+export const Link = ({ to, children, ...resto }) => createElement("a", { href: to, ...resto }, children);
+export const useNavigate = () => () => {};
+export const useRouter = () => ({ navigate() {}, state: { location: { pathname: "/CRM" } } });
+export const useLocation = () => ({ pathname: "/CRM", search: {} });
+export const useRouterState = (o) => (o?.select ? o.select({ location: { pathname: "/CRM", search: {} } }) : {});`,
+      "sonner.js": "export const toast = { success() {}, error() {} };",
+      "react.js": `import * as R from ${reactVero};
+export * from ${reactVero};
+export default R;
+export function useState(i) {
+  const s = globalThis.__iniziali;
+  const vuoto = !!i && typeof i === "object" && !Array.isArray(i) && Object.keys(i).length === 0;
+  const k = vuoto ? "{}" : i;
+  return R.useState(s && typeof i !== "function" && s.has(k) ? s.get(k) : i);
+}`,
+    };
+    for (const [n, t] of Object.entries(F)) writeFileSync(join(finti, n), t);
+  }
+  const SOST = {
+    "@/crm/CRMContext": "crm.js",
+    "@/crm/AuthContext": "auth.js",
+    "@tanstack/react-router": "router.js",
+    sonner: "sonner.js",
+  };
+  const r = await esbuild.build({
+    stdin: { contents: sorgente, resolveDir: radice, loader: "tsx" },
+    bundle: true,
+    format: "cjs",
+    platform: "node",
+    write: false,
+    jsx: "automatic",
+    logLevel: "error",
+    absWorkingDir: radice,
+    plugins: [
+      {
+        name: "finti",
+        setup(b) {
+          b.onResolve(
+            { filter: /^(@\/crm\/(CRMContext|AuthContext)|@tanstack\/react-router|sonner)$/ },
+            (a) => ({ path: join(finti, SOST[a.path]) }),
+          );
+          //  Gli stessi due finti anche quando il file li chiama per strada
+          //  relativa (`./CRMContext`, come fa MeetGiornalieri).
+          b.onResolve({ filter: /^\.\.?\/(?:[\w-]+\/)*(CRMContext|AuthContext)$/ }, (a) => ({
+            path: join(finti, SOST[`@/crm/${a.path.split("/").pop()}`]),
+          }));
+          b.onResolve({ filter: /^react$/ }, (a) =>
+            a.importer === join(finti, "react.js") ? undefined : { path: join(finti, "react.js") },
+          );
+          b.onResolve({ filter: /^@\// }, (a) =>
+            b.resolve(`./src/${a.path.slice(2)}`, { resolveDir: radice, kind: a.kind }),
+          );
+        },
+      },
+    ],
+  });
+  const file = join(dove, `${nome}.cjs`);
+  writeFileSync(file, r.outputFiles[0].text);
+  const m = chiedi(file);
+  //  Disegna a ora fissa, con i dati e i valori di partenza dati; rimette a
+  //  posto l'orologio anche se il disegno si rompe.
+  return (dati, iniziali, ...argomenti) => {
+    const Vero = Date;
+    const FISSO = new Vero(2026, 9, 14, 11, 0).getTime();
+    globalThis.Date = class extends Vero {
+      constructor(...a) {
+        if (a.length) super(...a);
+        else super(FISSO);
+      }
+      static now() {
+        return FISSO;
+      }
+    };
+    globalThis.__slotFinti = dati;
+    globalThis.__iniziali = iniziali;
+    try {
+      return m.disegna(...argomenti);
+    } finally {
+      globalThis.Date = Vero;
+      delete globalThis.__slotFinti;
+      delete globalThis.__iniziali;
+    }
+  };
+}
+
+/** La squadra e l'archivio finti di Slot liberi: nomi inventati, nessun dato vero. */
+function squadraFinta() {
+  const cons = (id, nome, extra = {}) => ({
+    id,
+    data: {
+      nome,
+      faConsulente: true,
+      attivo: true,
+      giorniLavorativi: [1, 2, 3, 4, 5, 6],
+      fasceOrarie: [
+        { inizio: "09:00", fine: "13:00" },
+        { inizio: "14:00", fine: "18:00" },
+      ],
+      ...extra,
+    },
+  });
+  const consultants = [
+    cons("c1", "Anna Prova"),
+    cons("c2", "Bruno Prova", {
+      giorniLavorativi: [1, 2, 3, 4, 5],
+      fasceOrarie: [{ inizio: "09:00", fine: "13:00" }],
+      indisponibilita: [{ data: "2026-10-16" }],
+    }),
+    cons("c3", "Carla Prova", { attivo: false }),
+    cons("c4", "Dario Prova", { faConsulente: false }),
+  ];
+  let n = 0;
+  const lead = (
+    consulenteId,
+    dataMeeting,
+    oraMeeting,
+    stato = "appuntamento_fissato",
+    extra = {},
+  ) => ({
+    id: `l${++n}`,
+    data: {
+      nome: "Cliente",
+      cognome: `Finto ${n}`,
+      stato,
+      consulenteId,
+      dataMeeting,
+      oraMeeting,
+      ...extra,
+    },
+  });
+  const leads = [
+    lead("c1", "2026-10-14", "15:00"),
+    lead("c1", "2026-10-14", "15:00"),
+    lead("c2", "2026-10-15", "10:00"),
+    lead("c1", "2026-10-15", "10:00"),
+    lead("c2", "2026-10-19", "09:00", "annullato"),
+    lead("c2", "2026-10-20", "11:00"),
+    lead("c1", "2026-10-21", "09:00"),
+    lead("c1", "2026-10-21", "09:00"),
+    lead("c1", "2026-10-21", "09:00"),
+    lead("c2", "2026-10-22", undefined, "appuntamento_fissato", {
+      dataVieneInSede: "2026-10-22",
+      oraVieneInSede: "12:00",
+    }),
+    //  Sabato 17 pieno: un cliente per ora, e ogni ora tenuta per lui solo.
+    ...["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"].map((o) =>
+      lead("c1", "2026-10-17", o),
+    ),
+    lead("c1", "2026-10-28", "16:00"),
+  ];
+  const oreTenute = { "2026-10-15 10:00": "solo" };
+  for (const o of ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"])
+    oreTenute[`2026-10-17 ${o}`] = "solo";
+  return { dati: { leads, consultants }, oreTenute };
+}
+
+/** Un'impronta corta del testo intero della pagina: se cambia anche un solo
+ *  orario, un nome o un posto, cambia lei. */
+const impronta = (t) => {
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+};
+
+/** ── SLOT LIBERI: GLI STESSI NUMERI PRIMA E DOPO LO SPOSTAMENTO ────────────
+ *  Commessa 2026-10-14, compito 4: il calcolo dei giorni esce dalla pagina e
+ *  va in un aggancio riusabile (crm/useGiorniLiberi). I numeri qui sotto sono
+ *  stati ANNOTATI DISEGNANDO LA PAGINA DI PRIMA, con la squadra finta: dopo lo
+ *  spostamento devono restare identici, compresa l'impronta del testo intero. */
+async function proveDeiNumeriDiSlotLiberi() {
+  gruppo("SLOT LIBERI: GLI STESSI NUMERI DI PRIMA");
+  const disegna = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Route } from "@/routes/CRM.slot-liberi";
+export const disegna = () => renderToStaticMarkup(createElement(Route.options.component));`,
+    "slot-liberi-pagina",
+  );
+  const { dati, oreTenute } = squadraFinta();
+  const ANNOTATI = {
+    "1 tutti":
+      "22 posti liberi per consulenze · oggi | 22 / 6 / 11:00 / mer 14 ott / 0 | mer 14 ott: 22 posti | 1nfgfo6",
+    "7 tutti":
+      "147 posti liberi per consulenze · 7 giorni | 147 / 37 / 11:00 / mer 14 ott / 1 | mer 14 ott: 22 posti, gio 15 ott: 30 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 36 posti, mar 20 ott: 35 posti | jj2w7i",
+    "14 tutti":
+      "345 posti liberi per consulenze · 14 giorni | 345 / 85 / 11:00 / mer 14 ott / 1 | mer 14 ott: 22 posti, gio 15 ott: 30 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 36 posti, mar 20 ott: 35 posti, mer 21 ott: 33 posti, gio 22 ott: 33 posti, ven 23 ott: 36 posti, sab 24 ott: 24 posti, lun 26 ott: 36 posti, mar 27 ott: 36 posti | 131en8d",
+    "30 tutti":
+      "824 posti liberi per consulenze · 30 giorni | 824 / 197 / 11:00 / mer 14 ott / 1 | mer 14 ott: 22 posti, gio 15 ott: 30 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 36 posti, mar 20 ott: 35 posti, mer 21 ott: 33 posti, gio 22 ott: 33 posti, ven 23 ott: 36 posti, sab 24 ott: 24 posti, lun 26 ott: 36 posti, mar 27 ott: 36 posti, mer 28 ott: 35 posti, gio 29 ott: 36 posti, ven 30 ott: 36 posti, sab 31 ott: 24 posti, lun 2 nov: 36 posti, mar 3 nov: 36 posti, mer 4 nov: 36 posti, gio 5 nov: 36 posti, ven 6 nov: 36 posti, sab 7 nov: 24 posti, lun 9 nov: 36 posti, mar 10 nov: 36 posti, mer 11 nov: 36 posti, gio 12 nov: 36 posti | 117enri",
+    "7 c1":
+      "109 posti liberi per consulenze · 7 giorni | 109 / 37 / 11:00 / mer 14 ott / 1 | mer 14 ott: 16 posti, gio 15 ott: 21 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 24 posti, mar 20 ott: 24 posti | esrw5a",
+    "14 c2":
+      "95 posti liberi per consulenze · 14 giorni | 95 / 32 / 11:00 / mer 14 ott / 0 | mer 14 ott: 6 posti, gio 15 ott: 9 posti, lun 19 ott: 12 posti, mar 20 ott: 11 posti, mer 21 ott: 12 posti, gio 22 ott: 9 posti, ven 23 ott: 12 posti, lun 26 ott: 12 posti, mar 27 ott: 12 posti | 1p0vg0j",
+  };
+  for (const chiave of Object.keys(ANNOTATI)) {
+    const [periodo, chi] = chiave.split(" ");
+    const html = disegna(
+      dati,
+      new Map([
+        [7, Number(periodo)],
+        ["tutti", chi],
+        ["{}", oreTenute],
+      ]),
+    );
+    const testo = html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+    const nota = /\|(\d+ posti? liber[oi] per consulenze[^|]*)\|/.exec(testo)?.[1] ?? "?";
+    const kpi =
+      /\|Posti liberi\|(\d+)\|.*?\|Orari con posto\|(\d+)\|.*?\|Primo libero\|([^|]+)\|([^|]+)\|Giorni pieni\|(\d+)\|/
+        .exec(testo)
+        ?.slice(1)
+        .join(" / ") ?? "?";
+    const giorni = [
+      ...html.matchAll(/font-semibold capitalize">([^<]+)<\/span><span class="[^"]*">([^<]+)</g),
+    ]
+      .map((m) => `${m[1]}: ${m[2]}`)
+      .join(", ");
+    c(
+      `Slot liberi ${chiave}: numeri e impronta come prima`,
+      ANNOTATI[chiave],
+      `${nota} | ${kpi} | ${giorni} | ${impronta(testo)}`,
+    );
+  }
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17489,6 +18606,14 @@ proveDelRinvioPerChi();
 proveDiChiEsce();
 proveDegliSlotLiberi();
 proveDiDrive();
+proveDellaTemperatura();
+proveDellaVistaDiOggi();
+proveDellaStriscia();
+await proveDeiNumeriDiSlotLiberi();
+proveDelleFontiDiOggi();
+proveDellaFinestraInPosti();
+await proveDeiDuePezzi();
+await proveDeiPostiDelPallino();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

@@ -182,6 +182,8 @@ import { NotaSoloConsulenti, consulentiPerConsulenza } from "./chi-fa-la-consule
 //  Le risposte che la persona ha dato nel modulo dell'inserzione: come si
 //  riconoscono e come si leggono sta tutto in crm/modulo-lead.
 import { moduloLetto, vociModulo } from "./modulo-lead";
+import { temperaturaLead } from "./temperatura-lead";
+import { PallinoTemperatura } from "./Temperatura";
 import {
   BORDO_FINESTRA,
   Finestra,
@@ -1808,7 +1810,20 @@ function BloccoModulo({ form }: { form: LeadData }) {
   const voci = vociModulo(moduloLetto(form));
   const origine = provenienzaLead(form);
   const originali = datiOriginaliDelFile(form);
-  if (!voci.length && !origine.voci.length && !originali.length) return null;
+  /*  ── COM'È MESSO IL CLIENTE (commessa 2026-10-14) ───────────────────────
+      La stessa regola di «Oggi» e di Lead importati (crm/temperatura-lead):
+      il modulo, e se lì non c'è niente il quiz del sito. Funzione pura e non
+      un hook: questo blocco ha avuto un'uscita anticipata e potrebbe riaverla.
+      ⚠️ «NESSUNA RISPOSTA AL MODULO» SI SCRIVE QUI, e solo qui (SPEC §2,
+       decisione del capo progetto): sulle righe sarebbe rumore ripetuto, nella
+       scheda è la risposta a «che cosa ci ha detto?». Per questo il blocco si
+       disegna sempre, anche quando non c'è nient'altro. Chi ha risposto solo
+       a zona/orario ha risposto: lì la riga non si scrive, parlano le voci.
+      (Il modulo si rilegge: è un conto da niente, e la riga sopra resta quella
+      che le prove storiche guardano.) */
+  const t = temperaturaLead(moduloLetto(form), form.qualifica);
+  const conTemperatura = t.livello !== "nessuna";
+  const altro = origine.voci.length > 0 || !!origine.quando || originali.length > 0;
   const TONO: Record<string, "vinta" | "da_lavorare" | "neutro"> = {
     buono: "vinta",
     medio: "da_lavorare",
@@ -1816,15 +1831,39 @@ function BloccoModulo({ form }: { form: LeadData }) {
   };
   return (
     <SezioneFinestra
-      titolo={voci.length ? "Quello che ha detto nel modulo" : "Da dove arriva"}
+      titolo={
+        voci.length
+          ? "Quello che ha detto nel modulo"
+          : conTemperatura
+            ? "Quello che ha detto nel quiz del sito"
+            : altro
+              ? "Da dove arriva"
+              : "Quello che ha detto nel modulo"
+      }
       nota={
         voci.length
           ? "Risposte sue, dall'inserzione: non si modificano"
-          : "Dal file importato: non si modifica"
+          : conTemperatura
+            ? "Risposte sue, dal sito: non si modificano"
+            : altro
+              ? "Dal file importato: non si modifica"
+              : undefined
       }
       icona={ClipboardList}
       classeCorpo="p-4"
     >
+      {conTemperatura ? (
+        <p className={cn("text-[12.5px] text-slate-600", (voci.length > 0 || altro) && "mb-3")}>
+          <PallinoTemperatura t={t} />
+          {t.perche && <span> — {t.perche}</span>}
+        </p>
+      ) : (
+        voci.length === 0 && (
+          <p className={cn("text-[12.5px] text-slate-500", altro && "mb-3")}>
+            Nessuna risposta al modulo
+          </p>
+        )
+      )}
       {/*  Tutto testo di React: i valori vengono da un file e da una persona,
           e non si interpretano mai come HTML. */}
       {voci.length > 0 && (
@@ -1872,7 +1911,12 @@ function BloccoModulo({ form }: { form: LeadData }) {
           )}
         </p>
       )}
-      {originali.length > 0 && <DatiOriginaliDelFile righe={originali} aSeparare={voci.length > 0 || origine.voci.length > 0} />}
+      {originali.length > 0 && (
+        <DatiOriginaliDelFile
+          righe={originali}
+          aSeparare={voci.length > 0 || origine.voci.length > 0}
+        />
+      )}
     </SezioneFinestra>
   );
 }

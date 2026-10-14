@@ -47,6 +47,7 @@ import {
   type RisposteModulo,
 } from "@/crm/types";
 import { etichettaRisposta } from "@/crm/modulo-lead";
+import { temperaturaLead } from "@/crm/temperatura-lead";
 import { daTelefonareOggi, giornoPromesso, promessaPerDopo } from "./da-telefonare";
 import { eContattatoWhatsApp, eDaDecidere, eRimandato } from "./ricarico";
 import { eSaltato } from "./saltati";
@@ -117,10 +118,10 @@ export function inLista(l: LeadLike, adesso: Date, o?: OpzioniChiamata): boolean
  *   lead veri erano caldi 240 su 340: una targhetta su sette righe su dieci
  *   non distingue più nessuno. Adesso è caldo solo chi vuole risolvere ORA o
  *   ha GIÀ PROVATO qualcosa (ogni risposta tranne «niente»). Il fastidio resta
- *   scritto sulla riga, ma da solo non basta. */
+ *   scritto sulla riga, ma da solo non basta.
+ *  La regola vive in crm/temperatura-lead (solo modulo, senza quiz: la coda non cambia). */
 export function eCaldo(m?: RisposteModulo): boolean {
-  if (!m) return false;
-  return m.urgenza === "subito" || (!!m.giaFatto && m.giaFatto !== "niente");
+  return temperaturaLead(m).livello === "caldo";
 }
 
 /** Perché è caldo, in poche parole: il primo motivo vero. */

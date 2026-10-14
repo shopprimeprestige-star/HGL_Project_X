@@ -98,6 +98,9 @@ import { useCRM } from "./CRMContext";
 //  iOS di ingrandire la pagina al primo tocco sul campo. Presa dov'è già
 //  definita invece di riscriverne una quarta versione.
 import { CLASSI_AREA } from "./SchedaCliente";
+import { mostraTemperatura } from "./temperatura-lead";
+import { TemperaturaRiga } from "./Temperatura";
+import { fissataDa } from "./chi-ha-fissato";
 import { Finestra } from "./ui/Finestra";
 //  Le stesse porte che usa la pagina pubblica dell'invito per leggere una data
 //  e un'ora dell'archivio: qui servono a decidere se il tasto ha senso, e sono
@@ -1125,6 +1128,9 @@ export function RigaLead({
   esiti = true,
   promemoria,
   principale,
+  temperatura = true,
+  solaLettura = false,
+  fissatiDa,
 }: {
   lead: Lead;
   onApri: (l: Lead) => void;
@@ -1144,6 +1150,18 @@ export function RigaLead({
   promemoria?: boolean;
   /** azione principale della sezione: undefined = "Avvia", null = nessuna */
   principale?: ReactNode | null;
+  /** com'è messo il cliente (pallino + 2 risposte brevi). Spenta sulle
+   *  installazioni: dopo la vendita è storia vecchia e sarebbe rumore. */
+  temperatura?: boolean;
+  /** ── SOLA LETTURA (chi non fa consulenze, commessa 2026-10-14) ──────────
+   *  Restano il nome (apre la scheda), Chiama e WhatsApp: telefonare è il
+   *  mestiere della setter. Spariscono stella, stato premibile, «torna
+   *  indietro», esiti, note dopo la consulenza, promemoria, pagina
+   *  dell'appuntamento, menu invia e Avvia — anche se chi monta la riga passa
+   *  `onStato` per sbaglio. ⚠️ È dell'interfaccia, non del server. */
+  solaLettura?: boolean;
+  /** l'id di chi guarda: sulle consulenze fissate da lui compare «fissato da te» */
+  fissatiDa?: string;
 }) {
   const l = lead;
   //  ⚠️ HOOK: sta qui, in cima, prima di qualunque uscita anticipata. In questo
@@ -1155,6 +1173,9 @@ export function RigaLead({
   //  prop nuova obbligatoria in ogni chiamante. A pannello chiuso il componente
   //  non disegna niente — la tela nasce solo all'apertura.
   const [biglietto, setBiglietto] = useState<DatiBiglietto | null>(null);
+  //  I gesti sulla consulenza: tutti spenti insieme in sola lettura.
+  const gesti = !solaLettura;
+  const cambiaStato = gesti ? onStato : undefined;
   const consulente = nomeConsulente?.(l);
   const mostraPromemoria = promemoria ?? (esiti && !!l.data.dataMeeting);
   /** ── IL LINK SI MANDA ANCHE A CHI NON SI È PRESENTATO ──────────────────
@@ -1277,7 +1298,7 @@ export function RigaLead({
   //  `quando` passato dalla sezione ha la precedenza: nell'agenda la colonna è
   //  l'ora e il giorno lo dice già l'intestazione.
   const testoQuando = quando || quandoDelMeeting;
-  const dataDaFissare = attendeUnaData && !testoQuando;
+  const dataDaFissare = gesti && attendeUnaData && !testoQuando;
   const titoloDataDaFissare =
     l.data.stato === "da_spostare"
       ? "Dai una data nuova all'appuntamento"
@@ -1294,7 +1315,7 @@ export function RigaLead({
       //  così l'agenda e l'elenco trattative non tornano a colorarlo in due modi.
       className={`flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-2.5 transition-colors ${classiRigaStato(l.data.stato)}`}
     >
-      {onEvidenzia && (
+      {gesti && onEvidenzia && (
         <button
           type="button"
           onClick={() => onEvidenzia(l)}
@@ -1360,11 +1381,36 @@ export function RigaLead({
             </span>
           )}
         </button>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+        {/*  ⚠️ SUL MONITOR UNA RIGA SOLA, CHE SI TAGLIA E NON VA A CAPO
+            (14/10/2026). Con la temperatura in testa la riga piccola andava a
+            capo anche a 1280 px, e la SPEC chiede righe non più alte di prima.
+            Ogni voce ha già il suo `truncate`: da `sm` in su serve davvero.
+            La temperatura si ferma a metà riga e si accorcia per prima
+            (`shrink-[100]`), tenendo pallino e parola: senza il tetto anche
+            consulente e città perdevano qualche pixel e diventavano «Mar…».
+            Sul telefono invece si va a capo come prima: tagliando, a 360 px
+            sparivano consulente e città. */}
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground sm:flex-nowrap sm:overflow-hidden">
+          {/*  ── COM'È MESSO IL CLIENTE, IN TESTA ──────────────────────────
+              Richiesta del titolare (14/10/2026): si legge dalla riga senza
+              aprire la scheda. Nella riga piccola che c'è già, non in una
+              nuova: pallino + parola + al massimo due risposte brevi, e niente
+              se non ha risposto (vedi crm/Temperatura). */}
+          {temperatura && mostraTemperatura(l.data.stato) && (
+            <TemperaturaRiga
+              dati={l.data}
+              className="min-w-[4.5rem] shrink-[100] truncate sm:max-w-[50%]"
+            />
+          )}
           <ChipAttesa attesa={attesa} />
           {motivo && <span className="truncate">{motivo}</span>}
           {consulente && <span className="truncate">{consulente}</span>}
           {l.data.citta && <span className="truncate">{l.data.citta}</span>}
+          {/*  Le sue, riconoscibili senza una terza lista (SPEC §3.B): stesso
+              inchiostro della riga, solo più deciso, niente colore nuovo. */}
+          {fissatiDa && fissataDa(l.data, fissatiDa) && (
+            <span className="shrink-0 font-medium text-foreground">fissato da te</span>
+          )}
         </div>
       </div>
 
@@ -1382,12 +1428,12 @@ export function RigaLead({
             frequenti; questa serve per tutti gli altri.
             Era un <select> nativo: quindici voci in colonna da leggere una per
             una, e sul telefono la rotella di sistema. */}
-        {onStato ? (
+        {cambiaStato ? (
           <PastigliaStato
             dati={l.data}
             contesto={`${l.data.nome ?? ""} ${l.data.cognome ?? ""}`.trim() || undefined}
             className="max-w-[160px]"
-            onScegli={(s) => onStato(l, s)}
+            onScegli={(s) => cambiaStato(l, s)}
           />
         ) : (
           /*  ⚠️ `truncate` E LARGHEZZA MASSIMA COME NELLA PASTIGLIA PREMIBILE.
@@ -1406,7 +1452,7 @@ export function RigaLead({
             <span className="truncate">{LEAD_STATUS_LABEL[l.data.stato]}</span>
           </span>
         )}
-        <TornaIndietro lead={l} onStato={onStato} />
+        {gesti && <TornaIndietro lead={l} onStato={onStato} />}
 
         {/* ── ESITO DELL'APPUNTAMENTO, UN GESTO SOLO ─────────────────────
             Due pulsanti invece di due voci dentro un menu: è la cosa che si
@@ -1416,7 +1462,7 @@ export function RigaLead({
             una consulenza è svolta appena NON è segnata assente o da
             riprogrammare. L'esito vero (venduto, in valutazione, ricontatto)
             si sceglie nella pastiglia qui accanto. */}
-        {onStato && esiti && (
+        {cambiaStato && esiti && (
           <div className="flex shrink-0 items-center gap-1">
             {ESITI.map((e) => {
               const on = l.data.stato === e.stato;
@@ -1436,7 +1482,7 @@ export function RigaLead({
                   aria-pressed={on}
                   onClick={(ev) => {
                     ev.stopPropagation();
-                    onStato(l, e.stato);
+                    cambiaStato(l, e.stato);
                   }}
                   //  ⚠️ LARGHEZZA FISSA, ACCESO O SPENTO. La spunta occupa il
                   //  suo posto anche quando non si vede: se comparisse
@@ -1463,7 +1509,7 @@ export function RigaLead({
             domanda ("com'è andata questa consulenza") solo con le parole
             invece che con un pulsante. Le icone che MANDANO qualcosa al
             cliente cominciano dopo: sono un altro mestiere. */}
-        <NotePostConsulenza lead={l} />
+        {gesti && <NotePostConsulenza lead={l} />}
 
         {/*  ── I DUE GESTI DI TUTTI I GIORNI, SCOPERTI ──────────────────────
             Chiamare e scrivere sono le due cose che si fanno decine di volte
@@ -1508,7 +1554,7 @@ export function RigaLead({
                 `promemoriaUtile` legge data e stato INSIEME: su una scheda
                 ancora ad appuntamento l'incontro di oggi va ricordato, su una
                 andata avanti serve solo se ce n'è già uno NUOVO più in là. */}
-            {promemoriaUtile(l.data, oggiLocale()) && (
+            {gesti && promemoriaUtile(l.data, oggiLocale()) && (
               <a
                 href={buildWhatsAppLink(l.data.telefono, buildMeetReminderMessage(l, consulente))}
                 target="_blank"
@@ -1531,7 +1577,7 @@ export function RigaLead({
             chiesto, ed è l'unica del gruppo che CREA qualcosa invece di aprire
             un messaggio già scritto — motivo in più per tenerla distinta.
             Il resto (link della consulenza, promemoria) resta nel menu. */}
-        {mostraInvito && (
+        {gesti && mostraInvito && (
           <button
             type="button"
             title="Pagina dell'appuntamento: crea il link e lo copia"
@@ -1606,17 +1652,19 @@ export function RigaLead({
         {/*  Il pannello si disegna dentro un portale, quindi qui conta solo che
             stia nell'albero della riga: non eredita né spaziature né allineamenti
             da questa fila di icone. */}
-        <BigliettoPannello
-          aperto={!!biglietto}
-          chiudi={() => setBiglietto(null)}
-          dati={biglietto}
-        />
+        {gesti && (
+          <BigliettoPannello
+            aperto={!!biglietto}
+            chiudi={() => setBiglietto(null)}
+            dati={biglietto}
+          />
+        )}
 
         {/*  ── TUTTO CIÒ CHE SI MANDA UNA VOLTA PER APPUNTAMENTO ────────────
             Link della consulenza · promemoria. Erano icone sciolte accanto
             alle due qui sopra: la ragione per cui adesso stanno insieme, con
             un nome scritto ciascuno, è spiegata su MenuInvia. */}
-        <MenuInvia voci={vociInvia.filter((v) => v.chiave !== "invito")} />
+        {gesti && <MenuInvia voci={vociInvia.filter((v) => v.chiave !== "invito")} />}
 
         {/*  ── UNA SOLA VIDEOCAMERA SULLA RIGA ──────────────────────────────
             Qui c'era anche "Entra nella consulenza", che apriva il link della
@@ -1629,7 +1677,7 @@ export function RigaLead({
         {/*  L'azione principale usa il colore primario del CRM invece di un blu
             scritto a mano: è l'unico pulsante pieno della riga, e deve essere
             lo stesso blu dei pulsanti principali di tutte le altre pagine. */}
-        {principale === undefined ? (
+        {!gesti ? null : principale === undefined ? (
           <button
             type="button"
             title="Avvia la consulenza con questo cliente"
@@ -1750,6 +1798,11 @@ export function SchedaAdesso({
             {consulente && <span className="truncate">{consulente}</span>}
             {l.data.citta && <span className="truncate">{l.data.citta}</span>}
             {l.data.durataMeeting ? <span>{l.data.durataMeeting} min</span> : null}
+            {/*  Com'è messo il cliente che sta per entrare: la stessa riga di
+                «La giornata», due risposte al massimo. */}
+            {mostraTemperatura(l.data.stato) && (
+              <TemperaturaRiga dati={l.data} className="min-w-0 truncate" />
+            )}
           </div>
         </div>
       </div>
@@ -1888,6 +1941,11 @@ export function SchedaAdesso({
               <span className="font-semibold tabular-nums text-foreground">
                 {p.data.oraMeeting}
               </span>{" "}
+              {/*  Lo spazio è una riga sola: solo il pallino, la parola nel
+                  suggerimento e per il lettore di schermo. */}
+              {mostraTemperatura(p.data.stato) && (
+                <TemperaturaRiga dati={p.data} soloPallino className="mr-1" />
+              )}
               {p.data.nome} {p.data.cognome}
             </button>
           ))}
@@ -2526,6 +2584,8 @@ export function MeetGiornalieri({
   adesso,
   storico: storicoDaFuori,
   onStorico,
+  solaLettura,
+  fissatiDa,
 }: {
   leads: Lead[];
   /** ⚠️ Era una forma minima scritta a mano (`{ id, data: { nome } }`), e con
@@ -2556,6 +2616,10 @@ export function MeetGiornalieri({
    *  modo di riportare indietro chi è dentro lo storico. */
   storico?: boolean;
   onStorico?: (acceso: boolean) => void;
+  /** chi non fa consulenze: righe in sola lettura (vedi RigaLead) */
+  solaLettura?: boolean;
+  /** l'id di chi guarda: «fissato da te» sulle sue (vedi RigaLead) */
+  fissatiDa?: string;
 }) {
   //  Stato interno solo come riserva: quando la dashboard passa i valori, il
   //  filtro è uno solo per tutta la pagina.
@@ -2835,6 +2899,8 @@ export function MeetGiornalieri({
       nomeConsulente={nomeConsulente}
       quando={quandoDellaRiga(l)}
       attesa={senzaAttesa ? null : attesaDelGiorno(l)}
+      solaLettura={solaLettura}
+      fissatiDa={fissatiDa}
     />
   );
 

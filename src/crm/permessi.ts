@@ -839,6 +839,17 @@ const PERMESSO_DI_PAGINA: { percorso: string; permesso: Permesso }[] = [
   { percorso: "/CRM/slot-liberi", permesso: "agenda" },
 ];
 
+/** ── QUESTA PERSONA FA CONSULENZE? ─────────────────────────────────────────
+ *  Una domanda sola, scritta una volta: la usano la porta d'ingresso
+ *  (`paginaIniziale`) e «Oggi» (crm/vista-oggi, che decide la sola lettura).
+ *  Se le due risposte venissero da due posti, il giorno che una cambia la
+ *  setter entrerebbe dalla porta grande e troverebbe una pagina vuota.
+ *  ⚠️ NESSUN PERMESSO NUOVO: è `preventivi`, che copre già i mestieri e il
+ *   livello vecchio (vedi il ripiego in testa a questo file). */
+export function faConsulenze(puo: (p: Permesso) => boolean): boolean {
+  return puo("preventivi");
+}
+
 /** ── DOVE SI ATTERRA APPENA ENTRATI ────────────────────────────────────────
  *  Segnalazione del committente: «il setter appena entra non deve portarlo su
  *  una scheda bloccata, ma direttamente su Lead importati».
@@ -861,7 +872,7 @@ const PERMESSO_DI_PAGINA: { percorso: string; permesso: Permesso }[] = [
  *   qualcuno su una schermata vietata per «aiutarlo» sarebbe il guasto di
  *   partenza, al contrario. */
 export function paginaIniziale(puo: (p: Permesso) => boolean): string {
-  if (puo("preventivi")) return "/CRM";
+  if (faConsulenze(puo)) return "/CRM";
   if (puo("lead.propri")) return "/CRM/importa";
   return "/CRM";
 }
