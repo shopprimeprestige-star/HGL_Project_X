@@ -293,3 +293,161 @@ export const TESTI_MODULO_CORTO = {
   /** Facoltativa e MAI spuntata di partenza: registra il consenso, non fa partire nessun messaggio. */
   consenso: "Ok a ricevere promemoria su WhatsApp",
 } as const;
+
+/** ── /SOLUZIONI · LA LANDING «TRE SOLUZIONI» (landing v3, sezione 3) ────────
+ *  Parola per parola dal Copywriter (20-sito/2026-10-14-landing-v3.md, 3.1-3.6 e 4.3).
+ *  Il nome del prodotto arriva sempre da `NOME_PRODOTTO`. Niente prezzi, niente
+ *  «invisibile» come promessa, niente dati non confermati: lo controlla `prove/sito/testi.mjs`.
+ *  «Solo da noi» ed «esclusiva» sono le sole eccezioni alla regola delle parole vietate, insieme
+ *  alla frase «E non cura la caduta: la copre.» (prove/sito/_frasi-ammesse.mjs). */
+
+/** Il testo della barra e del link della scheda patch: stesse parole, stessa azione. */
+const PATCH_IN_STOCK = "Patch pronte in stock →";
+
+/** I testi del modulo di `/soluzioni` (3.4). S4: `ModuloCorto` li riceve nella prop `testi`.
+ *  La riga della privacy NON sta qui: resta quella di oggi (`TESTI_MODULO_CORTO.privacy`). */
+export interface TestiModuloSoluzioni {
+  titolo: string;
+  /** La riga sopra i campi, secondo il bottone da cui arriva la persona (non è un dato chiesto). */
+  rigaInteresse: Record<"trapianto" | "invisible-derm" | "non-so", string>;
+  nome: { etichetta: string; segnaposto: string };
+  telefono: { etichetta: string; segnaposto: string; aiuto: string };
+  /** Le opzioni sono le `FASCE` di oggi. */
+  fascia: { etichetta: string };
+  rassicurazioni: readonly string[];
+  bottone: string;
+  sotto: string;
+  errori: { nome: string; telefono: string; fascia: string; invio: string };
+  conferma: { titolo: string; testo: string };
+  /** Etichetta della X del foglio. */
+  chiudi: string;
+}
+
+export const TESTI_SOLUZIONI = {
+  meta: {
+    titolo: `Trapianto, patch o ${NOME_PRODOTTO} | Hair Genius Labs Roma`,
+    descrizione: `Facciamo trapianto, patch e ${NOME_PRODOTTO}. In consulenza gratuita, anche in videochiamata, ti diciamo quale serve davvero a te.`,
+    /** Con `?apri=invisible-derm`: la descrizione per gli annunci. */
+    descrizioneApri: `Che cos'è ${NOME_PRODOTTO}: un sistema di capelli su misura, sottile e naturale, senza chirurgia. Te lo spiega il titolare in 30 secondi.`,
+    titoloSocial: `Trapianto, patch o ${NOME_PRODOTTO}? Li facciamo tutti e tre.`,
+  },
+  marchio: { indirizzo: "Studio a Roma · Via degli Scipioni 132", logoAlt: "Hair Genius Labs" },
+  titolo: {
+    prima: `Trapianto, patch o ${NOME_PRODOTTO}?`,
+    /** `[a]…[/a]` = l'unica parola in accento (RichText). */
+    seconda: "Li facciamo [a]tutti e tre[/a].",
+  },
+  sottotitolo: "Ti diciamo quale serve davvero a te. Se hai già un'idea, partiamo da quella.",
+  /** Ordine fisso: Trapianto · Patch · Invisible Derm. Stessa forma, stesso peso. */
+  voci: [
+    {
+      id: "trapianto",
+      numero: "01",
+      nome: "Trapianto",
+      riga: "Con la chirurgia. Lo valutiamo insieme sulla tua nuca, con il parere del medico.",
+      azione: "Si può fare nel mio caso?",
+    },
+    {
+      id: "patch",
+      numero: "02",
+      nome: "Patch",
+      riga: "Senza chirurgia. Pronta, la trovi in stock.",
+      azione: PATCH_IN_STOCK,
+    },
+    {
+      id: "invisible-derm",
+      numero: "03",
+      nome: NOME_PRODOTTO,
+      etichetta: "Solo da noi",
+      riga: "Su misura, sottile e naturale. Senza chirurgia.",
+      azione: `Che cos'è ${NOME_PRODOTTO}?`,
+      azioneAperta: "Chiudi la spiegazione",
+      etichettaAccessibile: `${NOME_PRODOTTO}, solo da noi. Su misura, sottile e naturale, senza chirurgia.`,
+    },
+  ],
+  /** L'unico bottone blu della schermata. */
+  primario: {
+    bottone: "Prenota la consulenza gratuita",
+    riga: "Non sai quale fa per te? Te lo diciamo noi. Gratis, anche in videochiamata.",
+  },
+  spiegazione: {
+    titolo: `Che cos'è ${NOME_PRODOTTO}`,
+    primaRiga: `${NOME_PRODOTTO} è un sistema di capelli su misura, sottile e naturale, senza chirurgia.`,
+    video: {
+      pillola: "Te lo spiego in 30 secondi",
+      /** 4.3: alla fine il video torna alla copertina con la pillola «Riguarda». */
+      riguarda: "Riguarda",
+      etichettaPlay: `Guarda il video: che cos'è ${NOME_PRODOTTO}, con audio`,
+      leggiTesto: "Leggi il testo del video",
+    },
+    macro: {
+      didascalia: "Da 10 centimetri, alla luce dello studio.",
+      /** Tasto pausa/play da 44 px (4.3, WCAG 2.2.2). */
+      ferma: "Ferma il video",
+      riparti: "Fai partire il video",
+    },
+    /** Le tre righe sempre visibili. «Il limite vero» sta prima del bottone (Neuromarketing 7-8). */
+    righe: [
+      { id: "cose", titolo: "Cos'è.", testo: "Fatto sul tuo colore, sulla tua densità, sulla tua attaccatura." },
+      { id: "come", titolo: "Come si mette.", testo: "In studio, senza intervento. La posa dura meno di 2 ore." },
+      {
+        id: "limite",
+        titolo: "Il limite vero.",
+        testo: "Vuole manutenzione, da fare ogni tanto: circa 10 minuti. E non cura la caduta: la copre.",
+      },
+    ],
+    /** Le due righe piccole, una ciascuna, sotto. */
+    piccole: [
+      {
+        id: "patch",
+        titolo: "La patch?",
+        testo: `La patch è pronta, e la vendiamo anche noi. ${NOME_PRODOTTO} lo facciamo su misura per te.`,
+      },
+      { id: "esclusiva", titolo: "Solo da noi.", testo: `${NOME_PRODOTTO} lo installiamo in esclusiva, qui a Roma.` },
+    ],
+    passo: {
+      bottone: "Prenota la consulenza gratuita",
+      riga: "La guardi da vicino, senza impegno. Gratis, anche in videochiamata.",
+      chiudi: "Chiudi la spiegazione",
+    },
+    /** Solo nell'anteprima del CRM, mai sul sito (4.7). */
+    anteprima: {
+      senzaVideo: `Anteprima: manca il video "Che cos'è ${NOME_PRODOTTO}". La pagina non è online.`,
+    },
+  },
+  barra: {
+    testo: PATCH_IN_STOCK,
+    etichettaAccessibile: "Vai al catalogo delle patch pronte in stock",
+  },
+  modulo: {
+    titolo: "Lascia due dati. Ti diciamo con onestà quale strada fa per te.",
+    rigaInteresse: {
+      trapianto: "Guardiamo il tuo caso e ti diciamo se si può fare.",
+      "invisible-derm": "La guardi da vicino e decidi con calma.",
+      "non-so": "Ti aiutiamo a scegliere fra le tre.",
+    },
+    nome: { etichetta: "Nome", segnaposto: "Il tuo nome" },
+    telefono: { etichetta: "Telefono", segnaposto: "Il tuo numero", aiuto: "Serve solo per richiamarti." },
+    fascia: { etichetta: "Quando ti chiamiamo?" },
+    rassicurazioni: [
+      "Consulenza gratuita, senza impegno.",
+      "Anche in videochiamata.",
+      `Se la soluzione giusta non è ${NOME_PRODOTTO}, te lo diciamo.`,
+    ],
+    bottone: "Prenota la consulenza gratuita",
+    sotto: "Ti richiamiamo noi, nell'orario che scegli.",
+    errori: {
+      nome: "Scrivi il tuo nome.",
+      telefono: "Controlla il numero: mancano delle cifre.",
+      fascia: "Scegli quando ti va bene.",
+      invio: "Non siamo riusciti a inviare la richiesta. Riprova tra un attimo.",
+    },
+    conferma: {
+      titolo: "Fatto. Ti richiamiamo noi.",
+      testo: "Abbiamo ricevuto la tua richiesta. Ti chiamiamo nella fascia che hai scelto.",
+    },
+    chiudi: "Chiudi e torna alla pagina",
+  } satisfies TestiModuloSoluzioni,
+  /** Le etichette del motivo da cui parte la persona (la riga `Interesse: …` del lead). */
+  interesse: { trapianto: "Trapianto", "invisible-derm": NOME_PRODOTTO, "non-so": "Non so quale" },
+} as const;
