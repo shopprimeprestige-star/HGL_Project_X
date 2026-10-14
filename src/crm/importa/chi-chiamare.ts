@@ -491,3 +491,19 @@ export function tieniInTesta<T extends { id: string }>(righe: T[], fermo: string
   const i = righe.findIndex((r) => r.id === fermo);
   return i > 0 ? [righe[i], ...righe.slice(0, i), ...righe.slice(i + 1)] : righe;
 }
+
+/** ── QUATTRO ESITI IN VISTA, IL RESTO IN «ALTRO» ───────────────────────────
+ *  Richiesta del titolare (14/10): la pagina della setter deve avere «poche
+ *  funzioni ma buone». Sotto la scheda c'erano fino a nove pulsanti di esito,
+ *  più «Altro stato» e «Salta». In vista restano i quattro che si premono di
+ *  più — non risponde (o irreperibile, sui contatti di ritorno: non compaiono
+ *  mai insieme), richiamo, appuntamento, non interessato — con i tasti 1…4.
+ *  Gli altri esiti validi per QUESTO lead vanno nel menu «Altro», nello stesso
+ *  ordine: nessun esito sparisce, cambia solo dove sta. */
+const ESITI_IN_VISTA = ["non_risponde", "irreperibile", "richiamo", "appuntamento_fissato", "annullato"];
+
+export function dividiEsiti<S extends string>(validi: readonly S[]): { inVista: S[]; inAltro: S[] } {
+  const inVista = validi.filter((s) => ESITI_IN_VISTA.includes(s));
+  const inAltro = validi.filter((s) => !ESITI_IN_VISTA.includes(s));
+  return { inVista, inAltro };
+}

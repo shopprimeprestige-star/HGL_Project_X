@@ -17,7 +17,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { ChevronRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CLASSE_BADGE_STATO, classiStato, etichettaStato } from "@/crm/ui";
+import { CLASSE_BADGE_STATO } from "@/crm/ui";
 import type { Lead, LeadData, MotivoChiamata } from "@/crm/types";
 import { NOME_MOTIVO, type MotivoDiChiamata } from "./chi-chiamare";
 
@@ -118,15 +118,10 @@ export function RigaChiamata({
               .join(" · ")}
           </span>
         </span>
-        <span
-          className={cn(
-            CLASSE_BADGE_STATO,
-            classiStato(d.stato),
-            "mt-0.5 hidden shrink-0 sm:inline-flex",
-          )}
-        >
-          {etichettaStato(d.stato)}
-        </span>
+        {/*  ⚠️ Qui c'era anche l'etichetta dello stato («Richiamo concordato»,
+             «Da contattare»): diceva quasi la stessa cosa della targhetta del
+             motivo, due etichette per riga. Tolta su richiesta del titolare
+             (14/10); lo stato resta nella scheda grande e nella scheda del lead. */}
         <ChevronRight
           className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
           aria-hidden="true"

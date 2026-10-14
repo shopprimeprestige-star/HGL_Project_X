@@ -17427,6 +17427,24 @@ function proveDellaCimaFerma() {
   c("cambiare i filtri libera la cima", true, filtri >= 0 && pagina.slice(filtri, filtri + 300).includes("setFermo(null)"));
 }
 
+/** ── QUATTRO ESITI IN VISTA ────────────────────────────────────────────────
+ *  Richiesta del titolare (14/10): «poche funzioni ma buone». Vedi
+ *  `dividiEsiti` in importa/chi-chiamare. */
+function proveDeiQuattroEsiti() {
+  const { dividiEsiti } = CHIAM;
+  gruppo("QUATTRO ESITI IN VISTA, IL RESTO IN «ALTRO»");
+  const lista = ["non_risponde", "segreteria", "richiamo", "da_ricontattare", "ci_ricontatta_lui", "appuntamento_fissato", "appuntamento_rifissato", "annullato"];
+  const d = dividiEsiti(lista);
+  c("in vista: non risponde, richiamo, appuntamento, non interessato", "non_risponde,richiamo,appuntamento_fissato,annullato", d.inVista.join(","));
+  c("in «Altro» tutti gli altri, nello stesso ordine", "segreteria,da_ricontattare,ci_ricontatta_lui,appuntamento_rifissato", d.inAltro.join(","));
+  c("nessun esito si perde", lista.length, d.inVista.length + d.inAltro.length);
+  c("sui contatti di ritorno «irreperibile» prende il posto di «non risponde»", "irreperibile,richiamo",
+    dividiEsiti(["irreperibile", "segreteria", "richiamo"]).inVista.join(","));
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("le scorciatoie numeriche puntano ai pulsanti in vista", true, /esitiDivisi\.inVista\s*\.slice\(0, 9\)/.test(pagina));
+  c("il menu «Altro» degli esiti è di Radix (i tasti tacciono dentro)", true, /<DropdownMenuItem key=\{s\} onSelect=\{\(\) => onEsito\(s\)\}/.test(pagina));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17460,6 +17478,7 @@ proveDellaScatolaNera();
 proveDelRinfresco();
 proveDelleCorrezioniKpi();
 proveDellaCimaFerma();
+proveDeiQuattroEsiti();
 proveDelPreventivoCheNonVede();
 proveDellaVistaParallela();
 proveDellaScatolaPreventivo();
