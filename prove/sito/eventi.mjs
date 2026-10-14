@@ -149,6 +149,43 @@ c("percorso con molte cifre passa se inizia con /", { percorso: "/shop/prodotto/
 c("un telefono in «pagina» non passa", {}, E.ripulisciDettagli({ pagina: "3331234567" }));
 vero("traccia.ts non scrive in localStorage", !/localStorage/.test(leggi("src/landing/sito/traccia.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "")));
 
+/* ── Anteprima dal CRM: il codice non deve mai arrivare a Meta ─────────────
+ *  `/soluzioni?anteprima=<codice>`: nessun evento, nessun Pixel, nessun CAPI, nessun PageView. */
+{
+  for (const [search, atteso] of [["?anteprima=abc", true], ["anteprima=abc", true], ["?utm_source=ig&anteprima=abc", true], ["?anteprima=", true], ["?apri=invisible-derm", false], ["?x=anteprima", false], ["?anteprima2=1", false], ["", false], [undefined, false], [null, false], [5, false]])
+    c(`inAnteprima(${JSON.stringify(search)})`, atteso, E.inAnteprima(search));
+  const T = await carica("src/landing/sito/traccia.ts", "traccia-anteprima", { reactFinto: true });
+  const finestra = (search) => {
+    globalThis.window = { location: { pathname: "/soluzioni", search }, sessionStorage: { getItem: () => null, setItem() {} }, scrollY: 0, innerHeight: 800, addEventListener() {}, removeEventListener() {} };
+    globalThis.document = { body: { scrollHeight: 2000 }, documentElement: { scrollHeight: 2000 } };
+  };
+  const azzera = () => { for (const k of Object.keys(T.chiamate)) T.chiamate[k].length = 0; T.chiusure.length = 0; };
+  const attendi = () => new Promise((r) => setTimeout(r, 20));
+  finestra("?anteprima=abcdef0123456789");
+  azzera();
+  T.traccia("modulo_apri", { interesse: "trapianto" });
+  T.traccia("video_play", { voce: "invisibleVideo" });
+  T.usaTracciamentoPagina("/soluzioni");
+  await attendi();
+  c("in anteprima: nessun evento, nessun Pixel, nessun CAPI, nessun PageView, nessun ascoltatore", { trackEvent: 0, firePixel: 0, fireCapi: 0, captureSourceData: 0, avviati: 0 }, Object.fromEntries(Object.keys(T.chiamate).map((k) => [k, T.chiamate[k].length])));
+  vero("in anteprima la pulizia dell'effetto c'è e non lancia", T.chiusure.every((x) => (x?.(), true)));
+  //  Senza anteprima (con altri parametri) tutto parte come prima.
+  finestra("?utm_source=ig&apri=invisible-derm");
+  azzera();
+  T.traccia("modulo_apri", { interesse: "trapianto" });
+  T.usaTracciamentoPagina("/soluzioni");
+  await attendi();
+  vero("senza anteprima: gli eventi partono", T.chiamate.trackEvent.some((x) => x[0] === "modulo_apri") && T.chiamate.firePixel.length > 0);
+  //  Finestra senza `search` (le prove di sopra, i browser strani): conta come niente anteprima.
+  globalThis.window = { location: { pathname: "/x" }, sessionStorage: { getItem: () => null, setItem() {} } };
+  azzera();
+  T.traccia("modulo_apri", {});
+  await attendi();
+  c("location senza search: l'evento parte", 1, T.chiamate.trackEvent.length);
+  delete globalThis.window;
+  delete globalThis.document;
+}
+
 /* ── S1.3 · il tracciamento non rompe mai la pagina ────────────────────────
  *  Nella realtà la causa è `sessionStorage.getItem` non protetto dentro `tracking.ts`
  *  (modalità privata di Safari): `initAdminCheck` e `captureSourceData` lanciano.

@@ -27,7 +27,7 @@ import {
   subscribeAdminStatus,
   trackEvent,
 } from "@/landing/booking/tracking";
-import { EVENTI_SITO, ripulisciDettagli, varianteBottone, type NomeEventoSito } from "./eventi";
+import { EVENTI_SITO, paginaInAnteprima, ripulisciDettagli, varianteBottone, type NomeEventoSito } from "./eventi";
 
 const CHIAVE_VARIANTE = "hgl_variante_bottone_v1";
 /** Lo stesso valore di `CUSTOM_EVENTS.pageView` in `BookingFunnel`: le statistiche di oggi contano questo. */
@@ -49,7 +49,7 @@ export function traccia(
   dettagli: Record<string, unknown> = {},
   opzioni: { dedupKey?: string } = {},
 ): void {
-  if (!(EVENTI_SITO as readonly string[]).includes(nome)) return;
+  if (!(EVENTI_SITO as readonly string[]).includes(nome) || paginaInAnteprima()) return;
   //  Il tracciamento non rompe mai la pagina: `sessionStorage` bloccato (Safari privato) fa lanciare `initAdminCheck`.
   try {
     const pulito = ripulisciDettagli(dettagli);
@@ -84,6 +84,8 @@ export function usaTracciamentoPagina(pagina: string): void {
       pulizie = [];
     };
     let smetti: () => void = () => undefined;
+    //  In anteprima dal CRM non parte niente (nemmeno il PageView di Meta, che leggerebbe il codice dall'indirizzo).
+    if (paginaInAnteprima()) return () => undefined;
     //  Come in `traccia`: se la memoria del browser è bloccata il tracciamento si ferma, la pagina no.
     //  La pulizia sotto si restituisce comunque, qualunque cosa sia successa prima.
     try {

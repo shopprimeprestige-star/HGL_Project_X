@@ -268,6 +268,15 @@ const { pieno, senzaConsenso, riserva } = L.costruisciPayload({ dati, richiesta,
   vero("la chiave non è nemmeno nel payload «riserva» né nel «senza consenso»", !JSON.stringify([p2, p3]).includes(r.chiave) && !JSON.stringify(p1).includes(r.chiave));
 }
 
+/* ── Anteprima dal CRM: nessun Lead verso Meta ─────────────────────────── */
+{
+  globalThis.window.location.search = "?anteprima=abcdef0123456789";
+  const prima = [L.chiamate.firePixel.length, L.chiamate.fireCapi.length, L.chiamate.trackEvent.length];
+  c("in anteprima annunciaLead non parte (né Pixel, né CAPI, né evento)", [false, ...prima], [L.annunciaLead("evt-anteprima", { nome: "Prova Uno", telefono: "333 1234567" }), L.chiamate.firePixel.length, L.chiamate.fireCapi.length, L.chiamate.trackEvent.length]);
+  globalThis.window.location.search = "";
+  c("senza anteprima, lo stesso evento parte", true, L.annunciaLead("evt-anteprima", { nome: "Prova Uno", telefono: "333 1234567" }));
+}
+
 /* ── Ricarica vera: un modulo nuovo (memoria vuota) non rilancia il Lead ── */
 {
   const L2 = await carica("src/landing/booking/lead-comune.ts", "lead-comune-ricaricato");

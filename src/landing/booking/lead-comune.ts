@@ -34,6 +34,7 @@ import {
   type ModuloCortoDati,
   type PuntoSito,
 } from "@/landing/sito/richiesta";
+import { paginaInAnteprima } from "@/landing/sito/eventi";
 import type { Provenienza } from "@/landing/consulenza/regole";
 import type { Interesse } from "@/landing/sito/soluzioni/regole";
 
@@ -253,6 +254,8 @@ const annunciati = new Set<string>();
 
 /** Le stesse tre righe di `BookingFunnel`: Pixel «Lead», CAPI, evento «Lead». Torna `true` se è partito ora. */
 export function annunciaLead(eventId: string, contatti: { nome: string; telefono: string }): boolean {
+  //  Anteprima dal CRM (`?anteprima=…`): il codice è nell'indirizzo e non deve arrivare a Meta. Il lead si salva, il Lead non si annuncia.
+  if (paginaInAnteprima()) return false;
   if (annunciati.has(eventId)) return false;
   const salvata = richiestaConservata();
   if (salvata?.eventId === eventId && salvata.annunciato) {
