@@ -27,6 +27,7 @@ import { FaqAccordion } from "@/components/landing/FaqAccordion";
 import { Footer } from "@/components/landing/Footer";
 import { ComparisonTable } from "@/components/landing/ComparisonTable";
 import { CookieBanner } from "@/components/landing/CookieBanner";
+import { BarraConsulenza } from "@/components/landing/consulenza/BarraConsulenza";
 import { StickyHeader } from "@/components/landing/StickyHeader";
 import { VideoReviewsSection } from "@/components/landing/VideoReviewsSection";
 import { RichText } from "@/components/landing/RichText";
@@ -591,6 +592,9 @@ function Index() {
       </section>
 
       <Footer />
+      {/* La barra della consulenza sta dopo il piè di pagina (riserva il suo spazio lì)
+          e prima del banner dei cookie, che resta sopra finché non si risponde. */}
+      <BarraConsulenza provenienza="consulenza" />
       <CookieBanner />
     </main>
   );
