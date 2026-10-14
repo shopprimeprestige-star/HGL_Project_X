@@ -23,12 +23,19 @@ export const MARCHIO = "Hair Genius Labs";
 /** Pagine pubbliche fisse che vanno nella mappa del sito. */
 export const PAGINE_PUBBLICHE: readonly string[] = [
   "/",
+  "/catalogo",
   "/blog",
   "/shop",
   "/privacy-policy",
   "/cookie-policy",
   "/termini-e-condizioni",
 ];
+
+/** Pagine che esistono ma sono NASCOSTE: dichiarano `noindex` nella loro testata e NON stanno nella mappa
+ *  (una mappa che elenca un `noindex` è un errore per Google). `/protocol` aspetta che il redesign di home e
+ *  Protocol sia approvato dal titolare (14/10/2026): quando lo è, si toglie da qui, si mette in
+ *  `PAGINE_PUBBLICHE` e si toglie `noindex` da `routes/protocol.tsx` (la prova `prove/sito/rotte.mjs` lo ricorda). */
+export const PAGINE_NASCOSTE: readonly string[] = ["/protocol"];
 
 /** Percorsi che non sono pagine da leggere: si chiedono ai motori di non visitarli. */
 export const NON_VISITARE: readonly string[] = ["/api/", "/CRM"];

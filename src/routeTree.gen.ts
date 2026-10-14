@@ -19,6 +19,7 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ProvaCapelliRouteImport } from './routes/prova-capelli'
 import { Route as ProvaAnteprimaBRouteImport } from './routes/prova-anteprima-b'
 import { Route as ProvaAnteprimaARouteImport } from './routes/prova-anteprima-a'
+import { Route as ProtocolRouteImport } from './routes/protocol'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as PreventivoRouteImport } from './routes/preventivo'
 import { Route as PresentatoreRouteImport } from './routes/presentatore'
@@ -29,6 +30,7 @@ import { Route as MeetlyRouteImport } from './routes/meetly'
 import { Route as MediaDirettaRouteImport } from './routes/media-diretta'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
 import { Route as ConsulenteRouteImport } from './routes/consulente'
+import { Route as CatalogoRouteImport } from './routes/catalogo'
 import { Route as CRMRouteImport } from './routes/CRM'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShopIndexRouteImport } from './routes/shop.index'
@@ -239,6 +241,11 @@ const ProvaAnteprimaARoute = ProvaAnteprimaARouteImport.update({
   path: '/prova-anteprima-a',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProtocolRoute = ProtocolRouteImport.update({
+  id: '/protocol',
+  path: '/protocol',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
@@ -287,6 +294,11 @@ const CookiePolicyRoute = CookiePolicyRouteImport.update({
 const ConsulenteRoute = ConsulenteRouteImport.update({
   id: '/consulente',
   path: '/consulente',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogoRoute = CatalogoRouteImport.update({
+  id: '/catalogo',
+  path: '/catalogo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CRMRoute = CRMRouteImport.update({
@@ -1101,6 +1113,7 @@ const ApiOgAnteprimaTipoCodiceRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/CRM': typeof CRMRouteWithChildren
+  '/catalogo': typeof CatalogoRoute
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/media-diretta': typeof MediaDirettaRoute
@@ -1111,6 +1124,7 @@ export interface FileRoutesByFullPath {
   '/presentatore': typeof PresentatoreRoute
   '/preventivo': typeof PreventivoRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/protocol': typeof ProtocolRoute
   '/prova-anteprima-a': typeof ProvaAnteprimaARoute
   '/prova-anteprima-b': typeof ProvaAnteprimaBRoute
   '/prova-capelli': typeof ProvaCapelliRoute
@@ -1281,6 +1295,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/catalogo': typeof CatalogoRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
@@ -1290,6 +1305,7 @@ export interface FileRoutesByTo {
   '/presentatore': typeof PresentatoreRoute
   '/preventivo': typeof PreventivoRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/protocol': typeof ProtocolRoute
   '/prova-anteprima-a': typeof ProvaAnteprimaARoute
   '/prova-anteprima-b': typeof ProvaAnteprimaBRoute
   '/prova-capelli': typeof ProvaCapelliRoute
@@ -1459,6 +1475,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/CRM': typeof CRMRouteWithChildren
+  '/catalogo': typeof CatalogoRoute
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/media-diretta': typeof MediaDirettaRoute
@@ -1469,6 +1486,7 @@ export interface FileRoutesById {
   '/presentatore': typeof PresentatoreRoute
   '/preventivo': typeof PreventivoRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/protocol': typeof ProtocolRoute
   '/prova-anteprima-a': typeof ProvaAnteprimaARoute
   '/prova-anteprima-b': typeof ProvaAnteprimaBRoute
   '/prova-capelli': typeof ProvaCapelliRoute
@@ -1642,6 +1660,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/CRM'
+    | '/catalogo'
     | '/consulente'
     | '/cookie-policy'
     | '/media-diretta'
@@ -1652,6 +1671,7 @@ export interface FileRouteTypes {
     | '/presentatore'
     | '/preventivo'
     | '/privacy-policy'
+    | '/protocol'
     | '/prova-anteprima-a'
     | '/prova-anteprima-b'
     | '/prova-capelli'
@@ -1822,6 +1842,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/catalogo'
     | '/cookie-policy'
     | '/media-diretta'
     | '/meetly'
@@ -1831,6 +1852,7 @@ export interface FileRouteTypes {
     | '/presentatore'
     | '/preventivo'
     | '/privacy-policy'
+    | '/protocol'
     | '/prova-anteprima-a'
     | '/prova-anteprima-b'
     | '/prova-capelli'
@@ -1999,6 +2021,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/CRM'
+    | '/catalogo'
     | '/consulente'
     | '/cookie-policy'
     | '/media-diretta'
@@ -2009,6 +2032,7 @@ export interface FileRouteTypes {
     | '/presentatore'
     | '/preventivo'
     | '/privacy-policy'
+    | '/protocol'
     | '/prova-anteprima-a'
     | '/prova-anteprima-b'
     | '/prova-capelli'
@@ -2181,6 +2205,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CRMRoute: typeof CRMRouteWithChildren
+  CatalogoRoute: typeof CatalogoRoute
   ConsulenteRoute: typeof ConsulenteRouteWithChildren
   CookiePolicyRoute: typeof CookiePolicyRoute
   MediaDirettaRoute: typeof MediaDirettaRoute
@@ -2191,6 +2216,7 @@ export interface RootRouteChildren {
   PresentatoreRoute: typeof PresentatoreRoute
   PreventivoRoute: typeof PreventivoRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ProtocolRoute: typeof ProtocolRoute
   ProvaAnteprimaARoute: typeof ProvaAnteprimaARoute
   ProvaAnteprimaBRoute: typeof ProvaAnteprimaBRoute
   ProvaCapelliRoute: typeof ProvaCapelliRoute
@@ -2388,6 +2414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProvaAnteprimaARouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/protocol': {
+      id: '/protocol'
+      path: '/protocol'
+      fullPath: '/protocol'
+      preLoaderRoute: typeof ProtocolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy-policy': {
       id: '/privacy-policy'
       path: '/privacy-policy'
@@ -2456,6 +2489,13 @@ declare module '@tanstack/react-router' {
       path: '/consulente'
       fullPath: '/consulente'
       preLoaderRoute: typeof ConsulenteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catalogo': {
+      id: '/catalogo'
+      path: '/catalogo'
+      fullPath: '/catalogo'
+      preLoaderRoute: typeof CatalogoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/CRM': {
@@ -3719,6 +3759,7 @@ const ApiOgAnteprimaRouteWithChildren = ApiOgAnteprimaRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CRMRoute: CRMRouteWithChildren,
+  CatalogoRoute: CatalogoRoute,
   ConsulenteRoute: ConsulenteRouteWithChildren,
   CookiePolicyRoute: CookiePolicyRoute,
   MediaDirettaRoute: MediaDirettaRoute,
@@ -3729,6 +3770,7 @@ const rootRouteChildren: RootRouteChildren = {
   PresentatoreRoute: PresentatoreRoute,
   PreventivoRoute: PreventivoRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ProtocolRoute: ProtocolRoute,
   ProvaAnteprimaARoute: ProvaAnteprimaARoute,
   ProvaAnteprimaBRoute: ProvaAnteprimaBRoute,
   ProvaCapelliRoute: ProvaCapelliRoute,
