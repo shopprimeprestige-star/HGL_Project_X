@@ -17647,6 +17647,159 @@ function proveDellaStriscia() {
   c("domenica 1 novembre", "Dom 1", et("2026-11-01"));
 }
 
+/** ── UNA PAGINA VERA, DISEGNATA CON DATI FINTI ─────────────────────────────
+ *  Per le prove che devono guardare i NUMERI di una pagina e non il suo
+ *  sorgente: si impacchetta il componente vero con esbuild, sostituendo solo
+ *  quello che parla col mondo (l'archivio di useCRM, le intestazioni, il
+ *  router, i toast) con finti che leggono `globalThis.__slotFinti`, e lo si
+ *  disegna con react-dom/server a un'ora fissa (mercoledì 14/10/2026, 11:00).
+ *  ⚠️ IL DISEGNO SUL SERVER NON ESEGUE GLI EFFETTI: le ore tenute per una
+ *   persona sola e il periodo scelto entrano dal valore di partenza degli
+ *   useState (`globalThis.__iniziali`: 7 → periodo, "tutti" → chi, {} → ore
+ *   tenute). È un trucco della prova, la pagina non ne sa niente. */
+let finti = null;
+async function disegnatore(sorgente, nome) {
+  const esbuild = chiedi("esbuild");
+  if (!finti) {
+    finti = join(dove, "finti-pagine");
+    mkdirSync(finti, { recursive: true });
+    const reactVero = JSON.stringify(chiedi.resolve("react", { paths: [radice] }));
+    const F = {
+      "crm.js": "export const useCRM = () => globalThis.__slotFinti;",
+      "auth.js": "export const intestazioniCRM = async () => ({});",
+      "router.js": `import { createElement } from "react";
+export const createFileRoute = () => (o) => ({ options: o });
+export const Link = ({ to, children, className, title }) => createElement("a", { href: to, className, title }, children);`,
+      "sonner.js": "export const toast = { success() {}, error() {} };",
+      "react.js": `import * as R from ${reactVero};
+export * from ${reactVero};
+export default R;
+export function useState(i) {
+  const s = globalThis.__iniziali;
+  const vuoto = !!i && typeof i === "object" && !Array.isArray(i) && Object.keys(i).length === 0;
+  const k = vuoto ? "{}" : i;
+  return R.useState(s && typeof i !== "function" && s.has(k) ? s.get(k) : i);
+}`,
+    };
+    for (const [n, t] of Object.entries(F)) writeFileSync(join(finti, n), t);
+  }
+  const SOST = { "@/crm/CRMContext": "crm.js", "@/crm/AuthContext": "auth.js", "@tanstack/react-router": "router.js", sonner: "sonner.js" };
+  const r = await esbuild.build({
+    stdin: { contents: sorgente, resolveDir: radice, loader: "tsx" },
+    bundle: true, format: "cjs", platform: "node", write: false, jsx: "automatic", logLevel: "error", absWorkingDir: radice,
+    plugins: [{
+      name: "finti",
+      setup(b) {
+        b.onResolve({ filter: /^(@\/crm\/(CRMContext|AuthContext)|@tanstack\/react-router|sonner)$/ }, (a) => ({ path: join(finti, SOST[a.path]) }));
+        b.onResolve({ filter: /^react$/ }, (a) => (a.importer === join(finti, "react.js") ? undefined : { path: join(finti, "react.js") }));
+        b.onResolve({ filter: /^@\// }, (a) => b.resolve(`./src/${a.path.slice(2)}`, { resolveDir: radice, kind: a.kind }));
+      },
+    }],
+  });
+  const file = join(dove, `${nome}.cjs`);
+  writeFileSync(file, r.outputFiles[0].text);
+  const m = chiedi(file);
+  //  Disegna a ora fissa, con i dati e i valori di partenza dati; rimette a
+  //  posto l'orologio anche se il disegno si rompe.
+  return (dati, iniziali, ...argomenti) => {
+    const Vero = Date;
+    const FISSO = new Vero(2026, 9, 14, 11, 0).getTime();
+    globalThis.Date = class extends Vero {
+      constructor(...a) { if (a.length) super(...a); else super(FISSO); }
+      static now() { return FISSO; }
+    };
+    globalThis.__slotFinti = dati;
+    globalThis.__iniziali = iniziali;
+    try { return m.disegna(...argomenti); }
+    finally { globalThis.Date = Vero; delete globalThis.__slotFinti; delete globalThis.__iniziali; }
+  };
+}
+
+/** La squadra e l'archivio finti di Slot liberi: nomi inventati, nessun dato vero. */
+function squadraFinta() {
+  const cons = (id, nome, extra = {}) => ({
+    id,
+    data: { nome, faConsulente: true, attivo: true, giorniLavorativi: [1, 2, 3, 4, 5, 6],
+      fasceOrarie: [{ inizio: "09:00", fine: "13:00" }, { inizio: "14:00", fine: "18:00" }], ...extra },
+  });
+  const consultants = [
+    cons("c1", "Anna Prova"),
+    cons("c2", "Bruno Prova", { giorniLavorativi: [1, 2, 3, 4, 5], fasceOrarie: [{ inizio: "09:00", fine: "13:00" }],
+      indisponibilita: [{ data: "2026-10-16" }] }),
+    cons("c3", "Carla Prova", { attivo: false }),
+    cons("c4", "Dario Prova", { faConsulente: false }),
+  ];
+  let n = 0;
+  const lead = (consulenteId, dataMeeting, oraMeeting, stato = "appuntamento_fissato", extra = {}) =>
+    ({ id: `l${++n}`, data: { nome: "Cliente", cognome: `Finto ${n}`, stato, consulenteId, dataMeeting, oraMeeting, ...extra } });
+  const leads = [
+    lead("c1", "2026-10-14", "15:00"),
+    lead("c1", "2026-10-14", "15:00"),
+    lead("c2", "2026-10-15", "10:00"),
+    lead("c1", "2026-10-15", "10:00"),
+    lead("c2", "2026-10-19", "09:00", "annullato"),
+    lead("c2", "2026-10-20", "11:00"),
+    lead("c1", "2026-10-21", "09:00"),
+    lead("c1", "2026-10-21", "09:00"),
+    lead("c1", "2026-10-21", "09:00"),
+    lead("c2", "2026-10-22", undefined, "appuntamento_fissato", { dataVieneInSede: "2026-10-22", oraVieneInSede: "12:00" }),
+    //  Sabato 17 pieno: un cliente per ora, e ogni ora tenuta per lui solo.
+    ...["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"].map((o) => lead("c1", "2026-10-17", o)),
+    lead("c1", "2026-10-28", "16:00"),
+  ];
+  const oreTenute = { "2026-10-15 10:00": "solo" };
+  for (const o of ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"]) oreTenute[`2026-10-17 ${o}`] = "solo";
+  return { dati: { leads, consultants }, oreTenute };
+}
+
+/** Un'impronta corta del testo intero della pagina: se cambia anche un solo
+ *  orario, un nome o un posto, cambia lei. */
+const impronta = (t) => {
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+};
+
+/** ── SLOT LIBERI: GLI STESSI NUMERI PRIMA E DOPO LO SPOSTAMENTO ────────────
+ *  Commessa 2026-10-14, compito 4: il calcolo dei giorni esce dalla pagina e
+ *  va in un aggancio riusabile (crm/useGiorniLiberi). I numeri qui sotto sono
+ *  stati ANNOTATI DISEGNANDO LA PAGINA DI PRIMA, con la squadra finta: dopo lo
+ *  spostamento devono restare identici, compresa l'impronta del testo intero. */
+async function proveDeiNumeriDiSlotLiberi() {
+  gruppo("SLOT LIBERI: GLI STESSI NUMERI DI PRIMA");
+  const disegna = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Route } from "@/routes/CRM.slot-liberi";
+export const disegna = () => renderToStaticMarkup(createElement(Route.options.component));`,
+    "slot-liberi-pagina",
+  );
+  const { dati, oreTenute } = squadraFinta();
+  const ANNOTATI = {
+    "1 tutti":
+      "22 posti liberi per consulenze · oggi | 22 / 6 / 11:00 / mer 14 ott / 0 | mer 14 ott: 22 posti | 1nfgfo6",
+    "7 tutti":
+      "147 posti liberi per consulenze · 7 giorni | 147 / 37 / 11:00 / mer 14 ott / 1 | mer 14 ott: 22 posti, gio 15 ott: 30 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 36 posti, mar 20 ott: 35 posti | jj2w7i",
+    "14 tutti":
+      "345 posti liberi per consulenze · 14 giorni | 345 / 85 / 11:00 / mer 14 ott / 1 | mer 14 ott: 22 posti, gio 15 ott: 30 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 36 posti, mar 20 ott: 35 posti, mer 21 ott: 33 posti, gio 22 ott: 33 posti, ven 23 ott: 36 posti, sab 24 ott: 24 posti, lun 26 ott: 36 posti, mar 27 ott: 36 posti | 131en8d",
+    "30 tutti":
+      "824 posti liberi per consulenze · 30 giorni | 824 / 197 / 11:00 / mer 14 ott / 1 | mer 14 ott: 22 posti, gio 15 ott: 30 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 36 posti, mar 20 ott: 35 posti, mer 21 ott: 33 posti, gio 22 ott: 33 posti, ven 23 ott: 36 posti, sab 24 ott: 24 posti, lun 26 ott: 36 posti, mar 27 ott: 36 posti, mer 28 ott: 35 posti, gio 29 ott: 36 posti, ven 30 ott: 36 posti, sab 31 ott: 24 posti, lun 2 nov: 36 posti, mar 3 nov: 36 posti, mer 4 nov: 36 posti, gio 5 nov: 36 posti, ven 6 nov: 36 posti, sab 7 nov: 24 posti, lun 9 nov: 36 posti, mar 10 nov: 36 posti, mer 11 nov: 36 posti, gio 12 nov: 36 posti | 117enri",
+    "7 c1":
+      "109 posti liberi per consulenze · 7 giorni | 109 / 37 / 11:00 / mer 14 ott / 1 | mer 14 ott: 16 posti, gio 15 ott: 21 posti, ven 16 ott: 24 posti, sab 17 ott: pieno, lun 19 ott: 24 posti, mar 20 ott: 24 posti | esrw5a",
+    "14 c2":
+      "95 posti liberi per consulenze · 14 giorni | 95 / 32 / 11:00 / mer 14 ott / 0 | mer 14 ott: 6 posti, gio 15 ott: 9 posti, lun 19 ott: 12 posti, mar 20 ott: 11 posti, mer 21 ott: 12 posti, gio 22 ott: 9 posti, ven 23 ott: 12 posti, lun 26 ott: 12 posti, mar 27 ott: 12 posti | 1p0vg0j",
+  };
+  for (const chiave of Object.keys(ANNOTATI)) {
+    const [periodo, chi] = chiave.split(" ");
+    const html = disegna(dati, new Map([[7, Number(periodo)], ["tutti", chi], ["{}", oreTenute]]));
+    const testo = html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+    const nota = /\|(\d+ posti? liber[oi] per consulenze[^|]*)\|/.exec(testo)?.[1] ?? "?";
+    const kpi = /\|Posti liberi\|(\d+)\|.*?\|Orari con posto\|(\d+)\|.*?\|Primo libero\|([^|]+)\|([^|]+)\|Giorni pieni\|(\d+)\|/.exec(testo)?.slice(1).join(" / ") ?? "?";
+    const giorni = [...html.matchAll(/font-semibold capitalize">([^<]+)<\/span><span class="[^"]*">([^<]+)</g)].map((m) => `${m[1]}: ${m[2]}`).join(", ");
+    c(`Slot liberi ${chiave}: numeri e impronta come prima`, ANNOTATI[chiave], `${nota} | ${kpi} | ${giorni} | ${impronta(testo)}`);
+  }
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -17694,6 +17847,7 @@ proveDiDrive();
 proveDellaTemperatura();
 proveDellaVistaDiOggi();
 proveDellaStriscia();
+await proveDeiNumeriDiSlotLiberi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
