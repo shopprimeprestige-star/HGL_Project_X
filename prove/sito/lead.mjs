@@ -228,6 +228,20 @@ const { pieno, senzaConsenso, riserva } = L.costruisciPayload({ dati, richiesta,
   vero("la chiave non è nemmeno nel payload «riserva» né nel «senza consenso»", !JSON.stringify([p2, p3]).includes(r.chiave) && !JSON.stringify(p1).includes(r.chiave));
 }
 
+/* ── Ricarica vera: un modulo nuovo (memoria vuota) non rilancia il Lead ── */
+{
+  const L2 = await carica("src/landing/booking/lead-comune.ts", "lead-comune-ricaricato");
+  const salvata = L.richiestaConservata();
+  vero("la richiesta annunciata è ancora in sessionStorage, col segno", salvata?.annunciato === true);
+  c("modulo ricaricato: il Lead non riparte", [false, 0], [L2.annunciaLead(salvata.eventId, { nome: "Prova Uno", telefono: "333 1234567" }), L2.chiamate.firePixel.length]);
+  L.dimenticaRichiesta();
+}
+//  Browser che non sa calcolare l'impronta: il lead si salva lo stesso, senza il campo.
+{
+  const senzaHash = L.costruisciPayload({ dati, richiesta, hash: null, sito, fonte, percorso });
+  c("hash nullo → nessuna chiave chiave_orario_hash, il resto resta", [false, "sera"], ["chiave_orario_hash" in senzaHash.pieno, senzaHash.pieno.fascia_oraria]);
+}
+
 /* ── fissaOrario ───────────────────────────────────────────────────────── */
 {
   const cl = cliente([], { data: "fissato", error: null });
