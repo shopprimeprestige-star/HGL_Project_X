@@ -479,6 +479,9 @@ const MODULI = [
   //   vedi proveDelTelefonoDelModulo. Un cellulare 391/392/393/397 scritto con
   //   lo spazio finiva «+39 3 1234567» e il lead non era piu' richiamabile.
   "landing/booking/telefono",
+  //  ⚠️ Le regole del WhatsApp automatico: quando scade ogni messaggio, chi ha
+  //   dato il consenso, quanti ne escono. Vedi proveDelWaAutomatico.
+  "wa-auto-regole",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -551,6 +554,7 @@ const CP = mod["costi-pratica"];
 const KN = mod["kpi-netto"];
 const KC = mod["kpi-calcoli"];
 const LA = mod["lead-analytics"];
+const WAR = mod["wa-auto-regole"];
 const DI = mod["webinar/diario"];
 const DP = mod["webinar/diagnostica-palco"];
 const ME = mod["webinar/menzioni"];
@@ -17520,6 +17524,212 @@ function proveDelTelefonoDelModulo() {
   }
 }
 
+/** ── IL WHATSAPP AUTOMATICO AI LEAD ───────────────────────────────────────
+ *  Le regole pure: a che ora scade ogni messaggio (ora di Roma, anche nei
+ *  giorni del cambio d'ora), a chi è permesso mandarlo (consenso dato sul
+ *  modulo collegato al lead, mai cercato per telefono), e quanti ne escono
+ *  per giro e per giorno. Sono quelle che tengono il numero lontano dal ban:
+ *  una prova per ogni limite, sul codice vero. */
+function proveDelWaAutomatico() {
+  const {
+    REGOLE_PREDEFINITE, VERSIONI_CONSENSO_WA, oraRoma, inFascia, scadenzePer,
+    consensoValido, daMandare, eRichiestaStop, parametriTemplate, telefonoE164,
+  } = WAR;
+  gruppo("IL WHATSAPP AUTOMATICO AI LEAD");
+  const iso = (d) => d.toISOString();
+  const utc = (anno, mese, giorno, ore, min) => new Date(Date.UTC(anno, mese - 1, giorno, ore, min));
+
+  //  ── L'ORA DI ROMA ──
+  c("oraRoma: 19:59 d'estate (17:59 UTC)", "19:59", oraRoma(utc(2026, 7, 10, 17, 59)).ora);
+  c("oraRoma: 19:59 d'inverno (18:59 UTC)", "19:59", oraRoma(utc(2026, 12, 10, 18, 59)).ora);
+  c("oraRoma: dopo le 22 UTC d'estate è già il giorno dopo a Roma", "2026-07-11", oraRoma(utc(2026, 7, 10, 22, 30)).data);
+  c("inFascia: 19:59 sì", true, inFascia(utc(2026, 7, 10, 17, 59), "09:00", "20:00"));
+  c("inFascia: 20:00 no (la fascia finisce alle 20)", false, inFascia(utc(2026, 7, 10, 18, 0), "09:00", "20:00"));
+  c("inFascia: 20:01 no", false, inFascia(utc(2026, 7, 10, 18, 1), "09:00", "20:00"));
+  c("inFascia: 09:00 sì", true, inFascia(utc(2026, 7, 10, 7, 0), "09:00", "20:00"));
+  c("inFascia: 08:59 no", false, inFascia(utc(2026, 7, 10, 6, 59), "09:00", "20:00"));
+  c("inFascia: 21:29 con la fascia larga 08:45-21:30 sì", true, inFascia(utc(2026, 7, 10, 19, 29), "08:45", "21:30"));
+
+  //  ── LE REGOLE DI SERIE ──
+  const per = (codice) => REGOLE_PREDEFINITE.find((r) => r.codice === codice);
+  c("tre regole di serie", 3, REGOLE_PREDEFINITE.length);
+  c("ricontatto: 09:00-20:00", ["09:00", "20:00"], [per("ricontatto_data").ora_da, per("ricontatto_data").ora_a]);
+  c("giorno prima: 09:00-20:00", ["09:00", "20:00"], [per("consulenza_giorno_prima").ora_da, per("consulenza_giorno_prima").ora_a]);
+  c("10 minuti prima: 08:45-21:30", ["08:45", "21:30"], [per("consulenza_10_minuti").ora_da, per("consulenza_10_minuti").ora_a]);
+  c("i template sono quelli che il CRM ha già", ["promemoria_ricontatto", "promemoria_meet", "promemoria_meet"],
+    ["ricontatto_data", "consulenza_giorno_prima", "consulenza_10_minuti"].map((k) => per(k).template));
+
+  //  ── QUANDO SCADE OGNI MESSAGGIO ──
+  const lead = (data) => ({ id: "L1", data: { nome: "Mario", cognome: "Rossi", telefono: "+39 333 1234567", ...data } });
+  const quando = (data) => scadenzePer(lead(data), REGOLE_PREDEFINITE).map((s) => [s.regola, iso(s.scadenza)]);
+  c("ricontatto: le 9:00 del giorno fissato (estate)",
+    [["ricontatto_data", "2026-07-10T07:00:00.000Z"]],
+    quando({ stato: "da_ricontattare", dataRicontatto: "2026-07-10", oraRicontatto: "15:30" }));
+  c("ricontatto 26/10 (il giorno dopo il cambio d'ora): 9:00 = 08:00 UTC",
+    [["ricontatto_data", "2026-10-26T08:00:00.000Z"]],
+    quando({ stato: "da_ricontattare", dataRicontatto: "2026-10-26", oraRicontatto: "15:30" }));
+  c("ricontatto 25/10 (giorno del cambio): 9:00 = 08:00 UTC",
+    [["ricontatto_data", "2026-10-25T08:00:00.000Z"]],
+    quando({ stato: "da_ricontattare", dataRicontatto: "2026-10-25" }));
+  c("ricontatto 29/03 (giorno del cambio): 9:00 = 07:00 UTC",
+    [["ricontatto_data", "2026-03-29T07:00:00.000Z"]],
+    quando({ stato: "da_ricontattare", dataRicontatto: "2026-03-29" }));
+  c("consulenza alle 15:00 del 10/07: giorno prima 18:00 e 14:50",
+    [["consulenza_giorno_prima", "2026-07-09T16:00:00.000Z"], ["consulenza_10_minuti", "2026-07-10T12:50:00.000Z"]],
+    quando({ stato: "appuntamento_fissato", dataMeeting: "2026-07-10", oraMeeting: "15:00" }));
+  c("consulenza alle 9:00 → promemoria alle 8:50",
+    "2026-07-10T06:50:00.000Z",
+    quando({ stato: "appuntamento_fissato", dataMeeting: "2026-07-10", oraMeeting: "09:00" }).find((x) => x[0] === "consulenza_10_minuti")[1]);
+  c("consulenza alle 21:30 → promemoria alle 21:20",
+    "2026-07-10T19:20:00.000Z",
+    quando({ stato: "appuntamento_fissato", dataMeeting: "2026-07-10", oraMeeting: "21:30" }).find((x) => x[0] === "consulenza_10_minuti")[1]);
+  c("le 8:50 cadono nella fascia del promemoria, non in quella delle altre",
+    [true, false],
+    [inFascia(utc(2026, 7, 10, 6, 50), per("consulenza_10_minuti").ora_da, per("consulenza_10_minuti").ora_a),
+      inFascia(utc(2026, 7, 10, 6, 50), per("consulenza_giorno_prima").ora_da, per("consulenza_giorno_prima").ora_a)]);
+  c("consulenza il 26/10 alle 10:00: giorno prima (25/10) 18:00 = 17:00 UTC",
+    "2026-10-25T17:00:00.000Z",
+    quando({ stato: "appuntamento_fissato", dataMeeting: "2026-10-26", oraMeeting: "10:00" })[0][1]);
+  c("consulenza il 29/03 alle 10:00: giorno prima (28/03, ancora inverno) 18:00 = 17:00 UTC",
+    "2026-03-28T17:00:00.000Z",
+    quando({ stato: "appuntamento_fissato", dataMeeting: "2026-03-29", oraMeeting: "10:00" })[0][1]);
+  c("consulenza il 30/03 alle 9:00: giorno prima (29/03) 18:00 = 16:00 UTC, 8:50 = 06:50 UTC",
+    ["2026-03-29T16:00:00.000Z", "2026-03-30T06:50:00.000Z"],
+    quando({ stato: "appuntamento_rifissato", dataMeeting: "2026-03-30", oraMeeting: "09:00" }).map((x) => x[1]));
+  c("consulenza il 1/03: il giorno prima è il 28/02", "2026-02-28T17:00:00.000Z",
+    quando({ stato: "appuntamento_fissato", dataMeeting: "2026-03-01", oraMeeting: "10:00" })[0][1]);
+  c("stato che non promette niente (da_contattare): nessuna scadenza", [],
+    quando({ stato: "da_contattare", dataRicontatto: "2026-07-10", dataMeeting: "2026-07-10", oraMeeting: "10:00" }));
+  c("«ci ricontatta lui»: non gli scriviamo noi", [], quando({ stato: "ci_ricontatta_lui", dataRicontatto: "2026-07-10" }));
+  c("consulenza senza ora: nessuna scadenza", [], quando({ stato: "appuntamento_fissato", dataMeeting: "2026-07-10" }));
+  c("ricontatto senza data: nessuna scadenza", [], quando({ stato: "da_ricontattare" }));
+  c("data illeggibile: nessuna scadenza, nessun errore", [], quando({ stato: "da_ricontattare", dataRicontatto: "domani" }));
+  c("regola spenta dal titolare: non scade", [],
+    scadenzePer(lead({ stato: "da_ricontattare", dataRicontatto: "2026-07-10" }), REGOLE_PREDEFINITE.map((r) => ({ ...r, attiva: false }))));
+  c("regola con stato scelto: vale solo per quello", [["solo_rifissati", "2026-07-09T16:00:00.000Z"]],
+    scadenzePer(lead({ stato: "appuntamento_rifissato", dataMeeting: "2026-07-10", oraMeeting: "10:00" }),
+      [{ ...per("consulenza_giorno_prima"), codice: "solo_rifissati", stato_lead: "appuntamento_rifissato" }])
+      .map((s) => [s.regola, iso(s.scadenza)]));
+  c("regola con stato scelto: l'altro stato non la prende", [],
+    scadenzePer(lead({ stato: "appuntamento_fissato", dataMeeting: "2026-07-10", oraMeeting: "10:00" }),
+      [{ ...per("consulenza_giorno_prima"), codice: "solo_rifissati", stato_lead: "appuntamento_rifissato" }]));
+
+  //  ── IL CONSENSO: SOLO DAL MODULO COLLEGATO AL LEAD ──
+  const crm = (extra = {}) => ({ id: "L1", data: { telefono: "+39 333 1234567", publicLeadId: "P1", ...extra } });
+  const modulo = (extra = {}) => ({
+    id: "P1", telefono: "+39 333 1234567", consenso_whatsapp: true,
+    consenso_whatsapp_il: "2026-07-01T10:00:00Z", consenso_whatsapp_versione: "wa-sito-2026-10-14", ...extra,
+  });
+  c("le due versioni accettate", ["wa-2026-10-14", "wa-sito-2026-10-14"], Object.keys(VERSIONI_CONSENSO_WA).sort());
+  c("ogni versione porta il testo della casella", true, Object.values(VERSIONI_CONSENSO_WA).every((t) => typeof t === "string" && t.length > 10));
+  c("consenso wa-sito-2026-10-14: valido", true, consensoValido(crm(), modulo()));
+  c("consenso wa-2026-10-14: valido", true, consensoValido(crm(), modulo({ consenso_whatsapp_versione: "wa-2026-10-14" })));
+  c("versione sconosciuta: no", false, consensoValido(crm(), modulo({ consenso_whatsapp_versione: "wa-inventata" })));
+  c("versione assente: no", false, consensoValido(crm(), modulo({ consenso_whatsapp_versione: null })));
+  c("senza ora del consenso: no", false, consensoValido(crm(), modulo({ consenso_whatsapp_il: null })));
+  c("consenso false: no", false, consensoValido(crm(), modulo({ consenso_whatsapp: false })));
+  c("consenso null (modulo vecchio): no", false, consensoValido(crm(), modulo({ consenso_whatsapp: null })));
+  c("nessun modulo trovato: no", false, consensoValido(crm(), null));
+  c("lead senza publicLeadId (Meta, importati, a mano): no", false, consensoValido(crm({ publicLeadId: undefined }), modulo()));
+  c("modulo con lo stesso telefono ma id diverso da publicLeadId: no", false, consensoValido(crm(), modulo({ id: "P2" })));
+  c("telefono diverso dal modulo: no", false, consensoValido(crm(), modulo({ telefono: "+39 333 9876543" })));
+  c("stesso telefono scritto in un altro modo: sì", true, consensoValido(crm({ telefono: "3331234567" }), modulo({ telefono: "+39 333 123 4567" })));
+  c("stesso telefono con 0039: sì", true, consensoValido(crm({ telefono: "0039 333 1234567" }), modulo()));
+  c("lead senza telefono: no", false, consensoValido(crm({ telefono: "" }), modulo({ telefono: "" })));
+  c("telefoni troppo corti: no", false, consensoValido(crm({ telefono: "12" }), modulo({ telefono: "12" })));
+
+  //  ── IL TELEFONO CHE FA DA CHIAVE ──
+  c("telefonoE164: +39 con spazi", "+393331234567", telefonoE164("+39 333 123 4567"));
+  c("telefonoE164: senza prefisso, cellulare 333", "+393331234567", telefonoE164("333 1234567"));
+  c("telefonoE164: cellulare 393 senza prefisso", "+393931234567", telefonoE164("393 1234567"));
+  c("telefonoE164: 0039", "+393331234567", telefonoE164("0039 333 1234567"));
+  c("telefonoE164: fisso", "+39061234567", telefonoE164("06 1234567"));
+  c("telefonoE164: estero con +", "+447911123456", telefonoE164("+44 7911 123456"));
+  c("telefonoE164: vuoto", "", telefonoE164(""));
+  c("telefonoE164: spazzatura", "", telefonoE164("abc"));
+
+  //  ── I LIMITI: CHI ESCE DAL GIRO ──
+  const adesso = utc(2026, 7, 10, 7, 5); // 09:05 a Roma
+  const cand = (n, extra = {}) => ({
+    leadId: `L${n}`, regola: "ricontatto_data", scadenza: utc(2026, 7, 10, 7, 0),
+    telefono: `+39333000${String(n).padStart(4, "0")}`, template: "promemoria_ricontatto",
+    ora_da: "09:00", ora_a: "20:00", ...extra,
+  });
+  const ids = (r) => r.mandare.map((x) => x.leadId);
+  const salti = (r) => r.saltati.map((s) => [s.candidato.leadId, s.motivo, s.definitivo]);
+  c("un candidato in finestra parte", ["L1"], ids(daMandare([cand(1)], 0, [], [], adesso)));
+  c("scadenza nel futuro: aspetta", [], ids(daMandare([cand(1, { scadenza: utc(2026, 7, 10, 7, 6) })], 0, [], [], adesso)));
+  c("scaduta da 15 minuti e un secondo: non parte più", [],
+    ids(daMandare([cand(1, { scadenza: new Date(adesso.getTime() - 15 * 60000 - 1000) })], 0, [], [], adesso)));
+  c("scaduta da 14 minuti: parte", ["L1"],
+    ids(daMandare([cand(1, { scadenza: new Date(adesso.getTime() - 14 * 60000) })], 0, [], [], adesso)));
+  c("scaduta ieri: non finisce nemmeno fra i saltati", [],
+    daMandare([cand(1, { scadenza: utc(2026, 7, 9, 7, 0) })], 0, [], [], adesso).saltati);
+  const sette = Array.from({ length: 7 }, (_, i) => cand(i + 1));
+  c("al massimo 5 invii per giro", ["L1", "L2", "L3", "L4", "L5"], ids(daMandare(sette, 0, [], [], adesso)));
+  c("il 6° e il 7° del giro: giro_pieno, non registrati (riprovano al giro dopo)",
+    [["L6", "giro_pieno", false], ["L7", "giro_pieno", false]], salti(daMandare(sette, 0, [], [], adesso)));
+  c("tetto: il 40° passa", ["L1"], ids(daMandare([cand(1), cand(2)], 39, [], [], adesso)));
+  c("tetto: il 41° no", [], ids(daMandare([cand(1)], 40, [], [], adesso)));
+  c("tetto: motivo, non definitivo (domani si riparte)", [["L1", "tetto", false]], salti(daMandare([cand(1)], 40, [], [], adesso)));
+  c("tetto del titolare più basso (10)", [], ids(daMandare([cand(1)], 10, [], [], adesso, { tetto: 10 })));
+  c("lo stesso telefono su due lead: parte uno solo", ["L1"],
+    ids(daMandare([cand(1, { telefono: "+393330001111" }), cand(2, { telefono: "+393330001111" })], 0, [], [], adesso)));
+  c("lo stesso telefono, secondo lead: silenzio, non registrato", [["L2", "silenzio", false]],
+    salti(daMandare([cand(1, { telefono: "+393330001111" }), cand(2, { telefono: "+393330001111" })], 0, [], [], adesso)));
+  c("scritto 19 minuti fa a quel numero: silenzio", [],
+    ids(daMandare([cand(1)], 0, [{ telefono: "+393330000001", quando: new Date(adesso.getTime() - 19 * 60000) }], [], adesso)));
+  c("scritto 21 minuti fa a quel numero: può", ["L1"],
+    ids(daMandare([cand(1)], 0, [{ telefono: "+393330000001", quando: new Date(adesso.getTime() - 21 * 60000) }], [], adesso)));
+  c("scritto poco fa a un altro numero: non c'entra", ["L1"],
+    ids(daMandare([cand(1)], 0, [{ telefono: "+393339999999", quando: new Date(adesso.getTime() - 60000) }], [], adesso)));
+  c("escluso (STOP): nessun invio", [], ids(daMandare([cand(1)], 0, [], ["+393330000001"], adesso)));
+  c("escluso (STOP): si registra", [["L1", "escluso", true]], salti(daMandare([cand(1)], 0, [], ["+393330000001"], adesso)));
+  c("escluso con il telefono scritto in un altro modo nell'elenco: vale lo stesso", [],
+    ids(daMandare([cand(1)], 0, [], [" +39 333 000 0001"], adesso)));
+  c("un escluso non consuma un posto nel giro", ["L2", "L3", "L4", "L5", "L6"],
+    ids(daMandare(Array.from({ length: 6 }, (_, i) => cand(i + 1)), 0, [], ["+393330000001"], adesso)));
+  c("fuori fascia (20:01): non parte, registrato", [["L1", "fuori_fascia", true]],
+    salti(daMandare([cand(1, { scadenza: utc(2026, 7, 10, 17, 55) })], 0, [], [], utc(2026, 7, 10, 18, 1))));
+  c("fuori fascia (19:59): parte", ["L1"],
+    ids(daMandare([cand(1, { scadenza: utc(2026, 7, 10, 17, 55) })], 0, [], [], utc(2026, 7, 10, 17, 59))));
+  c("promemoria 10 minuti alle 8:51 con la sua fascia larga: parte", ["L1"],
+    ids(daMandare([cand(1, { regola: "consulenza_10_minuti", ora_da: "08:45", ora_a: "21:30", scadenza: utc(2026, 7, 10, 6, 50) })], 0, [], [], utc(2026, 7, 10, 6, 51))));
+  c("lo stesso lead, stessa regola, stessa scadenza due volte: una sola", ["L1"],
+    ids(daMandare([cand(1), cand(1)], 0, [], [], adesso)));
+  c("stesso lead e regola ma scadenza diversa (consulenza spostata): sono due", 2,
+    ids(daMandare([cand(1), cand(1, { scadenza: utc(2026, 7, 10, 7, 1), telefono: "+393330000002" })], 0, [], [], adesso)).length);
+  c("ordine: parte prima la scadenza più vecchia", ["L2", "L1"],
+    ids(daMandare([cand(1), cand(2, { scadenza: utc(2026, 7, 10, 6, 58) })], 0, [], [], adesso)));
+
+  //  ── STOP ──
+  for (const t of ["STOP", "stop", "Stop!", "  basta  ", "Basta così", "basta grazie", "non scrivermi più", "Non mandarmi più messaggi",
+    "non voglio più ricevere messaggi", "smettila", "cancellami", "toglimi dalla lista", "disiscrivimi", "unsubscribe", "non contattatemi più", "BASTA!!!"]) {
+    c(`STOP riconosciuto: «${t}»`, true, eRichiestaStop(t));
+  }
+  for (const t of ["ok grazie", "sì va bene", "a che ora è?", "non mi basta il tempo di domani", "posso spostare?", "stop alle 15 va bene per me", "", null, undefined, "la prima volta mi ha detto stop"]) {
+    c(`non è uno STOP: «${t ?? ""}»`, false, eRichiestaStop(t));
+  }
+
+  //  ── I PARAMETRI DEL TEMPLATE ──
+  const pt = (nome, data, consulente = "Luca") => parametriTemplate(nome, lead(data), consulente);
+  c("promemoria_meet: ordine e formato dei parametri",
+    { ok: true, params: ["Mario", "10/07/2026", "15:00", "https://meet.google.com/abc-defg-hij", "Luca"] },
+    pt("promemoria_meet", { dataMeeting: "2026-07-10", oraMeeting: "15:00", linkMeeting: "https://meet.google.com/abc-defg-hij" }));
+  c("promemoria_ricontatto: ordine e formato dei parametri",
+    { ok: true, params: ["Mario", "10/07/2026", "15:30", "Luca"] },
+    pt("promemoria_ricontatto", { dataRicontatto: "2026-07-10", oraRicontatto: "15:30" }));
+  c("ora con secondi: si tengono ore e minuti", ["Mario", "10/07/2026", "09:05", "Luca"],
+    pt("promemoria_ricontatto", { dataRicontatto: "2026-07-10", oraRicontatto: "09:05:00" }).params);
+  c("manca il link del meet: non si manda", { ok: false, motivo: "manca meet_link" },
+    pt("promemoria_meet", { dataMeeting: "2026-07-10", oraMeeting: "15:00" }));
+  c("manca l'ora del ricontatto: non si inventa", { ok: false, motivo: "manca recontact_time" },
+    pt("promemoria_ricontatto", { dataRicontatto: "2026-07-10" }));
+  c("manca il consulente: non si manda", { ok: false, motivo: "manca consultant_name" },
+    pt("promemoria_ricontatto", { dataRicontatto: "2026-07-10", oraRicontatto: "15:30" }, ""));
+  c("template che non esiste: non si manda", { ok: false, motivo: "template sconosciuto" }, pt("inventato", {}));
+}
+
 /** La temperatura: una funzione sola, così lo stesso lead ha lo stesso livello
  *  in «Oggi», in Lead importati e nella scheda. Vedi crm/temperatura-lead. */
 function proveDellaTemperatura() {
@@ -18983,6 +19193,7 @@ proveDellaTemperatura();
 proveDellaVistaDiOggi();
 proveDellaStriscia();
 proveDelTelefonoDelModulo();
+proveDelWaAutomatico();
 await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();
