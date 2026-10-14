@@ -175,4 +175,75 @@ export const tavola = (p) => renderToStaticMarkup(h(TavolaSoluzioni, { aperta: f
   vero("nessuna parola vietata nell'HTML (prezzi, «invisibile», «Indistinguibile», {{ , «da confermare»)", !/€|\binvisibil[ei]/i.test(tutto) && !/Indistinguibil|\{\{|da confermare|Verificato|1326/.test(t + v + testo));
 }
 
+/* ═══ S3.2 · LA SPIEGAZIONE «CHE COS'È INVISIBLE DERM?» ═══════════════════════════════════════════ */
+{
+  const m = await impacchetta(
+    `${PRELUDIO}
+import { SpiegazioneInvisible } from ${rel("src/landing/sito/soluzioni/SpiegazioneInvisible")};
+const no = () => {};
+const stato = (aperta, montata) => ({ aperta, montata, chiudi: no, apri: no, alterna: no, titoloRef: { current: null }, bottoneRef: { current: null }, cellaRef: { current: null } });
+export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStaticMarkup(h(SpiegazioneInvisible, { stato: stato(aperta, montata), vista, onPrenota: no, priorita: false, ...extra }));
+`,
+  );
+  const T = await impacchetta(`export * from ${rel("src/landing/testi-sito")};`);
+  const E = T.TESTI_SOLUZIONI.spiegazione;
+  const posizione = (html, testo) => html.indexOf(testo);
+  const URL_MEDIA = ["video.webp", "video-poster.webp", "macro.webp", "macro-poster.webp"];
+
+  /* ── Chiusa: nell'HTML per Google e per la ricerca nella pagina, ma senza un solo file video ── */
+  const chiusa = m.spiegazione(false, false, PIENA);
+  vero("chiusa: <section id=\"spiegazione-invisible-derm\" aria-labelledby=\"titolo-invisible-derm\"> nascosta (hidden)",
+    /<section[^>]*id="spiegazione-invisible-derm"/.test(chiusa) && /<section[^>]*aria-labelledby="titolo-invisible-derm"/.test(chiusa) && /<section[^>]*\shidden=""/.test(chiusa));
+  //  React 19.2 non conosce «until-found»: gli si passa il booleano e scrive hidden="". La parola giusta la mette il gancio dopo il disegno
+  //  (useLayoutEffect, ogni volta che il pannello torna chiuso): qui si controlla che il codice lo faccia; il browser vero lo prova Playwright.
+  const sorgenteSpiegazione = leggi("src/landing/sito/soluzioni/SpiegazioneInvisible.tsx");
+  vero("chiusa: dopo il disegno il pannello diventa hidden=\"until-found\" (ripiego: resta hidden, nei browser che non lo conoscono)",
+    /useLayoutEffect\([\s\S]*?setAttribute\("hidden", "until-found"\)[\s\S]*?\[montata\]\)/.test(sorgenteSpiegazione));
+  vero("chiusa: il titolo (H2 con id e tabindex=-1) e la prima riga sono nell'HTML", /<h2[^>]*id="titolo-invisible-derm"[^>]*tabindex="-1"|<h2[^>]*tabindex="-1"[^>]*id="titolo-invisible-derm"/.test(chiusa) && testoVisibile(chiusa).includes(E.primaRiga));
+  c("chiusa: nessun <video> nel DOM", 0, conta(chiusa, /<video[\s>]/g));
+  vero("chiusa: nessun indirizzo di video, copertina o clip nell'HTML", URL_MEDIA.every((u) => !chiusa.includes(u)));
+  vero("chiusa: le tre righe e le due piccole ci sono (testo per chi cerca nella pagina)", [...E.righe, ...E.piccole].every((r) => testoVisibile(chiusa).includes(r.testo)));
+
+  /* ── Aperta dal server (?apri) o dopo il tocco: niente hidden, i media ci sono ── */
+  const aperta = m.spiegazione(true, true, PIENA);
+  vero("aperta: nessun attributo hidden", !/<section[^>]*\shidden/.test(aperta));
+  vero("aperta: il video del titolare (copertina) e la clip ci sono", aperta.includes("video-poster.webp") && /<video[\s>]/.test(aperta) && aperta.includes("data-src=\"https://progetto.supabase.co/storage/v1/object/public/landing-media/macro.webp\""));
+  vero("aperta: la clip ha la sua descrizione e la didascalia dei testi", aperta.includes(PIENA.macro.alt) && testoVisibile(aperta).includes(E.macro.didascalia));
+  vero("aperta: la trascrizione (se c'è) è nell'HTML come testo", testoVisibile(aperta).includes("Le parole dette davvero."));
+
+  /* ── L'ordine della 3.2: titolo → prima riga → video → macro → righe → limite → piccole → passo → chiudi ── */
+  const ordine = [E.titolo, E.primaRiga, 'alt="Alt di video"', "<video", E.righe[0].testo, E.righe[1].testo, E.righe[2].testo, E.piccole[0].testo, E.piccole[1].testo, E.passo.bottone, E.passo.riga, E.passo.chiudi];
+  const normale = decodifica(aperta);
+  const indici = ordine.map((x) => normale.indexOf(x));
+  c("ordine: ogni pezzo c'è", [], indici.map((v, i) => (v < 0 ? ordine[i] : null)).filter(Boolean));
+  c("ordine: titolo → prima riga → video → macro → tre righe → due piccole → bottone → riga → chiudi", true, indici.every((v, i) => i === 0 || v > indici[i - 1]));
+  vero("il limite vero sta prima del bottone, con il filetto a sinistra e la frase intera", normale.indexOf("E non cura la caduta: la copre.") < normale.indexOf(E.passo.bottone) && /<li[^>]*class="[^"]*border-l-2[^"]*"[^>]*>(?:(?!<\/li>)[\s\S])*Il limite vero/.test(aperta));
+  {
+    const [righe, piccole] = [...aperta.matchAll(/<ul class="[^"]*">([\s\S]*?)<\/ul>/g)].map((x) => x[1]);
+    vero("le tre righe hanno un'icona ciascuna (aria-hidden), le due piccole nessuna", conta(righe, /<svg[^>]*aria-hidden="true"/g) === 3 && conta(piccole, /<svg/g) === 0);
+  }
+  c("passo: il bottone «Prenota la consulenza gratuita» c'è una volta, nel pannello", 1, conta(aperta, new RegExp(E.passo.bottone, "g")));
+  vero("passo: il bordo del bottone blu sul chiaro è #0B5FB0 (mai #0F90FE per il testo)", /<button[^>]*data-ruolo="primario"[^>]*class="[^"]*border-\[var\(--hgl-elettrico-su-chiaro,#0B5FB0\)\]/.test(aperta));
+  vero("«Chiudi la spiegazione» in fondo è un link d'azione (bottone senza href)", /<button[^>]*data-ruolo="link"[^>]*>\s*Chiudi la spiegazione/.test(aperta));
+
+  /* ── Quando manca qualcosa ── */
+  const senzaMacro = m.spiegazione(true, true, { ...PIENA, macro: null });
+  c("senza clip: nessun blocco della clip, il resto della spiegazione resta", [0, true], [conta(senzaMacro, /<figure[\s>]/g), [...E.righe, ...E.piccole].every((r) => testoVisibile(senzaMacro).includes(r.testo)) && testoVisibile(senzaMacro).includes(E.passo.bottone)]);
+
+  /* ── Anteprima dal CRM: la riga tratteggiata, mai sul sito ── */
+  const senzaVideoAnteprima = m.spiegazione(true, true, { ...PIENA, pubblicabile: false, anteprima: true, mancanti: ["video", "copertina", "sottotitoli"], video: null });
+  vero("anteprima senza video: al posto del video la riga tratteggiata con il testo della 4.7", /border-dashed/.test(senzaVideoAnteprima) && testoVisibile(senzaVideoAnteprima).includes(E.anteprima.senzaVideo));
+  const senzaVideoSito = m.spiegazione(true, true, { ...PIENA, pubblicabile: false, anteprima: false, video: null });
+  vero("sul sito (anteprima=false) la riga dell'anteprima non esiste mai", !/border-dashed|Anteprima/.test(senzaVideoSito));
+  vero("anteprima senza video: nessun riquadro grigio al posto del video", !/bg-gray|bg-neutral|placeholder/i.test(senzaVideoAnteprima));
+  const soloSottotitoli = m.spiegazione(true, true, { ...PIENA, pubblicabile: false, anteprima: true, mancanti: ["sottotitoli"] });
+  vero("anteprima con il video ma senza conferma dei sottotitoli: il video si vede e la riga dice cosa manca davvero", soloSottotitoli.includes("video-poster.webp") && /border-dashed/.test(soloSottotitoli) && testoVisibile(soloSottotitoli).includes("manca la conferma dei sottotitoli") && !testoVisibile(soloSottotitoli).includes("manca il video"));
+  vero("anteprima pubblicabile: nessuna riga tratteggiata", !/border-dashed/.test(m.spiegazione(true, true, { ...PIENA, anteprima: true })));
+
+  /* ── Il testo che arriva dal CRM (trascrizione, alt) resta testo: mai HTML ── */
+  const ostile = m.spiegazione(true, true, { ...PIENA, video: { slot: { ...PIENA.video.slot, alt: 'x" onerror="alert(1)' }, trascrizione: "</script><img src=x onerror=alert(1)>" } });
+  vero("la trascrizione ostile non diventa HTML (</script><img … onerror> è scritto come testo)", !ostile.includes("<img src=x") && !ostile.includes("</script><img") && ostile.includes("&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;"));
+  vero("l'alt ostile non esce dall'attributo (nessun tag ha un attributo onerror)", !/<[^>]+\sonerror=/.test(ostile.replace(/"[^"]*"/g, '""')) && ostile.includes("&quot; onerror=&quot;alert(1)"));
+}
+
 finisci();
