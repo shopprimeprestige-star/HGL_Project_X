@@ -314,7 +314,10 @@ export interface TestiModuloSoluzioni {
   telefono: { etichetta: string; segnaposto: string; aiuto: string };
   /** Le opzioni sono le `FASCE` di oggi. */
   fascia: { etichetta: string };
+  /** Le tre spunte per chi arriva da «Invisible Derm»; la terza cambia per gli altri (`rassicurazioneAltra`). */
   rassicurazioni: readonly string[];
+  /** Terza spunta per chi arriva da «trapianto» o «non so»: neutra, senza spingere il prodotto (marketing, 15/10). */
+  rassicurazioneAltra: string;
   bottone: string;
   sotto: string;
   errori: { nome: string; telefono: string; fascia: string; invio: string };
@@ -435,6 +438,7 @@ export const TESTI_SOLUZIONI = {
       "Anche in videochiamata.",
       `Se la soluzione giusta non è ${NOME_PRODOTTO}, te lo diciamo.`,
     ],
+    rassicurazioneAltra: "Se la soluzione giusta è un'altra, te lo diciamo.",
     bottone: "Prenota la consulenza gratuita",
     sotto: "Ti richiamiamo noi, nell'orario che scegli.",
     errori: {
@@ -452,3 +456,10 @@ export const TESTI_SOLUZIONI = {
   /** Le etichette del motivo da cui parte la persona (la riga `Interesse: …` del lead). */
   interesse: { trapianto: "Trapianto", "invisible-derm": NOME_PRODOTTO, "non-so": "Non so quale" },
 } as const;
+
+/** Le spunte del modulo secondo il bottone da cui si arriva: chi chiede del trapianto o non sa quale sceglie
+ *  non legge «se non è Invisible Derm» (sembrerebbe una spinta). Per «invisible-derm» resta quella di sempre. */
+export function rassicurazioniPer(interesse: "trapianto" | "invisible-derm" | "non-so"): readonly string[] {
+  const m = TESTI_SOLUZIONI.modulo;
+  return interesse === "invisible-derm" ? m.rassicurazioni : [...m.rassicurazioni.slice(0, 2), m.rassicurazioneAltra];
+}

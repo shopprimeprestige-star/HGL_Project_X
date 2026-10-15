@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/sheet";
 import { ModuloCorto, type Interesse } from "@/landing/booking/ModuloCorto";
 import { traccia } from "@/landing/sito/traccia";
-import { TESTI_SOLUZIONI } from "@/landing/testi-sito";
+import { TESTI_SOLUZIONI, rassicurazioniPer } from "@/landing/testi-sito";
 import { comportamentoScorrimento } from "./movimento";
 import { segnaFoglio, usaComputer } from "./stato-pagina";
 
@@ -165,7 +165,7 @@ export function FoglioModulo({ aperto, interesse, onChiudi, rientro }: FoglioMod
           )}
           {!inviato && (
             <ul className="mt-4 space-y-2 pb-5">
-              {T.rassicurazioni.map((r) => (
+              {rassicurazioniPer(interesse).map((r) => (
                 <li key={r} className="flex items-start gap-2.5 text-[15px] leading-snug">
                   <Check
                     className="mt-0.5 h-4 w-4 shrink-0 text-[#0B5FB0]"

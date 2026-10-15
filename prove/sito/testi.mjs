@@ -191,6 +191,17 @@ c("modulo: titolo", "Lascia due dati. Ti diciamo con onestà quale strada fa per
 c("modulo: riga secondo l'interesse", { trapianto: "Guardiamo il tuo caso e ti diciamo se si può fare.", "invisible-derm": "La guardi da vicino e decidi con calma.", "non-so": "Ti aiutiamo a scegliere fra le tre." }, MS.rigaInteresse);
 c("modulo: campi", { nome: ["Nome", "Il tuo nome"], telefono: ["Telefono", "Il tuo numero", "Serve solo per richiamarti."], fascia: "Quando ti chiamiamo?" }, { nome: [MS.nome.etichetta, MS.nome.segnaposto], telefono: [MS.telefono.etichetta, MS.telefono.segnaposto, MS.telefono.aiuto], fascia: MS.fascia.etichetta });
 c("modulo: le tre rassicurazioni", ["Consulenza gratuita, senza impegno.", "Anche in videochiamata.", "Se la soluzione giusta non è Invisible Derm, te lo diciamo."], MS.rassicurazioni);
+//  Marketing n. 2 (15/10): chi arriva da «trapianto» o «non so» non deve leggere «se non è Invisible Derm»: sembra una spinta.
+c("modulo: terza spunta neutra per chi non viene da Invisible Derm", "Se la soluzione giusta è un'altra, te lo diciamo.", MS.rassicurazioneAltra);
+{
+  const uguali = ["Consulenza gratuita, senza impegno.", "Anche in videochiamata."];
+  c("terza spunta per «invisible-derm»: quella di sempre", [...uguali, "Se la soluzione giusta non è Invisible Derm, te lo diciamo."], T.rassicurazioniPer("invisible-derm"));
+  for (const i of ["trapianto", "non-so"]) {
+    c(`terza spunta per «${i}»: neutra`, [...uguali, "Se la soluzione giusta è un'altra, te lo diciamo."], T.rassicurazioniPer(i));
+    vero(`«${i}»: il nome del prodotto non compare nelle spunte`, !/invisible/i.test(T.rassicurazioniPer(i).join(" ")));
+  }
+  vero("FoglioModulo disegna le spunte con rassicurazioniPer(interesse)", /rassicurazioniPer\(interesse\)/.test(leggi("src/landing/sito/soluzioni/FoglioModulo.tsx")));
+}
 c("modulo: bottone e riga sotto", ["Prenota la consulenza gratuita", "Ti richiamiamo noi, nell'orario che scegli."], [MS.bottone, MS.sotto]);
 c("modulo: errori (senza rimando a WhatsApp)", ["Scrivi il tuo nome.", "Controlla il numero: mancano delle cifre.", "Scegli quando ti va bene.", "Non siamo riusciti a inviare la richiesta. Riprova tra un attimo."], [MS.errori.nome, MS.errori.telefono, MS.errori.fascia, MS.errori.invio]);
 c("modulo: conferma", ["Fatto. Ti richiamiamo noi.", "Abbiamo ricevuto la tua richiesta. Ti chiamiamo nella fascia che hai scelto."], [MS.conferma.titolo, MS.conferma.testo]);
