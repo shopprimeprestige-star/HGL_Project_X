@@ -448,6 +448,9 @@ const MODULI = [
   "seo/chi-riceve-il-link",
   "shop/stanza-ancora-vuota",
   "shop/conta-suoni",
+  //  ⚠️ Il riconoscimento vocale che si riavviava in loop (un bip ogni ~2 s
+  //   sul telefono di chi entra): vedi proveDelRiconoscimentoCheNonSuonaSempre.
+  "shop/riavvio-riconoscimento",
   "chi-ha-fissato",
   "importa/reparti",
   //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
@@ -634,6 +637,7 @@ const LINKCHI = mod["shop/chi-dal-link"];
 const ALP = mod["shop/anteprima-link-preventivo"];
 const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
+const RIAVVIO = mod["shop/riavvio-riconoscimento"];
 const FISSA = mod["chi-ha-fissato"];
 const REP = mod["importa/reparti"];
 const FIL = mod["importa/filtri-lista"];
@@ -11635,6 +11639,52 @@ function proveDelContaSuoni() {
   c("un nome vuoto non conta", 0, quanti(conta({}, "   ")));
 }
 
+/** ── UN BIP OGNI ~2 SECONDI A CHI ENTRA ────────────────────────────────────
+ *  Segnalazione del titolare (15/10/2026): «quando le persone entrano su
+ *  Meetly sentono continuamente un suono ogni 2 secondi». Su un telefono il
+ *  riconoscimento vocale fa il suo «bip» a OGNI avvio, e `onend` lo riavviava
+ *  subito, per sempre, anche quando finiva all'istante (microfono già preso
+ *  dalla chiamata, permesso negato, niente rete). Vedi
+ *  shop/riavvio-riconoscimento. */
+function proveDelRiconoscimentoCheNonSuonaSempre() {
+  const { dopoLaFine, ERRORI_FATALI } = RIAVVIO;
+  gruppo("IL RICONOSCIMENTO VOCALE NON SUONA IN LOOP");
+
+  /*  Simulo il peggio: il riconoscimento finisce subito, senza sentire niente,
+      e ogni riavvio costa un bip. Quanti bip in due minuti? */
+  const simula = (errore) => {
+    let t = 0, avvii = 1, brevi = 0;
+    while (t < 120_000) {
+      const d = dopoLaFine({ errore, durataMs: 300, haSentito: false, breviDiSeguito: brevi });
+      if (!d.riavvia) break;
+      brevi = d.breviDiSeguito;
+      t += d.dopoMs + 300;
+      avvii++;
+    }
+    return avvii;
+  };
+  c("finisce subito senza errore: pochi avvii, non uno ogni 2s", true, simula(null) <= 4);
+  c("«no-speech» a ripetizione: si arrende", true, simula("no-speech") <= 4);
+  for (const e of ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported"]) {
+    c(`errore «${e}»: non si riavvia`, false,
+      dopoLaFine({ errore: e, durataMs: 200, haSentito: false, breviDiSeguito: 0 }).riavvia);
+    c(`«${e}» è fra i fatali`, true, ERRORI_FATALI.has(e));
+  }
+  //  Tra un riavvio breve e il successivo passano almeno 2 secondi.
+  c("un riavvio dopo una fine breve aspetta almeno 2s", true,
+    dopoLaFine({ errore: null, durataMs: 300, haSentito: false, breviDiSeguito: 0 }).dopoMs >= 2000);
+
+  /*  ⚠️ Il caso normale NON cambia: il consulente che parla con il teleprompter
+      aperto deve ripartire subito, senza buchi nelle parole seguite. */
+  const bene = dopoLaFine({ errore: null, durataMs: 45_000, haSentito: true, breviDiSeguito: 2 });
+  c("una sessione lunga con voce riparte subito", true, bene.riavvia && bene.dopoMs === 0);
+  c("e azzera il conto delle fini brevi", 0, bene.breviDiSeguito);
+  const breveMaConVoce = dopoLaFine({ errore: null, durataMs: 3000, haSentito: true, breviDiSeguito: 2 });
+  c("anche breve, se ha sentito qualcosa è sana", true, breveMaConVoce.riavvia && breveMaConVoce.breviDiSeguito === 0);
+  c("«no-speech» dopo una lunga attesa riparte (silenzio normale)", true,
+    dopoLaFine({ errore: "no-speech", durataMs: 20_000, haSentito: false, breviDiSeguito: 0 }).riavvia);
+}
+
 function proveDellaStanzaVuota() {
   const { stanzaAncoraVuota, eLaStanzaNuda } = VUOTA;
   gruppo("«L'HO ACCETTATO E NON RIESCE A ENTRARE»");
@@ -16671,6 +16721,7 @@ provePalco();
   proveDiChiChiamare();
   proveDiChiHaFissato();
   proveDelContaSuoni();
+  proveDelRiconoscimentoCheNonSuonaSempre();
   proveDellaStanzaVuota();
   proveDelGiraCamera();
   proveDelLinkPerCiascuno();

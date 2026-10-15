@@ -23,6 +23,7 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 //  Il conto dei suoni che partono sul dispositivo del cliente, e la riga da
 //  lasciare nel diario: la regola sta fuori di qui e si prova senza browser.
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
+import { dopoLaFine } from "@/shop/riavvio-riconoscimento";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
 import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
@@ -650,6 +651,12 @@ let chiudiRegistrazione: (() => void) | null = null;
     registrazione tiene i suoi pezzi nella propria chiusura, e nessun'altra
     può toccarli (vedi `startRecordingWith`). */
 let recognition: any = null;
+// Stato del ciclo di riavvio del riconoscimento (vedi shop/riavvio-riconoscimento).
+let recInizio = 0;
+let recHaSentito = false;
+let recErrore: string | null = null;
+let recBrevi = 0;
+let recTimer = 0;
 let vad: { ctx: AudioContext; raf: number; src: MediaStreamAudioSourceNode } | null = null;
 const streamSubs = new Set<() => void>();
 const emitStreams = () => streamSubs.forEach((f) => f());
@@ -2730,11 +2737,14 @@ function startRecognition() {
   recWanted = true;
   try {
     const r = new SR();
+    recBrevi = 0;
+    recErrore = null;
     r.lang = "it-IT";
     r.continuous = true;
     r.interimResults = true;
     r.onresult = (e: any) => {
       let interim = "";
+      recHaSentito = true;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
         const text = String(res[0].transcript).trim();
@@ -2751,18 +2761,43 @@ function startRecognition() {
       // risultati intermedi → avanzamento fluido del teleprompter (solo host)
       if (interim.trim() && S.role === "host") spokenSubs.forEach((f) => f(interim));
     };
+    /*  ⚠️ NON SI RIAVVIA PIÙ A OLTRANZA: su telefono ogni avvio fa un «bip», e
+        un riconoscimento che finisce subito suonava ogni ~2 s a chi entrava.
+        La regola sta in shop/riavvio-riconoscimento. */
     r.onend = () => {
-      if (recWanted) {
+      if (!recWanted || recognition !== r) return;
+      const d = dopoLaFine({
+        errore: recErrore,
+        durataMs: Date.now() - recInizio,
+        haSentito: recHaSentito,
+        breviDiSeguito: recBrevi,
+      });
+      recBrevi = d.breviDiSeguito;
+      if (!d.riavvia) {
+        recognition = null; // la prossima connessione può riprovare
+        return;
+      }
+      const riparti = () => {
+        recTimer = 0;
+        if (!recWanted || recognition !== r) return;
         try {
+          recErrore = null;
+          recHaSentito = false;
+          recInizio = Date.now();
           r.start();
         } catch {
           /* */
         }
-      }
+      };
+      if (d.dopoMs > 0) recTimer = window.setTimeout(riparti, d.dopoMs);
+      else riparti();
     };
-    r.onerror = () => {
-      /* es. no-speech: onend riavvia */
+    r.onerror = (e: any) => {
+      recErrore = String(e?.error || "") || null;
     };
+    recErrore = null;
+    recHaSentito = false;
+    recInizio = Date.now();
     r.start();
     recognition = r;
   } catch {
@@ -2771,6 +2806,10 @@ function startRecognition() {
 }
 function stopRecognition() {
   recWanted = false;
+  if (recTimer) {
+    clearTimeout(recTimer);
+    recTimer = 0;
+  }
   if (recognition) {
     try {
       recognition.onend = null;
