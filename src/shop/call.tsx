@@ -23,6 +23,8 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 //  Il conto dei suoni che partono sul dispositivo del cliente, e la riga da
 //  lasciare nel diario: la regola sta fuori di qui e si prova senza browser.
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
+import { deveRiconoscere, dopoLaFine, eUnTelefono } from "@/shop/riavvio-riconoscimento";
+import { nomeRegistrazione } from "@/shop/nome-registrazione";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
 import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
@@ -650,6 +652,12 @@ let chiudiRegistrazione: (() => void) | null = null;
     registrazione tiene i suoi pezzi nella propria chiusura, e nessun'altra
     può toccarli (vedi `startRecordingWith`). */
 let recognition: any = null;
+// Stato del ciclo di riavvio del riconoscimento (vedi shop/riavvio-riconoscimento).
+let recInizio = 0;
+let recHaSentito = false;
+let recErrore: string | null = null;
+let recBrevi = 0;
+let recTimer = 0;
 let vad: { ctx: AudioContext; raf: number; src: MediaStreamAudioSourceNode } | null = null;
 const streamSubs = new Set<() => void>();
 const emitStreams = () => streamSubs.forEach((f) => f());
@@ -2727,14 +2735,30 @@ export function ensureRecognition() {
 function startRecognition() {
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SR || recognition) return;
+  //  ⚠️ Il cliente su telefono/tablet non avvia il riconoscimento: su Android
+  //   ogni avvio fa un bip e il browser lo chiude a ogni pausa (vedi
+  //   shop/riavvio-riconoscimento). Prezzo: la sua voce non entra nel PDF.
+  if (
+    !deveRiconoscere({
+      ruolo: S.role,
+      mobile: eUnTelefono({
+        puntatoreGrossolano: !!window.matchMedia?.("(pointer: coarse)").matches,
+        userAgent: navigator.userAgent || "",
+      }),
+    })
+  )
+    return;
   recWanted = true;
   try {
     const r = new SR();
+    recBrevi = 0;
+    recErrore = null;
     r.lang = "it-IT";
     r.continuous = true;
     r.interimResults = true;
     r.onresult = (e: any) => {
       let interim = "";
+      recHaSentito = true;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
         const text = String(res[0].transcript).trim();
@@ -2751,18 +2775,42 @@ function startRecognition() {
       // risultati intermedi → avanzamento fluido del teleprompter (solo host)
       if (interim.trim() && S.role === "host") spokenSubs.forEach((f) => f(interim));
     };
+    /*  Rete di sicurezza, non la cura (la cura è la guardia in cima): un ciclo
+        di riavvii immediati si ferma. La regola sta in shop/riavvio-riconoscimento. */
     r.onend = () => {
-      if (recWanted) {
+      if (!recWanted || recognition !== r) return;
+      const d = dopoLaFine({
+        errore: recErrore,
+        durataMs: Date.now() - recInizio,
+        haSentito: recHaSentito,
+        breviDiSeguito: recBrevi,
+      });
+      recBrevi = d.breviDiSeguito;
+      if (!d.riavvia) {
+        recognition = null; // la prossima connessione può riprovare
+        return;
+      }
+      const riparti = () => {
+        recTimer = 0;
+        if (!recWanted || recognition !== r) return;
         try {
+          recErrore = null;
+          recHaSentito = false;
+          recInizio = Date.now();
           r.start();
         } catch {
           /* */
         }
-      }
+      };
+      if (d.dopoMs > 0) recTimer = window.setTimeout(riparti, d.dopoMs);
+      else riparti();
     };
-    r.onerror = () => {
-      /* es. no-speech: onend riavvia */
+    r.onerror = (e: any) => {
+      recErrore = String(e?.error || "") || null;
     };
+    recErrore = null;
+    recHaSentito = false;
+    recInizio = Date.now();
     r.start();
     recognition = r;
   } catch {
@@ -2771,6 +2819,10 @@ function startRecognition() {
 }
 function stopRecognition() {
   recWanted = false;
+  if (recTimer) {
+    clearTimeout(recTimer);
+    recTimer = 0;
+  }
   if (recognition) {
     try {
       recognition.onend = null;
@@ -3761,6 +3813,8 @@ async function uploadRecording(
     titolo: "Registrazione vuota",
     motivo: "il registratore non ha prodotto alcun dato: non c'è file da archiviare.",
   },
+  //  Il nome con cui il file è GIÀ stato scaricato sul computer ("" = no).
+  scaricataCome = "",
 ) {
   //  Un blob vuoto vuol dire che il registratore non ha prodotto nulla:
   //  archiviarlo creerebbe una scheda che apre un video rotto.
@@ -3773,7 +3827,7 @@ async function uploadRecording(
     return;
   }
   console.log("[REC] carico in archivio", filename, Math.round(blob.size / 1024) + "KB");
-  const p: RegInSospeso = { blob, filename, duration, url: "", scaricata: false };
+  const p: RegInSospeso = { blob, filename, duration, url: "", scaricata: !!scaricataCome };
   const motivo = await archivia(p);
   if (!motivo) {
     archiviata(p.url);
@@ -3785,7 +3839,7 @@ async function uploadRecording(
   //  non si perde MAI. Se invece è già nella Storage (manca solo la scheda) NON
   //  si scarica niente: il video è al sicuro, riprovare costa una richiesta.
   regInSospeso = p;
-  if (!p.url) {
+  if (!p.url && !p.scaricata) {
     salvaInLocale(blob, filename);
     p.scaricata = true;
   }
@@ -3794,7 +3848,7 @@ async function uploadRecording(
     titolo: p.url ? "Video caricato, ma non è nell'elenco" : "Registrazione non archiviata",
     motivo,
     dettaglio: p.scaricata
-      ? `Una copia è già nei tuoi Download: ${filename}. Riprova qui sotto: se va a buon fine finisce in archivio e la copia locale puoi cancellarla.`
+      ? `Una copia è già nei tuoi Download: ${scaricataCome || filename}. Riprova qui sotto: se va a buon fine finisce in archivio e la copia locale puoi cancellarla.`
       : "Il video è già nell'archivio: manca solo la scheda che lo mostra in Registrazioni. Riprova qui sotto — non devi rifare la consulenza.",
     tono: "ambra",
     riprova: true,
@@ -4662,18 +4716,32 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         pesoParte = 0;
 
         if (finePerDavvero) {
-          // ── NIENTE DOWNLOAD AUTOMATICO ────────────────────────────────
-          //  Chiudere una consulenza faceva partire da solo lo scaricamento
-          //  del video: file pesanti nella cartella Download, a ogni
-          //  chiamata, senza che nessuno li avesse chiesti. La registrazione
-          //  va SOLO in archivio (Impostazioni → Registrazioni).
+          // ── LA COPIA SUL COMPUTER DI CHI HA REGISTRATO ────────────────
+          //  Prima non si scaricava niente (file pesanti in Download a ogni
+          //  chiamata, mai chiesti). Dal 15/10/2026 lo chiede il titolare:
+          //  fermata la registrazione, il file si scarica da solo, con data,
+          //  ora e nome del lead. Si AGGIUNGE all'archivio (Supabase/Drive),
+          //  non lo sostituisce. Solo chi registra: mai il cliente.
+          //  shortcut: con Drive scollegato una consulenza lunga è in più
+          //  parti e qui si scarica solo l'ultima (le altre sono in archivio);
+          //  da cambiare se serve tenerle tutte sul computer.
+          let comeScaricata = "";
+          if (!isViewer() && blob.size) {
+            comeScaricata = nomeRegistrazione({
+              quando: new Date(),
+              lead: clienteDellaConsulenza().nome,
+              ext,
+              parte: numeroParte,
+            });
+            salvaInLocale(blob, comeScaricata);
+          }
           recorder = null;
           set({ recording: false, recScreen: false });
           const durata = Math.round((Date.now() - avviataIl) / 1000);
           annota(
             `fine · ${durata}s · parti ${numeroParte} · pezzi ${quanti} · ${Math.round(blob.size / 1024)} KB`,
           );
-          uploadRecording(blob, fname, durataParte, perchéVuota({ cera, secondi: durata }));
+          uploadRecording(blob, fname, durataParte, perchéVuota({ cera, secondi: durata }), comeScaricata);
           stopRecCompositor();
           composed?.getTracks().forEach((t) => t.stop());
           recDisplay?.getTracks().forEach((t) => t.stop());
