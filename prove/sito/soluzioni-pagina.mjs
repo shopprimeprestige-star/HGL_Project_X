@@ -30,6 +30,8 @@ export const initHeartbeat = () => () => {}; export const initLivePresence = () 
 export const initScrollTracking = () => () => {}; export const initClickTracking = () => () => {};
 export const initHighQualityVisit = () => () => {};
 export const captureSourceData = () => ({});
+export const buildJourneySnapshot = () => ({});
+export const detectSource = () => "organic";
 `;
 //  Il router vero non serve (e non gira fuori da un'app): un `Link` che è un <a>, `ScriptOnce` che scrive lo script,
 //  `createFileRoute` che restituisce le opzioni, `redirect` che si lancia come oggetto riconoscibile.
@@ -262,6 +264,7 @@ export const spiegazione = (aperta, montata, vista, extra = {}) => renderToStati
 const TRACCIA_FINTA = `
 export const usaTracciamentoPagina = (p) => { (globalThis.__tracciati ??= []).push(p); };
 export const traccia = () => {};
+export const usaVariante = () => "A";
 `;
 {
   const m = await impacchetta(
