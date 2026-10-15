@@ -30,6 +30,18 @@ if (!pw || !existsSync(CHROME)) {
   process.exit(1);
 }
 
+//  axe-core: nel progetto, oppure nella cartella di prova del collaudo (nessuna installazione nuova: il disco è quasi pieno).
+const AXE_PERCORSI = [
+  join(radice, "node_modules/axe-core/axe.min.js"),
+  process.env.AXE_CORE ?? "",
+  "/private/tmp/claude-501/-Users-admin-Documents-Reel-Studio/66b7aff4-3505-4481-87ef-93fd96f7c4e5/scratchpad/collaudo-finale/axe/node_modules/axe-core/axe.min.js",
+];
+const AXE = AXE_PERCORSI.find((x) => x && existsSync(x));
+if (!AXE) {
+  console.error("✗ soluzioni-disegno: manca axe-core (node_modules/axe-core o variabile AXE_CORE=/percorso/axe.min.js).");
+  process.exit(1);
+}
+
 const dove = realpathSync(mkdtempSync(join(tmpdir(), "prove-disegno-")));
 process.on("exit", () => rmSync(dove, { recursive: true, force: true }));
 
@@ -51,7 +63,7 @@ const slot = { src: "/v.mp4", poster: "/poster.png", alt: "Il titolare ti guarda
 createRoot(document.getElementById("r")!).render(
   <div className="sol-fondo-chiaro" style={{ padding: 20 }}>
     <div style={{ width: 350 }}>
-      <VideoParlato slot={slot} formato="4:5" testi={{ pillola: "Te lo spiego in 30 secondi", riguarda: "Riguarda", etichettaPlay: "Guarda il video", leggiTesto: "Leggi il testo del video" }} trascrizione="Ciao a tutti." />
+      <VideoParlato slot={slot} formato="4:5" testi={{ pillola: "Te lo spiego in 30 secondi", riguarda: "Riguarda", etichettaPlay: "Guarda il video: che cos'è Invisible Derm, con audio", leggiTesto: "Leggi il testo del video" }} trascrizione="Ciao a tutti." />
       <div style={{ width: 210, marginTop: 24 }}>
         <ClipLoop slot={slot} formato="4:5" descrizione="d" didascalia="Da 10 centimetri." etichette={{ ferma: "Pausa", riparti: "Parti" }} />
       </div>
@@ -82,7 +94,7 @@ await esbuild.build({
 const ff = (...a) => execFileSync("ffmpeg", ["-loglevel", "error", "-y", ...a]);
 ff("-f", "lavfi", "-i", "color=c=0x203060:s=360x450:d=3:r=25", "-f", "lavfi", "-i", "sine=frequency=220:d=3", "-vf", "drawbox=x='t*60':y=200:w=80:h=80:color=0x5CB6FF:t=fill", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", join(dove, "v.mp4"));
 ff("-f", "lavfi", "-i", "color=c=0x405080:s=350x438:d=1", "-frames:v", "1", join(dove, "poster.png"));
-writeFileSync(join(dove, "index.html"), `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/app.css"></head><body style="margin:0"><main class="tema-soluzioni"><div id="r"></div></main><script src="/bundle.js"></script></body></html>`);
+writeFileSync(join(dove, "index.html"), `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Prova</title><link rel="stylesheet" href="/app.css"></head><body style="margin:0"><main class="tema-soluzioni"><div id="r"></div></main><script src="/bundle.js"></script></body></html>`);
 //  Una pagina «come la home»: stessi video e stessi mirini FUORI dal tema, per provare che il tema non li cambia.
 writeFileSync(join(dove, "home.html"), `<!doctype html><html lang="it"><head><meta charset="utf-8"><link rel="stylesheet" href="/app.css"></head><body><div id="b" class="brackets" style="width:300px;height:100px"><span class="br-tr"></span><span class="br-bl"></span></div></body></html>`);
 
@@ -269,6 +281,33 @@ try {
   });
   c("a 1440: H1 64, nomi 32, spiegazione 44", { h1: 64, nome: 32, spiegazione: 44 }, { h1: misure.h1, nome: Math.round(misure.nome), spiegazione: misure.spiegazione });
   vero(`a 1440: i nomi sono 32 px pieni (letto ${misure.nome})`, misure.nome >= 31.95);
+
+  /* ── axe-core: il nome accessibile contiene il testo visibile (WCAG 2.5.3, V13) ──────────
+     La copertina del video ha il testo «Te lo spiego in 30 secondi» e, a fine video, «Riguarda»:
+     il nome del bottone deve cominciare da quello che si legge sul bottone. */
+  const axe = async (pag) => {
+    await pag.addScriptTag({ content: readFileSync(AXE, "utf8") });
+    return pag.evaluate(async () => {
+      const r = await window.axe.run(document, { rules: { "label-content-name-mismatch": { enabled: true } }, resultTypes: ["violations"] });
+      return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id + ": " + v.nodes.map((n) => n.target.join(" ")).join(" | "));
+    });
+  };
+  await p.reload();
+  await p.waitForSelector(".sol-copertina");
+  c("axe (gravi e critiche) sulla copertina del video: nessuna violazione", [], await axe(p));
+  const nome = await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label"));
+  vero(`il nome accessibile comincia dal testo visibile («${nome}»)`, nome?.startsWith("Te lo spiego in 30 secondi"));
+  vero("il nome accessibile dice ancora che c'è l'audio", /con audio/.test(nome ?? ""));
+  //  A fine video il testo visibile è «Riguarda»: anche il nome.
+  await p.locator(".sol-copertina").click();
+  await p.waitForFunction(() => document.querySelector(".sol-video video")?.currentTime > 0.2, null, { timeout: 8000 });
+  await p.evaluate(() => {
+    const v = document.querySelector(".sol-video video");
+    v.currentTime = v.duration - 0.2;
+  });
+  await p.waitForSelector(".sol-copertina", { timeout: 8000 });
+  c("axe a fine video («Riguarda»): nessuna violazione", [], await axe(p));
+  vero("a fine video il nome comincia da «Riguarda»", (await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label")))?.startsWith("Riguarda"));
 } finally {
   await browser.close();
   server.close();

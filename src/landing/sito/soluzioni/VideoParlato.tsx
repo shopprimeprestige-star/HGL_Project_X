@@ -105,6 +105,9 @@ export function VideoParlato({
   }
 
   const testo = trascrizione?.trim() ?? "";
+  //  WCAG 2.5.3: il nome accessibile comincia dal testo che si legge sul bottone (la pillola, o «Riguarda» a fine video),
+  //  poi dice cosa fa e che c'è l'audio.
+  const nomePlay = `${fase === "fine" ? testi.riguarda : testi.pillola}. ${testi.etichettaPlay}`;
   const copertinaVisibile = fase !== "in-corso";
   return (
     <div>
@@ -128,7 +131,7 @@ export function VideoParlato({
             ref={copertina}
             type="button"
             className="sol-copertina"
-            aria-label={testi.etichettaPlay}
+            aria-label={nomePlay}
             onClick={avvia}
           >
             <Foto

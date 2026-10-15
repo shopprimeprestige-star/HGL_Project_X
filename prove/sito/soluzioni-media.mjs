@@ -317,7 +317,7 @@ vero("movimento.ts: usaMovimentoRidotto legge matchMedia del movimento ridotto",
   {
     const html = disegna(h(VP.VideoParlato, { slot, formato: "4:5", testi, trascrizione: "Ciao, sono io. Ti spiego." }));
     c("VideoParlato: un solo <button> (la copertina)", 1, (html.match(/<button\b/g) ?? []).length);
-    vero("VideoParlato: il bottone ha l'etichetta del play", html.includes(`aria-label="${testi.etichettaPlay.replace(/'/g, "&#x27;")}"`));
+    vero("VideoParlato: il nome del bottone comincia dalla pillola e porta l'etichetta del play (WCAG 2.5.3)", html.includes(`aria-label="${(testi.pillola + ". " + testi.etichettaPlay).replace(/'/g, "&#x27;")}"`));
     vero("VideoParlato: la pillola dice il testo, in HTML", html.includes(testi.pillola));
     vero("VideoParlato: la copertina è la poster", html.includes(`src="${slot.poster}"`));
     vero("VideoParlato: video preload none, playsinline, senza autoplay né controlli", /<video\b[^>]*preload="none"/.test(html) && /<video\b[^>]*playsinline/i.test(html) && !/autoplay/i.test(html) && !/<video\b[^>]*\bcontrols/.test(html));
