@@ -23,12 +23,20 @@ import {
   autorizzaPresentatore,
   nonAutorizzato,
 } from "./api.presenter.consultant";
-import { leggiRigaSala, scriviRigaSala } from "./api.public.sala-attesa";
-import { decidi, inAttesa, type StatoAttesa } from "@/shop/sala-attesa";
+import { archivioSala, leggiRigaSala, scriviRigaSala } from "./api.public.sala-attesa";
+import {
+  decidi,
+  inAttesa,
+  rigaPerIlConsulente,
+  rigaUscitaPerIlConsulente,
+  uscitiDellaSala,
+  type StatoAttesa,
+} from "@/shop/sala-attesa";
 //  Chi era atteso in questa stanza: serve a scrivere sul riquadro il nome
 //  della SCHEDA invece di quello digitato al volo dal cliente.
 import { attesiDellaStanza } from "./api.public.attesi";
 import { attesoDalGettone, gettoneDi } from "@/crm/fascia-consulenza";
+import { uscitiVerificati } from "@/shop/uscita";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -53,6 +61,8 @@ export const Route = createFileRoute("/api/presenter/sala-attesa")({
         const chi = await autorizzaPresentatore(request, u.searchParams.get("code"));
         if (!chi) return nonAutorizzato(cors);
         const [persone, attesi] = await Promise.all([leggiRigaSala(sess), attesiDellaStanza(sess)]);
+        //  ⚠️ `chi` di un uscito vale solo se è il titolare del link (vedi `uscitiVerificati`).
+        const usciti = await uscitiVerificati(archivioSala, sess, uscitiDellaSala(persone));
         /*  ── IL NOME VERO, NON QUELLO DIGITATO ────────────────────────
             Chi è entrato scegliendo il proprio nome porta con sé il gettone
             della sua scheda: al consulente si scrive il nome e cognome che ha
@@ -70,16 +80,27 @@ export const Route = createFileRoute("/api/presenter/sala-attesa")({
             nome: `${p.nome}${p.cognome ? ` ${p.cognome}` : ""}`.trim(),
             leadId: p.leadId,
           })),
+          /*  ── CHI È USCITO CON «ESCI» ──────────────────────────────────
+              Solo dalle righe `uscito` scritte dal server (mai dal canale, che
+              non è autenticato): il consulente può invitarlo di nuovo. Il
+              nome è quello della scheda, quando la persona era fra gli attesi. */
+          usciti: usciti.map((p) => {
+            const atteso = p.chi ? attesoDalGettone(attesi, p.chi) : undefined;
+            return {
+              ...rigaUscitaPerIlConsulente(p),
+              ...(atteso ? { nome: `${atteso.nome}${atteso.cognome ? ` ${atteso.cognome}` : ""}`.trim() } : {}),
+            };
+          }),
           attesa: inAttesa(persone).map((p) => {
             //  ⚠️ Nome diverso da `chi`, che qui sopra è il CONSULENTE
             //   autorizzato: due cose diverse con lo stesso nome, in una
             //   rotta che decide chi entra, è il modo di sbagliarsi.
             const atteso = attesoDalGettone(attesi, p.persona);
             return {
-              pid: p.pid,
+              //  ⚠️ Dalla riga esce solo quello che il consulente deve vedere
+              //   (mai l'impronta del segreto): vedi `rigaPerIlConsulente`.
+              ...rigaPerIlConsulente(p),
               nome: atteso ? `${atteso.nome}${atteso.cognome ? ` ${atteso.cognome}` : ""}`.trim() : p.nome,
-              dev: p.dev ?? "",
-              at: p.at,
               //  ⚠️ «non era fra gli attesi» è un'informazione che il
               //   consulente deve avere: con la porta aperta entra anche chi
               //   ha ricevuto il link inoltrato da un amico.

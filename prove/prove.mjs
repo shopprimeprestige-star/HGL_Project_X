@@ -18,6 +18,7 @@
  *  aprendo la pagina, e questo file non fa finta di sostituirla.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -374,6 +375,9 @@ const MODULI = [
   //  ⚠️ La porta d'ingresso della consulenza: chi bussa, chi entra, e chi non
   //   si fa più vivo. Vedi proveDellaSalaAttesa.
   "shop/sala-attesa",
+  //  ⚠️ Esci davvero: serratura col segreto del browser, link chiuso, riga
+  //   «uscito». Vedi proveDellUscitaVera.
+  "shop/uscita",
   //  ⚠️ Che cosa si può scrivere in un preventivo da una rotta aperta (non ha
   //   credenziali e non può averne): vedi proveDellaRigaPulita.
   "shop/riga-preventivo",
@@ -612,6 +616,7 @@ const NUM = mod["shop/numero-preventivo"];
 const CAU = mod["shop/causale-bonifico"];
 const CDP = mod["shop/causale-di-un-preventivo"];
 const SAL = mod["shop/sala-attesa"];
+const USC = mod["shop/uscita"];
 const FAS = mod["fascia-consulenza"];
 const SLOT = mod["slot-liberi"];
 const PDG = mod["shop/preventivi-di-gruppo"];
@@ -18965,6 +18970,444 @@ export { PROBLEMI } from "@/landing/testi-sito";`,
   c("«Bio-Mimetic» resta solo nei modelli Meta", [], restano);
 }
 
+/* ── ESCI DAVVERO DALLA CONSULENZA (shop/uscita) ──────────────────────────
+ *  Segnalazione del committente: chi preme «Esci» deve sparire subito dalla
+ *  lista e dalle camere, e il suo vecchio link non deve più valere.
+ *  Si prova il codice vero (le stesse funzioni che le rotte chiamano) contro
+ *  un archivio finto che si può far sbagliare.
+ *  ⚠️ LA SERRATURA: il segreto lo crea il browser, sul server c'è solo
+ *   l'impronta. Chi conosce `dev` e `pid` di un altro (viaggiano in `hello`)
+ *   non deve poterlo far uscire, né ereditare il suo «ammesso». */
+function archivioFinto({ perdi = () => false } = {}) {
+  const m = new Map();
+  const scritture = [];
+  return {
+    m,
+    scritture,
+    leggi: async (k) => (m.has(k) ? m.get(k) : null),
+    scrivi: async (k, v) => {
+      scritture.push(k);
+      if (perdi(k, scritture.length)) return ""; // «fatto», ma la scrittura si è persa
+      m.set(k, v);
+      return "";
+    },
+  };
+}
+const sha = (s) => createHash("sha256").update(s).digest("hex");
+
+async function proveDellUscitaVera() {
+  const { trattaBussata, trattaStato, trattaEsci, leggiRegistro, linkValido, chiudiLink, nuovoGiro,
+          giroCasuale, chiudeIlLink, chiaveLink, INTESTAZIONI_SALA, scriviConRilettura } = USC;
+  const { leggiSala, scriviSala, decidi, inAttesa, bussa, rigaPerIlConsulente } = SAL;
+  gruppo("ESCI DAVVERO DALLA CONSULENZA");
+
+  const T0 = 1_700_000_000_000;
+  const SESS = "abc-defg-hij";
+  const CHIAVE_SALA = `sala_attesa:${SESS}`;
+  const SA = "a1".repeat(32); // i segreti veri sono 32 byte in esadecimale
+  const SB = "b2".repeat(32);
+  const GA = "pa1b2c3d";
+  const GC = "pc9d8e7f";
+  const REG_A = chiaveLink(SESS, GA);
+  const A = { sess: SESS, pid: "pidA", dev: "devA", nome: "Anna", chi: GA, segreto: SA };
+  const B = { sess: SESS, pid: "pidB", dev: "devB", nome: "Bruno", chi: "pb0b0b0b", segreto: SB };
+  const salaDi = (a) => leggiSala(a.m.get(CHIAVE_SALA));
+  const riga = (a, pid) => salaDi(a).find((p) => p.pid === pid);
+  const regDi = (a, chiave) => leggiRegistro(a.m.get(chiave));
+  const ammetti = (a, pid, dev) =>
+    a.m.set(CHIAVE_SALA, scriviSala(decidi(salaDi(a), pid, "ammesso", T0 + 5000, dev)));
+
+  //  ── L'IMPRONTA, NON IL SEGRETO ─────────────────────────────────────────
+  c("l'impronta è lo SHA-256 del segreto", sha(SA), await USC.improntaSegreto(SA));
+  c("un segreto troppo corto non conta", "", await USC.improntaSegreto("abc"));
+  c("nessun segreto, nessuna impronta", "", await USC.improntaSegreto(undefined));
+
+  //  ── ESCI: IL LINK SI CHIUDE, LA RIGA È «USCITA» ────────────────────────
+  let a = archivioFinto();
+  let r = await trattaBussata(a, A, T0);
+  c("chi bussa è in attesa", { status: 200, stato: "attesa" }, { status: r.status, stato: r.body.stato });
+  c("la riga ha l'impronta, mai il segreto", sha(SA), riga(a, "pidA").segretoH);
+  c("la prima bussata del giro diventa titolare", sha(SA), regDi(a, REG_A).titolare);
+  c("il link senza k è del giro «0» e vale", true, linkValido(regDi(a, REG_A), undefined));
+  ammetti(a, "pidA", "devA");
+  r = await trattaStato(a, A, T0 + 6000);
+  c("ammesso: lo vede solo lui", "ammesso", r.body.stato);
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 9000);
+  c("Esci risponde bene e dice che il link è chiuso", { status: 200, chiuso: true }, { status: r.status, chiuso: r.body.chiuso });
+  c("il vecchio link non vale più", false, linkValido(regDi(a, REG_A), undefined));
+  c("…e il giro «0» non si cancella, si sposta", ["0", T0 + 9000], [regDi(a, REG_A).chiusi[0]?.giro, regDi(a, REG_A).chiusi[0]?.at]);
+  c("la riga è segnata «uscito»", T0 + 9000, riga(a, "pidA").uscito);
+  r = await trattaStato(a, A, T0 + 10_000);
+  c("uscito: la sua riga vale «sconosciuto»", "sconosciuto", r.body.stato);
+  c("uscito: non è più fra chi aspetta", 0, inAttesa(salaDi(a), T0 + 10_000).length);
+
+  //  ── SEGRETO SBAGLIATO O ASSENTE: 403 E NIENTE SCRITTO ──────────────────
+  a = archivioFinto();
+  await trattaBussata(a, A, T0);
+  ammetti(a, "pidA", "devA");
+  const prima = JSON.stringify([...a.m]);
+  const nScritture = a.scritture.length;
+  for (const [nome, segreto] of [["sbagliato", SB], ["assente", undefined]]) {
+    r = await trattaEsci(a, { ...A, segreto, ultima: true }, T0 + 9000);
+    c(`Esci col segreto ${nome}: 403`, 403, r.status);
+  }
+  c("…e non si è scritto niente", [prima, nScritture], [JSON.stringify([...a.m]), a.scritture.length]);
+  c("il link di A vale ancora", true, linkValido(regDi(a, REG_A), undefined));
+
+  //  ── ⚠️ B CONOSCE DEV E PID DI A (li ha sentiti nel hello) ──────────────
+  const rigaDiA = a.m.get(CHIAVE_SALA);
+  const rubata = { ...B, pid: "pidA", dev: "devA" };
+  r = await trattaBussata(a, rubata, T0 + 6000);
+  c("B bussa con dev e pid di A: 403", 403, r.status);
+  const corpo = JSON.stringify(r.body);
+  c("…senza stato, senza segreto, senza impronta", [false, false, false, false],
+    [/ammesso|attesa|stato/.test(corpo), corpo.includes(SA), corpo.includes(sha(SA)), corpo.includes("segretoH")]);
+  c("…e la riga di A è identica byte per byte", rigaDiA, a.m.get(CHIAVE_SALA));
+  r = await trattaEsci(a, { ...rubata, chi: GA, ultima: true }, T0 + 7000);
+  c("poi B prova a farlo uscire: 403", 403, r.status);
+  c("il link di A vale ancora, la sua riga è intatta", [true, rigaDiA], [linkValido(regDi(a, REG_A), undefined), a.m.get(CHIAVE_SALA)]);
+  r = await trattaStato(a, { ...rubata, segreto: undefined }, T0 + 7000);
+  c("la GET con il dev di A e senza segreto: «sconosciuto»", "sconosciuto", r.body.stato);
+  r = await trattaStato(a, { ...rubata }, T0 + 7000);
+  c("…anche col segreto di B: non eredita l'«ammesso»", "sconosciuto", r.body.stato);
+  r = await trattaStato(a, A, T0 + 7000);
+  c("A, col suo segreto, è ancora ammesso", "ammesso", r.body.stato);
+
+  //  ── B BUSSA COL GETTONE DI A (lo sente nel hello) ──────────────────────
+  r = await trattaBussata(a, { ...B, chi: GA }, T0 + 8000);
+  c("B col gettone di A ottiene una riga sua", { status: 200, stato: "attesa" }, { status: r.status, stato: r.body.stato });
+  r = await trattaEsci(a, { ...B, chi: GA, ultima: true }, T0 + 9000);
+  c("il suo Esci non chiude il link di A", { status: 200, chiuso: false }, { status: r.status, chiuso: r.body.chiuso });
+  c("il link di A vale ancora, e il titolare è sempre A", [true, sha(SA)], [linkValido(regDi(a, REG_A), undefined), regDi(a, REG_A).titolare]);
+  c("A non risulta uscita", undefined, riga(a, "pidA").uscito);
+
+  //  ── UNA RIGA SENZA IMPRONTA LA ADOTTA IL PRIMO CHE BUSSA ───────────────
+  a = archivioFinto();
+  a.m.set(CHIAVE_SALA, scriviSala(decidi([], "dev-devX", "ammesso", T0, "devX")));
+  r = await trattaBussata(a, { ...A, pid: "pidX", dev: "devX" }, T0 + 1000);
+  c("la riga nata da «fai entrare» è sua: ammesso", { status: 200, stato: "ammesso" }, { status: r.status, stato: r.body.stato });
+  c("…e ora ha la sua impronta", sha(SA), salaDi(a).find((p) => p.dev === "devX").segretoH);
+  r = await trattaBussata(a, { ...B, pid: "pidY", dev: "devX" }, T0 + 2000);
+  c("il secondo, con un altro segreto, è rifiutato", 403, r.status);
+
+  //  ── DUE SCHEDE DELLO STESSO BROWSER ────────────────────────────────────
+  a = archivioFinto();
+  await trattaBussata(a, A, T0);
+  ammetti(a, "pidA", "devA");
+  await trattaBussata(a, { ...A, pid: "pidA2" }, T0 + 6000); // la seconda scheda: stesso dev, stesso segreto
+  c("due schede, una riga sola", 1, salaDi(a).length);
+  const fotografia = JSON.stringify([...a.m]);
+  r = await trattaEsci(a, { ...A, ultima: false }, T0 + 9000);
+  c("Esci dalla scheda non ultima: bene", 200, r.status);
+  c("…ma non tocca né il link né la sala", fotografia, JSON.stringify([...a.m]));
+  c("…il link vale e la riga è ancora «ammesso»", ["ammesso", true],
+    [(await trattaStato(a, A, T0 + 10_000)).body.stato, linkValido(regDi(a, REG_A), undefined)]);
+  c("chi ha altre schede vive non chiude il link", [false, true], [chiudeIlLink({ altreSchedeVive: true }), chiudeIlLink({ altreSchedeVive: false })]);
+
+  //  ── ESCI E BUSSATA INSIEME: L'ARCHIVIO PERDE UNA SCRITTURA ─────────────
+  a = archivioFinto({ perdi: (k, n) => k === CHIAVE_SALA && n === 3 });
+  await trattaBussata(a, A, T0);
+  ammetti(a, "pidA", "devA");
+  const prima4 = a.scritture.length;
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 9000);
+  c("una scrittura persa: Esci la rifà", [200, T0 + 9000], [r.status, riga(a, "pidA")?.uscito]);
+  c("…e ha scritto più di una volta", true, a.scritture.length - prima4 >= 2);
+  a = archivioFinto({ perdi: (k) => k === CHIAVE_SALA && a.m.has(CHIAVE_SALA) });
+  await trattaBussata(a, A, T0);
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 9000);
+  c("se non riesce mai, dice 409 e non «fatto»", [409, false], [r.status, r.body.ok]);
+  a = archivioFinto({ perdi: (k) => k === REG_A && a.m.has(REG_A) });
+  await trattaBussata(a, A, T0);
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 9000);
+  c("registro che non si scrive: 409, mai un «chiuso» finto", [409, true], [r.status, linkValido(regDi(a, REG_A), undefined)]);
+
+  //  ── DUE ESCI INSIEME: UN REGISTRO PER PERSONA, NESSUNA PERDITA ─────────
+  a = archivioFinto();
+  const C = { ...B, pid: "pidC", dev: "devC", nome: "Carla", chi: GC, segreto: SB };
+  await trattaBussata(a, A, T0);
+  await trattaBussata(a, C, T0);
+  await Promise.all([trattaEsci(a, { ...A, ultima: true }, T0 + 9000), trattaEsci(a, { ...C, ultima: true }, T0 + 9000)]);
+  c("due Esci insieme: tutti e due i link chiusi", [false, false],
+    [linkValido(regDi(a, REG_A), undefined), linkValido(regDi(a, chiaveLink(SESS, GC)), undefined)]);
+
+  //  ── I SEGRETI NON FINISCONO MAI NELL'ARCHIVIO ──────────────────────────
+  c("nessun segreto in chiaro in nessuna riga salvata", false, [...a.m.values()].some((v) => v.includes(SA) || v.includes(SB)));
+  const vista = rigaPerIlConsulente(riga(a, "pidA") ?? { pid: "pidA", nome: "x", at: 1, stato: "attesa", segretoH: "h", chi: GA });
+  c("l'elenco del consulente non porta l'impronta né il gettone", false, /segretoH|"chi"/.test(JSON.stringify(vista)));
+
+  //  ── LA FUNZIONE «bussa» DA SOLA DIFENDE LA RIGA ────────────────────────
+  const viva = [{ pid: "p1", nome: "Anna", dev: "d1", stato: "ammesso", at: T0, segretoH: "h1" }];
+  c("bussa con un'altra impronta non cambia niente", viva,
+    bussa(viva, { pid: "p1", nome: "Altro", dev: "d1", segretoH: "h2" }, T0 + 1000));
+
+  //  ── I GIRI ─────────────────────────────────────────────────────────────
+  c("un giro casuale è lungo 16 e si scrive in esadecimale", true, /^[0-9a-f]{16}$/.test(giroCasuale()));
+  c("due giri non sono mai uguali", true, giroCasuale() !== giroCasuale());
+  const base = leggiRegistro(null);
+  c("senza registro il giro è «0»", { giro: "0", chiusi: [] }, base);
+  const chiuso = chiudiLink(base, T0);
+  c("chiudere sposta il giro in chiusi con la data", [false, [{ giro: "0", at: T0 }]], [linkValido(chiuso, undefined), chiuso.chiusi]);
+  c("chiuderlo due volte non perde nulla", chiuso, chiudiLink(chiuso, T0 + 1));
+  c("un registro illeggibile vale «giro 0»", { giro: "0", chiusi: [] }, leggiRegistro("{non json"));
+
+  //  ── CORS: LA GET MANDA x-sala-segreto ──────────────────────────────────
+  c("la rotta pubblica accetta x-sala-segreto", true, /x-sala-segreto/i.test(INTESTAZIONI_SALA));
+  const rottaPubblica = readFileSync(join(radice, "src/routes/api.public.sala-attesa.ts"), "utf8");
+  const rottaEsci = readFileSync(join(radice, "src/routes/api.public.esci.ts"), "utf8");
+  c("…e l'intestazione CORS della rotta la usa", true, /"Access-Control-Allow-Headers":\s*INTESTAZIONI_SALA/.test(rottaPubblica));
+  c("…anche quella di Esci", true, /"Access-Control-Allow-Headers":\s*INTESTAZIONI_SALA/.test(rottaEsci));
+
+  //  ── scriviConRilettura da sola ─────────────────────────────────────────
+  a = archivioFinto({ perdi: (k, n) => n <= 2 });
+  c("riprova finché la scrittura si vede", true,
+    await scriviConRilettura(a, "k", () => "nuovo", (l) => l === "nuovo"));
+  c("…e dopo tre tentativi si arrende", false,
+    await scriviConRilettura(archivioFinto({ perdi: () => true }), "k", () => "nuovo", (l) => l === "nuovo"));
+
+  //  ── IL CLIENTE: SEGRETO NEL BROWSER, MAI NEL CANALE ────────────────────
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  const hello = call.slice(call.indexOf('send("hello", {'), call.indexOf("});", call.indexOf('send("hello", {')));
+  c("il segreto sta in localStorage accanto al dispositivo", true, /hg_guest_segreto/.test(call) && /export function mioSegreto/.test(call));
+  c("hello non porta il segreto", [true, false], [/dev:\s*myDeviceId\(\)/.test(hello), /segreto/i.test(hello)]);
+  const roster = call.slice(call.indexOf('send("roster"') - 400, call.indexOf('send("roster"') + 60);
+  c("il roster non porta il segreto", false, /segreto/i.test(roster));
+  const bussaSrv = call.slice(call.indexOf("async function bussaSulServer"), call.indexOf("function decidiSulServer"));
+  c("la bussata sul server lo manda nel corpo", true, /segreto:\s*mioSegreto\(\)/.test(bussaSrv));
+  c("Esci è esposta, ripetuta e portata a termine", true,
+    /export async function esciDallaConsulenza/.test(call) && /uscita:\s*ultima/.test(call) && /\/api\/public\/esci/.test(call));
+  const byeCanale = call.slice(call.indexOf('{ event: "bye" }'), call.indexOf('{ event: "roster" }'));
+  c("il consulente toglie dalla Plancia chi dice «uscita»", true,
+    /payload\.uscita === true/.test(byeCanale) && /uscitiOra\.set/.test(byeCanale) && /haPremutoEsci\(x\.leadId, presenti\)/.test(call));
+  c("il tasto Esci sta solo nel ramo dell'ospite entrato", true,
+    call.indexOf("<TastoEsci />") > call.indexOf("if (st.role === \"viewer\" && !st.joined) return <GuestJoinGate") );
+  const pagehide = call.slice(call.indexOf("function hookLeave"), call.indexOf("function hookLeave") + 600);
+  c("chiudere la scheda NON è un'uscita voluta", [true, false], [/send\("bye"/.test(pagehide), /uscita/.test(pagehide)]);
+}
+
+/* ── RETE CADUTA O BROWSER CHIUSO: TRENTA SECONDI ─────────────────────────
+ *  Spec: dopo 30 secondi senza segnale la persona sparisce da lista e camere,
+ *  e il suo link RESTA valido (può rientrare). Chiudere il browser è una
+ *  caduta di rete, non un'uscita voluta: niente POST «esci».
+ *  ⚠️ Il battito `hello` gira su un Worker: le schede nascoste hanno i timer
+ *   rallentati fino a uno al minuto, e con 30 secondi li farebbero cacciare. */
+async function proveDeiTrentaSecondi() {
+  const { verdettoSuOspite, SALUTO_VIVO_MS } = RIL;
+  const { trattaBussata, trattaStato, leggiRegistro, linkValido, chiaveLink } = USC;
+  const { bussa, inAttesa, ATTESA_TTL_MS, BUSSATA_VIVA_MS } = SAL;
+  gruppo("RETE CADUTA O BROWSER CHIUSO: TRENTA SECONDI");
+  const T = 1_700_000_000_000;
+  const vecchio = T - 600_000;
+
+  c("il silenzio ammesso è di 30 secondi", 30_000, SALUTO_VIVO_MS);
+  c("zitto da 29 secondi, connessione giù: resta", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 29_000, stato: "disconnected", primaVolta: vecchio }));
+  c("zitto da 31 secondi: va via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 31_000, stato: "disconnected", primaVolta: vecchio }));
+  c("zitto da 29 secondi, filo rotto: si riprova, non si toglie", "riprova",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 29_000, stato: "closed", primaVolta: vecchio }));
+  c("zitto da 31 secondi, filo rotto: va via", "via",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 31_000, stato: "closed", primaVolta: vecchio }));
+  c("collegato e zitto: resta (ci pensa il consenso ICE)", "resta",
+    verdettoSuOspite({ adesso: T, ultimoSaluto: T - 5 * 60_000, stato: "connected", primaVolta: vecchio }));
+
+  //  ── BROWSER CHIUSO: NIENTE «ESCI», IL LINK VALE ANCORA ──────────────────
+  const SESS = "abc-defg-hij";
+  const SA = "a1".repeat(32);
+  const arch = new Map();
+  const a = { leggi: async (k) => arch.get(k) ?? null, scrivi: async (k, v) => (arch.set(k, v), "") };
+  const A = { sess: SESS, pid: "pidA", dev: "devA", nome: "Anna", chi: "pa1b2c3d", segreto: SA };
+  await trattaBussata(a, A, T);
+  arch.set(`sala_attesa:${SESS}`, arch.get(`sala_attesa:${SESS}`).replace('"attesa"', '"ammesso"'));
+  //  La scheda si chiude: parte solo un `bye` sul canale. Il server non sente niente.
+  c("browser chiuso: il link vale ancora", true, linkValido(leggiRegistro(arch.get(chiaveLink(SESS, "pa1b2c3d"))), undefined));
+  const rientro = await trattaBussata(a, A, T + 40_000);
+  c("…e al rientro è ancora ammesso", { status: 200, stato: "ammesso" }, { status: rientro.status, stato: rientro.body.stato });
+  c("…e lo stato lo conferma", "ammesso", (await trattaStato(a, A, T + 41_000)).body.stato);
+
+  //  ── CHI HA SOLO BUSSATO NON È TOCCATO ──────────────────────────────────
+  const sala = bussa([], { pid: "pidZ", dev: "devZ", nome: "Zeno" }, T);
+  c("chi aspetta in sala resta 31 secondi dopo", 1, inAttesa(sala, T + 31_000).length);
+  c("le regole della sala non sono cambiate", [60_000, 20_000], [ATTESA_TTL_MS, BUSSATA_VIVA_MS]);
+
+  //  ── IL CLIENTE ─────────────────────────────────────────────────────────
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  const presenza = call.slice(call.indexOf("let battitoWorker"), call.indexOf("// ── UN SOLO CONTESTO AUDIO"));
+  c("il battito di hello gira su un Worker inline", true,
+    /new Worker\(/.test(call) && /new Blob\(/.test(call) && /URL\.createObjectURL/.test(call));
+  c("…con il ripiego su setInterval se non parte", true, /setInterval\(sendHello/.test(presenza) && /onerror/.test(call));
+  c("…e si ferma davvero", true, /\.terminate\(\)/.test(presenza));
+  const gc = call.slice(call.indexOf("function gcRoster"), call.indexOf('/** "Pulisci lista"'));
+  c("chi tace da troppo sparisce subito anche dalla Plancia", true, /uscitiOra\.set\(r\.leadId/.test(gc));
+  const pagehide = call.slice(call.indexOf("function hookLeave"), call.indexOf("function hookLeave") + 700);
+  c("chiudere la scheda non chiama «esci» sul server", false, /fetch|api\/public\/esci/.test(pagehide));
+}
+
+/* ── LINK CHIUSO E «INVITA DI NUOVO» ──────────────────────────────────────
+ *  Spec: dopo «Esci» il vecchio link non vale più (messaggio neutro a chi lo
+ *  apre); il consulente, vicino al nome, genera un link nuovo e chiude il
+ *  vecchio. Il vecchio si MARCA chiuso, non si cancella.
+ *  ⚠️ «Usciti» si costruisce SOLO dalle righe `uscito` del server. Il canale
+ *   non è autenticato: se un `bye` falso potesse mettere A fra gli usciti, il
+ *   consulente premerebbe «Invita di nuovo» e chiuderebbe il link di uno che è
+ *   dentro. */
+async function proveDelLinkChiuso() {
+  const { trattaBussata, trattaStato, trattaEsci, trattaLink, trattaReinvito, leggiRegistro, linkValido,
+          chiaveLink, giroDelLink } = USC;
+  const { leggiSala, scriviSala, decidi, inAttesa, uscitiDellaSala, rigaUscitaPerIlConsulente } = SAL;
+  const { giroDalLink, linkPerPersona } = LINKCHI;
+  gruppo("LINK CHIUSO E «INVITA DI NUOVO»");
+
+  const T0 = 1_700_000_000_000;
+  const SESS = "abc-defg-hij";
+  const CHIAVE_SALA = `sala_attesa:${SESS}`;
+  const SA = "a1".repeat(32);
+  const SB = "b2".repeat(32);
+  const GA = "pa1b2c3d";
+  const GC = "pc9d8e7f";
+  const REG_A = chiaveLink(SESS, GA);
+  const A = { sess: SESS, pid: "pidA", dev: "devA", nome: "Anna", chi: GA, segreto: SA };
+  const arch = () => {
+    const m = new Map();
+    return { m, leggi: async (k) => (m.has(k) ? m.get(k) : null), scrivi: async (k, v) => (m.set(k, v), "") };
+  };
+  const salaDi = (a) => leggiSala(a.m.get(CHIAVE_SALA));
+  const regDi = (a, k) => leggiRegistro(a.m.get(k));
+  const ammetti = (a, pid, dev, t) => a.m.set(CHIAVE_SALA, scriviSala(decidi(salaDi(a), pid, "ammesso", t, dev)));
+  const valido = async (a, chi, k) => (await trattaLink(a, { sess: SESS, chi, k })).body.valido;
+
+  //  ── IL LINK SENZA k È IL GIRO «0» ──────────────────────────────────────
+  let a = arch();
+  c("senza registro il link vecchio vale", true, await valido(a, GA, undefined));
+  c("…e anche scritto con k=0", true, await valido(a, GA, "0"));
+  c("un link senza nome non si chiude mai", true, await valido(a, "", undefined));
+  c("un giro inventato non vale", false, await valido(a, GA, "abc123"));
+  c("senza k il giro è «0»", "0", giroDelLink(""));
+
+  //  ── DOPO «ESCI» IL VECCHIO LINK È RIFIUTATO ────────────────────────────
+  await trattaBussata(a, A, T0);
+  ammetti(a, "pidA", "devA", T0 + 5000);
+  await trattaEsci(a, { ...A, ultima: true }, T0 + 9000);
+  c("giro vecchio rifiutato (senza k)", false, await valido(a, GA, undefined));
+  c("giro vecchio rifiutato (k=0)", false, await valido(a, GA, "0"));
+  let r = await trattaBussata(a, { ...A, pid: "pidA2" }, T0 + 10_000);
+  c("chi bussa col link chiuso: rifiutato, senza dire altro", [403, { ok: false, reason: "link" }], [r.status, r.body]);
+  c("…e niente è stato scritto sulla sua riga", T0 + 9000, salaDi(a).find((p) => p.pid === "pidA").uscito);
+  c("…nemmeno una riga nuova", 1, salaDi(a).length);
+  c("il vecchio giro è nei chiusi, non cancellato", "0", regDi(a, REG_A).chiusi[0]?.giro);
+
+  //  ── «USCITI» VIENE DAL SERVER ──────────────────────────────────────────
+  const usciti = uscitiDellaSala(salaDi(a), T0 + 11_000);
+  c("A è fra gli usciti, col gettone per invitarla", [1, "Anna", GA], [usciti.length, usciti[0]?.nome, usciti[0]?.chi]);
+  c("…e la vista del consulente non porta l'impronta", false, /segretoH/.test(JSON.stringify(rigaUscitaPerIlConsulente(usciti[0]))));
+  const dentro = [{ pid: "p1", nome: "Dentro", dev: "d1", stato: "ammesso", at: T0, chi: GA }];
+  c("senza riga «uscito» sul server nessuno è uscito", 0, uscitiDellaSala(dentro, T0 + 1000).length);
+
+  //  ── «INVITA DI NUOVO» ──────────────────────────────────────────────────
+  r = await trattaReinvito(a, { sess: SESS, chi: GA }, T0 + 20_000);
+  const G1 = r.body.giro;
+  c("il reinvito dà un giro nuovo", [200, true], [r.status, /^[0-9a-f]{16}$/.test(G1)]);
+  c("il link nuovo vale", true, await valido(a, GA, G1));
+  c("il vecchio no, il titolare è azzerato", [false, undefined], [await valido(a, GA, undefined), regDi(a, REG_A).titolare]);
+  r = await trattaReinvito(a, { sess: SESS, chi: GA }, T0 + 21_000);
+  const G2 = r.body.giro;
+  c("un secondo reinvito chiude il primo", [false, true], [await valido(a, GA, G1), await valido(a, GA, G2)]);
+  c("…e tutti i giri chiusi restano scritti", ["0", G1], regDi(a, REG_A).chiusi.map((x) => x.giro));
+  a.m.set(chiaveLink(SESS, GC), "{\"giro\":\"0\",\"chiusi\":[]}");
+  const regC = a.m.get(chiaveLink(SESS, GC));
+  await trattaReinvito(a, { sess: SESS, chi: GA }, T0 + 22_000);
+  c("il gettone di un altro resta com'è", regC, a.m.get(chiaveLink(SESS, GC)));
+  r = await trattaReinvito(a, { sess: SESS, chi: "" }, T0 + 22_000);
+  c("senza gettone non si invita nessuno", 400, r.status);
+  const G3 = regDi(a, REG_A).giro;
+
+  //  ── ⚠️ LO STESSO DISPOSITIVO, COL LINK NUOVO, BUSSA ED ENTRA ───────────
+  r = await trattaBussata(a, { ...A, pid: "pidA3", k: "vecchio" }, T0 + 30_000);
+  c("col giro sbagliato non si bussa", 403, r.status);
+  c("col segreto sbagliato la riga uscita resta com'è", [403, T0 + 9000],
+    [(await trattaBussata(a, { ...A, segreto: SB, pid: "pidA3", k: G3 }, T0 + 30_000)).status, salaDi(a).find((p) => p.pid === "pidA").uscito]);
+  r = await trattaBussata(a, { ...A, pid: "pidA3", k: G3 }, T0 + 31_000);
+  c("col link nuovo bussa e va in attesa", { status: 200, stato: "attesa" }, { status: r.status, stato: r.body.stato });
+  const attesa = inAttesa(salaDi(a), T0 + 31_000);
+  c("…il consulente lo vede fra chi aspetta", ["Anna"], attesa.map((p) => p.nome));
+  c("…e non è più fra gli usciti", 0, uscitiDellaSala(salaDi(a), T0 + 31_000).length);
+  c("la prima bussata del giro nuovo diventa titolare", sha(SA), regDi(a, REG_A).titolare);
+
+  //  ── UN VECCHIO ESCI NON CHIUDE IL GIRO NUOVO ───────────────────────────
+  ammetti(a, "pidA3", "devA", T0 + 32_000);
+  r = await trattaEsci(a, { ...A, pid: "pidA3", ultima: true, k: "vecchio" }, T0 + 40_000);
+  c("un Esci col link vecchio non chiude il nuovo", [200, false, true],
+    [r.status, r.body.chiuso, await valido(a, GA, G3)]);
+  a = arch();
+  await trattaBussata(a, A, T0);
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 2000);
+  c("un Esci col giro giusto lo chiude", [true, false], [r.body.chiuso, await valido(a, GA, undefined)]);
+
+  //  ── I LINK ─────────────────────────────────────────────────────────────
+  c("il giro si legge da ?k=", "ab12", giroDalLink("?chi=pa1&k=ab12"));
+  c("senza k è vuoto", "", giroDalLink("?chi=pa1"));
+  c("un k storto si ripulisce", "ab12", giroDalLink("?k=AB-12!"));
+  const base = "https://sito.it/meetly/abc-defg-hij";
+  c("il link per persona senza giro è quello di prima", `${base}?chi=${GA}`, linkPerPersona(base, GA));
+  c("…col giro porta anche k", `${base}?chi=${GA}&k=ab12`, linkPerPersona(base, GA, "ab12"));
+  c("…l'ancora resta in fondo", `${base}?chi=${GA}&k=ab12#x`, linkPerPersona(`${base}#x`, GA, "ab12"));
+  c("…un link che ha già chi riceve comunque il giro", `${base}?chi=${GA}&k=ab12`, linkPerPersona(`${base}?chi=${GA}`, GA, "ab12"));
+  c("…e se ha già k non lo cambia", `${base}?chi=${GA}&k=zz`, linkPerPersona(`${base}?chi=${GA}&k=zz`, GA, "ab12"));
+  c("un link esterno resta com'è", "https://meet.google.com/abc", linkPerPersona("https://meet.google.com/abc", GA, "ab12"));
+
+  //  ── IL CLIENTE E LE ROTTE ──────────────────────────────────────────────
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  const rottaLink = readFileSync(join(radice, "src/routes/api.public.link-ospite.ts"), "utf8");
+  const rottaReinvita = readFileSync(join(radice, "src/routes/api.presenter.reinvita.ts"), "utf8");
+  c("la rotta del link risponde con trattaLink", true, /trattaLink\(/.test(rottaLink));
+  c("il reinvito è solo del consulente", true, /autorizzaPresentatore\(/.test(rottaReinvita) && /nonAutorizzato\(/.test(rottaReinvita) && /trattaReinvito\(/.test(rottaReinvita));
+  c("il cliente chiede il link PRIMA di bussare e dice la frase neutra", true,
+    /async function controllaIlLink/.test(call) && /void controllaIlLink\(\)/.test(call) &&
+    /Questo link non è più attivo\. Chiedi un nuovo invito a chi te l'ha mandato\./.test(call));
+  c("la bussata e Esci portano il giro (k)", true,
+    /k:\s*giroDalLink\(/.test(call.slice(call.indexOf("async function bussaSulServer"), call.indexOf("function decidiSulServer"))) &&
+    /k:\s*giroDalLink\(/.test(call.slice(call.indexOf("export async function esciDallaConsulenza"), call.indexOf("// ── BATTITO DELLA CHIAMATA"))));
+  c("k non viaggia mai in hello né nel roster", false,
+    /\bk:\s*giro/.test(call.slice(call.indexOf('send("hello", {'), call.indexOf("});", call.indexOf('send("hello", {')))));
+
+  //  ── ⚠️ «USCITI»: IL GETTONE VALE SOLO PER IL TITOLARE DEL LINK ────────
+  //   B sente il gettone di A nel `hello`, bussa con `chi=A` ed esce: la sua
+  //   riga «uscito» porta chi=A. Il consulente non deve vedere il nome di A né
+  //   avere il tasto «Invita di nuovo» (chiuderebbe il link di A, che è dentro).
+  a = arch();
+  const BX = { sess: SESS, pid: "pidB", dev: "devB", nome: "Bruno", chi: GA, segreto: SB };
+  await trattaBussata(a, A, T0);
+  await trattaBussata(a, BX, T0 + 1000);
+  ammetti(a, "pidA", "devA", T0 + 2000);
+  ammetti(a, "pidB", "devB", T0 + 2000);
+  r = await trattaEsci(a, { ...BX, ultima: true }, T0 + 5000);
+  c("B col gettone di A esce: il link di A non si chiude", [false, true], [r.body.chiuso, await valido(a, GA, undefined)]);
+  let verif = await USC.uscitiVerificati(a, SESS, uscitiDellaSala(salaDi(a), T0 + 6000));
+  c("…B è fra gli usciti col nome digitato", ["Bruno"], verif.map((p) => p.nome));
+  c("…ma senza il gettone di A: niente nome di A, niente tasto", [""], verif.map((p) => p.chi));
+  r = await trattaEsci(a, { ...A, ultima: true }, T0 + 7000);
+  verif = await USC.uscitiVerificati(a, SESS, uscitiDellaSala(salaDi(a), T0 + 8000));
+  c("A, il titolare, esce davvero: il suo gettone resta", ["Anna", GA],
+    [verif.find((p) => p.pid === "pidA")?.nome, verif.find((p) => p.pid === "pidA")?.chi]);
+  c("…e B resta senza gettone", "", verif.find((p) => p.pid === "pidB")?.chi);
+  const rottaPres = readFileSync(join(radice, "src/routes/api.presenter.sala-attesa.ts"), "utf8");
+  c("la rotta del consulente passa gli usciti dal controllo del titolare", true,
+    /uscitiVerificati\(/.test(rottaPres) && /attesoDalGettone\(attesi, p\.chi\)/.test(rottaPres));
+
+  //  ── BROWSER CHIUSO: LA PLANCIA TIENE IL NOME 30 SECONDI, NON 60 ────────
+  const plancia = call.slice(call.indexOf("const attesiDentro = ancoraDentro("), call.indexOf("const attesiDentro = ancoraDentro(") + 260);
+  c("la Plancia toglie chi è andato dopo SALUTO_VIVO_MS (30 s)", true,
+    /grazia:\s*SALUTO_VIVO_MS/.test(plancia));
+
+  //  ── ⚠️ «USCITI»: SOLO DAL SERVER, MAI DAL CANALE ──────────────────────
+  const byeCanale = call.slice(call.indexOf('{ event: "bye" }'), call.indexOf('{ event: "roster" }'));
+  c("il bye del canale non scrive fra gli «Usciti»", false, /\busciti\b/.test(byeCanale.replace(/\/\/.*$/gm, "")));
+  const scritture = [...call.matchAll(/set\(\{[^}]*\busciti:/g)].length;
+  const lettura = call.slice(call.indexOf("async function leggiSalaDAttesa"), call.indexOf("async function leggiSalaDAttesa") + 6000);
+  c("«usciti» si scrive in un posto solo: la lettura del server", [1, true], [scritture, /set\(\{[^}]*\busciti:/.test(lettura)]);
+  c("il pannello ha il tasto «Invita di nuovo» e la conferma", true,
+    /Invita di nuovo/.test(call) && /Link nuovo copiato: il vecchio non vale più/.test(call));
+}
+
 /* ── IL PRIMO EVENTO DI UNA VISITA NON SI PERDE (tracking.ts) ─────────────
  *  ⚠️ `isAdminLogged()` risponde «sì» per prudenza finché `getSession` non ha
  *   risposto, e `trackEvent`/`firePixel`/`fireCapi` scartavano tutto in quei
@@ -19106,6 +19549,9 @@ await proveDeiDuePezzi();
 await proveDeiPostiDelPallino();
 await proveDellaConsulenza();
 await proveDelPrimoEventoDellaVisita();
+await proveDellUscitaVera();
+await proveDeiTrentaSecondi();
+await proveDelLinkChiuso();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
