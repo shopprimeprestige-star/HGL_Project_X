@@ -37,6 +37,18 @@ for (const p of nascoste) {
   vero(`${p}: la testata dichiara noindex`, /name:\s*"robots",\s*content:\s*"noindex/.test(testo));
 }
 
+/* ── /protocol: la vecchia pagina (SEGNAPOSTO, modulo che non salva) non va online ───────────────────
+   Oggi /protocol risponde 404 sul sito vero: questo ramo non deve farla comparire. Finché il redesign non è approvato,
+   chi la apre (link vecchi, annunci) va alla home con un 302 (mai 301, che i browser ricordano), UTM intatti.
+   Lo fa `beforeLoad`, quindi a ogni richiesta e già sul server. */
+{
+  const protocol = senzaCommenti(leggi("src/routes/protocol.tsx"));
+  vero("/protocol: beforeLoad con redirect 302 (temporaneo, mai 301)", /beforeLoad/.test(protocol) && /redirect\(/.test(protocol) && /statusCode:\s*302/.test(protocol) && !/301/.test(protocol));
+  vero("/protocol: la destinazione passa da destinazioneCancello (solo gli UTM e simili, mai il resto)", /destinazioneCancello\(/.test(protocol) && /searchStr/.test(protocol));
+  vero("/protocol: il redirect parte prima del disegno (throw dentro beforeLoad)", /beforeLoad:[^]*throw redirect\(/.test(protocol));
+  vero("/protocol: resta noindex e fuori dalla mappa (anche se oggi non si vede)", /noindex/.test(protocol));
+}
+
 /* ── Le rotte generate ──────────────────────────────────────────────────── */
 const albero = leggi("src/routeTree.gen.ts");
 for (const p of new Set([...nascoste, ...mappa])) vero(`routeTree.gen.ts conosce ${p}`, new RegExp(`'${p}':`).test(albero));
