@@ -30,17 +30,10 @@ if (!pw || !existsSync(CHROME)) {
   process.exit(1);
 }
 
-//  axe-core: nel progetto, oppure nella cartella di prova del collaudo (nessuna installazione nuova: il disco è quasi pieno).
-const AXE_PERCORSI = [
-  join(radice, "node_modules/axe-core/axe.min.js"),
-  process.env.AXE_CORE ?? "",
-  "/private/tmp/claude-501/-Users-admin-Documents-Reel-Studio/66b7aff4-3505-4481-87ef-93fd96f7c4e5/scratchpad/collaudo-finale/axe/node_modules/axe-core/axe.min.js",
-];
-const AXE = AXE_PERCORSI.find((x) => x && existsSync(x));
-if (!AXE) {
-  console.error("✗ soluzioni-disegno: manca axe-core (node_modules/axe-core o variabile AXE_CORE=/percorso/axe.min.js).");
-  process.exit(1);
-}
+//  axe-core: nel progetto (node_modules/axe-core) o dove dice la variabile AXE_CORE=/percorso/axe.min.js.
+//  Nessuna installazione nuova: se manca, la prova axe si salta con un avviso e il resto gira.
+const AXE = [join(radice, "node_modules/axe-core/axe.min.js"), process.env.AXE_CORE ?? ""].find((x) => x && existsSync(x));
+if (!AXE) console.warn("⚠️  SALTATA la prova axe (nome accessibile): manca axe-core. Mettilo in node_modules o dai AXE_CORE=/percorso/axe.min.js.");
 
 const dove = realpathSync(mkdtempSync(join(tmpdir(), "prove-disegno-")));
 process.on("exit", () => rmSync(dove, { recursive: true, force: true }));
@@ -305,22 +298,24 @@ try {
       return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id + ": " + v.nodes.map((n) => n.target.join(" ")).join(" | "));
     });
   };
-  await p.reload();
-  await p.waitForSelector(".sol-copertina");
-  c("axe (gravi e critiche) sulla copertina del video: nessuna violazione", [], await axe(p));
-  const nome = await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label"));
-  vero(`il nome accessibile comincia dal testo visibile («${nome}»)`, nome?.startsWith("Te lo spiego in 30 secondi"));
-  vero("il nome accessibile dice ancora che c'è l'audio", /con audio/.test(nome ?? ""));
-  //  A fine video il testo visibile è «Riguarda»: anche il nome.
-  await p.locator(".sol-copertina").click();
-  await p.waitForFunction(() => document.querySelector(".sol-video video")?.currentTime > 0.2, null, { timeout: 8000 });
-  await p.evaluate(() => {
-    const v = document.querySelector(".sol-video video");
-    v.currentTime = v.duration - 0.2;
-  });
-  await p.waitForSelector(".sol-copertina", { timeout: 8000 });
-  c("axe a fine video («Riguarda»): nessuna violazione", [], await axe(p));
-  vero("a fine video il nome comincia da «Riguarda»", (await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label")))?.startsWith("Riguarda"));
+  if (AXE) {
+    await p.reload();
+    await p.waitForSelector(".sol-copertina");
+    c("axe (gravi e critiche) sulla copertina del video: nessuna violazione", [], await axe(p));
+    const nome = await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label"));
+    vero(`il nome accessibile comincia dal testo visibile («${nome}»)`, nome?.startsWith("Te lo spiego in 30 secondi"));
+    vero("il nome accessibile dice ancora che c'è l'audio", /con audio/.test(nome ?? ""));
+    //  A fine video il testo visibile è «Riguarda»: anche il nome.
+    await p.locator(".sol-copertina").click();
+    await p.waitForFunction(() => document.querySelector(".sol-video video")?.currentTime > 0.2, null, { timeout: 8000 });
+    await p.evaluate(() => {
+      const v = document.querySelector(".sol-video video");
+      v.currentTime = v.duration - 0.2;
+    });
+    await p.waitForSelector(".sol-copertina", { timeout: 8000 });
+    c("axe a fine video («Riguarda»): nessuna violazione", [], await axe(p));
+    vero("a fine video il nome comincia da «Riguarda»", (await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label")))?.startsWith("Riguarda"));
+  }
 
   /* ── Banner cookie compatto: testo corto, due righe a 390 (marketing n. 3) ───────────── */
   {
@@ -337,27 +332,27 @@ try {
     await b.close();
   }
 
-  /* ── Indirizzo della riga del marchio: «132» non resta solo (marketing n. 4) ──────────── */
+  /* ── Indirizzo della riga del marchio: «Via degli Scipioni 132» sta su UNA riga (marketing n. 4) ──────────── */
   for (const larghezza of [360, 375, 390]) {
     const b = await browser.newPage({ viewport: { width: larghezza, height: 700 } });
     await b.goto(base + "/index.html?testata");
     await b.waitForSelector("header p");
-    const righe = await b.evaluate(() => {
+    const r = await b.evaluate(() => {
       const par = [...document.querySelectorAll("header p")].find((x) => /Scipioni/.test(x.textContent));
       const nodo = par.firstChild;
+      const testo = nodo.data;
+      const via = testo.indexOf("Via");
       const range = document.createRange();
-      const perRiga = new Map();
-      for (let i = 0; i < nodo.length; i++) {
+      const righe = new Set();
+      for (let i = via; i < testo.length; i++) {
+        if (/\s/.test(testo[i])) continue;
         range.setStart(nodo, i);
         range.setEnd(nodo, i + 1);
-        const q = range.getClientRects()[0];
-        if (!q || nodo.data[i] === " " || nodo.data[i] === "\u00a0") continue;
-        const y = Math.round(q.top);
-        perRiga.set(y, (perRiga.get(y) ?? "") + nodo.data[i]);
+        righe.add(Math.round(range.getClientRects()[0].top));
       }
-      return [...perRiga.values()];
+      return { righe: righe.size, testo: testo.replace(/\u00a0/g, "_").slice(via) };
     });
-    vero(`indirizzo a ${larghezza} px: «132» non resta da solo (righe: ${JSON.stringify(righe)})`, righe.length === 1 || !/^132$/.test(righe.at(-1)));
+    vero(`indirizzo a ${larghezza} px: «${r.testo}» sta su una riga sola (righe occupate: ${r.righe})`, r.righe === 1);
     await b.close();
   }
 } finally {
