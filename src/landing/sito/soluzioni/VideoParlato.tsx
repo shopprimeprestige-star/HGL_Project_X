@@ -21,9 +21,6 @@ export interface TestiVideoParlato {
   leggiTesto: string;
 }
 
-//  shortcut: i nomi degli eventi nuovi (`invisible_video_*`) entrano in `NomeEventoSito` con S1; finché S1 non è
-//  unita il tipo non li conosce, e a runtime `traccia` scarta in silenzio i nomi fuori lista. Si toglie il cast dopo l'unione.
-const spedisci = traccia as (nome: string, dettagli?: Record<string, unknown>) => void;
 const VOCE = { voce: "invisibleVideo" } as const;
 
 export function VideoParlato({
@@ -76,8 +73,8 @@ export function VideoParlato({
     segnaVideo(true);
     if (visto.current.play) return;
     visto.current.play = true;
-    spedisci("invisible_video_play");
-    spedisci("video_play", VOCE);
+    traccia("invisible_video_play");
+    traccia("video_play", VOCE);
   }
 
   function alPlaying() {
@@ -91,13 +88,13 @@ export function VideoParlato({
     const v = rif.current;
     if (!v || visto.current.meta || !v.duration || v.currentTime / v.duration < 0.5) return;
     visto.current.meta = true;
-    spedisci("invisible_video_50");
-    spedisci("video_50", VOCE);
+    traccia("invisible_video_50");
+    traccia("video_50", VOCE);
   }
 
   function allaFine() {
     segnaVideo(false);
-    spedisci("video_fine", VOCE);
+    traccia("video_fine", VOCE);
     const v = rif.current;
     riportaFuoco.current = !!v && document.activeElement === v;
     if (v) v.currentTime = 0;

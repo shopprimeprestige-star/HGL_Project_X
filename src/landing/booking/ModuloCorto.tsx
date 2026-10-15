@@ -48,15 +48,12 @@ import { caricaCalendarioSicuro, ProteggiCalendario, type PropsCalendario } from
 import { controllaModulo, telefonoDaInviare, type CampoErrore, type ModuloCortoDati, type PuntoSito } from "@/landing/sito/richiesta";
 import { nomeEventoModulo } from "@/landing/sito/eventi";
 import { traccia, usaVariante } from "@/landing/sito/traccia";
+import type { Interesse } from "@/landing/sito/soluzioni/regole";
 
 //  Il calendario: lo stesso di oggi, in modo «solo-calendario» (B7). Caricato solo al tocco,
 //  e se non arriva non rompe la pagina (`calendario-sicuro.tsx`).
 const importaCalendario = () =>
   import("./BookingFunnel").then((m) => ({ default: m.BookingFunnel as unknown as ComponentType<PropsCalendario> }));
-
-/** Da quale delle tre strade è partita la richiesta (pagina `/soluzioni`). Va nel lead e negli eventi.
- *  shortcut: copia di `Interesse` in `soluzioni/regole.ts` (S1.0); si toglie e si importa da lì quando S1 è unito. */
-export type Interesse = "trapianto" | "invisible-derm" | "non-so";
 
 /** Le parole del modulo sulla pagina `/soluzioni` (3.4). `TESTI_SOLUZIONI.modulo` ne ha almeno queste.
  *  Privacy e testo del promemoria WhatsApp restano sempre quelli di oggi. */

@@ -32,7 +32,8 @@ import {
   SheetPortal,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ModuloCorto, type Interesse } from "@/landing/booking/ModuloCorto";
+import { ModuloCorto } from "@/landing/booking/ModuloCorto";
+import type { Interesse } from "./regole";
 import { traccia } from "@/landing/sito/traccia";
 import { TESTI_SOLUZIONI, rassicurazioniPer } from "@/landing/testi-sito";
 import { comportamentoScorrimento } from "./movimento";
