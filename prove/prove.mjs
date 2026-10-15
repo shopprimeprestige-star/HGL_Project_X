@@ -450,6 +450,12 @@ const MODULI = [
   "seo/chi-riceve-il-link",
   "shop/stanza-ancora-vuota",
   "shop/conta-suoni",
+  //  ⚠️ Il riconoscimento vocale che si riavviava in loop (un bip ogni ~2 s
+  //   sul telefono di chi entra): vedi proveDelRiconoscimentoCheNonSuonaSempre.
+  "shop/riavvio-riconoscimento",
+  //  ⚠️ Il nome del file che si scarica da solo quando il consulente ferma la
+  //   registrazione: vedi proveDelNomeDellaRegistrazioneScaricata.
+  "shop/nome-registrazione",
   "chi-ha-fissato",
   "importa/reparti",
   //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
@@ -634,6 +640,8 @@ const LINKCHI = mod["shop/chi-dal-link"];
 const ALP = mod["shop/anteprima-link-preventivo"];
 const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
+const RIAVVIO = mod["shop/riavvio-riconoscimento"];
+const NOMEREG = mod["shop/nome-registrazione"];
 const FISSA = mod["chi-ha-fissato"];
 const REP = mod["importa/reparti"];
 const FIL = mod["importa/filtri-lista"];
@@ -11635,6 +11643,111 @@ function proveDelContaSuoni() {
   c("un nome vuoto non conta", 0, quanti(conta({}, "   ")));
 }
 
+/** ── UN BIP OGNI ~2 SECONDI A CHI ENTRA ────────────────────────────────────
+ *  Segnalazione del titolare (15/10/2026): «quando le persone entrano su
+ *  Meetly sentono continuamente un suono ogni 2 secondi». Su un telefono il
+ *  riconoscimento vocale fa il suo «bip» a OGNI avvio, e `onend` lo riavviava
+ *  subito, per sempre, anche quando finiva all'istante (microfono già preso
+ *  dalla chiamata, permesso negato, niente rete). Vedi
+ *  shop/riavvio-riconoscimento. */
+function proveDelRiconoscimentoCheNonSuonaSempre() {
+  const { dopoLaFine, ERRORI_FATALI } = RIAVVIO;
+  gruppo("IL RICONOSCIMENTO VOCALE NON SUONA IN LOOP");
+
+  /*  Simulo il peggio: il riconoscimento finisce subito, senza sentire niente,
+      e ogni riavvio costa un bip. Quanti bip in due minuti? */
+  const simula = (errore) => {
+    let t = 0, avvii = 1, brevi = 0;
+    while (t < 120_000) {
+      const d = dopoLaFine({ errore, durataMs: 300, haSentito: false, breviDiSeguito: brevi });
+      if (!d.riavvia) break;
+      brevi = d.breviDiSeguito;
+      t += d.dopoMs + 300;
+      avvii++;
+    }
+    return avvii;
+  };
+  c("finisce subito senza errore: pochi avvii, non uno ogni 2s", true, simula(null) <= 4);
+  c("«no-speech» a ripetizione: si arrende", true, simula("no-speech") <= 4);
+  for (const e of ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported"]) {
+    c(`errore «${e}»: non si riavvia`, false,
+      dopoLaFine({ errore: e, durataMs: 200, haSentito: false, breviDiSeguito: 0 }).riavvia);
+    c(`«${e}» è fra i fatali`, true, ERRORI_FATALI.has(e));
+  }
+  //  Tra un riavvio breve e il successivo passano almeno 2 secondi.
+  c("un riavvio dopo una fine breve aspetta almeno 2s", true,
+    dopoLaFine({ errore: null, durataMs: 300, haSentito: false, breviDiSeguito: 0 }).dopoMs >= 2000);
+
+  /*  ⚠️ Il caso normale NON cambia: il consulente che parla con il teleprompter
+      aperto deve ripartire subito, senza buchi nelle parole seguite. */
+  const bene = dopoLaFine({ errore: null, durataMs: 45_000, haSentito: true, breviDiSeguito: 2 });
+  c("una sessione lunga con voce riparte subito", true, bene.riavvia && bene.dopoMs === 0);
+  c("e azzera il conto delle fini brevi", 0, bene.breviDiSeguito);
+  const breveMaConVoce = dopoLaFine({ errore: null, durataMs: 3000, haSentito: true, breviDiSeguito: 2 });
+  c("anche breve, se ha sentito qualcosa è sana", true, breveMaConVoce.riavvia && breveMaConVoce.breviDiSeguito === 0);
+  c("«no-speech» dopo una lunga attesa riparte (silenzio normale)", true,
+    dopoLaFine({ errore: "no-speech", durataMs: 20_000, haSentito: false, breviDiSeguito: 0 }).riavvia);
+}
+
+/** ── LA REGISTRAZIONE SI SCARICA DA SOLA, CON UN NOME CHE SI LEGGE ─────────
+ *  Richiesta del titolare (15/10/2026): «dopo che stoppo il recording della
+ *  consulenza me la scarica sul pc in automatico». Il nome deve dire quando e
+ *  con chi, e non portare caratteri che il sistema operativo rifiuta. */
+function proveDelNomeDellaRegistrazioneScaricata() {
+  const { nomeRegistrazione } = NOMEREG;
+  gruppo("IL NOME DELLA REGISTRAZIONE CHE SI SCARICA");
+  const q = new Date(2026, 9, 15, 14, 32, 5); // ora locale: 15/10/2026 14:32
+  c("data, ora e lead", "meetly-2026-10-15-1432-mario-rossi.webm",
+    nomeRegistrazione({ quando: q, lead: "Mario Rossi", ext: "webm" }));
+  c("senza lead c'è solo quando", "meetly-2026-10-15-1432.mp4",
+    nomeRegistrazione({ quando: q, lead: "", ext: "mp4" }));
+  c("accenti e apostrofi spariscono", "meetly-2026-10-15-1432-nicolo-d-angelo.webm",
+    nomeRegistrazione({ quando: q, lead: "Nicolò D'Angelo", ext: "webm" }));
+  const brutto = nomeRegistrazione({ quando: q, lead: "../../etc/pa\\ss:wd*?<>|\"x\u0000 \u{1F600}", ext: "webm" });
+  c("nessun carattere che un sistema rifiuta", true, /^[a-z0-9.-]+$/.test(brutto));
+  c("e nessun percorso", false, brutto.includes("/") || brutto.includes(".."));
+  c("un lead fatto di soli simboli non lascia trattini storti", "meetly-2026-10-15-1432.webm",
+    nomeRegistrazione({ quando: q, lead: "???", ext: "webm" }));
+  c("un nome lunghissimo si accorcia", true,
+    nomeRegistrazione({ quando: q, lead: "a".repeat(300), ext: "webm" }).length < 70);
+  c("le parti successive lo dicono", "meetly-2026-10-15-1432-mario-rossi-parte2.webm",
+    nomeRegistrazione({ quando: q, lead: "Mario Rossi", ext: "webm", parte: 2 }));
+  c("la prima parte non porta suffisso", "meetly-2026-10-15-1432.webm",
+    nomeRegistrazione({ quando: q, ext: "webm", parte: 1 }));
+  c("un'estensione strana ricade su webm", "meetly-2026-10-15-1432.webm",
+    nomeRegistrazione({ quando: q, ext: "exe/../x" }));
+  c("minuti e ore a una cifra hanno lo zero", "meetly-2026-01-02-0305.webm",
+    nomeRegistrazione({ quando: new Date(2026, 0, 2, 3, 5), ext: "webm" }));
+}
+
+/** ── IL CLIENTE SU TELEFONO NON AVVIA IL RICONOSCIMENTO ────────────────────
+ *  Revisione del 15/10/2026: su Android il riconoscimento si chiude a ogni
+ *  pausa (anche con `continuous`) e ogni `start()` fa un bip: il limite ai
+ *  riavvii non basta se il cliente parla. Sul telefono del cliente non parte
+ *  proprio; computer del cliente e consulente restano come prima. */
+function proveDelClienteSuTelefono() {
+  gruppo("IL CLIENTE SU TELEFONO NON AVVIA IL RICONOSCIMENTO");
+  c("esiste la regola", "function", typeof RIAVVIO.deveRiconoscere);
+  if (typeof RIAVVIO.deveRiconoscere !== "function") return;
+  const { deveRiconoscere, eUnTelefono } = RIAVVIO;
+  c("cliente su telefono: nessun avvio", false, deveRiconoscere({ ruolo: "viewer", mobile: true }));
+  c("cliente su computer: come oggi", true, deveRiconoscere({ ruolo: "viewer", mobile: false }));
+  c("consulente su computer: come oggi", true, deveRiconoscere({ ruolo: "host", mobile: false }));
+  c("consulente su tablet: come oggi (teleprompter)", true, deveRiconoscere({ ruolo: "host", mobile: true }));
+  c("ruolo non ancora noto: come oggi", true, deveRiconoscere({ ruolo: null, mobile: true }));
+  c("puntatore grossolano = telefono/tablet", true, eUnTelefono({ puntatoreGrossolano: true, userAgent: "" }));
+  c("iPhone dallo user agent", true,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }));
+  c("Android dallo user agent", true,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile" }));
+  c("iPad che si dice Mac: puntatore grossolano", true,
+    eUnTelefono({ puntatoreGrossolano: true, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" }));
+  c("computer con mouse", false,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120" }));
+  c("computer touch con mouse: non è un telefono", false,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120" }));
+}
+
 function proveDellaStanzaVuota() {
   const { stanzaAncoraVuota, eLaStanzaNuda } = VUOTA;
   gruppo("«L'HO ACCETTATO E NON RIESCE A ENTRARE»");
@@ -16672,6 +16785,9 @@ provePalco();
   proveDiChiChiamare();
   proveDiChiHaFissato();
   proveDelContaSuoni();
+  proveDelRiconoscimentoCheNonSuonaSempre();
+  proveDelNomeDellaRegistrazioneScaricata();
+  proveDelClienteSuTelefono();
   proveDellaStanzaVuota();
   proveDelGiraCamera();
   proveDelLinkPerCiascuno();
