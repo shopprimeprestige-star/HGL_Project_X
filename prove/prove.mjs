@@ -489,6 +489,9 @@ const MODULI = [
   //   vedi proveDelTelefonoDelModulo. Un cellulare 391/392/393/397 scritto con
   //   lo spazio finiva «+39 3 1234567» e il lead non era piu' richiamabile.
   "landing/booking/telefono",
+  //  ⚠️ La consulenza INTERA sul computer di chi registra (non solo l'ultima
+  //   parte da 40 MB): vedi proveDellaCopiaSulComputer.
+  "shop/copia-sul-computer",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -19494,6 +19497,59 @@ async function proveDelPrimoEventoDellaVisita() {
   c("admin già noto: mai niente", { inserti: 0, pixel: 0 }, adminNoto.dopo);
 }
 
+
+/* ── LA CONSULENZA INTERA SUL COMPUTER (2026-10-15) ───────────────────────
+ *  Segnalazione del titolare: «solo 2 minuti e 31 mi ha scaricato. Voglio che
+ *  mi scarica tutta la consulenza». Senza Drive la registrazione si spezza in
+ *  parti da 40 MB per l'archivio, e si scaricava solo l'ultima. Una seconda
+ *  registrazione, «la copia per il computer», non si taglia. Vedi
+ *  shop/copia-sul-computer. */
+function proveDellaCopiaSulComputer() {
+  const CSC = mod["shop/copia-sul-computer"];
+  gruppo("LA CONSULENZA INTERA SUL COMPUTER");
+  c("esistono le regole", ["function", "function", "function", "function"],
+    [typeof CSC.serveLaCopia, typeof CSC.copiaPiena, typeof CSC.siScarica, typeof CSC.copiaPermessa]);
+  if (typeof CSC.siScarica !== "function") return;
+  const { serveLaCopia, copiaPiena, siScarica, copiaPermessa } = CSC;
+  const { SOGLIA_MASSIMA, SOGLIA_PIANO_GRATUITO } = RITMO;
+  const { nomeRegistrazione } = NOMEREG;
+
+  //  ── SERVE? ─────────────────────────────────────────────────────────────
+  c("senza Drive (parti da 40 MB): la copia serve", true, serveLaCopia({ soglia: SOGLIA_PIANO_GRATUITO, partiChiuse: 0 }));
+  c("con Drive (file unico fino a 1,5 GB): non serve", false, serveLaCopia({ soglia: SOGLIA_MASSIMA, partiChiuse: 0 }));
+  c("con Drive ma una parte già chiusa: serve ancora", true, serveLaCopia({ soglia: SOGLIA_MASSIMA, partiChiuse: 1 }));
+
+  //  ── IL TETTO DI MEMORIA ────────────────────────────────────────────────
+  c("sotto 1,5 GB la copia continua", false, copiaPiena(SOGLIA_MASSIMA - 1));
+  c("a 1,5 GB esatti si chiude", true, copiaPiena(SOGLIA_MASSIMA));
+  c("sopra si chiude", true, copiaPiena(SOGLIA_MASSIMA + 1));
+
+  //  ── SI SCARICA? ────────────────────────────────────────────────────────
+  const base = { chi: "copia", motivo: "fine", copiaAccesa: true, peso: 10_000, viewer: false };
+  const s = (x) => siScarica({ ...base, ...x });
+  c("il cliente: mai, nemmeno la copia", false, s({ viewer: true }));
+  c("il cliente: mai, nemmeno il principale", false, s({ chi: "principale", copiaAccesa: false, viewer: true }));
+  c("un file vuoto: mai", false, s({ peso: 0 }));
+  c("copia scartata (Drive): mai", false, s({ motivo: "scartata" }));
+  for (const motivo of ["fine", "tetto", "guasto"]) c(`copia chiusa per «${motivo}»: sì`, true, s({ motivo }));
+  for (const motivo of ["fine", "tetto", "guasto", "parte"]) {
+    c(`principale «${motivo}» con la copia accesa: no`, false, s({ chi: "principale", motivo }));
+    c(`principale «${motivo}» con la copia spenta: sì`, true, s({ chi: "principale", motivo, copiaAccesa: false }));
+  }
+  c("principale vuoto con la copia spenta: no", false, s({ chi: "principale", copiaAccesa: false, peso: 0 }));
+
+  //  ── L'INTERRUTTORE D'EMERGENZA ─────────────────────────────────────────
+  c("«0» spegne la copia", false, copiaPermessa("0"));
+  c("niente impostato: accesa", [true, true, true, true], [copiaPermessa(null), copiaPermessa(undefined), copiaPermessa(""), copiaPermessa("1")]);
+
+  //  ── I NOMI DEI FILE DI UNA STESSA CONSULENZA ───────────────────────────
+  const inizio = new Date(2026, 9, 15, 10, 0);
+  const primo = nomeRegistrazione({ quando: inizio, lead: "Mario Rossi", ext: "mp4", parte: 1 });
+  const secondo = nomeRegistrazione({ quando: inizio, lead: "Mario Rossi", ext: "mp4", parte: 2 });
+  c("il primo file non porta suffisso", "meetly-2026-10-15-1000-mario-rossi.mp4", primo);
+  c("il secondo dice -parte2, stesso nome base", "meetly-2026-10-15-1000-mario-rossi-parte2.mp4", secondo);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -19552,6 +19608,7 @@ await proveDelPrimoEventoDellaVisita();
 await proveDellUscitaVera();
 await proveDeiTrentaSecondi();
 await proveDelLinkChiuso();
+proveDellaCopiaSulComputer();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
