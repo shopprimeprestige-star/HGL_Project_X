@@ -25,7 +25,13 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 import { deveRiconoscere, dopoLaFine, eUnTelefono } from "@/shop/riavvio-riconoscimento";
 import { nomeRegistrazione } from "@/shop/nome-registrazione";
-import { copiaPermessa, copiaPiena, serveLaCopia, siScarica, type Motivo } from "@/shop/copia-sul-computer";
+import {
+  copiaPermessa,
+  copiaPiena,
+  serveLaCopia,
+  siScarica,
+  type Motivo,
+} from "@/shop/copia-sul-computer";
 import { vesteCamere } from "@/shop/veste-camere";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
@@ -4756,7 +4762,10 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
       );
       //  Con Drive il principale è già la consulenza intera: la copia non serve.
       //  (Una copia che si sta già chiudendo, per la fine, si lascia stare.)
-      if (copia?.state === "recording" && !serveLaCopia({ soglia: SOGLIA_PARTE, partiChiuse: numeroParte - 1 })) {
+      if (
+        copia?.state === "recording" &&
+        !serveLaCopia({ soglia: SOGLIA_PARTE, partiChiuse: numeroParte - 1 })
+      ) {
         annota("copia per il computer · scartata (Drive: il file è già uno)");
         fermaCopia("scartata");
         copiaAccesa = false;
@@ -4834,10 +4843,14 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           pesoCopia += e.data.size;
           //  Il file vive nella memoria del browser: a 1,5 GB si scarica e se
           //  ne apre un altro («-parte2»).
-          if (!finePerDavvero && copiaPiena(pesoCopia) && r.state === "recording") fermaCopia("tetto");
+          if (!finePerDavvero && copiaPiena(pesoCopia) && r.state === "recording")
+            fermaCopia("tetto");
         };
         r.onerror = (e) => {
-          console.error("[REC] errore della copia per il computer", (e as unknown as { error?: unknown })?.error);
+          console.error(
+            "[REC] errore della copia per il computer",
+            (e as unknown as { error?: unknown })?.error,
+          );
           motivoCopia = "guasto";
           copiaAccesa = false;
           annota("copia per il computer · guasta: scarico ogni parte");
@@ -4850,7 +4863,9 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           pezziCopia = [];
           pesoCopia = 0;
           if (copia === r) copia = null;
-          if (siScarica({ chi: "copia", motivo, copiaAccesa, peso: blob.size, viewer: isViewer() })) {
+          if (
+            siScarica({ chi: "copia", motivo, copiaAccesa, peso: blob.size, viewer: isViewer() })
+          ) {
             salvaInLocale(blob, nomeDelFile(type.includes("mp4") ? "mp4" : "webm", numeroCopia));
             //  Nel diario il numero del file, non il nome: porta quello del lead.
             annota(
@@ -4885,7 +4900,9 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     };
 
     const registratoreSulMix = () =>
-      mime ? new MediaRecorder(mix, { mimeType: mime, ...QUALITA }) : new MediaRecorder(mix, QUALITA);
+      mime
+        ? new MediaRecorder(mix, { mimeType: mime, ...QUALITA })
+        : new MediaRecorder(mix, QUALITA);
     const nuovoRegistratore = (): MediaRecorder => {
       const r = registratoreSulMix();
       r.ondataavailable = (e) => {
@@ -4945,7 +4962,15 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           //  il file intero), in riserva, o con l'interruttore spento.
           //  Solo chi registra: mai il cliente.
           let comeScaricata = copiaFinale ? nomeDelFile(ext, copiaFinale) : "";
-          if (siScarica({ chi: "principale", motivo: "fine", copiaAccesa, peso: blob.size, viewer: isViewer() })) {
+          if (
+            siScarica({
+              chi: "principale",
+              motivo: "fine",
+              copiaAccesa,
+              peso: blob.size,
+              viewer: isViewer(),
+            })
+          ) {
             comeScaricata = nomeDelFile(ext, numeroParte);
             salvaInLocale(blob, comeScaricata);
           }
@@ -4979,7 +5004,15 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         uploadRecording(blob, fname, durataParte);
         //  Senza copia (riserva, o Drive oltre 1,5 GB) ogni parte va anche
         //  sul computer: si perde l'«un file solo», non la consulenza.
-        if (siScarica({ chi: "principale", motivo: "parte", copiaAccesa, peso: blob.size, viewer: isViewer() }))
+        if (
+          siScarica({
+            chi: "principale",
+            motivo: "parte",
+            copiaAccesa,
+            peso: blob.size,
+            viewer: isViewer(),
+          })
+        )
           salvaInLocale(blob, nomeDelFile(ext, numeroParte));
         numeroParte += 1;
         inizioParte = Date.now();
@@ -15855,7 +15888,12 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
         <div
           //  ⚠️ Fra le due barre, non sopra quella in basso: lì ci sono «Chiudi
           //   chiamata» e i link (vedi `--hg-barra-bassa` in PresenterBar).
-          style={{ top: barH, left: 0, right: "var(--tp-right, 0px)", bottom: "var(--hg-barra-bassa, 0px)" }}
+          style={{
+            top: barH,
+            left: 0,
+            right: "var(--tp-right, 0px)",
+            bottom: "var(--hg-barra-bassa, 0px)",
+          }}
           className="fixed z-[93] flex flex-col border-t border-white/10 bg-[#0a0f1c]/97 text-white backdrop-blur-md"
         >
           {/* Con «Camere grandi» si esce dal pulsante «Esci»: «riduci a lato» lì non farebbe niente. */}
@@ -16050,7 +16088,9 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
                 ) : (
                   <Maximize2 className="h-3.5 w-3.5" />
                 )}
-                <span className="hidden sm:inline">{schermo.grandi || schermo.pieno ? "Esci" : "Camere grandi"}</span>
+                <span className="hidden sm:inline">
+                  {schermo.grandi || schermo.pieno ? "Esci" : "Camere grandi"}
+                </span>
                 <span className="text-white/35">· solo per te</span>
               </button>
               {/* Feature 3 — rimosso il toggle "grande io/lui": in "call" tutti i partecipanti

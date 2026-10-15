@@ -463,7 +463,9 @@ export function PresenterBar({ page }: { page?: Page }) {
   const barraBassa = useCallback((el: HTMLDivElement | null) => {
     if (!el || typeof ResizeObserver === "undefined") return;
     const radice = document.documentElement;
-    const ro = new ResizeObserver(() => radice.style.setProperty("--hg-barra-bassa", el.offsetHeight + "px"));
+    const ro = new ResizeObserver(() =>
+      radice.style.setProperty("--hg-barra-bassa", el.offsetHeight + "px"),
+    );
     ro.observe(el);
     return () => {
       ro.disconnect();

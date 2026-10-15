@@ -19500,7 +19500,6 @@ async function proveDelPrimoEventoDellaVisita() {
   c("admin già noto: mai niente", { inserti: 0, pixel: 0 }, adminNoto.dopo);
 }
 
-
 /* ── LA CONSULENZA INTERA SUL COMPUTER (2026-10-15) ───────────────────────
  *  Segnalazione del titolare: «solo 2 minuti e 31 mi ha scaricato. Voglio che
  *  mi scarica tutta la consulenza». Senza Drive la registrazione si spezza in
@@ -19510,17 +19509,37 @@ async function proveDelPrimoEventoDellaVisita() {
 function proveDellaCopiaSulComputer() {
   const CSC = mod["shop/copia-sul-computer"];
   gruppo("LA CONSULENZA INTERA SUL COMPUTER");
-  c("esistono le regole", ["function", "function", "function", "function"],
-    [typeof CSC.serveLaCopia, typeof CSC.copiaPiena, typeof CSC.siScarica, typeof CSC.copiaPermessa]);
+  c(
+    "esistono le regole",
+    ["function", "function", "function", "function"],
+    [
+      typeof CSC.serveLaCopia,
+      typeof CSC.copiaPiena,
+      typeof CSC.siScarica,
+      typeof CSC.copiaPermessa,
+    ],
+  );
   if (typeof CSC.siScarica !== "function") return;
   const { serveLaCopia, copiaPiena, siScarica, copiaPermessa } = CSC;
   const { SOGLIA_MASSIMA, SOGLIA_PIANO_GRATUITO } = RITMO;
   const { nomeRegistrazione } = NOMEREG;
 
   //  ── SERVE? ─────────────────────────────────────────────────────────────
-  c("senza Drive (parti da 40 MB): la copia serve", true, serveLaCopia({ soglia: SOGLIA_PIANO_GRATUITO, partiChiuse: 0 }));
-  c("con Drive (file unico fino a 1,5 GB): non serve", false, serveLaCopia({ soglia: SOGLIA_MASSIMA, partiChiuse: 0 }));
-  c("con Drive ma una parte già chiusa: serve ancora", true, serveLaCopia({ soglia: SOGLIA_MASSIMA, partiChiuse: 1 }));
+  c(
+    "senza Drive (parti da 40 MB): la copia serve",
+    true,
+    serveLaCopia({ soglia: SOGLIA_PIANO_GRATUITO, partiChiuse: 0 }),
+  );
+  c(
+    "con Drive (file unico fino a 1,5 GB): non serve",
+    false,
+    serveLaCopia({ soglia: SOGLIA_MASSIMA, partiChiuse: 0 }),
+  );
+  c(
+    "con Drive ma una parte già chiusa: serve ancora",
+    true,
+    serveLaCopia({ soglia: SOGLIA_MASSIMA, partiChiuse: 1 }),
+  );
 
   //  ── IL TETTO DI MEMORIA ────────────────────────────────────────────────
   c("sotto 1,5 GB la copia continua", false, copiaPiena(SOGLIA_MASSIMA - 1));
@@ -19531,28 +19550,48 @@ function proveDellaCopiaSulComputer() {
   const base = { chi: "copia", motivo: "fine", copiaAccesa: true, peso: 10_000, viewer: false };
   const s = (x) => siScarica({ ...base, ...x });
   c("il cliente: mai, nemmeno la copia", false, s({ viewer: true }));
-  c("il cliente: mai, nemmeno il principale", false, s({ chi: "principale", copiaAccesa: false, viewer: true }));
+  c(
+    "il cliente: mai, nemmeno il principale",
+    false,
+    s({ chi: "principale", copiaAccesa: false, viewer: true }),
+  );
   c("un file vuoto: mai", false, s({ peso: 0 }));
   c("copia scartata (Drive): mai", false, s({ motivo: "scartata" }));
-  for (const motivo of ["fine", "tetto", "guasto"]) c(`copia chiusa per «${motivo}»: sì`, true, s({ motivo }));
+  for (const motivo of ["fine", "tetto", "guasto"])
+    c(`copia chiusa per «${motivo}»: sì`, true, s({ motivo }));
   for (const motivo of ["fine", "tetto", "guasto", "parte"]) {
     c(`principale «${motivo}» con la copia accesa: no`, false, s({ chi: "principale", motivo }));
-    c(`principale «${motivo}» con la copia spenta: sì`, true, s({ chi: "principale", motivo, copiaAccesa: false }));
+    c(
+      `principale «${motivo}» con la copia spenta: sì`,
+      true,
+      s({ chi: "principale", motivo, copiaAccesa: false }),
+    );
   }
-  c("principale vuoto con la copia spenta: no", false, s({ chi: "principale", copiaAccesa: false, peso: 0 }));
+  c(
+    "principale vuoto con la copia spenta: no",
+    false,
+    s({ chi: "principale", copiaAccesa: false, peso: 0 }),
+  );
 
   //  ── L'INTERRUTTORE D'EMERGENZA ─────────────────────────────────────────
   c("«0» spegne la copia", false, copiaPermessa("0"));
-  c("niente impostato: accesa", [true, true, true, true], [copiaPermessa(null), copiaPermessa(undefined), copiaPermessa(""), copiaPermessa("1")]);
+  c(
+    "niente impostato: accesa",
+    [true, true, true, true],
+    [copiaPermessa(null), copiaPermessa(undefined), copiaPermessa(""), copiaPermessa("1")],
+  );
 
   //  ── I NOMI DEI FILE DI UNA STESSA CONSULENZA ───────────────────────────
   const inizio = new Date(2026, 9, 15, 10, 0);
   const primo = nomeRegistrazione({ quando: inizio, lead: "Mario Rossi", ext: "mp4", parte: 1 });
   const secondo = nomeRegistrazione({ quando: inizio, lead: "Mario Rossi", ext: "mp4", parte: 2 });
   c("il primo file non porta suffisso", "meetly-2026-10-15-1000-mario-rossi.mp4", primo);
-  c("il secondo dice -parte2, stesso nome base", "meetly-2026-10-15-1000-mario-rossi-parte2.mp4", secondo);
+  c(
+    "il secondo dice -parte2, stesso nome base",
+    "meetly-2026-10-15-1000-mario-rossi-parte2.mp4",
+    secondo,
+  );
 }
-
 
 /* ── LA COPIA PER IL COMPUTER, CABLATA (2026-10-15) ───────────────────────
  *  Sul sorgente, come le altre prove di cablaggio: il registratore vero non
@@ -19570,47 +19609,105 @@ function proveDelCablaggioDellaCopia() {
   //  Ogni download della registrazione passa da siScarica.
   const salvataggi = [...reg.matchAll(/salvaInLocale\(/g)].map((m) => m.index);
   c("si scarica da almeno due punti (copia e principale)", true, salvataggi.length >= 2);
-  c("…e ognuno è sotto siScarica(", true,
-    salvataggi.every((i) => reg.slice(Math.max(0, i - 500), i).includes("siScarica(")));
-  c("niente più download dell'ultima parte scoperto", false, /if \(!isViewer\(\) && blob\.size\)/.test(reg));
-  c("le regole chiedono della copia e del principale", [true, true],
-    [reg.includes('siScarica({ chi: "copia"'), reg.includes('siScarica({ chi: "principale"')]);
-  c("serveLaCopia e copiaPermessa sono usate", [true, true], [reg.includes("serveLaCopia("), reg.includes("copiaPermessa(")]);
-  c("l'interruttore è localStorage.hg_rec_copia", true,
-    reg.includes('localStorage.getItem("hg_rec_copia")') && reg.includes("copiaPermessa(interruttore)"));
+  c(
+    "…e ognuno è sotto siScarica(",
+    true,
+    salvataggi.every((i) => reg.slice(Math.max(0, i - 500), i).includes("siScarica(")),
+  );
+  c(
+    "niente più download dell'ultima parte scoperto",
+    false,
+    /if \(!isViewer\(\) && blob\.size\)/.test(reg),
+  );
+  c(
+    "le regole chiedono della copia e del principale",
+    [true, true],
+    [/siScarica\(\{\s*chi: "copia"/.test(reg), /siScarica\(\{\s*chi: "principale"/.test(reg)],
+  );
+  c(
+    "serveLaCopia e copiaPermessa sono usate",
+    [true, true],
+    [reg.includes("serveLaCopia("), reg.includes("copiaPermessa(")],
+  );
+  c(
+    "l'interruttore è localStorage.hg_rec_copia",
+    true,
+    reg.includes('localStorage.getItem("hg_rec_copia")') &&
+      reg.includes("copiaPermessa(interruttore)"),
+  );
 
   //  La copia è sullo stesso flusso: nessun secondo flusso, nessuna seconda cattura.
   c("un solo flusso nuovo (il mix)", 1, (reg.match(/new MediaStream\(/g) || []).length);
-  c("la copia nasce dallo stesso mix del principale", true, /copia = registratoreSulMix\(\)/.test(reg));
-  c("…e registratoreSulMix usa il mix", true, /registratoreSulMix = \(\)[^;]*new MediaRecorder\(mix/.test(reg));
+  c(
+    "la copia nasce dallo stesso mix del principale",
+    true,
+    /copia = registratoreSulMix\(\)/.test(reg),
+  );
+  c(
+    "…e registratoreSulMix usa il mix",
+    true,
+    /registratoreSulMix = \(\)[^;]*new MediaRecorder\(mix/.test(reg),
+  );
 
   //  L'ordine di stop: la copia si ferma dentro chiudiRegistrazione.
   const iChiudi = reg.indexOf("chiudiRegistrazione = () => {");
   const chiudi = reg.slice(iChiudi, reg.indexOf("};", iChiudi));
-  c("chiudiRegistrazione ferma la copia per «fine»", true, iChiudi > 0 && /fermaCopia\("fine"\)/.test(chiudi));
+  c(
+    "chiudiRegistrazione ferma la copia per «fine»",
+    true,
+    iChiudi > 0 && /fermaCopia\("fine"\)/.test(chiudi),
+  );
   const iFerma = reg.indexOf("const fermaCopia");
   const ferma = reg.slice(iFerma, reg.indexOf("\n    };", iFerma));
-  c("…chiedendo i pezzi prima di fermarla", true, iFerma > 0 && /requestData\(\)[\s\S]*\.stop\(\)/.test(ferma));
+  c(
+    "…chiedendo i pezzi prima di fermarla",
+    true,
+    iFerma > 0 && /requestData\(\)[\s\S]*\.stop\(\)/.test(ferma),
+  );
 
   //  scaricataCome: il nome della copia solo se è accesa e ha peso.
-  c("il nome della copia va all'archivio solo se accesa e con peso", true,
-    /copiaFinale = copiaAccesa && pesoCopia > 0/.test(reg));
-  c("il nome usa l'ora d'inizio, non quella di fine", [false, true],
-    [/quando: new Date\(\),/.test(reg), /quando: new Date\(avviataIl\)/.test(reg)]);
-  c("con Drive la copia si scarta", true, /!serveLaCopia\([^)]*\)\) \{[\s\S]{0,200}fermaCopia\("scartata"\)/.test(reg));
-  c("la parte successiva non partita chiude anche la copia", true,
-    /la parte successiva non è partita[\s\S]{0,200}fermaCopia\("fine"\)/.test(reg));
-  c("il commento «shortcut» dell'ultima parte è andato", false, /qui si scarica solo l'ultima/.test(reg));
+  c(
+    "il nome della copia va all'archivio solo se accesa e con peso",
+    true,
+    /copiaFinale = copiaAccesa && pesoCopia > 0/.test(reg),
+  );
+  c(
+    "il nome usa l'ora d'inizio, non quella di fine",
+    [false, true],
+    [/quando: new Date\(\),/.test(reg), /quando: new Date\(avviataIl\)/.test(reg)],
+  );
+  c(
+    "con Drive la copia si scarta",
+    true,
+    /!serveLaCopia\([^)]*\)\s*\)\s*\{[\s\S]{0,200}fermaCopia\("scartata"\)/.test(reg),
+  );
+  c(
+    "la parte successiva non partita chiude anche la copia",
+    true,
+    /la parte successiva non è partita[\s\S]{0,200}fermaCopia\("fine"\)/.test(reg),
+  );
+  c(
+    "il commento «shortcut» dell'ultima parte è andato",
+    false,
+    /qui si scarica solo l'ultima/.test(reg),
+  );
 
   //  L'archivio riceve le stesse parti di prima.
-  c("le parti intermedie salgono come prima", true, reg.includes("uploadRecording(blob, fname, durataParte);"));
+  c(
+    "le parti intermedie salgono come prima",
+    true,
+    reg.includes("uploadRecording(blob, fname, durataParte);"),
+  );
 
   //  Correzione del revisore: chiudere la scheda mentre si registra chiede conferma.
   const iUnload = call.indexOf('window.addEventListener("beforeunload", (e) => {');
-  c("chiudere la scheda durante la registrazione chiede conferma", true,
-    iUnload > 0 && call.slice(iUnload, iUnload + 600).includes("if (!regInSospeso && !recorder) return;"));
+  c(
+    "chiudere la scheda durante la registrazione chiede conferma",
+    true,
+    iUnload > 0 &&
+      call.slice(iUnload, iUnload + 600).includes("if (!regInSospeso && !recorder) return;"),
+  );
 }
-
 
 /* ── LA BARRA DEI COMANDI C'È IN OGNI MODALITÀ (2026-10-15) ───────────────
  *  Il titolare: «quando metto l'opzione videochiamata, in basso non ci sono i
@@ -19624,17 +19721,46 @@ function proveDellaBarraSempreVisibile() {
   c("la barra pubblica la sua altezza", true, /setProperty\("--hg-barra-bassa"/.test(barra));
   c("…e la toglie quando sparisce", true, /removeProperty\("--hg-barra-bassa"\)/.test(barra));
   const iMisura = barra.indexOf('setProperty("--hg-barra-bassa"');
-  const misura = barra.slice(barra.lastIndexOf("useCallback(", iMisura), barra.indexOf("}, []);", iMisura));
-  c("la misura la prende un ResizeObserver nel riferimento", true, misura.length > 0 && /new ResizeObserver\(/.test(misura));
-  c("…senza listener resize/orientationchange (correzione del revisore)", false, /resize"|orientationchange/.test(misura));
-  c("l'aggancio sta sopra l'uscita anticipata", true,
-    iMisura > 0 && iMisura < barra.indexOf("if (!env || !consultant) return null;"));
-  c("il div della barra usa il riferimento", true, /ref=\{barraBassa\}[\s\S]{0,200}fixed bottom-0 left-0 z-\[60\]/.test(barra));
-  c("le camere a tutta pagina non coprono più la barra", false, call.includes("fixed inset-x-0 bottom-0 z-[93]"));
-  c("…e finiscono dove comincia la barra", true, /bottom: "var\(--hg-barra-bassa, 0px\)"/.test(call));
-  c("…e lasciano libera la colonna del copione", true, /right: "var\(--tp-right, 0px\)"[\s\S]{0,120}bottom: "var\(--hg-barra-bassa/.test(call));
+  const misura = barra.slice(
+    barra.lastIndexOf("useCallback(", iMisura),
+    barra.indexOf("}, []);", iMisura),
+  );
+  c(
+    "la misura la prende un ResizeObserver nel riferimento",
+    true,
+    misura.length > 0 && /new ResizeObserver\(/.test(misura),
+  );
+  c(
+    "…senza listener resize/orientationchange (correzione del revisore)",
+    false,
+    /resize"|orientationchange/.test(misura),
+  );
+  c(
+    "l'aggancio sta sopra l'uscita anticipata",
+    true,
+    iMisura > 0 && iMisura < barra.indexOf("if (!env || !consultant) return null;"),
+  );
+  c(
+    "il div della barra usa il riferimento",
+    true,
+    /ref=\{barraBassa\}[\s\S]{0,200}fixed bottom-0 left-0 z-\[60\]/.test(barra),
+  );
+  c(
+    "le camere a tutta pagina non coprono più la barra",
+    false,
+    call.includes("fixed inset-x-0 bottom-0 z-[93]"),
+  );
+  c(
+    "…e finiscono dove comincia la barra",
+    true,
+    /bottom: "var\(--hg-barra-bassa, 0px\)"/.test(call),
+  );
+  c(
+    "…e lasciano libera la colonna del copione",
+    true,
+    /right: "var\(--tp-right, 0px\)"[\s\S]{0,120}bottom: "var\(--hg-barra-bassa/.test(call),
+  );
 }
-
 
 /* ── LA VESTE DELLE CAMERE E «CAMERE GRANDI» CON LE BARRE (2026-10-15) ────
  *  «Camere grandi» metteva a schermo intero il SOLO riquadro delle camere: il
@@ -19648,40 +19774,82 @@ function proveDellaVesteDelleCamere() {
   c("esiste la regola", "function", typeof VC.vesteCamere);
   if (typeof VC.vesteCamere !== "function") return;
   const { vesteCamere } = VC;
-  const base = { mode: "call", sharing: false, tele: false, undocked: false, camClosed: false, lato: false, inConsulenza: true, grandi: false };
+  const base = {
+    mode: "call",
+    sharing: false,
+    tele: false,
+    undocked: false,
+    camClosed: false,
+    lato: false,
+    inConsulenza: true,
+    grandi: false,
+  };
   const v = (x) => vesteCamere({ ...base, ...x });
 
   //  La tabella intera: 4 modalità × 2^7 interruttori.
   const tutte = [];
   for (const mode of ["content", "call", "presenter", "client"])
     for (let b = 0; b < 128; b++) {
-      const [sharing, tele, undocked, camClosed, lato, inConsulenza, grandi] = [0, 1, 2, 3, 4, 5, 6].map((i) => !!(b & (1 << i)));
+      const [sharing, tele, undocked, camClosed, lato, inConsulenza, grandi] = [
+        0, 1, 2, 3, 4, 5, 6,
+      ].map((i) => !!(b & (1 << i)));
       const p = { mode, sharing, tele, undocked, camClosed, lato, inConsulenza, grandi };
       tutte.push([p, vesteCamere(p)]);
     }
-  c("camere chiuse: sempre «chiuse», anche con «Camere grandi»", true,
-    tutte.every(([p, x]) => (x === "chiuse") === p.camClosed));
-  c("«Camere grandi» vince su tutto tranne le camere chiuse", true,
-    tutte.filter(([p]) => p.grandi && !p.camClosed).every(([, x]) => x === "pagina"));
-  c("copione aperto (senza grandi): sul copione o in finestra", true,
-    tutte.filter(([p]) => p.tele && !p.grandi && !p.camClosed)
-      .every(([p, x]) => x === (p.undocked ? "finestra" : "copione")));
-  c("copione e finestra solo col teleprompter aperto", true,
-    tutte.filter(([, x]) => x === "copione" || x === "finestra").every(([p]) => p.tele && !p.grandi));
-  c("a tutta pagina senza grandi: solo videochiamata pulita dove si conduce", true,
-    tutte.filter(([p, x]) => x === "pagina" && !p.grandi)
-      .every(([p]) => p.mode === "call" && !p.sharing && !p.tele && !p.lato && p.inConsulenza));
-  c("ogni caso ha una veste sola fra le cinque", true,
-    tutte.every(([, x]) => ["pagina", "colonna", "copione", "finestra", "chiuse"].includes(x)));
+  c(
+    "camere chiuse: sempre «chiuse», anche con «Camere grandi»",
+    true,
+    tutte.every(([p, x]) => (x === "chiuse") === p.camClosed),
+  );
+  c(
+    "«Camere grandi» vince su tutto tranne le camere chiuse",
+    true,
+    tutte.filter(([p]) => p.grandi && !p.camClosed).every(([, x]) => x === "pagina"),
+  );
+  c(
+    "copione aperto (senza grandi): sul copione o in finestra",
+    true,
+    tutte
+      .filter(([p]) => p.tele && !p.grandi && !p.camClosed)
+      .every(([p, x]) => x === (p.undocked ? "finestra" : "copione")),
+  );
+  c(
+    "copione e finestra solo col teleprompter aperto",
+    true,
+    tutte
+      .filter(([, x]) => x === "copione" || x === "finestra")
+      .every(([p]) => p.tele && !p.grandi),
+  );
+  c(
+    "a tutta pagina senza grandi: solo videochiamata pulita dove si conduce",
+    true,
+    tutte
+      .filter(([p, x]) => x === "pagina" && !p.grandi)
+      .every(([p]) => p.mode === "call" && !p.sharing && !p.tele && !p.lato && p.inConsulenza),
+  );
+  c(
+    "ogni caso ha una veste sola fra le cinque",
+    true,
+    tutte.every(([, x]) => ["pagina", "colonna", "copione", "finestra", "chiuse"].includes(x)),
+  );
 
   //  I casi che si vedono, uno per uno.
   c("videochiamata pulita: a tutta pagina", "pagina", v({}));
   c("videochiamata con lo schermo condiviso: in colonna", "colonna", v({ sharing: true }));
   c("videochiamata «riduci a lato»: in colonna", "colonna", v({ lato: true }));
   c("videochiamata sul gestionale: in colonna", "colonna", v({ inConsulenza: false }));
-  for (const mode of ["content", "presenter", "client"]) c(`${mode}: in colonna`, "colonna", v({ mode }));
-  c("contenuti con «Camere grandi»: a tutta pagina", "pagina", v({ mode: "content", grandi: true }));
-  c("copione aperto con «Camere grandi»: a tutta pagina, una volta sola", "pagina", v({ tele: true, grandi: true }));
+  for (const mode of ["content", "presenter", "client"])
+    c(`${mode}: in colonna`, "colonna", v({ mode }));
+  c(
+    "contenuti con «Camere grandi»: a tutta pagina",
+    "pagina",
+    v({ mode: "content", grandi: true }),
+  );
+  c(
+    "copione aperto con «Camere grandi»: a tutta pagina, una volta sola",
+    "pagina",
+    v({ tele: true, grandi: true }),
+  );
   c("copione aperto: camere sul copione", "copione", v({ tele: true }));
   c("copione aperto, camere estratte: in finestra", "finestra", v({ tele: true, undocked: true }));
 
@@ -19691,16 +19859,42 @@ function proveDellaVesteDelleCamere() {
   const ho = call.slice(iHO, call.indexOf("\nfunction ", iHO + 10));
   c("HostOverlay usa vesteCamere", true, ho.includes("vesteCamere("));
   c("…e non più chiamataPiena", false, ho.includes("chiamataPiena"));
-  c("…né le condizioni sparse (copione, finestra, colonna)", [false, false, false],
-    [ho.includes("tele && !camClosed && !undocked"), ho.includes("tele && !camClosed && undocked"), ho.includes("!tele && !camClosed &&")]);
-  c("le camere sul copione derivano dalla veste", true, /const dockedCam =\s*veste === "copione"/.test(ho));
+  c(
+    "…né le condizioni sparse (copione, finestra, colonna)",
+    [false, false, false],
+    [
+      ho.includes("tele && !camClosed && !undocked"),
+      ho.includes("tele && !camClosed && undocked"),
+      ho.includes("!tele && !camClosed &&"),
+    ],
+  );
+  c(
+    "le camere sul copione derivano dalla veste",
+    true,
+    /const dockedCam =\s*veste === "copione"/.test(ho),
+  );
   const iSP = call.indexOf("function useSchermoPieno(");
   const sp = call.slice(iSP, call.indexOf("\nfunction ", iSP + 10));
-  c("lo schermo intero è della pagina, non del riquadro", [true, false],
-    [/document\.documentElement\.requestFullscreen/.test(sp), /bersaglio/.test(sp)]);
-  c("Esc rimette «grandi» spento solo all'uscita", true, /if \(!dentro\) setGrandi\(false\)/.test(sp));
-  c("cambio di modalità: camere grandi spente", true, /useSchermoPieno\(st\.mode\)/.test(ho) && /setGrandi\(false\);\s*\}, \[modo\]\)/.test(sp));
-  c("l'etichetta segue grandi o pieno", true, /schermo\.grandi \|\| schermo\.pieno \? "Esci" : "Camere grandi"/.test(ho));
+  c(
+    "lo schermo intero è della pagina, non del riquadro",
+    [true, false],
+    [/document\.documentElement\.requestFullscreen/.test(sp), /bersaglio/.test(sp)],
+  );
+  c(
+    "Esc rimette «grandi» spento solo all'uscita",
+    true,
+    /if \(!dentro\) setGrandi\(false\)/.test(sp),
+  );
+  c(
+    "cambio di modalità: camere grandi spente",
+    true,
+    /useSchermoPieno\(st\.mode\)/.test(ho) && /setGrandi\(false\);\s*\}, \[modo\]\)/.test(sp),
+  );
+  c(
+    "l'etichetta segue grandi o pieno",
+    true,
+    /schermo\.grandi \|\| schermo\.pieno \? "Esci" : "Camere grandi"/.test(ho),
+  );
 }
 
 proveDeiTipi();
