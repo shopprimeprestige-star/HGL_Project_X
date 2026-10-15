@@ -19897,6 +19897,17 @@ function proveDellaVesteDelleCamere() {
   );
 }
 
+/** ── I DUE RITOCCHI PRIMA DELLA PUBBLICAZIONE ────────────────────────────── */
+function proveDeiRitocchiDellaBarra() {
+  gruppo("BARRA: CHIUDI SEMPRE A PORTATA, REGISTRAZIONE CHIUSA UNA VOLTA");
+  const barra = readFileSync(join(radice, "src/shop/PresenterBar.tsx"), "utf8");
+  c("il gruppo con «Chiudi la consulenza» resta attaccato al bordo destro", true,
+    /sticky right-0[^"]*"[\s\S]{0,8000}aria-label="Chiudi la consulenza"/.test(barra));
+  const chiamata = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  c("chiudere la registrazione due volte non rifà il conto", true,
+    /chiudiRegistrazione = \(\) => \{[\s\S]{0,300}if \(finePerDavvero\) return;/.test(chiamata));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -19959,6 +19970,7 @@ proveDellaCopiaSulComputer();
 proveDelCablaggioDellaCopia();
 proveDellaBarraSempreVisibile();
 proveDellaVesteDelleCamere();
+proveDeiRitocchiDellaBarra();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

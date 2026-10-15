@@ -887,7 +887,11 @@ export function PresenterBar({ page }: { page?: Page }) {
           la barra. Ora stanno qui, accanto al logo, e compaiono solo quando una
           consulenza è davvero aperta. */}
         {(call.active || resumable) && (
-          <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+          //  ⚠️ STICKY A DESTRA: sul telefono la barra scorre di lato e «Chiudi
+          //   la consulenza» finiva oltre il bordo (collaudo a 390 px). Il
+          //   titolare: «i pulsanti devono esserci sempre». Il gruppo resta
+          //   attaccato al bordo destro mentre il resto della barra scorre.
+          <div className="sticky right-0 z-10 flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-[#0a1630] p-1">
             <span className="ml-1 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300/80">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,.9)]" />
               {call.active ? "In corso" : "Aperta"}

@@ -4887,6 +4887,9 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     };
 
     chiudiRegistrazione = () => {
+      //  Due chiamate di fila (Ferma e poi fine del Meet) non devono rifare il
+      //  conto: la seconda azzererebbe il nome della copia già scaricata.
+      if (finePerDavvero) return;
       finePerDavvero = true;
       copiaFinale = copiaAccesa && pesoCopia > 0 ? numeroCopia : 0;
       fermaCopia("fine");
