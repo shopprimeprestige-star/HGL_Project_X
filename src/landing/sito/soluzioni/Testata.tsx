@@ -27,10 +27,12 @@ export function BloccoConsulenza({ onPrenota, className = "" }: { onPrenota: AlP
 export function Testata({ ritratto, onPrenota }: { ritratto: Slot | null; onPrenota: AlPrenotare }) {
   return (
     <header className={`${CONTENITORE} lg:pt-11`}>
-      {/* Riga del marchio (non fissa): logo a sinistra, luogo a destra, solo testo. Da 1024 sta sotto la barra delle patch (44). */}
+      {/* Riga del marchio (non fissa): logo a sinistra, luogo a destra, solo testo. Da 1024 sta sotto la barra delle patch (44). Lo spazio prima del civico è non separabile: «132» non resta solo a capo (marketing n. 4). */}
       <div className="flex min-h-12 items-center justify-between gap-4 lg:min-h-[72px]">
         <img src={logo} alt={T.marchio.logoAlt} width={110} height={26} className="h-[26px] w-auto select-none lg:h-8" draggable={false} />
-        <p className="text-right text-[13px] font-medium leading-snug text-[var(--hgl-dettagli)] lg:text-[15px]">{T.marchio.indirizzo}</p>
+        <p className="text-right text-[13px] font-medium leading-snug text-[var(--hgl-dettagli)] lg:text-[15px]">
+          {T.marchio.indirizzo.replace(/ (\S+)$/, "\u00A0$1")}
+        </p>
       </div>
 
       <h1 className="sol-h1 mt-3 text-white lg:mt-12">

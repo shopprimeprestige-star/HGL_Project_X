@@ -337,6 +337,29 @@ try {
     await b.close();
   }
 
+  /* ── Indirizzo della riga del marchio: «132» non resta solo (marketing n. 4) ──────────── */
+  for (const larghezza of [360, 375, 390]) {
+    const b = await browser.newPage({ viewport: { width: larghezza, height: 700 } });
+    await b.goto(base + "/index.html?testata");
+    await b.waitForSelector("header p");
+    const righe = await b.evaluate(() => {
+      const par = [...document.querySelectorAll("header p")].find((x) => /Scipioni/.test(x.textContent));
+      const nodo = par.firstChild;
+      const range = document.createRange();
+      const perRiga = new Map();
+      for (let i = 0; i < nodo.length; i++) {
+        range.setStart(nodo, i);
+        range.setEnd(nodo, i + 1);
+        const q = range.getClientRects()[0];
+        if (!q || nodo.data[i] === " " || nodo.data[i] === "\u00a0") continue;
+        const y = Math.round(q.top);
+        perRiga.set(y, (perRiga.get(y) ?? "") + nodo.data[i]);
+      }
+      return [...perRiga.values()];
+    });
+    vero(`indirizzo a ${larghezza} px: «132» non resta da solo (righe: ${JSON.stringify(righe)})`, righe.length === 1 || !/^132$/.test(righe.at(-1)));
+    await b.close();
+  }
 } finally {
   await browser.close();
   server.close();
