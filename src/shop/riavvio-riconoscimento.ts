@@ -1,25 +1,44 @@
-/** ── QUANDO RIAVVIARE IL RICONOSCIMENTO VOCALE ─────────────────────────────
+/** ── QUANDO AVVIARE E RIAVVIARE IL RICONOSCIMENTO VOCALE ───────────────────
  *
  *  Segnalazione del titolare (15/10/2026): «quando le persone entrano su
  *  Meetly sentono continuamente un suono ogni 2 secondi».
  *
  *  ── LA CAUSA ──────────────────────────────────────────────────────────────
- *  Il riconoscimento vocale (trascrizione e teleprompter) parte per CHIUNQUE
- *  appena la connessione è `connected`, cliente compreso. Su telefono il
- *  browser fa un «bip» a ogni avvio, e `onend` riavviava subito, sempre: se
- *  il riconoscimento finisce all'istante (microfono già preso dalla chiamata,
- *  permesso negato, nessuna voce) il ciclo parte → bip → fine → parte → bip,
- *  uno ogni paio di secondi, per tutta la consulenza. Sul computer del
- *  consulente non suona, ed è per questo che nessuno se n'era accorto.
+ *  Il riconoscimento vocale (trascrizione e teleprompter) partiva per CHIUNQUE
+ *  appena la connessione era `connected`, cliente compreso. Su telefono il
+ *  browser fa un «bip» a OGNI avvio. Sul computer del consulente non suona, ed
+ *  è per questo che nessuno se n'era accorto.
  *
- *  ── LA REGOLA ─────────────────────────────────────────────────────────────
+ *  ── LA CURA: `deveRiconoscere` ────────────────────────────────────────────
+ *  Sul telefono o tablet del CLIENTE il riconoscimento non parte proprio. Non
+ *  basta limitare i riavvii: Chrome Android chiude il riconoscimento a ogni
+ *  pausa di voce anche con `continuous`, quindi un cliente che parla avrebbe un
+ *  bip dopo ogni frase. In più il riconoscimento chiede il microfono mentre la
+ *  chiamata lo tiene già. Costo accettato: la voce del cliente da telefono non
+ *  entra nel PDF «conversazione completa». Computer del cliente e consulente
+ *  (anche da tablet, per il teleprompter) restano come prima.
+ *
+ *  ── LA RETE DI SICUREZZA: `dopoLaFine` ────────────────────────────────────
+ *  NON è la cura: ferma un ciclo di riavvii immediati dove il riconoscimento
+ *  parte comunque (consulente, cliente da computer).
  *  · errore fatale (permesso, microfono, lingua): non si riavvia;
  *  · fine NORMALE (ha sentito qualcosa, o è durata a lungo): si riavvia subito,
  *    come prima — il teleprompter non deve perdere parole;
- *  · fine BREVE senza aver sentito niente: si riprova con attesa crescente
- *    (2 s, 4 s) e dopo tre di seguito ci si ferma. Alla prossima connessione
- *    `startRecognition` riparte da capo.
- *  ⚠️ Funzione pura: la prova (`prove/prove.mjs`) la guida senza browser. */
+ *  · fine BREVE senza aver sentito niente: attesa crescente (2 s, 4 s) e dopo
+ *    tre di fila ci si ferma. Alla prossima connessione si riparte da capo.
+ *  ⚠️ Funzioni pure: la prova (`prove/prove.mjs`) le guida senza browser. */
+
+/** Telefono o tablet: puntatore «grossolano» (dito) o user agent mobile.
+ *  Un iPad che si presenta come Mac ha comunque il puntatore grossolano. */
+export function eUnTelefono(p: { puntatoreGrossolano: boolean; userAgent: string }): boolean {
+  return p.puntatoreGrossolano || /android|iphone|ipad|ipod|mobile/i.test(p.userAgent || "");
+}
+
+/** Il riconoscimento parte su questo dispositivo? No solo per il cliente su
+ *  telefono/tablet. Ruolo ancora ignoto = come prima (parte). */
+export function deveRiconoscere(p: { ruolo: string | null | undefined; mobile: boolean }): boolean {
+  return !(p.ruolo === "viewer" && p.mobile);
+}
 
 /** Sotto questa durata, senza voce, la fine conta come «breve». */
 export const SESSIONE_BREVE_MS = 10_000;

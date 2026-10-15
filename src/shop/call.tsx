@@ -23,7 +23,7 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 //  Il conto dei suoni che partono sul dispositivo del cliente, e la riga da
 //  lasciare nel diario: la regola sta fuori di qui e si prova senza browser.
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
-import { dopoLaFine } from "@/shop/riavvio-riconoscimento";
+import { deveRiconoscere, dopoLaFine, eUnTelefono } from "@/shop/riavvio-riconoscimento";
 import { nomeRegistrazione } from "@/shop/nome-registrazione";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
@@ -2735,6 +2735,19 @@ export function ensureRecognition() {
 function startRecognition() {
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SR || recognition) return;
+  //  ⚠️ Il cliente su telefono/tablet non avvia il riconoscimento: su Android
+  //   ogni avvio fa un bip e il browser lo chiude a ogni pausa (vedi
+  //   shop/riavvio-riconoscimento). Prezzo: la sua voce non entra nel PDF.
+  if (
+    !deveRiconoscere({
+      ruolo: S.role,
+      mobile: eUnTelefono({
+        puntatoreGrossolano: !!window.matchMedia?.("(pointer: coarse)").matches,
+        userAgent: navigator.userAgent || "",
+      }),
+    })
+  )
+    return;
   recWanted = true;
   try {
     const r = new SR();
@@ -2762,9 +2775,8 @@ function startRecognition() {
       // risultati intermedi → avanzamento fluido del teleprompter (solo host)
       if (interim.trim() && S.role === "host") spokenSubs.forEach((f) => f(interim));
     };
-    /*  ⚠️ NON SI RIAVVIA PIÙ A OLTRANZA: su telefono ogni avvio fa un «bip», e
-        un riconoscimento che finisce subito suonava ogni ~2 s a chi entrava.
-        La regola sta in shop/riavvio-riconoscimento. */
+    /*  Rete di sicurezza, non la cura (la cura è la guardia in cima): un ciclo
+        di riavvii immediati si ferma. La regola sta in shop/riavvio-riconoscimento. */
     r.onend = () => {
       if (!recWanted || recognition !== r) return;
       const d = dopoLaFine({

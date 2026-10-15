@@ -11720,6 +11720,34 @@ function proveDelNomeDellaRegistrazioneScaricata() {
     nomeRegistrazione({ quando: new Date(2026, 0, 2, 3, 5), ext: "webm" }));
 }
 
+/** ── IL CLIENTE SU TELEFONO NON AVVIA IL RICONOSCIMENTO ────────────────────
+ *  Revisione del 15/10/2026: su Android il riconoscimento si chiude a ogni
+ *  pausa (anche con `continuous`) e ogni `start()` fa un bip: il limite ai
+ *  riavvii non basta se il cliente parla. Sul telefono del cliente non parte
+ *  proprio; computer del cliente e consulente restano come prima. */
+function proveDelClienteSuTelefono() {
+  gruppo("IL CLIENTE SU TELEFONO NON AVVIA IL RICONOSCIMENTO");
+  c("esiste la regola", "function", typeof RIAVVIO.deveRiconoscere);
+  if (typeof RIAVVIO.deveRiconoscere !== "function") return;
+  const { deveRiconoscere, eUnTelefono } = RIAVVIO;
+  c("cliente su telefono: nessun avvio", false, deveRiconoscere({ ruolo: "viewer", mobile: true }));
+  c("cliente su computer: come oggi", true, deveRiconoscere({ ruolo: "viewer", mobile: false }));
+  c("consulente su computer: come oggi", true, deveRiconoscere({ ruolo: "host", mobile: false }));
+  c("consulente su tablet: come oggi (teleprompter)", true, deveRiconoscere({ ruolo: "host", mobile: true }));
+  c("ruolo non ancora noto: come oggi", true, deveRiconoscere({ ruolo: null, mobile: true }));
+  c("puntatore grossolano = telefono/tablet", true, eUnTelefono({ puntatoreGrossolano: true, userAgent: "" }));
+  c("iPhone dallo user agent", true,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" }));
+  c("Android dallo user agent", true,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile" }));
+  c("iPad che si dice Mac: puntatore grossolano", true,
+    eUnTelefono({ puntatoreGrossolano: true, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" }));
+  c("computer con mouse", false,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120" }));
+  c("computer touch con mouse: non è un telefono", false,
+    eUnTelefono({ puntatoreGrossolano: false, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120" }));
+}
+
 function proveDellaStanzaVuota() {
   const { stanzaAncoraVuota, eLaStanzaNuda } = VUOTA;
   gruppo("«L'HO ACCETTATO E NON RIESCE A ENTRARE»");
@@ -16758,6 +16786,7 @@ provePalco();
   proveDelContaSuoni();
   proveDelRiconoscimentoCheNonSuonaSempre();
   proveDelNomeDellaRegistrazioneScaricata();
+  proveDelClienteSuTelefono();
   proveDellaStanzaVuota();
   proveDelGiraCamera();
   proveDelLinkPerCiascuno();
