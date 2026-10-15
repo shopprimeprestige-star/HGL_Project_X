@@ -19608,6 +19608,30 @@ function proveDelCablaggioDellaCopia() {
     iUnload > 0 && call.slice(iUnload, iUnload + 600).includes("if (!regInSospeso && !recorder) return;"));
 }
 
+
+/* ── LA BARRA DEI COMANDI C'È IN OGNI MODALITÀ (2026-10-15) ───────────────
+ *  Il titolare: «quando metto l'opzione videochiamata, in basso non ci sono i
+ *  pulsanti di controllo». In «Videochiamata» il riquadro delle camere a
+ *  tutta pagina arrivava fino al fondo e stava sopra (z 93 > 60) la barra.
+ *  Adesso la barra pubblica la sua altezza e le camere finiscono lì. */
+function proveDellaBarraSempreVisibile() {
+  gruppo("LA BARRA DEI COMANDI C'È IN OGNI MODALITÀ");
+  const barra = readFileSync(join(radice, "src/shop/PresenterBar.tsx"), "utf8");
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  c("la barra pubblica la sua altezza", true, /setProperty\("--hg-barra-bassa"/.test(barra));
+  c("…e la toglie quando sparisce", true, /removeProperty\("--hg-barra-bassa"\)/.test(barra));
+  const iMisura = barra.indexOf('setProperty("--hg-barra-bassa"');
+  const misura = barra.slice(barra.lastIndexOf("useCallback(", iMisura), barra.indexOf("}, []);", iMisura));
+  c("la misura la prende un ResizeObserver nel riferimento", true, misura.length > 0 && /new ResizeObserver\(/.test(misura));
+  c("…senza listener resize/orientationchange (correzione del revisore)", false, /resize"|orientationchange/.test(misura));
+  c("l'aggancio sta sopra l'uscita anticipata", true,
+    iMisura > 0 && iMisura < barra.indexOf("if (!env || !consultant) return null;"));
+  c("il div della barra usa il riferimento", true, /ref=\{barraBassa\}[\s\S]{0,200}fixed bottom-0 left-0 z-\[60\]/.test(barra));
+  c("le camere a tutta pagina non coprono più la barra", false, call.includes("fixed inset-x-0 bottom-0 z-[93]"));
+  c("…e finiscono dove comincia la barra", true, /bottom: "var\(--hg-barra-bassa, 0px\)"/.test(call));
+  c("…e lasciano libera la colonna del copione", true, /right: "var\(--tp-right, 0px\)"[\s\S]{0,120}bottom: "var\(--hg-barra-bassa/.test(call));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -19668,6 +19692,7 @@ await proveDeiTrentaSecondi();
 await proveDelLinkChiuso();
 proveDellaCopiaSulComputer();
 proveDelCablaggioDellaCopia();
+proveDellaBarraSempreVisibile();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

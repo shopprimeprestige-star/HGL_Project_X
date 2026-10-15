@@ -15835,8 +15835,10 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
       {chiamataPiena && (
         <div
           ref={riquadroCamere}
-          style={{ top: barH }}
-          className="fixed inset-x-0 bottom-0 z-[93] flex flex-col border-t border-white/10 bg-[#0a0f1c]/97 text-white backdrop-blur-md"
+          //  ⚠️ Fra le due barre, non sopra quella in basso: lì ci sono «Chiudi
+          //   chiamata» e i link (vedi `--hg-barra-bassa` in PresenterBar).
+          style={{ top: barH, left: 0, right: "var(--tp-right, 0px)", bottom: "var(--hg-barra-bassa, 0px)" }}
+          className="fixed z-[93] flex flex-col border-t border-white/10 bg-[#0a0f1c]/97 text-white backdrop-blur-md"
         >
           {camHeader({ riduci: true })}
           <div className="min-h-0 flex-1">{renderCam(undefined, true)}</div>
