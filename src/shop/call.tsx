@@ -25,6 +25,14 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 import { deveRiconoscere, dopoLaFine, eUnTelefono } from "@/shop/riavvio-riconoscimento";
 import { nomeRegistrazione } from "@/shop/nome-registrazione";
+import {
+  copiaPermessa,
+  copiaPiena,
+  serveLaCopia,
+  siScarica,
+  type Motivo,
+} from "@/shop/copia-sul-computer";
+import { vesteCamere } from "@/shop/veste-camere";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
 import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
@@ -4080,7 +4088,10 @@ function avvisoRegistrazione(o: {
 //  facile di perdere il lavoro di un'ora: il browser chiede conferma.
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", (e) => {
-    if (!regInSospeso) return;
+    //  ⚠️ Anche mentre si registra: la copia per il computer si scarica solo
+    //   a fine consulenza, e chiudere la scheda (o una ricarica dopo una
+    //   pubblicazione) la perderebbe tutta. Vedi shop/copia-sul-computer.
+    if (!regInSospeso && !recorder) return;
     e.preventDefault();
     e.returnValue = "";
   });
@@ -4749,6 +4760,16 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         `parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t.tetto / (1024 * 1024))} MB` +
           `, Drive ${t.drive ? "collegato" : "no"})`,
       );
+      //  Con Drive il principale è già la consulenza intera: la copia non serve.
+      //  (Una copia che si sta già chiudendo, per la fine, si lascia stare.)
+      if (
+        copia?.state === "recording" &&
+        !serveLaCopia({ soglia: SOGLIA_PARTE, partiChiuse: numeroParte - 1 })
+      ) {
+        annota("copia per il computer · scartata (Drive: il file è già uno)");
+        fermaCopia("scartata");
+        copiaAccesa = false;
+      }
     });
 
     let numeroParte = 1;
@@ -4758,8 +4779,120 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     //  fine della registrazione. Senza, chiudere una parte spegnerebbe le
     //  camere e il compositore in mezzo alla consulenza.
     let finePerDavvero = false;
+
+    /*  ── LA COPIA PER IL COMPUTER: LA CONSULENZA INTERA, UN FILE SOLO ──────
+        Il titolare (15/10/2026): «solo 2 minuti e 31 mi ha scaricato». Senza
+        Drive il principale si taglia in parti da 40 MB per l'archivio, e si
+        scaricava solo l'ultima. Le parti non si possono unire (ognuna è un
+        file a sé, coi tempi che ripartono da zero): perciò un secondo
+        registratore sullo STESSO mix, che non si taglia, solo per i Download.
+        L'archivio riceve le stesse parti di prima. Regole in
+        shop/copia-sul-computer.
+        ⚠️ COSTO VERO: col percorso SCHERMO nel mix c'è la cattura a
+         risoluzione piena (Retina/5K, 30 fps «ideali», nessun limite di
+         misura): la copia la codifica una seconda volta, oltre al principale
+         e alla chiamata verso il cliente. Sulle sole camere è la tela 720p,
+         leggera. Se un portatile soffre: localStorage.hg_rec_copia = "0"
+         spegne la copia e si torna alla riserva (ogni parte scaricata).
+        ⚠️ La copia si ferma in chiudiRegistrazione, PRIMA del principale: il
+         suo onstop spegne compositore e tracce. */
+    let copia: MediaRecorder | null = null;
+    let copiaAccesa = false;
+    let pezziCopia: BlobPart[] = [];
+    let pesoCopia = 0;
+    let numeroCopia = 1;
+    let inizioCopia = 0;
+    let motivoCopia: Motivo = "fine";
+    //  Quale file della copia arriverà nei Download a fine consulenza (0 = nessuno):
+    //  serve al messaggio «una copia è già nei tuoi Download», che deve essere vero.
+    let copiaFinale = 0;
+    //  Lo stesso nome base per tutti i file di questa consulenza: l'ora d'inizio.
+    const nomeDelFile = (ext: string, parte: number) =>
+      nomeRegistrazione({
+        quando: new Date(avviataIl),
+        lead: clienteDellaConsulenza().nome,
+        ext,
+        parte,
+      });
+    const fermaCopia = (motivo: Motivo) => {
+      const r = copia;
+      if (!r || r.state === "inactive") return;
+      motivoCopia = motivo;
+      try {
+        if (r.state === "recording") r.requestData();
+      } catch {
+        /* */
+      }
+      try {
+        r.stop();
+      } catch {
+        /* */
+      }
+    };
+    const apriCopia = () => {
+      try {
+        copia = registratoreSulMix();
+        const r = copia;
+        pezziCopia = [];
+        pesoCopia = 0;
+        inizioCopia = Date.now();
+        motivoCopia = "fine";
+        r.ondataavailable = (e) => {
+          if (!e.data || !e.data.size) return;
+          pezziCopia.push(e.data);
+          pesoCopia += e.data.size;
+          //  Il file vive nella memoria del browser: a 1,5 GB si scarica e se
+          //  ne apre un altro («-parte2»).
+          if (!finePerDavvero && copiaPiena(pesoCopia) && r.state === "recording")
+            fermaCopia("tetto");
+        };
+        r.onerror = (e) => {
+          console.error(
+            "[REC] errore della copia per il computer",
+            (e as unknown as { error?: unknown })?.error,
+          );
+          motivoCopia = "guasto";
+          copiaAccesa = false;
+          annota("copia per il computer · guasta: scarico ogni parte");
+        };
+        r.onstop = () => {
+          const type = r.mimeType || mime || "video/webm";
+          const blob = new Blob(pezziCopia, { type });
+          const secondi = Math.round((Date.now() - inizioCopia) / 1000);
+          const motivo = motivoCopia;
+          pezziCopia = [];
+          pesoCopia = 0;
+          if (copia === r) copia = null;
+          if (
+            siScarica({ chi: "copia", motivo, copiaAccesa, peso: blob.size, viewer: isViewer() })
+          ) {
+            salvaInLocale(blob, nomeDelFile(type.includes("mp4") ? "mp4" : "webm", numeroCopia));
+            //  Nel diario il numero del file, non il nome: porta quello del lead.
+            annota(
+              `copia per il computer · chiusa (${motivo}) · ${secondi}s · ${Math.round(blob.size / 1024)} KB · scaricata come file ${numeroCopia}`,
+            );
+            numeroCopia += 1;
+          }
+          if (motivo === "tetto" && !finePerDavvero) apriCopia();
+        };
+        r.start(1000);
+        copiaAccesa = true;
+        annota(`copia per il computer · avvio${numeroCopia > 1 ? ` · file ${numeroCopia}` : ""}`);
+      } catch (e) {
+        console.warn("[REC] copia per il computer non partita", e);
+        copia = null;
+        copiaAccesa = false;
+        annota("copia per il computer · non partita: scarico ogni parte");
+      }
+    };
+
     chiudiRegistrazione = () => {
+      //  Due chiamate di fila (Ferma e poi fine del Meet) non devono rifare il
+      //  conto: la seconda azzererebbe il nome della copia già scaricata.
+      if (finePerDavvero) return;
       finePerDavvero = true;
+      copiaFinale = copiaAccesa && pesoCopia > 0 ? numeroCopia : 0;
+      fermaCopia("fine");
     };
 
     const nomeDellaParte = (n: number, ext: string) => {
@@ -4769,10 +4902,12 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
       return n === 1 && finePerDavvero ? `meetly-${t}.${ext}` : `meetly-${t}-parte${n}.${ext}`;
     };
 
-    const nuovoRegistratore = (): MediaRecorder => {
-      const r = mime
+    const registratoreSulMix = () =>
+      mime
         ? new MediaRecorder(mix, { mimeType: mime, ...QUALITA })
         : new MediaRecorder(mix, QUALITA);
+    const nuovoRegistratore = (): MediaRecorder => {
+      const r = registratoreSulMix();
       r.ondataavailable = (e) => {
         if (!e.data || !e.data.size) return;
         pezzi.push(e.data);
@@ -4821,23 +4956,25 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         pesoParte = 0;
 
         if (finePerDavvero) {
-          // ── LA COPIA SUL COMPUTER DI CHI HA REGISTRATO ────────────────
-          //  Prima non si scaricava niente (file pesanti in Download a ogni
-          //  chiamata, mai chiesti). Dal 15/10/2026 lo chiede il titolare:
-          //  fermata la registrazione, il file si scarica da solo, con data,
-          //  ora e nome del lead. Si AGGIUNGE all'archivio (Supabase/Drive),
-          //  non lo sostituisce. Solo chi registra: mai il cliente.
-          //  shortcut: con Drive scollegato una consulenza lunga è in più
-          //  parti e qui si scarica solo l'ultima (le altre sono in archivio);
-          //  da cambiare se serve tenerle tutte sul computer.
-          let comeScaricata = "";
-          if (!isViewer() && blob.size) {
-            comeScaricata = nomeRegistrazione({
-              quando: new Date(),
-              lead: clienteDellaConsulenza().nome,
-              ext,
-              parte: numeroParte,
-            });
+          // ── LA CONSULENZA SUL COMPUTER DI CHI HA REGISTRATO ───────────
+          //  Richiesta del titolare (15/10/2026): fermata la registrazione o
+          //  chiuso il Meet, la consulenza INTERA si scarica da sola, con data,
+          //  ora d'inizio e nome del lead. Si AGGIUNGE all'archivio, non lo
+          //  sostituisce. Di regola arriva dalla copia (qui sopra); il
+          //  principale si scarica solo se la copia non c'è: con Drive (è già
+          //  il file intero), in riserva, o con l'interruttore spento.
+          //  Solo chi registra: mai il cliente.
+          let comeScaricata = copiaFinale ? nomeDelFile(ext, copiaFinale) : "";
+          if (
+            siScarica({
+              chi: "principale",
+              motivo: "fine",
+              copiaAccesa,
+              peso: blob.size,
+              viewer: isViewer(),
+            })
+          ) {
+            comeScaricata = nomeDelFile(ext, numeroParte);
             salvaInLocale(blob, comeScaricata);
           }
           recorder = null;
@@ -4868,6 +5005,18 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           `parte ${numeroParte} chiusa · ${durataParte}s · ${Math.round(blob.size / 1024)} KB · continuo`,
         );
         uploadRecording(blob, fname, durataParte);
+        //  Senza copia (riserva, o Drive oltre 1,5 GB) ogni parte va anche
+        //  sul computer: si perde l'«un file solo», non la consulenza.
+        if (
+          siScarica({
+            chi: "principale",
+            motivo: "parte",
+            copiaAccesa,
+            peso: blob.size,
+            viewer: isViewer(),
+          })
+        )
+          salvaInLocale(blob, nomeDelFile(ext, numeroParte));
         numeroParte += 1;
         inizioParte = Date.now();
         const prossimo = nuovoRegistratore();
@@ -4876,6 +5025,8 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           prossimo.start(1000);
         } catch (e) {
           console.error("[REC] la parte successiva non è partita", e);
+          //  La copia ha tutto fin qui: si chiude e si scarica.
+          fermaCopia("fine");
           recorder = null;
           set({ recording: false, recScreen: false });
           avvisoRegistrazione({
@@ -4907,6 +5058,15 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     rec.start(1000);
     recorder = rec;
     set({ recording: true, recScreen: !!usaSchermo }); // timeslice → dataavailable periodico
+    //  La copia per il computer: solo chi registra, e solo se non è spenta.
+    let interruttore: string | null = null;
+    try {
+      interruttore = localStorage.getItem("hg_rec_copia");
+    } catch {
+      /* memoria del browser chiusa: la copia resta accesa */
+    }
+    if (!isViewer() && copiaPermessa(interruttore)) apriCopia();
+    else annota("copia per il computer · spenta: scarico ogni parte");
     /*  ── LA SPIA DEL PRIMO PEZZO ──────────────────────────────────────────
         Se dopo qualche secondo non è arrivato NIENTE, qualcosa non va — e lo
         si dice adesso, che la consulenza è in corso e si può rimediare, non
@@ -10504,18 +10664,31 @@ export function hostSetContentCam(patch: Partial<ContentCam>) {
  *  ⚠️ E LO STATO SI LEGGE DAL BROWSER, non da un interruttore nostro: si esce
  *   anche con Esc, e un interruttore che se lo scorda resterebbe acceso su una
  *   pagina che a schermo pieno non è più — cioè un tasto che non spegne. */
-function useSchermoPieno(bersaglio?: { current: HTMLElement | null }): {
+function useSchermoPieno(modo: Mode): {
   pieno: boolean;
+  grandi: boolean;
   commuta: () => void;
 } {
   const [pieno, setPieno] = useState(false);
+  //  Le camere ingrandite fra le due barre (vedi shop/veste-camere): vale
+  //  anche dove il browser lo schermo intero non lo concede (iPhone).
+  const [grandi, setGrandi] = useState(false);
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const agg = () => setPieno(!!document.fullscreenElement);
+    const agg = () => {
+      const dentro = !!document.fullscreenElement;
+      setPieno(dentro);
+      //  Solo all'uscita (Esc compreso): all'entrata «grandi» è già acceso.
+      if (!dentro) setGrandi(false);
+    };
     agg();
     document.addEventListener("fullscreenchange", agg);
     return () => document.removeEventListener("fullscreenchange", agg);
   }, []);
+  //  Cambio di modalità = si riparte dalla regola, come «riduci a lato».
+  useEffect(() => {
+    setGrandi(false);
+  }, [modo]);
   /*  ── ⚠️ SI INGRANDISCE QUELLO CHE IL PULSANTE PROMETTE ──────────────────
       Segnalazione del committente: «il pulsante schermo intero non fa schermo
       intero, si riferisce alla videocamera».
@@ -10525,24 +10698,27 @@ function useSchermoPieno(bersaglio?: { current: HTMLElement | null }): {
       le camere continuano a stare nella loro colonna stretta. Cioè il
       pulsante faceva una cosa diversa da quella scritta sopra, ed è il tipo
       di comando che si preme una volta e poi non si tocca più.
-      Adesso ingrandisce IL RIQUADRO DELLE CAMERE. Se quel riquadro non c'è
-      (camere chiuse, nessuno in chiamata) ripiega sulla pagina intera, che è
-      comunque quello che il pulsante lascia intendere. */
+      ⚠️ MA NON IL SOLO RIQUADRO (15/10/2026). A schermo intero il browser
+       mostra soltanto l'elemento scelto: col riquadro delle camere sparivano
+       tutte e due le barre, «Chiudi chiamata» compreso, e si usciva solo con
+       Esc. Adesso va a schermo intero la PAGINA, e le camere si mettono a
+       tutta pagina fra le due barre: grandi quanto possono, comandi a vista. */
   const commuta = useCallback(() => {
     if (typeof document === "undefined") return;
     try {
-      if (document.fullscreenElement) {
-        void document.exitFullscreen();
+      if (grandi || document.fullscreenElement) {
+        setGrandi(false);
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
         return;
       }
-      const el = bersaglio?.current ?? document.documentElement;
-      void el.requestFullscreen?.();
+      setGrandi(true);
+      void document.documentElement.requestFullscreen?.()?.catch(() => {});
     } catch {
-      //  Qualche browser lo nega (iframe senza permesso, iPhone): non è un
-      //  guasto da annunciare, semplicemente non succede niente.
+      //  Qualche browser lo nega (iframe senza permesso, iPhone): le camere
+      //  si ingrandiscono lo stesso, senza schermo intero.
     }
-  }, [bersaglio]);
-  return { pieno, commuta };
+  }, [grandi]);
+  return { pieno, grandi, commuta };
 }
 
 /** Il cliente sceglie (tap) quale camera ingrandire — SOLO in modalità "call". */
@@ -15375,12 +15551,7 @@ function useQuiSiConduce(): boolean {
 
 function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
   //  Lo schermo pieno del PROPRIO browser: locale, non viaggia sul canale.
-  /*  Il riquadro delle camere: è quello che «Schermo intero» deve ingrandire
-      (vedi `useSchermoPieno`). Lo portano tutte e tre le vesti in cui le
-      camere possono trovarsi — a tutta pagina, nella colonna a destra,
-      nella finestrella staccata — così il pulsante funziona sempre. */
-  const riquadroCamere = useRef<HTMLDivElement | null>(null);
-  const schermo = useSchermoPieno(riquadroCamere);
+  const schermo = useSchermoPieno(st.mode);
   const { pos, handlers } = useDrag({
     x: 20,
     y: typeof window !== "undefined" ? Math.max(120, window.innerHeight - 300) : 320,
@@ -15531,10 +15702,17 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
   }, [tele, camClosed, st.mode]);
   if (!st.active) return null;
 
-  //  Videochiamata «pulita»: nessun contenuto in onda, nessuno schermo
-  //  condiviso, il teleprompter chiuso e la camera non chiusa a mano.
-  const chiamataPiena =
-    st.mode === "call" && !st.sharing && !tele && !camClosed && !lato && inConsulenza;
+  //  Dove stanno le camere: UNA veste sola, decisa in shop/veste-camere.
+  const veste = vesteCamere({
+    mode: st.mode,
+    sharing: st.sharing,
+    tele,
+    undocked,
+    camClosed,
+    lato,
+    inConsulenza,
+    grandi: schermo.grandi,
+  });
 
   const guestCam: "me" | "lui" | "screen" = st.sharing
     ? "screen"
@@ -15687,7 +15865,7 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
 
   // preview agganciata SOPRA il teleprompter (quando aperto e NON estratta), altezza regolabile
   const dockedCam =
-    tele && !camClosed && !undocked ? (
+    veste === "copione" ? (
       <div className="border-b border-white/10 bg-[#081226]">
         {camHeader({ pullOut: true })}
         {renderCam(dockH)}
@@ -15708,14 +15886,21 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
     <>
       {tele && <TeleprompterOverlay onClose={() => setTele(false)} topSlot={dockedCam} />}
 
-      {/* VIDEOCHIAMATA E BASTA: le camere si prendono la pagina (vedi `lato`) */}
-      {chiamataPiena && (
+      {/* VIDEOCHIAMATA E BASTA, o «Camere grandi»: le camere si prendono la pagina (vedi `lato`) */}
+      {veste === "pagina" && (
         <div
-          ref={riquadroCamere}
-          style={{ top: barH }}
-          className="fixed inset-x-0 bottom-0 z-[93] flex flex-col border-t border-white/10 bg-[#0a0f1c]/97 text-white backdrop-blur-md"
+          //  ⚠️ Fra le due barre, non sopra quella in basso: lì ci sono «Chiudi
+          //   chiamata» e i link (vedi `--hg-barra-bassa` in PresenterBar).
+          style={{
+            top: barH,
+            left: 0,
+            right: "var(--tp-right, 0px)",
+            bottom: "var(--hg-barra-bassa, 0px)",
+          }}
+          className="fixed z-[93] flex flex-col border-t border-white/10 bg-[#0a0f1c]/97 text-white backdrop-blur-md"
         >
-          {camHeader({ riduci: true })}
+          {/* Con «Camere grandi» si esce dal pulsante «Esci»: «riduci a lato» lì non farebbe niente. */}
+          {camHeader({ riduci: !schermo.grandi })}
           <div className="min-h-0 flex-1">{renderCam(undefined, true)}</div>
         </div>
       )}
@@ -15748,9 +15933,8 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
       )}
 
       {/* FEATURE 4 — teleprompter CHIUSO: camera agganciata a DESTRA, altezza piena */}
-      {!tele && !camClosed && !chiamataPiena && (
+      {veste === "colonna" && (
         <RightCameraDock
-          riquadro={riquadroCamere}
           width={rightW}
           onResize={(dx) =>
             setRightW((w) =>
@@ -15767,9 +15951,8 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
       )}
 
       {/* FEATURE 5 — teleprompter APERTO + camera ESTRATTA: finestra flottante in basso */}
-      {tele && !camClosed && undocked && (
+      {veste === "finestra" && (
         <div
-          ref={riquadroCamere}
           style={{ left: px, top: pos.y, width: size }}
           className="fixed z-[97] touch-none overflow-hidden rounded-2xl border border-white/12 bg-[#081226]/95 shadow-2xl shadow-black/60 backdrop-blur"
         >
@@ -15888,33 +16071,29 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
               <button
                 type="button"
                 onClick={() => {
-                  /*  ⚠️ SE LE CAMERE SONO CHIUSE, PRIMA SI RIAPRONO. Senza,
-                      il riquadro da ingrandire non esiste e il pulsante
-                      ingrandirebbe la pagina: di nuovo una cosa diversa da
-                      quella scritta sopra. Il riquadro compare nello stesso
-                      giro, quindi lo schermo pieno si chiede subito dopo —
-                      sempre dentro il tocco, che è l'unico momento in cui il
-                      browser lo concede. */
-                  if (camClosed) {
-                    setCamClosed(false);
-                    setTimeout(() => schermo.commuta(), 0);
-                    return;
-                  }
+                  /*  ⚠️ SE LE CAMERE SONO CHIUSE, PRIMA SI RIAPRONO: «Camere
+                      grandi» senza camere sarebbe di nuovo una cosa diversa
+                      da quella scritta sopra. Lo schermo intero si chiede
+                      nello stesso tocco, l'unico momento in cui il browser
+                      lo concede. */
+                  if (camClosed && !schermo.grandi) setCamClosed(false);
                   schermo.commuta();
                 }}
                 title={
-                  schermo.pieno
+                  schermo.grandi || schermo.pieno
                     ? "Esci dallo schermo intero (vale solo per te)"
-                    : "Ingrandisce le camere a tutto schermo: vale solo per te, il cliente non vede nessun cambiamento"
+                    : "Ingrandisce le camere a tutto schermo, con i comandi a vista: vale solo per te, il cliente non vede nessun cambiamento"
                 }
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[10.5px] font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
               >
-                {schermo.pieno ? (
+                {schermo.grandi || schermo.pieno ? (
                   <Minimize2 className="h-3.5 w-3.5" />
                 ) : (
                   <Maximize2 className="h-3.5 w-3.5" />
                 )}
-                <span className="hidden sm:inline">{schermo.pieno ? "Esci" : "Camere grandi"}</span>
+                <span className="hidden sm:inline">
+                  {schermo.grandi || schermo.pieno ? "Esci" : "Camere grandi"}
+                </span>
                 <span className="text-white/35">· solo per te</span>
               </button>
               {/* Feature 3 — rimosso il toggle "grande io/lui": in "call" tutti i partecipanti
@@ -17010,12 +17189,10 @@ function RightCameraDock({
   width,
   onResize,
   children,
-  riquadro,
 }: {
   width: number;
   onResize: (dx: number) => void;
   children: ReactNode;
-  riquadro?: { current: HTMLDivElement | null };
 }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -17030,7 +17207,6 @@ function RightCameraDock({
   }, [width]);
   return (
     <div
-      ref={riquadro}
       style={{ width }}
       className="fixed right-0 top-0 z-[93] flex h-screen flex-col border-l border-white/10 bg-[#0a0f1c]/97 text-white shadow-2xl backdrop-blur-md"
     >

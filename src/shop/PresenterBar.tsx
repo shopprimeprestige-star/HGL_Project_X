@@ -1,6 +1,6 @@
 // Menu di controllo sticky del presentatore (solo consulente, ogni dispositivo).
 // La diretta è SEMPRE attiva: mostra solo il link da copiare per il cliente.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   FileText,
@@ -452,6 +452,27 @@ export function PresenterBar({ page }: { page?: Page }) {
    *   hook che deve essere sempre lo stesso. */
   const [coniando, setConiando] = useState(false);
 
+  /*  ── LA BARRA PUBBLICA LA SUA ALTEZZA ──────────────────────────────────
+      Il titolare (15/10/2026): «quando metto l'opzione videochiamata, in
+      basso non ci sono i pulsanti di controllo». Le camere a tutta pagina
+      arrivavano fino al fondo e stavano sopra questa barra. Adesso finiscono
+      dove lei comincia: `--hg-barra-bassa`, come `--hg-barra-alta` per la
+      barra in alto. Basta l'osservatore: la barra è a una riga e scatta già
+      quando cambia la sua misura (rotazione compresa).
+      ⚠️ È un aggancio: sta sopra le uscite anticipate. */
+  const barraBassa = useCallback((el: HTMLDivElement | null) => {
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const radice = document.documentElement;
+    const ro = new ResizeObserver(() =>
+      radice.style.setProperty("--hg-barra-bassa", el.offsetHeight + "px"),
+    );
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      radice.style.removeProperty("--hg-barra-bassa");
+    };
+  }, []);
+
   // ── TUTTI GLI HOOK STANNO SOPRA QUESTA RIGA ──────────────────────────────
   //  Da qui in giù il componente può uscire prima (return null, oppure il
   //  cancello di accesso). Un hook messo sotto viene chiamato in certi giri e
@@ -810,6 +831,7 @@ export function PresenterBar({ page }: { page?: Page }) {
           sinistra, dalla parte opposta dei comandi, e si spegne da lì. */}
       <AnteprimaCameraLink />
       <div
+        ref={barraBassa}
         data-hg-noptr
         style={{ right: "var(--tp-right, 0px)" }}
         className="fixed bottom-0 left-0 z-[60] flex flex-nowrap items-center gap-2.5 overflow-x-auto border-t border-white/10 bg-[#050f24]/97 px-3 py-2 backdrop-blur print:hidden"
@@ -865,7 +887,11 @@ export function PresenterBar({ page }: { page?: Page }) {
           la barra. Ora stanno qui, accanto al logo, e compaiono solo quando una
           consulenza è davvero aperta. */}
         {(call.active || resumable) && (
-          <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+          //  ⚠️ STICKY A DESTRA: sul telefono la barra scorre di lato e «Chiudi
+          //   la consulenza» finiva oltre il bordo (collaudo a 390 px). Il
+          //   titolare: «i pulsanti devono esserci sempre». Il gruppo resta
+          //   attaccato al bordo destro mentre il resto della barra scorre.
+          <div className="sticky right-0 z-10 flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-[#0a1630] p-1">
             <span className="ml-1 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300/80">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,.9)]" />
               {call.active ? "In corso" : "Aperta"}
