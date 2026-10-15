@@ -26,6 +26,7 @@ import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 import { deveRiconoscere, dopoLaFine, eUnTelefono } from "@/shop/riavvio-riconoscimento";
 import { nomeRegistrazione } from "@/shop/nome-registrazione";
 import { copiaPermessa, copiaPiena, serveLaCopia, siScarica, type Motivo } from "@/shop/copia-sul-computer";
+import { vesteCamere } from "@/shop/veste-camere";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
 import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
@@ -10627,18 +10628,31 @@ export function hostSetContentCam(patch: Partial<ContentCam>) {
  *  ⚠️ E LO STATO SI LEGGE DAL BROWSER, non da un interruttore nostro: si esce
  *   anche con Esc, e un interruttore che se lo scorda resterebbe acceso su una
  *   pagina che a schermo pieno non è più — cioè un tasto che non spegne. */
-function useSchermoPieno(bersaglio?: { current: HTMLElement | null }): {
+function useSchermoPieno(modo: Mode): {
   pieno: boolean;
+  grandi: boolean;
   commuta: () => void;
 } {
   const [pieno, setPieno] = useState(false);
+  //  Le camere ingrandite fra le due barre (vedi shop/veste-camere): vale
+  //  anche dove il browser lo schermo intero non lo concede (iPhone).
+  const [grandi, setGrandi] = useState(false);
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const agg = () => setPieno(!!document.fullscreenElement);
+    const agg = () => {
+      const dentro = !!document.fullscreenElement;
+      setPieno(dentro);
+      //  Solo all'uscita (Esc compreso): all'entrata «grandi» è già acceso.
+      if (!dentro) setGrandi(false);
+    };
     agg();
     document.addEventListener("fullscreenchange", agg);
     return () => document.removeEventListener("fullscreenchange", agg);
   }, []);
+  //  Cambio di modalità = si riparte dalla regola, come «riduci a lato».
+  useEffect(() => {
+    setGrandi(false);
+  }, [modo]);
   /*  ── ⚠️ SI INGRANDISCE QUELLO CHE IL PULSANTE PROMETTE ──────────────────
       Segnalazione del committente: «il pulsante schermo intero non fa schermo
       intero, si riferisce alla videocamera».
@@ -10648,24 +10662,27 @@ function useSchermoPieno(bersaglio?: { current: HTMLElement | null }): {
       le camere continuano a stare nella loro colonna stretta. Cioè il
       pulsante faceva una cosa diversa da quella scritta sopra, ed è il tipo
       di comando che si preme una volta e poi non si tocca più.
-      Adesso ingrandisce IL RIQUADRO DELLE CAMERE. Se quel riquadro non c'è
-      (camere chiuse, nessuno in chiamata) ripiega sulla pagina intera, che è
-      comunque quello che il pulsante lascia intendere. */
+      ⚠️ MA NON IL SOLO RIQUADRO (15/10/2026). A schermo intero il browser
+       mostra soltanto l'elemento scelto: col riquadro delle camere sparivano
+       tutte e due le barre, «Chiudi chiamata» compreso, e si usciva solo con
+       Esc. Adesso va a schermo intero la PAGINA, e le camere si mettono a
+       tutta pagina fra le due barre: grandi quanto possono, comandi a vista. */
   const commuta = useCallback(() => {
     if (typeof document === "undefined") return;
     try {
-      if (document.fullscreenElement) {
-        void document.exitFullscreen();
+      if (grandi || document.fullscreenElement) {
+        setGrandi(false);
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
         return;
       }
-      const el = bersaglio?.current ?? document.documentElement;
-      void el.requestFullscreen?.();
+      setGrandi(true);
+      void document.documentElement.requestFullscreen?.()?.catch(() => {});
     } catch {
-      //  Qualche browser lo nega (iframe senza permesso, iPhone): non è un
-      //  guasto da annunciare, semplicemente non succede niente.
+      //  Qualche browser lo nega (iframe senza permesso, iPhone): le camere
+      //  si ingrandiscono lo stesso, senza schermo intero.
     }
-  }, [bersaglio]);
-  return { pieno, commuta };
+  }, [grandi]);
+  return { pieno, grandi, commuta };
 }
 
 /** Il cliente sceglie (tap) quale camera ingrandire — SOLO in modalità "call". */
@@ -15498,12 +15515,7 @@ function useQuiSiConduce(): boolean {
 
 function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
   //  Lo schermo pieno del PROPRIO browser: locale, non viaggia sul canale.
-  /*  Il riquadro delle camere: è quello che «Schermo intero» deve ingrandire
-      (vedi `useSchermoPieno`). Lo portano tutte e tre le vesti in cui le
-      camere possono trovarsi — a tutta pagina, nella colonna a destra,
-      nella finestrella staccata — così il pulsante funziona sempre. */
-  const riquadroCamere = useRef<HTMLDivElement | null>(null);
-  const schermo = useSchermoPieno(riquadroCamere);
+  const schermo = useSchermoPieno(st.mode);
   const { pos, handlers } = useDrag({
     x: 20,
     y: typeof window !== "undefined" ? Math.max(120, window.innerHeight - 300) : 320,
@@ -15654,10 +15666,17 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
   }, [tele, camClosed, st.mode]);
   if (!st.active) return null;
 
-  //  Videochiamata «pulita»: nessun contenuto in onda, nessuno schermo
-  //  condiviso, il teleprompter chiuso e la camera non chiusa a mano.
-  const chiamataPiena =
-    st.mode === "call" && !st.sharing && !tele && !camClosed && !lato && inConsulenza;
+  //  Dove stanno le camere: UNA veste sola, decisa in shop/veste-camere.
+  const veste = vesteCamere({
+    mode: st.mode,
+    sharing: st.sharing,
+    tele,
+    undocked,
+    camClosed,
+    lato,
+    inConsulenza,
+    grandi: schermo.grandi,
+  });
 
   const guestCam: "me" | "lui" | "screen" = st.sharing
     ? "screen"
@@ -15810,7 +15829,7 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
 
   // preview agganciata SOPRA il teleprompter (quando aperto e NON estratta), altezza regolabile
   const dockedCam =
-    tele && !camClosed && !undocked ? (
+    veste === "copione" ? (
       <div className="border-b border-white/10 bg-[#081226]">
         {camHeader({ pullOut: true })}
         {renderCam(dockH)}
@@ -15831,16 +15850,16 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
     <>
       {tele && <TeleprompterOverlay onClose={() => setTele(false)} topSlot={dockedCam} />}
 
-      {/* VIDEOCHIAMATA E BASTA: le camere si prendono la pagina (vedi `lato`) */}
-      {chiamataPiena && (
+      {/* VIDEOCHIAMATA E BASTA, o «Camere grandi»: le camere si prendono la pagina (vedi `lato`) */}
+      {veste === "pagina" && (
         <div
-          ref={riquadroCamere}
           //  ⚠️ Fra le due barre, non sopra quella in basso: lì ci sono «Chiudi
           //   chiamata» e i link (vedi `--hg-barra-bassa` in PresenterBar).
           style={{ top: barH, left: 0, right: "var(--tp-right, 0px)", bottom: "var(--hg-barra-bassa, 0px)" }}
           className="fixed z-[93] flex flex-col border-t border-white/10 bg-[#0a0f1c]/97 text-white backdrop-blur-md"
         >
-          {camHeader({ riduci: true })}
+          {/* Con «Camere grandi» si esce dal pulsante «Esci»: «riduci a lato» lì non farebbe niente. */}
+          {camHeader({ riduci: !schermo.grandi })}
           <div className="min-h-0 flex-1">{renderCam(undefined, true)}</div>
         </div>
       )}
@@ -15873,9 +15892,8 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
       )}
 
       {/* FEATURE 4 — teleprompter CHIUSO: camera agganciata a DESTRA, altezza piena */}
-      {!tele && !camClosed && !chiamataPiena && (
+      {veste === "colonna" && (
         <RightCameraDock
-          riquadro={riquadroCamere}
           width={rightW}
           onResize={(dx) =>
             setRightW((w) =>
@@ -15892,9 +15910,8 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
       )}
 
       {/* FEATURE 5 — teleprompter APERTO + camera ESTRATTA: finestra flottante in basso */}
-      {tele && !camClosed && undocked && (
+      {veste === "finestra" && (
         <div
-          ref={riquadroCamere}
           style={{ left: px, top: pos.y, width: size }}
           className="fixed z-[97] touch-none overflow-hidden rounded-2xl border border-white/12 bg-[#081226]/95 shadow-2xl shadow-black/60 backdrop-blur"
         >
@@ -16013,33 +16030,27 @@ function HostOverlay({ st, ls }: { st: State; ls: MediaStream | null }) {
               <button
                 type="button"
                 onClick={() => {
-                  /*  ⚠️ SE LE CAMERE SONO CHIUSE, PRIMA SI RIAPRONO. Senza,
-                      il riquadro da ingrandire non esiste e il pulsante
-                      ingrandirebbe la pagina: di nuovo una cosa diversa da
-                      quella scritta sopra. Il riquadro compare nello stesso
-                      giro, quindi lo schermo pieno si chiede subito dopo —
-                      sempre dentro il tocco, che è l'unico momento in cui il
-                      browser lo concede. */
-                  if (camClosed) {
-                    setCamClosed(false);
-                    setTimeout(() => schermo.commuta(), 0);
-                    return;
-                  }
+                  /*  ⚠️ SE LE CAMERE SONO CHIUSE, PRIMA SI RIAPRONO: «Camere
+                      grandi» senza camere sarebbe di nuovo una cosa diversa
+                      da quella scritta sopra. Lo schermo intero si chiede
+                      nello stesso tocco, l'unico momento in cui il browser
+                      lo concede. */
+                  if (camClosed && !schermo.grandi) setCamClosed(false);
                   schermo.commuta();
                 }}
                 title={
-                  schermo.pieno
+                  schermo.grandi || schermo.pieno
                     ? "Esci dallo schermo intero (vale solo per te)"
-                    : "Ingrandisce le camere a tutto schermo: vale solo per te, il cliente non vede nessun cambiamento"
+                    : "Ingrandisce le camere a tutto schermo, con i comandi a vista: vale solo per te, il cliente non vede nessun cambiamento"
                 }
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[10.5px] font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
               >
-                {schermo.pieno ? (
+                {schermo.grandi || schermo.pieno ? (
                   <Minimize2 className="h-3.5 w-3.5" />
                 ) : (
                   <Maximize2 className="h-3.5 w-3.5" />
                 )}
-                <span className="hidden sm:inline">{schermo.pieno ? "Esci" : "Camere grandi"}</span>
+                <span className="hidden sm:inline">{schermo.grandi || schermo.pieno ? "Esci" : "Camere grandi"}</span>
                 <span className="text-white/35">· solo per te</span>
               </button>
               {/* Feature 3 — rimosso il toggle "grande io/lui": in "call" tutti i partecipanti
@@ -17135,12 +17146,10 @@ function RightCameraDock({
   width,
   onResize,
   children,
-  riquadro,
 }: {
   width: number;
   onResize: (dx: number) => void;
   children: ReactNode;
-  riquadro?: { current: HTMLDivElement | null };
 }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -17155,7 +17164,6 @@ function RightCameraDock({
   }, [width]);
   return (
     <div
-      ref={riquadro}
       style={{ width }}
       className="fixed right-0 top-0 z-[93] flex h-screen flex-col border-l border-white/10 bg-[#0a0f1c]/97 text-white shadow-2xl backdrop-blur-md"
     >

@@ -492,6 +492,9 @@ const MODULI = [
   //  ⚠️ La consulenza INTERA sul computer di chi registra (non solo l'ultima
   //   parte da 40 MB): vedi proveDellaCopiaSulComputer.
   "shop/copia-sul-computer",
+  //  ⚠️ Dove stanno le camere del consulente (a tutta pagina, in colonna, sul
+  //   copione, in finestra): una regola sola. Vedi proveDellaVesteDelleCamere.
+  "shop/veste-camere",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -19632,6 +19635,74 @@ function proveDellaBarraSempreVisibile() {
   c("…e lasciano libera la colonna del copione", true, /right: "var\(--tp-right, 0px\)"[\s\S]{0,120}bottom: "var\(--hg-barra-bassa/.test(call));
 }
 
+
+/* ── LA VESTE DELLE CAMERE E «CAMERE GRANDI» CON LE BARRE (2026-10-15) ────
+ *  «Camere grandi» metteva a schermo intero il SOLO riquadro delle camere: il
+ *  browser mostra solo quell'elemento, e spariva la barra dei comandi (si
+ *  usciva solo con Esc). Ora va a schermo intero la pagina, e le camere si
+ *  mettono «a tutta pagina» fra le due barre. Le condizioni sparse su dove
+ *  stanno le camere diventano una regola sola: vesteCamere. */
+function proveDellaVesteDelleCamere() {
+  const VC = mod["shop/veste-camere"];
+  gruppo("LA VESTE DELLE CAMERE E «CAMERE GRANDI»");
+  c("esiste la regola", "function", typeof VC.vesteCamere);
+  if (typeof VC.vesteCamere !== "function") return;
+  const { vesteCamere } = VC;
+  const base = { mode: "call", sharing: false, tele: false, undocked: false, camClosed: false, lato: false, inConsulenza: true, grandi: false };
+  const v = (x) => vesteCamere({ ...base, ...x });
+
+  //  La tabella intera: 4 modalità × 2^7 interruttori.
+  const tutte = [];
+  for (const mode of ["content", "call", "presenter", "client"])
+    for (let b = 0; b < 128; b++) {
+      const [sharing, tele, undocked, camClosed, lato, inConsulenza, grandi] = [0, 1, 2, 3, 4, 5, 6].map((i) => !!(b & (1 << i)));
+      const p = { mode, sharing, tele, undocked, camClosed, lato, inConsulenza, grandi };
+      tutte.push([p, vesteCamere(p)]);
+    }
+  c("camere chiuse: sempre «chiuse», anche con «Camere grandi»", true,
+    tutte.every(([p, x]) => (x === "chiuse") === p.camClosed));
+  c("«Camere grandi» vince su tutto tranne le camere chiuse", true,
+    tutte.filter(([p]) => p.grandi && !p.camClosed).every(([, x]) => x === "pagina"));
+  c("copione aperto (senza grandi): sul copione o in finestra", true,
+    tutte.filter(([p]) => p.tele && !p.grandi && !p.camClosed)
+      .every(([p, x]) => x === (p.undocked ? "finestra" : "copione")));
+  c("copione e finestra solo col teleprompter aperto", true,
+    tutte.filter(([, x]) => x === "copione" || x === "finestra").every(([p]) => p.tele && !p.grandi));
+  c("a tutta pagina senza grandi: solo videochiamata pulita dove si conduce", true,
+    tutte.filter(([p, x]) => x === "pagina" && !p.grandi)
+      .every(([p]) => p.mode === "call" && !p.sharing && !p.tele && !p.lato && p.inConsulenza));
+  c("ogni caso ha una veste sola fra le cinque", true,
+    tutte.every(([, x]) => ["pagina", "colonna", "copione", "finestra", "chiuse"].includes(x)));
+
+  //  I casi che si vedono, uno per uno.
+  c("videochiamata pulita: a tutta pagina", "pagina", v({}));
+  c("videochiamata con lo schermo condiviso: in colonna", "colonna", v({ sharing: true }));
+  c("videochiamata «riduci a lato»: in colonna", "colonna", v({ lato: true }));
+  c("videochiamata sul gestionale: in colonna", "colonna", v({ inConsulenza: false }));
+  for (const mode of ["content", "presenter", "client"]) c(`${mode}: in colonna`, "colonna", v({ mode }));
+  c("contenuti con «Camere grandi»: a tutta pagina", "pagina", v({ mode: "content", grandi: true }));
+  c("copione aperto con «Camere grandi»: a tutta pagina, una volta sola", "pagina", v({ tele: true, grandi: true }));
+  c("copione aperto: camere sul copione", "copione", v({ tele: true }));
+  c("copione aperto, camere estratte: in finestra", "finestra", v({ tele: true, undocked: true }));
+
+  //  Sul sorgente: una veste sola in HostOverlay, schermo intero della pagina.
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  const iHO = call.indexOf("function HostOverlay(");
+  const ho = call.slice(iHO, call.indexOf("\nfunction ", iHO + 10));
+  c("HostOverlay usa vesteCamere", true, ho.includes("vesteCamere("));
+  c("…e non più chiamataPiena", false, ho.includes("chiamataPiena"));
+  c("…né le condizioni sparse (copione, finestra, colonna)", [false, false, false],
+    [ho.includes("tele && !camClosed && !undocked"), ho.includes("tele && !camClosed && undocked"), ho.includes("!tele && !camClosed &&")]);
+  c("le camere sul copione derivano dalla veste", true, /const dockedCam =\s*veste === "copione"/.test(ho));
+  const iSP = call.indexOf("function useSchermoPieno(");
+  const sp = call.slice(iSP, call.indexOf("\nfunction ", iSP + 10));
+  c("lo schermo intero è della pagina, non del riquadro", [true, false],
+    [/document\.documentElement\.requestFullscreen/.test(sp), /bersaglio/.test(sp)]);
+  c("Esc rimette «grandi» spento solo all'uscita", true, /if \(!dentro\) setGrandi\(false\)/.test(sp));
+  c("cambio di modalità: camere grandi spente", true, /useSchermoPieno\(st\.mode\)/.test(ho) && /setGrandi\(false\);\s*\}, \[modo\]\)/.test(sp));
+  c("l'etichetta segue grandi o pieno", true, /schermo\.grandi \|\| schermo\.pieno \? "Esci" : "Camere grandi"/.test(ho));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -19693,6 +19764,7 @@ await proveDelLinkChiuso();
 proveDellaCopiaSulComputer();
 proveDelCablaggioDellaCopia();
 proveDellaBarraSempreVisibile();
+proveDellaVesteDelleCamere();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
