@@ -25,6 +25,7 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 import { deveRiconoscere, dopoLaFine, eUnTelefono } from "@/shop/riavvio-riconoscimento";
 import { nomeRegistrazione } from "@/shop/nome-registrazione";
+import { copiaPermessa, copiaPiena, serveLaCopia, siScarica, type Motivo } from "@/shop/copia-sul-computer";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
 import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
@@ -4080,7 +4081,10 @@ function avvisoRegistrazione(o: {
 //  facile di perdere il lavoro di un'ora: il browser chiede conferma.
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", (e) => {
-    if (!regInSospeso) return;
+    //  ⚠️ Anche mentre si registra: la copia per il computer si scarica solo
+    //   a fine consulenza, e chiudere la scheda (o una ricarica dopo una
+    //   pubblicazione) la perderebbe tutta. Vedi shop/copia-sul-computer.
+    if (!regInSospeso && !recorder) return;
     e.preventDefault();
     e.returnValue = "";
   });
@@ -4749,6 +4753,13 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         `parti da ${Math.round(SOGLIA_PARTE / (1024 * 1024))} MB (tetto archivio ${Math.round(t.tetto / (1024 * 1024))} MB` +
           `, Drive ${t.drive ? "collegato" : "no"})`,
       );
+      //  Con Drive il principale è già la consulenza intera: la copia non serve.
+      //  (Una copia che si sta già chiudendo, per la fine, si lascia stare.)
+      if (copia?.state === "recording" && !serveLaCopia({ soglia: SOGLIA_PARTE, partiChiuse: numeroParte - 1 })) {
+        annota("copia per il computer · scartata (Drive: il file è già uno)");
+        fermaCopia("scartata");
+        copiaAccesa = false;
+      }
     });
 
     let numeroParte = 1;
@@ -4758,8 +4769,111 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     //  fine della registrazione. Senza, chiudere una parte spegnerebbe le
     //  camere e il compositore in mezzo alla consulenza.
     let finePerDavvero = false;
+
+    /*  ── LA COPIA PER IL COMPUTER: LA CONSULENZA INTERA, UN FILE SOLO ──────
+        Il titolare (15/10/2026): «solo 2 minuti e 31 mi ha scaricato». Senza
+        Drive il principale si taglia in parti da 40 MB per l'archivio, e si
+        scaricava solo l'ultima. Le parti non si possono unire (ognuna è un
+        file a sé, coi tempi che ripartono da zero): perciò un secondo
+        registratore sullo STESSO mix, che non si taglia, solo per i Download.
+        L'archivio riceve le stesse parti di prima. Regole in
+        shop/copia-sul-computer.
+        ⚠️ COSTO VERO: col percorso SCHERMO nel mix c'è la cattura a
+         risoluzione piena (Retina/5K, 30 fps «ideali», nessun limite di
+         misura): la copia la codifica una seconda volta, oltre al principale
+         e alla chiamata verso il cliente. Sulle sole camere è la tela 720p,
+         leggera. Se un portatile soffre: localStorage.hg_rec_copia = "0"
+         spegne la copia e si torna alla riserva (ogni parte scaricata).
+        ⚠️ La copia si ferma in chiudiRegistrazione, PRIMA del principale: il
+         suo onstop spegne compositore e tracce. */
+    let copia: MediaRecorder | null = null;
+    let copiaAccesa = false;
+    let pezziCopia: BlobPart[] = [];
+    let pesoCopia = 0;
+    let numeroCopia = 1;
+    let inizioCopia = 0;
+    let motivoCopia: Motivo = "fine";
+    //  Quale file della copia arriverà nei Download a fine consulenza (0 = nessuno):
+    //  serve al messaggio «una copia è già nei tuoi Download», che deve essere vero.
+    let copiaFinale = 0;
+    //  Lo stesso nome base per tutti i file di questa consulenza: l'ora d'inizio.
+    const nomeDelFile = (ext: string, parte: number) =>
+      nomeRegistrazione({
+        quando: new Date(avviataIl),
+        lead: clienteDellaConsulenza().nome,
+        ext,
+        parte,
+      });
+    const fermaCopia = (motivo: Motivo) => {
+      const r = copia;
+      if (!r || r.state === "inactive") return;
+      motivoCopia = motivo;
+      try {
+        if (r.state === "recording") r.requestData();
+      } catch {
+        /* */
+      }
+      try {
+        r.stop();
+      } catch {
+        /* */
+      }
+    };
+    const apriCopia = () => {
+      try {
+        copia = registratoreSulMix();
+        const r = copia;
+        pezziCopia = [];
+        pesoCopia = 0;
+        inizioCopia = Date.now();
+        motivoCopia = "fine";
+        r.ondataavailable = (e) => {
+          if (!e.data || !e.data.size) return;
+          pezziCopia.push(e.data);
+          pesoCopia += e.data.size;
+          //  Il file vive nella memoria del browser: a 1,5 GB si scarica e se
+          //  ne apre un altro («-parte2»).
+          if (!finePerDavvero && copiaPiena(pesoCopia) && r.state === "recording") fermaCopia("tetto");
+        };
+        r.onerror = (e) => {
+          console.error("[REC] errore della copia per il computer", (e as unknown as { error?: unknown })?.error);
+          motivoCopia = "guasto";
+          copiaAccesa = false;
+          annota("copia per il computer · guasta: scarico ogni parte");
+        };
+        r.onstop = () => {
+          const type = r.mimeType || mime || "video/webm";
+          const blob = new Blob(pezziCopia, { type });
+          const secondi = Math.round((Date.now() - inizioCopia) / 1000);
+          const motivo = motivoCopia;
+          pezziCopia = [];
+          pesoCopia = 0;
+          if (copia === r) copia = null;
+          if (siScarica({ chi: "copia", motivo, copiaAccesa, peso: blob.size, viewer: isViewer() })) {
+            salvaInLocale(blob, nomeDelFile(type.includes("mp4") ? "mp4" : "webm", numeroCopia));
+            //  Nel diario il numero del file, non il nome: porta quello del lead.
+            annota(
+              `copia per il computer · chiusa (${motivo}) · ${secondi}s · ${Math.round(blob.size / 1024)} KB · scaricata come file ${numeroCopia}`,
+            );
+            numeroCopia += 1;
+          }
+          if (motivo === "tetto" && !finePerDavvero) apriCopia();
+        };
+        r.start(1000);
+        copiaAccesa = true;
+        annota(`copia per il computer · avvio${numeroCopia > 1 ? ` · file ${numeroCopia}` : ""}`);
+      } catch (e) {
+        console.warn("[REC] copia per il computer non partita", e);
+        copia = null;
+        copiaAccesa = false;
+        annota("copia per il computer · non partita: scarico ogni parte");
+      }
+    };
+
     chiudiRegistrazione = () => {
       finePerDavvero = true;
+      copiaFinale = copiaAccesa && pesoCopia > 0 ? numeroCopia : 0;
+      fermaCopia("fine");
     };
 
     const nomeDellaParte = (n: number, ext: string) => {
@@ -4769,10 +4883,10 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
       return n === 1 && finePerDavvero ? `meetly-${t}.${ext}` : `meetly-${t}-parte${n}.${ext}`;
     };
 
+    const registratoreSulMix = () =>
+      mime ? new MediaRecorder(mix, { mimeType: mime, ...QUALITA }) : new MediaRecorder(mix, QUALITA);
     const nuovoRegistratore = (): MediaRecorder => {
-      const r = mime
-        ? new MediaRecorder(mix, { mimeType: mime, ...QUALITA })
-        : new MediaRecorder(mix, QUALITA);
+      const r = registratoreSulMix();
       r.ondataavailable = (e) => {
         if (!e.data || !e.data.size) return;
         pezzi.push(e.data);
@@ -4821,23 +4935,17 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         pesoParte = 0;
 
         if (finePerDavvero) {
-          // ── LA COPIA SUL COMPUTER DI CHI HA REGISTRATO ────────────────
-          //  Prima non si scaricava niente (file pesanti in Download a ogni
-          //  chiamata, mai chiesti). Dal 15/10/2026 lo chiede il titolare:
-          //  fermata la registrazione, il file si scarica da solo, con data,
-          //  ora e nome del lead. Si AGGIUNGE all'archivio (Supabase/Drive),
-          //  non lo sostituisce. Solo chi registra: mai il cliente.
-          //  shortcut: con Drive scollegato una consulenza lunga è in più
-          //  parti e qui si scarica solo l'ultima (le altre sono in archivio);
-          //  da cambiare se serve tenerle tutte sul computer.
-          let comeScaricata = "";
-          if (!isViewer() && blob.size) {
-            comeScaricata = nomeRegistrazione({
-              quando: new Date(),
-              lead: clienteDellaConsulenza().nome,
-              ext,
-              parte: numeroParte,
-            });
+          // ── LA CONSULENZA SUL COMPUTER DI CHI HA REGISTRATO ───────────
+          //  Richiesta del titolare (15/10/2026): fermata la registrazione o
+          //  chiuso il Meet, la consulenza INTERA si scarica da sola, con data,
+          //  ora d'inizio e nome del lead. Si AGGIUNGE all'archivio, non lo
+          //  sostituisce. Di regola arriva dalla copia (qui sopra); il
+          //  principale si scarica solo se la copia non c'è: con Drive (è già
+          //  il file intero), in riserva, o con l'interruttore spento.
+          //  Solo chi registra: mai il cliente.
+          let comeScaricata = copiaFinale ? nomeDelFile(ext, copiaFinale) : "";
+          if (siScarica({ chi: "principale", motivo: "fine", copiaAccesa, peso: blob.size, viewer: isViewer() })) {
+            comeScaricata = nomeDelFile(ext, numeroParte);
             salvaInLocale(blob, comeScaricata);
           }
           recorder = null;
@@ -4868,6 +4976,10 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           `parte ${numeroParte} chiusa · ${durataParte}s · ${Math.round(blob.size / 1024)} KB · continuo`,
         );
         uploadRecording(blob, fname, durataParte);
+        //  Senza copia (riserva, o Drive oltre 1,5 GB) ogni parte va anche
+        //  sul computer: si perde l'«un file solo», non la consulenza.
+        if (siScarica({ chi: "principale", motivo: "parte", copiaAccesa, peso: blob.size, viewer: isViewer() }))
+          salvaInLocale(blob, nomeDelFile(ext, numeroParte));
         numeroParte += 1;
         inizioParte = Date.now();
         const prossimo = nuovoRegistratore();
@@ -4876,6 +4988,8 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
           prossimo.start(1000);
         } catch (e) {
           console.error("[REC] la parte successiva non è partita", e);
+          //  La copia ha tutto fin qui: si chiude e si scarica.
+          fermaCopia("fine");
           recorder = null;
           set({ recording: false, recScreen: false });
           avvisoRegistrazione({
@@ -4907,6 +5021,15 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
     rec.start(1000);
     recorder = rec;
     set({ recording: true, recScreen: !!usaSchermo }); // timeslice → dataavailable periodico
+    //  La copia per il computer: solo chi registra, e solo se non è spenta.
+    let interruttore: string | null = null;
+    try {
+      interruttore = localStorage.getItem("hg_rec_copia");
+    } catch {
+      /* memoria del browser chiusa: la copia resta accesa */
+    }
+    if (!isViewer() && copiaPermessa(interruttore)) apriCopia();
+    else annota("copia per il computer · spenta: scarico ogni parte");
     /*  ── LA SPIA DEL PRIMO PEZZO ──────────────────────────────────────────
         Se dopo qualche secondo non è arrivato NIENTE, qualcosa non va — e lo
         si dice adesso, che la consulenza è in corso e si può rimediare, non

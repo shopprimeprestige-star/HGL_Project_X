@@ -19550,6 +19550,64 @@ function proveDellaCopiaSulComputer() {
   c("il secondo dice -parte2, stesso nome base", "meetly-2026-10-15-1000-mario-rossi-parte2.mp4", secondo);
 }
 
+
+/* ── LA COPIA PER IL COMPUTER, CABLATA (2026-10-15) ───────────────────────
+ *  Sul sorgente, come le altre prove di cablaggio: il registratore vero non
+ *  gira in Node. Si controlla che ogni download passi dalle regole, che la
+ *  copia si fermi PRIMA del principale e che l'archivio riceva le stesse
+ *  parti di prima. */
+function proveDelCablaggioDellaCopia() {
+  gruppo("LA COPIA PER IL COMPUTER, CABLATA");
+  const call = readFileSync(join(radice, "src/shop/call.tsx"), "utf8");
+  const da = call.indexOf("async function startRecordingWith");
+  const reg = call.slice(da, call.indexOf("export function recElapsed", da));
+  c("la funzione della registrazione si trova", true, da > 0 && reg.length > 1000);
+  c("le regole arrivano dal modulo puro", true, /from "@\/shop\/copia-sul-computer"/.test(call));
+
+  //  Ogni download della registrazione passa da siScarica.
+  const salvataggi = [...reg.matchAll(/salvaInLocale\(/g)].map((m) => m.index);
+  c("si scarica da almeno due punti (copia e principale)", true, salvataggi.length >= 2);
+  c("…e ognuno è sotto siScarica(", true,
+    salvataggi.every((i) => reg.slice(Math.max(0, i - 500), i).includes("siScarica(")));
+  c("niente più download dell'ultima parte scoperto", false, /if \(!isViewer\(\) && blob\.size\)/.test(reg));
+  c("le regole chiedono della copia e del principale", [true, true],
+    [reg.includes('siScarica({ chi: "copia"'), reg.includes('siScarica({ chi: "principale"')]);
+  c("serveLaCopia e copiaPermessa sono usate", [true, true], [reg.includes("serveLaCopia("), reg.includes("copiaPermessa(")]);
+  c("l'interruttore è localStorage.hg_rec_copia", true,
+    reg.includes('localStorage.getItem("hg_rec_copia")') && reg.includes("copiaPermessa(interruttore)"));
+
+  //  La copia è sullo stesso flusso: nessun secondo flusso, nessuna seconda cattura.
+  c("un solo flusso nuovo (il mix)", 1, (reg.match(/new MediaStream\(/g) || []).length);
+  c("la copia nasce dallo stesso mix del principale", true, /copia = registratoreSulMix\(\)/.test(reg));
+  c("…e registratoreSulMix usa il mix", true, /registratoreSulMix = \(\)[^;]*new MediaRecorder\(mix/.test(reg));
+
+  //  L'ordine di stop: la copia si ferma dentro chiudiRegistrazione.
+  const iChiudi = reg.indexOf("chiudiRegistrazione = () => {");
+  const chiudi = reg.slice(iChiudi, reg.indexOf("};", iChiudi));
+  c("chiudiRegistrazione ferma la copia per «fine»", true, iChiudi > 0 && /fermaCopia\("fine"\)/.test(chiudi));
+  const iFerma = reg.indexOf("const fermaCopia");
+  const ferma = reg.slice(iFerma, reg.indexOf("\n    };", iFerma));
+  c("…chiedendo i pezzi prima di fermarla", true, iFerma > 0 && /requestData\(\)[\s\S]*\.stop\(\)/.test(ferma));
+
+  //  scaricataCome: il nome della copia solo se è accesa e ha peso.
+  c("il nome della copia va all'archivio solo se accesa e con peso", true,
+    /copiaFinale = copiaAccesa && pesoCopia > 0/.test(reg));
+  c("il nome usa l'ora d'inizio, non quella di fine", [false, true],
+    [/quando: new Date\(\),/.test(reg), /quando: new Date\(avviataIl\)/.test(reg)]);
+  c("con Drive la copia si scarta", true, /!serveLaCopia\([^)]*\)\) \{[\s\S]{0,200}fermaCopia\("scartata"\)/.test(reg));
+  c("la parte successiva non partita chiude anche la copia", true,
+    /la parte successiva non è partita[\s\S]{0,200}fermaCopia\("fine"\)/.test(reg));
+  c("il commento «shortcut» dell'ultima parte è andato", false, /qui si scarica solo l'ultima/.test(reg));
+
+  //  L'archivio riceve le stesse parti di prima.
+  c("le parti intermedie salgono come prima", true, reg.includes("uploadRecording(blob, fname, durataParte);"));
+
+  //  Correzione del revisore: chiudere la scheda mentre si registra chiede conferma.
+  const iUnload = call.indexOf('window.addEventListener("beforeunload", (e) => {');
+  c("chiudere la scheda durante la registrazione chiede conferma", true,
+    iUnload > 0 && call.slice(iUnload, iUnload + 600).includes("if (!regInSospeso && !recorder) return;"));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -19609,6 +19667,7 @@ await proveDellUscitaVera();
 await proveDeiTrentaSecondi();
 await proveDelLinkChiuso();
 proveDellaCopiaSulComputer();
+proveDelCablaggioDellaCopia();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
