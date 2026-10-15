@@ -49,7 +49,10 @@ process.on("exit", () => rmSync(dove, { recursive: true, force: true }));
 const { compile } = richiedi("@tailwindcss/node");
 const sorgenteCss = readFileSync(join(radice, "src/styles.css"), "utf8");
 const compilato = await compile(sorgenteCss, { base: join(radice, "src"), onDependency: () => {} });
-writeFileSync(join(dove, "app.css"), compilato.build(["sr-only"]));
+//  Le classi usate nel progetto, come le trova la build: così i componenti veri si disegnano con le loro utility.
+const { Scanner } = richiedi("@tailwindcss/oxide");
+const candidati = new Scanner({ sources: [{ base: join(radice, "src"), pattern: "**/*", negated: false }] }).scan();
+writeFileSync(join(dove, "app.css"), compilato.build([...candidati, "sr-only"]));
 
 /* ── 2. I componenti veri, impacchettati per il browser ────────────────── */
 const esbuild = richiedi("esbuild");
@@ -59,6 +62,14 @@ writeFileSync(
   `import { createRoot } from "react-dom/client";
 import { VideoParlato } from ${JSON.stringify(join(radice, "src/landing/sito/soluzioni/VideoParlato"))};
 import { ClipLoop } from ${JSON.stringify(join(radice, "src/landing/sito/soluzioni/ClipLoop"))};
+import { Testata } from ${JSON.stringify(join(radice, "src/landing/sito/soluzioni/Testata"))};
+import { CookieBanner } from ${JSON.stringify(join(radice, "src/components/landing/CookieBanner"))};
+const modo = location.search;
+if (modo === "?testata") {
+  createRoot(document.getElementById("r")!).render(<div className="sol-fondo-notte"><Testata ritratto={null} onPrenota={() => {}} /></div>);
+} else if (modo === "?banner") {
+  createRoot(document.getElementById("r")!).render(<div className="sol-fondo-notte" style={{ height: 664 }}><CookieBanner variante="compatto" /></div>);
+} else {
 const slot = { src: "/v.mp4", poster: "/poster.png", alt: "Il titolare ti guarda." };
 createRoot(document.getElementById("r")!).render(
   <div className="sol-fondo-chiaro" style={{ padding: 20 }}>
@@ -74,6 +85,7 @@ const notte = document.createElement("div");
 notte.className = "sol-fondo-notte";
 notte.innerHTML = '<div id="tavola" class="brackets" style="margin:24px;width:300px;height:100px"><span class="br-tr"></span><span class="br-bl"></span></div>';
 document.querySelector("main")!.appendChild(notte);
+}
 `,
 );
 await esbuild.build({
@@ -82,6 +94,7 @@ await esbuild.build({
   bundle: true,
   format: "iife",
   jsx: "automatic",
+  loader: { ".png": "dataurl", ".webp": "dataurl", ".svg": "dataurl" },
   logLevel: "error",
   absWorkingDir: radice,
   nodePaths: [join(radice, "node_modules")],
@@ -308,6 +321,22 @@ try {
   await p.waitForSelector(".sol-copertina", { timeout: 8000 });
   c("axe a fine video («Riguarda»): nessuna violazione", [], await axe(p));
   vero("a fine video il nome comincia da «Riguarda»", (await p.evaluate(() => document.querySelector(".sol-copertina").getAttribute("aria-label")))?.startsWith("Riguarda"));
+
+  /* ── Banner cookie compatto: testo corto, due righe a 390 (marketing n. 3) ───────────── */
+  {
+    const b = await browser.newPage({ viewport: { width: 390, height: 664 } });
+    await b.goto(base + "/index.html?banner");
+    await b.waitForSelector("[role=dialog]");
+    const r = await b.evaluate(() => {
+      const par = document.querySelector("[role=dialog] p");
+      const s = getComputedStyle(par);
+      return { testo: par.textContent.replace(/\s+/g, " ").trim(), righe: Math.round(par.getBoundingClientRect().height / parseFloat(s.lineHeight)), alto: Math.round(document.querySelector("[role=dialog]").getBoundingClientRect().height) };
+    });
+    c("banner compatto: il testo corto", "Cookie tecnici; analytics solo se accetti. Cookie Policy", r.testo);
+    vero(`banner compatto a 390: al massimo 2 righe (${r.righe}), alto ${r.alto} px`, r.righe <= 2);
+    await b.close();
+  }
+
 } finally {
   await browser.close();
   server.close();

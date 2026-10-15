@@ -43,7 +43,7 @@ export function CookieBanner({ variante = "completo" }: { variante?: "completo" 
       >
         <div className="mx-auto flex max-w-[1200px] items-center gap-2.5">
           <p className="min-w-0 flex-1 text-[13px] leading-[1.25] text-white/85">
-            Usiamo cookie tecnici e, previo consenso, di analytics.{" "}
+            Cookie tecnici; analytics solo se accetti.{" "}
             <a href="/cookie-policy" className="underline">
               Cookie Policy
             </a>
