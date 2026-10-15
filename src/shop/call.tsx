@@ -24,6 +24,7 @@ import { sfx, primeSfx, setSfxBridge, setSpiaSuoni, suonaRemoto } from "@/shop/s
 //  lasciare nel diario: la regola sta fuori di qui e si prova senza browser.
 import { conta, quanti, riassunto, type Conteggi } from "@/shop/conta-suoni";
 import { dopoLaFine } from "@/shop/riavvio-riconoscimento";
+import { nomeRegistrazione } from "@/shop/nome-registrazione";
 //  Chi bussa è nuovo o è sempre lui? La regola — e il perché la campana
 //  suonava ogni quattro secondi — sta tutta lì dentro.
 import { chiaveBussata, esitoBussata, campanaUdibile } from "@/shop/bussata";
@@ -3800,6 +3801,8 @@ async function uploadRecording(
     titolo: "Registrazione vuota",
     motivo: "il registratore non ha prodotto alcun dato: non c'è file da archiviare.",
   },
+  //  Il nome con cui il file è GIÀ stato scaricato sul computer ("" = no).
+  scaricataCome = "",
 ) {
   //  Un blob vuoto vuol dire che il registratore non ha prodotto nulla:
   //  archiviarlo creerebbe una scheda che apre un video rotto.
@@ -3812,7 +3815,7 @@ async function uploadRecording(
     return;
   }
   console.log("[REC] carico in archivio", filename, Math.round(blob.size / 1024) + "KB");
-  const p: RegInSospeso = { blob, filename, duration, url: "", scaricata: false };
+  const p: RegInSospeso = { blob, filename, duration, url: "", scaricata: !!scaricataCome };
   const motivo = await archivia(p);
   if (!motivo) {
     archiviata(p.url);
@@ -3824,7 +3827,7 @@ async function uploadRecording(
   //  non si perde MAI. Se invece è già nella Storage (manca solo la scheda) NON
   //  si scarica niente: il video è al sicuro, riprovare costa una richiesta.
   regInSospeso = p;
-  if (!p.url) {
+  if (!p.url && !p.scaricata) {
     salvaInLocale(blob, filename);
     p.scaricata = true;
   }
@@ -3833,7 +3836,7 @@ async function uploadRecording(
     titolo: p.url ? "Video caricato, ma non è nell'elenco" : "Registrazione non archiviata",
     motivo,
     dettaglio: p.scaricata
-      ? `Una copia è già nei tuoi Download: ${filename}. Riprova qui sotto: se va a buon fine finisce in archivio e la copia locale puoi cancellarla.`
+      ? `Una copia è già nei tuoi Download: ${scaricataCome || filename}. Riprova qui sotto: se va a buon fine finisce in archivio e la copia locale puoi cancellarla.`
       : "Il video è già nell'archivio: manca solo la scheda che lo mostra in Registrazioni. Riprova qui sotto — non devi rifare la consulenza.",
     tono: "ambra",
     riprova: true,
@@ -4701,18 +4704,32 @@ async function startRecordingWith(display: MediaStream | null, auto = false) {
         pesoParte = 0;
 
         if (finePerDavvero) {
-          // ── NIENTE DOWNLOAD AUTOMATICO ────────────────────────────────
-          //  Chiudere una consulenza faceva partire da solo lo scaricamento
-          //  del video: file pesanti nella cartella Download, a ogni
-          //  chiamata, senza che nessuno li avesse chiesti. La registrazione
-          //  va SOLO in archivio (Impostazioni → Registrazioni).
+          // ── LA COPIA SUL COMPUTER DI CHI HA REGISTRATO ────────────────
+          //  Prima non si scaricava niente (file pesanti in Download a ogni
+          //  chiamata, mai chiesti). Dal 15/10/2026 lo chiede il titolare:
+          //  fermata la registrazione, il file si scarica da solo, con data,
+          //  ora e nome del lead. Si AGGIUNGE all'archivio (Supabase/Drive),
+          //  non lo sostituisce. Solo chi registra: mai il cliente.
+          //  shortcut: con Drive scollegato una consulenza lunga è in più
+          //  parti e qui si scarica solo l'ultima (le altre sono in archivio);
+          //  da cambiare se serve tenerle tutte sul computer.
+          let comeScaricata = "";
+          if (!isViewer() && blob.size) {
+            comeScaricata = nomeRegistrazione({
+              quando: new Date(),
+              lead: clienteDellaConsulenza().nome,
+              ext,
+              parte: numeroParte,
+            });
+            salvaInLocale(blob, comeScaricata);
+          }
           recorder = null;
           set({ recording: false, recScreen: false });
           const durata = Math.round((Date.now() - avviataIl) / 1000);
           annota(
             `fine · ${durata}s · parti ${numeroParte} · pezzi ${quanti} · ${Math.round(blob.size / 1024)} KB`,
           );
-          uploadRecording(blob, fname, durataParte, perchéVuota({ cera, secondi: durata }));
+          uploadRecording(blob, fname, durataParte, perchéVuota({ cera, secondi: durata }), comeScaricata);
           stopRecCompositor();
           composed?.getTracks().forEach((t) => t.stop());
           recDisplay?.getTracks().forEach((t) => t.stop());

@@ -451,6 +451,9 @@ const MODULI = [
   //  ⚠️ Il riconoscimento vocale che si riavviava in loop (un bip ogni ~2 s
   //   sul telefono di chi entra): vedi proveDelRiconoscimentoCheNonSuonaSempre.
   "shop/riavvio-riconoscimento",
+  //  ⚠️ Il nome del file che si scarica da solo quando il consulente ferma la
+  //   registrazione: vedi proveDelNomeDellaRegistrazioneScaricata.
+  "shop/nome-registrazione",
   "chi-ha-fissato",
   "importa/reparti",
   //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
@@ -638,6 +641,7 @@ const ALP = mod["shop/anteprima-link-preventivo"];
 const VUOTA = mod["shop/stanza-ancora-vuota"];
 const SUONI = mod["shop/conta-suoni"];
 const RIAVVIO = mod["shop/riavvio-riconoscimento"];
+const NOMEREG = mod["shop/nome-registrazione"];
 const FISSA = mod["chi-ha-fissato"];
 const REP = mod["importa/reparti"];
 const FIL = mod["importa/filtri-lista"];
@@ -11685,6 +11689,37 @@ function proveDelRiconoscimentoCheNonSuonaSempre() {
     dopoLaFine({ errore: "no-speech", durataMs: 20_000, haSentito: false, breviDiSeguito: 0 }).riavvia);
 }
 
+/** ── LA REGISTRAZIONE SI SCARICA DA SOLA, CON UN NOME CHE SI LEGGE ─────────
+ *  Richiesta del titolare (15/10/2026): «dopo che stoppo il recording della
+ *  consulenza me la scarica sul pc in automatico». Il nome deve dire quando e
+ *  con chi, e non portare caratteri che il sistema operativo rifiuta. */
+function proveDelNomeDellaRegistrazioneScaricata() {
+  const { nomeRegistrazione } = NOMEREG;
+  gruppo("IL NOME DELLA REGISTRAZIONE CHE SI SCARICA");
+  const q = new Date(2026, 9, 15, 14, 32, 5); // ora locale: 15/10/2026 14:32
+  c("data, ora e lead", "meetly-2026-10-15-1432-mario-rossi.webm",
+    nomeRegistrazione({ quando: q, lead: "Mario Rossi", ext: "webm" }));
+  c("senza lead c'è solo quando", "meetly-2026-10-15-1432.mp4",
+    nomeRegistrazione({ quando: q, lead: "", ext: "mp4" }));
+  c("accenti e apostrofi spariscono", "meetly-2026-10-15-1432-nicolo-d-angelo.webm",
+    nomeRegistrazione({ quando: q, lead: "Nicolò D'Angelo", ext: "webm" }));
+  const brutto = nomeRegistrazione({ quando: q, lead: "../../etc/pa\\ss:wd*?<>|\"x\u0000 \u{1F600}", ext: "webm" });
+  c("nessun carattere che un sistema rifiuta", true, /^[a-z0-9.-]+$/.test(brutto));
+  c("e nessun percorso", false, brutto.includes("/") || brutto.includes(".."));
+  c("un lead fatto di soli simboli non lascia trattini storti", "meetly-2026-10-15-1432.webm",
+    nomeRegistrazione({ quando: q, lead: "???", ext: "webm" }));
+  c("un nome lunghissimo si accorcia", true,
+    nomeRegistrazione({ quando: q, lead: "a".repeat(300), ext: "webm" }).length < 70);
+  c("le parti successive lo dicono", "meetly-2026-10-15-1432-mario-rossi-parte2.webm",
+    nomeRegistrazione({ quando: q, lead: "Mario Rossi", ext: "webm", parte: 2 }));
+  c("la prima parte non porta suffisso", "meetly-2026-10-15-1432.webm",
+    nomeRegistrazione({ quando: q, ext: "webm", parte: 1 }));
+  c("un'estensione strana ricade su webm", "meetly-2026-10-15-1432.webm",
+    nomeRegistrazione({ quando: q, ext: "exe/../x" }));
+  c("minuti e ore a una cifra hanno lo zero", "meetly-2026-01-02-0305.webm",
+    nomeRegistrazione({ quando: new Date(2026, 0, 2, 3, 5), ext: "webm" }));
+}
+
 function proveDellaStanzaVuota() {
   const { stanzaAncoraVuota, eLaStanzaNuda } = VUOTA;
   gruppo("«L'HO ACCETTATO E NON RIESCE A ENTRARE»");
@@ -16722,6 +16757,7 @@ provePalco();
   proveDiChiHaFissato();
   proveDelContaSuoni();
   proveDelRiconoscimentoCheNonSuonaSempre();
+  proveDelNomeDellaRegistrazioneScaricata();
   proveDellaStanzaVuota();
   proveDelGiraCamera();
   proveDelLinkPerCiascuno();
