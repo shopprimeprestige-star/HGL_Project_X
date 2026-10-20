@@ -11291,7 +11291,7 @@ function proveDelleLinguette() {
   c("la pagina usa la riga al posto della schermata vuota, con lo Stato «Di ritorno»", true,
     pagina.includes("nessunRitornoInLista("));
   c("e la barra dei filtri si vede anche a lista vuota se ci sono ritorni", true,
-    /contiViste\.ritorno\s*>\s*0\)\s*&&\s*\(\s*<BarraFiltri/.test(pagina));
+    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraFiltri/.test(pagina));
 
   //  ── ⚠️ I MENU SONO DI RADIX, E LE SCORCIATOIE LO SANNO ──────────────────
   //  Un «1» premuto dentro un menu aperto non deve dare l'esito «Non risponde»
@@ -20081,6 +20081,8 @@ function proveDeiPulsantiDelloStato() {
   const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
   c("i pulsanti «Già lavorati» ci sono", true, /aria-label="Già lavorati"/.test(barra));
   c("…aprono «Tutti» già filtrata", true, /setStatoTutti\(st\);\s*setVista\("tutti"\)/.test(pagina) && /statoIniziale=\{statoTutti\}/.test(pagina));
+  c("la barra c'è in ogni linguetta, anche a lista vuota", true,
+    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraFiltri/.test(pagina) && !/vista === "coda" && \(coda\.length > 0[^\n]*\n\s*<BarraFiltri/.test(pagina));
   c("il tasto WhatsApp segna l'attesa", true, /onClick=\{\(\) => onWhatsAppInviato\?\.\(\)\}/.test(pagina));
 
   //  Il messaggio del lead nuovo: lei, le due soluzioni, online, mattina o sera.

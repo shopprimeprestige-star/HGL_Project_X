@@ -3395,19 +3395,30 @@ function LeadImportatiUnoAllaVolta() {
           pari; il tempo («quando ho messo quello stato») è adesso dentro Stato.
           ⚠️ COMPARE ANCHE A LISTA VUOTA SE C'È UN FILTRO ACCESO: un indirizzo
            con un annuncio che non ha più nessuno deve poter essere spento. */}
-      {vista === "coda" && (coda.length > 0 || nFiltri > 0 || contiViste.ritorno > 0) && (
-        <BarraFiltri
-          filtri={filtri}
-          opzioni={opzioni}
-          ritorni={contiViste.ritorno ?? 0}
-          onCambia={cambiaFiltri}
-          disabilitato={!!avanzamento}
-          altriStati={statiGiaLavorati}
-          onAltroStato={(st) => {
-            setStatoTutti(st);
-            setVista("tutti");
-          }}
-        />
+      {/*  ── ⚠️ SEMPRE IN VISTA (titolare, 20/10/2026) ───────────────────────
+           «In cima, sempre visibili»: la barra c'è in ogni linguetta, anche a
+           lista vuota. Da un'altra linguetta, scegliere uno stato della lista
+           riporta a «Da chiamare».
+           ⚠️ Non è `sticky`: la pagina scorre con la finestra e il contenitore
+            (`main` con overflow) non ha un'altezza, quindi non si attaccherebbe. */}
+      {importati.length > 0 && (
+        <div>
+          <BarraFiltri
+            filtri={vista === "coda" ? filtri : {}}
+            opzioni={opzioni}
+            ritorni={contiViste.ritorno ?? 0}
+            onCambia={(f) => {
+              if (vista !== "coda") setVista("coda");
+              cambiaFiltri(f);
+            }}
+            disabilitato={!!avanzamento}
+            altriStati={statiGiaLavorati}
+            onAltroStato={(st) => {
+              setStatoTutti(st);
+              setVista("tutti");
+            }}
+          />
+        </div>
       )}
 
       {/*  ── ⚠️ LA FASCIA DEI CONTATTI DI RITORNO ────────────────────────
