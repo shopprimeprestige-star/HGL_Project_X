@@ -167,7 +167,9 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
   {
     campo: "urgenza",
     titolo: "Come vive il problema",
-    intestazione: /consider|\bproblema\b|urgen/,
+    //  ⚠️ «da quanto hai il problema?» contiene «problema» ma è la Durata (qui
+    //   sotto): senza l'esclusione la colonna finiva sotto la domanda sbagliata.
+    intestazione: /consider|^(?!.*da quanto).*\bproblema\b|urgen/,
     opzioni: [
       {
         id: "subito",
@@ -188,6 +190,168 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
         tono: "medio",
         testi: ["non lo considero ancora un problema, ma voglio informazioni sui nuovi sistemi"],
         quando: /non lo considero ancora|voglio informazioni|solo (per )?informazioni|per curiosit|non e un problema/,
+      },
+    ],
+  },
+  /*  ── LE SEI DEL MODULO «589€» (20/10/2026) ───────────────────────────
+      Richiesta del titolare: importare i moduli del 20 e del 21 ottobre e
+      dare a ogni lead la classifica da Caldissimo a Freddissimo
+      (crm/temperatura-lead). Le risposte arrivano da Meta con i trattini bassi
+      («più_di_3_anni», «1-3_mesi»): `pulisci` li toglie prima del confronto.
+      ⚠️ «si», «no» sono risposte a DUE domande (prezzo e «decidi da solo?») e
+       sono più corte di tre lettere: si riconoscono SOLO dalla colonna
+       (vedi `riconosciRisposta`), mai dal valore da solo.
+      ⚠️ «1-3» apre tre risposte diverse (anni, mesi, peso): ogni
+       riconoscitore porta la sua parola, mai il solo numero. */
+  {
+    campo: "durata",
+    titolo: "Da quanto",
+    intestazione: /da quanto/,
+    opzioni: [
+      {
+        id: "meno1",
+        nome: "Meno di 1 anno",
+        tono: "medio",
+        testi: ["meno di 1 anno"],
+        quando: /meno di (1|un) anno/,
+      },
+      {
+        id: "unoTre",
+        nome: "1-3 anni",
+        tono: "medio",
+        testi: ["1-3 anni"],
+        quando: /^(da )?1 ?(-|a) ?3 anni$/,
+      },
+      {
+        id: "oltreTre",
+        nome: "Più di 3 anni",
+        tono: "buono",
+        testi: ["più di 3 anni"],
+        quando: /(piu|oltre) (di )?3 anni/,
+      },
+    ],
+  },
+  {
+    campo: "tempi",
+    titolo: "Quando vuole risolvere",
+    intestazione: /vuoi risolvere/,
+    opzioni: [
+      {
+        id: "trenta",
+        nome: "Entro 30 giorni",
+        tono: "buono",
+        testi: ["entro 30 giorni"],
+        quando: /entro (30 giorni|un mese|1 mese)/,
+      },
+      {
+        id: "mesi",
+        nome: "1-3 mesi",
+        tono: "buono",
+        testi: ["1-3 mesi"],
+        quando: /^(da |entro )?1 ?(-|a) ?3 mesi$/,
+      },
+      {
+        id: "valuta",
+        nome: "Sta solo valutando",
+        tono: "medio",
+        testi: ["sto solo valutando"],
+        quando: /solo valutando/,
+      },
+    ],
+  },
+  {
+    campo: "peso",
+    titolo: "Quanto gli pesa",
+    intestazione: /quanto ti pesa|ti pesa/,
+    opzioni: [
+      {
+        id: "poco",
+        nome: "1-3 · poco",
+        tono: "medio",
+        testi: ["1-3 - poco"],
+        quando: /^1 ?- ?3 ?- ?poco$|^[123]$/,
+      },
+      {
+        id: "abbastanza",
+        nome: "4-6 · abbastanza",
+        tono: "medio",
+        testi: ["4-6 - abbastanza"],
+        quando: /^4 ?- ?6 ?- ?abbastanza$|^[456]$/,
+      },
+      {
+        id: "molto",
+        nome: "7-8 · molto",
+        tono: "buono",
+        testi: ["7-8 - molto"],
+        quando: /^7 ?- ?8 ?- ?molto$|^[78]$/,
+      },
+      {
+        id: "tantissimo",
+        nome: "9-10 · tantissimo",
+        tono: "buono",
+        testi: ["9-10 - tantissimo"],
+        quando: /^9 ?- ?10 ?- ?tantissimo$|^(9|10)\+*$/,
+      },
+    ],
+  },
+  {
+    campo: "prezzo",
+    titolo: "Prezzo da 589€",
+    intestazione: /589|percorso parte|sei in linea/,
+    opzioni: [
+      { id: "si", nome: "In linea", tono: "buono", testi: ["si"], quando: /^si$/ },
+      { id: "dipende", nome: "Dipende", tono: "medio", testi: ["dipende"], quando: /^dipende$/ },
+      { id: "no", nome: "Non in linea", tono: "medio", testi: ["no"], quando: /^no$/ },
+    ],
+  },
+  {
+    campo: "decide",
+    titolo: "Decide da solo",
+    intestazione: /decidi da solo|decide da solo/,
+    opzioni: [
+      {
+        id: "solo",
+        nome: "Sì, da solo",
+        tono: "buono",
+        testi: ["si"],
+        quando: /^si$|decido (io|da solo)/,
+      },
+      {
+        id: "coppia",
+        nome: "Ne parla con partner o famiglia",
+        tono: "medio",
+        testi: ["ne parlo con partner o famiglia"],
+        quando: /partner|famiglia/,
+      },
+    ],
+  },
+  {
+    campo: "motivo",
+    titolo: "Motivo",
+    intestazione: /motivo preciso|\bmotivo\b/,
+    opzioni: [
+      {
+        id: "evento",
+        nome: "Un evento",
+        tono: "buono",
+        testi: ["un evento (matrimonio, cerimonia…)"],
+        quando: /matrimon|cerimon|\bevento\b/,
+      },
+      {
+        id: "relazione",
+        nome: "Nuova relazione",
+        tono: "buono",
+        testi: ["nuova relazione"],
+        quando: /relazion/,
+      },
+      { id: "lavoro", nome: "Lavoro", tono: "buono", testi: ["lavoro"], quando: /^lavoro$/ },
+      { id: "stufo", nome: "È stufo", tono: "medio", testi: ["sono stufo"], quando: /stuf[oa]/ },
+      {
+        id: "curiosita",
+        nome: "Curiosità",
+        tono: "medio",
+        testi: ["curiosità"],
+        quando: /^curiosit/,
       },
     ],
   },
@@ -247,12 +411,22 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
   },
 ];
 
+/** Le sei domande del modulo «589€»: decidono la classifica da Caldissimo a
+ *  Freddissimo (crm/temperatura-lead). */
+export const CAMPI_589: CampoModulo[] = ["durata", "tempi", "peso", "prezzo", "decide", "motivo"];
+
 const DOMANDA_DI = new Map(DOMANDE_MODULO.map((d) => [d.campo, d]));
 
 /** Le tre domande arrivate dopo le quattro classiche. Le classiche si
  *  comportano come sono sempre state: le regole nuove scattano solo se c'entra
  *  una di queste. */
-const CAMPI_NUOVI = new Set<CampoModulo>(["problema", "fastidio", "giaFatto"]);
+const CAMPI_NUOVI = new Set<CampoModulo>([
+  "problema",
+  "fastidio",
+  "giaFatto",
+  //  Le sei del modulo «589€» (20/10/2026): anche qui la colonna comanda.
+  ...CAMPI_589,
+]);
 
 /** Di quale domanda è questa colonna? Si guarda solo l'intestazione, quindi
  *  vale solo se chi legge il file ha verificato che le intestazioni combaciano
@@ -287,8 +461,18 @@ export function riconosciRisposta(
   const t = pulisci(valore);
   //  Un valore troppo corto o troppo lungo non è una risposta a scelta: sotto
   //  le tre lettere è una sigla, sopra le duecento è un tema.
-  if (t.length < 3 || t.length > 200) return undefined;
-  const domande = campo ? DOMANDE_MODULO.filter((d) => d.campo === campo) : DOMANDE_MODULO;
+  //  ⚠️ Con la domanda già nota (la colonna) anche «si» e «no» valgono: è
+  //   l'unico modo di leggerli senza indovinare a quale domanda rispondono.
+  if (!t || (t.length < 3 && !campo) || t.length > 200) return undefined;
+  //  ⚠️ LE SEI DEL MODULO «589€» SOLO DALLA LORO COLONNA. I loro riconoscitori
+  //   sono larghi («famiglia», «relazione», «lavoro»): letti dal solo valore
+  //   rubavano risposte agli altri moduli — «giovedì dopo cena con la famiglia»
+  //   sotto «quando chiamarlo» diventava «Decide: ne parla in famiglia» e il
+  //   lead cambiava classifica (revisione del 20/10/2026). Senza la colonna
+  //   non si assegnano mai.
+  const domande = campo
+    ? DOMANDE_MODULO.filter((d) => d.campo === campo)
+    : DOMANDE_MODULO.filter((d) => !CAMPI_589.includes(d.campo));
   const combacia = (vale: (o: OpzioneModulo) => boolean) => {
     const out: { campo: CampoModulo; opzione: OpzioneModulo }[] = [];
     for (const d of domande) for (const o of d.opzioni) if (vale(o)) out.push({ campo: d.campo, opzione: o });
@@ -738,6 +922,29 @@ export function moduloLetto(d?: Partial<LeadData> | null): RisposteModulo | unde
       const voce = (nota.risposte ?? []).find((r) => r.campo === dom.campo);
       if (voce) risposte.push({ ...voce });
     }
+  }
+
+  /*  4. ⚠️ LE SCHEDE IMPORTATE PRIMA DEL 20/10 COL MODULO «589€». Le
+      risposte corte («si», «no») allora non si riconoscevano e sono finite nei
+      «Dati originali» (`datiFile`) col nome della colonna. Si rileggono da lì,
+      solo per le sei domande del modulo e solo se il nome è la domanda vera
+      (con intestazioni non affidabili si chiama «colonna N» e non combacia):
+      così la classifica vale anche per chi è già in archivio, senza
+      reimportare e senza scrivere niente. */
+  for (const [chiave, valore] of Object.entries(d?.datiFile ?? {})) {
+    const campo = campoDellaColonna(chiave);
+    if (!campo || !CAMPI_589.includes(campo) || out[campo]) continue;
+    const t = riconosciRisposta(String(valore ?? ""), campo);
+    if (!t) continue;
+    out[campo] = t.opzione.id;
+    const titolo = titoloDomanda(campo);
+    if (!haVoce(titolo))
+      risposte.push({
+        domanda: titolo,
+        risposta: t.opzione.nome,
+        campo,
+        testo: leggibile(String(valore)),
+      });
   }
 
   if (risposte.length) out.risposte = risposte;

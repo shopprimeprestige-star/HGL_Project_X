@@ -125,6 +125,8 @@
  *   Annuncio e Risposta. La selezione a gruppi lavora sulle righe che si vedono,
  *   quindi dopo un filtro «Seleziona tutti» prende solo quelle.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { AlertTriangle, ChevronDown, ListChecks, Trash2, Undo2, User } from "lucide-react";
@@ -948,7 +950,15 @@ export function SchedaTutti({
                     )
                   }
                 >
-                  <span className="block truncate text-[13px] font-medium">{nome}</span>
+                  {/*  Com'è messo il cliente, accanto al nome: la stessa regola
+                      di «Oggi» e della coda (crm/temperatura-lead). Richiesta del
+                      titolare, 20/10/2026: la classifica si legge anche qui. */}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[13px] font-medium">{nome}</span>
+                    {mostraTemperatura(d.stato) && (
+                      <TemperaturaRiga dati={d} max={0} className="shrink-0 text-[11.5px]" />
+                    )}
+                  </span>
                   <span className="block truncate text-[11.5px] text-muted-foreground">
                     {sottoTesto(
                       l,

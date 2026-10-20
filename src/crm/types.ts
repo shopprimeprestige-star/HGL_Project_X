@@ -1014,8 +1014,9 @@ export interface QualificaInfo {
   urgenza?: "si" | "valutando" | "subito" | "1mese" | "convince" | "2_3mesi" | "valuto";
 }
 
-/** I sette campi del modulo che sappiamo leggere, nell'ordine in cui si
- *  mostrano. Stanno qui e non in `modulo-lead.ts` perché li usano in tanti
+/** I campi del modulo che sappiamo leggere, nell'ordine in cui si
+ *  mostrano. Dal 20/10/2026 ci sono anche le sei domande del modulo «589€»
+ *  (durata, tempi, peso, prezzo, decide, motivo): vedi crm/modulo-lead. Stanno qui e non in `modulo-lead.ts` perché li usano in tanti
  *  (il lettore, i filtri, i KPI) e così il tipo è uno solo: se ne nasce un
  *  ottavo, il compilatore dice dove manca. */
 export type CampoModulo =
@@ -1023,6 +1024,12 @@ export type CampoModulo =
   | "fastidio"
   | "giaFatto"
   | "urgenza"
+  | "durata"
+  | "tempi"
+  | "peso"
+  | "prezzo"
+  | "decide"
+  | "motivo"
   | "conoscenza"
   | "zona"
   | "quando";
@@ -1032,6 +1039,12 @@ export const CAMPI_MODULO: CampoModulo[] = [
   "fastidio",
   "giaFatto",
   "urgenza",
+  "durata",
+  "tempi",
+  "peso",
+  "prezzo",
+  "decide",
+  "motivo",
   "conoscenza",
   "zona",
   "quando",
@@ -1055,6 +1068,18 @@ export interface RisposteModulo {
   giaFatto?: string;
   /** Come vive il problema: `subito` | `valutando` | `informativo`. */
   urgenza?: string;
+  /** Da quanto ha il problema: `meno1` | `unoTre` | `oltreTre` (anni). */
+  durata?: string;
+  /** Quando vuole risolvere: `trenta` | `mesi` | `valuta`. */
+  tempi?: string;
+  /** Quanto gli pesa, da 1 a 10: `poco` | `abbastanza` | `molto` | `tantissimo`. */
+  peso?: string;
+  /** Il percorso parte da 589€, è in linea: `si` | `dipende` | `no`. */
+  prezzo?: string;
+  /** Decide da solo: `solo` | `coppia`. */
+  decide?: string;
+  /** Il motivo: `curiosita` | `lavoro` | `relazione` | `evento` | `stufo`. */
+  motivo?: string;
   /** Ci conosce: `segue` | `settore` | `nuovo`. */
   conoscenza?: string;
   /** Zona d'Italia: `nord` | `centro` | `sud` | `estero`. */
