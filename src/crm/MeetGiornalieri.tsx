@@ -1397,10 +1397,7 @@ export function RigaLead({
               nuova: pallino + parola + al massimo due risposte brevi, e niente
               se non ha risposto (vedi crm/Temperatura). */}
           {temperatura && mostraTemperatura(l.data.stato) && (
-            <TemperaturaRiga
-              dati={l.data}
-              className="min-w-[4.5rem] shrink-[100] truncate sm:max-w-[50%]"
-            />
+            <TemperaturaRiga dati={l.data} className="shrink-[100] sm:max-w-[50%]" />
           )}
           <ChipAttesa attesa={attesa} />
           {motivo && <span className="truncate">{motivo}</span>}
@@ -1801,7 +1798,7 @@ export function SchedaAdesso({
             {/*  Com'è messo il cliente che sta per entrare: la stessa riga di
                 «La giornata», due risposte al massimo. */}
             {mostraTemperatura(l.data.stato) && (
-              <TemperaturaRiga dati={l.data} className="min-w-0 truncate" />
+              <TemperaturaRiga dati={l.data} className="max-w-full" />
             )}
           </div>
         </div>

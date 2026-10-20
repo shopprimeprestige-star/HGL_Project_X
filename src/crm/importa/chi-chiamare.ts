@@ -47,7 +47,7 @@ import {
   type RisposteModulo,
 } from "@/crm/types";
 import { etichettaRisposta } from "@/crm/modulo-lead";
-import { temperaturaLead } from "@/crm/temperatura-lead";
+import { eLivelloCaldo, temperaturaLead } from "@/crm/temperatura-lead";
 import { daTelefonareOggi, giornoPromesso, promessaPerDopo } from "./da-telefonare";
 import { eContattatoWhatsApp, eDaDecidere, eRimandato } from "./ricarico";
 import { eSaltato } from "./saltati";
@@ -121,13 +121,16 @@ export function inLista(l: LeadLike, adesso: Date, o?: OpzioniChiamata): boolean
  *   scritto sulla riga, ma da solo non basta.
  *  La regola vive in crm/temperatura-lead (solo modulo, senza quiz: la coda non cambia). */
 export function eCaldo(m?: RisposteModulo): boolean {
-  return temperaturaLead(m).livello === "caldo";
+  //  Col modulo «589€» anche Caldissimo è caldo (crm/temperatura-lead).
+  return eLivelloCaldo(temperaturaLead(m).livello);
 }
 
 /** Perché è caldo, in poche parole: il primo motivo vero. */
 function perchéCaldo(m: RisposteModulo): string {
   if (m.urgenza === "subito") return "vuole risolvere ora";
-  return `ha già provato: ${m.giaFatto}`;
+  if (m.giaFatto) return `ha già provato: ${m.giaFatto}`;
+  //  Caldo per i punti del modulo «589€»: il perché lo scrive la classifica.
+  return temperaturaLead(m).perche;
 }
 
 /** Fasce in ore intere: l'inizio è compreso, la fine è esclusa. */

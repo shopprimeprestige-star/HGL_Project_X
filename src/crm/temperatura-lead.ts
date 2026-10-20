@@ -40,6 +40,18 @@
  *   ⚠️ «Sto valutando diverse opzioni» (`valuto`) è Medio, come da SPEC; il
  *    vecchio heat-utils lo chiamava freddo. Segnalato al titolare.
  *
+ *  ── IL MODULO «589€»: SEI LIVELLI (richiesta del titolare, 20/10/2026) ──
+ *   Quando il lead ha risposto alle domande del modulo «589€» (da quanto,
+ *   quando vuole risolvere, quanto gli pesa, prezzo, decide da solo, motivo)
+ *   la classifica è a sei livelli, con i punti di `PUNTI_589`:
+ *     Caldissimo ≥ 90% · Caldo ≥ 78% · Fuochino ≥ 58% · Medio ≥ 38%
+ *     Freddo ≥ 18% · Freddissimo sotto, o «no» al prezzo.
+ *   La percentuale è sui punti delle domande a cui ha RISPOSTO: il modulo del
+ *   20/10 non ha «quanto ti pesa», quello del 21/10 sì, e una domanda che non
+ *   c'era non deve abbassare nessuno.
+ *   Gli altri moduli restano a tre livelli, con la regola qui sopra.
+ *   ⚠️ «Caldo» per la coda (`eCaldo`) vale anche per Caldissimo.
+ *
  *  ⚠️ NON IMPORTA importa/chi-chiamare: è chi-chiamare che importa questo
  *   file. Al contrario si farebbe un giro di import.
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -47,24 +59,40 @@ import { eChiusuraVinta } from "@/crm/types";
 import type { LeadData, LeadStatus, QualificaInfo, RisposteModulo } from "@/crm/types";
 import { etichettaRisposta, moduloLetto } from "@/crm/modulo-lead";
 
-export type LivelloTemperatura = "caldo" | "medio" | "freddo" | "nessuna";
+export type LivelloTemperatura =
+  | "caldissimo"
+  | "caldo"
+  | "fuochino"
+  | "medio"
+  | "freddo"
+  | "freddissimo"
+  | "nessuna";
 
 export interface TemperaturaLead {
   livello: LivelloTemperatura;
-  /** "Caldo" | "Medio" | "Freddo" | "" */
+  /** "Caldissimo" | "Caldo" | "Fuochino" | "Medio" | "Freddo" | "Freddissimo" | "" */
   parola: string;
   /** una frase: la risposta che ha deciso il livello. "" se nessuna */
   perche: string;
   /** da dove viene: il modulo dell'inserzione, il quiz del sito, o niente */
   fonte: "modulo" | "sito" | null;
+  /** Solo col modulo «589€»: i punti presi su quelli possibili. */
+  punti?: { presi: number; su: number };
 }
 
 const PAROLA: Record<LivelloTemperatura, string> = {
+  caldissimo: "Caldissimo",
   caldo: "Caldo",
+  fuochino: "Fuochino",
   medio: "Medio",
   freddo: "Freddo",
+  freddissimo: "Freddissimo",
   nessuna: "",
 };
+
+/** Caldissimo e Caldo sono entrambi «caldo» per la coda della setter. */
+export const eLivelloCaldo = (l: LivelloTemperatura): boolean =>
+  l === "caldissimo" || l === "caldo";
 
 const NESSUNA: TemperaturaLead = { livello: "nessuna", parola: "", perche: "", fonte: null };
 
@@ -101,6 +129,85 @@ function vociDelModulo(m?: RisposteModulo): { livello: LivelloTemperatura; testo
   return [URGENZA[m.urgenza ?? ""], giaProvato(m.giaFatto), FASTIDIO[m.fastidio ?? ""]].filter(
     (v): v is { livello: LivelloTemperatura; testo: string } => !!v,
   );
+}
+
+/* ── IL MODULO «589€» ──────────────────────────────────────────────────── */
+
+/** Punti per risposta. Il massimo di ogni domanda è il valore più alto. */
+export const PUNTI_589: Record<string, Record<string, number>> = {
+  urgenza: { subito: 3, valutando: 2, informativo: 0 },
+  durata: { oltreTre: 2, unoTre: 1, meno1: 0 },
+  tempi: { trenta: 3, mesi: 2, valuta: 0 },
+  peso: { tantissimo: 2, molto: 1, abbastanza: 0, poco: 0 },
+  prezzo: { si: 3, dipende: 1, no: 0 },
+  decide: { solo: 2, coppia: 0 },
+  motivo: { evento: 2, relazione: 2, lavoro: 2, stufo: 1, curiosita: 0 },
+};
+
+/** Le soglie, dalla più calda: la prima che la percentuale raggiunge. */
+const SOGLIE_589: [LivelloTemperatura, number][] = [
+  ["caldissimo", 0.9],
+  ["caldo", 0.78],
+  ["fuochino", 0.58],
+  ["medio", 0.38],
+  ["freddo", 0.18],
+];
+
+/** Le risposte che fanno parte del modulo «589€». «Come vive il problema»
+ *  c'è anche nei moduli vecchi: da sola non basta a cambiare regola. */
+const SOLO_589 = ["durata", "tempi", "peso", "prezzo", "decide", "motivo"] as const;
+
+const TESTO_589: Record<string, Record<string, string>> = {
+  tempi: { trenta: "entro 30 giorni", mesi: "entro 1-3 mesi", valuta: "sta solo valutando" },
+  prezzo: { si: "prezzo ok", dipende: "prezzo: dipende", no: "prezzo: no" },
+  urgenza: {
+    subito: "lo vive come grave",
+    valutando: "valuta sul serio",
+    informativo: "si sta informando",
+  },
+  decide: { solo: "decide da solo", coppia: "ne parla in famiglia" },
+  peso: {
+    tantissimo: "gli pesa 9-10",
+    molto: "gli pesa 7-8",
+    abbastanza: "gli pesa 4-6",
+    poco: "gli pesa 1-3",
+  },
+  motivo: {
+    evento: "ha un evento",
+    relazione: "nuova relazione",
+    lavoro: "per lavoro",
+    stufo: "è stufo",
+    curiosita: "per curiosità",
+  },
+  durata: { oltreTre: "da più di 3 anni", unoTre: "da 1-3 anni", meno1: "da meno di 1 anno" },
+};
+
+/** La classifica a sei livelli, se il lead ha risposto al modulo «589€».
+ *  `undefined` altrimenti: decide la regola a tre livelli. */
+export function classifica589(
+  m?: RisposteModulo,
+): { livello: LivelloTemperatura; presi: number; su: number; brevi: string[] } | undefined {
+  if (!m || !SOLO_589.some((c) => m[c] && PUNTI_589[c][m[c] as string] !== undefined))
+    return undefined;
+  let presi = 0;
+  let su = 0;
+  //  Le risposte brevi nell'ordine in cui servono al telefono: prima i tempi e
+  //  il prezzo, poi il resto.
+  const brevi: string[] = [];
+  for (const campo of ["tempi", "prezzo", "urgenza", "decide", "peso", "motivo", "durata"]) {
+    const id = m[campo as keyof RisposteModulo] as string | undefined;
+    const tabella = PUNTI_589[campo];
+    if (!id || tabella[id] === undefined) continue;
+    presi += tabella[id];
+    su += Math.max(...Object.values(tabella));
+    const t = TESTO_589[campo]?.[id];
+    if (t) brevi.push(t);
+  }
+  //  «No» al prezzo chiude la porta, qualunque cosa dica il resto.
+  if (m.prezzo === "no") return { livello: "freddissimo", presi, su, brevi };
+  const quota = su ? presi / su : 0;
+  const livello = SOGLIE_589.find(([, soglia]) => quota >= soglia - 1e-9)?.[0] ?? "freddissimo";
+  return { livello, presi, su, brevi };
 }
 
 /* ── IL QUIZ DEL SITO ──────────────────────────────────────────────────── */
@@ -147,6 +254,15 @@ function decidi(voci: { livello: LivelloTemperatura; testo: string }[]) {
 
 /** La temperatura del lead: prima il modulo, poi (se il modulo tace) il quiz. */
 export function temperaturaLead(m?: RisposteModulo, q?: QualificaInfo | null): TemperaturaLead {
+  const sei = classifica589(m);
+  if (sei)
+    return {
+      livello: sei.livello,
+      parola: PAROLA[sei.livello],
+      perche: `${sei.presi} punti su ${sei.su}${sei.brevi.length ? ` · ${sei.brevi.slice(0, 2).join(" · ")}` : ""}`,
+      fonte: "modulo",
+      punti: { presi: sei.presi, su: sei.su },
+    };
   const dalModulo = decidi(vociDelModulo(m));
   if (dalModulo)
     return {
@@ -170,6 +286,8 @@ export function temperaturaLead(m?: RisposteModulo, q?: QualificaInfo | null): T
  *  Se il modulo dice qualcosa sulla temperatura vengono solo dal modulo
  *  (mescolarle col quiz darebbe due voci che si contraddicono). */
 export function risposteBrevi(m?: RisposteModulo, q?: QualificaInfo | null, max = 2): string[] {
+  const sei = classifica589(m);
+  if (sei) return sei.brevi.slice(0, Math.max(0, max));
   const modulo = vociDelModulo(m);
   const voci = modulo.length ? modulo : vociDelQuiz(q);
   return voci.slice(0, Math.max(0, max)).map((v) => v.testo);

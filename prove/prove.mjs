@@ -17784,7 +17784,7 @@ function proveDellaTemperatura() {
   c(
     "eCaldo delega a temperaturaLead",
     true,
-    /return temperaturaLead\(m\)\.livello === "caldo";/.test(chiama),
+    /return eLivelloCaldo\(temperaturaLead\(m\)\.livello\);/.test(chiama),
   );
 }
 
@@ -18144,7 +18144,7 @@ async function proveDeiPostiDelPallino() {
   c(
     "la coda non cambia: eCaldo resta solo-modulo",
     true,
-    /return temperaturaLead\(m\)\.livello === "caldo";/.test(leggi("src/crm/importa/chi-chiamare.ts")),
+    /return eLivelloCaldo\(temperaturaLead\(m\)\.livello\);/.test(leggi("src/crm/importa/chi-chiamare.ts")),
   );
 
   const targhetta = await disegnatore(
@@ -19908,6 +19908,104 @@ function proveDeiRitocchiDellaBarra() {
     /chiudiRegistrazione = \(\) => \{[\s\S]{0,300}if \(finePerDavvero\) return;/.test(chiamata));
 }
 
+/** ── IL MODULO «589€» E LA CLASSIFICA A SEI LIVELLI ─────────────────────────
+ *  Richiesta del titolare (20/10/2026): importare i file del 20 e del 21
+ *  ottobre e leggere ogni lead da Caldissimo a Freddissimo. Le intestazioni
+ *  sono quelle vere dei due file; nomi, telefoni ed email sono INVENTATI. */
+function proveDelModulo589() {
+  gruppo("MODULO 589€: LE SEI DOMANDE E LA CLASSIFICA DA CALDISSIMO A FREDDISSIMO");
+  const testa20 =
+    "id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform," +
+    "come_consideri_il_tuo_problema?,da_quanto_hai_il_problema?,quando_vuoi_risolvere," +
+    "quando_preferiresti_ricevere_una_telefonata_per_concordare_l'appuntamento_di_consulenza_gratuita_e_ottenere_maggiori_informazioni?_(indica_giorno_e_ora_indicativi)," +
+    "il_percorso_parte_da_589€._sei_in_linea?,decidi_da_solo?,c'è_un_motivo_preciso?,full_name,city,phone_number,email,lead_status";
+  const meta = (n) => `l:${n},2026-10-19T20:05:08-05:00,ag:1,589€ - 001,as:2,589,c:3,Hair Genius Labs | 20 ott - ABO,f:4,XXXXX20ottXXXXX,false,fb`;
+  const GRAVE = "è_grave:_devo_trovare_subito_una_soluzione_estetica_per_sentirmi_di_nuovo_a_mio_agio.";
+  const IMPORTANTE = "è_importante:_sto_valutando_seriamente_di_prendere_provvedimenti_nel_breve-medio_termine.";
+  const file20 = [
+    testa20,
+    `${meta(1)},${GRAVE},più_di_3_anni,entro_30_giorni,sera_(dopo_le_18:00),si,si,nuova_relazione,Mario Esempio,Roma,p:+393330000001,mario@esempio.it,CREATED`,
+    `${meta(2)},${GRAVE},più_di_3_anni,1-3_mesi,sera_(dopo_le_18:00),si,si,lavoro,Luca Prova,Milano,p:+393330000002,luca@esempio.it,CREATED`,
+    `${meta(3)},${IMPORTANTE},abbastanza_,sto_solo_valutando,sera_(dopo_le_18:00),dipende,ne_parlo_con_partner_o_famiglia,sono_stufo,Gino Finto,Torino,p:+393330000003,gino@esempio.it,CREATED`,
+    `${meta(4)},${IMPORTANTE},più_di_3_anni,sto_solo_valutando,pausa_pranzo_(12:00–14:00),dipende,ne_parlo_con_partner_o_famiglia,sono_stufo,Anna Finta,Napoli,p:+393330000004,anna@esempio.it,CREATED`,
+    `${meta(5)},${IMPORTANTE},1-3_anni,1-3_mesi,sera_(dopo_le_18:00),dipende,si,sono_stufo,Paolo Finto,Bari,p:+393330000005,paolo@esempio.it,CREATED`,
+    `${meta(6)},${GRAVE},più_di_3_anni,entro_30_giorni,sera_(dopo_le_18:00),no,si,lavoro,Ugo Finto,Pisa,p:+393330000006,ugo@esempio.it,CREATED`,
+  ].join("\n");
+  const r = IMP.traduciCsv(file20);
+  c("il file del 20/10 entra tutto", 6, r.leads.length);
+  const [rocco, giuseppe, riccardo, alessandra, paolo, ugo] = r.leads;
+  c("le sei domande diventano voci della scheda",
+    JSON.stringify({ urgenza: "subito", durata: "oltreTre", tempi: "trenta", prezzo: "si", decide: "solo", motivo: "relazione" }),
+    JSON.stringify({ urgenza: rocco.modulo?.urgenza, durata: rocco.modulo?.durata, tempi: rocco.modulo?.tempi, prezzo: rocco.modulo?.prezzo, decide: rocco.modulo?.decide, motivo: rocco.modulo?.motivo }));
+  c("«si» sotto «decidi da solo?» è «da solo», non il prezzo", "solo", giuseppe.modulo?.decide);
+  c("«dipende» va al prezzo", "dipende", riccardo.modulo?.prezzo);
+  c("«abbastanza» sotto «da quanto» non si inventa una durata", undefined, riccardo.modulo?.durata);
+  c("le risposte non riconosciute restano nei Dati originali", "abbastanza_", riccardo.datiFile?.["da quanto hai il problema?"]);
+  const liv = (l) => TEMP.temperaturaDi(l).t.livello;
+  c("15 punti su 15: Caldissimo", "caldissimo", liv(rocco));
+  c("14 su 15 (lavoro vale 2): Caldissimo", "caldissimo", liv(giuseppe));
+  c("12 su 15: Caldo", "caldo",
+    TEMP.temperaturaLead({ urgenza: "valutando", durata: "oltreTre", tempi: "mesi", prezzo: "si", decide: "solo", motivo: "stufo" }).livello);
+  c("4 su 13 (la durata non letta non conta): Freddo", "freddo", liv(riccardo));
+  c("6 su 15: Medio", "medio", liv(alessandra));
+  c("9 su 15: Fuochino", "fuochino", liv(paolo));
+  c("«no» al prezzo: Freddissimo anche se il resto è caldo", "freddissimo", liv(ugo));
+  c("il perché dice i punti", true, /^15 punti su 15/.test(TEMP.temperaturaDi(rocco).t.perche));
+  c("le risposte brevi partono da tempi e prezzo", "entro 30 giorni · prezzo ok", TEMP.temperaturaDi(rocco).brevi.join(" · "));
+  c("Caldissimo è caldo per la coda", true, CHIAM.eCaldo(rocco.modulo));
+  c("Fuochino non è caldo per la coda", false, CHIAM.eCaldo(paolo.modulo));
+
+  //  Il file del 21/10: in più «quanto ti pesa da 1-10», e le colonne in un altro ordine.
+  const testa21 =
+    "id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform," +
+    "come_consideri_il_tuo_problema?,da_quanto_hai_il_problema?,quando_vuoi_risolvere,quanto_ti_pesa_da_1-10," +
+    "il_percorso_parte_da_589€._sei_in_linea?,decidi_da_solo?,c'è_un_motivo_preciso?," +
+    "quando_preferiresti_ricevere_una_telefonata_per_concordare_l'appuntamento_di_consulenza_gratuita_e_ottenere_maggiori_informazioni?_(indica_giorno_e_ora_indicativi)," +
+    "full_name,city,phone_number,email,lead_status";
+  const file21 = [
+    testa21,
+    `${meta(7)},${GRAVE},più_di_3_anni,entro_30_giorni,9-10_-_tantissimo,si,si,un_evento_(matrimonio,_cerimonia…),sera_(dopo_le_18:00),Rita Finta,Roma,p:+393330000007,rita@esempio.it,CREATED`,
+    `${meta(8)},non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi,meno_di_1_anno,sto_solo_valutando,1-3_-_poco,dipende,ne_parlo_con_partner_o_famiglia,curiosità,mattina_(9:00–12:00),Ezio Finto,Roma,p:+393330000008,ezio@esempio.it,CREATED`,
+  ].join("\n");
+  const r21 = IMP.traduciCsv(file21);
+  c("solo intestazione: il file vuoto del 21/10 non rompe niente", 0, IMP.traduciCsv(testa21).leads.length);
+  c("il file del 21/10 entra", 2, r21.leads.length);
+  c("«quanto ti pesa» si legge", "tantissimo", r21.leads[0]?.modulo?.peso);
+  c("«un evento (matrimonio, cerimonia…)» si legge", "evento", r21.leads[0]?.modulo?.motivo);
+  c("17 su 17 col peso: Caldissimo", "caldissimo", liv(r21.leads[0]));
+  c("tutto al minimo: Freddissimo", "freddissimo", liv(r21.leads[1]));
+  c("«curiosità» si legge", "curiosita", r21.leads[1]?.modulo?.motivo);
+
+  //  Le regole sotto.
+  c("«si» da solo non è una risposta", undefined, MDL.riconosciRisposta("si"));
+  c("«si» sotto il prezzo sì", "si", MDL.riconosciRisposta("si", "prezzo")?.opzione.id);
+  c("«da quanto hai il problema?» è la Durata", "durata", MDL.campoDellaColonna("da_quanto_hai_il_problema?"));
+  c("«come consideri il tuo problema?» resta Come vive il problema", "urgenza", MDL.campoDellaColonna("come_consideri_il_tuo_problema?"));
+  c("«1-3 anni» e «1-3 mesi» non si confondono",
+    "durata:unoTre tempi:mesi",
+    ["1-3_anni", "1-3_mesi"].map((v) => { const t = MDL.riconosciRisposta(v); return `${t?.campo}:${t?.opzione.id}`; }).join(" "));
+
+  //  Le schede importate prima: le risposte corte stanno nei Dati originali.
+  const vecchia = {
+    nome: "Finto",
+    modulo: { urgenza: "subito", tempi: "trenta", risposte: [] },
+    datiFile: { "il percorso parte da 589€. sei in linea?": "si", "decidi da solo?": "si", "colonna 15": "no" },
+  };
+  const letta = MDL.moduloLetto(vecchia);
+  c("una scheda già in archivio rilegge prezzo e decide dai Dati originali", "si solo", `${letta?.prezzo} ${letta?.decide}`);
+  c("una «colonna N» non si rilegge", true, letta?.prezzo === "si");
+  c("i moduli vecchi restano a tre livelli", "medio", TEMP.temperaturaLead({ fastidio: "molto" }).livello);
+
+  //  Sul computer la parola del livello non si taglia.
+  const disegno = readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8");
+  c("il livello sta fuori dal pezzo che si accorcia", true,
+    /<PallinoTemperatura t=\{t\} className="shrink-0 whitespace-nowrap" \/>/.test(disegno));
+  const oggi = readFileSync(join(radice, "src/crm/MeetGiornalieri.tsx"), "utf8");
+  c("in «Oggi» la temperatura non ha più `truncate` sopra", false, /<TemperaturaRiga[^>]*truncate/.test(oggi));
+  const tutti = readFileSync(join(radice, "src/crm/importa/SchedaTutti.tsx"), "utf8");
+  c("in «Tutti» il livello sta accanto al nome", true, /<TemperaturaRiga dati=\{d\}/.test(tutti));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -19971,6 +20069,7 @@ proveDelCablaggioDellaCopia();
 proveDellaBarraSempreVisibile();
 proveDellaVesteDelleCamere();
 proveDeiRitocchiDellaBarra();
+proveDelModulo589();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

@@ -24,15 +24,20 @@ import {
 } from "@/crm/temperatura-lead";
 import type { LeadData } from "@/crm/types";
 
-/** Rosso-arancio, arancio chiaro, grigio-azzurro, niente altro.
+/** Dal rosso al blu, in sei passi; i tre di sempre restano uguali.
  *  ⚠️ MEDIO NON È AMBRA (capo progetto, 14/10, nota del revisore): nel CRM
  *   l'ambra vuol dire «in sospeso» e il Chip di stato ha già un pallino ambra.
  *   Pallino arancio chiaro, parola in grigio scuro (lo dice anche DESIGN.md).
+ *  Caldissimo, Fuochino e Freddissimo (modulo «589€», 20/10/2026) si
+ *  aggiungono ai lati e in mezzo senza cambiare i tre di prima.
  *  I testi 700/600 stanno sopra 4,5:1 sul fondo chiaro del CRM. */
 const STILE: Record<Exclude<LivelloTemperatura, "nessuna">, { pallino: string; testo: string }> = {
+  caldissimo: { pallino: "bg-red-600", testo: "text-red-700" },
   caldo: { pallino: "bg-orange-600", testo: "text-orange-700" },
+  fuochino: { pallino: "bg-orange-400", testo: "text-orange-800" },
   medio: { pallino: "bg-orange-300", testo: "text-slate-700" },
   freddo: { pallino: "bg-slate-400", testo: "text-slate-600" },
+  freddissimo: { pallino: "bg-sky-600", testo: "text-sky-800" },
 };
 
 /** Solo disegno, nessun hook. `null` quando il livello è «nessuna». */
@@ -82,14 +87,18 @@ export function TemperaturaRiga(p: {
   return (
     //  Il testo intero al passaggio del mouse: sul monitor la riga si accorcia
     //  e la seconda risposta breve resta tagliata (revisione finale).
-    <span className={p.className} title={[t.parola, ...brevi].join(" · ")}>
-      <PallinoTemperatura t={t} />
-      {brevi.map((b) => (
-        <span key={b}>
-          {" · "}
-          {b}
-        </span>
-      ))}
+    //  ⚠️ PALLINO E PAROLA NON SI TAGLIANO MAI. Sul monitor la riga di «Oggi»
+    //   accorcia per prima la temperatura (`shrink-[100] truncate`), e con il
+    //   testo tutto in una riga cadeva proprio la parola: restava «Cal…», e sul
+    //   computer il livello non si leggeva (sul telefono andava a capo e si
+    //   vedeva). Segnalazione del titolare, 20/10/2026. Adesso si accorciano
+    //   solo le risposte brevi.
+    <span
+      className={cn("inline-flex min-w-0 max-w-full items-baseline", p.className)}
+      title={[t.parola, ...brevi].join(" · ")}
+    >
+      <PallinoTemperatura t={t} className="shrink-0 whitespace-nowrap" />
+      {brevi.length > 0 && <span className="min-w-0 truncate">{` · ${brevi.join(" · ")}`}</span>}
     </span>
   );
 }
