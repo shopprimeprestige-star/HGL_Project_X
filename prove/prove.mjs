@@ -20019,6 +20019,43 @@ function proveDelModulo589() {
   c("in «Tutti» il livello sta accanto al nome", true, /<TemperaturaRiga dati=\{d\}/.test(tutti));
 }
 
+/** ── I PULSANTI DELLO STATO, DI NUOVO IN VISTA (20/10/2026) ─────────────────
+ *  Richiesta del titolare: «hai tolto i filtri richiamare, segreteria: rimettili
+ *  come erano prima, ottimizzati». */
+function proveDeiPulsantiDelloStato() {
+  gruppo("LEAD IMPORTATI: NON RISPONDE E SEGRETERIA DI NUOVO SEPARATI E IN VISTA");
+  const { cadeNelloStato, applicaFiltri, opzioniFiltri, leggiRicercaImporta } = FIL;
+  c("una segreteria cade in «Segreteria»", true, cadeNelloStato("ritento", "segreteria", "segreteria"));
+  c("…e non in «Non risponde»", false, cadeNelloStato("ritento", "segreteria", "nonRisponde"));
+  c("un non risponde cade in «Non risponde»", true, cadeNelloStato("ritento", "non_risponde", "nonRisponde"));
+  c("…e non in «Segreteria»", false, cadeNelloStato("ritento", "non_risponde", "segreteria"));
+  c("«Da ritentare» (indirizzi salvati) le prende tutte e due", true,
+    cadeNelloStato("ritento", "segreteria", "ritentare") && cadeNelloStato("ritento", "non_risponde", "ritentare"));
+  c("una prima chiamata non è un ritento", false, cadeNelloStato("prima", "da_contattare", "nonRisponde"));
+  const righe = [
+    { id: "a", data: { stato: "segreteria" }, motivo: "ritento" },
+    { id: "b", data: { stato: "non_risponde" }, motivo: "ritento" },
+    { id: "c", data: { stato: "non_risponde" }, motivo: "ritento" },
+    { id: "d", data: { stato: "da_contattare" }, motivo: "prima" },
+    { id: "e", data: { stato: "richiamo" }, motivo: "promessa" },
+  ];
+  const oggi = "2026-10-20";
+  c("filtro Segreteria: una riga", "a", applicaFiltri(righe, { stato: "segreteria" }, oggi).map((r) => r.id).join());
+  c("filtro Non risponde: due righe", "b,c", applicaFiltri(righe, { stato: "nonRisponde" }, oggi).map((r) => r.id).join());
+  const n = Object.fromEntries(opzioniFiltri(righe, {}, oggi).stato.map((x) => [x.valore, x.n]));
+  c("i numeri sui pulsanti", "5 1 2 1 1", [n.tutti, n.mai, n.nonRisponde, n.segreteria, n.promesse].join(" "));
+  c("l'indirizzo accetta i due nuovi", "segreteria nonRisponde",
+    `${leggiRicercaImporta({ stato: "segreteria" }).stato} ${leggiRicercaImporta({ stato: "nonRisponde" }).stato}`);
+  c("…e ancora «ritentare»", "ritentare", leggiRicercaImporta({ stato: "ritentare" }).stato);
+  const barra = readFileSync(join(radice, "src/crm/importa/FiltriLista.tsx"), "utf8");
+  c("i pulsanti nell'ordine di prima",
+    true,
+    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"promesse",\s*"ritorno",?\s*\]/.test(barra));
+  c("la fila dello stato sta sopra i menu", true,
+    /<PulsantiStato[\s\S]{0,600}<MenuAnnuncio/.test(barra));
+  c("lo stato non è più chiuso in un menu", false, /function MenuStato/.test(barra));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -20083,6 +20120,7 @@ proveDellaBarraSempreVisibile();
 proveDellaVesteDelleCamere();
 proveDeiRitocchiDellaBarra();
 proveDelModulo589();
+proveDeiPulsantiDelloStato();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
