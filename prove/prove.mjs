@@ -12624,6 +12624,7 @@ function proveDeiMessaggiConNome() {
   //  niente link (decisione del titolare).
   const SENZA_RISULTATI = [
     "da_contattare",
+    "attesa_whatsapp",
     "appuntamento_fissato", "appuntamento_rifissato", "link_consulenza", "promemoria",
     "da_ricontattare", "fissa_meet_dopo", "gestire_in_chat", "sta_valutando",
   ];
@@ -12637,7 +12638,7 @@ function proveDeiMessaggiConNome() {
   c("e chi non ha i risultati porta l'altro link", "",
     //  Il primo messaggio al lead nuovo è senza link per scelta del titolare
     //  (20/10/2026): chiede solo «mattina o sera».
-    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
+    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
 
   //  Composto con i valori veri: niente graffe rimaste in giro, e il nome del
   //  consulente entra nella presentazione.
@@ -20104,6 +20105,33 @@ function proveDeiPulsantiDelloStato() {
   c("chiede mattina o sera", true, /mattina o la sera\?$/.test(nuovo));
 }
 
+/** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
+ *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
+function proveDelloStatoAttesaWhatsapp() {
+  gruppo("STATO «ATTESA WHATSAPP»: SI IMPOSTA, SI FILTRA, SI RICHIAMA");
+  const T = mod["types"];
+  c("ha il suo nome", "Attesa WhatsApp", T.LEAD_STATUS_LABEL.attesa_whatsapp);
+  c("si sceglie sui lead importati", true, T.statiPer({ importato: true }).includes("attesa_whatsapp"));
+  c("si sceglie sui lead di sempre", true, T.SELECTABLE_LEAD_STATUSES.includes("attesa_whatsapp"));
+  c("è fra gli stati conosciuti", true, T.ALL_LEAD_STATUSES.includes("attesa_whatsapp"));
+  c("resta da chiamare: se non conferma si riprova", true, T.eStatoDaChiamare("attesa_whatsapp"));
+  c("cade nel pulsante «Attesa WhatsApp»", true, FIL.cadeNelloStato("ritento", { stato: "attesa_whatsapp" }, "whatsapp"));
+  c("…e non in «Segreteria»", false, FIL.cadeNelloStato("ritento", { stato: "attesa_whatsapp" }, "segreteria"));
+  c("in coda dice perché", "aspetta la conferma su WhatsApp",
+    CHIAM.motivoChiamata({ id: "x", data: { stato: "attesa_whatsapp", importato: true, createdAt: "2026-10-01T10:00:00Z" } }, new Date("2026-10-20T10:00:00Z")).testo);
+  const { MODELLI_ORIGINALI: M } = mod["whatsapp"];
+  c("ha un messaggio suo, col lei", true, /Le avevo scritto/.test(M.attesa_whatsapp) && /mattina o la sera\?$/.test(M.attesa_whatsapp));
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  const tel = readFileSync(join(radice, "src/crm/kpi/TelefonoScheda.tsx"), "utf8");
+  c("KPI Telefono: ha la sua riga (niente avviso «stati senza esito»)", true,
+    /attesa_whatsapp: "attesa_whatsapp"/.test(tel) && /chiave: "attesa_whatsapp"/.test(tel));
+  const tratt = readFileSync(join(radice, "src/routes/CRM.trattative.tsx"), "utf8");
+  c("Trattative: non conta come trattativa attiva", 2, (tratt.match(/"segreteria",\s*"attesa_whatsapp"/g) || []).length);
+  c("Da fare: diventa una chiamata da rifare", true,
+    /stato === "segreteria" \|\| stato === "attesa_whatsapp"/.test(readFileSync(join(radice, "src/crm/dafare/righe.tsx"), "utf8")));
+  c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -20169,6 +20197,7 @@ proveDellaVesteDelleCamere();
 proveDeiRitocchiDellaBarra();
 proveDelModulo589();
 proveDeiPulsantiDelloStato();
+proveDelloStatoAttesaWhatsapp();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

@@ -248,6 +248,7 @@ const PESO_PRIMA_CHIAMATA: Record<string, number> = {
   richiamo: 0,
   da_contattare: 1,
   segreteria: 2,
+  attesa_whatsapp: 2,
   non_risponde: 3,
 };
 

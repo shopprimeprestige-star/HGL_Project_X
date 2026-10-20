@@ -143,6 +143,7 @@ export const ICONA_STATO: Partial<Record<LeadStatus, ComponentType<{ className?:
   da_contattare: PhoneOutgoing,
   non_risponde: PhoneMissed,
   segreteria: Voicemail,
+  attesa_whatsapp: MessageCircle,
   richiamo: PhoneCall,
   appuntamento_fissato: CalendarCheck,
   //  Ri-fissato: è lo stesso appuntamento che torna, non uno nuovo.

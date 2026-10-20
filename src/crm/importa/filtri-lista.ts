@@ -77,7 +77,9 @@ export function cadeNelloStato(
   scelta: StatoFiltro,
 ): boolean {
   if (scelta === "tutti") return true;
-  if (scelta === "whatsapp") return inAttesaWhatsapp(d);
+  //  Lo stato «Attesa WhatsApp» impostato a mano, oppure il tasto WhatsApp
+  //  premuto e nessun esito da allora.
+  if (scelta === "whatsapp") return d.stato === "attesa_whatsapp" || inAttesaWhatsapp(d);
   //  ⚠️ I PULSANTI DI UNO STATO GUARDANO LO STATO DELLA SCHEDA, non il motivo
   //   della chiamata: un «richiamo» senza giorno ha motivo «ritento» e finiva
   //   sotto «Non risponde» (revisione del 20/10/2026). «Mostra solo quei

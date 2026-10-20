@@ -335,6 +335,11 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
   //  messaggi identici si notano e infastidiscono.
   segreteria: `Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — ti ho lasciato un messaggio in segreteria.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}\n\nRiprovo domani mattina?`,
 
+  //  Lo stato «Attesa WhatsApp» (20/10/2026): gli si è già scritto e non ha
+  //  risposto. Un promemoria gentile, col lei come il primo messaggio, che
+  //  ripete la sola domanda da rispondere.
+  attesa_whatsapp: `Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs.\nLe avevo scritto per fissare la sua prima consulenza gratuita online, in cui Filippo le spiega la patch cutanea e Invisible Derm.\n\nPreferisce la mattina o la sera?`,
+
   //  ⚠️ «Richiamo concordato» vuol dire che il cliente ha chiesto LUI di essere
   //   richiamato a un certo orario — e questo messaggio si manda quando a
   //   quell'orario il telefono ha squillato a vuoto. Dirgli «ti richiamo come

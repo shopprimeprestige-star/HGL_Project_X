@@ -339,7 +339,10 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   //  4. È LA SUA ORA — per i mai chiamati e per i ritento.
   const mai = d.stato === "da_contattare" && tentativiDi(d) === 0;
   const ritento =
-    d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare";
+    d.stato === "non_risponde" ||
+    d.stato === "segreteria" ||
+    d.stato === "attesa_whatsapp" ||
+    d.stato === "da_contattare";
   if ((mai || ritento) && modulo && eLaSuaOra(modulo, adesso)) {
     return fatto("suaOra", `ha chiesto: ${etichettaRisposta("quando", String(modulo.quando))}`);
   }
@@ -359,6 +362,8 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   if (d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare") {
     return fatto("ritento", `${Math.max(1, tentativiDi(d)) + 1}° tentativo`);
   }
+  //  Gli si è scritto su WhatsApp e non ha confermato (20/10/2026): si riprova.
+  if (d.stato === "attesa_whatsapp") return fatto("ritento", "aspetta la conferma su WhatsApp");
   const stato = d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "";
   return fatto("ritento", stato ? `stato «${stato}»` : "da richiamare");
 }
