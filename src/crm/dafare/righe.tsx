@@ -281,7 +281,8 @@ function candidatiDi(d: LeadData): Candidato[] {
   //     "Da contattare" NON è qui di proposito: quella è la PRIMA chiamata, si
   //     lavora dalla lista importata (/CRM/avanzamento) e riempirebbe questa
   //     pagina con tutto l'archivio ancora da chiamare.
-  if (stato === "non_risponde" || stato === "segreteria") {
+  //  «Attesa WhatsApp» (20/10/2026): se non conferma, si riprova a voce.
+  if (stato === "non_risponde" || stato === "segreteria" || stato === "attesa_whatsapp") {
     fuori.push({ tipo: "richiamo_setter", giorno: giornoDedotto(d), ora: "" });
   }
 

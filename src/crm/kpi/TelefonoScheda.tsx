@@ -70,6 +70,7 @@ const ESITO_DI: Partial<Record<LeadStatus, string>> = {
   appuntamento_rifissato: "appuntamento",
   richiamo: "richiamo",
   segreteria: "segreteria",
+  attesa_whatsapp: "attesa_whatsapp",
   non_risponde: "non_risponde",
   annullato: "annullato",
   perdi_tempo: "perdi_tempo",
@@ -86,6 +87,7 @@ const ORDINE_ESITI: { chiave: string; etichetta: string }[] = [
   { chiave: "appuntamento", etichetta: "Appuntamento fissato" },
   { chiave: "richiamo", etichetta: LEAD_STATUS_LABEL.richiamo },
   { chiave: "segreteria", etichetta: LEAD_STATUS_LABEL.segreteria },
+  { chiave: "attesa_whatsapp", etichetta: LEAD_STATUS_LABEL.attesa_whatsapp },
   { chiave: "non_risponde", etichetta: LEAD_STATUS_LABEL.non_risponde },
   { chiave: "annullato", etichetta: LEAD_STATUS_LABEL.annullato },
   { chiave: "perdi_tempo", etichetta: LEAD_STATUS_LABEL.perdi_tempo },
@@ -224,6 +226,8 @@ export function TelefonoScheda({ dentro }: { dentro: FiltroPeriodo }) {
       daRiprovare:
         (perEsito.get("richiamo") || 0) +
         (perEsito.get("segreteria") || 0) +
+        //  Gli si è scritto su WhatsApp e non ha confermato: si recupera ancora.
+        (perEsito.get("attesa_whatsapp") || 0) +
         (perEsito.get("non_risponde") || 0),
     };
   }, [leads, dentro]);

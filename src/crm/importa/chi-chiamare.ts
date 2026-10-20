@@ -339,7 +339,10 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   //  4. È LA SUA ORA — per i mai chiamati e per i ritento.
   const mai = d.stato === "da_contattare" && tentativiDi(d) === 0;
   const ritento =
-    d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare";
+    d.stato === "non_risponde" ||
+    d.stato === "segreteria" ||
+    d.stato === "attesa_whatsapp" ||
+    d.stato === "da_contattare";
   if ((mai || ritento) && modulo && eLaSuaOra(modulo, adesso)) {
     return fatto("suaOra", `ha chiesto: ${etichettaRisposta("quando", String(modulo.quando))}`);
   }

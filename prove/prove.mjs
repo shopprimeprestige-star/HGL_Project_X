@@ -20122,6 +20122,13 @@ function proveDelloStatoAttesaWhatsapp() {
   const { MODELLI_ORIGINALI: M } = mod["whatsapp"];
   c("ha un messaggio suo, col lei", true, /Le avevo scritto/.test(M.attesa_whatsapp) && /mattina o la sera\?$/.test(M.attesa_whatsapp));
   const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  const tel = readFileSync(join(radice, "src/crm/kpi/TelefonoScheda.tsx"), "utf8");
+  c("KPI Telefono: ha la sua riga (niente avviso «stati senza esito»)", true,
+    /attesa_whatsapp: "attesa_whatsapp"/.test(tel) && /chiave: "attesa_whatsapp"/.test(tel));
+  const tratt = readFileSync(join(radice, "src/routes/CRM.trattative.tsx"), "utf8");
+  c("Trattative: non conta come trattativa attiva", 2, (tratt.match(/"segreteria",\s*"attesa_whatsapp"/g) || []).length);
+  c("Da fare: diventa una chiamata da rifare", true,
+    /stato === "segreteria" \|\| stato === "attesa_whatsapp"/.test(readFileSync(join(radice, "src/crm/dafare/righe.tsx"), "utf8")));
   c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
 }
 

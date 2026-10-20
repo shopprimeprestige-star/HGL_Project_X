@@ -1821,9 +1821,14 @@ function LeadsPage() {
       const imp = eImportato(l);
       if (
         !imp &&
-        !["concluso", "annullato", "da_contattare", "non_risponde", "segreteria"].includes(
-          l.data.stato,
-        )
+        ![
+          "concluso",
+          "annullato",
+          "da_contattare",
+          "non_risponde",
+          "segreteria",
+          "attesa_whatsapp",
+        ].includes(l.data.stato)
       )
         c.attivi++;
       if (DA_RICONTATTARE.includes(l.data.stato) || l.data.callbackAt) c.ricontattare++;
@@ -1853,9 +1858,14 @@ function LeadsPage() {
     return leads.filter(
       (l) =>
         !eImportato(l) &&
-        !["concluso", "annullato", "da_contattare", "non_risponde", "segreteria"].includes(
-          l.data.stato,
-        ),
+        ![
+          "concluso",
+          "annullato",
+          "da_contattare",
+          "non_risponde",
+          "segreteria",
+          "attesa_whatsapp",
+        ].includes(l.data.stato),
     );
   }, [leads, gruppo]);
 
@@ -3443,7 +3453,11 @@ function LeadsPage() {
             >
               Prossima azione
             </span>
-            <span className={conPannello ? "hidden w-[8rem] shrink-0" : "hidden w-[8rem] shrink-0 lg:block"}>
+            <span
+              className={
+                conPannello ? "hidden w-[8rem] shrink-0" : "hidden w-[8rem] shrink-0 lg:block"
+              }
+            >
               Consulente
             </span>
             <span
