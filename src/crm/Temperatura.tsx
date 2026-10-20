@@ -94,7 +94,10 @@ export function TemperaturaRiga(p: {
     //   vedeva). Segnalazione del titolare, 20/10/2026. Adesso si accorciano
     //   solo le risposte brevi.
     <span
-      className={cn("inline-flex min-w-0 max-w-full items-baseline", p.className)}
+      //  ⚠️ NIENTE `min-w-0` QUI: il minimo del contenitore deve restare pallino +
+      //   parola (le risposte brevi hanno `min-w-0` e possono sparire). Con
+      //   `min-w-0` la riga di «Oggi» lo schiacciava a zero (revisione 20/10).
+      className={cn("inline-flex max-w-full items-baseline", p.className)}
       title={[t.parola, ...brevi].join(" · ")}
     >
       <PallinoTemperatura t={t} className="shrink-0 whitespace-nowrap" />

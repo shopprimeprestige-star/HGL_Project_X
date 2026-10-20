@@ -19928,32 +19928,32 @@ function proveDelModulo589() {
     `${meta(2)},${GRAVE},più_di_3_anni,1-3_mesi,sera_(dopo_le_18:00),si,si,lavoro,Luca Prova,Milano,p:+393330000002,luca@esempio.it,CREATED`,
     `${meta(3)},${IMPORTANTE},abbastanza_,sto_solo_valutando,sera_(dopo_le_18:00),dipende,ne_parlo_con_partner_o_famiglia,sono_stufo,Gino Finto,Torino,p:+393330000003,gino@esempio.it,CREATED`,
     `${meta(4)},${IMPORTANTE},più_di_3_anni,sto_solo_valutando,pausa_pranzo_(12:00–14:00),dipende,ne_parlo_con_partner_o_famiglia,sono_stufo,Anna Finta,Napoli,p:+393330000004,anna@esempio.it,CREATED`,
-    `${meta(5)},${IMPORTANTE},1-3_anni,1-3_mesi,sera_(dopo_le_18:00),dipende,si,sono_stufo,Paolo Finto,Bari,p:+393330000005,paolo@esempio.it,CREATED`,
-    `${meta(6)},${GRAVE},più_di_3_anni,entro_30_giorni,sera_(dopo_le_18:00),no,si,lavoro,Ugo Finto,Pisa,p:+393330000006,ugo@esempio.it,CREATED`,
+    `${meta(5)},${IMPORTANTE},1-3_anni,1-3_mesi,sera_(dopo_le_18:00),dipende,si,sono_stufo,Paolo Finto,Bari,p:+393330000005,quinto@esempio.it,CREATED`,
+    `${meta(6)},${GRAVE},più_di_3_anni,entro_30_giorni,sera_(dopo_le_18:00),no,si,lavoro,Ugo Finto,Pisa,p:+393330000006,sesto@esempio.it,CREATED`,
   ].join("\n");
   const r = IMP.traduciCsv(file20);
   c("il file del 20/10 entra tutto", 6, r.leads.length);
-  const [rocco, giuseppe, riccardo, alessandra, paolo, ugo] = r.leads;
+  const [primo, secondo, terzo, quarto, quinto, sesto] = r.leads;
   c("le sei domande diventano voci della scheda",
     JSON.stringify({ urgenza: "subito", durata: "oltreTre", tempi: "trenta", prezzo: "si", decide: "solo", motivo: "relazione" }),
-    JSON.stringify({ urgenza: rocco.modulo?.urgenza, durata: rocco.modulo?.durata, tempi: rocco.modulo?.tempi, prezzo: rocco.modulo?.prezzo, decide: rocco.modulo?.decide, motivo: rocco.modulo?.motivo }));
-  c("«si» sotto «decidi da solo?» è «da solo», non il prezzo", "solo", giuseppe.modulo?.decide);
-  c("«dipende» va al prezzo", "dipende", riccardo.modulo?.prezzo);
-  c("«abbastanza» sotto «da quanto» non si inventa una durata", undefined, riccardo.modulo?.durata);
-  c("le risposte non riconosciute restano nei Dati originali", "abbastanza_", riccardo.datiFile?.["da quanto hai il problema?"]);
+    JSON.stringify({ urgenza: primo.modulo?.urgenza, durata: primo.modulo?.durata, tempi: primo.modulo?.tempi, prezzo: primo.modulo?.prezzo, decide: primo.modulo?.decide, motivo: primo.modulo?.motivo }));
+  c("«si» sotto «decidi da solo?» è «da solo», non il prezzo", "solo", secondo.modulo?.decide);
+  c("«dipende» va al prezzo", "dipende", terzo.modulo?.prezzo);
+  c("«abbastanza» sotto «da quanto» non si inventa una durata", undefined, terzo.modulo?.durata);
+  c("le risposte non riconosciute restano nei Dati originali", "abbastanza_", terzo.datiFile?.["da quanto hai il problema?"]);
   const liv = (l) => TEMP.temperaturaDi(l).t.livello;
-  c("15 punti su 15: Caldissimo", "caldissimo", liv(rocco));
-  c("14 su 15 (lavoro vale 2): Caldissimo", "caldissimo", liv(giuseppe));
+  c("15 punti su 15: Caldissimo", "caldissimo", liv(primo));
+  c("14 su 15 (lavoro vale 2): Caldissimo", "caldissimo", liv(secondo));
   c("12 su 15: Caldo", "caldo",
     TEMP.temperaturaLead({ urgenza: "valutando", durata: "oltreTre", tempi: "mesi", prezzo: "si", decide: "solo", motivo: "stufo" }).livello);
-  c("4 su 13 (la durata non letta non conta): Freddo", "freddo", liv(riccardo));
-  c("6 su 15: Medio", "medio", liv(alessandra));
-  c("9 su 15: Fuochino", "fuochino", liv(paolo));
-  c("«no» al prezzo: Freddissimo anche se il resto è caldo", "freddissimo", liv(ugo));
-  c("il perché dice i punti", true, /^15 punti su 15/.test(TEMP.temperaturaDi(rocco).t.perche));
-  c("le risposte brevi partono da tempi e prezzo", "entro 30 giorni · prezzo ok", TEMP.temperaturaDi(rocco).brevi.join(" · "));
-  c("Caldissimo è caldo per la coda", true, CHIAM.eCaldo(rocco.modulo));
-  c("Fuochino non è caldo per la coda", false, CHIAM.eCaldo(paolo.modulo));
+  c("4 su 13 (la durata non letta non conta): Freddo", "freddo", liv(terzo));
+  c("6 su 15: Medio", "medio", liv(quarto));
+  c("9 su 15: Fuochino", "fuochino", liv(quinto));
+  c("«no» al prezzo: Freddissimo anche se il resto è caldo", "freddissimo", liv(sesto));
+  c("il perché dice i punti", true, /^15 punti su 15/.test(TEMP.temperaturaDi(primo).t.perche));
+  c("le risposte brevi partono da tempi e prezzo", "entro 30 giorni · prezzo ok", TEMP.temperaturaDi(primo).brevi.join(" · "));
+  c("Caldissimo è caldo per la coda", true, CHIAM.eCaldo(primo.modulo));
+  c("Fuochino non è caldo per la coda", false, CHIAM.eCaldo(quinto.modulo));
 
   //  Il file del 21/10: in più «quanto ti pesa da 1-10», e le colonne in un altro ordine.
   const testa21 =
@@ -19964,8 +19964,8 @@ function proveDelModulo589() {
     "full_name,city,phone_number,email,lead_status";
   const file21 = [
     testa21,
-    `${meta(7)},${GRAVE},più_di_3_anni,entro_30_giorni,9-10_-_tantissimo,si,si,un_evento_(matrimonio,_cerimonia…),sera_(dopo_le_18:00),Rita Finta,Roma,p:+393330000007,rita@esempio.it,CREATED`,
-    `${meta(8)},non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi,meno_di_1_anno,sto_solo_valutando,1-3_-_poco,dipende,ne_parlo_con_partner_o_famiglia,curiosità,mattina_(9:00–12:00),Ezio Finto,Roma,p:+393330000008,ezio@esempio.it,CREATED`,
+    `${meta(7)},${GRAVE},più_di_3_anni,entro_30_giorni,9-10_-_tantissimo,si,si,"un_evento_(matrimonio,_cerimonia…)",sera_(dopo_le_18:00),Rita Finta,Roma,p:+393330000007,rita@esempio.it,CREATED`,
+    `${meta(8)},"non_lo_considero_ancora_un_problema,_ma_voglio_informazioni_sui_nuovi_sistemi",meno_di_1_anno,sto_solo_valutando,1-3_-_poco,dipende,ne_parlo_con_partner_o_famiglia,curiosità,mattina_(9:00–12:00),Ezio Finto,Roma,p:+393330000008,ezio@esempio.it,CREATED`,
   ].join("\n");
   const r21 = IMP.traduciCsv(file21);
   c("solo intestazione: il file vuoto del 21/10 non rompe niente", 0, IMP.traduciCsv(testa21).leads.length);
@@ -19983,7 +19983,18 @@ function proveDelModulo589() {
   c("«come consideri il tuo problema?» resta Come vive il problema", "urgenza", MDL.campoDellaColonna("come_consideri_il_tuo_problema?"));
   c("«1-3 anni» e «1-3 mesi» non si confondono",
     "durata:unoTre tempi:mesi",
-    ["1-3_anni", "1-3_mesi"].map((v) => { const t = MDL.riconosciRisposta(v); return `${t?.campo}:${t?.opzione.id}`; }).join(" "));
+    [["1-3_anni", "durata"], ["1-3_mesi", "tempi"]].map(([v, k]) => { const t = MDL.riconosciRisposta(v, k); return `${t?.campo}:${t?.opzione.id}`; }).join(" "));
+
+  //  ⚠️ Le sei nuove NON rubano risposte agli altri moduli (revisione 20/10):
+  //   «famiglia» scritto a mano sotto «quando chiamarlo» resta il quando.
+  const testaVecchia = "full_name,phone_number,email,quando_preferiresti_essere_chiamato?,come_consideri_il_tuo_problema?";
+  const vecchio = IMP.traduciCsv(`${testaVecchia}\nMario Esempio,p:+393330000009,m@esempio.it,giovedì dopo cena con la famiglia,${GRAVE}`).leads[0];
+  c("«famiglia» fuori dalla sua colonna non diventa «decide»", undefined, vecchio?.modulo?.decide);
+  c("…e resta il quando scritto a mano", true, /famiglia/i.test(vecchio?.modulo?.quandoTesto ?? ""));
+  c("…e il lead resta Caldo, come prima", "caldo", liv(vecchio));
+  c("«nuova relazione» dal solo valore non si assegna", undefined, MDL.riconosciRisposta("nuova_relazione"));
+  c("«da più di 3 anni» scritto a mano non accende la classifica a sei",
+    "caldo", TEMP.temperaturaDi({ modulo: { urgenza: "subito", risposte: [{ domanda: "note varie", risposta: "da più di 3 anni" }] } }).t.livello);
 
   //  Le schede importate prima: le risposte corte stanno nei Dati originali.
   const vecchia = {
@@ -19998,6 +20009,8 @@ function proveDelModulo589() {
 
   //  Sul computer la parola del livello non si taglia.
   const disegno = readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8");
+  c("il contenitore non si schiaccia a zero (niente min-w-0)", false,
+    /className=\{cn\("inline-flex min-w-0/.test(disegno));
   c("il livello sta fuori dal pezzo che si accorcia", true,
     /<PallinoTemperatura t=\{t\} className="shrink-0 whitespace-nowrap" \/>/.test(disegno));
   const oggi = readFileSync(join(radice, "src/crm/MeetGiornalieri.tsx"), "utf8");

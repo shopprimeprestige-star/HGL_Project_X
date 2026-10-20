@@ -57,7 +57,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eChiusuraVinta } from "@/crm/types";
 import type { LeadData, LeadStatus, QualificaInfo, RisposteModulo } from "@/crm/types";
-import { etichettaRisposta, moduloLetto } from "@/crm/modulo-lead";
+import { CAMPI_589, etichettaRisposta, moduloLetto } from "@/crm/modulo-lead";
 
 export type LivelloTemperatura =
   | "caldissimo"
@@ -153,9 +153,6 @@ const SOGLIE_589: [LivelloTemperatura, number][] = [
   ["freddo", 0.18],
 ];
 
-/** Le risposte che fanno parte del modulo «589€». «Come vive il problema»
- *  c'è anche nei moduli vecchi: da sola non basta a cambiare regola. */
-const SOLO_589 = ["durata", "tempi", "peso", "prezzo", "decide", "motivo"] as const;
 
 const TESTO_589: Record<string, Record<string, string>> = {
   tempi: { trenta: "entro 30 giorni", mesi: "entro 1-3 mesi", valuta: "sta solo valutando" },
@@ -187,7 +184,7 @@ const TESTO_589: Record<string, Record<string, string>> = {
 export function classifica589(
   m?: RisposteModulo,
 ): { livello: LivelloTemperatura; presi: number; su: number; brevi: string[] } | undefined {
-  if (!m || !SOLO_589.some((c) => m[c] && PUNTI_589[c][m[c] as string] !== undefined))
+  if (!m || !CAMPI_589.some((c) => m[c] && PUNTI_589[c][m[c] as string] !== undefined))
     return undefined;
   let presi = 0;
   let su = 0;

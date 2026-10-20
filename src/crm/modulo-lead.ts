@@ -464,7 +464,15 @@ export function riconosciRisposta(
   //  ⚠️ Con la domanda già nota (la colonna) anche «si» e «no» valgono: è
   //   l'unico modo di leggerli senza indovinare a quale domanda rispondono.
   if (!t || (t.length < 3 && !campo) || t.length > 200) return undefined;
-  const domande = campo ? DOMANDE_MODULO.filter((d) => d.campo === campo) : DOMANDE_MODULO;
+  //  ⚠️ LE SEI DEL MODULO «589€» SOLO DALLA LORO COLONNA. I loro riconoscitori
+  //   sono larghi («famiglia», «relazione», «lavoro»): letti dal solo valore
+  //   rubavano risposte agli altri moduli — «giovedì dopo cena con la famiglia»
+  //   sotto «quando chiamarlo» diventava «Decide: ne parla in famiglia» e il
+  //   lead cambiava classifica (revisione del 20/10/2026). Senza la colonna
+  //   non si assegnano mai.
+  const domande = campo
+    ? DOMANDE_MODULO.filter((d) => d.campo === campo)
+    : DOMANDE_MODULO.filter((d) => !CAMPI_589.includes(d.campo));
   const combacia = (vale: (o: OpzioneModulo) => boolean) => {
     const out: { campo: CampoModulo; opzione: OpzioneModulo }[] = [];
     for (const d of domande) for (const o of d.opzioni) if (vale(o)) out.push({ campo: d.campo, opzione: o });
