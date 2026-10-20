@@ -171,6 +171,7 @@ import { NuovaCosa, type NuovaCosaCampi } from "@/crm/dafare/NuovaCosa";
 import { creaCosaDaFare, liberaAgendaDi } from "@/crm/dafare/crea-cosa";
 import {
   LEAD_STATUS_LABEL,
+  ALL_LEAD_STATUSES,
   eAppuntamento,
   eStatoDaChiamare,
   type Lead,
@@ -208,6 +209,7 @@ import { useChiusura } from "@/crm/ChiusuraDialog";
 import { FinestraStati, ICONA_STATO, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
 import { LeadDialog } from "@/crm/LeadDialog";
 import { buildWhatsAppLink, getWhatsAppMessageForStatus } from "@/crm/whatsapp";
+import { patchWhatsappInviato } from "@/crm/importa/attesa-whatsapp";
 import {
   AiutoScorciatoie,
   CLASSE_BADGE_STATO,
@@ -348,6 +350,15 @@ import { aLotti, type EsitoRiga } from "@/crm/azioni-di-gruppo";
 //  Il tipo della modifica è quello di `updateLead`: le azioni di gruppo
 //  passano le STESSE patch delle righe singole, non una seconda versione.
 import type { Modifica } from "@/crm/patch-scheda";
+
+/** Gli stati che hanno un pulsante nella fila della lista da chiamare. */
+const STATI_DELLA_CODA = new Set<LeadStatus>([
+  "da_contattare",
+  "non_risponde",
+  "segreteria",
+  "richiamo",
+  "ci_ricontatta_lui",
+]);
 
 export const Route = createFileRoute("/CRM/importa")({
   head: () => ({ meta: [{ title: "Lead importati — CRM" }] }),
@@ -565,6 +576,7 @@ function SchedaProssimo({
   esitiAltri,
   onSalta,
   onApri,
+  onWhatsAppInviato,
 }: {
   lead: Lead;
   /** ── PERCHÉ È LUI ADESSO ───────────────────────────────────────────────
@@ -618,6 +630,9 @@ function SchedaProssimo({
   onAltri: () => void;
   onSalta: () => void;
   onApri: () => void;
+  /** Premuto WhatsApp: la pagina segna il messaggio (crm/importa/attesa-whatsapp)
+   *  e il lead compare in «Attesa WhatsApp» finché non ha un esito nuovo. */
+  onWhatsAppInviato?: () => void;
 }) {
   const d = lead.data ?? ({} as LeadData);
   const nome = `${d.nome || ""} ${d.cognome || ""}`.trim() || "Senza nome";
@@ -891,10 +906,16 @@ function SchedaProssimo({
             <Button
               asChild
               size="lg"
-              variant="outline"
-              className="h-12 flex-1 min-w-[9rem] text-[15px]"
+              //  Verde e pieno (20/10/2026): è il secondo gesto della setter dopo
+              //  la chiamata, e da contorno si confondeva con i tasti degli esiti.
+              className="h-12 flex-1 min-w-[9rem] bg-emerald-600 text-[15px] text-white hover:bg-emerald-700"
             >
-              <a href={linkWhatsApp} target="_blank" rel="noreferrer">
+              <a
+                href={linkWhatsApp}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => onWhatsAppInviato?.()}
+              >
                 <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
               </a>
             </Button>
@@ -1471,6 +1492,8 @@ function LeadImportatiUnoAllaVolta() {
   //   due elenchi di viste nello stesso file sono il modo di aggiungerne una e
   //   scoprire che non si può aprire.
   const [vista, setVista] = useState<VistaImporta>("coda");
+  /** Lo stato con cui aprire «Tutti» da un pulsante «Già lavorati». */
+  const [statoTutti, setStatoTutti] = useState<LeadStatus | null>(null);
   /*  ── ⚠️ CHI HO SISTEMATO ADESSO RESTA A SCHERMO ───────────────────────
       Segnalazione del committente: «quando clicco su un contatto, qualsiasi
       cosa faccio su quel contatto scompare; se metto appuntamento fissato e
@@ -1986,6 +2009,19 @@ function LeadImportatiUnoAllaVolta() {
    *   un'altra volta poche righe più sotto. Due volte lo stesso filtro sono due
    *   idee di «lead importato» che un giorno divergono. */
   const importati = useMemo(() => (leads ?? []).filter((l) => l?.data?.importato), [leads]);
+  /** ── GLI STATI GIÀ LAVORATI, PER I PULSANTI IN CIMA (20/10/2026) ───────
+   *  Tutti gli stati presenti fra i lead importati che NON sono della lista da
+   *  chiamare (quelli hanno i loro pulsanti sopra), nell'ordine canonico. */
+  const statiGiaLavorati = useMemo(() => {
+    const conti = new Map<LeadStatus, number>();
+    for (const l of importati) {
+      const st = l.data?.stato as LeadStatus | undefined;
+      if (st) conti.set(st, (conti.get(st) ?? 0) + 1);
+    }
+    return ALL_LEAD_STATUSES.filter(
+      (st) => !STATI_DELLA_CODA.has(st) && (conti.get(st) ?? 0) > 0,
+    ).map((st) => ({ stato: st, n: conti.get(st) ?? 0 }));
+  }, [importati]);
   /** Quante ne restano da telefonare, di tutte le liste caricate. È il numero
    *  che va sulla linguetta: «quanti ne ho importati» non è una domanda che
    *  qualcuno si fa col telefono in mano. La definizione è quella della coda
@@ -2759,6 +2795,21 @@ function LeadImportatiUnoAllaVolta() {
     });
   };
 
+  /** ── IL MESSAGGIO MANDATO DALLA SCHEDA GRANDE ───────────────────────────
+   *  Segna l'ora: il lead entra in «Attesa WhatsApp» e ci resta finché lo stato
+   *  non cambia. WhatsApp si apre comunque; se la scrittura fallisce lo si dice. */
+  const segnaWhatsappInviato = async (l: Lead) => {
+    if (!(await updateLead(l.id, patchWhatsappInviato(l.data)))) {
+      toast.error("Messaggio non segnato", {
+        description: `WhatsApp si è aperto, ma ${nomeDi(l)} non è finito in «Attesa WhatsApp». Riprova dal tasto.`,
+      });
+      return;
+    }
+    toast.success("In attesa su WhatsApp", {
+      description: `${nomeDi(l)} esce da «Attesa WhatsApp» appena segni un esito.`,
+    });
+  };
+
   /** Premuto «WhatsApp»: la scheda si sposta SUBITO fra gli scritti. Non dice
    *  che il messaggio è partito — quello lo conferma una persona da lì, col
    *  check — dice che è stato aperto, ed è l'unica cosa che il programma sa. */
@@ -3314,7 +3365,12 @@ function LeadImportatiUnoAllaVolta() {
               key={v.vista}
               type="button"
               disabled={!!avanzamento}
-              onClick={() => setVista(v.vista)}
+              onClick={() => {
+                //  Dalla linguetta «Tutti» si apre senza filtro: quello lo
+                //  mettono solo i pulsanti «Già lavorati».
+                setStatoTutti(null);
+                setVista(v.vista);
+              }}
               title={v.titolo}
               className={cn(
                 "rounded-full px-2.5 py-1 text-[12px] transition disabled:opacity-40",
@@ -3339,14 +3395,30 @@ function LeadImportatiUnoAllaVolta() {
           pari; il tempo («quando ho messo quello stato») è adesso dentro Stato.
           ⚠️ COMPARE ANCHE A LISTA VUOTA SE C'È UN FILTRO ACCESO: un indirizzo
            con un annuncio che non ha più nessuno deve poter essere spento. */}
-      {vista === "coda" && (coda.length > 0 || nFiltri > 0 || contiViste.ritorno > 0) && (
-        <BarraFiltri
-          filtri={filtri}
-          opzioni={opzioni}
-          ritorni={contiViste.ritorno ?? 0}
-          onCambia={cambiaFiltri}
-          disabilitato={!!avanzamento}
-        />
+      {/*  ── ⚠️ SEMPRE IN VISTA (titolare, 20/10/2026) ───────────────────────
+           «In cima, sempre visibili»: la barra c'è in ogni linguetta, anche a
+           lista vuota. Da un'altra linguetta, scegliere uno stato della lista
+           riporta a «Da chiamare».
+           ⚠️ Non è `sticky`: la pagina scorre con la finestra e il contenitore
+            (`main` con overflow) non ha un'altezza, quindi non si attaccherebbe. */}
+      {importati.length > 0 && (
+        <div>
+          <BarraFiltri
+            filtri={vista === "coda" ? filtri : {}}
+            opzioni={opzioni}
+            ritorni={contiViste.ritorno ?? 0}
+            onCambia={(f) => {
+              if (vista !== "coda") setVista("coda");
+              cambiaFiltri(f);
+            }}
+            disabilitato={!!avanzamento}
+            altriStati={statiGiaLavorati}
+            onAltroStato={(st) => {
+              setStatoTutti(st);
+              setVista("tutti");
+            }}
+          />
+        </div>
       )}
 
       {/*  ── ⚠️ LA FASCIA DEI CONTATTI DI RITORNO ────────────────────────
@@ -3576,6 +3648,9 @@ function LeadImportatiUnoAllaVolta() {
         />
       ) : vista === "tutti" ? (
         <SchedaTutti
+          //  Aperta da un pulsante «Già lavorati»: si riapre filtrata su quello stato.
+          key={statoTutti ?? "tutti"}
+          statoIniziale={statoTutti}
           importati={importati}
           moduloDi={moduloDi}
           //  Chi ho appena sistemato da qui: resta a schermo finché non cambio
@@ -3859,6 +3934,7 @@ function LeadImportatiUnoAllaVolta() {
                 onAltri={() => setGriglia(prossimo)}
                 onSalta={() => void salta(prossimo)}
                 onApri={() => setScheda(prossimo)}
+                onWhatsAppInviato={() => void segnaWhatsappInviato(prossimo)}
               />
 
               {/* ── POI ─────────────────────────────────────────────────────────
@@ -3924,11 +4000,7 @@ function LeadImportatiUnoAllaVolta() {
                 saltati restano a un clic anche da qui. */
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
               <p>
-                {nessunRitornoInLista(
-                  filtri.stato,
-                  diRitornoFuori.length,
-                  siFannoViviLoro.length,
-                )}
+                {nessunRitornoInLista(filtri.stato, diRitornoFuori.length, siFannoViviLoro.length)}
               </p>
               {saltati.length > 0 && (
                 <Button size="sm" variant="outline" onClick={() => setVista("saltati")}>

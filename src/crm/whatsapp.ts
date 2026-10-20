@@ -324,7 +324,10 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
   //   conosce, e senza un nome davanti si legge come spam e non si risponde.
   //   Dal secondo in poi la chat ce l'ha già in cima, e ripeterlo diventa la
   //   lettera che questi testi non devono essere.
-  da_contattare: `Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs. Hai richiesto informazioni sui nostri impianti capillari.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}\n\nCi sentiamo 5 minuti oggi pomeriggio?`,
+  //  ⚠️ DAL 20/10/2026 DÀ DEL LEI e dice cosa facciamo (testo del titolare):
+  //   le due soluzioni, che la prima consulenza è online in videochiamata, chi
+  //   la fa, e chiude con una domanda sola, facile da rispondere.
+  da_contattare: `Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs.\nLa contatto per la richiesta di informazioni che ci ha lasciato.\n\nCi occupiamo di soluzioni non chirurgiche per la perdita dei capelli: la patch cutanea e Invisible Derm. Nella prima consulenza gratuita, che si svolge online in videochiamata, Filippo le spiegherà entrambe e le indicherà quale è più adatta alla sua situazione.\n\nPer fissarla, preferisce la mattina o la sera?`,
 
   non_risponde: `Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — ho provato a chiamarti ma non ti ho trovato.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}\n\nTi richiamo più tardi o domani mattina?`,
 

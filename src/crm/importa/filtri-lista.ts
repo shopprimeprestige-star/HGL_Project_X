@@ -33,11 +33,64 @@ import type {
 } from "../types";
 import { CAMPI_MODULO } from "../types";
 import { dentroLaFetta, FETTE_TEMPO, type FettaTempo } from "../quando-stato";
+import { inAttesaWhatsapp } from "./attesa-whatsapp";
 import { etichettaRisposta, pulisci, titoloDomanda, type DomandaModulo } from "../modulo-lead";
 
-export type StatoFiltro = "tutti" | "mai" | "ritentare" | "promesse" | "ritorno";
+/** ⚠️ LE VOCI IN VISTA (20/10/2026): il titolare le vuole separate come prima
+ *  del 12/10 — Non risponde, Segreteria, Richiamo concordato, Ci ricontatta
+ *  lui — più «Attesa WhatsApp». «ritentare» e «promesse» (le coppie di prima)
+ *  restano valide per gli indirizzi già salvati, ma non sono più pulsanti. */
+export type StatoFiltro =
+  | "tutti"
+  | "mai"
+  | "nonRisponde"
+  | "segreteria"
+  | "ritentare"
+  | "richiamo"
+  | "ciRicontatta"
+  | "promesse"
+  | "whatsapp"
+  | "ritorno";
 
-export const STATI_FILTRO: StatoFiltro[] = ["tutti", "mai", "ritentare", "promesse", "ritorno"];
+export const STATI_FILTRO: StatoFiltro[] = [
+  "tutti",
+  "mai",
+  "nonRisponde",
+  "segreteria",
+  "ritentare",
+  "richiamo",
+  "ciRicontatta",
+  "promesse",
+  "whatsapp",
+  "ritorno",
+];
+
+/** La riga cade nella voce `scelta` del filtro Stato?
+ *  «Non risponde»/«Segreteria» sono le due metà di «Da ritentare», «Richiamo
+ *  concordato»/«Ci ricontatta lui» quelle di «Promesse»: si riconoscono dallo
+ *  stato della scheda. «Attesa WhatsApp» guarda il messaggio inviato
+ *  (crm/importa/attesa-whatsapp) e si somma alle altre: chi è in attesa resta
+ *  anche nel suo stato. */
+export function cadeNelloStato(
+  motivo: MotivoChiamata,
+  d: Partial<LeadData>,
+  scelta: StatoFiltro,
+): boolean {
+  if (scelta === "tutti") return true;
+  if (scelta === "whatsapp") return inAttesaWhatsapp(d);
+  //  ⚠️ I PULSANTI DI UNO STATO GUARDANO LO STATO DELLA SCHEDA, non il motivo
+  //   della chiamata: un «richiamo» senza giorno ha motivo «ritento» e finiva
+  //   sotto «Non risponde» (revisione del 20/10/2026). «Mostra solo quei
+  //   contatti» vuol dire: con quello stato.
+  const stato = d.stato;
+  if (scelta === "mai") return stato === "da_contattare";
+  if (scelta === "nonRisponde") return stato === "non_risponde";
+  if (scelta === "segreteria") return stato === "segreteria";
+  if (scelta === "richiamo") return stato === "richiamo";
+  if (scelta === "ciRicontatta") return stato === "ci_ricontatta_lui";
+  //  Le voci di prima (indirizzi salvati) e «Di ritorno» restano sul motivo.
+  return statoDelFiltro(motivo, stato) === scelta;
+}
 
 export interface FiltriLista {
   /** `senza`, `g:<gruppo>` oppure `a:<gruppo>␟<annuncio>`. */
@@ -114,7 +167,7 @@ function apriChiaveAnnuncio(chiave: string): {
 export function statoDelFiltro(
   motivo: MotivoChiamata,
   stato?: LeadStatus,
-): Exclude<StatoFiltro, "tutti"> {
+): "mai" | "ritentare" | "promesse" | "ritorno" {
   switch (motivo) {
     case "promessa":
       return "promesse";
@@ -217,7 +270,7 @@ function passa(r: RigaDaFiltrare, f: FiltriLista, oggi: string, no: Escludi = {}
     if (f.annuncio !== e.chiaveGruppo && f.annuncio !== e.chiaveAnnuncio) return false;
   }
   if (f.stato && f.stato !== "tutti" && !no.stato) {
-    if (statoDelFiltro(r.motivo, r.data.stato) !== f.stato) return false;
+    if (!cadeNelloStato(r.motivo, r.data, f.stato)) return false;
   }
   if (f.quando && !no.quando && !dentroLaFetta(r.data, f.quando, oggi)) return false;
   const scelte = unaPerDomanda(f.risposte ?? []);

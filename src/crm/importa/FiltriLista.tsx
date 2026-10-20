@@ -1,4 +1,4 @@
-/** ── I TRE FILTRI DELLA LISTA «DA CHIAMARE» ────────────────────────────────
+/** ── I FILTRI DELLA LISTA «DA CHIAMARE» ────────────────────────────────────
  *
  *  Prima: sei pastiglie di stato, quattro di tempo, e filtri diversi da una
  *  scheda all'altra. Adesso: TRE menu (Annuncio, Risposta, Stato), sempre gli
@@ -36,25 +36,56 @@ import { cn } from "@/lib/utils";
 import { NOME_FETTA_TEMPO, SPIEGA_FETTA_TEMPO, type FettaTempo } from "@/crm/quando-stato";
 import type { FiltriLista, OpzioniFiltri, StatoFiltro } from "./filtri-lista";
 import { voceStatoAttiva } from "./reparti";
+import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
 
-/** I nomi delle cinque voci di Stato, come nella spec. */
+/** I nomi delle voci di Stato. ⚠️ Gli stessi nomi dei pulsanti di prima del
+ *  12/10 (Da contattare, Non risponde, Segreteria…): il titolare li riconosce
+ *  così (20/10/2026). */
 export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
   tutti: "Tutti",
-  mai: "Mai chiamati",
+  mai: "Da contattare",
+  nonRisponde: "Non risponde",
+  segreteria: "Segreteria",
   ritentare: "Da ritentare",
-  promesse: "Promesse",
+  richiamo: "Richiamo concordato",
+  ciRicontatta: "Ci ricontatta lui",
+  promesse: "Richiami",
+  whatsapp: "Attesa WhatsApp",
   ritorno: "Di ritorno",
 };
 
 const SPIEGA_STATO_FILTRO: Record<StatoFiltro, string> = {
   tutti: "Tutta la lista",
-  mai: "Da contattare: nessuno li ha ancora chiamati",
+  mai: "Non li ha mai chiamati nessuno: sono le prime chiamate",
+  nonRisponde: "Hanno squillato a vuoto: ritenti rapidi, uno dietro l'altro",
+  segreteria: "Hai lasciato un messaggio e stai riprovando",
   ritentare: "Non risponde e segreteria: ritenti rapidi",
-  promesse: "Richiamo concordato e «mi richiama lui», quando il giorno è arrivato",
+  richiamo: "Richiamo concordato col cliente, quando il giorno è arrivato: hanno la precedenza",
+  ciRicontatta: "Ha detto che ci ricontatta lui: quando il giorno è arrivato, si prova noi",
+  promesse: "Richiamo concordato e «ci ricontatta lui», quando il giorno è arrivato",
+  whatsapp: "Gli hai scritto su WhatsApp e aspetti la risposta: esce da qui appena segni un esito",
   ritorno: "Contatti di ritorno: erano già in archivio e sono ricomparsi in una lista",
 };
 
-const STATI_DA_MOSTRARE: StatoFiltro[] = ["tutti", "mai", "ritentare", "promesse", "ritorno"];
+/** I pulsanti in vista, nell'ordine di prima del 12/10, più «Attesa WhatsApp».
+ *  «Da ritentare» e «Richiami» non ci sono: ci sono le loro due metà. */
+const STATI_DA_MOSTRARE: StatoFiltro[] = [
+  "tutti",
+  "mai",
+  "nonRisponde",
+  "segreteria",
+  "richiamo",
+  "ciRicontatta",
+  "whatsapp",
+  "ritorno",
+];
+
+/** Le voci di prima che accendono le loro due metà (indirizzi salvati, e il
+ *  tasto rosso dei richiami scaduti in testata). */
+const META_DI: Partial<Record<StatoFiltro, StatoFiltro[]>> = {
+  ritentare: ["nonRisponde", "segreteria"],
+  promesse: ["richiamo", "ciRicontatta"],
+};
 
 /** Quanti filtri sono accesi: serve a «Azzera filtri» e al titolo dell'elenco. */
 export function filtriAccesi(f: FiltriLista): number {
@@ -299,52 +330,97 @@ export function MenuRisposta({
    STATO — perché è in lista, e da quando ha quello stato
    ═════════════════════════════════════════════════════════════════════════ */
 
-function MenuStato({
+/** ── I PULSANTI DELLO STATO, SEMPRE IN VISTA ─────────────────────────────
+ *  Richiesta del titolare (20/10/2026): «hai tolto i filtri da richiamare,
+ *  segreteria… rimettili come erano prima, ottimizzati». Dal 12/10 stavano
+ *  chiusi in un menu e si sceglievano alla cieca. Adesso: una fila sola, il
+ *  numero accanto a ogni nome, e quello scelto pieno.
+ *  ⚠️ `shrink-0` e la fila che scorre: su uno schermo stretto i pulsanti non si
+ *   schiacciano fino a nascondere il numero, che è quello che si guarda.
+ *  ⚠️ A ZERO NON SPARISCE, SI SPEGNE: una fila che si accorcia mentre lavori
+ *   sposta i pulsanti sotto il dito. */
+function PulsantiStato({
   filtri,
   opzioni,
   onCambia,
   ritorni,
+  spento,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
   ritorni: number;
+  /** Durante un'operazione di gruppo: spenti anche da tastiera. */
+  spento?: boolean;
 }) {
   const stato = filtri.stato ?? "tutti";
-  const quando = filtri.quando ?? "sempre";
   const nStato = (v: StatoFiltro) => opzioni.stato.find((x) => x.valore === v)?.n ?? 0;
   //  «Di ritorno» porta il numero della vecchia stanza (ritorni + «si fanno vivi
   //  loro»), che comprende anche chi è fuori dalla lista.
   const nVoce = (v: StatoFiltro) => (v === "ritorno" ? Math.max(nStato(v), ritorni) : nStato(v));
+  //  Un indirizzo salvato con «Da ritentare» o «Richiami» accende le sue due metà.
+  const acceso = (v: StatoFiltro) => v === stato || !!META_DI[stato]?.includes(v);
+  return (
+    <div
+      role="group"
+      aria-label="Stato"
+      className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5"
+    >
+      {STATI_DA_MOSTRARE.map((v) => {
+        const si = acceso(v);
+        return (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={si}
+            title={SPIEGA_STATO_FILTRO[v]}
+            disabled={spento || !voceStatoAttiva(v, nStato(v), stato, ritorni)}
+            onClick={() => onCambia(pulito({ ...filtri, stato: v }))}
+            className={cn(
+              "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition sm:h-8",
+              "disabled:cursor-not-allowed disabled:opacity-45",
+              si
+                ? "border-foreground bg-foreground font-semibold text-background"
+                : "border-border bg-background font-medium text-foreground hover:border-foreground/40",
+            )}
+          >
+            {NOME_STATO_FILTRO[v]}
+            <span
+              className={cn("tabular-nums", si ? "text-background/80" : "text-muted-foreground")}
+            >
+              {nVoce(v)}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** «Quando ho messo lo stato»: le segreterie di ieri, i non risponde di oggi.
+ *  Resta un menu: si usa meno, e accanto ai pulsanti dello stato si legge come
+ *  la loro seconda metà. */
+function MenuQuando({
+  filtri,
+  opzioni,
+  onCambia,
+}: {
+  filtri: FiltriLista;
+  opzioni: OpzioniFiltri;
+  onCambia: (f: FiltriLista) => void;
+}) {
+  const quando = filtri.quando ?? "sempre";
   const nQuando = (v: FettaTempo) => opzioni.quando.find((x) => x.valore === v)?.n ?? 0;
-  const valore =
-    quando !== "sempre"
-      ? `${NOME_STATO_FILTRO[stato].toLowerCase()} · ${NOME_FETTA_TEMPO[quando].toLowerCase()}`
-      : NOME_STATO_FILTRO[stato].toLowerCase();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <TastoMenu nome="Stato" valore={valore} acceso={stato !== "tutti" || quando !== "sempre"} />
+        <TastoMenu
+          nome="Quando"
+          valore={NOME_FETTA_TEMPO[quando].toLowerCase()}
+          acceso={quando !== "sempre"}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
-        <DropdownMenuRadioGroup
-          value={stato}
-          onValueChange={(v) => onCambia(pulito({ ...filtri, stato: v as StatoFiltro }))}
-        >
-          {STATI_DA_MOSTRARE.map((v) => (
-            <DropdownMenuRadioItem
-              key={v}
-              value={v}
-              title={SPIEGA_STATO_FILTRO[v]}
-              disabled={!voceStatoAttiva(v, nStato(v), stato, ritorni)}
-              className="text-[12.5px]"
-            >
-              <span className="flex-1">{NOME_STATO_FILTRO[v]}</span>
-              <span className="ml-3 tabular-nums text-muted-foreground">{nVoce(v)}</span>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Quando ho messo lo stato
         </DropdownMenuLabel>
@@ -394,10 +470,19 @@ export function BarraFiltri({
   onCambia,
   disabilitato,
   ritorni = 0,
+  altriStati = [],
+  onAltroStato,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** ── GLI STATI FUORI DALLA LISTA DA CHIAMARE (20/10/2026) ─────────────
+   *  Richiesta del titolare: in alto devono esserci TUTTI gli stati che si
+   *  possono dare, per vedere solo quei lead. Quelli già lavorati (appuntamento,
+   *  non interessato, irreperibile…) non sono nella lista da chiamare: il
+   *  pulsante apre l'elenco completo già filtrato su quello stato. */
+  altriStati?: { stato: LeadStatus; n: number }[];
+  onAltroStato?: (s: LeadStatus) => void;
   /** Quanti contatti di ritorno e «si fanno vivi loro» ci sono in tutto, anche
    *  fuori dalla lista: finché sono più di zero la voce Stato «Di ritorno» resta
    *  accesa (vedi `voceStatoAttiva`). */
@@ -409,6 +494,43 @@ export function BarraFiltri({
   const accesi = filtriAccesi(filtri);
   return (
     <div className="space-y-2" aria-disabled={disabilitato || undefined}>
+      {/*  Prima lo stato, in vista: è il filtro che si usa ogni giorno. */}
+      <div className={cn(disabilitato && "pointer-events-none opacity-50")}>
+        <PulsantiStato
+          filtri={filtri}
+          opzioni={opzioni}
+          onCambia={onCambia}
+          ritorni={ritorni}
+          spento={disabilitato}
+        />
+      </div>
+      {altriStati.length > 0 && onAltroStato && (
+        <div
+          role="group"
+          aria-label="Già lavorati"
+          className={cn(
+            "-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5",
+            disabilitato && "pointer-events-none opacity-50",
+          )}
+        >
+          <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground/80">
+            Già lavorati
+          </span>
+          {altriStati.map(({ stato, n }) => (
+            <button
+              key={stato}
+              type="button"
+              disabled={disabilitato}
+              onClick={() => onAltroStato(stato)}
+              title={`Apri l'elenco dei lead importati con stato «${LEAD_STATUS_LABEL[stato]}»`}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-3 text-[12px] font-medium text-foreground transition hover:border-foreground/40 sm:h-7"
+            >
+              {LEAD_STATUS_LABEL[stato]}
+              <span className="tabular-nums text-muted-foreground">{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className={cn(
           "flex flex-wrap items-center gap-2",
@@ -417,7 +539,7 @@ export function BarraFiltri({
       >
         <MenuAnnuncio filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
         <MenuRisposta filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
-        <MenuStato filtri={filtri} opzioni={opzioni} onCambia={onCambia} ritorni={ritorni} />
+        <MenuQuando filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
         {accesi > 0 && (
           <Button
             type="button"

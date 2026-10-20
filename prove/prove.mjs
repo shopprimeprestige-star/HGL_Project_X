@@ -463,6 +463,7 @@ const MODULI = [
   //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
+  "importa/attesa-whatsapp",
   "importa/riepilogo-import",
   //  ⚠️ Il riquadro del cliente che spariva e tornava ogni pochi secondi:
   //   vedi proveDelRestaInLista.
@@ -11290,7 +11291,7 @@ function proveDelleLinguette() {
   c("la pagina usa la riga al posto della schermata vuota, con lo Stato «Di ritorno»", true,
     pagina.includes("nessunRitornoInLista("));
   c("e la barra dei filtri si vede anche a lista vuota se ci sono ritorni", true,
-    /contiViste\.ritorno\s*>\s*0\)\s*&&\s*\(\s*<BarraFiltri/.test(pagina));
+    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraFiltri/.test(pagina));
 
   //  ── ⚠️ I MENU SONO DI RADIX, E LE SCORCIATOIE LO SANNO ──────────────────
   //  Un «1» premuto dentro un menu aperto non deve dare l'esito «Non risponde»
@@ -11447,7 +11448,10 @@ function proveDeiFiltriDellaLista() {
     ids(applicaFiltri(righe, { annuncio: chiaveA1, risposte: ["problema|areata"] }, OGGI)));
   c("stato promesse → solo il motivo promessa", ["r1", "r3"],
     ids(applicaFiltri(righe, { stato: "promesse" }, OGGI)));
-  c("stato «mai» include nuovo, prima e la sua ora mai chiamato", ["r2", "r5", "r6"],
+  //  Dal 20/10/2026 «Da contattare» guarda lo stato della scheda: qui tutte le
+  //  righe finte sono «da_contattare», anche r1 (che ha motivo «promessa» solo
+  //  per finta: nelle schede vere una promessa è sempre richiamo o «ci ricontatta lui»).
+  c("stato «mai» = le schede da contattare", ["r1", "r2", "r5", "r6"],
     ids(applicaFiltri(righe, { stato: "mai" }, OGGI)));
   c("stato «tutti» non filtra", 6, applicaFiltri(righe, { stato: "tutti" }, OGGI).length);
   c("domande diverse si combinano in E", ["r1", "r5"],
@@ -12616,7 +12620,10 @@ function proveDeiMessaggiConNome() {
       lì il link che conta è il PREVENTIVO del cliente, e la raccolta dei
       lavori — che serve a farsi conoscere — a chi ha appena passato un'ora in
       consulenza dice «non mi ricordo chi sei». */
+  //  «da_contattare» dal 20/10/2026: testo del titolare, una domanda sola e
+  //  niente link (decisione del titolare).
   const SENZA_RISULTATI = [
+    "da_contattare",
     "appuntamento_fissato", "appuntamento_rifissato", "link_consulenza", "promemoria",
     "da_ricontattare", "fissa_meet_dopo", "gestire_in_chat", "sta_valutando",
   ];
@@ -12628,7 +12635,9 @@ function proveDeiMessaggiConNome() {
       preventivo. Un messaggio senza nessuno dei due è un messaggio che non
       chiede di toccare niente. */
   c("e chi non ha i risultati porta l'altro link", "",
-    SENZA_RISULTATI.filter((k) => !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
+    //  Il primo messaggio al lead nuovo è senza link per scelta del titolare
+    //  (20/10/2026): chiede solo «mattina o sera».
+    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
 
   //  Composto con i valori veri: niente graffe rimaste in giro, e il nome del
   //  consulente entra nella presentazione.
@@ -17069,7 +17078,7 @@ function proveDellAnteprimaDiImportazione() {
   c("SchedaTutti riceve moduloDi dalla pagina e non rilegge le risposte", true,
     /moduloDi:\s*\(d: Partial<LeadData>\)/.test(schedaTutti) && !/moduloLetto\(/.test(schedaTutti));
   c("e la pagina glielo passa", true,
-    /<SchedaTutti\s+importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
+    /<SchedaTutti[\s\S]{0,400}?importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
 
   //  ── Il cablaggio nel pannello e nella scheda KPI ──────────────────────────
   const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
@@ -20019,6 +20028,82 @@ function proveDelModulo589() {
   c("in «Tutti» il livello sta accanto al nome", true, /<TemperaturaRiga dati=\{d\}/.test(tutti));
 }
 
+/** ── I PULSANTI DELLO STATO, DI NUOVO IN VISTA (20/10/2026) ─────────────────
+ *  Richiesta del titolare: «hai tolto i filtri richiamare, segreteria: rimettili
+ *  come erano prima, ottimizzati». */
+function proveDeiPulsantiDelloStato() {
+  gruppo("LEAD IMPORTATI: NON RISPONDE E SEGRETERIA DI NUOVO SEPARATI E IN VISTA");
+  const { cadeNelloStato, applicaFiltri, opzioniFiltri, leggiRicercaImporta } = FIL;
+  c("una segreteria cade in «Segreteria»", true, cadeNelloStato("ritento", { stato: "segreteria" }, "segreteria"));
+  c("…e non in «Non risponde»", false, cadeNelloStato("ritento", { stato: "segreteria" }, "nonRisponde"));
+  c("un non risponde cade in «Non risponde»", true, cadeNelloStato("ritento", { stato: "non_risponde" }, "nonRisponde"));
+  c("…e non in «Segreteria»", false, cadeNelloStato("ritento", { stato: "non_risponde" }, "segreteria"));
+  c("«Da ritentare» (indirizzi salvati) le prende tutte e due", true,
+    cadeNelloStato("ritento", { stato: "segreteria" }, "ritentare") && cadeNelloStato("ritento", { stato: "non_risponde" }, "ritentare"));
+  c("un richiamo senza giorno (motivo «ritento») va sotto «Richiamo concordato»", true,
+    cadeNelloStato("ritento", { stato: "richiamo" }, "richiamo"));
+  c("…e non sotto «Non risponde»", false, cadeNelloStato("ritento", { stato: "richiamo" }, "nonRisponde"));
+  c("un «ci ricontatta lui» senza giorno va sotto il suo pulsante", true,
+    cadeNelloStato("ritento", { stato: "ci_ricontatta_lui" }, "ciRicontatta"));
+  c("un da contattare già provato resta «Da contattare»", true,
+    cadeNelloStato("ritento", { stato: "da_contattare" }, "mai"));
+  c("una prima chiamata non è un ritento", false, cadeNelloStato("prima", { stato: "da_contattare" }, "nonRisponde"));
+  const righe = [
+    { id: "a", data: { stato: "segreteria" }, motivo: "ritento" },
+    { id: "b", data: { stato: "non_risponde" }, motivo: "ritento" },
+    { id: "c", data: { stato: "non_risponde" }, motivo: "ritento" },
+    { id: "d", data: { stato: "da_contattare" }, motivo: "prima" },
+    { id: "e", data: { stato: "richiamo" }, motivo: "promessa" },
+  ];
+  const oggi = "2026-10-20";
+  c("filtro Segreteria: una riga", "a", applicaFiltri(righe, { stato: "segreteria" }, oggi).map((r) => r.id).join());
+  c("filtro Non risponde: due righe", "b,c", applicaFiltri(righe, { stato: "nonRisponde" }, oggi).map((r) => r.id).join());
+  const n = Object.fromEntries(opzioniFiltri(righe, {}, oggi).stato.map((x) => [x.valore, x.n]));
+  c("i numeri sui pulsanti", "5 1 2 1 1", [n.tutti, n.mai, n.nonRisponde, n.segreteria, n.promesse].join(" "));
+  c("l'indirizzo accetta i due nuovi", "segreteria nonRisponde",
+    `${leggiRicercaImporta({ stato: "segreteria" }).stato} ${leggiRicercaImporta({ stato: "nonRisponde" }).stato}`);
+  c("…e ancora «ritentare»", "ritentare", leggiRicercaImporta({ stato: "ritentare" }).stato);
+  const barra = readFileSync(join(radice, "src/crm/importa/FiltriLista.tsx"), "utf8");
+  c("i pulsanti nell'ordine di prima",
+    true,
+    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"richiamo",\s*"ciRicontatta",\s*"whatsapp",\s*"ritorno",?\s*\]/.test(barra));
+  c("la fila dello stato sta sopra i menu", true,
+    /<PulsantiStato[\s\S]{0,3000}<MenuAnnuncio/.test(barra));
+  c("lo stato non è più chiuso in un menu", false, /function MenuStato/.test(barra));
+
+  //  Richiamo concordato e Ci ricontatta lui separati; Attesa WhatsApp.
+  const { inAttesaWhatsapp, patchWhatsappInviato } = mod["importa/attesa-whatsapp"];
+  c("«Ci ricontatta lui» ha il suo pulsante", true, cadeNelloStato("promessa", { stato: "ci_ricontatta_lui" }, "ciRicontatta"));
+  c("…e non è un «Richiamo concordato»", false, cadeNelloStato("promessa", { stato: "ci_ricontatta_lui" }, "richiamo"));
+  c("un richiamo concordato è un richiamo", true, cadeNelloStato("promessa", { stato: "richiamo" }, "richiamo"));
+  const scritto = { stato: "da_contattare", ...patchWhatsappInviato({}, new Date("2026-10-20T10:00:00Z")) };
+  c("scritto su WhatsApp: in attesa", true, inAttesaWhatsapp(scritto));
+  c("…e cade in «Attesa WhatsApp»", true, cadeNelloStato("prima", scritto, "whatsapp"));
+  c("lo stato cambia dopo il messaggio: fuori dall'attesa", false,
+    inAttesaWhatsapp({ ...scritto, stato: "richiamo", statoPrecedenteIl: "2026-10-20T11:00:00Z" }));
+  c("lo stato era cambiato prima del messaggio: resta in attesa", true,
+    inAttesaWhatsapp({ ...scritto, statoPrecedenteIl: "2026-10-19T11:00:00Z" }));
+  c("mai scritto: non in attesa", false, inAttesaWhatsapp({ stato: "da_contattare" }));
+  c("il conto dei messaggi sale", 2, patchWhatsappInviato(scritto).whatsappInviatoVolte);
+  c("«Richiami» (tasto rosso in testata) accende le due metà", true, /promesse: \["richiamo", "ciRicontatta"\]/.test(barra));
+
+  //  Già lavorati: tutti gli altri stati, e aprono «Tutti» filtrata.
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("i pulsanti «Già lavorati» ci sono", true, /aria-label="Già lavorati"/.test(barra));
+  c("…aprono «Tutti» già filtrata", true, /setStatoTutti\(st\);\s*setVista\("tutti"\)/.test(pagina) && /statoIniziale=\{statoTutti\}/.test(pagina));
+  c("la barra c'è in ogni linguetta, anche a lista vuota", true,
+    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraFiltri/.test(pagina) && !/vista === "coda" && \(coda\.length > 0[^\n]*\n\s*<BarraFiltri/.test(pagina));
+  c("il tasto WhatsApp segna l'attesa", true, /onClick=\{\(\) => onWhatsAppInviato\?\.\(\)\}/.test(pagina));
+
+  //  Il messaggio del lead nuovo: lei, le due soluzioni, online, mattina o sera.
+  const { MODELLI_ORIGINALI: M } = mod["whatsapp"];
+  const nuovo = M.da_contattare;
+  c("dà del lei", true, /La contatto/.test(nuovo) && !/\bti\b|\bhai\b/i.test(nuovo));
+  c("nomina patch cutanea e Invisible Derm", true, /patch cutanea/.test(nuovo) && /Invisible Derm/.test(nuovo));
+  c("dice che la prima consulenza è online", true, /online in videochiamata/.test(nuovo));
+  c("chiede mattina o sera", true, /mattina o la sera\?$/.test(nuovo));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -20083,6 +20168,7 @@ proveDellaBarraSempreVisibile();
 proveDellaVesteDelleCamere();
 proveDeiRitocchiDellaBarra();
 proveDelModulo589();
+proveDeiPulsantiDelloStato();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
