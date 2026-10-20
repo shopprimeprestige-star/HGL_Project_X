@@ -344,11 +344,14 @@ function PulsantiStato({
   opzioni,
   onCambia,
   ritorni,
+  spento,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
   ritorni: number;
+  /** Durante un'operazione di gruppo: spenti anche da tastiera. */
+  spento?: boolean;
 }) {
   const stato = filtri.stato ?? "tutti";
   const nStato = (v: StatoFiltro) => opzioni.stato.find((x) => x.valore === v)?.n ?? 0;
@@ -371,7 +374,7 @@ function PulsantiStato({
             type="button"
             aria-pressed={si}
             title={SPIEGA_STATO_FILTRO[v]}
-            disabled={!voceStatoAttiva(v, nStato(v), stato, ritorni)}
+            disabled={spento || !voceStatoAttiva(v, nStato(v), stato, ritorni)}
             onClick={() => onCambia(pulito({ ...filtri, stato: v }))}
             className={cn(
               "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition sm:h-8",
@@ -493,7 +496,13 @@ export function BarraFiltri({
     <div className="space-y-2" aria-disabled={disabilitato || undefined}>
       {/*  Prima lo stato, in vista: è il filtro che si usa ogni giorno. */}
       <div className={cn(disabilitato && "pointer-events-none opacity-50")}>
-        <PulsantiStato filtri={filtri} opzioni={opzioni} onCambia={onCambia} ritorni={ritorni} />
+        <PulsantiStato
+          filtri={filtri}
+          opzioni={opzioni}
+          onCambia={onCambia}
+          ritorni={ritorni}
+          spento={disabilitato}
+        />
       </div>
       {altriStati.length > 0 && onAltroStato && (
         <div
