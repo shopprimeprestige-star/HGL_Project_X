@@ -463,6 +463,7 @@ const MODULI = [
   //  ⚠️ I filtri della lista dei lead importati (Annuncio, Risposta, Stato) e
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
+  "importa/attesa-whatsapp",
   "importa/riepilogo-import",
   //  ⚠️ Il riquadro del cliente che spariva e tornava ogni pochi secondi:
   //   vedi proveDelRestaInLista.
@@ -12616,7 +12617,10 @@ function proveDeiMessaggiConNome() {
       lì il link che conta è il PREVENTIVO del cliente, e la raccolta dei
       lavori — che serve a farsi conoscere — a chi ha appena passato un'ora in
       consulenza dice «non mi ricordo chi sei». */
+  //  «da_contattare» dal 20/10/2026: testo del titolare, una domanda sola e
+  //  niente link (decisione del titolare).
   const SENZA_RISULTATI = [
+    "da_contattare",
     "appuntamento_fissato", "appuntamento_rifissato", "link_consulenza", "promemoria",
     "da_ricontattare", "fissa_meet_dopo", "gestire_in_chat", "sta_valutando",
   ];
@@ -12628,7 +12632,9 @@ function proveDeiMessaggiConNome() {
       preventivo. Un messaggio senza nessuno dei due è un messaggio che non
       chiede di toccare niente. */
   c("e chi non ha i risultati porta l'altro link", "",
-    SENZA_RISULTATI.filter((k) => !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
+    //  Il primo messaggio al lead nuovo è senza link per scelta del titolare
+    //  (20/10/2026): chiede solo «mattina o sera».
+    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
 
   //  Composto con i valori veri: niente graffe rimaste in giro, e il nome del
   //  consulente entra nella presentazione.
@@ -17069,7 +17075,7 @@ function proveDellAnteprimaDiImportazione() {
   c("SchedaTutti riceve moduloDi dalla pagina e non rilegge le risposte", true,
     /moduloDi:\s*\(d: Partial<LeadData>\)/.test(schedaTutti) && !/moduloLetto\(/.test(schedaTutti));
   c("e la pagina glielo passa", true,
-    /<SchedaTutti\s+importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
+    /<SchedaTutti[\s\S]{0,400}?importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
 
   //  ── Il cablaggio nel pannello e nella scheda KPI ──────────────────────────
   const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
@@ -20025,13 +20031,13 @@ function proveDelModulo589() {
 function proveDeiPulsantiDelloStato() {
   gruppo("LEAD IMPORTATI: NON RISPONDE E SEGRETERIA DI NUOVO SEPARATI E IN VISTA");
   const { cadeNelloStato, applicaFiltri, opzioniFiltri, leggiRicercaImporta } = FIL;
-  c("una segreteria cade in «Segreteria»", true, cadeNelloStato("ritento", "segreteria", "segreteria"));
-  c("…e non in «Non risponde»", false, cadeNelloStato("ritento", "segreteria", "nonRisponde"));
-  c("un non risponde cade in «Non risponde»", true, cadeNelloStato("ritento", "non_risponde", "nonRisponde"));
-  c("…e non in «Segreteria»", false, cadeNelloStato("ritento", "non_risponde", "segreteria"));
+  c("una segreteria cade in «Segreteria»", true, cadeNelloStato("ritento", { stato: "segreteria" }, "segreteria"));
+  c("…e non in «Non risponde»", false, cadeNelloStato("ritento", { stato: "segreteria" }, "nonRisponde"));
+  c("un non risponde cade in «Non risponde»", true, cadeNelloStato("ritento", { stato: "non_risponde" }, "nonRisponde"));
+  c("…e non in «Segreteria»", false, cadeNelloStato("ritento", { stato: "non_risponde" }, "segreteria"));
   c("«Da ritentare» (indirizzi salvati) le prende tutte e due", true,
-    cadeNelloStato("ritento", "segreteria", "ritentare") && cadeNelloStato("ritento", "non_risponde", "ritentare"));
-  c("una prima chiamata non è un ritento", false, cadeNelloStato("prima", "da_contattare", "nonRisponde"));
+    cadeNelloStato("ritento", { stato: "segreteria" }, "ritentare") && cadeNelloStato("ritento", { stato: "non_risponde" }, "ritentare"));
+  c("una prima chiamata non è un ritento", false, cadeNelloStato("prima", { stato: "da_contattare" }, "nonRisponde"));
   const righe = [
     { id: "a", data: { stato: "segreteria" }, motivo: "ritento" },
     { id: "b", data: { stato: "non_risponde" }, motivo: "ritento" },
@@ -20050,10 +20056,40 @@ function proveDeiPulsantiDelloStato() {
   const barra = readFileSync(join(radice, "src/crm/importa/FiltriLista.tsx"), "utf8");
   c("i pulsanti nell'ordine di prima",
     true,
-    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"promesse",\s*"ritorno",?\s*\]/.test(barra));
+    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"richiamo",\s*"ciRicontatta",\s*"whatsapp",\s*"ritorno",?\s*\]/.test(barra));
   c("la fila dello stato sta sopra i menu", true,
-    /<PulsantiStato[\s\S]{0,600}<MenuAnnuncio/.test(barra));
+    /<PulsantiStato[\s\S]{0,3000}<MenuAnnuncio/.test(barra));
   c("lo stato non è più chiuso in un menu", false, /function MenuStato/.test(barra));
+
+  //  Richiamo concordato e Ci ricontatta lui separati; Attesa WhatsApp.
+  const { inAttesaWhatsapp, patchWhatsappInviato } = mod["importa/attesa-whatsapp"];
+  c("«Ci ricontatta lui» ha il suo pulsante", true, cadeNelloStato("promessa", { stato: "ci_ricontatta_lui" }, "ciRicontatta"));
+  c("…e non è un «Richiamo concordato»", false, cadeNelloStato("promessa", { stato: "ci_ricontatta_lui" }, "richiamo"));
+  c("un richiamo concordato è un richiamo", true, cadeNelloStato("promessa", { stato: "richiamo" }, "richiamo"));
+  const scritto = { stato: "da_contattare", ...patchWhatsappInviato({}, new Date("2026-10-20T10:00:00Z")) };
+  c("scritto su WhatsApp: in attesa", true, inAttesaWhatsapp(scritto));
+  c("…e cade in «Attesa WhatsApp»", true, cadeNelloStato("prima", scritto, "whatsapp"));
+  c("lo stato cambia dopo il messaggio: fuori dall'attesa", false,
+    inAttesaWhatsapp({ ...scritto, stato: "richiamo", statoPrecedenteIl: "2026-10-20T11:00:00Z" }));
+  c("lo stato era cambiato prima del messaggio: resta in attesa", true,
+    inAttesaWhatsapp({ ...scritto, statoPrecedenteIl: "2026-10-19T11:00:00Z" }));
+  c("mai scritto: non in attesa", false, inAttesaWhatsapp({ stato: "da_contattare" }));
+  c("il conto dei messaggi sale", 2, patchWhatsappInviato(scritto).whatsappInviatoVolte);
+  c("«Richiami» (tasto rosso in testata) accende le due metà", true, /promesse: \["richiamo", "ciRicontatta"\]/.test(barra));
+
+  //  Già lavorati: tutti gli altri stati, e aprono «Tutti» filtrata.
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("i pulsanti «Già lavorati» ci sono", true, /aria-label="Già lavorati"/.test(barra));
+  c("…aprono «Tutti» già filtrata", true, /setStatoTutti\(st\);\s*setVista\("tutti"\)/.test(pagina) && /statoIniziale=\{statoTutti\}/.test(pagina));
+  c("il tasto WhatsApp segna l'attesa", true, /onClick=\{\(\) => onWhatsAppInviato\?\.\(\)\}/.test(pagina));
+
+  //  Il messaggio del lead nuovo: lei, le due soluzioni, online, mattina o sera.
+  const { MODELLI_ORIGINALI: M } = mod["whatsapp"];
+  const nuovo = M.da_contattare;
+  c("dà del lei", true, /La contatto/.test(nuovo) && !/\bti\b|\bhai\b/i.test(nuovo));
+  c("nomina patch cutanea e Invisible Derm", true, /patch cutanea/.test(nuovo) && /Invisible Derm/.test(nuovo));
+  c("dice che la prima consulenza è online", true, /online in videochiamata/.test(nuovo));
+  c("chiede mattina o sera", true, /mattina o la sera\?$/.test(nuovo));
 }
 
 proveDeiTipi();

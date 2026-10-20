@@ -252,7 +252,11 @@ export function SchedaTutti({
   onEliminaMolti,
   onApri,
   moduloDi,
+  statoIniziale = null,
 }: {
+  /** Lo stato su cui aprire già filtrato: arriva dai pulsanti «Già lavorati»
+   *  in cima a Lead importati (20/10/2026). La pagina cambia `key` per riaprire. */
+  statoIniziale?: LeadStatus | null;
   /** TUTTI i lead arrivati da una lista, senza nessun altro filtro. Il filtro
    *  lo fa questa scheda, e lo fa a vista: quale sia lo dicono le pastiglie in
    *  cima, accese. Arriva già filtrato per `importato` dalla pagina, che è
@@ -302,7 +306,7 @@ export function SchedaTutti({
   onApri: (l: Lead) => void;
 }) {
   /** Lo stato su cui si sta filtrando. `null` = tutti. */
-  const [filtro, setFiltro] = useState<LeadStatus | null>(null);
+  const [filtro, setFiltro] = useState<LeadStatus | null>(statoIniziale);
   /** ── ⚠️ DA QUANDO HA QUESTO STATO ───────────────────────────────────────
    *  Richiesta del committente: il filtro sul tempo c'era solo sulla coda di
    *  chiamata — quella che porta avanti una persona per volta — e non qui, che

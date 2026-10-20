@@ -1433,6 +1433,13 @@ export interface LeadData {
    *  Un solo passo, non una pila: chi sbaglia se ne accorge subito. */
   statoPrecedente?: LeadStatus;
   statoPrecedenteIl?: string;
+  /** ── «GLI HO SCRITTO SU WHATSAPP» (tutti i lead, 20/10/2026) ───────────
+   *  Quando la setter preme WhatsApp dalla scheda di Lead importati. Il lead è
+   *  «in attesa su WhatsApp» finché lo stato non cambia DOPO questo momento:
+   *  vedi crm/importa/attesa-whatsapp. Non tocca lo stato: scrivere non è
+   *  avere una risposta. (Per i contatti di ritorno c'è anche `ricarico.whatsappIl`.) */
+  whatsappInviatoIl?: string;
+  whatsappInviatoVolte?: number;
   /** ── CHI HA MESSO LO STATO IN CUI SI TROVA ADESSO ───────────────────────
    *  L'id del consulente collegato quando lo stato è cambiato. Lo scrive
    *  `updateLead` (crm/CRMContext) insieme ai due campi qui sopra, nell'unico

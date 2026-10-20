@@ -33,18 +33,23 @@ import type {
 } from "../types";
 import { CAMPI_MODULO } from "../types";
 import { dentroLaFetta, FETTE_TEMPO, type FettaTempo } from "../quando-stato";
+import { inAttesaWhatsapp } from "./attesa-whatsapp";
 import { etichettaRisposta, pulisci, titoloDomanda, type DomandaModulo } from "../modulo-lead";
 
-/** ⚠️ «nonRisponde» e «segreteria» (20/10/2026): il titolare li vuole di nuovo
- *  separati e in vista, come prima del 12/10. «ritentare» (tutti e due insieme)
- *  resta valido per gli indirizzi già salvati, ma non è più un pulsante. */
+/** ⚠️ LE VOCI IN VISTA (20/10/2026): il titolare le vuole separate come prima
+ *  del 12/10 — Non risponde, Segreteria, Richiamo concordato, Ci ricontatta
+ *  lui — più «Attesa WhatsApp». «ritentare» e «promesse» (le coppie di prima)
+ *  restano valide per gli indirizzi già salvati, ma non sono più pulsanti. */
 export type StatoFiltro =
   | "tutti"
   | "mai"
   | "nonRisponde"
   | "segreteria"
   | "ritentare"
+  | "richiamo"
+  | "ciRicontatta"
   | "promesse"
+  | "whatsapp"
   | "ritorno";
 
 export const STATI_FILTRO: StatoFiltro[] = [
@@ -53,22 +58,32 @@ export const STATI_FILTRO: StatoFiltro[] = [
   "nonRisponde",
   "segreteria",
   "ritentare",
+  "richiamo",
+  "ciRicontatta",
   "promesse",
+  "whatsapp",
   "ritorno",
 ];
 
-/** La riga cade nella voce `scelta` del filtro Stato? «Non risponde» e
- *  «Segreteria» sono le due metà di «Da ritentare»: la segreteria si riconosce
- *  dallo stato della scheda, tutto il resto da ritentare è «Non risponde». */
+/** La riga cade nella voce `scelta` del filtro Stato?
+ *  «Non risponde»/«Segreteria» sono le due metà di «Da ritentare», «Richiamo
+ *  concordato»/«Ci ricontatta lui» quelle di «Promesse»: si riconoscono dallo
+ *  stato della scheda. «Attesa WhatsApp» guarda il messaggio inviato
+ *  (crm/importa/attesa-whatsapp) e si somma alle altre: chi è in attesa resta
+ *  anche nel suo stato. */
 export function cadeNelloStato(
   motivo: MotivoChiamata,
-  stato: LeadStatus | undefined,
+  d: Partial<LeadData>,
   scelta: StatoFiltro,
 ): boolean {
   if (scelta === "tutti") return true;
+  if (scelta === "whatsapp") return inAttesaWhatsapp(d);
+  const stato = d.stato;
   const voce = statoDelFiltro(motivo, stato);
   if (scelta === "nonRisponde") return voce === "ritentare" && stato !== "segreteria";
   if (scelta === "segreteria") return voce === "ritentare" && stato === "segreteria";
+  if (scelta === "ciRicontatta") return voce === "promesse" && stato === "ci_ricontatta_lui";
+  if (scelta === "richiamo") return voce === "promesse" && stato !== "ci_ricontatta_lui";
   return voce === scelta;
 }
 
@@ -250,7 +265,7 @@ function passa(r: RigaDaFiltrare, f: FiltriLista, oggi: string, no: Escludi = {}
     if (f.annuncio !== e.chiaveGruppo && f.annuncio !== e.chiaveAnnuncio) return false;
   }
   if (f.stato && f.stato !== "tutti" && !no.stato) {
-    if (!cadeNelloStato(r.motivo, r.data.stato, f.stato)) return false;
+    if (!cadeNelloStato(r.motivo, r.data, f.stato)) return false;
   }
   if (f.quando && !no.quando && !dentroLaFetta(r.data, f.quando, oggi)) return false;
   const scelte = unaPerDomanda(f.risposte ?? []);

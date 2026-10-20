@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { NOME_FETTA_TEMPO, SPIEGA_FETTA_TEMPO, type FettaTempo } from "@/crm/quando-stato";
 import type { FiltriLista, OpzioniFiltri, StatoFiltro } from "./filtri-lista";
 import { voceStatoAttiva } from "./reparti";
+import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
 
 /** I nomi delle voci di Stato. ⚠️ Gli stessi nomi dei pulsanti di prima del
  *  12/10 (Da contattare, Non risponde, Segreteria…): il titolare li riconosce
@@ -46,7 +47,10 @@ export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
   nonRisponde: "Non risponde",
   segreteria: "Segreteria",
   ritentare: "Da ritentare",
+  richiamo: "Richiamo concordato",
+  ciRicontatta: "Ci ricontatta lui",
   promesse: "Richiami",
+  whatsapp: "Attesa WhatsApp",
   ritorno: "Di ritorno",
 };
 
@@ -56,21 +60,32 @@ const SPIEGA_STATO_FILTRO: Record<StatoFiltro, string> = {
   nonRisponde: "Hanno squillato a vuoto: ritenti rapidi, uno dietro l'altro",
   segreteria: "Hai lasciato un messaggio e stai riprovando",
   ritentare: "Non risponde e segreteria: ritenti rapidi",
-  promesse:
-    "Richiamo concordato e «mi richiama lui», quando il giorno è arrivato: hanno la precedenza",
+  richiamo: "Richiamo concordato col cliente, quando il giorno è arrivato: hanno la precedenza",
+  ciRicontatta: "Ha detto che ci ricontatta lui: quando il giorno è arrivato, si prova noi",
+  promesse: "Richiamo concordato e «ci ricontatta lui», quando il giorno è arrivato",
+  whatsapp: "Gli hai scritto su WhatsApp e aspetti la risposta: esce da qui appena segni un esito",
   ritorno: "Contatti di ritorno: erano già in archivio e sono ricomparsi in una lista",
 };
 
-/** I pulsanti in vista, nell'ordine di prima del 12/10. «Da ritentare» non c'è:
- *  sono le sue due metà, una accanto all'altra. */
+/** I pulsanti in vista, nell'ordine di prima del 12/10, più «Attesa WhatsApp».
+ *  «Da ritentare» e «Richiami» non ci sono: ci sono le loro due metà. */
 const STATI_DA_MOSTRARE: StatoFiltro[] = [
   "tutti",
   "mai",
   "nonRisponde",
   "segreteria",
-  "promesse",
+  "richiamo",
+  "ciRicontatta",
+  "whatsapp",
   "ritorno",
 ];
+
+/** Le voci di prima che accendono le loro due metà (indirizzi salvati, e il
+ *  tasto rosso dei richiami scaduti in testata). */
+const META_DI: Partial<Record<StatoFiltro, StatoFiltro[]>> = {
+  ritentare: ["nonRisponde", "segreteria"],
+  promesse: ["richiamo", "ciRicontatta"],
+};
 
 /** Quanti filtri sono accesi: serve a «Azzera filtri» e al titolo dell'elenco. */
 export function filtriAccesi(f: FiltriLista): number {
@@ -340,9 +355,8 @@ function PulsantiStato({
   //  «Di ritorno» porta il numero della vecchia stanza (ritorni + «si fanno vivi
   //  loro»), che comprende anche chi è fuori dalla lista.
   const nVoce = (v: StatoFiltro) => (v === "ritorno" ? Math.max(nStato(v), ritorni) : nStato(v));
-  //  Un indirizzo salvato con «Da ritentare» accende le sue due metà.
-  const acceso = (v: StatoFiltro) =>
-    v === stato || (stato === "ritentare" && (v === "nonRisponde" || v === "segreteria"));
+  //  Un indirizzo salvato con «Da ritentare» o «Richiami» accende le sue due metà.
+  const acceso = (v: StatoFiltro) => v === stato || !!META_DI[stato]?.includes(v);
   return (
     <div
       role="group"
@@ -453,10 +467,19 @@ export function BarraFiltri({
   onCambia,
   disabilitato,
   ritorni = 0,
+  altriStati = [],
+  onAltroStato,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** ── GLI STATI FUORI DALLA LISTA DA CHIAMARE (20/10/2026) ─────────────
+   *  Richiesta del titolare: in alto devono esserci TUTTI gli stati che si
+   *  possono dare, per vedere solo quei lead. Quelli già lavorati (appuntamento,
+   *  non interessato, irreperibile…) non sono nella lista da chiamare: il
+   *  pulsante apre l'elenco completo già filtrato su quello stato. */
+  altriStati?: { stato: LeadStatus; n: number }[];
+  onAltroStato?: (s: LeadStatus) => void;
   /** Quanti contatti di ritorno e «si fanno vivi loro» ci sono in tutto, anche
    *  fuori dalla lista: finché sono più di zero la voce Stato «Di ritorno» resta
    *  accesa (vedi `voceStatoAttiva`). */
@@ -472,6 +495,32 @@ export function BarraFiltri({
       <div className={cn(disabilitato && "pointer-events-none opacity-50")}>
         <PulsantiStato filtri={filtri} opzioni={opzioni} onCambia={onCambia} ritorni={ritorni} />
       </div>
+      {altriStati.length > 0 && onAltroStato && (
+        <div
+          role="group"
+          aria-label="Già lavorati"
+          className={cn(
+            "-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5",
+            disabilitato && "pointer-events-none opacity-50",
+          )}
+        >
+          <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground/80">
+            Già lavorati
+          </span>
+          {altriStati.map(({ stato, n }) => (
+            <button
+              key={stato}
+              type="button"
+              onClick={() => onAltroStato(stato)}
+              title={`Apri l'elenco dei lead importati con stato «${LEAD_STATUS_LABEL[stato]}»`}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-3 text-[12px] font-medium text-foreground transition hover:border-foreground/40 sm:h-7"
+            >
+              {LEAD_STATUS_LABEL[stato]}
+              <span className="tabular-nums text-muted-foreground">{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className={cn(
           "flex flex-wrap items-center gap-2",
