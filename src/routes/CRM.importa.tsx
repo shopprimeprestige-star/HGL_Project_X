@@ -2795,9 +2795,6 @@ function LeadImportatiUnoAllaVolta() {
     });
   };
 
-  /** Premuto «WhatsApp»: la scheda si sposta SUBITO fra gli scritti. Non dice
-   *  che il messaggio è partito — quello lo conferma una persona da lì, col
-   *  check — dice che è stato aperto, ed è l'unica cosa che il programma sa. */
   /** ── IL MESSAGGIO MANDATO DALLA SCHEDA GRANDE ───────────────────────────
    *  Segna l'ora: il lead entra in «Attesa WhatsApp» e ci resta finché lo stato
    *  non cambia. WhatsApp si apre comunque; se la scrittura fallisce lo si dice. */
@@ -2813,6 +2810,9 @@ function LeadImportatiUnoAllaVolta() {
     });
   };
 
+  /** Premuto «WhatsApp»: la scheda si sposta SUBITO fra gli scritti. Non dice
+   *  che il messaggio è partito — quello lo conferma una persona da lì, col
+   *  check — dice che è stato aperto, ed è l'unica cosa che il programma sa. */
   const segnaWhatsApp = async (l: Lead) => {
     if (!(await updateLead(l.id, patchContattatoWhatsApp(l.data, consulente?.nome)))) {
       //  Se non si è scritto lo si dice, ma senza fermare niente: WhatsApp si

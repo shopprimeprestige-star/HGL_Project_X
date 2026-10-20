@@ -511,6 +511,7 @@ export function BarraFiltri({
             <button
               key={stato}
               type="button"
+              disabled={disabilitato}
               onClick={() => onAltroStato(stato)}
               title={`Apri l'elenco dei lead importati con stato «${LEAD_STATUS_LABEL[stato]}»`}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-3 text-[12px] font-medium text-foreground transition hover:border-foreground/40 sm:h-7"

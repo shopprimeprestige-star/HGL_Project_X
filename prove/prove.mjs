@@ -11448,7 +11448,10 @@ function proveDeiFiltriDellaLista() {
     ids(applicaFiltri(righe, { annuncio: chiaveA1, risposte: ["problema|areata"] }, OGGI)));
   c("stato promesse → solo il motivo promessa", ["r1", "r3"],
     ids(applicaFiltri(righe, { stato: "promesse" }, OGGI)));
-  c("stato «mai» include nuovo, prima e la sua ora mai chiamato", ["r2", "r5", "r6"],
+  //  Dal 20/10/2026 «Da contattare» guarda lo stato della scheda: qui tutte le
+  //  righe finte sono «da_contattare», anche r1 (che ha motivo «promessa» solo
+  //  per finta: nelle schede vere una promessa è sempre richiamo o «ci ricontatta lui»).
+  c("stato «mai» = le schede da contattare", ["r1", "r2", "r5", "r6"],
     ids(applicaFiltri(righe, { stato: "mai" }, OGGI)));
   c("stato «tutti» non filtra", 6, applicaFiltri(righe, { stato: "tutti" }, OGGI).length);
   c("domande diverse si combinano in E", ["r1", "r5"],
@@ -20037,6 +20040,13 @@ function proveDeiPulsantiDelloStato() {
   c("…e non in «Segreteria»", false, cadeNelloStato("ritento", { stato: "non_risponde" }, "segreteria"));
   c("«Da ritentare» (indirizzi salvati) le prende tutte e due", true,
     cadeNelloStato("ritento", { stato: "segreteria" }, "ritentare") && cadeNelloStato("ritento", { stato: "non_risponde" }, "ritentare"));
+  c("un richiamo senza giorno (motivo «ritento») va sotto «Richiamo concordato»", true,
+    cadeNelloStato("ritento", { stato: "richiamo" }, "richiamo"));
+  c("…e non sotto «Non risponde»", false, cadeNelloStato("ritento", { stato: "richiamo" }, "nonRisponde"));
+  c("un «ci ricontatta lui» senza giorno va sotto il suo pulsante", true,
+    cadeNelloStato("ritento", { stato: "ci_ricontatta_lui" }, "ciRicontatta"));
+  c("un da contattare già provato resta «Da contattare»", true,
+    cadeNelloStato("ritento", { stato: "da_contattare" }, "mai"));
   c("una prima chiamata non è un ritento", false, cadeNelloStato("prima", { stato: "da_contattare" }, "nonRisponde"));
   const righe = [
     { id: "a", data: { stato: "segreteria" }, motivo: "ritento" },

@@ -78,13 +78,18 @@ export function cadeNelloStato(
 ): boolean {
   if (scelta === "tutti") return true;
   if (scelta === "whatsapp") return inAttesaWhatsapp(d);
+  //  ⚠️ I PULSANTI DI UNO STATO GUARDANO LO STATO DELLA SCHEDA, non il motivo
+  //   della chiamata: un «richiamo» senza giorno ha motivo «ritento» e finiva
+  //   sotto «Non risponde» (revisione del 20/10/2026). «Mostra solo quei
+  //   contatti» vuol dire: con quello stato.
   const stato = d.stato;
-  const voce = statoDelFiltro(motivo, stato);
-  if (scelta === "nonRisponde") return voce === "ritentare" && stato !== "segreteria";
-  if (scelta === "segreteria") return voce === "ritentare" && stato === "segreteria";
-  if (scelta === "ciRicontatta") return voce === "promesse" && stato === "ci_ricontatta_lui";
-  if (scelta === "richiamo") return voce === "promesse" && stato !== "ci_ricontatta_lui";
-  return voce === scelta;
+  if (scelta === "mai") return stato === "da_contattare";
+  if (scelta === "nonRisponde") return stato === "non_risponde";
+  if (scelta === "segreteria") return stato === "segreteria";
+  if (scelta === "richiamo") return stato === "richiamo";
+  if (scelta === "ciRicontatta") return stato === "ci_ricontatta_lui";
+  //  Le voci di prima (indirizzi salvati) e «Di ritorno» restano sul motivo.
+  return statoDelFiltro(motivo, stato) === scelta;
 }
 
 export interface FiltriLista {
