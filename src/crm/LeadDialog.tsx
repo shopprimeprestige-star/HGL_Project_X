@@ -476,6 +476,7 @@ const STATI_CHIAMATA = new Set<LeadStatus>([
   "da_contattare",
   "non_risponde",
   "segreteria",
+  "attesa_whatsapp",
   "richiamo",
 ]);
 
@@ -2297,6 +2298,13 @@ function BloccoChiamata({
           className="py-2.5"
         >
           Segreteria
+        </Pillola>
+        <Pillola
+          attiva={form.stato === "attesa_whatsapp"}
+          onClick={() => update("stato", "attesa_whatsapp")}
+          className="py-2.5"
+        >
+          Attesa WhatsApp
         </Pillola>
         <Pillola
           attiva={form.stato === "annullato"}

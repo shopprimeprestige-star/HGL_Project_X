@@ -359,6 +359,8 @@ export function motivoChiamata(l: LeadLike, adesso: Date, o?: OpzioniChiamata): 
   if (d.stato === "non_risponde" || d.stato === "segreteria" || d.stato === "da_contattare") {
     return fatto("ritento", `${Math.max(1, tentativiDi(d)) + 1}° tentativo`);
   }
+  //  Gli si è scritto su WhatsApp e non ha confermato (20/10/2026): si riprova.
+  if (d.stato === "attesa_whatsapp") return fatto("ritento", "aspetta la conferma su WhatsApp");
   const stato = d.stato ? (LEAD_STATUS_LABEL[d.stato as LeadStatus] ?? String(d.stato)) : "";
   return fatto("ritento", stato ? `stato «${stato}»` : "da richiamare");
 }

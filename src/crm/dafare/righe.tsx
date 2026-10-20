@@ -132,6 +132,8 @@ const VERBO_PER_STATO: Partial<Record<LeadStatus, string>> = {
   //  Era in segreteria: non è «non risponde», è «ha un messaggio che aspetta
   //  una risposta». Chi chiama sa già come aprire.
   segreteria: "Richiamare, gli hai lasciato un messaggio,",
+  //  Gli si è scritto su WhatsApp e non ha confermato: si riprova a voce.
+  attesa_whatsapp: "Sentire, aspetta la risposta su WhatsApp,",
 };
 
 export function verboRiga(tipo: TipoRiga, stato?: LeadStatus): string {
