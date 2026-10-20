@@ -153,7 +153,6 @@ const SOGLIE_589: [LivelloTemperatura, number][] = [
   ["freddo", 0.18],
 ];
 
-
 const TESTO_589: Record<string, Record<string, string>> = {
   tempi: { trenta: "entro 30 giorni", mesi: "entro 1-3 mesi", valuta: "sta solo valutando" },
   prezzo: { si: "prezzo ok", dipende: "prezzo: dipende", no: "prezzo: no" },
