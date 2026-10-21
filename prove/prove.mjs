@@ -464,6 +464,9 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ Il lead che c'è già prende l'orario scelto nel nuovo: vedi
+  //   proveDellOrarioSulDoppione.
+  "doppione-orario",
   "importa/riepilogo-import",
   //  ⚠️ Il riquadro del cliente che spariva e tornava ogni pochi secondi:
   //   vedi proveDelRestaInLista.
@@ -20105,6 +20108,39 @@ function proveDeiPulsantiDelloStato() {
   c("chiede mattina o sera", true, /mattina o la sera\?$/.test(nuovo));
 }
 
+/** ── IL LEAD CHE C'È GIÀ PRENDE L'ORARIO SCELTO (21/10/2026) ───────────────
+ *  Richiesta del titolare: «se aggiungo un lead già presente nel CRM, mi porta
+ *  su quel lead e posso riprogrammare la consulenza, o se sta su lead
+ *  importati semplicemente la schedulo». */
+function proveDellOrarioSulDoppione() {
+  gruppo("NUMERO GIÀ IN ARCHIVIO: L'ORARIO SCELTO VA SULLA SCHEDA VECCHIA");
+  const O = mod["doppione-orario"];
+  const o = O.orarioScelto({ consulenteId: "c1", dataMeeting: "2026-10-23", oraMeeting: "10:00", durataMeeting: 45 });
+  c("orario completo riconosciuto", "c1|2026-10-23|10:00|45", o && `${o.consulenteId}|${o.dataMeeting}|${o.oraMeeting}|${o.durataMeeting}`);
+  c("senza consulente non c'è orario", null, O.orarioScelto({ dataMeeting: "2026-10-23", oraMeeting: "10:00" }));
+  c("senza ora non c'è orario", null, O.orarioScelto({ consulenteId: "c1", dataMeeting: "2026-10-23" }));
+  const importato = { nome: "Mario", cognome: "Esempio", telefono: "3330000000", importato: true, stato: "non_risponde", consulenteId: null, note: "richiamare" };
+  const fissato = O.conOrario(importato, o);
+  c("importato: si dice «fissa»", "fissa", O.cosaFaLOrario(importato));
+  c("importato: diventa appuntamento fissato", "appuntamento_fissato", fissato.stato);
+  c("importato: esce dai lead importati (stati da trattativa)", true, mod["types"].statiPer(fissato) === mod["types"].STATI_TRATTATIVA);
+  c("le note restano", "richiamare", fissato.note);
+  const conConsulenza = { nome: "Rita", telefono: "3331111111", stato: "da_spostare", consulenteId: "c2", dataMeeting: "2026-10-10", oraMeeting: "18:00", durataMeeting: 30 };
+  const spostato = O.conOrario(conConsulenza, o);
+  c("con consulenza: si dice «sposta»", "sposta", O.cosaFaLOrario(conConsulenza));
+  c("con consulenza: giorno, ora e consulente nuovi", "c1|2026-10-23|10:00", `${spostato.consulenteId}|${spostato.dataMeeting}|${spostato.oraMeeting}`);
+  c("«da riprogrammare» torna fissato", "appuntamento_fissato", spostato.stato);
+  const venduto = O.conOrario({ ...conConsulenza, stato: "venduto" }, o);
+  c("un venduto resta venduto", "venduto", venduto.stato);
+  const senzaDurata = O.conOrario(conConsulenza, { consulenteId: "c1", dataMeeting: "2026-10-23", oraMeeting: "10:00" });
+  c("senza durata nuova resta la sua", 30, senzaDurata.durataMeeting);
+  const ld = readFileSync(join(radice, "src/crm/LeadDialog.tsx"), "utf8");
+  c("la scheda vecchia riceve l'orario", true, /orarioDaPortare=\{orarioDaQui\}/.test(ld));
+  c("non si salva da sola: resta da salvare", true, /conOrario\(f, orario\)\);\s*setModificato\(true\)/.test(ld));
+  c("salvata quella, il nuovo lead si chiude", true, /onSalvato=\{orarioDaQui \? \(\) => onOpenChange\(false\)/.test(ld));
+  c("solo da un nuovo lead non ancora creato", true, /!lead && !creato \? orarioScelto\(form\)/.test(ld));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20198,6 +20234,7 @@ proveDeiRitocchiDellaBarra();
 proveDelModulo589();
 proveDeiPulsantiDelloStato();
 proveDelloStatoAttesaWhatsapp();
+proveDellOrarioSulDoppione();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
