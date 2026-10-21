@@ -287,6 +287,7 @@ import {
   STATI_CHE_TENGONO_LO_STATO,
   conOrario,
   cosaFaLOrario,
+  orarioPer,
   orarioScelto,
   type OrarioScelto,
 } from "@/crm/doppione-orario";
@@ -1110,7 +1111,9 @@ export function LeadDialog({
 
   //  ⌘/Ctrl+↵ salva da qualunque campo, ed è scritto nel piede: una
   //  scorciatoia che non si vede non esiste.
-  useSalvaConTastiera(open, () => void salvaEChiudi());
+  //  ⚠️ Spenta mentre sopra c'è il popup o la scheda del doppione: lì
+  //   ⌘+Invio è di quella scheda, e qui creerebbe proprio il lead doppio.
+  useSalvaConTastiera(open && !doppioneAperto && !avvisoDoppioneAperto, () => void salvaEChiudi());
 
   /* ═════ WIZARD ═══════════════════════════════════════════════════════════ */
   const modoWizard = !lead;
@@ -1704,10 +1707,12 @@ export function LeadDialog({
           lead={doppioneAperto}
           onOpenChange={(v) => !v && setDoppioneAperto(null)}
           nidificata
-          orarioDaPortare={orarioDaQui}
+          orarioDaPortare={orarioPer(orarioDaQui, doppioneAperto.data)}
           //  Salvata quella con l'orario, il nuovo lead non serve più: si
           //  chiude senza crearlo, e la persona resta con una storia sola.
-          onSalvato={orarioDaQui ? () => onOpenChange(false) : undefined}
+          onSalvato={
+            orarioPer(orarioDaQui, doppioneAperto.data) ? () => onOpenChange(false) : undefined
+          }
         />
       )}
     </Finestra>
@@ -1754,7 +1759,7 @@ function FinestraDoppione({
           Prima di crearne una nuova: quella vecchia ha dentro le note, i tentativi e gli
           appuntamenti di questa persona. Se è la stessa, lavora su quella.
         </p>
-        {orario && (
+        {orario && doppioni.some((l) => orarioPer(orario, l.data)) && (
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-relaxed text-emerald-900">
             Aprendo la sua scheda ci trovi già l'orario che hai scelto,{" "}
             <b>{quandoInChiaro(orario.dataMeeting, orario.oraMeeting)}</b>: controlla e premi Salva.
@@ -1780,7 +1785,13 @@ function FinestraDoppione({
                         String(d.telefono || ""),
                         d.citta || null,
                         d.dataMeeting ? `consulenza del ${dataBreve(d.dataMeeting)}` : null,
-                        orario ? (cosaFaLOrario(d) === "sposta" ? "la sposti" : "la fissi") : null,
+                        orario
+                          ? {
+                              sposta: "la sposti",
+                              fissa: "la fissi",
+                              cliente: "è già cliente: l'orario non si porta",
+                            }[cosaFaLOrario(d)]
+                          : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}

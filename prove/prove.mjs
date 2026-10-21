@@ -20132,12 +20132,17 @@ function proveDellOrarioSulDoppione() {
   c("«da riprogrammare» torna fissato", "appuntamento_fissato", spostato.stato);
   const venduto = O.conOrario({ ...conConsulenza, stato: "venduto" }, o);
   c("un venduto resta venduto", "venduto", venduto.stato);
+  c("su un cliente che ha comprato si dice «cliente»", "cliente", O.cosaFaLOrario({ ...conConsulenza, stato: "venduto" }));
+  c("…anche solo con l'acconto pagato", "cliente", O.cosaFaLOrario({ ...conConsulenza, payment: { accontoPagato: 200 } }));
+  c("…e l'orario non gli si porta", null, O.orarioPer(o, { ...conConsulenza, stato: "venduto" }));
+  c("su un importato l'orario si porta", "c1", O.orarioPer(o, importato)?.consulenteId);
   const senzaDurata = O.conOrario(conConsulenza, { consulenteId: "c1", dataMeeting: "2026-10-23", oraMeeting: "10:00" });
   c("senza durata nuova resta la sua", 30, senzaDurata.durataMeeting);
   const ld = readFileSync(join(radice, "src/crm/LeadDialog.tsx"), "utf8");
-  c("la scheda vecchia riceve l'orario", true, /orarioDaPortare=\{orarioDaQui\}/.test(ld));
   c("non si salva da sola: resta da salvare", true, /conOrario\(f, orario\)\);\s*setModificato\(true\)/.test(ld));
-  c("salvata quella, il nuovo lead si chiude", true, /onSalvato=\{orarioDaQui \? \(\) => onOpenChange\(false\)/.test(ld));
+  c("salvata quella, il nuovo lead si chiude", true, /onSalvato=\{\s*orarioPer\(orarioDaQui, doppioneAperto\.data\) \? \(\) => onOpenChange\(false\)/.test(ld));
+  c("⌘+Invio del nuovo lead spento sotto la scheda del doppione", true, /useSalvaConTastiera\(open && !doppioneAperto && !avvisoDoppioneAperto/.test(ld));
+  c("la scheda vecchia riceve l'orario solo se non è cliente", true, /orarioDaPortare=\{orarioPer\(orarioDaQui, doppioneAperto\.data\)\}/.test(ld));
   c("solo da un nuovo lead non ancora creato", true, /!lead && !creato \? orarioScelto\(form\)/.test(ld));
 }
 

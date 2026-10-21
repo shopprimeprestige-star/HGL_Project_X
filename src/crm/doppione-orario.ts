@@ -17,7 +17,7 @@
  *   vero, e cambiarlo senza che nessuno l'abbia visto è peggio del doppione.
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { LeadData, LeadStatus } from "./types";
-import { STATI_VINTI } from "./types";
+import { STATI_VINTI, eChiusuraVinta } from "./types";
 
 /*  Una data nuova sulla consulenza NON deve cambiare questi stati: la
  *  consulenza è già stata fatta, il lead è già venduto, o la data è quella
@@ -57,7 +57,21 @@ export function conOrario(d: LeadData, o: OrarioScelto): LeadData {
   };
 }
 
-/** Che cosa succede, detto prima: «fissa» se non aveva una consulenza, «sposta» se sì. */
-export function cosaFaLOrario(d?: Partial<LeadData> | null): "fissa" | "sposta" {
+/** Che cosa succede, detto prima: «fissa» se non aveva una consulenza, «sposta»
+ *  se sì, «cliente» se ha già comprato.
+ *  ⚠️ SU UN CLIENTE L'ORARIO NON SI PORTA: la sua scheda si apre nella vista
+ *   della consegna, dove la consulenza non si vede, e salvando si perderebbe
+ *   la data di quella già fatta e la vendita passerebbe al consulente nuovo.
+ *   Stessa regola di `trattativaVinta` (crm/SchedaCliente). */
+export function cosaFaLOrario(d?: Partial<LeadData> | null): "fissa" | "sposta" | "cliente" {
+  if (eChiusuraVinta(d?.stato) || (Number(d?.payment?.accontoPagato) || 0) > 0) return "cliente";
   return d?.dataMeeting && d?.oraMeeting ? "sposta" : "fissa";
+}
+
+/** L'orario da portare su QUESTA scheda, o niente se è già cliente. */
+export function orarioPer(
+  o: OrarioScelto | null | undefined,
+  d?: Partial<LeadData> | null,
+): OrarioScelto | null {
+  return o && cosaFaLOrario(d) !== "cliente" ? o : null;
 }
