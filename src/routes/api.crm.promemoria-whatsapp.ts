@@ -41,6 +41,9 @@ export const Route = createFileRoute("/api/crm/promemoria-whatsapp")({
       GET: async ({ request }) => {
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
+        //  Senza il titolare dei dati non si sa di quale installazione si parla:
+        //  si rifiuta invece di guardarle tutte.
+        if (!g.chi.adminUserId) return json({ ok: false, error: "titolare" }, 403);
         const porte = porteVere(g.chi.adminUserId);
         const [config, stato] = await Promise.all([porte.leggiConfig(), porte.leggiStato()]);
         return json({ ok: true, config, stato });
@@ -49,6 +52,9 @@ export const Route = createFileRoute("/api/crm/promemoria-whatsapp")({
       POST: async ({ request }) => {
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
+        //  Senza il titolare dei dati non si sa di quale installazione si parla:
+        //  si rifiuta invece di guardarle tutte.
+        if (!g.chi.adminUserId) return json({ ok: false, error: "titolare" }, 403);
         let b: { acceso?: unknown; prova?: unknown } = {};
         try {
           b = (await request.json()) as typeof b;
@@ -67,6 +73,9 @@ export const Route = createFileRoute("/api/crm/promemoria-whatsapp")({
 
         if (typeof b.acceso !== "boolean") return json({ ok: false, error: "acceso" }, 400);
         const prima = await porte.leggiConfig();
+        //  Già acceso: riaccendere non deve rimettere `avvio: "da_fare"` né
+        //  spostare `attivoDal` (revisione finale, N2).
+        if (b.acceso && prima?.acceso) return json({ ok: true, config: prima });
         //  Accendere = `avvio: "da_fare"`: il primo giro marca «preesistenti»
         //  gli appuntamenti già in agenda, che così non ricevono niente.
         const nuovo: ConfigPromemoria = b.acceso

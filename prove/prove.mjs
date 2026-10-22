@@ -21030,6 +21030,12 @@ function proveDelRiquadroDelPromemoria() {
   c("…e la guardia viene prima di ogni scrittura", true, api.indexOf("guardiaCRM(request") < api.indexOf("scriviConfig("));
   c("la scrittura la fa il server (chiave di servizio)", true, /supabaseAdmin|porteVere/.test(api));
   c("la prova a secco è dell'installazione di chi chiede (adminUserId)", true, /porteVere\(g\.chi\.adminUserId\)/.test(api) && /prova: true/.test(api));
+  //  Controllo di sicurezza (MEDIUM, fail-open): senza titolare la rotta
+  //  guardava TUTTE le installazioni. Adesso rifiuta, e la stringa vuota filtra.
+  c("senza titolare dei dati la rotta risponde 403 (GET e POST)", 2, (api.match(/if \(!g\.chi\.adminUserId\) return json\(\{ ok: false, error: "titolare" \}, 403\);/g) || []).length);
+  const giroSrc = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
+  c("solo `null` vuol dire «tutte le installazioni», mai una stringa vuota", true, /if \(soloUtente !== null\) q = q\.eq\("user_id", soloUtente\)/.test(giroSrc));
+  c("riaccendere un interruttore già acceso non riparte da capo", true, /if \(b\.acceso && prima\?\.acceso\) return json\(\{ ok: true, config: prima \}\);/.test(api));
   const { PERMESSI_RUOLO: PR } = PRM;
   c("una setter non ha «impostazioni»: la guardia le risponde 403", false, PR.setter.includes("impostazioni"));
   c("…nemmeno il consulente; l'admin sì", [false, true], [PR.consulente.includes("impostazioni"), PR.admin.includes("impostazioni")]);

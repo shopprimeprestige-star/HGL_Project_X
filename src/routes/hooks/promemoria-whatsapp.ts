@@ -144,7 +144,9 @@ export function porteVere(soloUtente: string | null): Porte {
           mode?: string | null;
         }[]
       >("user_id, phone_number_id, access_token, business_account_id, app_secret, mode");
-      if (soloUtente) q = q.eq("user_id", soloUtente);
+      //  `null` = tutte (il cron). Una stringa, anche vuota, filtra sempre: una
+      //  stringa vuota non deve mai diventare «tutte le installazioni».
+      if (soloUtente !== null) q = q.eq("user_id", soloUtente);
       const { data } = await q;
       return (data ?? []).map((r): Impostazione => {
         segreti.set(r.user_id, {
