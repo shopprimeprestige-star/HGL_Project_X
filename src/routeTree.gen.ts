@@ -50,6 +50,7 @@ import { Route as HooksTiktokAdUpdateRouteImport } from './routes/hooks/tiktok-a
 import { Route as HooksTiktokAdPauseRouteImport } from './routes/hooks/tiktok-ad-pause'
 import { Route as HooksTiktokAdInsightsRouteImport } from './routes/hooks/tiktok-ad-insights'
 import { Route as HooksScoreSnapshotRouteImport } from './routes/hooks/score-snapshot'
+import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/promemoria-whatsapp'
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
 import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-reminder'
@@ -396,6 +397,11 @@ const HooksTiktokAdInsightsRoute = HooksTiktokAdInsightsRouteImport.update({
 const HooksScoreSnapshotRoute = HooksScoreSnapshotRouteImport.update({
   id: '/hooks/score-snapshot',
   path: '/hooks/score-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksPromemoriaWhatsappRoute = HooksPromemoriaWhatsappRouteImport.update({
+  id: '/hooks/promemoria-whatsapp',
+  path: '/hooks/promemoria-whatsapp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksMetaSpendSyncRoute = HooksMetaSpendSyncRouteImport.update({
@@ -1186,6 +1192,7 @@ export interface FileRoutesByFullPath {
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
+  '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1365,6 +1372,7 @@ export interface FileRoutesByTo {
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
+  '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1550,6 +1558,7 @@ export interface FileRoutesById {
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
+  '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1736,6 +1745,7 @@ export interface FileRouteTypes {
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
+    | '/hooks/promemoria-whatsapp'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -1915,6 +1925,7 @@ export interface FileRouteTypes {
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
+    | '/hooks/promemoria-whatsapp'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -2099,6 +2110,7 @@ export interface FileRouteTypes {
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
+    | '/hooks/promemoria-whatsapp'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -2251,6 +2263,7 @@ export interface RootRouteChildren {
   HooksMeetReminderRoute: typeof HooksMeetReminderRoute
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
+  HooksPromemoriaWhatsappRoute: typeof HooksPromemoriaWhatsappRoute
   HooksScoreSnapshotRoute: typeof HooksScoreSnapshotRoute
   HooksTiktokAdInsightsRoute: typeof HooksTiktokAdInsightsRoute
   HooksTiktokAdPauseRoute: typeof HooksTiktokAdPauseRoute
@@ -2642,6 +2655,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/score-snapshot'
       fullPath: '/hooks/score-snapshot'
       preLoaderRoute: typeof HooksScoreSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/promemoria-whatsapp': {
+      id: '/hooks/promemoria-whatsapp'
+      path: '/hooks/promemoria-whatsapp'
+      fullPath: '/hooks/promemoria-whatsapp'
+      preLoaderRoute: typeof HooksPromemoriaWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/meta-spend-sync': {
@@ -3813,6 +3833,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksMeetReminderRoute: HooksMeetReminderRoute,
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
+  HooksPromemoriaWhatsappRoute: HooksPromemoriaWhatsappRoute,
   HooksScoreSnapshotRoute: HooksScoreSnapshotRoute,
   HooksTiktokAdInsightsRoute: HooksTiktokAdInsightsRoute,
   HooksTiktokAdPauseRoute: HooksTiktokAdPauseRoute,

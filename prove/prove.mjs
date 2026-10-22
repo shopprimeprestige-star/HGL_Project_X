@@ -511,6 +511,8 @@ const MODULI = [
   "wa-meta-templates",
   "promemoria/risposta",
   "promemoria/conferma",
+  "promemoria/pronto",
+  "promemoria/giro",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20420,6 +20422,7 @@ proveDeiDaRiprogrammareOggi();
 proveDelPromemoriaWhatsapp();
 proveDellaRispostaAlPromemoria();
 proveDelleMigrazioniDelPromemoria();
+await proveDelGiroDelPromemoria();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20686,4 +20689,186 @@ function proveDelleMigrazioniDelPromemoria() {
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
   const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
+}
+
+/** ── IL GIRO DEL CRON E LA PRONTEZZA ───────────────────────────────────────
+ *  Il giro vero si prova con un database finto che si comporta come le due
+ *  funzioni SQL (il segno si prende una volta sola). Così si vede davvero
+ *  che: senza migrazione non parte niente; un errore di rete NON toglie il
+ *  segno (correzione 2); il primo giro marca tutto preesistente (correzione
+ *  3); la prova a secco non scrive e non invia; due giri insieme = un invio. */
+async function proveDelGiroDelPromemoria() {
+  const P = mod["promemoria/pronto"];
+  const G = mod["promemoria/giro"];
+  gruppo("PROMEMORIA WHATSAPP · PRONTO O NO");
+  const tuttoOk = { acceso: true, migrazione: true, haChiavi: true, haWaba: true, haAppSecret: true, mode: "live", modello: { trovato: true, stato: "APPROVED" } };
+  const vp = (x) => P.valutaPronto({ ...tuttoOk, ...x });
+  c("tutto verde → pronto", { pronto: true }, (({ pronto, blocco }) => ({ pronto, ...(blocco ? { blocco } : {}) }))(vp({})));
+  c("manca la migrazione: lo dice per primo, anche da spento", "manca_migrazione", vp({ migrazione: false, acceso: false }).blocco);
+  c("spento", "spento", vp({ acceso: false }).blocco);
+  c("mancano le chiavi", "mancano_chiavi", vp({ haChiavi: false, mode: "sandbox" }).blocco);
+  c("manca la WABA", "manca_waba", vp({ haWaba: false }).blocco);
+  c("manca l'App Secret: non si accende (correzione 1)", "manca_app_secret", vp({ haAppSecret: false, mode: "sandbox" }).blocco);
+  c("sandbox", "sandbox", vp({ mode: "sandbox", modello: null }).blocco);
+  c("token scaduto al controllo", "token_scaduto", vp({ erroreControllo: "token_scaduto" }).blocco);
+  c("modello assente", "modello_assente", vp({ modello: { trovato: false } }).blocco);
+  c("modello in attesa: dice lo stato", true, /PENDING/.test(vp({ modello: { trovato: true, stato: "PENDING" } }).frase) && vp({ modello: { trovato: true, stato: "PENDING" } }).blocco === "modello_non_approvato");
+  c("modello non controllato (nessuno da inviare) → non blocca", true, vp({ modello: null }).pronto);
+  for (const b of ["spento", "manca_migrazione", "mancano_chiavi", "manca_waba", "manca_app_secret", "sandbox", "numero_di_prova", "modello_assente", "modello_non_approvato", "token_scaduto", "permessi", "limite", "meta_incerto", "controllo_fallito"])
+    c(`«${b}» ha una frase in italiano`, true, P.FRASI_BLOCCO[b]?.length > 10 && !/token=|EAA|access_token/.test(P.FRASI_BLOCCO[b]));
+  c("la frase della migrazione è quella chiesta", true, /manca l'aggiornamento del database/i.test(P.FRASI_BLOCCO.manca_migrazione));
+
+  gruppo("PROMEMORIA WHATSAPP · ERRORI DI META");
+  const k = (code) => (({ tipo, codice }) => `${tipo}/${codice}`)(P.classificaErroreMeta(code));
+  c("190 token → tecnico", "tecnico/token_scaduto", k(190));
+  c("10 permessi → tecnico", "tecnico/permessi", k(10));
+  c("132001 modello → tecnico", "tecnico/modello_non_approvato", k(132001));
+  c("131030 destinatario non autorizzato → tecnico, NON colpa del cliente", "tecnico/numero_di_prova", k(131030));
+  c("131049 Meta non consegna per qualità → limite", "limite/limite", k(131049));
+  c("80007 → limite", "limite/limite", k(80007));
+  c("131026 non è su WhatsApp → cliente", "cliente/non_recapitato", k(131026));
+  c("132018 parametro rifiutato → cliente (non ferma gli altri)", "cliente/rifiutato", k(132018));
+  c("codice sconosciuto → tecnico (si ferma, non consuma la scheda)", "tecnico/controllo_fallito", k(999));
+  const e = (x) => P.esitoInvio(x).tipo;
+  c("fetch che lancia → incerto (il segno resta)", "incerto", e({ rete: true }));
+  c("HTTP 503 → incerto", "incerto", e({ status: 503, corpo: { error: { code: 2 } } }));
+  c("risposta non JSON → incerto", "incerto", e({ status: 200, corpo: null }));
+  c("200 senza id del messaggio → incerto", "incerto", e({ status: 200, corpo: {} }));
+  c("errore 131000 «qualcosa è andato storto» → incerto", "incerto", e({ status: 400, corpo: { error: { code: 131000 } } }));
+  c("rifiuto esplicito con codice → rifiuto", "rifiuto", e({ status: 400, corpo: { error: { code: 131026 } } }));
+  c("accettato → ok con l'id", { tipo: "ok", waId: "wamid.X" }, P.esitoInvio({ status: 200, corpo: { messages: [{ id: "wamid.X" }] } }));
+  gruppo("PROMEMORIA WHATSAPP · SENZA MIGRAZIONE");
+  c("funzione SQL assente (PostgREST)", true, P.mancaMigrazione({ code: "PGRST202", message: "Could not find the function public.promemoria_aggiorna" }));
+  c("funzione SQL assente (Postgres)", true, P.mancaMigrazione({ code: "42883", message: "function public.promemoria_aggiorna does not exist" }));
+  c("colonna non_scrivere_dal assente", true, P.mancaMigrazione({ code: "42703", message: "column whatsapp_contacts.non_scrivere_dal does not exist" }));
+  c("un altro errore non è la migrazione", false, P.mancaMigrazione({ code: "23505", message: "duplicate key" }));
+  c("nessun errore", false, P.mancaMigrazione(null));
+
+  /* ── IL DATABASE FINTO ─────────────────────────────────────────────────
+     Si comporta come le due funzioni SQL della migrazione. */
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  const LINK = "https://hairgeniuslabs.it/meetly/abc?chi=p1";
+  const vecchia = new Date(ADESSO.getTime() - 3600_000).toISOString();
+  const scheda = (id, d = {}) => ({ id, updated_at: vecchia, data: { nome: "Mario", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", ...d } });
+  function finto(o = {}) {
+    const db = new Map((o.schede ?? [scheda("s1")]).map((s) => [s.id, JSON.parse(JSON.stringify(s))]));
+    const log = [];
+    let stato = o.stato ?? null;
+    let config = o.config === undefined ? { acceso: true, avvio: "fatto" } : o.config;
+    const porte = {
+      adesso: () => o.adesso ?? ADESSO,
+      leggiConfig: async () => config,
+      scriviConfig: async (x) => { log.push("config"); config = x; },
+      leggiStato: async () => stato,
+      scriviStato: async (x) => { log.push("stato"); stato = x; },
+      provaMigrazione: async () => o.migrazione ?? true,
+      impostazioni: async () => o.impostazioni ?? [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: true, mode: "live" }],
+      schede: async () => [...db.values()].map((s) => ({ ...JSON.parse(JSON.stringify(s)), link: o.link ?? LINK })),
+      numeriStop: async () => o.numeriStop ?? [],
+      aggancia: async (id, chiave, pezzo) => {
+        log.push(`aggancia:${id}`);
+        const s = db.get(id); const p = s.data.promemoria ?? {};
+        if ((p.chiave ?? "") === chiave && (p.stato ?? "") !== "") return false;
+        s.data.promemoria = { ...p, ...pezzo, chiave }; return true;
+      },
+      aggiorna: async (id, pezzo, seChiave) => {
+        log.push(`aggiorna:${id}:${pezzo.stato ?? "-"}`);
+        const s = db.get(id); const p = s.data.promemoria ?? {};
+        if (seChiave != null && p.chiave !== seChiave) return false;
+        s.data.promemoria = { ...p, ...pezzo }; return true;
+      },
+      controllaModello: async () => { log.push("modello"); return o.modello ?? { trovato: true, stato: "APPROVED" }; },
+      invia: async (imp, numero, parametri) => {
+        log.push(`invia:${numero}`);
+        if (o.invia) return o.invia(numero, parametri);
+        return { status: 200, corpo: { messages: [{ id: `wamid.${log.length}` }] } };
+      },
+      registraInvio: async (imp, id, numero, esito) => { log.push(`registra:${id}:${esito.tipo}`); },
+    };
+    return { porte, db, log, get stato() { return stato; }, get config() { return config; } };
+  }
+  const p1 = (f, id = "s1") => f.db.get(id).data.promemoria ?? null;
+
+  gruppo("PROMEMORIA WHATSAPP · IL GIRO");
+  let f = finto();
+  let r = await G.giroPromemoria(f.porte, { prova: false });
+  c("tutto a posto: un messaggio", 1, r.inviati);
+  c("prima il controllo di Meta, poi il segno, POI l'invio, poi «inviato»", ["modello", "aggancia:s1", "invia:393391234567", "aggiorna:s1:inviato", "registra:s1:ok"], f.log.filter((x) => !["stato", "config"].includes(x)));
+  c("sulla scheda: inviato, con l'id di Meta, 1 volta", ["inviato", 1, true], [p1(f).stato, p1(f).volte, !!p1(f).waMessageId]);
+  c("lo stato del giro dice «pronto»", true, f.stato.pronto);
+  c("la risposta ha solo conteggi (niente id né nomi)", false, /s1|Mario|393391234567/.test(JSON.stringify(r)));
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("subito dopo (meno di 60 s): salta il giro", "troppo presto", r.saltato);
+  f = finto({ stato: f.stato, adesso: new Date(ADESSO.getTime() + 120_000) });
+  f.db.get("s1").data.promemoria = { chiave: "2026-10-23T10:00|391234567", stato: "inviato", volte: 1 };
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("al giro dopo: niente di doppio", [0, false], [r.inviati, f.log.some((x) => x.startsWith("invia"))]);
+
+  gruppo("PROMEMORIA WHATSAPP · QUANDO NON PARTE NIENTE");
+  for (const [nome, o, blocco] of [
+    ["migrazione assente", { migrazione: false }, "manca_migrazione"],
+    ["interruttore spento", { config: null }, "spento"],
+    ["sandbox", { impostazioni: [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: true, mode: "sandbox" }] }, "sandbox"],
+    ["senza App Secret", { impostazioni: [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: false, mode: "live" }] }, "manca_app_secret"],
+    ["senza chiavi", { impostazioni: [] }, "mancano_chiavi"],
+    ["modello in attesa di approvazione", { modello: { trovato: true, stato: "PENDING" } }, "modello_non_approvato"],
+  ]) {
+    f = finto(o);
+    r = await G.giroPromemoria(f.porte, { prova: false });
+    c(`${nome}: zero invii, il motivo scritto`, [0, blocco, blocco], [f.log.filter((x) => x.startsWith("invia")).length, r.blocco, f.stato?.blocco]);
+  }
+  f = finto({ migrazione: false });
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("migrazione assente: nessuna funzione SQL chiamata", false, f.log.some((x) => /aggancia|aggiorna/.test(x)));
+  c("…e la frase lo dice", true, /aggiornamento del database/.test(f.stato.frase));
+  f = finto({ modello: { trovato: true, stato: "PENDING" } });
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("modello non approvato: nessun segno d'invio sulla scheda", null, p1(f));
+
+  gruppo("PROMEMORIA WHATSAPP · ERRORI DURANTE L'INVIO");
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], invia: () => ({ rete: true }) });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("fetch che lancia: il segno NON si toglie (resta in_invio → incerto)", "in_invio", p1(f).stato);
+  c("…nessun «segno tolto»", false, f.log.some((x) => x === "aggiorna:s1:-"));
+  c("…e il giro si ferma (la seconda scheda non parte)", 1, f.log.filter((x) => x.startsWith("invia")).length);
+  c("…con il motivo per il titolare, e una pausa", ["meta_incerto", true], [f.stato.blocco, !!f.stato.riprovaDopo]);
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], invia: () => ({ status: 401, corpo: { error: { code: 190 } } }) });
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("token scaduto (rifiuto esplicito): il segno si toglie, si riproverà", [null, null, 0], [p1(f).chiave, p1(f).stato, p1(f).volte]);
+  c("…e il giro si ferma al primo", [1, "token_scaduto"], [f.log.filter((x) => x.startsWith("invia")).length, f.stato.blocco]);
+  const dopoPausa = finto({ stato: f.stato, adesso: new Date(ADESSO.getTime() + 5 * 60_000) });
+  await G.giroPromemoria(dopoPausa.porte, { prova: false });
+  c("…entro 10 minuti non si riprova", false, dopoPausa.log.some((x) => x.startsWith("invia")));
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], invia: (n) => (n === "393391234567" ? { status: 400, corpo: { error: { code: 131026 } } } : { status: 200, corpo: { messages: [{ id: "w2" }] } }) });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("numero non su WhatsApp: segnato, e gli altri partono", ["non_recapitato", "inviato", 1], [p1(f).stato, p1(f, "s2").stato, r.inviati]);
+
+  gruppo("PROMEMORIA WHATSAPP · PRIMO GIRO, PROVA A SECCO, PARALLELO, LIMITE");
+  f = finto({ config: { acceso: true, avvio: "da_fare" }, schede: [{ ...scheda("s1"), updated_at: ADESSO.toISOString() }] });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("primo giro: preesistente anche se toccata adesso, nessun invio", ["preesistente", 0], [p1(f).stato, r.inviati]);
+  c("…e l'avvio è segnato fatto", "fatto", f.config.avvio);
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" }), scheda("s3", { telefono: "" })] });
+  r = await G.giroPromemoria(f.porte, { prova: true });
+  c("prova a secco: dice quanti partirebbero", [2, 1], [r.partirebbero, r.saltati]);
+  c("…e non scrive, non invia, non segna lo stato", [], f.log.filter((x) => x !== "modello"));
+  c("…e controlla comunque il modello", true, f.log.includes("modello"));
+  c("…solo conteggi nella risposta", false, /s1|s2|Mario|3391234567/.test(JSON.stringify(r)));
+  f = finto();
+  const [a, b] = await Promise.all([G.giroPromemoria(f.porte, { prova: false }), G.giroPromemoria({ ...f.porte, leggiStato: async () => null }, { prova: false })]);
+  c("due giri insieme sulla stessa scheda: UN solo invio", 1, f.log.filter((x) => x.startsWith("invia")).length);
+  const tante = Array.from({ length: 20 }, (_, i) => scheda(`t${i}`, { telefono: `33912345${String(i).padStart(2, "0")}` }));
+  f = finto({ schede: tante });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("al massimo 15 per giro, il resto al giro dopo", [15, 5], [r.inviati, r.inAttesa]);
+
+  gruppo("PROMEMORIA WHATSAPP · LA ROTTA");
+  const rotta = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
+  c("il giro vero vuole la chiave pubblicabile, come gli altri hook", true, /SUPABASE_PUBLISHABLE_KEY/.test(rotta) && /401/.test(rotta));
+  c("la prova a secco vuole la sessione del titolare (auth.getUser)", true, /auth\.getUser\(\)/.test(rotta) && /prova/.test(rotta));
+  c("il token non finisce nei log né nelle risposte", false, /console\.[a-z]+\([^)]*(access_token|accessToken|token)/.test(rotta) || /json\([^)]*(access_token|accessToken)/.test(rotta));
+  c("usa il giro provato, non una copia", true, /giroPromemoria\(/.test(rotta));
+  c("il link è quello per-persona del CRM (valoriDaLead)", true, /valoriDaLead\(/.test(rotta));
+  c("il modello inviato è consulenza_conferma_presenza", true, /NOME_MODELLO/.test(rotta));
 }
