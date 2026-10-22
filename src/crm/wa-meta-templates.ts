@@ -17,6 +17,7 @@ export interface MetaTemplateParam {
     | "consultant_name"
     | "appointment_date"
     | "appointment_time"
+    | "appointment_day"
     | "visit_date"
     | "visit_time"
     | "recontact_date"
@@ -45,6 +46,10 @@ const DESCR: Record<ParamKey, { description: string; example: string }> = {
   consultant_name: { description: "Nome del consulente", example: "Luca" },
   appointment_date: { description: "Data appuntamento (DD/MM/YYYY)", example: "12/05/2026" },
   appointment_time: { description: "Ora appuntamento (HH:MM)", example: "15:30" },
+  appointment_day: {
+    description: "Giorno parlato, es. venerdì 23 ottobre",
+    example: "venerdì 23 ottobre",
+  },
   visit_date: { description: "Data visita in sede (DD/MM/YYYY)", example: "15/05/2026" },
   visit_time: { description: "Ora visita in sede (HH:MM)", example: "10:00" },
   recontact_date: { description: "Data ricontatto (DD/MM/YYYY)", example: "20/05/2026" },
@@ -155,6 +160,17 @@ export const META_TEMPLATES: MetaTemplate[] = [
     "UTILITY",
     `Gentile {{lead_name}},\n\nLe ricordo che il nostro appuntamento è confermato per il {{appointment_date}} alle ore {{appointment_time}}.\n\nLink per collegarsi: {{meet_link}}\n\nLe chiediamo cortesemente di trovarsi in un luogo tranquillo, con una buona connessione internet e con Sua moglie/compagno se possibile.${FIRMA}`,
     ["lead_name", "appointment_date", "appointment_time", "meet_link", "consultant_name"],
+  ),
+  //  ⚠️ LA CONFERMA AUTOMATICA DELLA CONSULENZA (commessa 2026-10-22): la
+  //   manda il cron, una volta sola, subito dopo la prenotazione. Testo
+  //   volutamente neutro: niente «gratuita», «offerta», capelli o prezzi —
+  //   Meta riclassificherebbe MARKETING, e non è un messaggio sanitario. Se
+  //   Meta chiede di cambiarlo, si cambia qui e si rifà la prova.
+  tpl(
+    "consulenza_conferma_presenza",
+    "UTILITY",
+    `Gentile {{lead_name}}, la Sua consulenza con Hair Genius Labs è fissata per {{appointment_day}} alle ore {{appointment_time}}.\n\nPer collegarsi: {{meet_link}}\n\nPer confermare la Sua presenza risponda SÌ a questo messaggio.\n\nHair Genius Labs`,
+    ["lead_name", "appointment_day", "appointment_time", "meet_link"],
   ),
 ];
 

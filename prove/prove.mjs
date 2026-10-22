@@ -502,6 +502,13 @@ const MODULI = [
   //  ⚠️ Dove stanno le camere del consulente (a tutta pagina, in colonna, sul
   //   copione, in finestra): una regola sola. Vedi proveDellaVesteDelleCamere.
   "shop/veste-camere",
+  //  ⚠️ LA CONFERMA DELLA CONSULENZA SU WHATSAPP (commessa 2026-10-22): numeri,
+  //   fuso di Roma, e la regola che decide se un messaggio parte. Una regola
+  //   sbagliata qui è un messaggio doppio a un cliente, o uno di notte. Vedi
+  //   proveDelPromemoriaWhatsapp.
+  "promemoria/formati",
+  "promemoria/invio",
+  "wa-meta-templates",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -717,6 +724,9 @@ const SP = mod["webinar/segui-parole"];
 const TEMP = mod["temperatura-lead"];
 const VISTA = mod["vista-oggi"];
 const TELMOD = mod["landing/booking/telefono"];
+const PWF = mod["promemoria/formati"];
+const PWI = mod["promemoria/invio"];
+const WMT = mod["wa-meta-templates"];
 
 /** ── LA VALIDAZIONE CONTRO LO SCHEMA ──────────────────────────────────────
  *  Torna `"ok"`, oppure il motivo per cui lo SDI lo scarterebbe. Se sul
@@ -20405,6 +20415,7 @@ proveDellOrarioSulDoppione();
 proveDelTermometroInvisibleDerm();
 proveDellEliminaDallaCoda();
 proveDeiDaRiprogrammareOggi();
+proveDelPromemoriaWhatsapp();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20412,3 +20423,155 @@ console.log(
   rotti ? `✖ ${rotti} controlli falliti su ${fatti}` : `✓ tutti i ${fatti} controlli passano`,
 );
 process.exit(rotti ? 1 : 0);
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LA CONFERMA DELLA CONSULENZA SU WHATSAPP («Rispondi SÌ») · commessa 2026-10-22
+   ──────────────────────────────────────────────────────────────────────────
+   Un messaggio automatico al cliente, uno solo, subito dopo la prenotazione.
+   Le regole che decidono SE e QUANDO parte sono qui sotto una per una: un
+   errore in questa zona è un messaggio doppio, o uno di notte, o uno con il
+   link vuoto, e il cliente lo riceve prima che qualcuno se ne accorga.
+   ══════════════════════════════════════════════════════════════════════════ */
+function proveDelPromemoriaWhatsapp() {
+  const F = PWF;
+  gruppo("PROMEMORIA WHATSAPP · NUMERI");
+  for (const n of ["339 1234567", "+39 339 1234567", "0039 339 1234567", "39 339 1234567", "3391234567", "+39 (339) 123-4567"])
+    c(`«${n}» → 393391234567`, "393391234567", F.numeroPerWhatsapp(n));
+  c("cellulare 393 senza prefisso (10 cifre che iniziano per 39)", "393931234567", F.numeroPerWhatsapp("393 1234567"));
+  c("estero col +", "447700900123", F.numeroPerWhatsapp("+44 7700 900123"));
+  c("fisso italiano: no", null, F.numeroPerWhatsapp("06 1234567"));
+  c("fisso italiano col +39: no", null, F.numeroPerWhatsapp("+39 06 1234567"));
+  c("troppo corto: no", null, F.numeroPerWhatsapp("123"));
+  c("vuoto: no", null, F.numeroPerWhatsapp(""));
+  c("null: no", null, F.numeroPerWhatsapp(null));
+  c("come lo salva il webhook (+cifre) = come lo legge il cron", F.numeroPerWhatsapp("393391234567"), F.numeroPerWhatsapp("+393391234567"));
+
+  gruppo("PROMEMORIA WHATSAPP · GIORNO, ORA, FUSO DI ROMA");
+  c("23/10/2026 è venerdì", "venerdì 23 ottobre", F.giornoParlato("2026-10-23"));
+  c("1 marzo 2027", "lunedì 1 marzo", F.giornoParlato("2027-03-01"));
+  c("data impossibile", null, F.giornoParlato("2026-02-30"));
+  c("data scritta all'italiana: no", null, F.giornoParlato("23/10/2026"));
+  c("ora 9:05 → 09:05", "09:05", F.oraNormale("9:05"));
+  c("ora 15:30", "15:30", F.oraNormale("15:30"));
+  c("ora 9:5 → illeggibile", null, F.oraNormale("9:5"));
+  c("ora 25:00 → illeggibile", null, F.oraNormale("25:00"));
+  c("ora vuota", null, F.oraNormale(""));
+  c("estate (UTC+2): 21:30Z sono le 23:30 a Roma", { giorno: "2026-10-22", minuti: 23 * 60 + 30 }, F.aRoma(new Date("2026-10-22T21:30:00Z")));
+  c("inverno (UTC+1): 21:30Z sono le 22:30 a Roma", { giorno: "2026-12-10", minuti: 22 * 60 + 30 }, F.aRoma(new Date("2026-12-10T21:30:00Z")));
+  c("22:30Z d'estate è già domani a Roma", "2026-10-23", F.aRoma(new Date("2026-10-22T22:30:00Z")).giorno);
+  const roma = (g, hm, fuso = 2) => new Date(Date.parse(`${g}T${hm}:00Z`) - fuso * 3600_000);
+  c("finestra: 07:59 Roma chiusa", false, F.finestraAperta(roma("2026-10-22", "07:59")));
+  c("finestra: 08:00 Roma aperta", true, F.finestraAperta(roma("2026-10-22", "08:00")));
+  c("finestra: 20:59 Roma aperta", true, F.finestraAperta(roma("2026-10-22", "20:59")));
+  c("finestra: 21:00 Roma chiusa", false, F.finestraAperta(roma("2026-10-22", "21:00")));
+  c("finestra d'inverno: 07:30 Roma (06:30Z) chiusa", false, F.finestraAperta(roma("2026-12-10", "07:30", 1)));
+  c("finestra d'inverno: 08:30 Roma (07:30Z) aperta", true, F.finestraAperta(roma("2026-12-10", "08:30", 1)));
+  c("minuti all'appuntamento: 10:00 con adesso 09:00", 60, F.minutiAlla("2026-10-22", "10:00", roma("2026-10-22", "09:00")));
+  c("minuti all'appuntamento: domani", 24 * 60 + 60, F.minutiAlla("2026-10-23", "10:00", roma("2026-10-22", "09:00")));
+  c("minuti all'appuntamento: già iniziato", -30, F.minutiAlla("2026-10-22", "08:30", roma("2026-10-22", "09:00")));
+
+  gruppo("PROMEMORIA WHATSAPP · IL NOME NEL MESSAGGIO");
+  c("spazi e a-capo ripuliti (Meta rifiuta 132018)", "Mario Antonio", F.nomePerModello("  Mario\n\tAntonio   "));
+  c("molti spazi di fila compressi", "Anna Maria", F.nomePerModello("Anna      Maria"));
+  c("al massimo 60 caratteri", 60, F.nomePerModello("A".repeat(90)).length);
+  c("vuoto → null", null, F.nomePerModello(" \n "));
+  c("assente → null", null, F.nomePerModello(undefined));
+
+  /* ── LA MATRICE DI decidiInvio ──────────────────────────────────────────
+     Base: adesso giovedì 22/10/2026 15:00 a Roma; appuntamento venerdì alle
+     10:00; scheda toccata 5 minuti fa; link della stanza c'è. Ogni riga
+     cambia UNA cosa sola. */
+  const I = PWI;
+  const ADESSO = roma("2026-10-22", "15:00");
+  const LINK = "https://hairgeniuslabs.it/meetly/abc123?chi=p12345678";
+  const base = (d = {}, altro = {}) => ({
+    d: { nome: "Mario", cognome: "Rossi", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", ...d },
+    link: LINK,
+    aggiornataIl: new Date(ADESSO.getTime() - 5 * 60_000).toISOString(),
+    numeriStop: [],
+    adesso: ADESSO,
+    primoGiro: false,
+    ...altro,
+  });
+  const dec = (d, altro) => I.decidiInvio(base(d, altro));
+  const K = "2026-10-23T10:00|391234567";
+  gruppo("PROMEMORIA WHATSAPP · LA DECISIONE DI INVIO (MATRICE)");
+  c("chiave dell'appuntamento", K, I.chiaveAppuntamento(base().d));
+  c("stesso numero scritto in due modi: STESSA chiave", I.chiaveAppuntamento({ ...base().d, telefono: "+39 339 1234567" }), I.chiaveAppuntamento({ ...base().d, telefono: "3391234567" }));
+  c("chiave senza giorno o ora: null", null, I.chiaveAppuntamento({ telefono: "3391234567", dataMeeting: "2026-10-23" }));
+  c("(1) tutto a posto → invia con i 4 parametri esatti", { azione: "invia", chiave: K, numero: "393391234567", parametri: ["Mario", "venerdì 23 ottobre", "10:00", LINK], volte: 1 }, dec());
+  c("(2) alle 23:00 → aspetta l'apertura", { azione: "aspetta", motivo: "fuori_orario" }, dec({}, { adesso: roma("2026-10-22", "23:00") }));
+  c("(3) alle 08:00 del giorno dopo, appuntamento alle 10:00 → invia", "invia", dec({}, { adesso: roma("2026-10-23", "08:00") }).azione);
+  c("(4) appuntamento alle 08:30, alle 08:00 → troppo vicino", { azione: "salta", chiave: "2026-10-23T08:30|391234567", stato: "non_inviato", motivo: "troppo_vicino" }, dec({ oraMeeting: "08:30" }, { adesso: roma("2026-10-23", "08:00") }));
+  c("(4b) prenotato alle 23 per le 07:30: troppo vicino SUBITO (all'apertura sarà passato)", "troppo_vicino", dec({ oraMeeting: "07:30" }, { adesso: roma("2026-10-22", "23:00") }).motivo);
+  c("(4c) prenotato alle 23 per le 11:00: aspetta l'apertura", "fuori_orario", dec({ oraMeeting: "11:00" }, { adesso: roma("2026-10-22", "23:00") }).motivo);
+  c("(5) tra 30 minuti → troppo vicino", "troppo_vicino", dec({ dataMeeting: "2026-10-22", oraMeeting: "15:30" }).motivo);
+  c("(5b) tra 60 minuti esatti → invia", "invia", dec({ dataMeeting: "2026-10-22", oraMeeting: "16:00" }).azione);
+  c("(6) già iniziato → niente", { azione: "niente" }, dec({ dataMeeting: "2026-10-22", oraMeeting: "14:30" }));
+  c("(6b) giorno passato → niente", { azione: "niente" }, dec({ dataMeeting: "2026-10-20" }));
+  c("(7) stessa chiave già inviata → niente", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "inviato", volte: 1 } }));
+  c("(7b) stessa chiave non inviata (motivo già scritto) → niente", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "non_inviato", motivo: "troppo_vicino" } }));
+  c("(7c) stessa chiave incerta → mai rimandata", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "incerto", volte: 1 } }));
+  const spostato = dec({ oraMeeting: "11:00", promemoria: { chiave: K, stato: "inviato", volte: 1, confermatoIl: "2026-10-22T10:00:00Z" } });
+  c("(8) ora spostata → nuova conferma, una volta", { azione: "invia", chiave: "2026-10-23T11:00|391234567", volte: 2 }, { azione: spostato.azione, chiave: spostato.chiave, volte: spostato.volte });
+  c("(9) già 3 messaggi e chiave nuova → troppi invii", { azione: "salta", chiave: "2026-10-23T11:00|391234567", stato: "non_inviato", motivo: "troppi_invii" }, dec({ oraMeeting: "11:00", promemoria: { chiave: K, stato: "inviato", volte: 3 } }));
+  c("(10) senza link → aspetta (lo crea il browser dopo il salvataggio)", { azione: "aspetta", motivo: "manca_link" }, dec({}, { link: "" }));
+  c("(11) numero fisso → numero non valido", "numero_non_valido", dec({ telefono: "06 1234567" }).motivo);
+  c("(11b) senza telefono → senza numero", { azione: "salta", chiave: "2026-10-23T10:00|", stato: "non_inviato", motivo: "senza_numero" }, dec({ telefono: "" }));
+  c("(12) stato non di appuntamento → niente", { azione: "niente" }, dec({ stato: "richiamo" }));
+  c("(12b) appuntamento rifissato vale come fissato", "invia", dec({ stato: "appuntamento_rifissato" }).azione);
+  c("(13) scheda toccata 1 minuto fa → aspetta la calma", { azione: "aspetta", motivo: "calma" }, dec({}, { aggiornataIl: new Date(ADESSO.getTime() - 60_000).toISOString() }));
+  c("(13b) scheda toccata 2 minuti fa → invia", "invia", dec({}, { aggiornataIl: new Date(ADESSO.getTime() - 120_000).toISOString() }).azione);
+  c("(13c) data di modifica sconosciuta → non trattiene", "invia", dec({}, { aggiornataIl: null }).azione);
+  c("(14) già fissato prima dell'accensione, stessa chiave → niente", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "preesistente" } }));
+  c("(15) ha scritto STOP (numero salvato con +) → disiscritto", "disiscritto", dec({}, { numeriStop: ["+393391234567"] }).motivo);
+  c("(15b) …e salvato senza + → disiscritto lo stesso", "disiscritto", dec({}, { numeriStop: ["393391234567"] }).motivo);
+  c("(15c) STOP di un altro numero non conta", "invia", dec({}, { numeriStop: ["+393330000000"] }).azione);
+  const inInvio = (min) => dec({ promemoria: { chiave: K, stato: "in_invio", volte: 1, invioIl: new Date(ADESSO.getTime() - min * 60_000).toISOString() } });
+  c("(16) in invio da 3 minuti → niente (un altro giro ci sta lavorando)", { azione: "niente" }, inInvio(3));
+  c("(16b) in invio da 11 minuti → incerto, MAI rimandato", { azione: "salta", chiave: K, stato: "incerto", motivo: "incerto" }, inInvio(11));
+  c("(17) nome vuoto → manca il nome", "manca_nome", dec({ nome: "  " }).motivo);
+  c("(17b) nome con a-capo → ripulito nel messaggio", "Mario Rossi", dec({ nome: "Mario\nRossi" }).parametri?.[0]);
+  c("(18) primo giro dopo l'accensione: preesistente anche se toccata adesso", { azione: "preesistente", chiave: K }, dec({}, { primoGiro: true, aggiornataIl: ADESSO.toISOString() }));
+  c("(18b) primo giro: preesistente anche se aveva un vecchio messaggio di un altro orario", "preesistente", dec({ oraMeeting: "11:00", promemoria: { chiave: K, stato: "inviato", volte: 1 } }, { primoGiro: true }).azione);
+  c("(18c) primo giro: quello già segnato per questa chiave non si tocca", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "inviato", volte: 1 } }, { primoGiro: true }));
+  c("(19) segno tolto (stessa chiave, stato vuoto) → si può rimandare", "invia", dec({ promemoria: { chiave: K, stato: null, volte: 0 } }).azione);
+  c("(19b) segno tolto dopo un errore tecnico (chiave null) → si può rimandare", "invia", dec({ promemoria: { chiave: null, stato: null, volte: 0 } }).azione);
+  c("(20) ora illeggibile → orario illeggibile", { azione: "salta", chiave: "2026-10-23Tboh|391234567", stato: "non_inviato", motivo: "orario_illeggibile" }, dec({ oraMeeting: "boh" }));
+  c("(20b) ora illeggibile su un giorno passato → niente", { azione: "niente" }, dec({ dataMeeting: "2026-10-01", oraMeeting: "boh" }));
+  c("(20c) ora senza zero davanti (9:00) → si legge", "09:00", dec({ oraMeeting: "9:00" }).parametri?.[2]);
+  c("(21) giorno scritto all'italiana (archivio vecchio) → niente", { azione: "niente" }, dec({ dataMeeting: "23/10/2026" }));
+  c("(22) nessun parametro vuoto né con a-capo", true, dec().parametri.every((p) => p && !/[\n\t]|\s{5}/.test(p)));
+
+  gruppo("PROMEMORIA WHATSAPP · COSA SI SCRIVE SULLA SCHEDA");
+  const ora = "2026-10-22T13:00:00.000Z";
+  const pInvio = I.pezzoDaScrivere(dec(), ora);
+  c("all'invio: in_invio, l'ora, il conto, e le risposte vecchie azzerate", { stato: "in_invio", motivo: null, invioIl: ora, volte: 1, confermatoIl: null, confermatoVia: null, rispostaIl: null, rispostaTesto: null, stopIl: null }, pInvio);
+  c("preesistente: nessun conto in più", { stato: "preesistente", motivo: null, confermatoIl: null, confermatoVia: null, rispostaIl: null, rispostaTesto: null, stopIl: null }, I.pezzoDaScrivere({ azione: "preesistente", chiave: K }, ora));
+  c("salto: lo stato e il motivo", "non_inviato/troppo_vicino", (({ stato, motivo }) => `${stato}/${motivo}`)(I.pezzoDaScrivere({ azione: "salta", chiave: K, stato: "non_inviato", motivo: "troppo_vicino" }, ora)));
+  c("incerto: solo stato e motivo (la chiave è la stessa, le risposte restano)", { stato: "incerto", motivo: "incerto" }, I.pezzoDaScrivere({ azione: "salta", chiave: K, stato: "incerto", motivo: "incerto" }, ora));
+  c("aspetta e niente: non si scrive", [null, null], [I.pezzoDaScrivere({ azione: "niente" }, ora), I.pezzoDaScrivere({ azione: "aspetta", motivo: "calma" }, ora)]);
+
+  gruppo("PROMEMORIA WHATSAPP · LE FRASI DEI MOTIVI");
+  for (const m of ["senza_numero", "numero_non_valido", "manca_nome", "orario_illeggibile", "troppo_vicino", "troppi_invii", "disiscritto", "incerto", "non_recapitato", "rifiutato"])
+    c(`«${m}» ha una frase in italiano`, true, typeof I.testoMotivo(m) === "string" && I.testoMotivo(m).length > 5 && !I.testoMotivo(m).includes("_"));
+  c("un codice sconosciuto ha comunque una frase", true, I.testoMotivo("boh").length > 5);
+  const srcInvio = readFileSync(join(radice, "src/crm/promemoria/invio.ts"), "utf8") + readFileSync(join(radice, "src/crm/promemoria/formati.ts"), "utf8");
+  const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  c("le regole non leggono l'orologio del server", false, /new Date\(\)|Date\.now\(\)|getHours\(|toLocale/.test(senzaCommenti(srcInvio)));
+
+  gruppo("PROMEMORIA WHATSAPP · IL MODELLO META");
+  const T = WMT.findMetaTemplate("consulenza_conferma_presenza");
+  c("esiste", true, !!T);
+  c("UTILITY, in italiano", ["UTILITY", "it"], [T?.category, T?.language]);
+  c("4 variabili, in quest'ordine", ["lead_name", "appointment_day", "appointment_time", "meet_link"], T?.params.map((p) => p.key));
+  c("il testo ha {{1}}…{{4}} e non {{5}}", true, ["{{1}}", "{{2}}", "{{3}}", "{{4}}"].every((x) => T.body.includes(x)) && !T.body.includes("{{5}}"));
+  c("non inizia né finisce con una variabile (Meta lo rifiuta)", false, /^\s*\{\{|\}\}\s*$/.test(T.body));
+  c("chiede di rispondere SÌ", true, /risponda SÌ/.test(T.body));
+  c("niente parole da promozione né dati sanitari", "", ["gratuit", "offert", "scont", "scopri", "capelli", "calvizie", "diradament", "alopec", "diagnos", "prezz", "€"].filter((p) => T.body.toLowerCase().includes(p)).join(","));
+  c("il testo è quello della SPEC", "Gentile {{1}}, la Sua consulenza con Hair Genius Labs è fissata per {{2}} alle ore {{3}}.\n\nPer collegarsi: {{4}}\n\nPer confermare la Sua presenza risponda SÌ a questo messaggio.\n\nHair Genius Labs", T.body);
+  c("finisce nell'esportazione TXT per Meta", true, WMT.buildMetaTemplatesTxt().includes("NAME       : consulenza_conferma_presenza"));
+  c("l'esempio del giorno è parlato", "venerdì 23 ottobre", T.params[1].example);
+  c("gli altri modelli restano 13, e in coda c'è il nuovo", [14, "consulenza_conferma_presenza"], [WMT.META_TEMPLATES.length, WMT.META_TEMPLATES.at(-1).name]);
+  c("appuntamento_conferma è identico a prima", "Gentile {{1}}, Le confermo l'analisi tecnica gratuita prevista per il {{2}} alle ore {{3}}. A breve riceverà il link per collegarsi.\n\nA presto,\n{{4}}\nHair Genius Labs", WMT.findMetaTemplate("appuntamento_conferma").body);
+}
