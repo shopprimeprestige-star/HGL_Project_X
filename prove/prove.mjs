@@ -20275,6 +20275,18 @@ function proveDelTermometroInvisibleDerm() {
   c("in modo «solo nomi» i ritorni non si segnano", true, /const idRitorni = soloNomi \? \[\] :/.test(pannello));
   c("…e la coda non li mostra di ritorno", true, /onLetti\(si \? \[\] :/.test(pannello));
   c("…si scrive con patchSoloNome sulla scheda riletta", true, /updateLead\(r\.scheda\.id, \(attuale\) => patchSoloNome\(attuale, r\.letto\)\)/.test(pannello));
+
+/** ── ELIMINARE DALLA SCHEDA DI LEAD IMPORTATI (22/10/2026) ─────────────────
+ *  Richiesta del titolare: «fai che posso eliminare i lead da lead importati». */
+function proveDellEliminaDallaCoda() {
+  gruppo("LEAD IMPORTATI: SI ELIMINA ANCHE DALLA SCHEDA DELLA CODA");
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("voce «Elimina lead…» nel menu Altro della scheda", true, /onSelect=\{onElimina\}[\s\S]{0,200}Elimina lead…/.test(pagina));
+  c("solo a chi ha il permesso", true, /onElimina=\{puoEliminare \? \(\) => setDaEliminare\(prossimo\) : undefined\}/.test(pagina));
+  c("prima chiede, col nome", true, /titolo="Eliminare questo lead\?"[\s\S]{0,120}nomeDi\(daEliminare\)/.test(pagina));
+  c("elimina passando da eliminaUno (permesso, messaggi, coda)", true, /await eliminaUno\(daEliminare\)/.test(pagina));
+  c("con la domanda aperta le scorciatoie 1…9, S, A tacciono", true, /bloccato:[^}]*!!daEliminare/.test(pagina));
+  c("se il lead sparisce intanto, la domanda si chiude", true, /daEliminare && !leads\.some\(\(l\) => l\.id === daEliminare\.id\)\) setDaEliminare\(null\)/.test(pagina));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
@@ -20372,6 +20384,7 @@ proveDeiPulsantiDelloStato();
 proveDelloStatoAttesaWhatsapp();
 proveDellOrarioSulDoppione();
 proveDelTermometroInvisibleDerm();
+proveDellEliminaDallaCoda();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
