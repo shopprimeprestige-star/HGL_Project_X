@@ -20292,6 +20292,35 @@ function proveDellEliminaDallaCoda() {
   c("se il lead sparisce intanto, la domanda si chiude", true, /daEliminare && !leads\.some\(\(l\) => l\.id === daEliminare\.id\)\) setDaEliminare\(null\)/.test(pagina));
 }
 
+
+/** ── «DA RIPROGRAMMARE» SEMPRE IN «DA FARE OGGI» (22/10/2026) ─────────────
+ *  Richiesta del titolare: «i da riprogrammare di qualsiasi data sono tutti su
+ *  da fare oggi finché non lo tolgo». Dati inventati. */
+function proveDeiDaRiprogrammareOggi() {
+  gruppo("DA FARE OGGI: I DA RIPROGRAMMARE CI RESTANO FINCHÉ NON CAMBIA LO STATO");
+  const ora = new Date("2026-10-22T10:00:00");
+  const lead = (id, data) => ({ id, data: { nome: "Mario", cognome: "Esempio", ...data } });
+  const righe = DF.costruisciRighe({
+    ora,
+    task: [],
+    leads: [
+      lead("vecchio", { stato: "da_spostare", statoPrecedenteIl: "2026-09-01T09:00:00Z" }),
+      lead("importato", { stato: "da_spostare" }),
+      lead("ieri", { stato: "da_spostare", statoPrecedenteIl: "2026-10-21T18:00:00Z", dataRicontatto: "2026-10-30" }),
+      lead("rifissato", { stato: "appuntamento_fissato", dataMeeting: "2026-10-25", oraMeeting: "10:00" }),
+      lead("assente", { stato: "no_show", statoPrecedenteIl: "2026-09-01T09:00:00Z" }),
+    ],
+  });
+  const di = (id) => righe.find((r) => r.id === `lead:${id}`);
+  const oggi = "2026-10-22";
+  c("cambiato a settembre: è di oggi", oggi, di("vecchio")?.giorno);
+  c("importato senza giorno del cambio: c'è, ed è di oggi", oggi, di("importato")?.giorno);
+  c("con un richiamo futuro: resta comunque di oggi", oggi, di("ieri")?.giorno);
+  c("non finisce nell'arretrato", "quandoCapita", DF.fasciaDi(di("vecchio"), ora.getTime(), oggi));
+  c("rifissato (stato cambiato): esce", undefined, di("rifissato"));
+  c("«Cliente assente» resta alla regola di prima (arretrato)", "2026-09-01", di("assente")?.giorno);
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20388,6 +20417,7 @@ proveDelloStatoAttesaWhatsapp();
 proveDellOrarioSulDoppione();
 proveDelTermometroInvisibleDerm();
 proveDellEliminaDallaCoda();
+proveDeiDaRiprogrammareOggi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

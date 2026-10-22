@@ -233,7 +233,7 @@ interface Candidato {
  *  ieri: uscendo subito, quella scheda finiva scartata come «arretrata» e la
  *  chat aperta OGGI non compariva da nessuna parte. Chi sceglie fra i candidati
  *  è `scegliCandidato`, che guarda prima la giornata e poi la precisione. */
-function candidatiDi(d: LeadData): Candidato[] {
+function candidatiDi(d: LeadData, oggi: string): Candidato[] {
   const stato = d.stato;
   const fuori: Candidato[] = [];
 
@@ -261,7 +261,16 @@ function candidatiDi(d: LeadData): Candidato[] {
   //     è presentato, "Visita in sede disdetta" di chi ha annullato la visita.
   //     Tre storie diverse, un gesto solo — ridare una data — e in una lista di
   //     cose da fare conta il gesto.
-  if (stato === "da_spostare" || stato === "no_show" || stato === "sede_disdetta") {
+  //  ⚠️ «DA RIPROGRAMMARE» È SEMPRE DI OGGI (richiesta del titolare,
+  //   22/10/2026): «i da riprogrammare di qualsiasi data sono tutti su da fare
+  //   oggi finché non lo tolgo». Prima contava il giorno del cambio di stato:
+  //   quelli di ieri finivano nell'arretrato nascosto, e quelli importati senza
+  //   quel giorno non comparivano proprio. Escono quando cambia lo stato (una
+  //   data nuova li fa tornare «Appuntamento fissato»).
+  //   «Cliente assente» e «Visita in sede disdetta» restano alla regola di prima.
+  if (stato === "da_spostare") {
+    fuori.push({ tipo: "meet_da_rifissare", giorno: oggi, ora: "" });
+  } else if (stato === "no_show" || stato === "sede_disdetta") {
     fuori.push({ tipo: "meet_da_rifissare", giorno: giornoDedotto(d), ora: "" });
   }
 
@@ -368,7 +377,7 @@ export function costruisciRighe({ leads, task, ora }: IngressoRighe): RigaDaFare
     //   più in `candidatiDi` che legge dataMeeting/oraMeeting.
     if (eAppuntamento(d.stato)) continue;
 
-    const regola = scegliCandidato(candidatiDi(d), oggi);
+    const regola = scegliCandidato(candidatiDi(d, oggi), oggi);
     //  Nessun gesto, o un gesto senza giorno: non appartiene a nessuna
     //  giornata, quindi è coda e non lavoro di oggi.
     if (!regola) continue;
