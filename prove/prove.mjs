@@ -20115,6 +20115,8 @@ function proveDellEliminaDallaCoda() {
   c("solo a chi ha il permesso", true, /onElimina=\{puoEliminare \? \(\) => setDaEliminare\(prossimo\) : undefined\}/.test(pagina));
   c("prima chiede, col nome", true, /titolo="Eliminare questo lead\?"[\s\S]{0,120}nomeDi\(daEliminare\)/.test(pagina));
   c("elimina passando da eliminaUno (permesso, messaggi, coda)", true, /await eliminaUno\(daEliminare\)/.test(pagina));
+  c("con la domanda aperta le scorciatoie 1…9, S, A tacciono", true, /bloccato:[^}]*!!daEliminare/.test(pagina));
+  c("se il lead sparisce intanto, la domanda si chiude", true, /daEliminare && !leads\.some\(\(l\) => l\.id === daEliminare\.id\)\) setDaEliminare\(null\)/.test(pagina));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────

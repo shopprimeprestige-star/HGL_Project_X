@@ -1593,6 +1593,11 @@ function LeadImportatiUnoAllaVolta() {
   /** La scheda della coda per cui si sta chiedendo «eliminare?». */
   const [daEliminare, setDaEliminare] = useState<Lead | null>(null);
   const [eliminoDaEliminare, setEliminoDaEliminare] = useState(false);
+  //  Se intanto il lead sparisce (eliminato da un collega, aggiornamento in
+  //  tempo reale) la domanda si chiude: non deve ricomparire sul prossimo.
+  useEffect(() => {
+    if (daEliminare && !leads.some((l) => l.id === daEliminare.id)) setDaEliminare(null);
+  }, [daEliminare, leads]);
   /** ── QUANTO MANCA ──────────────────────────────────────────────────────
    *  Quante righe sono già state scritte durante un'azione di gruppo, nella
    *  stessa forma con cui `PannelloCarica` racconta l'importazione (`lavoro`,
@@ -3084,7 +3089,17 @@ function LeadImportatiUnoAllaVolta() {
     //   cui si stava registrando la vendita: esito scritto, tentativo contato,
     //   coda che scorre. `useScorciatoie` tace dentro i campi di testo, ma il
     //   fuoco di un dialogo sta su un pulsante, che campo di testo non è.
-    { bloccato: !!quickLead || !!griglia || !!scheda || chiusura.aperta || vista !== "coda" },
+    //  ⚠️ Anche la domanda «Eliminare questo lead?»: un «1» lì sotto segnava un
+    //   esito alla persona che si stava eliminando (revisione del 22/10/2026).
+    {
+      bloccato:
+        !!quickLead ||
+        !!griglia ||
+        !!scheda ||
+        chiusura.aperta ||
+        !!daEliminare ||
+        vista !== "coda",
+    },
   );
 
   /** ── SOTTO LA LISTA, CON LO STATO «DI RITORNO» ─────────────────────────
