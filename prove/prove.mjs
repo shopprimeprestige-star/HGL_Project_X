@@ -20419,6 +20419,7 @@ proveDellEliminaDallaCoda();
 proveDeiDaRiprogrammareOggi();
 proveDelPromemoriaWhatsapp();
 proveDellaRispostaAlPromemoria();
+proveDelleMigrazioniDelPromemoria();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20656,4 +20657,33 @@ function proveDellaRispostaAlPromemoria() {
   const elenco = [tra(72, "72h"), tra(20, "20h"), tra(5, "5h"), tra(3, "conf", { stato: "inviato", confermatoIl: t1, confermatoVia: "whatsapp" }), tra(-1, "passato")];
   c("nelle prossime 48 ore, dal più vicino; i confermati no", ["5h", "20h"], CF.daSentire(elenco, ADESSO).map((l) => l.id));
   c("nessuno da sentire → elenco vuoto", [], CF.daSentire([tra(2, "ok", { stato: "inviato", inviatoIl: t1, confermatoIl: t2, confermatoVia: "voce" })], ADESSO));
+}
+
+/** ── LE MIGRAZIONI DELLA CONFERMA WHATSAPP ─────────────────────────────────
+ *  Le applica il titolare a mano dal SQL Editor: qui si legge il testo. Solo
+ *  aggiunte (una colonna, due funzioni), niente che cancelli. */
+function proveDelleMigrazioniDelPromemoria() {
+  gruppo("PROMEMORIA WHATSAPP · MIGRAZIONI");
+  const cartella = join(radice, "supabase/migrations");
+  const f1 = join(cartella, "20261022140000_promemoria_whatsapp.sql");
+  const f2 = join(cartella, "20261022140100_promemoria_whatsapp_cron.sql");
+  c("i due file esistono", [true, true], [existsSync(f1), existsSync(f2)]);
+  if (!existsSync(f1) || !existsSync(f2)) return;
+  const sql = readFileSync(f1, "utf8");
+  const codice = sql.replace(/--.*$/gm, "");
+  c("la colonna, solo se manca", true, /ALTER TABLE public\.whatsapp_contacts ADD COLUMN IF NOT EXISTS non_scrivere_dal timestamptz/.test(codice));
+  for (const fn of ["promemoria_aggancia(p_id uuid, p_chiave text, p_patch jsonb)", "promemoria_aggiorna(p_id uuid, p_patch jsonb, p_se_chiave text DEFAULT NULL)"])
+    c(`la funzione ${fn.split("(")[0]}`, true, codice.includes(`CREATE OR REPLACE FUNCTION public.${fn}`));
+  c("SECURITY DEFINER con search_path fisso, due volte", 2, (codice.match(/SECURITY DEFINER SET search_path = public/g) || []).length);
+  c("nessuno le chiama dal browser (REVOKE da PUBLIC, anon, authenticated)", 2, (codice.match(/REVOKE ALL ON FUNCTION public\.promemoria_\w+\([^)]*\) FROM PUBLIC, anon, authenticated;/g) || []).length);
+  c("solo la chiave di servizio (GRANT service_role)", 2, (codice.match(/GRANT EXECUTE ON FUNCTION public\.promemoria_\w+\([^)]*\) TO service_role;/g) || []).length);
+  c("il segno si mette solo se per questa chiave non c'è già", true, /coalesce\(data->'promemoria'->>'chiave', ''\) = coalesce\(p_chiave, ''\)\s+AND coalesce\(data->'promemoria'->>'stato', ''\) <> ''/.test(codice));
+  c("si scrive solo dentro data.promemoria", 2, (codice.match(/SET data = jsonb_set\(data, '\{promemoria\}'/g) || []).length);
+  c("niente che cancelli (fuori dai commenti)", false, /DROP TABLE|DROP FUNCTION|DROP COLUMN|DELETE FROM|TRUNCATE|ALTER TABLE .* DROP/i.test(codice));
+  c("come si annulla: scritto nel commento", true, /DROP FUNCTION public\.promemoria_aggancia/.test(sql) && /DROP COLUMN/.test(sql));
+  const cron = readFileSync(f2, "utf8");
+  c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
+  c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp")).sort();
+  c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }

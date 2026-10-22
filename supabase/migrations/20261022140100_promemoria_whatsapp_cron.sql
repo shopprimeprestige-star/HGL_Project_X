@@ -1,0 +1,14 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- CONFERMA DELLE CONSULENZE SU WHATSAPP — il giro ogni 2 minuti
+--
+-- ⚠️ PER ULTIMA: dopo la migrazione 20261022140000_promemoria_whatsapp.sql e
+--    dopo la pubblicazione del codice. Usa `programma_hook_cron`, che legge da
+--    app_config le righe cron_sito e cron_chiave (le stesse degli altri cron):
+--    se mancano non programma niente e lo dice.
+-- ⚠️ Programmare il cron NON accende niente: i messaggi partono solo con
+--    l'interruttore in Impostazioni → WhatsApp → «Conferma consulenze».
+--
+-- Per spegnerlo:   SELECT cron.unschedule('promemoria-whatsapp-2min');
+-- Per vedere se gira:  SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;
+-- ─────────────────────────────────────────────────────────────────────────────
+SELECT public.programma_hook_cron('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp');
