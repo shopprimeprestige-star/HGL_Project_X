@@ -496,7 +496,6 @@ const COLONNE: Record<string, string[]> = {
     "tel",
     "whatsappnumber",
     "numerowhatsapp",
-    "whatsapp",
   ],
   email: ["email", "mail", "posta", "indirizzoemail"],
   citta: ["citta", "city", "comune", "localita"],

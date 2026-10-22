@@ -742,7 +742,7 @@ export function PannelloCarica({
                     ]
                       .filter(Boolean)
                       .join(" e ")
-                      .replace(/^a/, "A")
+                      .replace(/^a/, "A") || "Niente da aggiornare"
                   : nuovi.length === 0
                     ? ritorni.length === 0
                       ? "Niente da importare"
@@ -752,9 +752,11 @@ export function PannelloCarica({
                       : `Importa ${nuovi.length} schede e segna ${ritorni.length} di ritorno`}
             </Button>
             <p className="text-[12px] text-muted-foreground">
-              {nuovi.length === 0 && ritorni.length > 0
-                ? "Tutte le righe leggibili risultano già in archivio: importarle di nuovo le sdoppierebbe. Vengono segnate sulla loro scheda e finiscono in cima ai «Lead importati», dove decidi se lasciarle come stanno o rimetterle fra i da contattare."
-                : "Da qui in poi il database viene toccato."}
+              {soloNomi
+                ? "Per chi è già in archivio cambiano solo nome e cognome: stato, note e appuntamenti restano com'erano."
+                : nuovi.length === 0 && ritorni.length > 0
+                  ? "Tutte le righe leggibili risultano già in archivio: importarle di nuovo le sdoppierebbe. Vengono segnate sulla loro scheda e finiscono in cima ai «Lead importati», dove decidi se lasciarle come stanno o rimetterle fra i da contattare."
+                  : "Da qui in poi il database viene toccato."}
             </p>
           </div>
         </>

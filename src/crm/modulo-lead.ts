@@ -886,6 +886,18 @@ export function leggiRisposte(
          eccezione è la domanda sul quando, che ammette una risposta scritta a
          mano e vale anche senza quella verifica: era già così. */
     const nota = colonna ? DOMANDA_DI.get(colonna) : undefined;
+    //  ⚠️ IL BUDGET SCRITTO A MANO NON PASSA DA `paRisposta`: «1.000€», «500»,
+    //   «€ 800» sono proprio le risposte che servono, e `paRisposta` scarta le
+    //   cifre sole e il simbolo dell'euro (revisione del 22/10/2026).
+    if (nota?.campo === "budgetLibero" && intestazioniAffidabili) {
+      const t = leggibile(grezzo);
+      if (t && t.length <= 160 && !out.budgetLibero) {
+        out.budgetLibero = t;
+        usate?.add(i);
+        risposte.push({ domanda: nota.titolo, risposta: t, campo: nota.campo });
+      }
+      return;
+    }
     if (nota && (nota.aMano || intestazioniAffidabili) && paRisposta(grezzo)) {
       const t = leggibile(grezzo);
       if (t.length >= 3 && t.length <= 160) {

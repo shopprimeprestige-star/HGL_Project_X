@@ -263,7 +263,8 @@ export function calculateLeadTemperature(answers: Risposte): TermometroID {
   if (a.roma === "no") metti("tiepido", "Non può venire a Roma");
   if (a.inizio === "info") metti("tiepido", "Sta solo cercando informazioni");
   if (a.aspettativa === "futuro") metti("tiepido", "Vuole informazioni per il futuro");
-  if (prezzoTemaVero) metti("caldo", "Il prezzo è ancora il tema vero");
+  //  Bollente vuol dire segnali coerenti: con il prezzo in contrasto non lo è.
+  if (prezzoInContrasto) metti("caldo", "Il prezzo è ancora un dubbio");
   //  Il budget riaperto dalla cifra di Q9 va verificato a voce prima di salire.
   if (riaperto) metti("tiepido", "Budget detto «no» e poi indicato sopra i 589€");
 
@@ -337,7 +338,7 @@ function motivazione(g: GradoID, s: string[], o: string[], c: string[]): string 
   if (g === "bollente")
     return `Segnali coerenti: ${s
       .slice(0, 3)
-      .map((x) => x.toLowerCase())
+      .map((x) => x.charAt(0).toLowerCase() + x.slice(1))
       .join(", ")}.`;
   if (c.length && g !== "gelido") return `${PAROLA_ID[g]}: ${primo(c)}.`;
   if (o.length)

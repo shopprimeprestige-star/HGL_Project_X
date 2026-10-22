@@ -20164,8 +20164,10 @@ function proveDelTermometroInvisibleDerm() {
   c("   nessuno «solo informazioni» supera Tiepido", [], r.filter(([x, y]) => x.inizio === "info" && !sotto(y.temperatura, "tiepido")).map(([x]) => x));
   c("   Bollente solo con Roma sì, budget sì, entro 30 giorni e voglia di iniziare", [], r.filter(([x, y]) => y.temperatura === "bollente" &&
     !(x.roma === "si" && x.budget === "si" && x.inizio !== "info" && x.aspettativa !== "futuro")).map(([x]) => x));
-  c("3. chi ha Roma, budget, urgenza e vuole iniziare è Bollente (salvo il prezzo come tema)", [], r.filter(([x, y]) => x.roma === "si" && x.budget === "si" && x.inizio !== "info" && x.aspettativa === "adatto" &&
-    !(x.cerca === "economica" && x.dubbio === "costo") && y.temperatura !== "bollente").map(([x]) => x));
+  c("3. chi ha Roma, budget, urgenza e vuole iniziare è Bollente (salvo il dubbio sul costo)", [], r.filter(([x, y]) => x.roma === "si" && x.budget === "si" && x.inizio !== "info" && x.aspettativa === "adatto" &&
+    x.dubbio !== "costo" && y.temperatura !== "bollente").map(([x]) => x));
+  c("   un Bollente non ha mai contraddizioni", [], r.filter(([, y]) => y.temperatura === "bollente" && y.contraddizioni.length).map(([x]) => x));
+  c("   la motivazione non storpia le maiuscole", true, /Roma/.test(T({ roma: "si", budget: "si", inizio: "subito", aspettativa: "adatto" }).motivazione));
   c("4. urgenza + «per il futuro» è sempre una contraddizione", [], r.filter(([x, y]) => x.inizio !== "info" && x.aspettativa === "futuro" && !y.contraddizioni.length).map(([x]) => x));
   const cambia = (x, k, v) => ({ ...x, [k]: v });
   c("5. il dubbio sulla tenuta pesa come quello sul risultato", [], r.filter(([x, y]) => x.dubbio === "tenuta" && T(cambia(x, "dubbio", "risultato")).score !== y.score).map(([x]) => x));
@@ -20186,6 +20188,11 @@ function proveDelTermometroInvisibleDerm() {
   const q9 = T({ roma: "si", inizio: "subito", budget: "no", budgetLibero: "fino a 1.000€" });
   c("Q9: «fino a 1.000€» riapre, ma al massimo Tiepido e lo segnala", ["tiepido", 1], [q9.temperatura, q9.contraddizioni.length]);
   c("la cifra più alta di «300-400 euro»", 400, mod["termometro-id"].cifraDelBudget("300-400 euro"));
+  const conBudget = (v) => IMP.traduciCsv([intest, riga2.replace("300 euro", v)].join("\n")).leads[0].modulo.budgetLibero;
+  c("Q9 dal file: «1.000€», «500», «€ 800» si tengono", ["1.000€", "500", "€ 800"], ["1.000€", "500", "€ 800"].map(conBudget));
+  const dalFile = TEMP.temperaturaDi(IMP.traduciCsv([intest, riga2.replace("300 euro", "1.000€").replace("🔴_no,_al_momento_non_posso_venire_a_roma", "🟢_sì,_sono_disposto_a_venire_a_roma!").replace("sto_solo_cercando_informazioni", "il_prima_possibile")].join("\n")).leads[0]).t;
+  c("…e «1.000€» dal file riapre fino a Tiepido", ["tiepido", 1], [dalFile.livello, dalFile.termometro.contraddizioni.length]);
+  c("una colonna «whatsapp» sì/no non è il telefono", false, /"whatsapp",/.test(readFileSync(join(radice, "src/crm/import-backup.ts"), "utf8")));
   c("il budget scritto senza cifre non riapre", "freddo", T({ roma: "si", inizio: "subito", budget: "no", budgetLibero: "poco" }).temperatura);
 
   gruppo("TERMOMETRO INVISIBLE DERM: VENTUNO PROFILI");
