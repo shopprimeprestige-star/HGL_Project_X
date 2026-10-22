@@ -32,6 +32,12 @@ import type { LeadData } from "@/crm/types";
  *  aggiungono ai lati e in mezzo senza cambiare i tre di prima.
  *  I testi 700/600 stanno sopra 4,5:1 sul fondo chiaro del CRM. */
 const STILE: Record<Exclude<LivelloTemperatura, "nessuna">, { pallino: string; testo: string }> = {
+  //  Il modulo «22-ott» (22/10/2026): Bollente rosso pieno, Tiepido giallo
+  //  scuro (non ambra: l'ambra è «in sospeso»), Gelido grigio chiaro.
+  bollente: { pallino: "bg-red-600", testo: "text-red-700" },
+  tiepido: { pallino: "bg-yellow-400", testo: "text-yellow-800" },
+  gelido: { pallino: "bg-slate-300", testo: "text-slate-500" },
+  trapianto: { pallino: "bg-violet-400", testo: "text-violet-700" },
   caldissimo: { pallino: "bg-red-600", testo: "text-red-700" },
   caldo: { pallino: "bg-orange-600", testo: "text-orange-700" },
   fuochino: { pallino: "bg-orange-400", testo: "text-orange-800" },

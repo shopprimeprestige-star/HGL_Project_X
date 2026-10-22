@@ -183,6 +183,7 @@ import { NotaSoloConsulenti, consulentiPerConsulenza } from "./chi-fa-la-consule
 //  riconoscono e come si leggono sta tutto in crm/modulo-lead.
 import { moduloLetto, vociModulo } from "./modulo-lead";
 import { temperaturaLead } from "./temperatura-lead";
+import type { TermometroID } from "./termometro-id";
 import { PallinoTemperatura } from "./Temperatura";
 import {
   BORDO_FINESTRA,
@@ -1922,10 +1923,20 @@ function BloccoModulo({ form }: { form: LeadData }) {
       classeCorpo="p-4"
     >
       {conTemperatura ? (
-        <p className={cn("text-[12.5px] text-slate-600", (voci.length > 0 || altro) && "mb-3")}>
-          <PallinoTemperatura t={t} />
-          {t.perche && <span> — {t.perche}</span>}
-        </p>
+        <>
+          <p
+            className={cn(
+              "text-[12.5px] text-slate-600",
+              (voci.length > 0 || altro || t.termometro) && "mb-3",
+            )}
+          >
+            <PallinoTemperatura t={t} />
+            {t.perche && <span> — {t.perche}</span>}
+          </p>
+          {/*  Il termometro Invisible Derm (crm/termometro-id): perché ha quel
+              grado e cosa fare. Testo di React, mai HTML. */}
+          {t.termometro && <DettaglioTermometro d={t.termometro} />}
+        </>
       ) : (
         voci.length === 0 && (
           <p className={cn("text-[12.5px] text-slate-500", altro && "mb-3")}>
@@ -4723,5 +4734,41 @@ function RigaRiepilogo({
       <dt className="text-[12px] text-slate-500">{etichetta}</dt>
       <dd className="min-w-0 truncate text-[13px] font-medium text-slate-900">{valore || "—"}</dd>
     </button>
+  );
+}
+
+/** ── IL PERCHÉ DEL TERMOMETRO INVISIBLE DERM ──────────────────────────────
+ *  Motivazione, azione consigliata, poi segnali, ostacoli, contraddizioni e
+ *  tetti: solo le righe che hanno qualcosa. */
+function DettaglioTermometro({ d }: { d: TermometroID }) {
+  const elenchi: { titolo: string; voci: string[]; classe: string }[] = [
+    { titolo: "Segnali positivi", voci: d.segnali_positivi, classe: "text-emerald-800" },
+    { titolo: "Ostacoli", voci: d.ostacoli, classe: "text-red-800" },
+    { titolo: "Contraddizioni", voci: d.contraddizioni, classe: "text-orange-800" },
+    { titolo: "Perché non sale", voci: d.limiti, classe: "text-slate-600" },
+  ];
+  return (
+    <div className="mb-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-[12.5px]">
+      <p className="text-slate-700">{d.motivazione}</p>
+      <p className="font-medium text-slate-900">
+        Da fare: <span className="font-normal">{d.azione_consigliata}</span>
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {elenchi
+          .filter((e) => e.voci.length > 0)
+          .map((e) => (
+            <div key={e.titolo} className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                {e.titolo}
+              </p>
+              <ul className={cn("list-disc pl-4", e.classe)}>
+                {e.voci.map((v) => (
+                  <li key={v}>{v}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }
