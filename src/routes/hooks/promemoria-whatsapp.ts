@@ -9,15 +9,15 @@
  *  Supabase e alla Graph API (le «porte» di `giroPromemoria`).
  *
  *  COME LO SI CHIAMA
- *   · il giro vero: POST /hooks/promemoria-whatsapp con Authorization che
- *     porta la chiave pubblicabile, come gli altri hook (pg_cron, vedi la
- *     migrazione `promemoria_whatsapp_cron`). Chi ha la chiave pubblica può
- *     solo anticipare un giro che farebbe comunque il cron; due giri a meno
- *     di 60 secondi: il secondo esce subito.
- *   · la prova a secco: corpo `{ "prova": true }` con la SESSIONE del
- *     titolare (Bearer del suo accesso). Non scrive e non invia: dice se è
- *     tutto a posto e quanti partirebbero. È il «Controlla ora».
- *   La risposta ha solo conteggi: niente id, nomi o numeri.
+ *  POST /hooks/promemoria-whatsapp con Authorization che porta la chiave
+ *  pubblicabile, come gli altri hook (pg_cron, vedi la migrazione
+ *  `promemoria_whatsapp_cron`). Chi ha la chiave pubblica può solo anticipare
+ *  un giro che farebbe comunque il cron; due giri a meno di 60 secondi: il
+ *  secondo esce subito. La risposta ha solo conteggi: niente id, nomi o numeri.
+ *  ⚠️ La prova a secco («Controlla ora») e l'interruttore NON stanno qui:
+ *   stanno in `/api/crm/promemoria-whatsapp`, dietro `guardiaCRM` col permesso
+ *   «impostazioni». La sessione Supabase non basta a dire chi bussa: con
+ *   l'accesso col PIN è quella del proprietario per tutti (api.crm.accesso).
  *
  *  COSA SERVE (e senza cosa non parte niente, e lo dice)
  *   la migrazione 20261022140000_promemoria_whatsapp.sql; l'interruttore
@@ -28,7 +28,6 @@
  *   giro non li vede (riceve le impostazioni senza segreti).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Lead, PromemoriaWhatsapp } from "@/crm/types";
 import { STATI_APPUNTAMENTO } from "@/crm/types";
@@ -96,15 +95,18 @@ async function leggiJson<T>(chiave: string): Promise<T | null> {
 }
 
 async function scriviJson(chiave: string, valore: unknown) {
-  await db
+  const { error } = await db
     .from("app_config")
     .upsert(
       { key: chiave, value: JSON.stringify(valore), updated_at: new Date().toISOString() },
       { onConflict: "key" },
     );
+  if (error) throw new Error(`scrittura ${chiave}: ${error.code ?? ""}`);
 }
 
-function porteVere(soloUtente: string | null): Porte {
+/** Le porte vere del giro. `soloUtente` = solo l'installazione di chi chiede
+ *  (la prova a secco del riquadro); null = tutte (il cron). */
+export function porteVere(soloUtente: string | null): Porte {
   const segreti = new Map<string, Segreti>();
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     const { data, error } = await db.rpc(fn, args);
@@ -266,51 +268,17 @@ function porteVere(soloUtente: string | null): Porte {
   };
 }
 
-/** Chi chiede la prova a secco: deve essere il titolare delle impostazioni
- *  WhatsApp, con la sua sessione (correzione 5 del revisore). */
-async function titolareDellaSessione(request: Request): Promise<string | null> {
-  const auth = request.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!token) return null;
-  const cliente = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-  const { data, error } = await cliente.auth.getUser();
-  if (error || !data.user) return null;
-  const { data: riga } = await db
-    .from("whatsapp_settings")
-    .select<{ user_id: string }>("user_id")
-    .eq("user_id", data.user.id)
-    .maybeSingle();
-  return riga?.user_id ?? null;
-}
-
 export const Route = createFileRoute("/hooks/promemoria-whatsapp")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        let prova = false;
+        const auth = request.headers.get("authorization");
+        const attesa = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+        if (!auth || !auth.includes(attesa || "__mancante__"))
+          return json({ error: "unauthorized" }, 401);
+        const porte = porteVere(null);
         try {
-          const txt = await request.text();
-          if (txt) prova = (JSON.parse(txt) as { prova?: boolean }).prova === true;
-        } catch {
-          /* nessun corpo: è il giro vero */
-        }
-        let soloUtente: string | null = null;
-        if (prova) {
-          soloUtente = await titolareDellaSessione(request);
-          if (!soloUtente) return json({ error: "unauthorized" }, 401);
-        } else {
-          const auth = request.headers.get("authorization");
-          const attesa = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
-          if (!auth || !auth.includes(attesa || "__mancante__"))
-            return json({ error: "unauthorized" }, 401);
-        }
-        const porte = porteVere(soloUtente);
-        try {
-          return json(await giroPromemoria(porte, { prova }));
+          return json(await giroPromemoria(porte, { prova: false }));
         } catch (e) {
           //  Solo il codice dell'errore nei log: mai token, mai dati del cliente.
           console.error(
@@ -318,20 +286,25 @@ export const Route = createFileRoute("/hooks/promemoria-whatsapp")({
             e instanceof Error ? e.message.slice(0, 120) : "?",
           );
           const frase = FRASI_BLOCCO.controllo_fallito;
-          if (!prova)
-            await porte
-              .leggiStato()
-              .then((s) =>
-                porte.scriviStato({
-                  ...(s ?? { inviatiOggi: 0, confermatiOggi: 0, senzaRisposta: 0, inAttesa: 0 }),
-                  giroIl: new Date().toISOString(),
-                  pronto: false,
-                  blocco: "controllo_fallito",
-                  frase,
-                }),
-              )
-              .catch(() => undefined);
-          return json({ ok: false, prova, pronto: false, blocco: "controllo_fallito", frase });
+          await porte
+            .leggiStato()
+            .then((s) =>
+              porte.scriviStato({
+                ...(s ?? { inviatiOggi: 0, confermatiOggi: 0, senzaRisposta: 0, inAttesa: 0 }),
+                giroIl: new Date().toISOString(),
+                pronto: false,
+                blocco: "controllo_fallito",
+                frase,
+              }),
+            )
+            .catch(() => undefined);
+          return json({
+            ok: false,
+            prova: false,
+            pronto: false,
+            blocco: "controllo_fallito",
+            frase,
+          });
         }
       },
     },

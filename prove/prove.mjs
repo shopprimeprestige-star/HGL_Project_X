@@ -20876,7 +20876,10 @@ async function proveDelGiroDelPromemoria() {
   gruppo("PROMEMORIA WHATSAPP · LA ROTTA");
   const rotta = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
   c("il giro vero vuole la chiave pubblicabile, come gli altri hook", true, /SUPABASE_PUBLISHABLE_KEY/.test(rotta) && /401/.test(rotta));
-  c("la prova a secco vuole la sessione del titolare (auth.getUser)", true, /auth\.getUser\(\)/.test(rotta) && /prova/.test(rotta));
+  //  La prova a secco NON sta più qui: la sessione Supabase, con l'accesso col
+  //  PIN, è quella del proprietario per tutti e non prova chi bussa. Sta nella
+  //  rotta del CRM, dietro guardiaCRM (vedi proveDelRiquadroDelPromemoria).
+  c("l'hook del cron fa solo il giro vero (niente prova a secco qui)", false, /prova: true|auth\.getUser/.test(rotta));
   c("il token non finisce nei log né nelle risposte", false, /console\.[a-z]+\([^)]*(access_token|accessToken|token)/.test(rotta) || /json\([^)]*(access_token|accessToken)/.test(rotta));
   c("usa il giro provato, non una copia", true, /giroPromemoria\(/.test(rotta));
   c("il link è quello per-persona del CRM (valoriDaLead)", true, /valoriDaLead\(/.test(rotta));
@@ -21015,8 +21018,22 @@ function proveDelRiquadroDelPromemoria() {
   //  L'unico token ammesso è quello della SESSIONE di chi guarda (serve alla
   //  prova a secco); quello di WhatsApp e la sua tabella mai.
   c("il riquadro non importa niente del server e non vede il token WhatsApp", false, /\.server"|whatsapp_settings|accessToken/.test(pan) || /access_token/.test(pan.replace(/session\?\.access_token/g, "")));
-  c("all'accensione: avvio «da fare» (il primo giro non manda niente ai vecchi)", true, /acceso: true,\s*attivoDal: new Date\(\)\.toISOString\(\),\s*avvio: "da_fare"/.test(pan));
-  c("«Controlla ora» chiede la prova a secco con la sessione", true, /\/hooks\/promemoria-whatsapp/.test(pan) && /prova: true/.test(pan) && /Bearer \$\{/.test(pan));
+  const api = readFileSync(join(radice, "src/routes/api.crm.promemoria-whatsapp.ts"), "utf8");
+  c("all'accensione: avvio «da fare» (il primo giro non manda niente ai vecchi)", true, /acceso: true,\s*attivoDal: new Date\(\)\.toISOString\(\),\s*avvio: "da_fare"/.test(api));
+  //  Controllo di sicurezza (MEDIUM): l'interruttore scriveva app_config dal
+  //  browser, e col PIN la sessione è del proprietario per tutti: anche la
+  //  setter poteva accendere. Adesso passa dal server, con la guardia.
+  const panCodice = pan.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  c("il browser non scrive più app_config per il promemoria", false, /app_config|dbConfig|upsert\(/.test(panCodice));
+  c("il riquadro parla solo con la rotta del CRM, col gettone (fetchCRM)", true, /const ROTTA = "\/api\/crm\/promemoria-whatsapp"/.test(pan) && /fetchCRM\(ROTTA/.test(pan) && !/\/hooks\//.test(panCodice));
+  c("ogni richiesta alla rotta passa dalla guardia col permesso «impostazioni»", (api.match(/(GET|POST): async/g) || []).length, (api.match(/await guardiaCRM\(request, cors, "impostazioni"\);\s*if \(!g\.ok\) return g\.risposta;/g) || []).length);
+  c("…e la guardia viene prima di ogni scrittura", true, api.indexOf("guardiaCRM(request") < api.indexOf("scriviConfig("));
+  c("la scrittura la fa il server (chiave di servizio)", true, /supabaseAdmin|porteVere/.test(api));
+  c("la prova a secco è dell'installazione di chi chiede (adminUserId)", true, /porteVere\(g\.chi\.adminUserId\)/.test(api) && /prova: true/.test(api));
+  const { PERMESSI_RUOLO: PR } = PRM;
+  c("una setter non ha «impostazioni»: la guardia le risponde 403", false, PR.setter.includes("impostazioni"));
+  c("…nemmeno il consulente; l'admin sì", [false, true], [PR.consulente.includes("impostazioni"), PR.admin.includes("impostazioni")]);
+  c("nel riquadro interruttore e «Controlla ora» solo a chi ha «impostazioni»", true, /usePuo\(\)\("impostazioni"\)/.test(pan) && (pan.match(/disabled=\{!puoCambiare/g) || []).length === 2);
   c("sta nella scheda WhatsApp delle impostazioni", true, /<WhatsAppSettingsSection \/>\s*<PromemoriaWhatsappPannello \/>/.test(imp));
   c("ricorda il consenso prima di accendere", true, /consenso|modulo di prenotazione/i.test(pan));
   const doc = readFileSync(join(radice, "docs/whatsapp-setup.md"), "utf8");

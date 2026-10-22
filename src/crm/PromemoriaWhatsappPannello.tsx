@@ -7,8 +7,12 @@
  *  ⚠️ PARTE SPENTO. Accenderlo scrive `avvio: "da_fare"`: il primo giro del
  *   cron segna come «preesistenti» gli appuntamenti già in agenda, che così
  *   non ricevono niente (niente 40 messaggi tutti insieme).
- *  ⚠️ MAI IL TOKEN QUI: la frase la scrive il cron; «Controlla ora» chiede
- *   al server una prova a secco con la sessione di chi guarda.
+ *  ⚠️ IL BROWSER NON SCRIVE NIENTE DA SOLO (controllo di sicurezza, MEDIUM):
+ *   legge, accende/spegne e controlla passando da `/api/crm/promemoria-whatsapp`,
+ *   che risponde 403 a chi non ha «impostazioni». Col PIN la sessione Supabase
+ *   è del proprietario per tutti: una scrittura diretta su `app_config` la
+ *   poteva fare anche la setter. Qui i comandi si vedono solo a chi può; la
+ *   difesa vera è la guardia del server. Mai il token WhatsApp qui.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useCallback, useEffect, useState } from "react";
@@ -17,31 +21,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { dbConfig } from "@/crm/blocchi";
+import { fetchCRM, usePuo } from "@/crm/AuthContext";
 import { fraseRiquadro, type StatoPerRiquadro } from "@/crm/promemoria/pronto";
 
-const CHIAVE_CONFIG = "promemoria_whatsapp";
-const CHIAVE_STATO = "promemoria_whatsapp_stato";
+const ROTTA = "/api/crm/promemoria-whatsapp";
 
 interface Config {
   acceso: boolean;
   attivoDal?: string | null;
   avvio?: "da_fare" | "fatto";
 }
-
-const leggi = async <T,>(chiave: string): Promise<T | null> => {
-  const { data } = await dbConfig
-    .from("app_config")
-    .select("value")
-    .eq("key", chiave)
-    .maybeSingle();
-  try {
-    return data?.value ? (JSON.parse(data.value) as T) : null;
-  } catch {
-    return null;
-  }
-};
 
 const TONI = {
   verde: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -51,6 +40,7 @@ const TONI = {
 } as const;
 
 export function PromemoriaWhatsappPannello() {
+  const puoCambiare = usePuo()("impostazioni");
   const [config, setConfig] = useState<Config | null>(null);
   const [stato, setStato] = useState<StatoPerRiquadro | null>(null);
   const [caricato, setCaricato] = useState(false);
@@ -59,68 +49,64 @@ export function PromemoriaWhatsappPannello() {
   const [controllando, setControllando] = useState(false);
 
   const ricarica = useCallback(async () => {
-    const [c, s] = await Promise.all([
-      leggi<Config>(CHIAVE_CONFIG),
-      leggi<StatoPerRiquadro>(CHIAVE_STATO),
-    ]);
-    setConfig(c);
-    setStato(s);
-    setCaricato(true);
+    try {
+      const res = await fetchCRM(ROTTA);
+      if (res.ok) {
+        const r = (await res.json()) as { config?: Config | null; stato?: StatoPerRiquadro | null };
+        setConfig(r.config ?? null);
+        setStato(r.stato ?? null);
+      }
+    } catch {
+      /* resta l'ultima lettura: la frase dice «spento» o lo stato di prima */
+    } finally {
+      setCaricato(true);
+    }
   }, []);
   useEffect(() => {
-    void ricarica();
-  }, [ricarica]);
+    if (puoCambiare) void ricarica();
+  }, [ricarica, puoCambiare]);
+
+  const chiedi = (corpo: Record<string, unknown>) =>
+    fetchCRM(ROTTA, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
 
   const cambia = async (acceso: boolean) => {
     setSalvo(true);
-    const nuovo: Config = acceso
-      ? {
-          acceso: true,
-          attivoDal: new Date().toISOString(),
-          avvio: "da_fare",
-        }
-      : { ...(config ?? {}), acceso: false };
-    const { error } = await dbConfig
-      .from("app_config")
-      .upsert(
-        { key: CHIAVE_CONFIG, value: JSON.stringify(nuovo), updated_at: new Date().toISOString() },
-        { onConflict: "key" },
-      );
-    setSalvo(false);
-    if (error) {
-      toast.error(`Non salvato: ${error.message}`);
-      return;
+    try {
+      const res = await chiedi({ acceso });
+      const r = (await res.json().catch(() => ({}))) as { config?: Config; error?: string };
+      if (!res.ok || !r.config) {
+        toast.error(
+          res.status === 403
+            ? "Solo chi può cambiare le impostazioni accende o spegne questa funzione."
+            : (r.error ?? "Non salvato."),
+        );
+        return;
+      }
+      setConfig(r.config);
+      toast.success(acceso ? "Conferma consulenze accesa" : "Conferma consulenze spenta");
+    } catch {
+      toast.error("Non salvato: il server non risponde.");
+    } finally {
+      setSalvo(false);
     }
-    setConfig(nuovo);
-    toast.success(acceso ? "Conferma consulenze accesa" : "Conferma consulenze spenta");
   };
 
   const controllaOra = async () => {
     setControllando(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const res = await fetch("/hooks/promemoria-whatsapp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ prova: true }),
-      });
-      if (res.status === 401) {
-        setControllo({
-          frase:
-            "Il controllo lo può fare solo chi ha configurato WhatsApp in queste impostazioni.",
-        });
+      const res = await chiedi({ prova: true });
+      if (res.status === 401 || res.status === 403) {
+        setControllo({ frase: "Il controllo lo può fare solo chi cambia le impostazioni." });
         return;
       }
       const r = (await res.json()) as {
         pronto?: boolean;
         frase?: string;
         partirebbero?: number;
-        saltati?: number;
       };
       setControllo({
         frase: r.pronto ? "Tutto a posto." : (r.frase ?? "Il controllo non ha risposto."),
@@ -155,11 +141,16 @@ export function PromemoriaWhatsappPannello() {
           </span>
           <Switch
             checked={acceso}
-            disabled={!caricato || salvo}
+            disabled={!puoCambiare || !caricato || salvo}
             onCheckedChange={(v) => void cambia(v)}
             aria-label="Accendi o spegni la conferma automatica delle consulenze"
           />
         </label>
+        {!puoCambiare && (
+          <p className="text-[12px] text-muted-foreground">
+            Solo chi può cambiare le impostazioni accende, spegne e controlla questa funzione.
+          </p>
+        )}
         {caricato && (
           <p
             role="status"
@@ -179,7 +170,7 @@ export function PromemoriaWhatsappPannello() {
             variant="outline"
             size="sm"
             onClick={() => void controllaOra()}
-            disabled={controllando}
+            disabled={!puoCambiare || controllando}
           >
             {controllando ? "Controllo…" : "Controlla ora"}
           </Button>
