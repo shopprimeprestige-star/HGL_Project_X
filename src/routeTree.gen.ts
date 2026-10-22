@@ -50,6 +50,7 @@ import { Route as HooksTiktokAdUpdateRouteImport } from './routes/hooks/tiktok-a
 import { Route as HooksTiktokAdPauseRouteImport } from './routes/hooks/tiktok-ad-pause'
 import { Route as HooksTiktokAdInsightsRouteImport } from './routes/hooks/tiktok-ad-insights'
 import { Route as HooksScoreSnapshotRouteImport } from './routes/hooks/score-snapshot'
+import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/promemoria-whatsapp'
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
 import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-reminder'
@@ -167,6 +168,7 @@ import { Route as ApiCrmProvaColoreRouteImport } from './routes/api.crm.prova-co
 import { Route as ApiCrmProvaCodiciRouteImport } from './routes/api.crm.prova-codici'
 import { Route as ApiCrmProvaCatalogoRouteImport } from './routes/api.crm.prova-catalogo'
 import { Route as ApiCrmProvaCapelliRouteImport } from './routes/api.crm.prova-capelli'
+import { Route as ApiCrmPromemoriaWhatsappRouteImport } from './routes/api.crm.promemoria-whatsapp'
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
 import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-upload'
 import { Route as ApiCrmMediaEliminaRouteImport } from './routes/api.crm.media-elimina'
@@ -396,6 +398,11 @@ const HooksTiktokAdInsightsRoute = HooksTiktokAdInsightsRouteImport.update({
 const HooksScoreSnapshotRoute = HooksScoreSnapshotRouteImport.update({
   id: '/hooks/score-snapshot',
   path: '/hooks/score-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksPromemoriaWhatsappRoute = HooksPromemoriaWhatsappRouteImport.update({
+  id: '/hooks/promemoria-whatsapp',
+  path: '/hooks/promemoria-whatsapp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksMetaSpendSyncRoute = HooksMetaSpendSyncRouteImport.update({
@@ -994,6 +1001,12 @@ const ApiCrmProvaCapelliRoute = ApiCrmProvaCapelliRouteImport.update({
   path: '/api/crm/prova-capelli',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmPromemoriaWhatsappRoute =
+  ApiCrmPromemoriaWhatsappRouteImport.update({
+    id: '/api/crm/promemoria-whatsapp',
+    path: '/api/crm/promemoria-whatsapp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCrmMeetingSessionRoute = ApiCrmMeetingSessionRouteImport.update({
   id: '/api/crm/meeting-session',
   path: '/api/crm/meeting-session',
@@ -1186,6 +1199,7 @@ export interface FileRoutesByFullPath {
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
+  '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1228,6 +1242,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
   '/api/crm/prova-codici': typeof ApiCrmProvaCodiciRoute
@@ -1365,6 +1380,7 @@ export interface FileRoutesByTo {
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
+  '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1407,6 +1423,7 @@ export interface FileRoutesByTo {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
   '/api/crm/prova-codici': typeof ApiCrmProvaCodiciRoute
@@ -1550,6 +1567,7 @@ export interface FileRoutesById {
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
+  '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1592,6 +1610,7 @@ export interface FileRoutesById {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
   '/api/crm/prova-codici': typeof ApiCrmProvaCodiciRoute
@@ -1736,6 +1755,7 @@ export interface FileRouteTypes {
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
+    | '/hooks/promemoria-whatsapp'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -1778,6 +1798,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
     | '/api/crm/prova-catalogo'
     | '/api/crm/prova-codici'
@@ -1915,6 +1936,7 @@ export interface FileRouteTypes {
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
+    | '/hooks/promemoria-whatsapp'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -1957,6 +1979,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
     | '/api/crm/prova-catalogo'
     | '/api/crm/prova-codici'
@@ -2099,6 +2122,7 @@ export interface FileRouteTypes {
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
+    | '/hooks/promemoria-whatsapp'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -2141,6 +2165,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
     | '/api/crm/prova-catalogo'
     | '/api/crm/prova-codici'
@@ -2251,6 +2276,7 @@ export interface RootRouteChildren {
   HooksMeetReminderRoute: typeof HooksMeetReminderRoute
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
+  HooksPromemoriaWhatsappRoute: typeof HooksPromemoriaWhatsappRoute
   HooksScoreSnapshotRoute: typeof HooksScoreSnapshotRoute
   HooksTiktokAdInsightsRoute: typeof HooksTiktokAdInsightsRoute
   HooksTiktokAdPauseRoute: typeof HooksTiktokAdPauseRoute
@@ -2286,6 +2312,7 @@ export interface RootRouteChildren {
   ApiCrmMediaEliminaRoute: typeof ApiCrmMediaEliminaRoute
   ApiCrmMediaUploadRoute: typeof ApiCrmMediaUploadRoute
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
+  ApiCrmPromemoriaWhatsappRoute: typeof ApiCrmPromemoriaWhatsappRoute
   ApiCrmProvaCapelliRoute: typeof ApiCrmProvaCapelliRoute
   ApiCrmProvaCatalogoRoute: typeof ApiCrmProvaCatalogoRoute
   ApiCrmProvaCodiciRoute: typeof ApiCrmProvaCodiciRoute
@@ -2642,6 +2669,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/score-snapshot'
       fullPath: '/hooks/score-snapshot'
       preLoaderRoute: typeof HooksScoreSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/promemoria-whatsapp': {
+      id: '/hooks/promemoria-whatsapp'
+      path: '/hooks/promemoria-whatsapp'
+      fullPath: '/hooks/promemoria-whatsapp'
+      preLoaderRoute: typeof HooksPromemoriaWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/meta-spend-sync': {
@@ -3463,6 +3497,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmProvaCapelliRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/promemoria-whatsapp': {
+      id: '/api/crm/promemoria-whatsapp'
+      path: '/api/crm/promemoria-whatsapp'
+      fullPath: '/api/crm/promemoria-whatsapp'
+      preLoaderRoute: typeof ApiCrmPromemoriaWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/meeting-session': {
       id: '/api/crm/meeting-session'
       path: '/api/crm/meeting-session'
@@ -3813,6 +3854,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksMeetReminderRoute: HooksMeetReminderRoute,
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
+  HooksPromemoriaWhatsappRoute: HooksPromemoriaWhatsappRoute,
   HooksScoreSnapshotRoute: HooksScoreSnapshotRoute,
   HooksTiktokAdInsightsRoute: HooksTiktokAdInsightsRoute,
   HooksTiktokAdPauseRoute: HooksTiktokAdPauseRoute,
@@ -3848,6 +3890,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMediaEliminaRoute: ApiCrmMediaEliminaRoute,
   ApiCrmMediaUploadRoute: ApiCrmMediaUploadRoute,
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
+  ApiCrmPromemoriaWhatsappRoute: ApiCrmPromemoriaWhatsappRoute,
   ApiCrmProvaCapelliRoute: ApiCrmProvaCapelliRoute,
   ApiCrmProvaCatalogoRoute: ApiCrmProvaCatalogoRoute,
   ApiCrmProvaCodiciRoute: ApiCrmProvaCodiciRoute,

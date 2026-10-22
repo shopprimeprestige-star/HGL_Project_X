@@ -48,6 +48,10 @@ export interface VistaOggi {
   striscia: boolean;
   /** la scritta «fissato da te» sulle righe */
   fissatiDaMe: boolean;
+  /** la striscia «Da sentire»: chi non ha confermato la consulenza su WhatsApp */
+  confermeDaSentire: boolean;
+  /** il tasto «Confermato a voce» */
+  confermaAVoce: boolean;
 }
 
 export function vistaOggi(puo: (p: Permesso) => boolean): VistaOggi {
@@ -63,5 +67,11 @@ export function vistaOggi(puo: (p: Permesso) => boolean): VistaOggi {
     gesti: consulenze,
     striscia: !consulenze && puo("agenda"),
     fissatiDaMe: !consulenze,
+    //  ⚠️ L'UNICA ECCEZIONE ALLA SOLA LETTURA (commessa 2026-10-22, approvata
+    //   dal revisore): «Confermato a voce» serve proprio alla setter, per non
+    //   richiamare chi ha già confermato al telefono. Non è un esito di
+    //   consulenza e scrive solo `promemoria.confermatoIl/Via`.
+    confermeDaSentire: true,
+    confermaAVoce: true,
   };
 }

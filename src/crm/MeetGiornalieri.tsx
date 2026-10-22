@@ -163,6 +163,7 @@ import {
 //  `statiSelezionabili` è la stessa funzione che usa la finestra: `statiPer`
 //  più lo stato attuale quando è uno di quelli storici.
 import { PastigliaStato } from "./SelettoreStatoDialog";
+import { TargaConferma } from "./ConfermeDaSentire";
 
 type Esito = "programmato" | "completato" | "no_show";
 
@@ -1408,6 +1409,10 @@ export function RigaLead({
           {fissatiDa && fissataDa(l.data, fissatiDa) && (
             <span className="shrink-0 font-medium text-foreground">fissato da te</span>
           )}
+          {/*  La conferma su WhatsApp (commessa 2026-10-22): si vede anche in
+              sola lettura, non è un gesto. Niente se non c'è mai stato un
+              messaggio automatico. */}
+          <TargaConferma dati={l.data} />
         </div>
       </div>
 

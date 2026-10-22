@@ -502,6 +502,18 @@ const MODULI = [
   //  ⚠️ Dove stanno le camere del consulente (a tutta pagina, in colonna, sul
   //   copione, in finestra): una regola sola. Vedi proveDellaVesteDelleCamere.
   "shop/veste-camere",
+  //  ⚠️ LA CONFERMA DELLA CONSULENZA SU WHATSAPP (commessa 2026-10-22): numeri,
+  //   fuso di Roma, e la regola che decide se un messaggio parte. Una regola
+  //   sbagliata qui è un messaggio doppio a un cliente, o uno di notte. Vedi
+  //   proveDelPromemoriaWhatsapp.
+  "promemoria/formati",
+  "promemoria/invio",
+  "wa-meta-templates",
+  "promemoria/risposta",
+  "promemoria/conferma",
+  "promemoria/pronto",
+  "promemoria/giro",
+  "promemoria/in-entrata",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -717,6 +729,9 @@ const SP = mod["webinar/segui-parole"];
 const TEMP = mod["temperatura-lead"];
 const VISTA = mod["vista-oggi"];
 const TELMOD = mod["landing/booking/telefono"];
+const PWF = mod["promemoria/formati"];
+const PWI = mod["promemoria/invio"];
+const WMT = mod["wa-meta-templates"];
 
 /** ── LA VALIDAZIONE CONTRO LO SCHEMA ──────────────────────────────────────
  *  Torna `"ok"`, oppure il motivo per cui lo SDI lo scarterebbe. Se sul
@@ -3141,6 +3156,9 @@ function proveDegliHook() {
     //  JSX. Un hook sotto un'uscita qui spegne la giornata di tutti.
     "src/routes/CRM.index.tsx",
     "src/crm/MeetGiornalieri.tsx",
+    //  La conferma su WhatsApp (commessa 2026-10-22): striscia e riquadro.
+    "src/crm/ConfermeDaSentire.tsx",
+    "src/crm/PromemoriaWhatsappPannello.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -20405,6 +20423,13 @@ proveDellOrarioSulDoppione();
 proveDelTermometroInvisibleDerm();
 proveDellEliminaDallaCoda();
 proveDeiDaRiprogrammareOggi();
+proveDelPromemoriaWhatsapp();
+proveDellaRispostaAlPromemoria();
+proveDelleMigrazioniDelPromemoria();
+await proveDelGiroDelPromemoria();
+await proveDelWebhookDelPromemoria();
+proveDiOggiPerLaConferma();
+proveDelRiquadroDelPromemoria();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20412,3 +20437,611 @@ console.log(
   rotti ? `✖ ${rotti} controlli falliti su ${fatti}` : `✓ tutti i ${fatti} controlli passano`,
 );
 process.exit(rotti ? 1 : 0);
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LA CONFERMA DELLA CONSULENZA SU WHATSAPP («Rispondi SÌ») · commessa 2026-10-22
+   ──────────────────────────────────────────────────────────────────────────
+   Un messaggio automatico al cliente, uno solo, subito dopo la prenotazione.
+   Le regole che decidono SE e QUANDO parte sono qui sotto una per una: un
+   errore in questa zona è un messaggio doppio, o uno di notte, o uno con il
+   link vuoto, e il cliente lo riceve prima che qualcuno se ne accorga.
+   ══════════════════════════════════════════════════════════════════════════ */
+function proveDelPromemoriaWhatsapp() {
+  const F = PWF;
+  gruppo("PROMEMORIA WHATSAPP · NUMERI");
+  for (const n of ["339 1234567", "+39 339 1234567", "0039 339 1234567", "39 339 1234567", "3391234567", "+39 (339) 123-4567"])
+    c(`«${n}» → 393391234567`, "393391234567", F.numeroPerWhatsapp(n));
+  c("cellulare 393 senza prefisso (10 cifre che iniziano per 39)", "393931234567", F.numeroPerWhatsapp("393 1234567"));
+  c("estero col +", "447700900123", F.numeroPerWhatsapp("+44 7700 900123"));
+  c("fisso italiano: no", null, F.numeroPerWhatsapp("06 1234567"));
+  c("fisso italiano col +39: no", null, F.numeroPerWhatsapp("+39 06 1234567"));
+  c("troppo corto: no", null, F.numeroPerWhatsapp("123"));
+  c("vuoto: no", null, F.numeroPerWhatsapp(""));
+  c("null: no", null, F.numeroPerWhatsapp(null));
+  c("come lo salva il webhook (+cifre) = come lo legge il cron", F.numeroPerWhatsapp("393391234567"), F.numeroPerWhatsapp("+393391234567"));
+
+  gruppo("PROMEMORIA WHATSAPP · GIORNO, ORA, FUSO DI ROMA");
+  c("23/10/2026 è venerdì", "venerdì 23 ottobre", F.giornoParlato("2026-10-23"));
+  c("1 marzo 2027", "lunedì 1 marzo", F.giornoParlato("2027-03-01"));
+  c("data impossibile", null, F.giornoParlato("2026-02-30"));
+  c("data scritta all'italiana: no", null, F.giornoParlato("23/10/2026"));
+  c("ora 9:05 → 09:05", "09:05", F.oraNormale("9:05"));
+  c("ora 15:30", "15:30", F.oraNormale("15:30"));
+  c("ora 9:5 → illeggibile", null, F.oraNormale("9:5"));
+  c("ora 25:00 → illeggibile", null, F.oraNormale("25:00"));
+  c("ora vuota", null, F.oraNormale(""));
+  c("estate (UTC+2): 21:30Z sono le 23:30 a Roma", { giorno: "2026-10-22", minuti: 23 * 60 + 30 }, F.aRoma(new Date("2026-10-22T21:30:00Z")));
+  c("inverno (UTC+1): 21:30Z sono le 22:30 a Roma", { giorno: "2026-12-10", minuti: 22 * 60 + 30 }, F.aRoma(new Date("2026-12-10T21:30:00Z")));
+  c("22:30Z d'estate è già domani a Roma", "2026-10-23", F.aRoma(new Date("2026-10-22T22:30:00Z")).giorno);
+  const roma = (g, hm, fuso = 2) => new Date(Date.parse(`${g}T${hm}:00Z`) - fuso * 3600_000);
+  c("finestra: 07:59 Roma chiusa", false, F.finestraAperta(roma("2026-10-22", "07:59")));
+  c("finestra: 08:00 Roma aperta", true, F.finestraAperta(roma("2026-10-22", "08:00")));
+  c("finestra: 20:59 Roma aperta", true, F.finestraAperta(roma("2026-10-22", "20:59")));
+  c("finestra: 21:00 Roma chiusa", false, F.finestraAperta(roma("2026-10-22", "21:00")));
+  c("finestra d'inverno: 07:30 Roma (06:30Z) chiusa", false, F.finestraAperta(roma("2026-12-10", "07:30", 1)));
+  c("finestra d'inverno: 08:30 Roma (07:30Z) aperta", true, F.finestraAperta(roma("2026-12-10", "08:30", 1)));
+  c("minuti all'appuntamento: 10:00 con adesso 09:00", 60, F.minutiAlla("2026-10-22", "10:00", roma("2026-10-22", "09:00")));
+  c("minuti all'appuntamento: domani", 24 * 60 + 60, F.minutiAlla("2026-10-23", "10:00", roma("2026-10-22", "09:00")));
+  c("minuti all'appuntamento: già iniziato", -30, F.minutiAlla("2026-10-22", "08:30", roma("2026-10-22", "09:00")));
+
+  gruppo("PROMEMORIA WHATSAPP · IL NOME NEL MESSAGGIO");
+  c("spazi e a-capo ripuliti (Meta rifiuta 132018)", "Mario Antonio", F.nomePerModello("  Mario\n\tAntonio   "));
+  c("molti spazi di fila compressi", "Anna Maria", F.nomePerModello("Anna      Maria"));
+  c("al massimo 60 caratteri", 60, F.nomePerModello("A".repeat(90)).length);
+  c("vuoto → null", null, F.nomePerModello(" \n "));
+  c("assente → null", null, F.nomePerModello(undefined));
+
+  /* ── LA MATRICE DI decidiInvio ──────────────────────────────────────────
+     Base: adesso giovedì 22/10/2026 15:00 a Roma; appuntamento venerdì alle
+     10:00; scheda toccata 5 minuti fa; link della stanza c'è. Ogni riga
+     cambia UNA cosa sola. */
+  const I = PWI;
+  const ADESSO = roma("2026-10-22", "15:00");
+  const LINK = "https://hairgeniuslabs.it/meetly/abc123?chi=p12345678";
+  const base = (d = {}, altro = {}) => ({
+    d: { nome: "Mario", cognome: "Rossi", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", ...d },
+    link: LINK,
+    aggiornataIl: new Date(ADESSO.getTime() - 5 * 60_000).toISOString(),
+    numeriStop: [],
+    adesso: ADESSO,
+    primoGiro: false,
+    ...altro,
+  });
+  const dec = (d, altro) => I.decidiInvio(base(d, altro));
+  const K = "2026-10-23T10:00|391234567";
+  gruppo("PROMEMORIA WHATSAPP · LA DECISIONE DI INVIO (MATRICE)");
+  c("chiave dell'appuntamento", K, I.chiaveAppuntamento(base().d));
+  c("stesso numero scritto in due modi: STESSA chiave", I.chiaveAppuntamento({ ...base().d, telefono: "+39 339 1234567" }), I.chiaveAppuntamento({ ...base().d, telefono: "3391234567" }));
+  c("chiave senza giorno o ora: null", null, I.chiaveAppuntamento({ telefono: "3391234567", dataMeeting: "2026-10-23" }));
+  c("(1) tutto a posto → invia con i 4 parametri esatti", { azione: "invia", chiave: K, numero: "393391234567", parametri: ["Mario", "venerdì 23 ottobre", "10:00", LINK], volte: 1 }, dec());
+  c("(2) alle 23:00 → aspetta l'apertura", { azione: "aspetta", motivo: "fuori_orario" }, dec({}, { adesso: roma("2026-10-22", "23:00") }));
+  c("(3) alle 08:00 del giorno dopo, appuntamento alle 10:00 → invia", "invia", dec({}, { adesso: roma("2026-10-23", "08:00") }).azione);
+  c("(4) appuntamento alle 08:30, alle 08:00 → troppo vicino", { azione: "salta", chiave: "2026-10-23T08:30|391234567", stato: "non_inviato", motivo: "troppo_vicino" }, dec({ oraMeeting: "08:30" }, { adesso: roma("2026-10-23", "08:00") }));
+  c("(4b) prenotato alle 23 per le 07:30: troppo vicino SUBITO (all'apertura sarà passato)", "troppo_vicino", dec({ oraMeeting: "07:30" }, { adesso: roma("2026-10-22", "23:00") }).motivo);
+  c("(4c) prenotato alle 23 per le 11:00: aspetta l'apertura", "fuori_orario", dec({ oraMeeting: "11:00" }, { adesso: roma("2026-10-22", "23:00") }).motivo);
+  c("(5) tra 30 minuti → troppo vicino", "troppo_vicino", dec({ dataMeeting: "2026-10-22", oraMeeting: "15:30" }).motivo);
+  c("(5b) tra 60 minuti esatti → invia", "invia", dec({ dataMeeting: "2026-10-22", oraMeeting: "16:00" }).azione);
+  c("(6) già iniziato → niente", { azione: "niente" }, dec({ dataMeeting: "2026-10-22", oraMeeting: "14:30" }));
+  c("(6b) giorno passato → niente", { azione: "niente" }, dec({ dataMeeting: "2026-10-20" }));
+  c("(7) stessa chiave già inviata → niente", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "inviato", volte: 1 } }));
+  c("(7b) stessa chiave non inviata (motivo già scritto) → niente", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "non_inviato", motivo: "troppo_vicino" } }));
+  c("(7c) stessa chiave incerta → mai rimandata", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "incerto", volte: 1 } }));
+  const spostato = dec({ oraMeeting: "11:00", promemoria: { chiave: K, stato: "inviato", volte: 1, confermatoIl: "2026-10-22T10:00:00Z" } });
+  c("(8) ora spostata → nuova conferma, una volta", { azione: "invia", chiave: "2026-10-23T11:00|391234567", volte: 2 }, { azione: spostato.azione, chiave: spostato.chiave, volte: spostato.volte });
+  c("(9) già 3 messaggi e chiave nuova → troppi invii", { azione: "salta", chiave: "2026-10-23T11:00|391234567", stato: "non_inviato", motivo: "troppi_invii" }, dec({ oraMeeting: "11:00", promemoria: { chiave: K, stato: "inviato", volte: 3 } }));
+  c("(10) senza link → aspetta (lo crea il browser dopo il salvataggio)", { azione: "aspetta", motivo: "manca_link" }, dec({}, { link: "" }));
+  c("(11) numero fisso → numero non valido", "numero_non_valido", dec({ telefono: "06 1234567" }).motivo);
+  c("(11b) senza telefono → senza numero", { azione: "salta", chiave: "2026-10-23T10:00|", stato: "non_inviato", motivo: "senza_numero" }, dec({ telefono: "" }));
+  c("(12) stato non di appuntamento → niente", { azione: "niente" }, dec({ stato: "richiamo" }));
+  c("(12b) appuntamento rifissato vale come fissato", "invia", dec({ stato: "appuntamento_rifissato" }).azione);
+  c("(13) scheda toccata 1 minuto fa → aspetta la calma", { azione: "aspetta", motivo: "calma" }, dec({}, { aggiornataIl: new Date(ADESSO.getTime() - 60_000).toISOString() }));
+  c("(13b) scheda toccata 2 minuti fa → invia", "invia", dec({}, { aggiornataIl: new Date(ADESSO.getTime() - 120_000).toISOString() }).azione);
+  c("(13c) data di modifica sconosciuta → non trattiene", "invia", dec({}, { aggiornataIl: null }).azione);
+  c("(14) già fissato prima dell'accensione, stessa chiave → niente", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "preesistente" } }));
+  c("(15) ha scritto STOP (numero salvato con +) → disiscritto", "disiscritto", dec({}, { numeriStop: ["+393391234567"] }).motivo);
+  c("(15b) …e salvato senza + → disiscritto lo stesso", "disiscritto", dec({}, { numeriStop: ["393391234567"] }).motivo);
+  c("(15c) STOP di un altro numero non conta", "invia", dec({}, { numeriStop: ["+393330000000"] }).azione);
+  const inInvio = (min) => dec({ promemoria: { chiave: K, stato: "in_invio", volte: 1, invioIl: new Date(ADESSO.getTime() - min * 60_000).toISOString() } });
+  c("(16) in invio da 3 minuti → niente (un altro giro ci sta lavorando)", { azione: "niente" }, inInvio(3));
+  c("(16b) in invio da 11 minuti → incerto, MAI rimandato", { azione: "salta", chiave: K, stato: "incerto", motivo: "incerto" }, inInvio(11));
+  c("(17) nome vuoto → manca il nome", "manca_nome", dec({ nome: "  " }).motivo);
+  c("(17b) nome con a-capo → ripulito nel messaggio", "Mario Rossi", dec({ nome: "Mario\nRossi" }).parametri?.[0]);
+  c("(18) primo giro dopo l'accensione: preesistente anche se toccata adesso", { azione: "preesistente", chiave: K }, dec({}, { primoGiro: true, aggiornataIl: ADESSO.toISOString() }));
+  c("(18b) primo giro: preesistente anche se aveva un vecchio messaggio di un altro orario", "preesistente", dec({ oraMeeting: "11:00", promemoria: { chiave: K, stato: "inviato", volte: 1 } }, { primoGiro: true }).azione);
+  c("(18c) primo giro: quello già segnato per questa chiave non si tocca", { azione: "niente" }, dec({ promemoria: { chiave: K, stato: "inviato", volte: 1 } }, { primoGiro: true }));
+  c("(19) segno tolto (stessa chiave, stato vuoto) → si può rimandare", "invia", dec({ promemoria: { chiave: K, stato: null, volte: 0 } }).azione);
+  c("(19b) segno tolto dopo un errore tecnico (chiave null) → si può rimandare", "invia", dec({ promemoria: { chiave: null, stato: null, volte: 0 } }).azione);
+  c("(20) ora illeggibile → orario illeggibile", { azione: "salta", chiave: "2026-10-23Tboh|391234567", stato: "non_inviato", motivo: "orario_illeggibile" }, dec({ oraMeeting: "boh" }));
+  c("(20b) ora illeggibile su un giorno passato → niente", { azione: "niente" }, dec({ dataMeeting: "2026-10-01", oraMeeting: "boh" }));
+  c("(20c) ora senza zero davanti (9:00) → si legge", "09:00", dec({ oraMeeting: "9:00" }).parametri?.[2]);
+  c("(21) giorno scritto all'italiana (archivio vecchio) → niente", { azione: "niente" }, dec({ dataMeeting: "23/10/2026" }));
+  c("(22) nessun parametro vuoto né con a-capo", true, dec().parametri.every((p) => p && !/[\n\t]|\s{5}/.test(p)));
+
+  gruppo("PROMEMORIA WHATSAPP · COSA SI SCRIVE SULLA SCHEDA");
+  const ora = "2026-10-22T13:00:00.000Z";
+  const pInvio = I.pezzoDaScrivere(dec(), ora);
+  c("all'invio: in_invio, l'ora, il conto, e le risposte vecchie azzerate", { stato: "in_invio", motivo: null, invioIl: ora, volte: 1, confermatoIl: null, confermatoVia: null, rispostaIl: null, rispostaTesto: null, stopIl: null }, pInvio);
+  c("preesistente: nessun conto in più", { stato: "preesistente", motivo: null, confermatoIl: null, confermatoVia: null, rispostaIl: null, rispostaTesto: null, stopIl: null }, I.pezzoDaScrivere({ azione: "preesistente", chiave: K }, ora));
+  c("salto: lo stato e il motivo", "non_inviato/troppo_vicino", (({ stato, motivo }) => `${stato}/${motivo}`)(I.pezzoDaScrivere({ azione: "salta", chiave: K, stato: "non_inviato", motivo: "troppo_vicino" }, ora)));
+  c("incerto: solo stato e motivo (la chiave è la stessa, le risposte restano)", { stato: "incerto", motivo: "incerto" }, I.pezzoDaScrivere({ azione: "salta", chiave: K, stato: "incerto", motivo: "incerto" }, ora));
+  c("aspetta e niente: non si scrive", [null, null], [I.pezzoDaScrivere({ azione: "niente" }, ora), I.pezzoDaScrivere({ azione: "aspetta", motivo: "calma" }, ora)]);
+
+  gruppo("PROMEMORIA WHATSAPP · LE FRASI DEI MOTIVI");
+  for (const m of ["senza_numero", "numero_non_valido", "manca_nome", "orario_illeggibile", "troppo_vicino", "troppi_invii", "disiscritto", "incerto", "non_recapitato", "rifiutato"])
+    c(`«${m}» ha una frase in italiano`, true, typeof I.testoMotivo(m) === "string" && I.testoMotivo(m).length > 5 && !I.testoMotivo(m).includes("_"));
+  c("un codice sconosciuto ha comunque una frase", true, I.testoMotivo("boh").length > 5);
+  const srcInvio = readFileSync(join(radice, "src/crm/promemoria/invio.ts"), "utf8") + readFileSync(join(radice, "src/crm/promemoria/formati.ts"), "utf8");
+  const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  c("le regole non leggono l'orologio del server", false, /new Date\(\)|Date\.now\(\)|getHours\(|toLocale/.test(senzaCommenti(srcInvio)));
+
+  gruppo("PROMEMORIA WHATSAPP · IL MODELLO META");
+  const T = WMT.findMetaTemplate("consulenza_conferma_presenza");
+  c("esiste", true, !!T);
+  c("UTILITY, in italiano", ["UTILITY", "it"], [T?.category, T?.language]);
+  c("4 variabili, in quest'ordine", ["lead_name", "appointment_day", "appointment_time", "meet_link"], T?.params.map((p) => p.key));
+  c("il testo ha {{1}}…{{4}} e non {{5}}", true, ["{{1}}", "{{2}}", "{{3}}", "{{4}}"].every((x) => T.body.includes(x)) && !T.body.includes("{{5}}"));
+  c("non inizia né finisce con una variabile (Meta lo rifiuta)", false, /^\s*\{\{|\}\}\s*$/.test(T.body));
+  c("chiede di rispondere SÌ", true, /risponda SÌ/.test(T.body));
+  c("niente parole da promozione né dati sanitari", "", ["gratuit", "offert", "scont", "scopri", "capelli", "calvizie", "diradament", "alopec", "diagnos", "prezz", "€"].filter((p) => T.body.toLowerCase().includes(p)).join(","));
+  c("il testo è quello della SPEC", "Gentile {{1}}, la Sua consulenza con Hair Genius Labs è fissata per {{2}} alle ore {{3}}.\n\nPer collegarsi: {{4}}\n\nPer confermare la Sua presenza risponda SÌ a questo messaggio.\n\nHair Genius Labs", T.body);
+  c("finisce nell'esportazione TXT per Meta", true, WMT.buildMetaTemplatesTxt().includes("NAME       : consulenza_conferma_presenza"));
+  c("l'esempio del giorno è parlato", "venerdì 23 ottobre", T.params[1].example);
+  c("gli altri modelli restano 13, e in coda c'è il nuovo", [14, "consulenza_conferma_presenza"], [WMT.META_TEMPLATES.length, WMT.META_TEMPLATES.at(-1).name]);
+  c("appuntamento_conferma è identico a prima", "Gentile {{1}}, Le confermo l'analisi tecnica gratuita prevista per il {{2}} alle ore {{3}}. A breve riceverà il link per collegarsi.\n\nA presto,\n{{4}}\nHair Genius Labs", WMT.findMetaTemplate("appuntamento_conferma").body);
+}
+
+/** ── LA RISPOSTA DEL CLIENTE E LA STRISCIA «DA SENTIRE» ─────────────────────
+ *  Un falso «confermato» è peggio di una telefonata in più: nel dubbio non è
+ *  un sì. E un «Grazie» scritto DOPO il sì non deve togliere la conferma
+ *  (correzione 4 del revisore). */
+function proveDellaRispostaAlPromemoria() {
+  const R = mod["promemoria/risposta"];
+  const CF = mod["promemoria/conferma"];
+  gruppo("PROMEMORIA WHATSAPP · COSA HA RISPOSTO");
+  for (const t of ["SÌ", "Sì", "si", "SI!", "Si grazie", "Sì confermo", "ok", "OK 👍", "👍", "✅", "Confermo", "Va bene", "Certo, a domani", "Perfetto grazie"])
+    c(`«${t}» → sì`, "si", R.leggiRisposta(t));
+  for (const t of ["STOP", "stop", "Basta messaggi", "Stop."]) c(`«${t}» → stop`, "stop", R.leggiRisposta(t));
+  for (const t of ["No", "Non posso giovedì", "Si ma non posso", "Ok ma alle 16?", "Purtroppo devo spostare", "Però non so", "Annullo", "Si può spostare?"])
+    c(`«${t}» → dubbio (va alla setter)`, "dubbio", R.leggiRisposta(t));
+  for (const t of ["Sono in ritardo", "", "[audio]", "[image]", "Sì sì sì sì sì sì sì", "Grazie", "Chi è?".replace("?", ""), null])
+    c(`«${t}» → altro`, "altro", R.leggiRisposta(t));
+
+  gruppo("PROMEMORIA WHATSAPP · LA SCHEDA DELLA RISPOSTA");
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  const scheda = (id, d, p) => ({ id, data: { nome: "Mario", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", ...d, ...(p ? { promemoria: { chiave: `${d?.dataMeeting ?? "2026-10-23"}T${d?.oraMeeting ?? "10:00"}|391234567`, ...p } } : {}) } });
+  const vecchia = scheda("vecchia", { stato: "concluso", dataMeeting: "2026-03-01" });
+  const giusta = scheda("giusta", {}, { stato: "inviato" });
+  c("due schede con lo stesso numero: quella col messaggio, non l'omonima vecchia", "giusta", R.schedaDellaRisposta([vecchia, giusta], "+393391234567", ADESSO)?.id);
+  const lontana = scheda("lontana", { dataMeeting: "2026-10-30" }, { stato: "inviato" });
+  c("due messaggi in corso: l'appuntamento più vicino", "giusta", R.schedaDellaRisposta([lontana, giusta], "+393391234567", ADESSO)?.id);
+  c("nessuna con messaggio → null", null, R.schedaDellaRisposta([vecchia], "+393391234567", ADESSO));
+  c("numero scritto in un altro modo → la trova", "giusta", R.schedaDellaRisposta([giusta], "393391234567", ADESSO)?.id);
+  c("un altro numero → null", null, R.schedaDellaRisposta([giusta], "+393330000000", ADESSO));
+  c("anche se l'invio era «incerto»: la risposta prova che è arrivato", "inc", R.schedaDellaRisposta([scheda("inc", {}, { stato: "incerto" })], "+393391234567", ADESSO)?.id);
+  c("appuntamento spostato dopo il messaggio: il sì non vale per il nuovo orario", null, R.schedaDellaRisposta([{ id: "sp", data: { ...giusta.data, oraMeeting: "12:00" } }], "+393391234567", ADESSO));
+  c("appuntamento già passato → null", null, R.schedaDellaRisposta([scheda("p", { dataMeeting: "2026-10-21" }, { stato: "inviato" })], "+393391234567", ADESSO));
+
+  gruppo("PROMEMORIA WHATSAPP · COSA SI SCRIVE ALLA RISPOSTA");
+  const t1 = "2026-10-22T13:10:00.000Z", t2 = "2026-10-22T13:20:00.000Z";
+  c("sì → confermato via WhatsApp", { confermatoIl: t1, confermatoVia: "whatsapp" }, R.effettoRisposta("si", "Sì", {}, t1));
+  c("stop → stopIl", { stopIl: t1 }, R.effettoRisposta("stop", "STOP", {}, t1));
+  c("dubbio → il testo, tagliato a 80", { rispostaIl: t1, rispostaTesto: "x".repeat(80) }, R.effettoRisposta("dubbio", "x".repeat(200), {}, t1));
+  c("altro prima di un sì → il testo, a-capo tolti", { rispostaIl: t1, rispostaTesto: "Sono in ritardo" }, R.effettoRisposta("altro", "Sono\nin   ritardo", {}, t1));
+  c("altro DOPO un sì → non si scrive niente", null, R.effettoRisposta("altro", "Grazie", { confermatoIl: t1 }, t2));
+  c("dubbio DOPO un sì → si scrive (vince il più recente)", t2, R.effettoRisposta("dubbio", "Purtroppo non posso", { confermatoIl: t1 }, t2)?.rispostaIl);
+
+  gruppo("PROMEMORIA WHATSAPP · CONFERMATO O NO");
+  const d = (p, extra = {}) => ({ ...scheda("x", {}, p).data, ...extra });
+  const SC = (p, extra, quando = ADESSO) => CF.statoConferma(p === undefined ? scheda("x").data : d(p, extra), quando);
+  c("senza promemoria → nessuno", { tipo: "nessuno" }, SC(undefined));
+  c("preesistente → nessuno (niente targhetta)", { tipo: "nessuno" }, SC({ stato: "preesistente" }));
+  c("segno tolto → nessuno", { tipo: "nessuno" }, SC({ stato: null }));
+  c("stato non di appuntamento → nessuno", { tipo: "nessuno" }, SC({ stato: "inviato", inviatoIl: t1 }, { stato: "concluso" }));
+  c("appuntamento passato → nessuno", { tipo: "nessuno" }, SC({ stato: "inviato", inviatoIl: t1 }, {}, roma("2026-10-23", "10:30")));
+  c("inviato da 1 ora → attende", { tipo: "inviato" }, SC({ stato: "inviato", inviatoIl: new Date(ADESSO - 3600_000).toISOString() }));
+  c("in invio → attende", { tipo: "inviato" }, SC({ stato: "in_invio", invioIl: t1 }));
+  c("inviato da 3 ore → non ha risposto", { tipo: "nonConfermato", nota: "non ha risposto" }, SC({ stato: "inviato", inviatoIl: new Date(ADESSO - 3 * 3600_000).toISOString() }));
+  c("ha risposto sì → confermato WhatsApp", { tipo: "confermato", via: "whatsapp" }, SC({ stato: "inviato", inviatoIl: t1, confermatoIl: t2, confermatoVia: "whatsapp" }));
+  c("confermato a voce, anche se il messaggio non era partito", { tipo: "confermato", via: "voce" }, SC({ stato: "non_inviato", motivo: "senza_numero", confermatoIl: t2, confermatoVia: "voce" }));
+  c("ha risposto altro → non confermato SUBITO, con le sue parole", { tipo: "nonConfermato", nota: "ha risposto: “Non posso giovedì”" }, SC({ stato: "inviato", inviatoIl: t1, rispostaIl: t2, rispostaTesto: "Non posso giovedì" }));
+  c("ha scritto STOP → non confermato", { tipo: "nonConfermato", nota: "ha scritto STOP" }, SC({ stato: "inviato", inviatoIl: t1, stopIl: t2 }));
+  c("non partito (senza numero) → la frase del motivo", { tipo: "nonConfermato", nota: "messaggio non partito: manca il numero" }, SC({ stato: "non_inviato", motivo: "senza_numero" }));
+  c("non consegnato → non confermato", "nonConfermato", SC({ stato: "non_recapitato", motivo: "non_recapitato" }).tipo);
+  c("incerto → non confermato", { tipo: "nonConfermato", nota: "non si sa se il messaggio è arrivato" }, SC({ stato: "incerto", motivo: "incerto" }));
+  c("spostato, il cron non è ancora passato: il vecchio sì non vale", { tipo: "nessuno" }, SC({ stato: "inviato", confermatoIl: t1 }, { oraMeeting: "12:00" }));
+  //  Correzione 4: un «Grazie» dopo il sì non lo cancella; un «non posso» sì.
+  const dopo = (p, ...risposte) => risposte.reduce((acc, [testo, quando]) => ({ ...acc, ...(R.effettoRisposta(R.leggiRisposta(testo), testo, acc, quando) ?? {}) }), p);
+  const base = { stato: "inviato", inviatoIl: "2026-10-22T13:00:00.000Z" };
+  c("«Sì» poi «Grazie» → resta confermato", "confermato", SC(dopo(base, ["Sì", t1], ["Grazie", t2])).tipo);
+  c("«Sì» poi «Purtroppo non posso» → non confermato", "nonConfermato", SC(dopo(base, ["Sì", t1], ["Purtroppo non posso", t2])).tipo);
+  c("«Non posso» poi «Sì, va bene» → confermato (vince il più recente)", "confermato", SC(dopo(base, ["Non posso alle 10", t1], ["Sì", t2])).tipo);
+  c("«Grazie» senza un sì → la setter lo vede", { tipo: "nonConfermato", nota: "ha risposto: “Grazie”" }, SC(dopo(base, ["Grazie", t1])));
+
+  gruppo("PROMEMORIA WHATSAPP · DA SENTIRE");
+  const tra = (ore, id, p = { stato: "non_inviato", motivo: "senza_numero" }) => {
+    const quando = new Date(ADESSO.getTime() + ore * 3600_000);
+    const r = new Date(quando.getTime() + 2 * 3600_000).toISOString();
+    return scheda(id, { dataMeeting: r.slice(0, 10), oraMeeting: r.slice(11, 16) }, p);
+  };
+  const elenco = [tra(72, "72h"), tra(20, "20h"), tra(5, "5h"), tra(3, "conf", { stato: "inviato", confermatoIl: t1, confermatoVia: "whatsapp" }), tra(-1, "passato")];
+  c("nelle prossime 48 ore, dal più vicino; i confermati no", ["5h", "20h"], CF.daSentire(elenco, ADESSO).map((l) => l.id));
+  c("nessuno da sentire → elenco vuoto", [], CF.daSentire([tra(2, "ok", { stato: "inviato", inviatoIl: t1, confermatoIl: t2, confermatoVia: "voce" })], ADESSO));
+}
+
+/** ── LE MIGRAZIONI DELLA CONFERMA WHATSAPP ─────────────────────────────────
+ *  Le applica il titolare a mano dal SQL Editor: qui si legge il testo. Solo
+ *  aggiunte (una colonna, due funzioni), niente che cancelli. */
+function proveDelleMigrazioniDelPromemoria() {
+  gruppo("PROMEMORIA WHATSAPP · MIGRAZIONI");
+  const cartella = join(radice, "supabase/migrations");
+  const f1 = join(cartella, "20261022140000_promemoria_whatsapp.sql");
+  const f2 = join(cartella, "20261022140100_promemoria_whatsapp_cron.sql");
+  c("i due file esistono", [true, true], [existsSync(f1), existsSync(f2)]);
+  if (!existsSync(f1) || !existsSync(f2)) return;
+  const sql = readFileSync(f1, "utf8");
+  const codice = sql.replace(/--.*$/gm, "");
+  c("la colonna, solo se manca", true, /ALTER TABLE public\.whatsapp_contacts ADD COLUMN IF NOT EXISTS non_scrivere_dal timestamptz/.test(codice));
+  for (const fn of ["promemoria_aggancia(p_id uuid, p_chiave text, p_patch jsonb)", "promemoria_aggiorna(p_id uuid, p_patch jsonb, p_se_chiave text DEFAULT NULL)"])
+    c(`la funzione ${fn.split("(")[0]}`, true, codice.includes(`CREATE OR REPLACE FUNCTION public.${fn}`));
+  c("SECURITY DEFINER con search_path fisso, due volte", 2, (codice.match(/SECURITY DEFINER SET search_path = public/g) || []).length);
+  c("nessuno le chiama dal browser (REVOKE da PUBLIC, anon, authenticated)", 2, (codice.match(/REVOKE ALL ON FUNCTION public\.promemoria_\w+\([^)]*\) FROM PUBLIC, anon, authenticated;/g) || []).length);
+  c("solo la chiave di servizio (GRANT service_role)", 2, (codice.match(/GRANT EXECUTE ON FUNCTION public\.promemoria_\w+\([^)]*\) TO service_role;/g) || []).length);
+  c("il segno si mette solo se per questa chiave non c'è già", true, /coalesce\(data->'promemoria'->>'chiave', ''\) = coalesce\(p_chiave, ''\)\s+AND coalesce\(data->'promemoria'->>'stato', ''\) <> ''/.test(codice));
+  c("si scrive solo dentro data.promemoria", 2, (codice.match(/SET data = jsonb_set\(data, '\{promemoria\}'/g) || []).length);
+  c("niente che cancelli (fuori dai commenti)", false, /DROP TABLE|DROP FUNCTION|DROP COLUMN|DELETE FROM|TRUNCATE|ALTER TABLE .* DROP/i.test(codice));
+  c("come si annulla: scritto nel commento", true, /DROP FUNCTION public\.promemoria_aggancia/.test(sql) && /DROP COLUMN/.test(sql));
+  const cron = readFileSync(f2, "utf8");
+  c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
+  c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp")).sort();
+  c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
+}
+
+/** ── IL GIRO DEL CRON E LA PRONTEZZA ───────────────────────────────────────
+ *  Il giro vero si prova con un database finto che si comporta come le due
+ *  funzioni SQL (il segno si prende una volta sola). Così si vede davvero
+ *  che: senza migrazione non parte niente; un errore di rete NON toglie il
+ *  segno (correzione 2); il primo giro marca tutto preesistente (correzione
+ *  3); la prova a secco non scrive e non invia; due giri insieme = un invio. */
+async function proveDelGiroDelPromemoria() {
+  const P = mod["promemoria/pronto"];
+  const G = mod["promemoria/giro"];
+  gruppo("PROMEMORIA WHATSAPP · PRONTO O NO");
+  const tuttoOk = { acceso: true, migrazione: true, haChiavi: true, haWaba: true, haAppSecret: true, mode: "live", modello: { trovato: true, stato: "APPROVED" } };
+  const vp = (x) => P.valutaPronto({ ...tuttoOk, ...x });
+  c("tutto verde → pronto", { pronto: true }, (({ pronto, blocco }) => ({ pronto, ...(blocco ? { blocco } : {}) }))(vp({})));
+  c("manca la migrazione: lo dice per primo, anche da spento", "manca_migrazione", vp({ migrazione: false, acceso: false }).blocco);
+  c("spento", "spento", vp({ acceso: false }).blocco);
+  c("mancano le chiavi", "mancano_chiavi", vp({ haChiavi: false, mode: "sandbox" }).blocco);
+  c("manca la WABA", "manca_waba", vp({ haWaba: false }).blocco);
+  c("manca l'App Secret: non si accende (correzione 1)", "manca_app_secret", vp({ haAppSecret: false, mode: "sandbox" }).blocco);
+  c("sandbox", "sandbox", vp({ mode: "sandbox", modello: null }).blocco);
+  c("token scaduto al controllo", "token_scaduto", vp({ erroreControllo: "token_scaduto" }).blocco);
+  c("modello assente", "modello_assente", vp({ modello: { trovato: false } }).blocco);
+  c("modello in attesa: dice lo stato", true, /PENDING/.test(vp({ modello: { trovato: true, stato: "PENDING" } }).frase) && vp({ modello: { trovato: true, stato: "PENDING" } }).blocco === "modello_non_approvato");
+  c("modello non controllato (nessuno da inviare) → non blocca", true, vp({ modello: null }).pronto);
+  for (const b of ["spento", "manca_migrazione", "mancano_chiavi", "manca_waba", "manca_app_secret", "sandbox", "numero_di_prova", "modello_assente", "modello_non_approvato", "token_scaduto", "permessi", "limite", "meta_incerto", "controllo_fallito"])
+    c(`«${b}» ha una frase in italiano`, true, P.FRASI_BLOCCO[b]?.length > 10 && !/token=|EAA|access_token/.test(P.FRASI_BLOCCO[b]));
+  c("la frase della migrazione è quella chiesta", true, /manca l'aggiornamento del database/i.test(P.FRASI_BLOCCO.manca_migrazione));
+
+  gruppo("PROMEMORIA WHATSAPP · ERRORI DI META");
+  const k = (code) => (({ tipo, codice }) => `${tipo}/${codice}`)(P.classificaErroreMeta(code));
+  c("190 token → tecnico", "tecnico/token_scaduto", k(190));
+  c("10 permessi → tecnico", "tecnico/permessi", k(10));
+  c("132001 modello → tecnico", "tecnico/modello_non_approvato", k(132001));
+  c("131030 destinatario non autorizzato → tecnico, NON colpa del cliente", "tecnico/numero_di_prova", k(131030));
+  c("131049 Meta non consegna per qualità → limite", "limite/limite", k(131049));
+  c("80007 → limite", "limite/limite", k(80007));
+  c("131026 non è su WhatsApp → cliente", "cliente/non_recapitato", k(131026));
+  c("132018 parametro rifiutato → cliente (non ferma gli altri)", "cliente/rifiutato", k(132018));
+  c("codice sconosciuto → tecnico (si ferma, non consuma la scheda)", "tecnico/controllo_fallito", k(999));
+  const e = (x) => P.esitoInvio(x).tipo;
+  c("fetch che lancia → incerto (il segno resta)", "incerto", e({ rete: true }));
+  c("HTTP 503 → incerto", "incerto", e({ status: 503, corpo: { error: { code: 2 } } }));
+  c("risposta non JSON → incerto", "incerto", e({ status: 200, corpo: null }));
+  c("200 senza id del messaggio → incerto", "incerto", e({ status: 200, corpo: {} }));
+  c("errore 131000 «qualcosa è andato storto» → incerto", "incerto", e({ status: 400, corpo: { error: { code: 131000 } } }));
+  c("rifiuto esplicito con codice → rifiuto", "rifiuto", e({ status: 400, corpo: { error: { code: 131026 } } }));
+  c("accettato → ok con l'id", { tipo: "ok", waId: "wamid.X" }, P.esitoInvio({ status: 200, corpo: { messages: [{ id: "wamid.X" }] } }));
+  gruppo("PROMEMORIA WHATSAPP · SENZA MIGRAZIONE");
+  c("funzione SQL assente (PostgREST)", true, P.mancaMigrazione({ code: "PGRST202", message: "Could not find the function public.promemoria_aggiorna" }));
+  c("funzione SQL assente (Postgres)", true, P.mancaMigrazione({ code: "42883", message: "function public.promemoria_aggiorna does not exist" }));
+  c("colonna non_scrivere_dal assente", true, P.mancaMigrazione({ code: "42703", message: "column whatsapp_contacts.non_scrivere_dal does not exist" }));
+  c("un altro errore non è la migrazione", false, P.mancaMigrazione({ code: "23505", message: "duplicate key" }));
+  c("nessun errore", false, P.mancaMigrazione(null));
+
+  /* ── IL DATABASE FINTO ─────────────────────────────────────────────────
+     Si comporta come le due funzioni SQL della migrazione. */
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  const LINK = "https://hairgeniuslabs.it/meetly/abc?chi=p1";
+  const vecchia = new Date(ADESSO.getTime() - 3600_000).toISOString();
+  const scheda = (id, d = {}) => ({ id, updated_at: vecchia, data: { nome: "Mario", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", ...d } });
+  function finto(o = {}) {
+    const db = new Map((o.schede ?? [scheda("s1")]).map((s) => [s.id, JSON.parse(JSON.stringify(s))]));
+    const log = [];
+    let stato = o.stato ?? null;
+    let config = o.config === undefined ? { acceso: true, avvio: "fatto" } : o.config;
+    const porte = {
+      adesso: () => o.adesso ?? ADESSO,
+      leggiConfig: async () => config,
+      scriviConfig: async (x) => { log.push("config"); config = x; },
+      leggiStato: async () => stato,
+      scriviStato: async (x) => { log.push("stato"); stato = x; },
+      provaMigrazione: async () => o.migrazione ?? true,
+      impostazioni: async () => o.impostazioni ?? [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: true, mode: "live" }],
+      schede: async () => [...db.values()].map((s) => ({ ...JSON.parse(JSON.stringify(s)), link: o.link ?? LINK })),
+      numeriStop: async () => o.numeriStop ?? [],
+      aggancia: async (id, chiave, pezzo) => {
+        log.push(`aggancia:${id}`);
+        const s = db.get(id); const p = s.data.promemoria ?? {};
+        if ((p.chiave ?? "") === chiave && (p.stato ?? "") !== "") return false;
+        s.data.promemoria = { ...p, ...pezzo, chiave }; return true;
+      },
+      aggiorna: async (id, pezzo, seChiave) => {
+        log.push(`aggiorna:${id}:${pezzo.stato ?? "-"}`);
+        const s = db.get(id); const p = s.data.promemoria ?? {};
+        if (seChiave != null && p.chiave !== seChiave) return false;
+        s.data.promemoria = { ...p, ...pezzo }; return true;
+      },
+      controllaModello: async () => { log.push("modello"); return o.modello ?? { trovato: true, stato: "APPROVED" }; },
+      invia: async (imp, numero, parametri) => {
+        log.push(`invia:${numero}`);
+        if (o.invia) return o.invia(numero, parametri);
+        return { status: 200, corpo: { messages: [{ id: `wamid.${log.length}` }] } };
+      },
+      registraInvio: async (imp, id, numero, esito) => { log.push(`registra:${id}:${esito.tipo}`); },
+    };
+    return { porte, db, log, get stato() { return stato; }, get config() { return config; } };
+  }
+  const p1 = (f, id = "s1") => f.db.get(id).data.promemoria ?? null;
+
+  gruppo("PROMEMORIA WHATSAPP · IL GIRO");
+  let f = finto();
+  let r = await G.giroPromemoria(f.porte, { prova: false });
+  c("tutto a posto: un messaggio", 1, r.inviati);
+  c("prima il controllo di Meta, poi il segno, POI l'invio, poi «inviato»", ["modello", "aggancia:s1", "invia:393391234567", "aggiorna:s1:inviato", "registra:s1:ok"], f.log.filter((x) => !["stato", "config"].includes(x)));
+  c("sulla scheda: inviato, con l'id di Meta, 1 volta", ["inviato", 1, true], [p1(f).stato, p1(f).volte, !!p1(f).waMessageId]);
+  c("lo stato del giro dice «pronto»", true, f.stato.pronto);
+  c("la risposta ha solo conteggi (niente id né nomi)", false, /s1|Mario|393391234567/.test(JSON.stringify(r)));
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("subito dopo (meno di 60 s): salta il giro", "troppo presto", r.saltato);
+  f = finto({ stato: f.stato, adesso: new Date(ADESSO.getTime() + 120_000) });
+  f.db.get("s1").data.promemoria = { chiave: "2026-10-23T10:00|391234567", stato: "inviato", volte: 1 };
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("al giro dopo: niente di doppio", [0, false], [r.inviati, f.log.some((x) => x.startsWith("invia"))]);
+
+  gruppo("PROMEMORIA WHATSAPP · QUANDO NON PARTE NIENTE");
+  for (const [nome, o, blocco] of [
+    ["migrazione assente", { migrazione: false }, "manca_migrazione"],
+    ["interruttore spento", { config: null }, "spento"],
+    ["sandbox", { impostazioni: [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: true, mode: "sandbox" }] }, "sandbox"],
+    ["senza App Secret", { impostazioni: [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: false, mode: "live" }] }, "manca_app_secret"],
+    ["senza chiavi", { impostazioni: [] }, "mancano_chiavi"],
+    ["modello in attesa di approvazione", { modello: { trovato: true, stato: "PENDING" } }, "modello_non_approvato"],
+  ]) {
+    f = finto(o);
+    r = await G.giroPromemoria(f.porte, { prova: false });
+    c(`${nome}: zero invii, il motivo scritto`, [0, blocco, blocco], [f.log.filter((x) => x.startsWith("invia")).length, r.blocco, f.stato?.blocco]);
+  }
+  f = finto({ migrazione: false });
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("migrazione assente: nessuna funzione SQL chiamata", false, f.log.some((x) => /aggancia|aggiorna/.test(x)));
+  c("…e la frase lo dice", true, /aggiornamento del database/.test(f.stato.frase));
+  f = finto({ modello: { trovato: true, stato: "PENDING" } });
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("modello non approvato: nessun segno d'invio sulla scheda", null, p1(f));
+
+  gruppo("PROMEMORIA WHATSAPP · ERRORI DURANTE L'INVIO");
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], invia: () => ({ rete: true }) });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("fetch che lancia: il segno NON si toglie (resta in_invio → incerto)", "in_invio", p1(f).stato);
+  c("…nessun «segno tolto»", false, f.log.some((x) => x === "aggiorna:s1:-"));
+  c("…e il giro si ferma (la seconda scheda non parte)", 1, f.log.filter((x) => x.startsWith("invia")).length);
+  c("…con il motivo per il titolare, e una pausa", ["meta_incerto", true], [f.stato.blocco, !!f.stato.riprovaDopo]);
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], invia: () => ({ status: 401, corpo: { error: { code: 190 } } }) });
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("token scaduto (rifiuto esplicito): il segno si toglie, si riproverà", [null, null, 0], [p1(f).chiave, p1(f).stato, p1(f).volte]);
+  c("…e il giro si ferma al primo", [1, "token_scaduto"], [f.log.filter((x) => x.startsWith("invia")).length, f.stato.blocco]);
+  const dopoPausa = finto({ stato: f.stato, adesso: new Date(ADESSO.getTime() + 5 * 60_000) });
+  await G.giroPromemoria(dopoPausa.porte, { prova: false });
+  c("…entro 10 minuti non si riprova", false, dopoPausa.log.some((x) => x.startsWith("invia")));
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], invia: (n) => (n === "393391234567" ? { status: 400, corpo: { error: { code: 131026 } } } : { status: 200, corpo: { messages: [{ id: "w2" }] } }) });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("numero non su WhatsApp: segnato, e gli altri partono", ["non_recapitato", "inviato", 1], [p1(f).stato, p1(f, "s2").stato, r.inviati]);
+
+  gruppo("PROMEMORIA WHATSAPP · PRIMO GIRO, PROVA A SECCO, PARALLELO, LIMITE");
+  f = finto({ config: { acceso: true, avvio: "da_fare" }, schede: [{ ...scheda("s1"), updated_at: ADESSO.toISOString() }] });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("primo giro: preesistente anche se toccata adesso, nessun invio", ["preesistente", 0], [p1(f).stato, r.inviati]);
+  c("…e l'avvio è segnato fatto", "fatto", f.config.avvio);
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" }), scheda("s3", { telefono: "" })] });
+  r = await G.giroPromemoria(f.porte, { prova: true });
+  c("prova a secco: dice quanti partirebbero", [2, 1], [r.partirebbero, r.saltati]);
+  c("…e non scrive, non invia, non segna lo stato", [], f.log.filter((x) => x !== "modello"));
+  c("…e controlla comunque il modello", true, f.log.includes("modello"));
+  f = finto({ config: null });
+  r = await G.giroPromemoria(f.porte, { prova: true });
+  c("prova a secco da spento: controlla tutto il resto (si fa PRIMA di accendere)", [true, 0], [r.pronto, r.partirebbero]);
+  c("…solo conteggi nella risposta", false, /s1|s2|Mario|3391234567/.test(JSON.stringify(r)));
+  f = finto();
+  const [a, b] = await Promise.all([G.giroPromemoria(f.porte, { prova: false }), G.giroPromemoria({ ...f.porte, leggiStato: async () => null }, { prova: false })]);
+  c("due giri insieme sulla stessa scheda: UN solo invio", 1, f.log.filter((x) => x.startsWith("invia")).length);
+  const tante = Array.from({ length: 20 }, (_, i) => scheda(`t${i}`, { telefono: `33912345${String(i).padStart(2, "0")}` }));
+  f = finto({ schede: tante });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("al massimo 15 per giro, il resto al giro dopo", [15, 5], [r.inviati, r.inAttesa]);
+
+  gruppo("PROMEMORIA WHATSAPP · LA ROTTA");
+  const rotta = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
+  c("il giro vero vuole la chiave pubblicabile, come gli altri hook", true, /SUPABASE_PUBLISHABLE_KEY/.test(rotta) && /401/.test(rotta));
+  //  La prova a secco NON sta più qui: la sessione Supabase, con l'accesso col
+  //  PIN, è quella del proprietario per tutti e non prova chi bussa. Sta nella
+  //  rotta del CRM, dietro guardiaCRM (vedi proveDelRiquadroDelPromemoria).
+  c("l'hook del cron fa solo il giro vero (niente prova a secco qui)", false, /prova: true|auth\.getUser/.test(rotta));
+  c("il token non finisce nei log né nelle risposte", false, /console\.[a-z]+\([^)]*(access_token|accessToken|token)/.test(rotta) || /json\([^)]*(access_token|accessToken)/.test(rotta));
+  c("usa il giro provato, non una copia", true, /giroPromemoria\(/.test(rotta));
+  c("il link è quello per-persona del CRM (valoriDaLead)", true, /valoriDaLead\(/.test(rotta));
+  c("il modello inviato è consulenza_conferma_presenza", true, /NOME_MODELLO/.test(rotta));
+}
+
+/** ── IL WEBHOOK LEGGE SÌ, STOP E IL RESTO ──────────────────────────────────
+ *  Correzione 1 del revisore: senza App Secret (o con la firma sbagliata) il
+ *  webhook salva i messaggi come sempre ma NON tocca schede né opt-out: un
+ *  POST falso non deve poter segnare «confermato» nessuno. E senza la
+ *  migrazione (codice pubblicato prima) deve fare esattamente quello di oggi. */
+async function proveDelWebhookDelPromemoria() {
+  const IE = mod["promemoria/in-entrata"];
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  const K = "2026-10-23T10:00|391234567";
+  const scheda = (id, p) => ({ id, data: { nome: "Mario", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", promemoria: { chiave: K, stato: "inviato", ...p } } });
+  function finte(o = {}) {
+    const log = [];
+    return {
+      log,
+      porte: {
+        schedeConMessaggio: async () => { log.push("schede"); return o.schede ?? [scheda("s1")]; },
+        aggiorna: async (id, pezzo, chiave) => {
+          log.push(`aggiorna:${id}:${Object.keys(pezzo).join(",")}:${chiave}`);
+          if (o.senzaMigrazione) return { error: { code: "PGRST202", message: "Could not find the function public.promemoria_aggiorna" } };
+          return { error: null };
+        },
+        segnaStop: async () => {
+          log.push("stop");
+          return { error: o.senzaMigrazione ? { code: "42703", message: "column non_scrivere_dal does not exist" } : null };
+        },
+        avviso: (m) => log.push(`avviso:${m}`),
+      },
+    };
+  }
+  const via = (o, testo, firma = true) => {
+    const f = finte(o);
+    return IE.rispostaAlPromemoria(f.porte, { firmaVerificata: firma, testo, numero: "+393391234567", adesso: ADESSO }).then((esito) => ({ esito, log: f.log }));
+  };
+  gruppo("PROMEMORIA WHATSAPP · IL WEBHOOK");
+  let r = await via({}, "Sì", false);
+  c("firma non verificata (o senza App Secret): non tocca niente", [], r.log);
+  r = await via({}, "Sì");
+  c("SÌ → confermato sulla scheda col messaggio, solo se è ancora quella chiave", ["schede", `aggiorna:s1:confermatoIl,confermatoVia:${K}`], r.log);
+  c("…e lo dice", "confermato", r.esito);
+  r = await via({}, "STOP");
+  c("STOP → il numero non riceve più niente, e la setter lo vede", ["stop", "schede", `aggiorna:s1:stopIl:${K}`], r.log);
+  r = await via({ schede: [] }, "STOP");
+  c("STOP anche senza un messaggio in corso: il numero si ferma lo stesso", ["stop", "schede"], r.log);
+  r = await via({}, "Non posso giovedì");
+  c("altro → la risposta alla setter", ["schede", `aggiorna:s1:rispostaIl,rispostaTesto:${K}`], r.log);
+  r = await via({ schede: [scheda("s1", { confermatoIl: "2026-10-22T12:00:00Z", confermatoVia: "whatsapp" })] }, "Grazie");
+  c("«Grazie» dopo il sì: non si scrive niente", ["schede"], r.log);
+  r = await via({ schede: [] }, "Sì");
+  c("nessuna scheda con un messaggio: niente (la risposta resta in chat)", ["schede"], r.log);
+  r = await via({ senzaMigrazione: true }, "Sì");
+  c("senza migrazione: un avviso, nessun errore", [true, "senza_migrazione"], [r.log.some((x) => x.startsWith("avviso:")), r.esito]);
+  r = await via({ senzaMigrazione: true }, "STOP");
+  c("senza migrazione, STOP: un avviso, nessun errore", true, r.log.some((x) => x.startsWith("avviso:")));
+  const rotto = finte();
+  rotto.porte.schedeConMessaggio = async () => { throw new Error("rete"); };
+  c("un guasto qualunque non fa fallire il webhook (Meta deve avere il suo 200)", "errore", await IE.rispostaAlPromemoria(rotto.porte, { firmaVerificata: true, testo: "Sì", numero: "+393391234567", adesso: ADESSO }));
+  c("nei log mai il testo del cliente", false, rotto.log.concat(r.log).some((x) => /Sì|STOP|Grazie/.test(x)));
+
+  const wh = readFileSync(join(radice, "src/routes/api.public.whatsapp-webhook.ts"), "utf8");
+  const dopoFirma = wh.indexOf("verifySignature(rawBody");
+  const chiamata = wh.indexOf("rispostaAlPromemoria(");
+  c("il nuovo codice sta DOPO la verifica della firma", true, dopoFirma > 0 && chiamata > dopoFirma);
+  c("…e parte solo con la firma verificata (App Secret presente)", true, /firmaVerificata: !!appSecret/.test(wh));
+  const porteWh = wh.slice(wh.indexOf("/** ── LA CONFERMA DELLA CONSULENZA"), wh.indexOf("export const Route"));
+  const fuoriPorte = wh.replace(porteWh, "");
+  c("scritture su schede e opt-out solo dentro le porte del promemoria", [true, false], [porteWh.length > 0, /promemoria_aggiorna|non_scrivere_dal/.test(fuoriPorte)]);
+  c("…e le porte si usano solo attraverso rispostaAlPromemoria", [1, true], [(fuoriPorte.match(/portePromemoria\(/g) || []).length, /rispostaAlPromemoria\(portePromemoria\(/.test(fuoriPorte)]);
+  c("il SÌ non usa autoLinkLead (l'omonimo vecchio)", false, /rispostaAlPromemoria\([^)]*autoLinkLead/.test(wh));
+  c("la firma vecchia resta com'era", true, wh.includes("if (appSecret && !verifySignature(rawBody, sigHeader, appSecret)) {"));
+}
+
+/** ── «OGGI»: LA STRISCIA «DA SENTIRE» E LA TARGHETTA ────────────────────────
+ *  «Confermato a voce» è l'UNICO gesto scrivente concesso anche alla setter in
+ *  sola lettura (approvato dal revisore): scrive solo `promemoria`. */
+function proveDiOggiPerLaConferma() {
+  const { PERMESSI_RUOLO } = PRM;
+  const { vistaOggi } = VISTA;
+  const CF = mod["promemoria/conferma"];
+  const con = (elenco) => (p) => elenco.includes(p);
+  gruppo("PROMEMORIA WHATSAPP · «OGGI»");
+  const vs = vistaOggi(con(PERMESSI_RUOLO.setter));
+  const vc = vistaOggi(con(PERMESSI_RUOLO.consulente));
+  c("la setter vede «Da sentire» e può segnare «Confermato a voce»", [true, true], [vs.confermeDaSentire, vs.confermaAVoce]);
+  c("anche il consulente", [true, true], [vc.confermeDaSentire, vc.confermaAVoce]);
+  c("…e la setter resta in sola lettura per tutto il resto", [false, false, false], [vs.gesti, vs.andamento, vs.contatori]);
+  c("anche senza nessun permesso si vede (non è un dato sensibile)", true, vistaOggi(() => false).confermeDaSentire);
+
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  c("quando: oggi", "oggi 17:30", CF.quandoDetto({ dataMeeting: "2026-10-22", oraMeeting: "17:30" }, ADESSO));
+  c("quando: domani", "domani 10:00", CF.quandoDetto({ dataMeeting: "2026-10-23", oraMeeting: "10:00" }, ADESSO));
+  c("quando: più in là", "sabato 24 ottobre 9:00".replace("9:00", "09:00"), CF.quandoDetto({ dataMeeting: "2026-10-24", oraMeeting: "9:00" }, ADESSO));
+  c("il tasto Chiama ha solo cifre (e il +)", "tel:+393391234567", CF.linkChiamata("339 123 4567"));
+  c("…anche con un numero strano, nessun carattere estraneo", "tel:061234567", CF.linkChiamata("06 1234567<script>"));
+  c("…senza numero, nessun tasto", null, CF.linkChiamata(""));
+
+  const pagina = readFileSync(join(radice, "src/routes/CRM.index.tsx"), "utf8");
+  const striscia = readFileSync(join(radice, "src/crm/ConfermeDaSentire.tsx"), "utf8");
+  const riga = readFileSync(join(radice, "src/crm/MeetGiornalieri.tsx"), "utf8");
+  c("la striscia sta sopra «La giornata»", true, pagina.indexOf("<ConfermeDaSentire") > 0 && pagina.indexOf("<ConfermeDaSentire") < pagina.indexOf('id="agenda"'));
+  c("…e segue la vista", true, /vista\.confermeDaSentire && \(?\s*<ConfermeDaSentire/.test(pagina));
+  c("«Confermato a voce» scrive solo promemoria.confermatoIl/Via", true, /fondiSotto<LeadData, "promemoria">\("promemoria", \{\s*confermatoIl: new Date\(\)\.toISOString\(\),\s*confermatoVia: "voce",?\s*\}\)/.test(pagina));
+  c("i due tasti dicono cosa fanno (aria-label)", 2, (striscia.match(/aria-label=\{`(Chiama|Segna confermato a voce)/g) || []).length);
+  c("il testo del cliente è testo semplice, mai HTML", false, /dangerouslySetInnerHTML/.test(striscia));
+  c("la targhetta sta sulla riga, anche in sola lettura", true, /<TargaConferma dati=\{l\.data\}/.test(riga) && !/gesti && <TargaConferma/.test(riga));
+  c("nessuna scatola vuota: senza nessuno da sentire non si disegna", true, /if \(righe\.length === 0\) return null;/.test(striscia));
+}
+
+/** ── IL RIQUADRO DEL TITOLARE ──────────────────────────────────────────────
+ *  Interruttore, UNA frase di stato, «Controlla ora» (taglio del revisore).
+ *  La frase non è mai un errore muto: dice il perché per esteso. */
+function proveDelRiquadroDelPromemoria() {
+  const P = mod["promemoria/pronto"];
+  gruppo("PROMEMORIA WHATSAPP · IL RIQUADRO");
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "14:35");
+  const stato = (x) => ({ giroIl: roma("2026-10-22", "14:32").toISOString(), pronto: true, frase: "Attivo.", inviatiOggi: 7, confermatiOggi: 5, senzaRisposta: 2, inAttesa: 0, ...x });
+  const fr = (s, acceso = true) => P.fraseRiquadro(s, acceso ? { acceso: true } : null, ADESSO);
+  c("mai girato: dice cosa fare", "neutro", fr(null).tono);
+  c("…con il riferimento alla riga del cron", true, /cron/.test(fr(null).frase));
+  c("attivo: verde, l'ora (di Roma) e i conti di oggi", { tono: "verde", frase: "Attivo. Ultimo controllo alle 14:32. Oggi: 7 inviati, 5 confermati, 2 senza risposta." }, fr(stato()));
+  c("spento", { tono: "neutro", frase: "Spento: nessun messaggio parte." }, fr(stato({ pronto: false, blocco: "spento" }), false));
+  c("manca la migrazione: rosso, anche da spento", { tono: "rosso", frase: P.FRASI_BLOCCO.manca_migrazione }, fr(stato({ pronto: false, blocco: "manca_migrazione", frase: P.FRASI_BLOCCO.manca_migrazione }), false));
+  c("un blocco: rosso, con la sua frase e l'ora", { tono: "rosso", frase: `${P.FRASI_BLOCCO.sandbox} (ultimo controllo alle 14:32)` }, fr(stato({ pronto: false, blocco: "sandbox", frase: P.FRASI_BLOCCO.sandbox })));
+  c("acceso ma il cron non gira da più di 10 minuti: ambra", "ambra", P.fraseRiquadro(stato(), { acceso: true }, roma("2026-10-22", "15:00")).tono);
+
+  const pan = readFileSync(join(radice, "src/crm/PromemoriaWhatsappPannello.tsx"), "utf8");
+  const imp = readFileSync(join(radice, "src/routes/CRM.impostazioni.tsx"), "utf8");
+  //  L'unico token ammesso è quello della SESSIONE di chi guarda (serve alla
+  //  prova a secco); quello di WhatsApp e la sua tabella mai.
+  c("il riquadro non importa niente del server e non vede il token WhatsApp", false, /\.server"|whatsapp_settings|accessToken/.test(pan) || /access_token/.test(pan.replace(/session\?\.access_token/g, "")));
+  const api = readFileSync(join(radice, "src/routes/api.crm.promemoria-whatsapp.ts"), "utf8");
+  c("all'accensione: avvio «da fare» (il primo giro non manda niente ai vecchi)", true, /acceso: true,\s*attivoDal: new Date\(\)\.toISOString\(\),\s*avvio: "da_fare"/.test(api));
+  //  Controllo di sicurezza (MEDIUM): l'interruttore scriveva app_config dal
+  //  browser, e col PIN la sessione è del proprietario per tutti: anche la
+  //  setter poteva accendere. Adesso passa dal server, con la guardia.
+  const panCodice = pan.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  c("il browser non scrive più app_config per il promemoria", false, /app_config|dbConfig|upsert\(/.test(panCodice));
+  c("il riquadro parla solo con la rotta del CRM, col gettone (fetchCRM)", true, /const ROTTA = "\/api\/crm\/promemoria-whatsapp"/.test(pan) && /fetchCRM\(ROTTA/.test(pan) && !/\/hooks\//.test(panCodice));
+  c("ogni richiesta alla rotta passa dalla guardia col permesso «impostazioni»", (api.match(/(GET|POST): async/g) || []).length, (api.match(/await guardiaCRM\(request, cors, "impostazioni"\);\s*if \(!g\.ok\) return g\.risposta;/g) || []).length);
+  c("…e la guardia viene prima di ogni scrittura", true, api.indexOf("guardiaCRM(request") < api.indexOf("scriviConfig("));
+  c("la scrittura la fa il server (chiave di servizio)", true, /supabaseAdmin|porteVere/.test(api));
+  c("la prova a secco è dell'installazione di chi chiede (adminUserId)", true, /porteVere\(g\.chi\.adminUserId\)/.test(api) && /prova: true/.test(api));
+  //  Controllo di sicurezza (MEDIUM, fail-open): senza titolare la rotta
+  //  guardava TUTTE le installazioni. Adesso rifiuta, e la stringa vuota filtra.
+  c("senza titolare dei dati la rotta risponde 403 (GET e POST)", 2, (api.match(/if \(!g\.chi\.adminUserId\) return json\(\{ ok: false, error: "titolare" \}, 403\);/g) || []).length);
+  const giroSrc = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
+  c("solo `null` vuol dire «tutte le installazioni», mai una stringa vuota", true, /if \(soloUtente !== null\) q = q\.eq\("user_id", soloUtente\)/.test(giroSrc));
+  c("riaccendere un interruttore già acceso non riparte da capo", true, /if \(b\.acceso && prima\?\.acceso\) return json\(\{ ok: true, config: prima \}\);/.test(api));
+  const { PERMESSI_RUOLO: PR } = PRM;
+  c("una setter non ha «impostazioni»: la guardia le risponde 403", false, PR.setter.includes("impostazioni"));
+  c("…nemmeno il consulente; l'admin sì", [false, true], [PR.consulente.includes("impostazioni"), PR.admin.includes("impostazioni")]);
+  c("nel riquadro interruttore e «Controlla ora» solo a chi ha «impostazioni»", true, /usePuo\(\)\("impostazioni"\)/.test(pan) && (pan.match(/disabled=\{!puoCambiare/g) || []).length === 2);
+  c("sta nella scheda WhatsApp delle impostazioni", true, /<WhatsAppSettingsSection \/>\s*<PromemoriaWhatsappPannello \/>/.test(imp));
+  c("ricorda il consenso prima di accendere", true, /consenso|modulo di prenotazione/i.test(pan));
+  const doc = readFileSync(join(radice, "docs/whatsapp-setup.md"), "utf8");
+  c("il documento di setup ha la sezione e la riga del cron", true, /Conferma consulenze/.test(doc) && doc.includes("SELECT public.programma_hook_cron('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp');"));
+}

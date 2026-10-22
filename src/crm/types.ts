@@ -1767,6 +1767,43 @@ export interface LeadData {
   lostReason?: LostReason;
   lostReasonNote?: string;
   lostReasonAt?: string; // ISO data registrazione motivo
+  /** La conferma automatica della consulenza su WhatsApp (commessa
+   *  2026-10-22). La scrivono il cron e il webhook, SOLO con le funzioni SQL
+   *  `promemoria_*`; il browser scrive solo `confermatoIl/confermatoVia`
+   *  («Confermato a voce»), con `fondiSotto`. Vedi crm/promemoria. */
+  promemoria?: PromemoriaWhatsapp;
+}
+
+/** Il segno del messaggio automatico sulla scheda. Vedi crm/promemoria/invio. */
+export interface PromemoriaWhatsapp {
+  /** «AAAA-MM-GGTHH:MM|ultime 9 cifre»: cambia giorno, ora o numero → nuova
+   *  conferma. `null` = segno tolto (si può riprovare). */
+  chiave?: string | null;
+  stato?:
+    | "in_invio"
+    | "inviato"
+    | "non_inviato"
+    | "incerto"
+    | "non_recapitato"
+    | "preesistente"
+    | null;
+  /** codice breve; la frase la dà `testoMotivo` */
+  motivo?: string | null;
+  /** quando è stato messo il segno (inizio invio) */
+  invioIl?: string | null;
+  /** quando Meta ha accettato il messaggio */
+  inviatoIl?: string | null;
+  waMessageId?: string | null;
+  /** quanti messaggi in tutta la vita della scheda (tetto 3) */
+  volte?: number;
+  confermatoIl?: string | null;
+  confermatoVia?: "whatsapp" | "voce" | null;
+  /** ha risposto qualcosa che NON è sì */
+  rispostaIl?: string | null;
+  /** al massimo 80 caratteri */
+  rispostaTesto?: string | null;
+  /** ha scritto STOP (copia per la setter: il blocco vero è sul numero) */
+  stopIl?: string | null;
 }
 
 export interface Lead {
