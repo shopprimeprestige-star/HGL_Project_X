@@ -484,7 +484,20 @@ const COLONNE: Record<string, string[]> = {
    *  sola. Finché non c'era questa riga, quelle liste entravano SENZA NOME —
    *  e una scheda senza nome, per chi telefona, è un numero e basta. */
   nomeCompleto: ["fullname", "nomecompleto", "nomeecognome", "nominativo"],
-  telefono: ["telefono", "phone", "cellulare", "mobile", "numero", "phonenumber", "tel"],
+  //  ⚠️ «whatsapp_number» (modulo «22-ott», 22/10/2026): senza, il telefono
+  //   restava senza colonna e finiva al suo posto la data di nascita.
+  telefono: [
+    "telefono",
+    "phone",
+    "cellulare",
+    "mobile",
+    "numero",
+    "phonenumber",
+    "tel",
+    "whatsappnumber",
+    "numerowhatsapp",
+    "whatsapp",
+  ],
   email: ["email", "mail", "posta", "indirizzoemail"],
   citta: ["citta", "city", "comune", "localita"],
   fonte: ["fonte", "source", "provenienza", "canale", "platform", "piattaforma"],

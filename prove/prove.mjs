@@ -483,6 +483,9 @@ const MODULI = [
   //  ⚠️ La temperatura del lead (Caldo/Medio/Freddo): una regola sola per
   //   «Oggi», Lead importati e la scheda. Vedi proveDellaTemperatura.
   "temperatura-lead",
+  //  ⚠️ Il termometro Bollente → Gelido del modulo «22-ott» di Invisible Derm:
+  //   vedi proveDelTermometroInvisibleDerm.
+  "termometro-id",
   //  ⚠️ Che cosa vede in «Oggi» chi non fa consulenze (la setter in sola
   //   lettura). Vedi proveDellaVistaDiOggi.
   "vista-oggi",
@@ -20105,6 +20108,129 @@ function proveDeiPulsantiDelloStato() {
   c("chiede mattina o sera", true, /mattina o la sera\?$/.test(nuovo));
 }
 
+/** ── IL TERMOMETRO INVISIBLE DERM, MODULO «22-OTT» (22/10/2026) ───────────
+ *  Richiesta del titolare: importare «LEAD - HGL - Ads Accese - 02.csv» con
+ *  nome e cognome, dargli il termometro Bollente → Gelido (severo ma
+ *  equilibrato) e poter aggiornare solo nome e cognome di chi ha lo stesso
+ *  numero. Dati inventati: nessun lead vero qui dentro. */
+function proveDelTermometroInvisibleDerm() {
+  gruppo("TERMOMETRO INVISIBLE DERM: IL FILE «22-OTT» SI LEGGE");
+  const T = mod["termometro-id"].calculateLeadTemperature;
+  const intest = "id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,quale_soluzione_stai_valutando?,_l’evoluzione_della_patchcutanea_finalmente_è_realtà!,cosa_cerchi_principalmente?,qual_è_il_tuo_dubbio_principale?,quando_vorresti_iniziare?,il_percorso_parte_da_589€._è_nel_tuo_budget?,cosa_ti_aspetti_dalla_consulenza_gratuita?,a_che_punto_sei_nella_scelta_di_una_soluzione_capillare?,qual'è_il_tuo_budget?,first_name,last_name,city,date_of_birth,whatsapp_number,email,lead_status";
+  const riga1 = 'l:1,2026-10-22T04:52:11-05:00,ag:1,589€ - 001,as:1,589,c:1,Camp,f:1,22-ott,false,fb,integrazione_capillare_di_nuova_generazione,"🟢_sì,_sono_disposto_a_venire_a_roma!","una_soluzione_economica,_ma_naturale",la_tenuta_e_la_manutenzione,il_prima_possibile,vorrei_prima_approfondire,capire_se_invisible_derm_è_adatto_a_me_e_come_iniziare,"non_ho_ancora_fatto_consulenze,_ma_vorrei_iniziare",,Mario,Esempio,Roma,01/01/1980,+393330000000,mario@example.com,CREATED';
+  const riga2 = 'l:2,2026-10-22T04:52:11-05:00,ag:1,589€ - 001,as:1,589,c:1,Camp,f:1,22-ott,false,fb,patchcutanea,"🔴_no,_al_momento_non_posso_venire_a_roma",il_meglio_-_un_risultato_naturale_e_discreto,il_costo_del_percorso,sto_solo_cercando_informazioni,"no,_cerco_qualcosa_di_più_economico",,,300 euro,Luca,Prova,Napoli,01/01/1980,+393331111111,l@example.com,CREATED';
+  const riga3 = 'l:3,2026-10-22T04:52:11-05:00,ag:1,589€ - 001,as:1,589,c:1,Camp,f:1,22-ott,false,fb,trapianto_chirurgico,,,,,,,,,Rita,Prova,Milano,01/01/1980,+393332222222,r@example.com,CREATED';
+  const letto = IMP.traduciCsv([intest, riga1, riga2, riga3].join("\n"));
+  const [a, b, t] = letto.leads;
+  c("tre righe, nessuna scartata", "3|0", `${letto.leads.length}|${letto.scartate}`);
+  c("nome e cognome dalle colonne first_name / last_name", "Mario Esempio", `${a.nome} ${a.cognome}`);
+  c("il telefono è whatsapp_number, non la data di nascita", "+393330000000", a.telefono);
+  c("le otto risposte riconosciute", "integrazione|si|economica|tenuta|subito|approfondire|adatto|nessuna",
+    [a.modulo.soluzione, a.modulo.roma, a.modulo.cerca, a.modulo.dubbio, a.modulo.inizio, a.modulo.budget, a.modulo.aspettativa, a.modulo.scelta].join("|"));
+  c("«il percorso parte da 589€. è nel tuo budget?» è il Budget, non il Prezzo del 20/10", ["approfondire", undefined], [a.modulo.budget, a.modulo.prezzo]);
+  c("Roma «no» e budget «no» riconosciuti", "no|no|info|costo|meglio", [b.modulo.roma, b.modulo.budget, b.modulo.inizio, b.modulo.dubbio, b.modulo.cerca].join("|"));
+  c("il budget scritto a mano (Q9) si tiene", "300 euro", b.modulo.budgetLibero);
+  c("D7 e D8 non raccolti: non inventati", [undefined, undefined], [b.modulo.aspettativa, b.modulo.scelta]);
+  c("il trapianto è riconosciuto", "trapianto", t.modulo.soluzione);
+  c("«il meglio» o «sì» senza colonna non si assegnano", undefined, MDL.riconosciRisposta("il meglio - un risultato naturale e discreto"));
+
+  gruppo("TERMOMETRO INVISIBLE DERM: NELLA SCHEDA E IN CODA");
+  const ta = TEMP.temperaturaDi(a);
+  c("il lead del file: Caldo 79, priorità alta", "Caldo|79/100 · priorità alta", `${ta.t.parola}|${ta.t.perche}`);
+  c("…le brevi della riga: tempi e budget", ["inizia subito", "budget da capire"], ta.brevi);
+  c("…e conta come caldo in coda", true, TEMP.eLivelloCaldo(ta.t.livello));
+  c("Bollente conta come caldo in coda", true, TEMP.eLivelloCaldo("bollente"));
+  c("Tiepido non è caldo", false, TEMP.eLivelloCaldo("tiepido"));
+  const tt = TEMP.temperaturaDi(t).t;
+  c("trapianto: grado a parte, non caldo", "trapianto|Trapianto|false", `${tt.livello}|${tt.parola}|${TEMP.eLivelloCaldo(tt.livello)}`);
+  c("il modulo del 589€ resta a sei livelli", "caldissimo", TEMP.temperaturaLead({ tempi: "trenta", prezzo: "si", urgenza: "subito", decide: "solo", motivo: "evento" }).livello);
+
+  gruppo("TERMOMETRO INVISIBLE DERM: TUTTE LE COMBINAZIONI");
+  const O = { soluzione: ["patch", "integrazione"], roma: ["si", "no"], cerca: ["meglio", "economica"], dubbio: ["risultato", "tenuta", "costo"], inizio: ["subito", "trenta", "info"] };
+  const tutte = [];
+  for (const so of O.soluzione) for (const ro of O.roma) for (const ce of O.cerca) for (const du of O.dubbio) for (const ini of O.inizio) {
+    for (const bu of ["si", "approfondire"]) for (const as of ["adatto", "confronto", "futuro"]) for (const sc of ["preventivi", "confronto", "nessuna"])
+      tutte.push({ soluzione: so, roma: ro, cerca: ce, dubbio: du, inizio: ini, budget: bu, aspettativa: as, scelta: sc });
+    tutte.push({ soluzione: so, roma: ro, cerca: ce, dubbio: du, inizio: ini, budget: "no" });
+  }
+  const r = tutte.map((x) => [x, T(x)]);
+  const ORD = ["gelido", "freddo", "tiepido", "caldo", "bollente"];
+  const MIN = { gelido: 0, freddo: 25, tiepido: 45, caldo: 60, bollente: 80 };
+  const MAX = { gelido: 24, freddo: 44, tiepido: 59, caldo: 79, bollente: 100 };
+  const sotto = (g, tetto) => ORD.indexOf(g) <= ORD.indexOf(tetto);
+  c("1368 percorsi validi", 1368, tutte.length);
+  c("1. nessuno senza budget è Caldo o Bollente (al massimo Freddo)", [], r.filter(([x, y]) => x.budget === "no" && !sotto(y.temperatura, "freddo")).map(([x]) => x));
+  c("2. nessuno che non viene a Roma supera Tiepido", [], r.filter(([x, y]) => x.roma === "no" && !sotto(y.temperatura, "tiepido")).map(([x]) => x));
+  c("   nessuno «solo informazioni» supera Tiepido", [], r.filter(([x, y]) => x.inizio === "info" && !sotto(y.temperatura, "tiepido")).map(([x]) => x));
+  c("   Bollente solo con Roma sì, budget sì, entro 30 giorni e voglia di iniziare", [], r.filter(([x, y]) => y.temperatura === "bollente" &&
+    !(x.roma === "si" && x.budget === "si" && x.inizio !== "info" && x.aspettativa !== "futuro")).map(([x]) => x));
+  c("3. chi ha Roma, budget, urgenza e vuole iniziare è Bollente (salvo il prezzo come tema)", [], r.filter(([x, y]) => x.roma === "si" && x.budget === "si" && x.inizio !== "info" && x.aspettativa === "adatto" &&
+    !(x.cerca === "economica" && x.dubbio === "costo") && y.temperatura !== "bollente").map(([x]) => x));
+  c("4. urgenza + «per il futuro» è sempre una contraddizione", [], r.filter(([x, y]) => x.inizio !== "info" && x.aspettativa === "futuro" && !y.contraddizioni.length).map(([x]) => x));
+  const cambia = (x, k, v) => ({ ...x, [k]: v });
+  c("5. il dubbio sulla tenuta pesa come quello sul risultato", [], r.filter(([x, y]) => x.dubbio === "tenuta" && T(cambia(x, "dubbio", "risultato")).score !== y.score).map(([x]) => x));
+  c("6. «prima consulenza» non toglie il Bollente", true, r.some(([x, y]) => x.scelta === "nessuna" && y.temperatura === "bollente"));
+  c("   …e non è mai sotto chi ha già visto altri centri di più di 2 punti", [], r.filter(([x, y]) => x.scelta === "nessuna" && T(cambia(x, "scelta", "confronto")).score - y.score > 2).map(([x]) => x));
+  c("7. il punteggio sta sempre dentro il suo grado", [], r.filter(([, y]) => y.score < MIN[y.temperatura] || y.score > MAX[y.temperatura]).map(([x]) => x));
+  c("   deterministico: stesse risposte, stesso risultato", true, r.every(([x, y]) => JSON.stringify(T({ ...x })) === JSON.stringify(y)));
+  c("   ogni grado ha un'azione e una motivazione", true, r.every(([, y]) => !!y.azione_consigliata && !!y.motivazione));
+  c("   priorità coerente col grado", true, r.every(([, y]) => ({ bollente: "Massima", caldo: "Alta", tiepido: "Media", freddo: "Bassa", gelido: "Bassa" })[y.temperatura] === y.priorita));
+  c("   Bollente non è facile: meno di un percorso su otto", true, r.filter(([, y]) => y.temperatura === "bollente").length / r.length < 0.125);
+  c("8. una risposta non data non conta né in più né in meno", T({ roma: "si", inizio: "subito" }).score, 25 + 12 + 20);
+  c("   senza D7-D8 (strada di Q9) niente ostacoli inventati su D7-D8", [], r.filter(([x, y]) => x.budget === "no" && y.ostacoli.some((o) => /futuro/.test(o))).map(([x]) => x));
+  c("   modulo a metà: non sale oltre Tiepido senza budget detto", "tiepido", T({ roma: "si", inizio: "subito" }).temperatura);
+
+  gruppo("TERMOMETRO INVISIBLE DERM: Q9 E I VINCOLI");
+  c("Q9: «300 euro» resta Freddo, con la cifra", ["freddo", true], [T({ roma: "si", inizio: "subito", budget: "no", budgetLibero: "300 euro" }).temperatura,
+    T({ roma: "si", inizio: "subito", budget: "no", budgetLibero: "300 euro" }).ostacoli.some((o) => o.includes("300€"))]);
+  const q9 = T({ roma: "si", inizio: "subito", budget: "no", budgetLibero: "fino a 1.000€" });
+  c("Q9: «fino a 1.000€» riapre, ma al massimo Tiepido e lo segnala", ["tiepido", 1], [q9.temperatura, q9.contraddizioni.length]);
+  c("la cifra più alta di «300-400 euro»", 400, mod["termometro-id"].cifraDelBudget("300-400 euro"));
+  c("il budget scritto senza cifre non riapre", "freddo", T({ roma: "si", inizio: "subito", budget: "no", budgetLibero: "poco" }).temperatura);
+
+  gruppo("TERMOMETRO INVISIBLE DERM: VENTUNO PROFILI");
+  const PROFILI = [
+["Perfetto: Roma, budget sì, subito, vuole iniziare, ha preventivi", { soluzione:"integrazione", roma:"si", cerca:"meglio", dubbio:"risultato", inizio:"subito", budget:"si", aspettativa:"adatto", scelta:"preventivi" }, "bollente"],
+  ["Bollente alla prima consulenza (economica, entro 30 gg)", { soluzione:"patch", roma:"si", cerca:"economica", dubbio:"tenuta", inizio:"trenta", budget:"si", aspettativa:"adatto", scelta:"nessuna" }, "bollente"],
+  ["Confronta altri centri, budget sì, subito", { soluzione:"integrazione", roma:"si", cerca:"meglio", dubbio:"tenuta", inizio:"subito", budget:"si", aspettativa:"confronto", scelta:"confronto" }, "bollente"],
+  ["Tutto sì ma vuole approfondire il budget", { soluzione:"integrazione", roma:"si", cerca:"meglio", dubbio:"risultato", inizio:"subito", budget:"approfondire", aspettativa:"adatto", scelta:"preventivi" }, "caldo"],
+  ["Entro 30 gg, budget da approfondire, confronta", { soluzione:"patch", roma:"si", cerca:"economica", dubbio:"costo", inizio:"trenta", budget:"approfondire", aspettativa:"confronto", scelta:"confronto" }, "caldo"],
+  ["Interessatissimo ma non può venire a Roma", { soluzione:"integrazione", roma:"no", cerca:"meglio", dubbio:"risultato", inizio:"subito", budget:"si", aspettativa:"adatto", scelta:"preventivi" }, "tiepido"],
+  ["Budget sì ma solo informazioni", { soluzione:"integrazione", roma:"si", cerca:"meglio", dubbio:"tenuta", inizio:"info", budget:"si", aspettativa:"adatto", scelta:"nessuna" }, "tiepido"],
+  ["Subito ma senza budget (va a Q9, nessuna cifra)", { soluzione:"integrazione", roma:"si", cerca:"economica", dubbio:"costo", inizio:"subito", budget:"no" }, "freddo"],
+  ["Senza budget, scrive 300€", { soluzione:"patch", roma:"si", cerca:"economica", dubbio:"costo", inizio:"trenta", budget:"no", budgetLibero:"300 euro" }, "freddo"],
+  ["Dice no al 589€ ma scrive 1000€", { soluzione:"patch", roma:"si", cerca:"meglio", dubbio:"tenuta", inizio:"subito", budget:"no", budgetLibero:"fino a 1.000€" }, "tiepido"],
+  ["Contraddizione: subito ma «per il futuro»", { soluzione:"integrazione", roma:"si", cerca:"meglio", dubbio:"risultato", inizio:"subito", budget:"si", aspettativa:"futuro", scelta:"preventivi" }, "tiepido"],
+  ["Contraddizione: budget sì ma teme il costo", { soluzione:"integrazione", roma:"si", cerca:"economica", dubbio:"costo", inizio:"trenta", budget:"si", aspettativa:"adatto", scelta:"nessuna" }, "caldo"],
+  ["Ha preventivi ma cerca solo informazioni", { soluzione:"patch", roma:"si", cerca:"meglio", dubbio:"tenuta", inizio:"info", budget:"approfondire", aspettativa:"confronto", scelta:"preventivi" }, "tiepido"],
+  ["Curioso puro: info, futuro, approfondire", { soluzione:"patch", roma:"si", cerca:"economica", dubbio:"risultato", inizio:"info", budget:"approfondire", aspettativa:"futuro", scelta:"nessuna" }, "freddo"],
+  ["Niente Roma, niente budget, solo informazioni", { soluzione:"integrazione", roma:"no", cerca:"economica", dubbio:"costo", inizio:"info", budget:"no" }, "gelido"],
+  ["Niente Roma e niente budget, ma subito", { soluzione:"patch", roma:"no", cerca:"meglio", dubbio:"tenuta", inizio:"subito", budget:"no" }, "gelido"],
+  ["Roma no, info, futuro, approfondire", { soluzione:"integrazione", roma:"no", cerca:"economica", dubbio:"risultato", inizio:"info", budget:"approfondire", aspettativa:"futuro", scelta:"nessuna" }, "gelido"],
+  ["Valuta il trapianto", { soluzione:"trapianto" }, "trapianto"],
+  ["Modulo a metà: solo Roma sì e subito", { roma:"si", inizio:"subito" }, "tiepido"],
+  ["Dubbio sulla tenuta, per il resto forte", { soluzione:"integrazione", roma:"si", cerca:"economica", dubbio:"tenuta", inizio:"subito", budget:"si", aspettativa:"adatto", scelta:"confronto" }, "bollente"],
+  ["Entro 30 gg, budget sì, ma solo confronto e prima consulenza", { soluzione:"patch", roma:"si", cerca:"economica", dubbio:"costo", inizio:"trenta", budget:"si", aspettativa:"confronto", scelta:"nessuna" }, "caldo"],
+  ];
+  for (const [nome, risposte, atteso] of PROFILI) {
+    const y = T(risposte);
+    c(`${nome} → ${atteso} (${y.score})`, atteso, y.temperatura);
+  }
+
+  gruppo("CARICAMENTO: SOLO NOME E COGNOME DI CHI HA LO STESSO NUMERO");
+  const vecchio = { nome: "mario", cognome: "", telefono: "333 000 0000", stato: "venduto", note: "storia" };
+  const p = RIC.patchSoloNome(vecchio, { nome: "Mario", cognome: "Esempio", telefono: "+39 3330000000", stato: "da_contattare", modulo: { roma: "si" } });
+  c("scrive solo nome e cognome", { nome: "Mario", cognome: "Esempio" }, p);
+  c("un nome vuoto nel file non cancella", {}, RIC.patchSoloNome({ nome: "Mario", cognome: "Esempio" }, { nome: "", cognome: " " }));
+  c("lo stesso nome non è una modifica", {}, RIC.patchSoloNome({ nome: "Mario", cognome: "Esempio" }, { nome: "Mario", cognome: "Esempio" }));
+  c("stesso numero scritto in due modi", true, RIC.stessoTelefono({ telefono: "+39 333 000 0000" }, { telefono: "3330000000" }));
+  c("ritrovato per nome, senza numero: non si rinomina", false, RIC.stessoTelefono({ nome: "Mario" }, { nome: "Mario" }));
+  const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
+  c("in modo «solo nomi» i ritorni non si segnano", true, /const idRitorni = soloNomi \? \[\] :/.test(pannello));
+  c("…e la coda non li mostra di ritorno", true, /onLetti\(si \? \[\] :/.test(pannello));
+  c("…si scrive con patchSoloNome sulla scheda riletta", true, /updateLead\(r\.scheda\.id, \(attuale\) => patchSoloNome\(attuale, r\.letto\)\)/.test(pannello));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20198,6 +20324,7 @@ proveDeiRitocchiDellaBarra();
 proveDelModulo589();
 proveDeiPulsantiDelloStato();
 proveDelloStatoAttesaWhatsapp();
+proveDelTermometroInvisibleDerm();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
