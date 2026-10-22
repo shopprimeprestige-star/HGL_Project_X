@@ -20152,8 +20152,8 @@ function proveDellOrarioSulDoppione() {
 /** ── IL TERMOMETRO INVISIBLE DERM, MODULO «22-OTT» (22/10/2026) ───────────
  *  Richiesta del titolare: importare «LEAD - HGL - Ads Accese - 02.csv» con
  *  nome e cognome, dargli il termometro Bollente → Gelido (severo ma
- *  equilibrato) e poter aggiornare solo nome e cognome di chi ha lo stesso
- *  numero. Dati inventati: nessun lead vero qui dentro. */
+ *  equilibrato). La scelta «solo nome e cognome» al caricamento è stata tolta
+ *  su richiesta del titolare (22/10/2026). Dati inventati: nessun lead vero qui dentro. */
 function proveDelTermometroInvisibleDerm() {
   gruppo("TERMOMETRO INVISIBLE DERM: IL FILE «22-OTT» SI LEGGE");
   const T = mod["termometro-id"].calculateLeadTemperature;
@@ -20264,19 +20264,6 @@ function proveDelTermometroInvisibleDerm() {
     const y = T(risposte);
     c(`${nome} → ${atteso} (${y.score})`, atteso, y.temperatura);
   }
-
-  gruppo("CARICAMENTO: SOLO NOME E COGNOME DI CHI HA LO STESSO NUMERO");
-  const vecchio = { nome: "mario", cognome: "", telefono: "333 000 0000", stato: "venduto", note: "storia" };
-  const p = RIC.patchSoloNome(vecchio, { nome: "Mario", cognome: "Esempio", telefono: "+39 3330000000", stato: "da_contattare", modulo: { roma: "si" } });
-  c("scrive solo nome e cognome", { nome: "Mario", cognome: "Esempio" }, p);
-  c("un nome vuoto nel file non cancella", {}, RIC.patchSoloNome({ nome: "Mario", cognome: "Esempio" }, { nome: "", cognome: " " }));
-  c("lo stesso nome non è una modifica", {}, RIC.patchSoloNome({ nome: "Mario", cognome: "Esempio" }, { nome: "Mario", cognome: "Esempio" }));
-  c("stesso numero scritto in due modi", true, RIC.stessoTelefono({ telefono: "+39 333 000 0000" }, { telefono: "3330000000" }));
-  c("ritrovato per nome, senza numero: non si rinomina", false, RIC.stessoTelefono({ nome: "Mario" }, { nome: "Mario" }));
-  const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
-  c("in modo «solo nomi» i ritorni non si segnano", true, /const idRitorni = soloNomi \? \[\] :/.test(pannello));
-  c("…e la coda non li mostra di ritorno", true, /onLetti\(si \? \[\] :/.test(pannello));
-  c("…si scrive con patchSoloNome sulla scheda riletta", true, /updateLead\(r\.scheda\.id, \(attuale\) => patchSoloNome\(attuale, r\.letto\)\)/.test(pannello));
 }
 
 /** ── ELIMINARE DALLA SCHEDA DI LEAD IMPORTATI (22/10/2026) ─────────────────

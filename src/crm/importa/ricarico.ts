@@ -59,7 +59,6 @@ import { eSaltato } from "./saltati";
 //  Il riassunto delle risposte di stavolta si compone con la stessa funzione
 //  della riga e della scheda: una sola, o dicono cose diverse.
 import { riassuntoModulo } from "@/crm/modulo-lead";
-import { chiaveTelefono } from "@/crm/telefono-doppio";
 
 /** Lo stato in cui torna chi viene rimesso in circolo. Uno solo, scritto qui:
  *  «resetta lo stato» deve voler dire la stessa cosa ovunque lo si legga. */
@@ -981,36 +980,4 @@ export function datiOriginaliDelFile(
     if (valore) out.push({ colonna, valore });
   }
   return out;
-}
-
-/** ── SOLO NOME E COGNOME, DAL FILE ──────────────────────────────────────────
- *  Richiesta del titolare (22/10/2026): «quando carico il file posso
- *  selezionare se sovrascrivere solo nome e cognome di quelli con lo stesso
- *  numero di telefono, qualsiasi sia lo stato del lead».
- *  Il file di Meta ha nome e cognome scritti da lui; in archivio a volte c'è
- *  solo il nome, o un nome preso al telefono storpiato.
- *  ⚠️ SOLO QUESTI DUE CAMPI, e solo se il file ne porta uno pieno e diverso:
- *   stato, note, appuntamenti e risposte non si toccano, e un nome vuoto nel
- *   file non cancella quello che c'è.
- *  ⚠️ SOLO CHI HA LO STESSO NUMERO (`chiaveTelefono`): chi si è ritrovato per
- *   nome e cognome ha già quel nome. */
-export function patchSoloNome(
-  attuale?: Partial<LeadData> | null,
-  letto?: Partial<LeadData> | null,
-): Partial<LeadData> {
-  const patch: Partial<LeadData> = {};
-  for (const campo of ["nome", "cognome"] as const) {
-    const nuovo = testoDi(letto?.[campo]);
-    if (nuovo && nuovo !== testoDi(attuale?.[campo])) patch[campo] = nuovo;
-  }
-  return patch;
-}
-
-/** La riga del file e la scheda hanno lo stesso numero? */
-export function stessoTelefono(
-  letto?: Partial<LeadData> | null,
-  scheda?: Partial<LeadData> | null,
-): boolean {
-  const k = chiaveTelefono(letto?.telefono);
-  return !!k && k === chiaveTelefono(scheda?.telefono);
 }
