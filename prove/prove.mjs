@@ -20147,6 +20147,8 @@ function proveDellOrarioSulDoppione() {
   c("⌘+Invio del nuovo lead spento sotto la scheda del doppione", true, /useSalvaConTastiera\(open && !doppioneAperto && !avvisoDoppioneAperto/.test(ld));
   c("la scheda vecchia riceve l'orario solo se non è cliente", true, /orarioDaPortare=\{orarioPer\(orarioDaQui, doppioneAperto\.data\)\}/.test(ld));
   c("solo da un nuovo lead non ancora creato", true, /!lead && !creato \? orarioScelto\(form\)/.test(ld));
+}
+
 /** ── IL TERMOMETRO INVISIBLE DERM, MODULO «22-OTT» (22/10/2026) ───────────
  *  Richiesta del titolare: importare «LEAD - HGL - Ads Accese - 02.csv» con
  *  nome e cognome, dargli il termometro Bollente → Gelido (severo ma
@@ -20275,6 +20277,7 @@ function proveDelTermometroInvisibleDerm() {
   c("in modo «solo nomi» i ritorni non si segnano", true, /const idRitorni = soloNomi \? \[\] :/.test(pannello));
   c("…e la coda non li mostra di ritorno", true, /onLetti\(si \? \[\] :/.test(pannello));
   c("…si scrive con patchSoloNome sulla scheda riletta", true, /updateLead\(r\.scheda\.id, \(attuale\) => patchSoloNome\(attuale, r\.letto\)\)/.test(pannello));
+}
 
 /** ── ELIMINARE DALLA SCHEDA DI LEAD IMPORTATI (22/10/2026) ─────────────────
  *  Richiesta del titolare: «fai che posso eliminare i lead da lead importati». */
