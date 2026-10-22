@@ -12,7 +12,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eAppuntamento, type LeadData } from "../types";
 import { chiaveAppuntamento, testoMotivo } from "./invio";
-import { minutiAlla, oraNormale } from "./formati";
+import { aRoma, giornoParlato, minutiAlla, numeroPerWhatsapp, oraNormale } from "./formati";
 
 export const ATTESA_RISPOSTA_ORE = 3;
 export const FINESTRA_DA_SENTIRE_ORE = 48;
@@ -78,4 +78,25 @@ export function daSentire<T extends { id: string; data: Partial<LeadData> }>(
     )
     .sort((a, b) => (a.mancano ?? 0) - (b.mancano ?? 0))
     .map(({ l }) => l);
+}
+
+/** «oggi 17:30», «domani 10:00», «sabato 24 ottobre 09:00». */
+export function quandoDetto(d: Partial<LeadData>, adesso: Date): string {
+  const giorno = String(d.dataMeeting ?? "");
+  const ora = oraNormale(d.oraMeeting) ?? String(d.oraMeeting ?? "");
+  const oggi = aRoma(adesso).giorno;
+  const domani = aRoma(new Date(adesso.getTime() + 24 * 3600_000)).giorno;
+  const g =
+    giorno === oggi ? "oggi" : giorno === domani ? "domani" : (giornoParlato(giorno) ?? giorno);
+  return `${g} ${ora}`.trim();
+}
+
+/** Il link del tasto Chiama: solo cifre (e il «+» davanti a un cellulare
+ *  riconosciuto). Il telefono è testo libero: niente altro deve finire in un
+ *  `href`. `null` = nessun tasto. */
+export function linkChiamata(telefono?: string | null): string | null {
+  const wa = numeroPerWhatsapp(telefono);
+  if (wa) return `tel:+${wa}`;
+  const cifre = String(telefono ?? "").replace(/\D/g, "");
+  return cifre.length >= 6 ? `tel:${cifre}` : null;
 }

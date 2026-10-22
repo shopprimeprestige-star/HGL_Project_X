@@ -54,6 +54,7 @@ import {
   //  ricopiata come `stato !== "venduto"`, ed è la copia che si è rotta.
   posaFatta,
   type Lead,
+  type LeadData,
   type LeadStatus,
 } from "@/crm/types";
 //  Segmenti di filtro, riga "niente da mostrare" e badge del carico vengono dal
@@ -107,6 +108,8 @@ import { HealthGlobalSection } from "@/crm/HealthGlobalSection";
 import { useConsulenteCollegato, usePuo } from "@/crm/AuthContext";
 import { vistaOggi } from "@/crm/vista-oggi";
 import { StrisciaPosti } from "@/crm/StrisciaPosti";
+import { ConfermeDaSentire } from "@/crm/ConfermeDaSentire";
+import { fondiSotto } from "@/crm/patch-scheda";
 
 export const Route = createFileRoute("/CRM/")({
   component: DashboardPage,
@@ -863,6 +866,29 @@ function DashboardPage() {
       )}
 
       {vista.andamento && <CapiHealthAlert />}
+
+      {/* ── DA SENTIRE ───────────────────────────────────────────────────────
+          Chi non ha confermato la consulenza su WhatsApp (commessa
+          2026-10-22): sopra «La giornata», e solo se c'è qualcuno.
+          «Confermato a voce» c'è anche per la setter in sola lettura: è
+          l'unica eccezione, e scrive solo il segno della conferma. */}
+      {vista.confermeDaSentire && (
+        <ConfermeDaSentire
+          leads={cercati}
+          onConfermaAVoce={
+            vista.confermaAVoce
+              ? (l) =>
+                  void updateLead(
+                    l.id,
+                    fondiSotto<LeadData, "promemoria">("promemoria", {
+                      confermatoIl: new Date().toISOString(),
+                      confermatoVia: "voce",
+                    }),
+                  )
+              : undefined
+          }
+        />
+      )}
 
       {/* ── 3. LA GIORNATA ───────────────────────────────────────────────────
           L'agenda vera e propria: la barra del giorno (chiusa mostra oggi, un

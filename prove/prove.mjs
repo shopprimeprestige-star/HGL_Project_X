@@ -3156,6 +3156,8 @@ function proveDegliHook() {
     //  JSX. Un hook sotto un'uscita qui spegne la giornata di tutti.
     "src/routes/CRM.index.tsx",
     "src/crm/MeetGiornalieri.tsx",
+    //  La conferma su WhatsApp (commessa 2026-10-22): striscia e riquadro.
+    "src/crm/ConfermeDaSentire.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -20425,6 +20427,7 @@ proveDellaRispostaAlPromemoria();
 proveDelleMigrazioniDelPromemoria();
 await proveDelGiroDelPromemoria();
 await proveDelWebhookDelPromemoria();
+proveDiOggiPerLaConferma();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20945,4 +20948,41 @@ async function proveDelWebhookDelPromemoria() {
   c("…e le porte si usano solo attraverso rispostaAlPromemoria", [1, true], [(fuoriPorte.match(/portePromemoria\(/g) || []).length, /rispostaAlPromemoria\(portePromemoria\(/.test(fuoriPorte)]);
   c("il SÌ non usa autoLinkLead (l'omonimo vecchio)", false, /rispostaAlPromemoria\([^)]*autoLinkLead/.test(wh));
   c("la firma vecchia resta com'era", true, wh.includes("if (appSecret && !verifySignature(rawBody, sigHeader, appSecret)) {"));
+}
+
+/** ── «OGGI»: LA STRISCIA «DA SENTIRE» E LA TARGHETTA ────────────────────────
+ *  «Confermato a voce» è l'UNICO gesto scrivente concesso anche alla setter in
+ *  sola lettura (approvato dal revisore): scrive solo `promemoria`. */
+function proveDiOggiPerLaConferma() {
+  const { PERMESSI_RUOLO } = PRM;
+  const { vistaOggi } = VISTA;
+  const CF = mod["promemoria/conferma"];
+  const con = (elenco) => (p) => elenco.includes(p);
+  gruppo("PROMEMORIA WHATSAPP · «OGGI»");
+  const vs = vistaOggi(con(PERMESSI_RUOLO.setter));
+  const vc = vistaOggi(con(PERMESSI_RUOLO.consulente));
+  c("la setter vede «Da sentire» e può segnare «Confermato a voce»", [true, true], [vs.confermeDaSentire, vs.confermaAVoce]);
+  c("anche il consulente", [true, true], [vc.confermeDaSentire, vc.confermaAVoce]);
+  c("…e la setter resta in sola lettura per tutto il resto", [false, false, false], [vs.gesti, vs.andamento, vs.contatori]);
+  c("anche senza nessun permesso si vede (non è un dato sensibile)", true, vistaOggi(() => false).confermeDaSentire);
+
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  c("quando: oggi", "oggi 17:30", CF.quandoDetto({ dataMeeting: "2026-10-22", oraMeeting: "17:30" }, ADESSO));
+  c("quando: domani", "domani 10:00", CF.quandoDetto({ dataMeeting: "2026-10-23", oraMeeting: "10:00" }, ADESSO));
+  c("quando: più in là", "sabato 24 ottobre 9:00".replace("9:00", "09:00"), CF.quandoDetto({ dataMeeting: "2026-10-24", oraMeeting: "9:00" }, ADESSO));
+  c("il tasto Chiama ha solo cifre (e il +)", "tel:+393391234567", CF.linkChiamata("339 123 4567"));
+  c("…anche con un numero strano, nessun carattere estraneo", "tel:061234567", CF.linkChiamata("06 1234567<script>"));
+  c("…senza numero, nessun tasto", null, CF.linkChiamata(""));
+
+  const pagina = readFileSync(join(radice, "src/routes/CRM.index.tsx"), "utf8");
+  const striscia = readFileSync(join(radice, "src/crm/ConfermeDaSentire.tsx"), "utf8");
+  const riga = readFileSync(join(radice, "src/crm/MeetGiornalieri.tsx"), "utf8");
+  c("la striscia sta sopra «La giornata»", true, pagina.indexOf("<ConfermeDaSentire") > 0 && pagina.indexOf("<ConfermeDaSentire") < pagina.indexOf('id="agenda"'));
+  c("…e segue la vista", true, /vista\.confermeDaSentire && \(?\s*<ConfermeDaSentire/.test(pagina));
+  c("«Confermato a voce» scrive solo promemoria.confermatoIl/Via", true, /fondiSotto<LeadData, "promemoria">\("promemoria", \{\s*confermatoIl: new Date\(\)\.toISOString\(\),\s*confermatoVia: "voce",?\s*\}\)/.test(pagina));
+  c("i due tasti dicono cosa fanno (aria-label)", 2, (striscia.match(/aria-label=\{`(Chiama|Segna confermato a voce)/g) || []).length);
+  c("il testo del cliente è testo semplice, mai HTML", false, /dangerouslySetInnerHTML/.test(striscia));
+  c("la targhetta sta sulla riga, anche in sola lettura", true, /<TargaConferma dati=\{l\.data\}/.test(riga) && !/gesti && <TargaConferma/.test(riga));
+  c("nessuna scatola vuota: senza nessuno da sentire non si disegna", true, /if \(righe\.length === 0\) return null;/.test(striscia));
 }
