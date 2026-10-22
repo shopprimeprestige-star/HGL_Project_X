@@ -513,6 +513,7 @@ const MODULI = [
   "promemoria/conferma",
   "promemoria/pronto",
   "promemoria/giro",
+  "promemoria/in-entrata",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20423,6 +20424,7 @@ proveDelPromemoriaWhatsapp();
 proveDellaRispostaAlPromemoria();
 proveDelleMigrazioniDelPromemoria();
 await proveDelGiroDelPromemoria();
+await proveDelWebhookDelPromemoria();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20871,4 +20873,76 @@ async function proveDelGiroDelPromemoria() {
   c("usa il giro provato, non una copia", true, /giroPromemoria\(/.test(rotta));
   c("il link è quello per-persona del CRM (valoriDaLead)", true, /valoriDaLead\(/.test(rotta));
   c("il modello inviato è consulenza_conferma_presenza", true, /NOME_MODELLO/.test(rotta));
+}
+
+/** ── IL WEBHOOK LEGGE SÌ, STOP E IL RESTO ──────────────────────────────────
+ *  Correzione 1 del revisore: senza App Secret (o con la firma sbagliata) il
+ *  webhook salva i messaggi come sempre ma NON tocca schede né opt-out: un
+ *  POST falso non deve poter segnare «confermato» nessuno. E senza la
+ *  migrazione (codice pubblicato prima) deve fare esattamente quello di oggi. */
+async function proveDelWebhookDelPromemoria() {
+  const IE = mod["promemoria/in-entrata"];
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  const K = "2026-10-23T10:00|391234567";
+  const scheda = (id, p) => ({ id, data: { nome: "Mario", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", promemoria: { chiave: K, stato: "inviato", ...p } } });
+  function finte(o = {}) {
+    const log = [];
+    return {
+      log,
+      porte: {
+        schedeConMessaggio: async () => { log.push("schede"); return o.schede ?? [scheda("s1")]; },
+        aggiorna: async (id, pezzo, chiave) => {
+          log.push(`aggiorna:${id}:${Object.keys(pezzo).join(",")}:${chiave}`);
+          if (o.senzaMigrazione) return { error: { code: "PGRST202", message: "Could not find the function public.promemoria_aggiorna" } };
+          return { error: null };
+        },
+        segnaStop: async () => {
+          log.push("stop");
+          return { error: o.senzaMigrazione ? { code: "42703", message: "column non_scrivere_dal does not exist" } : null };
+        },
+        avviso: (m) => log.push(`avviso:${m}`),
+      },
+    };
+  }
+  const via = (o, testo, firma = true) => {
+    const f = finte(o);
+    return IE.rispostaAlPromemoria(f.porte, { firmaVerificata: firma, testo, numero: "+393391234567", adesso: ADESSO }).then((esito) => ({ esito, log: f.log }));
+  };
+  gruppo("PROMEMORIA WHATSAPP · IL WEBHOOK");
+  let r = await via({}, "Sì", false);
+  c("firma non verificata (o senza App Secret): non tocca niente", [], r.log);
+  r = await via({}, "Sì");
+  c("SÌ → confermato sulla scheda col messaggio, solo se è ancora quella chiave", ["schede", `aggiorna:s1:confermatoIl,confermatoVia:${K}`], r.log);
+  c("…e lo dice", "confermato", r.esito);
+  r = await via({}, "STOP");
+  c("STOP → il numero non riceve più niente, e la setter lo vede", ["stop", "schede", `aggiorna:s1:stopIl:${K}`], r.log);
+  r = await via({ schede: [] }, "STOP");
+  c("STOP anche senza un messaggio in corso: il numero si ferma lo stesso", ["stop", "schede"], r.log);
+  r = await via({}, "Non posso giovedì");
+  c("altro → la risposta alla setter", ["schede", `aggiorna:s1:rispostaIl,rispostaTesto:${K}`], r.log);
+  r = await via({ schede: [scheda("s1", { confermatoIl: "2026-10-22T12:00:00Z", confermatoVia: "whatsapp" })] }, "Grazie");
+  c("«Grazie» dopo il sì: non si scrive niente", ["schede"], r.log);
+  r = await via({ schede: [] }, "Sì");
+  c("nessuna scheda con un messaggio: niente (la risposta resta in chat)", ["schede"], r.log);
+  r = await via({ senzaMigrazione: true }, "Sì");
+  c("senza migrazione: un avviso, nessun errore", [true, "senza_migrazione"], [r.log.some((x) => x.startsWith("avviso:")), r.esito]);
+  r = await via({ senzaMigrazione: true }, "STOP");
+  c("senza migrazione, STOP: un avviso, nessun errore", true, r.log.some((x) => x.startsWith("avviso:")));
+  const rotto = finte();
+  rotto.porte.schedeConMessaggio = async () => { throw new Error("rete"); };
+  c("un guasto qualunque non fa fallire il webhook (Meta deve avere il suo 200)", "errore", await IE.rispostaAlPromemoria(rotto.porte, { firmaVerificata: true, testo: "Sì", numero: "+393391234567", adesso: ADESSO }));
+  c("nei log mai il testo del cliente", false, rotto.log.concat(r.log).some((x) => /Sì|STOP|Grazie/.test(x)));
+
+  const wh = readFileSync(join(radice, "src/routes/api.public.whatsapp-webhook.ts"), "utf8");
+  const dopoFirma = wh.indexOf("verifySignature(rawBody");
+  const chiamata = wh.indexOf("rispostaAlPromemoria(");
+  c("il nuovo codice sta DOPO la verifica della firma", true, dopoFirma > 0 && chiamata > dopoFirma);
+  c("…e parte solo con la firma verificata (App Secret presente)", true, /firmaVerificata: !!appSecret/.test(wh));
+  const porteWh = wh.slice(wh.indexOf("/** ── LA CONFERMA DELLA CONSULENZA"), wh.indexOf("export const Route"));
+  const fuoriPorte = wh.replace(porteWh, "");
+  c("scritture su schede e opt-out solo dentro le porte del promemoria", [true, false], [porteWh.length > 0, /promemoria_aggiorna|non_scrivere_dal/.test(fuoriPorte)]);
+  c("…e le porte si usano solo attraverso rispostaAlPromemoria", [1, true], [(fuoriPorte.match(/portePromemoria\(/g) || []).length, /rispostaAlPromemoria\(portePromemoria\(/.test(fuoriPorte)]);
+  c("il SÌ non usa autoLinkLead (l'omonimo vecchio)", false, /rispostaAlPromemoria\([^)]*autoLinkLead/.test(wh));
+  c("la firma vecchia resta com'era", true, wh.includes("if (appSecret && !verifySignature(rawBody, sigHeader, appSecret)) {"));
 }

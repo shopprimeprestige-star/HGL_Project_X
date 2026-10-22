@@ -8,6 +8,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { rispostaAlPromemoria, type PorteRisposta } from "@/crm/promemoria/in-entrata";
+import { STATI_CON_MESSAGGIO } from "@/crm/promemoria/risposta";
 
 const adminUntyped = supabaseAdmin as unknown as {
   from: (t: string) => {
@@ -119,6 +121,63 @@ async function autoLinkLead(userId: string, phoneE164: string): Promise<{ leadId
   return { leadId: null, displayName: null };
 }
 
+/** ── LA CONFERMA DELLA CONSULENZA («Rispondi SÌ», commessa 2026-10-22) ────
+ *  Le porte di `rispostaAlPromemoria`: l'unico punto in cui il webhook scrive
+ *  sulle schede, e solo con la funzione SQL `promemoria_aggiorna` (mai un
+ *  `update` su `data`: il browser potrebbe star scrivendo la stessa scheda).
+ *  ⚠️ Si usano solo con la firma verificata: vedi la chiamata più sotto. */
+function portePromemoria(userId: string, fromE164: string): PorteRisposta {
+  const db = supabaseAdmin as unknown as {
+    from: (t: string) => {
+      select: (s: string) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          in: (
+            k: string,
+            v: string[],
+          ) => Promise<{ data: { id: string; data: Record<string, unknown> }[] | null }>;
+        };
+      };
+      update: (v: Record<string, unknown>) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => Promise<{ error: { code?: string; message?: string } | null }>;
+        };
+      };
+    };
+    rpc: (
+      fn: string,
+      a: Record<string, unknown>,
+    ) => Promise<{ error: { code?: string; message?: string } | null }>;
+  };
+  return {
+    schedeConMessaggio: async () => {
+      const { data } = await db
+        .from("crm_leads")
+        .select("id, data")
+        .eq("user_id", userId)
+        .in("data->promemoria->>stato", [...STATI_CON_MESSAGGIO]);
+      return data ?? [];
+    },
+    aggiorna: (id, pezzo, seChiave) =>
+      db.rpc("promemoria_aggiorna", { p_id: id, p_patch: pezzo, p_se_chiave: seChiave }),
+    segnaStop: () =>
+      db
+        .from("whatsapp_contacts")
+        .update({ non_scrivere_dal: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("phone_e164", fromE164),
+    avviso: (m) => console.warn("[wa-webhook] promemoria:", m),
+  };
+}
+
 export const Route = createFileRoute("/api/public/whatsapp-webhook")({
   server: {
     handlers: {
@@ -207,6 +266,15 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 },
                 { onConflict: "user_id,phone_e164", ignoreDuplicates: false },
               );
+              //  La conferma della consulenza: SÌ, STOP o altro. Non lancia mai.
+              await rispostaAlPromemoria(portePromemoria(userId, fromE164), {
+                //  Qui si arriva solo con la firma giusta SE c'è l'App Secret
+                //  (vedi sopra); senza App Secret non si tocca niente.
+                firmaVerificata: !!appSecret,
+                testo: text,
+                numero: fromE164,
+                adesso: new Date(),
+              });
             }
 
             // Status updates
