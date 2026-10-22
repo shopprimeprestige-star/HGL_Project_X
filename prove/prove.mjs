@@ -20105,6 +20105,18 @@ function proveDeiPulsantiDelloStato() {
   c("chiede mattina o sera", true, /mattina o la sera\?$/.test(nuovo));
 }
 
+
+/** ── ELIMINARE DALLA SCHEDA DI LEAD IMPORTATI (22/10/2026) ─────────────────
+ *  Richiesta del titolare: «fai che posso eliminare i lead da lead importati». */
+function proveDellEliminaDallaCoda() {
+  gruppo("LEAD IMPORTATI: SI ELIMINA ANCHE DALLA SCHEDA DELLA CODA");
+  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  c("voce «Elimina lead…» nel menu Altro della scheda", true, /onSelect=\{onElimina\}[\s\S]{0,200}Elimina lead…/.test(pagina));
+  c("solo a chi ha il permesso", true, /onElimina=\{puoEliminare \? \(\) => setDaEliminare\(prossimo\) : undefined\}/.test(pagina));
+  c("prima chiede, col nome", true, /titolo="Eliminare questo lead\?"[\s\S]{0,120}nomeDi\(daEliminare\)/.test(pagina));
+  c("elimina passando da eliminaUno (permesso, messaggi, coda)", true, /await eliminaUno\(daEliminare\)/.test(pagina));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20198,6 +20210,7 @@ proveDeiRitocchiDellaBarra();
 proveDelModulo589();
 proveDeiPulsantiDelloStato();
 proveDelloStatoAttesaWhatsapp();
+proveDellEliminaDallaCoda();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

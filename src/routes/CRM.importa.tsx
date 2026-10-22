@@ -134,6 +134,7 @@ import {
   PhoneIncoming,
   Search,
   SkipForward,
+  Trash2,
   Sparkles,
   StickyNote,
   Undo2,
@@ -239,7 +240,7 @@ import {
   useScorciatoie,
   type Scorciatoia,
 } from "@/crm/ui";
-import { Pannello } from "@/crm/ui/Finestra";
+import { Finestra, Pannello } from "@/crm/ui/Finestra";
 //  Le risposte del modulo: riconosciute e lette in un punto solo, vedi la
 //  testata di crm/modulo-lead.
 import { moduloLetto, riassuntoModulo, vociModulo } from "@/crm/modulo-lead";
@@ -580,6 +581,7 @@ function SchedaProssimo({
   onSalta,
   onApri,
   onWhatsAppInviato,
+  onElimina,
 }: {
   lead: Lead;
   /** ── PERCHÉ È LUI ADESSO ───────────────────────────────────────────────
@@ -636,6 +638,11 @@ function SchedaProssimo({
   /** Premuto WhatsApp: la pagina segna il messaggio (crm/importa/attesa-whatsapp)
    *  e il lead compare in «Attesa WhatsApp» finché non ha un esito nuovo. */
   onWhatsAppInviato?: () => void;
+  /** ── ELIMINARE IL LEAD DA QUI (richiesta del titolare, 22/10/2026) ─────
+   *  «Fai che posso eliminare i lead da lead importati»: si poteva solo da
+   *  Altro → Tutta la lista. Qui apre la domanda col nome (la fa la pagina);
+   *  manca se chi guarda non ha il permesso (crm/permessi). */
+  onElimina?: () => void;
 }) {
   const d = lead.data ?? ({} as LeadData);
   const nome = `${d.nome || ""} ${d.cognome || ""}`.trim() || "Senza nome";
@@ -985,6 +992,17 @@ function SchedaProssimo({
                 })}
                 {esitiAltri.length > 0 && <DropdownMenuSeparator />}
                 <DropdownMenuItem onSelect={onAltri}>Tutti gli stati…</DropdownMenuItem>
+                {onElimina && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={onElimina}
+                      className="text-red-700 focus:bg-red-50 focus:text-red-800"
+                    >
+                      <Trash2 className="mr-2 h-3.5 w-3.5" /> Elimina lead…
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             {/*  ⚠️ «Salta» NON È UN ESITO, ma non è più nemmeno gratis: scrive
@@ -1572,6 +1590,9 @@ function LeadImportatiUnoAllaVolta() {
    *  scheda, i due tasti si spengano insieme è un'altra faccenda e si decide
    *  dove si passano le prop (vedi `inCorso` più sotto). */
   const [eliminazioneInCorso, setEliminazioneInCorso] = useState(false);
+  /** La scheda della coda per cui si sta chiedendo «eliminare?». */
+  const [daEliminare, setDaEliminare] = useState<Lead | null>(null);
+  const [eliminoDaEliminare, setEliminoDaEliminare] = useState(false);
   /** ── QUANTO MANCA ──────────────────────────────────────────────────────
    *  Quante righe sono già state scritte durante un'azione di gruppo, nella
    *  stessa forma con cui `PannelloCarica` racconta l'importazione (`lavoro`,
@@ -3938,7 +3959,60 @@ function LeadImportatiUnoAllaVolta() {
                 onSalta={() => void salta(prossimo)}
                 onApri={() => setScheda(prossimo)}
                 onWhatsAppInviato={() => void segnaWhatsappInviato(prossimo)}
+                onElimina={puoEliminare ? () => setDaEliminare(prossimo) : undefined}
               />
+
+              {/*  ── LA DOMANDA PRIMA DI ELIMINARE ─────────────────────────
+                   Col nome dentro e su un tasto diverso da quello premuto: non
+                   c'è un cestino, e un doppio tocco non deve bastare. */}
+              {daEliminare && (
+                <Finestra
+                  aperta
+                  onCambio={(v) => !v && !eliminoDaEliminare && setDaEliminare(null)}
+                  icona={Trash2}
+                  titolo="Eliminare questo lead?"
+                  contesto={<span className="text-red-700">{nomeDi(daEliminare)}</span>}
+                  larghezza="sm"
+                  bloccante
+                  azioni={
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => setDaEliminare(null)}
+                        disabled={eliminoDaEliminare}
+                      >
+                        No, lo tengo
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          setEliminoDaEliminare(true);
+                          const fatto = await eliminaUno(daEliminare);
+                          setEliminoDaEliminare(false);
+                          if (fatto) setDaEliminare(null);
+                        }}
+                        disabled={eliminoDaEliminare}
+                        className="bg-red-600 text-white hover:bg-red-700 sm:min-w-32"
+                      >
+                        {eliminoDaEliminare ? "Elimino…" : "Sì, elimina"}
+                      </Button>
+                    </>
+                  }
+                >
+                  <div className="space-y-2 p-4 text-[12.5px] leading-relaxed text-muted-foreground">
+                    <p>
+                      Se ne vanno con lui{" "}
+                      <b className="text-foreground">
+                        le note, i tentativi di chiamata e le risposte del modulo
+                      </b>
+                      . Non c'è un cestino da cui ripescarlo.
+                    </p>
+                    <p>
+                      Se non ti interessa più ma vuoi tenerne traccia, chiudi e segna lo stato «Non
+                      interessato»: resta in archivio ed esce dalla coda.
+                    </p>
+                  </div>
+                </Finestra>
+              )}
 
               {/* ── POI ─────────────────────────────────────────────────────────
               Non è un elenco da leggere: è la prova che la coda esiste e la
