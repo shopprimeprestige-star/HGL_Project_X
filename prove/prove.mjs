@@ -509,6 +509,8 @@ const MODULI = [
   "promemoria/formati",
   "promemoria/invio",
   "wa-meta-templates",
+  "promemoria/risposta",
+  "promemoria/conferma",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20416,6 +20418,7 @@ proveDelTermometroInvisibleDerm();
 proveDellEliminaDallaCoda();
 proveDeiDaRiprogrammareOggi();
 proveDelPromemoriaWhatsapp();
+proveDellaRispostaAlPromemoria();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20574,4 +20577,83 @@ function proveDelPromemoriaWhatsapp() {
   c("l'esempio del giorno è parlato", "venerdì 23 ottobre", T.params[1].example);
   c("gli altri modelli restano 13, e in coda c'è il nuovo", [14, "consulenza_conferma_presenza"], [WMT.META_TEMPLATES.length, WMT.META_TEMPLATES.at(-1).name]);
   c("appuntamento_conferma è identico a prima", "Gentile {{1}}, Le confermo l'analisi tecnica gratuita prevista per il {{2}} alle ore {{3}}. A breve riceverà il link per collegarsi.\n\nA presto,\n{{4}}\nHair Genius Labs", WMT.findMetaTemplate("appuntamento_conferma").body);
+}
+
+/** ── LA RISPOSTA DEL CLIENTE E LA STRISCIA «DA SENTIRE» ─────────────────────
+ *  Un falso «confermato» è peggio di una telefonata in più: nel dubbio non è
+ *  un sì. E un «Grazie» scritto DOPO il sì non deve togliere la conferma
+ *  (correzione 4 del revisore). */
+function proveDellaRispostaAlPromemoria() {
+  const R = mod["promemoria/risposta"];
+  const CF = mod["promemoria/conferma"];
+  gruppo("PROMEMORIA WHATSAPP · COSA HA RISPOSTO");
+  for (const t of ["SÌ", "Sì", "si", "SI!", "Si grazie", "Sì confermo", "ok", "OK 👍", "👍", "✅", "Confermo", "Va bene", "Certo, a domani", "Perfetto grazie"])
+    c(`«${t}» → sì`, "si", R.leggiRisposta(t));
+  for (const t of ["STOP", "stop", "Basta messaggi", "Stop."]) c(`«${t}» → stop`, "stop", R.leggiRisposta(t));
+  for (const t of ["No", "Non posso giovedì", "Si ma non posso", "Ok ma alle 16?", "Purtroppo devo spostare", "Però non so", "Annullo", "Si può spostare?"])
+    c(`«${t}» → dubbio (va alla setter)`, "dubbio", R.leggiRisposta(t));
+  for (const t of ["Sono in ritardo", "", "[audio]", "[image]", "Sì sì sì sì sì sì sì", "Grazie", "Chi è?".replace("?", ""), null])
+    c(`«${t}» → altro`, "altro", R.leggiRisposta(t));
+
+  gruppo("PROMEMORIA WHATSAPP · LA SCHEDA DELLA RISPOSTA");
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "15:00");
+  const scheda = (id, d, p) => ({ id, data: { nome: "Mario", telefono: "339 1234567", stato: "appuntamento_fissato", dataMeeting: "2026-10-23", oraMeeting: "10:00", ...d, ...(p ? { promemoria: { chiave: `${d?.dataMeeting ?? "2026-10-23"}T${d?.oraMeeting ?? "10:00"}|391234567`, ...p } } : {}) } });
+  const vecchia = scheda("vecchia", { stato: "concluso", dataMeeting: "2026-03-01" });
+  const giusta = scheda("giusta", {}, { stato: "inviato" });
+  c("due schede con lo stesso numero: quella col messaggio, non l'omonima vecchia", "giusta", R.schedaDellaRisposta([vecchia, giusta], "+393391234567", ADESSO)?.id);
+  const lontana = scheda("lontana", { dataMeeting: "2026-10-30" }, { stato: "inviato" });
+  c("due messaggi in corso: l'appuntamento più vicino", "giusta", R.schedaDellaRisposta([lontana, giusta], "+393391234567", ADESSO)?.id);
+  c("nessuna con messaggio → null", null, R.schedaDellaRisposta([vecchia], "+393391234567", ADESSO));
+  c("numero scritto in un altro modo → la trova", "giusta", R.schedaDellaRisposta([giusta], "393391234567", ADESSO)?.id);
+  c("un altro numero → null", null, R.schedaDellaRisposta([giusta], "+393330000000", ADESSO));
+  c("anche se l'invio era «incerto»: la risposta prova che è arrivato", "inc", R.schedaDellaRisposta([scheda("inc", {}, { stato: "incerto" })], "+393391234567", ADESSO)?.id);
+  c("appuntamento spostato dopo il messaggio: il sì non vale per il nuovo orario", null, R.schedaDellaRisposta([{ id: "sp", data: { ...giusta.data, oraMeeting: "12:00" } }], "+393391234567", ADESSO));
+  c("appuntamento già passato → null", null, R.schedaDellaRisposta([scheda("p", { dataMeeting: "2026-10-21" }, { stato: "inviato" })], "+393391234567", ADESSO));
+
+  gruppo("PROMEMORIA WHATSAPP · COSA SI SCRIVE ALLA RISPOSTA");
+  const t1 = "2026-10-22T13:10:00.000Z", t2 = "2026-10-22T13:20:00.000Z";
+  c("sì → confermato via WhatsApp", { confermatoIl: t1, confermatoVia: "whatsapp" }, R.effettoRisposta("si", "Sì", {}, t1));
+  c("stop → stopIl", { stopIl: t1 }, R.effettoRisposta("stop", "STOP", {}, t1));
+  c("dubbio → il testo, tagliato a 80", { rispostaIl: t1, rispostaTesto: "x".repeat(80) }, R.effettoRisposta("dubbio", "x".repeat(200), {}, t1));
+  c("altro prima di un sì → il testo, a-capo tolti", { rispostaIl: t1, rispostaTesto: "Sono in ritardo" }, R.effettoRisposta("altro", "Sono\nin   ritardo", {}, t1));
+  c("altro DOPO un sì → non si scrive niente", null, R.effettoRisposta("altro", "Grazie", { confermatoIl: t1 }, t2));
+  c("dubbio DOPO un sì → si scrive (vince il più recente)", t2, R.effettoRisposta("dubbio", "Purtroppo non posso", { confermatoIl: t1 }, t2)?.rispostaIl);
+
+  gruppo("PROMEMORIA WHATSAPP · CONFERMATO O NO");
+  const d = (p, extra = {}) => ({ ...scheda("x", {}, p).data, ...extra });
+  const SC = (p, extra, quando = ADESSO) => CF.statoConferma(p === undefined ? scheda("x").data : d(p, extra), quando);
+  c("senza promemoria → nessuno", { tipo: "nessuno" }, SC(undefined));
+  c("preesistente → nessuno (niente targhetta)", { tipo: "nessuno" }, SC({ stato: "preesistente" }));
+  c("segno tolto → nessuno", { tipo: "nessuno" }, SC({ stato: null }));
+  c("stato non di appuntamento → nessuno", { tipo: "nessuno" }, SC({ stato: "inviato", inviatoIl: t1 }, { stato: "concluso" }));
+  c("appuntamento passato → nessuno", { tipo: "nessuno" }, SC({ stato: "inviato", inviatoIl: t1 }, {}, roma("2026-10-23", "10:30")));
+  c("inviato da 1 ora → attende", { tipo: "inviato" }, SC({ stato: "inviato", inviatoIl: new Date(ADESSO - 3600_000).toISOString() }));
+  c("in invio → attende", { tipo: "inviato" }, SC({ stato: "in_invio", invioIl: t1 }));
+  c("inviato da 3 ore → non ha risposto", { tipo: "nonConfermato", nota: "non ha risposto" }, SC({ stato: "inviato", inviatoIl: new Date(ADESSO - 3 * 3600_000).toISOString() }));
+  c("ha risposto sì → confermato WhatsApp", { tipo: "confermato", via: "whatsapp" }, SC({ stato: "inviato", inviatoIl: t1, confermatoIl: t2, confermatoVia: "whatsapp" }));
+  c("confermato a voce, anche se il messaggio non era partito", { tipo: "confermato", via: "voce" }, SC({ stato: "non_inviato", motivo: "senza_numero", confermatoIl: t2, confermatoVia: "voce" }));
+  c("ha risposto altro → non confermato SUBITO, con le sue parole", { tipo: "nonConfermato", nota: "ha risposto: “Non posso giovedì”" }, SC({ stato: "inviato", inviatoIl: t1, rispostaIl: t2, rispostaTesto: "Non posso giovedì" }));
+  c("ha scritto STOP → non confermato", { tipo: "nonConfermato", nota: "ha scritto STOP" }, SC({ stato: "inviato", inviatoIl: t1, stopIl: t2 }));
+  c("non partito (senza numero) → la frase del motivo", { tipo: "nonConfermato", nota: "messaggio non partito: manca il numero" }, SC({ stato: "non_inviato", motivo: "senza_numero" }));
+  c("non consegnato → non confermato", "nonConfermato", SC({ stato: "non_recapitato", motivo: "non_recapitato" }).tipo);
+  c("incerto → non confermato", { tipo: "nonConfermato", nota: "non si sa se il messaggio è arrivato" }, SC({ stato: "incerto", motivo: "incerto" }));
+  c("spostato, il cron non è ancora passato: il vecchio sì non vale", { tipo: "nessuno" }, SC({ stato: "inviato", confermatoIl: t1 }, { oraMeeting: "12:00" }));
+  //  Correzione 4: un «Grazie» dopo il sì non lo cancella; un «non posso» sì.
+  const dopo = (p, ...risposte) => risposte.reduce((acc, [testo, quando]) => ({ ...acc, ...(R.effettoRisposta(R.leggiRisposta(testo), testo, acc, quando) ?? {}) }), p);
+  const base = { stato: "inviato", inviatoIl: "2026-10-22T13:00:00.000Z" };
+  c("«Sì» poi «Grazie» → resta confermato", "confermato", SC(dopo(base, ["Sì", t1], ["Grazie", t2])).tipo);
+  c("«Sì» poi «Purtroppo non posso» → non confermato", "nonConfermato", SC(dopo(base, ["Sì", t1], ["Purtroppo non posso", t2])).tipo);
+  c("«Non posso» poi «Sì, va bene» → confermato (vince il più recente)", "confermato", SC(dopo(base, ["Non posso alle 10", t1], ["Sì", t2])).tipo);
+  c("«Grazie» senza un sì → la setter lo vede", { tipo: "nonConfermato", nota: "ha risposto: “Grazie”" }, SC(dopo(base, ["Grazie", t1])));
+
+  gruppo("PROMEMORIA WHATSAPP · DA SENTIRE");
+  const tra = (ore, id, p = { stato: "non_inviato", motivo: "senza_numero" }) => {
+    const quando = new Date(ADESSO.getTime() + ore * 3600_000);
+    const r = new Date(quando.getTime() + 2 * 3600_000).toISOString();
+    return scheda(id, { dataMeeting: r.slice(0, 10), oraMeeting: r.slice(11, 16) }, p);
+  };
+  const elenco = [tra(72, "72h"), tra(20, "20h"), tra(5, "5h"), tra(3, "conf", { stato: "inviato", confermatoIl: t1, confermatoVia: "whatsapp" }), tra(-1, "passato")];
+  c("nelle prossime 48 ore, dal più vicino; i confermati no", ["5h", "20h"], CF.daSentire(elenco, ADESSO).map((l) => l.id));
+  c("nessuno da sentire → elenco vuoto", [], CF.daSentire([tra(2, "ok", { stato: "inviato", inviatoIl: t1, confermatoIl: t2, confermatoVia: "voce" })], ADESSO));
 }
