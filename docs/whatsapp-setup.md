@@ -111,3 +111,28 @@ Dopo che hai completato i passaggi 1-5 lato Meta, ti chiederò di incollarmi nel
 
 Confermi questo piano e procedo con l'implementazione?
 
+
+---
+
+## Conferma consulenze («Rispondi SÌ») — commessa 2026-10-22
+
+**Cosa fa.** Subito dopo la prenotazione di una consulenza (dalla setter, dal sito o da Meetly) il cliente riceve UN WhatsApp con giorno, ora, link e «risponda SÌ per confermare» (modello Meta `consulenza_conferma_presenza`, UTILITY, italiano). Chi risponde SÌ diventa «confermato»; chi non risponde entro 3 ore, risponde altro, scrive STOP o non ha ricevuto il messaggio compare alla setter in **Oggi → «Da sentire»** (prossime 48 ore), con Chiama e «Confermato a voce».
+
+**Le regole** (codice in `src/crm/promemoria/`, provate in `prove/prove.mjs`):
+- un cron ogni 2 minuti chiama `/hooks/promemoria-whatsapp`; parte al primo giro in cui la scheda non è stata toccata da 2 minuti, il link c'è e si è fra le 08:00 e le 21:00 di Roma (di notte aspetta la mattina);
+- a meno di 60 minuti dall'appuntamento non parte (la setter lo vede);
+- un messaggio per appuntamento; spostato giorno, ora o numero = una nuova conferma; al massimo 3 per scheda;
+- il segno sulla scheda si mette PRIMA dell'invio (funzione SQL atomica): mai due messaggi uguali; un invio dall'esito dubbio non si ripete;
+- alla prima accensione gli appuntamenti già in agenda non ricevono niente;
+- STOP/BASTA ferma i messaggi automatici a quel numero;
+- 15 messaggi al massimo per giro.
+
+**Cosa serve:** la migrazione `20261022140000_promemoria_whatsapp.sql`; numero WhatsApp live (non sandbox); App Secret compilato (senza, le risposte non si leggono); modello approvato da Meta; la riga del cron (dopo migrazione e pubblicazione):
+
+```sql
+SELECT public.programma_hook_cron('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp');
+```
+
+**Accendere / spegnere:** Impostazioni → WhatsApp → «Conferma consulenze» (parte spento). Spegnimento immediato dall'interruttore; per fermare anche il cron: `SELECT cron.unschedule('promemoria-whatsapp-2min');`.
+
+**Se non parte:** la frase del riquadro dice il perché (manca l'aggiornamento del database, spento, chiavi, App Secret, sandbox, modello non approvato, token scaduto, limite di Meta, cron fermo). «Controlla ora» fa una prova a secco: non invia e non scrive, dice se è tutto a posto e quanti messaggi partirebbero.

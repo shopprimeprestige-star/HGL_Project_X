@@ -6,6 +6,7 @@ import { useAuth, intestazioniCRM } from "@/crm/AuthContext";
     stesso testo sarebbero due fogli che un giorno dicono cose diverse. */
 import ISTRUZIONI_CLONARE from "../../docs/CLONARE.md?raw";
 import { supabase } from "@/integrations/supabase/client";
+import { PromemoriaWhatsappPannello } from "@/crm/PromemoriaWhatsappPannello";
 import { cn } from "@/lib/utils";
 import {
   useUserSettings,
@@ -1308,6 +1309,7 @@ function ImpostazioniPage() {
           {/* === WHATSAPP TAB === */}
           <TabsContent value="whatsapp" className="space-y-4 mt-4">
             <WhatsAppSettingsSection />
+            <PromemoriaWhatsappPannello />
 
             <SezioneIndirizziGoogle />
           </TabsContent>

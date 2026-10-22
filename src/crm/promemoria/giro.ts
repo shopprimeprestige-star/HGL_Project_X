@@ -163,7 +163,9 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
     return esito(p);
   };
   const base = (imp?: Impostazione) => ({
-    acceso: !!config?.acceso,
+    //  A secco l'interruttore non conta: «Controlla ora» si preme PRIMA di
+    //  accendere, per sapere se il resto è a posto.
+    acceso: prova || !!config?.acceso,
     migrazione,
     haChiavi: !!imp?.haChiavi,
     haWaba: !!imp?.haWaba,

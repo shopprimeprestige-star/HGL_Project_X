@@ -158,3 +158,54 @@ export function mancaMigrazione(
     String(errore.message ?? ""),
   );
 }
+
+/** ── LA FRASE DEL RIQUADRO DEL TITOLARE ────────────────────────────────────
+ *  Una sola, sempre in chiaro. Il cron la scrive a ogni giro
+ *  (`promemoria_whatsapp_stato`); qui si sceglie il tono e si aggiunge l'ora. */
+export interface StatoPerRiquadro {
+  giroIl: string;
+  pronto: boolean;
+  blocco?: CodiceBlocco;
+  frase: string;
+  inviatiOggi: number;
+  confermatiOggi: number;
+  senzaRisposta: number;
+}
+
+/** Dopo quanto un cron fermo si dice al titolare (gira ogni 2 minuti). */
+const CRON_FERMO_MIN = 10;
+
+const oraDiRoma = (iso: string) =>
+  new Intl.DateTimeFormat("it-IT", {
+    timeZone: "Europe/Rome",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
+
+export function fraseRiquadro(
+  stato: StatoPerRiquadro | null,
+  config: { acceso: boolean } | null,
+  adesso: Date,
+): { tono: "verde" | "ambra" | "rosso" | "neutro"; frase: string } {
+  if (stato?.blocco === "manca_migrazione") return { tono: "rosso", frase: stato.frase };
+  if (!config?.acceso) return { tono: "neutro", frase: FRASI_BLOCCO.spento };
+  if (!stato)
+    return {
+      tono: "neutro",
+      frase:
+        "Non è ancora girato nessun controllo. Il cron si programma con la riga SQL delle istruzioni (promemoria-whatsapp-2min).",
+    };
+  const ora = oraDiRoma(stato.giroIl);
+  if (adesso.getTime() - Date.parse(stato.giroIl) > CRON_FERMO_MIN * 60_000)
+    return {
+      tono: "ambra",
+      frase: `Il controllo automatico non gira dalle ${ora}: va controllata la riga SQL del cron.`,
+    };
+  if (!stato.pronto)
+    return { tono: "rosso", frase: `${stato.frase} (ultimo controllo alle ${ora})` };
+  return {
+    tono: "verde",
+    frase: `Attivo. Ultimo controllo alle ${ora}. Oggi: ${stato.inviatiOggi} inviati, ${stato.confermatiOggi} confermati, ${stato.senzaRisposta} senza risposta.`,
+  };
+}

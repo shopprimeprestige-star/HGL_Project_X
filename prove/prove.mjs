@@ -3158,6 +3158,7 @@ function proveDegliHook() {
     "src/crm/MeetGiornalieri.tsx",
     //  La conferma su WhatsApp (commessa 2026-10-22): striscia e riquadro.
     "src/crm/ConfermeDaSentire.tsx",
+    "src/crm/PromemoriaWhatsappPannello.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -20428,6 +20429,7 @@ proveDelleMigrazioniDelPromemoria();
 await proveDelGiroDelPromemoria();
 await proveDelWebhookDelPromemoria();
 proveDiOggiPerLaConferma();
+proveDelRiquadroDelPromemoria();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20859,6 +20861,9 @@ async function proveDelGiroDelPromemoria() {
   c("prova a secco: dice quanti partirebbero", [2, 1], [r.partirebbero, r.saltati]);
   c("…e non scrive, non invia, non segna lo stato", [], f.log.filter((x) => x !== "modello"));
   c("…e controlla comunque il modello", true, f.log.includes("modello"));
+  f = finto({ config: null });
+  r = await G.giroPromemoria(f.porte, { prova: true });
+  c("prova a secco da spento: controlla tutto il resto (si fa PRIMA di accendere)", [true, 0], [r.pronto, r.partirebbero]);
   c("…solo conteggi nella risposta", false, /s1|s2|Mario|3391234567/.test(JSON.stringify(r)));
   f = finto();
   const [a, b] = await Promise.all([G.giroPromemoria(f.porte, { prova: false }), G.giroPromemoria({ ...f.porte, leggiStato: async () => null }, { prova: false })]);
@@ -20985,4 +20990,35 @@ function proveDiOggiPerLaConferma() {
   c("il testo del cliente è testo semplice, mai HTML", false, /dangerouslySetInnerHTML/.test(striscia));
   c("la targhetta sta sulla riga, anche in sola lettura", true, /<TargaConferma dati=\{l\.data\}/.test(riga) && !/gesti && <TargaConferma/.test(riga));
   c("nessuna scatola vuota: senza nessuno da sentire non si disegna", true, /if \(righe\.length === 0\) return null;/.test(striscia));
+}
+
+/** ── IL RIQUADRO DEL TITOLARE ──────────────────────────────────────────────
+ *  Interruttore, UNA frase di stato, «Controlla ora» (taglio del revisore).
+ *  La frase non è mai un errore muto: dice il perché per esteso. */
+function proveDelRiquadroDelPromemoria() {
+  const P = mod["promemoria/pronto"];
+  gruppo("PROMEMORIA WHATSAPP · IL RIQUADRO");
+  const roma = (g, hm) => new Date(Date.parse(`${g}T${hm}:00Z`) - 2 * 3600_000);
+  const ADESSO = roma("2026-10-22", "14:35");
+  const stato = (x) => ({ giroIl: roma("2026-10-22", "14:32").toISOString(), pronto: true, frase: "Attivo.", inviatiOggi: 7, confermatiOggi: 5, senzaRisposta: 2, inAttesa: 0, ...x });
+  const fr = (s, acceso = true) => P.fraseRiquadro(s, acceso ? { acceso: true } : null, ADESSO);
+  c("mai girato: dice cosa fare", "neutro", fr(null).tono);
+  c("…con il riferimento alla riga del cron", true, /cron/.test(fr(null).frase));
+  c("attivo: verde, l'ora (di Roma) e i conti di oggi", { tono: "verde", frase: "Attivo. Ultimo controllo alle 14:32. Oggi: 7 inviati, 5 confermati, 2 senza risposta." }, fr(stato()));
+  c("spento", { tono: "neutro", frase: "Spento: nessun messaggio parte." }, fr(stato({ pronto: false, blocco: "spento" }), false));
+  c("manca la migrazione: rosso, anche da spento", { tono: "rosso", frase: P.FRASI_BLOCCO.manca_migrazione }, fr(stato({ pronto: false, blocco: "manca_migrazione", frase: P.FRASI_BLOCCO.manca_migrazione }), false));
+  c("un blocco: rosso, con la sua frase e l'ora", { tono: "rosso", frase: `${P.FRASI_BLOCCO.sandbox} (ultimo controllo alle 14:32)` }, fr(stato({ pronto: false, blocco: "sandbox", frase: P.FRASI_BLOCCO.sandbox })));
+  c("acceso ma il cron non gira da più di 10 minuti: ambra", "ambra", P.fraseRiquadro(stato(), { acceso: true }, roma("2026-10-22", "15:00")).tono);
+
+  const pan = readFileSync(join(radice, "src/crm/PromemoriaWhatsappPannello.tsx"), "utf8");
+  const imp = readFileSync(join(radice, "src/routes/CRM.impostazioni.tsx"), "utf8");
+  //  L'unico token ammesso è quello della SESSIONE di chi guarda (serve alla
+  //  prova a secco); quello di WhatsApp e la sua tabella mai.
+  c("il riquadro non importa niente del server e non vede il token WhatsApp", false, /\.server"|whatsapp_settings|accessToken/.test(pan) || /access_token/.test(pan.replace(/session\?\.access_token/g, "")));
+  c("all'accensione: avvio «da fare» (il primo giro non manda niente ai vecchi)", true, /acceso: true,\s*attivoDal: new Date\(\)\.toISOString\(\),\s*avvio: "da_fare"/.test(pan));
+  c("«Controlla ora» chiede la prova a secco con la sessione", true, /\/hooks\/promemoria-whatsapp/.test(pan) && /prova: true/.test(pan) && /Bearer \$\{/.test(pan));
+  c("sta nella scheda WhatsApp delle impostazioni", true, /<WhatsAppSettingsSection \/>\s*<PromemoriaWhatsappPannello \/>/.test(imp));
+  c("ricorda il consenso prima di accendere", true, /consenso|modulo di prenotazione/i.test(pan));
+  const doc = readFileSync(join(radice, "docs/whatsapp-setup.md"), "utf8");
+  c("il documento di setup ha la sezione e la riga del cron", true, /Conferma consulenze/.test(doc) && doc.includes("SELECT public.programma_hook_cron('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp');"));
 }
