@@ -23,6 +23,8 @@
  *   conto del silenzio — se no la stessa persona torna in cima ogni volta che
  *   si apre la pagina (vedi crm/importa/ripesca).
  *  ───────────────────────────────────────────────────────────────────────── */
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, useState } from "react";
 import { Check, FishSymbol, MessageCircle, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -276,6 +278,9 @@ function Riga({
               )}
             </span>
             <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">
+              {mostraTemperatura(d.stato) && (
+                <TemperaturaRiga dati={d} max={0} className="mr-1.5 align-baseline" />
+              )}
               {[
                 telefono || "senza telefono",
                 d.citta || null,
