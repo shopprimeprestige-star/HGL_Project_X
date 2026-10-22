@@ -29,7 +29,7 @@ import { useCRM } from "@/crm/CRMContext";
 import { mestieriDi } from "@/crm/kpi-setter";
 import { LEAD_STATUS_LABEL, type Lead, type LeadData } from "@/crm/types";
 import { Kpi, KpiRiga } from "@/crm/ui";
-import { patchRicarico } from "@/crm/importa/ricarico";
+import { patchRicarico, patchSoloNome, stessoTelefono } from "@/crm/importa/ricarico";
 import {
   COLONNE_ANTEPRIMA,
   celleAnteprima,
@@ -219,6 +219,12 @@ export function PannelloCarica({
   const [avviso, setAvviso] = useState("");
   const [lavoro, setLavoro] = useState<{ fatti: number; totale: number } | null>(null);
   const [fine, setFine] = useState<string | null>(null);
+  /** ── CHI È GIÀ IN ARCHIVIO: SEGNARLO, O SOLO RINOMINARLO ───────────────
+   *  Richiesta del titolare (22/10/2026): poter scegliere di sovrascrivere
+   *  SOLO nome e cognome di chi ha lo stesso numero, qualunque sia lo stato.
+   *  In quel modo la scheda non viene segnata «di ritorno» e non torna in
+   *  coda: cambia il nome, e basta (vedi `patchSoloNome`). */
+  const [soloNomi, setSoloNomi] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   /** Chi è nuovo, chi è di ritorno, quante righe si ripetono dentro il file:
@@ -228,6 +234,21 @@ export function PannelloCarica({
     () => separaRitorni(esito?.leads ?? [], leads ?? []),
     [esito, leads],
   );
+  /** Chi ha lo stesso numero e nel file ha un nome o un cognome diverso. */
+  const daRinominare = useMemo(
+    () =>
+      ritorni.filter(
+        (r) =>
+          stessoTelefono(r.letto, r.scheda.data) &&
+          Object.keys(patchSoloNome(r.scheda.data, r.letto)).length > 0,
+      ),
+    [ritorni],
+  );
+  const scegliSoloNomi = (si: boolean) => {
+    setSoloNomi(si);
+    //  La coda della pagina mostra «di ritorno» solo chi verrà segnato.
+    onLetti(si ? [] : ritorni.map((r) => r.scheda.id));
+  };
 
   /** Com'è fatta la lista che sta per entrare: per gruppo e annuncio, per
    *  risposta. Si contano le PERSONE del file (nuove e di ritorno): anche
@@ -256,6 +277,7 @@ export function PannelloCarica({
 
   const leggi = async (f: File) => {
     setFine(null);
+    setSoloNomi(false);
     setConservate([]);
     setRiallineate(0);
     setAvviso("");
@@ -383,7 +405,25 @@ export function PannelloCarica({
          ritorni — su una connessione di studio sono minuti, e ogni richiesta è
          un'occasione in più di fallire a metà. */
     let segnati = 0;
-    const idRitorni = ritorni.map((r) => r.scheda.id);
+    let rinominati = 0;
+    //  Solo nome e cognome: si scrivono quelli e nient'altro, poi si salta la
+    //  segnatura dei ritorni.
+    if (soloNomi) {
+      const ONDA_NOMI = 10;
+      for (let i = 0; i < daRinominare.length; i += ONDA_NOMI) {
+        const onda = daRinominare.slice(i, i + ONDA_NOMI);
+        const esiti = await Promise.all(
+          onda.map((r) => updateLead(r.scheda.id, (attuale) => patchSoloNome(attuale, r.letto))),
+        );
+        const falliti = esiti.filter((ok) => !ok).length;
+        rinominati += esiti.length - falliti;
+        if (falliti)
+          toast.error(falliti === 1 ? "1 nome non aggiornato" : `${falliti} nomi non aggiornati`, {
+            description: "Ricarica la lista per riprovare solo questi.",
+          });
+      }
+    }
+    const idRitorni = soloNomi ? [] : ritorni.map((r) => r.scheda.id);
     //  Cosa ha portato la riga del file: da quale annuncio è tornato e cosa ha
     //  risposto stavolta. Va a `patchRicarico`, che riempie solo i buchi.
     const lettoDi = new Map(ritorni.map((r) => [r.scheda.id, r.letto]));
@@ -470,6 +510,9 @@ export function PannelloCarica({
     setFine(
       [
         `${inseriti} schede nuove`,
+        rinominati
+          ? `${rinominati} ${rinominati === 1 ? "nome aggiornato" : "nomi aggiornati"} (stesso numero, niente altro toccato)`
+          : "",
         segnati
           ? `${segnati} di ritorno, in cima ai «Lead importati» in attesa di una decisione`
           : "",
@@ -484,11 +527,17 @@ export function PannelloCarica({
     setNomeFile("");
     await reload();
     toast.success(
-      inseriti ? `Importate ${inseriti} schede` : `Segnati ${segnati} contatti di ritorno`,
+      inseriti
+        ? `Importate ${inseriti} schede`
+        : soloNomi
+          ? `Aggiornati ${rinominati} nomi`
+          : `Segnati ${segnati} contatti di ritorno`,
       {
         description: segnati
           ? `In coda, pronte da chiamare. ${segnati === 1 ? "Una persona era" : `${segnati} persone erano`} già in archivio: ${segnati === 1 ? "la trovi" : "le trovi"} in cima ai «Lead importati», da confermare o rimettere fra i da contattare.`
-          : "Sono in coda, pronte da chiamare.",
+          : soloNomi && !inseriti
+            ? "Stato, note e appuntamenti sono rimasti com'erano."
+            : "Sono in coda, pronte da chiamare.",
       },
     );
   };
@@ -628,6 +677,46 @@ export function PannelloCarica({
             </div>
           )}
 
+          {/*  ── CHI È GIÀ IN ARCHIVIO: COSA FARNE ─────────────────────────
+              Due scelte, e la prima è quella di sempre. */}
+          {ritorni.length > 0 && (
+            <fieldset className="space-y-1.5 rounded-lg border border-border p-2.5 text-[12.5px]">
+              <legend className="px-1 text-[12px] font-medium text-foreground">
+                Chi è già in archivio ({ritorni.length})
+              </legend>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="ritorni"
+                  className="mt-0.5"
+                  checked={!soloNomi}
+                  onChange={() => scegliSoloNomi(false)}
+                />
+                <span>
+                  <b>Segnalo come di ritorno</b>: va in cima ai «Lead importati», da decidere.
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="ritorni"
+                  className="mt-0.5"
+                  checked={soloNomi}
+                  onChange={() => scegliSoloNomi(true)}
+                />
+                <span>
+                  <b>Aggiorno solo nome e cognome</b> di chi ha lo stesso numero, qualunque sia lo
+                  stato. Nient'altro viene toccato.{" "}
+                  <span className="text-muted-foreground">
+                    {daRinominare.length === 0
+                      ? "Nessuno ha un nome diverso da quello in archivio."
+                      : `${daRinominare.length} ${daRinominare.length === 1 ? "cambia" : "cambiano"}.`}
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             {/*  ── ⚠️ SI ACCENDE ANCHE SE NON C'È NIENTE DI NUOVO ──────────
                 Restava spento quando il file era fatto tutto di persone già in
@@ -636,22 +725,38 @@ export function PannelloCarica({
                 senza questo gesto nessuno li segnava e nessuno li vedeva. */}
             <Button
               onClick={() => void scrivi()}
-              disabled={!!lavoro || (nuovi.length === 0 && ritorni.length === 0)}
+              disabled={
+                !!lavoro ||
+                (nuovi.length === 0 &&
+                  (soloNomi ? daRinominare.length === 0 : ritorni.length === 0))
+              }
             >
               {lavoro
                 ? `Importazione… ${lavoro.fatti}/${lavoro.totale}`
-                : nuovi.length === 0
-                  ? ritorni.length === 0
-                    ? "Niente da importare"
-                    : `Segna ${ritorni.length} di ritorno`
-                  : ritorni.length === 0
-                    ? `Importa ${nuovi.length} schede`
-                    : `Importa ${nuovi.length} schede e segna ${ritorni.length} di ritorno`}
+                : soloNomi
+                  ? [
+                      nuovi.length ? `Importa ${nuovi.length} schede` : "",
+                      daRinominare.length
+                        ? `aggiorna ${daRinominare.length} ${daRinominare.length === 1 ? "nome" : "nomi"}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" e ")
+                      .replace(/^a/, "A") || "Niente da aggiornare"
+                  : nuovi.length === 0
+                    ? ritorni.length === 0
+                      ? "Niente da importare"
+                      : `Segna ${ritorni.length} di ritorno`
+                    : ritorni.length === 0
+                      ? `Importa ${nuovi.length} schede`
+                      : `Importa ${nuovi.length} schede e segna ${ritorni.length} di ritorno`}
             </Button>
             <p className="text-[12px] text-muted-foreground">
-              {nuovi.length === 0 && ritorni.length > 0
-                ? "Tutte le righe leggibili risultano già in archivio: importarle di nuovo le sdoppierebbe. Vengono segnate sulla loro scheda e finiscono in cima ai «Lead importati», dove decidi se lasciarle come stanno o rimetterle fra i da contattare."
-                : "Da qui in poi il database viene toccato."}
+              {soloNomi
+                ? "Per chi è già in archivio cambiano solo nome e cognome: stato, note e appuntamenti restano com'erano."
+                : nuovi.length === 0 && ritorni.length > 0
+                  ? "Tutte le righe leggibili risultano già in archivio: importarle di nuovo le sdoppierebbe. Vengono segnate sulla loro scheda e finiscono in cima ai «Lead importati», dove decidi se lasciarle come stanno o rimetterle fra i da contattare."
+                  : "Da qui in poi il database viene toccato."}
             </p>
           </div>
         </>

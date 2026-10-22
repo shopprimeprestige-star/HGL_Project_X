@@ -193,6 +193,210 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
       },
     ],
   },
+  /*  ── LE OTTO DEL MODULO «22-OTT» DI INVISIBLE DERM (22/10/2026) ──────
+      Richiesta del titolare: importare «LEAD - HGL - Ads Accese - 02.csv» e
+      dargli il termometro Bollente → Gelido (crm/termometro-id).
+      ⚠️ STANNO PRIMA DEL «589€»: l'intestazione «il percorso parte da 589€. è
+       nel tuo budget?» contiene «589» e «percorso parte», che sono la colonna
+       del Prezzo del modulo del 20/10. `campoDellaColonna` prende la prima che
+       combacia, quindi questa deve venire prima.
+      ⚠️ SOLO DALLA COLONNA, come le sei del «589€»: «sì», «no», «il meglio»,
+       «confrontarlo» letti dal solo valore finirebbero sotto la domanda
+       sbagliata (vedi `riconosciRisposta`).
+      Meta scrive le risposte con i trattini bassi e le emoji
+      («🟢_sì,_sono_disposto_a_venire_a_roma!»): `pulisci` toglie i trattini,
+      i riconoscitori cercano le parole e ignorano il resto. */
+  {
+    campo: "soluzione",
+    titolo: "Soluzione che valuta",
+    intestazione: /quale soluzione stai valutando/,
+    opzioni: [
+      {
+        id: "trapianto",
+        nome: "Trapianto chirurgico",
+        tono: "neutro",
+        quando: /trapianto/,
+      },
+      {
+        id: "patch",
+        nome: "PatchCutanea",
+        tono: "buono",
+        quando: /patch ?cutanea/,
+      },
+      {
+        id: "integrazione",
+        nome: "Integrazione di nuova generazione",
+        tono: "buono",
+        quando: /integrazione capillare/,
+      },
+    ],
+  },
+  {
+    campo: "roma",
+    titolo: "Viene a Roma",
+    intestazione: /evoluzione della patch ?cutanea|venire a roma/,
+    opzioni: [
+      {
+        id: "no",
+        nome: "Non può venire a Roma",
+        tono: "medio",
+        quando: /non posso venire|^no\b/,
+      },
+      {
+        id: "si",
+        nome: "Sì, viene a Roma",
+        tono: "buono",
+        quando: /sono disposto|^\W*si\b/,
+      },
+    ],
+  },
+  {
+    campo: "cerca",
+    titolo: "Cosa cerca",
+    intestazione: /cosa cerchi/,
+    opzioni: [
+      {
+        id: "meglio",
+        nome: "Il meglio, naturale e discreto",
+        tono: "buono",
+        quando: /il meglio/,
+      },
+      {
+        id: "economica",
+        nome: "Economica ma naturale",
+        tono: "medio",
+        quando: /economic/,
+      },
+    ],
+  },
+  {
+    campo: "dubbio",
+    titolo: "Dubbio principale",
+    intestazione: /dubbio principale/,
+    opzioni: [
+      {
+        id: "risultato",
+        nome: "Che il risultato si veda",
+        tono: "neutro",
+        quando: /risultato/,
+      },
+      {
+        id: "tenuta",
+        nome: "Tenuta e manutenzione",
+        tono: "neutro",
+        quando: /tenuta|manutenzion/,
+      },
+      { id: "costo", nome: "Il costo", tono: "medio", quando: /costo/ },
+    ],
+  },
+  {
+    campo: "inizio",
+    titolo: "Quando vuole iniziare",
+    intestazione: /quando vorresti iniziare/,
+    opzioni: [
+      {
+        id: "subito",
+        nome: "Il prima possibile",
+        tono: "buono",
+        quando: /prima possibile/,
+      },
+      {
+        id: "trenta",
+        nome: "Entro 30 giorni",
+        tono: "buono",
+        quando: /entro 30 giorni/,
+      },
+      {
+        id: "info",
+        nome: "Cerca solo informazioni",
+        tono: "medio",
+        quando: /cercando informazioni/,
+      },
+    ],
+  },
+  {
+    campo: "budget",
+    titolo: "Budget da 589€",
+    intestazione: /nel tuo budget/,
+    opzioni: [
+      {
+        id: "no",
+        nome: "No, cerca di più economico",
+        tono: "medio",
+        quando: /^no\b|piu economico/,
+      },
+      {
+        id: "si",
+        nome: "Sì, se è la soluzione giusta",
+        tono: "buono",
+        quando: /^si\b|soluzione giusta/,
+      },
+      {
+        id: "approfondire",
+        nome: "Vuole prima approfondire",
+        tono: "medio",
+        quando: /approfondire/,
+      },
+    ],
+  },
+  {
+    campo: "aspettativa",
+    titolo: "Dalla consulenza si aspetta",
+    intestazione: /cosa ti aspetti/,
+    opzioni: [
+      {
+        id: "adatto",
+        nome: "Capire se fa per lui e come iniziare",
+        tono: "buono",
+        quando: /adatto a me|come iniziare/,
+      },
+      {
+        id: "confronto",
+        nome: "Confrontarlo con altre soluzioni",
+        tono: "medio",
+        quando: /confrontarlo/,
+      },
+      {
+        id: "futuro",
+        nome: "Informazioni per il futuro",
+        tono: "medio",
+        quando: /eventuale futuro|ricevere informazioni/,
+      },
+    ],
+  },
+  {
+    campo: "scelta",
+    titolo: "A che punto è",
+    intestazione: /a che punto sei/,
+    opzioni: [
+      {
+        id: "preventivi",
+        nome: "Ha già preventivi",
+        tono: "buono",
+        quando: /preventivi/,
+      },
+      {
+        id: "confronto",
+        nome: "Sta confrontando altri centri",
+        tono: "buono",
+        quando: /altri centri|confrontando/,
+      },
+      {
+        id: "nessuna",
+        nome: "Prima consulenza, vuole iniziare",
+        tono: "medio",
+        quando: /non ho ancora fatto/,
+      },
+    ],
+  },
+  {
+    //  Dopo «no» al 589€: il budget lo scrive lui. Niente opzioni, si tiene
+    //  il testo (vedi `leggiRisposte`).
+    campo: "budgetLibero",
+    titolo: "Budget indicato",
+    intestazione: /qual.{0,2}e il tuo budget/,
+    opzioni: [],
+  },
   /*  ── LE SEI DEL MODULO «589€» (20/10/2026) ───────────────────────────
       Richiesta del titolare: importare i moduli del 20 e del 21 ottobre e
       dare a ogni lead la classifica da Caldissimo a Freddissimo
@@ -415,6 +619,23 @@ export const DOMANDE_MODULO: DomandaModulo[] = [
  *  Freddissimo (crm/temperatura-lead). */
 export const CAMPI_589: CampoModulo[] = ["durata", "tempi", "peso", "prezzo", "decide", "motivo"];
 
+/** Le domande del modulo «22-ott» di Invisible Derm: decidono il termometro
+ *  Bollente → Gelido (crm/termometro-id). */
+export const CAMPI_ID: CampoModulo[] = [
+  "soluzione",
+  "roma",
+  "cerca",
+  "dubbio",
+  "inizio",
+  "budget",
+  "aspettativa",
+  "scelta",
+  "budgetLibero",
+];
+
+/** Le domande che si riconoscono SOLO dalla loro colonna, mai dal valore. */
+const SOLO_DALLA_COLONNA: CampoModulo[] = [...CAMPI_589, ...CAMPI_ID];
+
 const DOMANDA_DI = new Map(DOMANDE_MODULO.map((d) => [d.campo, d]));
 
 /** Le tre domande arrivate dopo le quattro classiche. Le classiche si
@@ -426,6 +647,8 @@ const CAMPI_NUOVI = new Set<CampoModulo>([
   "giaFatto",
   //  Le sei del modulo «589€» (20/10/2026): anche qui la colonna comanda.
   ...CAMPI_589,
+  //  E le nove del modulo «22-ott» (22/10/2026).
+  ...CAMPI_ID,
 ]);
 
 /** Di quale domanda è questa colonna? Si guarda solo l'intestazione, quindi
@@ -472,7 +695,7 @@ export function riconosciRisposta(
   //   non si assegnano mai.
   const domande = campo
     ? DOMANDE_MODULO.filter((d) => d.campo === campo)
-    : DOMANDE_MODULO.filter((d) => !CAMPI_589.includes(d.campo));
+    : DOMANDE_MODULO.filter((d) => !SOLO_DALLA_COLONNA.includes(d.campo));
   const combacia = (vale: (o: OpzioneModulo) => boolean) => {
     const out: { campo: CampoModulo; opzione: OpzioneModulo }[] = [];
     for (const d of domande) for (const o of d.opzioni) if (vale(o)) out.push({ campo: d.campo, opzione: o });
@@ -663,6 +886,18 @@ export function leggiRisposte(
          eccezione è la domanda sul quando, che ammette una risposta scritta a
          mano e vale anche senza quella verifica: era già così. */
     const nota = colonna ? DOMANDA_DI.get(colonna) : undefined;
+    //  ⚠️ IL BUDGET SCRITTO A MANO NON PASSA DA `paRisposta`: «1.000€», «500»,
+    //   «€ 800» sono proprio le risposte che servono, e `paRisposta` scarta le
+    //   cifre sole e il simbolo dell'euro (revisione del 22/10/2026).
+    if (nota?.campo === "budgetLibero" && intestazioniAffidabili) {
+      const t = leggibile(grezzo);
+      if (t && t.length <= 160 && !out.budgetLibero) {
+        out.budgetLibero = t;
+        usate?.add(i);
+        risposte.push({ domanda: nota.titolo, risposta: t, campo: nota.campo });
+      }
+      return;
+    }
     if (nota && (nota.aMano || intestazioniAffidabili) && paRisposta(grezzo)) {
       const t = leggibile(grezzo);
       if (t.length >= 3 && t.length <= 160) {
@@ -672,6 +907,15 @@ export function leggiRisposte(
           out.quandoTesto = t;
           usate?.add(i);
           risposte.push({ domanda: nota.titolo, risposta: t, campo: nota.campo });
+          return;
+        }
+        //  Il budget scritto a mano: serve al termometro, si tiene il testo.
+        if (nota.campo === "budgetLibero") {
+          if (!out.budgetLibero) {
+            out.budgetLibero = t;
+            usate?.add(i);
+            risposte.push({ domanda: nota.titolo, risposta: t, campo: nota.campo });
+          }
           return;
         }
         //  Se la domanda ha già una risposta (l'ha data un'altra colonna, o
@@ -933,7 +1177,7 @@ export function moduloLetto(d?: Partial<LeadData> | null): RisposteModulo | unde
       reimportare e senza scrivere niente. */
   for (const [chiave, valore] of Object.entries(d?.datiFile ?? {})) {
     const campo = campoDellaColonna(chiave);
-    if (!campo || !CAMPI_589.includes(campo) || out[campo]) continue;
+    if (!campo || !SOLO_DALLA_COLONNA.includes(campo) || out[campo]) continue;
     const t = riconosciRisposta(String(valore ?? ""), campo);
     if (!t) continue;
     out[campo] = t.opzione.id;

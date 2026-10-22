@@ -1036,6 +1036,16 @@ export type CampoModulo =
   | "prezzo"
   | "decide"
   | "motivo"
+  //  Il modulo «22-ott» di Invisible Derm (22/10/2026): vedi crm/termometro-id.
+  | "soluzione"
+  | "roma"
+  | "cerca"
+  | "dubbio"
+  | "inizio"
+  | "budget"
+  | "aspettativa"
+  | "scelta"
+  | "budgetLibero"
   | "conoscenza"
   | "zona"
   | "quando";
@@ -1051,6 +1061,15 @@ export const CAMPI_MODULO: CampoModulo[] = [
   "prezzo",
   "decide",
   "motivo",
+  "soluzione",
+  "roma",
+  "cerca",
+  "dubbio",
+  "inizio",
+  "budget",
+  "aspettativa",
+  "scelta",
+  "budgetLibero",
   "conoscenza",
   "zona",
   "quando",
@@ -1086,6 +1105,27 @@ export interface RisposteModulo {
   decide?: string;
   /** Il motivo: `curiosita` | `lavoro` | `relazione` | `evento` | `stufo`. */
   motivo?: string;
+  /*  ── IL MODULO «22-OTT» DI INVISIBLE DERM (22/10/2026) ──────────────────
+      Le otto domande (più il budget scritto a mano) del termometro
+      Bollente → Gelido: vedi crm/termometro-id. */
+  /** Quale soluzione valuta: `trapianto` | `patch` | `integrazione`. */
+  soluzione?: string;
+  /** Può venire a Roma: `si` | `no`. */
+  roma?: string;
+  /** Cosa cerca: `meglio` | `economica`. */
+  cerca?: string;
+  /** Il dubbio principale: `risultato` | `tenuta` | `costo`. */
+  dubbio?: string;
+  /** Quando vuole iniziare: `subito` | `trenta` | `info`. */
+  inizio?: string;
+  /** Da 589€, è nel budget: `si` | `approfondire` | `no`. */
+  budget?: string;
+  /** Cosa si aspetta dalla consulenza: `adatto` | `confronto` | `futuro`. */
+  aspettativa?: string;
+  /** A che punto è nella scelta: `preventivi` | `confronto` | `nessuna`. */
+  scelta?: string;
+  /** Il budget scritto a mano (dopo «no» al 589€). Testo, non un id. */
+  budgetLibero?: string;
   /** Ci conosce: `segue` | `settore` | `nuovo`. */
   conoscenza?: string;
   /** Zona d'Italia: `nord` | `centro` | `sud` | `estero`. */

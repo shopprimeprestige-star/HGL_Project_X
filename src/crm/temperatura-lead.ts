@@ -52,14 +52,32 @@
  *   Gli altri moduli restano a tre livelli, con la regola qui sopra.
  *   ⚠️ «Caldo» per la coda (`eCaldo`) vale anche per Caldissimo.
  *
+ *  ── IL MODULO «22-OTT» DI INVISIBLE DERM: CINQUE GRADI (22/10/2026) ───
+ *   Bollente · Caldo · Tiepido · Freddo · Gelido, con punteggio 0-100, tetti
+ *   e contraddizioni: la regola sta in crm/termometro-id. Vince su tutte le
+ *   altre quando il lead ha risposto a quel modulo. Chi valuta il trapianto
+ *   ha il suo grado, «Trapianto», che non è una temperatura di vendita.
+ *   ⚠️ «Caldo» per la coda (`eCaldo`) vale anche per Bollente.
+ *
  *  ⚠️ NON IMPORTA importa/chi-chiamare: è chi-chiamare che importa questo
  *   file. Al contrario si farebbe un giro di import.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eChiusuraVinta } from "@/crm/types";
 import type { LeadData, LeadStatus, QualificaInfo, RisposteModulo } from "@/crm/types";
 import { CAMPI_589, etichettaRisposta, moduloLetto } from "@/crm/modulo-lead";
+import {
+  PAROLA_ID,
+  calculateLeadTemperature,
+  haTermometroID,
+  type TermometroID,
+} from "@/crm/termometro-id";
 
 export type LivelloTemperatura =
+  //  Il modulo «22-ott» (crm/termometro-id).
+  | "bollente"
+  | "tiepido"
+  | "gelido"
+  | "trapianto"
   | "caldissimo"
   | "caldo"
   | "fuochino"
@@ -78,9 +96,14 @@ export interface TemperaturaLead {
   fonte: "modulo" | "sito" | null;
   /** Solo col modulo «589€»: i punti presi su quelli possibili. */
   punti?: { presi: number; su: number };
+  /** Solo col modulo «22-ott»: il risultato intero (segnali, ostacoli,
+   *  contraddizioni, azione consigliata). */
+  termometro?: TermometroID;
 }
 
 const PAROLA: Record<LivelloTemperatura, string> = {
+  ...PAROLA_ID,
+  trapianto: "Trapianto",
   caldissimo: "Caldissimo",
   caldo: "Caldo",
   fuochino: "Fuochino",
@@ -92,7 +115,7 @@ const PAROLA: Record<LivelloTemperatura, string> = {
 
 /** Caldissimo e Caldo sono entrambi «caldo» per la coda della setter. */
 export const eLivelloCaldo = (l: LivelloTemperatura): boolean =>
-  l === "caldissimo" || l === "caldo";
+  l === "bollente" || l === "caldissimo" || l === "caldo";
 
 const NESSUNA: TemperaturaLead = { livello: "nessuna", parola: "", perche: "", fonte: null };
 
@@ -206,6 +229,13 @@ export function classifica589(
   return { livello, presi, su, brevi };
 }
 
+/* ── IL MODULO «22-OTT» ────────────────────────────────────────────────── */
+
+/** Il termometro Invisible Derm, se il lead ha risposto a quel modulo. */
+export function termometroDi(m?: RisposteModulo): TermometroID | undefined {
+  return m && haTermometroID(m) ? calculateLeadTemperature(m) : undefined;
+}
+
 /* ── IL QUIZ DEL SITO ──────────────────────────────────────────────────── */
 
 const URGENZA_QUIZ: Record<string, { livello: LivelloTemperatura; testo: string }> = {
@@ -250,6 +280,18 @@ function decidi(voci: { livello: LivelloTemperatura; testo: string }[]) {
 
 /** La temperatura del lead: prima il modulo, poi (se il modulo tace) il quiz. */
 export function temperaturaLead(m?: RisposteModulo, q?: QualificaInfo | null): TemperaturaLead {
+  const id = termometroDi(m);
+  if (id)
+    return {
+      livello: id.temperatura,
+      parola: PAROLA[id.temperatura],
+      perche:
+        id.temperatura === "trapianto"
+          ? "percorso trapianto, a parte"
+          : `${id.score}/100 · priorità ${id.priorita.toLowerCase()}`,
+      fonte: "modulo",
+      termometro: id,
+    };
   const sei = classifica589(m);
   if (sei)
     return {
@@ -282,6 +324,8 @@ export function temperaturaLead(m?: RisposteModulo, q?: QualificaInfo | null): T
  *  Se il modulo dice qualcosa sulla temperatura vengono solo dal modulo
  *  (mescolarle col quiz darebbe due voci che si contraddicono). */
 export function risposteBrevi(m?: RisposteModulo, q?: QualificaInfo | null, max = 2): string[] {
+  const id = termometroDi(m);
+  if (id) return id.brevi.slice(0, Math.max(0, max));
   const sei = classifica589(m);
   if (sei) return sei.brevi.slice(0, Math.max(0, max));
   const modulo = vociDelModulo(m);

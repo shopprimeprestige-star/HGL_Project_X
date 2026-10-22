@@ -183,6 +183,7 @@ import { NotaSoloConsulenti, consulentiPerConsulenza } from "./chi-fa-la-consule
 //  riconoscono e come si leggono sta tutto in crm/modulo-lead.
 import { moduloLetto, vociModulo } from "./modulo-lead";
 import { temperaturaLead } from "./temperatura-lead";
+import type { TermometroID } from "./termometro-id";
 import { PallinoTemperatura } from "./Temperatura";
 import {
   BORDO_FINESTRA,
@@ -283,6 +284,14 @@ import { linkPerPersona } from "@/shop/chi-dal-link";
 import { SpuntaSoloUnaPersona, useModiFascia } from "@/crm/ModoDellaFascia";
 //  «Questo numero ce l'abbiamo già»: la regola sta lì, con il suo perché.
 import { avvisoDoppione, chiaveTelefono, schedeConLoStessoNumero } from "@/crm/telefono-doppio";
+import {
+  STATI_CHE_TENGONO_LO_STATO,
+  conOrario,
+  cosaFaLOrario,
+  orarioPer,
+  orarioScelto,
+  type OrarioScelto,
+} from "@/crm/doppione-orario";
 
 /*  LA FIRMA NON CAMBIA: questa finestra è aperta da undici punti diversi
  *  (elenco lead, dashboard, agenda, WhatsApp, ricerca ⌘K, installazioni,
@@ -300,6 +309,11 @@ interface Props {
    *  dentro un avviso, all'infinito. Qui il controllo si spegne: su quella
    *  scheda il numero è il suo, e lo si è aperta apposta sapendolo. */
   nidificata?: boolean;
+  /** L'orario scelto nel nuovo lead, da portare su questa scheda che c'è già
+   *  (vedi crm/doppione-orario). Si mette nel modulo, non si salva da solo. */
+  orarioDaPortare?: OrarioScelto | null;
+  /** Chiamata dopo «Salva» andato a buon fine. */
+  onSalvato?: () => void;
 }
 
 const FONTI: LeadFonte[] = ["ADV", "Organico", "Passa parola", "Store"];
@@ -533,7 +547,8 @@ const STATI_RICONTATTO = new Set<LeadStatus>([
 //   consulenza su una pratica appena chiusa la riportava ad «Appuntamento
 //   fissato» — cioè annullava la vendita per aver scritto una data. Si legge da
 //   `STATI_VINTI` di types.ts, che è l'elenco unico.
-const STATI_CHE_TENGONO_LO_STATO = new Set<LeadStatus>(["fatto", ...STATI_VINTI, "viene_in_sede"]);
+//  La regola sta in crm/doppione-orario: la usa anche l'orario portato sulla
+//  scheda che c'è già.
 
 /** ── L'UNICA PORTA DELLA DATA DI CONSULENZA ───────────────────────────────
  *  Ci passano tutti e tre i modi di fissarla — lo slot libero, i due campi
@@ -558,7 +573,15 @@ function fissaConsulenza(
   }
 }
 
-export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Props) {
+export function LeadDialog({
+  open,
+  onOpenChange,
+  lead,
+  prefill,
+  nidificata,
+  orarioDaPortare,
+  onSalvato,
+}: Props) {
   const { consultants, createLead, updateLead, deleteLead, leads: allLeads } = useCRM();
   //  Chi può eliminare: il pulsante non compare a chi poi si sentirebbe dire
   //  «non puoi» (vedi crm/permessi).
@@ -598,9 +621,9 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
      azzererebbe sotto le dita — con il wizard, che tiene anche il passo, si
      ricomincerebbe da capo a metà compilazione. Le due sorgenti si leggono da
      un riferimento sempre aggiornato. */
-  const sorgente = useRef({ lead, prefill });
+  const sorgente = useRef({ lead, prefill, orarioDaPortare });
   useEffect(() => {
-    sorgente.current = { lead, prefill };
+    sorgente.current = { lead, prefill, orarioDaPortare };
   });
 
   //  La chiave è l'ID, non l'oggetto: dopo un salvataggio il lead torna
@@ -609,7 +632,7 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
   const idLead = lead?.id ?? null;
   useEffect(() => {
     if (!open) return;
-    const { lead: l, prefill: pf } = sorgente.current;
+    const { lead: l, prefill: pf, orarioDaPortare: orario } = sorgente.current;
     //  `{...nuovo(), ...l.data}` NON basta a garantire i tipi: una chiave
     //  presente e messa a `null` in archivio sovrascrive il valore vuoto di
     //  partenza, e il `null` arriva intatto fino a `.trim()`. Da qui in giù il
@@ -621,6 +644,21 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
     setQuando(null);
     setAltriDati(false);
     setModificato(false);
+    //  L'orario del nuovo lead portato su questa scheda: resta da salvare, e
+    //  il tasto «Salva» è lì apposta (vedi crm/doppione-orario).
+    if (l && orario) {
+      const prima = cosaFaLOrario(l.data);
+      setForm((f) => conOrario(f, orario));
+      setModificato(true);
+      toast.info(
+        prima === "sposta"
+          ? "Consulenza spostata sull'orario scelto"
+          : "Consulenza messa sull'orario scelto",
+        {
+          description: `${quandoInChiaro(orario.dataMeeting, orario.oraMeeting)}. Controlla e premi Salva per confermare.`,
+        },
+      );
+    }
   }, [open, idLead]);
 
   //  Ogni scrittura sul modulo passa da una di queste tre porte, e tutte e tre
@@ -771,6 +809,9 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
     [nidificata, form.telefono, elencoLead, lead?.id],
   );
   const [doppioneAperto, setDoppioneAperto] = useState<Lead | null>(null);
+  /*  Solo dal nuovo lead non ancora salvato: se è già stato creato, portare
+      l'orario sull'altra scheda lascerebbe lo stesso slot su due schede. */
+  const orarioDaQui = !lead && !creato ? orarioScelto(form) : null;
   /*  ── ⚠️ ELIMINARE UN LEAD DA QUI ───────────────────────────────────────
       Richiesta del committente: «cliccando sulla scheda lead, dentro ci sia
       anche il pulsante per eliminare il lead».
@@ -1064,12 +1105,16 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
 
   const salvaEChiudi = async () => {
     const ok = await salva();
-    if (ok) onOpenChange(false);
+    if (!ok) return;
+    onSalvato?.();
+    onOpenChange(false);
   };
 
   //  ⌘/Ctrl+↵ salva da qualunque campo, ed è scritto nel piede: una
   //  scorciatoia che non si vede non esiste.
-  useSalvaConTastiera(open, () => void salvaEChiudi());
+  //  ⚠️ Spenta mentre sopra c'è il popup o la scheda del doppione: lì
+  //   ⌘+Invio è di quella scheda, e qui creerebbe proprio il lead doppio.
+  useSalvaConTastiera(open && !doppioneAperto && !avvisoDoppioneAperto, () => void salvaEChiudi());
 
   /* ═════ WIZARD ═══════════════════════════════════════════════════════════ */
   const modoWizard = !lead;
@@ -1596,6 +1641,7 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
       {avvisoDoppioneAperto && doppioni.length > 0 && (
         <FinestraDoppione
           doppioni={doppioni}
+          orario={orarioDaQui}
           onChiudi={() => setAvvisoDoppioneAperto(false)}
           onApri={(l) => {
             setAvvisoDoppioneAperto(false);
@@ -1662,6 +1708,12 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
           lead={doppioneAperto}
           onOpenChange={(v) => !v && setDoppioneAperto(null)}
           nidificata
+          orarioDaPortare={orarioPer(orarioDaQui, doppioneAperto.data)}
+          //  Salvata quella con l'orario, il nuovo lead non serve più: si
+          //  chiude senza crearlo, e la persona resta con una storia sola.
+          onSalvato={
+            orarioPer(orarioDaQui, doppioneAperto.data) ? () => onOpenChange(false) : undefined
+          }
         />
       )}
     </Finestra>
@@ -1673,10 +1725,13 @@ export function LeadDialog({ open, onOpenChange, lead, prefill, nidificata }: Pr
  *  queste tre cose «esiste già» non aiuta a decidere niente. */
 function FinestraDoppione({
   doppioni,
+  orario,
   onChiudi,
   onApri,
 }: {
   doppioni: Lead[];
+  /** L'orario già scelto nel nuovo lead: aprendo la scheda ci si ritrova dentro. */
+  orario?: OrarioScelto | null;
   onChiudi: () => void;
   onApri: (l: Lead) => void;
 }) {
@@ -1705,6 +1760,13 @@ function FinestraDoppione({
           Prima di crearne una nuova: quella vecchia ha dentro le note, i tentativi e gli
           appuntamenti di questa persona. Se è la stessa, lavora su quella.
         </p>
+        {orario && doppioni.some((l) => orarioPer(orario, l.data)) && (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-relaxed text-emerald-900">
+            Aprendo la sua scheda ci trovi già l'orario che hai scelto,{" "}
+            <b>{quandoInChiaro(orario.dataMeeting, orario.oraMeeting)}</b>: controlla e premi Salva.
+            Il nuovo lead non viene creato.
+          </p>
+        )}
         <ul className="divide-y rounded-lg border">
           {doppioni.map((l) => {
             const d = l.data ?? ({} as LeadData);
@@ -1724,6 +1786,13 @@ function FinestraDoppione({
                         String(d.telefono || ""),
                         d.citta || null,
                         d.dataMeeting ? `consulenza del ${dataBreve(d.dataMeeting)}` : null,
+                        orario
+                          ? {
+                              sposta: "la sposti",
+                              fissa: "la fissi",
+                              cliente: "è già cliente: l'orario non si porta",
+                            }[cosaFaLOrario(d)]
+                          : null,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -1854,10 +1923,20 @@ function BloccoModulo({ form }: { form: LeadData }) {
       classeCorpo="p-4"
     >
       {conTemperatura ? (
-        <p className={cn("text-[12.5px] text-slate-600", (voci.length > 0 || altro) && "mb-3")}>
-          <PallinoTemperatura t={t} />
-          {t.perche && <span> — {t.perche}</span>}
-        </p>
+        <>
+          <p
+            className={cn(
+              "text-[12.5px] text-slate-600",
+              (voci.length > 0 || altro || t.termometro) && "mb-3",
+            )}
+          >
+            <PallinoTemperatura t={t} />
+            {t.perche && <span> — {t.perche}</span>}
+          </p>
+          {/*  Il termometro Invisible Derm (crm/termometro-id): perché ha quel
+              grado e cosa fare. Testo di React, mai HTML. */}
+          {t.termometro && <DettaglioTermometro d={t.termometro} />}
+        </>
       ) : (
         voci.length === 0 && (
           <p className={cn("text-[12.5px] text-slate-500", altro && "mb-3")}>
@@ -4655,5 +4734,41 @@ function RigaRiepilogo({
       <dt className="text-[12px] text-slate-500">{etichetta}</dt>
       <dd className="min-w-0 truncate text-[13px] font-medium text-slate-900">{valore || "—"}</dd>
     </button>
+  );
+}
+
+/** ── IL PERCHÉ DEL TERMOMETRO INVISIBLE DERM ──────────────────────────────
+ *  Motivazione, azione consigliata, poi segnali, ostacoli, contraddizioni e
+ *  tetti: solo le righe che hanno qualcosa. */
+function DettaglioTermometro({ d }: { d: TermometroID }) {
+  const elenchi: { titolo: string; voci: string[]; classe: string }[] = [
+    { titolo: "Segnali positivi", voci: d.segnali_positivi, classe: "text-emerald-800" },
+    { titolo: "Ostacoli", voci: d.ostacoli, classe: "text-red-800" },
+    { titolo: "Contraddizioni", voci: d.contraddizioni, classe: "text-orange-800" },
+    { titolo: "Perché non sale", voci: d.limiti, classe: "text-slate-600" },
+  ];
+  return (
+    <div className="mb-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-[12.5px]">
+      <p className="text-slate-700">{d.motivazione}</p>
+      <p className="font-medium text-slate-900">
+        Da fare: <span className="font-normal">{d.azione_consigliata}</span>
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {elenchi
+          .filter((e) => e.voci.length > 0)
+          .map((e) => (
+            <div key={e.titolo} className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                {e.titolo}
+              </p>
+              <ul className={cn("list-disc pl-4", e.classe)}>
+                {e.voci.map((v) => (
+                  <li key={v}>{v}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }
