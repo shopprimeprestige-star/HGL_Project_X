@@ -115,6 +115,7 @@ import { Route as ApiPublicProvaAnteprimaRouteImport } from './routes/api.public
 import { Route as ApiPublicProvaAcquistoRouteImport } from './routes/api.public.prova-acquisto'
 import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricing'
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
+import { Route as ApiPublicManychatRispostaRouteImport } from './routes/api.public.manychat-risposta'
 import { Route as ApiPublicLinkOspiteRouteImport } from './routes/api.public.link-ospite'
 import { Route as ApiPublicInvitoRouteImport } from './routes/api.public.invito'
 import { Route as ApiPublicGalleriaRouteImport } from './routes/api.public.galleria'
@@ -729,6 +730,12 @@ const ApiPublicMetaLeadgenWebhookRoute =
     path: '/api/public/meta-leadgen-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicManychatRispostaRoute =
+  ApiPublicManychatRispostaRouteImport.update({
+    id: '/api/public/manychat-risposta',
+    path: '/api/public/manychat-risposta',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicLinkOspiteRoute = ApiPublicLinkOspiteRouteImport.update({
   id: '/api/public/link-ospite',
   path: '/api/public/link-ospite',
@@ -1296,6 +1303,7 @@ export interface FileRoutesByFullPath {
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
+  '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
@@ -1477,6 +1485,7 @@ export interface FileRoutesByTo {
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
+  '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
@@ -1664,6 +1673,7 @@ export interface FileRoutesById {
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
+  '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
@@ -1852,6 +1862,7 @@ export interface FileRouteTypes {
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
+    | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
@@ -2033,6 +2044,7 @@ export interface FileRouteTypes {
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
+    | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
@@ -2219,6 +2231,7 @@ export interface FileRouteTypes {
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
+    | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
@@ -2366,6 +2379,7 @@ export interface RootRouteChildren {
   ApiPublicGalleriaRoute: typeof ApiPublicGalleriaRoute
   ApiPublicInvitoRoute: typeof ApiPublicInvitoRoute
   ApiPublicLinkOspiteRoute: typeof ApiPublicLinkOspiteRoute
+  ApiPublicManychatRispostaRoute: typeof ApiPublicManychatRispostaRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
   ApiPublicPricingRoute: typeof ApiPublicPricingRoute
   ApiPublicProvaAcquistoRoute: typeof ApiPublicProvaAcquistoRoute
@@ -3124,6 +3138,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/meta-leadgen-webhook'
       fullPath: '/api/public/meta-leadgen-webhook'
       preLoaderRoute: typeof ApiPublicMetaLeadgenWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/manychat-risposta': {
+      id: '/api/public/manychat-risposta'
+      path: '/api/public/manychat-risposta'
+      fullPath: '/api/public/manychat-risposta'
+      preLoaderRoute: typeof ApiPublicManychatRispostaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/link-ospite': {
@@ -3944,6 +3965,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicGalleriaRoute: ApiPublicGalleriaRoute,
   ApiPublicInvitoRoute: ApiPublicInvitoRoute,
   ApiPublicLinkOspiteRoute: ApiPublicLinkOspiteRoute,
+  ApiPublicManychatRispostaRoute: ApiPublicManychatRispostaRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,
   ApiPublicPricingRoute: ApiPublicPricingRoute,
   ApiPublicProvaAcquistoRoute: ApiPublicProvaAcquistoRoute,
