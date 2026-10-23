@@ -150,10 +150,13 @@ function contaOggi(invii: InvioPerFreno[], oggi: string, tipi: InvioPerFreno["ti
   }).length;
 }
 
-/** La chiave c'è già nel registro con un invio che può essere arrivato? (Una
- *  riga fallita o saltata non conta: si può riprovare.) */
+/** La chiave c'è già nel registro? In QUALUNQUE stato, come l'indice unico di
+ *  M1 (`manychat_invii.chiave`): una riga fallita o saltata che porta la chiave
+ *  la tiene per sempre, e l'SQL risponderebbe `gia_preso`. Dirlo qui evita un
+ *  `invia` che non può partire e che, in testa alla coda, fermerebbe tutti gli
+ *  altri. (Le righe `saltato` senza chiave non contano: sono libere.) */
 const chiaveGiaPresa = (invii: InvioPerFreno[], chiave: string) =>
-  invii.some((i) => i.chiave === chiave && STATI_ARRIVATI.includes(i.stato));
+  invii.some((i) => i.chiave === chiave);
 
 /** Pausa per contatto: un invio a quel telefono negli ultimi 120 s (le
  *  variabili `crm_*` stanno sul contatto: due invii vicini si pesterebbero). */
@@ -300,7 +303,7 @@ export function decidiPromemoria(
       salta(`già ${MAX_PROMEMORIA_PER_GIORNO} promemoria a questo numero per il giorno del meet`);
       continue;
     }
-    if (freno && aspettaRisposta(k.numero, invii, k.scheda.data.contattoWa)) {
+    if (freno && aspettaRisposta(k.numero, invii, k.scheda.data.contattoWa, adesso)) {
       salta(FRASE_FRENO);
       continue;
     }
@@ -431,7 +434,7 @@ export function codaRicontatti(
     visti.add(k.tel9);
     const aspetta = (motivo: string) => uscita.push({ tipo: "aspetta", scheda: k.scheda, motivo });
 
-    if (aspettaRisposta(k.numero, invii, k.scheda.data.contattoWa)) {
+    if (aspettaRisposta(k.numero, invii, k.scheda.data.contattoWa, adesso)) {
       uscita.push({ tipo: "salta", scheda: k.scheda, motivo: FRASE_FRENO });
     } else if (domenica) {
       aspetta("domenica: niente ricontatti");
