@@ -133,12 +133,15 @@ export function creaFinto(o = {}) {
     const esito = copione[`${metodo} ${u.pathname}`] ?? esiti.errore(404, "rotta non nel copione");
     if (esito.lancia) throw esito.lancia;
     if (esito.lento) {
-      //  Aspetta finché il chiamante non interrompe; senza segnale, non finisce.
+      //  Aspetta finché il chiamante non interrompe. Senza `signal` non
+      //  finirebbe mai (e `npm test` uscirebbe con un await mai risolto, non
+      //  con un controllo rosso): si rifiuta subito, dicendo cosa manca.
+      const segnale = init.signal;
+      if (!segnale) throw new Error("chiamata senza timeout: manca il signal");
       await new Promise((_, rifiuta) => {
-        const segnale = init.signal;
         const fine = () => rifiuta(Object.assign(new Error("interrotta"), { name: "AbortError" }));
-        if (segnale?.aborted) fine();
-        else segnale?.addEventListener("abort", fine, { once: true });
+        if (segnale.aborted) fine();
+        else segnale.addEventListener("abort", fine, { once: true });
       });
     }
     orologio.avanza(ritardoMs);

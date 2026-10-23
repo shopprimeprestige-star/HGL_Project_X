@@ -54,7 +54,11 @@ export async function proveContatto(mod, { c, gruppo }) {
     "2026-10-17T09:00:00.000Z",
     K.applicaCambio(
       undefined,
-      K.dopoInvio(undefined, { tipo: "ricontatto", inviatoIl: roma("2026-10-16T11:00:00+02:00") }),
+      K.dopoInvio(undefined, {
+        tipo: "ricontatto",
+        inviatoIl: roma("2026-10-16T11:00:00+02:00"),
+        invioId: "inv-x",
+      }),
     ).scadeRisposta,
   );
   c(
@@ -62,7 +66,11 @@ export async function proveContatto(mod, { c, gruppo }) {
     "2026-10-19T09:00:00.000Z",
     K.applicaCambio(
       undefined,
-      K.dopoInvio(undefined, { tipo: "ricontatto", inviatoIl: roma("2026-10-18T11:00:00+02:00") }),
+      K.dopoInvio(undefined, {
+        tipo: "ricontatto",
+        inviatoIl: roma("2026-10-18T11:00:00+02:00"),
+        invioId: "inv-x",
+      }),
     ).scadeRisposta,
   );
   c(
@@ -70,13 +78,24 @@ export async function proveContatto(mod, { c, gruppo }) {
     "2026-10-26T10:00:00.000Z",
     K.applicaCambio(
       undefined,
-      K.dopoInvio(undefined, { tipo: "ricontatto", inviatoIl: roma("2026-10-24T11:00:00+02:00") }),
+      K.dopoInvio(undefined, {
+        tipo: "ricontatto",
+        inviatoIl: roma("2026-10-24T11:00:00+02:00"),
+        invioId: "inv-x",
+      }),
     ).scadeRisposta,
   );
   c(
     "i secondi dell'invio non si perdono",
     "2026-10-17T09:00:30.000Z",
     iso(K.scadenzaRicontatto(roma("2026-10-16T11:00:30+02:00"))),
+  );
+
+  c(
+    "un nuovo invio porta il suo id e sostituisce quello vecchio",
+    "inv-9",
+    K.applicaCambio(sc, K.dopoInvio(sc, { tipo: "ricontatto", inviatoIl: sab, invioId: "inv-9" }))
+      .invioId,
   );
 
   /* ── 24 ore senza risposta → Non ha risposto ───────────────────────────── */
@@ -207,6 +226,20 @@ export async function proveContatto(mod, { c, gruppo }) {
     [true, true],
     [conEmoji.length <= 80, !/[\uD800-\uDBFF]$/.test(conEmoji)],
   );
+  //  Un'emoji composta (uomo, donna, bambino: tre emoji unite) resta intera o non c'è.
+  const famiglia = "👨‍👩‍👧";
+  const conFamiglia = K.applicaCambio(sc, K.dopoRisposta(sc, `${"a".repeat(78)}${famiglia}`, il))
+    .storia[0].anteprima;
+  c(
+    "…un'emoji composta a cavallo del limite non si spezza",
+    ["a".repeat(78), true],
+    [conFamiglia, conFamiglia.length <= 80],
+  );
+  c(
+    "…se ci sta tutta, resta intera",
+    "a".repeat(70) + famiglia,
+    K.applicaCambio(sc, K.dopoRisposta(sc, "a".repeat(70) + famiglia, il)).storia[0].anteprima,
+  );
   c(
     "…a-capo e spazi doppi diventano uno spazio",
     "Sì, ok",
@@ -237,6 +270,14 @@ export async function proveContatto(mod, { c, gruppo }) {
     "Cancellatemi dalla lista, grazie",
     "Non scrivete più",
     "non scrivermi piu",
+    "Non mi scrivete più",
+    "non mi scrivere più",
+    "Non mi scrivi più, grazie",
+    "Non mi contattate più",
+    "non mi contattare piu",
+    "Non mi mandate più niente",
+    "Toglietemi dalla lista",
+    "Non voglio più messaggi",
   ]) {
     c(`«${t}» è uno STOP`, true, K.eStop(t));
   }
@@ -248,6 +289,9 @@ export async function proveContatto(mod, { c, gruppo }) {
     "",
     null,
     "Posso spostare l'appuntamento?",
+    "Mi scrivete domani?",
+    "Non mi è arrivato il link",
+    "Mi contattate voi alle 15?",
   ]) {
     c(`«${t ?? "(niente)"}» non è uno STOP`, false, K.eStop(t));
   }
@@ -271,7 +315,7 @@ export async function proveContatto(mod, { c, gruppo }) {
   c(
     "dopo STOP, un nuovo invio automatico non lo toglie",
     null,
-    K.dopoInvio(stop, { tipo: "ricontatto", inviatoIl: il }),
+    K.dopoInvio(stop, { tipo: "ricontatto", inviatoIl: il, invioId: "inv-x" }),
   );
   c("dopo STOP, un rifiuto non lo toglie", null, K.dopoRifiuto(stop, "numero non su WhatsApp", il));
   c("dopo STOP, la scadenza non lo tocca", null, K.dopoScadenza(stop, tardi));

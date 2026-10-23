@@ -202,8 +202,8 @@ export function applicaCambio(prima: ContattoWa | undefined | null, c: CambioCon
 const eStopAppiccicoso = (prima: ContattoWa | undefined | null) => prima?.stato === "stop";
 
 export type IngressoInvio =
-  | { tipo: "ricontatto"; inviatoIl: Date; invioId?: string }
-  | { tipo: "promemoria"; inviatoIl: Date; inizioMeet: Date; invioId?: string };
+  | { tipo: "ricontatto"; inviatoIl: Date; invioId: string }
+  | { tipo: "promemoria"; inviatoIl: Date; inizioMeet: Date; invioId: string };
 
 /** ManyChat ha accettato un invio → «In attesa» con la sua scadenza. `null` se
  *  la scheda è in STOP (non si toglie da sola). */
@@ -213,14 +213,17 @@ export function dopoInvio(
 ): CambioContatto | null {
   if (eStopAppiccicoso(prima)) return null;
   const scade = i.tipo === "ricontatto" ? scadenzaRicontatto(i.inviatoIl) : i.inizioMeet;
+  //  ⚠️ `invioId` è obbligatorio: `applicaCambio` conserva quello vecchio se
+  //   il cambio non ne porta uno, e `p_se_invio` confronterebbe le risposte con
+  //   l'invio sbagliato. Il giro l'id lo ha sempre, dalla prenotazione.
   const patch: Omit<ContattoWa, "storia"> = {
     stato: "in_attesa",
     il: isoDi(i.inviatoIl),
     da: DA_AUTOMATICO,
     motivo: i.tipo,
     scadeRisposta: isoDi(scade),
+    invioId: i.invioId,
   };
-  if (i.invioId) patch.invioId = i.invioId;
   return cambio(patch);
 }
 
@@ -232,6 +235,14 @@ const FRASI_STOP = [
   "non scrivete piu",
   "non scrivetemi piu",
   "non scrivermi piu",
+  "non mi scrivete piu",
+  "non mi scrivere piu",
+  "non mi scrivi piu",
+  "non mi contattate piu",
+  "non mi contattare piu",
+  "non mi mandate piu",
+  "non voglio piu messaggi",
+  "toglietemi",
   "non mandatemi piu",
   "non mandate piu",
   "non contattatemi",
@@ -258,16 +269,17 @@ export function eStop(testo: string | null | undefined): boolean {
   return FRASI_STOP.some((f) => n.includes(` ${f} `));
 }
 
-/** L'inizio del testo, al massimo `ANTEPRIMA_MAX` caratteri, senza spezzare
- *  un'emoji e con gli a-capo ridotti a uno spazio. */
+/** L'inizio del testo, al massimo `ANTEPRIMA_MAX` unità, senza spezzare un
+ *  carattere (nemmeno un'emoji composta: 👨‍👩‍👧 resta intera o non c'è) e con gli
+ *  a-capo ridotti a uno spazio. */
 function anteprimaDi(testo: string | null | undefined): string {
   const t = String(testo ?? "")
     .replace(/\s+/g, " ")
     .trim();
   let fuori = "";
-  for (const lettera of t) {
-    if (fuori.length + lettera.length > ANTEPRIMA_MAX) break;
-    fuori += lettera;
+  for (const { segment } of new Intl.Segmenter("it", { granularity: "grapheme" }).segment(t)) {
+    if (fuori.length + segment.length > ANTEPRIMA_MAX) break;
+    fuori += segment;
   }
   return fuori;
 }
