@@ -2,10 +2,19 @@
  *  POST { to: string (E.164), body?: string, templateName?: string, templateLang?: string, leadId?: string }
  *  Auth: bearer della sessione utente (il client allega `Authorization: Bearer <access_token>`).
  *  Persistenza: scrive su public.whatsapp_messages con user_id = utente autenticato.
+ *
+ *  CANALE (commessa 2026-10-23): se l'installazione è passata a ManyChat
+ *  (`manychat_config.canale`), l'invio passa dalla porta unica
+ *  (`crm/manychat/porta`) e la risposta ha la stessa forma di sempre; col canale
+ *  `cloud` (e senza la migrazione M1) tutto resta com'era, compreso il corpo
+ *  Graph, che ora lo scrive `corpoGraph` (identico, provato in porta.mjs).
+ *  Esiti nuovi per la chat: 429 `riprova_fra_poco`, 403 `stop`.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { corpoGraph, inviaWhatsapp, rispostaChat } from "@/crm/manychat/porta";
+import { leggiCanale, nomeDelLead, portePortaVere } from "@/crm/manychat/porta.server";
 
 // Cast helper: i tipi generati per whatsapp_messages/whatsapp_contacts non includono ancora
 // tutti i campi nuovi (user_id ecc.). Uso un client untyped per le insert/upsert.
@@ -80,6 +89,36 @@ export const Route = createFileRoute("/api/whatsapp-send")({
         }
         const to = normalizePhone(body.to);
 
+        // Canale ManyChat: passa dalla porta, che prenota, trova il contatto e fa partire il flusso.
+        // Un guasto nel leggere il canale NON ripiega sul Cloud: sarebbe il numero sbagliato.
+        let canale;
+        try {
+          canale = await leggiCanale(userId);
+        } catch {
+          return Response.json(
+            { error: "canale_non_leggibile", message: "Non riesco a leggere il canale WhatsApp: riprova fra poco." },
+            { status: 503 },
+          );
+        }
+        if (canale.canale === "manychat") {
+          const r = await inviaWhatsapp(portePortaVere(userId, { flussi: canale.flussi }), {
+            canale: "manychat",
+            a: to,
+            // Con un modello si manda il modello e basta (come fa la Cloud): il testo è l'altra strada.
+            testo: body.templateName ? undefined : body.body,
+            modello: body.templateName,
+            lingua: body.templateLang,
+            parametri: body.templateParams,
+            nome: body.leadId ? await nomeDelLead(userId, body.leadId).catch(() => "") : "",
+            leadId: body.leadId ?? null,
+            tipo: "chat",
+          });
+          // Nei log solo il codice dell'esito: mai numero, testo o nome.
+          if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");
+          const { status, corpo } = rispostaChat(r);
+          return Response.json(corpo, { status });
+        }
+
         // Carico credenziali WhatsApp dell'utente (admin client per leggerle)
         const { data: cfg } = await supabaseAdmin
           .from("whatsapp_settings")
@@ -121,34 +160,13 @@ export const Route = createFileRoute("/api/whatsapp-send")({
         }
 
         const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
-        const payload: Record<string, unknown> = {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: to.replace(/^\+/, ""),
-        };
-        if (body.templateName) {
-          payload.type = "template";
-          const template: Record<string, unknown> = {
-            name: body.templateName,
-            language: { code: body.templateLang || "it" },
-          };
-          const params = body.templateParams;
-          if (Array.isArray(params) && params.length > 0) {
-            template.components = [
-              {
-                type: "body",
-                parameters: params.map((text) => ({
-                  type: "text",
-                  text: String(text ?? ""),
-                })),
-              },
-            ];
-          }
-          payload.template = template;
-        } else {
-          payload.type = "text";
-          payload.text = { preview_url: false, body: body.body };
-        }
+        const payload = corpoGraph({
+          a: to,
+          testo: body.body,
+          modello: body.templateName,
+          lingua: body.templateLang,
+          parametri: body.templateParams,
+        });
 
         const res = await fetch(url, {
           method: "POST",

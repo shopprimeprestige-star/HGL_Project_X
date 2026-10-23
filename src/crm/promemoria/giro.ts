@@ -34,6 +34,12 @@ import {
 } from "./pronto";
 
 export const MAX_PER_GIRO = 15;
+/** Col canale ManyChat ogni conferma fa 4-5 chiamate da fino a 8 s l'una, e il
+ *  cron aspetta 45 s: al massimo 2 conferme per giro (2 ogni 2 minuti smaltisce
+ *  30 conferme in mezz'ora) e nessun invio nuovo dopo 20 s dall'inizio del
+ *  giro. Col canale `cloud` resta tutto com'è (15, senza limite di tempo). */
+export const MAX_PER_GIRO_MANYCHAT = 2;
+export const TEMPO_GIRO_MS = 20_000;
 export const GIRO_MINIMO_S = 60;
 export const PAUSA_DOPO_ERRORE_MIN = 10;
 
@@ -64,6 +70,10 @@ export interface Impostazione {
   haWaba: boolean;
   haAppSecret: boolean;
   mode: "live" | "sandbox";
+  /** il canale dell'installazione; assente = `cloud` (come prima del 23/10) */
+  canale?: "cloud" | "manychat";
+  /** col canale ManyChat: c'è `MANYCHAT_API_KEY` fra i segreti? */
+  haChiaveManychat?: boolean;
 }
 
 export interface SchedaGiro {
@@ -95,7 +105,15 @@ export interface Porte {
   controllaModello(
     imp: Impostazione,
   ): Promise<{ trovato: boolean; stato?: string } | { errore: CodiceBlocco }>;
-  invia(imp: Impostazione, numero: string, parametri: string[]): Promise<RispostaInvio>;
+  /** `contesto`: la scheda e il giro, per il registro della porta ManyChat
+   *  (la chiave del registro è unica per tentativo, così un nuovo tentativo
+   *  dopo un rifiuto tecnico non trova la riga di quello prima). */
+  invia(
+    imp: Impostazione,
+    numero: string,
+    parametri: string[],
+    contesto?: { leadId: string; chiave: string; giro: string },
+  ): Promise<RispostaInvio>;
   registraInvio(imp: Impostazione, id: string, numero: string, esito: EsitoInvio): Promise<void>;
 }
 
@@ -171,6 +189,8 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
     haWaba: !!imp?.haWaba,
     haAppSecret: !!imp?.haAppSecret,
     mode: imp?.mode ?? "sandbox",
+    canale: imp?.canale,
+    haChiaveManychat: imp?.haChiaveManychat,
   });
 
   //  Il primo motivo che blocca, prima di leggere una sola scheda.
@@ -215,8 +235,14 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
     if (!finale.pronto) return chiudi(finale, "errore" in m);
     if (prova) continue;
 
+    const manychat = imp.canale === "manychat";
     for (const { s, dec } of daInviare) {
-      if (conti.inviati >= MAX_PER_GIRO) {
+      //  ManyChat: due per giro e niente di nuovo dopo 20 s (il cron aspetta 45 s).
+      const finito = manychat
+        ? conti.inviati >= MAX_PER_GIRO_MANYCHAT ||
+          porte.adesso().getTime() - adesso.getTime() >= TEMPO_GIRO_MS
+        : conti.inviati >= MAX_PER_GIRO;
+      if (finito) {
         conti.inAttesa++;
         continue;
       }
@@ -224,7 +250,9 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
       const mio = await porte.aggancia(s.id, dec.chiave, pezzoDaScrivere(dec, ora) ?? {});
       if (!mio) continue;
       const e = esitoInvio(
-        await porte.invia(imp, dec.numero, dec.parametri).catch(() => ({ rete: true })),
+        await porte
+          .invia(imp, dec.numero, dec.parametri, { leadId: s.id, chiave: dec.chiave, giro: ora })
+          .catch(() => ({ rete: true })),
       );
       if (e.tipo === "ok") {
         await porte.aggiorna(
@@ -247,12 +275,29 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
         await porte.registraInvio(imp, s.id, dec.numero, e);
         continue;
       }
-      if (e.tipo === "rifiuto") {
-        //  Rifiuto esplicito, tecnico o limite: Meta NON l'ha preso. Si toglie
-        //  il segno (si riproverà) e ci si ferma: niente martellamento.
+      if (e.tipo === "riprova") {
+        //  Non è partito e non è colpa di nessuno (pausa per contatto, invio già
+        //  preso): il segno si toglie, niente blocco, e si passa alla scheda dopo.
         await porte.aggiorna(
           s.id,
           { chiave: null, stato: null, invioIl: null, volte: dec.volte - 1 },
+          dec.chiave,
+        );
+        conti.inAttesa++;
+        continue;
+      }
+      if (e.tipo === "rifiuto") {
+        //  Rifiuto esplicito, tecnico o limite: Meta NON l'ha preso. Si toglie
+        //  il segno (si riproverà) e ci si ferma: niente martellamento.
+        //  ⚠️ Col canale ManyChat la chiave resta e il motivo dice «canale»:
+        //   la scheda compare in «Da sentire» con «conferma non partita:
+        //   WhatsApp in passaggio a ManyChat» (conferma.ts), e riprende da sola
+        //   appena il canale torna a posto (stato vuoto = si può riprovare).
+        await porte.aggiorna(
+          s.id,
+          manychat
+            ? { stato: null, invioIl: null, volte: dec.volte - 1, motivo: "canale" }
+            : { chiave: null, stato: null, invioIl: null, volte: dec.volte - 1 },
           dec.chiave,
         );
         const blocco = e.errore.codice as CodiceBlocco;
