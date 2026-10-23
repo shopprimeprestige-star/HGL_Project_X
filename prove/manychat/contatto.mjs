@@ -292,8 +292,27 @@ export async function proveContatto(mod, { c, gruppo }) {
     "Mi scrivete domani?",
     "Non mi è arrivato il link",
     "Mi contattate voi alle 15?",
+    //  Le quattro del revisore: parlano di un appuntamento, non sono un addio.
+    "Scusi, cancellami l'appuntamento di domani",
+    "puoi cancellarmi la prenotazione?",
+    "non contattatemi prima delle 18",
+    "toglietemi una curiosità: è doloroso?",
+    "Cancellatemi la consulenza di giovedì",
+    "Non contattatemi in orario di lavoro",
   ]) {
     c(`«${t ?? "(niente)"}» non è uno STOP`, false, K.eStop(t));
+  }
+  for (const t of [
+    "cancellatemi",
+    "Cancellami, grazie",
+    "non contattatemi",
+    "Non contattatemi più",
+    "toglietemi",
+    "Cancellarmi dalla vostra lista per favore",
+    "non scrivetemi più",
+    "STOP",
+  ]) {
+    c(`«${t}» resta uno STOP (nessun appuntamento nel testo)`, true, K.eStop(t));
   }
   const stop = K.applicaCambio(sc, K.dopoRisposta(sc, "STOP", il));
   c(
