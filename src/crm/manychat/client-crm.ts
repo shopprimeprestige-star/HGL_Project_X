@@ -1,0 +1,186 @@
+/** ── LE CHIAMATE DEL BROWSER A `/api/crm/manychat` E `/api/crm/contatto-wa` ──
+ *
+ *  Commessa 2026-10-23 (WhatsApp con ManyChat), compito 5 (Dev D).
+ *
+ *  ⚠️ QUESTO FILE È IL CONTRATTO CON IL COMPITO 4 (Dev B), CHE SCRIVE LE ROTTE
+ *   DOPO. I componenti (PastigliaContatto, ManychatPannello, …) si appoggiano
+ *   solo ai tipi e alle funzioni di qui: se le rotte rispondono in un altro
+ *   modo, si cambia QUESTO file (o la rotta), non i componenti.
+ *
+ *  ── /api/crm/manychat (dietro `guardiaCRM("impostazioni")`) ───────────────
+ *   GET   → 200 `StatoManychat` (corpo diretto, niente involucro).
+ *   POST  → il corpo è UNO fra questi (il server ne accetta uno per volta):
+ *     { interruttori: { acceso?, promemoria?, ricontatti? } }
+ *     { tetti: { ricontatti?, totale? } }   solo al ribasso: il server li
+ *                                            riporta comunque alle costanti
+ *     { flussi: { [modello]: ns } }         ns vuoto = toglie il flusso
+ *     { canale: "cloud" | "manychat" }
+ *       → 200 `{ config: ConfigManychat }`
+ *     { azione: "prova_a_secco" }                     → 200 `ProvaASecco`
+ *     { azione: "prova_collegamento" }                → 200 `CollegamentoManychat`
+ *     { azione: "prova_creazione_contatto", telefono } → 200 `ProvaCreazione`
+ *   Errori: `{ error: string }` col codice HTTP (401 senza accesso, 403 senza
+ *   «impostazioni», 400 corpo non valido, 5xx guasto). La «prova a secco» non
+ *   chiama ManyChat; la «prova di collegamento» chiede solo «chi sei?» e
+ *   legge flussi e campi; la «prova di creazione» crea il contatto del
+ *   titolare dentro ManyChat e non salva il numero nel CRM. Nessuna manda
+ *   un messaggio.
+ *
+ *  ── /api/crm/contatto-wa (dietro `guardiaCRM(null)`) ──────────────────────
+ *   POST { leadId, stato } → 200 `{ contattoWa }` (il secondo stato com'è
+ *   dopo il cambio, storia compresa). Chi cambia è quello della sessione: il
+ *   nome NON lo manda il browser. 403 `{ error }` se la scheda è di un'altra
+ *   installazione o se si toglie STOP senza «impostazioni»
+ *   (`solo_titolare_toglie_stop`); 404 se la scheda non c'è; 409 se la scheda
+ *   è cambiata mentre si salvava.
+ *
+ *  Le frasi d'errore in chiaro (`fraseErrore`) sono in vista-pannello.ts, e
+ *  sono provate in prove/manychat/pannello.mjs.
+ *  ───────────────────────────────────────────────────────────────────────── */
+import { fetchCRM } from "@/crm/AuthContext";
+import type { ContattoWa, StatoContattoWa } from "../types";
+import type { CanaleWhatsapp } from "./porta";
+import { FRASE_RETE, fraseErrore } from "./vista-pannello";
+
+export const ROTTA_MANYCHAT = "/api/crm/manychat";
+export const ROTTA_CONTATTO_WA = "/api/crm/contatto-wa";
+
+/** Esito di ogni chiamata: mai un'eccezione verso i componenti. `errore` è già
+ *  una frase da mostrare. `stato` 0 = il server non ha risposto. */
+export type RispostaCrm<T> = { ok: true; dati: T } | { ok: false; stato: number; errore: string };
+
+/** Il canale con cui parlano le rotte e il riquadro. */
+export type CanaleManychat = CanaleWhatsapp;
+
+export interface ConfigManychat {
+  canale: CanaleManychat;
+  /** interruttore generale */
+  acceso: boolean;
+  promemoria: boolean;
+  ricontatti: boolean;
+  /** i tetti scelti nel riquadro (mai sopra le costanti: il server li riporta giù) */
+  tetti: { ricontatti?: number; totale?: number };
+  /** modello → `ns` del flusso ManyChat */
+  flussi: Record<string, string>;
+  /** ISO: la prima volta che si è acceso (per la prima settimana a 10) */
+  primaAccensione: string | null;
+  /** ISO: l'ultima accensione */
+  ultimaAccensione: string | null;
+  /** perché il sistema ha spento l'interruttore da solo; `null` = nessun fermo */
+  fermatoMotivo: string | null;
+}
+
+export interface ProblemaGiro {
+  /** ISO */
+  il: string;
+  /** nome abbreviato («Mario R.»), MAI il telefono */
+  nome: string;
+  tipo: "promemoria" | "ricontatto" | "conferma";
+  motivo: string;
+}
+
+export interface GiroManychat {
+  /** ISO dell'ultimo giro finito; `null` = non è mai partito */
+  ultimoGiroIl: string | null;
+  /** ISO dell'ultima risposta arrivata da ManyChat */
+  ultimaRispostaIl: string | null;
+  /** ISO dell'ultimo messaggio automatico partito */
+  ultimoInvioIl: string | null;
+  /** ISO: dopo quest'ora può partire il prossimo ricontatto */
+  prossimoRicontattoDopo: string | null;
+  /** conteggi del giorno di oggi (Roma) */
+  oggi: { promemoria: number; ricontatti: number; risposte: number };
+  /** gli ultimi problemi (il server ne manda al massimo 20) */
+  problemi: ProblemaGiro[];
+}
+
+/** Una riga del «Collegamento ok»: la frase la scrive il server, la riga la
+ *  disegna il riquadro. */
+export interface RigaCollegamento {
+  id: string;
+  esito: "ok" | "errore" | "da_verificare";
+  testo: string;
+}
+
+export interface CollegamentoManychat {
+  /** ISO */
+  controllatoIl: string;
+  righe: RigaCollegamento[];
+}
+
+/** Tutto quello che il riquadro legge in una volta. */
+export interface StatoManychat {
+  /** ISO: l'ora del SERVER. Il riquadro misura «nessun giro da 5 minuti» su questa. */
+  adesso: string;
+  /** false = manca l'aggiornamento del database (la migrazione) */
+  migrazione: boolean;
+  chiavePresente: boolean;
+  segretoRitornoPresente: boolean;
+  config: ConfigManychat;
+  giro: GiroManychat;
+  /** l'ultimo controllo di collegamento; `null` = mai fatto */
+  collegamento: CollegamentoManychat | null;
+}
+
+export interface RigaProva {
+  /** nome abbreviato */
+  nome: string;
+  tipo: "promemoria" | "ricontatto";
+  esito: "scriverebbe" | "aspetta" | "salta";
+  motivo: string;
+}
+
+export interface ProvaASecco {
+  /** ISO */
+  adesso: string;
+  righe: RigaProva[];
+}
+
+export interface ProvaCreazione {
+  esito: "ok" | "negata" | "errore";
+  messaggio: string;
+}
+
+export type ComandoManychat =
+  | { interruttori: Partial<Pick<ConfigManychat, "acceso" | "promemoria" | "ricontatti">> }
+  | { tetti: Partial<ConfigManychat["tetti"]> }
+  | { flussi: Record<string, string> }
+  | { canale: CanaleManychat };
+
+async function chiama<T>(url: string, corpo?: unknown): Promise<RispostaCrm<T>> {
+  try {
+    const res = await fetchCRM(
+      url,
+      corpo === undefined
+        ? undefined
+        : {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(corpo),
+          },
+    );
+    const json = (await res.json().catch(() => null)) as (T & { error?: unknown }) | null;
+    if (res.ok && json) return { ok: true, dati: json };
+    const e = json && typeof json.error === "string" ? json.error : undefined;
+    return { ok: false, stato: res.status, errore: fraseErrore(res.status, e) };
+  } catch {
+    return { ok: false, stato: 0, errore: FRASE_RETE };
+  }
+}
+
+export const leggiManychat = () => chiama<StatoManychat>(ROTTA_MANYCHAT);
+
+export const salvaManychat = (comando: ComandoManychat) =>
+  chiama<{ config: ConfigManychat }>(ROTTA_MANYCHAT, comando);
+
+export const provaASecco = () => chiama<ProvaASecco>(ROTTA_MANYCHAT, { azione: "prova_a_secco" });
+
+export const provaCollegamento = () =>
+  chiama<CollegamentoManychat>(ROTTA_MANYCHAT, { azione: "prova_collegamento" });
+
+export const provaCreazioneContatto = (telefono: string) =>
+  chiama<ProvaCreazione>(ROTTA_MANYCHAT, { azione: "prova_creazione_contatto", telefono });
+
+/** Cambio a mano del secondo stato. Il nome di chi lo fa lo sa il server. */
+export const cambiaContattoWa = (leadId: string, stato: StatoContattoWa) =>
+  chiama<{ contattoWa: ContattoWa }>(ROTTA_CONTATTO_WA, { leadId, stato });
