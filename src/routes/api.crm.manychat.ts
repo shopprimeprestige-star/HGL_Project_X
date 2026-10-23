@@ -32,6 +32,7 @@ import {
 } from "@/crm/manychat/pannello.server";
 import {
   configDaRiga,
+  configDiAltraInstallazione,
   controlliDopoCollegamento,
   controlliDopoCreazione,
   costruisciStato,
@@ -81,7 +82,7 @@ export const Route = createFileRoute("/api/crm/manychat")({
         try {
           const adesso = new Date();
           const cfg = await leggiRigaConfig();
-          if (cfg.riga?.user_id && cfg.riga.user_id !== g.chi.adminUserId)
+          if (configDiAltraInstallazione(cfg.riga, g.chi.adminUserId))
             return json({ error: FRASE_ALTRA }, 403);
           const dati = await leggiDatiStato(g.chi.adminUserId, cfg, adesso, {
             chiave: chiaveManychatPresente(),
@@ -112,7 +113,7 @@ export const Route = createFileRoute("/api/crm/manychat")({
         try {
           const adesso = new Date();
           const cfg = await leggiRigaConfig();
-          if (cfg.riga?.user_id && cfg.riga.user_id !== userId)
+          if (configDiAltraInstallazione(cfg.riga, userId))
             return json({ error: FRASE_ALTRA }, 403);
           const config = configDaRiga(cfg.riga);
 

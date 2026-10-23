@@ -336,6 +336,10 @@ export async function leggiDatiSecco(
 
 export function porteContatto(): PorteContatto {
   return {
+    //  ⚠️ L'UNICA lettura senza `user_id` nel filtro, e apposta: serve a
+    //   distinguere «non esiste» (404) da «è di un'altra installazione» (403).
+    //   La scheda altrui non esce da `cambioContatto`: il confronto con
+    //   l'installazione della sessione viene prima di ogni scrittura.
     leggiScheda: async (leadId) => {
       const { data, error } = await db()
         .from("crm_leads")

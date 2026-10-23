@@ -1666,7 +1666,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   );
 
   /** Un database finto che registra l'ordine delle scritture. */
-  function porteFinte({ scheda, esito = "ok", dopo }) {
+  function porteFinte({ scheda, esito = "ok", dopo, bloccoCade = false }) {
     const log = [];
     return {
       log,
@@ -1677,6 +1677,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
         },
         scriviBlocco: async (userId, cifre, dal) => {
           log.push(["blocco", userId, cifre, dal ? dal.toISOString() : null]);
+          if (bloccoCade) throw { code: "XX000" };
         },
         aggiorna: async (userId, id, cambio) => {
           log.push(["aggiorna", userId, id, cambio.patch.stato, cambio.patch.da]);
@@ -1781,15 +1782,50 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     chi: "Titolare",
   });
   c(
-    "togliere STOP col permesso: prima si azzera il blocco del numero, poi lo stato",
+    "togliere STOP col permesso: prima si salva lo stato, SOLO dopo si azzera il blocco del numero",
     [
       200,
       [
-        ["blocco", UUID_A, "393330000001", null],
         ["aggiorna", UUID_A, LEAD, "contattato", "Titolare"],
+        ["blocco", UUID_A, "393330000001", null],
       ],
     ],
     [rCon.stato, scritture(togliCon.log)],
+  );
+  for (const [esitoDb, atteso] of [
+    ["manca_migrazione", 503],
+    ["nessuna_riga", 409],
+  ]) {
+    const nonSalvato = porteFinte({ scheda: inStop, esito: esitoDb });
+    const r = await chiama(nonSalvato.porte, {
+      stato: "contattato",
+      puoTogliereStop: true,
+      chi: "Titolare",
+    });
+    c(
+      `togliere STOP e lo stato NON si salva (${esitoDb}): ${atteso} e il numero resta bloccato (nessuna scrittura del blocco)`,
+      [atteso, ["aggiorna"]],
+      [r.stato, scritture(nonSalvato.log).map(([k]) => k)],
+    );
+  }
+  const bloccoCade = porteFinte({
+    scheda: inStop,
+    dopo: { stato: "contattato", il: adessoC.toISOString(), da: "Titolare", storia: [] },
+    bloccoCade: true,
+  });
+  const rCade = await chiama(bloccoCade.porte, {
+    stato: "contattato",
+    puoTogliereStop: true,
+    chi: "Titolare",
+  });
+  c(
+    "togliere STOP e l'azzeramento cade: lo stato è salvato, il numero resta bloccato (guasto sicuro), lo dice e nei log c'è solo un codice",
+    [200, true, ["blocco_non_tolto:XX000"]],
+    [
+      rCade.stato,
+      /ancora bloccato/.test(rCade.corpo.avviso ?? ""),
+      bloccoCade.log.filter(([k]) => k === "avviso").map(([, m]) => m),
+    ],
   );
   const restaStop = porteFinte({
     scheda: inStop,
@@ -1849,6 +1885,54 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     "api.crm.contatto-wa: POST dietro guardiaCRM(null) (basta essere dentro: il permesso fine lo decide cambioAMano)",
     [1, 1],
     [guardie(rottaC, "null"), (rottaC.match(/guardiaCRM\(/g) ?? []).length],
+  );
+  c(
+    "contatto-wa: il permesso di togliere STOP è quello «impostazioni» della sessione, non un valore fisso",
+    [true, false],
+    [
+      /puoTogliereStop:\s*g\.chi\.accesso\.puo\("impostazioni"\)/.test(rottaC),
+      /puoTogliereStop:\s*(true|false)\b/.test(rottaC),
+    ],
+  );
+  c(
+    "api.crm.manychat: GET e POST rifiutano (403) la configurazione di un'altra installazione, prima di scrivere",
+    [2, 2],
+    [
+      (
+        rotta.match(
+          /if \(configDiAltraInstallazione\(cfg\.riga, [\w.]+\)\)\s*return json\(\{ error: FRASE_ALTRA \}, 403\)/g,
+        ) ?? []
+      ).length,
+      (rotta.match(/configDiAltraInstallazione\(/g) ?? []).length,
+    ],
+  );
+  c(
+    "…la POST controlla PRIMA di ogni scrittura (scriviConfig, salvaControlli)",
+    true,
+    rotta.indexOf("configDiAltraInstallazione(cfg.riga, userId)") <
+      Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await salvaControlli(")),
+  );
+  c(
+    "configDiAltraInstallazione: stessa installazione, nessuna riga, riga mai scritta → no; un altro user_id → sì",
+    [false, false, false, true],
+    [
+      P.configDiAltraInstallazione({ user_id: UUID_A }, UUID_A),
+      P.configDiAltraInstallazione(null, UUID_A),
+      P.configDiAltraInstallazione({ user_id: null }, UUID_A),
+      P.configDiAltraInstallazione({ user_id: UUID_B }, UUID_A),
+    ],
+  );
+  const contesto = letto("src/crm/CRMContext.tsx");
+  c(
+    "updateLead scarta `contattoWa` dalla modifica con la destrutturazione (non delete), e non tocca `promemoria`",
+    [true, false, false],
+    [
+      /const \{ contattoWa: _soloServer, \.\.\.patch \} = risolviModifica\(modifica, current\.data\)/.test(
+        contesto,
+      ),
+      /delete patch\./.test(contesto),
+      /promemoria: _/.test(contesto),
+    ],
   );
   c(
     "tutte e due ripartono se manca il titolare dei dati (adminUserId)",

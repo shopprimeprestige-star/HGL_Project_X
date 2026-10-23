@@ -96,6 +96,17 @@ function flussiDaDb(v: unknown): Record<string, string> {
   return f;
 }
 
+/** La configurazione è di un'ALTRA installazione? (`user_id` già scritto e
+ *  diverso da quello della sessione.) Vera = la rotta risponde 403 e non scrive:
+ *  altrimenti `scriviConfig` riscriverebbe `user_id`. Una riga senza `user_id`
+ *  (mai scritta) non è di nessun altro. */
+export function configDiAltraInstallazione(
+  riga: Pick<RigaConfig, "user_id"> | null | undefined,
+  userId: string,
+): boolean {
+  return !!riga?.user_id && riga.user_id !== userId;
+}
+
 /** La riga del database → la configurazione che vede il riquadro. Senza riga:
  *  canale `cloud` e tutto spento (la porta resta come prima). */
 export function configDaRiga(r: RigaConfig | null | undefined): ConfigManychat {
@@ -947,9 +958,12 @@ export async function cambioContatto(
   const esito = cambioAMano(prima, i.stato, i.chi, i.adesso, i.puoTogliereStop);
   if (!esito.ok) return { stato: 403, corpo: { error: esito.messaggio, codice: esito.errore } };
 
-  if (esito.mettiStop || esito.togliStop) {
-    const cifre = numeroWa(scheda.data?.telefono);
-    if (cifre) await porte.scriviBlocco(i.userId, cifre, esito.mettiStop ? i.adesso : null);
+  const cifre = numeroWa(scheda.data?.telefono);
+
+  //  METTERE STOP: il blocco del numero PRIMA dello stato. Se il secondo passo
+  //  cade, il numero è già al sicuro e il tentativo si ripete.
+  if (esito.mettiStop) {
+    if (cifre) await porte.scriviBlocco(i.userId, cifre, i.adesso);
     else porte.avviso("stop_senza_numero");
   }
 
@@ -965,6 +979,25 @@ export async function cambioContatto(
       corpo: { error: "La scheda è cambiata mentre salvavi: ricarica e riprova." },
     };
 
+  //  TOGLIERE STOP: all'ORDINE OPPOSTO. Il numero si sblocca solo dopo che lo
+  //  stato è salvato: se il salvataggio non riesce (503, 409), il numero resta
+  //  bloccato come prima. Se è l'azzeramento a cadere, resta bloccato (il guasto
+  //  sicuro) e lo si dice, col solo codice nei log.
+  let avviso: string | undefined;
+  if (esito.togliStop) {
+    if (!cifre) porte.avviso("stop_senza_numero");
+    else {
+      try {
+        await porte.scriviBlocco(i.userId, cifre, null);
+      } catch (e) {
+        const code = (e as { code?: unknown } | null)?.code;
+        porte.avviso(`blocco_non_tolto:${typeof code === "string" ? code : "?"}`);
+        avviso =
+          "Lo stato è cambiato, ma il numero risulta ancora bloccato per gli invii: riprova fra poco o avvisa chi gestisce il sito.";
+      }
+    }
+  }
+
   const dopo = (await porte.rileggi(i.userId, i.leadId)) ?? applicaCambio(prima, esito.cambio);
-  return { stato: 200, corpo: { contattoWa: dopo } };
+  return { stato: 200, corpo: { contattoWa: dopo, ...(avviso ? { avviso } : {}) } };
 }
