@@ -16,6 +16,7 @@
  *   mano non entrano qui.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { Phone } from "lucide-react";
+import { useId } from "react";
 import { Button } from "@/components/ui/button";
 import { linkChiamata } from "@/crm/promemoria/conferma";
 import type { ContattoWa, Lead } from "@/crm/types";
@@ -27,7 +28,6 @@ import { giornoBreve, righeRisposteOggi, type RigaRisposteOggi } from "./vista-p
 const MAX_RIGHE = 8;
 
 function Gruppo({
-  id,
   titolo,
   nota,
   righe,
@@ -37,7 +37,6 @@ function Gruppo({
   onCambiato,
   adesso,
 }: {
-  id: string;
   titolo: string;
   nota: string;
   righe: RigaRisposteOggi<Lead>[];
@@ -47,6 +46,7 @@ function Gruppo({
   onCambiato?: (l: Lead, c: ContattoWa) => void;
   adesso: Date;
 }) {
+  const id = useId();
   if (righe.length === 0) return null;
   const viste = righe.slice(0, MAX_RIGHE);
   return (
@@ -146,7 +146,6 @@ export function RisposteOggi({
       className={cn("space-y-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5", className)}
     >
       <Gruppo
-        id="risposte-oggi-si"
         titolo="Hanno risposto"
         nota="al ricontatto automatico su WhatsApp"
         righe={risposto}
@@ -161,7 +160,6 @@ export function RisposteOggi({
         adesso={ora}
       />
       <Gruppo
-        id="risposte-oggi-no"
         titolo="Non hanno risposto"
         nota="al ricontatto automatico: tocca a una persona"
         righe={nonRisposto}
