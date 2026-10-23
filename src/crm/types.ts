@@ -1772,6 +1772,70 @@ export interface LeadData {
    *  `promemoria_*`; il browser scrive solo `confermatoIl/confermatoVia`
    *  («Confermato a voce»), con `fondiSotto`. Vedi crm/promemoria. */
   promemoria?: PromemoriaWhatsapp;
+  /** Il SECONDO STATO, «stato del contatto» (commessa 2026-10-23, ManyChat):
+   *  sta accanto a `stato` e non lo tocca mai. Lo scrive il server con la
+   *  funzione SQL `contatto_wa_aggiorna` (anche per i cambi a mano), mai il
+   *  browser con una patch. Le regole sono in crm/manychat/contatto. */
+  contattoWa?: ContattoWa;
+  /** «Ok a WhatsApp» messo a mano sulla scheda, dopo averlo chiesto a voce.
+   *  Lo scrive il browser con una patch. Vedi crm/manychat/regole. */
+  okWhatsapp?: OkWhatsapp;
+  /** Il consenso salvato dal modulo di prenotazione. Oggi NESSUN modulo lo
+   *  scrive: il campo c'è perché `consensoWhatsapp` lo legga il giorno in cui
+   *  un modulo comincia a salvarlo. */
+  consensoModulo?: ConsensoModulo;
+}
+
+/** I valori del secondo stato. Le etichette e i colori stanno in contatto.ts. */
+export type StatoContattoWa =
+  | "contattato"
+  | "in_attesa"
+  | "ha_risposto"
+  | "non_ha_risposto"
+  | "da_ricontattare"
+  | "stop"
+  | "non_raggiungibile";
+
+/** Una riga della storia del secondo stato (le ultime 20, la più nuova in testa). */
+export interface VoceContattoWa {
+  stato: StatoContattoWa;
+  /** ISO */
+  il: string;
+  /** «automatico», oppure il nome di chi l'ha cambiato a mano */
+  da: string;
+  /** codice breve ("ricontatto", "promemoria", "stop"…) o il perché di un rifiuto */
+  motivo?: string;
+  /** per «Ha risposto»: l'inizio del testo, al massimo 80 caratteri */
+  anteprima?: string;
+}
+
+export interface ContattoWa {
+  stato: StatoContattoWa;
+  /** ISO dell'ultimo cambio */
+  il: string;
+  da: string;
+  motivo?: string;
+  /** ISO: solo con «In attesa». Passata senza risposta → «Non ha risposto». */
+  scadeRisposta?: string;
+  /** l'ultimo invio automatico (id di `manychat_invii`): la scheda si aggiorna
+   *  solo se è ancora quello (`p_se_invio`) */
+  invioId?: string;
+  /** ISO: l'ultimo sblocco del freno «mai due volte senza risposta» */
+  sbloccatoIl?: string;
+  storia: VoceContattoWa[];
+}
+
+export interface OkWhatsapp {
+  si: boolean;
+  /** ISO di quando è stato messo */
+  il: string;
+  /** chi l'ha messo, dopo averlo chiesto a voce */
+  da: string;
+}
+
+export interface ConsensoModulo {
+  whatsapp?: boolean;
+  il?: string | null;
 }
 
 /** Il segno del messaggio automatico sulla scheda. Vedi crm/promemoria/invio. */
