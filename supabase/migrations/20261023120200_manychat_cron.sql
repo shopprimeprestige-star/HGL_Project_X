@@ -1,0 +1,26 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHATSAPP CON MANYCHAT · IL CRON DEL GIRO (M3, per ULTIMA)
+--
+-- Commessa 2026-10-23. Fa partire ogni minuto il giro dei promemoria 25' e dei
+-- ricontatti (`/hooks/manychat-giro`). Usa `programma_hook_cron_attesa` nata in
+-- M1: pg_net aspetta 45 secondi la risposta (con i 5 di serie il giro verrebbe
+-- tagliato a metà).
+--
+-- ⚠️ DA LANCIARE PER ULTIMA, solo dopo: M1, M2, la pubblicazione del codice con
+--    la rotta /hooks/manychat-giro, i segreti, e le righe di configurazione.
+--    Anche con il cron acceso NON parte niente finché i tre interruttori in
+--    Impostazioni → WhatsApp → «WhatsApp con ManyChat» sono spenti (di serie).
+-- ⚠️ Serve `cron_sito` e `cron_chiave` in app_config, come tutti gli altri
+--    lavori: se mancano non programma niente e lo dice.
+-- ⚠️ Rilanciarla non fa danni: stesso nome del lavoro, `cron.schedule` lo aggiorna.
+--
+-- PER VEDERLO GIRARE (ultime 10 esecuzioni):
+--   SELECT status, return_message, start_time FROM cron.job_run_details
+--    WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'manychat-giro-1min')
+--    ORDER BY start_time DESC LIMIT 10;
+--
+-- PER SPEGNERLO (il giro smette di essere chiamato; non cancella niente):
+--   SELECT cron.unschedule('manychat-giro-1min');
+-- ─────────────────────────────────────────────────────────────────────────────
+
+SELECT public.programma_hook_cron_attesa('manychat-giro-1min', '* * * * *', '/hooks/manychat-giro', 45000);

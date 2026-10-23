@@ -11,6 +11,7 @@ export async function proveRisposta(mod, { c, gruppo }) {
   const RS = mod["manychat/risposta"];
   const RT = mod["manychat/ritorno"];
   const IV = mod["promemoria/invio"];
+  const CT = mod["manychat/contatto"];
   gruppo("MANYCHAT · LA ROTTA DELLE RISPOSTE");
 
   const ADESSO = new Date("2026-10-23T14:00:20Z");
@@ -41,6 +42,10 @@ export async function proveRisposta(mod, { c, gruppo }) {
       avvisi: [],
       letture: 0,
       guasto: o.guasto ?? null,
+      //  il secondo stato (compito 3)
+      rispostaLog: [],
+      contattoLog: [],
+      ultimaRisposta: null,
     };
     const formati = (tel) => [`+${tel}`, tel];
     m.porte = {
@@ -97,6 +102,28 @@ export async function proveRisposta(mod, { c, gruppo }) {
             lead_id: x.leadId,
             last_message_at: x.adesso.toISOString(),
           });
+      },
+      //  `manychat_risposta_arrivata`: la PRIMA risposta resta (coalesce) e l'ora va anche sul giro.
+      rispostaArrivata: async (userId, invioId, adesso) => {
+        if (m.guasto === "risposta_il") throw { code: "XX003", message: `dato ${TEL}` };
+        m.rispostaLog.push({ userId, invioId });
+        m.ultimaRisposta = adesso.toISOString();
+        const i = invioId && m.invii.find((x) => x.id === invioId && x.userId === userId);
+        if (i) i.rispostaIl ??= adesso.toISOString();
+      },
+      contattoDi: async (userId, leadId) => {
+        if (m.guasto === "contatto") throw { code: "XX002", message: `dato ${TEL}` };
+        const s = m.schede.find((x) => x.id === leadId && x.userId === userId);
+        return s ? { contattoWa: s.data.contattoWa } : null;
+      },
+      //  `contatto_wa_aggiorna`, con la guardia dello STOP appiccicoso.
+      scriviContatto: async (userId, leadId, cambio) => {
+        const s = m.schede.find((x) => x.id === leadId && x.userId === userId);
+        if (!s) return false;
+        if (s.data.contattoWa?.stato === "stop" && cambio.patch.da === "automatico") return false;
+        s.data.contattoWa = CT.applicaCambio(s.data.contattoWa, cambio);
+        m.contattoLog.push(cambio.patch.stato);
+        return true;
       },
       conferma: (userId, tel, adesso) => ({
         schedeConMessaggio: async () => {
@@ -527,6 +554,95 @@ export async function proveRisposta(mod, { c, gruppo }) {
     2000,
     m.messaggi[0].body.length,
   );
+
+  /* ═══════════════════════════════════════════════════════════════════════
+   *  IL SECONDO STATO E L'ORA DELLA RISPOSTA (compito 3)
+   * ═══════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · LA RISPOSTA E IL SECONDO STATO");
+  {
+    const ALTRO_LEAD = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+    const U_ALTRO_INVIO = "22222222-3333-4444-8555-666666666666";
+    const stessa = () => {
+      const s = scheda();
+      s.data.contattoWa = {
+        stato: "in_attesa",
+        il: "2026-10-23T13:55:00.000Z",
+        da: "automatico",
+        motivo: "ricontatto",
+        scadeRisposta: "2026-10-24T13:55:00.000Z",
+        invioId: U_INVIO,
+        storia: [],
+      };
+      return s;
+    };
+    const conInvio = (extra = {}) =>
+      mondo({
+        invii: [invioConferma({ tipo: "ricontatto", ...extra })],
+        contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }],
+        schede: [stessa()],
+      });
+
+    let m = conInvio();
+    let r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo: "ok ci sono, a dopo" }) }));
+    let ct = m.schede[0].data.contattoWa;
+    c("«Ha risposto» sulla scheda giusta, con l'anteprima del testo", ["ha_risposto", ADESSO.toISOString(), "automatico", "ok ci sono, a dopo"], [ct.stato, ct.il, ct.da, ct.storia[0].anteprima]);
+    c("…l'invio resta quello del ricontatto (invioId conservato)", U_INVIO, ct.invioId);
+    c("…l'ora della risposta va sull'invio e sul giro (è ciò che sblocca il freno)", [[U_INVIO], ADESSO.toISOString(), ADESSO.toISOString()], [m.rispostaLog.map((x) => x.invioId), m.invii[0].rispostaIl, m.ultimaRisposta]);
+
+    //  La conferma «SÌ»: l'ora della risposta c'è anche per lei, e la conferma resta confermata.
+    m = mondo({ invii: [invioConferma()], contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }], schede: [scheda()] });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO }) }));
+    c("il SÌ della conferma: confermato E risposta_il sulla riga della conferma", ["confermato", ADESSO.toISOString()], [r.esito, m.invii[0].rispostaIl]);
+    c("…e la scheda passa a «Ha risposto»", "ha_risposto", m.schede[0].data.contattoWa?.stato);
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo: "grazie" }), adesso: new Date(ADESSO.getTime() + 5 * 60_000) }));
+    c("una seconda risposta non sposta l'ora della prima (resta la PRIMA)", ADESSO.toISOString(), m.invii[0].rispostaIl);
+
+    //  STOP.
+    m = conInvio();
+    await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo: "non mi scrivete più" }) }));
+    c("«non mi scrivete più» → la scheda va in STOP (e non resta «Ha risposto»)", "stop", m.schede[0].data.contattoWa.stato);
+    c("…e non_scrivere_dal è scritto sul numero", ADESSO.toISOString(), m.contatti[0].non_scrivere_dal);
+
+    //  STOP appiccicoso: una risposta qualunque non lo toglie.
+    m = conInvio();
+    m.schede[0].data.contattoWa = { stato: "stop", il: "2026-10-22T10:00:00.000Z", da: "Sara Demo", storia: [] };
+    await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo: "ok vi ricontatto io" }) }));
+    c("scheda già in STOP: una risposta non la toglie", "stop", m.schede[0].data.contattoWa.stato);
+
+    //  Messaggio di un altro contatto: ignorata, niente sulla scheda.
+    m = conInvio();
+    m.schede.push({ id: ALTRO_LEAD, userId: "u-1", data: { telefono: "333 999 0000", dataMeeting: "2026-10-24", oraMeeting: "16:00" } });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, subscriberId: "2000002", telefono: "+393339990000", testo: "ciao" }) }));
+    c("l'invio è di un altro contatto → ignorata", "ignorata", r.esito);
+    c("…né la scheda dell'invio né l'altra cambiano, e nessuna ora di risposta", [undefined, "in_attesa", 0], [m.schede[1].data.contattoWa, m.schede[0].data.contattoWa.stato, m.rispostaLog.length]);
+
+    //  Uno sconosciuto: niente.
+    m = mondo({ schede: [stessa()] });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: "ciao" }) }));
+    c("sconosciuto non in rubrica → ignorata, nessuna ora di risposta, nessun secondo stato", ["ignorata", 0, 0], [r.esito, m.rispostaLog.length, m.contattoLog.length]);
+
+    //  Senza invio ma con un contatto noto (Default Reply): «Ha risposto» sulla scheda della rubrica, ora solo sul giro.
+    m = mondo({ contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }], schede: [stessa()] });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ subscriberId: "", testo: "buongiorno" }) }));
+    c("Default Reply di un contatto noto → «Ha risposto» sulla scheda della rubrica", ["risposta", "ha_risposto", [null]], [r.esito, m.schede[0].data.contattoWa.stato, m.rispostaLog.map((x) => x.invioId)]);
+
+    //  La stessa risposta due volte: la storia si scrive UNA volta.
+    m = conInvio();
+    await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO }) }));
+    await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: "" }) }));
+    c("flusso + Default Reply: una voce di storia sola, un'ora sola", [1, 1], [m.schede[0].data.contattoWa.storia.length, m.rispostaLog.length]);
+
+    //  Un guasto del secondo stato non perde il resto.
+    m = mondo({ invii: [invioConferma()], contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }], schede: [scheda()], guasto: "contatto" });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO }) }));
+    c("secondo stato guasto: la conferma resta confermata e il messaggio è nel registro", ["confermato", 1], [r.esito, m.messaggi.length]);
+    c("…l'avviso porta il codice, mai il numero", [true, false], [/XX002/.test(m.avvisi.join(" ")), m.avvisi.join(" ").includes(TEL)]);
+    m = mondo({ invii: [invioConferma()], contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }], schede: [scheda()], guasto: "risposta_il" });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO }) }));
+    c("l'ora della risposta non si scrive: la conferma e la scheda vanno avanti lo stesso", ["confermato", "ha_risposto"], [r.esito, m.schede[0].data.contattoWa?.stato]);
+    c("…avviso con il solo codice", [true, false], [/XX003/.test(m.avvisi.join(" ")), m.avvisi.join(" ").includes(TEL)]);
+    void U_ALTRO_INVIO;
+  }
 
   /* ── nessuna chiamata fuori, mai ───────────────────────────────────── */
   c("in tutte le prove: nessuna chiamata esterna", 0, chiamateEsterne);

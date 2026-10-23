@@ -644,4 +644,380 @@ export async function proveMigrazioni(mod, { c, gruppo, radice }) {
     "stop",
     prenota(db, "u", { tipo: "conferma", telefono: "393331234567" }).motivo,
   );
+  await proveMigrazioniGiro({ c, gruppo, radice });
+}
+
+/** ═══════════════════════════════════════════════════════════════════════════
+ *  M2 (il giro e il secondo stato) e M3 (il cron del giro) — compito 3
+ *  ═══════════════════════════════════════════════════════════════════════════ */
+async function proveMigrazioniGiro({ c, gruppo, radice }) {
+  gruppo("MANYCHAT · M2 E M3, LE MIGRAZIONI DEL GIRO (TESTO)");
+  const p2 = join(radice, "supabase/migrations/20261023120100_manychat_giro.sql");
+  const p3 = join(radice, "supabase/migrations/20261023120200_manychat_cron.sql");
+  c("M2 e M3 esistono col nome del piano", [true, true], [existsSync(p2), existsSync(p3)]);
+  if (!existsSync(p2) || !existsSync(p3)) return;
+  const grezzo2 = readFileSync(p2, "utf8");
+  const grezzo3 = readFileSync(p3, "utf8");
+  const sql = senzaCommenti(grezzo2);
+  const alto = sql.toUpperCase();
+  const pos = (re, da = 0) => {
+    const m = re.exec(sql.slice(da));
+    return m ? da + m.index : -1;
+  };
+
+  /* ── solo aggiunte ────────────────────────────────────────────────────── */
+  c(
+    "M2: niente DROP, DELETE, TRUNCATE fuori dai commenti",
+    [false, false, false],
+    [/\bDROP\b/.test(alto), /\bDELETE\b/.test(alto), /\bTRUNCATE\b/.test(alto)],
+  );
+  c(
+    "…il «come si annulla» c'è, ma solo nel commento",
+    [true, true],
+    [/COME SI ANNULLA/i.test(grezzo2), /--\s*DROP /.test(grezzo2)],
+  );
+  c("M2: nessun ALTER TABLE, nessuna tabella nuova, nessuna policy", [false, false, false], [
+    /\bALTER TABLE\b/i.test(sql),
+    /\bCREATE TABLE\b/i.test(sql),
+    /\bCREATE POLICY\b/i.test(sql),
+  ]);
+  c(
+    "UPDATE solo su manychat_invii, manychat_giro e crm_leads (il secondo stato)",
+    true,
+    [...sql.matchAll(/\bUPDATE\s+public\.(\w+)/gi)].every(([, t]) =>
+      ["manychat_invii", "manychat_giro", "crm_leads"].includes(t),
+    ),
+  );
+  c("niente chiamate fuori dal database (net, cron) in M2", false, /\bnet\.|\bcron\./i.test(sql));
+  c(
+    "il cron del giro NON è in M2 (è di M3)",
+    false,
+    /manychat-giro|programma_hook_cron/i.test(sql),
+  );
+  c("i delimitatori $$ sono in numero pari", 0, (sql.match(/\$\$/g) ?? []).length % 2);
+  c("NOTIFY pgrst per ricaricare lo schema", true, /NOTIFY pgrst, 'reload schema'/i.test(sql));
+
+  /* ── le funzioni, chiuse ──────────────────────────────────────────────── */
+  const firme = {
+    manychat_prendi_giro: "uuid, integer",
+    manychat_lascia_giro: "uuid",
+    manychat_prenota_giro: "uuid, jsonb, jsonb, integer",
+    manychat_giro_annulla: "uuid, uuid, text",
+    manychat_risposta_arrivata: "uuid, uuid, timestamptz",
+    contatto_wa_aggiorna: "uuid, uuid, jsonb, jsonb, text",
+  };
+  for (const [nome, args] of Object.entries(firme)) {
+    const f = corpoFunzione(sql, nome);
+    c(
+      `${nome}: SECURITY DEFINER, search_path fissato`,
+      [true, true],
+      [/SECURITY DEFINER/i.test(f), /SET search_path = public/i.test(f)],
+    );
+    c(
+      `${nome}: revocata a PUBLIC, anon, authenticated; solo service_role`,
+      [true, true],
+      [
+        new RegExp(
+          `REVOKE ALL ON FUNCTION public\\.${nome}\\(${args}\\) FROM PUBLIC, anon, authenticated`,
+          "i",
+        ).test(sql),
+        new RegExp(
+          `GRANT EXECUTE ON FUNCTION public\\.${nome}\\(${args}\\) TO service_role`,
+          "i",
+        ).test(sql),
+      ],
+    );
+  }
+
+  /* ── il lucchetto ─────────────────────────────────────────────────────── */
+  const prendi = corpoFunzione(sql, "manychat_prendi_giro");
+  c(
+    "lucchetto: si prende solo se è libero o scaduto, in un solo UPDATE",
+    true,
+    /UPDATE public\.manychat_giro[\s\S]*?WHERE id = 1\s+AND \(lucchetto_fino IS NULL OR lucchetto_fino < now\(\)\)/i.test(
+      prendi,
+    ),
+  );
+  c("…per i secondi chiesti, limitati fra 1 e 300", true, /GREATEST\(1, LEAST\(coalesce\(p_secondi, 120\), 300\)\)/i.test(prendi));
+  c("…vero solo se ha toccato la riga", true, /ROW_COUNT[\s\S]*RETURN n = 1/i.test(prendi));
+  c(
+    "lascia: toglie il lucchetto solo se è ancora il suo (lucchetto_di = p_di)",
+    true,
+    /WHERE id = 1 AND lucchetto_di = p_di/i.test(corpoFunzione(sql, "manychat_lascia_giro")),
+  );
+
+  /* ── la prenotazione del giro: L'ORDINE ───────────────────────────────── */
+  const pr = corpoFunzione(sql, "manychat_prenota_giro");
+  const dentro = (re) => {
+    const m = re.exec(pr);
+    return m ? m.index : -1;
+  };
+  const passi = {
+    fila: dentro(/FROM public\.manychat_giro WHERE id = 1 FOR UPDATE/i),
+    incerto: dentro(/SET stato = 'incerto'/i),
+    tetti: dentro(/'tetto_totale'/),
+    stop: dentro(/non_scrivere_dal IS NOT NULL/i),
+    pausa: dentro(/'pausa_contatto'/),
+    ritmo: dentro(/'ritmo'/),
+    inserisce: dentro(/INSERT INTO public\.manychat_invii/i),
+    posto: dentro(/SET prossimo_ricontatto_dopo = now\(\)/i),
+  };
+  c(
+    "prenota_giro: ci si mette in fila PRIMA di tutto (FOR UPDATE sulla riga del giro)",
+    true,
+    passi.fila > 0 && Object.values(passi).every((v) => v >= passi.fila),
+  );
+  c(
+    "…poi prenotato > 10' → incerto, tetti, STOP, pausa, ritmo, inserimento, posto del ritmo (in quest'ordine)",
+    true,
+    Object.values(passi).every((v) => v > 0) &&
+      passi.fila < passi.incerto &&
+      passi.incerto < passi.tetti &&
+      passi.tetti < passi.stop &&
+      passi.stop < passi.pausa &&
+      passi.pausa < passi.ritmo &&
+      passi.ritmo < passi.inserisce &&
+      passi.inserisce < passi.posto,
+  );
+  const aggiornaGiro = [...pr.matchAll(/UPDATE public\.manychat_giro/gi)].map((m) => m.index);
+  c(
+    "…il ritmo si controlla SENZA scrivere: ogni UPDATE del giro viene DOPO l'inserimento",
+    true,
+    aggiornaGiro.length >= 2 && aggiornaGiro.every((i) => i > passi.inserisce),
+  );
+  c(
+    "…e il ritmo letto è prossimo_ricontatto_dopo (il solo ricontatto) con -infinity se vuoto",
+    true,
+    /v_tipo = 'ricontatto' AND coalesce\(v_ritmo, '-infinity'::timestamptz\) > now\(\)/i.test(pr),
+  );
+  c(
+    "se non inserisce → gia_preso, PRIMA del posto del ritmo (che non si consuma)",
+    true,
+    (() => {
+      const g = dentro(/'gia_preso'/);
+      return g > passi.inserisce && g < passi.posto;
+    })(),
+  );
+  c(
+    "il posto del ritmo: intervallo limitato GREATEST(27, LEAST(33, …))",
+    true,
+    /GREATEST\(27, LEAST\(33, coalesce\(p_intervallo_min, 30\)\)\)/i.test(pr),
+  );
+  c(
+    "…il ricontatto lo fissa a adesso + i minuti; il promemoria lo sposta solo in avanti",
+    [true, true],
+    [
+      /v_tipo = 'ricontatto' THEN\s+UPDATE public\.manychat_giro\s+SET prossimo_ricontatto_dopo = now\(\) \+ make_interval\(mins => v_i\)/i.test(
+        pr,
+      ),
+      /GREATEST\(coalesce\(prossimo_ricontatto_dopo, now\(\)\), now\(\) \+ make_interval\(mins => v_i\)\)/i.test(
+        pr,
+      ),
+    ],
+  );
+  c(
+    "inserimento: ON CONFLICT (chiave) WHERE chiave IS NOT NULL DO NOTHING",
+    true,
+    /ON CONFLICT \(chiave\) WHERE chiave IS NOT NULL DO NOTHING/i.test(pr),
+  );
+  c(
+    "«prenotato» da più di 10 minuti → incerto (solo dell'utente)",
+    true,
+    /UPDATE public\.manychat_invii\s+SET stato = 'incerto'[\s\S]*?WHERE user_id = p_user_id\s+AND stato = 'prenotato'\s+AND prenotato_il < now\(\) - interval '10 minutes'/i.test(
+      pr,
+    ),
+  );
+  /* tetti */
+  const tettiSql = pr.slice(passi.fila, passi.stop);
+  c(
+    "tetti: le costanti 20, 40 e 10 stanno nell'SQL",
+    [true, true, true],
+    [
+      /v_tetto_ric constant int := 20/.test(pr),
+      /v_tetto_tot constant int := 40/.test(pr),
+      /v_tetto_prima constant int := 10/.test(pr),
+    ],
+  );
+  c(
+    "…il riquadro può solo ABBASSARE (LEAST con la costante, solo se è un numero)",
+    [true, true],
+    [
+      /p_tetti->>'ricontatti', ''\) ~ '\^\\d\{1,6\}\$'[\s\S]*?LEAST\(v_tetto_ric, \(p_tetti->>'ricontatti'\)::int\)/i.test(tettiSql),
+      /p_tetti->>'totale', ''\) ~ '\^\\d\{1,6\}\$'[\s\S]*?LEAST\(v_tetto_tot, \(p_tetti->>'totale'\)::int\)/i.test(tettiSql),
+    ],
+  );
+  c(
+    "…la prima settimana si decide QUI da manychat_config.prima_accensione, non da un parametro",
+    [true, true],
+    [
+      /SELECT prima_accensione INTO v_prima FROM public\.manychat_config WHERE id = 1/i.test(tettiSql),
+      /now\(\) < coalesce\(v_prima, now\(\)\) \+ interval '7 days'/i.test(tettiSql),
+    ],
+  );
+  c(
+    "…senza data di prima accensione vale la prima settimana (coalesce, il tetto più basso)",
+    true,
+    /coalesce\(v_prima, now\(\)\)/i.test(tettiSql) && !/p_tetti->>'prima/i.test(pr),
+  );
+  c(
+    "…il giorno è quello di Roma, e contano prenotato/inviato/incerto di promemoria e ricontatto",
+    [true, true, true],
+    [
+      /Europe\/Rome/.test(tettiSql),
+      /tipo IN \('promemoria', 'ricontatto'\)/.test(tettiSql),
+      /stato IN \('prenotato', 'inviato', 'incerto'\)/.test(tettiSql),
+    ],
+  );
+  c(
+    "…il tetto dei ricontatti vale solo per i ricontatti; quello totale per tutti",
+    [true, true],
+    [
+      /v_tot >= v_max_tot THEN\s+RETURN jsonb_build_object\('motivo', 'tetto_totale'\)/i.test(tettiSql),
+      /v_tipo = 'ricontatto' AND v_ric >= v_max_ric/i.test(tettiSql),
+    ],
+  );
+  /* STOP e pausa */
+  c(
+    "STOP col «+» e senza (righe vecchie), solo i contatti dell'utente",
+    [true, true, true],
+    [
+      /c\.phone_e164 = '\+' \|\| v_tel/.test(pr),
+      /ltrim\(c\.phone_e164, '\+'\) = v_tel/.test(pr),
+      /c\.user_id = p_user_id[\s\S]{0,80}non_scrivere_dal IS NOT NULL/i.test(pr),
+    ],
+  );
+  const primaPausa = pr.slice(passi.pausa - 700, passi.pausa);
+  c(
+    "pausa: prenotato, inviato, incerto degli ultimi 120 s, mai saltato né fallito",
+    [true, true, false, false],
+    [
+      /stato IN \('prenotato', 'inviato', 'incerto'\)/i.test(primaPausa),
+      /v_pausa_s/.test(primaPausa) && /v_pausa_s\s+constant int := 120/.test(pr),
+      /saltato/i.test(primaPausa),
+      /fallito/i.test(primaPausa),
+    ],
+  );
+  c(
+    "tutto con l'utente nel WHERE o nel VALUES",
+    true,
+    (pr.match(/user_id = p_user_id/g) ?? []).length >= 4 && /VALUES\s*\(p_user_id/i.test(pr),
+  );
+  c(
+    "un tipo che non è promemoria o ricontatto è un errore del chiamante, non un «motivo»",
+    true,
+    /v_tipo NOT IN \('promemoria', 'ricontatto'\) THEN\s+RAISE EXCEPTION/i.test(pr),
+  );
+  c("lead_id facoltativo", true, /nullif\(p->>'lead_id', ''\)::uuid/i.test(pr));
+  c("la funzione non chiama nessuno fuori", false, /net\.|http|cron\./i.test(pr));
+
+  /* ── annulla: «saltato» SENZA chiave ───────────────────────────────────── */
+  const an = corpoFunzione(sql, "manychat_giro_annulla");
+  c(
+    "annulla: stato «saltato» e chiave NULL (la riga non tiene occupato il giorno)",
+    [true, true],
+    [/stato = 'saltato'/.test(an), /chiave = NULL/.test(an)],
+  );
+  c(
+    "…solo se è ancora prenotato o fallito, solo dell'utente",
+    [true, true],
+    [/stato IN \('prenotato', 'fallito'\)/.test(an), /user_id = p_user_id/.test(an)],
+  );
+
+  /* ── l'ora della risposta ─────────────────────────────────────────────── */
+  const ra = corpoFunzione(sql, "manychat_risposta_arrivata");
+  c(
+    "risposta_arrivata: la PRIMA risposta resta (coalesce), solo dell'utente",
+    [true, true],
+    [/SET risposta_il = coalesce\(risposta_il, p_il\)/.test(ra), /id = p_id AND user_id = p_user_id/.test(ra)],
+  );
+  c(
+    "…e l'ora dell'ultima risposta va sul giro (per «nessuna risposta da 48 ore»); p_id può mancare",
+    [true, true],
+    [/ultima_risposta_il = GREATEST\(coalesce\(ultima_risposta_il, p_il\), p_il\)/.test(ra), /IF p_id IS NOT NULL THEN/.test(ra)],
+  );
+
+  /* ── il secondo stato ─────────────────────────────────────────────────── */
+  const cw = corpoFunzione(sql, "contatto_wa_aggiorna");
+  c(
+    "contatto_wa_aggiorna: tocca SOLO data.contattoWa (jsonb_set su '{contattoWa}')",
+    [true, true],
+    [/jsonb_set\(coalesce\(v_dati, '\{\}'::jsonb\), '\{contattoWa\}', v_nuovo, true\)/.test(cw), (cw.match(/UPDATE public\.crm_leads/gi) ?? []).length === 1],
+  );
+  c(
+    "…con la scheda bloccata e l'utente sia nella lettura sia nella scrittura",
+    [true, true],
+    [
+      /WHERE id = p_id AND user_id = p_user_id\s+FOR UPDATE/i.test(cw),
+      /UPDATE public\.crm_leads[\s\S]*?WHERE id = p_id AND user_id = p_user_id/i.test(cw),
+    ],
+  );
+  const iStop = cw.search(/v_prima->>'stato' = 'stop' AND coalesce\(v_patch->>'da', ''\) = 'automatico'/);
+  const iUpdate = cw.search(/UPDATE public\.crm_leads/);
+  c(
+    "NOTA 2: lo STOP appiccicoso si ricontrolla DENTRO la funzione, prima dell'UPDATE (da = 'automatico')",
+    true,
+    iStop > 0 && iStop < iUpdate && /v_prima->>'stato' = 'stop'[\s\S]{0,120}RETURN false/i.test(cw),
+  );
+  c(
+    "p_se_invio: vale solo sull'invioId della scheda; «Non ha risposto» solo se è ancora «In attesa»",
+    [true, true],
+    [
+      /coalesce\(v_prima->>'invioId', ''\) <> p_se_invio THEN RETURN false/.test(cw),
+      /v_patch->>'stato' = 'non_ha_risposto' AND coalesce\(v_prima->>'stato', ''\) <> 'in_attesa'/.test(cw),
+    ],
+  );
+  c(
+    "la fusione è quella di applicaCambio: stato/il/da/motivo/scadeRisposta sostituiti, invioId e sbloccatoIl conservati",
+    [true, true],
+    [
+      /v_prima - 'stato' - 'il' - 'da' - 'motivo' - 'scadeRisposta'/.test(cw),
+      !/- 'invioId'|- 'sbloccatoIl'/.test(cw),
+    ],
+  );
+  c("…i valori nulli della patch non cancellano niente (jsonb_strip_nulls)", true, /jsonb_strip_nulls/.test(cw));
+  c(
+    "…storia: la voce nuova in testa, al massimo 20",
+    [true, true],
+    [/jsonb_build_array\(coalesce\(p_voce, '\{\}'::jsonb\)\) \|\| coalesce\(v_prima->'storia'/.test(cw), /LIMIT 20/.test(cw)],
+  );
+  c(
+    "…lo stato deve essere uno dei sette",
+    true,
+    /NOT IN\s*\('contattato', 'in_attesa', 'ha_risposto', 'non_ha_risposto', 'da_ricontattare', 'stop', 'non_raggiungibile'\)/.test(cw),
+  );
+
+  /* ── il riempimento una tantum di risposta_il ─────────────────────────── */
+  const riempi = sql.slice(sql.search(/\nUPDATE public\.manychat_invii i\b/));
+  c("riempimento: c'è, in fondo", true, /^\s*UPDATE public\.manychat_invii i\b/.test(riempi));
+  c(
+    "…tocca solo righe con risposta_il VUOTO (due volte: nel sotto-elenco e nell'UPDATE)",
+    2,
+    (riempi.match(/risposta_il IS NULL/gi) ?? []).length,
+  );
+  c(
+    "…cerca la prima risposta in arrivo (inbound) dello stesso numero, dopo l'invio ed entro 7 giorni",
+    [true, true, true, true],
+    [
+      /w\.direction = 'inbound'/.test(riempi),
+      /ltrim\(w\.from_number, '\+'\) = i2\.telefono/.test(riempi),
+      /w\.created_at > coalesce\(i2\.inviato_il, i2\.prenotato_il\)/.test(riempi),
+      /interval '7 days'/.test(riempi),
+    ],
+  );
+  c("…solo di installazioni uguali (user_id) e di invii partiti (inviato, incerto)", [true, true], [/w\.user_id = i2\.user_id/.test(riempi), /i2\.stato IN \('inviato', 'incerto'\)/.test(riempi)]);
+  c("…e non cancella né azzera niente", false, /risposta_il = NULL|DELETE/i.test(riempi));
+
+  /* ── M3: il cron, per ultimo ──────────────────────────────────────────── */
+  const sql3 = senzaCommenti(grezzo3).trim();
+  c(
+    "M3: una sola istruzione, il cron del giro a 45 s con la funzione di M1",
+    "SELECT public.programma_hook_cron_attesa('manychat-giro-1min', '* * * * *', '/hooks/manychat-giro', 45000);",
+    sql3,
+  );
+  c(
+    "…come spegnerlo e come vederlo girare stanno solo nel commento",
+    [true, true, false],
+    [/--\s+SELECT cron\.unschedule\('manychat-giro-1min'\)/.test(grezzo3), /cron\.job_run_details/.test(grezzo3), /unschedule|job_run_details/.test(sql3)],
+  );
+  c("…nessun altro lavoro di cron in M3", 1, (sql3.match(/programma_hook_cron/g) ?? []).length);
 }

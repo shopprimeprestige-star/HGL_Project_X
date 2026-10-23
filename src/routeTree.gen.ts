@@ -54,6 +54,7 @@ import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/prom
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
 import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-reminder'
+import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-giro'
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
@@ -419,6 +420,11 @@ const HooksMetaLeadSyncRoute = HooksMetaLeadSyncRouteImport.update({
 const HooksMeetReminderRoute = HooksMeetReminderRouteImport.update({
   id: '/hooks/meet-reminder',
   path: '/hooks/meet-reminder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksManychatGiroRoute = HooksManychatGiroRouteImport.update({
+  id: '/hooks/manychat-giro',
+  path: '/hooks/manychat-giro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksFxRatesRoute = HooksFxRatesRouteImport.update({
@@ -1203,6 +1209,7 @@ export interface FileRoutesByFullPath {
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
+  '/hooks/manychat-giro': typeof HooksManychatGiroRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1385,6 +1392,7 @@ export interface FileRoutesByTo {
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
+  '/hooks/manychat-giro': typeof HooksManychatGiroRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1573,6 +1581,7 @@ export interface FileRoutesById {
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
+  '/hooks/manychat-giro': typeof HooksManychatGiroRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1762,6 +1771,7 @@ export interface FileRouteTypes {
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
+    | '/hooks/manychat-giro'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -1944,6 +1954,7 @@ export interface FileRouteTypes {
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
+    | '/hooks/manychat-giro'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2131,6 +2142,7 @@ export interface FileRouteTypes {
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
+    | '/hooks/manychat-giro'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2286,6 +2298,7 @@ export interface RootRouteChildren {
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
+  HooksManychatGiroRoute: typeof HooksManychatGiroRoute
   HooksMeetReminderRoute: typeof HooksMeetReminderRoute
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
@@ -2711,6 +2724,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/meet-reminder'
       fullPath: '/hooks/meet-reminder'
       preLoaderRoute: typeof HooksMeetReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/manychat-giro': {
+      id: '/hooks/manychat-giro'
+      path: '/hooks/manychat-giro'
+      fullPath: '/hooks/manychat-giro'
+      preLoaderRoute: typeof HooksManychatGiroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/fx-rates': {
@@ -3872,6 +3892,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
+  HooksManychatGiroRoute: HooksManychatGiroRoute,
   HooksMeetReminderRoute: HooksMeetReminderRoute,
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
