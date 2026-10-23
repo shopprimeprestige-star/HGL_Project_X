@@ -613,34 +613,133 @@ export async function proveVistaComponenti(aiuti) {
   c("ns: troppo lungo → no", false, V.leggiNs("a".repeat(121)).ok);
 
   // ── il «Collegamento ok» ──────────────────────────────────────────────
-  const righe = (...esiti) => ({
+  //  Le righe obbligatorie sono UNA per id di V.ID_COLLEGAMENTO; due le scrive
+  //  il browser (segreto e ultima risposta), le altre arrivano dal server.
+  const CTX = { segretoRitornoPresente: true, ultimaRispostaIl: "2026-10-23T13:09:00Z" };
+  const DAL_SERVER = V.ID_COLLEGAMENTO.filter(
+    (id) => id !== "segreto_ritorno" && id !== "ultima_risposta",
+  );
+  const coll = (esiti = {}, senza = []) => ({
     controllatoIl: ADESSO.toISOString(),
-    righe: esiti.map((esito, i) => ({ id: `r${i}`, esito, testo: "x" })),
+    righe: DAL_SERVER.filter((id) => !senza.includes(id)).map((id) => ({
+      id,
+      esito: esiti[id] ?? "ok",
+      testo: "x",
+    })),
   });
+  const titolo = (cc, ctx = CTX) => ((t) => [t.tono, t.titolo])(V.titoloCollegamento(cc, ctx));
   c(
-    "collegamento: mai controllato",
-    ["neutro", "Collegamento non ancora controllato"],
-    ((t) => [t.tono, t.titolo])(V.titoloCollegamento(null)),
+    "collegamento: gli id obbligatori (chiave, Pro, un flusso per modello, campi, segreto, ultima risposta, creazione)",
+    [
+      "chiave",
+      "is_pro",
+      "flusso:consulenza_conferma_presenza",
+      "flusso:hgl_promemoria_meet",
+      "flusso:hgl_ricontatto_consulenza",
+      "campi_crm",
+      "segreto_ritorno",
+      "ultima_risposta",
+      "creazione_contatti",
+    ],
+    V.ID_COLLEGAMENTO,
   );
   c(
-    "collegamento: tutto ok → verde «Collegamento ok»",
+    "collegamento: mai controllato → neutro",
+    ["neutro", "Collegamento non ancora controllato"],
+    titolo(null),
+  );
+  c(
+    "collegamento: mai controllato, ma l'ultima risposta e il segreto si vedono già",
+    [
+      ["segreto_ritorno", "ok", "Segreto del ritorno presente"],
+      ["ultima_risposta", "ok", "Ultima risposta ricevuta: 23/10 15:09"],
+    ],
+    V.righeCollegamento(null, CTX).map((r) => [r.id, r.esito, r.testo]),
+  );
+  c(
+    "collegamento: «ultima risposta» mai arrivata → «mai», da verificare",
+    ["da_verificare", "Ultima risposta ricevuta: mai"],
+    ((r) => [r.esito, r.testo])(
+      V.righeCollegamento(null, { ...CTX, ultimaRispostaIl: null }).find(
+        (x) => x.id === "ultima_risposta",
+      ),
+    ),
+  );
+  c(
+    "collegamento: tutto ok e segreto presente → verde «Collegamento ok»",
     ["verde", "Collegamento ok"],
-    ((t) => [t.tono, t.titolo])(V.titoloCollegamento(righe("ok", "ok"))),
+    titolo(coll()),
+  );
+  //  ⚠️ PROVA DEL REVISORE (1): il segreto del ritorno manca → mai verde, e lo
+  //   dice, anche se il server manda tutte le sue righe «ok» (o dimentica quella).
+  c(
+    "collegamento: segreto del ritorno assente → NON verde (rosso, 1 problema)",
+    ["rosso", "Collegamento: 1 problema"],
+    titolo(coll(), { ...CTX, segretoRitornoPresente: false }),
+  );
+  c(
+    "collegamento: segreto assente anche prima della prima prova → rosso",
+    ["rosso", "Collegamento: 1 problema"],
+    titolo(null, { ...CTX, segretoRitornoPresente: false }),
+  );
+  //  ⚠️ PROVA DEL REVISORE (2): il server dimentica una riga obbligatoria →
+  //   quella riga è «da verificare» e il titolo non è verde.
+  const senzaCampi = V.righeCollegamento(coll({}, ["campi_crm"]), CTX).find(
+    (r) => r.id === "campi_crm",
+  );
+  c(
+    "collegamento: riga obbligatoria mancante → «da verificare», con la frase",
+    ["da_verificare", "Non controllato: i campi crm_* del contatto"],
+    [senzaCampi.esito, senzaCampi.testo],
+  );
+  c(
+    "collegamento: riga obbligatoria mancante → NON verde (ambra)",
+    ["ambra", "Collegamento: 1 cosa da verificare"],
+    titolo(coll({}, ["campi_crm"])),
+  );
+  c(
+    "collegamento: manca un flusso → «Non controllato: il flusso …»",
+    "Non controllato: il flusso «Promemoria 25 minuti prima del meet»",
+    V.righeCollegamento(coll({}, ["flusso:hgl_promemoria_meet"]), CTX).find(
+      (r) => r.id === "flusso:hgl_promemoria_meet",
+    ).testo,
+  );
+  c(
+    "collegamento: le righe del server non possono dire «ok» per il segreto",
+    "errore",
+    V.righeCollegamento(
+      {
+        controllatoIl: ADESSO.toISOString(),
+        righe: [{ id: "segreto_ritorno", esito: "ok", testo: "x" }],
+      },
+      { ...CTX, segretoRitornoPresente: false },
+    ).find((r) => r.id === "segreto_ritorno").esito,
   );
   c(
     "collegamento: un problema basta → rosso",
     ["rosso", "Collegamento: 1 problema"],
-    ((t) => [t.tono, t.titolo])(V.titoloCollegamento(righe("ok", "errore", "da_verificare"))),
+    titolo(coll({ is_pro: "errore", creazione_contatti: "da_verificare" })),
   );
   c(
     "collegamento: due problemi → plurale",
     "Collegamento: 2 problemi",
-    V.titoloCollegamento(righe("errore", "errore")).titolo,
+    titolo(coll({ is_pro: "errore", chiave: "errore" }))[1],
   );
   c(
     "collegamento: solo «da verificare» → ambra, mai «ok»",
     ["ambra", "Collegamento: 1 cosa da verificare"],
-    ((t) => [t.tono, t.titolo])(V.titoloCollegamento(righe("ok", "da_verificare"))),
+    titolo(coll({ creazione_contatti: "da_verificare" })),
+  );
+  c(
+    "collegamento: una riga in più del server si mostra in coda",
+    "extra",
+    V.righeCollegamento(
+      {
+        controllatoIl: ADESSO.toISOString(),
+        righe: [...coll().righe, { id: "extra", esito: "ok", testo: "y" }],
+      },
+      CTX,
+    ).at(-1).id,
   );
   c(
     "collegamento: ogni esito ha la sua parola",
