@@ -24,6 +24,11 @@
  *   acceso; le chiavi WhatsApp con il numero live (non sandbox); l'App Secret;
  *   il modello approvato da Meta.
  *
+ *  CANALE (commessa 2026-10-23): ogni installazione ha il suo canale,
+ *  `cloud` (la Graph API diretta, come sempre) o `manychat`. L'invio passa
+ *  dalla porta unica (`crm/manychat/porta`), che con `cloud` manda lo stesso
+ *  corpo di prima. Senza la migrazione M1 il canale è `cloud`.
+ *
  *  ⚠️ I TOKEN RESTANO QUI DENTRO: non escono nelle risposte né nei log, e il
  *   giro non li vede (riceve le impostazioni senza segreti).
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -35,6 +40,9 @@ import { valoriDaLead } from "@/crm/whatsapp";
 import { NOME_MODELLO } from "@/crm/promemoria/invio";
 import { classificaErroreMeta, mancaMigrazione, FRASI_BLOCCO } from "@/crm/promemoria/pronto";
 import type { CodiceBlocco } from "@/crm/promemoria/pronto";
+import { inviaWhatsapp, rispostaPerConferma } from "@/crm/manychat/porta";
+import type { PortePorta } from "@/crm/manychat/porta";
+import { chiaveManychatPresente, leggiCanale, portePortaVere } from "@/crm/manychat/porta.server";
 import {
   giroPromemoria,
   type ConfigPromemoria,
@@ -108,6 +116,22 @@ async function scriviJson(chiave: string, valore: unknown) {
  *  (la prova a secco del riquadro); null = tutte (il cron). */
 export function porteVere(soloUtente: string | null): Porte {
   const segreti = new Map<string, Segreti>();
+  /** il flusso di ogni modello, per le installazioni su ManyChat */
+  const flussi = new Map<string, Record<string, string>>();
+  /** le porte della porta, una per installazione: il client tiene l'id del campo */
+  const porte = new Map<string, PortePorta>();
+  const portaDi = (userId: string) => {
+    let p = porte.get(userId);
+    if (!p) {
+      const s = segreti.get(userId);
+      p = portePortaVere(userId, {
+        flussi: flussi.get(userId),
+        cloud: s ? { phoneNumberId: s.phoneNumberId, token: s.token } : undefined,
+      });
+      porte.set(userId, p);
+    }
+    return p;
+  };
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     const { data, error } = await db.rpc(fn, args);
     if (error) throw new Error(`${fn}: ${error.code ?? ""} ${error.message ?? ""}`);
@@ -148,18 +172,25 @@ export function porteVere(soloUtente: string | null): Porte {
       //  stringa vuota non deve mai diventare «tutte le installazioni».
       if (soloUtente !== null) q = q.eq("user_id", soloUtente);
       const { data } = await q;
-      return (data ?? []).map((r): Impostazione => {
+      const righe = data ?? [];
+      //  Il canale di ogni installazione. Un guasto lancia: il giro lo dice
+      //  («controllo non riuscito») invece di scegliere il numero a caso.
+      const canali = await Promise.all(righe.map((r) => leggiCanale(r.user_id)));
+      return righe.map((r, i): Impostazione => {
         segreti.set(r.user_id, {
           phoneNumberId: r.phone_number_id ?? "",
           token: r.access_token ?? "",
           waba: r.business_account_id ?? "",
         });
+        flussi.set(r.user_id, canali[i].flussi);
         return {
           userId: r.user_id,
           haChiavi: !!r.phone_number_id && !!r.access_token,
           haWaba: !!r.business_account_id,
           haAppSecret: !!r.app_secret,
           mode: r.mode === "sandbox" ? "sandbox" : "live",
+          canale: canali[i].canale,
+          haChiaveManychat: chiaveManychatPresente(),
         };
       });
     },
@@ -194,6 +225,9 @@ export function porteVere(soloUtente: string | null): Porte {
     aggiorna: (id, pezzo: Partial<PromemoriaWhatsapp>, seChiave) =>
       rpc("promemoria_aggiorna", { p_id: id, p_patch: pezzo, p_se_chiave: seChiave }),
     controllaModello: async (imp) => {
+      //  ManyChat: il «modello» è il flusso collegato in `manychat_config.flussi`.
+      if (imp.canale === "manychat")
+        return { trovato: !!flussi.get(imp.userId)?.[NOME_MODELLO], stato: "APPROVED" };
       const s = segreti.get(imp.userId);
       if (!s) return { errore: "mancano_chiavi" };
       try {
@@ -217,32 +251,26 @@ export function porteVere(soloUtente: string | null): Porte {
         return { errore: "controllo_fallito" };
       }
     },
-    invia: async (imp, numero, parametri) => {
-      const s = segreti.get(imp.userId);
-      if (!s) return { status: 400, corpo: { error: { code: 190 } } };
-      const res = await fetch(`${META_API}/${s.phoneNumberId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.token}` },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: numero,
-          type: "template",
-          template: {
-            name: NOME_MODELLO,
-            language: { code: "it" },
-            components: [
-              { type: "body", parameters: parametri.map((text) => ({ type: "text", text })) },
-            ],
-          },
+    //  Dalla porta unica: con `cloud` lo stesso corpo Graph di prima, con
+    //  `manychat` la prenotazione, i campi e il flusso (vedi `manychat/porta.ts`).
+    invia: async (imp, numero, parametri, contesto) =>
+      rispostaPerConferma(
+        await inviaWhatsapp(portaDi(imp.userId), {
+          canale: imp.canale ?? "cloud",
+          a: numero,
+          modello: NOME_MODELLO,
+          lingua: "it",
+          parametri,
+          nome: parametri[0],
+          leadId: contesto?.leadId ?? null,
+          tipo: "conferma",
+          chiave: contesto ? `c|${contesto.chiave}|${contesto.giro}` : undefined,
         }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      const corpo = await res.json().catch(() => null);
-      return { status: res.status, corpo };
-    },
+      ),
     //  Ogni messaggio finisce anche nella pagina WhatsApp, con la sua scheda.
     registraInvio: async (imp, id, numero, esito) => {
+      //  Col canale ManyChat la riga la scrive già la porta.
+      if (imp.canale === "manychat") return;
       const s = segreti.get(imp.userId);
       const a = `+${numero}`;
       await db.from("whatsapp_messages").insert({

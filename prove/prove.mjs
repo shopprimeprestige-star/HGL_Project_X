@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
+import { proveManychat } from "./manychat.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -514,6 +515,20 @@ const MODULI = [
   "promemoria/pronto",
   "promemoria/giro",
   "promemoria/in-entrata",
+  //  ⚠️ WHATSAPP CON MANYCHAT (commessa 2026-10-23): il secondo stato del lead
+  //   («stato del contatto»), le regole su chi può ricevere e chi tocca adesso,
+  //   il client, la porta unica degli invii, la rotta delle risposte e il giro.
+  //   Un file di prove per area in `prove/manychat/`, chiamati da
+  //   `proveManychat` (prove/manychat.mjs): qui basta questo elenco.
+  "manychat/contatto",
+  "manychat/regole",
+  "manychat/quando",
+  "manychat/testi",
+  "manychat/api",
+  "manychat/ritorno",
+  "manychat/porta",
+  "manychat/risposta",
+  "manychat/giro",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20430,6 +20445,7 @@ await proveDelGiroDelPromemoria();
 await proveDelWebhookDelPromemoria();
 proveDiOggiPerLaConferma();
 proveDelRiquadroDelPromemoria();
+await proveManychat(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20694,7 +20710,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
