@@ -986,33 +986,57 @@ async function proveMigrazioniGiro({ c, gruppo, radice }) {
     /NOT IN\s*\('contattato', 'in_attesa', 'ha_risposto', 'non_ha_risposto', 'da_ricontattare', 'stop', 'non_raggiungibile'\)/.test(cw),
   );
 
-  /* ── il riempimento una tantum di risposta_il ─────────────────────────── */
-  const riempi = sql.slice(sql.search(/\nUPDATE public\.manychat_invii i\b/));
-  c("riempimento: c'è, in fondo", true, /^\s*UPDATE public\.manychat_invii i\b/.test(riempi));
+  /* ── il riempimento di risposta_il: in M2 E in M3 ─────────────────────── */
+  //  L'ordine è «M2, pubblicazione, M3»: le risposte arrivate fra M2 e la
+  //  pubblicazione le recupera il secondo giro, in M3.
+  const sql3 = senzaCommenti(grezzo3).trim();
+  for (const [nome, testo] of [
+    ["M2", sql],
+    ["M3", sql3],
+  ]) {
+    const riempi = testo.slice(testo.search(/\nUPDATE public\.manychat_invii i\b|^UPDATE public\.manychat_invii i\b/));
+    c(`riempimento in ${nome}: c'è`, true, /^\s*UPDATE public\.manychat_invii i\b/.test(riempi));
+    c(
+      `…${nome}: tocca solo righe con risposta_il VUOTO (nel sotto-elenco e nell'UPDATE)`,
+      2,
+      (riempi.match(/risposta_il IS NULL/gi) ?? []).length,
+    );
+    c(
+      `…${nome}: la prima risposta in arrivo (inbound) dello stesso numero, dopo l'invio ed entro 7 giorni`,
+      [true, true, true, true],
+      [
+        /w\.direction = 'inbound'/.test(riempi),
+        /ltrim\(w\.from_number, '\+'\) = i2\.telefono/.test(riempi),
+        /w\.created_at > coalesce\(i2\.inviato_il, i2\.prenotato_il\)/.test(riempi),
+        /interval '7 days'/.test(riempi),
+      ],
+    );
+    c(
+      `…${nome}: stessa installazione (user_id) e solo invii partiti (inviato, incerto)`,
+      [true, true],
+      [/w\.user_id = i2\.user_id/.test(riempi), /i2\.stato IN \('inviato', 'incerto'\)/.test(riempi)],
+    );
+    c(`…${nome}: non cancella né azzera niente`, false, /risposta_il = NULL|DELETE/i.test(riempi));
+  }
+  const bloccoDi = (t) => t.slice(t.search(/UPDATE public\.manychat_invii i\b/)).split(";")[0];
   c(
-    "…tocca solo righe con risposta_il VUOTO (due volte: nel sotto-elenco e nell'UPDATE)",
-    2,
-    (riempi.match(/risposta_il IS NULL/gi) ?? []).length,
+    "…lo stesso identico UPDATE in M2 e in M3 (idempotente, rilanciabile)",
+    true,
+    bloccoDi(sql).trim() === bloccoDi(sql3).trim() && bloccoDi(sql).length > 100,
   );
-  c(
-    "…cerca la prima risposta in arrivo (inbound) dello stesso numero, dopo l'invio ed entro 7 giorni",
-    [true, true, true, true],
-    [
-      /w\.direction = 'inbound'/.test(riempi),
-      /ltrim\(w\.from_number, '\+'\) = i2\.telefono/.test(riempi),
-      /w\.created_at > coalesce\(i2\.inviato_il, i2\.prenotato_il\)/.test(riempi),
-      /interval '7 days'/.test(riempi),
-    ],
-  );
-  c("…solo di installazioni uguali (user_id) e di invii partiti (inviato, incerto)", [true, true], [/w\.user_id = i2\.user_id/.test(riempi), /i2\.stato IN \('inviato', 'incerto'\)/.test(riempi)]);
-  c("…e non cancella né azzera niente", false, /risposta_il = NULL|DELETE/i.test(riempi));
 
   /* ── M3: il cron, per ultimo ──────────────────────────────────────────── */
-  const sql3 = senzaCommenti(grezzo3).trim();
+  const cronSql =
+    "SELECT public.programma_hook_cron_attesa('manychat-giro-1min', '* * * * *', '/hooks/manychat-giro', 45000);";
   c(
-    "M3: una sola istruzione, il cron del giro a 45 s con la funzione di M1",
-    "SELECT public.programma_hook_cron_attesa('manychat-giro-1min', '* * * * *', '/hooks/manychat-giro', 45000);",
-    sql3,
+    "M3: due istruzioni, il riempimento di risposta_il e POI il cron del giro a 45 s con la funzione di M1",
+    true,
+    sql3.endsWith(cronSql) && sql3.indexOf("UPDATE public.manychat_invii") < sql3.indexOf(cronSql),
+  );
+  c(
+    "…nient'altro: niente DROP, DELETE, TRUNCATE, ALTER, CREATE",
+    false,
+    /\b(DROP|DELETE|TRUNCATE|ALTER|CREATE)\b/i.test(sql3),
   );
   c(
     "…come spegnerlo e come vederlo girare stanno solo nel commento",

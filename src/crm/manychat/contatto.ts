@@ -242,16 +242,30 @@ const FRASI_STOP = [
   "non mi contattare piu",
   "non mi mandate piu",
   "non voglio piu messaggi",
-  "toglietemi",
   "non mandatemi piu",
   "non mandate piu",
-  "non contattatemi",
-  "cancellatemi",
-  "cancellami",
-  "cancellarmi",
   "disiscrivetemi",
   "disiscrivimi",
 ];
+
+/** Le frasi che sono STOP solo se il resto del testo non dice altro: «cancellami
+ *  l'appuntamento», «non contattatemi prima delle 18», «toglietemi una curiosità:
+ *  è doloroso?» sono richieste su un appuntamento, non un addio. Un falso STOP
+ *  qui costa caro (il numero si chiude su tutti i canali e lo riapre solo il
+ *  titolare). */
+const FRASI_STOP_SE_SOLE = [
+  "cancellatemi",
+  "cancellami",
+  "cancellarmi",
+  "non contattatemi",
+  "toglietemi",
+];
+
+/** Le parole che dicono «sto parlando di un appuntamento» (o di un orario): con
+ *  una di queste le `FRASI_STOP_SE_SOLE` non valgono. Anche un punto
+ *  interrogativo: chi se ne va non fa domande. */
+const CONTESTO_APPUNTAMENTO =
+  /\b(appuntament\w*|prenot\w*|meet|consulenz\w*|visit\w*|orari\w*|ora|ore|alle|prima|dopo|domani|oggi|stasera|stamattina|mattina|pomeriggio|sera|giorno|giorni|data|settimana|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|chiamata|call|colloquio|incontro)\b/;
 
 const normalizza = (t: string) =>
   t
@@ -266,7 +280,9 @@ export function eStop(testo: string | null | undefined): boolean {
   const t = String(testo ?? "");
   if (leggiRisposta(t) === "stop") return true;
   const n = ` ${normalizza(t)} `;
-  return FRASI_STOP.some((f) => n.includes(` ${f} `));
+  if (FRASI_STOP.some((f) => n.includes(` ${f} `))) return true;
+  if (t.includes("?") || CONTESTO_APPUNTAMENTO.test(n)) return false;
+  return FRASI_STOP_SE_SOLE.some((f) => n.includes(` ${f} `));
 }
 
 /** L'inizio del testo, al massimo `ANTEPRIMA_MAX` unità, senza spezzare un

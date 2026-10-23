@@ -251,6 +251,7 @@ export async function proveGiro(mod, { c, gruppo }) {
             .filter((s) => s.data.contattoWa?.stato === "in_attesa")
             .map((s) => structuredClone({ id: s.id, data: s.data })),
         scheda: async (userId, id) => {
+          if (o.guastoRilettura) throw { code: "XX004", message: `dato ${cifre(1)}` };
           const s = m.schede.find((x) => x.id === id && x.userId === userId);
           return s ? structuredClone({ id: s.id, data: s.data }) : null;
         },
@@ -736,6 +737,78 @@ export async function proveGiro(mod, { c, gruppo }) {
         m.invii.filter((r) => r.leadId === "s1").length,
         m.invii.filter((r) => r.leadId === "s2").length,
       ],
+    );
+
+    //  Un 4xx diverso da 401/403/429 è quasi sempre UN contatto: non spegne al primo.
+    m = mondo({ schede: [meet("s1", 1), meet("s2", 2)] });
+    m.f.su("POST", PERCORSI.flusso, esiti.modelloRifiutato());
+    e = await m.giroOra();
+    c(
+      "400 su sendFlow (un contatto rotto) → NON spegne al primo: un fallito di fila",
+      [false, true, 1],
+      [!!e.spento, m.config.acceso, m.giro.falliti],
+    );
+    c(
+      "…la riga è «fallito» con la chiave (non si rimanda) e il motivo è un codice",
+      ["fallito", true],
+      [m.invii[0].stato, /http_400/.test(JSON.stringify(m.giro.stato.problemi))],
+    );
+    m.orologio.avanza(3 * MIN);
+    e = await m.giroOra();
+    c(
+      "…al secondo di fila SÌ: spento col motivo dei 2 falliti",
+      [true, false, true],
+      [e.spento, m.config.acceso, /2 invii falliti di fila/.test(m.spenti[0])],
+    );
+    for (const [http, nome] of [
+      [401, "401"],
+      [403, "403"],
+      [429, "429"],
+    ]) {
+      m = mondo({ schede: [meet("s1", 1)] });
+      m.f.su("POST", PERCORSI.flusso, esiti.errore(http));
+      e = await m.giroOra();
+      c(`${nome} su sendFlow → spegne subito`, [true, false], [e.spento, m.config.acceso]);
+    }
+    m = mondo({ schede: [meet("s1", 1)], guastoPrenota: true });
+    e = await m.giroOra();
+    c(
+      "registro che non risponde → spegne subito (blocco di configurazione)",
+      [true, false],
+      [e.spento, m.config.acceso],
+    );
+    c(
+      "bloccoImmediato: 401, 403, 429, nessun codice e codici nostri sì; 400, 404, 422 no",
+      [true, true, true, true, true, false, false, false],
+      [
+        G.bloccoImmediato("http_401"),
+        G.bloccoImmediato("http_403_3001"),
+        G.bloccoImmediato("http_429"),
+        G.bloccoImmediato(undefined),
+        G.bloccoImmediato("registro"),
+        G.bloccoImmediato("http_400"),
+        G.bloccoImmediato("http_404"),
+        G.bloccoImmediato("http_422_2002"),
+      ],
+    );
+
+    //  La rilettura della scheda dà errore: la riga si annulla, il giro si ferma, niente si spegne.
+    m = mondo({ schede: [meet("s1", 1), meet("s2", 2)], guastoRilettura: true });
+    e = await m.giroOra();
+    c(
+      "rilettura in errore → nessuna chiamata a ManyChat, riga «saltato» senza chiave",
+      [0, "saltato", null],
+      [m.f.chiamate.length, m.invii[0].stato, m.invii[0].chiave],
+    );
+    c(
+      "…il giro si ferma lì (una sola prenotazione) e non spegne niente",
+      [1, true, false],
+      [m.invii.length, m.config.acceso, !!e.spento],
+    );
+    c(
+      "…l'avviso porta il codice, mai il numero",
+      [true, false],
+      [/XX004/.test(m.avvisi.join(" ")), m.avvisi.join(" ").includes("3930")],
     );
 
     //  Un invio che va bene azzera i falliti.
@@ -1245,6 +1318,20 @@ export async function proveGiro(mod, { c, gruppo }) {
       "la prova a secco non guarda lucchetto né chiave",
       true,
       (await m2.giroOra(true)).righe.length > 0,
+    );
+
+    //  Col canale ancora `cloud` la prova mostra cosa farebbe, il giro vero no.
+    const mc = mondo({ schede, config: { canale: "cloud" } });
+    const ec = await mc.giroOra(true);
+    c(
+      "prova a secco col canale cloud: mostra le righe, senza chiamate né scritture",
+      [true, 0],
+      [ec.righe?.length > 0 && !ec.fermo, mc.f.chiamate.length],
+    );
+    c(
+      "…il giro VERO col canale cloud continua a non fare niente",
+      ["canale", 0],
+      [(await mc.giroOra()).fermo, mc.f.chiamate.length],
     );
 
     //  Un ricontatto che ha già il ritmo davanti: la prova lo dice.

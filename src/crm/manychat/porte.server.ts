@@ -31,6 +31,7 @@ interface Filtro<T> extends Esito<T> {
   in(c: string, v: string[]): Filtro<T>;
   gte(c: string, v: string): Filtro<T>;
   lte(c: string, v: string): Filtro<T>;
+  is(c: string, v: null): Filtro<T>;
   or(filtri: string): Filtro<T>;
   order(c: string, o: { ascending: boolean }): Filtro<T>;
   limit(n: number): Filtro<T>;
@@ -212,7 +213,9 @@ export function porteRisposta(): PorteRispostaManychat {
           .from("whatsapp_contacts")
           .update({ non_scrivere_dal: adesso.toISOString() })
           .eq("user_id", userId)
-          .in("phone_e164", formati(telefono));
+          .in("phone_e164", formati(telefono))
+          //  Solo chi non è già in STOP: la data «dal» resta quella del primo STOP.
+          .is("non_scrivere_dal", null);
         return { error };
       },
       avviso: (m) => console.warn("[manychat-risposta] conferma:", m),

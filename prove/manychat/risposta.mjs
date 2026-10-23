@@ -603,6 +603,31 @@ export async function proveRisposta(mod, { c, gruppo }) {
     c("«non mi scrivete più» → la scheda va in STOP (e non resta «Ha risposto»)", "stop", m.schede[0].data.contattoWa.stato);
     c("…e non_scrivere_dal è scritto sul numero", ADESSO.toISOString(), m.contatti[0].non_scrivere_dal);
 
+    //  Le frasi che NON sono STOP (disdire un appuntamento): né la scheda né il numero si chiudono.
+    for (const testo of [
+      "Scusi, cancellami l'appuntamento di domani",
+      "puoi cancellarmi la prenotazione?",
+      "non contattatemi prima delle 18",
+      "toglietemi una curiosità: è doloroso?",
+    ]) {
+      m = conInvio();
+      await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo }) }));
+      c(
+        `«${testo}» NON è STOP: scheda «Ha risposto», nessun non_scrivere_dal`,
+        ["ha_risposto", undefined],
+        [m.schede[0].data.contattoWa.stato, m.contatti[0].non_scrivere_dal],
+      );
+    }
+    for (const testo of ["cancellatemi", "non scrivetemi più"]) {
+      m = conInvio();
+      await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo }) }));
+      c(
+        `«${testo}» resta STOP: scheda in STOP e numero chiuso`,
+        ["stop", ADESSO.toISOString()],
+        [m.schede[0].data.contattoWa.stato, m.contatti[0].non_scrivere_dal],
+      );
+    }
+
     //  STOP appiccicoso: una risposta qualunque non lo toglie.
     m = conInvio();
     m.schede[0].data.contattoWa = { stato: "stop", il: "2026-10-22T10:00:00.000Z", da: "Sara Demo", storia: [] };

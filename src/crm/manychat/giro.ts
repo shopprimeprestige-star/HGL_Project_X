@@ -290,6 +290,17 @@ function unisciProblemi(
   return [...veri, ...prima].slice(0, MAX_PROBLEMI);
 }
 
+/** Un blocco che spegne SUBITO l'interruttore: ManyChat non ci ascolta più
+ *  (chiave 401, permesso 403, limite 429) oppure da noi manca qualcosa (chiave,
+ *  registro, configurazione: qualunque codice che non sia una risposta HTTP di
+ *  ManyChat). Gli altri `http_4xx` sono quasi sempre un contatto solo: contano
+ *  come falliti di fila. */
+export function bloccoImmediato(codice: string | undefined): boolean {
+  const m = /^http_(\d{3})/.exec(codice ?? "");
+  if (!m) return true;
+  return ["401", "403", "429"].includes(m[1]);
+}
+
 /** Il client di ManyChat con una cosa in più: prima di `sendFlow` mette il tag.
  *  Un errore del tag non ferma l'invio (il tag serve solo a ritrovare le
  *  persone in ManyChat). */
@@ -377,7 +388,9 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     }
     return { ...esito, fermo };
   };
-  if (config.canale !== "manychat") return fermoCon("canale");
+  //  La prova a secco mostra cosa farebbe anche col canale ancora `cloud`: serve a
+  //  vederlo PRIMA di cambiare canale. Il giro vero con `cloud` non fa niente.
+  if (!prova && config.canale !== "manychat") return fermoCon("canale");
   if (!prova) {
     if (!config.acceso || (!config.promemoria && !config.ricontatti)) return fermoCon("spento");
     if (!porte.chiaveManychat()) return fermoCon("senza_chiave");
@@ -552,7 +565,19 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
         }
         //  ⚠️ Rilegge la scheda e rifà la decisione: fra la lettura del giro e
         //   ora la scheda può essere cambiata (meet spostato, consenso tolto, STOP).
-        if (!(await ancora())) {
+        let ancoraBuona = false;
+        try {
+          ancoraBuona = await ancora();
+        } catch (e) {
+          //  La rilettura non è riuscita: la riga prenotata non deve restare
+          //  appesa (diventerebbe «incerto» e quel messaggio non partirebbe più).
+          //  Si annulla e il giro si ferma senza spegnere niente.
+          porte.avviso(`giro_rilettura_errore_${codiceErrore(e)}`);
+          await porte.annulla(userId, r.id, "rilettura_non_riuscita").catch(() => undefined);
+          rifiuto = "rilettura_non_riuscita";
+          return { motivo: "gia_preso" };
+        }
+        if (!ancoraBuona) {
           await porte.annulla(userId, r.id, "scheda_cambiata").catch(() => undefined);
           rifiuto = "scheda_cambiata";
           return { motivo: "gia_preso" };
@@ -591,6 +616,9 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       case "scheda_cambiata":
         esito.saltati++;
         return { fine: "continua" };
+      case "rilettura_non_riuscita":
+        esito.saltati++;
+        return { fine: "ferma" };
       case "gia_preso":
         return { fine: "continua" };
       case "stop": {
@@ -683,11 +711,19 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           problema(scheda, cand.tipo, "ManyChat non risponde: il messaggio non è partito");
           return finisciSeTroppi();
         }
-        //  Chiave rifiutata, canale scollegato, modello in pausa, limite, o il
-        //  registro che non risponde: si ferma tutto e si spegne.
-        problema(scheda, cand.tipo, `ManyChat ha rifiutato l'invio (${r.codice ?? "blocco"})`);
-        await spegni(`ManyChat ha rifiutato l'invio (${r.codice ?? "blocco"})`);
-        return { fine: "ferma" };
+        const frase = `ManyChat ha rifiutato l'invio (${r.codice ?? "blocco"})`;
+        problema(scheda, cand.tipo, frase);
+        //  Chiave rifiutata (401), permesso negato (403), limite (429), chiave
+        //  mancante, registro o configurazione che non vanno: si spegne subito.
+        if (bloccoImmediato(r.codice)) {
+          await spegni(frase);
+          return { fine: "ferma" };
+        }
+        //  Ogni altro 4xx può essere UN contatto «rotto» (cancellato in ManyChat,
+        //  inattivo…): non deve spegnere tutto al primo. Conta come fallito, e al
+        //  secondo di fila si spegne.
+        falliti++;
+        return finisciSeTroppi();
       }
     }
   };
