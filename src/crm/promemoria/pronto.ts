@@ -14,6 +14,7 @@
  *   solo con un rifiuto esplicito, cioè un `error` con il suo codice.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { NOME_MODELLO } from "./invio";
+import type { EsitoPorta } from "../manychat/porta";
 
 export type CodiceBlocco =
   | "manca_migrazione"
@@ -29,7 +30,11 @@ export type CodiceBlocco =
   | "permessi"
   | "limite"
   | "meta_incerto"
-  | "controllo_fallito";
+  | "controllo_fallito"
+  //  col canale ManyChat (commessa 2026-10-23)
+  | "manca_chiave_manychat"
+  | "manca_flusso"
+  | "manychat_rifiuta";
 
 export const FRASI_BLOCCO: Record<CodiceBlocco, string> = {
   manca_migrazione:
@@ -51,6 +56,11 @@ export const FRASI_BLOCCO: Record<CodiceBlocco, string> = {
     "Meta non ha risposto in modo chiaro: quel messaggio non verrà ripetuto (la setter lo vede), riprovo gli altri fra qualche minuto.",
   controllo_fallito:
     "Il controllo non è riuscito (database o Meta non raggiungibili): riprovo fra qualche minuto.",
+  manca_chiave_manychat:
+    "Manca la chiave di ManyChat (MANYCHAT_API_KEY, fra i segreti del sito): nessun messaggio parte.",
+  manca_flusso: `Il modello ${NOME_MODELLO} non ha un flusso collegato in ManyChat (manychat_config.flussi): finché manca, nessuna conferma parte. Le consulenze dei prossimi giorni sono in «Da sentire».`,
+  manychat_rifiuta:
+    "ManyChat ha rifiutato l'invio (chiave, canale WhatsApp scollegato o flusso in pausa): quel messaggio non è partito, riprovo fra qualche minuto.",
 };
 
 export interface IngressoPronto {
@@ -60,7 +70,12 @@ export interface IngressoPronto {
   haWaba: boolean;
   haAppSecret: boolean;
   mode: "live" | "sandbox";
-  /** null = non controllato (nessun messaggio da mandare adesso) */
+  /** Il canale dell'installazione; assente = `cloud`, come prima del 23/10. */
+  canale?: "cloud" | "manychat";
+  /** Col canale ManyChat: c'è `MANYCHAT_API_KEY`? */
+  haChiaveManychat?: boolean;
+  /** null = non controllato (nessun messaggio da mandare adesso).
+   *  Col canale ManyChat `trovato` vuol dire «il flusso del modello è collegato». */
   modello: { trovato: boolean; stato?: string } | null;
   /** il controllo del modello è fallito con questo motivo */
   erroreControllo?: CodiceBlocco;
@@ -80,6 +95,14 @@ export function valutaPronto(i: IngressoPronto): Pronto {
   });
   if (!i.migrazione) return no("manca_migrazione");
   if (!i.acceso) return no("spento");
+  //  Col canale ManyChat non servono token, App Secret né sandbox: servono la
+  //  chiave di ManyChat e il flusso del modello.
+  if (i.canale === "manychat") {
+    if (!i.haChiaveManychat) return no("manca_chiave_manychat");
+    if (i.erroreControllo) return no(i.erroreControllo);
+    if (i.modello && !i.modello.trovato) return no("manca_flusso");
+    return { pronto: true, frase: "Attivo." };
+  }
   if (!i.haChiavi) return no("mancano_chiavi");
   if (!i.haWaba) return no("manca_waba");
   if (!i.haAppSecret) return no("manca_app_secret");
@@ -94,7 +117,7 @@ export function valutaPronto(i: IngressoPronto): Pronto {
 export interface ErroreMeta {
   /** tecnico = si ferma il giro; limite = idem, si riprova; cliente = solo questa scheda */
   tipo: "tecnico" | "cliente" | "limite";
-  codice: CodiceBlocco | "non_recapitato" | "rifiutato";
+  codice: CodiceBlocco | "non_recapitato" | "rifiutato" | "disiscritto" | "da_collegare";
 }
 
 const LIMITE = [4, 80007, 130429, 131048, 131049, 131056];
@@ -123,17 +146,26 @@ export interface RispostaInvio {
   status?: number;
   /** il corpo JSON; null = non era JSON */
   corpo?: unknown;
+  /** Col canale ManyChat: l'esito della porta (`manychat/porta.ts`). Si legge
+   *  PRIMA di `status`, `corpo` e `rete`. Col canale `cloud` non c'è. */
+  manychat?: EsitoPorta;
+  /** Col canale ManyChat: l'id del messaggio per il segno (`mc:<id>`). */
+  waId?: string;
 }
 
 export type EsitoInvio =
   | { tipo: "ok"; waId: string }
   | { tipo: "rifiuto"; errore: ErroreMeta }
+  /** non è partito e non è colpa di nessuno (pausa per contatto, invio già preso
+   *  da un altro giro): il segno si toglie, si riprova al giro dopo, nessun blocco */
+  | { tipo: "riprova" }
   | { tipo: "incerto" };
 
 /** Codici con cui Meta dice «qualcosa è andato storto da noi»: non è un no. */
 const DUBBI = [1, 2, 131000];
 
 export function esitoInvio(r: RispostaInvio): EsitoInvio {
+  if (r.manychat !== undefined) return esitoDaPorta(r.manychat, r.waId);
   if (r.rete || !r.status || r.status >= 500 || !r.corpo || typeof r.corpo !== "object")
     return { tipo: "incerto" };
   const corpo = r.corpo as { error?: { code?: unknown }; messages?: { id?: string }[] };
@@ -145,6 +177,40 @@ export function esitoInvio(r: RispostaInvio): EsitoInvio {
   const waId = corpo.messages?.[0]?.id;
   if (r.status >= 200 && r.status < 300 && waId) return { tipo: "ok", waId };
   return { tipo: "incerto" };
+}
+
+/** ── LA TRADUZIONE DELLA PORTA (PIANO §1e c) ───────────────────────────────
+ *  Nessun esito nuovo arriva al giro come `rete` o come corpo sconosciuto:
+ *  `incerto` è SOLO rete giù, timeout e 5xx. Un esito che non conosco è
+ *  `incerto`, mai `ok`. */
+function esitoDaPorta(e: EsitoPorta, waId?: string): EsitoInvio {
+  const cliente = (codice: ErroreMeta["codice"]): EsitoInvio => ({
+    tipo: "rifiuto",
+    errore: { tipo: "cliente", codice },
+  });
+  const tecnico = (codice: CodiceBlocco): EsitoInvio => ({
+    tipo: "rifiuto",
+    errore: { tipo: "tecnico", codice },
+  });
+  switch (e) {
+    case "ok":
+      return { tipo: "ok", waId: waId ?? "mc:ok" };
+    case "riprova_fra_poco":
+    case "gia_preso":
+      return { tipo: "riprova" };
+    case "stop":
+      return cliente("disiscritto");
+    case "da_collegare":
+      return cliente("da_collegare");
+    case "rifiuto_contatto":
+      return cliente("non_recapitato");
+    case "flusso_mancante":
+      return tecnico("manca_flusso");
+    case "blocco":
+      return tecnico("manychat_rifiuta");
+    default:
+      return { tipo: "incerto" };
+  }
 }
 
 /** L'errore del database dice che la migrazione non è stata applicata

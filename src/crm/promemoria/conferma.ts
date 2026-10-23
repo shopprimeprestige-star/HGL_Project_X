@@ -33,13 +33,24 @@ function mancanoA(d: Partial<LeadData>, adesso: Date): number | null {
 
 const tempo = (x?: string | null) => (x ? Date.parse(x) : -Infinity);
 
+/** Col canale ManyChat (commessa 2026-10-23) la conferma può fermarsi per il
+ *  canale (flusso non collegato, ManyChat che rifiuta): la scheda non ha un
+ *  messaggio partito ma la setter deve saperlo. */
+export const FRASE_CANALE = "conferma non partita: WhatsApp in passaggio a ManyChat";
+const FRASE_DA_COLLEGARE = "messaggio non partito: contatto ManyChat da collegare";
+
 export function statoConferma(d: Partial<LeadData> | undefined, adesso: Date): StatoConferma {
   const nessuno = { tipo: "nessuno" } as const;
   const p = d?.promemoria;
-  if (!d || !p || !p.stato || p.stato === "preesistente") return nessuno;
+  if (!d || !p) return nessuno;
+  //  Segno tolto per il canale: la chiave c'è ancora, lo stato no. Vale solo
+  //  per questo appuntamento (spostato, la chiave cambia e la targhetta tace).
+  const perIlCanale = !p.stato && p.motivo === "canale";
+  if (!perIlCanale && (!p.stato || p.stato === "preesistente")) return nessuno;
   if (!eAppuntamento(d.stato) || p.chiave !== chiaveAppuntamento(d)) return nessuno;
   const mancano = mancanoA(d, adesso);
   if (mancano === null || mancano <= 0) return nessuno;
+  if (perIlCanale) return { tipo: "nonConfermato", nota: FRASE_CANALE };
 
   const si = tempo(p.confermatoIl);
   const altro = tempo(p.rispostaIl);
@@ -58,6 +69,7 @@ export function statoConferma(d: Partial<LeadData> | undefined, adesso: Date): S
       ? { tipo: "nonConfermato", nota: "non ha risposto" }
       : { tipo: "inviato" };
   }
+  if (p.motivo === "da_collegare") return { tipo: "nonConfermato", nota: FRASE_DA_COLLEGARE };
   return { tipo: "nonConfermato", nota: testoMotivo(p.motivo ?? p.stato) };
 }
 

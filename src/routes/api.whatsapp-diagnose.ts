@@ -3,10 +3,15 @@
  *  ritorna informazioni utili (display number, verified_name, sandbox/live,
  *  permessi token, conteggio template approvati). Usata dal pannello impostazioni
  *  per mostrare un riepilogo "live/test" all'apertura della pagina.
+ *
+ *  Col canale ManyChat (commessa 2026-10-23) NON chiama Graph: il numero è su
+ *  ManyChat e le chiavi Meta non contano. Risponde con `error` + `message`,
+ *  che il pannello mostra così com'è.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { leggiCanale } from "@/crm/manychat/porta.server";
 
 interface PhoneInfo {
   display_phone_number?: string;
@@ -49,6 +54,23 @@ export const Route = createFileRoute("/api/whatsapp-diagnose")({
           return Response.json({ error: "invalid_session" }, { status: 401 });
         }
         const userId = userRes.user.id;
+
+        //  Un guasto nel leggere il canale non ripiega sul Cloud: la diagnosi sul
+        //  numero sbagliato sarebbe una bugia.
+        const canale = await leggiCanale(userId).catch(() => null);
+        if (!canale)
+          return Response.json({
+            ok: false,
+            error: "canale_non_leggibile",
+            message: "Non riesco a leggere il canale WhatsApp: riprova fra poco.",
+          });
+        if (canale.canale === "manychat")
+          return Response.json({
+            ok: true,
+            error: "su_manychat",
+            message:
+              "Il numero è su ManyChat: la diagnosi della Cloud API non serve. Il controllo del collegamento è nel riquadro «WhatsApp con ManyChat».",
+          });
 
         const { data: cfg } = await supabaseAdmin
           .from("whatsapp_settings")
