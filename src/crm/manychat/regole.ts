@@ -21,6 +21,7 @@
 import type { ConsensoModulo, Consultant, ContattoWa, LeadData, OkWhatsapp } from "../types";
 import { mestieriDi } from "../kpi-setter";
 import { numeroPerWhatsapp } from "../promemoria/formati";
+import { istanteDiRoma } from "./contatto";
 
 /** ── L'INTERRUTTORE DI REGOLA: IL FRENO VALE ANCHE PER IL PROMEMORIA? ──────
  *  Decisione APERTA del titolare. La SEGNALAZIONE prometteva «mai due messaggi
@@ -141,17 +142,40 @@ const istante = (iso?: string | null): number => {
   return t;
 };
 
+/** Dopo quanti giorni dall'invio un messaggio senza risposta smette di frenare
+ *  (qualunque tipo). Decisione del capo progetto: senza un limite, chi si
+ *  collega al meet senza scrivere su WhatsApp resterebbe bloccato per sempre. */
+export const FRENO_SCADE_DOPO_GIORNI = 7;
+
+/** L'inizio del meet a cui si riferisce una riga `promemoria`, letto dalla sua
+ *  chiave `p|tel9|AAAA-MM-GGTHH:MM` (ora di Roma). `null` se non si legge. */
+function inizioMeetDelPromemoria(i: InvioPerFreno): number | null {
+  if (i.tipo !== "promemoria") return null;
+  const m = /^p\|\d+\|(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(i.chiave ?? "");
+  const inizio = m ? istanteDiRoma(m[1], m[2]) : null;
+  return inizio ? inizio.getTime() : null;
+}
+
 /** Il freno «mai due volte senza risposta», per TELEFONO: `true` = l'ultimo
  *  messaggio automatico a quel numero non ha avuto risposta, il prossimo non
  *  parte.
  *  Si sblocca con: una risposta (sulla riga, o su una qualunque riga arrivata
  *  dopo l'ultimo invio), un cambio a mano (`sbloccatoIl`, sulla riga o sulla
  *  scheda, dopo l'ultimo invio), un «Ha risposto» sulla scheda dopo l'ultimo
- *  invio, il ripristino da STOP (scrive `sbloccatoIl`). */
+ *  invio, il ripristino da STOP (scrive `sbloccatoIl`).
+ *  Ed è un freno che SCADE (decisione del capo progetto):
+ *   (a) un promemoria senza risposta non frena più quando il suo meet è
+ *       iniziato — chi si collega alla consulenza senza scrivere su WhatsApp è
+ *       il caso normale, non un silenzio da rispettare. Se il meet viene
+ *       spostato PRIMA dell'inizio, il vecchio promemoria frena ancora (il suo
+ *       meet non è iniziato): va bene così;
+ *   (b) qualunque messaggio senza risposta smette di frenare dopo
+ *       `FRENO_SCADE_DOPO_GIORNI` giorni dall'invio. */
 export function aspettaRisposta(
   telefono: string,
   invii: InvioPerFreno[],
   contattoWa: ContattoWa | undefined,
+  adesso: Date,
 ): boolean {
   const tel = ultimeNoveCifre(telefono);
   if (!tel) return false;
@@ -168,6 +192,9 @@ export function aspettaRisposta(
   );
   if (ultimo.rispostaIl || ultimo.sbloccatoIl) return false;
   const t = istante(ultimo.prenotatoIl);
+  if (adesso.getTime() - t >= FRENO_SCADE_DOPO_GIORNI * 86_400_000) return false;
+  const inizioMeet = inizioMeetDelPromemoria(ultimo);
+  if (inizioMeet !== null && inizioMeet <= adesso.getTime()) return false;
   if (suoi.some((i) => istante(i.rispostaIl) >= t)) return false;
   if (contattoWa) {
     if (istante(contattoWa.sbloccatoIl) >= t) return false;

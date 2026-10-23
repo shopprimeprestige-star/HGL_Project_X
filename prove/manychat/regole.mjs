@@ -181,62 +181,63 @@ export async function proveRegole(mod, { c, gruppo }) {
     ...extra,
   });
 
-  c("nessun invio → non aspetta", false, R.aspettaRisposta("393330000001", [], undefined));
+  //  «Adesso» di serie: due ore dopo il primo invio (il freno scade solo dopo 7 giorni).
+  const ADESSO = new Date(Date.parse(T0) + 120 * 60_000);
+  const aspetta = (tel, invii, cont, adesso = ADESSO) =>
+    R.aspettaRisposta(tel, invii, cont, adesso);
+
+  c("nessun invio → non aspetta", false, aspetta("393330000001", [], undefined));
   c(
     "un ricontatto senza risposta → aspetta",
     true,
-    R.aspettaRisposta("393330000001", [invio({})], undefined),
+    aspetta("393330000001", [invio({})], undefined),
   );
   c(
     "…con la risposta → non aspetta",
     false,
-    R.aspettaRisposta("393330000001", [invio({ rispostaIl: dopo(5) })], undefined),
+    aspetta("393330000001", [invio({ rispostaIl: dopo(5) })], undefined),
   );
   c(
     "una conferma senza risposta conta (conferma + ricontatto = due messaggi senza risposta)",
     true,
-    R.aspettaRisposta("393330000001", [invio({ tipo: "conferma" })], undefined),
+    aspetta("393330000001", [invio({ tipo: "conferma" })], undefined),
   );
   c(
     "un promemoria senza risposta conta",
     true,
-    R.aspettaRisposta("393330000001", [invio({ tipo: "promemoria" })], undefined),
+    aspetta("393330000001", [invio({ tipo: "promemoria" })], undefined),
   );
   c(
     "chat della setter, webinar e prove NON sono messaggi automatici del consulente",
     [false, false, false],
     ["chat", "webinar", "prova"].map((tipo) =>
-      R.aspettaRisposta("393330000001", [invio({ tipo })], undefined),
+      aspetta("393330000001", [invio({ tipo })], undefined),
     ),
   );
   c(
     "un invio fallito o saltato non è mai arrivato: non fa aspettare",
     [false, false],
-    ["fallito", "saltato"].map((stato) =>
-      R.aspettaRisposta("393330000001", [invio({ stato })], undefined),
-    ),
+    ["fallito", "saltato"].map((stato) => aspetta("393330000001", [invio({ stato })], undefined)),
   );
   c(
     "…prenotato e incerto invece sì (potrebbero essere arrivati)",
     [true, true],
-    ["prenotato", "incerto"].map((stato) =>
-      R.aspettaRisposta("393330000001", [invio({ stato })], undefined),
-    ),
+    ["prenotato", "incerto"].map((stato) => aspetta("393330000001", [invio({ stato })], undefined)),
   );
   c(
     "è PER TELEFONO: l'invio di un altro numero non c'entra",
     false,
-    R.aspettaRisposta("393330000002", [invio({})], undefined),
+    aspetta("393330000002", [invio({})], undefined),
   );
   c(
     "…e due schede con lo stesso numero scritto in modo diverso sono lo stesso telefono",
     true,
-    R.aspettaRisposta("3330000001", [invio({})], undefined),
+    aspetta("3330000001", [invio({})], undefined),
   );
   c(
     "conta l'ULTIMO: il vecchio senza risposta, il nuovo con risposta → non aspetta",
     false,
-    R.aspettaRisposta(
+    aspetta(
       "393330000001",
       [invio({}), invio({ prenotatoIl: dopo(60), rispostaIl: dopo(70) })],
       undefined,
@@ -245,7 +246,7 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "…il vecchio con risposta, il nuovo senza → aspetta",
     true,
-    R.aspettaRisposta(
+    aspetta(
       "393330000001",
       [invio({ rispostaIl: dopo(5) }), invio({ prenotatoIl: dopo(60) })],
       undefined,
@@ -254,7 +255,7 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "l'ordine nell'elenco non conta, conta prenotatoIl",
     true,
-    R.aspettaRisposta(
+    aspetta(
       "393330000001",
       [invio({ prenotatoIl: dopo(60) }), invio({ rispostaIl: dopo(5) })],
       undefined,
@@ -263,7 +264,7 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "una risposta arrivata dopo l'ultimo invio (anche su un'altra riga) lo sblocca",
     false,
-    R.aspettaRisposta(
+    aspetta(
       "393330000001",
       [
         invio({}),
@@ -276,7 +277,7 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "la riga sbloccata a mano (sbloccatoIl) non fa aspettare",
     false,
-    R.aspettaRisposta("393330000001", [invio({ sbloccatoIl: dopo(10) })], undefined),
+    aspetta("393330000001", [invio({ sbloccatoIl: dopo(10) })], undefined),
   );
   const contatto = (extra) => ({
     stato: "non_ha_risposto",
@@ -288,12 +289,12 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "un cambio a mano DOPO l'ultimo invio (sbloccatoIl della scheda) sblocca",
     false,
-    R.aspettaRisposta("393330000001", [invio({})], contatto({ sbloccatoIl: dopo(30) })),
+    aspetta("393330000001", [invio({})], contatto({ sbloccatoIl: dopo(30) })),
   );
   c(
     "…un cambio a mano PRIMA dell'ultimo invio non sblocca quello nuovo",
     true,
-    R.aspettaRisposta(
+    aspetta(
       "393330000001",
       [invio({ prenotatoIl: dopo(60) })],
       contatto({ sbloccatoIl: dopo(30) }),
@@ -302,16 +303,12 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "«Ha risposto» sulla scheda dopo l'invio sblocca",
     false,
-    R.aspettaRisposta(
-      "393330000001",
-      [invio({})],
-      contatto({ stato: "ha_risposto", il: dopo(20) }),
-    ),
+    aspetta("393330000001", [invio({})], contatto({ stato: "ha_risposto", il: dopo(20) })),
   );
   c(
     "…«Ha risposto» di PRIMA dell'invio no",
     true,
-    R.aspettaRisposta(
+    aspetta(
       "393330000001",
       [invio({ prenotatoIl: dopo(60) })],
       contatto({ stato: "ha_risposto", il: dopo(20) }),
@@ -320,16 +317,96 @@ export async function proveRegole(mod, { c, gruppo }) {
   c(
     "il ripristino da STOP (sbloccatoIl) sblocca",
     false,
-    R.aspettaRisposta(
-      "393330000001",
-      [invio({})],
-      contatto({ stato: "contattato", sbloccatoIl: dopo(15) }),
-    ),
+    aspetta("393330000001", [invio({})], contatto({ stato: "contattato", sbloccatoIl: dopo(15) })),
   );
   c(
     "telefono vuoto o senza cifre → non aspetta (non c'è nessuno da frenare)",
     false,
-    R.aspettaRisposta("", [invio({})], undefined),
+    aspetta("", [invio({})], undefined),
+  );
+  //  Il freno scade (decisione del capo progetto).
+  const giorni = (n) => new Date(Date.parse(T0) + n * 86_400_000);
+  c("la costante: 7 giorni", 7, R.FRENO_SCADE_DOPO_GIORNI);
+  c(
+    "(b) 7 giorni senza risposta (qualunque tipo) → il freno non c'è più",
+    [true, false],
+    [
+      aspetta("393330000001", [invio({})], undefined, new Date(giorni(7).getTime() - 1)),
+      aspetta("393330000001", [invio({})], undefined, giorni(7)),
+    ],
+  );
+  c(
+    "…vale per ricontatto, conferma e promemoria",
+    [false, false, false],
+    ["ricontatto", "conferma", "promemoria"].map((tipo) =>
+      aspetta("393330000001", [invio({ tipo })], undefined, giorni(8)),
+    ),
+  );
+  const promemoria = (extra) =>
+    invio({ tipo: "promemoria", chiave: "p|330000001|2026-10-20T15:30", ...extra });
+  //  il meet delle 15:30 di Roma del 20/10 (ora legale) è alle 13:30Z
+  c(
+    "(a) promemoria senza risposta: finché il meet non è iniziato frena",
+    true,
+    aspetta("393330000001", [promemoria({})], undefined, new Date("2026-10-20T13:29:00.000Z")),
+  );
+  c(
+    "(a) …iniziato il meet (15:30 di Roma) non frena più: il cliente si è collegato senza scrivere",
+    false,
+    aspetta("393330000001", [promemoria({})], undefined, new Date("2026-10-20T13:30:00.000Z")),
+  );
+  c(
+    "(a) …vale solo per il promemoria: una conferma o un ricontatto con quella chiave strana no",
+    [true, true],
+    ["conferma", "ricontatto"].map((tipo) =>
+      aspetta(
+        "393330000001",
+        [promemoria({ tipo })],
+        undefined,
+        new Date("2026-10-20T13:40:00.000Z"),
+      ),
+    ),
+  );
+  c(
+    "(a) …un promemoria con la chiave illeggibile resta frenato fino ai 7 giorni",
+    [true, false],
+    [
+      aspetta(
+        "393330000001",
+        [promemoria({ chiave: "boh" })],
+        undefined,
+        new Date("2026-10-21T13:40:00.000Z"),
+      ),
+      aspetta("393330000001", [promemoria({ chiave: null })], undefined, giorni(8)),
+    ],
+  );
+  c(
+    "(a) …il meet di un promemoria d'inverno si legge con l'ora solare (15:30 CET = 14:30Z)",
+    [true, false],
+    [
+      aspetta(
+        "393330000001",
+        [
+          promemoria({
+            chiave: "p|330000001|2026-12-10T15:30",
+            prenotatoIl: "2026-12-10T14:05:00.000Z",
+          }),
+        ],
+        undefined,
+        new Date("2026-12-10T14:29:00.000Z"),
+      ),
+      aspetta(
+        "393330000001",
+        [
+          promemoria({
+            chiave: "p|330000001|2026-12-10T15:30",
+            prenotatoIl: "2026-12-10T14:05:00.000Z",
+          }),
+        ],
+        undefined,
+        new Date("2026-12-10T14:30:00.000Z"),
+      ),
+    ],
   );
   c(
     "interruttore di regola: il freno vale anche per il promemoria, finché il titolare non decide",

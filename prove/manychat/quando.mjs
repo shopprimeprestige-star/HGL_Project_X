@@ -243,11 +243,11 @@ export async function proveQuando(mod, { c, gruppo }) {
     }),
   );
   c(
-    "…una riga fallita con quella chiave non conta: si può riprovare",
-    ["invia"],
-    tipi(
+    "…neanche una riga fallita o saltata con quella chiave: l'indice unico di M1 la tiene per sempre (gia_preso)",
+    [[], []],
+    ["fallito", "saltato"].map((stato) =>
       decidi([m1530], "2026-10-23T15:06:00+02:00", {
-        invii: [{ ...primo, stato: "fallito", rispostaIl: null }],
+        invii: [{ ...primo, stato, rispostaIl: null }],
       }),
     ),
   );
@@ -370,6 +370,23 @@ export async function proveQuando(mod, { c, gruppo }) {
       motivo(
         decidi([meet("x", 1, "2026-10-23", "15:30", { nome: " " })], "2026-10-23T15:05:00+02:00"),
       ) ?? "",
+    ),
+  );
+
+  //  Meet spostato DOPO il promemoria, senza che il cliente abbia risposto.
+  const primoSenza = { ...primo, rispostaIl: null };
+  c(
+    "meet 15:30 con promemoria senza risposta, poi spostato alle 17:00: alle 16:35 il vecchio meet è iniziato → il nuovo promemoria parte (anche col freno acceso)",
+    ["invia"],
+    tipi(decidi([spostato], "2026-10-23T16:35:00+02:00", { invii: [primoSenza] })),
+  );
+  c(
+    "…spostato PRIMA dell'inizio, a un'ora più vicina (15:40): alle 15:16 il vecchio meet (15:30) non è iniziato → il vecchio promemoria frena ancora",
+    "aspetta ancora una risposta",
+    motivo(
+      decidi([meet("lead-m", 1, "2026-10-23", "15:40")], "2026-10-23T15:16:00+02:00", {
+        invii: [primoSenza],
+      }),
     ),
   );
 
@@ -716,7 +733,24 @@ export async function proveQuando(mod, { c, gruppo }) {
     }),
   );
   c(
-    "…ma se la riga di ieri era FALLITA o SALTATA, il recupero c'è",
+    "…neanche se la riga di ieri era FALLITA o SALTATA con quella chiave (l'indice di M1 dice gia_preso)",
+    [[], []],
+    ["fallito", "saltato"].map((stato) =>
+      coda([ricontatto("l-1", 1, "2026-10-22")], VEN10, {
+        invii: [
+          {
+            telefono: "39333000" + "0001",
+            tipo: "ricontatto",
+            stato,
+            prenotatoIl: "2026-10-22T08:00:00.000Z",
+            chiave: `r|${t9(1)}|2026-10-22`,
+          },
+        ],
+      }),
+    ),
+  );
+  c(
+    "…una riga SALTATA senza chiave non blocca niente: il recupero c'è",
     ["invia"],
     tipi(
       coda([ricontatto("l-1", 1, "2026-10-22")], VEN10, {
@@ -726,7 +760,7 @@ export async function proveQuando(mod, { c, gruppo }) {
             tipo: "ricontatto",
             stato: "saltato",
             prenotatoIl: "2026-10-22T08:00:00.000Z",
-            chiave: `r|${t9(1)}|2026-10-22`,
+            chiave: null,
           },
         ],
       }),
@@ -1068,6 +1102,54 @@ export async function proveQuando(mod, { c, gruppo }) {
         ],
       }),
     ),
+  );
+
+  //  Il freno scade: il promemoria il cui meet è iniziato, e i 7 giorni.
+  const promSenza = {
+    telefono: "393330000001",
+    tipo: "promemoria",
+    stato: "inviato",
+    prenotatoIl: "2026-10-20T13:05:00.000Z",
+    chiave: `p|${t9(1)}|2026-10-20T15:30`,
+  };
+  c(
+    "cliente che si collega al meet senza rispondere: il ricontatto di qualche giorno dopo parte",
+    ["invia"],
+    tipi(coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, { invii: [promSenza] })),
+  );
+  c(
+    "…lo stesso, il giorno stesso del meet, a meet iniziato (16:00)",
+    ["invia"],
+    tipi(
+      coda([ricontatto("l-1", 1, "2026-10-20")], "2026-10-20T16:00:00+02:00", {
+        invii: [promSenza],
+      }),
+    ),
+  );
+  c(
+    "…ma a meet non iniziato (15:00) il promemoria frena",
+    "aspetta ancora una risposta",
+    motivo(
+      coda([ricontatto("l-1", 1, "2026-10-20")], "2026-10-20T15:00:00+02:00", {
+        invii: [{ ...promSenza, prenotatoIl: "2026-10-20T12:00:00.000Z" }],
+      }),
+    ),
+  );
+  c(
+    "una conferma senza risposta frena 6 giorni, dopo 7 no",
+    [["salta"], ["invia"]],
+    [
+      tipi(
+        coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+          invii: [{ ...confermaSenza, prenotatoIl: "2026-10-17T09:00:00.000Z" }],
+        }),
+      ),
+      tipi(
+        coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+          invii: [{ ...confermaSenza, prenotatoIl: "2026-10-16T07:59:00.000Z" }],
+        }),
+      ),
+    ],
   );
 
   //  Ordine.
