@@ -8,7 +8,7 @@
  *  ⚠️ NON SALVA DA SOLO. Chiama `onCambia` con il valore nuovo
  *   (`data.okWhatsapp = { si, il, da }`): chi monta il componente lo scrive con
  *   una patch della scheda, come per ogni altro campo. Se `onCambia` fallisce
- *   (rifiuta la promessa) l'interruttore torna com'era e la frase di errore
+ *   (rifiuta la promessa o risponde `false`) l'interruttore torna com'era e la frase di errore
  *   resta sotto, in chiaro.
  *  ⚠️ SPENTO NON CANCELLA LA TRACCIA: si scrive `{ si: false }` con chi e quando
  *   l'ha tolto («Tolto da Anna, 24/10»).
@@ -49,7 +49,9 @@ export function OkWhatsapp({
     setSalvando(true);
     setErrore(null);
     try {
-      await onCambia(nuovoOkWhatsapp(si, chi, new Date()));
+      const esito = await onCambia(nuovoOkWhatsapp(si, chi, new Date()));
+      //  `false` = «non salvato» anche senza eccezione.
+      if (esito === false) setErrore("Non salvato: riprova fra poco.");
     } catch (e) {
       setErrore(e instanceof Error && e.message ? e.message : "Non salvato: riprova fra poco.");
     } finally {

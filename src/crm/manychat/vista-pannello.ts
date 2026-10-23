@@ -494,14 +494,87 @@ export interface TitoloCollegamento {
   titolo: string;
 }
 
-/** «Collegamento ok» solo se OGNI riga è ok; altrimenti dice quanti problemi. */
-export function titoloCollegamento(c: CollegamentoManychat | null | undefined): TitoloCollegamento {
-  if (!c || c.righe.length === 0)
-    return { tono: "neutro", titolo: "Collegamento non ancora controllato" };
-  const errori = c.righe.filter((r) => r.esito === "errore").length;
-  const dubbi = c.righe.filter((r) => r.esito === "da_verificare").length;
+/** Gli `id` delle righe del «Collegamento ok» che il server DEVE mandare dopo
+ *  una «Prova di collegamento» (il contratto è in testa a client-crm.ts). Una
+ *  riga che non arriva non è «ok»: diventa «da verificare». */
+export const ID_COLLEGAMENTO: string[] = [
+  "chiave",
+  "is_pro",
+  ...MODELLI_FLUSSO.map((m) => `flusso:${m.modello}`),
+  "campi_crm",
+  "segreto_ritorno",
+  "ultima_risposta",
+  "creazione_contatti",
+];
+
+const NOME_RIGA: Record<string, string> = {
+  chiave: "la chiave di ManyChat",
+  is_pro: "l'account Pro",
+  campi_crm: "i campi crm_* del contatto",
+  creazione_contatti: "la creazione dei contatti",
+};
+
+function nomeRiga(id: string): string {
+  if (NOME_RIGA[id]) return NOME_RIGA[id];
+  const modello = id.startsWith("flusso:") ? id.slice(7) : "";
+  const m = MODELLI_FLUSSO.find((x) => x.modello === modello);
+  return m ? `il flusso «${m.etichetta}»` : id;
+}
+
+/** Quello che il browser sa da sé, senza chiedere a ManyChat. */
+export interface ContestoCollegamento {
+  segretoRitornoPresente: boolean;
+  ultimaRispostaIl: string | null;
+}
+
+/** Le righe da mostrare. Due le scrive il browser (`segreto_ritorno` e
+ *  `ultima_risposta`, dai dati dello stato: si vedono anche prima della prima
+ *  prova); le altre arrivano dal server. Una riga obbligatoria che manca vale
+ *  «da verificare», mai «ok». Prima di ogni prova: solo le due del browser. */
+export function righeCollegamento(
+  c: CollegamentoManychat | null | undefined,
+  ctx: ContestoCollegamento,
+): RigaCollegamento[] {
+  const quando = quandoBreve(ctx.ultimaRispostaIl);
+  const proprie: Record<string, RigaCollegamento> = {
+    segreto_ritorno: ctx.segretoRitornoPresente
+      ? { id: "segreto_ritorno", esito: "ok", testo: "Segreto del ritorno presente" }
+      : {
+          id: "segreto_ritorno",
+          esito: "errore",
+          testo:
+            "Manca il segreto del ritorno (MANYCHAT_RITORNO_TOKEN): le risposte dei clienti non arrivano al CRM",
+        },
+    ultima_risposta: quando
+      ? { id: "ultima_risposta", esito: "ok", testo: `Ultima risposta ricevuta: ${quando}` }
+      : { id: "ultima_risposta", esito: "da_verificare", testo: "Ultima risposta ricevuta: mai" },
+  };
+  if (!c) return [proprie.segreto_ritorno, proprie.ultima_risposta];
+  const dalServer = new Map(c.righe.map((r) => [r.id, r]));
+  const righe = ID_COLLEGAMENTO.map(
+    (id): RigaCollegamento =>
+      proprie[id] ??
+      dalServer.get(id) ?? {
+        id,
+        esito: "da_verificare",
+        testo: `Non controllato: ${nomeRiga(id)}`,
+      },
+  );
+  return [...righe, ...c.righe.filter((r) => !ID_COLLEGAMENTO.includes(r.id))];
+}
+
+/** «Collegamento ok» solo se OGNI riga obbligatoria è ok E il segreto del
+ *  ritorno c'è; altrimenti dice quanti problemi o cose da verificare. */
+export function titoloCollegamento(
+  c: CollegamentoManychat | null | undefined,
+  ctx: ContestoCollegamento,
+): TitoloCollegamento {
+  const righe = righeCollegamento(c, ctx);
+  const errori = righe.filter((r) => r.esito === "errore").length;
+  const dubbi = righe.filter((r) => r.esito === "da_verificare").length;
   if (errori > 0)
     return { tono: "rosso", titolo: `Collegamento: ${plurale(errori, "problema", "problemi")}` };
+  if (!c) return { tono: "neutro", titolo: "Collegamento non ancora controllato" };
   if (dubbi > 0)
     return {
       tono: "ambra",

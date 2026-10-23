@@ -167,6 +167,8 @@ export function PastigliaContatto({
         //  anche la scheda dietro.
         onClick={(e) => {
           e.stopPropagation();
+          //  Un errore arrivato dopo una chiusura non deve ricomparire.
+          setErrore(null);
           setAperta(true);
         }}
         title={`Contatto WhatsApp: ${nomeStato}${vista.scaduta ? " (l'attesa è scaduta)" : ""} · cambia`}
@@ -249,7 +251,7 @@ export function PastigliaContatto({
           {!daConfermare && scelte.some((s) => !s.abilitata) && (
             <NotaFinestra tono="attenzione">{scelte.find((s) => s.perche)?.perche}</NotaFinestra>
           )}
-          {!daConfermare && (
+          {!daConfermare && scelte.some((s) => s.abilitata && !s.attuale) && (
             <NotaFinestra>
               «Contattato», «Ha risposto» e «Da ricontattare» sbloccano l'invio automatico: dopo uno
               di questi può ripartire un messaggio anche se il cliente non aveva risposto.

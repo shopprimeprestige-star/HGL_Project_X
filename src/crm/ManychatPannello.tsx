@@ -27,7 +27,7 @@
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (React #310).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { CheckCircle2, HelpCircle, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +61,7 @@ import {
   righeProblemi,
   rigaStatoRiquadro,
   tettiEffettivi,
+  righeCollegamento,
   titoloCollegamento,
   type TonoRiquadro,
 } from "@/crm/manychat/vista-pannello";
@@ -82,6 +83,7 @@ const TESTO_ESITO = {
 const ICONA_ESITO = { ok: CheckCircle2, errore: XCircle, da_verificare: HelpCircle } as const;
 
 const POLLING_MS = 60_000;
+const CONFERMA_MODELLO = "consulenza_conferma_presenza";
 
 type ChiaveInterruttore = "acceso" | "promemoria" | "ricontatti";
 
@@ -165,8 +167,15 @@ export function ManychatPannello() {
   const [creazione, setCreazione] = useState<ProvaCreazione | null>(null);
   const [telefonoProva, setTelefonoProva] = useState("");
 
+  //  Contatore delle scritture: una lettura partita PRIMA di un comando e
+  //  arrivata dopo porterebbe la configurazione vecchia (l'interruttore
+  //  tornerebbe com'era per un minuto). Si scarta.
+  const versione = useRef(0);
+
   const ricarica = useCallback(async () => {
+    const mia = versione.current;
     const r = await leggiManychat();
+    if (mia !== versione.current) return;
     if (r.ok) {
       setStato(r.dati);
       setErrore(null);
@@ -183,7 +192,16 @@ export function ManychatPannello() {
     const t = setInterval(() => {
       if (document.visibilityState === "visible") void ricarica();
     }, POLLING_MS);
-    return () => clearInterval(t);
+    //  Tornando sulla scheda si rilegge subito: l'allarme del giro non deve
+    //  restare quello vecchio fino al prossimo minuto.
+    const alRitorno = () => {
+      if (document.visibilityState === "visible") void ricarica();
+    };
+    document.addEventListener("visibilitychange", alRitorno);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", alRitorno);
+    };
   }, [ricarica, puoCambiare]);
 
   //  Le bozze ripartono dai valori del server quando cambiano (o arrivano).
@@ -213,7 +231,9 @@ export function ManychatPannello() {
     fatto?: string,
   ) => {
     setOccupato(chiave);
+    versione.current += 1;
     const r = await chiamata();
+    versione.current += 1;
     setOccupato(null);
     if (!r.ok) {
       toast.error(r.errore);
@@ -231,7 +251,12 @@ export function ManychatPannello() {
       fatto,
     );
 
-  const collegamentoTitolo = titoloCollegamento(stato?.collegamento);
+  const ctxCollegamento = {
+    segretoRitornoPresente: stato?.segretoRitornoPresente ?? true,
+    ultimaRispostaIl: stato?.giro.ultimaRispostaIl ?? null,
+  };
+  const collegamentoTitolo = titoloCollegamento(stato?.collegamento, ctxCollegamento);
+  const righeColl = righeCollegamento(stato?.collegamento, ctxCollegamento);
 
   const imposta = (chiave: ChiaveInterruttore, valore: boolean) => {
     const parole: Record<ChiaveInterruttore, { titolo: string; testo: string; fatto: string }> = {
@@ -346,6 +371,21 @@ export function ManychatPannello() {
   const salvaFlussi = () => {
     const corpo: Record<string, string> = {};
     for (const f of flussiCambiati) if (f.lettura.ok) corpo[f.modello] = f.lettura.valore;
+    const conferma0 = corpo[CONFERMA_MODELLO] === "" && !!config?.flussi[CONFERMA_MODELLO];
+    if (conferma0 && config?.canale === "manychat") {
+      setConferma({
+        titolo: "Togliere il flusso della conferma?",
+        etichetta: "Togli il flusso",
+        azione: () => void comanda({ flussi: corpo }, "Flussi salvati"),
+        testo: (
+          <NotaFinestra tono="attenzione">
+            Senza il flusso della conferma, col canale ManyChat la conferma «risponda SÌ» alle
+            consulenze si ferma: non parte nessun messaggio finché non lo ricolleghi.
+          </NotaFinestra>
+        ),
+      });
+      return;
+    }
     void comanda({ flussi: corpo }, "Flussi salvati");
   };
 
@@ -477,9 +517,9 @@ export function ManychatPannello() {
                   : "La prova chiede a ManyChat «chi sei?» e legge flussi e campi: non manda niente."
               }
             >
-              {stato.collegamento && stato.collegamento.righe.length > 0 && (
+              {righeColl.length > 0 && (
                 <ul className="space-y-1">
-                  {stato.collegamento.righe.map((r) => {
+                  {righeColl.map((r) => {
                     const Icona = ICONA_ESITO[r.esito];
                     return (
                       <li key={r.id} className="flex items-start gap-2 text-[13px] leading-snug">

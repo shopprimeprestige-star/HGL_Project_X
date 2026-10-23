@@ -95,7 +95,22 @@ export interface GiroManychat {
 }
 
 /** Una riga del «Collegamento ok»: la frase la scrive il server, la riga la
- *  disegna il riquadro. */
+ *  disegna il riquadro.
+ *
+ *  ⚠️ GLI `id` OBBLIGATORI. `prova_collegamento` deve mandare UNA riga per
+ *   ognuno di questi `id` (elenco in `ID_COLLEGAMENTO`, vista-pannello.ts):
+ *     chiave               la chiave è accettata («chi sei?»)
+ *     is_pro               l'account è Pro
+ *     flusso:<modello>     il flusso esiste in ManyChat, uno per ogni modello
+ *                          di MODELLI_FLUSSO: flusso:consulenza_conferma_presenza,
+ *                          flusso:hgl_promemoria_meet, flusso:hgl_ricontatto_consulenza
+ *     campi_crm            i campi crm_* ci sono
+ *     segreto_ritorno      (la riga la scrive il BROWSER da `segretoRitornoPresente`)
+ *     ultima_risposta      (la riga la scrive il BROWSER da `giro.ultimaRispostaIl`)
+ *     creazione_contatti   ok / negata (errore) / da_verificare
+ *   Il riquadro NON mostra «Collegamento ok» in verde se manca il segreto del
+ *   ritorno o se manca una riga obbligatoria: quella mancante vale «da
+ *   verificare». Ogni altra riga (id diverso) si mostra in coda. */
 export interface RigaCollegamento {
   id: string;
   esito: "ok" | "errore" | "da_verificare";
