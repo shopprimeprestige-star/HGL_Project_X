@@ -57,7 +57,7 @@ interface RigaInvio {
   id: string;
   lead_id: string | null;
   telefono: string;
-  subscriber_id: number | string | null;
+  subscriber_id: string | null;
   prenotato_il: string;
   stato: string;
 }
@@ -101,7 +101,7 @@ export function porteRisposta(): PorteRispostaManychat {
           id: r.id,
           leadId: r.lead_id,
           telefono: r.telefono,
-          subscriberId: r.subscriber_id == null ? null : String(r.subscriber_id),
+          subscriberId: r.subscriber_id,
           prenotatoIl: r.prenotato_il,
           stato: r.stato,
         }),
@@ -179,13 +179,15 @@ export function porteRisposta(): PorteRispostaManychat {
       if (e3) lancia(e3);
     },
 
-    conferma: (userId, telefono): PorteConferma => ({
+    conferma: (userId, telefono, adesso): PorteConferma => ({
       schedeConMessaggio: async () => {
-        const { data } = await db()
+        const { data, error } = await db()
           .from("crm_leads")
           .select<{ id: string; data: Record<string, unknown> }[]>("id, data")
           .eq("user_id", userId)
           .in("data->promemoria->>stato", [...STATI_CON_MESSAGGIO]);
+        //  Un errore NON è «nessuna scheda»: altrimenti il SÌ si perderebbe in silenzio.
+        if (error) return lancia(error);
         return data ?? [];
       },
       //  Solo la funzione SQL, che tocca `data.promemoria` e basta: il browser
@@ -201,7 +203,7 @@ export function porteRisposta(): PorteRispostaManychat {
       segnaStop: async () => {
         const { error } = await db()
           .from("whatsapp_contacts")
-          .update({ non_scrivere_dal: new Date().toISOString() })
+          .update({ non_scrivere_dal: adesso.toISOString() })
           .eq("user_id", userId)
           .in("phone_e164", formati(telefono));
         return { error };

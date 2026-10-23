@@ -156,6 +156,11 @@ export async function proveMigrazioni(mod, { c, gruppo, radice }) {
     ],
   );
   c(
+    "…subscriber_id è TESTO (gli id lunghi non perdono cifre): colonna text, mai bigint",
+    [true, false, false],
+    [/\bsubscriber_id\s+text\b/i.test(invii), /\bbigint\b/i.test(sql), /::\s*bigint/i.test(sql)],
+  );
+  c(
     "…chiave unica solo dove non è null",
     true,
     /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON public\.manychat_invii\s*\(chiave\)\s*WHERE chiave IS NOT NULL/i.test(
@@ -345,6 +350,12 @@ export async function proveMigrazioni(mod, { c, gruppo, radice }) {
   );
   c("…restituisce vero se ha toccato una riga", true, /ROW_COUNT[\s\S]*RETURN/i.test(es));
 
+  c(
+    "il commento avverte: rilanciare a mano la riga del 22/10 riporta a 5 secondi",
+    true,
+    /--[^\n]*RIPORTA il lavoro a 5 secondi/.test(grezzo),
+  );
+
   /* ── il cron: solo la riprogrammazione a 45 s ─────────────────────────── */
   const att = corpoFunzione(sql, "programma_hook_cron_attesa");
   c(
@@ -439,6 +450,16 @@ export async function proveMigrazioni(mod, { c, gruppo, radice }) {
       [
         /--[^\n]*UPDATE public\.manychat_config SET canale = 'cloud' WHERE id = 1/.test(gr),
         /SET canale = 'cloud'/.test(s2),
+      ],
+    );
+    c(
+      "…controllo finale: una SELECT su user_id e il «fermati» se è vuoto",
+      [true, true],
+      [
+        /SELECT id, user_id, canale, user_id IS NOT NULL[^;]*FROM public\.manychat_config WHERE id = 1;/.test(
+          s2,
+        ),
+        /user_id è vuoto, FERMATI/.test(gr),
       ],
     );
     c(

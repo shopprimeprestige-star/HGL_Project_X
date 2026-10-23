@@ -98,8 +98,11 @@ export async function proveRisposta(mod, { c, gruppo }) {
             last_message_at: x.adesso.toISOString(),
           });
       },
-      conferma: (userId, tel) => ({
-        schedeConMessaggio: async () => m.schede.filter((s) => s.userId === userId),
+      conferma: (userId, tel, adesso) => ({
+        schedeConMessaggio: async () => {
+          if (m.guasto === "schede") throw { code: "XX001" };
+          return m.schede.filter((s) => s.userId === userId);
+        },
         aggiorna: async (id, pezzo, seChiave) => {
           m.rpc.push({ id, pezzo, seChiave });
           const s = m.schede.find((x) => x.id === id);
@@ -110,7 +113,7 @@ export async function proveRisposta(mod, { c, gruppo }) {
         segnaStop: async () => {
           for (const r of m.contatti)
             if (r.user_id === userId && formati(tel).includes(r.phone_e164))
-              r.non_scrivere_dal = ADESSO.toISOString();
+              r.non_scrivere_dal = adesso.toISOString();
           return { error: null };
         },
         avviso: (x) => m.avvisi.push(`conferma: ${x}`),
@@ -367,6 +370,45 @@ export async function proveRisposta(mod, { c, gruppo }) {
     "senza telefono nel corpo si usa quello dell'invio",
     [1, `+${TEL}`],
     [m.messaggi.length, m.messaggi[0]?.from_number],
+  );
+
+  /* ── id di ManyChat lunghi (17 cifre): testo, mai numero ─────────────── */
+  const LUNGO = "12345678901234567";
+  const LUNGO_VICINO = "12345678901234568";
+  m = mondo({ invii: [invioConferma({ subscriberId: LUNGO })] });
+  r = await RS.gestisciRisposta(
+    m.porte,
+    richiesta({ corpo: corpo({ subscriberId: LUNGO, telefono: "" }) }),
+  );
+  c("subscriber_id di 17 cifre: stesso id → abbinato", [200, 1], [r.stato, m.messaggi.length]);
+  m = mondo({ invii: [invioConferma({ subscriberId: LUNGO })] });
+  r = await RS.gestisciRisposta(
+    m.porte,
+    richiesta({ corpo: corpo({ subscriberId: LUNGO_VICINO, telefono: "" }) }),
+  );
+  c(
+    "…id che differisce solo nell'ultima cifra → ignorata",
+    ["ignorata", 0],
+    [r.esito, m.messaggi.length],
+  );
+
+  /* ── la lettura delle schede fallisce: il SÌ non si perde in silenzio ─── */
+  m = mondo({
+    guasto: "schede",
+    invii: [invioConferma()],
+    contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }],
+    schede: [scheda()],
+  });
+  r = await RS.gestisciRisposta(m.porte, richiesta());
+  c(
+    "database che non legge le schede → esito «errore», non «registrata»",
+    [200, "errore"],
+    [r.stato, r.esito],
+  );
+  c(
+    "…con un avviso, e nessun dato del cliente",
+    [true, false],
+    [m.avvisi.length > 0, m.avvisi.join(" ").includes(TEL)],
   );
 
   /* ── errori: mai nei log il numero, il testo, il subscriber ─────────── */

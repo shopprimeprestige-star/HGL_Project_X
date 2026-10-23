@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS public.manychat_invii (
   tipo          text NOT NULL CHECK (tipo IN ('promemoria', 'ricontatto', 'conferma', 'chat', 'webinar', 'prova')),
   chiave        text,
   telefono      text NOT NULL,
-  subscriber_id bigint,
+  subscriber_id text,  -- l'id di ManyChat come testo: niente perdita di precisione sulle cifre lunghe
   flow_ns       text,
   stato         text NOT NULL DEFAULT 'prenotato' CHECK (stato IN ('prenotato', 'inviato', 'fallito', 'saltato', 'incerto')),
   motivo        text,
@@ -213,7 +213,7 @@ BEGIN
   UPDATE public.manychat_invii
      SET stato         = CASE WHEN p_patch ? 'stato' THEN p_patch->>'stato' ELSE stato END,
          motivo        = CASE WHEN p_patch ? 'motivo' THEN p_patch->>'motivo' ELSE motivo END,
-         subscriber_id = CASE WHEN p_patch ? 'subscriber_id' THEN (p_patch->>'subscriber_id')::bigint ELSE subscriber_id END,
+         subscriber_id = CASE WHEN p_patch ? 'subscriber_id' THEN p_patch->>'subscriber_id' ELSE subscriber_id END,
          flow_ns       = CASE WHEN p_patch ? 'flow_ns' THEN p_patch->>'flow_ns' ELSE flow_ns END,
          inviato_il    = CASE WHEN p_patch ? 'inviato_il' THEN (p_patch->>'inviato_il')::timestamptz ELSE inviato_il END,
          risposta_il   = CASE WHEN p_patch ? 'risposta_il' THEN (p_patch->>'risposta_il')::timestamptz ELSE risposta_il END,
@@ -283,7 +283,13 @@ GRANT EXECUTE ON FUNCTION public.programma_hook_cron_attesa(text, text, text, in
 -- stata lanciata) lo programma: non accende niente, i messaggi partono solo
 -- con l'interruttore in Impostazioni → WhatsApp → «Conferma consulenze».
 --
--- Per tornare indietro (attesa di 5 secondi, com'era):
+-- ⚠️ ATTENZIONE: rilanciare A MANO la riga del 22/10
+--    (20261022140100_promemoria_whatsapp_cron.sql, che usa programma_hook_cron)
+--    RIPORTA il lavoro a 5 secondi, perché ha lo stesso nome. Con il canale
+--    ManyChat il giro verrebbe tagliato a metà. Dopo un rilancio di quella riga
+--    va rilanciata anche questa.
+--
+-- Per tornare indietro apposta (attesa di 5 secondi, com'era):
 --   SELECT public.programma_hook_cron('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp');
 SELECT public.programma_hook_cron_attesa('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp', 45000);
 

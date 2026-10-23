@@ -110,7 +110,7 @@ export interface PorteRispostaManychat {
     x: { telefono: string; leadId: string | null; adesso: Date },
   ): Promise<void>;
   /** le porte di `rispostaAlPromemoria` (conferma del 22/10 e STOP) */
-  conferma(userId: string, telefono: string): PorteConferma;
+  conferma(userId: string, telefono: string, adesso: Date): PorteConferma;
 }
 
 const SETTE_GIORNI_MS = 7 * 24 * 3600e3;
@@ -178,7 +178,7 @@ async function tratta(
 
   //  La conferma del 22/10: SÌ → confermato, STOP → non_scrivere_dal. La firma
   //  qui è la chiave giusta (siamo arrivati solo con quella).
-  const esito = await rispostaAlPromemoria(porte.conferma(userId, telefono), {
+  const esito = await rispostaAlPromemoria(porte.conferma(userId, telefono, adesso), {
     firmaVerificata: true,
     testo: corpo.testo,
     numero: `+${telefono}`,

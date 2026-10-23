@@ -43,3 +43,10 @@ ON CONFLICT (id) DO UPDATE
 
 -- PER TORNARE INDIETRO (la porta torna sulla Cloud API; non cancella niente):
 --   UPDATE public.manychat_config SET canale = 'cloud' WHERE id = 1;
+
+-- CONTROLLO FINALE: lancialo subito dopo. Deve dare UNA riga con canale
+-- 'manychat' e user_id valorizzato. Se user_id è vuoto, FERMATI: la sottoquery
+-- non ha trovato l'installazione (whatsapp_settings vuota?). Rimetti il canale
+-- su 'cloud' con la riga qui sopra e scrivi l'user_id giusto a mano; con
+-- user_id vuoto le risposte dei clienti non si registrano.
+SELECT id, user_id, canale, user_id IS NOT NULL AS user_id_ok FROM public.manychat_config WHERE id = 1;
