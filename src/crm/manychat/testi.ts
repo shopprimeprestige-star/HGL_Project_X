@@ -1,8 +1,7 @@
 /** ── LE VARIABILI DEI MODELLI ──────────────────────────────────────────────
  *
- *  Commessa 2026-10-23 (WhatsApp con ManyChat). SCHELETRO del compito 1: firme.
- *  Il compito 2 (Dev A) scrive i corpi; le prove stanno in
- *  `prove/manychat/regole.mjs` e `quando.mjs`.
+ *  Commessa 2026-10-23 (WhatsApp con ManyChat), compito 2 (Dev A). Le prove
+ *  stanno in `prove/manychat/regole.mjs` (con le regole di chi può ricevere).
  *
  *  Il testo dei messaggi NON si scrive qui: sono modelli approvati da Meta,
  *  dentro ManyChat. Il CRM riempie solo le variabili, che ManyChat legge dai
@@ -13,6 +12,10 @@
  *   salute. Una variabile vuota → `salta`: un modello col buco non parte.
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { LeadData } from "../types";
+import { linkStanzaDi } from "../whatsapp";
+import { linkPerPersona } from "@/shop/chi-dal-link";
+import { gettoneDi } from "../fascia-consulenza";
+import { nomePerModello, numeroPerWhatsapp, oraNormale } from "../promemoria/formati";
 
 /** I campi del contatto ManyChat che il CRM scrive (nome del campo → valore). */
 export type CampiContatto = Record<string, string>;
@@ -21,39 +24,94 @@ export type CampiOSalta =
   | { tipo: "campi"; campi: CampiContatto }
   | { tipo: "salta"; motivo: string };
 
-/** Promemoria 25': `crm_nome`, `crm_ora_meet`, `crm_link_meet`, `crm_consulente`. */
+const salta = (motivo: string): CampiOSalta => ({ tipo: "salta", motivo });
+
+/** Il link da mandare al cliente, ripulito: la stanza nostra (con dentro chi
+ *  la riceve, se si sa l'id della scheda) oppure un indirizzo http(s) scritto
+ *  in scheda. Stringa vuota se non c'è niente di usabile — un appunto come
+ *  «chiamo io» NON è un link.
+ *  shortcut: la regola del link esterno è copiata da `linkEsterno` di
+ *  crm/whatsapp.ts (non esportata, e il file non è di questo compito); da
+ *  togliere quando quella funzione verrà esportata. */
+export function linkPerCliente(d: Partial<LeadData>, leadId?: string | null): string {
+  const stanza = linkStanzaDi(d);
+  const persona = leadId ? gettoneDi({ leadId, nome: d.nome || "" }) : "";
+  const conChi = linkPerPersona(stanza, persona);
+  if (conChi) return conChi;
+  const grezzo = typeof d?.linkMeeting === "string" ? d.linkMeeting.trim() : "";
+  return /^https?:\/\/\S+$/i.test(grezzo) ? grezzo : "";
+}
+
+/** Promemoria 25': `crm_nome`, `crm_ora_meet`, `crm_link_meet`, `crm_consulente`.
+ *  `leadId` fa il link «per persona» (come la chat); senza, il link della
+ *  stanza così com'è. Una variabile vuota → `salta`: Meta rifiuta i buchi. */
 export function campiPromemoria(
-  _d: Partial<LeadData>,
-  _consulente: string | null | undefined,
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
+  leadId?: string | null,
 ): CampiOSalta {
-  throw new Error("manychat/testi: campiPromemoria non è ancora scritta (compito 2)");
+  const nome = nomePerModello(d.nome);
+  if (!nome) return salta("manca il nome");
+  const ora = oraNormale(d.oraMeeting);
+  if (!ora) return salta("manca l'ora del meet");
+  const link = linkPerCliente(d, leadId);
+  if (!link) return salta("manca il link del meet");
+  const chi = nomePerModello(consulente);
+  if (!chi) return salta("manca il nome del consulente");
+  return {
+    tipo: "campi",
+    campi: { crm_nome: nome, crm_ora_meet: ora, crm_link_meet: link, crm_consulente: chi },
+  };
 }
 
 /** Ricontatto: `crm_nome`, `crm_consulente`. */
 export function campiRicontatto(
-  _d: Partial<LeadData>,
-  _consulente: string | null | undefined,
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
 ): CampiOSalta {
-  throw new Error("manychat/testi: campiRicontatto non è ancora scritta (compito 2)");
+  const nome = nomePerModello(d.nome);
+  if (!nome) return salta("manca il nome");
+  const chi = nomePerModello(consulente);
+  if (!chi) return salta("manca il nome del consulente");
+  return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi } };
 }
 
 /** I tre campi che servono a riconoscere la risposta: `crm_lead_id`,
- *  `crm_invio_id`, `crm_telefono` (solo cifre). */
-export function campiDiRiconoscimento(_i: {
+ *  `crm_invio_id`, `crm_telefono` (solo cifre). Senza scheda (webinar, chat)
+ *  `crm_lead_id` non si scrive: la risposta si abbina comunque da `crm_invio_id`,
+ *  che si riscrive a ogni invio. */
+export function campiDiRiconoscimento(i: {
   leadId?: string | null;
   invioId: string;
   telefono: string;
 }): CampiContatto {
-  throw new Error("manychat/testi: campiDiRiconoscimento non è ancora scritta (compito 2)");
+  const campi: CampiContatto = {};
+  if (i.leadId) campi.crm_lead_id = i.leadId;
+  campi.crm_invio_id = i.invioId;
+  campi.crm_telefono = String(i.telefono ?? "").replace(/\D/g, "");
+  return campi;
 }
 
 /** `crm_v1…crm_v4` = SOLO i parametri del modello, nell'ordine in cui il
  *  modello li vuole. Più di quattro → errore, mai un parametro tagliato. */
-export function campiPorta(_parametri: string[]): CampiContatto {
-  throw new Error("manychat/testi: campiPorta non è ancora scritta (compito 2)");
+export function campiPorta(parametri: string[]): CampiContatto {
+  if (parametri.length > 4) {
+    throw new Error("manychat/testi: più di quattro parametri per il modello");
+  }
+  const campi: CampiContatto = {};
+  parametri.forEach((v, i) => (campi[`crm_v${i + 1}`] = String(v ?? "")));
+  return campi;
 }
 
-/** Il numero per il riquadro: «+39 333 ••• 4567». Mai nei log. */
-export function mascheraNumero(_cifre: string): string {
-  throw new Error("manychat/testi: mascheraNumero non è ancora scritta (compito 2)");
+/** Il numero per il riquadro: «+39 333 ••• 4567». Mai nei log. Un numero
+ *  troppo corto per essere nascosto bene non si mostra affatto. */
+export function mascheraNumero(cifre: string): string {
+  const n = String(cifre ?? "").replace(/\D/g, "");
+  if (n.length < 8) return "•••";
+  const italiano = numeroPerWhatsapp(n)?.startsWith("39") && n.startsWith("39");
+  if (italiano) {
+    const nazionale = n.slice(2);
+    return `+39 ${nazionale.slice(0, 3)} ••• ${nazionale.slice(-4)}`;
+  }
+  return `+${n.slice(0, 2)} ••• ${n.slice(-4)}`;
 }
