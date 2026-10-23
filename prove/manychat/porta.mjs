@@ -515,11 +515,68 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       c(`${nome}: la riga del registro resta «${riga}»`, riga, x.righe[0].stato);
     }
     //  Prima dell'invio.
-    const l = creaPorte({ finto: nuovoFinto().su("GET", PERCORSI.perCampo, esiti.reteGiu()) });
+    //  ⚠️ Prima di sendFlow nulla è partito: un guasto qui è un blocco col suo
+    //   codice e la riga «fallito» (la conferma non si perde, il telefono non resta
+    //   in pausa). `incerto` vero è solo quello di sendFlow/sendContent (sopra).
+    const assente = () =>
+      nuovoFinto()
+        .scenario("assente")
+        .su(
+          "GET",
+          PERCORSI.campi,
+          esiti.successo([{ id: 501, name: "crm_telefono", type: "text" }]),
+        );
+    const prima = [
+      ["ricerca (rete giù)", () => nuovoFinto().su("GET", PERCORSI.perCampo, esiti.reteGiu())],
+      ["ricerca (lentezza)", () => nuovoFinto().su("GET", PERCORSI.perCampo, esiti.lento())],
+      [
+        "creazione del contatto (500)",
+        () => assente().su("POST", PERCORSI.crea, esiti.errore500()),
+      ],
+      [
+        "scrittura dei campi (500)",
+        () => nuovoFinto().su("POST", PERCORSI.scriviCampi, esiti.errore500()),
+      ],
+      [
+        "scrittura dei campi (rete giù)",
+        () => nuovoFinto().su("POST", PERCORSI.scriviCampi, esiti.reteGiu()),
+      ],
+    ];
+    for (const [nome, crea] of prima) {
+      const l = creaPorte({ finto: crea() });
+      const r = await invia(l, conferma);
+      c(
+        `${nome} che non risponde → blocco «non_risponde_prima_invio», sendFlow mai chiamato`,
+        ["blocco", "non_risponde_prima_invio", false],
+        [r.esito, r.codice, l.f.percorsi().includes(PERCORSI.flusso)],
+      );
+      c(
+        `${nome}: la riga si chiude «fallito» (non resta prenotata, non diventa incerta)`,
+        ["fallito", "non_risponde_prima_invio"],
+        [l.righe[0].stato, l.righe[0].motivo],
+      );
+      l.orologio.avanza(30_000);
+      l.f.su(
+        "GET",
+        PERCORSI.perCampo,
+        esiti.successo([{ id: 1000001, optin_whatsapp: true, subscribed: true }]),
+      );
+      l.f.su("POST", PERCORSI.scriviCampi, esiti.successo({}));
+      c(
+        `${nome}: il telefono non resta in pausa, al tentativo dopo passa`,
+        "ok",
+        (await invia(l, { ...conferma, chiave: "c|k1|g2" })).esito,
+      );
+    }
     c(
-      "ricerca del contatto con la rete giù → incerto, e non parte nessun flusso",
-      ["incerto", false],
-      await invia(l, conferma).then((r) => [r.esito, l.f.percorsi().includes(PERCORSI.flusso)]),
+      "sendFlow incerto resta incerto (è l'unico vero)",
+      "incerto",
+      (
+        await invia(
+          creaPorte({ finto: nuovoFinto().su("POST", PERCORSI.flusso, esiti.errore500()) }),
+          conferma,
+        )
+      ).esito,
     );
     const s = creaPorte({
       finto: nuovoFinto().su("POST", PERCORSI.scriviCampi, esiti.nonAutorizzato()),
@@ -570,6 +627,11 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       ]),
     );
     c(
+      "parametri che non sono un elenco → blocco, nessuna eccezione",
+      "blocco",
+      (await invia(creaPorte(), { ...conferma, parametri: "boh" })).esito,
+    );
+    c(
       "numero troppo corto → rifiuto del contatto",
       "rifiuto_contatto",
       (await invia(creaPorte(), { ...conferma, a: "12" })).esito,
@@ -602,6 +664,18 @@ export async function provePorta(mod, { c, gruppo, radice }) {
     );
     c("numero non su WhatsApp → 422", 422, rc("rifiuto_contatto").status);
     c("flusso mancante → 400", 400, rc("flusso_mancante").status);
+    c(
+      "ManyChat non risponde prima dell'invio → 503, «il messaggio non è partito, riprova»",
+      [503, "ManyChat non risponde: il messaggio non è partito, riprova."],
+      ((q) => [q.status, q.corpo.message])(rc("blocco", { codice: "non_risponde_prima_invio" })),
+    );
+    c(
+      "troppe variabili → 400 con la frase giusta (non «ManyChat ha rifiutato»)",
+      [400, true],
+      ((q) => [q.status, /troppe variabili/.test(q.corpo.message)])(
+        rc("blocco", { codice: "troppi_parametri" }),
+      ),
+    );
     c(
       "incerto → 504, dice di controllare in ManyChat",
       [504, true],
@@ -1049,6 +1123,28 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         "…passati 10 minuti diventa «incerto» e non si rimanda mai",
         ["incerto", 0],
         [dopo.segno().stato, dopo.log.filter((x) => x.startsWith("invia")).length],
+      );
+    }
+    {
+      //  Nel giro: segno tolto col motivo «canale», in «Da sentire», niente «meta_incerto».
+      const g = giroFinto({
+        canale: "manychat",
+        flussi: { [NOME_MODELLO]: FLUSSO },
+        finto: nuovoFinto().su("GET", PERCORSI.perCampo, esiti.reteGiu()),
+      });
+      await g.giro();
+      c(
+        "nel giro: blocco tecnico (non «meta_incerto»), segno tolto con motivo «canale»",
+        ["manychat_rifiuta", null, "canale"],
+        [g.stato.blocco, g.segno().stato, g.segno().motivo],
+      );
+      c(
+        "…la scheda è in «Da sentire» e il registro non ha righe «incerto»",
+        [1, 0],
+        [
+          CF.daSentire([{ id: "s1", data: g.db.get("s1").data }], INIZIO).length,
+          g.x.righe.filter((r) => r.stato === "incerto" || r.stato === "prenotato").length,
+        ],
       );
     }
     {

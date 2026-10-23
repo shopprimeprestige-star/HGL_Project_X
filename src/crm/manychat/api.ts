@@ -230,8 +230,10 @@ export function creaClient(o: {
       });
       const base = esitoDi(r);
       //  Rifiutata (esiste già, permesso «import wa_id» negato…): non è un
-      //  blocco di tutto, è questo contatto da collegare a mano. 401 e 429 sì.
-      if (base.esito === "blocco" && r.status !== undefined && r.status !== 401 && r.status !== 429)
+      //  blocco di tutto, è questo contatto da collegare a mano. 401, 403 (chiave
+      //  senza diritti, canale scollegato) e 429 sì: `non_recapitato` è uno stato
+      //  chiuso, e la conferma non riparte nemmeno dopo che il titolare ha sistemato.
+      if (base.esito === "blocco" && r.status !== undefined && ![401, 403, 429].includes(r.status))
         return { ...base, esito: "rifiuto_contatto" };
       if (base.esito !== "ok") return base;
       const contatto = leggiContatto(datiDi(r));

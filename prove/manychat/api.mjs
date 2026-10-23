@@ -130,6 +130,15 @@ export async function proveApi(mod, { c, gruppo }) {
       (await A.creaClient({ chiave: CHIAVE, fetch: r401.fetch }).creaContatto("Maria", CIFRE))
         .esito,
     );
+    for (const http of [403, 429]) {
+      const rx = creaFinto().su("POST", PERCORSI.crea, esiti.errore(http));
+      c(
+        `creazione con ${http} → blocco (non «da collegare»: lo stato chiuso non riparte)`,
+        "blocco",
+        (await A.creaClient({ chiave: CHIAVE, fetch: rx.fetch }).creaContatto("Maria", CIFRE))
+          .esito,
+      );
+    }
     const r500 = creaFinto().su("POST", PERCORSI.crea, esiti.errore500());
     const k5 = A.creaClient({ chiave: CHIAVE, fetch: r500.fetch });
     c(

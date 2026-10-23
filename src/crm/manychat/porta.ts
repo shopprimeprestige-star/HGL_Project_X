@@ -216,6 +216,10 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   if (cifre.length < 8) return { esito: "rifiuto_contatto", codice: "numero" };
   const client = porte.client();
   if (!client) return { esito: "blocco", codice: "manca_chiave" };
+  //  Il corpo della chat arriva dal browser: se i parametri non sono un elenco,
+  //  è un errore di chi chiama, non un'eccezione.
+  if (r.parametri !== undefined && !Array.isArray(r.parametri))
+    return { esito: "blocco", codice: "parametri_non_validi" };
   const parametri = r.parametri ?? [];
   if (parametri.length > MAX_PARAMETRI) return { esito: "blocco", codice: "troppi_parametri" };
 
@@ -263,12 +267,23 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     }
     return { esito, invioId, ...(codice ? { codice } : {}) };
   };
-  /** Un'API che non ha detto «fatto». */
+  /** Un'API che non ha detto «fatto», PRIMA di `sendFlow`: ricerca, creazione o
+   *  campi non mandano niente, quindi è certo che nulla è partito. Un `incerto`
+   *  qui è un `blocco` col suo codice e la riga si chiude «fallito»: la
+   *  conferma non si perde (il giro toglie il segno e riprova fra 10 minuti,
+   *  col motivo in vista) e il telefono non resta in pausa. `incerto` vero è
+   *  solo quello di `sendFlow`/`sendContent`. */
   const fallita = (x: RisultatoApi, subscriber: number | null) => {
-    const esito = ESITO_DA_API[x.esito as Exclude<EsitoApi, "ok">] ?? "incerto";
-    //  Incerto: la riga resta `prenotato` (diventerà `incerto` dopo 10 minuti).
-    const patch = esito === "incerto" ? null : { stato: "fallito", motivo: esito };
-    return chiudi(esito, x.codice, patch, subscriber);
+    const incerta = x.esito === "incerto";
+    const esito: EsitoPorta = incerta
+      ? "blocco"
+      : (ESITO_DA_API[x.esito as Exclude<EsitoApi, "ok">] ?? "blocco");
+    return chiudi(
+      esito,
+      incerta ? "non_risponde_prima_invio" : x.codice,
+      { stato: "fallito", motivo: incerta ? "non_risponde_prima_invio" : esito },
+      subscriber,
+    );
   };
 
   //  Il contatto: il registro, poi la ricerca, poi la creazione.
@@ -435,6 +450,18 @@ export function rispostaChat(r: RisultatoPorta): {
         "Non so se il messaggio è partito: controlla in ManyChat prima di rimandarlo.",
       );
     default:
+      if (r.codice === "non_risponde_prima_invio")
+        return no(
+          503,
+          "non_risponde",
+          "ManyChat non risponde: il messaggio non è partito, riprova.",
+        );
+      if (r.codice === "troppi_parametri")
+        return no(
+          400,
+          "troppi_parametri",
+          `Il modello ha troppe variabili: ManyChat ne accetta al massimo ${MAX_PARAMETRI}.`,
+        );
       return r.codice === "manca_chiave"
         ? no(503, "manca_chiave", "Manca la chiave di ManyChat: il messaggio non è partito.")
         : r.codice === "fuori_24h"
