@@ -161,6 +161,7 @@ import { Route as ApiOgMeetlyRouteImport } from './routes/api.og.meetly'
 import { Route as ApiOgCardRouteImport } from './routes/api.og.card'
 import { Route as ApiOgAnteprimaRouteImport } from './routes/api.og.anteprima'
 import { Route as ApiGoogleDriveCallbackRouteImport } from './routes/api.google-drive.callback'
+import { Route as ApiCrmWhatsappCanaleRouteImport } from './routes/api.crm.whatsapp-canale'
 import { Route as ApiCrmWebinarRegistrazioniRouteImport } from './routes/api.crm.webinar-registrazioni'
 import { Route as ApiCrmWebinarRouteImport } from './routes/api.crm.webinar'
 import { Route as ApiCrmSumupRouteImport } from './routes/api.crm.sumup'
@@ -967,6 +968,11 @@ const ApiGoogleDriveCallbackRoute = ApiGoogleDriveCallbackRouteImport.update({
   path: '/api/google-drive/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmWhatsappCanaleRoute = ApiCrmWhatsappCanaleRouteImport.update({
+  id: '/api/crm/whatsapp-canale',
+  path: '/api/crm/whatsapp-canale',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmWebinarRegistrazioniRoute =
   ApiCrmWebinarRegistrazioniRouteImport.update({
     id: '/api/crm/webinar-registrazioni',
@@ -1258,6 +1264,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
+  '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
   '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
   '/api/og/card': typeof ApiOgCardRoute
@@ -1440,6 +1447,7 @@ export interface FileRoutesByTo {
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
+  '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
   '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
   '/api/og/card': typeof ApiOgCardRoute
@@ -1628,6 +1636,7 @@ export interface FileRoutesById {
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
+  '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
   '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
   '/api/og/card': typeof ApiOgCardRoute
@@ -1817,6 +1826,7 @@ export interface FileRouteTypes {
     | '/api/crm/sumup'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
+    | '/api/crm/whatsapp-canale'
     | '/api/google-drive/callback'
     | '/api/og/anteprima'
     | '/api/og/card'
@@ -1999,6 +2009,7 @@ export interface FileRouteTypes {
     | '/api/crm/sumup'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
+    | '/api/crm/whatsapp-canale'
     | '/api/google-drive/callback'
     | '/api/og/anteprima'
     | '/api/og/card'
@@ -2186,6 +2197,7 @@ export interface FileRouteTypes {
     | '/api/crm/sumup'
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
+    | '/api/crm/whatsapp-canale'
     | '/api/google-drive/callback'
     | '/api/og/anteprima'
     | '/api/og/card'
@@ -2334,6 +2346,7 @@ export interface RootRouteChildren {
   ApiCrmSumupRoute: typeof ApiCrmSumupRoute
   ApiCrmWebinarRoute: typeof ApiCrmWebinarRoute
   ApiCrmWebinarRegistrazioniRoute: typeof ApiCrmWebinarRegistrazioniRoute
+  ApiCrmWhatsappCanaleRoute: typeof ApiCrmWhatsappCanaleRoute
   ApiGoogleDriveCallbackRoute: typeof ApiGoogleDriveCallbackRoute
   ApiOgAnteprimaRoute: typeof ApiOgAnteprimaRouteWithChildren
   ApiOgCardRoute: typeof ApiOgCardRoute
@@ -3462,6 +3475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGoogleDriveCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/whatsapp-canale': {
+      id: '/api/crm/whatsapp-canale'
+      path: '/api/crm/whatsapp-canale'
+      fullPath: '/api/crm/whatsapp-canale'
+      preLoaderRoute: typeof ApiCrmWhatsappCanaleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/webinar-registrazioni': {
       id: '/api/crm/webinar-registrazioni'
       path: '/api/crm/webinar-registrazioni'
@@ -3920,6 +3940,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmSumupRoute: ApiCrmSumupRoute,
   ApiCrmWebinarRoute: ApiCrmWebinarRoute,
   ApiCrmWebinarRegistrazioniRoute: ApiCrmWebinarRegistrazioniRoute,
+  ApiCrmWhatsappCanaleRoute: ApiCrmWhatsappCanaleRoute,
   ApiGoogleDriveCallbackRoute: ApiGoogleDriveCallbackRoute,
   ApiOgAnteprimaRoute: ApiOgAnteprimaRouteWithChildren,
   ApiOgCardRoute: ApiOgCardRoute,

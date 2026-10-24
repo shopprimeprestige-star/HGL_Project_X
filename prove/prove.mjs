@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
 import { proveManychat } from "./manychat.mjs";
+import { proveProvaModelli } from "./prova-modelli.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -520,6 +521,8 @@ const MODULI = [
   //   il client, la porta unica degli invii, la rotta delle risposte e il giro.
   //   Un file di prove per area in `prove/manychat/`, chiamati da
   //   `proveManychat` (prove/manychat.mjs): qui basta questo elenco.
+  //  «Prova i modelli» (Impostazioni → WhatsApp): vedi prove/prova-modelli.mjs.
+  "prova-modelli",
   "manychat/contatto",
   "manychat/regole",
   "manychat/quando",
@@ -20446,6 +20449,7 @@ await proveDelWebhookDelPromemoria();
 proveDiOggiPerLaConferma();
 proveDelRiquadroDelPromemoria();
 await proveManychat(mod, { c, gruppo, radice });
+proveProvaModelli(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
