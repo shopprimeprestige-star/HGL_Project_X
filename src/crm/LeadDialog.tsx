@@ -158,6 +158,7 @@ import {
   type Consultant,
   type Lead,
   type LeadData,
+  type OkWhatsapp as OkWhatsappDato,
   type LeadFonte,
   type LeadStatus,
   type LostReason,
@@ -276,7 +277,10 @@ import { PulsantePreventivi } from "@/crm/preventivi/DelLead";
 //  lead») e non c'era modo di vederle. Vedi crm/RegistrazioniDelLead.
 import { RegistrazioniDelLead } from "@/crm/RegistrazioniDelLead";
 import { LeadJourneyCard } from "./LeadJourneyCard";
-import { intestazioniCRM, usePuo } from "./AuthContext";
+import { intestazioniCRM, useConsulenteCollegato, usePuo } from "./AuthContext";
+import { OkWhatsapp } from "./manychat/OkWhatsapp";
+import { PastigliaContattoLead } from "./manychat/PastigliaContattoLead";
+import { StoriaContatto } from "./manychat/PastigliaContatto";
 //  Il link della stanza con dentro CHI lo riceve: un link per ciascuno.
 import { gettoneDi } from "./fascia-consulenza";
 import { linkPerPersona } from "@/shop/chi-dal-link";
@@ -586,6 +590,7 @@ export function LeadDialog({
   //  Chi può eliminare: il pulsante non compare a chi poi si sentirebbe dire
   //  «non puoi» (vedi crm/permessi).
   const puo = usePuo();
+  const consulenteCollegato = useConsulenteCollegato();
   const [form, setForm] = useState<LeadData>(nuovo());
   const [salvataggio, setSalvataggio] = useState(false);
   /** Passo del wizard (0-3). Vale solo a lead nuovo. */
@@ -663,6 +668,28 @@ export function LeadDialog({
 
   //  Ogni scrittura sul modulo passa da una di queste tre porte, e tutte e tre
   //  segnano che c'è qualcosa da salvare.
+  /* ── WHATSAPP CON MANYCHAT: I DUE PEZZI DELLA SCHEDA ───────────────────
+     `contattoWa` lo scrive solo il server: la scheda lo LEGGE dall'elenco in
+     memoria, che `aggiornaContattoLocale` tiene fresco (il modulo ha la copia
+     di quando si è aperta la scheda, e la storia sarebbe vecchia).
+     `okWhatsapp` lo scrive il browser, subito e da solo: UNA chiave sola
+     (`updateLead` rilegge e fonde), così non porta con sé nessun'altra
+     modifica ancora a metà nel modulo. Se non si salva, l'interruttore non
+     cambia e lo dice (`OkWhatsapp` mostra l'errore). */
+  const contattoVivo: Partial<LeadData> = {
+    contattoWa:
+      (lead ? allLeads.find((x) => x.id === lead.id)?.data.contattoWa : undefined) ??
+      form.contattoWa,
+  };
+  const salvaOkWhatsapp = async (nuovoOk: OkWhatsappDato) => {
+    if (!lead?.id) throw new Error("La scheda non è ancora salvata.");
+    if (!(await updateLead(lead.id, { okWhatsapp: nuovoOk }))) {
+      throw new Error("Non salvato: la scheda è cambiata o il server non risponde. Riprova.");
+    }
+    //  Il modulo prende il valore nuovo SENZA segnare «modificato»: è già in archivio.
+    setForm((f) => ({ ...f, okWhatsapp: nuovoOk }));
+  };
+
   const update = <K extends keyof LeadData>(k: K, v: LeadData[K]) => {
     setModificato(true);
     setForm((f) => ({ ...f, [k]: v }));
@@ -1519,6 +1546,36 @@ export function LeadDialog({
                   onScegli={cambiaStato}
                 />
               </SezioneFinestra>
+
+              {/* ── STATO DEL CONTATTO (WhatsApp con ManyChat) ──────────────
+                  Il SECONDO stato, accanto a quello di sempre: non lo tocca e
+                  non ne è toccato. La pastiglia legge dall'elenco in memoria
+                  (non dal modulo, che ha la copia di quando si è aperta la
+                  scheda) e il server scrive il cambio. «Ok a WhatsApp» è il
+                  consenso messo a mano: si salva subito, da solo, con UNA sola
+                  chiave (`okWhatsapp`), e non passa dal tasto «Salva». */}
+              {lead?.id && (
+                <SezioneFinestra
+                  titolo="Stato del contatto"
+                  nota="Su WhatsApp: si cambia a mano, e lo aggiornano anche i messaggi automatici"
+                  classeCorpo="space-y-3 p-4"
+                >
+                  <PastigliaContattoLead
+                    compatta={false}
+                    lead={{
+                      id: lead.id,
+                      data: { nome: form.nome, cognome: form.cognome, ...contattoVivo },
+                    }}
+                  />
+                  <StoriaContatto storia={contattoVivo.contattoWa?.storia} max={3} />
+                  <OkWhatsapp
+                    valore={form.okWhatsapp}
+                    consensoModulo={form.consensoModulo}
+                    chi={consulenteCollegato?.nome ?? ""}
+                    onCambia={salvaOkWhatsapp}
+                  />
+                </SezioneFinestra>
+              )}
             </>
           )}
 

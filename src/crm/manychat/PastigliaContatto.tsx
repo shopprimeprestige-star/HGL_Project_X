@@ -21,6 +21,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { ChevronDown, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usePuo } from "@/crm/AuthContext";
 import { CLASSE_BADGE_STATO, CLASSI_TONO, PUNTO_TONO } from "@/crm/ui";
@@ -149,6 +150,8 @@ export function PastigliaContatto({
       return;
     }
     setUltimo(r.dati.contattoWa);
+    //  Riuscito ma a metà (es. il numero resta bloccato): lo si dice, non si tace.
+    if (r.dati.avviso) toast.warning(r.dati.avviso, { duration: 12_000 });
     onCambiato?.(r.dati.contattoWa);
     chiudi();
   };
@@ -190,84 +193,89 @@ export function PastigliaContatto({
         {!compatta && <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />}
       </button>
 
-      <Finestra
-        aperta={aperta}
-        onCambio={(v) => !v && chiudi()}
-        titolo="Stato del contatto"
-        icona={MessageCircle}
-        contesto={contesto ? `${contesto} · adesso: ${nomeStato}` : `Adesso: ${nomeStato}`}
-        larghezza="sm"
-        azioni={
-          daConfermare ? (
-            <>
-              <Button variant="outline" onClick={() => setDaConfermare(null)} disabled={salvando}>
-                Annulla
+      {/*  La finestra è un portale, ma gli eventi React risalgono comunque l'albero:
+          senza questo un clic dentro la finestra arriverebbe all'onClick della
+          riga che contiene la pastiglia (e aprirebbe la scheda dietro). */}
+      <div className="contents" onClick={(e) => e.stopPropagation()}>
+        <Finestra
+          aperta={aperta}
+          onCambio={(v) => !v && chiudi()}
+          titolo="Stato del contatto"
+          icona={MessageCircle}
+          contesto={contesto ? `${contesto} · adesso: ${nomeStato}` : `Adesso: ${nomeStato}`}
+          larghezza="sm"
+          azioni={
+            daConfermare ? (
+              <>
+                <Button variant="outline" onClick={() => setDaConfermare(null)} disabled={salvando}>
+                  Annulla
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => void scegli(daConfermare)}
+                  disabled={salvando}
+                >
+                  {salvando ? "Salvo…" : `Metti «${ETICHETTE_CONTATTO[daConfermare]}»`}
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={chiudi}>
+                Chiudi
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => void scegli(daConfermare)}
-                disabled={salvando}
+            )
+          }
+        >
+          <div className="space-y-3">
+            {daConfermare ? (
+              <NotaFinestra tono="attenzione">
+                Con «{ETICHETTE_CONTATTO[daConfermare]}» il cliente non riceve più nessun messaggio
+                automatico, da nessun canale. Poi lo toglie solo chi ha il permesso «impostazioni».
+                Vuoi metterlo?
+              </NotaFinestra>
+            ) : (
+              <div className="space-y-1.5" role="group" aria-label="Scegli lo stato del contatto">
+                {scelte.map((s) => (
+                  <VoceScelta
+                    key={s.stato}
+                    titolo={s.etichetta}
+                    nota={s.nota}
+                    punto={PUNTO_TONO[s.tono]}
+                    selezionata={s.attuale}
+                    disabilitata={!s.abilitata || salvando}
+                    onClick={() => void scegli(s.stato)}
+                  />
+                ))}
+              </div>
+            )}
+            {errore && (
+              <p
+                role="alert"
+                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] leading-snug text-rose-900"
               >
-                {salvando ? "Salvo…" : `Metti «${ETICHETTE_CONTATTO[daConfermare]}»`}
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" onClick={chiudi}>
-              Chiudi
-            </Button>
-          )
-        }
-      >
-        <div className="space-y-3">
-          {daConfermare ? (
-            <NotaFinestra tono="attenzione">
-              Con «{ETICHETTE_CONTATTO[daConfermare]}» il cliente non riceve più nessun messaggio
-              automatico, da nessun canale. Poi lo toglie solo chi ha il permesso «impostazioni».
-              Vuoi metterlo?
-            </NotaFinestra>
-          ) : (
-            <div className="space-y-1.5" role="group" aria-label="Scegli lo stato del contatto">
-              {scelte.map((s) => (
-                <VoceScelta
-                  key={s.stato}
-                  titolo={s.etichetta}
-                  nota={s.nota}
-                  punto={PUNTO_TONO[s.tono]}
-                  selezionata={s.attuale}
-                  disabilitata={!s.abilitata || salvando}
-                  onClick={() => void scegli(s.stato)}
-                />
-              ))}
-            </div>
-          )}
-          {errore && (
-            <p
-              role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] leading-snug text-rose-900"
-            >
-              {errore}
-            </p>
-          )}
-          {!daConfermare && scelte.some((s) => !s.abilitata) && (
-            <NotaFinestra tono="attenzione">{scelte.find((s) => s.perche)?.perche}</NotaFinestra>
-          )}
-          {!daConfermare && scelte.some((s) => s.abilitata && !s.attuale) && (
-            <NotaFinestra>
-              «Contattato», «Ha risposto» e «Da ricontattare» sbloccano l'invio automatico: dopo uno
-              di questi può ripartire un messaggio anche se il cliente non aveva risposto.
-            </NotaFinestra>
-          )}
-          {!daConfermare && (
-            <SezioneFinestra titolo="Storia" nota="la più recente in cima">
-              {storia && storia.length > 0 ? (
-                <StoriaContatto storia={storia} />
-              ) : (
-                <VuotoFinestra testo="Ancora nessun movimento su WhatsApp." />
-              )}
-            </SezioneFinestra>
-          )}
-        </div>
-      </Finestra>
+                {errore}
+              </p>
+            )}
+            {!daConfermare && scelte.some((s) => !s.abilitata) && (
+              <NotaFinestra tono="attenzione">{scelte.find((s) => s.perche)?.perche}</NotaFinestra>
+            )}
+            {!daConfermare && scelte.some((s) => s.abilitata && !s.attuale) && (
+              <NotaFinestra>
+                «Contattato», «Ha risposto» e «Da ricontattare» sbloccano l'invio automatico: dopo
+                uno di questi può ripartire un messaggio anche se il cliente non aveva risposto.
+              </NotaFinestra>
+            )}
+            {!daConfermare && (
+              <SezioneFinestra titolo="Storia" nota="la più recente in cima">
+                {storia && storia.length > 0 ? (
+                  <StoriaContatto storia={storia} />
+                ) : (
+                  <VuotoFinestra testo="Ancora nessun movimento su WhatsApp." />
+                )}
+              </SezioneFinestra>
+            )}
+          </div>
+        </Finestra>
+      </div>
     </>
   );
 }

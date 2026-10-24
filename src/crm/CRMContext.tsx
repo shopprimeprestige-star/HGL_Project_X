@@ -21,6 +21,7 @@ import {
   type AdSpending,
   type Consultant,
   type ConsultantData,
+  type ContattoWa,
   type Lead,
   type LeadData,
 } from "./types";
@@ -95,6 +96,10 @@ interface CRMContextValue {
   // ad spending
   createAdSpending: (data: AdSpending["data"]) => Promise<void>;
   deleteAdSpending: (id: string) => Promise<void>;
+  /** Mette in memoria il secondo stato che il SERVER ha appena scritto
+   *  (`/api/crm/contatto-wa`): non scrive niente nell'archivio. Serve a far
+   *  vedere subito pastiglie e filtri; `updateLead` il `contattoWa` lo scarta. */
+  aggiornaContattoLocale: (id: string, contattoWa: ContattoWa) => void;
 }
 
 const CRMContext = createContext<CRMContextValue | null>(null);
@@ -1515,6 +1520,12 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       deleteAdSpending: (...a: Parameters<typeof deleteAdSpending>) =>
         funzioni.current.deleteAdSpending(...a),
       prossimoConsulente: () => funzioni.current.prossimoConsulente(),
+      aggiornaContattoLocale: (id: string, contattoWa: ContattoWa) => {
+        const sostituisci = (x: Lead): Lead =>
+          x.id === id ? { ...x, data: { ...x.data, contattoWa } } : x;
+        leadsRef.current = leadsRef.current.map(sostituisci);
+        setLeads((prev) => prev.map(sostituisci));
+      },
     }),
     [],
   );

@@ -771,6 +771,7 @@ export async function proveVistaComponenti(aiuti) {
 
 export async function provePannello(mod, aiuti) {
   await proveVistaComponenti(aiuti);
+  await proveMontaggio(mod, aiuti);
   await proveRotte(mod, aiuti);
 }
 
@@ -1962,5 +1963,66 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     "la chiave di ManyChat si legge solo dal server (mai in una risposta): nessuna risposta serializza `process.env`",
     false,
     /JSON\.stringify\([^)]*process\.env/.test(rotta),
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  COMPITO 6 (Dev D): IL MONTAGGIO NELLE SCHERMATE
+ *
+ *  Quello che si può provare senza browser: la tabella di «Oggi» e che le tre
+ *  liste, la scheda e le Impostazioni usino davvero i pezzi giusti (lettura dei
+ *  sorgenti, come fanno le altre prove di struttura). Il resto, con Chrome vero,
+ *  è in LAVAGNA.
+ * ═════════════════════════════════════════════════════════════════════════ */
+async function proveMontaggio(mod, { c, gruppo, radice }) {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const leggi = (f) => readFileSync(join(radice, f), "utf8");
+  gruppo("MANYCHAT · MONTAGGIO NELLE SCHERMATE");
+  const VO = mod["vista-oggi"];
+  c(
+    "«Oggi»: la striscia delle risposte la vede chi fa consulenze",
+    true,
+    VO.vistaOggi(() => true).risposteOggi,
+  );
+  c("«Oggi»: …e non chi non ha nessun permesso", false, VO.vistaOggi(() => false).risposteOggi);
+  for (const f of [
+    "src/routes/CRM.trattative.tsx",
+    "src/crm/importa/SchedaTutti.tsx",
+    "src/routes/CRM.index.tsx",
+  ])
+    c(
+      `${f}: il filtro per secondo stato usa filtraPerContatto`,
+      true,
+      /filtraPerContatto\(/.test(leggi(f)),
+    );
+  const scheda = leggi("src/crm/LeadDialog.tsx");
+  c(
+    "scheda: «Ok a WhatsApp» salva SOLO la chiave okWhatsapp con updateLead",
+    true,
+    /updateLead\(lead\.id, \{ okWhatsapp: nuovoOk \}\)/.test(scheda),
+  );
+  c("scheda: la pastiglia del contatto è montata", true, /<PastigliaContattoLead/.test(scheda));
+  c(
+    "Impostazioni: il riquadro ManyChat è montato una volta",
+    1,
+    (leggi("src/routes/CRM.impostazioni.tsx").match(/<ManychatPannello \/>/g) ?? []).length,
+  );
+  c(
+    "il contratto della rotta del contatto dichiara `avviso`",
+    true,
+    /avviso\?: string/.test(leggi("src/crm/manychat/client-crm.ts")),
+  );
+  c(
+    "la pastiglia mostra l'avviso della rotta",
+    true,
+    /r\.dati\.avviso/.test(leggi("src/crm/manychat/PastigliaContatto.tsx")),
+  );
+  c(
+    "la finestra della pastiglia non fa arrivare i clic alla riga",
+    true,
+    /className="contents" onClick=\{\(e\) => e\.stopPropagation\(\)\}/.test(
+      leggi("src/crm/manychat/PastigliaContatto.tsx"),
+    ),
   );
 }

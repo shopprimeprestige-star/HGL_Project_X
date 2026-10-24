@@ -180,6 +180,9 @@ import {
 import { eSaltato } from "./saltati";
 //  I due menu e le regole sono quelli della pagina «Da chiamare».
 import { MenuAnnuncio, MenuRisposta } from "./FiltriLista";
+import { FiltroContatto } from "@/crm/manychat/FiltroContatto";
+import { PastigliaContattoLead } from "@/crm/manychat/PastigliaContattoLead";
+import { filtraPerContatto, statoContattoEffettivo } from "@/crm/manychat/contatto";
 import { applicaFiltri, opzioniFiltri, type FiltriLista } from "./filtri-lista";
 //  La riga appena sistemata non sparisce sotto le dita: la regola sta lì.
 import { restaNellElenco, targhettaSistemato } from "./elenco-stabile";
@@ -410,7 +413,28 @@ export function SchedaTutti({
     [righeTutte, filtriQui, oggiQui],
   );
   /** L'elenco di prima, già ristretto: da qui in giù tutti i conti partono da lui. */
-  const baseFiltrata = useMemo(() => base.filter((l) => passano.has(l.id)), [base, passano]);
+  //  Il secondo stato (WhatsApp): `filtraPerContatto`, la stessa funzione di
+  //  «Trattative» e «Oggi». «tutti» non toglie niente.
+  const [contatto, setContatto] = useState("tutti");
+  const baseFiltrata = useMemo(
+    () =>
+      filtraPerContatto(
+        base.filter((l) => passano.has(l.id)),
+        contatto,
+        new Date(),
+      ),
+    [base, passano, contatto],
+  );
+  const contiContatto = useMemo(() => {
+    const m: Record<string, number> = {};
+    const adesso = new Date();
+    for (const l of base) {
+      if (!passano.has(l.id)) continue;
+      const k = statoContattoEffettivo(l.data, adesso) ?? "nessuno";
+      m[k] = (m[k] ?? 0) + 1;
+    }
+    return m;
+  }, [base, passano]);
   /** Le voci dei menu e i loro numeri: contano dentro lo stato e il tempo scelti
    *  in questa scheda, e ognuna con l'altro filtro già acceso. */
   const opzioni = useMemo(() => {
@@ -770,7 +794,10 @@ export function SchedaTutti({
              motivo delle pastiglie: cambiare la fetta a metà di un lotto porta
              a zero la selezione e con lei sparisce il conto «Scrivo… 40/300».
              Un <fieldset disabled> spegne anche la tastiera, non solo il clic. */}
-        {(opzioni.annuncio.length > 0 || opzioni.risposte.length > 0 || nFiltriQui > 0) && (
+        {(opzioni.annuncio.length > 0 ||
+          opzioni.risposte.length > 0 ||
+          nFiltriQui > 0 ||
+          importati.length > 0) && (
           <fieldset
             disabled={occupato}
             className={cn(
@@ -778,9 +805,12 @@ export function SchedaTutti({
               occupato && "opacity-50",
             )}
           >
-            <legend className="sr-only">Filtra per annuncio e per risposta del modulo</legend>
+            <legend className="sr-only">
+              Filtra per annuncio, per risposta del modulo e per stato del contatto
+            </legend>
             <MenuAnnuncio filtri={filtriQui} opzioni={opzioni} onCambia={cambiaFiltriQui} />
             <MenuRisposta filtri={filtriQui} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            <FiltroContatto valore={contatto} onCambia={setContatto} conteggi={contiContatto} />
             {nFiltriQui > 0 && (
               <Button
                 type="button"
@@ -918,6 +948,8 @@ export function SchedaTutti({
                             la pagina da sé (vedi `onStato`). La pastiglia ferma
                             il clic prima che arrivi alla riga, quindi cambiare
                             stato non seleziona anche la riga sotto le dita. */}
+                        {/*  Il secondo stato (WhatsApp), solo se la scheda ne ha uno. */}
+                        {d.contattoWa && <PastigliaContattoLead lead={l} className="shrink-0" />}
                         <PastigliaStato
                           dati={d}
                           contesto={nome}

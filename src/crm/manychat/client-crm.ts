@@ -27,8 +27,10 @@
  *   un messaggio.
  *
  *  ── /api/crm/contatto-wa (dietro `guardiaCRM(null)`) ──────────────────────
- *   POST { leadId, stato } → 200 `{ contattoWa }` (il secondo stato com'è
- *   dopo il cambio, storia compresa). Chi cambia è quello della sessione: il
+ *   POST { leadId, stato } → 200 `{ contattoWa, avviso? }` (il secondo stato
+ *   com'è dopo il cambio, storia compresa; `avviso` = frase da mostrare quando
+ *   il cambio è riuscito ma qualcosa è rimasto a metà, per esempio il numero
+ *   ancora bloccato per gli invii dopo aver tolto STOP). Chi cambia è quello della sessione: il
  *   nome NON lo manda il browser. 403 `{ error }` se la scheda è di un'altra
  *   installazione o se si toglie STOP senza «impostazioni»
  *   (`solo_titolare_toglie_stop`); 404 se la scheda non c'è; 409 se la scheda
@@ -198,4 +200,4 @@ export const provaCreazioneContatto = (telefono: string) =>
 
 /** Cambio a mano del secondo stato. Il nome di chi lo fa lo sa il server. */
 export const cambiaContattoWa = (leadId: string, stato: StatoContattoWa) =>
-  chiama<{ contattoWa: ContattoWa }>(ROTTA_CONTATTO_WA, { leadId, stato });
+  chiama<{ contattoWa: ContattoWa; avviso?: string }>(ROTTA_CONTATTO_WA, { leadId, stato });
