@@ -1979,6 +1979,11 @@ async function proveMontaggio(mod, { c, gruppo, radice }) {
   const { join } = await import("node:path");
   const leggi = (f) => readFileSync(join(radice, f), "utf8");
   gruppo("MANYCHAT · MONTAGGIO NELLE SCHERMATE");
+  c(
+    "pastiglia: con la finestra aperta i tasti non arrivano alle scorciatoie della pagina",
+    true,
+    /onKeyDown=\{\(e\) => e\.stopPropagation\(\)\}/.test(leggi("src/crm/manychat/PastigliaContatto.tsx")),
+  );
   const VO = mod["vista-oggi"];
   c(
     "«Oggi»: la striscia delle risposte la vede chi fa consulenze",

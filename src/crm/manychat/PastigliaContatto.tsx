@@ -195,8 +195,18 @@ export function PastigliaContatto({
 
       {/*  La finestra è un portale, ma gli eventi React risalgono comunque l'albero:
           senza questo un clic dentro la finestra arriverebbe all'onClick della
-          riga che contiene la pastiglia (e aprirebbe la scheda dietro). */}
-      <div className="contents" onClick={(e) => e.stopPropagation()}>
+          riga che contiene la pastiglia (e aprirebbe la scheda dietro).
+          ⚠️ ANCHE I TASTI: le scorciatoie di Trattative e Oggi ascoltano su
+           `window` e non sanno che questa finestra è aperta. Senza questo, «f»
+           segnava l'evidenza, Invio apriva un altro lead ed Esc chiudeva anche
+           il pannello dietro (revisione finale, 24/10/2026; stesso difetto
+           di ChiusuraDialog). Esc chiude comunque la finestra: Radix lo
+           ascolta prima, in cattura. */}
+      <div
+        className="contents"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <Finestra
           aperta={aperta}
           onCambio={(v) => !v && chiudi()}
