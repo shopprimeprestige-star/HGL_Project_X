@@ -174,6 +174,7 @@ import { Route as ApiCrmPromemoriaWhatsappRouteImport } from './routes/api.crm.p
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
 import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-upload'
 import { Route as ApiCrmMediaEliminaRouteImport } from './routes/api.crm.media-elimina'
+import { Route as ApiCrmManychatRouteImport } from './routes/api.crm.manychat'
 import { Route as ApiCrmLeadSyncRouteImport } from './routes/api.crm.lead-sync'
 import { Route as ApiCrmInvitoRouteImport } from './routes/api.crm.invito'
 import { Route as ApiCrmGoogleDriveRouteImport } from './routes/api.crm.google-drive'
@@ -181,6 +182,7 @@ import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-mo
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
+import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
 import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
@@ -1035,6 +1037,11 @@ const ApiCrmMediaEliminaRoute = ApiCrmMediaEliminaRouteImport.update({
   path: '/api/crm/media-elimina',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmManychatRoute = ApiCrmManychatRouteImport.update({
+  id: '/api/crm/manychat',
+  path: '/api/crm/manychat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmLeadSyncRoute = ApiCrmLeadSyncRouteImport.update({
   id: '/api/crm/lead-sync',
   path: '/api/crm/lead-sync',
@@ -1068,6 +1075,11 @@ const ApiCrmDisponibilitaRoute = ApiCrmDisponibilitaRouteImport.update({
 const ApiCrmCopiaAutomaticaRoute = ApiCrmCopiaAutomaticaRouteImport.update({
   id: '/api/crm/copia-automatica',
   path: '/api/crm/copia-automatica',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmContattoWaRoute = ApiCrmContattoWaRouteImport.update({
+  id: '/api/crm/contatto-wa',
+  path: '/api/crm/contatto-wa',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmConsulentePinRoute = ApiCrmConsulentePinRouteImport.update({
@@ -1246,6 +1258,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
+  '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1253,6 +1266,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
+  '/api/crm/manychat': typeof ApiCrmManychatRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
@@ -1429,6 +1443,7 @@ export interface FileRoutesByTo {
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
+  '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1436,6 +1451,7 @@ export interface FileRoutesByTo {
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
+  '/api/crm/manychat': typeof ApiCrmManychatRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
@@ -1618,6 +1634,7 @@ export interface FileRoutesById {
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
+  '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1625,6 +1642,7 @@ export interface FileRoutesById {
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
+  '/api/crm/manychat': typeof ApiCrmManychatRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
@@ -1808,6 +1826,7 @@ export interface FileRouteTypes {
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
+    | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -1815,6 +1834,7 @@ export interface FileRouteTypes {
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
+    | '/api/crm/manychat'
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
@@ -1991,6 +2011,7 @@ export interface FileRouteTypes {
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
+    | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -1998,6 +2019,7 @@ export interface FileRouteTypes {
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
+    | '/api/crm/manychat'
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
@@ -2179,6 +2201,7 @@ export interface FileRouteTypes {
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
+    | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2186,6 +2209,7 @@ export interface FileRouteTypes {
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
+    | '/api/crm/manychat'
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
@@ -2328,6 +2352,7 @@ export interface RootRouteChildren {
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
   ApiCrmBlogRoute: typeof ApiCrmBlogRoute
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
+  ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
@@ -2335,6 +2360,7 @@ export interface RootRouteChildren {
   ApiCrmGoogleDriveRoute: typeof ApiCrmGoogleDriveRoute
   ApiCrmInvitoRoute: typeof ApiCrmInvitoRoute
   ApiCrmLeadSyncRoute: typeof ApiCrmLeadSyncRoute
+  ApiCrmManychatRoute: typeof ApiCrmManychatRoute
   ApiCrmMediaEliminaRoute: typeof ApiCrmMediaEliminaRoute
   ApiCrmMediaUploadRoute: typeof ApiCrmMediaUploadRoute
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
@@ -3566,6 +3592,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmMediaEliminaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/manychat': {
+      id: '/api/crm/manychat'
+      path: '/api/crm/manychat'
+      fullPath: '/api/crm/manychat'
+      preLoaderRoute: typeof ApiCrmManychatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/lead-sync': {
       id: '/api/crm/lead-sync'
       path: '/api/crm/lead-sync'
@@ -3613,6 +3646,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/copia-automatica'
       fullPath: '/api/crm/copia-automatica'
       preLoaderRoute: typeof ApiCrmCopiaAutomaticaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/contatto-wa': {
+      id: '/api/crm/contatto-wa'
+      path: '/api/crm/contatto-wa'
+      fullPath: '/api/crm/contatto-wa'
+      preLoaderRoute: typeof ApiCrmContattoWaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/consulente-pin': {
@@ -3922,6 +3962,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmBackupRoute: ApiCrmBackupRoute,
   ApiCrmBlogRoute: ApiCrmBlogRoute,
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,
+  ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,
@@ -3929,6 +3970,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmGoogleDriveRoute: ApiCrmGoogleDriveRoute,
   ApiCrmInvitoRoute: ApiCrmInvitoRoute,
   ApiCrmLeadSyncRoute: ApiCrmLeadSyncRoute,
+  ApiCrmManychatRoute: ApiCrmManychatRoute,
   ApiCrmMediaEliminaRoute: ApiCrmMediaEliminaRoute,
   ApiCrmMediaUploadRoute: ApiCrmMediaUploadRoute,
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,

@@ -771,7 +771,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         ⚠️ E si ricompone a ogni tentativo: se la scheda cambia mentre la
          salviamo, il giro successivo rilegge e richiama la funzione sul
          valore nuovo — che è tutto il senso di passarla. */
-    const patch = risolviModifica(modifica, current.data);
+    //  ⚠️ `contattoWa` (il secondo stato del contatto WhatsApp) lo scrive SOLO il
+    //   server (`/api/crm/contatto-wa` e il giro, con una funzione SQL che tocca
+    //   solo quel pezzo). Qui si scarta dalla modifica, con la destrutturazione
+    //   (non `delete`: la patch può essere lo stesso oggetto del modulo): il
+    //   modulo della scheda lo porta con la copia di quando si è aperto, e
+    //   riscriverlo cancellerebbe una risposta o uno STOP arrivati nel frattempo.
+    //   `merged` tiene così il `contattoWa` riletto dal database.
+    const { contattoWa: _soloServer, ...patch } = risolviModifica(modifica, current.data);
+    void _soloServer;
     let merged = applyAutoStatus({ ...current.data, ...patch } as LeadData, {
       statoScelto: patch.stato !== undefined,
     });

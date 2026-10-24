@@ -13,11 +13,12 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs` (chiave
  *  `"manychat/<nome>"`). `aiuti`: `{ c, gruppo, radice }`, gli stessi di
  *  `prove.mjs` (`c(nome, atteso, letto)`). */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildSync } from "esbuild";
+import { creaFinto, esiti, PERCORSI } from "./finto.mjs";
 
 /** Impacchetta un modulo `.ts` puro in una cartella temporanea e lo carica. */
 function carica(radice, relativo) {
@@ -769,6 +770,1197 @@ export async function proveVistaComponenti(aiuti) {
 }
 
 export async function provePannello(mod, aiuti) {
-  void mod;
   await proveVistaComponenti(aiuti);
+  await proveRotte(mod, aiuti);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  COMPITO 4 (Dev B): LE ROTTE DEL RIQUADRO E DEL CAMBIO A MANO
+ *
+ *  La logica sta in `src/crm/manychat/pannello.ts` (pura, porte iniettate); le
+ *  rotte `api.crm.manychat.ts` e `api.crm.contatto-wa.ts` e il collegamento al
+ *  database (`pannello.server.ts`) sono sottili. Qui si prova la logica con un
+ *  ManyChat finto che registra ogni chiamata, e le rotte si leggono come testo
+ *  (le guardie). Dati tutti inventati.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+const UUID_A = "11111111-1111-4111-8111-111111111111";
+const UUID_B = "22222222-2222-4222-8222-222222222222";
+const LEAD = "33333333-3333-4333-8333-333333333333";
+const MIN = 60_000;
+
+async function proveRotte(mod, { c, gruppo, radice }) {
+  const P = carica(radice, "src/crm/manychat/pannello.ts");
+  const A = mod["manychat/api"];
+  const nuovoClient = (f) => A.creaClient({ chiave: "chiave-finta", fetch: f.fetch });
+  const letto = (relativo) => readFileSync(join(radice, relativo), "utf8");
+
+  /* ── la configurazione e i comandi ─────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · CONFIGURAZIONE (pannello.ts)");
+
+  const vuota = P.configDaRiga(null);
+  c(
+    "senza riga: canale cloud, tutto spento, niente fermo",
+    ["cloud", false, false, false, {}, {}, null, null, null],
+    [
+      vuota.canale,
+      vuota.acceso,
+      vuota.promemoria,
+      vuota.ricontatti,
+      vuota.tetti,
+      vuota.flussi,
+      vuota.primaAccensione,
+      vuota.ultimaAccensione,
+      vuota.fermatoMotivo,
+    ],
+  );
+  const riga = (extra = {}) => ({
+    user_id: UUID_A,
+    canale: "manychat",
+    acceso: false,
+    promemoria: false,
+    ricontatti: false,
+    tetti: {},
+    flussi: {},
+    prima_accensione: null,
+    ultima_accensione: null,
+    fermato_motivo: null,
+    controlli: null,
+    ...extra,
+  });
+  const dalDb = P.configDaRiga(
+    riga({
+      canale: "boh",
+      acceso: true,
+      tetti: { ricontatti: 500, totale: "tanti", altro: 3 },
+      flussi: { a: " ns-a ", b: "", c: 7 },
+    }),
+  );
+  c(
+    "dal database: canale strano → cloud; tetti e flussi ripuliti (mai sopra le costanti)",
+    ["cloud", true, { ricontatti: 20 }, { a: "ns-a" }],
+    [dalDb.canale, dalDb.acceso, dalDb.tetti, dalDb.flussi],
+  );
+
+  // ── leggere un comando ────────────────────────────────────────────────
+  const ok = (body) => P.leggiComando(body);
+  c(
+    "comando: un interruttore alla volta, solo booleani",
+    [true, false, false],
+    [
+      ok({ interruttori: { acceso: true } }).ok,
+      ok({ interruttori: { acceso: "si" } }).ok,
+      ok({ interruttori: {} }).ok,
+    ],
+  );
+  c(
+    "comando: due comandi insieme → rifiutato (ne accetta uno per volta)",
+    false,
+    ok({ canale: "cloud", tetti: { totale: 3 } }).ok,
+  );
+  c(
+    "comando: corpo non oggetto o vuoto → rifiutato",
+    [false, false, false, false],
+    [ok(null).ok, ok("ciao").ok, ok([]).ok, ok({}).ok],
+  );
+  c(
+    "comando: canale solo cloud o manychat",
+    [true, true, false],
+    [ok({ canale: "cloud" }).ok, ok({ canale: "manychat" }).ok, ok({ canale: "baileys" }).ok],
+  );
+  c(
+    "comando: tetti interi da 1; zero, negativi, decimali, testo → rifiutati",
+    [true, false, false, false, false, false],
+    [
+      ok({ tetti: { ricontatti: 5 } }).ok,
+      ok({ tetti: { ricontatti: 0 } }).ok,
+      ok({ tetti: { ricontatti: -2 } }).ok,
+      ok({ tetti: { totale: 2.5 } }).ok,
+      ok({ tetti: { totale: "10" } }).ok,
+      ok({ tetti: {} }).ok,
+    ],
+  );
+  c(
+    "comando: flusso con identificativo vero, vuoto (lo toglie), o con spazi/caratteri strani (rifiutato)",
+    [true, true, false, false, false, false],
+    [
+      ok({ flussi: { hgl_promemoria_meet: "content20261001_123" } }).ok,
+      ok({ flussi: { hgl_promemoria_meet: "" } }).ok,
+      ok({ flussi: { hgl_promemoria_meet: "content 1" } }).ok,
+      ok({ flussi: { hgl_promemoria_meet: "x".repeat(121) } }).ok,
+      ok({ flussi: { "nome strano!": "ns" } }).ok,
+      ok({ flussi: { a: 5 } }).ok,
+    ],
+  );
+  c(
+    "comando: le azioni note (e il telefono della prova di creazione è obbligatorio)",
+    [true, true, true, false, false],
+    [
+      ok({ azione: "prova_a_secco" }).ok,
+      ok({ azione: "prova_collegamento" }).ok,
+      ok({ azione: "prova_creazione_contatto", telefono: "+39 333 000 0001" }).ok,
+      ok({ azione: "prova_creazione_contatto" }).ok,
+      ok({ azione: "manda_tutto" }).ok,
+    ],
+  );
+
+  // ── cosa si scrive ────────────────────────────────────────────────────
+  const T0 = new Date("2026-10-23T08:00:00.000Z");
+  const cfg = (body, prima = null, adesso = T0) =>
+    P.patchDaComando(prima, ok(body).comando, adesso);
+  const acc = cfg({ interruttori: { acceso: true } });
+  c(
+    "prima accensione: scrive prima e ultima accensione, toglie il fermo",
+    [T0.toISOString(), T0.toISOString(), true, null],
+    [acc.prima_accensione, acc.ultima_accensione, acc.acceso, acc.fermato_motivo],
+  );
+  const già = cfg(
+    { interruttori: { acceso: true } },
+    riga({
+      acceso: true,
+      prima_accensione: "2026-10-01T08:00:00Z",
+      ultima_accensione: "2026-10-10T08:00:00Z",
+    }),
+  );
+  c("già acceso: riaccendere non scrive niente (non sposta le date)", {}, già);
+  const riacc = cfg(
+    { interruttori: { acceso: true } },
+    riga({
+      acceso: false,
+      prima_accensione: "2026-10-01T08:00:00Z",
+      ultima_accensione: "2026-10-10T08:00:00Z",
+      fermato_motivo: "2 invii falliti di fila",
+    }),
+  );
+  c(
+    "riaccendere dopo un fermo: la prima accensione NON si sposta (la settimana a 10 non riparte), l'ultima sì, il fermo sparisce",
+    ["2026-10-01T08:00:00Z", T0.toISOString(), null],
+    [
+      riacc.prima_accensione ?? "2026-10-01T08:00:00Z",
+      riacc.ultima_accensione,
+      riacc.fermato_motivo,
+    ],
+  );
+  c("…la prima accensione non è nemmeno nella scrittura", false, "prima_accensione" in riacc);
+  const spegni = cfg({ interruttori: { acceso: false } }, riga({ acceso: true }));
+  c("spegnere: solo il booleano", { acceso: false }, spegni);
+  const ricOn = cfg({ interruttori: { ricontatti: true } }, riga({ acceso: true }));
+  c(
+    "accendere i ricontatti: ultima accensione (le date passate non partono) e prima accensione",
+    [true, T0.toISOString(), T0.toISOString()],
+    [ricOn.ricontatti, ricOn.ultima_accensione, ricOn.prima_accensione],
+  );
+  const memOn = cfg(
+    { interruttori: { promemoria: true } },
+    riga({ acceso: true, ultima_accensione: "2026-10-10T08:00:00Z" }),
+  );
+  c(
+    "accendere il promemoria NON sposta l'ultima accensione dei ricontatti",
+    [true, false],
+    [memOn.promemoria, "ultima_accensione" in memOn],
+  );
+
+  c(
+    "tetti alzati a 500 → riportati alle costanti 20 e 40",
+    { ricontatti: 20, totale: 40 },
+    cfg({ tetti: { ricontatti: 500, totale: 500 } }).tetti,
+  );
+  c(
+    "tetti abbassati: valgono; l'altro resta com'era",
+    { ricontatti: 4, totale: 30 },
+    cfg({ tetti: { ricontatti: 4 } }, riga({ tetti: { totale: 30 } })).tetti,
+  );
+  c(
+    "flussi: si fondono con quelli che c'erano; il vuoto toglie",
+    { consulenza_conferma_presenza: "ns-conf", hgl_ricontatto_consulenza: "ns-ric" },
+    cfg(
+      { flussi: { hgl_promemoria_meet: "", hgl_ricontatto_consulenza: "ns-ric" } },
+      riga({
+        flussi: { consulenza_conferma_presenza: "ns-conf", hgl_promemoria_meet: "ns-vecchio" },
+      }),
+    ).flussi,
+  );
+  c("canale: si scrive il canale e basta", { canale: "cloud" }, cfg({ canale: "cloud" }));
+
+  /* ── lo stato per il riquadro ──────────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · STATO (pannello.ts)");
+  const adesso = new Date("2026-10-23T13:00:00.000Z"); // 15:00 a Roma
+  const inv = (extra) => ({
+    lead_id: LEAD,
+    tipo: "ricontatto",
+    stato: "inviato",
+    motivo: null,
+    prenotato_il: "2026-10-23T09:00:00.000Z",
+    risposta_il: null,
+    ...extra,
+  });
+  const base = {
+    migrazione: true,
+    chiave: true,
+    segreto: true,
+    config: riga({ acceso: true, ricontatti: true, prima_accensione: "2026-10-20T08:00:00Z" }),
+    giro: {
+      ultimo_giro_il: "2026-10-23T12:59:00.000Z",
+      ultima_risposta_il: "2026-10-23T11:00:00.000Z",
+      prossimo_ricontatto_dopo: "2026-10-23T13:20:00.000Z",
+      stato: {},
+    },
+    invii: [],
+    problemi: [],
+    ultimoInvioIl: "2026-10-23T12:00:00.000Z",
+    nomi: { [LEAD]: { nome: "Mario", cognome: "Rossi" } },
+  };
+  const s0 = P.costruisciStato(base, adesso);
+  c(
+    "stato: ora del server, ambiente, giro",
+    [
+      adesso.toISOString(),
+      true,
+      true,
+      true,
+      "2026-10-23T12:59:00.000Z",
+      "2026-10-23T11:00:00.000Z",
+      "2026-10-23T12:00:00.000Z",
+      "2026-10-23T13:20:00.000Z",
+    ],
+    [
+      s0.adesso,
+      s0.migrazione,
+      s0.chiavePresente,
+      s0.segretoRitornoPresente,
+      s0.giro.ultimoGiroIl,
+      s0.giro.ultimaRispostaIl,
+      s0.giro.ultimoInvioIl,
+      s0.giro.prossimoRicontattoDopo,
+    ],
+  );
+  c(
+    "stato: senza chiave né segreto lo dice, e non inventa un collegamento",
+    [false, false, null],
+    ((s) => [s.chiavePresente, s.segretoRitornoPresente, s.collegamento])(
+      P.costruisciStato({ ...base, chiave: false, segreto: false }, adesso),
+    ),
+  );
+  c(
+    "stato: senza la migrazione → migrazione falsa, config di serie",
+    [false, "cloud", false],
+    ((s) => [s.migrazione, s.config.canale, s.config.acceso])(
+      P.costruisciStato({ ...base, migrazione: false, config: null, giro: null }, adesso),
+    ),
+  );
+  const giornata = [
+    inv({ tipo: "promemoria", prenotato_il: "2026-10-23T07:30:00.000Z" }),
+    inv({ tipo: "promemoria", stato: "incerto", prenotato_il: "2026-10-23T08:30:00.000Z" }),
+    inv({ tipo: "promemoria", stato: "fallito", prenotato_il: "2026-10-23T08:40:00.000Z" }),
+    inv({ tipo: "ricontatto", risposta_il: "2026-10-23T10:00:00.000Z" }),
+    inv({ tipo: "ricontatto", prenotato_il: "2026-10-23T10:30:00.000Z", risposta_il: null }),
+    inv({ tipo: "conferma", prenotato_il: "2026-10-23T10:31:00.000Z" }),
+    // ieri sera a Roma (22:30 del 22/10 = 20:30Z) e a cavallo della mezzanotte
+    inv({ tipo: "ricontatto", prenotato_il: "2026-10-22T20:30:00.000Z" }),
+    // 00:10 del 23/10 a Roma = 22:10Z del 22/10: è già OGGI per Roma
+    inv({ tipo: "promemoria", prenotato_il: "2026-10-22T22:10:00.000Z" }),
+  ];
+  const sg = P.costruisciStato({ ...base, invii: giornata }, adesso);
+  c(
+    "oggi (giorno di Roma): promemoria e ricontatti partiti (non i falliti, non la conferma), risposte ricevute",
+    { promemoria: 3, ricontatti: 2, risposte: 1 },
+    sg.giro.oggi,
+  );
+
+  const rotti = [
+    inv({ stato: "fallito", motivo: "rifiuto_contatto", prenotato_il: "2026-10-23T09:00:00.000Z" }),
+    inv({
+      stato: "incerto",
+      motivo: "prenotato_scaduto",
+      prenotato_il: "2026-10-23T10:00:00.000Z",
+    }),
+    inv({
+      lead_id: null,
+      tipo: "conferma",
+      stato: "saltato",
+      motivo: "chiamami al 333 1234567 o 3331234567",
+      prenotato_il: "2026-10-23T11:00:00.000Z",
+    }),
+  ];
+  const sp = P.costruisciStato({ ...base, problemi: rotti }, adesso).giro.problemi;
+  c(
+    "problemi: il più recente in cima, nome abbreviato («Mario R.»), «Contatto» se la scheda non c'è",
+    ["Contatto", "Mario R.", "Mario R."],
+    sp.map((x) => x.nome),
+  );
+  c(
+    "problemi: nessuna sequenza di sei o più cifre (un motivo non porta mai un telefono)",
+    false,
+    sp.some((x) => /\d{6,}/.test(x.motivo)),
+  );
+  c(
+    "problemi: un codice del registro diventa una frase",
+    true,
+    sp.some((x) => /interrott|incerto/i.test(x.motivo)),
+  );
+  const molti = Array.from({ length: 30 }, (_, i) =>
+    inv({
+      stato: "fallito",
+      motivo: "x",
+      prenotato_il: new Date(Date.parse("2026-10-23T06:00:00Z") + i * MIN).toISOString(),
+    }),
+  );
+  c(
+    "problemi: al massimo 20",
+    20,
+    P.costruisciStato({ ...base, problemi: molti }, adesso).giro.problemi.length,
+  );
+  const dalGiro = P.costruisciStato(
+    {
+      ...base,
+      giro: {
+        ...base.giro,
+        stato: {
+          problemi: [
+            {
+              il: "2026-10-23T12:00:00.000Z",
+              nome: "Anna Bianchi 3331234567",
+              tipo: "ricontatto",
+              motivo: "manca il consenso WhatsApp",
+            },
+            { il: "boh", nome: 5, tipo: "x" },
+          ],
+        },
+      },
+    },
+    adesso,
+  ).giro.problemi;
+  c(
+    "problemi: quelli che scrive il giro in `stato.problemi` si mostrano (il numero tolto, le righe rotte scartate)",
+    [1, "manca il consenso WhatsApp", false],
+    [dalGiro.length, dalGiro[0]?.motivo, /\d{6,}/.test(dalGiro[0]?.nome ?? "")],
+  );
+  c(
+    "abbreviaNome: «Mario R.», solo nome, nessun nome",
+    ["Mario R.", "Mario", "Contatto", "Anna D."],
+    [
+      P.abbreviaNome("Mario", "Rossi"),
+      P.abbreviaNome("Mario", ""),
+      P.abbreviaNome("", ""),
+      P.abbreviaNome("Anna", "de Maria"),
+    ],
+  );
+
+  const salvato = {
+    controllatoIl: "2026-10-23T12:00:00.000Z",
+    righe: [{ id: "chiave", esito: "ok", testo: "ok" }],
+  };
+  const conCreazione = P.costruisciStato(
+    {
+      ...base,
+      config: riga({
+        controlli: {
+          collegamento: salvato,
+          creazione: { esito: "ok", il: "2026-10-23T12:05:00.000Z" },
+        },
+      }),
+    },
+    adesso,
+  ).collegamento;
+  c(
+    "l'ultimo collegamento salvato si riporta (senza chiamare nessuno) con la riga della creazione aggiornata",
+    ["2026-10-23T12:00:00.000Z", ["chiave", "creazione_contatti"], "ok"],
+    [
+      conCreazione?.controllatoIl,
+      conCreazione?.righe.map((r) => r.id),
+      conCreazione?.righe[1].esito,
+    ],
+  );
+
+  /* ── LA PROVA DI COLLEGAMENTO ──────────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · PROVA DI COLLEGAMENTO");
+  const CAMPI_TUTTI = [
+    "crm_v1",
+    "crm_v2",
+    "crm_v3",
+    "crm_v4",
+    "crm_invio_id",
+    "crm_lead_id",
+    "crm_telefono",
+    "crm_nome",
+    "crm_ora_meet",
+    "crm_link_meet",
+    "crm_consulente",
+  ];
+  const FLUSSI_TUTTI = [
+    { ns: "ns-conf", name: "CRM · Conferma consulenza" },
+    { ns: "ns-mem", name: "CRM · Promemoria meet" },
+    { ns: "ns-ric", name: "CRM · Ricontatto" },
+  ];
+  const FLUSSI_CONF = {
+    consulenza_conferma_presenza: "ns-conf",
+    hgl_promemoria_meet: "ns-mem",
+    hgl_ricontatto_consulenza: "ns-ric",
+  };
+  const ingresso = (extra = {}) => ({
+    canale: "manychat",
+    interruttori: { promemoria: true, ricontatti: true },
+    flussi: FLUSSI_CONF,
+    creazione: { esito: "ok", il: "2026-10-23T12:05:00.000Z" },
+    adesso,
+    ...extra,
+  });
+  const sano = () =>
+    creaFinto()
+      .su("GET", PERCORSI.flussi, esiti.successo({ flows: FLUSSI_TUTTI }))
+      .su(
+        "GET",
+        PERCORSI.campi,
+        esiti.successo(CAMPI_TUTTI.map((name) => ({ name, id: 1, type: "text" }))),
+      );
+  const righeDi = (r) => Object.fromEntries(r.righe.map((x) => [x.id, x.esito]));
+  const nessunInvio = (f) =>
+    f.chiamate.every(
+      (x) =>
+        x.metodo === "GET" ||
+        ![
+          PERCORSI.flusso,
+          PERCORSI.testo,
+          PERCORSI.scriviCampi,
+          PERCORSI.tag,
+          PERCORSI.crea,
+        ].includes(x.percorso),
+    );
+
+  const f1 = sano();
+  const col1 = await P.statoCollegamento(nuovoClient(f1), ingresso());
+  c(
+    "tutto a posto: ogni riga ok",
+    true,
+    col1.righe.length > 5 && col1.righe.every((r) => r.esito === "ok"),
+  );
+  c(
+    "tutto a posto: l'ora del controllo è quella data; solo letture (nessun sendFlow, nessun campo scritto)",
+    [adesso.toISOString(), true],
+    [col1.controllatoIl, nessunInvio(f1)],
+  );
+  c(
+    "…ci sono le righe obbligatorie del server, con gli id del contratto (chiave, is_pro, un flusso per modello, campi_crm, creazione_contatti)",
+    [
+      "chiave",
+      "is_pro",
+      "flusso:consulenza_conferma_presenza",
+      "flusso:hgl_promemoria_meet",
+      "flusso:hgl_ricontatto_consulenza",
+      "campi_crm",
+      "creazione_contatti",
+    ],
+    col1.righe.map((r) => r.id),
+  );
+  c(
+    "…ogni riga ha una frase in chiaro, mai l'identificativo grezzo né la chiave",
+    false,
+    col1.righe.some((r) => !r.testo || /chiave-finta|Bearer/.test(r.testo)),
+  );
+
+  const fSenza = sano();
+  const colSenza = await P.statoCollegamento(null, ingresso());
+  c(
+    "nessuna chiave: riga rossa «chiave», le altre righe del server ci sono lo stesso («da verificare»)",
+    ["errore", "da_verificare", "da_verificare", "da_verificare"],
+    [
+      righeDi(colSenza).chiave,
+      righeDi(colSenza).is_pro,
+      righeDi(colSenza).campi_crm,
+      righeDi(colSenza)["flusso:hgl_promemoria_meet"],
+    ],
+  );
+  c("…nessuna chiamata a ManyChat", 0, fSenza.chiamate.length);
+
+  const f401 = sano().su("GET", PERCORSI.info, esiti.nonAutorizzato());
+  const col401 = await P.statoCollegamento(nuovoClient(f401), ingresso());
+  c(
+    "chiave rifiutata: riga rossa, si ferma lì (nessun'altra chiamata) e niente invii",
+    ["errore", 1, true],
+    [righeDi(col401).chiave, f401.chiamate.length, nessunInvio(f401)],
+  );
+  const fRete = sano().su("GET", PERCORSI.info, esiti.reteGiu());
+  c(
+    "ManyChat non risponde: «da verificare», non un falso errore",
+    "da_verificare",
+    righeDi(await P.statoCollegamento(nuovoClient(fRete), ingresso())).chiave,
+  );
+
+  const fNoPro = sano().su("GET", PERCORSI.info, esiti.successo({ is_pro: false }));
+  const colNoPro = await P.statoCollegamento(nuovoClient(fNoPro), ingresso());
+  c(
+    "is_pro falso: riga rossa «Pro», la chiave resta ok",
+    ["ok", "errore", true],
+    [righeDi(colNoPro).chiave, righeDi(colNoPro).is_pro, nessunInvio(fNoPro)],
+  );
+
+  const fFlusso = sano().su(
+    "GET",
+    PERCORSI.flussi,
+    esiti.successo({ flows: FLUSSI_TUTTI.filter((x) => x.ns !== "ns-mem") }),
+  );
+  const colFlusso = await P.statoCollegamento(nuovoClient(fFlusso), ingresso());
+  c(
+    "flusso che non esiste in ManyChat: riga rossa solo per quello",
+    ["errore", "ok", "ok"],
+    [
+      righeDi(colFlusso)["flusso:hgl_promemoria_meet"],
+      righeDi(colFlusso)["flusso:consulenza_conferma_presenza"],
+      righeDi(colFlusso)["flusso:hgl_ricontatto_consulenza"],
+    ],
+  );
+  c("…e nessun invio", true, nessunInvio(fFlusso));
+
+  const colNonCollegato = await P.statoCollegamento(
+    nuovoClient(sano()),
+    ingresso({ flussi: { consulenza_conferma_presenza: "ns-conf" } }),
+  );
+  c(
+    "flusso non ancora scelto: rosso se il suo interruttore è acceso, «da verificare» se è spento",
+    ["errore", "errore"],
+    [
+      righeDi(colNonCollegato)["flusso:hgl_promemoria_meet"],
+      righeDi(colNonCollegato)["flusso:hgl_ricontatto_consulenza"],
+    ],
+  );
+  const colSpento = await P.statoCollegamento(
+    nuovoClient(sano()),
+    ingresso({
+      flussi: { consulenza_conferma_presenza: "ns-conf" },
+      interruttori: { promemoria: false, ricontatti: false },
+    }),
+  );
+  c(
+    "…interruttori spenti: «da verificare»",
+    ["da_verificare", "da_verificare"],
+    [
+      righeDi(colSpento)["flusso:hgl_promemoria_meet"],
+      righeDi(colSpento)["flusso:hgl_ricontatto_consulenza"],
+    ],
+  );
+  const colCloud = await P.statoCollegamento(
+    nuovoClient(sano()),
+    ingresso({ canale: "cloud", flussi: {} }),
+  );
+  c(
+    "canale cloud e conferma senza flusso: non è un errore (la conferma passa dalla Cloud API)",
+    "da_verificare",
+    righeDi(colCloud)["flusso:consulenza_conferma_presenza"],
+  );
+  const colManychatSenzaConferma = await P.statoCollegamento(
+    nuovoClient(sano()),
+    ingresso({ flussi: { hgl_promemoria_meet: "ns-mem", hgl_ricontatto_consulenza: "ns-ric" } }),
+  );
+  c(
+    "canale ManyChat e conferma senza flusso: rosso (la conferma già in produzione si fermerebbe)",
+    "errore",
+    righeDi(colManychatSenzaConferma)["flusso:consulenza_conferma_presenza"],
+  );
+
+  const fCampo = sano().su(
+    "GET",
+    PERCORSI.campi,
+    esiti.successo(
+      CAMPI_TUTTI.filter((n) => n !== "crm_invio_id").map((name) => ({ name, id: 1 })),
+    ),
+  );
+  const colCampo = await P.statoCollegamento(nuovoClient(fCampo), ingresso());
+  c(
+    "campo crm_* mancante: riga rossa che lo nomina",
+    ["errore", true],
+    [
+      righeDi(colCampo).campi_crm,
+      /crm_invio_id/.test(colCampo.righe.find((r) => r.id === "campi_crm").testo),
+    ],
+  );
+  c("…e nessun invio", true, nessunInvio(fCampo));
+
+  const colCreazione = async (creazione) =>
+    righeDi(await P.statoCollegamento(nuovoClient(sano()), ingresso({ creazione })))
+      .creazione_contatti;
+  c(
+    "creazione contatti: mai provata «da verificare», riuscita «ok», negata rossa",
+    ["da_verificare", "ok", "errore"],
+    [
+      await colCreazione(null),
+      await colCreazione({ esito: "ok", il: "2026-10-23T12:05:00.000Z" }),
+      await colCreazione({ esito: "negata", il: "2026-10-23T12:05:00.000Z" }),
+    ],
+  );
+
+  // ── il contratto con il browser: ogni riga obbligatoria, in ogni caso ──
+  const Vc = carica(radice, "src/crm/manychat/vista-pannello.ts");
+  const obbligatorieDelServer = Vc.ID_COLLEGAMENTO.filter(
+    (id) => id !== "segreto_ritorno" && id !== "ultima_risposta",
+  );
+  const casi = {
+    "tutto a posto": await P.statoCollegamento(nuovoClient(sano()), ingresso()),
+    "nessuna chiave": colSenza,
+    "chiave rifiutata": col401,
+    "ManyChat non risponde": await P.statoCollegamento(nuovoClient(fRete), ingresso()),
+    "flussi illeggibili": await P.statoCollegamento(
+      nuovoClient(sano().su("GET", PERCORSI.flussi, esiti.errore500())),
+      ingresso(),
+    ),
+    "campi illeggibili": await P.statoCollegamento(
+      nuovoClient(sano().su("GET", PERCORSI.campi, esiti.errore500())),
+      ingresso(),
+    ),
+  };
+  for (const [nome, col] of Object.entries(casi)) {
+    const ids = col.righe.map((r) => r.id);
+    c(
+      `contratto, «${nome}»: ci sono tutti gli id obbligatori del server, una volta sola`,
+      [[], []],
+      [
+        obbligatorieDelServer.filter((id) => !ids.includes(id)),
+        ids.filter((id, k) => ids.indexOf(id) !== k),
+      ],
+    );
+  }
+  c(
+    "…e il server NON manda le due righe che compone il browser (segreto_ritorno, ultima_risposta)",
+    false,
+    Object.values(casi).some((col) =>
+      col.righe.some((r) => r.id === "segreto_ritorno" || r.id === "ultima_risposta"),
+    ),
+  );
+  c(
+    "…con quelle del server il browser mostra «Collegamento ok» solo se tutto è ok",
+    ["verde", "rosso"],
+    [
+      Vc.titoloCollegamento(casi["tutto a posto"], {
+        segretoRitornoPresente: true,
+        ultimaRispostaIl: "2026-10-23T11:00:00.000Z",
+      }).tono,
+      Vc.titoloCollegamento(casi["tutto a posto"], {
+        segretoRitornoPresente: false,
+        ultimaRispostaIl: "2026-10-23T11:00:00.000Z",
+      }).tono,
+    ],
+  );
+  for (const [nome, d] of Object.entries({
+    "segreto presente": { ...base, segreto: true },
+    "segreto assente": { ...base, segreto: false },
+    "senza migrazione": { ...base, migrazione: false, config: null, giro: null },
+  })) {
+    c(
+      `stato, «${nome}»: segretoRitornoPresente è sempre un booleano`,
+      "boolean",
+      typeof P.costruisciStato(d, adesso).segretoRitornoPresente,
+    );
+  }
+
+  /* ── LA PROVA CREAZIONE CONTATTO ───────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · PROVA CREAZIONE CONTATTO");
+  const NUM = "+39 333 000 0001";
+  const soloQuesti = (f, percorsi) =>
+    f.chiamate.every((x) => percorsi.some((p) => p === `${x.metodo} ${x.percorso}`));
+  const LEGGE_E_CREA = [
+    `GET ${PERCORSI.campi}`,
+    `GET ${PERCORSI.perCampo}`,
+    `GET ${PERCORSI.perSistema}`,
+    `POST ${PERCORSI.crea}`,
+  ];
+
+  const fNuovo = creaFinto().scenario("assente");
+  const crea = await P.provaCreazione(nuovoClient(fNuovo), NUM);
+  const post = fNuovo.chiamate.filter((x) => x.metodo === "POST");
+  c(
+    "contatto assente: lo crea (un solo POST: createSubscriber) col solo nome «Prova» e il numero in forma internazionale",
+    [200, "ok", 1, PERCORSI.crea, "Prova", "+393330000001", false],
+    [
+      crea.stato,
+      crea.risposta?.esito,
+      post.length,
+      post[0]?.percorso,
+      post[0]?.corpo?.first_name,
+      post[0]?.corpo?.whatsapp_phone,
+      "last_name" in (post[0]?.corpo ?? {}),
+    ],
+  );
+  c(
+    "…la creazione riuscita si registra («ok»); nessun messaggio, nessun campo scritto",
+    ["ok", true],
+    [crea.registra, soloQuesti(fNuovo, LEGGE_E_CREA)],
+  );
+  c(
+    "…la risposta non riporta il numero intero",
+    false,
+    /393330000001|333 000 0001|3330000001/.test(JSON.stringify(crea.risposta)),
+  );
+
+  const fEsiste = creaFinto();
+  const esiste = await P.provaCreazione(nuovoClient(fEsiste), NUM);
+  c(
+    "contatto già in ManyChat: non ne crea un altro (nessun POST) e non conta come «creazione provata»",
+    [200, "ok", 0, null],
+    [
+      esiste.stato,
+      esiste.risposta?.esito,
+      fEsiste.chiamate.filter((x) => x.metodo === "POST").length,
+      esiste.registra,
+    ],
+  );
+
+  const fNega = creaFinto()
+    .scenario("assente")
+    .su("POST", PERCORSI.crea, esiti.errore(400, "permesso negato"));
+  const nega = await P.provaCreazione(nuovoClient(fNega), NUM);
+  c(
+    "creazione negata da ManyChat: esito «negata», lo dice con il permesso da chiedere al supporto, e si registra",
+    ["negata", true, "negata"],
+    [nega.risposta?.esito, /supporto/i.test(nega.risposta?.messaggio ?? ""), nega.registra],
+  );
+  const f401c = creaFinto().su("GET", PERCORSI.campi, esiti.nonAutorizzato());
+  const chiaveNo = await P.provaCreazione(nuovoClient(f401c), NUM);
+  c(
+    "chiave rifiutata: esito «errore», non si registra",
+    ["errore", null],
+    [chiaveNo.risposta?.esito, chiaveNo.registra],
+  );
+  const fIncerta = creaFinto().scenario("assente").su("POST", PERCORSI.crea, esiti.errore500());
+  const incerta = await P.provaCreazione(nuovoClient(fIncerta), NUM);
+  c(
+    "esito incerto (500): «errore», non si registra e non si ritenta",
+    ["errore", null, 1],
+    [
+      incerta.risposta?.esito,
+      incerta.registra,
+      fIncerta.chiamate.filter((x) => x.percorso === PERCORSI.crea).length,
+    ],
+  );
+  const senzaChiave = await P.provaCreazione(null, NUM);
+  c(
+    "nessuna chiave: «errore» che lo dice",
+    ["errore", true],
+    [senzaChiave.risposta?.esito, /chiave/i.test(senzaChiave.risposta?.messaggio ?? "")],
+  );
+  const fBrutto = creaFinto();
+  const numeri = await Promise.all(
+    ["", "ciao", "123", "+39 02 1234567", "0039 333 000 0001", 5].map((t) =>
+      P.provaCreazione(nuovoClient(fBrutto), t),
+    ),
+  );
+  c(
+    "numero che non è un cellulare: 400 con una frase, nessuna chiamata (solo il 0039 buono passa)",
+    [400, 400, 400, 400, 200, 400],
+    numeri.map((x) => x.stato),
+  );
+
+  /* ── LA PROVA A SECCO ──────────────────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · PROVA A SECCO");
+  const consulenti = [
+    {
+      id: "cons-1",
+      data: { nome: "Giulia Demo", attivo: true, faConsulente: true, faSetter: false },
+    },
+  ];
+  const consenso = { si: true, il: "2026-10-01T09:00:00.000Z", da: "Giulia Demo" };
+  const sched = (id, n, extra) => ({
+    id,
+    data: {
+      nome: "Anna",
+      cognome: "Prova",
+      telefono: `333 000 ${String(n).padStart(4, "0")}`,
+      consulenteId: "cons-1",
+      okWhatsapp: consenso,
+      ...extra,
+    },
+  });
+  const meet = (id, n, ora, extra) =>
+    sched(id, n, {
+      stato: "appuntamento_fissato",
+      dataMeeting: "2026-10-23",
+      oraMeeting: ora,
+      linkMeeting: "https://example.test/meetly/abc123",
+      ...extra,
+    });
+  const ric = (id, n, extra) =>
+    sched(id, n, { stato: "da_ricontattare", dataRicontatto: "2026-10-23", ...extra });
+  const ora1506 = new Date("2026-10-23T13:06:00.000Z"); // 15:06 a Roma
+  const secco = (schede, extra = {}) =>
+    P.provaASecco(
+      {
+        config: P.configDaRiga(riga({ acceso: true, ricontatti: true, promemoria: true })),
+        schede,
+        consulenti,
+        invii: [],
+        prossimoDopo: null,
+        ...extra,
+      },
+      ora1506,
+    );
+
+  const s1 = secco([meet("m1", 1, "15:30"), ric("r1", 2), ric("r2", 3)]);
+  const dettagli = (s) => s.righe.map((r) => [r.tipo, r.esito]);
+  c(
+    "meet alle 15:30 alle 15:06 → scriverebbe; il primo ricontatto scriverebbe, il secondo aspetta (uno alla volta)",
+    [
+      ["promemoria", "scriverebbe"],
+      ["ricontatto", "scriverebbe"],
+      ["ricontatto", "aspetta"],
+    ],
+    dettagli(s1),
+  );
+  c(
+    "…con il perché in chiaro e il nome abbreviato",
+    [true, "Anna P."],
+    [s1.righe.every((r) => r.motivo.length > 3), s1.righe[0].nome],
+  );
+  c("…l'ora è quella data", ora1506.toISOString(), s1.adesso);
+  c("…mai il telefono nelle righe", false, /\d{6,}/.test(JSON.stringify(s1)));
+  const s2 = secco([meet("m1", 1, "15:30", { okWhatsapp: undefined })]);
+  c(
+    "senza consenso: «salta» col motivo",
+    [["promemoria", "salta"], true],
+    [dettagli(s2)[0], /consenso/.test(s2.righe[0].motivo)],
+  );
+  const s3 = secco([meet("m1", 1, "15:25"), meet("m2", 2, "15:26"), meet("m3", 3, "15:27")]);
+  c(
+    "al massimo 2 invii per giro: il terzo aspetta il giro dopo",
+    ["scriverebbe", "scriverebbe", "aspetta"],
+    s3.righe.map((r) => r.esito),
+  );
+  const s4 = secco([meet("m1", 1, "18:00")]);
+  c(
+    "meet lontano: aspetta, e dice a che ora parte",
+    ["aspetta", true],
+    [s4.righe[0].esito, /17:35/.test(s4.righe[0].motivo)],
+  );
+  c("nessuno da toccare: elenco vuoto", [], secco([sched("x", 9, { stato: "nuovo_lead" })]).righe);
+  const s5 = secco([ric("r1", 2)], { prossimoDopo: new Date("2026-10-23T13:30:00.000Z") });
+  c(
+    "ritmo dei ricontatti non ancora passato: aspetta",
+    ["aspetta", true],
+    [s5.righe[0].esito, /ritmo/.test(s5.righe[0].motivo)],
+  );
+  const sorgente = letto("src/crm/manychat/pannello.ts");
+  c(
+    "la logica è pura: né il database né fetch entrano in pannello.ts (la prova a secco non può scrivere né chiamare)",
+    [false, false],
+    [
+      /supabase/i.test(sorgente.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")),
+      /\bfetch\(/.test(sorgente),
+    ],
+  );
+
+  /* ── IL CAMBIO A MANO DEL SECONDO STATO ────────────────────────────────── */
+  gruppo("MANYCHAT · CAMBIO A MANO DEL CONTATTO (contatto-wa)");
+  const adessoC = new Date("2026-10-23T13:00:00.000Z");
+  const lc = (b) => P.leggiCambioContatto(b);
+  c(
+    "corpo: serve un id scheda vero e uno dei sette stati",
+    [true, false, false, false, false],
+    [
+      lc({ leadId: LEAD, stato: "contattato" }).ok,
+      lc({ leadId: "1; drop table", stato: "contattato" }).ok,
+      lc({ leadId: LEAD, stato: "boh" }).ok,
+      lc({ leadId: LEAD }).ok,
+      lc(null).ok,
+    ],
+  );
+  c(
+    "corpo: chi cambia e l'installazione non si leggono dal browser (le chiavi in più si ignorano)",
+    { ok: true, leadId: LEAD, stato: "contattato" },
+    lc({ leadId: LEAD, stato: "contattato", chi: "Falso", userId: UUID_B }),
+  );
+
+  /** Un database finto che registra l'ordine delle scritture. */
+  function porteFinte({ scheda, esito = "ok", dopo, bloccoCade = false }) {
+    const log = [];
+    return {
+      log,
+      porte: {
+        leggiScheda: async (id) => {
+          log.push(["leggi", id]);
+          return scheda;
+        },
+        scriviBlocco: async (userId, cifre, dal) => {
+          log.push(["blocco", userId, cifre, dal ? dal.toISOString() : null]);
+          if (bloccoCade) throw { code: "XX000" };
+        },
+        aggiorna: async (userId, id, cambio) => {
+          log.push(["aggiorna", userId, id, cambio.patch.stato, cambio.patch.da]);
+          return esito;
+        },
+        rileggi: async () => dopo ?? null,
+        avviso: (m) => log.push(["avviso", m]),
+      },
+    };
+  }
+  const scritture = (log) => log.filter(([k]) => k === "blocco" || k === "aggiorna");
+  const chiama = (porte, extra = {}) =>
+    P.cambioContatto(porte, {
+      userId: UUID_A,
+      leadId: LEAD,
+      stato: "contattato",
+      chi: "Mario",
+      puoTogliereStop: false,
+      adesso: adessoC,
+      ...extra,
+    });
+
+  const altro = porteFinte({ scheda: { user_id: UUID_B, data: { telefono: "333 000 0001" } } });
+  const rAltro = await chiama(altro.porte);
+  c(
+    "scheda di un'altra installazione → 403 e NESSUNA scrittura (né blocco né stato)",
+    [403, 0],
+    [rAltro.stato, scritture(altro.log).length],
+  );
+  c(
+    "…la risposta non rivela di chi è la scheda",
+    false,
+    JSON.stringify(rAltro.corpo).includes(UUID_B),
+  );
+  const manca = porteFinte({ scheda: null });
+  const rManca = await chiama(manca.porte);
+  c(
+    "scheda inesistente → 404, nessuna scrittura",
+    [404, 0],
+    [rManca.stato, scritture(manca.log).length],
+  );
+
+  const normale = porteFinte({
+    scheda: { user_id: UUID_A, data: { telefono: "333 000 0001" } },
+    dopo: { stato: "contattato", il: adessoC.toISOString(), da: "Mario", storia: [] },
+  });
+  const rNorm = await chiama(normale.porte);
+  c(
+    "cambio normale: 200 col secondo stato com'è dopo, scritto da «Mario», il numero NON si tocca",
+    [200, "contattato", [["aggiorna", UUID_A, LEAD, "contattato", "Mario"]]],
+    [rNorm.stato, rNorm.corpo.contattoWa?.stato, scritture(normale.log)],
+  );
+
+  const mettiStop = porteFinte({
+    scheda: { user_id: UUID_A, data: { telefono: "333 000 0001" } },
+    dopo: { stato: "stop", il: adessoC.toISOString(), da: "Mario", storia: [] },
+  });
+  const rStop = await chiama(mettiStop.porte, { stato: "stop" });
+  c(
+    "STOP a mano: prima il blocco del numero (cifre con il 39, data di adesso), poi lo stato",
+    [
+      200,
+      [
+        ["blocco", UUID_A, "393330000001", adessoC.toISOString()],
+        ["aggiorna", UUID_A, LEAD, "stop", "Mario"],
+      ],
+    ],
+    [rStop.stato, scritture(mettiStop.log)],
+  );
+  const stopSenzaNumero = porteFinte({
+    scheda: { user_id: UUID_A, data: { telefono: "boh" } },
+    dopo: { stato: "stop", il: adessoC.toISOString(), da: "Mario", storia: [] },
+  });
+  const rStop2 = await chiama(stopSenzaNumero.porte, { stato: "stop" });
+  c(
+    "STOP a mano su una scheda senza numero valido: lo stato si scrive, nessun blocco da scrivere",
+    [200, ["aggiorna"]],
+    [rStop2.stato, scritture(stopSenzaNumero.log).map(([k]) => k)],
+  );
+
+  const inStop = {
+    user_id: UUID_A,
+    data: {
+      telefono: "333 000 0001",
+      contattoWa: { stato: "stop", il: "2026-10-22T10:00:00.000Z", da: "automatico", storia: [] },
+    },
+  };
+  const togliSenza = porteFinte({ scheda: inStop });
+  const rSenza = await chiama(togliSenza.porte, { stato: "contattato", puoTogliereStop: false });
+  c(
+    "togliere STOP senza «impostazioni» → 403 con la frase, nessuna scrittura",
+    [403, "solo_titolare_toglie_stop", 0],
+    [rSenza.stato, rSenza.corpo.codice, scritture(togliSenza.log).length],
+  );
+  const togliCon = porteFinte({
+    scheda: inStop,
+    dopo: { stato: "contattato", il: adessoC.toISOString(), da: "Titolare", storia: [] },
+  });
+  const rCon = await chiama(togliCon.porte, {
+    stato: "contattato",
+    puoTogliereStop: true,
+    chi: "Titolare",
+  });
+  c(
+    "togliere STOP col permesso: prima si salva lo stato, SOLO dopo si azzera il blocco del numero",
+    [
+      200,
+      [
+        ["aggiorna", UUID_A, LEAD, "contattato", "Titolare"],
+        ["blocco", UUID_A, "393330000001", null],
+      ],
+    ],
+    [rCon.stato, scritture(togliCon.log)],
+  );
+  for (const [esitoDb, atteso] of [
+    ["manca_migrazione", 503],
+    ["nessuna_riga", 409],
+  ]) {
+    const nonSalvato = porteFinte({ scheda: inStop, esito: esitoDb });
+    const r = await chiama(nonSalvato.porte, {
+      stato: "contattato",
+      puoTogliereStop: true,
+      chi: "Titolare",
+    });
+    c(
+      `togliere STOP e lo stato NON si salva (${esitoDb}): ${atteso} e il numero resta bloccato (nessuna scrittura del blocco)`,
+      [atteso, ["aggiorna"]],
+      [r.stato, scritture(nonSalvato.log).map(([k]) => k)],
+    );
+  }
+  const bloccoCade = porteFinte({
+    scheda: inStop,
+    dopo: { stato: "contattato", il: adessoC.toISOString(), da: "Titolare", storia: [] },
+    bloccoCade: true,
+  });
+  const rCade = await chiama(bloccoCade.porte, {
+    stato: "contattato",
+    puoTogliereStop: true,
+    chi: "Titolare",
+  });
+  c(
+    "togliere STOP e l'azzeramento cade: lo stato è salvato, il numero resta bloccato (guasto sicuro), lo dice e nei log c'è solo un codice",
+    [200, true, ["blocco_non_tolto:XX000"]],
+    [
+      rCade.stato,
+      /ancora bloccato/.test(rCade.corpo.avviso ?? ""),
+      bloccoCade.log.filter(([k]) => k === "avviso").map(([, m]) => m),
+    ],
+  );
+  const restaStop = porteFinte({
+    scheda: inStop,
+    dopo: { stato: "stop", il: adessoC.toISOString(), da: "Mario", storia: [] },
+  });
+  const rResta = await chiama(restaStop.porte, { stato: "stop", puoTogliereStop: false });
+  c(
+    "già in STOP e si sceglie ancora STOP: nessun permesso speciale, il blocco si riscrive",
+    [200, "blocco"],
+    [rResta.stato, scritture(restaStop.log)[0]?.[0]],
+  );
+
+  const sparita = porteFinte({
+    scheda: { user_id: UUID_A, data: { telefono: "333 000 0001" } },
+    esito: "nessuna_riga",
+  });
+  const rSparita = await chiama(sparita.porte);
+  c("la scheda è cambiata mentre si salvava → 409", 409, rSparita.stato);
+  const senzaM2 = porteFinte({
+    scheda: { user_id: UUID_A, data: { telefono: "333 000 0001" } },
+    esito: "manca_migrazione",
+  });
+  const rM2 = await chiama(senzaM2.porte);
+  c(
+    "funzione del database assente → 503 «manca l'aggiornamento del database»",
+    [503, true],
+    [rM2.stato, /aggiornamento del database/.test(rM2.corpo.error)],
+  );
+  const senzaLettura = porteFinte({
+    scheda: { user_id: UUID_A, data: { telefono: "333 000 0001" } },
+    dopo: null,
+  });
+  const rFallback = await chiama(senzaLettura.porte, { stato: "ha_risposto" });
+  c(
+    "se la rilettura non dà niente, la risposta usa la stessa fusione del database (voce in testa, sblocco)",
+    [200, "ha_risposto", "Mario", true],
+    [
+      rFallback.stato,
+      rFallback.corpo.contattoWa?.stato,
+      rFallback.corpo.contattoWa?.da,
+      !!rFallback.corpo.contattoWa?.sbloccatoIl,
+    ],
+  );
+
+  /* ── LE GUARDIE DELLE ROTTE (lette come testo) ─────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · LE ROTTE");
+  const rotta = letto("src/routes/api.crm.manychat.ts");
+  const rottaC = letto("src/routes/api.crm.contatto-wa.ts");
+  const guardie = (t, permesso) =>
+    (t.match(new RegExp(`guardiaCRM\\(request, cors, ${permesso}\\)`, "g")) ?? []).length;
+  c(
+    "api.crm.manychat: GET e POST dietro guardiaCRM(«impostazioni»), e solo quello",
+    [2, 2],
+    [guardie(rotta, '"impostazioni"'), (rotta.match(/guardiaCRM\(/g) ?? []).length],
+  );
+  c(
+    "api.crm.contatto-wa: POST dietro guardiaCRM(null) (basta essere dentro: il permesso fine lo decide cambioAMano)",
+    [1, 1],
+    [guardie(rottaC, "null"), (rottaC.match(/guardiaCRM\(/g) ?? []).length],
+  );
+  c(
+    "contatto-wa: il permesso di togliere STOP è quello «impostazioni» della sessione, non un valore fisso",
+    [true, false],
+    [
+      /puoTogliereStop:\s*g\.chi\.accesso\.puo\("impostazioni"\)/.test(rottaC),
+      /puoTogliereStop:\s*(true|false)\b/.test(rottaC),
+    ],
+  );
+  c(
+    "api.crm.manychat: GET e POST rifiutano (403) la configurazione di un'altra installazione, prima di scrivere",
+    [2, 2],
+    [
+      (
+        rotta.match(
+          /if \(configDiAltraInstallazione\(cfg\.riga, [\w.]+\)\)\s*return json\(\{ error: FRASE_ALTRA \}, 403\)/g,
+        ) ?? []
+      ).length,
+      (rotta.match(/configDiAltraInstallazione\(/g) ?? []).length,
+    ],
+  );
+  c(
+    "…la POST controlla PRIMA di ogni scrittura (scriviConfig, salvaControlli)",
+    true,
+    rotta.indexOf("configDiAltraInstallazione(cfg.riga, userId)") <
+      Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await salvaControlli(")),
+  );
+  c(
+    "configDiAltraInstallazione: stessa installazione, nessuna riga, riga mai scritta → no; un altro user_id → sì",
+    [false, false, false, true],
+    [
+      P.configDiAltraInstallazione({ user_id: UUID_A }, UUID_A),
+      P.configDiAltraInstallazione(null, UUID_A),
+      P.configDiAltraInstallazione({ user_id: null }, UUID_A),
+      P.configDiAltraInstallazione({ user_id: UUID_B }, UUID_A),
+    ],
+  );
+  const contesto = letto("src/crm/CRMContext.tsx");
+  c(
+    "updateLead scarta `contattoWa` dalla modifica con la destrutturazione (non delete), e non tocca `promemoria`",
+    [true, false, false],
+    [
+      /const \{ contattoWa: _soloServer, \.\.\.patch \} = risolviModifica\(modifica, current\.data\)/.test(
+        contesto,
+      ),
+      /delete patch\./.test(contesto),
+      /promemoria: _/.test(contesto),
+    ],
+  );
+  c(
+    "tutte e due ripartono se manca il titolare dei dati (adminUserId)",
+    [true, true],
+    [/!g\.chi\.adminUserId/.test(rotta), /!g\.chi\.adminUserId/.test(rottaC)],
+  );
+  c(
+    "il browser non sceglie né il nome di chi cambia né l'installazione: la rotta usa quelli della sessione",
+    [true, true, false],
+    [
+      /g\.chi\.nome/.test(rottaC),
+      /g\.chi\.adminUserId/.test(rottaC),
+      /body\.(chi|userId|nome)\b/.test(rottaC),
+    ],
+  );
+  c(
+    "nessun console.log nelle rotte né nella logica (nei log solo codici)",
+    false,
+    [
+      rotta,
+      rottaC,
+      letto("src/crm/manychat/pannello.ts"),
+      letto("src/crm/manychat/pannello.server.ts"),
+    ].some((t) => /console\.log/.test(t)),
+  );
+  c(
+    "la chiave di ManyChat si legge solo dal server (mai in una risposta): nessuna risposta serializza `process.env`",
+    false,
+    /JSON\.stringify\([^)]*process\.env/.test(rotta),
+  );
 }
