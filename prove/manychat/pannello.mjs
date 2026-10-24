@@ -2026,7 +2026,7 @@ async function proveMontaggio(mod, { c, gruppo, radice }) {
   c(
     "la finestra della pastiglia non fa arrivare i clic alla riga",
     true,
-    /className="contents" onClick=\{\(e\) => e\.stopPropagation\(\)\}/.test(
+    /className="contents"\s+onClick=\{\(e\) => e\.stopPropagation\(\)\}/.test(
       leggi("src/crm/manychat/PastigliaContatto.tsx"),
     ),
   );
