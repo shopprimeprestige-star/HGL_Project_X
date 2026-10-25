@@ -59,6 +59,8 @@ export async function proveVistaComponenti(aiuti) {
   const { c, gruppo, radice } = aiuti;
   gruppo("MANYCHAT · COMPONENTI (vista-pannello)");
   const V = carica(radice, "src/crm/manychat/vista-pannello.ts");
+  //  I tetti sono le costanti di `quando.ts` (le cambia il compito Q): niente 40 o 100 scritti qui.
+  const TETTI = carica(radice, "src/crm/manychat/quando.ts");
 
   // ── ore e giorni (sempre Roma) ────────────────────────────────────────
   c(
@@ -291,8 +293,8 @@ export async function proveVistaComponenti(aiuti) {
     [mai.acceso, /non partono/.test(mai.riga)],
   );
   c(
-    "Ok: consenso del modulo, interruttore comunque spento",
-    [false, true, "Il cliente ha già dato il consenso nel modulo"],
+    "Ok: consenso del modulo senza data leggibile, interruttore comunque spento: non vale",
+    [false, true, "Nel modulo, ma la data non si legge: non vale come consenso"],
     (({ acceso, dalModulo, riga }) => [acceso, dalModulo, riga])(
       V.vistaOkWhatsapp(null, { whatsapp: true }),
     ),
@@ -503,10 +505,10 @@ export async function proveVistaComponenti(aiuti) {
   c(
     "riga: tetto totale raggiunto",
     true,
-    /40 messaggi su 40/.test(
+    new RegExp(`${TETTI.TETTO_TOTALE} messaggi su ${TETTI.TETTO_TOTALE}`).test(
       riga({
         config: { ricontatti: false },
-        giro: { oggi: { promemoria: 40, ricontatti: 0, risposte: 0 } },
+        giro: { oggi: { promemoria: TETTI.TETTO_TOTALE, ricontatti: 0, risposte: 0 } },
       }).frase,
     ),
   );
@@ -552,13 +554,18 @@ export async function proveVistaComponenti(aiuti) {
 
   // ── i tetti: si possono solo abbassare ────────────────────────────────
   c(
-    "tetti effettivi: di serie 20 e 40",
-    { ricontatti: 20, totale: 40, primaSettimana: false },
+    "tetti effettivi: di serie le costanti (e 30 lead nuovi)",
+    {
+      ricontatti: TETTI.TETTO_RICONTATTI,
+      leadNuovi: 30,
+      totale: TETTI.TETTO_TOTALE,
+      primaSettimana: false,
+    },
     V.tettiEffettivi({}, "2026-09-01T08:00:00Z", ADESSO),
   );
   c(
     "tetti effettivi: il riquadro a 500 vale le costanti",
-    [20, 40],
+    [TETTI.TETTO_RICONTATTI, TETTI.TETTO_TOTALE],
     ((t) => [t.ricontatti, t.totale])(
       V.tettiEffettivi({ ricontatti: 500, totale: 900 }, "2026-09-01T08:00:00Z", ADESSO),
     ),
@@ -767,12 +774,15 @@ export async function proveVistaComponenti(aiuti) {
     rp.some((x) => /\d{8,}/.test(x.testo)),
   );
   c("problemi: senza problemi, elenco vuoto", [], V.righeProblemi({ problemi: [] }));
+
+  await proveVistaSequenze(aiuti);
 }
 
 export async function provePannello(mod, aiuti) {
   await proveVistaComponenti(aiuti);
   await proveMontaggio(mod, aiuti);
   await proveRotte(mod, aiuti);
+  await proveRiquadroSequenze(mod, aiuti);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -791,6 +801,7 @@ const MIN = 60_000;
 
 async function proveRotte(mod, { c, gruppo, radice }) {
   const P = carica(radice, "src/crm/manychat/pannello.ts");
+  const Q0 = carica(radice, "src/crm/manychat/quando.ts");
   const A = mod["manychat/api"];
   const nuovoClient = (f) => A.creaClient({ chiave: "chiave-finta", fetch: f.fetch });
   const letto = (relativo) => readFileSync(join(radice, relativo), "utf8");
@@ -961,8 +972,8 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   );
 
   c(
-    "tetti alzati a 500 → riportati alle costanti 20 e 40",
-    { ricontatti: 20, totale: 40 },
+    "tetti alzati a 500 → riportati alle costanti",
+    { ricontatti: Q0.TETTO_RICONTATTI, totale: Q0.TETTO_TOTALE },
     cfg({ tetti: { ricontatti: 500, totale: 500 } }).tetti,
   );
   c(
@@ -1062,8 +1073,8 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   ];
   const sg = P.costruisciStato({ ...base, invii: giornata }, adesso);
   c(
-    "oggi (giorno di Roma): promemoria e ricontatti partiti (non i falliti, non la conferma), risposte ricevute",
-    { promemoria: 3, ricontatti: 2, risposte: 1 },
+    "oggi (giorno di Roma): promemoria e ricontatti partiti (non i falliti, non la conferma), il totale dei tetti, risposte ricevute",
+    { promemoria: 3, ricontatti: 2, leadNuovi: 0, totale: 5, risposte: 1 },
     sg.giro.oggi,
   );
 
@@ -1982,7 +1993,9 @@ async function proveMontaggio(mod, { c, gruppo, radice }) {
   c(
     "pastiglia: con la finestra aperta i tasti non arrivano alle scorciatoie della pagina",
     true,
-    /onKeyDown=\{\(e\) => e\.stopPropagation\(\)\}/.test(leggi("src/crm/manychat/PastigliaContatto.tsx")),
+    /onKeyDown=\{\(e\) => e\.stopPropagation\(\)\}/.test(
+      leggi("src/crm/manychat/PastigliaContatto.tsx"),
+    ),
   );
   const VO = mod["vista-oggi"];
   c(
@@ -2030,4 +2043,1233 @@ async function proveMontaggio(mod, { c, gruppo, radice }) {
       leggi("src/crm/manychat/PastigliaContatto.tsx"),
     ),
   );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  COMMESSA 2026-10-25, COMPITO P: IL RIQUADRO CON LE SEQUENZE E I MESSAGGI PER STATO
+ *
+ *  Due interruttori nuovi (lead nuovo, giorno del meet), uno per ogni stato con
+ *  un messaggio, la data della frase del consenso nel modulo, l'indirizzo della
+ *  sede, il tetto dei lead nuovi, la riga «Foglio Google». Tutto spento di serie.
+ *  Le costanti dei tetti si leggono da `quando.ts` (le cambia Q): qui non c'è
+ *  nessun 40 o 100 scritto a mano, tranne i 30 dei lead nuovi che Q non ha
+ *  ancora messo in `quando.ts` (vedi `TETTO_LEAD_NUOVI` in vista-pannello.ts).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Dopo la fusione con Q gli stati hanno la loro tabella (`stati.ts`): il
+ *  riquadro deve elencare gli stessi stati con gli stessi modelli. */
+const FRASE_26 = "2026-10-25T23:00:00.000Z"; // 26/10 00:00 a Roma (ora solare)
+
+async function proveVistaSequenze({ c, gruppo, radice }) {
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE E STATI (vista-pannello)");
+  const V = carica(radice, "src/crm/manychat/vista-pannello.ts");
+  const Q = carica(radice, "src/crm/manychat/quando.ts");
+  const R = carica(radice, "src/crm/manychat/regole.ts");
+  const TY = carica(radice, "src/crm/types.ts");
+
+  // ── gli stati con un messaggio ───────────────────────────────────────────
+  const modelloDi = Object.fromEntries(V.STATI_RIQUADRO.map((s) => [s.stato, s.modello]));
+  c(
+    "stati: una riga per ogni stato della tabella del piano, col suo modello (Cliente assente è una riga sola)",
+    {
+      da_ricontattare: "hgl_ricontatto_consulenza",
+      sta_valutando: "hgl_ricontatto_consulenza",
+      fissa_meet_dopo: "hgl_meet_da_fissare",
+      in_attesa_acconto: "hgl_ricontatto_consulenza",
+      gestire_in_chat: "hgl_ricontatto_consulenza",
+      richiamo: "hgl_richiamo_concordato",
+      non_risponde: "hgl_non_risponde",
+      segreteria: "hgl_non_risponde",
+      no_show: "hgl_cliente_assente",
+      da_spostare: "hgl_da_riprogrammare",
+      viene_in_sede: "hgl_promemoria_sede",
+      sede_disdetta: "hgl_sede_disdetta",
+      irreperibile: "hgl_ultimo_tentativo",
+    },
+    modelloDi,
+  );
+  c(
+    "stati: «Cliente assente» accende anche il vecchio stato non_fatto (stessa etichetta, stesso messaggio)",
+    [["no_show", "non_fatto"], ["non_fatto"]],
+    [
+      V.statiDiRiga(V.STATI_RIQUADRO.find((s) => s.stato === "no_show")),
+      V.STATI_RIQUADRO.find((s) => s.stato === "no_show").insieme,
+    ],
+  );
+  c(
+    "stati: «Ricontatto fissato» resta legato all'interruttore dei ricontatti, nessun altro stato lo è",
+    ["da_ricontattare"],
+    V.STATI_RIQUADRO.filter((s) => s.legatoA === "ricontatti").map((s) => s.stato),
+  );
+  c(
+    "stati: l'etichetta è quella che si legge nel CRM",
+    [],
+    V.STATI_RIQUADRO.filter((s) => s.etichetta !== TY.LEAD_STATUS_LABEL[s.stato]).map(
+      (s) => s.stato,
+    ),
+  );
+  c(
+    "stati: ogni riga dice quando parte e a chi",
+    [],
+    V.STATI_RIQUADRO.filter((s) => !s.quando.trim() || !s.chi.trim()).map((s) => s.stato),
+  );
+  const T = carica(radice, "src/crm/manychat/stati.ts");
+  const dellaTabella = Object.entries(T.TABELLA_STATI);
+  if (dellaTabella.length > 0) {
+    // dopo la fusione con T: stessi stati, stessi modelli
+    const miei = Object.fromEntries(
+      V.STATI_RIQUADRO.flatMap((s) => V.statiDiRiga(s).map((k) => [k, s.modello])),
+    );
+    c(
+      "stati: il riquadro elenca gli stessi stati e gli stessi modelli della tabella di stati.ts",
+      Object.fromEntries(dellaTabella.map(([k, r]) => [k, r.modello]).sort()),
+      Object.fromEntries(Object.entries(miei).sort()),
+    );
+  }
+  c(
+    "flussi per le sequenze: i quattro della sequenza e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
+    [
+      "hgl_primo_contatto",
+      "hgl_richiamo_24h",
+      "hgl_meet_oggi",
+      "hgl_meet_adesso",
+      "hgl_meet_da_fissare",
+      "hgl_richiamo_concordato",
+      "hgl_non_risponde",
+      "hgl_cliente_assente",
+      "hgl_da_riprogrammare",
+      "hgl_promemoria_sede",
+      "hgl_sede_disdetta",
+      "hgl_ultimo_tentativo",
+    ],
+    V.MODELLI_FLUSSO_SEQUENZE.map((m) => m.modello),
+  );
+  const tuttiModelli = [...V.MODELLI_FLUSSO, ...V.MODELLI_FLUSSO_SEQUENZE].map((m) => m.modello);
+  c(
+    "flussi: ogni modello di uno stato ha il suo campo nel riquadro, senza doppioni",
+    [[], []],
+    [
+      V.STATI_RIQUADRO.filter((s) => !tuttiModelli.includes(s.modello)).map((s) => s.stato),
+      tuttiModelli.filter((m, i) => tuttiModelli.indexOf(m) !== i),
+    ],
+  );
+
+  // ── «Ok a WhatsApp»: la data del modulo e se vale ───────────────────────
+  const ok = (modulo, frase, ok0 = null) =>
+    ((v) => [v.acceso, v.valeDalModulo, v.riga])(V.vistaOkWhatsapp(ok0, modulo, frase));
+  c(
+    "Ok: modulo del 27/10, frase dal 26/10 → vale",
+    [false, true, "Ha lasciato il numero nel modulo il 27/10: vale (la frase c'è dal 26/10)"],
+    ok({ whatsapp: true, il: "2026-10-27T09:00:00Z" }, FRASE_26),
+  );
+  c(
+    "Ok: modulo del 10/10, frase dal 26/10 → non vale, precedente alla frase",
+    [false, false, "Nel modulo del 10/10: non vale, precedente alla frase (dal 26/10)"],
+    ok({ whatsapp: true, il: "2026-10-10T09:00:00Z" }, FRASE_26),
+  );
+  c(
+    "Ok: modulo compilato proprio all'inizio del giorno della frase → vale (uguale o successivo)",
+    true,
+    ok({ whatsapp: true, il: FRASE_26 }, FRASE_26)[1],
+  );
+  c(
+    "Ok: frase non segnata → non vale per nessuno, e lo dice",
+    [false, false, "Nel modulo del 27/10: non vale finché non segni il giorno della frase"],
+    ok({ whatsapp: true, il: "2026-10-27T09:00:00Z" }, null),
+  );
+  c(
+    "Ok: data del modulo che non si legge → non vale (mai l'ora d'ingresso al suo posto)",
+    [false, false, "Nel modulo, ma la data non si legge: non vale come consenso"],
+    ok({ whatsapp: true, il: null }, FRASE_26),
+  );
+  c(
+    "Ok: chi guarda non conosce la data della frase → la data del modulo c'è, il verdetto no",
+    [false, null, "Ha lasciato il numero nel modulo il 27/10"],
+    ok({ whatsapp: true, il: "2026-10-27T09:00:00Z" }),
+  );
+  c(
+    "Ok: «sì» messo a voce → la riga resta quella di sempre, anche con un modulo",
+    [true, "Chiesto a voce da Mario, 23/10"],
+    ((r) => [r[0], r[2]])(
+      ok({ whatsapp: true, il: "2026-10-10T09:00:00Z" }, FRASE_26, {
+        si: true,
+        il: "2026-10-23T13:00:00Z",
+        da: "Mario",
+      }),
+    ),
+  );
+  c(
+    "Ok: revoca → «Tolto da…» (batte il modulo)",
+    [false, "Tolto da Anna, 24/10"],
+    ((r) => [r[0], r[2]])(
+      ok({ whatsapp: true, il: "2026-10-27T09:00:00Z" }, FRASE_26, {
+        si: false,
+        il: "2026-10-24T09:00:00Z",
+        da: "Anna",
+      }),
+    ),
+  );
+
+  // ── tetti: ricontatti, lead nuovi, totale ───────────────────────────────
+  const eff0 = V.tettiEffettivi({}, "2026-09-01T08:00:00Z", ADESSO);
+  c(
+    "tetti effettivi: di serie ricontatti, lead nuovi 30 e totale (le costanti)",
+    [Q.TETTO_RICONTATTI, 30, Q.TETTO_TOTALE, false],
+    [eff0.ricontatti, eff0.leadNuovi, eff0.totale, eff0.primaSettimana],
+  );
+  c(
+    "tetti effettivi: il riquadro a 500 vale le costanti, abbassati valgono",
+    [30, 7],
+    [
+      V.tettiEffettivi({ leadNuovi: 500 }, "2026-09-01T08:00:00Z", ADESSO).leadNuovi,
+      V.tettiEffettivi({ leadNuovi: 7 }, "2026-09-01T08:00:00Z", ADESSO).leadNuovi,
+    ],
+  );
+  const TL = carica(radice, "src/crm/manychat/quando.ts");
+  if ("TETTO_LEAD_NUOVI" in TL)
+    c(
+      "tetto lead nuovi: lo stesso valore di quando.ts (dopo la fusione con Q)",
+      TL.TETTO_LEAD_NUOVI,
+      V.TETTO_LEAD_NUOVI,
+    );
+
+  // ── la riga di stato in chiaro ──────────────────────────────────────────
+  const stato = (config = {}, giro = {}, radiceS = {}) => ({
+    adesso: ADESSO.toISOString(),
+    migrazione: true,
+    chiavePresente: true,
+    segretoRitornoPresente: true,
+    config: {
+      canale: "manychat",
+      acceso: true,
+      promemoria: false,
+      ricontatti: false,
+      leadNuovo: false,
+      giornoMeet: false,
+      leadNuovoDal: null,
+      stati: {},
+      indirizzoSede: null,
+      sequenze: true,
+      tetti: {},
+      flussi: {},
+      primaAccensione: "2026-09-01T08:00:00Z",
+      ultimaAccensione: "2026-09-01T08:00:00Z",
+      fermatoMotivo: null,
+      ...config,
+    },
+    giro: {
+      ultimoGiroIl: "2026-10-23T12:58:00Z",
+      ultimaRispostaIl: "2026-10-23T12:00:00Z",
+      ultimoInvioIl: "2026-10-23T12:30:00Z",
+      prossimoRicontattoDopo: null,
+      oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 0, totale: 0, risposte: 0 },
+      problemi: [],
+      ...giro,
+    },
+    collegamento: null,
+    fraseModulo: null,
+    foglio: null,
+    ...radiceS,
+  });
+  const riga = (...a) => V.rigaStatoRiquadro(stato(...a), ADESSO);
+  c(
+    "riga di stato: acceso ma nessun messaggio acceso → «non parte niente»",
+    ["ambra", "In attesa"],
+    ((x) => [x.tono, x.parola])(riga()),
+  );
+  c(
+    "riga di stato: basta «Lead nuovo» acceso per non essere «in attesa»",
+    "verde",
+    riga({ leadNuovo: true }).tono,
+  );
+  c(
+    "riga di stato: basta uno stato acceso (o il giorno del meet)",
+    ["verde", "verde"],
+    [
+      riga({ stati: { irreperibile: "2026-10-23T08:00:00Z" } }).tono,
+      riga({ giornoMeet: true }).tono,
+    ],
+  );
+  c(
+    "riga di stato: con «Lead nuovo» acceso dice anche quanti ne sono partiti",
+    true,
+    /oggi 0 promemoria, 0 ricontatti, 3 lead nuovi, 5 risposte/.test(
+      riga(
+        { promemoria: true, ricontatti: true, leadNuovo: true },
+        { oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 3, totale: 3, risposte: 5 } },
+      ).frase,
+    ),
+  );
+  c(
+    "riga di stato: tetto dei lead nuovi raggiunto → ambra, slittano a domani",
+    ["ambra", true],
+    ((x) => [x.tono, /Tetto di oggi raggiunto: 30 lead nuovi su 30.*domani/.test(x.frase)])(
+      riga(
+        { leadNuovo: true },
+        { oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 30, totale: 30, risposte: 0 } },
+      ),
+    ),
+  );
+  c(
+    "riga di stato: il tetto del totale conta tutti i tipi (non solo promemoria e ricontatti)",
+    true,
+    new RegExp(`Tetto di oggi raggiunto: ${Q.TETTO_TOTALE} messaggi su ${Q.TETTO_TOTALE}`).test(
+      riga(
+        { giornoMeet: true },
+        {
+          oggi: {
+            promemoria: 1,
+            ricontatti: 0,
+            leadNuovi: 0,
+            totale: Q.TETTO_TOTALE,
+            risposte: 0,
+          },
+        },
+      ).frase,
+    ),
+  );
+
+  // ── cosa si può accendere ───────────────────────────────────────────────
+  const sq = (config, radiceS) => V.vistaSequenze(stato(config, {}, radiceS));
+  const FRASE = { il: FRASE_26, da: "Mario", segnatoIl: "2026-10-26T09:00:00.000Z" };
+  const senzaS2 = sq({ sequenze: false });
+  c(
+    "senza l'aggiornamento del database i due interruttori nuovi sono chiusi e lo dicono",
+    [true, true, true],
+    [
+      senzaS2.leadNuovo.disabilitato,
+      senzaS2.giornoMeet.disabilitato,
+      /aggiornamento del database/.test(senzaS2.leadNuovo.nota),
+    ],
+  );
+  const senzaFrase = sq({}, { fraseModulo: null });
+  c(
+    "senza la data della frase «Lead nuovo» non si accende e la riga lo dice; il giorno del meet sì",
+    [true, true, false],
+    [
+      senzaFrase.leadNuovo.disabilitato,
+      /consensi dei moduli non valgono finché non segni la data della frase/.test(
+        senzaFrase.leadNuovo.nota,
+      ),
+      senzaFrase.giornoMeet.disabilitato,
+    ],
+  );
+  c(
+    "con la data della frase «Lead nuovo» si può accendere",
+    false,
+    sq({}, { fraseModulo: FRASE }).leadNuovo.disabilitato,
+  );
+  c(
+    "se è già acceso resta spegnibile anche senza la frase (spegnere non fa danni)",
+    false,
+    sq({ leadNuovo: true }, { fraseModulo: null }).leadNuovo.disabilitato,
+  );
+  c(
+    "senza l'aggiornamento del database anche gli stati sono chiusi, tranne «Ricontatto fissato» (che è l'interruttore di sempre)",
+    true,
+    V.vistaSequenze(stato({ sequenze: false }))
+      .stati.filter((s) => !s.legatoA)
+      .every((s) => s.disabilitato),
+  );
+  const vs = V.vistaSequenze(
+    stato({ stati: { sta_valutando: "2026-10-23T08:00:00Z" }, sequenze: true }),
+  );
+  c(
+    "stati: spenti di serie, acceso solo quello con l'ora scritta (con il giorno e l'ora in chiaro)",
+    [["sta_valutando"], "acceso dal 23/10 10:00"],
+    [
+      vs.stati.filter((s) => s.acceso && !s.legatoA).map((s) => s.stato),
+      vs.stati.find((s) => s.stato === "sta_valutando").dal,
+    ],
+  );
+  c(
+    "stati: «Appuntamento in sede» senza indirizzo avverte; con l'indirizzo no",
+    [true, false],
+    [
+      /indirizzo della sede/.test(
+        V.vistaSequenze(stato({ sequenze: true })).stati.find((s) => s.stato === "viene_in_sede")
+          .avviso,
+      ),
+      !!V.vistaSequenze(stato({ sequenze: true, indirizzoSede: "Via Roma 1, Milano" })).stati.find(
+        (s) => s.stato === "viene_in_sede",
+      ).avviso,
+    ],
+  );
+
+  // ── la data della frase ─────────────────────────────────────────────────
+  const OGGI26 = new Date("2026-10-26T10:00:00Z"); // 11:00 a Roma
+  const g = (t) => V.leggiGiornoFrase(t, OGGI26);
+  c("frase: oggi → ok", { ok: true, giorno: "2026-10-26" }, g("2026-10-26"));
+  c("frase: un giorno passato → ok", { ok: true, giorno: "2026-10-10" }, g(" 2026-10-10 "));
+  c(
+    "frase: domani → no, nel futuro",
+    [false, "La data non può essere nel futuro."],
+    ((x) => [x.ok, x.errore])(g("2026-10-27")),
+  );
+  c(
+    "frase: a mezzanotte e mezza a Roma «oggi» è già il giorno dopo (si conta il giorno di Roma)",
+    true,
+    V.leggiGiornoFrase("2026-10-26", new Date("2026-10-25T23:30:00Z")).ok,
+  );
+  c(
+    "frase: vuota, scritta male o giorno che non esiste → no",
+    [false, false, false, false],
+    ["", "26/10/2026", "2026-02-30", "2026-13-01"].map((t) => g(t).ok),
+  );
+  const vf = (frase) => V.vistaFraseModulo(frase);
+  c(
+    "riga della frase: non segnata → ambra, i consensi dei moduli non valgono",
+    ["ambra", true],
+    ((x) => [x.tono, /non valgono/.test(x.frase)])(vf(null)),
+  );
+  c(
+    "riga della frase: segnata → il giorno, chi l'ha segnata e da quando vale",
+    [
+      "verde",
+      "Segnata per il 26/10 da Mario. Valgono i moduli compilati da quel giorno in poi; quelli di prima no.",
+    ],
+    ((x) => [x.tono, x.frase])(vf(FRASE)),
+  );
+
+  // ── l'indirizzo della sede ──────────────────────────────────────────────
+  c(
+    "indirizzo: tolti gli spazi in più; vuoto = lo toglie",
+    [
+      { ok: true, valore: "Via Roma 1, 20121 Milano" },
+      { ok: true, valore: "" },
+    ],
+    [V.leggiIndirizzo("  Via Roma 1,   20121 Milano "), V.leggiIndirizzo("   ")],
+  );
+  c(
+    "indirizzo: a capo, tabulazioni o più di 150 caratteri → no (il modello li rifiuterebbe)",
+    [false, false, false],
+    ["Via Roma\n1", "Via\tRoma", "x".repeat(151)].map((t) => V.leggiIndirizzo(t).ok),
+  );
+
+  // ── il foglio Google ────────────────────────────────────────────────────
+  const fo = (foglio) => V.vistaFoglio(foglio);
+  const FOGLIO = {
+    migrazione: true,
+    segretoPresente: true,
+    ultimo: { il: "2026-10-23T12:40:00.000Z", esito: "nuovo" },
+    righeOggi: 12,
+    tetto: 300,
+  };
+  c(
+    "foglio: l'ultima riga, l'esito in parole e «12 su 300» righe di oggi",
+    ["verde", "Ultima riga ricevuta il 23/10 14:40 (nuovo lead) · righe ricevute oggi: 12 su 300"],
+    ((x) => [x.tono, x.frase])(fo(FOGLIO)),
+  );
+  c(
+    "foglio: al tetto → rosso",
+    ["rosso", true],
+    ((x) => [x.tono, /300 su 300.*tetto/.test(x.frase)])(fo({ ...FOGLIO, righeOggi: 300 })),
+  );
+  c(
+    "foglio: nessuna riga mai ricevuta → neutro, lo dice",
+    ["neutro", true],
+    ((x) => [x.tono, /Nessuna riga ricevuta/.test(x.frase)])(fo({ ...FOGLIO, ultimo: null })),
+  );
+  c(
+    "foglio: segreto assente → rosso «manca SHEETS_INGRESSO_TOKEN»",
+    ["rosso", true],
+    ((x) => [x.tono, /manca SHEETS_INGRESSO_TOKEN/.test(x.frase)])(
+      fo({ ...FOGLIO, segretoPresente: false }),
+    ),
+  );
+  c(
+    "foglio: senza l'aggiornamento del database → ambra",
+    ["ambra", true],
+    ((x) => [x.tono, /aggiornamento del database/.test(x.frase)])(
+      fo({ ...FOGLIO, migrazione: false }),
+    ),
+  );
+  c(
+    "foglio: le frasi non portano mai un numero lungo (telefono, id)",
+    false,
+    [FOGLIO, { ...FOGLIO, righeOggi: 300 }].some((f) => /\d{6,}/.test(fo(f).frase)),
+  );
+
+  // ── il «Collegamento ok» con i flussi nuovi ─────────────────────────────
+  c(
+    "collegamento: «non serve ancora» ha la sua parola e non conta come dubbio né come problema",
+    ["non serve ancora", ["verde", "Collegamento ok"]],
+    [
+      V.PAROLA_ESITO.non_serve,
+      ((t) => [t.tono, t.titolo])(
+        V.titoloCollegamento(
+          {
+            controllatoIl: ADESSO.toISOString(),
+            righe: [
+              ...V.ID_COLLEGAMENTO.filter(
+                (id) => id !== "segreto_ritorno" && id !== "ultima_risposta",
+              ).map((id) => ({ id, esito: "ok", testo: "x" })),
+              { id: "flusso:hgl_primo_contatto", esito: "non_serve", testo: "x" },
+            ],
+          },
+          { segretoRitornoPresente: true, ultimaRispostaIl: "2026-10-23T11:00:00Z" },
+        ),
+      ),
+    ],
+  );
+  c(
+    "tipi di invio: una parola per ognuno nei problemi del giro",
+    [],
+    ["promemoria", "ricontatto", "conferma", ...TY_NUOVI].filter(
+      (t) => !V.ETICHETTA_TIPO[t] || /_/.test(V.ETICHETTA_TIPO[t]),
+    ),
+  );
+  c(
+    "…e i problemi del giro nominano il tipo con la sua parola",
+    "Mario R. · primo contatto · manca il consenso",
+    V.righeProblemi({
+      problemi: [
+        {
+          il: "2026-10-23T12:00:00Z",
+          nome: "Mario R.",
+          tipo: "primo_contatto",
+          motivo: "manca il consenso",
+        },
+      ],
+    })[0].testo,
+  );
+  void R;
+}
+const TY_NUOVI = [
+  "primo_contatto",
+  "richiamo_24h",
+  "meet_oggi",
+  "meet_adesso",
+  "promemoria_chiamata",
+  "promemoria_sede",
+];
+
+async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
+  const P = carica(radice, "src/crm/manychat/pannello.ts");
+  const V = carica(radice, "src/crm/manychat/vista-pannello.ts");
+  const Q = carica(radice, "src/crm/manychat/quando.ts");
+  const A = mod["manychat/api"];
+  const letto = (relativo) => readFileSync(join(radice, relativo), "utf8");
+  const NOW = new Date("2026-10-26T10:00:00.000Z"); // 11:00 a Roma, ora solare
+  const ok = (body) => P.leggiComando(body);
+  const riga = (extra = {}) => ({
+    user_id: UUID_A,
+    canale: "manychat",
+    acceso: true,
+    promemoria: false,
+    ricontatti: false,
+    lead_nuovo: false,
+    giorno_meet: false,
+    lead_nuovo_dal: null,
+    stati: {},
+    indirizzo_sede: null,
+    tetti: {},
+    flussi: {},
+    prima_accensione: "2026-10-01T08:00:00Z",
+    ultima_accensione: "2026-10-01T08:00:00Z",
+    fermato_motivo: null,
+    controlli: null,
+    ...extra,
+  });
+  const FRASE_OK = { fraseModulo: { il: FRASE_26, da: "Mario", segnatoIl: NOW.toISOString() } };
+
+  /* ── la configurazione ────────────────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE · CONFIGURAZIONE (pannello.ts)");
+  const vuota = P.configDaRiga(null);
+  c(
+    "senza riga: tutto spento, nessun indirizzo, nessun aggiornamento del database",
+    [false, false, null, {}, null, false],
+    [
+      vuota.leadNuovo,
+      vuota.giornoMeet,
+      vuota.leadNuovoDal,
+      vuota.stati,
+      vuota.indirizzoSede,
+      vuota.sequenze,
+    ],
+  );
+  c(
+    "una riga della vecchia migrazione (senza le colonne nuove) → `sequenze` falso",
+    false,
+    P.configDaRiga({ user_id: UUID_A, canale: "manychat", acceso: true }).sequenze,
+  );
+  c("una riga con le colonne nuove → `sequenze` vero", true, P.configDaRiga(riga()).sequenze);
+  c(
+    "senza riga ma con le colonne presenti (lo dice il server) → `sequenze` vero",
+    true,
+    P.configDaRiga(null, true).sequenze,
+  );
+  const dalDb = P.configDaRiga(
+    riga({
+      lead_nuovo: true,
+      giorno_meet: "si",
+      lead_nuovo_dal: "2026-10-26T08:00:00Z",
+      stati: {
+        sta_valutando: "2026-10-26T08:00:00Z",
+        inventato: "2026-10-26T08:00:00Z",
+        irreperibile: "ieri",
+        non_fatto: "2026-10-26T09:00:00Z",
+        da_ricontattare: "2026-10-26T08:00:00Z",
+      },
+      indirizzo_sede: "  Via Roma 1, Milano ",
+      tetti: { ricontatti: 5, totale: 500, leadNuovi: 500 },
+    }),
+  );
+  c(
+    "dal database: solo veri/falsi veri; stati ripuliti (nomi veri, ora vera, mai «Ricontatto fissato»)",
+    [true, false, "2026-10-26T08:00:00Z", ["sta_valutando", "non_fatto"], "Via Roma 1, Milano"],
+    [
+      dalDb.leadNuovo,
+      dalDb.giornoMeet,
+      dalDb.leadNuovoDal,
+      Object.keys(dalDb.stati),
+      dalDb.indirizzoSede,
+    ],
+  );
+  c(
+    "dal database: i tetti non salgono oltre le costanti (lead nuovi compresi)",
+    [5, Q.TETTO_TOTALE, V.TETTO_LEAD_NUOVI],
+    [dalDb.tetti.ricontatti, dalDb.tetti.totale, dalDb.tetti.leadNuovi],
+  );
+
+  // ── leggere i comandi nuovi ───────────────────────────────────────────
+  c(
+    "comando: gli interruttori nuovi, solo booleani",
+    [true, true, false],
+    [
+      ok({ interruttori: { leadNuovo: true } }).ok,
+      ok({ interruttori: { giornoMeet: false } }).ok,
+      ok({ interruttori: { leadNuovo: "si" } }).ok,
+    ],
+  );
+  c(
+    "comando: stati accesi o spenti per nome; un nome sconosciuto, «Ricontatto fissato» o un valore non vero → no",
+    [true, true, false, false, false, false],
+    [
+      ok({ stati: { sta_valutando: true } }).ok,
+      ok({ stati: { no_show: false } }).ok,
+      ok({ stati: { inventato: true } }).ok,
+      ok({ stati: { da_ricontattare: true } }).ok,
+      ok({ stati: { sta_valutando: "si" } }).ok,
+      ok({ stati: {} }).ok,
+    ],
+  );
+  c(
+    "comando: «Ricontatto fissato» rimanda ai «Ricontatti dei consulenti»",
+    true,
+    /Ricontatti dei consulenti/.test(ok({ stati: { da_ricontattare: true } }).errore),
+  );
+  c(
+    "comando: la data della frase è un giorno vero «AAAA-MM-GG»",
+    [true, false, false, false],
+    [
+      ok({ fraseModulo: { giorno: "2026-10-26" } }).ok,
+      ok({ fraseModulo: { giorno: "26/10/2026" } }).ok,
+      ok({ fraseModulo: { giorno: "2026-02-30" } }).ok,
+      ok({ fraseModulo: {} }).ok,
+    ],
+  );
+  c(
+    "comando: l'indirizzo della sede, ripulito; a capo o troppo lungo → no; vuoto lo toglie",
+    [true, "Via Roma 1, Milano", false, false, true, ""],
+    [
+      ok({ indirizzoSede: "Via Roma 1,  Milano" }).ok,
+      ok({ indirizzoSede: "Via Roma 1,  Milano" }).comando.valore,
+      ok({ indirizzoSede: "Via\nRoma" }).ok,
+      ok({ indirizzoSede: "x".repeat(151) }).ok,
+      ok({ indirizzoSede: "" }).ok,
+      ok({ indirizzoSede: "" }).comando.valore,
+    ],
+  );
+  c(
+    "comando: il tetto dei lead nuovi, intero da 1",
+    [true, false],
+    [ok({ tetti: { leadNuovi: 10 } }).ok, ok({ tetti: { leadNuovi: 0 } }).ok],
+  );
+  c(
+    "comando: due cose insieme → ancora rifiutato (ne accetta una per volta)",
+    false,
+    ok({ interruttori: { leadNuovo: true }, indirizzoSede: "Via Roma 1" }).ok,
+  );
+
+  // ── cosa si scrive ────────────────────────────────────────────────────
+  const cfg = (body, prima = riga(), adesso = NOW) =>
+    P.patchDaComando(prima, ok(body).comando, adesso);
+  c(
+    "accendere «Lead nuovo»: scrive l'ora (lead_nuovo_dal), e basta (le altre accensioni non si spostano)",
+    { lead_nuovo: true, lead_nuovo_dal: NOW.toISOString() },
+    cfg({ interruttori: { leadNuovo: true } }),
+  );
+  c(
+    "riaccendere «Lead nuovo» già acceso: niente (l'ora di accensione non si sposta)",
+    {},
+    cfg(
+      { interruttori: { leadNuovo: true } },
+      riga({ lead_nuovo: true, lead_nuovo_dal: "2026-10-20T08:00:00Z" }),
+    ),
+  );
+  c(
+    "spegnere «Lead nuovo»: solo il booleano, l'ora resta (una nuova accensione la riscrive)",
+    { lead_nuovo: false },
+    cfg(
+      { interruttori: { leadNuovo: false } },
+      riga({ lead_nuovo: true, lead_nuovo_dal: "2026-10-20T08:00:00Z" }),
+    ),
+  );
+  c(
+    "accendere il giorno del meet: solo il booleano",
+    { giorno_meet: true },
+    cfg({ interruttori: { giornoMeet: true } }),
+  );
+  c(
+    "accendere uno stato: scrive l'ora, accanto agli altri",
+    { stati: { irreperibile: "2026-10-20T08:00:00Z", sta_valutando: NOW.toISOString() } },
+    cfg(
+      { stati: { sta_valutando: true } },
+      riga({ stati: { irreperibile: "2026-10-20T08:00:00Z" } }),
+    ),
+  );
+  c(
+    "…già acceso: niente (l'ora non si sposta)",
+    {},
+    cfg(
+      { stati: { sta_valutando: true } },
+      riga({ stati: { sta_valutando: "2026-10-20T08:00:00Z" } }),
+    ),
+  );
+  c(
+    "…spegnerlo: lo toglie; spegnere uno già spento: niente",
+    [{ stati: {} }, {}],
+    [
+      cfg(
+        { stati: { sta_valutando: false } },
+        riga({ stati: { sta_valutando: "2026-10-20T08:00:00Z" } }),
+      ),
+      cfg({ stati: { sta_valutando: false } }),
+    ],
+  );
+  c(
+    "«Cliente assente» accende (e spegne) anche il vecchio stato non_fatto, con la stessa ora",
+    [{ no_show: NOW.toISOString(), non_fatto: NOW.toISOString() }, {}],
+    [
+      cfg({ stati: { no_show: true } }).stati,
+      cfg(
+        { stati: { no_show: false } },
+        riga({ stati: { no_show: "2026-10-20T08:00:00Z", non_fatto: "2026-10-20T08:00:00Z" } }),
+      ).stati,
+    ],
+  );
+  c(
+    "indirizzo della sede: si scrive; uguale a quello che c'è → niente; vuoto → null",
+    [{ indirizzo_sede: "Via Roma 1, Milano" }, {}, { indirizzo_sede: null }],
+    [
+      cfg({ indirizzoSede: "Via Roma 1, Milano" }),
+      cfg({ indirizzoSede: "Via Roma 1, Milano" }, riga({ indirizzo_sede: "Via Roma 1, Milano" })),
+      cfg({ indirizzoSede: "" }, riga({ indirizzo_sede: "Via Roma 1, Milano" })),
+    ],
+  );
+  const t3 = cfg({ tetti: { ricontatti: 500, totale: 500, leadNuovi: 500 } }).tetti;
+  c(
+    "tetti alzati a 500 → riportati alle costanti (ricontatti, lead nuovi, totale)",
+    { ricontatti: Q.TETTO_RICONTATTI, totale: Q.TETTO_TOTALE, leadNuovi: V.TETTO_LEAD_NUOVI },
+    t3,
+  );
+  c(
+    "tetto dei lead nuovi abbassato vale; gli altri restano com'erano",
+    { ricontatti: 4, totale: 30, leadNuovi: 10 },
+    cfg({ tetti: { leadNuovi: 10 } }, riga({ tetti: { ricontatti: 4, totale: 30 } })).tetti,
+  );
+
+  // ── i rifiuti (prima di scrivere) ─────────────────────────────────────
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE · RIFIUTI");
+  const dc = (body, prima = riga(), s2 = true, adesso = NOW) =>
+    P.controllaComando(prima, ok(body).comando, adesso, s2);
+  const conFrase = riga({ controlli: FRASE_OK });
+  c(
+    "accendere «Lead nuovo» senza la data della frase → rifiutato, e la frase dice cosa fare",
+    [422, true],
+    ((x) => [x?.stato, /data della frase/.test(x?.errore ?? "")])(
+      dc({ interruttori: { leadNuovo: true } }),
+    ),
+  );
+  c(
+    "…con la data della frase → via libera",
+    null,
+    dc({ interruttori: { leadNuovo: true } }, conFrase),
+  );
+  c(
+    "…spegnerlo non chiede niente",
+    null,
+    dc({ interruttori: { leadNuovo: false } }, riga({ lead_nuovo: true })),
+  );
+  c(
+    "il giorno del meet si accende anche senza la data della frase",
+    null,
+    dc({ interruttori: { giornoMeet: true } }),
+  );
+  c(
+    "data della frase nel futuro → rifiutata; oggi e il passato no",
+    [422, null, null],
+    [
+      dc({ fraseModulo: { giorno: "2026-10-27" } })?.stato,
+      dc({ fraseModulo: { giorno: "2026-10-26" } }),
+      dc({ fraseModulo: { giorno: "2026-10-01" } }),
+    ],
+  );
+  c(
+    "senza l'aggiornamento del database: i comandi nuovi → 503 «manca l'aggiornamento del database»",
+    [503, 503, 503, 503, 503],
+    [
+      dc({ interruttori: { giornoMeet: true } }, riga(), false)?.stato,
+      dc({ interruttori: { leadNuovo: true } }, conFrase, false)?.stato,
+      dc({ stati: { irreperibile: true } }, riga(), false)?.stato,
+      dc({ indirizzoSede: "Via Roma 1" }, riga(), false)?.stato,
+      dc({ tetti: { leadNuovi: 5 } }, riga(), false)?.stato,
+    ],
+  );
+  c(
+    "…la frase lo dice in chiaro",
+    true,
+    /aggiornamento del database/.test(
+      dc({ interruttori: { giornoMeet: true } }, riga(), false)?.errore ?? "",
+    ),
+  );
+  c(
+    "…i comandi di prima (interruttori vecchi, tetti vecchi, flussi, canale) e la data della frase passano lo stesso",
+    [null, null, null, null, null],
+    [
+      dc({ interruttori: { promemoria: true } }, riga(), false),
+      dc({ tetti: { totale: 5 } }, riga(), false),
+      dc({ flussi: { hgl_primo_contatto: "ns-x" } }, riga(), false),
+      dc({ canale: "cloud" }, riga(), false),
+      dc({ fraseModulo: { giorno: "2026-10-26" } }, riga(), false),
+    ],
+  );
+  c(
+    "…e «Ricontatto fissato» (interruttore ricontatti) è un comando di prima: nessuna richiesta nuova",
+    null,
+    dc({ interruttori: { ricontatti: true } }, riga(), false),
+  );
+
+  // ── la data della frase: cosa si salva ────────────────────────────────
+  const fr = P.fraseDaGiorno("2026-10-26", "  Mario  ", NOW);
+  c(
+    "frase: si salva l'inizio di quel giorno a Roma (ora solare dopo il 25/10), chi l'ha segnata e quando",
+    { il: FRASE_26, da: "Mario", segnatoIl: NOW.toISOString() },
+    fr,
+  );
+  c(
+    "frase: nell'ora legale l'inizio del giorno è due ore prima di mezzanotte UTC",
+    "2026-10-09T22:00:00.000Z",
+    P.fraseDaGiorno("2026-10-10", "Mario", NOW).il,
+  );
+  c(
+    "frase: senza nome di chi la segna → «sconosciuto»",
+    "sconosciuto",
+    P.fraseDaGiorno("2026-10-26", " ", NOW).da,
+  );
+  const dopoFrase = P.controlliDopoFrase(
+    { collegamento: { controllatoIl: "x", righe: [] }, creazione: { esito: "ok", il: "y" } },
+    fr,
+  );
+  c(
+    "frase: si scrive in `controlli` senza perdere il collegamento e la creazione",
+    [["collegamento", "creazione", "fraseModulo"], FRASE_26],
+    [Object.keys(dopoFrase), dopoFrase.fraseModulo.il],
+  );
+  c(
+    "frase: si rilegge dai controlli; scritta male → come non segnata",
+    [FRASE_26, null, null, null],
+    [
+      P.fraseModuloDa(dopoFrase)?.il,
+      P.fraseModuloDa({ fraseModulo: { il: "ieri", da: "x" } }),
+      P.fraseModuloDa({ fraseModulo: "boh" }),
+      P.fraseModuloDa(null),
+    ],
+  );
+
+  /* ── lo stato per il riquadro ─────────────────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE · STATO");
+  const base = {
+    migrazione: true,
+    chiave: true,
+    segreto: true,
+    config: riga({ lead_nuovo: true }),
+    giro: {
+      ultimo_giro_il: "2026-10-26T09:59:00Z",
+      ultima_risposta_il: null,
+      prossimo_ricontatto_dopo: null,
+      stato: {},
+    },
+    invii: [],
+    problemi: [],
+    ultimoInvioIl: null,
+    nomi: {},
+  };
+  const inv = (tipo, extra = {}) => ({
+    lead_id: LEAD,
+    tipo,
+    stato: "inviato",
+    motivo: null,
+    prenotato_il: "2026-10-26T08:00:00.000Z",
+    risposta_il: null,
+    ...extra,
+  });
+  const giornata = [
+    inv("promemoria"),
+    inv("primo_contatto"),
+    inv("primo_contatto", { stato: "fallito" }),
+    inv("richiamo_24h"),
+    inv("meet_oggi"),
+    inv("meet_adesso"),
+    inv("promemoria_chiamata"),
+    inv("promemoria_sede"),
+    inv("ricontatto", { risposta_il: "2026-10-26T09:00:00.000Z" }),
+    inv("conferma"),
+    inv("primo_contatto", { prenotato_il: "2026-10-24T08:00:00.000Z" }),
+  ];
+  const sg = P.costruisciStato({ ...base, invii: giornata }, NOW);
+  c(
+    "oggi: lead nuovi (primo contatto e richiamo) e totale (tutti i tipi dei tetti, non la conferma, non i falliti)",
+    [1, 2, 8, 1],
+    [sg.giro.oggi.promemoria, sg.giro.oggi.leadNuovi, sg.giro.oggi.totale, sg.giro.oggi.risposte],
+  );
+  c("oggi: i ricontatti restano quelli di prima", 1, sg.giro.oggi.ricontatti);
+  c(
+    "stato: la config porta i campi nuovi; la frase è `null` finché non è segnata",
+    [true, true, null],
+    [sg.config.leadNuovo, sg.config.sequenze, sg.fraseModulo],
+  );
+  const conFraseS = P.costruisciStato({ ...base, config: riga({ controlli: FRASE_OK }) }, NOW);
+  c(
+    "stato: la frase segnata arriva al riquadro",
+    [FRASE_26, "Mario"],
+    [conFraseS.fraseModulo?.il, conFraseS.fraseModulo?.da],
+  );
+  c(
+    "stato: `sequenze` lo decide il server anche senza riga (colonne presenti)",
+    [true, false],
+    [
+      P.costruisciStato({ ...base, config: null, sequenze: true }, NOW).config.sequenze,
+      P.costruisciStato({ ...base, config: riga(), sequenze: false }, NOW).config.sequenze,
+    ],
+  );
+
+  // il foglio
+  const righeFoglio = [
+    { ricevuto_il: "2026-10-26T09:30:00.000Z", esito: "nuovo" },
+    { ricevuto_il: "2026-10-26T08:00:00.000Z", esito: "ritorno" },
+    { ricevuto_il: "2026-10-25T22:30:00.000Z", esito: "nuovo" }, // 23:30 del 25/10 a Roma: ieri
+    { ricevuto_il: "2026-10-25T23:30:00.000Z", esito: "gia_presente" }, // 00:30 del 26/10: oggi
+  ];
+  const sf = P.costruisciStato(
+    { ...base, foglio: { migrazione: true, segreto: true, ricevuti: righeFoglio } },
+    NOW,
+  );
+  c(
+    "foglio: righe di oggi (giorno di Roma), l'ultima ricevuta con l'esito, il tetto del giorno",
+    [3, "2026-10-26T09:30:00.000Z", "nuovo", 300],
+    [sf.foglio.righeOggi, sf.foglio.ultimo?.il, sf.foglio.ultimo?.esito, sf.foglio.tetto],
+  );
+  c(
+    "foglio: nessun nome, numero o id nello stato (solo ora ed esito)",
+    [["migrazione", "segretoPresente", "ultimo", "righeOggi", "tetto"], ["il", "esito"], false],
+    [
+      Object.keys(sf.foglio),
+      Object.keys(sf.foglio.ultimo),
+      /\d{6,}/.test(JSON.stringify(sf.foglio)),
+    ],
+  );
+  c(
+    "foglio: senza il registro (migrazione S1 non applicata) o senza segreto lo dice, senza inventare righe",
+    [false, 0, null, false],
+    ((x) => [x.migrazione, x.righeOggi, x.ultimo, x.segretoPresente])(
+      P.costruisciStato(
+        { ...base, foglio: { migrazione: false, segreto: false, ricevuti: [] } },
+        NOW,
+      ).foglio,
+    ),
+  );
+  c(
+    "foglio: un esito noto passa com'è",
+    "scartata",
+    P.costruisciStato(
+      {
+        ...base,
+        foglio: {
+          migrazione: true,
+          segreto: true,
+          ricevuti: [{ ricevuto_il: "2026-10-26T09:30:00.000Z", esito: "scartata" }],
+        },
+      },
+      NOW,
+    ).foglio.ultimo.esito,
+  );
+  c(
+    "foglio: un esito con dentro un dato (un nome, un numero) non passa mai",
+    "altro",
+    P.costruisciStato(
+      {
+        ...base,
+        foglio: {
+          migrazione: true,
+          segreto: true,
+          ricevuti: [{ ricevuto_il: "2026-10-26T09:30:00.000Z", esito: "Mario 3331234567" }],
+        },
+      },
+      NOW,
+    ).foglio.ultimo.esito,
+  );
+  c(
+    "foglio: nessun dato dal server (vecchi chiamanti) → stato valido",
+    "boolean",
+    typeof P.costruisciStato(base, NOW).foglio.migrazione,
+  );
+
+  /* ── la prova di collegamento con i flussi nuovi ───────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE · COLLEGAMENTO");
+  const CAMPI = [
+    "crm_v1",
+    "crm_v2",
+    "crm_v3",
+    "crm_v4",
+    "crm_invio_id",
+    "crm_lead_id",
+    "crm_telefono",
+    "crm_nome",
+    "crm_ora_meet",
+    "crm_link_meet",
+    "crm_consulente",
+  ];
+  const NUOVI = V.MODELLI_FLUSSO_SEQUENZE.map((m) => m.modello);
+  const flussiManychat = (...ns) => ns.map((n) => ({ ns: n, name: `Flusso ${n}` }));
+  const sano = (...ns) =>
+    creaFinto()
+      .su(
+        "GET",
+        PERCORSI.flussi,
+        esiti.successo({ flows: flussiManychat("ns-conf", "ns-mem", "ns-ric", ...ns) }),
+      )
+      .su(
+        "GET",
+        PERCORSI.campi,
+        esiti.successo(CAMPI.map((name) => ({ name, id: 1, type: "text" }))),
+      );
+  const FLUSSI3 = {
+    consulenza_conferma_presenza: "ns-conf",
+    hgl_promemoria_meet: "ns-mem",
+    hgl_ricontatto_consulenza: "ns-ric",
+  };
+  const ingr = (extra = {}, sequenze = { leadNuovo: false, giornoMeet: false, stati: {} }) => ({
+    canale: "manychat",
+    interruttori: { promemoria: true, ricontatti: true },
+    flussi: FLUSSI3,
+    creazione: { esito: "ok", il: "2026-10-26T09:00:00.000Z" },
+    adesso: NOW,
+    sequenze,
+    ...extra,
+  });
+  const esitoDi = (col) => Object.fromEntries(col.righe.map((x) => [x.id, x.esito]));
+  const colTutto = await P.statoCollegamento(nuovoClientDi(A, sano()), ingr());
+  c(
+    "con le sequenze: una riga per ogni flusso nuovo, in coda ai tre vecchi e prima della creazione",
+    [
+      "chiave",
+      "is_pro",
+      "flusso:consulenza_conferma_presenza",
+      "flusso:hgl_promemoria_meet",
+      "flusso:hgl_ricontatto_consulenza",
+      ...NUOVI.map((m) => `flusso:${m}`),
+      "campi_crm",
+      "creazione_contatti",
+    ],
+    colTutto.righe.map((r) => r.id),
+  );
+  c(
+    "…tutto spento e nessun flusso nuovo collegato: grigio «serve quando lo accendi», mai rosso",
+    [NUOVI.length, 0],
+    [
+      colTutto.righe.filter((r) => r.esito === "non_serve").length,
+      colTutto.righe.filter((r) => r.esito === "errore").length,
+    ],
+  );
+  c(
+    "…e il testo della riga grigia dice che serve quando lo accendi",
+    true,
+    /serve quando lo accendi/.test(
+      colTutto.righe.find((r) => r.id === "flusso:hgl_primo_contatto").testo,
+    ),
+  );
+  const colLead = await P.statoCollegamento(
+    nuovoClientDi(A, sano()),
+    ingr({}, { leadNuovo: true, giornoMeet: false, stati: {} }),
+  );
+  const eLead = esitoDi(colLead);
+  c(
+    "«Lead nuovo» acceso senza i due flussi → rossi; gli altri nuovi restano grigi",
+    ["errore", "errore", "non_serve", "non_serve"],
+    [
+      eLead["flusso:hgl_primo_contatto"],
+      eLead["flusso:hgl_richiamo_24h"],
+      eLead["flusso:hgl_meet_oggi"],
+      eLead["flusso:hgl_non_risponde"],
+    ],
+  );
+  const colMeet = esitoDi(
+    await P.statoCollegamento(
+      nuovoClientDi(A, sano()),
+      ingr({}, { leadNuovo: false, giornoMeet: true, stati: {} }),
+    ),
+  );
+  c(
+    "giorno del meet acceso senza i flussi → rossi i due del meet",
+    ["errore", "errore", "non_serve"],
+    [
+      colMeet["flusso:hgl_meet_oggi"],
+      colMeet["flusso:hgl_meet_adesso"],
+      colMeet["flusso:hgl_primo_contatto"],
+    ],
+  );
+  const colStati = esitoDi(
+    await P.statoCollegamento(
+      nuovoClientDi(A, sano()),
+      ingr(
+        {
+          flussi: { consulenza_conferma_presenza: "ns-conf", hgl_promemoria_meet: "ns-mem" },
+          interruttori: { promemoria: true, ricontatti: false },
+        },
+        {
+          leadNuovo: false,
+          giornoMeet: false,
+          stati: { segreteria: "2026-10-26T08:00:00Z", sta_valutando: "2026-10-26T08:00:00Z" },
+        },
+      ),
+    ),
+  );
+  c(
+    "uno stato acceso senza il suo flusso → rosso (Segreteria vuole quello di «Non risponde»; «In valutazione» quello dei ricontatti)",
+    ["errore", "errore", "non_serve"],
+    [
+      colStati["flusso:hgl_non_risponde"],
+      colStati["flusso:hgl_ricontatto_consulenza"],
+      colStati["flusso:hgl_ultimo_tentativo"],
+    ],
+  );
+  const fNs = sano("ns-primo");
+  const colColl = esitoDi(
+    await P.statoCollegamento(
+      nuovoClientDi(A, fNs),
+      ingr(
+        { flussi: { ...FLUSSI3, hgl_primo_contatto: "ns-primo", hgl_meet_oggi: "ns-non-esiste" } },
+        { leadNuovo: true, giornoMeet: false, stati: {} },
+      ),
+    ),
+  );
+  c(
+    "flusso nuovo collegato: ok se esiste in ManyChat, rosso se l'identificativo non esiste (anche a interruttore spento)",
+    ["ok", "errore"],
+    [colColl["flusso:hgl_primo_contatto"], colColl["flusso:hgl_meet_oggi"]],
+  );
+  const fSolaLettura = sano();
+  await P.statoCollegamento(
+    nuovoClientDi(A, fSolaLettura),
+    ingr({}, { leadNuovo: true, giornoMeet: true, stati: {} }),
+  );
+  c(
+    "…solo letture: nessun invio",
+    true,
+    fSolaLettura.chiamate.every((x) => x.metodo === "GET"),
+  );
+
+  /* ── i sorgenti: server, rotta, contratto ───────────────────────────────── */
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE · SORGENTI");
+  const server = letto("src/crm/manychat/pannello.server.ts");
+  const rotta = letto("src/routes/api.crm.manychat.ts");
+  const client = letto("src/crm/manychat/client-crm.ts");
+  c(
+    "pannello.server: i tipi automatici arrivano da regole.ts, non c'è più la copia",
+    [false, true],
+    [
+      /const TIPI_AUTOMATICI\b/.test(server),
+      /import \{[^}]*\bTIPI_AUTOMATICI\b[^}]*\} from "\.\/regole"/.test(server),
+    ],
+  );
+  c(
+    "pannello.ts: i tipi dei problemi arrivano da regole.ts (nessun elenco suo)",
+    true,
+    /\bTIPI_AUTOMATICI\b/.test(letto("src/crm/manychat/pannello.ts")),
+  );
+  c(
+    "pannello.server: il foglio si legge da sheets_ingressi con le sole colonne ora ed esito",
+    [true, false],
+    [
+      /from\("sheets_ingressi"\)[\s\S]{0,200}select<[^>]*>\("ricevuto_il, esito"\)/.test(server),
+      /sheets_ingressi"\)[\s\S]{0,200}select[^;]*(lead_id|chiave|telefono|nome|\*)/.test(server),
+    ],
+  );
+  c(
+    "la rotta legge il segreto del foglio (SHEETS_INGRESSO_TOKEN) senza mai metterlo in una risposta",
+    [true, false],
+    [
+      /process\.env\.SHEETS_INGRESSO_TOKEN/.test(rotta),
+      /JSON\.stringify\([^)]*SHEETS_INGRESSO_TOKEN/.test(rotta),
+    ],
+  );
+  c(
+    "la rotta controlla (controllaComando) PRIMA di scrivere la configurazione e la frase",
+    true,
+    rotta.indexOf("controllaComando(") > 0 &&
+      rotta.indexOf("controllaComando(") <
+        Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await salvaControlli(")),
+  );
+  c(
+    "la rotta risponde con lo stato e il testo del rifiuto (stato HTTP preso dal controllo)",
+    true,
+    /json\(\{ error: rifiuto\.errore \}, rifiuto\.stato\)/.test(rotta),
+  );
+  c(
+    "il contratto del browser dichiara gli interruttori, gli stati, la frase, l'indirizzo e il foglio",
+    [true, true, true, true, true, true],
+    [
+      /leadNuovo: boolean/.test(client),
+      /stati: Record<string, string>/.test(client),
+      /fraseModulo/.test(client),
+      /indirizzoSede/.test(client),
+      /interface FoglioManychat/.test(client),
+      /salvaFraseModulo/.test(client),
+    ],
+  );
+  const pannello = letto("src/crm/ManychatPannello.tsx");
+  c(
+    "il riquadro disegna «Lead nuovo», «Giorno del meet», la frase del modulo, i messaggi per stato, la sede e il foglio",
+    [true, true, true, true, true, true],
+    [
+      /Lead nuovo/.test(pannello),
+      /Giorno del meet/.test(pannello),
+      /Frase del consenso nel modulo Meta/.test(pannello),
+      /Messaggi per stato/.test(pannello),
+      /Indirizzo della sede/.test(pannello),
+      /Foglio Google/.test(pannello),
+    ],
+  );
+  c(
+    "accendere si conferma (lead nuovo, giorno del meet, ogni stato) e la frase si conferma prima di salvare",
+    [true, true, true, true],
+    [
+      /imposta\("leadNuovo"/.test(pannello) || /"leadNuovo"/.test(pannello),
+      /accendiStato/.test(pannello),
+      /confermaFrase/.test(pannello),
+      /setConferma\(/.test(pannello),
+    ],
+  );
+  c(
+    "nessun console.log, nessun dato personale scritto nel riquadro",
+    false,
+    [pannello, server, rotta, client].some((t) => /console\.log/.test(t)),
+  );
+}
+
+/** Un client di ManyChat finto (stesso aiuto delle altre prove). */
+function nuovoClientDi(A, f) {
+  return A.creaClient({ chiave: "chiave-finta", fetch: f.fetch });
 }
