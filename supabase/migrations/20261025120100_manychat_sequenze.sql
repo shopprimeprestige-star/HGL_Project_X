@@ -179,6 +179,10 @@
 --   END $$;
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Anche l'ALTER TABLE delle colonne prende un ACCESS EXCLUSIVE su manychat_config:
+-- il lock_timeout vale per tutto il file (si toglie in fondo con RESET).
+SET lock_timeout = '5s';
+
 -- ── 1. Le colonne della configurazione ───────────────────────────────────────
 -- Tutte spente o vuote di serie: senza che il titolare le accenda dal riquadro,
 -- il giro non manda niente di nuovo.
@@ -445,6 +449,8 @@ REVOKE ALL ON FUNCTION public.manychat_prenota_giro(uuid, jsonb, jsonb, integer)
 REVOKE ALL ON FUNCTION public.manychat_controlli_unisci(uuid, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.manychat_prenota_giro(uuid, jsonb, jsonb, integer) TO service_role;
 GRANT EXECUTE ON FUNCTION public.manychat_controlli_unisci(uuid, jsonb) TO service_role;
+
+RESET lock_timeout;
 
 -- Il server le trova subito, senza aspettare che la cache dello schema si
 -- rinnovi da sola.

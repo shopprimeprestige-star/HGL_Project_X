@@ -16,7 +16,9 @@
  *  alle 15:30 vuole il promemoria alle 15:05 (si accetta fino alle 15:15).
  *
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: `{ c, gruppo }`. */
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./finto.mjs";
 
@@ -1622,6 +1624,226 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       [e.nuoviInviati, m.invii.at(-1).tipo],
     );
 
+    //  ── il richiamo a 24 ore, da capo a fondo ──
+    //  il primo contatto è partito ieri alle 14:06 Roma: oggi alle 15:06 è l'ora del richiamo
+    const primoDiIeri = (n) => ({
+      id: `p${n}`,
+      userId: U,
+      leadId: `n${n}`,
+      tipo: "primo_contatto",
+      chiave: `n|${cifre(n).slice(-9)}`,
+      telefono: cifre(n),
+      stato: "inviato",
+      prenotatoMs: ADESSO - 25 * 3600_000,
+    });
+    const leadDiIeri = (id, n, extra) =>
+      lead(id, n, {
+        origineIngresso: { via: "google_sheets", foglio: "Lead", il: "2026-10-22T11:00:00.000Z" },
+        consensoModulo: { whatsapp: true, il: "2026-10-22T09:00:00.000Z", via: "modulo_meta" },
+        ...extra,
+      });
+    m = mondo({ schede: [leadDiIeri("n1", 1)], config: accesa, invii: [primoDiIeri(1)] });
+    e = await m.giroOra();
+    const campiRic = m.f.chiamate.find((x) => x.percorso === PERCORSI.scriviCampi)?.corpo.fields;
+    c(
+      "richiamo a 24 h: flusso, tag, chiave n24|tel9, variabile nome, tipo nel registro",
+      [1, "content-n2", "crm-richiamo", `n24|${cifre(1).slice(-9)}`, "richiamo_24h", "Anna"],
+      [
+        e.nuoviInviati,
+        m.flussi()[0]?.corpo.flow_ns,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+        m.invii.at(-1)?.chiave,
+        m.invii.at(-1)?.tipo,
+        campiRic?.find((x) => x.field_name === "crm_v1")?.field_value,
+      ],
+    );
+    c(
+      "…«In attesa» per 24 ore (sabato 15:06 Roma) e il richiamo PRENDE il ritmo (30 minuti)",
+      ["in_attesa", "2026-10-24T13:06:00.000Z", new Date(ADESSO + 30 * MIN).toISOString()],
+      [
+        m.schede[0].data.contattoWa.stato,
+        m.schede[0].data.contattoWa.scadeRisposta,
+        new Date(m.giro.prossimo).toISOString(),
+      ],
+    );
+    c(
+      "…dopo il richiamo nessun terzo messaggio, nemmeno al giro dopo",
+      0,
+      await (async () => {
+        m.orologio.avanza(40 * MIN);
+        const n0 = m.invii.length;
+        await m.giroOra();
+        return m.invii.length - n0;
+      })(),
+    );
+    //  un ricontatto e un richiamo pronti insieme: parte UNO (il ricontatto), il richiamo al giro del ritmo
+    m = mondo({
+      schede: [leadDiIeri("n1", 1), ric("r1", 9)],
+      config: accesa,
+      invii: [primoDiIeri(1)],
+    });
+    e = await m.giroOra();
+    c(
+      "ricontatto e richiamo pronti insieme: ne parte uno solo, il ricontatto",
+      [1, 0, "ricontatto"],
+      [e.ricontattiInviati, e.nuoviInviati, m.invii.at(-1).tipo],
+    );
+    m.orologio.avanza(31 * MIN);
+    e = await m.giroOra();
+    c(
+      "…passato il ritmo (31') tocca al richiamo: nessuno dei due resta indietro",
+      [1, "richiamo_24h"],
+      [e.nuoviInviati, m.invii.at(-1).tipo],
+    );
+
+    //  ── il promemoria in sede, da capo a fondo ──
+    const sede = (id, n, extra) =>
+      scheda(id, n, {
+        stato: "viene_in_sede",
+        consulenteId: undefined,
+        dataVieneInSede: "2026-10-24",
+        oraVieneInSede: "11:00",
+        statoDal: "2026-10-20T10:00:00.000Z",
+        ...extra,
+      });
+    m = mondo({
+      schede: [sede("sd1", 3)],
+      config: { ...accesa, stati: { viene_in_sede: "2026-10-20T00:00:00.000Z" } },
+    });
+    e = await m.giroOra();
+    const campiSede = Object.fromEntries(
+      (m.f.chiamate.find((x) => x.percorso === PERCORSI.scriviCampi)?.corpo.fields ?? []).map(
+        (x) => [x.field_name, x.field_value],
+      ),
+    );
+    c(
+      "promemoria in sede (appuntamento domani 11:00): flusso, tag, chiave sd|tel9|giorno, tipo",
+      [
+        1,
+        "content-s3",
+        "crm-stato-sede",
+        `sd|${cifre(3).slice(-9)}|2026-10-24T11:00`,
+        "promemoria_sede",
+      ],
+      [
+        e.nuoviInviati,
+        m.flussi()[0]?.corpo.flow_ns,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+        m.invii.at(-1)?.chiave,
+        m.invii.at(-1)?.tipo,
+      ],
+    );
+    c(
+      "…le quattro variabili nell'ordine: nome, giorno, ora, indirizzo",
+      ["Anna", "sabato 24 ottobre", "11:00", "Via Prova 1, Roma"],
+      [campiSede.crm_v1, campiSede.crm_v2, campiSede.crm_v3, campiSede.crm_v4],
+    );
+    c(
+      "…«In attesa» fino all'appuntamento (11:00 Roma = 09:00Z) e il ritmo resta intatto",
+      ["in_attesa", "2026-10-24T09:00:00.000Z", null],
+      [
+        m.schede[0].data.contattoWa.stato,
+        m.schede[0].data.contattoWa.scadeRisposta,
+        m.giro.prossimo,
+      ],
+    );
+    m = mondo({
+      schede: [sede("sd1", 3)],
+      config: {
+        ...accesa,
+        indirizzoSede: null,
+        stati: { viene_in_sede: "2026-10-20T00:00:00.000Z" },
+      },
+    });
+    c(
+      "senza l'indirizzo della sede il promemoria in sede non parte",
+      0,
+      (await m.giroOra()).nuoviInviati,
+    );
+
+    //  ── STOP vale per ogni tipo ──
+    const stop = { stato: "stop", il: FRASE, da: "x", storia: [] };
+    m = mondo({
+      schede: [
+        lead("n1", 1, { contattoWa: stop }),
+        meet("s1", 2, { oraMeeting: "15:06", contattoWa: stop }),
+        meet("s2", 3, { oraMeeting: "15:25", contattoWa: stop }),
+        ric("r1", 4, { contattoWa: stop }),
+        scheda("e1", 5, {
+          stato: "non_risponde",
+          consulenteId: undefined,
+          statoDal: new Date(ADESSO - 60 * MIN).toISOString(),
+          contattoWa: stop,
+        }),
+        sede("sd1", 6, { contattoWa: stop }),
+        leadDiIeri("n9", 7, { contattoWa: stop }),
+      ],
+      config: {
+        ...accesa,
+        stati: {
+          non_risponde: "2026-10-20T00:00:00.000Z",
+          viene_in_sede: "2026-10-20T00:00:00.000Z",
+        },
+      },
+      invii: [primoDiIeri(7)],
+    });
+    m.schede[6].data.contattoWa = stop;
+    e = await m.giroOra();
+    c(
+      "STOP sulla scheda, per ogni tipo: nessuna prenotazione, nessuna chiamata a ManyChat",
+      [0, 0, 1, 0],
+      [
+        e.nuoviInviati + e.promemoriInviati + e.ricontattiInviati,
+        m.f.chiamate.length,
+        m.invii.length,
+        m.flussi().length,
+      ],
+    );
+    //  STOP in rubrica (non sulla scheda): la prenotazione lo ferma anche per i tipi nuovi
+    m = mondo({
+      schede: [lead("n1", 1), meet("s1", 2, { oraMeeting: "15:06" })],
+      config: accesa,
+      stop: [cifre(1), cifre(2)],
+    });
+    e = await m.giroOra();
+    c(
+      "STOP in rubrica: né il primo contatto né l'ora esatta partono, e le schede vanno in STOP",
+      [0, 0, "stop", "stop"],
+      [
+        e.nuoviInviati,
+        m.flussi().length,
+        m.schede[0].data.contattoWa?.stato,
+        m.schede[1].data.contattoWa?.stato,
+      ],
+    );
+
+    //  ── «manca il consenso» degli importati non riempie i problemi ──
+    m = mondo({
+      schede: [
+        scheda("i1", 7, {
+          stato: "non_risponde",
+          okWhatsapp: undefined,
+          consulenteId: undefined,
+          importato: true,
+          statoDal: new Date(ADESSO - 60 * MIN).toISOString(),
+        }),
+        scheda("i2", 8, {
+          stato: "non_risponde",
+          nome: "",
+          consulenteId: undefined,
+          importato: true,
+          statoDal: new Date(ADESSO - 60 * MIN).toISOString(),
+        }),
+      ],
+      config: { ...accesa, stati: { non_risponde: "2026-10-20T00:00:00.000Z" } },
+    });
+    await m.giroOra();
+    c(
+      "importato senza consenso: non è un problema da mostrare; un guasto vero (nome mancante) sì",
+      [["manca il nome"]],
+      [m.giro.stato.problemi.map((p) => p.motivo)],
+    );
+
     //  STOP e prova a secco con i tipi nuovi
     m = mondo({
       schede: [lead("n1", 1, { contattoWa: { stato: "stop", il: FRASE, da: "x", storia: [] } })],
@@ -1663,6 +1885,106 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       true,
       /nuoviInviati: e\.nuoviInviati/.test(hook),
     );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  LE LETTURE DI `schede()`: PostgREST taglia a 1000 in silenzio
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · LE LETTURE DELLE SCHEDE NON PERDONO QUELLE DI OGGI");
+  {
+    //  Si impacchetta `porte.server.ts` vero, con un Supabase finto che si comporta
+    //  come PostgREST: filtri sui percorsi json, e al massimo 1000 righe per richiesta.
+    const dir = mkdtempSync(join(tmpdir(), "giro-schede-"));
+    const finta = join(dir, "supabase-finto.js");
+    writeFileSync(
+      finta,
+      `const valore = (riga, colonna) => {
+  const [testa, ...resto] = colonna.split("->");
+  let v = riga[testa];
+  for (const pezzo of resto) v = v == null ? undefined : v[pezzo.replace(/^>/, "")];
+  return v === undefined ? null : v;
+};
+export const supabaseAdmin = {
+  from: () => {
+    const filtri = [];
+    let tetto = 1000;
+    const q = {
+      select: () => q,
+      eq: (c, v) => (filtri.push((r) => String(valore(r, c)) === String(v)), q),
+      in: (c, v) => (filtri.push((r) => v.includes(valore(r, c))), q),
+      gte: (c, v) => (filtri.push((r) => valore(r, c) !== null && String(valore(r, c)) >= v), q),
+      lte: (c, v) => (filtri.push((r) => valore(r, c) !== null && String(valore(r, c)) <= v), q),
+      not: (c) => (filtri.push((r) => valore(r, c) !== null), q),
+      limit: (n) => ((tetto = Math.min(n, 1000)), q),
+      then: (ok, no) =>
+        Promise.resolve({ data: globalThis.__righe.filter((r) => filtri.every((f) => f(r))).slice(0, tetto), error: null }).then(ok, no),
+    };
+    return q;
+  },
+};
+export const supabaseAdminDefault = supabaseAdmin;`,
+    );
+    const esbuild = createRequire(import.meta.url)("esbuild");
+    const fuori = join(dir, "porte.cjs");
+    await esbuild.build({
+      entryPoints: [join(radice, "src/crm/manychat/porte.server.ts")],
+      bundle: true,
+      format: "cjs",
+      platform: "node",
+      outfile: fuori,
+      logLevel: "error",
+      loader: { ".tsx": "tsx" },
+      alias: { "@/integrations/supabase/client.server": finta, "@": join(radice, "src") },
+    });
+    const PS = createRequire(import.meta.url)(fuori);
+    const riga = (id, data) => ({ id, user_id: U, data });
+    const vecchia = (i) =>
+      riga(`v${i}`, {
+        stato: "non_risponde",
+        statoDal: "2026-09-15T10:00:00.000Z",
+        dataRicontatto: "2026-09-15",
+      });
+    const vecchieRic = (i) =>
+      riga(`d${i}`, { stato: "da_ricontattare", dataRicontatto: "2026-09-10" });
+    globalThis.__righe = [
+      ...Array.from({ length: 1200 }, (_, i) => vecchia(i)),
+      ...Array.from({ length: 1200 }, (_, i) => vecchieRic(i)),
+      riga("recente", {
+        stato: "non_risponde",
+        statoDal: "2026-10-23T12:46:00.000Z",
+      }),
+      riga("oggi", { stato: "da_ricontattare", dataRicontatto: "2026-10-23" }),
+      riga("ieri", { stato: "sta_valutando", dataRicontatto: "2026-10-22" }),
+      riga("callback", { stato: "da_ricontattare", callbackAt: "2026-10-23T09:00:00.000Z" }),
+    ];
+    const letto = await PS.porteGiro().schede(U, "2026-10-23", {
+      leadNuoviDal: null,
+      stati: { non_risponde: "2026-09-01T00:00:00.000Z" },
+    });
+    const ids = letto.map((x) => x.id);
+    c(
+      "1200 «Non risponde» vecchie + 1 di 20 minuti fa: la recente c'è, le vecchie no",
+      [true, false],
+      [ids.includes("recente"), ids.some((i) => i.startsWith("v"))],
+    );
+    c(
+      "1200 ricontatti vecchi + oggi, ieri e il vecchio callbackAt: ci sono tutti e tre, i vecchi no",
+      [true, true, true, false],
+      [
+        ids.includes("oggi"),
+        ids.includes("ieri"),
+        ids.includes("callback"),
+        ids.some((i) => i.startsWith("d")),
+      ],
+    );
+    const server = readFileSync(join(radice, "src/crm/manychat/pannello.server.ts"), "utf8");
+    c(
+      "la prova a secco del riquadro legge le schede con la STESSA funzione del giro",
+      true,
+      /porteGiro\(\)\.schede\(/.test(server),
+    );
+    rmSync(dir, { recursive: true, force: true });
+    delete globalThis.__righe;
   }
 
   /* ════════════════════════════════════════════════════════════════════════

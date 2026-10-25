@@ -411,6 +411,9 @@ export interface ExtraVoce {
 export interface Voce {
   tipo: TipoGiro;
   d: DecisioneQuando<ExtraVoce>;
+  /** viene dai messaggi per stato: «Non risponde» e «Irreperibile» valgono anche per
+   *  gli importati, che spesso non hanno il consenso (non è un guasto da mostrare) */
+  perStato?: boolean;
 }
 
 /** Cosa serve in lettura per decidere (nessuna scrittura, nessuna rete). */
@@ -518,6 +521,7 @@ export function decisioniDelGiro(
     decisioni: DecisioneQuando<X>[],
     daInvia: (x: X) => { tipo: TipoGiro; extra: Partial<ExtraVoce> },
     tipoPer: (d: DecisioneQuando<X>) => TipoGiro,
+    perStato = false,
   ) {
     for (const d of decisioni) {
       if (d.tipo === "invia") {
@@ -525,9 +529,10 @@ export function decisioniDelGiro(
         voci.push({
           tipo,
           d: { ...d, extra: { stato: null, inizio: null, recupero: false, ...extra } },
+          ...(perStato ? { perStato } : {}),
         });
       } else {
-        voci.push({ tipo: tipoPer(d), d });
+        voci.push({ tipo: tipoPer(d), d, ...(perStato ? { perStato } : {}) });
       }
     }
   }
@@ -583,6 +588,7 @@ export function decisioniDelGiro(
       }),
       (x) => ({ tipo: x.tipo, extra: { stato: x.stato, inizio: x.inizio } }),
       (d) => tipoDelloStato(d.scheda.data.stato),
+      true,
     );
 
   //  Stabile: dentro lo stesso tipo resta l'ordine delle decisioni.
@@ -864,8 +870,13 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const problemi: ProblemaGiroSalvato[] = [];
   const problema = (s: SchedaQuando, tipo: TipoGiro, motivo: string) =>
     problemi.push({ il: adesso.toISOString(), nome: nomeDi(s), tipo, motivo, scheda: s.id });
-  for (const v of voci)
-    if (v.d.tipo === "salta" && eProblema(v.d.motivo)) problema(v.d.scheda, v.tipo, v.d.motivo);
+  for (const v of voci) {
+    if (v.d.tipo !== "salta" || !eProblema(v.d.motivo)) continue;
+    //  Senza consenso, per i messaggi per stato, non è un guasto: gli importati sono
+    //  tanti e riempirebbero i 20 posti dei problemi, coprendo quelli veri.
+    if (v.perStato && v.d.motivo === "manca il consenso WhatsApp") continue;
+    problema(v.d.scheda, v.tipo, v.d.motivo);
+  }
 
   //  La prova a secco si ferma qui: nessuna scrittura, nessuna chiamata.
   if (prova) {

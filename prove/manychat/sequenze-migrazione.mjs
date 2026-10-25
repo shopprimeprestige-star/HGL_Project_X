@@ -108,6 +108,13 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
       blocco.indexOf("SET LOCAL lock_timeout = '5s'") < blocco.indexOf("ALTER TABLE"),
   );
   c(
+    "SET lock_timeout = '5s' in testa al file (copre anche l'ALTER delle colonne) e RESET in fondo",
+    true,
+    sql.indexOf("SET lock_timeout = '5s';") > 0 &&
+      sql.indexOf("SET lock_timeout = '5s';") < sql.indexOf("ADD COLUMN") &&
+      sql.indexOf("RESET lock_timeout;") > sql.indexOf("manychat_controlli_unisci"),
+  );
+  c(
     "«come si annulla» col CHECK di M1 testuale, nel commento",
     [true, true],
     [

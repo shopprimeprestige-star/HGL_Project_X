@@ -20,7 +20,7 @@ import type { CambioContatto } from "./contatto";
 import type { AmbitoSchede, ConfigGiro, PorteGiro, RigaGiroDb, StatoGiroSalvato } from "./giro";
 import { configDaRiga, fraseModuloDa, type RigaConfig } from "./pannello";
 import { TABELLA_STATI } from "./stati";
-import { STATI_LEAD_NUOVO } from "./sequenze";
+import { MEMORIA_SALTI_MIN, STATI_LEAD_NUOVO } from "./sequenze";
 import { STATI_RICONTATTO_AUTOMATICO, type InvioPerFreno } from "./regole";
 import type { SchedaQuando } from "./quando";
 import type { PorteRisposta as PorteConferma } from "../promemoria/in-entrata";
@@ -35,6 +35,7 @@ interface Filtro<T> extends Esito<T> {
   gte(c: string, v: string): Filtro<T>;
   lte(c: string, v: string): Filtro<T>;
   is(c: string, v: null): Filtro<T>;
+  not(c: string, op: string, v: null): Filtro<T>;
   or(filtri: string): Filtro<T>;
   order(c: string, o: { ascending: boolean }): Filtro<T>;
   limit(n: number): Filtro<T>;
@@ -368,9 +369,10 @@ export function porteGiro(): PorteGiro {
       if (error) return lancia(error);
       return data ?? [];
     },
-    //  shortcut: PostgREST dà al massimo 1000 righe per richiesta; oltre mille
-    //  schede nei tre stati dei ricontatti il giro ne vede mille. Da cambiare
-    //  (paginare, o filtrare per data) quando il CRM ci arriva.
+    //  ⚠️ PostgREST dà al massimo 1000 righe per richiesta, in ordine qualunque, e
+    //  taglia in silenzio: ogni lettura qui dentro ha quindi un LIMITE DI DATA (o un
+    //  insieme piccolo per natura) che la tiene lontana da mille. Una lettura nuova
+    //  senza un limite di data non va aggiunta.
     schede: async (userId, oggi, ambito) => {
       const giorno = (n: number) =>
         new Date(Date.parse(`${oggi}T00:00:00Z`) + n * GIORNO_MS).toISOString().slice(0, 10);
@@ -389,8 +391,22 @@ export function porteGiro(): PorteGiro {
             .gte("data->>dataMeeting", oggi)
             .lte("data->>dataMeeting", giorno(1)),
         ),
-        //  i ricontatti a data
-        leggi(schede().in("data->>stato", STATI_RICONTATTO_AUTOMATICO)),
+        //  i ricontatti a data (sei stati): il giorno di oggi e il recupero di ieri
+        //  (con la domenica in mezzo, quattro giorni coprono tutto)…
+        leggi(
+          schede()
+            .in("data->>stato", STATI_RICONTATTO_AUTOMATICO)
+            .gte("data->>dataRicontatto", giorno(-4))
+            .lte("data->>dataRicontatto", oggi)
+            .limit(2000),
+        ),
+        //  …e il vecchio `callbackAt` (nessuno lo scrive più, ma la regola lo legge)
+        leggi(
+          schede()
+            .in("data->>stato", STATI_RICONTATTO_AUTOMATICO)
+            .not("data->>callbackAt", "is", null)
+            .limit(2000),
+        ),
       ];
       //  I lead del modulo Meta, entrati dall'accensione in poi. Una sequenza dura al
       //  massimo 72 h + 24 h + 48 h: oltre sette giorni nessuno ne ha più bisogno.
@@ -414,6 +430,11 @@ export function porteGiro(): PorteGiro {
           s === "da_spostare",
       );
       if (aEvento.length > 0) {
+        //  Un evento non parte oltre 72 h (più la memoria dei «salta») dopo `statoDal`:
+        //  prima di allora le schede non servono, e sono quelle che si accumulano.
+        //  `oggi` è la mezzanotte UTC del giorno di Roma, cioè non dopo «adesso»: il
+        //  limite è un po' largo, mai stretto.
+        const scade = Date.parse(oggi) - (72 * 60 + MEMORIA_SALTI_MIN) * 60_000;
         const primo = aEvento
           .map((s) => Date.parse(ambito.stati[s]))
           .filter(Number.isFinite)
@@ -423,7 +444,8 @@ export function porteGiro(): PorteGiro {
             leggi(
               schede()
                 .in("data->>stato", aEvento)
-                .gte("data->>statoDal", new Date(primo).toISOString()),
+                .gte("data->>statoDal", new Date(Math.max(primo, scade)).toISOString())
+                .limit(2000),
             ),
           );
       }
