@@ -44,6 +44,8 @@ import {
 import { STATI_RICONTATTO_AUTOMATICO, TIPI_AUTOMATICI, type InvioPerFreno } from "./regole";
 import type { SchedaQuando } from "./quando";
 import { portePortaVere } from "./porta.server";
+import { ambitoDi, sceltaDaConfig } from "./giro";
+import { porteGiro } from "./porte.server";
 import type { ClientManychat } from "./api";
 
 type ErroreDb = { code?: string | null; message?: string | null } | null;
@@ -278,52 +280,19 @@ export async function salvaControlli(
 export const clientManychat = (userId: string): ClientManychat | null =>
   portePortaVere(userId).client();
 
-/** Le schede, i consulenti e il registro per la prova a secco: SOLO letture. */
+/** Le schede, i consulenti e il registro per la prova a secco: SOLO letture.
+ *  Le schede le legge la stessa funzione del giro (`porteGiro().schede`) con la
+ *  stessa scelta della prova (tutto guardato): così la prova e il giro vedono le
+ *  stesse schede. */
 export async function leggiDatiSecco(
   userId: string,
   config: ConfigManychat,
   adesso: Date,
+  fraseModuloDal: string | null = null,
 ): Promise<DatiSecco> {
   const oggi = aRoma(adesso).giorno;
-  const domani = aRoma(new Date(adesso.getTime() + GIORNO_MS)).giorno;
-  //  Il recupero guarda al massimo un giorno lavorativo indietro (con la
-  //  domenica in mezzo): quattro giorni coprono tutto.
-  const da = aRoma(new Date(adesso.getTime() - 4 * GIORNO_MS)).giorno;
-  type Riga = { id: string; data: Partial<LeadData> };
-
-  const meet = await db()
-    .from("crm_leads")
-    .select<Riga[]>("id, data")
-    .eq("user_id", userId)
-    .in("data->>stato", STATI_APPUNTAMENTO as string[])
-    .gte("data->>dataMeeting", oggi)
-    .lte("data->>dataMeeting", domani)
-    .limit(2000);
-  if (meet.error) lancia(meet.error);
-
-  const ricontatti = await db()
-    .from("crm_leads")
-    .select<Riga[]>("id, data")
-    .eq("user_id", userId)
-    .in("data->>stato", STATI_RICONTATTO_AUTOMATICO)
-    .gte("data->>dataRicontatto", da)
-    .lte("data->>dataRicontatto", oggi)
-    .limit(2000);
-  if (ricontatti.error) lancia(ricontatti.error);
-
-  //  Il vecchio `callbackAt` (nessuno lo scrive più, ma la regola lo legge).
-  const vecchi = await db()
-    .from("crm_leads")
-    .select<Riga[]>("id, data")
-    .eq("user_id", userId)
-    .in("data->>stato", STATI_RICONTATTO_AUTOMATICO)
-    .not("data->>callbackAt", "is", null)
-    .limit(2000);
-  if (vecchi.error) lancia(vecchi.error);
-
-  const perId = new Map<string, SchedaQuando>();
-  for (const r of [...(meet.data ?? []), ...(ricontatti.data ?? []), ...(vecchi.data ?? [])])
-    perId.set(r.id, { id: r.id, data: r.data ?? {} });
+  const scelta = sceltaDaConfig({ ...config, fraseModuloDal }, adesso, true);
+  const schede = await porteGiro().schede(userId, oggi, ambitoDi(scelta));
 
   const consulenti = await db()
     .from("crm_consultants")
@@ -363,7 +332,8 @@ export async function leggiDatiSecco(
 
   return {
     config,
-    schede: [...perId.values()],
+    schede,
+    fraseModuloDal,
     consulenti: (consulenti.data ?? []) as unknown as DatiSecco["consulenti"],
     invii: (registro.data ?? []).map((r) => ({
       telefono: r.telefono,

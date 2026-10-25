@@ -179,7 +179,8 @@ export const Route = createFileRoute("/api/crm/manychat")({
 
           // ── la prova a secco: solo letture, nessuna chiamata a ManyChat ──
           if (c.tipo === "prova_a_secco") {
-            return json(provaASecco(await leggiDatiSecco(userId, config, adesso), adesso));
+            const frase = fraseModuloDa((cfg.riga as RigaConfig | null)?.controlli)?.il ?? null;
+            return json(provaASecco(await leggiDatiSecco(userId, config, adesso, frase), adesso));
           }
 
           // ── la prova di collegamento: «chi sei?», flussi e campi ──

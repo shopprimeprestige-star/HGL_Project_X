@@ -17,7 +17,10 @@ import { STATI_CON_MESSAGGIO } from "../promemoria/risposta";
 import { STATI_APPUNTAMENTO, type Consultant, type ContattoWa } from "../types";
 import { portePortaVere, chiaveManychatPresente } from "./porta.server";
 import type { CambioContatto } from "./contatto";
-import type { ConfigGiro, PorteGiro, RigaGiroDb, StatoGiroSalvato } from "./giro";
+import type { AmbitoSchede, ConfigGiro, PorteGiro, RigaGiroDb, StatoGiroSalvato } from "./giro";
+import { configDaRiga, fraseModuloDa, type RigaConfig } from "./pannello";
+import { TABELLA_STATI } from "./stati";
+import { STATI_LEAD_NUOVO } from "./sequenze";
 import { STATI_RICONTATTO_AUTOMATICO, type InvioPerFreno } from "./regole";
 import type { SchedaQuando } from "./quando";
 import type { PorteRisposta as PorteConferma } from "../promemoria/in-entrata";
@@ -306,21 +309,12 @@ export function porteGiro(): PorteGiro {
     },
 
     leggiConfig: async () => {
+      //  `select *`: le colonne di S2 e `controlli` ci sono solo se le migrazioni
+      //  sono state applicate; se mancano valgono spente (il giro di prima resta
+      //  identico). Il riquadro legge la riga con le stesse funzioni.
       const { data, error } = await db()
         .from("manychat_config")
-        .select<{
-          user_id: string | null;
-          canale: string | null;
-          acceso: boolean | null;
-          promemoria: boolean | null;
-          ricontatti: boolean | null;
-          tetti: Record<string, unknown> | null;
-          flussi: Record<string, unknown> | null;
-          prima_accensione: string | null;
-          ultima_accensione: string | null;
-        }>(
-          "user_id, canale, acceso, promemoria, ricontatti, tetti, flussi, prima_accensione, ultima_accensione",
-        )
+        .select<RigaConfig>("*")
         .eq("id", 1)
         .maybeSingle();
       if (error) {
@@ -328,22 +322,23 @@ export function porteGiro(): PorteGiro {
         return lancia(error);
       }
       if (!data?.user_id) return { fermo: "senza_configurazione" as const };
-      const flussi: Record<string, string> = {};
-      for (const [nome, ns] of Object.entries(data.flussi ?? {}))
-        if (typeof ns === "string" && ns.trim()) flussi[nome] = ns.trim();
-      const tetti: ConfigGiro["tetti"] = {};
-      if (typeof data.tetti?.ricontatti === "number") tetti.ricontatti = data.tetti.ricontatti;
-      if (typeof data.tetti?.totale === "number") tetti.totale = data.tetti.totale;
+      const c = configDaRiga(data);
       return {
         userId: data.user_id,
-        canale: data.canale === "manychat" ? "manychat" : "cloud",
-        acceso: data.acceso === true,
-        promemoria: data.promemoria === true,
-        ricontatti: data.ricontatti === true,
-        tetti,
-        flussi,
-        primaAccensione: data.prima_accensione,
-        ultimaAccensione: data.ultima_accensione,
+        canale: c.canale,
+        acceso: c.acceso,
+        promemoria: c.promemoria,
+        ricontatti: c.ricontatti,
+        leadNuovo: c.leadNuovo,
+        giornoMeet: c.giornoMeet,
+        leadNuovoDal: c.leadNuovoDal,
+        stati: c.stati,
+        indirizzoSede: c.indirizzoSede,
+        fraseModuloDal: fraseModuloDa(data.controlli)?.il ?? null,
+        tetti: c.tetti,
+        flussi: c.flussi,
+        primaAccensione: c.primaAccensione,
+        ultimaAccensione: c.ultimaAccensione,
       };
     },
     leggiGiro: async (): Promise<RigaGiroDb> => {
@@ -376,27 +371,80 @@ export function porteGiro(): PorteGiro {
     //  shortcut: PostgREST dà al massimo 1000 righe per richiesta; oltre mille
     //  schede nei tre stati dei ricontatti il giro ne vede mille. Da cambiare
     //  (paginare, o filtrare per data) quando il CRM ci arriva.
-    schede: async (userId, oggi) => {
-      const domani = new Date(Date.parse(`${oggi}T00:00:00Z`) + GIORNO_MS)
-        .toISOString()
-        .slice(0, 10);
-      const [meet, ricontatti] = await Promise.all([
-        db()
-          .from("crm_leads")
-          .select<{ id: string; data: Record<string, unknown> | null }[]>("id, data")
-          .eq("user_id", userId)
-          .in("data->>stato", STATI_APPUNTAMENTO as string[])
-          .gte("data->>dataMeeting", oggi)
-          .lte("data->>dataMeeting", domani),
-        db()
-          .from("crm_leads")
-          .select<{ id: string; data: Record<string, unknown> | null }[]>("id, data")
-          .eq("user_id", userId)
-          .in("data->>stato", STATI_RICONTATTO_AUTOMATICO),
-      ]);
-      if (meet.error) return lancia(meet.error);
-      if (ricontatti.error) return lancia(ricontatti.error);
-      return comeSchede([...(meet.data ?? []), ...(ricontatti.data ?? [])]);
+    schede: async (userId, oggi, ambito) => {
+      const giorno = (n: number) =>
+        new Date(Date.parse(`${oggi}T00:00:00Z`) + n * GIORNO_MS).toISOString().slice(0, 10);
+      type Righe = { id: string; data: Record<string, unknown> | null }[];
+      const leggi = (q: Esito<Righe>) =>
+        Promise.resolve(q).then(({ data, error }) => {
+          if (error) return lancia(error);
+          return data ?? [];
+        });
+      const schede = () => db().from("crm_leads").select<Righe>("id, data").eq("user_id", userId);
+      const lavori: Promise<Righe>[] = [
+        //  gli appuntamenti di oggi e di domani (promemoria, mattina, ora esatta)
+        leggi(
+          schede()
+            .in("data->>stato", STATI_APPUNTAMENTO as string[])
+            .gte("data->>dataMeeting", oggi)
+            .lte("data->>dataMeeting", giorno(1)),
+        ),
+        //  i ricontatti a data
+        leggi(schede().in("data->>stato", STATI_RICONTATTO_AUTOMATICO)),
+      ];
+      //  I lead del modulo Meta, entrati dall'accensione in poi. Una sequenza dura al
+      //  massimo 72 h + 24 h + 48 h: oltre sette giorni nessuno ne ha più bisogno.
+      //  Due strade per la data d'ingresso (foglio / file): due letture, semplici.
+      if (ambito.leadNuoviDal) {
+        const dal = new Date(
+          Math.max(Date.parse(ambito.leadNuoviDal), Date.parse(oggi) - 7 * GIORNO_MS),
+        ).toISOString();
+        const moduli = () =>
+          schede()
+            .eq("data->consensoModulo->>via", "modulo_meta")
+            .in("data->>stato", STATI_LEAD_NUOVO);
+        lavori.push(leggi(moduli().gte("data->origineIngresso->>il", dal)));
+        lavori.push(leggi(moduli().gte("data->listaOrigine->>il", dal)));
+      }
+      //  I messaggi per stato accesi. A evento: serve `statoDal` dall'accensione in poi.
+      const accesi = Object.keys(ambito.stati).filter((s) => s in TABELLA_STATI);
+      const aEvento = accesi.filter(
+        (s) =>
+          TABELLA_STATI[s as keyof typeof TABELLA_STATI]?.quando === "a_evento" ||
+          s === "da_spostare",
+      );
+      if (aEvento.length > 0) {
+        const primo = aEvento
+          .map((s) => Date.parse(ambito.stati[s]))
+          .filter(Number.isFinite)
+          .reduce((a, b) => Math.min(a, b), Infinity);
+        if (Number.isFinite(primo))
+          lavori.push(
+            leggi(
+              schede()
+                .in("data->>stato", aEvento)
+                .gte("data->>statoDal", new Date(primo).toISOString()),
+            ),
+          );
+      }
+      //  A orario: la chiamata di oggi; la sede il giorno dopo (di sabato anche domenica e lunedì).
+      if (accesi.includes("richiamo"))
+        lavori.push(
+          leggi(schede().eq("data->>stato", "richiamo").eq("data->>dataRicontatto", oggi)),
+        );
+      if (accesi.includes("viene_in_sede"))
+        lavori.push(
+          leggi(
+            schede()
+              .eq("data->>stato", "viene_in_sede")
+              .gte("data->>dataVieneInSede", oggi)
+              .lte("data->>dataVieneInSede", giorno(2)),
+          ),
+        );
+      const perId = new Map<string, SchedaQuando>();
+      for (const righe of await Promise.all(lavori))
+        for (const s of comeSchede(righe)) perId.set(s.id, s);
+      return [...perId.values()];
     },
     schedeInAttesa: async (userId) => {
       const { data, error } = await db()

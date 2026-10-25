@@ -200,7 +200,7 @@ export interface StatoManychat {
 export interface RigaProva {
   /** nome abbreviato */
   nome: string;
-  tipo: "promemoria" | "ricontatto";
+  tipo: ProblemaGiro["tipo"];
   esito: "scriverebbe" | "aspetta" | "salta";
   motivo: string;
 }

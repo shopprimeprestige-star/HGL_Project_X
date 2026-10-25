@@ -50,15 +50,15 @@ import {
   type CambioContatto,
   type StatoContatto,
 } from "./contatto";
+import { decisioniDelGiro, righeDiProva, sceltaDaConfig } from "./giro";
+import { TETTO_RICONTATTI, TETTO_TOTALE, tettiDelGiorno, type SchedaQuando } from "./quando";
 import {
-  TETTO_RICONTATTI,
-  TETTO_TOTALE,
-  codaRicontatti,
-  decidiPromemoria,
-  tettiDelGiorno,
-  type SchedaQuando,
-} from "./quando";
-import { STATI_ARRIVATI, TIPI_AUTOMATICI, numeroWa, type InvioPerFreno } from "./regole";
+  STATI_ARRIVATI,
+  TIPI_AUTOMATICI,
+  TIPI_NEI_TETTI,
+  numeroWa,
+  type InvioPerFreno,
+} from "./regole";
 import { TETTO_RIGHE_GIORNO } from "../sheets/ingresso";
 import {
   MODELLI_FLUSSO,
@@ -643,8 +643,6 @@ const eTipoAutomatico = (t: unknown): t is ProblemaGiro["tipo"] =>
   (TIPI_AUTOMATICI as string[]).includes(String(t));
 const MAX_PROBLEMI = 20;
 
-/** I tipi che NON contano nei tetti del giorno (il totale è tutto il resto). */
-const FUORI_DAI_TETTI = ["conferma", "chat", "webinar", "prova"];
 const LEAD_NUOVI = ["primo_contatto", "richiamo_24h"];
 
 /** Gli esiti di `sheets_ingressi` che il riquadro può mostrare; ogni altro valore
@@ -724,8 +722,8 @@ export function costruisciStato(d: DatiStato, adesso: Date): StatoManychat {
     return Number.isFinite(t) ? aRoma(new Date(t)).giorno : null;
   };
   const arrivato = (i: RigaInvio) => (STATI_ARRIVATI as string[]).includes(i.stato);
-  //  Tutto quello che conta nel tetto del giorno (la conferma no).
-  const dioggi = d.invii.filter((i) => !FUORI_DAI_TETTI.includes(i.tipo));
+  //  Tutto quello che conta nel tetto del giorno (`TIPI_NEI_TETTI`: la conferma no).
+  const dioggi = d.invii.filter((i) => TIPI_NEI_TETTI.includes(i.tipo));
   const dioggiArrivati = dioggi.filter((i) => arrivato(i) && giornoDi(i.prenotato_il) === oggi);
 
   const dalRegistro: ProblemaGiro[] = d.problemi
@@ -1102,87 +1100,37 @@ export interface DatiSecco {
   invii: InvioPerFreno[];
   /** `manychat_giro.prossimo_ricontatto_dopo` */
   prossimoDopo: Date | null;
+  /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo Meta
+   *  (assente = nessuna data segnata, il modulo non vale per nessuno) */
+  fraseModuloDal?: string | null;
 }
 
-/** Il giro manda al massimo 2 messaggi per volta: prima i promemoria, poi al
- *  massimo UN ricontatto (PIANO §4.3). */
-const MAX_INVII_PER_GIRO = 2;
 /** shortcut: le righe della prova si fermano a 100; con più schede il resto si
  *  vede dalla scheda. Alzare se serve. */
 const MAX_RIGHE_PROVA = 100;
 
 const nomeDi = (d: Partial<LeadData>) => abbreviaNome(d.nome, d.cognome);
-const dueCifre = (n: number) => String(n).padStart(2, "0");
-const oraDi = (minuti: number) => `${dueCifre(Math.floor(minuti / 60))}:${dueCifre(minuti % 60)}`;
 
 /** Chi verrebbe scritto adesso e perché, con le STESSE funzioni pure che usa il
- *  giro (`decidiPromemoria`, `codaRicontatti`). Non scrive e non chiama: non
- *  riceve né database né rete. Gli interruttori non contano: serve proprio a
- *  vedere cosa succederebbe PRIMA di accendere. */
+ *  giro (`decisioniDelGiro`: promemoria, giorno del meet, lead nuovi, ricontatti
+ *  a data, messaggi per stato; al massimo 2 invii per giro e uno solo col ritmo,
+ *  `righeDiProva`). Non scrive e non chiama: non riceve né database né rete. Gli
+ *  interruttori non contano: serve proprio a vedere cosa succederebbe PRIMA di
+ *  accendere (`sceltaDaConfig` con `prova = true`). */
 export function provaASecco(d: DatiSecco, adesso: Date): ProvaASecco {
   const tetti = tettiDelGiorno(d.config.tetti, d.config.primaAccensione, adesso);
-  const contesto = { consulenti: d.consulenti, invii: d.invii, tetti };
-  const righe: RigaProva[] = [];
-  let invii = 0;
-
-  for (const x of decidiPromemoria(d.schede, adesso, contesto)) {
-    const nome = nomeDi(x.scheda.data);
-    if (x.tipo === "invia") {
-      const ora = oraDi(aRoma(x.extra.inizioMeet).minuti);
-      if (invii < MAX_INVII_PER_GIRO) {
-        invii++;
-        righe.push({ nome, tipo: "promemoria", esito: "scriverebbe", motivo: `meet alle ${ora}` });
-      } else {
-        righe.push({
-          nome,
-          tipo: "promemoria",
-          esito: "aspetta",
-          motivo: `meet alle ${ora}: al giro dopo (al massimo ${MAX_INVII_PER_GIRO} messaggi per giro)`,
-        });
-      }
-    } else {
-      righe.push({
-        nome,
-        tipo: "promemoria",
-        esito: x.tipo === "aspetta" ? "aspetta" : "salta",
-        motivo: x.motivo,
-      });
-    }
-  }
-
-  let ricontattoScelto = false;
-  for (const x of codaRicontatti(d.schede, adesso, d.config.ultimaAccensione, {
-    ...contesto,
-    prossimoDopo: d.prossimoDopo,
-  })) {
-    const nome = nomeDi(x.scheda.data);
-    if (x.tipo === "invia") {
-      const descrizione = x.extra.recupero
-        ? "recupero del ricontatto di ieri"
-        : "ricontatto di oggi";
-      if (!ricontattoScelto && invii < MAX_INVII_PER_GIRO) {
-        ricontattoScelto = true;
-        invii++;
-        righe.push({ nome, tipo: "ricontatto", esito: "scriverebbe", motivo: descrizione });
-      } else {
-        righe.push({
-          nome,
-          tipo: "ricontatto",
-          esito: "aspetta",
-          motivo: ricontattoScelto
-            ? `${descrizione}: un ricontatto alla volta, uno ogni 27-33 minuti (ritmo)`
-            : `${descrizione}: al giro dopo (al massimo ${MAX_INVII_PER_GIRO} messaggi per giro)`,
-        });
-      }
-    } else {
-      righe.push({
-        nome,
-        tipo: "ricontatto",
-        esito: x.tipo === "aspetta" ? "aspetta" : "salta",
-        motivo: x.motivo,
-      });
-    }
-  }
+  const scelta = sceltaDaConfig(
+    { ...d.config, fraseModuloDal: d.fraseModuloDal ?? null },
+    adesso,
+    true,
+  );
+  const voci = decisioniDelGiro(
+    d.schede,
+    adesso,
+    { consulenti: d.consulenti, invii: d.invii, tetti, prossimoDopo: d.prossimoDopo },
+    scelta,
+  );
+  const righe: RigaProva[] = righeDiProva(voci, (s) => nomeDi(s.data));
   return { adesso: adesso.toISOString(), righe: righe.slice(0, MAX_RIGHE_PROVA) };
 }
 

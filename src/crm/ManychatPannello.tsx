@@ -57,6 +57,7 @@ import {
 } from "@/crm/manychat/client-crm";
 import { TETTO_RICONTATTI, TETTO_TOTALE, TETTO_PRIMA_SETTIMANA } from "@/crm/manychat/quando";
 import {
+  ETICHETTA_TIPO,
   MODELLI_FLUSSO,
   MODELLI_FLUSSO_SEQUENZE,
   PAROLA_ESITO,
@@ -909,7 +910,8 @@ export function ManychatPannello() {
                       <ul className="space-y-1">
                         {secco.righe.map((r, i) => (
                           <li key={`${r.nome}-${i}`} className="text-[13px] leading-snug">
-                            <span className="font-medium">{r.nome}</span> · {r.tipo} ·{" "}
+                            <span className="font-medium">{r.nome}</span> ·{" "}
+                            {ETICHETTA_TIPO[r.tipo] ?? r.tipo} ·{" "}
                             <span
                               className={cn(
                                 "font-semibold",

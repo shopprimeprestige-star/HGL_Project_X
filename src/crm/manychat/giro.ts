@@ -36,7 +36,7 @@
  *   giro lascia (`manychat_giro.stato`) ha nomi abbreviati («Mario R.») e id
  *   di scheda, mai il telefono: lo legge solo il server.
  *  ───────────────────────────────────────────────────────────────────────── */
-import type { Consultant } from "../types";
+import type { Consultant, TipoInvio } from "../types";
 import { aRoma } from "../promemoria/formati";
 import type { ClientManychat } from "./api";
 import {
@@ -44,12 +44,15 @@ import {
   dopoRifiuto,
   dopoRisposta,
   dopoScadenza,
+  istanteDiRoma,
   type CambioContatto,
+  type IngressoInvio,
 } from "./contatto";
 import { inviaWhatsapp, type PortePorta, type PrenotazionePorta } from "./porta";
 import {
   ANTICIPO_PROMEMORIA_MIN,
   codaRicontatti,
+  contaOggi,
   decidiPromemoria,
   intervalloRicontatto,
   tettiDelGiorno,
@@ -57,8 +60,18 @@ import {
   type SchedaQuando,
   type Tetti,
 } from "./quando";
-import { STATI_ARRIVATI, numeroWa, type InvioPerFreno } from "./regole";
-import { campiPromemoria, campiRicontatto } from "./testi";
+import { TIPI_COL_RITMO, TIPI_NEI_TETTI, numeroWa, type InvioPerFreno } from "./regole";
+import { decidiGiornoMeet, decidiLeadNuovi } from "./sequenze";
+import { TABELLA_STATI, decidiPerStato } from "./stati";
+import {
+  campiMeetAdesso,
+  campiMeetOggi,
+  campiPerStato,
+  campiPrimoContatto,
+  campiPromemoria,
+  campiRichiamo,
+  type CampiOSalta,
+} from "./testi";
 
 /** I modelli approvati da Meta, e i flussi di ManyChat che li mandano: il nome
  *  del modello è la chiave in `manychat_config.flussi`. */
@@ -67,12 +80,50 @@ export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
 /** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
 export const TAG_PROMEMORIA = "crm-promemoria";
 export const TAG_RICONTATTO = "crm-ricontatto";
+/** Modello e tag dei quattro messaggi delle sequenze (commessa 2026-10-25). I
+ *  messaggi per stato li sceglie `TABELLA_STATI`, mai una seconda lista qui. */
+export const MODELLI_SEQUENZE = {
+  primo_contatto: { modello: "hgl_primo_contatto", tag: "crm-primo-contatto" },
+  richiamo_24h: { modello: "hgl_richiamo_24h", tag: "crm-richiamo" },
+  meet_oggi: { modello: "hgl_meet_oggi", tag: "crm-meet-oggi" },
+  meet_adesso: { modello: "hgl_meet_adesso", tag: "crm-meet-adesso" },
+} as const;
+
+/** I tipi di messaggio che il giro manda: gli otto di `TIPI_NEI_TETTI`. */
+export type TipoGiro = Extract<
+  TipoInvio,
+  | "promemoria"
+  | "ricontatto"
+  | "primo_contatto"
+  | "richiamo_24h"
+  | "meet_oggi"
+  | "meet_adesso"
+  | "promemoria_chiamata"
+  | "promemoria_sede"
+>;
+
+/** L'ORDINE DEI CANDIDATI (PIANO §5d): prima chi ha un'ora precisa e un
+ *  appuntamento vicino, poi i lead nuovi, in fondo i messaggi col ritmo. I due
+ *  che aspettano il ritmo (ricontatto, richiamo) sono in fondo: ne parte UNO per
+ *  giro. Fra i due vince il ricontatto (a data o a evento: ha spesso un'ora
+ *  fissata e il recupero del giorno dopo); il richiamo ha 48 ore di margine. */
+export const ORDINE_GIRO: TipoGiro[] = [
+  "meet_adesso",
+  "promemoria",
+  "promemoria_chiamata",
+  "meet_oggi",
+  "promemoria_sede",
+  "primo_contatto",
+  "ricontatto",
+  "richiamo_24h",
+];
 
 /** Il lucchetto: più della durata massima del giro (45 s). */
 export const LUCCHETTO_S = 120;
-/** Al massimo due invii per giro, e di questi al massimo un ricontatto. */
+/** Al massimo due invii per giro, e di questi al massimo uno che aspetta il
+ *  ritmo (ricontatto o richiamo: `TIPI_COL_RITMO`). */
 export const MAX_INVII_PER_GIRO = 2;
-export const MAX_RICONTATTI_PER_GIRO = 1;
+export const MAX_COL_RITMO_PER_GIRO = 1;
 /** Dopo tanto dall'inizio del giro non se ne apre un altro: ogni invio fa fino
  *  a 6 chiamate da 8 s, e il cron aspetta 45 s. */
 export const TEMPO_GIRO_MS = 20_000;
@@ -116,6 +167,9 @@ export interface EsitoGiroManychat {
   fermo?: string;
   promemoriInviati: number;
   ricontattiInviati: number;
+  /** gli altri sei tipi: primo contatto, richiamo, mattina e ora esatta del meet,
+   *  chiamata concordata, appuntamento in sede */
+  nuoviInviati: number;
   saltati: number;
   incerti: number;
   /** schede passate a «Non ha risposto» in questo giro */
@@ -130,7 +184,7 @@ export interface EsitoGiroManychat {
 export interface RigaGiro {
   /** nome abbreviato («Mario R.») */
   nome: string;
-  tipo: "promemoria" | "ricontatto";
+  tipo: TipoGiro;
   esito: "scriverebbe" | "aspetta" | "salta";
   motivo: string;
 }
@@ -140,7 +194,7 @@ export interface RigaGiro {
 export interface ProblemaGiroSalvato {
   il: string;
   nome: string;
-  tipo: "promemoria" | "ricontatto";
+  tipo: TipoGiro;
   motivo: string;
   scheda: string;
 }
@@ -149,8 +203,15 @@ export interface ProblemaGiroSalvato {
 export interface StatoGiroSalvato {
   /** l'ultimo messaggio automatico partito */
   ultimoInvioIl: string | null;
-  /** conteggi del giorno di oggi (Roma) */
-  oggi: { promemoria: number; ricontatti: number; risposte: number };
+  /** conteggi del giorno di oggi (Roma). `leadNuovi` = primo contatto + richiamo;
+   *  `totale` = tutto ciò che conta nel tetto (`TIPI_NEI_TETTI`). */
+  oggi: {
+    promemoria: number;
+    ricontatti: number;
+    leadNuovi: number;
+    totale: number;
+    risposte: number;
+  };
   problemi: ProblemaGiroSalvato[];
   /** una frase se il giro ha trovato un limite (tetto, ritmo, flusso mancante) */
   nota: string | null;
@@ -158,13 +219,26 @@ export interface StatoGiroSalvato {
   fermo: string | null;
 }
 
-/** La riga `manychat_config`. */
+/** La riga `manychat_config`. Le colonne di S2 (`leadNuovo` in giù) sono spente o
+ *  vuote se la migrazione non c'è: il giro di prima resta identico. */
 export interface ConfigGiro {
   userId: string;
   canale: "cloud" | "manychat";
   acceso: boolean;
   promemoria: boolean;
   ricontatti: boolean;
+  /** «Lead nuovo» (primo contatto e richiamo a 24 ore) */
+  leadNuovo: boolean;
+  /** «Giorno del meet» (mattina e ora esatta) */
+  giornoMeet: boolean;
+  /** ISO dell'ultima accensione di «Lead nuovo» */
+  leadNuovoDal: string | null;
+  /** stato → ISO dell'accensione del suo messaggio; assente = spento */
+  stati: Record<string, string>;
+  /** l'indirizzo della sede, per il promemoria «in sede» */
+  indirizzoSede: string | null;
+  /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo Meta */
+  fraseModuloDal: string | null;
   /** i tetti del riquadro: l'SQL e `tettiDelGiorno` li riportano comunque alle costanti */
   tetti: Partial<Tetti>;
   flussi: Record<string, string>;
@@ -180,10 +254,18 @@ export interface RigaGiroDb {
 }
 
 /** Cosa si chiede all'SQL per prenotare un invio del giro. */
-export interface PrenotazioneGiro extends PrenotazionePorta {
-  tipo: "promemoria" | "ricontatto";
-  /** ISO: promemoria = il momento a cui puntava (−25' dal meet) */
+export interface PrenotazioneGiro extends Omit<PrenotazionePorta, "tipo"> {
+  tipo: TipoGiro;
+  /** ISO: promemoria = il momento a cui puntava (−25' dal meet); ora esatta = l'inizio */
   previstoIl: string | null;
+}
+
+/** Quali schede serve leggere oltre agli appuntamenti di oggi e ai ricontatti a data. */
+export interface AmbitoSchede {
+  /** i lead del modulo Meta entrati da questo ISO in poi; `null` = non servono */
+  leadNuoviDal: string | null;
+  /** gli stati con un messaggio acceso (stato → ISO dell'accensione) */
+  stati: Record<string, string>;
 }
 
 export interface PorteGiro {
@@ -200,9 +282,9 @@ export interface PorteGiro {
   /** c'è `MANYCHAT_API_KEY` fra i segreti? */
   chiaveManychat(): boolean;
   consulenti(userId: string): Promise<Pick<Consultant, "id" | "data">[]>;
-  /** le schede che il giro può dover toccare: appuntamenti di oggi in poi e
-   *  schede nei tre stati dei ricontatti */
-  schede(userId: string, oggi: string): Promise<SchedaQuando[]>;
+  /** le schede che il giro può dover toccare: appuntamenti di oggi in poi, schede
+   *  negli stati dei ricontatti a data, e quelle che chiede `ambito` */
+  schede(userId: string, oggi: string, ambito: AmbitoSchede): Promise<SchedaQuando[]>;
   /** le schede con il secondo stato «In attesa» */
   schedeInAttesa(userId: string): Promise<SchedaQuando[]>;
   /** una scheda riletta; `null` se non c'è */
@@ -236,6 +318,7 @@ export interface PorteGiro {
 const vuoto = (): EsitoGiroManychat => ({
   promemoriInviati: 0,
   ricontattiInviati: 0,
+  nuoviInviati: 0,
   saltati: 0,
   incerti: 0,
   scadute: 0,
@@ -258,14 +341,6 @@ export function nomeAbbreviato(d: { nome?: string; cognome?: string } | null | u
   return [nome, iniziale].filter(Boolean).join(" ") || "senza nome";
 }
 
-/** I messaggi automatici di oggi (Roma) che possono essere arrivati. */
-function contaOggi(invii: InvioPerFreno[], oggi: string, tipo: InvioPerFreno["tipo"]) {
-  return invii.filter((i) => {
-    if (i.tipo !== tipo || !STATI_ARRIVATI.includes(i.stato)) return false;
-    const t = Date.parse(i.prenotatoIl);
-    return Number.isFinite(t) && aRoma(new Date(t)).giorno === oggi;
-  }).length;
-}
 function contaRisposteOggi(invii: InvioPerFreno[], oggi: string) {
   return invii.filter((i) => {
     const t = i.rispostaIl ? Date.parse(i.rispostaIl) : Number.NaN;
@@ -315,23 +390,377 @@ function conTag(client: ClientManychat | null, tag: string): ClientManychat | nu
   };
 }
 
-type Candidato =
-  | {
-      tipo: "promemoria";
-      d: Extract<DecisioneQuando<{ inizioMeet: Date }>, { tipo: "invia" }>;
-    }
-  | {
-      tipo: "ricontatto";
-      d: Extract<DecisioneQuando<{ giorno: string; recupero: boolean }>, { tipo: "invia" }>;
+/** ═══════════════════════════════════════════════════════════════════════════
+ *  LE DECISIONI DEL GIRO, TUTTE INSIEME
+ *  ═══════════════════════════════════════════════════════════════════════════
+ *  Un posto solo che chiama le cinque famiglie di decisioni pure e le rimette in
+ *  fila: lo usano il giro vero, la prova a secco del giro e quella del riquadro
+ *  (`provaASecco`), così non esistono due elenchi che si possono separare. */
+
+/** Quello che serve del messaggio oltre al tipo: lo stato della scheda (per
+ *  scegliere il modello dalla tabella), l'inizio dell'appuntamento (per «In
+ *  attesa» fino a quel momento) e se è un recupero. */
+export interface ExtraVoce {
+  stato: string | null;
+  inizio: Date | null;
+  recupero: boolean;
+}
+
+/** Una decisione col suo tipo di messaggio. Per `aspetta` e `salta` il tipo è
+ *  quello più probabile (serve a dire di che messaggio si parla). */
+export interface Voce {
+  tipo: TipoGiro;
+  d: DecisioneQuando<ExtraVoce>;
+}
+
+/** Cosa serve in lettura per decidere (nessuna scrittura, nessuna rete). */
+export interface DatiDecisioni {
+  consulenti: Pick<Consultant, "id" | "data">[];
+  invii: InvioPerFreno[];
+  tetti: Tetti;
+  /** `manychat_giro.prossimo_ricontatto_dopo` */
+  prossimoDopo: Date | null;
+}
+
+/** Quali messaggi sono accesi e con quali date. */
+export interface SceltaDecisioni {
+  promemoria: boolean;
+  /** «Ricontatto fissato» */
+  ricontatti: boolean;
+  leadNuovo: boolean;
+  giornoMeet: boolean;
+  /** stato → ISO dell'accensione */
+  statiAccesi: Record<string, string>;
+  leadNuovoDal: string | null;
+  ultimaAccensione: string | null;
+  indirizzoSede: string | null;
+  fraseModuloDal: string | null;
+}
+
+/** La parte della configurazione che decide quali messaggi vanno guardati. */
+export type ConfigDecisioni = Pick<
+  ConfigGiro,
+  | "promemoria"
+  | "ricontatti"
+  | "leadNuovo"
+  | "giornoMeet"
+  | "leadNuovoDal"
+  | "stati"
+  | "indirizzoSede"
+  | "ultimaAccensione"
+  | "fraseModuloDal"
+>;
+
+/** Dalla configurazione a ciò che si guarda. Nel giro vero valgono gli
+ *  interruttori. Nella prova a secco no: serve a vedere cosa succederebbe PRIMA
+ *  di accendere, quindi tutto si guarda; per ciò che è spento si finge
+ *  l'accensione di stamattina (altrimenti i lead e gli stati di oggi, tutti
+ *  arrivati prima di «adesso», non comparirebbero mai). */
+export function sceltaDaConfig(c: ConfigDecisioni, adesso: Date, prova: boolean): SceltaDecisioni {
+  if (!prova) {
+    return {
+      promemoria: c.promemoria,
+      ricontatti: c.ricontatti,
+      leadNuovo: c.leadNuovo,
+      giornoMeet: c.giornoMeet,
+      statiAccesi: c.stati,
+      leadNuovoDal: c.leadNuovoDal,
+      ultimaAccensione: c.ultimaAccensione,
+      indirizzoSede: c.indirizzoSede,
+      fraseModuloDal: c.fraseModuloDal,
     };
+  }
+  const stamattina = (istanteDiRoma(aRoma(adesso).giorno, "00:00") ?? adesso).toISOString();
+  const statiAccesi: Record<string, string> = {};
+  for (const stato of Object.keys(TABELLA_STATI))
+    if (stato !== "da_ricontattare") statiAccesi[stato] = c.stati[stato] ?? stamattina;
+  return {
+    promemoria: true,
+    ricontatti: true,
+    leadNuovo: true,
+    giornoMeet: true,
+    statiAccesi,
+    leadNuovoDal: c.leadNuovoDal ?? stamattina,
+    ultimaAccensione: c.ultimaAccensione,
+    indirizzoSede: c.indirizzoSede,
+    fraseModuloDal: c.fraseModuloDal,
+  };
+}
+
+/** Le schede da leggere per questa scelta. */
+export const ambitoDi = (s: SceltaDecisioni): AmbitoSchede => ({
+  leadNuoviDal: s.leadNuovo ? s.leadNuovoDal : null,
+  stati: s.statiAccesi,
+});
+
+/** Il tipo di messaggio di uno stato: chiamata e sede sono a orario, il resto è un ricontatto. */
+function tipoDelloStato(stato: unknown): TipoGiro {
+  if (stato === "richiamo") return "promemoria_chiamata";
+  if (stato === "viene_in_sede") return "promemoria_sede";
+  return "ricontatto";
+}
+
+export function decisioniDelGiro(
+  schede: SchedaQuando[],
+  adesso: Date,
+  dati: DatiDecisioni,
+  scelta: SceltaDecisioni,
+): Voce[] {
+  const base = {
+    consulenti: dati.consulenti,
+    invii: dati.invii,
+    tetti: dati.tetti,
+    fraseModuloDal: scelta.fraseModuloDal,
+  };
+  const voci: Voce[] = [];
+  /** `invia` porta il suo tipo, `aspetta`/`salta` lo indovinano da `tipoPer`. */
+  function aggiungi<X>(
+    decisioni: DecisioneQuando<X>[],
+    daInvia: (x: X) => { tipo: TipoGiro; extra: Partial<ExtraVoce> },
+    tipoPer: (d: DecisioneQuando<X>) => TipoGiro,
+  ) {
+    for (const d of decisioni) {
+      if (d.tipo === "invia") {
+        const { tipo, extra } = daInvia(d.extra);
+        voci.push({
+          tipo,
+          d: { ...d, extra: { stato: null, inizio: null, recupero: false, ...extra } },
+        });
+      } else {
+        voci.push({ tipo: tipoPer(d), d });
+      }
+    }
+  }
+
+  if (scelta.promemoria)
+    aggiungi(
+      decidiPromemoria(schede, adesso, base),
+      (x) => ({ tipo: "promemoria", extra: { inizio: x.inizioMeet } }),
+      () => "promemoria",
+    );
+  if (scelta.giornoMeet)
+    aggiungi(
+      decidiGiornoMeet(schede, adesso, base),
+      (x) => ({ tipo: x.quale, extra: { inizio: x.inizioMeet } }),
+      //  I motivi di un salto dicono da soli di quale messaggio si parla.
+      (d) =>
+        /messaggio all'ora|giro in ritardo|link/.test((d as { motivo: string }).motivo)
+          ? "meet_adesso"
+          : "meet_oggi",
+    );
+  if (scelta.leadNuovo)
+    aggiungi(
+      decidiLeadNuovi(schede, adesso, {
+        ...base,
+        leadNuovoDal: scelta.leadNuovoDal,
+        prossimoDopo: dati.prossimoDopo,
+      }),
+      (x) => ({ tipo: x.quale, extra: {} }),
+      (d) =>
+        /richiamo|sequenza finita/.test((d as { motivo: string }).motivo)
+          ? "richiamo_24h"
+          : "primo_contatto",
+    );
+  //  I ricontatti «a data»: «Ricontatto fissato» con il suo interruttore, gli
+  //  altri con quello del loro stato. Spento → la coda non dice niente.
+  aggiungi(
+    codaRicontatti(schede, adesso, scelta.ultimaAccensione, {
+      ...base,
+      prossimoDopo: dati.prossimoDopo,
+      statiAccesi: scelta.statiAccesi,
+      ricontattiAcceso: scelta.ricontatti,
+    }),
+    (x) => ({ tipo: "ricontatto", extra: { stato: x.stato, recupero: x.recupero } }),
+    () => "ricontatto",
+  );
+  if (Object.keys(scelta.statiAccesi).length > 0)
+    aggiungi(
+      decidiPerStato(schede, adesso, {
+        ...base,
+        statiAccesi: scelta.statiAccesi,
+        indirizzoSede: scelta.indirizzoSede,
+        prossimoDopo: dati.prossimoDopo,
+      }),
+      (x) => ({ tipo: x.tipo, extra: { stato: x.stato, inizio: x.inizio } }),
+      (d) => tipoDelloStato(d.scheda.data.stato),
+    );
+
+  //  Stabile: dentro lo stesso tipo resta l'ordine delle decisioni.
+  const rango = (t: TipoGiro) => ORDINE_GIRO.indexOf(t);
+  return voci.sort((a, b) => rango(a.tipo) - rango(b.tipo));
+}
+
+/** I «salta» che non sono un guasto da mostrare (la sequenza è finita, c'è già
+ *  un altro messaggio). STOP non è un problema: è quello che il cliente ha chiesto. */
+const NON_SONO_PROBLEMI = [
+  "STOP",
+  "sequenza finita",
+  "saltato: c'è già il promemoria",
+  "la conferma è già partita oggi",
+];
+const eProblema = (motivo: string) => !NON_SONO_PROBLEMI.some((m) => motivo.startsWith(m));
+
+/** Come si presenta un messaggio che parte, nella prova a secco. */
+function chiSara(v: Voce): string {
+  const ora = v.d.tipo === "invia" && v.d.extra.inizio ? aRoma(v.d.extra.inizio).minuti : null;
+  const hm =
+    ora === null
+      ? ""
+      : ` alle ${String(Math.floor(ora / 60)).padStart(2, "0")}:${String(ora % 60).padStart(2, "0")}`;
+  switch (v.tipo) {
+    case "promemoria":
+    case "meet_oggi":
+    case "meet_adesso":
+      return `meet${hm}`;
+    case "promemoria_chiamata":
+      return `chiamata${hm}`;
+    case "promemoria_sede":
+      return `appuntamento in sede${hm}`;
+    case "primo_contatto":
+      return "primo contatto";
+    case "richiamo_24h":
+      return "richiamo dopo 24 ore";
+    default:
+      return v.d.tipo === "invia" && v.d.extra.recupero
+        ? "recupero del ricontatto di ieri"
+        : "ricontatto di oggi";
+  }
+}
+
+/** Le righe della prova a secco, con le STESSE regole del giro vero: al massimo
+ *  `MAX_INVII_PER_GIRO` invii, di cui uno solo che aspetta il ritmo. */
+export function righeDiProva(voci: Voce[], nomeDi: (s: SchedaQuando) => string): RigaGiro[] {
+  const righe: RigaGiro[] = [];
+  let invii = 0;
+  let colRitmo = 0;
+  for (const v of voci) {
+    const nome = nomeDi(v.d.scheda);
+    if (v.d.tipo !== "invia") {
+      righe.push({ nome, tipo: v.tipo, esito: v.d.tipo, motivo: v.d.motivo });
+      continue;
+    }
+    const chi = chiSara(v);
+    const aspettaRitmo = TIPI_COL_RITMO.includes(v.tipo);
+    if (invii >= MAX_INVII_PER_GIRO) {
+      righe.push({
+        nome,
+        tipo: v.tipo,
+        esito: "aspetta",
+        motivo: `${chi}: al giro dopo (al massimo ${MAX_INVII_PER_GIRO} messaggi per giro)`,
+      });
+    } else if (aspettaRitmo && colRitmo >= MAX_COL_RITMO_PER_GIRO) {
+      righe.push({
+        nome,
+        tipo: v.tipo,
+        esito: "aspetta",
+        motivo: `${chi}: un ricontatto alla volta, uno ogni 27-33 minuti (ritmo)`,
+      });
+    } else {
+      invii++;
+      if (aspettaRitmo) colRitmo++;
+      righe.push({ nome, tipo: v.tipo, esito: "scriverebbe", motivo: chi });
+    }
+  }
+  return righe;
+}
+
+/** Il modello e il tag di un messaggio. `null` = uno stato senza riga nella tabella. */
+function modelloETag(
+  tipo: TipoGiro,
+  stato: string | null,
+): { modello: string; tag: string } | null {
+  if (tipo === "promemoria") return { modello: MODELLO_PROMEMORIA, tag: TAG_PROMEMORIA };
+  if (
+    tipo === "primo_contatto" ||
+    tipo === "richiamo_24h" ||
+    tipo === "meet_oggi" ||
+    tipo === "meet_adesso"
+  )
+    return MODELLI_SEQUENZE[tipo];
+  const riga = TABELLA_STATI[(stato ?? "da_ricontattare") as keyof typeof TABELLA_STATI];
+  return riga ? { modello: riga.modello, tag: riga.tag } : null;
+}
+
+/** Le variabili del modello, nell'ordine in cui il modello le vuole. */
+function campiDi(
+  tipo: TipoGiro,
+  v: ExtraVoce,
+  scheda: SchedaQuando,
+  consulente: string | undefined,
+  indirizzoSede: string | null,
+): CampiOSalta {
+  const d = scheda.data;
+  switch (tipo) {
+    case "promemoria":
+      return campiPromemoria(d, consulente, scheda.id);
+    case "primo_contatto":
+      return campiPrimoContatto(d);
+    case "richiamo_24h":
+      return campiRichiamo(d);
+    case "meet_oggi":
+      return campiMeetOggi(d, consulente);
+    case "meet_adesso":
+      return campiMeetAdesso(d, consulente, scheda.id);
+    default:
+      return campiPerStato(v.stato ?? "da_ricontattare", d, consulente, indirizzoSede);
+  }
+}
+
+/** Il secondo stato dopo l'invio (§5e). */
+function ingressoInvio(
+  tipo: TipoGiro,
+  v: ExtraVoce,
+  inviatoIl: Date,
+  invioId: string,
+): IngressoInvio {
+  switch (tipo) {
+    case "promemoria":
+    case "meet_oggi":
+    case "promemoria_chiamata":
+    case "promemoria_sede":
+      //  Senza l'ora dell'appuntamento non c'è una scadenza vera: vale come un ricontatto (24 ore).
+      return v.inizio
+        ? { tipo, inviatoIl, inizioMeet: v.inizio, invioId }
+        : { tipo: "ricontatto", inviatoIl, invioId };
+    case "meet_adesso":
+      return { tipo, inviatoIl, invioId };
+    default:
+      return { tipo, inviatoIl, invioId };
+  }
+}
+
+/** A quale istante puntava il messaggio (`previsto_il` del registro). */
+function previstoDi(tipo: TipoGiro, inizio: Date | null): string | null {
+  if (!inizio) return null;
+  if (tipo === "promemoria")
+    return new Date(inizio.getTime() - ANTICIPO_PROMEMORIA_MIN * 60_000).toISOString();
+  return tipo === "meet_adesso" ? inizio.toISOString() : null;
+}
+
+type Candidato = {
+  tipo: TipoGiro;
+  d: Extract<DecisioneQuando<ExtraVoce>, { tipo: "invia" }>;
+  modello: string;
+  tag: string;
+};
 
 /** Come è andato un tentativo di invio. */
 type Tentativo =
   | { fine: "inviato" }
   | { fine: "continua" }
-  | { fine: "ricontatti_chiusi" }
-  | { fine: "tutto_chiuso" }
+  /** questi tipi, oggi, non possono più partire (tetto o ritmo) */
+  | { fine: "chiudi"; tipi: TipoGiro[] }
   | { fine: "ferma" };
+
+/** Qualcosa è acceso? (generale a parte) */
+const qualcosaAcceso = (c: ConfigGiro) =>
+  c.promemoria || c.ricontatti || c.leadNuovo || c.giornoMeet || Object.keys(c.stati).length > 0;
+
+/** Il nome di un modello nella nota «flusso non collegato». */
+const NOME_MODELLO: Record<string, string> = {
+  [MODELLO_PROMEMORIA]: "promemoria",
+  [MODELLO_RICONTATTO]: "ricontatto",
+};
 
 /** Il giro. Non lancia: ogni guasto è un `fermo` o un conteggio. */
 export async function giroManychat(
@@ -392,7 +821,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   //  vederlo PRIMA di cambiare canale. Il giro vero con `cloud` non fa niente.
   if (!prova && config.canale !== "manychat") return fermoCon("canale");
   if (!prova) {
-    if (!config.acceso || (!config.promemoria && !config.ricontatti)) return fermoCon("spento");
+    if (!config.acceso || !qualcosaAcceso(config)) return fermoCon("spento");
     if (!porte.chiaveManychat()) return fermoCon("senza_chiave");
   }
 
@@ -400,9 +829,10 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const userId = config.userId;
   const adesso = porte.adesso();
   const oggi = aRoma(adesso).giorno;
+  const scelta = sceltaDaConfig(config, adesso, prova);
   const consulenti = await porte.consulenti(userId);
   const [schede, inAttesa, registro] = await Promise.all([
-    porte.schede(userId, oggi),
+    porte.schede(userId, oggi, ambitoDi(scelta)),
     porte.schedeInAttesa(userId),
     porte.invii(userId, new Date(adesso.getTime() - GIORNI_REGISTRO * 86_400_000)),
   ]);
@@ -411,6 +841,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const invii: InvioPerFreno[] = [...registro];
   const tetti = tettiDelGiorno(config.tetti, config.primaAccensione, adesso);
   const prossimoDopo = giro.prossimoRicontattoDopo ? new Date(giro.prossimoRicontattoDopo) : null;
+  const dati: DatiDecisioni = { consulenti, invii, tetti, prossimoDopo };
 
   //  3. «Non ha risposto» sulle schede scadute.
   if (!prova) {
@@ -426,68 +857,42 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     }
   }
 
-  //  Le decisioni. Gli interruttori contano solo nel giro vero.
-  const promemoriaOn = prova || config.promemoria;
-  const ricontattiOn = prova || config.ricontatti;
-  const decP = promemoriaOn ? decidiPromemoria(schede, adesso, { consulenti, invii, tetti }) : [];
-  const decR = ricontattiOn
-    ? codaRicontatti(schede, adesso, config.ultimaAccensione, {
-        consulenti,
-        invii,
-        tetti,
-        prossimoDopo,
-      })
-    : [];
+  //  Le decisioni. Gli interruttori contano solo nel giro vero (`sceltaDaConfig`).
+  const voci = decisioniDelGiro(schede, adesso, dati, scelta);
 
   const nomeDi = (s: SchedaQuando) => nomeAbbreviato(s.data);
   const problemi: ProblemaGiroSalvato[] = [];
-  const problema = (s: SchedaQuando, tipo: "promemoria" | "ricontatto", motivo: string) =>
+  const problema = (s: SchedaQuando, tipo: TipoGiro, motivo: string) =>
     problemi.push({ il: adesso.toISOString(), nome: nomeDi(s), tipo, motivo, scheda: s.id });
-  //  STOP non è un problema: è quello che il cliente ha chiesto.
-  for (const d of decP)
-    if (d.tipo === "salta" && d.motivo !== "STOP") problema(d.scheda, "promemoria", d.motivo);
-  for (const d of decR)
-    if (d.tipo === "salta" && d.motivo !== "STOP") problema(d.scheda, "ricontatto", d.motivo);
+  for (const v of voci)
+    if (v.d.tipo === "salta" && eProblema(v.d.motivo)) problema(v.d.scheda, v.tipo, v.d.motivo);
 
   //  La prova a secco si ferma qui: nessuna scrittura, nessuna chiamata.
   if (prova) {
-    const righe: RigaGiro[] = [];
-    let promemoriaDelGiro = 0;
-    let ricontattoDelGiro = 0;
-    const riga = (d: DecisioneQuando<unknown>, tipo: "promemoria" | "ricontatto") => {
-      if (d.tipo === "invia") {
-        const posto =
-          tipo === "promemoria"
-            ? ++promemoriaDelGiro <= MAX_INVII_PER_GIRO
-            : ++ricontattoDelGiro <= MAX_RICONTATTI_PER_GIRO;
-        righe.push({
-          nome: nomeDi(d.scheda),
-          tipo,
-          esito: posto ? "scriverebbe" : "aspetta",
-          motivo: posto ? "tocca adesso" : "ne parte uno per giro: al prossimo giro",
-        });
-      } else {
-        righe.push({ nome: nomeDi(d.scheda), tipo, esito: d.tipo, motivo: d.motivo });
-      }
-    };
-    decP.forEach((d) => riga(d, "promemoria"));
-    decR.forEach((d) => riga(d, "ricontatto"));
+    const righe = righeDiProva(voci, nomeDi);
     return { ...esito, saltati: righe.filter((r) => r.esito === "salta").length, righe };
   }
 
-  //  I flussi: un modello senza flusso non parte, e lo dice.
+  //  I flussi: un modello senza flusso non parte (solo quello), e lo dice.
   let nota: string | null = null;
   const candidati: Candidato[] = [];
-  const senzaFlusso = (modello: string, nomeModello: string) => {
-    if (config.flussi[modello]) return false;
-    nota = `Il flusso del ${nomeModello} non è collegato in ManyChat`;
-    return true;
-  };
-  if (!senzaFlusso(MODELLO_PROMEMORIA, "promemoria")) {
-    for (const d of decP) if (d.tipo === "invia") candidati.push({ tipo: "promemoria", d });
+  const senzaFlusso = new Set<string>();
+  for (const v of voci) {
+    if (v.d.tipo !== "invia") continue;
+    const mt = modelloETag(v.tipo, v.d.extra.stato);
+    if (!mt) continue;
+    if (!config.flussi[mt.modello]) {
+      senzaFlusso.add(mt.modello);
+      continue;
+    }
+    candidati.push({ tipo: v.tipo, d: v.d, ...mt });
   }
-  if (!senzaFlusso(MODELLO_RICONTATTO, "ricontatto")) {
-    for (const d of decR) if (d.tipo === "invia") candidati.push({ tipo: "ricontatto", d });
+  if (senzaFlusso.size > 0) {
+    const nomi = [...senzaFlusso].map((m) => NOME_MODELLO[m] ?? m);
+    nota =
+      nomi.length === 1
+        ? `Il flusso del ${nomi[0]} non è collegato in ManyChat`
+        : `Il flusso non è collegato in ManyChat per: ${nomi.join(", ")}`;
   }
 
   //  4-7. Gli invii.
@@ -496,29 +901,15 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const base = porte.porta(userId, config);
 
   const tenta = async (cand: Candidato): Promise<Tentativo> => {
-    const { scheda, chiave } = cand.d;
+    const { scheda, chiave, extra } = cand.d;
     const d = scheda.data;
     const numero = numeroWa(d.telefono);
     const consulente = consulenti.find((c) => c.id === d.consulenteId);
-    const campi =
-      cand.tipo === "promemoria"
-        ? campiPromemoria(d, consulente?.data?.nome, scheda.id)
-        : campiRicontatto(d, consulente?.data?.nome);
+    const campi = campiDi(cand.tipo, extra, scheda, consulente?.data?.nome, config.indirizzoSede);
     if (!numero || campi.tipo === "salta") return { fine: "continua" };
-    //  L'ordine è quello del modello: {{1}} nome, {{2}} ora, {{3}} link, {{4}} consulente.
-    const parametri =
-      cand.tipo === "promemoria"
-        ? [
-            campi.campi.crm_nome,
-            campi.campi.crm_ora_meet,
-            campi.campi.crm_link_meet,
-            campi.campi.crm_consulente,
-          ]
-        : [campi.campi.crm_nome, campi.campi.crm_consulente];
-    const inizioMeet = cand.tipo === "promemoria" ? cand.d.extra.inizioMeet : null;
-    const previstoIl = inizioMeet
-      ? new Date(inizioMeet.getTime() - ANTICIPO_PROMEMORIA_MIN * 60_000).toISOString()
-      : null;
+    //  L'ordine delle variabili è quello dei campi (v1…v4 del modello): una lista sola.
+    const parametri = Object.values(campi.campi);
+    const previstoIl = previstoDi(cand.tipo, extra.inizio);
 
     /** Perché la prenotazione non c'è stata (se non c'è stata), con la parola dell'SQL. */
     let rifiuto: string | null = null;
@@ -529,22 +920,18 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       if (!s) return false;
       riletta = s;
       const ora = porte.adesso();
-      const dec =
-        cand.tipo === "promemoria"
-          ? decidiPromemoria([s], ora, { consulenti, invii, tetti })
-          : codaRicontatti([s], ora, config.ultimaAccensione, {
-              consulenti,
-              invii,
-              tetti,
-              prossimoDopo,
-            });
-      return dec.some((x) => x.tipo === "invia" && x.chiave === chiave);
+      const buona = decisioniDelGiro([s], ora, dati, scelta).find(
+        (x) => x.d.tipo === "invia" && x.d.chiave === chiave,
+      );
+      if (!buona || buona.d.tipo !== "invia") return false;
+      //  Stessa chiave ma stato cambiato (r|tel9|giorno è uguale per quattro stati):
+      //  se il modello non è più lo stesso, non si manda quello.
+      return modelloETag(buona.tipo, buona.d.extra.stato)?.modello === cand.modello;
     };
 
     const porta: PortePorta = {
       ...base,
-      client: () =>
-        conTag(base.client(), cand.tipo === "promemoria" ? TAG_PROMEMORIA : TAG_RICONTATTO),
+      client: () => conTag(base.client(), cand.tag),
       prenota: async (p) => {
         const r = await porte.prenota(
           userId,
@@ -559,7 +946,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           //  conosce nessuno (`dati_mancanti`…) arrivano alla porta come sono
           //  e diventano un blocco.
           return ["pausa_contatto", "stop"].includes(r.motivo) ||
-            !["tetto_totale", "tetto_ricontatti", "ritmo", "gia_preso"].includes(r.motivo)
+            !MOTIVI_DEL_GIRO.includes(r.motivo)
             ? r
             : { motivo: "gia_preso" };
         }
@@ -589,11 +976,14 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     const r = await inviaWhatsapp(porta, {
       canale: "manychat",
       a: `+${numero}`,
-      modello: cand.tipo === "promemoria" ? MODELLO_PROMEMORIA : MODELLO_RICONTATTO,
+      modello: cand.modello,
       parametri,
       nome: d.nome,
       leadId: scheda.id,
-      tipo: cand.tipo,
+      //  shortcut: `TipoInvioPorta` (porta.ts, non è di questo compito) non conosce i sei
+      //  tipi nuovi. Alla porta basta una parola qualunque: la prenotazione vera la fa
+      //  il giro (sopra) col tipo giusto. Da togliere quando `TipoInvioPorta` = `TipoInvio`.
+      tipo: "ricontatto",
       chiave,
     });
 
@@ -602,14 +992,20 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       case "tetto_totale":
         nota = "Tetto di messaggi di oggi raggiunto";
         esito.saltati++;
-        return { fine: "tutto_chiuso" };
+        //  Con la riserva i tre che la rispettano si fermano prima: gli altri
+        //  (appuntamenti) possono ancora partire. Se il tetto è pieno per tutti, si chiude tutto.
+        return { fine: "chiudi", tipi: RISERVATI.includes(cand.tipo) ? RISERVATI : ORDINE_GIRO };
       case "tetto_ricontatti":
         nota = "Tetto di ricontatti di oggi raggiunto";
         esito.saltati++;
-        return { fine: "ricontatti_chiusi" };
+        return { fine: "chiudi", tipi: ["ricontatto"] };
+      case "tetto_lead_nuovi":
+        nota = "Tetto di messaggi ai lead nuovi di oggi raggiunto";
+        esito.saltati++;
+        return { fine: "chiudi", tipi: ["primo_contatto", "richiamo_24h"] };
       case "ritmo":
         esito.saltati++;
-        return { fine: "ricontatti_chiusi" };
+        return { fine: "chiudi", tipi: TIPI_COL_RITMO as TipoGiro[] };
       case "pausa_contatto":
         esito.saltati++;
         return { fine: "continua" };
@@ -640,7 +1036,8 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
         falliti = 0;
         ultimoInvioIl = ora.toISOString();
         if (cand.tipo === "promemoria") esito.promemoriInviati++;
-        else esito.ricontattiInviati++;
+        else if (cand.tipo === "ricontatto") esito.ricontattiInviati++;
+        else esito.nuoviInviati++;
         //  Il registro dell'istantanea: i tentativi dopo vedono pausa, tetti e freno.
         invii.push({
           telefono: numero,
@@ -649,16 +1046,10 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           prenotatoIl: ora.toISOString(),
           chiave,
         });
-        const invioId = r.invioId ?? "";
-        const cambio =
-          cand.tipo === "promemoria" && inizioMeet
-            ? dopoInvio(riletta.data.contattoWa, {
-                tipo: "promemoria",
-                inviatoIl: ora,
-                inizioMeet,
-                invioId,
-              })
-            : dopoInvio(riletta.data.contattoWa, { tipo: "ricontatto", inviatoIl: ora, invioId });
+        const cambio = dopoInvio(
+          riletta.data.contattoWa,
+          ingressoInvio(cand.tipo, extra, ora, r.invioId ?? ""),
+        );
         if (cambio) {
           await porte
             .aggiornaContatto(userId, scheda.id, cambio)
@@ -743,26 +1134,24 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   };
 
   let inviati = 0;
-  let ricontattiDelGiro = 0;
+  let colRitmo = 0;
   let tentativi = 0;
-  let ricontattiChiusi = false;
+  const chiusi = new Set<TipoGiro>();
   for (const cand of candidati) {
     if (inviati >= MAX_INVII_PER_GIRO || tentativi >= MAX_TENTATIVI_PER_GIRO) break;
-    if (
-      cand.tipo === "ricontatto" &&
-      (ricontattiChiusi || ricontattiDelGiro >= MAX_RICONTATTI_PER_GIRO)
-    )
-      continue;
+    if (chiusi.has(cand.tipo)) continue;
+    const aspettaRitmo = TIPI_COL_RITMO.includes(cand.tipo);
+    if (aspettaRitmo && colRitmo >= MAX_COL_RITMO_PER_GIRO) continue;
     //  Dopo 20 s dall'inizio non se ne apre un altro.
     if (porte.adesso().getTime() - inizio.getTime() >= TEMPO_GIRO_MS) break;
     tentativi++;
     const t = await tenta(cand);
     if (t.fine === "inviato") {
       inviati++;
-      if (cand.tipo === "ricontatto") ricontattiDelGiro++;
+      if (aspettaRitmo) colRitmo++;
     }
-    if (t.fine === "ricontatti_chiusi") ricontattiChiusi = true;
-    if (t.fine === "tutto_chiuso" || t.fine === "ferma") break;
+    if (t.fine === "chiudi") t.tipi.forEach((x) => chiusi.add(x));
+    if (t.fine === "ferma") break;
   }
 
   //  8. Lo stato per il riquadro.
@@ -770,8 +1159,10 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const stato: StatoGiroSalvato = {
     ultimoInvioIl,
     oggi: {
-      promemoria: contaOggi(invii, oggi, "promemoria"),
-      ricontatti: contaOggi(invii, oggi, "ricontatto"),
+      promemoria: contaOggi(invii, oggi, ["promemoria"]),
+      ricontatti: contaOggi(invii, oggi, ["ricontatto"]),
+      leadNuovi: contaOggi(invii, oggi, ["primo_contatto", "richiamo_24h"]),
+      totale: contaOggi(invii, oggi, TIPI_NEI_TETTI),
       risposte: contaRisposteOggi(invii, oggi),
     },
     problemi: unisciProblemi(statoPrima.problemi ?? [], problemi),
@@ -782,10 +1173,21 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   return { ...esito, ...(spento ? { spento: true } : {}) };
 }
 
+/** I motivi che la prenotazione del giro dà e che la porta non conosce: li legge il giro. */
+const MOTIVI_DEL_GIRO = [
+  "tetto_totale",
+  "tetto_ricontatti",
+  "tetto_lead_nuovi",
+  "ritmo",
+  "gia_preso",
+];
+/** I tre tipi che rispettano la riserva per gli appuntamenti (`totale − 30`). */
+const RISERVATI: TipoGiro[] = ["primo_contatto", "richiamo_24h", "ricontatto"];
+
 function statoVuoto(): StatoGiroSalvato {
   return {
     ultimoInvioIl: null,
-    oggi: { promemoria: 0, ricontatti: 0, risposte: 0 },
+    oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 0, totale: 0, risposte: 0 },
     problemi: [],
     nota: null,
     fermo: null,
