@@ -267,6 +267,7 @@ import {
 //  Le righe non modificabili di chi è già ricomparso in una lista: la regola —
 //  e il modo di contare le volte — sta tutta nel modulo.
 import { datiOriginaliDelFile, provenienzaLead, righeRicarico } from "@/crm/importa/ricarico";
+import { rigaOrigineScheda } from "@/crm/importa/origine";
 //  ⚠️ La finestra dei preventivi di una persona è UNA in tutto il CRM
 //   (crm/preventivi/DelLead), la stessa che si apre dall'elenco Trattative:
 //   due elenchi «i suoi preventivi» con due regole di aggancio diverse
@@ -1937,6 +1938,11 @@ function BloccoModulo({ form }: { form: LeadData }) {
   const voci = vociModulo(moduloLetto(form));
   const origine = provenienzaLead(form);
   const originali = datiOriginaliDelFile(form);
+  //  ⚠️ DAL FOGLIO GOOGLE: «Origine: Google Sheets · Lead HGL (Foglio1, riga 57) ·
+  //   arrivato il 25/10 alle 09:14». Vuota per tutti gli altri. Sostituisce la
+  //   frase «dal file «Google Sheets · …», caricato il …», che direbbe due volte
+  //   la stessa cosa e parlerebbe di un file che non c'è.
+  const rigaOrigine = rigaOrigineScheda(form);
   /*  ── COM'È MESSO IL CLIENTE (commessa 2026-10-14) ───────────────────────
       La stessa regola di «Oggi» e di Lead importati (crm/temperatura-lead):
       il modulo, e se lì non c'è niente il quiz del sito. Funzione pura e non
@@ -1950,7 +1956,8 @@ function BloccoModulo({ form }: { form: LeadData }) {
       che le prove storiche guardano.) */
   const t = temperaturaLead(moduloLetto(form), form.qualifica);
   const conTemperatura = t.livello !== "nessuna";
-  const altro = origine.voci.length > 0 || !!origine.quando || originali.length > 0;
+  const altro =
+    origine.voci.length > 0 || !!origine.quando || originali.length > 0 || !!rigaOrigine;
   const TONO: Record<string, "vinta" | "da_lavorare" | "neutro"> = {
     buono: "vinta",
     medio: "da_lavorare",
@@ -1973,7 +1980,9 @@ function BloccoModulo({ form }: { form: LeadData }) {
           : conTemperatura
             ? "Risposte sue, dal sito: non si modificano"
             : altro
-              ? "Dal file importato: non si modifica"
+              ? rigaOrigine
+                ? "Dal foglio Google: non si modifica"
+                : "Dal file importato: non si modifica"
               : undefined
       }
       icona={ClipboardList}
@@ -2027,7 +2036,7 @@ function BloccoModulo({ form }: { form: LeadData }) {
           ))}
         </div>
       )}
-      {(origine.voci.length > 0 || origine.quando) && (
+      {(origine.voci.length > 0 || (origine.quando && !rigaOrigine)) && (
         <p
           className={cn(
             "break-words text-[12.5px] text-slate-600",
@@ -2040,7 +2049,7 @@ function BloccoModulo({ form }: { form: LeadData }) {
               <span className="text-slate-500">{v.titolo}</span> {v.valore}
             </span>
           ))}
-          {origine.quando && (
+          {origine.quando && !rigaOrigine && (
             <span className="text-slate-500">
               {origine.voci.length > 0 ? " · " : ""}
               {origine.quando}
@@ -2048,10 +2057,21 @@ function BloccoModulo({ form }: { form: LeadData }) {
           )}
         </p>
       )}
+      {rigaOrigine && (
+        <p
+          className={cn(
+            "break-words text-[12.5px] text-slate-600",
+            (voci.length > 0 || conTemperatura || origine.voci.length > 0) &&
+              "mt-3 border-t border-slate-100 pt-3",
+          )}
+        >
+          {rigaOrigine}
+        </p>
+      )}
       {originali.length > 0 && (
         <DatiOriginaliDelFile
           righe={originali}
-          aSeparare={voci.length > 0 || origine.voci.length > 0}
+          aSeparare={voci.length > 0 || origine.voci.length > 0 || !!rigaOrigine}
         />
       )}
     </SezioneFinestra>

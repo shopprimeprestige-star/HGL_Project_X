@@ -35,6 +35,7 @@ import { CAMPI_MODULO } from "../types";
 import { dentroLaFetta, FETTE_TEMPO, type FettaTempo } from "../quando-stato";
 import { inAttesaWhatsapp } from "./attesa-whatsapp";
 import { etichettaRisposta, pulisci, titoloDomanda, type DomandaModulo } from "../modulo-lead";
+import { origineDi, VIE_ORIGINE, type ViaOrigine } from "./origine";
 
 /** ⚠️ LE VOCI IN VISTA (20/10/2026): il titolare le vuole separate come prima
  *  del 12/10 — Non risponde, Segreteria, Richiamo concordato, Ci ricontatta
@@ -101,6 +102,9 @@ export interface FiltriLista {
   risposte?: string[];
   stato?: StatoFiltro;
   quando?: FettaTempo;
+  /** Da dove è entrata la scheda: il foglio Google, un file, a mano
+   *  (crm/importa/origine). */
+  origine?: ViaOrigine;
 }
 
 /** Una riga della lista. La pagina la costruisce con il motivo di T3 e il
@@ -264,6 +268,7 @@ interface Escludi {
   campo?: CampoModulo;
   stato?: boolean;
   quando?: boolean;
+  origine?: boolean;
 }
 
 function passa(r: RigaDaFiltrare, f: FiltriLista, oggi: string, no: Escludi = {}): boolean {
@@ -275,6 +280,7 @@ function passa(r: RigaDaFiltrare, f: FiltriLista, oggi: string, no: Escludi = {}
     if (!cadeNelloStato(r.motivo, r.data, f.stato)) return false;
   }
   if (f.quando && !no.quando && !dentroLaFetta(r.data, f.quando, oggi)) return false;
+  if (f.origine && !no.origine && origineDi(r.data).via !== f.origine) return false;
   const scelte = unaPerDomanda(f.risposte ?? []);
   if (scelte.length) {
     const sue = new Set(valoriRisposta(r.modulo).map((v) => v.chiave));
@@ -312,6 +318,8 @@ export interface OpzioniFiltri {
   }[];
   stato: { valore: StatoFiltro; n: number }[];
   quando: { valore: FettaTempo; n: number }[];
+  /** Una voce per strada d'ingresso, sempre nello stesso ordine. */
+  origine: { valore: ViaOrigine; n: number }[];
 }
 
 const perNumero = <T extends { n: number }>(a: T, b: T, nome: (x: T) => string) =>
@@ -410,7 +418,13 @@ export function opzioniFiltri(
     n: righe.filter((r) => passa(r, { ...f, quando: valore }, oggi)).length,
   }));
 
-  return { annuncio, risposte, stato, quando };
+  //  ── Origine: conta senza il proprio filtro, come l'annuncio ─────────────
+  const origine = VIE_ORIGINE.map((valore) => ({
+    valore,
+    n: righe.filter((r) => passa(r, { ...f, origine: valore }, oggi)).length,
+  }));
+
+  return { annuncio, risposte, stato, quando, origine };
 }
 
 /* ═══ L'INDIRIZZO ════════════════════════════════════════════════════════ */
@@ -442,5 +456,7 @@ export function leggiRicercaImporta(raw: Record<string, unknown>): FiltriLista {
     out.stato = raw.stato as StatoFiltro;
   if (typeof raw.quando === "string" && (FETTE_TEMPO as string[]).includes(raw.quando))
     out.quando = raw.quando as FettaTempo;
+  if (typeof raw.origine === "string" && (VIE_ORIGINE as string[]).includes(raw.origine))
+    out.origine = raw.origine as ViaOrigine;
   return out;
 }
