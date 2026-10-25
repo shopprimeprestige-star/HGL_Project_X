@@ -37,6 +37,7 @@ import { NOME_FETTA_TEMPO, SPIEGA_FETTA_TEMPO, type FettaTempo } from "@/crm/qua
 import type { FiltriLista, OpzioniFiltri, StatoFiltro } from "./filtri-lista";
 import { voceStatoAttiva } from "./reparti";
 import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
+import { NOME_VIA, type ViaOrigine } from "./origine";
 
 /** I nomi delle voci di Stato. ⚠️ Gli stessi nomi dei pulsanti di prima del
  *  12/10 (Da contattare, Non risponde, Segreteria…): il titolare li riconosce
@@ -93,7 +94,8 @@ export function filtriAccesi(f: FiltriLista): number {
     (f.annuncio ? 1 : 0) +
     (f.risposte?.length ?? 0) +
     (f.stato && f.stato !== "tutti" ? 1 : 0) +
-    (f.quando && f.quando !== "sempre" ? 1 : 0)
+    (f.quando && f.quando !== "sempre" ? 1 : 0) +
+    (f.origine ? 1 : 0)
   );
 }
 
@@ -104,6 +106,7 @@ function pulito(f: FiltriLista): FiltriLista {
   if (f.risposte?.length) out.risposte = f.risposte;
   if (f.stato && f.stato !== "tutti") out.stato = f.stato;
   if (f.quando && f.quando !== "sempre") out.quando = f.quando;
+  if (f.origine) out.origine = f.origine;
   return out;
 }
 
@@ -327,6 +330,64 @@ export function MenuRisposta({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ORIGINE — dal foglio Google, da un file, a mano
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const SPIEGA_ORIGINE: Record<ViaOrigine, string> = {
+  google_sheets: "Arrivati dal foglio Google collegato alle inserzioni",
+  file: "Caricati da un file",
+  a_mano: "Scritti a mano nel CRM, senza foglio né file",
+};
+
+/*  Esportato per «Tutta la lista» (SchedaTutti): stessi menu, stesse regole.
+    ⚠️ Una voce a zero resta, spenta (se sparisse la fila si accorcerebbe sotto il
+    dito); una scelta si può sempre togliere con «Tutte». Il menu si apre con un
+    clic e si chiude scegliendo: è una domanda sola, non un incrocio come Risposta. */
+export function MenuOrigine({
+  filtri,
+  opzioni,
+  onCambia,
+}: {
+  filtri: FiltriLista;
+  opzioni: OpzioniFiltri;
+  onCambia: (f: FiltriLista) => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const totale = opzioni.origine.reduce((t, v) => t + v.n, 0);
+  const scegli = (via?: ViaOrigine) => {
+    onCambia(pulito({ ...filtri, origine: via }));
+    setAperto(false);
+  };
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <TastoMenu
+          nome="Origine"
+          valore={filtri.origine ? NOME_VIA[filtri.origine] : "tutte"}
+          acceso={!!filtri.origine}
+        />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-1">
+        <VoceScelta scelta={!filtri.origine} n={totale} onClick={() => scegli(undefined)}>
+          Tutte le origini
+        </VoceScelta>
+        {opzioni.origine.map((v) => (
+          <div key={v.valore} title={SPIEGA_ORIGINE[v.valore]}>
+            <VoceScelta
+              scelta={filtri.origine === v.valore}
+              n={v.n}
+              onClick={() => scegli(v.valore)}
+            >
+              {NOME_VIA[v.valore]}
+            </VoceScelta>
+          </div>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    STATO — perché è in lista, e da quando ha quello stato
    ═════════════════════════════════════════════════════════════════════════ */
 
@@ -472,6 +533,7 @@ export function BarraFiltri({
   ritorni = 0,
   altriStati = [],
   onAltroStato,
+  conOrigine = false,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
@@ -483,6 +545,11 @@ export function BarraFiltri({
    *  pulsante apre l'elenco completo già filtrato su quello stato. */
   altriStati?: { stato: LeadStatus; n: number }[];
   onAltroStato?: (s: LeadStatus) => void;
+  /** C'è almeno un lead entrato dal foglio Google: solo allora il menu Origine
+   *  ha qualcosa da scegliere. Lo dice la pagina sull'archivio intero e non su
+   *  quello che i filtri lasciano vedere, altrimenti il tasto comparirebbe e
+   *  sparirebbe mentre si filtra. Un filtro Origine acceso si vede comunque. */
+  conOrigine?: boolean;
   /** Quanti contatti di ritorno e «si fanno vivi loro» ci sono in tutto, anche
    *  fuori dalla lista: finché sono più di zero la voce Stato «Di ritorno» resta
    *  accesa (vedi `voceStatoAttiva`). */
@@ -539,6 +606,9 @@ export function BarraFiltri({
       >
         <MenuAnnuncio filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
         <MenuRisposta filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
+        {(conOrigine || filtri.origine) && (
+          <MenuOrigine filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
+        )}
         <MenuQuando filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
         {accesi > 0 && (
           <Button
@@ -574,6 +644,12 @@ export function BarraFiltri({
               }
             />
           ))}
+          {filtri.origine && (
+            <Etichetta
+              testo={`Origine: ${NOME_VIA[filtri.origine]}`}
+              onToglie={() => onCambia(pulito({ ...filtri, origine: undefined }))}
+            />
+          )}
           {filtri.stato && filtri.stato !== "tutti" && (
             <Etichetta
               testo={`Stato: ${NOME_STATO_FILTRO[filtri.stato]}`}

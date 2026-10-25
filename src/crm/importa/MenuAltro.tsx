@@ -2,6 +2,9 @@
  *
  *  Cinque cose che servono ogni tanto e non a ogni telefonata: Tutta la lista
  *  (azioni a gruppi), Ripesca, Doppioni, Note e promemoria, Elenco completo.
+ *  In cima c'è «Lead da Google Sheets» (commessa 2026-10-25): non è una sesta
+ *  stanza, è «Tutta la lista» già filtrata per Origine, e il numero accanto dice
+ *  quanti lead sono arrivati dal foglio.
  *  Stavano come stanze alla pari della lista da chiamare e la facevano
  *  sembrare una scelta fra dieci; qui dietro un tasto solo.
  *
@@ -24,23 +27,40 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ALTRO, type Conti, type Vista } from "./reparti";
+import {
+  ALTRO,
+  ALTRO_FILTRATE,
+  vocePerVista,
+  type Conti,
+  type Vista,
+  type VoceAltro,
+} from "./reparti";
 
 export function MenuAltro({
   vista,
   conti,
   onVista,
+  onVoce,
+  origine,
+  nGoogleSheets = 0,
   disabilitato,
 }: {
   /** La vista aperta adesso. */
   vista: Vista;
   conti: Conti;
   onVista: (v: Vista) => void;
+  /** Una voce che apre una vista col suo filtro («Lead da Google Sheets»). */
+  onVoce: (v: VoceAltro) => void;
+  /** L'Origine dell'indirizzo: con «Tutta la lista» aperta dice quale delle due
+   *  voci si sta guardando. */
+  origine?: string | null;
+  /** Quanti lead sono arrivati dal foglio, da scrivere accanto alla voce. */
+  nGoogleSheets?: number;
   /** Mentre una scrittura di gruppo lavora, cambiare vista smonta la scheda che
    *  ha in corso l'operazione. */
   disabilitato?: boolean;
 }) {
-  const aperta = ALTRO.find((x) => x.vista === vista);
+  const aperta = vocePerVista(vista, origine);
   //  ⚠️ Le note e i richiami scaduti del setter stanno qui dentro: senza il
   //   numero sul tasto si vedrebbero solo aprendo il menu, e una nota scaduta
   //   che nessuno vede è una promemoria che non ha fatto il suo mestiere.
@@ -72,6 +92,19 @@ export function MenuAltro({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
+        {ALTRO_FILTRATE.map((x) => (
+          <DropdownMenuItem
+            key={x.nome}
+            title={x.titolo}
+            onSelect={() => onVoce(x)}
+            className="text-[12.5px]"
+          >
+            <span className="flex-1">{x.nome}</span>
+            {nGoogleSheets > 0 && (
+              <span className="tabular-nums text-muted-foreground">{nGoogleSheets}</span>
+            )}
+          </DropdownMenuItem>
+        ))}
         {ALTRO.filter((x) => x.vista).map((x) => {
           const n = Number(conti[x.vista as Vista] ?? 0) || 0;
           return (
