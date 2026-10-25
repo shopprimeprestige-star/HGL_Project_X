@@ -84,6 +84,8 @@ export const ANTICIPO_MINIMO_MATTINA_MIN = 40;
 export const FINESTRA_MEET_ADESSO_MIN = 10;
 /** …e per un'ora dopo l'inizio un ritardo si vede (salta) invece di sparire. */
 const MEMORIA_RITARDO_MIN = 60;
+/** Un'ora dopo la scadenza del richiamo i «salta» della sequenza non si ripetono più. */
+const MEMORIA_SALTI_MIN = 60;
 /** Al massimo due messaggi del mattino per telefono e giorno (meet spostato). */
 export const MAX_MEET_OGGI_PER_GIORNO = 2;
 
@@ -185,12 +187,26 @@ export function decidiLeadNuovi(
     const numero = numeroWa(d.telefono);
     const tel9 = numero ? ultimeNoveCifre(numero) : "";
     const primo = tel9 ? invii.find((i) => i.chiave === `n|${tel9}`) : undefined;
+    let bersaglioPrimo: Date | undefined;
     if (tel9 && chiaveGiaPresa(invii, `n24|${tel9}`)) continue; // la sequenza è finita
     if (!primo) {
       //  Il primo contatto vale per 72 ore dall'ingresso e dal modulo.
       if (ora - entrata >= FINESTRA_LEAD_NUOVO_ORE * ORA_MS) continue;
       const il = typeof d.consensoModulo.il === "string" ? Date.parse(d.consensoModulo.il) : NaN;
       if (Number.isFinite(il) && ora - il >= FINESTRA_LEAD_NUOVO_ORE * ORA_MS) continue;
+    } else {
+      //  Il primo è in corso (invio che sta ancora partendo): non è ancora né finito né fallito.
+      if (primo.stato === "prenotato") continue;
+      //  Passato il tempo del richiamo (più un'ora in cui lo si vede) la sequenza tace:
+      //  «scaduto», «sequenza finita» e STOP non si ripetono a ogni giro per giorni.
+      //  shortcut: l'ora del primo invio è `prenotatoIl` (la prenotazione precede
+      //  l'invio di pochi secondi), da cambiare se il registro porterà `inviato_il`.
+      const inviatoIl = Date.parse(primo.prenotatoIl);
+      if (!Number.isFinite(inviatoIl)) continue;
+      bersaglioPrimo = scadenzaRicontatto(new Date(inviatoIl));
+      const finoA =
+        bersaglioPrimo.getTime() + SCADENZA_RICHIAMO_ORE * ORA_MS + MEMORIA_SALTI_MIN * MIN_MS;
+      if (ora > finoA) continue;
     }
     //  La setter gli ha già scritto a mano: la sequenza non si intromette.
     if (
@@ -239,7 +255,7 @@ export function decidiLeadNuovi(
 
     //  ── Il richiamo: la sua unica eccezione al freno ──────────────────────
     if (primo.stato !== "inviato") {
-      salta("sequenza finita: il primo contatto non risulta inviato");
+      salta("sequenza finita: il primo contatto non risulta inviato (incerto, fallito o saltato)");
       continue;
     }
     if (ultimoAutomatico(numero, invii)?.chiave !== primo.chiave) {
@@ -248,14 +264,7 @@ export function decidiLeadNuovi(
     }
     //  Risposta, cambio a mano o scadenza del freno: la sequenza è chiusa.
     if (!aspettaRisposta(numero, invii, d.contattoWa, adesso)) continue;
-    const inviatoIl = Date.parse(primo.prenotatoIl);
-    if (!Number.isFinite(inviatoIl)) {
-      salta("sequenza finita: data del primo contatto illeggibile");
-      continue;
-    }
-    //  shortcut: l'ora del primo invio è `prenotatoIl` (la prenotazione precede
-    //  l'invio di pochi secondi), da cambiare se il registro porterà `inviato_il`.
-    const bersaglio = scadenzaRicontatto(new Date(inviatoIl));
+    const bersaglio = bersaglioPrimo as Date;
     if (ora > bersaglio.getTime() + SCADENZA_RICHIAMO_ORE * ORA_MS) {
       salta("saltato: richiamo scaduto");
       continue;

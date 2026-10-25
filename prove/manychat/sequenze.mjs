@@ -653,6 +653,51 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ),
   );
 
+  //  Note del revisore: il primo «prenotato» e il rumore dei salti ripetuti.
+  c(
+    "primo contatto ancora «prenotato» (invio in corso) → silenzio, né richiamo né «sequenza finita»",
+    [],
+    richiamo("2026-10-28T10:00:00+01:00", { invii: [primoMar({ stato: "prenotato" })] }),
+  );
+  c(
+    "…«incerto», «fallito» e «saltato» invece dicono «sequenza finita»",
+    [true, true, true],
+    ["incerto", "fallito", "saltato"].map((stato) =>
+      /sequenza finita/.test(
+        motivi(richiamo("2026-10-28T10:00:00+01:00", { invii: [primoMar({ stato })] })).join(),
+      ),
+    ),
+  );
+  //  Bersaglio mer 28/10 10:00 Roma; scade gio 30/10 10:00; l'ora in più si vede fino alle 11:00.
+  c(
+    "richiamo scaduto: si vede per un'ora (fino a bersaglio + 49 ore), poi tace",
+    [["saltato: richiamo scaduto"], ["saltato: richiamo scaduto"], []],
+    [
+      motivi(richiamo("2026-10-30T10:01:00+01:00")),
+      motivi(richiamo("2026-10-30T11:00:00+01:00")),
+      richiamo("2026-10-30T11:01:00+01:00"),
+    ],
+  );
+  const stopDopoPrimo = nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", {
+    contattoWa: { stato: "stop", il: "2026-10-27T15:00:00.000Z", da: "automatico" },
+  });
+  const altroDopo = [
+    primoMar(),
+    invio(1, "ricontatto", "2026-10-27T14:00:00.000Z", { chiave: `r|${t9(1)}|2026-10-27` }),
+  ];
+  c(
+    "STOP e «sequenza finita» dopo il primo: segnalati finché serve, poi tacciono (non sei giorni di righe)",
+    [["STOP"], [], true, false],
+    [
+      motivi(richiamo("2026-10-30T11:00:00+01:00", {}, stopDopoPrimo)),
+      richiamo("2026-11-02T10:00:00+01:00", {}, stopDopoPrimo),
+      /sequenza finita/.test(
+        motivi(richiamo("2026-10-28T10:00:00+01:00", { invii: altroDopo })).join(),
+      ),
+      richiamo("2026-11-02T10:00:00+01:00", { invii: altroDopo }).length > 0,
+    ],
+  );
+
   /* ════════════════════════════════════════════════════════════════════════
    *  GIORNO DEL MEET
    * ════════════════════════════════════════════════════════════════════════ */
