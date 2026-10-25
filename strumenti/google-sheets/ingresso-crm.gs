@@ -15,7 +15,7 @@
  *   CRM_URL     = https://<indirizzo del CRM>/api/public/sheets-ingresso
  *   CRM_TOKEN   = <la chiave segreta SHEETS_INGRESSO_TOKEN>
  *   SCHEDA      = nome della scheda con i lead (facoltativo: senza, la prima)
- *   OGNI_MINUTI = 1 oppure 5 (il giro di sicurezza; 1 se non sei sicuro: vedi la guida)
+ *   OGNI_MINUTI = 5 per il giro di sicurezza ogni 5 minuti; assente o altro valore: 1 (vedi la guida)
  *
  * Da lanciare a mano, in quest'ordine:
  *   1. segnaGiaPresenti  (solo se nel foglio ci sono già righe che NON vuoi mandare)
@@ -54,7 +54,7 @@ function installa() {
   togliTrigger_();
   ScriptApp.newTrigger('quandoCambia').forSpreadsheet(c.id).onChange().create();
   ScriptApp.newTrigger('quandoCambia').forSpreadsheet(c.id).onFormSubmit().create();
-  var ogni = Number(prop_().getProperty('OGNI_MINUTI')) === 1 ? 1 : 5;
+  var ogni = Number(prop_().getProperty('OGNI_MINUTI')) === 5 ? 5 : 1;
   ScriptApp.newTrigger('giroDiSicurezza').timeBased().everyMinutes(ogni).create();
   giroDiSicurezza();
 }
@@ -148,7 +148,7 @@ function segna_(sh, larg, col, riga, intest, impronta, testo) {
 
 function invia_() {
   var lucchetto = LockService.getScriptLock();
-  if (!lucchetto.tryLock(20000)) return;             // c'è già un invio in corso
+  if (!lucchetto.tryLock(1000)) return;              // c'è già un invio in corso: il giro dopo arriva entro un minuto
   try {
     var c;
     try { c = controllaProprieta_(); } catch (x) { console.error(x.message); return; }
@@ -193,11 +193,14 @@ function invia_() {
       } else if (codice === 401) {
         console.error('Chiave rifiutata dal CRM: controlla CRM_TOKEN');            // non insiste
         break;
-      } else if (codice === 503) {
-        console.warn('CRM non pronto o tetto del giorno raggiunto: riprovo al prossimo giro');
+      } else if (codice !== 500) {
+        // 503 (non pronto, tetto del giorno) ma anche 404 (indirizzo sbagliato, CRM non ancora
+        // pubblicato), 3xx, 429, 502/504/52x (Cloudflare): non c'entra la riga, si ferma il giro
+        console.warn('CRM non raggiungibile o non pronto (codice ' + codice + '): riprovo al prossimo giro');
         break;
       } else {
-        // un altro errore (500…): si conta per QUESTA riga e si va avanti con le altre
+        // 500: è l'unico codice che il CRM usa per un errore di QUESTA riga. Si conta su di lei
+        // e si va avanti con le altre
         var k = 't|' + impronta, n = Number(prop_().getProperty(k) || 0) + 1;
         if (n >= MAX_TENTATIVI) segna_(sh, larg, col, riga, intest, impronta, 'errore: da guardare (' + codice + ')');
         else prop_().setProperty(k, String(n));

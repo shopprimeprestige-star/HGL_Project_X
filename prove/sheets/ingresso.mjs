@@ -833,16 +833,22 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
   {
     const g = google([INT, unaRiga("11")]);
     g.vai("installa");
-    c("installa: due trigger sul foglio (onChange, onFormSubmit) e il giro di sicurezza", [["onChange", FOGLIO_ID], ["onFormSubmit", FOGLIO_ID], ["tempo", 5]].map((x) => x.join("|")), g.trigger.map((t) => [t.tipo, t.tipo === "tempo" ? t.ogni : t.foglio].join("|")));
+    c("installa: due trigger sul foglio (onChange, onFormSubmit) e il giro di sicurezza al minuto (di serie)", [["onChange", FOGLIO_ID], ["onFormSubmit", FOGLIO_ID], ["tempo", 1]].map((x) => x.join("|")), g.trigger.map((t) => [t.tipo, t.tipo === "tempo" ? t.ogni : t.foglio].join("|")));
     c("installa: aggiunge la colonna «Inviato al CRM»", true, g.col("Inviato al CRM") >= 0);
     g.vai("installa");
     c("installa due volte: i trigger non si raddoppiano", 3, g.trigger.length);
     const g1 = google([INT], { OGNI_MINUTI: "1" });
     g1.vai("installa");
     c("OGNI_MINUTI = 1: il giro di sicurezza è al minuto", 1, g1.trigger.find((t) => t.tipo === "tempo")?.ogni);
+    const gAssente = google([INT]);
+    gAssente.vai("installa");
+    c("OGNI_MINUTI assente: il giro è al minuto (di serie 1)", 1, gAssente.trigger.find((t) => t.tipo === "tempo")?.ogni);
+    const g5 = google([INT], { OGNI_MINUTI: "5" });
+    g5.vai("installa");
+    c("OGNI_MINUTI = 5: ogni 5 minuti", 5, g5.trigger.find((t) => t.tipo === "tempo")?.ogni);
     const g9 = google([INT], { OGNI_MINUTI: "9" });
     g9.vai("installa");
-    c("OGNI_MINUTI strano: 5", 5, g9.trigger.find((t) => t.tipo === "tempo")?.ogni);
+    c("OGNI_MINUTI strano: 1", 1, g9.trigger.find((t) => t.tipo === "tempo")?.ogni);
   }
   {
     const muro = Array.from({ length: 25 }, (_, i) => riga_(String(10 + i), "Mario Esempio"));
@@ -923,6 +929,13 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
     c("401: lo script lo scrive nei registri senza stampare la chiave", [true, false], [g.errori.length > 0, g.errori.join().includes("t".repeat(10))]);
   }
   {
+    // 404, 3xx, 429, 502, 504, 522…: non sono colpa della riga → il giro si ferma, 6 giri di fila, nessun segno e nessun contatore
+    for (const codice of [404, 302, 429, 502, 504, 522]) {
+      const g = google([INT, unaRiga("11"), unaRiga("12")], {}, { rispondi: () => ({ codice, corpo: {} }) });
+      for (let i = 0; i < 6; i++) g.vai("giroDiSicurezza");
+      c(`${codice} per 6 giri: un solo tentativo a giro, nessun segno, nessun contatore salvato`, [6, ["", ""], false], [g.inviati.length, g.segni(), Object.keys(g.prop).some((k) => k.startsWith("t|"))]);
+      c(`${codice}: lo dice nei registri col codice`, true, g.avvisi.some((a) => a.includes(String(codice))));
+    }
     // 400 e 413: la riga si segna e si va avanti
     const g = google([INT, unaRiga("11"), unaRiga("12")], {}, {
       rispondi: (b) => (b.valori[0].endsWith("11") ? { codice: 400, corpo: {} } : { codice: 413, corpo: {} }),

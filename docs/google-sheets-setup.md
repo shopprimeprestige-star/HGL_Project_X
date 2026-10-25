@@ -81,7 +81,7 @@ Se invece il foglio è vuoto o nuovo, salta questo passo. Per sicurezza, se ci s
 
 ## Passo 6 · Prova
 
-1. Aggiungi nel foglio una riga di prova (nome e telefono finti, per esempio «Prova Esempio», un numero che non esiste) oppure usa lo strumento di prova dei Lead Ads di Meta.
+1. **Prima assicurati che le sequenze automatiche WhatsApp siano spente** (Impostazioni → WhatsApp con ManyChat: «Lead nuovo» spento). La riga di prova è un lead vero per il CRM, con il consenso del modulo: con «Lead nuovo» acceso il primo messaggio potrebbe partire verso il numero finto prima che tu cancelli la scheda. Poi aggiungi nel foglio una riga di prova (nome e telefono finti, per esempio «Prova Esempio», un numero che non esiste) oppure usa lo strumento di prova dei Lead Ads di Meta.
 2. Entro un minuto, nella colonna **Inviato al CRM** compare la data e **nuova scheda**.
 3. Nel CRM, **Lead importati → Altro → Lead da Google Sheets**: c'è la scheda, con l'origine «Google Sheets · nome del foglio».
 4. Aggiungi una seconda riga con **lo stesso numero**: la colonna dice **contatto di ritorno**, e nel CRM non c'è una scheda nuova ma il contatore di ritorno sale di uno.
@@ -94,7 +94,7 @@ La colonna la scrive lo script. **Non scriverci tu**: una riga con un segno non 
 | Frase | Che cosa vuol dire |
 |---|---|
 | `nuova scheda` | È nata una scheda in «Da contattare». |
-| `contatto di ritorno` | Stesso numero già in archivio: segnato come ritorno, la scheda vecchia non è stata toccata. |
+| `contatto di ritorno` | Stesso numero già in archivio: segnato come ritorno (contatore, risposte e provenienza si aggiornano); **stato e note non cambiano**. |
 | `già ricevuto` | Il CRM aveva già questa riga (succede se il foglio è stato riordinato o lo script ha ripetuto). Va bene così. |
 | `già nel CRM` | Questo lead (stesso ID di Meta) era già stato caricato da file. Niente doppioni. |
 | `scartata: senza nome né telefono` | Riga vuota o senza dati utili. |
@@ -115,11 +115,11 @@ Se vuoi risparmiare tempo di calcolo, prova così:
 
 ## Il tempo che lo script può usare
 
-Google dà ai trigger un tempo massimo al giorno: circa **90 minuti** per un account Gmail normale, circa **6 ore** per Google Workspace. Un controllo ogni minuto che non trova niente da fare dura 1-2 secondi: in un giorno sono circa **25-50 minuti**. Va bene da solo, ma se usi **lo stesso account** per altri script, meglio un account Workspace, oppure `OGNI_MINUTI = 5`. Per vedere quanto usi: script.google.com → **Esecuzioni**.
+Google dà ai trigger un tempo massimo al giorno: circa **90 minuti** per un account Gmail normale, circa **6 ore** per Google Workspace. Un controllo ogni minuto che non trova niente da fare dura 1-2 secondi: in un giorno sono circa **25-50 minuti**. In più c'è il trigger «quando il foglio cambia»: scatta a **ogni modifica di chiunque** nel foglio (anche quando le persone che lavorano ai lead scrivono note o cambiano colonne) e ogni volta conta qualche secondo. Con tante modifiche il totale sale. Se si superano i limiti, Google ferma i trigger dell'account fino al giorno dopo. Va bene da solo, ma se usi **lo stesso account** per altri script, meglio un account Workspace, oppure `OGNI_MINUTI = 5`. Per vedere quanto usi: script.google.com → **Esecuzioni**.
 
 ## Limiti di sicurezza (non servono a te, ma è bene saperli)
 
-- Il CRM accetta **al massimo 300 righe al giorno** dal foglio. Oltre, risponde «non pronto» e lo script riprova il giorno dopo. Il numero si vede nelle Impostazioni → WhatsApp con ManyChat → «Foglio Google».
+- Il CRM accetta **al massimo 300 righe al giorno** dal foglio. Oltre, il CRM risponde «tetto»: lo script riprova a ogni giro e le righe passano dopo la mezzanotte di Roma. Il numero si vede nelle Impostazioni → WhatsApp con ManyChat → «Foglio Google».
 - Chi ha la chiave potrebbe creare schede finte, ma solo fino a quel limite. Se pensi che la chiave sia uscita: cambiala (sotto).
 - Il CRM non salva mai l'ID del foglio Google, solo il suo nome.
 - Chi **ricompila il modulo** con un numero già in archivio diventa un contatto di ritorno: lo richiama la setter da «Di ritorno» e **non riceve** il primo messaggio automatico.

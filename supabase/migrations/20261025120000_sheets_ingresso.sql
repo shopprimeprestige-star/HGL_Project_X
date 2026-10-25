@@ -46,6 +46,11 @@
 -- ⚠️ Nessun messaggio d'errore scritto qui dentro porta il contenuto di `data`:
 --    il messaggio di Postgres su crm_leads («Failing row contains …») contiene
 --    il telefono, e la rotta ne tiene solo il codice.
+-- ⚠️ `chiave` è PRIMARY KEY per tutti (non per utente) mentre ogni lettura filtra
+--    per user_id: con l'installazione unica di oggi è la stessa cosa. Se un giorno
+--    due utenti potessero avere la stessa chiave, la seconda riga non entrerebbe
+--    (risposta gia_ricevuto senza stato) e nessuno se ne accorgerebbe: in quel caso
+--    la chiave primaria diventa (user_id, chiave).
 -- ⚠️ TETTO_RIGHE_GIORNO = 300 sta scritto UNA volta qui sotto, ed è lo stesso
 --    di src/crm/sheets/ingresso.ts (lo mostra il riquadro «Foglio Google»).
 -- ⚠️ ORDINE: dipende solo da M1 (20261023120000_manychat_base.sql: la rotta
