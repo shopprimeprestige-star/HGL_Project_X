@@ -36,6 +36,7 @@ import {
   scriviConfig,
 } from "@/crm/manychat/pannello.server";
 import {
+  aggiornaControlli,
   configDaRiga,
   configDiAltraInstallazione,
   controlliDopoCollegamento,
@@ -73,6 +74,12 @@ const FRASE_MIGRAZIONE = "Manca l'aggiornamento del database: il riquadro non pu
 const segretoRitornoPresente = () => !!(process.env.MANYCHAT_RITORNO_TOKEN ?? "").trim();
 /** Il segreto del foglio Google: il suo valore non esce mai, si dice solo se c'è. */
 const segretoFoglioPresente = () => !!(process.env.SHEETS_INGRESSO_TOKEN ?? "").trim();
+
+/** Le porte di `controlli`: la riga si rilegge ogni volta, mai la copia vecchia. */
+const porteControlli = (userId: string) => ({
+  leggi: async () => (await leggiRigaConfig()).riga?.controlli,
+  salva: (controlli: Record<string, unknown>) => salvaControlli(userId, controlli),
+});
 
 /** Un guasto del database: nei log solo il codice. */
 function guasto(e: unknown) {
@@ -147,9 +154,8 @@ export const Route = createFileRoute("/api/crm/manychat")({
           // ── la data della frase del consenso: sta in `controlli` ──
           if (c.tipo === "frase_modulo") {
             const frase = fraseDaGiorno(c.giorno, g.chi.nome, adesso);
-            const salvata = await salvaControlli(
-              userId,
-              controlliDopoFrase((cfg.riga as RigaConfig | null)?.controlli, frase),
+            const salvata = await aggiornaControlli(porteControlli(userId), (fresco) =>
+              controlliDopoFrase(fresco, frase),
             );
             if (!salvata) return json({ error: FRASE_MIGRAZIONE }, 503);
             return json({ fraseModulo: fraseModuloDa({ fraseModulo: frase }) });
@@ -195,7 +201,11 @@ export const Route = createFileRoute("/api/crm/manychat")({
               creazione: creazioneDa((controlli as { creazione?: unknown } | null)?.creazione),
               adesso,
             });
-            if (!cfg.manca) await salvaControlli(userId, controlliDopoCollegamento(controlli, col));
+            //  Il valore da cui si parte è riletto ADESSO, dopo l'attesa di ManyChat.
+            if (!cfg.manca)
+              await aggiornaControlli(porteControlli(userId), (fresco) =>
+                controlliDopoCollegamento(fresco, col),
+              );
             return json(col);
           }
 
@@ -203,10 +213,9 @@ export const Route = createFileRoute("/api/crm/manychat")({
           const r = await provaCreazione(clientManychat(userId), c.telefono);
           if (r.stato === 400) return json({ error: r.errore }, 400);
           if (r.registra && !cfg.manca) {
-            const controlli = (cfg.riga as RigaConfig | null)?.controlli;
-            await salvaControlli(
-              userId,
-              controlliDopoCreazione(controlli, { esito: r.registra, il: adesso.toISOString() }),
+            const esito = { esito: r.registra, il: adesso.toISOString() };
+            await aggiornaControlli(porteControlli(userId), (fresco) =>
+              controlliDopoCreazione(fresco, esito),
             );
           }
           return json(r.risposta);

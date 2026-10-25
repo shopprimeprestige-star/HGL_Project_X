@@ -459,8 +459,8 @@ export function ManychatPannello() {
           </p>
           {prima && giorno < prima && (
             <NotaFinestra tono="attenzione">
-              Stai anticipando la data: valgono anche i moduli compilati dal {g}/{m} fino al{" "}
-              {prima.slice(8)}/{prima.slice(5, 7)}.
+              Stai anticipando la data: valgono anche i moduli compilati dal {g}/{m} fino al giorno
+              prima del {prima.slice(8)}/{prima.slice(5, 7)}.
             </NotaFinestra>
           )}
         </div>

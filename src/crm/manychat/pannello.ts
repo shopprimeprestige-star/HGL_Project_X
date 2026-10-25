@@ -497,6 +497,27 @@ export function fraseModuloDa(controlli: unknown): FraseModulo | null {
   };
 }
 
+/** Le due porte per riscrivere `controlli`: leggerlo e salvarlo (vero se salvato). */
+export interface PorteControlli {
+  leggi(): Promise<unknown>;
+  salva(controlli: Record<string, unknown>): Promise<boolean>;
+}
+
+/** Cambia UNA parte di `controlli` partendo dal valore di ADESSO, riletto subito
+ *  prima di scrivere: le prove di collegamento aspettano ManyChat per secondi, e
+ *  riscrivere il `controlli` letto all'inizio farebbe tornare indietro la data
+ *  della frase segnata da un'altra scheda nel frattempo (se era stata posticipata,
+ *  tornerebbe quella anteriore e i moduli senza frase varrebbero come consenso).
+ *  shortcut: la finestra resta di pochi millisecondi (lettura e scrittura non sono
+ *  atomiche); la chiusura vera è una scrittura SQL `controlli || jsonb_build_object`
+ *  (richiesta a G per S2). */
+export async function aggiornaControlli(
+  porte: PorteControlli,
+  cambia: (fresco: unknown) => Record<string, unknown>,
+): Promise<boolean> {
+  return porte.salva(cambia(await porte.leggi()));
+}
+
 export function controlliDopoFrase(prima: unknown, frase: FraseModulo): Record<string, unknown> {
   const p = (prima && typeof prima === "object" ? prima : {}) as Record<string, unknown>;
   return { ...p, fraseModulo: frase };

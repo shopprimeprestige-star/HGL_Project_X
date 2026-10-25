@@ -1919,10 +1919,10 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "…la POST controlla PRIMA di ogni scrittura (scriviConfig, salvaControlli)",
+    "…la POST controlla PRIMA di ogni scrittura (scriviConfig, aggiornaControlli)",
     true,
     rotta.indexOf("configDiAltraInstallazione(cfg.riga, userId)") <
-      Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await salvaControlli(")),
+      Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await aggiornaControlli(")),
   );
   c(
     "configDiAltraInstallazione: stessa installazione, nessuna riga, riga mai scritta → no; un altro user_id → sì",
@@ -3181,6 +3181,75 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     fSolaLettura.chiamate.every((x) => x.metodo === "GET"),
   );
 
+  /* ── `controlli` riletto prima di scrivere (due schede, due scritture intrecciate) ── */
+  gruppo("MANYCHAT · RIQUADRO · SEQUENZE · CONTROLLI RILETTI");
+  const deposito = (iniziale) => {
+    const d = { controlli: iniziale, scritture: 0 };
+    d.porte = {
+      leggi: async () => d.controlli,
+      salva: async (nuovo) => {
+        d.controlli = nuovo;
+        d.scritture++;
+        return true;
+      },
+    };
+    return d;
+  };
+  const FRASE_VECCHIA = { il: "2026-10-09T22:00:00.000Z", da: "Mario" };
+  const FRASE_NUOVA = { il: FRASE_26, da: "Anna" };
+  {
+    // la prova di collegamento è partita con la frase VECCHIA, aspetta ManyChat; nel
+    // frattempo un'altra scheda posticipa la data: la scrittura non deve annullarla
+    const d = deposito({ fraseModulo: FRASE_VECCHIA });
+    const col = {
+      controllatoIl: NOW.toISOString(),
+      righe: [{ id: "chiave", esito: "ok", testo: "x" }],
+    };
+    d.controlli = { fraseModulo: FRASE_NUOVA }; // l'altra scheda scrive durante l'attesa
+    await P.aggiornaControlli(d.porte, (fresco) => P.controlliDopoCollegamento(fresco, col));
+    c(
+      "collegamento: la data della frase posticipata nel frattempo resta (e il collegamento si salva)",
+      [FRASE_26, "2026-10-26T10:00:00.000Z"],
+      [d.controlli.fraseModulo.il, d.controlli.collegamento.controllatoIl],
+    );
+  }
+  {
+    const d = deposito({ fraseModulo: FRASE_VECCHIA });
+    d.controlli = { fraseModulo: FRASE_NUOVA, collegamento: { controllatoIl: "x", righe: [] } };
+    await P.aggiornaControlli(d.porte, (fresco) =>
+      P.controlliDopoCreazione(fresco, { esito: "ok", il: NOW.toISOString() }),
+    );
+    c(
+      "creazione contatto: la data della frase e il collegamento scritti nel frattempo restano",
+      [FRASE_26, "x", "ok", 1],
+      [
+        d.controlli.fraseModulo.il,
+        d.controlli.collegamento.controllatoIl,
+        d.controlli.creazione.esito,
+        d.scritture,
+      ],
+    );
+  }
+  {
+    // all'incontrario: la frase si segna mentre il collegamento aveva già scritto
+    const d = deposito({ collegamento: { controllatoIl: "x", righe: [] } });
+    await P.aggiornaControlli(d.porte, (fresco) =>
+      P.controlliDopoFrase(fresco, P.fraseDaGiorno("2026-10-26", "Anna", NOW)),
+    );
+    c(
+      "frase: non cancella il collegamento già scritto",
+      [FRASE_26, "x"],
+      [d.controlli.fraseModulo.il, d.controlli.collegamento.controllatoIl],
+    );
+  }
+  c(
+    "porte che non salvano (colonna assente) → falso, senza eccezioni",
+    false,
+    await P.aggiornaControlli({ leggi: async () => null, salva: async () => false }, (f) =>
+      P.controlliDopoFrase(f, FRASE_NUOVA),
+    ),
+  );
+
   /* ── i sorgenti: server, rotta, contratto ───────────────────────────────── */
   gruppo("MANYCHAT · RIQUADRO · SEQUENZE · SORGENTI");
   const server = letto("src/crm/manychat/pannello.server.ts");
@@ -3220,7 +3289,15 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     true,
     rotta.indexOf("controllaComando(") > 0 &&
       rotta.indexOf("controllaComando(") <
-        Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await salvaControlli(")),
+        Math.min(rotta.indexOf("await scriviConfig("), rotta.indexOf("await aggiornaControlli(")),
+  );
+  c(
+    "la rotta riscrive `controlli` sempre dal valore riletto (3 scritture, tutte da aggiornaControlli)",
+    [3, false],
+    [
+      (rotta.match(/await aggiornaControlli\(/g) ?? []).length,
+      /await salvaControlli\(/.test(rotta),
+    ],
   );
   c(
     "la rotta risponde con lo stato e il testo del rifiuto (stato HTTP preso dal controllo)",
@@ -3251,6 +3328,11 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
       /Indirizzo della sede/.test(pannello),
       /Foglio Google/.test(pannello),
     ],
+  );
+  c(
+    "la nota dell'anticipo dice «fino al giorno prima»",
+    true,
+    /fino al giorno\s+prima del/.test(pannello),
   );
   c(
     "accendere si conferma (lead nuovo, giorno del meet, ogni stato) e la frase si conferma prima di salvare",
