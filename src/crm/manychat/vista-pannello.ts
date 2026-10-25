@@ -895,12 +895,15 @@ export function vistaSequenze(s: StatoManychat): {
         acceso,
         ...(dal ? { dal: `acceso dal ${quandoBreve(dal)}` } : {}),
         disabilitato: senzaS2 && !r.legatoA,
-        ...(r.stato === "viene_in_sede" && !config.indirizzoSede
-          ? {
-              avviso:
-                "Scrivi prima l'indirizzo della sede (qui sotto): senza, il promemoria non parte.",
-            }
-          : {}),
+        //  Spento senza S2: si dice perché (collaudo 26/10), invece del solo grigio.
+        ...(senzaS2 && !r.legatoA
+          ? { avviso: FRASE_S2 }
+          : r.stato === "viene_in_sede" && !config.indirizzoSede
+            ? {
+                avviso:
+                  "Scrivi prima l'indirizzo della sede (qui sotto): senza, il promemoria non parte.",
+              }
+            : {}),
       };
     }),
   };

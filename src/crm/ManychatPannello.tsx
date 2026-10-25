@@ -240,7 +240,9 @@ export function ManychatPannello() {
       totale: String(config.tetti.totale ?? TETTO_TOTALE),
     });
     setBozzaFlussi({ ...config.flussi });
-    setBozzaSede(config.indirizzoSede ?? "");
+    //  Un indirizzo salvato a mano con un a capo arriverebbe nel campo con le
+    //  parole attaccate e il tasto spento: si ripulisce qui (collaudo 26/10).
+    setBozzaSede((config.indirizzoSede ?? "").replace(/\s+/g, " ").trim());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- si riparte solo quando cambiano tetti, flussi e sede
   }, [chiaveConfig]);
 
@@ -797,14 +799,18 @@ export function ManychatPannello() {
                       id="sede-indirizzo"
                       value={bozzaSede}
                       onChange={(e) => setBozzaSede(e.target.value)}
-                      disabled={bloccato}
+                      disabled={bloccato || !config.sequenze}
                       placeholder="Via, numero civico, città"
                       aria-invalid={!letturaSede.ok}
                       aria-describedby="sede-indirizzo-nota"
                       autoComplete="off"
                       className="h-9 min-w-0 flex-1"
                     />
-                    <Button size="sm" onClick={salvaSede} disabled={bloccato || !sedeCambiata}>
+                    <Button
+                      size="sm"
+                      onClick={salvaSede}
+                      disabled={bloccato || !sedeCambiata || !config.sequenze}
+                    >
                       Salva l'indirizzo
                     </Button>
                   </div>
