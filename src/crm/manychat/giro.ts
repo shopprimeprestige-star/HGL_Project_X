@@ -980,10 +980,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       parametri,
       nome: d.nome,
       leadId: scheda.id,
-      //  shortcut: `TipoInvioPorta` (porta.ts, non è di questo compito) non conosce i sei
-      //  tipi nuovi. Alla porta basta una parola qualunque: la prenotazione vera la fa
-      //  il giro (sopra) col tipo giusto. Da togliere quando `TipoInvioPorta` = `TipoInvio`.
-      tipo: "ricontatto",
+      tipo: cand.tipo,
       chiave,
     });
 

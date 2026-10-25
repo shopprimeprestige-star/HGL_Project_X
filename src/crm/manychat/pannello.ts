@@ -497,10 +497,32 @@ export function fraseModuloDa(controlli: unknown): FraseModulo | null {
   };
 }
 
-/** Le due porte per riscrivere `controlli`: leggerlo e salvarlo (vero se salvato). */
+/** Le porte per riscrivere `controlli`: leggerlo, salvarlo tutto (vero se salvato) e,
+ *  se c'è la migrazione S2, unire UNA parte lato SQL. */
 export interface PorteControlli {
   leggi(): Promise<unknown>;
   salva(controlli: Record<string, unknown>): Promise<boolean>;
+  /** `manychat_controlli_unisci`: `controlli || patch` in un solo UPDATE, senza
+   *  riscrivere il resto. Vero se ha scritto; falso se la riga non c'è o la
+   *  funzione manca (S2 non applicata): allora si ricade su `salva`. Facoltativa. */
+  unisci?(patch: Record<string, unknown>): Promise<boolean>;
+}
+
+/** Le chiavi di `dopo` che sono nuove o diverse da `prima`; `null` se `dopo` ha
+ *  tolto una chiave (una patch non sa togliere: si salva tutto). */
+function chiaviCambiate(
+  prima: unknown,
+  dopo: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const p = (prima && typeof prima === "object" && !Array.isArray(prima) ? prima : {}) as Record<
+    string,
+    unknown
+  >;
+  if (Object.keys(p).some((k) => !(k in dopo))) return null;
+  const patch: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(dopo))
+    if (JSON.stringify(v) !== JSON.stringify(p[k])) patch[k] = v;
+  return patch;
 }
 
 /** Cambia UNA parte di `controlli` partendo dal valore di ADESSO, riletto subito
@@ -508,14 +530,20 @@ export interface PorteControlli {
  *  riscrivere il `controlli` letto all'inizio farebbe tornare indietro la data
  *  della frase segnata da un'altra scheda nel frattempo (se era stata posticipata,
  *  tornerebbe quella anteriore e i moduli senza frase varrebbero come consenso).
- *  shortcut: la finestra resta di pochi millisecondi (lettura e scrittura non sono
- *  atomiche); la chiusura vera è una scrittura SQL `controlli || jsonb_build_object`
- *  (richiesta a G per S2). */
+ *  Con S2 la scrittura è `controlli || patch` lato SQL, con le sole chiavi che
+ *  cambiano: la finestra fra lettura e scrittura non riscrive le altre. Senza S2
+ *  (o se la patch non basta) si ricade sulla rilettura + scrittura intera, con la
+ *  finestra di pochi millisecondi di prima. */
 export async function aggiornaControlli(
   porte: PorteControlli,
   cambia: (fresco: unknown) => Record<string, unknown>,
 ): Promise<boolean> {
-  return porte.salva(cambia(await porte.leggi()));
+  const fresco = await porte.leggi();
+  const nuovo = cambia(fresco);
+  const patch = porte.unisci ? chiaviCambiate(fresco, nuovo) : null;
+  if (porte.unisci && patch && Object.keys(patch).length > 0 && (await porte.unisci(patch)))
+    return true;
+  return porte.salva(nuovo);
 }
 
 export function controlliDopoFrase(prima: unknown, frase: FraseModulo): Record<string, unknown> {

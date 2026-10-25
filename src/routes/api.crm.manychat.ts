@@ -33,6 +33,7 @@ import {
   leggiDatiStato,
   leggiRigaConfig,
   salvaControlli,
+  unisciControlli,
   scriviConfig,
 } from "@/crm/manychat/pannello.server";
 import {
@@ -79,6 +80,7 @@ const segretoFoglioPresente = () => !!(process.env.SHEETS_INGRESSO_TOKEN ?? "").
 const porteControlli = (userId: string) => ({
   leggi: async () => (await leggiRigaConfig()).riga?.controlli,
   salva: (controlli: Record<string, unknown>) => salvaControlli(userId, controlli),
+  unisci: (patch: Record<string, unknown>) => unisciControlli(userId, patch),
 });
 
 /** Un guasto del database: nei log solo il codice. */

@@ -47,6 +47,7 @@ export const Route = createFileRoute("/hooks/manychat-giro")({
             fermo: e.fermo ?? null,
             promemoriInviati: e.promemoriInviati,
             ricontattiInviati: e.ricontattiInviati,
+            nuoviInviati: e.nuoviInviati,
             saltati: e.saltati,
             incerti: e.incerti,
             scadute: e.scadute,

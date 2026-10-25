@@ -276,6 +276,24 @@ export async function salvaControlli(
   return true;
 }
 
+/** `manychat_controlli_unisci` (S2): unisce UNA parte di `controlli` in un solo
+ *  UPDATE. Vero se ha scritto; falso se la riga non c'è, o se la funzione o la
+ *  colonna mancano ancora (allora chi chiama ricade su `salvaControlli`). */
+export async function unisciControlli(
+  userId: string,
+  patch: Record<string, unknown>,
+): Promise<boolean> {
+  const { data, error } = await db().rpc("manychat_controlli_unisci", {
+    p_user_id: userId,
+    p_patch: patch,
+  });
+  if (error) {
+    if (funzioneMancante(error) || colonnaMancante(error)) return false;
+    lancia(error);
+  }
+  return data === true;
+}
+
 /** Il client di ManyChat (lo stesso della porta), o `null` senza chiave. */
 export const clientManychat = (userId: string): ClientManychat | null =>
   portePortaVere(userId).client();

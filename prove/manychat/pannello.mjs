@@ -3261,11 +3261,68 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ),
   );
 
+  {
+    // con S2: si manda SOLO la parte cambiata, e l'altra scheda non viene toccata
+    const d = deposito({
+      fraseModulo: FRASE_VECCHIA,
+      collegamento: { controllatoIl: "x", righe: [] },
+    });
+    const patch = [];
+    d.porte.unisci = async (p) => {
+      patch.push(p);
+      // l'altra scheda ha scritto durante l'attesa: la patch SQL si fonde sopra, non sotto
+      d.controlli = { ...d.controlli, fraseModulo: FRASE_NUOVA, ...p };
+      return true;
+    };
+    await P.aggiornaControlli(d.porte, (fresco) =>
+      P.controlliDopoCreazione(fresco, { esito: "ok", il: NOW.toISOString() }),
+    );
+    c(
+      "con `unisci`: parte SOLO la chiave cambiata (creazione), niente scrittura intera",
+      [["creazione"], 0, FRASE_26],
+      [Object.keys(patch[0] ?? {}), d.scritture, d.controlli.fraseModulo.il],
+    );
+    const d2 = deposito({ a: 1 });
+    d2.porte.unisci = async () => false; // riga assente o S2 non applicata
+    await P.aggiornaControlli(d2.porte, (f) => ({ ...f, b: 2 }));
+    c(
+      "`unisci` che non scrive → ricade sulla scrittura intera di prima",
+      [{ a: 1, b: 2 }, 1],
+      [d2.controlli, d2.scritture],
+    );
+    const d3 = deposito({ a: 1, b: 2 });
+    let chiamata = false;
+    d3.porte.unisci = async () => ((chiamata = true), true);
+    await P.aggiornaControlli(d3.porte, () => ({ a: 1 }));
+    c(
+      "una chiave tolta non si esprime con una patch → scrittura intera",
+      [false, { a: 1 }],
+      [chiamata, d3.controlli],
+    );
+    const d4 = deposito({ a: 1 });
+    chiamata = false;
+    d4.porte.unisci = async () => ((chiamata = true), true);
+    await P.aggiornaControlli(d4.porte, (f) => f);
+    c(
+      "niente cambiato → nessuna patch vuota, si salva come prima",
+      [false, 1],
+      [chiamata, d4.scritture],
+    );
+  }
+
   /* ── i sorgenti: server, rotta, contratto ───────────────────────────────── */
   gruppo("MANYCHAT · RIQUADRO · SEQUENZE · SORGENTI");
   const server = letto("src/crm/manychat/pannello.server.ts");
   const rotta = letto("src/routes/api.crm.manychat.ts");
   const client = letto("src/crm/manychat/client-crm.ts");
+  c(
+    "la rotta passa `unisci` (manychat_controlli_unisci) e il server la chiama con p_user_id e p_patch",
+    [true, true],
+    [
+      /unisci:\s*\(patch[^)]*\)\s*=>\s*unisciControlli\(userId, patch\)/.test(rotta),
+      /rpc\("manychat_controlli_unisci",\s*\{\s*p_user_id: userId,\s*p_patch: patch/.test(server),
+    ],
+  );
   c(
     "pannello.server: i tipi automatici arrivano da regole.ts, non c'è più la copia",
     [false, true],

@@ -16,6 +16,8 @@
  *  alle 15:30 vuole il promemoria alle 15:05 (si accetta fino alle 15:15).
  *
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: `{ c, gruppo }`. */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./finto.mjs";
 
 const CHIAVE = "chiave-finta-0000";
@@ -36,7 +38,7 @@ const U = "u-1";
 const NS_PROM = "content-prom-1";
 const NS_RIC = "content-ric-1";
 
-export async function proveGiro(mod, { c, gruppo }) {
+export async function proveGiro(mod, { c, gruppo, radice }) {
   const G = mod["manychat/giro"];
   const A = mod["manychat/api"];
   const CT = mod["manychat/contatto"];
@@ -1639,6 +1641,28 @@ export async function proveGiro(mod, { c, gruppo }) {
       ],
     );
     void alle;
+  }
+
+  gruppo("MANYCHAT · GIRO · TIPO ALLA PORTA E ROTTA DEL CRON");
+  {
+    const porta = readFileSync(join(radice, "src/crm/manychat/porta.ts"), "utf8");
+    const giroSrc = readFileSync(join(radice, "src/crm/manychat/giro.ts"), "utf8");
+    const hook = readFileSync(join(radice, "src/routes/hooks/manychat-giro.ts"), "utf8");
+    c(
+      "la porta conosce tutti i 12 tipi (TipoInvioPorta = TipoInvio)",
+      true,
+      /export type TipoInvioPorta = TipoInvio;/.test(porta),
+    );
+    c(
+      "il giro dice alla porta il tipo vero, niente più «ricontatto» di ripiego",
+      [true, false],
+      [/tipo: cand\.tipo,\s*chiave,/.test(giroSrc), /tipo: "ricontatto",\s*chiave,/.test(giroSrc)],
+    );
+    c(
+      "il cron restituisce anche nuoviInviati (solo conteggi)",
+      true,
+      /nuoviInviati: e\.nuoviInviati/.test(hook),
+    );
   }
 
   /* ════════════════════════════════════════════════════════════════════════
