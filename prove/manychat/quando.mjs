@@ -63,11 +63,13 @@ export async function proveQuando(mod, { c, gruppo }) {
   gruppo("MANYCHAT · TETTI E RITMO (quando.ts)");
 
   c(
-    "le costanti: 20 ricontatti, 40 in tutto, 10 la prima settimana, 27-33', pausa 120 s",
-    [20, 40, 10, 27, 33, 120],
+    "le costanti: 20 ricontatti, 30 lead nuovi, 100 in tutto, riserva 30, 10 la prima settimana, 27-33', pausa 120 s",
+    [20, 30, 100, 30, 10, 27, 33, 120],
     [
       Q.TETTO_RICONTATTI,
+      Q.TETTO_LEAD_NUOVI,
       Q.TETTO_TOTALE,
+      Q.RISERVA_APPUNTAMENTI,
       Q.TETTO_PRIMA_SETTIMANA,
       Q.RITMO_MIN,
       Q.RITMO_MAX,
@@ -78,36 +80,40 @@ export async function proveQuando(mod, { c, gruppo }) {
   const OGGI = t("2026-10-23T08:00:00.000Z");
   const giorniFa = (n) => new Date(OGGI.getTime() - n * 86_400_000).toISOString();
   c(
-    "riquadro a 500 → si applica 20 / 40",
-    { ricontatti: 20, totale: 40 },
-    Q.tettiDelGiorno({ ricontatti: 500, totale: 500 }, giorniFa(30), OGGI),
+    "riquadro a 500 → si applica 20 / 30 / 100",
+    { ricontatti: 20, leadNuovi: 30, totale: 100 },
+    Q.tettiDelGiorno({ ricontatti: 500, leadNuovi: 500, totale: 500 }, giorniFa(30), OGGI),
   );
   c(
     "riquadro che abbassa → vale il riquadro",
-    { ricontatti: 5, totale: 12 },
-    Q.tettiDelGiorno({ ricontatti: 5, totale: 12 }, giorniFa(30), OGGI),
+    { ricontatti: 5, leadNuovi: 3, totale: 12 },
+    Q.tettiDelGiorno({ ricontatti: 5, leadNuovi: 3, totale: 12 }, giorniFa(30), OGGI),
   );
   c(
     "riquadro vuoto o null → le costanti",
     [
-      { ricontatti: 20, totale: 40 },
-      { ricontatti: 20, totale: 40 },
+      { ricontatti: 20, leadNuovi: 30, totale: 100 },
+      { ricontatti: 20, leadNuovi: 30, totale: 100 },
     ],
     [Q.tettiDelGiorno({}, giorniFa(30), OGGI), Q.tettiDelGiorno(null, giorniFa(30), OGGI)],
   );
   c(
     "valori strani nel riquadro (testo, NaN, negativo, decimale)",
-    { ricontatti: 0, totale: 7 },
+    { ricontatti: 0, leadNuovi: 30, totale: 7 },
     Q.tettiDelGiorno({ ricontatti: -3, totale: 7.9 }, giorniFa(30), OGGI),
   );
   c(
     "…testo e NaN non abbassano e non alzano: valgono le costanti",
-    { ricontatti: 20, totale: 40 },
-    Q.tettiDelGiorno({ ricontatti: "mille", totale: Number.NaN }, giorniFa(30), OGGI),
+    { ricontatti: 20, leadNuovi: 30, totale: 100 },
+    Q.tettiDelGiorno(
+      { ricontatti: "mille", leadNuovi: "tanti", totale: Number.NaN },
+      giorniFa(30),
+      OGGI,
+    ),
   );
   c(
     "prima settimana (acceso 3 giorni fa) → 10 ricontatti",
-    { ricontatti: 10, totale: 40 },
+    { ricontatti: 10, leadNuovi: 30, totale: 100 },
     Q.tettiDelGiorno({ ricontatti: 500, totale: 500 }, giorniFa(3), OGGI),
   );
   c(
@@ -296,18 +302,53 @@ export async function proveQuando(mod, { c, gruppo }) {
     ),
   );
   c(
-    "con la casella del modulo basta",
+    "con il modulo compilato DOPO la frase basta",
     ["invia"],
     tipi(
       decidi(
         [
           meet("x", 1, "2026-10-23", "15:30", {
             okWhatsapp: undefined,
-            consensoModulo: { whatsapp: true },
+            consensoModulo: { whatsapp: true, il: "2026-10-22T09:00:00.000Z" },
           }),
         ],
         "2026-10-23T15:05:00+02:00",
+        { fraseModuloDal: "2026-10-20T00:00:00.000Z" },
       ),
+    ),
+  );
+  const conModulo = (il) =>
+    meet("x", 1, "2026-10-23", "15:30", {
+      okWhatsapp: undefined,
+      consensoModulo: { whatsapp: true, il },
+    });
+  c(
+    "CSV con modulo del 10/10 e frase segnata il 26/10 → nessun promemoria (manca il consenso)",
+    "manca il consenso WhatsApp",
+    motivo(
+      decidi([conModulo("2026-10-10T09:00:00.000Z")], "2026-10-23T15:05:00+02:00", {
+        fraseModuloDal: "2026-10-26T00:00:00.000Z",
+      }),
+    ),
+  );
+  c(
+    "frase non segnata (non passata, o null) → il modulo non vale per nessuno",
+    ["manca il consenso WhatsApp", "manca il consenso WhatsApp"],
+    [undefined, null].map((fraseModuloDal) =>
+      motivo(
+        decidi([conModulo("2026-10-22T09:00:00.000Z")], "2026-10-23T15:05:00+02:00", {
+          fraseModuloDal,
+        }),
+      ),
+    ),
+  );
+  c(
+    "modulo senza data (il null) → non vale, anche dopo la frase",
+    "manca il consenso WhatsApp",
+    motivo(
+      decidi([conModulo(null)], "2026-10-23T15:05:00+02:00", {
+        fraseModuloDal: "2026-10-20T00:00:00.000Z",
+      }),
     ),
   );
   c(
@@ -381,11 +422,12 @@ export async function proveQuando(mod, { c, gruppo }) {
     tipi(decidi([spostato], "2026-10-23T16:35:00+02:00", { invii: [primoSenza] })),
   );
   c(
-    "…spostato PRIMA dell'inizio, a un'ora più vicina (15:40): alle 15:16 il vecchio meet (15:30) non è iniziato → il vecchio promemoria frena ancora",
+    "…spostato PRIMA dell'inizio, a un'ora più vicina (15:40): alle 15:16 il vecchio meet (15:30) non è iniziato → con l'interruttore acceso il vecchio promemoria frena ancora",
     "aspetta ancora una risposta",
     motivo(
       decidi([meet("lead-m", 1, "2026-10-23", "15:40")], "2026-10-23T15:16:00+02:00", {
         invii: [primoSenza],
+        frenoAnchePerPromemoria: true,
       }),
     ),
   );
@@ -437,17 +479,17 @@ export async function proveQuando(mod, { c, gruppo }) {
     prenotatoIl: "2026-10-22T09:00:00.000Z",
   };
   c(
-    "conferma senza risposta e poi promemoria allo stesso telefono → saltato (il freno vale anche per il promemoria)",
-    "aspetta ancora una risposta",
-    motivo(decidi([m1530], "2026-10-23T15:05:00+02:00", { invii: [conferma] })),
+    "conferma senza risposta e poi promemoria allo stesso telefono → di serie PARTE (il promemoria non è frenato: SPEC 25/10)",
+    ["invia"],
+    tipi(decidi([m1530], "2026-10-23T15:05:00+02:00", { invii: [conferma] })),
   );
   c(
-    "…con l'interruttore di regola spento il promemoria parte (cambiare idea è una riga)",
-    ["invia"],
-    tipi(
+    "…con l'interruttore di regola acceso il freno vale ancora anche per il promemoria (cambiare idea è una riga)",
+    "aspetta ancora una risposta",
+    motivo(
       decidi([m1530], "2026-10-23T15:05:00+02:00", {
         invii: [conferma],
-        frenoAnchePerPromemoria: false,
+        frenoAnchePerPromemoria: true,
       }),
     ),
   );
@@ -599,7 +641,11 @@ export async function proveQuando(mod, { c, gruppo }) {
   const r1 = unica(coda([ricontatto("l-1", 1, "2026-10-23")], VEN10));
   c("ricontatto di oggi, senza ora, alle 10:00 → invia", "invia", r1?.tipo);
   c("…chiave r|tel9|AAAA-MM-GG", `r|${t9(1)}|2026-10-23`, r1?.chiave);
-  c("…col giorno e senza recupero", { giorno: "2026-10-23", recupero: false }, r1?.extra);
+  c(
+    "…col giorno, senza recupero, e lo stato (da cui il giro ricava modello e tag)",
+    { giorno: "2026-10-23", recupero: false, stato: "da_ricontattare" },
+    r1?.extra,
+  );
   c("ricontatto di domani → niente", [], coda([ricontatto("l-1", 1, "2026-10-24")], VEN10));
   c("senza data → niente", [], coda([ricontatto("l-1", 1, undefined)], VEN10));
   c("data scritta male → niente", [], coda([ricontatto("l-1", 1, "domani")], VEN10));
@@ -680,11 +726,43 @@ export async function proveQuando(mod, { c, gruppo }) {
 
   //  Chi è un lead del consulente.
   c(
-    "stato «ricontatto fissato», «in valutazione», «fissa meet dopo» → tutti e tre",
-    [true, true, true],
-    ["da_ricontattare", "sta_valutando", "fissa_meet_dopo"].map(
+    "«ricontatto fissato» segue l'interruttore dei ricontatti; gli altri cinque stati a data vogliono il loro, spento di serie",
+    [true, false, false, false, false, false],
+    [
+      "da_ricontattare",
+      "sta_valutando",
+      "fissa_meet_dopo",
+      "in_attesa_acconto",
+      "gestire_in_chat",
+      "da_spostare",
+    ].map(
       (stato) =>
         coda([riga("l-1", 1, { stato, dataRicontatto: "2026-10-23" })], VEN10).length === 1,
+    ),
+  );
+  c(
+    "…accesi nel riquadro (prima di oggi) partono tutti e sei",
+    [true, true, true, true, true, true],
+    [
+      "da_ricontattare",
+      "sta_valutando",
+      "fissa_meet_dopo",
+      "in_attesa_acconto",
+      "gestire_in_chat",
+      "da_spostare",
+    ].map(
+      (stato) =>
+        coda([riga("l-1", 1, { stato, dataRicontatto: "2026-10-23" })], VEN10, {
+          statiAccesi: Object.fromEntries(
+            [
+              "sta_valutando",
+              "fissa_meet_dopo",
+              "in_attesa_acconto",
+              "gestire_in_chat",
+              "da_spostare",
+            ].map((x) => [x, ACCESO]),
+          ),
+        }).length === 1,
     ),
   );
   c(
@@ -709,7 +787,11 @@ export async function proveQuando(mod, { c, gruppo }) {
   const rec = unica(coda([ricontatto("l-1", 1, "2026-10-22")], VEN10));
   c(
     "ieri non è partito → oggi si recupera, e lo dice",
-    ["invia", `r|${t9(1)}|2026-10-22`, { giorno: "2026-10-22", recupero: true }],
+    [
+      "invia",
+      `r|${t9(1)}|2026-10-22`,
+      { giorno: "2026-10-22", recupero: true, stato: "da_ricontattare" },
+    ],
     [rec?.tipo, rec?.chiave, rec?.extra],
   );
   c(
@@ -1028,6 +1110,86 @@ export async function proveQuando(mod, { c, gruppo }) {
         invii: [...righeOggi(15, "ricontatto"), ...righeOggi(25, "promemoria")],
       }),
     ),
+  );
+  c(
+    "riserva per gli appuntamenti: col totale a 100 il ricontatto si ferma a 70 messaggi di oggi, a 69 passa",
+    [["invia"], ["aspetta"]],
+    [
+      tipi(
+        coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+          tetti: { ricontatti: 80, leadNuovi: 30, totale: 100 },
+          invii: righeOggi(69, "promemoria"),
+        }),
+      ),
+      tipi(
+        coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+          tetti: { ricontatti: 80, leadNuovi: 30, totale: 100 },
+          invii: righeOggi(70, "promemoria"),
+        }),
+      ),
+    ],
+  );
+  c(
+    "…col totale abbassato a 40 il ricontatto si ferma a 10",
+    [["invia"], ["aspetta"]],
+    [
+      tipi(
+        coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+          tetti: { ricontatti: 20, leadNuovi: 30, totale: 40 },
+          invii: righeOggi(9, "promemoria"),
+        }),
+      ),
+      tipi(
+        coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+          tetti: { ricontatti: 20, leadNuovi: 30, totale: 40 },
+          invii: righeOggi(10, "promemoria"),
+        }),
+      ),
+    ],
+  );
+  c(
+    "il totale conta gli otto tipi del giro (anche mattina, ora esatta e primo contatto)",
+    ["aspetta"],
+    tipi(
+      coda([ricontatto("l-1", 1, "2026-10-23")], VEN10, {
+        tetti: { ricontatti: 80, leadNuovi: 30, totale: 100 },
+        invii: [
+          ...righeOggi(40, "meet_oggi"),
+          ...righeOggi(20, "meet_adesso"),
+          ...righeOggi(10, "primo_contatto"),
+        ],
+      }),
+    ),
+  );
+  c(
+    "ricontatti: il consenso del modulo vale solo dopo la frase",
+    [["salta"], ["invia"]],
+    [
+      tipi(
+        coda(
+          [
+            ricontatto("l-1", 1, "2026-10-23", {
+              okWhatsapp: undefined,
+              consensoModulo: { whatsapp: true, il: "2026-10-10T09:00:00.000Z" },
+            }),
+          ],
+          VEN10,
+          { fraseModuloDal: "2026-10-26T00:00:00.000Z" },
+        ),
+      ),
+      tipi(
+        coda(
+          [
+            ricontatto("l-1", 1, "2026-10-23", {
+              okWhatsapp: undefined,
+              consensoModulo: { whatsapp: true, il: "2026-10-22T09:00:00.000Z" },
+            }),
+          ],
+          VEN10,
+          { fraseModuloDal: "2026-10-20T00:00:00.000Z" },
+        ),
+      ),
+    ],
   );
   c(
     "i messaggi di ieri e quelli falliti o saltati non contano",

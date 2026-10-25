@@ -9,10 +9,14 @@
  *
  *  ── LE REGOLE DI PASSAGGIO (SPEC §4) ──────────────────────────────────────
  *   1. un invio accettato da ManyChat → «In attesa», con `scadeRisposta`:
- *        ricontatto  24 ore dopo, ma di domenica si slitta al lunedì alla
+ *        ricontatto, primo contatto, richiamo a 24 h
+ *                    24 ore dopo, ma di domenica si slitta al lunedì alla
  *                    stessa ora (l'ora è quella di Roma, anche a cavallo del
  *                    cambio dell'ora);
- *        promemoria  l'inizio del meet.
+ *        promemoria, mattina del meet, chiamata concordata, appuntamento in sede
+ *                    l'inizio dell'appuntamento;
+ *        ora esatta  «Contattato», SENZA scadenza: chi è entrato nel meet non
+ *                    deve diventare «Non ha risposto» un minuto dopo.
  *   2. una risposta → «Ha risposto», con l'anteprima (al massimo 80 caratteri)
  *      nella storia;
  *   3. «In attesa» con la scadenza passata → «Non ha risposto». Lo CALCOLA
@@ -202,20 +206,37 @@ export function applicaCambio(prima: ContattoWa | undefined | null, c: CambioCon
 const eStopAppiccicoso = (prima: ContattoWa | undefined | null) => prima?.stato === "stop";
 
 export type IngressoInvio =
-  | { tipo: "ricontatto"; inviatoIl: Date; invioId: string }
-  | { tipo: "promemoria"; inviatoIl: Date; inizioMeet: Date; invioId: string };
+  | { tipo: "ricontatto" | "primo_contatto" | "richiamo_24h"; inviatoIl: Date; invioId: string }
+  | {
+      tipo: "promemoria" | "meet_oggi" | "promemoria_chiamata" | "promemoria_sede";
+      inviatoIl: Date;
+      /** l'inizio dell'appuntamento (per chiamata e sede, l'ora della chiamata o della visita) */
+      inizioMeet: Date;
+      invioId: string;
+    }
+  | { tipo: "meet_adesso"; inviatoIl: Date; invioId: string };
 
-/** ManyChat ha accettato un invio → «In attesa» con la sua scadenza. `null` se
- *  la scheda è in STOP (non si toglie da sola). */
+/** ManyChat ha accettato un invio → «In attesa» con la sua scadenza (o
+ *  «Contattato» senza scadenza per l'ora esatta). `null` se la scheda è in STOP
+ *  (non si toglie da sola). */
 export function dopoInvio(
   prima: ContattoWa | undefined | null,
   i: IngressoInvio,
 ): CambioContatto | null {
   if (eStopAppiccicoso(prima)) return null;
-  const scade = i.tipo === "ricontatto" ? scadenzaRicontatto(i.inviatoIl) : i.inizioMeet;
   //  ⚠️ `invioId` è obbligatorio: `applicaCambio` conserva quello vecchio se
   //   il cambio non ne porta uno, e `p_se_invio` confronterebbe le risposte con
   //   l'invio sbagliato. Il giro l'id lo ha sempre, dalla prenotazione.
+  if (i.tipo === "meet_adesso") {
+    return cambio({
+      stato: "contattato",
+      il: isoDi(i.inviatoIl),
+      da: DA_AUTOMATICO,
+      motivo: i.tipo,
+      invioId: i.invioId,
+    });
+  }
+  const scade = "inizioMeet" in i ? i.inizioMeet : scadenzaRicontatto(i.inviatoIl);
   const patch: Omit<ContattoWa, "storia"> = {
     stato: "in_attesa",
     il: isoDi(i.inviatoIl),

@@ -3061,6 +3061,7 @@ function LeadImportatiUnoAllaVolta() {
         statoPrecedente: l.data.statoPrecedente,
         statoPrecedenteIl: l.data.statoPrecedenteIl,
         statoDa: l.data.statoDa,
+        statoDal: l.data.statoDal,
       } as Partial<LeadData>,
       eraInFondo: inFondo.has(l.id),
     };
@@ -3088,7 +3089,7 @@ function LeadImportatiUnoAllaVolta() {
     prima: Partial<LeadData>;
     eraInFondo: boolean;
   }) => {
-    if (!(await updateLead(d.id, d.prima))) {
+    if (!(await updateLead(d.id, d.prima, { annulla: true }))) {
       toast.error("Non sono riuscito a tornare indietro", {
         description: "La scheda in archivio è rimasta com'è. Riprova.",
       });
