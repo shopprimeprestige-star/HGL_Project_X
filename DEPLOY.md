@@ -67,6 +67,7 @@ Espandi la sezione **Variables and Secrets** e aggiungi:
 | `OPENROUTER_API_KEY` | *(API key da https://openrouter.ai/keys — per le AI Insights)* |
 | `GOOGLE_CLIENT_ID` | *(Google Cloud Console — OAuth Client ID)* |
 | `GOOGLE_CLIENT_SECRET` | *(Google Cloud Console — OAuth Client Secret)* |
+| `SHEETS_INGRESSO_TOKEN` | *(chiave segreta dell'ingresso dei lead dal foglio Google: `openssl rand -hex 32`, la stessa nelle proprietà dello script del titolare; vedi `docs/google-sheets-setup.md`)* |
 
 > ⚠️ Le `VITE_*` servono solo al build. Le altre vengono lette **runtime** dal
 > Worker (es. `api.capi.ts`, `api.google-oauth-callback.ts`, `client.server.ts`).
