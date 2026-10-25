@@ -205,10 +205,10 @@ export interface ContestoQuando {
   invii?: InvioPerFreno[];
   /** i tetti di oggi, da `tettiDelGiorno` */
   tetti?: Tetti;
-  /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo.
-   *  Assente o `null` = nessuna data segnata, il modulo non vale per nessuno
-   *  (la scelta prudente: chi si dimentica di passarla non manda a sbagliato). */
-  fraseModuloDal?: string | null;
+  /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo. `null` =
+   *  nessuna data segnata, il modulo non vale per nessuno. OBBLIGATORIO (revisore):
+   *  così `tsc` trova ogni decisione a cui il giro se ne dimentica. */
+  fraseModuloDal: string | null;
 }
 
 export interface ContestoPromemoria extends ContestoQuando {
