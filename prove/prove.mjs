@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
 import { proveManychat } from "./manychat.mjs";
+import { proveSheets } from "./sheets.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -529,6 +530,16 @@ const MODULI = [
   "manychat/porta",
   "manychat/risposta",
   "manychat/giro",
+  //  ⚠️ LEAD DA GOOGLE SHEETS + SEQUENZE WHATSAPP (commessa 2026-10-25): la
+  //   lettura della riga del foglio, l'origine dei lead importati, `statoDal`,
+  //   le sequenze «lead nuovo» e «giorno del meet» e i messaggi per stato. Un
+  //   file di prove per area in `prove/sheets/` (chiamati da `proveSheets`,
+  //   prove/sheets.mjs) e in `prove/manychat/` (chiamati da `proveManychat`).
+  "sheets/ingresso",
+  "importa/origine",
+  "stato-dal",
+  "manychat/sequenze",
+  "manychat/stati",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20446,6 +20457,7 @@ await proveDelWebhookDelPromemoria();
 proveDiOggiPerLaConferma();
 proveDelRiquadroDelPromemoria();
 await proveManychat(mod, { c, gruppo, radice });
+await proveSheets(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

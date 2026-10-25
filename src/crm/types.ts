@@ -1451,6 +1451,13 @@ export interface RicaricoLead {
     campaign_name?: string;
     riassunto?: string;
   };
+  /** ── ⚠️ IDEMPOTENZA DEL RITORNO DAL FOGLIO GOOGLE ──────────────────────
+   *  Le ultime 5 chiavi d'ingresso (`m:<id Meta>` o `f:<impronta>`, vedi
+   *  crm/sheets/ingresso) che hanno già alzato `volte`. Si scrivono nella
+   *  STESSA patch del +1: se l'esito sul registro fallisce dopo la scrittura,
+   *  al secondo arrivo la chiave c'è già e il contatore non sale due volte.
+   *  Mai nomi né numeri: solo la chiave. */
+  chiaviIngresso?: string[];
 }
 
 /** Il perché di una riga nella lista «Da chiamare», dal più urgente al meno.
@@ -1653,6 +1660,21 @@ export interface LeadData {
    *  `createdAt` è l'ora del caricamento e non dice niente sull'arrivo:
    *  «nuovo» si decide solo con `dataDalFile` vero. */
   listaOrigine?: { file: string; il: string; dataDalFile?: boolean };
+  /** L'id del lead Meta come sta nel foglio e nel CSV («l:» e cifre): la prima
+   *  cella che vale `^l:\d{6,}$`. Serve a non creare due volte la stessa
+   *  scheda (crm/sheets/ingresso). Assente = non è un lead Meta. */
+  metaLeadId?: string;
+  /** Come è entrata la scheda dal foglio Google collegato alle inserzioni.
+   *  Assente = caricata da file o a mano. Vedi crm/importa/origine. */
+  origineIngresso?: OrigineIngresso;
+  /** ── ⚠️ QUANDO È CAMBIATO LO STATO (ISO) ──────────────────────────────
+   *  L'«evento» dei messaggi per stato che partono una volta per evento
+   *  (crm/manychat/stati). Lo scrive SOLO `conStatoDal` (crm/stato-dal),
+   *  chiamata da `updateLead` e dal portale dei consulenti, quando lo stato
+   *  FINALE è diverso da quello di prima: non si rinnova a ogni salvataggio.
+   *  Assente = stato messo prima della pubblicazione, o da una strada che non
+   *  passa da `conStatoDal`: nessun messaggio a evento (scelta prudente). */
+  statoDal?: string;
   // origine pubblica (id del public_lead se importato)
   publicLeadId?: string;
   // ── LAVORAZIONE IN CHAT ────────────────────────────────────────────────
@@ -1835,8 +1857,51 @@ export interface OkWhatsapp {
 
 export interface ConsensoModulo {
   whatsapp?: boolean;
+  /** Il giorno in cui ha lasciato il numero nel modulo (ISO): `created_time` del
+   *  modulo, o la data letta dal file. ⚠️ `null` se non si legge: MAI l'ora
+   *  d'ingresso come ripiego (riaprirebbe il consenso a una lista vecchia
+   *  caricata dopo la frase). Un `il` nullo NON VALE come consenso. */
   il?: string | null;
+  /** Da dove viene il «sì»: `modulo_meta` = ha lasciato il numero in un modulo
+   *  delle inserzioni Meta. Lo scrive solo l'ingresso, mai la scheda a mano. */
+  via?: "modulo_meta";
+  /** Da quale strada è entrata la riga: la rotta del foglio riscrive
+   *  `csv_meta` (di `traduciRighe`) in `google_sheets`. */
+  fonte?: "google_sheets" | "csv_meta";
 }
+
+/** Come è entrata una scheda dal foglio Google (commessa 2026-10-25). */
+export interface OrigineIngresso {
+  via: "google_sheets";
+  /** il nome del foglio («Lead HGL»), mai l'id del file Google */
+  foglio: string;
+  /** il nome della scheda del foglio («Foglio1») */
+  scheda?: string;
+  /** il numero di riga nel foglio (≥ 2) */
+  riga?: number;
+  /** quando è entrata nel CRM (ISO) */
+  il: string;
+}
+
+/** I tipi di invio della porta ManyChat (`manychat_invii.tipo`), compresi i
+ *  sei della commessa 2026-10-25: le due sequenze «lead nuovo» e «giorno del
+ *  meet» e i due promemoria a orario per stato. ⚠️ Il CHECK del database li
+ *  allarga con la migrazione S2: i due elenchi vanno tenuti uguali. */
+export type TipoInvioNuovo =
+  | "primo_contatto"
+  | "richiamo_24h"
+  | "meet_oggi"
+  | "meet_adesso"
+  | "promemoria_chiamata"
+  | "promemoria_sede";
+export type TipoInvio =
+  | "promemoria"
+  | "ricontatto"
+  | "conferma"
+  | "chat"
+  | "webinar"
+  | "prova"
+  | TipoInvioNuovo;
 
 /** Il segno del messaggio automatico sulla scheda. Vedi crm/promemoria/invio. */
 export interface PromemoriaWhatsapp {
