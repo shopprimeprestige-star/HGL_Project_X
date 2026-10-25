@@ -29,6 +29,7 @@ import {
 //  mano significherebbe due risposte diverse alla stessa domanda — il CRM che
 //  vieta di cancellare un lead e l'area mobile che lo lascia fare.
 import { risolviAccesso } from "@/crm/permessi";
+import { conStatoDal } from "@/crm/stato-dal";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
 const json = (o: unknown) => new Response(JSON.stringify(o), { status: 200, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -222,6 +223,9 @@ export const Route = createFileRoute("/api/consulente/azione")({
         // modifica arriva dal consulente, altrimenti le KPI divergono a seconda
         // di chi ha toccato il lead.
         let aggiornato = applyAutoStatus({ ...attuale, ...patch } as LeadData);
+        //  `statoDal` anche da qui: è la strada dei consulenti per «Cliente assente»,
+        //  «Da riprogrammare» e «In valutazione» (messaggi a evento).
+        aggiornato = conStatoDal(attuale, aggiornato, new Date());
         const eraConvertito = eConvertito(attuale.stato);
         const oraConvertito = eConvertito(aggiornato.stato);
         if (!eraConvertito && oraConvertito && !aggiornato.convertedAt) {

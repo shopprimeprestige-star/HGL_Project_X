@@ -641,7 +641,11 @@ export async function proveQuando(mod, { c, gruppo }) {
   const r1 = unica(coda([ricontatto("l-1", 1, "2026-10-23")], VEN10));
   c("ricontatto di oggi, senza ora, alle 10:00 → invia", "invia", r1?.tipo);
   c("…chiave r|tel9|AAAA-MM-GG", `r|${t9(1)}|2026-10-23`, r1?.chiave);
-  c("…col giorno e senza recupero", { giorno: "2026-10-23", recupero: false }, r1?.extra);
+  c(
+    "…col giorno, senza recupero, e lo stato (da cui il giro ricava modello e tag)",
+    { giorno: "2026-10-23", recupero: false, stato: "da_ricontattare" },
+    r1?.extra,
+  );
   c("ricontatto di domani → niente", [], coda([ricontatto("l-1", 1, "2026-10-24")], VEN10));
   c("senza data → niente", [], coda([ricontatto("l-1", 1, undefined)], VEN10));
   c("data scritta male → niente", [], coda([ricontatto("l-1", 1, "domani")], VEN10));
@@ -722,11 +726,43 @@ export async function proveQuando(mod, { c, gruppo }) {
 
   //  Chi è un lead del consulente.
   c(
-    "stato «ricontatto fissato», «in valutazione», «fissa meet dopo» → tutti e tre",
-    [true, true, true],
-    ["da_ricontattare", "sta_valutando", "fissa_meet_dopo"].map(
+    "«ricontatto fissato» segue l'interruttore dei ricontatti; gli altri cinque stati a data vogliono il loro, spento di serie",
+    [true, false, false, false, false, false],
+    [
+      "da_ricontattare",
+      "sta_valutando",
+      "fissa_meet_dopo",
+      "in_attesa_acconto",
+      "gestire_in_chat",
+      "da_spostare",
+    ].map(
       (stato) =>
         coda([riga("l-1", 1, { stato, dataRicontatto: "2026-10-23" })], VEN10).length === 1,
+    ),
+  );
+  c(
+    "…accesi nel riquadro (prima di oggi) partono tutti e sei",
+    [true, true, true, true, true, true],
+    [
+      "da_ricontattare",
+      "sta_valutando",
+      "fissa_meet_dopo",
+      "in_attesa_acconto",
+      "gestire_in_chat",
+      "da_spostare",
+    ].map(
+      (stato) =>
+        coda([riga("l-1", 1, { stato, dataRicontatto: "2026-10-23" })], VEN10, {
+          statiAccesi: Object.fromEntries(
+            [
+              "sta_valutando",
+              "fissa_meet_dopo",
+              "in_attesa_acconto",
+              "gestire_in_chat",
+              "da_spostare",
+            ].map((x) => [x, ACCESO]),
+          ),
+        }).length === 1,
     ),
   );
   c(
@@ -751,7 +787,11 @@ export async function proveQuando(mod, { c, gruppo }) {
   const rec = unica(coda([ricontatto("l-1", 1, "2026-10-22")], VEN10));
   c(
     "ieri non è partito → oggi si recupera, e lo dice",
-    ["invia", `r|${t9(1)}|2026-10-22`, { giorno: "2026-10-22", recupero: true }],
+    [
+      "invia",
+      `r|${t9(1)}|2026-10-22`,
+      { giorno: "2026-10-22", recupero: true, stato: "da_ricontattare" },
+    ],
     [rec?.tipo, rec?.chiave, rec?.extra],
   );
   c(

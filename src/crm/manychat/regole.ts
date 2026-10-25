@@ -104,26 +104,45 @@ export function eImportato(l: { data: Partial<LeadData> }): boolean {
   return !!l.data.importato && !(l.data.dataMeeting && l.data.consulenteId);
 }
 
-/** Gli stati in cui un consulente ha una trattativa da riprendere con un
- *  ricontatto: «Ricontatto fissato», «In valutazione», «Fissa meet dopo».
- *  Esclusi `richiamo` (lo fa il setter) e `ci_ricontatta_lui` (aspettiamo noi). */
-export const STATI_RICONTATTO_AUTOMATICO = ["da_ricontattare", "sta_valutando", "fissa_meet_dopo"];
+/** Gli stati dei messaggi «A DATA» (piano §5g): il giorno di `dataRicontatto` il
+ *  consulente ricontatta. «Ricontatto fissato», «In valutazione», «Meet da
+ *  fissare», «Attesa acconto», «Lead in chat» e «Da riprogrammare» (quest'ultimo
+ *  solo se ha una data; senza, parte a evento dopo 30'). Esclusi `richiamo`
+ *  (a orario) e `ci_ricontatta_lui` (aspettiamo noi). La prova confronta
+ *  quest'elenco con la tabella di `stati.ts`. */
+export const STATI_RICONTATTO_AUTOMATICO = [
+  "da_ricontattare",
+  "sta_valutando",
+  "fissa_meet_dopo",
+  "in_attesa_acconto",
+  "gestire_in_chat",
+  "da_spostare",
+];
 
-/** La scheda è di un consulente (non del setter, non importata) e in uno stato
- *  per cui si ricontatta. `consulenti` = quelli dell'installazione.
- *  Il ruolo si legge da `mestieriDi` (ripiego di lettura «consulente sì» per
- *  chi non ha mai compilato i mestieri), non si indovina dal nome. */
-export function eLeadDelConsulente(
+/** La scheda è di un consulente: `consulenteId` di un consulente attivo con
+ *  `faConsulente`, e non in «Lead importati». Non guarda lo stato. `consulenti`
+ *  = quelli dell'installazione. Il ruolo si legge da `mestieriDi` (ripiego di
+ *  lettura «consulente sì» per chi non ha mai compilato i mestieri), non si
+ *  indovina dal nome. */
+export function eDelConsulente(
   l: { data: Partial<LeadData> },
   consulenti: Pick<Consultant, "id" | "data">[],
 ): boolean {
   if (eImportato(l)) return false;
-  if (!STATI_RICONTATTO_AUTOMATICO.includes(String(l.data.stato ?? ""))) return false;
   const id = l.data.consulenteId;
   if (!id) return false;
   const c = consulenti.find((x) => x.id === id);
   if (!c || c.data?.attivo !== true) return false;
   return mestieriDi(c.data).faConsulente === true;
+}
+
+/** La scheda è di un consulente e in uno stato «a data» (`STATI_RICONTATTO_AUTOMATICO`). */
+export function eLeadDelConsulente(
+  l: { data: Partial<LeadData> },
+  consulenti: Pick<Consultant, "id" | "data">[],
+): boolean {
+  if (!STATI_RICONTATTO_AUTOMATICO.includes(String(l.data.stato ?? ""))) return false;
+  return eDelConsulente(l, consulenti);
 }
 
 /** Il telefono come lo vuole il registro: solo cifre col prefisso (riusa

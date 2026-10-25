@@ -15,7 +15,12 @@ import type { LeadData } from "../types";
 import { linkStanzaDi } from "../whatsapp";
 import { linkPerPersona } from "@/shop/chi-dal-link";
 import { gettoneDi } from "../fascia-consulenza";
-import { nomePerModello, numeroPerWhatsapp, oraNormale } from "../promemoria/formati";
+import {
+  giornoParlato,
+  nomePerModello,
+  numeroPerWhatsapp,
+  oraNormale,
+} from "../promemoria/formati";
 
 /** I campi del contatto ManyChat che il CRM scrive (nome del campo → valore). */
 export type CampiContatto = Record<string, string>;
@@ -122,6 +127,66 @@ export function campiMeetAdesso(
   const link = linkPerCliente(d, leadId);
   if (!link) return salta("manca il link del meet");
   return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi, crm_link_meet: link } };
+}
+
+/** ── I MESSAGGI PER STATO (commessa 2026-10-25, piano §5g) ─────────────────
+ *  Le variabili nell'ordine di `MODELLI-MANYCHAT.md`, come per le sequenze:
+ *   · nome + consulente: `hgl_ricontatto_consulenza` («Ricontatto fissato»,
+ *     «In valutazione», «Attesa acconto», «Lead in chat»), `hgl_meet_da_fissare`,
+ *     `hgl_da_riprogrammare`;
+ *   · nome + ora della chiamata: `hgl_richiamo_concordato`;
+ *   · nome: `hgl_non_risponde`, `hgl_cliente_assente`, `hgl_sede_disdetta`,
+ *     `hgl_ultimo_tentativo`;
+ *   · nome, giorno («giovedì 29 ottobre»), ora, indirizzo: `hgl_promemoria_sede`.
+ *  Una variabile vuota → `salta`, mai un buco. Il consulente è quello della
+ *  scheda; l'indirizzo viene dal riquadro (`indirizzoSede`). */
+export function campiPerStato(
+  stato: string,
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
+  indirizzoSede?: string | null,
+): CampiOSalta {
+  switch (stato) {
+    case "da_ricontattare":
+    case "sta_valutando":
+    case "fissa_meet_dopo":
+    case "in_attesa_acconto":
+    case "gestire_in_chat":
+    case "da_spostare":
+      return campiRicontatto(d, consulente);
+    case "richiamo": {
+      const nome = nomePerModello(d.nome);
+      if (!nome) return salta("manca il nome");
+      const ora = oraNormale(d.oraRicontatto);
+      if (!ora) return salta("manca l'ora della chiamata");
+      return { tipo: "campi", campi: { crm_nome: nome, crm_ora: ora } };
+    }
+    case "non_risponde":
+    case "segreteria":
+    case "no_show":
+    case "non_fatto":
+    case "sede_disdetta":
+    case "irreperibile":
+      return campiPrimoContatto(d);
+    case "viene_in_sede": {
+      const nome = nomePerModello(d.nome);
+      if (!nome) return salta("manca il nome");
+      const giorno = giornoParlato(String(d.dataVieneInSede ?? "").slice(0, 10));
+      if (!giorno) return salta("manca la data dell'appuntamento in sede");
+      const ora = oraNormale(d.oraVieneInSede);
+      if (!ora) return salta("manca l'ora dell'appuntamento in sede");
+      const indirizzo = String(indirizzoSede ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!indirizzo) return salta("manca l'indirizzo della sede");
+      return {
+        tipo: "campi",
+        campi: { crm_nome: nome, crm_giorno: giorno, crm_ora: ora, crm_indirizzo: indirizzo },
+      };
+    }
+    default:
+      return salta("stato senza messaggio");
+  }
 }
 
 /** I tre campi che servono a riconoscere la risposta: `crm_lead_id`,

@@ -42,7 +42,7 @@ import {
   ultimeNoveCifre,
   type InvioPerFreno,
 } from "./regole";
-import { campiPromemoria, campiRicontatto } from "./testi";
+import { campiPerStato, campiPromemoria } from "./testi";
 
 /** Ricontatti al giorno. */
 export const TETTO_RICONTATTI = 20;
@@ -219,6 +219,22 @@ export interface ContestoPromemoria extends ContestoQuando {
 export interface ContestoRicontatti extends ContestoQuando {
   /** `manychat_giro.prossimo_ricontatto_dopo`: prima di quest'ora non parte un ricontatto */
   prossimoDopo?: Date | null;
+  /** `manychat_config.stati`: stato → ISO dell'accensione (assente = spento). Vale
+   *  per gli stati «a data» diversi da «Ricontatto fissato», che segue l'interruttore
+   *  `ricontatti` (e `ultimaAccensione`). */
+  statiAccesi?: Record<string, string>;
+  /** l'interruttore «Ricontatti dei consulenti», che comanda «Ricontatto fissato».
+   *  Assente = acceso (chi chiama la coda lo fa a interruttore acceso). */
+  ricontattiAcceso?: boolean;
+}
+
+/** Il giorno di un ricontatto: la data scritta (`dataRicontatto`) o, di ripiego,
+ *  il giorno di Roma di `callbackAt`. `null` se la scheda non ne ha. */
+export function giornoDelRicontatto(d: Partial<LeadData>): string | null {
+  const giorno = giornoVero(d.dataRicontatto);
+  if (giorno) return giorno;
+  const t = d.callbackAt ? Date.parse(d.callbackAt) : Number.NaN;
+  return Number.isFinite(t) ? aRoma(new Date(t)).giorno : null;
 }
 
 export const TETTI_DI_SERIE: Tetti = {
@@ -364,11 +380,15 @@ export function decidiPromemoria(
 
 /** La coda dei ricontatti di oggi, nell'ordine in cui toccano.
  *
- *  Chi c'è: i lead dei consulenti (`eLeadDelConsulente`) con una data di
- *  ricontatto — `dataRicontatto`, o il giorno di Roma di `callbackAt` — che sia
+ *  Chi c'è: i lead dei consulenti (`eLeadDelConsulente`) negli stati «a data»
+ *  (`STATI_RICONTATTO_AUTOMATICO`) il cui messaggio è ACCESO — «Ricontatto fissato»
+ *  con l'interruttore dei ricontatti, gli altri con il loro in `statiAccesi` — e
+ *  con una data di ricontatto — `dataRicontatto`, o il giorno di Roma di `callbackAt` — che sia
  *  OGGI, oppure quella del giorno lavorativo prima (il recupero, UNA volta
  *  sola: il giorno dopo, saltando la domenica). Mai una data precedente al
- *  giorno dell'ultima accensione. Gli altri: niente, nemmeno una riga.
+ *  giorno dell'accensione del SUO stato. Gli altri: niente, nemmeno una riga.
+ *  Il modello e il tag li sceglie il giro dalla tabella di `stati.ts` con lo
+ *  `stato` che trova in `extra`.
  *
  *  L'ordine: prima i recuperi, poi chi ha l'ora fissata (la più vecchia), poi
  *  gli altri. Due schede con lo stesso telefono fanno UNA voce. Chi tocca adesso
@@ -382,17 +402,28 @@ export function codaRicontatti(
   adesso: Date,
   ultimaAccensione: string | null | undefined,
   contesto: ContestoRicontatti,
-): DecisioneQuando<{ giorno: string; recupero: boolean }>[] {
-  type Esito = DecisioneQuando<{ giorno: string; recupero: boolean }>;
+): DecisioneQuando<{ giorno: string; recupero: boolean; stato: string }>[] {
+  type Esito = DecisioneQuando<{ giorno: string; recupero: boolean; stato: string }>;
   const invii = contesto.invii ?? [];
   const tetti = contesto.tetti ?? TETTI_DI_SERIE;
   const { giorno: oggi, minuti } = aRoma(adesso);
-  //  Una data di accensione mancante vale «da oggi»: niente recuperi.
-  const accesa = ultimaAccensione ? Date.parse(ultimaAccensione) : Number.NaN;
-  const dalGiorno = Number.isFinite(accesa) ? aRoma(new Date(accesa)).giorno : oggi;
+  //  Da che giorno vale lo stato: «Ricontatto fissato» dall'ultima accensione dei
+  //  ricontatti (mancante = «da oggi», niente recuperi); gli altri dall'accensione
+  //  del loro interruttore (assente o illeggibile = spento, `null`).
+  const dalGiornoDi = (stato: string): string | null => {
+    if (stato === "da_ricontattare") {
+      if (contesto.ricontattiAcceso === false) return null;
+      const accesa = ultimaAccensione ? Date.parse(ultimaAccensione) : Number.NaN;
+      return Number.isFinite(accesa) ? aRoma(new Date(accesa)).giorno : oggi;
+    }
+    const iso = contesto.statiAccesi?.[stato];
+    const t = iso ? Date.parse(iso) : Number.NaN;
+    return Number.isFinite(t) ? aRoma(new Date(t)).giorno : null;
+  };
 
   type Candidato = {
     scheda: SchedaQuando;
+    stato: string;
     giorno: string;
     recupero: boolean;
     ora: string | null;
@@ -406,12 +437,10 @@ export function codaRicontatti(
   for (const scheda of schede) {
     const d = scheda.data;
     if (!eLeadDelConsulente(scheda, contesto.consulenti)) continue;
-    //  Il giorno del ricontatto: la data scritta, o (ripiego) il giorno di Roma di callbackAt.
-    let giorno = giornoVero(d.dataRicontatto);
-    if (!giorno && d.callbackAt) {
-      const t = Date.parse(d.callbackAt);
-      if (Number.isFinite(t)) giorno = aRoma(new Date(t)).giorno;
-    }
+    const stato = String(d.stato ?? "");
+    const dalGiorno = dalGiornoDi(stato);
+    if (dalGiorno === null) continue;
+    const giorno = giornoDelRicontatto(d);
     if (!giorno || giorno < dalGiorno || giorno > oggi) continue;
     const recupero = giorno < oggi;
     if (recupero && giornoDiRecupero(giorno) !== oggi) continue;
@@ -431,7 +460,7 @@ export function codaRicontatti(
       continue;
     }
     const consulente = contesto.consulenti.find((c) => c.id === d.consulenteId);
-    const campi = campiRicontatto(d, consulente?.data?.nome);
+    const campi = campiPerStato(stato, d, consulente?.data?.nome);
     if (campi.tipo === "salta") {
       salta(campi.motivo);
       continue;
@@ -441,7 +470,7 @@ export function codaRicontatti(
     if (chiaveGiaPresa(invii, chiave)) continue;
     //  L'ora fissata vale per il suo giorno; il recupero parte come gli altri.
     const ora = recupero ? null : oraNormale(d.oraRicontatto);
-    candidati.push({ scheda, giorno, recupero, ora, chiave, numero, tel9 });
+    candidati.push({ scheda, stato, giorno, recupero, ora, chiave, numero, tel9 });
   }
 
   candidati.sort(
@@ -487,7 +516,7 @@ export function codaRicontatti(
         tipo: "invia",
         scheda: k.scheda,
         chiave: k.chiave,
-        extra: { giorno: k.giorno, recupero: k.recupero },
+        extra: { giorno: k.giorno, recupero: k.recupero, stato: k.stato },
       });
     }
   }

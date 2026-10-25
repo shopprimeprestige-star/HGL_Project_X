@@ -39,6 +39,7 @@ import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, mostraLaCopia, type Motivo } f
 //  Chi ha PRESO l'appuntamento (≠ chi ha toccato lo stato per ultimo, ≠ chi lo
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
+import { conStatoDal } from "./stato-dal";
 //  «L'appuntamento si è spostato?» — la regola sta a parte perché si prova:
 //  vedi crm/spostamento-meet.ts e proveDelloSpostamento in prove/prove.mjs.
 import { anteprimaDaRifare, consulenzaSpostata } from "./spostamento-meet";
@@ -788,6 +789,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     let merged = applyAutoStatus({ ...current.data, ...patch } as LeadData, {
       statoScelto: patch.stato !== undefined,
     });
+    //  ⚠️ `statoDal`: lo stato FINALE (dopo `applyAutoStatus`) contro quello di prima,
+    //   non «la patch contiene `stato`» (LeadDialog salva il modulo intero).
+    merged = conStatoDal(current.data, merged, new Date());
     //  ── DA DOVE VENIVA QUESTO LEAD ──────────────────────────────────────────
     //   Ogni cambio di stato lascia dietro di sé quello di prima. Serve al tasto
     //   "torna indietro" della pagina Oggi: segnare "cliente assente" al posto

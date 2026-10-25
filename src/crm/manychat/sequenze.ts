@@ -121,7 +121,7 @@ const GIORNO_A_PAROLE = new Intl.DateTimeFormat("it-IT", {
   month: "long",
   timeZone: "Europe/Rome",
 });
-const quandoParte = (d: Date) =>
+export const quandoParte = (d: Date) =>
   `parte alle ${oraDi(aRoma(d).minuti)} di ${GIORNO_A_PAROLE.format(d)}`;
 
 /** Il primo istante utile per scrivere — dalle 9:00 alle 20:00 da lunedì a
