@@ -625,6 +625,13 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
     ),
   );
   c(
+    "…e il menu Altro toglie l'Origine prima di spegnere la voce",
+    true,
+    /if \(filtri\.origine === "google_sheets" && \(v === "tutti" \|\| daVoceFoglio\)\)\s*cambiaFiltri\(senzaOrigine\(\)\);\s*setDaVoceFoglio\(false\);/.test(
+      paginaTsx,
+    ),
+  );
+  c(
     "…e «Già lavorati» la chiama prima di aprire la lista",
     true,
     /esciDalFoglio\(\);\s*setStatoTutti\(st\);/.test(paginaTsx),

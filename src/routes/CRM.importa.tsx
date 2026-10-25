@@ -1606,9 +1606,13 @@ function LeadImportatiUnoAllaVolta() {
     cambiaFiltri({ ...senzaOrigine(), ...v.filtro });
   };
   const apriDalMenuAltro = (v: VistaImporta) => {
+    //  ⚠️ L'Origine si toglie PRIMA di spegnere la voce: dopo, l'effetto sulla
+    //   vista troverebbe la voce già spenta e lascerebbe il filtro acceso
+    //   (Lead da Google Sheets › Doppioni › Da chiamare: revisione del 2° giro).
+    if (filtri.origine === "google_sheets" && (v === "tutti" || daVoceFoglio))
+      cambiaFiltri(senzaOrigine());
     setDaVoceFoglio(false);
     setVista(v);
-    if (v === "tutti" && filtri.origine === "google_sheets") cambiaFiltri(senzaOrigine());
   };
   /** Si lascia «Tutta la lista» aperta dalla voce del foglio: l'Origine che la
    *  voce aveva messo si toglie e la voce non è più aperta (vedi
