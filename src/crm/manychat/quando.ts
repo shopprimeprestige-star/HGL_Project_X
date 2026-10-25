@@ -22,6 +22,9 @@
  *   - ritmo fra due ricontatti: 27-33 minuti (numero casuale passato da fuori).
  *   - tetti: il minimo fra il valore del riquadro e le costanti qui sotto. Le
  *     costanti non si alzano da nessuna parte (né dal riquadro né dal browser).
+ *     Commessa 2026-10-25: totale 100 sugli otto tipi automatici del giro,
+ *     lead nuovi 30, e una RISERVA di 30 posti per gli appuntamenti (primo
+ *     contatto, richiamo e ricontatto contano contro `totale − 30`).
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { Consultant, LeadData } from "../types";
 import { eAppuntamento } from "../types";
@@ -30,6 +33,7 @@ import { istanteDiRoma } from "./contatto";
 import {
   FRENO_ANCHE_PER_PROMEMORIA,
   STATI_ARRIVATI,
+  TIPI_NEI_TETTI,
   aspettaRisposta,
   consensoWhatsapp,
   eImportato,
@@ -42,8 +46,16 @@ import { campiPromemoria, campiRicontatto } from "./testi";
 
 /** Ricontatti al giorno. */
 export const TETTO_RICONTATTI = 20;
-/** Messaggi automatici in tutto al giorno (promemoria + ricontatti). */
-export const TETTO_TOTALE = 40;
+/** Messaggi automatici in tutto al giorno: gli otto tipi del giro (`TIPI_NEI_TETTI`).
+ *  Era 40 su promemoria e ricontatti; con tre messaggi per appuntamento il
+ *  giorno del meet sarebbe saltato proprio il messaggio col link delle 18:00.
+ *  100 resta sotto il primo limite di Meta (250 persone al giorno). */
+export const TETTO_TOTALE = 100;
+/** Messaggi ai lead nuovi al giorno (primo contatto + richiamo a 24 h). */
+export const TETTO_LEAD_NUOVI = 30;
+/** Posti del totale tenuti liberi per gli appuntamenti: primo contatto, richiamo
+ *  e ricontatto contano contro `totale − RISERVA_APPUNTAMENTI`. Uguale in SQL. */
+export const RISERVA_APPUNTAMENTI = 30;
 /** Ricontatti al giorno nei primi 7 giorni da `primaAccensione`. */
 export const TETTO_PRIMA_SETTIMANA = 10;
 /** Il ritmo fra due ricontatti, in minuti. */
@@ -65,9 +77,10 @@ export const CHIUSURA_RICONTATTI_MIN = 20 * 60;
 /** La «prima settimana» dei tetti: i giorni dalla prima accensione. */
 export const GIORNI_PRIMA_SETTIMANA = 7;
 
-/** Tre numeri: quanti messaggi, di che tipo, si possono mandare oggi. */
+/** I numeri: quanti messaggi, di che tipo, si possono mandare oggi. */
 export interface Tetti {
   ricontatti: number;
+  leadNuovi: number;
   totale: number;
 }
 
@@ -80,7 +93,7 @@ function abbassa(v: unknown, costante: number): number {
 }
 
 /** I tetti di oggi: il minimo fra il riquadro e le costanti (il riquadro a 500
- *  vale 20), con la prima settimana a 10 ricontatti.
+ *  vale 20, 30 e 100), con la prima settimana a 10 ricontatti.
  *  La prima settimana conta dalla PRIMA accensione (non dall'ultima: uno
  *  spegni-accendi non la fa ricominciare), con lo stesso confronto dell'SQL:
  *  `now() < prima_accensione + 7 giorni`. Una data mancante o illeggibile vale
@@ -91,13 +104,18 @@ export function tettiDelGiorno(
   adesso: Date,
 ): Tetti {
   let ricontatti = abbassa(riquadro?.ricontatti, TETTO_RICONTATTI);
+  const leadNuovi = abbassa(riquadro?.leadNuovi, TETTO_LEAD_NUOVI);
   const totale = abbassa(riquadro?.totale, TETTO_TOTALE);
   const prima = primaAccensione ? Date.parse(primaAccensione) : Number.NaN;
   const nellaPrimaSettimana =
     !Number.isFinite(prima) || adesso.getTime() < prima + GIORNI_PRIMA_SETTIMANA * 86_400_000;
   if (nellaPrimaSettimana) ricontatti = Math.min(ricontatti, TETTO_PRIMA_SETTIMANA);
-  return { ricontatti, totale };
+  return { ricontatti, leadNuovi, totale };
 }
+
+/** Il posto che resta nel totale per primo contatto, richiamo e ricontatto: il
+ *  totale meno la riserva per gli appuntamenti (mai sotto zero). */
+export const totaleSenzaRiserva = (totale: number) => Math.max(0, totale - RISERVA_APPUNTAMENTI);
 
 /** Una scheda con il suo id, quanto serve a scegliere. */
 export interface SchedaQuando {
@@ -110,11 +128,12 @@ export type DecisioneQuando<T> =
   | { tipo: "aspetta"; scheda: SchedaQuando; motivo: string }
   | { tipo: "salta"; scheda: SchedaQuando; motivo: string };
 
-/** ── Piccoli arnesi di calendario (tutti ora di Roma) ───────────────────── */
+/** ── Piccoli arnesi di calendario (tutti ora di Roma) ─────────────────────
+ *  Esportati perché li usa anche `sequenze.ts` (stesse regole, un posto solo). */
 const GIORNO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** «AAAA-MM-GG» vero, altrimenti `null` (accetta anche un ISO: ne prende il giorno). */
-function giornoVero(v: unknown): string | null {
+export function giornoVero(v: unknown): string | null {
   const g = typeof v === "string" ? v.slice(0, 10) : "";
   const m = GIORNO.exec(g);
   if (!m) return null;
@@ -122,11 +141,11 @@ function giornoVero(v: unknown): string | null {
   const x = new Date(Date.UTC(a, me - 1, d));
   return x.getUTCFullYear() === a && x.getUTCMonth() === me - 1 && x.getUTCDate() === d ? g : null;
 }
-const giornoDopo = (g: string) => {
+export const giornoDopo = (g: string) => {
   const [a, m, d] = g.split("-").map(Number);
   return new Date(Date.UTC(a, m - 1, d + 1)).toISOString().slice(0, 10);
 };
-const giornoDellaSettimana = (g: string) => new Date(`${g}T00:00:00Z`).getUTCDay();
+export const giornoDellaSettimana = (g: string) => new Date(`${g}T00:00:00Z`).getUTCDay();
 /** Il giorno in cui si recupera un ricontatto di `g`: il primo giorno dopo che
  *  non sia domenica. */
 function giornoDiRecupero(g: string): string {
@@ -134,15 +153,20 @@ function giornoDiRecupero(g: string): string {
   return giornoDellaSettimana(dopo) === 0 ? giornoDopo(dopo) : dopo;
 }
 const dueCifre = (n: number) => String(n).padStart(2, "0");
-const oraDi = (minuti: number) => `${dueCifre(Math.floor(minuti / 60))}:${dueCifre(minuti % 60)}`;
-const minutiDi = (hm: string) => {
+export const oraDi = (minuti: number) =>
+  `${dueCifre(Math.floor(minuti / 60))}:${dueCifre(minuti % 60)}`;
+export const minutiDi = (hm: string) => {
   const [h, m] = hm.split(":").map(Number);
   return h * 60 + m;
 };
 
 /** Contatori di oggi sul registro: i messaggi che possono essere arrivati
  *  (prenotato / inviato / incerto, mai fallito o saltato), di oggi a Roma. */
-function contaOggi(invii: InvioPerFreno[], oggi: string, tipi: InvioPerFreno["tipo"][]): number {
+export function contaOggi(
+  invii: InvioPerFreno[],
+  oggi: string,
+  tipi: InvioPerFreno["tipo"][],
+): number {
   return invii.filter((i) => {
     if (!tipi.includes(i.tipo) || !STATI_ARRIVATI.includes(i.stato)) return false;
     const t = Date.parse(i.prenotatoIl);
@@ -155,12 +179,12 @@ function contaOggi(invii: InvioPerFreno[], oggi: string, tipi: InvioPerFreno["ti
  *  la tiene per sempre, e l'SQL risponderebbe `gia_preso`. Dirlo qui evita un
  *  `invia` che non può partire e che, in testa alla coda, fermerebbe tutti gli
  *  altri. (Le righe `saltato` senza chiave non contano: sono libere.) */
-const chiaveGiaPresa = (invii: InvioPerFreno[], chiave: string) =>
+export const chiaveGiaPresa = (invii: InvioPerFreno[], chiave: string) =>
   invii.some((i) => i.chiave === chiave);
 
 /** Pausa per contatto: un invio a quel telefono negli ultimi 120 s (le
  *  variabili `crm_*` stanno sul contatto: due invii vicini si pesterebbero). */
-function inPausa(invii: InvioPerFreno[], tel9: string, adesso: Date): boolean {
+export function inPausa(invii: InvioPerFreno[], tel9: string, adesso: Date): boolean {
   return invii.some((i) => {
     if (!STATI_ARRIVATI.includes(i.stato) || ultimeNoveCifre(i.telefono) !== tel9) return false;
     const t = Date.parse(i.prenotatoIl);
@@ -169,8 +193,8 @@ function inPausa(invii: InvioPerFreno[], tel9: string, adesso: Date): boolean {
   });
 }
 
-const FRASE_FRENO = "aspetta ancora una risposta";
-const FRASE_PAUSA = "pausa per contatto: un invio a questo numero meno di due minuti fa";
+export const FRASE_FRENO = "aspetta ancora una risposta";
+export const FRASE_PAUSA = "pausa per contatto: un invio a questo numero meno di due minuti fa";
 
 /** Cosa serve a decidere oltre alle schede. Niente di tutto questo si legge
  *  dal database qui dentro: lo porta chi chiama (il giro). */
@@ -181,6 +205,10 @@ export interface ContestoQuando {
   invii?: InvioPerFreno[];
   /** i tetti di oggi, da `tettiDelGiorno` */
   tetti?: Tetti;
+  /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo.
+   *  Assente o `null` = nessuna data segnata, il modulo non vale per nessuno
+   *  (la scelta prudente: chi si dimentica di passarla non manda a sbagliato). */
+  fraseModuloDal?: string | null;
 }
 
 export interface ContestoPromemoria extends ContestoQuando {
@@ -193,7 +221,11 @@ export interface ContestoRicontatti extends ContestoQuando {
   prossimoDopo?: Date | null;
 }
 
-const TETTI_DI_SERIE: Tetti = { ricontatti: TETTO_RICONTATTI, totale: TETTO_TOTALE };
+export const TETTI_DI_SERIE: Tetti = {
+  ricontatti: TETTO_RICONTATTI,
+  leadNuovi: TETTO_LEAD_NUOVI,
+  totale: TETTO_TOTALE,
+};
 
 /** Quali promemoria toccano adesso (bersaglio −25' dal meet, accettati fino a −15').
  *
@@ -252,7 +284,7 @@ export function decidiPromemoria(
       salta("numero non valido");
       continue;
     }
-    if (!consensoWhatsapp(d).si) {
+    if (!consensoWhatsapp(d, contesto.fraseModuloDal ?? null).si) {
       salta("manca il consenso WhatsApp");
       continue;
     }
@@ -307,7 +339,7 @@ export function decidiPromemoria(
       salta(FRASE_FRENO);
       continue;
     }
-    if (contaOggi(invii, oggi, ["promemoria", "ricontatto"]) >= tetti.totale) {
+    if (contaOggi(invii, oggi, TIPI_NEI_TETTI) >= tetti.totale) {
       salta("tetto di messaggi di oggi raggiunto");
       continue;
     }
@@ -394,7 +426,7 @@ export function codaRicontatti(
       salta("numero non valido");
       continue;
     }
-    if (!consensoWhatsapp(d).si) {
+    if (!consensoWhatsapp(d, contesto.fraseModuloDal ?? null).si) {
       salta("manca il consenso WhatsApp");
       continue;
     }
@@ -422,7 +454,7 @@ export function codaRicontatti(
   );
 
   const ricontattiOggi = contaOggi(invii, oggi, ["ricontatto"]);
-  const totaleOggi = contaOggi(invii, oggi, ["promemoria", "ricontatto"]);
+  const totaleOggi = contaOggi(invii, oggi, TIPI_NEI_TETTI);
   const domenica = giornoDellaSettimana(oggi) === 0;
   const dentroOrario = minuti >= APERTURA_RICONTATTI_MIN && minuti < CHIUSURA_RICONTATTI_MIN;
   const prossimo = contesto.prossimoDopo ?? null;
@@ -444,7 +476,7 @@ export function codaRicontatti(
       aspetta(`ora fissata: alle ${k.ora}`);
     } else if (ricontattiOggi >= tetti.ricontatti) {
       aspetta("tetto dei ricontatti di oggi raggiunto: se ne parla domani");
-    } else if (totaleOggi >= tetti.totale) {
+    } else if (totaleOggi >= totaleSenzaRiserva(tetti.totale)) {
       aspetta("tetto di messaggi di oggi raggiunto: se ne parla domani");
     } else if (inPausa(invii, k.tel9, adesso)) {
       aspetta(FRASE_PAUSA);

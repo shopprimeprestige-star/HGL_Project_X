@@ -44,57 +44,114 @@ export async function proveRegole(mod, { c, gruppo }) {
   gruppo("MANYCHAT · CHI PUÒ RICEVERE (regole.ts)");
 
   /* ── consenso ──────────────────────────────────────────────────────────── */
+  const FRASE = "2026-10-20T00:00:00.000Z";
   c(
     "senza niente: nessun consenso",
     { si: false, via: null, il: null, da: null },
-    R.consensoWhatsapp({}),
+    R.consensoWhatsapp({}, FRASE),
   );
   c(
     "scheda null/undefined: nessun consenso",
     [false, false],
-    [R.consensoWhatsapp(null).si, R.consensoWhatsapp(undefined).si],
+    [R.consensoWhatsapp(null, FRASE).si, R.consensoWhatsapp(undefined, FRASE).si],
   );
   c(
-    "«Ok a WhatsApp» messo sulla scheda → consenso, con chi e quando",
-    { si: true, via: "scheda", il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" },
-    R.consensoWhatsapp({
-      okWhatsapp: { si: true, il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" },
-    }),
+    "«Ok a WhatsApp» messo sulla scheda → consenso, con chi e quando (anche senza la data della frase)",
+    [
+      { si: true, via: "scheda", il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" },
+      { si: true, via: "scheda", il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" },
+    ],
+    [FRASE, null].map((frase) =>
+      R.consensoWhatsapp(
+        { okWhatsapp: { si: true, il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" } },
+        frase,
+      ),
+    ),
   );
   c(
     "…interruttore spento → niente",
     false,
-    R.consensoWhatsapp({
-      okWhatsapp: { si: false, il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" },
-    }).si,
+    R.consensoWhatsapp(
+      { okWhatsapp: { si: false, il: "2026-10-22T09:00:00.000Z", da: "Giulia Demo" } },
+      FRASE,
+    ).si,
   );
   c(
-    "la casella del modulo, quando un giorno ci sarà → consenso",
-    { si: true, via: "modulo", il: "2026-10-01T08:00:00.000Z", da: null },
-    R.consensoWhatsapp({ consensoModulo: { whatsapp: true, il: "2026-10-01T08:00:00.000Z" } }),
+    "il modulo delle inserzioni, compilato DOPO la frase → consenso",
+    { si: true, via: "modulo", il: "2026-10-27T08:00:00.000Z", da: null },
+    R.consensoWhatsapp(
+      { consensoModulo: { whatsapp: true, il: "2026-10-27T08:00:00.000Z", via: "modulo_meta" } },
+      FRASE,
+    ),
+  );
+  c(
+    "…compilato nell'istante stesso della frase → vale (uguale o successivo)",
+    true,
+    R.consensoWhatsapp({ consensoModulo: { whatsapp: true, il: FRASE } }, FRASE).si,
+  );
+  c(
+    "CSV con modulo del 10/10 e frase segnata il 26/10 → nessun consenso dal modulo",
+    false,
+    R.consensoWhatsapp(
+      { consensoModulo: { whatsapp: true, il: "2026-10-10T09:00:00.000Z", via: "modulo_meta" } },
+      "2026-10-26T00:00:00.000Z",
+    ).si,
+  );
+  c(
+    "frase non segnata (null, assente, illeggibile) → il modulo non vale per nessuno",
+    [false, false, false],
+    [null, undefined, "boh"].map(
+      (frase) =>
+        R.consensoWhatsapp(
+          { consensoModulo: { whatsapp: true, il: "2026-10-27T08:00:00.000Z" } },
+          frase,
+        ).si,
+    ),
+  );
+  c(
+    "modulo senza data (il null, assente, illeggibile) → NON vale, anche dopo la frase",
+    [false, false, false],
+    [null, undefined, "ieri"].map(
+      (il) => R.consensoWhatsapp({ consensoModulo: { whatsapp: true, il } }, FRASE).si,
+    ),
   );
   c(
     "…casella del modulo vuota o falsa → niente",
     [false, false],
     [
-      R.consensoWhatsapp({ consensoModulo: {} }).si,
-      R.consensoWhatsapp({ consensoModulo: { whatsapp: false } }).si,
+      R.consensoWhatsapp({ consensoModulo: {} }, FRASE).si,
+      R.consensoWhatsapp(
+        { consensoModulo: { whatsapp: false, il: "2026-10-27T08:00:00.000Z" } },
+        FRASE,
+      ).si,
     ],
   );
   c(
-    "il consulente che SPEGNE «Ok a WhatsApp» batte la casella del modulo (revoca)",
+    "il consulente che SPEGNE «Ok a WhatsApp» batte il modulo (revoca), anche dopo la frase",
     false,
-    R.consensoWhatsapp({
-      okWhatsapp: { si: false, il: "2026-10-23T09:00:00.000Z", da: "Giulia Demo" },
-      consensoModulo: { whatsapp: true },
-    }).si,
+    R.consensoWhatsapp(
+      {
+        okWhatsapp: { si: false, il: "2026-10-23T09:00:00.000Z", da: "Giulia Demo" },
+        consensoModulo: { whatsapp: true, il: "2026-10-27T08:00:00.000Z" },
+      },
+      FRASE,
+    ).si,
   );
   c(
     'un valore che non è proprio `true` non vale ("true", 1)',
     [false, false],
     [
-      R.consensoWhatsapp({ okWhatsapp: { si: "true" } }).si,
-      R.consensoWhatsapp({ okWhatsapp: { si: 1 } }).si,
+      R.consensoWhatsapp({ okWhatsapp: { si: "true" } }, FRASE).si,
+      R.consensoWhatsapp({ okWhatsapp: { si: 1 } }, FRASE).si,
+    ],
+  );
+  c(
+    "moduloVale: lo stesso confronto, senza il permesso della scheda",
+    [true, false, false],
+    [
+      R.moduloVale({ consensoModulo: { whatsapp: true, il: "2026-10-27T08:00:00.000Z" } }, FRASE),
+      R.moduloVale({ consensoModulo: { whatsapp: true, il: "2026-10-27T08:00:00.000Z" } }, null),
+      R.moduloVale({ consensoModulo: { whatsapp: true, il: null } }, FRASE),
     ],
   );
 
@@ -409,9 +466,71 @@ export async function proveRegole(mod, { c, gruppo }) {
     ],
   );
   c(
-    "interruttore di regola: il freno vale anche per il promemoria, finché il titolare non decide",
-    true,
+    "interruttore di regola: il promemoria NON è frenato (risposta del titolare, SPEC 25/10 §3)",
+    false,
     R.FRENO_ANCHE_PER_PROMEMORIA,
+  );
+
+  //  ── Commessa 2026-10-25: i tipi nuovi e l'ultimo messaggio automatico.
+  const giusto = (tipo, prenotatoIl, extra) => ({
+    telefono: "393330000001",
+    tipo,
+    stato: "inviato",
+    prenotatoIl,
+    ...extra,
+  });
+  c(
+    "ultimoAutomatico: l'ultimo per ora di prenotazione, non per posizione; chat e webinar non contano",
+    ["n24|330000001", null],
+    [
+      R.ultimoAutomatico("393330000001", [
+        giusto("richiamo_24h", "2026-10-28T09:00:00.000Z", { chiave: "n24|330000001" }),
+        giusto("primo_contatto", "2026-10-27T09:00:00.000Z", { chiave: "n|330000001" }),
+        giusto("chat", "2026-10-29T09:00:00.000Z"),
+      ])?.chiave,
+      R.ultimoAutomatico("393330000001", [giusto("chat", "2026-10-29T09:00:00.000Z")]),
+    ],
+  );
+  c(
+    "…un invio fallito o saltato non è arrivato, quindi non è l'ultimo",
+    "n|330000001",
+    R.ultimoAutomatico("393330000001", [
+      giusto("primo_contatto", "2026-10-27T09:00:00.000Z", { chiave: "n|330000001" }),
+      giusto("richiamo_24h", "2026-10-28T09:00:00.000Z", { stato: "fallito" }),
+    ])?.chiave,
+  );
+  c(
+    "il primo contatto e il richiamo senza risposta frenano gli altri messaggi come ogni automatico",
+    [true, true],
+    [
+      R.aspettaRisposta(
+        "393330000001",
+        [giusto("primo_contatto", "2026-10-27T09:00:00.000Z")],
+        undefined,
+        new Date("2026-10-28T09:00:00.000Z"),
+      ),
+      R.aspettaRisposta(
+        "393330000001",
+        [giusto("richiamo_24h", "2026-10-28T09:00:00.000Z")],
+        undefined,
+        new Date("2026-10-28T10:00:00.000Z"),
+      ),
+    ],
+  );
+  c(
+    "l'elenco dei nove automatici: i tre di prima più i sei nuovi",
+    [
+      "promemoria",
+      "ricontatto",
+      "conferma",
+      "primo_contatto",
+      "richiamo_24h",
+      "meet_oggi",
+      "meet_adesso",
+      "promemoria_chiamata",
+      "promemoria_sede",
+    ],
+    R.TIPI_AUTOMATICI,
   );
 
   /* ── testi.ts: le variabili dei due modelli (col Lei) ─────────────────── */

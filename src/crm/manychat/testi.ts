@@ -76,6 +76,54 @@ export function campiRicontatto(
   return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi } };
 }
 
+/** ── I QUATTRO MODELLI DELLE SEQUENZE (commessa 2026-10-25) ───────────────
+ *  ⚠️ L'ORDINE DELLE CHIAVI È L'ORDINE DELLE VARIABILI DEL MODELLO: chi invia
+ *  prende i valori nell'ordine in cui sono qui (`Object.values(campi)` →
+ *  `crm_v1…crm_v4`). Le prove lo fissano. Mai il cognome. */
+
+/** `hgl_primo_contatto`: v1 nome. */
+export function campiPrimoContatto(d: Partial<LeadData>): CampiOSalta {
+  const nome = nomePerModello(d.nome);
+  if (!nome) return salta("manca il nome");
+  return { tipo: "campi", campi: { crm_nome: nome } };
+}
+
+/** `hgl_richiamo_24h`: v1 nome. */
+export function campiRichiamo(d: Partial<LeadData>): CampiOSalta {
+  return campiPrimoContatto(d);
+}
+
+/** `hgl_meet_oggi` (la mattina del meet): v1 nome, v2 ora, v3 consulente.
+ *  Non serve il link: il messaggio dice che arriva poco prima dell'inizio. */
+export function campiMeetOggi(
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
+): CampiOSalta {
+  const nome = nomePerModello(d.nome);
+  if (!nome) return salta("manca il nome");
+  const ora = oraNormale(d.oraMeeting);
+  if (!ora) return salta("manca l'ora del meet");
+  const chi = nomePerModello(consulente);
+  if (!chi) return salta("manca il nome del consulente");
+  return { tipo: "campi", campi: { crm_nome: nome, crm_ora_meet: ora, crm_consulente: chi } };
+}
+
+/** `hgl_meet_adesso` (all'ora esatta): v1 nome, v2 consulente, v3 link. Senza
+ *  link non parte: il messaggio serve proprio a farlo entrare. */
+export function campiMeetAdesso(
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
+  leadId?: string | null,
+): CampiOSalta {
+  const nome = nomePerModello(d.nome);
+  if (!nome) return salta("manca il nome");
+  const chi = nomePerModello(consulente);
+  if (!chi) return salta("manca il nome del consulente");
+  const link = linkPerCliente(d, leadId);
+  if (!link) return salta("manca il link del meet");
+  return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi, crm_link_meet: link } };
+}
+
 /** I tre campi che servono a riconoscere la risposta: `crm_lead_id`,
  *  `crm_invio_id`, `crm_telefono` (solo cifre). Senza scheda (webinar, chat)
  *  `crm_lead_id` non si scrive: la risposta si abbina comunque da `crm_invio_id`,
