@@ -1604,7 +1604,10 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     );
 
   const s1 = secco([meet("m1", 1, "15:30"), ric("r1", 2), ric("r2", 3)]);
-  const dettagli = (s) => s.righe.map((r) => [r.tipo, r.esito]);
+  //  La prova guarda anche le sequenze nuove (mattina, ora esatta…): questi controlli
+  //  parlano di promemoria e ricontatti, le altre righe hanno le loro prove in giro.mjs.
+  const vecchi = (s) => s.righe.filter((r) => ["promemoria", "ricontatto"].includes(r.tipo));
+  const dettagli = (s) => vecchi(s).map((r) => [r.tipo, r.esito]);
   c(
     "meet alle 15:30 alle 15:06 → scriverebbe; il primo ricontatto scriverebbe, il secondo aspetta (uno alla volta)",
     [
@@ -1619,6 +1622,14 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     [true, "Anna P."],
     [s1.righe.every((r) => r.motivo.length > 3), s1.righe[0].nome],
   );
+  c(
+    "…e con la stessa prova si vede anche cosa farebbero la mattina e l'ora esatta del meet",
+    ["aspetta", "salta"],
+    [
+      s1.righe.find((r) => r.tipo === "meet_adesso")?.esito,
+      s1.righe.find((r) => r.tipo === "meet_oggi")?.esito,
+    ],
+  );
   c("…l'ora è quella data", ora1506.toISOString(), s1.adesso);
   c("…mai il telefono nelle righe", false, /\d{6,}/.test(JSON.stringify(s1)));
   const s2 = secco([meet("m1", 1, "15:30", { okWhatsapp: undefined })]);
@@ -1631,13 +1642,13 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   c(
     "al massimo 2 invii per giro: il terzo aspetta il giro dopo",
     ["scriverebbe", "scriverebbe", "aspetta"],
-    s3.righe.map((r) => r.esito),
+    vecchi(s3).map((r) => r.esito),
   );
   const s4 = secco([meet("m1", 1, "18:00")]);
   c(
     "meet lontano: aspetta, e dice a che ora parte",
     ["aspetta", true],
-    [s4.righe[0].esito, /17:35/.test(s4.righe[0].motivo)],
+    [vecchi(s4)[0].esito, /17:35/.test(vecchi(s4)[0].motivo)],
   );
   c("nessuno da toccare: elenco vuoto", [], secco([sched("x", 9, { stato: "nuovo_lead" })]).righe);
   const s5 = secco([ric("r1", 2)], { prossimoDopo: new Date("2026-10-23T13:30:00.000Z") });

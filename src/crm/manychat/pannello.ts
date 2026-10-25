@@ -723,7 +723,7 @@ export function costruisciStato(d: DatiStato, adesso: Date): StatoManychat {
   };
   const arrivato = (i: RigaInvio) => (STATI_ARRIVATI as string[]).includes(i.stato);
   //  Tutto quello che conta nel tetto del giorno (`TIPI_NEI_TETTI`: la conferma no).
-  const dioggi = d.invii.filter((i) => TIPI_NEI_TETTI.includes(i.tipo));
+  const dioggi = d.invii.filter((i) => (TIPI_NEI_TETTI as string[]).includes(i.tipo));
   const dioggiArrivati = dioggi.filter((i) => arrivato(i) && giornoDi(i.prenotato_il) === oggi);
 
   const dalRegistro: ProblemaGiro[] = d.problemi

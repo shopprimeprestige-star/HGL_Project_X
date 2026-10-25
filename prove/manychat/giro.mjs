@@ -21,6 +21,16 @@ import { creaFinto, creaOrologio, esiti, PERCORSI } from "./finto.mjs";
 const CHIAVE = "chiave-finta-0000";
 const ADESSO = Date.parse("2026-10-23T13:06:00Z");
 const MIN = 60_000;
+const TIPI8 = [
+  "promemoria",
+  "ricontatto",
+  "primo_contatto",
+  "richiamo_24h",
+  "meet_oggi",
+  "meet_adesso",
+  "promemoria_chiamata",
+  "promemoria_sede",
+];
 const GIORNO = 86_400_000;
 const U = "u-1";
 const NS_PROM = "content-prom-1";
@@ -69,6 +79,13 @@ export async function proveGiro(mod, { c, gruppo }) {
     acceso: true,
     promemoria: true,
     ricontatti: true,
+    //  le colonne di S2: spente di serie (il giro di prima resta identico)
+    leadNuovo: false,
+    giornoMeet: false,
+    leadNuovoDal: null,
+    stati: {},
+    indirizzoSede: null,
+    fraseModuloDal: null,
     tetti: {},
     flussi: { hgl_promemoria_meet: NS_PROM, hgl_ricontatto_consulenza: NS_RIC },
     primaAccensione: new Date(ADESSO - 30 * GIORNO).toISOString(),
@@ -132,22 +149,31 @@ export async function proveGiro(mod, { c, gruppo }) {
       const contano = m.invii.filter(
         (r) =>
           r.userId === userId &&
-          ["promemoria", "ricontatto"].includes(r.tipo) &&
+          TIPI8.includes(r.tipo) &&
           ["prenotato", "inviato", "incerto"].includes(r.stato) &&
           giornoRoma(r.prenotatoMs) === oggi,
       );
       const abbassa = (v, costante) =>
         typeof v === "number" && v >= 0 ? Math.min(costante, v) : costante;
       let maxRic = abbassa(tetti.ricontatti, 20);
-      const maxTot = abbassa(tetti.totale, 40);
+      const maxLn = abbassa(tetti.leadNuovi, 30);
+      const maxTot = abbassa(tetti.totale, 100);
+      //  la riserva di 30 posti per gli appuntamenti (S2)
+      const riservato = ["primo_contatto", "richiamo_24h", "ricontatto"].includes(p.tipo);
+      const limite = riservato ? Math.max(0, maxTot - 30) : maxTot;
       const prima = m.config.primaAccensione ? Date.parse(m.config.primaAccensione) : ora;
       if (ora < prima + 7 * GIORNO) maxRic = Math.min(maxRic, 10);
-      if (contano.length >= maxTot) return { motivo: "tetto_totale" };
+      if (contano.length >= limite) return { motivo: "tetto_totale" };
       if (
         p.tipo === "ricontatto" &&
         contano.filter((r) => r.tipo === "ricontatto").length >= maxRic
       )
         return { motivo: "tetto_ricontatti" };
+      if (
+        ["primo_contatto", "richiamo_24h"].includes(p.tipo) &&
+        contano.filter((r) => ["primo_contatto", "richiamo_24h"].includes(r.tipo)).length >= maxLn
+      )
+        return { motivo: "tetto_lead_nuovi" };
       //  3. STOP
       if (m.stop.has(p.telefono)) return { motivo: "stop" };
       //  4. pausa per contatto (mai saltato o fallito)
@@ -162,7 +188,8 @@ export async function proveGiro(mod, { c, gruppo }) {
       )
         return { motivo: "pausa_contatto" };
       //  5. il ritmo, solo in lettura
-      if (p.tipo === "ricontatto" && m.giro.prossimo !== null && m.giro.prossimo > ora)
+      const COL_RITMO = ["ricontatto", "richiamo_24h"];
+      if (COL_RITMO.includes(p.tipo) && m.giro.prossimo !== null && m.giro.prossimo > ora)
         return { motivo: "ritmo" };
       //  6. l'inserimento: la chiave unica è l'ultimo cancello
       if (p.chiave && m.invii.some((r) => r.chiave === p.chiave)) return { motivo: "gia_preso" };
@@ -180,8 +207,8 @@ export async function proveGiro(mod, { c, gruppo }) {
       m.invii.push(riga);
       //  7. SOLO ORA il posto del ritmo
       const i = Math.max(27, Math.min(33, intervallo));
-      if (p.tipo === "ricontatto") m.giro.prossimo = ora + i * MIN;
-      else m.giro.prossimo = Math.max(m.giro.prossimo ?? ora, ora + i * MIN);
+      //  S2: il ritmo lo prendono solo ricontatto e richiamo_24h
+      if (COL_RITMO.includes(p.tipo)) m.giro.prossimo = ora + i * MIN;
       m.dopoPrenota?.(m, riga);
       return { id: riga.id };
     }
@@ -508,9 +535,9 @@ export async function proveGiro(mod, { c, gruppo }) {
       [m.messaggi.length, m.messaggi[0].leadId],
     );
     c(
-      "il ritmo: il promemoria sposta prossimo_ricontatto_dopo di 27-33 minuti (qui 30)",
-      new Date(ADESSO + 30 * MIN).toISOString(),
-      new Date(m.giro.prossimo).toISOString(),
+      "il ritmo: il promemoria NON sposta più prossimo_ricontatto_dopo (S2, scelta del revisore)",
+      null,
+      m.giro.prossimo,
     );
     c(
       "lo stato per il riquadro: ultimo invio, oggi 1 promemoria",
@@ -619,8 +646,8 @@ export async function proveGiro(mod, { c, gruppo }) {
     m = mondo({ schede: [meet("s1", 1), ric("r1", 3), ric("r2", 4)] });
     e = await m.giroOra();
     c(
-      "1 promemoria + 2 ricontatti: parte il promemoria; il ricontatto aspetta il ritmo, che il promemoria ha già preso",
-      [1, 0, 1],
+      "1 promemoria + 2 ricontatti: partono il promemoria e UN ricontatto (il promemoria non prende più il ritmo)",
+      [1, 1, 2],
       [e.promemoriInviati, e.ricontattiInviati, m.flussi().length],
     );
     m = mondo({ schede: [meet("s1", 1, { stato: "venduto" }), ric("r1", 3), ric("r2", 4)] });
@@ -923,14 +950,14 @@ export async function proveGiro(mod, { c, gruppo }) {
       prenotatoMs: ADESSO - 60 * MIN,
       ...extra,
     });
-    //  Tetto totale: 40 messaggi automatici oggi.
+    //  Tetto totale: 100 messaggi automatici oggi (era 40, S2).
     let m = mondo({
       schede: [meet("s1", 1)],
-      invii: Array.from({ length: 40 }, (_, i) => riga(i, i % 2 ? "ricontatto" : "promemoria")),
+      invii: Array.from({ length: 100 }, (_, i) => riga(i, i % 2 ? "ricontatto" : "promemoria")),
     });
     let e = await m.giroOra();
     c(
-      "40 messaggi oggi → il 41° non parte (tetto totale)",
+      "100 messaggi oggi → il 101° non parte (tetto totale)",
       [0, 0],
       [e.promemoriInviati, m.flussi().length],
     );
@@ -943,7 +970,7 @@ export async function proveGiro(mod, { c, gruppo }) {
     //  Il tetto vero lo decide l'SQL, anche se il giro aveva un registro vecchio.
     m = mondo({
       schede: [meet("s1", 1)],
-      invii: Array.from({ length: 40 }, (_, i) => riga(i, "promemoria")),
+      invii: Array.from({ length: 100 }, (_, i) => riga(i, "promemoria")),
       snapshotVecchio: true,
     });
     e = await m.giroOra();
@@ -1302,12 +1329,14 @@ export async function proveGiro(mod, { c, gruppo }) {
         },
         { nome: "Anna P.", tipo: "ricontatto", esito: "scriverebbe" },
       ],
-      righe.map((r) => ({
-        nome: r.nome,
-        tipo: r.tipo,
-        esito: r.esito,
-        ...(r.esito === "salta" ? { motivo: r.motivo } : {}),
-      })),
+      righe
+        .filter((r) => ["promemoria", "ricontatto"].includes(r.tipo))
+        .map((r) => ({
+          nome: r.nome,
+          tipo: r.tipo,
+          esito: r.esito,
+          ...(r.esito === "salta" ? { motivo: r.motivo } : {}),
+        })),
     );
     c("le righe non contengono mai il telefono", false, /333000|3930/.test(JSON.stringify(e)));
 
@@ -1342,6 +1371,274 @@ export async function proveGiro(mod, { c, gruppo }) {
       ["aspetta", true],
       [e3.righe[0].esito, /ritmo/.test(e3.righe[0].motivo)],
     );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  I TIPI NUOVI (commessa 2026-10-25, S2): sequenze, stati, ritmo, riserva
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · SEQUENZE E MESSAGGI PER STATO");
+  {
+    const NS = {
+      hgl_primo_contatto: "content-n1",
+      hgl_richiamo_24h: "content-n2",
+      hgl_meet_oggi: "content-m1",
+      hgl_meet_adesso: "content-m2",
+      hgl_non_risponde: "content-s1",
+      hgl_cliente_assente: "content-s2",
+      hgl_promemoria_sede: "content-s3",
+      hgl_richiamo_concordato: "content-s4",
+    };
+    const FRASE = "2026-10-01T00:00:00.000Z";
+    const accesa = {
+      leadNuovo: true,
+      giornoMeet: true,
+      leadNuovoDal: "2026-10-20T00:00:00.000Z",
+      fraseModuloDal: FRASE,
+      indirizzoSede: "Via Prova 1, Roma",
+      flussi: { ...CONFIG.flussi, ...NS },
+    };
+    //  un lead del modulo Meta, entrato oggi alle 14:00 Roma (12:00Z)
+    const lead = (id, n, extra) =>
+      scheda(id, n, {
+        okWhatsapp: undefined,
+        stato: "da_contattare",
+        consulenteId: undefined,
+        consensoModulo: { whatsapp: true, il: "2026-10-23T09:00:00.000Z", via: "modulo_meta" },
+        origineIngresso: { via: "google_sheets", foglio: "Lead", il: "2026-10-23T11:00:00.000Z" },
+        ...extra,
+      });
+    const riga = (n, tipo, extra) => ({
+      id: `v${n}`,
+      userId: U,
+      leadId: null,
+      tipo,
+      chiave: `x|${n}|${tipo}`,
+      telefono: `3930000${String(n).padStart(5, "0")}`,
+      stato: "inviato",
+      prenotatoMs: ADESSO - 60 * MIN,
+      ...extra,
+    });
+
+    //  primo contatto: flusso, tag, variabile, secondo stato, e il ritmo non si muove
+    let m = mondo({ schede: [lead("n1", 1)], config: accesa });
+    let e = await m.giroOra();
+    c(
+      "primo contatto: inviato col suo flusso, il suo tag e il solo nome",
+      [1, "content-n1", "crm-primo-contatto", "Anna"],
+      [
+        e.nuoviInviati,
+        m.flussi()[0]?.corpo.flow_ns,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+        m.f.chiamate
+          .find((x) => x.percorso === PERCORSI.scriviCampi)
+          ?.corpo.fields.find((x) => x.field_name === "crm_v1")?.field_value,
+      ],
+    );
+    c(
+      "…registro: tipo primo_contatto, chiave n|tel9; «In attesa»; il ritmo NON si sposta",
+      ["primo_contatto", `n|${cifre(1).slice(-9)}`, "in_attesa", null],
+      [m.invii[0].tipo, m.invii[0].chiave, m.schede[0].data.contattoWa.stato, m.giro.prossimo],
+    );
+    //  senza il suo interruttore o senza la data della frase: niente
+    m = mondo({ schede: [lead("n1", 1)], config: { ...accesa, leadNuovo: false } });
+    c("«Lead nuovo» spento → zero invii", 0, (await m.giroOra()).nuoviInviati);
+    m = mondo({ schede: [lead("n1", 1)], config: { ...accesa, fraseModuloDal: null } });
+    c(
+      "senza la data della frase il modulo non vale → zero invii",
+      0,
+      (await m.giroOra()).nuoviInviati,
+    );
+    //  flusso mancante di un tipo: si ferma solo quello
+    m = mondo({
+      schede: [lead("n1", 1), meet("s1", 2)],
+      config: { ...accesa, flussi: { ...accesa.flussi, hgl_primo_contatto: undefined } },
+    });
+    e = await m.giroOra();
+    c(
+      "manca il flusso del primo contatto → parte il promemoria, la nota lo dice",
+      [1, 0, true],
+      [e.promemoriInviati, e.nuoviInviati, /hgl_primo_contatto/.test(m.giro.stato.nota ?? "")],
+    );
+
+    //  meet alle 15:30: all'ora esatta col link; la mattina
+    const alle = (hm) => Date.parse(`2026-10-23T${hm}:00+02:00`);
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "15:06" })], config: accesa });
+    e = await m.giroOra();
+    c(
+      "all'ora esatta (15:06 = inizio del meet) parte meet_adesso, senza ritmo e «Contattato» senza scadenza",
+      [1, "meet_adesso", "contattato", undefined, null],
+      [
+        e.nuoviInviati + e.promemoriInviati,
+        m.invii.at(-1).tipo,
+        m.schede[0].data.contattoWa.stato,
+        m.schede[0].data.contattoWa.scadeRisposta,
+        m.giro.prossimo,
+      ],
+    );
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00" })], config: accesa });
+    e = await m.giroOra();
+    c(
+      "mattina del meet delle 18:00 (sono le 15:06, dopo le 9:00): meet_oggi con nome, ora, consulente",
+      [1, "meet_oggi", "crm-meet-oggi", ["Anna", "18:00", "Giulia Demo"]],
+      [
+        e.nuoviInviati,
+        m.invii.at(-1).tipo,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+        ["crm_v1", "crm_v2", "crm_v3"].map(
+          (k) =>
+            m.f.chiamate
+              .find((x) => x.percorso === PERCORSI.scriviCampi)
+              .corpo.fields.find((x) => x.field_name === k)?.field_value,
+        ),
+      ],
+    );
+
+    //  l'ordine e il limite di 2
+    m = mondo({
+      schede: [
+        meet("a", 1, { oraMeeting: "15:06" }),
+        meet("b", 2, { oraMeeting: "15:25" }),
+        lead("n1", 3),
+      ],
+      config: accesa,
+    });
+    e = await m.giroOra();
+    c(
+      "ordine: meet_adesso prima del promemoria; mai più di 2 per giro (il primo contatto aspetta)",
+      ["meet_adesso", "promemoria", 2],
+      [m.invii[0]?.tipo, m.invii[1]?.tipo, m.invii.length],
+    );
+
+    //  ritmo: ricontatto dovuto parte entro un'ora anche con un primo contatto ogni 15'
+    m = mondo({ schede: [ric("r1", 9)], config: accesa });
+    const invia15 = [];
+    for (let k = 0; k < 4; k++) {
+      m.schede.push(lead(`n${k}`, 1 + k));
+      m.orologio.avanza(15 * MIN);
+      await m.giroOra();
+    }
+    c(
+      "un primo contatto ogni 15' per un'ora: il ricontatto dovuto parte lo stesso (ritmo solo per ricontatto e richiamo)",
+      [4, 1],
+      [m.riga("primo_contatto").length, m.riga("ricontatto").length],
+    );
+    void invia15;
+
+    //  uno solo fra richiamo e ricontatto, per giro
+    m = mondo({
+      schede: [ric("r1", 9), ric("r2", 8)],
+      config: accesa,
+    });
+    e = await m.giroOra();
+    c("due ricontatti pronti: ne parte uno (stesso ritmo)", 1, e.ricontattiInviati);
+
+    //  messaggi per stato
+    const evento = (stato, n, extra) =>
+      scheda(`e${n}`, n, {
+        stato,
+        consulenteId: "cons-1",
+        statoDal: new Date(ADESSO - 60 * MIN).toISOString(),
+        ...extra,
+      });
+    m = mondo({
+      schede: [evento("non_risponde", 5, { consulenteId: undefined, importato: true })],
+      config: { ...accesa, stati: { non_risponde: "2026-10-20T00:00:00.000Z" } },
+    });
+    e = await m.giroOra();
+    c(
+      "«Non risponde» (a evento, anche importati): ricontatto col flusso e il tag della tabella",
+      [1, "ricontatto", "content-s1", "crm-stato-non-risponde"],
+      [
+        e.ricontattiInviati,
+        m.invii.at(-1).tipo,
+        m.flussi()[0]?.corpo.flow_ns,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+      ],
+    );
+    m = mondo({
+      schede: [evento("non_risponde", 5, { consulenteId: undefined })],
+      config: { ...accesa, stati: {} },
+    });
+    c("stato non acceso → zero invii", 0, (await m.giroOra()).ricontattiInviati);
+    m = mondo({
+      schede: [evento("non_risponde", 5, { consulenteId: undefined })],
+      config: {
+        ...accesa,
+        stati: { non_risponde: "2026-10-20T00:00:00.000Z" },
+        flussi: { ...accesa.flussi, hgl_non_risponde: undefined },
+      },
+    });
+    e = await m.giroOra();
+    c(
+      "flusso di quello stato mancante → ferma solo quello, nota con il modello",
+      [0, true],
+      [e.ricontattiInviati, /hgl_non_risponde/.test(m.giro.stato.nota ?? "")],
+    );
+
+    //  la chiamata concordata alle 15:30 → 15:00-15:20: sono le 15:06
+    m = mondo({
+      schede: [
+        scheda("c1", 6, {
+          stato: "richiamo",
+          dataRicontatto: "2026-10-23",
+          oraRicontatto: "15:20",
+        }),
+      ],
+      config: { ...accesa, stati: { richiamo: "2026-10-20T00:00:00.000Z" } },
+    });
+    e = await m.giroOra();
+    c(
+      "promemoria della chiamata (15:20): tipo promemoria_chiamata, «In attesa» fino all'ora, ritmo intatto",
+      ["promemoria_chiamata", "in_attesa", "2026-10-23T13:20:00.000Z", null],
+      [
+        m.invii.at(-1)?.tipo,
+        m.schede[0].data.contattoWa?.stato,
+        m.schede[0].data.contattoWa?.scadeRisposta,
+        m.giro.prossimo,
+      ],
+    );
+
+    //  tetti nuovi
+    m = mondo({
+      schede: [lead("n1", 1)],
+      config: accesa,
+      invii: Array.from({ length: 30 }, (_, i) =>
+        riga(i, i % 2 ? "richiamo_24h" : "primo_contatto"),
+      ),
+    });
+    e = await m.giroOra();
+    c("31° lead nuovo → non parte (tetto 30)", 0, e.nuoviInviati);
+    m = mondo({
+      schede: [lead("n1", 1), meet("s1", 2, { oraMeeting: "15:06" })],
+      config: { ...accesa, tetti: { totale: 40 } },
+      invii: Array.from({ length: 10 }, (_, i) => riga(i, "primo_contatto")),
+    });
+    e = await m.giroOra();
+    c(
+      "totale abbassato a 40, 10 primi contatti già partiti: il primo contatto salta, il meet_adesso parte (riserva)",
+      [1, "meet_adesso"],
+      [e.nuoviInviati, m.invii.at(-1).tipo],
+    );
+
+    //  STOP e prova a secco con i tipi nuovi
+    m = mondo({
+      schede: [lead("n1", 1, { contattoWa: { stato: "stop", il: FRASE, da: "x", storia: [] } })],
+      config: accesa,
+    });
+    c("STOP → nessun invio di nessun tipo", 0, (await m.giroOra()).nuoviInviati);
+    m = mondo({ schede: [lead("n1", 1)], config: { ...accesa, leadNuovo: false } });
+    const prima = JSON.stringify([m.invii, m.schede, m.giro]);
+    const secco = await m.giroOra(true);
+    c(
+      "prova a secco: il primo contatto si vede anche con l'interruttore spento, zero chiamate e scritture",
+      [["primo_contatto", "scriverebbe"], 0, prima],
+      [
+        [secco.righe[0]?.tipo, secco.righe[0]?.esito],
+        m.f.chiamate.length,
+        JSON.stringify([m.invii, m.schede, m.giro]),
+      ],
+    );
+    void alle;
   }
 
   /* ════════════════════════════════════════════════════════════════════════
