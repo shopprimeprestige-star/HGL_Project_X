@@ -904,11 +904,13 @@ export async function proveStati(mod, { c, gruppo, radice }) {
   //  Le due strade che scrivono lo stato passano da conStatoDal, DOPO applyAutoStatus.
   const contesto = leggi("src/crm/CRMContext.tsx");
   const iAuto = contesto.indexOf("let merged = applyAutoStatus({ ...current.data, ...patch }");
-  const iDal = contesto.indexOf("merged = conStatoDal(current.data, merged, new Date());");
+  const iDal = contesto.indexOf(
+    "merged = statoDalDopo(current.data, merged, new Date(), opzioni.annulla === true, patch.statoDal);",
+  );
   c(
-    "updateLead (CRMContext): conStatoDal(prima, finale) subito dopo applyAutoStatus, una volta sola",
+    "updateLead (CRMContext): statoDalDopo(prima, finale) subito dopo applyAutoStatus, una volta sola",
     [true, 1],
-    [iAuto > 0 && iDal > iAuto, contesto.split("conStatoDal(").length - 1],
+    [iAuto > 0 && iDal > iAuto, contesto.split("statoDalDopo(").length - 1],
   );
   const azione = leggi("src/routes/api.consulente.azione.ts");
   const iAuto2 = azione.indexOf("let aggiornato = applyAutoStatus({ ...attuale, ...patch }");
@@ -919,25 +921,46 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     true,
     iAuto2 > 0 && iDal2 > iAuto2 && iScrive > iDal2,
   );
-  //  «Annulla» (coda dei lead importati): riporta anche `statoDal`, e updateLead non scrive «adesso».
-  const iAnnulla = contesto.indexOf(
-    "if (patch.statoPrecedenteIl !== undefined) {\n      const { statoDal",
+  //  «Annulla» (coda dei lead importati): si dichiara in modo ESPLICITO, e la scelta è una
+  //  funzione pura che qui FACCIAMO GIRARE.
+  const MODULO_INTERO = {
+    ...prima,
+    stato: "irreperibile",
+    statoPrecedenteIl: "2026-10-20T08:00:00.000Z", // il modulo intero porta anche questo
+  };
+  c(
+    "salvataggio normale (modulo intero di LeadDialog, con statoPrecedenteIl e il vecchio statoDal) con stato cambiato → statoDal = adesso",
+    "2026-10-27T09:00:00.000Z",
+    D.statoDalDopo(prima, MODULO_INTERO, ADESSO, false, prima.statoDal).statoDal,
   );
   c(
-    "«Annulla»: updateLead non chiama conStatoDal quando c'è statoPrecedenteIl (usa quello della patch o lo toglie)",
-    true,
-    iAnnulla > iAuto && iAnnulla < iDal && /merged = patch\.statoDal \?/.test(contesto),
-  );
-  const importa = leggi("src/routes/CRM.importa.tsx");
-  c(
-    "…e disfa.prima porta lo statoDal di prima (una riga)",
-    true,
-    /statoDa: l\.data\.statoDa,\s*statoDal: l\.data\.statoDal,\s*\} as Partial<LeadData>/.test(
-      importa,
-    ),
+    "…e con lo stato uguale resta quello di prima",
+    "2026-10-01T08:00:00.000Z",
+    D.statoDalDopo(prima, { ...prima, nome: "B." }, ADESSO, false).statoDal,
   );
   c(
-    "annullamento → nessun messaggio a evento: «Non risponde» di 10 giorni fa riportato com'era (statoDal vecchio, o senza)",
+    "annulla → lo statoDal di prima che porta chi annulla, oppure nessuno (mai adesso)",
+    ["2026-10-17T09:00:00.000Z", false],
+    [
+      D.statoDalDopo(
+        { ...prima, stato: "irreperibile", statoDal: E },
+        { ...prima, stato: "non_risponde", statoDal: E },
+        ADESSO,
+        true,
+        "2026-10-17T09:00:00.000Z",
+      ).statoDal,
+      "statoDal" in
+        D.statoDalDopo(
+          { ...prima, stato: "irreperibile", statoDal: E },
+          { ...prima, stato: "non_risponde", statoDal: E },
+          ADESSO,
+          true,
+          undefined,
+        ),
+    ],
+  );
+  c(
+    "…annullato un cambio vero: nessun messaggio a evento (statoDal vecchio o assente)",
     [[], []],
     [
       decidi(
@@ -945,6 +968,18 @@ export async function proveStati(mod, { c, gruppo, radice }) {
         "2026-10-27T10:30:00+01:00",
       ),
       decidi([sc("l-1", 1, "non_risponde")], "2026-10-27T10:30:00+01:00"),
+    ],
+  );
+  const importa = leggi("src/routes/CRM.importa.tsx");
+  c(
+    "solo disfaUltimo dichiara l'annullamento; disfa.prima porta lo statoDal di prima",
+    [true, 1, true],
+    [
+      /updateLead\(d\.id, d\.prima, \{ annulla: true \}\)/.test(importa),
+      importa.split("annulla: true").length - 1,
+      /statoDa: l\.data\.statoDa,\s*statoDal: l\.data\.statoDal,\s*\} as Partial<LeadData>/.test(
+        importa,
+      ),
     ],
   );
   const stati = leggi("src/crm/manychat/stati.ts");
