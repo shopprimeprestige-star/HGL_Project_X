@@ -194,6 +194,7 @@ import { chiHaFissato, esitoFissato, fissataDa } from "@/crm/chi-ha-fissato";
 import {
   contoLinguetta,
   fasciaDeiRitorni,
+  filtriLasciandoLaVoce,
   linguettaDi,
   linguetteDaMostrare,
   fuoriDallaLista,
@@ -1609,6 +1610,21 @@ function LeadImportatiUnoAllaVolta() {
     setVista(v);
     if (v === "tutti" && filtri.origine === "google_sheets") cambiaFiltri(senzaOrigine());
   };
+  /** Si lascia «Tutta la lista» aperta dalla voce del foglio: l'Origine che la
+   *  voce aveva messo si toglie e la voce non è più aperta (vedi
+   *  `filtriLasciandoLaVoce`). */
+  const esciDalFoglio = () => {
+    setDaVoceFoglio(false);
+    const dopo = filtriLasciandoLaVoce(filtri, daVoceFoglio);
+    if (dopo !== filtri) cambiaFiltri(dopo);
+  };
+  //  ⚠️ UN POSTO SOLO PER TUTTE LE STRADE: linguette, stanze, ricerca, note
+  //   scadute… ogni `setVista` che porta fuori da «Tutta la lista» passa di qui.
+  //   Lo «Già lavorati» resta su «tutti» e chiama `esciDalFoglio` da sé.
+  useEffect(() => {
+    if (daVoceFoglio && vista !== "tutti") esciDalFoglio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista, daVoceFoglio]);
   //  Il giorno di lavoro, non quello di Greenwich: vedi `giornoLocale`.
   const oggiQui = giornoLocale(new Date().toISOString());
   /** Vero mentre un rientro sta scrivendo in archivio: venti schede sono venti
@@ -3498,6 +3514,7 @@ function LeadImportatiUnoAllaVolta() {
             disabilitato={!!avanzamento}
             altriStati={statiGiaLavorati}
             onAltroStato={(st) => {
+              esciDalFoglio();
               setStatoTutti(st);
               setVista("tutti");
             }}
@@ -3736,6 +3753,7 @@ function LeadImportatiUnoAllaVolta() {
           key={`${statoTutti ?? "tutti"}${daVoceFoglio ? "·foglio" : ""}`}
           statoIniziale={statoTutti}
           tuttiIniziale={daVoceFoglio}
+          nDalFoglio={nDalFoglio}
           importati={importati}
           moduloDi={moduloDi}
           //  Chi ho appena sistemato da qui: resta a schermo finché non cambio

@@ -144,12 +144,16 @@ function VoceScelta({
   scelta,
   n,
   rientro,
+  titolo,
   onClick,
   children,
 }: {
   scelta: boolean;
   n?: number;
   rientro?: boolean;
+  /** La spiegazione al passaggio del dito, sul pulsante stesso: così arriva
+   *  anche a chi usa la tastiera o un lettore di schermo. */
+  titolo?: string;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -158,6 +162,7 @@ function VoceScelta({
     <button
       type="button"
       aria-pressed={scelta}
+      title={titolo}
       disabled={vuota}
       onClick={onClick}
       className={cn(
@@ -372,15 +377,15 @@ export function MenuOrigine({
           Tutte le origini
         </VoceScelta>
         {opzioni.origine.map((v) => (
-          <div key={v.valore} title={SPIEGA_ORIGINE[v.valore]}>
-            <VoceScelta
-              scelta={filtri.origine === v.valore}
-              n={v.n}
-              onClick={() => scegli(v.valore)}
-            >
-              {NOME_VIA[v.valore]}
-            </VoceScelta>
-          </div>
+          <VoceScelta
+            key={v.valore}
+            scelta={filtri.origine === v.valore}
+            n={v.n}
+            titolo={SPIEGA_ORIGINE[v.valore]}
+            onClick={() => scegli(v.valore)}
+          >
+            {NOME_VIA[v.valore]}
+          </VoceScelta>
         ))}
       </PopoverContent>
     </Popover>

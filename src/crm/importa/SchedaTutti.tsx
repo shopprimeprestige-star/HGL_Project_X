@@ -193,7 +193,7 @@ import { PastigliaContattoLead } from "@/crm/manychat/PastigliaContattoLead";
 import { filtraPerContatto, statoContattoEffettivo } from "@/crm/manychat/contatto";
 import { applicaFiltri, opzioniFiltri, type FiltriLista } from "./filtri-lista";
 //  Da dove è entrata una scheda: l'etichetta sulla riga e l'ordine «dal più recente».
-import { daGoogleSheets, ordinaPerArrivo, origineInRiga, VUOTO_GOOGLE_SHEETS } from "./origine";
+import { ordinaPerArrivo, origineInRiga, VUOTO_GOOGLE_SHEETS } from "./origine";
 //  La riga appena sistemata non sparisce sotto le dita: la regola sta lì.
 import { restaNellElenco, targhettaSistemato } from "./elenco-stabile";
 //  Chi si telefona oggi e chi aspetta la sua data: la stessa regola della coda.
@@ -271,6 +271,7 @@ export function SchedaTutti({
   moduloDi,
   statoIniziale = null,
   tuttiIniziale = false,
+  nDalFoglio,
 }: {
   /** Lo stato su cui aprire già filtrato: arriva dai pulsanti «Già lavorati»
    *  in cima a Lead importati (20/10/2026). La pagina cambia `key` per riaprire. */
@@ -280,6 +281,10 @@ export function SchedaTutti({
    *  arrivato dal foglio, non la lista di chi si telefona oggi. La pagina cambia
    *  `key` per riaprire. */
   tuttiIniziale?: boolean;
+  /** Quanti lead sono arrivati dal foglio Google fra TUTTI gli importati (la
+   *  pagina lo calcola già per Altro): serve a dire «nessun lead dal foglio» e a
+   *  decidere se il menu Origine ha qualcosa da scegliere. */
+  nDalFoglio: number;
   /** TUTTI i lead arrivati da una lista, senza nessun altro filtro. Il filtro
    *  lo fa questa scheda, e lo fa a vista: quale sia lo dicono le pastiglie in
    *  cima, accese. Arriva già filtrato per `importato` dalla pagina, che è
@@ -417,19 +422,16 @@ export function SchedaTutti({
     [filtri.annuncio, filtri.risposte],
   );
   /** …e l'Origine (dal foglio Google, da file, a mano), che si aggiunge alle due
-   *  manopole di sempre. Stato e tempo dell'indirizzo restano fuori. */
+   *  manopole di sempre. Stato e tempo dell'indirizzo restano fuori.
+   *  ⚠️ È un memo a parte e non una chiave in più nel precedente: una prova di
+   *   `prove.mjs` legge il sorgente e pretende quell'oggetto esatto, con solo
+   *   Annuncio e Risposta. */
   const filtriConOrigine = useMemo<FiltriLista>(
     () => ({ ...filtriQui, origine: filtri.origine }),
     [filtriQui, filtri.origine],
   );
   const nFiltriQui =
     (filtriQui.annuncio ? 1 : 0) + (filtriQui.risposte?.length ?? 0) + (filtri.origine ? 1 : 0);
-  /** Quanti lead sono arrivati dal foglio Google, fra TUTTI gli importati: serve
-   *  a dire «nessun lead dal foglio» e a decidere se il menu Origine ha senso. */
-  const nDalFoglio = useMemo(
-    () => importati.filter((l) => daGoogleSheets(l.data)).length,
-    [importati],
-  );
   const righeTutte = useMemo(
     () =>
       importati.map((l) => ({

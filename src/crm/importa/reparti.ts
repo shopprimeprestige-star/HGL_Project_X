@@ -193,6 +193,23 @@ export function vocePerVista(vista: Vista, origine?: string | null): VoceAltro |
   );
 }
 
+/** ── LASCIANDO LA VOCE DEL FOGLIO, L'ORIGINE SI TOGLIE ────────────────────
+ *  L'Origine = Google Sheets l'ha messa la voce, non la persona nella barra: se
+ *  restasse addosso passando a «Da chiamare», la coda, la scheda grande e le
+ *  scorciatoie lavorerebbero solo sui lead del foglio mentre la linguetta mostra
+ *  il conto pieno. `daVoce` = «Tutta la lista» è stata aperta da quella voce.
+ *  Un'Origine scelta a mano dal menu (daVoce falso) non si tocca. Dà lo stesso
+ *  oggetto se non c'è niente da togliere. */
+export function filtriLasciandoLaVoce<F extends { origine?: string }>(
+  filtri: F,
+  daVoce: boolean,
+): F {
+  if (!daVoce || filtri.origine !== "google_sheets") return filtri;
+  const resto = { ...filtri };
+  delete resto.origine;
+  return resto;
+}
+
 /** ── LA VOCE «DI RITORNO» DEL FILTRO STATO, ACCESA O SPENTA ────────────────
  *  Una voce a zero si spegne (se sparisse, la fila si accorcerebbe sotto il
  *  dito) e quella scelta non si spegne mai. Ma «Di ritorno» ha un conto in più:

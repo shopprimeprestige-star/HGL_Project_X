@@ -211,7 +211,7 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
     ),
   );
   c(
-    "l'ora è quella di Roma (ora legale: UTC+1 il 25/10, dopo il cambio dell'ora)",
+    "l'ora è quella di Roma (ora solare: UTC+1 il 25/10, dopo il cambio dell'ora)",
     "alle 09:14",
     /alle \d\d:\d\d/.exec(rigaOrigineScheda(DA_FOGLIO(), ADESSO))?.[0],
   );
@@ -496,6 +496,37 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
     ["Altro", "Tutta la lista"],
     percorsoVista("tutti"),
   );
+  //  ── Lasciando la voce, l'Origine che aveva messo si toglie ────────────
+  const { filtriLasciandoLaVoce } = REP;
+  const dalFoglio = { origine: "google_sheets", annuncio: "g:Gruppo A", stato: "mai" };
+  c(
+    "lasciando la voce del foglio l'Origine si toglie",
+    { annuncio: "g:Gruppo A", stato: "mai" },
+    filtriLasciandoLaVoce(dalFoglio, true),
+  );
+  c("e l'oggetto di partenza non cambia", "google_sheets", dalFoglio.origine);
+  c(
+    "un'Origine scelta a mano dal menu (non dalla voce) resta",
+    true,
+    filtriLasciandoLaVoce(dalFoglio, false) === dalFoglio,
+  );
+  c(
+    "un'altra Origine (File) resta anche con la voce",
+    true,
+    (() => {
+      const f = { origine: "file" };
+      return filtriLasciandoLaVoce(f, true) === f;
+    })(),
+  );
+  c(
+    "senza Origine non c'è niente da togliere: lo stesso oggetto",
+    true,
+    (() => {
+      const f = { stato: "mai" };
+      return filtriLasciandoLaVoce(f, true) === f;
+    })(),
+  );
+
   c(
     "il vuoto della voce dice cosa aspettarsi",
     "Nessun lead dal foglio Google per ora",
@@ -578,6 +609,35 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
     "LeadDialog: non passa la data della frase (il verdetto è di P, nel riquadro)",
     false,
     /fraseModuloDal/.test(dialogTsx),
+  );
+  //  ⚠️ OGNI STRADA FUORI DALLA VOCE PASSA DA UN POSTO SOLO, e «Già lavorati»,
+  //   che resta su «Tutta la lista», lo chiama da sé.
+  c(
+    "la pagina toglie l'Origine della voce con filtriLasciandoLaVoce",
+    true,
+    /filtriLasciandoLaVoce\(filtri, daVoceFoglio\)/.test(paginaTsx),
+  );
+  c(
+    "…da un effetto che guarda la vista (linguette, stanze, ricerca)",
+    true,
+    /useEffect\(\(\) => \{\s*if \(daVoceFoglio && vista !== "tutti"\) esciDalFoglio\(\);/.test(
+      paginaTsx,
+    ),
+  );
+  c(
+    "…e «Già lavorati» la chiama prima di aprire la lista",
+    true,
+    /esciDalFoglio\(\);\s*setStatoTutti\(st\);/.test(paginaTsx),
+  );
+  c(
+    "«Tutta la lista» riceve il numero dal foglio dalla pagina, non lo ricalcola",
+    true,
+    /nDalFoglio=\{nDalFoglio\}/.test(paginaTsx) && !/daGoogleSheets\(/.test(tuttiTsx),
+  );
+  c(
+    "la spiegazione del menu Origine sta sul pulsante, non su un contenitore",
+    true,
+    /titolo=\{SPIEGA_ORIGINE\[v\.valore\]\}/.test(filtriTsx),
   );
   for (const [nome, src] of [
     ["FiltriLista", filtriTsx],
