@@ -34,7 +34,7 @@ import {
   chiaveGiaPresa,
   contaOggi,
   giornoDellaSettimana,
-  giornoDelRicontatto,
+  giornoADataDi,
   giornoVero,
   inPausa,
   oraDi,
@@ -54,7 +54,7 @@ import {
   numeroWa,
   ultimeNoveCifre,
 } from "./regole";
-import { primoIstanteUtile, quandoParte } from "./sequenze";
+import { MEMORIA_SALTI_MIN, primoIstanteUtile, quandoParte } from "./sequenze";
 import { campiPerStato } from "./testi";
 
 /** Quando parte il messaggio di uno stato (piano §5g, «tre regole del quando»). */
@@ -173,8 +173,6 @@ export const CHIAMATA_DA_MIN = 30;
 export const CHIAMATA_A_MIN = 10;
 /** Mai due messaggi dello stesso modello allo stesso numero in 7 giorni. */
 export const GIORNI_FRA_DUE_UGUALI = 7;
-/** Un'ora dopo la scadenza i «salta» di un messaggio per stato non si ripetono più. */
-const MEMORIA_SALTI_MIN = 60;
 
 const ORA_MS = 3_600_000;
 const MIN_MS = 60_000;
@@ -234,7 +232,7 @@ export function decidiPerStato(
     if (!riga) continue;
     //  «Da riprogrammare» SENZA data passa a evento; con la data è un ricontatto a data.
     const aEvento =
-      riga.quando === "a_evento" || (stato === "da_spostare" && !giornoDelRicontatto(d));
+      riga.quando === "a_evento" || (stato === "da_spostare" && !giornoADataDi(d, oggi));
     if (riga.quando === "a_data" && !aEvento) continue;
     const acceso = giornoDi(contesto.statiAccesi[stato]);
     const accesoIl = Date.parse(contesto.statiAccesi[stato] ?? "");

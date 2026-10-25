@@ -237,6 +237,19 @@ export function giornoDelRicontatto(d: Partial<LeadData>): string | null {
   return Number.isFinite(t) ? aRoma(new Date(t)).giorno : null;
 }
 
+/** Il giorno del ricontatto SE conta come «a data»: `dataRicontatto` non si azzera
+ *  mai, quindi una data vecchia (messa prima che lo stato fosse messo) non è la
+ *  data di questo stato. Conta solo se è dal giorno di `statoDal` in poi, oppure
+ *  da oggi in poi. Senza `statoDal` (stato messo prima) vale la data com'è. Una
+ *  scheda con una data vecchia va trattata a evento («Da riprogrammare»). */
+export function giornoADataDi(d: Partial<LeadData>, oggi: string): string | null {
+  const giorno = giornoDelRicontatto(d);
+  if (!giorno) return null;
+  const dal = d.statoDal ? Date.parse(d.statoDal) : Number.NaN;
+  if (!Number.isFinite(dal)) return giorno;
+  return giorno >= aRoma(new Date(dal)).giorno || giorno >= oggi ? giorno : null;
+}
+
 export const TETTI_DI_SERIE: Tetti = {
   ricontatti: TETTO_RICONTATTI,
   leadNuovi: TETTO_LEAD_NUOVI,
@@ -440,7 +453,7 @@ export function codaRicontatti(
     const stato = String(d.stato ?? "");
     const dalGiorno = dalGiornoDi(stato);
     if (dalGiorno === null) continue;
-    const giorno = giornoDelRicontatto(d);
+    const giorno = giornoADataDi(d, oggi);
     if (!giorno || giorno < dalGiorno || giorno > oggi) continue;
     const recupero = giorno < oggi;
     if (recupero && giornoDiRecupero(giorno) !== oggi) continue;

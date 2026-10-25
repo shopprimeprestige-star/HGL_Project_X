@@ -3001,6 +3001,7 @@ function LeadImportatiUnoAllaVolta() {
         statoPrecedente: l.data.statoPrecedente,
         statoPrecedenteIl: l.data.statoPrecedenteIl,
         statoDa: l.data.statoDa,
+        statoDal: l.data.statoDal,
       } as Partial<LeadData>,
       eraInFondo: inFondo.has(l.id),
     };
