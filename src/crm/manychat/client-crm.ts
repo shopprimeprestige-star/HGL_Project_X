@@ -10,9 +10,15 @@
  *  ── /api/crm/manychat (dietro `guardiaCRM("impostazioni")`) ───────────────
  *   GET   → 200 `StatoManychat` (corpo diretto, niente involucro).
  *   POST  → il corpo è UNO fra questi (il server ne accetta uno per volta):
- *     { interruttori: { acceso?, promemoria?, ricontatti? } }
- *     { tetti: { ricontatti?, totale? } }   solo al ribasso: il server li
- *                                            riporta comunque alle costanti
+ *     { interruttori: { acceso?, promemoria?, ricontatti?, leadNuovo?, giornoMeet? } }
+ *     { tetti: { ricontatti?, leadNuovi?, totale? } }   solo al ribasso: il
+ *                                            server li riporta comunque alle costanti
+ *     { stati: { [stato]: boolean } }       un interruttore per stato con un
+ *                                            messaggio; accendere scrive l'ora
+ *     { fraseModulo: { giorno: "AAAA-MM-GG" } }  il giorno in cui la frase del
+ *                                            consenso è entrata nel modulo Meta
+ *                                            → 200 `{ fraseModulo: FraseModulo }`
+ *     { indirizzoSede: string }              vuoto = lo toglie
  *     { flussi: { [modello]: ns } }         ns vuoto = toglie il flusso
  *     { canale: "cloud" | "manychat" }
  *       → 200 `{ config: ConfigManychat }`
@@ -20,7 +26,9 @@
  *     { azione: "prova_collegamento" }                → 200 `CollegamentoManychat`
  *     { azione: "prova_creazione_contatto", telefono } → 200 `ProvaCreazione`
  *   Errori: `{ error: string }` col codice HTTP (401 senza accesso, 403 senza
- *   «impostazioni», 400 corpo non valido, 5xx guasto). La «prova a secco» non
+ *   «impostazioni», 400 corpo non valido, 422 comando rifiutato: «Lead nuovo»
+ *   senza la data della frase, data nel futuro; 503 manca l'aggiornamento del
+ *   database, 5xx guasto). La «prova a secco» non
  *   chiama ManyChat; la «prova di collegamento» chiede solo «chi sei?» e
  *   legge flussi e campi; la «prova di creazione» crea il contatto del
  *   titolare dentro ManyChat e non salva il numero nel CRM. Nessuna manda
@@ -40,7 +48,7 @@
  *  sono provate in prove/manychat/pannello.mjs.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { fetchCRM } from "@/crm/AuthContext";
-import type { ContattoWa, StatoContattoWa } from "../types";
+import type { ContattoWa, StatoContattoWa, TipoInvio } from "../types";
 import type { CanaleWhatsapp } from "./porta";
 import { FRASE_RETE, fraseErrore } from "./vista-pannello";
 
@@ -60,8 +68,22 @@ export interface ConfigManychat {
   acceso: boolean;
   promemoria: boolean;
   ricontatti: boolean;
+  /** «Lead nuovo»: primo messaggio e richiamo dopo 24 ore (spento di serie) */
+  leadNuovo: boolean;
+  /** «Giorno del meet»: messaggio del mattino e all'ora col link (spento di serie) */
+  giornoMeet: boolean;
+  /** ISO dell'ultima accensione di «Lead nuovo»: i lead arrivati prima non ricevono niente */
+  leadNuovoDal: string | null;
+  /** stato → ISO dell'accensione; assente = spento (mai «da_ricontattare»:
+   *  quello è `ricontatti`) */
+  stati: Record<string, string>;
+  /** l'indirizzo della sede per il promemoria «in sede»; `null` = non scritto */
+  indirizzoSede: string | null;
+  /** false = manca l'aggiornamento del database per le sequenze: gli interruttori
+   *  nuovi sono chiusi */
+  sequenze: boolean;
   /** i tetti scelti nel riquadro (mai sopra le costanti: il server li riporta giù) */
-  tetti: { ricontatti?: number; totale?: number };
+  tetti: { ricontatti?: number; leadNuovi?: number; totale?: number };
   /** modello → `ns` del flusso ManyChat */
   flussi: Record<string, string>;
   /** ISO: la prima volta che si è acceso (per la prima settimana a 10) */
@@ -77,7 +99,7 @@ export interface ProblemaGiro {
   il: string;
   /** nome abbreviato («Mario R.»), MAI il telefono */
   nome: string;
-  tipo: "promemoria" | "ricontatto" | "conferma";
+  tipo: Exclude<TipoInvio, "chat" | "webinar" | "prova">;
   motivo: string;
 }
 
@@ -90,8 +112,15 @@ export interface GiroManychat {
   ultimoInvioIl: string | null;
   /** ISO: dopo quest'ora può partire il prossimo ricontatto */
   prossimoRicontattoDopo: string | null;
-  /** conteggi del giorno di oggi (Roma) */
-  oggi: { promemoria: number; ricontatti: number; risposte: number };
+  /** conteggi del giorno di oggi (Roma). `leadNuovi` = primo contatto + richiamo;
+   *  `totale` = tutti i messaggi che contano nel tetto (non la conferma) */
+  oggi: {
+    promemoria: number;
+    ricontatti: number;
+    leadNuovi: number;
+    totale: number;
+    risposte: number;
+  };
   /** gli ultimi problemi (il server ne manda al massimo 20) */
   problemi: ProblemaGiro[];
 }
@@ -115,7 +144,8 @@ export interface GiroManychat {
  *   verificare». Ogni altra riga (id diverso) si mostra in coda. */
 export interface RigaCollegamento {
   id: string;
-  esito: "ok" | "errore" | "da_verificare";
+  /** `non_serve` = il flusso è di un interruttore spento: grigio, né problema né dubbio */
+  esito: "ok" | "errore" | "da_verificare" | "non_serve";
   testo: string;
 }
 
@@ -123,6 +153,31 @@ export interface CollegamentoManychat {
   /** ISO */
   controllatoIl: string;
   righe: RigaCollegamento[];
+}
+
+/** Il giorno da cui la frase del consenso c'è nel modulo Meta. Valgono solo i
+ *  moduli compilati da `il` in poi. */
+export interface FraseModulo {
+  /** ISO: l'inizio di quel giorno a Roma */
+  il: string;
+  /** chi l'ha segnata (nome, mai il numero) */
+  da: string;
+  /** ISO: quando è stata segnata */
+  segnatoIl?: string;
+}
+
+/** La riga «Foglio Google»: mai nomi, numeri o id, solo conti e un'ora. */
+export interface FoglioManychat {
+  /** false = manca l'aggiornamento del database del foglio */
+  migrazione: boolean;
+  /** il segreto del foglio (SHEETS_INGRESSO_TOKEN) c'è nel sito */
+  segretoPresente: boolean;
+  /** l'ultima riga ricevuta: l'ora e l'esito (`nuovo`, `ritorno`, …) */
+  ultimo: { il: string; esito: string } | null;
+  /** righe ricevute oggi (giorno di Roma) */
+  righeOggi: number;
+  /** quante ne ammette il giorno */
+  tetto: number;
 }
 
 /** Tutto quello che il riquadro legge in una volta. */
@@ -137,6 +192,9 @@ export interface StatoManychat {
   giro: GiroManychat;
   /** l'ultimo controllo di collegamento; `null` = mai fatto */
   collegamento: CollegamentoManychat | null;
+  /** la data della frase del consenso nel modulo; `null` = non segnata */
+  fraseModulo: FraseModulo | null;
+  foglio: FoglioManychat;
 }
 
 export interface RigaProva {
@@ -159,10 +217,16 @@ export interface ProvaCreazione {
 }
 
 export type ComandoManychat =
-  | { interruttori: Partial<Pick<ConfigManychat, "acceso" | "promemoria" | "ricontatti">> }
+  | {
+      interruttori: Partial<
+        Pick<ConfigManychat, "acceso" | "promemoria" | "ricontatti" | "leadNuovo" | "giornoMeet">
+      >;
+    }
   | { tetti: Partial<ConfigManychat["tetti"]> }
   | { flussi: Record<string, string> }
-  | { canale: CanaleManychat };
+  | { canale: CanaleManychat }
+  | { stati: Record<string, boolean> }
+  | { indirizzoSede: string };
 
 async function chiama<T>(url: string, corpo?: unknown): Promise<RispostaCrm<T>> {
   try {
@@ -189,6 +253,10 @@ export const leggiManychat = () => chiama<StatoManychat>(ROTTA_MANYCHAT);
 
 export const salvaManychat = (comando: ComandoManychat) =>
   chiama<{ config: ConfigManychat }>(ROTTA_MANYCHAT, comando);
+
+/** Segna il giorno in cui la frase del consenso è entrata nel modulo Meta. */
+export const salvaFraseModulo = (giorno: string) =>
+  chiama<{ fraseModulo: FraseModulo }>(ROTTA_MANYCHAT, { fraseModulo: { giorno } });
 
 export const provaASecco = () => chiama<ProvaASecco>(ROTTA_MANYCHAT, { azione: "prova_a_secco" });
 

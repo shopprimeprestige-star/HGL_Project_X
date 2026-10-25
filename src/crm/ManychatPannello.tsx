@@ -2,10 +2,16 @@
  *
  *  Commessa 2026-10-23 (WhatsApp con ManyChat), compito 5. Va sotto
  *  «Conferma consulenze». Ci sono, in quest'ordine: la riga di stato in chiaro,
- *  l'allarme «nessun giro da più di 5 minuti», i tre interruttori (spenti di
+ *  l'allarme «nessun giro da più di 5 minuti», gli interruttori (spenti di
  *  serie), il collegamento («Collegamento ok» + «Prova di collegamento»), i
  *  problemi recenti, e in fondo le cose che si toccano di rado: il canale, i
  *  tetti, i flussi, la «Prova a secco» e la «Prova creazione contatto».
+ *
+ *  Commessa 2026-10-25: in più «Lead nuovo» e «Giorno del meet», la data della
+ *  frase del consenso nel modulo Meta, un interruttore per ogni stato con un
+ *  messaggio (e l'indirizzo della sede), la riga «Foglio Google», il tetto dei
+ *  lead nuovi e i flussi delle sequenze. Tutto spento di serie; accendere si
+ *  conferma; «Lead nuovo» non si accende senza la data della frase.
  *
  *  Le frasi e le regole (stato, allarme, tetti, collegamento) sono in
  *  `manychat/vista-pannello.ts` e sono provate; le chiamate al server in
@@ -26,7 +32,7 @@
  *   ManyChat qui.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (React #310).
  *  ───────────────────────────────────────────────────────────────────────── */
-import { CheckCircle2, HelpCircle, XCircle } from "lucide-react";
+import { CheckCircle2, CircleMinus, HelpCircle, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -40,6 +46,7 @@ import {
   provaASecco,
   provaCollegamento,
   provaCreazioneContatto,
+  salvaFraseModulo,
   salvaManychat,
   type CanaleManychat,
   type ComandoManychat,
@@ -51,9 +58,13 @@ import {
 import { TETTO_RICONTATTI, TETTO_TOTALE, TETTO_PRIMA_SETTIMANA } from "@/crm/manychat/quando";
 import {
   MODELLI_FLUSSO,
+  MODELLI_FLUSSO_SEQUENZE,
   PAROLA_ESITO,
+  TETTO_LEAD_NUOVI,
   allarmeGiro,
   giornoBreve,
+  leggiGiornoFrase,
+  leggiIndirizzo,
   leggiNs,
   leggiTetto,
   oraBreve,
@@ -63,8 +74,13 @@ import {
   tettiEffettivi,
   righeCollegamento,
   titoloCollegamento,
+  vistaFoglio,
+  vistaFraseModulo,
+  vistaSequenze,
   type TonoRiquadro,
+  type VistaStato,
 } from "@/crm/manychat/vista-pannello";
+import { aRoma } from "@/crm/promemoria/formati";
 import { cn } from "@/lib/utils";
 
 const TONI: Record<TonoRiquadro, string> = {
@@ -78,14 +94,20 @@ const TESTO_ESITO = {
   ok: "text-emerald-700",
   errore: "text-rose-700",
   da_verificare: "text-amber-800",
+  non_serve: "text-slate-500",
 } as const;
 
-const ICONA_ESITO = { ok: CheckCircle2, errore: XCircle, da_verificare: HelpCircle } as const;
+const ICONA_ESITO = {
+  ok: CheckCircle2,
+  errore: XCircle,
+  da_verificare: HelpCircle,
+  non_serve: CircleMinus,
+} as const;
 
 const POLLING_MS = 60_000;
 const CONFERMA_MODELLO = "consulenza_conferma_presenza";
 
-type ChiaveInterruttore = "acceso" | "promemoria" | "ricontatti";
+type ChiaveInterruttore = "acceso" | "promemoria" | "ricontatti" | "leadNuovo" | "giornoMeet";
 
 interface Conferma {
   titolo: string;
@@ -126,7 +148,7 @@ function Interruttore({
   forte,
 }: {
   etichetta: string;
-  nota: string;
+  nota: ReactNode;
   acceso: boolean;
   disabilitato: boolean;
   onCambia: (v: boolean) => void;
@@ -161,7 +183,9 @@ export function ManychatPannello() {
   const [caricato, setCaricato] = useState(false);
   const [occupato, setOccupato] = useState<string | null>(null);
   const [conferma, setConferma] = useState<Conferma | null>(null);
-  const [bozzaTetti, setBozzaTetti] = useState({ ricontatti: "", totale: "" });
+  const [bozzaTetti, setBozzaTetti] = useState({ ricontatti: "", leadNuovi: "", totale: "" });
+  const [bozzaFrase, setBozzaFrase] = useState("");
+  const [bozzaSede, setBozzaSede] = useState("");
   const [bozzaFlussi, setBozzaFlussi] = useState<Record<string, string>>({});
   const [secco, setSecco] = useState<ProvaASecco | null>(null);
   const [creazione, setCreazione] = useState<ProvaCreazione | null>(null);
@@ -206,16 +230,28 @@ export function ManychatPannello() {
 
   //  Le bozze ripartono dai valori del server quando cambiano (o arrivano).
   const config = stato?.config;
-  const chiaveConfig = JSON.stringify([config?.tetti, config?.flussi]);
+  const chiaveConfig = JSON.stringify([config?.tetti, config?.flussi, config?.indirizzoSede]);
   useEffect(() => {
     if (!config) return;
     setBozzaTetti({
       ricontatti: String(config.tetti.ricontatti ?? TETTO_RICONTATTI),
+      leadNuovi: String(config.tetti.leadNuovi ?? TETTO_LEAD_NUOVI),
       totale: String(config.tetti.totale ?? TETTO_TOTALE),
     });
     setBozzaFlussi({ ...config.flussi });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- si riparte solo quando cambiano tetti e flussi
+    setBozzaSede(config.indirizzoSede ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si riparte solo quando cambiano tetti, flussi e sede
   }, [chiaveConfig]);
+
+  //  Il campo della frase parte dal giorno segnato, o da oggi (a Roma) se non c'è.
+  const fraseSalvata = stato?.fraseModulo ?? null;
+  useEffect(() => {
+    if (!stato) return;
+    setBozzaFrase(
+      fraseSalvata ? aRoma(new Date(fraseSalvata.il)).giorno : aRoma(new Date(stato.adesso)).giorno,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si riparte solo quando cambia la frase salvata
+  }, [fraseSalvata?.il, !!stato]);
 
   const adesso = useMemo(() => {
     const t = stato ? new Date(stato.adesso) : new Date();
@@ -259,26 +295,56 @@ export function ManychatPannello() {
   const righeColl = righeCollegamento(stato?.collegamento, ctxCollegamento);
 
   const imposta = (chiave: ChiaveInterruttore, valore: boolean) => {
-    const parole: Record<ChiaveInterruttore, { titolo: string; testo: string; fatto: string }> = {
-      acceso: {
-        titolo: "Accendere WhatsApp con ManyChat?",
-        testo:
-          "Il giro comincia a lavorare ogni minuto. Manda solo quello che accendi qui sotto («Promemoria» e «Ricontatti»), e solo a chi ha «Ok a WhatsApp» sulla scheda.",
-        fatto: "WhatsApp con ManyChat acceso",
-      },
-      promemoria: {
-        titolo: "Accendere i promemoria 25 minuti prima?",
-        testo:
-          "Chi ha un meet oggi, con «Ok a WhatsApp» sulla scheda, riceve un promemoria 25 minuti prima. Uno solo per appuntamento. Parte solo se anche l'interruttore generale è acceso.",
-        fatto: "Promemoria acceso",
-      },
-      ricontatti: {
-        titolo: "Accendere i ricontatti dei consulenti?",
-        testo:
-          "Nel giorno fissato, ai lead dei consulenti con «Ok a WhatsApp» parte un ricontatto: uno ogni 27-33 minuti, dalle 9 alle 20, da lunedì a sabato. Le date già passate non partono mai. Parte solo se anche l'interruttore generale è acceso.",
-        fatto: "Ricontatti acceso",
-      },
-    };
+    const parole: Record<ChiaveInterruttore, { titolo: string; testo: ReactNode; fatto: string }> =
+      {
+        acceso: {
+          titolo: "Accendere WhatsApp con ManyChat?",
+          testo:
+            "Il giro comincia a lavorare ogni minuto. Manda solo quello che accendi qui sotto («Promemoria» e «Ricontatti»), e solo a chi ha «Ok a WhatsApp» sulla scheda.",
+          fatto: "WhatsApp con ManyChat acceso",
+        },
+        promemoria: {
+          titolo: "Accendere i promemoria 25 minuti prima?",
+          testo:
+            "Chi ha un meet oggi, con «Ok a WhatsApp» sulla scheda, riceve un promemoria 25 minuti prima. Uno solo per appuntamento. Parte solo se anche l'interruttore generale è acceso.",
+          fatto: "Promemoria acceso",
+        },
+        ricontatti: {
+          titolo: "Accendere i ricontatti dei consulenti?",
+          testo:
+            "Nel giorno fissato, ai lead dei consulenti con «Ok a WhatsApp» parte un ricontatto: uno ogni 27-33 minuti, dalle 9 alle 20, da lunedì a sabato. Le date già passate non partono mai. Parte solo se anche l'interruttore generale è acceso.",
+          fatto: "Ricontatti acceso",
+        },
+        leadNuovo: {
+          titolo: "Accendere «Lead nuovo»?",
+          testo: (
+            <>
+              Chi lascia il numero nel modulo Meta riceve subito un primo messaggio e, se non
+              risponde, un richiamo dopo 24 ore. Poi basta. Parte solo per i moduli compilati dal{" "}
+              {stato?.fraseModulo ? giornoBreve(stato.fraseModulo.il) : "giorno della frase"} in poi
+              e arrivati dopo questa accensione, dalle 9 alle 20, da lunedì a sabato. Il richiamo è
+              un secondo messaggio a chi non ha risposto: per questo caso la regola «mai due
+              messaggi senza risposta» non vale. Chi ricompila il modulo con un numero già in
+              archivio non riceve il primo messaggio. Parte solo se anche l'interruttore generale è
+              acceso.
+            </>
+          ),
+          fatto: "Lead nuovo acceso",
+        },
+        giornoMeet: {
+          titolo: "Accendere «Giorno del meet»?",
+          testo: (
+            <>
+              Chi ha un meet oggi riceve un messaggio la mattina (alle 9; se il meet è prima delle
+              10, appena possibile) e uno all'ora esatta, con il link per entrare. Il promemoria 25
+              minuti prima resta il suo interruttore. Questi messaggi non sono frenati da «mai due
+              messaggi senza risposta», perché riguardano un appuntamento già preso; contano nei
+              tetti e si fermano con STOP. Parte solo se anche l'interruttore generale è acceso.
+            </>
+          ),
+          fatto: "Giorno del meet acceso",
+        },
+      };
     const p = parole[chiave];
     if (!valore) {
       void comanda({ interruttori: { [chiave]: false } }, p.fatto.replace("acceso", "spento"));
@@ -339,28 +405,116 @@ export function ManychatPannello() {
 
   // ── tetti ──────────────────────────────────────────────────────────────
   const letturaRicontatti = leggiTetto(bozzaTetti.ricontatti, TETTO_RICONTATTI);
+  const letturaLeadNuovi = leggiTetto(bozzaTetti.leadNuovi, TETTO_LEAD_NUOVI);
   const letturaTotale = leggiTetto(bozzaTetti.totale, TETTO_TOTALE);
   const tettiCambiati =
     !!config &&
     ((letturaRicontatti.ok &&
       letturaRicontatti.valore !== (config.tetti.ricontatti ?? TETTO_RICONTATTI)) ||
+      (letturaLeadNuovi.ok &&
+        config.sequenze &&
+        letturaLeadNuovi.valore !== (config.tetti.leadNuovi ?? TETTO_LEAD_NUOVI)) ||
       (letturaTotale.ok && letturaTotale.valore !== (config.tetti.totale ?? TETTO_TOTALE)));
   const salvaTetti = () => {
-    if (!letturaRicontatti.ok || !letturaTotale.ok) return;
+    if (!letturaRicontatti.ok || !letturaLeadNuovi.ok || !letturaTotale.ok) return;
     void comanda(
-      { tetti: { ricontatti: letturaRicontatti.valore, totale: letturaTotale.valore } },
+      {
+        tetti: {
+          ricontatti: letturaRicontatti.valore,
+          totale: letturaTotale.valore,
+          //  Il tetto dei lead nuovi sta nelle colonne di S2: senza, non si manda.
+          ...(config?.sequenze ? { leadNuovi: letturaLeadNuovi.valore } : {}),
+        },
+      },
       "Tetti salvati",
     );
   };
 
+  // ── la frase del consenso, i messaggi per stato, la sede ────────────────
+  const letturaFrase = leggiGiornoFrase(bozzaFrase, adesso);
+  const frasePronta =
+    letturaFrase.ok &&
+    letturaFrase.giorno !== (fraseSalvata ? aRoma(new Date(fraseSalvata.il)).giorno : "");
+  const confermaFrase = () => {
+    if (!letturaFrase.ok) return;
+    const giorno = letturaFrase.giorno;
+    const [a, m, g] = giorno.split("-");
+    const prima = fraseSalvata ? aRoma(new Date(fraseSalvata.il)).giorno : null;
+    setConferma({
+      titolo: "Segnare la data della frase?",
+      etichetta: "Segna la data",
+      azione: () =>
+        void esegui(
+          "frase",
+          () => salvaFraseModulo(giorno),
+          (d) => setStato((st) => (st ? { ...st, fraseModulo: d.fraseModulo } : st)),
+          "Data della frase segnata",
+        ),
+      testo: (
+        <div className="space-y-2.5">
+          <p>
+            Da adesso i moduli Meta compilati dal {g}/{m}/{a} in poi valgono come consenso a
+            ricevere i messaggi di servizio su WhatsApp. I moduli di prima no. Conferma solo se la
+            frase del consenso era già nel modulo da quel giorno.
+          </p>
+          {prima && giorno < prima && (
+            <NotaFinestra tono="attenzione">
+              Stai anticipando la data: valgono anche i moduli compilati dal {g}/{m} fino al giorno
+              prima del {prima.slice(8)}/{prima.slice(5, 7)}.
+            </NotaFinestra>
+          )}
+        </div>
+      ),
+    });
+  };
+
+  const letturaSede = leggiIndirizzo(bozzaSede);
+  const sedeCambiata = letturaSede.ok && letturaSede.valore !== (config?.indirizzoSede ?? "");
+  const salvaSede = () => {
+    if (!letturaSede.ok) return;
+    void comanda({ indirizzoSede: letturaSede.valore }, "Indirizzo della sede salvato");
+  };
+
+  const accendiStato = (r: VistaStato, valore: boolean) => {
+    const fatto = `${r.etichetta}: messaggio ${valore ? "acceso" : "spento"}`;
+    if (!valore) {
+      void comanda({ stati: { [r.stato]: false } }, fatto);
+      return;
+    }
+    const flussoMancante = !config?.flussi[r.modello];
+    setConferma({
+      titolo: `Accendere il messaggio per «${r.etichetta}»?`,
+      etichetta: "Accendi",
+      azione: () => void comanda({ stati: { [r.stato]: true } }, fatto),
+      testo: (
+        <div className="space-y-2.5">
+          <p>
+            {r.quando}. Riceve il messaggio: {r.chi.toLowerCase()}, e solo con il consenso WhatsApp.
+            Le schede che sono già in questo stato non ricevono niente: contano solo da adesso. Il
+            messaggio ha il suo posto nei tetti e nel ritmo dei ricontatti, e si ferma con STOP.
+            Parte solo se anche l'interruttore generale è acceso.
+          </p>
+          {flussoMancante && (
+            <NotaFinestra tono="attenzione">
+              Il flusso di questo messaggio non è ancora collegato (in «Canale e flussi»): finché
+              manca, non parte niente.
+            </NotaFinestra>
+          )}
+          {r.avviso && <NotaFinestra tono="attenzione">{r.avviso}</NotaFinestra>}
+        </div>
+      ),
+    });
+  };
+
   // ── flussi ─────────────────────────────────────────────────────────────
   const modelli = useMemo(() => {
-    const noti = new Set(MODELLI_FLUSSO.map((m) => m.modello));
+    const sequenze = config?.sequenze ? MODELLI_FLUSSO_SEQUENZE : [];
+    const noti = new Set([...MODELLI_FLUSSO, ...sequenze].map((m) => m.modello));
     const extra = Object.keys(config?.flussi ?? {})
       .filter((m) => !noti.has(m))
       .map((modello) => ({ modello, etichetta: modello }));
-    return [...MODELLI_FLUSSO, ...extra];
-  }, [config?.flussi]);
+    return [...MODELLI_FLUSSO, ...sequenze, ...extra];
+  }, [config?.flussi, config?.sequenze]);
   const flussiLetti = modelli.map((m) => ({
     modello: m.modello,
     lettura: leggiNs(bozzaFlussi[m.modello] ?? ""),
@@ -422,6 +576,9 @@ export function ManychatPannello() {
   const riga = stato ? rigaStatoRiquadro(stato, adesso) : null;
   const allarme = stato ? allarmeGiro(stato.giro, stato.config.acceso, adesso) : null;
   const eff = config ? tettiEffettivi(config.tetti, config.primaAccensione, adesso) : null;
+  const sequenze = stato ? vistaSequenze(stato) : null;
+  const fraseVista = vistaFraseModulo(fraseSalvata);
+  const foglioVista = stato ? vistaFoglio(stato.foglio) : null;
   const problemi = stato ? righeProblemi(stato.giro) : [];
   const bloccato = !caricato || !stato || occupato !== null;
 
@@ -430,9 +587,10 @@ export function ManychatPannello() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">WhatsApp con ManyChat</CardTitle>
         <p className="text-[13px] text-muted-foreground">
-          Promemoria 25 minuti prima del meet e ricontatti dei consulenti, mandati da ManyChat.
-          Parte spento: non scrive a nessuno finché non lo accendi, e solo a chi ha «Ok a WhatsApp»
-          sulla scheda.
+          Promemoria del meet, ricontatti dei consulenti, sequenze per i lead nuovi e per il giorno
+          del meet, messaggi per stato: li manda ManyChat. Parte spento: non scrive a nessuno finché
+          non lo accendi, e solo a chi ha dato il consenso: «Ok a WhatsApp» sulla scheda, o il
+          numero lasciato nel modulo Meta dopo la frase del consenso.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -501,13 +659,168 @@ export function ManychatPannello() {
                 />
                 <Interruttore
                   etichetta="Ricontatti dei consulenti"
-                  nota="Nel giorno fissato, ai lead dei consulenti. Uno ogni 27-33 minuti, 9-20, non la domenica."
+                  nota="Nel giorno fissato, ai lead dei consulenti. Uno ogni 27-33 minuti, 9-20, non la domenica. È anche il messaggio per «Ricontatto fissato»."
                   acceso={config.ricontatti}
                   disabilitato={bloccato}
                   onCambia={(v) => imposta("ricontatti", v)}
                 />
+                {sequenze && (
+                  <>
+                    <Interruttore
+                      etichetta="Lead nuovo"
+                      nota={
+                        <>
+                          Primo messaggio appena arriva dal modulo Meta e richiamo dopo 24 ore se
+                          non risponde. Poi basta.
+                          {config.leadNuovo && config.leadNuovoDal
+                            ? ` Acceso dal ${quandoBreve(config.leadNuovoDal)}: i lead arrivati prima non ricevono niente.`
+                            : ""}
+                          {sequenze.leadNuovo.nota && (
+                            <span className="mt-0.5 block text-amber-800">
+                              {sequenze.leadNuovo.nota}
+                            </span>
+                          )}
+                        </>
+                      }
+                      acceso={config.leadNuovo}
+                      disabilitato={bloccato || sequenze.leadNuovo.disabilitato}
+                      onCambia={(v) => imposta("leadNuovo", v)}
+                    />
+                    <Interruttore
+                      etichetta="Giorno del meet"
+                      nota={
+                        <>
+                          Il giorno del meet: un messaggio la mattina e uno all'ora esatta, con il
+                          link per entrare.
+                          {sequenze.giornoMeet.nota && (
+                            <span className="mt-0.5 block text-amber-800">
+                              {sequenze.giornoMeet.nota}
+                            </span>
+                          )}
+                        </>
+                      }
+                      acceso={config.giornoMeet}
+                      disabilitato={bloccato || sequenze.giornoMeet.disabilitato}
+                      onCambia={(v) => imposta("giornoMeet", v)}
+                    />
+                  </>
+                )}
               </div>
             </div>
+
+            <Sezione
+              titolo="Frase del consenso nel modulo Meta"
+              nota="Il giorno in cui hai aggiunto al modulo Meta la frase sul contatto WhatsApp. I moduli compilati da quel giorno in poi valgono come consenso; quelli di prima no. Senza questa data «Lead nuovo» non si accende."
+            >
+              <p
+                role="status"
+                className={cn(
+                  "rounded-md border px-3 py-2 text-[13px] leading-snug",
+                  TONI[fraseVista.tono],
+                )}
+              >
+                {fraseVista.frase}
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  <label className="block text-[12px] font-medium" htmlFor="frase-giorno">
+                    Giorno in cui l'hai aggiunta
+                  </label>
+                  <Input
+                    id="frase-giorno"
+                    type="date"
+                    max={aRoma(adesso).giorno}
+                    value={bozzaFrase}
+                    onChange={(e) => setBozzaFrase(e.target.value)}
+                    disabled={bloccato}
+                    aria-invalid={!letturaFrase.ok}
+                    aria-describedby="frase-giorno-nota"
+                    className="mt-1 h-9 w-44 tabular-nums"
+                  />
+                </div>
+                <Button size="sm" onClick={confermaFrase} disabled={bloccato || !frasePronta}>
+                  {occupato === "frase" ? "Salvo…" : "Segna la data"}
+                </Button>
+              </div>
+              <p
+                id="frase-giorno-nota"
+                className={cn(
+                  "text-[12px] leading-snug",
+                  letturaFrase.ok ? "text-muted-foreground" : "text-rose-700",
+                )}
+              >
+                {letturaFrase.ok
+                  ? "Se vuoi dare il consenso anche ai moduli di prima, scegli un giorno più vecchio: te lo chiedo di nuovo prima di salvare."
+                  : letturaFrase.errore}
+              </p>
+            </Sezione>
+
+            {sequenze && (
+              <Sezione
+                titolo="Messaggi per stato"
+                nota="Quando una scheda passa a uno di questi stati parte il messaggio, uno per stato, spenti di serie. Ogni messaggio vale per le schede che entrano nello stato dopo l'accensione, e solo con il consenso WhatsApp."
+              >
+                <div className="space-y-3">
+                  {sequenze.stati.map((r) =>
+                    r.legatoA ? (
+                      <p key={r.stato} className="text-[12px] leading-snug text-muted-foreground">
+                        <span className="font-medium text-slate-900">{r.etichetta}</span> parte con
+                        «Ricontatti dei consulenti», qui sopra.
+                      </p>
+                    ) : (
+                      <Interruttore
+                        key={r.stato}
+                        etichetta={r.etichetta}
+                        nota={
+                          <>
+                            {r.quando}. {r.chi}.
+                            {r.dal ? ` ${r.dal[0].toUpperCase()}${r.dal.slice(1)}.` : ""}
+                            {r.avviso && !r.acceso && (
+                              <span className="mt-0.5 block text-amber-800">{r.avviso}</span>
+                            )}
+                          </>
+                        }
+                        acceso={r.acceso}
+                        disabilitato={bloccato || r.disabilitato}
+                        onCambia={(v) => accendiStato(r, v)}
+                      />
+                    ),
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium" htmlFor="sede-indirizzo">
+                    Indirizzo della sede
+                  </label>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Input
+                      id="sede-indirizzo"
+                      value={bozzaSede}
+                      onChange={(e) => setBozzaSede(e.target.value)}
+                      disabled={bloccato}
+                      placeholder="Via, numero civico, città"
+                      aria-invalid={!letturaSede.ok}
+                      aria-describedby="sede-indirizzo-nota"
+                      autoComplete="off"
+                      className="h-9 min-w-0 flex-1"
+                    />
+                    <Button size="sm" onClick={salvaSede} disabled={bloccato || !sedeCambiata}>
+                      Salva l'indirizzo
+                    </Button>
+                  </div>
+                  <p
+                    id="sede-indirizzo-nota"
+                    className={cn(
+                      "mt-1 text-[12px] leading-snug",
+                      letturaSede.ok ? "text-muted-foreground" : "text-rose-700",
+                    )}
+                  >
+                    {letturaSede.ok
+                      ? "Lo legge il promemoria «Appuntamento in sede»: senza indirizzo quel messaggio non parte. Una riga sola."
+                      : letturaSede.errore}
+                  </p>
+                </div>
+              </Sezione>
+            )}
 
             <Sezione
               titolo={collegamentoTitolo.titolo}
@@ -550,6 +863,23 @@ export function ManychatPannello() {
                 {occupato === "collegamento" ? "Controllo…" : "Prova di collegamento"}
               </Button>
             </Sezione>
+
+            {foglioVista && (
+              <Sezione
+                titolo="Foglio Google"
+                nota="I lead che arrivano dal foglio Google (Meta Lead Ads). Qui compaiono solo l'ora e l'esito: nessun nome e nessun numero."
+              >
+                <p
+                  role="status"
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-[13px] leading-snug",
+                    TONI[foglioVista.tono],
+                  )}
+                >
+                  {foglioVista.frase}
+                </p>
+              </Sezione>
+            )}
 
             <Sezione
               titolo="Prova a secco"
@@ -624,9 +954,9 @@ export function ManychatPannello() {
 
             <Sezione
               titolo="Tetti di ogni giorno"
-              nota={`Massimo ${TETTO_RICONTATTI} ricontatti e ${TETTO_TOTALE} messaggi al giorno, e ${TETTO_PRIMA_SETTIMANA} ricontatti nei primi 7 giorni dopo la prima accensione. Puoi solo abbassarli.`}
+              nota={`Massimo ${TETTO_RICONTATTI} ricontatti, ${TETTO_LEAD_NUOVI} lead nuovi e ${TETTO_TOTALE} messaggi in tutto al giorno, e ${TETTO_PRIMA_SETTIMANA} ricontatti nei primi 7 giorni dopo la prima accensione. Puoi solo abbassarli.`}
             >
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 {(
                   [
                     [
@@ -637,12 +967,24 @@ export function ManychatPannello() {
                       stato.giro.oggi.ricontatti,
                       eff.ricontatti,
                     ],
+                    ...(config.sequenze
+                      ? ([
+                          [
+                            "leadNuovi",
+                            "Lead nuovi al giorno",
+                            TETTO_LEAD_NUOVI,
+                            letturaLeadNuovi,
+                            stato.giro.oggi.leadNuovi,
+                            eff.leadNuovi,
+                          ],
+                        ] as const)
+                      : []),
                     [
                       "totale",
                       "Messaggi in tutto al giorno",
                       TETTO_TOTALE,
                       letturaTotale,
-                      stato.giro.oggi.promemoria + stato.giro.oggi.ricontatti,
+                      stato.giro.oggi.totale,
                       eff.totale,
                     ],
                   ] as const
@@ -679,7 +1021,13 @@ export function ManychatPannello() {
               <Button
                 size="sm"
                 onClick={salvaTetti}
-                disabled={bloccato || !tettiCambiati || !letturaRicontatti.ok || !letturaTotale.ok}
+                disabled={
+                  bloccato ||
+                  !tettiCambiati ||
+                  !letturaRicontatti.ok ||
+                  !letturaTotale.ok ||
+                  (config.sequenze && !letturaLeadNuovi.ok)
+                }
               >
                 Salva i tetti
               </Button>
@@ -716,6 +1064,11 @@ export function ManychatPannello() {
                   const lettura = flussiLetti[i].lettura;
                   return (
                     <div key={m.modello}>
+                      {config.sequenze && i === MODELLI_FLUSSO.length && (
+                        <p className="mb-2 mt-3 text-[12px] font-semibold text-slate-900">
+                          Sequenze e messaggi per stato
+                        </p>
+                      )}
                       <label
                         className="block text-[12px] font-medium"
                         htmlFor={`flusso-${m.modello}`}

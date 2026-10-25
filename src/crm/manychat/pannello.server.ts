@@ -22,6 +22,11 @@
  *       (scritta dal compito 3; p_patch e p_voce sono `CambioContatto`)
  *   B   manychat_config.controlli jsonb
  *       (migrazione `20261023120150_manychat_pannello.sql`, di questo compito)
+ *   S1  sheets_ingressi(chiave, user_id, lead_id, esito, foglio, riga,
+ *       ricevuto_il, aggiornato_il) (migrazione `20261025120000_sheets_ingresso.sql`):
+ *       qui si leggono SOLO `ricevuto_il` ed `esito`, mai nomi né numeri
+ *   S2  manychat_config.lead_nuovo, giorno_meet, lead_nuovo_dal, stati,
+ *       indirizzo_sede (migrazione `20261025120100_manychat_sequenze.sql`)
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { STATI_APPUNTAMENTO, type LeadData } from "../types";
@@ -36,7 +41,7 @@ import {
   type RigaGiro,
   type RigaInvio,
 } from "./pannello";
-import { STATI_RICONTATTO_AUTOMATICO, type InvioPerFreno } from "./regole";
+import { STATI_RICONTATTO_AUTOMATICO, TIPI_AUTOMATICI, type InvioPerFreno } from "./regole";
 import type { SchedaQuando } from "./quando";
 import { portePortaVere } from "./porta.server";
 import type { ClientManychat } from "./api";
@@ -79,38 +84,52 @@ const funzioneMancante = (e: NonNullable<ErroreDb>) =>
   ["42883", "PGRST202"].includes(String(e.code ?? ""));
 
 const GIORNO_MS = 86_400_000;
-const TIPI_AUTOMATICI = ["promemoria", "ricontatto", "conferma"];
 
 /* ═══════════════════════════════════════════════════════════════════════════
    IL RIQUADRO
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** La riga di `manychat_config`. `manca: true` = la migrazione M1 non c'è. */
-export async function leggiRigaConfig(): Promise<{ manca: boolean; riga: RigaConfig | null }> {
+/** La riga di `manychat_config`. `manca: true` = la migrazione M1 non c'è.
+ *  `sequenze`: ci sono le colonne di S2? Con la riga si vede dalle colonne; senza
+ *  riga (mai scritta) si prova a leggerle. */
+export async function leggiRigaConfig(): Promise<{
+  manca: boolean;
+  riga: RigaConfig | null;
+  sequenze: boolean;
+}> {
   const { data, error } = await db()
     .from("manychat_config")
     .select<RigaConfig[]>("*")
     .eq("id", 1)
     .maybeSingle();
   if (error) {
-    if (tabellaMancante(error)) return { manca: true, riga: null };
+    if (tabellaMancante(error)) return { manca: true, riga: null, sequenze: false };
     return lancia(error);
   }
-  return { manca: false, riga: (data as RigaConfig | null) ?? null };
+  const riga = (data as RigaConfig | null) ?? null;
+  if (riga) return { manca: false, riga, sequenze: riga.lead_nuovo !== undefined };
+  const prova = await db()
+    .from("manychat_config")
+    .select<unknown[]>("lead_nuovo, giorno_meet, lead_nuovo_dal, stati, indirizzo_sede")
+    .limit(1);
+  if (prova.error && !colonnaMancante(prova.error)) lancia(prova.error);
+  return { manca: false, riga: null, sequenze: !prova.error };
 }
 
 /** Tutto quello che serve a `costruisciStato`: letture sole, niente ManyChat. */
 export async function leggiDatiStato(
   userId: string,
-  d: { manca: boolean; riga: RigaConfig | null },
+  d: { manca: boolean; riga: RigaConfig | null; sequenze: boolean },
   adesso: Date,
-  ambiente: { chiave: boolean; segreto: boolean },
+  ambiente: { chiave: boolean; segreto: boolean; segretoFoglio: boolean },
 ): Promise<DatiStato> {
   const vuoto: DatiStato = {
     migrazione: !d.manca,
     chiave: ambiente.chiave,
     segreto: ambiente.segreto,
     config: d.riga,
+    sequenze: d.sequenze,
+    foglio: { migrazione: false, segreto: ambiente.segretoFoglio, ricevuti: [] },
     giro: null,
     invii: [],
     problemi: [],
@@ -175,6 +194,30 @@ export async function leggiDatiStato(
     for (const x of r.data ?? []) nomi[x.id] = { nome: x.nome, cognome: x.cognome };
   }
 
+  //  Il registro del foglio (S1): solo ora ed esito delle ultime righe. Ieri e oggi
+  //  bastano a contare «righe di oggi» (giorno di Roma); il tetto è 300 al giorno.
+  //  Senza la tabella il foglio non può ancora mandare niente: non è un guasto.
+  const fogli = await db()
+    .from("sheets_ingressi")
+    .select<{ ricevuto_il: string; esito: string }[]>("ricevuto_il, esito")
+    .eq("user_id", userId)
+    .gte("ricevuto_il", dal)
+    .order("ricevuto_il", { ascending: false })
+    .limit(400);
+  if (fogli.error && !tabellaMancante(fogli.error)) lancia(fogli.error);
+  let ricevuti = fogli.error ? [] : (fogli.data ?? []);
+  //  Nessuna riga nelle ultime 30 ore: l'ultima in assoluto, per dire quando è stata.
+  if (!fogli.error && ricevuti.length === 0) {
+    const ultima = await db()
+      .from("sheets_ingressi")
+      .select<{ ricevuto_il: string; esito: string }[]>("ricevuto_il, esito")
+      .eq("user_id", userId)
+      .order("ricevuto_il", { ascending: false })
+      .limit(1);
+    if (ultima.error) lancia(ultima.error);
+    ricevuti = ultima.data ?? [];
+  }
+
   return {
     ...vuoto,
     giro: (g.data as RigaGiro | null) ?? null,
@@ -182,6 +225,11 @@ export async function leggiDatiStato(
     problemi,
     ultimoInvioIl: ultimo.data?.[0]?.inviato_il ?? null,
     nomi,
+    foglio: {
+      migrazione: !fogli.error,
+      segreto: ambiente.segretoFoglio,
+      ricevuti,
+    },
   };
 }
 

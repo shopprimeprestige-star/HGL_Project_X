@@ -14,11 +14,22 @@
  *  ⚠️ NIENTE NUMERI DI TELEFONO: né qui né nelle frasi. I nomi arrivano già
  *   abbreviati dal server.
  *  ───────────────────────────────────────────────────────────────────────── */
-import type { ConsensoModulo, ContattoWa, LeadData, OkWhatsapp, StatoContattoWa } from "../types";
+import { LEAD_STATUS_LABEL } from "../types";
+import type {
+  ConsensoModulo,
+  ContattoWa,
+  LeadData,
+  LeadStatus,
+  OkWhatsapp,
+  StatoContattoWa,
+} from "../types";
 import type { Tono } from "../ui";
+import { aRoma } from "../promemoria/formati";
 import type {
   CollegamentoManychat,
   ConfigManychat,
+  FoglioManychat,
+  FraseModulo,
   GiroManychat,
   RigaCollegamento,
   StatoManychat,
@@ -29,6 +40,7 @@ import {
   FRASE_STOP_RISERVATO,
   STATI_CONTATTO,
   TONI_CONTATTO,
+  istanteDiRoma,
   statoContattoEffettivo,
   type ToneContatto,
 } from "./contatto";
@@ -232,16 +244,53 @@ export interface VistaOk {
   acceso: boolean;
   /** la riga sotto l'interruttore */
   riga: string;
-  /** vero se il cliente ha dato il consenso anche col modulo */
+  /** vero se il cliente ha lasciato il numero nel modulo */
   dalModulo: boolean;
+  /** il modulo vale come consenso? `null` = non si sa (chi guarda non conosce
+   *  la data della frase) o non c'è nessun modulo */
+  valeDalModulo: boolean | null;
 }
 
-/** La riga sotto l'interruttore: «chiesto a voce da Mario, 23/10». */
+/** La riga del modulo. Vale come consenso solo se `il` (il giorno in cui ha
+ *  lasciato il numero) è uguale o successivo alla data della frase nel modulo:
+ *  la stessa regola di `consensoWhatsapp`. Un `il` che non si legge non vale mai. */
+function rigaModulo(
+  modulo: ConsensoModulo,
+  frase: string | null | undefined,
+): { riga: string; vale: boolean | null } {
+  const il = Date.parse(String(modulo.il ?? ""));
+  if (!Number.isFinite(il))
+    return { riga: "Nel modulo, ma la data non si legge: non vale come consenso", vale: false };
+  const giorno = giornoBreve(modulo.il);
+  if (frase === undefined)
+    return { riga: `Ha lasciato il numero nel modulo il ${giorno}`, vale: null };
+  const dal = Date.parse(String(frase ?? ""));
+  if (!Number.isFinite(dal))
+    return {
+      riga: `Nel modulo del ${giorno}: non vale finché non segni il giorno della frase`,
+      vale: false,
+    };
+  return il >= dal
+    ? {
+        riga: `Ha lasciato il numero nel modulo il ${giorno}: vale (la frase c'è dal ${giornoBreve(frase)})`,
+        vale: true,
+      }
+    : {
+        riga: `Nel modulo del ${giorno}: non vale, precedente alla frase (dal ${giornoBreve(frase)})`,
+        vale: false,
+      };
+}
+
+/** La riga sotto l'interruttore: «chiesto a voce da Mario, 23/10». Con un
+ *  modulo, la riga dice la data e (se `fraseModuloDal` è noto: ISO, o `null` se
+ *  non è segnata) se vale o non vale. */
 export function vistaOkWhatsapp(
   ok: OkWhatsapp | null | undefined,
   modulo?: ConsensoModulo | null,
+  fraseModuloDal?: string | null,
 ): VistaOk {
   const dalModulo = modulo?.whatsapp === true;
+  const dalMod = dalModulo && modulo ? rigaModulo(modulo, fraseModuloDal) : null;
   const giorno = giornoBreve(ok?.il);
   const quando = giorno ? `, ${giorno}` : "";
   if (ok?.si)
@@ -249,15 +298,20 @@ export function vistaOkWhatsapp(
       acceso: true,
       riga: `Chiesto a voce da ${ok.da || "sconosciuto"}${quando}`,
       dalModulo,
+      valeDalModulo: dalMod?.vale ?? null,
     };
   if (ok && ok.si === false && ok.il)
-    return { acceso: false, riga: `Tolto da ${ok.da || "sconosciuto"}${quando}`, dalModulo };
+    return {
+      acceso: false,
+      riga: `Tolto da ${ok.da || "sconosciuto"}${quando}`,
+      dalModulo,
+      valeDalModulo: dalMod?.vale ?? null,
+    };
   return {
     acceso: false,
-    riga: dalModulo
-      ? "Il cliente ha già dato il consenso nel modulo"
-      : "Non ancora chiesto: senza, promemoria e ricontatti non partono",
+    riga: dalMod?.riga ?? "Non ancora chiesto: senza, promemoria e ricontatti non partono",
     dalModulo,
+    valeDalModulo: dalMod?.vale ?? null,
   };
 }
 
@@ -333,6 +387,168 @@ export const MODELLI_FLUSSO: { modello: string; etichetta: string }[] = [
   { modello: "hgl_ricontatto_consulenza", etichetta: "Ricontatto dei consulenti" },
 ];
 
+/** I flussi della commessa 2026-10-25: le due sequenze e i messaggi per stato.
+ *  Restano FUORI da `MODELLI_FLUSSO` (e da `ID_COLLEGAMENTO`): sono righe «in
+ *  coda» del collegamento, grigie finché il loro interruttore è spento. Il
+ *  quarto modello dei ricontatti (`hgl_ricontatto_consulenza`) è già sopra. */
+export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] = [
+  { modello: "hgl_primo_contatto", etichetta: "Lead nuovo: primo messaggio" },
+  { modello: "hgl_richiamo_24h", etichetta: "Lead nuovo: richiamo dopo 24 ore" },
+  { modello: "hgl_meet_oggi", etichetta: "Giorno del meet: messaggio del mattino" },
+  { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
+  { modello: "hgl_meet_da_fissare", etichetta: "Meet da fissare" },
+  { modello: "hgl_richiamo_concordato", etichetta: "Richiamo concordato" },
+  { modello: "hgl_non_risponde", etichetta: "Non risponde e Segreteria" },
+  { modello: "hgl_cliente_assente", etichetta: "Cliente assente" },
+  { modello: "hgl_da_riprogrammare", etichetta: "Da riprogrammare" },
+  { modello: "hgl_promemoria_sede", etichetta: "Appuntamento in sede" },
+  { modello: "hgl_sede_disdetta", etichetta: "Appuntamento in sede disdetto" },
+  { modello: "hgl_ultimo_tentativo", etichetta: "Irreperibile: ultimo tentativo" },
+];
+
+/** Lead nuovi al giorno.
+ *  shortcut: stesso valore di `TETTO_LEAD_NUOVI` in `quando.ts`, che lo aggiunge
+ *  il compito Q; dopo la fusione si importa da lì e questa riga sparisce (la
+ *  prova li confronta appena esiste). */
+export const TETTO_LEAD_NUOVI = 30;
+
+/** Gli stati con un messaggio automatico (PIANO §5g), nell'ordine del riquadro.
+ *  Un interruttore per riga, spento di serie, in `manychat_config.stati`.
+ *  `legatoA`: la riga non ha un interruttore suo ma segue uno di sempre
+ *  («Ricontatto fissato» è «Ricontatti dei consulenti»). `insieme`: altri stati
+ *  che si accendono e si spengono con questo (stessa etichetta nel CRM). */
+export interface StatoRiquadro {
+  stato: LeadStatus;
+  insieme?: LeadStatus[];
+  etichetta: string;
+  modello: string;
+  /** quando parte, in una riga */
+  quando: string;
+  /** a chi */
+  chi: string;
+  legatoA?: "ricontatti";
+}
+
+const CONSULENTI = "Lead dei consulenti";
+const A_DATA = "Il giorno della data di ricontatto, dalle 9 alle 20";
+
+export const STATI_RIQUADRO: StatoRiquadro[] = [
+  {
+    stato: "da_ricontattare",
+    legatoA: "ricontatti",
+    etichetta: LEAD_STATUS_LABEL.da_ricontattare,
+    modello: "hgl_ricontatto_consulenza",
+    quando: A_DATA,
+    chi: CONSULENTI,
+  },
+  {
+    stato: "sta_valutando",
+    etichetta: LEAD_STATUS_LABEL.sta_valutando,
+    modello: "hgl_ricontatto_consulenza",
+    quando: A_DATA,
+    chi: CONSULENTI,
+  },
+  {
+    stato: "fissa_meet_dopo",
+    etichetta: LEAD_STATUS_LABEL.fissa_meet_dopo,
+    modello: "hgl_meet_da_fissare",
+    quando: A_DATA,
+    chi: CONSULENTI,
+  },
+  {
+    stato: "in_attesa_acconto",
+    etichetta: LEAD_STATUS_LABEL.in_attesa_acconto,
+    modello: "hgl_ricontatto_consulenza",
+    quando: A_DATA,
+    chi: CONSULENTI,
+  },
+  {
+    stato: "gestire_in_chat",
+    etichetta: LEAD_STATUS_LABEL.gestire_in_chat,
+    modello: "hgl_ricontatto_consulenza",
+    quando: A_DATA,
+    chi: CONSULENTI,
+  },
+  {
+    stato: "richiamo",
+    etichetta: LEAD_STATUS_LABEL.richiamo,
+    modello: "hgl_richiamo_concordato",
+    quando: "Da 30 a 10 minuti prima della chiamata concordata",
+    chi: CONSULENTI,
+  },
+  {
+    stato: "non_risponde",
+    etichetta: LEAD_STATUS_LABEL.non_risponde,
+    modello: "hgl_non_risponde",
+    quando: "15 minuti dopo che lo stato è stato messo",
+    chi: "Tutti, anche i lead importati",
+  },
+  {
+    stato: "segreteria",
+    etichetta: LEAD_STATUS_LABEL.segreteria,
+    modello: "hgl_non_risponde",
+    quando: "15 minuti dopo che lo stato è stato messo",
+    chi: "Tutti, anche i lead importati",
+  },
+  {
+    stato: "no_show",
+    insieme: ["non_fatto"],
+    etichetta: LEAD_STATUS_LABEL.no_show,
+    modello: "hgl_cliente_assente",
+    quando: "30 minuti dopo che lo stato è stato messo",
+    chi: CONSULENTI,
+  },
+  {
+    stato: "da_spostare",
+    etichetta: LEAD_STATUS_LABEL.da_spostare,
+    modello: "hgl_da_riprogrammare",
+    quando: "Alla data fissata; senza data, 30 minuti dopo che lo stato è stato messo",
+    chi: CONSULENTI,
+  },
+  {
+    stato: "viene_in_sede",
+    etichetta: LEAD_STATUS_LABEL.viene_in_sede,
+    modello: "hgl_promemoria_sede",
+    quando: "Il giorno prima dell'appuntamento, dalle 9 alle 20",
+    chi: "Tutte le schede con l'appuntamento",
+  },
+  {
+    stato: "sede_disdetta",
+    etichetta: LEAD_STATUS_LABEL.sede_disdetta,
+    modello: "hgl_sede_disdetta",
+    quando: "15 minuti dopo la disdetta",
+    chi: "Tutte le schede con il consenso",
+  },
+  {
+    stato: "irreperibile",
+    etichetta: LEAD_STATUS_LABEL.irreperibile,
+    modello: "hgl_ultimo_tentativo",
+    quando: "1 ora dopo, una volta sola per numero",
+    chi: "Tutti, anche i lead importati",
+  },
+];
+
+/** Lo stato della riga e gli altri che si muovono con lui. */
+export const statiDiRiga = (r: StatoRiquadro): LeadStatus[] => [r.stato, ...(r.insieme ?? [])];
+
+/** Gli stati che il riquadro sa accendere da solo (non «Ricontatto fissato»). */
+export const STATI_ACCENDIBILI: LeadStatus[] = STATI_RIQUADRO.filter((r) => !r.legatoA).flatMap(
+  statiDiRiga,
+);
+
+/** Il tipo di invio in parole, per i problemi del giro. */
+export const ETICHETTA_TIPO: Record<string, string> = {
+  promemoria: "promemoria",
+  ricontatto: "ricontatto",
+  conferma: "conferma",
+  primo_contatto: "primo contatto",
+  richiamo_24h: "richiamo dopo 24 ore",
+  meet_oggi: "meet di oggi",
+  meet_adesso: "meet all'ora",
+  promemoria_chiamata: "promemoria della chiamata",
+  promemoria_sede: "promemoria in sede",
+};
+
 /** Il giro è fermo? Il minuto in più del cron non conta: oltre 5 minuti è un
  *  allarme (PIANO §0, «giro che non parte mai, in silenzio»). */
 export const ALLARME_GIRO_MS = 5 * MIN;
@@ -371,7 +587,7 @@ export function tettiEffettivi(
   tetti: ConfigManychat["tetti"] | null | undefined,
   primaAccensione: string | null | undefined,
   adesso: Date,
-): { ricontatti: number; totale: number; primaSettimana: boolean } {
+): { ricontatti: number; leadNuovi: number; totale: number; primaSettimana: boolean } {
   const intero = (v: unknown, max: number) =>
     typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(max, Math.floor(v))) : max;
   const t0 = Date.parse(String(primaAccensione ?? ""));
@@ -379,6 +595,7 @@ export function tettiEffettivi(
   const ricontatti = intero(tetti?.ricontatti, TETTO_RICONTATTI);
   return {
     ricontatti: primaSettimana ? Math.min(ricontatti, TETTO_PRIMA_SETTIMANA) : ricontatti,
+    leadNuovi: intero(tetti?.leadNuovi, TETTO_LEAD_NUOVI),
     totale: intero(tetti?.totale, TETTO_TOTALE),
     primaSettimana,
   };
@@ -431,19 +648,32 @@ export function rigaStatoRiquadro(s: StatoManychat, adesso: Date): RigaStatoRiqu
   if (config.fermatoMotivo) return rosso(`Fermato: ${config.fermatoMotivo}`);
   if (!config.acceso)
     return { tono: "neutro", parola: "Spento", frase: "Spento: nessun messaggio parte." };
-  if (!config.promemoria && !config.ricontatti)
+  const statiAccesi = Object.keys(config.stati ?? {}).length > 0;
+  if (
+    !config.promemoria &&
+    !config.ricontatti &&
+    !config.leadNuovo &&
+    !config.giornoMeet &&
+    !statiAccesi
+  )
     return {
       tono: "ambra",
       parola: "In attesa",
       frase: "Acceso, ma promemoria e ricontatti sono spenti: non parte niente.",
     };
   const eff = tettiEffettivi(config.tetti, config.primaAccensione, adesso);
-  const totaleOggi = giro.oggi.promemoria + giro.oggi.ricontatti;
+  const totaleOggi = giro.oggi.totale ?? giro.oggi.promemoria + giro.oggi.ricontatti;
   if (config.ricontatti && giro.oggi.ricontatti >= eff.ricontatti)
     return {
       tono: "ambra",
       parola: "Tetto",
       frase: `Tetto di oggi raggiunto: ${plurale(giro.oggi.ricontatti, "ricontatto", "ricontatti")} su ${eff.ricontatti}. Gli altri slittano a domani.`,
+    };
+  if (config.leadNuovo && (giro.oggi.leadNuovi ?? 0) >= eff.leadNuovi)
+    return {
+      tono: "ambra",
+      parola: "Tetto",
+      frase: `Tetto di oggi raggiunto: ${plurale(giro.oggi.leadNuovi ?? 0, "lead nuovo", "lead nuovi")} su ${eff.leadNuovi}. Gli altri slittano a domani.`,
     };
   if (totaleOggi >= eff.totale)
     return {
@@ -459,9 +689,13 @@ export function rigaStatoRiquadro(s: StatoManychat, adesso: Date): RigaStatoRiqu
     };
   const pezzi = ["Attivo"];
   if (giro.ultimoGiroIl) pezzi.push(`ultimo giro alle ${oraBreve(giro.ultimoGiroIl)}`);
-  pezzi.push(
-    `oggi ${plurale(giro.oggi.promemoria, "promemoria", "promemoria")}, ${plurale(giro.oggi.ricontatti, "ricontatto", "ricontatti")}, ${plurale(giro.oggi.risposte, "risposta", "risposte")}`,
-  );
+  const dioggi = [
+    plurale(giro.oggi.promemoria, "promemoria", "promemoria"),
+    plurale(giro.oggi.ricontatti, "ricontatto", "ricontatti"),
+    ...(config.leadNuovo ? [plurale(giro.oggi.leadNuovi ?? 0, "lead nuovo", "lead nuovi")] : []),
+    plurale(giro.oggi.risposte, "risposta", "risposte"),
+  ];
+  pezzi.push(`oggi ${dioggi.join(", ")}`);
   const prossimo = Date.parse(String(giro.prossimoRicontattoDopo ?? ""));
   if (config.ricontatti && Number.isFinite(prossimo) && prossimo > adesso.getTime())
     pezzi.push(`prossimo ricontatto verso le ${oraBreve(giro.prossimoRicontattoDopo)}`);
@@ -487,6 +721,7 @@ export const PAROLA_ESITO: Record<RigaCollegamento["esito"], string> = {
   ok: "ok",
   errore: "problema",
   da_verificare: "da verificare",
+  non_serve: "non serve ancora",
 };
 
 export interface TitoloCollegamento {
@@ -591,5 +826,165 @@ export function righeProblemi(
   return [...(giro.problemi ?? [])]
     .sort((a, b) => Date.parse(b.il) - Date.parse(a.il))
     .slice(0, 20)
-    .map((p) => ({ quando: quandoBreve(p.il), testo: `${p.nome} · ${p.tipo} · ${p.motivo}` }));
+    .map((p) => ({
+      quando: quandoBreve(p.il),
+      testo: `${p.nome} · ${ETICHETTA_TIPO[p.tipo] ?? p.tipo} · ${p.motivo}`,
+    }));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. LE SEQUENZE, I MESSAGGI PER STATO, LA FRASE, LA SEDE E IL FOGLIO
+   (commessa 2026-10-25, compito P)
+   ═════════════════════════════════════════════════════════════════════════ */
+
+const FRASE_S2 =
+  "Manca l'aggiornamento del database (le sequenze WhatsApp): finché non è applicato questo interruttore resta spento.";
+
+export interface VistaInterruttore {
+  disabilitato: boolean;
+  /** la riga sotto l'interruttore; vuota se non c'è niente da dire */
+  nota: string;
+}
+
+export interface VistaStato {
+  stato: LeadStatus;
+  etichetta: string;
+  modello: string;
+  quando: string;
+  chi: string;
+  legatoA?: "ricontatti";
+  acceso: boolean;
+  /** «acceso dal 23/10 10:00» */
+  dal?: string;
+  disabilitato: boolean;
+  /** una cosa da sapere prima di accendere (per esempio l'indirizzo che manca) */
+  avviso?: string;
+}
+
+/** Cosa si può accendere adesso e perché. Funzione pura sullo stato del riquadro. */
+export function vistaSequenze(s: StatoManychat): {
+  leadNuovo: VistaInterruttore;
+  giornoMeet: VistaInterruttore;
+  stati: VistaStato[];
+} {
+  const { config } = s;
+  const senzaS2 = !config.sequenze;
+  const stati = config.stati ?? {};
+  return {
+    leadNuovo: {
+      //  Spegnere non fa danni: se è già acceso resta spegnibile anche se la frase
+      //  non c'è più.
+      disabilitato: senzaS2 || (!config.leadNuovo && !s.fraseModulo),
+      nota: senzaS2
+        ? FRASE_S2
+        : !s.fraseModulo
+          ? "I consensi dei moduli non valgono finché non segni la data della frase nel modulo Meta (qui sotto): senza, «Lead nuovo» non si accende."
+          : "",
+    },
+    giornoMeet: { disabilitato: senzaS2, nota: senzaS2 ? FRASE_S2 : "" },
+    stati: STATI_RIQUADRO.map((r) => {
+      const dal = r.legatoA ? null : stati[r.stato];
+      const acceso = r.legatoA ? config[r.legatoA] === true : !!dal;
+      return {
+        stato: r.stato,
+        etichetta: r.etichetta,
+        modello: r.modello,
+        quando: r.quando,
+        chi: r.chi,
+        ...(r.legatoA ? { legatoA: r.legatoA } : {}),
+        acceso,
+        ...(dal ? { dal: `acceso dal ${quandoBreve(dal)}` } : {}),
+        disabilitato: senzaS2 && !r.legatoA,
+        ...(r.stato === "viene_in_sede" && !config.indirizzoSede
+          ? {
+              avviso:
+                "Scrivi prima l'indirizzo della sede (qui sotto): senza, il promemoria non parte.",
+            }
+          : {}),
+      };
+    }),
+  };
+}
+
+/** Il giorno scritto nel campo della frase (`AAAA-MM-GG`): un giorno vero, non
+ *  nel futuro (si conta il giorno di Roma). */
+export function leggiGiornoFrase(
+  testo: string,
+  adesso: Date,
+): { ok: true; giorno: string } | { ok: false; errore: string } {
+  const giorno = String(testo ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(giorno) || !istanteDiRoma(giorno, "00:00"))
+    return { ok: false, errore: "Scegli il giorno in cui hai aggiunto la frase al modulo." };
+  if (giorno > aRoma(adesso).giorno)
+    return { ok: false, errore: "La data non può essere nel futuro." };
+  return { ok: true, giorno };
+}
+
+/** La riga della frase del consenso nel modulo Meta. */
+export function vistaFraseModulo(frase: FraseModulo | null): {
+  tono: TonoRiquadro;
+  frase: string;
+} {
+  if (!frase)
+    return {
+      tono: "ambra",
+      frase:
+        "Non ancora segnata: i consensi dei moduli non valgono per nessuno finché non segni il giorno in cui hai aggiunto la frase al modulo Meta.",
+    };
+  return {
+    tono: "verde",
+    frase: `Segnata per il ${giornoBreve(frase.il)} da ${frase.da || "sconosciuto"}. Valgono i moduli compilati da quel giorno in poi; quelli di prima no.`,
+  };
+}
+
+/** Lunghezza massima dell'indirizzo: sta dentro una variabile del modello. */
+const MAX_INDIRIZZO = 150;
+
+/** L'indirizzo della sede: una riga sola (Meta rifiuta a capo e tabulazioni nelle
+ *  variabili dei modelli), gli spazi doppi tolti. Vuoto = lo toglie. */
+export function leggiIndirizzo(
+  testo: string,
+): { ok: true; valore: string } | { ok: false; errore: string } {
+  const t = String(testo ?? "");
+  if (/[\r\n\t]/.test(t))
+    return { ok: false, errore: "L'indirizzo va su una riga sola: niente a capo né tabulazioni." };
+  const pulito = t.trim().replace(/ {2,}/g, " ");
+  if (pulito.length > MAX_INDIRIZZO)
+    return { ok: false, errore: `Al massimo ${MAX_INDIRIZZO} caratteri.` };
+  return { ok: true, valore: pulito };
+}
+
+const ESITO_FOGLIO: Record<string, string> = {
+  in_corso: "in corso",
+  nuovo: "nuovo lead",
+  ritorno_da_segnare: "contatto di ritorno",
+  ritorno: "contatto di ritorno",
+  gia_presente: "già presente",
+  scartata: "scartata",
+  altro: "esito non riconosciuto",
+};
+
+/** La riga «Foglio Google»: mai nomi né numeri, solo l'ora, l'esito in parole e
+ *  quante righe sono entrate oggi su quante ne ammette il tetto. */
+export function vistaFoglio(f: FoglioManychat): { tono: TonoRiquadro; frase: string } {
+  if (!f.migrazione)
+    return {
+      tono: "ambra",
+      frase:
+        "Manca l'aggiornamento del database (il registro del foglio): le righe del foglio non entrano.",
+    };
+  if (!f.segretoPresente)
+    return {
+      tono: "rosso",
+      frase: "Il foglio non può mandare lead: manca SHEETS_INGRESSO_TOKEN fra i segreti del sito.",
+    };
+  const oggi = `righe ricevute oggi: ${f.righeOggi} su ${f.tetto}`;
+  if (!f.ultimo) return { tono: "neutro", frase: `Nessuna riga ricevuta finora · ${oggi}` };
+  const ultima = `Ultima riga ricevuta il ${quandoBreve(f.ultimo.il)} (${ESITO_FOGLIO[f.ultimo.esito] ?? ESITO_FOGLIO.altro})`;
+  return f.righeOggi >= f.tetto
+    ? {
+        tono: "rosso",
+        frase: `${ultima} · ${oggi} (tetto raggiunto: le altre aspettano domani)`,
+      }
+    : { tono: "verde", frase: `${ultima} · ${oggi}` };
 }

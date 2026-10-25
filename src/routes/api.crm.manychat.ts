@@ -16,6 +16,11 @@
  *   unico: li scrive solo il server (tabella chiusa `manychat_config`), mai il
  *   browser. I tetti si possono solo abbassare (il server li riporta alle
  *   costanti).
+ *  ⚠️ Commessa 2026-10-25: gli interruttori nuovi («Lead nuovo», «Giorno del
+ *   meet», uno per stato), l'indirizzo della sede e il tetto dei lead nuovi
+ *   chiedono le colonne di S2 (503 se mancano); «Lead nuovo» non si accende senza
+ *   la data della frase (422); la data della frase si salva in `controlli`.
+ *   `controllaComando` decide PRIMA di ogni scrittura.
  *  ⚠️ Nessuna di queste azioni manda un messaggio. La chiave di ManyChat non
  *   esce mai in una risposta; nei log solo codici, mai un numero.
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -31,12 +36,17 @@ import {
   scriviConfig,
 } from "@/crm/manychat/pannello.server";
 import {
+  aggiornaControlli,
   configDaRiga,
   configDiAltraInstallazione,
   controlliDopoCollegamento,
   controlliDopoCreazione,
+  controlliDopoFrase,
+  controllaComando,
   costruisciStato,
   creazioneDa,
+  fraseDaGiorno,
+  fraseModuloDa,
   leggiComando,
   patchDaComando,
   provaASecco,
@@ -62,6 +72,14 @@ const FRASE_ALTRA = "Questa installazione non è quella collegata a ManyChat.";
 const FRASE_MIGRAZIONE = "Manca l'aggiornamento del database: il riquadro non può salvare.";
 
 const segretoRitornoPresente = () => !!(process.env.MANYCHAT_RITORNO_TOKEN ?? "").trim();
+/** Il segreto del foglio Google: il suo valore non esce mai, si dice solo se c'è. */
+const segretoFoglioPresente = () => !!(process.env.SHEETS_INGRESSO_TOKEN ?? "").trim();
+
+/** Le porte di `controlli`: la riga si rilegge ogni volta, mai la copia vecchia. */
+const porteControlli = (userId: string) => ({
+  leggi: async () => (await leggiRigaConfig()).riga?.controlli,
+  salva: (controlli: Record<string, unknown>) => salvaControlli(userId, controlli),
+});
 
 /** Un guasto del database: nei log solo il codice. */
 function guasto(e: unknown) {
@@ -87,6 +105,7 @@ export const Route = createFileRoute("/api/crm/manychat")({
           const dati = await leggiDatiStato(g.chi.adminUserId, cfg, adesso, {
             chiave: chiaveManychatPresente(),
             segreto: segretoRitornoPresente(),
+            segretoFoglio: segretoFoglioPresente(),
           });
           return json(costruisciStato(dati, adesso));
         } catch (e) {
@@ -115,21 +134,47 @@ export const Route = createFileRoute("/api/crm/manychat")({
           const cfg = await leggiRigaConfig();
           if (configDiAltraInstallazione(cfg.riga, userId))
             return json({ error: FRASE_ALTRA }, 403);
-          const config = configDaRiga(cfg.riga);
+          const config = configDaRiga(cfg.riga, cfg.sequenze);
+
+          // ── i comandi che scrivono: prima le regole, poi la scrittura ──
+          const scrive =
+            c.tipo === "interruttori" ||
+            c.tipo === "tetti" ||
+            c.tipo === "flussi" ||
+            c.tipo === "canale" ||
+            c.tipo === "stati" ||
+            c.tipo === "indirizzo_sede" ||
+            c.tipo === "frase_modulo";
+          if (scrive) {
+            if (cfg.manca) return json({ error: FRASE_MIGRAZIONE }, 503);
+            const rifiuto = controllaComando(cfg.riga, c, adesso, cfg.sequenze);
+            if (rifiuto) return json({ error: rifiuto.errore }, rifiuto.stato);
+          }
+
+          // ── la data della frase del consenso: sta in `controlli` ──
+          if (c.tipo === "frase_modulo") {
+            const frase = fraseDaGiorno(c.giorno, g.chi.nome, adesso);
+            const salvata = await aggiornaControlli(porteControlli(userId), (fresco) =>
+              controlliDopoFrase(fresco, frase),
+            );
+            if (!salvata) return json({ error: FRASE_MIGRAZIONE }, 503);
+            return json({ fraseModulo: fraseModuloDa({ fraseModulo: frase }) });
+          }
 
           // ── la configurazione ──
           if (
             c.tipo === "interruttori" ||
             c.tipo === "tetti" ||
             c.tipo === "flussi" ||
-            c.tipo === "canale"
+            c.tipo === "canale" ||
+            c.tipo === "stati" ||
+            c.tipo === "indirizzo_sede"
           ) {
-            if (cfg.manca) return json({ error: FRASE_MIGRAZIONE }, 503);
             const patch = patchDaComando(cfg.riga, c, adesso);
             if (Object.keys(patch).length === 0) return json({ config });
             await scriviConfig(userId, patch, g.chi.nome, adesso);
             const dopo = await leggiRigaConfig();
-            return json({ config: configDaRiga(dopo.riga) });
+            return json({ config: configDaRiga(dopo.riga, dopo.sequenze) });
           }
 
           // ── la prova a secco: solo letture, nessuna chiamata a ManyChat ──
@@ -143,11 +188,24 @@ export const Route = createFileRoute("/api/crm/manychat")({
             const col = await statoCollegamento(clientManychat(userId), {
               canale: config.canale,
               interruttori: { promemoria: config.promemoria, ricontatti: config.ricontatti },
+              ...(config.sequenze
+                ? {
+                    sequenze: {
+                      leadNuovo: config.leadNuovo,
+                      giornoMeet: config.giornoMeet,
+                      stati: config.stati,
+                    },
+                  }
+                : {}),
               flussi: config.flussi,
               creazione: creazioneDa((controlli as { creazione?: unknown } | null)?.creazione),
               adesso,
             });
-            if (!cfg.manca) await salvaControlli(userId, controlliDopoCollegamento(controlli, col));
+            //  Il valore da cui si parte è riletto ADESSO, dopo l'attesa di ManyChat.
+            if (!cfg.manca)
+              await aggiornaControlli(porteControlli(userId), (fresco) =>
+                controlliDopoCollegamento(fresco, col),
+              );
             return json(col);
           }
 
@@ -155,10 +213,9 @@ export const Route = createFileRoute("/api/crm/manychat")({
           const r = await provaCreazione(clientManychat(userId), c.telefono);
           if (r.stato === 400) return json({ error: r.errore }, 400);
           if (r.registra && !cfg.manca) {
-            const controlli = (cfg.riga as RigaConfig | null)?.controlli;
-            await salvaControlli(
-              userId,
-              controlliDopoCreazione(controlli, { esito: r.registra, il: adesso.toISOString() }),
+            const esito = { esito: r.registra, il: adesso.toISOString() };
+            await aggiornaControlli(porteControlli(userId), (fresco) =>
+              controlliDopoCreazione(fresco, esito),
             );
           }
           return json(r.risposta);

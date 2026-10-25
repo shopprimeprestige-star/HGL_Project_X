@@ -106,6 +106,7 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api.publi
 import { Route as ApiPublicWebinarRouteImport } from './routes/api.public.webinar'
 import { Route as ApiPublicValidateDiscountRouteImport } from './routes/api.public.validate-discount'
 import { Route as ApiPublicTurnRouteImport } from './routes/api.public.turn'
+import { Route as ApiPublicSheetsIngressoRouteImport } from './routes/api.public.sheets-ingresso'
 import { Route as ApiPublicSalaAttesaRouteImport } from './routes/api.public.sala-attesa'
 import { Route as ApiPublicRegiaGruppoRouteImport } from './routes/api.public.regia-gruppo'
 import { Route as ApiPublicQuoteCreateRouteImport } from './routes/api.public.quote-create'
@@ -684,6 +685,11 @@ const ApiPublicValidateDiscountRoute =
 const ApiPublicTurnRoute = ApiPublicTurnRouteImport.update({
   id: '/api/public/turn',
   path: '/api/public/turn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicSheetsIngressoRoute = ApiPublicSheetsIngressoRouteImport.update({
+  id: '/api/public/sheets-ingresso',
+  path: '/api/public/sheets-ingresso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicSalaAttesaRoute = ApiPublicSalaAttesaRouteImport.update({
@@ -1335,6 +1341,7 @@ export interface FileRoutesByFullPath {
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
+  '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
@@ -1520,6 +1527,7 @@ export interface FileRoutesByTo {
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
+  '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
@@ -1711,6 +1719,7 @@ export interface FileRoutesById {
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
+  '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
@@ -1903,6 +1912,7 @@ export interface FileRouteTypes {
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
     | '/api/public/sala-attesa'
+    | '/api/public/sheets-ingresso'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
@@ -2088,6 +2098,7 @@ export interface FileRouteTypes {
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
     | '/api/public/sala-attesa'
+    | '/api/public/sheets-ingresso'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
@@ -2278,6 +2289,7 @@ export interface FileRouteTypes {
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
     | '/api/public/sala-attesa'
+    | '/api/public/sheets-ingresso'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
@@ -2429,6 +2441,7 @@ export interface RootRouteChildren {
   ApiPublicQuoteCreateRoute: typeof ApiPublicQuoteCreateRoute
   ApiPublicRegiaGruppoRoute: typeof ApiPublicRegiaGruppoRoute
   ApiPublicSalaAttesaRoute: typeof ApiPublicSalaAttesaRoute
+  ApiPublicSheetsIngressoRoute: typeof ApiPublicSheetsIngressoRoute
   ApiPublicTurnRoute: typeof ApiPublicTurnRoute
   ApiPublicValidateDiscountRoute: typeof ApiPublicValidateDiscountRoute
   ApiPublicWebinarRoute: typeof ApiPublicWebinarRoute
@@ -3114,6 +3127,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/turn'
       fullPath: '/api/public/turn'
       preLoaderRoute: typeof ApiPublicTurnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sheets-ingresso': {
+      id: '/api/public/sheets-ingresso'
+      path: '/api/public/sheets-ingresso'
+      fullPath: '/api/public/sheets-ingresso'
+      preLoaderRoute: typeof ApiPublicSheetsIngressoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/sala-attesa': {
@@ -4039,6 +4059,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicQuoteCreateRoute: ApiPublicQuoteCreateRoute,
   ApiPublicRegiaGruppoRoute: ApiPublicRegiaGruppoRoute,
   ApiPublicSalaAttesaRoute: ApiPublicSalaAttesaRoute,
+  ApiPublicSheetsIngressoRoute: ApiPublicSheetsIngressoRoute,
   ApiPublicTurnRoute: ApiPublicTurnRoute,
   ApiPublicValidateDiscountRoute: ApiPublicValidateDiscountRoute,
   ApiPublicWebinarRoute: ApiPublicWebinarRoute,
