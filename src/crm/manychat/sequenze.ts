@@ -84,8 +84,9 @@ export const ANTICIPO_MINIMO_MATTINA_MIN = 40;
 export const FINESTRA_MEET_ADESSO_MIN = 10;
 /** …e per un'ora dopo l'inizio un ritardo si vede (salta) invece di sparire. */
 const MEMORIA_RITARDO_MIN = 60;
-/** Un'ora dopo la scadenza del richiamo i «salta» della sequenza non si ripetono più. */
-const MEMORIA_SALTI_MIN = 60;
+/** Un'ora dopo la scadenza i «salta» di una sequenza o di un messaggio per stato non si
+ *  ripetono più (usata anche da `stati.ts`). */
+export const MEMORIA_SALTI_MIN = 60;
 /** Al massimo due messaggi del mattino per telefono e giorno (meet spostato). */
 export const MAX_MEET_OGGI_PER_GIORNO = 2;
 

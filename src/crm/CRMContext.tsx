@@ -791,7 +791,16 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     });
     //  ⚠️ `statoDal`: lo stato FINALE (dopo `applyAutoStatus`) contro quello di prima,
     //   non «la patch contiene `stato`» (LeadDialog salva il modulo intero).
-    merged = conStatoDal(current.data, merged, new Date());
+    //   ⚠️ NON per l'«Annulla»: chi riporta lo stato di prima porta anche il suo
+    //   `statoDal` (o la sua assenza), e «adesso» sarebbe un evento falso che fa
+    //   partire un messaggio. Come per `statoPrecedenteIl`: chi annulla sa da quando.
+    if (patch.statoPrecedenteIl !== undefined) {
+      const { statoDal: _daTogliere, ...senzaData } = merged;
+      void _daTogliere;
+      merged = patch.statoDal ? { ...senzaData, statoDal: patch.statoDal } : senzaData;
+    } else {
+      merged = conStatoDal(current.data, merged, new Date());
+    }
     //  ── DA DOVE VENIVA QUESTO LEAD ──────────────────────────────────────────
     //   Ogni cambio di stato lascia dietro di sé quello di prima. Serve al tasto
     //   "torna indietro" della pagina Oggi: segnare "cliente assente" al posto

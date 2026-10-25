@@ -432,6 +432,61 @@ export async function proveStati(mod, { c, gruppo, radice }) {
       ),
     ],
   );
+  //  `dataRicontatto` non si azzera mai: una data vecchia non è la data di QUESTO stato.
+  const vecchia = { dataRicontatto: "2026-10-10" };
+  c(
+    "«Da riprogrammare» con una data VECCHIA (di prima dello stato) → a evento: parte dopo 30' con la chiave s|rp|…",
+    [["aspetta"], ["invia", chiaveEv("rp", 1)]],
+    [
+      tipi(decidi([ev("l-1", 1, "da_spostare", vecchia)], "2026-10-27T10:29:00+01:00")),
+      ((x) => [x?.tipo, x?.chiave])(
+        unica(decidi([ev("l-1", 1, "da_spostare", vecchia)], "2026-10-27T10:30:00+01:00")),
+      ),
+    ],
+  );
+  c(
+    "…la stessa data vecchia NON entra nella coda a data; una data del giorno dello stato o futura sì",
+    [[], ["invia"], ["invia"]],
+    [
+      Q.codaRicontatti(
+        [ev("l-1", 1, "da_spostare", vecchia)],
+        t("2026-10-27T10:30:00+01:00"),
+        ACCESO,
+        ctx(),
+      ),
+      tipi(
+        Q.codaRicontatti(
+          [ev("l-1", 1, "da_spostare", { dataRicontatto: "2026-10-27" })],
+          t("2026-10-27T10:30:00+01:00"),
+          ACCESO,
+          ctx(),
+        ),
+      ),
+      tipi(
+        Q.codaRicontatti(
+          [ev("l-1", 1, "da_spostare", { dataRicontatto: "2026-10-27" })],
+          t("2026-10-27T15:00:00+01:00"),
+          ACCESO,
+          ctx(),
+        ),
+      ),
+    ],
+  );
+  c(
+    "…vale per ogni stato a data: «In valutazione» con la data di prima dello stato non parte il giorno di oggi",
+    [],
+    Q.codaRicontatti(
+      [
+        ev("l-1", 1, "sta_valutando", {
+          dataRicontatto: "2026-10-26",
+          statoDal: "2026-10-27T08:00:00.000Z",
+        }),
+      ],
+      t("2026-10-27T10:30:00+01:00"),
+      ACCESO,
+      ctx(),
+    ),
+  );
   c(
     "disdetta della sede: 15' dopo, per tutte le schede (anche senza consulente)",
     [["aspetta"], ["invia"]],
@@ -864,6 +919,34 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     true,
     iAuto2 > 0 && iDal2 > iAuto2 && iScrive > iDal2,
   );
+  //  «Annulla» (coda dei lead importati): riporta anche `statoDal`, e updateLead non scrive «adesso».
+  const iAnnulla = contesto.indexOf(
+    "if (patch.statoPrecedenteIl !== undefined) {\n      const { statoDal",
+  );
+  c(
+    "«Annulla»: updateLead non chiama conStatoDal quando c'è statoPrecedenteIl (usa quello della patch o lo toglie)",
+    true,
+    iAnnulla > iAuto && iAnnulla < iDal && /merged = patch\.statoDal \?/.test(contesto),
+  );
+  const importa = leggi("src/routes/CRM.importa.tsx");
+  c(
+    "…e disfa.prima porta lo statoDal di prima (una riga)",
+    true,
+    /statoDa: l\.data\.statoDa,\s*statoDal: l\.data\.statoDal,\s*\} as Partial<LeadData>/.test(
+      importa,
+    ),
+  );
+  c(
+    "annullamento → nessun messaggio a evento: «Non risponde» di 10 giorni fa riportato com'era (statoDal vecchio, o senza)",
+    [[], []],
+    [
+      decidi(
+        [ev("l-1", 1, "non_risponde", { statoDal: "2026-10-17T09:00:00.000Z" })],
+        "2026-10-27T10:30:00+01:00",
+      ),
+      decidi([sc("l-1", 1, "non_risponde")], "2026-10-27T10:30:00+01:00"),
+    ],
+  );
   const stati = leggi("src/crm/manychat/stati.ts");
   c(
     "TIPI_SENZA_FRENO e TIPI_COL_RITMO sono la fonte unica: stati.ts li importa da regole.ts",
@@ -871,6 +954,16 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     [
       /TIPI_SENZA_FRENO,[\s\S]*from "\.\/regole"/.test(stati),
       /TIPI_COL_RITMO,[\s\S]*from "\.\/regole"/.test(stati),
+    ],
+  );
+  c(
+    "MEMORIA_SALTI_MIN è una sola, esportata da sequenze.ts",
+    [true, 1],
+    [
+      mod["manychat/sequenze"].MEMORIA_SALTI_MIN === 60,
+      leggi("src/crm/manychat/stati.ts").split("MEMORIA_SALTI_MIN =").length -
+        1 +
+        (leggi("src/crm/manychat/sequenze.ts").split("MEMORIA_SALTI_MIN =").length - 1),
     ],
   );
   void MIN;
