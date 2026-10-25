@@ -829,34 +829,60 @@ export function conListaOrigine(d: LeadData, file: string, ora: Date = new Date(
 const MAX_CARATTERI_DATI_FILE = 200;
 const MAX_CHIAVI_DATI_FILE = 40;
 
-/** Traduce un CSV in schede pronte. Quello che non diventa un campo della
- *  scheda si CONSERVA in `datiFile` e si riporta (`colonneConservate`): così si
- *  vede subito se una colonna importante è rimasta fuori perché scritta in un
- *  modo imprevisto, e non si perde niente. */
-export function traduciCsv(testo: string): {
+/** Quello che esce dalla traduzione di un CSV (o di righe già divise). */
+export interface EsitoCsv {
   leads: LeadData[];
   /** I nomi (quelli di `datiFile`) delle colonne conservate senza essere usate. */
   colonneConservate: string[];
   scartate: number;
   /** Di quante colonne era spostata l'intestazione (0 = a posto). */
   intestazioniRiallineate: number;
-} {
+}
+
+/** Traduce un CSV in schede pronte: divide il testo in righe e celle, poi le
+ *  passa a `traduciRighe`. */
+export function traduciCsv(testo: string): EsitoCsv {
   const righe = testo.split(/\r?\n/).filter((r) => r.trim().length > 0);
   if (!righe.length)
     return { leads: [], colonneConservate: [], scartate: 0, intestazioniRiallineate: 0 };
   const sep = separatore(righe[0]);
-
   //  Tutte le righe di dati, divise una volta sola: servono due volte — per
   //  controllare l'intestazione e per costruire le schede — e dividerle due
   //  volte su un file da ottocento righe si sente.
-  const dati = righe.slice(1).map((r) => dividiRiga(r, sep));
+  return traduciRighe(
+    dividiRiga(righe[0], sep),
+    righe.slice(1).map((r) => dividiRiga(r, sep)),
+  );
+}
+
+/** ── LE CELLE GIÀ DIVISE: TUTTO QUELLO CHE SUCCEDE DOPO LA DIVISIONE ────────
+ *  Commessa 2026-10-25 (lead da Google Sheets). Il foglio manda le celle già
+ *  separate: rifarne un CSV e rileggerlo spezzerebbe una risposta libera del
+ *  modulo che contiene un a capo (`traduciCsv` divide le righe prima delle
+ *  virgolette). `traduciCsv` e la rotta del foglio passano da qui, e le schede
+ *  che escono sono le stesse.
+ *
+ *  Quello che non diventa un campo della scheda si CONSERVA in `datiFile` e si
+ *  riporta (`colonneConservate`): così si vede subito se una colonna importante
+ *  è rimasta fuori perché scritta in un modo imprevisto, e non si perde niente. */
+export function traduciRighe(
+  intestazioni: string[],
+  dati: string[][],
+  /** `unaRigaSola`: le righe arrivano una per volta (il foglio Google). Con un
+   *  campione di UNA riga, una casella vuota (niente email) o un nome di una
+   *  parola sola non bastano a dire che l'intestazione sbaglia: in un file di
+   *  venti righe quei casi sono la minoranza e non contano, in una sola
+   *  deciderebbero tutto. Una casella piena che non è quello che dovrebbe
+   *  (un'email sotto il telefono) smentisce l'intestazione come sempre. */
+  { unaRigaSola = false }: { unaRigaSola?: boolean } = {},
+): EsitoCsv {
   const campione = dati.slice(0, 20);
 
   /* ── ⚠️ PRIMA SI RIMETTE A POSTO L'INTESTAZIONE, POI SI COSTRUISCE `indice` ─
      Vedi la nota lunga sopra `riallineaIntestazioni`: se le domande in coda
      stanno in realtà in mezzo ai dati, `indice` si deve costruire sulle
      intestazioni già sistemate, altrimenti i campi spostati restano spostati. */
-  const riallineate = riallineaIntestazioni(dividiRiga(righe[0], sep), campione);
+  const riallineate = riallineaIntestazioni(intestazioni, campione);
   const intestGrezze = riallineate.intestazioni;
   const intest = intestGrezze.map(senzaAccenti);
 
@@ -896,6 +922,9 @@ export function traduciCsv(testo: string): {
       ancoreDichiarate++;
       const centri = campione.filter((r) => pare((r[i] || "").trim())).length;
       if (centri >= soglia) return;
+      const nonSmentisce = (t: string) =>
+        !t || (k === "nomeCompleto" && /^[\p{L}][\p{L}'\u2019.-]*$/u.test(t));
+      if (unaRigaSola && campione.every((r) => nonSmentisce((r[i] || "").trim()))) return;
       ancoreSbagliate++;
     }
     const trovata = colonnaCheContiene(campione, pare);
@@ -1013,6 +1042,20 @@ export function traduciCsv(testo: string): {
     //   altrimenti `createdAt` è l'ora del caricamento e «arrivato 40 minuti
     //   fa» sarebbe una bugia su una lista vecchia caricata oggi.
     const { createdAt, dataDalFile } = dataDellaCella(v("createdAt"));
+    /*  ── ⚠️ L'ID DEL LEAD META E IL FATTO «HA LASCIATO IL NUMERO NEL MODULO» ──
+        `metaLeadId`: la prima cella che VALE `l:<cifre>` (il valore decide, come
+        per il telefono; nient'altro nei file usa la sigla `l:`). Serve a non
+        far entrare due volte lo stesso lead, dal file e dal foglio.
+        `consensoModulo` è un FATTO, non un permesso: «ha lasciato il numero in
+        un modulo Meta il …». Si scrive solo con un telefono e solo se la riga
+        viene da un modulo Meta (ha l'id `l:`, oppure modulo e piattaforma
+        Meta). Vale come consenso solo dalla data della frase nel modulo
+        (controlli.fraseModulo, lo decide chi legge). ⚠️ `il` è la data del
+        modulo e basta: se nel file non si legge è `null`, MAI l'ora di
+        caricamento — una lista vecchia caricata dopo la frase non deve
+        riaprire un consenso che non ha dato. */
+    const metaLeadId = c.map((x) => (x || "").trim()).find((x) => /^l:\d{6,}$/.test(x));
+    const daModuloMeta = !!metaLeadId || ((!!v("formId") || !!v("formName")) && tracking.source === "meta");
     leads.push({
       nome,
       cognome,
@@ -1029,6 +1072,17 @@ export function traduciCsv(testo: string): {
       note: v("note") || undefined,
       datiFile: Object.keys(datiFile).length ? datiFile : undefined,
       listaOrigine: { file: "", il: caricatoIl, dataDalFile },
+      ...(metaLeadId ? { metaLeadId } : {}),
+      ...(telefono && daModuloMeta
+        ? {
+            consensoModulo: {
+              whatsapp: true,
+              il: dataDalFile ? createdAt : null,
+              via: "modulo_meta",
+              fonte: "csv_meta",
+            },
+          }
+        : {}),
       createdAt: createdAt || new Date().toISOString(),
       consulenteId: null,
       durataMeeting: 45,
