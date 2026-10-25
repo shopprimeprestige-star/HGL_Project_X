@@ -39,10 +39,16 @@ import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, mostraLaCopia, type Motivo } f
 //  Chi ha PRESO l'appuntamento (≠ chi ha toccato lo stato per ultimo, ≠ chi lo
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
-import { conStatoDal } from "./stato-dal";
+import { statoDalDopo } from "./stato-dal";
 //  «L'appuntamento si è spostato?» — la regola sta a parte perché si prova:
 //  vedi crm/spostamento-meet.ts e proveDelloSpostamento in prove/prove.mjs.
 import { anteprimaDaRifare, consulenzaSpostata } from "./spostamento-meet";
+
+/** Opzioni di `updateLead`. `annulla`: la modifica è un «torna com'era» (il tasto
+ *  «Annulla» della coda dei lead importati): `statoDal` non si rinnova. */
+export interface OpzioniAggiornamento {
+  annulla?: boolean;
+}
 
 interface CRMContextValue {
   leads: Lead[];
@@ -72,7 +78,11 @@ interface CRMContextValue {
       costruito su dati vecchi, e il tecnico scritto da un collega un minuto
       prima sparisce. Passando una funzione il pezzo si compone DOPO la
       rilettura, con davanti la scheda vera. Vedi crm/patch-scheda. */
-  updateLead: (id: string, data: Modifica<LeadData>) => Promise<boolean>;
+  updateLead: (
+    id: string,
+    data: Modifica<LeadData>,
+    opzioni?: OpzioniAggiornamento,
+  ) => Promise<boolean>;
   /** ── DICE SE LA RIGA È SPARITA DAVVERO ──────────────────────────────────
    *  ⚠️ Era `Promise<void>`: esattamente il difetto che la riga qui sopra si è
    *   già pagata. In caso di errore si scriveva una riga in console e si
@@ -713,6 +723,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const updateLead = async (
     id: string,
     modifica: Modifica<LeadData>,
+    opzioni: OpzioniAggiornamento = {},
     tentativo = 0,
   ): Promise<boolean> => {
     /*  ── ⚠️ LA VERITÀ È L'ARCHIVIO, NON LA COPIA CHE ABBIAMO A SCHERMO ────
@@ -791,16 +802,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     });
     //  ⚠️ `statoDal`: lo stato FINALE (dopo `applyAutoStatus`) contro quello di prima,
     //   non «la patch contiene `stato`» (LeadDialog salva il modulo intero).
-    //   ⚠️ NON per l'«Annulla»: chi riporta lo stato di prima porta anche il suo
-    //   `statoDal` (o la sua assenza), e «adesso» sarebbe un evento falso che fa
-    //   partire un messaggio. Come per `statoPrecedenteIl`: chi annulla sa da quando.
-    if (patch.statoPrecedenteIl !== undefined) {
-      const { statoDal: _daTogliere, ...senzaData } = merged;
-      void _daTogliere;
-      merged = patch.statoDal ? { ...senzaData, statoDal: patch.statoDal } : senzaData;
-    } else {
-      merged = conStatoDal(current.data, merged, new Date());
-    }
+    //   ⚠️ L'«Annulla» si dichiara con `opzioni.annulla` (solo `disfaUltimo` della
+    //   coda dei lead importati): la scheda torna com'era e con lei il suo `statoDal`,
+    //   mai «adesso» (sarebbe un evento falso che fa partire un messaggio).
+    merged = statoDalDopo(current.data, merged, new Date(), opzioni.annulla === true, patch.statoDal);
     //  ── DA DOVE VENIVA QUESTO LEAD ──────────────────────────────────────────
     //   Ogni cambio di stato lascia dietro di sé quello di prima. Serve al tasto
     //   "torna indietro" della pagina Oggi: segnare "cliente assente" al posto
@@ -967,7 +972,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         `[CRM] la scheda è cambiata mentre la salvavo: rifaccio la modifica sul valore nuovo (tentativo ${tentativo + 2})`,
         id,
       );
-      return updateLead(id, modifica, tentativo + 1);
+      return updateLead(id, modifica, opzioni, tentativo + 1);
     }
     const updatedLead: Lead = { ...current, data: merged };
     //  Anche il riferimento si aggiorna adesso: un secondo salvataggio che
