@@ -58,6 +58,7 @@ function installa() {
   var c = controllaProprieta_();
   var sh = scheda_(c.id), letto = leggi_(sh), segni = segni_(sh.getParent());
   if (!letto) throw new Error('Nella scheda non trovo la riga dei titoli (quella con «' + TITOLO_GUIDA + '»).');
+  travasaVecchi_(letto, segni);
   if (!prop_().getProperty('GIA_PRESENTI_FATTO') && senzaSegno_(letto, segni).length > MAX_RIGHE_SENZA_SEGNO) {
     throw new Error('Ci sono più di ' + MAX_RIGHE_SENZA_SEGNO + ' righe senza segno: lancia prima segnaGiaPresenti ' +
       '(oppure, se vuoi davvero mandarle tutte, imposta la proprietà GIA_PRESENTI_FATTO = si).');
@@ -87,6 +88,7 @@ function giroDiSicurezza() { invia_(); }
 function segnaGiaPresenti() {
   var c = controllaProprieta_();
   var sh = scheda_(c.id), letto = leggi_(sh), segni = segni_(sh.getParent());
+  if (letto) travasaVecchi_(letto, segni);
   if (letto) senzaSegno_(letto, segni).forEach(function (r) {
     scriviSegno_(segni, impronta_(r.valori), 'già presente prima del collegamento');
   });
@@ -138,10 +140,10 @@ function leggi_(sh) {
     if (eRigaTitoli_(mostrati[t])) { titoli = t; break; }
   }
   if (titoli < 0) return null;
-  var intest = mostrati[titoli], usate = [], intestazioni = [];
+  var intest = mostrati[titoli], usate = [], intestazioni = [], vecchia = -1;
   for (var j = 0; j < larg; j++) {
     var nome = String(intest[j]).trim();
-    if (nome === COLONNA_VECCHIA) continue;           // la colonna dei segni di prima non viaggia
+    if (nome === COLONNA_VECCHIA) { vecchia = j; continue; }   // la colonna dei segni di prima non viaggia
     usate.push(j);
     intestazioni.push(nome.slice(0, MAX_CELLA));
   }
@@ -154,7 +156,8 @@ function leggi_(sh) {
       if (v.trim()) piena = true;
       valori.push(v);
     });
-    if (piena) righe.push({ riga: i + 1, valori: valori });
+    //  il segno della colonna di prima, se c'è: vale come «già inviato» (vedi travasaVecchi_)
+    if (piena) righe.push({ riga: i + 1, valori: valori, vecchio: vecchia >= 0 ? String(mostrati[i][vecchia]).trim() : '' });
   }
   return { intestazioni: intestazioni, righe: righe };
 }
@@ -162,6 +165,15 @@ function leggi_(sh) {
 function eRigaTitoli_(riga) {
   for (var j = 0; j < riga.length; j++) if (String(riga[j]).trim().toLowerCase() === TITOLO_GUIDA) return true;
   return false;
+}
+
+/** I segni della colonna «Inviato al CRM» di prima passano nella scheda dei segni, senza
+ *  inviare niente: chi aveva già lo script non rimanda tutto lo storico. */
+function travasaVecchi_(letto, segni) {
+  letto.righe.forEach(function (r) {
+    var k = impronta_(r.valori);
+    if (r.vecchio && !segni.mappa[k]) scriviSegno_(segni, k, r.vecchio.replace(/^[\d\/: ]+· /, ''));
+  });
 }
 
 function senzaSegno_(letto, segni) {
@@ -193,6 +205,7 @@ function invia_() {
     var sh = scheda_(c.id), letto = leggi_(sh);
     if (!letto) { console.warn('Non trovo la riga dei titoli (' + TITOLO_GUIDA + '): non mando niente'); return; }
     var segni = segni_(sh.getParent());
+    travasaVecchi_(letto, segni);
     var daMandare = senzaSegno_(letto, segni);
     var inizio = Date.now(), fatte = 0;
     for (var i = 0; i < daMandare.length && fatte < MAX_RIGHE_PER_GIRO; i++) {
@@ -201,7 +214,9 @@ function invia_() {
       var corpo = JSON.stringify({
         versione: 1,
         foglio: { id: c.id, nome: sh.getParent().getName().slice(0, 100), scheda: sh.getName().slice(0, 100) },
-        riga: r.riga, intestazioni: letto.intestazioni, valori: r.valori
+        //  il CRM vuole riga ≥ 2 (la 1 sono i titoli): un lead scritto da Meta SOPRA i
+        //  titoli è in riga 1, e con 1 il CRM lo rifiuterebbe (400) e andrebbe perso
+        riga: Math.max(2, r.riga), intestazioni: letto.intestazioni, valori: r.valori
       });
       if (Utilities.newBlob(corpo).getBytes().length > MAX_CORPO) {
         scriviSegno_(segni, impronta, 'non inviata: riga troppo lunga');

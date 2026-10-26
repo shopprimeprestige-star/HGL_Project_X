@@ -1007,13 +1007,18 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
     c("titoli in riga 2: il lead sopra parte con i titoli giusti, la riga dei titoli no", [3, ["l:1000000000000021", "l:1000000000000011", "l:1000000000000012"], false],
       [g.inviati.length, g.inviati.map((i) => i.corpo.valori[0]), g.inviati.some((i) => i.corpo.valori.includes("created_time"))]);
     c("…i titoli mandati sono quelli della riga dei titoli", [...INT], g.inviati[0]?.corpo.intestazioni);
-    c("…il lead sopra viaggia col suo numero di riga (1)", 1, g.inviati[0]?.corpo.riga);
+    c("…il lead sopra viaggia con riga 2 (il CRM vuole riga ≥ 2)", 2, g.inviati[0]?.corpo.riga);
+    const m = mondo();
+    const r = await manda(m, richiesta(g.inviati[0].corpo));
+    c("…e la rotta vera lo accetta: scheda nuova", ["nuovo", 1], [r.json?.esito, m.schede.length]);
     c("…e la scheda di Meta non è stata toccata", metaPrima, JSON.stringify(g.righe));
   }
   {
     // la colonna dei segni di prima, se è rimasta nella scheda di Meta, non viaggia
-    const g = google([[...INT, "Inviato al CRM"], [...unaRiga("11"), "26/10/2026 22:49 · nuova scheda"]]);
+    const g = google([[...INT, "Inviato al CRM"], [...unaRiga("11"), "26/10/2026 22:49 · nuova scheda"], [...unaRiga("12", "Luca Prova"), ""]]);
     g.vai("giroDiSicurezza");
+    c("vecchia colonna: la riga già segnata lì NON si rimanda, quella senza segno sì", [1, "l:1000000000000012"], [g.inviati.length, g.inviati[0]?.corpo.valori[0]]);
+    c("…il segno vecchio passa nella scheda «Invii al CRM»", true, /nuova scheda/.test(g.segni()[0]));
     c("vecchia colonna «Inviato al CRM»: non è fra i titoli né fra i valori mandati", [false, 5], [g.inviati[0]?.corpo.intestazioni.includes("Inviato al CRM"), g.inviati[0]?.corpo.valori.length]);
   }
   {
