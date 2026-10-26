@@ -8,6 +8,7 @@ import ISTRUZIONI_CLONARE from "../../docs/CLONARE.md?raw";
 import { supabase } from "@/integrations/supabase/client";
 import { PromemoriaWhatsappPannello } from "@/crm/PromemoriaWhatsappPannello";
 import { ManychatPannello } from "@/crm/ManychatPannello";
+import { ProvaModelliWhatsapp } from "@/crm/ProvaModelliWhatsapp";
 import { cn } from "@/lib/utils";
 import {
   useUserSettings,
@@ -1312,6 +1313,7 @@ function ImpostazioniPage() {
             <WhatsAppSettingsSection />
             <PromemoriaWhatsappPannello />
             <ManychatPannello />
+            <ProvaModelliWhatsapp />
 
             <SezioneIndirizziGoogle />
           </TabsContent>
