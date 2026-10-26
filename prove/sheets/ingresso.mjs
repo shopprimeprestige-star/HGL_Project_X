@@ -733,24 +733,49 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
       ordina: null,
       durante: null,
     };
-    const largo = () => Math.max(...g.righe.map((r) => r.length));
     const mostrato = (v) =>
       v instanceof Date ? v.toISOString() : v === undefined || v === null ? "" : typeof v === "number" ? String(v).replace(/\.0+$/, "") : String(v);
     const pad = (r, n) => Array.from({ length: n }, (_, i) => r[i] ?? "");
-    const foglio = {
-      getName: () => "Foglio1",
-      getParent: () => ({ getName: () => "Lead HGL" }),
-      getLastRow: () => g.righe.length,
-      getLastColumn: () => largo(),
-      getRange: (r, col, nr = 1, nc = 1) => ({
-        getValues: () => Array.from({ length: nr }, (_, i) => pad(g.righe[r - 1 + i] ?? [], largo()).slice(col - 1, col - 1 + nc)),
-        getDisplayValues: () => Array.from({ length: nr }, (_, i) => pad(g.righe[r - 1 + i] ?? [], largo()).slice(col - 1, col - 1 + nc).map(mostrato)),
-        setValue: (v) => {
-          while (g.righe.length < r) g.righe.push([]);
-          g.righe[r - 1][col - 1] = v;
-        },
-        setValues: (m) => m.forEach((rr, i) => rr.forEach((v, j) => { g.righe[r - 1 + i][col - 1 + j] = v; })),
-      }),
+    //  Due schede: quella di Meta (`g.righe`) e quella dei segni (`g.segniRighe`,
+    //  `null` finché lo script non la crea).
+    g.segniRighe = null;
+    const scheda = (nome, leggi) => {
+      const largo = () => Math.max(1, ...leggi().map((r) => r.length));
+      return {
+        getName: () => nome,
+        getParent: () => libro,
+        getLastRow: () => leggi().length,
+        getLastColumn: () => (leggi().length ? largo() : 0),
+        appendRow: (v) => { leggi().push([...v]); },
+        getRange: (r, col, nr = 1, nc = 1) => ({
+          getValues: () => Array.from({ length: nr }, (_, i) => pad(leggi()[r - 1 + i] ?? [], largo()).slice(col - 1, col - 1 + nc)),
+          getDisplayValues: () => Array.from({ length: nr }, (_, i) => pad(leggi()[r - 1 + i] ?? [], largo()).slice(col - 1, col - 1 + nc).map(mostrato)),
+          setValue: (v) => {
+            const rr = leggi();
+            while (rr.length < r) rr.push([]);
+            rr[r - 1][col - 1] = v;
+          },
+          setValues: (m) => {
+            const rr = leggi();
+            m.forEach((riga, i) => {
+              while (rr.length < r + i) rr.push([]);
+              riga.forEach((v, j) => { rr[r - 1 + i][col - 1 + j] = v; });
+            });
+          },
+        }),
+      };
+    };
+    const foglio = scheda("Foglio1", () => g.righe);
+    const segni = scheda("Invii al CRM", () => g.segniRighe);
+    const libro = {
+      getName: () => "Lead HGL",
+      getSheetByName: (n) => (n === "Foglio1" ? foglio : n === "Invii al CRM" && g.segniRighe ? segni : null),
+      getSheets: () => (g.segniRighe ? [foglio, segni] : [foglio]),
+      insertSheet: (n) => {
+        if (n !== "Invii al CRM") throw new Error("scheda inattesa: " + n);
+        g.segniRighe = [];
+        return segni;
+      },
     };
     const sandbox = {
       console: {
@@ -772,7 +797,7 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
       SpreadsheetApp: {
         openById: (id) => {
           if (id !== FOGLIO_ID) throw new Error("foglio sconosciuto");
-          return { getSheetByName: (n) => (n === "Foglio1" ? foglio : null), getSheets: () => [foglio], getName: () => "Lead HGL" };
+          return libro;
         },
       },
       ScriptApp: {
@@ -819,7 +844,16 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
     g.f = sandbox;
     g.vai = (nome) => vm.runInContext(`${nome}()`, sandbox);
     g.col = (nome) => (g.righe[0] ?? []).indexOf(nome);
-    g.segni = () => { const k = g.col("Inviato al CRM"); return g.righe.slice(1).map((r) => (k < 0 ? "" : r[k] ?? "")); };
+    //  Il segno di ogni riga di lead della scheda di Meta, nel suo ordine, letto
+    //  dalla scheda dei segni per id Meta: «data · esito», o "" se non c'è.
+    g.segni = () =>
+      g.righe
+        .filter((r) => !r.some((v) => String(v).trim().toLowerCase() === "created_time"))
+        .map((r) => {
+          const k = r.find((v) => /^l:\d{6,}$/.test(String(v)));
+          const s = (g.segniRighe ?? []).slice(1).find((x) => x[0] === k);
+          return s ? `${s[1]} · ${s[2]}` : "";
+        });
     return g;
   }
 
@@ -834,7 +868,8 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
     const g = google([INT, unaRiga("11")]);
     g.vai("installa");
     c("installa: due trigger sul foglio (onChange, onFormSubmit) e il giro di sicurezza al minuto (di serie)", [["onChange", FOGLIO_ID], ["onFormSubmit", FOGLIO_ID], ["tempo", 1]].map((x) => x.join("|")), g.trigger.map((t) => [t.tipo, t.tipo === "tempo" ? t.ogni : t.foglio].join("|")));
-    c("installa: aggiunge la colonna «Inviato al CRM»", true, g.col("Inviato al CRM") >= 0);
+    c("installa: la scheda di Meta resta com'era (nessuna colonna in più)", [[...INT], 2], [g.righe[0], g.righe.length]);
+    c("installa: i segni vanno nella scheda a parte «Invii al CRM»", ["Chiave", "Ultimo invio", "Esito"], g.segniRighe?.[0]);
     g.vai("installa");
     c("installa due volte: i trigger non si raddoppiano", 3, g.trigger.length);
     const g1 = google([INT], { OGNI_MINUTI: "1" });
@@ -953,18 +988,39 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
     }
   }
   {
-    // righe ordinate durante un giro: il segno non finisce sulla riga sbagliata
+    // righe ordinate durante un giro: i segni vanno per chiave, non per posizione
     const g = google([INT, unaRiga("11"), unaRiga("12", "Luca Prova")]);
     g.durante = (gg) => {
       // qualcuno ordina il foglio mentre il CRM sta rispondendo alla prima riga: le due si scambiano
       [gg.righe[1], gg.righe[2]] = [gg.righe[2], gg.righe[1]];
     };
     g.vai("giroDiSicurezza");
-    const dopo = g.segni();
-    c("righe scambiate durante l'invio: la riga 2 (ora la «12», mai inviata) NON riceve il segno della «11»", ["l:1000000000000012", ""], [g.righe[1][0], dopo[0]]);
-    c("…la «11», ora in riga 3, si rimanda e si segna sulla sua riga", [2, true], [g.inviati.length, /nuova scheda/.test(dopo[1])]);
+    c("righe scambiate durante l'invio: ognuna ha il suo segno, nessuna rimandata", [2, ["l:1000000000000011", "l:1000000000000012"]], [g.inviati.length, g.inviati.map((i) => i.corpo.valori[0])]);
     g.vai("giroDiSicurezza");
-    c("…al giro dopo parte la «12» e tutto torna a posto", [3, true, true], [g.inviati.length, dopo.length === 2 && g.segni().every((x) => x !== ""), g.inviati[2].corpo.valori[0] === "l:1000000000000012"]);
+    c("…al giro dopo non riparte niente", [2, true], [g.inviati.length, g.segni().every((x) => /nuova scheda/.test(x))]);
+  }
+  {
+    // 27/10/2026: Meta ha scritto il lead nuovo SOPRA la riga dei titoli
+    const g = google([unaRiga("21", "Nuovo Sopra"), INT, unaRiga("11"), unaRiga("12", "Luca Prova")]);
+    const metaPrima = JSON.stringify(g.righe);
+    g.vai("giroDiSicurezza");
+    c("titoli in riga 2: il lead sopra parte con i titoli giusti, la riga dei titoli no", [3, ["l:1000000000000021", "l:1000000000000011", "l:1000000000000012"], false],
+      [g.inviati.length, g.inviati.map((i) => i.corpo.valori[0]), g.inviati.some((i) => i.corpo.valori.includes("created_time"))]);
+    c("…i titoli mandati sono quelli della riga dei titoli", [...INT], g.inviati[0]?.corpo.intestazioni);
+    c("…il lead sopra viaggia col suo numero di riga (1)", 1, g.inviati[0]?.corpo.riga);
+    c("…e la scheda di Meta non è stata toccata", metaPrima, JSON.stringify(g.righe));
+  }
+  {
+    // la colonna dei segni di prima, se è rimasta nella scheda di Meta, non viaggia
+    const g = google([[...INT, "Inviato al CRM"], [...unaRiga("11"), "26/10/2026 22:49 · nuova scheda"]]);
+    g.vai("giroDiSicurezza");
+    c("vecchia colonna «Inviato al CRM»: non è fra i titoli né fra i valori mandati", [false, 5], [g.inviati[0]?.corpo.intestazioni.includes("Inviato al CRM"), g.inviati[0]?.corpo.valori.length]);
+  }
+  {
+    // senza riga dei titoli non si manda niente
+    const g = google([unaRiga("11"), unaRiga("12")]);
+    g.vai("giroDiSicurezza");
+    c("nessuna riga con «created_time»: non manda niente e lo dice", [0, true], [g.inviati.length, g.avvisi.some((a) => /titoli/.test(a))]);
   }
   {
     // un limite per giro, e il lucchetto

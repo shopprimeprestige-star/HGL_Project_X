@@ -37,7 +37,7 @@ export interface RichiestaIngresso {
   valori: string[];
 }
 
-/** Gli esiti che lo script scrive nella colonna «Inviato al CRM». */
+/** Gli esiti che lo script scrive nella scheda «Invii al CRM» del foglio. */
 export type EsitoIngresso = "nuovo" | "ritorno" | "gia_ricevuto" | "gia_presente" | "scartata";
 
 /** Il tetto di righe al giorno (ora di Roma): lo stesso `300` di S1 in SQL

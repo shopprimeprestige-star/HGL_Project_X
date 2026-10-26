@@ -66,7 +66,7 @@ Se nel foglio ci sono già dei lead che **sono già nel CRM** (caricati da file 
 2. Premi **Esegui**.
 3. La prima volta Google chiede i permessi: vedi il Passo 5.
 
-Lo script scrive «già presente prima del collegamento» nella colonna «Inviato al CRM» di tutte le righe che ci sono adesso. Non manda niente al CRM.
+Lo script scrive «già presente prima del collegamento» per tutte le righe che ci sono adesso, nella scheda a parte **«Invii al CRM»**. Non manda niente al CRM.
 
 Se invece il foglio è vuoto o nuovo, salta questo passo. Per sicurezza, se ci sono **più di 20 righe senza segno**, il passo dopo (`installa`) si rifiuta di partire finché non lanci `segnaGiaPresenti`: è una protezione contro l'invio di centinaia di righe vecchie per sbaglio.
 
@@ -82,14 +82,18 @@ Se invece il foglio è vuoto o nuovo, salta questo passo. Per sicurezza, se ci s
 ## Passo 6 · Prova
 
 1. **Prima assicurati che le sequenze automatiche WhatsApp siano spente** (Impostazioni → WhatsApp con ManyChat: «Lead nuovo» spento). La riga di prova è un lead vero per il CRM, con il consenso del modulo: con «Lead nuovo» acceso il primo messaggio potrebbe partire verso il numero finto prima che tu cancelli la scheda. Poi aggiungi nel foglio una riga di prova (nome e telefono finti, per esempio «Prova Esempio», un numero che non esiste) oppure usa lo strumento di prova dei Lead Ads di Meta.
-2. Entro un minuto, nella colonna **Inviato al CRM** compare la data e **nuova scheda**.
+2. Entro un minuto, nella scheda **Invii al CRM** compare una riga con la data e **nuova scheda**.
 3. Nel CRM, **Lead importati → Altro → Lead da Google Sheets**: c'è la scheda, con l'origine «Google Sheets · nome del foglio».
 4. Aggiungi una seconda riga con **lo stesso numero**: la colonna dice **contatto di ritorno**, e nel CRM non c'è una scheda nuova ma il contatore di ritorno sale di uno.
 5. Cancella la scheda di prova dal CRM.
 
-## Cosa scrive la colonna «Inviato al CRM»
+## La scheda «Invii al CRM»
 
-La colonna la scrive lo script. **Non scriverci tu**: una riga con un segno non viene più mandata.
+⚠️ **Lo script non scrive mai nella scheda di Meta.** Una colonna in più nella riga dei titoli confonde l'integrazione di Meta (il 27/10 ha scritto un lead sopra i titoli). I segni stanno in una scheda a parte, «Invii al CRM», che lo script crea da solo: una riga per lead (chiave · ultimo invio · esito). La riga dei titoli della scheda di Meta lo script la cerca (quella con `created_time`), anche se non è la prima.
+
+## Cosa scrive nella colonna «Esito»
+
+La scheda la scrive lo script. **Non scriverci tu**: un lead con un segno non viene più mandato. Per rimandarne uno, cancella la sua riga in «Invii al CRM».
 
 | Frase | Che cosa vuol dire |
 |---|---|
@@ -111,7 +115,7 @@ Se vuoi risparmiare tempo di calcolo, prova così:
 
 1. Metti `OGNI_MINUTI = 5` e rilancia `installa`.
 2. Aggiungi un lead di prova con lo strumento di prova di Meta e guarda l'orologio.
-3. Se la colonna «Inviato al CRM» si riempie **entro un minuto**, l'avvio automatico scatta con Meta: puoi tenere 5. Se ci mette fino a 5 minuti, rimetti `1` e rilancia `installa`.
+3. Se in «Invii al CRM» compare la riga **entro un minuto**, l'avvio automatico scatta con Meta: puoi tenere 5. Se ci mette fino a 5 minuti, rimetti `1` e rilancia `installa`.
 
 ## Il tempo che lo script può usare
 
