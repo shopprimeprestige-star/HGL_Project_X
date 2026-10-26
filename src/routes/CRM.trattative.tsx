@@ -108,6 +108,14 @@ import {
   requiresAnyDialog,
 } from "@/crm/QuickStatusDialog";
 import { SelettoreStatoDialog } from "@/crm/SelettoreStatoDialog";
+import { PastigliaContattoLead } from "@/crm/manychat/PastigliaContattoLead";
+import {
+  ETICHETTE_CONTATTO,
+  STATI_CONTATTO,
+  filtraPerContatto,
+  statoContattoEffettivo,
+  type StatoContatto,
+} from "@/crm/manychat/contatto";
 import { AvvisoExtra, richiedeChiusura, useChiusura } from "@/crm/ChiusuraDialog";
 import { DateRangeFilter, type DateRange } from "@/crm/DateRangeFilter";
 import { computeAllPresetDeltas, type RangeDeltaPoint } from "@/crm/range-delta";
@@ -418,6 +426,8 @@ interface Filtri {
   esito: Esito | null;
   /** Stati del lead, a scelta multipla. */
   stati: string[];
+  /** Stato del contatto WhatsApp (il secondo stato): «tutti», «nessuno» o uno dei sette. */
+  contatto: string;
   // ── DI CHI È ────────────────────────────────────────────────────────────
   /** "all" · "nessuno" · id del consulente. */
   consulenteId: string;
@@ -439,6 +449,7 @@ const FILTRI_VUOTI: Filtri = {
   gruppo: "attivi",
   esito: null,
   stati: [],
+  contatto: "tutti",
   consulenteId: "all",
   scadenza: "tutte",
   from: null,
@@ -454,7 +465,7 @@ const FILTRI_VUOTI: Filtri = {
  *  blocco e l'azzeramento di un blocco solo: scritto una volta, non ripetuto
  *  in tre punti che poi divergono. */
 const DOMANDA_DI: Record<Domanda, (keyof Filtri)[]> = {
-  punto: ["esito", "stati"],
+  punto: ["esito", "stati", "contatto"],
   chi: ["consulenteId"],
   quando: ["scadenza", "from", "to"],
   dove: ["fonti", "provenienza"],
@@ -502,6 +513,7 @@ function leggiFiltri(): Filtri {
       ...FILTRI_VUOTI,
       ...salvati,
       stati: soloStringhe(salvati.stati),
+      contatto: typeof salvati.contatto === "string" ? salvati.contatto : "tutti",
       fonti: soloStringhe(salvati.fonti),
     };
   } catch {
@@ -1510,7 +1522,9 @@ function LeadsPage() {
   //  cambiamento. Chi torna sulla pagina ritrova esattamente l'elenco che
   //  stava lavorando.
   const [filtri, setFiltri] = useState<Filtri>(leggiFiltri);
-  const { gruppo, esito, consulenteId, scadenza, provenienza, cerca, ordine } = filtri;
+  const { gruppo, esito, consulenteId, scadenza, provenienza, cerca, ordine, contatto } = filtri;
+  //  «Adesso» per il secondo stato: si rinnova solo quando cambia l'elenco, non a ogni disegno.
+  const adessoContatto = useMemo(() => new Date(), [leads]); // eslint-disable-line react-hooks/exhaustive-deps
   const range = useMemo<DateRange>(
     () => ({ from: filtri.from, to: filtri.to }),
     [filtri.from, filtri.to],
@@ -1885,6 +1899,8 @@ function LeadsPage() {
     const dove: Record<string, number> = { importati: 0, diretti: 0, rientri: 0 };
     let senzaConsulente = 0;
     let evidenziati = 0;
+    const contattoWa: Record<string, number> = {};
+    const adessoC = new Date();
     //  Le consulenze svolte non si leggono più da uno stato: si contano riga
     //  per riga con lo stesso criterio dell'agenda (vedi consulenzaSvolta).
     let svolte = 0;
@@ -1893,6 +1909,10 @@ function LeadsPage() {
     //  si sentono, e prossimaAzione() dentro scadenzaDi() non è gratis.
     for (const l of perGruppo) {
       if (consulenzaSvolta(l)) svolte++;
+      {
+        const sc = statoContattoEffettivo(l.data, adessoC) ?? "nessuno";
+        contattoWa[sc] = (contattoWa[sc] || 0) + 1;
+      }
       stato[l.data.stato] = (stato[l.data.stato] || 0) + 1;
       if (l.data.consulenteId)
         consulente[l.data.consulenteId] = (consulente[l.data.consulenteId] || 0) + 1;
@@ -1907,6 +1927,7 @@ function LeadsPage() {
     }
     return {
       stato,
+      contattoWa,
       consulente,
       fonte,
       quando,
@@ -1974,6 +1995,9 @@ function LeadsPage() {
               : l.data.stato === esito;
         if (!ok) return false;
       }
+      //  Il secondo stato: la stessa funzione delle altre due liste.
+      if (contatto !== "tutti" && filtraPerContatto([l], contatto, adessoContatto).length === 0)
+        return false;
       if (statiScelti.size > 0) {
         //  Scegliendo "Cliente assente" si prendono anche le schede storiche
         //  segnate "non_fatto": è lo stesso fatto scritto con la parola vecchia.
@@ -2030,6 +2054,8 @@ function LeadsPage() {
     perGruppo,
     esito,
     statiScelti,
+    contatto,
+    adessoContatto,
     cerca,
     consulenteId,
     filtri.evidenziati,
@@ -2145,6 +2171,16 @@ function LeadsPage() {
         valore: VOCI_PROVENIENZA.find((v) => v.chiave === provenienza)?.titolo ?? provenienza,
         via: () => imposta("provenienza", "tutte"),
       });
+    if (contatto !== "tutti")
+      p.push({
+        chiave: "contatto",
+        etichetta: "Contatto",
+        valore:
+          contatto === "nessuno"
+            ? "non segnato"
+            : (ETICHETTE_CONTATTO[contatto as StatoContatto] ?? contatto),
+        via: () => imposta("contatto", "tutti"),
+      });
     if (filtri.evidenziati)
       p.push({
         chiave: "evidenziati",
@@ -2160,6 +2196,7 @@ function LeadsPage() {
     filtri.stati,
     filtri.fonti,
     filtri.evidenziati,
+    contatto,
     consulenteId,
     scadenza,
     provenienza,
@@ -2181,7 +2218,7 @@ function LeadsPage() {
 
   /** Cambiando filtro si riparte dall'alto: la posizione del cursore su un
    *  elenco diverso non significa più niente. */
-  const chiaveFiltri = `${gruppo}|${esito}|${[...filtri.stati].sort().join(",")}|${consulenteId}|${filtri.evidenziati}|${scadenza}|${range.from}|${range.to}|${[...filtri.fonti].sort().join(",")}|${provenienza}|${cerca}|${ordine}`;
+  const chiaveFiltri = `${gruppo}|${esito}|${[...filtri.stati].sort().join(",")}|${consulenteId}|${filtri.evidenziati}|${scadenza}|${range.from}|${range.to}|${[...filtri.fonti].sort().join(",")}|${provenienza}|${contatto}|${cerca}|${ordine}`;
   useEffect(() => {
     setCursore(0);
     setLimite(100);
@@ -2700,6 +2737,28 @@ function LeadsPage() {
                   onClick={() => cambiaStatoFiltro(s)}
                 />
               </NoteAComparsa>
+            ))}
+          </div>
+        </SottoBlocco>
+        <SottoBlocco
+          titolo="Stato del contatto"
+          nota={
+            contatto === "tutti"
+              ? "tutti"
+              : contatto === "nessuno"
+                ? "non segnato"
+                : (ETICHETTE_CONTATTO[contatto as StatoContatto] ?? contatto)
+          }
+        >
+          <div className="space-y-0.5">
+            {[...STATI_CONTATTO, "nessuno" as const].map((s) => (
+              <VoceFiltro
+                key={s}
+                attivo={contatto === s}
+                etichetta={s === "nessuno" ? "Non segnato" : ETICHETTE_CONTATTO[s]}
+                conteggio={conteggi.contattoWa[s] || 0}
+                onClick={() => imposta("contatto", contatto === s ? "tutti" : s)}
+              />
             ))}
           </div>
         </SottoBlocco>
@@ -3654,6 +3713,12 @@ function LeadsPage() {
                       {l.data.telefono || "senza telefono"}
                       {l.data.citta ? ` · ${l.data.citta}` : ""}
                     </div>
+                    {/*  Il secondo stato (WhatsApp): solo se la scheda ne ha uno. */}
+                    {l.data.contattoWa && (
+                      <div className="mt-0.5">
+                        <PastigliaContattoLead lead={l} />
+                      </div>
+                    )}
                   </div>
 
                   {/* STATO — la pastiglia, le sue note, e la spunta quando lo
@@ -3889,6 +3954,7 @@ function LeadsPage() {
                   <NoteLead lead={dettaglio} className="min-w-0">
                     <ChipStato lead={dettaglio} onClick={() => apriStato(dettaglio)} />
                   </NoteLead>
+                  <PastigliaContattoLead lead={dettaglio} />
                   <SpuntaCompimento
                     lead={dettaglio}
                     attiva={compLead?.id === dettaglio.id}

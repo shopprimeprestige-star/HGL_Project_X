@@ -129,7 +129,15 @@ import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { AlertTriangle, ChevronDown, ListChecks, Trash2, Undo2, User } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  FileSpreadsheet,
+  ListChecks,
+  Trash2,
+  Undo2,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -179,8 +187,13 @@ import {
 } from "@/crm/ui";
 import { eSaltato } from "./saltati";
 //  I due menu e le regole sono quelli della pagina «Da chiamare».
-import { MenuAnnuncio, MenuRisposta } from "./FiltriLista";
+import { MenuAnnuncio, MenuOrigine, MenuRisposta } from "./FiltriLista";
+import { FiltroContatto } from "@/crm/manychat/FiltroContatto";
+import { PastigliaContattoLead } from "@/crm/manychat/PastigliaContattoLead";
+import { filtraPerContatto, statoContattoEffettivo } from "@/crm/manychat/contatto";
 import { applicaFiltri, opzioniFiltri, type FiltriLista } from "./filtri-lista";
+//  Da dove è entrata una scheda: l'etichetta sulla riga e l'ordine «dal più recente».
+import { ordinaPerArrivo, origineInRiga, VUOTO_GOOGLE_SHEETS } from "./origine";
 //  La riga appena sistemata non sparisce sotto le dita: la regola sta lì.
 import { restaNellElenco, targhettaSistemato } from "./elenco-stabile";
 //  Chi si telefona oggi e chi aspetta la sua data: la stessa regola della coda.
@@ -212,6 +225,10 @@ function sottoTesto(l: Lead, inCoda: boolean, targhetta = ""): string {
   const d = l.data ?? ({} as LeadData);
   const azione = prossimaAzione(l);
   const pezzi = [d.telefono || "senza telefono"];
+  //  Dal foglio Google lo si scrive sulla riga, in testo: è la risposta a «da
+  //  dove è arrivato questo?», e un colore solo non lo direbbe.
+  const origine = origineInRiga(d);
+  if (origine) pezzi.push(origine);
   if (azione.quando) pezzi.push(`${azione.cosa} ${azione.quando}`);
   //  ⚠️ Richiesta del committente: «fai che si vede anche nella lista lead la
   //   data». Qui sopra c'è ENTRO QUANDO si fa vivo; questa è da quanto
@@ -253,10 +270,21 @@ export function SchedaTutti({
   onApri,
   moduloDi,
   statoIniziale = null,
+  tuttiIniziale = false,
+  nDalFoglio,
 }: {
   /** Lo stato su cui aprire già filtrato: arriva dai pulsanti «Già lavorati»
    *  in cima a Lead importati (20/10/2026). La pagina cambia `key` per riaprire. */
   statoIniziale?: LeadStatus | null;
+  /** Aprire già sulla lente «Tutti», cioè compresi i già sistemati. Lo chiede la
+   *  voce «Lead da Google Sheets» di Altro: è un archivio di quello che è
+   *  arrivato dal foglio, non la lista di chi si telefona oggi. La pagina cambia
+   *  `key` per riaprire. */
+  tuttiIniziale?: boolean;
+  /** Quanti lead sono arrivati dal foglio Google fra TUTTI gli importati (la
+   *  pagina lo calcola già per Altro): serve a dire «nessun lead dal foglio» e a
+   *  decidere se il menu Origine ha qualcosa da scegliere. */
+  nDalFoglio: number;
   /** TUTTI i lead arrivati da una lista, senza nessun altro filtro. Il filtro
    *  lo fa questa scheda, e lo fa a vista: quale sia lo dicono le pastiglie in
    *  cima, accese. Arriva già filtrato per `importato` dalla pagina, che è
@@ -349,7 +377,7 @@ export function SchedaTutti({
    *   Serve ancora — è da qui che si segnano in gruppo i venti che hanno detto
    *   di no, ed è il solo posto che le mostra tutte insieme. Nascondere si può,
    *   nascondere senza dire quanto no. */
-  const [ancheSistemati, setAncheSistemati] = useState(false);
+  const [ancheSistemati, setAncheSistemati] = useState(tuttiIniziale);
   /*  ⚠️ CHI ASPETTA LA SUA DATA NON È «DA CHIAMARE» OGGI ────────────────
       Segnalazione del committente: «se lo metto da ricontattare fra due
       settimane deve uscire fino a quella data; ora continua a mostrarlo».
@@ -393,7 +421,17 @@ export function SchedaTutti({
     () => ({ annuncio: filtri.annuncio, risposte: filtri.risposte }),
     [filtri.annuncio, filtri.risposte],
   );
-  const nFiltriQui = (filtriQui.annuncio ? 1 : 0) + (filtriQui.risposte?.length ?? 0);
+  /** …e l'Origine (dal foglio Google, da file, a mano), che si aggiunge alle due
+   *  manopole di sempre. Stato e tempo dell'indirizzo restano fuori.
+   *  ⚠️ È un memo a parte e non una chiave in più nel precedente: una prova di
+   *   `prove.mjs` legge il sorgente e pretende quell'oggetto esatto, con solo
+   *   Annuncio e Risposta. */
+  const filtriConOrigine = useMemo<FiltriLista>(
+    () => ({ ...filtriQui, origine: filtri.origine }),
+    [filtriQui, filtri.origine],
+  );
+  const nFiltriQui =
+    (filtriQui.annuncio ? 1 : 0) + (filtriQui.risposte?.length ?? 0) + (filtri.origine ? 1 : 0);
   const righeTutte = useMemo(
     () =>
       importati.map((l) => ({
@@ -406,11 +444,32 @@ export function SchedaTutti({
   );
   /** Chi passa Annuncio e Risposta, fra TUTTI i lead importati. */
   const passano = useMemo(
-    () => new Set(applicaFiltri(righeTutte, filtriQui, oggiQui).map((r) => r.id)),
-    [righeTutte, filtriQui, oggiQui],
+    () => new Set(applicaFiltri(righeTutte, filtriConOrigine, oggiQui).map((r) => r.id)),
+    [righeTutte, filtriConOrigine, oggiQui],
   );
   /** L'elenco di prima, già ristretto: da qui in giù tutti i conti partono da lui. */
-  const baseFiltrata = useMemo(() => base.filter((l) => passano.has(l.id)), [base, passano]);
+  //  Il secondo stato (WhatsApp): `filtraPerContatto`, la stessa funzione di
+  //  «Trattative» e «Oggi». «tutti» non toglie niente.
+  const [contatto, setContatto] = useState("tutti");
+  const baseFiltrata = useMemo(
+    () =>
+      filtraPerContatto(
+        base.filter((l) => passano.has(l.id)),
+        contatto,
+        new Date(),
+      ),
+    [base, passano, contatto],
+  );
+  const contiContatto = useMemo(() => {
+    const m: Record<string, number> = {};
+    const adesso = new Date();
+    for (const l of base) {
+      if (!passano.has(l.id)) continue;
+      const k = statoContattoEffettivo(l.data, adesso) ?? "nessuno";
+      m[k] = (m[k] ?? 0) + 1;
+    }
+    return m;
+  }, [base, passano]);
   /** Le voci dei menu e i loro numeri: contano dentro lo stato e il tempo scelti
    *  in questa scheda, e ognuna con l'altro filtro già acceso. */
   const opzioni = useMemo(() => {
@@ -420,8 +479,8 @@ export function SchedaTutti({
         (l) => (!filtro || l.data?.stato === filtro) && dentroLaFetta(l.data, quando, oggiQui),
       )
       .flatMap((l) => perId.get(l.id) ?? []);
-    return opzioniFiltri(righeMenu, filtriQui, oggiQui);
-  }, [righeTutte, base, filtro, quando, oggiQui, filtriQui]);
+    return opzioniFiltri(righeMenu, filtriConOrigine, oggiQui);
+  }, [righeTutte, base, filtro, quando, oggiQui, filtriConOrigine]);
 
   /** Quanti per stato, sull'elenco INTERO: il numero sulla pastiglia deve dire
    *  quanti ne troverò premendola, quindi non può essere calcolato su un elenco
@@ -473,8 +532,10 @@ export function SchedaTutti({
     const scelte = baseFiltrata.filter(
       (l) => (!filtro || l.data?.stato === filtro) && dentroLaFetta(l.data, quando, oggiQui),
     );
-    return ordinaPerUrgenza(scelte);
-  }, [baseFiltrata, filtro, quando, oggiQui]);
+    //  Dal foglio Google l'elenco è un archivio di arrivi: il più recente in
+    //  cima, non l'urgenza di chiamata (il titolo della voce lo promette).
+    return filtri.origine === "google_sheets" ? ordinaPerArrivo(scelte) : ordinaPerUrgenza(scelte);
+  }, [baseFiltrata, filtro, quando, oggiQui, filtri.origine]);
 
   const {
     selezione,
@@ -541,7 +602,7 @@ export function SchedaTutti({
     annullaConferme();
     setFiltro(s);
   };
-  /** Scrive Annuncio e Risposta nell'indirizzo, tenendo il resto (Stato e tempo
+  /** Scrive Annuncio, Risposta e Origine nell'indirizzo, tenendo il resto (Stato e tempo
    *  della pagina «Da chiamare») com'è, senza chiavi vuote e senza riempire la
    *  cronologia. Come per le pastiglie la selezione non si svuota: si ricalcola
    *  sulle righe che restano. */
@@ -550,8 +611,10 @@ export function SchedaTutti({
     const search: Record<string, unknown> = { ...filtri };
     delete search.annuncio;
     delete search.risposte;
+    delete search.origine;
     if (f.annuncio) search.annuncio = f.annuncio;
     if (f.risposte?.length) search.risposte = f.risposte;
+    if (f.origine) search.origine = f.origine;
     void navigate({ search: search as never, replace: true });
   };
 
@@ -637,7 +700,22 @@ export function SchedaTutti({
   /** Dice che l'elenco è ristretto da Annuncio/Risposta: senza, «12 su 200» non
    *  spiega dove sono finiti gli altri. */
   const suFiltri =
-    nFiltriQui > 0 ? ` (su ${importati.length} importati, filtrati per annuncio o risposta)` : "";
+    nFiltriQui > 0
+      ? ` (su ${importati.length} importati, filtrati per annuncio, risposta o origine)`
+      : "";
+
+  //  ⚠️ LA VOCE «LEAD DA GOOGLE SHEETS» CON IL FOGLIO ANCORA MUTO: non è «nessuna
+  //   lista importata» (chi ha caricato dei file ne ha) e non è «nessuno con
+  //   questi filtri»; è un posto che aspetta, e dice quando si riempie.
+  if (filtri.origine === "google_sheets" && nDalFoglio === 0) {
+    return (
+      <Vuoto
+        titolo={VUOTO_GOOGLE_SHEETS.titolo}
+        testo={VUOTO_GOOGLE_SHEETS.testo}
+        icona={FileSpreadsheet}
+      />
+    );
+  }
 
   if (importati.length === 0) {
     return (
@@ -770,7 +848,10 @@ export function SchedaTutti({
              motivo delle pastiglie: cambiare la fetta a metà di un lotto porta
              a zero la selezione e con lei sparisce il conto «Scrivo… 40/300».
              Un <fieldset disabled> spegne anche la tastiera, non solo il clic. */}
-        {(opzioni.annuncio.length > 0 || opzioni.risposte.length > 0 || nFiltriQui > 0) && (
+        {(opzioni.annuncio.length > 0 ||
+          opzioni.risposte.length > 0 ||
+          nFiltriQui > 0 ||
+          importati.length > 0) && (
           <fieldset
             disabled={occupato}
             className={cn(
@@ -778,9 +859,15 @@ export function SchedaTutti({
               occupato && "opacity-50",
             )}
           >
-            <legend className="sr-only">Filtra per annuncio e per risposta del modulo</legend>
-            <MenuAnnuncio filtri={filtriQui} opzioni={opzioni} onCambia={cambiaFiltriQui} />
-            <MenuRisposta filtri={filtriQui} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            <legend className="sr-only">
+              Filtra per annuncio, per risposta del modulo, per origine e per stato del contatto
+            </legend>
+            <MenuAnnuncio filtri={filtriConOrigine} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            <MenuRisposta filtri={filtriConOrigine} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            {(nDalFoglio > 0 || filtri.origine) && (
+              <MenuOrigine filtri={filtriConOrigine} opzioni={opzioni} onCambia={cambiaFiltriQui} />
+            )}
+            <FiltroContatto valore={contatto} onCambia={setContatto} conteggi={contiContatto} />
             {nFiltriQui > 0 && (
               <Button
                 type="button"
@@ -789,7 +876,7 @@ export function SchedaTutti({
                 className="h-8 text-[12px] text-muted-foreground hover:text-foreground"
                 onClick={() => cambiaFiltriQui({})}
               >
-                Azzera annuncio e risposta
+                Azzera annuncio, risposta e origine
               </Button>
             )}
           </fieldset>
@@ -918,6 +1005,8 @@ export function SchedaTutti({
                             la pagina da sé (vedi `onStato`). La pastiglia ferma
                             il clic prima che arrivi alla riga, quindi cambiare
                             stato non seleziona anche la riga sotto le dita. */}
+                        {/*  Il secondo stato (WhatsApp), solo se la scheda ne ha uno. */}
+                        {d.contattoWa && <PastigliaContattoLead lead={l} className="shrink-0" />}
                         <PastigliaStato
                           dati={d}
                           contesto={nome}

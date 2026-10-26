@@ -163,6 +163,7 @@ import {
 //  `statiSelezionabili` è la stessa funzione che usa la finestra: `statiPer`
 //  più lo stato attuale quando è uno di quelli storici.
 import { PastigliaStato } from "./SelettoreStatoDialog";
+import { PastigliaContattoLead } from "./manychat/PastigliaContattoLead";
 import { TargaConferma } from "./ConfermeDaSentire";
 
 type Esito = "programmato" | "completato" | "no_show";
@@ -1430,6 +1431,8 @@ export function RigaLead({
             frequenti; questa serve per tutti gli altri.
             Era un <select> nativo: quindici voci in colonna da leggere una per
             una, e sul telefono la rotella di sistema. */}
+        {/*  Il secondo stato (WhatsApp): solo se la scheda ne ha uno. */}
+        {l.data.contattoWa && <PastigliaContattoLead lead={l} />}
         {cambiaStato ? (
           <PastigliaStato
             dati={l.data}

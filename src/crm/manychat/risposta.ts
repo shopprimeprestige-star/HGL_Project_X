@@ -40,6 +40,8 @@ import {
   rispostaAlPromemoria,
   type PorteRisposta as PorteConferma,
 } from "../promemoria/in-entrata";
+import type { ContattoWa } from "../types";
+import { dopoRisposta, eStop, type CambioContatto } from "./contatto";
 
 /** Lo stato HTTP della rotta: 503 senza segreto sul server, 401 senza chiave
  *  giusta, 413 corpo oltre 8 KB, 200 per ogni richiesta autorizzata. */
@@ -111,6 +113,18 @@ export interface PorteRispostaManychat {
   ): Promise<void>;
   /** le porte di `rispostaAlPromemoria` (conferma del 22/10 e STOP) */
   conferma(userId: string, telefono: string, adesso: Date): PorteConferma;
+  /** (compito 3) `manychat_risposta_arrivata`: l'ora della risposta sull'invio
+   *  (`invioId` può mancare) e sul giro. È ciò che sblocca il freno «mai due
+   *  volte senza risposta». */
+  rispostaArrivata(userId: string, invioId: string | null, adesso: Date): Promise<void>;
+  /** (compito 3) il secondo stato della scheda com'è adesso; `null` se la
+   *  scheda non c'è o è di un'altra installazione */
+  contattoDi(
+    userId: string,
+    leadId: string,
+  ): Promise<{ contattoWa: ContattoWa | undefined } | null>;
+  /** (compito 3) `contatto_wa_aggiorna`; vero se ha scritto */
+  scriviContatto(userId: string, leadId: string, cambio: CambioContatto): Promise<boolean>;
 }
 
 const SETTE_GIORNI_MS = 7 * 24 * 3600e3;
@@ -176,6 +190,19 @@ async function tratta(
   //  aggiornamento, e se la riga non c'è lo STOP andrebbe perso.
   await porte.aggiornaContatto(userId, { telefono, leadId, adesso });
 
+  //  Il freno «mai due volte senza risposta» guarda `risposta_il`: PRIMA della
+  //  conferma, così non si perde nemmeno se la conferma poi dà errore. Un
+  //  guasto qui non ferma il resto (solo il codice nell'avviso).
+  try {
+    await porte.rispostaArrivata(
+      userId,
+      abbinata.tipo === "invio" ? abbinata.invio.id : null,
+      adesso,
+    );
+  } catch (e) {
+    porte.avviso(`errore (${codiceErrore(e)}): ora della risposta non scritta`);
+  }
+
   //  La conferma del 22/10: SÌ → confermato, STOP → non_scrivere_dal. La firma
   //  qui è la chiave giusta (siamo arrivati solo con quella).
   const esito = await rispostaAlPromemoria(porte.conferma(userId, telefono, adesso), {
@@ -184,6 +211,33 @@ async function tratta(
     numero: `+${telefono}`,
     adesso,
   });
+
+  //  Le parole di STOP del secondo stato («non mi scrivete più», «cancellatemi»…)
+  //  sono più delle due del 22/10 («stop», «basta»): `rispostaAlPromemoria` non
+  //  le conosce e non scrive `non_scrivere_dal`. Senza quello, la scheda direbbe
+  //  STOP ma il numero resterebbe scrivibile da ogni altro canale. Idempotente.
+  if (esito !== "stop" && eStop(corpo.testo)) {
+    try {
+      const { error } = await porte.conferma(userId, telefono, adesso).segnaStop();
+      if (error) throw error;
+    } catch (e) {
+      porte.avviso(`errore (${codiceErrore(e)}): STOP non scritto sul numero`);
+    }
+  }
+
+  //  Il secondo stato della scheda: «Ha risposto» (con l'anteprima), o «Non
+  //  scrivere» se è uno STOP. Dopo la conferma e il suo STOP, perché la
+  //  conferma non deve dipendere da questo. Una scheda già in STOP non si
+  //  tocca (lo dicono `dopoRisposta` e, dentro l'UPDATE, la funzione SQL).
+  if (leadId) {
+    try {
+      const scheda = await porte.contattoDi(userId, leadId);
+      const cambio = scheda ? dopoRisposta(scheda.contattoWa, corpo.testo, adesso) : null;
+      if (cambio) await porte.scriviContatto(userId, leadId, cambio);
+    } catch (e) {
+      porte.avviso(`errore (${codiceErrore(e)}): secondo stato non scritto`);
+    }
+  }
   return esito === "niente" ? "registrata" : esito;
 }
 

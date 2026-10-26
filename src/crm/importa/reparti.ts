@@ -33,6 +33,8 @@
  *   che c'è il doppio del lavoro che c'è.
  *  ───────────────────────────────────────────────────────────────────────── */
 
+import type { ViaOrigine } from "./origine";
+
 export type Vista =
   | "coda"
   | "oggi"
@@ -124,6 +126,8 @@ export interface VoceAltro {
   href?: string;
   nome: string;
   titolo: string;
+  /** Il filtro con cui la voce apre la sua vista (solo `ALTRO_FILTRATE`). */
+  filtro?: { origine: ViaOrigine };
 }
 
 export const ALTRO: VoceAltro[] = [
@@ -160,6 +164,51 @@ export const ALTRO: VoceAltro[] = [
       "La stessa roba in tabella: filtri per stato e consulente, azioni su venti righe insieme, esportazione in CSV",
   },
 ];
+
+/** ── LE VOCI DI «ALTRO» CHE APRONO UNA VISTA GIÀ ESISTENTE, FILTRATA ─────────
+ *  «Lead da Google Sheets» (commessa 2026-10-25) non è una stanza nuova: è
+ *  «Tutta la lista» già filtrata per Origine = Google Sheets, in ordine «dal più
+ *  recente». Il titolare ha deciso il 12/10 che le linguette sono tre, e una
+ *  quarta le romperebbe: sta nel menu «Altro», prima delle altre.
+ *  ⚠️ STA IN UN ELENCO A PARTE, non in `ALTRO`: «Altro» ha cinque voci e ognuna
+ *   porta a una vista diversa (la prova dei reparti lo controlla), mentre questa
+ *   usa una vista che c'è già. Il menu le mostra tutte e due, e `vocePerVista`
+ *   dice quale delle due si sta guardando. */
+export const ALTRO_FILTRATE: VoceAltro[] = [
+  {
+    vista: "tutti",
+    nome: "Lead da Google Sheets",
+    titolo: "I lead arrivati dal foglio Google collegato alle inserzioni, dal più recente",
+    filtro: { origine: "google_sheets" },
+  },
+];
+
+/** Quale voce di «Altro» è aperta, data la vista e l'Origine dell'indirizzo.
+ *  Con una vista che hanno in due («Tutta la lista») vince quella col filtro
+ *  uguale; nessuna per le viste che non stanno in «Altro». */
+export function vocePerVista(vista: Vista, origine?: string | null): VoceAltro | undefined {
+  return (
+    ALTRO_FILTRATE.find((x) => x.vista === vista && !!origine && x.filtro?.origine === origine) ??
+    ALTRO.find((x) => x.vista === vista)
+  );
+}
+
+/** ── LASCIANDO LA VOCE DEL FOGLIO, L'ORIGINE SI TOGLIE ────────────────────
+ *  L'Origine = Google Sheets l'ha messa la voce, non la persona nella barra: se
+ *  restasse addosso passando a «Da chiamare», la coda, la scheda grande e le
+ *  scorciatoie lavorerebbero solo sui lead del foglio mentre la linguetta mostra
+ *  il conto pieno. `daVoce` = «Tutta la lista» è stata aperta da quella voce.
+ *  Un'Origine scelta a mano dal menu (daVoce falso) non si tocca. Dà lo stesso
+ *  oggetto se non c'è niente da togliere. */
+export function filtriLasciandoLaVoce<F extends { origine?: string }>(
+  filtri: F,
+  daVoce: boolean,
+): F {
+  if (!daVoce || filtri.origine !== "google_sheets") return filtri;
+  const resto = { ...filtri };
+  delete resto.origine;
+  return resto;
+}
 
 /** ── LA VOCE «DI RITORNO» DEL FILTRO STATO, ACCESA O SPENTA ────────────────
  *  Una voce a zero si spegne (se sparisse, la fila si accorcerebbe sotto il
@@ -255,10 +304,10 @@ export function linguettaDi(vista: Vista): Linguetta | "altro" {
 
 /** La strada a parole, uno o due passi: serve alla prova (nessuna vista senza
  *  strada) e alla riga che dice dove si è quando si è dentro «Altro». */
-export function percorsoVista(vista: Vista): string[] {
+export function percorsoVista(vista: Vista, origine?: string | null): string[] {
   if (vista === "ritorno") return ["Da chiamare", "Stato: Di ritorno"];
   const l = linguettaDi(vista);
-  if (l === "altro") return ["Altro", NOME_ALTRO(vista)];
+  if (l === "altro") return ["Altro", vocePerVista(vista, origine)?.nome ?? NOME_ALTRO(vista)];
   const linguetta = LINGUETTE.find((x) => x.linguetta === l)!;
   //  Le linguette con una stanza sola non ripetono il nome.
   if (linguetta.viste.length === 1) return [linguetta.nome];

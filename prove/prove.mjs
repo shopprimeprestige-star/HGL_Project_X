@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
 import { proveManychat } from "./manychat.mjs";
+import { proveSheets } from "./sheets.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -529,6 +530,16 @@ const MODULI = [
   "manychat/porta",
   "manychat/risposta",
   "manychat/giro",
+  //  ⚠️ LEAD DA GOOGLE SHEETS + SEQUENZE WHATSAPP (commessa 2026-10-25): la
+  //   lettura della riga del foglio, l'origine dei lead importati, `statoDal`,
+  //   le sequenze «lead nuovo» e «giorno del meet» e i messaggi per stato. Un
+  //   file di prove per area in `prove/sheets/` (chiamati da `proveSheets`,
+  //   prove/sheets.mjs) e in `prove/manychat/` (chiamati da `proveManychat`).
+  "sheets/ingresso",
+  "importa/origine",
+  "stato-dal",
+  "manychat/sequenze",
+  "manychat/stati",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20446,6 +20457,7 @@ await proveDelWebhookDelPromemoria();
 proveDiOggiPerLaConferma();
 proveDelRiquadroDelPromemoria();
 await proveManychat(mod, { c, gruppo, radice });
+await proveSheets(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20710,7 +20722,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 

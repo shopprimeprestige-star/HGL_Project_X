@@ -80,6 +80,7 @@ export function RigaChiamata({
   temperatura,
   riassunto,
   annuncio,
+  origine = "",
   posizione,
   giaProvato,
   diRitorno,
@@ -93,6 +94,9 @@ export function RigaChiamata({
   riassunto: string;
   /** «Annuncio · Gruppo», già scritto. Vuoto se non c'è. */
   annuncio: string;
+  /** «Google Sheets · Lead HGL» per chi è arrivato dal foglio Google, scritto
+   *  accanto all'annuncio. Vuoto per tutti gli altri (crm/importa/origine). */
+  origine?: string;
   /** Il posto nella lista: 2, 3, 4… (il numero 1 è la scheda grande). */
   posizione: number;
   /** Toccato in questo giro: è sceso in fondo. */
@@ -136,6 +140,7 @@ export function RigaChiamata({
               d.telefono || "senza telefono",
               riassunto || null,
               annuncio || null,
+              origine || null,
               giaProvato ? "già provato" : null,
             ]
               .filter(Boolean)

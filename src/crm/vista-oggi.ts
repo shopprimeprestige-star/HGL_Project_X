@@ -52,6 +52,9 @@ export interface VistaOggi {
   confermeDaSentire: boolean;
   /** il tasto «Confermato a voce» */
   confermaAVoce: boolean;
+  /** la striscia «Hanno risposto / Non hanno risposto» al ricontatto automatico
+   *  dei consulenti (ManyChat): la leggono e la lavorano solo i consulenti */
+  risposteOggi: boolean;
 }
 
 export function vistaOggi(puo: (p: Permesso) => boolean): VistaOggi {
@@ -73,5 +76,6 @@ export function vistaOggi(puo: (p: Permesso) => boolean): VistaOggi {
     //   consulenza e scrive solo `promemoria.confermatoIl/Via`.
     confermeDaSentire: true,
     confermaAVoce: true,
+    risposteOggi: consulenze,
   };
 }

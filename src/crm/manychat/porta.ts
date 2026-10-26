@@ -26,18 +26,13 @@
  *  `manychat?: EsitoPorta` PRIMA di `status`/`corpo`/`rete`.
  *  ───────────────────────────────────────────────────────────────────────── */
 
+import type { TipoInvio } from "../types";
 import type { ClientManychat, EsitoApi, RisultatoApi } from "./api";
 
 export type CanaleWhatsapp = "cloud" | "manychat";
 
-/** Chi chiede l'invio (finisce in `manychat_invii.tipo`). */
-export type TipoInvioPorta =
-  | "promemoria"
-  | "ricontatto"
-  | "conferma"
-  | "chat"
-  | "webinar"
-  | "prova";
+/** Chi chiede l'invio (finisce in `manychat_invii.tipo`): tutti i 12 tipi del registro. */
+export type TipoInvioPorta = TipoInvio;
 
 /** L'esito della porta. È il campo `manychat` di `RispostaInvio`. */
 export type EsitoPorta =

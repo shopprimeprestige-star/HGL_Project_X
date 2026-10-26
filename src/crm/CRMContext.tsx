@@ -21,6 +21,7 @@ import {
   type AdSpending,
   type Consultant,
   type ConsultantData,
+  type ContattoWa,
   type Lead,
   type LeadData,
 } from "./types";
@@ -38,9 +39,16 @@ import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, mostraLaCopia, type Motivo } f
 //  Chi ha PRESO l'appuntamento (≠ chi ha toccato lo stato per ultimo, ≠ chi lo
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
+import { statoDalDopo } from "./stato-dal";
 //  «L'appuntamento si è spostato?» — la regola sta a parte perché si prova:
 //  vedi crm/spostamento-meet.ts e proveDelloSpostamento in prove/prove.mjs.
 import { anteprimaDaRifare, consulenzaSpostata } from "./spostamento-meet";
+
+/** Opzioni di `updateLead`. `annulla`: la modifica è un «torna com'era» (il tasto
+ *  «Annulla» della coda dei lead importati): `statoDal` non si rinnova. */
+export interface OpzioniAggiornamento {
+  annulla?: boolean;
+}
 
 interface CRMContextValue {
   leads: Lead[];
@@ -70,7 +78,11 @@ interface CRMContextValue {
       costruito su dati vecchi, e il tecnico scritto da un collega un minuto
       prima sparisce. Passando una funzione il pezzo si compone DOPO la
       rilettura, con davanti la scheda vera. Vedi crm/patch-scheda. */
-  updateLead: (id: string, data: Modifica<LeadData>) => Promise<boolean>;
+  updateLead: (
+    id: string,
+    data: Modifica<LeadData>,
+    opzioni?: OpzioniAggiornamento,
+  ) => Promise<boolean>;
   /** ── DICE SE LA RIGA È SPARITA DAVVERO ──────────────────────────────────
    *  ⚠️ Era `Promise<void>`: esattamente il difetto che la riga qui sopra si è
    *   già pagata. In caso di errore si scriveva una riga in console e si
@@ -95,6 +107,10 @@ interface CRMContextValue {
   // ad spending
   createAdSpending: (data: AdSpending["data"]) => Promise<void>;
   deleteAdSpending: (id: string) => Promise<void>;
+  /** Mette in memoria il secondo stato che il SERVER ha appena scritto
+   *  (`/api/crm/contatto-wa`): non scrive niente nell'archivio. Serve a far
+   *  vedere subito pastiglie e filtri; `updateLead` il `contattoWa` lo scarta. */
+  aggiornaContattoLocale: (id: string, contattoWa: ContattoWa) => void;
 }
 
 const CRMContext = createContext<CRMContextValue | null>(null);
@@ -707,6 +723,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const updateLead = async (
     id: string,
     modifica: Modifica<LeadData>,
+    opzioni: OpzioniAggiornamento = {},
     tentativo = 0,
   ): Promise<boolean> => {
     /*  ── ⚠️ LA VERITÀ È L'ARCHIVIO, NON LA COPIA CHE ABBIAMO A SCHERMO ────
@@ -771,10 +788,24 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         ⚠️ E si ricompone a ogni tentativo: se la scheda cambia mentre la
          salviamo, il giro successivo rilegge e richiama la funzione sul
          valore nuovo — che è tutto il senso di passarla. */
-    const patch = risolviModifica(modifica, current.data);
+    //  ⚠️ `contattoWa` (il secondo stato del contatto WhatsApp) lo scrive SOLO il
+    //   server (`/api/crm/contatto-wa` e il giro, con una funzione SQL che tocca
+    //   solo quel pezzo). Qui si scarta dalla modifica, con la destrutturazione
+    //   (non `delete`: la patch può essere lo stesso oggetto del modulo): il
+    //   modulo della scheda lo porta con la copia di quando si è aperto, e
+    //   riscriverlo cancellerebbe una risposta o uno STOP arrivati nel frattempo.
+    //   `merged` tiene così il `contattoWa` riletto dal database.
+    const { contattoWa: _soloServer, ...patch } = risolviModifica(modifica, current.data);
+    void _soloServer;
     let merged = applyAutoStatus({ ...current.data, ...patch } as LeadData, {
       statoScelto: patch.stato !== undefined,
     });
+    //  ⚠️ `statoDal`: lo stato FINALE (dopo `applyAutoStatus`) contro quello di prima,
+    //   non «la patch contiene `stato`» (LeadDialog salva il modulo intero).
+    //   ⚠️ L'«Annulla» si dichiara con `opzioni.annulla` (solo `disfaUltimo` della
+    //   coda dei lead importati): la scheda torna com'era e con lei il suo `statoDal`,
+    //   mai «adesso» (sarebbe un evento falso che fa partire un messaggio).
+    merged = statoDalDopo(current.data, merged, new Date(), opzioni.annulla === true, patch.statoDal);
     //  ── DA DOVE VENIVA QUESTO LEAD ──────────────────────────────────────────
     //   Ogni cambio di stato lascia dietro di sé quello di prima. Serve al tasto
     //   "torna indietro" della pagina Oggi: segnare "cliente assente" al posto
@@ -941,7 +972,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         `[CRM] la scheda è cambiata mentre la salvavo: rifaccio la modifica sul valore nuovo (tentativo ${tentativo + 2})`,
         id,
       );
-      return updateLead(id, modifica, tentativo + 1);
+      return updateLead(id, modifica, opzioni, tentativo + 1);
     }
     const updatedLead: Lead = { ...current, data: merged };
     //  Anche il riferimento si aggiorna adesso: un secondo salvataggio che
@@ -1507,6 +1538,12 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       deleteAdSpending: (...a: Parameters<typeof deleteAdSpending>) =>
         funzioni.current.deleteAdSpending(...a),
       prossimoConsulente: () => funzioni.current.prossimoConsulente(),
+      aggiornaContattoLocale: (id: string, contattoWa: ContattoWa) => {
+        const sostituisci = (x: Lead): Lead =>
+          x.id === id ? { ...x, data: { ...x.data, contattoWa } } : x;
+        leadsRef.current = leadsRef.current.map(sostituisci);
+        setLeads((prev) => prev.map(sostituisci));
+      },
     }),
     [],
   );
