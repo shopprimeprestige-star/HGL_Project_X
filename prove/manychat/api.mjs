@@ -30,6 +30,24 @@ function finto() {
 export async function proveApi(mod, { c, gruppo }) {
   const A = mod["manychat/api"];
 
+  gruppo("MANYCHAT · IL CLIENT · fetch STACCATO (come sui Worker)");
+  {
+    //  Sui Worker `fetch` chiamato come metodo di un altro oggetto lancia
+    //  «Illegal invocation»: questo fetch fa lo stesso se `this` non è vuoto.
+    const opzioni = {
+      chiave: CHIAVE,
+      fetch: function (url) {
+        if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+        return Promise.resolve({
+          status: 200,
+          json: async () => ({ status: "success", data: { id: 1, name: "Pagina", is_pro: true } }),
+        });
+      },
+    };
+    const r = await A.creaClient(opzioni).chiSei();
+    c("chiSei con un fetch che vuole `this` vuoto: arriva a ManyChat", "ok", r.esito);
+  }
+
   gruppo("MANYCHAT · IL CLIENT · LA CATENA DELL'INVIO");
   {
     //  Contatto trovato: la ricerca, poi campi, tag e sendFlow, IN QUEST'ORDINE.

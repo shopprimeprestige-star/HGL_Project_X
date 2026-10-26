@@ -98,6 +98,10 @@ export function creaClient(o: {
   timeoutMs?: number;
 }): ClientManychat {
   const timeoutMs = o.timeoutMs ?? TIMEOUT_CHIAMATA_MS;
+  //  ⚠️ STACCATA DA `o`: sui Worker di Cloudflare `fetch` chiamato come metodo di
+  //   un altro oggetto (`o.fetch(…)`) lancia «Illegal invocation», e ogni
+  //   chiamata finiva in «rete» → «ManyChat non ha risposto».
+  const fetchManychat = o.fetch;
   /** L'id del campo `crm_telefono`: `undefined` = non ancora chiesto. */
   let idTelefono: number | null | undefined;
 
@@ -111,7 +115,7 @@ export function creaClient(o: {
     const stop = new AbortController();
     const timer = setTimeout(() => stop.abort(), timeoutMs);
     try {
-      const res = await o.fetch(url, {
+      const res = await fetchManychat(url, {
         method: metodo,
         headers: {
           Authorization: `Bearer ${o.chiave}`,
