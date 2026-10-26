@@ -576,6 +576,8 @@ export function decidiMeetDomani(
     ora: string;
     tel9: string;
     consulente: string | undefined;
+    bersaglioMin: number;
+    parte: number;
   }[] = [];
 
   //  Un ordine fisso: fra due doppioni vince sempre la stessa scheda.
@@ -589,9 +591,36 @@ export function decidiMeetDomani(
     if (!giornoMeet || !hm || giornoMeet !== domani) continue;
     const inizio = istanteDiRoma(giornoMeet, hm);
     if (!inizio) continue;
-    //  Fissata meno di 24 ore prima dell'inizio: c'è già la conferma, niente (e
-    //  nessun rumore). Senza `fissatoIl` vale `createdAt` (il lead non è fissato
-    //  prima di esistere); senza nessuna data parte: la finestra la protegge già.
+    //  Il bersaglio è l'ora del meet, il giorno prima (cioè oggi), dentro la fascia 9-20.
+    const minMeet = minutiDi(hm);
+    const bersaglioMin =
+      minMeet < APERTURA_RICONTATTI_MIN
+        ? APERTURA_RICONTATTI_MIN
+        : minMeet >= CHIUSURA_RICONTATTI_MIN
+          ? ULTIMO_BERSAGLIO_DOMANI_MIN
+          : minMeet;
+    const parte = (istanteDiRoma(oggi, oraDi(bersaglioMin)) as Date).getTime();
+    //  La conferma di QUESTA consulenza: se a questo numero ne è partita una da
+    //  24 ore prima dell'inizio (o dal bersaglio, se viene prima) in poi, è stata
+    //  fissata da poco e il promemoria sarebbe un doppione: niente, in silenzio.
+    //  Come la mattina del meet, non ci si fida di `fissatoIl`, che una
+    //  riprenotazione può lasciare vecchio.
+    const tel = ultimeNoveCifre(numeroWa(d.telefono));
+    const dopo = Math.min(inizio.getTime() - FISSATA_ALMENO_ORE_PRIMA * ORA_MS, parte);
+    if (
+      tel &&
+      invii.some(
+        (i) =>
+          i.tipo === "conferma" &&
+          STATI_ARRIVATI.includes(i.stato) &&
+          ultimeNoveCifre(i.telefono) === tel &&
+          Date.parse(i.prenotatoIl) >= dopo,
+      )
+    )
+      continue;
+    //  Freno in più: fissata meno di 24 ore prima dell'inizio, niente. Senza
+    //  `fissatoIl` vale `createdAt` (il lead non è fissato prima di esistere);
+    //  senza nessuna data parte: finestra e conferma la proteggono già.
     const fissata = Date.parse(String(d.fissatoIl ?? "")) || Date.parse(String(d.createdAt ?? ""));
     if (Number.isFinite(fissata) && inizio.getTime() - fissata < FISSATA_ALMENO_ORE_PRIMA * ORA_MS)
       continue;
@@ -625,6 +654,8 @@ export function decidiMeetDomani(
       ora: hm,
       tel9: ultimeNoveCifre(numero),
       consulente: consulente.data?.nome,
+      bersaglioMin,
+      parte,
     });
   }
 
@@ -645,15 +676,7 @@ export function decidiMeetDomani(
       continue;
     }
 
-    //  Il bersaglio è l'ora del meet, il giorno prima (cioè oggi), dentro la fascia 9-20.
-    const minMeet = minutiDi(k.ora);
-    const bersaglioMin =
-      minMeet < APERTURA_RICONTATTI_MIN
-        ? APERTURA_RICONTATTI_MIN
-        : minMeet >= CHIUSURA_RICONTATTI_MIN
-          ? ULTIMO_BERSAGLIO_DOMANI_MIN
-          : minMeet;
-    const parte = (istanteDiRoma(oggi, oraDi(bersaglioMin)) as Date).getTime();
+    const { parte, bersaglioMin } = k;
     const chiusura = (istanteDiRoma(oggi, oraDi(CHIUSURA_RICONTATTI_MIN)) as Date).getTime();
     const fine = Math.min(parte + FINESTRA_MEET_DOMANI_MIN * MIN_MS, chiusura);
     if (ora < parte) {

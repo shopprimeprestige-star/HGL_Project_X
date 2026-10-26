@@ -1402,6 +1402,61 @@ export async function proveSequenze(mod, { c, gruppo }) {
     tipi(domani([fissata("boh")], lun("18:00"))),
   );
 
+  //  La conferma di QUESTA consulenza: `fissatoIl` può essere vecchio (riprenotazione).
+  const conf = (iso, extra) => invio(1, "conferma", iso, extra);
+  c(
+    "riprenotata con `fissatoIl` vecchio, conferma di 5 minuti fa → niente, nemmeno un salto",
+    [],
+    domani([m18d], lun("18:30"), { invii: [conf("2026-10-26T17:25:00.000Z")] }),
+  );
+  c(
+    "…conferma di 3 giorni fa → parte",
+    ["invia"],
+    tipi(domani([m18d], lun("18:30"), { invii: [conf("2026-10-23T09:00:00.000Z")] })),
+  );
+  c(
+    "…conferma esattamente 24 ore prima dell'inizio → niente; un minuto prima → parte",
+    [[], ["invia"]],
+    [
+      tipi(domani([m18d], lun("18:30"), { invii: [conf("2026-10-26T17:00:00.000Z")] })),
+      tipi(domani([m18d], lun("18:30"), { invii: [conf("2026-10-26T16:59:00.000Z")] })),
+    ],
+  );
+  c(
+    "consulenza alle 20:30 (bersaglio 19:30) con conferma alle 19:40 del giorno prima → niente; alle 19:20 → parte",
+    [[], ["invia"]],
+    [
+      tipi(domani([md("20:30")], lun("19:45"), { invii: [conf("2026-10-26T18:40:00.000Z")] })),
+      tipi(domani([md("20:30")], lun("19:45"), { invii: [conf("2026-10-26T18:20:00.000Z")] })),
+    ],
+  );
+  c(
+    "…consulenza alle 8:30 (bersaglio 9:00): una conferma delle 8:45 conta (è dopo le 24 ore prima)",
+    [],
+    domani([md("08:30")], lun("09:30"), { invii: [conf("2026-10-26T07:45:00.000Z")] }),
+  );
+  c(
+    "…una conferma fallita o saltata, o di un altro numero, non conta",
+    [["invia"], ["invia"], ["invia"]],
+    [
+      tipi(
+        domani([m18d], lun("18:30"), {
+          invii: [conf("2026-10-26T17:25:00.000Z", { stato: "fallito" })],
+        }),
+      ),
+      tipi(
+        domani([m18d], lun("18:30"), {
+          invii: [conf("2026-10-26T17:25:00.000Z", { stato: "saltato" })],
+        }),
+      ),
+      tipi(
+        domani([m18d], lun("18:30"), {
+          invii: [conf("2026-10-26T17:25:00.000Z", { telefono: num(2) })],
+        }),
+      ),
+    ],
+  );
+
   //  Cambio d'ora del 25/10: il bersaglio è l'ora di Roma del giorno prima, non «meno 24 ore».
   const sab = (hhmm) => `2026-10-24T${hhmm}:00+02:00`;
   const sabQuasi = (ora, adesso) =>
