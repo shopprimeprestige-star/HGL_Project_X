@@ -7,6 +7,7 @@ import { useAuth, intestazioniCRM } from "@/crm/AuthContext";
 import ISTRUZIONI_CLONARE from "../../docs/CLONARE.md?raw";
 import { supabase } from "@/integrations/supabase/client";
 import { PromemoriaWhatsappPannello } from "@/crm/PromemoriaWhatsappPannello";
+import { ManychatPannello } from "@/crm/ManychatPannello";
 import { ProvaModelliWhatsapp } from "@/crm/ProvaModelliWhatsapp";
 import { cn } from "@/lib/utils";
 import {
@@ -1311,6 +1312,7 @@ function ImpostazioniPage() {
           <TabsContent value="whatsapp" className="space-y-4 mt-4">
             <WhatsAppSettingsSection />
             <PromemoriaWhatsappPannello />
+            <ManychatPannello />
             <ProvaModelliWhatsapp />
 
             <SezioneIndirizziGoogle />

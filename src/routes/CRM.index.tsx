@@ -109,6 +109,9 @@ import { useConsulenteCollegato, usePuo } from "@/crm/AuthContext";
 import { vistaOggi } from "@/crm/vista-oggi";
 import { StrisciaPosti } from "@/crm/StrisciaPosti";
 import { ConfermeDaSentire } from "@/crm/ConfermeDaSentire";
+import { FiltroContatto } from "@/crm/manychat/FiltroContatto";
+import { RisposteOggi } from "@/crm/manychat/RisposteOggi";
+import { filtraPerContatto } from "@/crm/manychat/contatto";
 import { fondiSotto } from "@/crm/patch-scheda";
 
 export const Route = createFileRoute("/CRM/")({
@@ -184,7 +187,7 @@ function scartoDelMeseVicino(scarto: number, delta: number): number {
 }
 
 function DashboardPage() {
-  const { leads, consultants, updateLead } = useCRM();
+  const { leads, consultants, updateLead, aggiornaContattoLocale } = useCRM();
   /*  ── CHE COSA SI VEDE, E CHI È ───────────────────────────────────────────
       Richiesta del titolare (14/10/2026): chi non fa consulenze vede la
       giornata di tutti in sola lettura, con la striscia dei posti liberi e
@@ -217,6 +220,8 @@ function DashboardPage() {
   //  monitor i nomi stanno tutti in vista e non si apre mai.
   const [foglioChi, setFoglioChi] = useState(false);
   const [cerca, setCerca] = useState(""); // nome, telefono, città
+  //  Stato del contatto WhatsApp (il secondo stato): «tutti» non filtra.
+  const [contatto, setContatto] = useState("tutti");
   const [scarto, setScarto] = useState(0); // giorno dell'agenda, rispetto a oggi
   /** ── L'AGENDA STA MOSTRANDO UNA GIORNATA, O TUTTO LO STORICO ────────────
    *  Il comando è dentro l'agenda (la striscia dei giorni), ma la scelta si
@@ -253,14 +258,17 @@ function DashboardPage() {
   //  lo applica anche l'agenda per conto suo (le servono i conteggi per giorno).
   const cercati = useMemo(() => {
     const q = cerca.trim().toLowerCase();
-    if (!q) return leads;
-    return leads.filter((l) => {
+    //  Prima il secondo stato (la stessa `filtraPerContatto` di Trattative e
+    //  Lead importati), poi il testo.
+    const per = filtraPerContatto(leads, contatto, new Date());
+    if (!q) return per;
+    return per.filter((l) => {
       const d = l.data;
       return `${d.nome || ""} ${d.cognome || ""} ${d.telefono || ""} ${d.citta || ""}`
         .toLowerCase()
         .includes(q);
     });
-  }, [leads, cerca]);
+  }, [leads, cerca, contatto]);
 
   const visibili = useMemo(
     () => (chi ? cercati.filter((l) => l.data.consulenteId === chi) : cercati),
@@ -625,8 +633,8 @@ function DashboardPage() {
             </span>
           </div>
         </div>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:w-56 sm:flex-none">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+          <div className="relative min-w-[10rem] flex-1 sm:w-56 sm:flex-none">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={cercaRef}
@@ -637,6 +645,7 @@ function DashboardPage() {
               className="h-9 pl-8 text-[13px]"
             />
           </div>
+          <FiltroContatto valore={contatto} onCambia={setContatto} />
           {/*  Il nome per esteso solo dove c'è spazio: a 375px l'etichetta
               intera rubava metà riga alla ricerca. */}
           <Button size="sm" className="h-9 shrink-0" onClick={nuovoLead} title="Nuovo lead">
@@ -887,6 +896,17 @@ function DashboardPage() {
                   )
               : undefined
           }
+        />
+      )}
+
+      {/* ── RISPOSTE AL RICONTATTO AUTOMATICO ────────────────────────────────
+          Chi ha risposto e chi no al ricontatto che ha mandato il sistema
+          (ManyChat): solo se c'è qualcuno, e solo ai consulenti. */}
+      {vista.risposteOggi && (
+        <RisposteOggi
+          leads={cercati}
+          onApri={apriLead}
+          onCambiato={(l, c) => aggiornaContattoLocale(l.id, c)}
         />
       )}
 

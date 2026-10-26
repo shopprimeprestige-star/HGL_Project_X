@@ -194,6 +194,7 @@ import { chiHaFissato, esitoFissato, fissataDa } from "@/crm/chi-ha-fissato";
 import {
   contoLinguetta,
   fasciaDeiRitorni,
+  filtriLasciandoLaVoce,
   linguettaDi,
   linguetteDaMostrare,
   fuoriDallaLista,
@@ -202,7 +203,10 @@ import {
   stanzeDi,
   vistaDiIngresso,
   type Vista as VistaImporta,
+  type VoceAltro,
 } from "@/crm/importa/reparti";
+//  Da dove è entrato un lead: l'etichetta sulle righe e la voce «Lead da Google Sheets».
+import { daGoogleSheets, origineInRiga } from "@/crm/importa/origine";
 import { useChiusura } from "@/crm/ChiusuraDialog";
 //  Anche il selettore di stato è uno solo (crm/SelettoreStatoDialog): da lì
 //  arrivano la griglia completa, le icone per stato e — soprattutto — la regola
@@ -568,6 +572,7 @@ function SchedaProssimo({
   motivo,
   modulo,
   annuncio,
+  origine,
   esiti,
   diRitorno,
   decisione,
@@ -593,6 +598,9 @@ function SchedaProssimo({
   modulo?: RisposteModulo;
   /** «Annuncio · Gruppo», già scritto; vuoto se la lista non ha un annuncio. */
   annuncio: string;
+  /** «Google Sheets · Lead HGL» per chi è arrivato dal foglio Google, vuoto per
+   *  gli altri: si scrive accanto all'annuncio (crm/importa/origine). */
+  origine: string;
   /** gli esiti a un tocco, già filtrati sugli stati validi per questo lead.
    *  Arrivano dalla pagina e non si ricalcolano qui: le scorciatoie 1…4 devono
    *  puntare esattamente ai pulsanti che si vedono, e due elenchi calcolati in
@@ -757,6 +765,7 @@ function SchedaProssimo({
                 d.citta || null,
                 d.fonte || null,
                 annuncio || null,
+                origine || null,
                 d.createdAt ? `in lista dal ${dataBreve(d.createdAt)}` : null,
               ]
                 .filter(Boolean)
@@ -1515,6 +1524,9 @@ function LeadImportatiUnoAllaVolta() {
   const [vista, setVista] = useState<VistaImporta>("coda");
   /** Lo stato con cui aprire «Tutti» da un pulsante «Già lavorati». */
   const [statoTutti, setStatoTutti] = useState<LeadStatus | null>(null);
+  /** «Tutta la lista» è stata aperta dalla voce «Lead da Google Sheets»: parte
+   *  sulla lente «Tutti» (è un archivio di arrivi, non la lista di oggi). */
+  const [daVoceFoglio, setDaVoceFoglio] = useState(false);
   /*  ── ⚠️ CHI HO SISTEMATO ADESSO RESTA A SCHERMO ───────────────────────
       Segnalazione del committente: «quando clicco su un contatto, qualsiasi
       cosa faccio su quel contatto scompare; se metto appuntamento fissato e
@@ -1575,6 +1587,48 @@ function LeadImportatiUnoAllaVolta() {
     },
     [navigate],
   );
+  /** ── LE DUE VOCI CHE APRONO «TUTTA LA LISTA» (menu Altro) ─────────────────
+   *  «Lead da Google Sheets» la apre con Origine = Google Sheets e sulla lente
+   *  «Tutti»; «Tutta la lista» toglie quell'Origine: così il tasto Altro dice
+   *  sempre quale delle due si sta guardando. Il resto dell'indirizzo (annuncio,
+   *  risposte) si tiene com'è, e una voce di Altro che non c'entra col foglio
+   *  non tocca niente. */
+  const senzaOrigine = (): FiltriListaRicerca => {
+    const resto = { ...filtri };
+    delete resto.origine;
+    return resto;
+  };
+  const apriVoceFiltrata = (v: VoceAltro) => {
+    if (!v.vista) return;
+    setStatoTutti(null);
+    setDaVoceFoglio(true);
+    setVista(v.vista);
+    cambiaFiltri({ ...senzaOrigine(), ...v.filtro });
+  };
+  const apriDalMenuAltro = (v: VistaImporta) => {
+    //  ⚠️ L'Origine si toglie PRIMA di spegnere la voce: dopo, l'effetto sulla
+    //   vista troverebbe la voce già spenta e lascerebbe il filtro acceso
+    //   (Lead da Google Sheets › Doppioni › Da chiamare: revisione del 2° giro).
+    if (filtri.origine === "google_sheets" && (v === "tutti" || daVoceFoglio))
+      cambiaFiltri(senzaOrigine());
+    setDaVoceFoglio(false);
+    setVista(v);
+  };
+  /** Si lascia «Tutta la lista» aperta dalla voce del foglio: l'Origine che la
+   *  voce aveva messo si toglie e la voce non è più aperta (vedi
+   *  `filtriLasciandoLaVoce`). */
+  const esciDalFoglio = () => {
+    setDaVoceFoglio(false);
+    const dopo = filtriLasciandoLaVoce(filtri, daVoceFoglio);
+    if (dopo !== filtri) cambiaFiltri(dopo);
+  };
+  //  ⚠️ UN POSTO SOLO PER TUTTE LE STRADE: linguette, stanze, ricerca, note
+  //   scadute… ogni `setVista` che porta fuori da «Tutta la lista» passa di qui.
+  //   Lo «Già lavorati» resta su «tutti» e chiama `esciDalFoglio` da sé.
+  useEffect(() => {
+    if (daVoceFoglio && vista !== "tutti") esciDalFoglio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista, daVoceFoglio]);
   //  Il giorno di lavoro, non quello di Greenwich: vedi `giornoLocale`.
   const oggiQui = giornoLocale(new Date().toISOString());
   /** Vero mentre un rientro sta scrivendo in archivio: venti schede sono venti
@@ -2038,6 +2092,12 @@ function LeadImportatiUnoAllaVolta() {
    *   un'altra volta poche righe più sotto. Due volte lo stesso filtro sono due
    *   idee di «lead importato» che un giorno divergono. */
   const importati = useMemo(() => (leads ?? []).filter((l) => l?.data?.importato), [leads]);
+  /** Quanti sono arrivati dal foglio Google (accanto alla voce di Altro, e per
+   *  sapere se il menu Origine ha qualcosa da scegliere). */
+  const nDalFoglio = useMemo(
+    () => importati.filter((l) => daGoogleSheets(l.data)).length,
+    [importati],
+  );
   /** ── GLI STATI GIÀ LAVORATI, PER I PULSANTI IN CIMA (20/10/2026) ───────
    *  Tutti gli stati presenti fra i lead importati che NON sono della lista da
    *  chiamare (quelli hanno i loro pulsanti sopra), nell'ordine canonico. */
@@ -3001,6 +3061,7 @@ function LeadImportatiUnoAllaVolta() {
         statoPrecedente: l.data.statoPrecedente,
         statoPrecedenteIl: l.data.statoPrecedenteIl,
         statoDa: l.data.statoDa,
+        statoDal: l.data.statoDal,
       } as Partial<LeadData>,
       eraInFondo: inFondo.has(l.id),
     };
@@ -3028,7 +3089,7 @@ function LeadImportatiUnoAllaVolta() {
     prima: Partial<LeadData>;
     eraInFondo: boolean;
   }) => {
-    if (!(await updateLead(d.id, d.prima))) {
+    if (!(await updateLead(d.id, d.prima, { annulla: true }))) {
       toast.error("Non sono riuscito a tornare indietro", {
         description: "La scheda in archivio è rimasta com'è. Riprova.",
       });
@@ -3382,14 +3443,17 @@ function LeadImportatiUnoAllaVolta() {
         <MenuAltro
           vista={vista}
           conti={contiViste}
-          onVista={setVista}
+          onVista={apriDalMenuAltro}
+          onVoce={apriVoceFiltrata}
+          origine={filtri.origine}
+          nGoogleSheets={nDalFoglio}
           disabilitato={!!avanzamento}
         />
         {/*  Dentro una stanza di Altro nessuna linguetta è accesa: la strada si
             legge a parole, e «Da chiamare» riporta alla lista. */}
         {linguettaAperta === "altro" && (
           <span className="ml-1 text-[12px] text-muted-foreground">
-            {percorsoVista(vista).join(" › ")}
+            {percorsoVista(vista, filtri.origine).join(" › ")}
           </span>
         )}
       </div>
@@ -3446,6 +3510,8 @@ function LeadImportatiUnoAllaVolta() {
             filtri={vista === "coda" ? filtri : {}}
             opzioni={opzioni}
             ritorni={contiViste.ritorno ?? 0}
+            //  Il menu Origine sta nella lista; in «Tutta la lista» ce n'è già uno suo.
+            conOrigine={nDalFoglio > 0 && vista === "coda"}
             onCambia={(f) => {
               if (vista !== "coda") setVista("coda");
               cambiaFiltri(f);
@@ -3453,6 +3519,7 @@ function LeadImportatiUnoAllaVolta() {
             disabilitato={!!avanzamento}
             altriStati={statiGiaLavorati}
             onAltroStato={(st) => {
+              esciDalFoglio();
               setStatoTutti(st);
               setVista("tutti");
             }}
@@ -3688,8 +3755,10 @@ function LeadImportatiUnoAllaVolta() {
       ) : vista === "tutti" ? (
         <SchedaTutti
           //  Aperta da un pulsante «Già lavorati»: si riapre filtrata su quello stato.
-          key={statoTutti ?? "tutti"}
+          key={`${statoTutti ?? "tutti"}${daVoceFoglio ? "·foglio" : ""}`}
           statoIniziale={statoTutti}
+          tuttiIniziale={daVoceFoglio}
+          nDalFoglio={nDalFoglio}
           importati={importati}
           moduloDi={moduloDi}
           //  Chi ho appena sistemato da qui: resta a schermo finché non cambio
@@ -3926,6 +3995,7 @@ function LeadImportatiUnoAllaVolta() {
                 motivo={percheDi.get(prossimo.id) ?? null}
                 modulo={moduloDi(prossimo.data)}
                 annuncio={annuncioScritto(prossimo)}
+                origine={origineInRiga(prossimo.data)}
                 esiti={esitiDivisi.inVista}
                 esitiAltri={esitiDivisi.inAltro}
                 diRitorno={idRitorno.has(prossimo.id)}
@@ -4056,6 +4126,7 @@ function LeadImportatiUnoAllaVolta() {
                           temperatura={temperaturaLead(moduloDi(l.data), l.data.qualifica)}
                           riassunto={riassuntoModulo(moduloDi(l.data))}
                           annuncio={annuncioScritto(l)}
+                          origine={origineInRiga(l.data)}
                           //  Il numero 1 è la scheda grande: l'elenco comincia da 2.
                           posizione={i + (fuoriCoda ? 1 : 2)}
                           giaProvato={inFondo.has(l.id)}

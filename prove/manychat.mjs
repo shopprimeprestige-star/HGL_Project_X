@@ -22,6 +22,9 @@ import { proveRisposta } from "./manychat/risposta.mjs";
 import { proveGiro } from "./manychat/giro.mjs";
 import { proveMigrazioni } from "./manychat/migrazioni.mjs";
 import { provePannello } from "./manychat/pannello.mjs";
+import { proveSequenze } from "./manychat/sequenze.mjs";
+import { proveStati } from "./manychat/stati.mjs";
+import { proveSequenzeMigrazione } from "./manychat/sequenze-migrazione.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -131,7 +134,26 @@ async function proveDelFinto({ c, gruppo }) {
   c("svuota() azzera le chiamate", 0, g.chiamate.length);
 }
 
+/** Lo scheletro del compito 0 (commessa 2026-10-25): i moduli nuovi esistono e
+ *  hanno le firme concordate nel piano. */
+function proveDelloScheletro(mod, { c, gruppo }) {
+  gruppo("MANYCHAT · LO SCHELETRO DELLE SEQUENZE (compito 0)");
+  const funzioni = {
+    "manychat/sequenze": ["decidiLeadNuovi", "decidiGiornoMeet"],
+    "manychat/stati": ["decidiPerStato"],
+  };
+  for (const [nome, attese] of Object.entries(funzioni)) {
+    c(
+      `${nome}: espone ${attese.join(", ")}`,
+      attese.map(() => "function"),
+      attese.map((f) => typeof mod[nome]?.[f]),
+    );
+  }
+  c("manychat/stati: espone TABELLA_STATI (un oggetto)", "object", typeof mod["manychat/stati"]?.TABELLA_STATI);
+}
+
 export async function proveManychat(mod, aiuti) {
+  proveDelloScheletro(mod, aiuti);
   await proveDelFinto(aiuti);
   await proveContatto(mod, aiuti);
   await proveRegole(mod, aiuti);
@@ -143,4 +165,8 @@ export async function proveManychat(mod, aiuti) {
   await proveGiro(mod, aiuti);
   await proveMigrazioni(mod, aiuti);
   await provePannello(mod, aiuti);
+  //  Commessa 2026-10-25 (sequenze WhatsApp): un file per compito.
+  await proveSequenze(mod, aiuti);
+  await proveStati(mod, aiuti);
+  await proveSequenzeMigrazione(mod, aiuti);
 }

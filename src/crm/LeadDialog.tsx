@@ -158,6 +158,7 @@ import {
   type Consultant,
   type Lead,
   type LeadData,
+  type OkWhatsapp as OkWhatsappDato,
   type LeadFonte,
   type LeadStatus,
   type LostReason,
@@ -266,6 +267,7 @@ import {
 //  Le righe non modificabili di chi è già ricomparso in una lista: la regola —
 //  e il modo di contare le volte — sta tutta nel modulo.
 import { datiOriginaliDelFile, provenienzaLead, righeRicarico } from "@/crm/importa/ricarico";
+import { rigaOrigineScheda } from "@/crm/importa/origine";
 //  ⚠️ La finestra dei preventivi di una persona è UNA in tutto il CRM
 //   (crm/preventivi/DelLead), la stessa che si apre dall'elenco Trattative:
 //   due elenchi «i suoi preventivi» con due regole di aggancio diverse
@@ -276,7 +278,10 @@ import { PulsantePreventivi } from "@/crm/preventivi/DelLead";
 //  lead») e non c'era modo di vederle. Vedi crm/RegistrazioniDelLead.
 import { RegistrazioniDelLead } from "@/crm/RegistrazioniDelLead";
 import { LeadJourneyCard } from "./LeadJourneyCard";
-import { intestazioniCRM, usePuo } from "./AuthContext";
+import { intestazioniCRM, useConsulenteCollegato, usePuo } from "./AuthContext";
+import { OkWhatsapp } from "./manychat/OkWhatsapp";
+import { PastigliaContattoLead } from "./manychat/PastigliaContattoLead";
+import { StoriaContatto } from "./manychat/PastigliaContatto";
 //  Il link della stanza con dentro CHI lo riceve: un link per ciascuno.
 import { gettoneDi } from "./fascia-consulenza";
 import { linkPerPersona } from "@/shop/chi-dal-link";
@@ -586,6 +591,7 @@ export function LeadDialog({
   //  Chi può eliminare: il pulsante non compare a chi poi si sentirebbe dire
   //  «non puoi» (vedi crm/permessi).
   const puo = usePuo();
+  const consulenteCollegato = useConsulenteCollegato();
   const [form, setForm] = useState<LeadData>(nuovo());
   const [salvataggio, setSalvataggio] = useState(false);
   /** Passo del wizard (0-3). Vale solo a lead nuovo. */
@@ -663,6 +669,28 @@ export function LeadDialog({
 
   //  Ogni scrittura sul modulo passa da una di queste tre porte, e tutte e tre
   //  segnano che c'è qualcosa da salvare.
+  /* ── WHATSAPP CON MANYCHAT: I DUE PEZZI DELLA SCHEDA ───────────────────
+     `contattoWa` lo scrive solo il server: la scheda lo LEGGE dall'elenco in
+     memoria, che `aggiornaContattoLocale` tiene fresco (il modulo ha la copia
+     di quando si è aperta la scheda, e la storia sarebbe vecchia).
+     `okWhatsapp` lo scrive il browser, subito e da solo: UNA chiave sola
+     (`updateLead` rilegge e fonde), così non porta con sé nessun'altra
+     modifica ancora a metà nel modulo. Se non si salva, l'interruttore non
+     cambia e lo dice (`OkWhatsapp` mostra l'errore). */
+  const contattoVivo: Partial<LeadData> = {
+    contattoWa:
+      (lead ? allLeads.find((x) => x.id === lead.id)?.data.contattoWa : undefined) ??
+      form.contattoWa,
+  };
+  const salvaOkWhatsapp = async (nuovoOk: OkWhatsappDato) => {
+    if (!lead?.id) throw new Error("La scheda non è ancora salvata.");
+    if (!(await updateLead(lead.id, { okWhatsapp: nuovoOk }))) {
+      throw new Error("Non salvato: la scheda è cambiata o il server non risponde. Riprova.");
+    }
+    //  Il modulo prende il valore nuovo SENZA segnare «modificato»: è già in archivio.
+    setForm((f) => ({ ...f, okWhatsapp: nuovoOk }));
+  };
+
   const update = <K extends keyof LeadData>(k: K, v: LeadData[K]) => {
     setModificato(true);
     setForm((f) => ({ ...f, [k]: v }));
@@ -1519,6 +1547,36 @@ export function LeadDialog({
                   onScegli={cambiaStato}
                 />
               </SezioneFinestra>
+
+              {/* ── STATO DEL CONTATTO (WhatsApp con ManyChat) ──────────────
+                  Il SECONDO stato, accanto a quello di sempre: non lo tocca e
+                  non ne è toccato. La pastiglia legge dall'elenco in memoria
+                  (non dal modulo, che ha la copia di quando si è aperta la
+                  scheda) e il server scrive il cambio. «Ok a WhatsApp» è il
+                  consenso messo a mano: si salva subito, da solo, con UNA sola
+                  chiave (`okWhatsapp`), e non passa dal tasto «Salva». */}
+              {lead?.id && (
+                <SezioneFinestra
+                  titolo="Stato del contatto"
+                  nota="Su WhatsApp: si cambia a mano, e lo aggiornano anche i messaggi automatici"
+                  classeCorpo="space-y-3 p-4"
+                >
+                  <PastigliaContattoLead
+                    compatta={false}
+                    lead={{
+                      id: lead.id,
+                      data: { nome: form.nome, cognome: form.cognome, ...contattoVivo },
+                    }}
+                  />
+                  <StoriaContatto storia={contattoVivo.contattoWa?.storia} max={3} />
+                  <OkWhatsapp
+                    valore={form.okWhatsapp}
+                    consensoModulo={form.consensoModulo}
+                    chi={consulenteCollegato?.nome ?? ""}
+                    onCambia={salvaOkWhatsapp}
+                  />
+                </SezioneFinestra>
+              )}
             </>
           )}
 
@@ -1880,6 +1938,11 @@ function BloccoModulo({ form }: { form: LeadData }) {
   const voci = vociModulo(moduloLetto(form));
   const origine = provenienzaLead(form);
   const originali = datiOriginaliDelFile(form);
+  //  ⚠️ DAL FOGLIO GOOGLE: «Origine: Google Sheets · Lead HGL (Foglio1, riga 57) ·
+  //   arrivato il 25/10 alle 09:14». Vuota per tutti gli altri. Sostituisce la
+  //   frase «dal file «Google Sheets · …», caricato il …», che direbbe due volte
+  //   la stessa cosa e parlerebbe di un file che non c'è.
+  const rigaOrigine = rigaOrigineScheda(form);
   /*  ── COM'È MESSO IL CLIENTE (commessa 2026-10-14) ───────────────────────
       La stessa regola di «Oggi» e di Lead importati (crm/temperatura-lead):
       il modulo, e se lì non c'è niente il quiz del sito. Funzione pura e non
@@ -1893,7 +1956,8 @@ function BloccoModulo({ form }: { form: LeadData }) {
       che le prove storiche guardano.) */
   const t = temperaturaLead(moduloLetto(form), form.qualifica);
   const conTemperatura = t.livello !== "nessuna";
-  const altro = origine.voci.length > 0 || !!origine.quando || originali.length > 0;
+  const altro =
+    origine.voci.length > 0 || !!origine.quando || originali.length > 0 || !!rigaOrigine;
   const TONO: Record<string, "vinta" | "da_lavorare" | "neutro"> = {
     buono: "vinta",
     medio: "da_lavorare",
@@ -1916,7 +1980,9 @@ function BloccoModulo({ form }: { form: LeadData }) {
           : conTemperatura
             ? "Risposte sue, dal sito: non si modificano"
             : altro
-              ? "Dal file importato: non si modifica"
+              ? rigaOrigine
+                ? "Dal foglio Google: non si modifica"
+                : "Dal file importato: non si modifica"
               : undefined
       }
       icona={ClipboardList}
@@ -1970,7 +2036,7 @@ function BloccoModulo({ form }: { form: LeadData }) {
           ))}
         </div>
       )}
-      {(origine.voci.length > 0 || origine.quando) && (
+      {(origine.voci.length > 0 || (origine.quando && !rigaOrigine)) && (
         <p
           className={cn(
             "break-words text-[12.5px] text-slate-600",
@@ -1983,7 +2049,7 @@ function BloccoModulo({ form }: { form: LeadData }) {
               <span className="text-slate-500">{v.titolo}</span> {v.valore}
             </span>
           ))}
-          {origine.quando && (
+          {origine.quando && !rigaOrigine && (
             <span className="text-slate-500">
               {origine.voci.length > 0 ? " · " : ""}
               {origine.quando}
@@ -1991,10 +2057,21 @@ function BloccoModulo({ form }: { form: LeadData }) {
           )}
         </p>
       )}
+      {rigaOrigine && (
+        <p
+          className={cn(
+            "break-words text-[12.5px] text-slate-600",
+            (voci.length > 0 || conTemperatura || origine.voci.length > 0) &&
+              "mt-3 border-t border-slate-100 pt-3",
+          )}
+        >
+          {rigaOrigine}
+        </p>
+      )}
       {originali.length > 0 && (
         <DatiOriginaliDelFile
           righe={originali}
-          aSeparare={voci.length > 0 || origine.voci.length > 0}
+          aSeparare={voci.length > 0 || origine.voci.length > 0 || !!rigaOrigine}
         />
       )}
     </SezioneFinestra>

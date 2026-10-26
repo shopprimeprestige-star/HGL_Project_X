@@ -91,6 +91,85 @@ export async function proveContatto(mod, { c, gruppo }) {
     iso(K.scadenzaRicontatto(roma("2026-10-16T11:00:30+02:00"))),
   );
 
+  //  ── Commessa 2026-10-25: i tipi nuovi.
+  const dopo = (i, prima) => K.applicaCambio(prima, K.dopoInvio(prima, i));
+  const sabInvio = roma("2026-10-24T11:00:00+02:00");
+  for (const tipo of ["primo_contatto", "richiamo_24h"]) {
+    const x = dopo({ tipo, inviatoIl: sabInvio, invioId: "inv-n" });
+    c(
+      `${tipo} → In attesa, scade come il ricontatto (sabato → lunedì alla stessa ora di Roma)`,
+      ["in_attesa", "automatico", tipo, "inv-n", "2026-10-26T10:00:00.000Z"],
+      [x.stato, x.da, x.motivo, x.invioId, x.scadeRisposta],
+    );
+  }
+  for (const tipo of [
+    "promemoria",
+    "meet_oggi",
+    "meet_domani",
+    "promemoria_chiamata",
+    "promemoria_sede",
+  ]) {
+    const x = dopo({
+      tipo,
+      inviatoIl: roma("2026-10-27T09:00:00+01:00"),
+      inizioMeet: roma("2026-10-27T18:00:00+01:00"),
+      invioId: "inv-m",
+    });
+    c(
+      `${tipo} → In attesa, scade all'inizio dell'appuntamento`,
+      ["in_attesa", tipo, "2026-10-27T17:00:00.000Z"],
+      [x.stato, x.motivo, x.scadeRisposta],
+    );
+  }
+  const adesso = dopo({
+    tipo: "meet_adesso",
+    inviatoIl: roma("2026-10-27T18:00:30+01:00"),
+    invioId: "inv-a",
+  });
+  c(
+    "meet_adesso → «Contattato», SENZA scadenza (chi è entrato nel meet non diventa «Non ha risposto»)",
+    ["contattato", "meet_adesso", "inv-a", false],
+    [adesso.stato, adesso.motivo, adesso.invioId, "scadeRisposta" in adesso],
+  );
+  c(
+    "…e non scade mai: un giorno dopo è ancora «Contattato»",
+    "contattato",
+    K.statoContattoEffettivo({ contattoWa: adesso }, roma("2026-10-29T18:00:00+01:00")),
+  );
+  const attesaPrima = dopo({
+    tipo: "meet_oggi",
+    inviatoIl: roma("2026-10-27T09:00:00+01:00"),
+    inizioMeet: roma("2026-10-27T18:00:00+01:00"),
+    invioId: "inv-o",
+  });
+  const dopoAdesso = dopo(
+    { tipo: "meet_adesso", inviatoIl: roma("2026-10-27T18:00:30+01:00"), invioId: "inv-a" },
+    attesaPrima,
+  );
+  c(
+    "…sopra una mattina «In attesa» toglie la scadenza vecchia e tiene la storia",
+    ["contattato", false, 2],
+    [dopoAdesso.stato, "scadeRisposta" in dopoAdesso, dopoAdesso.storia.length],
+  );
+  c(
+    "STOP resta appiccicoso anche per i tipi nuovi: nessun cambio",
+    [null, null, null],
+    [
+      K.dopoInvio(
+        { stato: "stop", il: "2026-10-27T08:00:00.000Z", da: "automatico", storia: [] },
+        { tipo: "meet_adesso", inviatoIl: sabInvio, invioId: "i" },
+      ),
+      K.dopoInvio(
+        { stato: "stop", il: "2026-10-27T08:00:00.000Z", da: "automatico", storia: [] },
+        { tipo: "primo_contatto", inviatoIl: sabInvio, invioId: "i" },
+      ),
+      K.dopoInvio(
+        { stato: "stop", il: "2026-10-27T08:00:00.000Z", da: "automatico", storia: [] },
+        { tipo: "meet_oggi", inviatoIl: sabInvio, inizioMeet: sabInvio, invioId: "i" },
+      ),
+    ],
+  );
+
   c(
     "un nuovo invio porta il suo id e sostituisce quello vecchio",
     "inv-9",
@@ -292,8 +371,27 @@ export async function proveContatto(mod, { c, gruppo }) {
     "Mi scrivete domani?",
     "Non mi è arrivato il link",
     "Mi contattate voi alle 15?",
+    //  Le quattro del revisore: parlano di un appuntamento, non sono un addio.
+    "Scusi, cancellami l'appuntamento di domani",
+    "puoi cancellarmi la prenotazione?",
+    "non contattatemi prima delle 18",
+    "toglietemi una curiosità: è doloroso?",
+    "Cancellatemi la consulenza di giovedì",
+    "Non contattatemi in orario di lavoro",
   ]) {
     c(`«${t ?? "(niente)"}» non è uno STOP`, false, K.eStop(t));
+  }
+  for (const t of [
+    "cancellatemi",
+    "Cancellami, grazie",
+    "non contattatemi",
+    "Non contattatemi più",
+    "toglietemi",
+    "Cancellarmi dalla vostra lista per favore",
+    "non scrivetemi più",
+    "STOP",
+  ]) {
+    c(`«${t}» resta uno STOP (nessun appuntamento nel testo)`, true, K.eStop(t));
   }
   const stop = K.applicaCambio(sc, K.dopoRisposta(sc, "STOP", il));
   c(

@@ -54,6 +54,7 @@ import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/prom
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
 import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-reminder'
+import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-giro'
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
@@ -105,6 +106,7 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api.publi
 import { Route as ApiPublicWebinarRouteImport } from './routes/api.public.webinar'
 import { Route as ApiPublicValidateDiscountRouteImport } from './routes/api.public.validate-discount'
 import { Route as ApiPublicTurnRouteImport } from './routes/api.public.turn'
+import { Route as ApiPublicSheetsIngressoRouteImport } from './routes/api.public.sheets-ingresso'
 import { Route as ApiPublicSalaAttesaRouteImport } from './routes/api.public.sala-attesa'
 import { Route as ApiPublicRegiaGruppoRouteImport } from './routes/api.public.regia-gruppo'
 import { Route as ApiPublicQuoteCreateRouteImport } from './routes/api.public.quote-create'
@@ -174,6 +176,7 @@ import { Route as ApiCrmPromemoriaWhatsappRouteImport } from './routes/api.crm.p
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
 import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-upload'
 import { Route as ApiCrmMediaEliminaRouteImport } from './routes/api.crm.media-elimina'
+import { Route as ApiCrmManychatRouteImport } from './routes/api.crm.manychat'
 import { Route as ApiCrmLeadSyncRouteImport } from './routes/api.crm.lead-sync'
 import { Route as ApiCrmInvitoRouteImport } from './routes/api.crm.invito'
 import { Route as ApiCrmGoogleDriveRouteImport } from './routes/api.crm.google-drive'
@@ -181,6 +184,7 @@ import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-mo
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
+import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
 import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
@@ -420,6 +424,11 @@ const HooksMetaLeadSyncRoute = HooksMetaLeadSyncRouteImport.update({
 const HooksMeetReminderRoute = HooksMeetReminderRouteImport.update({
   id: '/hooks/meet-reminder',
   path: '/hooks/meet-reminder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksManychatGiroRoute = HooksManychatGiroRouteImport.update({
+  id: '/hooks/manychat-giro',
+  path: '/hooks/manychat-giro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksFxRatesRoute = HooksFxRatesRouteImport.update({
@@ -677,6 +686,11 @@ const ApiPublicValidateDiscountRoute =
 const ApiPublicTurnRoute = ApiPublicTurnRouteImport.update({
   id: '/api/public/turn',
   path: '/api/public/turn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicSheetsIngressoRoute = ApiPublicSheetsIngressoRouteImport.update({
+  id: '/api/public/sheets-ingresso',
+  path: '/api/public/sheets-ingresso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicSalaAttesaRoute = ApiPublicSalaAttesaRouteImport.update({
@@ -1035,6 +1049,11 @@ const ApiCrmMediaEliminaRoute = ApiCrmMediaEliminaRouteImport.update({
   path: '/api/crm/media-elimina',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmManychatRoute = ApiCrmManychatRouteImport.update({
+  id: '/api/crm/manychat',
+  path: '/api/crm/manychat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmLeadSyncRoute = ApiCrmLeadSyncRouteImport.update({
   id: '/api/crm/lead-sync',
   path: '/api/crm/lead-sync',
@@ -1068,6 +1087,11 @@ const ApiCrmDisponibilitaRoute = ApiCrmDisponibilitaRouteImport.update({
 const ApiCrmCopiaAutomaticaRoute = ApiCrmCopiaAutomaticaRouteImport.update({
   id: '/api/crm/copia-automatica',
   path: '/api/crm/copia-automatica',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmContattoWaRoute = ApiCrmContattoWaRouteImport.update({
+  id: '/api/crm/contatto-wa',
+  path: '/api/crm/contatto-wa',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmConsulentePinRoute = ApiCrmConsulentePinRouteImport.update({
@@ -1209,6 +1233,7 @@ export interface FileRoutesByFullPath {
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
+  '/hooks/manychat-giro': typeof HooksManychatGiroRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1245,6 +1270,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
+  '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1252,6 +1278,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
+  '/api/crm/manychat': typeof ApiCrmManychatRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
@@ -1321,6 +1348,7 @@ export interface FileRoutesByFullPath {
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
+  '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
@@ -1392,6 +1420,7 @@ export interface FileRoutesByTo {
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
+  '/hooks/manychat-giro': typeof HooksManychatGiroRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1428,6 +1457,7 @@ export interface FileRoutesByTo {
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
+  '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1435,6 +1465,7 @@ export interface FileRoutesByTo {
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
+  '/api/crm/manychat': typeof ApiCrmManychatRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
@@ -1504,6 +1535,7 @@ export interface FileRoutesByTo {
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
+  '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
@@ -1581,6 +1613,7 @@ export interface FileRoutesById {
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
+  '/hooks/manychat-giro': typeof HooksManychatGiroRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1617,6 +1650,7 @@ export interface FileRoutesById {
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
+  '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1624,6 +1658,7 @@ export interface FileRoutesById {
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
+  '/api/crm/manychat': typeof ApiCrmManychatRoute
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
@@ -1693,6 +1728,7 @@ export interface FileRoutesById {
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
+  '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
   '/api/public/validate-discount': typeof ApiPublicValidateDiscountRoute
   '/api/public/webinar': typeof ApiPublicWebinarRoute
@@ -1771,6 +1807,7 @@ export interface FileRouteTypes {
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
+    | '/hooks/manychat-giro'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -1807,6 +1844,7 @@ export interface FileRouteTypes {
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
+    | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -1814,6 +1852,7 @@ export interface FileRouteTypes {
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
+    | '/api/crm/manychat'
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
@@ -1883,6 +1922,7 @@ export interface FileRouteTypes {
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
     | '/api/public/sala-attesa'
+    | '/api/public/sheets-ingresso'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
@@ -1954,6 +1994,7 @@ export interface FileRouteTypes {
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
+    | '/hooks/manychat-giro'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -1990,6 +2031,7 @@ export interface FileRouteTypes {
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
+    | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -1997,6 +2039,7 @@ export interface FileRouteTypes {
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
+    | '/api/crm/manychat'
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
@@ -2066,6 +2109,7 @@ export interface FileRouteTypes {
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
     | '/api/public/sala-attesa'
+    | '/api/public/sheets-ingresso'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
@@ -2142,6 +2186,7 @@ export interface FileRouteTypes {
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
+    | '/hooks/manychat-giro'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2178,6 +2223,7 @@ export interface FileRouteTypes {
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
+    | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2185,6 +2231,7 @@ export interface FileRouteTypes {
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
+    | '/api/crm/manychat'
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
@@ -2254,6 +2301,7 @@ export interface FileRouteTypes {
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
     | '/api/public/sala-attesa'
+    | '/api/public/sheets-ingresso'
     | '/api/public/turn'
     | '/api/public/validate-discount'
     | '/api/public/webinar'
@@ -2298,6 +2346,7 @@ export interface RootRouteChildren {
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
+  HooksManychatGiroRoute: typeof HooksManychatGiroRoute
   HooksMeetReminderRoute: typeof HooksMeetReminderRoute
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
@@ -2327,6 +2376,7 @@ export interface RootRouteChildren {
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
   ApiCrmBlogRoute: typeof ApiCrmBlogRoute
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
+  ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
@@ -2334,6 +2384,7 @@ export interface RootRouteChildren {
   ApiCrmGoogleDriveRoute: typeof ApiCrmGoogleDriveRoute
   ApiCrmInvitoRoute: typeof ApiCrmInvitoRoute
   ApiCrmLeadSyncRoute: typeof ApiCrmLeadSyncRoute
+  ApiCrmManychatRoute: typeof ApiCrmManychatRoute
   ApiCrmMediaEliminaRoute: typeof ApiCrmMediaEliminaRoute
   ApiCrmMediaUploadRoute: typeof ApiCrmMediaUploadRoute
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
@@ -2403,6 +2454,7 @@ export interface RootRouteChildren {
   ApiPublicQuoteCreateRoute: typeof ApiPublicQuoteCreateRoute
   ApiPublicRegiaGruppoRoute: typeof ApiPublicRegiaGruppoRoute
   ApiPublicSalaAttesaRoute: typeof ApiPublicSalaAttesaRoute
+  ApiPublicSheetsIngressoRoute: typeof ApiPublicSheetsIngressoRoute
   ApiPublicTurnRoute: typeof ApiPublicTurnRoute
   ApiPublicValidateDiscountRoute: typeof ApiPublicValidateDiscountRoute
   ApiPublicWebinarRoute: typeof ApiPublicWebinarRoute
@@ -2724,6 +2776,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/meet-reminder'
       fullPath: '/hooks/meet-reminder'
       preLoaderRoute: typeof HooksMeetReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/manychat-giro': {
+      id: '/hooks/manychat-giro'
+      path: '/hooks/manychat-giro'
+      fullPath: '/hooks/manychat-giro'
+      preLoaderRoute: typeof HooksManychatGiroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/fx-rates': {
@@ -3081,6 +3140,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/turn'
       fullPath: '/api/public/turn'
       preLoaderRoute: typeof ApiPublicTurnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sheets-ingresso': {
+      id: '/api/public/sheets-ingresso'
+      path: '/api/public/sheets-ingresso'
+      fullPath: '/api/public/sheets-ingresso'
+      preLoaderRoute: typeof ApiPublicSheetsIngressoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/sala-attesa': {
@@ -3566,6 +3632,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmMediaEliminaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/manychat': {
+      id: '/api/crm/manychat'
+      path: '/api/crm/manychat'
+      fullPath: '/api/crm/manychat'
+      preLoaderRoute: typeof ApiCrmManychatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/lead-sync': {
       id: '/api/crm/lead-sync'
       path: '/api/crm/lead-sync'
@@ -3613,6 +3686,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/copia-automatica'
       fullPath: '/api/crm/copia-automatica'
       preLoaderRoute: typeof ApiCrmCopiaAutomaticaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/contatto-wa': {
+      id: '/api/crm/contatto-wa'
+      path: '/api/crm/contatto-wa'
+      fullPath: '/api/crm/contatto-wa'
+      preLoaderRoute: typeof ApiCrmContattoWaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/consulente-pin': {
@@ -3892,6 +3972,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
+  HooksManychatGiroRoute: HooksManychatGiroRoute,
   HooksMeetReminderRoute: HooksMeetReminderRoute,
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
@@ -3921,6 +4002,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmBackupRoute: ApiCrmBackupRoute,
   ApiCrmBlogRoute: ApiCrmBlogRoute,
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,
+  ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,
@@ -3928,6 +4010,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmGoogleDriveRoute: ApiCrmGoogleDriveRoute,
   ApiCrmInvitoRoute: ApiCrmInvitoRoute,
   ApiCrmLeadSyncRoute: ApiCrmLeadSyncRoute,
+  ApiCrmManychatRoute: ApiCrmManychatRoute,
   ApiCrmMediaEliminaRoute: ApiCrmMediaEliminaRoute,
   ApiCrmMediaUploadRoute: ApiCrmMediaUploadRoute,
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
@@ -3997,6 +4080,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicQuoteCreateRoute: ApiPublicQuoteCreateRoute,
   ApiPublicRegiaGruppoRoute: ApiPublicRegiaGruppoRoute,
   ApiPublicSalaAttesaRoute: ApiPublicSalaAttesaRoute,
+  ApiPublicSheetsIngressoRoute: ApiPublicSheetsIngressoRoute,
   ApiPublicTurnRoute: ApiPublicTurnRoute,
   ApiPublicValidateDiscountRoute: ApiPublicValidateDiscountRoute,
   ApiPublicWebinarRoute: ApiPublicWebinarRoute,
