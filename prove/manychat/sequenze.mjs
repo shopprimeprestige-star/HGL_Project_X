@@ -1226,6 +1226,350 @@ export async function proveSequenze(mod, { c, gruppo }) {
   );
 
   /* ════════════════════════════════════════════════════════════════════════
+   *  24 ORE PRIMA (meet_domani) — richiesta del titolare, 26/10
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIORNO DEL MEET: IL PROMEMORIA 24 ORE PRIMA (meet_domani)");
+
+  //  Lunedì 26/10 è "oggi" (ora solare, +01:00), il meet è martedì 27/10. Il
+  //  fixture `meet` non ha `fissatoIl`: qui la consulenza è fissata da giorni.
+  const FISSATO = "2026-10-20T09:00:00.000Z";
+  const md = (ora, extra, id = "lead-d", n = 1, ymd = "2026-10-27") =>
+    meet(id, n, ora, { dataMeeting: ymd, fissatoIl: FISSATO, ...extra });
+  const domani = (schede, adesso, extra) => S.decidiMeetDomani(schede, t(adesso), ctxM(extra));
+  const lun = (hhmm) => `2026-10-26T${hhmm}:00+01:00`;
+  const chiaveD = (ora, ymd = "2026-10-27") => `d|${t9(1)}|${ymd}T${ora}`;
+  const uno = (r) => ((x) => [x?.tipo, x?.motivo ?? x?.chiave])(unica(r));
+  const m18d = md("18:00");
+
+  //  Il bersaglio è l'ora del meet, il giorno prima (a ora di Roma).
+  const d18 = domani([m18d], lun("18:00"));
+  c(
+    "meet martedì alle 18:00, lunedì alle 18:00 → invia, chiave d|tel9|AAAA-MM-GGTHH:MM, quale meet_domani",
+    [["invia", chiaveD("18:00"), "meet_domani"], 1],
+    [[d18[0]?.tipo, d18[0]?.chiave, d18[0]?.extra.quale], d18.length],
+  );
+  c(
+    "…con l'inizio del meet come istante vero",
+    t("2026-10-27T18:00:00+01:00").toISOString(),
+    d18[0]?.extra.inizioMeet.toISOString(),
+  );
+  c(
+    "…alle 17:59 aspetta e dice quando parte",
+    ["aspetta", "promemoria 24 ore prima: parte alle 18:00"],
+    uno(domani([m18d], lun("17:59"))),
+  );
+  c(
+    "…finestra di 2 ore: alle 19:59 parte ancora, alle 20:00 no (salta: giro in ritardo)",
+    [["invia"], ["salta", "saltato: giro in ritardo"]],
+    [tipi(domani([m18d], lun("19:59"))), uno(domani([m18d], lun("20:00")))],
+  );
+  c(
+    "…un'ora dopo la scadenza il salto smette di comparire",
+    [["salta"], []],
+    [tipi(domani([m18d], lun("20:59"))), domani([m18d], lun("21:00"))],
+  );
+  c(
+    "meet alle 17:00 → parte dalle 17:00 e per 2 ore (18:59 sì, 19:00 no)",
+    [["aspetta"], ["invia"], ["invia"], ["salta"]],
+    ["16:59", "17:00", "18:59", "19:00"].map((o) => tipi(domani([md("17:00")], lun(o)))),
+  );
+
+  //  Prima delle 9 → alle 9; dopo le 20 → alle 19:30; mai dopo le 20.
+  const m0830 = md("08:30");
+  c(
+    "meet alle 8:30 → il giorno prima alle 9:00: alle 8:59 aspetta, alle 9:00 parte",
+    [
+      ["aspetta", "promemoria 24 ore prima: parte alle 09:00"],
+      ["invia", chiaveD("08:30")],
+    ],
+    [uno(domani([m0830], lun("08:59"))), uno(domani([m0830], lun("09:00")))],
+  );
+  c(
+    "…la finestra di 2 ore parte dalle 9:00, non dalle 8:30 (10:59 sì, 11:00 no)",
+    [["invia"], ["salta"]],
+    [tipi(domani([m0830], lun("10:59"))), tipi(domani([m0830], lun("11:00")))],
+  );
+  const m2100 = md("21:00");
+  c(
+    "meet alle 21:00 → il giorno prima alle 19:30: alle 19:29 aspetta, alle 19:30 parte",
+    [
+      ["aspetta", "promemoria 24 ore prima: parte alle 19:30"],
+      ["invia", chiaveD("21:00")],
+    ],
+    [uno(domani([m2100], lun("19:29"))), uno(domani([m2100], lun("19:30")))],
+  );
+  c(
+    "…mai dopo le 20:00 (19:59 sì, 20:00 no) anche se la finestra di 2 ore durerebbe fino alle 21:30",
+    [["invia"], ["salta"], ["salta"]],
+    [
+      tipi(domani([m2100], lun("19:59"))),
+      tipi(domani([m2100], lun("20:00"))),
+      tipi(domani([m2100], lun("20:30"))),
+    ],
+  );
+  c(
+    "meet alle 20:00 e alle 20:30 → anche loro alle 19:30 (dalle 20 in poi si anticipa)",
+    [["aspetta"], ["invia"], ["aspetta"], ["invia"]],
+    [
+      tipi(domani([md("20:00")], lun("19:29"))),
+      tipi(domani([md("20:00")], lun("19:30"))),
+      tipi(domani([md("20:30")], lun("19:29"))),
+      tipi(domani([md("20:30")], lun("19:30"))),
+    ],
+  );
+  c(
+    "meet alle 19:59 → il giorno prima alle 19:59, e l'ultimo minuto utile è lui (a 20:00 no)",
+    [["invia"], ["salta"]],
+    [tipi(domani([md("19:59")], lun("19:59"))), tipi(domani([md("19:59")], lun("20:00")))],
+  );
+
+  //  Quali meet guarda.
+  c(
+    "guarda solo i meet di DOMANI: oggi (ci pensa il giorno del meet), dopodomani, passati e vecchi → niente",
+    [[], [], [], []],
+    [
+      domani([md("18:00", {}, "lead-d", 1, "2026-10-26")], lun("18:00")),
+      domani([md("18:00", {}, "lead-d", 1, "2026-10-28")], lun("18:00")),
+      domani([md("18:00", {}, "lead-d", 1, "2026-10-25")], lun("18:00")),
+      domani([md("18:00", {}, "lead-d", 1, "2026-10-20")], lun("18:00")),
+    ],
+  );
+  c(
+    "…solo gli stati di appuntamento e con un consulente",
+    [[], []],
+    [
+      domani([md("18:00", { stato: "da_contattare" })], lun("18:00")),
+      domani([md("18:00", { consulenteId: undefined })], lun("18:00")),
+    ],
+  );
+  c(
+    "…chiave già nel registro (anche fallita) → niente, né l'invio né il rumore",
+    [],
+    domani([m18d], lun("18:30"), {
+      invii: [invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("18:00") })],
+    }),
+  );
+  c(
+    "…meet spostato (altra ora) → un messaggio nuovo per la nuova ora",
+    [["invia", chiaveD("19:00")]],
+    [
+      uno(
+        domani([md("19:00")], lun("19:00"), {
+          invii: [
+            invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("18:00") }),
+          ],
+        }),
+      ),
+    ],
+  );
+  c(
+    "…due schede, stesso telefono e stesso meet → una sola voce",
+    1,
+    domani([m18d, md("18:00", {}, "lead-z")], lun("18:00")).length,
+  );
+
+  //  Creata meno di 24 ore prima dell'inizio: c'è già la conferma, niente.
+  const fissata = (iso, extra) => md("18:00", { fissatoIl: iso, ...extra });
+  c(
+    "consulenza fissata meno di 24 ore prima dell'inizio (23 h 30') → niente, nemmeno un salto",
+    [],
+    domani([fissata("2026-10-26T17:30:00.000Z")], lun("18:00")),
+  );
+  c(
+    "…fissata ESATTAMENTE 24 ore prima parte; un minuto dopo no",
+    [["invia"], []],
+    [
+      tipi(domani([fissata("2026-10-26T17:00:00.000Z")], lun("18:00"))),
+      tipi(domani([fissata("2026-10-26T17:01:00.000Z")], lun("18:00"))),
+    ],
+  );
+  c(
+    "…senza `fissatoIl` si guarda `createdAt` (il lead non può essere fissato prima di esistere)",
+    [[], ["invia"]],
+    [
+      tipi(domani([fissata(undefined, { createdAt: "2026-10-26T18:00:00.000Z" })], lun("18:00"))),
+      tipi(domani([fissata(undefined, { createdAt: "2026-10-01T12:00:00.000Z" })], lun("18:00"))),
+    ],
+  );
+  c(
+    "…senza data di creazione né di fissaggio (scheda vecchia) parte: la finestra la protegge già",
+    ["invia"],
+    tipi(domani([fissata(undefined)], lun("18:00"))),
+  );
+  c(
+    "…una data illeggibile non fa fermare né esplodere",
+    ["invia"],
+    tipi(domani([fissata("boh")], lun("18:00"))),
+  );
+
+  //  Cambio d'ora del 25/10: il bersaglio è l'ora di Roma del giorno prima, non «meno 24 ore».
+  const sab = (hhmm) => `2026-10-24T${hhmm}:00+02:00`;
+  const sabQuasi = (ora, adesso) =>
+    tipi(domani([md(ora, {}, "lead-d", 1, "2026-10-25")], adesso, {}));
+  c(
+    "domenica 25/10 (torna l'ora solare alle 3:00) alle 18:00 → sabato alle 18:00 ora legale: 17:59 aspetta, 18:00 parte",
+    [["aspetta"], ["invia"]],
+    [sabQuasi("18:00", sab("17:59")), sabQuasi("18:00", sab("18:00"))],
+  );
+  c(
+    "…lo stesso alle 10:00: sabato alle 10:00 (non alle 11:00, che sarebbe «24 ore esatte» dopo il cambio)",
+    [["aspetta"], ["invia"], ["invia"]],
+    [
+      sabQuasi("10:00", sab("09:59")),
+      sabQuasi("10:00", sab("10:00")),
+      sabQuasi("10:00", sab("11:00")),
+    ],
+  );
+  c(
+    "…il giorno dopo il cambio (lunedì 26/10 alle 9:30) → domenica 25/10 alle 9:30 ora solare, chiave giusta",
+    [["aspetta"], ["invia", `d|${t9(1)}|2026-10-26T09:30`]],
+    [
+      ((r) => [r[0]?.tipo])(
+        domani([md("09:30", {}, "lead-d", 1, "2026-10-26")], "2026-10-25T09:29:00+01:00"),
+      ),
+      uno(domani([md("09:30", {}, "lead-d", 1, "2026-10-26")], "2026-10-25T09:30:00+01:00")),
+    ],
+  );
+
+  //  STOP, consenso, dati: come per gli altri messaggi del meet.
+  c(
+    "STOP → salta; revoca, consenso del modulo prima della frase, numero non valido, consulente mancante → salta",
+    [
+      ["salta", "STOP"],
+      ["salta", "manca il consenso WhatsApp"],
+      ["salta", "manca il consenso WhatsApp"],
+      ["salta", "numero non valido"],
+      ["salta", "consulente non trovato"],
+    ],
+    [
+      md("18:00", {
+        contattoWa: { stato: "stop", il: "2026-10-26T06:00:00.000Z", da: "automatico" },
+      }),
+      md("18:00", { okWhatsapp: { si: false, il: "2026-10-26T06:00:00.000Z", da: "G" } }),
+      md("18:00", {
+        okWhatsapp: undefined,
+        consensoModulo: { whatsapp: true, il: "2026-10-10T09:00:00.000Z", via: "modulo_meta" },
+      }),
+      md("18:00", { telefono: "12" }),
+      md("18:00", { consulenteId: "cons-9" }),
+    ].map((s) => uno(domani([s], lun("18:00")))),
+  );
+  c(
+    "…il consenso del modulo DOPO la frase vale",
+    ["invia"],
+    tipi(
+      domani(
+        [
+          md("18:00", {
+            okWhatsapp: undefined,
+            consensoModulo: { whatsapp: true, il: "2026-10-26T09:00:00.000Z", via: "modulo_meta" },
+          }),
+        ],
+        lun("18:00"),
+      ),
+    ),
+  );
+  c(
+    "…STOP vale anche fuori finestra (alle 10:00 non è «aspetta» ma STOP)",
+    [["salta", "STOP"]],
+    [
+      uno(
+        domani(
+          [md("18:00", { contattoWa: { stato: "stop", il: "2026-10-26T06:00:00.000Z", da: "x" } })],
+          lun("10:00"),
+        ),
+      ),
+    ],
+  );
+  c(
+    "variabile vuota (nome o consulente) → salta con il motivo, una sola voce; un'ora illeggibile → niente (non c'è bersaglio)",
+    [["salta", "manca il nome"], ["salta", "manca il nome del consulente"], []],
+    [
+      domani([md("18:00", { nome: " " })], lun("18:00")),
+      domani([md("18:00")], lun("18:00"), {
+        consulenti: [{ id: "cons-1", data: { nome: " ", attivo: true } }],
+      }),
+      domani([md("18:00", { oraMeeting: "boh" })], lun("18:00")),
+    ].map((r) => (r.length === 0 ? [] : uno(r))),
+  );
+
+  //  Il freno non lo ferma; i tetti sì; la pausa lo fa aspettare.
+  c(
+    "NON è frenato: un ricontatto di oggi senza risposta a questo numero non lo ferma",
+    ["invia"],
+    tipi(
+      domani([m18d], lun("18:00"), {
+        invii: [invio(1, "ricontatto", "2026-10-26T08:00:00.000Z", { chiave: "r|x" })],
+      }),
+    ),
+  );
+  c(
+    "tetto totale 100: con 99 messaggi di oggi parte, con 100 salta (la riserva non tocca gli appuntamenti)",
+    [
+      ["invia", chiaveD("18:00")],
+      ["salta", "tetto di messaggi di oggi raggiunto"],
+    ],
+    [99, 100].map((n) =>
+      uno(
+        domani([m18d], lun("18:00"), {
+          invii: righeOggi(n, "ricontatto", { prenotatoIl: "2026-10-26T08:00:00.000Z" }),
+        }),
+      ),
+    ),
+  );
+  c(
+    "totale abbassato a 40: 10 primi contatti di oggi non lo fermano (la riserva è per gli appuntamenti)",
+    ["invia"],
+    tipi(
+      domani([m18d], lun("18:00"), {
+        tetti: { ...TETTI, totale: 40 },
+        invii: righeOggi(10, "primo_contatto", { prenotatoIl: "2026-10-26T08:00:00.000Z" }),
+      }),
+    ),
+  );
+  c(
+    "…un meet_domani di oggi conta nel tetto come gli altri (con totale a 3 e 3 invii: salta)",
+    ["salta"],
+    tipi(
+      domani([m18d], lun("18:00"), {
+        tetti: { ...TETTI, totale: 3 },
+        invii: righeOggi(3, "meet_domani", { prenotatoIl: "2026-10-26T08:00:00.000Z" }),
+      }),
+    ),
+  );
+  c(
+    "pausa per contatto: un invio a questo numero 30 secondi fa → aspetta",
+    ["aspetta"],
+    tipi(
+      domani([m18d], lun("18:00"), {
+        invii: [invio(1, "chat", "2026-10-26T16:59:45.000Z")],
+      }),
+    ),
+  );
+
+  //  Il freno degli ALTRI messaggi: il suo smette di frenare all'inizio del meet.
+  const dFermo = invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("18:00") });
+  c(
+    "senza risposta frena i ricontatti fino all'inizio del meet (martedì 18:00), non oltre; e lui non è frenato né col ritmo",
+    [true, false, true],
+    [
+      R.aspettaRisposta(num(1), [dFermo], undefined, t(alle("17:59"))),
+      R.aspettaRisposta(num(1), [dFermo], undefined, t(alle("18:00"))),
+      R.TIPI_SENZA_FRENO.includes("meet_domani") && !R.TIPI_COL_RITMO.includes("meet_domani"),
+    ],
+  );
+  c(
+    "…una riga con la chiave illeggibile frena fino a 7 giorni (nel dubbio il freno resta)",
+    true,
+    R.aspettaRisposta(
+      num(1),
+      [{ ...dFermo, chiave: "d|boh" }],
+      undefined,
+      t("2026-10-28T09:00:00+01:00"),
+    ),
+  );
+
+  /* ════════════════════════════════════════════════════════════════════════
    *  VARIABILI DEI MODELLI (testi.ts) E COSTANTI
    * ════════════════════════════════════════════════════════════════════════ */
   gruppo("MANYCHAT · LE VARIABILI DELLE SEQUENZE (testi.ts)");
@@ -1240,6 +1584,19 @@ export async function proveSequenze(mod, { c, gruppo }) {
     "hgl_meet_oggi → nome, ora, consulente (in questo ordine)",
     ["campi", ["Anna", "09:30", "Filippo Demo"]],
     ((x) => [x.tipo, valori(x)])(T.campiMeetOggi(dati, "Filippo Demo")),
+  );
+  c(
+    "hgl_meet_domani → nome, giorno in italiano, ora, consulente (in questo ordine)",
+    ["campi", ["Anna", "martedì 27 ottobre", "09:30", "Filippo Demo"]],
+    ((x) => [x.tipo, valori(x)])(T.campiMeetDomani(dati, "Filippo Demo")),
+  );
+  c(
+    "…senza link (il messaggio non lo porta) e senza cognome",
+    [true, false],
+    [
+      T.campiMeetDomani({ ...dati, linkMeeting: "" }, "Filippo Demo").tipo === "campi",
+      valori(T.campiMeetDomani(dati, "Filippo Demo")).join(" ").includes("Prova"),
+    ],
   );
   c(
     "hgl_meet_adesso → nome, consulente, link (in questo ordine)",
@@ -1275,6 +1632,10 @@ export async function proveSequenze(mod, { c, gruppo }) {
       "manca il nome del consulente",
       "manca il link del meet",
       "manca il nome del consulente",
+      "manca il nome",
+      "manca la data del meet",
+      "manca l'ora del meet",
+      "manca il nome del consulente",
     ],
     [
       T.campiPrimoContatto({ ...dati, nome: " " }).motivo,
@@ -1283,6 +1644,10 @@ export async function proveSequenze(mod, { c, gruppo }) {
       T.campiMeetOggi(dati, "").motivo,
       T.campiMeetAdesso({ ...dati, linkMeeting: "chiamo io" }, "Filippo Demo").motivo,
       T.campiMeetAdesso(dati, null).motivo,
+      T.campiMeetDomani({ ...dati, nome: "" }, "Filippo Demo").motivo,
+      T.campiMeetDomani({ ...dati, dataMeeting: "boh" }, "Filippo Demo").motivo,
+      T.campiMeetDomani({ ...dati, oraMeeting: "boh" }, "Filippo Demo").motivo,
+      T.campiMeetDomani(dati, " ").motivo,
     ],
   );
 
@@ -1293,7 +1658,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
     [Q.TETTO_RICONTATTI, Q.TETTO_LEAD_NUOVI, Q.TETTO_TOTALE, Q.RISERVA_APPUNTAMENTI],
   );
   c(
-    "gli otto tipi nei tetti (la conferma no); il ritmo solo per ricontatto e richiamo",
+    "i nove tipi nei tetti (la conferma no); il ritmo solo per ricontatto e richiamo",
     [
       [
         "promemoria",
@@ -1301,6 +1666,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
         "primo_contatto",
         "richiamo_24h",
         "meet_oggi",
+        "meet_domani",
         "meet_adesso",
         "promemoria_chiamata",
         "promemoria_sede",
@@ -1310,8 +1676,15 @@ export async function proveSequenze(mod, { c, gruppo }) {
     [R.TIPI_NEI_TETTI, R.TIPI_COL_RITMO],
   );
   c(
-    "i cinque messaggi di appuntamento non sono frenati",
-    ["promemoria", "meet_oggi", "meet_adesso", "promemoria_chiamata", "promemoria_sede"],
+    "i sei messaggi di appuntamento non sono frenati",
+    [
+      "promemoria",
+      "meet_oggi",
+      "meet_domani",
+      "meet_adesso",
+      "promemoria_chiamata",
+      "promemoria_sede",
+    ],
     R.TIPI_SENZA_FRENO,
   );
   c("stati del lead nuovo", ["da_contattare", "non_risponde", "segreteria"], S.STATI_LEAD_NUOVO);

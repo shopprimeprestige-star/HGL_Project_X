@@ -1884,13 +1884,15 @@ export interface OrigineIngresso {
 }
 
 /** I tipi di invio della porta ManyChat (`manychat_invii.tipo`), compresi i
- *  sei della commessa 2026-10-25: le due sequenze «lead nuovo» e «giorno del
- *  meet» e i due promemoria a orario per stato. ⚠️ Il CHECK del database li
- *  allarga con la migrazione S2: i due elenchi vanno tenuti uguali. */
+ *  sette della commessa 2026-10-25: le due sequenze «lead nuovo» e «giorno del
+ *  meet» (con il promemoria 24 ore prima, richiesta del titolare del 26/10) e i
+ *  due promemoria a orario per stato. ⚠️ Il CHECK del database li allarga con
+ *  la migrazione S2: i due elenchi vanno tenuti uguali. */
 export type TipoInvioNuovo =
   | "primo_contatto"
   | "richiamo_24h"
   | "meet_oggi"
+  | "meet_domani"
   | "meet_adesso"
   | "promemoria_chiamata"
   | "promemoria_sede";

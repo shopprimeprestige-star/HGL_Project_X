@@ -208,7 +208,7 @@ const eStopAppiccicoso = (prima: ContattoWa | undefined | null) => prima?.stato 
 export type IngressoInvio =
   | { tipo: "ricontatto" | "primo_contatto" | "richiamo_24h"; inviatoIl: Date; invioId: string }
   | {
-      tipo: "promemoria" | "meet_oggi" | "promemoria_chiamata" | "promemoria_sede";
+      tipo: "promemoria" | "meet_oggi" | "meet_domani" | "promemoria_chiamata" | "promemoria_sede";
       inviatoIl: Date;
       /** l'inizio dell'appuntamento (per chiamata e sede, l'ora della chiamata o della visita) */
       inizioMeet: Date;

@@ -61,10 +61,11 @@ import {
   type Tetti,
 } from "./quando";
 import { TIPI_COL_RITMO, TIPI_NEI_TETTI, numeroWa, type InvioPerFreno } from "./regole";
-import { decidiGiornoMeet, decidiLeadNuovi } from "./sequenze";
+import { decidiGiornoMeet, decidiLeadNuovi, decidiMeetDomani } from "./sequenze";
 import { TABELLA_STATI, decidiPerStato } from "./stati";
 import {
   campiMeetAdesso,
+  campiMeetDomani,
   campiMeetOggi,
   campiPerStato,
   campiPrimoContatto,
@@ -80,16 +81,17 @@ export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
 /** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
 export const TAG_PROMEMORIA = "crm-promemoria";
 export const TAG_RICONTATTO = "crm-ricontatto";
-/** Modello e tag dei quattro messaggi delle sequenze (commessa 2026-10-25). I
+/** Modello e tag dei cinque messaggi delle sequenze (commessa 2026-10-25). I
  *  messaggi per stato li sceglie `TABELLA_STATI`, mai una seconda lista qui. */
 export const MODELLI_SEQUENZE = {
   primo_contatto: { modello: "hgl_primo_contatto", tag: "crm-primo-contatto" },
   richiamo_24h: { modello: "hgl_richiamo_24h", tag: "crm-richiamo" },
   meet_oggi: { modello: "hgl_meet_oggi", tag: "crm-meet-oggi" },
+  meet_domani: { modello: "hgl_meet_domani", tag: "crm-meet-domani" },
   meet_adesso: { modello: "hgl_meet_adesso", tag: "crm-meet-adesso" },
 } as const;
 
-/** I tipi di messaggio che il giro manda: gli otto di `TIPI_NEI_TETTI`. */
+/** I tipi di messaggio che il giro manda: i nove di `TIPI_NEI_TETTI`. */
 export type TipoGiro = Extract<
   TipoInvio,
   | "promemoria"
@@ -97,6 +99,7 @@ export type TipoGiro = Extract<
   | "primo_contatto"
   | "richiamo_24h"
   | "meet_oggi"
+  | "meet_domani"
   | "meet_adesso"
   | "promemoria_chiamata"
   | "promemoria_sede"
@@ -112,6 +115,7 @@ export const ORDINE_GIRO: TipoGiro[] = [
   "promemoria",
   "promemoria_chiamata",
   "meet_oggi",
+  "meet_domani",
   "promemoria_sede",
   "primo_contatto",
   "ricontatto",
@@ -229,7 +233,7 @@ export interface ConfigGiro {
   ricontatti: boolean;
   /** «Lead nuovo» (primo contatto e richiamo a 24 ore) */
   leadNuovo: boolean;
-  /** «Giorno del meet» (mattina e ora esatta) */
+  /** «Giorno del meet» (24 ore prima, mattina e ora esatta) */
   giornoMeet: boolean;
   /** ISO dell'ultima accensione di «Lead nuovo» */
   leadNuovoDal: string | null;
@@ -553,6 +557,13 @@ export function decisioniDelGiro(
           ? "meet_adesso"
           : "meet_oggi",
     );
+  //  Il promemoria 24 ore prima: stesso interruttore, subito dopo la mattina del meet.
+  if (scelta.giornoMeet)
+    aggiungi(
+      decidiMeetDomani(schede, adesso, base),
+      (x) => ({ tipo: x.quale, extra: { inizio: x.inizioMeet } }),
+      () => "meet_domani",
+    );
   if (scelta.leadNuovo)
     aggiungi(
       decidiLeadNuovi(schede, adesso, {
@@ -616,6 +627,7 @@ function chiSara(v: Voce): string {
   switch (v.tipo) {
     case "promemoria":
     case "meet_oggi":
+    case "meet_domani":
     case "meet_adesso":
       return `meet${hm}`;
     case "promemoria_chiamata":
@@ -680,6 +692,7 @@ function modelloETag(
     tipo === "primo_contatto" ||
     tipo === "richiamo_24h" ||
     tipo === "meet_oggi" ||
+    tipo === "meet_domani" ||
     tipo === "meet_adesso"
   )
     return MODELLI_SEQUENZE[tipo];
@@ -705,6 +718,8 @@ function campiDi(
       return campiRichiamo(d);
     case "meet_oggi":
       return campiMeetOggi(d, consulente);
+    case "meet_domani":
+      return campiMeetDomani(d, consulente);
     case "meet_adesso":
       return campiMeetAdesso(d, consulente, scheda.id);
     default:
@@ -722,6 +737,7 @@ function ingressoInvio(
   switch (tipo) {
     case "promemoria":
     case "meet_oggi":
+    case "meet_domani":
     case "promemoria_chiamata":
     case "promemoria_sede":
       //  Senza l'ora dell'appuntamento non c'è una scadenza vera: vale come un ricontatto (24 ore).

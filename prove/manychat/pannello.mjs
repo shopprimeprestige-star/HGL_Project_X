@@ -1630,6 +1630,16 @@ async function proveRotte(mod, { c, gruppo, radice }) {
       s1.righe.find((r) => r.tipo === "meet_oggi")?.esito,
     ],
   );
+  //  24 ore prima: il meet è sabato 24/10 alle 15:06, sono le 15:06 di venerdì 23/10
+  const sD = secco([
+    meet("m9", 9, "15:06", { dataMeeting: "2026-10-24", fissatoIl: "2026-10-20T09:00:00.000Z" }),
+  ]);
+  const rD = sD.righe.find((r) => r.tipo === "meet_domani");
+  c(
+    "la prova a secco vede anche il promemoria 24 ore prima: «scriverebbe», con il nome abbreviato e senza numero",
+    ["scriverebbe", "Anna P.", false],
+    [rD?.esito, rD?.nome, /\d{6,}/.test(JSON.stringify(sD))],
+  );
   c("…l'ora è quella data", ora1506.toISOString(), s1.adesso);
   c("…mai il telefono nelle righe", false, /\d{6,}/.test(JSON.stringify(s1)));
   const s2 = secco([meet("m1", 1, "15:30", { okWhatsapp: undefined })]);
@@ -2138,11 +2148,12 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     );
   }
   c(
-    "flussi per le sequenze: i quattro della sequenza e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
+    "flussi per le sequenze: i cinque della sequenza e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
     [
       "hgl_primo_contatto",
       "hgl_richiamo_24h",
       "hgl_meet_oggi",
+      "hgl_meet_domani",
       "hgl_meet_adesso",
       "hgl_meet_da_fissare",
       "hgl_richiamo_concordato",
@@ -2544,12 +2555,30 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       ],
     })[0].testo,
   );
+  c(
+    "…e lo chiama in parole, «24 ore prima», nei problemi del giro e nella prova a secco (mai il nome grezzo del tipo)",
+    [true, "Anna P. · meet 24 ore prima · manca il nome"],
+    [
+      /24 ore prima/.test(V.ETICHETTA_TIPO.meet_domani),
+      V.righeProblemi({
+        problemi: [
+          {
+            il: "2026-10-23T12:00:00Z",
+            nome: "Anna P.",
+            tipo: "meet_domani",
+            motivo: "manca il nome",
+          },
+        ],
+      })[0].testo,
+    ],
+  );
   void R;
 }
 const TY_NUOVI = [
   "primo_contatto",
   "richiamo_24h",
   "meet_oggi",
+  "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
@@ -2932,6 +2961,7 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     inv("primo_contatto", { stato: "fallito" }),
     inv("richiamo_24h"),
     inv("meet_oggi"),
+    inv("meet_domani"),
     inv("meet_adesso"),
     inv("promemoria_chiamata"),
     inv("promemoria_sede"),
@@ -2942,7 +2972,7 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   const sg = P.costruisciStato({ ...base, invii: giornata }, NOW);
   c(
     "oggi: lead nuovi (primo contatto e richiamo) e totale (tutti i tipi dei tetti, non la conferma, non i falliti)",
-    [1, 2, 8, 1],
+    [1, 2, 9, 1],
     [sg.giro.oggi.promemoria, sg.giro.oggi.leadNuovi, sg.giro.oggi.totale, sg.giro.oggi.risposte],
   );
   c("oggi: i ricontatti restano quelli di prima", 1, sg.giro.oggi.ricontatti);
@@ -3117,12 +3147,13 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   );
   const eLead = esitoDi(colLead);
   c(
-    "«Lead nuovo» acceso senza i due flussi → rossi; gli altri nuovi restano grigi",
-    ["errore", "errore", "non_serve", "non_serve"],
+    "«Lead nuovo» acceso senza i due flussi → rossi; gli altri nuovi (anche 24 ore prima) restano grigi",
+    ["errore", "errore", "non_serve", "non_serve", "non_serve"],
     [
       eLead["flusso:hgl_primo_contatto"],
       eLead["flusso:hgl_richiamo_24h"],
       eLead["flusso:hgl_meet_oggi"],
+      eLead["flusso:hgl_meet_domani"],
       eLead["flusso:hgl_non_risponde"],
     ],
   );
@@ -3133,10 +3164,11 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ),
   );
   c(
-    "giorno del meet acceso senza i flussi → rossi i due del meet",
-    ["errore", "errore", "non_serve"],
+    "giorno del meet acceso senza i flussi → rossi i tre del meet (mattina, 24 ore prima, all'ora)",
+    ["errore", "errore", "errore", "non_serve"],
     [
       colMeet["flusso:hgl_meet_oggi"],
+      colMeet["flusso:hgl_meet_domani"],
       colMeet["flusso:hgl_meet_adesso"],
       colMeet["flusso:hgl_primo_contatto"],
     ],

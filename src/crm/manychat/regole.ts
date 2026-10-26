@@ -175,7 +175,7 @@ export interface InvioPerFreno {
 
 /** Gli invii che il freno guarda: i messaggi AUTOMATICI al cliente. La chat è
  *  una persona che scrive, il webinar è un altro prodotto, la prova è del
- *  titolare. Con la commessa 2026-10-25 ci sono anche i sei tipi nuovi. */
+ *  titolare. Con la commessa 2026-10-25 ci sono anche i sette tipi nuovi. */
 export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "promemoria",
   "ricontatto",
@@ -183,11 +183,12 @@ export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "primo_contatto",
   "richiamo_24h",
   "meet_oggi",
+  "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
 ];
-/** Quelli che contano nei tetti: gli otto del giro (la conferma parte da un'altra
+/** Quelli che contano nei tetti: i nove del giro (la conferma parte da un'altra
  *  strada, subito dopo la prenotazione, e non ha tetto). */
 export const TIPI_NEI_TETTI: InvioPerFreno["tipo"][] = TIPI_AUTOMATICI.filter(
   (t) => t !== "conferma",
@@ -197,12 +198,13 @@ export const TIPI_NEI_TETTI: InvioPerFreno["tipo"][] = TIPI_AUTOMATICI.filter(
 export const TIPI_SENZA_FRENO: InvioPerFreno["tipo"][] = [
   "promemoria",
   "meet_oggi",
+  "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
 ];
 /** Quelli che si prendono e si aspettano il ritmo di 27-33': solo i ricontatti
- *  e i richiami, i meno attesi dal cliente (revisore, punto 1). Gli altri sei
+ *  e i richiami, i meno attesi dal cliente (revisore, punto 1). Gli altri sette
  *  non lo toccano, o i messaggi a evento scadrebbero in coda. */
 export const TIPI_COL_RITMO: InvioPerFreno["tipo"][] = ["ricontatto", "richiamo_24h"];
 /** Gli stati di un invio che può essere arrivato (o sta arrivando): «fallito» e
@@ -221,17 +223,19 @@ const istante = (iso?: string | null): number => {
 export const FRENO_SCADE_DOPO_GIORNI = 7;
 
 /** Il prefisso della chiave di ogni messaggio legato a un appuntamento:
- *  `p|` promemoria 25', `o|` mattina del meet, `a|` ora esatta, `ch|` chiamata
- *  concordata, `sd|` appuntamento in sede. Tutte `prefisso|tel9|AAAA-MM-GGTHH:MM`. */
+ *  `p|` promemoria 25', `o|` mattina del meet, `d|` 24 ore prima, `a|` ora
+ *  esatta, `ch|` chiamata concordata, `sd|` appuntamento in sede. Tutte
+ *  `prefisso|tel9|AAAA-MM-GGTHH:MM`. */
 const PREFISSO_APPUNTAMENTO: Partial<Record<InvioPerFreno["tipo"], string>> = {
   promemoria: "p",
   meet_oggi: "o",
+  meet_domani: "d",
   meet_adesso: "a",
   promemoria_chiamata: "ch",
   promemoria_sede: "sd",
 };
 
-/** L'inizio dell'appuntamento a cui si riferisce una riga di quei cinque tipi,
+/** L'inizio dell'appuntamento a cui si riferisce una riga di quei sei tipi,
  *  letto dalla sua chiave (ora di Roma). `null` se non si legge. */
 function inizioAppuntamentoDi(i: InvioPerFreno): number | null {
   const prefisso = PREFISSO_APPUNTAMENTO[i.tipo];

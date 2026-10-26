@@ -68,7 +68,7 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
       /ALTER TABLE public\.manychat_invii[\s\S]*?(?=['"]?\s*,?\s*\n\s*(?:END|ELSE|\)))/gi,
     ),
   ];
-  const tipi12 = [
+  const tipi13 = [
     "promemoria",
     "ricontatto",
     "conferma",
@@ -81,11 +81,12 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
     "meet_adesso",
     "promemoria_chiamata",
     "promemoria_sede",
+    "meet_domani",
   ];
   c(
-    "il CHECK allargato ha i 6 tipi di M1 più i 6 nuovi",
+    "il CHECK allargato ha i 6 tipi di M1 più i 7 nuovi (compreso meet_domani, 24 ore prima)",
     true,
-    tipi12.every((t) => sql.includes(`'${t}'`) || sql.includes(`''${t}''`)),
+    tipi13.every((t) => sql.includes(`'${t}'`) || sql.includes(`''${t}''`)),
   );
   c(
     "DROP e ADD CONSTRAINT stanno nello STESSO comando ALTER TABLE (atomico)",
@@ -97,9 +98,13 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
   void alter;
   const blocco = sql.slice(sql.indexOf("DO $$"), sql.indexOf("END $$;", sql.indexOf("DO $$")));
   c(
-    "idempotenza sulla DEFINIZIONE (pg_get_constraintdef contiene 'promemoria_sede'), non sul nome",
-    [true, true],
-    [/pg_get_constraintdef/.test(blocco), /LIKE '%''promemoria_sede''%'/.test(blocco)],
+    "idempotenza sulla DEFINIZIONE (pg_get_constraintdef contiene 'meet_domani', l'ultimo arrivato), non sul nome",
+    [true, true, false],
+    [
+      /pg_get_constraintdef/.test(blocco),
+      /LIKE '%''meet_domani''%'/.test(blocco),
+      /LIKE '%''promemoria_sede''%'/.test(blocco),
+    ],
   );
   c(
     "SET LOCAL lock_timeout = '5s' PRIMA dell'ALTER",
@@ -125,6 +130,13 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
     ],
   );
   c(
+    "«come si annulla» avverte delle righe meet_domani (il vincolo di M1 non si rimette con righe dei tipi nuovi)",
+    true,
+    /COME SI ANNULLA[\s\S]*?meet_domani[\s\S]*?CHECK \(tipo IN \('promemoria', 'ricontatto', 'conferma'/.test(
+      grezzo,
+    ),
+  );
+  c(
     "…e la versione di M2 di manychat_prenota_giro è nel commento (per tornare indietro)",
     true,
     /--\s+CREATE OR REPLACE FUNCTION public\.manychat_prenota_giro\([\s\S]*v_tetto_tot constant int := 40/.test(
@@ -143,7 +155,7 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "i tipi ammessi sono gli otto del giro",
+    "i tipi ammessi sono i nove del giro",
     true,
     [
       "promemoria",
@@ -151,10 +163,24 @@ export async function proveSequenzeMigrazione(_mod, { c, gruppo, radice }) {
       "primo_contatto",
       "richiamo_24h",
       "meet_oggi",
+      "meet_domani",
       "meet_adesso",
       "promemoria_chiamata",
       "promemoria_sede",
     ].every((t) => pr.includes(`'${t}'`)) && !pr.includes("'conferma'"),
+  );
+  c(
+    "meet_domani è nell'elenco dei tipi validi E in quello dei tetti (se manca in uno, il giro lo rifiuta o non lo conta)",
+    2,
+    (pr.match(/'meet_domani'/g) ?? []).length,
+  );
+  c(
+    "…e non è fra quelli della riserva né del ritmo (come meet_oggi)",
+    [false, false],
+    [
+      /IN \('primo_contatto', 'richiamo_24h', 'ricontatto'[^)]*meet_domani/.test(pr),
+      /IN \('ricontatto', 'richiamo_24h'[^)]*meet_domani/.test(pr),
+    ],
   );
   c(
     "costanti: tetto lead nuovi 30, totale 100, riserva 30",

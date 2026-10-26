@@ -338,11 +338,14 @@ export function ManychatPannello() {
           titolo: "Accendere «Giorno del meet»?",
           testo: (
             <>
-              Chi ha un meet oggi riceve un messaggio la mattina (alle 9; se il meet è prima delle
-              10, appena possibile) e uno all'ora esatta, con il link per entrare. Il promemoria 25
-              minuti prima resta il suo interruttore. Questi messaggi non sono frenati da «mai due
-              messaggi senza risposta», perché riguardano un appuntamento già preso; contano nei
-              tetti e si fermano con STOP. Parte solo se anche l'interruttore generale è acceso.
+              Chi ha un meet domani riceve un promemoria 24 ore prima (alla stessa ora del giorno
+              prima, tra le 9 e le 20; non parte se la consulenza è stata fissata meno di 24 ore
+              prima). Chi ha un meet oggi riceve un messaggio la mattina (alle 9; se il meet è prima
+              delle 10, appena possibile) e uno all'ora esatta, con il link per entrare. Il
+              promemoria 25 minuti prima resta il suo interruttore. Questi messaggi non sono frenati
+              da «mai due messaggi senza risposta», perché riguardano un appuntamento già preso;
+              contano nei tetti e si fermano con STOP. Parte solo se anche l'interruttore generale è
+              acceso.
             </>
           ),
           fatto: "Giorno del meet acceso",
@@ -693,8 +696,8 @@ export function ManychatPannello() {
                       etichetta="Giorno del meet"
                       nota={
                         <>
-                          Il giorno del meet: un messaggio la mattina e uno all'ora esatta, con il
-                          link per entrare.
+                          Il giorno del meet: un promemoria 24 ore prima, un messaggio la mattina e
+                          uno all'ora esatta, con il link per entrare.
                           {sequenze.giornoMeet.nota && (
                             <span className="mt-0.5 block text-amber-800">
                               {sequenze.giornoMeet.nota}

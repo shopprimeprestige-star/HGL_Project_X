@@ -2,21 +2,21 @@
 -- WHATSAPP CON MANYCHAT · LE SEQUENZE (S2)
 --
 -- Commessa 2026-10-25 (Lead da Google Sheets + sequenze anti no-show). Il giro
--- a orario impara quattro messaggi in più per i lead e per il giorno del meet
--- (primo contatto, richiamo a 24 ore, mattina del meet, ora esatta col link) e
--- due promemoria legati a un appuntamento preso (chiamata concordata,
--- appuntamento in sede). I messaggi «per stato» restano `tipo = 'ricontatto'`.
+-- a orario impara cinque messaggi in più per i lead e per il giorno del meet
+-- (primo contatto, richiamo a 24 ore, promemoria 24 ore prima del meet, mattina
+-- del meet, ora esatta col link) e due promemoria legati a un appuntamento
+-- preso (chiamata concordata, appuntamento in sede). I messaggi «per stato» restano `tipo = 'ricontatto'`.
 --
 -- COSA FA
 --   · manychat_config   — cinque colonne nuove, tutte spente / vuote di serie:
 --                         lead_nuovo, giorno_meet, lead_nuovo_dal, stati (stato →
 --                         ora dell'accensione), indirizzo_sede.
---   · manychat_invii    — il CHECK su `tipo` SI ALLARGA da 6 a 12 valori. È l'UNICA
+--   · manychat_invii    — il CHECK su `tipo` SI ALLARGA da 6 a 13 valori. È l'UNICA
 --                         eccezione alla regola «niente DROP» di questa serie: un
 --                         solo ALTER TABLE atomico che toglie il vincolo e rimette
 --                         lo stesso, più largo. Nessuna riga cambia. Vedi sotto.
 --   · manychat_prenota_giro — SOSTITUITA (stessa firma, stesso ordine dei passi
---                         di M2) con: gli otto tipi del giro, il tetto dei lead
+--                         di M2) con: i nove tipi del giro, il tetto dei lead
 --                         nuovi (30), il totale a 100 con una RISERVA di 30 posti
 --                         per gli appuntamenti, e il RITMO 27-33' che vale solo
 --                         per `ricontatto` e `richiamo_24h`.
@@ -28,14 +28,14 @@
 -- messaggi del giorno del meet (circa 40 invii in 11 ore) il ritmo resterebbe
 -- sempre avanti, e richiami, ricontatti e messaggi a evento scadrebbero in coda.
 -- Da qui in poi il ritmo lo prendono e lo aspettano SOLO `ricontatto` e
--- `richiamo_24h`: gli altri sei tipi, promemoria compreso, non lo toccano.
+-- `richiamo_24h`: gli altri sette tipi, promemoria compreso, non lo toccano.
 --
 -- I TETTI (costanti, il riquadro può solo abbassare; uguali a quando.ts):
 --   · ricontatti: 20 al giorno, 10 nella prima settimana (invariati);
 --   · lead nuovi (primo_contatto + richiamo_24h): 30 al giorno;
---   · totale degli otto tipi del giro: 100 al giorno (era 40);
+--   · totale dei nove tipi del giro: 100 al giorno (era 40);
 --   · RISERVA: primo_contatto, richiamo_24h e ricontatto contano contro
---     `totale - 30`, gli altri cinque contro `totale`. Così, anche con il totale
+--     `totale - 30`, gli altri sei contro `totale`. Così, anche con il totale
 --     abbassato a 40, i primi contatti del mattino si fermano a 10 e restano 30
 --     posti per il messaggio delle 18:00 col link.
 --
@@ -43,8 +43,9 @@
 --    riquadro (20261023120150_manychat_pannello.sql, serve la colonna
 --    `controlli`). Va applicata a mano, dopo la pubblicazione del codice.
 -- ⚠️ Applicarla due volte non fa danni: ADD COLUMN IF NOT EXISTS, CREATE OR
---    REPLACE e il CHECK si allarga solo se non contiene già 'promemoria_sede'
---    (si legge la DEFINIZIONE del vincolo, non il suo nome).
+--    REPLACE e il CHECK si allarga solo se non contiene già 'meet_domani', l'ultimo
+--    tipo arrivato (si legge la DEFINIZIONE del vincolo, non il suo nome): allarga
+--    anche un database dove fosse già stata applicata la versione a dodici tipi.
 -- ⚠️ Il codice pubblicato funziona anche SENZA questa migrazione: i due
 --    interruttori nuovi e i messaggi per stato risultano spenti, il riquadro dice
 --    «manca l'aggiornamento del database» e il giro resta identico a prima.
@@ -56,8 +57,17 @@
 --    aperta su manychat_invii per vedere il lock_timeout.
 --
 -- COME SI ANNULLA (solo se serve davvero, e DOPO aver spento il giro; prima
--- non ci devono essere righe dei tipi nuovi in manychat_invii, altrimenti il
--- vincolo non si rimette):
+-- non ci devono essere righe dei tipi nuovi (meet_domani compreso) in
+-- manychat_invii, altrimenti il vincolo non si rimette):
+--   -- 0. SOLO per togliere meet_domani e tenere gli altri sei tipi nuovi (serve
+--   --    che non ci siano righe meet_domani; manychat_prenota_giro può restare
+--   --    com'è: un tipo in più nel suo elenco non fa danni):
+--   ALTER TABLE public.manychat_invii
+--     DROP CONSTRAINT manychat_invii_tipo_check,
+--     ADD CONSTRAINT manychat_invii_tipo_check
+--       CHECK (tipo IN ('promemoria', 'ricontatto', 'conferma', 'chat', 'webinar', 'prova',
+--                       'primo_contatto', 'richiamo_24h', 'meet_oggi', 'meet_adesso',
+--                       'promemoria_chiamata', 'promemoria_sede'));
 --   -- 1. il CHECK di M1, testuale:
 --   ALTER TABLE public.manychat_invii
 --     DROP CONSTRAINT manychat_invii_tipo_check,
@@ -193,10 +203,10 @@ ALTER TABLE public.manychat_config
   ADD COLUMN IF NOT EXISTS stati          jsonb       NOT NULL DEFAULT '{}'::jsonb,
   ADD COLUMN IF NOT EXISTS indirizzo_sede text;
 
--- ── 2. Il CHECK su `tipo` si allarga da 6 a 12 valori ────────────────────────
+-- ── 2. Il CHECK su `tipo` si allarga da 6 a 13 valori ────────────────────────
 -- Si legge la DEFINIZIONE del vincolo che riguarda la colonna `tipo` (il nome
 -- resta manychat_invii_tipo_check, quindi non basta guardare il nome): se
--- contiene già 'promemoria_sede' non si fa niente. Altrimenti UN SOLO comando
+-- contiene già 'meet_domani' non si fa niente. Altrimenti UN SOLO comando
 -- toglie il vincolo trovato e rimette quello largo: la tabella non resta mai
 -- senza vincolo. Il lock_timeout vale fino alla fine della transazione.
 DO $$
@@ -215,7 +225,7 @@ BEGIN
          )]
    LIMIT 1;
 
-  IF v_def IS NOT NULL AND v_def LIKE '%''promemoria_sede''%' THEN
+  IF v_def IS NOT NULL AND v_def LIKE '%''meet_domani''%' THEN
     RETURN; -- già allargato: niente da fare
   END IF;
 
@@ -226,15 +236,15 @@ BEGIN
     ALTER TABLE public.manychat_invii
       ADD CONSTRAINT manychat_invii_tipo_check
       CHECK (tipo IN ('promemoria', 'ricontatto', 'conferma', 'chat', 'webinar', 'prova',
-                      'primo_contatto', 'richiamo_24h', 'meet_oggi', 'meet_adesso',
-                      'promemoria_chiamata', 'promemoria_sede'));
+                      'primo_contatto', 'richiamo_24h', 'meet_oggi', 'meet_domani',
+                      'meet_adesso', 'promemoria_chiamata', 'promemoria_sede'));
   ELSE
     EXECUTE format(
       'ALTER TABLE public.manychat_invii DROP CONSTRAINT %I, ADD CONSTRAINT manychat_invii_tipo_check CHECK (tipo IN (%s))',
       v_nome,
       '''promemoria'', ''ricontatto'', ''conferma'', ''chat'', ''webinar'', ''prova'', '
-      '''primo_contatto'', ''richiamo_24h'', ''meet_oggi'', ''meet_adesso'', '
-      '''promemoria_chiamata'', ''promemoria_sede'''
+      '''primo_contatto'', ''richiamo_24h'', ''meet_oggi'', ''meet_domani'', '
+      '''meet_adesso'', ''promemoria_chiamata'', ''promemoria_sede'''
     );
   END IF;
 END $$;
@@ -246,7 +256,7 @@ END $$;
 --
 -- p = { tipo, telefono (solo cifre), lead_id?, chiave?, flow_ns?, previsto_il? }
 --   tipo: promemoria · ricontatto · primo_contatto · richiamo_24h · meet_oggi ·
---         meet_adesso · promemoria_chiamata · promemoria_sede
+--         meet_domani · meet_adesso · promemoria_chiamata · promemoria_sede
 -- p_tetti = { ricontatti?, leadNuovi?, totale? }: i valori del riquadro. Il
 --       server li manda come sono, ma qui valgono sempre al massimo 20, 30 e
 --       100, e 10 ricontatti nella prima settimana: le costanti stanno qui, non
@@ -256,7 +266,7 @@ END $$;
 -- L'ORDINE È QUELLO DI M2 E NON SI CAMBIA (tutto PRIMA di chiamare ManyChat):
 --   1. ci si mette in fila sulla riga del giro (FOR UPDATE), poi le righe
 --      «prenotato» di più di 10 minuti diventano «incerto» (mai rimandate);
---   2. i tetti di oggi (ora di Roma) sugli otto tipi del giro, in stato
+--   2. i tetti di oggi (ora di Roma) sui nove tipi del giro, in stato
 --      prenotato/inviato/incerto: il totale (con la riserva per gli
 --      appuntamenti), i ricontatti, i lead nuovi;
 --   3. STOP (col «+» di whatsapp_contacts e senza, per le righe vecchie);
@@ -267,7 +277,7 @@ END $$;
 --   6. l'inserimento: la chiave unica è l'ultimo cancello. Se non inserisce →
 --      gia_preso, SENZA consumare il posto del ritmo;
 --   7. SOLO ALLA FINE il posto del ritmo, e solo per `ricontatto` e
---      `richiamo_24h`: adesso + 27-33 minuti. Gli altri sei tipi non lo toccano.
+--      `richiamo_24h`: adesso + 27-33 minuti. Gli altri sette tipi non lo toccano.
 CREATE OR REPLACE FUNCTION public.manychat_prenota_giro(
   p_user_id uuid,
   p jsonb,
@@ -304,7 +314,8 @@ BEGIN
   END IF;
   IF v_tipo IS NULL OR v_tipo NOT IN (
        'promemoria', 'ricontatto', 'primo_contatto', 'richiamo_24h',
-       'meet_oggi', 'meet_adesso', 'promemoria_chiamata', 'promemoria_sede') THEN
+       'meet_oggi', 'meet_domani', 'meet_adesso', 'promemoria_chiamata',
+       'promemoria_sede') THEN
     RAISE EXCEPTION 'manychat_prenota_giro: tipo non valido';
   END IF;
 
@@ -349,7 +360,8 @@ BEGIN
     FROM public.manychat_invii
    WHERE user_id = p_user_id
      AND tipo IN ('promemoria', 'ricontatto', 'primo_contatto', 'richiamo_24h',
-                  'meet_oggi', 'meet_adesso', 'promemoria_chiamata', 'promemoria_sede')
+                  'meet_oggi', 'meet_domani', 'meet_adesso', 'promemoria_chiamata',
+                  'promemoria_sede')
      AND stato IN ('prenotato', 'inviato', 'incerto')
      AND prenotato_il >= v_da AND prenotato_il < v_a;
 

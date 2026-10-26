@@ -10,6 +10,8 @@
  *  - `decidiLeadNuovi`: primo contatto (`n|tel9`) e richiamo a 24 h (`n24|tel9`).
  *  - `decidiGiornoMeet`: mattina (`o|tel9|…`) e ora esatta (`a|tel9|…`); il
  *    promemoria dei 25' resta in `decidiPromemoria`.
+ *  - `decidiMeetDomani`: il promemoria 24 ore prima (`d|tel9|…`), sotto lo stesso
+ *    interruttore «Giorno del meet».
  *
  *  ── LE REGOLE (PIANO §5a, §5b) ────────────────────────────────────────────
  *   Lead nuovo
@@ -31,6 +33,13 @@
  *   - mattina: dalle 9:00 (7:30 se il meet è prima delle 10:00), finché
  *     mancano almeno 40 minuti; sotto, «c'è già il promemoria»;
  *   - ora esatta: da 0 a +10 minuti dall'inizio, col link; senza link non parte.
+ *   24 ore prima (richiesta del titolare, 26/10; anche questo non frenato)
+ *   - il bersaglio è l'ora del meet, il giorno prima (ora di Roma, non «meno 24
+ *     ore»: col cambio d'ora sarebbe sfalsato di un'ora); prima delle 9:00 si
+ *     porta alle 9:00, dalle 20:00 in poi alle 19:30;
+ *   - parte dal bersaglio e per 2 ore, e comunque mai dalle 20:00 in poi;
+ *   - se la consulenza è stata fissata meno di 24 ore prima dell'inizio non parte
+ *     (c'è già la conferma), e non dice niente.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eAppuntamento } from "../types";
 import { aRoma, oraNormale } from "../promemoria/formati";
@@ -66,7 +75,7 @@ import {
   ultimoAutomatico,
   type InvioPerFreno,
 } from "./regole";
-import { campiMeetAdesso, campiMeetOggi, campiPrimoContatto } from "./testi";
+import { campiMeetAdesso, campiMeetDomani, campiMeetOggi, campiPrimoContatto } from "./testi";
 
 /** Gli stati in cui un lead è ancora «nuovo» per queste sequenze. */
 export const STATI_LEAD_NUOVO = ["da_contattare", "non_risponde", "segreteria"];
@@ -89,6 +98,12 @@ const MEMORIA_RITARDO_MIN = 60;
 export const MEMORIA_SALTI_MIN = 60;
 /** Al massimo due messaggi del mattino per telefono e giorno (meet spostato). */
 export const MAX_MEET_OGGI_PER_GIORNO = 2;
+/** 24 ore prima: se il meet è dalle 20:00 in poi il messaggio parte alle 19:30… */
+export const ULTIMO_BERSAGLIO_DOMANI_MIN = 19 * 60 + 30;
+/** …si accetta per 2 ore dal bersaglio (e mai dalle 20:00 in poi)… */
+export const FINESTRA_MEET_DOMANI_MIN = 120;
+/** …e non parte se la consulenza è stata fissata meno di così prima dell'inizio. */
+export const FISSATA_ALMENO_ORE_PRIMA = 24;
 
 const ORA_MS = 3_600_000;
 const MIN_MS = 60_000;
@@ -114,6 +129,8 @@ export interface ContestoGiornoMeet extends ContestoQuando {
 export type ExtraLeadNuovo = { quale: "primo_contatto" | "richiamo_24h"; tel9: string };
 /** Quale dei due messaggi del giorno del meet, con l'inizio del meet. */
 export type ExtraGiornoMeet = { quale: "meet_oggi" | "meet_adesso"; inizioMeet: Date };
+/** Il promemoria 24 ore prima, con l'inizio del meet. */
+export type ExtraMeetDomani = { quale: "meet_domani"; inizioMeet: Date };
 
 /** «lunedì 26 ottobre» (ora di Roma). */
 const GIORNO_A_PAROLE = new Intl.DateTimeFormat("it-IT", {
@@ -536,4 +553,132 @@ export function decidiGiornoMeet(
   return uscita
     .sort((a, b) => a.inizio - b.inizio || a.id.localeCompare(b.id) || a.ordine - b.ordine)
     .map((x) => x.d);
+}
+
+/** ── 24 ORE PRIMA DEL MEET ───────────────────────────────────────────────── */
+export function decidiMeetDomani(
+  schede: SchedaQuando[],
+  adesso: Date,
+  contesto: ContestoGiornoMeet,
+): DecisioneQuando<ExtraMeetDomani>[] {
+  type Esito = DecisioneQuando<ExtraMeetDomani>;
+  const invii = contesto.invii ?? [];
+  const tetti = contesto.tetti ?? TETTI_DI_SERIE;
+  const frase = contesto.fraseModuloDal;
+  const { giorno: oggi } = aRoma(adesso);
+  const domani = giornoDopo(oggi);
+  const ora = adesso.getTime();
+
+  const uscita: { inizio: number; id: string; d: Esito }[] = [];
+  const candidati: {
+    scheda: SchedaQuando;
+    inizio: Date;
+    ora: string;
+    tel9: string;
+    consulente: string | undefined;
+  }[] = [];
+
+  //  Un ordine fisso: fra due doppioni vince sempre la stessa scheda.
+  for (const scheda of [...schede].sort((a, b) => a.id.localeCompare(b.id))) {
+    const d = scheda.data;
+    if (!eAppuntamento(d.stato)) continue;
+    if (!d.consulenteId || eImportato(scheda)) continue;
+    const giornoMeet = giornoVero(d.dataMeeting);
+    const hm = oraNormale(d.oraMeeting);
+    //  Solo i meet di domani: quelli di oggi sono del giorno del meet.
+    if (!giornoMeet || !hm || giornoMeet !== domani) continue;
+    const inizio = istanteDiRoma(giornoMeet, hm);
+    if (!inizio) continue;
+    //  Fissata meno di 24 ore prima dell'inizio: c'è già la conferma, niente (e
+    //  nessun rumore). Senza `fissatoIl` vale `createdAt` (il lead non è fissato
+    //  prima di esistere); senza nessuna data parte: la finestra la protegge già.
+    const fissata = Date.parse(String(d.fissatoIl ?? "")) || Date.parse(String(d.createdAt ?? ""));
+    if (Number.isFinite(fissata) && inizio.getTime() - fissata < FISSATA_ALMENO_ORE_PRIMA * ORA_MS)
+      continue;
+    const salta = (motivo: string) =>
+      uscita.push({
+        inizio: inizio.getTime(),
+        id: scheda.id,
+        d: { tipo: "salta", scheda, motivo },
+      });
+    const numero = numeroWa(d.telefono);
+    if (d.contattoWa?.stato === "stop") {
+      salta("STOP");
+      continue;
+    }
+    if (!numero) {
+      salta("numero non valido");
+      continue;
+    }
+    if (!consensoWhatsapp(d, frase).si) {
+      salta("manca il consenso WhatsApp");
+      continue;
+    }
+    const consulente = contesto.consulenti.find((c) => c.id === d.consulenteId);
+    if (!consulente) {
+      salta("consulente non trovato");
+      continue;
+    }
+    candidati.push({
+      scheda,
+      inizio,
+      ora: hm,
+      tel9: ultimeNoveCifre(numero),
+      consulente: consulente.data?.nome,
+    });
+  }
+
+  candidati.sort(
+    (a, b) => a.inizio.getTime() - b.inizio.getTime() || a.scheda.id.localeCompare(b.scheda.id),
+  );
+  const viste = new Set<string>();
+  for (const k of candidati) {
+    const quale = `${k.tel9}|${k.inizio.toISOString()}`;
+    if (viste.has(quale)) continue;
+    viste.add(quale);
+    const metti = (d: Esito) => uscita.push({ inizio: k.inizio.getTime(), id: k.scheda.id, d });
+    const chiave = `d|${k.tel9}|${domani}T${k.ora}`;
+    if (chiaveGiaPresa(invii, chiave)) continue;
+    const campi = campiMeetDomani(k.scheda.data, k.consulente);
+    if (campi.tipo === "salta") {
+      metti({ tipo: "salta", scheda: k.scheda, motivo: campi.motivo });
+      continue;
+    }
+
+    //  Il bersaglio è l'ora del meet, il giorno prima (cioè oggi), dentro la fascia 9-20.
+    const minMeet = minutiDi(k.ora);
+    const bersaglioMin =
+      minMeet < APERTURA_RICONTATTI_MIN
+        ? APERTURA_RICONTATTI_MIN
+        : minMeet >= CHIUSURA_RICONTATTI_MIN
+          ? ULTIMO_BERSAGLIO_DOMANI_MIN
+          : minMeet;
+    const parte = (istanteDiRoma(oggi, oraDi(bersaglioMin)) as Date).getTime();
+    const chiusura = (istanteDiRoma(oggi, oraDi(CHIUSURA_RICONTATTI_MIN)) as Date).getTime();
+    const fine = Math.min(parte + FINESTRA_MEET_DOMANI_MIN * MIN_MS, chiusura);
+    if (ora < parte) {
+      metti({
+        tipo: "aspetta",
+        scheda: k.scheda,
+        motivo: `promemoria 24 ore prima: parte alle ${oraDi(bersaglioMin)}`,
+      });
+    } else if (ora >= fine) {
+      //  Scaduto: per un'ora il ritardo si vede, poi tace.
+      if (ora < fine + MEMORIA_SALTI_MIN * MIN_MS)
+        metti({ tipo: "salta", scheda: k.scheda, motivo: "saltato: giro in ritardo" });
+    } else if (contaOggi(invii, oggi, TIPI_NEI_TETTI) >= tetti.totale) {
+      metti({ tipo: "salta", scheda: k.scheda, motivo: "tetto di messaggi di oggi raggiunto" });
+    } else if (inPausa(invii, k.tel9, adesso)) {
+      metti({ tipo: "aspetta", scheda: k.scheda, motivo: FRASE_PAUSA });
+    } else {
+      metti({
+        tipo: "invia",
+        scheda: k.scheda,
+        chiave,
+        extra: { quale: "meet_domani", inizioMeet: k.inizio },
+      });
+    }
+  }
+
+  return uscita.sort((a, b) => a.inizio - b.inizio || a.id.localeCompare(b.id)).map((x) => x.d);
 }

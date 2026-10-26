@@ -897,7 +897,8 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   if (modello === "hgl_promemoria_meet") return i.interruttori.promemoria;
   const s = i.sequenze;
   if (modello === "hgl_primo_contatto" || modello === "hgl_richiamo_24h") return !!s?.leadNuovo;
-  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso") return !!s?.giornoMeet;
+  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_domani" || modello === "hgl_meet_adesso")
+    return !!s?.giornoMeet;
   //  I modelli per stato: serve se uno degli stati che lo usano è acceso («Ricontatto
   //  fissato» è l'interruttore dei ricontatti).
   return STATI_RIQUADRO.some(

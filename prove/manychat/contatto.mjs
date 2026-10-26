@@ -102,7 +102,13 @@ export async function proveContatto(mod, { c, gruppo }) {
       [x.stato, x.da, x.motivo, x.invioId, x.scadeRisposta],
     );
   }
-  for (const tipo of ["promemoria", "meet_oggi", "promemoria_chiamata", "promemoria_sede"]) {
+  for (const tipo of [
+    "promemoria",
+    "meet_oggi",
+    "meet_domani",
+    "promemoria_chiamata",
+    "promemoria_sede",
+  ]) {
     const x = dopo({
       tipo,
       inviatoIl: roma("2026-10-27T09:00:00+01:00"),

@@ -81,7 +81,7 @@ export function campiRicontatto(
   return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi } };
 }
 
-/** ── I QUATTRO MODELLI DELLE SEQUENZE (commessa 2026-10-25) ───────────────
+/** ── I CINQUE MODELLI DELLE SEQUENZE (commessa 2026-10-25) ───────────────
  *  ⚠️ L'ORDINE DELLE CHIAVI È L'ORDINE DELLE VARIABILI DEL MODELLO: chi invia
  *  prende i valori nell'ordine in cui sono qui (`Object.values(campi)` →
  *  `crm_v1…crm_v4`). Le prove lo fissano. Mai il cognome. */
@@ -111,6 +111,26 @@ export function campiMeetOggi(
   const chi = nomePerModello(consulente);
   if (!chi) return salta("manca il nome del consulente");
   return { tipo: "campi", campi: { crm_nome: nome, crm_ora_meet: ora, crm_consulente: chi } };
+}
+
+/** `hgl_meet_domani` (24 ore prima): v1 nome, v2 giorno in italiano («giovedì 29
+ *  ottobre»), v3 ora, v4 consulente. Niente link: arriva il giorno del meet. */
+export function campiMeetDomani(
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
+): CampiOSalta {
+  const nome = nomePerModello(d.nome);
+  if (!nome) return salta("manca il nome");
+  const giorno = giornoParlato(String(d.dataMeeting ?? "").slice(0, 10));
+  if (!giorno) return salta("manca la data del meet");
+  const ora = oraNormale(d.oraMeeting);
+  if (!ora) return salta("manca l'ora del meet");
+  const chi = nomePerModello(consulente);
+  if (!chi) return salta("manca il nome del consulente");
+  return {
+    tipo: "campi",
+    campi: { crm_nome: nome, crm_giorno: giorno, crm_ora_meet: ora, crm_consulente: chi },
+  };
 }
 
 /** `hgl_meet_adesso` (all'ora esatta): v1 nome, v2 consulente, v3 link. Senza

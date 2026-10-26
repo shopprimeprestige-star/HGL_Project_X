@@ -25,12 +25,13 @@ import { creaFinto, creaOrologio, esiti, PERCORSI } from "./finto.mjs";
 const CHIAVE = "chiave-finta-0000";
 const ADESSO = Date.parse("2026-10-23T13:06:00Z");
 const MIN = 60_000;
-const TIPI8 = [
+const TIPI9 = [
   "promemoria",
   "ricontatto",
   "primo_contatto",
   "richiamo_24h",
   "meet_oggi",
+  "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
@@ -153,7 +154,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       const contano = m.invii.filter(
         (r) =>
           r.userId === userId &&
-          TIPI8.includes(r.tipo) &&
+          TIPI9.includes(r.tipo) &&
           ["prenotato", "inviato", "incerto"].includes(r.stato) &&
           giornoRoma(r.prenotatoMs) === oggi,
       );
@@ -1387,6 +1388,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       hgl_richiamo_24h: "content-n2",
       hgl_meet_oggi: "content-m1",
       hgl_meet_adesso: "content-m2",
+      hgl_meet_domani: "content-m3",
       hgl_non_risponde: "content-s1",
       hgl_cliente_assente: "content-s2",
       hgl_promemoria_sede: "content-s3",
@@ -1510,6 +1512,114 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     c(
       "ordine: meet_adesso prima del promemoria; mai più di 2 per giro (il primo contatto aspetta)",
       ["meet_adesso", "promemoria", 2],
+      [m.invii[0]?.tipo, m.invii[1]?.tipo, m.invii.length],
+    );
+
+    //  ── 24 ore prima: il meet è sabato 24/10 alle 15:06, sono le 15:06 di venerdì ──
+    const domani = (id, n, extra) =>
+      meet(id, n, {
+        dataMeeting: "2026-10-24",
+        oraMeeting: "15:06",
+        fissatoIl: "2026-10-20T09:00:00.000Z",
+        ...extra,
+      });
+    m = mondo({ schede: [domani("d1", 1)], config: accesa });
+    e = await m.giroOra();
+    c(
+      "24 ore prima (sabato 15:06, sono le 15:06 di venerdì): meet_domani col suo flusso e il suo tag",
+      [1, "meet_domani", "content-m3", "crm-meet-domani"],
+      [
+        e.nuoviInviati,
+        m.invii.at(-1)?.tipo,
+        m.flussi()[0]?.corpo.flow_ns,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+      ],
+    );
+    c(
+      "…variabili nell'ordine del modello: nome, giorno in italiano, ora, consulente",
+      ["Anna", "sabato 24 ottobre", "15:06", "Giulia Demo"],
+      ["crm_v1", "crm_v2", "crm_v3", "crm_v4"].map(
+        (k) =>
+          m.f.chiamate
+            .find((x) => x.percorso === PERCORSI.scriviCampi)
+            .corpo.fields.find((x) => x.field_name === k)?.field_value,
+      ),
+    );
+    c(
+      "…registro: chiave d|tel9|AAAA-MM-GGTHH:MM; «In attesa» fino all'inizio del meet; il ritmo NON si sposta",
+      [`d|${cifre(1).slice(-9)}|2026-10-24T15:06`, "in_attesa", "2026-10-24T13:06:00.000Z", null],
+      [
+        m.invii.at(-1)?.chiave,
+        m.schede[0].data.contattoWa.stato,
+        m.schede[0].data.contattoWa.scadeRisposta,
+        m.giro.prossimo,
+      ],
+    );
+    c(
+      "…un secondo giro non lo rimanda (stessa chiave)",
+      0,
+      await (async () => {
+        m.orologio.avanza(5 * MIN);
+        const n0 = m.invii.length;
+        await m.giroOra();
+        return m.invii.length - n0;
+      })(),
+    );
+    m = mondo({ schede: [domani("d1", 1)], config: { ...accesa, giornoMeet: false } });
+    c("«Giorno del meet» spento → zero invii", 0, (await m.giroOra()).nuoviInviati);
+    m = mondo({ schede: [domani("d1", 1)], config: accesa });
+    const eProva = await m.giroOra(true);
+    c(
+      "prova a secco: la riga è meet_domani «scriverebbe» e non scrive niente",
+      [["meet_domani", "scriverebbe"], 0, 0],
+      [
+        eProva.righe.filter((r) => r.tipo === "meet_domani").map((r) => [r.tipo, r.esito])[0],
+        m.invii.length,
+        m.f.chiamate.length,
+      ],
+    );
+    m = mondo({
+      schede: [domani("d1", 1)],
+      config: { ...accesa, flussi: { ...accesa.flussi, hgl_meet_domani: undefined } },
+    });
+    e = await m.giroOra();
+    c(
+      "manca il flusso 24 ore prima → ferma solo quello, la nota dice il modello",
+      [0, true],
+      [e.nuoviInviati, /hgl_meet_domani/.test(m.giro.stato.nota ?? "")],
+    );
+    m = mondo({
+      schede: [domani("d1", 1, { oraMeeting: "14:30", fissatoIl: "2026-10-23T12:45:00.000Z" })],
+      config: accesa,
+    });
+    c(
+      "fissata meno di 24 ore prima (la finestra è aperta, ma l'ha fissata 23 h 45' prima) → zero invii: c'è la conferma",
+      0,
+      (await m.giroOra()).nuoviInviati,
+    );
+    m = mondo({
+      schede: [
+        domani("d1", 1, { contattoWa: { stato: "stop", il: "2026-10-22T08:00:00.000Z", da: "x" } }),
+      ],
+      config: accesa,
+    });
+    c("STOP → zero invii", 0, (await m.giroOra()).nuoviInviati);
+    //  il freno non lo ferma: un ricontatto di un'ora fa senza risposta, allo stesso numero
+    m = mondo({
+      schede: [domani("d1", 1)],
+      config: accesa,
+      invii: [riga(1, "ricontatto", { telefono: cifre(1), prenotatoMs: ADESSO - 60 * MIN })],
+    });
+    c("non è frenato da «mai due senza risposta»", 1, (await m.giroOra()).nuoviInviati);
+    //  l'ordine: dopo meet_oggi, prima del primo contatto (e al massimo 2 per giro)
+    m = mondo({
+      schede: [domani("d1", 1), meet("o1", 2, { oraMeeting: "18:00" }), lead("n1", 3)],
+      config: accesa,
+    });
+    await m.giroOra();
+    c(
+      "ordine: meet_oggi, poi meet_domani; il primo contatto aspetta (mai più di 2 per giro)",
+      ["meet_oggi", "meet_domani", 2],
       [m.invii[0]?.tipo, m.invii[1]?.tipo, m.invii.length],
     );
 

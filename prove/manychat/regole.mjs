@@ -518,7 +518,7 @@ export async function proveRegole(mod, { c, gruppo }) {
     ],
   );
   c(
-    "l'elenco dei nove automatici: i tre di prima più i sei nuovi",
+    "l'elenco dei dieci automatici: i tre di prima più i sette nuovi",
     [
       "promemoria",
       "ricontatto",
@@ -526,6 +526,7 @@ export async function proveRegole(mod, { c, gruppo }) {
       "primo_contatto",
       "richiamo_24h",
       "meet_oggi",
+      "meet_domani",
       "meet_adesso",
       "promemoria_chiamata",
       "promemoria_sede",
