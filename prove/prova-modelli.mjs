@@ -313,4 +313,56 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
     true,
     /guardiaCRM\(request, cors, "impostazioni"\)/.test(rotta),
   );
+
+  gruppo("PROVA I MODELLI · I MODELLI DI MANYCHAT");
+  const { MODELLI_MANYCHAT } = mod["wa-meta-templates"];
+  //  Quante variabili manda il CRM per ogni modello (testi.ts → crm_v1…crm_v4):
+  //  se un testo qui ne ha un numero diverso, la prova direbbe il falso.
+  const VARIABILI = {
+    hgl_primo_contatto: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_oggi: 3,
+    hgl_promemoria_meet: 4, hgl_meet_adesso: 3, hgl_ricontatto_consulenza: 2,
+    hgl_meet_da_fissare: 2, hgl_richiamo_concordato: 2, hgl_non_risponde: 1,
+    hgl_cliente_assente: 1, hgl_da_riprogrammare: 2, hgl_promemoria_sede: 4,
+    hgl_sede_disdetta: 1, hgl_ultimo_tentativo: 1,
+  };
+  c("ci sono tutti i 15 modelli hgl_ di ManyChat", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
+  c(
+    "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna",
+    [],
+    MODELLI_MANYCHAT.filter((t) => {
+      const n = (t.body.match(/\{\{\d+\}\}/g) ?? []).length;
+      return t.params.length !== VARIABILI[t.name] || t.params.length > MAX_PARAMETRI || n !== t.params.length;
+    }).map((t) => t.name),
+  );
+  c(
+    "esempi pieni per ogni variabile, anteprima senza segnaposto",
+    [],
+    MODELLI_MANYCHAT.filter((t) => {
+      const v = PM.valoriDiEsempio(t);
+      return v.some((x) => !x.trim()) || /\{\{\d+\}\}/.test(PM.anteprimaTesto(t, v));
+    }).map((t) => t.name),
+  );
+  c("findMetaTemplate trova anche i modelli di ManyChat", "hgl_meet_oggi", findMetaTemplate("hgl_meet_oggi")?.name);
+  c("…e i vecchi restano dove sono (META_TEMPLATES non cambia)", false, META_TEMPLATES.some((t) => t.name.startsWith("hgl_")));
+
+  gruppo("PROVA I MODELLI · LA TENDINA");
+  const cloud = { canale: "cloud", modelliConFlusso: [], chiaveManychat: true, migrazione: true };
+  c("canale Cloud API o non ancora letto: la lista di sempre", [META_TEMPLATES.length, META_TEMPLATES.length], [PM.modelliDaProvare(cloud).length, PM.modelliDaProvare(null).length]);
+  const mcT = { canale: "manychat", modelliConFlusso: ["hgl_meet_oggi", "consulenza_conferma_presenza", "appuntamento_conferma_inesistente"], chiaveManychat: true, migrazione: true };
+  c(
+    "canale ManyChat: solo i modelli con un flusso, prima i vecchi poi quelli di ManyChat",
+    ["consulenza_conferma_presenza", "hgl_meet_oggi"],
+    PM.modelliDaProvare(mcT).map((t) => t.name),
+  );
+  c("canale ManyChat senza flussi: tendina vuota (nessuna prova destinata a fallire)", 0, PM.modelliDaProvare({ ...mcT, modelliConFlusso: [] }).length);
+  c(
+    "la prova di un modello ManyChat passa il controllo e manda il suo nome",
+    ["hgl_meet_oggi", 3],
+    (() => {
+      const t = findMetaTemplate("hgl_meet_oggi");
+      const k = PM.controllaProva({ numero: "+39 333 0000001", modello: t.name, valori: PM.valoriDiEsempio(t), stato: mcT });
+      const b = k.ok ? PM.corpoProva(t, k.e164, k.valori) : null;
+      return [b?.templateName, b?.templateParams.length];
+    })(),
+  );
 }

@@ -13,7 +13,13 @@
  *   `rispostaChat` (porta.ts); qui si leggono, non si riscrivono.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { MAX_PARAMETRI } from "./manychat/porta";
-import { findMetaTemplate, type MetaTemplate, type MetaTemplateParam } from "./wa-meta-templates";
+import {
+  META_TEMPLATES,
+  MODELLI_MANYCHAT,
+  findMetaTemplate,
+  type MetaTemplate,
+  type MetaTemplateParam,
+} from "./wa-meta-templates";
 
 /** Un link che non porta da nessuna parte: è una prova, non una stanza vera. */
 export const ESEMPIO_LINK = "https://example.com/prova-modello";
@@ -30,6 +36,7 @@ const ESEMPI: Record<MetaTemplateParam["key"], string> = {
   recontact_date: "29/10/2026",
   recontact_time: "18:00",
   meet_link: ESEMPIO_LINK,
+  address: "Via Esempio 1, Roma",
 };
 
 /** I valori di partenza del modello, nell'ordine {{1}}, {{2}}… */
@@ -127,6 +134,18 @@ export type FlussoDelModello = "collegato" | "mancante" | "non_serve";
 export function flussoDelModello(stato: StatoCanale, modello: string): FlussoDelModello {
   if (stato.canale !== "manychat") return "non_serve";
   return stato.modelliConFlusso.includes(modello) ? "collegato" : "mancante";
+}
+
+/** I modelli da mettere nella tendina. Col canale ManyChat solo quelli che
+ *  hanno un flusso collegato (gli altri verrebbero rifiutati: la tendina non
+ *  propone prove destinate a fallire), nell'ordine: prima i vecchi della Cloud
+ *  API ancora collegati, poi quelli di ManyChat. Canale non ancora letto o
+ *  Cloud API: la lista di sempre. */
+export function modelliDaProvare(stato: StatoCanale | null): MetaTemplate[] {
+  if (stato?.canale !== "manychat") return META_TEMPLATES;
+  return [...META_TEMPLATES, ...MODELLI_MANYCHAT].filter((t) =>
+    stato.modelliConFlusso.includes(t.name),
+  );
 }
 
 /** La riga sotto la scelta del modello. Vuota finché il canale non è letto. */
