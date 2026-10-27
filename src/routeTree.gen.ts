@@ -118,6 +118,7 @@ import { Route as ApiPublicProvaAcquistoRouteImport } from './routes/api.public.
 import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricing'
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
 import { Route as ApiPublicManychatRispostaRouteImport } from './routes/api.public.manychat-risposta'
+import { Route as ApiPublicManychatPrenotaRouteImport } from './routes/api.public.manychat-prenota'
 import { Route as ApiPublicLinkOspiteRouteImport } from './routes/api.public.link-ospite'
 import { Route as ApiPublicInvitoRouteImport } from './routes/api.public.invito'
 import { Route as ApiPublicGalleriaRouteImport } from './routes/api.public.galleria'
@@ -751,6 +752,12 @@ const ApiPublicManychatRispostaRoute =
     path: '/api/public/manychat-risposta',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicManychatPrenotaRoute =
+  ApiPublicManychatPrenotaRouteImport.update({
+    id: '/api/public/manychat-prenota',
+    path: '/api/public/manychat-prenota',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicLinkOspiteRoute = ApiPublicLinkOspiteRouteImport.update({
   id: '/api/public/link-ospite',
   path: '/api/public/link-ospite',
@@ -1337,6 +1344,7 @@ export interface FileRoutesByFullPath {
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
+  '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1524,6 +1532,7 @@ export interface FileRoutesByTo {
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
+  '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1717,6 +1726,7 @@ export interface FileRoutesById {
   '/api/public/galleria': typeof ApiPublicGalleriaRoute
   '/api/public/invito': typeof ApiPublicInvitoRoute
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
+  '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1911,6 +1921,7 @@ export interface FileRouteTypes {
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
+    | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
@@ -2098,6 +2109,7 @@ export interface FileRouteTypes {
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
+    | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
@@ -2290,6 +2302,7 @@ export interface FileRouteTypes {
     | '/api/public/galleria'
     | '/api/public/invito'
     | '/api/public/link-ospite'
+    | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/pricing'
@@ -2443,6 +2456,7 @@ export interface RootRouteChildren {
   ApiPublicGalleriaRoute: typeof ApiPublicGalleriaRoute
   ApiPublicInvitoRoute: typeof ApiPublicInvitoRoute
   ApiPublicLinkOspiteRoute: typeof ApiPublicLinkOspiteRoute
+  ApiPublicManychatPrenotaRoute: typeof ApiPublicManychatPrenotaRoute
   ApiPublicManychatRispostaRoute: typeof ApiPublicManychatRispostaRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
   ApiPublicPricingRoute: typeof ApiPublicPricingRoute
@@ -3224,6 +3238,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/manychat-risposta'
       fullPath: '/api/public/manychat-risposta'
       preLoaderRoute: typeof ApiPublicManychatRispostaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/manychat-prenota': {
+      id: '/api/public/manychat-prenota'
+      path: '/api/public/manychat-prenota'
+      fullPath: '/api/public/manychat-prenota'
+      preLoaderRoute: typeof ApiPublicManychatPrenotaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/link-ospite': {
@@ -4069,6 +4090,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicGalleriaRoute: ApiPublicGalleriaRoute,
   ApiPublicInvitoRoute: ApiPublicInvitoRoute,
   ApiPublicLinkOspiteRoute: ApiPublicLinkOspiteRoute,
+  ApiPublicManychatPrenotaRoute: ApiPublicManychatPrenotaRoute,
   ApiPublicManychatRispostaRoute: ApiPublicManychatRispostaRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,
   ApiPublicPricingRoute: ApiPublicPricingRoute,
