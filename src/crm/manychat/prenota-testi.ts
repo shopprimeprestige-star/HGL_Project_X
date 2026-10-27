@@ -48,11 +48,18 @@ function conNome(nome: string, frase: string): string {
   return nome ? `${nome}, ${frase}` : maiuscola(frase);
 }
 
-/** «giovedì 29 ottobre alle 18:00». ⚠️ Se la data o l'ora non sono valide si
- *  scrive com'è arrivato: meglio un testo brutto che togliere un'opzione e
- *  sfalsare i numeri dei pulsanti. */
+/** Un pezzo di data o d'ora non valido, reso innocuo: corto e solo lettere,
+ *  cifre e `: -` (niente `/`, quindi niente link, niente a-capo, niente testo libero). */
+const grezzo = (t: string) =>
+  String(t ?? "")
+    .replace(/[^\p{L}\p{N} :-]/gu, "")
+    .slice(0, 20);
+
+/** «giovedì 29 ottobre alle 18:00». ⚠️ Se la data o l'ora non sono valide non
+ *  si toglie l'opzione (sfalserebbe i numeri dei pulsanti): si scrive quel che
+ *  c'è, ripulito e corto (SPEC 7.2, tetto 900 caratteri). */
 function quando(o: OraProposta | { g: string; o: string }): string {
-  return `${giornoParlato(o.g) ?? o.g} alle ${oraNormale(o.o) ?? o.o}`;
+  return `${giornoParlato(o.g) ?? grezzo(o.g)} alle ${oraNormale(o.o) ?? grezzo(o.o)}`;
 }
 
 const SENZA_ORARI =
@@ -98,7 +105,7 @@ export function testoProposte(d: DatiProposte): string {
   if (d.proposte.length === 0) return testoNessunOrario(d);
   const nome = battesimo(d.nome);
   const effettiva = fasciaDi(d.proposte[0].o);
-  if (d.ripiego && d.fasciaChiesta && effettiva) {
+  if (d.ripiego && d.fasciaChiesta && effettiva && effettiva !== d.fasciaChiesta) {
     return elenco(
       conNome(
         nome,

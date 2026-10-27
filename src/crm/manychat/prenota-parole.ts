@@ -20,7 +20,7 @@ const NIENTE: Capito = { tipo: "niente" };
 function parole(testo: string): string[] {
   return String(testo ?? "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
@@ -51,7 +51,7 @@ const DOMANDE = new Set(
 const NEGAZIONI = new Set("non no mai senza tranne eccetto escluso".split(" "));
 
 const FASCE_PAROLE: [Fascia, string[]][] = [
-  ["mattina", ["mattina", "mattino", "stamattina"]],
+  ["mattina", ["mattina", "mattino", "mattinata", "stamattina"]],
   ["pomeriggio", ["pomeriggio"]],
   ["sera", ["sera", "serata", "stasera"]],
 ];
@@ -61,7 +61,7 @@ const FASCE_PAROLE: [Fascia, string[]][] = [
  *  qualcos'altro («ho 2 figli», «secondo me») non è una scelta. */
 const CONTORNO = new Set(
   (
-    "si no ok grazie prego per favore piacere vorrei voglio preferisco scelgo prendo prendiamo " +
+    "si ok grazie prego per favore piacere vorrei voglio preferisco scelgo prendo prendiamo " +
     "direi allora mi ci la il lo l le un una di da a e va vanno bene quella quello questa questo " +
     "questi queste quelli quelle opzione opzioni numero n scelta scriva scrivo mandi manda " +
     "orario orari data date giorno giorni proposta proposte possibilita"
@@ -102,9 +102,14 @@ export function capisciRisposta(testo: string, c: { propostaAperta: boolean }): 
   const frase = p.join(" ");
   if (p.some((x) => GIORNI.has(x) || DOMANDE.has(x)) || ORA_A_PAROLE.test(frase)) return NIENTE;
 
-  if (c.propostaAperta && p.every((x) => CONTORNO.has(x) || NUMERI.has(x) || ALTRI.has(x))) {
+  if (
+    c.propostaAperta &&
+    p.every((x) => x === "no" || CONTORNO.has(x) || NUMERI.has(x) || ALTRI.has(x))
+  ) {
     const numeri = p.filter((x) => NUMERI.has(x));
-    if (numeri.length === 1 && !p.some((x) => ALTRI.has(x))) return sceltaDi(numeri[0]);
+    //  «no» ammesso solo con «altri» («no, altri orari»): «no 2» è un rifiuto o una scelta? Si tace.
+    if (numeri.length === 1 && !p.some((x) => ALTRI.has(x) || x === "no"))
+      return sceltaDi(numeri[0]);
     if (numeri.length === 0 && p.some((x) => ALTRI.has(x))) return { tipo: "altri" };
     return NIENTE;
   }

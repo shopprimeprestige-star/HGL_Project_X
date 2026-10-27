@@ -155,12 +155,29 @@ export async function proveDeiTestiPrenota(mod, { c, gruppo }) {
   c("ripiego: dice che di sera non c'è e offre il pomeriggio", true,
     rip.startsWith("Anna, di sera non ho orari liberi. Ecco quelli del pomeriggio:\n\n"));
   forma("ripiego", rip);
+  c("ripiego nella stessa fascia chiesta: niente frase che si contraddice", true,
+    X.testoProposte({ proposte: [{ g: "2026-11-03", o: "18:00" }], fasciaChiesta: "sera", ripiego: true })
+      .startsWith("Ecco gli orari liberi di sera per la consulenza gratuita:"));
   c("ripiego: finisce comunque con ALTRI", true, rip.endsWith("Nessuno va bene? Scriva ALTRI"));
   c("proposte vuote: ripiega sul messaggio «nessun orario», mai una lista vuota",
     X.testoNessunOrario({ nome: "Anna" }), X.testoProposte({ nome: "Anna", proposte: [] }));
   c("preso/vecchia/non c'è con liste vuote: «nessun orario»", [true, true, true], [
     X.testoPreso({ proposte: [] }), X.testoVecchia({ proposte: [] }), X.testoOpzioneNonCe({ proposte: [] }),
   ].map((t) => t === X.testoNessunOrario({})));
+
+  // ── Data e ora non valide: ripulite e corte, la conferma resta sotto i 900
+  const ostile = "<b>https://cattivo.example/x</b>\n".repeat(40);
+  const conOstile = X.testoConferma({ nome: "Anna", giorno: ostile, ora: ostile, consulente: "Filippo", link: LINK });
+  forma("conferma con data e ora ostili", conOstile);
+  c("data e ora ostili: nessun altro indirizzo oltre al link", 1, (conOstile.match(URL_) ?? []).length);
+  c("data e ora ostili: niente < > nella riga dell'appuntamento", false, /[<>]/.test(conOstile.split("\n")[0]));
+  c("data e ora ostili: la riga dell'appuntamento è corta", true, conOstile.split("\n")[0].length < 150);
+  const proposteOstili = X.testoProposte({ proposte: [{ g: ostile, o: ostile }, ...P3.slice(0, 2)] });
+  forma("proposte con un orario ostile", proposteOstili);
+  c("orario ostile: le opzioni restano 3, numerate", 3, proposteOstili.split("\n").filter((r) => r.startsWith("Opzione ")).length);
+  c("orario ostile: nessun indirizzo", false, HA_URL(proposteOstili));
+  c("data e ora non valide ma innocue: scritte come arrivano", true,
+    X.testoProposte({ proposte: [{ g: "2026-02-30", o: "25:00" }] }).includes("Opzione 1: 2026-02-30 alle 25:00\n"));
 
   // ── La conferma: giorno, ora, consulente e il link, una volta sola
   const lungoLink = "https://hub.example.it/stanza/" + "x".repeat(50); // 80 caratteri
