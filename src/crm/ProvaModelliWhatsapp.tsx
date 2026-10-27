@@ -44,6 +44,7 @@ import {
   corpoProva,
   esitoInChiaro,
   fraseCanale,
+  modelliDaProvare,
   numeroLeggibile,
   valoriDiEsempio,
   type StatoCanale,
@@ -87,6 +88,18 @@ export function ProvaModelliWhatsapp() {
       vivo = false;
     };
   }, [puo]);
+
+  //  Col canale ManyChat la tendina mostra solo i modelli con un flusso: se il
+  //  modello scelto non c'è (quello di partenza è un vecchio della Cloud API),
+  //  si passa al primo dell'elenco.
+  const elenco = useMemo(() => modelliDaProvare(stato), [stato]);
+  useEffect(() => {
+    const primo = elenco[0];
+    if (primo && !elenco.some((m) => m.name === modello)) {
+      setModello(primo.name);
+      setValori(valoriDiEsempio(primo));
+    }
+  }, [elenco, modello]);
 
   const anteprima = useMemo(() => (t ? anteprimaTesto(t, valori) : ""), [t, valori]);
 
@@ -154,7 +167,7 @@ export function ProvaModelliWhatsapp() {
               <SelectValue placeholder="Scegli un modello" />
             </SelectTrigger>
             <SelectContent>
-              {META_TEMPLATES.map((m) => (
+              {elenco.map((m) => (
                 <SelectItem key={m.name} value={m.name}>
                   {m.name}
                 </SelectItem>

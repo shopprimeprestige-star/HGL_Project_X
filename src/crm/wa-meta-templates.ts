@@ -22,7 +22,8 @@ export interface MetaTemplateParam {
     | "visit_time"
     | "recontact_date"
     | "recontact_time"
-    | "meet_link";
+    | "meet_link"
+    | "address";
   /** Descrizione human-readable per documentazione/Meta sample */
   description: string;
   /** Valore d'esempio per la review Meta */
@@ -55,6 +56,7 @@ const DESCR: Record<ParamKey, { description: string; example: string }> = {
   recontact_date: { description: "Data ricontatto (DD/MM/YYYY)", example: "20/05/2026" },
   recontact_time: { description: "Ora ricontatto (HH:MM)", example: "11:00" },
   meet_link: { description: "Link Google Meet", example: "https://meet.google.com/abc-defg-hij" },
+  address: { description: "Indirizzo della sede", example: "Via Esempio 1, Roma" },
 };
 
 function tpl(
@@ -174,8 +176,109 @@ export const META_TEMPLATES: MetaTemplate[] = [
   ),
 ];
 
+/** ── I MODELLI DI MANYCHAT (commessa 2026-10-25) ──────────────────────────
+ *  Gli stessi testi approvati in ManyChat (MODELLI-MANYCHAT.md), con le
+ *  variabili nell'ordine dei campi `crm_v1…crm_v4`. Il CRM li manda da solo
+ *  (giro, sequenze, messaggi per stato); qui servono a «Prova i modelli».
+ *  ⚠️ Non stanno in META_TEMPLATES: quella lista è dei modelli della Cloud API
+ *   (Contatti WhatsApp, esportazione per Meta) e non va toccata. */
+export const MODELLI_MANYCHAT: MetaTemplate[] = [
+  tpl(
+    "hgl_primo_contatto",
+    "MARKETING",
+    `Gentile {{lead_name}}, sono il team di Hair Genius Labs: abbiamo ricevuto la Sua richiesta di informazioni, grazie.\n\nCi occupiamo di soluzioni non chirurgiche per la perdita dei capelli: la patch cutanea e Invisible Derm. Nella prima consulenza gratuita, online in videochiamata, Filippo Le spiegherà entrambe e quale è più adatta alla Sua situazione.\n\nPer fissarla, preferisce la mattina o la sera?`,
+    ["lead_name"],
+  ),
+  tpl(
+    "hgl_richiamo_24h",
+    "MARKETING",
+    `Gentile {{lead_name}}, Le avevamo scritto per la Sua richiesta a Hair Genius Labs.\n\nSe desidera fissare la consulenza gratuita online, ci risponda pure qui indicando se preferisce la mattina o la sera: Le proponiamo subito un orario.\n\nHair Genius Labs`,
+    ["lead_name"],
+  ),
+  tpl(
+    "hgl_meet_domani",
+    "UTILITY",
+    `Gentile {{lead_name}}, Le ricordiamo che domani, {{appointment_day}}, alle ore {{appointment_time}} ha la Sua consulenza online con Hair Genius Labs.\n\nLa seguirà {{consultant_name}}. Se ha un imprevisto, ci risponda qui e troviamo un altro orario.`,
+    ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
+  ),
+  tpl(
+    "hgl_meet_oggi",
+    "UTILITY",
+    `Gentile {{lead_name}}, Le ricordiamo che oggi alle ore {{appointment_time}} ha la Sua consulenza online con Hair Genius Labs.\n\nLa seguirà {{consultant_name}}. Poco prima dell'inizio riceverà il link per collegarsi.\n\nSe ha un imprevisto, ci risponda qui e troviamo un altro orario.`,
+    ["lead_name", "appointment_time", "consultant_name"],
+  ),
+  tpl(
+    "hgl_promemoria_meet",
+    "UTILITY",
+    `Gentile {{lead_name}}, Le ricordo la Sua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 25 minuti.\n\nPer collegarsi: {{meet_link}}\n\nLa seguirà {{consultant_name}}. Se può, si colleghi da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
+    ["lead_name", "appointment_time", "meet_link", "consultant_name"],
+  ),
+  tpl(
+    "hgl_meet_adesso",
+    "UTILITY",
+    `Gentile {{lead_name}}, la Sua consulenza con Hair Genius Labs inizia adesso e {{consultant_name}} La sta aspettando.\n\nEntri da qui: {{meet_link}}\n\nSe ha difficoltà a collegarsi, ci risponda a questo messaggio.`,
+    ["lead_name", "consultant_name", "meet_link"],
+  ),
+  tpl(
+    "hgl_ricontatto_consulenza",
+    "MARKETING",
+    `Gentile {{lead_name}}, sono {{consultant_name}}, consulente di Hair Genius Labs.\n\nEravamo rimasti che mi avrebbe fatto sapere: ha deciso come procedere, o Le servono altri chiarimenti?\n\nMi risponda pure qui, sono a Sua disposizione.`,
+    ["lead_name", "consultant_name"],
+  ),
+  tpl(
+    "hgl_meet_da_fissare",
+    "UTILITY",
+    `Gentile {{lead_name}}, sono {{consultant_name}}, consulente di Hair Genius Labs. Come d'accordo, La ricontatto per fissare la Sua consulenza online.\n\nPreferisce la mattina o la sera? Le proponiamo subito un orario.`,
+    ["lead_name", "consultant_name"],
+  ),
+  tpl(
+    "hgl_richiamo_concordato",
+    "UTILITY",
+    `Gentile {{lead_name}}, come d'accordo La chiameremo oggi alle ore {{recontact_time}} da Hair Genius Labs.\n\nSe l'orario non Le va più bene, ci risponda qui e lo spostiamo.`,
+    ["lead_name", "recontact_time"],
+  ),
+  tpl(
+    "hgl_non_risponde",
+    "UTILITY",
+    `Gentile {{lead_name}}, abbiamo provato a chiamarLa da Hair Genius Labs per la Sua richiesta di informazioni, senza riuscire a raggiungerLa.\n\nCi indica qui un momento comodo per sentirci? Va bene anche un orario serale.`,
+    ["lead_name"],
+  ),
+  tpl(
+    "hgl_cliente_assente",
+    "UTILITY",
+    `Gentile {{lead_name}}, oggi non siamo riusciti a vederci per la Sua consulenza online con Hair Genius Labs.\n\nNessun problema: ci risponda qui e Le proponiamo un nuovo orario, mattina o sera come preferisce.`,
+    ["lead_name"],
+  ),
+  tpl(
+    "hgl_da_riprogrammare",
+    "UTILITY",
+    `Gentile {{lead_name}}, sono {{consultant_name}}, consulente di Hair Genius Labs. La ricontatto per fissare il nuovo orario della Sua consulenza online.\n\nPreferisce la mattina o la sera?`,
+    ["lead_name", "consultant_name"],
+  ),
+  tpl(
+    "hgl_promemoria_sede",
+    "UTILITY",
+    `Gentile {{lead_name}}, Le ricordiamo l'appuntamento in sede con Hair Genius Labs di {{appointment_day}} alle ore {{visit_time}}.\n\nIndirizzo: {{address}}\n\nSe ha un imprevisto, ci risponda qui e troviamo un altro orario.`,
+    ["lead_name", "appointment_day", "visit_time", "address"],
+  ),
+  tpl(
+    "hgl_sede_disdetta",
+    "UTILITY",
+    `Gentile {{lead_name}}, abbiamo registrato la disdetta del Suo appuntamento in sede con Hair Genius Labs.\n\nQuando vuole, ci risponda qui e fissiamo una nuova data.`,
+    ["lead_name"],
+  ),
+  tpl(
+    "hgl_ultimo_tentativo",
+    "MARKETING",
+    `Gentile {{lead_name}}, abbiamo provato più volte a contattarLa da Hair Genius Labs per la Sua richiesta, senza riuscirci.\n\nSe è ancora interessato, ci risponda qui: altrimenti non La disturberemo più.`,
+    ["lead_name"],
+  ),
+];
+
 export function findMetaTemplate(name: string): MetaTemplate | undefined {
-  return META_TEMPLATES.find((t) => t.name === name);
+  return (
+    META_TEMPLATES.find((t) => t.name === name) ?? MODELLI_MANYCHAT.find((t) => t.name === name)
+  );
 }
 
 /** Genera il contenuto TXT pronto da copiare/incollare in Meta Business Manager. */
