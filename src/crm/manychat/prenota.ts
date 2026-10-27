@@ -310,15 +310,20 @@ async function mostra(
   return conProposte(testo, p.proposte.length, CODICI[tipo]);
 }
 
-/** «Preso» / «non più validi»: tre proposte nuove della stessa fascia, pagina 1. */
+/** «Preso» / «non più validi»: tre proposte nuove della stessa fascia, pagina 1.
+ *  `rifiutato` = l'orario appena perso: non si riconsiglia (l'agenda letta prima
+ *  può non vedere ancora chi lo sta prendendo) e va fra i «mostrati», così nemmeno
+ *  «ALTRI» lo rimette. */
 async function nuoveProposte(
   c: Ctx,
   tipo: "preso" | "vecchia",
   agenda?: Agenda,
+  rifiutato?: OraProposta,
 ): Promise<RispostaPrenota> {
   const a = agenda ?? (await leggiAgenda(c));
   const fascia = c.riga?.fasciaChiesta ?? "sera";
-  return mostra(c, tipo, proposteDa(c, a, fascia, []), fascia, 1, []);
+  const esclusi = rifiutato ? [rifiutato] : [];
+  return mostra(c, tipo, proposteDa(c, a, fascia, esclusi), fascia, 1, esclusi);
 }
 
 /** La proposta ricordata è ancora buona? (c'è, non è oltre le 6 ore) */
@@ -441,7 +446,7 @@ async function dentroIlLead(c: Ctx, scelto: OraProposta): Promise<RispostaPrenot
       preferito: c.cfg.consulenteId,
       escludiLeadId: c.lead.id,
     });
-    if (!consulente) return nuoveProposte(c, "preso", agenda);
+    if (!consulente) return nuoveProposte(c, "preso", agenda, scelto);
 
     const chiave = chiaveLucchettoConsulente(consulente.id, scelto.g);
     const di = globalThis.crypto.randomUUID();
@@ -557,7 +562,7 @@ async function scrivi(
     });
     if (!libero) {
       await disfa(c, fatto);
-      return nuoveProposte(c, "preso", agenda);
+      return nuoveProposte(c, "preso", agenda, scelto);
     }
     return conTesto(
       testoConferma({

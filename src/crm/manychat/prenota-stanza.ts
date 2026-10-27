@@ -95,7 +95,7 @@ export async function assicuraStanza(porte: PorteStanza, i: InputStanza): Promis
   const adessoIso = i.adesso.toISOString();
 
   //  Il registro di annullo: la riga e com'era PRIMA (null = non c'era).
-  const registro: { chiave: string; prima: string | null }[] = [];
+  const registro: { chiave: string; prima: string | null; scritto: string }[] = [];
   const annulla = async (): Promise<void> => {
     let primoErrore: unknown;
     let fallito = false;
@@ -103,6 +103,17 @@ export async function assicuraStanza(porte: PorteStanza, i: InputStanza): Promis
     //  si può riprovare, e intanto le altre tornano com'erano.
     for (const voce of [...registro].reverse()) {
       try {
+        //  ⚠️ Si tocca la riga solo se è ANCORA quella che abbiamo scritto noi: con
+        //  un lucchetto scaduto a metà un'altra prenotazione può averla riscritta
+        //  (la fascia è condivisa fra chi ha lo stesso consulente e la stessa ora),
+        //  e rimettere o togliere la sua sarebbe disfare il lavoro di un altro.
+        //  Se la scrittura non è mai arrivata la riga è ancora il `prima`: niente
+        //  da rimettere.
+        const attuale = await porte.leggi(voce.chiave);
+        if (attuale !== voce.scritto) {
+          registro.splice(registro.indexOf(voce), 1);
+          continue;
+        }
         if (voce.prima === null) await porte.elimina(voce.chiave);
         else await porte.scrivi(voce.chiave, voce.prima);
         registro.splice(registro.indexOf(voce), 1);
@@ -120,7 +131,7 @@ export async function assicuraStanza(porte: PorteStanza, i: InputStanza): Promis
    *   lascerebbe una riga orfana. */
   const scrivi = async (chiave: string, prima: string | null, valore: string): Promise<void> => {
     if (prima === valore) return;
-    registro.push({ chiave, prima });
+    registro.push({ chiave, prima, scritto: valore });
     await porte.scrivi(chiave, valore);
   };
 

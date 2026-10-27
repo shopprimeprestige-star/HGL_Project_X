@@ -426,6 +426,8 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     occupato(m, "c-bea");
     r = await tocca(m, 2);
     c("lucchetti di tutti occupati: «preso» + nuove proposte, nessuna scrittura sulla scheda", ["preso", [], [300, 300]], [r.codice, m.scrittureDi("scriviScheda"), m.attese]);
+    c("…le nuove proposte non rimettono l'orario appena rifiutato (mer 28 alle 17:00)", [false, true], [r.testo.includes("mercoledì 28 ottobre alle 17:00"), r.testo.includes("Opzione 1")]);
+    c("…e nemmeno «ALTRI» lo riconsiglia (è fra i mostrati)", true, m.riga(await m.chiaveProposta()).mostrati.some((p) => p.g === "2026-10-28" && p.o === "17:00"));
     c("…i lucchetti degli altri restano, il nostro è rilasciato", ["prenota_chat_lock:c-bea:2026-10-28", "prenota_chat_lock:c-fil:2026-10-28"], m.lucchetti());
     //  Scaduto (21 s dopo): si riprende.
     ({ m } = await conProposta());

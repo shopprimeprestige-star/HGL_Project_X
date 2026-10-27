@@ -525,6 +525,31 @@ export async function proveDellaStanzaPrenota(mod, { c, gruppo, radice }) {
       c("annullare la seconda lascia intatta la stanza", true, identiche(dopo, foto(m)));
     }
     {
+      // annulla() tocca una riga solo se è ANCORA quella scritta da noi (lucchetto scaduto a metà:
+      // un'altra prenotazione può aver riscritto la fascia condivisa).
+      let m = mondo({ x: "1" });
+      let r = await S.assicuraStanza(m.porte, IN);
+      const dellAltra = JSON.stringify({ code: "abc-defg-hjk", il: "2026-10-27T14:43:00.000Z" });
+      m.righe.set(K_FASCIA, dellAltra);
+      await r.annulla();
+      c("fascia riscritta da un'altra prenotazione: annulla non la tocca", dellAltra, m.righe.get(K_FASCIA));
+      c("…le righe nostre invece si tolgono (resta la fascia dell'altra e il resto)", [[K_FASCIA, dellAltra], ["x", "1"]].sort(([a], [b]) => (a < b ? -1 : 1)), foto(m));
+
+      // L'altra prenotazione ha già disfatto e tolto la fascia: non la si rimette.
+      m = mondo({ x: "1", [K_FASCIA]: JSON.stringify({ code: "xxx-xxxx-xxx", modo: "solo" }) });
+      r = await S.assicuraStanza(m.porte, IN);
+      m.righe.delete(K_FASCIA);
+      await r.annulla();
+      c("fascia già tolta da un altro: annulla non la ricrea con il valore di prima", false, m.righe.has(K_FASCIA));
+
+      // Riscritta con lo stesso valore nostro (nessuno l'ha cambiata): si rimette come prima.
+      m = mondo({ [K_FASCIA]: JSON.stringify({ code: "xxx-xxxx-xxx", modo: "solo" }) });
+      const prima = foto(m);
+      r = await S.assicuraStanza(m.porte, IN);
+      await r.annulla();
+      c("riga intatta fino a annulla: torna al valore di prima", true, identiche(prima, foto(m)));
+    }
+    {
       // Due lead diversi nella stessa ora (la setter può farlo dal browser): due stanze, ognuno la sua.
       const m = mondo();
       const r1 = await S.assicuraStanza(m.porte, IN);
