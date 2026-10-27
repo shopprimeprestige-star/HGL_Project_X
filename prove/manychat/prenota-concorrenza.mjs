@@ -37,13 +37,24 @@
  *  Per non fare prove vuote ogni scenario dichiara anche COSA DEVE ESSERE
  *  SUCCESSO ALMENO UNA VOLTA nelle sequenze provate (copertura).
  *
- *  ── Difetti trovati ──────────────────────────────────────────────────────
- *  Un difetto vero NON si corregge qui (T9 non tocca il codice): si descrive in
- *  LAVAGNA. Il controllo che lo prova è marcato «ATTESA DA CORREGGERE» e, finché
- *  il difetto c'è, NON fa rosso (resta una riga ben visibile nell'uscita); con
- *  `T9_STRICT=1` lo stesso controllo è un controllo vero e fallisce. Appena il
- *  codice è corretto torna da solo un controllo normale: non c'è niente da
- *  modificare in questo file.
+ *  ── Difetti trovati e limiti dichiarati ─────────────────────────────────
+ *  Questo file non corregge il codice. I due difetti che ha trovato sono stati
+ *  poi corretti (commit d9acae7):
+ *   · D1 (dopo «preso» riproponeva lo stesso orario): ora è un controllo
+ *     NORMALE in ogni scenario; se ricompare, rosso.
+ *   · D2 (con un lucchetto scaduto a metà, il disfare tocca la riga «fascia»
+ *     dell'altra prenotazione): corretto per ciò che si poteva senza una
+ *     scrittura condizionata nella porta. Resta un LIMITE DICHIARATO (decisione
+ *     del capo progetto): due richieste che scrivono insieme con il lucchetto
+ *     scaduto lasciano una fascia che punta a una stanza tolta (a) oppure
+ *     senza la riga fascia di chi è rimasto prenotato (b). Succede solo se un
+ *     lucchetto da 20 s scade mentre la richiesta lavora (e ogni richiesta si
+ *     ferma prima di scrivere dopo 8 s); prenotazioni e schede restano giuste,
+ *     il danno possibile è solo che, se la setter aggiunge a mano un'altra
+ *     persona in quell'ora, ha un altro link. Il controllo resta visibile
+ *     nell'uscita come «LIMITE DICHIARATO» e non è mai rosso, nemmeno con
+ *     `T9_STRICT=1`. Si chiude con una porta a scrittura condizionata per la
+ *     riga fascia, o con un campo «chi l'ha scritta» nella riga.
  *
  *  Le date: martedì 27/10/2026, 14:00 a Roma. I consulenti lavorano lunedì-
  *  venerdì, 09-13 e 14-19. «Sera» = i primi tre orari sono mar 27, mer 28 e gio
@@ -434,7 +445,8 @@ async function sistematico(corsa, { cambi, max }) {
 
 /** I difetti veri trovati dalle prove (vedi la testata). Un difetto si
  *  riconosce da una violazione; finché il codice non è corretto la prova lo
- *  segnala come ATTESA DA CORREGGERE senza fare rosso (con `T9_STRICT=1` sì). */
+ *  segnala: un difetto da correggere è rosso, un `limite` dichiarato è solo una
+ *  riga «LIMITE DICHIARATO» nell'uscita. */
 const NOTI = {
   D1: {
     titolo: "dopo «preso» ripropone lo stesso orario appena preso",
@@ -445,6 +457,7 @@ const NOTI = {
       "lucchetto scaduto: il disfare cancella o rimette la riga «fascia» dell'altra prenotazione",
     //  ⚠️ Solo la riga «fascia»: una riga meet / attesi orfana è un altro guaio.
     riconosci: (v) => v.startsWith("riga orfana fascia:") || v.startsWith("riga stanza persa"),
+    limite: true,
   },
 };
 
@@ -452,7 +465,6 @@ export async function proveDellaConcorrenzaPrenota(mod, { c, gruppo, radice }) {
   void radice;
   const P = mod["manychat/prenota"];
   const BKG = mod["booking-utils"];
-  const STRICT = !!process.env.T9_STRICT;
 
   //  ⚠️ Le operazioni di cifratura (l'impronta del numero) non passano dalle
   //  porte e finiscono in un altro giro del motore: la regia deve sapere
@@ -659,14 +671,14 @@ export async function proveDellaConcorrenzaPrenota(mod, { c, gruppo, radice }) {
   /** Un difetto noto: normale se non c'è, ATTESA DA CORREGGERE se c'è. */
   const attesa = (nome, id, trovato) => {
     const n = trovato?.n ?? 0;
-    if (n === 0) return;
-    if (STRICT) c(`${nome}: ${NOTI[id].titolo} (${id})`, 0, n);
-    else
-      c(
-        `${nome}: ATTESA DA CORREGGERE ${id}: ${NOTI[id].titolo}; in ${n} sequenze, la prima [${trovato.primo}]`,
-        true,
-        true,
-      );
+    if (NOTI[id].limite) {
+      if (n > 0)
+        c(
+          `${nome}: LIMITE DICHIARATO ${id}: ${NOTI[id].titolo}; in ${n} sequenze, la prima [${trovato.primo}]`,
+          true,
+          true,
+        );
+    } else c(`${nome}: ${NOTI[id].titolo} (${id})`, 0, n);
   };
 
   /** Costruisce uno scenario da una descrizione. */
