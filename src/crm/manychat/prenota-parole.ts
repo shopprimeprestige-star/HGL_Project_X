@@ -67,21 +67,31 @@ const CONTORNO = new Set(
     "orario orari data date giorno giorni proposta proposte possibilita"
   ).split(" "),
 );
-const NUMERI: Record<string, 1 | 2 | 3> = {
-  "1": 1,
-  uno: 1,
-  primo: 1,
-  prima: 1,
-  "2": 2,
-  due: 2,
-  secondo: 2,
-  seconda: 2,
-  "3": 3,
-  tre: 3,
-  terzo: 3,
-  terza: 3,
-};
+/** ⚠️ Una Map, non un oggetto: con `x in oggetto` «constructor» o «toString»
+ *  risulterebbero numeri (chiavi del prototipo). */
+const NUMERI = new Map<string, 1 | 2 | 3>(
+  Object.entries({
+    "1": 1,
+    uno: 1,
+    primo: 1,
+    prima: 1,
+    "2": 2,
+    due: 2,
+    secondo: 2,
+    seconda: 2,
+    "3": 3,
+    tre: 3,
+    terzo: 3,
+    terza: 3,
+  }),
+);
 const ALTRI = new Set("altri altre altro altra nessuno nessuna nessun".split(" "));
+
+/** Prima di restituire una scelta si ricontrolla che sia 1, 2 o 3. */
+function sceltaDi(parola: string): Capito {
+  const n = NUMERI.get(parola);
+  return n === 1 || n === 2 || n === 3 ? { tipo: "scelta", n } : NIENTE;
+}
 
 /** `propostaAperta`: il lead ha davanti degli orari con i pulsanti. Solo allora
  *  un numero o «altri» hanno un senso; senza, sono `niente`. */
@@ -92,10 +102,9 @@ export function capisciRisposta(testo: string, c: { propostaAperta: boolean }): 
   const frase = p.join(" ");
   if (p.some((x) => GIORNI.has(x) || DOMANDE.has(x)) || ORA_A_PAROLE.test(frase)) return NIENTE;
 
-  if (c.propostaAperta && p.every((x) => CONTORNO.has(x) || x in NUMERI || ALTRI.has(x))) {
-    const numeri = p.filter((x) => x in NUMERI);
-    if (numeri.length === 1 && !p.some((x) => ALTRI.has(x)))
-      return { tipo: "scelta", n: NUMERI[numeri[0]] };
+  if (c.propostaAperta && p.every((x) => CONTORNO.has(x) || NUMERI.has(x) || ALTRI.has(x))) {
+    const numeri = p.filter((x) => NUMERI.has(x));
+    if (numeri.length === 1 && !p.some((x) => ALTRI.has(x))) return sceltaDi(numeri[0]);
     if (numeri.length === 0 && p.some((x) => ALTRI.has(x))) return { tipo: "altri" };
     return NIENTE;
   }

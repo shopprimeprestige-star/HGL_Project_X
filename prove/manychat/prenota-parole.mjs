@@ -166,6 +166,18 @@ export async function proveDelleParolePrenota(mod, { c, gruppo }) {
   }
   c("la tabella ha almeno 60 frasi", true, tabella.length >= 60);
 
+  //  ⚠️ Le chiavi del prototipo non sono numeri: «constructor» non è la scelta di niente.
+  for (const proto of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf", "opzione constructor", "1 constructor"]) {
+    for (const propostaAperta of [true, false]) {
+      c(`«${proto}» (proposta ${propostaAperta ? "aperta" : "chiusa"}): niente`, { tipo: "niente" },
+        capisciRisposta(proto, { propostaAperta }));
+    }
+  }
+  for (const ok of ["1", "2", "3", "il terzo"]) {
+    const r = capisciRisposta(ok, { propostaAperta: true });
+    c(`la scelta «${ok}» è sempre un numero 1, 2 o 3`, true, r.tipo === "scelta" && [1, 2, 3].includes(r.n) && typeof r.n === "number");
+  }
+
   //  Non lancia mai, qualunque cosa arrivi (la rotta passa il testo grezzo).
   for (const strano of [undefined, null, 5, {}, "x".repeat(10_000), "\u0000\u200b", "\u00df", "SERA\u0301"]) {
     let esito;
