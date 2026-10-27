@@ -124,8 +124,15 @@ export interface RigaProposta {
   pagina: 1 | 2 | 3;
   proposte: OraProposta[];
   mostrati: OraProposta[];
-  /** `ora` = `AAAA-MM-GGTHH` di Roma: il tetto di 30 chiamate l'ora */
-  chiamate: { ora: string; n: number };
+}
+
+/** Il tetto di 30 chiamate l'ora per numero: una riga SUA (`<chiave proposta>:n`),
+ *  separata dalla proposta, così scrivere il contatore non può rimettere sopra
+ *  una proposta nuova una vecchia letta un attimo prima. `ora` = `AAAA-MM-GGTHH`
+ *  di Roma. */
+export interface Contatore {
+  ora: string;
+  n: number;
 }
 
 // ── Scheda ────────────────────────────────────────────────────────────────
@@ -364,6 +371,9 @@ export interface PortePrenota {
   ): Promise<"ok" | "cambiata">;
   proposta(chiave: string): Promise<RigaProposta | null>;
   scriviProposta(chiave: string, riga: RigaProposta): Promise<void>;
+  /** il contatore delle chiamate (riga sua); `null` se manca o non si legge */
+  contatore(chiave: string): Promise<Contatore | null>;
+  scriviContatore(chiave: string, contatore: Contatore): Promise<void>;
   /** `di` = randomUUID; il lucchetto scade da solo dopo `scadeMs` (D3) */
   lucchetto: {
     prendi(chiave: string, di: string, scadeMs: number): Promise<boolean>;

@@ -224,7 +224,7 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     c("40 «ok»: nessuna riga di proposta/contatore scritta", [], m.chiavi("prenota_chat:"));
     r = await ris(m, corpoTesto("sera"));
     c("…e dopo, «sera» risponde subito", "proposte3", r.esito);
-    c("…il contatore vale 1", { ora: "2026-10-27T14", n: 1 }, m.riga(await m.chiaveProposta()).chiamate);
+    c("…il contatore (riga sua) vale 1", { ora: "2026-10-27T14", n: 1 }, m.riga((await m.chiaveProposta()) + ":n"));
 
     //  Il 31° messaggio capito nell'ora: silenzio.
     m = mondo();
@@ -238,7 +238,7 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     c("anche un tocco, oltre il limite: nessuno", ["nessuno", "limite"], [r.esito, r.codice]);
     m.avanza(3600e3);
     r = await ris(m, corpoTesto("sera"));
-    c("l'ora dopo il contatore riparte", ["proposte3", 1], [r.esito, m.riga(await m.chiaveProposta()).chiamate.n]);
+    c("l'ora dopo il contatore riparte", ["proposte3", 1], [r.esito, m.riga((await m.chiaveProposta()) + ":n").n]);
   }
 
   /* ═══ 4. LA PROPOSTA ════════════════════════════════════════════════════ */
@@ -250,7 +250,8 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
       r.testo.includes("Anna") && r.testo.includes("Opzione 1: martedì 27 ottobre alle 17:00") && r.testo.includes("Opzione 2: mercoledì 28 ottobre alle 17:00") && r.testo.includes("Opzione 3: giovedì 29 ottobre alle 17:00") && r.testo.includes("Scriva ALTRI"));
     let riga = m.riga(await m.chiaveProposta());
     c("la proposta è ricordata (una riga per numero)", [1, "sera", "sera", ADESSO.toISOString(), 3, 3], [riga.pagina, riga.fascia, riga.fasciaChiesta, riga.il, riga.proposte.length, riga.mostrati.length]);
-    c("…con giorno e ora, e il contatore", [{ g: "2026-10-27", o: "17:00" }, { ora: "2026-10-27T14", n: 1 }], [riga.proposte[0], riga.chiamate]);
+    c("…con giorno e ora, e il contatore NON dentro la proposta", [{ g: "2026-10-27", o: "17:00" }, false], [riga.proposte[0], "chiamate" in riga]);
+    c("…il contatore sta in una riga sua", { ora: "2026-10-27T14", n: 1 }, m.riga((await m.chiaveProposta()) + ":n"));
     c("…la chiave non contiene il numero (HMAC)", [true, false], [(await m.chiaveProposta()).startsWith("prenota_chat:"), (await m.chiaveProposta()).includes(TEL)]);
     c("…nessuna scheda toccata, nessuna stanza, nessun lucchetto rimasto", [true, [], []], [identiche(m.scheda(ID(1)), lead(ID(1))), righeStanza(m), m.lucchetti()]);
     c("una proposta non scrive sulla scheda né sul secondo stato", [], m.scrittureDi("scriviScheda", "scriviContatto"));
@@ -411,12 +412,21 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     r = await tocca(m, 2);
     c("tutti pieni dentro il lucchetto: «preso» e nuove proposte, nessuna scrittura sulla scheda", ["preso", [], []], [r.codice, m.scrittureDi("scriviScheda"), m.lucchetti()]);
 
-    //  Il lucchetto del consulente occupato da un altro giro: due tentativi, poi nuove proposte.
+    //  Il lucchetto di Filippo è tenuto da un altro giro (forse per un'altra ora): due tentativi, poi il collega.
+    const occupato = (m, cid) =>
+      m.righe.set(`prenota_chat_lock:${cid}:2026-10-28`, JSON.stringify({ di: "altro", fino: new Date(ADESSO.getTime() + 15000).toISOString() }));
     ({ m } = await conProposta());
-    m.righe.set("prenota_chat_lock:c-fil:2026-10-28", JSON.stringify({ di: "altro", fino: new Date(ADESSO.getTime() + 15000).toISOString() }));
+    occupato(m, "c-fil");
     r = await tocca(m, 2);
-    c("lucchetto del consulente occupato: «preso» + nuove proposte, nessuna scrittura sulla scheda", ["preso", [], [300]], [r.codice, m.scrittureDi("scriviScheda"), m.attese]);
-    c("…il lucchetto di quell'altro giro resta suo; il nostro del lead è rilasciato", [["prenota_chat_lock:c-fil:2026-10-28"]], [m.lucchetti()]);
+    c("lucchetto di Filippo occupato: si prova il collega libero", ["prenotato", "c-bea", [300]], [r.codice, dati(m).consulenteId, m.attese]);
+    c("…il lucchetto dell'altro giro resta suo; i nostri sono rilasciati", [["prenota_chat_lock:c-fil:2026-10-28"]], [m.lucchetti()]);
+    //  Tutti e due i lucchetti occupati: «preso» e nuove proposte, nessuna scrittura sulla scheda.
+    ({ m } = await conProposta());
+    occupato(m, "c-fil");
+    occupato(m, "c-bea");
+    r = await tocca(m, 2);
+    c("lucchetti di tutti occupati: «preso» + nuove proposte, nessuna scrittura sulla scheda", ["preso", [], [300, 300]], [r.codice, m.scrittureDi("scriviScheda"), m.attese]);
+    c("…i lucchetti degli altri restano, il nostro è rilasciato", ["prenota_chat_lock:c-bea:2026-10-28", "prenota_chat_lock:c-fil:2026-10-28"], m.lucchetti());
     //  Scaduto (21 s dopo): si riprende.
     ({ m } = await conProposta());
     m.righe.set("prenota_chat_lock:c-fil:2026-10-28", JSON.stringify({ di: "morto", fino: new Date(ADESSO.getTime() + 20000).toISOString() }));
@@ -428,7 +438,7 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     m.righe.set(`prenota_chat_lock:lead:${ID(1)}`, JSON.stringify({ di: "altro", fino: new Date(ADESSO.getTime() + 15000).toISOString() }));
     m.azzera();
     r = await tocca(m, 2);
-    c("lucchetto del lead occupato: nessuno (occupato), scheda e stanza intatte", ["nessuno", "occupato", []], [r.esito, r.codice, m.scritture.filter((x) => x.porta !== "scriviProposta")]);
+    c("lucchetto del lead occupato: nessuno (occupato), scheda e stanza intatte", ["nessuno", "occupato", []], [r.esito, r.codice, m.scritture.filter((x) => x.porta !== "scriviContatore")]);
   }
 
   gruppo("PRENOTA · ORCHESTRATORE · NOTTE, NOME E NUMERO MANCANTI (D13)");
@@ -824,6 +834,22 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
     c("letture lente (6 s): nessuna prenotazione, errore gentile", ["tempo", true], [r.codice, r.testo.includes("non sono riuscito")]);
     c("…nessuna scrittura sulla scheda (a parte il secondo stato), nessuna stanza", [true, []], [identiche({ ...dati(m), contattoWa: undefined, note: undefined }, { ...iniziale, note: undefined, contattoWa: undefined }), righeStanza(m)]);
     c("…l'avviso è «tempo»", ["tempo"], m.avvisi);
+    //  Letture che sommano 5 secondi (sotto gli 8): il budget di calcolo da 4,5 s ferma comunque, prima della stanza.
+    ({ m } = await conProposta());
+    m.prima = async (nome) => {
+      if (nome === "schedeAgenda") m.avanza(2600);
+    };
+    m.azzera();
+    r = nota(m, await tocca(m, 2));
+    c("letture da 2,6 s due volte (5,2 s): errore «tempo» prima di scrivere la stanza", ["tempo", [], "da_contattare"], [r.codice, righeStanza(m), dati(m).stato]);
+    c("…nessuna scrittura sulla scheda a parte il secondo stato e la nota", true, m.scrittureDi("scriviScheda").length <= 1);
+    //  Letture che sommano 4 secondi: va tutto bene.
+    ({ m } = await conProposta());
+    m.prima = async (nome) => {
+      if (nome === "schedeAgenda") m.avanza(2000);
+    };
+    r = await tocca(m, 2);
+    c("letture da 2 s due volte (4 s): si prenota", "prenotato", r.codice);
     //  Dopo un testo: silenzio.
     m = mondo();
     m.prima = async (nome) => {
@@ -844,6 +870,33 @@ export async function proveDellOrchestratorePrenota(mod, { c, gruppo, radice }) 
   }
 
   /* ═══ 10. NESSUN DATO FUORI, NESSUNA CHIAMATA ESTERNA ═══════════════════ */
+  gruppo("PRENOTA · ORCHESTRATORE · IL CONTATORE È UNA RIGA SUA");
+  {
+    //  Una proposta nuova scritta da un altro giro mentre questo conta la chiamata non si perde.
+    const m = mondo();
+    const k = await m.chiaveProposta();
+    const nuova = {
+      v: 1,
+      il: ADESSO.toISOString(),
+      fascia: "sera",
+      fasciaChiesta: "sera",
+      pagina: 1,
+      proposte: [{ g: "2026-10-30", o: "17:00" }],
+      mostrati: [{ g: "2026-10-30", o: "17:00" }],
+    };
+    m.prima = async (nome) => {
+      if (nome === "scriviContatore") {
+        m.prima = null;
+        m.righe.set(k, JSON.stringify(nuova)); // l'altro giro scrive la sua proposta proprio ora
+      }
+    };
+    const r = await ris(m, corpoTesto("ALTRI"));
+    //  La proposta si legge DOPO il contatore: «ALTRI» vede quella nuova, non una letta prima.
+    c("«ALTRI» vede la proposta scritta un attimo prima: pagina 2, senza ripetere quell'orario", ["proposte3", 2, nuova.mostrati[0], true], [r.esito, m.riga(k).pagina, m.riga(k).mostrati[0], !m.riga(k).proposte.some((p) => p.g === "2026-10-30" && p.o === "17:00")]);
+    c("…il contatore è nella sua riga, la proposta non lo porta", [1, false], [m.riga(k + ":n").n, Object.hasOwn(m.riga(k), "chiamate")]);
+    c("…e di righe «:n» ce n'è una sola", [k + ":n"], m.chiavi("prenota_chat:").filter((x) => x.endsWith(":n")));
+  }
+
   gruppo("PRENOTA · ORCHESTRATORE · NESSUN DATO NEI TESTI, NEI LOG, NELLE CHIAVI");
   {
     const tutto = dettoIn.join("\n");

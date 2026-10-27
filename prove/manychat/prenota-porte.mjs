@@ -66,6 +66,7 @@ function creaDbFinto() {
   const stato = {
     guasto: null, // (tabella, op, catena) => vero: la richiesta risponde con un errore
     prima: null, // (tabella, op, catena) => void: gira PRIMA di una scrittura
+    persaDopo: null, // (tabella, op, catena) => vero: l'INSERT riesce, ma la risposta è un errore
     rpc: {}, // nome → risposta
     mescola: false,
     tick: 0,
@@ -188,6 +189,8 @@ function creaDbFinto() {
         if (tabella === "app_config" && righe.some((r) => r.key === carico.key))
           return { data: null, error: { code: "23505", message: "duplicato" } };
         righe.push(copia(carico));
+        //  La richiesta riesce ma la risposta si perde (timeout dopo l'INSERT).
+        if (stato.persaDopo && stato.persaDopo(tabella, op, catena)) return errore("57014");
         return { data: null, error: null };
       }
       if (op === "upsert") {
@@ -1055,7 +1058,6 @@ export async function proveDellePortePrenota(mod, aiuti) {
         pagina: 1,
         proposte: [{ g: "2026-10-28", o: "18:00" }],
         mostrati: [{ g: "2026-10-28", o: "18:00" }],
-        chiamate: { ora: "2026-10-27T11", n: 1 },
       };
       const k = "prenota_chat:0123456789abcdef0123456789abcdef";
       c("proposta: senza riga", null, await porte.proposta(k));
@@ -1086,10 +1088,34 @@ export async function proveDellePortePrenota(mod, aiuti) {
         ["pagina 4", JSON.stringify({ ...riga, pagina: 4 })],
         ["proposte non lista", JSON.stringify({ ...riga, proposte: "x" })],
         ["un orario senza ora", JSON.stringify({ ...riga, mostrati: [{ g: "2026-10-28" }] })],
-        ["contatore senza numero", JSON.stringify({ ...riga, chiamate: { ora: "x" } })],
       ]) {
         db.tabelle.app_config[0].value = v;
         c(`proposta storta (${nome}): nessuna proposta aperta`, null, await porte.proposta(k));
+      }
+
+      //  il contatore: una riga sua, separata dalla proposta
+      const kn = k + ":n";
+      c("contatore: senza riga", null, await porte.contatore(kn));
+      await porte.scriviContatore(kn, { ora: "2026-10-27T11", n: 3 });
+      c("contatore: scritto e riletto", { ora: "2026-10-27T11", n: 3 }, await porte.contatore(kn));
+      await porte.scriviContatore(kn, { ora: "2026-10-27T11", n: 4 });
+      c(
+        "contatore: riga sola, e la proposta non si tocca",
+        [1, 1, 2],
+        [
+          db.tabelle.app_config.filter((r) => r.key === kn).length,
+          db.tabelle.app_config.filter((r) => r.key === k).length,
+          db.tabelle.app_config.length,
+        ],
+      );
+      for (const [nome, v] of [
+        ["testo non json", "ciao"],
+        ["senza ora", JSON.stringify({ n: 1 })],
+        ["n non numero", JSON.stringify({ ora: "x", n: "uno" })],
+        ["un numero", "5"],
+      ]) {
+        db.tabelle.app_config.find((r) => r.key === kn).value = v;
+        c(`contatore storto (${nome}): riparte da zero`, null, await porte.contatore(kn));
       }
 
       //  stanza
@@ -1253,6 +1279,22 @@ export async function proveDellePortePrenota(mod, aiuti) {
       await porte.lucchetto.lascia(K, "mai-preso");
       c("lascia di ciò che non ha preso: nessuna richiesta", 0, db.registro.length);
 
+      // l'INSERT riesce e la risposta si perde: `prendi` lancia, ma `lascia` toglie la riga
+      ({ db, porte } = mondo());
+      db.stato.persaDopo = (t, op) => t === "app_config" && op === "insert";
+      c("risposta persa dopo l'INSERT: prendi lancia", "57014", (await lanciato(() => porte.lucchetto.prendi(K, "a", 20000)))?.code);
+      c("…ma la riga c'è (era scritta davvero)", "a", JSON.parse(riga(db).value).di);
+      db.stato.persaDopo = null;
+      await porte.lucchetto.lascia(K, "a");
+      c("…e lascia la toglie, col valore esatto", undefined, riga(db));
+      // occupato da un altro: nulla da rilasciare, e la riga dell'altro non si tocca
+      ({ db, porte } = mondo());
+      db.tabelle.app_config.push(config(K, dellAltro));
+      c("occupato: prendi dice no", false, await porte.lucchetto.prendi(K, "a", 20000));
+      db.registro.length = 0;
+      await porte.lucchetto.lascia(K, "a");
+      c("…lascia non fa nessuna richiesta (non l'ha preso)", [0, dellAltro], [db.registro.length, riga(db).value]);
+
       // chiavi diverse, lucchetti diversi (lead / consulente+giorno)
       ({ db, porte } = mondo());
       const K2 = "prenota_chat_lock:c1:2026-10-28";
@@ -1294,6 +1336,8 @@ export async function proveDellePortePrenota(mod, aiuti) {
         scriviScheda: () => porte.scriviScheda(U, idLead(1), "T1", { nome: "X" }),
         proposta: () => porte.proposta("prenota_chat:abc"),
         scriviProposta: () => porte.scriviProposta("prenota_chat:abc", {}),
+        contatore: () => porte.contatore("prenota_chat:abc:n"),
+        scriviContatore: () => porte.scriviContatore("prenota_chat:abc:n", { ora: "x", n: 1 }),
         "stanza.leggi": () => porte.stanza.leggi("meet:x"),
         "stanza.scrivi": () => porte.stanza.scrivi("meet:x", "{}"),
         "stanza.elimina": () => porte.stanza.elimina("meet:x"),

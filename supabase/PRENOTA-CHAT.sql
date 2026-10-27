@@ -98,11 +98,13 @@ SELECT key, value, updated_at
 
 
 -- 7 · QUANTI NUMERI HANNO UNA PROPOSTA APERTA (una riga per numero, la chiave
---     porta l'impronta del numero e non il numero; qui si conta soltanto).
+--     porta l'impronta del numero e non il numero; qui si conta soltanto; il
+--     contatore delle chiamate è una riga a parte, che finisce con «:n»).
 SELECT count(*) AS proposte_ricordate
   FROM public.app_config
  WHERE starts_with(key, 'prenota_chat:')
-   AND NOT starts_with(key, 'prenota_chat_lock:');
+   AND NOT starts_with(key, 'prenota_chat_lock:')
+   AND NOT ends_with(key, ':n');
 
 
 -- PER TORNARE INDIETRO

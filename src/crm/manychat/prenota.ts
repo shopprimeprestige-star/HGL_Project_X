@@ -33,7 +33,7 @@
 import { aRoma, minutiAlla } from "../promemoria/formati";
 import type { Consultant, Lead, LeadData } from "../types";
 import { capisciRisposta } from "./prenota-parole";
-import { ancoraLibero, giorniFinestra, proponi, scegliConsulente } from "./prenota-orari";
+import { ancoraLibero, proponi, scegliConsulente } from "./prenota-orari";
 import {
   appuntamentoFuturo,
   cambioRicontatto,
@@ -150,9 +150,8 @@ interface Base {
 interface Ctx extends Base {
   /** la chiave della riga di proposta del numero */
   chiave: string;
-  /** la riga com'era all'inizio (con il contatore già aggiornato in `chiamate`) */
+  /** la proposta ricordata, com'era all'inizio */
   riga: RigaProposta | null;
-  chiamate: { ora: string; n: number };
 }
 
 /** Solo il codice di un errore: il messaggio può contenere dati del cliente. */
@@ -301,7 +300,6 @@ async function mostra(
     pagina,
     proposte: p.proposte,
     mostrati: [...mostratiPrima, ...p.proposte],
-    chiamate: c.chiamate,
   });
   const testo = TESTI[tipo]({
     nome: nomeDi(c),
@@ -339,7 +337,7 @@ async function altri(c: Ctx): Promise<RispostaPrenota> {
   const p = pagina <= 3 ? proposteDa(c, agenda, riga.fascia, riga.mostrati) : null;
   if (!p || p.finiti) {
     //  Finiti: la proposta non è più aperta, un altro ALTRI non rifà niente.
-    await c.porte.scriviProposta(c.chiave, { ...riga, proposte: [], chiamate: c.chiamate });
+    await c.porte.scriviProposta(c.chiave, { ...riga, proposte: [] });
     return daRicontattare(
       c,
       "prenota_altri_finiti",
@@ -452,8 +450,12 @@ async function dentroIlLead(c: Ctx, scelto: OraProposta): Promise<RispostaPrenot
       if (t > 0) await c.porte.attesa(PAUSA_LUCCHETTO_MS);
       preso = await prendiLucchetto(c.porte, chiave, di);
     }
-    //  Un altro lead sta prenotando quel consulente in quel giorno.
-    if (!preso) return nuoveProposte(c, "preso", agenda);
+    //  Un altro lead sta prenotando quel consulente in quel giorno (forse un'altra
+    //  ora): si prova il collega successivo, come per lo slot pieno.
+    if (!preso) {
+      scartati.add(consulente.id);
+      continue;
+    }
     try {
       //  Dentro il lucchetto: letture fresche e di nuovo la stessa domanda.
       agenda = await leggiAgenda(c);
@@ -693,36 +695,20 @@ async function tratta(
 
   try {
     //  6. Il limite: 30 chiamate l'ora per numero, contate solo qui (i messaggi
-    //     non capiti non arrivano fin qui). La riga è quella della proposta.
-    //     shortcut: lettura e scrittura non sono atomiche; due richieste
-    //     insieme possono contarsi una sola volta. Basta per fermare i giri a
-    //     vuoto; da cambiare se serve un limite esatto.
+    //     non capiti non arrivano fin qui). Il contatore è una riga SUA, separata
+    //     dalla proposta: scriverlo non può rimettere una proposta vecchia sopra
+    //     una nuova. shortcut: lettura e scrittura del contatore non sono
+    //     atomiche; due richieste insieme possono contarsi una sola volta.
+    //     Basta per fermare i giri a vuoto; da cambiare se serve un limite esatto.
     const chiave = prefissoProposta + (await improntaNumero(tel, r.segreto));
-    const riga = await porte.proposta(chiave);
+    const chiaveContatore = `${chiave}:n`;
+    const contatore = await porte.contatore(chiaveContatore);
     const ora = aRoma(adesso);
     const oraChiave = `${ora.giorno}T${due(Math.floor(ora.minuti / 60))}`;
-    const n = riga?.chiamate?.ora === oraChiave ? riga.chiamate.n : 0;
+    const n = contatore?.ora === oraChiave ? contatore.n : 0;
     if (n >= MAX_CHIAMATE_ORA) return nessuno("limite");
-    const chiamate = { ora: oraChiave, n: n + 1 };
-    await porte.scriviProposta(
-      chiave,
-      riga
-        ? { ...riga, chiamate }
-        : {
-            v: 1,
-            il: "",
-            fascia: "sera",
-            fasciaChiesta: "sera",
-            pagina: 1,
-            proposte: [],
-            mostrati: [],
-            chiamate,
-          },
-    );
-    return await agisci(
-      { ...base, chiave, riga: riga ? { ...riga, chiamate } : null, chiamate },
-      intento,
-    );
+    await porte.scriviContatore(chiaveContatore, { ora: oraChiave, n: n + 1 });
+    return await agisci({ ...base, chiave, riga: await porte.proposta(chiave) }, intento);
   } catch (e) {
     //  7. Un errore dopo un tocco: messaggio gentile e «Da ricontattare» perché
     //     la setter lo veda. Dopo un testo semplice: silenzio (mai a metà).

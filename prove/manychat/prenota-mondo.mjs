@@ -239,6 +239,15 @@ export function creaMondo(mod, opz = {}) {
       m.righe.set(chiave, JSON.stringify(riga));
       scrive("scriviProposta", chiave);
     }),
+    //  Il contatore è una riga SUA (`<chiave proposta>:n`).
+    contatore: op("contatore", async (chiave) => {
+      const g = m.righe.get(chiave);
+      return g ? JSON.parse(g) : null;
+    }),
+    scriviContatore: op("scriviContatore", async (chiave, contatore) => {
+      m.righe.set(chiave, JSON.stringify(contatore));
+      scrive("scriviContatore", chiave);
+    }),
     lucchetto: {
       prendi: op("lucchetto.prendi", async (chiave, di, scadeMs) => {
         const g = m.righe.get(chiave);
@@ -250,6 +259,9 @@ export function creaMondo(mod, opz = {}) {
         scrive("lucchetto.prendi", chiave);
         return true;
       }),
+      //  Come la porta vera: `lascia` toglie la riga se è del proprio `di`, anche
+      //  quando `prendi` ha scritto e poi ha lanciato (la porta vera ricorda il
+      //  valore PRIMA dell'INSERT).
       lascia: op("lucchetto.lascia", async (chiave, di) => {
         const g = m.righe.get(chiave);
         if (g && JSON.parse(g).di === di) {

@@ -28,6 +28,7 @@ import {
   CHIAVE_CONFIG,
   FASCE,
   leggiConfigPrenota,
+  type Contatore,
   type OraProposta,
   type PortePrenota,
   type RigaProposta,
@@ -134,11 +135,22 @@ function comeRigaProposta(testo: string | null): RigaProposta | null {
     Object.hasOwn(FASCE, r.fasciaChiesta) &&
     (r.pagina === 1 || r.pagina === 2 || r.pagina === 3) &&
     eLista(r.proposte) &&
-    eLista(r.mostrati) &&
-    !!r.chiamate &&
-    typeof r.chiamate.ora === "string" &&
-    Number.isFinite(r.chiamate.n);
+    eLista(r.mostrati);
   return ok ? (r as RigaProposta) : null;
+}
+
+/** Il contatore delle chiamate (riga sua, `<chiave proposta>:n`), o `null` se
+ *  manca o non si legge: un contatore storto riparte da zero. */
+function comeContatore(testo: string | null): Contatore | null {
+  if (!testo) return null;
+  try {
+    const j = JSON.parse(testo) as Partial<Contatore> | null;
+    return j && typeof j.ora === "string" && Number.isFinite(j.n)
+      ? { ora: j.ora, n: Number(j.n) }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Le porte vere della prenotazione in chat. Una per richiesta: i lucchetti
@@ -277,6 +289,8 @@ export function portePrenota(): PortePrenota {
 
     proposta: async (chiave) => comeRigaProposta(await leggiRiga(chiave)),
     scriviProposta: (chiave, riga) => scriviRiga(chiave, JSON.stringify(riga)),
+    contatore: async (chiave) => comeContatore(await leggiRiga(chiave)),
+    scriviContatore: (chiave, contatore) => scriviRiga(chiave, JSON.stringify(contatore)),
 
     //  ── Il lucchetto ──
     //  PRENDI: INSERT di `{di, fino}`. La chiave primaria lo rende atomico: chi
@@ -286,14 +300,20 @@ export function portePrenota(): PortePrenota {
     lucchetto: {
       prendi: async (chiave, di, scadeMs) => {
         const valore = JSON.stringify({ di, fino: new Date(Date.now() + scadeMs).toISOString() });
+        const k = chiave + "\n" + di;
+        //  ⚠️ Si ricorda PRIMA di scrivere: se l'INSERT riesce e la risposta si
+        //  perde (prendi lancia), `lascia` può comunque togliere la riga. Si
+        //  dimentica solo quando è CERTO che non l'abbiamo scritta (23505, o
+        //  l'UPDATE che non ha toccato niente); su un errore dubbio resta.
+        const precedente = presi.get(k);
+        const dimentica = () =>
+          precedente === undefined ? presi.delete(k) : presi.set(k, precedente);
+        presi.set(k, valore);
         for (let tentativo = 0; tentativo < 2; tentativo++) {
           const { error } = await db()
             .from("app_config")
             .insert({ key: chiave, value: valore, updated_at: new Date().toISOString() });
-          if (!error) {
-            presi.set(chiave + "\n" + di, valore);
-            return true;
-          }
+          if (!error) return true;
           if (error.code !== "23505") return lancia(error);
           const attuale = await leggiRiga(chiave);
           //  Rilasciato un attimo fa: si riprova l'INSERT (una volta sola).
@@ -305,7 +325,10 @@ export function portePrenota(): PortePrenota {
             //  illeggibile = scaduto: un lucchetto che nessuno sa leggere non
             //  deve restare per sempre
           }
-          if (fino > Date.now()) return false;
+          if (fino > Date.now()) {
+            dimentica();
+            return false;
+          }
           const { data, error: e2 } = await db()
             .from("app_config")
             .update({ value: valore, updated_at: new Date().toISOString() })
@@ -313,12 +336,11 @@ export function portePrenota(): PortePrenota {
             .eq("value", attuale)
             .select<{ key: string }[]>("key");
           if (e2) return lancia(e2);
-          if (data && data.length > 0) {
-            presi.set(chiave + "\n" + di, valore);
-            return true;
-          }
+          if (data && data.length > 0) return true;
+          dimentica();
           return false;
         }
+        dimentica();
         return false;
       },
       //  LASCIA: DELETE sul valore ESATTO scritto da `prendi`. Se il lucchetto è
