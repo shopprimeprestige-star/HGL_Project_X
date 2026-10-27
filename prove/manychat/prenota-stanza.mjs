@@ -51,6 +51,7 @@ function mondo(iniziale = {}) {
   const righe = new Map(Object.entries(iniziale));
   const registro = [];
   let guasto = null;
+  let scriviPoiLancia = null;
   const rompi = (op, chiave) => {
     if (guasto && guasto(op, chiave)) throw { code: "guasto_finto" };
   };
@@ -59,6 +60,10 @@ function mondo(iniziale = {}) {
     registro,
     rompiSe: (f) => {
       guasto = f;
+    },
+    /** Una porta che SCRIVE e poi lancia (la risposta si perde dopo l'INSERT). */
+    scriviPoiLanciaSe: (f) => {
+      scriviPoiLancia = f;
     },
     porte: {
       async leggi(chiave) {
@@ -69,6 +74,7 @@ function mondo(iniziale = {}) {
         rompi("scrivi", chiave);
         righe.set(chiave, valore);
         registro.push(["scrivi", chiave]);
+        if (scriviPoiLancia && scriviPoiLancia(chiave)) throw { code: "risposta_persa" };
       },
       async elimina(chiave) {
         rompi("elimina", chiave);
@@ -374,6 +380,44 @@ export async function proveDellaStanzaPrenota(mod, { c, gruppo, radice }) {
       m.rompiSe(null);
       await r.annulla();
       c("…e annulla toglie quello che c'è", [], foto(m));
+    }
+    {
+      // La porta scrive la fascia e poi lancia: nessuna riga orfana.
+      const m = mondo({ altra: "riga" });
+      const prima = foto(m);
+      m.scriviPoiLanciaSe((k) => k.startsWith("fascia:"));
+      let lanciato = false;
+      try {
+        await S.assicuraStanza(m.porte, IN);
+      } catch {
+        lanciato = true;
+      }
+      c("fascia scritta e poi errore: lancia", true, lanciato);
+      c("…e non resta nessuna riga fascia: orfana", true, identiche(prima, foto(m)));
+    }
+    {
+      // La porta scrive gli attesi e poi lancia: non fa fallire, ma annulla non lascia il lead fra gli attesi.
+      const m = mondo({ altra: "riga" });
+      const prima = foto(m);
+      m.scriviPoiLanciaSe((k) => k.startsWith("attesi:"));
+      const r = await S.assicuraStanza(m.porte, IN);
+      c("attesi scritti e poi errore: non fa fallire", true, FORMA.test(r.code));
+      c("…gli attesi ci sono (la scrittura è avvenuta)", true, [...m.righe.keys()].some((k) => k.startsWith("attesi:")));
+      m.scriviPoiLanciaSe(null);
+      await r.annulla();
+      c("…annulla non lascia il lead fra gli attesi", true, identiche(prima, foto(m)));
+    }
+    {
+      // La porta scrive la copia per consulente e poi lancia: la storica già scritta e la copia vanno via.
+      const m = mondo();
+      m.scriviPoiLanciaSe((k) => k === K_COPPIA);
+      let lanciato = false;
+      try {
+        await S.assicuraStanza(m.porte, IN);
+      } catch {
+        lanciato = true;
+      }
+      c("copia scritta e poi errore: lancia e non resta niente", "true|0", `${lanciato}|${m.righe.size}`);
     }
     {
       // Errore in LETTURA di una riga della stanza: lancia, niente scritto.

@@ -64,17 +64,8 @@ const STATI_PRENOTABILI: string[] = [
 ];
 
 /** La storia è finita (o la persona non c'è più): nessun messaggio, la risposta
- *  va alla setter. «non_interessato» e «perso» sono i nomi della SPEC: in
- *  `LeadStatus` oggi sono «annullato» e «perdi_tempo»; restano qui per un
- *  archivio importato con parole diverse. */
-const STATI_CHIUSI: string[] = [
-  "annullato",
-  "perdi_tempo",
-  "concluso",
-  "ripensamento",
-  "non_interessato",
-  "perso",
-];
+ *  va alla setter. Solo valori che esistono in `LeadStatus`. */
+const STATI_CHIUSI: string[] = ["annullato", "perdi_tempo", "concluso", "ripensamento"];
 
 const testo = (v: unknown): string => String(v ?? "").trim();
 

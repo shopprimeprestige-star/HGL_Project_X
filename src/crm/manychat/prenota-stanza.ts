@@ -113,11 +113,15 @@ export async function assicuraStanza(porte: PorteStanza, i: InputStanza): Promis
     }
     if (fallito) throw primoErrore;
   };
-  /** Scrive solo se il valore cambia, e ricorda com'era. */
+  /** Scrive solo se il valore cambia, e ricorda com'era.
+   *  ⚠️ SI RICORDA PRIMA DI SCRIVERE: una porta può scrivere e poi lanciare (la
+   *   risposta si perde dopo l'INSERT). Rimettere il valore di prima è
+   *   innocuo anche se la scrittura non è mai avvenuta; non rimetterlo
+   *   lascerebbe una riga orfana. */
   const scrivi = async (chiave: string, prima: string | null, valore: string): Promise<void> => {
     if (prima === valore) return;
-    await porte.scrivi(chiave, valore);
     registro.push({ chiave, prima });
+    await porte.scrivi(chiave, valore);
   };
 
   try {

@@ -119,8 +119,9 @@ export async function proveDellaSchedaPrenota(mod, { c, gruppo, radice }) {
     ["perdi_tempo", "chiuso"],
     ["concluso", "chiuso"],
     ["ripensamento", "chiuso"],
-    ["non_interessato", "chiuso"],
-    ["perso", "chiuso"],
+    // I nomi della SPEC che in LeadStatus non esistono (oggi «annullato» e «perdi_tempo»): fail-closed.
+    ["non_interessato", "stato"],
+    ["perso", "stato"],
     ["in_attesa_acconto", "stato"],
     ["irreperibile", "stato"],
     ["viene_in_sede", "stato"],
