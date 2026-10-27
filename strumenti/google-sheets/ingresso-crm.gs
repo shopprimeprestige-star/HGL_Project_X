@@ -17,12 +17,22 @@
  *   SCHEDA      = nome della scheda con i lead (facoltativo: senza, la prima)
  *   OGNI_MINUTI = 5 per il giro di sicurezza ogni 5 minuti; assente o altro valore: 1 (vedi la guida)
  *
+ * ⚠️ LA SCHEDA DI META NON SI TOCCA (27/10/2026). Una colonna in più nella riga dei
+ * titoli confonde l'integrazione di Meta: ha scritto il lead nuovo SOPRA i titoli e
+ * spostato «id» in fondo. Per questo i segni degli invii stanno in una scheda a
+ * parte, «Invii al CRM» (chiave · ultimo invio · esito), e la riga dei titoli si
+ * cerca (la prima delle prime 20 che contiene «created_time»), non si dà per
+ * scontato che sia la riga 1.
+ *
  * Da lanciare a mano, in quest'ordine:
  *   1. segnaGiaPresenti  (solo se nel foglio ci sono già righe che NON vuoi mandare)
  *   2. installa
  * Per spegnere tutto: disinstalla.
  */
-var COLONNA_INVIO = 'Inviato al CRM';
+var SCHEDA_SEGNI = 'Invii al CRM';
+var COLONNA_VECCHIA = 'Inviato al CRM';   // la colonna di prima: se c'è ancora, non viaggia
+var TITOLO_GUIDA = 'created_time';        // la riga dei titoli è quella che lo contiene
+var MAX_RIGHE_TITOLI = 20;
 var MAX_RIGHE_PER_GIRO = 20;
 var MAX_MS = 4 * 60 * 1000;          // Apps Script si ferma a 6 minuti
 var MAX_CELLA = 1000;                // il CRM rifiuta celle più lunghe
@@ -46,8 +56,10 @@ function controllaProprieta_() {
 /** Mette i trigger e fa il primo giro. Si può rilanciare: non raddoppia niente. */
 function installa() {
   var c = controllaProprieta_();
-  var sh = scheda_(c.id), col = colonnaInvio_(sh);
-  if (!prop_().getProperty('GIA_PRESENTI_FATTO') && contaSenzaSegno_(sh, col) > MAX_RIGHE_SENZA_SEGNO) {
+  var sh = scheda_(c.id), letto = leggi_(sh), segni = segni_(sh.getParent());
+  if (!letto) throw new Error('Nella scheda non trovo la riga dei titoli (quella con «' + TITOLO_GUIDA + '»).');
+  travasaVecchi_(letto, segni);
+  if (!prop_().getProperty('GIA_PRESENTI_FATTO') && senzaSegno_(letto, segni).length > MAX_RIGHE_SENZA_SEGNO) {
     throw new Error('Ci sono più di ' + MAX_RIGHE_SENZA_SEGNO + ' righe senza segno: lancia prima segnaGiaPresenti ' +
       '(oppure, se vuoi davvero mandarle tutte, imposta la proprietà GIA_PRESENTI_FATTO = si).');
   }
@@ -75,12 +87,11 @@ function giroDiSicurezza() { invia_(); }
 /** Segna come già presenti le righe che ci sono adesso, senza inviarle. */
 function segnaGiaPresenti() {
   var c = controllaProprieta_();
-  var sh = scheda_(c.id), col = colonnaInvio_(sh), ultima = sh.getLastRow();
-  if (ultima >= 2) {
-    var r = sh.getRange(2, col, ultima - 1, 1), v = r.getValues();
-    for (var i = 0; i < v.length; i++) if (!v[i][0]) v[i][0] = 'già presente prima del collegamento';
-    r.setValues(v);
-  }
+  var sh = scheda_(c.id), letto = leggi_(sh), segni = segni_(sh.getParent());
+  if (letto) travasaVecchi_(letto, segni);
+  if (letto) senzaSegno_(letto, segni).forEach(function (r) {
+    scriviSegno_(segni, impronta_(r.valori), 'già presente prima del collegamento');
+  });
   prop_().setProperty('GIA_PRESENTI_FATTO', 'si');
 }
 
@@ -90,19 +101,103 @@ function scheda_(id) {
   return (nome && ss.getSheetByName(nome)) || ss.getSheets()[0];
 }
 
-/** La colonna del segno: se non c'è, la aggiunge in fondo all'intestazione. */
-function colonnaInvio_(sh) {
-  var larg = Math.max(sh.getLastColumn(), 1);
-  var intest = sh.getRange(1, 1, 1, larg).getDisplayValues()[0];
-  for (var i = 0; i < intest.length; i++) if (String(intest[i]).trim() === COLONNA_INVIO) return i + 1;
-  sh.getRange(1, larg + 1).setValue(COLONNA_INVIO);
-  return larg + 1;
+/** La scheda dei segni, a parte da quella di Meta. Se non c'è la crea in fondo. */
+function segni_(ss) {
+  var sh = ss.getSheetByName(SCHEDA_SEGNI);
+  if (!sh) {
+    sh = ss.insertSheet(SCHEDA_SEGNI, ss.getSheets().length);
+    sh.getRange(1, 1, 1, 3).setValues([['Chiave', 'Ultimo invio', 'Esito']]);
+  }
+  var mappa = {}, ultima = sh.getLastRow();
+  if (ultima >= 2) {
+    sh.getRange(2, 1, ultima - 1, 1).getDisplayValues().forEach(function (r, i) {
+      var k = String(r[0]).trim();
+      if (k) mappa[k] = i + 2;
+    });
+  }
+  return { sh: sh, mappa: mappa };
 }
 
-function contaSenzaSegno_(sh, col) {
-  var ultima = sh.getLastRow();
-  if (ultima < 2) return 0;
-  return sh.getRange(2, col, ultima - 1, 1).getDisplayValues().filter(function (r) { return !String(r[0]).trim(); }).length;
+function scriviSegno_(segni, chiave, testo) {
+  var riga = segni.mappa[chiave];
+  if (riga) segni.sh.getRange(riga, 2, 1, 2).setValues([[ora_(), testo]]);
+  else {
+    segni.sh.appendRow([chiave, ora_(), testo]);
+    segni.mappa[chiave] = segni.sh.getLastRow();
+  }
+  prop_().deleteProperty('t|' + chiave);
+}
+
+/** Tutta la scheda in una lettura: la riga dei titoli (cercata) e le righe dei lead,
+ *  sopra o sotto i titoli. Una seconda riga di titoli non è un lead. */
+function leggi_(sh) {
+  var ultima = sh.getLastRow(), larg = sh.getLastColumn();
+  if (ultima < 1 || larg < 1) return null;
+  var grezzi = sh.getRange(1, 1, ultima, larg).getValues();
+  var mostrati = sh.getRange(1, 1, ultima, larg).getDisplayValues();
+  var titoli = -1;
+  for (var t = 0; t < Math.min(ultima, MAX_RIGHE_TITOLI); t++) {
+    if (eRigaTitoli_(mostrati[t])) { titoli = t; break; }
+  }
+  if (titoli < 0) return null;
+  var intest = mostrati[titoli], usate = [], intestazioni = [], vecchia = -1;
+  for (var j = 0; j < larg; j++) {
+    var nome = String(intest[j]).trim();
+    if (nome === COLONNA_VECCHIA) { vecchia = j; continue; }   // la colonna dei segni di prima non viaggia
+    usate.push(j);
+    intestazioni.push(nome.slice(0, MAX_CELLA));
+  }
+  //  Il titolo «id» spostato da Meta (27/10: A vuota, «id» in fondo su una colonna vuota):
+  //  la colonna senza titolo che contiene codici l:… è «id», e un «id» senza valori non viaggia.
+  var colId = -1, idVuoti = [];
+  usate.forEach(function (j, k) {
+    var codici = 0, piene = 0;
+    for (var i = 0; i < ultima; i++) {
+      if (i === titoli || eRigaTitoli_(mostrati[i])) continue;
+      var v = String(mostrati[i][j]).trim();
+      if (!v) continue;
+      piene++;
+      if (/^l:\d{6,}$/.test(v)) codici++;
+    }
+    if (!intestazioni[k] && codici > 0 && codici * 2 >= piene) colId = k;
+    if (intestazioni[k].toLowerCase() === 'id' && piene === 0) idVuoti.push(k);
+  });
+  if (colId >= 0) {
+    intestazioni[colId] = 'id';
+    usate = usate.filter(function (_, k) { return idVuoti.indexOf(k) < 0; });
+    intestazioni = intestazioni.filter(function (_, k) { return idVuoti.indexOf(k) < 0; });
+  }
+  var righe = [];
+  for (var i = 0; i < ultima; i++) {
+    if (i === titoli || eRigaTitoli_(mostrati[i])) continue;
+    var valori = [], piena = false;
+    usate.forEach(function (j) {
+      var v = cella_(grezzi[i][j], mostrati[i][j]);
+      if (v.trim()) piena = true;
+      valori.push(v);
+    });
+    //  il segno della colonna di prima, se c'è: vale come «già inviato» (vedi travasaVecchi_)
+    if (piena) righe.push({ riga: i + 1, valori: valori, vecchio: vecchia >= 0 ? String(mostrati[i][vecchia]).trim() : '' });
+  }
+  return { intestazioni: intestazioni, righe: righe };
+}
+
+function eRigaTitoli_(riga) {
+  for (var j = 0; j < riga.length; j++) if (String(riga[j]).trim().toLowerCase() === TITOLO_GUIDA) return true;
+  return false;
+}
+
+/** I segni della colonna «Inviato al CRM» di prima passano nella scheda dei segni, senza
+ *  inviare niente: chi aveva già lo script non rimanda tutto lo storico. */
+function travasaVecchi_(letto, segni) {
+  letto.righe.forEach(function (r) {
+    var k = impronta_(r.valori);
+    if (r.vecchio && !segni.mappa[k]) scriviSegno_(segni, k, r.vecchio.replace(/^[\d\/: ]+· /, ''));
+  });
+}
+
+function senzaSegno_(letto, segni) {
+  return letto.righe.filter(function (r) { return !segni.mappa[impronta_(r.valori)]; });
 }
 
 /** Una cella com'è davvero: la data in ISO (UTC), un numero intero con tutte le cifre. */
@@ -113,37 +208,12 @@ function cella_(grezzo, mostrato) {
   return String(mostrato == null ? '' : mostrato).slice(0, MAX_CELLA);
 }
 
-/** Chi è questa riga: l'id Meta (l:…) se c'è, altrimenti tutte le celle unite. Serve a non
- *  scrivere il segno su un'altra riga se qualcuno ha ordinato il foglio nel frattempo,
- *  e a contare i tentativi. */
+/** Chi è questa riga: l'id Meta (l:…) se c'è, altrimenti tutte le celle unite. È la
+ *  chiave della scheda dei segni: non dipende da dove sta la riga. */
 function impronta_(valori) {
   for (var i = 0; i < valori.length; i++) if (/^l:\d{6,}$/.test(valori[i])) return valori[i];
   var d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, valori.join('\u241f'));
   return 'h:' + Utilities.base64EncodeWebSafe(d).slice(0, 22);
-}
-
-function rigaDi_(sh, larg, col, riga, intest) {
-  var grezzi = sh.getRange(riga, 1, 1, larg).getValues()[0];
-  var mostrati = sh.getRange(riga, 1, 1, larg).getDisplayValues()[0];
-  var intestazioni = [], valori = [], piena = false;
-  for (var j = 0; j < larg; j++) {
-    if (j === col - 1) continue;                       // la colonna del segno non viaggia
-    intestazioni.push(String(intest[j]).slice(0, MAX_CELLA));
-    var v = cella_(grezzi[j], mostrati[j]);
-    if (v.trim()) piena = true;
-    valori.push(v);
-  }
-  return { intestazioni: intestazioni, valori: valori, piena: piena, segno: String(mostrati[col - 1]).trim() };
-}
-
-function segna_(sh, larg, col, riga, intest, impronta, testo) {
-  // Prima di scrivere, la riga è ancora la stessa? Se no, niente segno: al prossimo giro
-  // la riga giusta si rimanda e il CRM risponde «già ricevuto», senza doppioni.
-  var adesso = rigaDi_(sh, larg, col, riga, intest);
-  if (impronta_(adesso.valori) !== impronta) return false;
-  sh.getRange(riga, col).setValue(ora_() + ' · ' + testo);
-  prop_().deleteProperty('t|' + impronta);
-  return true;
 }
 
 function invia_() {
@@ -152,27 +222,24 @@ function invia_() {
   try {
     var c;
     try { c = controllaProprieta_(); } catch (x) { console.error(x.message); return; }
-    var sh = scheda_(c.id), col = colonnaInvio_(sh);
-    var ultima = sh.getLastRow(), larg = sh.getLastColumn();
-    if (ultima < 2) return;
-    // Si legge prima SOLO la colonna del segno: costa poco anche ogni minuto.
-    var segni = sh.getRange(2, col, ultima - 1, 1).getDisplayValues();
-    var intest = sh.getRange(1, 1, 1, larg).getDisplayValues()[0];
+    var sh = scheda_(c.id), letto = leggi_(sh);
+    if (!letto) { console.warn('Non trovo la riga dei titoli (' + TITOLO_GUIDA + '): non mando niente'); return; }
+    var segni = segni_(sh.getParent());
+    travasaVecchi_(letto, segni);
+    var daMandare = senzaSegno_(letto, segni);
     var inizio = Date.now(), fatte = 0;
-    for (var i = 0; i < segni.length && fatte < MAX_RIGHE_PER_GIRO; i++) {
+    for (var i = 0; i < daMandare.length && fatte < MAX_RIGHE_PER_GIRO; i++) {
       if (Date.now() - inizio > MAX_MS) break;
-      if (String(segni[i][0]).trim()) continue;
-      var riga = i + 2;
-      var r = rigaDi_(sh, larg, col, riga, intest);
-      if (!r.piena || r.segno) continue;
-      var impronta = impronta_(r.valori);
+      var r = daMandare[i], impronta = impronta_(r.valori);
       var corpo = JSON.stringify({
         versione: 1,
         foglio: { id: c.id, nome: sh.getParent().getName().slice(0, 100), scheda: sh.getName().slice(0, 100) },
-        riga: riga, intestazioni: r.intestazioni, valori: r.valori
+        //  il CRM vuole riga ≥ 2 (la 1 sono i titoli): un lead scritto da Meta SOPRA i
+        //  titoli è in riga 1, e con 1 il CRM lo rifiuterebbe (400) e andrebbe perso
+        riga: Math.max(2, r.riga), intestazioni: letto.intestazioni, valori: r.valori
       });
       if (Utilities.newBlob(corpo).getBytes().length > MAX_CORPO) {
-        segna_(sh, larg, col, riga, intest, impronta, 'non inviata: riga troppo lunga');
+        scriviSegno_(segni, impronta, 'non inviata: riga troppo lunga');
         continue;
       }
       var risposta;
@@ -187,9 +254,9 @@ function invia_() {
       if (codice === 200) {
         var esito = {};
         try { esito = JSON.parse(risposta.getContentText()); } catch (x) {}
-        segna_(sh, larg, col, riga, intest, impronta, frase_(esito));
+        scriviSegno_(segni, impronta, frase_(esito));
       } else if (codice === 400 || codice === 413) {
-        segna_(sh, larg, col, riga, intest, impronta, 'non inviata: ' + (codice === 413 ? 'riga troppo lunga' : 'riga non leggibile'));
+        scriviSegno_(segni, impronta, 'non inviata: ' + (codice === 413 ? 'riga troppo lunga' : 'riga non leggibile'));
       } else if (codice === 401) {
         console.error('Chiave rifiutata dal CRM: controlla CRM_TOKEN');            // non insiste
         break;
@@ -202,7 +269,7 @@ function invia_() {
         // 500: è l'unico codice che il CRM usa per un errore di QUESTA riga. Si conta su di lei
         // e si va avanti con le altre
         var k = 't|' + impronta, n = Number(prop_().getProperty(k) || 0) + 1;
-        if (n >= MAX_TENTATIVI) segna_(sh, larg, col, riga, intest, impronta, 'errore: da guardare (' + codice + ')');
+        if (n >= MAX_TENTATIVI) scriviSegno_(segni, impronta, 'errore: da guardare (' + codice + ')');
         else prop_().setProperty(k, String(n));
       }
     }
