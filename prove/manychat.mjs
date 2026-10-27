@@ -12,6 +12,7 @@
  *   controllo (e fa fallire `npm test` se non torna), `gruppo(titolo)` apre un
  *   blocco, `radice` è la cartella del progetto (per leggere i sorgenti).
  *  ───────────────────────────────────────────────────────────────────────── */
+import { createHmac } from "node:crypto";
 import { proveContatto } from "./manychat/contatto.mjs";
 import { proveRegole } from "./manychat/regole.mjs";
 import { proveQuando } from "./manychat/quando.mjs";
@@ -25,6 +26,15 @@ import { provePannello } from "./manychat/pannello.mjs";
 import { proveSequenze } from "./manychat/sequenze.mjs";
 import { proveStati } from "./manychat/stati.mjs";
 import { proveSequenzeMigrazione } from "./manychat/sequenze-migrazione.mjs";
+import { proveDelleParolePrenota } from "./manychat/prenota-parole.mjs";
+import { proveDegliOrariPrenota } from "./manychat/prenota-orari.mjs";
+import { proveDeiTestiPrenota } from "./manychat/prenota-testi.mjs";
+import { proveDellaSchedaPrenota } from "./manychat/prenota-scheda.mjs";
+import { proveDellaStanzaPrenota } from "./manychat/prenota-stanza.mjs";
+import { proveDellePortePrenota } from "./manychat/prenota-porte.mjs";
+import { proveDellaConcorrenzaPrenota } from "./manychat/prenota-concorrenza.mjs";
+import { proveDellaRottaPrenota } from "./manychat/prenota-rotta.mjs";
+import { proveDellOrchestratorePrenota } from "./manychat/prenota.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -152,8 +162,86 @@ function proveDelloScheletro(mod, { c, gruppo }) {
   c("manychat/stati: espone TABELLA_STATI (un oggetto)", "object", typeof mod["manychat/stati"]?.TABELLA_STATI);
 }
 
+/** Lo scheletro di «Prenota in chat» (commessa 2026-10-27, compito 0): i moduli
+ *  esistono con le firme del piano e i contratti di `prenota-tipi` fanno quello
+ *  che dicono. ⚠️ Controlla solo che le funzioni CI SIANO (`function`), mai che
+ *  siano ancora stub: i compiti dopo il T0 le riempiono senza toccare questa prova. */
+async function proveDelloScheletroPrenota(mod, { c, gruppo }) {
+  gruppo("PRENOTA · LO SCHELETRO (compito 0)");
+  const funzioni = {
+    "manychat/prenota-tipi": ["leggiConfigPrenota", "improntaNumero", "chiaveLucchettoLead", "chiaveLucchettoConsulente"],
+    "manychat/prenota-lettura": ["leggiPaginato"],
+    "manychat/prenota-parole": ["capisciRisposta"],
+    "manychat/prenota-orari": ["giorniFinestra", "consulentiPrenotabili", "slotLiberiDelGiorno", "proponi", "scegliConsulente", "ancoraLibero"],
+    "manychat/prenota-testi": [
+      "testoProposte", "testoConferma", "testoGiaFissato", "testoPreso", "testoVecchia",
+      "testoNessunOrario", "testoAltriFiniti", "testoErrore", "testoOpzioneNonCe", "testoAttesa",
+    ],
+    "manychat/prenota-scheda": ["puoPrenotare", "appuntamentoFuturo", "presaDallaChat", "daPrenotare", "daDisfare", "conNota", "cambioRicontatto"],
+    "manychat/prenota-stanza": ["assicuraStanza"],
+    "manychat/prenota": ["gestisciPrenota", "gestisciRichiestaPrenota"],
+  };
+  for (const [nome, attese] of Object.entries(funzioni)) {
+    c(
+      `${nome}: espone ${attese.join(", ")}`,
+      attese.map(() => "function"),
+      attese.map((f) => typeof mod[nome]?.[f]),
+    );
+  }
+
+  //  I contratti veri (`prenota-tipi`): chi li usa dopo non li rifà.
+  const T = mod["manychat/prenota-tipi"];
+  c("FISSATO_DA_CHAT", "cliente-chat", T.FISSATO_DA_CHAT);
+  c("chiavi di app_config", ["prenota_chat", "prenota_chat:", "prenota_chat_lock:"], [
+    T.CHIAVE_CONFIG, T.prefissoProposta, T.prefissoLucchetto,
+  ]);
+  c("lucchetto del lead", "prenota_chat_lock:lead:abc", T.chiaveLucchettoLead("abc"));
+  c("lucchetto del consulente e del giorno", "prenota_chat_lock:c1:2026-10-29",
+    T.chiaveLucchettoConsulente("c1", "2026-10-29"));
+  c("motivi del secondo stato (lista chiusa)",
+    ["prenota_nessun_orario", "prenota_altri_finiti", "prenota_errore"], [...T.MOTIVI_CONTATTO]);
+  c("codici di log: 22, con «occupato» e senza «doppio_tocco»", [22, true, false], [
+    T.CODICI_LOG.length, T.CODICI_LOG.includes("occupato"), T.CODICI_LOG.includes("doppio_tocco"),
+  ]);
+  c("fasce in minuti (inizio compreso)", { mattina: [480, 779], pomeriggio: [780, 1019], sera: [1020, 1439] },
+    Object.fromEntries(Object.entries(T.FASCE).map(([k, v]) => [k, [v.da, v.a]])));
+  c("le fasce coprono 08:00-23:59 senza buchi", true,
+    T.FASCE.mattina.a + 1 === T.FASCE.pomeriggio.da && T.FASCE.pomeriggio.a + 1 === T.FASCE.sera.da);
+
+  //  La riga di configurazione: senza riga, illeggibile o non «acceso: true» = spenta.
+  const L = T.leggiConfigPrenota;
+  const predefinita = { acceso: true, consulenteId: "", preavvisoOre: 3, giorniAvanti: 14, durataMin: 60 };
+  for (const [nome, riga] of [
+    ["senza riga (null)", null], ["senza riga (undefined)", undefined], ["vuota", ""],
+    ["illeggibile", "{non json"], ["un numero", "5"], ["un array", "[]"],
+    ["acceso: false", '{"acceso":false}'], ["acceso come testo", '{"acceso":"true"}'],
+    ["senza il campo acceso", '{"preavvisoOre":3}'],
+  ]) c(`config ${nome} → spenta`, null, L(riga));
+  c("config minima accesa → predefiniti", predefinita, L('{"acceso":true}'));
+  c("config completa", { acceso: true, consulenteId: "c-1", preavvisoOre: 5, giorniAvanti: 7, durataMin: 90 },
+    L('{"v":1,"acceso":true,"consulenteId":"c-1","preavvisoOre":5,"giorniAvanti":7,"durataMin":90}'));
+  c("numeri fuori scala o non numeri → predefiniti", predefinita,
+    L('{"acceso":true,"consulenteId":7,"preavvisoOre":0,"giorniAvanti":31,"durataMin":"60"}'));
+  c("estremi ammessi: 1-48 ore, 1-30 giorni, 15-180 minuti",
+    { acceso: true, consulenteId: "", preavvisoOre: 48, giorniAvanti: 1, durataMin: 180 },
+    L('{"acceso":true,"preavvisoOre":48,"giorniAvanti":1,"durataMin":180}'));
+  c("sotto gli estremi → predefiniti", predefinita,
+    L('{"acceso":true,"preavvisoOre":49,"giorniAvanti":0,"durataMin":14}'));
+
+  //  L'impronta del numero: HMAC, mai il numero, mai uguale con un altro segreto.
+  const tel = "393330000001";
+  const a = await T.improntaNumero(tel, "segreto-finto-1");
+  const attesa = createHmac("sha256", "segreto-finto-1").update(tel).digest("hex").slice(0, 32);
+  c("impronta = HMAC-SHA256 troncato a 16 byte (32 cifre esadecimali)", attesa, a);
+  c("l'impronta è stabile", a, await T.improntaNumero(tel, "segreto-finto-1"));
+  c("con un altro segreto cambia", false, a === (await T.improntaNumero(tel, "segreto-finto-2")));
+  c("con un altro numero cambia", false, a === (await T.improntaNumero("393330000002", "segreto-finto-1")));
+  c("il numero non compare nell'impronta", false, a.includes(tel));
+}
+
 export async function proveManychat(mod, aiuti) {
   proveDelloScheletro(mod, aiuti);
+  await proveDelloScheletroPrenota(mod, aiuti);
   await proveDelFinto(aiuti);
   await proveContatto(mod, aiuti);
   await proveRegole(mod, aiuti);
@@ -169,4 +257,15 @@ export async function proveManychat(mod, aiuti) {
   await proveSequenze(mod, aiuti);
   await proveStati(mod, aiuti);
   await proveSequenzeMigrazione(mod, aiuti);
+  //  Commessa 2026-10-27 (prenota in chat): un file per compito, vuoti finché
+  //  il compito non li riempie.
+  await proveDelleParolePrenota(mod, aiuti);
+  await proveDegliOrariPrenota(mod, aiuti);
+  await proveDeiTestiPrenota(mod, aiuti);
+  await proveDellaSchedaPrenota(mod, aiuti);
+  await proveDellaStanzaPrenota(mod, aiuti);
+  await proveDellePortePrenota(mod, aiuti);
+  await proveDellOrchestratorePrenota(mod, aiuti);
+  await proveDellaConcorrenzaPrenota(mod, aiuti);
+  await proveDellaRottaPrenota(mod, aiuti);
 }

@@ -543,6 +543,17 @@ const MODULI = [
   "stato-dal",
   "manychat/sequenze",
   "manychat/stati",
+  //  ⚠️ PRENOTA LA CONSULENZA IN CHAT (commessa 2026-10-27): i contratti
+  //   (`prenota-tipi`) e i moduli che li riempiono. Un file di prove per
+  //   compito in `prove/manychat/prenota*.mjs`, chiamati da `proveManychat`.
+  "manychat/prenota-tipi",
+  "manychat/prenota-lettura",
+  "manychat/prenota-parole",
+  "manychat/prenota-orari",
+  "manychat/prenota-testi",
+  "manychat/prenota-scheda",
+  "manychat/prenota-stanza",
+  "manychat/prenota",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
