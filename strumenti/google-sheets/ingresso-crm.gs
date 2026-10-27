@@ -147,6 +147,26 @@ function leggi_(sh) {
     usate.push(j);
     intestazioni.push(nome.slice(0, MAX_CELLA));
   }
+  //  Il titolo «id» spostato da Meta (27/10: A vuota, «id» in fondo su una colonna vuota):
+  //  la colonna senza titolo che contiene codici l:… è «id», e un «id» senza valori non viaggia.
+  var colId = -1, idVuoti = [];
+  usate.forEach(function (j, k) {
+    var codici = 0, piene = 0;
+    for (var i = 0; i < ultima; i++) {
+      if (i === titoli || eRigaTitoli_(mostrati[i])) continue;
+      var v = String(mostrati[i][j]).trim();
+      if (!v) continue;
+      piene++;
+      if (/^l:\d{6,}$/.test(v)) codici++;
+    }
+    if (!intestazioni[k] && codici > 0 && codici * 2 >= piene) colId = k;
+    if (intestazioni[k].toLowerCase() === 'id' && piene === 0) idVuoti.push(k);
+  });
+  if (colId >= 0) {
+    intestazioni[colId] = 'id';
+    usate = usate.filter(function (_, k) { return idVuoti.indexOf(k) < 0; });
+    intestazioni = intestazioni.filter(function (_, k) { return idVuoti.indexOf(k) < 0; });
+  }
   var righe = [];
   for (var i = 0; i < ultima; i++) {
     if (i === titoli || eRigaTitoli_(mostrati[i])) continue;

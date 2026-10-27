@@ -1022,6 +1022,18 @@ async function proveLoScript({ IG, c, gruppo, radice, INTEST, RIGA_META, CINQUE,
     c("vecchia colonna «Inviato al CRM»: non è fra i titoli né fra i valori mandati", [false, 5], [g.inviati[0]?.corpo.intestazioni.includes("Inviato al CRM"), g.inviati[0]?.corpo.valori.length]);
   }
   {
+    // 27/10: Meta ha svuotato il titolo «id» in A e l'ha messo in fondo, su una colonna vuota
+    const titoliRotti = ["", ...INT.slice(1), "id"];
+    const g = google([unaRiga("21", "Nuovo Sopra"), titoliRotti, unaRiga("11")]);
+    g.vai("giroDiSicurezza");
+    const b0 = g.inviati[0]?.corpo;
+    c("«id» spostato: la colonna senza titolo coi codici l:… viaggia come «id», l'«id» vuoto no", [[...INT], "l:1000000000000021"],
+      [b0?.intestazioni, b0?.valori[b0?.intestazioni.indexOf("id")]]);
+    const m = mondo();
+    await manda(m, richiesta(b0));
+    c("…e il CRM riceve l'id Meta del lead", "l:1000000000000021", m.schede[0]?.data.metaLeadId);
+  }
+  {
     // senza riga dei titoli non si manda niente
     const g = google([unaRiga("11"), unaRiga("12")]);
     g.vai("giroDiSicurezza");
