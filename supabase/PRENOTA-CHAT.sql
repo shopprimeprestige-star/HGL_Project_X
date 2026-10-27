@@ -93,7 +93,7 @@ SELECT id,
 --     oltre i 20 secondi, la rotta la riprende da sola).
 SELECT key, value, updated_at
   FROM public.app_config
- WHERE key LIKE 'prenota_chat_lock:%'
+ WHERE starts_with(key, 'prenota_chat_lock:')
  ORDER BY updated_at DESC;
 
 
@@ -101,8 +101,8 @@ SELECT key, value, updated_at
 --     porta l'impronta del numero e non il numero; qui si conta soltanto).
 SELECT count(*) AS proposte_ricordate
   FROM public.app_config
- WHERE key LIKE 'prenota_chat:%'
-   AND key NOT LIKE 'prenota_chat_lock:%';
+ WHERE starts_with(key, 'prenota_chat:')
+   AND NOT starts_with(key, 'prenota_chat_lock:');
 
 
 -- PER TORNARE INDIETRO

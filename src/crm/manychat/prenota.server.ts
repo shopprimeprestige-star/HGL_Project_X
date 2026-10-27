@@ -129,9 +129,9 @@ function comeRigaProposta(testo: string | null): RigaProposta | null {
     r.v === 1 &&
     typeof r.il === "string" &&
     !!r.fascia &&
-    r.fascia in FASCE &&
+    Object.hasOwn(FASCE, r.fascia) &&
     !!r.fasciaChiesta &&
-    r.fasciaChiesta in FASCE &&
+    Object.hasOwn(FASCE, r.fasciaChiesta) &&
     (r.pagina === 1 || r.pagina === 2 || r.pagina === 3) &&
     eLista(r.proposte) &&
     eLista(r.mostrati) &&

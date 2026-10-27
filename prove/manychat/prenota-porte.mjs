@@ -421,6 +421,11 @@ export async function proveDellePortePrenota(mod, aiuti) {
     );
     c("niente modiFascia", false, /modiFascia/.test(sorgente));
     c("niente like(, né ilike(", false, /\bi?like\(/i.test(sorgente));
+    c(
+      "la fascia si controlla con Object.hasOwn, non con `in`",
+      [true, false],
+      [/Object\.hasOwn\(FASCE, r\.fascia\)/.test(sorgente), /\bin FASCE\b/.test(sorgente)],
+    );
     c("niente .or( con testo libero", false, /\.or\(/.test(sorgente));
     c(
       "il commento dice che app_config non ha user_id",
@@ -449,6 +454,7 @@ export async function proveDellePortePrenota(mod, aiuti) {
     const sql = readFileSync(join(radice, "supabase/PRENOTA-CHAT.sql"), "utf8");
     const righe = sql.split("\n");
     const attive = righe.filter((l) => !l.trim().startsWith("--"));
+    c("nello script niente LIKE (starts_with)", false, /\bLIKE\b/i.test(sql));
     c("niente DROP, DELETE, TRUNCATE, ALTER", false, /\b(DROP|DELETE|TRUNCATE|ALTER)\b/i.test(sql));
     c(
       "nessun comando che scrive è attivo (se lo lanci tutto, cambia niente)",
@@ -1075,6 +1081,8 @@ export async function proveDellePortePrenota(mod, aiuti) {
         ["un numero", "5"],
         ["senza versione", JSON.stringify({ ...riga, v: 2 })],
         ["fascia inventata", JSON.stringify({ ...riga, fascia: "notte" })],
+        ["fascia «toString» (non è una fascia)", JSON.stringify({ ...riga, fascia: "toString" })],
+        ["fascia chiesta «constructor»", JSON.stringify({ ...riga, fasciaChiesta: "constructor" })],
         ["pagina 4", JSON.stringify({ ...riga, pagina: 4 })],
         ["proposte non lista", JSON.stringify({ ...riga, proposte: "x" })],
         ["un orario senza ora", JSON.stringify({ ...riga, mostrati: [{ g: "2026-10-28" }] })],
