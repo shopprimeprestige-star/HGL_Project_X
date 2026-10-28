@@ -21,7 +21,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCRM } from "@/crm/CRMContext";
 import { intestazioniCRM } from "@/crm/AuthContext";
-import { assicuraBlocchi } from "@/crm/blocchi";
+import { assicuraBlocchi, soloSlotAperti } from "@/crm/blocchi";
 import { assicuraCapienza } from "@/crm/capienza";
 import { slotDelGiorno } from "@/crm/booking-utils";
 import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
@@ -94,9 +94,10 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
   }, [consultants]);
 
   /*  ⚠️ LE CHIUSURE E LA CAPIENZA PRIMA DEL CALCOLO (28/10/2026). `slotDelGiorno`
-      le legge da un registro che si riempie solo se qualcuno le ha caricate:
-      la pagina Orari disponibili lo faceva, Slot liberi e «Proponi orari» in
-      WhatsApp no — e mostravano libere ore chiuse. Segnalazione del titolare:
+      non guarda le chiusure dello studio (le toglie `soloSlotAperti`, qui sotto,
+      dal registro dei blocchi) e la capienza la legge da un registro: tutti e
+      due vanno caricati prima. Senza, Slot liberi e «Proponi orari» in WhatsApp
+      mostravano libere ore chiuse. Segnalazione del titolare:
       «deve mostrare le vere disponibilità». Arrivate, si ricalcola. */
   const [caricati, setCaricati] = useState(0);
   useEffect(() => {
@@ -133,6 +134,8 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
         let slot: ReturnType<typeof slotDelGiorno> = [];
         try {
           slot = slotDelGiorno(c, data, DURATA_PREDEFINITA, elenco, undefined, undefined, modi);
+          //  Le chiusure dello studio (Orari disponibili): `slotDelGiorno` non le guarda.
+          slot = soloSlotAperti(slot, c.id, data, DURATA_PREDEFINITA);
         } catch {
           /* un consulente con orari illeggibili non ferma la pagina */
         }

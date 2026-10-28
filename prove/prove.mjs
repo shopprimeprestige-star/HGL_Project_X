@@ -408,6 +408,8 @@ const MODULI = [
   "fascia-consulenza",
   //  ⚠️ Quanti posti restano e a che ora. Vedi proveDegliSlotLiberi.
   "slot-liberi",
+  //  ⚠️ Le chiusure tolte dai posti liberi (soloSlotAperti): vedi proveDiProponiOrariConsulente.
+  "blocchi",
   //  ⚠️ I preventivi quando sono in più di uno: le stanze, la penna, e che
   //   cosa vede ciascuno. Vedi proveDeiPreventiviDiGruppo.
   "shop/preventivi-di-gruppo",
@@ -20673,14 +20675,37 @@ function proveDiProponiOrariConsulente() {
   c("più orari e giorni col consulente", "Gentile Mario, Filippo è disponibile per la consulenza gratuita online in questi orari:\n\n• oggi alle 15:00 o alle 17:00\n• domani alle 10:00\n\nQuale preferisce?",
     W.messaggioOrari([{ data: "2026-10-29", ora: "10:00" }, { data: oggi, ora: "17:00" }, { data: oggi, ora: "15:00" }], oggi, "Mario", "Filippo"));
   c("senza consulente resta il testo di prima", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario").includes("avrei libero oggi alle 15:00"));
+  //  Le ore VERE, provate sul comportamento (revisione del 28/10).
+  const B = mod["blocchi"];
+  const giorno = "2030-03-09"; // un sabato lontano: nessuna «ora già passata»
+  const consulente = { id: "c1", user_id: "", created_at: "", updated_at: "", data: { nome: "Filippo", giorniLavorativi: [6], fasceOrarie: [{ inizio: "09:00", fine: "12:00" }], attivo: true } };
+  const libere = (leads = []) => BKG.slotDelGiorno(consulente, giorno, 60, leads).filter((x) => x.libero).map((x) => x.ora);
+  B.registraBlocchi([]);
+  c("senza chiusure: tutte le ore del sabato", ["09:00", "10:00", "11:00"], B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).map((x) => x.ora));
+  B.registraBlocchi([{ id: "b1", quando: "data", data: giorno, attivo: true, creato: "2030-01-01T00:00:00Z" }]);
+  c("sabato chiuso dallo studio: nessuna ora proposta", [], B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).map((x) => x.ora));
+  B.registraBlocchi([{ id: "b2", quando: "data", data: giorno, inizio: "10:00", fine: "11:00", attivo: true, creato: "2030-01-01T00:00:00Z" }]);
+  c("chiusa solo l'ora delle 10: le altre restano", ["09:00", "11:00"], B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).map((x) => x.ora));
+  B.registraBlocchi([{ id: "b3", consulenteId: "altro", quando: "data", data: giorno, attivo: true, creato: "2030-01-01T00:00:00Z" }]);
+  c("la chiusura di un altro consulente non tocca Filippo", 3, B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).length);
+  B.registraBlocchi([]);
+  const preso = [{ id: "l1", user_id: "", created_at: "", updated_at: "", data: { nome: "Mario", stato: "appuntamento_fissato", consulenteId: "c1", dataMeeting: giorno, oraMeeting: "09:00", durataMeeting: 60 } }];
+  const prima = BKG.capienzaConsulenza();
+  BKG.impostaCapienza(1);
+  c("capienza 1: l'ora con un cliente non si propone", false, libere(preso).includes("09:00"));
+  BKG.impostaCapienza(3);
+  c("capienza 3: la stessa ora ha ancora posto", true, libere(preso).includes("09:00"));
+  BKG.impostaCapienza(prima);
   const hook = readFileSync(join(radice, "src/crm/useGiorniLiberi.ts"), "utf8");
   c("le ore sono quelle vere: chiusure e capienza lette prima del calcolo", true,
     /Promise\.all\(\[assicuraBlocchi\(\), assicuraCapienza\(\)\]\)/.test(hook) && /oreTenute, adesso, caricati\]/.test(hook));
+  c("…e il calcolo comune toglie le chiusure", true, /soloSlotAperti\(slot, c\.id, data, DURATA_PREDEFINITA\)/.test(hook));
   const or = readFileSync(join(radice, "src/crm/OrariRapidi.tsx"), "utf8");
   c("finestra a tutto schermo sul telefono", true, /max-sm:h-\[100dvh\]/.test(or) && /<Finestra/.test(or));
   c("prima il consulente, poi le sue ore (cambiandolo si azzerano)", true, /setChi\(c\.id\);\s*setScelte\(\[\]\)/.test(or) && /f\.chi\.some\(\(c\) => c\.id === chi\)/.test(or));
   c("la spunta mette il messaggio nella chat", true, /onClick=\{\(\) => p\.onInserisci\(testo\)\}/.test(or) && /Crea messaggio/.test(or));
-  c("il nome del consulente entra nel testo", true, /messaggioOrari\(scelte, oggi, p\.nome, scelto\?\.nome\)/.test(or));
+  c("nel messaggio solo le ore ancora libere", true, /const valide = scelte\.filter/.test(or));
+  c("il nome del consulente entra nel testo", true, /messaggioOrari\(valide, oggi, p\.nome, scelto\?\.nome\)/.test(or));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────

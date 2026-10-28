@@ -66,10 +66,12 @@ export function OrariRapidi(p: {
         }))
         .filter((g) => g.fasce.length > 0)
     : [];
-  const testo = useMemo(
-    () => messaggioOrari(scelte, oggi, p.nome, scelto?.nome),
-    [scelte, oggi, p.nome, scelto?.nome],
+  //  Solo le scelte ancora libere: un'ora presa intanto da un collega, o già
+  //  passata, esce dal messaggio da sola (revisione del 28/10).
+  const valide = scelte.filter((s) =>
+    giorni.some((g) => g.data === s.data && g.fasce.some((f) => f.ora === s.ora)),
   );
+  const testo = messaggioOrari(valide, oggi, p.nome, scelto?.nome);
 
   const eScelto = (data: string, ora: string) =>
     scelte.some((s) => s.data === data && s.ora === ora);
@@ -101,12 +103,12 @@ export function OrariRapidi(p: {
       azioni={
         <div className="flex w-full items-center gap-3">
           <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-            {scelte.length === 0
+            {valide.length === 0
               ? scelto
                 ? "Tocca una o più ore"
                 : "Prima il consulente"
-              : `${scelte.length} ${scelte.length === 1 ? "orario scelto" : "orari scelti"}`}
-            {scelte.length > 0 && (
+              : `${valide.length} ${valide.length === 1 ? "orario scelto" : "orari scelti"}`}
+            {valide.length > 0 && (
               <button
                 type="button"
                 onClick={() => setScelte([])}
@@ -120,7 +122,6 @@ export function OrariRapidi(p: {
             onClick={() => p.onInserisci(testo)}
             disabled={!testo}
             className="h-11 shrink-0 gap-1.5 rounded-full bg-emerald-600 px-5 text-white hover:bg-emerald-700"
-            aria-label="Crea il messaggio con gli orari scelti"
           >
             <Check className="h-5 w-5" /> Crea messaggio
           </Button>
@@ -168,7 +169,7 @@ export function OrariRapidi(p: {
                       attivo ? "text-emerald-50" : "text-muted-foreground",
                     )}
                   >
-                    {c.ore === 0 ? "pieno" : `${c.ore} ore`}
+                    {c.ore === 0 ? "nessuna ora" : `${c.ore} ore`}
                   </span>
                 </button>
               );
