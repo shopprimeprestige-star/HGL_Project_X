@@ -2144,8 +2144,8 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       [idsR.filter((i) => i.startsWith("m")).length, new Set(idsR).size === idsR.length],
     );
     c(
-      "…il già scritto, l'in chat e il non importato restano fuori; il «non raggiungibile» e il ritorno entrano",
-      [false, false, false, true, true, false],
+      "…il già scritto e l'in chat restano fuori; il non importato «da contattare» (dal 28/10), il «non raggiungibile» e il ritorno entrano",
+      [false, false, true, true, true, false],
       [
         idsR.includes("scritto"),
         idsR.includes("in-chat"),

@@ -482,17 +482,17 @@ export function porteGiro(): PorteGiro {
         lavori.push(leggi(moduli().gte("data->origineIngresso->>il", dal)));
         lavori.push(leggi(moduli().gte("data->listaOrigine->>il", dal)));
       }
-      //  Commessa 2026-10-28: gli importati «da contattare» non ancora scritti e i contatti di
+      //  Commessa 2026-10-28: i lead «da contattare» (importati o no) non ancora scritti e i contatti di
       //  ritorno (`ricarico.ultimo`). Niente finestra di data, ma ogni lettura è limitata da
-      //  stato + importato (o dal ricarico) e va a pagine di 1000 in ordine di `id`, fino a
+      //  stato (o dal ricarico) e va a pagine di 1000 in ordine di `id`, fino a
       //  cinque pagine: oltre si tace e si dice (`schede_troncate`), mai un taglio nascosto.
       //  Gli importati già scritti (secondo stato presente) restano fuori dalla lettura, salvo
       //  «non raggiungibile» (un ritentativo). Il resto lo decide `decidiLeadNuovi`.
       //  shortcut: la lettura dei ritorni rilegge ogni giro tutte le schede con un ricarico;
       //  da cambiare (colonna o indice dedicati) se diventano migliaia.
       if (ambito.importatiERitorni) {
-        const importati = () =>
-          schede().eq("data->>importato", "true").eq("data->>stato", "da_contattare");
+        //  Dal 28/10 (richiesta del titolare) TUTTI i «da contattare», importati o no.
+        const importati = () => schede().eq("data->>stato", "da_contattare");
         lavori.push(tutte(() => importati().is("data->>contattoWa", null)));
         lavori.push(tutte(() => importati().eq("data->contattoWa->>stato", "non_raggiungibile")));
         lavori.push(tutte(() => schede().not("data->ricarico->>ultimo", "is", null)));

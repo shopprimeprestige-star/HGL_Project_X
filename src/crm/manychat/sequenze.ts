@@ -143,7 +143,7 @@ export type ExtraLeadNuovo = {
 /** I motivi di «aspetta» e «salta» dei due messaggi nuovi (importati e ritorni) portano
  *  questo prefisso: il giro ne riconosce il tipo e NON li conta fra i problemi (gli
  *  importati sono tanti: numeri e nomi storti riempirebbero i 20 posti dei problemi). */
-export const PREFISSO_IMPORTATO = "importato: ";
+export const PREFISSO_IMPORTATO = "da contattare: ";
 export const PREFISSO_RITORNO = "ritorno: ";
 /** Quale dei due messaggi del giorno del meet, con l'inizio del meet. */
 export type ExtraGiornoMeet = { quale: "meet_oggi" | "meet_adesso"; inizioMeet: Date };
