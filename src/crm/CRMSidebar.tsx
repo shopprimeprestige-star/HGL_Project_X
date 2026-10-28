@@ -135,6 +135,7 @@ import {
   type ChiaveConteggio,
   type ChiaveConteggioPosa,
   type ContoBadge,
+  oggiIso,
 } from "./ui";
 //  ── LE REGOLE DELLE LENTI SI IMPORTANO, NON SI RISCRIVONO ──────────────────
 //   I badge del gruppo delle pose devono dire lo stesso numero delle pastiglie
@@ -611,7 +612,8 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         icon: Upload,
         scheme: "pipeline",
         permesso: "lead.crea",
-        alias: "importa importare carica caricare lista liste csv contatti file excel foglio rubrica lead nuovi",
+        alias:
+          "importa importare carica caricare lista liste csv contatti file excel foglio rubrica lead nuovi",
       },
       {
         //  ── UNA VOCE SOLA, ED È LA POSTAZIONE ──────────────────────────────
@@ -1042,8 +1044,11 @@ export function CRMSidebar() {
    *  stessa giornata. Le spuntate non contano — il badge dice quello che resta,
    *  e a giornata finita deve sparire. */
   const daFareOggi = useMemo(() => {
-    const righe = costruisciRighe({ leads, task: taskManuali, ora: new Date() });
-    const oggi = new Date().toISOString().slice(0, 10);
+    const ora = new Date();
+    const righe = costruisciRighe({ leads, task: taskManuali, ora });
+    //  ⚠️ La data LOCALE, la stessa della pagina: `toISOString()` è in UTC, e
+    //   fra mezzanotte e le 2 il numero non contava niente di oggi.
+    const oggi = oggiIso(ora);
     return righe.filter((r) => !r.fatta && r.giorno === oggi).length;
   }, [leads, taskManuali]);
 

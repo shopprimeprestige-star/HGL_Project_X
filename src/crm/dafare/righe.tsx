@@ -214,7 +214,8 @@ const statoCambiatoIl = (d: LeadData): string => soloData(d.statoPrecedenteIl);
  *  stato è cambiato oggi — cioè qualcuno ci ha messo le mani stamattina e ha
  *  lasciato qualcosa a metà.
  *  ⚠️ Chi è entrato in quello stato ieri e non è ancora stato lavorato NON
- *   compare, e non è una svista: quella è la coda arretrata, ha già la sua
+ *   compare (tranne «Da riprogrammare», che è sempre di oggi: vedi la regola 3
+ *   in `candidatiDi`), e non è una svista: quella è la coda arretrata, ha già la sua
  *   pagina (/CRM/avanzamento, lente «Tutta la coda») e si vede qui solo
  *   accendendo l'interruttore «anche l'arretrato». Un elenco di oggi che
  *   contiene anche ieri non è un elenco di oggi. */
@@ -268,8 +269,11 @@ function candidatiDi(d: LeadData, oggi: string): Candidato[] {
   //   quel giorno non comparivano proprio. Escono quando cambia lo stato (una
   //   data nuova li fa tornare «Appuntamento fissato»).
   //   «Cliente assente» e «Visita in sede disdetta» restano alla regola di prima.
+  //  ⚠️ Rimandato con «Quando richiamarla»: dal richiamo in poi esce da oggi e
+  //   torna il giorno scelto, come richiamo (regola 1 qui sopra).
   if (stato === "da_spostare") {
-    fuori.push({ tipo: "meet_da_rifissare", giorno: oggi, ora: "" });
+    if (!(giornoRicontatto && giornoRicontatto > oggi))
+      fuori.push({ tipo: "meet_da_rifissare", giorno: oggi, ora: "" });
   } else if (stato === "no_show" || stato === "sede_disdetta") {
     fuori.push({ tipo: "meet_da_rifissare", giorno: giornoDedotto(d), ora: "" });
   }
