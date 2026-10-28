@@ -1132,7 +1132,7 @@ export function CRMSidebar() {
       urgenza: "oggi",
       titolo: chatInAttesa
         ? `${plurale(chatInAttesa, "chat aspetta", "chat aspettano")} una risposta · si aggiorna ogni minuto`
-        : "Nessuna chat in attesa di risposta",
+        : "Chat in attesa di risposta",
     },
   };
 
