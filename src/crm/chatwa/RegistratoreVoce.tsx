@@ -118,6 +118,8 @@ export function useDettatura(onTesto: (testo: string) => void) {
     let analisi: AnalyserNode | null = null;
     try {
       contesto = new AudioContext();
+      //  Safari lo crea «sospeso» fuori dal tocco: senza resume le barre restano ferme.
+      void contesto.resume().catch(() => {});
       analisi = contesto.createAnalyser();
       analisi.fftSize = 512;
       contesto.createMediaStreamSource(flusso).connect(analisi);
