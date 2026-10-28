@@ -3,6 +3,7 @@ import { CheckCircle2, ChevronDown, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { combaciaRicerca } from "./cercaChat";
+import { useStelle } from "./useStelle";
 import { RigaChat, type ModoRiga } from "./RigaChat";
 import type { ChatItem, ElencoChatProps, FiltroChat } from "./tipi";
 
@@ -37,6 +38,12 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const { filtro, setFiltro, ricerca, setRicerca, visibili, caricamento, attiva, apri } = api;
   const adesso = useAdesso();
   const [vecchieAperte, setVecchieAperte] = useState(false);
+  /*  ── IN OSSERVAZIONE (28/10/2026) ──────────────────────────────────────
+      Un interruttore in più fra le pastiglie: mostra fra le «Altre chat» solo
+      quelle con stelle, prima le tre. «Da rispondere» resta com'è: chi aspetta
+      una risposta non si nasconde con un filtro. */
+  const { di: stelleDi, cambia: cambiaStelle } = useStelle();
+  const [soloStelle, setSoloStelle] = useState(false);
 
   // Il riquadro e le «vecchie» obbediscono SOLO alla ricerca, non alle pastiglie: chi aspetta una
   // risposta non si nasconde con un filtro. La ricerca è fatta qui (non da `visibili`, che applica anche la pastiglia).
@@ -49,7 +56,13 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const giaSopra = new Set(
     [...api.daRispondere, ...api.chats.filter(eVecchia)].map((c) => c.phone),
   );
-  const altre = visibili.filter((c) => !giaSopra.has(c.phone));
+  const altreTutte = visibili.filter((c) => !giaSopra.has(c.phone));
+  const altre = soloStelle
+    ? altreTutte
+        .filter((c) => stelleDi(c.phone) > 0)
+        .sort((a, b) => stelleDi(b.phone) - stelleDi(a.phone))
+    : altreTutte;
+  const conStelle = api.chats.filter((c) => stelleDi(c.phone) > 0).length;
 
   const riga = (c: ChatItem, modo: ModoRiga) => (
     <RigaChat
@@ -61,6 +74,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       onApri={() => apri(c.phone)}
       onCreaScheda={() => onCreaScheda(c)}
       onAbbina={() => onAbbina(c)}
+      stelle={stelleDi(c.phone)}
+      onStelle={() => cambiaStelle(c.phone)}
     />
   );
 
@@ -109,6 +124,19 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             {f.l}
           </button>
         ))}
+        <button
+          type="button"
+          aria-pressed={soloStelle}
+          onClick={() => setSoloStelle((v) => !v)}
+          className={cn(
+            "h-10 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
+            soloStelle
+              ? "border-amber-300 bg-amber-50 text-amber-800"
+              : "border-border bg-background text-muted-foreground hover:bg-muted",
+          )}
+        >
+          ★ In osservazione{conStelle ? ` ${conStelle}` : ""}
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -149,6 +177,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               <p className="px-4 py-10 text-center text-xs text-muted-foreground">
                 Nessuna chat in questa vista
               </p>
+            ) : soloStelle && altre.length === 0 ? (
+              <p className="px-4 py-8 text-center text-xs text-muted-foreground">
+                Nessuna chat in osservazione: tocca le stelle su una riga.
+              </p>
             ) : (
               altre.length > 0 && (
                 <section aria-labelledby="titolo-altre-chat">
@@ -156,7 +188,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                     id="titolo-altre-chat"
                     className="border-b border-border bg-muted/40 px-3 py-2 text-[13px] font-semibold text-muted-foreground md:text-xs"
                   >
-                    Altre chat
+                    {soloStelle ? "In osservazione" : "Altre chat"}
                   </h2>
                   <ul>{altre.map((c) => riga(c, "normale"))}</ul>
                 </section>
