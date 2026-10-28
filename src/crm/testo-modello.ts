@@ -64,7 +64,14 @@ function parametriDallaScheda(
   const valore: Record<string, string> = {
     lead_name: nomePerModello(d?.nome) ?? "",
     consultant_name: nomePerModello(consulente) ?? "",
-    appointment_day: giornoParlato(String(d?.dataMeeting ?? "").slice(0, 10)) ?? "",
+    //  ⚠️ Nel promemoria della sede il giorno è quello della VISITA, non del
+    //   meet (manychat/testi.ts, `campiPerStato` «viene_in_sede»).
+    appointment_day:
+      giornoParlato(
+        String(
+          (m.name.startsWith("hgl_promemoria_sede") ? d?.dataVieneInSede : d?.dataMeeting) ?? "",
+        ).slice(0, 10),
+      ) ?? "",
     appointment_date: dataBreve(d?.dataMeeting),
     appointment_time: oraNormale(d?.oraMeeting) ?? "",
     visit_date: dataBreve(d?.dataVieneInSede),
@@ -73,7 +80,8 @@ function parametriDallaScheda(
     recontact_time: oraNormale(d?.oraRicontatto) ?? "",
     //  Lo stesso link che parte col modello (per persona, se si sa la scheda).
     meet_link: (d ? linkPerCliente(d, leadId) : "") || "[link della consulenza]",
-    address: "",
+    //  L'indirizzo sta nelle impostazioni, non nella scheda: si dice che c'era.
+    address: "[indirizzo della sede]",
   };
   return m.params.map((p) => valore[p.key] ?? "");
 }

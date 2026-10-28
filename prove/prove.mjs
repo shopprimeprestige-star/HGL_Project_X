@@ -20408,6 +20408,9 @@ function proveDelTestoDeiModelli() {
   const conLink = T.corpoLeggibile("[template:hgl_meet_adesso]", { nome: "Mario", linkMeeting: "https://esempio.test/stanza" }, "Filippo");
   c("…col link della scheda c'è il link vero", true, conLink.testo.includes("Entri da qui: https://esempio.test/stanza"));
   c("segnaposto di un modello sconosciuto: resta il nome", "[template:boh]", T.corpoLeggibile("[template:boh]").testo);
+  const sede = T.corpoLeggibile("[template:hgl_promemoria_sede_v2]", { nome: "Mario", dataMeeting: "2026-10-29", dataVieneInSede: "2026-11-05", oraVieneInSede: "11:00" });
+  c("promemoria sede: il giorno è quello della visita, non del meet", true, sede.testo.includes("di giovedì 5 novembre alle ore 11:00") && !sede.testo.includes("29 ottobre"));
+  c("…e l'indirizzo si dice, non resta un buco", true, sede.testo.includes("Indirizzo: [indirizzo della sede]"));
   //  In archivio resta «[template:x]»: niente nome né link (prove/manychat/porta.mjs).
   const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
   c("la chat mostra il testo, e l'anteprima pure", 2, (pg.match(/corpoLeggibile\(/g) || []).length);
