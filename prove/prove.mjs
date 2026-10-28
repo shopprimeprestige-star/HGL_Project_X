@@ -560,6 +560,7 @@ const MODULI = [
   //   `proveManychat`.
   "chatwa/media",
   "chatwa/stato",
+  "chatwa/modelli-casella",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
