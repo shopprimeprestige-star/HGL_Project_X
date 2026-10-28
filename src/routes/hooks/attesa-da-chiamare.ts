@@ -15,6 +15,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { nove, patchDaChiamare, type ContattoWa } from "@/crm/importa/attesa-da-chiamare";
+import { telefonoE164 } from "@/crm/chatwa/daChiamare";
 import type { LeadData } from "@/crm/types";
 
 const json = (o: unknown, status = 200) =>
@@ -34,32 +35,71 @@ type Contatto = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as unknown as { from: (t: string) => any };
 
-export async function giroAttesaDaChiamare(adesso = new Date()) {
-  const { data: righe, error } = await db()
-    .from("crm_leads")
-    .select("id, user_id, data, updated_at")
-    .eq("data->>stato", "attesa_whatsapp")
-    .limit(2000);
-  if (error) throw error;
-  const schede = (righe ?? []) as Riga[];
-  if (schede.length === 0) return { inAttesa: 0, spostati: 0, cambiatiNelFrattempo: 0 };
+/** Le schede in «Attesa WhatsApp», tutte: PostgREST ne dà al massimo 1000 per
+ *  volta, quindi si legge a pagine, in ordine fisso (revisione del 28/10). */
+async function schedeInAttesa(): Promise<Riga[]> {
+  const out: Riga[] = [];
+  const PAGINA = 1000;
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await db()
+      .from("crm_leads")
+      .select("id, user_id, data, updated_at")
+      .eq("data->>stato", "attesa_whatsapp")
+      .order("id", { ascending: true })
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const righe = (data ?? []) as Riga[];
+    out.push(...righe);
+    if (righe.length < PAGINA) return out;
+  }
+}
 
-  const utenti = [...new Set(schede.map((r) => r.user_id))];
-  const { data: cont, error: e2 } = await db()
-    .from("whatsapp_contacts")
-    .select("user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal")
-    .in("user_id", utenti);
-  if (e2) throw e2;
+/** I contatti WhatsApp dei SOLI numeri candidati, a blocchi: leggere tutta la
+ *  rubrica si fermava a 1000 righe, e chi restava fuori sembrava «senza
+ *  risposta e senza STOP» (revisione del 28/10). */
+async function contattiDi(candidati: Riga[]): Promise<Map<string, ContattoWa>> {
   const perNumero = new Map<string, ContattoWa>();
-  for (const c of (cont ?? []) as Contatto[])
-    perNumero.set(`${c.user_id}|${nove(c.phone_e164)}`, {
-      ultimoInEntrataIl: c.ultimo_in_entrata_il,
-      stop: !!c.non_scrivere_dal,
-    });
+  const perUtente = new Map<string, Set<string>>();
+  for (const r of candidati) {
+    const tel = telefonoE164(r.data?.telefono);
+    if (!tel) continue;
+    const insieme = perUtente.get(r.user_id) ?? new Set<string>();
+    insieme.add(tel);
+    perUtente.set(r.user_id, insieme);
+  }
+  for (const [userId, numeri] of perUtente) {
+    const elenco = [...numeri];
+    for (let i = 0; i < elenco.length; i += 100) {
+      const { data, error } = await db()
+        .from("whatsapp_contacts")
+        .select("user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal")
+        .eq("user_id", userId)
+        .in("phone_e164", elenco.slice(i, i + 100));
+      if (error) throw error;
+      for (const c of (data ?? []) as Contatto[])
+        perNumero.set(`${c.user_id}|${nove(c.phone_e164)}`, {
+          ultimoInEntrataIl: c.ultimo_in_entrata_il,
+          stop: !!c.non_scrivere_dal,
+        });
+    }
+  }
+  return perNumero;
+}
+
+export async function giroAttesaDaChiamare(adesso = new Date()) {
+  const schede = await schedeInAttesa();
+  if (schede.length === 0) return { inAttesa: 0, spostati: 0, cambiatiNelFrattempo: 0 };
+  //  Prima chi ha già passato le 10 ore (senza guardare la rubrica), poi i
+  //  contatti dei soli candidati.
+  const candidati = schede.filter((r) => patchDaChiamare(r.data, null, adesso));
+  const perNumero = await contattiDi(candidati);
 
   let spostati = 0;
   let cambiati = 0;
-  for (const r of schede) {
+  for (const r of candidati) {
+    //  Un numero che non si sa scrivere nel formato delle chat non si può
+    //  controllare in rubrica: meglio lasciarlo in attesa che spostarlo alla cieca.
+    if (!telefonoE164(r.data?.telefono)) continue;
     const contatto = perNumero.get(`${r.user_id}|${nove(r.data?.telefono)}`);
     const patch = patchDaChiamare(r.data, contatto, adesso);
     if (!patch) continue;

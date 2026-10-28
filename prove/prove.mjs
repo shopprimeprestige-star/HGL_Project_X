@@ -20656,6 +20656,9 @@ function proveDelloStatoDaChiamare() {
   const sql = readFileSync(join(radice, "supabase/migrations/20261028190000_attesa_da_chiamare_cron.sql"), "utf8");
   c("il server scrive solo se la scheda non è cambiata nel frattempo", true, /\.eq\("updated_at", r\.updated_at\)/.test(hook));
   c("il server legge solo chi è nello stato Attesa WhatsApp", true, /\.eq\("data->>stato", "attesa_whatsapp"\)/.test(hook));
+  c("legge le schede a pagine (oltre le 1000)", true, /\.range\(da, da \+ PAGINA - 1\)/.test(hook) && /\.order\("id"/.test(hook));
+  c("legge i contatti dei SOLI candidati, a blocchi", true, /\.in\("phone_e164", elenco\.slice\(i, i \+ 100\)\)/.test(hook) && !/\.in\("user_id"/.test(hook));
+  c("il messaggio non dice di aver già chiamato", false, /provato a chiamar/.test(mod["whatsapp"].MODELLI_ORIGINALI.da_chiamare));
   c("il cron ogni 15 minuti sulla rotta giusta, e come si spegne", true, /programma_hook_cron\('attesa-da-chiamare-15min', '\*\/15 \* \* \* \*', '\/hooks\/attesa-da-chiamare'\)/.test(sql) && /cron\.unschedule\('attesa-da-chiamare-15min'\)/.test(sql));
 }
 

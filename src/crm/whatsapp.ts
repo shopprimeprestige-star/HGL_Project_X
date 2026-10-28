@@ -339,9 +339,10 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
   //  risposto. Un promemoria gentile, col lei come il primo messaggio, che
   //  ripete la sola domanda da rispondere.
   attesa_whatsapp: `Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs.\nLe avevo scritto per fissare la sua prima consulenza gratuita online, in cui Filippo le spiega la patch cutanea e Invisible Derm.\n\nPreferisce la mattina o la sera?`,
-  //  «Da chiamare» (28/10/2026): non ha risposto su WhatsApp e si è provato a
-  //  telefonare. Breve, col lei: dice che l'abbiamo cercato e lascia la scelta.
-  da_chiamare: `Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs.\nHo provato a chiamarla per la sua richiesta di informazioni.\n\nQuando preferisce essere richiamato, la mattina o la sera?`,
+  //  «Da chiamare» (28/10/2026): ci arriva da solo dopo 10 ore senza risposta,
+  //  quindi il messaggio NON dice «ho provato a chiamarla» (nessuno l'ha ancora
+  //  fatto, revisione del 28/10). Col lei, chiede quando sentirsi a voce.
+  da_chiamare: `Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs.\nLe avevo scritto qui su WhatsApp per la sua richiesta di informazioni.\n\nPer fissare la consulenza gratuita online preferisce che la chiami la mattina o la sera?`,
 
   //  ⚠️ «Richiamo concordato» vuol dire che il cliente ha chiesto LUI di essere
   //   richiamato a un certo orario — e questo messaggio si manda quando a
