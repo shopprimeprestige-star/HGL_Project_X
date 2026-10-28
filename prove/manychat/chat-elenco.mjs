@@ -83,4 +83,17 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   c("ElencoChat: «Da rispondere» obbedisce alla pastiglia", true, sorgenteUsaFiltro("inAttesaTutti"));
   c("ElencoChat: «Da chiamare» obbedisce alla pastiglia", true, sorgenteUsaFiltro("daChiamare"));
   c("ElencoChat: le «vecchie» obbediscono alla pastiglia", true, sorgenteUsaFiltro("vecchie"));
+
+  // ── IL NUMERO LEGGIBILE (28/10): +39 3xx xxx xxxx. Numeri finti 333000xxx.
+  const { numeroLeggibile } = mod["chatwa/formati"];
+  gruppo("CHAT ELENCO · IL NUMERO LEGGIBILE");
+  c("cellulare italiano a 10 cifre: +39 3xx xxx xxxx", "+39 333 000 1234", numeroLeggibile("+393330001234"));
+  c("cellulare italiano a 9 cifre: +39 3xx xxx xxx", "+39 333 000 123", numeroLeggibile("+39333000123"));
+  c("scritto con spazi o senza +: stesso risultato", "+39 333 000 1234", numeroLeggibile("39 333-000-1234"));
+  c("fisso italiano: +39 0x… a gruppi", "+39 06 1234 5678", numeroLeggibile("+390612345678"));
+  c("estero: +prefisso e gruppi da 3", "+44 790 000 0000", numeroLeggibile("+447900000000"));
+  c("vuoto o troppo corto: com'è, senza lanciare", ["", "+39", "12"], [numeroLeggibile(""), numeroLeggibile("+39"), numeroLeggibile("12")]);
+  c("null e undefined non lanciano", ["", ""], [numeroLeggibile(null), numeroLeggibile(undefined)]);
+  const convSrc = readFileSync(join(process.cwd(), "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("l'intestazione della chat mostra il numero leggibile sotto il nome", true, /numeroLeggibile\(attiva\.phone\)/.test(convSrc));
 }

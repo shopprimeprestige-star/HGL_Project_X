@@ -572,6 +572,7 @@ const MODULI = [
   "chatwa/media",
   "chatwa/stato",
   "chatwa/cercaChat",
+  "chatwa/formati",
   "chatwa/modelli-casella",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
   //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
@@ -20620,7 +20621,7 @@ function proveDiWhatsappTemperaturaConsulente() {
     /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /filter\(eVecchia\)\)+\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
   c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
   c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /Nessun cliente di questo consulente aspetta una risposta/.test(elenco));
-  c("con la scheda la riga mostra stato e temperatura, il numero va nell'intestazione", true, /\{!c\.lead && \(\s*<span className="shrink-0 font-mono/.test(riga));
+  c("la riga mostra il numero leggibile sotto il nome (anche senza scheda), non più in terza riga", true, /numeroSotto && \(/.test(riga) && !/font-mono text-\[11px\] text-muted-foreground/.test(riga));
   c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId === consulente/.test(elenco));
   //  Il pannello di temperatura per un lead del modulo «22-ott» e per uno senza risposte.
   const T = mod["temperatura-lead"];

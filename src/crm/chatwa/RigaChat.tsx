@@ -10,7 +10,7 @@ import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { anteprimaIn } from "./media";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
-import { formatTimeIT, initials } from "./formati";
+import { formatTimeIT, initials, numeroLeggibile } from "./formati";
 import type { ChatItem } from "./tipi";
 
 /** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
@@ -27,7 +27,7 @@ function anteprimaRiga(testo: string | null | undefined): string {
 /** Nome da mostrare: scheda, poi nome salvato, poi il numero. */
 function nomeChat(c: ChatItem): string {
   const scheda = c.lead ? `${c.lead.data.nome} ${c.lead.data.cognome}`.trim() : "";
-  return scheda || c.contact?.display_name || c.phone;
+  return scheda || c.contact?.display_name || numeroLeggibile(c.phone);
 }
 
 interface RigaChatProps {
@@ -59,6 +59,9 @@ export function RigaChat({
   onStelle,
 }: RigaChatProps) {
   const nome = nomeChat(c);
+  //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
+  const numero = numeroLeggibile(c.phone);
+  const numeroSotto = nome !== numero;
   const last = c.lastMessage;
   const inAttesa = modo === "attesa" || modo === "vecchia";
   const daChiamare = modo === "chiamare";
@@ -126,6 +129,11 @@ export function RigaChat({
               {tempo}
             </span>
           </span>
+          {numeroSotto && (
+            <span className="block truncate text-[12px] tabular-nums text-muted-foreground md:text-[11px]">
+              {numero}
+            </span>
+          )}
           <span className="mt-0.5 flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground md:text-[12px]">
               {!inAttesa && last?.direction === "outbound" && (
@@ -146,7 +154,7 @@ export function RigaChat({
               </span>
             )}
           </span>
-          {(c.lead || nome !== c.phone) && (
+          {c.lead && (
             <span className={cn("mt-1 flex items-center gap-2", onStelle && "pr-16")}>
               {c.lead && (
                 <span
@@ -176,18 +184,10 @@ export function RigaChat({
               {c.lead && mostraTemperatura(c.lead.data.stato) && (
                 <TemperaturaRiga dati={c.lead.data} max={0} className="shrink-0 text-[11px]" />
               )}
-              {/*  Con la scheda il numero lascia il posto a stato e temperatura (la
-                  riga è stretta: con tutti e tre lo stato restava «Ap…»). Il
-                  numero si legge nell'intestazione della chat. */}
-              {!c.lead && (
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                  {c.phone}
-                </span>
-              )}
             </span>
           )}
           {/*  Senza la terza riga, lo spazio per le stelle (che stanno fuori dal bottone). */}
-          {onStelle && !(c.lead || nome !== c.phone) && (
+          {onStelle && !c.lead && (
             <span className="mt-1 block h-5" aria-hidden="true" />
           )}
         </span>
@@ -201,7 +201,7 @@ export function RigaChat({
           type="button"
           onClick={onStelle}
           //  All'altezza della terza riga (stato e numero), a destra, dove non c'è niente.
-          className="absolute right-2 top-[56px] inline-flex h-7 items-center gap-0.5 rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:top-[54px]"
+          className="absolute right-2 top-[73px] inline-flex h-7 items-center gap-0.5 rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:top-[70px]"
           aria-label={`Priorità di ${nome}: ${stelle} su 3. Tocca per cambiare`}
           title={
             stelle

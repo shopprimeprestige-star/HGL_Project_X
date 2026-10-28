@@ -29,7 +29,7 @@ import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
 import { Casella } from "./Casella";
-import { initials } from "./formati";
+import { initials, numeroLeggibile } from "./formati";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
 import { attaccataAllaPrecedente } from "./stile";
@@ -136,8 +136,14 @@ export function Conversazione({
               <div className="text-[15px] md:text-[13px] font-semibold text-foreground truncate leading-tight">
                 {attiva.lead
                   ? `${attiva.lead.data.nome} ${attiva.lead.data.cognome}`.trim()
-                  : attiva.contact?.display_name || attiva.phone}
+                  : attiva.contact?.display_name || numeroLeggibile(attiva.phone)}
               </div>
+              {/*  Il numero sotto il nome, anche per gli sconosciuti (senza nome è già il titolo). */}
+              {(attiva.lead || attiva.contact?.display_name) && (
+                <div className="truncate text-[12px] tabular-nums leading-tight text-muted-foreground">
+                  {numeroLeggibile(attiva.phone)}
+                </div>
+              )}
               <div className="flex items-center gap-2 min-w-0 mt-0.5">
                 {/* ── LO STATO SI CAMBIA DALLA PASTIGLIA ──────────────────
                     È la stessa finestra a griglia di tutto il CRM. Prima era
@@ -186,11 +192,6 @@ export function Conversazione({
                   >
                     <span className="sm:hidden">↩</span>
                     <span className="hidden sm:inline">{ritorno.completa}</span>
-                  </span>
-                )}
-                {(attiva.lead || attiva.contact?.display_name) && (
-                  <span className="hidden sm:inline text-[11px] text-muted-foreground font-mono truncate">
-                    {attiva.phone}
                   </span>
                 )}
               </div>
