@@ -18,6 +18,7 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: `{ c, gruppo, radice }`. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sorgentePagina } from "../lead-semplice-pagina.mjs";
 
 export async function proveOrigine(mod, { c, gruppo, radice }) {
   const OR = mod["importa/origine"];
@@ -545,7 +546,7 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
   const altroTsx = leggi("src/crm/importa/MenuAltro.tsx");
   const tuttiTsx = leggi("src/crm/importa/SchedaTutti.tsx");
   const rigaTsx = leggi("src/crm/importa/RigaChiamata.tsx");
-  const paginaTsx = leggi("src/routes/CRM.importa.tsx");
+  const paginaTsx = sorgentePagina(radice);
   const dialogTsx = leggi("src/crm/LeadDialog.tsx");
 
   c(
