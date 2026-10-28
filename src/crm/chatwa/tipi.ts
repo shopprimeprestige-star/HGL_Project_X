@@ -65,6 +65,8 @@ export interface ChatItem {
     vecchia?: boolean;
   } | null;
   finestra?: { aperta: boolean; frase: string };
+  /** In attesa WhatsApp da più di 10 ore, senza risposta (crm/chatwa/daChiamare). */
+  daChiamare?: { si: boolean; dal: string | null };
   senzaScheda?: boolean;
   schedaAmbigua?: boolean;
   stop?: boolean;
@@ -75,6 +77,9 @@ export interface ChatWaApi {
   chats: ChatItem[];
   /** Le chat in «Da rispondere», già ordinate (la più vecchia sopra). */
   daRispondere: ChatItem[];
+  /** Le chat «Da chiamare» (in attesa WhatsApp da più di 10 ore), la più
+   *  vecchia sopra. */
+  daChiamare: ChatItem[];
   visibili: ChatItem[];
   filtro: FiltroChat;
   setFiltro: (f: FiltroChat) => void;

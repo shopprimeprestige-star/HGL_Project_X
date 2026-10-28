@@ -61,7 +61,8 @@ export const fetchCRM = (url, init) => globalThis.fetch(url, init);`,
   quick: `export const requiresAnyDialog = () => false;`,
   whatsapp: `export const getWhatsAppMessageForStatus = () => "";
 export const segnapostiResidui = (t) => Array.from(new Set((t.match(/\\{\\{?[^{}]*\\}?\\}/g) ?? [])));`,
-  tipi: `export const LEAD_STATUS_LABEL = {};`,
+  tipi: `export const LEAD_STATUS_LABEL = {};
+export const eStatoDaChiamare = () => true;`,
 };
 
 /** ── Un piccolo esecutore di hook ─────────────────────────────────────────── */
