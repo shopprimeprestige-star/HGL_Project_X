@@ -154,7 +154,10 @@ export function RigaChat({
                   className="shrink-0 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
                   title={ritorno.titolo}
                 >
-                  {ritorno.corta}
+                  <span className="sm:hidden" aria-label={ritorno.corta}>
+                    ↩
+                  </span>
+                  <span className="hidden sm:inline">{ritorno.corta}</span>
                 </span>
               )}
               {/*  Com'è messo il cliente (28/10/2026): pallino e parola, niente risposte

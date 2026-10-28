@@ -180,7 +180,7 @@ export function Conversazione({
                     className="min-w-0 shrink truncate whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
                     title={ritorno.titolo}
                   >
-                    <span className="sm:hidden">{ritorno.corta}</span>
+                    <span className="sm:hidden">↩</span>
                     <span className="hidden sm:inline">{ritorno.completa}</span>
                   </span>
                 )}

@@ -42,7 +42,11 @@ export function ritornoInChat(d?: Partial<LeadData> | null): RitornoChat | null 
   const r = ricaricoDi(d);
   if (!r) return null;
   const volte = r.volte;
-  const prima = (r.statoAllora && LEAD_STATUS_LABEL[r.statoAllora]) || null;
+  const prima =
+    (r.statoAllora &&
+      Object.hasOwn(LEAD_STATUS_LABEL, r.statoAllora) &&
+      LEAD_STATUS_LABEL[r.statoAllora]) ||
+    null;
   const giorno = giornoRoma(r.ultimo);
   const completa = [`↩ Di ritorno${volte > 1 ? ` ×${volte}` : ""}`, prima && `prima: ${prima}`]
     .filter(Boolean)
