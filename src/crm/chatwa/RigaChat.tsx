@@ -1,4 +1,4 @@
-import { CheckCheck, Star } from "lucide-react";
+import { CheckCheck, Star, Undo2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -7,7 +7,8 @@ import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
-import { anteprimaIn } from "./media";
+import { anteprimaIn, mediaInAnteprima } from "./media";
+import { IconaMedia } from "./IconaMedia";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
 import { formatTimeIT, initials } from "./formati";
@@ -88,6 +89,9 @@ export function RigaChat({
   const anteprima = daChiamare
     ? "In attesa su WhatsApp da oltre 10 ore: da chiamare"
     : anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
+  //  Un media si legge con la sua icona outline, anche se l'anteprima salvata
+  //  ha ancora l'emoji di prima del 28/10.
+  const media = daChiamare ? { tipo: null, testo: anteprima } : mediaInAnteprima(anteprima);
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
 
   return (
@@ -137,7 +141,8 @@ export function RigaChat({
                   )}
                 />
               )}
-              {anteprima}
+              {media.tipo && <IconaMedia tipo={media.tipo} className="mr-1 align-[-2px]" />}
+              {media.testo}
             </span>
             {c.unread > 0 && (
               <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold leading-none text-white">
@@ -165,10 +170,9 @@ export function RigaChat({
                   className="shrink-0 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
                   title={ritorno.titolo}
                 >
-                  <span className="sm:hidden" aria-label={ritorno.corta}>
-                    ↩
-                  </span>
-                  <span className="hidden sm:inline">{ritorno.corta}</span>
+                  {/*  Icona outline al posto della freccia ↩ (28/10/2026). */}
+                  <Undo2 aria-hidden="true" className="inline h-3 w-3 align-[-1px] sm:mr-1" />
+                  <span className="sr-only sm:not-sr-only">{ritorno.corta}</span>
                 </span>
               )}
               {/*  Com'è messo il cliente (28/10/2026): pallino e parola, niente risposte

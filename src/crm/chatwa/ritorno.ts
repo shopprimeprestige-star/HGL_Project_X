@@ -48,7 +48,7 @@ export function ritornoInChat(d?: Partial<LeadData> | null): RitornoChat | null 
       LEAD_STATUS_LABEL[r.statoAllora]) ||
     null;
   const giorno = giornoRoma(r.ultimo);
-  const completa = [`↩ Di ritorno${volte > 1 ? ` ×${volte}` : ""}`, prima && `prima: ${prima}`]
+  const completa = [`Di ritorno${volte > 1 ? ` ×${volte}` : ""}`, prima && `prima: ${prima}`]
     .filter(Boolean)
     .join(" · ");
   const titolo = [
@@ -58,5 +58,5 @@ export function ritornoInChat(d?: Partial<LeadData> | null): RitornoChat | null 
   ]
     .filter(Boolean)
     .join(" · ");
-  return { volte, prima, corta: "↩ Ritorno", completa, titolo };
+  return { volte, prima, corta: "Ritorno", completa, titolo };
 }

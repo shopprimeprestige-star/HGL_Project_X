@@ -66,13 +66,31 @@ const ESTENSIONI: Record<string, Exclude<TipoTesto, "testo" | "illeggibile">> = 
   pdf: "documento",
 };
 
+//  Senza emoji (28/10/2026, richiesta del titolare): l'icona la mette chi
+//  disegna (chatwa/IconaMedia), con lo stesso stile outline del resto del CRM.
 const ETICHETTE: Record<string, string> = {
-  audio: "🎤 Vocale",
-  immagine: "📷 Foto",
-  video: "🎥 Video",
-  documento: "📎 Documento",
-  allegato: "📎 Allegato",
+  audio: "Vocale",
+  immagine: "Foto",
+  video: "Video",
+  documento: "Documento",
+  allegato: "Allegato",
 };
+
+/** Le emoji che le anteprime salvate PRIMA del 28/10 hanno ancora davanti. */
+const EMOJI_VECCHIE = /^(?:🎤|📷|🎥|📎)\uFE0F?\s*/u;
+
+/** Un'anteprima (anche salvata in archivio) è un media? Ne dice il tipo e il
+ *  testo pulito dall'emoji vecchia; per un testo normale `tipo` è null. */
+export function mediaInAnteprima(testo: string | null | undefined): {
+  tipo: "audio" | "immagine" | "video" | "documento" | "allegato" | null;
+  testo: string;
+} {
+  const t = String(testo ?? "");
+  const pulito = t.replace(EMOJI_VECCHIE, "");
+  for (const [tipo, et] of Object.entries(ETICHETTE))
+    if (pulito === et) return { tipo: tipo as "audio", testo: et };
+  return { tipo: null, testo: pulito === t ? t : pulito };
+}
 
 /** Il testo è un link di media ammesso? Restituisce tipo e `url.href`, altrimenti niente. */
 function leggiMedia(t: string): { tipo: TipoTesto; url: string } | null {

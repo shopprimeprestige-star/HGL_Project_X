@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
+import { IconaMedia } from "./IconaMedia";
 import { barreFinte, etichettaVelocita, quotaDaPunto, tempoVocale, velocitaDopo } from "./stile";
 import type { BollaProps } from "./tipi";
 
@@ -130,7 +131,9 @@ function Vocale({ url }: { url: string }) {
   if (!riproducibile) {
     return (
       <div className="flex flex-col gap-1">
-        <span>🎤 Vocale</span>
+        <span className="inline-flex items-center gap-1.5">
+          <IconaMedia tipo="audio" /> Vocale
+        </span>
         <Collegamento url={url} testo="Apri il vocale" />
       </div>
     );
@@ -279,7 +282,7 @@ function Foto({ url }: { url: string }) {
         className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black/[0.04] px-3 py-2 text-left font-medium hover:bg-black/[0.07]"
       >
         <ImageIcon className="h-4 w-4 shrink-0" aria-hidden />
-        📷 Foto · Tocca per vedere
+        Foto · Tocca per vedere
       </button>
     );
   }
@@ -324,7 +327,10 @@ function Contenuto({ messaggio: m, c }: BollaProps & { c: TestoClassificato | nu
   }[c.tipo];
   return (
     <div className="flex flex-col gap-0.5">
-      <span>{c.etichetta}</span>
+      <span className="inline-flex items-center gap-1.5">
+        <IconaMedia tipo={c.tipo === "video" || c.tipo === "documento" ? c.tipo : "allegato"} />
+        {c.etichetta}
+      </span>
       <Collegamento url={url} testo={azione ?? "Apri"} />
     </div>
   );

@@ -20410,7 +20410,7 @@ function proveDiWhatsappSulTelefono() {
   //  regole, controllate dove stanno adesso.
   const pg = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[340px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
+  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[300px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
   c("la chat si vede da sola quando è aperta", true, /md:block", conversazioneAperta \? "block" : "hidden"/.test(pg));
   c("c'è la freccia per tornare all'elenco", true, /onIndietro=\{tornaElenco\}/.test(pg) && /onClick=\{onIndietro\}[\s\S]{0,80}md:hidden/.test(conv));
   c("il pannello lead affiancato solo da 1280 px", true, /leadsPanelOpen && \(\s*<div className="hidden xl:flex">/.test(pg));
@@ -20571,7 +20571,7 @@ function proveDiWhatsappTemperaturaConsulente() {
   const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("la riga della chat ha pallino e parola (non dopo la vendita)", true, /mostraTemperatura\(c\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga dati=\{c\.lead\.data\} max=\{0\}/.test(riga));
-  c("l'intestazione della chat pure", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,400}soloPallino[\s\S]{0,60}sm:hidden/.test(conv));
+  c("l'intestazione della chat pure (per esteso, nella seconda riga)", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga[\s\S]{0,80}max=\{0\}/.test(conv));
   c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
@@ -20620,6 +20620,27 @@ function proveDelDaChiamare() {
   c("sul telefono niente avatar nella barra della chat (spazio a nome e stato)", true, /<Avatar className="hidden sm:flex/.test(conv));
   c("chat con due schede sullo stesso numero: il lead in attesa conta lo stesso", true, /inAttesaPerNumero\.get\(/.test(hook));
   c("tasto Chiama nella barra della chat (tel:)", true, /href=\{`tel:\$\{numeroDaComporre\(attiva\.phone\)\}`\}/.test(conv));
+}
+
+
+/** ── WHATSAPP: NUMERO IN TESTA, ICONE AL POSTO DELLE EMOJI (28/10/2026) ──── */
+function proveDiWhatsappDisegnoMobile() {
+  gruppo("WHATSAPP: NUMERO IN TESTA, ICONE OUTLINE, DUE RIGHE");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  const pag = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
+  c("il numero sta sempre nell'intestazione (anche sul telefono)", true, /font-mono text-\[12px\][^"]*tabular-nums">\s*\{attiva\.phone\}/.test(conv) && !/hidden sm:inline text-\[11px\] text-muted-foreground font-mono/.test(conv));
+  c("stato e temperatura nella seconda riga, che scorre e non va a capo", true, /overflow-x-auto px-3 pb-2/.test(conv) && /<PastigliaStato/.test(conv));
+  c("sul tablet i tasti sono solo icona fino a 1024 px", true, /hidden lg:inline">Chiama/.test(conv));
+  c("sul tablet l'elenco è più stretto", true, /md:w-\[300px\] md:shrink-0 lg:w-\[340px\]/.test(pag));
+  const files = ["BollaMessaggio.tsx", "RigaChat.tsx", "ElencoChat.tsx", "Conversazione.tsx", "media.ts", "ritorno.ts"]
+    .map((f) => readFileSync(join(radice, "src/crm/chatwa", f), "utf8").replace(/\/\/.*$|\/\*[\s\S]*?\*\/|const EMOJI_VECCHIE.*$/gm, ""));
+  c("nessuna emoji nell'interfaccia della chat (🎤📷🎥📎★↩)", false, files.some((t) => /[🎤📷🎥📎★↩]/u.test(t)));
+  const M = mod["chatwa/media"];
+  if (M?.mediaInAnteprima) {
+    c("un'anteprima salvata con l'emoji vecchia si legge con l'icona", { tipo: "audio", testo: "Vocale" }, M.mediaInAnteprima("🎤 Vocale"));
+    c("…e quella nuova pure", { tipo: "immagine", testo: "Foto" }, M.mediaInAnteprima("Foto"));
+    c("un testo normale resta com'è", { tipo: null, testo: "ciao" }, M.mediaInAnteprima("ciao"));
+  }
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
@@ -20735,6 +20756,7 @@ proveDiWhatsappOrariStelle();
 await proveDelleNotifichePush();
 proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
+proveDiWhatsappDisegnoMobile();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

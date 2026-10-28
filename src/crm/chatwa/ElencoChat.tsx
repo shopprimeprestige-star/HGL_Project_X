@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronDown, Loader2, Search } from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, Search, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { combaciaRicerca } from "./cercaChat";
@@ -180,7 +180,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               : "border-border bg-background text-muted-foreground hover:bg-muted",
           )}
         >
-          ★ In osservazione{conStelle ? ` ${conStelle}` : ""}
+          <Star aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+          In osservazione{conStelle ? ` ${conStelle}` : ""}
         </button>
       </div>
 

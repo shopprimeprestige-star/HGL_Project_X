@@ -558,12 +558,12 @@ export async function proveChatEntrata(mod, { c, gruppo, radice }) {
      * ════════════════════════════════════════════════════════════════════ */
     gruppo("CHAT WHATSAPP · ENTRATA · VOCALE, NOME, CONFERMA E LOG");
     {
-      //  Vocale: nella riga resta l'URL, all'elenco arriva «🎤 Vocale».
+      //  Vocale: nella riga resta l'URL, all'elenco arriva «Vocale».
       let m = mondo();
       await manda(m, { testo: VOCALE });
       c(
-        "vocale (URL manybot-files .ogg) → riga col testo URL e anteprima «🎤 Vocale» passata alla porta",
-        [VOCALE, "🎤 Vocale", "🎤 Vocale"],
+        "vocale (URL manybot-files .ogg) → riga col testo URL e anteprima «Vocale» passata alla porta",
+        [VOCALE, "Vocale", "Vocale"],
         [m.db.messaggi[0]?.body, m.chiamate[0]?.anteprima, riga(m)?.ultimo_in_entrata_anteprima],
       );
       //  Testo normale: l'anteprima è il testo (≤ 100 caratteri).
