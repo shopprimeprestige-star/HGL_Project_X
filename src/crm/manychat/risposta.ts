@@ -17,9 +17,15 @@
  *  ManyChat non ritenta, e un errore nostro non deve fermare il suo flusso.
  *
  *  ⚠️ NON CHIAMA MAI MANYCHAT (né nessun altro fuori dal database). Un messaggio
- *   da un numero sconosciuto (Default Reply, nessun invio abbinato) si registra
- *   solo se il telefono è già in `whatsapp_contacts` dell'installazione;
- *   altrimenti si ignora, STOP compreso.
+ *   da un numero sconosciuto (Default Reply, nessun invio abbinato) SI REGISTRA
+ *   (commessa 2026-10-28, chat nel CRM): la riga della rubrica nasce prima di
+ *   `segnaStop`, quindi anche lo STOP di un numero nuovo vale. Si ignorano solo
+ *   l'invio di un altro contatto e il telefono non valido.
+ *  ⚠️ Un testo fatto SOLO di segnaposto non risolti (`{{...}}`: ManyChat lo lascia
+ *   così quando l'input non è testo) da un numero sconosciuto si scarta
+ *   (`segnaposto`); da un numero noto o abbinato a un nostro invio si registra
+ *   come messaggio non leggibile, e da lì in poi `testo` vale `""` in tutta
+ *   `tratta` (impronta, riga salvata, conferma, STOP, secondo stato).
  *  ⚠️ Nei log solo codici: mai numero, nome, testo o `subscriber_id`. Gli
  *   `esito` sono una lista chiusa di parole, mai dati.
  *  ⚠️ La stessa risposta arrivata due volte (flusso + Default Reply) fa UNA riga e
@@ -41,6 +47,7 @@ import {
   type PorteRisposta as PorteConferma,
 } from "../promemoria/in-entrata";
 import type { ContattoWa } from "../types";
+import { anteprimaIn, eSoloSegnaposto } from "../chatwa/media";
 import { dopoRisposta, eStop, type CambioContatto } from "./contatto";
 
 /** Lo stato HTTP della rotta: 503 senza segreto sul server, 401 senza chiave
@@ -62,8 +69,8 @@ export interface RichiestaRisposta {
 export interface EsitoRispostaRotta {
   stato: StatoRisposta;
   /** per i conteggi nei log (lista chiusa): `confermato`, `stop`, `registrata`,
-   *  `risposta`, `ignorata`, `doppione`, `illeggibile`, `senza_configurazione`,
-   *  `errore`, e per gli stati non 200 `segreto_assente`, `non_autorizzato`,
+   *  `risposta`, `ignorata`, `segnaposto`, `doppione`, `illeggibile`,
+   *  `senza_configurazione`, `errore`, e per gli stati non 200 `segreto_assente`, `non_autorizzato`,
    *  `troppo_grande` */
   esito?: string;
 }
@@ -105,11 +112,20 @@ export interface PorteRispostaManychat {
   contattoNoto(userId: string, telefono: string): Promise<{ leadId: string | null } | null>;
   /** `whatsapp_messages` in entrata, deduplicato su `wa_message_id` */
   registraMessaggio(userId: string, messaggio: MessaggioInEntrata): Promise<"nuovo" | "doppione">;
-  /** `whatsapp_contacts`: ultimo messaggio, e la riga se non c'è (serve a
-   *  `non_scrivere_dal`, che altrimenti andrebbe perso) */
+  /** `whatsapp_contacts`: ultimo messaggio (+1 ai non letti), e la riga se non
+   *  c'è (serve a `non_scrivere_dal`, che altrimenti andrebbe perso).
+   *  `anteprima`: la riga dell'elenco («🎤 Vocale», il testo…); `subscriberId` e
+   *  `nome` si scrivono solo se la riga non li ha già. */
   aggiornaContatto(
     userId: string,
-    x: { telefono: string; leadId: string | null; adesso: Date },
+    x: {
+      telefono: string;
+      leadId: string | null;
+      adesso: Date;
+      anteprima: string;
+      subscriberId: string | null;
+      nome: string | null;
+    },
   ): Promise<void>;
   /** le porte di `rispostaAlPromemoria` (conferma del 22/10 e STOP) */
   conferma(userId: string, telefono: string, adesso: Date): PorteConferma;
@@ -170,44 +186,64 @@ async function tratta(
   const telefono = abbinata.tipo === "invio" ? abbinata.invio.telefono : telCorpo;
   if (!telefono) return "ignorata";
   const noto = await porte.contattoNoto(userId, telefono);
-  //  Né un nostro invio né un contatto che già conosciamo: uno sconosciuto.
-  if (abbinata.tipo === "ignorata" && !noto) return "ignorata";
+  //  Un testo fatto solo di segnaposto (`{{...}}`) è un messaggio che ManyChat
+  //  non ha saputo leggere (figurina, posizione…). Da uno sconosciuto (né un
+  //  nostro invio né in rubrica) è quasi sempre il flusso di prova: si scarta.
+  //  Da un noto o da chi risponde a un nostro invio è un cliente vero: si
+  //  registra, ma senza il segnaposto, in NESSUN punto da qui in poi.
+  const sconosciuto = abbinata.tipo === "ignorata" && !noto;
+  const soloSegnaposto = eSoloSegnaposto(corpo.testo);
+  if (soloSegnaposto && sconosciuto) return "segnaposto";
+  const testo = soloSegnaposto ? "" : corpo.testo;
   const leadId = (abbinata.tipo === "invio" ? abbinata.invio.leadId : null) ?? noto?.leadId ?? null;
 
   //  Il registro, deduplicato: flusso e Default Reply dello stesso messaggio
   //  arrivano nello stesso minuto con lo stesso subscriber e lo stesso testo.
   const minuto = adesso.toISOString().slice(0, 16);
-  const impr = await impronta(corpo.subscriberId || telefono, corpo.testo, minuto);
+  const impr = await impronta(corpo.subscriberId || telefono, testo, minuto);
+  const testoSalvato = testo.trim() || "[messaggio senza testo]";
   const scritto = await porte.registraMessaggio(userId, {
     waId: `mc-in:${impr}`,
     leadId,
     telefono,
-    testo: corpo.testo.trim() || "[messaggio senza testo]",
+    testo: testoSalvato,
     adesso,
   });
   if (scritto === "doppione") return "doppione";
   //  La riga della rubrica PRIMA dello STOP: `non_scrivere_dal` si scrive con un
   //  aggiornamento, e se la riga non c'è lo STOP andrebbe perso.
-  await porte.aggiornaContatto(userId, { telefono, leadId, adesso });
+  //  L'anteprima dell'elenco è calcolata dalla stessa funzione che disegna la bolla.
+  await porte.aggiornaContatto(userId, {
+    telefono,
+    leadId,
+    adesso,
+    anteprima: anteprimaIn(testoSalvato),
+    subscriberId: corpo.subscriberId || null,
+    nome: corpo.nome || null,
+  });
 
   //  Il freno «mai due volte senza risposta» guarda `risposta_il`: PRIMA della
   //  conferma, così non si perde nemmeno se la conferma poi dà errore. Un
-  //  guasto qui non ferma il resto (solo il codice nell'avviso).
-  try {
-    await porte.rispostaArrivata(
-      userId,
-      abbinata.tipo === "invio" ? abbinata.invio.id : null,
-      adesso,
-    );
-  } catch (e) {
-    porte.avviso(`errore (${codiceErrore(e)}): ora della risposta non scritta`);
+  //  guasto qui non ferma il resto (solo il codice nell'avviso). Uno
+  //  sconosciuto (nessun invio, non in rubrica) non è una risposta a niente di
+  //  nostro: non tocca l'ora della risposta del giro.
+  if (!sconosciuto) {
+    try {
+      await porte.rispostaArrivata(
+        userId,
+        abbinata.tipo === "invio" ? abbinata.invio.id : null,
+        adesso,
+      );
+    } catch (e) {
+      porte.avviso(`errore (${codiceErrore(e)}): ora della risposta non scritta`);
+    }
   }
 
   //  La conferma del 22/10: SÌ → confermato, STOP → non_scrivere_dal. La firma
   //  qui è la chiave giusta (siamo arrivati solo con quella).
   const esito = await rispostaAlPromemoria(porte.conferma(userId, telefono, adesso), {
     firmaVerificata: true,
-    testo: corpo.testo,
+    testo,
     numero: `+${telefono}`,
     adesso,
   });
@@ -216,7 +252,7 @@ async function tratta(
   //  sono più delle due del 22/10 («stop», «basta»): `rispostaAlPromemoria` non
   //  le conosce e non scrive `non_scrivere_dal`. Senza quello, la scheda direbbe
   //  STOP ma il numero resterebbe scrivibile da ogni altro canale. Idempotente.
-  if (esito !== "stop" && eStop(corpo.testo)) {
+  if (esito !== "stop" && eStop(testo)) {
     try {
       const { error } = await porte.conferma(userId, telefono, adesso).segnaStop();
       if (error) throw error;
@@ -232,7 +268,7 @@ async function tratta(
   if (leadId) {
     try {
       const scheda = await porte.contattoDi(userId, leadId);
-      const cambio = scheda ? dopoRisposta(scheda.contattoWa, corpo.testo, adesso) : null;
+      const cambio = scheda ? dopoRisposta(scheda.contattoWa, testo, adesso) : null;
       if (cambio) await porte.scriviContatto(userId, leadId, cambio);
     } catch (e) {
       porte.avviso(`errore (${codiceErrore(e)}): secondo stato non scritto`);
