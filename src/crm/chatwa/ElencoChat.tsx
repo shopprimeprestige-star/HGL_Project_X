@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { combaciaRicerca } from "./cercaChat";
 import { RigaChat, type ModoRiga } from "./RigaChat";
 import type { ChatItem, ElencoChatProps, FiltroChat } from "./tipi";
 
@@ -40,12 +41,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const adesso = useAdesso();
   const [vecchieAperte, setVecchieAperte] = useState(false);
 
-  // Con una ricerca attiva anche il riquadro e le «vecchie» mostrano solo ciò che combacia;
-  // senza ricerca il riquadro è sempre intero: chi aspetta una risposta non si nasconde con un filtro.
+  // Il riquadro e le «vecchie» obbediscono SOLO alla ricerca, non alle pastiglie: chi aspetta una
+  // risposta non si nasconde con un filtro. La ricerca è fatta qui (non da `visibili`, che applica anche la pastiglia).
   const cercando = ricerca.trim() !== "";
-  const trovati = new Set(visibili.map((c) => c.phone));
-  const perRicerca = (righe: ChatItem[]) =>
-    cercando ? righe.filter((c) => trovati.has(c.phone)) : righe;
+  const perRicerca = (righe: ChatItem[]) => righe.filter((c) => combaciaRicerca(c, ricerca));
 
   const inAttesa = perRicerca(api.daRispondere);
   const vecchie = perRicerca(api.chats.filter(eVecchia));

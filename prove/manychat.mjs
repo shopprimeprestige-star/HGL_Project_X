@@ -39,6 +39,7 @@ import { proveDellOrchestratorePrenota } from "./manychat/prenota.mjs";
 import { proveChatMigrazione } from "./manychat/chat-migrazione.mjs";
 import { proveChatMedia } from "./manychat/chat-media.mjs";
 import { proveChatStato } from "./manychat/chat-stato.mjs";
+import { proveChatElenco } from "./manychat/chat-elenco.mjs";
 import { proveChatEntrata } from "./manychat/chat-entrata.mjs";
 import { proveChatUscita } from "./manychat/chat-uscita.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
@@ -305,6 +306,7 @@ export async function proveManychat(mod, aiuti) {
   await proveChatMigrazione(mod, aiuti);
   await proveChatMedia(mod, aiuti);
   await proveChatStato(mod, aiuti);
+  await proveChatElenco(mod, aiuti);
   await proveChatEntrata(mod, aiuti);
   await proveChatUscita(mod, aiuti);
 }

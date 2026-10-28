@@ -65,7 +65,12 @@ function Corpo({ chat, api, onChiudi }: Props & { chat: ChatItem }) {
     setInvio(true);
     setErrore(null);
     try {
-      await api.abbina(scelta.id);
+      // shortcut: `abbina` col numero come secondo argomento non è ancora nel tipo di tipi.ts (T7 lo aggiunge,
+      // facoltativo, e rifiuta se non combacia con la chat mostrata); si toglie il cast quando il tipo c'è.
+      await (api.abbina as (leadId: string, telefono?: string) => Promise<void>)(
+        scelta.id,
+        chat.phone,
+      );
       onChiudi();
     } catch {
       setErrore("Abbinamento non riuscito: riprova fra poco.");

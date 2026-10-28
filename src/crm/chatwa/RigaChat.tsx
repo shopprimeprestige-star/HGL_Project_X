@@ -54,8 +54,10 @@ export function RigaChat({
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
 
-  const tempo = inAttesa
-    ? attesaInChiaro(c.daRispondere?.dal ?? null, adesso)
+  // `dal` c'è sempre se la chat è in attesa; se mancasse, meglio l'ora dell'ultimo messaggio che un «da meno di 1 min» falso.
+  const dal = inAttesa ? (c.daRispondere?.dal ?? null) : null;
+  const tempo = dal
+    ? attesaInChiaro(dal, adesso)
     : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
   const anteprima = anteprimaRiga(
     inAttesa ? (c.daRispondere?.anteprima ?? last?.body) : last?.body,
