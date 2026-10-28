@@ -21,7 +21,7 @@ import type { CambioContatto } from "./contatto";
 import type { AmbitoSchede, ConfigGiro, PorteGiro, RigaGiroDb, StatoGiroSalvato } from "./giro";
 import { configDaRiga, fraseModuloDa, type RigaConfig } from "./pannello";
 import { TABELLA_STATI } from "./stati";
-import { MEMORIA_SALTI_MIN, STATI_LEAD_NUOVO } from "./sequenze";
+import { CASI_REALI_DAL, MEMORIA_SALTI_MIN, STATI_LEAD_NUOVO } from "./sequenze";
 import { STATI_RICONTATTO_AUTOMATICO, type InvioPerFreno } from "./regole";
 import type { SchedaQuando } from "./quando";
 import type { PorteRisposta as PorteConferma } from "../promemoria/in-entrata";
@@ -529,6 +529,22 @@ export function porteGiro(): PorteGiro {
         lavori.push(tutte(() => importati().is("data->>contattoWa", null)));
         lavori.push(tutte(() => importati().eq("data->contattoWa->>stato", "non_raggiungibile")));
         lavori.push(tutte(() => schede().not("data->ricarico->>ultimo", "is", null)));
+        //  I casi reali (secondo messaggio): le schede che dopo il primo contatto sono «In attesa».
+        //  Il primo contatto le porta in «Attesa WhatsApp» o le lascia nel loro stato, quindi si
+        //  leggono dal secondo stato; il limite di data è la scadenza della risposta (24 h, più un
+        //  fine settimana) e comunque mai prima di `CASI_REALI_DAL`.
+        const casiDal = new Date(
+          Math.max(Date.parse(CASI_REALI_DAL), Date.parse(oggi) - 3 * GIORNO_MS),
+        ).toISOString();
+        lavori.push(
+          leggi(
+            schede()
+              .eq("data->contattoWa->>stato", "in_attesa")
+              .eq("data->contattoWa->>motivo", "primo_contatto")
+              .gte("data->contattoWa->>il", casiDal)
+              .limit(2000),
+          ),
+        );
       }
       //  I messaggi per stato accesi. A evento: serve `statoDal` dall'accensione in poi.
       const accesi = Object.keys(ambito.stati).filter((s) => s in TABELLA_STATI);

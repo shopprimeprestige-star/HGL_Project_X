@@ -307,9 +307,9 @@ export function ManychatPannello() {
           fatto: "WhatsApp con ManyChat acceso",
         },
         promemoria: {
-          titolo: "Accendere i promemoria 25 minuti prima?",
+          titolo: "Accendere i promemoria 20 minuti prima?",
           testo:
-            "Chi ha un meet oggi, con «Ok a WhatsApp» sulla scheda, riceve un promemoria 25 minuti prima. Uno solo per appuntamento. Parte solo se anche l'interruttore generale è acceso.",
+            "Chi ha un meet oggi, con «Ok a WhatsApp» sulla scheda, riceve un promemoria 20 minuti prima. Uno solo per appuntamento. Parte solo se anche l'interruttore generale è acceso.",
           fatto: "Promemoria acceso",
         },
         ricontatti: {
@@ -338,11 +338,9 @@ export function ManychatPannello() {
           titolo: "Accendere «Giorno del meet»?",
           testo: (
             <>
-              Chi ha un meet domani riceve un promemoria 24 ore prima (alla stessa ora del giorno
-              prima, tra le 9 e le 20; non parte se la consulenza è stata fissata meno di 24 ore
-              prima). Chi ha un meet oggi riceve un messaggio la mattina (alle 9; se il meet è prima
+              Chi ha un meet oggi riceve un messaggio la mattina (alle 9; se il meet è prima
               delle 10, appena possibile) e uno all'ora esatta, con il link per entrare. Il
-              promemoria 25 minuti prima resta il suo interruttore. Questi messaggi non sono frenati
+              promemoria 20 minuti prima resta il suo interruttore. Questi messaggi non sono frenati
               da «mai due messaggi senza risposta», perché riguardano un appuntamento già preso;
               contano nei tetti e si fermano con STOP. Parte solo se anche l'interruttore generale è
               acceso.
@@ -657,8 +655,8 @@ export function ManychatPannello() {
               />
               <div className="space-y-3 pl-4 sm:pl-6">
                 <Interruttore
-                  etichetta="Promemoria 25 minuti prima"
-                  nota="Il cliente con un meet oggi riceve un messaggio 25 minuti prima."
+                  etichetta="Promemoria 20 minuti prima"
+                  nota="Il cliente con un meet oggi riceve un messaggio 20 minuti prima."
                   acceso={config.promemoria}
                   disabilitato={bloccato}
                   onCambia={(v) => imposta("promemoria", v)}
@@ -696,9 +694,8 @@ export function ManychatPannello() {
                       etichetta="Giorno del meet"
                       nota={
                         <>
-                          Il giorno del meet: un promemoria 24 ore prima, un messaggio la mattina e
-                          uno all'ora esatta, con il link per entrare. Il promemoria 24 ore prima
-                          può partire anche la domenica.
+                          Il giorno del meet: un messaggio la mattina e uno all'ora esatta, con il
+                          link per entrare. Il promemoria 24 ore prima è spento.
                           {sequenze.giornoMeet.nota && (
                             <span className="mt-0.5 block text-amber-800">
                               {sequenze.giornoMeet.nota}

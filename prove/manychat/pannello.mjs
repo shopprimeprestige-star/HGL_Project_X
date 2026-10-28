@@ -707,7 +707,7 @@ export async function proveVistaComponenti(aiuti) {
   );
   c(
     "collegamento: manca un flusso → «Non controllato: il flusso …»",
-    "Non controllato: il flusso «Promemoria 25 minuti prima del meet»",
+    "Non controllato: il flusso «Promemoria 20 minuti prima del meet»",
     V.righeCollegamento(coll({}, ["flusso:hgl_promemoria_meet"]), CTX).find(
       (r) => r.id === "flusso:hgl_promemoria_meet",
     ).testo,
@@ -1589,7 +1589,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     });
   const ric = (id, n, extra) =>
     sched(id, n, { stato: "da_ricontattare", dataRicontatto: "2026-10-23", ...extra });
-  const ora1506 = new Date("2026-10-23T13:06:00.000Z"); // 15:06 a Roma
+  const ora1511 = new Date("2026-10-23T13:11:00.000Z"); // 15:11 a Roma
   const secco = (schede, extra = {}) =>
     P.provaASecco(
       {
@@ -1600,7 +1600,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
         prossimoDopo: null,
         ...extra,
       },
-      ora1506,
+      ora1511,
     );
 
   const s1 = secco([meet("m1", 1, "15:30"), ric("r1", 2), ric("r2", 3)]);
@@ -1609,7 +1609,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   const vecchi = (s) => s.righe.filter((r) => ["promemoria", "ricontatto"].includes(r.tipo));
   const dettagli = (s) => vecchi(s).map((r) => [r.tipo, r.esito]);
   c(
-    "meet alle 15:30 alle 15:06 → scriverebbe; il primo ricontatto scriverebbe, il secondo aspetta (uno alla volta)",
+    "meet alle 15:30 alle 15:11 → scriverebbe; il primo ricontatto scriverebbe, il secondo aspetta (uno alla volta)",
     [
       ["promemoria", "scriverebbe"],
       ["ricontatto", "scriverebbe"],
@@ -1630,17 +1630,17 @@ async function proveRotte(mod, { c, gruppo, radice }) {
       s1.righe.find((r) => r.tipo === "meet_oggi")?.esito,
     ],
   );
-  //  24 ore prima: il meet è sabato 24/10 alle 15:06, sono le 15:06 di venerdì 23/10
+  //  24 ore prima: SPENTO (decisione del titolare, 28/10). Il meet è sabato 24/10 alle 15:11,
+  //  sono le 15:11 di venerdì 23/10: un tempo la prova avrebbe mostrato meet_domani.
   const sD = secco([
-    meet("m9", 9, "15:06", { dataMeeting: "2026-10-24", fissatoIl: "2026-10-20T09:00:00.000Z" }),
+    meet("m9", 9, "15:11", { dataMeeting: "2026-10-24", fissatoIl: "2026-10-20T09:00:00.000Z" }),
   ]);
-  const rD = sD.righe.find((r) => r.tipo === "meet_domani");
   c(
-    "la prova a secco vede anche il promemoria 24 ore prima: «scriverebbe», con il nome abbreviato e senza numero",
-    ["scriverebbe", "Anna P.", false],
-    [rD?.esito, rD?.nome, /\d{6,}/.test(JSON.stringify(sD))],
+    "la prova a secco non mostra più il promemoria 24 ore prima (spento): nessuna riga meet_domani",
+    0,
+    sD.righe.filter((r) => r.tipo === "meet_domani").length,
   );
-  c("…l'ora è quella data", ora1506.toISOString(), s1.adesso);
+  c("…l'ora è quella data", ora1511.toISOString(), s1.adesso);
   c("…mai il telefono nelle righe", false, /\d{6,}/.test(JSON.stringify(s1)));
   const s2 = secco([meet("m1", 1, "15:30", { okWhatsapp: { si: false } })]);
   c(
@@ -1658,7 +1658,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   c(
     "meet lontano: aspetta, e dice a che ora parte",
     ["aspetta", true],
-    [vecchi(s4)[0].esito, /17:35/.test(vecchi(s4)[0].motivo)],
+    [vecchi(s4)[0].esito, /17:40/.test(vecchi(s4)[0].motivo)],
   );
   c("nessuno da toccare: elenco vuoto", [], secco([sched("x", 9, { stato: "nuovo_lead" })]).righe);
   const s5 = secco([ric("r1", 2)], { prossimoDopo: new Date("2026-10-23T13:30:00.000Z") });
@@ -2148,11 +2148,12 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     );
   }
   c(
-    "flussi per le sequenze: i sei della sequenza (con il ritorno) e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
+    "flussi per le sequenze: i sette della sequenza (con il ritorno e i casi reali) e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
     [
       "hgl_primo_contatto",
       "hgl_richiamo_24h",
       "hgl_ritorno",
+      "hgl_casi_reali",
       "hgl_meet_oggi",
       "hgl_meet_domani",
       "hgl_meet_adesso",
@@ -3165,8 +3166,8 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ),
   );
   c(
-    "giorno del meet acceso senza i flussi → rossi i tre del meet (mattina, 24 ore prima, all'ora)",
-    ["errore", "errore", "errore", "non_serve"],
+    "giorno del meet acceso senza i flussi → rossi mattina e all'ora; il 24 ore prima (spento dal 28/10) non serve",
+    ["errore", "non_serve", "errore", "non_serve"],
     [
       colMeet["flusso:hgl_meet_oggi"],
       colMeet["flusso:hgl_meet_domani"],

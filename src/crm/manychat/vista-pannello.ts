@@ -383,7 +383,7 @@ export const MODELLI_FLUSSO: { modello: string; etichetta: string }[] = [
     modello: "consulenza_conferma_presenza",
     etichetta: "Conferma della consulenza («risponda SÌ»)",
   },
-  { modello: "hgl_promemoria_meet", etichetta: "Promemoria 25 minuti prima del meet" },
+  { modello: "hgl_promemoria_meet", etichetta: "Promemoria 20 minuti prima del meet" },
   { modello: "hgl_ricontatto_consulenza", etichetta: "Ricontatto dei consulenti" },
 ];
 
@@ -395,8 +395,9 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   { modello: "hgl_primo_contatto", etichetta: "Lead nuovo: primo messaggio" },
   { modello: "hgl_richiamo_24h", etichetta: "Lead nuovo: richiamo dopo 24 ore" },
   { modello: "hgl_ritorno", etichetta: "Lead nuovo: messaggio di ritorno" },
+  { modello: "hgl_casi_reali", etichetta: "Lead nuovo: casi reali" },
   { modello: "hgl_meet_oggi", etichetta: "Giorno del meet: messaggio del mattino" },
-  { modello: "hgl_meet_domani", etichetta: "Giorno del meet: promemoria 24 ore prima" },
+  { modello: "hgl_meet_domani", etichetta: "Giorno del meet: promemoria 24 ore prima (spento)" },
   { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
   { modello: "hgl_meet_da_fissare", etichetta: "Meet da fissare" },
   { modello: "hgl_richiamo_concordato", etichetta: "Richiamo concordato" },
@@ -546,6 +547,7 @@ export const ETICHETTA_TIPO: Record<string, string> = {
   primo_contatto: "primo contatto",
   richiamo_24h: "richiamo dopo 24 ore",
   ritorno: "messaggio di ritorno",
+  casi_reali: "casi reali",
   meet_oggi: "meet di oggi",
   meet_domani: "meet 24 ore prima",
   meet_adesso: "meet all'ora",

@@ -31,7 +31,7 @@ import { istanteDiRoma } from "./contatto";
 
 /** ── L'INTERRUTTORE DI REGOLA: IL FRENO VALE ANCHE PER IL PROMEMORIA? ──────
  *  Risposta del titolare (SPEC 25/10, §3): il giorno del meet partono la
- *  mattina, i 25' e l'ora esatta, e NON li frena «mai due senza risposta»:
+ *  mattina, i 20' e l'ora esatta, e NON li frena «mai due senza risposta»:
  *  sono messaggi di servizio di un appuntamento preso. Il freno resta per gli
  *  altri. La conferma scritta la chiede il capo progetto prima di accendere.
  *  Tornare indietro è QUESTA riga (`quando.ts` la legge, e le prove ci passano
@@ -183,7 +183,7 @@ export interface InvioPerFreno {
 
 /** Gli invii che il freno guarda: i messaggi AUTOMATICI al cliente. La chat è
  *  una persona che scrive, il webinar è un altro prodotto, la prova è del
- *  titolare. Con la commessa 2026-10-25 ci sono anche i sette tipi nuovi. */
+ *  titolare. Con la commessa 2026-10-25 ci sono anche i sette tipi nuovi (e, dal 28/10, il ritorno e i casi reali). */
 export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "promemoria",
   "ricontatto",
@@ -191,13 +191,14 @@ export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "primo_contatto",
   "richiamo_24h",
   "ritorno",
+  "casi_reali",
   "meet_oggi",
   "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
 ];
-/** Quelli che contano nei tetti: i dieci del giro (la conferma parte da un'altra
+/** Quelli che contano nei tetti: gli undici del giro (la conferma parte da un'altra
  *  strada, subito dopo la prenotazione, e non ha tetto). */
 export const TIPI_NEI_TETTI: InvioPerFreno["tipo"][] = TIPI_AUTOMATICI.filter(
   (t) => t !== "conferma",
@@ -232,7 +233,7 @@ const istante = (iso?: string | null): number => {
 export const FRENO_SCADE_DOPO_GIORNI = 7;
 
 /** Il prefisso della chiave di ogni messaggio legato a un appuntamento:
- *  `p|` promemoria 25', `o|` mattina del meet, `d|` 24 ore prima, `a|` ora
+ *  `p|` promemoria 20', `o|` mattina del meet, `d|` 24 ore prima, `a|` ora
  *  esatta, `ch|` chiamata concordata, `sd|` appuntamento in sede. Tutte
  *  `prefisso|tel9|AAAA-MM-GGTHH:MM`. */
 const PREFISSO_APPUNTAMENTO: Partial<Record<InvioPerFreno["tipo"], string>> = {

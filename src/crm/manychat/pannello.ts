@@ -671,7 +671,7 @@ const eTipoAutomatico = (t: unknown): t is ProblemaGiro["tipo"] =>
   (TIPI_AUTOMATICI as string[]).includes(String(t));
 const MAX_PROBLEMI = 20;
 
-const LEAD_NUOVI = ["primo_contatto", "richiamo_24h", "ritorno"];
+const LEAD_NUOVI = ["primo_contatto", "richiamo_24h", "ritorno", "casi_reali"];
 
 /** Gli esiti di `sheets_ingressi` che il riquadro può mostrare; ogni altro valore
  *  diventa «altro» (nello stato non passa mai un testo del database). */
@@ -899,10 +899,13 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   if (
     modello === "hgl_primo_contatto" ||
     modello === "hgl_richiamo_24h" ||
-    modello === "hgl_ritorno"
+    modello === "hgl_ritorno" ||
+    modello === "hgl_casi_reali"
   )
     return !!s?.leadNuovo;
-  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_domani" || modello === "hgl_meet_adesso")
+  //  Il promemoria 24 ore prima è spento (titolare, 28/10): il suo flusso non serve.
+  if (modello === "hgl_meet_domani") return false;
+  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso")
     return !!s?.giornoMeet;
   //  I modelli per stato: serve se uno degli stati che lo usano è acceso («Ricontatto
   //  fissato» è l'interruttore dei ricontatti).
