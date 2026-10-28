@@ -72,8 +72,11 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const nascostiInAttesa = inAttesaTutti.length - inAttesa.length;
   const vecchie = perRicerca(api.chats.filter(eVecchia)).filter(delConsulente);
   // Una chat una volta sola: se sta nel riquadro o fra le «vecchie», non si ripete fra le altre.
+  //  «Da chiamare» (28/10/2026): in attesa WhatsApp da più di 10 ore. Come «Da
+  //  rispondere», obbedisce a ricerca e consulente, non alle pastiglie.
+  const daChiamare = perRicerca(api.daChiamare).filter(delConsulente);
   const giaSopra = new Set(
-    [...api.daRispondere, ...api.chats.filter(eVecchia)].map((c) => c.phone),
+    [...api.daRispondere, ...api.daChiamare, ...api.chats.filter(eVecchia)].map((c) => c.phone),
   );
   const altreTutte = visibili.filter((c) => !giaSopra.has(c.phone) && delConsulente(c));
   const altre = soloStelle
@@ -219,6 +222,19 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                 <ul>{inAttesa.map((c) => riga(c, "attesa"))}</ul>
               )}
             </section>
+
+            {daChiamare.length > 0 && (
+              <section aria-labelledby="titolo-da-chiamare">
+                <h2
+                  id="titolo-da-chiamare"
+                  className="border-b border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-900 md:text-xs"
+                  title="In Attesa WhatsApp da più di 10 ore senza rispondere: è il momento di telefonare"
+                >
+                  Da chiamare ({daChiamare.length}) · in attesa WhatsApp da oltre 10 ore
+                </h2>
+                <ul>{daChiamare.map((c) => riga(c, "chiamare"))}</ul>
+              </section>
+            )}
 
             {visibili.length === 0 ? (
               <p className="px-4 py-10 text-center text-xs text-muted-foreground">

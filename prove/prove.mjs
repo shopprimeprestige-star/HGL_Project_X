@@ -467,6 +467,8 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ «Da chiamare» nella chat WhatsApp: vedi proveDelDaChiamare.
+  "chatwa/daChiamare",
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
   "push/webpush",
   "push/avviso",
@@ -20584,6 +20586,36 @@ function proveDiWhatsappTemperaturaConsulente() {
   c("lead senza risposte: niente pallino (non si inventa)", "nessuna", T.temperaturaLead(undefined, null).livello);
 }
 
+
+/** ── CHAT WHATSAPP: «DA CHIAMARE» (28/10/2026) ──────────────────────────────
+ *  Richiesta del titolare, corretta: solo chi resta in «Attesa WhatsApp» per
+ *  più di 10 ore di fila va in «Da chiamare». Dati inventati. */
+function proveDelDaChiamare() {
+  gruppo("CHAT WHATSAPP: DA CHIAMARE = IN ATTESA WHATSAPP DA OLTRE 10 ORE");
+  const D = mod["chatwa/daChiamare"];
+  const adesso = new Date("2026-10-28T20:00:00Z");
+  const attesa = (iso) => ({ stato: "attesa_whatsapp", statoPrecedenteIl: iso });
+  c("stato Attesa WhatsApp da 11 ore: da chiamare", { si: true, dal: "2026-10-28T09:00:00Z" }, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], adesso }));
+  c("da 9 ore: non ancora", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T11:00:00Z"), messaggi: [], adesso }).si);
+  c("tasto WhatsApp premuto 12 ore fa e stato invariato: sì", true, D.calcolaDaChiamare({ dati: { stato: "da_contattare", whatsappInviatoIl: "2026-10-28T08:00:00Z", statoPrecedenteIl: "2026-10-27T08:00:00Z" }, messaggi: [], adesso }).si);
+  c("stato cambiato dopo il messaggio (es. richiamo): no", false, D.calcolaDaChiamare({ dati: { stato: "richiamo", whatsappInviatoIl: "2026-10-28T08:00:00Z", statoPrecedenteIl: "2026-10-28T09:00:00Z" }, messaggi: [], adesso }).si);
+  c("primo contatto senza attesa WhatsApp: NON va in Da chiamare", false, D.calcolaDaChiamare({ dati: { stato: "da_contattare" }, messaggi: [{ direction: "outbound", created_at: "2026-10-27T08:00:00Z" }], adesso }).si);
+  c("il cliente ha scritto durante l'attesa: no (è «Da rispondere»)", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T12:00:00Z" }], adesso }).si);
+  c("…anche se lo dice solo la rubrica", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], ultimaEntrataIl: "2026-10-28T10:00:00Z", adesso }).si);
+  c("aveva scritto PRIMA dell'attesa: sì", true, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-27T09:00:00Z" }], adesso }).si);
+  c("numero in STOP: no", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], stop: true, adesso }).si);
+  c("senza scheda: no", false, D.calcolaDaChiamare({ dati: null, messaggi: [], adesso }).si);
+  c("numeri della scheda nel formato delle chat", ["+393331234567", "+393331234567", "+393331234567", "+447700900123", ""],
+    ["333 123 4567", "+39 333 1234567", "0039 3331234567", "+44 7700 900123", "123"].map(D.telefonoE164));
+  const hook = readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8");
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("la chat calcola «Da chiamare» per ogni contatto", true, /item\.daChiamare = calcolaDaChiamare\(/.test(hook));
+  c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
+  c("«Da chiamare» ha la sua sezione e non si ripete fra le altre", true, /titolo-da-chiamare/.test(elenco) && /\.\.\.api\.daChiamare,/.test(elenco));
+  c("tasto Chiama nella barra della chat (tel:)", true, /href=\{`tel:\$\{numeroDaComporre\(attiva\.phone\)\}`\}/.test(conv));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20696,6 +20728,7 @@ proveDelTestoDeiModelli();
 proveDiWhatsappOrariStelle();
 await proveDelleNotifichePush();
 proveDiWhatsappTemperaturaConsulente();
+proveDelDaChiamare();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

@@ -6,6 +6,7 @@ import {
   Clock,
   MessageCircle,
   MoreVertical,
+  Phone,
   Trash2,
   UserPlus,
   UserRound,
@@ -22,6 +23,7 @@ import {
 //  Il selettore di stato è uno solo in tutto il CRM (crm/SelettoreStatoDialog):
 //  qui c'era una tendina che ignorava `statiPer`.
 import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
+import { numeroDaComporre } from "@/crm/importa/chiamare";
 import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
@@ -191,6 +193,26 @@ export function Conversazione({
                 )}
               </div>
             </div>
+            {/*  ── CHIAMA (28/10/2026) ─────────────────────────────────────
+                Richiesta del titolare: il tasto per telefonare sopra la chat.
+                Sul telefono apre il compositore con il numero; sul Mac lo
+                passa all'iPhone (Continuità) o all'app che gestisce «tel:». */}
+            {numeroDaComporre(attiva.phone) && (
+              <Button
+                asChild
+                variant="outline"
+                className="h-11 w-11 sm:w-auto px-0 sm:px-3 shrink-0 md:h-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+              >
+                <a
+                  href={`tel:${numeroDaComporre(attiva.phone)}`}
+                  aria-label={`Chiama ${attiva.phone}`}
+                  title={`Chiama ${attiva.phone}`}
+                >
+                  <Phone className="h-4 w-4" />
+                  <span className="hidden sm:inline">Chiama</span>
+                </a>
+              </Button>
+            )}
             {attiva.lead && (
               <InfoModulo
                 dati={attiva.lead.data}
