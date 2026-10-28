@@ -16,11 +16,8 @@ const FILTRI: { v: FiltroChat; l: string }[] = [
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
-/** Chat con risposta mancante da più di 7 giorni (ripiego sui messaggi, D5/R10).
- *  shortcut: `vecchia` non è nel tipo di `ChatItem.daRispondere` (tipi.ts è congelato): si legge da
- *  lì se T7 lo passa, altrimenti la riga «da più di 7 giorni» resta vuota; cambiare quando tipi.ts lo dichiara. */
-const eVecchia = (c: ChatItem) =>
-  (c.daRispondere as { vecchia?: boolean } | null | undefined)?.vecchia === true;
+/** Chat con risposta mancante da più di 7 giorni (ripiego sui messaggi, D5/R10). */
+const eVecchia = (c: ChatItem) => c.daRispondere?.vecchia === true;
 
 /** L'ora «adesso», aggiornata ogni 30 secondi. */
 function useAdesso(): number {

@@ -18,6 +18,7 @@ import { EditorMessaggi } from "@/crm/EditorMessaggi";
 import { Conversazione } from "./Conversazione";
 import { ElencoChat } from "./ElencoChat";
 import type { ChatItem, ChatWaApi } from "./tipi";
+import { AbbinaScheda } from "./AbbinaScheda";
 import { useChatWa } from "./useChatWa";
 import { usaAltezzaVisibile } from "./usaAltezzaVisibile";
 
@@ -157,21 +158,14 @@ export function PaginaChat() {
     setLeadDialogOpen(true);
   };
 
-  // shortcut: `AbbinaScheda` è di T8 (ramo feat/chat-crm-t8) e qui non c'è ancora: il
-  // cablaggio è pronto ma spento. Chi unisce i rami toglie `abbinaDaFare` e
-  // decommenta i tre punti marcati `TODO integrazione`.
-  const abbinaDaFare = () => {};
-  // TODO integrazione (1/3): import { AbbinaScheda } from "./AbbinaScheda";
-  // TODO integrazione (2/3): lo stato e il gestore, al posto di `abbinaDaFare`:
-  //   const [daAbbinare, setDaAbbinare] = useState<ChatItem | null>(null);
-  //   // `api.abbina` lavora sulla chat aperta: prima si apre quella chat.
-  //   const abbinaChat = (c: ChatItem) => {
-  //     apiPagina.apri(c.phone);
-  //     setDaAbbinare(c);
-  //   };
-  //   e `onAbbina={abbinaChat}` su ElencoChat e Conversazione.
-  // TODO integrazione (3/3): accanto a LeadDialog:
-  //   <AbbinaScheda chat={daAbbinare} api={apiPagina} onChiudi={() => setDaAbbinare(null)} />
+  //  «Abbina a una scheda»: `api.abbina` lavora sulla chat aperta, quindi prima
+  //  si apre quella chat; la finestra passa anche il numero, e l'hook rifiuta se
+  //  la chat aperta nel frattempo è un'altra.
+  const [daAbbinare, setDaAbbinare] = useState<ChatItem | null>(null);
+  const abbinaChat = (c: ChatItem) => {
+    apiPagina.apri(c.phone);
+    setDaAbbinare(c);
+  };
 
   const openHeaderEdit = () => {
     const chat = api.attiva;
@@ -285,7 +279,7 @@ export function PaginaChat() {
             conversazioneAperta ? "hidden" : "flex",
           )}
         >
-          <ElencoChat api={apiPagina} onCreaScheda={creaScheda} onAbbina={abbinaDaFare} />
+          <ElencoChat api={apiPagina} onCreaScheda={creaScheda} onAbbina={abbinaChat} />
         </div>
 
         {/* Colonna conversazione */}
@@ -295,7 +289,7 @@ export function PaginaChat() {
             onIndietro={tornaElenco}
             onApriLead={openHeaderEdit}
             onCreaScheda={creaScheda}
-            onAbbina={abbinaDaFare}
+            onAbbina={abbinaChat}
           />
         </div>
 
@@ -322,6 +316,7 @@ export function PaginaChat() {
       </Sheet>
 
       {/* Dialog: modifica lead esistente o crea nuovo da numero sconosciuto */}
+      <AbbinaScheda chat={daAbbinare} api={apiPagina} onChiudi={() => setDaAbbinare(null)} />
       <LeadDialog
         open={leadDialogOpen}
         onOpenChange={(v) => {

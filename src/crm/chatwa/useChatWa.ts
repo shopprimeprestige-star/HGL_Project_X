@@ -184,7 +184,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   //   si prendevano i 2000 più VECCHI e, superata quota, i nuovi sparivano.
   const reload = async () => {
     if (!user) return;
-    setCaricamento(true);
+    //  Lo spinner solo al primo caricamento (`caricamento` parte vero): ogni
+    //  risposta fa più ricariche, e l'elenco non deve lampeggiare né perdere un tocco.
     const [m, ct] = await Promise.all([
       tabella("whatsapp_messages")
         .select("*")
@@ -554,7 +555,9 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       )
     )
       return;
-    if (await manda({ body: bozza.trim() })) setBozza("");
+    //  Si svuota solo se nel frattempo nessuno ha scritto altro nella casella.
+    const inviata = bozza;
+    if (await manda({ body: bozza.trim() })) setBozza((b) => (b === inviata ? "" : b));
   };
 
   const inviaModello = async (m: { nome: string; lingua: string; parametri: string[] }) => {
