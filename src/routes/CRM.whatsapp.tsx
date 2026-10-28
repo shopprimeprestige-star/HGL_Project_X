@@ -24,6 +24,8 @@ import {
   TriangleAlert,
   Eye,
   ChevronLeft,
+  CalendarClock,
+  Star,
 } from "lucide-react";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { LeadDialog } from "@/crm/LeadDialog";
@@ -42,6 +44,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { corpoLeggibile } from "@/crm/testo-modello";
+import { OrariRapidi } from "@/crm/OrariRapidi";
+import {
+  CHIAVE_CONFIG_STELLE,
+  conStelle,
+  daRispondere,
+  leggiStelle,
+  scriviStelle,
+  stellaDopo,
+  stelleDi,
+  type MappaStelle,
+} from "@/crm/wa-orari";
 import { toast } from "sonner";
 import {
   ALL_LEAD_STATUSES,
@@ -81,7 +94,8 @@ export const Route = createFileRoute("/CRM/whatsapp")({
 /** Le due viste della pagina: le conversazioni vere e i testi che le popolano. */
 type Vista = "chat" | "modelli";
 
-type WhatsAppFilter = "all" | "unread" | "with-lead" | "unknown";
+//  «Da rispondere» e «In osservazione» (28/10/2026): crm/wa-orari.
+type WhatsAppFilter = "all" | "unread" | "answer" | "stars" | "with-lead" | "unknown";
 
 interface WaMessageRow {
   id: string;
@@ -183,6 +197,49 @@ function WhatsAppPage() {
   const [search, setSearch] = useState("");
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  /** Il pannello «Proponi orari» sopra il campo di scrittura. */
+  const [orariAperti, setOrariAperti] = useState(false);
+  //  Cambiando chat gli orari si chiudono: erano scelti per un'altra persona.
+  useEffect(() => setOrariAperti(false), [activePhone]);
+  /** ── LE STELLE (1-3) DELLE CHAT IN OSSERVAZIONE ─────────────────────────
+   *  In `app_config` «wa_stelle», condivise dallo studio (vedi crm/wa-orari). */
+  const [stelle, setStelle] = useState<MappaStelle>({});
+  useEffect(() => {
+    void supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", CHIAVE_CONFIG_STELLE)
+      .maybeSingle()
+      .then(({ data }) => setStelle(leggiStelle(data?.value)));
+  }, []);
+  /** Un tocco: 0 → 1 → 2 → 3 → 0. Si rilegge prima di scrivere, così le stelle
+   *  messe intanto da un collega non si perdono. */
+  const cambiaStelle = async (telefono: string) => {
+    const nuove = stellaDopo(stelleDi(stelle, telefono));
+    setStelle((m) => conStelle(m, telefono, nuove));
+    const { data } = await supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", CHIAVE_CONFIG_STELLE)
+      .maybeSingle();
+    const mappa = conStelle(leggiStelle(data?.value), telefono, nuove);
+    const { error } = await supabase
+      .from("app_config")
+      .upsert(
+        {
+          key: CHIAVE_CONFIG_STELLE,
+          value: scriviStelle(mappa),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+    if (error) {
+      toast.error("Stelle non salvate", { description: "Riprova fra un istante." });
+      setStelle(leggiStelle(data?.value));
+      return;
+    }
+    setStelle(mappa);
+  };
   const [messages, setMessages] = useState<WaMessageRow[]>([]);
   const [contacts, setContacts] = useState<WaContactRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -383,8 +440,10 @@ function WhatsAppPage() {
   }, [messages, contacts, leads]);
 
   const visibleChats = useMemo(() => {
-    return chats.filter((c) => {
+    const lista = chats.filter((c) => {
       if (filter === "unread" && c.unread === 0) return false;
+      if (filter === "answer" && !daRispondere(c.lastMessage)) return false;
+      if (filter === "stars" && !stelleDi(stelle, c.phone)) return false;
       if (filter === "with-lead" && !c.lead) return false;
       if (filter === "unknown" && c.lead) return false;
       if (search.trim()) {
@@ -394,7 +453,20 @@ function WhatsAppPage() {
       }
       return true;
     });
-  }, [chats, filter, search]);
+    //  In osservazione: prima le tre stelle, poi le due, poi una (a parità, l'ordine di sempre).
+    return filter === "stars"
+      ? [...lista].sort((a, b) => stelleDi(stelle, b.phone) - stelleDi(stelle, a.phone))
+      : lista;
+  }, [chats, filter, search, stelle]);
+  /** Quante chat per filtro: il numero sul tasto dice cosa si trova premendolo. */
+  const contiFiltri = useMemo(
+    () => ({
+      unread: chats.filter((c) => c.unread > 0).length,
+      answer: chats.filter((c) => daRispondere(c.lastMessage)).length,
+      stars: chats.filter((c) => stelleDi(stelle, c.phone) > 0).length,
+    }),
+    [chats, stelle],
+  );
 
   const activeChat = useMemo<ChatItem | null>(() => {
     if (!activePhone) return null;
@@ -719,6 +791,12 @@ function WhatsAppPage() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setFilter("all")}>Tutte</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter("unread")}>Non letti</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("answer")}>
+                  Da rispondere
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter("stars")}>
+                  In osservazione
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter("with-lead")}>
                   Con lead CRM
                 </DropdownMenuItem>
@@ -744,10 +822,12 @@ function WhatsAppPage() {
           <div className="px-2 py-2 border-b border-border flex gap-1.5 overflow-x-auto">
             {[
               { v: "all" as const, l: "Tutte" },
-              { v: "unread" as const, l: "Non letti" },
+              { v: "answer" as const, l: "Da rispondere", n: contiFiltri.answer },
+              { v: "unread" as const, l: "Non letti", n: contiFiltri.unread },
+              { v: "stars" as const, l: "★ In osservazione", n: contiFiltri.stars },
               { v: "with-lead" as const, l: "Con lead" },
               { v: "unknown" as const, l: "Sconosciuti" },
-            ].map((f) => (
+            ].map((f: { v: WhatsAppFilter; l: string; n?: number }) => (
               <button
                 key={f.v}
                 onClick={() => setFilter(f.v)}
@@ -759,6 +839,7 @@ function WhatsAppPage() {
                 )}
               >
                 {f.l}
+                {f.n ? <span className="ml-1 tabular-nums opacity-80">{f.n}</span> : null}
               </button>
             ))}
           </div>
@@ -779,72 +860,107 @@ function WhatsAppPage() {
                 const fullName = c.lead
                   ? `${c.lead.data.nome} ${c.lead.data.cognome}`.trim()
                   : c.contact?.display_name || "Sconosciuto";
+                const n = stelleDi(stelle, c.phone);
+                const tocca = daRispondere(last);
                 return (
-                  <button
-                    key={c.phone}
-                    onClick={() => setActivePhone(c.phone)}
-                    className={cn(
-                      "w-full text-left px-3 py-2.5 flex items-start gap-2.5 border-b border-border transition-colors",
-                      isActive ? "bg-emerald-50/60" : "hover:bg-muted/50",
-                    )}
-                  >
-                    <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
-                        {c.lead ? initials(c.lead.data.nome, c.lead.data.cognome) : "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          {c.lead && (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-[9px] py-0 h-4 font-medium border shrink-0",
-                                LEAD_STATUS_COLOR[c.lead.data.stato],
-                              )}
-                            >
-                              {LEAD_STATUS_LABEL[c.lead.data.stato]}
-                            </Badge>
-                          )}
-                          <span className="text-[13px] font-semibold text-foreground truncate">
-                            {fullName}
+                  <div key={c.phone} className="relative">
+                    <button
+                      onClick={() => setActivePhone(c.phone)}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 flex items-start gap-2.5 border-b border-border transition-colors",
+                        isActive ? "bg-emerald-50/60" : "hover:bg-muted/50",
+                      )}
+                    >
+                      <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                          {c.lead ? initials(c.lead.data.nome, c.lead.data.cognome) : "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            {c.lead && (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[9px] py-0 h-4 font-medium border shrink-0",
+                                  LEAD_STATUS_COLOR[c.lead.data.stato],
+                                )}
+                              >
+                                {LEAD_STATUS_LABEL[c.lead.data.stato]}
+                              </Badge>
+                            )}
+                            <span className="text-[13px] font-semibold text-foreground truncate">
+                              {fullName}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null)}
                           </span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null)}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground truncate font-mono">
-                        {c.phone}
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-1">
-                        <p className="text-[12px] text-muted-foreground truncate flex-1">
-                          {last?.direction === "outbound" && (
-                            <CheckCheck
-                              className={cn(
-                                "inline h-3 w-3 mr-1",
-                                last?.status === "read" ? "text-sky-500" : "text-muted-foreground",
-                              )}
-                            />
+                        {/*  Lo spazio a destra resta alle stelle (tasto a parte, sotto). */}
+                        <div className="pr-16 text-[11px] text-muted-foreground truncate font-mono">
+                          {c.phone}
+                          {tocca && (
+                            <span className="ml-1.5 font-sans font-semibold text-amber-700">
+                              · da rispondere
+                            </span>
                           )}
-                          {previewText(
-                            corpoLeggibile(
-                              last?.body,
-                              c.lead?.data,
-                              consulenteDi(c.lead?.data),
-                              c.lead?.id,
-                            ).testo,
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mt-1">
+                          <p className="text-[12px] text-muted-foreground truncate flex-1">
+                            {last?.direction === "outbound" && (
+                              <CheckCheck
+                                className={cn(
+                                  "inline h-3 w-3 mr-1",
+                                  last?.status === "read"
+                                    ? "text-sky-500"
+                                    : "text-muted-foreground",
+                                )}
+                              />
+                            )}
+                            {previewText(
+                              corpoLeggibile(
+                                last?.body,
+                                c.lead?.data,
+                                consulenteDi(c.lead?.data),
+                                c.lead?.id,
+                              ).testo,
+                            )}
+                          </p>
+                          {c.unread > 0 && (
+                            <span className="h-4.5 min-w-[18px] px-1.5 rounded-full bg-emerald-500 text-[10px] font-bold text-white grid place-items-center">
+                              {c.unread}
+                            </span>
                           )}
-                        </p>
-                        {c.unread > 0 && (
-                          <span className="h-4.5 min-w-[18px] px-1.5 rounded-full bg-emerald-500 text-[10px] font-bold text-white grid place-items-center">
-                            {c.unread}
-                          </span>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {/*  ── LE STELLE, DALLA LISTA ─────────────────────────────
+                      Un tocco ne aggiunge una (0 → 1 → 2 → 3 → 0). Fuori dal
+                      tasto della riga: un tasto dentro un tasto non si può. */}
+                    <button
+                      type="button"
+                      onClick={() => void cambiaStelle(c.phone)}
+                      className="absolute right-2 top-[26px] inline-flex h-7 items-center rounded-md px-1 hover:bg-muted"
+                      aria-label={`Priorità di ${fullName}: ${n} ${n === 1 ? "stella" : "stelle"} su 3. Tocca per cambiare`}
+                      title={
+                        n
+                          ? `In osservazione: ${n} su 3 · tocca per cambiare`
+                          : "Metti in osservazione"
+                      }
+                    >
+                      {[1, 2, 3].map((i) => (
+                        <Star
+                          key={i}
+                          className={cn(
+                            "h-3.5 w-3.5",
+                            i <= n ? "fill-amber-400 text-amber-500" : "text-muted-foreground/40",
+                          )}
+                        />
+                      ))}
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -1041,12 +1157,34 @@ function WhatsAppPage() {
                   </div>
                 </div>
               )}
+              {orariAperti && (
+                <OrariRapidi
+                  nome={activeChat?.lead?.data?.nome}
+                  onInserisci={(t) => {
+                    setDraft((d) => (d.trim() ? `${d.trimEnd()}\n\n${t}` : t));
+                    setOrariAperti(false);
+                  }}
+                  onChiudi={() => setOrariAperti(false)}
+                />
+              )}
               <div
                 className={cn(
                   "px-3 py-2.5 bg-card flex items-end gap-2",
-                  residuiBozza.length === 0 && "border-t border-border",
+                  residuiBozza.length === 0 && !orariAperti && "border-t border-border",
                 )}
               >
+                {/*  ── PROPONI ORARI (28/10/2026) ────────────────────────────
+                    Giorni e ore libere, e il messaggio si scrive da solo. */}
+                <Button
+                  size="icon"
+                  variant={orariAperti ? "default" : "outline"}
+                  className="h-9 w-9 shrink-0 rounded-full"
+                  onClick={() => setOrariAperti((v) => !v)}
+                  aria-label="Proponi orari liberi"
+                  title="Proponi orari liberi"
+                >
+                  <CalendarClock className="h-4 w-4" />
+                </Button>
                 <div className="flex-1">
                   <textarea
                     value={draft}
