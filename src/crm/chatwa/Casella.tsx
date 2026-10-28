@@ -279,7 +279,7 @@ export function Casella({ api }: CasellaProps) {
             risposta rapida. Fra le due strade l'unica differenza nel codice è lo
             scorrimento: la risposta rapida mette il fuoco con `preventScroll`,
             il tocco invece lascia che iOS faccia scorrere la vista fino al campo
-            — e lì il vecchio `onFocus={() => window.scrollTo(0, 0)}` lo
+            — e lì il vecchio `window.scrollTo(0, 0)` chiamato al fuoco lo
             riportava in cima mentre la chat (fissa sull'area visibile, vedi
             PaginaChat) si spostava con la vista. Ora il fuoco non tocca lo
             scorrimento: la posizione la tiene solo `visualViewport`.

@@ -61,7 +61,7 @@ function Collegamento({ url, testo }: { url: string; testo: string }) {
 }
 
 /*  ── IL LETTORE DEI VOCALI, COME WHATSAPP (28/10/2026) ──────────────────
-    Prima c'era l'`<audio controls>` del browser: brutto e, toccandolo, la chat
+    Prima c'era l'audio nativo del browser, coi suoi comandi: brutto e, toccandolo, la chat
     saltava (i comandi nativi cambiano altezza caricando, e il tocco toglieva il
     fuoco alla casella: tastiera giù, area più alta, scorrimento). Ora:
      · tasto tondo play/pausa, forma d'onda finta trascinabile, tempo, 1×/1,5×/2×;
