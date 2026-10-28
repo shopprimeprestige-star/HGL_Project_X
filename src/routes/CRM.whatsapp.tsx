@@ -233,29 +233,34 @@ function WhatsAppPage() {
     const subito = conStelle(prima, telefono, nuove);
     stelleRef.current = subito;
     setStelle(subito);
-    codaStelle.current = codaStelle.current.then(async () => {
-      const { data } = await supabase
-        .from("app_config")
-        .select("value")
-        .eq("key", CHIAVE_CONFIG_STELLE)
-        .maybeSingle();
-      const mappa = conStelle(leggiStelle(data?.value), telefono, nuove);
-      const { error } = await supabase.from("app_config").upsert(
-        {
-          key: CHIAVE_CONFIG_STELLE,
-          value: scriviStelle(mappa),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "key" },
-      );
-      if (error) {
+    codaStelle.current = codaStelle.current
+      .then(async () => {
+        const { data } = await supabase
+          .from("app_config")
+          .select("value")
+          .eq("key", CHIAVE_CONFIG_STELLE)
+          .maybeSingle();
+        const mappa = conStelle(leggiStelle(data?.value), telefono, nuove);
+        const { error } = await supabase.from("app_config").upsert(
+          {
+            key: CHIAVE_CONFIG_STELLE,
+            value: scriviStelle(mappa),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "key" },
+        );
+        if (error) {
+          toast.error("Stelle non salvate", { description: "Riprova fra un istante." });
+          //  Si torna a com'era quel numero prima del tocco, non si azzera tutto.
+          const indietro = conStelle(stelleRef.current, telefono, stelleDi(prima, telefono));
+          stelleRef.current = indietro;
+          setStelle(indietro);
+        }
+      })
+      //  Un'eccezione non deve fermare la fila: i tocchi dopo devono partire.
+      .catch(() => {
         toast.error("Stelle non salvate", { description: "Riprova fra un istante." });
-        //  Si torna a com'era quel numero prima del tocco, non si azzera tutto.
-        const indietro = conStelle(stelleRef.current, telefono, stelleDi(prima, telefono));
-        stelleRef.current = indietro;
-        setStelle(indietro);
-      }
-    });
+      });
   };
   const [messages, setMessages] = useState<WaMessageRow[]>([]);
   const [contacts, setContacts] = useState<WaContactRow[]>([]);

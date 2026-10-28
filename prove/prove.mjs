@@ -20453,7 +20453,7 @@ function proveDiWhatsappOrariStelle() {
   c("stelle dalla lista, tasto fuori dalla riga", true, /onClick=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(pg));
   c("si rilegge prima di scrivere le stelle", true, /const mappa = conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(pg));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(pg) && /\{orariAperti && puoAgenda && \(/.test(pg) && /\{puoAgenda && \(\s*<Button/.test(pg));
-  c("i salvataggi delle stelle vanno in fila", true, /codaStelle\.current = codaStelle\.current\.then\(/.test(pg));
+  c("i salvataggi delle stelle vanno in fila", true, /codaStelle\.current = codaStelle\.current\s*\.then\([\s\S]*?\.catch\(/.test(pg));
   c("il nome scritto minuscolo esce con la maiuscola", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "mario").startsWith("Gentile Mario,"));
   c("il tasto degli orari sta accanto al campo di scrittura", true, /<OrariRapidi[\s\S]{0,400}setDraft/.test(pg));
 }
