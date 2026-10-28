@@ -3,7 +3,9 @@
  *
  *  GET → { ok, canale, modelliConFlusso, chiaveManychat, migrazione }
  *
- *  ⚠️ DIETRO `guardiaCRM` COL PERMESSO «impostazioni», come le rotte vicine.
+ *  ⚠️ DIETRO `guardiaCRM` COL PERMESSO «lead.propri» (lo stesso della voce WhatsApp
+ *   del menu): la chat del CRM la usano anche i setter, e deve sapere dal canale
+ *   se bloccare la casella. Esce solo il canale, i nomi dei modelli e due booleani.
  *  ⚠️ NON ESCE NIENTE DI SEGRETO: né la chiave di ManyChat (solo se c'è) né i
  *   codici dei flussi (solo i nomi dei modelli che ne hanno uno).
  *  ⚠️ SENZA LA MIGRAZIONE M1 la tabella non c'è: risposta «cloud» con
@@ -50,7 +52,7 @@ export const Route = createFileRoute("/api/crm/whatsapp-canale")({
       OPTIONS: async () => new Response(null, { status: 204, headers: cors }),
 
       GET: async ({ request }) => {
-        const g = await guardiaCRM(request, cors, "impostazioni");
+        const g = await guardiaCRM(request, cors, "lead.propri");
         if (!g.ok) return g.risposta;
         //  Senza il titolare dei dati non si sa di quale installazione si parla.
         if (!g.chi.adminUserId) return json({ ok: false, error: "titolare" }, 403);

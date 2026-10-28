@@ -556,6 +556,14 @@ const MODULI = [
   "manychat/prenota-scheda",
   "manychat/prenota-stanza",
   "manychat/prenota",
+  //  ⚠️ CHAT WHATSAPP NEL CRM (commessa 2026-10-28): i due moduli puri della
+  //   pagina (riconoscere i media e le regole di «Da rispondere»). Un file di
+  //   prove per compito in `prove/manychat/chat-*.mjs`, chiamati da
+  //   `proveManychat`.
+  "chatwa/media",
+  "chatwa/stato",
+  "chatwa/cercaChat",
+  "chatwa/modelli-casella",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -20379,12 +20387,15 @@ function proveDeiDaRiprogrammareOggi() {
  *  Richiesta del titolare: «correggi design WhatsApp per mobile». */
 function proveDiWhatsappSulTelefono() {
   gruppo("WHATSAPP SUL TELEFONO: UNA COSA ALLA VOLTA");
-  const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
-  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /w-full md:w-\[300px\][\s\S]{0,200}activePhone \? "hidden md:flex" : "flex"/.test(pg));
-  c("la chat si vede da sola quando è aperta", true, /activePhone \? "flex" : "hidden md:flex"/.test(pg));
-  c("c'è la freccia per tornare all'elenco", true, /onClick=\{\(\) => setActivePhone\(null\)\}[\s\S]{0,120}md:hidden/.test(pg));
-  c("il pannello lead parte chiuso sotto i 1024 px", true, /matchMedia\("\(min-width: 1024px\)"\)\.matches\) setLeadsPanelOpen\(false\)/.test(pg));
-  c("il pannello lead sta sopra la pagina sul telefono", true, /fixed inset-0 z-40[^"]*lg:static/.test(pg));
+  //  Dal 28/10 (commessa chat-whatsapp-crm) la pagina vive in crm/chatwa: stesse
+  //  regole, controllate dove stanno adesso.
+  const pg = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[340px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
+  c("la chat si vede da sola quando è aperta", true, /md:block", conversazioneAperta \? "block" : "hidden"/.test(pg));
+  c("c'è la freccia per tornare all'elenco", true, /onIndietro=\{tornaElenco\}/.test(pg) && /onClick=\{onIndietro\}[\s\S]{0,80}md:hidden/.test(conv));
+  c("il pannello lead affiancato solo da 1280 px", true, /leadsPanelOpen && \(\s*<div className="hidden xl:flex">/.test(pg));
+  c("sotto i 1280 px il pannello lead è un foglio sopra la pagina", true, /<Sheet open=\{foglioLead\}/.test(pg) && /SheetContent side="right" className="w-full/.test(pg));
 }
 
 
@@ -20412,8 +20423,10 @@ function proveDelTestoDeiModelli() {
   c("promemoria sede: il giorno è quello della visita, non del meet", true, sede.testo.includes("di giovedì 5 novembre alle ore 11:00") && !sede.testo.includes("29 ottobre"));
   c("…e l'indirizzo si dice, non resta un buco", true, sede.testo.includes("Indirizzo: [indirizzo della sede]"));
   //  In archivio resta «[template:x]»: niente nome né link (prove/manychat/porta.mjs).
-  const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
-  c("la chat mostra il testo, e l'anteprima pure", 2, (pg.match(/corpoLeggibile\(/g) || []).length);
+  //  Dal 28/10 la pagina vive in crm/chatwa: la bolla e la riga dell'elenco.
+  const bolla = readFileSync(join(radice, "src/crm/chatwa/BollaMessaggio.tsx"), "utf8");
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  c("la chat mostra il testo, e l'anteprima pure", [1, 1], [(bolla.match(/corpoLeggibile\(/g) || []).length, (riga.match(/corpoLeggibile\(/g) || []).length]);
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
@@ -20789,7 +20802,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 

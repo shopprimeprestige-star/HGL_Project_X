@@ -14,16 +14,27 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { corpoGraph, inviaWhatsapp, rispostaChat } from "@/crm/manychat/porta";
-import { leggiCanale, nomeDelLead, portePortaVere } from "@/crm/manychat/porta.server";
+import {
+  leggiCanale,
+  nomeDelLead,
+  portePortaVere,
+  segnaRispostoDalCrm,
+} from "@/crm/manychat/porta.server";
 
 // Cast helper: i tipi generati per whatsapp_messages/whatsapp_contacts non includono ancora
 // tutti i campi nuovi (user_id ecc.). Uso un client untyped per le insert/upsert.
 const adminUntyped = supabaseAdmin as unknown as {
   from: (t: string) => {
     insert: (v: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
-    upsert: (v: Record<string, unknown>, o?: { onConflict?: string }) => Promise<{ error: { message: string } | null }>;
+    upsert: (
+      v: Record<string, unknown>,
+      o?: { onConflict?: string },
+    ) => Promise<{ error: { message: string } | null }>;
     select: (s: string) => {
-      eq: (k: string, v: string) => {
+      eq: (
+        k: string,
+        v: string,
+      ) => {
         maybeSingle: () => Promise<{ data: Record<string, unknown> | null }>;
       };
     };
@@ -85,7 +96,10 @@ export const Route = createFileRoute("/api/whatsapp-send")({
           return Response.json({ error: "invalid_body" }, { status: 400 });
         }
         if (!body.to || (!body.body && !body.templateName)) {
-          return Response.json({ error: "missing_params", hint: "to + (body | templateName)" }, { status: 400 });
+          return Response.json(
+            { error: "missing_params", hint: "to + (body | templateName)" },
+            { status: 400 },
+          );
         }
         const to = normalizePhone(body.to);
 
@@ -96,7 +110,10 @@ export const Route = createFileRoute("/api/whatsapp-send")({
           canale = await leggiCanale(userId);
         } catch {
           return Response.json(
-            { error: "canale_non_leggibile", message: "Non riesco a leggere il canale WhatsApp: riprova fra poco." },
+            {
+              error: "canale_non_leggibile",
+              message: "Non riesco a leggere il canale WhatsApp: riprova fra poco.",
+            },
             { status: 503 },
           );
         }
@@ -115,6 +132,8 @@ export const Route = createFileRoute("/api/whatsapp-send")({
           });
           // Nei log solo il codice dell'esito: mai numero, testo o nome.
           if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");
+          //  Partito davvero: il cliente esce da «Da rispondere». Non cambia la risposta se fallisce.
+          else await segnaRispostoDalCrm(userId, to);
           const { status, corpo } = rispostaChat(r);
           return Response.json(corpo, { status });
         }
@@ -127,7 +146,9 @@ export const Route = createFileRoute("/api/whatsapp-send")({
           .maybeSingle();
         const phoneNumberId = (cfg as { phone_number_id?: string | null } | null)?.phone_number_id;
         const accessToken = (cfg as { access_token?: string | null } | null)?.access_token;
-        const mode = ((cfg as { mode?: string | null } | null)?.mode ?? "live") as "live" | "sandbox";
+        const mode = ((cfg as { mode?: string | null } | null)?.mode ?? "live") as
+          | "live"
+          | "sandbox";
         if (!phoneNumberId || !accessToken) {
           return Response.json(
             { error: "missing_credentials", hint: "Configura WhatsApp in Impostazioni → WhatsApp" },
@@ -151,8 +172,7 @@ export const Route = createFileRoute("/api/whatsapp-send")({
               message:
                 `Modalità impostata su LIVE ma il Phone Number ID configurato (${phoneMeta.display_phone_number ?? phoneNumberId}) è il numero di TEST Meta. ` +
                 "Sostituiscilo con il Phone Number ID del numero WhatsApp Business reale, oppure cambia modalità in Sandbox.",
-              hint:
-                "Apri Meta → WhatsApp Manager / API Setup del numero live e copia il Phone Number ID del numero finale.",
+              hint: "Apri Meta → WhatsApp Manager / API Setup del numero live e copia il Phone Number ID del numero finale.",
               raw: phoneMeta,
             },
             { status: 400 },
@@ -191,7 +211,7 @@ export const Route = createFileRoute("/api/whatsapp-send")({
         if (!res.ok || json.error) {
           const code = json.error?.code;
           const sub = json.error?.error_subcode;
-          let msg = json.error?.message || `HTTP ${res.status}`;
+          const msg = json.error?.message || `HTTP ${res.status}`;
           let hint: string | undefined;
           let category = "unknown";
           if (code === 131030) {
@@ -203,18 +223,28 @@ export const Route = createFileRoute("/api/whatsapp-send")({
             category = "outside_24h_window";
             hint =
               "Sei fuori dalla finestra di 24h. Per messaggi di testo liberi serve che il destinatario ti abbia scritto nelle ultime 24h. Usa un template approvato.";
-          } else if (code === 132000 || code === 132001 || code === 132005 || code === 132007 || code === 132012) {
+          } else if (
+            code === 132000 ||
+            code === 132001 ||
+            code === 132005 ||
+            code === 132007 ||
+            code === 132012
+          ) {
             category = "template_invalid";
-            hint = "Template non valido, non approvato o parametri mancanti. Verifica nome, lingua e variabili.";
+            hint =
+              "Template non valido, non approvato o parametri mancanti. Verifica nome, lingua e variabili.";
           } else if (code === 190 || code === 102) {
             category = "token_expired";
-            hint = "Access token scaduto o non valido. Rigenera un System User Token permanente con permessi whatsapp_business_messaging + whatsapp_business_management.";
+            hint =
+              "Access token scaduto o non valido. Rigenera un System User Token permanente con permessi whatsapp_business_messaging + whatsapp_business_management.";
           } else if (code === 200 || code === 10) {
             category = "missing_permission";
-            hint = "Permessi insufficienti sul token. Aggiungi whatsapp_business_messaging e whatsapp_business_management e rigenera.";
+            hint =
+              "Permessi insufficienti sul token. Aggiungi whatsapp_business_messaging e whatsapp_business_management e rigenera.";
           } else if (code === 100) {
             category = "bad_parameter";
-            hint = "Parametro non valido (Phone Number ID o destinatario). Verifica gli ID Meta nelle impostazioni.";
+            hint =
+              "Parametro non valido (Phone Number ID o destinatario). Verifica gli ID Meta nelle impostazioni.";
           } else if (code === 80007 || code === 4) {
             category = "rate_limit";
             hint = "Rate limit Meta raggiunto. Aspetta qualche secondo e riprova.";
@@ -273,17 +303,15 @@ export const Route = createFileRoute("/api/whatsapp-send")({
         }
 
         // Upsert contatto (last_message_at)
-        await adminUntyped
-          .from("whatsapp_contacts")
-          .upsert(
-            {
-              user_id: userId,
-              phone_e164: to,
-              lead_id: body.leadId ?? null,
-              last_message_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,phone_e164" },
-          );
+        await adminUntyped.from("whatsapp_contacts").upsert(
+          {
+            user_id: userId,
+            phone_e164: to,
+            lead_id: body.leadId ?? null,
+            last_message_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,phone_e164" },
+        );
 
         return Response.json({ ok: true, waMessageId: waId });
       },

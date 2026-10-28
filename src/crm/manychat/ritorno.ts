@@ -33,6 +33,9 @@ export interface CorpoRitorno {
   /** il telefono WhatsApp di sistema (cifre o con «+», come lo manda ManyChat) */
   telefono: string;
   testo: string;
+  /** il nome del cliente come lo conosce ManyChat (facoltativo, max 80); manca
+   *  se non c'è o è un segnaposto non risolto */
+  nome?: string;
 }
 
 /** Legge il corpo VERO, fermandosi oltre `max` byte. `troppoGrande` = oltre.
@@ -81,13 +84,21 @@ function comeStringa(v: unknown): string {
 }
 
 /** Il testo ripulito: senza il carattere nullo (Postgres lo rifiuta), tagliato a
- *  `MAX_TESTO` senza spezzare una emoji a metà. */
-function testoPulito(v: string): string {
+ *  `max` (di norma `MAX_TESTO`) senza spezzare una emoji a metà. */
+function testoPulito(v: string, max: number = MAX_TESTO): string {
   const senzaNulli = v.split("\u0000").join("");
-  if (senzaNulli.length <= MAX_TESTO) return senzaNulli;
-  const taglio = senzaNulli.charCodeAt(MAX_TESTO - 1);
+  if (senzaNulli.length <= max) return senzaNulli;
+  const taglio = senzaNulli.charCodeAt(max - 1);
   //  L'ultimo pezzo tenuto è la prima metà di una coppia: via anche quella.
-  return senzaNulli.slice(0, taglio >= 0xd800 && taglio <= 0xdbff ? MAX_TESTO - 1 : MAX_TESTO);
+  return senzaNulli.slice(0, taglio >= 0xd800 && taglio <= 0xdbff ? max - 1 : max);
+}
+
+/** Il nome del cliente: al massimo 80 caratteri, vuoto se contiene un segnaposto
+ *  non risolto (`{{first_name}}`, anche in mezzo ad altre parole). */
+const MAX_NOME = 80;
+function nomePulito(v: string): string {
+  const nome = v.trim();
+  return nome.includes("{{") ? "" : testoPulito(nome, MAX_NOME).trim();
 }
 
 /** Dal JSON al corpo: tutto stringa, il testo tagliato a `MAX_TESTO`. `null` se
@@ -103,12 +114,15 @@ export function leggiCorpo(json: unknown): CorpoRitorno | null {
     return UUID.test(s) ? s : "";
   };
   const sub = comeStringa(o.subscriber_id).trim();
+  const nome = nomePulito(comeStringa(o.nome));
   return {
     crmInvioId: uuid(o.crm_invio_id),
     crmLeadId: uuid(o.crm_lead_id),
     subscriberId: /^\d{1,18}$/.test(sub) ? sub : "",
     telefono: comeStringa(o.telefono).trim().slice(0, 40),
     testo: testoPulito(comeStringa(o.testo)),
+    //  Solo se c'è: così il corpo "vuoto" resta quello di prima.
+    ...(nome ? { nome } : {}),
   };
 }
 

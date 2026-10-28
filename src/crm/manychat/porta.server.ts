@@ -20,6 +20,10 @@
  *       stato, motivo, subscriber_id, inviato_il
  *   manychat_invii(user_id, telefono, subscriber_id, prenotato_il)
  *   whatsapp_messages.canale
+ *
+ *  ── CONTRATTO CON LA MIGRAZIONE DELLA CHAT (commessa 2026-10-28) ───────────
+ *   whatsapp_segna_risposto(p_user_id uuid, p_phone text) → boolean
+ *       scrive `risposto_il` (ora del database): il cliente esce da «Da rispondere»
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { creaClient, type FetchManychat } from "./api";
@@ -71,6 +75,34 @@ export async function leggiCanale(
   for (const [nome, ns] of Object.entries(data?.flussi ?? {}))
     if (typeof ns === "string" && ns.trim()) flussi[nome] = ns.trim();
   return { canale: data?.canale === "manychat" ? "manychat" : "cloud", flussi };
+}
+
+/** L'avviso «manca whatsapp_segna_risposto» una volta per processo, non uno per messaggio. */
+let avvisatoFunzioneMancante = false;
+
+/** Il messaggio dal CRM è partito: il cliente esce da «Da rispondere».
+ *  NON LANCIA MAI e non cambia l'esito dell'invio (il messaggio è già andato): se
+ *  la funzione manca (codice pubblicato prima della migrazione) o il database
+ *  fa i capricci, la chat resta in elenco, che è la direzione sicura.
+ *  Nei log solo il codice: mai numero, messaggio dell'errore o testo. */
+export async function segnaRispostoDalCrm(userId: string, telefono: string): Promise<boolean> {
+  try {
+    const { error } = await db.rpc("whatsapp_segna_risposto", {
+      p_user_id: userId,
+      p_phone: telefono,
+    });
+    if (!error) return true;
+    const codice = String(error.code ?? "");
+    if (codice === "42883" || codice === "PGRST202") {
+      if (!avvisatoFunzioneMancante) {
+        avvisatoFunzioneMancante = true;
+        console.warn("[whatsapp-send] segna_risposto: migrazione mancante", codice);
+      }
+    } else console.warn("[whatsapp-send] segna_risposto:", codice);
+  } catch {
+    console.warn("[whatsapp-send] segna_risposto: eccezione");
+  }
+  return false;
 }
 
 /** C'è `MANYCHAT_API_KEY` fra i segreti del Worker? (Non la legge nessuno qui fuori.) */
