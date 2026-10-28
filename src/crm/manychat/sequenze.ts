@@ -406,7 +406,7 @@ export function decidiLeadNuovi(
  *  nessun consenso («rischio mio»), nessuna finestra: al primo giro prende anche i
  *  vecchi. Restano STOP, revoca di «Ok a WhatsApp» e numero valido.
  *
- *  Primo contatto (`n|tel9`): `eImportato`, stato «da contattare», senza meet, senza
+ *  Primo contatto (`n|tel9`): ogni lead (importato o no, dal 28/10) in stato «da contattare», senza meet, senza
  *  nessun secondo stato del contatto (già in chat / già scritto) e senza un invio
  *  ARRIVATO a quel numero (qualunque tipo, chat compresa). Una volta sola per numero;
  *  se l'unico `n|tel9` è «fallito» si ritenta UNA volta con `n|tel9|r`.
@@ -489,8 +489,9 @@ function decidiImportatiERitorni(
       continue;
     }
 
-    //  ── Importato mai contattato ────────────────────────────────────────────
-    if (!eImportato(scheda) || d.stato !== "da_contattare" || nonVuoto(d.dataMeeting)) continue;
+    //  ── Lead «da contattare» mai contattato (importato o no: richiesta del titolare
+    //  28/10, «tutti i lead da contattare, anche quelli vecchi») ─────────────────
+    if (d.stato !== "da_contattare" || nonVuoto(d.dataMeeting)) continue;
     //  Qualunque secondo stato è «già in chat / già scritto». Due eccezioni: STOP (si dice) e
     //  «non raggiungibile», che lascia il posto a UN ritentativo (sotto).
     const staScritto = d.contattoWa?.stato;

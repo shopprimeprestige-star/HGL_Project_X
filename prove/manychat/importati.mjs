@@ -106,10 +106,14 @@ export async function proveImportati(mod, { c, gruppo, radice }) {
       sec([imp("i-1", 1)], MAR10, { leadNuovoDal: null }),
     );
     c(
-      "non importato, o con consulenza fissata, o con data di meet → niente",
-      [[], [], []],
+      "non importato (lead vecchio del CRM) da contattare e mai scritto → primo contatto anche a lui",
+      ["invia"],
+      tipi(sec([imp("i-1", 1, { importato: false })], MAR10)),
+    );
+    c(
+      "con consulenza fissata, o con data di meet → niente",
+      [[], []],
       [
-        sec([imp("i-1", 1, { importato: false })], MAR10),
         sec([imp("i-1", 1, { dataMeeting: "2026-11-02" })], MAR10),
         sec([imp("i-1", 1, { dataMeeting: "2026-09-02", consulenteId: "cons-1" })], MAR10),
       ],
