@@ -176,6 +176,13 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     temi: ["dove", "domicilio"],
   },
   {
+    id: "roma_in_giornata",
+    titolo: "Siamo a Roma, tutto in giornata",
+    testo:
+      "Ci troviamo a Roma e facciamo tutto in giornata, in meno di 2 ore: per questo vengono da noi da tutta Europa.",
+    temi: ["dove", "installazione"],
+  },
+  {
     id: "sede",
     titolo: "Indirizzo della sede",
     testo:
