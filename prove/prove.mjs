@@ -20538,7 +20538,7 @@ async function proveDelleNotifichePush() {
   const hook = readFileSync(join(radice, "src/routes/api.public.whatsapp-webhook.ts"), "utf8");
   const ris = readFileSync(join(radice, "src/crm/manychat/risposta.ts"), "utf8");
   const rotta = readFileSync(join(radice, "src/routes/api.crm.push.ts"), "utf8");
-  const sql = readFileSync(join(radice, "supabase/migrations/20261028170000_push_iscrizioni.sql"), "utf8");
+  const sql = readFileSync(join(radice, "supabase/migrations/20261028170100_push_iscrizioni.sql"), "utf8");
   c("webhook di Meta: avvisa solo se il messaggio è nuovo", true, /if \(!nuovo\.error\)\s*await avvisaMessaggioWhatsapp/.test(hook));
   c("ManyChat: avvisa dopo aver registrato, senza fermare il resto", true, /\.avvisaNuovo\?\.\(userId[\s\S]{0,120}\.catch\(\(\) => undefined\)/.test(ris));
   c("la rotta decide l'installazione dalla sessione, non dal corpo", true, /const userId = g\.chi\.adminUserId/.test(rotta) && !/corpo\.userId|corpo\.user_id/.test(rotta));
