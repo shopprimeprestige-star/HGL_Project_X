@@ -34,6 +34,7 @@ import { proveDellaStanzaPrenota } from "./manychat/prenota-stanza.mjs";
 import { proveDellePortePrenota } from "./manychat/prenota-porte.mjs";
 import { proveDellaConcorrenzaPrenota } from "./manychat/prenota-concorrenza.mjs";
 import { proveDellaRottaPrenota } from "./manychat/prenota-rotta.mjs";
+import { proveDellInterruttorePrenota } from "./manychat/prenota-interruttore.mjs";
 import { proveDellOrchestratorePrenota } from "./manychat/prenota.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
@@ -268,4 +269,5 @@ export async function proveManychat(mod, aiuti) {
   await proveDellOrchestratorePrenota(mod, aiuti);
   await proveDellaConcorrenzaPrenota(mod, aiuti);
   await proveDellaRottaPrenota(mod, aiuti);
+  await proveDellInterruttorePrenota(mod, aiuti);
 }

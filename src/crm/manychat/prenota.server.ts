@@ -81,7 +81,7 @@ const SETTE_GIORNI_MS = 7 * 24 * 3600e3;
 
 // ── app_config (value è TEXT) ──────────────────────────────────────────────
 
-async function leggiRiga(chiave: string): Promise<string | null> {
+export async function leggiRiga(chiave: string): Promise<string | null> {
   const { data, error } = await db()
     .from("app_config")
     .select<{ value: string | null }>("value")
@@ -91,7 +91,7 @@ async function leggiRiga(chiave: string): Promise<string | null> {
   return data?.value ?? null;
 }
 
-async function scriviRiga(chiave: string, valore: string): Promise<void> {
+export async function scriviRiga(chiave: string, valore: string): Promise<void> {
   const { error } = await db()
     .from("app_config")
     .upsert(
