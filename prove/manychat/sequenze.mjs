@@ -406,8 +406,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ],
   );
   c(
-    "il riquadro a 500 vale 100 (tettiDelGiorno): i lead nuovi hanno il tetto del totale",
-    100,
+    "il riquadro a 500 vale 150 (tettiDelGiorno): i lead nuovi hanno il tetto del totale",
+    150,
     Q.tettiDelGiorno({ leadNuovi: 500, totale: 500 }, "2026-09-01T00:00:00.000Z", t(MAR10))
       .leadNuovi,
   );
@@ -1722,8 +1722,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
 
   gruppo("MANYCHAT · COSTANTI E ELENCHI DELLE SEQUENZE");
   c(
-    "tetti: 20 ricontatti, lead nuovi = totale (100, commessa 28/10), 100 in tutto, riserva 30",
-    [20, 100, 100, 30],
+    "tetti: 20 ricontatti, lead nuovi = totale (150, dal 28/10), 150 in tutto, riserva 30",
+    [20, 150, 150, 30],
     [Q.TETTO_RICONTATTI, Q.TETTO_LEAD_NUOVI, Q.TETTO_TOTALE, Q.RISERVA_APPUNTAMENTI],
   );
   c(

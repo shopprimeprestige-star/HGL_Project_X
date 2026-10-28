@@ -63,8 +63,8 @@ export async function proveQuando(mod, { c, gruppo }) {
   gruppo("MANYCHAT · TETTI E RITMO (quando.ts)");
 
   c(
-    "le costanti: 20 ricontatti, lead nuovi = totale (100), 100 in tutto, riserva 30, 10 la prima settimana, 27-33', pausa 120 s",
-    [20, 100, 100, 30, 10, 27, 33, 120],
+    "le costanti: 20 ricontatti, lead nuovi = totale (150), 150 in tutto, riserva 30, 10 la prima settimana, 27-33', pausa 120 s",
+    [20, 150, 150, 30, 10, 27, 33, 120],
     [
       Q.TETTO_RICONTATTI,
       Q.TETTO_LEAD_NUOVI,
@@ -81,7 +81,7 @@ export async function proveQuando(mod, { c, gruppo }) {
   const giorniFa = (n) => new Date(OGGI.getTime() - n * 86_400_000).toISOString();
   c(
     "riquadro a 500 → si applica 20 / 100 / 100",
-    { ricontatti: 20, leadNuovi: 100, totale: 100 },
+    { ricontatti: 20, leadNuovi: 150, totale: 150 },
     Q.tettiDelGiorno({ ricontatti: 500, leadNuovi: 500, totale: 500 }, giorniFa(30), OGGI),
   );
   c(
@@ -92,19 +92,19 @@ export async function proveQuando(mod, { c, gruppo }) {
   c(
     "riquadro vuoto o null → le costanti",
     [
-      { ricontatti: 20, leadNuovi: 100, totale: 100 },
-      { ricontatti: 20, leadNuovi: 100, totale: 100 },
+      { ricontatti: 20, leadNuovi: 150, totale: 150 },
+      { ricontatti: 20, leadNuovi: 150, totale: 150 },
     ],
     [Q.tettiDelGiorno({}, giorniFa(30), OGGI), Q.tettiDelGiorno(null, giorniFa(30), OGGI)],
   );
   c(
     "valori strani nel riquadro (testo, NaN, negativo, decimale)",
-    { ricontatti: 0, leadNuovi: 100, totale: 7 },
+    { ricontatti: 0, leadNuovi: 150, totale: 7 },
     Q.tettiDelGiorno({ ricontatti: -3, totale: 7.9 }, giorniFa(30), OGGI),
   );
   c(
     "…testo e NaN non abbassano e non alzano: valgono le costanti",
-    { ricontatti: 20, leadNuovi: 100, totale: 100 },
+    { ricontatti: 20, leadNuovi: 150, totale: 150 },
     Q.tettiDelGiorno(
       { ricontatti: "mille", leadNuovi: "tanti", totale: Number.NaN },
       giorniFa(30),
@@ -113,7 +113,7 @@ export async function proveQuando(mod, { c, gruppo }) {
   );
   c(
     "prima settimana (acceso 3 giorni fa) → 10 ricontatti",
-    { ricontatti: 10, leadNuovi: 100, totale: 100 },
+    { ricontatti: 10, leadNuovi: 150, totale: 150 },
     Q.tettiDelGiorno({ ricontatti: 500, totale: 500 }, giorniFa(3), OGGI),
   );
   c(

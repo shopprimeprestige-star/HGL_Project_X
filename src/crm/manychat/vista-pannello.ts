@@ -412,7 +412,7 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
  *  shortcut: stesso valore di `TETTO_LEAD_NUOVI` in `quando.ts`, che lo aggiunge
  *  il compito Q; dopo la fusione si importa da lì e questa riga sparisce (la
  *  prova li confronta appena esiste). */
-export const TETTO_LEAD_NUOVI = 100;
+export const TETTO_LEAD_NUOVI = 150;
 
 /** Gli stati con un messaggio automatico (PIANO §5g), nell'ordine del riquadro.
  *  Un interruttore per riga, spento di serie, in `manychat_config.stati`.
