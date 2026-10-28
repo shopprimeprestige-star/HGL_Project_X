@@ -60,6 +60,7 @@ const APPUNTAMENTO = ["appuntamento_fissato", "appuntamento_rifissato"];
 const DA_FISSARE = [
   "da_contattare",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "fissa_meet_dopo",
   "gestire_in_chat",

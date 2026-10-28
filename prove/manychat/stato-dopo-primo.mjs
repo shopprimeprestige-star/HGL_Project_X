@@ -72,7 +72,8 @@ export async function proveStatoDopoPrimo(mod, { c, gruppo, radice }) {
   {
     c(
       "STATI_LEAD_NUOVO: ora c'è anche «attesa_whatsapp»",
-      ["da_contattare", "non_risponde", "segreteria", "attesa_whatsapp"],
+      //  «da_chiamare» (28/10/2026): ci arriva da solo dopo 10 ore di attesa.
+      ["da_contattare", "non_risponde", "segreteria", "attesa_whatsapp", "da_chiamare"],
       S.STATI_LEAD_NUOVO,
     );
 

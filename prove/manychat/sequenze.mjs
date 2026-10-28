@@ -1761,7 +1761,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
   //  richiamo a 24 ore deve continuare a valere (vedi `stato-dopo-primo.mjs`).
   c(
     "stati del lead nuovo",
-    ["da_contattare", "non_risponde", "segreteria", "attesa_whatsapp"],
+    ["da_contattare", "non_risponde", "segreteria", "attesa_whatsapp", "da_chiamare"],
     S.STATI_LEAD_NUOVO,
   );
 }

@@ -467,6 +467,8 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ «Attesa WhatsApp» → «Da chiamare» dopo 10 ore: vedi proveDelloStatoDaChiamare.
+  "importa/attesa-da-chiamare",
   //  ⚠️ «Da chiamare» nella chat WhatsApp: vedi proveDelDaChiamare.
   "chatwa/daChiamare",
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
@@ -12718,6 +12720,7 @@ function proveDeiMessaggiConNome() {
   const SENZA_RISULTATI = [
     "da_contattare",
     "attesa_whatsapp",
+    "da_chiamare",
     "appuntamento_fissato", "appuntamento_rifissato", "link_consulenza", "promemoria",
     "da_ricontattare", "fissa_meet_dopo", "gestire_in_chat", "sta_valutando",
   ];
@@ -12731,7 +12734,8 @@ function proveDeiMessaggiConNome() {
   c("e chi non ha i risultati porta l'altro link", "",
     //  Il primo messaggio al lead nuovo è senza link per scelta del titolare
     //  (20/10/2026): chiede solo «mattina o sera».
-    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
+    //  Così anche «Da chiamare» (28/10/2026): chiede solo quando richiamarlo.
+    SENZA_RISULTATI.filter((k) => k !== "da_contattare" && k !== "attesa_whatsapp" && k !== "da_chiamare" && !/\{link|\{preventivi\}/.test(MODELLI_ORIGINALI[k])).join(","));
 
   //  Composto con i valori veri: niente graffe rimaste in giro, e il nome del
   //  consulente entra nella presentazione.
@@ -20160,7 +20164,7 @@ function proveDeiPulsantiDelloStato() {
   const barra = readFileSync(join(radice, "src/crm/importa/FiltriLista.tsx"), "utf8");
   c("i pulsanti nell'ordine di prima",
     true,
-    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"richiamo",\s*"ciRicontatta",\s*"whatsapp",\s*"ritorno",?\s*\]/.test(barra));
+    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"richiamo",\s*"ciRicontatta",\s*"whatsapp",\s*"daChiamare",\s*"ritorno",?\s*\]/.test(barra));
   c("la fila dello stato sta sopra i menu", true,
     /<PulsantiStato[\s\S]{0,3000}<MenuAnnuncio/.test(barra));
   c("lo stato non è più chiuso in un menu", false, /function MenuStato/.test(barra));
@@ -20622,6 +20626,39 @@ function proveDelDaChiamare() {
   c("tasto Chiama nella barra della chat (tel:)", true, /href=\{`tel:\$\{numeroDaComporre\(attiva\.phone\)\}`\}/.test(conv));
 }
 
+
+/** ── LO STATO «DA CHIAMARE» (28/10/2026) ───────────────────────────────────
+ *  Richiesta del titolare: dopo 10 ore in «Attesa WhatsApp» senza risposta lo
+ *  stato passa da solo a «Da chiamare». Dati inventati. */
+function proveDelloStatoDaChiamare() {
+  gruppo("STATO «DA CHIAMARE»: ARRIVA DA SOLO, SI FILTRA, SI CHIAMA");
+  const T = mod["types"];
+  const A = mod["importa/attesa-da-chiamare"];
+  const adesso = new Date("2026-10-28T20:00:00Z");
+  c("ha il suo nome", "Da chiamare", T.LEAD_STATUS_LABEL.da_chiamare);
+  c("è uno stato da telefonare", true, T.eStatoDaChiamare("da_chiamare"));
+  c("si sceglie sui lead importati", true, T.statiPer({ importato: true }).includes("da_chiamare"));
+  const p = A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T08:00:00Z", note: "x" }, null, adesso);
+  c("12 ore in attesa: passa a Da chiamare, con lo stato di prima e l'ora", { stato: "da_chiamare", statoPrecedente: "attesa_whatsapp", statoPrecedenteIl: adesso.toISOString(), statoDal: adesso.toISOString() }, p);
+  c("…e non tocca altro (niente note nella modifica)", false, "note" in (p ?? {}));
+  c("9 ore: resta in attesa", null, A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T11:00:00Z" }, null, adesso));
+  c("ha scritto il cliente durante l'attesa: resta", null, A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T08:00:00Z" }, { ultimoInEntrataIl: "2026-10-28T09:00:00Z" }, adesso));
+  c("STOP sul numero: resta", null, A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T08:00:00Z" }, { stop: true }, adesso));
+  c("solo il tasto WhatsApp premuto (stato diverso): nessun cambio", null, A.patchDaChiamare({ stato: "da_contattare", whatsappInviatoIl: "2026-10-28T08:00:00Z" }, null, adesso));
+  c("le ultime nove cifre", "331234567", A.nove("+39 333 123 4567"));
+  const D = mod["chatwa/daChiamare"];
+  c("in chat «Da chiamare» c'è anche chi ha già lo stato, da subito", true, D.calcolaDaChiamare({ dati: { stato: "da_chiamare", statoPrecedenteIl: "2026-10-28T19:50:00Z" }, messaggi: [], adesso }).si);
+  const FIL = mod["importa/filtri-lista"];
+  c("il pulsante «Da chiamare» in cima a Lead importati", true, FIL.cadeNelloStato("ritento", { stato: "da_chiamare" }, "daChiamare"));
+  c("in coda dice perché", "su WhatsApp non ha risposto: chiamalo",
+    CHIAM.motivoChiamata({ id: "x", data: { stato: "da_chiamare", importato: true, createdAt: "2026-10-01T10:00:00Z" } }, new Date("2026-10-20T10:00:00Z")).testo);
+  const hook = readFileSync(join(radice, "src/routes/hooks/attesa-da-chiamare.ts"), "utf8");
+  const sql = readFileSync(join(radice, "supabase/migrations/20261028190000_attesa_da_chiamare_cron.sql"), "utf8");
+  c("il server scrive solo se la scheda non è cambiata nel frattempo", true, /\.eq\("updated_at", r\.updated_at\)/.test(hook));
+  c("il server legge solo chi è nello stato Attesa WhatsApp", true, /\.eq\("data->>stato", "attesa_whatsapp"\)/.test(hook));
+  c("il cron ogni 15 minuti sulla rotta giusta, e come si spegne", true, /programma_hook_cron\('attesa-da-chiamare-15min', '\*\/15 \* \* \* \*', '\/hooks\/attesa-da-chiamare'\)/.test(sql) && /cron\.unschedule\('attesa-da-chiamare-15min'\)/.test(sql));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20645,7 +20682,7 @@ function proveDelloStatoAttesaWhatsapp() {
   const tratt = readFileSync(join(radice, "src/routes/CRM.trattative.tsx"), "utf8");
   c("Trattative: non conta come trattativa attiva", 2, (tratt.match(/"segreteria",\s*"attesa_whatsapp"/g) || []).length);
   c("Da fare: diventa una chiamata da rifare", true,
-    /stato === "segreteria" \|\| stato === "attesa_whatsapp"/.test(readFileSync(join(radice, "src/crm/dafare/righe.tsx"), "utf8")));
+    /stato === "segreteria" \|\|\s*stato === "attesa_whatsapp"/.test(readFileSync(join(radice, "src/crm/dafare/righe.tsx"), "utf8")));
   c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
 }
 
@@ -20735,6 +20772,7 @@ proveDiWhatsappOrariStelle();
 await proveDelleNotifichePush();
 proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
+proveDelloStatoDaChiamare();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20999,7 +21037,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("push_iscrizioni")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 

@@ -496,6 +496,7 @@ const STATI_CHIAMATA = new Set<LeadStatus>([
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
 ]);
 

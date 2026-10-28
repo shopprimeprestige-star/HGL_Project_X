@@ -55,10 +55,14 @@ export function calcolaDaChiamare(p: {
   adesso: Date;
 }): DaChiamare {
   if (p.stop) return NO;
-  const dal = inAttesaDal(p.dati);
-  if (!dal) return NO;
+  //  Lo stato «Da chiamare» (28/10/2026): ci è già arrivato, non si aspetta altro.
+  const giaDaChiamare = p.dati?.stato === "da_chiamare";
+  const dal = giaDaChiamare
+    ? (p.dati?.statoPrecedenteIl ?? p.dati?.statoDal ?? null)
+    : inAttesaDal(p.dati);
+  if (!dal || !Number.isFinite(Date.parse(dal))) return NO;
   const inizio = Date.parse(dal);
-  if (p.adesso.getTime() - inizio < ORE_PRIMA_DI_CHIAMARE * 3600_000) return NO;
+  if (!giaDaChiamare && p.adesso.getTime() - inizio < ORE_PRIMA_DI_CHIAMARE * 3600_000) return NO;
   let ultimaEntrata = Date.parse(String(p.ultimaEntrataIl ?? "")) || 0;
   for (const m of p.messaggi)
     if (m.direction === "inbound")
