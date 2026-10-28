@@ -29,6 +29,7 @@ import { Route as MeetlyRouteImport } from './routes/meetly'
 import { Route as MediaDirettaRouteImport } from './routes/media-diretta'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
 import { Route as ConsulenteRouteImport } from './routes/consulente'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CRMRouteImport } from './routes/CRM'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShopIndexRouteImport } from './routes/shop.index'
@@ -303,6 +304,11 @@ const CookiePolicyRoute = CookiePolicyRouteImport.update({
 const ConsulenteRoute = ConsulenteRouteImport.update({
   id: '/consulente',
   path: '/consulente',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CRMRoute = CRMRouteImport.update({
@@ -1200,6 +1206,7 @@ const ApiOgAnteprimaTipoCodiceRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/CRM': typeof CRMRouteWithChildren
+  '/chat': typeof ChatRoute
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/media-diretta': typeof MediaDirettaRoute
@@ -1396,6 +1403,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chat': typeof ChatRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
@@ -1590,6 +1598,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/CRM': typeof CRMRouteWithChildren
+  '/chat': typeof ChatRoute
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/media-diretta': typeof MediaDirettaRoute
@@ -1789,6 +1798,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/CRM'
+    | '/chat'
     | '/consulente'
     | '/cookie-policy'
     | '/media-diretta'
@@ -1985,6 +1995,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/chat'
     | '/cookie-policy'
     | '/media-diretta'
     | '/meetly'
@@ -2178,6 +2189,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/CRM'
+    | '/chat'
     | '/consulente'
     | '/cookie-policy'
     | '/media-diretta'
@@ -2376,6 +2388,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CRMRoute: typeof CRMRouteWithChildren
+  ChatRoute: typeof ChatRoute
   ConsulenteRoute: typeof ConsulenteRouteWithChildren
   CookiePolicyRoute: typeof CookiePolicyRoute
   MediaDirettaRoute: typeof MediaDirettaRoute
@@ -2666,6 +2679,13 @@ declare module '@tanstack/react-router' {
       path: '/consulente'
       fullPath: '/consulente'
       preLoaderRoute: typeof ConsulenteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/CRM': {
@@ -4043,6 +4063,7 @@ const ApiOgAnteprimaRouteWithChildren = ApiOgAnteprimaRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CRMRoute: CRMRouteWithChildren,
+  ChatRoute: ChatRoute,
   ConsulenteRoute: ConsulenteRouteWithChildren,
   CookiePolicyRoute: CookiePolicyRoute,
   MediaDirettaRoute: MediaDirettaRoute,

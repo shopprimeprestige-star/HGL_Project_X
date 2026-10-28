@@ -24,10 +24,11 @@ function normalizza(percorso: string): string {
   return pulito === "" ? "/" : pulito;
 }
 
-/** true solo per "/", "/blog", "/blog/*", "/CRM", "/CRM/*" tranne "/CRM/webinar" e "/CRM/webinar/*". */
+/** true solo per "/", "/blog", "/blog/*", "/CRM", "/CRM/*" tranne "/CRM/webinar" e "/CRM/webinar/*",
+ *  e "/chat": la chat WhatsApp del CRM da sola, che deve avere lo stesso aspetto. */
 export function usaInter(percorso: string): boolean {
   const p = normalizza(percorso);
-  if (p === "/") return true;
+  if (p === "/" || p === "/chat") return true;
   if (p === "/blog" || p.startsWith("/blog/")) return true;
   if (p === "/crm/webinar" || p.startsWith("/crm/webinar/")) return false;
   return p === "/crm" || p.startsWith("/crm/");

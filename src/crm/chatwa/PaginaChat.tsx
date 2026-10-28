@@ -25,10 +25,23 @@ import { usaAltezzaVisibile } from "./usaAltezzaVisibile";
 /** Le due viste della pagina: le conversazioni vere e i testi che le popolano. */
 type Vista = "chat" | "modelli";
 
+/** Dove vive la pagina: dentro il CRM, oppure da sola a schermo intero (/chat). */
+export type PercorsoChat = "/CRM/whatsapp" | "/chat";
+
 /** La pagina /CRM/whatsapp: compone intestazione, le due viste, i dialoghi.
  *  ⚠️ Larghezza e visibilità delle colonne le decide SOLO questo file (R12): i
- *  figli (`ElencoChat`, `Conversazione`) riempiono il loro contenitore. */
-export function PaginaChat() {
+ *  figli (`ElencoChat`, `Conversazione`) riempiono il loro contenitore.
+ *  ── LA STESSA PAGINA, DA SOLA (28/10/2026) ─────────────────────────────────
+ *  Richiesta del titolare: un link con SOLO la chat, a schermo intero (/chat).
+ *  È questa stessa pagina, non una copia: cambia l'indirizzo su cui si naviga
+ *  (`percorso`) e, a schermo intero, l'altezza non toglie i 3rem della testata
+ *  del CRM, che lì non c'è. */
+export function PaginaChat({
+  percorso = "/CRM/whatsapp",
+}: {
+  percorso?: PercorsoChat;
+} = {}) {
+  const schermoIntero = percorso === "/chat";
   const [vista, setVista] = useState<Vista>("chat");
   const [leadsPanelOpen, setLeadsPanelOpen] = useState(true);
   //  Sotto 1280 px la colonna «Lead CRM» è un foglio che si apre a richiesta.
@@ -67,7 +80,8 @@ export function PaginaChat() {
   //  del telefono esce dalla pagina (accettato, R13); la freccia ← funziona.
   const navigate = useNavigate();
   const router = useRouter();
-  const { chat: chatUrl } = useSearch({ from: "/CRM/whatsapp" });
+  //  `strict: false`: la pagina vive su due rotte, entrambe con `leggiRicercaChat`.
+  const { chat: chatUrl } = useSearch({ strict: false }) as { chat?: string };
   const [telefonoLocale, setTelefonoLocale] = useState<string | null>(null);
   /** Vero se la chat si è aperta con un `navigate` in questa visita: ← può fare `history.back()`. */
   const aperturaPush = useRef(false);
@@ -93,7 +107,7 @@ export function PaginaChat() {
       router.history.back();
     } else {
       // Aperta da un indirizzo diretto: un «indietro» uscirebbe dal CRM.
-      void navigate({ to: "/CRM/whatsapp", search: {}, replace: true });
+      void navigate({ to: percorso, search: {}, replace: true });
     }
   };
 
@@ -122,9 +136,9 @@ export function PaginaChat() {
   // `?chat=` con un id che non c'è (chat sparita, link vecchio): si ripulisce, resta l'elenco.
   useEffect(() => {
     if (chatUrl && !chatDaUrl && !api.caricamento) {
-      void navigate({ to: "/CRM/whatsapp", search: {}, replace: true });
+      void navigate({ to: percorso, search: {}, replace: true });
     }
-  }, [chatUrl, chatDaUrl, api.caricamento, navigate]);
+  }, [chatUrl, chatDaUrl, api.caricamento, navigate, percorso]);
 
   // L'elenco chiama `apri` con il telefono: qui diventa navigazione per id.
   const apriChat = (chiave: string) => {
@@ -132,14 +146,14 @@ export function PaginaChat() {
     if (!c) return;
     if (!c.contact) {
       setTelefonoLocale(c.phone);
-      if (chatUrl) void navigate({ to: "/CRM/whatsapp", search: {}, replace: true });
+      if (chatUrl) void navigate({ to: percorso, search: {}, replace: true });
       return;
     }
     setTelefonoLocale(null);
     if (chatUrl === c.contact.id.toLowerCase()) return;
     if (!chatUrl) aperturaPush.current = true;
     void navigate({
-      to: "/CRM/whatsapp",
+      to: percorso,
       search: { chat: c.contact.id },
       replace: Boolean(chatUrl),
     });
@@ -193,7 +207,7 @@ export function PaginaChat() {
   const chatSchermo = vista === "chat" && conversazioneAperta;
   const misure = visibile
     ? ({
-        "--chat-h": `calc(${visibile.altezza}px - 3rem)`,
+        "--chat-h": schermoIntero ? `${visibile.altezza}px` : `calc(${visibile.altezza}px - 3rem)`,
         "--vista-h": `${visibile.altezza}px`,
         "--vista-alto": `${visibile.alto}px`,
       } as CSSProperties)
@@ -202,7 +216,8 @@ export function PaginaChat() {
   return (
     <div
       className={cn(
-        "group/chat flex flex-col h-[var(--chat-h,calc(100dvh-3rem))] overflow-hidden bg-background",
+        "group/chat flex flex-col overflow-hidden bg-background",
+        schermoIntero ? "h-[var(--chat-h,100dvh)]" : "h-[var(--chat-h,calc(100dvh-3rem))]",
         chatSchermo &&
           "max-md:fixed max-md:inset-x-0 max-md:z-40 max-md:top-[var(--vista-alto,0px)] max-md:h-[var(--vista-h,100dvh)]",
       )}

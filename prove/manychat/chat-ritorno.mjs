@@ -50,4 +50,21 @@ export function proveChatRitorno(mod, { c, gruppo, radice }) {
   c("la riga mostra la versione corta", true, /ritornoInChat\(/.test(leggi("RigaChat.tsx")) && /\.corta/.test(leggi("RigaChat.tsx")));
   c("l'intestazione della chat mostra quella completa", true, /\.completa/.test(leggi("Conversazione.tsx")));
   c("Info lo racconta con la data (sul telefono non c'è il tooltip)", true, /ritornoInChat\(/.test(leggi("InfoModulo.tsx")) && /\.titolo/.test(leggi("InfoModulo.tsx")));
+
+  //  Seconda metà della commessa: /chat, la stessa pagina da sola a schermo intero.
+  gruppo("CHAT · /chat · SOLO LA CHAT, A SCHERMO INTERO");
+  const rotta = readFileSync(join(radice, "src/routes/chat.tsx"), "utf8");
+  const pagina = leggi("PaginaChat.tsx");
+  const regole = readFileSync(join(radice, "src/seo/regole.ts"), "utf8");
+  c("è la stessa PaginaChat, sul suo percorso", true, /<PaginaChat percorso="\/chat" \/>/.test(rotta));
+  c("titolo «WhatsApp · HGL» e fuori dai motori (noindex)", true,
+    /title: "WhatsApp · HGL"/.test(rotta) && /name: "robots", content: "noindex, nofollow"/.test(rotta));
+  c("non è fra le pagine pubbliche (né nella sitemap)", false, /"\/chat"/.test(regole));
+  c("stessa porta del CRM: AuthProvider, accesso, CRMProvider, permesso di /CRM/whatsapp", true,
+    /<AuthProvider>/.test(rotta) && /<AdminLogin \/>/.test(rotta) && /<CRMProvider>/.test(rotta) &&
+    /permessoDiPagina\("\/CRM\/whatsapp"\)/.test(rotta) && /<GuardiaPagina permesso=\{PERMESSO\}>/.test(rotta));
+  c("senza il guscio del CRM (barra, testata, ricerca)", false, /CRMSidebar"|SidebarProvider|routes\/CRM"|Testata|ProviderRicerca/.test(rotta.replace(/GuardiaPagina \} from "@\/crm\/CRMSidebar"/, "")));
+  c("la pagina naviga sul suo percorso, mai fisso su /CRM/whatsapp", false, /to: "\/CRM\/whatsapp"/.test(pagina));
+  c("a schermo intero l'altezza non toglie la testata del CRM", true, /schermoIntero \? `\$\{visibile\.altezza\}px`/.test(pagina) && /h-\[var\(--chat-h,100dvh\)\]/.test(pagina));
+  c("la correzione della tastiera iPhone resta anche qui", true, /max-md:fixed/.test(pagina) && /--vista-alto/.test(pagina));
 }
