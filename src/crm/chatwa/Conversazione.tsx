@@ -22,7 +22,10 @@ import {
 //  Il selettore di stato è uno solo in tutto il CRM (crm/SelettoreStatoDialog):
 //  qui c'era una tendina che ignorava `statiPer`.
 import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
+import { InfoModulo } from "./InfoModulo";
 import { Casella } from "./Casella";
 import { initials } from "./formati";
 import { attesaInChiaro } from "./stato";
@@ -151,6 +154,14 @@ export function Conversazione({
                     {attiva.schedaAmbigua ? "Più schede con questo numero" : "Numero senza scheda"}
                   </span>
                 )}
+                {/*  Com'è messo (28/10/2026): pallino e parola, come in Oggi. */}
+                {attiva.lead && mostraTemperatura(attiva.lead.data.stato) && (
+                  <TemperaturaRiga
+                    dati={attiva.lead.data}
+                    max={0}
+                    className="shrink-0 text-[12px]"
+                  />
+                )}
                 {(attiva.lead || attiva.contact?.display_name) && (
                   <span className="hidden sm:inline text-[11px] text-muted-foreground font-mono truncate">
                     {attiva.phone}
@@ -158,6 +169,12 @@ export function Conversazione({
                 )}
               </div>
             </div>
+            {attiva.lead && (
+              <InfoModulo
+                dati={attiva.lead.data}
+                nome={`${attiva.lead.data.nome ?? ""} ${attiva.lead.data.cognome ?? ""}`.trim()}
+              />
+            )}
             <Button
               variant="outline"
               onClick={onApriLead}
