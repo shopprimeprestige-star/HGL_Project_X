@@ -29,6 +29,8 @@ import {
 import { useRisposteRapide } from "./useRisposteRapide";
 import { finestra24, type ContattoStato } from "./stato";
 import { bozzaDopoAnnulla } from "./stile";
+import { bozzaConDettato } from "./dettatura";
+import { AvvisoDettatura, BarraDettatura, TastoMicrofono, useDettatura } from "./RegistratoreVoce";
 import type { CasellaProps } from "./tipi";
 
 /** La frase della finestra chiusa, quella di `stato.ts` (mai scritta due volte). */
@@ -103,6 +105,26 @@ export function Casella({ api }: CasellaProps) {
     setCancellata(null);
     rimettiFuoco();
   };
+
+  /*  ── DETTATURA (28/10/2026) ────────────────────────────────────────────
+      Il microfono: si parla, il testo si AGGIUNGE alla bozza e resta lì da
+      rileggere (non parte mai da solo). Al posto dell'invio quando la casella
+      è vuota, come WhatsApp; con del testo, accanto alla X. Nascosto se il
+      browser non registra (la tastiera dell'iPhone ha già il suo microfono).
+      ⚠️ Nessun vocale al cliente: ManyChat non manda audio su WhatsApp.
+      Cambiando chat la registrazione si butta: era per un altro cliente. */
+  const bozzaRef = useRef(bozza);
+  useEffect(() => {
+    bozzaRef.current = bozza;
+  }, [bozza]);
+  const dettatura = useDettatura((t) => {
+    setBozza(bozzaConDettato(bozzaRef.current, t));
+    setChiusoPer(null);
+  });
+  const { annulla: annullaDettatura } = dettatura;
+  useEffect(() => annullaDettatura(), [attiva?.phone, annullaDettatura]);
+  const dettaturaPossibile = dettatura.possibile && libera;
+  const detta = dettatura.stato !== "ferma";
 
   const riempiChat = (t: string) =>
     riempi(t, {
@@ -245,6 +267,7 @@ export function Casella({ api }: CasellaProps) {
             onGestisci={() => setFinestra({ daModificare: null })}
           />
         )}
+      <AvvisoDettatura d={dettatura} />
       <FinestraRisposte
         aperta={finestra !== null}
         daModificare={finestra?.daModificare ?? null}
@@ -258,7 +281,8 @@ export function Casella({ api }: CasellaProps) {
         onElimina={(id) => cambia((l) => senzaRisposta(l, id))}
         onRipristina={ripristina}
       />
-      <div className="px-3 py-2 flex items-end gap-2">
+      {detta && <BarraDettatura d={dettatura} />}
+      <div className={cn("px-3 py-2 flex items-end gap-2", detta && "hidden")}>
         {puoAgenda && configurata && (
           <Button
             type="button"
@@ -363,16 +387,21 @@ export function Casella({ api }: CasellaProps) {
               <X className="h-[18px] w-[18px]" aria-hidden />
             </button>
           )}
+          {bozza.trim() !== "" && dettaturaPossibile && <TastoMicrofono d={dettatura} />}
         </div>
-        <Button
-          onClick={() => void invia()}
-          size="icon"
-          aria-label="Invia messaggio"
-          disabled={!bozza.trim() || inviando || !configurata}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-full h-11 w-11 shrink-0 disabled:opacity-50"
-        >
-          {inviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
+        {!bozza.trim() && dettaturaPossibile ? (
+          <TastoMicrofono d={dettatura} grande />
+        ) : (
+          <Button
+            onClick={() => void invia()}
+            size="icon"
+            aria-label="Invia messaggio"
+            disabled={!bozza.trim() || inviando || !configurata}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-full h-11 w-11 shrink-0 disabled:opacity-50"
+          >
+            {inviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        )}
       </div>
     </div>
   );

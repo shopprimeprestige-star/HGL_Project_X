@@ -132,7 +132,7 @@ export function testoDaRisposta(r: unknown): string | null {
   if (o.error || typeof o.text !== "string") return null;
   const t = o.text
     .split("\n")
-    .map((riga) => riga.replace(/[ \t ]+/g, " ").trim())
+    .map((riga) => riga.replace(/[ \t\u00a0]+/g, " ").trim())
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

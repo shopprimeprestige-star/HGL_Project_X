@@ -97,7 +97,7 @@ export async function proveChatDettatura(mod, { c, gruppo, radice }) {
   const leggi = (f) => readFileSync(join(radice, f), "utf8");
   const route = leggi("src/routes/api.crm.dettatura.ts");
   const casella = leggi("src/crm/chatwa/Casella.tsx");
-  const ui = leggi("src/crm/chatwa/Dettatura.tsx");
+  const ui = leggi("src/crm/chatwa/RegistratoreVoce.tsx");
   c("route dietro guardiaCRM col permesso della chat (lead.propri)", true, /guardiaCRM\(request, cors, "lead\.propri"\)/.test(route));
   c("la guardia viene prima di leggere l'audio", true, route.indexOf("guardiaCRM(") < route.indexOf("leggiConTetto("));
   c("modello e ripiego come da SPEC, lingua it", true,
