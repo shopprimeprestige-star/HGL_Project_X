@@ -74,6 +74,68 @@ interface RigaInvio {
   stato: string;
 }
 
+/** La funzione SQL della chat (o una colonna nuova) non c'è ancora: migrazione
+ *  `chat_whatsapp_crm` non applicata. */
+const migrazioneChatMancante = (e: NonNullable<ErroreDb>) =>
+  ["42883", "PGRST202", "42703", "PGRST204"].includes(String(e.code ?? ""));
+
+/** Un solo avviso (il codice, mai dati) per processo: il ripiego scatta a ogni
+ *  messaggio e un avviso per messaggio riempirebbe il registro. */
+let ripiegoAvvisato = false;
+function avvisaRipiegoUnaVolta(e: NonNullable<ErroreDb>) {
+  if (ripiegoAvvisato) return;
+  ripiegoAvvisato = true;
+  console.warn(
+    `[manychat-risposta] whatsapp_registra_entrata non c'è (${String(e.code ?? "?")}): contatore non atomico finché non si applica la migrazione chat_whatsapp_crm`,
+  );
+}
+
+/** Il vecchio percorso, per prima della migrazione: legge e riscrive. Il +1 NON
+ *  è atomico (due messaggi insieme possono contarne uno): meglio del fisso a 1
+ *  di prima, e vale solo finché la migrazione non c'è. */
+async function aggiornaContattoSenzaMigrazione(
+  userId: string,
+  { telefono, leadId, adesso }: { telefono: string; leadId: string | null; adesso: Date },
+): Promise<void> {
+  const { data, error } = await db()
+    .from("whatsapp_contacts")
+    .select<{ id: string; lead_id: string | null; unread_count: number | null }[]>(
+      "id, lead_id, unread_count",
+    )
+    .eq("user_id", userId)
+    .in("phone_e164", formati(telefono))
+    .limit(1);
+  if (error) return lancia(error);
+  const ora = adesso.toISOString();
+  const esiste = data?.[0];
+  if (esiste) {
+    const { error: e2 } = await db()
+      .from("whatsapp_contacts")
+      .update({
+        last_message_at: ora,
+        unread_count: (esiste.unread_count ?? 0) + 1,
+        ...(leadId && !esiste.lead_id ? { lead_id: leadId } : {}),
+      })
+      .eq("id", esiste.id)
+      .eq("user_id", userId);
+    if (e2) lancia(e2);
+    return;
+  }
+  const { error: e3 } = await db()
+    .from("whatsapp_contacts")
+    .upsert(
+      {
+        user_id: userId,
+        phone_e164: `+${telefono}`,
+        ...(leadId ? { lead_id: leadId } : {}),
+        last_message_at: ora,
+        unread_count: 1,
+      },
+      { onConflict: "user_id,phone_e164" },
+    );
+  if (e3) lancia(e3);
+}
+
 export function porteRisposta(): PorteRispostaManychat {
   return {
     avviso: (m) => console.warn("[manychat-risposta]", m),
@@ -151,44 +213,22 @@ export function porteRisposta(): PorteRispostaManychat {
       return "nuovo";
     },
 
-    aggiornaContatto: async (userId, { telefono, leadId, adesso }) => {
-      const { data, error } = await db()
-        .from("whatsapp_contacts")
-        .select<{ id: string; lead_id: string | null }[]>("id, lead_id")
-        .eq("user_id", userId)
-        .in("phone_e164", formati(telefono))
-        .limit(1);
-      if (error) return lancia(error);
-      //  shortcut: `unread_count` sempre 1, come fa il webhook di Meta; un
-      //  contatore vero (+1) quando la chat mostrerà i non letti per ManyChat.
-      const ora = adesso.toISOString();
-      const esiste = data?.[0];
-      if (esiste) {
-        const { error: e2 } = await db()
-          .from("whatsapp_contacts")
-          .update({
-            last_message_at: ora,
-            unread_count: 1,
-            ...(leadId && !esiste.lead_id ? { lead_id: leadId } : {}),
-          })
-          .eq("id", esiste.id)
-          .eq("user_id", userId);
-        if (e2) lancia(e2);
-        return;
-      }
-      const { error: e3 } = await db()
-        .from("whatsapp_contacts")
-        .upsert(
-          {
-            user_id: userId,
-            phone_e164: `+${telefono}`,
-            ...(leadId ? { lead_id: leadId } : {}),
-            last_message_at: ora,
-            unread_count: 1,
-          },
-          { onConflict: "user_id,phone_e164" },
-        );
-      if (e3) lancia(e3);
+    aggiornaContatto: async (userId, x) => {
+      //  La funzione SQL fa tutto in un colpo (+1 atomico, orologio del database).
+      const { error } = await db().rpc("whatsapp_registra_entrata", {
+        p_user_id: userId,
+        p_phone: `+${x.telefono}`,
+        p_lead_id: x.leadId,
+        p_il: x.adesso.toISOString(),
+        p_anteprima: x.anteprima,
+        p_subscriber_id: x.subscriberId,
+        p_nome: x.nome,
+      });
+      if (!error) return;
+      //  Prima della migrazione la funzione (o le colonne) non c'è: si ripiega.
+      if (!migrazioneChatMancante(error)) return lancia(error);
+      avvisaRipiegoUnaVolta(error);
+      await aggiornaContattoSenzaMigrazione(userId, x);
     },
 
     conferma: (userId, telefono, adesso): PorteConferma => ({

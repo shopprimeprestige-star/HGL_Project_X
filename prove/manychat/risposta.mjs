@@ -342,21 +342,30 @@ export async function proveRisposta(mod, { c, gruppo }) {
     m.porte,
     richiesta({ corpo: corpo({ testo: "Salve, chi siete?" }) }),
   );
+  //  ⚠️ CAMBIATA DI PROPOSITO (chat WhatsApp, PIANO D7/R4, prova 1 di 4): uno
+  //  sconosciuto ora si registra, con la sua riga in rubrica.
   c(
-    "numero sconosciuto, non in rubrica, nessun invio → ignorata",
-    [200, "ignorata"],
+    "numero sconosciuto, non in rubrica, nessun invio → registrata",
+    [200, "registrata"],
     [r.stato, r.esito],
   );
   c(
-    "…niente registrato, niente aggiunto in rubrica",
-    [0, 1],
-    [m.messaggi.length, m.contatti.length],
+    "…riga in whatsapp_messages e riga contatto creata",
+    [1, 2, `+${TEL}`],
+    [m.messaggi.length, m.contatti.length, m.contatti[1]?.phone_e164],
   );
+  //  ⚠️ CAMBIATA DI PROPOSITO (PIANO D7/R4, prova 2 di 4): lo STOP di uno
+  //  sconosciuto non si perde più, la riga nasce prima di `segnaStop`.
+  m = mondo({ contatti: [{ user_id: "u-1", phone_e164: "+393339999999", lead_id: null }] });
   r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: "stop" }) }));
   c(
-    "…nemmeno uno STOP di uno sconosciuto tocca qualcosa",
-    [0, 1],
-    [m.messaggi.length, m.contatti.length],
+    "STOP di uno sconosciuto: riga creata e non_scrivere_dal scritto",
+    [2, ADESSO.toISOString(), undefined],
+    [
+      m.contatti.length,
+      m.contatti.find((x) => x.phone_e164 === `+${TEL}`)?.non_scrivere_dal,
+      m.contatti.find((x) => x.phone_e164 === "+393339999999")?.non_scrivere_dal,
+    ],
   );
 
   m = mondo({ contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }] });
@@ -386,7 +395,20 @@ export async function proveRisposta(mod, { c, gruppo }) {
 
   m = mondo({ invii: [invioConferma({ userId: "u-2" })] });
   r = await RS.gestisciRisposta(m.porte, richiesta());
-  c("un invio di un'altra installazione non conta", "ignorata", r.esito);
+  //  ⚠️ CAMBIATA DI PROPOSITO (PIANO D7/R4, prova 3 di 4): l'invio dell'altra
+  //  installazione continua a non contare, ma il numero ora si registra per la
+  //  SUA installazione (u-1). Niente deve finire nell'altra.
+  c("un invio di un'altra installazione non conta, il numero si registra per la sua", "registrata", r.esito);
+  c(
+    "…tutto in u-1: nessuna riga, nessuna ora di risposta e nessuna scheda toccata nell'altra",
+    [true, true, 0, undefined],
+    [
+      m.messaggi.every((x) => x.user_id === "u-1"),
+      m.contatti.every((x) => x.user_id === "u-1"),
+      m.rispostaLog.length,
+      m.invii[0].rispostaIl,
+    ],
+  );
 
   m = mondo({ invii: [invioConferma()] });
   r = await RS.gestisciRisposta(
@@ -644,7 +666,8 @@ export async function proveRisposta(mod, { c, gruppo }) {
     //  Uno sconosciuto: niente.
     m = mondo({ schede: [stessa()] });
     r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: "ciao" }) }));
-    c("sconosciuto non in rubrica → ignorata, nessuna ora di risposta, nessun secondo stato", ["ignorata", 0, 0], [r.esito, m.rispostaLog.length, m.contattoLog.length]);
+    //  ⚠️ CAMBIATA DI PROPOSITO (PIANO D7/R4, prova 4 di 4): lo sconosciuto ora si registra. L'esito è «risposta» (non «registrata») perché la scheda `stessa()` ha un promemoria in attesa e lo stesso telefono: la conferma lo trova per numero, come per ogni altro messaggio. Restano 0 ore di risposta e 0 secondi stati (nessun lead collegato).
+    c("sconosciuto non in rubrica → registrato, nessuna ora di risposta, nessun secondo stato", ["risposta", 1, 0, 0], [r.esito, m.messaggi.length, m.rispostaLog.length, m.contattoLog.length]);
 
     //  Senza invio ma con un contatto noto (Default Reply): «Ha risposto» sulla scheda della rubrica, ora solo sul giro.
     m = mondo({ contatti: [{ user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD }], schede: [stessa()] });
