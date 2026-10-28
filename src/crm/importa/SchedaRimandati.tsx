@@ -29,6 +29,8 @@
  *   è in questo elenco resta in coda al suo turno e si chiama come tutti gli
  *   altri. Confonderli vorrebbe dire smettere di telefonare ai rimandati.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, type ComponentType } from "react";
 import { Check, Clock, MessageCircle, PhoneCall, RotateCcw, Undo2, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -428,6 +430,9 @@ function Riga({
               )}
             </span>
             <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">
+              {mostraTemperatura(d.stato) && (
+                <TemperaturaRiga dati={d} max={0} className="mr-1.5 align-baseline" />
+              )}
               {[
                 telefono || "senza telefono",
                 d.citta || null,

@@ -23,6 +23,7 @@ import {
   Save,
   TriangleAlert,
   Eye,
+  ChevronLeft,
 } from "lucide-react";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { LeadDialog } from "@/crm/LeadDialog";
@@ -395,6 +396,11 @@ function WhatsAppPage() {
     if (!activePhone) return null;
     return chats.find((c) => c.phone === activePhone) ?? null;
   }, [activePhone, chats]);
+  //  Se la chat aperta sparisce dall'elenco (aggiornamento in tempo reale),
+  //  si torna all'elenco: sul telefono la schermata vuota non ha la freccia.
+  useEffect(() => {
+    if (activePhone && !loading && !activeChat) setActivePhone(null);
+  }, [activePhone, activeChat, loading]);
 
   const activeMessages = useMemo<WaMessageRow[]>(() => {
     if (!activePhone) return [];
@@ -580,6 +586,14 @@ function WhatsAppPage() {
   };
 
   const [leadsPanelOpen, setLeadsPanelOpen] = useState(true);
+  /*  ── SUL TELEFONO IL PANNELLO LEAD PARTE CHIUSO (28/10/2026) ──────────
+      Richiesta del titolare: «correggi design WhatsApp per mobile». Aperto,
+      era una terza colonna da 340 px accanto a elenco e chat: su 390 px la
+      pagina si allargava e tutto finiva tagliato. Sotto i 1024 px si apre
+      a richiesta, sopra alla chat. */
+  useEffect(() => {
+    if (!window.matchMedia("(min-width: 1024px)").matches) setLeadsPanelOpen(false);
+  }, []);
 
   // LeadDialog (modifica lead esistente o creazione nuovo lead da numero sconosciuto)
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
@@ -613,9 +627,11 @@ function WhatsAppPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] bg-background">
+    //  `dvh`: su Safari del telefono `vh` conta anche la barra degli indirizzi,
+    //  e il campo per scrivere finiva sotto la barra in basso.
+    <div className="flex flex-col h-[calc(100dvh-3rem)] bg-background">
       {/* Header sezione — coerente col resto del CRM */}
-      <div className="border-b border-border bg-card px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
+      <div className="border-b border-border bg-card px-3 sm:px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-md bg-emerald-50 grid place-items-center text-emerald-600 border border-emerald-100">
             <MessageCircle className="h-4 w-4" />
@@ -633,7 +649,7 @@ function WhatsAppPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/*  Due viste, non due pagine: i messaggi si correggono mentre si
               scrive, non andando a cercare un pannello di impostazioni. */}
           <div className="flex items-center gap-1.5">
@@ -676,7 +692,16 @@ function WhatsAppPage() {
           si ritrova la conversazione aperta e lo scorrimento dov'era. */}
       <div className={vista === "chat" ? "flex flex-1 min-h-0" : "hidden"}>
         {/* Sidebar chat list — light */}
-        <aside className="w-[340px] border-r border-border flex flex-col bg-card">
+        {/*  ── SUL TELEFONO UNA COSA ALLA VOLTA ─────────────────────────
+            Sotto i 768 px l'elenco occupa tutta la larghezza; aperta una chat
+            l'elenco si nasconde e la chat prende il suo posto, con la freccia
+            per tornare indietro. Dal tablet in su restano affiancati. */}
+        <aside
+          className={cn(
+            "w-full md:w-[300px] lg:w-[340px] md:shrink-0 border-r border-border flex-col bg-card",
+            activePhone ? "hidden md:flex" : "flex",
+          )}
+        >
           <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
             <span className="text-[13px] font-semibold text-foreground">Chat</span>
             <DropdownMenu>
@@ -816,7 +841,12 @@ function WhatsAppPage() {
         </aside>
 
         {/* Conversation pane */}
-        <section className="flex-1 flex flex-col min-w-0 bg-muted/30">
+        <section
+          className={cn(
+            "flex-1 flex-col min-w-0 bg-muted/30",
+            activePhone ? "flex" : "hidden md:flex",
+          )}
+        >
           {!activeChat ? (
             <div className="flex-1 grid place-items-center text-center px-6">
               <div className="max-w-md">
@@ -833,11 +863,20 @@ function WhatsAppPage() {
           ) : (
             <>
               {/* Chat header */}
-              <div className="px-4 py-2 bg-card border-b border-border flex items-center justify-between gap-2 flex-wrap">
+              <div className="px-2 sm:px-4 py-2 bg-card border-b border-border flex items-center justify-between gap-2 flex-wrap">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setActivePhone(null)}
+                  className="h-9 w-9 shrink-0 md:hidden"
+                  aria-label="Torna all'elenco delle chat"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
                 <button
                   type="button"
                   onClick={openHeaderEdit}
-                  className="flex items-center gap-2.5 min-w-0 text-left rounded-md hover:bg-muted/60 transition-colors px-1.5 py-1 -mx-1.5"
+                  className="flex flex-1 md:flex-none items-center gap-2.5 min-w-0 text-left rounded-md hover:bg-muted/60 transition-colors px-1.5 py-1 md:-mx-1.5"
                   title={
                     activeChat.lead
                       ? "Modifica dati lead"
@@ -895,7 +934,7 @@ function WhatsAppPage() {
               </div>
 
               {/* Messages */}
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">
                 <div className="mx-auto max-w-2xl flex flex-col gap-1.5">
                   {activeMessages.length === 0 ? (
                     <div className="self-center bg-card border border-border text-muted-foreground text-[11px] px-3 py-1 rounded-md mt-4">
@@ -914,7 +953,9 @@ function WhatsAppPage() {
                               : "self-start bg-card text-foreground border-border rounded-bl-sm",
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{m.body}</p>
+                          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                            {m.body}
+                          </p>
                           <div
                             className={cn(
                               "flex items-center gap-1 mt-1 text-[10px]",
@@ -1003,7 +1044,16 @@ function WhatsAppPage() {
         </section>
 
         {/* Pannello lead a destra — collassabile */}
-        {leadsPanelOpen && <WhatsAppLeadsPanel onClose={() => setLeadsPanelOpen(false)} />}
+        {/*  Sotto i 1024 px il pannello lead sta SOPRA la pagina, a tutto
+            schermo sul telefono: come colonna in più spingeva fuori la chat. */}
+        {leadsPanelOpen && (
+          <div
+            className="fixed inset-0 z-40 flex justify-end bg-black/30 lg:static lg:z-auto lg:block lg:bg-transparent"
+            onClick={(e) => e.target === e.currentTarget && setLeadsPanelOpen(false)}
+          >
+            <WhatsAppLeadsPanel onClose={() => setLeadsPanelOpen(false)} />
+          </div>
+        )}
       </div>
 
       {/* Dialog: modifica lead esistente o crea nuovo da numero sconosciuto */}

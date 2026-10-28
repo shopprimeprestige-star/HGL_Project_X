@@ -20360,10 +20360,29 @@ function proveDeiDaRiprogrammareOggi() {
   const oggi = "2026-10-22";
   c("cambiato a settembre: è di oggi", oggi, di("vecchio")?.giorno);
   c("importato senza giorno del cambio: c'è, ed è di oggi", oggi, di("importato")?.giorno);
-  c("con un richiamo futuro: resta comunque di oggi", oggi, di("ieri")?.giorno);
+  c("rimandato con «Quando richiamarla» a un giorno futuro: esce da oggi", undefined, di("ieri"));
+  const conRichiamoOggi = DF.costruisciRighe({ ora, task: [], leads: [lead("r", { stato: "da_spostare", dataRicontatto: oggi, oraRicontatto: "16:00" })] })[0];
+  c("…e il giorno del richiamo torna, con la sua ora", [oggi, "16:00"], [conRichiamoOggi?.giorno, conRichiamoOggi?.ora]);
+  const sidebar = readFileSync(join(radice, "src/crm/CRMSidebar.tsx"), "utf8");
+  c("il numero nel menu usa la data locale, non UTC", true, /const oggi = oggiIso\(ora\)/.test(sidebar) && !/toISOString\(\)\.slice\(0, 10\);\s*return righe\.filter/.test(sidebar));
+  for (const f of ["SchedaOggi", "SchedaSaltati", "SchedaRipesca", "SchedaRimandati"])
+    c(`Lead importati, ${f}: c'è la temperatura`, true, /<TemperaturaRiga/.test(readFileSync(join(radice, `src/crm/importa/${f}.tsx`), "utf8")));
   c("non finisce nell'arretrato", "quandoCapita", DF.fasciaDi(di("vecchio"), ora.getTime(), oggi));
   c("rifissato (stato cambiato): esce", undefined, di("rifissato"));
   c("«Cliente assente» resta alla regola di prima (arretrato)", "2026-09-01", di("assente")?.giorno);
+}
+
+
+/** ── WHATSAPP SUL TELEFONO (28/10/2026) ─────────────────────────────────────
+ *  Richiesta del titolare: «correggi design WhatsApp per mobile». */
+function proveDiWhatsappSulTelefono() {
+  gruppo("WHATSAPP SUL TELEFONO: UNA COSA ALLA VOLTA");
+  const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
+  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /w-full md:w-\[300px\][\s\S]{0,200}activePhone \? "hidden md:flex" : "flex"/.test(pg));
+  c("la chat si vede da sola quando è aperta", true, /activePhone \? "flex" : "hidden md:flex"/.test(pg));
+  c("c'è la freccia per tornare all'elenco", true, /onClick=\{\(\) => setActivePhone\(null\)\}[\s\S]{0,120}md:hidden/.test(pg));
+  c("il pannello lead parte chiuso sotto i 1024 px", true, /matchMedia\("\(min-width: 1024px\)"\)\.matches\) setLeadsPanelOpen\(false\)/.test(pg));
+  c("il pannello lead sta sopra la pagina sul telefono", true, /fixed inset-0 z-40[^"]*lg:static/.test(pg));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
@@ -20473,6 +20492,7 @@ proveDelRiquadroDelPromemoria();
 await proveManychat(mod, { c, gruppo, radice });
 proveProvaModelli(mod, { c, gruppo, radice });
 await proveSheets(mod, { c, gruppo, radice });
+proveDiWhatsappSulTelefono();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
