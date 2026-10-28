@@ -246,6 +246,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       inCorso = true;
       try {
         await reloadRef.current();
+      } catch {
+        //  Rete caduta: si riprova al prossimo segnale (canale, controllo, ritorno sulla pagina).
       } finally {
         inCorso = false;
         if (ancora && vivo) {
@@ -263,7 +265,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       const token = data.session?.access_token;
       if (token) await supabase.realtime.setAuth(token);
       if (!vivo) return;
-      ch = supabase
+      const questo = supabase
         .channel(`wa-${user.id}-${Date.now()}`)
         .on(
           "postgres_changes",
@@ -284,23 +286,25 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             filter: `user_id=eq.${user.id}`,
           },
           () => void ricarica(),
-        )
-        .subscribe((stato) => {
-          if (!vivo) return;
-          if (stato === "SUBSCRIBED") void ricarica();
-          else if (stato === "CHANNEL_ERROR" || stato === "TIMED_OUT" || stato === "CLOSED") {
-            if (riprova) return;
-            riprova = setTimeout(() => {
-              riprova = null;
-              const vecchio = ch;
-              ch = null;
-              if (vecchio) void supabase.removeChannel(vecchio);
-              void apri();
-            }, 5_000);
-          }
-        });
+        );
+      ch = questo;
+      questo.subscribe((stato) => {
+        //  ⚠️ `removeChannel` richiama la callback del canale tolto con CLOSED:
+        //   contano solo gli stati del canale attuale, sennò si riapre in giro ogni 5 s.
+        if (!vivo || ch !== questo) return;
+        if (stato === "SUBSCRIBED") void ricarica();
+        else if (stato === "CHANNEL_ERROR" || stato === "TIMED_OUT" || stato === "CLOSED") {
+          if (riprova) return;
+          riprova = setTimeout(() => {
+            riprova = null;
+            ch = null;
+            void supabase.removeChannel(questo);
+            void apri().catch(() => {});
+          }, 5_000);
+        }
+      });
     };
-    void apri();
+    void apri().catch(() => {});
 
     //  Rete di sicurezza: una riga sola per tabella, si rilegge tutto solo se è cambiato qualcosa.
     let impronta = "";
@@ -327,8 +331,9 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       }
       primo = false;
     };
-    void controlla();
-    const giro = setInterval(() => void controlla(), 15_000);
+    const controllaZitto = () => controlla().catch(() => {});
+    void controllaZitto();
+    const giro = setInterval(() => void controllaZitto(), 15_000);
     const torna = () => {
       if (document.visibilityState === "visible") void ricarica();
     };
