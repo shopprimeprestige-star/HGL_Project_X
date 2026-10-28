@@ -49,8 +49,9 @@ export const fetchCRM = (url, init) => globalThis.fetch(url, init);`,
   from: (t) => globalThis.__T.db.from(t),
   rpc: (fn, args) => globalThis.__T.db.rpc(fn, args),
   auth: { getSession: async () => ({ data: { session: { access_token: "gettone-finto" } } }) },
+  realtime: { setAuth: async () => {} },
   channel: () => globalThis.__T.db.canale(),
-  removeChannel: () => {},
+  removeChannel: (c) => c?.chiudi?.(),
 };`,
   sonner: `export const toast = {
   error: (m) => globalThis.__T.toasts.push({ tipo: "errore", m: String(m) }),
@@ -151,14 +152,21 @@ function creaDb(tabelle) {
     emetti(t) {
       for (const x of db.cb) if (x.tabella === t) queueMicrotask(x.f);
     },
+    canali: [],
     canale() {
       const ch = {
         on: (_t, cfg, f) => {
           db.cb.push({ tabella: cfg.table, f });
           return ch;
         },
-        subscribe: () => ch,
+        //  Come realtime-js: `removeChannel` richiama la callback con CLOSED.
+        subscribe: (stato) => {
+          ch.stato = stato;
+          return ch;
+        },
+        chiudi: () => ch.stato?.("CLOSED"),
       };
+      db.canali.push(ch);
       return ch;
     },
     rpc: (fn, args) => {
@@ -652,7 +660,11 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [0, [P1]],
         [p.api().chats[0].unread, telefoni(p.api().daRispondere)],
       );
-      c("un solo timer (ogni 30 secondi)", [[30_000]], [[...p.T.timers.values()].map((t) => t.ms)]);
+      c(
+        "due timer: l'orologio (30 s) e il controllo dei messaggi nuovi (15 s)",
+        [[15_000, 30_000]],
+        [[...p.T.timers.values()].map((t) => t.ms).sort((x, y) => x - y)],
+      );
       // Passa mezz'ora in giri da 30 secondi: l'elenco si ricalcola ma il segna-letto NON si rilancia.
       for (let i = 0; i < 4; i++) {
         p.T.ora += 30_000;
@@ -1607,6 +1619,38 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [true],
         [/chiamaFunzione\(\s*"whatsapp_segna_fatto"/.test(senza)],
       );
+    }
+
+    /* ── IL CANALE IN TEMPO REALE CADE: si riapre UNA volta, non in giro ─── */
+    gruppo("CHAT WHATSAPP · PAGINA · CANALE CHE CADE");
+    {
+      const attese = [];
+      const setTimeoutVero = globalThis.setTimeout;
+      globalThis.setTimeout = (f, ms) => {
+        if (ms === 5_000) {
+          attese.push(f);
+          return attese.length;
+        }
+        return setTimeoutVero(f, ms);
+      };
+      try {
+        const p = await monta({ messaggi: [] });
+        const primo = p.db.canali.at(-1);
+        primo.stato("CHANNEL_ERROR");
+        c("errore del canale → una riapertura in attesa", 1, attese.length);
+        attese.shift()();
+        await p.assesta();
+        await p.assesta();
+        c(
+          "riaperto un canale nuovo; la chiusura del vecchio (CLOSED) NON programma un'altra riapertura",
+          [true, 0],
+          [p.db.canali.at(-1) !== primo, attese.length],
+        );
+        p.smonta();
+        c("smontando, la chiusura del canale non riapre niente", 0, attese.length);
+      } finally {
+        globalThis.setTimeout = setTimeoutVero;
+      }
     }
   } finally {
     globalThis.fetch = originali.fetch;
