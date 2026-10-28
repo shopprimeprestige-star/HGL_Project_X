@@ -136,6 +136,9 @@ export const MAX_PARAMETRI = 4;
 /** Solo le cifre di un telefono. */
 export const soloCifre = (t: string) => String(t ?? "").replace(/\D/g, "");
 
+/** Il testo contiene un indirizzo `http://` o `https://` seguito da qualcosa? */
+const haLink = (testo: string | undefined) => /https?:\/\/\S/i.test(String(testo ?? ""));
+
 /** ── IL CORPO DELLA GRAPH API ──────────────────────────────────────────────
  *  Identico a quello che `api.whatsapp-send` e la conferma del 22/10 hanno
  *  sempre mandato (prova a confronto in `porta.mjs`). */
@@ -170,7 +173,9 @@ export function corpoGraph(r: {
     payload.template = template;
   } else {
     payload.type = "text";
-    payload.text = { preview_url: false, body: r.testo };
+    //  L'anteprima del link compare solo se la chiediamo: vale quando il testo contiene un
+    //  indirizzo http(s) (es. la pagina dei media). Senza link resta com'era sempre.
+    payload.text = { preview_url: haLink(r.testo), body: r.testo };
   }
   return payload;
 }

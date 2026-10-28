@@ -186,7 +186,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_primo_contatto",
     "MARKETING",
-    `Gentile {{lead_name}}, sono il team di Hair Genius Labs: abbiamo ricevuto la Sua richiesta di informazioni, grazie.\n\nCi occupiamo di soluzioni non chirurgiche per la perdita dei capelli: la patch cutanea e Invisible Derm. Nella prima consulenza gratuita, online in videochiamata, Filippo Le spiegherà entrambe e quale è più adatta alla Sua situazione.\n\nPer fissarla, preferisce la mattina o la sera?`,
+    `Gentile {{lead_name}}, sono il team di Hair Genius Labs: abbiamo ricevuto la Sua richiesta di informazioni, grazie.\n\nCi occupiamo di soluzioni non chirurgiche per la perdita dei capelli: la patch cutanea e Invisible Derm. Nella prima consulenza gratuita, online in videochiamata, Filippo Le spiegherà entrambe e quale è più adatta alla Sua situazione.\n\nPer fissarla, preferisce oggi o domani?`,
     ["lead_name"],
   ),
   tpl(
@@ -199,6 +199,12 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     "hgl_ritorno",
     "MARKETING",
     `Gentile {{lead_name}}, abbiamo visto che ci ha scritto di nuovo per avere informazioni da Hair Genius Labs, grazie.\n\nVuole fissare la consulenza gratuita online? Preferisce la mattina o la sera?`,
+    ["lead_name"],
+  ),
+  tpl(
+    "hgl_casi_reali",
+    "MARKETING",
+    `{{lead_name}}, le lascio qui alcuni casi reali dei nostri clienti, con foto e video. Come vedrà, il nostro non è la classica patch cutanea: è l'Invisible Derm Protocol, su misura. Siamo a Roma e facciamo tutto in giornata, in meno di 2 ore: per questo vengono da noi da tutta Europa.`,
     ["lead_name"],
   ),
   tpl(
@@ -216,7 +222,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_promemoria_meet",
     "UTILITY",
-    `Gentile {{lead_name}}, Le ricordo la Sua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 25 minuti.\n\nPer collegarsi: {{meet_link}}\n\nLa seguirà {{consultant_name}}. Se può, si colleghi da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
+    `Gentile {{lead_name}}, Le ricordo la Sua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 20 minuti.\n\nPer collegarsi: {{meet_link}}\n\nLa seguirà {{consultant_name}}. Se può, si colleghi da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
     ["lead_name", "appointment_time", "meet_link", "consultant_name"],
   ),
   tpl(

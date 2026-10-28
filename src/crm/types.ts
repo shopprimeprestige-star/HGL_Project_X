@@ -1904,7 +1904,10 @@ export type TipoInvioNuovo =
   | "promemoria_sede"
   //  commessa 2026-10-28: il messaggio al contatto di ritorno (`hgl_ritorno`).
   //  ⚠️ Il CHECK del database lo accetta solo dopo 20261028130000_manychat_ritorno.sql
-  | "ritorno";
+  | "ritorno"
+  //  commessa 2026-10-28 (casi reali): il secondo messaggio dopo il primo contatto (`hgl_casi_reali`).
+  //  ⚠️ Il CHECK del database lo accetta solo dopo 20261028190000_manychat_casi_reali.sql
+  | "casi_reali";
 export type TipoInvio =
   | "promemoria"
   | "ricontatto"

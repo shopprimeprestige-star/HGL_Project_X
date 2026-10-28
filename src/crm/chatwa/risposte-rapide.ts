@@ -103,6 +103,13 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     stati: DA_FISSARE,
   },
   {
+    id: "mattina_pomeriggio_sera",
+    titolo: "Mattina, pomeriggio o sera?",
+    testo: "Perfetto. Preferisce mattina, pomeriggio o sera?",
+    temi: ["prenota"],
+    stati: DA_FISSARE,
+  },
+  {
     id: "mattina_pomeriggio",
     titolo: "Mattina o pomeriggio?",
     testo: "Preferisce la mattina o il pomeriggio?",
@@ -167,6 +174,13 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     testo:
       "La prima consulenza si fa online, in videochiamata, quindi può farla comodamente da casa. Per l'installazione può venire nella nostra sede oppure possiamo venire noi a domicilio.",
     temi: ["dove", "domicilio"],
+  },
+  {
+    id: "roma_in_giornata",
+    titolo: "Siamo a Roma, tutto in giornata",
+    testo:
+      "Ci troviamo a Roma e facciamo tutto in giornata, in meno di 2 ore: per questo vengono da noi da tutta Europa.",
+    temi: ["dove", "installazione"],
   },
   {
     id: "sede",
