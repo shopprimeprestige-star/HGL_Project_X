@@ -79,13 +79,86 @@ export function daRispondere(ultimo?: { direction?: string | null } | null): boo
   return ultimo?.direction === "inbound";
 }
 
-/** ── IL MESSAGGIO CON GLI ORARI ─────────────────────────────────────────── */
+/** ── IL MESSAGGIO CON GLI ORARI ───────────────────────────────────────────
+ *  Commessa 2026-10-28 (calendario): il tasto della casella apre una finestra
+ *  col calendario di ogni consulente (crm/OrariRapidi); si scelgono più orari,
+ *  anche di giorni e consulenti diversi, e «Crea messaggio» mette il testo
+ *  nella casella. Qui la scelta, i gruppi per giorno e il testo. */
 
 export interface OrarioScelto {
   /** AAAA-MM-GG */
   data: string;
   /** HH:MM */
   ora: string;
+  /** con chi era libero quando è stato scelto ("tutti" o l'id): solo per chi
+   *  sceglie, il messaggio non lo dice mai */
+  chi?: string;
+}
+
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const ORA = /^\d{1,2}:\d{2}$/;
+const ora2 = (ora: string) => ora.padStart(5, "0");
+
+/** Lo stesso orario scelto due volte (anche con due consulenti) è lo stesso orario. */
+export const eScelto = (scelte: OrarioScelto[], data: string, ora: string): boolean =>
+  scelte.some((s) => s.data === data && s.ora === ora2(ora));
+
+/** Un tocco: se c'è lo toglie, se non c'è lo aggiunge in fondo. */
+export function cambiaScelta(scelte: OrarioScelto[], s: OrarioScelto): OrarioScelto[] {
+  if (!DATA.test(s.data) || !ORA.test(s.ora)) return scelte;
+  const ora = ora2(s.ora);
+  if (eScelto(scelte, s.data, ora))
+    return scelte.filter((x) => !(x.data === s.data && x.ora === ora));
+  return [...scelte, { ...s, ora }];
+}
+
+/** Le scelte per giorno: giorni in ordine, ore in ordine, niente doppioni. */
+export function scelteDelGiorno(scelte: OrarioScelto[]): { data: string; ore: string[] }[] {
+  const perGiorno = new Map<string, Set<string>>();
+  for (const s of scelte) {
+    if (!DATA.test(s.data) || !ORA.test(s.ora)) continue;
+    perGiorno.set(s.data, (perGiorno.get(s.data) ?? new Set()).add(ora2(s.ora)));
+  }
+  return [...perGiorno.keys()]
+    .sort()
+    .map((data) => ({ data, ore: [...perGiorno.get(data)!].sort() }));
+}
+
+/** Prima di scrivere il messaggio: via quello che nel frattempo non è più
+ *  libero (un'ora passata, un posto preso). `giorni` sono quelli di tutta la
+ *  squadra; un giorno che non c'è fra quelli guardati non si giudica. */
+export function scelteAncoraLibere(
+  scelte: OrarioScelto[],
+  giorni: { data: string; fasce: { ora: string }[] }[],
+  oggi: string,
+): OrarioScelto[] {
+  const libere = new Map(giorni.map((g) => [g.data, new Set(g.fasce.map((f) => ora2(f.ora)))]));
+  return scelte.filter((s) => {
+    if (s.data < oggi) return false;
+    const ore = libere.get(s.data);
+    return !ore || ore.has(ora2(s.ora));
+  });
+}
+
+/** Il consulente da cui parte il calendario: quello del lead, se è fra chi fa
+ *  consulenze; altrimenti «Tutti». */
+export const consulenteDiPartenza = (squadra: string[], consulenteId?: string | null): string =>
+  consulenteId && squadra.includes(consulenteId) ? consulenteId : "tutti";
+
+/** Il giorno visto da un consulente solo: le ore in cui LUI ha posto, coi
+ *  suoi posti. È lo stesso che Slot liberi calcola scegliendo quella persona
+ *  (`riassumiGiorno` con lei sola), ritagliato dal giorno di tutta la squadra:
+ *  un calcolo solo, e le scelte fatte su consulenti diversi si controllano
+ *  tutte sugli stessi giorni (prove: «il ritaglio di un consulente»). */
+export function giornoDi<
+  G extends { fasce: { ora: string; posti: number; chi: { id: string; posti: number }[] }[] },
+>(g: G, chi: string): G {
+  if (chi === "tutti") return g;
+  const fasce = g.fasce.flatMap((f) => {
+    const suo = f.chi.find((c) => c.id === chi);
+    return suo ? [{ ...f, posti: suo.posti, chi: [suo] }] : [];
+  });
+  return { ...g, fasce, posti: fasce.reduce((t, f) => t + f.posti, 0) };
 }
 
 const piu = (data: string, giorni: number): string => {
@@ -94,11 +167,13 @@ const piu = (data: string, giorni: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
-/** «oggi», «domani», oppure «venerdì 31 ottobre». */
+/** «oggi, mercoledì 28 ottobre», «domani, giovedì 29 ottobre», «venerdì 30
+ *  ottobre»: il giorno sempre per intero, il cliente non deve contare. */
 export function giornoPerMessaggio(data: string, oggi: string): string {
-  if (data === oggi) return "oggi";
-  if (data === piu(oggi, 1)) return "domani";
-  return giornoParlato(data) ?? data;
+  const parlato = giornoParlato(data) ?? data;
+  if (data === oggi) return `oggi, ${parlato}`;
+  if (data === piu(oggi, 1)) return `domani, ${parlato}`;
+  return parlato;
 }
 
 /** «alle 15:00», «alle 15:00 o alle 17:30», «alle 10:00, 11:00 o 12:00». */
@@ -108,37 +183,34 @@ function oreInFila(ore: string[]): string {
   return `alle ${ore.slice(0, -1).join(", ")} o ${ore.at(-1)}`;
 }
 
-/** Il testo da mandare: un giorno per riga, le ore in ordine, la domanda in
- *  fondo. Col «lei», come gli altri messaggi dello studio. Vuoto se non c'è
- *  niente di scelto. */
+const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** Il testo da mandare: un giorno per riga («Domani, giovedì 29 ottobre: alle
+ *  10:00 o alle 15:30»), le ore in ordine, la domanda in fondo. Col «Lei»,
+ *  come gli altri messaggi dello studio. Vuoto se non c'è niente di scelto. */
 export function messaggioOrari(scelte: OrarioScelto[], oggi: string, nome?: string | null): string {
-  const perGiorno = new Map<string, Set<string>>();
-  for (const s of scelte) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.data) || !/^\d{1,2}:\d{2}$/.test(s.ora)) continue;
-    const ora = s.ora.padStart(5, "0");
-    perGiorno.set(s.data, (perGiorno.get(s.data) ?? new Set()).add(ora));
-  }
-  if (perGiorno.size === 0) return "";
-  const righe = [...perGiorno.keys()].sort().map((data) => {
-    const ore = [...perGiorno.get(data)!].sort();
-    return { giorno: giornoPerMessaggio(data, oggi), ore };
-  });
+  const righe = scelteDelGiorno(scelte).map((r) => ({
+    giorno: giornoPerMessaggio(r.data, oggi),
+    ore: r.ore,
+  }));
+  if (righe.length === 0) return "";
   const quante = righe.reduce((n, r) => n + r.ore.length, 0);
   const parola =
     String(nome ?? "")
       .trim()
       .split(/\s+/)[0] ?? "";
   //  «mario» scritto a mano diventa «Mario».
-  const primo = parola ? parola.charAt(0).toUpperCase() + parola.slice(1) : "";
+  const primo = maiuscola(parola);
   const saluto = primo ? `Gentile ${primo}, ` : "";
-  const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   if (quante === 1) {
     const r = righe[0];
+    //  «oggi, mercoledì 28 ottobre, alle 15:00»: la virgola chiude l'inciso.
+    const giorno = r.giorno.includes(",") ? `${r.giorno},` : r.giorno;
     return maiuscola(
-      `${saluto}per la consulenza gratuita online avrei libero ${r.giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`,
+      `${saluto}per la consulenza gratuita online avrei libero ${giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`,
     );
   }
-  const elenco = righe.map((r) => `• ${r.giorno} ${oreInFila(r.ore)}`).join("\n");
+  const elenco = righe.map((r) => `${maiuscola(r.giorno)}: ${oreInFila(r.ore)}`).join("\n");
   return maiuscola(
     `${saluto}per la consulenza gratuita online avrei liberi questi orari:\n\n${elenco}\n\nQuale preferisce?`,
   );

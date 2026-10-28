@@ -3226,6 +3226,9 @@ function proveDegliHook() {
     //  La conferma su WhatsApp (commessa 2026-10-22): striscia e riquadro.
     "src/crm/ConfermeDaSentire.tsx",
     "src/crm/PromemoriaWhatsappPannello.tsx",
+    //  Il calendario degli orari nella chat (commessa 2026-10-28): una finestra
+    //  sempre disegnata, nessuna uscita; che resti così.
+    "src/crm/OrariRapidi.tsx",
   ];
   const colpevoli = [];
   for (const f of file) {
@@ -20451,15 +20454,50 @@ function proveDiWhatsappOrariStelle() {
   gruppo("WHATSAPP: IL MESSAGGIO CON GLI ORARI");
   const W = mod["wa-orari"];
   const oggi = "2026-10-28";
-  c("oggi e domani si dicono così", ["oggi", "domani", "venerdì 30 ottobre"], ["2026-10-28", "2026-10-29", "2026-10-30"].map((d) => W.giornoPerMessaggio(d, oggi)));
+  //  Commessa 2026-10-28 (calendario): il giorno si dice per intero, «Domani, giovedì 29 ottobre».
+  c("oggi e domani col giorno per intero", ["oggi, mercoledì 28 ottobre", "domani, giovedì 29 ottobre", "venerdì 30 ottobre"], ["2026-10-28", "2026-10-29", "2026-10-30"].map((d) => W.giornoPerMessaggio(d, oggi)));
   const uno = W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario Esempio");
-  c("un orario solo: «Le va bene?», solo il nome", "Gentile Mario, per la consulenza gratuita online avrei libero oggi alle 15:00.\n\nLe va bene?", uno);
-  const piu = W.messaggioOrari([{ data: "2026-10-29", ora: "10:00" }, { data: oggi, ora: "17:30" }, { data: oggi, ora: "15:00" }, { data: oggi, ora: "9:00" }], oggi, "");
-  c("più orari: un giorno per riga, in ordine, domanda in fondo",
-    "Per la consulenza gratuita online avrei liberi questi orari:\n\n• oggi alle 09:00, 15:00 o 17:30\n• domani alle 10:00\n\nQuale preferisce?", piu);
-  c("due ore: «alle … o alle …»", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }, { data: oggi, ora: "16:00" }], oggi).includes("oggi alle 15:00 o alle 16:00"));
+  c("un orario solo: «Le va bene?», solo il nome", "Gentile Mario, per la consulenza gratuita online avrei libero oggi, mercoledì 28 ottobre, alle 15:00.\n\nLe va bene?", uno);
+  const piu = W.messaggioOrari([{ data: "2026-10-30", ora: "11:00" }, { data: "2026-10-29", ora: "15:30" }, { data: "2026-10-29", ora: "10:00" }], oggi, "");
+  c("più orari: un giorno per riga, in ordine, come nella richiesta, domanda in fondo",
+    "Per la consulenza gratuita online avrei liberi questi orari:\n\nDomani, giovedì 29 ottobre: alle 10:00 o alle 15:30\nVenerdì 30 ottobre: alle 11:00\n\nQuale preferisce?", piu);
+  c("tre ore lo stesso giorno: «alle …, … o …»", true, W.messaggioOrari([{ data: oggi, ora: "17:30" }, { data: oggi, ora: "9:00" }, { data: oggi, ora: "15:00" }], oggi).includes("Oggi, mercoledì 28 ottobre: alle 09:00, 15:00 o 17:30"));
   c("niente di scelto: niente testo", "", W.messaggioOrari([], oggi, "Mario"));
   c("la stessa ora due volte conta una volta", 1, (W.messaggioOrari([{ data: oggi, ora: "15:00" }, { data: oggi, ora: "15:00" }], oggi).match(/15:00/g) || []).length);
+  c("lo stesso orario scelto con due consulenti conta una volta (nel testo niente nomi)", "Gentile Anna, per la consulenza gratuita online avrei libero domani, giovedì 29 ottobre, alle 10:00.\n\nLe va bene?",
+    W.messaggioOrari([{ data: "2026-10-29", ora: "10:00", chi: "c1" }, { data: "2026-10-29", ora: "10:00", chi: "c2" }], oggi, "anna"));
+
+  gruppo("WHATSAPP: IL CALENDARIO DEGLI ORARI (scelta, gruppi, consulente)");
+  let sc = [];
+  sc = W.cambiaScelta(sc, { data: "2026-10-30", ora: "11:00", chi: "c1" });
+  sc = W.cambiaScelta(sc, { data: "2026-10-29", ora: "9:30", chi: "c2" });
+  c("un tocco sceglie (l'ora si scrive a due cifre)", [{ data: "2026-10-30", ora: "11:00", chi: "c1" }, { data: "2026-10-29", ora: "09:30", chi: "c2" }], sc);
+  c("…e si riconosce scelta", [true, true, false], [W.eScelto(sc, "2026-10-29", "09:30"), W.eScelto(sc, "2026-10-29", "9:30"), W.eScelto(sc, "2026-10-29", "10:00")]);
+  c("un altro tocco sullo stesso orario lo toglie, anche da un altro consulente", [{ data: "2026-10-30", ora: "11:00", chi: "c1" }], W.cambiaScelta(sc, { data: "2026-10-29", ora: "09:30", chi: "c1" }));
+  c("un orario storto non entra", [], W.cambiaScelta([], { data: "29/10", ora: "dieci" }));
+  c("i gruppi: giorni in ordine, ore in ordine, niente doppioni",
+    [{ data: "2026-10-29", ore: ["10:00", "15:30"] }, { data: "2026-10-30", ore: ["11:00"] }],
+    W.scelteDelGiorno([{ data: "2026-10-30", ora: "11:00" }, { data: "2026-10-29", ora: "15:30" }, { data: "2026-10-29", ora: "10:00" }, { data: "2026-10-29", ora: "10:00" }, { data: "x", ora: "10:00" }]));
+  c("si parte dal consulente del lead se fa consulenze", "c2", W.consulenteDiPartenza(["c1", "c2"], "c2"));
+  c("…altrimenti da «Tutti»", ["tutti", "tutti", "tutti"], [W.consulenteDiPartenza(["c1"], "c9"), W.consulenteDiPartenza(["c1"], ""), W.consulenteDiPartenza([], null)]);
+  const giorni = [
+    { data: "2026-10-28", fasce: [{ ora: "17:00" }] },
+    { data: "2026-10-29", fasce: [{ ora: "10:00" }, { ora: "15:30" }] },
+  ];
+  c("una scelta che non è più libera si scarta prima del messaggio", [{ data: "2026-10-29", ora: "15:30" }],
+    W.scelteAncoraLibere([{ data: "2026-10-29", ora: "15:30" }, { data: "2026-10-28", ora: "09:00" }, { data: "2026-10-27", ora: "10:00" }], giorni, "2026-10-28"));
+  c("…ma una scelta oltre i giorni guardati resta (non si sa, non si toglie)", [{ data: "2026-11-30", ora: "10:00" }],
+    W.scelteAncoraLibere([{ data: "2026-11-30", ora: "10:00" }], giorni, "2026-10-28"));
+  //  Il calendario di un consulente si ritaglia dai giorni di tutta la squadra:
+  //  deve dire le stesse ore che Slot liberi dice scegliendo quella persona.
+  const SL = mod["slot-liberi"];
+  const p1 = { id: "c1", nome: "Uno", slot: [{ ora: "10:00", libero: true, presi: 0, capienza: 3 }, { ora: "11:00", libero: true, presi: 3, capienza: 3 }, { ora: "12:00", libero: false, presi: 0, capienza: 3 }] };
+  const p2 = { id: "c2", nome: "Due", slot: [{ ora: "11:00", libero: true, presi: 1, capienza: 3 }, { ora: "15:00", libero: true, presi: 0, capienza: 3 }] };
+  const squadraG = SL.riassumiGiorno({ data: "2026-10-29", persone: [p1, p2] });
+  const ore = (g) => g.fasce.map((f) => `${f.ora}:${f.posti}`);
+  c("il ritaglio di un consulente = Slot liberi con quel consulente", [ore(SL.riassumiGiorno({ data: "2026-10-29", persone: [p1] })), ore(SL.riassumiGiorno({ data: "2026-10-29", persone: [p2] }))],
+    [ore(W.giornoDi(squadraG, "c1")), ore(W.giornoDi(squadraG, "c2"))]);
+  c("«Tutti»: il giorno com'è", squadraG, W.giornoDi(squadraG, "tutti"));
 
   gruppo("WHATSAPP: DA RISPONDERE E STELLE");
   c("l'ultimo è suo: da rispondere", true, W.daRispondere({ direction: "inbound" }));
