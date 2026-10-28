@@ -257,7 +257,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
   //  Consenso: la frase nel modulo.
   c(
     "STOP → salta, e dice STOP (col prefisso dell'importato)",
-    ["salta", "importato: STOP"],
+    ["salta", "da contattare: STOP"],
     ((x) => [x?.tipo, x?.motivo])(
       unica(
         lead(
@@ -273,7 +273,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
   );
   c(
     "revoca («Ok a WhatsApp» spento) batte il modulo → salta",
-    ["salta", "importato: revoca di «Ok a WhatsApp»"],
+    ["salta", "da contattare: revoca di «Ok a WhatsApp»"],
     ((x) => [x?.tipo, x?.motivo])(
       unica(
         lead(
@@ -334,8 +334,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
   c(
     "numero non valido → salta; nome mancante → salta",
     [
-      ["salta", "importato: numero non valido"],
-      ["salta", "importato: manca il nome"],
+      ["salta", "da contattare: numero non valido"],
+      ["salta", "da contattare: manca il nome"],
     ],
     [
       nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", { telefono: "12" }),
@@ -526,8 +526,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
   c(
     "…STOP e revoca fermano anche il richiamo",
     [
-      ["salta", "importato: STOP"],
-      ["salta", "importato: revoca di «Ok a WhatsApp»"],
+      ["salta", "da contattare: STOP"],
+      ["salta", "da contattare: revoca di «Ok a WhatsApp»"],
     ],
     [
       richiamo(
@@ -701,7 +701,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
   ];
   c(
     "STOP e «sequenza finita» dopo il primo: la sequenza finita tace; lo STOP si dichiara sempre (senza finestra) ma non è un problema",
-    [["importato: STOP"], ["importato: STOP"], true, false],
+    [["da contattare: STOP"], ["da contattare: STOP"], true, false],
     [
       motivi(richiamo("2026-10-30T11:00:00+01:00", {}, stopDopoPrimo)),
       motivi(richiamo("2026-11-02T10:00:00+01:00", {}, stopDopoPrimo)),

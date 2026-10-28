@@ -1454,8 +1454,10 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     c("«Lead nuovo» spento → zero invii", 0, (await m.giroOra()).nuoviInviati);
     m = mondo({ schede: [lead("n1", 1)], config: { ...accesa, fraseModuloDal: null } });
     c(
-      "senza la data della frase il modulo non vale → zero invii",
-      0,
+      //  dal 28/10 ogni lead «da contattare» mai scritto riceve il primo contatto (decisione
+      //  del titolare): senza la data della frase parte lo stesso, una volta sola.
+      "senza la data della frase: parte lo stesso (tutti i «da contattare», 28/10)",
+      1,
       (await m.giroOra()).nuoviInviati,
     );
     //  flusso mancante di un tipo: si ferma solo quello
@@ -2142,8 +2144,8 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       [idsR.filter((i) => i.startsWith("m")).length, new Set(idsR).size === idsR.length],
     );
     c(
-      "…il già scritto, l'in chat e il non importato restano fuori; il «non raggiungibile» e il ritorno entrano",
-      [false, false, false, true, true, false],
+      "…il già scritto e l'in chat restano fuori; il non importato «da contattare» (dal 28/10), il «non raggiungibile» e il ritorno entrano",
+      [false, false, true, true, true, false],
       [
         idsR.includes("scritto"),
         idsR.includes("in-chat"),
