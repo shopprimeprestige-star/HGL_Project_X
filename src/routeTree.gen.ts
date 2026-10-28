@@ -187,6 +187,7 @@ import { Route as ApiCrmGoogleDriveRouteImport } from './routes/api.crm.google-d
 import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-modo'
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
+import { Route as ApiCrmDettaturaRouteImport } from './routes/api.crm.dettatura'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
 import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
@@ -1109,6 +1110,11 @@ const ApiCrmDisponibilitaRoute = ApiCrmDisponibilitaRouteImport.update({
   path: '/api/crm/disponibilita',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmDettaturaRoute = ApiCrmDettaturaRouteImport.update({
+  id: '/api/crm/dettatura',
+  path: '/api/crm/dettatura',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmCopiaAutomaticaRoute = ApiCrmCopiaAutomaticaRouteImport.update({
   id: '/api/crm/copia-automatica',
   path: '/api/crm/copia-automatica',
@@ -1298,6 +1304,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
@@ -1489,6 +1496,7 @@ export interface FileRoutesByTo {
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
@@ -1686,6 +1694,7 @@ export interface FileRoutesById {
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
@@ -1884,6 +1893,7 @@ export interface FileRouteTypes {
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
@@ -2075,6 +2085,7 @@ export interface FileRouteTypes {
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
@@ -2271,6 +2282,7 @@ export interface FileRouteTypes {
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
@@ -2427,6 +2439,7 @@ export interface RootRouteChildren {
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
   ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
+  ApiCrmDettaturaRoute: typeof ApiCrmDettaturaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
   ApiCrmFasciaModoRoute: typeof ApiCrmFasciaModoRoute
@@ -3761,6 +3774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmDisponibilitaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/dettatura': {
+      id: '/api/crm/dettatura'
+      path: '/api/crm/dettatura'
+      fullPath: '/api/crm/dettatura'
+      preLoaderRoute: typeof ApiCrmDettaturaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/copia-automatica': {
       id: '/api/crm/copia-automatica'
       path: '/api/crm/copia-automatica'
@@ -4086,6 +4106,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,
   ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
+  ApiCrmDettaturaRoute: ApiCrmDettaturaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,
   ApiCrmFasciaModoRoute: ApiCrmFasciaModoRoute,

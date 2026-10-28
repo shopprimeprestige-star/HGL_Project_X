@@ -572,6 +572,12 @@ const MODULI = [
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
   //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
   "chatwa/risposte-rapide",
+  //  Stile WhatsApp, lettore dei vocali e «svuota» della casella
+  //   (commessa 2026-10-28-chat-stile-whatsapp): prove in prove/manychat/chat-stile.mjs.
+  "chatwa/stile",
+  //  Dettatura voce → testo nella casella (commessa 2026-10-28-chat-dettatura):
+  //   prove in prove/manychat/chat-dettatura.mjs.
+  "chatwa/dettatura",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
