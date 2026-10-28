@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { combaciaRicerca, passaFiltro } from "./cercaChat";
+import { combaciaRicerca, ordinaPerStelle, passaFiltro } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
@@ -66,27 +66,33 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const cercando = ricerca.trim() !== "";
   const perRicerca = (righe: ChatItem[]) => righe.filter((c) => combaciaRicerca(c, ricerca));
   //  La pastiglia vale per TUTTI i riquadri (guasto del 28/10: li ignorava e l'elenco non cambiava).
-  const perPastiglia = (righe: ChatItem[]) => righe.filter((c) => passaFiltro(c, filtro));
+  //  Anche «In osservazione» (le chat con stelle) vale per tutti i riquadri, e in ognuno le
+  //  chat con più stelle salgono in cima (`perStelle`): a parità resta l'ordine del riquadro.
+  const perPastiglia = (righe: ChatItem[]) =>
+    righe.filter((c) => passaFiltro(c, filtro) && (!soloStelle || stelleDi(c.phone) > 0));
+  const perStelle = (righe: ChatItem[]) => ordinaPerStelle(righe, stelleDi);
 
   const inAttesaTutti = perPastiglia(perRicerca(api.daRispondere));
-  const inAttesa = inAttesaTutti.filter(delConsulente);
+  const inAttesa = perStelle(inAttesaTutti.filter(delConsulente));
   const nascostiInAttesa = inAttesaTutti.length - inAttesa.length;
-  const vecchie = perPastiglia(perRicerca(api.chats.filter(eVecchia))).filter(delConsulente);
+  const vecchie = perStelle(
+    perPastiglia(perRicerca(api.chats.filter(eVecchia))).filter(delConsulente),
+  );
   // Una chat una volta sola: se sta nel riquadro o fra le «vecchie», non si ripete fra le altre.
   //  «Da chiamare» (28/10/2026): in attesa WhatsApp da più di 10 ore. Come «Da
-  //  rispondere», obbedisce a ricerca e consulente, non alle pastiglie.
-  const daChiamare = perPastiglia(perRicerca(api.daChiamare)).filter(delConsulente);
+  //  rispondere», obbedisce a ricerca, consulente e pastiglia come gli altri.
+  const daChiamare = perStelle(perPastiglia(perRicerca(api.daChiamare)).filter(delConsulente));
   const giaSopra = new Set(
     [...api.daRispondere, ...api.daChiamare, ...api.chats.filter(eVecchia)].map((c) => c.phone),
   );
   const altreTutte = visibili.filter((c) => !giaSopra.has(c.phone) && delConsulente(c));
-  const altre = soloStelle
-    ? altreTutte
-        .filter((c) => stelleDi(c.phone) > 0)
-        .sort((a, b) => stelleDi(b.phone) - stelleDi(a.phone))
-    : altreTutte;
-  //  Il numero conta quelle che l'interruttore mostra (le «Altre chat» con stelle).
-  const conStelle = altreTutte.filter((c) => stelleDi(c.phone) > 0).length;
+  const altre = perStelle(
+    soloStelle ? altreTutte.filter((c) => stelleDi(c.phone) > 0) : altreTutte,
+  );
+  //  Il numero conta TUTTE le chat con stelle (di quel consulente), in qualunque riquadro.
+  const conStelle = api.chats.filter((c) => delConsulente(c) && stelleDi(c.phone) > 0).length;
+  const nienteInOsservazione =
+    soloStelle && inAttesa.length + daChiamare.length + vecchie.length + altre.length === 0;
 
   const riga = (c: ChatItem, modo: ModoRiga) => (
     <RigaChat
@@ -245,7 +251,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               <p className="px-4 py-8 text-center text-xs text-muted-foreground">
                 Nessun'altra chat di questo consulente.
               </p>
-            ) : soloStelle && altre.length === 0 ? (
+            ) : nienteInOsservazione ? (
               <p className="px-4 py-8 text-center text-xs text-muted-foreground">
                 Nessuna chat in osservazione: tocca le stelle su una riga.
               </p>

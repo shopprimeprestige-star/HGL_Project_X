@@ -32,3 +32,13 @@ export function passaFiltro(
   if (filtro === "unknown") return !c.lead;
   return true;
 }
+
+/** Le chat con più stelle salgono in cima (3, poi 2, poi 1); a parità di stelle resta l'ordine
+ *  di prima (`sort` è stabile). Non muta l'ingresso. Vale per ogni riquadro dell'elenco: dentro
+ *  «Da rispondere» chi aspetta da più tempo resta sopra fra le chat con le stesse stelle. */
+export function ordinaPerStelle<T extends { phone: string }>(
+  righe: T[],
+  stelleDi: (phone: string) => number,
+): T[] {
+  return [...righe].sort((a, b) => stelleDi(b.phone) - stelleDi(a.phone));
+}

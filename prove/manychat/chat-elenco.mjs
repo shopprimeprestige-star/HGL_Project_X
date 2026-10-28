@@ -54,9 +54,32 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   c("«Con lead»: solo con la scheda", ["1", "3"], con("with-lead"));
   c("«Sconosciuti»: solo senza scheda", ["2"], con("unknown"));
 
+  // ── LE STELLE SALGONO IN CIMA (28/10): 3, 2, 1, poi le altre nell'ordine di prima.
+  const { ordinaPerStelle } = mod["chatwa/cercaChat"];
+  const stelle = { "+39333000011": 1, "+39333000013": 3, "+39333000014": 2 };
+  const di = (p) => stelle[p] ?? 0;
+  const ordine = [
+    { phone: "+39333000010" }, { phone: "+39333000011" }, { phone: "+39333000012" },
+    { phone: "+39333000013" }, { phone: "+39333000014" },
+  ];
+  gruppo("CHAT ELENCO · L'ORDINE PER STELLE");
+  c("3 stelle, poi 2, poi 1, poi le altre nell'ordine di prima",
+    ["3", "4", "1", "0", "2"], ordinaPerStelle(ordine, di).map((x) => x.phone.slice(-1)));
+  c("senza stelle l'ordine non cambia (anche «Da rispondere»: il più vecchio resta sopra)",
+    ["+39333000022", "+39333000021"],
+    ordinaPerStelle([{ phone: "+39333000022" }, { phone: "+39333000021" }], () => 0).map((x) => x.phone));
+  c("a parità di stelle resta l'ordine di prima", ["2", "1"],
+    ordinaPerStelle([{ phone: "+39333000002" }, { phone: "+39333000001" }], () => 2).map((x) => x.phone.slice(-1)));
+  const copia = ordine.map((x) => x.phone);
+  ordinaPerStelle(ordine, di);
+  c("non muta l'ingresso", copia, ordine.map((x) => x.phone));
+  const elencoSrc = readFileSync(join(process.cwd(), "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("ElencoChat: ogni riquadro passa da ordinaPerStelle", true,
+    (elencoSrc.match(/perStelle\(/g) ?? []).length >= 4);
+
   const radice = process.cwd();
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = perPastiglia\\(`).test(elenco);
+  const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = (?:perStelle\\(\\s*)?perPastiglia\\(`).test(elenco);
   c("ElencoChat: «Da rispondere» obbedisce alla pastiglia", true, sorgenteUsaFiltro("inAttesaTutti"));
   c("ElencoChat: «Da chiamare» obbedisce alla pastiglia", true, sorgenteUsaFiltro("daChiamare"));
   c("ElencoChat: le «vecchie» obbediscono alla pastiglia", true, sorgenteUsaFiltro("vecchie"));

@@ -20524,7 +20524,7 @@ function proveDiWhatsappOrariStelle() {
   const casella = readFileSync(join(radice, "src/crm/chatwa/Casella.tsx"), "utf8");
   const hook = readFileSync(join(radice, "src/crm/chatwa/useStelle.ts"), "utf8");
   c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
-  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /sort\(\(a, b\) => stelleDi\(b\.phone\) - stelleDi\(a\.phone\)\)/.test(elenco));
+  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /ordinaPerStelle\(/.test(elenco));
   c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
