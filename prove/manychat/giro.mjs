@@ -126,6 +126,8 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       stop: new Set(o.stop ?? []),
       messaggi: [],
       contattoLog: [],
+      /** le chiamate alla funzione del cambio di stato (commessa 2026-10-28, stato dopo il primo) */
+      statoLog: [],
       avvisi: [],
       eventi: [],
       spenti: [],
@@ -237,6 +239,20 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       return true;
     }
 
+    /** `lead_attesa_whatsapp`: da_contattare → attesa_whatsapp, SOLO se è ancora da_contattare. */
+    function attesaWhatsappModello(userId, leadId, il) {
+      m.eventi.push("stato");
+      m.statoLog.push({ leadId, il: il.toISOString() });
+      if (o.guastoStato) throw { code: "XX005", message: `db giù per ${cifre(1)} Anna` };
+      const s = m.schede.find((x) => x.id === leadId && x.userId === userId);
+      if (!s || s.data.stato !== "da_contattare") return false;
+      s.data.stato = "attesa_whatsapp";
+      s.data.statoDal = il.toISOString();
+      s.data.statoPrecedente = "da_contattare";
+      s.data.statoPrecedenteIl = il.toISOString();
+      return true;
+    }
+
     /** Le porte del giro. Più giri insieme = più `porte` sullo stesso mondo. */
     m.porte = () => {
       const di = Symbol("giro");
@@ -316,6 +332,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
           }
         },
         aggiornaContatto: async (...a) => aggiornaContattoModello(...a),
+        attesaWhatsapp: async (...a) => attesaWhatsappModello(...a),
         porta: (userId, config) => {
           clientUnico ??= client();
           return {
@@ -2344,6 +2361,236 @@ export const supabaseAdminDefault = supabaseAdmin;`,
           .importatiERitorni,
         G.ambitoDi(G.sceltaDaConfig({ ...CONFIG, leadNuovo: false }, new Date(ADESSO), false))
           .importatiERitorni,
+      ],
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  COMMESSA 2026-10-28 (wa-stato-dopo-primo): DOPO IL PRIMO MESSAGGIO, «ATTESA WHATSAPP»
+   *  Dopo un invio «inviato» di primo contatto o ritorno, una scheda ANCORA «da contattare»
+   *  passa ad `attesa_whatsapp` (funzione SQL atomica, la porta finta ne ripete la guardia).
+   *  Chi non riceve il messaggio resta «da contattare».
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · DOPO IL PRIMO MESSAGGIO LO STATO È «ATTESA WHATSAPP»");
+  {
+    const accesa = {
+      leadNuovo: true,
+      giornoMeet: true,
+      leadNuovoDal: "2026-10-20T00:00:00.000Z",
+      fraseModuloDal: "2026-10-01T00:00:00.000Z",
+      flussi: {
+        ...CONFIG.flussi,
+        hgl_primo_contatto: "content-n1",
+        hgl_richiamo_24h: "content-n2",
+        hgl_ritorno: "content-rit",
+      },
+    };
+    const importato = (id, n, extra) =>
+      scheda(id, n, {
+        okWhatsapp: undefined,
+        consulenteId: undefined,
+        stato: "da_contattare",
+        importato: true,
+        createdAt: "2026-06-01T10:00:00.000Z",
+        ...extra,
+      });
+    const conRitorno = (id, n, extra) =>
+      importato(id, n, {
+        ricarico: { volte: 2, ultimo: "2026-10-23T12:00:00.000Z", daDecidere: true },
+        ...extra,
+      });
+    const statoDi = (m, id) => m.schede.find((x) => x.id === id).data;
+    const ISO_ORA = new Date(ADESSO).toISOString();
+
+    //  ── primo contatto inviato: da_contattare → attesa_whatsapp ──
+    let m = mondo({ schede: [importato("i1", 1)], config: accesa });
+    let e = await m.giroOra();
+    let d = statoDi(m, "i1");
+    c(
+      "primo contatto «inviato» a un «da contattare» → stato «attesa_whatsapp», statoDal = ora dell'invio",
+      [1, "attesa_whatsapp", ISO_ORA, "da_contattare"],
+      [e.nuoviInviati, d.stato, d.statoDal, d.statoPrecedente],
+    );
+    c(
+      "…una sola chiamata, DOPO il flusso e dopo la scrittura del secondo stato («In attesa» resta)",
+      [1, true, "in_attesa"],
+      [
+        m.statoLog.length,
+        m.eventi.lastIndexOf("stato") > m.eventi.indexOf(`mc:${PERCORSI.flusso}`),
+        d.contattoWa.stato,
+      ],
+    );
+    c(
+      "…il resto della scheda non si tocca (nome, telefono, consenso)",
+      ["Anna", tel(1), undefined],
+      [d.nome, d.telefono, d.okWhatsapp],
+    );
+    m.orologio.avanza(3 * MIN);
+    e = await m.giroOra();
+    c(
+      "un secondo giro non lo rimanda e non rifà il cambio",
+      [0, 1, 1],
+      [e.nuoviInviati, m.invii.length, m.statoLog.length],
+    );
+
+    //  ── ritorno ──
+    m = mondo({ schede: [conRitorno("r1", 2)], config: accesa });
+    e = await m.giroOra();
+    c(
+      "ritorno inviato a un «da contattare» → «attesa_whatsapp»",
+      [1, "ritorno", "attesa_whatsapp"],
+      [e.nuoviInviati, m.invii[0].tipo, statoDi(m, "r1").stato],
+    );
+    m = mondo({ schede: [conRitorno("r1", 2, { stato: "non_risponde" })], config: accesa });
+    e = await m.giroOra();
+    c(
+      "ritorno a chi è in un altro stato (non risponde): invio sì, cambio di stato no, nessuna chiamata",
+      [1, "non_risponde", 0],
+      [e.nuoviInviati, statoDi(m, "r1").stato, m.statoLog.length],
+    );
+
+    //  ── chi NON riceve il messaggio resta «da contattare» ──
+    m = mondo({ schede: [importato("i1", 1)], config: accesa });
+    m.f.su("POST", PERCORSI.flusso, esiti.modelloRifiutato());
+    e = await m.giroOra();
+    c(
+      "invio fallito (400 di ManyChat) → resta «da contattare», nessuna chiamata",
+      ["da_contattare", 0, "fallito"],
+      [statoDi(m, "i1").stato, m.statoLog.length, m.invii[0].stato],
+    );
+    m = mondo({ schede: [importato("i1", 1)], config: accesa });
+    m.f.su("POST", PERCORSI.flusso, esiti.reteGiu());
+    await m.giroOra();
+    c(
+      "esito incerto (rete giù) → resta «da contattare»",
+      ["da_contattare", 0],
+      [statoDi(m, "i1").stato, m.statoLog.length],
+    );
+    m = mondo({ schede: [importato("i1", 1)], config: accesa });
+    m.f.scenario("assente");
+    m.f.su("POST", PERCORSI.crea, esiti.errore(400, "Subscriber already exists"));
+    await m.giroOra();
+    c(
+      "contatto ManyChat da collegare → «Non raggiungibile» ma sempre «da contattare»",
+      ["non_raggiungibile", "da_contattare", 0],
+      [statoDi(m, "i1").contattoWa?.stato, statoDi(m, "i1").stato, m.statoLog.length],
+    );
+    m = mondo({ schede: [importato("i1", 1)], config: accesa, stop: [cifre(1)] });
+    await m.giroOra();
+    c(
+      "numero in STOP → resta «da contattare», nessuna chiamata",
+      ["stop", "da_contattare", 0],
+      [statoDi(m, "i1").contattoWa?.stato, statoDi(m, "i1").stato, m.statoLog.length],
+    );
+    m = mondo({ schede: [importato("i1", 1, { telefono: "12" })], config: accesa });
+    await m.giroOra();
+    c(
+      "numero non valido → resta «da contattare»",
+      ["da_contattare", 0],
+      [statoDi(m, "i1").stato, m.statoLog.length],
+    );
+    m = mondo({ schede: [importato("i1", 1)], config: accesa });
+    e = await m.giroOra(true);
+    c(
+      "prova a secco: nessuna scrittura, nessuna chiamata di stato",
+      ["da_contattare", 0, 0],
+      [statoDi(m, "i1").stato, m.statoLog.length, m.f.chiamate.length],
+    );
+
+    //  ── gli altri messaggi non cambiano lo stato ──
+    m = mondo({ schede: [meet("s1", 3)], config: accesa });
+    e = await m.giroOra();
+    c(
+      "il promemoria di un appuntamento non cambia lo stato",
+      [1, "appuntamento_fissato", 0],
+      [e.promemoriInviati, statoDi(m, "s1").stato, m.statoLog.length],
+    );
+
+    //  ── il richiamo a 24 ore continua a valere per «attesa_whatsapp» ──
+    const lead = (id, n, extra) =>
+      importato(id, n, {
+        consensoModulo: { whatsapp: true, il: "2026-10-22T09:00:00.000Z", via: "modulo_meta" },
+        origineIngresso: { via: "google_sheets", foglio: "Lead", il: "2026-10-22T11:00:00.000Z" },
+        createdAt: undefined,
+        ...extra,
+      });
+    const primoDiIeri = (n) => ({
+      id: `p${n}`,
+      userId: U,
+      leadId: `n${n}`,
+      tipo: "primo_contatto",
+      chiave: `n|${cifre(n).slice(-9)}`,
+      telefono: cifre(n),
+      stato: "inviato",
+      prenotatoMs: ADESSO - 25 * 3600_000,
+    });
+    m = mondo({
+      schede: [lead("n1", 4, { stato: "attesa_whatsapp" })],
+      config: accesa,
+      invii: [primoDiIeri(4)],
+    });
+    e = await m.giroOra();
+    c(
+      "dopo 24 h un lead in «attesa_whatsapp» riceve il richiamo n24|tel9, e lo stato resta",
+      [1, "richiamo_24h", `n24|${cifre(4).slice(-9)}`, "attesa_whatsapp", 0],
+      [
+        e.nuoviInviati,
+        m.invii.at(-1)?.tipo,
+        m.invii.at(-1)?.chiave,
+        statoDi(m, "n1").stato,
+        m.statoLog.length,
+      ],
+    );
+    m = mondo({
+      schede: [lead("n1", 4)],
+      config: accesa,
+      invii: [primoDiIeri(4)],
+    });
+    e = await m.giroOra();
+    c(
+      "…il richiamo a un lead ancora «da contattare» (primo contatto di prima della modifica) non cambia lo stato",
+      [1, "richiamo_24h", "da_contattare", 0],
+      [e.nuoviInviati, m.invii.at(-1)?.tipo, statoDi(m, "n1").stato, m.statoLog.length],
+    );
+    m = mondo({ schede: [importato("i1", 5, { stato: "attesa_whatsapp" })], config: accesa });
+    e = await m.giroOra();
+    c(
+      "un importato già in «attesa_whatsapp» e senza invii non riceve un primo contatto",
+      [0, 0],
+      [e.nuoviInviati, m.invii.length],
+    );
+
+    //  ── lo stato cambiato nel frattempo non si tocca ──
+    m = mondo({
+      schede: [importato("i1", 1)],
+      config: accesa,
+      //  mentre ManyChat sta mandando, un consulente mette un altro stato
+      dopoFlusso: (mondo) => {
+        mondo.schede[0].data.stato = "gestire_in_chat";
+      },
+    });
+    e = await m.giroOra();
+    c(
+      "un consulente cambia stato mentre il messaggio parte → il cambio non si applica",
+      [1, 1, "gestire_in_chat", undefined],
+      [e.nuoviInviati, m.statoLog.length, statoDi(m, "i1").stato, statoDi(m, "i1").statoDal],
+    );
+
+    //  ── il database dice di no: il giro va avanti, un solo codice nell'avviso ──
+    m = mondo({
+      schede: [importato("i1", 1), importato("i2", 6)],
+      config: accesa,
+      guastoStato: true,
+    });
+    e = await m.giroOra();
+    c(
+      "la funzione fallisce → l'invio conta lo stesso, il giro non si ferma, avviso col solo codice",
+      [2, ["giro_stato_errore_XX005", "giro_stato_errore_XX005"], false, true],
+      [
+        e.nuoviInviati,
+        m.avvisi.filter((x) => x.startsWith("giro_stato")),
+        /3330|Anna|giù per/.test(JSON.stringify(m.avvisi)),
+        m.config.acceso,
       ],
     );
   }
