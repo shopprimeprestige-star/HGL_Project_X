@@ -98,6 +98,11 @@ export function campiRichiamo(d: Partial<LeadData>): CampiOSalta {
   return campiPrimoContatto(d);
 }
 
+/** `hgl_ritorno` (contatto di ritorno, commessa 2026-10-28): v1 nome. */
+export function campiRitorno(d: Partial<LeadData>): CampiOSalta {
+  return campiPrimoContatto(d);
+}
+
 /** `hgl_meet_oggi` (la mattina del meet): v1 nome, v2 ora, v3 consulente.
  *  Non serve il link: il messaggio dice che arriva poco prima dell'inizio. */
 export function campiMeetOggi(

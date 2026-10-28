@@ -196,6 +196,12 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     ["lead_name"],
   ),
   tpl(
+    "hgl_ritorno",
+    "MARKETING",
+    `Gentile {{lead_name}}, abbiamo visto che ci ha scritto di nuovo per avere informazioni da Hair Genius Labs, grazie.\n\nVuole fissare la consulenza gratuita online? Preferisce la mattina o la sera?`,
+    ["lead_name"],
+  ),
+  tpl(
     "hgl_meet_domani",
     "UTILITY",
     `Gentile {{lead_name}}, Le ricordiamo che domani, {{appointment_day}}, alle ore {{appointment_time}} ha la Sua consulenza online con Hair Genius Labs.\n\nLa seguirà {{consultant_name}}. Se ha un imprevisto, ci risponda qui e troviamo un altro orario.`,

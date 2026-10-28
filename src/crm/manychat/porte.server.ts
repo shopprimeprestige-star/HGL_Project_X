@@ -53,6 +53,10 @@ const db = () =>
     rpc(fn: string, a: Record<string, unknown>): Esito<unknown>;
   };
 
+/** Le letture di `schede()` per gli importati e i ritorni: pagine di 1000, al massimo cinque. */
+const RIGHE_PER_PAGINA = 1000;
+const PAGINE_MAX = 5;
+
 /** Il database dice di no: si lancia SOLO il codice. */
 const lancia = (e: NonNullable<ErroreDb>): never => {
   throw { code: e.code ?? "?" };
@@ -423,6 +427,22 @@ export function porteGiro(): PorteGiro {
           return data ?? [];
         });
       const schede = () => db().from("crm_leads").select<Righe>("id, data").eq("user_id", userId);
+      /** Tutte le righe di una lettura, a pagine di 1000 per `id` (PostgREST taglia lì). */
+      const tutte = async (costruisci: () => Filtro<Righe>): Promise<Righe> => {
+        const viste = new Map<string, Righe[number]>();
+        let da = "";
+        for (let pagina = 0; pagina < PAGINE_MAX; pagina++) {
+          let q = costruisci().order("id", { ascending: true }).limit(RIGHE_PER_PAGINA);
+          if (da) q = q.gte("id", da);
+          const righe = await leggi(q);
+          const prima = viste.size;
+          for (const r of righe) viste.set(r.id, r);
+          if (righe.length < RIGHE_PER_PAGINA || viste.size === prima) return [...viste.values()];
+          da = righe[righe.length - 1].id;
+        }
+        console.warn("[manychat-giro]", "schede_troncate");
+        return [...viste.values()];
+      };
       const lavori: Promise<Righe>[] = [
         //  gli appuntamenti di oggi e di domani (promemoria, mattina, ora esatta)
         leggi(
@@ -461,6 +481,21 @@ export function porteGiro(): PorteGiro {
             .in("data->>stato", STATI_LEAD_NUOVO);
         lavori.push(leggi(moduli().gte("data->origineIngresso->>il", dal)));
         lavori.push(leggi(moduli().gte("data->listaOrigine->>il", dal)));
+      }
+      //  Commessa 2026-10-28: gli importati «da contattare» non ancora scritti e i contatti di
+      //  ritorno (`ricarico.ultimo`). Niente finestra di data, ma ogni lettura è limitata da
+      //  stato + importato (o dal ricarico) e va a pagine di 1000 in ordine di `id`, fino a
+      //  cinque pagine: oltre si tace e si dice (`schede_troncate`), mai un taglio nascosto.
+      //  Gli importati già scritti (secondo stato presente) restano fuori dalla lettura, salvo
+      //  «non raggiungibile» (un ritentativo). Il resto lo decide `decidiLeadNuovi`.
+      //  shortcut: la lettura dei ritorni rilegge ogni giro tutte le schede con un ricarico;
+      //  da cambiare (colonna o indice dedicati) se diventano migliaia.
+      if (ambito.importatiERitorni) {
+        const importati = () =>
+          schede().eq("data->>importato", "true").eq("data->>stato", "da_contattare");
+        lavori.push(tutte(() => importati().is("data->>contattoWa", null)));
+        lavori.push(tutte(() => importati().eq("data->contattoWa->>stato", "non_raggiungibile")));
+        lavori.push(tutte(() => schede().not("data->ricarico->>ultimo", "is", null)));
       }
       //  I messaggi per stato accesi. A evento: serve `statoDal` dall'accensione in poi.
       const accesi = Object.keys(ambito.stati).filter((s) => s in TABELLA_STATI);

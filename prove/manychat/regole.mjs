@@ -518,13 +518,14 @@ export async function proveRegole(mod, { c, gruppo }) {
     ],
   );
   c(
-    "l'elenco dei dieci automatici: i tre di prima più i sette nuovi",
+    "l'elenco degli undici automatici: i tre di prima, i sette nuovi e il ritorno (28/10)",
     [
       "promemoria",
       "ricontatto",
       "conferma",
       "primo_contatto",
       "richiamo_24h",
+      "ritorno",
       "meet_oggi",
       "meet_domani",
       "meet_adesso",

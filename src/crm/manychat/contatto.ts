@@ -206,7 +206,7 @@ export function applicaCambio(prima: ContattoWa | undefined | null, c: CambioCon
 const eStopAppiccicoso = (prima: ContattoWa | undefined | null) => prima?.stato === "stop";
 
 export type IngressoInvio =
-  | { tipo: "ricontatto" | "primo_contatto" | "richiamo_24h"; inviatoIl: Date; invioId: string }
+  | { tipo: "ricontatto" | "primo_contatto" | "richiamo_24h" | "ritorno"; inviatoIl: Date; invioId: string }
   | {
       tipo: "promemoria" | "meet_oggi" | "meet_domani" | "promemoria_chiamata" | "promemoria_sede";
       inviatoIl: Date;

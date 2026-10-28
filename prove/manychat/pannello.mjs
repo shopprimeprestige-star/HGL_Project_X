@@ -554,10 +554,10 @@ export async function proveVistaComponenti(aiuti) {
 
   // ── i tetti: si possono solo abbassare ────────────────────────────────
   c(
-    "tetti effettivi: di serie le costanti (e 30 lead nuovi)",
+    "tetti effettivi: di serie le costanti (e 100 lead nuovi)",
     {
       ricontatti: TETTI.TETTO_RICONTATTI,
-      leadNuovi: 30,
+      leadNuovi: 100,
       totale: TETTI.TETTO_TOTALE,
       primaSettimana: false,
     },
@@ -2148,10 +2148,11 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     );
   }
   c(
-    "flussi per le sequenze: i cinque della sequenza e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
+    "flussi per le sequenze: i sei della sequenza (con il ritorno) e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
     [
       "hgl_primo_contatto",
       "hgl_richiamo_24h",
+      "hgl_ritorno",
       "hgl_meet_oggi",
       "hgl_meet_domani",
       "hgl_meet_adesso",
@@ -2235,13 +2236,13 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
   // ── tetti: ricontatti, lead nuovi, totale ───────────────────────────────
   const eff0 = V.tettiEffettivi({}, "2026-09-01T08:00:00Z", ADESSO);
   c(
-    "tetti effettivi: di serie ricontatti, lead nuovi 30 e totale (le costanti)",
-    [Q.TETTO_RICONTATTI, 30, Q.TETTO_TOTALE, false],
+    "tetti effettivi: di serie ricontatti, lead nuovi 100 e totale (le costanti)",
+    [Q.TETTO_RICONTATTI, 100, Q.TETTO_TOTALE, false],
     [eff0.ricontatti, eff0.leadNuovi, eff0.totale, eff0.primaSettimana],
   );
   c(
     "tetti effettivi: il riquadro a 500 vale le costanti, abbassati valgono",
-    [30, 7],
+    [100, 7],
     [
       V.tettiEffettivi({ leadNuovi: 500 }, "2026-09-01T08:00:00Z", ADESSO).leadNuovi,
       V.tettiEffettivi({ leadNuovi: 7 }, "2026-09-01T08:00:00Z", ADESSO).leadNuovi,
@@ -2325,10 +2326,10 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
   c(
     "riga di stato: tetto dei lead nuovi raggiunto → ambra, slittano a domani",
     ["ambra", true],
-    ((x) => [x.tono, /Tetto di oggi raggiunto: 30 lead nuovi su 30.*domani/.test(x.frase)])(
+    ((x) => [x.tono, /Tetto di oggi raggiunto: 100 lead nuovi su 100.*domani/.test(x.frase)])(
       riga(
         { leadNuovo: true },
-        { oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 30, totale: 30, risposte: 0 } },
+        { oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 100, totale: 30, risposte: 0 } },
       ),
     ),
   );
