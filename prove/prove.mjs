@@ -554,6 +554,12 @@ const MODULI = [
   "manychat/prenota-scheda",
   "manychat/prenota-stanza",
   "manychat/prenota",
+  //  ⚠️ CHAT WHATSAPP NEL CRM (commessa 2026-10-28): i due moduli puri della
+  //   pagina (riconoscere i media e le regole di «Da rispondere»). Un file di
+  //   prove per compito in `prove/manychat/chat-*.mjs`, chiamati da
+  //   `proveManychat`.
+  "chatwa/media",
+  "chatwa/stato",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });

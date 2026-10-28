@@ -36,6 +36,11 @@ import { proveDellaConcorrenzaPrenota } from "./manychat/prenota-concorrenza.mjs
 import { proveDellaRottaPrenota } from "./manychat/prenota-rotta.mjs";
 import { proveDellInterruttorePrenota } from "./manychat/prenota-interruttore.mjs";
 import { proveDellOrchestratorePrenota } from "./manychat/prenota.mjs";
+import { proveChatMigrazione } from "./manychat/chat-migrazione.mjs";
+import { proveChatMedia } from "./manychat/chat-media.mjs";
+import { proveChatStato } from "./manychat/chat-stato.mjs";
+import { proveChatEntrata } from "./manychat/chat-entrata.mjs";
+import { proveChatUscita } from "./manychat/chat-uscita.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -163,6 +168,29 @@ function proveDelloScheletro(mod, { c, gruppo }) {
   c("manychat/stati: espone TABELLA_STATI (un oggetto)", "object", typeof mod["manychat/stati"]?.TABELLA_STATI);
 }
 
+/** Lo scheletro della «Chat WhatsApp nel CRM» (commessa 2026-10-28, compito 0): i
+ *  due moduli puri esistono con le firme del piano. ⚠️ Controlla solo che le
+ *  funzioni CI SIANO (`function`), mai che siano ancora stub: T2 e T3 le
+ *  riempiono senza toccare questa prova. */
+function proveDelloScheletroChat(mod, { c, gruppo }) {
+  gruppo("CHAT WHATSAPP · LO SCHELETRO (compito 0)");
+  const funzioni = {
+    "chatwa/media": ["classificaTesto", "eSoloSegnaposto", "anteprimaIn"],
+    "chatwa/stato": [
+      "daRispondere", "contaVecchie", "ordinaDaRispondere", "attesaInChiaro", "finestra24",
+      "statoCasella", "schedaUnica", "leggiRicercaChat", "contaDaRispondere",
+    ],
+  };
+  for (const [nome, attese] of Object.entries(funzioni)) {
+    c(
+      `${nome}: espone ${attese.join(", ")}`,
+      attese.map(() => "function"),
+      attese.map((f) => typeof mod[nome]?.[f]),
+    );
+  }
+  c("chatwa/media: espone HOST_MEDIA_AMMESSI (un elenco di host)", true, Array.isArray(mod["chatwa/media"]?.HOST_MEDIA_AMMESSI));
+}
+
 /** Lo scheletro di «Prenota in chat» (commessa 2026-10-27, compito 0): i moduli
  *  esistono con le firme del piano e i contratti di `prenota-tipi` fanno quello
  *  che dicono. ⚠️ Controlla solo che le funzioni CI SIANO (`function`), mai che
@@ -270,4 +298,13 @@ export async function proveManychat(mod, aiuti) {
   await proveDellaConcorrenzaPrenota(mod, aiuti);
   await proveDellaRottaPrenota(mod, aiuti);
   await proveDellInterruttorePrenota(mod, aiuti);
+  //  Commessa 2026-10-28 (chat WhatsApp): un file per compito, vuoti finché il
+  //  compito non li riempie. Lo scheletro (compito 0) controlla solo che i
+  //  moduli puri esistano.
+  proveDelloScheletroChat(mod, aiuti);
+  await proveChatMigrazione(mod, aiuti);
+  await proveChatMedia(mod, aiuti);
+  await proveChatStato(mod, aiuti);
+  await proveChatEntrata(mod, aiuti);
+  await proveChatUscita(mod, aiuti);
 }
