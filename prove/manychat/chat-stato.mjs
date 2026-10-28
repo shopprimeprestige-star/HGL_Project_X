@@ -71,6 +71,8 @@ export async function proveChatStato(mod, { c, gruppo }) {
     ((r) => [r.attesa, r.vecchia, r.fonte])(dr(null, [msg("inbound", 2 * ORA), msg("outbound", ORA)])));
   c("…neanche se l'inbound è vecchio di 8 giorni",
     [false, false], ((r) => [r.attesa, r.vecchia])(dr(null, [msg("inbound", 8 * GIORNO), msg("outbound", 7 * GIORNO)])));
+  c("uscita nello stesso istante dell'entrata (ripiego): vale come risposta, come nelle colonne",
+    [false, false], ((r) => [r.attesa, r.vecchia])(dr(null, [msg("inbound", ORA), msg("outbound", ORA)])));
   c("outbound PRIMA dell'inbound: l'inbound è senza risposta", true,
     dr(null, [msg("outbound", 3 * ORA), msg("inbound", ORA)]).attesa);
   c("i messaggi non sono ordinati: conta il più recente per data, non per posizione",
@@ -102,12 +104,16 @@ export async function proveChatStato(mod, { c, gruppo }) {
     const righe = [
       dr(null, [msg("inbound", 8 * GIORNO)]), // vecchia
       dr(null, [msg("inbound", 20 * GIORNO)]), // vecchia
-      dr(null, [msg("inbound", ORA)]), // in attesa vera
+      dr(null, [msg("inbound", ORA)]), // in attesa vera (messaggi)
+      dr(null, [msg("inbound", 2 * GIORNO)]), // in attesa vera (messaggi)
       dr({ ultimo_in_entrata_il: fa(30 * GIORNO) }), // colonne: in attesa vera
       dr(null, [msg("inbound", 9 * GIORNO), msg("outbound", 8 * GIORNO)]), // già risposta
+      dr({ risposto_il: fa(GIORNO) }, [msg("inbound", 8 * GIORNO)]), // «Fatto»
       dr(null, []), // niente
     ];
+    //  3 in attesa vere, 2 vecchie: se si contasse `attesa` (3) o tutto (5) non tornerebbe.
     c("contaVecchie conta solo `vecchia` (non quelle in attesa vere né quelle risposte)", 2, S.contaVecchie(righe));
+    c("…le in attesa vere sono 3, diverse dalle vecchie", 3, righe.filter((r) => r.attesa).length);
     c("contaVecchie([]) = 0", 0, S.contaVecchie([]));
   }
 
@@ -198,8 +204,10 @@ export async function proveChatStato(mod, { c, gruppo }) {
     false, fin(0, { ultimo_in_entrata_il: fa(30 * ORA) }, [msg("inbound", MIN)]).aperta);
   c("colonna illeggibile: si ripiega sui messaggi", true,
     fin(0, { ultimo_in_entrata_il: "boh" }, [msg("inbound", ORA)]).aperta);
-  c("entrata nel futuro (orologio sfasato): aperta, non più di 24 ore",
+  c("entrata nel futuro di 5 min (orologio sfasato): aperta, «24 ore»",
     [true, "Puoi scrivere libero ancora per 24 ore"], ((f) => [f.aperta, f.frase])(fin(-5 * MIN)));
+  c("entrata nel futuro di 90 min: mai più di 24 ore (senza tetto direbbe «25 ore»)",
+    [true, "Puoi scrivere libero ancora per 24 ore"], ((f) => [f.aperta, f.frase])(fin(-90 * MIN)));
   c("senza colonne il segnaposto `{{...}}` apre comunque la finestra (è un cliente che ha scritto)",
     true, fin(0, null, [msg("inbound", ORA, "{{last_input_text}}")]).aperta);
 
@@ -243,6 +251,10 @@ export async function proveChatStato(mod, { c, gruppo }) {
       ((e) => [e.tipo, e.lead?.id])(S.schedaUnica([L(1, "31234567")], "31234567")));
     c("stesse ultime 9 cifre con prefisso diverso: combacia (come `phonesMatch` di oggi)", ["una", 1],
       ((e) => [e.tipo, e.lead?.id])(S.schedaUnica([L(1, "+44 333 1234567")], "+39 333 1234567")));
+    c("uguali tranne la 9ª cifra da destra: nessuna (si guardano 9 cifre, non 8)", { tipo: "nessuna" },
+      S.schedaUnica([L(1, "39 431234567")], "39 331234567"));
+    c("uguali nelle ultime 9 cifre e diverse solo prima: combacia (si guardano 9 cifre, non 10)", ["una", 1],
+      ((e) => [e.tipo, e.lead?.id])(S.schedaUnica([L(1, "11 331234567")], "39 331234567")));
     c("una sola che combacia in mezzo a molte che non combaciano", ["una", 3],
       ((e) => [e.tipo, e.lead?.id])(S.schedaUnica([L(1, "320 111 2222"), L(2, "340 111 2222"), L(3, "333 123 4567")], "393331234567")));
     // le schede del CRM tengono il telefono in `data.telefono`

@@ -207,10 +207,11 @@ export function schedaUnica<L extends { phone?: string | null; data?: { telefono
 ): EsitoScheda<L> {
   const x = cifre(telefono);
   // Sotto 8 cifre non si confronta: un numero corto combacerebbe con troppe schede.
+  // (Non serve il controllo gemello sulla scheda: una più corta di `x` non può combaciare.)
   if (x.length < 8) return { tipo: "nessuna" };
   const trovate = leads.filter((l) => {
     const y = cifre(l.phone ?? l.data?.telefono);
-    return y.length >= 8 && (y === x || y.slice(-9) === x.slice(-9));
+    return y === x || y.slice(-9) === x.slice(-9);
   });
   if (trovate.length === 1) return { tipo: "una", lead: trovate[0] };
   return trovate.length === 0 ? { tipo: "nessuna" } : { tipo: "piu" };
