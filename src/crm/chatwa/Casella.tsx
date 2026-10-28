@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, CalendarClock, Clock, Loader2, Send, TriangleAlert } from "lucide-react";
+import { Ban, CalendarClock, Clock, Loader2, Send, TriangleAlert, X } from "lucide-react";
 import { usePuo } from "@/crm/AuthContext";
 import { OrariRapidi } from "@/crm/OrariRapidi";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
 } from "./risposte-rapide";
 import { useRisposteRapide } from "./useRisposteRapide";
 import { finestra24, type ContattoStato } from "./stato";
+import { bozzaDopoAnnulla } from "./stile";
 import type { CasellaProps } from "./tipi";
 
 /** La frase della finestra chiusa, quella di `stato.ts` (mai scritta due volte). */
@@ -75,6 +76,33 @@ export function Casella({ api }: CasellaProps) {
     [risposte, api.messaggi, statoLead],
   );
   const [finestra, setFinestra] = useState<{ daModificare: RispostaRapida | null } | null>(null);
+
+  /*  ── LA X CHE SVUOTA (28/10/2026) ──────────────────────────────────────
+      Un tocco cancella tutta la bozza; per qualche secondo una riga sopra la
+      casella offre «Annulla». ⚠️ Una riga nella casella e non un avviso in
+      basso: sul telefono con la tastiera aperta gli avvisi finiscono sotto la
+      tastiera. Cambiando chat l'«Annulla» sparisce: era il testo di un altro. */
+  const [cancellata, setCancellata] = useState<string | null>(null);
+  useEffect(() => {
+    if (cancellata === null) return;
+    const t = setTimeout(() => setCancellata(null), 6000);
+    return () => clearTimeout(t);
+  }, [cancellata]);
+  useEffect(() => setCancellata(null), [attiva?.phone]);
+  const rimettiFuoco = () => areaRef.current?.focus({ preventScroll: true });
+  const svuota = () => {
+    if (!bozza) return;
+    setCancellata(bozza);
+    setBozza("");
+    setChiusoPer(null);
+    rimettiFuoco();
+  };
+  const annulla = () => {
+    if (cancellata === null) return;
+    setBozza(bozzaDopoAnnulla(cancellata, bozza));
+    setCancellata(null);
+    rimettiFuoco();
+  };
 
   const riempiChat = (t: string) =>
     riempi(t, {
@@ -189,13 +217,34 @@ export function Casella({ api }: CasellaProps) {
           onModifica={(r) => setFinestra({ daModificare: r })}
         />
       )}
-      {libera && !menuAperto && !orari && !bozza.trim() && suggerite.length > 0 && (
-        <FilaSuggerimenti
-          risposte={suggerite}
-          onScegli={inserisci}
-          onGestisci={() => setFinestra({ daModificare: null })}
-        />
+      {cancellata !== null && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-2 px-3 pt-2 text-[13px] text-muted-foreground"
+        >
+          <span>Messaggio cancellato</span>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={annulla}
+            className="inline-flex min-h-9 items-center rounded-full px-3 font-semibold text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Annulla
+          </button>
+        </div>
       )}
+      {libera &&
+        cancellata === null &&
+        !menuAperto &&
+        !orari &&
+        !bozza.trim() &&
+        suggerite.length > 0 && (
+          <FilaSuggerimenti
+            risposte={suggerite}
+            onScegli={inserisci}
+            onGestisci={() => setFinestra({ daModificare: null })}
+          />
+        )}
       <FinestraRisposte
         aperta={finestra !== null}
         daModificare={finestra?.daModificare ?? null}
@@ -224,62 +273,97 @@ export function Casella({ api }: CasellaProps) {
             <CalendarClock className="h-4 w-4" />
           </Button>
         )}
-        <textarea
-          ref={areaRef}
-          value={bozza}
-          onChange={(e) => setBozza(e.target.value)}
-          //  iOS fa scorrere il documento quando compare la tastiera: si riporta in alto
-          //  (la posizione della casella la tiene `visualViewport`, non lo scorrimento).
-          onFocus={() => window.scrollTo(0, 0)}
-          onKeyDown={(e) => {
-            if (menuAperto && !e.nativeEvent.isComposing) {
-              const n = voci.length;
-              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                e.preventDefault();
-                if (n) setEvidenziata((i) => (i + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
-                return;
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setChiusoPer(bozza);
-                return;
-              }
-              if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
-                //  Invio sceglie, non invia: «/2» non deve mai partire al cliente.
-                e.preventDefault();
-                const scelta = voci[Math.min(evidenziata, n - 1)];
-                if (scelta) inserisci(scelta.risposta);
-                return;
-              }
-            }
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              if (!inviando) void invia();
-            }
+        {/*  ── LA CASELLA SI APRE AL PRIMO TOCCO (28/10/2026) ─────────────────
+            Guasto del titolare (iPhone, browser dentro un'app): toccando la
+            casella vuota non arrivava la tastiera; arrivava solo scegliendo una
+            risposta rapida. Fra le due strade l'unica differenza nel codice è lo
+            scorrimento: la risposta rapida mette il fuoco con `preventScroll`,
+            il tocco invece lascia che iOS faccia scorrere la vista fino al campo
+            — e lì il vecchio `onFocus={() => window.scrollTo(0, 0)}` lo
+            riportava in cima mentre la chat (fissa sull'area visibile, vedi
+            PaginaChat) si spostava con la vista. Ora il fuoco non tocca lo
+            scorrimento: la posizione la tiene solo `visualViewport`.
+            E tutta la «pillola» è bersaglio: un tocco sul suo bordo o accanto
+            alla X apre lo stesso la tastiera. Vedi la LAVAGNA della commessa
+            2026-10-28-chat-stile-whatsapp per cosa è provato e cosa no. */}
+        <div
+          onPointerDown={(e) => {
+            if (e.target !== e.currentTarget || !configurata) return;
+            e.preventDefault();
+            areaRef.current?.focus();
           }}
-          placeholder={
-            configurata
-              ? "Messaggio, o / per le risposte"
-              : "Configura WhatsApp in Impostazioni per inviare"
-          }
-          role={libera ? "combobox" : undefined}
-          aria-autocomplete={libera ? "list" : undefined}
-          aria-expanded={libera ? menuAperto : undefined}
-          aria-controls={menuAperto && voci.length ? ID_MENU_RISPOSTE : undefined}
-          aria-activedescendant={
-            menuAperto && voci.length ? idVoce(Math.min(evidenziata, voci.length - 1)) : undefined
-          }
-          disabled={!configurata}
-          enterKeyHint="send"
-          rows={Math.min(6, Math.max(1, bozza.split("\n").length))}
-          aria-label="Messaggio"
           className={cn(
-            "flex-1 min-w-0 min-h-11 bg-background border border-input text-foreground placeholder:text-muted-foreground",
-            "focus:outline-none focus:ring-1 focus:ring-ring resize-none rounded-2xl px-4 py-2.5",
-            //  16 px sul telefono: sotto, iOS ingrandisce la pagina al tocco.
-            "text-base md:text-[13px] leading-relaxed md:rounded-md md:px-3 md:py-2",
+            "flex min-w-0 flex-1 cursor-text items-end rounded-[22px] border border-input bg-background",
+            "focus-within:ring-1 focus-within:ring-ring md:rounded-lg",
           )}
-        />
+        >
+          <textarea
+            ref={areaRef}
+            value={bozza}
+            onChange={(e) => setBozza(e.target.value)}
+            onKeyDown={(e) => {
+              if (menuAperto && !e.nativeEvent.isComposing) {
+                const n = voci.length;
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  if (n) setEvidenziata((i) => (i + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setChiusoPer(bozza);
+                  return;
+                }
+                if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                  //  Invio sceglie, non invia: «/2» non deve mai partire al cliente.
+                  e.preventDefault();
+                  const scelta = voci[Math.min(evidenziata, n - 1)];
+                  if (scelta) inserisci(scelta.risposta);
+                  return;
+                }
+              }
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                if (!inviando) void invia();
+              }
+            }}
+            placeholder={
+              configurata
+                ? "Messaggio, o / per le risposte"
+                : "Configura WhatsApp in Impostazioni per inviare"
+            }
+            role={libera ? "combobox" : undefined}
+            aria-autocomplete={libera ? "list" : undefined}
+            aria-expanded={libera ? menuAperto : undefined}
+            aria-controls={menuAperto && voci.length ? ID_MENU_RISPOSTE : undefined}
+            aria-activedescendant={
+              menuAperto && voci.length ? idVoce(Math.min(evidenziata, voci.length - 1)) : undefined
+            }
+            disabled={!configurata}
+            enterKeyHint="send"
+            rows={Math.min(6, Math.max(1, bozza.split("\n").length))}
+            aria-label="Messaggio"
+            className={cn(
+              "flex-1 min-w-0 min-h-11 bg-transparent text-foreground placeholder:text-muted-foreground",
+              "focus:outline-none resize-none rounded-[22px] px-4 py-2.5 max-h-40 [field-sizing:content]",
+              //  16 px sul telefono: sotto, iOS ingrandisce la pagina al tocco.
+              "text-base leading-6 md:min-h-10 md:text-[14px] md:leading-5 md:rounded-lg md:px-3",
+            )}
+          />
+          {bozza !== "" && configurata && (
+            <button
+              type="button"
+              //  Il tocco non toglie il fuoco alla casella: la tastiera resta su.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={svuota}
+              aria-label="Svuota il messaggio"
+              title="Svuota il messaggio"
+              className="grid h-11 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-10"
+            >
+              <X className="h-[18px] w-[18px]" aria-hidden />
+            </button>
+          )}
+        </div>
         <Button
           onClick={() => void invia()}
           size="icon"
