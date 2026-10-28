@@ -45,6 +45,7 @@ import { NOME_VIA, type ViaOrigine } from "./origine";
 export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
   tutti: "Tutti",
   mai: "Da contattare",
+  nonRisposto: "Non ha risposto",
   nonRisponde: "Non risponde",
   segreteria: "Segreteria",
   ritentare: "Da ritentare",
@@ -59,6 +60,7 @@ export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
 const SPIEGA_STATO_FILTRO: Record<StatoFiltro, string> = {
   tutti: "Tutta la lista",
   mai: "Non li ha mai chiamati nessuno: sono le prime chiamate",
+  nonRisposto: "Hanno squillato a vuoto o hai lasciato un messaggio in segreteria: si ritenta",
   nonRisponde: "Hanno squillato a vuoto: ritenti rapidi, uno dietro l'altro",
   segreteria: "Hai lasciato un messaggio e stai riprovando",
   ritentare: "Non risponde e segreteria: ritenti rapidi",

@@ -20187,7 +20187,9 @@ function proveDeiPulsantiDelloStato() {
   c("un richiamo concordato è un richiamo", true, cadeNelloStato("promessa", { stato: "richiamo" }, "richiamo"));
   const scritto = { stato: "da_contattare", ...patchWhatsappInviato({}, new Date("2026-10-20T10:00:00Z")) };
   c("scritto su WhatsApp: in attesa", true, inAttesaWhatsapp(scritto));
-  c("…e cade in «Attesa WhatsApp»", true, cadeNelloStato("prima", scritto, "whatsapp"));
+  //  ⚠️ ROVESCIATA APPOSTA (28/10/2026, SPEC «Lead importati semplice»): la pillola
+  //   «Attesa WhatsApp» conta lo stato, non più anche il tasto premuto a mano.
+  c("…ma la pillola «Attesa WhatsApp» guarda solo lo stato: il tasto premuto non basta", false, cadeNelloStato("prima", scritto, "whatsapp"));
   c("lo stato cambia dopo il messaggio: fuori dall'attesa", false,
     inAttesaWhatsapp({ ...scritto, stato: "richiamo", statoPrecedenteIl: "2026-10-20T11:00:00Z" }));
   c("lo stato era cambiato prima del messaggio: resta in attesa", true,
