@@ -21,6 +21,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCRM } from "@/crm/CRMContext";
 import { intestazioniCRM } from "@/crm/AuthContext";
+import { assicuraBlocchi } from "@/crm/blocchi";
+import { assicuraCapienza } from "@/crm/capienza";
 import { slotDelGiorno } from "@/crm/booking-utils";
 import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
 import { DURATA_PREDEFINITA } from "@/crm/invito";
@@ -69,6 +71,9 @@ export function useOreTenute(): Record<string, "solo"> {
 export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
   squadra: Consultant[];
   giorni: GiornoLibero[];
+  /** Vero quando chiusure e capienza sono state lette: prima i posti
+   *  potrebbero essere più di quelli veri. */
+  pronto: boolean;
 } {
   const periodo = o.quanti;
   const chi = o.chi ?? "tutti";
@@ -87,6 +92,22 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
       (c) => c?.data && c.data.attivo !== false && Array.isArray(c.data.giorniLavorativi),
     );
   }, [consultants]);
+
+  /*  ⚠️ LE CHIUSURE E LA CAPIENZA PRIMA DEL CALCOLO (28/10/2026). `slotDelGiorno`
+      le legge da un registro che si riempie solo se qualcuno le ha caricate:
+      la pagina Orari disponibili lo faceva, Slot liberi e «Proponi orari» in
+      WhatsApp no — e mostravano libere ore chiuse. Segnalazione del titolare:
+      «deve mostrare le vere disponibilità». Arrivate, si ricalcola. */
+  const [caricati, setCaricati] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    void Promise.all([assicuraBlocchi(), assicuraCapienza()])
+      .catch(() => undefined)
+      .then(() => vivo && setCaricati((n) => n + 1));
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const scelti = useMemo(
     () => (chi === "tutti" ? squadra : squadra.filter((c) => c.id === chi)),
@@ -120,7 +141,7 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
       out.push(riassumiGiorno({ data, persone, dopo: i === 0 ? minutiAdesso : undefined }));
     }
     return out;
-  }, [leads, scelti, periodo, oreTenute, adesso]);
+  }, [leads, scelti, periodo, oreTenute, adesso, caricati]);
 
-  return { squadra, giorni };
+  return { squadra, giorni, pronto: caricati > 0 };
 }

@@ -111,7 +111,13 @@ function oreInFila(ore: string[]): string {
 /** Il testo da mandare: un giorno per riga, le ore in ordine, la domanda in
  *  fondo. Col «lei», come gli altri messaggi dello studio. Vuoto se non c'è
  *  niente di scelto. */
-export function messaggioOrari(scelte: OrarioScelto[], oggi: string, nome?: string | null): string {
+export function messaggioOrari(
+  scelte: OrarioScelto[],
+  oggi: string,
+  nome?: string | null,
+  /** il consulente che farà la consulenza (solo il nome): entra nel testo */
+  consulente?: string | null,
+): string {
   const perGiorno = new Map<string, Set<string>>();
   for (const s of scelte) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s.data) || !/^\d{1,2}:\d{2}$/.test(s.ora)) continue;
@@ -124,22 +130,34 @@ export function messaggioOrari(scelte: OrarioScelto[], oggi: string, nome?: stri
     return { giorno: giornoPerMessaggio(data, oggi), ore };
   });
   const quante = righe.reduce((n, r) => n + r.ore.length, 0);
+  const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   const parola =
     String(nome ?? "")
       .trim()
       .split(/\s+/)[0] ?? "";
   //  «mario» scritto a mano diventa «Mario».
-  const primo = parola ? parola.charAt(0).toUpperCase() + parola.slice(1) : "";
+  const primo = parola ? maiuscola(parola) : "";
   const saluto = primo ? `Gentile ${primo}, ` : "";
-  const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const chi =
+    String(consulente ?? "")
+      .trim()
+      .split(/\s+/)[0] ?? "";
+  //  Col consulente: «Filippo è disponibile per…» (richiesta del 28/10).
+  const apertura = chi
+    ? `${maiuscola(chi)} è disponibile per la consulenza gratuita online`
+    : "per la consulenza gratuita online avrei";
   if (quante === 1) {
     const r = righe[0];
     return maiuscola(
-      `${saluto}per la consulenza gratuita online avrei libero ${r.giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`,
+      chi
+        ? `${saluto}${apertura} ${r.giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`
+        : `${saluto}${apertura} libero ${r.giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`,
     );
   }
   const elenco = righe.map((r) => `• ${r.giorno} ${oreInFila(r.ore)}`).join("\n");
   return maiuscola(
-    `${saluto}per la consulenza gratuita online avrei liberi questi orari:\n\n${elenco}\n\nQuale preferisce?`,
+    chi
+      ? `${saluto}${apertura} in questi orari:\n\n${elenco}\n\nQuale preferisce?`
+      : `${saluto}${apertura} liberi questi orari:\n\n${elenco}\n\nQuale preferisce?`,
   );
 }

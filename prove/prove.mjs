@@ -20662,6 +20662,27 @@ function proveDelloStatoDaChiamare() {
   c("il cron ogni 15 minuti sulla rotta giusta, e come si spegne", true, /programma_hook_cron\('attesa-da-chiamare-15min', '\*\/15 \* \* \* \*', '\/hooks\/attesa-da-chiamare'\)/.test(sql) && /cron\.unschedule\('attesa-da-chiamare-15min'\)/.test(sql));
 }
 
+
+/** ── PROPONI ORARI A TUTTO SCHERMO, COL CONSULENTE (28/10/2026) ──────────── */
+function proveDiProponiOrariConsulente() {
+  gruppo("PROPONI ORARI: CONSULENTE, ORE VERE, MESSAGGIO COL SUO NOME");
+  const W = mod["wa-orari"];
+  const oggi = "2026-10-28";
+  c("un orario col consulente", "Gentile Mario, Filippo è disponibile per la consulenza gratuita online oggi alle 15:00.\n\nLe va bene?",
+    W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario", "Filippo Esempio"));
+  c("più orari e giorni col consulente", "Gentile Mario, Filippo è disponibile per la consulenza gratuita online in questi orari:\n\n• oggi alle 15:00 o alle 17:00\n• domani alle 10:00\n\nQuale preferisce?",
+    W.messaggioOrari([{ data: "2026-10-29", ora: "10:00" }, { data: oggi, ora: "17:00" }, { data: oggi, ora: "15:00" }], oggi, "Mario", "Filippo"));
+  c("senza consulente resta il testo di prima", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario").includes("avrei libero oggi alle 15:00"));
+  const hook = readFileSync(join(radice, "src/crm/useGiorniLiberi.ts"), "utf8");
+  c("le ore sono quelle vere: chiusure e capienza lette prima del calcolo", true,
+    /Promise\.all\(\[assicuraBlocchi\(\), assicuraCapienza\(\)\]\)/.test(hook) && /oreTenute, adesso, caricati\]/.test(hook));
+  const or = readFileSync(join(radice, "src/crm/OrariRapidi.tsx"), "utf8");
+  c("finestra a tutto schermo sul telefono", true, /max-sm:h-\[100dvh\]/.test(or) && /<Finestra/.test(or));
+  c("prima il consulente, poi le sue ore (cambiandolo si azzerano)", true, /setChi\(c\.id\);\s*setScelte\(\[\]\)/.test(or) && /f\.chi\.some\(\(c\) => c\.id === chi\)/.test(or));
+  c("la spunta mette il messaggio nella chat", true, /onClick=\{\(\) => p\.onInserisci\(testo\)\}/.test(or) && /Crea messaggio/.test(or));
+  c("il nome del consulente entra nel testo", true, /messaggioOrari\(scelte, oggi, p\.nome, scelto\?\.nome\)/.test(or));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20776,6 +20797,7 @@ await proveDelleNotifichePush();
 proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
+proveDiProponiOrariConsulente();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
