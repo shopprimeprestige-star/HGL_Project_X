@@ -51,6 +51,7 @@ export type StatoFiltro =
   | "ciRicontatta"
   | "promesse"
   | "whatsapp"
+  | "daChiamare"
   | "ritorno";
 
 export const STATI_FILTRO: StatoFiltro[] = [
@@ -63,6 +64,7 @@ export const STATI_FILTRO: StatoFiltro[] = [
   "ciRicontatta",
   "promesse",
   "whatsapp",
+  "daChiamare",
   "ritorno",
 ];
 
@@ -91,6 +93,7 @@ export function cadeNelloStato(
   if (scelta === "segreteria") return stato === "segreteria";
   if (scelta === "richiamo") return stato === "richiamo";
   if (scelta === "ciRicontatta") return stato === "ci_ricontatta_lui";
+  if (scelta === "daChiamare") return stato === "da_chiamare";
   //  Le voci di prima (indirizzi salvati) e «Di ritorno» restano sul motivo.
   return statoDelFiltro(motivo, stato) === scelta;
 }

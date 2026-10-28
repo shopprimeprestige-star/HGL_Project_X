@@ -734,6 +734,7 @@ const ANCORA_AL_TELEFONO: string[] = [
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "annullato",
   "fissa_meet_dopo",

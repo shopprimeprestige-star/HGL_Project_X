@@ -71,6 +71,7 @@ const ESITO_DI: Partial<Record<LeadStatus, string>> = {
   richiamo: "richiamo",
   segreteria: "segreteria",
   attesa_whatsapp: "attesa_whatsapp",
+  da_chiamare: "da_chiamare",
   non_risponde: "non_risponde",
   annullato: "annullato",
   perdi_tempo: "perdi_tempo",
@@ -88,6 +89,7 @@ const ORDINE_ESITI: { chiave: string; etichetta: string }[] = [
   { chiave: "richiamo", etichetta: LEAD_STATUS_LABEL.richiamo },
   { chiave: "segreteria", etichetta: LEAD_STATUS_LABEL.segreteria },
   { chiave: "attesa_whatsapp", etichetta: LEAD_STATUS_LABEL.attesa_whatsapp },
+  { chiave: "da_chiamare", etichetta: LEAD_STATUS_LABEL.da_chiamare },
   { chiave: "non_risponde", etichetta: LEAD_STATUS_LABEL.non_risponde },
   { chiave: "annullato", etichetta: LEAD_STATUS_LABEL.annullato },
   { chiave: "perdi_tempo", etichetta: LEAD_STATUS_LABEL.perdi_tempo },
@@ -228,6 +230,7 @@ export function TelefonoScheda({ dentro }: { dentro: FiltroPeriodo }) {
         (perEsito.get("segreteria") || 0) +
         //  Gli si è scritto su WhatsApp e non ha confermato: si recupera ancora.
         (perEsito.get("attesa_whatsapp") || 0) +
+        (perEsito.get("da_chiamare") || 0) +
         (perEsito.get("non_risponde") || 0),
     };
   }, [leads, dentro]);

@@ -1842,6 +1842,7 @@ function LeadsPage() {
           "non_risponde",
           "segreteria",
           "attesa_whatsapp",
+          "da_chiamare",
         ].includes(l.data.stato)
       )
         c.attivi++;
@@ -1879,6 +1880,7 @@ function LeadsPage() {
           "non_risponde",
           "segreteria",
           "attesa_whatsapp",
+          "da_chiamare",
         ].includes(l.data.stato),
     );
   }, [leads, gruppo]);

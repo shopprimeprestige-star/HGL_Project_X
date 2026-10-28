@@ -362,6 +362,7 @@ const STATI_DELLA_CODA = new Set<LeadStatus>([
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "ci_ricontatta_lui",
 ]);
@@ -403,6 +404,7 @@ const ESITI_RAPIDI: LeadStatus[] = [
   "segreteria",
   //  Richiesta del titolare (20/10/2026): sta nel menu «Altro» della scheda.
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "da_ricontattare",
   //  ⚠️ Richiesta del committente: lo stato serve «sia per il setter sui lead

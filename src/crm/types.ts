@@ -22,6 +22,10 @@ export type LeadStatus =
   //  si è scritto su WhatsApp e si aspetta la conferma. Non chiede né giorno
   //  né ora, come la segreteria.
   | "attesa_whatsapp"
+  //  Richiesta del titolare (28/10/2026): dopo 10 ore in «Attesa WhatsApp» senza
+  //  risposta il server la porta qui da solo (hooks/attesa-da-chiamare). Si può
+  //  anche mettere a mano.
+  | "da_chiamare"
   | "richiamo"
   | "annullato"
   | "appuntamento_fissato"
@@ -162,6 +166,7 @@ export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   non_risponde: "Non risponde",
   segreteria: "Segreteria",
   attesa_whatsapp: "Attesa WhatsApp",
+  da_chiamare: "Da chiamare",
   //  Il cliente ha chiesto lui di essere richiamato, e c'è un orario: è una
   //  cosa diversa dal generico "da contattare".
   richiamo: "Richiamo concordato",
@@ -284,6 +289,7 @@ export const LEAD_STATUS_PHASE: Record<LeadStatus, LeadPhase> = {
   non_risponde: "da_lavorare",
   segreteria: "da_lavorare",
   attesa_whatsapp: "da_lavorare",
+  da_chiamare: "da_lavorare",
   richiamo: "da_lavorare",
   // Lead aperto: c'è un appuntamento o un discorso in corso.
   appuntamento_fissato: "in_corso",
@@ -2182,6 +2188,7 @@ export const STATI_DA_CHIAMARE: LeadStatus[] = [
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   /*  ⚠️ C'È ANCHE CHI DEVE RICHIAMARE LUI, ma non prima del giorno che ha
       detto: fino ad allora la coda lo salta (`eDaChiamare` in CRM.importa, la
@@ -2202,6 +2209,7 @@ export const STATI_PRIMO_CONTATTO: LeadStatus[] = [
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   /*  ⚠️ «VI FACCIO SAPERE IO» È UN ESITO DI PRIMO CONTATTO, e il committente
       l'ha chiesto proprio per qui: «fallo sia per il setter lead importati sia
@@ -2282,6 +2290,7 @@ export const SELECTABLE_LEAD_STATUSES: LeadStatus[] = [
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "appuntamento_fissato",
   "appuntamento_rifissato",
@@ -2334,6 +2343,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "annullato",
   "ripensamento",

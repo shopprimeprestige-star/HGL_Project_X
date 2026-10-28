@@ -52,6 +52,7 @@ export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
   ciRicontatta: "Ci ricontatta lui",
   promesse: "Richiami",
   whatsapp: "Attesa WhatsApp",
+  daChiamare: "Da chiamare",
   ritorno: "Di ritorno",
 };
 
@@ -65,6 +66,8 @@ const SPIEGA_STATO_FILTRO: Record<StatoFiltro, string> = {
   ciRicontatta: "Ha detto che ci ricontatta lui: quando il giorno è arrivato, si prova noi",
   promesse: "Richiamo concordato e «ci ricontatta lui», quando il giorno è arrivato",
   whatsapp: "Gli hai scritto su WhatsApp e aspetti la risposta: esce da qui appena segni un esito",
+  daChiamare:
+    "Più di 10 ore in Attesa WhatsApp senza risposta: il CRM li ha spostati qui, adesso si chiamano",
   ritorno: "Contatti di ritorno: erano già in archivio e sono ricomparsi in una lista",
 };
 
@@ -78,6 +81,7 @@ const STATI_DA_MOSTRARE: StatoFiltro[] = [
   "richiamo",
   "ciRicontatta",
   "whatsapp",
+  "daChiamare",
   "ritorno",
 ];
 

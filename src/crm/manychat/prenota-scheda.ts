@@ -53,6 +53,7 @@ const STATI_PRENOTABILI: string[] = [
   "non_risponde",
   "segreteria",
   "attesa_whatsapp",
+  "da_chiamare",
   "richiamo",
   "ci_ricontatta_lui",
   "da_ricontattare",
