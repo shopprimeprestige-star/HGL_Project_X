@@ -87,8 +87,11 @@ import {
   campiRitorno,
 } from "./testi";
 
-/** Gli stati in cui un lead è ancora «nuovo» per queste sequenze. */
-export const STATI_LEAD_NUOVO = ["da_contattare", "non_risponde", "segreteria"];
+/** Gli stati in cui un lead è ancora «nuovo» per queste sequenze.
+ *  «attesa_whatsapp» (commessa 2026-10-28): è lo stato in cui il giro stesso porta un
+ *  «da contattare» dopo il primo messaggio; il richiamo a 24 ore deve valere anche lì.
+ *  Il primo contatto invece resta solo per chi non l'ha ancora ricevuto (vedi sotto). */
+export const STATI_LEAD_NUOVO = ["da_contattare", "non_risponde", "segreteria", "attesa_whatsapp"];
 /** Il primo contatto parte solo per chi è entrato (e ha compilato il modulo) da meno di così. */
 export const FINESTRA_LEAD_NUOVO_ORE = 72;
 /** Il richiamo si accetta fino a così dopo il suo bersaglio; oltre è scaduto. */
@@ -238,6 +241,9 @@ export function decidiLeadNuovi(
     let bersaglioPrimo: Date | undefined;
     if (tel9 && chiaveGiaPresa(invii, `n24|${tel9}`)) continue; // la sequenza è finita
     if (!primo) {
+      //  In «attesa_whatsapp» c'è già stato un primo contatto (o l'ha scritto qualcuno a mano):
+      //  senza il suo invio nel registro non se ne manda un altro, solo il richiamo ha senso.
+      if (d.stato === "attesa_whatsapp") continue;
       //  Il primo contatto vale per 72 ore dall'ingresso e dal modulo.
       if (ora - entrata >= FINESTRA_LEAD_NUOVO_ORE * ORA_MS) continue;
       const il = typeof d.consensoModulo.il === "string" ? Date.parse(d.consensoModulo.il) : NaN;

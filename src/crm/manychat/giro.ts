@@ -324,6 +324,9 @@ export interface PorteGiro {
     cambio: CambioContatto,
     seInvio?: string,
   ): Promise<boolean>;
+  /** `lead_attesa_whatsapp`: «da contattare» → «attesa_whatsapp» (con `statoDal` = `il`), SOLO se
+   *  la scheda è ancora «da contattare» al momento della scrittura. Vero se ha scritto. */
+  attesaWhatsapp(userId: string, leadId: string, il: Date): Promise<boolean>;
   /** le porte della porta degli invii (client ManyChat, flussi, registro,
    *  `whatsapp_messages`); la prenotazione la sostituisce il giro */
   porta(userId: string, config: ConfigGiro): PortePorta;
@@ -1102,6 +1105,17 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           await porte
             .aggiornaContatto(userId, scheda.id, cambio)
             .catch((e) => porte.avviso(`giro_contatto_errore_${codiceErrore(e)}`));
+        }
+        //  Dopo il primo messaggio (o il ritorno) la scheda «da contattare» passa ad «Attesa
+        //  WhatsApp». Solo dopo un «inviato»: chi non lo riceve resta com'è. La condizione
+        //  «ancora da contattare» la rifà la funzione SQL dentro la scrittura.
+        if (
+          (cand.tipo === "primo_contatto" || cand.tipo === "ritorno") &&
+          riletta.data.stato === "da_contattare"
+        ) {
+          await porte
+            .attesaWhatsapp(userId, scheda.id, ora)
+            .catch((e) => porte.avviso(`giro_stato_errore_${codiceErrore(e)}`));
         }
         return { fine: "inviato" };
       }

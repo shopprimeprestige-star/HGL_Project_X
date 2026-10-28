@@ -312,6 +312,30 @@ async function scriviContattoWa(
   return data === true;
 }
 
+/** `lead_attesa_whatsapp`: «da contattare» → «attesa_whatsapp», tocca solo `stato`, `statoDal`
+ *  e il «da dove veniva». Vero se ha scritto (falso: la scheda non c'è, o non è più «da
+ *  contattare»). Se la funzione non c'è (migrazione non applicata) il giro continua come
+ *  prima e si avvisa una volta sola. */
+let attesaAvvisata = false;
+async function scriviAttesaWhatsapp(userId: string, leadId: string, il: Date): Promise<boolean> {
+  const { data, error } = await db().rpc("lead_attesa_whatsapp", {
+    p_user_id: userId,
+    p_id: leadId,
+    p_il: il.toISOString(),
+  });
+  if (error) {
+    if (!funzioneMancante(error)) return lancia(error);
+    if (!attesaAvvisata) {
+      attesaAvvisata = true;
+      console.warn(
+        `[manychat-giro] lead_attesa_whatsapp non c'è (${String(error.code ?? "?")}): lo stato non cambia dopo il primo messaggio finché non si applica la migrazione manychat_attesa_whatsapp`,
+      );
+    }
+    return false;
+  }
+  return data === true;
+}
+
 //  ═══════════════════════════════════════════════════════════════════════════
 //   LA PARTE DEL GIRO (compito 3)
 //  ═══════════════════════════════════════════════════════════════════════════
@@ -624,6 +648,7 @@ export function porteGiro(): PorteGiro {
     },
     aggiornaContatto: (userId, leadId, cambio, seInvio) =>
       scriviContattoWa(userId, leadId, cambio, seInvio),
+    attesaWhatsapp: scriviAttesaWhatsapp,
 
     porta: (userId, config) => portePortaVere(userId, { flussi: config.flussi }),
 

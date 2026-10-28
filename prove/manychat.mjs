@@ -25,6 +25,7 @@ import { proveMigrazioni } from "./manychat/migrazioni.mjs";
 import { provePannello } from "./manychat/pannello.mjs";
 import { proveSequenze } from "./manychat/sequenze.mjs";
 import { proveImportati } from "./manychat/importati.mjs";
+import { proveStatoDopoPrimo } from "./manychat/stato-dopo-primo.mjs";
 import { proveStati } from "./manychat/stati.mjs";
 import { proveSequenzeMigrazione } from "./manychat/sequenze-migrazione.mjs";
 import { proveDelleParolePrenota } from "./manychat/prenota-parole.mjs";
@@ -289,6 +290,8 @@ export async function proveManychat(mod, aiuti) {
   //  Commessa 2026-10-25 (sequenze WhatsApp): un file per compito.
   await proveSequenze(mod, aiuti);
   await proveImportati(mod, aiuti);
+  //  Commessa 2026-10-28 (stato «Attesa WhatsApp» dopo il primo messaggio).
+  await proveStatoDopoPrimo(mod, aiuti);
   await proveStati(mod, aiuti);
   await proveSequenzeMigrazione(mod, aiuti);
   //  Commessa 2026-10-27 (prenota in chat): un file per compito, vuoti finché

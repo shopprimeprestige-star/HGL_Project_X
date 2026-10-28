@@ -1757,5 +1757,11 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ],
     R.TIPI_SENZA_FRENO,
   );
-  c("stati del lead nuovo", ["da_contattare", "non_risponde", "segreteria"], S.STATI_LEAD_NUOVO);
+  //  Dal 28/10 anche «attesa_whatsapp»: lì il giro porta chi ha ricevuto il primo contatto, e il
+  //  richiamo a 24 ore deve continuare a valere (vedi `stato-dopo-primo.mjs`).
+  c(
+    "stati del lead nuovo",
+    ["da_contattare", "non_risponde", "segreteria", "attesa_whatsapp"],
+    S.STATI_LEAD_NUOVO,
+  );
 }
