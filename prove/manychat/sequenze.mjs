@@ -133,12 +133,17 @@ export async function proveSequenze(mod, { c, gruppo }) {
   );
 
   //  Chi non è un lead nuovo.
+  //  Commessa 2026-10-28: nessuna finestra. Chi è entrato prima dell'accensione, o da più di
+  //  72 ore, non è più un «lead nuovo» del modulo ma è un importato mai contattato: parte lo stesso
+  //  (prove vere in `importati.mjs`). Qui resta la prova che la regola vecchia non lo trattiene.
   c(
-    "arrivato PRIMA dell'ultima accensione di «Lead nuovo» → mai",
-    [],
-    lead([nuovo("lead-1", 1, "2026-10-20T05:00:00.000Z")], MAR10, {
-      leadNuovoDal: "2026-10-27T08:00:00.000Z",
-    }),
+    "arrivato PRIMA dell'ultima accensione di «Lead nuovo» → parte come importato mai contattato",
+    ["invia"],
+    tipi(
+      lead([nuovo("lead-1", 1, "2026-10-20T05:00:00.000Z")], MAR10, {
+        leadNuovoDal: "2026-10-27T08:00:00.000Z",
+      }),
+    ),
   );
   c(
     "interruttore mai acceso (nessuna data) → niente",
@@ -146,9 +151,9 @@ export async function proveSequenze(mod, { c, gruppo }) {
     lead([arrivato10], MAR10, { leadNuovoDal: null }),
   );
   c(
-    "arrivato da più di 72 ore → mai",
-    [],
-    lead([nuovo("lead-1", 1, "2026-10-24T08:59:00.000Z")], MAR10),
+    "arrivato da più di 72 ore → parte lo stesso (nessuna finestra)",
+    ["invia"],
+    tipi(lead([nuovo("lead-1", 1, "2026-10-24T08:59:00.000Z")], MAR10)),
   );
   c(
     "…a 71 ore è ancora buono",
@@ -169,9 +174,9 @@ export async function proveSequenze(mod, { c, gruppo }) {
     },
   });
   c(
-    "modulo di 4 giorni fa caricato oggi da file → mai",
-    [],
-    lead([daFile("2026-10-23T09:00:00.000Z")], MAR10),
+    "modulo di 4 giorni fa caricato oggi da file → parte lo stesso (nessuna finestra)",
+    ["invia"],
+    tipi(lead([daFile("2026-10-23T09:00:00.000Z")], MAR10)),
   );
   c(
     "…modulo di ieri caricato oggi da file (entra dopo l'accensione) → parte",
@@ -179,18 +184,25 @@ export async function proveSequenze(mod, { c, gruppo }) {
     tipi(lead([daFile("2026-10-26T09:00:00.000Z")], MAR10)),
   );
   c(
-    "scheda senza modulo Meta (nemmeno «via») → non è un lead nuovo",
-    [[], []],
+    "scheda senza modulo Meta (nemmeno «via») → non segue la sequenza del modulo, ma è un importato: primo contatto",
+    [["invia"], ["invia"]],
     [
-      lead(
-        [
-          nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", {
-            consensoModulo: { whatsapp: true, il: "2026-10-27T09:00:00.000Z" },
-          }),
-        ],
-        MAR10,
+      tipi(
+        lead(
+          [
+            nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", {
+              consensoModulo: { whatsapp: true, il: "2026-10-27T09:00:00.000Z" },
+            }),
+          ],
+          MAR10,
+        ),
       ),
-      lead([nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", { consensoModulo: undefined })], MAR10),
+      tipi(
+        lead(
+          [nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", { consensoModulo: undefined })],
+          MAR10,
+        ),
+      ),
     ],
   );
   c(
@@ -244,8 +256,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
 
   //  Consenso: la frase nel modulo.
   c(
-    "STOP → salta, e dice STOP",
-    ["salta", "STOP"],
+    "STOP → salta, e dice STOP (col prefisso dell'importato)",
+    ["salta", "importato: STOP"],
     ((x) => [x?.tipo, x?.motivo])(
       unica(
         lead(
@@ -261,7 +273,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
   );
   c(
     "revoca («Ok a WhatsApp» spento) batte il modulo → salta",
-    ["salta", "manca il consenso WhatsApp"],
+    ["salta", "importato: revoca di «Ok a WhatsApp»"],
     ((x) => [x?.tipo, x?.motivo])(
       unica(
         lead(
@@ -276,13 +288,13 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ),
   );
   c(
-    "frase non segnata (null) → il modulo non vale per nessuno",
-    ["salta", "manca il consenso WhatsApp"],
-    ((x) => [x?.tipo, x?.motivo])(unica(lead([arrivato10], MAR10, { fraseModuloDal: null }))),
+    "frase non segnata (null) → il consenso non serve più: parte (decisione del titolare 28/10)",
+    ["invia", `n|${t9(1)}`],
+    ((x) => [x?.tipo, x?.chiave])(unica(lead([arrivato10], MAR10, { fraseModuloDal: null }))),
   );
   c(
-    "modulo del 19/10 con la frase del 20/10 → non vale; del 20/10 alle 00:00 (uguale) → vale",
-    [["salta"], ["invia"]],
+    "modulo del 19/10 con la frase del 20/10: il consenso non conta più (alle 01:59 di notte aspetta le 9); del 20/10 alle 00:00 parte",
+    [["aspetta"], ["invia"]],
     [
       tipi(
         lead([nuovo("lead-1", 1, "2026-10-19T23:59:00.000Z")], "2026-10-19T23:59:30.000Z", {
@@ -300,28 +312,30 @@ export async function proveSequenze(mod, { c, gruppo }) {
     consensoModulo: { whatsapp: true, il: null, via: "modulo_meta", fonte: "csv_meta" },
   });
   c(
-    "CSV Meta senza data del modulo (il = null), caricato dopo la frase → nessun consenso, nessun invio",
-    ["salta", "manca il consenso WhatsApp"],
-    ((x) => [x?.tipo, x?.motivo])(unica(lead([senzaData], MAR10))),
+    "CSV Meta senza data del modulo (il = null) → il consenso non serve più: parte",
+    ["invia"],
+    tipi(lead([senzaData], MAR10)),
   );
   c(
-    "…un «Ok a WhatsApp» a voce non basta a far partire la sequenza (è per chi ha lasciato il numero nel modulo)",
-    [],
-    lead(
-      [
-        nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", {
-          consensoModulo: { whatsapp: true, il: null, via: "modulo_meta", fonte: "csv_meta" },
-          okWhatsapp: { si: true, il: "2026-10-27T09:10:00.000Z", da: "Giulia" },
-        }),
-      ],
-      MAR10,
+    "…e con un «Ok a WhatsApp» a voce sulla scheda parte comunque",
+    ["invia"],
+    tipi(
+      lead(
+        [
+          nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", {
+            consensoModulo: { whatsapp: true, il: null, via: "modulo_meta", fonte: "csv_meta" },
+            okWhatsapp: { si: true, il: "2026-10-27T09:10:00.000Z", da: "Giulia" },
+          }),
+        ],
+        MAR10,
+      ),
     ),
   );
   c(
     "numero non valido → salta; nome mancante → salta",
     [
-      ["salta", "numero non valido"],
-      ["salta", "manca il nome"],
+      ["salta", "importato: numero non valido"],
+      ["salta", "importato: manca il nome"],
     ],
     [
       nuovo("lead-1", 1, "2026-10-27T09:00:00.000Z", { telefono: "12" }),
@@ -392,8 +406,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ],
   );
   c(
-    "il riquadro a 500 vale 30 (tettiDelGiorno)",
-    30,
+    "il riquadro a 500 vale 100 (tettiDelGiorno): i lead nuovi hanno il tetto del totale",
+    100,
     Q.tettiDelGiorno({ leadNuovi: 500, totale: 500 }, "2026-09-01T00:00:00.000Z", t(MAR10))
       .leadNuovi,
   );
@@ -512,8 +526,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
   c(
     "…STOP e revoca fermano anche il richiamo",
     [
-      ["salta", "STOP"],
-      ["salta", "manca il consenso WhatsApp"],
+      ["salta", "importato: STOP"],
+      ["salta", "importato: revoca di «Ok a WhatsApp»"],
     ],
     [
       richiamo(
@@ -533,11 +547,11 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ].map((r) => ((x) => [x?.tipo, x?.motivo])(unica(r))),
   );
   c(
-    "primo contatto «incerto», «fallito» o «saltato» → il richiamo non parte",
+    "primo contatto «incerto», «fallito» o «saltato» → il richiamo non parte (il fallito si ritenta UNA volta come primo contatto, chiave n|tel9|r)",
     [false, false, false],
     ["incerto", "fallito", "saltato"].map((stato) =>
       richiamo("2026-10-28T10:00:00+01:00", { invii: [primoMar({ stato })] }).some(
-        (x) => x.tipo === "invia",
+        (x) => x.tipo === "invia" && x.extra.quale === "richiamo_24h",
       ),
     ),
   );
@@ -660,8 +674,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
     richiamo("2026-10-28T10:00:00+01:00", { invii: [primoMar({ stato: "prenotato" })] }),
   );
   c(
-    "…«incerto», «fallito» e «saltato» invece dicono «sequenza finita»",
-    [true, true, true],
+    "…«incerto» e «saltato» invece dicono «sequenza finita»; il «fallito» passa al ritentativo e non dice altro",
+    [true, false, true],
     ["incerto", "fallito", "saltato"].map((stato) =>
       /sequenza finita/.test(
         motivi(richiamo("2026-10-28T10:00:00+01:00", { invii: [primoMar({ stato })] })).join(),
@@ -686,11 +700,11 @@ export async function proveSequenze(mod, { c, gruppo }) {
     invio(1, "ricontatto", "2026-10-27T14:00:00.000Z", { chiave: `r|${t9(1)}|2026-10-27` }),
   ];
   c(
-    "STOP e «sequenza finita» dopo il primo: segnalati finché serve, poi tacciono (non sei giorni di righe)",
-    [["STOP"], [], true, false],
+    "STOP e «sequenza finita» dopo il primo: la sequenza finita tace; lo STOP si dichiara sempre (senza finestra) ma non è un problema",
+    [["importato: STOP"], ["importato: STOP"], true, false],
     [
       motivi(richiamo("2026-10-30T11:00:00+01:00", {}, stopDopoPrimo)),
-      richiamo("2026-11-02T10:00:00+01:00", {}, stopDopoPrimo),
+      motivi(richiamo("2026-11-02T10:00:00+01:00", {}, stopDopoPrimo)),
       /sequenza finita/.test(
         motivi(richiamo("2026-10-28T10:00:00+01:00", { invii: altroDopo })).join(),
       ),
@@ -1708,18 +1722,19 @@ export async function proveSequenze(mod, { c, gruppo }) {
 
   gruppo("MANYCHAT · COSTANTI E ELENCHI DELLE SEQUENZE");
   c(
-    "tetti: 20 ricontatti, 30 lead nuovi, 100 in tutto, riserva 30",
-    [20, 30, 100, 30],
+    "tetti: 20 ricontatti, lead nuovi = totale (100, commessa 28/10), 100 in tutto, riserva 30",
+    [20, 100, 100, 30],
     [Q.TETTO_RICONTATTI, Q.TETTO_LEAD_NUOVI, Q.TETTO_TOTALE, Q.RISERVA_APPUNTAMENTI],
   );
   c(
-    "i nove tipi nei tetti (la conferma no); il ritmo solo per ricontatto e richiamo",
+    "i dieci tipi nei tetti (la conferma no); il ritmo solo per ricontatto e richiamo",
     [
       [
         "promemoria",
         "ricontatto",
         "primo_contatto",
         "richiamo_24h",
+        "ritorno",
         "meet_oggi",
         "meet_domani",
         "meet_adesso",

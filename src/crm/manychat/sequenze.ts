@@ -29,6 +29,10 @@
  *     eccezione al freno, stretta: parte solo se l'ultimo messaggio automatico
  *     arrivato a quel numero è proprio il suo primo contatto, `inviato`, senza
  *     risposta. Il richiamo aspetta il ritmo. Dopo, basta: niente terzo messaggio.
+ *   Commessa 2026-10-28 (WhatsApp a tutti gli importati e ai ritorni), in coda a
+ *   `decidiLeadNuovi`: vedi `decidiImportatiERitorni`. Nessun consenso (decisione
+ *   del titolare, «rischio mio»), nessuna finestra di 72 ore; restano STOP, revoca
+ *   di «Ok a WhatsApp» e numero valido.
  *   Giorno del meet (nessuno dei due è frenato; contano nei tetti, STOP vale)
  *   - mattina: dalle 9:00 (7:30 se il meet è prima delle 10:00), finché
  *     mancano almeno 40 minuti; sotto, «c'è già il promemoria»;
@@ -41,7 +45,7 @@
  *   - se la consulenza è stata fissata meno di 24 ore prima dell'inizio non parte
  *     (c'è già la conferma), e non dice niente.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { eAppuntamento } from "../types";
+import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento } from "../types";
 import { aRoma, oraNormale } from "../promemoria/formati";
 import { istanteDiRoma, scadenzaRicontatto } from "./contatto";
 import {
@@ -75,7 +79,13 @@ import {
   ultimoAutomatico,
   type InvioPerFreno,
 } from "./regole";
-import { campiMeetAdesso, campiMeetDomani, campiMeetOggi, campiPrimoContatto } from "./testi";
+import {
+  campiMeetAdesso,
+  campiMeetDomani,
+  campiMeetOggi,
+  campiPrimoContatto,
+  campiRitorno,
+} from "./testi";
 
 /** Gli stati in cui un lead è ancora «nuovo» per queste sequenze. */
 export const STATI_LEAD_NUOVO = ["da_contattare", "non_risponde", "segreteria"];
@@ -126,7 +136,15 @@ export interface ContestoGiornoMeet extends ContestoQuando {
 }
 
 /** Quale dei due messaggi del lead nuovo. */
-export type ExtraLeadNuovo = { quale: "primo_contatto" | "richiamo_24h"; tel9: string };
+export type ExtraLeadNuovo = {
+  quale: "primo_contatto" | "richiamo_24h" | "ritorno";
+  tel9: string;
+};
+/** I motivi di «aspetta» e «salta» dei due messaggi nuovi (importati e ritorni) portano
+ *  questo prefisso: il giro ne riconosce il tipo e NON li conta fra i problemi (gli
+ *  importati sono tanti: numeri e nomi storti riempirebbero i 20 posti dei problemi). */
+export const PREFISSO_IMPORTATO = "importato: ";
+export const PREFISSO_RITORNO = "ritorno: ";
 /** Quale dei due messaggi del giorno del meet, con l'inizio del meet. */
 export type ExtraGiornoMeet = { quale: "meet_oggi" | "meet_adesso"; inizioMeet: Date };
 /** Il promemoria 24 ore prima, con l'inizio del meet. */
@@ -160,6 +178,18 @@ export function primoIstanteUtile(da: Date): Date {
 }
 
 const nonVuoto = (v: unknown) => typeof v === "string" && v.trim() !== "";
+/** I messaggi che contano nel tetto dei lead nuovi. */
+const TIPI_LEAD_NUOVI: InvioPerFreno["tipo"][] = ["primo_contatto", "richiamo_24h", "ritorno"];
+
+/** Gli stati di chi la consulenza non l'ha mai avuta: quelli di primo contatto (`types.ts`)
+ *  senza gli appuntamenti. Il testo di `hgl_ritorno` chiede «Vuole fissare la consulenza
+ *  gratuita?»: a chi ne ha già avuta una (in chat, in valutazione, attesa acconto,
+ *  ricontatto fissato, no-show, clienti…) non si scrive. Stato assente = nuovo = sì. */
+const STATI_SENZA_CONSULENZA: string[] = STATI_PRIMO_CONTATTO.filter(
+  (s) => !STATI_APPUNTAMENTO.includes(s),
+);
+const senzaConsulenza = (stato: unknown) =>
+  !nonVuoto(stato) || STATI_SENZA_CONSULENZA.includes(String(stato));
 
 /** ── LEAD NUOVO: PRIMO CONTATTO E RICHIAMO A 24 ORE ─────────────────────── */
 export function decidiLeadNuovi(
@@ -290,7 +320,7 @@ export function decidiLeadNuovi(
     richiami.push({ scheda, numero, tel9, entrata, primo, bersaglio });
   }
 
-  const leadNuoviOggi = contaOggi(invii, oggi, ["primo_contatto", "richiamo_24h"]);
+  const leadNuoviOggi = contaOggi(invii, oggi, TIPI_LEAD_NUOVI);
   const totaleOggi = contaOggi(invii, oggi, TIPI_NEI_TETTI);
   const prossimo = contesto.prossimoDopo ?? null;
   const uscita: Esito[] = [];
@@ -350,7 +380,181 @@ export function decidiLeadNuovi(
     }
   }
 
-  salti.sort((a, b) => a.scheda.id.localeCompare(b.scheda.id));
+  //  Commessa 2026-10-28: gli importati mai contattati e i ritorni. Chi la sequenza del
+  //  modulo ha già messo in coda (primo contatto o richiamo) non lo guardano.
+  const inSequenza = new Set([...primi, ...richiami].map((k) => k.tel9));
+  const nuovi = decidiImportatiERitorni(
+    ordinate,
+    adesso,
+    { invii, tetti },
+    inSequenza,
+    leadNuoviOggi,
+    totaleOggi,
+    uscita.filter((x) => x.tipo === "invia").length,
+  );
+  //  Se uno di questi due messaggi prende in carico una scheda, i vecchi «salta» di
+  //  quella scheda (consenso mancante, sequenza finita…) non hanno più senso.
+  const prese = new Set(nuovi.map((x) => x.scheda.id));
+  const saltiRimasti = salti.filter((x) => !prese.has(x.scheda.id));
+  saltiRimasti.sort((a, b) => a.scheda.id.localeCompare(b.scheda.id));
+  return [...uscita, ...nuovi, ...saltiRimasti];
+}
+
+/** ── IMPORTATI MAI CONTATTATI E CONTATTI DI RITORNO (commessa 2026-10-28) ────
+ *  Richiesta del titolare: «tutti i lead importati da contattare tranne quelli già
+ *  in chat» e «i lead di ritorno, con il loro messaggio, appena entrano». Decisioni:
+ *  nessun consenso («rischio mio»), nessuna finestra: al primo giro prende anche i
+ *  vecchi. Restano STOP, revoca di «Ok a WhatsApp» e numero valido.
+ *
+ *  Primo contatto (`n|tel9`): `eImportato`, stato «da contattare», senza meet, senza
+ *  nessun secondo stato del contatto (già in chat / già scritto) e senza un invio
+ *  ARRIVATO a quel numero (qualunque tipo, chat compresa). Una volta sola per numero;
+ *  se l'unico `n|tel9` è «fallito» si ritenta UNA volta con `n|tel9|r`.
+ *  Ritorno (`r|tel9|<ultimo ritorno>`): il `ricarico` è salito; non ha mai avuto una
+ *  consulenza (stato di primo contatto, nessuna `dataMeeting`, nessun acconto), e dopo `ricarico.ultimo` nessuno gli ha scritto (invio arrivato,
+ *  cambio del secondo stato, «Contatta su WhatsApp»). Una volta per ritorno. Il freno
+ *  «mai due senza risposta» non lo ferma: è lui che ci ha scritto.
+ *  I ritorni passano avanti agli importati; uno stesso numero è UNA voce sola.
+ *  shortcut: il registro letto dal giro copre 8 giorni; un invio più vecchio a un
+ *  numero senza segni sulla scheda non si vede qui (l'SQL ferma comunque le chiavi
+ *  già prese). Da cambiare se serve guardare più indietro. */
+function decidiImportatiERitorni(
+  ordinate: SchedaQuando[],
+  adesso: Date,
+  contesto: { invii: InvioPerFreno[]; tetti: typeof TETTI_DI_SERIE },
+  inSequenza: Set<string>,
+  leadNuoviOggi: number,
+  totaleOggi: number,
+  gia: number,
+): DecisioneQuando<ExtraLeadNuovo>[] {
+  type Esito = DecisioneQuando<ExtraLeadNuovo>;
+  type Candidato = {
+    scheda: SchedaQuando;
+    tel9: string;
+    chiave: string;
+    quale: "primo_contatto" | "ritorno";
+    /** per l'ordine: il più recente passa per primo */
+    quando: number;
+  };
+  const { invii, tetti } = contesto;
+  const ora = adesso.getTime();
+  const presi = new Set(inSequenza);
+  const candidati: Candidato[] = [];
+  const uscita: Esito[] = [];
+  /** i «salta» vanno in coda: nella prova a secco (che mostra le prime 100 righe) i candidati vengono prima */
+  const salti: Esito[] = [];
+  const arrivati = (tel9: string) =>
+    invii.filter((i) => STATI_ARRIVATI.includes(i.stato) && ultimeNoveCifre(i.telefono) === tel9);
+
+  for (const scheda of ordinate) {
+    const d = scheda.data;
+    const numero = numeroWa(d.telefono);
+    const tel9 = numero ? ultimeNoveCifre(numero) : "";
+    //  Uno stesso numero è UNA voce sola (anche se la sequenza del modulo l'ha già presa).
+    if (tel9 && presi.has(tel9)) continue;
+    const salta = (prefisso: string, motivo: string) =>
+      salti.push({ tipo: "salta", scheda, motivo: prefisso + motivo });
+    /** I filtri che restano sempre, uguali per i due messaggi; `true` = detto con un «salta» */
+    const nonPuo = (prefisso: string): boolean => {
+      if (d.contattoWa?.stato === "stop") salta(prefisso, "STOP");
+      else if (d.okWhatsapp?.si === false) salta(prefisso, "revoca di «Ok a WhatsApp»");
+      else if (!numero) salta(prefisso, "numero non valido");
+      else return false;
+      if (tel9) presi.add(tel9);
+      return true;
+    };
+
+    //  ── Ritorno: se il `ricarico` è salito la scheda è sua, e basta ──────────
+    const ultimo = Date.parse(String(d.ricarico?.ultimo ?? ""));
+    if (Number.isFinite(ultimo)) {
+      //  Solo chi non ha mai avuto una consulenza: stato di primo contatto, nessuna data di
+      //  meet (passata o futura), nessun acconto.
+      if (!senzaConsulenza(d.stato) || nonVuoto(d.dataMeeting)) continue;
+      if (Number(d.payment?.accontoPagato) > 0) continue;
+      const dopo = (iso: unknown) => Date.parse(String(iso ?? "")) > ultimo;
+      //  Già scritto DOPO il ritorno (invio arrivato, cambio del secondo stato, «Contatta su
+      //  WhatsApp»): niente. Fa eccezione lo STOP, che si dice sempre.
+      const contattato =
+        dopo(d.contattoWa?.il) ||
+        dopo(d.ricarico?.whatsappIl) ||
+        (!!tel9 && arrivati(tel9).some((i) => dopo(i.prenotatoIl)));
+      if (contattato && d.contattoWa?.stato !== "stop") continue;
+      if (nonPuo(PREFISSO_RITORNO)) continue;
+      const chiave = `r|${tel9}|${d.ricarico?.ultimo}`;
+      if (chiaveGiaPresa(invii, chiave)) continue;
+      const campi = campiRitorno(d);
+      presi.add(tel9);
+      if (campi.tipo === "salta") salta(PREFISSO_RITORNO, campi.motivo);
+      else candidati.push({ scheda, tel9, chiave, quale: "ritorno", quando: ultimo });
+      continue;
+    }
+
+    //  ── Importato mai contattato ────────────────────────────────────────────
+    if (!eImportato(scheda) || d.stato !== "da_contattare" || nonVuoto(d.dataMeeting)) continue;
+    //  Qualunque secondo stato è «già in chat / già scritto». Due eccezioni: STOP (si dice) e
+    //  «non raggiungibile», che lascia il posto a UN ritentativo (sotto).
+    const staScritto = d.contattoWa?.stato;
+    if (staScritto && staScritto !== "non_raggiungibile" && staScritto !== "stop") continue;
+    if (nonPuo(PREFISSO_IMPORTATO)) continue;
+    if (arrivati(tel9).length > 0) continue;
+    const base = `n|${tel9}`;
+    const primo = invii.find((i) => i.chiave === base);
+    let chiave = base;
+    if (primo) {
+      if (primo.stato !== "fallito" || chiaveGiaPresa(invii, `${base}|r`)) continue;
+      chiave = `${base}|r`;
+    }
+    if (staScritto === "non_raggiungibile" && chiave === base) continue;
+    const campi = campiPrimoContatto(d);
+    presi.add(tel9);
+    if (campi.tipo === "salta") {
+      salta(PREFISSO_IMPORTATO, campi.motivo);
+      continue;
+    }
+    const entrata = Date.parse(
+      String(d.origineIngresso?.il ?? d.listaOrigine?.il ?? d.createdAt ?? ""),
+    );
+    candidati.push({
+      scheda,
+      tel9,
+      chiave,
+      quale: "primo_contatto",
+      quando: Number.isFinite(entrata) ? entrata : 0,
+    });
+  }
+
+  //  I ritorni prima, poi gli importati; dentro ciascuno il più recente per primo.
+  candidati.sort(
+    (a, b) =>
+      Number(b.quale === "ritorno") - Number(a.quale === "ritorno") ||
+      b.quando - a.quando ||
+      a.scheda.id.localeCompare(b.scheda.id),
+  );
+  const parte = primoIstanteUtile(adesso);
+  //  Ogni messaggio che parte occupa un posto nei tetti: oltre, si aspetta domani.
+  let emessi = gia;
+  for (const k of candidati) {
+    const prefisso = k.quale === "ritorno" ? PREFISSO_RITORNO : PREFISSO_IMPORTATO;
+    const aspetta = (motivo: string) =>
+      uscita.push({ tipo: "aspetta", scheda: k.scheda, motivo: prefisso + motivo });
+    if (parte.getTime() > ora) {
+      aspetta(quandoParte(parte));
+    } else if (leadNuoviOggi + emessi >= tetti.leadNuovi) {
+      aspetta("tetto dei lead nuovi di oggi raggiunto: se ne parla domani");
+    } else if (totaleOggi + emessi >= totaleSenzaRiserva(tetti.totale)) {
+      aspetta("tetto di messaggi di oggi raggiunto: se ne parla domani");
+    } else if (inPausa(invii, k.tel9, adesso)) {
+      aspetta(FRASE_PAUSA);
+    } else {
+      emessi++;
+      uscita.push({
+        tipo: "invia",
+        scheda: k.scheda,
+        chiave: k.chiave,
+        extra: { quale: k.quale, tel9: k.tel9 },
+      });
+    }
+  }
   return [...uscita, ...salti];
 }
 

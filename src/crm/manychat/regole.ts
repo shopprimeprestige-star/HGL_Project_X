@@ -182,13 +182,14 @@ export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "conferma",
   "primo_contatto",
   "richiamo_24h",
+  "ritorno",
   "meet_oggi",
   "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
 ];
-/** Quelli che contano nei tetti: i nove del giro (la conferma parte da un'altra
+/** Quelli che contano nei tetti: i dieci del giro (la conferma parte da un'altra
  *  strada, subito dopo la prenotazione, e non ha tetto). */
 export const TIPI_NEI_TETTI: InvioPerFreno["tipo"][] = TIPI_AUTOMATICI.filter(
   (t) => t !== "conferma",

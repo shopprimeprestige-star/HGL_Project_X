@@ -394,6 +394,7 @@ export const MODELLI_FLUSSO: { modello: string; etichetta: string }[] = [
 export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] = [
   { modello: "hgl_primo_contatto", etichetta: "Lead nuovo: primo messaggio" },
   { modello: "hgl_richiamo_24h", etichetta: "Lead nuovo: richiamo dopo 24 ore" },
+  { modello: "hgl_ritorno", etichetta: "Lead nuovo: messaggio di ritorno" },
   { modello: "hgl_meet_oggi", etichetta: "Giorno del meet: messaggio del mattino" },
   { modello: "hgl_meet_domani", etichetta: "Giorno del meet: promemoria 24 ore prima" },
   { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
@@ -411,7 +412,7 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
  *  shortcut: stesso valore di `TETTO_LEAD_NUOVI` in `quando.ts`, che lo aggiunge
  *  il compito Q; dopo la fusione si importa da lì e questa riga sparisce (la
  *  prova li confronta appena esiste). */
-export const TETTO_LEAD_NUOVI = 30;
+export const TETTO_LEAD_NUOVI = 100;
 
 /** Gli stati con un messaggio automatico (PIANO §5g), nell'ordine del riquadro.
  *  Un interruttore per riga, spento di serie, in `manychat_config.stati`.
@@ -544,6 +545,7 @@ export const ETICHETTA_TIPO: Record<string, string> = {
   conferma: "conferma",
   primo_contatto: "primo contatto",
   richiamo_24h: "richiamo dopo 24 ore",
+  ritorno: "messaggio di ritorno",
   meet_oggi: "meet di oggi",
   meet_domani: "meet 24 ore prima",
   meet_adesso: "meet all'ora",
