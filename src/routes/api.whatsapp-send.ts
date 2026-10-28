@@ -14,7 +14,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { corpoGraph, inviaWhatsapp, rispostaChat } from "@/crm/manychat/porta";
-import { leggiCanale, nomeDelLead, portePortaVere } from "@/crm/manychat/porta.server";
+import { leggiCanale, nomeDelLead, portePortaVere, segnaRispostoDalCrm } from "@/crm/manychat/porta.server";
 
 // Cast helper: i tipi generati per whatsapp_messages/whatsapp_contacts non includono ancora
 // tutti i campi nuovi (user_id ecc.). Uso un client untyped per le insert/upsert.
@@ -115,6 +115,8 @@ export const Route = createFileRoute("/api/whatsapp-send")({
           });
           // Nei log solo il codice dell'esito: mai numero, testo o nome.
           if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");
+          //  Partito davvero: il cliente esce da «Da rispondere». Non cambia la risposta se fallisce.
+          else await segnaRispostoDalCrm(userId, to);
           const { status, corpo } = rispostaChat(r);
           return Response.json(corpo, { status });
         }

@@ -309,9 +309,11 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
   );
   const rotta = readFileSync(join(radice, "src/routes/api.crm.whatsapp-canale.ts"), "utf8");
   c(
-    'la rotta del canale sta dietro guardiaCRM("impostazioni")',
+    //  Commessa 2026-10-28 (chat nel CRM, D13): la leggono anche i setter. Il riquadro
+    //  «Prova i modelli» resta per «impostazioni» (qui sopra); vedi chat-uscita.mjs.
+    'la rotta del canale sta dietro guardiaCRM("lead.propri")',
     true,
-    /guardiaCRM\(request, cors, "impostazioni"\)/.test(rotta),
+    /guardiaCRM\(request, cors, "lead\.propri"\)/.test(rotta),
   );
 
   gruppo("PROVA I MODELLI · I MODELLI DI MANYCHAT");
