@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { anteprimaTesto } from "@/crm/prova-modelli";
 import type { MetaTemplate } from "@/crm/wa-meta-templates";
@@ -44,7 +43,8 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
       if (!controllo.ok || inviando) return;
       onInvia({ nome: scelto.name, lingua: scelto.language, parametri: controllo.valori }).then(
         () => setScelto(null),
-        () => toast.error("Invio non riuscito: riprova."),
+        //  L'errore lo mostra già l'hook (toast con la frase giusta): qui si resta sull'anteprima.
+        () => {},
       );
     };
     return (
@@ -54,7 +54,7 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
             type="button"
             variant="ghost"
             size="icon"
-            className="h-9 w-9 -ml-2 shrink-0"
+            className="h-11 w-11 -ml-2 shrink-0"
             onClick={() => setScelto(null)}
             disabled={inviando}
             aria-label="Cambia modello"

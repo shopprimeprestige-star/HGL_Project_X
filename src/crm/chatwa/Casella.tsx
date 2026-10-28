@@ -101,7 +101,7 @@ export function Casella({ api }: CasellaProps) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              void invia();
+              if (!inviando) void invia();
             }
           }}
           placeholder={
