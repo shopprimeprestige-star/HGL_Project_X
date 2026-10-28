@@ -127,6 +127,12 @@ export interface PorteRispostaManychat {
       nome: string | null;
     },
   ): Promise<void>;
+  /** (28/10/2026) la notifica push ai telefoni dello studio per un messaggio
+   *  nuovo. Facoltativa: chi non la dà (le prove) non avvisa nessuno. Non lancia. */
+  avvisaNuovo?(
+    userId: string,
+    x: { telefono: string; leadId: string | null; nome: string | null },
+  ): Promise<void>;
   /** le porte di `rispostaAlPromemoria` (conferma del 22/10 e STOP) */
   conferma(userId: string, telefono: string, adesso: Date): PorteConferma;
   /** (compito 3) `manychat_risposta_arrivata`: l'ora della risposta sull'invio
@@ -276,6 +282,11 @@ async function tratta(
       porte.avviso(`errore (${codiceErrore(e)}): secondo stato non scritto`);
     }
   }
+  //  Il telefono dello studio suona (solo nome, mai il testo): per ULTIMO, così
+  //  conferma e STOP non aspettano la notifica. Un guasto qui non cambia niente.
+  await porte
+    .avvisaNuovo?.(userId, { telefono, leadId, nome: corpo.nome || null })
+    .catch(() => undefined);
   return esito === "niente" ? "registrata" : esito;
 }
 

@@ -14,19 +14,17 @@
  *  l'HTML di questo progetto è già dichiarato `no-cache` apposta (`_headers` e
  *  gli header della rotta radice). Qui si fanno solo le notifiche.
  *
- *  ⚠️ COSA MANCA PER LE NOTIFICHE A TELEFONO CHIUSO
- *  Il gestore `push` qui sotto è pronto ma DORMIENTE: non riceverà mai niente
- *  finché non esiste un servizio che le manda dal server (chiavi VAPID +
- *  `pushManager.subscribe` + un endpoint che spedisce). Oggi le notifiche
- *  nascono nella pagina, quindi arrivano solo mentre il CRM è aperto. È scritto
- *  anche nella pagina Notifiche, perché nessuno resti ad aspettare un avviso
- *  che non può partire.
+ *  LE NOTIFICHE A TELEFONO CHIUSO (dal 28/10/2026)
+ *  Il gestore `push` qui sotto riceve gli avvisi che il server spedisce quando
+ *  arriva un messaggio WhatsApp (src/crm/push: chiavi VAPID, iscrizioni nella
+ *  tabella push_iscrizioni, rotta /api/crm/push). Gli altri avvisi nascono
+ *  ancora nella pagina e arrivano solo mentre il CRM è aperto.
  *  ────────────────────────────────────────────────────────────────────────── */
 
 /** Cambiare questo numero è il modo di forzare l'aggiornamento del worker sui
  *  dispositivi che ce l'hanno già installato: il file cambia, il browser se ne
  *  accorge e reinstalla. */
-const VERSIONE = "hg-notifiche-1";
+const VERSIONE = "hg-notifiche-2";
 
 /** Il canale dei messaggi verso la pagina. Un nome esplicito perché sulla
  *  stessa origine possono viaggiare messaggi di altri (estensioni, strumenti di
@@ -140,15 +138,11 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-/* ── LE NOTIFICHE DAL SERVER (non attive) ──────────────────────────────────── */
+/* ── LE NOTIFICHE DAL SERVER (messaggi WhatsApp, dal 28/10/2026) ──────────────────────────────────── */
 
-/** ⚠️ DORMIENTE. Perché scatti serve, dalla parte del server:
- *    · una coppia di chiavi VAPID;
- *    · `pushManager.subscribe()` nella pagina e l'iscrizione salvata a database;
- *    · un processo che, quando succede qualcosa, spedisce il messaggio.
- *  Nessuno dei tre esiste oggi. Il gestore resta qui perché il giorno in cui
- *  quel servizio verrà scritto questa parte è già al posto giusto — non perché
- *  faccia qualcosa adesso. */
+/** Attivo dal 28/10/2026: il server manda { titolo, corpo, chiave, destinazione }
+ *  (src/crm/push/avviso.ts). La `chiave` (tag) fa sì che più messaggi della
+ *  stessa persona aggiornino una sola notifica invece di accumularsene tre. */
 self.addEventListener("push", (event) => {
   let dati = {};
   try {
@@ -162,6 +156,9 @@ self.addEventListener("push", (event) => {
       icon: "/icone/hg-192.png",
       badge: "/icone/hg-192.png",
       tag: dati.chiave || undefined,
+      // Con lo stesso tag la notifica si sostituisce in silenzio: per un
+      // messaggio nuovo il telefono deve comunque suonare.
+      renotify: !!dati.chiave,
       data: dati,
     }),
   );

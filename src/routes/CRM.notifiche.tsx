@@ -50,6 +50,7 @@ import {
 import { cn } from "@/lib/utils";
 import { provaSuono } from "@/crm/suoni-crm";
 import { AttivaNotifiche } from "@/crm/notifications/AttivaNotifiche";
+import { NotificheDalServer } from "@/crm/push/NotificheDalServer";
 import {
   CATALOGO,
   GRUPPI,
@@ -537,21 +538,13 @@ function SulTelefono() {
         per la scheda del browser.
       </p>
 
-      {/* Il colore è un segnale: ambra perché è un limite da conoscere, non un
-          guasto da riparare. */}
-      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
-        <p className="text-[12px] font-semibold leading-tight text-amber-900">
-          Fin dove arrivano, oggi
-        </p>
-        <p className="mt-1 text-[11.5px] leading-snug text-amber-900/80">
-          Gli avvisi li calcola il CRM mentre è aperto, anche in secondo piano. Con il CRM chiuso o
-          il telefono bloccato da un po&apos;{" "}
-          <span className="font-semibold">non arriva niente</span>: per quello servirebbe un invio
-          dal server (web push con chiavi VAPID, iscrizione salvata a database e un processo che
-          spedisce). Non è ancora stato fatto. Le notifiche del giorno le trovi comunque qui e nella
-          campanella appena riapri.
-        </p>
-      </div>
+      {/*  Dal 28/10/2026 il server avvisa dei messaggi WhatsApp anche a CRM
+          chiuso (crm/push). Gli altri avvisi nascono ancora nella pagina. */}
+      <NotificheDalServer />
+      <p className="mt-2 text-[11.5px] leading-snug text-muted-foreground">
+        Gli altri avvisi (appuntamenti, richiami) li calcola il CRM mentre è aperto, anche in
+        secondo piano: con il CRM chiuso arrivano solo i messaggi WhatsApp.
+      </p>
     </Scheda>
   );
 }

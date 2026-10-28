@@ -370,6 +370,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    //  Chi esce non riceve più le notifiche dei messaggi su questo dispositivo
+    //  (un telefono condiviso non deve mostrare i nomi a chi viene dopo). Prima
+    //  di chiudere la sessione: la rotta vuole sapere chi è. Al massimo 2 s.
+    await Promise.race([
+      import("@/crm/push/iscrizione").then((m) => m.togliQuesto()),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]).catch(() => undefined);
     const token = consulente?.token;
     impostaConsulente(null);
     // La riga di sessione sul server si chiude senza aspettare la risposta:

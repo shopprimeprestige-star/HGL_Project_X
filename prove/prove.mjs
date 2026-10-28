@@ -467,6 +467,9 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
+  "push/webpush",
+  "push/avviso",
   //  ⚠️ Orari rapidi e stelle nella chat WhatsApp: vedi proveDiWhatsappOrariStelle.
   "wa-orari",
   //  ⚠️ Il modello inviato come lo legge il cliente: vedi proveDelTestoDeiModelli.
@@ -20474,6 +20477,78 @@ function proveDiWhatsappOrariStelle() {
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
 }
 
+
+/** ── LE NOTIFICHE PUSH DEI MESSAGGI WHATSAPP (28/10/2026) ──────────────────
+ *  La cifratura si prova con l'esempio ufficiale (RFC 8291, Appendice A): se
+ *  sbaglia anche un byte il risultato non coincide e il telefono non decifra. */
+async function proveDelleNotifichePush() {
+  gruppo("NOTIFICHE PUSH: CIFRATURA E FIRMA COME DA STANDARD");
+  const W = mod["push/webpush"];
+  const R = {
+    testo: "When I grow up, I want to be a watermelon",
+    asPriv: "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw",
+    asPub: "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8",
+    uaPriv: "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94",
+    uaPub: "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+    auth: "BTBZMqHH6r4Tts7J_aSIgg",
+    sale: "DGv6ra1nlYgDCS1FRnbzlw",
+    corpo: "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN",
+  };
+  const cifrato = await W.cifra({ uaPubblica: R.uaPub, auth: R.auth, testo: R.testo, coppia: await W.coppiaDa(R.asPriv, R.asPub), sale: W.daB64url(R.sale) });
+  c("cifratura identica all'esempio di RFC 8291", R.corpo, W.aB64url(cifrato));
+  c("l'esempio ufficiale si decifra", R.testo, await W.decifra({ corpo: W.daB64url(R.corpo), uaPrivata: R.uaPriv, uaPubblica: R.uaPub, auth: R.auth }));
+  const nuovo = await W.cifra({ uaPubblica: R.uaPub, auth: R.auth, testo: '{"titolo":"WhatsApp"}' });
+  c("con chiavi nuove: andata e ritorno", '{"titolo":"WhatsApp"}', await W.decifra({ corpo: nuovo, uaPrivata: R.uaPriv, uaPubblica: R.uaPub, auth: R.auth }));
+  c("ogni messaggio ha sale e chiave nuovi", false, W.aB64url(nuovo).slice(0, 30) === W.aB64url(await W.cifra({ uaPubblica: R.uaPub, auth: R.auth, testo: '{"titolo":"WhatsApp"}' })).slice(0, 30));
+  //  La firma VAPID: si verifica con la chiave pubblica (coppia d'esempio dell'RFC: uaPriv/uaPub).
+  const v = { pubblica: R.uaPub, privata: R.uaPriv, soggetto: "mailto:prova@example.com" };
+  const h = await W.firmaVapid("https://web.push.apple.com/abc", v, Date.UTC(2026, 9, 28));
+  const [, jwt, k] = /^vapid t=([^,]+), k=(.+)$/.exec(h) ?? [];
+  const [testa, corpoJwt, firma] = String(jwt).split(".");
+  const dati = JSON.parse(new TextDecoder().decode(W.daB64url(corpoJwt)));
+  c("VAPID: aud è l'origine del servizio, sub il contatto, scade fra 12 ore", ["https://web.push.apple.com", "mailto:prova@example.com", Date.UTC(2026, 9, 28) / 1000 + 43200], [dati.aud, dati.sub, dati.exp]);
+  c("VAPID: k è la chiave pubblica", R.uaPub, k);
+  const pub = await crypto.subtle.importKey("raw", W.daB64url(R.uaPub), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  c("VAPID: la firma ES256 è valida", true, await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, W.daB64url(firma), new TextEncoder().encode(`${testa}.${corpoJwt}`)));
+
+  gruppo("NOTIFICHE PUSH: COSA DICE E A CHI");
+  const A = mod["push/avviso"];
+  const av = A.avvisoWhatsapp({ telefono: "+39 333 000 0000", nomeScheda: "Mario Esempio", nomeProfilo: "Mario WA" });
+  c("solo chi ha scritto, mai il testo", { titolo: "WhatsApp", corpo: "Mario Esempio ti ha scritto", chiave: "wa:330000000", destinazione: "/CRM/whatsapp" }, av);
+  c("senza scheda: il nome del profilo", "Mario WA ti ha scritto", A.avvisoWhatsapp({ telefono: "3330000000", nomeProfilo: "Mario WA" }).corpo);
+  c("senza nomi: «Un numero nuovo»", "Un numero nuovo ti ha scritto", A.avvisoWhatsapp({ telefono: "3330000000" }).corpo);
+  c("chiavi mancanti: notifiche spente, niente errori", null, A.chiaviDaAmbiente({}));
+  c("chiavi presenti: soggetto dall'email dello studio", "mailto:studio@example.com", A.chiaviDaAmbiente({ VAPID_PUBLIC_KEY: "x", VAPID_PRIVATE_KEY: "y", CRM_ADMIN_EMAIL: "studio@example.com" })?.soggetto);
+  const k65 = R.uaPub, a16 = R.auth;
+  const ok = (endpoint) => A.iscrizioneValida({ endpoint, keys: { p256dh: k65, auth: a16 } });
+  c("iscrizione Apple valida", true, !!ok("https://web.push.apple.com/QGx…abc"));
+  c("iscrizione Google valida", true, !!ok("https://fcm.googleapis.com/fcm/send/abc"));
+  c("indirizzo qualsiasi: rifiutato (il server non chiama chi vuoi)", null, ok("https://esempio.test/raccogli"));
+  c("finto Apple dentro un altro dominio: rifiutato", null, ok("https://web.push.apple.com.esempio.test/x"));
+  c("http invece di https: rifiutato", null, ok("http://fcm.googleapis.com/fcm/send/abc"));
+  c("chiavi mancanti: rifiutata", null, A.iscrizioneValida({ endpoint: "https://fcm.googleapis.com/x" }));
+
+  gruppo("NOTIFICHE PUSH: CHI LE MANDA");
+  const hook = readFileSync(join(radice, "src/routes/api.public.whatsapp-webhook.ts"), "utf8");
+  const ris = readFileSync(join(radice, "src/crm/manychat/risposta.ts"), "utf8");
+  const rotta = readFileSync(join(radice, "src/routes/api.crm.push.ts"), "utf8");
+  const sql = readFileSync(join(radice, "supabase/migrations/20261028170000_push_iscrizioni.sql"), "utf8");
+  c("webhook di Meta: avvisa solo se il messaggio è nuovo", true, /if \(!nuovo\.error\)\s*await avvisaMessaggioWhatsapp/.test(hook));
+  c("ManyChat: avvisa dopo aver registrato, senza fermare il resto", true, /\.avvisaNuovo\?\.\(userId[\s\S]{0,120}\.catch\(\(\) => undefined\)/.test(ris));
+  c("la rotta decide l'installazione dalla sessione, non dal corpo", true, /const userId = g\.chi\.adminUserId/.test(rotta) && !/corpo\.userId|corpo\.user_id/.test(rotta));
+  const inv = readFileSync(join(radice, "src/crm/push/invio.server.ts"), "utf8");
+  c("un consulente tolto (PIN spento o scheda spenta) non riceve più e si cancella", true,
+    /consultant_pins[\s\S]{0,120}\.eq\("active", true\)/.test(inv) && /attivo === false/.test(inv) && /delete\(\)\.in\("id", daTogliere\)/.test(inv) && /attive\.map\(async/.test(inv));
+  c("niente rinvii seguiti alla cieca (redirect manuale)", true, /redirect: "manual"/.test(inv));
+  c("un indirizzo di un'altra installazione non si sovrascrive", true, /gia\.data && gia\.data\.user_id !== userId/.test(rotta));
+  c("la notifica parte dopo la conferma SÌ/STOP", true, /rispostaAlPromemoria\([\s\S]{0,1200}if \(!nuovo\.error\)/.test(hook));
+  const motore = readFileSync(join(radice, "src/crm/notifications/motore.ts"), "utf8");
+  const auth = readFileSync(join(radice, "src/crm/AuthContext.tsx"), "utf8");
+  c("all'apertura del CRM l'iscrizione si rinnova", true, /m\.rinnovaQuesto\(\)/.test(motore));
+  c("uscendo dal CRM il dispositivo si toglie", true, /m\.togliQuesto\(\)/.test(auth));
+  c("la tabella è solo del server (RLS senza politiche)", true, /ENABLE ROW LEVEL SECURITY/.test(sql) && !/CREATE POLICY/.test(sql) && /REVOKE ALL/.test(sql));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20584,6 +20659,7 @@ await proveSheets(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
 proveDiWhatsappOrariStelle();
+await proveDelleNotifichePush();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -20848,7 +20924,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("push_iscrizioni")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
