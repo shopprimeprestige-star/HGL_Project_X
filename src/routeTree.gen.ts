@@ -92,6 +92,7 @@ import { Route as CRMFattureRouteImport } from './routes/CRM.fatture'
 import { Route as CRMDafareRouteImport } from './routes/CRM.dafare'
 import { Route as CRMContabilitaRouteImport } from './routes/CRM.contabilita'
 import { Route as CRMConsulentiRouteImport } from './routes/CRM.consulenti'
+import { Route as CRMChatRouteImport } from './routes/CRM.chat'
 import { Route as CRMCampagneTiktokRouteImport } from './routes/CRM.campagne-tiktok'
 import { Route as CRMCampagneMetaRouteImport } from './routes/CRM.campagne-meta'
 import { Route as CRMBlogRouteImport } from './routes/CRM.blog'
@@ -616,6 +617,11 @@ const CRMContabilitaRoute = CRMContabilitaRouteImport.update({
 const CRMConsulentiRoute = CRMConsulentiRouteImport.update({
   id: '/consulenti',
   path: '/consulenti',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMChatRoute = CRMChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMCampagneTiktokRoute = CRMCampagneTiktokRouteImport.update({
@@ -1209,6 +1215,7 @@ export interface FileRoutesByFullPath {
   '/CRM/blog': typeof CRMBlogRoute
   '/CRM/campagne-meta': typeof CRMCampagneMetaRoute
   '/CRM/campagne-tiktok': typeof CRMCampagneTiktokRoute
+  '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
   '/CRM/dafare': typeof CRMDafareRoute
@@ -1400,6 +1407,7 @@ export interface FileRoutesByTo {
   '/CRM/blog': typeof CRMBlogRoute
   '/CRM/campagne-meta': typeof CRMCampagneMetaRoute
   '/CRM/campagne-tiktok': typeof CRMCampagneTiktokRoute
+  '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
   '/CRM/dafare': typeof CRMDafareRoute
@@ -1593,6 +1601,7 @@ export interface FileRoutesById {
   '/CRM/blog': typeof CRMBlogRoute
   '/CRM/campagne-meta': typeof CRMCampagneMetaRoute
   '/CRM/campagne-tiktok': typeof CRMCampagneTiktokRoute
+  '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
   '/CRM/dafare': typeof CRMDafareRoute
@@ -1789,6 +1798,7 @@ export interface FileRouteTypes {
     | '/CRM/blog'
     | '/CRM/campagne-meta'
     | '/CRM/campagne-tiktok'
+    | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
     | '/CRM/dafare'
@@ -1980,6 +1990,7 @@ export interface FileRouteTypes {
     | '/CRM/blog'
     | '/CRM/campagne-meta'
     | '/CRM/campagne-tiktok'
+    | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
     | '/CRM/dafare'
@@ -2172,6 +2183,7 @@ export interface FileRouteTypes {
     | '/CRM/blog'
     | '/CRM/campagne-meta'
     | '/CRM/campagne-tiktok'
+    | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
     | '/CRM/dafare'
@@ -3071,6 +3083,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CRMConsulentiRouteImport
       parentRoute: typeof CRMRoute
     }
+    '/CRM/chat': {
+      id: '/CRM/chat'
+      path: '/chat'
+      fullPath: '/CRM/chat'
+      preLoaderRoute: typeof CRMChatRouteImport
+      parentRoute: typeof CRMRoute
+    }
     '/CRM/campagne-tiktok': {
       id: '/CRM/campagne-tiktok'
       path: '/campagne-tiktok'
@@ -3871,6 +3890,7 @@ interface CRMRouteChildren {
   CRMBlogRoute: typeof CRMBlogRoute
   CRMCampagneMetaRoute: typeof CRMCampagneMetaRoute
   CRMCampagneTiktokRoute: typeof CRMCampagneTiktokRoute
+  CRMChatRoute: typeof CRMChatRoute
   CRMConsulentiRoute: typeof CRMConsulentiRoute
   CRMContabilitaRoute: typeof CRMContabilitaRoute
   CRMDafareRoute: typeof CRMDafareRoute
@@ -3905,6 +3925,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMBlogRoute: CRMBlogRoute,
   CRMCampagneMetaRoute: CRMCampagneMetaRoute,
   CRMCampagneTiktokRoute: CRMCampagneTiktokRoute,
+  CRMChatRoute: CRMChatRoute,
   CRMConsulentiRoute: CRMConsulentiRoute,
   CRMContabilitaRoute: CRMContabilitaRoute,
   CRMDafareRoute: CRMDafareRoute,
