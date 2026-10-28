@@ -2194,7 +2194,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
     /** un contatto di ritorno: il ricarico è salito oggi alle 14:00 Roma */
     const ritorno = (id, n, extra) =>
       importato(id, n, {
-        stato: "da_ricontattare",
+        stato: "non_risponde",
         ricarico: { volte: 2, ultimo: "2026-10-23T12:00:00.000Z", daDecidere: true },
         ...extra,
       });

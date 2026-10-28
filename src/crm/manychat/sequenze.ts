@@ -45,7 +45,7 @@
  *   - se la consulenza è stata fissata meno di 24 ore prima dell'inizio non parte
  *     (c'è già la conferma), e non dice niente.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { eAppuntamento, eChiusuraVinta } from "../types";
+import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento } from "../types";
 import { aRoma, oraNormale } from "../promemoria/formati";
 import { istanteDiRoma, scadenzaRicontatto } from "./contatto";
 import {
@@ -181,18 +181,15 @@ const nonVuoto = (v: unknown) => typeof v === "string" && v.trim() !== "";
 /** I messaggi che contano nel tetto dei lead nuovi. */
 const TIPI_LEAD_NUOVI: InvioPerFreno["tipo"][] = ["primo_contatto", "richiamo_24h", "ritorno"];
 
-/** Ha una consulenza ancora da fare? Una data illeggibile o senza ora, il giorno
- *  stesso, vale «sì» (nel dubbio non si scrive a chi ha un appuntamento). */
-function meetFuturo(d: Partial<SchedaQuando["data"]>, adesso: Date): boolean {
-  if (!nonVuoto(d.dataMeeting)) return false;
-  const giorno = giornoVero(d.dataMeeting);
-  if (!giorno) return true;
-  const { giorno: oggi } = aRoma(adesso);
-  if (giorno !== oggi) return giorno > oggi;
-  const hm = oraNormale(d.oraMeeting);
-  const inizio = hm ? istanteDiRoma(giorno, hm) : null;
-  return !inizio || inizio.getTime() > adesso.getTime();
-}
+/** Gli stati di chi la consulenza non l'ha mai avuta: quelli di primo contatto (`types.ts`)
+ *  senza gli appuntamenti. Il testo di `hgl_ritorno` chiede «Vuole fissare la consulenza
+ *  gratuita?»: a chi ne ha già avuta una (in chat, in valutazione, attesa acconto,
+ *  ricontatto fissato, no-show, clienti…) non si scrive. Stato assente = nuovo = sì. */
+const STATI_SENZA_CONSULENZA: string[] = STATI_PRIMO_CONTATTO.filter(
+  (s) => !STATI_APPUNTAMENTO.includes(s),
+);
+const senzaConsulenza = (stato: unknown) =>
+  !nonVuoto(stato) || STATI_SENZA_CONSULENZA.includes(String(stato));
 
 /** ── LEAD NUOVO: PRIMO CONTATTO E RICHIAMO A 24 ORE ─────────────────────── */
 export function decidiLeadNuovi(
@@ -413,8 +410,8 @@ export function decidiLeadNuovi(
  *  nessun secondo stato del contatto (già in chat / già scritto) e senza un invio
  *  ARRIVATO a quel numero (qualunque tipo, chat compresa). Una volta sola per numero;
  *  se l'unico `n|tel9` è «fallito» si ritenta UNA volta con `n|tel9|r`.
- *  Ritorno (`r|tel9|<ultimo ritorno>`): il `ricarico` è salito; non è un cliente, non
- *  ha un meet futuro, e dopo `ricarico.ultimo` nessuno gli ha scritto (invio arrivato,
+ *  Ritorno (`r|tel9|<ultimo ritorno>`): il `ricarico` è salito; non ha mai avuto una
+ *  consulenza (stato di primo contatto, nessuna `dataMeeting`, nessun acconto), e dopo `ricarico.ultimo` nessuno gli ha scritto (invio arrivato,
  *  cambio del secondo stato, «Contatta su WhatsApp»). Una volta per ritorno. Il freno
  *  «mai due senza risposta» non lo ferma: è lui che ci ha scritto.
  *  I ritorni passano avanti agli importati; uno stesso numero è UNA voce sola.
@@ -470,8 +467,10 @@ function decidiImportatiERitorni(
     //  ── Ritorno: se il `ricarico` è salito la scheda è sua, e basta ──────────
     const ultimo = Date.parse(String(d.ricarico?.ultimo ?? ""));
     if (Number.isFinite(ultimo)) {
-      if (eChiusuraVinta(d.stato) || Number(d.payment?.accontoPagato) > 0) continue;
-      if (meetFuturo(d, adesso)) continue;
+      //  Solo chi non ha mai avuto una consulenza: stato di primo contatto, nessuna data di
+      //  meet (passata o futura), nessun acconto.
+      if (!senzaConsulenza(d.stato) || nonVuoto(d.dataMeeting)) continue;
+      if (Number(d.payment?.accontoPagato) > 0) continue;
       const dopo = (iso: unknown) => Date.parse(String(iso ?? "")) > ultimo;
       //  Già scritto DOPO il ritorno (invio arrivato, cambio del secondo stato, «Contatta su
       //  WhatsApp»): niente. Fa eccezione lo STOP, che si dice sempre.

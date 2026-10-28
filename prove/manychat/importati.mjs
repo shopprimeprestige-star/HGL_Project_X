@@ -319,7 +319,7 @@ export async function proveImportati(mod, { c, gruppo, radice }) {
       data: {
         nome: "Dario",
         telefono: tel(n),
-        stato: "da_ricontattare",
+        stato: "non_risponde",
         importato: true,
         ricarico: { volte: 2, ultimo: ULTIMO, daDecidere: true, ...ricarico },
         ...extra,
@@ -376,13 +376,40 @@ export async function proveImportati(mod, { c, gruppo, radice }) {
       ],
     );
     c(
-      "meet futuro fissato → niente; meet di ieri → parte",
-      [[], [], ["invia"]],
+      "chi ha una data di meet, passata o futura, ha già avuto (o avrà) la consulenza → niente",
+      [[], [], []],
       [
         sec([rit("r-1", 1, { dataMeeting: "2026-10-29", oraMeeting: "16:00" })], MAR10),
         sec([rit("r-1", 1, { dataMeeting: "2026-10-27", oraMeeting: "18:00" })], MAR10),
-        tipi(sec([rit("r-1", 1, { dataMeeting: "2026-10-26", oraMeeting: "16:00" })], MAR10)),
+        sec([rit("r-1", 1, { dataMeeting: "2026-10-26", oraMeeting: "16:00" })], MAR10),
       ],
+    );
+    c(
+      "«Lead in chat» (gestire_in_chat) → niente: la setter lo sta già seguendo",
+      [],
+      sec([rit("r-1", 1, { stato: "gestire_in_chat" })], MAR10),
+    );
+    c(
+      "stati da consulenza in poi → niente (valutazione, attesa acconto, ricontatto fissato, appuntamento, in sede, no-show, fatto, preventivo muto, ripensamento)",
+      [[], [], [], [], [], [], [], [], []],
+      [
+        "sta_valutando",
+        "in_attesa_acconto",
+        "da_ricontattare",
+        "appuntamento_fissato",
+        "viene_in_sede",
+        "no_show",
+        "fatto",
+        "irreperibile",
+        "ripensamento",
+      ].map((stato) => sec([rit("r-1", 1, { stato })], MAR10)),
+    );
+    c(
+      "stati di primo contatto (da contattare, non risponde, segreteria, richiamo, ci ricontatta lui) → parte",
+      [["invia"], ["invia"], ["invia"], ["invia"], ["invia"]],
+      ["da_contattare", "non_risponde", "segreteria", "richiamo", "ci_ricontatta_lui"].map(
+        (stato) => tipi(sec([rit("r-1", 1, { stato })], MAR10)),
+      ),
     );
     c(
       "già contattato DOPO il ritorno (invio arrivato di qualunque tipo) → niente; PRIMA del ritorno → parte",
