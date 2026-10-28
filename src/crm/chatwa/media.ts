@@ -22,7 +22,14 @@ export const HOST_MEDIA_AMMESSI: readonly string[] = [
   "manybot-files.s3.amazonaws.com",
 ];
 
-export type TipoTesto = "testo" | "audio" | "immagine" | "video" | "documento" | "allegato" | "illeggibile";
+export type TipoTesto =
+  | "testo"
+  | "audio"
+  | "immagine"
+  | "video"
+  | "documento"
+  | "allegato"
+  | "illeggibile";
 
 export interface TestoClassificato {
   tipo: TipoTesto;
@@ -44,8 +51,17 @@ const PERCORSO = /^\/[^/]+\/wa\/\d{4}\/\d{2}\/\d{2}\/[^/]+$/;
 const SCHEMA_HTTPS = "https://";
 
 const ESTENSIONI: Record<string, Exclude<TipoTesto, "testo" | "illeggibile">> = {
-  ogg: "audio", oga: "audio", mp3: "audio", m4a: "audio", opus: "audio", aac: "audio", amr: "audio",
-  jpg: "immagine", jpeg: "immagine", png: "immagine", webp: "immagine",
+  ogg: "audio",
+  oga: "audio",
+  mp3: "audio",
+  m4a: "audio",
+  opus: "audio",
+  aac: "audio",
+  amr: "audio",
+  jpg: "immagine",
+  jpeg: "immagine",
+  png: "immagine",
+  webp: "immagine",
   mp4: "video",
   pdf: "documento",
 };
@@ -78,7 +94,15 @@ function leggiMedia(t: string): { tipo: TipoTesto; url: string } | null {
   }
   // Cintura e bretelle (ponytail): col controllo grezzo qui sopra questi sono già coperti; restano come
   // difesa in profondità se qualcuno allenta il passo 1 o 2. Non toglierli credendoli superflui.
-  if (url.protocol !== "https:" || url.hostname !== autorita || url.port || url.username || url.password || url.hash) return null;
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== autorita ||
+    url.port ||
+    url.username ||
+    url.password ||
+    url.hash
+  )
+    return null;
   // 3. il percorso (già normalizzato dal parser: i `..` sono spariti) ha la forma attesa, senza %2e %2f %5c.
   if (!PERCORSO.test(url.pathname) || /%2e|%2f|%5c/i.test(url.pathname)) return null;
   // 4. il tipo viene dall'estensione del file, in minuscolo.
@@ -92,7 +116,8 @@ function leggiMedia(t: string): { tipo: TipoTesto; url: string } | null {
 export function classificaTesto(testo: string): TestoClassificato {
   if (typeof testo !== "string") return { tipo: "testo", etichetta: "" };
   const t = testo.trim();
-  if (t === SENZA_TESTO || SEGNAPOSTO.test(t)) return { tipo: "illeggibile", etichetta: ETICHETTA_ILLEGGIBILE };
+  if (t === SENZA_TESTO || SEGNAPOSTO.test(t))
+    return { tipo: "illeggibile", etichetta: ETICHETTA_ILLEGGIBILE };
   const media = leggiMedia(t);
   if (media) return { tipo: media.tipo, url: media.url, etichetta: ETICHETTE[media.tipo] };
   return { tipo: "testo", etichetta: testo };
@@ -117,7 +142,10 @@ export function anteprimaIn(testo: string): string {
   const inizio = testo.slice(0, MAX_LETTURA);
   const pezzi: string[] =
     typeof Intl !== "undefined" && "Segmenter" in Intl
-      ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(inizio), (s) => s.segment)
+      ? Array.from(
+          new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(inizio),
+          (s) => s.segment,
+        )
       : Array.from(inizio);
   if (pezzi.length <= MAX_ANTEPRIMA && testo.length <= MAX_LETTURA) return testo;
   return pezzi.slice(0, MAX_ANTEPRIMA).join("") + "…";

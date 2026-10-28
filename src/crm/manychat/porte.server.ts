@@ -103,9 +103,9 @@ async function aggiornaContattoSenzaMigrazione(
 ): Promise<void> {
   const { data, error } = await db()
     .from("whatsapp_contacts")
-    .select<{ id: string; lead_id: string | null; unread_count: number | null }[]>(
-      "id, lead_id, unread_count",
-    )
+    .select<
+      { id: string; lead_id: string | null; unread_count: number | null }[]
+    >("id, lead_id, unread_count")
     .eq("user_id", userId)
     .in("phone_e164", formati(telefono))
     .limit(1);

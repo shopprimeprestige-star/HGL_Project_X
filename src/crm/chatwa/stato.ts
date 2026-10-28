@@ -12,7 +12,6 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eSoloSegnaposto } from "./media";
 
-
 /** Un istante: testo ISO, millisecondi o `Date`. */
 export type Istante = string | number | Date;
 
@@ -85,7 +84,7 @@ export function daRispondere(i: IngressoStato): DaRispondere {
       attesa,
       vecchia: false,
       dal: attesa ? (i.contatto?.ultimo_in_entrata_il as string) : null,
-      anteprima: attesa ? i.contatto?.ultimo_in_entrata_anteprima ?? null : null,
+      anteprima: attesa ? (i.contatto?.ultimo_in_entrata_anteprima ?? null) : null,
       fonte: "colonne",
     };
   }
@@ -104,7 +103,8 @@ export function daRispondere(i: IngressoStato): DaRispondere {
       }
     } else if (t > tOut) tOut = t;
   }
-  if (!ultimo || tOut >= tIn) return { attesa: false, vecchia: false, dal: null, anteprima: null, fonte: null };
+  if (!ultimo || tOut >= tIn)
+    return { attesa: false, vecchia: false, dal: null, anteprima: null, fonte: null };
 
   const oltre = adesso !== null && adesso - tIn > SETTE_GIORNI;
   return {
@@ -195,10 +195,9 @@ function cifre(s: string | null | undefined): string {
 }
 
 /** Collega una scheda al numero solo se ne combacia UNA (ultime 9 cifre, D18). */
-export function schedaUnica<L extends { phone?: string | null; data?: { telefono?: string | null } | null }>(
-  leads: L[],
-  telefono: string,
-): EsitoScheda<L> {
+export function schedaUnica<
+  L extends { phone?: string | null; data?: { telefono?: string | null } | null },
+>(leads: L[], telefono: string): EsitoScheda<L> {
   const x = cifre(telefono);
   // Sotto 8 cifre non si confronta: un numero corto combacerebbe con troppe schede.
   // (Non serve il controllo gemello sulla scheda: una più corta di `x` non può combaciare.)
@@ -215,12 +214,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Legge `?chat=` dall'indirizzo: solo un uuid, altro = ignorato (D21). */
 export function leggiRicercaChat(raw: Record<string, unknown>): { chat?: string } {
-  if (!raw || typeof raw !== "object" || !Object.prototype.hasOwnProperty.call(raw, "chat")) return {};
+  if (!raw || typeof raw !== "object" || !Object.prototype.hasOwnProperty.call(raw, "chat"))
+    return {};
   const v = raw.chat;
   return typeof v === "string" && UUID.test(v) ? { chat: v.toLowerCase() } : {};
 }
 
 /** Quante chat sono in attesa: il numeretto del menu (D25). */
 export function contaDaRispondere(contatti: ContattoStato[], adesso: Istante): number {
-  return contatti.filter((contatto) => daRispondere({ contatto, messaggi: [], adesso }).attesa).length;
+  return contatti.filter((contatto) => daRispondere({ contatto, messaggi: [], adesso }).attesa)
+    .length;
 }
