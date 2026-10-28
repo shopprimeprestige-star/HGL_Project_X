@@ -245,6 +245,24 @@ export async function proveLeadSemplice(mod, { c, gruppo }) {
   const mostrate = PIL.pilloleDaMostrare((id) => n0[id], undefined);
   c("con i dati di prova si vedono tutte e otto (nessuna è a zero)", PIL.PILLOLE, mostrate);
 
+  const zero = { scaduti: 0, scadutiTutte: 0, daParte: 0, daParteTutti: 0, ritorni: 0 };
+  /* ── toccare una pillola, e il numero di «Di ritorno» (revisore, checkpoint 2) ── */
+  gruppo("LEAD SEMPLICE · TOCCARE UNA PILLOLA, IL NUMERO DI «DI RITORNO»");
+  c("toccare una pillola spenta la accende", "daChiamare", PIL.statoAlTocco("daChiamare", undefined));
+  c("toccare quella accesa la spegne (si torna a «Tutta la coda»)", undefined, PIL.statoAlTocco("daChiamare", "daChiamare"));
+  c("toccarne un'altra passa all'altra", "mai", PIL.statoAlTocco("mai", "daChiamare"));
+  c("«Tutta la coda» spegne le altre", undefined, PIL.statoAlTocco("tutti", "whatsapp"));
+  c("con ?stato=promesse toccare una delle due passa a quella sola", ["richiamo", "ciRicontatta"],
+    [PIL.statoAlTocco("richiamo", "promesse"), PIL.statoAlTocco("ciRicontatta", "promesse")]);
+  c("…e toccare un'altra pillola passa a lei", "mai", PIL.statoAlTocco("mai", "promesse"));
+  c("«Di ritorno» = righe ritorno della lista + ritorni fuori lista", 2 + 3, PIL.numeroPillola("ritorno", FIL.opzioniFiltri(righe, {}, OGGI).stato, 3));
+  c("le altre pillole non sommano niente", n0.mai, PIL.numeroPillola("mai", FIL.opzioniFiltri(righe, {}, OGGI).stato, 3));
+  // Il numero dell'avviso «ritorni da decidere» è lo stesso della pillola (senza altri filtri).
+  const nRitorniFuori = 4;
+  const pillolaRitorno = PIL.numeroPillola("ritorno", FIL.opzioniFiltri(righe, {}, OGGI).stato, nRitorniFuori);
+  c("l'avviso «ritorni da decidere» dice quanto la pillola «Di ritorno»", pillolaRitorno,
+    AVV.avvisiPagina({ ...zero, ritorni: pillolaRitorno })[0].n);
+
   /* ═══ 5. «ATTESA WHATSAPP» GUARDA SOLO LO STATO ══════════════════════════ */
   gruppo("LEAD SEMPLICE · ATTESA WHATSAPP = LO STATO, NON IL TASTO PREMUTO");
   c("il tasto WhatsApp premuto (stato «da contattare») non basta", false, FIL.cadeNelloStato("prima", manuale.data, "whatsapp"));
@@ -255,7 +273,6 @@ export async function proveLeadSemplice(mod, { c, gruppo }) {
 
   /* ═══ 6. L'AVVISO, LA FRASE DEL GIRO ═════════════════════════════════════ */
   gruppo("LEAD SEMPLICE · UN SOLO AVVISO E LA FRASE DEL GIRO");
-  const zero = { scaduti: 0, scadutiTutte: 0, daParte: 0, daParteTutti: 0, ritorni: 0 };
   c("tutto a zero: nessuna voce, nessuna fascia", [[], ""], [AVV.avvisiPagina(zero), AVV.fraseAvvisi(AVV.avvisiPagina(zero))]);
   c("una sola cosa: una voce sola", ["scaduti"], AVV.avvisiPagina({ ...zero, scaduti: 2, scadutiTutte: 2 }).map((v) => v.chiave));
   const tre = AVV.avvisiPagina({ scaduti: 19, scadutiTutte: 23, daParte: 8, daParteTutti: 8, ritorni: 36 });

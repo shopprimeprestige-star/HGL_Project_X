@@ -106,7 +106,7 @@ export function filtriAccesi(f: FiltriLista): number {
 }
 
 /** Lo stesso filtro, ripulito: niente chiavi vuote nell'indirizzo. */
-function pulito(f: FiltriLista): FiltriLista {
+export function pulito(f: FiltriLista): FiltriLista {
   const out: FiltriLista = {};
   if (f.annuncio) out.annuncio = f.annuncio;
   if (f.risposte?.length) out.risposte = f.risposte;
@@ -124,8 +124,8 @@ function pulito(f: FiltriLista): FiltriLista {
     e senza il menu si aprirebbe nell'angolo della pagina. */
 const TastoMenu = forwardRef<
   HTMLButtonElement,
-  { nome: string; valore: string; acceso: boolean } & ComponentProps<typeof Button>
->(({ nome, valore, acceso, ...resto }, ref) => (
+  { nome: string; valore: string; acceso: boolean; alto?: boolean } & ComponentProps<typeof Button>
+>(({ nome, valore, acceso, alto, ...resto }, ref) => (
   <Button
     ref={ref}
     type="button"
@@ -133,6 +133,9 @@ const TastoMenu = forwardRef<
     variant="outline"
     className={cn(
       "h-9 max-w-[15rem] gap-1.5 text-[12px] font-normal sm:h-8",
+      //  Dentro il pannello «Filtra» (compito T4 di 2026-10-28): largo quanto il
+      //  pannello e alto almeno 44 px sul telefono.
+      alto && "h-11 w-full max-w-none justify-start text-[13px] sm:h-9",
       acceso && "border-foreground/40 bg-foreground/[0.05]",
     )}
     {...resto}
@@ -172,7 +175,7 @@ function VoceScelta({
       disabled={vuota}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12.5px] outline-none transition-colors",
+        "flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12.5px] outline-none transition-colors sm:min-h-0",
         "hover:bg-accent focus-visible:bg-accent disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent",
         rientro && "pl-6",
         scelta && "font-semibold",
@@ -194,7 +197,7 @@ function VoceScelta({
 
 /** Come si chiama, a parole, la voce scelta. Una chiave che nessuno ha più
  *  (annuncio spento da Meta) esiste comunque in `opzioni`, a zero. */
-function nomeAnnuncio(chiave: string, opzioni: OpzioniFiltri): string {
+export function nomeAnnuncio(chiave: string, opzioni: OpzioniFiltri): string {
   for (const g of opzioni.annuncio) {
     if (g.chiave === chiave) return g.gruppo;
     const a = g.annunci.find((x) => x.chiave === chiave);
@@ -208,10 +211,13 @@ export function MenuAnnuncio({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const [aperto, setAperto] = useState(false);
   const totale = opzioni.annuncio.reduce((t, g) => t + g.n, 0);
@@ -223,6 +229,7 @@ export function MenuAnnuncio({
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
         <TastoMenu
+          alto={alto}
           nome="Annuncio"
           valore={filtri.annuncio ? nomeAnnuncio(filtri.annuncio, opzioni) : "tutti"}
           acceso={!!filtri.annuncio}
@@ -273,7 +280,7 @@ export function MenuAnnuncio({
 
 const campoDi = (chiave: string) => chiave.slice(0, chiave.indexOf("|"));
 
-function etichettaRispostaScelta(chiave: string, opzioni: OpzioniFiltri): string {
+export function etichettaRispostaScelta(chiave: string, opzioni: OpzioniFiltri): string {
   for (const r of opzioni.risposte) {
     const v = r.voci.find((x) => x.chiave === chiave);
     if (v) return `${r.titolo}: ${v.etichetta}`;
@@ -285,10 +292,13 @@ export function MenuRisposta({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const scelte = filtri.risposte ?? [];
   /*  Premendo una voce si accende; premendola di nuovo si spegne; premendone
@@ -309,7 +319,7 @@ export function MenuRisposta({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <TastoMenu nome="Risposta" valore={valore} acceso={scelte.length > 0} />
+        <TastoMenu alto={alto} nome="Risposta" valore={valore} acceso={scelte.length > 0} />
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-[60vh] w-80 overflow-y-auto p-1">
         {opzioni.risposte.length === 0 ? (
@@ -358,10 +368,13 @@ export function MenuOrigine({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const [aperto, setAperto] = useState(false);
   const totale = opzioni.origine.reduce((t, v) => t + v.n, 0);
@@ -373,6 +386,7 @@ export function MenuOrigine({
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
         <TastoMenu
+          alto={alto}
           nome="Origine"
           valore={filtri.origine ? NOME_VIA[filtri.origine] : "tutte"}
           acceso={!!filtri.origine}
@@ -472,14 +486,17 @@ function PulsantiStato({
 /** «Quando ho messo lo stato»: le segreterie di ieri, i non risponde di oggi.
  *  Resta un menu: si usa meno, e accanto ai pulsanti dello stato si legge come
  *  la loro seconda metà. */
-function MenuQuando({
+export function MenuQuando({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const quando = filtri.quando ?? "sempre";
   const nQuando = (v: FettaTempo) => opzioni.quando.find((x) => x.valore === v)?.n ?? 0;
@@ -487,6 +504,7 @@ function MenuQuando({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <TastoMenu
+          alto={alto}
           nome="Quando"
           valore={NOME_FETTA_TEMPO[quando].toLowerCase()}
           acceso={quando !== "sempre"}
@@ -506,7 +524,7 @@ function MenuQuando({
               value={v}
               title={SPIEGA_FETTA_TEMPO[v]}
               disabled={nQuando(v) === 0 && quando !== v}
-              className="text-[12.5px]"
+              className="min-h-11 text-[12.5px] sm:min-h-0"
             >
               <span className="flex-1">{NOME_FETTA_TEMPO[v]}</span>
               <span className="ml-3 tabular-nums text-muted-foreground">{nQuando(v)}</span>
@@ -522,13 +540,13 @@ function MenuQuando({
    LA BARRA: I TRE MENU, LE ETICHETTE ACCESE, «AZZERA FILTRI»
    ═════════════════════════════════════════════════════════════════════════ */
 
-function Etichetta({ testo, onToglie }: { testo: string; onToglie: () => void }) {
+export function Etichetta({ testo, onToglie }: { testo: string; onToglie: () => void }) {
   return (
     <button
       type="button"
       onClick={onToglie}
       title="Togli questo filtro"
-      className="inline-flex max-w-[18rem] items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pl-2.5 pr-1.5 text-[11.5px] font-medium text-foreground transition hover:border-foreground/30 hover:bg-muted"
+      className="inline-flex min-h-11 max-w-[18rem] items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pl-3 pr-2.5 md:min-h-0 md:pl-2.5 md:pr-1.5 text-[11.5px] font-medium text-foreground transition hover:border-foreground/30 hover:bg-muted"
     >
       <span className="truncate">{testo}</span>
       <X className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Togli" />

@@ -22,6 +22,14 @@ export const FILE_DELLA_PAGINA = [
   "src/crm/importa/SchedaGiorno.tsx",
   "src/crm/importa/FinestraElimina.tsx",
   "src/crm/importa/BloccoRitorno.tsx",
+  //  T4-T5: i pezzi nuovi del disegno (si saltano finché non esistono).
+  "src/crm/importa/PannelloBasso.tsx",
+  "src/crm/importa/BarraPillole.tsx",
+  "src/crm/importa/PannelloFiltra.tsx",
+  "src/crm/importa/Intestazione.tsx",
+  "src/crm/importa/FraseGiro.tsx",
+  "src/crm/importa/FasciaAvvisi.tsx",
+  "src/crm/importa/BarraEsiti.tsx",
 ];
 
 /** Tra un file e l'altro: una riga col nome e un riempitivo lungo, senza spazi.

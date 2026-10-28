@@ -112,3 +112,26 @@ export function pilloleDaMostrare(n: (id: PillolaId) => number, scelto?: StatoFi
     return voceStatoAttiva(id, quanti, accese.includes(id) ? id : "", quanti);
   });
 }
+
+/** Il numero scritto sulla pillola: quello di `opzioniFiltri` (le righe che
+ *  escono toccandola). Solo «Di ritorno» ha qualcosa in più: i ritorni FUORI
+ *  dalla lista (una promessa per un altro giorno, un messo da parte) si vedono
+ *  nel blocco sotto la lista con quello Stato, e sono gli stessi che conta
+ *  l'avviso «ritorni da decidere» — così i due numeri non si smentiscono. */
+export function numeroPillola(
+  id: PillolaId,
+  stato: { valore: StatoFiltro; n: number }[],
+  ritorniFuoriLista: number,
+): number {
+  const n = stato.find((x) => x.valore === id)?.n ?? 0;
+  return id === "ritorno" ? n + Math.max(0, Math.floor(ritorniFuoriLista) || 0) : n;
+}
+
+/** Cosa diventa lo Stato toccando una pillola: la accende; toccando quella già
+ *  accesa la spegne (si torna a «Tutta la coda»); «Tutta la coda» spegne le
+ *  altre. Con `promesse` (due pillole accese) si passa a quella toccata sola. */
+export function statoAlTocco(id: PillolaId, scelto?: StatoFiltro): StatoFiltro | undefined {
+  if (scelto === "promesse") return id === "tutti" ? undefined : id;
+  if (id === "tutti") return undefined;
+  return pilloleAccese(scelto).includes(id) ? undefined : id;
+}
