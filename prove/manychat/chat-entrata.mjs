@@ -385,6 +385,42 @@ export async function proveChatEntrata(mod, { c, gruppo, radice }) {
       );
     }
 
+    /* ── l'ora della risposta del giro: solo per chi risponde a noi ─────── */
+    gruppo("CHAT WHATSAPP · ENTRATA · L'ORA DELLA RISPOSTA DEL GIRO");
+    {
+      //  Uno spammer che scrive due volte (la prima crea la riga, la seconda è
+      //  «nota» ma senza scheda) non deve spegnere l'avviso «nessuna risposta da 48 ore».
+      let m = mondo();
+      await manda(m, { testo: "uno" });
+      await manda(m, { testo: "due" }, new Date(ADESSO.getTime() + 5e3));
+      c(
+        "sconosciuto senza scheda che scrive due volte → 0 ore di risposta",
+        [2, 0],
+        [m.db.messaggi.length, m.rispostaLog.length],
+      );
+      m = mondo({
+        contatti: [{ user_id: U, phone_e164: `+${TEL}`, lead_id: null, unread_count: 0 }],
+      });
+      await manda(m);
+      c("in rubrica ma senza scheda → 0 ore di risposta", 0, m.rispostaLog.length);
+      m = mondo({
+        contatti: [{ user_id: U, phone_e164: `+${TEL}`, lead_id: U_LEAD, unread_count: 0 }],
+      });
+      await manda(m);
+      c(
+        "in rubrica con scheda → l'ora della risposta si scrive (senza invio)",
+        [null],
+        m.rispostaLog.map((x) => x.invioId),
+      );
+      m = mondo({ invii: [invioConferma()] });
+      await manda(m, { crmInvioId: U_INVIO });
+      c(
+        "risposta a un nostro invio → l'ora della risposta si scrive",
+        [U_INVIO],
+        m.rispostaLog.map((x) => x.invioId),
+      );
+    }
+
     /* ════════════════════════════════════════════════════════════════════
      *  2 · I SEGNAPOSTO NON RISOLTI (D8, R4, R6)
      * ════════════════════════════════════════════════════════════════════ */

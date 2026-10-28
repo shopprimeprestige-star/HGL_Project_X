@@ -224,10 +224,12 @@ async function tratta(
 
   //  Il freno «mai due volte senza risposta» guarda `risposta_il`: PRIMA della
   //  conferma, così non si perde nemmeno se la conferma poi dà errore. Un
-  //  guasto qui non ferma il resto (solo il codice nell'avviso). Uno
-  //  sconosciuto (nessun invio, non in rubrica) non è una risposta a niente di
-  //  nostro: non tocca l'ora della risposta del giro.
-  if (!sconosciuto) {
+  //  guasto qui non ferma il resto (solo il codice nell'avviso). Vale
+  //  solo per chi risponde a un nostro invio o ha una scheda: un numero senza
+  //  scheda (anche se la riga l'abbiamo creata noi al primo messaggio) non
+  //  tocca l'ora della risposta del giro, altrimenti lo spam spegnerebbe
+  //  l'avviso «nessuna risposta da 48 ore».
+  if (abbinata.tipo === "invio" || noto?.leadId) {
     try {
       await porte.rispostaArrivata(
         userId,
