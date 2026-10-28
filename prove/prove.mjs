@@ -20372,6 +20372,19 @@ function proveDeiDaRiprogrammareOggi() {
   c("«Cliente assente» resta alla regola di prima (arretrato)", "2026-09-01", di("assente")?.giorno);
 }
 
+
+/** ── WHATSAPP SUL TELEFONO (28/10/2026) ─────────────────────────────────────
+ *  Richiesta del titolare: «correggi design WhatsApp per mobile». */
+function proveDiWhatsappSulTelefono() {
+  gruppo("WHATSAPP SUL TELEFONO: UNA COSA ALLA VOLTA");
+  const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
+  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /w-full md:w-\[300px\][\s\S]{0,200}activePhone \? "hidden md:flex" : "flex"/.test(pg));
+  c("la chat si vede da sola quando è aperta", true, /activePhone \? "flex" : "hidden md:flex"/.test(pg));
+  c("c'è la freccia per tornare all'elenco", true, /onClick=\{\(\) => setActivePhone\(null\)\}[\s\S]{0,120}md:hidden/.test(pg));
+  c("il pannello lead parte chiuso sotto i 1024 px", true, /matchMedia\("\(min-width: 1024px\)"\)\.matches\) setLeadsPanelOpen\(false\)/.test(pg));
+  c("il pannello lead sta sopra la pagina sul telefono", true, /fixed inset-0 z-40[^"]*lg:static/.test(pg));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20479,6 +20492,7 @@ proveDelRiquadroDelPromemoria();
 await proveManychat(mod, { c, gruppo, radice });
 proveProvaModelli(mod, { c, gruppo, radice });
 await proveSheets(mod, { c, gruppo, radice });
+proveDiWhatsappSulTelefono();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

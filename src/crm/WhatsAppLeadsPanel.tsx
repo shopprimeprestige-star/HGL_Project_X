@@ -267,7 +267,7 @@ export function WhatsAppLeadsPanel({ onClose }: Props) {
   };
 
   return (
-    <aside className="w-[340px] border-l border-border flex flex-col bg-card">
+    <aside className="h-full w-full sm:w-[340px] border-l border-border flex flex-col bg-card">
       <div className="px-3 py-2.5 border-b border-border flex items-center gap-2">
         <Users className="h-4 w-4 text-emerald-600" />
         <span className="text-foreground text-[13px] font-semibold">Lead CRM</span>
@@ -282,7 +282,7 @@ export function WhatsAppLeadsPanel({ onClose }: Props) {
             size="icon"
             variant="ghost"
             onClick={onClose}
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
             title="Nascondi pannello"
           >
             <X className="h-3.5 w-3.5" />
