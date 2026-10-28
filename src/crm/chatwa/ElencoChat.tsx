@@ -199,7 +199,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                 )}
               >
                 Da rispondere ({inAttesa.length}
-                {nascostiInAttesa > 0 ? ` · altri ${nascostiInAttesa} di altri consulenti` : ""})
+                {nascostiInAttesa > 0 ? ` · altri ${nascostiInAttesa} in attesa` : ""})
               </h2>
               {inAttesa.length === 0 ? (
                 <p className="flex items-center gap-2 border-b border-border px-3 py-3 text-[13px] text-muted-foreground">

@@ -182,6 +182,7 @@ export function Conversazione({
               <InfoModulo
                 dati={attiva.lead.data}
                 nome={`${attiva.lead.data.nome ?? ""} ${attiva.lead.data.cognome ?? ""}`.trim()}
+                telefono={attiva.phone}
               />
             )}
             <Button

@@ -13,13 +13,22 @@ import { moduloLetto, vociModulo } from "@/crm/modulo-lead";
 import { mostraTemperatura, temperaturaLead } from "@/crm/temperatura-lead";
 import type { LeadData } from "@/crm/types";
 
-export function InfoModulo({ dati, nome }: { dati: Partial<LeadData>; nome: string }) {
+export function InfoModulo({
+  dati,
+  nome,
+  telefono,
+}: {
+  dati: Partial<LeadData>;
+  nome: string;
+  /** Sul telefono il numero non sta nell'intestazione: si legge qui. */
+  telefono?: string;
+}) {
   const [aperta, setAperta] = useState(false);
   const modulo = moduloLetto(dati);
   const voci = vociModulo(modulo);
   const t = temperaturaLead(modulo, dati.qualifica);
   const conTemperatura = t.livello !== "nessuna" && mostraTemperatura(dati.stato);
-  if (voci.length === 0 && !conTemperatura) return null;
+  if (voci.length === 0 && !conTemperatura && !telefono) return null;
   const d = t.termometro;
   return (
     <>
@@ -43,6 +52,9 @@ export function InfoModulo({ dati, nome }: { dati: Partial<LeadData>; nome: stri
           larghezza="sm"
         >
           <div className="space-y-3 p-4 text-[13px]">
+            {telefono && (
+              <p className="font-mono text-[12.5px] text-muted-foreground">{telefono}</p>
+            )}
             {conTemperatura && (
               <div className="space-y-1.5">
                 <p className="text-slate-700">
