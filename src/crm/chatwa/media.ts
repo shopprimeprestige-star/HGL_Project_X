@@ -35,7 +35,7 @@ export interface TestoClassificato {
   tipo: TipoTesto;
   /** `url.href` normalizzato: solo per i media riconosciuti. */
   url?: string;
-  /** Cosa si scrive nella bolla/anteprima («🎤 Vocale», «Messaggio non leggibile»…). */
+  /** Cosa si scrive nella bolla/anteprima («Vocale» con la sua icona, «Messaggio non leggibile»…). */
   etichetta: string;
 }
 
@@ -81,15 +81,18 @@ const EMOJI_VECCHIE = /^(?:🎤|📷|🎥|📎)\uFE0F?\s*/u;
 
 /** Un'anteprima (anche salvata in archivio) è un media? Ne dice il tipo e il
  *  testo pulito dall'emoji vecchia; per un testo normale `tipo` è null. */
+type TipoMedia = "audio" | "immagine" | "video" | "documento" | "allegato";
+
 export function mediaInAnteprima(testo: string | null | undefined): {
-  tipo: "audio" | "immagine" | "video" | "documento" | "allegato" | null;
+  tipo: TipoMedia | null;
   testo: string;
 } {
   const t = String(testo ?? "");
+  //  ⚠️ L'emoji si toglie SOLO se resta un'etichetta nostra: «📷 ecco la foto
+  //   della nuca» l'ha scritto il cliente e resta com'è (revisione del 28/10).
   const pulito = t.replace(EMOJI_VECCHIE, "");
-  for (const [tipo, et] of Object.entries(ETICHETTE))
-    if (pulito === et) return { tipo: tipo as "audio", testo: et };
-  return { tipo: null, testo: pulito === t ? t : pulito };
+  const tipo = (Object.keys(ETICHETTE) as TipoMedia[]).find((k) => ETICHETTE[k] === pulito);
+  return tipo ? { tipo, testo: pulito } : { tipo: null, testo: t };
 }
 
 /** Il testo è un link di media ammesso? Restituisce tipo e `url.href`, altrimenti niente. */

@@ -114,7 +114,7 @@ export interface PorteRispostaManychat {
   registraMessaggio(userId: string, messaggio: MessaggioInEntrata): Promise<"nuovo" | "doppione">;
   /** `whatsapp_contacts`: ultimo messaggio (+1 ai non letti), e la riga se non
    *  c'è (serve a `non_scrivere_dal`, che altrimenti andrebbe perso).
-   *  `anteprima`: la riga dell'elenco («🎤 Vocale», il testo…); `subscriberId` e
+   *  `anteprima`: la riga dell'elenco («Vocale», il testo…); `subscriberId` e
    *  `nome` si scrivono solo se la riga non li ha già. */
   aggiornaContatto(
     userId: string,

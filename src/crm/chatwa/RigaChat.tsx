@@ -17,7 +17,7 @@ import type { ChatItem } from "./tipi";
 /** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
 export type ModoRiga = "normale" | "attesa" | "vecchia" | "chiamare";
 
-/** Il testo di una riga dell'elenco: anteprima come nella bolla (🎤 Vocale, «Messaggio non
+/** Il testo di una riga dell'elenco: anteprima come nella bolla («Vocale» con icona, «Messaggio non
  *  leggibile») su UNA riga sola. Nota 3 del revisore su T2: `anteprimaIn` lascia a capo e tab. */
 function anteprimaRiga(testo: string | null | undefined): string {
   return anteprimaIn(testo ?? "")
@@ -163,7 +163,7 @@ export function RigaChat({
                   <span className="truncate">{LEAD_STATUS_LABEL[c.lead.data.stato]}</span>
                 </span>
               )}
-              {/*  Di ritorno (28/10/2026): nella riga solo «↩ Ritorno», lo stato di
+              {/*  Di ritorno (28/10/2026): nella riga solo «Ritorno» con l'icona, lo stato di
                   prima nell'intestazione della chat e nel tooltip. */}
               {ritorno && (
                 <span

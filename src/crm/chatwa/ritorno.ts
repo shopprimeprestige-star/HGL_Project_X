@@ -4,8 +4,8 @@
  *  che aveva PRIMA (`ricarico.statoAllora`). Chi risponde in chat cambia tono:
  *  non ci si presenta da zero a chi aveva già un appuntamento.
  *  Tre misure della stessa cosa, perché lo spazio non è lo stesso:
- *   · `corta`    → la riga dell'elenco, stretta sul telefono: «↩ Ritorno»;
- *   · `completa` → l'intestazione della chat: «↩ Di ritorno ×2 · prima: …»;
+ *   · `corta`    → la riga dell'elenco, stretta sul telefono: «Ritorno» (l'icona la mette chi disegna);
+ *   · `completa` → l'intestazione della chat: «Di ritorno ×2 · prima: …»;
  *   · `titolo`   → tooltip e Info, con la data dell'ultimo ritorno.
  *  ⚠️ NON INVENTA: senza `statoAllora` (schede vecchie) o con uno stato che non
  *   esiste più non si scrive «prima: …», si dice solo che è di ritorno.

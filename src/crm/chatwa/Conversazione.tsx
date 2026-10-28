@@ -234,7 +234,7 @@ export function Conversazione({
                     undefined
                   }
                   onScegli={(s) => void cambiaStato(s)}
-                  className="max-w-[14rem] shrink-0 min-h-9 md:min-h-0"
+                  className="max-w-[14rem] shrink-0 min-h-11 md:min-h-0"
                 />
               ) : (
                 <span className="whitespace-nowrap text-[12px] text-muted-foreground">

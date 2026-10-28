@@ -22,7 +22,7 @@ export function InfoModulo({
 }: {
   dati: Partial<LeadData>;
   nome: string;
-  /** Sul telefono il numero non sta nell'intestazione: si legge qui. */
+  /** Il numero, ripetuto anche qui insieme alle risposte. */
   telefono?: string;
   /** Nella seconda riga dell'intestazione: tasto piccolo con la scritta «Info». */
   compatto?: boolean;
@@ -41,8 +41,8 @@ export function InfoModulo({
         <Button
           variant="outline"
           onClick={() => setAperta(true)}
-          className="h-9 shrink-0 gap-1 rounded-full px-3 text-[12px] md:h-7"
-          aria-label="Risposte del modulo e dettagli"
+          className="h-11 shrink-0 gap-1 rounded-full px-3 text-[12px] md:h-7"
+          aria-label="Info: risposte del modulo e dettagli"
           title="Risposte del modulo e dettagli"
         >
           <Info className="h-3.5 w-3.5" /> Info

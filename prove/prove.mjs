@@ -20640,6 +20640,7 @@ function proveDiWhatsappDisegnoMobile() {
     c("un'anteprima salvata con l'emoji vecchia si legge con l'icona", { tipo: "audio", testo: "Vocale" }, M.mediaInAnteprima("🎤 Vocale"));
     c("…e quella nuova pure", { tipo: "immagine", testo: "Foto" }, M.mediaInAnteprima("Foto"));
     c("un testo normale resta com'è", { tipo: null, testo: "ciao" }, M.mediaInAnteprima("ciao"));
+    c("un'emoji scritta dal cliente non si tocca", { tipo: null, testo: "📷 ecco la foto della nuca" }, M.mediaInAnteprima("📷 ecco la foto della nuca"));
   }
 }
 
