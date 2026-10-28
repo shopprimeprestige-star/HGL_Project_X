@@ -20450,7 +20450,7 @@ function proveDiWhatsappOrariStelle() {
   c("valori strani scartati", {}, W.leggiStelle('{"stelle":{"abc":2,"333000000":7}}'));
   const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
   c("filtri «Da rispondere» e «In osservazione» con il loro numero", true, /v: "answer"[^}]*n: contiFiltri\.answer/.test(pg) && /v: "stars"[^}]*n: contiFiltri\.stars/.test(pg));
-  c("stelle dalla lista, tasto fuori dalla riga", true, /onClick=\{\(\) => void cambiaStelle\(c\.phone\)\}/.test(pg));
+  c("stelle dalla lista, tasto fuori dalla riga", true, /onClick=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(pg));
   c("si rilegge prima di scrivere le stelle", true, /const mappa = conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(pg));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(pg) && /\{orariAperti && puoAgenda && \(/.test(pg) && /\{puoAgenda && \(\s*<Button/.test(pg));
   c("i salvataggi delle stelle vanno in fila", true, /codaStelle\.current = codaStelle\.current\.then\(/.test(pg));
