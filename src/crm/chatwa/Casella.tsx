@@ -20,14 +20,15 @@ export function Casella({ api }: CasellaProps) {
   const quadro = "shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]";
 
   if (stato === "stop") {
+    //  L'avviso intero lo mostra già la conversazione sotto la barra in alto: qui solo una riga discreta.
     return (
       <div className={quadro}>
         <p
           role="status"
-          className="flex items-center gap-2 px-3 py-3 text-[12.5px] text-muted-foreground"
+          className="flex items-center gap-2 px-3 py-2.5 text-[12px] text-muted-foreground"
         >
-          <Ban className="h-4 w-4 shrink-0" />
-          Questo numero ha chiesto di non ricevere messaggi
+          <Ban className="h-3.5 w-3.5 shrink-0" />
+          Invio disattivato
         </p>
       </div>
     );
