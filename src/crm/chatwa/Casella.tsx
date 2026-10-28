@@ -7,7 +7,13 @@ import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { ScegliModello } from "./ScegliModello";
-import { FilaSuggerimenti, FinestraRisposte, idVoce, ID_MENU_RISPOSTE, MenuRisposte } from "./RisposteRapide";
+import {
+  FilaSuggerimenti,
+  FinestraRisposte,
+  idVoce,
+  ID_MENU_RISPOSTE,
+  MenuRisposte,
+} from "./RisposteRapide";
 import {
   comandoDi,
   conRisposta,

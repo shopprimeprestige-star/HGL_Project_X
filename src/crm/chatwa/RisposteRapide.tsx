@@ -212,7 +212,9 @@ function CorpoFinestra(p: Parameters<typeof FinestraRisposte>[0]) {
     return (
       <>
         <DialogHeader className="text-left">
-          <DialogTitle>{modifica.id ? "Modifica risposta rapida" : "Nuova risposta rapida"}</DialogTitle>
+          <DialogTitle>
+            {modifica.id ? "Modifica risposta rapida" : "Nuova risposta rapida"}
+          </DialogTitle>
           <DialogDescription>
             Vale per tutto lo studio. {"{nome}"} e {"{consulente}"} si riempiono da soli; un
             segnaposto come {"{indirizzo}"} la casella te lo segnala prima dell'invio.
@@ -295,7 +297,9 @@ function CorpoFinestra(p: Parameters<typeof FinestraRisposte>[0]) {
               </span>
               <div className="min-w-0 flex-1 px-1.5 py-1.5">
                 <p className="truncate text-[13px] font-medium text-foreground">{r.titolo}</p>
-                <p className="line-clamp-2 text-[12px] text-muted-foreground">{anteprima(r.testo)}</p>
+                <p className="line-clamp-2 text-[12px] text-muted-foreground">
+                  {anteprima(r.testo)}
+                </p>
               </div>
               <Button
                 size="icon"

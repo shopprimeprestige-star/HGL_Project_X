@@ -126,7 +126,8 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
   {
     id: "promemoria",
     titolo: "Promemoria consulenza",
-    testo: "Buongiorno {nome}, le ricordo la consulenza di oggi. Riesce a collegarsi all'orario fissato?",
+    testo:
+      "Buongiorno {nome}, le ricordo la consulenza di oggi. Riesce a collegarsi all'orario fissato?",
     stati: APPUNTAMENTO,
   },
   {
@@ -169,7 +170,8 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
   {
     id: "sede",
     titolo: "Indirizzo della sede",
-    testo: "La nostra sede è in {indirizzo}. Le mando qui la posizione quando fissiamo l'appuntamento.",
+    testo:
+      "La nostra sede è in {indirizzo}. Le mando qui la posizione quando fissiamo l'appuntamento.",
     temi: ["dove"],
     stati: ["viene_in_sede", "posa_in_sede"],
   },
@@ -280,11 +282,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
 
 /** Minuscole, senza accenti, apostrofi dritti: «Dovè» e «dove» si trovano uguali. */
 function normale(t: string): string {
-  return t
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[’‘`]/g, "'")
-    .toLowerCase();
+  return t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[’‘`]/g, "'").toLowerCase();
 }
 
 const MAX_COMANDO = 40;
@@ -308,14 +306,20 @@ export interface RispostaNumerata {
  *  - solo cifre: il numero esatto, poi quelli che cominciano con quelle cifre;
  *  - parole: servono tutte (inizio di una parola del titolo o del testo); sopra
  *    il titolo che comincia con la ricerca, poi il titolo, poi il testo. */
-export function filtraRisposte(elenco: readonly RispostaRapida[], ricerca: string): RispostaNumerata[] {
+export function filtraRisposte(
+  elenco: readonly RispostaRapida[],
+  ricerca: string,
+): RispostaNumerata[] {
   const tutte = elenco.map((risposta, i) => ({ risposta, numero: i + 1 }));
   const q = normale(ricerca).trim();
   if (!q) return tutte;
   if (/^\d+$/.test(q)) {
     return tutte
       .filter((x) => String(x.numero).startsWith(q))
-      .sort((a, b) => Number(String(b.numero) === q) - Number(String(a.numero) === q) || a.numero - b.numero);
+      .sort(
+        (a, b) =>
+          Number(String(b.numero) === q) - Number(String(a.numero) === q) || a.numero - b.numero,
+      );
   }
   const parole = q.split(/\s+/);
   const punti = (x: RispostaNumerata): number => {
@@ -463,15 +467,19 @@ export function nomePerMessaggio(nomeScheda?: string | null, nomeContatto?: stri
  *  - nome ignoto senza ripiego: sparisce con lo spazio davanti («Buongiorno,»);
  *  - consulente ignoto senza ripiego: resta, e la casella lo segnala;
  *  - gli altri segnaposto ({indirizzo}, {link}) restano: li scrive l'operatore. */
-export function riempi(testo: string, dati: { nome?: string | null; consulente?: string | null }): string {
+export function riempi(
+  testo: string,
+  dati: { nome?: string | null; consulente?: string | null },
+): string {
   const nome = maiuscola((dati.nome ?? "").trim());
   const consulente = (dati.consulente ?? "").trim();
   return testo
     .replace(/( ?)\{nome(?:\|([^{}]*))?\}/g, (_, spazio: string, ripiego?: string) =>
       nome ? spazio + nome : ripiego !== undefined ? spazio + ripiego : "",
     )
-    .replace(/\{consulente(?:\|([^{}]*))?\}/g, (tutto: string, ripiego?: string) =>
-      consulente || (ripiego !== undefined ? ripiego : tutto),
+    .replace(
+      /\{consulente(?:\|([^{}]*))?\}/g,
+      (tutto: string, ripiego?: string) => consulente || (ripiego !== undefined ? ripiego : tutto),
     );
 }
 
@@ -532,10 +540,16 @@ export function leggiRisposte(valore: unknown): RispostaRapida[] {
 
 /** Il valore da salvare: solo id, titolo e testo. */
 export const scriviRisposte = (elenco: readonly RispostaRapida[]): string =>
-  JSON.stringify({ v: 1, risposte: elenco.map(({ id, titolo, testo }) => ({ id, titolo, testo })) });
+  JSON.stringify({
+    v: 1,
+    risposte: elenco.map(({ id, titolo, testo }) => ({ id, titolo, testo })),
+  });
 
 /** L'elenco con una risposta aggiunta (in fondo) o cambiata (al suo posto). */
-export function conRisposta(elenco: readonly RispostaRapida[], r: RispostaRapida): RispostaRapida[] {
+export function conRisposta(
+  elenco: readonly RispostaRapida[],
+  r: RispostaRapida,
+): RispostaRapida[] {
   return elenco.some((x) => x.id === r.id)
     ? elenco.map((x) => (x.id === r.id ? r : x))
     : [...elenco, r];
