@@ -1,9 +1,19 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, Check, CheckCheck, ExternalLink, ImageIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Check,
+  CheckCheck,
+  ExternalLink,
+  ImageIcon,
+  Loader2,
+  Pause,
+  Play,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
+import { barreFinte, etichettaVelocita, quotaDaPunto, tempoVocale, velocitaDopo } from "./stile";
 import type { BollaProps } from "./tipi";
 
 /** ── LA BOLLA ─────────────────────────────────────────────────────────────
@@ -50,27 +60,201 @@ function Collegamento({ url, testo }: { url: string; testo: string }) {
   );
 }
 
-/** Il vocale: lettore se il browser sa riprodurlo (nessuna richiesta finché non si preme play), altrimenti il link. */
+/*  ── IL LETTORE DEI VOCALI, COME WHATSAPP (28/10/2026) ──────────────────
+    Prima c'era l'`<audio controls>` del browser: brutto e, toccandolo, la chat
+    saltava (i comandi nativi cambiano altezza caricando, e il tocco toglieva il
+    fuoco alla casella: tastiera giù, area più alta, scorrimento). Ora:
+     · tasto tondo play/pausa, forma d'onda finta trascinabile, tempo, 1×/1,5×/2×;
+     · misure fisse in ogni stato (fermo, carica, suona, errore): niente salti;
+     · i tocchi non prendono il fuoco (`preventDefault` sul pointerdown): la
+       tastiera, se è su, resta su;
+     · UN SOLO VOCALE ALLA VOLTA: chi parte ferma quello di prima (`vocaleInCorso`).
+    ⚠️ Nessuna richiesta finché non si preme play (`preload="none"`, D14). */
+let vocaleInCorso: HTMLAudioElement | null = null;
+const BARRE = 28;
+
+type StatoVocale = "fermo" | "carica" | "suona" | "errore";
+
+/** Il vocale: lettore se il browser sa riprodurlo, altrimenti il link. */
+/** (Solo in entrata: i nostri messaggi restano sempre testo.) */
 function Vocale({ url }: { url: string }) {
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const traccia = useRef<HTMLDivElement | null>(null);
   const [riproducibile, setRiproducibile] = useState(true);
+  const [stato, setStato] = useState<StatoVocale>("fermo");
+  const [tempo, setTempo] = useState(0);
+  const [durata, setDurata] = useState(0);
+  const [velocita, setVelocita] = useState(1);
+  const [partito, setPartito] = useState(false);
+  const barre = useMemo(() => barreFinte(url, BARRE), [url]);
+
   useEffect(() => {
     // Safari iOS vecchi non suonano l'.ogg: lì resta solo il link (D14).
     if (document.createElement("audio").canPlayType(mimeAudio(url)) === "") setRiproducibile(false);
+    const a = audio.current;
+    return () => {
+      if (a && vocaleInCorso === a) vocaleInCorso = null;
+      a?.pause();
+    };
   }, [url]);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span>🎤 Vocale</span>
-      {riproducibile ? (
-        <audio
-          controls
-          preload="none"
-          src={url}
-          onError={() => setRiproducibile(false)}
-          className="h-10 w-64 max-w-full min-w-0"
-        />
-      ) : (
+
+  const suona = () => {
+    const a = audio.current;
+    if (!a) return;
+    if (!a.paused) {
+      a.pause();
+      return;
+    }
+    if (vocaleInCorso && vocaleInCorso !== a) vocaleInCorso.pause();
+    vocaleInCorso = a;
+    a.playbackRate = velocita;
+    setPartito(true);
+    if (a.readyState < 3) setStato("carica");
+    a.play().catch((e: unknown) => {
+      //  Un pause() arrivato prima che partisse non è un guasto.
+      if ((e as { name?: string })?.name !== "AbortError") setStato("errore");
+    });
+  };
+
+  const vaiA = (quota: number) => {
+    const a = audio.current;
+    if (!a || !(a.duration > 0) || !Number.isFinite(a.duration)) return;
+    a.currentTime = quota * a.duration;
+    setTempo(a.currentTime);
+  };
+  const daTocco = (x: number) => {
+    const r = traccia.current?.getBoundingClientRect();
+    if (r) vaiA(quotaDaPunto(x, r.left, r.width));
+  };
+
+  if (!riproducibile) {
+    return (
+      <div className="flex flex-col gap-1">
+        <span>🎤 Vocale</span>
         <Collegamento url={url} testo="Apri il vocale" />
-      )}
+      </div>
+    );
+  }
+
+  const quota = durata > 0 ? Math.min(1, tempo / durata) : 0;
+  const colore = "bg-sky-600";
+  return (
+    <div className="flex w-[15.5rem] max-w-full items-center gap-2.5 py-0.5">
+      <audio
+        ref={audio}
+        preload="none"
+        src={url}
+        onLoadedMetadata={(e) => setDurata(e.currentTarget.duration)}
+        onDurationChange={(e) => setDurata(e.currentTarget.duration)}
+        onTimeUpdate={(e) => setTempo(e.currentTarget.currentTime)}
+        onPlaying={() => setStato("suona")}
+        onWaiting={() => setStato("carica")}
+        onPause={() => setStato((s) => (s === "errore" ? s : "fermo"))}
+        onEnded={(e) => {
+          e.currentTarget.currentTime = 0;
+          setTempo(0);
+          setStato("fermo");
+        }}
+        onError={() => setStato("errore")}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onPointerDown={(e) => e.preventDefault()}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={suona}
+        aria-label={stato === "suona" ? "Metti in pausa il vocale" : "Ascolta il vocale"}
+        className={cn(
+          "grid h-10 w-10 shrink-0 place-items-center rounded-full text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+          "bg-[#54656f] hover:bg-[#3b4a54]",
+        )}
+      >
+        {stato === "carica" ? (
+          <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden />
+        ) : stato === "suona" ? (
+          <Pause className="h-[18px] w-[18px] fill-current" aria-hidden />
+        ) : (
+          <Play className="ml-0.5 h-[18px] w-[18px] fill-current" aria-hidden />
+        )}
+      </button>
+      <div className="min-w-0 flex-1">
+        {stato === "errore" ? (
+          <p className="flex h-7 items-center gap-1.5 text-[13px] leading-tight">
+            Vocale non disponibile ·{" "}
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium underline underline-offset-2"
+            >
+              apri
+            </a>
+          </p>
+        ) : (
+          <div
+            ref={traccia}
+            role="slider"
+            tabIndex={0}
+            aria-label="Posizione nel vocale"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(durata) || 0}
+            aria-valuenow={Math.round(tempo)}
+            aria-valuetext={`${tempoVocale(tempo)} di ${tempoVocale(durata)}`}
+            //  `touch-none` solo qui: trascinare la barra non deve far scorrere la chat.
+            className="relative flex h-7 cursor-pointer touch-none items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              daTocco(e.clientX);
+            }}
+            onPointerMove={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) daTocco(e.clientX);
+            }}
+            onKeyDown={(e) => {
+              const passo = e.key === "ArrowRight" ? 5 : e.key === "ArrowLeft" ? -5 : 0;
+              if (!passo || !(durata > 0)) return;
+              e.preventDefault();
+              vaiA(Math.min(1, Math.max(0, (tempo + passo) / durata)));
+            }}
+          >
+            {barre.map((h, i) => (
+              <span
+                key={i}
+                aria-hidden
+                style={{ height: `${Math.round(h * 100)}%` }}
+                className={cn(
+                  "w-[3px] shrink-0 rounded-full",
+                  (i + 0.5) / BARRE <= quota ? colore : "bg-[#8696a0]/60",
+                )}
+              />
+            ))}
+            <span
+              aria-hidden
+              style={{ left: `calc(${quota * 100}% - 6px)` }}
+              className={cn("absolute h-3 w-3 rounded-full shadow-sm", colore)}
+            />
+          </div>
+        )}
+        <div className="mt-0.5 flex h-5 items-center justify-between text-[11px] tabular-nums text-[#54656f]">
+          <span>{tempoVocale(partito ? tempo : durata)}</span>
+          {partito && stato !== "errore" && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const v = velocitaDopo(velocita);
+                setVelocita(v);
+                if (audio.current) audio.current.playbackRate = v;
+              }}
+              aria-label={`Velocità ${etichettaVelocita(velocita)}, tocca per cambiarla`}
+              className="min-w-9 rounded-full bg-black/10 px-1.5 text-[11px] font-semibold leading-5 text-[#3b4a54]"
+            >
+              {etichettaVelocita(velocita)}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
