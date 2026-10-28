@@ -28,17 +28,21 @@ import { initials } from "./formati";
 import { attesaInChiaro } from "./stato";
 import type { ConversazioneProps } from "./tipi";
 
+/** Il giorno di calendario a Roma («2026-10-28»): il CRM si legge con l'ora italiana da qualunque fuso. */
+const giornoRoma = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+
 /** «Oggi», «Ieri», «lunedì 26 ottobre» (con l'anno se non è quello in corso). */
 function etichettaGiorno(d: Date, adesso: Date): string {
-  const giorno = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const giorno = (x: Date) => Date.parse(giornoRoma(x));
   const diff = Math.round((giorno(adesso) - giorno(d)) / 86_400_000);
   if (diff === 0) return "Oggi";
   if (diff === 1) return "Ieri";
   return d.toLocaleDateString("it-IT", {
+    timeZone: "Europe/Rome",
     weekday: "long",
     day: "numeric",
     month: "long",
-    ...(d.getFullYear() !== adesso.getFullYear() && { year: "numeric" }),
+    ...(giornoRoma(d).slice(0, 4) !== giornoRoma(adesso).slice(0, 4) && { year: "numeric" }),
   });
 }
 
@@ -116,7 +120,7 @@ export function Conversazione({
                       undefined
                     }
                     onScegli={(s) => void cambiaStato(s)}
-                    className="max-w-[11rem] shrink min-w-0"
+                    className="max-w-[11rem] shrink min-w-0 min-h-11 md:min-h-0"
                   />
                 ) : (
                   <span className="text-[12px] text-muted-foreground truncate">
@@ -221,8 +225,7 @@ export function Conversazione({
                   const d = new Date(m.created_at);
                   const prima = i > 0 ? new Date(messaggi[i - 1].created_at) : null;
                   const nuovoGiorno =
-                    !Number.isNaN(d.getTime()) &&
-                    (!prima || prima.toDateString() !== d.toDateString());
+                    !Number.isNaN(d.getTime()) && (!prima || giornoRoma(prima) !== giornoRoma(d));
                   return (
                     <Fragment key={m.id}>
                       {nuovoGiorno && (

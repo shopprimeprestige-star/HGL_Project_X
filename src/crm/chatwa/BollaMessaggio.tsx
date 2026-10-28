@@ -16,7 +16,11 @@ function ora(d: string): string {
   const data = new Date(d);
   return Number.isNaN(data.getTime())
     ? ""
-    : data.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    : data.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Rome",
+      });
 }
 
 /** Il tipo che il browser deve saper riprodurre, dall'estensione del file (già controllata da media.ts). */
@@ -36,7 +40,7 @@ function Collegamento({ url, testo }: { url: string; testo: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-h-8 items-center gap-1.5 font-medium underline underline-offset-2"
+      className="inline-flex min-h-11 md:min-h-8 items-center gap-1.5 font-medium underline underline-offset-2"
     >
       <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
       {testo}
@@ -113,7 +117,8 @@ function Contenuto({ messaggio: m, c }: BollaProps & { c: TestoClassificato | nu
   if (c.tipo === "illeggibile") {
     return <p className="italic">{c.etichetta}</p>;
   }
-  const url = c.url!;
+  const url = c.url;
+  if (!url) return <p className="whitespace-pre-wrap break-words">{m.body}</p>;
   if (c.tipo === "audio") return <Vocale url={url} />;
   if (c.tipo === "immagine") return <Foto url={url} />;
   const azione = {
