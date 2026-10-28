@@ -467,6 +467,8 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ Il modello inviato come lo legge il cliente: vedi proveDelTestoDeiModelli.
+  "testo-modello",
   //  ⚠️ Il lead che c'è già prende l'orario scelto nel nuovo: vedi
   //   proveDellOrarioSulDoppione.
   "doppione-orario",
@@ -20385,6 +20387,35 @@ function proveDiWhatsappSulTelefono() {
   c("il pannello lead sta sopra la pagina sul telefono", true, /fixed inset-0 z-40[^"]*lg:static/.test(pg));
 }
 
+
+/** ── IL MODELLO COME LO LEGGE IL CLIENTE (28/10/2026) ───────────────────────
+ *  Richiesta del titolare: «non mi serve il nome del template ma il contenuto
+ *  del template come lo vede il cliente». Dati inventati. */
+function proveDelTestoDeiModelli() {
+  gruppo("WHATSAPP: IL MODELLO SI LEGGE COL SUO TESTO");
+  const T = mod["testo-modello"];
+  const t = T.testoDelModello("hgl_meet_domani", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
+  c("i parametri al loro posto", true, /Gentile Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /La seguirà Filippo/.test(t));
+  c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
+  c("il nome «_v2» trova lo stesso testo", t, T.testoDelModello("hgl_meet_domani_v2", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]));
+  c("parametro mancante: «…», non un buco", true, /Gentile …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
+  c("modello sconosciuto: nessun testo inventato", null, T.testoDelModello("modello_che_non_esiste", ["x"]));
+  c("un testo libero resta com'è", { testo: "Ciao!" }, T.corpoLeggibile("Ciao!"));
+  const v = T.corpoLeggibile("[template:consulenza_conferma_presenza]", { nome: "Mario", cognome: "Rossi", dataMeeting: "2026-10-29", oraMeeting: "15:00" });
+  c("il segnaposto vecchio si ricostruisce dalla scheda", true, v.ricostruito === true && /Gentile Mario, la Sua consulenza .* fissata per giovedì 29 ottobre alle ore 15:00/.test(v.testo));
+  c("…solo il nome, mai il cognome", false, /Rossi/.test(v.testo));
+  c("…senza link in scheda il link si dice e non si inventa", true, /\[link della consulenza\]/.test(v.testo));
+  const conLink = T.corpoLeggibile("[template:hgl_meet_adesso]", { nome: "Mario", linkMeeting: "https://esempio.test/stanza" }, "Filippo");
+  c("…col link della scheda c'è il link vero", true, conLink.testo.includes("Entri da qui: https://esempio.test/stanza"));
+  c("segnaposto di un modello sconosciuto: resta il nome", "[template:boh]", T.corpoLeggibile("[template:boh]").testo);
+  const sede = T.corpoLeggibile("[template:hgl_promemoria_sede_v2]", { nome: "Mario", dataMeeting: "2026-10-29", dataVieneInSede: "2026-11-05", oraVieneInSede: "11:00" });
+  c("promemoria sede: il giorno è quello della visita, non del meet", true, sede.testo.includes("di giovedì 5 novembre alle ore 11:00") && !sede.testo.includes("29 ottobre"));
+  c("…e l'indirizzo si dice, non resta un buco", true, sede.testo.includes("Indirizzo: [indirizzo della sede]"));
+  //  In archivio resta «[template:x]»: niente nome né link (prove/manychat/porta.mjs).
+  const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
+  c("la chat mostra il testo, e l'anteprima pure", 2, (pg.match(/corpoLeggibile\(/g) || []).length);
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20493,6 +20524,7 @@ await proveManychat(mod, { c, gruppo, radice });
 proveProvaModelli(mod, { c, gruppo, radice });
 await proveSheets(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
+proveDelTestoDeiModelli();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

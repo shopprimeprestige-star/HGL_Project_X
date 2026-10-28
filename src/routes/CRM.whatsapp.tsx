@@ -41,6 +41,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { corpoLeggibile } from "@/crm/testo-modello";
 import { toast } from "sonner";
 import {
   ALL_LEAD_STATUSES,
@@ -174,6 +175,9 @@ function previewText(body: string | null): string {
 function WhatsAppPage() {
   const { user } = useAuth();
   const { leads, updateLead, consultants } = useCRM();
+  /** Il nome del consulente della scheda: serve a ricostruire i modelli. */
+  const consulenteDi = (d?: Partial<LeadData> | null) =>
+    consultants.find((c) => c.id === d?.consulenteId)?.data.nome ?? null;
   const [vista, setVista] = useState<Vista>("chat");
   const [filter, setFilter] = useState<WhatsAppFilter>("all");
   const [search, setSearch] = useState("");
@@ -824,7 +828,14 @@ function WhatsAppPage() {
                               )}
                             />
                           )}
-                          {previewText(last?.body ?? "")}
+                          {previewText(
+                            corpoLeggibile(
+                              last?.body,
+                              c.lead?.data,
+                              consulenteDi(c.lead?.data),
+                              c.lead?.id,
+                            ).testo,
+                          )}
                         </p>
                         {c.unread > 0 && (
                           <span className="h-4.5 min-w-[18px] px-1.5 rounded-full bg-emerald-500 text-[10px] font-bold text-white grid place-items-center">
@@ -953,9 +964,38 @@ function WhatsAppPage() {
                               : "self-start bg-card text-foreground border-border rounded-bl-sm",
                           )}
                         >
-                          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                            {m.body}
-                          </p>
+                          {/*  ── IL MODELLO COME L'HA LETTO LUI (28/10/2026) ─────
+                              Non «[template:nome]» ma il testo vero (crm/testo-modello).
+                              Per i messaggi vecchi è ricostruito dalla scheda, e lo
+                              si dice: data e ora potevano essere altre. */}
+                          {(() => {
+                            const v = corpoLeggibile(
+                              m.body,
+                              activeChat?.lead?.data,
+                              consulenteDi(activeChat?.lead?.data),
+                              activeChat?.lead?.id,
+                            );
+                            return (
+                              <>
+                                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                  {v.testo}
+                                </p>
+                                {v.modello && (
+                                  <p
+                                    className={cn(
+                                      "mt-1 text-[10px] italic",
+                                      fromMe ? "text-emerald-100" : "text-muted-foreground",
+                                    )}
+                                    title={`Modello «${v.modello}»`}
+                                  >
+                                    {v.ricostruito
+                                      ? "Modello · testo ricostruito dalla scheda"
+                                      : "Modello"}
+                                  </p>
+                                )}
+                              </>
+                            );
+                          })()}
                           <div
                             className={cn(
                               "flex items-center gap-1 mt-1 text-[10px]",
