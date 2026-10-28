@@ -62,6 +62,7 @@ import {
 } from "./quando";
 import { TIPI_COL_RITMO, TIPI_NEI_TETTI, numeroWa, type InvioPerFreno } from "./regole";
 import {
+  PREFISSO_CASI,
   PREFISSO_IMPORTATO,
   PREFISSO_RITORNO,
   decidiGiornoMeet,
@@ -70,6 +71,7 @@ import {
 } from "./sequenze";
 import { TABELLA_STATI, decidiPerStato } from "./stati";
 import {
+  campiCasiReali,
   campiMeetAdesso,
   campiMeetDomani,
   campiMeetOggi,
@@ -94,12 +96,13 @@ export const MODELLI_SEQUENZE = {
   primo_contatto: { modello: "hgl_primo_contatto", tag: "crm-primo-contatto" },
   richiamo_24h: { modello: "hgl_richiamo_24h", tag: "crm-richiamo" },
   ritorno: { modello: "hgl_ritorno", tag: "crm-ritorno" },
+  casi_reali: { modello: "hgl_casi_reali", tag: "crm-casi-reali" },
   meet_oggi: { modello: "hgl_meet_oggi", tag: "crm-meet-oggi" },
   meet_domani: { modello: "hgl_meet_domani", tag: "crm-meet-domani" },
   meet_adesso: { modello: "hgl_meet_adesso", tag: "crm-meet-adesso" },
 } as const;
 
-/** I tipi di messaggio che il giro manda: i dieci di `TIPI_NEI_TETTI`. */
+/** I tipi di messaggio che il giro manda: gli undici di `TIPI_NEI_TETTI`. */
 export type TipoGiro = Extract<
   TipoInvio,
   | "promemoria"
@@ -107,6 +110,7 @@ export type TipoGiro = Extract<
   | "primo_contatto"
   | "richiamo_24h"
   | "ritorno"
+  | "casi_reali"
   | "meet_oggi"
   | "meet_domani"
   | "meet_adesso"
@@ -126,6 +130,8 @@ export const ORDINE_GIRO: TipoGiro[] = [
   "meet_oggi",
   "meet_domani",
   "promemoria_sede",
+  //  chi ha già ricevuto il primo contatto riceve subito il secondo, prima dei nuovi
+  "casi_reali",
   "ritorno",
   "primo_contatto",
   "ricontatto",
@@ -217,7 +223,7 @@ export interface ProblemaGiroSalvato {
 export interface StatoGiroSalvato {
   /** l'ultimo messaggio automatico partito */
   ultimoInvioIl: string | null;
-  /** conteggi del giorno di oggi (Roma). `leadNuovi` = primo contatto + richiamo + ritorno;
+  /** conteggi del giorno di oggi (Roma). `leadNuovi` = primo contatto + richiamo + ritorno + casi reali;
    *  `totale` = tutto ciò che conta nel tetto (`TIPI_NEI_TETTI`). */
   oggi: {
     promemoria: number;
@@ -247,6 +253,9 @@ export interface ConfigGiro {
   giornoMeet: boolean;
   /** ISO dell'ultima accensione di «Lead nuovo» */
   leadNuovoDal: string | null;
+  /** ISO: da quando i primi contatti ricevono i casi reali. La porta vera non lo imposta (vale
+   *  `CASI_REALI_DAL` di sequenze.ts); le prove lo passano per usare date del passato. */
+  casiRealiDal?: string | null;
   /** stato → ISO dell'accensione del suo messaggio; assente = spento */
   stati: Record<string, string>;
   /** l'indirizzo della sede, per il promemoria «in sede» */
@@ -455,6 +464,7 @@ export interface SceltaDecisioni {
   /** stato → ISO dell'accensione */
   statiAccesi: Record<string, string>;
   leadNuovoDal: string | null;
+  casiRealiDal?: string | null;
   ultimaAccensione: string | null;
   indirizzoSede: string | null;
   fraseModuloDal: string | null;
@@ -468,6 +478,7 @@ export type ConfigDecisioni = Pick<
   | "leadNuovo"
   | "giornoMeet"
   | "leadNuovoDal"
+  | "casiRealiDal"
   | "stati"
   | "indirizzoSede"
   | "ultimaAccensione"
@@ -488,6 +499,7 @@ export function sceltaDaConfig(c: ConfigDecisioni, adesso: Date, prova: boolean)
       giornoMeet: c.giornoMeet,
       statiAccesi: c.stati,
       leadNuovoDal: c.leadNuovoDal,
+      casiRealiDal: c.casiRealiDal,
       ultimaAccensione: c.ultimaAccensione,
       indirizzoSede: c.indirizzoSede,
       fraseModuloDal: c.fraseModuloDal,
@@ -504,6 +516,7 @@ export function sceltaDaConfig(c: ConfigDecisioni, adesso: Date, prova: boolean)
     giornoMeet: true,
     statiAccesi,
     leadNuovoDal: c.leadNuovoDal ?? stamattina,
+    casiRealiDal: c.casiRealiDal,
     ultimaAccensione: c.ultimaAccensione,
     indirizzoSede: c.indirizzoSede,
     fraseModuloDal: c.fraseModuloDal,
@@ -586,12 +599,14 @@ export function decisioniDelGiro(
       decidiLeadNuovi(schede, adesso, {
         ...base,
         leadNuovoDal: scelta.leadNuovoDal,
+        casiRealiDal: scelta.casiRealiDal,
         prossimoDopo: dati.prossimoDopo,
       }),
       (x) => ({ tipo: x.quale, extra: {} }),
       (d) => {
         const motivo = (d as { motivo: string }).motivo;
         if (motivo.startsWith(PREFISSO_RITORNO)) return "ritorno";
+        if (motivo.startsWith(PREFISSO_CASI)) return "casi_reali";
         if (motivo.startsWith(PREFISSO_IMPORTATO)) return "primo_contatto";
         return /richiamo|sequenza finita/.test(motivo) ? "richiamo_24h" : "primo_contatto";
       },
@@ -637,7 +652,9 @@ const NON_SONO_PROBLEMI = [
 //  I motivi degli importati e dei ritorni (numero storto, nome mancante, revoca…) non sono
 //  guasti: sono tanti, e riempirebbero i 20 posti dei problemi veri.
 const eProblema = (motivo: string) =>
-  ![PREFISSO_IMPORTATO, PREFISSO_RITORNO, ...NON_SONO_PROBLEMI].some((m) => motivo.startsWith(m));
+  ![PREFISSO_IMPORTATO, PREFISSO_RITORNO, PREFISSO_CASI, ...NON_SONO_PROBLEMI].some((m) =>
+    motivo.startsWith(m),
+  );
 
 /** Come si presenta un messaggio che parte, nella prova a secco. */
 function chiSara(v: Voce): string {
@@ -662,6 +679,8 @@ function chiSara(v: Voce): string {
       return "richiamo dopo 24 ore";
     case "ritorno":
       return "messaggio di ritorno";
+    case "casi_reali":
+      return "casi reali";
     default:
       return v.d.tipo === "invia" && v.d.extra.recupero
         ? "recupero del ricontatto di ieri"
@@ -716,6 +735,7 @@ function modelloETag(
     tipo === "primo_contatto" ||
     tipo === "richiamo_24h" ||
     tipo === "ritorno" ||
+    tipo === "casi_reali" ||
     tipo === "meet_oggi" ||
     tipo === "meet_domani" ||
     tipo === "meet_adesso"
@@ -743,6 +763,8 @@ function campiDi(
       return campiRichiamo(d);
     case "ritorno":
       return campiRitorno(d);
+    case "casi_reali":
+      return campiCasiReali(d);
     case "meet_oggi":
       return campiMeetOggi(d, consulente);
     case "meet_domani":
@@ -756,7 +778,7 @@ function campiDi(
 
 /** Il secondo stato dopo l'invio (§5e). */
 function ingressoInvio(
-  tipo: TipoGiro,
+  tipo: Exclude<TipoGiro, "casi_reali">,
   v: ExtraVoce,
   inviatoIl: Date,
   invioId: string,
@@ -1053,7 +1075,10 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       case "tetto_lead_nuovi":
         nota = "Tetto di messaggi ai lead nuovi di oggi raggiunto";
         esito.saltati++;
-        return { fine: "chiudi", tipi: ["primo_contatto", "richiamo_24h", "ritorno"] };
+        return {
+          fine: "chiudi",
+          tipi: ["primo_contatto", "richiamo_24h", "ritorno", "casi_reali"],
+        };
       case "ritmo":
         esito.saltati++;
         return { fine: "chiudi", tipi: TIPI_COL_RITMO as TipoGiro[] };
@@ -1097,10 +1122,16 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           prenotatoIl: ora.toISOString(),
           chiave,
         });
-        const cambio = dopoInvio(
-          riletta.data.contattoWa,
-          ingressoInvio(cand.tipo, extra, ora, r.invioId ?? ""),
-        );
+        //  I casi reali sono il seguito del primo contatto: la scheda resta «In attesa» con la
+        //  scadenza e l'invio di quello (le risposte non guardano l'id dell'invio), niente
+        //  nuova scadenza che farebbe slittare il richiamo.
+        const cambio =
+          cand.tipo === "casi_reali"
+            ? null
+            : dopoInvio(
+                riletta.data.contattoWa,
+                ingressoInvio(cand.tipo, extra, ora, r.invioId ?? ""),
+              );
         if (cambio) {
           await porte
             .aggiornaContatto(userId, scheda.id, cambio)
@@ -1223,7 +1254,12 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     oggi: {
       promemoria: contaOggi(invii, oggi, ["promemoria"]),
       ricontatti: contaOggi(invii, oggi, ["ricontatto"]),
-      leadNuovi: contaOggi(invii, oggi, ["primo_contatto", "richiamo_24h", "ritorno"]),
+      leadNuovi: contaOggi(invii, oggi, [
+        "primo_contatto",
+        "richiamo_24h",
+        "ritorno",
+        "casi_reali",
+      ]),
       totale: contaOggi(invii, oggi, TIPI_NEI_TETTI),
       risposte: contaRisposteOggi(invii, oggi),
     },
@@ -1243,8 +1279,14 @@ const MOTIVI_DEL_GIRO = [
   "ritmo",
   "gia_preso",
 ];
-/** I quattro tipi che rispettano la riserva per gli appuntamenti (`totale − 30`). */
-const RISERVATI: TipoGiro[] = ["primo_contatto", "richiamo_24h", "ritorno", "ricontatto"];
+/** I cinque tipi che rispettano la riserva per gli appuntamenti (`totale − 30`). */
+const RISERVATI: TipoGiro[] = [
+  "primo_contatto",
+  "richiamo_24h",
+  "ritorno",
+  "casi_reali",
+  "ricontatto",
+];
 
 function statoVuoto(): StatoGiroSalvato {
   return {

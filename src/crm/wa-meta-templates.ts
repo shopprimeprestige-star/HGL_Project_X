@@ -202,6 +202,12 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     ["lead_name"],
   ),
   tpl(
+    "hgl_casi_reali",
+    "MARKETING",
+    `{{lead_name}}, le lascio qui alcuni casi reali dei nostri clienti, con foto e video. Come vedrà, il nostro non è la classica patch cutanea: è l'Invisible Derm Protocol, su misura. Siamo a Roma e facciamo tutto in giornata, in meno di 2 ore: per questo vengono da noi da tutta Europa.`,
+    ["lead_name"],
+  ),
+  tpl(
     "hgl_meet_domani",
     "UTILITY",
     `Gentile {{lead_name}}, Le ricordiamo che domani, {{appointment_day}}, alle ore {{appointment_time}} ha la Sua consulenza online con Hair Genius Labs.\n\nLa seguirà {{consultant_name}}. Se ha un imprevisto, ci risponda qui e troviamo un altro orario.`,

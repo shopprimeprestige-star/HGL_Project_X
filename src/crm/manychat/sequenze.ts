@@ -80,6 +80,7 @@ import {
   type InvioPerFreno,
 } from "./regole";
 import {
+  campiCasiReali,
   campiMeetAdesso,
   campiMeetDomani,
   campiMeetOggi,
@@ -131,6 +132,9 @@ export interface ContestoLeadNuovi extends ContestoQuando {
   leadNuovoDal: string | null;
   /** `manychat_giro.prossimo_ricontatto_dopo`: lo aspetta solo il richiamo. */
   prossimoDopo?: Date | null;
+  /** ISO: i primi contatti partiti prima di questa data non ricevono i casi reali. Se manca vale
+   *  `CASI_REALI_DAL` (le prove la passano per provare le regole con date del passato). */
+  casiRealiDal?: string | null;
 }
 
 export interface ContestoGiornoMeet extends ContestoQuando {
@@ -140,7 +144,7 @@ export interface ContestoGiornoMeet extends ContestoQuando {
 
 /** Quale dei due messaggi del lead nuovo. */
 export type ExtraLeadNuovo = {
-  quale: "primo_contatto" | "richiamo_24h" | "ritorno";
+  quale: "primo_contatto" | "richiamo_24h" | "ritorno" | "casi_reali";
   tel9: string;
 };
 /** I motivi di «aspetta» e «salta» dei due messaggi nuovi (importati e ritorni) portano
@@ -148,6 +152,18 @@ export type ExtraLeadNuovo = {
  *  importati sono tanti: numeri e nomi storti riempirebbero i 20 posti dei problemi). */
 export const PREFISSO_IMPORTATO = "da contattare: ";
 export const PREFISSO_RITORNO = "ritorno: ";
+/** Lo stesso per i casi reali (commessa 2026-10-28): STOP, revoca e attese non sono problemi del riquadro. */
+export const PREFISSO_CASI = "casi reali: ";
+/** ── CASI REALI: DA QUANDO VALE ──────────────────────────────────────────────
+ *  Solo i primi contatti partiti da questo istante in poi ricevono `hgl_casi_reali`: chi
+ *  l'ha avuto prima della pubblicazione non lo riceve (richiesta del titolare, «nessun
+ *  recupero dei vecchi»). Un istante fisso nel codice, la scelta più semplice: i primi
+ *  contatti non partono prima delle 9:00, quindi la mezzanotte del giorno dopo la
+ *  pubblicazione non lascia scoperto nessuno.
+ *  shortcut: costante, da riportare al giorno vero della pubblicazione se cambia (il capo
+ *  progetto la controlla prima di collegare il flusso `hgl_casi_reali` in ManyChat); da
+ *  cambiare in una colonna di `manychat_config` se serve poterla muovere senza pubblicare. */
+export const CASI_REALI_DAL = "2026-10-29T00:00:00+01:00";
 /** Quale dei due messaggi del giorno del meet, con l'inizio del meet. */
 export type ExtraGiornoMeet = { quale: "meet_oggi" | "meet_adesso"; inizioMeet: Date };
 /** Il promemoria 24 ore prima, con l'inizio del meet. */
@@ -182,7 +198,12 @@ export function primoIstanteUtile(da: Date): Date {
 
 const nonVuoto = (v: unknown) => typeof v === "string" && v.trim() !== "";
 /** I messaggi che contano nel tetto dei lead nuovi. */
-const TIPI_LEAD_NUOVI: InvioPerFreno["tipo"][] = ["primo_contatto", "richiamo_24h", "ritorno"];
+const TIPI_LEAD_NUOVI: InvioPerFreno["tipo"][] = [
+  "primo_contatto",
+  "richiamo_24h",
+  "ritorno",
+  "casi_reali",
+];
 
 /** Gli stati di chi la consulenza non l'ha mai avuta: quelli di primo contatto (`types.ts`)
  *  senza gli appuntamenti. Il testo di `hgl_ritorno` chiede «Vuole fissare la consulenza
@@ -312,7 +333,13 @@ export function decidiLeadNuovi(
       salta("sequenza finita: il primo contatto non risulta inviato (incerto, fallito o saltato)");
       continue;
     }
-    if (ultimoAutomatico(numero, invii)?.chiave !== primo.chiave) {
+    //  I casi reali (secondo messaggio, subito dopo il primo) non interrompono la sequenza.
+    if (
+      ultimoAutomatico(
+        numero,
+        invii.filter((i) => i.tipo !== "casi_reali"),
+      )?.chiave !== primo.chiave
+    ) {
       salta("sequenza finita: dopo il primo contatto è partito un altro messaggio");
       continue;
     }
@@ -326,8 +353,17 @@ export function decidiLeadNuovi(
     richiami.push({ scheda, numero, tel9, entrata, primo, bersaglio });
   }
 
-  const leadNuoviOggi = contaOggi(invii, oggi, TIPI_LEAD_NUOVI);
-  const totaleOggi = contaOggi(invii, oggi, TIPI_NEI_TETTI);
+  //  I casi reali passano davanti a ogni altro messaggio del lead nuovo: chi ha già ricevuto il
+  //  primo contatto deve ricevere subito il secondo. Occupano un posto dei tetti.
+  const casi = decidiCasiReali(
+    ordinate,
+    adesso,
+    { invii, tetti, casiRealiDal: contesto.casiRealiDal },
+    contaOggi(invii, oggi, TIPI_LEAD_NUOVI),
+    contaOggi(invii, oggi, TIPI_NEI_TETTI),
+  );
+  const leadNuoviOggi = contaOggi(invii, oggi, TIPI_LEAD_NUOVI) + casi.emessi;
+  const totaleOggi = contaOggi(invii, oggi, TIPI_NEI_TETTI) + casi.emessi;
   const prossimo = contesto.prossimoDopo ?? null;
   const uscita: Esito[] = [];
 
@@ -403,7 +439,118 @@ export function decidiLeadNuovi(
   const prese = new Set(nuovi.map((x) => x.scheda.id));
   const saltiRimasti = salti.filter((x) => !prese.has(x.scheda.id));
   saltiRimasti.sort((a, b) => a.scheda.id.localeCompare(b.scheda.id));
-  return [...uscita, ...nuovi, ...saltiRimasti];
+  return [...casi.uscita, ...uscita, ...nuovi, ...saltiRimasti];
+}
+
+/** ── CASI REALI: IL SECONDO MESSAGGIO DOPO IL PRIMO CONTATTO (commessa 2026-10-28) ──
+ *  Richiesta del titolare: dopo il primo messaggio un secondo modello (`hgl_casi_reali`) col
+ *  link ai casi veri. Parte UNA volta per numero (`casi|tel9`) se:
+ *   - un primo contatto (`n|tel9` o `n|tel9|r`) è ARRIVATO (registro: `inviato`) da `casiRealiDal`
+ *     in poi e la scadenza della sua risposta non è passata (poi tocca al richiamo);
+ *   - la scheda dice ancora «In attesa» da quel primo contatto: chi ha risposto («Ha risposto»,
+ *     risposta sul registro), chi è stato cambiato a mano o ha un altro messaggio dopo il
+ *     primo è in una conversazione vera e il link lo manda il consulente;
+ *   - nessun appuntamento, nessuno STOP, nessuna revoca, il nome c'è.
+ *  Non lo ferma «mai due senza risposta» (è lui il secondo, voluto), ma rispetta fascia
+ *  oraria, pausa di 120 s per contatto e tetti: conta fra i lead nuovi e sotto la riserva.
+ *  Non cambia lo stato della scheda né la scadenza della risposta (vedi `giro.ts`). */
+function decidiCasiReali(
+  ordinate: SchedaQuando[],
+  adesso: Date,
+  contesto: { invii: InvioPerFreno[]; tetti: typeof TETTI_DI_SERIE; casiRealiDal?: string | null },
+  leadNuoviOggi: number,
+  totaleOggi: number,
+): { uscita: DecisioneQuando<ExtraLeadNuovo>[]; emessi: number } {
+  type Esito = DecisioneQuando<ExtraLeadNuovo>;
+  const { invii, tetti } = contesto;
+  const ora = adesso.getTime();
+  const dal = Date.parse(contesto.casiRealiDal ?? CASI_REALI_DAL);
+  if (!Number.isFinite(dal)) return { uscita: [], emessi: 0 };
+
+  //  Il primo contatto arrivato di ogni numero (il più recente, se ce n'è più d'uno).
+  const primi = new Map<string, InvioPerFreno>();
+  for (const i of invii) {
+    if (i.tipo !== "primo_contatto" || i.stato !== "inviato") continue;
+    if (!/^n\|\d+(\|r)?$/.test(i.chiave ?? "")) continue;
+    const il = Date.parse(i.prenotatoIl);
+    const tel9 = ultimeNoveCifre(i.telefono);
+    if (!tel9 || !Number.isFinite(il) || il < dal) continue;
+    const prima = primi.get(tel9);
+    if (!prima || il > Date.parse(prima.prenotatoIl)) primi.set(tel9, i);
+  }
+  if (primi.size === 0) return { uscita: [], emessi: 0 };
+
+  type Candidato = { scheda: SchedaQuando; tel9: string; inviatoIl: number };
+  const candidati: Candidato[] = [];
+  const salti: Esito[] = [];
+  const visti = new Set<string>();
+  for (const scheda of ordinate) {
+    const d = scheda.data;
+    const numero = numeroWa(d.telefono);
+    const tel9 = numero ? ultimeNoveCifre(numero) : "";
+    const primo = tel9 ? primi.get(tel9) : undefined;
+    if (!numero || !primo) continue;
+    //  Due schede con lo stesso telefono fanno UNA voce (la prima per id).
+    if (visti.has(tel9)) continue;
+    visti.add(tel9);
+    if (chiaveGiaPresa(invii, `casi|${tel9}`)) continue; // una volta sola, in qualunque stato
+    const inviatoIl = Date.parse(primo.prenotatoIl);
+    //  Passata la scadenza della risposta del primo contatto è l'ora del richiamo: niente.
+    if (ora >= scadenzaRicontatto(new Date(inviatoIl)).getTime()) continue;
+
+    const salta = (motivo: string) =>
+      salti.push({ tipo: "salta", scheda, motivo: PREFISSO_CASI + motivo });
+    const cw = d.contattoWa;
+    if (cw?.stato === "stop") {
+      salta("STOP");
+      continue;
+    }
+    if (d.okWhatsapp?.si === false) {
+      salta("revoca di «Ok a WhatsApp»");
+      continue;
+    }
+    //  Ha risposto, è stato cambiato a mano, ha un appuntamento o gli ha scritto qualcun altro:
+    //  non è più il momento dei casi reali.
+    if (cw?.stato !== "in_attesa" || cw.motivo !== "primo_contatto") continue;
+    if (nonVuoto(d.dataMeeting) || eAppuntamento(d.stato)) continue;
+    if (primo.rispostaIl) continue;
+    if (ultimoAutomatico(numero, invii)?.chiave !== primo.chiave) continue;
+    if (!aspettaRisposta(numero, invii, cw, adesso)) continue;
+    const campi = campiCasiReali(d);
+    if (campi.tipo === "salta") {
+      salta(campi.motivo);
+      continue;
+    }
+    candidati.push({ scheda, tel9, inviatoIl });
+  }
+
+  //  Chi aspetta da più tempo tocca per primo.
+  candidati.sort((a, b) => a.inviatoIl - b.inviatoIl || a.scheda.id.localeCompare(b.scheda.id));
+  const uscita: Esito[] = [];
+  const parte = primoIstanteUtile(adesso);
+  let emessi = 0;
+  for (const k of candidati) {
+    const aspetta = (motivo: string) =>
+      uscita.push({ tipo: "aspetta", scheda: k.scheda, motivo: PREFISSO_CASI + motivo });
+    if (parte.getTime() > ora) {
+      aspetta(quandoParte(parte));
+    } else if (leadNuoviOggi + emessi >= tetti.leadNuovi) {
+      aspetta("tetto dei lead nuovi di oggi raggiunto: se ne parla domani");
+    } else if (totaleOggi + emessi >= totaleSenzaRiserva(tetti.totale)) {
+      aspetta("tetto di messaggi di oggi raggiunto: se ne parla domani");
+    } else if (inPausa(invii, k.tel9, adesso)) {
+      aspetta(FRASE_PAUSA);
+    } else {
+      emessi++;
+      uscita.push({
+        tipo: "invia",
+        scheda: k.scheda,
+        chiave: `casi|${k.tel9}`,
+        extra: { quale: "casi_reali", tel9: k.tel9 },
+      });
+    }
+  }
+  return { uscita: [...uscita, ...salti], emessi };
 }
 
 /** ── IMPORTATI MAI CONTATTATI E CONTATTI DI RITORNO (commessa 2026-10-28) ────

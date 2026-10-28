@@ -671,7 +671,7 @@ const eTipoAutomatico = (t: unknown): t is ProblemaGiro["tipo"] =>
   (TIPI_AUTOMATICI as string[]).includes(String(t));
 const MAX_PROBLEMI = 20;
 
-const LEAD_NUOVI = ["primo_contatto", "richiamo_24h", "ritorno"];
+const LEAD_NUOVI = ["primo_contatto", "richiamo_24h", "ritorno", "casi_reali"];
 
 /** Gli esiti di `sheets_ingressi` che il riquadro può mostrare; ogni altro valore
  *  diventa «altro» (nello stato non passa mai un testo del database). */
@@ -899,7 +899,8 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   if (
     modello === "hgl_primo_contatto" ||
     modello === "hgl_richiamo_24h" ||
-    modello === "hgl_ritorno"
+    modello === "hgl_ritorno" ||
+    modello === "hgl_casi_reali"
   )
     return !!s?.leadNuovo;
   if (modello === "hgl_meet_oggi" || modello === "hgl_meet_domani" || modello === "hgl_meet_adesso")

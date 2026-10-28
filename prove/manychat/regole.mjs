@@ -518,7 +518,7 @@ export async function proveRegole(mod, { c, gruppo }) {
     ],
   );
   c(
-    "l'elenco degli undici automatici: i tre di prima, i sette nuovi e il ritorno (28/10)",
+    "l'elenco dei dodici automatici: i tre di prima, i sette nuovi, il ritorno e i casi reali (28/10)",
     [
       "promemoria",
       "ricontatto",
@@ -526,6 +526,7 @@ export async function proveRegole(mod, { c, gruppo }) {
       "primo_contatto",
       "richiamo_24h",
       "ritorno",
+      "casi_reali",
       "meet_oggi",
       "meet_domani",
       "meet_adesso",

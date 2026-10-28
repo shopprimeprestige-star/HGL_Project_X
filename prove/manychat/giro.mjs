@@ -31,6 +31,7 @@ const TIPI9 = [
   "primo_contatto",
   "richiamo_24h",
   "ritorno",
+  "casi_reali",
   "meet_oggi",
   "meet_domani",
   "meet_adesso",
@@ -167,9 +168,13 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       const maxLn = abbassa(tetti.leadNuovi, 100);
       const maxTot = abbassa(tetti.totale, 100);
       //  la riserva di 30 posti per gli appuntamenti (S2)
-      const riservato = ["primo_contatto", "richiamo_24h", "ritorno", "ricontatto"].includes(
-        p.tipo,
-      );
+      const riservato = [
+        "primo_contatto",
+        "richiamo_24h",
+        "ritorno",
+        "casi_reali",
+        "ricontatto",
+      ].includes(p.tipo);
       const limite = riservato ? Math.max(0, maxTot - 30) : maxTot;
       const prima = m.config.primaAccensione ? Date.parse(m.config.primaAccensione) : ora;
       if (ora < prima + 7 * GIORNO) maxRic = Math.min(maxRic, 10);
@@ -180,9 +185,10 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       )
         return { motivo: "tetto_ricontatti" };
       if (
-        ["primo_contatto", "richiamo_24h", "ritorno"].includes(p.tipo) &&
-        contano.filter((r) => ["primo_contatto", "richiamo_24h", "ritorno"].includes(r.tipo))
-          .length >= maxLn
+        ["primo_contatto", "richiamo_24h", "ritorno", "casi_reali"].includes(p.tipo) &&
+        contano.filter((r) =>
+          ["primo_contatto", "richiamo_24h", "ritorno", "casi_reali"].includes(r.tipo),
+        ).length >= maxLn
       )
         return { motivo: "tetto_lead_nuovi" };
       //  3. STOP
@@ -2363,6 +2369,195 @@ export const supabaseAdminDefault = supabaseAdmin;`,
           .importatiERitorni,
       ],
     );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  COMMESSA 2026-10-28 (wa-casi-reali): IL SECONDO MESSAGGIO DOPO IL PRIMO CONTATTO
+   *  Le regole pure sono in `casi-reali.mjs`; qui il giro vero: modello, tag, registro,
+   *  tetti, e che la scheda NON cambi stato né scadenza.
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · IL SECONDO MESSAGGIO «CASI REALI»");
+  {
+    const accesa = {
+      leadNuovo: true,
+      leadNuovoDal: "2026-10-20T00:00:00.000Z",
+      casiRealiDal: "2026-10-01T00:00:00.000Z",
+      fraseModuloDal: null,
+      flussi: {
+        ...CONFIG.flussi,
+        hgl_primo_contatto: "content-n1",
+        hgl_casi_reali: "content-casi",
+      },
+    };
+    const importato = (id, n, extra) =>
+      scheda(id, n, {
+        okWhatsapp: undefined,
+        consulenteId: undefined,
+        stato: "da_contattare",
+        importato: true,
+        createdAt: "2026-06-01T10:00:00.000Z",
+        ...extra,
+      });
+    const SCADE = new Date(ADESSO + 20 * 3_600_000).toISOString();
+    /** una scheda che ha ricevuto il primo contatto 3 minuti fa */
+    const inAttesa = (id, n, extra) =>
+      importato(id, n, {
+        stato: "attesa_whatsapp",
+        contattoWa: {
+          stato: "in_attesa",
+          il: new Date(ADESSO - 3 * MIN).toISOString(),
+          da: "automatico",
+          motivo: "primo_contatto",
+          scadeRisposta: SCADE,
+          invioId: "inv-primo",
+          storia: [],
+        },
+        ...extra,
+      });
+    const primoInviato = (n, extra) => ({
+      id: `primo${n}`,
+      userId: U,
+      leadId: null,
+      tipo: "primo_contatto",
+      chiave: `n|${cifre(n).slice(-9)}`,
+      telefono: cifre(n),
+      stato: "inviato",
+      prenotatoMs: ADESSO - 3 * MIN,
+      inviatoMs: ADESSO - 3 * MIN,
+      ...extra,
+    });
+    const campi = (m, i) =>
+      m.f.chiamate
+        .filter((x) => x.percorso === PERCORSI.scriviCampi)
+        [i]?.corpo.fields.find((x) => x.field_name === "crm_v1")?.field_value;
+    const tag = (m, i) =>
+      m.f.chiamate.filter((x) => x.percorso === PERCORSI.tag)[i]?.corpo.tag_name;
+
+    let m = mondo({ schede: [inAttesa("s1", 1)], invii: [primoInviato(1)], config: accesa });
+    const prima = structuredClone(m.schede[0].data);
+    let e = await m.giroOra();
+    c(
+      "tre minuti dopo il primo contatto: parte hgl_casi_reali col tag crm-casi-reali e il solo nome",
+      [1, "content-casi", "crm-casi-reali", "Anna"],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, tag(m, 0), campi(m, 0)],
+    );
+    c(
+      "…registro: tipo casi_reali, chiave casi|tel9; il ritmo non si sposta",
+      ["casi_reali", `casi|${cifre(1).slice(-9)}`, null],
+      [m.invii[1].tipo, m.invii[1].chiave, m.giro.prossimo],
+    );
+    c(
+      "…la scheda non cambia: stesso stato, stessa scadenza della risposta, stesso invio, nessuna scrittura di stato",
+      [prima, 0, 0],
+      [m.schede[0].data, m.statoLog.length, m.contattoLog.length],
+    );
+    c("…conta come lead nuovo e nel totale di oggi", [1, 2], [
+      m.giro.stato.oggi.leadNuovi - 1,
+      m.giro.stato.oggi.totale,
+    ]);
+    e = await m.giroOra();
+    c("…un secondo giro non lo rimanda (una volta sola)", [0, 2], [e.nuoviInviati, m.invii.length]);
+
+    //  Dal primo contatto al secondo, davvero in due giri: mai nello stesso.
+    m = mondo({ schede: [importato("i1", 2)], config: accesa });
+    e = await m.giroOra();
+    c(
+      "importato da contattare: nel primo giro parte SOLO il primo contatto (pausa di 120 s), la scheda va in «Attesa WhatsApp»",
+      [1, ["primo_contatto"], "attesa_whatsapp"],
+      [e.nuoviInviati, m.invii.map((x) => x.tipo), m.schede[0].data.stato],
+    );
+    m.orologio.avanza(3 * MIN);
+    e = await m.giroOra();
+    c(
+      "…tre minuti dopo, il giro dopo manda i casi reali; lo stato resta «Attesa WhatsApp» e la scadenza è quella del primo",
+      [1, ["primo_contatto", "casi_reali"], "attesa_whatsapp", "in_attesa"],
+      [e.nuoviInviati, m.invii.map((x) => x.tipo), m.schede[0].data.stato, m.schede[0].data.contattoWa.stato],
+    );
+    c(
+      "…e la scadenza non è stata spostata dal secondo messaggio",
+      m.schede[0].data.contattoWa.scadeRisposta,
+      new Date(Date.parse(m.schede[0].data.contattoWa.il) + 24 * 3_600_000).toISOString(),
+    );
+
+    //  Chi non lo riceve.
+    m = mondo({
+      schede: [inAttesa("s1", 1, { contattoWa: { stato: "ha_risposto", il: "2026-10-23T13:04:00.000Z", da: "automatico", storia: [] } })],
+      invii: [primoInviato(1)],
+      config: accesa,
+    });
+    c("il cliente ha già risposto → niente", [0, 1], [(await m.giroOra()).nuoviInviati, m.invii.length]);
+    m = mondo({
+      schede: [inAttesa("s1", 1, { dataMeeting: "2026-10-27" })],
+      invii: [primoInviato(1)],
+      config: accesa,
+    });
+    c("la scheda ha un appuntamento → niente", 0, (await m.giroOra()).nuoviInviati);
+    m = mondo({
+      schede: [inAttesa("s1", 1, { okWhatsapp: { si: false, il: "2026-10-01T10:00:00.000Z", da: "G" } })],
+      invii: [primoInviato(1)],
+      config: accesa,
+    });
+    c(
+      "revoca di «Ok a WhatsApp» → niente, e non è un problema del riquadro",
+      [0, 0],
+      [(await m.giroOra()).nuoviInviati, m.giro.stato.problemi.length],
+    );
+    m = mondo({ schede: [inAttesa("s1", 1)], invii: [primoInviato(1)], config: accesa, stop: [cifre(1)] });
+    e = await m.giroOra();
+    c(
+      "STOP sul numero (database): la prenotazione lo ferma, niente chiamate a ManyChat",
+      [0, 1, 0],
+      [e.nuoviInviati, m.invii.length, m.flussi().length],
+    );
+    m = mondo({
+      schede: [inAttesa("s1", 1)],
+      invii: [primoInviato(1)],
+      config: { ...accesa, flussi: { ...accesa.flussi, hgl_casi_reali: undefined } },
+    });
+    e = await m.giroOra();
+    c(
+      "senza il flusso hgl_casi_reali non parte e la nota lo dice (gli altri tipi non si fermano)",
+      [0, true],
+      [e.nuoviInviati, /hgl_casi_reali/.test(m.giro.stato.nota ?? "")],
+    );
+    m = mondo({ schede: [inAttesa("s1", 1)], invii: [primoInviato(1)], config: { ...accesa, leadNuovo: false } });
+    c("«Lead nuovo» spento → niente", 0, (await m.giroOra()).nuoviInviati);
+    m = mondo({ schede: [inAttesa("s1", 1)], invii: [primoInviato(1)], config: { ...accesa, casiRealiDal: undefined } });
+    c(
+      "senza la data della pubblicazione in configurazione vale la costante: un primo contatto del 23/10 non lo riceve",
+      0,
+      (await m.giroOra()).nuoviInviati,
+    );
+
+    //  I tetti: passano davanti ai primi contatti nuovi.
+    m = mondo({
+      schede: [inAttesa("s1", 1), importato("i2", 2)],
+      invii: [
+        primoInviato(1),
+        ...Array.from({ length: 68 }, (_, i) => ({
+          id: `p${i}`, userId: U, leadId: null, tipo: "primo_contatto", chiave: `x|${i}`,
+          telefono: `3930000${String(i).padStart(5, "0")}`, stato: "inviato",
+          prenotatoMs: ADESSO - 10 * MIN, rispostaMs: ADESSO - 5 * MIN,
+        })),
+      ],
+      config: accesa,
+    });
+    e = await m.giroOra();
+    c(
+      "69 messaggi già partiti (tetto 100 − 30 = 70): l'ultimo posto va al casi reali, non al primo contatto nuovo",
+      [1, ["casi_reali"]],
+      [e.nuoviInviati, m.invii.slice(69).map((x) => x.tipo)],
+    );
+
+    //  La prova a secco.
+    m = mondo({ schede: [inAttesa("s1", 1)], invii: [primoInviato(1)], config: accesa });
+    e = await m.giroOra(true);
+    c(
+      "prova a secco: il casi reali compare col suo tipo e la sua parola",
+      [{ tipo: "casi_reali", esito: "scriverebbe", motivo: "casi reali" }],
+      e.righe.map(({ tipo, esito, motivo }) => ({ tipo, esito, motivo })),
+    );
+    c("…e non scrive niente", [1, 0], [m.invii.length, m.flussi().length]);
   }
 
   /* ════════════════════════════════════════════════════════════════════════

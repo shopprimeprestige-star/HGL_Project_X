@@ -2148,11 +2148,12 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     );
   }
   c(
-    "flussi per le sequenze: i sei della sequenza (con il ritorno) e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
+    "flussi per le sequenze: i sette della sequenza (con il ritorno e i casi reali) e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
     [
       "hgl_primo_contatto",
       "hgl_richiamo_24h",
       "hgl_ritorno",
+      "hgl_casi_reali",
       "hgl_meet_oggi",
       "hgl_meet_domani",
       "hgl_meet_adesso",

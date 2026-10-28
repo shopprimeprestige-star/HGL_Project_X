@@ -183,7 +183,7 @@ export interface InvioPerFreno {
 
 /** Gli invii che il freno guarda: i messaggi AUTOMATICI al cliente. La chat è
  *  una persona che scrive, il webinar è un altro prodotto, la prova è del
- *  titolare. Con la commessa 2026-10-25 ci sono anche i sette tipi nuovi. */
+ *  titolare. Con la commessa 2026-10-25 ci sono anche i sette tipi nuovi (e, dal 28/10, il ritorno e i casi reali). */
 export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "promemoria",
   "ricontatto",
@@ -191,13 +191,14 @@ export const TIPI_AUTOMATICI: InvioPerFreno["tipo"][] = [
   "primo_contatto",
   "richiamo_24h",
   "ritorno",
+  "casi_reali",
   "meet_oggi",
   "meet_domani",
   "meet_adesso",
   "promemoria_chiamata",
   "promemoria_sede",
 ];
-/** Quelli che contano nei tetti: i dieci del giro (la conferma parte da un'altra
+/** Quelli che contano nei tetti: gli undici del giro (la conferma parte da un'altra
  *  strada, subito dopo la prenotazione, e non ha tetto). */
 export const TIPI_NEI_TETTI: InvioPerFreno["tipo"][] = TIPI_AUTOMATICI.filter(
   (t) => t !== "conferma",

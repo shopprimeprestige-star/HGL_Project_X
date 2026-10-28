@@ -1727,7 +1727,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
     [Q.TETTO_RICONTATTI, Q.TETTO_LEAD_NUOVI, Q.TETTO_TOTALE, Q.RISERVA_APPUNTAMENTI],
   );
   c(
-    "i dieci tipi nei tetti (la conferma no); il ritmo solo per ricontatto e richiamo",
+    "gli undici tipi nei tetti (la conferma no); il ritmo solo per ricontatto e richiamo",
     [
       [
         "promemoria",
@@ -1735,6 +1735,7 @@ export async function proveSequenze(mod, { c, gruppo }) {
         "primo_contatto",
         "richiamo_24h",
         "ritorno",
+        "casi_reali",
         "meet_oggi",
         "meet_domani",
         "meet_adesso",
