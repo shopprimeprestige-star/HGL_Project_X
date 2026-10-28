@@ -1,4 +1,4 @@
-import { CheckCheck } from "lucide-react";
+import { CheckCheck, Star } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,9 @@ interface RigaChatProps {
   onApri: () => void;
   onCreaScheda: () => void;
   onAbbina: () => void;
+  /** Le stelle di priorità (0-3) e il tocco che le cambia (vedi useStelle). */
+  stelle?: number;
+  onStelle?: () => void;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
@@ -49,6 +52,8 @@ export function RigaChat({
   onApri,
   onCreaScheda,
   onAbbina,
+  stelle = 0,
+  onStelle,
 }: RigaChatProps) {
   const nome = nomeChat(c);
   const last = c.lastMessage;
@@ -75,7 +80,7 @@ export function RigaChat({
   const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
 
   return (
-    <li className={cn("border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
+    <li className={cn("relative border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
       <button
         type="button"
         onClick={onApri}
@@ -127,7 +132,7 @@ export function RigaChat({
             )}
           </span>
           {(c.lead || nome !== c.phone) && (
-            <span className="mt-1 flex items-center gap-2">
+            <span className={cn("mt-1 flex items-center gap-2", onStelle && "pr-16")}>
               {c.lead && (
                 <span
                   className={cn(
@@ -143,8 +148,41 @@ export function RigaChat({
               </span>
             </span>
           )}
+          {/*  Senza la terza riga, lo spazio per le stelle (che stanno fuori dal bottone). */}
+          {onStelle && !(c.lead || nome !== c.phone) && (
+            <span className="mt-1 block h-5" aria-hidden="true" />
+          )}
         </span>
       </button>
+
+      {/*  ── LE STELLE, DALLA LISTA (28/10/2026) ───────────────────────────
+          Un tocco ne aggiunge una (0 → 1 → 2 → 3 → 0). Fuori dal bottone della
+          riga, come «Crea scheda»: un bottone dentro un bottone non è valido. */}
+      {onStelle && (
+        <button
+          type="button"
+          onClick={onStelle}
+          //  All'altezza della terza riga (stato e numero), a destra, dove non c'è niente.
+          className="absolute right-2 top-[56px] inline-flex h-7 items-center gap-0.5 rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:top-[54px]"
+          aria-label={`Priorità di ${nome}: ${stelle} su 3. Tocca per cambiare`}
+          title={
+            stelle
+              ? `In osservazione: ${stelle} su 3 · tocca per cambiare`
+              : "Metti in osservazione"
+          }
+        >
+          {[1, 2, 3].map((i) => (
+            <Star
+              key={i}
+              aria-hidden="true"
+              className={cn(
+                "h-4 w-4",
+                i <= stelle ? "fill-amber-400 text-amber-500" : "text-muted-foreground/40",
+              )}
+            />
+          ))}
+        </button>
+      )}
 
       {(senzaScheda || ambigua) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3">

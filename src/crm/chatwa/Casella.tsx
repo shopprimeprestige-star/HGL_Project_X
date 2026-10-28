@@ -1,4 +1,7 @@
-import { Ban, Clock, Loader2, Send, TriangleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Ban, CalendarClock, Clock, Loader2, Send, TriangleAlert } from "lucide-react";
+import { usePuo } from "@/crm/AuthContext";
+import { OrariRapidi } from "@/crm/OrariRapidi";
 import { Button } from "@/components/ui/button";
 import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
@@ -16,6 +19,14 @@ const FRASE_CHIUSA = finestra24({ contatto: null, messaggi: [], adesso: 0 }).fra
 export function Casella({ api }: CasellaProps) {
   const { bozza, setBozza, residuiBozza, invia, inviando, stato, attiva, canale } = api;
   const { consultants } = useCRM();
+  /*  ── PROPONI ORARI (28/10/2026) ────────────────────────────────────────
+      Giorni e ore libere (crm/OrariRapidi) e il messaggio si scrive da solo.
+      ⚠️ Solo a chi ha l'agenda: senza, le ore tenute per una persona sola non
+       arrivano e si vedrebbero libere (un doppio appuntamento). Cambiando chat
+       si chiude: gli orari erano scelti per un altro cliente. */
+  const puoAgenda = usePuo()("agenda");
+  const [orari, setOrari] = useState(false);
+  useEffect(() => setOrari(false), [attiva?.phone]);
 
   const quadro = "shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]";
 
@@ -74,6 +85,16 @@ export function Casella({ api }: CasellaProps) {
       }).frase);
   return (
     <div className={quadro}>
+      {orari && puoAgenda && configurata && (
+        <OrariRapidi
+          nome={attiva?.lead?.data?.nome}
+          onInserisci={(t) => {
+            setBozza(bozza.trim() ? `${bozza.trimEnd()}\n\n${t}` : t);
+            setOrari(false);
+          }}
+          onChiudi={() => setOrari(false)}
+        />
+      )}
       {residuiBozza.length > 0 && (
         <div className="px-3 pt-2">
           <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-800">
@@ -92,6 +113,20 @@ export function Casella({ api }: CasellaProps) {
         </p>
       )}
       <div className="px-3 py-2 flex items-end gap-2">
+        {puoAgenda && configurata && (
+          <Button
+            type="button"
+            size="icon"
+            variant={orari ? "default" : "outline"}
+            onClick={() => setOrari((v) => !v)}
+            aria-label="Proponi orari liberi"
+            aria-expanded={orari}
+            title="Proponi orari liberi"
+            className="h-11 w-11 shrink-0 rounded-full"
+          >
+            <CalendarClock className="h-4 w-4" />
+          </Button>
+        )}
         <textarea
           value={bozza}
           onChange={(e) => setBozza(e.target.value)}

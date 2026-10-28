@@ -467,6 +467,8 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ Orari rapidi e stelle nella chat WhatsApp: vedi proveDiWhatsappOrariStelle.
+  "wa-orari",
   //  ⚠️ Il modello inviato come lo legge il cliente: vedi proveDelTestoDeiModelli.
   "testo-modello",
   //  ⚠️ Il lead che c'è già prende l'orario scelto nel nuovo: vedi
@@ -20429,6 +20431,46 @@ function proveDelTestoDeiModelli() {
   c("la chat mostra il testo, e l'anteprima pure", [1, 1], [(bolla.match(/corpoLeggibile\(/g) || []).length, (riga.match(/corpoLeggibile\(/g) || []).length]);
 }
 
+/** ── WHATSAPP: ORARI RAPIDI E STELLE (28/10/2026) ─────────── */
+function proveDiWhatsappOrariStelle() {
+  gruppo("WHATSAPP: IL MESSAGGIO CON GLI ORARI");
+  const W = mod["wa-orari"];
+  const oggi = "2026-10-28";
+  c("oggi e domani si dicono così", ["oggi", "domani", "venerdì 30 ottobre"], ["2026-10-28", "2026-10-29", "2026-10-30"].map((d) => W.giornoPerMessaggio(d, oggi)));
+  const uno = W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario Esempio");
+  c("un orario solo: «Le va bene?», solo il nome", "Gentile Mario, per la consulenza gratuita online avrei libero oggi alle 15:00.\n\nLe va bene?", uno);
+  const piu = W.messaggioOrari([{ data: "2026-10-29", ora: "10:00" }, { data: oggi, ora: "17:30" }, { data: oggi, ora: "15:00" }, { data: oggi, ora: "9:00" }], oggi, "");
+  c("più orari: un giorno per riga, in ordine, domanda in fondo",
+    "Per la consulenza gratuita online avrei liberi questi orari:\n\n• oggi alle 09:00, 15:00 o 17:30\n• domani alle 10:00\n\nQuale preferisce?", piu);
+  c("due ore: «alle … o alle …»", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }, { data: oggi, ora: "16:00" }], oggi).includes("oggi alle 15:00 o alle 16:00"));
+  c("niente di scelto: niente testo", "", W.messaggioOrari([], oggi, "Mario"));
+  c("la stessa ora due volte conta una volta", 1, (W.messaggioOrari([{ data: oggi, ora: "15:00" }, { data: oggi, ora: "15:00" }], oggi).match(/15:00/g) || []).length);
+
+  gruppo("WHATSAPP: DA RISPONDERE E STELLE");
+  c("l'ultimo è suo: da rispondere", true, W.daRispondere({ direction: "inbound" }));
+  c("l'ultimo è nostro: no", false, W.daRispondere({ direction: "outbound" }));
+  c("nessun messaggio: no", false, W.daRispondere(null));
+  let m = W.leggiStelle("");
+  c("nessuna stella salvata: mappa vuota", {}, m);
+  m = W.conStelle(m, "+39 333 000 0000", 2);
+  c("le stelle si salvano sulle ultime nove cifre", { 330000000: 2 }, m);
+  c("…e si ritrovano col numero scritto in un altro modo", 2, W.stelleDi(m, "3330000000"));
+  c("un tocco: 0→1→2→3→0", [1, 2, 3, 0], [0, 1, 2, 3].map(W.stellaDopo));
+  c("0 toglie dall'osservazione", {}, W.conStelle(m, "3330000000", 0));
+  c("salvate e rilette uguali", m, W.leggiStelle(W.scriviStelle(m)));
+  c("valori strani scartati", {}, W.leggiStelle('{"stelle":{"abc":2,"333000000":7}}'));
+  c("il nome scritto minuscolo esce con la maiuscola", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "mario").startsWith("Gentile Mario,"));
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  const casella = readFileSync(join(radice, "src/crm/chatwa/Casella.tsx"), "utf8");
+  const hook = readFileSync(join(radice, "src/crm/chatwa/useStelle.ts"), "utf8");
+  c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
+  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /sort\(\(a, b\) => stelleDi\(b\.phone\) - stelleDi\(a\.phone\)\)/.test(elenco));
+  c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
+  c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
+  c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20538,6 +20580,7 @@ proveProvaModelli(mod, { c, gruppo, radice });
 await proveSheets(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
+proveDiWhatsappOrariStelle();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
