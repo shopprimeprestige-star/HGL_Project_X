@@ -959,14 +959,14 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       prenotatoMs: ADESSO - 60 * MIN,
       ...extra,
     });
-    //  Tetto totale: 100 messaggi automatici oggi (era 40, S2).
+    //  Tetto totale: 150 messaggi automatici oggi (era 40, S2; 100 fino al 28/10).
     let m = mondo({
       schede: [meet("s1", 1)],
-      invii: Array.from({ length: 100 }, (_, i) => riga(i, i % 2 ? "ricontatto" : "promemoria")),
+      invii: Array.from({ length: 150 }, (_, i) => riga(i, i % 2 ? "ricontatto" : "promemoria")),
     });
     let e = await m.giroOra();
     c(
-      "100 messaggi oggi → il 101° non parte (tetto totale)",
+      "150 messaggi oggi → il 151° non parte (tetto totale)",
       [0, 0],
       [e.promemoriInviati, m.flussi().length],
     );

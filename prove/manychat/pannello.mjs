@@ -554,10 +554,10 @@ export async function proveVistaComponenti(aiuti) {
 
   // ── i tetti: si possono solo abbassare ────────────────────────────────
   c(
-    "tetti effettivi: di serie le costanti (e 100 lead nuovi)",
+    "tetti effettivi: di serie le costanti (e 150 lead nuovi)",
     {
       ricontatti: TETTI.TETTO_RICONTATTI,
-      leadNuovi: 100,
+      leadNuovi: 150,
       totale: TETTI.TETTO_TOTALE,
       primaSettimana: false,
     },
@@ -2236,13 +2236,13 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
   // ── tetti: ricontatti, lead nuovi, totale ───────────────────────────────
   const eff0 = V.tettiEffettivi({}, "2026-09-01T08:00:00Z", ADESSO);
   c(
-    "tetti effettivi: di serie ricontatti, lead nuovi 100 e totale (le costanti)",
-    [Q.TETTO_RICONTATTI, 100, Q.TETTO_TOTALE, false],
+    "tetti effettivi: di serie ricontatti, lead nuovi 150 e totale (le costanti)",
+    [Q.TETTO_RICONTATTI, 150, Q.TETTO_TOTALE, false],
     [eff0.ricontatti, eff0.leadNuovi, eff0.totale, eff0.primaSettimana],
   );
   c(
     "tetti effettivi: il riquadro a 500 vale le costanti, abbassati valgono",
-    [100, 7],
+    [150, 7],
     [
       V.tettiEffettivi({ leadNuovi: 500 }, "2026-09-01T08:00:00Z", ADESSO).leadNuovi,
       V.tettiEffettivi({ leadNuovi: 7 }, "2026-09-01T08:00:00Z", ADESSO).leadNuovi,
@@ -2326,10 +2326,10 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
   c(
     "riga di stato: tetto dei lead nuovi raggiunto → ambra, slittano a domani",
     ["ambra", true],
-    ((x) => [x.tono, /Tetto di oggi raggiunto: 100 lead nuovi su 100.*domani/.test(x.frase)])(
+    ((x) => [x.tono, /Tetto di oggi raggiunto: 150 lead nuovi su 150.*domani/.test(x.frase)])(
       riga(
         { leadNuovo: true },
-        { oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 100, totale: 30, risposte: 0 } },
+        { oggi: { promemoria: 0, ricontatti: 0, leadNuovi: 150, totale: 30, risposte: 0 } },
       ),
     ),
   );
