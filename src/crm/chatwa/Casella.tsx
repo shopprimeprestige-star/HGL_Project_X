@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Ban, CalendarClock, Clock, Loader2, Send, TriangleAlert } from "lucide-react";
 import { usePuo } from "@/crm/AuthContext";
 import { OrariRapidi } from "@/crm/OrariRapidi";
@@ -7,6 +7,26 @@ import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { ScegliModello } from "./ScegliModello";
+import {
+  FilaSuggerimenti,
+  FinestraRisposte,
+  idVoce,
+  ID_MENU_RISPOSTE,
+  MenuRisposte,
+} from "./RisposteRapide";
+import {
+  comandoDi,
+  conRisposta,
+  filtraRisposte,
+  nomePerMessaggio,
+  nuovoId,
+  riempi,
+  senzaRisposta,
+  suggerisci,
+  ultimoDelCliente,
+  type RispostaRapida,
+} from "./risposte-rapide";
+import { useRisposteRapide } from "./useRisposteRapide";
 import { finestra24, type ContattoStato } from "./stato";
 import type { CasellaProps } from "./tipi";
 
@@ -27,8 +47,56 @@ export function Casella({ api }: CasellaProps) {
   const puoAgenda = usePuo()("agenda");
   const [orari, setOrari] = useState(false);
   useEffect(() => setOrari(false), [attiva?.phone]);
+  const nomeConsulente =
+    consultants.find((c) => c.id === attiva?.lead?.data.consulenteId)?.data.nome ?? "";
 
-  const quadro = "shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]";
+  /*  ── RISPOSTE RAPIDE (28/10/2026) ──────────────────────────────────────
+      «/» apre l'elenco, «/2» o «/parola» filtra, Invio o un tocco mette il
+      testo nella casella: NON invia. Senza «/», sopra la casella vuota una
+      riga di suggerimenti, i più pertinenti all'ultimo messaggio del cliente
+      e allo stato del lead. La matita le modifica per tutto lo studio.
+      Regole in ./risposte-rapide, disegno in ./RisposteRapide. */
+  const { risposte, cambia, ripristina } = useRisposteRapide();
+  const libera = stato === "libera";
+  const areaRef = useRef<HTMLTextAreaElement | null>(null);
+  const ricerca = libera ? comandoDi(bozza) : null;
+  /** Esc chiude l'elenco per QUESTO testo: scrivendo ancora si riapre. */
+  const [chiusoPer, setChiusoPer] = useState<string | null>(null);
+  const menuAperto = ricerca !== null && chiusoPer !== bozza;
+  const voci = useMemo(
+    () => (ricerca === null ? [] : filtraRisposte(risposte, ricerca)),
+    [risposte, ricerca],
+  );
+  const [evidenziata, setEvidenziata] = useState(0);
+  useEffect(() => setEvidenziata(0), [ricerca]);
+  const statoLead = attiva?.lead?.data.stato ?? null;
+  const suggerite = useMemo(
+    () => suggerisci(risposte, { ultimoCliente: ultimoDelCliente(api.messaggi), stato: statoLead }),
+    [risposte, api.messaggi, statoLead],
+  );
+  const [finestra, setFinestra] = useState<{ daModificare: RispostaRapida | null } | null>(null);
+
+  const riempiChat = (t: string) =>
+    riempi(t, {
+      nome: nomePerMessaggio(attiva?.lead?.data.nome, attiva?.contact?.display_name),
+      consulente: nomeConsulente,
+    });
+  const inserisci = (r: RispostaRapida) => {
+    const testo = riempiChat(r.testo);
+    //  «/…» si sostituisce; un testo già scritto resta e la risposta va sotto.
+    setBozza(comandoDi(bozza) !== null || !bozza.trim() ? testo : `${bozza.trimEnd()}\n\n${testo}`);
+    setChiusoPer(null);
+    requestAnimationFrame(() => {
+      const el = areaRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  };
+
+  //  Sul telefono con la tastiera aperta il margine del tasto Home è sotto la tastiera: via.
+  const quadro =
+    "shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)] group-data-[tastiera=si]/chat:pb-0";
 
   if (stato === "stop") {
     //  L'avviso intero lo mostra già la conversazione sotto la barra in alto: qui solo una riga discreta.
@@ -47,8 +115,6 @@ export function Casella({ api }: CasellaProps) {
 
   if (stato === "solo_modelli") {
     const nomeLead = attiva?.lead?.data.nome?.trim() || attiva?.contact?.display_name?.trim() || "";
-    const nomeConsulente =
-      consultants.find((c) => c.id === attiva?.lead?.data.consulenteId)?.data.nome ?? "";
     return (
       <div className={quadro}>
         <p role="status" className="flex items-start gap-2 px-3 pt-2.5 text-[12px] text-amber-800">
@@ -112,6 +178,37 @@ export function Casella({ api }: CasellaProps) {
           {frase}
         </p>
       )}
+      {menuAperto && (
+        <MenuRisposte
+          voci={voci}
+          ricerca={ricerca ?? ""}
+          evidenziata={evidenziata}
+          onEvidenzia={setEvidenziata}
+          riempi={riempiChat}
+          onScegli={inserisci}
+          onModifica={(r) => setFinestra({ daModificare: r })}
+        />
+      )}
+      {libera && !menuAperto && !orari && !bozza.trim() && suggerite.length > 0 && (
+        <FilaSuggerimenti
+          risposte={suggerite}
+          onScegli={inserisci}
+          onGestisci={() => setFinestra({ daModificare: null })}
+        />
+      )}
+      <FinestraRisposte
+        aperta={finestra !== null}
+        daModificare={finestra?.daModificare ?? null}
+        risposte={risposte}
+        onChiudi={() => setFinestra(null)}
+        onSalva={({ id, titolo, testo }) => {
+          //  L'id si sceglie una volta: il cambio si rifà anche sull'elenco riletto.
+          const nuova = id ?? nuovoId(risposte, Date.now().toString(36));
+          cambia((l) => conRisposta(l, { id: nuova, titolo, testo }));
+        }}
+        onElimina={(id) => cambia((l) => senzaRisposta(l, id))}
+        onRipristina={ripristina}
+      />
       <div className="px-3 py-2 flex items-end gap-2">
         {puoAgenda && configurata && (
           <Button
@@ -128,19 +225,49 @@ export function Casella({ api }: CasellaProps) {
           </Button>
         )}
         <textarea
+          ref={areaRef}
           value={bozza}
           onChange={(e) => setBozza(e.target.value)}
           //  iOS fa scorrere il documento quando compare la tastiera: si riporta in alto
           //  (la posizione della casella la tiene `visualViewport`, non lo scorrimento).
           onFocus={() => window.scrollTo(0, 0)}
           onKeyDown={(e) => {
+            if (menuAperto && !e.nativeEvent.isComposing) {
+              const n = voci.length;
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                if (n) setEvidenziata((i) => (i + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setChiusoPer(bozza);
+                return;
+              }
+              if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                //  Invio sceglie, non invia: «/2» non deve mai partire al cliente.
+                e.preventDefault();
+                const scelta = voci[Math.min(evidenziata, n - 1)];
+                if (scelta) inserisci(scelta.risposta);
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               if (!inviando) void invia();
             }
           }}
           placeholder={
-            configurata ? "Scrivi un messaggio…" : "Configura WhatsApp in Impostazioni per inviare"
+            configurata
+              ? "Messaggio, o / per le risposte"
+              : "Configura WhatsApp in Impostazioni per inviare"
+          }
+          role={libera ? "combobox" : undefined}
+          aria-autocomplete={libera ? "list" : undefined}
+          aria-expanded={libera ? menuAperto : undefined}
+          aria-controls={menuAperto && voci.length ? ID_MENU_RISPOSTE : undefined}
+          aria-activedescendant={
+            menuAperto && voci.length ? idVoce(Math.min(evidenziata, voci.length - 1)) : undefined
           }
           disabled={!configurata}
           enterKeyHint="send"
