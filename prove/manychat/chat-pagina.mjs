@@ -49,6 +49,7 @@ export const fetchCRM = (url, init) => globalThis.fetch(url, init);`,
   from: (t) => globalThis.__T.db.from(t),
   rpc: (fn, args) => globalThis.__T.db.rpc(fn, args),
   auth: { getSession: async () => ({ data: { session: { access_token: "gettone-finto" } } }) },
+  realtime: { setAuth: async () => {} },
   channel: () => globalThis.__T.db.canale(),
   removeChannel: () => {},
 };`,
@@ -652,7 +653,11 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [0, [P1]],
         [p.api().chats[0].unread, telefoni(p.api().daRispondere)],
       );
-      c("un solo timer (ogni 30 secondi)", [[30_000]], [[...p.T.timers.values()].map((t) => t.ms)]);
+      c(
+        "due timer: l'orologio (30 s) e il controllo dei messaggi nuovi (15 s)",
+        [[15_000, 30_000]],
+        [[...p.T.timers.values()].map((t) => t.ms).sort((x, y) => x - y)],
+      );
       // Passa mezz'ora in giri da 30 secondi: l'elenco si ricalcola ma il segna-letto NON si rilancia.
       for (let i = 0; i < 4; i++) {
         p.T.ora += 30_000;

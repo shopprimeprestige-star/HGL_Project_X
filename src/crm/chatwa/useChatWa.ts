@@ -219,40 +219,136 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Realtime: ricarica al volo su INSERT/UPDATE
+  /** ── I MESSAGGI NUOVI ARRIVANO SEMPRE (28/10/2026) ──────────────────────
+   *  Il titolare riceveva messaggi che nella chat non comparivano finché non
+   *  ricaricava la pagina. Il canale in tempo reale da solo non basta:
+   *   - se si iscrive prima che la sessione sia passata al socket, entra come
+   *     anonimo e la RLS (`auth.uid() = user_id`) gli nasconde ogni riga;
+   *   - sul telefono, con lo schermo spento o l'app in secondo piano, il socket
+   *     muore e non si riapre da solo.
+   *  Quindi: la sessione si passa al socket PRIMA di iscriversi; se il canale
+   *  cade si riapre; appena iscritto si rilegge (quello perso nel frattempo);
+   *  si rilegge al ritorno sulla pagina; e ogni 15 s un controllo leggero
+   *  (l'ultimo messaggio e l'ultimo contatto cambiato) fa da rete di sicurezza.
+   *  Le ricariche si mettono in fila: mai due insieme. */
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
   useEffect(() => {
     if (!user) return;
-    const ch = supabase
-      .channel(`wa-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "whatsapp_messages",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          void reload();
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "whatsapp_contacts",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          void reload();
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(ch);
+    let vivo = true;
+    let inCorso = false;
+    let ancora = false;
+    const ricarica = async () => {
+      if (inCorso) {
+        ancora = true;
+        return;
+      }
+      inCorso = true;
+      try {
+        await reloadRef.current();
+      } finally {
+        inCorso = false;
+        if (ancora && vivo) {
+          ancora = false;
+          void ricarica();
+        }
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    let riprova: ReturnType<typeof setTimeout> | null = null;
+    const apri = async () => {
+      if (!vivo) return;
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) await supabase.realtime.setAuth(token);
+      if (!vivo) return;
+      ch = supabase
+        .channel(`wa-${user.id}-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "whatsapp_messages",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => void ricarica(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "whatsapp_contacts",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => void ricarica(),
+        )
+        .subscribe((stato) => {
+          if (!vivo) return;
+          if (stato === "SUBSCRIBED") void ricarica();
+          else if (stato === "CHANNEL_ERROR" || stato === "TIMED_OUT" || stato === "CLOSED") {
+            if (riprova) return;
+            riprova = setTimeout(() => {
+              riprova = null;
+              const vecchio = ch;
+              ch = null;
+              if (vecchio) void supabase.removeChannel(vecchio);
+              void apri();
+            }, 5_000);
+          }
+        });
+    };
+    void apri();
+
+    //  Rete di sicurezza: una riga sola per tabella, si rilegge tutto solo se è cambiato qualcosa.
+    let impronta = "";
+    let primo = true;
+    const controlla = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      const [m, c] = await Promise.all([
+        tabella("whatsapp_messages")
+          .select("id,created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1),
+        tabella("whatsapp_contacts")
+          .select("id,updated_at")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(1),
+      ]);
+      if (!vivo || m.error || c.error) return;
+      const ora = JSON.stringify([m.data, c.data]);
+      if (ora !== impronta) {
+        impronta = ora;
+        if (!primo) void ricarica();
+      }
+      primo = false;
+    };
+    void controlla();
+    const giro = setInterval(() => void controlla(), 15_000);
+    const torna = () => {
+      if (document.visibilityState === "visible") void ricarica();
+    };
+    const pagina = typeof document !== "undefined";
+    if (pagina) {
+      document.addEventListener("visibilitychange", torna);
+      window.addEventListener("focus", torna);
+      window.addEventListener("online", torna);
+    }
+    return () => {
+      vivo = false;
+      clearInterval(giro);
+      if (riprova) clearTimeout(riprova);
+      if (pagina) {
+        document.removeEventListener("visibilitychange", torna);
+        window.removeEventListener("focus", torna);
+        window.removeEventListener("online", torna);
+      }
+      if (ch) void supabase.removeChannel(ch);
+    };
   }, [user]);
 
   //  Tutta la chat aperta, per telefono: i recenti non bastano per una chat vecchia.
