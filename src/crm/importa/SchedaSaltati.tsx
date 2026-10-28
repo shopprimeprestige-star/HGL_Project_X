@@ -57,6 +57,8 @@
  *   «rimetti in coda» può permettersi un gesto solo perché si disfa premendo
  *   «salta»; questo no.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -469,6 +471,9 @@ export function SchedaSaltati({
                   )}
                 </span>
                 <span className="block truncate text-[11.5px] text-muted-foreground">
+                  {mostraTemperatura(d.stato) && (
+                    <TemperaturaRiga dati={d} max={0} className="mr-1.5 align-baseline" />
+                  )}
                   {d.telefono || "senza telefono"} ·{" "}
                   <span className={cn(vecchio && "font-medium text-rose-600")}>
                     {attesaLeggibile(l)}

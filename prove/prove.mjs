@@ -20360,7 +20360,13 @@ function proveDeiDaRiprogrammareOggi() {
   const oggi = "2026-10-22";
   c("cambiato a settembre: è di oggi", oggi, di("vecchio")?.giorno);
   c("importato senza giorno del cambio: c'è, ed è di oggi", oggi, di("importato")?.giorno);
-  c("con un richiamo futuro: resta comunque di oggi", oggi, di("ieri")?.giorno);
+  c("rimandato con «Quando richiamarla» a un giorno futuro: esce da oggi", undefined, di("ieri"));
+  const conRichiamoOggi = DF.costruisciRighe({ ora, task: [], leads: [lead("r", { stato: "da_spostare", dataRicontatto: oggi, oraRicontatto: "16:00" })] })[0];
+  c("…e il giorno del richiamo torna, con la sua ora", [oggi, "16:00"], [conRichiamoOggi?.giorno, conRichiamoOggi?.ora]);
+  const sidebar = readFileSync(join(radice, "src/crm/CRMSidebar.tsx"), "utf8");
+  c("il numero nel menu usa la data locale, non UTC", true, /const oggi = oggiIso\(ora\)/.test(sidebar) && !/toISOString\(\)\.slice\(0, 10\);\s*return righe\.filter/.test(sidebar));
+  for (const f of ["SchedaOggi", "SchedaSaltati", "SchedaRipesca", "SchedaRimandati"])
+    c(`Lead importati, ${f}: c'è la temperatura`, true, /<TemperaturaRiga/.test(readFileSync(join(radice, `src/crm/importa/${f}.tsx`), "utf8")));
   c("non finisce nell'arretrato", "quandoCapita", DF.fasciaDi(di("vecchio"), ora.getTime(), oggi));
   c("rifissato (stato cambiato): esce", undefined, di("rifissato"));
   c("«Cliente assente» resta alla regola di prima (arretrato)", "2026-09-01", di("assente")?.giorno);

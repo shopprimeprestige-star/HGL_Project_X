@@ -80,6 +80,8 @@ import type { Lead, LeadStatus } from "@/crm/types";
 //  `statiPer` a partire dai dati del lead, quindi una riga importata continua a
 //  vedere gli stati della prima chiamata anche da qui.
 import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { ChipAttesa, Scheda, Vuoto } from "@/crm/ui";
 //  ⚠️ Anche `MINIMO_PER_ORDINARE` viene da lì: era scritto qui e in /CRM/dafare,
 //  con lo stesso valore e due commenti gemelli. Il verso, le parole e la soglia
@@ -253,6 +255,13 @@ function Riga({
             </span>
           ) : (
             <ChipAttesa attesa={attesa} grande={urgente} />
+          )}
+          {/*  ── COM'È MESSO (richiesta del titolare, 22/10/2026) ──────────
+              «Su scheda Oggi non c'è se è freddo, caldo, tiepido»: la stessa
+              riga di «Oggi» e di Lead importati (crm/Temperatura), niente se
+              non ha risposto al modulo o se ha già comprato. */}
+          {lead && mostraTemperatura(lead.data?.stato) && (
+            <TemperaturaRiga dati={lead.data} className="max-w-full" />
           )}
           {telefono && <span className="truncate">{telefono}</span>}
           {task?.diNome && <span className="truncate">scritta da {task.diNome}</span>}
