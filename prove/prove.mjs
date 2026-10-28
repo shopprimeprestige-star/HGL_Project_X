@@ -20385,12 +20385,15 @@ function proveDeiDaRiprogrammareOggi() {
  *  Richiesta del titolare: «correggi design WhatsApp per mobile». */
 function proveDiWhatsappSulTelefono() {
   gruppo("WHATSAPP SUL TELEFONO: UNA COSA ALLA VOLTA");
-  const pg = readFileSync(join(radice, "src/routes/CRM.whatsapp.tsx"), "utf8");
-  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /w-full md:w-\[300px\][\s\S]{0,200}activePhone \? "hidden md:flex" : "flex"/.test(pg));
-  c("la chat si vede da sola quando è aperta", true, /activePhone \? "flex" : "hidden md:flex"/.test(pg));
-  c("c'è la freccia per tornare all'elenco", true, /onClick=\{\(\) => setActivePhone\(null\)\}[\s\S]{0,120}md:hidden/.test(pg));
-  c("il pannello lead parte chiuso sotto i 1024 px", true, /matchMedia\("\(min-width: 1024px\)"\)\.matches\) setLeadsPanelOpen\(false\)/.test(pg));
-  c("il pannello lead sta sopra la pagina sul telefono", true, /fixed inset-0 z-40[^"]*lg:static/.test(pg));
+  //  Dal 28/10 (commessa chat-whatsapp-crm) la pagina vive in crm/chatwa: stesse
+  //  regole, controllate dove stanno adesso.
+  const pg = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[340px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
+  c("la chat si vede da sola quando è aperta", true, /md:block", conversazioneAperta \? "block" : "hidden"/.test(pg));
+  c("c'è la freccia per tornare all'elenco", true, /onIndietro=\{tornaElenco\}/.test(pg) && /onClick=\{onIndietro\}[\s\S]{0,80}md:hidden/.test(conv));
+  c("il pannello lead affiancato solo da 1280 px", true, /leadsPanelOpen && \(\s*<div className="hidden xl:flex">/.test(pg));
+  c("sotto i 1280 px il pannello lead è un foglio sopra la pagina", true, /<Sheet open=\{foglioLead\}/.test(pg) && /SheetContent side="right" className="w-full/.test(pg));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
