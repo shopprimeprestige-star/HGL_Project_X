@@ -51,8 +51,11 @@ export const TETTO_RICONTATTI = 20;
  *  giorno del meet sarebbe saltato proprio il messaggio col link delle 18:00.
  *  100 resta sotto il primo limite di Meta (250 persone al giorno). */
 export const TETTO_TOTALE = 100;
-/** Messaggi ai lead nuovi al giorno (primo contatto + richiamo a 24 h). */
-export const TETTO_LEAD_NUOVI = 30;
+/** Messaggi ai lead nuovi al giorno (primo contatto + richiamo a 24 h + ritorno).
+ *  Commessa 2026-10-28 («tutti oggi»): non più 30 ma quanto il totale. Il tetto vero
+ *  per questi tre resta `TETTO_TOTALE − RISERVA_APPUNTAMENTI` (70). Uguale in SQL
+ *  (migrazione 20261028130000). */
+export const TETTO_LEAD_NUOVI = TETTO_TOTALE;
 /** Posti del totale tenuti liberi per gli appuntamenti: primo contatto, richiamo
  *  e ricontatto contano contro `totale − RISERVA_APPUNTAMENTI`. Uguale in SQL. */
 export const RISERVA_APPUNTAMENTI = 30;

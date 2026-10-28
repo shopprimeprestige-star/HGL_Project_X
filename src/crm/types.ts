@@ -1895,7 +1895,10 @@ export type TipoInvioNuovo =
   | "meet_domani"
   | "meet_adesso"
   | "promemoria_chiamata"
-  | "promemoria_sede";
+  | "promemoria_sede"
+  //  commessa 2026-10-28: il messaggio al contatto di ritorno (`hgl_ritorno`).
+  //  ⚠️ Il CHECK del database lo accetta solo dopo 20261028130000_manychat_ritorno.sql
+  | "ritorno";
 export type TipoInvio =
   | "promemoria"
   | "ricontatto"

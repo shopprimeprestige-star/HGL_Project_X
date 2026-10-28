@@ -30,6 +30,7 @@ const TIPI9 = [
   "ricontatto",
   "primo_contatto",
   "richiamo_24h",
+  "ritorno",
   "meet_oggi",
   "meet_domani",
   "meet_adesso",
@@ -161,10 +162,12 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       const abbassa = (v, costante) =>
         typeof v === "number" && v >= 0 ? Math.min(costante, v) : costante;
       let maxRic = abbassa(tetti.ricontatti, 20);
-      const maxLn = abbassa(tetti.leadNuovi, 30);
+      const maxLn = abbassa(tetti.leadNuovi, 100);
       const maxTot = abbassa(tetti.totale, 100);
       //  la riserva di 30 posti per gli appuntamenti (S2)
-      const riservato = ["primo_contatto", "richiamo_24h", "ricontatto"].includes(p.tipo);
+      const riservato = ["primo_contatto", "richiamo_24h", "ritorno", "ricontatto"].includes(
+        p.tipo,
+      );
       const limite = riservato ? Math.max(0, maxTot - 30) : maxTot;
       const prima = m.config.primaAccensione ? Date.parse(m.config.primaAccensione) : ora;
       if (ora < prima + 7 * GIORNO) maxRic = Math.min(maxRic, 10);
@@ -175,8 +178,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       )
         return { motivo: "tetto_ricontatti" };
       if (
-        ["primo_contatto", "richiamo_24h"].includes(p.tipo) &&
-        contano.filter((r) => ["primo_contatto", "richiamo_24h"].includes(r.tipo)).length >= maxLn
+        ["primo_contatto", "richiamo_24h", "ritorno"].includes(p.tipo) &&
+        contano.filter((r) => ["primo_contatto", "richiamo_24h", "ritorno"].includes(r.tipo))
+          .length >= maxLn
       )
         return { motivo: "tetto_lead_nuovi" };
       //  3. STOP
@@ -1715,13 +1719,26 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     //  tetti nuovi
     m = mondo({
       schede: [lead("n1", 1)],
-      config: accesa,
+      config: { ...accesa, tetti: { leadNuovi: 30 } },
       invii: Array.from({ length: 30 }, (_, i) =>
         riga(i, i % 2 ? "richiamo_24h" : "primo_contatto"),
       ),
     });
     e = await m.giroOra();
-    c("31° lead nuovo → non parte (tetto 30)", 0, e.nuoviInviati);
+    c(
+      "31° lead nuovo con il riquadro a 30 → non parte (il riquadro può abbassare)",
+      0,
+      e.nuoviInviati,
+    );
+    m = mondo({
+      schede: [lead("n1", 1)],
+      config: accesa,
+      invii: Array.from({ length: 70 }, (_, i) =>
+        riga(i, i % 2 ? "richiamo_24h" : "primo_contatto"),
+      ),
+    });
+    e = await m.giroOra();
+    c("71° lead nuovo → non parte (tetto 100 meno la riserva di 30)", 0, e.nuoviInviati);
     m = mondo({
       schede: [lead("n1", 1), meet("s1", 2, { oraMeeting: "15:06" })],
       config: { ...accesa, tetti: { totale: 40 } },
@@ -2018,6 +2035,7 @@ export const supabaseAdmin = {
   from: () => {
     const filtri = [];
     let tetto = 1000;
+    let ordina = false;
     const q = {
       select: () => q,
       eq: (c, v) => (filtri.push((r) => String(valore(r, c)) === String(v)), q),
@@ -2025,9 +2043,11 @@ export const supabaseAdmin = {
       gte: (c, v) => (filtri.push((r) => valore(r, c) !== null && String(valore(r, c)) >= v), q),
       lte: (c, v) => (filtri.push((r) => valore(r, c) !== null && String(valore(r, c)) <= v), q),
       not: (c) => (filtri.push((r) => valore(r, c) !== null), q),
+      is: (c) => (filtri.push((r) => valore(r, c) === null), q),
+      order: () => ((ordina = true), q),
       limit: (n) => ((tetto = Math.min(n, 1000)), q),
       then: (ok, no) =>
-        Promise.resolve({ data: globalThis.__righe.filter((r) => filtri.every((f) => f(r))).slice(0, tetto), error: null }).then(ok, no),
+        Promise.resolve({ data: globalThis.__righe.filter((r) => filtri.every((f) => f(r))).sort((a, b) => (ordina ? String(a.id).localeCompare(String(b.id)) : 0)).slice(0, tetto), error: null }).then(ok, no),
     };
     return q;
   },
@@ -2087,6 +2107,59 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         ids.some((i) => i.startsWith("d")),
       ],
     );
+    //  Commessa 2026-10-28: gli importati «da contattare» e i ritorni, con letture limitate.
+    globalThis.__righe = [
+      ...Array.from({ length: 1500 }, (_, i) =>
+        riga(`m${String(i).padStart(4, "0")}`, { importato: true, stato: "da_contattare" }),
+      ),
+      riga("scritto", {
+        importato: true,
+        stato: "da_contattare",
+        contattoWa: { stato: "in_attesa" },
+      }),
+      riga("irraggiungibile", {
+        importato: true,
+        stato: "da_contattare",
+        contattoWa: { stato: "non_raggiungibile" },
+      }),
+      riga("in-chat", { importato: true, stato: "gestire_in_chat" }),
+      riga("non-importato", { stato: "da_contattare" }),
+      riga("ritorno", {
+        stato: "da_ricontattare",
+        ricarico: { volte: 2, ultimo: "2026-10-27T08:00:00.000Z" },
+      }),
+      riga("senza-ricarico", { stato: "da_ricontattare" }),
+    ];
+    const conRitorni = await PS.porteGiro().schede(U, "2026-10-23", {
+      leadNuoviDal: null,
+      importatiERitorni: true,
+      stati: {},
+    });
+    const idsR = conRitorni.map((x) => x.id);
+    c(
+      "importati: 1500 «da contattare» letti tutti (oltre le 1000 righe di PostgREST), senza doppioni",
+      [1500, true],
+      [idsR.filter((i) => i.startsWith("m")).length, new Set(idsR).size === idsR.length],
+    );
+    c(
+      "…il già scritto, l'in chat e il non importato restano fuori; il «non raggiungibile» e il ritorno entrano",
+      [false, false, false, true, true, false],
+      [
+        idsR.includes("scritto"),
+        idsR.includes("in-chat"),
+        idsR.includes("non-importato"),
+        idsR.includes("irraggiungibile"),
+        idsR.includes("ritorno"),
+        idsR.includes("senza-ricarico"),
+      ],
+    );
+    const senzaR = await PS.porteGiro().schede(U, "2026-10-23", {
+      leadNuoviDal: null,
+      importatiERitorni: false,
+      stati: {},
+    });
+    c("«Lead nuovo» spento: nessuna lettura di importati né di ritorni", 0, senzaR.length);
+    delete globalThis.__righe;
     const server = readFileSync(join(radice, "src/crm/manychat/pannello.server.ts"), "utf8");
     c(
       "la prova a secco del riquadro legge le schede con la STESSA funzione del giro",
@@ -2095,6 +2168,182 @@ export const supabaseAdminDefault = supabaseAdmin;`,
     );
     rmSync(dir, { recursive: true, force: true });
     delete globalThis.__righe;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  IMPORTATI E RITORNI (commessa 2026-10-28)
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · IMPORTATI MAI CONTATTATI E MESSAGGIO DI RITORNO");
+  {
+    const accesa = {
+      leadNuovo: true,
+      leadNuovoDal: "2026-10-20T00:00:00.000Z",
+      fraseModuloDal: null,
+      flussi: { ...CONFIG.flussi, hgl_primo_contatto: "content-n1", hgl_ritorno: "content-rit" },
+    };
+    /** un importato di mesi fa: né modulo né consenso */
+    const importato = (id, n, extra) =>
+      scheda(id, n, {
+        okWhatsapp: undefined,
+        consulenteId: undefined,
+        stato: "da_contattare",
+        importato: true,
+        createdAt: "2026-06-01T10:00:00.000Z",
+        ...extra,
+      });
+    /** un contatto di ritorno: il ricarico è salito oggi alle 14:00 Roma */
+    const ritorno = (id, n, extra) =>
+      importato(id, n, {
+        stato: "da_ricontattare",
+        ricarico: { volte: 2, ultimo: "2026-10-23T12:00:00.000Z", daDecidere: true },
+        ...extra,
+      });
+    const v1 = (m) =>
+      m.f.chiamate
+        .find((x) => x.percorso === PERCORSI.scriviCampi)
+        ?.corpo.fields.find((x) => x.field_name === "crm_v1")?.field_value;
+    const tag = (m) => m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name;
+
+    let m = mondo({ schede: [ritorno("r1", 1)], config: accesa });
+    let e = await m.giroOra();
+    c(
+      "ritorno: inviato col flusso hgl_ritorno, il tag crm-ritorno e il solo nome",
+      [1, "content-rit", "crm-ritorno", "Anna"],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, tag(m), v1(m)],
+    );
+    c(
+      "…registro: tipo ritorno, chiave r|tel9|<istante del ritorno>; «In attesa»; il ritmo non si sposta",
+      ["ritorno", `r|${cifre(1).slice(-9)}|2026-10-23T12:00:00.000Z`, "in_attesa", null],
+      [m.invii[0].tipo, m.invii[0].chiave, m.schede[0].data.contattoWa.stato, m.giro.prossimo],
+    );
+    c("…conta come lead nuovo di oggi nel riquadro", 1, m.giro.stato.oggi.leadNuovi);
+    e = await m.giroOra();
+    c("…un secondo giro non lo rimanda (stesso ritorno)", [0, 1], [e.nuoviInviati, m.invii.length]);
+
+    m = mondo({ schede: [importato("i1", 2)], config: accesa });
+    e = await m.giroOra();
+    c(
+      "importato di mesi fa, senza consenso né modulo: primo contatto col suo flusso e tag",
+      [1, "content-n1", "crm-primo-contatto", `n|${cifre(2).slice(-9)}`],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, tag(m), m.invii[0]?.chiave],
+    );
+    m = mondo({
+      schede: [
+        importato("i1", 2, { stato: "gestire_in_chat" }),
+        importato("i2", 3, {
+          contattoWa: { stato: "contattato", il: "2026-10-01T10:00:00.000Z", da: "x" },
+        }),
+        importato("i3", 4),
+      ],
+      invii: [
+        {
+          id: "vecchio",
+          userId: U,
+          leadId: null,
+          tipo: "chat",
+          chiave: null,
+          telefono: cifre(4),
+          stato: "inviato",
+          prenotatoMs: ADESSO - 3 * GIORNO,
+        },
+      ],
+      config: accesa,
+    });
+    e = await m.giroOra();
+    c(
+      "già in chat, già scritto o con una chat a mano nel registro → niente",
+      [0, 1],
+      [e.nuoviInviati, m.invii.length],
+    );
+    m = mondo({
+      schede: [
+        importato("i1", 2, {
+          contattoWa: { stato: "stop", il: "2026-10-01T10:00:00.000Z", da: "x" },
+        }),
+        importato("i2", 3, { okWhatsapp: { si: false, il: "2026-10-01T10:00:00.000Z", da: "G" } }),
+        ritorno("r1", 4, { telefono: "12" }),
+      ],
+      config: accesa,
+    });
+    e = await m.giroOra();
+    c(
+      "STOP, revoca e numero non valido: zero invii, e non sono problemi del riquadro",
+      [0, 0],
+      [e.nuoviInviati, m.giro.stato.problemi.length],
+    );
+    m = mondo({
+      schede: [ritorno("r1", 1)],
+      config: { ...accesa, flussi: { ...accesa.flussi, hgl_ritorno: undefined } },
+    });
+    e = await m.giroOra();
+    c(
+      "senza il flusso hgl_ritorno il messaggio non parte e la nota lo dice",
+      [0, true],
+      [e.nuoviInviati, /hgl_ritorno/.test(m.giro.stato.nota ?? "")],
+    );
+    m = mondo({
+      schede: [ritorno("r1", 1), importato("i1", 2)],
+      config: { ...accesa, leadNuovo: false },
+    });
+    c("«Lead nuovo» spento → né importati né ritorni", 0, (await m.giroOra()).nuoviInviati);
+
+    //  Il giro manda al massimo due messaggi alla volta: gli altri aspettano il giro dopo.
+    m = mondo({
+      schede: [ritorno("r1", 1), ritorno("r2", 2), importato("i1", 3), importato("i2", 4)],
+      config: accesa,
+    });
+    e = await m.giroOra();
+    c(
+      "quattro candidati: due per giro, prima i ritorni",
+      [2, ["ritorno", "ritorno"]],
+      [e.nuoviInviati, m.invii.map((x) => x.tipo)],
+    );
+    e = await m.giroOra();
+    c("…al giro dopo partono gli altri due", [2, 4], [e.nuoviInviati, m.invii.length]);
+
+    //  Il tetto: i ritorni contano fra i lead nuovi e rispettano la riserva (100 - 30 = 70).
+    m = mondo({
+      schede: [ritorno("r1", 1)],
+      config: accesa,
+      invii: Array.from({ length: 70 }, (_, i) => ({
+        id: `p${i}`,
+        userId: U,
+        leadId: null,
+        tipo: "primo_contatto",
+        chiave: `x|${i}`,
+        telefono: `3930000${String(i).padStart(5, "0")}`,
+        stato: "inviato",
+        prenotatoMs: ADESSO - 10 * MIN,
+        rispostaMs: ADESSO - 5 * MIN,
+      })),
+    });
+    e = await m.giroOra();
+    c("70 lead nuovi già partiti oggi → il ritorno aspetta domani", 0, e.nuoviInviati);
+
+    //  La prova a secco mostra i candidati nuovi con il loro motivo.
+    m = mondo({
+      schede: [ritorno("r1", 1), importato("i1", 2)],
+      config: { ...CONFIG, flussi: CONFIG.flussi },
+    });
+    e = await m.giroOra(true);
+    c(
+      "prova a secco: il ritorno e l'importato compaiono, con il loro tipo e il loro motivo",
+      [
+        { tipo: "ritorno", esito: "scriverebbe", motivo: "messaggio di ritorno" },
+        { tipo: "primo_contatto", esito: "scriverebbe", motivo: "primo contatto" },
+      ],
+      e.righe.map(({ tipo, esito, motivo }) => ({ tipo, esito, motivo })),
+    );
+    c(
+      "ambitoDi: con «Lead nuovo» acceso il giro chiede anche importati e ritorni, spento no",
+      [true, false],
+      [
+        G.ambitoDi(G.sceltaDaConfig({ ...CONFIG, ...accesa }, new Date(ADESSO), false))
+          .importatiERitorni,
+        G.ambitoDi(G.sceltaDaConfig({ ...CONFIG, leadNuovo: false }, new Date(ADESSO), false))
+          .importatiERitorni,
+      ],
+    );
   }
 
   /* ════════════════════════════════════════════════════════════════════════
