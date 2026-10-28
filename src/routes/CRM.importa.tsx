@@ -2281,15 +2281,15 @@ function LeadImportatiUnoAllaVolta() {
   /** «Ultimo esito: … → Torna indietro»: la riga che disfa l'ultimo esito. */
   const ultimoEsito =
     vista === "coda" && ultimo ? (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
-        <p className="min-w-0 text-[12.5px] text-muted-foreground">
+      <div className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-1">
+        <p className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">
           Ultimo esito: <span className="font-medium text-foreground">{ultimo.nome}</span> →{" "}
           {LEAD_STATUS_LABEL[ultimo.stato]}
         </p>
         <Button
           size="sm"
           variant="outline"
-          className="h-11 shrink-0 text-[12px] md:h-7"
+          className="h-11 shrink-0 px-2.5 text-[12px] md:h-7"
           onClick={() => void disfaUltimo(ultimo)}
         >
           <Undo2 className="mr-1 h-3.5 w-3.5" /> Torna indietro
@@ -2315,7 +2315,7 @@ function LeadImportatiUnoAllaVolta() {
   return (
     <Pagina
       //  Sul telefono la barra degli esiti è fissa in basso: la pagina le lascia il posto.
-      className={vista === "coda" && prossimo ? "pb-40 md:pb-6" : undefined}
+      className={vista === "coda" && prossimo ? "pb-[calc(var(--barra-esiti,16px)+1rem)] md:pb-6" : undefined}
     >
       {/* ── L'INTESTAZIONE: TITOLO, CERCA, ALTRO ───────────────────────────
           Una riga sola. Cerca sta sempre fuori dal menu: il cliente richiama, e
@@ -2899,6 +2899,10 @@ function LeadImportatiUnoAllaVolta() {
                 //  rimane dentro, ed è giusto così).
                 posizione={Math.min(codaFetta.length - daFare + 1, codaFetta.length)}
                 totale={codaFetta.length}
+                doveSono={filtri.stato === "whatsapp" ? "in attesa su WhatsApp" : undefined}
+                //  «Ultimo esito → Torna indietro» sta dentro la barra degli esiti:
+                //  sul telefono si legge sopra i pollici, non sotto la piega.
+                sopraLaBarra={ultimoEsito}
                 onEsito={(s) => void segna(prossimo, s)}
                 onAltri={() => setGriglia(prossimo)}
                 onSalta={() => void salta(prossimo)}
@@ -2906,8 +2910,6 @@ function LeadImportatiUnoAllaVolta() {
                 onWhatsAppInviato={() => void segnaWhatsappInviato(prossimo)}
                 onElimina={puoEliminare ? () => setDaEliminare(prossimo) : undefined}
               />
-
-              {ultimoEsito}
 
               {daEliminare && (
                 <FinestraElimina
@@ -2975,7 +2977,7 @@ function LeadImportatiUnoAllaVolta() {
                       tabella, con i filtri e le azioni di gruppo, c'è{" "}
                       <Link
                         to="/CRM/avanzamento"
-                        className="font-medium text-foreground underline underline-offset-2"
+                        className="inline-flex min-h-11 items-center font-medium text-foreground underline underline-offset-2 md:min-h-0"
                       >
                         l'elenco completo
                       </Link>
@@ -3022,7 +3024,7 @@ function LeadImportatiUnoAllaVolta() {
             />
           ) : (
             <Vuoto
-              titolo={coda.length === 0 && nFiltri === 0 ? "Sei in pari" : segnate > 0 ? "Coda finita" : "Nessuno da chiamare"}
+              titolo={segnate > 0 ? "Coda finita" : "Nessuno da chiamare"}
               /*  ⚠️ A CODA VUOTA I SALTATI SONO L'UNICO LAVORO RIMASTO, e
                   questa schermata era l'ultimo punto in cui potevano sparire
                   dagli occhi: «Nessuno da chiamare» con cinque persone messe da

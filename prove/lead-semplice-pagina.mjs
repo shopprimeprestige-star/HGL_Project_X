@@ -71,9 +71,11 @@ export async function proveLeadSemplicePagina(mod, { c, gruppo, radice }) {
   c("BarraEsiti: è uno solo (una sola barra nel DOM della scheda)", 1, (pagina.match(/<BarraEsiti\b/g) ?? []).length);
   c("BarraEsiti: Chiama, WhatsApp e gli esiti ricevuti (1…4)", true,
     /<TastoChiama/.test(barra) && /WhatsApp/.test(barra) && /esiti\.map/.test(barra));
+  c("«Ultimo esito → Torna indietro» sta dentro la barra (sopra i pollici sul telefono)", true,
+    /sopraLaBarra=\{ultimoEsito\}/.test(rotta) && /inCima/.test(barra));
   c("la barra scrive la sua altezza per il Toaster, e CRM.tsx la legge", true,
     /--barra-esiti/.test(barra) && /--barra-esiti/.test(leggi("src/routes/CRM.tsx")));
-  c("la pagina lascia il posto alla barra sotto la scheda (padding sul telefono)", true, /pb-40 md:pb-6/.test(rotta));
+  c("la pagina lascia il posto alla barra sotto la scheda (padding sul telefono)", true, rotta.includes("pb-[calc(var(--barra-esiti,16px)+1rem)] md:pb-6"));
 
   // ── 44 px sul telefono: i tasti del disegno nuovo hanno h-11 (o min-h-11) ──
   const alti = {

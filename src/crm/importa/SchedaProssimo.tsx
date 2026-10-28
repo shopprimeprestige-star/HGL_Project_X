@@ -1,7 +1,7 @@
 /** Estratto da `src/routes/CRM.importa.tsx` (commessa 2026-10-28-lead-importati-semplice,
  *  compito T3): la scheda del prossimo (con le risposte del modulo e le note).
  *  Solo uno spostamento: nessuna riga di logica è cambiata. */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
   ClipboardList,
@@ -239,6 +239,8 @@ export function SchedaProssimo({
   nomeConsulente,
   posizione,
   totale,
+  doveSono = "in coda",
+  sopraLaBarra,
   onEsito,
   onAltri,
   esitiAltri,
@@ -298,6 +300,10 @@ export function SchedaProssimo({
   nomeConsulente?: string;
   posizione: number;
   totale: number;
+  /** Con la pillola «Attesa WhatsApp» le righe non sono la coda: lo dice la nota. */
+  doveSono?: string;
+  /** Una riga sopra i tasti, dentro la barra (l'ultimo esito con «Torna indietro»). */
+  sopraLaBarra?: ReactNode;
   onEsito: (stato: LeadStatus) => void;
   onAltri: () => void;
   onSalta: () => void;
@@ -342,7 +348,7 @@ export function SchedaProssimo({
   return (
     <Scheda
       titolo={fuoriCoda ? "Trovato con la ricerca" : "Il prossimo"}
-      nota={fuoriCoda ? "fuori dalla coda di oggi" : `${posizione} di ${totale} in coda`}
+      nota={fuoriCoda ? "fuori dalla coda di oggi" : `${posizione} di ${totale} ${doveSono}`}
       icona={fuoriCoda ? Search : Phone}
     >
       <div className="space-y-3">
@@ -581,16 +587,17 @@ export function SchedaProssimo({
           onWhatsAppInviato={onWhatsAppInviato}
           esiti={esiti}
           onEsito={onEsito}
+          inCima={sopraLaBarra}
         />
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="grid grid-cols-3 gap-1 md:flex md:flex-wrap md:items-center md:gap-1.5">
           {/*  ⚠️ DI RADIX: con il menu aperto le scorciatoie 1…4 tacciono, così
                un tasto premuto qui dentro non dà un esito al lead. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-11 text-[13px] md:h-10">
-                <MoreHorizontal className="mr-1.5 h-3.5 w-3.5" /> Altri esiti
-                <ChevronDown className="ml-1 h-3.5 w-3.5" />
+              <Button size="sm" variant="ghost" className="h-11 w-full gap-1 px-1 text-[13px] md:h-10 md:w-auto md:px-3">
+                <MoreHorizontal className="h-3.5 w-3.5" /> Altri esiti
+                <ChevronDown className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
@@ -631,17 +638,17 @@ export function SchedaProssimo({
           <Button
             size="sm"
             variant="ghost"
-            className="h-11 text-[13px] md:h-10"
+            className="h-11 w-full gap-1 px-1 text-[13px] md:h-10 md:w-auto md:px-3"
             onClick={onSalta}
             title="Mettilo da parte: esce dalla coda e finisce fra i «Lead saltati», anche domani e anche per gli altri. Non è un esito: lo stato resta com'è"
           >
-            <SkipForward className="mr-1.5 h-3.5 w-3.5" /> Salta
-            <span className="ml-1.5 hidden rounded bg-muted px-1 text-[10px] font-semibold text-muted-foreground md:inline">
+            <SkipForward className="h-3.5 w-3.5" /> Salta
+            <span className="hidden rounded bg-muted px-1 text-[10px] font-semibold text-muted-foreground md:inline">
               S
             </span>
           </Button>
-          <Button size="sm" variant="ghost" className="h-11 text-[13px] md:h-10" onClick={onApri}>
-            <User className="mr-1.5 h-3.5 w-3.5" /> Apri scheda
+          <Button size="sm" variant="ghost" className="h-11 w-full gap-1 px-1 text-[13px] md:h-10 md:w-auto md:px-3" onClick={onApri}>
+            <User className="h-3.5 w-3.5" /> Apri scheda
           </Button>
         </div>
 

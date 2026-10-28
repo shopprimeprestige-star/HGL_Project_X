@@ -14,7 +14,7 @@
  *   (`--barra-esiti`, vedi CRM.tsx), così il messaggio «Annulla» non ci finisce
  *   sotto.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
@@ -27,6 +27,7 @@ export function BarraEsiti({
   onWhatsAppInviato,
   esiti,
   onEsito,
+  inCima,
 }: {
   telefono: string;
   /** Vuoto = nessun numero o nessun messaggio: il tasto resta spento. */
@@ -35,6 +36,9 @@ export function BarraEsiti({
   /** Gli esiti in vista (quattro), già filtrati per questo lead. */
   esiti: LeadStatus[];
   onEsito: (stato: LeadStatus) => void;
+  /** Una riga sopra i tasti (qui: «Ultimo esito → Torna indietro»). Sta dentro la
+   *  barra perché sul telefono sia leggibile SOPRA i pollici, non sotto la piega. */
+  inCima?: ReactNode;
 }) {
   //  L'altezza della barra, scritta dove il Toaster la può leggere. Sul
   //  computer la barra non è fissa e l'offset si azzera (vedi `md:` sotto).
@@ -63,6 +67,7 @@ export function BarraEsiti({
       data-barra-esiti
       className="fixed inset-x-0 bottom-0 z-40 space-y-2 border-t border-border bg-background/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur md:static md:z-auto md:flex md:flex-wrap md:items-center md:gap-2 md:space-y-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none"
     >
+      {inCima && <div className="md:w-full">{inCima}</div>}
       <div className="flex gap-2 md:contents">
         <div className="flex-1 md:w-44 md:flex-none [&>*]:w-full">
           <TastoChiama telefono={telefono} />
@@ -109,7 +114,7 @@ export function BarraEsiti({
               key={s}
               size="sm"
               variant="outline"
-              className="h-12 min-w-0 flex-col gap-0.5 whitespace-normal px-1 text-[12px] leading-[1.15] md:h-10 md:flex-row md:gap-0 md:px-3 md:text-[13px]"
+              className="h-12 min-w-0 flex-col gap-0.5 whitespace-normal px-1 text-[11.5px] leading-[1.15] tracking-tight md:h-10 md:flex-row md:gap-0 md:px-3 md:text-[13px]"
               onClick={() => onEsito(s)}
             >
               {Icona && <Icona className="mr-1.5 hidden h-3.5 w-3.5 md:inline-block" />}
