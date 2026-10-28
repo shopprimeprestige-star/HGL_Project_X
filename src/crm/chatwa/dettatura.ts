@@ -2,7 +2,7 @@
  *
  *  Commessa 2026-10-28-chat-dettatura. Si parla, il testo finisce nella casella
  *  (non parte mai da solo). Qui le regole senza React né rete, usate dal
- *  registratore (./Dettatura) e dalla route `/api/crm/dettatura`:
+ *  registratore (./RegistratoreVoce) e dalla route `/api/crm/dettatura`:
  *  `prove/prove.mjs` le impacchetta con la voce `chatwa/dettatura`, prove in
  *  `prove/manychat/chat-dettatura.mjs`.
  *  ⚠️ NIENTE VOCALI AL CLIENTE: ManyChat non manda audio su WhatsApp via API.

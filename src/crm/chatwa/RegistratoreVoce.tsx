@@ -162,7 +162,15 @@ export function useDettatura(onTesto: (testo: string) => void) {
     registratore.current = r;
     setMs(0);
     setLivelli(Array(BARRE).fill(0));
-    r.start();
+    try {
+      r.start();
+    } catch {
+      //  Raro, ma senza questo microfono e timer resterebbero accesi.
+      registratore.current = null;
+      spegni.current();
+      setErrore(fraseErrore("non_supportato"));
+      return;
+    }
     setStato("registra");
   };
 
