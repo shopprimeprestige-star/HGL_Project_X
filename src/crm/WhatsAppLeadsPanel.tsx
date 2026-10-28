@@ -282,7 +282,7 @@ export function WhatsAppLeadsPanel({ onClose }: Props) {
             size="icon"
             variant="ghost"
             onClick={onClose}
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 sm:h-7 sm:w-7 text-muted-foreground hover:text-foreground"
             title="Nascondi pannello"
           >
             <X className="h-3.5 w-3.5" />

@@ -396,6 +396,11 @@ function WhatsAppPage() {
     if (!activePhone) return null;
     return chats.find((c) => c.phone === activePhone) ?? null;
   }, [activePhone, chats]);
+  //  Se la chat aperta sparisce dall'elenco (aggiornamento in tempo reale),
+  //  si torna all'elenco: sul telefono la schermata vuota non ha la freccia.
+  useEffect(() => {
+    if (activePhone && !loading && !activeChat) setActivePhone(null);
+  }, [activePhone, activeChat, loading]);
 
   const activeMessages = useMemo<WaMessageRow[]>(() => {
     if (!activePhone) return [];
@@ -948,7 +953,9 @@ function WhatsAppPage() {
                               : "self-start bg-card text-foreground border-border rounded-bl-sm",
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{m.body}</p>
+                          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                            {m.body}
+                          </p>
                           <div
                             className={cn(
                               "flex items-center gap-1 mt-1 text-[10px]",
@@ -1040,7 +1047,10 @@ function WhatsAppPage() {
         {/*  Sotto i 1024 px il pannello lead sta SOPRA la pagina, a tutto
             schermo sul telefono: come colonna in più spingeva fuori la chat. */}
         {leadsPanelOpen && (
-          <div className="fixed inset-0 z-40 flex justify-end bg-black/30 lg:static lg:z-auto lg:block lg:bg-transparent">
+          <div
+            className="fixed inset-0 z-40 flex justify-end bg-black/30 lg:static lg:z-auto lg:block lg:bg-transparent"
+            onClick={(e) => e.target === e.currentTarget && setLeadsPanelOpen(false)}
+          >
             <WhatsAppLeadsPanel onClose={() => setLeadsPanelOpen(false)} />
           </div>
         )}
