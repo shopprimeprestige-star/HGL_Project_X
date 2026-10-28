@@ -233,7 +233,7 @@ export function Conversazione({
                           {etichettaGiorno(d, adesso)}
                         </div>
                       )}
-                      <BollaMessaggio messaggio={m} />
+                      <BollaMessaggio messaggio={m} lead={attiva.lead} />
                     </Fragment>
                   );
                 })

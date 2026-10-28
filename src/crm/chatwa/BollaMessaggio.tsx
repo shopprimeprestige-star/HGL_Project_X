@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, CheckCheck, ExternalLink, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCRM } from "@/crm/CRMContext";
+import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
 import type { BollaProps } from "./tipi";
 
@@ -134,9 +136,33 @@ function Contenuto({ messaggio: m, c }: BollaProps & { c: TestoClassificato | nu
   );
 }
 
+/** ── IL MODELLO COME L'HA LETTO IL CLIENTE (28/10/2026, crm/testo-modello) ──
+ *  Un nostro messaggio salvato come «[template:nome]» si mostra col testo vero;
+ *  se è ricostruito dalla scheda lo si dice (data e ora potevano essere altre).
+ *  Tutto il resto scritto da noi resta testo, mai interpretato. */
+function ModelloLeggibile({
+  messaggio: m,
+  lead,
+  consultants,
+}: BollaProps & { consultants: { id: string; data: { nome?: string } }[] }) {
+  const consulente = consultants.find((x) => x.id === lead?.data?.consulenteId)?.data.nome ?? null;
+  const v = corpoLeggibile(m.body, lead?.data, consulente, lead?.id);
+  return (
+    <>
+      <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{v.testo}</p>
+      {v.modello && (
+        <p className="mt-1 text-[11px] italic text-emerald-900/70" title={`Modello «${v.modello}»`}>
+          {v.ricostruito ? "Modello · testo ricostruito dalla scheda" : "Modello"}
+        </p>
+      )}
+    </>
+  );
+}
+
 /** Una bolla di messaggio. */
-export function BollaMessaggio({ messaggio: m }: BollaProps) {
+export function BollaMessaggio({ messaggio: m, lead }: BollaProps) {
   const fromMe = m.direction === "outbound";
+  const { consultants } = useCRM();
   const c = fromMe ? null : classificaTesto(m.body ?? "");
   const illeggibile = c?.tipo === "illeggibile";
   return (
@@ -150,7 +176,11 @@ export function BollaMessaggio({ messaggio: m }: BollaProps) {
             : "self-start bg-card text-foreground border-border rounded-bl-sm",
       )}
     >
-      <Contenuto messaggio={m} c={c} />
+      {fromMe ? (
+        <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
+      ) : (
+        <Contenuto messaggio={m} c={c} />
+      )}
       <div
         className={cn(
           "flex items-center justify-end gap-1 mt-0.5 text-[11px]",

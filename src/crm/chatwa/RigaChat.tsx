@@ -3,6 +3,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL } from "@/crm/types";
+import { useCRM } from "@/crm/CRMContext";
+import { corpoLeggibile } from "@/crm/testo-modello";
 import { anteprimaIn } from "./media";
 import { attesaInChiaro } from "./stato";
 import { formatTimeIT, initials } from "./formati";
@@ -59,9 +61,18 @@ export function RigaChat({
   const tempo = dal
     ? attesaInChiaro(dal, adesso)
     : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
-  const anteprima = anteprimaRiga(
-    inAttesa ? (c.daRispondere?.anteprima ?? last?.body) : last?.body,
-  );
+  const { consultants } = useCRM();
+  //  Un nostro modello («[template:nome]») si legge col suo testo, come nella bolla.
+  const ultimo =
+    last?.direction === "outbound"
+      ? corpoLeggibile(
+          last.body,
+          c.lead?.data,
+          consultants.find((x) => x.id === c.lead?.data?.consulenteId)?.data.nome ?? null,
+          c.lead?.id,
+        ).testo
+      : last?.body;
+  const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
 
   return (
     <li className={cn("border-b border-border", attiva ? "bg-emerald-50/60" : "")}>

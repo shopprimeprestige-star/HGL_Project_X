@@ -127,5 +127,7 @@ export interface CasellaProps {
 }
 
 export interface BollaProps {
+  /** la scheda della chat: serve a ricostruire il testo dei modelli inviati */
+  lead?: Lead | null;
   messaggio: WaMessageRow;
 }
