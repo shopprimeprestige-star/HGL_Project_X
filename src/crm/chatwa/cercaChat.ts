@@ -19,3 +19,16 @@ export function combaciaRicerca(c: ChatCercabile, ricerca: string): boolean {
     (c.contact?.display_name ?? "").toLowerCase().includes(q)
   );
 }
+
+/** La pastiglia scelta (Tutte / Non letti / Con lead / Sconosciuti) lascia passare la chat?
+ *  Vale per OGNI riquadro dell'elenco: «Da rispondere», «Da chiamare» e le «vecchie» la
+ *  ignoravano e, siccome quasi tutte le chat stanno lì sopra, cliccare non cambiava niente. */
+export function passaFiltro(
+  c: { lead?: unknown; unread?: number },
+  filtro: "all" | "unread" | "with-lead" | "unknown",
+): boolean {
+  if (filtro === "unread") return (c.unread ?? 0) > 0;
+  if (filtro === "with-lead") return Boolean(c.lead);
+  if (filtro === "unknown") return !c.lead;
+  return true;
+}

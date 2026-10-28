@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { combaciaRicerca } from "./cercaChat";
+import { combaciaRicerca, passaFiltro } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
@@ -62,19 +62,20 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
     .map((x) => ({ id: x.id, nome: String(x.data?.nome ?? "").trim() || "Senza nome" }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  // Il riquadro e le «vecchie» obbediscono alla ricerca e al consulente, non alle pastiglie: chi
-  // aspetta una risposta non si nasconde con una pastiglia. La ricerca è fatta qui (non da `visibili`, che applica anche la pastiglia).
+  // I riquadri obbediscono a ricerca, consulente e pastiglia. La ricerca è fatta qui (non da `visibili`, che applica anche la pastiglia).
   const cercando = ricerca.trim() !== "";
   const perRicerca = (righe: ChatItem[]) => righe.filter((c) => combaciaRicerca(c, ricerca));
+  //  La pastiglia vale per TUTTI i riquadri (guasto del 28/10: li ignorava e l'elenco non cambiava).
+  const perPastiglia = (righe: ChatItem[]) => righe.filter((c) => passaFiltro(c, filtro));
 
-  const inAttesaTutti = perRicerca(api.daRispondere);
+  const inAttesaTutti = perPastiglia(perRicerca(api.daRispondere));
   const inAttesa = inAttesaTutti.filter(delConsulente);
   const nascostiInAttesa = inAttesaTutti.length - inAttesa.length;
-  const vecchie = perRicerca(api.chats.filter(eVecchia)).filter(delConsulente);
+  const vecchie = perPastiglia(perRicerca(api.chats.filter(eVecchia))).filter(delConsulente);
   // Una chat una volta sola: se sta nel riquadro o fra le «vecchie», non si ripete fra le altre.
   //  «Da chiamare» (28/10/2026): in attesa WhatsApp da più di 10 ore. Come «Da
   //  rispondere», obbedisce a ricerca e consulente, non alle pastiglie.
-  const daChiamare = perRicerca(api.daChiamare).filter(delConsulente);
+  const daChiamare = perPastiglia(perRicerca(api.daChiamare)).filter(delConsulente);
   const giaSopra = new Set(
     [...api.daRispondere, ...api.daChiamare, ...api.chats.filter(eVecchia)].map((c) => c.phone),
   );

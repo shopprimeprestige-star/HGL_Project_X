@@ -28,6 +28,7 @@
  *   `api.daRispondere` contiene solo le chat con `attesa` vera.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
+import { passaFiltro } from "./cercaChat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchCRM, useAuth } from "@/crm/AuthContext";
@@ -557,9 +558,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
 
   const visibili = useMemo(() => {
     return chats.filter((c) => {
-      if (filtro === "unread" && c.unread === 0) return false;
-      if (filtro === "with-lead" && !c.lead) return false;
-      if (filtro === "unknown" && c.lead) return false;
+      if (!passaFiltro(c, filtro)) return false;
       if (ricerca.trim()) {
         const q = ricerca.toLowerCase();
         const name = `${c.lead?.data.nome ?? ""} ${c.lead?.data.cognome ?? ""}`.toLowerCase();
