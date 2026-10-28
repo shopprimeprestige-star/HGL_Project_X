@@ -85,3 +85,89 @@ export function telefonoE164(t?: string | null): string {
   if (cifre.startsWith("39") && cifre.length >= 11) return `+${cifre}`;
   return "";
 }
+
+/** ── LA PILLOLA «DA CHIAMARE» E I SUOI SOTTOFILTRI (28/10/2026) ──────────────
+ *  Le chat collegate a un lead il cui stato è uno di questi cinque, in questo
+ *  ordine. `attesa_whatsapp` NON c'è: quelli aspettano la risposta del cliente.
+ *  Tutto puro, provato in prove/manychat/chat-sottofiltri.mjs. */
+export const STATI_SOTTOFILTRI = [
+  "da_chiamare",
+  "non_risponde",
+  "segreteria",
+  "richiamo",
+  "ci_ricontatta_lui",
+] as const;
+export type StatoChiamata = (typeof STATI_SOTTOFILTRI)[number];
+export type Sottofiltro = "tutti" | StatoChiamata;
+
+/** Gli stati che si scelgono dalla riga (non serve aprire la chat), nell'ordine in cui si usano. */
+export const STATI_CAMBIO_RAPIDO = [
+  "non_risponde",
+  "segreteria",
+  "richiamo",
+  "ci_ricontatta_lui",
+  "appuntamento_fissato",
+  "annullato", // «Non interessato»
+  "da_chiamare",
+] as const;
+
+interface ChatConStato {
+  lead?: {
+    data?: {
+      stato?: string | null;
+      statoDal?: string | null;
+      statoPrecedenteIl?: string | null;
+    } | null;
+  } | null;
+}
+
+/** Lo stato di chiamata della chat, o `null` se non ha scheda o lo stato è un altro. */
+export function statoChiamata(c: ChatConStato): StatoChiamata | null {
+  const s = String(c.lead?.data?.stato ?? "");
+  return (STATI_SOTTOFILTRI as readonly string[]).includes(s) ? (s as StatoChiamata) : null;
+}
+
+/** Quante chat per sottofiltro; «tutti» è la somma. I chip a zero li nasconde chi disegna. */
+export function contaSottofiltri(chats: ChatConStato[]): Record<Sottofiltro, number> {
+  const n: Record<Sottofiltro, number> = {
+    tutti: 0,
+    da_chiamare: 0,
+    non_risponde: 0,
+    segreteria: 0,
+    richiamo: 0,
+    ci_ricontatta_lui: 0,
+  };
+  for (const c of chats) {
+    const s = statoChiamata(c);
+    if (!s) continue;
+    n[s]++;
+    n.tutti++;
+  }
+  return n;
+}
+
+/** Dal cambio di stato (ISO) per ordinare; senza data valida = «non si sa», in fondo al suo stato. */
+const quandoCambiato = (c: ChatConStato): number => {
+  const d = c.lead?.data;
+  const t = Date.parse(String(d?.statoDal ?? d?.statoPrecedenteIl ?? ""));
+  return Number.isFinite(t) ? t : Infinity;
+};
+
+/** Le chat del sottofiltro. «tutti» = un elenco solo, ordinato per stato (nell'ordine di
+ *  `STATI_SOTTOFILTRI`) e dentro ogni stato dal cambio di stato più vecchio al più nuovo.
+ *  Non muta l'ingresso; la parità resta com'era (sort stabile). */
+export function chatDaChiamare<T extends ChatConStato>(chats: T[], sotto: Sottofiltro): T[] {
+  return chats
+    .filter((c) => {
+      const s = statoChiamata(c);
+      return s !== null && (sotto === "tutti" || s === sotto);
+    })
+    .sort((a, b) => {
+      const per =
+        STATI_SOTTOFILTRI.indexOf(statoChiamata(a)!) - STATI_SOTTOFILTRI.indexOf(statoChiamata(b)!);
+      if (per) return per;
+      const x = quandoCambiato(a);
+      const y = quandoCambiato(b);
+      return x === y ? 0 : x < y ? -1 : 1;
+    });
+}

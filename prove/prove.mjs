@@ -20655,7 +20655,8 @@ function proveDelDaChiamare() {
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
   c("la chat calcola «Da chiamare» per ogni contatto", true, /item\.daChiamare = calcolaDaChiamare\(/.test(hook));
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
-  c("«Da chiamare» ha la sua sezione e non si ripete fra le altre", true, /titolo-da-chiamare/.test(elenco) && /\.\.\.api\.daChiamare,/.test(elenco));
+  //  Dal 28/10 (commessa chat-da-chiamare) la fascia è sostituita dalla pillola «Da chiamare» coi sottofiltri.
+  c("«Da chiamare»: la fascia non c'è più, c'è la pillola coi sottofiltri (prove/manychat/chat-sottofiltri.mjs)", true, !/titolo-da-chiamare/.test(elenco) && /chatDaChiamare\(/.test(elenco));
   c("Attesa WhatsApp con solo l'ora del server (statoDal): sì", true, D.calcolaDaChiamare({ dati: { stato: "attesa_whatsapp", statoDal: "2026-10-28T08:00:00Z" }, messaggi: [], adesso }).si);
   const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
   c("cambio di stato dalla scheda: l'ora si aggiorna anche se il modulo rimanda quella vecchia", true,

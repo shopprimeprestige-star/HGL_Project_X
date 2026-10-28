@@ -1,3 +1,5 @@
+import { statoChiamata } from "./daChiamare";
+
 /** La ricerca dell'elenco, per conto di `ElencoChat`: nome della scheda, numero e, in più di
  *  `visibili` (useChatWa), il nome salvato dal contatto, così un «numero senza scheda» col
  *  nome di ManyChat si trova per nome. Pura: niente React, niente Supabase. Serve al riquadro
@@ -24,12 +26,14 @@ export function combaciaRicerca(c: ChatCercabile, ricerca: string): boolean {
  *  Vale per OGNI riquadro dell'elenco: «Da rispondere», «Da chiamare» e le «vecchie» la
  *  ignoravano e, siccome quasi tutte le chat stanno lì sopra, cliccare non cambiava niente. */
 export function passaFiltro(
-  c: { lead?: unknown; unread?: number },
-  filtro: "all" | "unread" | "with-lead" | "unknown",
+  c: { lead?: { data?: { stato?: string | null } | null } | null; unread?: number },
+  filtro: "all" | "unread" | "with-lead" | "unknown" | "da-chiamare",
 ): boolean {
   if (filtro === "unread") return (c.unread ?? 0) > 0;
   if (filtro === "with-lead") return Boolean(c.lead);
   if (filtro === "unknown") return !c.lead;
+  //  «Da chiamare»: lead in uno dei cinque stati di chiamata (vedi daChiamare.ts).
+  if (filtro === "da-chiamare") return statoChiamata(c) !== null;
   return true;
 }
 

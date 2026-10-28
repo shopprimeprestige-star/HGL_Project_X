@@ -6,13 +6,27 @@ import { combaciaRicerca, ordinaPerStelle, passaFiltro } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
+import { LEAD_STATUS_LABEL } from "@/crm/types";
+import {
+  chatDaChiamare,
+  contaSottofiltri,
+  STATI_SOTTOFILTRI,
+  type Sottofiltro,
+} from "./daChiamare";
 import type { ChatItem, ElencoChatProps, FiltroChat } from "./tipi";
 
 const FILTRI: { v: FiltroChat; l: string }[] = [
   { v: "all", l: "Tutte" },
+  { v: "da-chiamare", l: "Da chiamare" },
   { v: "unread", l: "Non letti" },
   { v: "with-lead", l: "Con lead" },
   { v: "unknown", l: "Sconosciuti" },
+];
+
+/** I chip dei sottofiltri (con la pillola «Da chiamare» accesa): «Tutti» + uno per stato. */
+const CHIP_SOTTOFILTRI: { v: Sottofiltro; l: string }[] = [
+  { v: "tutti", l: "Tutti" },
+  ...STATI_SOTTOFILTRI.map((v) => ({ v, l: LEAD_STATUS_LABEL[v] })),
 ];
 
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
@@ -45,6 +59,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       una risposta non si nasconde con le stelle (il consulente sì, qui sotto). */
   const { di: stelleDi, cambia: cambiaStelle } = useStelle();
   const [soloStelle, setSoloStelle] = useState(false);
+  //  Il sottofiltro della pillola «Da chiamare» (28/10/2026): UN elenco, ordinato per stato.
+  const [sotto, setSotto] = useState<Sottofiltro>("tutti");
   /*  ── IL FILTRO DEL CONSULENTE (28/10/2026) ─────────────────────────────
       Richiesta del titolare: le chat dei lead assegnati a un consulente (che ha
       fatto o ha in programma la consulenza con lui: `consulenteId` della
@@ -79,11 +95,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
     perPastiglia(perRicerca(api.chats.filter(eVecchia))).filter(delConsulente),
   );
   // Una chat una volta sola: se sta nel riquadro o fra le «vecchie», non si ripete fra le altre.
-  //  «Da chiamare» (28/10/2026): in attesa WhatsApp da più di 10 ore. Come «Da
-  //  rispondere», obbedisce a ricerca, consulente e pastiglia come gli altri.
-  const daChiamare = perStelle(perPastiglia(perRicerca(api.daChiamare)).filter(delConsulente));
   const giaSopra = new Set(
-    [...api.daRispondere, ...api.daChiamare, ...api.chats.filter(eVecchia)].map((c) => c.phone),
+    [...api.daRispondere, ...api.chats.filter(eVecchia)].map((c) => c.phone),
   );
   const altreTutte = visibili.filter((c) => !giaSopra.has(c.phone) && delConsulente(c));
   const altre = perStelle(
@@ -91,8 +104,19 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   );
   //  Il numero conta TUTTE le chat con stelle (di quel consulente), in qualunque riquadro.
   const conStelle = api.chats.filter((c) => delConsulente(c) && stelleDi(c.phone) > 0).length;
-  const nienteInOsservazione =
-    soloStelle && inAttesa.length + daChiamare.length + vecchie.length + altre.length === 0;
+  const nienteInOsservazione = soloStelle && inAttesa.length + vecchie.length + altre.length === 0;
+
+  //  ── «DA CHIAMARE» CON I SOTTOFILTRI (28/10/2026) ──────────────────────
+  //  Con la pillola accesa NON ci sono riquadri: un elenco solo, ordinato per stato
+  //  (non risponde, segreteria…) e dentro ogni stato dal cambio più vecchio. I chip
+  //  scelgono uno stato solo; quelli a zero spariscono. Sostituisce la vecchia fascia
+  //  «Da chiamare (N) · in attesa da oltre 10 ore»: il numero della pillola è questo.
+  const daChiamareTutte = perPastiglia(perRicerca(api.chats)).filter(delConsulente);
+  const conti = contaSottofiltri(daChiamareTutte);
+  const contaPillola = contaSottofiltri(api.chats.filter(delConsulente)).tutti;
+  //  Un chip scelto che nel frattempo si svuota (stato cambiato dalla riga) torna a «Tutti».
+  const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
+  const elencoDaChiamare = chatDaChiamare(daChiamareTutte, sottoAttivo);
 
   const riga = (c: ChatItem, modo: ModoRiga) => (
     <RigaChat
@@ -106,6 +130,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       onAbbina={() => onAbbina(c)}
       stelle={stelleDi(c.phone)}
       onStelle={() => cambiaStelle(c.phone)}
+      onCambiaStato={(lead, stato) => void api.cambiaStatoLead(lead, stato)}
     />
   );
 
@@ -174,6 +199,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             )}
           >
             {f.l}
+            {f.v === "da-chiamare" && contaPillola > 0 ? ` ${contaPillola}` : ""}
           </button>
         ))}
         <button
@@ -191,11 +217,48 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         </button>
       </div>
 
+      {filtro === "da-chiamare" && (
+        <div
+          role="group"
+          aria-label="Quale stato di chiamata"
+          className="flex gap-2 overflow-x-auto border-b border-border bg-muted/30 px-3 py-2 [scrollbar-width:none] md:gap-1.5 md:px-2 [&::-webkit-scrollbar]:hidden"
+        >
+          {CHIP_SOTTOFILTRI.filter((x) => x.v === "tutti" || conti[x.v] > 0).map((x) => (
+            <button
+              key={x.v}
+              type="button"
+              aria-pressed={sotto === x.v}
+              onClick={() => setSotto(x.v)}
+              className={cn(
+                "h-10 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
+                sottoAttivo === x.v
+                  ? "border-sky-300 bg-sky-50 text-sky-800"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {x.l} {conti[x.v]}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {caricamento ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Caricamento chat…
           </div>
+        ) : filtro === "da-chiamare" ? (
+          elencoDaChiamare.length === 0 ? (
+            <p className="px-4 py-10 text-center text-xs text-muted-foreground">
+              {cercando || consulente || soloStelle
+                ? "Nessuna chat da chiamare in questa vista"
+                : "Nessuno da chiamare: tutto in ordine"}
+            </p>
+          ) : (
+            <ul aria-label="Chat da chiamare, per stato">
+              {elencoDaChiamare.map((c) => riga(c, "normale"))}
+            </ul>
+          )
         ) : (
           <>
             <section aria-labelledby="titolo-da-rispondere">
@@ -229,19 +292,6 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                 <ul>{inAttesa.map((c) => riga(c, "attesa"))}</ul>
               )}
             </section>
-
-            {daChiamare.length > 0 && (
-              <section aria-labelledby="titolo-da-chiamare">
-                <h2
-                  id="titolo-da-chiamare"
-                  className="border-b border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-semibold text-sky-900 md:text-xs"
-                  title="In Attesa WhatsApp da più di 10 ore senza rispondere: è il momento di telefonare"
-                >
-                  Da chiamare ({daChiamare.length}) · in attesa WhatsApp da oltre 10 ore
-                </h2>
-                <ul>{daChiamare.map((c) => riga(c, "chiamare"))}</ul>
-              </section>
-            )}
 
             {visibili.length === 0 ? (
               <p className="px-4 py-10 text-center text-xs text-muted-foreground">

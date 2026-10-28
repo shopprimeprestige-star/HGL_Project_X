@@ -34,7 +34,8 @@ import { toast } from "sonner";
 import { fetchCRM, useAuth } from "@/crm/AuthContext";
 import { useCRM } from "@/crm/CRMContext";
 import { supabase } from "@/integrations/supabase/client";
-import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
+import { LEAD_STATUS_LABEL, type Lead, type LeadData, type LeadStatus } from "@/crm/types";
+import { patchEsito } from "@/crm/importa/chi-chiamare";
 import { requiresAnyDialog } from "@/crm/QuickStatusDialog";
 import { caricaModelliSalvati } from "@/crm/EditorMessaggi";
 import { getWhatsAppMessageForStatus, segnapostiResidui } from "@/crm/whatsapp";
@@ -774,32 +775,67 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     await reload().catch(() => undefined);
   };
 
-  /** Cambio stato del lead — stesso comportamento della pagina Leads:
-   *  se lo stato richiede campi extra apre QuickStatusDialog,
-   *  altrimenti applica direttamente e precompila il template WA nel composer. */
-  const cambiaStato = async (newStatus: LeadStatus) => {
-    if (!attiva?.lead) return;
-    if (newStatus === attiva.lead.data.stato) return;
+  /** Cambio stato di UN lead (anche non aperto: dalla riga dell'elenco) — stesso comportamento
+   *  della pagina Leads e della coda dei lead importati: se lo stato richiede campi extra apre
+   *  QuickStatusDialog, altrimenti `updateLead` scrive stato, statoDal e statoPrecedente (e il
+   *  contatore dei tentativi, `patchEsito`). Se è la chat aperta precompila anche il template WA.
+   *  Il toast ha «Annulla»: rimette com'era, senza rinnovare `statoDal` (`annulla: true`). */
+  const cambiaStatoLead = async (lead: Lead, newStatus: LeadStatus) => {
+    if (newStatus === lead.data.stato) return;
     //  Le tre chiusure vinte hanno la loro finestra, che scrive stato, importi
     //  e modo di consegna in un salvataggio solo. ⚠️ Il ramo va PRIMA di
     //  `requiresAnyDialog` e non scrive niente da sé: vedi ChiusuraDialog.
-    if (opz.intercettaChiusura(attiva.lead, newStatus)) return;
+    if (opz.intercettaChiusura(lead, newStatus)) return;
     if (requiresAnyDialog(newStatus)) {
-      opz.apriStatoRapido(attiva.lead, newStatus);
+      opz.apriStatoRapido(lead, newStatus);
       return;
     }
     try {
-      await updateLead(attiva.lead.id, { stato: newStatus });
-      const refreshed = { ...attiva.lead, data: { ...attiva.lead.data, stato: newStatus } };
-      //  Il nome del consulente serve alla firma: senza, la riga sparisce e il
-      //  messaggio si chiude con "A presto," e basta.
-      const consulente = consultants.find((c) => c.id === refreshed.data.consulenteId)?.data.nome;
-      const template = getWhatsAppMessageForStatus(refreshed, consulente);
-      setBozza(template);
-      toast.success(`Stato → "${LEAD_STATUS_LABEL[newStatus]}". Template precompilato.`);
+      if (!(await updateLead(lead.id, patchEsito(lead.data, newStatus)))) {
+        toast.error("Stato NON salvato", {
+          description: "La scheda in archivio è rimasta com'era. Riprova.",
+        });
+        return;
+      }
+      const nome = `${lead.data.nome ?? ""} ${lead.data.cognome ?? ""}`.trim() || "Lead";
+      //  Com'era PRIMA, per «Annulla»: anche la data da cui valeva lo stato.
+      const prima: Partial<LeadData> = {
+        stato: lead.data.stato,
+        noRispondeCount: Number(lead.data.noRispondeCount) || 0,
+        statoPrecedente: lead.data.statoPrecedente,
+        statoPrecedenteIl: lead.data.statoPrecedenteIl,
+        statoDa: lead.data.statoDa,
+        statoDal: lead.data.statoDal,
+      };
+      const annulla = {
+        label: "Annulla",
+        onClick: () =>
+          void updateLead(lead.id, prima, { annulla: true }).then((ok) =>
+            ok
+              ? toast.success(`${nome}: tornato com'era`)
+              : toast.error("Non sono riuscito a tornare indietro"),
+          ),
+      };
+      if (lead.id === attiva?.lead?.id) {
+        //  Il nome del consulente serve alla firma: senza, la riga sparisce e il
+        //  messaggio si chiude con "A presto," e basta.
+        const refreshed = { ...lead, data: { ...lead.data, stato: newStatus } };
+        const consulente = consultants.find((c) => c.id === refreshed.data.consulenteId)?.data.nome;
+        setBozza(getWhatsAppMessageForStatus(refreshed, consulente));
+        toast.success(`Stato → "${LEAD_STATUS_LABEL[newStatus]}". Template precompilato.`, {
+          action: annulla,
+        });
+      } else {
+        toast.success(`${nome} → ${LEAD_STATUS_LABEL[newStatus]}`, { action: annulla });
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore cambio stato");
     }
+  };
+
+  /** Cambio stato della chat aperta (intestazione della conversazione). */
+  const cambiaStato = async (newStatus: LeadStatus) => {
+    if (attiva?.lead) await cambiaStatoLead(attiva.lead, newStatus);
   };
 
   /** Elimina TUTTI i messaggi WA della chat corrente lato CRM (non tocca WhatsApp del destinatario). */
@@ -877,6 +913,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     elimina,
     forzaModelli,
     cambiaStato,
+    cambiaStatoLead,
     hasConfig,
   };
 }

@@ -75,13 +75,12 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   c("non muta l'ingresso", copia, ordine.map((x) => x.phone));
   const elencoSrc = readFileSync(join(process.cwd(), "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("ElencoChat: ogni riquadro passa da ordinaPerStelle", true,
-    (elencoSrc.match(/perStelle\(/g) ?? []).length >= 4);
+    (elencoSrc.match(/perStelle\(/g) ?? []).length >= 3);
 
   const radice = process.cwd();
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = (?:perStelle\\(\\s*)?perPastiglia\\(`).test(elenco);
   c("ElencoChat: «Da rispondere» obbedisce alla pastiglia", true, sorgenteUsaFiltro("inAttesaTutti"));
-  c("ElencoChat: «Da chiamare» obbedisce alla pastiglia", true, sorgenteUsaFiltro("daChiamare"));
   c("ElencoChat: le «vecchie» obbediscono alla pastiglia", true, sorgenteUsaFiltro("vecchie"));
 
   // ── IL NUMERO LEGGIBILE (28/10): +39 3xx xxx xxxx. Numeri finti 333000xxx.

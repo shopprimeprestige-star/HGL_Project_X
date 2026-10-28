@@ -13,7 +13,7 @@ import type { Lead, LeadStatus } from "@/crm/types";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import type { StatoCasella } from "./stato";
 
-export type FiltroChat = "all" | "unread" | "with-lead" | "unknown";
+export type FiltroChat = "all" | "unread" | "with-lead" | "unknown" | "da-chiamare";
 
 export interface WaMessageRow {
   id: string;
@@ -109,6 +109,8 @@ export interface ChatWaApi {
   /** Chat (per telefono) a cui il server ha detto «solo modelli». */
   forzaModelli: Record<string, boolean>;
   cambiaStato: (s: LeadStatus) => Promise<void>;
+  /** Come `cambiaStato`, ma per un lead qualunque (dalla riga dell'elenco, senza aprire la chat). */
+  cambiaStatoLead: (lead: Lead, s: LeadStatus) => Promise<void>;
   /** Chiavi Meta lette: `null` finché non si sa. Serve all'intestazione della pagina; T7 la sostituisce con `canale`/`stato`. */
   hasConfig: boolean | null;
 }
