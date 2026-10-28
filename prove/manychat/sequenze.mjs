@@ -1007,8 +1007,8 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ].map((s) => motivi(giorno([s], alle("09:00")))),
   );
   c(
-    "…il consenso del modulo prima della frase non vale nemmeno qui; dopo sì",
-    [["salta"], ["invia"]],
+    "…modulo prima della frase: parte lo stesso (consenso di tutti, 28/10); dopo anche",
+    [["invia", "aspetta"], ["invia"]],
     [
       tipi(
         giorno(
@@ -1502,11 +1502,11 @@ export async function proveSequenze(mod, { c, gruppo }) {
 
   //  STOP, consenso, dati: come per gli altri messaggi del meet.
   c(
-    "STOP → salta; revoca, consenso del modulo prima della frase, numero non valido, consulente mancante → salta",
+    "STOP → salta; revoca → salta; modulo prima della frase → parte (consenso di tutti); numero non valido, consulente mancante → salta",
     [
       ["salta", "STOP"],
       ["salta", "manca il consenso WhatsApp"],
-      ["salta", "manca il consenso WhatsApp"],
+      ["invia", "d|330000001|2026-10-27T18:00"],
       ["salta", "numero non valido"],
       ["salta", "consulente non trovato"],
     ],
