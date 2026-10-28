@@ -170,6 +170,7 @@ import { Route as ApiCrmWebinarRegistrazioniRouteImport } from './routes/api.crm
 import { Route as ApiCrmWebinarRouteImport } from './routes/api.crm.webinar'
 import { Route as ApiCrmSumupRouteImport } from './routes/api.crm.sumup'
 import { Route as ApiCrmSorgenteRouteImport } from './routes/api.crm.sorgente'
+import { Route as ApiCrmPushRouteImport } from './routes/api.crm.push'
 import { Route as ApiCrmProvaColoreRouteImport } from './routes/api.crm.prova-colore'
 import { Route as ApiCrmProvaCodiciRouteImport } from './routes/api.crm.prova-codici'
 import { Route as ApiCrmProvaCatalogoRouteImport } from './routes/api.crm.prova-catalogo'
@@ -1022,6 +1023,11 @@ const ApiCrmSorgenteRoute = ApiCrmSorgenteRouteImport.update({
   path: '/api/crm/sorgente',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmPushRoute = ApiCrmPushRouteImport.update({
+  id: '/api/crm/push',
+  path: '/api/crm/push',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmProvaColoreRoute = ApiCrmProvaColoreRouteImport.update({
   id: '/api/crm/prova-colore',
   path: '/api/crm/prova-colore',
@@ -1308,6 +1314,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
   '/api/crm/prova-codici': typeof ApiCrmProvaCodiciRoute
   '/api/crm/prova-colore': typeof ApiCrmProvaColoreRoute
+  '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
@@ -1498,6 +1505,7 @@ export interface FileRoutesByTo {
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
   '/api/crm/prova-codici': typeof ApiCrmProvaCodiciRoute
   '/api/crm/prova-colore': typeof ApiCrmProvaColoreRoute
+  '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
@@ -1694,6 +1702,7 @@ export interface FileRoutesById {
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
   '/api/crm/prova-codici': typeof ApiCrmProvaCodiciRoute
   '/api/crm/prova-colore': typeof ApiCrmProvaColoreRoute
+  '/api/crm/push': typeof ApiCrmPushRoute
   '/api/crm/sorgente': typeof ApiCrmSorgenteRoute
   '/api/crm/sumup': typeof ApiCrmSumupRoute
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
@@ -1891,6 +1900,7 @@ export interface FileRouteTypes {
     | '/api/crm/prova-catalogo'
     | '/api/crm/prova-codici'
     | '/api/crm/prova-colore'
+    | '/api/crm/push'
     | '/api/crm/sorgente'
     | '/api/crm/sumup'
     | '/api/crm/webinar'
@@ -2081,6 +2091,7 @@ export interface FileRouteTypes {
     | '/api/crm/prova-catalogo'
     | '/api/crm/prova-codici'
     | '/api/crm/prova-colore'
+    | '/api/crm/push'
     | '/api/crm/sorgente'
     | '/api/crm/sumup'
     | '/api/crm/webinar'
@@ -2276,6 +2287,7 @@ export interface FileRouteTypes {
     | '/api/crm/prova-catalogo'
     | '/api/crm/prova-codici'
     | '/api/crm/prova-colore'
+    | '/api/crm/push'
     | '/api/crm/sorgente'
     | '/api/crm/sumup'
     | '/api/crm/webinar'
@@ -2431,6 +2443,7 @@ export interface RootRouteChildren {
   ApiCrmProvaCatalogoRoute: typeof ApiCrmProvaCatalogoRoute
   ApiCrmProvaCodiciRoute: typeof ApiCrmProvaCodiciRoute
   ApiCrmProvaColoreRoute: typeof ApiCrmProvaColoreRoute
+  ApiCrmPushRoute: typeof ApiCrmPushRoute
   ApiCrmSorgenteRoute: typeof ApiCrmSorgenteRoute
   ApiCrmSumupRoute: typeof ApiCrmSumupRoute
   ApiCrmWebinarRoute: typeof ApiCrmWebinarRoute
@@ -3629,6 +3642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmSorgenteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/push': {
+      id: '/api/crm/push'
+      path: '/api/crm/push'
+      fullPath: '/api/crm/push'
+      preLoaderRoute: typeof ApiCrmPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/prova-colore': {
       id: '/api/crm/prova-colore'
       path: '/api/crm/prova-colore'
@@ -4082,6 +4102,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmProvaCatalogoRoute: ApiCrmProvaCatalogoRoute,
   ApiCrmProvaCodiciRoute: ApiCrmProvaCodiciRoute,
   ApiCrmProvaColoreRoute: ApiCrmProvaColoreRoute,
+  ApiCrmPushRoute: ApiCrmPushRoute,
   ApiCrmSorgenteRoute: ApiCrmSorgenteRoute,
   ApiCrmSumupRoute: ApiCrmSumupRoute,
   ApiCrmWebinarRoute: ApiCrmWebinarRoute,

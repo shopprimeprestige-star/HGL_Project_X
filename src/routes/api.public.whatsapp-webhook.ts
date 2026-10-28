@@ -6,6 +6,7 @@
  *  lo cerco in public.whatsapp_settings. Verify_token e app_secret sono per-utente.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { avvisaMessaggioWhatsapp } from "@/crm/push/invio.server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { rispostaAlPromemoria, type PorteRisposta } from "@/crm/promemoria/in-entrata";
@@ -242,7 +243,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 (m.type === "audio" ? "[audio]" : null) ??
                 (m.type === "document" ? `[doc: ${m.document?.filename ?? ""}]` : null) ??
                 `[${m.type}]`;
-              await adminUntyped.from("whatsapp_messages").insert({
+              const nuovo = await adminUntyped.from("whatsapp_messages").insert({
                 user_id: userId,
                 lead_id: leadId,
                 direction: "inbound",
@@ -266,6 +267,15 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 },
                 { onConflict: "user_id,phone_e164", ignoreDuplicates: false },
               );
+              //  La notifica sul telefono (28/10/2026): solo per un messaggio
+              //  davvero nuovo (Meta a volte rimanda lo stesso evento). Non lancia mai.
+              if (!nuovo.error)
+                await avvisaMessaggioWhatsapp({
+                  userId,
+                  telefono: fromE164,
+                  leadId,
+                  nomeProfilo: contactName,
+                });
               //  La conferma della consulenza: SÌ, STOP o altro. Non lancia mai.
               await rispostaAlPromemoria(portePromemoria(userId, fromE164), {
                 //  Qui si arriva solo con la firma giusta SE c'è l'App Secret

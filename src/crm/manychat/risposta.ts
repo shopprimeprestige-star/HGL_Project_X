@@ -127,6 +127,12 @@ export interface PorteRispostaManychat {
       nome: string | null;
     },
   ): Promise<void>;
+  /** (28/10/2026) la notifica push ai telefoni dello studio per un messaggio
+   *  nuovo. Facoltativa: chi non la dà (le prove) non avvisa nessuno. Non lancia. */
+  avvisaNuovo?(
+    userId: string,
+    x: { telefono: string; leadId: string | null; nome: string | null },
+  ): Promise<void>;
   /** le porte di `rispostaAlPromemoria` (conferma del 22/10 e STOP) */
   conferma(userId: string, telefono: string, adesso: Date): PorteConferma;
   /** (compito 3) `manychat_risposta_arrivata`: l'ora della risposta sull'invio
@@ -221,6 +227,11 @@ async function tratta(
     subscriberId: corpo.subscriberId || null,
     nome: corpo.nome || null,
   });
+  //  Il telefono dello studio suona (solo nome, mai il testo). Un guasto qui non
+  //  ferma il resto: il messaggio è già registrato.
+  await porte
+    .avvisaNuovo?.(userId, { telefono, leadId, nome: corpo.nome || null })
+    .catch(() => undefined);
 
   //  Il freno «mai due volte senza risposta» guarda `risposta_il`: PRIMA della
   //  conferma, così non si perde nemmeno se la conferma poi dà errore. Un

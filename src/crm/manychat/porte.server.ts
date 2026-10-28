@@ -12,6 +12,7 @@
  *   dati del cliente).
  *  ⚠️ Mai una chiamata fuori dal database.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { avvisaMessaggioWhatsapp } from "@/crm/push/invio.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { STATI_CON_MESSAGGIO } from "../promemoria/risposta";
 import { STATI_APPUNTAMENTO, type Consultant, type ContattoWa } from "../types";
@@ -216,6 +217,14 @@ export function porteRisposta(): PorteRispostaManychat {
       if (error) return error.code === "23505" ? "doppione" : lancia(error);
       return "nuovo";
     },
+
+    avvisaNuovo: (userId, x) =>
+      avvisaMessaggioWhatsapp({
+        userId,
+        telefono: `+${x.telefono}`,
+        leadId: x.leadId,
+        nomeProfilo: x.nome,
+      }),
 
     aggiornaContatto: async (userId, x) => {
       //  La funzione SQL fa tutto in un colpo (+1 atomico, orologio del database).
