@@ -62,6 +62,12 @@ export const Route = createFileRoute("/api/crm/push")({
           if (corpo.azione === "iscrivi") {
             const i = iscrizioneValida(corpo.iscrizione);
             if (!i) return json({ error: "Iscrizione non valida." }, 400);
+            //  ⚠️ Un indirizzo già di un'altra installazione non si sovrascrive
+            //   (controllo automatico di sicurezza, 28/10).
+            const gia = await tabella().select("user_id").eq("endpoint", i.endpoint).maybeSingle();
+            if (gia.error) throw gia.error;
+            if (gia.data && gia.data.user_id !== userId)
+              return json({ error: "Questo dispositivo è iscritto a un altro account." }, 409);
             const { error } = await tabella().upsert(
               {
                 user_id: userId,

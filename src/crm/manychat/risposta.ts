@@ -227,11 +227,6 @@ async function tratta(
     subscriberId: corpo.subscriberId || null,
     nome: corpo.nome || null,
   });
-  //  Il telefono dello studio suona (solo nome, mai il testo). Un guasto qui non
-  //  ferma il resto: il messaggio è già registrato.
-  await porte
-    .avvisaNuovo?.(userId, { telefono, leadId, nome: corpo.nome || null })
-    .catch(() => undefined);
 
   //  Il freno «mai due volte senza risposta» guarda `risposta_il`: PRIMA della
   //  conferma, così non si perde nemmeno se la conferma poi dà errore. Un
@@ -287,6 +282,11 @@ async function tratta(
       porte.avviso(`errore (${codiceErrore(e)}): secondo stato non scritto`);
     }
   }
+  //  Il telefono dello studio suona (solo nome, mai il testo): per ULTIMO, così
+  //  conferma e STOP non aspettano la notifica. Un guasto qui non cambia niente.
+  await porte
+    .avvisaNuovo?.(userId, { telefono, leadId, nome: corpo.nome || null })
+    .catch(() => undefined);
   return esito === "niente" ? "registrata" : esito;
 }
 

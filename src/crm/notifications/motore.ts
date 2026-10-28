@@ -527,6 +527,12 @@ export function useMotoreNotifiche() {
   // scheda". Senza questo ascolto, sul telefono toccare l'avviso non fa nulla.
   useEffect(() => ascoltaClicNotifica(apri), [apri]);
 
+  //  Le notifiche dei messaggi WhatsApp (crm/push): a ogni apertura del CRM si
+  //  riconferma l'iscrizione di questo dispositivo, se c'era. Silenzioso.
+  useEffect(() => {
+    void import("@/crm/push/iscrizione").then((m) => m.rinnovaQuesto());
+  }, []);
+
   /** ── IL CLIC A CRM CHIUSO ────────────────────────────────────────────────
    *  Sul telefono il caso normale è questo: nessuna finestra aperta, si tocca
    *  la notifica e il CRM parte da zero. Lì non c'è nessuno a cui mandare il

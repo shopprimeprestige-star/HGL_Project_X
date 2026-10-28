@@ -20536,6 +20536,16 @@ async function proveDelleNotifichePush() {
   c("webhook di Meta: avvisa solo se il messaggio è nuovo", true, /if \(!nuovo\.error\)\s*await avvisaMessaggioWhatsapp/.test(hook));
   c("ManyChat: avvisa dopo aver registrato, senza fermare il resto", true, /\.avvisaNuovo\?\.\(userId[\s\S]{0,120}\.catch\(\(\) => undefined\)/.test(ris));
   c("la rotta decide l'installazione dalla sessione, non dal corpo", true, /const userId = g\.chi\.adminUserId/.test(rotta) && !/corpo\.userId|corpo\.user_id/.test(rotta));
+  const inv = readFileSync(join(radice, "src/crm/push/invio.server.ts"), "utf8");
+  c("un consulente tolto (PIN spento o scheda spenta) non riceve più e si cancella", true,
+    /consultant_pins[\s\S]{0,120}\.eq\("active", true\)/.test(inv) && /attivo === false/.test(inv) && /delete\(\)\.in\("id", daTogliere\)/.test(inv) && /attive\.map\(async/.test(inv));
+  c("niente rinvii seguiti alla cieca (redirect manuale)", true, /redirect: "manual"/.test(inv));
+  c("un indirizzo di un'altra installazione non si sovrascrive", true, /gia\.data && gia\.data\.user_id !== userId/.test(rotta));
+  c("la notifica parte dopo la conferma SÌ/STOP", true, /rispostaAlPromemoria\([\s\S]{0,1200}if \(!nuovo\.error\)/.test(hook));
+  const motore = readFileSync(join(radice, "src/crm/notifications/motore.ts"), "utf8");
+  const auth = readFileSync(join(radice, "src/crm/AuthContext.tsx"), "utf8");
+  c("all'apertura del CRM l'iscrizione si rinnova", true, /m\.rinnovaQuesto\(\)/.test(motore));
+  c("uscendo dal CRM il dispositivo si toglie", true, /m\.togliQuesto\(\)/.test(auth));
   c("la tabella è solo del server (RLS senza politiche)", true, /ENABLE ROW LEVEL SECURITY/.test(sql) && !/CREATE POLICY/.test(sql) && /REVOKE ALL/.test(sql));
 }
 

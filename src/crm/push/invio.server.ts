@@ -10,7 +10,13 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { avvisoWhatsapp, chiaviDaAmbiente, type AvvisoPush } from "./avviso";
 import { richiestaPush } from "./webpush";
 
-type Iscrizione = { id: string; endpoint: string; p256dh: string; auth: string };
+type Iscrizione = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  consulente_id?: string | null;
+};
 
 const db = () =>
   supabaseAdmin as unknown as {
@@ -39,17 +45,30 @@ export async function inviaATutti(
       (
         await db()
           .from("push_iscrizioni")
-          .select("id, endpoint, p256dh, auth")
+          .select("id, endpoint, p256dh, auth, consulente_id")
           .eq("user_id", userId)
       ).data ??
       [];
-    if (lista.length === 0) return { inviate: 0, tolte: 0 };
+    //  ⚠️ UN CONSULENTE TOLTO NON RICEVE PIÙ NIENTE (revisione del 28/10): le
+    //   sue iscrizioni si saltano e si cancellano. Stessi controlli dell'accesso
+    //   (api.crm.accesso): PIN attivo e scheda non spenta.
+    const fuori = await consulentiNonAttivi(lista);
+    const via = (i: Iscrizione) => !!i.consulente_id && fuori.has(i.consulente_id);
+    const daTogliere = lista.filter(via).map((i) => i.id);
+    if (daTogliere.length) await db().from("push_iscrizioni").delete().in("id", daTogliere);
+    const attive = lista.filter((i) => !via(i));
+    if (attive.length === 0) return { inviate: 0, tolte: daTogliere.length };
     const testo = JSON.stringify(avviso);
     const esiti = await Promise.all(
-      lista.map(async (i) => {
+      attive.map(async (i) => {
         try {
           const r = await richiestaPush(i, testo, chiavi);
-          const risposta = await fetch(r.url, { ...r.init, signal: AbortSignal.timeout(4000) });
+          //  `redirect: "manual"`: il controllo sugli indirizzi vale anche dopo un rinvio.
+          const risposta = await fetch(r.url, {
+            ...r.init,
+            redirect: "manual",
+            signal: AbortSignal.timeout(4000),
+          });
           if (risposta.status === 404 || risposta.status === 410)
             return { id: i.id, esito: "morta" as const };
           return {
@@ -76,10 +95,36 @@ export async function inviaATutti(
         "[push] invii non riusciti:",
         errori.map((e) => ("status" in e ? e.status : "rete")).join(","),
       );
-    return { inviate: ok.length, tolte: morte.length };
+    return { inviate: ok.length, tolte: morte.length + daTogliere.length };
   } catch (e) {
     console.warn("[push] errore", (e as { code?: string } | null)?.code ?? "sconosciuto");
     return { inviate: 0, tolte: 0 };
+  }
+}
+
+/** I consulenti delle iscrizioni che non hanno più accesso: PIN non attivo o
+ *  scheda con `attivo: false`. Un errore di lettura non toglie nessuno. */
+async function consulentiNonAttivi(lista: Iscrizione[]): Promise<Set<string>> {
+  const ids = [...new Set(lista.map((i) => i.consulente_id).filter((x): x is string => !!x))];
+  if (ids.length === 0) return new Set();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabaseAdmin as unknown as { from: (t: string) => any };
+    const pin: { data: { consultant_id: string }[] | null; error: unknown } = await sb
+      .from("consultant_pins")
+      .select("consultant_id")
+      .in("consultant_id", ids)
+      .eq("active", true);
+    const schede: { data: { id: string; data?: { attivo?: boolean } }[] | null; error: unknown } =
+      await sb.from("crm_consultants").select("id, data").in("id", ids);
+    if (pin.error || schede.error) return new Set();
+    const conPin = new Set((pin.data ?? []).map((r) => r.consultant_id));
+    const spente = new Set(
+      (schede.data ?? []).filter((r) => r.data?.attivo === false).map((r) => r.id),
+    );
+    return new Set(ids.filter((id) => !conPin.has(id) || spente.has(id)));
+  } catch {
+    return new Set();
   }
 }
 

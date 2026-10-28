@@ -267,15 +267,6 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 },
                 { onConflict: "user_id,phone_e164", ignoreDuplicates: false },
               );
-              //  La notifica sul telefono (28/10/2026): solo per un messaggio
-              //  davvero nuovo (Meta a volte rimanda lo stesso evento). Non lancia mai.
-              if (!nuovo.error)
-                await avvisaMessaggioWhatsapp({
-                  userId,
-                  telefono: fromE164,
-                  leadId,
-                  nomeProfilo: contactName,
-                });
               //  La conferma della consulenza: SÌ, STOP o altro. Non lancia mai.
               await rispostaAlPromemoria(portePromemoria(userId, fromE164), {
                 //  Qui si arriva solo con la firma giusta SE c'è l'App Secret
@@ -285,6 +276,16 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook")({
                 numero: fromE164,
                 adesso: new Date(),
               });
+              //  La notifica sul telefono (28/10/2026): solo per un messaggio
+              //  davvero nuovo (Meta a volte rimanda lo stesso evento), e DOPO la
+              //  conferma, così SÌ e STOP non aspettano. Non lancia mai.
+              if (!nuovo.error)
+                await avvisaMessaggioWhatsapp({
+                  userId,
+                  telefono: fromE164,
+                  leadId,
+                  nomeProfilo: contactName,
+                });
             }
 
             // Status updates

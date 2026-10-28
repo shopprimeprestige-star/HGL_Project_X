@@ -138,7 +138,7 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-/* ── LE NOTIFICHE DAL SERVER (non attive) ──────────────────────────────────── */
+/* ── LE NOTIFICHE DAL SERVER (messaggi WhatsApp, dal 28/10/2026) ──────────────────────────────────── */
 
 /** Attivo dal 28/10/2026: il server manda { titolo, corpo, chiave, destinazione }
  *  (src/crm/push/avviso.ts). La `chiave` (tag) fa sì che più messaggi della

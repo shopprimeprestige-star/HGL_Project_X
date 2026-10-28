@@ -11,13 +11,12 @@ import { useCallback, useEffect, useState } from "react";
 import { BellRing, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { intestazioniCRM } from "@/crm/AuthContext";
 import {
   preparaCanaleSistema,
   serveInstallazione,
   supportaServiceWorker,
 } from "@/crm/notifications/canale-sistema";
-import { daB64url } from "./webpush";
+import { chiamaPush as chiama, iscriviQuesto, togliQuesto } from "./iscrizione";
 
 type Stato =
   | "controllo"
@@ -27,20 +26,6 @@ type Stato =
   | "negato"
   | "spento"
   | "acceso";
-
-async function chiama(metodo: "GET" | "POST", corpo?: unknown) {
-  const r = await fetch("/api/crm/push", {
-    method: metodo,
-    headers: await intestazioniCRM(corpo ? { "Content-Type": "application/json" } : {}),
-    body: corpo ? JSON.stringify(corpo) : undefined,
-  });
-  const j = (await r.json().catch(() => ({}))) as {
-    chiave?: string | null;
-    error?: string;
-    ok?: boolean;
-  };
-  return { ok: r.ok, ...j };
-}
 
 export function NotificheDalServer() {
   const [stato, setStato] = useState<Stato>("controllo");
@@ -72,21 +57,11 @@ export function NotificheDalServer() {
     if (!chiave) return;
     setLavoro(true);
     try {
-      const permesso = await Notification.requestPermission();
-      if (permesso !== "granted") {
-        setStato(permesso === "denied" ? "negato" : "spento");
+      const iscr = await iscriviQuesto(chiave);
+      if (!iscr) {
+        setStato(Notification.permission === "denied" ? "negato" : "spento");
         return;
       }
-      const reg = await preparaCanaleSistema();
-      if (!reg) throw new Error("sw");
-      const iscr =
-        (await reg.pushManager.getSubscription()) ??
-        (await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: daB64url(chiave).buffer as ArrayBuffer,
-        }));
-      const r = await chiama("POST", { azione: "iscrivi", iscrizione: iscr.toJSON() });
-      if (!r.ok) throw new Error(r.error || "server");
       setEndpoint(iscr.endpoint);
       setStato("acceso");
       toast.success("Notifiche attive su questo dispositivo", {
@@ -111,18 +86,10 @@ export function NotificheDalServer() {
 
   const spegni = async () => {
     setLavoro(true);
-    try {
-      const reg = await preparaCanaleSistema();
-      const iscr = await reg?.pushManager.getSubscription();
-      if (iscr) {
-        await chiama("POST", { azione: "togli", endpoint: iscr.endpoint }).catch(() => null);
-        await iscr.unsubscribe();
-      }
-      setEndpoint(null);
-      setStato("spento");
-    } finally {
-      setLavoro(false);
-    }
+    await togliQuesto();
+    setEndpoint(null);
+    setStato("spento");
+    setLavoro(false);
   };
 
   const FRASE: Record<Stato, string> = {
