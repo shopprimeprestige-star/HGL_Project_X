@@ -125,7 +125,7 @@ export function RicercaContatto({
 
   return (
     <div
-      className="w-full sm:w-72"
+      className="w-full"
       //  ── IL CLIC FUORI CHIUDE ────────────────────────────────────────────
       //   ⚠️ I risultati galleggiano SOPRA la pagina (z-30) e vivevano finché
       //   c'era qualcosa di scritto: bastava scrivere due lettere e andare a
@@ -162,14 +162,14 @@ export function RicercaContatto({
           placeholder="Ha richiamato? Nome o numero"
           title="Scorciatoia: premi / per scrivere qui"
           aria-label="Cerca un contatto in tutto l'archivio"
-          className="h-9 pl-8 pr-8 text-[13px]"
+          className="h-11 pl-8 pr-11 text-[13px] md:h-9 md:pr-8"
         />
         {q && (
           <button
             type="button"
             onClick={() => setQ("")}
             aria-label="Cancella la ricerca"
-            className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:right-1.5 md:h-6 md:w-6"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -208,7 +208,7 @@ export function RicercaContatto({
                       <button
                         type="button"
                         onClick={() => scegli(l)}
-                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-accent/60"
+                        className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-accent/60"
                       >
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] font-medium">

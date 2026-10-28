@@ -37,7 +37,7 @@ import {
 import { ICONA_STATO } from "@/crm/SelettoreStatoDialog";
 import { buildWhatsAppLink, getWhatsAppMessageForStatus } from "@/crm/whatsapp";
 import { CLASSE_BADGE_STATO, Scheda, classiStato, dataBreve, etichettaStato } from "@/crm/ui";
-import { vociModulo } from "@/crm/modulo-lead";
+import { riassuntoModulo, vociModulo } from "@/crm/modulo-lead";
 import { noteDelLead } from "@/crm/import-backup";
 import {
   daRifissare,
@@ -47,7 +47,7 @@ import {
   righeRicarico,
   volteRicaricato,
 } from "@/crm/importa/ricarico";
-import { TastoChiama } from "@/crm/importa/chiamare";
+import { BarraEsiti } from "@/crm/importa/BarraEsiti";
 import { type MotivoDiChiamata } from "@/crm/importa/chi-chiamare";
 import { Targhetta } from "@/crm/importa/RigaChiamata";
 import { temperaturaLead } from "@/crm/temperatura-lead";
@@ -145,6 +145,63 @@ function Note({ dati }: { dati?: Partial<LeadData> | null }) {
           {tutte ? "Mostra solo le ultime due" : `Leggi tutte le ${note.length} note`}
         </button>
       )}
+    </div>
+  );
+}
+
+/** ── DUE RIGHE DI SINTESI, IL RESTO A UN TOCCO (28/10/2026) ──────────────────
+ *  Prima il riquadro «L'ha detto lui nel modulo» stava aperto in cima alla scheda
+ *  e spingeva i pulsanti sotto la piega. Adesso: le due risposte che contano
+ *  (`riassuntoModulo`, le stesse della riga «Poi») e «Vedi tutte le risposte» che
+ *  apre il riquadro intero. Niente si toglie, si apre con un tocco.
+ *  ⚠️ Le risposte sono sempre quelle di `vociModulo`: se la sintesi è vuota non
+ *   c'è nemmeno il tasto. */
+function SintesiModulo({ modulo }: { modulo?: RisposteModulo }) {
+  const [tutte, setTutte] = useState(false);
+  const riassunto = useMemo(() => riassuntoModulo(modulo), [modulo]);
+  if (!riassunto) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[13px] leading-snug">
+        <span className="text-muted-foreground">Ha detto: </span>
+        <span className="font-medium">{riassunto}</span>
+        {" "}
+        <button
+          type="button"
+          aria-expanded={tutte}
+          onClick={() => setTutte((v) => !v)}
+          className="inline-flex min-h-11 items-center text-[12.5px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground md:min-h-0"
+        >
+          {tutte ? "Nascondi le risposte" : "Vedi tutte le risposte"}
+        </button>
+      </p>
+      {tutte && <VociModulo modulo={modulo} />}
+    </div>
+  );
+}
+
+/** Le note della scheda, chiuse: «Note (3)» e si aprono. Restano le stesse di
+ *  sempre (`Note`), solo più in basso: la telefonata comincia dal numero. */
+function NoteChiuse({ dati }: { dati?: Partial<LeadData> | null }) {
+  const [aperte, setAperte] = useState(false);
+  const n = useMemo(() => noteDelLead(dati).length, [dati]);
+  if (n === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        aria-expanded={aperte}
+        onClick={() => setAperte((v) => !v)}
+        className="inline-flex min-h-11 items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground hover:text-foreground md:min-h-0"
+      >
+        <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
+        Note ({n})
+        <ChevronDown
+          className={cn("h-3.5 w-3.5 transition-transform", aperte && "rotate-180")}
+          aria-hidden="true"
+        />
+      </button>
+      {aperte && <Note dati={dati} />}
     </div>
   );
 }
@@ -287,11 +344,6 @@ export function SchedaProssimo({
       titolo={fuoriCoda ? "Trovato con la ricerca" : "Il prossimo"}
       nota={fuoriCoda ? "fuori dalla coda di oggi" : `${posizione} di ${totale} in coda`}
       icona={fuoriCoda ? Search : Phone}
-      azioni={
-        <Button size="sm" variant="ghost" className="h-8 text-[12px]" onClick={onApri}>
-          <User className="mr-1 h-3.5 w-3.5" /> Apri scheda
-        </Button>
-      }
     >
       <div className="space-y-3">
         {/*  Prima del nome, perché è la cornice in cui va letto tutto il
@@ -416,7 +468,7 @@ export function SchedaProssimo({
              (crm/importa/ricarico.ts), quindi non esiste nessun posto in cui
              riscriverle e non possono sfasarsi dal contatore. */}
         {decisione && (
-          <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+          <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-2">
             <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-amber-800">
               <RotateCcw className="h-3.5 w-3.5" /> Era già in archivio — decidi tu
             </div>
@@ -431,7 +483,7 @@ export function SchedaProssimo({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-9 border-amber-300 bg-white text-[12.5px] hover:bg-amber-100"
+                className="h-11 border-amber-300 bg-white text-[12.5px] hover:bg-amber-100 md:h-9"
                 onClick={decisione.onConferma}
                 title="Non cambia niente: stato, note, appuntamenti e storia restano quelli che sono. Esce solo da questa coda e torna dov'era"
               >
@@ -440,7 +492,7 @@ export function SchedaProssimo({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-9 border-amber-300 bg-white text-[12.5px] hover:bg-amber-100"
+                className="h-11 border-amber-300 bg-white text-[12.5px] hover:bg-amber-100 md:h-9"
                 onClick={decisione.onRimetti}
                 title="Torna «Da contattare» in mezzo agli altri, con i tentativi a vuoto azzerati. Note, appuntamenti e storia NON si toccano"
               >
@@ -456,7 +508,7 @@ export function SchedaProssimo({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-9 text-[12.5px] text-amber-900 hover:bg-amber-100"
+                className="h-11 text-[12.5px] text-amber-900 hover:bg-amber-100 md:h-9"
                 onClick={decisione.onVediDopo}
                 title="Non decide niente: toglie questo riquadro dalla cima della coda e lo ritrovi nella linguetta «Vedi dopo», con le stesse scelte. Lo stato non si tocca e resta chiamabile come tutti gli altri"
               >
@@ -472,7 +524,7 @@ export function SchedaProssimo({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-9 text-[12.5px] text-amber-900 hover:bg-amber-100"
+                className="h-11 text-[12.5px] text-amber-900 hover:bg-amber-100 md:h-9"
                 onClick={onApri}
                 title="Apre la scheda intera: storia, note, appuntamenti e trattativa, per decidere sapendo"
               >
@@ -495,7 +547,7 @@ export function SchedaProssimo({
                 asChild
                 size="sm"
                 variant="outline"
-                className="h-9 w-full border-emerald-300 bg-white text-[12.5px] text-emerald-800 hover:bg-emerald-50"
+                className="h-11 w-full border-emerald-300 bg-white text-[12.5px] text-emerald-800 hover:bg-emerald-50 md:h-9"
               >
                 {/*  ⚠️ PREMERE QUI NON SEGNA NIENTE: il clic dice soltanto
                     «apri WhatsApp». Al ritorno la pagina chiede se il
@@ -517,127 +569,83 @@ export function SchedaProssimo({
           </div>
         )}
 
-        <VociModulo modulo={modulo} />
-        <Note dati={d} />
+        {/*  Due righe di cosa ha detto nel modulo; il resto si apre. */}
+        <SintesiModulo modulo={modulo} />
 
-        {/* ── LE DUE VIE PER RAGGIUNGERLO ───────────────────────────────── */}
-        <div className="flex flex-wrap gap-2">
-          <TastoChiama telefono={telefono} />
-          {linkWhatsApp ? (
-            <Button
-              asChild
-              size="lg"
-              //  Verde e pieno (20/10/2026): è il secondo gesto della setter dopo
-              //  la chiamata, e da contorno si confondeva con i tasti degli esiti.
-              className="h-12 flex-1 min-w-[9rem] bg-emerald-600 text-[15px] text-white hover:bg-emerald-700"
-            >
-              <a
-                href={linkWhatsApp}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => onWhatsAppInviato?.()}
-              >
-                <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
-              </a>
-            </Button>
-          ) : (
-            <Button
-              size="lg"
-              variant="outline"
-              disabled
-              className="h-12 flex-1 min-w-[9rem] text-[15px]"
-              title="Serve un numero in scheda"
-            >
-              <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
-            </Button>
-          )}
+        {/* ── CHIAMA, WHATSAPP, COM'È ANDATA ───────────────────────────────
+            Sul telefono è la barra fissa in basso (BarraEsiti); sul computer sta
+            qui, subito sotto la sintesi: il tasto Chiama si vede senza scorrere. */}
+        <BarraEsiti
+          telefono={telefono}
+          linkWhatsApp={linkWhatsApp}
+          onWhatsAppInviato={onWhatsAppInviato}
+          esiti={esiti}
+          onEsito={onEsito}
+        />
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/*  ⚠️ DI RADIX: con il menu aperto le scorciatoie 1…4 tacciono, così
+               un tasto premuto qui dentro non dà un esito al lead. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-11 text-[13px] md:h-10">
+                <MoreHorizontal className="mr-1.5 h-3.5 w-3.5" /> Altri esiti
+                <ChevronDown className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {esitiAltri.map((s) => {
+                const Icona = ICONA_STATO[s];
+                return (
+                  <DropdownMenuItem key={s} onSelect={() => onEsito(s)} className="min-h-11 md:min-h-0">
+                    {Icona && <Icona className="mr-2 h-3.5 w-3.5" />}
+                    {LEAD_STATUS_LABEL[s]}
+                  </DropdownMenuItem>
+                );
+              })}
+              {esitiAltri.length > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuItem onSelect={onAltri} className="min-h-11 md:min-h-0">
+                Tutti gli stati…
+              </DropdownMenuItem>
+              {onElimina && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={onElimina}
+                    className="min-h-11 text-red-700 focus:bg-red-50 focus:text-red-800 md:min-h-0"
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Elimina lead…
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/*  ⚠️ «Salta» NON È UN ESITO, ma non è più nemmeno gratis: scrive
+              due campi sulla scheda (crm/importa/saltati.ts), quindi il gesto
+              dura oltre la giornata e lo vede anche il collega. Serve a chi
+              trova occupato e non vuole sporcare la scheda con un tentativo
+              che non è stato un tentativo — lo stato non si tocca e i KPI non
+              se ne accorgono. Il `title` lo dice prima di premere: qui il
+              commento diceva ancora «non scrive niente», ed era la frase che
+              faceva premere «Salta» credendo di rimandare di due minuti. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-11 text-[13px] md:h-10"
+            onClick={onSalta}
+            title="Mettilo da parte: esce dalla coda e finisce fra i «Lead saltati», anche domani e anche per gli altri. Non è un esito: lo stato resta com'è"
+          >
+            <SkipForward className="mr-1.5 h-3.5 w-3.5" /> Salta
+            <span className="ml-1.5 hidden rounded bg-muted px-1 text-[10px] font-semibold text-muted-foreground md:inline">
+              S
+            </span>
+          </Button>
+          <Button size="sm" variant="ghost" className="h-11 text-[13px] md:h-10" onClick={onApri}>
+            <User className="mr-1.5 h-3.5 w-3.5" /> Apri scheda
+          </Button>
         </div>
 
-        {/* ── COM'È ANDATA ──────────────────────────────────────────────────
-            Il numero sul pulsante è la scorciatoia da tastiera, e sta scritto
-            SOPRA il pulsante e non dentro un manuale: una scorciatoia che non
-            si vede non la usa nessuno. */}
-        <div>
-          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Com'è andata
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {esiti.map((s, i) => {
-              const Icona = ICONA_STATO[s];
-              return (
-                <Button
-                  key={s}
-                  size="sm"
-                  variant="outline"
-                  className="h-10 text-[13px]"
-                  onClick={() => onEsito(s)}
-                >
-                  {Icona && <Icona className="mr-1.5 h-3.5 w-3.5" />}
-                  {LEAD_STATUS_LABEL[s]}
-                  {i < 9 && (
-                    <span className="ml-1.5 rounded bg-muted px-1 text-[10px] font-semibold text-muted-foreground">
-                      {i + 1}
-                    </span>
-                  )}
-                </Button>
-              );
-            })}
-            {/*  ⚠️ DI RADIX: con il menu aperto le scorciatoie 1…4 tacciono, così
-                 un tasto premuto qui dentro non dà un esito al lead. */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" className="h-10 text-[13px]">
-                  <MoreHorizontal className="mr-1.5 h-3.5 w-3.5" /> Altro
-                  <ChevronDown className="ml-1 h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {esitiAltri.map((s) => {
-                  const Icona = ICONA_STATO[s];
-                  return (
-                    <DropdownMenuItem key={s} onSelect={() => onEsito(s)}>
-                      {Icona && <Icona className="mr-2 h-3.5 w-3.5" />}
-                      {LEAD_STATUS_LABEL[s]}
-                    </DropdownMenuItem>
-                  );
-                })}
-                {esitiAltri.length > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem onSelect={onAltri}>Tutti gli stati…</DropdownMenuItem>
-                {onElimina && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={onElimina}
-                      className="text-red-700 focus:bg-red-50 focus:text-red-800"
-                    >
-                      <Trash2 className="mr-2 h-3.5 w-3.5" /> Elimina lead…
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {/*  ⚠️ «Salta» NON È UN ESITO, ma non è più nemmeno gratis: scrive
-                due campi sulla scheda (crm/importa/saltati.ts), quindi il gesto
-                dura oltre la giornata e lo vede anche il collega. Serve a chi
-                trova occupato e non vuole sporcare la scheda con un tentativo
-                che non è stato un tentativo — lo stato non si tocca e i KPI non
-                se ne accorgono. Il `title` lo dice prima di premere: qui il
-                commento diceva ancora «non scrive niente», ed era la frase che
-                faceva premere «Salta» credendo di rimandare di due minuti. */}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-10 text-[13px]"
-              onClick={onSalta}
-              title="Mettilo da parte: esce dalla coda e finisce fra i «Lead saltati», anche domani e anche per gli altri. Non è un esito: lo stato resta com'è"
-            >
-              <SkipForward className="mr-1.5 h-3.5 w-3.5" /> Salta
-              <span className="ml-1.5 rounded bg-muted px-1 text-[10px] font-semibold text-muted-foreground">
-                S
-              </span>
-            </Button>
-          </div>
-        </div>
+        <NoteChiuse dati={d} />
       </div>
     </Scheda>
   );
