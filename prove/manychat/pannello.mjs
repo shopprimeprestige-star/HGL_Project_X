@@ -1642,9 +1642,9 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   );
   c("…l'ora è quella data", ora1506.toISOString(), s1.adesso);
   c("…mai il telefono nelle righe", false, /\d{6,}/.test(JSON.stringify(s1)));
-  const s2 = secco([meet("m1", 1, "15:30", { okWhatsapp: undefined })]);
+  const s2 = secco([meet("m1", 1, "15:30", { okWhatsapp: { si: false } })]);
   c(
-    "senza consenso: «salta» col motivo",
+    "consenso revocato: «salta» col motivo",
     [["promemoria", "salta"], true],
     [dettagli(s2)[0], /consenso/.test(s2.righe[0].motivo)],
   );

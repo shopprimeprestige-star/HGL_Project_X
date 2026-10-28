@@ -38,8 +38,15 @@ import { istanteDiRoma } from "./contatto";
  *  sopra in tutti e due i versi). */
 export const FRENO_ANCHE_PER_PROMEMORIA = false;
 
+/** ── CONSENSO DI TUTTI I LEAD (decisione del titolare, 28/10/2026) ─────────
+ *  «Tutti i lead nel CRM hanno dato il consenso, anche quelli aggiunti prima»:
+ *  una scheda senza «Ok a WhatsApp» e senza modulo valido vale come consenso
+ *  dato (via «titolare»). La revoca (`okWhatsapp.si === false`) e lo STOP
+ *  restano più forti. Tornare alla regola di prima è QUESTA riga. */
+export const CONSENSO_DI_TUTTI = true;
+
 /** Da dove viene il consenso. */
-export type ViaConsenso = "scheda" | "modulo";
+export type ViaConsenso = "scheda" | "modulo" | "titolare";
 
 export interface Consenso {
   si: boolean;
@@ -94,6 +101,7 @@ export function consensoWhatsapp(
   if (moduloVale(d, fraseModuloDal)) {
     return { si: true, via: "modulo", il: testoOnull(modulo?.il), da: null };
   }
+  if (CONSENSO_DI_TUTTI) return { si: true, via: "titolare", il: null, da: null };
   return NESSUN_CONSENSO;
 }
 

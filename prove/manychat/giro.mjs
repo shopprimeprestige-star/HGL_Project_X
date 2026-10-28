@@ -1131,12 +1131,12 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     m = mondo({
       schede: [meet("s1", 1)],
       dopoPrenota: (mm) => {
-        delete mm.schede[0].data.okWhatsapp;
+        mm.schede[0].data.okWhatsapp = { si: false };
       },
     });
     e = await m.giroOra();
     c(
-      "consenso tolto dopo la prenotazione → non parte",
+      "consenso revocato dopo la prenotazione → non parte",
       [0, "saltato"],
       [m.f.chiamate.length, m.invii[0].stato],
     );
@@ -1241,12 +1241,12 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     );
 
     //  I problemi: una volta sola per scheda e motivo.
-    m = mondo({ schede: [meet("s1", 1, { okWhatsapp: undefined })] });
+    m = mondo({ schede: [meet("s1", 1, { okWhatsapp: { si: false } })] });
     await m.giroOra();
     await m.giroOra();
     await m.giroOra();
     c(
-      "senza consenso: il problema è scritto UNA volta sola in tre giri",
+      "consenso revocato: il problema è scritto UNA volta sola in tre giri",
       [1, "Anna P.", "promemoria", "manca il consenso WhatsApp"],
       [
         m.giro.stato.problemi.length,
@@ -1288,7 +1288,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
   {
     const schede = [
       meet("s1", 1),
-      meet("s2", 2, { okWhatsapp: undefined }),
+      meet("s2", 2, { okWhatsapp: { si: false } }),
       ric("r1", 3),
       inAttesaScaduta(),
     ];

@@ -325,8 +325,8 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "il consenso del modulo prima della frase non basta nemmeno qui",
-    ["salta", "manca il consenso WhatsApp"],
+    "modulo prima della frase: parte lo stesso (consenso di tutti, 28/10)",
+    ["invia", null],
     ((x) => [x?.tipo, x?.motivo])(
       unica(
         coda(
@@ -673,12 +673,12 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "STOP → salta «STOP»; revoca, numero non valido, modulo precedente alla frase → salta",
+    "STOP → salta «STOP»; revoca, numero non valido → salta; modulo precedente alla frase → parte (consenso di tutti)",
     [
       ["salta", "STOP"],
       ["salta", "manca il consenso WhatsApp"],
       ["salta", "numero non valido"],
-      ["salta", "manca il consenso WhatsApp"],
+      ["invia", null],
     ],
     [
       ev("l-1", 1, "non_risponde", { contattoWa: { stato: "stop", il: E, da: "automatico" } }),

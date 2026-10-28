@@ -292,11 +292,11 @@ export async function proveQuando(mod, { c, gruppo }) {
   //  Chi non può ricevere: salta col motivo, e il motivo si legge.
   const motivo = (r) => (r.length === 1 && r[0].tipo === "salta" ? r[0].motivo : null);
   c(
-    "senza consenso → saltato: «manca il consenso WhatsApp»",
+    "consenso revocato → saltato: «manca il consenso WhatsApp»",
     "manca il consenso WhatsApp",
     motivo(
       decidi(
-        [meet("x", 1, "2026-10-23", "15:30", { okWhatsapp: undefined })],
+        [meet("x", 1, "2026-10-23", "15:30", { okWhatsapp: { si: false } })],
         "2026-10-23T15:05:00+02:00",
       ),
     ),
@@ -323,8 +323,8 @@ export async function proveQuando(mod, { c, gruppo }) {
       consensoModulo: { whatsapp: true, il },
     });
   c(
-    "CSV con modulo del 10/10 e frase segnata il 26/10 → nessun promemoria (manca il consenso)",
-    "manca il consenso WhatsApp",
+    "CSV con modulo del 10/10 e frase segnata il 26/10 → il promemoria parte (consenso di tutti, 28/10)",
+    null,
     motivo(
       decidi([conModulo("2026-10-10T09:00:00.000Z")], "2026-10-23T15:05:00+02:00", {
         fraseModuloDal: "2026-10-26T00:00:00.000Z",
@@ -332,8 +332,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     ),
   );
   c(
-    "frase non segnata (non passata, o null) → il modulo non vale per nessuno",
-    ["manca il consenso WhatsApp", "manca il consenso WhatsApp"],
+    "frase non segnata (non passata, o null) → parte lo stesso (consenso di tutti)",
+    [null, null],
     [undefined, null].map((fraseModuloDal) =>
       motivo(
         decidi([conModulo("2026-10-22T09:00:00.000Z")], "2026-10-23T15:05:00+02:00", {
@@ -343,8 +343,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     ),
   );
   c(
-    "modulo senza data (il null) → non vale, anche dopo la frase",
-    "manca il consenso WhatsApp",
+    "modulo senza data (il null) → parte lo stesso (consenso di tutti)",
+    null,
     motivo(
       decidi([conModulo(null)], "2026-10-23T15:05:00+02:00", {
         fraseModuloDal: "2026-10-20T00:00:00.000Z",
@@ -964,12 +964,12 @@ export async function proveQuando(mod, { c, gruppo }) {
     doppieGiorni.map((x) => x.scheda.id),
   );
   c(
-    "…ma se una non ha il consenso e l'altra sì, parte quella col consenso",
+    "…ma se una ha il consenso revocato e l'altra no, parte l'altra",
     ["invia", "salta"],
     tipi(
       coda(
         [
-          ricontatto("l-a", 1, "2026-10-23", { okWhatsapp: undefined }),
+          ricontatto("l-a", 1, "2026-10-23", { okWhatsapp: { si: false } }),
           ricontatto("l-b", 1, "2026-10-23"),
         ],
         VEN10,
@@ -979,7 +979,7 @@ export async function proveQuando(mod, { c, gruppo }) {
 
   //  Chi non può ricevere.
   const m2 = (extra) => motivo(coda([ricontatto("l-1", 1, "2026-10-23", extra)], VEN10));
-  c("senza consenso → saltato", "manca il consenso WhatsApp", m2({ okWhatsapp: undefined }));
+  c("consenso revocato → saltato", "manca il consenso WhatsApp", m2({ okWhatsapp: { si: false } }));
   c(
     "STOP sulla scheda → saltato",
     "STOP",
@@ -1162,8 +1162,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     ),
   );
   c(
-    "ricontatti: il consenso del modulo vale solo dopo la frase",
-    [["salta"], ["invia"]],
+    "ricontatti: senza «Ok» e con modulo vecchio parte lo stesso (consenso di tutti, 28/10)",
+    [["invia"], ["invia"]],
     [
       tipi(
         coda(

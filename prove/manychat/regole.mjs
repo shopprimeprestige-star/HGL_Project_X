@@ -46,13 +46,13 @@ export async function proveRegole(mod, { c, gruppo }) {
   /* ── consenso ──────────────────────────────────────────────────────────── */
   const FRASE = "2026-10-20T00:00:00.000Z";
   c(
-    "senza niente: nessun consenso",
-    { si: false, via: null, il: null, da: null },
+    "senza niente: vale il consenso di tutti (decisione del titolare 28/10, via «titolare»)",
+    { si: R.CONSENSO_DI_TUTTI, via: "titolare", il: null, da: null },
     R.consensoWhatsapp({}, FRASE),
   );
   c(
-    "scheda null/undefined: nessun consenso",
-    [false, false],
+    "scheda null/undefined: vale il consenso di tutti",
+    [true, true],
     [R.consensoWhatsapp(null, FRASE).si, R.consensoWhatsapp(undefined, FRASE).si],
   );
   c(
@@ -90,40 +90,40 @@ export async function proveRegole(mod, { c, gruppo }) {
     R.consensoWhatsapp({ consensoModulo: { whatsapp: true, il: FRASE } }, FRASE).si,
   );
   c(
-    "CSV con modulo del 10/10 e frase segnata il 26/10 → nessun consenso dal modulo",
-    false,
+    "CSV con modulo del 10/10 e frase segnata il 26/10 → il modulo non vale (resta il consenso di tutti)",
+    "titolare",
     R.consensoWhatsapp(
       { consensoModulo: { whatsapp: true, il: "2026-10-10T09:00:00.000Z", via: "modulo_meta" } },
       "2026-10-26T00:00:00.000Z",
-    ).si,
+    ).via,
   );
   c(
     "frase non segnata (null, assente, illeggibile) → il modulo non vale per nessuno",
-    [false, false, false],
+    ["titolare", "titolare", "titolare"],
     [null, undefined, "boh"].map(
       (frase) =>
         R.consensoWhatsapp(
           { consensoModulo: { whatsapp: true, il: "2026-10-27T08:00:00.000Z" } },
           frase,
-        ).si,
+        ).via,
     ),
   );
   c(
     "modulo senza data (il null, assente, illeggibile) → NON vale, anche dopo la frase",
-    [false, false, false],
+    ["titolare", "titolare", "titolare"],
     [null, undefined, "ieri"].map(
-      (il) => R.consensoWhatsapp({ consensoModulo: { whatsapp: true, il } }, FRASE).si,
+      (il) => R.consensoWhatsapp({ consensoModulo: { whatsapp: true, il } }, FRASE).via,
     ),
   );
   c(
-    "…casella del modulo vuota o falsa → niente",
-    [false, false],
+    "…casella del modulo vuota o falsa → il modulo non vale",
+    ["titolare", "titolare"],
     [
-      R.consensoWhatsapp({ consensoModulo: {} }, FRASE).si,
+      R.consensoWhatsapp({ consensoModulo: {} }, FRASE).via,
       R.consensoWhatsapp(
         { consensoModulo: { whatsapp: false, il: "2026-10-27T08:00:00.000Z" } },
         FRASE,
-      ).si,
+      ).via,
     ],
   );
   c(
@@ -138,11 +138,11 @@ export async function proveRegole(mod, { c, gruppo }) {
     ).si,
   );
   c(
-    'un valore che non è proprio `true` non vale ("true", 1)',
-    [false, false],
+    'un valore che non è proprio `true` non vale come «Ok» della scheda ("true", 1), né come revoca',
+    ["titolare", "titolare"],
     [
-      R.consensoWhatsapp({ okWhatsapp: { si: "true" } }, FRASE).si,
-      R.consensoWhatsapp({ okWhatsapp: { si: 1 } }, FRASE).si,
+      R.consensoWhatsapp({ okWhatsapp: { si: "true" } }, FRASE).via,
+      R.consensoWhatsapp({ okWhatsapp: { si: 1 } }, FRASE).via,
     ],
   );
   c(
