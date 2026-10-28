@@ -97,6 +97,13 @@ export async function proveLeadSemplicePagina(mod, { c, gruppo, radice }) {
   c("PannelloBasso: il tasto di chiusura è da 44 px (quello di serie è nascosto)", true,
     /\[&>button\]:hidden/.test(basso) && /aria-label="Chiudi"/.test(basso));
 
+  c("PannelloBasso: i portali portano il tema chiaro del CRM (foglio, riquadro e contenuto)", [true, true, 2],
+    [basso.includes('className="crm-theme max-h-[85dvh]'), basso.includes('cn("crm-theme max-h-[75vh]'), (basso.match(/className="crm-theme contents"/g) ?? []).length]);
+  c("i menu del pannello Filtra (Annuncio, Risposta, Origine, Quando) hanno crm-theme", 4,
+    (leggi("src/crm/importa/FiltriLista.tsx").match(/className="crm-theme /g) ?? []).length);
+  c("con le risposte aperte la sintesi di due righe non si ripete", true,
+    /\{tutte \? \(\s*bottone\s*\) : \(/.test(leggi("src/crm/importa/SchedaProssimo.tsx")));
+
   // ── cosa non c'è più ──
   c("la rotta non importa più Testata, Segmento, linguetteDaMostrare, BarraFiltri", false,
     /\b(Testata|Segmento|linguetteDaMostrare|BarraFiltri)\b/.test(rotta.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")));

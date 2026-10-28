@@ -180,7 +180,7 @@ export function MenuAnnuncio({
           acceso={!!filtri.annuncio}
         />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-[60vh] w-80 overflow-y-auto p-1">
+      <PopoverContent align="start" className="crm-theme max-h-[60vh] w-80 overflow-y-auto p-1">
         {opzioni.annuncio.length === 0 ? (
           <p className="px-2 py-3 text-[12.5px] text-muted-foreground">
             Nessun annuncio nelle liste caricate.
@@ -266,7 +266,7 @@ export function MenuRisposta({
       <PopoverTrigger asChild>
         <TastoMenu alto={alto} nome="Risposta" valore={valore} acceso={scelte.length > 0} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-[60vh] w-80 overflow-y-auto p-1">
+      <PopoverContent align="start" className="crm-theme max-h-[60vh] w-80 overflow-y-auto p-1">
         {opzioni.risposte.length === 0 ? (
           <p className="px-2 py-3 text-[12.5px] text-muted-foreground">
             Nessuna risposta del modulo nelle liste caricate.
@@ -337,7 +337,7 @@ export function MenuOrigine({
           acceso={!!filtri.origine}
         />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-1">
+      <PopoverContent align="start" className="crm-theme w-64 p-1">
         <VoceScelta scelta={!filtri.origine} n={totale} onClick={() => scegli(undefined)}>
           Tutte le origini
         </VoceScelta>
@@ -388,7 +388,7 @@ export function MenuQuando({
           acceso={quando !== "sempre"}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-72">
+      <DropdownMenuContent align="start" className="crm-theme w-72">
         <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Quando ho messo lo stato
         </DropdownMenuLabel>

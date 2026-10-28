@@ -249,7 +249,6 @@ import { giornoLocale } from "@/crm/quando-stato";
 import {
   contaPromesse,
   inLista,
-  listaDaChiamare,
   motivoChiamata,
   ordinaChiamate,
   dividiEsiti,

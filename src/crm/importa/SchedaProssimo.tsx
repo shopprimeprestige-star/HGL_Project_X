@@ -160,21 +160,28 @@ function SintesiModulo({ modulo }: { modulo?: RisposteModulo }) {
   const [tutte, setTutte] = useState(false);
   const riassunto = useMemo(() => riassuntoModulo(modulo), [modulo]);
   if (!riassunto) return null;
+  //  ⚠️ Con le risposte aperte la sintesi di due righe NON si ripete: il riquadro
+  //   intero le contiene già, e due volte le stesse risposte sono rumore.
+  const bottone = (
+    <button
+      type="button"
+      aria-expanded={tutte}
+      onClick={() => setTutte((v) => !v)}
+      className="inline-flex min-h-11 items-center text-[12.5px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground md:min-h-0"
+    >
+      {tutte ? "Nascondi le risposte" : "Vedi tutte le risposte"}
+    </button>
+  );
   return (
     <div className="space-y-1.5">
-      <p className="text-[13px] leading-snug">
-        <span className="text-muted-foreground">Ha detto: </span>
-        <span className="font-medium">{riassunto}</span>
-        {" "}
-        <button
-          type="button"
-          aria-expanded={tutte}
-          onClick={() => setTutte((v) => !v)}
-          className="inline-flex min-h-11 items-center text-[12.5px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground md:min-h-0"
-        >
-          {tutte ? "Nascondi le risposte" : "Vedi tutte le risposte"}
-        </button>
-      </p>
+      {tutte ? (
+        bottone
+      ) : (
+        <p className="text-[13px] leading-snug">
+          <span className="text-muted-foreground">Ha detto: </span>
+          <span className="font-medium">{riassunto}</span> {bottone}
+        </p>
+      )}
       {tutte && <VociModulo modulo={modulo} />}
     </div>
   );

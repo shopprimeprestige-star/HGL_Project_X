@@ -12,6 +12,10 @@
  *   PAGINA e lo mette in `bloccato` di `useScorciatoie`: un «1» battuto con
  *   «Filtra» aperto non deve segnare «Non risponde» a nessuno. `ui.tsx` non si
  *   tocca (lo usano altre cinque pagine).
+ *  ⚠️ I PORTALI VIVONO FUORI DA `.crm-theme` (come le finestre, vedi ui/Finestra.tsx):
+ *   senza il tema chiaro del CRM il foglio e il riquadro uscivano scuri, coi token
+ *   della landing. `crm-theme` sta sul contenitore del portale e, in
+ *   `display:contents`, attorno al contenuto.
  *  ⚠️ Il tasto di chiusura di `SheetContent` è 16 px: si nasconde e se ne mette
  *   uno da 44 px dentro l'intestazione.
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -56,7 +60,7 @@ export function PannelloBasso({
         <SheetTrigger asChild>{trigger}</SheetTrigger>
         <SheetContent
           side="bottom"
-          className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-2xl p-0 [&>button]:hidden"
+          className="crm-theme max-h-[85dvh] gap-0 overflow-y-auto rounded-t-2xl p-0 [&>button]:hidden"
         >
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-4">
             <SheetTitle className="text-[15px] font-semibold">{titolo}</SheetTitle>
@@ -68,7 +72,9 @@ export function PannelloBasso({
             </SheetClose>
           </div>
           <SheetDescription className="sr-only">{descrizione ?? titolo}</SheetDescription>
-          <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">{children}</div>
+          <div className="crm-theme contents">
+            <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">{children}</div>
+          </div>
         </SheetContent>
       </Sheet>
     );
@@ -76,9 +82,11 @@ export function PannelloBasso({
   return (
     <Popover open={aperto} onOpenChange={onCambio}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="end" className={cn("max-h-[75vh] overflow-y-auto p-3", larghezza)}>
-        <div className="mb-2 text-[13px] font-semibold">{titolo}</div>
-        {children}
+      <PopoverContent align="end" className={cn("crm-theme max-h-[75vh] overflow-y-auto p-3", larghezza)}>
+        <div className="crm-theme contents">
+          <div className="mb-2 text-[13px] font-semibold">{titolo}</div>
+          {children}
+        </div>
       </PopoverContent>
     </Popover>
   );
