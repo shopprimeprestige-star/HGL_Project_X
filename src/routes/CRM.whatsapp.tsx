@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCRM } from "@/crm/CRMContext";
-import { useAuth } from "@/crm/AuthContext";
+import { useAuth, usePuo } from "@/crm/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -199,6 +199,10 @@ function WhatsAppPage() {
   const [draft, setDraft] = useState("");
   /** Il pannello «Proponi orari» sopra il campo di scrittura. */
   const [orariAperti, setOrariAperti] = useState(false);
+  /*  ⚠️ GLI ORARI SOLO A CHI HA L'AGENDA (revisione del 28/10): senza, le ore
+      tenute per una persona sola non arrivano (403 da fascia-modo) e si
+      vedrebbero libere — un doppio appuntamento. Stessa regola di vista-oggi. */
+  const puoAgenda = usePuo()("agenda");
   //  Cambiando chat gli orari si chiudono: erano scelti per un'altra persona.
   useEffect(() => setOrariAperti(false), [activePhone]);
   /** ── LE STELLE (1-3) DELLE CHAT IN OSSERVAZIONE ─────────────────────────
@@ -213,19 +217,30 @@ function WhatsAppPage() {
       .then(({ data }) => setStelle(leggiStelle(data?.value)));
   }, []);
   /** Un tocco: 0 → 1 → 2 → 3 → 0. Si rilegge prima di scrivere, così le stelle
-   *  messe intanto da un collega non si perdono. */
-  const cambiaStelle = async (telefono: string) => {
-    const nuove = stellaDopo(stelleDi(stelle, telefono));
-    setStelle((m) => conStelle(m, telefono, nuove));
-    const { data } = await supabase
-      .from("app_config")
-      .select("value")
-      .eq("key", CHIAVE_CONFIG_STELLE)
-      .maybeSingle();
-    const mappa = conStelle(leggiStelle(data?.value), telefono, nuove);
-    const { error } = await supabase
-      .from("app_config")
-      .upsert(
+   *  messe intanto da un collega non si perdono.
+   *  ⚠️ I SALVATAGGI VANNO IN FILA (`codaStelle`): tre tocchi veloci per
+   *   arrivare a 3 stelle facevano partire tre «leggi, cambia, scrivi»
+   *   insieme, e vinceva l'ultimo ad arrivare — a volte 1 (revisione del
+   *   28/10). Il valore nuovo si calcola sullo stato più recente (`stelleRef`). */
+  const stelleRef = useRef<MappaStelle>({});
+  useEffect(() => {
+    stelleRef.current = stelle;
+  }, [stelle]);
+  const codaStelle = useRef<Promise<void>>(Promise.resolve());
+  const cambiaStelle = (telefono: string) => {
+    const prima = stelleRef.current;
+    const nuove = stellaDopo(stelleDi(prima, telefono));
+    const subito = conStelle(prima, telefono, nuove);
+    stelleRef.current = subito;
+    setStelle(subito);
+    codaStelle.current = codaStelle.current.then(async () => {
+      const { data } = await supabase
+        .from("app_config")
+        .select("value")
+        .eq("key", CHIAVE_CONFIG_STELLE)
+        .maybeSingle();
+      const mappa = conStelle(leggiStelle(data?.value), telefono, nuove);
+      const { error } = await supabase.from("app_config").upsert(
         {
           key: CHIAVE_CONFIG_STELLE,
           value: scriviStelle(mappa),
@@ -233,12 +248,14 @@ function WhatsAppPage() {
         },
         { onConflict: "key" },
       );
-    if (error) {
-      toast.error("Stelle non salvate", { description: "Riprova fra un istante." });
-      setStelle(leggiStelle(data?.value));
-      return;
-    }
-    setStelle(mappa);
+      if (error) {
+        toast.error("Stelle non salvate", { description: "Riprova fra un istante." });
+        //  Si torna a com'era quel numero prima del tocco, non si azzera tutto.
+        const indietro = conStelle(stelleRef.current, telefono, stelleDi(prima, telefono));
+        stelleRef.current = indietro;
+        setStelle(indietro);
+      }
+    });
   };
   const [messages, setMessages] = useState<WaMessageRow[]>([]);
   const [contacts, setContacts] = useState<WaContactRow[]>([]);
@@ -941,8 +958,8 @@ function WhatsAppPage() {
                       tasto della riga: un tasto dentro un tasto non si può. */}
                     <button
                       type="button"
-                      onClick={() => void cambiaStelle(c.phone)}
-                      className="absolute right-2 top-[26px] inline-flex h-7 items-center rounded-md px-1 hover:bg-muted"
+                      onClick={() => cambiaStelle(c.phone)}
+                      className="absolute right-2 top-[26px] inline-flex h-7 items-center rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       aria-label={`Priorità di ${fullName}: ${n} ${n === 1 ? "stella" : "stelle"} su 3. Tocca per cambiare`}
                       title={
                         n
@@ -1157,7 +1174,7 @@ function WhatsAppPage() {
                   </div>
                 </div>
               )}
-              {orariAperti && (
+              {orariAperti && puoAgenda && (
                 <OrariRapidi
                   nome={activeChat?.lead?.data?.nome}
                   onInserisci={(t) => {
@@ -1175,16 +1192,18 @@ function WhatsAppPage() {
               >
                 {/*  ── PROPONI ORARI (28/10/2026) ────────────────────────────
                     Giorni e ore libere, e il messaggio si scrive da solo. */}
-                <Button
-                  size="icon"
-                  variant={orariAperti ? "default" : "outline"}
-                  className="h-9 w-9 shrink-0 rounded-full"
-                  onClick={() => setOrariAperti((v) => !v)}
-                  aria-label="Proponi orari liberi"
-                  title="Proponi orari liberi"
-                >
-                  <CalendarClock className="h-4 w-4" />
-                </Button>
+                {puoAgenda && (
+                  <Button
+                    size="icon"
+                    variant={orariAperti ? "default" : "outline"}
+                    className="h-9 w-9 shrink-0 rounded-full"
+                    onClick={() => setOrariAperti((v) => !v)}
+                    aria-label="Proponi orari liberi"
+                    title="Proponi orari liberi"
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                  </Button>
+                )}
                 <div className="flex-1">
                   <textarea
                     value={draft}

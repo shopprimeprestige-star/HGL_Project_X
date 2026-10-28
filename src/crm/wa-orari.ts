@@ -124,9 +124,12 @@ export function messaggioOrari(scelte: OrarioScelto[], oggi: string, nome?: stri
     return { giorno: giornoPerMessaggio(data, oggi), ore };
   });
   const quante = righe.reduce((n, r) => n + r.ore.length, 0);
-  const primo = String(nome ?? "")
-    .trim()
-    .split(/\s+/)[0];
+  const parola =
+    String(nome ?? "")
+      .trim()
+      .split(/\s+/)[0] ?? "";
+  //  «mario» scritto a mano diventa «Mario».
+  const primo = parola ? parola.charAt(0).toUpperCase() + parola.slice(1) : "";
   const saluto = primo ? `Gentile ${primo}, ` : "";
   const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   if (quante === 1) {
