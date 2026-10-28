@@ -41,31 +41,35 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const [vecchieAperte, setVecchieAperte] = useState(false);
   /*  ── IN OSSERVAZIONE (28/10/2026) ──────────────────────────────────────
       Un interruttore in più fra le pastiglie: mostra fra le «Altre chat» solo
-      quelle con stelle, prima le tre. «Da rispondere» resta com'è: chi aspetta
-      una risposta non si nasconde con un filtro. */
+      quelle con stelle, prima le tre. «Da rispondere» non lo tocca: chi aspetta
+      una risposta non si nasconde con le stelle (il consulente sì, qui sotto). */
   const { di: stelleDi, cambia: cambiaStelle } = useStelle();
   const [soloStelle, setSoloStelle] = useState(false);
   /*  ── IL FILTRO DEL CONSULENTE (28/10/2026) ─────────────────────────────
       Richiesta del titolare: le chat dei lead assegnati a un consulente (che ha
       fatto o ha in programma la consulenza con lui: `consulenteId` della
       scheda). Vale per TUTTE le sezioni, anche «Da rispondere»: è la vista di
-      una persona, non un'etichetta. Si scelgono solo i consulenti che hanno
-      almeno una chat. */
+      una persona, non un'etichetta — e quanti aspettano negli altri si dice.
+      Fra le scelte i consulenti con almeno una chat, più quello scelto (anche
+      se intanto le sue chat sono passate a un altro: il filtro non resta mai
+      acceso senza vedersi). */
   const { consultants } = useCRM();
   const [consulente, setConsulente] = useState("");
   const delConsulente = (c: ChatItem) => !consulente || c.lead?.data?.consulenteId === consulente;
   const conChat = new Set(api.chats.map((c) => c.lead?.data?.consulenteId).filter(Boolean));
   const sceltaConsulenti = consultants
-    .filter((x) => conChat.has(x.id))
+    .filter((x) => conChat.has(x.id) || x.id === consulente)
     .map((x) => ({ id: x.id, nome: String(x.data?.nome ?? "").trim() || "Senza nome" }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  // Il riquadro e le «vecchie» obbediscono SOLO alla ricerca, non alle pastiglie: chi aspetta una
-  // risposta non si nasconde con un filtro. La ricerca è fatta qui (non da `visibili`, che applica anche la pastiglia).
+  // Il riquadro e le «vecchie» obbediscono alla ricerca e al consulente, non alle pastiglie: chi
+  // aspetta una risposta non si nasconde con una pastiglia. La ricerca è fatta qui (non da `visibili`, che applica anche la pastiglia).
   const cercando = ricerca.trim() !== "";
   const perRicerca = (righe: ChatItem[]) => righe.filter((c) => combaciaRicerca(c, ricerca));
 
-  const inAttesa = perRicerca(api.daRispondere).filter(delConsulente);
+  const inAttesaTutti = perRicerca(api.daRispondere);
+  const inAttesa = inAttesaTutti.filter(delConsulente);
+  const nascostiInAttesa = inAttesaTutti.length - inAttesa.length;
   const vecchie = perRicerca(api.chats.filter(eVecchia)).filter(delConsulente);
   // Una chat una volta sola: se sta nel riquadro o fra le «vecchie», non si ripete fra le altre.
   const giaSopra = new Set(
@@ -125,7 +129,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               value={consulente}
               onChange={(e) => setConsulente(e.target.value)}
               className={cn(
-                "h-10 min-w-0 flex-1 rounded-md border bg-background px-2 text-base text-foreground md:h-8 md:text-[13px]",
+                "h-11 min-w-0 flex-1 rounded-md border bg-background px-2 text-base text-foreground md:h-8 md:text-[13px]",
                 consulente ? "border-emerald-300" : "border-input",
               )}
             >
@@ -194,7 +198,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                     : "border-border bg-muted/40 text-muted-foreground",
                 )}
               >
-                Da rispondere ({inAttesa.length})
+                Da rispondere ({inAttesa.length}
+                {nascostiInAttesa > 0 ? ` · altri ${nascostiInAttesa} di altri consulenti` : ""})
               </h2>
               {inAttesa.length === 0 ? (
                 <p className="flex items-center gap-2 border-b border-border px-3 py-3 text-[13px] text-muted-foreground">
@@ -204,7 +209,11 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                       className="h-4 w-4 shrink-0 text-emerald-600"
                     />
                   )}
-                  {cercando ? "Nessuna in questa ricerca" : "Nessuno aspetta una risposta"}
+                  {cercando
+                    ? "Nessuna in questa ricerca"
+                    : consulente
+                      ? "Nessun cliente di questo consulente aspetta una risposta"
+                      : "Nessuno aspetta una risposta"}
                 </p>
               ) : (
                 <ul>{inAttesa.map((c) => riga(c, "attesa"))}</ul>
@@ -214,6 +223,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             {visibili.length === 0 ? (
               <p className="px-4 py-10 text-center text-xs text-muted-foreground">
                 Nessuna chat in questa vista
+              </p>
+            ) : consulente && altre.length === 0 && !soloStelle ? (
+              <p className="px-4 py-8 text-center text-xs text-muted-foreground">
+                Nessun'altra chat di questo consulente.
               </p>
             ) : soloStelle && altre.length === 0 ? (
               <p className="px-4 py-8 text-center text-xs text-muted-foreground">

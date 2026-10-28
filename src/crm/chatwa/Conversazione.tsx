@@ -156,11 +156,20 @@ export function Conversazione({
                 )}
                 {/*  Com'è messo (28/10/2026): pallino e parola, come in Oggi. */}
                 {attiva.lead && mostraTemperatura(attiva.lead.data.stato) && (
-                  <TemperaturaRiga
-                    dati={attiva.lead.data}
-                    max={0}
-                    className="shrink-0 text-[12px]"
-                  />
+                  <>
+                    {/*  Sul telefono solo il pallino: la parola (e il resto) nel
+                        tasto Info. Con la parola lo stato restava «A…». */}
+                    <TemperaturaRiga
+                      dati={attiva.lead.data}
+                      soloPallino
+                      className="shrink-0 sm:hidden"
+                    />
+                    <TemperaturaRiga
+                      dati={attiva.lead.data}
+                      max={0}
+                      className="hidden shrink-0 text-[12px] sm:inline-flex"
+                    />
+                  </>
                 )}
                 {(attiva.lead || attiva.contact?.display_name) && (
                   <span className="hidden sm:inline text-[11px] text-muted-foreground font-mono truncate">

@@ -20566,11 +20566,14 @@ function proveDiWhatsappTemperaturaConsulente() {
   const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("la riga della chat ha pallino e parola (non dopo la vendita)", true, /mostraTemperatura\(c\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga dati=\{c\.lead\.data\} max=\{0\}/.test(riga));
-  c("l'intestazione della chat pure", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga/.test(conv));
+  c("l'intestazione della chat pure", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,400}soloPallino[\s\S]{0,60}sm:hidden/.test(conv));
   c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
     /api\.daRispondere\)\.filter\(delConsulente\)/.test(elenco) && /filter\(eVecchia\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
+  c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
+  c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /Nessun cliente di questo consulente aspetta una risposta/.test(elenco));
+  c("con la scheda la riga mostra stato e temperatura, il numero va nell'intestazione", true, /\{!c\.lead && \(\s*<span className="shrink-0 font-mono/.test(riga));
   c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId === consulente/.test(elenco));
   //  Il pannello di temperatura per un lead del modulo «22-ott» e per uno senza risposte.
   const T = mod["temperatura-lead"];

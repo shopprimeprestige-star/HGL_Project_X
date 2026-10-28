@@ -150,9 +150,14 @@ export function RigaChat({
               {c.lead && mostraTemperatura(c.lead.data.stato) && (
                 <TemperaturaRiga dati={c.lead.data} max={0} className="shrink-0 text-[11px]" />
               )}
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                {c.phone}
-              </span>
+              {/*  Con la scheda il numero lascia il posto a stato e temperatura (la
+                  riga è stretta: con tutti e tre lo stato restava «Ap…»). Il
+                  numero si legge nell'intestazione della chat. */}
+              {!c.lead && (
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  {c.phone}
+                </span>
+              )}
             </span>
           )}
           {/*  Senza la terza riga, lo spazio per le stelle (che stanno fuori dal bottone). */}
