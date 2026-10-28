@@ -31,7 +31,7 @@ import { istanteDiRoma } from "./contatto";
 
 /** ── L'INTERRUTTORE DI REGOLA: IL FRENO VALE ANCHE PER IL PROMEMORIA? ──────
  *  Risposta del titolare (SPEC 25/10, §3): il giorno del meet partono la
- *  mattina, i 25' e l'ora esatta, e NON li frena «mai due senza risposta»:
+ *  mattina, i 20' e l'ora esatta, e NON li frena «mai due senza risposta»:
  *  sono messaggi di servizio di un appuntamento preso. Il freno resta per gli
  *  altri. La conferma scritta la chiede il capo progetto prima di accendere.
  *  Tornare indietro è QUESTA riga (`quando.ts` la legge, e le prove ci passano
@@ -233,7 +233,7 @@ const istante = (iso?: string | null): number => {
 export const FRENO_SCADE_DOPO_GIORNI = 7;
 
 /** Il prefisso della chiave di ogni messaggio legato a un appuntamento:
- *  `p|` promemoria 25', `o|` mattina del meet, `d|` 24 ore prima, `a|` ora
+ *  `p|` promemoria 20', `o|` mattina del meet, `d|` 24 ore prima, `a|` ora
  *  esatta, `ch|` chiamata concordata, `sd|` appuntamento in sede. Tutte
  *  `prefisso|tel9|AAAA-MM-GGTHH:MM`. */
 const PREFISSO_APPUNTAMENTO: Partial<Record<InvioPerFreno["tipo"], string>> = {

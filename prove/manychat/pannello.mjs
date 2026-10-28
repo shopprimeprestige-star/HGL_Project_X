@@ -3166,8 +3166,8 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ),
   );
   c(
-    "giorno del meet acceso senza i flussi → rossi i tre del meet (mattina, 24 ore prima, all'ora)",
-    ["errore", "errore", "errore", "non_serve"],
+    "giorno del meet acceso senza i flussi → rossi mattina e all'ora; il 24 ore prima (spento dal 28/10) non serve",
+    ["errore", "non_serve", "errore", "non_serve"],
     [
       colMeet["flusso:hgl_meet_oggi"],
       colMeet["flusso:hgl_meet_domani"],

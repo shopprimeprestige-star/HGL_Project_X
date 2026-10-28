@@ -47,7 +47,7 @@ export function linkPerCliente(d: Partial<LeadData>, leadId?: string | null): st
   return /^https?:\/\/\S+$/i.test(grezzo) ? grezzo : "";
 }
 
-/** Promemoria 25': `crm_nome`, `crm_ora_meet`, `crm_link_meet`, `crm_consulente`.
+/** Promemoria 20': `crm_nome`, `crm_ora_meet`, `crm_link_meet`, `crm_consulente`.
  *  `leadId` fa il link «per persona» (come la chat); senza, il link della
  *  stanza così com'è. Una variabile vuota → `salta`: Meta rifiuta i buchi. */
 export function campiPromemoria(

@@ -87,10 +87,9 @@ import {
  *  del modello è la chiave in `manychat_config.flussi`. */
 export const MODELLO_PROMEMORIA = "hgl_promemoria_meet";
 export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
-/** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
 /** Il promemoria 24 ore prima della consulenza. Spento dal titolare il 28/10. */
 export const MEET_DOMANI_ACCESO = false;
-
+/** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
 export const TAG_PROMEMORIA = "crm-promemoria";
 export const TAG_RICONTATTO = "crm-ricontatto";
 /** Modello e tag dei cinque messaggi delle sequenze (commessa 2026-10-25). I
