@@ -125,7 +125,9 @@ export function Conversazione({
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <Avatar className="h-10 w-10 shrink-0">
+            {/*  Sotto i 640 px niente avatar: con «Chiama» in più il nome e lo
+                stato tornavano «Fran…» e «A…» (revisione del 28/10). */}
+            <Avatar className="hidden sm:flex h-10 w-10 shrink-0">
               <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
                 {attiva.lead ? initials(attiva.lead.data.nome, attiva.lead.data.cognome) : "?"}
               </AvatarFallback>

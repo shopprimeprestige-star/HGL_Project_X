@@ -827,8 +827,16 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         stato da oggi» su una scheda che ci stava da due settimane — e i
         filtri «da quando» (crm/quando-stato) raccontavano il contrario di
         quello che era successo.
-        Chi passa `statoPrecedenteIl` lo sta dichiarando apposta: comanda lui. */
-    if (merged.stato !== current.data.stato && patch.statoPrecedenteIl === undefined) {
+        Chi passa `statoPrecedenteIl` lo sta dichiarando apposta: comanda lui.
+        ⚠️ MA NON CHI LO RIMANDA UGUALE (revisione del 28/10): la scheda del lead
+         salva il modulo intero, con dentro il `statoPrecedenteIl` di prima. Era
+         un «non dichiarato» travestito, e il cambio di stato restava con l'ora
+         vecchia: chi veniva messo in Attesa WhatsApp risultava in attesa da
+         giorni. Vale come dichiarato solo se è DIVERSO da quello in archivio. */
+    const dichiarato =
+      patch.statoPrecedenteIl !== undefined &&
+      patch.statoPrecedenteIl !== current.data.statoPrecedenteIl;
+    if (merged.stato !== current.data.stato && !dichiarato) {
       merged = {
         ...merged,
         statoPrecedente: current.data.stato,

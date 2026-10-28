@@ -86,7 +86,7 @@ export function RigaChat({
         ).testo
       : last?.body;
   const anteprima = daChiamare
-    ? "In attesa su WhatsApp: chiamalo"
+    ? "In attesa su WhatsApp da oltre 10 ore: da chiamare"
     : anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
 

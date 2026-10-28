@@ -20613,6 +20613,12 @@ function proveDelDaChiamare() {
   c("la chat calcola «Da chiamare» per ogni contatto", true, /item\.daChiamare = calcolaDaChiamare\(/.test(hook));
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
   c("«Da chiamare» ha la sua sezione e non si ripete fra le altre", true, /titolo-da-chiamare/.test(elenco) && /\.\.\.api\.daChiamare,/.test(elenco));
+  c("Attesa WhatsApp con solo l'ora del server (statoDal): sì", true, D.calcolaDaChiamare({ dati: { stato: "attesa_whatsapp", statoDal: "2026-10-28T08:00:00Z" }, messaggi: [], adesso }).si);
+  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
+  c("cambio di stato dalla scheda: l'ora si aggiorna anche se il modulo rimanda quella vecchia", true,
+    /patch\.statoPrecedenteIl !== current\.data\.statoPrecedenteIl/.test(ctx) && /merged\.stato !== current\.data\.stato && !dichiarato/.test(ctx));
+  c("sul telefono niente avatar nella barra della chat (spazio a nome e stato)", true, /<Avatar className="hidden sm:flex/.test(conv));
+  c("chat con due schede sullo stesso numero: il lead in attesa conta lo stesso", true, /inAttesaPerNumero\.get\(/.test(hook));
   c("tasto Chiama nella barra della chat (tel:)", true, /href=\{`tel:\$\{numeroDaComporre\(attiva\.phone\)\}`\}/.test(conv));
 }
 

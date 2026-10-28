@@ -36,8 +36,11 @@ const NO: DaChiamare = { si: false, dal: null };
 export function inAttesaDal(d?: Partial<LeadData> | null): string | null {
   if (!d) return null;
   const valido = (x: unknown) => (Number.isFinite(Date.parse(String(x ?? ""))) ? String(x) : null);
+  //  `statoDal` è l'ora che scrive il server quando mette lo stato (ManyChat):
+  //  ripiego se manca quella del CRM. Senza nessuna delle tre non si sa da
+  //  quando aspetta, e non si inventa: resta fuori.
   if (d.stato === "attesa_whatsapp")
-    return valido(d.statoPrecedenteIl) ?? valido(d.whatsappInviatoIl);
+    return valido(d.statoPrecedenteIl) ?? valido(d.statoDal) ?? valido(d.whatsappInviatoIl);
   return inAttesaWhatsapp(d) ? valido(d.whatsappInviatoIl) : null;
 }
 
