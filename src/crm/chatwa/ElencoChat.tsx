@@ -54,9 +54,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const adesso = useAdesso();
   const [vecchieAperte, setVecchieAperte] = useState(false);
   /*  ── IN OSSERVAZIONE (28/10/2026) ──────────────────────────────────────
-      Un interruttore in più fra le pastiglie: mostra fra le «Altre chat» solo
-      quelle con stelle, prima le tre. «Da rispondere» non lo tocca: chi aspetta
-      una risposta non si nasconde con le stelle (il consulente sì, qui sotto). */
+      Un interruttore in più fra le pastiglie: mostra, in ogni riquadro, solo le
+      chat con stelle. Le stelle ordinano sempre: prima le tre. */
   const { di: stelleDi, cambia: cambiaStelle } = useStelle();
   const [soloStelle, setSoloStelle] = useState(false);
   //  Il sottofiltro della pillola «Da chiamare» (28/10/2026): UN elenco, ordinato per stato.
@@ -284,9 +283,11 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                   )}
                   {cercando
                     ? "Nessuna in questa ricerca"
-                    : consulente
-                      ? "Nessun cliente di questo consulente aspetta una risposta"
-                      : "Nessuno aspetta una risposta"}
+                    : filtro !== "all" || soloStelle
+                      ? "Nessuna in questa vista"
+                      : consulente
+                        ? "Nessun cliente di questo consulente aspetta una risposta"
+                        : "Nessuno aspetta una risposta"}
                 </p>
               ) : (
                 <ul>{inAttesa.map((c) => riga(c, "attesa"))}</ul>

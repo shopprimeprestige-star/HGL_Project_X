@@ -69,7 +69,7 @@ export function RigaChat({
   const nome = nomeChat(c);
   //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
   const numero = numeroLeggibile(c.phone);
-  const numeroSotto = nome !== numero;
+  const numeroSotto = nome.replace(/\D/g, "") !== numero.replace(/\D/g, "");
   const telefono = numeroDaComporre(c.phone);
   //  Gli stati di chiamata che la regola del CRM (`statiPer`) ammette per QUESTO lead.
   const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data) : []);

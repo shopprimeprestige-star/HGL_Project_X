@@ -1,7 +1,7 @@
 /** ── PROVE: CHAT WHATSAPP · LA RICERCA DELL'ELENCO ───────────────────────────────────────────
  *
  *  Commessa 2026-10-28, PIANO.md T8 (correzione del revisore). `chatwa/cercaChat.ts`: il riquadro
- *  «Da rispondere» obbedisce alla ricerca ma NON alla pastiglia. Dati inventati. */
+ *  «Da rispondere» obbedisce alla ricerca; dal 28/10 (guasto delle pillole) anche alla pastiglia. Dati inventati. */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,6 +20,8 @@ export async function proveChatElenco(mod, { c, gruppo }) {
     combaciaRicerca(conScheda, "MAR"), combaciaRicerca(conScheda, "maria rossi"),
   ]);
   c("numero", [true, false], [combaciaRicerca(conScheda, "0001112"), combaciaRicerca(conScheda, "999")]);
+  c("numero scritto come si legge (con spazi) o solo in parte: si trovano le cifre", [true, true, false],
+    [combaciaRicerca(conScheda, "+39 000 111"), combaciaRicerca(conScheda, "000-111-222"), combaciaRicerca(conScheda, "000 999")]);
   c("numero senza scheda: si trova per nome salvato (display_name)", [true, false], [
     combaciaRicerca(senzaScheda, "marco"), combaciaRicerca(senzaScheda, "luigi"),
   ]);
@@ -36,7 +38,7 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   const pastigliaConLead = (x) => !!x.lead;
   c("riquadro con ricerca «mar» e pastiglia «Con lead»: il senza scheda resta", 2,
     inAttesa.filter((x) => combaciaRicerca(x, "mar")).length);
-  c("(la pastiglia da sola lo toglierebbe: è il difetto corretto)", 1,
+  c("(la pastiglia «Con lead» da sola lo toglie: ora vale anche per il riquadro)", 1,
     inAttesa.filter((x) => combaciaRicerca(x, "mar") && pastigliaConLead(x)).length);
 
   // ── LE PILLOLE FILTRANO ANCHE I RIQUADRI (guasto del 28/10: «Non letti», «Con lead», «Sconosciuti»

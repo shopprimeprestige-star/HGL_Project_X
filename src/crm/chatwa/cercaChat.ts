@@ -2,8 +2,8 @@ import { statoChiamata } from "./daChiamare";
 
 /** La ricerca dell'elenco, per conto di `ElencoChat`: nome della scheda, numero e, in più di
  *  `visibili` (useChatWa), il nome salvato dal contatto, così un «numero senza scheda» col
- *  nome di ManyChat si trova per nome. Pura: niente React, niente Supabase. Serve al riquadro
- *  «Da rispondere» e alle «vecchie», che obbediscono alla ricerca ma NON alle pastiglie. */
+ *  nome di ManyChat si trova per nome. Pura: niente React, niente Supabase. La usano `visibili`
+ *  e tutti i riquadri di `ElencoChat`; le pastiglie sono `passaFiltro`. */
 export interface ChatCercabile {
   phone: string;
   lead?: { data: { nome?: string | null; cognome?: string | null } } | null;
@@ -15,9 +15,13 @@ export function combaciaRicerca(c: ChatCercabile, ricerca: string): boolean {
   const q = ricerca.trim().toLowerCase();
   if (!q) return true;
   const nomeScheda = `${c.lead?.data.nome ?? ""} ${c.lead?.data.cognome ?? ""}`.toLowerCase();
+  //  Il numero si trova anche scritto come lo si legge («+39 333 000 1234»): si confrontano le cifre.
+  const cifreQ = q.replace(/\D/g, "");
+  const perNumero = cifreQ.length >= 3 && c.phone.replace(/\D/g, "").includes(cifreQ);
   return (
     nomeScheda.includes(q) ||
     c.phone.toLowerCase().includes(q) ||
+    perNumero ||
     (c.contact?.display_name ?? "").toLowerCase().includes(q)
   );
 }
