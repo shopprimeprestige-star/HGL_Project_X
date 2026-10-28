@@ -43,7 +43,9 @@ export function Casella({ api }: CasellaProps) {
   const { bozza, setBozza, residuiBozza, invia, inviando, stato, attiva, canale } = api;
   const { consultants } = useCRM();
   /*  ── PROPONI ORARI (28/10/2026) ────────────────────────────────────────
-      Giorni e ore libere (crm/OrariRapidi) e il messaggio si scrive da solo.
+      Il tasto apre la finestra col calendario di ogni consulente
+      (crm/OrariRapidi): si scelgono più orari e «Crea messaggio» lo mette
+      nella casella, senza inviare.
       ⚠️ Solo a chi ha l'agenda: senza, le ore tenute per una persona sola non
        arrivano e si vedrebbero libere (un doppio appuntamento). Cambiando chat
        si chiude: gli orari erano scelti per un altro cliente. */
@@ -204,6 +206,7 @@ export function Casella({ api }: CasellaProps) {
       {orari && puoAgenda && configurata && (
         <OrariRapidi
           nome={attiva?.lead?.data?.nome}
+          consulenteId={attiva?.lead?.data?.consulenteId}
           onInserisci={(t) => {
             setBozza(bozza.trim() ? `${bozza.trimEnd()}\n\n${t}` : t);
             setOrari(false);
@@ -290,7 +293,7 @@ export function Casella({ api }: CasellaProps) {
             variant={orari ? "default" : "outline"}
             onClick={() => setOrari((v) => !v)}
             aria-label="Proponi orari liberi"
-            aria-expanded={orari}
+            aria-haspopup="dialog"
             title="Proponi orari liberi"
             className="h-11 w-11 shrink-0 rounded-full"
           >
