@@ -45,7 +45,6 @@ function Corpo({ chat, api, onChiudi }: Props & { chat: ChatItem }) {
   const [ricerca, setRicerca] = useState("");
   const [scelta, setScelta] = useState<Lead | null>(null);
   const [invio, setInvio] = useState(false);
-  const [errore, setErrore] = useState<string | null>(null);
 
   const trovate = useMemo(() => {
     const q = ricerca.trim().toLowerCase();
@@ -63,13 +62,12 @@ function Corpo({ chat, api, onChiudi }: Props & { chat: ChatItem }) {
   const conferma = async () => {
     if (!scelta || invio) return;
     setInvio(true);
-    setErrore(null);
     try {
       //  Il numero mostrato va con la scelta: l'hook rifiuta se la chat aperta è un'altra.
       await api.abbina(scelta.id, chat.phone);
       onChiudi();
     } catch {
-      setErrore("Abbinamento non riuscito: riprova fra poco.");
+      //  Il toast l'ha già mostrato `api.abbina`: qui basta restare aperti per riprovare.
       setInvio(false);
     }
   };
@@ -84,11 +82,6 @@ function Corpo({ chat, api, onChiudi }: Props & { chat: ChatItem }) {
             <strong className="text-foreground">{nomeScheda(scelta)}</strong>.
           </DialogDescription>
         </DialogHeader>
-        {errore && (
-          <p role="alert" className="text-sm text-destructive">
-            {errore}
-          </p>
-        )}
         <DialogFooter className="gap-2 sm:gap-2">
           <Button
             variant="outline"

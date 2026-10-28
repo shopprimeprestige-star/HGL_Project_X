@@ -143,6 +143,8 @@ function creaDb(tabelle) {
     rpcLog: [],
     gate: null, // promessa da aspettare prima di leggere i contatti
     rifiutaColonne: false, // un update con le colonne nuove dà 42703
+    erroreLettura: false, // le letture di messaggi e contatti danno un errore (rete, RLS)
+    erroreUpdate: false, // ogni update dà un errore che non è «colonna mancante»
     congelaUpdate: false, // gli update vengono registrati ma non toccano le righe (come una RLS che non lascia passare)
     rpcRisposta: null, // (fn, args) => {data, error}
     cb: [], // realtime: { tabella, f }
@@ -202,6 +204,10 @@ function creaDb(tabelle) {
       const dentro = (r) =>
         q.eq.every(([k, v]) => String(r[k]) === v) &&
         (!orFiltri || orFiltri.some(([k, v]) => String(r[k]) === v));
+      if (q.op === "select" && db.erroreLettura && q.t !== "whatsapp_settings")
+        return { data: null, error: { code: "XX000", message: "rete giù" } };
+      if (q.op === "update" && db.erroreUpdate)
+        return { data: null, error: { code: "XX000", message: "update rifiutato" } };
       if (q.op === "select") {
         let out = righe.filter(dentro);
         if (q.ord) {
@@ -331,6 +337,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         whatsapp_contacts: mondo.contatti ?? [],
         whatsapp_settings: mondo.impostazioni ?? [],
       });
+      if (mondo.gate) db.gate = mondo.gate;
       const T = {
         user: { id: U },
         crm: { leads: mondo.leads ?? [], consultants: [], updateLead: async () => {} },
@@ -1272,17 +1279,19 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
       p.api().apri(P3);
       await p.assesta();
-      await p.api().abbina("lead-a", P1);
+      const eAltra = await esito(p.api().abbina("lead-a", P1));
       c(
-        "abbina con il numero di un'altra chat (finestra vecchia): non scrive niente, frase d'errore",
-        [0, "errore"],
+        "abbina con il numero di un'altra chat (finestra vecchia): non scrive niente, frase d'errore, la promessa è RIFIUTATA",
+        [0, "errore", "lancia: abbinamento non riuscito"],
         [
           p.scritture("whatsapp_contacts").filter((q) => q.vals && "lead_id" in q.vals).length,
           p.T.toasts.at(-1)?.tipo,
+          eAltra,
         ],
       );
-      await p.api().abbina("lead-a", "+39 333 333 0003");
+      const eOk = await esito(p.api().abbina("lead-a", "+39 333 333 0003"));
       await p.assesta();
+      c("abbinamento riuscito: la promessa si risolve", ["ok"], [eOk]);
       const u = p.scritture("whatsapp_contacts").filter((q) => q.vals && "lead_id" in q.vals);
       c(
         "abbina: scrive lead_id sul contatto per id (e utente)",
@@ -1308,13 +1317,26 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       rls.db.congelaUpdate = true;
       rls.api().apri(P3);
       await rls.assesta();
-      await rls.api().abbina("lead-a");
+      const eRls = await esito(rls.api().abbina("lead-a"));
       c(
-        "update che non tocca righe (RLS): non si dice «abbinata», frase d'errore",
-        ["errore", "Abbinamento non riuscito, riprova"],
-        [rls.T.toasts.at(-1)?.tipo, rls.fraseUltima()],
+        "update che non tocca righe (RLS): non si dice «abbinata», frase d'errore, promessa RIFIUTATA, un solo toast",
+        ["errore", "Abbinamento non riuscito, riprova", "lancia: abbinamento non riuscito", 1],
+        [rls.T.toasts.at(-1)?.tipo, rls.fraseUltima(), eRls, rls.T.toasts.length],
       );
       fine(rls);
+
+      // Errore del database sull'update: stessa cosa.
+      const err = await monta({ contatti: [contatto("c3", P3)] });
+      err.api().apri(P3);
+      await err.assesta();
+      err.db.erroreUpdate = true;
+      const eErr = await esito(err.api().abbina("lead-a"));
+      c(
+        "errore del database sull'abbinamento: frase chiara e promessa RIFIUTATA",
+        ["Abbinamento non riuscito, riprova", "lancia: abbinamento non riuscito"],
+        [err.fraseUltima(), eErr],
+      );
+      fine(err);
 
       // Nessuna riga toccata (RLS) o nessun contatto: non si dice «abbinata».
       const q = await monta({
@@ -1326,11 +1348,11 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       await q.assesta();
       q.api().apri(P3);
       await q.assesta();
-      await q.api().abbina("lead-a");
+      const eSenza = await esito(q.api().abbina("lead-a"));
       c(
-        "chat senza riga contatto: nessun abbinamento finto, una frase chiara",
-        ["errore"],
-        [q.T.toasts.at(-1)?.tipo],
+        "chat senza riga contatto: nessun abbinamento finto, una frase chiara, promessa RIFIUTATA",
+        ["errore", "lancia: abbinamento non riuscito"],
+        [q.T.toasts.at(-1)?.tipo, eSenza],
       );
       fine(q);
     }
@@ -1434,6 +1456,23 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       );
       fine(q);
 
+      // L'azzeramento del contatto fallisce: un solo esito, quello d'errore.
+      const f = await monta(base());
+      f.api().apri(P1);
+      await f.assesta();
+      f.db.erroreUpdate = true;
+      await f.api().elimina();
+      await f.assesta();
+      c(
+        "azzeramento del contatto fallito: toast d'errore e NIENTE «Chat eliminata»",
+        [["errore"], false],
+        [
+          f.T.toasts.map((t) => t.tipo).filter((t, i, tutti) => i > 0 || t),
+          f.T.toasts.some((t) => t.m === "Chat eliminata"),
+        ],
+      );
+      fine(f);
+
       // Conferma negata: niente.
       const r = await monta({ ...base(), confirm: false });
       r.api().apri(P1);
@@ -1448,6 +1487,75 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         ],
       );
       fine(r);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+     *  8b · RICARICHE: niente spinner, niente elenco svuotato, niente bozza persa
+     * ════════════════════════════════════════════════════════════════════════ */
+    gruppo("CHAT WHATSAPP · PAGINA · RICARICHE E BOZZA");
+    {
+      const base = () => ({
+        contatti: [contatto("c1", P1, { ultimo_in_entrata_il: iso(-3 * ORA_MS) })],
+      });
+
+      // Lo spinner c'è solo al primo caricamento.
+      let apri;
+      const p = await monta({ ...base(), gate: new Promise((r) => (apri = r)) });
+      c("primo caricamento in corso: «caricamento» vero", [true], [p.api().caricamento]);
+      p.db.gate = null;
+      apri();
+      await p.assesta();
+      c("primo caricamento finito: falso", [false], [p.api().caricamento]);
+      let apri2;
+      p.db.gate = new Promise((r) => (apri2 = r));
+      p.db.tabelle.whatsapp_contacts[0].unread_count = 2;
+      p.db.emetti("whatsapp_contacts");
+      await p.assesta();
+      c(
+        "una ricarica (realtime) in corso NON riaccende lo spinner e l'elenco resta",
+        [false, [P1]],
+        [p.api().caricamento, telefoni(p.api().daRispondere)],
+      );
+      p.db.gate = null;
+      apri2();
+      await p.assesta();
+      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].unread]);
+
+      // Errore di lettura: si tengono i dati di prima.
+      p.db.erroreLettura = true;
+      p.db.emetti("whatsapp_contacts");
+      await p.assesta();
+      c(
+        "ricarica con errore di lettura: l'elenco e «Da rispondere» NON si svuotano",
+        [1, [P1]],
+        [p.api().chats.length, telefoni(p.api().daRispondere)],
+      );
+      p.db.erroreLettura = false;
+      p.db.tabelle.whatsapp_contacts.push(contatto("c2", P2));
+      p.db.emetti("whatsapp_contacts");
+      await p.assesta();
+      c("passato l'errore la ricarica successiva aggiorna", [2], [p.api().chats.length]);
+      fine(p);
+
+      // La bozza scritta durante l'invio non si cancella.
+      const q = await monta(base());
+      q.api().apri(P1);
+      await q.assesta();
+      q.api().setBozza("primo");
+      await q.assesta();
+      q.T.invio = async () => {
+        q.api().setBozza("secondo, scritto mentre partiva il primo");
+        await q.assesta();
+        return risposta(200, { ok: true });
+      };
+      await q.api().invia();
+      await q.assesta();
+      c(
+        "bozza cambiata durante l'invio: la nuova resta",
+        ["secondo, scritto mentre partiva il primo"],
+        [q.api().bozza],
+      );
+      fine(q);
     }
 
     /* ════════════════════════════════════════════════════════════════════════
@@ -1470,6 +1578,28 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           /from "\.\/stato"/.test(senza),
           /schedaUnica/.test(senza) && !/function schedaUnica/.test(senza),
           !/function phonesMatch/.test(senza),
+        ],
+      );
+      const leggi = (f) =>
+        readFileSync(join(radice, f), "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^\s*\/\/.*$/gm, "");
+      const pagina = leggi("src/crm/chatwa/PaginaChat.tsx");
+      c(
+        "l'intestazione non guarda le chiavi Meta (hasConfig) ma lo stato della casella: niente falso allarme su ManyChat",
+        [false, 2],
+        [/hasConfig/.test(pagina), (pagina.match(/api\.stato === "configura"/g) ?? []).length],
+      );
+      const abbinaScheda = leggi("src/crm/chatwa/AbbinaScheda.tsx");
+      const prima = abbinaScheda.slice(abbinaScheda.indexOf("const conferma"));
+      const dopoCatch = prima.slice(prima.indexOf("catch"), prima.indexOf("};"));
+      c(
+        "AbbinaScheda: chiude solo dopo l'await riuscito e il catch non dà un secondo avviso",
+        [true, false, false],
+        [
+          /await api\.abbina\([^)]*\);\s*onChiudi\(\)/.test(prima),
+          /setErrore\(\s*"/.test(dopoCatch),
+          /toast/.test(dopoCatch),
         ],
       );
       c(

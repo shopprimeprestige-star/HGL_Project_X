@@ -202,7 +202,7 @@ export function PaginaChat() {
               WhatsApp Business
             </h1>
             <p className="truncate text-[11px] text-muted-foreground leading-tight mt-0.5">
-              {api.hasConfig === false
+              {api.stato === "configura"
                 ? "Credenziali non configurate"
                 : vista === "chat"
                   ? "Conversazioni in tempo reale"
@@ -231,7 +231,7 @@ export function PaginaChat() {
           </Segmento>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {api.hasConfig === false && (
+          {api.stato === "configura" && (
             <Badge
               variant="outline"
               className="hidden bg-amber-50 text-amber-700 border-amber-200 gap-1 font-medium md:inline-flex"

@@ -194,6 +194,11 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         .limit(2000),
       tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
     ]);
+    //  Errore di lettura (rete, RLS): si tengono i dati di prima, non si svuota l'elenco.
+    if (m.error || ct.error) {
+      setCaricamento(false);
+      return;
+    }
     const cts = (ct.data as WaContactRow[] | null) ?? [];
     setMessages(((m.data as WaMessageRow[] | null) ?? []).reverse());
     setContacts(cts);
@@ -595,18 +600,19 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     }
   };
 
-  /** «Abbina a una scheda»: scrive `lead_id` sul contatto (RLS dell'utente). */
+  /** «Abbina a una scheda»: scrive `lead_id` sul contatto (RLS dell'utente).
+   *  Se non riesce mostra UN toast e LANCIA: chi la chiama (la finestra) resta aperto. */
   const abbina = async (leadId: string, phone?: string) => {
-    if (!user || !attiva) return;
+    const non = (frase: string): never => {
+      toast.error(frase);
+      throw new Error("abbinamento non riuscito");
+    };
+    if (!user || !attiva) return non("Abbinamento non riuscito, riprova");
     //  La finestra mostra una chat: se nel frattempo ne è aperta un'altra, non si abbina quella sbagliata.
-    if (phone !== undefined && digitsOnly(phone) !== digitsOnly(attiva.phone)) {
-      toast.error("La chat aperta è cambiata: riprova l'abbinamento");
-      return;
-    }
-    if (!attiva.contact) {
-      toast.error("Questa chat non ha ancora un contatto: non posso abbinarla");
-      return;
-    }
+    if (phone !== undefined && digitsOnly(phone) !== digitsOnly(attiva.phone))
+      return non("La chat aperta è cambiata: riprova l'abbinamento");
+    if (!attiva.contact) return non("Questa chat non ha ancora un contatto: non posso abbinarla");
+    let riuscito = false;
     try {
       //  `select("id")`: con la RLS un update che non tocca righe non dà errore.
       const { data, error } = await tabella("whatsapp_contacts")
@@ -614,12 +620,13 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         .eq("id", attiva.contact.id)
         .eq("user_id", user.id)
         .select("id");
-      if (error || !Array.isArray(data) || data.length === 0) throw new Error("abbinamento");
-      toast.success("Chat abbinata alla scheda");
-      await reload();
+      riuscito = !error && Array.isArray(data) && data.length > 0;
     } catch {
-      toast.error("Abbinamento non riuscito, riprova");
+      riuscito = false;
     }
+    if (!riuscito) return non("Abbinamento non riuscito, riprova");
+    toast.success("Chat abbinata alla scheda");
+    await reload().catch(() => undefined);
   };
 
   /** Cambio stato del lead — stesso comportamento della pagina Leads:
@@ -668,6 +675,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       if (error) throw new Error(error.message);
       // Azzero il contatto, se esiste: anche l'ultimo messaggio del cliente e il «risposto»,
       // altrimenti una chat eliminata resterebbe in «Da rispondere» (D19).
+      let azzerato = true;
       if (attiva.contact) {
         const azzera = (valori: Record<string, unknown>) =>
           tabella("whatsapp_contacts")
@@ -684,9 +692,11 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         if (r.error && mancaColonna(r.error)) {
           r = await azzera({ unread_count: 0, last_message_at: null });
         }
-        if (r.error) toast.error("Messaggi eliminati, ma il contatto non si è azzerato: riprova");
+        if (r.error) azzerato = false;
       }
-      toast.success("Chat eliminata");
+      //  Un solo esito a schermo: o l'errore o «Chat eliminata».
+      if (azzerato) toast.success("Chat eliminata");
+      else toast.error("Messaggi eliminati, ma il contatto non si è azzerato: riprova");
       setActivePhone(null);
       void reload();
     } catch (e) {
