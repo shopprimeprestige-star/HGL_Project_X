@@ -62,7 +62,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         .filter((c) => stelleDi(c.phone) > 0)
         .sort((a, b) => stelleDi(b.phone) - stelleDi(a.phone))
     : altreTutte;
-  const conStelle = api.chats.filter((c) => stelleDi(c.phone) > 0).length;
+  //  Il numero conta quelle che l'interruttore mostra (le «Altre chat» con stelle).
+  const conStelle = altreTutte.filter((c) => stelleDi(c.phone) > 0).length;
 
   const riga = (c: ChatItem, modo: ModoRiga) => (
     <RigaChat

@@ -132,7 +132,7 @@ export function RigaChat({
             )}
           </span>
           {(c.lead || nome !== c.phone) && (
-            <span className="mt-1 flex items-center gap-2">
+            <span className={cn("mt-1 flex items-center gap-2", onStelle && "pr-16")}>
               {c.lead && (
                 <span
                   className={cn(
@@ -163,7 +163,7 @@ export function RigaChat({
           type="button"
           onClick={onStelle}
           //  All'altezza della terza riga (stato e numero), a destra, dove non c'è niente.
-          className="absolute right-2 top-[50px] inline-flex h-8 items-center gap-0.5 rounded-md bg-card/80 px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:top-[46px]"
+          className="absolute right-2 top-[56px] inline-flex h-7 items-center gap-0.5 rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:top-[54px]"
           aria-label={`Priorità di ${nome}: ${stelle} su 3. Tocca per cambiare`}
           title={
             stelle
