@@ -57,7 +57,13 @@ export interface ChatItem {
   lastMessage: WaMessageRow | null;
   unread: number;
   /** I campi che seguono li riempie T7; finché non c'è, mancano. */
-  daRispondere?: { attesa: boolean; dal: string | null; anteprima: string | null } | null;
+  daRispondere?: {
+    attesa: boolean;
+    dal: string | null;
+    anteprima: string | null;
+    /** Ripiego sui messaggi: senza risposta da più di 7 giorni (non è in elenco). */
+    vecchia?: boolean;
+  } | null;
   finestra?: { aperta: boolean; frase: string };
   senzaScheda?: boolean;
   schedaAmbigua?: boolean;
@@ -88,10 +94,12 @@ export interface ChatWaApi {
   /** Segnaposto non sostituiti nella bozza (`{nome}`…): la casella li avvisa. */
   residuiBozza: string[];
   invia: () => Promise<void>;
+  /** Se l'invio non parte mostra l'errore e LANCIA: la casella resta sull'anteprima del modello. */
   inviaModello: (m: { nome: string; lingua: string; parametri: string[] }) => Promise<void>;
   inviando: boolean;
   segnaFatto: () => Promise<void>;
-  abbina: (leadId: string) => Promise<void>;
+  /** `phone`: il numero della chat mostrata nella finestra; se non coincide con la chat aperta non scrive. */
+  abbina: (leadId: string, phone?: string) => Promise<void>;
   elimina: () => Promise<void>;
   /** Chat (per telefono) a cui il server ha detto «solo modelli». */
   forzaModelli: Record<string, boolean>;

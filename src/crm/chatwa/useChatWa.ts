@@ -1,40 +1,89 @@
 /** ── LA CHAT WHATSAPP · DATI, EFFETTI E AZIONI DELLA PAGINA ────────────────
  *
  *  Commessa 2026-10-28, T6: il corpo "senza vista" di `CRM.whatsapp.tsx`, spostato
- *  qui senza cambiare comportamento. T7 ci aggiunge «Da rispondere», finestra,
- *  canale, invio dei modelli, «Fatto», abbinamento.
+ *  qui senza cambiare comportamento. T7 ci ha aggiunto «Da rispondere», finestra
+ *  di 24 ore, canale, invio dei modelli, «Fatto», abbinamento. Le regole stanno
+ *  in `stato.ts` (pure, provate): qui si leggono i dati e si chiamano.
  *
  *  Gli effetti, perché nello spostamento non ne sparisca uno:
  *   1. carica i modelli di testo salvati (servono a otto pagine, non solo all'editor);
  *   2. legge le chiavi Meta (`whatsapp_settings`) → `hasConfig`;
- *   3. carica messaggi + contatti al montaggio e cambio utente (`reload`);
- *   4. realtime su `whatsapp_messages` e `whatsapp_contacts` → `reload`;
- *   5. segna letto il contatto quando si apre una chat con `unread_count > 0`.
+ *   3. legge il canale (`/api/crm/whatsapp-canale`) → `canale`;
+ *   4. carica messaggi + contatti al montaggio e cambio utente (`reload`);
+ *   5. realtime su `whatsapp_messages` e `whatsapp_contacts` → `reload`;
+ *   6. legge TUTTA la chat aperta (e la rilegge a ogni `reload`);
+ *   7. segna letto il contatto quando si apre una chat con `unread_count > 0`;
+ *   8. un solo timer (30 s) tiene vere «da 25 min» e le ore rimaste.
  *  (Lo scorrimento in basso dei messaggi sta in `Conversazione`, dov'è il suo elemento.)
+ *
+ *  ⚠️ «Da rispondere» si ricava dalla RIGA DEL CONTATTO, non dai messaggi
+ *   caricati: i messaggi sono solo i 2000 più recenti, le chat vecchie in attesa
+ *   devono esserci lo stesso. Dove le colonne mancano (prima della migrazione) si
+ *   ripiega sui messaggi (`stato.ts`, D5).
+ *  ⚠️ APRIRE UNA CHAT NON LA TOGLIE da «Da rispondere»: il segna-letto scrive solo
+ *   `unread_count`. Escono solo la risposta dal CRM e «Fatto».
+ *  ⚠️ `daRispondere` di una chat è il risultato intero di `stato.ts`: `attesa`, `dal`,
+ *   `anteprima`, `vecchia` (ripiego sui messaggi, senza risposta da più di 7 giorni:
+ *   non è in elenco, serve alla riga «N chat senza risposta da più di 7 giorni»).
+ *   `api.daRispondere` contiene solo le chat con `attesa` vera.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useAuth } from "@/crm/AuthContext";
+import { fetchCRM, useAuth } from "@/crm/AuthContext";
 import { useCRM } from "@/crm/CRMContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { requiresAnyDialog } from "@/crm/QuickStatusDialog";
 import { caricaModelliSalvati } from "@/crm/EditorMessaggi";
 import { getWhatsAppMessageForStatus, segnapostiResidui } from "@/crm/whatsapp";
+import type { StatoCanale } from "@/crm/prova-modelli";
+import {
+  daRispondere as calcolaDaRispondere,
+  finestra24,
+  ordinaDaRispondere,
+  schedaUnica,
+  statoCasella,
+} from "./stato";
 import type { ChatItem, ChatWaApi, FiltroChat, WaContactRow, WaMessageRow } from "./tipi";
 
 function digitsOnly(s: string): string {
   return (s || "").replace(/\D/g, "");
 }
 
-function phonesMatch(a: string, b: string): boolean {
-  const x = digitsOnly(a);
-  const y = digitsOnly(b);
-  if (!x || !y) return false;
-  if (x === y) return true;
-  // tolleranza prefisso internazionale: matcha sugli ultimi 9 cifre
-  return x.slice(-9) === y.slice(-9);
+/** Il risultato di una chiamata al database (i tipi generati non conoscono le colonne nuove). */
+interface Esito {
+  data: unknown;
+  error: { code?: string; message: string } | null;
 }
+interface Query extends PromiseLike<Esito> {
+  select(colonne: string): Query;
+  eq(colonna: string, valore: string): Query;
+  or(condizioni: string): Query;
+  order(colonna: string, o: { ascending: boolean }): Query;
+  limit(n: number): Query;
+  update(valori: Record<string, unknown>): Query;
+  delete(): Query;
+}
+const tabella = (t: string) => (supabase as unknown as { from: (t: string) => Query }).from(t);
+const chiamaFunzione = (fn: string, args: Record<string, unknown>) =>
+  (
+    supabase as unknown as { rpc: (fn: string, a: Record<string, unknown>) => PromiseLike<Esito> }
+  ).rpc(fn, args);
+
+/** Colonna non ancora creata (migrazione non applicata). */
+const mancaColonna = (e: Esito["error"]) => ["42703", "PGRST204"].includes(String(e?.code ?? ""));
+/** Funzione del database non ancora creata. */
+const mancaFunzione = (e: Esito["error"]) => ["42883", "PGRST202"].includes(String(e?.code ?? ""));
+
+/** I messaggi di una chat: il numero col «+» e senza, come `formati()` lato server. */
+const filtroNumero = (phone: string) => {
+  const d = digitsOnly(phone);
+  return `from_number.eq.+${d},to_number.eq.+${d},from_number.eq.${d},to_number.eq.${d}`;
+};
+
+const ms = (x: string | null | undefined) => (x ? Date.parse(x) : NaN);
+
+const FRASE_INVIO = "Invio non riuscito, riprova";
 
 /** Come la pagina decide di cambiare stato a un lead: la finestra di chiusura e
  *  le finestre rapide stanno nella pagina (`PaginaChat`), il lead da cambiare no. */
@@ -57,6 +106,16 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   const [caricamento, setCaricamento] = useState(true);
   const [inviando, setInviando] = useState(false);
   const [hasConfig, setHasConfig] = useState<boolean | null>(null);
+  const [canale, setCanale] = useState<StatoCanale | null>(null);
+  /** La chat aperta, letta per intero: i `messages` sono solo i 2000 più recenti. */
+  const [extra, setExtra] = useState<{ phone: string; righe: WaMessageRow[] } | null>(null);
+  const [letture, setLetture] = useState(0);
+  /** Chat (per telefono) uscite da «Da rispondere» PRIMA che la ricarica lo confermi: ora locale. */
+  const [ottimistici, setOttimistici] = useState<Record<string, number>>({});
+  /** Chat a cui il server ha detto «solo modelli»: telefono → ultimo messaggio del cliente allora. */
+  const [forzati, setForzati] = useState<Record<string, string | null>>({});
+  const [adesso, setAdesso] = useState(() => Date.now());
+  const inviandoRef = useRef(false);
 
   /** ── I TESTI MODIFICATI VANNO CARICATI QUI, NON NELL'EDITOR ───────────────
    *  Gli stessi modelli li compongono otto pagine (agenda, trattative, scheda
@@ -95,51 +154,58 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     })();
   }, [user]);
 
+  //  Il canale (ManyChat o Meta): decide se la casella si blocca. Non leggibile
+  //  (403, 503, rete) = `null` = non blocca mai, decide il server all'invio (D12).
+  useEffect(() => {
+    if (!user) return;
+    let vivo = true;
+    fetchCRM("/api/crm/whatsapp-canale")
+      .then(async (res) => {
+        if (!vivo) return;
+        const j = res.ok ? ((await res.json()) as Partial<StatoCanale>) : null;
+        setCanale(
+          j && (j.canale === "manychat" || j.canale === "cloud") ? (j as StatoCanale) : null,
+        );
+      })
+      .catch(() => vivo && setCanale(null));
+    return () => {
+      vivo = false;
+    };
+  }, [user]);
+
+  //  Un solo orologio per tutta la pagina: ogni 30 s «da 25 min» e le ore rimaste restano vere.
+  useEffect(() => {
+    const t = setInterval(() => setAdesso(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   // Caricamento messaggi + contatti
+  //  ⚠️ I messaggi si leggono dal PIÙ NUOVO (DESC) e poi si capovolgono: con ASC
+  //   si prendevano i 2000 più VECCHI e, superata quota, i nuovi sparivano.
   const reload = async () => {
     if (!user) return;
     setCaricamento(true);
-    const [{ data: msgs }, { data: cts }] = await Promise.all([
-      (
-        supabase as unknown as {
-          from: (t: string) => {
-            select: (s: string) => {
-              eq: (
-                k: string,
-                v: string,
-              ) => {
-                order: (
-                  c: string,
-                  o: { ascending: boolean },
-                ) => {
-                  limit: (n: number) => Promise<{ data: WaMessageRow[] | null }>;
-                };
-              };
-            };
-          };
-        }
-      )
-        .from("whatsapp_messages")
+    const [m, ct] = await Promise.all([
+      tabella("whatsapp_messages")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(2000),
-      (
-        supabase as unknown as {
-          from: (t: string) => {
-            select: (s: string) => {
-              eq: (k: string, v: string) => Promise<{ data: WaContactRow[] | null }>;
-            };
-          };
-        }
-      )
-        .from("whatsapp_contacts")
-        .select("*")
-        .eq("user_id", user.id),
+      tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
     ]);
-    setMessages(msgs ?? []);
-    setContacts(cts ?? []);
+    const cts = (ct.data as WaContactRow[] | null) ?? [];
+    setMessages(((m.data as WaMessageRow[] | null) ?? []).reverse());
+    setContacts(cts);
+    //  Se il cliente ha riscritto, il «solo modelli» forzato non vale più.
+    setForzati((prima) => {
+      const resta = Object.entries(prima).filter(
+        ([tel, dal]) =>
+          (cts.find((x) => x.phone_e164 === tel)?.ultimo_in_entrata_il ?? null) === dal,
+      );
+      return resta.length === Object.keys(prima).length ? prima : Object.fromEntries(resta);
+    });
     setCaricamento(false);
+    setLetture((n) => n + 1);
   };
 
   useEffect(() => {
@@ -183,19 +249,49 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  //  Tutta la chat aperta, per telefono: i recenti non bastano per una chat vecchia.
+  //  Si rilegge a ogni `reload` (`letture`) e si butta via se la risposta arriva tardi.
+  useEffect(() => {
+    if (!user || !activePhone) {
+      setExtra(null);
+      return;
+    }
+    let vivo = true;
+    void (async () => {
+      const { data } = await tabella("whatsapp_messages")
+        .select("*")
+        .eq("user_id", user.id)
+        .or(filtroNumero(activePhone))
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (vivo)
+        setExtra({ phone: activePhone, righe: ((data as WaMessageRow[] | null) ?? []).reverse() });
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [user, activePhone, letture]);
+
+  /** I recenti e la chat aperta, senza doppioni per `id`, dal più vecchio. */
+  const tutti = useMemo<WaMessageRow[]>(() => {
+    if (!extra) return messages;
+    const noti = new Set(messages.map((x) => x.id));
+    const nuovi = extra.righe.filter((x) => !noti.has(x.id));
+    if (nuovi.length === 0) return messages;
+    return [...messages, ...nuovi].sort((x, y) => ms(x.created_at) - ms(y.created_at));
+  }, [messages, extra]);
+
   // Costruisco l'elenco chat: una per phone unico (interlocutore = "altro" rispetto a noi)
   const chats = useMemo<ChatItem[]>(() => {
     const map = new Map<string, ChatItem>();
+    const perChat = new Map<string, WaMessageRow[]>();
 
     // partenza: contatti
     for (const c of contacts) {
-      const lead = c.lead_id ? (leads.find((l) => l.id === c.lead_id) ?? null) : null;
-      const linkedLead =
-        lead ?? leads.find((l) => phonesMatch(l.data.telefono || "", c.phone_e164)) ?? null;
       map.set(c.phone_e164, {
         phone: c.phone_e164,
-        leadId: linkedLead?.id ?? c.lead_id ?? null,
-        lead: linkedLead,
+        leadId: c.lead_id ?? null,
+        lead: null,
         contact: c,
         lastMessage: null,
         unread: c.unread_count || 0,
@@ -203,7 +299,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     }
 
     // aggiungo dai messaggi (per phone "interlocutore")
-    for (const m of messages) {
+    for (const m of tutti) {
       const peer = m.direction === "inbound" ? m.from_number : m.to_number;
       // se peer è un phone_number_id (nessun +), lo skip
       if (!peer || !peer.startsWith("+")) {
@@ -218,20 +314,66 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       const key = peer.startsWith("+") ? peer : `+${peer}`;
       let item = map.get(key);
       if (!item) {
-        const linkedLead = leads.find((l) => phonesMatch(l.data.telefono || "", key)) ?? null;
         item = {
           phone: key,
-          leadId: m.lead_id ?? linkedLead?.id ?? null,
-          lead: linkedLead,
+          leadId: m.lead_id ?? null,
+          lead: null,
           contact: null,
           lastMessage: null,
           unread: 0,
         };
         map.set(key, item);
       }
+      const suoi = perChat.get(key);
+      if (suoi) suoi.push(m);
+      else perChat.set(key, [m]);
       if (!item.lastMessage || new Date(m.created_at) > new Date(item.lastMessage.created_at)) {
         item.lastMessage = m;
       }
+    }
+
+    // scheda, «Da rispondere», finestra di 24 ore, STOP (le regole sono in stato.ts)
+    for (const item of map.values()) {
+      //  La scheda scelta vince; altrimenti per telefono SOLO se ce n'è una sola (D18).
+      let lead = item.leadId ? (leads.find((l) => l.id === item.leadId) ?? null) : null;
+      let senzaScheda = false;
+      let schedaAmbigua = false;
+      if (!lead) {
+        const e = schedaUnica(leads, item.phone);
+        if (e.tipo === "una") lead = e.lead;
+        else if (e.tipo === "piu") schedaAmbigua = true;
+        else senzaScheda = true;
+      }
+      item.lead = lead;
+      item.leadId = lead?.id ?? item.leadId;
+      item.senzaScheda = senzaScheda;
+      item.schedaAmbigua = schedaAmbigua;
+      item.stop = Boolean(item.contact?.non_scrivere_dal);
+
+      //  Risposta appena data (o «Fatto»): vale come il database la scriverà,
+      //  `greatest(ora, ultimo messaggio del cliente)`, così un orologio indietro non la smentisce.
+      const fatto = ottimistici[item.phone];
+      const entrata = item.contact?.ultimo_in_entrata_il ?? null;
+      const rispostoServer = item.contact?.risposto_il ?? null;
+      const risposto =
+        fatto === undefined
+          ? rispostoServer
+          : new Date(Math.max(fatto, ms(entrata) || 0, ms(rispostoServer) || 0)).toISOString();
+      const contatto = item.contact
+        ? { ...item.contact, risposto_il: risposto }
+        : risposto
+          ? { risposto_il: risposto }
+          : null;
+      const messaggi = perChat.get(item.phone) ?? [];
+      const dr = calcolaDaRispondere({ contatto, messaggi, adesso });
+      item.daRispondere = {
+        attesa: dr.attesa,
+        dal: dr.dal,
+        anteprima: dr.anteprima,
+        vecchia: dr.vecchia,
+      };
+      const f = finestra24({ contatto, messaggi, adesso });
+      item.finestra = { aperta: f.aperta, frase: f.frase };
     }
 
     // ordina per ultimo messaggio
@@ -248,7 +390,18 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           : 0;
       return tb - ta;
     });
-  }, [messages, contacts, leads]);
+  }, [tutti, contacts, leads, adesso, ottimistici]);
+
+  /** «Da rispondere»: chi aspetta da più tempo sta sopra (D17). */
+  const daRispondere = useMemo<ChatItem[]>(
+    () =>
+      ordinaDaRispondere(
+        chats
+          .filter((c) => c.daRispondere?.attesa)
+          .map((chat) => ({ dal: chat.daRispondere?.dal ?? null, chat })),
+      ).map((x) => x.chat),
+    [chats],
+  );
 
   const visibili = useMemo(() => {
     return chats.filter((c) => {
@@ -258,7 +411,9 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       if (ricerca.trim()) {
         const q = ricerca.toLowerCase();
         const name = `${c.lead?.data.nome ?? ""} ${c.lead?.data.cognome ?? ""}`.toLowerCase();
-        if (!name.includes(q) && !c.phone.toLowerCase().includes(q)) return false;
+        const nomeWa = (c.contact?.display_name ?? "").toLowerCase();
+        if (!name.includes(q) && !nomeWa.includes(q) && !c.phone.toLowerCase().includes(q))
+          return false;
       }
       return true;
     });
@@ -271,35 +426,29 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
 
   const activeMessages = useMemo<WaMessageRow[]>(() => {
     if (!activePhone) return [];
-    return messages.filter((m) => {
+    return tutti.filter((m) => {
       const peer = m.direction === "inbound" ? m.from_number : m.to_number;
       const key = peer?.startsWith("+") ? peer : `+${peer}`;
       return key === activePhone;
     });
-  }, [messages, activePhone]);
+  }, [tutti, activePhone]);
 
   // Mark contact as read quando apro la chat
+  //  ⚠️ Scrive SOLO `unread_count`: aprire non è rispondere (la chat resta in «Da rispondere»).
+  //  Le dipendenze sono i due valori, non l'oggetto `attiva`: il timer lo rifà ogni 30 s.
+  const phoneLetto = attiva?.contact?.phone_e164;
+  const nonLetti = attiva?.contact?.unread_count ?? 0;
   useEffect(() => {
-    if (!user || !attiva?.contact || attiva.contact.unread_count === 0) return;
-    void (
-      supabase as unknown as {
-        from: (t: string) => {
-          update: (v: Record<string, unknown>) => {
-            eq: (
-              k: string,
-              v: string,
-            ) => {
-              eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
-            };
-          };
-        };
-      }
-    )
-      .from("whatsapp_contacts")
-      .update({ unread_count: 0 })
-      .eq("user_id", user.id)
-      .eq("phone_e164", attiva.contact.phone_e164);
-  }, [user, attiva]);
+    if (!user || !phoneLetto || nonLetti === 0) return;
+    //  ⚠️ Il costruttore di Supabase parte solo quando lo si aspetta (`then`): un
+    //   `void costruttore` non manda niente. Per questo c'è l'`await`.
+    void (async () => {
+      await tabella("whatsapp_contacts")
+        .update({ unread_count: 0 })
+        .eq("user_id", user.id)
+        .eq("phone_e164", phoneLetto);
+    })();
+  }, [user, phoneLetto, nonLetti]);
 
   /** ── I SEGNAPOSTO RIMASTI NELLA BOZZA ────────────────────────────────────
    *  Il testo qui dentro parte così com'è: se è stato incollato da un modello,
@@ -307,9 +456,93 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
    *  cliente. Si vede prima di premere invio, e all'invio si chiede conferma. */
   const residuiBozza = useMemo(() => segnapostiResidui(bozza), [bozza]);
 
+  /** Cosa mostra la casella (D12): blocca solo se il canale è letto, è Meta e mancano le chiavi. */
+  const stato = statoCasella({
+    stop: attiva?.stop ?? false,
+    finestraAperta: attiva?.finestra?.aperta ?? true,
+    forzaModelli: attiva ? attiva.phone in forzati : false,
+    canale: canale?.canale ?? null,
+    chiaviMeta: hasConfig === true,
+  });
+  const forzaModelli = useMemo(
+    () => Object.fromEntries(Object.keys(forzati).map((tel) => [tel, true])),
+    [forzati],
+  );
+
+  /** Fa uscire la chat da «Da rispondere» subito e lascia che la ricarica lo confermi. */
+  const rispostoOra = async (tel: string) => {
+    setOttimistici((prima) => ({ ...prima, [tel]: Date.now() }));
+    await reload().catch(() => undefined);
+    setOttimistici((prima) => {
+      const resto = { ...prima };
+      delete resto[tel];
+      return resto;
+    });
+  };
+
+  /** ── LA STRADA UNICA DELL'INVIO (testo e modelli) ──────────────────────────
+   *  Mai un messaggio tecnico a schermo: si mostra la frase del server, altrimenti
+   *  «Invio non riuscito, riprova». Fuori dalle 24 ore la casella passa ai modelli
+   *  e la bozza resta com'è. Una chiamata alla volta (doppio clic, Invio ripetuto). */
+  const manda = async (invio: {
+    body?: string;
+    templateName?: string;
+    templateLang?: string;
+    templateParams?: string[];
+  }): Promise<boolean> => {
+    if (!user || !attiva || inviandoRef.current) return false;
+    inviandoRef.current = true;
+    setInviando(true);
+    const tel = attiva.phone;
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        toast.error("Sessione scaduta");
+        return false;
+      }
+      const res = await fetch("/api/whatsapp-send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ to: tel, ...invio, leadId: attiva.leadId }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        category?: string;
+        message?: string;
+      } | null;
+      if (res.ok && json?.ok) {
+        await rispostoOra(tel);
+        return true;
+      }
+      const frase = typeof json?.message === "string" && json.message.trim() ? json.message : "";
+      if (json?.category === "outside_24h_window") {
+        setForzati((prima) => ({ ...prima, [tel]: attiva.contact?.ultimo_in_entrata_il ?? null }));
+        toast.error("Sono passate più di 24 ore: scegli un modello");
+      } else if (res.status === 429 || json?.error === "riprova_fra_poco") {
+        toast.error("Un attimo, riprova");
+      } else {
+        toast.error(frase || FRASE_INVIO);
+      }
+      return false;
+    } catch {
+      toast.error(FRASE_INVIO);
+      return false;
+    } finally {
+      inviandoRef.current = false;
+      setInviando(false);
+    }
+  };
+
   const invia = async () => {
     if (!user || !bozza.trim() || !attiva) return;
-    if (!hasConfig) {
+    if (stato === "configura") {
       toast.error("Configura prima le credenziali WhatsApp in Impostazioni → WhatsApp");
       return;
     }
@@ -321,36 +554,68 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       )
     )
       return;
-    setInviando(true);
+    if (await manda({ body: bozza.trim() })) setBozza("");
+  };
+
+  const inviaModello = async (m: { nome: string; lingua: string; parametri: string[] }) => {
+    //  L'errore l'ha già mostrato `manda`; si lancia perché la casella non creda che sia partito.
+    const partito = await manda({
+      templateName: m.nome,
+      templateLang: m.lingua,
+      templateParams: m.parametri,
+    });
+    if (!partito) throw new Error("invio non riuscito");
+  };
+
+  /** «Risposto / Fatto»: il cliente esce senza mandare nulla. L'ora la scrive il database (D3). */
+  const segnaFatto = async () => {
+    if (!user || !attiva) return;
+    const tel = attiva.phone;
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("Sessione scaduta");
-      const res = await fetch("/api/whatsapp-send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          to: attiva.phone,
-          body: bozza.trim(),
-          leadId: attiva.leadId,
-        }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string; message?: string };
-      if (!res.ok || !json.ok) {
-        toast.error(`Invio fallito: ${json.message || json.error || `HTTP ${res.status}`}`);
+      const { data, error } = await chiamaFunzione("whatsapp_segna_fatto", { p_phone: tel });
+      if (error) {
+        toast.error(
+          mancaFunzione(error)
+            ? "Manca l'aggiornamento del database: avvisa il titolare"
+            : "Non sono riuscito a segnare «Fatto», riprova",
+        );
         return;
       }
-      setBozza("");
-      void reload();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore invio");
-    } finally {
-      setInviando(false);
+      if (data === false) {
+        toast.error("Non sono riuscito a segnare «Fatto»: questa chat non ha un contatto");
+        return;
+      }
+      toast.success("Fatto: la chat non è più in «Da rispondere»");
+      await rispostoOra(tel);
+    } catch {
+      toast.error("Non sono riuscito a segnare «Fatto», riprova");
+    }
+  };
+
+  /** «Abbina a una scheda»: scrive `lead_id` sul contatto (RLS dell'utente). */
+  const abbina = async (leadId: string, phone?: string) => {
+    if (!user || !attiva) return;
+    //  La finestra mostra una chat: se nel frattempo ne è aperta un'altra, non si abbina quella sbagliata.
+    if (phone !== undefined && digitsOnly(phone) !== digitsOnly(attiva.phone)) {
+      toast.error("La chat aperta è cambiata: riprova l'abbinamento");
+      return;
+    }
+    if (!attiva.contact) {
+      toast.error("Questa chat non ha ancora un contatto: non posso abbinarla");
+      return;
+    }
+    try {
+      //  `select("id")`: con la RLS un update che non tocca righe non dà errore.
+      const { data, error } = await tabella("whatsapp_contacts")
+        .update({ lead_id: leadId })
+        .eq("id", attiva.contact.id)
+        .eq("user_id", user.id)
+        .select("id");
+      if (error || !Array.isArray(data) || data.length === 0) throw new Error("abbinamento");
+      toast.success("Chat abbinata alla scheda");
+      await reload();
+    } catch {
+      toast.error("Abbinamento non riuscito, riprova");
     }
   };
 
@@ -393,48 +658,30 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       return;
     try {
       // Cancello dai messaggi le righe in cui peer = activePhone (sia inbound che outbound).
-      const peerDigits = attiva.phone.replace(/^\+/, "");
-      const { error } = await (
-        supabase as unknown as {
-          from: (t: string) => {
-            delete: () => {
-              eq: (
-                k: string,
-                v: string,
-              ) => {
-                or: (cond: string) => Promise<{ error: { message: string } | null }>;
-              };
-            };
-          };
-        }
-      )
-        .from("whatsapp_messages")
+      const { error } = await tabella("whatsapp_messages")
         .delete()
         .eq("user_id", user.id)
-        .or(
-          `from_number.eq.${attiva.phone},to_number.eq.${attiva.phone},from_number.eq.${peerDigits},to_number.eq.${peerDigits}`,
-        );
+        .or(filtroNumero(attiva.phone));
       if (error) throw new Error(error.message);
-      // Reset unread count del contatto, se esiste
+      // Azzero il contatto, se esiste: anche l'ultimo messaggio del cliente e il «risposto»,
+      // altrimenti una chat eliminata resterebbe in «Da rispondere» (D19).
       if (attiva.contact) {
-        await (
-          supabase as unknown as {
-            from: (t: string) => {
-              update: (v: Record<string, unknown>) => {
-                eq: (
-                  k: string,
-                  v: string,
-                ) => {
-                  eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
-                };
-              };
-            };
-          }
-        )
-          .from("whatsapp_contacts")
-          .update({ unread_count: 0, last_message_at: null })
-          .eq("user_id", user.id)
-          .eq("phone_e164", attiva.phone);
+        const azzera = (valori: Record<string, unknown>) =>
+          tabella("whatsapp_contacts")
+            .update(valori)
+            .eq("user_id", user.id)
+            .eq("phone_e164", attiva.phone);
+        let r = await azzera({
+          unread_count: 0,
+          last_message_at: null,
+          ultimo_in_entrata_il: null,
+          risposto_il: null,
+        });
+        //  Colonne non ancora create: si riprova col solo set di prima.
+        if (r.error && mancaColonna(r.error)) {
+          r = await azzera({ unread_count: 0, last_message_at: null });
+        }
+        if (r.error) toast.error("Messaggi eliminati, ma il contatto non si è azzerato: riprova");
       }
       toast.success("Chat eliminata");
       setActivePhone(null);
@@ -444,34 +691,32 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     }
   };
 
-  // shortcut: le parti del contratto che oggi non esistono sono valori neutri
-  // (nessuna «Da rispondere», canale non letto, azioni vuote), T7 le scrive; il
-  // comportamento visibile è quello di prima.
   return {
     chats,
-    daRispondere: [],
+    daRispondere,
     visibili,
     filtro,
     setFiltro,
     ricerca,
     setRicerca,
     attiva,
-    apri: setActivePhone,
+    //  Un uuid è l'id di un contatto (T11 apre con `?chat=`), altrimenti è un telefono.
+    apri: (chatIdOPhone: string) =>
+      setActivePhone(contacts.find((c) => c.id === chatIdOPhone)?.phone_e164 ?? chatIdOPhone),
     messaggi: activeMessages,
     caricamento,
-    canale: null,
-    // stesso blocco di prima: senza chiavi Meta (o ancora non lette) non si invia
-    stato: hasConfig ? "libera" : "configura",
+    canale,
+    stato,
     bozza,
     setBozza,
     residuiBozza,
     invia,
-    inviaModello: async () => {},
+    inviaModello,
     inviando,
-    segnaFatto: async () => {},
-    abbina: async () => {},
+    segnaFatto,
+    abbina,
     elimina,
-    forzaModelli: {},
+    forzaModelli,
     cambiaStato,
     hasConfig,
   };
