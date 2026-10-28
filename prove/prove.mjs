@@ -566,6 +566,9 @@ const MODULI = [
   "chatwa/stato",
   "chatwa/cercaChat",
   "chatwa/modelli-casella",
+  //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
+  //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
+  "chatwa/risposte-rapide",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });

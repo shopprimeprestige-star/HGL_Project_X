@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,7 @@ export function PaginaChat() {
   const [leadsPanelOpen, setLeadsPanelOpen] = useState(true);
   //  Sotto 1280 px la colonna «Lead CRM» è un foglio che si apre a richiesta.
   const [foglioLead, setFoglioLead] = useState(false);
-  const altezzaVisibile = usaAltezzaVisibile();
+  const visibile = usaAltezzaVisibile();
 
   // LeadDialog (modifica lead esistente o creazione nuovo lead da numero sconosciuto)
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
@@ -179,11 +179,35 @@ export function PaginaChat() {
     }
   };
 
+  /*  ── SUL TELEFONO, CON UNA CHAT APERTA, LA CHAT È LO SCHERMO ─────────────
+      Guasto del 28/10/2026 (iPhone, browser dentro un'app): toccando la casella
+      la pagina diventava bianca. La chat stava DENTRO la pagina del CRM, che è
+      alta quanto lo schermo grande (`min-h-screen`), e si accorciava sulla
+      tastiera restando in cima; iOS intanto spostava la vista in giù per
+      mostrare il campo, cioè sul fondo vuoto della pagina.
+      Ora sotto 768 px la conversazione aperta è fissata sopra tutto e segue
+      l'area visibile: in alto dove la vista è scesa (`--vista-alto`), alta
+      quanto lei (`--vista-h`). La casella resta appena sopra la tastiera come
+      nell'app WhatsApp; la ← torna all'elenco, dove c'è la barra del CRM.
+      Dal tablet in su resta nella pagina, alta quanto la vista meno la barra. */
+  const chatSchermo = vista === "chat" && conversazioneAperta;
+  const misure = visibile
+    ? ({
+        "--chat-h": `calc(${visibile.altezza}px - 3rem)`,
+        "--vista-h": `${visibile.altezza}px`,
+        "--vista-alto": `${visibile.alto}px`,
+      } as CSSProperties)
+    : undefined;
+
   return (
     <div
-      className="flex flex-col h-[calc(100dvh-3rem)] overflow-hidden bg-background"
-      // La tastiera iOS accorcia `visualViewport` ma non `dvh`: se lo sappiamo, ci si dimensiona su quello.
-      style={altezzaVisibile ? { height: `calc(${altezzaVisibile}px - 3rem)` } : undefined}
+      className={cn(
+        "group/chat flex flex-col h-[var(--chat-h,calc(100dvh-3rem))] overflow-hidden bg-background",
+        chatSchermo &&
+          "max-md:fixed max-md:inset-x-0 max-md:z-40 max-md:top-[var(--vista-alto,0px)] max-md:h-[var(--vista-h,100dvh)]",
+      )}
+      data-tastiera={visibile?.tastiera ? "si" : undefined}
+      style={misure}
     >
       {/* Header sezione — coerente col resto del CRM. Sul telefono, con una chat aperta,
           sparisce: la conversazione ha la sua barra e prende tutto lo schermo. */}

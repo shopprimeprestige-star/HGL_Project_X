@@ -57,12 +57,35 @@ export function Conversazione({
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** Si sta guardando la fine della chat (vedi l'effetto qui sotto). */
+  const inFondo = useRef(true);
 
   // Auto-scroll bottom su nuovi messaggi
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    inFondo.current = true;
   }, [messaggi.length, attiva?.phone]);
+
+  //  Come nell'app WhatsApp: se si stava guardando la fine della chat e l'area
+  //  si accorcia (tastiera che si apre, risposte rapide sopra la casella), gli
+  //  ultimi messaggi restano in vista. Se si stava leggendo più su, non si tocca.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const segna = () => {
+      inFondo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    const osserva = new ResizeObserver(() => {
+      if (inFondo.current) el.scrollTop = el.scrollHeight;
+    });
+    el.addEventListener("scroll", segna, { passive: true });
+    osserva.observe(el);
+    return () => {
+      el.removeEventListener("scroll", segna);
+      osserva.disconnect();
+    };
+  }, [attiva?.phone]);
 
   const adesso = new Date();
   const inAttesa = attiva?.daRispondere?.attesa === true;
