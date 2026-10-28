@@ -45,6 +45,8 @@ export interface WaContactRow {
   ultimo_in_entrata_anteprima?: string | null;
   risposto_il?: string | null;
   subscriber_id?: string | null;
+  /** STOP del cliente: colonna già in produzione (20261022140000_promemoria_whatsapp.sql), non nei tipi generati */
+  non_scrivere_dal?: string | null;
 }
 
 export interface ChatItem {
