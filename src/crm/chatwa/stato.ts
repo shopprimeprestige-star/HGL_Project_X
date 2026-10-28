@@ -10,6 +10,8 @@
  *  uscite sono quelle concordate nel PIANO; i tipi di ingresso sono precisati
  *  (campi in più, tutti facoltativi) senza togliere niente a quelli del T0.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { eSoloSegnaposto } from "./media";
+
 
 /** Un istante: testo ISO, millisecondi o `Date`. */
 export type Istante = string | number | Date;
@@ -70,14 +72,6 @@ function ms(x: Istante | null | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-/** Un testo fatto solo di `{{...}}` (ManyChat non ha risolto la variabile).
- *  Stessa regola di `eSoloSegnaposto` di media.ts, copiata per non legare le
- *  due parti (regex senza quantificatori annidati ambigui: nessun ReDoS, R1).
- *  shortcut: copia locale, se la regola cambia in media.ts si cambia anche qui. */
-function eSoloSegnaposto(testo: string | null): boolean {
-  return !!testo && /^\s*(\{\{[^{}]*\}\}\s*)+$/.test(testo);
-}
-
 /** È in «Da rispondere»? Colonne se ci sono, altrimenti i messaggi caricati (D5, D17). */
 export function daRispondere(i: IngressoStato): DaRispondere {
   const adesso = ms(i.adesso);
@@ -104,7 +98,7 @@ export function daRispondere(i: IngressoStato): DaRispondere {
     const t = ms(m.created_at);
     if (t === null) continue;
     if (m.direction === "inbound") {
-      if (!eSoloSegnaposto(m.body) && t > tIn) {
+      if (!(m.body && eSoloSegnaposto(m.body)) && t > tIn) {
         tIn = t;
         ultimo = m;
       }
