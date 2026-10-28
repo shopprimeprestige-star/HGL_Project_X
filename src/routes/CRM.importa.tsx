@@ -162,16 +162,9 @@ import { chiHaFissato, esitoFissato, fissataDa } from "@/crm/chi-ha-fissato";
 //  si entra premendola: tutto lì, provato, e con l'elenco che garantisce che
 //  nessuna delle dieci viste di prima si sia persa.
 import {
-  contoLinguetta,
-  fasciaDeiRitorni,
   filtriLasciandoLaVoce,
-  linguettaDi,
-  linguetteDaMostrare,
   fuoriDallaLista,
   nessunRitornoInLista,
-  percorsoVista,
-  stanzeDi,
-  vistaDiIngresso,
   type Vista as VistaImporta,
   type VoceAltro,
 } from "@/crm/importa/reparti";
@@ -192,8 +185,6 @@ import {
   Pagina,
   SCORCIATOIE_COMUNI,
   Scheda,
-  Segmento,
-  Titolo,
   Vuoto,
   classiStato,
   dataBreve,
@@ -249,7 +240,6 @@ import { SchedaSaltati } from "@/crm/importa/SchedaSaltati";
 //  L'elenco intero delle liste caricate, e l'unico posto di questa pagina in cui
 //  si lavora a gruppi: prendi venti righe, cambi loro lo stato in un gesto.
 import { SchedaTutti } from "@/crm/importa/SchedaTutti";
-import { Testata } from "@/crm/importa/Testata";
 import { SchedaOggi } from "@/crm/importa/SchedaOggi";
 import { giornoLocale } from "@/crm/quando-stato";
 //  ── CHI SI CHIAMA PER PRIMO, E PERCHÉ ─────────────────────────────────────
@@ -275,7 +265,21 @@ import {
   SENZA,
   type FiltriLista as FiltriListaRicerca,
 } from "@/crm/importa/filtri-lista";
-import { BarraFiltri, filtriAccesi } from "@/crm/importa/FiltriLista";
+import { filtriAccesi, pulito } from "@/crm/importa/FiltriLista";
+//  ── LA PAGINA SEMPLICE (commessa 2026-10-28) ───────────────────────────────
+//  Intestazione, frase del giro, UN avviso, otto pillole, «Filtra» e «Altro»: le
+//  regole sono moduli puri e provati (pillole-stato, coda-pagina, avvisi-pagina,
+//  sezioni-altro); qui si collegano.
+import { Intestazione } from "@/crm/importa/Intestazione";
+import { FraseGiro } from "@/crm/importa/FraseGiro";
+import { FasciaAvvisi } from "@/crm/importa/FasciaAvvisi";
+import { BarraPillole } from "@/crm/importa/BarraPillole";
+import { EtichetteAccese, PannelloFiltra } from "@/crm/importa/PannelloFiltra";
+import { conStatoCanonico, numeroPillola, statoAlTocco } from "@/crm/importa/pillole-stato";
+import { eFuoriCoda, righePagina } from "@/crm/importa/coda-pagina";
+import { avvisiPagina, type VoceAvviso } from "@/crm/importa/avvisi-pagina";
+import { sezioniAltro, type VoceAltro2 } from "@/crm/importa/sezioni-altro";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { RigaChiamata } from "@/crm/importa/RigaChiamata";
 import { temperaturaLead } from "@/crm/temperatura-lead";
 import { StrisciaPosti } from "@/crm/StrisciaPosti";
@@ -327,7 +331,10 @@ export const Route = createFileRoute("/CRM/importa")({
   //   una ricarica, si possono mandare a un collega e il tasto Indietro
   //   funziona. `leggiRicercaImporta` scarta tutto ciò che non conosce, e ogni
   //   parametro è facoltativo: i collegamenti di prima restano validi.
-  validateSearch: (raw: Record<string, unknown>) => leggiRicercaImporta(raw),
+  //  ⚠️ Dal 28/10/2026 le pillole sono otto: i valori vecchi di `?stato=`
+  //   (nonRisponde, segreteria, ritentare) diventano «Non ha risposto» PRIMA di
+  //   arrivare alla pagina, e nessun collegamento salvato si rompe.
+  validateSearch: (raw: Record<string, unknown>) => conStatoCanonico(leggiRicercaImporta(raw)),
   component: LeadImportatiUnoAllaVolta,
 });
 
@@ -488,6 +495,13 @@ function LeadImportatiUnoAllaVolta() {
   const [caricaAperto, setCaricaAperto] = useState(false);
   const [assegnaAperto, setAssegnaAperto] = useState(false);
   const [aiutoAperto, setAiutoAperto] = useState(false);
+  /** Il pannello aperto ora: «Filtra» o «Altro», o nessuno. Un foglio (telefono)
+   *  non ferma le scorciatoie da solo: lo stato entra in `bloccato`. */
+  const [pannello, setPannello] = useState<"filtra" | "altro" | null>(null);
+  /** Solo telefono: il campo Cerca è aperto sotto l'intestazione. Finché lo è,
+   *  i tasti 1…4, S e A non segnano niente. */
+  const [ricercaAperta, setRicercaAperta] = useState(false);
+  const telefono = useIsMobile();
 
   /** Gli id delle schede che il file appena letto ha riportato a galla. Vive
    *  quanto la sessione di lavoro su quel file: sono una coda di decisioni da
@@ -641,6 +655,37 @@ function LeadImportatiUnoAllaVolta() {
       cambiaFiltri(senzaOrigine());
     setDaVoceFoglio(false);
     setVista(v);
+  };
+  /** ── UNA VOCE DEL MENU «ALTRO» ──────────────────────────────────────────
+   *  Le voci arrivano da `sezioniAltro`; ognuna ha un'azione e qui si collega ai
+   *  gesti che già c'erano: aprire una vista, aprire «Tutta la lista» filtrata
+   *  (Google Sheets, o uno stato «Già lavorati»), aprire un pannello. L'Elenco
+   *  completo è un collegamento vero nel menu e non passa da qui. */
+  const apriVoceAltro = (v: VoceAltro2) => {
+    const a = v.azione;
+    if ("href" in a) return;
+    if ("pannello" in a) {
+      if (a.pannello === "carica") setCaricaAperto(true);
+      else if (a.pannello === "assegna") setAssegnaAperto(true);
+      else setAiutoAperto(true);
+      return;
+    }
+    if (a.statoTutti) {
+      //  Un pulsante «Già lavorati»: «Tutta la lista» già filtrata su quello stato.
+      const st = a.statoTutti;
+      esciDalFoglio();
+      setStatoTutti(st);
+      setVista("tutti");
+      return;
+    }
+    if (a.filtro) {
+      apriVoceFiltrata({ vista: a.vista, nome: v.nome, titolo: v.titolo, filtro: a.filtro });
+      return;
+    }
+    //  Una vista senza filtri: «Tutta la lista» si apre intera, senza lo stato
+    //  rimasto da un «Già lavorati».
+    setStatoTutti(null);
+    apriDalMenuAltro(a.vista);
   };
   /** Si lascia «Tutta la lista» aperta dalla voce del foglio: l'Origine che la
    *  voce aveva messo si toglie e la voce non è più aperta (vedi
@@ -889,26 +934,33 @@ function LeadImportatiUnoAllaVolta() {
     () => ({ idRitorno, moduloDi }),
     [idRitorno, moduloDi],
   );
-  const coda = useMemo(
-    () => listaDaChiamare(leads ?? [], adessoOrdine, opzioniChiamata),
+  /** ── LISTA E CODA, DUE INSIEMI (28/10/2026) ─────────────────────────────
+   *  `lista` = la regola di sempre (`inLista`), «Attesa WhatsApp» compreso: da lì
+   *  nascono le righe dei filtri e i numeri delle pillole. `coda` = la lista senza
+   *  chi sta ancora aspettando la risposta su WhatsApp: quelli da chiamare adesso.
+   *  Vedi crm/importa/coda-pagina. */
+  const { lista, coda } = useMemo(
+    () => righePagina(leads ?? [], adessoOrdine, opzioniChiamata),
     [leads, adessoOrdine, opzioniChiamata],
   );
-  /** Le righe con il loro motivo: è su queste che lavorano i filtri e i conti. */
-  const righeLista = useMemo(
-    () =>
-      coda.map((lead) => {
-        const perche = motivoChiamata(lead, adessoOrdine, opzioniChiamata);
-        return {
-          id: lead.id,
-          data: lead.data,
-          motivo: perche.motivo,
-          perche,
-          modulo: moduloDi(lead.data),
-          lead,
-        };
-      }),
-    [coda, adessoOrdine, opzioniChiamata, moduloDi],
-  );
+  /** Le righe con il loro motivo: è su queste che lavorano i filtri e i conti.
+   *  `inCoda` dice di ognuna se è anche in coda: senza una pillola scelta le righe
+   *  fuori coda non ci sono (crm/importa/filtri-lista). */
+  const righeLista = useMemo(() => {
+    const idCoda = new Set(coda.map((l) => l.id));
+    return lista.map((lead) => {
+      const perche = motivoChiamata(lead, adessoOrdine, opzioniChiamata);
+      return {
+        id: lead.id,
+        data: lead.data,
+        motivo: perche.motivo,
+        perche,
+        modulo: moduloDi(lead.data),
+        lead,
+        inCoda: idCoda.has(lead.id),
+      };
+    });
+  }, [lista, coda, adessoOrdine, opzioniChiamata, moduloDi]);
 
   /** ── I MESSI DA PARTE ──────────────────────────────────────────────────
    *  Si calcolano come la coda — si leggono dall'archivio, non si tengono in un
@@ -1024,8 +1076,8 @@ function LeadImportatiUnoAllaVolta() {
    *  sotto, con lo Stato «Di ritorno». Gli altri sono già nella scheda grande o nel
    *  «Poi», con le stesse decisioni: ripeterli li farebbe sembrare due persone. */
   const diRitornoFuori = useMemo(
-    () => fuoriDallaLista(diRitorno, new Set(coda.map((l) => l.id))),
-    [diRitorno, coda],
+    () => fuoriDallaLista(diRitorno, new Set(lista.map((l) => l.id))),
+    [diRitorno, lista],
   );
 
   /** ── ⚠️ GLI APPUNTAMENTI CHE HO FISSATO IO ──────────────────────────────
@@ -1220,12 +1272,15 @@ function LeadImportatiUnoAllaVolta() {
    *  uno «in coda» e «da provare», cioè un contatore che mente per un contatto
    *  che nella giornata non c'era. Qui la coda resta quella che è, e la scheda
    *  in cima dice a chiare lettere che si sta guardando altro. */
+  //  ⚠️ Fuori coda = portato in testa a mano, non in coda E non fra le righe che si
+  //   vedono (`eFuoriCoda`): con la pillola «Attesa WhatsApp» accesa un nome
+  //   cliccato nel «Poi» è fuori coda ma si vede, e non è «trovato con la ricerca».
   const fuoriCoda = useMemo(
     () =>
-      forzato && !idInCoda.has(forzato)
+      forzato && eFuoriCoda(forzato, idInCoda, idVisibili)
         ? ((leads ?? []).find((l) => l.id === forzato) ?? null)
         : null,
-    [forzato, idInCoda, leads],
+    [forzato, idInCoda, idVisibili, leads],
   );
 
   const prossimo = fuoriCoda ?? ordinata[0] ?? null;
@@ -1373,13 +1428,35 @@ function LeadImportatiUnoAllaVolta() {
       miei.length,
     ],
   );
-  /** La linguetta aperta (o «altro» se si sta in una stanza del menu Altro), le
-   *  linguette da mostrare e le stanze della linguetta aperta. */
-  const linguettaAperta = linguettaDi(vista);
-  const linguette = useMemo(() => linguetteDaMostrare(contiViste, vista), [contiViste, vista]);
-  const stanze = useMemo(
-    () => (linguettaAperta === "altro" ? [] : stanzeDi(linguettaAperta, contiViste, vista)),
-    [linguettaAperta, contiViste, vista],
+  /** Le voci del menu «Altro»: In attesa, Fissati da me, Già lavorati, Liste,
+   *  Strumenti (crm/importa/sezioni-altro). */
+  const sezioni = useMemo(
+    () => sezioniAltro({ giaLavorati: statiGiaLavorati }),
+    [statiGiaLavorati],
+  );
+  /** ── LE COSE DA GUARDARE, IN UNA FASCIA SOLA ───────────────────────────
+   *  «Di ritorno» ha lo stesso numero della sua pillola (senza altri filtri):
+   *  `numeroPillola` è la funzione che la scrive. */
+  const nRitorni = useMemo(
+    () => numeroPillola("ritorno", opzioniFiltri(righeLista, {}, oggiQui).stato, diRitornoFuori.length),
+    [righeLista, oggiQui, diRitornoFuori.length],
+  );
+  const voci = useMemo(
+    () =>
+      avvisiPagina({
+        scaduti: promesse.scadute,
+        scadutiTutte: promesse.tutte,
+        daParte: saltatiFermi,
+        daParteTutti: saltati.length,
+        ritorni: nRitorni,
+      }),
+    [promesse.scadute, promesse.tutte, saltatiFermi, saltati.length, nRitorni],
+  );
+  /** Il giro intero (non la fetta dei filtri): il numero della frase è quello
+   *  di «Tutta la coda». */
+  const daProvareInCoda = useMemo(
+    () => coda.filter((l) => !inFondo.has(l.id)).length,
+    [coda, inFondo],
   );
 
   /** Passa al prossimo senza scrivere niente in archivio: chi ha già preso un
@@ -2155,7 +2232,11 @@ function LeadImportatiUnoAllaVolta() {
       //  Il telefono squilla: una barra da premere invece di un campo da
       //  cercare col mouse. `useScorciatoie` tace già mentre si scrive dentro
       //  un campo, quindi la «s» di un cognome non fa più saltare nessuno.
-      "/": () => cercaRef.current?.focus(),
+      "/": () => {
+        //  Sul telefono il campo sta chiuso dietro l'icona: si apre, poi si mette a fuoco.
+        if (telefono) setRicercaAperta(true);
+        window.setTimeout(() => cercaRef.current?.focus(), 0);
+      },
       ...Object.fromEntries(
         esitiDivisi.inVista
           .slice(0, 9)
@@ -2187,9 +2268,34 @@ function LeadImportatiUnoAllaVolta() {
         !!scheda ||
         chiusura.aperta ||
         !!daEliminare ||
+        //  ⚠️ Un foglio che sale dal basso (Filtra, Altro) e il campo Cerca aperto
+        //   sul telefono non fermano i tasti da soli: li ferma questa riga.
+        pannello !== null ||
+        ricercaAperta ||
         vista !== "coda",
     },
   );
+
+  /** Quanti nomi sotto la scheda del prossimo: cinque sul computer, tre sul telefono. */
+  const prossimiVisibili = telefono ? 3 : PROSSIMI_VISIBILI;
+  /** «Ultimo esito: … → Torna indietro»: la riga che disfa l'ultimo esito. */
+  const ultimoEsito =
+    vista === "coda" && ultimo ? (
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <p className="min-w-0 text-[12.5px] text-muted-foreground">
+          Ultimo esito: <span className="font-medium text-foreground">{ultimo.nome}</span> →{" "}
+          {LEAD_STATUS_LABEL[ultimo.stato]}
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-11 shrink-0 text-[12px] md:h-7"
+          onClick={() => void disfaUltimo(ultimo)}
+        >
+          <Undo2 className="mr-1 h-3.5 w-3.5" /> Torna indietro
+        </Button>
+      </div>
+    ) : null;
 
   /** ── SOTTO LA LISTA, CON LO STATO «DI RITORNO» ─────────────────────────
    *  Le due fasce (chi ricompare da una lista, chi richiama lui): vedi BloccoRitorno. */
@@ -2207,82 +2313,26 @@ function LeadImportatiUnoAllaVolta() {
   );
 
   return (
-    <Pagina>
-      <Titolo
-        //  ── UN NOME SOLO, PERCHÉ ADESSO LA SCHERMATA È UNA SOLA ──────────
-        //   Era «Lead importati · uno alla volta» per distinguersi dall'ELENCO
-        //   che stava nel menu accanto con lo stesso nome. Quell'elenco dal menu
-        //   è uscito (crm/CRMSidebar.tsx): due voci quasi omonime volevano dire
-        //   aprire ogni volta quella sbagliata, e il committente ne ha chiesta
-        //   una. La coda finale non serve più a disambiguare niente, e il nome
-        //   corto è quello che la gente dice a voce.
-        testo="Lead importati"
-        nota="Prendi il prossimo, chiamalo, segna com'è andata. Il seguente arriva da solo."
-        icona={Phone}
-        azioni={
-          <>
-            <AiutoScorciatoie voci={SCORCIATOIE} aperto={aiutoAperto} onCambia={setAiutoAperto} />
-            {puoCaricare && (
-              <Button
-                size="sm"
-                variant={caricaAperto ? "secondary" : "outline"}
-                className="h-8 text-[12px]"
-                onClick={() => setCaricaAperto((v) => !v)}
-              >
-                <FileSpreadsheet className="mr-1 h-3.5 w-3.5" /> Carica una lista
-              </Button>
-            )}
-            {puoAssegnare && (
-              <Button
-                size="sm"
-                variant={assegnaAperto ? "secondary" : "outline"}
-                className="h-8 text-[12px]"
-                onClick={() => setAssegnaAperto((v) => !v)}
-              >
-                <Users className="mr-1 h-3.5 w-3.5" /> Assegna
-              </Button>
-            )}
-            {/*  ⚠️ L'ELENCO COMPLETO (/CRM/avanzamento) NON È PIÙ QUI: sta nel menu
-                «Altro», insieme a Tutta la lista, Ripesca, Doppioni e Note e
-                promemoria. Non si è tolto: solo, si preme una volta ogni tanto
-                e non deve stare fra i comandi del lavoro della mattina. Le
-                tre cose che solo lui sa fare — i filtri per consulente, le
-                azioni di gruppo su una selezione e l'esportazione in CSV —
-                hanno ancora la loro porta, e la prova controlla il
-                collegamento. */}
-          </>
-        }
+    <Pagina
+      //  Sul telefono la barra degli esiti è fissa in basso: la pagina le lascia il posto.
+      className={vista === "coda" && prossimo ? "pb-40 md:pb-6" : undefined}
+    >
+      {/* ── L'INTESTAZIONE: TITOLO, CERCA, ALTRO ───────────────────────────
+          Una riga sola. Cerca sta sempre fuori dal menu: il cliente richiama, e
+          va trovato nei secondi in cui il telefono squilla. Le linguette, la fila
+          «Già lavorati», «Carica una lista», «Assegna» e le scorciatoie sono in
+          «Altro»: niente si è tolto, si è spostato (crm/importa/sezioni-altro).
+          ⚠️ Il tasto delle scorciatoie è nascosto (`!hidden`) e resta solo il suo
+           pannello, che si apre da «Altro» e con «?». */}
+      <AiutoScorciatoie
+        voci={SCORCIATOIE}
+        aperto={aiutoAperto}
+        onCambia={setAiutoAperto}
+        className="!hidden"
       />
-
-      {/* ── LA TESTATA ────────────────────────────────────────────────────
-          Il verdetto, la barra del giro, i numeri di contorno, la ricerca. Il
-          disegno e il perché stanno in crm/importa/Testata; qui si passano solo
-          i numeri, che questa pagina già aveva.
-          ⚠️ SI DISEGNA SEMPRE, anche a giornata vuota. Prima i numeri
-           comparivano solo se c'era qualcosa da raccontare, e la ricerca
-           restava sola a scivolare a sinistra: un campo che cambia posto a
-           seconda della giornata si cerca ogni volta. E soprattutto la fascia
-           deve poter dire «sei in pari»: è la risposta più utile della
-           giornata, e a schermo vuoto era l'unica che non si poteva leggere. */}
-      <Testata
-        promesse={promesse}
-        daProvare={daFare}
-        /*  ── ⚠️ I NUMERI PARLANO DELLA FETTA CHE SI STA CHIAMANDO ─────────
-            Con un filtro acceso, «in coda» deve dire quanti ce n'è IN QUELLA
-            fetta: mescolare il totale della coda con il residuo della fetta
-            dava «66 di 70» mentre si chiamavano le cinque segreterie rimaste.
-            Il totale vero non si perde — sta scritto sul filtro «Tutti», che è
-            sempre a un colpo d'occhio. */
-        inCoda={codaFetta.length}
-        saltatiFermi={saltatiFermi}
-        //  ⚠️ Il verdetto porta alla lista con lo Stato su «Promesse» e NIENT'ALTRO:
-        //   gli altri filtri toglierebbero righe, e il numero N della frase non
-        //   coinciderebbe più con quelle che si vedono.
-        onVediPromesse={() => {
-          setVista("coda");
-          cambiaFiltri({ stato: "promesse" });
-        }}
-        onVediSaltati={() => setVista("saltati")}
+      <Intestazione
+        ricercaAperta={ricercaAperta}
+        onRicerca={setRicercaAperta}
         ricerca={
           <RicercaContatto
             leads={leads ?? []}
@@ -2296,19 +2346,95 @@ function LeadImportatiUnoAllaVolta() {
               //  altrimenti si preme un nome e non succede niente di visibile.
               //  E se i filtri lo tengono fuori, si azzerano (vedi `portaInTesta`).
               portaInTesta(l);
+              setRicercaAperta(false);
             }}
+          />
+        }
+        altro={
+          <MenuAltro
+            sezioni={sezioni}
+            aperto={pannello === "altro"}
+            onCambio={(a) => setPannello(a ? "altro" : null)}
+            vista={vista}
+            conti={contiViste}
+            origine={filtri.origine}
+            nGoogleSheets={nDalFoglio}
+            permessi={{ "lead.crea": puoCaricare, "lead.assegna": puoAssegnare }}
+            onVoce={apriVoceAltro}
+            disabilitato={!!avanzamento}
           />
         }
       />
 
-      {/* ── I POSTI LIBERI, A COLPO D'OCCHIO ──────────────────────────────
-          Richiesta del titolare (14/10/2026): è qui che la setter ha il
-          telefono in mano e il cliente chiede «quando?». Una riga sola, i
-          numeri di Slot liberi (stesso aggancio); un tocco porta là.
-          ⚠️ Solo a chi ha `agenda`: senza, le ore tenute per una persona sola
-           non arrivano e i numeri sarebbero più alti del vero. `puo` c'è già:
-           nessun hook nuovo in questa pagina. */}
-      {puo("agenda") && <StrisciaPosti className="-mt-1 px-1" />}
+      {/* ── LA FRASE DEL GIRO ─────────────────────────────────────────────
+          «74 da chiamare oggi · 12 fatti», con la coda INTERA (non la fetta dei
+          filtri): il numero è quello di «Tutta la coda». A giornata vuota dice
+          «Sei in pari». */}
+      <FraseGiro daProvare={daProvareInCoda} fatti={coda.length - daProvareInCoda} />
+
+      {/* ── UN SOLO AVVISO ────────────────────────────────────────────────
+          Richiami scaduti, messi da parte da più di 3 giorni, ritorni da
+          decidere: una fascia sola, ogni voce apre la sua lista. Senza voci non
+          c'è. (Prima erano tre avvisi in tre posti.) */}
+      <FasciaAvvisi
+        voci={voci}
+        disabilitato={!!avanzamento}
+        onApri={(v: VoceAvviso) => {
+          if ("vista" in v.apre) setVista(v.apre.vista);
+          else {
+            setVista("coda");
+            cambiaFiltri({ stato: v.apre.stato });
+          }
+        }}
+      />
+
+      {/* ── LE PILLOLE DI STATO E «FILTRA» ───────────────────────────────
+          Otto pillole nell'ordine in cui il lead cammina, col numero che esce
+          toccandole; a destra «Filtra» (Annuncio, Risposta, Origine, Quando).
+          ⚠️ COMPARE ANCHE A LISTA VUOTA: un indirizzo con una pillola o un annuncio
+           che non ha più nessuno deve poter essere spento. Da un'altra vista,
+           toccare una pillola riporta alla coda. */}
+      {importati.length > 0 && (
+        <div className="space-y-2">
+          <BarraPillole
+            scelto={vista === "coda" ? filtri.stato : undefined}
+            statoOpzioni={opzioni.stato}
+            ritorniFuoriLista={diRitornoFuori.length}
+            accesi={vista === "coda" ? nFiltri : 0}
+            disabilitato={!!avanzamento}
+            onTocca={(id) => {
+              if (vista !== "coda") setVista("coda");
+              cambiaFiltri(
+                pulito({ ...(vista === "coda" ? filtri : {}), stato: statoAlTocco(id, vista === "coda" ? filtri.stato : undefined) }),
+              );
+            }}
+            onAzzera={() => cambiaFiltri({})}
+            filtra={
+              <PannelloFiltra
+                filtri={vista === "coda" ? filtri : {}}
+                opzioni={opzioni}
+                //  Il menu Origine sta nella lista; in «Tutta la lista» ce n'è già uno suo.
+                conOrigine={nDalFoglio > 0 && vista === "coda"}
+                aperto={pannello === "filtra"}
+                onCambio={(a) => setPannello(a ? "filtra" : null)}
+                onCambia={(f) => {
+                  if (vista !== "coda") setVista("coda");
+                  cambiaFiltri(f);
+                }}
+                disabilitato={!!avanzamento}
+              />
+            }
+          />
+          {vista === "coda" && (
+            <EtichetteAccese
+              filtri={filtri}
+              opzioni={opzioni}
+              onCambia={cambiaFiltri}
+              disabilitato={!!avanzamento}
+            />
+          )}
+        </div>
+      )}
 
       {/* ── I DUE PANNELLI DI SERVIZIO ────────────────────────────────────
           Sopra la coda perché è lì che si va a cercarli subito dopo averli
@@ -2362,154 +2488,6 @@ function LeadImportatiUnoAllaVolta() {
         </Scheda>
       )}
 
-      {/* ── ⚠️ TRE LINGUETTE E UN MENU «ALTRO» ───────────────────────────
-          Richiesta del titolare (12/10): la setter apre questa pagina per
-          sapere chi chiamare adesso, e fra tre porte e dieci sotto-schede
-          doveva scegliere venti cose prima della prima telefonata.
-
-          Adesso la scelta è fra TRE: la lista da chiamare, chi aspetta, il mio
-          lavoro. Le cose che servono ogni tanto (Tutta la lista, Ripesca,
-          Doppioni, Note e promemoria, Elenco completo) stanno nel menu «Altro».
-          Le dieci viste di prima non sono sparite: stesso contenuto, stessi
-          gesti, un altro modo per arrivarci (crm/importa/reparti, con la prova
-          che nessuna sia rimasta senza strada).
-
-          ⚠️ LE LINGUETTE SI SPENGONO MENTRE UN LAVORO A LOTTI STA SCRIVENDO.
-           Cambiare vista smonta la scheda che ha in corso l'operazione: i lotti
-           proseguirebbero — vivono qui in pagina — ma la selezione morirebbe con
-           il componente, e con lei la promessa che le righe rifiutate restino
-           selezionate. Sono i pochi secondi di un lotto, e il gesto torna da
-           solo appena `avanzamento` si spegne. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {linguette.map((l) => (
-          <Segmento
-            key={l.linguetta}
-            attivo={linguettaAperta === l.linguetta}
-            onClick={() => setVista(vistaDiIngresso(l.linguetta, contiViste, vista))}
-            conteggio={contoLinguetta(l.linguetta, contiViste)}
-            disabilitato={!!avanzamento}
-            titolo={l.titolo}
-            //  Sul telefono il dito vuole almeno 36 px di altezza.
-            className="min-h-9 sm:min-h-0"
-          >
-            {l.nome}
-          </Segmento>
-        ))}
-        <MenuAltro
-          vista={vista}
-          conti={contiViste}
-          onVista={apriDalMenuAltro}
-          onVoce={apriVoceFiltrata}
-          origine={filtri.origine}
-          nGoogleSheets={nDalFoglio}
-          disabilitato={!!avanzamento}
-        />
-        {/*  Dentro una stanza di Altro nessuna linguetta è accesa: la strada si
-            legge a parole, e «Da chiamare» riporta alla lista. */}
-        {linguettaAperta === "altro" && (
-          <span className="ml-1 text-[12px] text-muted-foreground">
-            {percorsoVista(vista, filtri.origine).join(" › ")}
-          </span>
-        )}
-      </div>
-
-      {/*  Le stanze della linguetta aperta. Una riga più leggera, e solo quando
-          c'è più di una stanza da scegliere: con una sola, la linguetta
-          direbbe dove sei a chi lo sa già. */}
-      {stanze.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1 border-l-2 border-border pl-2.5">
-          {stanze.map((v) => (
-            <button
-              key={v.vista}
-              type="button"
-              disabled={!!avanzamento}
-              onClick={() => {
-                //  Dalla linguetta «Tutti» si apre senza filtro: quello lo
-                //  mettono solo i pulsanti «Già lavorati».
-                setStatoTutti(null);
-                setVista(v.vista);
-              }}
-              title={v.titolo}
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[12px] transition disabled:opacity-40",
-                vista === v.vista
-                  ? "bg-foreground/10 font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60",
-              )}
-            >
-              {v.nome}
-              {contiViste[v.vista] ? (
-                <span className="ml-1 tabular-nums opacity-70">{contiViste[v.vista]}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* ── ⚠️ I TRE FILTRI ────────────────────────────────────────────────
-          Annuncio, Risposta, Stato: sempre gli stessi tre, e sotto i filtri
-          accesi come etichette da spegnere. Prima erano due file di pastiglie
-          (sei di stato, quattro di tempo) che si leggevano come dieci scelte
-          pari; il tempo («quando ho messo quello stato») è adesso dentro Stato.
-          ⚠️ COMPARE ANCHE A LISTA VUOTA SE C'È UN FILTRO ACCESO: un indirizzo
-           con un annuncio che non ha più nessuno deve poter essere spento. */}
-      {/*  ── ⚠️ SEMPRE IN VISTA (titolare, 20/10/2026) ───────────────────────
-           «In cima, sempre visibili»: la barra c'è in ogni linguetta, anche a
-           lista vuota. Da un'altra linguetta, scegliere uno stato della lista
-           riporta a «Da chiamare».
-           ⚠️ Non è `sticky`: la pagina scorre con la finestra e il contenitore
-            (`main` con overflow) non ha un'altezza, quindi non si attaccherebbe. */}
-      {importati.length > 0 && (
-        <div>
-          <BarraFiltri
-            filtri={vista === "coda" ? filtri : {}}
-            opzioni={opzioni}
-            ritorni={contiViste.ritorno ?? 0}
-            //  Il menu Origine sta nella lista; in «Tutta la lista» ce n'è già uno suo.
-            conOrigine={nDalFoglio > 0 && vista === "coda"}
-            onCambia={(f) => {
-              if (vista !== "coda") setVista("coda");
-              cambiaFiltri(f);
-            }}
-            disabilitato={!!avanzamento}
-            altriStati={statiGiaLavorati}
-            onAltroStato={(st) => {
-              esciDalFoglio();
-              setStatoTutti(st);
-              setVista("tutti");
-            }}
-          />
-        </div>
-      )}
-
-      {/*  ── ⚠️ LA FASCIA DEI CONTATTI DI RITORNO ────────────────────────
-           Richiesta del committente: «tutte le persone di ritorno stanno nel
-           loro filtro», e decisione 3 del titolare: niente si toglie. «Di
-           ritorno» non è più una stanza ma la voce di un filtro, e la voce da
-           sola non si nota: questa riga dice che ci sono, quanti sono e quanti
-           «si fanno vivi loro», e con un clic apre lo Stato «Di ritorno».
-           ⚠️ COMPARE ANCHE A LISTA VUOTA: i «mi richiama lui» arrivati dal sito,
-            quelli con un giorno futuro e i ritorni con una promessa per dopo
-            NON sono in lista, e questo è l'unico posto in cui si vedono.
-           ⚠️ Compare SOLO se ce n'è, e non quando lo Stato è già «Di ritorno»:
-            una fascia che dice «zero» o che rimanda dove si è già è una riga in
-            meno per la persona da chiamare. */}
-      {vista === "coda" && filtri.stato !== "ritorno" && contiViste.ritorno > 0 && (
-        <button
-          type="button"
-          onClick={() => cambiaFiltri({ stato: "ritorno" })}
-          disabled={!!avanzamento}
-          className="flex w-full items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left text-[12.5px] text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
-          title="Apre lo Stato «Di ritorno»: sono tutti qui, e da lì si lavorano uno dietro l'altro"
-        >
-          <RotateCcw className="h-4 w-4 shrink-0" />
-          <span className="min-w-0 flex-1 font-medium">
-            {fasciaDeiRitorni(diRitorno.length, siFannoViviLoro.length)}
-          </span>
-          <span className="shrink-0 font-semibold underline underline-offset-2">Aprili tutti</span>
-        </button>
-      )}
-
       {/*  Com'è messo il giorno appena riempito: vedi SchedaGiorno. */}
       {giornoFissato && (
         <SchedaGiorno
@@ -2519,33 +2497,6 @@ function LeadImportatiUnoAllaVolta() {
           setGiornoFissato={setGiornoFissato}
           setScheda={setScheda}
         />
-      )}
-
-      {/* ── ⚠️ TORNA INDIETRO ──────────────────────────────────────────────
-          Richiesta del committente. Un esito si segna col telefono in mano e
-          si sbaglia col telefono in mano: si preme «Non risponde» mentre la
-          persona sta rispondendo. Il messaggio che compare ha già il suo
-          «Annulla», ma dura pochi secondi ed è la via per chi se ne accorge
-          subito; questa riga resta finché non si segna qualcos'altro, per chi
-          se ne accorge dopo aver posato il telefono.
-          ⚠️ Dice CHI e COSA: «torna indietro» da solo, su una schermata che
-           nel frattempo mostra un'altra persona, non fa capire su chi si sta
-           per scrivere. */}
-      {vista === "coda" && ultimo && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
-          <p className="min-w-0 text-[12.5px] text-muted-foreground">
-            Ultimo esito: <span className="font-medium text-foreground">{ultimo.nome}</span> →{" "}
-            {LEAD_STATUS_LABEL[ultimo.stato]}
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 shrink-0 text-[12px]"
-            onClick={() => void disfaUltimo(ultimo)}
-          >
-            <Undo2 className="mr-1 h-3.5 w-3.5" /> Torna indietro
-          </Button>
-        </div>
       )}
 
       {/*  ── DOV'È FINITO IL RIQUADRO DEI SALTATI DIMENTICATI ──────────────
@@ -2876,6 +2827,20 @@ function LeadImportatiUnoAllaVolta() {
             </div>
           )}
 
+          {/*  ── ⚠️ TORNA INDIETRO ───────────────────────────────────────────
+              Richiesta del committente. Un esito si segna col telefono in mano e
+              si sbaglia col telefono in mano: si preme «Non risponde» mentre la
+              persona sta rispondendo. Il messaggio che compare ha già il suo
+              «Annulla», ma dura pochi secondi ed è la via per chi se ne accorge
+              subito; questa riga resta finché non si segna qualcos'altro, per chi
+              se ne accorge dopo aver posato il telefono.
+              ⚠️ Dice CHI e COSA: «torna indietro» da solo, su una schermata che
+               nel frattempo mostra un'altra persona, non fa capire su chi si sta
+               per scrivere.
+              Sta SOTTO la scheda del prossimo (e sopra la barra fissa del
+              telefono, che le lascia il posto); a coda finita, al suo posto. */}
+          {!prossimo && ultimoEsito}
+
           {prossimo ? (
             <>
               <SchedaProssimo
@@ -2942,6 +2907,8 @@ function LeadImportatiUnoAllaVolta() {
                 onElimina={puoEliminare ? () => setDaEliminare(prossimo) : undefined}
               />
 
+              {ultimoEsito}
+
               {daEliminare && (
                 <FinestraElimina
                   daEliminare={daEliminare}
@@ -2951,6 +2918,14 @@ function LeadImportatiUnoAllaVolta() {
                   eliminaUno={eliminaUno}
                 />
               )}
+
+              {/* ── I POSTI LIBERI, UNA RIGA SOLA ─────────────────────────────────
+                  Richiesta del titolare (14/10/2026): è qui che la setter ha il
+                  telefono in mano e il cliente chiede «quando?». Sotto la scheda
+                  del prossimo, piccola; un tocco porta a Slot liberi.
+                  ⚠️ Solo a chi ha `agenda`: senza, le ore tenute per una persona
+                   sola non arrivano e i numeri sarebbero più alti del vero. */}
+              {puo("agenda") && <StrisciaPosti className="px-1" />}
 
               {/* ── POI ─────────────────────────────────────────────────────────
               Non è un elenco da leggere: è la prova che la coda esiste e la
@@ -2967,7 +2942,7 @@ function LeadImportatiUnoAllaVolta() {
                   senzaPadding
                 >
                   <ul className="divide-y divide-border">
-                    {elencoPoi.slice(0, PROSSIMI_VISIBILI).map((l, i) => {
+                    {elencoPoi.slice(0, prossimiVisibili).map((l, i) => {
                       const perche = percheDi.get(l.id);
                       if (!perche) return null;
                       return (
@@ -2994,9 +2969,9 @@ function LeadImportatiUnoAllaVolta() {
                       mandava a cercare nel menu una voce che è questa. Adesso
                       dice cos'è quel posto — una tabella — invece di come si
                       chiamava. */}
-                  {elencoPoi.length > PROSSIMI_VISIBILI && (
+                  {elencoPoi.length > prossimiVisibili && (
                     <p className="border-t border-border px-4 py-2 text-[11.5px] text-muted-foreground">
-                      … e altri {elencoPoi.length - PROSSIMI_VISIBILI}. Per vederli tutti in
+                      … e altri {elencoPoi.length - prossimiVisibili}. Per vederli tutti in
                       tabella, con i filtri e le azioni di gruppo, c'è{" "}
                       <Link
                         to="/CRM/avanzamento"
@@ -3047,7 +3022,7 @@ function LeadImportatiUnoAllaVolta() {
             />
           ) : (
             <Vuoto
-              titolo={segnate > 0 ? "Coda finita" : "Nessuno da chiamare"}
+              titolo={coda.length === 0 && nFiltri === 0 ? "Sei in pari" : segnate > 0 ? "Coda finita" : "Nessuno da chiamare"}
               /*  ⚠️ A CODA VUOTA I SALTATI SONO L'UNICO LAVORO RIMASTO, e
                   questa schermata era l'ultimo punto in cui potevano sparire
                   dagli occhi: «Nessuno da chiamare» con cinque persone messe da
