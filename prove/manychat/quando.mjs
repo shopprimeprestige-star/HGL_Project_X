@@ -1,8 +1,8 @@
 /** ── PROVE: CHI TOCCA ADESSO, TETTI E RITMO ───────────────────────────────
  *
  *  File d'area della commessa 2026-10-23 (ManyChat), compito 2 (Dev A).
- *  Le regole di `quando.ts`: il promemoria 25' prima del meet (finestra
- *  −30'…−15'), la coda dei ricontatti (9-20, lunedì-sabato, ora di Roma,
+ *  Le regole di `quando.ts`: il promemoria 20' prima del meet (finestra
+ *  −25'…−10'), la coda dei ricontatti (9-20, lunedì-sabato, ora di Roma,
  *  recupero una volta sola), i tetti, il ritmo di 27-33'. Tutte funzioni
  *  pure: l'orologio e il numero a caso entrano come argomenti.
  *
@@ -166,9 +166,9 @@ export async function proveQuando(mod, { c, gruppo }) {
   );
 
   /* ════════════════════════════════════════════════════════════════════════
-   *  PROMEMORIA 25'
+   *  PROMEMORIA 20'
    * ════════════════════════════════════════════════════════════════════════ */
-  gruppo("MANYCHAT · IL PROMEMORIA 25' PRIMA DEL MEET");
+  gruppo("MANYCHAT · IL PROMEMORIA 20' PRIMA DEL MEET");
 
   const TETTI = { ricontatti: 20, totale: 40 };
   const ctxP = (extra) => ({ consulenti, invii: [], tetti: TETTI, ...extra });
@@ -179,31 +179,31 @@ export async function proveQuando(mod, { c, gruppo }) {
   const a = (adesso) => decidi([m1530], adesso);
   c("meet 15:30, ore 14:59 (−31') → aspetta", ["aspetta"], tipi(a("2026-10-23T14:59:00+02:00")));
   c(
-    "ore 15:04 (−26') → aspetta: il bersaglio è −25'",
+    "ore 15:09 (−21') → aspetta: il bersaglio è −20'",
     ["aspetta"],
-    tipi(a("2026-10-23T15:04:00+02:00")),
+    tipi(a("2026-10-23T15:09:00+02:00")),
   );
-  const alle1505 = unica(a("2026-10-23T15:05:00+02:00"));
-  c("ore 15:05 (−25') → invia", "invia", alle1505?.tipo);
-  c("…con la chiave p|tel9|AAAA-MM-GGTHH:MM", `p|${t9(1)}|2026-10-23T15:30`, alle1505?.chiave);
+  const alle1510 = unica(a("2026-10-23T15:10:00+02:00"));
+  c("ore 15:10 (−20') → invia", "invia", alle1510?.tipo);
+  c("…con la chiave p|tel9|AAAA-MM-GGTHH:MM", `p|${t9(1)}|2026-10-23T15:30`, alle1510?.chiave);
   c(
     "…e l'inizio del meet come istante vero",
     t(M).toISOString(),
-    alle1505?.extra.inizioMeet.toISOString(),
+    alle1510?.extra.inizioMeet.toISOString(),
   );
-  c("…la scheda è quella giusta", "lead-m", alle1505?.scheda.id);
+  c("…la scheda è quella giusta", "lead-m", alle1510?.scheda.id);
   c(
-    "ore 15:15 (−15', ultimo minuto utile) → invia",
+    "ore 15:20 (−10', ultimo minuto utile) → invia",
     ["invia"],
-    tipi(a("2026-10-23T15:15:00+02:00")),
+    tipi(a("2026-10-23T15:20:00+02:00")),
   );
-  const tardi = unica(a("2026-10-23T15:20:00+02:00"));
+  const tardi = unica(a("2026-10-23T15:25:00+02:00"));
   c(
-    "giro fermo fino alle 15:20 (−10') → saltato: giro in ritardo",
+    "giro fermo fino alle 15:25 (−5') → saltato: giro in ritardo",
     ["salta", true],
     [tardi?.tipo, /ritardo/.test(tardi?.motivo ?? "")],
   );
-  c("ore 15:16 (−14') → già in ritardo", ["salta"], tipi(a("2026-10-23T15:16:00+02:00")));
+  c("ore 15:21 (−9') → già in ritardo", ["salta"], tipi(a("2026-10-23T15:21:00+02:00")));
   c(
     "meet già iniziato (15:30 e 15:31) → niente, nessun messaggio",
     [[], []],
@@ -212,19 +212,19 @@ export async function proveQuando(mod, { c, gruppo }) {
   c(
     "meet di un altro giorno → niente",
     [],
-    decidi([meet("x", 1, "2026-10-24", "15:30")], "2026-10-23T15:05:00+02:00"),
+    decidi([meet("x", 1, "2026-10-24", "15:30")], "2026-10-23T15:10:00+02:00"),
   );
 
   //  Meet spostato.
   const spostato = meet("lead-m", 1, "2026-10-23", "17:00");
   c(
-    "meet spostato alle 17:00: alle 15:05 non parte niente",
+    "meet spostato alle 17:00: alle 15:10 non parte niente",
     ["aspetta"],
-    tipi(decidi([spostato], "2026-10-23T15:05:00+02:00")),
+    tipi(decidi([spostato], "2026-10-23T15:10:00+02:00")),
   );
-  const alle1635 = unica(decidi([spostato], "2026-10-23T16:35:00+02:00"));
+  const alle1635 = unica(decidi([spostato], "2026-10-23T16:40:00+02:00"));
   c(
-    "…un solo promemoria, alle 16:35, con la chiave nuova",
+    "…un solo promemoria, alle 16:40, con la chiave nuova",
     ["invia", `p|${t9(1)}|2026-10-23T17:00`],
     [alle1635?.tipo, alle1635?.chiave],
   );
@@ -232,19 +232,19 @@ export async function proveQuando(mod, { c, gruppo }) {
     telefono: "39333000" + "0001",
     tipo: "promemoria",
     stato: "inviato",
-    prenotatoIl: "2026-10-23T13:05:00.000Z",
+    prenotatoIl: "2026-10-23T13:10:00.000Z",
     chiave: `p|${t9(1)}|2026-10-23T15:30`,
-    rispostaIl: "2026-10-23T13:08:00.000Z",
+    rispostaIl: "2026-10-23T13:13:00.000Z",
   };
   c(
     "…se il vecchio promemoria era già partito (e ha avuto risposta), il nuovo orario ha il suo",
     ["invia"],
-    tipi(decidi([spostato], "2026-10-23T16:35:00+02:00", { invii: [primo] })),
+    tipi(decidi([spostato], "2026-10-23T16:40:00+02:00", { invii: [primo] })),
   );
   c(
     "lo stesso promemoria già partito non riparte (stessa chiave) né fa rumore",
     [],
-    decidi([m1530], "2026-10-23T15:06:00+02:00", {
+    decidi([m1530], "2026-10-23T15:11:00+02:00", {
       invii: [{ ...primo, chiave: `p|${t9(1)}|2026-10-23T15:30`, rispostaIl: null }],
     }),
   );
@@ -252,7 +252,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "…neanche una riga fallita o saltata con quella chiave: l'indice unico di M1 la tiene per sempre (gia_preso)",
     [[], []],
     ["fallito", "saltato"].map((stato) =>
-      decidi([m1530], "2026-10-23T15:06:00+02:00", {
+      decidi([m1530], "2026-10-23T15:11:00+02:00", {
         invii: [{ ...primo, stato, rispostaIl: null }],
       }),
     ),
@@ -263,13 +263,13 @@ export async function proveQuando(mod, { c, gruppo }) {
   c(
     "appuntamento rifissato → vale come fissato",
     ["invia"],
-    tipi(decidi([conStato("appuntamento_rifissato")], "2026-10-23T15:05:00+02:00")),
+    tipi(decidi([conStato("appuntamento_rifissato")], "2026-10-23T15:10:00+02:00")),
   );
   c(
     "meet annullato, perso, in valutazione, visita in sede → niente",
     [[], [], [], []],
     ["annullato", "perso", "sta_valutando", "viene_in_sede"].map((s) =>
-      decidi([conStato(s)], "2026-10-23T15:05:00+02:00"),
+      decidi([conStato(s)], "2026-10-23T15:10:00+02:00"),
     ),
   );
   c(
@@ -277,15 +277,15 @@ export async function proveQuando(mod, { c, gruppo }) {
     [],
     decidi(
       [meet("x", 1, "2026-10-23", "15:30", { consulenteId: null, importato: true })],
-      "2026-10-23T15:05:00+02:00",
+      "2026-10-23T15:10:00+02:00",
     ),
   );
   c(
     "senza data o ora illeggibile → niente",
     [[], []],
     [
-      decidi([meet("x", 1, "", "15:30")], "2026-10-23T15:05:00+02:00"),
-      decidi([meet("x", 1, "2026-10-23", "tardi")], "2026-10-23T15:05:00+02:00"),
+      decidi([meet("x", 1, "", "15:30")], "2026-10-23T15:10:00+02:00"),
+      decidi([meet("x", 1, "2026-10-23", "tardi")], "2026-10-23T15:10:00+02:00"),
     ],
   );
 
@@ -297,7 +297,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     motivo(
       decidi(
         [meet("x", 1, "2026-10-23", "15:30", { okWhatsapp: { si: false } })],
-        "2026-10-23T15:05:00+02:00",
+        "2026-10-23T15:10:00+02:00",
       ),
     ),
   );
@@ -312,7 +312,7 @@ export async function proveQuando(mod, { c, gruppo }) {
             consensoModulo: { whatsapp: true, il: "2026-10-22T09:00:00.000Z" },
           }),
         ],
-        "2026-10-23T15:05:00+02:00",
+        "2026-10-23T15:10:00+02:00",
         { fraseModuloDal: "2026-10-20T00:00:00.000Z" },
       ),
     ),
@@ -326,7 +326,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "CSV con modulo del 10/10 e frase segnata il 26/10 → il promemoria parte (consenso di tutti, 28/10)",
     null,
     motivo(
-      decidi([conModulo("2026-10-10T09:00:00.000Z")], "2026-10-23T15:05:00+02:00", {
+      decidi([conModulo("2026-10-10T09:00:00.000Z")], "2026-10-23T15:10:00+02:00", {
         fraseModuloDal: "2026-10-26T00:00:00.000Z",
       }),
     ),
@@ -336,7 +336,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     [null, null],
     [undefined, null].map((fraseModuloDal) =>
       motivo(
-        decidi([conModulo("2026-10-22T09:00:00.000Z")], "2026-10-23T15:05:00+02:00", {
+        decidi([conModulo("2026-10-22T09:00:00.000Z")], "2026-10-23T15:10:00+02:00", {
           fraseModuloDal,
         }),
       ),
@@ -346,7 +346,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "modulo senza data (il null) → parte lo stesso (consenso di tutti)",
     null,
     motivo(
-      decidi([conModulo(null)], "2026-10-23T15:05:00+02:00", {
+      decidi([conModulo(null)], "2026-10-23T15:10:00+02:00", {
         fraseModuloDal: "2026-10-20T00:00:00.000Z",
       }),
     ),
@@ -366,7 +366,7 @@ export async function proveQuando(mod, { c, gruppo }) {
             },
           }),
         ],
-        "2026-10-23T15:05:00+02:00",
+        "2026-10-23T15:10:00+02:00",
       ),
     ),
   );
@@ -376,7 +376,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     motivo(
       decidi(
         [meet("x", 1, "2026-10-23", "15:30", { telefono: "06 1234567" })],
-        "2026-10-23T15:05:00+02:00",
+        "2026-10-23T15:10:00+02:00",
       ),
     ),
   );
@@ -387,7 +387,7 @@ export async function proveQuando(mod, { c, gruppo }) {
       motivo(
         decidi(
           [meet("x", 1, "2026-10-23", "15:30", { linkMeeting: "" })],
-          "2026-10-23T15:05:00+02:00",
+          "2026-10-23T15:10:00+02:00",
         ),
       ) ?? "",
     ),
@@ -399,7 +399,7 @@ export async function proveQuando(mod, { c, gruppo }) {
       motivo(
         decidi(
           [meet("x", 1, "2026-10-23", "15:30", { consulenteId: "fantasma" })],
-          "2026-10-23T15:05:00+02:00",
+          "2026-10-23T15:10:00+02:00",
         ),
       ) ?? "",
     ),
@@ -409,7 +409,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     true,
     /nome/.test(
       motivo(
-        decidi([meet("x", 1, "2026-10-23", "15:30", { nome: " " })], "2026-10-23T15:05:00+02:00"),
+        decidi([meet("x", 1, "2026-10-23", "15:30", { nome: " " })], "2026-10-23T15:10:00+02:00"),
       ) ?? "",
     ),
   );
@@ -417,15 +417,15 @@ export async function proveQuando(mod, { c, gruppo }) {
   //  Meet spostato DOPO il promemoria, senza che il cliente abbia risposto.
   const primoSenza = { ...primo, rispostaIl: null };
   c(
-    "meet 15:30 con promemoria senza risposta, poi spostato alle 17:00: alle 16:35 il vecchio meet è iniziato → il nuovo promemoria parte (anche col freno acceso)",
+    "meet 15:30 con promemoria senza risposta, poi spostato alle 17:00: alle 16:40 il vecchio meet è iniziato → il nuovo promemoria parte (anche col freno acceso)",
     ["invia"],
-    tipi(decidi([spostato], "2026-10-23T16:35:00+02:00", { invii: [primoSenza] })),
+    tipi(decidi([spostato], "2026-10-23T16:40:00+02:00", { invii: [primoSenza] })),
   );
   c(
-    "…spostato PRIMA dell'inizio, a un'ora più vicina (15:40): alle 15:16 il vecchio meet (15:30) non è iniziato → con l'interruttore acceso il vecchio promemoria frena ancora",
+    "…spostato PRIMA dell'inizio, a un'ora più vicina (15:40): alle 15:21 il vecchio meet (15:30) non è iniziato → con l'interruttore acceso il vecchio promemoria frena ancora",
     "aspetta ancora una risposta",
     motivo(
-      decidi([meet("lead-m", 1, "2026-10-23", "15:40")], "2026-10-23T15:16:00+02:00", {
+      decidi([meet("lead-m", 1, "2026-10-23", "15:40")], "2026-10-23T15:21:00+02:00", {
         invii: [primoSenza],
         frenoAnchePerPromemoria: true,
       }),
@@ -438,7 +438,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     ["lead-a"],
     decidi(
       [meet("lead-b", 1, "2026-10-23", "15:30"), meet("lead-a", 1, "2026-10-23", "15:30")],
-      "2026-10-23T15:05:00+02:00",
+      "2026-10-23T15:10:00+02:00",
     ).map((x) => x.scheda.id),
   );
   c(
@@ -446,7 +446,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     ["lead-1", "lead-2"],
     decidi(
       [meet("lead-2", 2, "2026-10-23", "15:30"), meet("lead-1", 1, "2026-10-23", "15:30")],
-      "2026-10-23T15:05:00+02:00",
+      "2026-10-23T15:10:00+02:00",
     ).map((x) => x.scheda.id),
   );
   const giaTre = ["10:00", "11:00", "12:00"].map((h) => ({
@@ -460,13 +460,13 @@ export async function proveQuando(mod, { c, gruppo }) {
   c(
     "già tre promemoria a quel numero per quel giorno di meet → il quarto è saltato",
     true,
-    /3/.test(motivo(decidi([m1530], "2026-10-23T15:05:00+02:00", { invii: giaTre })) ?? ""),
+    /3/.test(motivo(decidi([m1530], "2026-10-23T15:10:00+02:00", { invii: giaTre })) ?? ""),
   );
   c(
     "…tre di un ALTRO giorno di meet non contano",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
         invii: giaTre.map((i) => ({ ...i, chiave: i.chiave.replace("2026-10-23", "2026-10-22") })),
       }),
     ),
@@ -481,13 +481,13 @@ export async function proveQuando(mod, { c, gruppo }) {
   c(
     "conferma senza risposta e poi promemoria allo stesso telefono → di serie PARTE (il promemoria non è frenato: SPEC 25/10)",
     ["invia"],
-    tipi(decidi([m1530], "2026-10-23T15:05:00+02:00", { invii: [conferma] })),
+    tipi(decidi([m1530], "2026-10-23T15:10:00+02:00", { invii: [conferma] })),
   );
   c(
     "…con l'interruttore di regola acceso il freno vale ancora anche per il promemoria (cambiare idea è una riga)",
     "aspetta ancora una risposta",
     motivo(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
         invii: [conferma],
         frenoAnchePerPromemoria: true,
       }),
@@ -497,7 +497,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "…con la risposta alla conferma (il SÌ) parte anche col freno acceso",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
         invii: [{ ...conferma, rispostaIl: "2026-10-22T09:30:00.000Z" }],
       }),
     ),
@@ -518,7 +518,7 @@ export async function proveQuando(mod, { c, gruppo }) {
             },
           }),
         ],
-        "2026-10-23T15:05:00+02:00",
+        "2026-10-23T15:10:00+02:00",
         { invii: [conferma] },
       ),
     ),
@@ -528,8 +528,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     "pausa per contatto: un invio a quel telefono 60 s fa → aspetta",
     ["aspetta"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
-        invii: [{ ...chat, prenotatoIl: "2026-10-23T13:04:00.000Z" }],
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
+        invii: [{ ...chat, prenotatoIl: "2026-10-23T13:09:00.000Z" }],
       }),
     ),
   );
@@ -537,8 +537,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     "…130 s fa → passa",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
-        invii: [{ ...chat, prenotatoIl: "2026-10-23T13:02:50.000Z" }],
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
+        invii: [{ ...chat, prenotatoIl: "2026-10-23T13:07:50.000Z" }],
       }),
     ),
   );
@@ -546,8 +546,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     "…un invio SALTATO o FALLITO non mette in pausa",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
-        invii: [{ ...chat, stato: "saltato", prenotatoIl: "2026-10-23T13:04:30.000Z" }],
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
+        invii: [{ ...chat, stato: "saltato", prenotatoIl: "2026-10-23T13:09:30.000Z" }],
       }),
     ),
   );
@@ -565,7 +565,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "39 messaggi oggi → il promemoria passa",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
         invii: [...oggiRighe(20, "ricontatto"), ...oggiRighe(19, "promemoria")],
       }),
     ),
@@ -575,7 +575,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     true,
     /tetto/.test(
       motivo(
-        decidi([m1530], "2026-10-23T15:05:00+02:00", {
+        decidi([m1530], "2026-10-23T15:10:00+02:00", {
           invii: [...oggiRighe(20, "ricontatto"), ...oggiRighe(20, "promemoria")],
         }),
       ) ?? "",
@@ -585,7 +585,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "…i messaggi di ieri non contano",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
         invii: oggiRighe(40, "promemoria").map((i) => ({
           ...i,
           prenotatoIl: "2026-10-22T07:00:00.000Z",
@@ -597,7 +597,7 @@ export async function proveQuando(mod, { c, gruppo }) {
     "…conferme e chat non contano nel tetto dei promemoria",
     ["invia"],
     tipi(
-      decidi([m1530], "2026-10-23T15:05:00+02:00", {
+      decidi([m1530], "2026-10-23T15:10:00+02:00", {
         invii: [...oggiRighe(30, "conferma"), ...oggiRighe(30, "chat")],
       }),
     ),
@@ -606,24 +606,24 @@ export async function proveQuando(mod, { c, gruppo }) {
   //  Cambio dell'ora: domenica 25/10 il meet delle 15:30 è già in ora solare (+01:00).
   const dom = meet("lead-d", 1, "2026-10-25", "15:30");
   c(
-    "25/10 (ora solare): meet 15:30 → alle 15:05 invia, alle 15:04 aspetta",
+    "25/10 (ora solare): meet 15:30 → alle 15:10 invia, alle 15:09 aspetta",
     [["aspetta"], ["invia"]],
     [
-      tipi(decidi([dom], "2026-10-25T15:04:00+01:00")),
-      tipi(decidi([dom], "2026-10-25T15:05:00+01:00")),
+      tipi(decidi([dom], "2026-10-25T15:09:00+01:00")),
+      tipi(decidi([dom], "2026-10-25T15:10:00+01:00")),
     ],
   );
   c(
-    "…14:05 a Greenwich è le 15:05 di Roma in ora solare → invia",
+    "…14:10 a Greenwich è le 15:10 di Roma in ora solare → invia",
     ["invia"],
-    tipi(decidi([dom], "2026-10-25T14:05:00Z")),
+    tipi(decidi([dom], "2026-10-25T14:10:00Z")),
   );
   c(
-    "26/10 mattina: meet alle 09:00 (CET) → promemoria alle 08:35, e a 08:46 è in ritardo",
+    "26/10 mattina: meet alle 09:00 (CET) → promemoria alle 08:40, e a 08:51 è in ritardo",
     [["invia"], ["salta"]],
     [
-      tipi(decidi([meet("lead-l", 1, "2026-10-26", "09:00")], "2026-10-26T08:35:00+01:00")),
-      tipi(decidi([meet("lead-l", 1, "2026-10-26", "09:00")], "2026-10-26T08:46:00+01:00")),
+      tipi(decidi([meet("lead-l", 1, "2026-10-26", "09:00")], "2026-10-26T08:40:00+01:00")),
+      tipi(decidi([meet("lead-l", 1, "2026-10-26", "09:00")], "2026-10-26T08:51:00+01:00")),
     ],
   );
 

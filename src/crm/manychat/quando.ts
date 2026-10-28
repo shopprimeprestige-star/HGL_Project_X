@@ -6,14 +6,14 @@
  *  Modulo PURO: l'orologio e il numero a caso arrivano da fuori.
  *
  *  ── LE REGOLE (PIANO §2a, SPEC §6-7) ──────────────────────────────────────
- *   - promemoria: bersaglio −25' dal meet, si accetta da −30' a −15'; oltre →
+ *   - promemoria: bersaglio −20' dal meet, si accetta da −25' a −10'; oltre →
  *     «saltato: giro in ritardo». Chiave `p|tel9|AAAA-MM-GGTHH:MM`. Al massimo 3
  *     promemoria per telefono e giorno di meet.
- *     ⚠️ Prima del bersaglio NON parte: alle −30' si aspetta ancora. Il −30' è
- *      il limite di quanto il modello può dire «tra circa 25 minuti» senza
+ *     ⚠️ Prima del bersaglio NON parte: alle −25' si aspetta ancora. Il −25' è
+ *      il limite di quanto il modello può dire «tra circa 20 minuti» senza
  *      mentire, non un invito a partire prima (la prova a secco del PO dice
- *      «meet 15:30 → promemoria alle 15:05»). La tolleranza vera è dopo: dalle
- *      −25' alle −15' il giro ha dieci minuti per arrivarci.
+ *      «meet 15:30 → promemoria alle 15:10»). La tolleranza vera è dopo: dalle
+ *      −20' alle −10' il giro ha dieci minuti per arrivarci.
  *   - ricontatti: chiave `r|tel9|AAAA-MM-GG`; il giorno è `dataRicontatto` o
  *     quello di `callbackAt`; `oraRicontatto` facoltativa; dalle 9 alle 20 da
  *     lunedì a sabato, ora di Roma; recupero il giorno lavorativo dopo, UNA
@@ -259,7 +259,7 @@ export const TETTI_DI_SERIE: Tetti = {
   totale: TETTO_TOTALE,
 };
 
-/** Quali promemoria toccano adesso (bersaglio −25' dal meet, accettati fino a −15').
+/** Quali promemoria toccano adesso (bersaglio −20' dal meet, accettati fino a −10').
  *
  *  Risponde solo per i meet DI OGGI (o a meno di 30 minuti) che sono ancora un
  *  appuntamento e non sono ancora iniziati. Annullato, già iniziato, di un

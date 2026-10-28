@@ -785,10 +785,10 @@ export async function proveSequenze(mod, { c, gruppo }) {
     }).some((x) => x.chiave === chiaveO("18:00") || /mattino|promemoria/.test(x.motivo ?? "")),
   );
   c(
-    "il promemoria dei 25' parte alle 17:35 anche con la mattina senza risposta (nessun freno)",
+    "il promemoria dei 20' parte alle 17:40 anche con la mattina senza risposta (nessun freno)",
     ["invia"],
     tipi(
-      Q.decidiPromemoria([m18], t(alle("17:35")), {
+      Q.decidiPromemoria([m18], t(alle("17:40")), {
         consulenti,
         invii: [invio(1, "meet_oggi", "2026-10-27T08:00:00.000Z", { chiave: chiaveO("18:00") })],
         tetti: TETTI,

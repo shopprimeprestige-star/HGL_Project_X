@@ -222,7 +222,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_promemoria_meet",
     "UTILITY",
-    `Gentile {{lead_name}}, Le ricordo la Sua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 25 minuti.\n\nPer collegarsi: {{meet_link}}\n\nLa seguirà {{consultant_name}}. Se può, si colleghi da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
+    `Gentile {{lead_name}}, Le ricordo la Sua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 20 minuti.\n\nPer collegarsi: {{meet_link}}\n\nLa seguirà {{consultant_name}}. Se può, si colleghi da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
     ["lead_name", "appointment_time", "meet_link", "consultant_name"],
   ),
   tpl(
