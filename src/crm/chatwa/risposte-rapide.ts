@@ -102,6 +102,14 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     stati: DA_FISSARE,
   },
   {
+    id: "oggi_domani",
+    titolo: "Oggi o domani?",
+    testo:
+      "Per la consulenza gratuita online preferisce oggi o domani? Così verifichiamo subito la disponibilità e le confermo l'orario.",
+    temi: ["prenota"],
+    stati: DA_FISSARE,
+  },
+  {
     id: "mattina_pomeriggio",
     titolo: "Mattina o pomeriggio?",
     testo: "Preferisce la mattina o il pomeriggio?",
