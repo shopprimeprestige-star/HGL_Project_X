@@ -9,6 +9,7 @@ import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { anteprimaIn } from "./media";
 import { attesaInChiaro } from "./stato";
+import { ritornoInChat } from "./ritorno";
 import { formatTimeIT, initials } from "./formati";
 import type { ChatItem } from "./tipi";
 
@@ -80,6 +81,7 @@ export function RigaChat({
         ).testo
       : last?.body;
   const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
+  const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
 
   return (
     <li className={cn("relative border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
@@ -143,6 +145,19 @@ export function RigaChat({
                   )}
                 >
                   <span className="truncate">{LEAD_STATUS_LABEL[c.lead.data.stato]}</span>
+                </span>
+              )}
+              {/*  Di ritorno (28/10/2026): nella riga solo «↩ Ritorno», lo stato di
+                  prima nell'intestazione della chat e nel tooltip. */}
+              {ritorno && (
+                <span
+                  className="shrink-0 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
+                  title={ritorno.titolo}
+                >
+                  <span className="sm:hidden" aria-label={ritorno.corta}>
+                    ↩
+                  </span>
+                  <span className="hidden sm:inline">{ritorno.corta}</span>
                 </span>
               )}
               {/*  Com'è messo il cliente (28/10/2026): pallino e parola, niente risposte

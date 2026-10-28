@@ -578,6 +578,9 @@ const MODULI = [
   //  Dettatura voce → testo nella casella (commessa 2026-10-28-chat-dettatura):
   //   prove in prove/manychat/chat-dettatura.mjs.
   "chatwa/dettatura",
+  //  «Di ritorno» con lo stato di prima, nella chat (commessa
+  //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
+  "chatwa/ritorno",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -13599,14 +13602,14 @@ function proveDelCarattere() {
   const CAR = mod["lib/carattere"];
   gruppo("CARATTERE: ROTTE AMMESSE E TOKEN FERMI");
 
-  for (const p of ["/", "/blog", "/blog/", "/blog/un-articolo", "/CRM", "/CRM/", "/CRM/agenda", "/CRM/trattative?x=1", "/CRM/kpi/manuale", "/crm/agenda", "/CRM/agenda#oggi"]) {
+  for (const p of ["/", "/blog", "/blog/", "/blog/un-articolo", "/CRM", "/CRM/", "/CRM/agenda", "/CRM/trattative?x=1", "/CRM/kpi/manuale", "/crm/agenda", "/CRM/agenda#oggi", "/chat", "/chat?chat=x"]) {
     c(`Inter vale su ${p}`, true, CAR.usaInter(p));
   }
   for (const p of [
     "/preventivo", "/preventivo?watch=abc", "/meetly", "/meetly/abc-defg-hij", "/videochiamata/abc",
     "/presenta", "/presentatore", "/slide", "/regia/xyz", "/webinar/abc", "/prova-capelli",
     "/prova-anteprima/a", "/CRM/webinar", "/CRM/webinar/", "/CRM/webinar/abc", "/shop", "/nuova",
-    "/consulente", "/blogger", "/CRMx", "/CRM/Webinar", "/crm/webinar", "/CRM/WEBINAR/?x=1",
+    "/consulente", "/blogger", "/CRMx", "/chatx", "/chat/altro", "/CRM/Webinar", "/crm/webinar", "/CRM/WEBINAR/?x=1",
   ]) {
     c(`Inter NON vale su ${p}`, false, CAR.usaInter(p));
   }
