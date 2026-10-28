@@ -6,6 +6,12 @@
 -- nell'editor SQL di Supabase, come MANYCHAT-CANALE.sql. Scrive UNA sola riga
 -- di configurazione in app_config (chiave «prenota_chat»).
 --
+-- ORA C'È L'INTERRUTTORE NEL CRM: Impostazioni → WhatsApp → «Prenotazione della
+-- consulenza in chat» (solo per chi può cambiare le impostazioni). Accende e
+-- spegne questa stessa riga tenendo gli altri valori (consulenteId, preavviso,
+-- giorni, durata). Questo script resta per il primo collaudo, per cambiare i
+-- valori e per controllare (comandi 3-7); per accendere e spegnere basta il CRM.
+--
 -- FUNZIONA COSÌ: la funzione è SPENTA di serie. Senza la riga, con la riga
 -- illeggibile o con "acceso":false la rotta risponde sempre «nessuno» e non
 -- scrive niente. Si accende SOLO con "acceso":true (esatto).

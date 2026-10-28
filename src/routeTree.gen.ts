@@ -174,6 +174,7 @@ import { Route as ApiCrmProvaCodiciRouteImport } from './routes/api.crm.prova-co
 import { Route as ApiCrmProvaCatalogoRouteImport } from './routes/api.crm.prova-catalogo'
 import { Route as ApiCrmProvaCapelliRouteImport } from './routes/api.crm.prova-capelli'
 import { Route as ApiCrmPromemoriaWhatsappRouteImport } from './routes/api.crm.promemoria-whatsapp'
+import { Route as ApiCrmPrenotaChatRouteImport } from './routes/api.crm.prenota-chat'
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
 import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-upload'
 import { Route as ApiCrmMediaEliminaRouteImport } from './routes/api.crm.media-elimina'
@@ -1041,6 +1042,11 @@ const ApiCrmPromemoriaWhatsappRoute =
     path: '/api/crm/promemoria-whatsapp',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiCrmPrenotaChatRoute = ApiCrmPrenotaChatRouteImport.update({
+  id: '/api/crm/prenota-chat',
+  path: '/api/crm/prenota-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmMeetingSessionRoute = ApiCrmMeetingSessionRouteImport.update({
   id: '/api/crm/meeting-session',
   path: '/api/crm/meeting-session',
@@ -1289,6 +1295,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
@@ -1477,6 +1484,7 @@ export interface FileRoutesByTo {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
@@ -1671,6 +1679,7 @@ export interface FileRoutesById {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
   '/api/crm/prova-catalogo': typeof ApiCrmProvaCatalogoRoute
@@ -1866,6 +1875,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
     | '/api/crm/prova-catalogo'
@@ -2054,6 +2064,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
     | '/api/crm/prova-catalogo'
@@ -2247,6 +2258,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
     | '/api/crm/prova-catalogo'
@@ -2401,6 +2413,7 @@ export interface RootRouteChildren {
   ApiCrmMediaEliminaRoute: typeof ApiCrmMediaEliminaRoute
   ApiCrmMediaUploadRoute: typeof ApiCrmMediaUploadRoute
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
+  ApiCrmPrenotaChatRoute: typeof ApiCrmPrenotaChatRoute
   ApiCrmPromemoriaWhatsappRoute: typeof ApiCrmPromemoriaWhatsappRoute
   ApiCrmProvaCapelliRoute: typeof ApiCrmProvaCapelliRoute
   ApiCrmProvaCatalogoRoute: typeof ApiCrmProvaCatalogoRoute
@@ -3632,6 +3645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmPromemoriaWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/prenota-chat': {
+      id: '/api/crm/prenota-chat'
+      path: '/api/crm/prenota-chat'
+      fullPath: '/api/crm/prenota-chat'
+      preLoaderRoute: typeof ApiCrmPrenotaChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/meeting-session': {
       id: '/api/crm/meeting-session'
       path: '/api/crm/meeting-session'
@@ -4035,6 +4055,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMediaEliminaRoute: ApiCrmMediaEliminaRoute,
   ApiCrmMediaUploadRoute: ApiCrmMediaUploadRoute,
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
+  ApiCrmPrenotaChatRoute: ApiCrmPrenotaChatRoute,
   ApiCrmPromemoriaWhatsappRoute: ApiCrmPromemoriaWhatsappRoute,
   ApiCrmProvaCapelliRoute: ApiCrmProvaCapelliRoute,
   ApiCrmProvaCatalogoRoute: ApiCrmProvaCatalogoRoute,

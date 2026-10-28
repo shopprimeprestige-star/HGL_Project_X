@@ -6,8 +6,8 @@
  *  che lo cambia UNA volta e avvisa gli altri.
  *
  *  Puro: nessun import dal database, nessun `fetch`. Le uniche funzioni con
- *  corpo sono la lettura della configurazione, le chiavi di `app_config` e
- *  l'impronta del numero; il resto sono tipi.
+ *  corpo sono la lettura e la scrittura (`rigaConAcceso`) della configurazione,
+ *  le chiavi di `app_config` e l'impronta del numero; il resto sono tipi.
  *
  *  ⚠️ Nei log e nelle risposte a ManyChat solo codici (`CodiceLog`): mai
  *   numero, nome, testo del cliente, `subscriber_id` o uuid.
@@ -71,28 +71,43 @@ export interface ConfigPrenota {
 
 export const CHIAVE_CONFIG = "prenota_chat";
 
-/** Legge la riga. `null` = SPENTA: senza riga, illeggibile o senza
- *  `acceso: true` esatto non si prenota mai. I numeri fuori scala o non interi
+/** Gli altri campi della riga, validati: i numeri fuori scala o non interi
  *  tornano al predefinito (3 ore, 14 giorni, 60 minuti). */
-export function leggiConfigPrenota(testo: string | null | undefined): ConfigPrenota | null {
-  let j: unknown;
-  try {
-    j = JSON.parse(String(testo ?? ""));
-  } catch {
-    return null;
-  }
-  if (!j || typeof j !== "object") return null;
-  const r = j as Record<string, unknown>;
-  if (r.acceso !== true) return null;
+function campiConfig(r: Record<string, unknown>): Omit<ConfigPrenota, "acceso"> {
   const n = (v: unknown, min: number, max: number, predefinito: number) =>
     typeof v === "number" && Number.isInteger(v) && v >= min && v <= max ? v : predefinito;
   return {
-    acceso: true,
     consulenteId: typeof r.consulenteId === "string" ? r.consulenteId.trim() : "",
     preavvisoOre: n(r.preavvisoOre, 1, 48, 3),
     giorniAvanti: n(r.giorniAvanti, 1, 30, 14),
     durataMin: n(r.durataMin, 15, 180, 60),
   };
+}
+
+function oggettoDellaRiga(testo: string | null | undefined): Record<string, unknown> | null {
+  try {
+    const j: unknown = JSON.parse(String(testo ?? ""));
+    return j && typeof j === "object" && !Array.isArray(j) ? (j as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Legge la riga. `null` = SPENTA: senza riga, illeggibile o senza
+ *  `acceso: true` esatto non si prenota mai. */
+export function leggiConfigPrenota(testo: string | null | undefined): ConfigPrenota | null {
+  const r = oggettoDellaRiga(testo);
+  if (!r || r.acceso !== true) return null;
+  return { acceso: true, ...campiConfig(r) };
+}
+
+/** La riga nuova per l'interruttore del CRM: `acceso` come chiesto, il resto
+ *  (consulente, preavviso, giorni, durata, e ogni altro campo) com'è nella riga
+ *  vecchia, o i predefiniti se manca o non si legge. Spegnere NON toglie la
+ *  riga: scrive `acceso: false`. */
+export function rigaConAcceso(vecchia: string | null | undefined, acceso: boolean): string {
+  const r = oggettoDellaRiga(vecchia) ?? {};
+  return JSON.stringify({ ...r, v: 1, acceso, ...campiConfig(r) });
 }
 
 // ── Fasce e orari proposti ────────────────────────────────────────────────
