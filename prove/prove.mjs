@@ -20485,7 +20485,7 @@ function proveDiWhatsappOrariStelle() {
     [{ data: "2026-10-29", ore: ["10:00", "15:30"] }, { data: "2026-10-30", ore: ["11:00"] }],
     W.scelteDelGiorno([{ data: "2026-10-30", ora: "11:00" }, { data: "2026-10-29", ora: "15:30" }, { data: "2026-10-29", ora: "10:00" }, { data: "2026-10-29", ora: "10:00" }, { data: "x", ora: "10:00" }]));
   c("si parte dal consulente del lead se fa consulenze", "c2", W.consulenteDiPartenza(["c1", "c2"], "c2"));
-  c("…altrimenti da «Tutti»", ["tutti", "tutti", "tutti"], [W.consulenteDiPartenza(["c1"], "c9"), W.consulenteDiPartenza(["c1"], ""), W.consulenteDiPartenza([], null)]);
+  c("…altrimenti dal primo consulente («Tutti» non c'è più); a squadra vuota «tutti»", ["c1", "c1", "tutti"], [W.consulenteDiPartenza(["c1"], "c9"), W.consulenteDiPartenza(["c1"], ""), W.consulenteDiPartenza([], null)]);
   const giorni = [
     { data: "2026-10-28", fasce: [{ ora: "17:00" }] },
     { data: "2026-10-29", fasce: [{ ora: "10:00" }, { ora: "15:30" }] },

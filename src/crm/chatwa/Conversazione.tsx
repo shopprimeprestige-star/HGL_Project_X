@@ -318,7 +318,7 @@ export function Conversazione({
                   return (
                     <Fragment key={m.id}>
                       {nuovoGiorno && (
-                        <div className="sticky top-1 z-10 mb-1 mt-3 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first:mt-0 first-letter:uppercase">
+                        <div className="mb-1 mt-3 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first:mt-0 first-letter:uppercase">
                           {etichettaGiorno(d, adesso)}
                         </div>
                       )}

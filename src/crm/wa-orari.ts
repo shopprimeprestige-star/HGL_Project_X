@@ -141,9 +141,11 @@ export function scelteAncoraLibere(
 }
 
 /** Il consulente da cui parte il calendario: quello del lead, se è fra chi fa
- *  consulenze; altrimenti «Tutti». */
+ *  consulenze; altrimenti il primo della squadra. «Tutti» non si sceglie più
+ *  (richiesta del titolare 28/10: solo i consulenti veri); resta solo se la
+ *  squadra è vuota, perché il calendario abbia comunque da cosa partire. */
 export const consulenteDiPartenza = (squadra: string[], consulenteId?: string | null): string =>
-  consulenteId && squadra.includes(consulenteId) ? consulenteId : "tutti";
+  consulenteId && squadra.includes(consulenteId) ? consulenteId : (squadra[0] ?? "tutti");
 
 /** Il giorno visto da un consulente solo: le ore in cui LUI ha posto, coi
  *  suoi posti. È lo stesso che Slot liberi calcola scegliendo quella persona

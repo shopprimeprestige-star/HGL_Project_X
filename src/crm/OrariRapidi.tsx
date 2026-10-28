@@ -6,7 +6,7 @@
  *  ho finito clicco un pulsante per confermare e crea il messaggio».
  *  Una finestra (crm/ui/Finestra, col tema chiaro del CRM anche nel portale):
  *  sul telefono un foglio dal basso alto quanto lo schermo, sul computer
- *  larga, con la settimana in sette colonne. In alto «Tutti» e ogni consulente
+ *  larga, con la settimana in sette colonne. In alto ogni consulente
  *  che fa consulenze; si parte da quello del lead.
  *  Le regole (scelta, gruppi per giorno, testo, ritaglio per consulente) stanno
  *  in crm/wa-orari, provate; i posti sono quelli di Slot liberi
@@ -191,25 +191,24 @@ export function OrariRapidi(p: {
             role="group"
             aria-label="Consulente"
           >
-            {[
-              { id: "tutti", nome: "Tutti" },
-              ...squadra.map((c) => ({ id: c.id, nome: c.data.nome || "Senza nome" })),
-            ].map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                aria-pressed={chi === c.id}
-                onClick={() => setChi(c.id)}
-                className={cn(
-                  PILLOLA,
-                  chi === c.id
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
-                )}
-              >
-                {c.nome}
-              </button>
-            ))}
+            {squadra
+              .map((c) => ({ id: c.id, nome: c.data.nome || "Senza nome" }))
+              .map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={chi === c.id}
+                  onClick={() => setChi(c.id)}
+                  className={cn(
+                    PILLOLA,
+                    chi === c.id
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                  )}
+                >
+                  {c.nome}
+                </button>
+              ))}
           </div>
 
           <div className="mb-3 flex items-center justify-between gap-2">
