@@ -151,6 +151,9 @@ import { aspettaUnaData, conDriver } from "./InstallationScheduleDialog";
 //  scritto qui: badge del menu e pastiglia della lente devono dire lo stesso.
 import { quanteDaSeguire } from "./manutenzione/PannelloManutenzioni";
 import type { Lead } from "./types";
+//  Il numeretto di «WhatsApp» (chat in attesa di risposta): il criterio e la
+//  lettura leggera stanno in quel file, qui si disegna soltanto.
+import { useDaRispondere } from "./chatwa/useDaRispondere";
 //  ── IL NUMERO DI «DA FARE OGGI» LO CALCOLA LA PAGINA STESSA ────────────────
 //   Non un secondo conto scritto qui: `costruisciRighe` è la funzione pura da
 //   cui quella pagina fa nascere le sue righe, cose scritte a mano comprese, e
@@ -170,6 +173,10 @@ import { PREAVVISO_AVVISO, badgeScadenza, toccaAvvisare } from "./contabilita-sc
 //  rettangolo bianco — cioè un rimedio che nascondeva il problema invece di
 //  risolverlo. Il file scuro esisteva già in cartella.
 import logoBrand from "@/assets/logo-hair-genius-dark.png";
+
+/** Le code dei lead e delle pose vengono da ui.tsx; questa viene dai contatti
+ *  WhatsApp (non sono lead) e per questo si aggiunge qui, senza toccare ui.tsx. */
+export type ChiaveBadgeMenu = ChiaveConteggio | "wa_da_rispondere";
 
 export interface VoceMenu {
   /** nome corto, quello che si legge nella barra */
@@ -193,7 +200,7 @@ export interface VoceMenu {
   /** quale coda di lavoro accende il badge: il numero arriva da conteggiMenu
    *  (ui.tsx) per le voci dei lead, da conteggiPose (qui sotto) per il gruppo
    *  delle pose */
-  badge?: ChiaveConteggio;
+  badge?: ChiaveBadgeMenu;
   /** Fuori dal menu ma dentro la ricerca: la pagina esiste ancora e i link
    *  salvati funzionano, semplicemente non merita una riga fissa. */
   nascosta?: boolean;
@@ -679,6 +686,11 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         //  dell'archivio altrui: basta essere entrati.
         permesso: "lead.propri",
         alias: "chat messaggi template",
+        //  Quante chat aspettano una risposta. Non è la giornata di oggi ma la
+        //  coda ferma, come «Da spedire»: lo dice la frase al passaggio del
+        //  mouse. Ambra perché chiede un gesto del consulente (rispondere) ma
+        //  non è un ritardo contato; mai rosso, per non farsi leggere come tale.
+        badge: "wa_da_rispondere",
       },
       /*  ── ⚠️ «NOTIFICHE» NON STA PIÙ QUI ─────────────────────────────────
           Tolta su richiesta del committente, e la ragione regge: la campanella
@@ -1104,6 +1116,26 @@ export function CRMSidebar() {
   //  `guardiaCRM` sulle rotte /api, e `GuardiaPagina` qui sotto spiega il perché
   //  a chi ci arriva col link. Un gruppo rimasto senza voci sparisce, invece di
   //  lasciare un'intestazione sopra il vuoto.
+  //  ── «WHATSAPP · DA RISPONDERE» ───────────────────────────────────────────
+  //   Si legge solo se la voce si vede a questa persona: chi non ha la voce non
+  //   paga la query. Il resto del menu non dipende da questo numero, e se la
+  //   lettura fallisce il numero è 0 (vedi useDaRispondere): il badge sparisce,
+  //   la barra no.
+  const voceChat = GRUPPI_MENU.flatMap((g) => g.voci).find((v) => v.badge === "wa_da_rispondere");
+  const vedeChat =
+    !!voceChat && (!voceChat.scheme || canAccess(voceChat.scheme)) && puoVedere(voceChat);
+  const chatInAttesa = useDaRispondere(vedeChat);
+  const tuttiIConti: Record<ChiaveBadgeMenu, ContoBadge> = {
+    ...conteggi,
+    wa_da_rispondere: {
+      n: chatInAttesa,
+      urgenza: "oggi",
+      titolo: chatInAttesa
+        ? `${plurale(chatInAttesa, "chat aspetta", "chat aspettano")} una risposta · si aggiorna ogni minuto`
+        : "Nessuna chat in attesa di risposta",
+    },
+  };
+
   const gruppi = GRUPPI_MENU.map((g) => ({
     ...g,
     voci: g.voci.filter((v) => !v.nascosta && (!v.scheme || canAccess(v.scheme)) && puoVedere(v)),
@@ -1195,7 +1227,7 @@ export function CRMSidebar() {
               <SidebarMenu>
                 {gruppo.voci.map((voce) => {
                   const attiva = isActive(voce.url, voce.exact);
-                  const conto = voce.badge ? conteggi[voce.badge] : undefined;
+                  const conto = voce.badge ? tuttiIConti[voce.badge] : undefined;
                   //  ⚠️ Acceso anche a zero quando c'è una parola al posto del
                   //   numero: è il giorno della scadenza, e spegnerlo lì è il
                   //   momento peggiore in cui potesse succedere.
