@@ -23,12 +23,12 @@
 --                             contato fra i LEAD NUOVI (con primo_contatto e
 --                             richiamo_24h) e sotto la RISERVA di 30 posti per gli
 --                             appuntamenti; e il tetto dei lead nuovi alzato da
---                             30 a 100 (= il totale: «tutti oggi»). Il tetto vero
---                             per i lead nuovi resta totale − riserva = 70 al
+--                             30 a 150 (= il totale). Il tetto vero
+--                             per i lead nuovi resta totale − riserva = 120 al
 --                             giorno, e il riquadro può solo ABBASSARLO.
---                             Il TOTALE resta 100, la riserva 30, i ricontatti 20.
+--                             Il TOTALE è 150 (dal 28/10), la riserva 30, i ricontatti 20.
 --
--- ⚠️ Uguale a `quando.ts` (TETTO_LEAD_NUOVI = TETTO_TOTALE = 100): i due valori si
+-- ⚠️ Uguale a `quando.ts` (TETTO_LEAD_NUOVI = TETTO_TOTALE = 150): i due valori si
 --    cambiano insieme.
 -- ⚠️ ORDINE: dopo 20261025120100_manychat_sequenze.sql. Va applicata a mano dal
 --    titolare, DOPO la pubblicazione del codice (il codice nuovo senza questa
