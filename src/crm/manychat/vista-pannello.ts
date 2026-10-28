@@ -383,7 +383,7 @@ export const MODELLI_FLUSSO: { modello: string; etichetta: string }[] = [
     modello: "consulenza_conferma_presenza",
     etichetta: "Conferma della consulenza («risponda SÌ»)",
   },
-  { modello: "hgl_promemoria_meet", etichetta: "Promemoria 25 minuti prima del meet" },
+  { modello: "hgl_promemoria_meet", etichetta: "Promemoria 20 minuti prima del meet" },
   { modello: "hgl_ricontatto_consulenza", etichetta: "Ricontatto dei consulenti" },
 ];
 

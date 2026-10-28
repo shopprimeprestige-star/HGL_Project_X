@@ -9,7 +9,7 @@
  *  applica l'SQL: qui è la stessa regola in lettura).
  *  - `decidiLeadNuovi`: primo contatto (`n|tel9`) e richiamo a 24 h (`n24|tel9`).
  *  - `decidiGiornoMeet`: mattina (`o|tel9|…`) e ora esatta (`a|tel9|…`); il
- *    promemoria dei 25' resta in `decidiPromemoria`.
+ *    promemoria dei 20' resta in `decidiPromemoria`.
  *  - `decidiMeetDomani`: il promemoria 24 ore prima (`d|tel9|…`), sotto lo stesso
  *    interruttore «Giorno del meet».
  *

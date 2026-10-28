@@ -68,10 +68,10 @@ export const RITMO_MAX = 33;
  *  (le variabili `crm_*` stanno sul contatto: due invii vicini si pesterebbero). */
 export const PAUSA_CONTATTO_S = 120;
 
-/** Il promemoria ha il suo bersaglio a −25' dal meet… */
-export const ANTICIPO_PROMEMORIA_MIN = 25;
-/** …e si accetta fino a −15': oltre è «giro in ritardo». */
-export const LIMITE_RITARDO_PROMEMORIA_MIN = 15;
+/** Il promemoria ha il suo bersaglio a −20' dal meet (decisione del titolare 28/10; era −25')… */
+export const ANTICIPO_PROMEMORIA_MIN = 20;
+/** …e si accetta fino a −10': oltre è «giro in ritardo». */
+export const LIMITE_RITARDO_PROMEMORIA_MIN = 10;
 /** Al massimo tre promemoria per telefono e giorno di meet. */
 export const MAX_PROMEMORIA_PER_GIORNO = 3;
 /** I ricontatti escono dalle 9:00 (compresa) alle 20:00 (esclusa), ora di Roma. */
