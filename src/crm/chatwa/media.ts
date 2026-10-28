@@ -76,6 +76,8 @@ function leggiMedia(t: string): { tipo: TipoTesto; url: string } | null {
   } catch {
     return null;
   }
+  // Cintura e bretelle (ponytail): col controllo grezzo qui sopra questi sono già coperti; restano come
+  // difesa in profondità se qualcuno allenta il passo 1 o 2. Non toglierli credendoli superflui.
   if (url.protocol !== "https:" || url.hostname !== autorita || url.port || url.username || url.password || url.hash) return null;
   // 3. il percorso (già normalizzato dal parser: i `..` sono spariti) ha la forma attesa, senza %2e %2f %5c.
   if (!PERCORSO.test(url.pathname) || /%2e|%2f|%5c/i.test(url.pathname)) return null;
