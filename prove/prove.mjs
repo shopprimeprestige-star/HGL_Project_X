@@ -20538,7 +20538,7 @@ async function proveDelleNotifichePush() {
   const hook = readFileSync(join(radice, "src/routes/api.public.whatsapp-webhook.ts"), "utf8");
   const ris = readFileSync(join(radice, "src/crm/manychat/risposta.ts"), "utf8");
   const rotta = readFileSync(join(radice, "src/routes/api.crm.push.ts"), "utf8");
-  const sql = readFileSync(join(radice, "supabase/migrations/20261028170000_push_iscrizioni.sql"), "utf8");
+  const sql = readFileSync(join(radice, "supabase/migrations/20261028170100_push_iscrizioni.sql"), "utf8");
   c("webhook di Meta: avvisa solo se il messaggio è nuovo", true, /if \(!nuovo\.error\)\s*await avvisaMessaggioWhatsapp/.test(hook));
   c("ManyChat: avvisa dopo aver registrato, senza fermare il resto", true, /\.avvisaNuovo\?\.\(userId[\s\S]{0,120}\.catch\(\(\) => undefined\)/.test(ris));
   c("la rotta decide l'installazione dalla sessione, non dal corpo", true, /const userId = g\.chi\.adminUserId/.test(rotta) && !/corpo\.userId|corpo\.user_id/.test(rotta));
@@ -20553,6 +20553,32 @@ async function proveDelleNotifichePush() {
   c("all'apertura del CRM l'iscrizione si rinnova", true, /m\.rinnovaQuesto\(\)/.test(motore));
   c("uscendo dal CRM il dispositivo si toglie", true, /m\.togliQuesto\(\)/.test(auth));
   c("la tabella è solo del server (RLS senza politiche)", true, /ENABLE ROW LEVEL SECURITY/.test(sql) && !/CREATE POLICY/.test(sql) && /REVOKE ALL/.test(sql));
+}
+
+
+/** ── WHATSAPP: TEMPERATURA, RISPOSTE E FILTRO DEL CONSULENTE (28/10/2026) ──
+ *  Richiesta del titolare: in chat si vede se è gelido, caldo…, l'icona info
+ *  mostra tutte le risposte, e si filtrano le chat per consulente. */
+function proveDiWhatsappTemperaturaConsulente() {
+  gruppo("WHATSAPP: TEMPERATURA, RISPOSTE DEL MODULO, FILTRO DEL CONSULENTE");
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("la riga della chat ha pallino e parola (non dopo la vendita)", true, /mostraTemperatura\(c\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga dati=\{c\.lead\.data\} max=\{0\}/.test(riga));
+  c("l'intestazione della chat pure", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,400}soloPallino[\s\S]{0,60}sm:hidden/.test(conv));
+  c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
+  c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
+  c("il filtro del consulente vale per tutte le sezioni", true,
+    /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /filter\(eVecchia\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
+  c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
+  c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /Nessun cliente di questo consulente aspetta una risposta/.test(elenco));
+  c("con la scheda la riga mostra stato e temperatura, il numero va nell'intestazione", true, /\{!c\.lead && \(\s*<span className="shrink-0 font-mono/.test(riga));
+  c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId === consulente/.test(elenco));
+  //  Il pannello di temperatura per un lead del modulo «22-ott» e per uno senza risposte.
+  const T = mod["temperatura-lead"];
+  c("lead col modulo: c'è il grado da mostrare", "Caldo", T.temperaturaLead({ roma: "si", inizio: "subito", budget: "approfondire", aspettativa: "adatto" }).parola);
+  c("lead senza risposte: niente pallino (non si inventa)", "nessuna", T.temperaturaLead(undefined, null).livello);
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
@@ -20666,6 +20692,7 @@ proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
 proveDiWhatsappOrariStelle();
 await proveDelleNotifichePush();
+proveDiWhatsappTemperaturaConsulente();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

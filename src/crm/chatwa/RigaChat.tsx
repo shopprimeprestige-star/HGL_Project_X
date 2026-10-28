@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL } from "@/crm/types";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
+import { TemperaturaRiga } from "@/crm/Temperatura";
+import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { anteprimaIn } from "./media";
 import { attesaInChiaro } from "./stato";
 import { formatTimeIT, initials } from "./formati";
@@ -143,9 +145,19 @@ export function RigaChat({
                   <span className="truncate">{LEAD_STATUS_LABEL[c.lead.data.stato]}</span>
                 </span>
               )}
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                {c.phone}
-              </span>
+              {/*  Com'è messo il cliente (28/10/2026): pallino e parola, niente risposte
+                  brevi (la riga è stretta; le risposte sono nel tasto info della chat). */}
+              {c.lead && mostraTemperatura(c.lead.data.stato) && (
+                <TemperaturaRiga dati={c.lead.data} max={0} className="shrink-0 text-[11px]" />
+              )}
+              {/*  Con la scheda il numero lascia il posto a stato e temperatura (la
+                  riga è stretta: con tutti e tre lo stato restava «Ap…»). Il
+                  numero si legge nell'intestazione della chat. */}
+              {!c.lead && (
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  {c.phone}
+                </span>
+              )}
             </span>
           )}
           {/*  Senza la terza riga, lo spazio per le stelle (che stanno fuori dal bottone). */}
