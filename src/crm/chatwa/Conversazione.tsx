@@ -26,6 +26,7 @@ import { BollaMessaggio } from "./BollaMessaggio";
 import { Casella } from "./Casella";
 import { initials } from "./formati";
 import { attesaInChiaro } from "./stato";
+import { attaccataAllaPrecedente } from "./stile";
 import type { ConversazioneProps } from "./tipi";
 
 /** Il giorno di calendario a Roma («2026-10-28»): il CRM si legge con l'ora italiana da qualunque fuso. */
@@ -236,11 +237,12 @@ export function Conversazione({
             ref={scrollRef}
             role="log"
             aria-label="Messaggi della chat"
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 md:px-6 py-3 md:py-4"
+            //  Sfondo tenue di WhatsApp (#efeae2): le bolle bianche ci si staccano senza bordi.
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#efeae2] px-2.5 py-2 md:px-[6%] md:py-3"
           >
-            <div className="mx-auto max-w-2xl flex flex-col gap-1.5">
+            <div className="mx-auto flex max-w-3xl flex-col">
               {messaggi.length === 0 ? (
-                <div className="self-center bg-card border border-border text-muted-foreground text-[12px] px-3 py-1 rounded-md mt-4">
+                <div className="mt-4 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
                   Nessun messaggio ancora · scrivi il primo
                 </div>
               ) : (
@@ -252,11 +254,17 @@ export function Conversazione({
                   return (
                     <Fragment key={m.id}>
                       {nuovoGiorno && (
-                        <div className="self-center my-2 rounded-md bg-card border border-border px-2.5 py-0.5 text-[12px] text-muted-foreground first-letter:uppercase">
+                        <div className="sticky top-1 z-10 mb-1 mt-3 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first:mt-0 first-letter:uppercase">
                           {etichettaGiorno(d, adesso)}
                         </div>
                       )}
-                      <BollaMessaggio messaggio={m} lead={attiva.lead} />
+                      <BollaMessaggio
+                        messaggio={m}
+                        lead={attiva.lead}
+                        attaccata={
+                          !nuovoGiorno && attaccataAllaPrecedente(m, messaggi[i - 1] ?? null)
+                        }
+                      />
                     </Fragment>
                   );
                 })
