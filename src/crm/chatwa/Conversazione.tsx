@@ -29,6 +29,7 @@ import { InfoModulo } from "./InfoModulo";
 import { Casella } from "./Casella";
 import { initials } from "./formati";
 import { attesaInChiaro } from "./stato";
+import { ritornoInChat } from "./ritorno";
 import { attaccataAllaPrecedente } from "./stile";
 import type { ConversazioneProps } from "./tipi";
 
@@ -93,6 +94,7 @@ export function Conversazione({
 
   const adesso = new Date();
   const inAttesa = attiva?.daRispondere?.attesa === true;
+  const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
 
   return (
     <section className="w-full h-full flex flex-col min-w-0 bg-muted/30">
@@ -170,6 +172,17 @@ export function Conversazione({
                       className="hidden shrink-0 text-[12px] sm:inline-flex"
                     />
                   </>
+                )}
+                {/*  Di ritorno (28/10/2026): sul telefono la sola parola (lo stato di
+                    prima e la data sono nel tasto Info), da 640 px lo stato di prima. */}
+                {ritorno && (
+                  <span
+                    className="min-w-0 shrink truncate whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
+                    title={ritorno.titolo}
+                  >
+                    <span className="sm:hidden">{ritorno.corta}</span>
+                    <span className="hidden sm:inline">{ritorno.completa}</span>
+                  </span>
                 )}
                 {(attiva.lead || attiva.contact?.display_name) && (
                   <span className="hidden sm:inline text-[11px] text-muted-foreground font-mono truncate">

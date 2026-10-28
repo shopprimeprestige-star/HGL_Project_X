@@ -578,6 +578,9 @@ const MODULI = [
   //  Dettatura voce → testo nella casella (commessa 2026-10-28-chat-dettatura):
   //   prove in prove/manychat/chat-dettatura.mjs.
   "chatwa/dettatura",
+  //  «Di ritorno» con lo stato di prima, nella chat (commessa
+  //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
+  "chatwa/ritorno",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });

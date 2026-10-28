@@ -12,6 +12,7 @@ import { PallinoTemperatura } from "@/crm/Temperatura";
 import { moduloLetto, vociModulo } from "@/crm/modulo-lead";
 import { mostraTemperatura, temperaturaLead } from "@/crm/temperatura-lead";
 import type { LeadData } from "@/crm/types";
+import { ritornoInChat } from "./ritorno";
 
 export function InfoModulo({
   dati,
@@ -28,7 +29,8 @@ export function InfoModulo({
   const voci = vociModulo(modulo);
   const t = temperaturaLead(modulo, dati.qualifica);
   const conTemperatura = t.livello !== "nessuna" && mostraTemperatura(dati.stato);
-  if (voci.length === 0 && !conTemperatura && !telefono) return null;
+  const ritorno = ritornoInChat(dati);
+  if (voci.length === 0 && !conTemperatura && !telefono && !ritorno) return null;
   const d = t.termometro;
   return (
     <>
@@ -54,6 +56,13 @@ export function InfoModulo({
           <div className="space-y-3 p-4 text-[13px]">
             {telefono && (
               <p className="font-mono text-[12.5px] text-muted-foreground">{telefono}</p>
+            )}
+            {/*  Di ritorno: qui per intero, con la data (sul telefono il tooltip non c'è). */}
+            {ritorno && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                <p className="font-medium">{ritorno.completa}</p>
+                <p className="mt-0.5 text-[12px]">{ritorno.titolo}</p>
+              </div>
             )}
             {conTemperatura && (
               <div className="space-y-1.5">
