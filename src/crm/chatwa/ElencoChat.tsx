@@ -31,6 +31,19 @@ const CHIP_SOTTOFILTRI: { v: Sottofiltro; l: string }[] = [
   ...STATI_SOTTOFILTRI.map((v) => ({ v, l: LEAD_STATUS_LABEL[v] })),
 ];
 
+/** Una fila di pastiglie che scorre di lato: niente barra, aggancio morbido alle
+ *  pastiglie, bordo destro sfumato (si vede che continua). */
+const FILA =
+  "flex snap-x gap-2 overflow-x-auto overscroll-x-contain scroll-px-3 px-3 [mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)] [scrollbar-width:none] md:gap-1.5 md:scroll-px-2 md:px-2 md:py-1 [&::-webkit-scrollbar]:hidden";
+/** Il tasto di una pastiglia: 44 px di tocco sul telefono (h-11), 28 dal computer. */
+const TASTO = "group h-11 shrink-0 snap-start focus-visible:outline-none md:h-7";
+/** La pastiglia a vista: 32 px sul telefono; `accesa` = i colori quando è scelta. */
+const pastiglia = (accesa: string | false) =>
+  cn(
+    "inline-flex h-8 items-center whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
+    accesa || "border-border bg-background text-muted-foreground group-hover:bg-muted",
+  );
+
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
@@ -200,50 +213,49 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         )}
       </div>
 
-      {/* Pastiglie: scorrono di lato, senza barra, e nessuna va a capo */}
-      <div
-        role="group"
-        aria-label="Filtra le chat"
-        className="flex gap-2 overflow-x-auto border-b border-border px-3 pb-2.5 [scrollbar-width:none] md:gap-1.5 md:px-2 md:py-2 [&::-webkit-scrollbar]:hidden"
-      >
+      {/*  ── LE FILE DI PASTIGLIE (29/10/2026) ───────────────────────────────
+          Scorrono di lato come su WhatsApp, senza barra. Il bordo destro sfuma
+          (si capisce che ce ne sono altre) e in fondo c'è un margine, così
+          l'ultima arrivata al bordo si legge intera. Il tocco resta da 44 px
+          (`TASTO`), la pastiglia a vista è da 32 (`pastiglia`). */}
+      <div role="group" aria-label="Filtra le chat" className={cn(FILA, "border-b border-border")}>
         {FILTRI.map((f) => (
           <button
             key={f.v}
             type="button"
             aria-pressed={filtro === f.v}
             onClick={() => setFiltro(f.v)}
-            className={cn(
-              "h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
-              filtro === f.v
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-border bg-background text-muted-foreground hover:bg-muted",
-            )}
+            className={TASTO}
           >
-            {f.l}
-            {f.v === "da-chiamare" && contaPillola > 0 ? ` ${contaPillola}` : ""}
+            <span
+              className={pastiglia(
+                filtro === f.v && "border-emerald-200 bg-emerald-50 text-emerald-700",
+              )}
+            >
+              {f.l}
+              {f.v === "da-chiamare" && contaPillola > 0 ? ` ${contaPillola}` : ""}
+            </span>
           </button>
         ))}
         <button
           type="button"
           aria-pressed={soloStelle}
           onClick={() => setSoloStelle((v) => !v)}
-          className={cn(
-            "h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
-            soloStelle
-              ? "border-amber-300 bg-amber-50 text-amber-800"
-              : "border-border bg-background text-muted-foreground hover:bg-muted",
-          )}
+          className={TASTO}
         >
-          <Star aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
-          In osservazione{conStelle ? ` ${conStelle}` : ""}
+          <span className={pastiglia(soloStelle && "border-amber-300 bg-amber-50 text-amber-800")}>
+            <Star aria-hidden="true" className="mr-1 h-3.5 w-3.5" />
+            In osservazione{conStelle ? ` ${conStelle}` : ""}
+          </span>
         </button>
+        <span aria-hidden="true" className="w-6 shrink-0" />
       </div>
 
       {filtro === "da-chiamare" && (
         <div
           role="group"
           aria-label="Quale stato di chiamata"
-          className="flex gap-2 overflow-x-auto border-b border-border bg-muted/30 px-3 py-2 [scrollbar-width:none] md:gap-1.5 md:px-2 [&::-webkit-scrollbar]:hidden"
+          className={cn(FILA, "border-b border-border bg-muted/30")}
         >
           {CHIP_SOTTOFILTRI.filter((x) => x.v === "tutti" || conti[x.v] > 0).map((x) => (
             <button
@@ -251,20 +263,22 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               type="button"
               aria-pressed={sottoAttivo === x.v}
               onClick={() => setSotto(x.v)}
-              className={cn(
-                "h-11 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
-                sottoAttivo === x.v
-                  ? "border-sky-300 bg-sky-50 text-sky-800"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted",
-              )}
+              className={TASTO}
             >
-              {x.l} {conti[x.v]}
+              <span
+                className={pastiglia(
+                  sottoAttivo === x.v && "border-sky-300 bg-sky-50 text-sky-800",
+                )}
+              >
+                {x.l} <span className="ml-1 tabular-nums">{conti[x.v]}</span>
+              </span>
             </button>
           ))}
+          <span aria-hidden="true" className="w-6 shrink-0" />
         </div>
       )}
       {filtro === "da-chiamare" && vociQuando.length > 1 && (
-        <label className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 pb-2 text-[13px] text-muted-foreground md:px-2 md:text-[12px]">
+        <label className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 py-1.5 text-[13px] text-muted-foreground md:px-2 md:text-[12px]">
           <span className="shrink-0">Richiamo</span>
           {/*  Nativa come quella del consulente: sul telefono la rotella di sistema. */}
           <select
