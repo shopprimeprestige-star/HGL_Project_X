@@ -47,7 +47,6 @@ import {
   finestra24,
   leggiContattiAPagine,
   leggiSenzaDoppioni,
-  ordinaDaRispondere,
   schedaUnica,
   statoCasella,
 } from "./stato";
@@ -630,30 +629,27 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       item.finestra = { aperta: f.aperta, frase: f.frase };
     }
 
-    // ordina per ultimo messaggio
-    return Array.from(map.values()).sort((a, b) => {
-      const ta = a.lastMessage
-        ? new Date(a.lastMessage.created_at).getTime()
-        : a.contact?.last_message_at
-          ? new Date(a.contact.last_message_at).getTime()
-          : 0;
-      const tb = b.lastMessage
-        ? new Date(b.lastMessage.created_at).getTime()
-        : b.contact?.last_message_at
-          ? new Date(b.contact.last_message_at).getTime()
-          : 0;
-      return tb - ta;
-    });
+    // ordina per ultimo movimento, come WhatsApp: il messaggio più recente fra quelli
+    // caricati, l'ultimo messaggio del contatto e l'ultima entrata del cliente.
+    const t = (v: string | null | undefined) => {
+      const n = ms(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const quando = (x: ChatItem) =>
+      Math.max(
+        t(x.lastMessage?.created_at),
+        t(x.contact?.last_message_at),
+        t(x.contact?.ultimo_in_entrata_il),
+      );
+    return Array.from(map.values()).sort((a, b) => quando(b) - quando(a));
   }, [tutti, contacts, leads, adesso, ottimistici]);
 
-  /** «Da rispondere»: chi aspetta da più tempo sta sopra (D17). */
+  /** «Da rispondere»: come su WhatsApp, l'ultima chat che si è mossa sta sopra
+   *  (richiesta del titolare, 29/10/2026: prima stava sopra chi aspettava da più
+   *  tempo, e un messaggio appena arrivato finiva in fondo). `chats` è già
+   *  ordinato per ultimo messaggio, compresi quelli del ponte WhatsApp. */
   const daRispondere = useMemo<ChatItem[]>(
-    () =>
-      ordinaDaRispondere(
-        chats
-          .filter((c) => c.daRispondere?.attesa)
-          .map((chat) => ({ dal: chat.daRispondere?.dal ?? null, chat })),
-      ).map((x) => x.chat),
+    () => chats.filter((c) => c.daRispondere?.attesa),
     [chats],
   );
 

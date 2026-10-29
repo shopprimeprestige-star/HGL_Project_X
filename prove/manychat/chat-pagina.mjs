@@ -570,8 +570,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         ],
       });
       c(
-        "in «Da rispondere» chi aspetta da più tempo sta sopra; chi ha avuto risposta no; lo STOP sì",
-        [[P2, P1, P4]],
+        "in «Da rispondere» come su WhatsApp l'ultima che si è mossa sta sopra; chi ha avuto risposta no; lo STOP sì",
+        [[P4, P1, P2]],
         [telefoni(p.api().daRispondere)],
       );
       const per = (tel) => p.api().chats.find((x) => x.phone === tel);

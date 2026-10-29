@@ -77,7 +77,7 @@ export interface ChatItem {
 /** Ritorno di `useChatWa`: l'unica cosa che i componenti conoscono dei dati. */
 export interface ChatWaApi {
   chats: ChatItem[];
-  /** Le chat in «Da rispondere», già ordinate (la più vecchia sopra). */
+  /** Le chat in «Da rispondere», già ordinate come su WhatsApp (l'ultima che si è mossa sopra). */
   daRispondere: ChatItem[];
   visibili: ChatItem[];
   filtro: FiltroChat;
