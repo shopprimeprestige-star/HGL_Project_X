@@ -19,6 +19,8 @@ export interface ScegliModelloProps {
   dati: { nomeLead: string; nomeConsulente: string };
   inviando: boolean;
   onInvia: (m: { nome: string; lingua: string; parametri: string[] }) => Promise<void>;
+  /** Il modello adatto allo stato del lead (29/10/2026): si apre subito, coi valori. */
+  consigliato?: { modello: MetaTemplate; valori: string[] } | null;
 }
 
 /** «hgl_primo_contatto» → «Primo contatto»: il nome tecnico non si mostra. */
@@ -33,10 +35,19 @@ const costoDi = (t: MetaTemplate) =>
 
 /** La scelta del modello fuori finestra: elenco, poi anteprima con i campi, poi invio.
  *  Un clic sul modello apre soltanto l'anteprima: il messaggio parte solo dal pulsante dell'anteprima. */
-export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: ScegliModelloProps) {
-  const [scelto, setScelto] = useState<MetaTemplate | null>(null);
+export function ScegliModello({
+  modelli,
+  canale,
+  dati,
+  inviando,
+  onInvia,
+  consigliato,
+}: ScegliModelloProps) {
+  const [scelto, setScelto] = useState<MetaTemplate | null>(consigliato?.modello ?? null);
   //  I valori restano per modello: se l'invio fallisce o si cambia idea, non si riscrive.
-  const [valori, setValori] = useState<Record<string, string[]>>({});
+  const [valori, setValori] = useState<Record<string, string[]>>(
+    consigliato ? { [consigliato.modello.name]: consigliato.valori } : {},
+  );
 
   if (modelli.length === 0) {
     return (
@@ -72,8 +83,15 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="text-[13px] font-semibold text-foreground truncate">
-            {titolo(scelto.name)}
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-foreground truncate">
+              {titolo(scelto.name)}
+            </div>
+            {scelto.name === consigliato?.modello.name && (
+              <div className="text-[11.5px] text-emerald-700">
+                Consigliato per lo stato del lead · con ← ne scegli un altro
+              </div>
+            )}
           </div>
         </div>
         {scelto.params.length > 0 && (

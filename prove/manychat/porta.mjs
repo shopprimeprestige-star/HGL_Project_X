@@ -614,7 +614,11 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       c(
         "cliente che ha scritto 2 ore fa: parte il TESTO, non il flusso",
         ["ok", true, false],
-        [ra.esito, aperta.f.percorsi().includes(PERCORSI.testo), aperta.f.percorsi().includes(PERCORSI.flusso)],
+        [
+          ra.esito,
+          aperta.f.percorsi().includes(PERCORSI.testo),
+          aperta.f.percorsi().includes(PERCORSI.flusso),
+        ],
       );
       c(
         "…col testo del modello e i suoi valori (niente segnaposto)",
@@ -625,7 +629,11 @@ export async function provePorta(mod, { c, gruppo, radice }) {
           /\{\{|\[template:/.test(aperta.messaggi[0].corpo),
         ],
       );
-      c("…nel registro senza flusso, con la sua chiave", [null, "c|k1|g1"], [aperta.righe[0].flowNs, aperta.righe[0].chiave]);
+      c(
+        "…nel registro senza flusso, con la sua chiave",
+        [null, "c|k1|g1"],
+        [aperta.righe[0].flowNs, aperta.righe[0].chiave],
+      );
       const tardi = conEntrata(23.5);
       await invia(tardi, conferma);
       c(
@@ -635,16 +643,32 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       );
       const senzaPorta = creaPorte();
       await invia(senzaPorta, conferma);
-      c("senza la porta della finestra: il flusso, come prima", true, senzaPorta.f.percorsi().includes(PERCORSI.flusso));
+      c(
+        "senza la porta della finestra: il flusso, come prima",
+        true,
+        senzaPorta.f.percorsi().includes(PERCORSI.flusso),
+      );
       const guasto = conEntrata("guasto");
       const rg = await invia(guasto, conferma);
-      c("lettura della finestra guasta: il flusso, e l'invio riesce", ["ok", true], [rg.esito, guasto.f.percorsi().includes(PERCORSI.flusso)]);
+      c(
+        "lettura della finestra guasta: il flusso, e l'invio riesce",
+        ["ok", true],
+        [rg.esito, guasto.f.percorsi().includes(PERCORSI.flusso)],
+      );
       const ignoto = conEntrata(1);
       await invia(ignoto, { ...conferma, modello: "hgl_prova", parametri: ["Maria"] });
-      c("modello che il CRM non conosce: il flusso", true, ignoto.f.percorsi().includes(PERCORSI.flusso));
+      c(
+        "modello che il CRM non conosce: il flusso",
+        true,
+        ignoto.f.percorsi().includes(PERCORSI.flusso),
+      );
       const vuoto = conEntrata(1);
       await invia(vuoto, { ...conferma, parametri: ["Maria", "", "10:00", "https://x.test/a"] });
-      c("un valore vuoto: il flusso (mai un testo con un buco)", true, vuoto.f.percorsi().includes(PERCORSI.flusso));
+      c(
+        "un valore vuoto: il flusso (mai un testo con un buco)",
+        true,
+        vuoto.f.percorsi().includes(PERCORSI.flusso),
+      );
       const rifiutato = conEntrata(2, {
         finto: nuovoFinto().su("POST", PERCORSI.testo, {
           http: 400,
@@ -655,12 +679,24 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       c(
         "ManyChat rifiuta il testo (finestra chiusa per lui): parte SUBITO il flusso, esito ok",
         ["ok", true, true],
-        [rr.esito, rifiutato.f.percorsi().includes(PERCORSI.testo), rifiutato.f.percorsi().includes(PERCORSI.flusso)],
+        [
+          rr.esito,
+          rifiutato.f.percorsi().includes(PERCORSI.testo),
+          rifiutato.f.percorsi().includes(PERCORSI.flusso),
+        ],
       );
-      c("…e in chat si registra il modello", "[template:consulenza_conferma_presenza]", rifiutato.messaggi.at(-1).corpo);
+      c(
+        "…e in chat si registra il modello",
+        "[template:consulenza_conferma_presenza]",
+        rifiutato.messaggi.at(-1).corpo,
+      );
       const chat = conEntrata(2);
       await invia(chat, { testo: "ciao", tipo: "chat", leadId: null });
-      c("la chat a mano col testo resta testo", [true, false], [chat.f.percorsi().includes(PERCORSI.testo), chat.f.percorsi().includes(PERCORSI.flusso)]);
+      c(
+        "la chat a mano col testo resta testo",
+        [true, false],
+        [chat.f.percorsi().includes(PERCORSI.testo), chat.f.percorsi().includes(PERCORSI.flusso)],
+      );
     }
     //  Guasti attorno all'invio.
     const senza = creaPorte({ senzaChiave: true });

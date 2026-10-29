@@ -69,3 +69,106 @@ export function controllaModello(
     };
   return { ok: true, valori: puliti };
 }
+
+/* ── IL MODELLO CONSIGLIATO (29/10/2026) ──────────────────────────────────
+ *  Richiesta del titolare: con la finestra di 24 ore chiusa «il CRM capisce
+ *  quale messaggio volevo mandare e invia il template corretto, se è un
+ *  reminder o altro». Dallo stato della scheda (e dalla data della
+ *  consulenza) si sceglie il modello, con i valori già messi: la casella
+ *  apre direttamente la sua anteprima e basta un tocco su «Invia».
+ *  Fra i candidati vale il primo che il canale permette (`modelli`).
+ *  ⚠️ Mai un valore inventato: un campo che non si sa resta vuoto e l'invio
+ *   lo chiede, come per gli altri modelli. */
+export interface DatiConsigliato {
+  stato?: string;
+  dataMeeting?: string;
+  oraMeeting?: string;
+  linkMeeting?: string;
+  oraRicontatto?: string;
+}
+
+const piuGiorni = (data: string, n: number) => {
+  const d = new Date(`${data}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** I nomi dei modelli adatti, dal più adatto. Vuoto se nessuno ha senso. */
+export function candidatiPerStato(d: DatiConsigliato | null | undefined, oggi: string): string[] {
+  if (!d) return [];
+  const giorno = /^\d{4}-\d{2}-\d{2}/.test(d.dataMeeting ?? "") ? d.dataMeeting!.slice(0, 10) : "";
+  switch (d.stato) {
+    case "appuntamento_fissato":
+    case "appuntamento_rifissato":
+      if (!giorno) return ["hgl_meet_da_fissare"];
+      if (giorno === oggi)
+        return d.linkMeeting ? ["hgl_promemoria_meet", "hgl_meet_oggi"] : ["hgl_meet_oggi"];
+      if (giorno === piuGiorni(oggi, 1)) return ["hgl_meet_domani", "consulenza_conferma_presenza"];
+      if (giorno > oggi) return ["consulenza_conferma_presenza", "appuntamento_conferma"];
+      return ["hgl_cliente_assente", "hgl_da_riprogrammare"];
+    case "da_contattare":
+      return ["hgl_primo_contatto"];
+    case "attesa_whatsapp":
+      return ["hgl_richiamo_24h", "hgl_non_risponde"];
+    case "da_chiamare":
+    case "non_risponde":
+    case "segreteria":
+      return ["hgl_non_risponde", "hgl_richiamo_24h"];
+    case "richiamo":
+      return d.oraRicontatto
+        ? ["hgl_richiamo_concordato", "hgl_ricontatto_consulenza"]
+        : ["hgl_ricontatto_consulenza"];
+    case "da_spostare":
+    case "non_fatto":
+      return ["hgl_da_riprogrammare", "hgl_cliente_assente"];
+    case "fatto":
+      return ["hgl_ricontatto_consulenza"];
+    default:
+      return [];
+  }
+}
+
+/** I valori del modello consigliato: quelli che la scheda sa, il resto vuoto. */
+export function valoriConsigliati(
+  t: MetaTemplate,
+  d: DatiConsigliato,
+  dati: { nomeLead: string; nomeConsulente: string },
+  oggi: string,
+  giornoParlato: (g: string) => string | null,
+): string[] {
+  const giorno = (d.dataMeeting ?? "").slice(0, 10);
+  const giornoDetto = giorno === oggi ? "oggi" : (giornoParlato(giorno) ?? "");
+  const base = valoriIniziali(t, dati);
+  return t.params.map((p, k) => {
+    switch (p.key) {
+      case "appointment_day":
+      case "appointment_date":
+        return /^\d{4}-\d{2}-\d{2}$/.test(giorno) ? giornoDetto : "";
+      case "appointment_time":
+        return (d.oraMeeting ?? "").trim();
+      case "meet_link":
+        return (d.linkMeeting ?? "").trim();
+      case "recontact_time":
+        return (d.oraRicontatto ?? "").trim();
+      default:
+        return base[k] ?? "";
+    }
+  });
+}
+
+/** Il modello da aprire subito, coi suoi valori; `null` se non ce n'è uno adatto. */
+export function modelloConsigliato(
+  modelli: MetaTemplate[],
+  d: DatiConsigliato | null | undefined,
+  dati: { nomeLead: string; nomeConsulente: string },
+  oggi: string,
+  giornoParlato: (g: string) => string | null,
+): { modello: MetaTemplate; valori: string[] } | null {
+  for (const nome of candidatiPerStato(d, oggi)) {
+    const t =
+      modelli.find((m) => m.name === nome) ??
+      modelli.find((m) => m.name.replace(/_v\d+$/, "") === nome);
+    if (t && d) return { modello: t, valori: valoriConsigliati(t, d, dati, oggi, giornoParlato) };
+  }
+  return null;
+}

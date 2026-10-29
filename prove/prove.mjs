@@ -21018,6 +21018,7 @@ proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
+proveDelModelloConsigliato();
 proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
@@ -21767,4 +21768,43 @@ async function proveDelleRisposteAi() {
   c("migrazione: RLS, leggo e chiedo solo le mie, niente UPDATE per gli utenti", [true, true, true, false], [/ENABLE ROW LEVEL SECURITY/.test(sql), /FOR SELECT TO authenticated\s+USING \(auth\.uid\(\) = user_id\)/.test(sql), /FOR INSERT TO authenticated[\s\S]*stato = 'in_coda'/.test(sql), /FOR (UPDATE|ALL|DELETE) TO/.test(sql)]);
   c("migrazione: la funzione solo al server", true, /REVOKE ALL ON FUNCTION public\.risposte_ai_prendi\(uuid\) FROM PUBLIC, anon, authenticated/.test(sql) && /TO service_role/.test(sql));
   c("migrazione: niente DROP né DELETE fuori dai commenti", false, /^\s*(DROP TABLE|DELETE|TRUNCATE)/im.test(sql.replace(/^--.*$/gm, "")));
+}
+
+function proveDelModelloConsigliato() {
+  gruppo("CHAT WHATSAPP: FINESTRA CHIUSA, IL MODELLO GIUSTO GIÀ PRONTO");
+  const M = mod["chatwa/modelli-casella"];
+  const T = [...mod["wa-meta-templates"].MODELLI_MANYCHAT, ...mod["wa-meta-templates"].META_TEMPLATES];
+  const F = mod["manychat/finestra"];
+  const gp = mod["promemoria/formati"].giornoParlato;
+  const OGGI = "2026-10-29";
+  const dati = { nomeLead: "Mario", nomeConsulente: "Luca" };
+  const nome = (d) => M.modelloConsigliato(T, d, dati, OGGI, gp)?.modello.name ?? null;
+  const fissato = (giorno, extra = {}) => ({ stato: "appuntamento_fissato", dataMeeting: giorno, oraMeeting: "18:00", ...extra });
+  c("consulenza oggi con il link: il promemoria col link", "hgl_promemoria_meet", nome(fissato(OGGI, { linkMeeting: "https://x.test/s" })));
+  c("consulenza oggi senza link: «ci vediamo oggi»", "hgl_meet_oggi", nome(fissato(OGGI)));
+  c("consulenza domani: il promemoria di domani", "hgl_meet_domani", nome(fissato("2026-10-30")));
+  c("consulenza fra qualche giorno: la conferma", "consulenza_conferma_presenza", nome(fissato("2026-11-03", { linkMeeting: "https://x.test/s" })));
+  c("consulenza già passata: cliente assente", "hgl_cliente_assente", nome(fissato("2026-10-27")));
+  c("fissato senza data: da fissare", "hgl_meet_da_fissare", nome({ stato: "appuntamento_fissato" }));
+  c("attesa WhatsApp: il richiamo", "hgl_richiamo_24h", nome({ stato: "attesa_whatsapp" }));
+  c("da chiamare / non risponde: «non risponde»", ["hgl_non_risponde", "hgl_non_risponde"], [nome({ stato: "da_chiamare" }), nome({ stato: "non_risponde" })]);
+  c("richiamo con l'ora: il richiamo concordato", "hgl_richiamo_concordato", nome({ stato: "richiamo", oraRicontatto: "15:00" }));
+  c("da spostare: da riprogrammare", "hgl_da_riprogrammare", nome({ stato: "da_spostare" }));
+  c("venduto, annullato o senza scheda: nessun consiglio", [null, null, null], [nome({ stato: "venduto" }), nome({ stato: "annullato" }), nome(null)]);
+  const domani = M.modelloConsigliato(T, fissato("2026-10-30"), dati, OGGI, gp);
+  c("i valori del promemoria di domani: nome, giorno detto, ora, consulente", ["Mario", gp("2026-10-30"), "18:00", "Luca"], domani.valori);
+  const oggi = M.modelloConsigliato(T, fissato(OGGI, { linkMeeting: "https://x.test/s" }), dati, OGGI, gp);
+  c("i valori del promemoria col link", ["Mario", "18:00", "https://x.test/s", "Luca"], oggi.valori);
+  c("un valore che non si sa resta vuoto (mai inventato)", "", M.modelloConsigliato(T, { stato: "richiamo", oraRicontatto: "" }, { nomeLead: "", nomeConsulente: "" }, OGGI, gp).valori[0]);
+  c("solo fra i modelli che il canale permette", "hgl_non_risponde", M.modelloConsigliato(T.filter((t) => t.name !== "hgl_richiamo_24h"), { stato: "attesa_whatsapp" }, dati, OGGI, gp)?.modello.name);
+
+  gruppo("WHATSAPP: DENTRO LE 24 ORE IL TESTO DEL MODELLO");
+  const ora = new Date("2026-10-29T12:00:00Z");
+  c("scritto 2 ore fa: testo", true, F.finestraPerTesto("2026-10-29T10:00:00Z", ora));
+  c("scritto 22 h 59 fa: testo; 23 h fa: modello", [true, false], [F.finestraPerTesto("2026-10-28T13:01:00Z", ora), F.finestraPerTesto("2026-10-28T13:00:00Z", ora)]);
+  c("mai scritto o data rotta: modello", [false, false], [F.finestraPerTesto(null, ora), F.finestraPerTesto("boh", ora)]);
+  c("orologio sfasato di 2 ore nel futuro: modello", false, F.finestraPerTesto("2026-10-29T14:00:00Z", ora));
+  c("il testo col valore al posto di {{1}}", true, F.testoDelModello("hgl_non_risponde", ["Mario"]).includes("Mario"));
+  c("un nome con _v3 usa la copia senza versione", true, !!F.testoDelModello("hgl_non_risponde_v3", ["Mario"]));
+  c("valore vuoto o modello ignoto: null", [null, null], [F.testoDelModello("hgl_non_risponde", [""]), F.testoDelModello("ignoto", ["x"])]);
 }

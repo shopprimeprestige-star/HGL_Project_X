@@ -1,13 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, CalendarClock, Clock, LayoutTemplate, Loader2, Send, TriangleAlert, X } from "lucide-react";
+import {
+  Ban,
+  CalendarClock,
+  Clock,
+  LayoutTemplate,
+  Loader2,
+  Send,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { usePuo } from "@/crm/AuthContext";
 import { OrariRapidi } from "@/crm/OrariRapidi";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { ScegliModello } from "./ScegliModello";
+import { modelloConsigliato } from "./modelli-casella";
+import { giornoParlato } from "@/crm/promemoria/formati";
+
+/** Il giorno di calendario a Roma («2026-10-29»). */
+const giornoRoma = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 import {
   FilaSuggerimenti,
   FinestraRisposte,
@@ -219,6 +239,13 @@ export function Casella({ api }: CasellaProps) {
               modelli={modelliDaProvare(canale)}
               canale={canale?.canale ?? null}
               dati={{ nomeLead, nomeConsulente }}
+              consigliato={modelloConsigliato(
+                modelliDaProvare(canale),
+                attiva?.lead?.data,
+                { nomeLead, nomeConsulente },
+                giornoRoma(new Date()),
+                giornoParlato,
+              )}
               inviando={inviando}
               onInvia={async (m) => {
                 await api.inviaModello(m);
