@@ -161,6 +161,40 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   );
   c("nomi dai contatti dello storico (name prima di notify, lid risolti, niente gruppi)", { [CLIENTE]: "Cliente Prova", "393330000002": "Seconda Prova", "393330000004": "Da Lid" }, nomi);
 
+  //  Diagnosi (guasto 2): il tipo grezzo di Baileys e i nodi senza contenuto,
+  //  solo come codici [a-z_] buoni per il log e il battito.
+  c(
+    "codice: camelCase → parole minuscole con _, cifre e simboli via",
+    ["extended_text_message", "poll_creation_message_v", "hosted_unavailable_fanout", "sconosciuto", "sconosciuto"],
+    [E.codice("extendedTextMessage"), E.codice("pollCreationMessageV3"), E.codice("hosted_unavailable_fanout"), E.codice(""), E.codice(null)],
+  );
+  c("codice: al più 40 caratteri", true, E.codice("a".repeat(100)).length <= 40);
+  c(
+    "tipoBaileys: il tipo dopo gli involucri, senza il contorno",
+    ["conversation", "template_message", "placeholder_message", "stub", "vuoto", "vuoto"],
+    [
+      E.tipoBaileys(wa({ messageContextInfo: {}, conversation: "x" })),
+      E.tipoBaileys(wa({ ephemeralMessage: { message: { templateMessage: {} } } })),
+      E.tipoBaileys(wa({ placeholderMessage: { type: 0 } })),
+      E.tipoBaileys(wa(undefined, {}, { messageStubType: 2 })),
+      E.tipoBaileys(wa(undefined)),
+      E.tipoBaileys(null),
+    ],
+  );
+  const nodo = (figli) => ({ tag: "message", attrs: { id: "3EB0AA09", from: `${NOI}@s.whatsapp.net`, recipient: JID, t: String(TS) }, content: figli });
+  c(
+    "nonDisponibile: il tipo di <unavailable>, oppure null",
+    ["hosted_unavailable_fanout", "view_once_unavailable_fanout", "senza_tipo", null, null, null],
+    [
+      E.nonDisponibile(nodo([{ tag: "unavailable", attrs: { type: "hosted_unavailable_fanout" } }])),
+      E.nonDisponibile(nodo([{ tag: "unavailable", attrs: { type: "view_once_unavailable_fanout" } }])),
+      E.nonDisponibile(nodo([{ tag: "unavailable", attrs: {} }])),
+      E.nonDisponibile(nodo([{ tag: "enc", attrs: { type: "msg" } }])),
+      E.nonDisponibile(nodo(new Uint8Array(3))),
+      E.nonDisponibile(undefined),
+    ],
+  );
+
   //  Le cifre del JID, la regola unica.
   c("cifreDaJid", [CLIENTE, CLIENTE, null, null], [E.cifreDaJid(JID), E.cifreDaJid(`${CLIENTE}:7@s.whatsapp.net`), E.cifreDaJid("123@lid"), E.cifreDaJid(undefined)]);
 }

@@ -43,17 +43,26 @@ function baileysFinto() {
     useMultiFileAuthState: async (cartella) => ({ state: { cartella }, saveCreds: async () => void salvataggi.n++ }),
     makeWASocket: (opzioni) => {
       const ascolti = new Map();
+      const nodi = [];
       const s = {
         opzioni,
         chiuso: 0,
         user: { id: `${NOI}:3@s.whatsapp.net` },
         ev: { on: (nome, f) => ascolti.set(nome, [...(ascolti.get(nome) ?? []), f]) },
+        //  il websocket grezzo: Baileys ci emette i nodi ricevuti (`CB:message`)
+        ws: { on: (nome, f) => nome === "CB:message" && nodi.push(f) },
         signalRepository: { lidMapping: { getPNForLID: async (lid) => (lid === "777@lid" ? `${C3}:0@s.whatsapp.net` : null) } },
         end: () => void s.chiuso++,
         emetti: async (nome, dati) => {
           for (const f of ascolti.get(nome) ?? []) await f(dati);
         },
         ascolta: (nome) => (ascolti.get(nome) ?? []).length,
+        //  come `EventEmitter.emit`: chiama in modo sincrono; qui si aspetta anche
+        //  la promessa restituita, per leggere lo stato dopo
+        nodiAscoltati: () => nodi.length,
+        emettiNodo: async (nodo) => {
+          for (const f of nodi) await f(nodo);
+        },
       };
       socket.push(s);
       return s;
@@ -81,10 +90,15 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     const vietati = ["sendMessage", "readMessages", "sendReceipt", "sendPresenceUpdate", "groupCreate", "updateProfile", "relayMessage", "chatModify", "logout", "sendNode", "rejectCall", "presenceSubscribe", "updateBlockStatus", "appPatch", "sendRetryRequest", "sendWAMBuffer", "query("];
     c("nessuna chiamata che scrive su WhatsApp, in nessun file", [], file.flatMap((f) => vietati.filter((v) => codice[f].includes(v)).map((v) => `${f}: ${v}`)));
     //  Lista bianca: sul socket si chiamano SOLO questi (tutto il resto è vietato).
-    const ammesse = new Set(["ev.on", "end", "signalRepository.lidMapping.getPNForLID"]);
+    //  `ws.on` (guasto 2): solo per ASCOLTARE i nodi `message` ricevuti, e
+    //  contare quelli senza contenuto (`hosted_unavailable_fanout`). Ascoltare
+    //  non manda niente: `ws.send`, `ws.emit` e il resto restano vietati.
+    const ammesse = new Set(["ev.on", "ws.on", "end", "signalRepository.lidMapping.getPNForLID"]);
     const chiamate = file.flatMap((f) => [...codice[f].matchAll(/\bsock\??\.([\w?.]+)\s*\(/g)].map((m) => m[1].replace(/\?/g, "")));
-    c("sul socket si chiamano solo ev.on, end e getPNForLID", [], chiamate.filter((x) => !ammesse.has(x)));
-    c("il socket si usa davvero (la guardia non è vuota)", true, chiamate.includes("ev.on") && chiamate.includes("signalRepository.lidMapping.getPNForLID"));
+    c("sul socket si chiamano solo ev.on, ws.on, end e getPNForLID", [], chiamate.filter((x) => !ammesse.has(x)));
+    c("il socket si usa davvero (la guardia non è vuota)", true, chiamate.includes("ev.on") && chiamate.includes("ws.on") && chiamate.includes("signalRepository.lidMapping.getPNForLID"));
+    c("ws.on solo per CB:message (nessun altro nodo, nessun frame)", [], [...Object.values(codice).join("\n").matchAll(/\bsock\??\.ws\??\.on\(\s*([^,]*),/g)].map((m) => m[1]).filter((x) => x !== '"CB:message"'));
+    c("sul websocket niente send, emit, write, close", [], file.filter((f) => /\bws\??\.(send|sendNode|emit|write|close|end)\b/.test(codice[f])));
     c("nessun console.<metodo>(…) né console[…] in nessun file", [], file.filter((f) => /\bconsole\s*(\.\s*\w+\s*\(|\[)/.test(codice[f])));
     c("console si tocca solo in index.mjs, per sostituirla", [], file.filter((f) => f !== "index.mjs" && /\bconsole\b/.test(codice[f])));
     c("Baileys entra solo da index.mjs (import dinamico)", [], file.filter((f) => f !== "index.mjs" && codice[f].includes("@whiskeysockets/baileys")));
@@ -224,7 +238,8 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("storico → in fila/storico i tre messaggi con numero", [["S1", C1], ["S2", C2], ["S3", C3]], lotti8.flatMap((l) => l.messaggi.map((m) => [m.id, m.numero])));
     c("storico → i nomi dei contatti viaggiano col lotto", "Cliente Uno", lotti8[0].nomi[C1]);
     c("storico → avanzamento dal progress", { fatto: false, avanzamento: 40 }, col.istantanea().storico);
-    c("estrazione: contatori per motivo, solo numeri", { letti: 6, validi: 3, senza_numero: 1, gruppo: 1, se_stesso: 1 }, Object.fromEntries(["letti", "validi", "senza_numero", "gruppo", "se_stesso"].map((k) => [k, col.istantanea().estrazione[k]])));
+    c("estrazione: letti e validi", { letti: 6, validi: 3 }, Object.fromEntries(["letti", "validi"].map((k) => [k, col.istantanea().estrazione[k]])));
+    c("diagnosi: scarti per motivo, solo numeri", { senza_numero: 1, gruppo: 1, se_stesso: 1 }, col.istantanea().diagnosi.scarti);
     c("lid.json: mappa dello storico e di getPNForLID, permessi 600", [{ 555: C2, 777: C3 }, 0o600], [JSON.parse(readFileSync(P.lid, "utf8")), permessi(P.lid)]);
     c("ultimo_messaggio_il = l'orario vero dell'ultimo messaggio", new Date(TS * 1000).toISOString(), col.istantanea().ultimo_messaggio_il);
 
@@ -234,6 +249,24 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     await s1.emetti("messages.upsert", { type: "notify", messages: [wa(`${C4}@s.whatsapp.net`, "V1", "vivo")] });
     await s1.emetti("messages.upsert", { type: "append", messages: [wa(`${C4}@s.whatsapp.net`, "V2", "vivo dal telefono", { fromMe: true })] });
     const vivi = readdirSync(join(stato8, "fila/vivo")).map((f) => JSON.parse(readFileSync(join(stato8, "fila/vivo", f), "utf8")));
+    c("diagnosi: tipi di Baileys per direzione (storico e vivi)", { in_conversation: 7, out_conversation: 1 }, col.istantanea().diagnosi.tipi);
+
+    //  I nodi grezzi: si contano quelli senza contenuto, per tipo.
+    const nodoMsg = (id, figli, attrs = {}) => ({ tag: "message", attrs: { id, from: `${NOI}:99@s.whatsapp.net`, recipient: `${C4}@s.whatsapp.net`, t: String(TS), ...attrs }, content: figli });
+    const ospitato = [{ tag: "unavailable", attrs: { type: "hosted_unavailable_fanout" } }];
+    await s1.emettiNodo(nodoMsg("H1", ospitato));
+    await s1.emettiNodo(nodoMsg("H2", [{ tag: "unavailable", attrs: { type: "view_once_unavailable_fanout" } }]));
+    await s1.emettiNodo(nodoMsg("N1", [{ tag: "enc", attrs: { type: "msg" } }]));
+    let nodoRotto = "nessun errore";
+    try {
+      await s1.emettiNodo(null);
+      await s1.emettiNodo({ tag: "message", get attrs() { throw new Error("nodo rotto"); }, content: [] });
+    } catch {
+      nodoRotto = "errore uscito";
+    }
+    c("un nodo rotto non fa cadere Baileys (nessun errore esce dall'ascolto)", "nessun errore", nodoRotto);
+    c("diagnosi: nodi senza contenuto contati per tipo", { hosted_unavailable_fanout: 1, view_once_unavailable_fanout: 1 }, col.istantanea().diagnosi.nodi);
+    c("l'ascolto dei nodi è uno solo per socket", 1, s1.nodiAscoltati());
     c("messages.upsert (notify e append) → fila/vivo, pronti dopo 30 s", [["V1", "in"], ["V2", "out"], [T0 + 30_000]], [...vivi.flatMap((v) => v.lotto.messaggi.map((m) => [m.id, m.dir])), [...new Set(vivi.map((v) => v.prossimo_il))]]);
 
     await s1.emetti("lid-mapping.update", { lid: "888@lid", pn: `${C4}@s.whatsapp.net` });
@@ -249,6 +282,8 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     const s2 = socket[1];
     await s1.emetti("messages.upsert", { type: "notify", messages: [wa(`${C4}@s.whatsapp.net`, "VECCHIO", "dal socket vecchio")] });
     c("gli eventi del socket vecchio si ignorano", 2, readdirSync(join(stato8, "fila/vivo")).length);
+    await s1.emettiNodo(nodoMsg("H9", ospitato));
+    c("i nodi del socket vecchio non si contano", 1, col.istantanea().diagnosi.nodi.hosted_unavailable_fanout);
 
     //  Rete: attese crescenti, mai un ciclo stretto.
     await s2.emetti("connection.update", { connection: "close", lastDisconnect: { error: { output: { statusCode: 428 } } } });
@@ -275,12 +310,25 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("ferma(): chiude il socket e non riconnette più", [1, timerPrima], [socket[4].chiuso, timer.length]);
 
     // ── 9. Il battito ────────────────────────────────────────────────────
-    const ist = { stato: "collegato", collegato_dal: "2026-10-29T11:00:00.000Z", ultimo_messaggio_il: null, storico: { fatto: true, avanzamento: 100 }, estrazione: { letti: 10, validi: 8, gruppo: 2 } };
+    const ist = {
+      stato: "collegato",
+      collegato_dal: "2026-10-29T11:00:00.000Z",
+      ultimo_messaggio_il: null,
+      storico: { fatto: true, avanzamento: 100 },
+      estrazione: { letti: 10, validi: 8 },
+      diagnosi: { scarti: { gruppo: 1, tipo_sconosciuto: 1 }, tipi: { in_conversation: 9, out_placeholder_message: 1 }, nodi: { hosted_unavailable_fanout: 3 } },
+    };
     const filaC = { in_coda: 4, lotti_storico: 1, lotti_vivo: 1, scartati: 2, non_noti_scaduti: 0, divisi: 0, piena: false };
     const b = I.corpoBattito(ist, filaC, {});
-    c("battito: la forma di BattitoPonte", ["v", "tipo", "stato", "collegato_dal", "ultimo_messaggio_il", "storico", "in_coda", "scartati", "contatori", "versione"], Object.keys(b));
+    c("battito: la forma di BattitoPonte (più diagnosi, che il CRM ignora)", ["v", "tipo", "stato", "collegato_dal", "ultimo_messaggio_il", "storico", "in_coda", "scartati", "contatori", "versione", "diagnosi"], Object.keys(b));
+    c("battito: nei contatori i nodi ospitati e i tipi sconosciuti", { fanout_ospitati: 3, tipo_sconosciuto: 1 }, { fanout_ospitati: b.contatori.fanout_ospitati, tipo_sconosciuto: b.contatori.tipo_sconosciuto });
+    c("battito: diagnosi intera (scarti, tipi, nodi)", ist.diagnosi, b.diagnosi);
+    c("battito: la diagnosi tiene solo numeri e chiavi [a-z_]", { scarti: { gruppo: 1 }, tipi: {}, nodi: {} }, I.corpoBattito({ ...ist, diagnosi: { scarti: { gruppo: 1, "Brutta Chiave": 2, testo: "x" }, tipi: null } }, filaC, {}).diagnosi);
+    const conti = I.contiDiagnosi(b.diagnosi);
+    c("log della diagnosi: chiavi con prefisso, solo numeri", { scarto_gruppo: 1, scarto_tipo_sconosciuto: 1, tipo_in_conversation: 9, tipo_out_placeholder_message: 1, nodo_hosted_unavailable_fanout: 3 }, conti);
+    c("il CRM tiene tutti i contatori del battito (al più 20 con in_coda e scartati)", true, Object.keys(b.contatori).length + 2 <= 20);
     c("battito: v 1, tipo battito, versione di Baileys", [1, "battito", I.VERSIONE_BAILEYS], [b.v, b.tipo, b.versione]);
-    c("battito: contatori solo numeri, chiavi minuscole, al più 20", [true, true], [Object.entries(b.contatori).every(([k, v]) => /^[a-z_]+$/.test(k) && Number.isFinite(v)), Object.keys(b.contatori).length <= 20]);
+    c("battito: contatori solo numeri, chiavi minuscole, al più 18 (+ in_coda e scartati)", [true, true], [Object.entries(b.contatori).every(([k, v]) => /^[a-z_]+$/.test(k) && Number.isFinite(v)), Object.keys(b.contatori).length <= 18]);
     c("battito: fila piena e collegato → coda_piena", "coda_piena", I.corpoBattito(ist, { ...filaC, piena: true }, {}).stato);
     c("battito: 401/503 dal CRM e collegato → errore", "errore", I.corpoBattito(ist, filaC, { erroreServer: true }).stato);
     c("battito: senza WhatsApp vince lo stato del collegamento", "attesa_qr", I.corpoBattito({ ...ist, stato: "attesa_qr" }, filaC, { erroreServer: true }).stato);

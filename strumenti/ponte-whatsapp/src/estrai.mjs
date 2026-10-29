@@ -207,11 +207,51 @@ function testoInterattivo(tipo, v) {
   return candidati.map(testoPieno).find(Boolean) ?? "";
 }
 
+/** Le chiavi di contenuto di un `message` già aperto (senza il contorno). */
+const chiaviContenuto = (m) => Object.keys(m).filter((k) => !CONTORNO.has(k) && m[k] != null);
+
+/** Un nome qualunque (tipo del proto, attributo di un nodo) → codice per il
+ *  log e il battito: parole minuscole separate da `_`, niente cifre né
+ *  simboli, al più 40 caratteri (`extendedTextMessage` → `extended_text_message`). */
+export function codice(x) {
+  if (typeof x !== "string") return "sconosciuto";
+  const c = x
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, "_")
+    .slice(0, 40)
+    .replace(/^_+|_+$/g, "");
+  return c || "sconosciuto";
+}
+
+/** Diagnosi: il tipo grezzo di un `WAMessage` (la prima chiave di contenuto
+ *  dopo gli involucri), come codice. `stub` = messaggio di sistema o non
+ *  decifrato; `vuoto` = niente contenuto. Mai il testo. */
+export function tipoBaileys(wamsg) {
+  if (!wamsg || typeof wamsg !== "object") return "vuoto";
+  if (wamsg.messageStubType) return "stub";
+  const m = apri(wamsg.message);
+  if (!m || typeof m !== "object") return "vuoto";
+  const chiavi = chiaviContenuto(m);
+  return chiavi.length ? codice(chiavi[0]) : "vuoto";
+}
+
+/** Diagnosi: il tipo di `<unavailable type="…">` di un nodo `message` grezzo
+ *  (WhatsApp non ha mandato il contenuto a questo dispositivo), come codice;
+ *  `senza_tipo` se manca; null se il nodo ha il suo contenuto. Baileys 7
+ *  scarta `hosted_unavailable_fanout` senza emettere niente. */
+export function nonDisponibile(nodo) {
+  const figli = Array.isArray(nodo?.content) ? nodo.content : [];
+  const u = figli.find((f) => f?.tag === "unavailable");
+  if (!u) return null;
+  return typeof u.attrs?.type === "string" ? codice(u.attrs.type) : "senza_tipo";
+}
+
 /** Il contenuto: `{ tipo, testo }` oppure `{ motivo }`. */
 function contenuto(message) {
   const m = apri(message);
   if (!m || typeof m !== "object") return { motivo: "vuoto" };
-  const chiavi = Object.keys(m).filter((k) => !CONTORNO.has(k) && m[k] != null);
+  const chiavi = chiaviContenuto(m);
   if (chiavi.length === 0) return { motivo: Object.keys(m).length ? "sistema" : "vuoto" };
   const tipo = chiavi[0];
   const v = m[tipo];
