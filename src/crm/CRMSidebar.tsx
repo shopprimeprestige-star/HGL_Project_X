@@ -720,6 +720,18 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         alias: "fatturato incassi conversione risultati statistiche",
       },
       {
+        //  Pacchetto p4-cruscotto-wa: il giro WhatsApp in numeri (messaggi, risposte,
+        //  prenotazioni, costo stimato, velocità dei consulenti, avviso saldo).
+        //  Stesso permesso della rotta che lo serve («impostazioni»: ci sono soldi).
+        titolo: "Cruscotto WhatsApp",
+        descrizione: "Messaggi, risposte, prenotazioni, costi e velocità di risposta",
+        url: "/CRM/cruscotto-wa",
+        icon: MessageCircle,
+        scheme: "kpi",
+        permesso: "impostazioni",
+        alias: "whatsapp manychat modelli template costi saldo wallet velocità risposta lead nuovi tasso prenotazioni",
+      },
+      {
         //  ── SI DICE COLLABORATORI ──────────────────────────────────────────
         //   Era "Consulenti", ma là dentro ci sono consulenti, setter, driver,
         //   installatori e accompagnatori — i cinque mestieri di
