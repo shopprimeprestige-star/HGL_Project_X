@@ -21,7 +21,12 @@ export function proveChatRisposte(mod, { c, gruppo, radice }) {
   c("fra 20 e 30 risposte", true, P.length >= 20 && P.length <= 30);
   c("id unici", P.length, new Set(ids(P)).size);
   c("titolo e testo pieni, titolo corto", true, P.every((r) => r.titolo.trim() && r.testo.trim() && r.titolo.length <= 40));
-  c("danno del Lei (niente «ti»/«tuo» al cliente)", [], P.filter((r) => /\b(?:ti|tuo|tua|hai|puoi|scrivimi)\b/i.test(r.testo)).map((r) => r.id));
+  //  Dal 29/10 (richiesta del titolare): col Lei il primo contatto e il prima della
+  //  consulenza, col tu le risposte di dopo la consulenza (DOPO_LA_CONSULENZA_COL_TU).
+  const colTu = new Set(R.DOPO_LA_CONSULENZA_COL_TU);
+  c("prima della consulenza danno del Lei (niente «ti»/«tuo» al cliente)", [], P.filter((r) => !colTu.has(r.id) && /\b(?:ti|tuo|tua|hai|puoi|scrivimi)\b/i.test(r.testo)).map((r) => r.id));
+  c("dopo la consulenza danno del tu (niente «Le»/«Sua»/«può»)", [], P.filter((r) => colTu.has(r.id) && (/\b(?:lei|sua|suo|può|gliele|mi scriva|preferisce|la ricontattiamo)\b/i.test(r.testo) || /\bLe\b/.test(r.testo))).map((r) => r.id));
+  c("le risposte col tu esistono tutte", [...colTu].sort(), P.filter((r) => colTu.has(r.id)).map((r) => r.id).sort());
   c("niente cifre di prezzo inventate", [], P.filter((r) => /€|\beuro\b|\d+\s*(?:euro|€)/i.test(r.testo)).map((r) => r.id));
   c("niente indirizzi inventati: la sede è un segnaposto", true, P.filter((r) => /indirizzo|sede è in/i.test(r.testo)).every((r) => r.testo.includes("{indirizzo}") || !/\bvia\b|\bpiazza\b/i.test(r.testo)));
   c("niente promesse mediche", [], P.filter((r) => /\bguari|\bcura\b|\bricresc|garantit|ricrescita/i.test(r.testo)).map((r) => r.id));

@@ -69,6 +69,20 @@ const SALTATA = ["no_show", "non_fatto", "da_spostare"];
 const DOPO_CONSULENZA = ["sta_valutando", "da_ricontattare", "ripensamento", "ci_ricontatta_lui"];
 const POSA = ["posa_in_sede", "posa_a_domicilio", "posa_da_spedire"];
 
+/** ── IL TONO (richiesta del titolare, 29/10/2026) ──────────────────────
+ *  «Tutti i template danno del tu, in modo confidenziale ma non troppo. Solo
+ *  quelli delle consulenze svolte, non primo contatto.» Quindi: col LEI le
+ *  risposte di primo contatto e di prima della consulenza; col TU quelle di
+ *  dopo la consulenza (riepilogo, acconto, installazione, manutenzione). */
+export const DOPO_LA_CONSULENZA_COL_TU = [
+  "riepilogo",
+  "domicilio",
+  "installazione",
+  "acconto",
+  "acconto_ricevuto",
+  "manutenzione",
+] as const;
+
 /** Le risposte di partenza. L'ordine è quello dei numeri di «/1», «/2»… */
 export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
   {
@@ -164,7 +178,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "riepilogo",
     titolo: "Riepilogo dopo consulenza",
     testo:
-      "Grazie ancora per la consulenza, {nome}. Come d'accordo le riepilogo qui la soluzione e il prezzo di cui abbiamo parlato; per qualsiasi domanda mi scriva pure.",
+      "Grazie ancora per la consulenza, {nome}. Come d'accordo ti riepilogo qui la soluzione e il prezzo di cui abbiamo parlato: per qualsiasi domanda scrivimi pure.",
     temi: ["prezzo"],
     stati: DOPO_CONSULENZA,
   },
@@ -194,7 +208,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "domicilio",
     titolo: "Installazione a domicilio",
     testo:
-      "Sì, l'installazione si può fare anche a domicilio. Ne parliamo in consulenza e troviamo insieme la soluzione più comoda per lei.",
+      "Sì, l'installazione possiamo farla anche a domicilio. Mi indichi l'indirizzo e qualche giorno che ti va bene?",
     temi: ["domicilio"],
     stati: ["posa_a_domicilio"],
   },
@@ -202,7 +216,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "installazione",
     titolo: "Fissare l'installazione",
     testo:
-      "Buongiorno {nome}, possiamo fissare l'installazione. Preferisce venire in sede o che veniamo noi a domicilio? Mi indichi qualche giorno che le va bene.",
+      "Ciao {nome}, possiamo fissare l'installazione. Preferisci venire in sede o che veniamo noi da te? Dimmi qualche giorno che ti va bene.",
     temi: ["installazione"],
     stati: [...POSA, "acconto"],
   },
@@ -210,7 +224,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "acconto",
     titolo: "Acconto",
     testo:
-      "Per confermare l'ordine del suo sistema serve l'acconto concordato. Le mando qui i dati per il pagamento.",
+      "Per confermare l'ordine del tuo sistema serve l'acconto concordato. Ti mando qui i dati per il pagamento.",
     temi: ["acconto"],
     stati: ["in_attesa_acconto"],
   },
@@ -218,7 +232,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "acconto_ricevuto",
     titolo: "Acconto ricevuto",
     testo:
-      "Grazie {nome}, abbiamo ricevuto l'acconto: l'ordine è confermato. La ricontattiamo noi per fissare l'installazione.",
+      "Grazie {nome}, abbiamo ricevuto l'acconto: l'ordine è confermato. Ti ricontattiamo noi per fissare l'installazione.",
     temi: ["acconto"],
     stati: ["acconto"],
   },
@@ -226,7 +240,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "manutenzione",
     titolo: "Manutenzione",
     testo:
-      "Tutte le indicazioni per la manutenzione gliele diamo all'installazione, e per i controlli può fissare un appuntamento con noi quando vuole. Ha una domanda in particolare?",
+      "Tutte le indicazioni per la manutenzione te le diamo all'installazione, e per i controlli puoi fissare un appuntamento con noi quando vuoi. Hai una domanda in particolare?",
     temi: ["manutenzione"],
     stati: [...POSA, "concluso"],
   },
