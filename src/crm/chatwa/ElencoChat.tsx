@@ -210,11 +210,14 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           <button
             key={f.v}
             type="button"
-            aria-pressed={filtro === f.v}
-            onClick={() => setFiltro(f.v)}
+            aria-pressed={filtro === f.v && !soloStelle}
+            onClick={() => {
+              setFiltro(f.v);
+              setSoloStelle(false);
+            }}
             className={cn(
               "h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
-              filtro === f.v
+              filtro === f.v && !soloStelle
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-border bg-background text-muted-foreground hover:bg-muted",
             )}
@@ -226,7 +229,15 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         <button
           type="button"
           aria-pressed={soloStelle}
-          onClick={() => setSoloStelle((v) => !v)}
+          //  ── UNA PASTIGLIA COME LE ALTRE (29/10/2026) ─────────────────────
+          //  Guasto: con «Sconosciuti» acceso «In osservazione 2» mostrava un
+          //  elenco vuoto (le due chat con stelle hanno la scheda: i filtri si
+          //  sommavano, il numero no). Ora accenderla mostra TUTTE le chat con
+          //  stelle; un'altra pastiglia la spegne.
+          onClick={() => {
+            if (!soloStelle) setFiltro("all");
+            setSoloStelle((v) => !v);
+          }}
           className={cn(
             "h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
             soloStelle

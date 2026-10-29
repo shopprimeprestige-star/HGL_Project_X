@@ -20995,6 +20995,7 @@ proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
+proveDellOsservazioneComePastiglia();
 proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
@@ -21743,4 +21744,12 @@ async function proveDelleRisposteAi() {
   c("migrazione: RLS, leggo e chiedo solo le mie, niente UPDATE per gli utenti", [true, true, true, false], [/ENABLE ROW LEVEL SECURITY/.test(sql), /FOR SELECT TO authenticated\s+USING \(auth\.uid\(\) = user_id\)/.test(sql), /FOR INSERT TO authenticated[\s\S]*stato = 'in_coda'/.test(sql), /FOR (UPDATE|ALL|DELETE) TO/.test(sql)]);
   c("migrazione: la funzione solo al server", true, /REVOKE ALL ON FUNCTION public\.risposte_ai_prendi\(uuid\) FROM PUBLIC, anon, authenticated/.test(sql) && /TO service_role/.test(sql));
   c("migrazione: niente DROP né DELETE fuori dai commenti", false, /^\s*(DROP TABLE|DELETE|TRUNCATE)/im.test(sql.replace(/^--.*$/gm, "")));
+}
+
+function proveDellOsservazioneComePastiglia() {
+  gruppo("CHAT WHATSAPP: «IN OSSERVAZIONE» NON SI SOMMA ALLE ALTRE PASTIGLIE");
+  const src = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("accenderla porta il filtro a «Tutte» (con «Sconosciuti» acceso l'elenco era vuoto)", true, /if \(!soloStelle\) setFiltro\("all"\);\s*setSoloStelle\(\(v\) => !v\);/.test(src));
+  c("un'altra pastiglia la spegne", true, /setFiltro\(f\.v\);\s*setSoloStelle\(false\);/.test(src));
+  c("con l'osservazione accesa nessun'altra pastiglia sembra scelta", 2, (src.match(/filtro === f\.v && !soloStelle/g) || []).length);
 }
