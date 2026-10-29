@@ -171,3 +171,18 @@ export function chatDaChiamare<T extends ChatConStato>(chats: T[], sotto: Sottof
       return x === y ? 0 : x < y ? -1 : 1;
     });
 }
+
+/** Gli stati che la riga offre per il cambio rapido. La regola del CRM (`statiPer`) a un lead non
+ *  «importato» (quelli del modulo) ne ammette pochi, ma chi è GIÀ in uno stato di chiamata (o in
+ *  attesa WhatsApp / da contattare) sta lavorando proprio quella telefonata: deve poter scegliere
+ *  tutti e sette. Per gli altri stati resta `statiPer`, che qui arriva come `ammessi`. */
+export function statiMenuRiga(
+  statoAttuale: string | null | undefined,
+  ammessi: ReadonlySet<string>,
+): (typeof STATI_CAMBIO_RAPIDO)[number][] {
+  const inChiamata =
+    (STATI_SOTTOFILTRI as readonly string[]).includes(String(statoAttuale)) ||
+    statoAttuale === "attesa_whatsapp" ||
+    statoAttuale === "da_contattare";
+  return STATI_CAMBIO_RAPIDO.filter((s) => inChiamata || ammessi.has(s));
+}

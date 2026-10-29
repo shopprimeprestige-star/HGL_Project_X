@@ -447,13 +447,9 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     //   messaggi qui. Se sono in attesa da più di 10 ore entrano lo stesso,
     //   così compaiono in «Da chiamare» e si chiamano dal tasto in alto.
     const ultime9 = new Set([...map.keys()].map((k) => k.replace(/\D/g, "").slice(-9)));
-    //  Il lead in attesa per numero: serve anche alle chat che esistono ma non
-    //  hanno una scheda sola (due schede sullo stesso numero, revisione 28/10).
-    const inAttesaPerNumero = new Map<string, (typeof leads)[number]>();
     for (const l of leads) {
       if (!calcolaDaChiamare({ dati: l.data, messaggi: [], adesso: new Date(adesso) }).si) continue;
       const tel = telefonoE164(l.data?.telefono);
-      if (tel) inAttesaPerNumero.set(tel.replace(/\D/g, "").slice(-9), l);
       if (!tel || ultime9.has(tel.replace(/\D/g, "").slice(-9))) continue;
       ultime9.add(tel.replace(/\D/g, "").slice(-9));
       map.set(tel, {
@@ -508,17 +504,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       };
       const f = finestra24({ contatto, messaggi, adesso });
       item.finestra = { aperta: f.aperta, frase: f.frase };
-      //  «Da chiamare» (28/10/2026): in attesa WhatsApp da più di 10 ore.
-      item.daChiamare = calcolaDaChiamare({
-        dati:
-          lead?.data ??
-          inAttesaPerNumero.get(item.phone.replace(/\D/g, "").slice(-9))?.data ??
-          null,
-        messaggi,
-        stop: item.stop,
-        ultimaEntrataIl: item.contact?.ultimo_in_entrata_il ?? null,
-        adesso: new Date(adesso),
-      });
     }
 
     // ordina per ultimo messaggio
@@ -545,15 +530,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           .filter((c) => c.daRispondere?.attesa)
           .map((chat) => ({ dal: chat.daRispondere?.dal ?? null, chat })),
       ).map((x) => x.chat),
-    [chats],
-  );
-
-  /** «Da chiamare»: chi aspetta una telefonata da più tempo sta sopra. */
-  const daChiamare = useMemo<ChatItem[]>(
-    () =>
-      chats
-        .filter((c) => c.daChiamare?.si && !c.daRispondere?.attesa)
-        .sort((a, b) => (a.daChiamare?.dal ?? "").localeCompare(b.daChiamare?.dal ?? "")),
     [chats],
   );
 
@@ -882,7 +858,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   return {
     chats,
     daRispondere,
-    daChiamare,
     visibili,
     filtro,
     setFiltro,

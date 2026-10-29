@@ -191,7 +191,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             aria-pressed={filtro === f.v}
             onClick={() => setFiltro(f.v)}
             className={cn(
-              "h-10 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
+              "h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
               filtro === f.v
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -206,7 +206,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           aria-pressed={soloStelle}
           onClick={() => setSoloStelle((v) => !v)}
           className={cn(
-            "h-10 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
+            "h-11 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
             soloStelle
               ? "border-amber-300 bg-amber-50 text-amber-800"
               : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -226,10 +226,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             <button
               key={x.v}
               type="button"
-              aria-pressed={sotto === x.v}
+              aria-pressed={sottoAttivo === x.v}
               onClick={() => setSotto(x.v)}
               className={cn(
-                "h-10 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
+                "h-11 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7 md:px-2.5 md:text-[11px]",
                 sottoAttivo === x.v
                   ? "border-sky-300 bg-sky-50 text-sky-800"
                   : "border-border bg-background text-muted-foreground hover:bg-muted",

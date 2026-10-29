@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { FinestraStati, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
 import { numeroDaComporre } from "@/crm/importa/chiamare";
-import { STATI_CAMBIO_RAPIDO } from "./daChiamare";
+import { statiMenuRiga } from "./daChiamare";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { TemperaturaRiga } from "@/crm/Temperatura";
@@ -18,7 +18,7 @@ import { formatTimeIT, initials, numeroLeggibile } from "./formati";
 import type { ChatItem } from "./tipi";
 
 /** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
-export type ModoRiga = "normale" | "attesa" | "vecchia" | "chiamare";
+export type ModoRiga = "normale" | "attesa" | "vecchia";
 
 /** Il testo di una riga dell'elenco: anteprima come nella bolla (🎤 Vocale, «Messaggio non
  *  leggibile») su UNA riga sola. Nota 3 del revisore su T2: `anteprimaIn` lascia a capo e tab. */
@@ -73,19 +73,14 @@ export function RigaChat({
   const telefono = numeroDaComporre(c.phone);
   //  Gli stati di chiamata che la regola del CRM (`statiPer`) ammette per QUESTO lead.
   const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data) : []);
-  const opzioniStato = STATI_CAMBIO_RAPIDO.filter((s) => ammessi.has(s));
+  const opzioniStato = statiMenuRiga(c.lead?.data.stato, ammessi);
   const last = c.lastMessage;
   const inAttesa = modo === "attesa" || modo === "vecchia";
-  const daChiamare = modo === "chiamare";
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
 
   // `dal` c'è sempre se la chat è in attesa; se mancasse, meglio l'ora dell'ultimo messaggio che un «da meno di 1 min» falso.
-  const dal = inAttesa
-    ? (c.daRispondere?.dal ?? null)
-    : daChiamare
-      ? (c.daChiamare?.dal ?? null)
-      : null;
+  const dal = inAttesa ? (c.daRispondere?.dal ?? null) : null;
   const tempo = dal
     ? attesaInChiaro(dal, adesso)
     : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
@@ -100,9 +95,7 @@ export function RigaChat({
           c.lead?.id,
         ).testo
       : last?.body;
-  const anteprima = daChiamare
-    ? "In attesa su WhatsApp da oltre 10 ore: da chiamare"
-    : anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
+  const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
 
   return (
@@ -135,11 +128,7 @@ export function RigaChat({
             <span
               className={cn(
                 "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
-                modo === "attesa"
-                  ? "font-semibold text-amber-700"
-                  : daChiamare
-                    ? "font-semibold text-sky-700"
-                    : "text-muted-foreground",
+                modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
               )}
             >
               {tempo}

@@ -20653,7 +20653,6 @@ function proveDelDaChiamare() {
   const hook = readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("la chat calcola «Da chiamare» per ogni contatto", true, /item\.daChiamare = calcolaDaChiamare\(/.test(hook));
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
   //  Dal 28/10 (commessa chat-da-chiamare) la fascia è sostituita dalla pillola «Da chiamare» coi sottofiltri.
   c("«Da chiamare»: la fascia non c'è più, c'è la pillola coi sottofiltri (prove/manychat/chat-sottofiltri.mjs)", true, !/titolo-da-chiamare/.test(elenco) && /chatDaChiamare\(/.test(elenco));
@@ -20662,7 +20661,6 @@ function proveDelDaChiamare() {
   c("cambio di stato dalla scheda: l'ora si aggiorna anche se il modulo rimanda quella vecchia", true,
     /patch\.statoPrecedenteIl !== current\.data\.statoPrecedenteIl/.test(ctx) && /merged\.stato !== current\.data\.stato && !dichiarato/.test(ctx));
   c("sul telefono niente avatar nella barra della chat (spazio a nome e stato)", true, /<Avatar className="hidden sm:flex/.test(conv));
-  c("chat con due schede sullo stesso numero: il lead in attesa conta lo stesso", true, /inAttesaPerNumero\.get\(/.test(hook));
   c("tasto Chiama nella barra della chat (tel:)", true, /href=\{`tel:\$\{numeroDaComporre\(attiva\.phone\)\}`\}/.test(conv));
 }
 

@@ -47,6 +47,19 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     ["non_risponde", "segreteria", "richiamo", "ci_ricontatta_lui", "appuntamento_fissato", "annullato", "da_chiamare"],
     [...D.STATI_CAMBIO_RAPIDO]);
 
+  // ── Gli stati offerti dalla riga: chi è già "da chiamare" li ha tutti e 7, anche se `statiPer`
+  //  (lead del modulo, non importato) ne ammette solo alcuni.
+  const SETTE = [...D.STATI_CAMBIO_RAPIDO];
+  const pochi = new Set(["appuntamento_fissato", "ci_ricontatta_lui", "annullato"]);
+  gruppo("CHAT DA CHIAMARE · GLI STATI DEL MENU DELLA RIGA");
+  c("lead del modulo (statiPer ristretto) già in uno stato di chiamata: tutti e 7",
+    SETTE, D.statiMenuRiga("da_chiamare", pochi));
+  for (const st of ["non_risponde", "segreteria", "richiamo", "ci_ricontatta_lui", "attesa_whatsapp", "da_contattare"])
+    c(`…anche se lo stato attuale è ${st}`, 7, D.statiMenuRiga(st, pochi).length);
+  c("lead in altro stato (es. consulenza fissata): resta la regola statiPer", ["ci_ricontatta_lui", "appuntamento_fissato", "annullato"].sort(),
+    D.statiMenuRiga("appuntamento_fissato", pochi).sort());
+  c("importato: statiPer ammette tutto, restano i 7", 7, D.statiMenuRiga("richiamo", new Set(SETTE)).length);
+
   // ── Il cablaggio (prove di testo) ───────────────────────────────────────────────────────────
   const leggi = (f) => readFileSync(join(process.cwd(), "src/crm/chatwa", f), "utf8");
   const riga = leggi("RigaChat.tsx");
@@ -60,7 +73,7 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     /"da-chiamare"/.test(tipi) && /v: "da-chiamare"/.test(elenco) && /contaSottofiltri\(/.test(elenco));
   c("la pillola filtra con lo stesso insieme del modulo puro", true, /statoChiamata\(c\) !== null/.test(cerca));
   c("una riga di chip dei sottofiltri solo con la pillola accesa, a zero nascosti", true,
-    /filtro === "da-chiamare"/.test(elenco) && /conti\[x\.v\] > 0/.test(elenco) && /aria-pressed=\{sotto === x\.v\}/.test(elenco));
+    /filtro === "da-chiamare"/.test(elenco) && /conti\[x\.v\] > 0/.test(elenco) && /aria-pressed=\{sottoAttivo === x\.v\}/.test(elenco));
   c("un elenco solo ordinato per stato (chatDaChiamare), niente scheda per stato", true,
     /chatDaChiamare\(/.test(elenco) && !/titolo-da-chiamare/.test(elenco));
   c("cornetta: tel: del numero, accessibile «Chiama <nome>», fuori dal bottone della riga", true,
@@ -69,7 +82,7 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     /e\.stopPropagation\(\)/.test(riga.slice(riga.indexOf("tel:") - 400, riga.indexOf("tel:") + 400)) && /h-11 w-11/.test(riga));
   c("cornetta su ogni riga con scheda (non solo Da chiamare)", true, /c\.lead && telefono/.test(riga));
   c("cambio stato dalla riga: la finestra condivisa del CRM (FinestraStati), con i sette stati", true,
-    /FinestraStati/.test(riga) && /STATI_CAMBIO_RAPIDO/.test(riga));
+    /FinestraStati/.test(riga) && /statiMenuRiga\(/.test(riga));
   c("…e salva col meccanismo condiviso: onCambiaStato → cambiaStatoLead → updateLead (nessun supabase in riga)", true,
     /onCambiaStato\?\.\(c\.lead, s\)/.test(riga) && /onCambiaStato=\{/.test(elenco) && /cambiaStatoLead/.test(hook) &&
     /updateLead\(lead\.id, patchEsito\(lead\.data, newStatus\)\)/.test(hook) && !/supabase/.test(riga));
@@ -78,6 +91,9 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
   c("toast con «Annulla» che rimette stato, statoDal e statoPrecedente (annulla: true)", true,
     /label: "Annulla"/.test(hook) && /\{ annulla: true \}/.test(hook) && /statoPrecedenteIl: lead\.data\.statoPrecedenteIl/.test(hook));
   c("l'intestazione della chat usa lo stesso salvataggio", true, /cambiaStato: \(s: LeadStatus\) => Promise<void>/.test(tipi) && /cambiaStatoLead: \(lead: Lead/.test(tipi));
+  c("niente codice morto della vecchia fascia (modo «chiamare», «oltre 10 ore» in riga, api.daChiamare)", false,
+    /"chiamare"/.test(riga) || /oltre 10 ore/.test(riga) || /daChiamare:\s*ChatItem\[\]/.test(tipi) || /\bdaChiamare,$/m.test(hook));
+  c("pillole e chip a 44 px sul telefono (h-11), 28 px dal desktop", false, /"h-10 shrink-0/.test(elenco));
   c("telefono: pillole che scorrono di lato, nessuno scorrimento orizzontale della pagina", true,
     /overflow-x-auto/.test(elenco) && /min-w-0/.test(riga));
 }
