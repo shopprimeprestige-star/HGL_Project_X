@@ -41,3 +41,12 @@ dist-ssr
 scratch-*.mjs
 .anteprima/
 .storico-assets/
+
+# Ponte WhatsApp (Baileys): accesso, segreti, QR e fila restano sul Mac (PIANO §a1)
+strumenti/ponte-whatsapp/auth*/
+creds.json
+app-state-sync-*
+config.env
+*.qr.png
+qr.png
+fila/
