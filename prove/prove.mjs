@@ -20744,6 +20744,18 @@ function proveDelloStatoDaChiamare() {
   c("STOP sul numero: resta", null, A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T08:00:00Z" }, { stop: true }, adesso));
   c("solo il tasto WhatsApp premuto (stato diverso): nessun cambio", null, A.patchDaChiamare({ stato: "da_contattare", whatsappInviatoIl: "2026-10-28T08:00:00Z" }, null, adesso));
   c("le ultime nove cifre", "331234567", A.nove("+39 333 123 4567"));
+  //  Il ritorno (29/10/2026): «Da chiamare» che risponde → «Attesa WhatsApp».
+  const dc = { stato: "da_chiamare", statoDal: "2026-10-28T12:00:00Z", statoPrecedenteIl: "2026-10-28T12:00:00Z", note: "x" };
+  const r1 = A.patchRitornoAttesa(dc, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, adesso);
+  c("Da chiamare che risponde dopo: torna in Attesa WhatsApp", { stato: "attesa_whatsapp", statoPrecedente: "da_chiamare", statoPrecedenteIl: adesso.toISOString(), statoDal: adesso.toISOString() }, r1);
+  c("…e non tocca altro", false, "note" in (r1 ?? {}));
+  c("risposta PRIMA di diventare Da chiamare: resta", null, A.patchRitornoAttesa(dc, { ultimoInEntrataIl: "2026-10-28T10:00:00Z" }, adesso));
+  c("nessuna risposta: resta", null, A.patchRitornoAttesa(dc, { ultimoInEntrataIl: null }, adesso));
+  c("risposta oltre le 24 ore (finestra chiusa): resta", null, A.patchRitornoAttesa({ ...dc, statoDal: "2026-10-26T10:00:00Z", statoPrecedenteIl: "2026-10-26T10:00:00Z" }, { ultimoInEntrataIl: "2026-10-27T10:00:00Z" }, adesso));
+  c("STOP sul numero: resta", null, A.patchRitornoAttesa(dc, { ultimoInEntrataIl: "2026-10-28T18:00:00Z", stop: true }, adesso));
+  c("ogni altro stato resta com'è anche se il cliente scrive", [null, null, null], ["richiamo", "attesa_whatsapp", "appuntamento_fissato"].map((stato) => A.patchRitornoAttesa({ ...dc, stato }, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, adesso)));
+  c("senza data d'ingresso nello stato: resta", null, A.patchRitornoAttesa({ stato: "da_chiamare" }, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, adesso));
+  c("tornato in attesa ora: l'andata non lo rimanda subito in Da chiamare", null, A.patchDaChiamare({ ...dc, ...r1 }, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, adesso));
   const D = mod["chatwa/daChiamare"];
   c("in chat «Da chiamare» c'è anche chi ha già lo stato, da subito", true, D.calcolaDaChiamare({ dati: { stato: "da_chiamare", statoPrecedenteIl: "2026-10-28T19:50:00Z" }, messaggi: [], adesso }).si);
   const FIL = mod["importa/filtri-lista"];
@@ -20753,7 +20765,7 @@ function proveDelloStatoDaChiamare() {
   const hook = readFileSync(join(radice, "src/routes/hooks/attesa-da-chiamare.ts"), "utf8");
   const sql = readFileSync(join(radice, "supabase/migrations/20261028190000_attesa_da_chiamare_cron.sql"), "utf8");
   c("il server scrive solo se la scheda non è cambiata nel frattempo", true, /\.eq\("updated_at", r\.updated_at\)/.test(hook));
-  c("il server legge solo chi è nello stato Attesa WhatsApp", true, /\.eq\("data->>stato", "attesa_whatsapp"\)/.test(hook));
+  c("il server legge solo chi è nello stato richiesto (Attesa WhatsApp per l'andata, Da chiamare per il ritorno)", true, /\.eq\("data->>stato", stato\)/.test(hook) && /schedeInAttesa\("da_chiamare"\)/.test(hook) && /stato = "attesa_whatsapp"/.test(hook));
   c("legge le schede a pagine (oltre le 1000)", true, /\.range\(da, da \+ PAGINA - 1\)/.test(hook) && /\.order\("id"/.test(hook));
   c("legge i contatti dei SOLI candidati, a blocchi", true, /\.in\("phone_e164", elenco\.slice\(i, i \+ 100\)\)/.test(hook) && !/\.in\("user_id"/.test(hook));
   c("il messaggio non dice di aver già chiamato", false, /provato a chiamar/.test(mod["whatsapp"].MODELLI_ORIGINALI.da_chiamare));
