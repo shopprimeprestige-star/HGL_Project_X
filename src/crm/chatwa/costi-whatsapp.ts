@@ -57,6 +57,9 @@ const CATEGORIA_DEI_MODELLI: Record<string, CategoriaCosto> = {
 
 const nomeBase = (nome: string) => nome.replace(/^hgl_/, "").replace(/_v\d+$/, "");
 
+/** Il modello è nell'elenco delle categorie vere? Se no, la cifra è solo una stima. */
+export const categoriaConosciuta = (nome: string): boolean => nomeBase(nome) in CATEGORIA_DEI_MODELLI;
+
 /** La categoria di un modello. Se non è nell'elenco vale quella dichiarata dal
  *  modello; senza nemmeno quella, Marketing (la più cara: mai sottostimare). */
 export function categoriaModello(

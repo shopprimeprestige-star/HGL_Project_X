@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { usePuo } from "@/crm/AuthContext";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { LeadDialog } from "@/crm/LeadDialog";
 import { QuickStatusDialog } from "@/crm/QuickStatusDialog";
@@ -20,6 +21,7 @@ import { ElencoChat } from "./ElencoChat";
 import type { ChatItem, ChatWaApi } from "./tipi";
 import { AbbinaScheda } from "./AbbinaScheda";
 import { StatoPonte } from "./StatoPonte";
+import { PannelloCosti, TastoCosti } from "./PannelloCosti";
 import { useChatWa } from "./useChatWa";
 import { usaAltezzaVisibile } from "./usaAltezzaVisibile";
 
@@ -52,6 +54,9 @@ export function PaginaChat({
   //  Sotto 1280 px la colonna «Lead CRM» è un foglio che si apre a richiesta.
   const [foglioLead, setFoglioLead] = useState(false);
   const visibile = usaAltezzaVisibile();
+  //  «Costi WhatsApp» (29/10/2026): soldi, quindi solo a chi ha le impostazioni (come la rotta).
+  const vedeCosti = usePuo()("impostazioni");
+  const [costiAperti, setCostiAperti] = useState(false);
 
   // LeadDialog (modifica lead esistente o creazione nuovo lead da numero sconosciuto)
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
@@ -275,6 +280,7 @@ export function PaginaChat({
           </Segmento>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {vedeCosti && <TastoCosti onClick={() => setCostiAperti(true)} />}
           {api.stato === "configura" && (
             <Badge
               variant="outline"
@@ -386,6 +392,8 @@ export function PaginaChat({
 
       {/* Foglio «Lead CRM» sotto 1280 px: a tutta larghezza sul telefono.
           La larghezza fissa del pannello (340 px) la annulla il contenitore. */}
+      {vedeCosti && <PannelloCosti aperto={costiAperti} onChiudi={() => setCostiAperti(false)} />}
+
       <Sheet open={foglioLead} onOpenChange={setFoglioLead}>
         <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[400px]">
           <SheetTitle className="sr-only">Lead CRM</SheetTitle>
