@@ -81,7 +81,12 @@ chiedi_chiave() {
   [ -t 0 ] || errore "Per scrivere config.env serve un Terminale: rilancia ./installa.sh chiave."
   local URL TOKEN
   echo "Servono l'indirizzo della rotta del CRM e la chiave PONTE_WA_TOKEN (la stessa dei segreti del Worker)."
-  read -r -p "Indirizzo (https://…/api/public/ponte-whatsapp): " URL
+  if [ -n "${PONTE_WA_URL:-}" ]; then
+    URL="$PONTE_WA_URL"
+    echo "Indirizzo: $URL"
+  else
+    read -r -p "Indirizzo (https://…/api/public/ponte-whatsapp): " URL
+  fi
   case "$URL" in
     https://*) ;;
     *) errore "L'indirizzo deve cominciare con https://" ;;
@@ -89,8 +94,16 @@ chiedi_chiave() {
   case "$URL" in
     *[[:space:]\"\'\\]*) errore "L'indirizzo contiene spazi o virgolette." ;;
   esac
-  read -r -s -p "Chiave (mentre la incolli non si vede nulla; poi Invio): " TOKEN
-  echo
+  #  La chiave da un file (permessi 600) invece che incollata: niente appunti,
+  #  niente chiave finita per sbaglio nel campo dell'indirizzo.
+  if [ -n "${PONTE_WA_CHIAVE_FILE:-}" ]; then
+    [ -r "$PONTE_WA_CHIAVE_FILE" ] || errore "Non leggo il file della chiave."
+    TOKEN="$(tr -d '[:space:]' < "$PONTE_WA_CHIAVE_FILE")"
+    echo "Chiave: letta dal file (non si stampa)."
+  else
+    read -r -s -p "Chiave (mentre la incolli non si vede nulla; poi Invio): " TOKEN
+    echo
+  fi
   [ "${#TOKEN}" -ge 32 ] || errore "La chiave è troppo corta: servono almeno 32 caratteri (openssl rand -hex 32)."
   case "$TOKEN" in
     *[!A-Za-z0-9_-]*) errore "La chiave può contenere solo lettere, cifre, - e _." ;;
