@@ -10,19 +10,28 @@
  *  cliente e le rimetteva in «Da rispondere».
  *  Qui si nascondono A SCHERMO, senza cancellare né cambiare niente.
  *
- *  ⚠️ COM'È FATTA UN'ECO (tutte e quattro):
- *   1. è una riga ManyChat in entrata (`wa_message_id` «mc-in:…»);
- *   2. il testo è uguale (stessa ripulitura del ponte) all'entrata
- *      PRECEDENTE dello stesso numero;
- *   3. fra le due c'è almeno un nostro messaggio (è quello che fa partire il
- *      Default Reply);
- *   4. nessuna riga del ponte (il WhatsApp vero) è segnata come suo pari: se
- *      il ponte l'ha vista arrivare, il cliente l'ha scritta davvero.
- *  Un «sì» ripetuto davvero dal cliente, col ponte acceso, quindi resta.
+ *  ⚠️ SOLO LE RIGHE DI PRIMA DELLA CORREZIONE (`FINO_A`): dopo, le eco non
+ *   arrivano più in archivio e decide il server (`ecoDi`). Così un «sì» che il
+ *   cliente ripete davvero oggi non sparisce mai dallo schermo (revisione).
+ *  ⚠️ COM'È FATTA UN'ECO (tutte):
+ *   1. è una riga ManyChat in entrata («mc-in:…») salvata prima di `FINO_A`;
+ *   2. è un TESTO (media, posizioni, «[messaggio senza testo]» no: come il
+ *      server, che li salta) uguale — stessa ripulitura del ponte — all'ultimo
+ *      TESTO in entrata dello stesso numero;
+ *   3. fra i due c'è almeno un nostro messaggio (è quello che fa partire il
+ *      Default Reply).
+ *  ⚠️ «DA RISPONDERE» LEGGE LE COLONNE DEL CONTATTO, non queste righe: una
+ *   chat la cui ultima entrata era un'eco vecchia resta lì finché non si
+ *   risponde o si preme «Fatto». Qui si sistemano le bolle.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { normalizzaTesto } from "../ponte/pari";
 import { CONFRONTO_CARATTERI } from "../ponte/tipi";
 import type { WaMessageRow } from "./tipi";
+import { classificaTesto } from "./media";
+
+/** Quando è andata online la correzione del server (fix/manychat-eco, 29/10
+ *  ore 18:25 a Roma, con qualche minuto di margine per la pubblicazione). */
+export const FINO_A = Date.parse("2026-10-29T17:40:00Z");
 
 const chiave = (t: string | null | undefined) => normalizzaTesto(t).slice(0, CONFRONTO_CARATTERI);
 
@@ -31,12 +40,8 @@ const peerDi = (m: WaMessageRow) => (m.direction === "inbound" ? m.from_number :
 
 /** Gli id delle righe che sono eco. `righe` dal più vecchio al più nuovo. Pura. */
 export function idEco(righe: WaMessageRow[]): Set<string> {
-  //  Le righe ManyChat che il ponte ha visto arrivare (qualcuno ha `duplicato_di` = loro).
-  const confermate = new Set(
-    righe.filter((r) => r.duplicato_di).map((r) => String(r.duplicato_di)),
-  );
   const fuori = new Set<string>();
-  //  Per numero: l'ultima entrata vista (testo) e se dopo c'è stata una nostra uscita.
+  //  Per numero: l'ultimo TESTO in entrata e se dopo c'è stata una nostra uscita.
   const stato = new Map<string, { testo: string; uscitaDopo: boolean }>();
   for (const r of righe) {
     if (r.duplicato_di) continue; // i doppioni del ponte sono già nascosti
@@ -46,19 +51,20 @@ export function idEco(righe: WaMessageRow[]): Set<string> {
       if (s) s.uscitaDopo = true;
       continue;
     }
+    //  Media e righe senza testo: non sono eco e non cambiano l'ultimo testo.
+    if (!r.body || classificaTesto(r.body).tipo !== "testo") continue;
     const testo = chiave(r.body);
+    if (!testo) continue;
     const prima = stato.get(peer);
     const eco =
-      !!testo &&
       String(r.wa_message_id ?? "").startsWith("mc-in:") &&
+      Date.parse(r.created_at) < FINO_A &&
       !!prima &&
       prima.uscitaDopo &&
-      prima.testo === testo &&
-      !confermate.has(r.id);
+      prima.testo === testo;
     if (eco) {
       fuori.add(r.id);
-      //  L'eco non conta come entrata: l'ultima resta quella vera, e la nostra
-      //  uscita resta «dopo» (un'altra eco dello stesso testo è ancora eco).
+      //  L'eco non conta come entrata: l'ultima resta quella vera.
       continue;
     }
     stato.set(peer, { testo, uscitaDopo: false });

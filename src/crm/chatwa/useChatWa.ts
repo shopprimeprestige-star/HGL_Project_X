@@ -509,7 +509,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   /** I recenti e la chat aperta, senza doppioni per `id`, dal più vecchio.
    *  ⚠️ Senza le eco di ManyChat (crm/chatwa/eco): le righe salvate prima della
    *   correzione del 29/10 sembravano risposte del cliente. Si tolgono qui, una
-   *   volta, così non le vedono né le bolle né «Da rispondere» né l'anteprima. */
+   *   volta, per le bolle della chat. «Da rispondere» e l'anteprima dell'elenco
+   *   leggono le colonne del contatto: lì le vecchie eco si chiudono con «Fatto». */
   const tutti = useMemo<WaMessageRow[]>(() => {
     if (!extra) return senzaEco(messages);
     const noti = new Set(messages.map((x) => x.id));
