@@ -29,6 +29,7 @@ import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
 import { proveSheets } from "./sheets.mjs";
 import { proveDelPonte } from "./ponte.mjs";
+import { proveLeadDoppiChiamate } from "./lead-doppi-chiamate.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 
@@ -619,6 +620,9 @@ const MODULI = [
   ...["importa/pillole-stato", "importa/coda-pagina", "importa/avvisi-pagina", "importa/sezioni-altro"].filter((m) =>
     existsSync(join(radice, `src/crm/${m}.ts`)),
   ),
+  //  «Chi chiamare adesso» e il riepilogo del mattino (commessa
+  //   2026-10-30-ottimizzazioni, p6): prove in prove/lead-doppi-chiamate.mjs.
+  ...["chi-chiamare-adesso", "riepilogo-mattino"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21015,6 +21019,7 @@ await proveSheets(mod, { c, gruppo, radice });
 await proveLeadSemplice(mod, { c, gruppo, radice });
 await proveDelPonte(mod, { c, gruppo, radice });
 await proveLeadSemplicePagina(mod, { c, gruppo, radice });
+await proveLeadDoppiChiamate(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
 proveDiWhatsappOrariStelle();
