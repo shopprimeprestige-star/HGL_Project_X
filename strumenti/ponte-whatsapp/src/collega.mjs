@@ -241,9 +241,23 @@ export function creaCollegamento({
       mkdirSync(percorsi.auth, { recursive: true, mode: 0o700 });
       const { state, saveCreds } = await baileys.useMultiFileAuthState(percorsi.auth);
       if (g !== generazione || fermato) return;
+      //  Errore 428 al primo collegamento (29/10/2026): la versione di WhatsApp Web
+      //  dentro Baileys era vecchia e il server chiudeva prima del QR. Si chiede la
+      //  versione attuale; se la richiesta fallisce si usa quella di Baileys.
+      let versione;
+      if (typeof baileys.fetchLatestWaWebVersion === "function") {
+        try {
+          const r = await baileys.fetchLatestWaWebVersion({});
+          if (Array.isArray(r?.version)) versione = r.version;
+        } catch {
+          versione = undefined;
+        }
+      }
+      if (g !== generazione || fermato) return;
       const questo = baileys.makeWASocket({
+        ...(versione ? { version: versione } : {}),
         auth: state,
-        browser: baileys.Browsers.macOS("Desktop"),
+        browser: baileys.Browsers.macOS("Chrome"),
         syncFullHistory: true,
         markOnlineOnConnect: false,
         logger: LOGGER_MUTO,
