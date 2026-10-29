@@ -92,14 +92,24 @@ export async function proveStati(mod, { c, gruppo, radice }) {
   gruppo("MANYCHAT · MESSAGGI PER STATO: LA TABELLA (stati.ts)");
   const TB = T.TABELLA_STATI;
   c(
-    "«Ricontatto fissato», «In valutazione», «Attesa acconto», «Lead in chat» → tutti hgl_ricontatto_consulenza, un solo tag",
-    Array(4).fill(["hgl_ricontatto_consulenza", "crm-ricontatto", "a_data", "consulente"]),
-    ["da_ricontattare", "sta_valutando", "in_attesa_acconto", "gestire_in_chat"].map((s) => [
+    "«Ricontatto fissato», «In valutazione», «Lead in chat» → tutti hgl_ricontatto_consulenza, un solo tag",
+    Array(3).fill(["hgl_ricontatto_consulenza", "crm-ricontatto", "a_data", "consulente"]),
+    ["da_ricontattare", "sta_valutando", "gestire_in_chat"].map((s) => [
       TB[s].modello,
       TB[s].tag,
       TB[s].quando,
       TB[s].chi,
     ]),
+  );
+  c(
+    "«Attesa acconto» → hgl_acconto, tag suo, sempre A DATA e dei consulenti (parte il giorno del ricontatto, come prima)",
+    ["hgl_acconto", "crm-stato-acconto", "a_data", "consulente"],
+    [TB.in_attesa_acconto.modello, TB.in_attesa_acconto.tag, TB.in_attesa_acconto.quando, TB.in_attesa_acconto.chi],
+  );
+  c(
+    "«Attesa acconto» non è più la riga dei ricontatti (nemmeno lo stesso oggetto)",
+    true,
+    TB.in_attesa_acconto !== TB.da_ricontattare && TB.in_attesa_acconto.tag !== TB.da_ricontattare.tag,
   );
   c(
     "«Cliente assente» = no_show + non_fatto; «Non risponde» e «Segreteria» condividono modello e codice evento",
@@ -258,12 +268,19 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     Q.codaRicontatti(schede, t(adesso), acceso, { ...ctx(), ...extra });
   const stato = (id, n, s, extra) => sc(id, n, s, { dataRicontatto: "2026-10-27", ...extra });
   c(
-    "i quattro stati col messaggio unico: lo stesso ricontatto, col consulente della scheda",
-    Array(4).fill(["invia", "hgl_ricontatto_consulenza"]),
-    ["da_ricontattare", "sta_valutando", "in_attesa_acconto", "gestire_in_chat"].map((s) => {
+    "i tre stati col messaggio unico: lo stesso ricontatto, col consulente della scheda",
+    Array(3).fill(["invia", "hgl_ricontatto_consulenza"]),
+    ["da_ricontattare", "sta_valutando", "gestire_in_chat"].map((s) => {
       const x = unica(coda([stato("l-1", 1, s)], MAR10));
       return [x?.tipo, TB[x?.extra.stato]?.modello];
     }),
+  );
+  c(
+    "«Attesa acconto» il giorno del ricontatto → parte con hgl_acconto (stesso interruttore: acceso in ACCESO)",
+    ["invia", "hgl_acconto"],
+    ((x) => [x?.tipo, TB[x?.extra.stato]?.modello])(
+      unica(coda([stato("l-1", 1, "in_attesa_acconto")], MAR10)),
+    ),
   );
   c(
     "…senza consulente assegnato (o di un altro ruolo, o un lead importato) → niente",

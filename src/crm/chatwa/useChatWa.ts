@@ -516,9 +516,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     const noti = new Set(messages.map((x) => x.id));
     const nuovi = extra.righe.filter((x) => !noti.has(x.id));
     if (nuovi.length === 0) return senzaEco(messages);
-    return senzaEco(
-      [...messages, ...nuovi].sort((x, y) => ms(x.created_at) - ms(y.created_at)),
-    );
+    return senzaEco([...messages, ...nuovi].sort((x, y) => ms(x.created_at) - ms(y.created_at)));
   }, [messages, extra]);
 
   // Costruisco l'elenco chat: una per phone unico (interlocutore = "altro" rispetto a noi)

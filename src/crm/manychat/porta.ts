@@ -350,6 +350,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
       const w = await client.scriviCampi(subscriber, campiDelFlusso());
       if (w.esito !== "ok") return fallita(w, subscriber);
       r = { ...r, modello: modelloDiRiserva, testo: undefined };
+      ns = nsRiserva;
       s = await client.mandaFlusso(subscriber, nsRiserva);
     }
   }
@@ -359,6 +360,9 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
         stato: "inviato",
         inviato_il: porte.adesso().toISOString(),
         subscriber_id: String(subscriber),
+        //  Partito il modello di riserva: il registro lo dice (il pannello dei
+        //  costi conta a prezzo di modello solo le righe con un flusso).
+        ...(modelloDiRiserva && ns ? { flow_ns: ns } : {}),
       })
       .catch(() => undefined);
     await registraDi(porte, r, "sent", `mc:${invioId}`, null);

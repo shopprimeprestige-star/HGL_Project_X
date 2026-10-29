@@ -33,8 +33,7 @@ export const PERIODI: { id: PeriodoCosti; etichetta: string; giorni: number }[] 
 ];
 export const PERIODO_INIZIALE: PeriodoCosti = "oggi";
 
-export const periodoValido = (p: unknown): p is PeriodoCosti =>
-  PERIODI.some((x) => x.id === p);
+export const periodoValido = (p: unknown): p is PeriodoCosti => PERIODI.some((x) => x.id === p);
 
 /** Una riga del registro, ridotta a quanto serve. */
 export interface InvioPagato {
@@ -145,11 +144,14 @@ export function calcolaCosti(
     const tipo = String(i.tipo ?? "");
     //  Il modello: quello del flusso; se non si sa, il tipico del tipo; se la riga
     //  ha un flusso ma non si sa quale, la categoria più cara (mai sottostimare).
-    const modello = i.modello || MODELLO_DEL_TIPO[tipo] || null;
-    if (!modello && !i.conFlusso) {
-      if (tipo === "chat") testiLiberi++;
+    //  Senza flusso è partito un TESTO, qualunque sia il tipo: dal 29/10/2026
+    //  anche promemoria e giro, quando il cliente ha scritto da poco (finestra
+    //  aperta). Non è un modello: niente prezzo di modello.
+    if (!i.conFlusso && !i.modello) {
+      testiLiberi++;
       continue;
     }
+    const modello = i.modello || MODELLO_DEL_TIPO[tipo] || null;
     const categoria = modello ? categoriaModello(modello) : "marketing";
     if (!i.modello || !categoriaConosciuta(modello ?? "")) stimati++;
     cat.set(categoria, (cat.get(categoria) ?? 0) + 1);

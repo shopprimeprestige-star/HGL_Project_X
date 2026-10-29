@@ -162,8 +162,8 @@ export function campiMeetAdesso(
 /** ── I MESSAGGI PER STATO (commessa 2026-10-25, piano §5g) ─────────────────
  *  Le variabili nell'ordine di `MODELLI-MANYCHAT.md`, come per le sequenze:
  *   · nome + consulente: `hgl_ricontatto_consulenza` («Ricontatto fissato»,
- *     «In valutazione», «Attesa acconto», «Lead in chat»), `hgl_meet_da_fissare`,
- *     `hgl_da_riprogrammare`;
+ *     «In valutazione», «Lead in chat»), `hgl_acconto` («Attesa acconto»),
+ *     `hgl_meet_da_fissare`, `hgl_da_riprogrammare`;
  *   · nome + ora della chiamata: `hgl_richiamo_concordato`;
  *   · nome: `hgl_non_risponde`, `hgl_cliente_assente`, `hgl_sede_disdetta`,
  *     `hgl_ultimo_tentativo`;

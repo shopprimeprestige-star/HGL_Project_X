@@ -690,6 +690,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         "[template:consulenza_conferma_presenza]",
         rifiutato.messaggi.at(-1).corpo,
       );
+      c("…e nel registro il flusso con cui è partito (per i costi)", FLUSSO, rifiutato.righe[0].flow_ns);
       const chat = conEntrata(2);
       await invia(chat, { testo: "ciao", tipo: "chat", leadId: null });
       c(

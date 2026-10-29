@@ -31,8 +31,13 @@ export function finestraPerTesto(ultimaEntrata: string | null | undefined, adess
   return passato > -3_600_000 && passato < ORE_TESTO_LIBERO * 3_600_000;
 }
 
+/** I modelli che non sono solo testo (immagine, pulsanti): partono sempre
+ *  come modello. `hgl_casi_reali` ha l'immagine in testa e un pulsante link. */
+export const SOLO_COME_MODELLO: readonly string[] = ["hgl_casi_reali"];
+
 /** Il testo del modello coi valori `{{1}}`, `{{2}}`…, o `null` se non si può. */
 export function testoDelModello(nome: string, parametri: string[]): string | null {
+  if (SOLO_COME_MODELLO.includes(nome.replace(/_v\d+$/, ""))) return null;
   const t = findMetaTemplate(nome) ?? findMetaTemplate(nome.replace(/_v\d+$/, ""));
   if (!t) return null;
   let mancante = false;

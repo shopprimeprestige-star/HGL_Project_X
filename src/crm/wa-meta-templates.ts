@@ -210,43 +210,43 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_meet_domani",
     "UTILITY",
-    `Gentile {{lead_name}}, Le ricordiamo che domani, {{appointment_day}}, alle ore {{appointment_time}} ha la Sua consulenza online con Hair Genius Labs.\n\nLa seguirà {{consultant_name}}. Se ha un imprevisto, ci risponda qui e troviamo un altro orario.`,
+    `Ciao {{lead_name}}, ti ricordo che domani, {{appointment_day}}, alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{consultant_name}}. Se hai un imprevisto, rispondi qui e troviamo un altro orario.`,
     ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
   ),
   tpl(
     "hgl_meet_oggi",
     "UTILITY",
-    `Gentile {{lead_name}}, Le ricordiamo che oggi alle ore {{appointment_time}} ha la Sua consulenza online con Hair Genius Labs.\n\nLa seguirà {{consultant_name}}. Poco prima dell'inizio riceverà il link per collegarsi.\n\nSe ha un imprevisto, ci risponda qui e troviamo un altro orario.`,
+    `Ciao {{lead_name}}, ti ricordo che oggi alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{consultant_name}}. Poco prima dell'inizio ti arriva il link per collegarti.\n\nSe hai un imprevisto, rispondi qui e troviamo un altro orario.`,
     ["lead_name", "appointment_time", "consultant_name"],
   ),
   tpl(
     "hgl_promemoria_meet",
     "UTILITY",
-    `Gentile {{lead_name}}, Le ricordo la Sua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 20 minuti.\n\nPer collegarsi: {{meet_link}}\n\nLa seguirà {{consultant_name}}. Se può, si colleghi da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
+    `Ciao {{lead_name}}, ti ricordo la tua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 20 minuti.\n\nPer collegarti: {{meet_link}}\n\nTi seguirà {{consultant_name}}. Se puoi, collegati da un posto tranquillo e con una buona connessione.\n\nHair Genius Labs`,
     ["lead_name", "appointment_time", "meet_link", "consultant_name"],
   ),
   tpl(
     "hgl_meet_adesso",
     "UTILITY",
-    `Gentile {{lead_name}}, la Sua consulenza con Hair Genius Labs inizia adesso e {{consultant_name}} La sta aspettando.\n\nEntri da qui: {{meet_link}}\n\nSe ha difficoltà a collegarsi, ci risponda a questo messaggio.`,
+    `Ciao {{lead_name}}, la tua consulenza con Hair Genius Labs inizia adesso e {{consultant_name}} ti sta aspettando.\n\nEntra da qui: {{meet_link}}\n\nSe hai difficoltà a collegarti, rispondi a questo messaggio.`,
     ["lead_name", "consultant_name", "meet_link"],
   ),
   tpl(
     "hgl_ricontatto_consulenza",
     "MARKETING",
-    `Gentile {{lead_name}}, sono {{consultant_name}}, consulente di Hair Genius Labs.\n\nEravamo rimasti che mi avrebbe fatto sapere: ha deciso come procedere, o Le servono altri chiarimenti?\n\nMi risponda pure qui, sono a Sua disposizione.`,
+    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nEravamo rimasti che mi avresti fatto sapere: hai deciso come procedere o ti serve ancora qualche chiarimento?\n\nScrivimi pure qui, sono a tua disposizione.`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
     "hgl_meet_da_fissare",
     "UTILITY",
-    `Gentile {{lead_name}}, sono {{consultant_name}}, consulente di Hair Genius Labs. Come d'accordo, La ricontatto per fissare la Sua consulenza online.\n\nPreferisce la mattina o la sera? Le proponiamo subito un orario.`,
+    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs. Come d'accordo ti ricontatto per fissare la tua consulenza online.\n\nPreferisci la mattina o la sera? Ti propongo subito un orario.`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
     "hgl_richiamo_concordato",
     "UTILITY",
-    `Gentile {{lead_name}}, come d'accordo La chiameremo oggi alle ore {{recontact_time}} da Hair Genius Labs.\n\nSe l'orario non Le va più bene, ci risponda qui e lo spostiamo.`,
+    `Ciao {{lead_name}}, come d'accordo ti chiamiamo oggi alle ore {{recontact_time}} da Hair Genius Labs.\n\nSe l'orario non ti va più bene, rispondi qui e lo spostiamo.`,
     ["lead_name", "recontact_time"],
   ),
   tpl(
@@ -258,25 +258,25 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_cliente_assente",
     "UTILITY",
-    `Gentile {{lead_name}}, oggi non siamo riusciti a vederci per la Sua consulenza online con Hair Genius Labs.\n\nNessun problema: ci risponda qui e Le proponiamo un nuovo orario, mattina o sera come preferisce.`,
+    `Ciao {{lead_name}}, oggi non siamo riusciti a vederci per la tua consulenza online con Hair Genius Labs.\n\nNessun problema: rispondi qui e ti proponiamo un nuovo orario, mattina o sera come preferisci.`,
     ["lead_name"],
   ),
   tpl(
     "hgl_da_riprogrammare",
     "UTILITY",
-    `Gentile {{lead_name}}, sono {{consultant_name}}, consulente di Hair Genius Labs. La ricontatto per fissare il nuovo orario della Sua consulenza online.\n\nPreferisce la mattina o la sera?`,
+    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs. Ti ricontatto per fissare il nuovo orario della tua consulenza online.\n\nPreferisci la mattina o la sera?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
     "hgl_promemoria_sede",
     "UTILITY",
-    `Gentile {{lead_name}}, Le ricordiamo l'appuntamento in sede con Hair Genius Labs di {{appointment_day}} alle ore {{visit_time}}.\n\nIndirizzo: {{address}}\n\nSe ha un imprevisto, ci risponda qui e troviamo un altro orario.`,
+    `Ciao {{lead_name}}, ti ricordo l'appuntamento in sede con Hair Genius Labs di {{appointment_day}} alle ore {{visit_time}}.\n\nIndirizzo: {{address}}\n\nSe hai un imprevisto, rispondi qui e troviamo un altro orario.`,
     ["lead_name", "appointment_day", "visit_time", "address"],
   ),
   tpl(
     "hgl_sede_disdetta",
     "UTILITY",
-    `Gentile {{lead_name}}, abbiamo registrato la disdetta del Suo appuntamento in sede con Hair Genius Labs.\n\nQuando vuole, ci risponda qui e fissiamo una nuova data.`,
+    `Ciao {{lead_name}}, abbiamo registrato la disdetta del tuo appuntamento in sede con Hair Genius Labs.\n\nQuando vuoi, rispondi qui e fissiamo una nuova data.`,
     ["lead_name"],
   ),
   tpl(
@@ -284,6 +284,15 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     "MARKETING",
     `Gentile {{lead_name}}, abbiamo provato più volte a contattarLa da Hair Genius Labs per la Sua richiesta, senza riuscirci.\n\nSe è ancora interessato, ci risponda qui: altrimenti non La disturberemo più.`,
     ["lead_name"],
+  ),
+  //  Acconto (commessa 2026-10-29): parte il giorno della data di ricontatto di
+  //  «Attesa acconto». Tono del «tu», come i ricontatti: in consulenza si è
+  //  entrati in confidenza. Approvato da Meta come MARKETING.
+  tpl(
+    "hgl_acconto",
+    "MARKETING",
+    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nCome ci eravamo detti in consulenza, ti scrivo per l'acconto: appena lo ricevo blocchiamo la data e prepariamo il tuo impianto su misura.\n\nTi mando qui i dati per il bonifico? Se prima vuoi chiarire qualcosa, scrivimi pure 😊`,
+    ["lead_name", "consultant_name"],
   ),
 ];
 
