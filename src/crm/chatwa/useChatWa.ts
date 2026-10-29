@@ -113,6 +113,12 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   /** La chat aperta, letta per intero: i `messages` sono solo i 2000 più recenti. */
   const [extra, setExtra] = useState<{ phone: string; righe: WaMessageRow[] } | null>(null);
   const [letture, setLetture] = useState(0);
+  /** Ora dell'ultima lettura riuscita, ed errore dell'ultima fallita (si mostrano in alto). */
+  const [aggiornatoIl, setAggiornatoIl] = useState<number | null>(null);
+  const [erroreLettura, setErroreLettura] = useState<string | null>(null);
+  const [aggiornando, setAggiornando] = useState(false);
+  /** «Aggiorna» a mano: riapre il canale e rilegge (lo imposta l'effetto del tempo reale). */
+  const forzaRef = useRef<(() => Promise<void>) | null>(null);
   /** Chat (per telefono) uscite da «Da rispondere» PRIMA che la ricarica lo confermi: ora locale. */
   const [ottimistici, setOttimistici] = useState<Record<string, number>>({});
   /** Chat a cui il server ha detto «solo modelli»: telefono → ultimo messaggio del cliente allora. */
@@ -189,19 +195,36 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     if (!user) return;
     //  Lo spinner solo al primo caricamento (`caricamento` parte vero): ogni
     //  risposta fa più ricariche, e l'elenco non deve lampeggiare né perdere un tocco.
-    const [m, ct] = await Promise.all([
-      tabella("whatsapp_messages")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(2000),
-      tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
-    ]);
+    const leggi = () =>
+      Promise.all([
+        tabella("whatsapp_messages")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(2000),
+        tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
+      ]);
+    let [m, ct] = await leggi();
+    /*  ── LA SESSIONE SCADUTA SUL TELEFONO (29/10/2026) ──────────────────────
+        Il titolare vedeva sul telefono solo le chat del giorno prima. Con il CRM
+        lasciato aperto in un browser dentro un'app, i timer si fermano e la
+        sessione scade senza rinnovarsi: ogni lettura tornava errore e la pagina
+        teneva, ZITTA, i dati vecchi. Ora: al primo errore si rinnova la sessione
+        e si riprova; se fallisce ancora, l'errore si mostra in alto con «Aggiorna». */
+    if (m.error || ct.error) {
+      await supabase.auth.refreshSession().catch(() => null);
+      [m, ct] = await leggi();
+    }
     //  Errore di lettura (rete, RLS): si tengono i dati di prima, non si svuota l'elenco.
     if (m.error || ct.error) {
+      setErroreLettura(
+        "Chat non aggiornate: connessione o accesso scaduto. Tocca «Aggiorna» o ricarica la pagina.",
+      );
       setCaricamento(false);
       return;
     }
+    setErroreLettura(null);
+    setAggiornatoIl(Date.now());
     const cts = (ct.data as WaContactRow[] | null) ?? [];
     setMessages(((m.data as WaMessageRow[] | null) ?? []).reverse());
     setContacts(cts);
@@ -326,7 +349,12 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           .order("updated_at", { ascending: false })
           .limit(1),
       ]);
-      if (!vivo || m.error || c.error) return;
+      if (!vivo) return;
+      //  Errore anche qui (sessione scaduta?): la ricarica rinnova la sessione e lo mostra.
+      if (m.error || c.error) {
+        void ricarica();
+        return;
+      }
       const ora = JSON.stringify([m.data, c.data]);
       if (ora !== impronta) {
         impronta = ora;
@@ -335,25 +363,55 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       primo = false;
     };
     const controllaZitto = () => controlla().catch(() => {});
+    //  «Aggiorna»: sessione rinnovata, canale riaperto da capo, tutto riletto.
+    forzaRef.current = async () => {
+      await supabase.auth.refreshSession().catch(() => null);
+      if (riprova) {
+        clearTimeout(riprova);
+        riprova = null;
+      }
+      const vecchio = ch;
+      ch = null;
+      if (vecchio) void supabase.removeChannel(vecchio);
+      void apri().catch(() => {});
+      await ricarica();
+    };
     void controllaZitto();
     const giro = setInterval(() => void controllaZitto(), 15_000);
+    //  Al ritorno sulla pagina: se è stata ferma a lungo (telefono in tasca) il
+    //  canale è quasi certamente morto: si riapre tutto come con «Aggiorna».
+    let ultimoGiro = Date.now();
     const torna = () => {
-      if (document.visibilityState === "visible") void ricarica();
+      if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+      const fermo = Date.now() - ultimoGiro > 60_000;
+      ultimoGiro = Date.now();
+      if (fermo && forzaRef.current) void forzaRef.current();
+      else void ricarica();
     };
+    const battito = setInterval(() => {
+      //  I timer sospesi non battono: un buco di oltre un minuto vuol dire pagina congelata.
+      if (Date.now() - ultimoGiro > 60_000) torna();
+      else ultimoGiro = Date.now();
+    }, 20_000);
     const pagina = typeof document !== "undefined";
     if (pagina) {
       document.addEventListener("visibilitychange", torna);
       window.addEventListener("focus", torna);
       window.addEventListener("online", torna);
+      //  Pagina ripresa dalla cache del browser (indietro/avanti, app riaperta).
+      window.addEventListener("pageshow", torna);
     }
     return () => {
       vivo = false;
+      forzaRef.current = null;
       clearInterval(giro);
+      clearInterval(battito);
       if (riprova) clearTimeout(riprova);
       if (pagina) {
         document.removeEventListener("visibilitychange", torna);
         window.removeEventListener("focus", torna);
         window.removeEventListener("online", torna);
+        window.removeEventListener("pageshow", torna);
       }
       if (ch) void supabase.removeChannel(ch);
     };
@@ -869,6 +927,18 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       setActivePhone(contacts.find((c) => c.id === chatIdOPhone)?.phone_e164 ?? chatIdOPhone),
     messaggi: activeMessages,
     caricamento,
+    aggiornatoIl,
+    erroreLettura,
+    aggiornando,
+    aggiorna: async () => {
+      if (!forzaRef.current || aggiornando) return;
+      setAggiornando(true);
+      try {
+        await forzaRef.current();
+      } finally {
+        setAggiornando(false);
+      }
+    },
     canale,
     stato,
     bozza,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
-import { AlertCircle, MessageCircle } from "lucide-react";
+import { AlertCircle, Loader2, MessageCircle, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -280,6 +280,26 @@ export function PaginaChat({
           )}
           {vista === "chat" && (
             <>
+              {/*  «Aggiorna» (29/10/2026): rilegge tutto a mano, con l'ora dell'ultima lettura. */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void api.aggiorna()}
+                disabled={api.aggiornando}
+                className="h-11 gap-1.5 text-xs md:h-8"
+                title={
+                  api.aggiornatoIl
+                    ? `Aggiornato alle ${new Date(api.aggiornatoIl).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+                    : "Aggiorna le chat"
+                }
+              >
+                {api.aggiornando ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                Aggiorna
+              </Button>
               {/* Sotto 1280 px «Lead CRM» è un foglio; da 1280 in su una colonna che si nasconde. */}
               <Button
                 size="sm"
@@ -304,6 +324,24 @@ export function PaginaChat({
         </div>
       </div>
 
+      {api.erroreLettura && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">{api.erroreLettura}</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void api.aggiorna()}
+            disabled={api.aggiornando}
+            className="h-9 shrink-0 text-xs"
+          >
+            Aggiorna
+          </Button>
+        </div>
+      )}
       {vista === "modelli" && <EditorMessaggi />}
 
       {/*  La chat resta montata mentre si guardano i modelli: tornando indietro

@@ -87,6 +87,13 @@ export interface ChatWaApi {
   /** I messaggi della chat aperta, dal più vecchio. */
   messaggi: WaMessageRow[];
   caricamento: boolean;
+  /** Ora (ms) dell'ultima lettura riuscita delle chat; `null` prima della prima. */
+  aggiornatoIl: number | null;
+  /** Frase da mostrare se l'ultima lettura è fallita (dati vecchi in vista). */
+  erroreLettura: string | null;
+  aggiornando: boolean;
+  /** Rinnova la sessione, riapre il tempo reale e rilegge tutto. */
+  aggiorna: () => Promise<void>;
   canale: StatoCanale | null;
   stato: StatoCasella;
   bozza: string;

@@ -665,8 +665,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [p.api().chats[0].unread, telefoni(p.api().daRispondere)],
       );
       c(
-        "due timer: l'orologio (30 s) e il controllo dei messaggi nuovi (15 s)",
-        [[15_000, 30_000]],
+        "tre timer: controllo dei messaggi nuovi (15 s), battito anti-congelamento (20 s), orologio (30 s)",
+        [[15_000, 20_000, 30_000]],
         [[...p.T.timers.values()].map((t) => t.ms).sort((x, y) => x - y)],
       );
       // Passa mezz'ora in giri da 30 secondi: l'elenco si ricalcola ma il segna-letto NON si rilancia.
