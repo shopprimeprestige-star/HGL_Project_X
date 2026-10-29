@@ -31,6 +31,22 @@
  *  ⚠️ La stessa risposta arrivata due volte (flusso + Default Reply) fa UNA riga e
  *   UN passaggio in tutto: dal secondo arrivo in poi non si rifà niente (il
  *   secondo stato, altrimenti, scriverebbe due volte la storia).
+ *  ⚠️ L'ECO (29/10/2026). Con la coesistenza, ogni messaggio mandato dall'app
+ *   WhatsApp Business fa ripartire il Default Reply con `{{Last Text Input}}`,
+ *   che è ancora l'ultimo testo del CLIENTE, anche ore dopo. Un testo uguale
+ *   all'ultimo testo in entrata già registrato per quel numero (ManyChat o
+ *   Cloud, non doppione) e più vecchio di `ECO_DOPO_MS` è un'eco: si scarta
+ *   («eco») senza toccare rubrica, conferma, STOP, freno. Un messaggio nostro in
+ *   uscita in mezzo NON la esclude: è proprio quello che la fa partire.
+ *   LIMITE ACCETTATO: il cliente che riscrive davvero lo stesso identico testo
+ *   (anche «ok», «sì») dopo più di 60 s, senza un altro testo in mezzo, non
+ *   entra nel registro ManyChat (col ponte acceso la sua riga resta visibile
+ *   in chat, ma non conta come risposta). Se la lettura delle entrate si
+ *   guasta, si registra come prima: meglio un doppione di un messaggio perso.
+ *   Le righe del PONTE (canale `baileys`) non si leggono: sono solo da
+ *   mostrare e nessuna regola le guarda (commessa del ponte, I1). Il
+ *   `{{Last Text Input}}` è comunque un testo che ManyChat ha ricevuto, quindi
+ *   la sua riga ManyChat c'è.
  *  ───────────────────────────────────────────────────────────────────────── */
 import {
   abbina,
@@ -47,8 +63,10 @@ import {
   type PorteRisposta as PorteConferma,
 } from "../promemoria/in-entrata";
 import type { ContattoWa } from "../types";
-import { anteprimaIn, eSoloSegnaposto } from "../chatwa/media";
+import { anteprimaIn, classificaTesto, eSoloSegnaposto } from "../chatwa/media";
 import { dopoRisposta, eStop, type CambioContatto } from "./contatto";
+import { normalizzaTesto } from "../ponte/pari";
+import { CONFRONTO_CARATTERI } from "../ponte/tipi";
 
 /** Lo stato HTTP della rotta: 503 senza segreto sul server, 401 senza chiave
  *  giusta, 413 corpo oltre 8 KB, 200 per ogni richiesta autorizzata. */
@@ -69,7 +87,7 @@ export interface RichiestaRisposta {
 export interface EsitoRispostaRotta {
   stato: StatoRisposta;
   /** per i conteggi nei log (lista chiusa): `confermato`, `stop`, `registrata`,
-   *  `risposta`, `ignorata`, `segnaposto`, `doppione`, `illeggibile`,
+   *  `risposta`, `ignorata`, `segnaposto`, `doppione`, `eco`, `illeggibile`,
    *  `senza_configurazione`, `errore`, e per gli stati non 200 `segreto_assente`, `non_autorizzato`,
    *  `troppo_grande` */
   esito?: string;
@@ -92,6 +110,51 @@ export interface MessaggioInEntrata {
   adesso: Date;
 }
 
+/** Una riga in entrata già registrata (per l'eco). */
+export interface EntrataRegistrata {
+  /** `body` della riga */
+  testo: string;
+  /** `created_at` */
+  il: Date;
+  /** `media_type` (`image`, `audio`…); `null` = testo */
+  media: string | null;
+}
+
+/** Quante entrate leggere: basta trovare l'ultimo TESTO dietro qualche media. */
+export const ENTRATE_DA_LEGGERE = 5;
+/** Più vecchia di così, la stessa entrata ripetuta è un'eco. Sotto, è lo
+ *  stesso messaggio che arriva da due strade (ManyChat dopo il ponte, o
+ *  flusso + Default Reply a cavallo del minuto). */
+export const ECO_DOPO_MS = 60_000;
+
+/** L'ultimo testo in entrata (salta media e righe senza testo): è quello che
+ *  ManyChat ha in `{{Last Text Input}}`. */
+function ultimoTesto(entrate: EntrataRegistrata[]): EntrataRegistrata | null {
+  for (const e of entrate) {
+    if (e.media) continue;
+    if (classificaTesto(e.testo).tipo !== "testo") continue;
+    return e;
+  }
+  return null;
+}
+
+/** Il testo arrivato è un'eco o un doppione dell'ultimo testo in entrata?
+ *  `eco` = uguale e più vecchio di `ECO_DOPO_MS`; `doppione` = uguale e più
+ *  giovane (lo stesso messaggio da flusso e Default Reply, a cavallo del
+ *  minuto: l'impronta non li unisce); `null` = si registra. Pura. */
+export function ecoDi(
+  testo: string,
+  entrate: EntrataRegistrata[],
+  adesso: Date,
+): "eco" | "doppione" | null {
+  const a = normalizzaTesto(testo).slice(0, CONFRONTO_CARATTERI);
+  if (!a) return null;
+  const ultima = ultimoTesto(entrate);
+  if (!ultima) return null;
+  if (normalizzaTesto(ultima.testo).slice(0, CONFRONTO_CARATTERI) !== a) return null;
+  return adesso.getTime() - ultima.il.getTime() >= ECO_DOPO_MS ? "eco" : "doppione";
+}
+
 /** Le porte della rotta (database e avvisi). Le porte che leggono o scrivono
  *  LANCIANO in caso di errore (con un `code` breve, se ce l'hanno): le prende
  *  `gestisciRisposta`, che registra solo il codice. */
@@ -110,6 +173,11 @@ export interface PorteRispostaManychat {
   }): Promise<InvioAbbinabile[]>;
   /** il telefono (solo cifre) è già in `whatsapp_contacts`? col suo lead */
   contattoNoto(userId: string, telefono: string): Promise<{ leadId: string | null } | null>;
+  /** le ultime righe in ENTRATA di quel telefono in `whatsapp_messages`, di
+   *  ogni canale TRANNE il ponte (`baileys`), senza i doppioni
+   *  (`duplicato_di`), la più nuova per prima, al più `ENTRATE_DA_LEGGERE`.
+   *  Serve a riconoscere l'eco. */
+  ultimeEntrate(userId: string, telefono: string): Promise<EntrataRegistrata[]>;
   /** `whatsapp_messages` in entrata, deduplicato su `wa_message_id` */
   registraMessaggio(userId: string, messaggio: MessaggioInEntrata): Promise<"nuovo" | "doppione">;
   /** `whatsapp_contacts`: ultimo messaggio (+1 ai non letti), e la riga se non
@@ -202,6 +270,18 @@ async function tratta(
   if (soloSegnaposto && sconosciuto) return "segnaposto";
   const testo = soloSegnaposto ? "" : corpo.testo;
   const leadId = (abbinata.tipo === "invio" ? abbinata.invio.leadId : null) ?? noto?.leadId ?? null;
+
+  //  L'eco del Default Reply (vedi in cima): PRIMA di scrivere qualunque cosa.
+  //  Un guasto della lettura non ferma il messaggio (solo il codice nell'avviso).
+  if (testo) {
+    let eco: "eco" | "doppione" | null = null;
+    try {
+      eco = ecoDi(testo, await porte.ultimeEntrate(userId, telefono), adesso);
+    } catch (e) {
+      porte.avviso(`errore (${codiceErrore(e)}): controllo dell'eco saltato`);
+    }
+    if (eco) return eco;
+  }
 
   //  Il registro, deduplicato: flusso e Default Reply dello stesso messaggio
   //  arrivano nello stesso minuto con lo stesso subscriber e lo stesso testo.

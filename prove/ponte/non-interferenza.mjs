@@ -183,14 +183,35 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     const file = [...fileTs(join(radice, "src/crm/manychat")), ...fileTs(join(radice, "src/routes/hooks"))];
     const letture = [];
     let scritture = 0;
+    //  UNA lettura ammessa (fix/manychat-eco, 29/10/2026): `ultimeEntrate` per
+    //  l'eco del Default Reply, che esclude le righe del ponte nel filtro stesso.
+    const LETTURE_AMMESSE = { "src/crm/manychat/porte.server.ts": 1 };
+    const FILTRO_SENZA_PONTE = "canale.is.null,canale.neq.${CANALE_PONTE}";
     for (const f of file) {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
+      const rel = f.slice(radice.length + 1);
       const nomi = (codice.match(/["'`]whatsapp_messages["'`]/g) ?? []).length;
-      const insert = [...codice.matchAll(/\.from\(\s*["'`]whatsapp_messages["'`]\s*\)\s*\.(\w+)\(/g)];
+      const insert = [
+        ...codice.matchAll(/\.from\(\s*["'`]whatsapp_messages["'`]\s*\)\s*\.(\w+)(?:<[^>]*>)?\(/g),
+      ];
       scritture += insert.filter((x) => x[1] === "insert").length;
-      if (nomi !== insert.length || insert.some((x) => x[1] !== "insert")) letture.push(f.slice(radice.length + 1));
+      const select = insert.filter((x) => x[1] === "select").length;
+      const ammesse = LETTURE_AMMESSE[rel] ?? 0;
+      const lettureOk =
+        select === ammesse &&
+        (ammesse === 0 || codice.split(FILTRO_SENZA_PONTE).length - 1 === ammesse);
+      if (
+        nomi !== insert.length ||
+        insert.some((x) => x[1] !== "insert" && x[1] !== "select") ||
+        !lettureOk
+      )
+        letture.push(rel);
     }
-    c("sotto manychat/ e routes/hooks/ whatsapp_messages si usa solo per insert", [], letture);
+    c(
+      "sotto manychat/ e routes/hooks/ whatsapp_messages si usa solo per insert (più la lettura dell'eco, senza il ponte)",
+      [],
+      letture,
+    );
     c("…e le porte di scrittura ci sono davvero (il grep vede qualcosa)", true, scritture >= 3);
 
     const ponte = [...fileTs(join(radice, "src/crm/ponte")), join(radice, "src/routes/api.public.ponte-whatsapp.ts")];
