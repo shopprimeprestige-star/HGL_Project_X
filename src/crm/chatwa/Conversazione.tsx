@@ -32,6 +32,8 @@ import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
+import { IconaWhatsApp } from "./IconaWhatsApp";
+import { linkApriWhatsapp } from "./apriWhatsapp";
 import { Casella } from "./Casella";
 import { BarraRispostaAi } from "./BarraRispostaAi";
 import { useRispostaAi } from "./useRispostaAi";
@@ -117,6 +119,9 @@ export function Conversazione({
   }, [attiva?.phone]);
 
   const adesso = new Date();
+  const linkWaChat = attiva
+    ? linkApriWhatsapp(attiva.phone, typeof navigator === "undefined" ? "" : navigator.userAgent)
+    : "";
   const inAttesa = attiva?.daRispondere?.attesa === true;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
   const richiamo = attiva?.lead ? etichettaRichiamo(attiva.lead.data, oggiIso(adesso)) : null;
@@ -192,6 +197,27 @@ export function Conversazione({
                   >
                     <Phone className="h-4 w-4" />
                     <span className="hidden lg:inline">Chiama</span>
+                  </a>
+                </Button>
+              )}
+              {/*  ── FINESTRA CHIUSA: SI SCRIVE DALL'APP (29/10/2026) ────────
+                Fuori dalle 24 ore dal CRM parte solo un modello (a pagamento):
+                l'icona di WhatsApp apre la chat nell'app del telefono. */}
+              {attiva.finestra?.aperta === false && linkWaChat && (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-11 w-11 lg:w-auto px-0 lg:px-3 shrink-0 md:h-9 md:w-9 border-red-200 text-red-700 hover:bg-red-50"
+                >
+                  <a
+                    href={linkWaChat}
+                    target={linkWaChat.startsWith("https:") ? "_blank" : undefined}
+                    rel="noopener noreferrer"
+                    aria-label="Finestra di 24 ore chiusa: apri la chat nell'app WhatsApp"
+                    title="Finestra di 24 ore chiusa: scrivi dall'app WhatsApp"
+                  >
+                    <IconaWhatsApp className="h-4 w-4 text-emerald-600" />
+                    <span className="hidden lg:inline">24h chiusa</span>
                   </a>
                 </Button>
               )}

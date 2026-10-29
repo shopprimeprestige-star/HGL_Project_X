@@ -30,14 +30,29 @@ export function combaciaRicerca(c: ChatCercabile, ricerca: string): boolean {
  *  Vale per OGNI riquadro dell'elenco: «Da rispondere», «Da chiamare» e le «vecchie» la
  *  ignoravano e, siccome quasi tutte le chat stanno lì sopra, cliccare non cambiava niente. */
 export function passaFiltro(
-  c: { lead?: { data?: { stato?: string | null } | null } | null; unread?: number },
-  filtro: "all" | "unread" | "with-lead" | "unknown" | "da-chiamare",
+  c: {
+    lead?: { data?: { stato?: string | null } | null } | null;
+    unread?: number;
+    finestra?: { aperta: boolean } | null;
+  },
+  filtro: "all" | "unread" | "with-lead" | "unknown" | "da-chiamare" | "chiuso-24h" | "aperto-24h",
 ): boolean {
   if (filtro === "unread") return (c.unread ?? 0) > 0;
   if (filtro === "with-lead") return Boolean(c.lead);
   if (filtro === "unknown") return !c.lead;
   //  «Da chiamare»: lead in uno dei cinque stati di chiamata (vedi daChiamare.ts).
   if (filtro === "da-chiamare") return statoChiamata(c) !== null;
+  //  ── APPUNTAMENTO FISSATO E FINESTRA DI 24 ORE (29/10/2026) ──────────
+  //  Richiesta del titolare: i lead con l'appuntamento fissato che non
+  //  scrivono da più di 24 ore vanno in «Chiuso 24h» (si scrive solo con un
+  //  modello, o dal telefono); appena il cliente riscrive passano in «24h
+  //  aperto». Una chat senza finestra calcolata non sta in nessuna delle due.
+  if (filtro === "chiuso-24h" || filtro === "aperto-24h") {
+    const stato = c.lead?.data?.stato;
+    if (stato !== "appuntamento_fissato" && stato !== "appuntamento_rifissato") return false;
+    if (!c.finestra) return false;
+    return filtro === "aperto-24h" ? c.finestra.aperta : !c.finestra.aperta;
+  }
   return true;
 }
 

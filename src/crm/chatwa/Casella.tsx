@@ -1,13 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, CalendarClock, Clock, LayoutTemplate, Loader2, Send, TriangleAlert, X } from "lucide-react";
+import {
+  Ban,
+  CalendarClock,
+  Clock,
+  LayoutTemplate,
+  Loader2,
+  Send,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { usePuo } from "@/crm/AuthContext";
 import { OrariRapidi } from "@/crm/OrariRapidi";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { ScegliModello } from "./ScegliModello";
+import { modelloConsigliato } from "./modelli-casella";
+import { giornoPerMessaggio } from "@/crm/wa-orari";
+import { giornoParlato } from "@/crm/promemoria/formati";
+
+/** Il giorno di calendario a Roma («2026-10-29»). */
+const giornoRoma = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+/** I minuti dalla mezzanotte a Roma (per «la consulenza è fra poco»). */
+const minutiRoma = (d: Date) => {
+  const [h, m] = d
+    .toLocaleTimeString("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" })
+    .split(":")
+    .map(Number);
+  return (h % 24) * 60 + m;
+};
 import {
   FilaSuggerimenti,
   FinestraRisposte,
@@ -130,10 +159,20 @@ export function Casella({ api }: CasellaProps) {
   const dettaturaPossibile = dettatura.possibile && libera;
   const detta = dettatura.stato !== "ferma";
 
+  //  Dalla scheda anche giorno, ora e link della consulenza e l'ora del
+  //  richiamo (29/10/2026): i messaggi preimpostati partono già completi.
+  const scheda = attiva?.lead?.data;
+  const giornoConsulenza = /^\d{4}-\d{2}-\d{2}/.test(scheda?.dataMeeting ?? "")
+    ? giornoPerMessaggio(scheda!.dataMeeting!.slice(0, 10), giornoRoma(new Date()))
+    : "";
   const riempiChat = (t: string) =>
     riempi(t, {
       nome: nomePerMessaggio(attiva?.lead?.data.nome, attiva?.contact?.display_name),
       consulente: nomeConsulente,
+      giorno: giornoConsulenza,
+      ora: scheda?.oraMeeting,
+      link: scheda?.linkMeeting,
+      oraRichiamo: scheda?.oraRicontatto,
     });
   const inserisci = (r: RispostaRapida) => {
     const testo = riempiChat(r.testo);
@@ -219,6 +258,14 @@ export function Casella({ api }: CasellaProps) {
               modelli={modelliDaProvare(canale)}
               canale={canale?.canale ?? null}
               dati={{ nomeLead, nomeConsulente }}
+              consigliato={modelloConsigliato(
+                modelliDaProvare(canale),
+                attiva?.lead?.data,
+                { nomeLead, nomeConsulente },
+                giornoRoma(new Date()),
+                giornoParlato,
+                minutiRoma(new Date()),
+              )}
               inviando={inviando}
               onInvia={async (m) => {
                 await api.inviaModello(m);

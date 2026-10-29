@@ -197,6 +197,19 @@ export function portePortaVere(
       const daRubrica = Number(rubrica?.[0]?.subscriber_id);
       return Number.isSafeInteger(daRubrica) && daRubrica > 0 ? daRubrica : null;
     },
+    //  La finestra di 24 ore: la stessa colonna che usa la chat (`finestra24`).
+    ultimaEntrata: async (telefono) => {
+      const cifre = String(telefono).replace(/\D/g, "");
+      const { data } = await db
+        .from("whatsapp_contacts")
+        .select<{ ultimo_in_entrata_il?: string | null }[]>("ultimo_in_entrata_il")
+        .eq("user_id", userId)
+        .in("phone_e164", [`+${cifre}`, cifre])
+        .not("ultimo_in_entrata_il", "is", null)
+        .order("ultimo_in_entrata_il", { ascending: false })
+        .limit(1);
+      return data?.[0]?.ultimo_in_entrata_il ?? null;
+    },
     registra: async (m: MessaggioPorta) => {
       await db.from("whatsapp_messages").insert({
         user_id: userId,

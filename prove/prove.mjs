@@ -552,6 +552,7 @@ const MODULI = [
   "manychat/api",
   "manychat/ritorno",
   "manychat/porta",
+  "manychat/finestra",
   "manychat/risposta",
   "manychat/giro",
   //  ⚠️ LEAD DA GOOGLE SHEETS + SEQUENZE WHATSAPP (commessa 2026-10-25): la
@@ -21035,6 +21036,10 @@ proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
+proveDelModelloConsigliato();
+proveDeiFiltriFinestra();
+proveDellOsservazioneComePastiglia();
+proveDelleCorrezioniManychat();
 proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
@@ -21784,4 +21789,87 @@ async function proveDelleRisposteAi() {
   c("migrazione: RLS, leggo e chiedo solo le mie, niente UPDATE per gli utenti", [true, true, true, false], [/ENABLE ROW LEVEL SECURITY/.test(sql), /FOR SELECT TO authenticated\s+USING \(auth\.uid\(\) = user_id\)/.test(sql), /FOR INSERT TO authenticated[\s\S]*stato = 'in_coda'/.test(sql), /FOR (UPDATE|ALL|DELETE) TO/.test(sql)]);
   c("migrazione: la funzione solo al server", true, /REVOKE ALL ON FUNCTION public\.risposte_ai_prendi\(uuid\) FROM PUBLIC, anon, authenticated/.test(sql) && /TO service_role/.test(sql));
   c("migrazione: niente DROP né DELETE fuori dai commenti", false, /^\s*(DROP TABLE|DELETE|TRUNCATE)/im.test(sql.replace(/^--.*$/gm, "")));
+}
+
+function proveDelModelloConsigliato() {
+  gruppo("CHAT WHATSAPP: FINESTRA CHIUSA, IL MODELLO GIUSTO GIÀ PRONTO");
+  const M = mod["chatwa/modelli-casella"];
+  const T = [...mod["wa-meta-templates"].MODELLI_MANYCHAT, ...mod["wa-meta-templates"].META_TEMPLATES];
+  const F = mod["manychat/finestra"];
+  const gp = mod["promemoria/formati"].giornoParlato;
+  const OGGI = "2026-10-29";
+  const dati = { nomeLead: "Mario", nomeConsulente: "Luca" };
+  const nome = (d, adessoMin = 9 * 60) => M.modelloConsigliato(T, d, dati, OGGI, gp, adessoMin)?.modello.name ?? null;
+  const fissato = (giorno, extra = {}) => ({ stato: "appuntamento_fissato", dataMeeting: giorno, oraMeeting: "18:00", ...extra });
+  c("consulenza oggi alle 18 con il link, alle 9: «ci vediamo oggi» (non «tra 20 minuti»)", "hgl_meet_oggi", nome(fissato(OGGI, { linkMeeting: "https://x.test/s" })));
+  c("…alle 17:40 (mancano 20 minuti): il promemoria col link", "hgl_promemoria_meet", nome(fissato(OGGI, { linkMeeting: "https://x.test/s" }), 17 * 60 + 40));
+  c("…alle 18:10 (in ritardo): ancora il link", "hgl_promemoria_meet", nome(fissato(OGGI, { linkMeeting: "https://x.test/s" }), 18 * 60 + 10));
+  c("consulenza oggi senza link: «ci vediamo oggi»", "hgl_meet_oggi", nome(fissato(OGGI)));
+  c("consulenza domani: il promemoria di domani", "hgl_meet_domani", nome(fissato("2026-10-30")));
+  c("consulenza fra qualche giorno: la conferma", "consulenza_conferma_presenza", nome(fissato("2026-11-03", { linkMeeting: "https://x.test/s" })));
+  c("consulenza di ieri: cliente assente", "hgl_cliente_assente", nome(fissato("2026-10-28")));
+  c("consulenza di giorni fa: da riprogrammare (non «oggi non ci siamo visti»)", "hgl_da_riprogrammare", nome(fissato("2026-10-20")));
+  c("fissato senza data: da fissare", "hgl_meet_da_fissare", nome({ stato: "appuntamento_fissato" }));
+  c("attesa WhatsApp: il richiamo", "hgl_richiamo_24h", nome({ stato: "attesa_whatsapp" }));
+  c("da chiamare / non risponde: «non risponde»", ["hgl_non_risponde", "hgl_non_risponde"], [nome({ stato: "da_chiamare" }), nome({ stato: "non_risponde" })]);
+  c("richiamo oggi con l'ora: il richiamo concordato", "hgl_richiamo_concordato", nome({ stato: "richiamo", dataRicontatto: OGGI, oraRicontatto: "15:00" }));
+  c("richiamo un altro giorno: niente «oggi alle…»", "hgl_ricontatto_consulenza", nome({ stato: "richiamo", dataRicontatto: "2026-11-02", oraRicontatto: "15:00" }));
+  c("da spostare: da riprogrammare", "hgl_da_riprogrammare", nome({ stato: "da_spostare" }));
+  c("venduto, annullato o senza scheda: nessun consiglio", [null, null, null], [nome({ stato: "venduto" }), nome({ stato: "annullato" }), nome(null)]);
+  const domani = M.modelloConsigliato(T, fissato("2026-10-30"), dati, OGGI, gp);
+  c("i valori del promemoria di domani: nome, giorno detto, ora, consulente", ["Mario", gp("2026-10-30"), "18:00", "Luca"], domani.valori);
+  const oggi = M.modelloConsigliato(T, fissato(OGGI, { linkMeeting: "https://x.test/s" }), dati, OGGI, gp, 17 * 60 + 45);
+  c("i valori del promemoria col link", ["Mario", "18:00", "https://x.test/s", "Luca"], oggi.valori);
+  c("un valore che non si sa resta vuoto (mai inventato)", "", M.modelloConsigliato(T, { stato: "richiamo", oraRicontatto: "" }, { nomeLead: "", nomeConsulente: "" }, OGGI, gp).valori[0]);
+  c("solo fra i modelli che il canale permette", "hgl_non_risponde", M.modelloConsigliato(T.filter((t) => t.name !== "hgl_richiamo_24h"), { stato: "attesa_whatsapp" }, dati, OGGI, gp)?.modello.name);
+
+  gruppo("WHATSAPP: DENTRO LE 24 ORE IL TESTO DEL MODELLO");
+  const ora = new Date("2026-10-29T12:00:00Z");
+  c("scritto 2 ore fa: testo", true, F.finestraPerTesto("2026-10-29T10:00:00Z", ora));
+  c("scritto 22 h 59 fa: testo; 23 h fa: modello", [true, false], [F.finestraPerTesto("2026-10-28T13:01:00Z", ora), F.finestraPerTesto("2026-10-28T13:00:00Z", ora)]);
+  c("mai scritto o data rotta: modello", [false, false], [F.finestraPerTesto(null, ora), F.finestraPerTesto("boh", ora)]);
+  c("orologio sfasato di 2 ore nel futuro: modello", false, F.finestraPerTesto("2026-10-29T14:00:00Z", ora));
+  c("il testo col valore al posto di {{1}}", true, F.testoDelModello("hgl_non_risponde", ["Mario"]).includes("Mario"));
+  c("un nome con _v3 usa la copia senza versione", true, !!F.testoDelModello("hgl_non_risponde_v3", ["Mario"]));
+  c("valore vuoto o modello ignoto: null", [null, null], [F.testoDelModello("hgl_non_risponde", [""]), F.testoDelModello("ignoto", ["x"])]);
+}
+
+function proveDeiFiltriFinestra() {
+  gruppo("CHAT WHATSAPP: «CHIUSO 24H» E «24H APERTO» PER GLI APPUNTAMENTI FISSATI");
+  const { passaFiltro } = mod["chatwa/cercaChat"];
+  const chat = (stato, aperta) => ({ lead: stato ? { data: { stato } } : null, finestra: aperta === undefined ? null : { aperta } });
+  c("fissato, finestra chiusa: in «Chiuso 24h», non in «24h aperto»", [true, false], [passaFiltro(chat("appuntamento_fissato", false), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato", false), "aperto-24h")]);
+  c("il cliente riscrive: passa in «24h aperto»", [false, true], [passaFiltro(chat("appuntamento_fissato", true), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato", true), "aperto-24h")]);
+  c("anche il rifissato", true, passaFiltro(chat("appuntamento_rifissato", false), "chiuso-24h"));
+  c("altri stati, sconosciuti, finestra non calcolata: in nessuna delle due", [false, false, false], [passaFiltro(chat("attesa_whatsapp", false), "chiuso-24h"), passaFiltro(chat(null, false), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato"), "aperto-24h")]);
+  c("le pastiglie di prima non cambiano", [true, true], [passaFiltro(chat("appuntamento_fissato", false), "all"), passaFiltro(chat(null, true), "unknown")]);
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("le due pastiglie ci sono, col numero", true, /l: "Chiuso 24h"/.test(elenco) && /l: "24h aperto"/.test(elenco) && /contaFinestra\(f\.v\)/.test(elenco));
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(attiva\.phone/.test(conv));
+}
+
+function proveDellOsservazioneComePastiglia() {
+  gruppo("CHAT WHATSAPP: «IN OSSERVAZIONE» NON SI SOMMA ALLE ALTRE PASTIGLIE");
+  const src = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("accenderla porta il filtro a «Tutte» (con «Sconosciuti» acceso l'elenco era vuoto)", true, /if \(!soloStelle\) setFiltro\("all"\);\s*setSoloStelle\(\(v\) => !v\);/.test(src));
+  c("un'altra pastiglia la spegne", true, /setFiltro\(f\.v\);\s*setSoloStelle\(false\);/.test(src));
+  c("con l'osservazione accesa nessun'altra pastiglia sembra scelta", 2, (src.match(/filtro === f\.v &&\s+!soloStelle/g) || []).length);
+}
+
+function proveDelleCorrezioniManychat() {
+  gruppo("WHATSAPP: TESTO NORMALE, CASI REALI E COSTI");
+  const F = mod["manychat/finestra"];
+  c("«casi reali» (immagine e pulsante) parte sempre come modello", [null, null], [F.testoDelModello("hgl_casi_reali", ["Mario"]), F.testoDelModello("hgl_casi_reali_v2", ["Mario"])]);
+  const C = mod["chatwa/calcolo-costi"];
+  const adesso = new Date("2026-10-29T14:00:00Z");
+  const r = C.calcolaCosti([
+    { tipo: "promemoria", modello: null, conFlusso: false, inviatoIl: "2026-10-29T10:00:00Z" },
+    { tipo: "conferma", modello: null, conFlusso: false, inviatoIl: "2026-10-29T11:00:00Z" },
+  ], "oggi", adesso);
+  c("promemoria e conferme partiti come testo: testi, non modelli (niente costo di modello)", [2, 0], [r.testiLiberi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
+  const porta = readFileSync(join(radice, "src/crm/manychat/porta.ts"), "utf8");
+  c("modello di riserva partito: il registro ha il suo flusso", true, /ns = nsRiserva;/.test(porta) && /modelloDiRiserva && ns \? \{ flow_ns: ns \}/.test(porta));
 }

@@ -28,6 +28,7 @@
 
 import type { TipoInvio } from "../types";
 import type { ClientManychat, EsitoApi, RisultatoApi } from "./api";
+import { finestraPerTesto, testoDelModello } from "./finestra";
 
 export type CanaleWhatsapp = "cloud" | "manychat";
 
@@ -128,6 +129,9 @@ export interface PortePorta {
   registra(m: MessaggioPorta): Promise<void>;
   /** La chiamata Graph vera, col canale `cloud`. Lancia se la rete è giù. */
   cloud(corpo: Record<string, unknown>): Promise<{ status: number; corpo: unknown }>;
+  /** L'ultimo messaggio del cliente (ISO), per la finestra di 24 ore. Senza
+   *  questa porta (o con un guasto) si manda il modello, come prima. */
+  ultimaEntrata?(telefono: string): Promise<string | null>;
 }
 
 /** Quanti parametri del modello arrivano nei campi `crm_v1…crm_v4`. */
@@ -223,6 +227,22 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   const parametri = r.parametri ?? [];
   if (parametri.length > MAX_PARAMETRI) return { esito: "blocco", codice: "troppi_parametri" };
 
+  //  ── DENTRO LE 24 ORE, TESTO NORMALE (29/10/2026) ─────────────────────
+  //  Il cliente ha scritto da meno di 23 ore: il modello parte come messaggio
+  //  normale, con lo stesso testo (crm/manychat/finestra). Il modello resta
+  //  di riserva: se ManyChat rifiuta il testo, parte lui nello stesso invio.
+  let modelloDiRiserva: string | null = null;
+  if (r.modello && porte.ultimaEntrata) {
+    const ultima = await porte.ultimaEntrata(cifre).catch(() => null);
+    const testo = finestraPerTesto(ultima, porte.adesso())
+      ? testoDelModello(r.modello, parametri)
+      : null;
+    if (testo) {
+      modelloDiRiserva = r.modello;
+      r = { ...r, modello: undefined, testo };
+    }
+  }
+
   let ns: string | null = null;
   if (r.modello) {
     try {
@@ -305,26 +325,44 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   }
 
   //  I campi che il flusso legge: SOLO i parametri del modello, più chi siamo.
-  if (ns) {
+  const campiDelFlusso = () => {
     const campi: Record<string, string> = {};
     parametri.forEach((v, i) => (campi[`crm_v${i + 1}`] = String(v ?? "")));
     campi.crm_invio_id = invioId;
     if (r.leadId) campi.crm_lead_id = r.leadId;
     campi.crm_telefono = cifre;
-    const w = await client.scriviCampi(subscriber, campi);
+    return campi;
+  };
+  if (ns) {
+    const w = await client.scriviCampi(subscriber, campiDelFlusso());
     if (w.esito !== "ok") return fallita(w, subscriber);
   }
 
   //  ⚠️ L'invio. Da qui in poi un guasto vuol dire «non so se è partito».
-  const s = ns
+  let s = ns
     ? await client.mandaFlusso(subscriber, ns)
     : await client.mandaTesto(subscriber, r.testo ?? "");
+  //  Il testo al posto del modello è stato rifiutato perché per ManyChat la
+  //  finestra è chiusa (3011/3031: non è partito niente): parte il modello.
+  if (s.esito !== "ok" && modelloDiRiserva && /_(3011|3031)$/.test(s.codice ?? "")) {
+    const nsRiserva = await porte.flusso(modelloDiRiserva).catch(() => null);
+    if (nsRiserva) {
+      const w = await client.scriviCampi(subscriber, campiDelFlusso());
+      if (w.esito !== "ok") return fallita(w, subscriber);
+      r = { ...r, modello: modelloDiRiserva, testo: undefined };
+      ns = nsRiserva;
+      s = await client.mandaFlusso(subscriber, nsRiserva);
+    }
+  }
   if (s.esito === "ok") {
     await porte
       .esito(invioId, {
         stato: "inviato",
         inviato_il: porte.adesso().toISOString(),
         subscriber_id: String(subscriber),
+        //  Partito il modello di riserva: il registro lo dice (il pannello dei
+        //  costi conta a prezzo di modello solo le righe con un flusso).
+        ...(modelloDiRiserva && ns ? { flow_ns: ns } : {}),
       })
       .catch(() => undefined);
     await registraDi(porte, r, "sent", `mc:${invioId}`, null);
