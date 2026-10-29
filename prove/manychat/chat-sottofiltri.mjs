@@ -7,6 +7,12 @@ import { join } from "node:path";
 
 export function proveChatSottofiltri(mod, { c, gruppo }) {
   const D = mod["chatwa/daChiamare"];
+  //  29/10/2026: la pastiglia della finestra di 24 ore nelle righe di «Da chiamare».
+  c("finestra aperta → verde «Si può scrivere»", [true, "Si può scrivere"],
+    (() => { const x = D.pastigliaFinestra({ aperta: true, frase: "" }); return [x.aperta, x.testo]; })());
+  c("finestra chiusa → rossa «Finestra chiusa»", [false, "Finestra chiusa"],
+    (() => { const x = D.pastigliaFinestra({ aperta: false, frase: "" }); return [x.aperta, x.testo]; })());
+  c("senza dati sulla finestra: nessuna pastiglia", null, D.pastigliaFinestra(undefined));
   const chat = (fine, stato, statoDal, extra = {}) => ({
     phone: `+39333000${fine}`,
     lead: stato ? { data: { stato, statoDal, ...extra } } : null,

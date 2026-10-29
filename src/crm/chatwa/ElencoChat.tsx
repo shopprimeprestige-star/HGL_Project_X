@@ -117,8 +117,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
   const elencoDaChiamare = chatDaChiamare(daChiamareTutte, sottoAttivo);
 
-  const riga = (c: ChatItem, modo: ModoRiga) => (
+  const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = false) => (
     <RigaChat
+      mostraFinestra={mostraFinestra}
       key={c.phone}
       chat={c}
       modo={modo}
@@ -255,7 +256,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             </p>
           ) : (
             <ul aria-label="Chat da chiamare, per stato">
-              {elencoDaChiamare.map((c) => riga(c, "normale"))}
+              {elencoDaChiamare.map((c) => riga(c, "normale", true))}
             </ul>
           )
         ) : (

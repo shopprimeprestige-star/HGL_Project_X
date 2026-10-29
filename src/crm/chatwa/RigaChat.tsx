@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { FinestraStati, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
 import { numeroDaComporre } from "@/crm/importa/chiamare";
-import { statiMenuRiga } from "./daChiamare";
+import { statiMenuRiga, pastigliaFinestra } from "./daChiamare";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { TemperaturaRiga } from "@/crm/Temperatura";
@@ -47,6 +47,9 @@ interface RigaChatProps {
   onStelle?: () => void;
   /** Cambia lo stato del lead dalla riga (salvataggio condiviso: useChatWa.cambiaStatoLead). */
   onCambiaStato?: (lead: Lead, stato: LeadStatus) => void;
+  /** Solo in «Da chiamare»: pastiglia verde se si può scrivere (finestra di 24 ore
+   *  aperta), rossa se è chiusa e serve un modello approvato. */
+  mostraFinestra?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
@@ -64,7 +67,9 @@ export function RigaChat({
   stelle = 0,
   onStelle,
   onCambiaStato,
+  mostraFinestra = false,
 }: RigaChatProps) {
+  const finestra = mostraFinestra ? pastigliaFinestra(c.finestra) : null;
   const [cambiaStato, setCambiaStato] = useState(false);
   const nome = nomeChat(c);
   //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
@@ -209,6 +214,21 @@ export function RigaChat({
                 <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
               </span>
             </button>
+          )}
+          {/*  Finestra di 24 ore (29/10/2026, solo in «Da chiamare»): verde = si
+              può scrivere, rosso = finestra chiusa, serve un modello. */}
+          {finestra && (
+            <span
+              className={cn(
+                "shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none",
+                finestra.aperta
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                  : "border-red-300 bg-red-50 text-red-700",
+              )}
+              title={finestra.titolo}
+            >
+              {finestra.testo}
+            </span>
           )}
           {/*  Di ritorno (28/10/2026): nella riga solo «↩ Ritorno», lo stato di
               prima nell'intestazione della chat e nel tooltip. */}

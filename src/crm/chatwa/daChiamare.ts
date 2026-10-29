@@ -186,3 +186,14 @@ export function statiMenuRiga(
     statoAttuale === "da_contattare";
   return STATI_CAMBIO_RAPIDO.filter((s) => inChiamata || ammessi.has(s));
 }
+
+/** La pastiglia della finestra di 24 ore nelle righe di «Da chiamare» (29/10/2026).
+ *  Senza dati sulla finestra niente pastiglia (meglio niente che un verde falso). */
+export function pastigliaFinestra(
+  f: { aperta: boolean; frase: string } | undefined | null,
+): { aperta: boolean; testo: string; titolo: string } | null {
+  if (!f) return null;
+  return f.aperta
+    ? { aperta: true, testo: "Si può scrivere", titolo: f.frase || "Finestra di 24 ore aperta" }
+    : { aperta: false, testo: "Finestra chiusa", titolo: f.frase || "Passate 24 ore: serve un modello approvato" };
+}
