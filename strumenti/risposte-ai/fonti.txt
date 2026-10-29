@@ -1,0 +1,8 @@
+# I documenti di AIOS che Claude legge prima di ogni risposta (uno per riga).
+# Si leggono a ogni richiesta: se li aggiorni, la risposta dopo li usa già.
+# Massimo 16.000 caratteri per documento e 60.000 in tutto.
+~/.claude/instagram/voice.md
+~/Documents/Reel Studio/01-strategia/posizionamento-onesto.md
+~/Documents/Reel Studio/05-brand/brand-book.md
+~/Documents/Reel Studio/12-vendite/obiezioni.md
+~/Documents/Reel Studio/00-sistema/decisioni-utente.md
