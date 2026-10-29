@@ -691,6 +691,12 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         rifiutato.messaggi.at(-1).corpo,
       );
       c("…e nel registro il flusso con cui è partito (per i costi)", FLUSSO, rifiutato.righe[0].flow_ns);
+      const incerto = conEntrata(2, { finto: nuovoFinto().su("POST", PERCORSI.testo, { http: 503, corpo: {} }) });
+      const ri = await invia(incerto, conferma);
+      c("testo dall'esito incerto: niente riserva, niente secondo invio", ["incerto", false], [ri.esito, incerto.f.percorsi().includes(PERCORSI.flusso)]);
+      const senzaRiserva = conEntrata(2, { flussi: {}, finto: nuovoFinto().su("POST", PERCORSI.testo, { http: 400, corpo: { status: "error", message: "x", code: 3011 } }) });
+      const rs = await invia(senzaRiserva, conferma);
+      c("testo rifiutato e modello senza flusso: nessun invio, esito non ok", [false, false], [rs.esito === "ok", senzaRiserva.f.percorsi().includes(PERCORSI.flusso)]);
       const chat = conEntrata(2);
       await invia(chat, { testo: "ciao", tipo: "chat", leadId: null });
       c(

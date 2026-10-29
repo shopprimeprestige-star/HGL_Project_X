@@ -6,7 +6,7 @@
  *  poco) un modello costa e sembra automatico: lo stesso testo, mandato come
  *  messaggio normale, no.
  *
- *  Qui le due regole pure (provate in prove/manychat/finestra.mjs); le usa
+ *  Qui le due regole pure (provate in prove/prove.mjs e prove/manychat/porta.mjs); le usa
  *  la porta (`porta.ts`, solo canale ManyChat):
  *   · `finestraPerTesto`: l'ultimo messaggio del cliente è più recente di
  *     23 ore (un'ora di margine: un testo che arriva a ManyChat dopo la

@@ -29,6 +29,14 @@ import { giornoParlato } from "@/crm/promemoria/formati";
 
 /** Il giorno di calendario a Roma («2026-10-29»). */
 const giornoRoma = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+/** I minuti dalla mezzanotte a Roma (per «la consulenza è fra poco»). */
+const minutiRoma = (d: Date) => {
+  const [h, m] = d
+    .toLocaleTimeString("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" })
+    .split(":")
+    .map(Number);
+  return (h % 24) * 60 + m;
+};
 import {
   FilaSuggerimenti,
   FinestraRisposte,
@@ -256,6 +264,7 @@ export function Casella({ api }: CasellaProps) {
                 { nomeLead, nomeConsulente },
                 giornoRoma(new Date()),
                 giornoParlato,
+                minutiRoma(new Date()),
               )}
               inviando={inviando}
               onInvia={async (m) => {

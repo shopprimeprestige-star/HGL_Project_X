@@ -84,8 +84,16 @@ export interface DatiConsigliato {
   dataMeeting?: string;
   oraMeeting?: string;
   linkMeeting?: string;
+  dataRicontatto?: string;
   oraRicontatto?: string;
 }
+
+/** Quanto manca alla consulenza di oggi, in minuti (`null` se non si sa). */
+const minutiAllaConsulenza = (ora: string | undefined, adessoMin: number | undefined) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(ora ?? "");
+  if (!m || adessoMin === undefined) return null;
+  return Number(m[1]) * 60 + Number(m[2]) - adessoMin;
+};
 
 const piuGiorni = (data: string, n: number) => {
   const d = new Date(`${data}T12:00:00Z`);
@@ -94,18 +102,33 @@ const piuGiorni = (data: string, n: number) => {
 };
 
 /** I nomi dei modelli adatti, dal più adatto. Vuoto se nessuno ha senso. */
-export function candidatiPerStato(d: DatiConsigliato | null | undefined, oggi: string): string[] {
+export function candidatiPerStato(
+  d: DatiConsigliato | null | undefined,
+  oggi: string,
+  /** i minuti dalla mezzanotte, ora di Roma */
+  adessoMin?: number,
+): string[] {
   if (!d) return [];
   const giorno = /^\d{4}-\d{2}-\d{2}/.test(d.dataMeeting ?? "") ? d.dataMeeting!.slice(0, 10) : "";
   switch (d.stato) {
     case "appuntamento_fissato":
     case "appuntamento_rifissato":
       if (!giorno) return ["hgl_meet_da_fissare"];
-      if (giorno === oggi)
-        return d.linkMeeting ? ["hgl_promemoria_meet", "hgl_meet_oggi"] : ["hgl_meet_oggi"];
+      if (giorno === oggi) {
+        //  «Tra una ventina di minuti… il link è questo» solo quando è vero
+        //  (revisione del 29/10): prima, «ci vediamo oggi alle…».
+        const mancano = minutiAllaConsulenza(d.oraMeeting, adessoMin);
+        const traPoco = mancano !== null && mancano >= -15 && mancano <= 35;
+        return d.linkMeeting && traPoco
+          ? ["hgl_promemoria_meet", "hgl_meet_oggi"]
+          : ["hgl_meet_oggi"];
+      }
       if (giorno === piuGiorni(oggi, 1)) return ["hgl_meet_domani", "consulenza_conferma_presenza"];
       if (giorno > oggi) return ["consulenza_conferma_presenza", "appuntamento_conferma"];
-      return ["hgl_cliente_assente", "hgl_da_riprogrammare"];
+      //  «Oggi non siamo riusciti a vederci» solo per ieri o oggi.
+      return giorno >= piuGiorni(oggi, -1)
+        ? ["hgl_cliente_assente", "hgl_da_riprogrammare"]
+        : ["hgl_da_riprogrammare"];
     case "da_contattare":
       return ["hgl_primo_contatto"];
     case "attesa_whatsapp":
@@ -115,7 +138,8 @@ export function candidatiPerStato(d: DatiConsigliato | null | undefined, oggi: s
     case "segreteria":
       return ["hgl_non_risponde", "hgl_richiamo_24h"];
     case "richiamo":
-      return d.oraRicontatto
+      //  «Come d'accordo la chiamo OGGI alle…» solo se il richiamo è oggi.
+      return d.oraRicontatto && (d.dataRicontatto ?? "").slice(0, 10) === oggi
         ? ["hgl_richiamo_concordato", "hgl_ricontatto_consulenza"]
         : ["hgl_ricontatto_consulenza"];
     case "da_spostare":
@@ -163,8 +187,9 @@ export function modelloConsigliato(
   dati: { nomeLead: string; nomeConsulente: string },
   oggi: string,
   giornoParlato: (g: string) => string | null,
+  adessoMin?: number,
 ): { modello: MetaTemplate; valori: string[] } | null {
-  for (const nome of candidatiPerStato(d, oggi)) {
+  for (const nome of candidatiPerStato(d, oggi, adessoMin)) {
     const t =
       modelli.find((m) => m.name === nome) ??
       modelli.find((m) => m.name.replace(/_v\d+$/, "") === nome);

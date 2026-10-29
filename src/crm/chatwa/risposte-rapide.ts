@@ -657,7 +657,8 @@ function conNuovePredefinite(elenco: RispostaRapida[], viste: unknown): Risposta
 
 /** Le risposte salvate, ripulite. Niente o valore rotto: i predefiniti (mai
  *  una casella senza risposte per un errore); un elenco vuoto salvato resta
- *  vuoto (le ha tolte lo studio). I temi non si leggono: vengono dal codice. */
+ *  vuoto (le ha tolte lo studio), salvo le predefinite nate dopo il suo
+ *  salvataggio (`viste`), che arrivano una volta. I temi non si leggono: vengono dal codice. */
 export function leggiRisposte(valore: unknown): RispostaRapida[] {
   let grezzo: unknown = valore;
   if (typeof valore === "string") {
