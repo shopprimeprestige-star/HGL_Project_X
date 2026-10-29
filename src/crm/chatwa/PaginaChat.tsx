@@ -28,6 +28,10 @@ type Vista = "chat" | "modelli";
 /** Dove vive la pagina: dentro il CRM, oppure da sola a schermo intero (/chat). */
 export type PercorsoChat = "/CRM/whatsapp" | "/chat";
 
+/** «10:42»: l'ora dell'ultima lettura riuscita, come la legge il titolare. */
+const oraBreve = (ms: number) =>
+  new Date(ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
 /** La pagina /CRM/whatsapp: compone intestazione, le due viste, i dialoghi.
  *  ⚠️ Larghezza e visibilità delle colonne le decide SOLO questo file (R12): i
  *  figli (`ElencoChat`, `Conversazione`) riempiono il loro contenitore.
@@ -280,25 +284,23 @@ export function PaginaChat({
           )}
           {vista === "chat" && (
             <>
-              {/*  «Aggiorna» (29/10/2026): rilegge tutto a mano, con l'ora dell'ultima lettura. */}
+              {/*  «Aggiorna» (29/10/2026): rilegge tutto a mano. L'ora dell'ultima lettura
+                  sta SCRITTA nel tasto: sul telefono un `title` non si vede, e «Aggiornato
+                  10:42» dice subito se la pagina è ferma. */}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => void api.aggiorna()}
                 disabled={api.aggiornando}
-                className="h-11 gap-1.5 text-xs md:h-8"
-                title={
-                  api.aggiornatoIl
-                    ? `Aggiornato alle ${new Date(api.aggiornatoIl).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
-                    : "Aggiorna le chat"
-                }
+                className="h-11 gap-1.5 text-xs tabular-nums md:h-8"
+                title="Aggiorna le chat"
               >
                 {api.aggiornando ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
                 )}
-                Aggiorna
+                {api.aggiornatoIl ? `Aggiornato ${oraBreve(api.aggiornatoIl)}` : "Aggiorna"}
               </Button>
               {/* Sotto 1280 px «Lead CRM» è un foglio; da 1280 in su una colonna che si nasconde. */}
               <Button

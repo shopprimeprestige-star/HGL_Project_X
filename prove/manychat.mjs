@@ -52,6 +52,7 @@ import { proveChatRisposte } from "./manychat/chat-risposte.mjs";
 import { proveChatStile } from "./manychat/chat-stile.mjs";
 import { proveChatDettatura } from "./manychat/chat-dettatura.mjs";
 import { proveChatRitorno } from "./manychat/chat-ritorno.mjs";
+import { proveChatVersione } from "./manychat/chat-versione.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -331,4 +332,5 @@ export async function proveManychat(mod, aiuti) {
   proveChatStile(mod, aiuti);
   await proveChatDettatura(mod, aiuti);
   proveChatRitorno(mod, aiuti);
+  proveChatVersione(mod, aiuti);
 }

@@ -588,6 +588,9 @@ const MODULI = [
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
+  //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
+  //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
+  "versione-crm",
   //  «Lead importati» semplice (commessa 2026-10-28-lead-importati-semplice):
   //   prove in prove/lead-semplice.mjs. Entrano nel pacchetto quando il file
   //   esiste (li crea il compito T1 del piano).

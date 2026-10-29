@@ -24,6 +24,7 @@ import { AdminLogin } from "@/crm/AdminLogin";
 import { GuardiaPagina } from "@/crm/CRMSidebar";
 import { permessoDiPagina } from "@/crm/permessi";
 import { reteDeiClic } from "@/crm/clic-liberi";
+import { AvvisoVersione } from "@/crm/AvvisoVersione";
 import { Toaster } from "@/components/ui/sonner";
 import { PaginaChat } from "@/crm/chatwa/PaginaChat";
 import { leggiRicercaChat } from "@/crm/chatwa/stato";
@@ -58,6 +59,8 @@ function SoloChat() {
         <Porta />
         <Toaster />
       </AuthProvider>
+      {/*  Come nel guscio del CRM: la scheda aperta da ieri si accorge della versione nuova. */}
+      <AvvisoVersione />
     </div>
   );
 }
