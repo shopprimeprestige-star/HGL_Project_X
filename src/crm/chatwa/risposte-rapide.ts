@@ -152,6 +152,63 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
       "Buongiorno {nome}, le ricordo la consulenza di oggi. Riesce a collegarsi all'orario fissato?",
     stati: APPUNTAMENTO,
   },
+  //  ── PROMEMORIA E LINK CON I DATI DELLA SCHEDA (29/10/2026) ────────────
+  //  Richiesta del titolare: «tutti i messaggi preimpostati per promemoria,
+  //  link meet ecc., con segnaposto dinamici». {giorno}, {ora}, {link} e
+  //  {ora_richiamo} li riempie la casella dalla scheda (`riempi`); se la
+  //  scheda non li ha restano, e la casella avvisa prima dell'invio.
+  {
+    id: "conferma_fissata",
+    titolo: "Consulenza fissata (con link)",
+    testo:
+      "Perfetto {nome}, la consulenza gratuita online è fissata per {giorno} alle {ora} con {consulente|uno dei nostri consulenti}.\n\nPer collegarsi basta aprire questo link, dal telefono o dal computer: {link}\n\nMi conferma con un «sì» che ci sarà?",
+    temi: ["conferma"],
+    stati: APPUNTAMENTO,
+  },
+  {
+    id: "promemoria_domani",
+    titolo: "Promemoria del giorno prima",
+    testo:
+      "Buongiorno {nome}, le ricordo la consulenza gratuita online di {giorno} alle {ora} con {consulente|uno dei nostri consulenti}.\n\nSe ha un imprevisto mi scriva qui e la spostiamo.",
+    stati: APPUNTAMENTO,
+  },
+  {
+    id: "promemoria_oggi",
+    titolo: "Promemoria della mattina",
+    testo:
+      "Buongiorno {nome}, ci vediamo oggi alle {ora} per la consulenza online con {consulente|uno dei nostri consulenti}.\n\nPoco prima le mando qui il link per collegarsi.",
+    stati: APPUNTAMENTO,
+  },
+  {
+    id: "link_fra_poco",
+    titolo: "Link poco prima (30 min)",
+    testo:
+      "{nome}, fra poco, alle {ora}, c'è la sua consulenza online.\n\nIl link è questo: {link}\n\nSe può, si colleghi da un posto tranquillo: {consulente|il consulente} la aspetta.",
+    temi: ["collegamento"],
+    stati: APPUNTAMENTO,
+  },
+  {
+    id: "meet_adesso",
+    titolo: "Siamo collegati, entri ora",
+    testo:
+      "{nome}, {consulente|il consulente} è collegato e la sta aspettando.\n\nEntri da qui: {link}",
+    temi: ["collegamento"],
+    stati: APPUNTAMENTO,
+  },
+  {
+    id: "in_ritardo",
+    titolo: "Non si è ancora collegato",
+    testo:
+      "{nome}, la stiamo aspettando per la consulenza delle {ora}. Riesce a collegarsi? Il link è sempre questo: {link}",
+    stati: APPUNTAMENTO,
+  },
+  {
+    id: "richiamo_concordato",
+    titolo: "Richiamo all'ora concordata",
+    testo:
+      "Buongiorno {nome}, come d'accordo la chiamo oggi alle {ora_richiamo}. Se l'orario non va più bene, mi scriva qui e lo spostiamo.",
+    stati: ["richiamo", "da_ricontattare"],
+  },
   {
     id: "sposta",
     titolo: "Spostare la consulenza",
@@ -495,14 +552,34 @@ export function nomePerMessaggio(nomeScheda?: string | null, nomeContatto?: stri
 /** `{nome}` e `{consulente}` (anche `{nome|ripiego}`) riempiti con i dati della chat.
  *  - nome ignoto senza ripiego: sparisce con lo spazio davanti («Buongiorno,»);
  *  - consulente ignoto senza ripiego: resta, e la casella lo segnala;
- *  - gli altri segnaposto ({indirizzo}, {link}) restano: li scrive l'operatore. */
+ *  - dal 29/10/2026 anche {giorno}, {ora}, {link} e {ora_richiamo}, dalla
+ *    scheda; se la scheda non li ha restano (con un ripiego, il ripiego);
+ *  - {indirizzo} resta sempre: lo scrive l'operatore. */
 export function riempi(
   testo: string,
-  dati: { nome?: string | null; consulente?: string | null },
+  dati: {
+    nome?: string | null;
+    consulente?: string | null;
+    giorno?: string | null;
+    ora?: string | null;
+    link?: string | null;
+    oraRichiamo?: string | null;
+  },
 ): string {
   const nome = maiuscola((dati.nome ?? "").trim());
   const consulente = (dati.consulente ?? "").trim();
+  const valori: Record<string, string> = {
+    giorno: (dati.giorno ?? "").trim(),
+    ora: (dati.ora ?? "").trim(),
+    link: (dati.link ?? "").trim(),
+    ora_richiamo: (dati.oraRichiamo ?? "").trim(),
+  };
   return testo
+    .replace(
+      /\{(giorno|ora|link|ora_richiamo)(?:\|([^{}]*))?\}/g,
+      (tutto: string, chiave: string, ripiego?: string) =>
+        valori[chiave] || (ripiego !== undefined ? ripiego : tutto),
+    )
     .replace(/( ?)\{nome(?:\|([^{}]*))?\}/g, (_, spazio: string, ripiego?: string) =>
       nome ? spazio + nome : ripiego !== undefined ? spazio + ripiego : "",
     )
@@ -531,6 +608,53 @@ export function nuovoId(elenco: readonly RispostaRapida[], seme: string): string
   return id;
 }
 
+/** Le predefinite che c'erano fino al 28/10/2026: chi aveva già salvato il suo
+ *  elenco le ha viste (e magari tolte). Quelle nate dopo si aggiungono da sole
+ *  in fondo a un elenco salvato, una volta: chi poi le toglie non le rivede
+ *  (`viste` nel valore salvato). */
+export const PREDEFINITE_FINO_AL_28_10: readonly string[] = [
+  "presentazione",
+  "come_funziona",
+  "consulenza_gratuita",
+  "chiedi_disponibilita",
+  "mattina_pomeriggio_sera",
+  "mattina_pomeriggio",
+  "conferma_meet",
+  "link_meet",
+  "promemoria",
+  "sposta",
+  "consulenza_saltata",
+  "prezzo",
+  "riepilogo",
+  "dove",
+  "roma_in_giornata",
+  "sede",
+  "domicilio",
+  "installazione",
+  "acconto",
+  "acconto_ricevuto",
+  "manutenzione",
+  "foto_ricevute",
+  "chiedi_foto",
+  "non_chirurgico",
+  "non_risponde",
+  "ci_pensa",
+  "ultimo_tentativo",
+  "non_interessato",
+  "grazie",
+  "verifico",
+];
+
+/** L'elenco salvato più le predefinite nuove mai viste. */
+function conNuovePredefinite(elenco: RispostaRapida[], viste: unknown): RispostaRapida[] {
+  const giaViste = new Set(
+    Array.isArray(viste) ? viste.filter((x) => typeof x === "string") : PREDEFINITE_FINO_AL_28_10,
+  );
+  const presenti = new Set(elenco.map((r) => r.id));
+  const nuove = RISPOSTE_PREDEFINITE.filter((r) => !giaViste.has(r.id) && !presenti.has(r.id));
+  return nuove.length ? [...elenco, ...nuove.map((r) => ({ ...r }))] : elenco;
+}
+
 /** Le risposte salvate, ripulite. Niente o valore rotto: i predefiniti (mai
  *  una casella senza risposte per un errore); un elenco vuoto salvato resta
  *  vuoto (le ha tolte lo studio). I temi non si leggono: vengono dal codice. */
@@ -549,7 +673,11 @@ export function leggiRisposte(valore: unknown): RispostaRapida[] {
       ? (grezzo as { risposte?: unknown }).risposte
       : grezzo;
   if (!Array.isArray(lista)) return ripristinate();
-  if (lista.length === 0) return [];
+  const viste =
+    grezzo && typeof grezzo === "object" && !Array.isArray(grezzo)
+      ? (grezzo as { viste?: unknown }).viste
+      : undefined;
+  if (lista.length === 0) return conNuovePredefinite([], viste);
   const usati = new Set<string>();
   const out: RispostaRapida[] = [];
   for (const v of lista.slice(0, MAX_RISPOSTE)) {
@@ -564,14 +692,15 @@ export function leggiRisposte(valore: unknown): RispostaRapida[] {
     usati.add(idPulito);
     out.push({ id: idPulito, titolo: t, testo: x });
   }
-  return out.length ? out : ripristinate();
+  return out.length ? conNuovePredefinite(out, viste).slice(0, MAX_RISPOSTE) : ripristinate();
 }
 
-/** Il valore da salvare: solo id, titolo e testo. */
+/** Il valore da salvare: solo id, titolo e testo, più le predefinite già viste. */
 export const scriviRisposte = (elenco: readonly RispostaRapida[]): string =>
   JSON.stringify({
     v: 1,
     risposte: elenco.map(({ id, titolo, testo }) => ({ id, titolo, testo })),
+    viste: RISPOSTE_PREDEFINITE.map((r) => r.id),
   });
 
 /** L'elenco con una risposta aggiunta (in fondo) o cambiata (al suo posto). */

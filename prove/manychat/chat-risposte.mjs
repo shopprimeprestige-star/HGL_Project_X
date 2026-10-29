@@ -18,7 +18,7 @@ export function proveChatRisposte(mod, { c, gruppo, radice }) {
 
   gruppo("CHAT · RISPOSTE RAPIDE · I TESTI PREDEFINITI");
   c("chiave di app_config", "wa_risposte_rapide", R.CHIAVE_CONFIG_RISPOSTE);
-  c("fra 20 e 30 risposte", true, P.length >= 20 && P.length <= 30);
+  c("fra 20 e 40 risposte (7 nuove il 29/10: promemoria e link)", true, P.length >= 20 && P.length <= 40);
   c("id unici", P.length, new Set(ids(P)).size);
   c("titolo e testo pieni, titolo corto", true, P.every((r) => r.titolo.trim() && r.testo.trim() && r.titolo.length <= 40));
   //  Dal 29/10 (richiesta del titolare): col Lei il primo contatto e il prima della
@@ -146,10 +146,20 @@ export function proveChatRisposte(mod, { c, gruppo, radice }) {
   c("JSON rotto: i predefiniti (mai una pagina rotta)", ids(P), ids(leggi("{rotto")));
   c("un numero: i predefiniti", ids(P), ids(leggi("42")));
   c("risposte non elenco: i predefiniti", ids(P), ids(leggi('{"risposte":"x"}')));
-  c("elenco vuoto salvato: vuoto (le ha tolte lo studio)", [], leggi('{"v":1,"risposte":[]}'));
+  c("elenco vuoto salvato dopo aver visto tutte le predefinite: vuoto (le ha tolte lo studio)", [], leggi(JSON.stringify({ v: 1, risposte: [], viste: ids(P) })));
+  {
+    //  29/10/2026: chi aveva salvato prima riceve in fondo le predefinite nate dopo, una volta.
+    const NUOVE = ["conferma_fissata", "promemoria_domani", "promemoria_oggi", "link_fra_poco", "meet_adesso", "in_ritardo", "richiamo_concordato"];
+    const vecchio = leggi(JSON.stringify({ v: 1, risposte: [{ id: "mia-1", titolo: "Mia", testo: "ciao" }] }));
+    c("elenco salvato prima del 29/10: le sue voci, poi le 7 nuove", ["mia-1", ...NUOVE], ids(vecchio));
+    c("…le predefinite vecchie che aveva tolto non tornano", false, ids(vecchio).includes("presentazione"));
+    const visto = leggi(R.scriviRisposte([{ id: "mia-1", titolo: "Mia", testo: "ciao" }]));
+    c("salvato di nuovo (ha visto le nuove e le ha tolte): non tornano", ["mia-1"], ids(visto));
+    c("una nuova già nell'elenco non si doppia", 1, ids(leggi(JSON.stringify({ risposte: [{ id: "meet_adesso", titolo: "M", testo: "m" }] }))).filter((x) => x === "meet_adesso").length);
+  }
   c("elenco di sole voci rotte: i predefiniti", ids(P), ids(leggi('{"risposte":[1,null,{"titolo":""}]}')));
   {
-    const l = leggi(JSON.stringify({ v: 1, risposte: [
+    const l = leggi(JSON.stringify({ v: 1, viste: ids(P), risposte: [
       { id: "x", titolo: " Mia ", testo: " Ciao " },
       { id: "x", titolo: "Doppia", testo: "stesso id" },
       { titolo: "Senza id", testo: "t" },
@@ -162,13 +172,24 @@ export function proveChatRisposte(mod, { c, gruppo, radice }) {
     c("id unici e puliti", true, new Set(ids(l)).size === l.length && l.every((r) => /^[\w-]{1,40}$/.test(r.id)));
     c("testo tagliato a 2000", 2000, l[4].testo.length);
   }
-  c("accetta anche l'oggetto già letto", ["q"], ids(leggi({ v: 1, risposte: [{ id: "q", titolo: "Q", testo: "q" }] })));
+  c("accetta anche l'oggetto già letto", ["q"], ids(leggi({ v: 1, viste: ids(P), risposte: [{ id: "q", titolo: "Q", testo: "q" }] })));
   c("i temi non arrivano dal salvato: vengono dal codice", undefined, leggi('{"risposte":[{"id":"q","titolo":"Q","testo":"q","temi":["prezzo"]}]}')[0].temi);
   c("scritte e rilette uguali", ids(P), ids(leggi(R.scriviRisposte(P))));
-  c("si salva solo id, titolo e testo", '{"v":1,"risposte":[{"id":"a","titolo":"A","testo":"t"}]}',
-    R.scriviRisposte([{ id: "a", titolo: "A", testo: "t", temi: ["prezzo"], stati: ["x"] }]));
+  c("si salva solo id, titolo e testo (più le predefinite viste)", { v: 1, risposte: [{ id: "a", titolo: "A", testo: "t" }], viste: ids(P) },
+    JSON.parse(R.scriviRisposte([{ id: "a", titolo: "A", testo: "t", temi: ["prezzo"], stati: ["x"] }])));
   c("più di 100 voci: si tengono le prime 100", 100,
     leggi(JSON.stringify({ risposte: Array.from({ length: 150 }, (_, i) => ({ id: `r${i}`, titolo: "T", testo: "t" })) })).length);
+  {
+    gruppo("CHAT · RISPOSTE RAPIDE · SEGNAPOSTO DALLA SCHEDA (29/10/2026)");
+    const d = { nome: "mario", consulente: "Luca", giorno: "domani", ora: "18:00", link: "https://meet.test/abc", oraRichiamo: "15:30" };
+    const t = (id) => P.find((r) => r.id === id).testo;
+    c("promemoria del giorno prima: tutto riempito", "Buongiorno Mario, le ricordo la consulenza gratuita online di domani alle 18:00 con Luca.\n\nSe ha un imprevisto mi scriva qui e la spostiamo.", R.riempi(t("promemoria_domani"), d));
+    c("link poco prima: ora e link", true, /alle 18:00/.test(R.riempi(t("link_fra_poco"), d)) && R.riempi(t("link_fra_poco"), d).includes("https://meet.test/abc"));
+    c("richiamo: l'ora del richiamo", true, R.riempi(t("richiamo_concordato"), d).includes("alle 15:30"));
+    c("senza link nella scheda: {link} resta (la casella avvisa)", true, R.riempi(t("meet_adesso"), { ...d, link: "" }).includes("{link}"));
+    c("{indirizzo} resta sempre", "In {indirizzo}", R.riempi("In {indirizzo}", d));
+    c("ogni nuova usa solo segnaposto conosciuti", [], ["conferma_fissata", "promemoria_domani", "promemoria_oggi", "link_fra_poco", "meet_adesso", "in_ritardo", "richiamo_concordato"].filter((id) => /\{(?!nome|consulente|giorno|ora|link|ora_richiamo)[^}]*\}/.test(t(id))));
+  }
 
   gruppo("CHAT · RISPOSTE RAPIDE · AGGIUNGI, MODIFICA, ELIMINA");
   const base = [{ id: "a", titolo: "A", testo: "a" }, { id: "b", titolo: "B", testo: "b" }];

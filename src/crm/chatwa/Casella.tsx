@@ -24,6 +24,7 @@ import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { ScegliModello } from "./ScegliModello";
 import { modelloConsigliato } from "./modelli-casella";
+import { giornoPerMessaggio } from "@/crm/wa-orari";
 import { giornoParlato } from "@/crm/promemoria/formati";
 
 /** Il giorno di calendario a Roma («2026-10-29»). */
@@ -150,10 +151,20 @@ export function Casella({ api }: CasellaProps) {
   const dettaturaPossibile = dettatura.possibile && libera;
   const detta = dettatura.stato !== "ferma";
 
+  //  Dalla scheda anche giorno, ora e link della consulenza e l'ora del
+  //  richiamo (29/10/2026): i messaggi preimpostati partono già completi.
+  const scheda = attiva?.lead?.data;
+  const giornoConsulenza = /^\d{4}-\d{2}-\d{2}/.test(scheda?.dataMeeting ?? "")
+    ? giornoPerMessaggio(scheda!.dataMeeting!.slice(0, 10), giornoRoma(new Date()))
+    : "";
   const riempiChat = (t: string) =>
     riempi(t, {
       nome: nomePerMessaggio(attiva?.lead?.data.nome, attiva?.contact?.display_name),
       consulente: nomeConsulente,
+      giorno: giornoConsulenza,
+      ora: scheda?.oraMeeting,
+      link: scheda?.linkMeeting,
+      oraRichiamo: scheda?.oraRicontatto,
     });
   const inserisci = (r: RispostaRapida) => {
     const testo = riempiChat(r.testo);
