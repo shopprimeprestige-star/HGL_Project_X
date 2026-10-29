@@ -20487,7 +20487,7 @@ function proveDelTestoDeiModelli() {
   gruppo("WHATSAPP: IL MODELLO SI LEGGE COL SUO TESTO");
   const T = mod["testo-modello"];
   const t = T.testoDelModello("hgl_meet_domani", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
-  c("i parametri al loro posto", true, /Gentile Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /La seguirà Filippo/.test(t));
+  c("i parametri al loro posto", true, /Ciao Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /Ti seguirà Filippo/.test(t));
   c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
   c("il nome «_v2» trova lo stesso testo", t, T.testoDelModello("hgl_meet_domani_v2", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]));
   c("parametro mancante: «…», non un buco", true, /Salve …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
@@ -20498,7 +20498,13 @@ function proveDelTestoDeiModelli() {
   c("…solo il nome, mai il cognome", false, /Rossi/.test(v.testo));
   c("…senza link in scheda il link si dice e non si inventa", true, /\[link della consulenza\]/.test(v.testo));
   const conLink = T.corpoLeggibile("[template:hgl_meet_adesso]", { nome: "Mario", linkMeeting: "https://esempio.test/stanza" }, "Filippo");
-  c("…col link della scheda c'è il link vero", true, conLink.testo.includes("Entri da qui: https://esempio.test/stanza"));
+  c("…col link della scheda c'è il link vero", true, conLink.testo.includes("Entra da qui: https://esempio.test/stanza"));
+  //  Acconto e testi col «tu» (commessa 2026-10-29): il testo ricostruito è quello che parte in ManyChat.
+  const acc = T.corpoLeggibile("[template:hgl_acconto]", { nome: "Mario" }, "Filippo");
+  c("acconto: ricostruito dalla scheda, col tu e senza segnaposto", true, acc.ricostruito === true && !/\{\{\d+\}\}/.test(acc.testo) && acc.testo.startsWith("Ciao Mario, sono Filippo di Hair Genius Labs.\n\nCome ci eravamo detti in consulenza, ti scrivo per l'acconto:") && acc.testo.endsWith("scrivimi pure 😊") && !/\bLe\b|Gentile/.test(acc.testo));
+  const ric = T.corpoLeggibile("[template:hgl_ricontatto_consulenza]", { nome: "Mario" }, "Filippo");
+  c("ricontatto: col tu", "Ciao Mario, sono Filippo di Hair Genius Labs.\n\nEravamo rimasti che mi avresti fatto sapere: hai deciso come procedere o ti serve ancora qualche chiarimento?\n\nScrivimi pure qui, sono a tua disposizione.", ric.testo);
+  c("i modelli di primo contatto restano col Lei", [true, true, true, true, true], ["hgl_primo_contatto", "hgl_richiamo_24h", "hgl_ritorno", "hgl_non_risponde", "hgl_ultimo_tentativo"].map((n) => /Gentile|Salve/.test(T.testoDelModello(n, ["Mario"]) ?? "")));
   c("segnaposto di un modello sconosciuto: resta il nome", "[template:boh]", T.corpoLeggibile("[template:boh]").testo);
   const sede = T.corpoLeggibile("[template:hgl_promemoria_sede_v2]", { nome: "Mario", dataMeeting: "2026-10-29", dataVieneInSede: "2026-11-05", oraVieneInSede: "11:00" });
   c("promemoria sede: il giorno è quello della visita, non del meet", true, sede.testo.includes("di giovedì 5 novembre alle ore 11:00") && !sede.testo.includes("29 ottobre"));
