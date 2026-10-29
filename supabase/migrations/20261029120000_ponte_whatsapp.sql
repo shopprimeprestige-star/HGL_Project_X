@@ -117,6 +117,13 @@ BEGIN
   END IF;
 END $do$;
 
+-- Il permesso di lettura esplicito: la policy sopra non basta se il progetto
+-- non ha i privilegi di default di Supabase (provato su Postgres vero, 29/10).
+-- Scrivere resta impossibile per anon/authenticated: nessuna policy di scrittura (RLS).
+GRANT SELECT ON public.ponte_wa_stato TO authenticated;
+REVOKE ALL ON public.ponte_wa_stato FROM anon;
+GRANT ALL ON public.ponte_wa_stato TO service_role;
+
 -- ── 5a. Quali numeri il CRM conosce (D7) ─────────────────────────────────────
 -- Delle cifre chieste, quelle con una riga contatto (col «+» o senza) NON creata
 -- dal ponte, oppure con una scheda crm_leads che finisce con le stesse 9 cifre.
