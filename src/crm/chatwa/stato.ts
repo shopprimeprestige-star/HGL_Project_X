@@ -10,6 +10,7 @@
  *  uscite sono quelle concordate nel PIANO; i tipi di ingresso sono precisati
  *  (campi in più, tutti facoltativi) senza togliere niente a quelli del T0.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { CANALE_PONTE } from "../ponte/tipi";
 import { eSoloSegnaposto } from "./media";
 
 /** Un istante: testo ISO, millisecondi o `Date`. */
@@ -29,7 +30,14 @@ export interface MessaggioStato {
   direction: string;
   body: string | null;
   created_at: string;
+  /** `baileys` = riga del ponte WhatsApp: solo da vedere, nessuna regola la legge (I3). */
+  canale?: string | null;
 }
+
+/** ── PONTE WHATSAPP (commessa 2026-10-29): LE RIGHE DELLO STORICO SONO SOLO DA VEDERE ──
+ *  Una riga `canale='baileys'` si mostra nella chat e nell'anteprima, ma non
+ *  decide niente: né «Da rispondere», né la finestra di 24 ore, né «Da chiamare». */
+export const eRigaPonte = (m: { canale?: string | null }): boolean => m.canale === CANALE_PONTE;
 
 export interface IngressoStato {
   contatto: ContattoStato | null;
@@ -94,6 +102,7 @@ export function daRispondere(i: IngressoStato): DaRispondere {
   let tIn = -Infinity;
   let tOut = risposto ?? -Infinity;
   for (const m of i.messaggi) {
+    if (eRigaPonte(m)) continue;
     const t = ms(m.created_at);
     if (t === null) continue;
     if (m.direction === "inbound") {
@@ -150,6 +159,7 @@ export function finestra24(i: IngressoStato): Finestra24 {
   let ultimo = ms(i.contatto?.ultimo_in_entrata_il);
   if (ultimo === null) {
     for (const m of i.messaggi) {
+      if (eRigaPonte(m)) continue;
       const t = ms(m.created_at);
       if (m.direction === "inbound" && t !== null && (ultimo === null || t > ultimo)) ultimo = t;
     }
@@ -224,4 +234,108 @@ export function leggiRicercaChat(raw: Record<string, unknown>): { chat?: string 
 export function contaDaRispondere(contatti: ContattoStato[], adesso: Istante): number {
   return contatti.filter((contatto) => daRispondere({ contatto, messaggi: [], adesso }).attesa)
     .length;
+}
+
+/* ── LA LETTURA DAL DATABASE (commessa ponte WhatsApp, T7) ───────────────────
+ *  Funzioni pure: la richiesta vera (Supabase) la passa `useChatWa` come
+ *  funzione, così si provano senza rete con un database finto. */
+
+/** Il risultato di una chiamata al database, come lo dà Supabase. */
+export interface EsitoDb {
+  data: unknown;
+  error: { code?: string; message: string } | null;
+}
+
+/** Colonna non ancora creata (migrazione non applicata). */
+export const colonnaMancante = (e: EsitoDb["error"]): boolean =>
+  ["42703", "PGRST204"].includes(String(e?.code ?? ""));
+
+/** Righe per pagina: il tetto di una richiesta di Supabase. */
+export const PAGINA_CONTATTI = 1000;
+/** shortcut: al massimo 5000 contatti, oltre si ferma e lo dice in pagina; quando succede, leggere i soli contatti con attività recente o passare a un conteggio sul server. */
+export const MAX_PAGINE_CONTATTI = 5;
+
+/** Tutti i contatti, a pagine di 1000 (la richiesta sola ne darebbe 1000 in silenzio).
+ *  `troncato`: la quinta pagina era piena, potrebbero essercene altri. */
+export async function leggiContattiAPagine(
+  leggi: (da: number, a: number) => PromiseLike<EsitoDb>,
+): Promise<EsitoDb & { troncato: boolean }> {
+  const righe: { id?: string }[] = [];
+  const visti = new Set<string>();
+  for (let p = 0; p < MAX_PAGINE_CONTATTI; p++) {
+    const r = await leggi(p * PAGINA_CONTATTI, (p + 1) * PAGINA_CONTATTI - 1);
+    if (r.error) return { data: null, error: r.error, troncato: false };
+    const pagina = (r.data as { id?: string }[] | null) ?? [];
+    // Se fra una pagina e l'altra un contatto nuovo sposta le righe, la stessa non si conta due volte.
+    for (const x of pagina) {
+      if (x.id && visti.has(x.id)) continue;
+      if (x.id) visti.add(x.id);
+      righe.push(x);
+    }
+    if (pagina.length < PAGINA_CONTATTI) return { data: righe, error: null, troncato: false };
+  }
+  return { data: righe, error: null, troncato: true };
+}
+
+/** Le righe che non sono doppioni di un messaggio del CRM (`duplicato_di` vuoto). */
+export function senzaDoppioni<T extends { duplicato_di?: string | null }>(righe: T[]): T[] {
+  return righe.filter((r) => !r.duplicato_di);
+}
+
+/** Legge i messaggi senza i doppioni del ponte. `leggi(true)` chiede al database
+ *  `duplicato_di` vuoto, così i doppioni non occupano posti del limite; se la
+ *  colonna non c'è ancora (migrazione non applicata) `leggi(false)` rilegge senza
+ *  filtro e i doppioni, se ci fossero, si scartano qui. */
+export async function leggiSenzaDoppioni(
+  leggi: (filtra: boolean) => PromiseLike<EsitoDb>,
+): Promise<EsitoDb> {
+  const r = await leggi(true);
+  if (!r.error || !colonnaMancante(r.error)) return r;
+  const senza = await leggi(false);
+  if (senza.error) return senza;
+  return {
+    data: senzaDoppioni((senza.data as { duplicato_di?: string | null }[] | null) ?? []),
+    error: null,
+  };
+}
+
+/** Un evento di `postgres_changes`, nella parte che serve. */
+export interface EventoDb {
+  eventType?: string;
+  new?: Record<string, unknown> | null;
+  old?: Record<string, unknown> | null;
+}
+
+/** Oltre questa età, una riga del ponte appena scritta è storico, non un messaggio vivo. */
+const ETA_STORICO = 10 * MINUTO;
+/** Le colonne dei contatti che il ponte aggiorna durante lo storico, senza cambiare altro. */
+const COLONNE_DEL_PONTE = ["last_message_at", "display_name", "updated_at"];
+
+/** La chat NON si rilegge per questo evento (carico dello storico, obiezione 11):
+ *   · `INSERT` di un messaggio del ponte con `created_at` più vecchio di 10 minuti;
+ *   · `UPDATE` di un contatto in cui cambiano solo `last_message_at`, `display_name`, `updated_at`.
+ *  Ogni altra cosa (messaggio vivo, ManyChat, `unread_count`, `risposto_il`…) rilegge.
+ *  Evento illeggibile = si rilegge. Il controllo ogni 15 s resta la rete di sicurezza
+ *  (guarda `updated_at` del contatto: anche un messaggio vivo arrivato in ritardo lo muove). */
+export function eventoDaIgnorare(
+  tabella: "whatsapp_messages" | "whatsapp_contacts",
+  e: EventoDb | null | undefined,
+  adesso: Istante,
+): boolean {
+  if (!e || !e.new) return false;
+  if (tabella === "whatsapp_messages") {
+    if (e.eventType !== "INSERT" || e.new.canale !== CANALE_PONTE) return false;
+    const t = ms(e.new.created_at as string | null);
+    const ora = ms(adesso);
+    return t !== null && ora !== null && ora - t > ETA_STORICO;
+  }
+  if (e.eventType !== "UPDATE" || !e.old || Object.keys(e.old).length === 0) return false;
+  const nuovo = e.new;
+  const vecchio = e.old;
+  const chiavi = new Set([...Object.keys(nuovo), ...Object.keys(vecchio)]);
+  for (const k of chiavi) {
+    if (COLONNE_DEL_PONTE.includes(k)) continue;
+    if (JSON.stringify(nuovo[k] ?? null) !== JSON.stringify(vecchio[k] ?? null)) return false;
+  }
+  return true;
 }

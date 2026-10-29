@@ -157,9 +157,12 @@ function creaDb(tabelle) {
     congelaUpdate: false, // gli update vengono registrati ma non toccano le righe (come una RLS che non lascia passare)
     rpcRisposta: null, // (fn, args) => {data, error}
     cb: [], // realtime: { tabella, f }
-    emetti(t) {
-      for (const x of db.cb) if (x.tabella === t) queueMicrotask(x.f);
+    //  `evento`: come i payload di realtime-js ({ eventType, new, old }); senza, la callback riceve `undefined`.
+    emetti(t, evento) {
+      for (const x of db.cb) if (x.tabella === t) queueMicrotask(() => x.f(evento));
     },
+    maxRighe: Infinity, // il tetto di righe per richiesta di PostgREST (1000 in produzione)
+    senzaDuplicatoDi: false, // migrazione del ponte non applicata: filtrare `duplicato_di` dà 42703
     canali: [],
     canale() {
       const ch = {
@@ -194,6 +197,8 @@ function creaDb(tabelle) {
         or: null,
         ord: null,
         lim: null,
+        is: [],
+        rng: null,
         vals: null,
         sel: false,
         single: false,
@@ -206,6 +211,8 @@ function creaDb(tabelle) {
         },
         eq: (k, v) => (q.eq.push([k, v]), b),
         or: (s) => ((q.or = s), b),
+        is: (k, v) => (q.is.push([k, v]), b),
+        range: (da, a) => ((q.rng = [da, a]), b),
         order: (col, o) => ((q.ord = { col, asc: o.ascending }), b),
         limit: (n) => ((q.lim = n), b),
         update: (v) => ((q.op = "update"), (q.vals = v), b),
@@ -216,7 +223,8 @@ function creaDb(tabelle) {
       return b;
     },
     async esegui(q) {
-      db.log.push(JSON.parse(JSON.stringify(q)));
+      const voce = JSON.parse(JSON.stringify(q));
+      db.log.push(voce);
       if (q.t === "whatsapp_contacts" && q.op === "select" && db.gate) await db.gate;
       const righe = db.tabelle[q.t] ?? [];
       const orFiltri = q.or ? q.or.split(",").map((p) => p.split(".eq.")) : null;
@@ -231,15 +239,20 @@ function creaDb(tabelle) {
       }
       if (q.op === "update" && db.erroreUpdate)
         return { data: null, error: { code: "XX000", message: "update rifiutato" } };
+      if (q.op === "select" && q.is.length && db.senzaDuplicatoDi)
+        return { data: null, error: { code: "42703", message: "column duplicato_di does not exist" } };
       if (q.op === "select") {
-        let out = righe.filter(dentro);
+        let out = righe.filter(dentro).filter((r) => q.is.every(([k]) => r[k] == null));
         if (q.ord) {
           const { col, asc } = q.ord;
           out = [...out].sort(
             (a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0) * (asc ? 1 : -1),
           );
         }
+        if (q.rng) out = out.slice(q.rng[0], q.rng[1] + 1);
         if (q.lim !== null) out = out.slice(0, q.lim);
+        out = out.slice(0, db.maxRighe);
+        voce.n = out.length; // quante righe ha risposto, per le prove
         out = out.map((r) => ({ ...r }));
         return { data: q.single ? (out[0] ?? null) : out, error: null };
       }
@@ -362,6 +375,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         whatsapp_settings: mondo.impostazioni ?? [],
       });
       if (mondo.gate) db.gate = mondo.gate;
+      if (mondo.maxRighe) db.maxRighe = mondo.maxRighe;
+      if (mondo.senzaDuplicatoDi) db.senzaDuplicatoDi = true;
       const T = {
         user: { id: U },
         crm: { leads: mondo.leads ?? [], consultants: [], updateLead: async () => {} },
@@ -477,9 +492,9 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       );
       const qCont = p.db.log.find((q) => q.t === "whatsapp_contacts" && q.op === "select");
       c(
-        "i contatti si leggono tutti (nessun limite)",
-        [null, [["user_id", U]]],
-        [qCont.lim, qCont.eq],
+        "i contatti si leggono tutti, a pagine di 1000 per id (T7 ponte)",
+        [null, [["user_id", U]], { col: "id", asc: true }, [0, 999]],
+        [qCont.lim, qCont.eq, qCont.ord, qCont.rng],
       );
 
       p.api().apri(P1);
@@ -1596,6 +1611,195 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [q.api().bozza],
       );
       fine(q);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+     *  8b · IL PONTE WHATSAPP (commessa 2026-10-29, T7): contatti a pagine,
+     *       doppioni nascosti, storico che non riavvia la lettura
+     * ════════════════════════════════════════════════════════════════════════ */
+    gruppo("CHAT WHATSAPP · PAGINA · PONTE: CONTATTI A PAGINE");
+    {
+      const numero = (i) => `+39333${String(1000000 + i)}`;
+      const tanti = (n) => Array.from({ length: n }, (_, i) => contatto(`c${String(i).padStart(5, "0")}`, numero(i)));
+      const richiesteContatti = (p) => p.db.log.filter((q) => q.t === "whatsapp_contacts" && q.op === "select" && q.rng);
+
+      const a = await monta({ contatti: tanti(2500), maxRighe: 1000 });
+      c(
+        "2500 contatti (il database ne dà 1000 a richiesta): li legge tutti, in 3 pagine",
+        [2500, [[0, 999], [1000, 1999], [2000, 2999]], null],
+        [a.api().chats.length, richiesteContatti(a).map((q) => q.rng), a.api().erroreLettura],
+      );
+      fine(a);
+
+      const b = await monta({ contatti: tanti(5300), maxRighe: 1000 });
+      c(
+        "5300 contatti: si ferma a 5 pagine (5000 chat) e lo dice in pagina, non in silenzio",
+        [5000, 5, true],
+        [b.api().chats.length, richiesteContatti(b).length, /5000/.test(b.api().erroreLettura ?? "")],
+      );
+      fine(b);
+
+      const d = await monta({ contatti: tanti(999), maxRighe: 1000 });
+      c(
+        "999 contatti: una pagina sola, nessun avviso",
+        [1, null],
+        [richiesteContatti(d).length, d.api().erroreLettura],
+      );
+      fine(d);
+
+      const e = await monta({ contatti: tanti(1500), maxRighe: 1000 });
+      e.db.falliscono = 0;
+      c("1500 contatti: 2 pagine, tutti", [1500, 2], [e.api().chats.length, richiesteContatti(e).length]);
+      fine(e);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · PONTE: I DOPPIONI NON ENTRANO NEI 2000");
+    {
+      const numeri = [P1, P2, P3, P4, "+393335550005"];
+      //  1999 messaggi veri (uno al minuto) e, un secondo dopo ciascuno, il suo doppione del ponte; più uno vecchissimo: 3999 righe, 2000 vere.
+      const righe = [];
+      for (let i = 0; i < 1999; i++) {
+        const n = numeri[i % 5];
+        righe.push(msg(`v${String(i).padStart(4, "0")}`, "inbound", n, `testo ${i}`, -(2100 - i) * MIN));
+        righe.push(
+          msg(`d${String(i).padStart(4, "0")}`, "inbound", n, `testo ${i}`, -(2100 - i) * MIN + 1000, {
+            canale: "baileys",
+            duplicato_di: `v${String(i).padStart(4, "0")}`,
+          }),
+        );
+      }
+      // Un messaggio ManyChat di un'altra chat, più vecchio di tutti: senza il filtro i doppioni lo spingono fuori dai 2000.
+      const OLD = "+393339990001";
+      righe.push(msg("vecchio", "inbound", OLD, "ciao dal giro", -200 * GIORNO));
+      const richiesteMsg = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000);
+
+      const p = await monta({ messaggi: righe, contatti: [] });
+      const q = richiesteMsg(p)[0];
+      c(
+        "la lettura chiede `duplicato_di` vuoto e ottiene 2000 righe (tutte vere)",
+        [[["duplicato_di", null]], 2000],
+        [q.is, q.n],
+      );
+      const ultimi = p.api().chats.map((x) => x.lastMessage?.id ?? "");
+      c(
+        "nessuna anteprima è un doppione; il messaggio ManyChat più vecchio non si è perso",
+        [true, true],
+        [ultimi.every((x) => !x.startsWith("d")), ultimi.includes("vecchio") || p.api().chats.some((x) => x.phone === OLD)],
+      );
+      p.api().apri(P1);
+      await p.assesta();
+      const aperta = p.api().messaggi;
+      c(
+        "la conversazione non mostra doppioni, e le righe vere restano tutte (400 su 5 numeri)",
+        [400, true, true],
+        [aperta.length, aperta.every((x) => !x.duplicato_di), aperta.every((x) => x.canale !== "baileys")],
+      );
+      c(
+        "anche la lettura della chat aperta e il controllo dei 15 s chiedono `duplicato_di` vuoto",
+        [true, true],
+        [
+          p.db.log.filter((x) => x.t === "whatsapp_messages" && x.or).every((x) => x.is.length === 1),
+          p.db.log.filter((x) => x.t === "whatsapp_messages" && x.lim === 1).every((x) => x.is.length === 1),
+        ],
+      );
+      fine(p);
+
+      //  Migrazione non ancora applicata: il filtro dà 42703, si rilegge senza filtro e si scarta in codice.
+      const r = await monta({ messaggi: righe, contatti: [], senzaDuplicatoDi: true });
+      const rm = r.db.log.filter((x) => x.t === "whatsapp_messages" && x.op === "select" && x.lim === 2000);
+      c(
+        "errore 42703: rilegge senza filtro (stessa richiesta, niente `is`), nessun errore in pagina",
+        [[1, 0], null],
+        [rm.slice(0, 2).map((x) => x.is.length), r.api().erroreLettura],
+      );
+      c(
+        "…e i doppioni si scartano in codice (nessuna anteprima è un doppione)",
+        true,
+        r.api().chats.every((x) => !(x.lastMessage?.id ?? "").startsWith("d")) && r.api().chats.length > 0,
+      );
+      r.api().apri(P1);
+      await r.assesta();
+      c("…né nella conversazione aperta", true, r.api().messaggi.length > 0 && r.api().messaggi.every((x) => !x.duplicato_di));
+      fine(r);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · PONTE: LO STORICO NON RIAVVIA LA LETTURA");
+    {
+      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000).length;
+      const mondo = () => ({
+        messaggi: [msg("m1", "inbound", P1, "ciao", -5 * MIN, { canale: "manychat" })],
+        contatti: [contatto("c1", P1, { last_message_at: iso(-5 * MIN), updated_at: iso(-5 * MIN), ultimo_in_entrata_il: iso(-5 * MIN) })],
+      });
+      const riga = (id, dopo, extra = {}) => msg(id, "inbound", P1, "storico", dopo, extra);
+      const ins = (r) => ({ eventType: "INSERT", new: r, old: {} });
+      const upd = (nuovo, vecchio) => ({ eventType: "UPDATE", new: nuovo, old: vecchio });
+
+      const p = await monta(mondo());
+      const prima = letture(p);
+      //  500 eventi di storico in un secondo: messaggi del ponte vecchi e contatti che cambiano solo ora/nome.
+      for (let i = 0; i < 250; i++) {
+        p.db.emetti("whatsapp_messages", ins(riga(`s${i}`, -(3 + i) * ORA_MS, { canale: "baileys" })));
+        const vecchio = p.db.tabelle.whatsapp_contacts[0];
+        p.db.emetti(
+          "whatsapp_contacts",
+          upd({ ...vecchio, last_message_at: iso(-i), display_name: "Nome", updated_at: iso(-i) }, vecchio),
+        );
+      }
+      await p.assesta();
+      c("500 eventi di storico (250 messaggi + 250 contatti): nessuna lettura", prima, letture(p));
+
+      const conta = async (nome, evento, tabella, attese) => {
+        const n0 = letture(p);
+        p.db.emetti(tabella, evento);
+        await p.assesta();
+        c(nome, attese, letture(p) - n0);
+      };
+      const cont = () => ({ ...p.db.tabelle.whatsapp_contacts[0] });
+      await conta("un messaggio vivo del ponte (recente): una lettura", ins(riga("v1", -MIN, { canale: "baileys" })), "whatsapp_messages", 1);
+      await conta("un messaggio di ManyChat, anche vecchio: una lettura", ins(riga("v2", -5 * ORA_MS, { canale: "manychat" })), "whatsapp_messages", 1);
+      await conta("un messaggio senza canale (Cloud): una lettura", ins(riga("v3", -5 * ORA_MS)), "whatsapp_messages", 1);
+      await conta("un messaggio del ponte che cambia (UPDATE): una lettura", upd(riga("v1", -5 * ORA_MS, { canale: "baileys" }), riga("v1", -5 * ORA_MS, { canale: "baileys" })), "whatsapp_messages", 1);
+      await conta("un contatto con `unread_count` diverso: una lettura", upd({ ...cont(), unread_count: 3 }, cont()), "whatsapp_contacts", 1);
+      await conta("un contatto con `risposto_il` diverso: una lettura", upd({ ...cont(), risposto_il: iso(0) }, cont()), "whatsapp_contacts", 1);
+      await conta("un contatto con `ultimo_in_entrata_il` diverso: una lettura", upd({ ...cont(), ultimo_in_entrata_il: iso(-1) }, cont()), "whatsapp_contacts", 1);
+      await conta("un contatto con `non_scrivere_dal` diverso: una lettura", upd({ ...cont(), non_scrivere_dal: iso(0) }, cont()), "whatsapp_contacts", 1);
+      await conta("un contatto con `lead_id` diverso: una lettura", upd({ ...cont(), lead_id: "l1" }, cont()), "whatsapp_contacts", 1);
+      await conta("un contatto cancellato: una lettura", { eventType: "DELETE", new: {}, old: cont() }, "whatsapp_contacts", 1);
+      await conta("un evento senza dati (come i vecchi): una lettura", undefined, "whatsapp_contacts", 1);
+      await conta("un UPDATE senza il vecchio valore (tabella senza REPLICA IDENTITY FULL): una lettura", upd({ ...cont(), updated_at: iso(-1) }, { id: "c1" }), "whatsapp_contacts", 1);
+      fine(p);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · PONTE: UN MESSAGGIO VIVO ARRIVATO IN RITARDO NON SI PERDE");
+    {
+      //  Il Mac era spento: il messaggio è di 3 ore fa ma il ponte lo scrive adesso. Per il tempo reale è «storico»
+      //  (non rilegge); lo prende il controllo dei 15 s, perché il contatto ha `updated_at` nuovo.
+      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000).length;
+      const p = await monta({
+        messaggi: [msg("m1", "outbound", P1, "ciao", -6 * ORA_MS, { canale: "manychat" })],
+        contatti: [contatto("c1", P1, { last_message_at: iso(-6 * ORA_MS), updated_at: iso(-6 * ORA_MS) })],
+      });
+      c("prima: la chat ha solo il suo messaggio", ["m1"], [p.api().chats[0].lastMessage.id]);
+      const n0 = letture(p);
+      const tardo = msg("tardo", "inbound", P1, "ho letto solo ora", -3 * ORA_MS, { canale: "baileys" });
+      p.db.tabelle.whatsapp_messages.push(tardo);
+      const vecchio = { ...p.db.tabelle.whatsapp_contacts[0] };
+      Object.assign(p.db.tabelle.whatsapp_contacts[0], { last_message_at: iso(-3 * ORA_MS), updated_at: iso(0) });
+      p.db.emetti("whatsapp_messages", { eventType: "INSERT", new: tardo, old: {} });
+      p.db.emetti("whatsapp_contacts", { eventType: "UPDATE", new: { ...p.db.tabelle.whatsapp_contacts[0] }, old: vecchio });
+      await p.assesta();
+      c("il tempo reale lo tratta da storico: nessuna lettura", [n0, "m1"], [letture(p), p.api().chats[0].lastMessage.id]);
+
+      p.T.ora += 15_000;
+      await p.scatta(); // scatta il controllo dei 15 s
+      await p.assesta();
+      c("il controllo dei 15 s lo trova: una lettura in più e il messaggio c'è", [n0 + 1, "tardo"], [letture(p), p.api().chats[0].lastMessage.id]);
+      c(
+        "…ed è solo da vedere: la chat NON entra in «Da rispondere» (storia col ponte = niente attesa)",
+        [false, false],
+        [p.api().chats[0].daRispondere.attesa, p.api().daRispondere.length > 0],
+      );
+      fine(p);
     }
 
     /* ════════════════════════════════════════════════════════════════════════
