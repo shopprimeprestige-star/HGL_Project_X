@@ -21583,7 +21583,7 @@ async function proveDelleRisposteAi() {
   c("…con un tetto alla conoscenza", true, P.istruzioni(Array.from({ length: 10 }, (_, i) => ({ nome: `f${i}`, testo: "x".repeat(20000) }))).length < P.MAX_CONOSCENZA + 3000);
   c("…senza documenti restano le regole", true, P.istruzioni([]).startsWith("Scrivi le bozze"));
   const fatti = P.istruzioni([]);
-  c("i fatti dello studio ci sono sempre: Roma, in giornata in meno di 2 ore, 7 giorni su 7", true, /Roma/.test(fatti) && /in giornata, in meno di 2 ore/.test(fatti) && /dal lunedì alla domenica, a qualsiasi orario/.test(fatti));
+  c("i fatti dello studio ci sono sempre: Roma, in giornata in meno di 2 ore, 7 giorni su 7", true, /Roma/.test(fatti) && /in giornata, in meno di 2 ore/.test(fatti) && /L'installazione si può fare dal lunedì alla domenica, a qualsiasi orario/.test(fatti) && !/Siamo disponibili/.test(fatti));
   c("…esclusiva Invisible Derm, evoluzione delle patch cutanee", true, /esclusiva dell'Invisible Derm, l'evoluzione delle patch cutanee/.test(fatti));
   c("…consulenza gratuita online in videochiamata: trapianto, patch standard o Invisible Derm", true, /gratuita e si fa online, in videochiamata/.test(fatti) && /trapianto, una patch standard o l'Invisible Derm/.test(fatti));
   c("…e il file dei fatti di AIOS è il primo letto", "~/Documents/Reel Studio/00-sistema/memoria/azienda-fatti.md", readFileSync(join(radice, "strumenti/risposte-ai/fonti.txt"), "utf8").split("\n").find((r) => r && !r.startsWith("#")));

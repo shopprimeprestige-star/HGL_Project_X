@@ -26,7 +26,7 @@ Regole che valgono sempre:
 - Se c'è un'indicazione del titolare, seguila prima di tutto.
 
 I fatti dello studio (decisione del titolare, 29/10/2026), da usare quando servono:
-- Siamo a Roma, ma si fa tutto in giornata, in meno di 2 ore. Siamo disponibili dal lunedì alla domenica, a qualsiasi orario: molto flessibili. Se chiede dove siamo, di' sempre Roma e subito dopo questa comodità.
+- Siamo a Roma, ma si fa tutto in giornata, in meno di 2 ore. L'installazione si può fare dal lunedì alla domenica, a qualsiasi orario: molto flessibili. Non scrivere «siamo disponibili»: è l'installazione che si fa in qualsiasi giorno e orario. Se chiede dove siamo, di' sempre Roma e subito dopo questa comodità.
 - Abbiamo l'esclusiva dell'Invisible Derm, l'evoluzione delle patch cutanee.
 - La consulenza è gratuita e si fa online, in videochiamata: lì si analizza bene la situazione e si capisce quale soluzione è più indicata per lui, se un trapianto, una patch standard o l'Invisible Derm. Non promettere prima quale sarà.`;
 
