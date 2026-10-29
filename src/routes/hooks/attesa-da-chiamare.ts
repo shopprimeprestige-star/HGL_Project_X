@@ -14,7 +14,12 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { nove, patchDaChiamare, type ContattoWa } from "@/crm/importa/attesa-da-chiamare";
+import {
+  nove,
+  patchDaChiamare,
+  patchRitornoAttesa,
+  type ContattoWa,
+} from "@/crm/importa/attesa-da-chiamare";
 import { telefonoE164 } from "@/crm/chatwa/daChiamare";
 import type { LeadData } from "@/crm/types";
 
@@ -37,14 +42,14 @@ const db = () => supabaseAdmin as unknown as { from: (t: string) => any };
 
 /** Le schede in «Attesa WhatsApp», tutte: PostgREST ne dà al massimo 1000 per
  *  volta, quindi si legge a pagine, in ordine fisso (revisione del 28/10). */
-async function schedeInAttesa(): Promise<Riga[]> {
+async function schedeInAttesa(stato = "attesa_whatsapp"): Promise<Riga[]> {
   const out: Riga[] = [];
   const PAGINA = 1000;
   for (let da = 0; ; da += PAGINA) {
     const { data, error } = await db()
       .from("crm_leads")
       .select("id, user_id, data, updated_at")
-      .eq("data->>stato", "attesa_whatsapp")
+      .eq("data->>stato", stato)
       .order("id", { ascending: true })
       .range(da, da + PAGINA - 1);
     if (error) throw error;
@@ -116,6 +121,32 @@ export async function giroAttesaDaChiamare(adesso = new Date()) {
   return { inAttesa: schede.length, spostati, cambiatiNelFrattempo: cambiati };
 }
 
+/** Il ritorno: «Da chiamare» → «Attesa WhatsApp» quando il cliente ha risposto
+ *  (regola `patchRitornoAttesa`). Stessa scrittura protetta da `updated_at`. */
+export async function giroRitornoAttesa(adesso = new Date()) {
+  const schede = await schedeInAttesa("da_chiamare");
+  if (schede.length === 0) return { daChiamare: 0, tornati: 0, cambiatiNelFrattempo: 0 };
+  const perNumero = await contattiDi(schede);
+  let tornati = 0;
+  let cambiati = 0;
+  for (const r of schede) {
+    if (!telefonoE164(r.data?.telefono)) continue;
+    const contatto = perNumero.get(`${r.user_id}|${nove(r.data?.telefono)}`);
+    const patch = patchRitornoAttesa(r.data, contatto, adesso);
+    if (!patch) continue;
+    const { data: scritte, error } = await db()
+      .from("crm_leads")
+      .update({ data: { ...r.data, ...patch }, updated_at: adesso.toISOString() })
+      .eq("id", r.id)
+      .eq("updated_at", r.updated_at)
+      .select("id");
+    if (error) throw error;
+    if (scritte?.length) tornati++;
+    else cambiati++;
+  }
+  return { daChiamare: schede.length, tornati, cambiatiNelFrattempo: cambiati };
+}
+
 export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
   server: {
     handlers: {
@@ -125,7 +156,11 @@ export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
         if (!auth || !auth.includes(attesa || "__mancante__"))
           return json({ error: "unauthorized" }, 401);
         try {
-          return json(await giroAttesaDaChiamare());
+          const adesso = new Date();
+          //  Prima il ritorno (chi ha risposto), poi l'andata: chi torna adesso
+          //  ha `statoDal` nuovo e non riparte subito per «Da chiamare».
+          const ritorno = await giroRitornoAttesa(adesso);
+          return json({ ...(await giroAttesaDaChiamare(adesso)), ritorno });
         } catch (e) {
           const code = (e as { code?: unknown } | null)?.code;
           console.error("[attesa-da-chiamare]", typeof code === "string" ? code : "errore");

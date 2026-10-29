@@ -52,3 +52,34 @@ export function patchDaChiamare(
     statoDal: ora,
   };
 }
+
+/** ── E INDIETRO: DA «DA CHIAMARE» AD «ATTESA WHATSAPP» (29/10/2026) ─────────
+ *  Richiesta del titolare: chi è in «Da chiamare» e risponde in chat (si riapre
+ *  la finestra delle 24 ore) torna in «Attesa WhatsApp» ed esce dal filtro «Da
+ *  chiamare». SOLO chi era in «Da chiamare»: ogni altro stato resta com'è anche
+ *  se il cliente scrive.
+ *  Vale se l'ultimo messaggio del cliente è arrivato DOPO l'ingresso in «Da
+ *  chiamare» ed entro le ultime 24 ore (finestra aperta); mai con lo STOP. */
+const FINESTRA_MS = 24 * 3600_000;
+export function patchRitornoAttesa(
+  d: Partial<LeadData> | null | undefined,
+  contatto: ContattoWa | null | undefined,
+  adesso: Date,
+): Partial<LeadData> | null {
+  if (!d || d.stato !== "da_chiamare" || !contatto || contatto.stop) return null;
+  const entrata = Date.parse(contatto.ultimoInEntrataIl ?? "");
+  if (!Number.isFinite(entrata)) return null;
+  if (adesso.getTime() - entrata > FINESTRA_MS) return null;
+  const dal = [d.statoDal, d.statoPrecedenteIl]
+    .map((x) => Date.parse(String(x ?? "")))
+    .filter((x) => Number.isFinite(x));
+  //  Senza data d'ingresso non si sa se ha risposto DOPO: si lascia com'è.
+  if (dal.length === 0 || entrata <= Math.max(...dal)) return null;
+  const ora = adesso.toISOString();
+  return {
+    stato: "attesa_whatsapp",
+    statoPrecedente: "da_chiamare",
+    statoPrecedenteIl: ora,
+    statoDal: ora,
+  };
+}
