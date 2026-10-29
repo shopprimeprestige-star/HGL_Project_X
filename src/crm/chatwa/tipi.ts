@@ -29,6 +29,10 @@ export interface WaMessageRow {
   created_at: string;
   delivered_at: string | null;
   read_at: string | null;
+  /** Ponte WhatsApp: `baileys` = riga solo da vedere. Prima della migrazione manca. */
+  canale?: string | null;
+  /** Ponte WhatsApp: id del messaggio del CRM di cui questa riga è doppione (nascosta). */
+  duplicato_di?: string | null;
 }
 
 export interface WaContactRow {

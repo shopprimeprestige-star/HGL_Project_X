@@ -42,7 +42,11 @@ import { getWhatsAppMessageForStatus, segnapostiResidui } from "@/crm/whatsapp";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import {
   daRispondere as calcolaDaRispondere,
+  type EventoDb,
+  eventoDaIgnorare,
   finestra24,
+  leggiContattiAPagine,
+  leggiSenzaDoppioni,
   ordinaDaRispondere,
   schedaUnica,
   statoCasella,
@@ -61,6 +65,8 @@ interface Esito {
 interface Query extends PromiseLike<Esito> {
   select(colonne: string): Query;
   eq(colonna: string, valore: string): Query;
+  is(colonna: string, valore: null): Query;
+  range(da: number, a: number): Query;
   or(condizioni: string): Query;
   order(colonna: string, o: { ascending: boolean }): Query;
   limit(n: number): Query;
@@ -82,6 +88,14 @@ const mancaFunzione = (e: Esito["error"]) => ["42883", "PGRST202"].includes(Stri
 const filtroNumero = (phone: string) => {
   const d = digitsOnly(phone);
   return `from_number.eq.+${d},to_number.eq.+${d},from_number.eq.${d},to_number.eq.${d}`;
+};
+
+/** Il messaggio più nuovo/i più recenti dell'utente, senza i doppioni del ponte (`duplicato_di` vuoto). */
+const messaggiRecenti = (userId: string, colonne: string, n: number) => (filtra: boolean) => {
+  const q = tabella("whatsapp_messages").select(colonne).eq("user_id", userId);
+  return (filtra ? q.is("duplicato_di", null) : q)
+    .order("created_at", { ascending: false })
+    .limit(n);
 };
 
 const ms = (x: string | null | undefined) => (x ? Date.parse(x) : NaN);
@@ -219,12 +233,16 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     const leggi = () =>
       conTempo(
         Promise.all([
-          tabella("whatsapp_messages")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(2000),
-          tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
+          //  Senza i doppioni del ponte: non consumano posti dei 2000 (`leggiSenzaDoppioni`).
+          leggiSenzaDoppioni(messaggiRecenti(user.id, "*", 2000)),
+          //  I contatti a pagine di 1000: una richiesta sola ne darebbe 1000 in silenzio.
+          leggiContattiAPagine((da, a) =>
+            tabella("whatsapp_contacts")
+              .select("*")
+              .eq("user_id", user.id)
+              .order("id", { ascending: true })
+              .range(da, a),
+          ),
         ]),
       ).catch(() => null);
     let letti = await leggi();
@@ -251,7 +269,13 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       return;
     }
     const [m, ct] = letti;
-    setErroreLettura(null);
+    //  shortcut: l'avviso dei contatti troncati riusa il banner d'errore in alto (con «Aggiorna»);
+    //  se serve un avviso a parte, aggiungere un campo a `ChatWaApi`.
+    setErroreLettura(
+      ct.troncato
+        ? "Ci sono più di 5000 contatti: se ne vedono solo i primi 5000, alcune chat potrebbero mancare."
+        : null,
+    );
     setAggiornatoIl(Date.now());
     const cts = (ct.data as WaContactRow[] | null) ?? [];
     setMessages(((m.data as WaMessageRow[] | null) ?? []).reverse());
@@ -339,7 +363,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             table: "whatsapp_messages",
             filter: `user_id=eq.${user.id}`,
           },
-          () => void ricarica(),
+          //  Lo storico del ponte (messaggi vecchi) non riavvia la lettura: il controllo ogni 15 s resta la rete.
+          (e: EventoDb) => {
+            if (!eventoDaIgnorare("whatsapp_messages", e, Date.now())) void ricarica();
+          },
         )
         .on(
           "postgres_changes",
@@ -349,7 +376,9 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             table: "whatsapp_contacts",
             filter: `user_id=eq.${user.id}`,
           },
-          () => void ricarica(),
+          (e: EventoDb) => {
+            if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
+          },
         );
       ch = questo;
       questo.subscribe((stato) => {
@@ -376,11 +405,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     const controlla = async () => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const [m, c] = await Promise.all([
-        tabella("whatsapp_messages")
-          .select("id,created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1),
+        leggiSenzaDoppioni(messaggiRecenti(user.id, "id,created_at", 1)),
         tabella("whatsapp_contacts")
           .select("id,updated_at")
           .eq("user_id", user.id)
@@ -464,12 +489,15 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     }
     let vivo = true;
     void (async () => {
-      const { data } = await tabella("whatsapp_messages")
-        .select("*")
-        .eq("user_id", user.id)
-        .or(filtroNumero(activePhone))
-        .order("created_at", { ascending: false })
-        .limit(500);
+      const { data } = await leggiSenzaDoppioni((filtra) => {
+        const q = tabella("whatsapp_messages")
+          .select("*")
+          .eq("user_id", user.id)
+          .or(filtroNumero(activePhone));
+        return (filtra ? q.is("duplicato_di", null) : q)
+          .order("created_at", { ascending: false })
+          .limit(500);
+      });
       if (vivo)
         setExtra({ phone: activePhone, righe: ((data as WaMessageRow[] | null) ?? []).reverse() });
     })();
