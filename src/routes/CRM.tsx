@@ -31,6 +31,7 @@ import { AuthProvider, useAuth, usePuo } from "@/crm/AuthContext";
 import { paginaIniziale } from "@/crm/permessi";
 import { CRMProvider, useCRM } from "@/crm/CRMContext";
 import { reteDeiClic } from "@/crm/clic-liberi";
+import { AvvisoVersione } from "@/crm/AvvisoVersione";
 import { UserSettingsProvider, useUserSettings } from "@/crm/UserSettingsContext";
 import { AdminLogin } from "@/crm/AdminLogin";
 import {
@@ -146,6 +147,8 @@ function CRMLayout() {
             il valore di sempre. */}
         <Toaster mobileOffset={{ bottom: "var(--barra-esiti, 16px)" }} />
       </AuthProvider>
+      {/*  Scheda aperta da ieri col codice vecchio: si accorge della versione nuova. */}
+      <AvvisoVersione />
     </div>
   );
 }
