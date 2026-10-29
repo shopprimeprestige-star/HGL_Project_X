@@ -44,11 +44,11 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   //  Il testo, nelle due forme.
   const t = leggi(wa({ conversation: "Ciao, avete posto sabato?" }, {}, { pushName: "Cliente Prova" }));
   c("testo semplice → MessaggioPonte del §b2", { ok: true, messaggio: { id: "3EB0AA01", numero: CLIENTE, dir: "in", ts: TS, testo: "Ciao, avete posto sabato?", tipo: "testo" }, nome: "Cliente Prova" }, t);
-  c("il messaggio ha solo i campi di MessaggioPonte", true, Object.keys(t.messaggio).every((k) => ["id", "numero", "dir", "ts", "testo", "tipo", "stato"].includes(k)));
+  c("il messaggio ha solo i campi di MessaggioPonte", true, Object.keys(t.messaggio ?? {}).every((k) => ["id", "numero", "dir", "ts", "testo", "tipo", "stato"].includes(k)));
   c("extendedTextMessage", { testo: "Sì, alle 10", tipo: "testo" }, solo(wa({ extendedTextMessage: { text: "Sì, alle 10", contextInfo: { stanzaId: "X" } } })));
   c("testo di soli spazi → scartato", { scarto: "vuoto" }, solo(wa({ conversation: "   " })));
-  c("testo oltre 4000 caratteri → tagliato a 4000", T.LIMITI.testo, leggi(wa({ conversation: "a".repeat(5000) })).messaggio.testo.length);
-  c("il taglio non lascia mezza coppia surrogata", false, /[\ud800-\udbff]$/.test(leggi(wa({ conversation: "a".repeat(3999) + "😀😀" })).messaggio.testo));
+  c("testo oltre 4000 caratteri → tagliato a 4000", T.LIMITI.testo, leggi(wa({ conversation: "a".repeat(5000) }))?.messaggio?.testo.length);
+  c("il taglio non lascia mezza coppia surrogata", false, /[\ud800-\udbff]$/.test(leggi(wa({ conversation: "a".repeat(3999) + "😀😀" }))?.messaggio?.testo));
   c("le chiavi di contorno (messageContextInfo) non contano", { testo: "Ok", tipo: "testo" }, solo(wa({ messageContextInfo: { deviceListMetadata: {} }, conversation: "Ok" })));
 
   //  I media diventano segnaposto (§b4).
@@ -89,12 +89,12 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("visualizza una volta v2 dentro effimero", { testo: "🎥 Video", tipo: "video" }, solo(wa({ ephemeralMessage: { message: { viewOnceMessageV2: { message: { videoMessage: {} } } } } })));
 
   //  L'orario: numero, Long, stringa; niente fusi.
-  c("messageTimestamp come numero", TS, leggi(wa({ conversation: "x" })).messaggio.ts);
-  c("messageTimestamp come Long", TS, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: long(TS) })).messaggio.ts);
-  c("messageTimestamp come Long senza toNumber", TS, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: { low: TS, high: 0, unsigned: true } })).messaggio.ts);
-  c("messageTimestamp come stringa di cifre", TS, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: String(TS) })).messaggio.ts);
+  c("messageTimestamp come numero", TS, leggi(wa({ conversation: "x" }))?.messaggio?.ts);
+  c("messageTimestamp come Long", TS, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: long(TS) }))?.messaggio?.ts);
+  c("messageTimestamp come Long senza toNumber", TS, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: { low: TS, high: 0, unsigned: true } }))?.messaggio?.ts);
+  c("messageTimestamp come stringa di cifre", TS, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: String(TS) }))?.messaggio?.ts);
   const oraLegale = Date.UTC(2026, 9, 25, 1, 0, 0) / 1000;
-  c("cambio dell'ora legale (25/10/2026 01:00 UTC): stesso numero", oraLegale, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: oraLegale })).messaggio.ts);
+  c("cambio dell'ora legale (25/10/2026 01:00 UTC): stesso numero", oraLegale, leggi(wa({ conversation: "x" }, {}, { messageTimestamp: oraLegale }))?.messaggio?.ts);
   c("ts negativo → scartato", { scarto: "orario_non_valido" }, solo(wa({ conversation: "x" }, {}, { messageTimestamp: -5 })));
   c("ts assente → scartato", { scarto: "orario_non_valido" }, solo(wa({ conversation: "x" }, {}, { messageTimestamp: undefined })));
   c("ts prima del 2009 → scartato", { scarto: "orario_non_valido" }, solo(wa({ conversation: "x" }, {}, { messageTimestamp: T.TS_MINIMO - 1 })));
@@ -105,20 +105,20 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
 
   //  La direzione e lo stato.
   const fuori = leggi(wa({ conversation: "Grazie a lei" }, { fromMe: true }, { pushName: "Noi", status: 4 }));
-  c("fromMe → out, stato read, nessun nome (il nome è il nostro)", { dir: "out", stato: "read", nome: undefined }, { dir: fuori.messaggio.dir, stato: fuori.messaggio.stato, nome: fuori.nome });
-  c("stato 3 → delivered", "delivered", leggi(wa({ conversation: "x" }, { fromMe: true }, { status: 3 })).messaggio.stato);
-  c("stato 0 (default del proto, non sappiamo) → sent", "sent", leggi(wa({ conversation: "x" }, { fromMe: true }, { status: 0 })).messaggio.stato);
-  c("stato assente → sent", "sent", leggi(wa({ conversation: "x" }, { fromMe: true })).messaggio.stato);
-  c("un messaggio in non porta stato", false, "stato" in leggi(wa({ conversation: "x" }, {}, { status: 3 })).messaggio);
-  c("pushName oltre 80 caratteri → tagliato", 80, leggi(wa({ conversation: "x" }, {}, { pushName: "N".repeat(120) })).nome.length);
+  c("fromMe → out, stato read, nessun nome (il nome è il nostro)", { dir: "out", stato: "read", nome: undefined }, { dir: fuori.messaggio?.dir, stato: fuori.messaggio?.stato, nome: fuori.nome });
+  c("stato 3 → delivered", "delivered", leggi(wa({ conversation: "x" }, { fromMe: true }, { status: 3 }))?.messaggio?.stato);
+  c("stato 0 (default del proto, non sappiamo) → sent", "sent", leggi(wa({ conversation: "x" }, { fromMe: true }, { status: 0 }))?.messaggio?.stato);
+  c("stato assente → sent", "sent", leggi(wa({ conversation: "x" }, { fromMe: true }))?.messaggio?.stato);
+  c("un messaggio in non porta stato", false, "stato" in (leggi(wa({ conversation: "x" }, {}, { status: 3 })).messaggio ?? { stato: 1 }));
+  c("pushName oltre 80 caratteri → tagliato", 80, leggi(wa({ conversation: "x" }, {}, { pushName: "N".repeat(120) })).nome?.length);
 
   //  Il numero: JID pieno, dispositivo, @lid.
-  c("JID con suffisso di dispositivo (:12) ripulito", CLIENTE, leggi(wa({ conversation: "x" }, { remoteJid: `${CLIENTE}:12@s.whatsapp.net` })).messaggio.numero);
+  c("JID con suffisso di dispositivo (:12) ripulito", CLIENTE, leggi(wa({ conversation: "x" }, { remoteJid: `${CLIENTE}:12@s.whatsapp.net` }))?.messaggio?.numero);
   const lid = "123456789012345@lid";
-  c("@lid risolto con remoteJidAlt", CLIENTE, leggi(wa({ conversation: "x" }, { remoteJid: lid, remoteJidAlt: `${CLIENTE}@s.whatsapp.net` })).messaggio.numero);
+  c("@lid risolto con remoteJidAlt", CLIENTE, leggi(wa({ conversation: "x" }, { remoteJid: lid, remoteJidAlt: `${CLIENTE}@s.whatsapp.net` }))?.messaggio?.numero);
   const mappa = E.aggiornaMappaLid({}, [{ lid: "123456789012345:3@lid", pn: `${CLIENTE}:3@s.whatsapp.net` }]);
   c("la mappa LID→numero tiene solo le cifre", { "123456789012345": CLIENTE }, mappa);
-  c("@lid risolto con la mappa", CLIENTE, leggi(wa({ conversation: "x" }, { remoteJid: lid }), { risolviLid: E.risolutoreLid(mappa) }).messaggio.numero);
+  c("@lid risolto con la mappa", CLIENTE, leggi(wa({ conversation: "x" }, { remoteJid: lid }), { risolviLid: E.risolutoreLid(mappa) })?.messaggio?.numero);
   c("@lid non risolvibile → scartato senza_numero", { scarto: "senza_numero" }, solo(wa({ conversation: "x" }, { remoteJid: lid })));
   c("risolviLid che restituisce spazzatura → senza_numero", { scarto: "senza_numero" }, solo(wa({ conversation: "x" }, { remoteJid: lid }), { risolviLid: () => "abc@lid" }));
   c("la mappa ignora voci senza cifre", {}, E.aggiornaMappaLid({}, [{ lid: "x@lid", pn: "pippo" }, null, { lid: "1@lid" }]));
