@@ -197,5 +197,9 @@ export function pastigliaFinestra(
   if (!f) return null;
   return f.aperta
     ? { aperta: true, testo: "Si può scrivere", titolo: f.frase || "Finestra di 24 ore aperta" }
-    : { aperta: false, testo: "Finestra chiusa", titolo: f.frase || "Passate 24 ore: serve un modello approvato" };
+    : {
+        aperta: false,
+        testo: "Finestra chiusa",
+        titolo: f.frase || "Passate 24 ore: serve un modello approvato",
+      };
 }
