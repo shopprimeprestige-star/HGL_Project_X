@@ -572,6 +572,7 @@ const MODULI = [
   "chatwa/media",
   "chatwa/stato",
   "chatwa/cercaChat",
+  "chatwa/formati",
   "chatwa/modelli-casella",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
   //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
@@ -20524,7 +20525,7 @@ function proveDiWhatsappOrariStelle() {
   const casella = readFileSync(join(radice, "src/crm/chatwa/Casella.tsx"), "utf8");
   const hook = readFileSync(join(radice, "src/crm/chatwa/useStelle.ts"), "utf8");
   c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
-  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /sort\(\(a, b\) => stelleDi\(b\.phone\) - stelleDi\(a\.phone\)\)/.test(elenco));
+  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /ordinaPerStelle\(/.test(elenco));
   c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
@@ -20617,10 +20618,10 @@ function proveDiWhatsappTemperaturaConsulente() {
   c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
-    /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /filter\(eVecchia\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
+    /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /perPastiglia\(perRicerca\(api\.chats\.filter\(eVecchia\)\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
   c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
   c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /Nessun cliente di questo consulente aspetta una risposta/.test(elenco));
-  c("con la scheda la riga mostra stato e temperatura, il numero va nell'intestazione", true, /\{!c\.lead && \(\s*<span className="shrink-0 font-mono/.test(riga));
+  c("la riga mostra il numero leggibile sotto il nome (anche senza scheda), non più in terza riga", true, /numeroSotto && \(/.test(riga) && !/font-mono text-\[11px\] text-muted-foreground/.test(riga));
   c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId === consulente/.test(elenco));
   //  Il pannello di temperatura per un lead del modulo «22-ott» e per uno senza risposte.
   const T = mod["temperatura-lead"];
@@ -20652,15 +20653,14 @@ function proveDelDaChiamare() {
   const hook = readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("la chat calcola «Da chiamare» per ogni contatto", true, /item\.daChiamare = calcolaDaChiamare\(/.test(hook));
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
-  c("«Da chiamare» ha la sua sezione e non si ripete fra le altre", true, /titolo-da-chiamare/.test(elenco) && /\.\.\.api\.daChiamare,/.test(elenco));
+  //  Dal 28/10 (commessa chat-da-chiamare) la fascia è sostituita dalla pillola «Da chiamare» coi sottofiltri.
+  c("«Da chiamare»: la fascia non c'è più, c'è la pillola coi sottofiltri (prove/manychat/chat-sottofiltri.mjs)", true, !/titolo-da-chiamare/.test(elenco) && /chatDaChiamare\(/.test(elenco));
   c("Attesa WhatsApp con solo l'ora del server (statoDal): sì", true, D.calcolaDaChiamare({ dati: { stato: "attesa_whatsapp", statoDal: "2026-10-28T08:00:00Z" }, messaggi: [], adesso }).si);
   const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
   c("cambio di stato dalla scheda: l'ora si aggiorna anche se il modulo rimanda quella vecchia", true,
     /patch\.statoPrecedenteIl !== current\.data\.statoPrecedenteIl/.test(ctx) && /merged\.stato !== current\.data\.stato && !dichiarato/.test(ctx));
   c("sul telefono niente avatar nella barra della chat (spazio a nome e stato)", true, /<Avatar className="hidden sm:flex/.test(conv));
-  c("chat con due schede sullo stesso numero: il lead in attesa conta lo stesso", true, /inAttesaPerNumero\.get\(/.test(hook));
   c("tasto Chiama nella barra della chat (tel:)", true, /href=\{`tel:\$\{numeroDaComporre\(attiva\.phone\)\}`\}/.test(conv));
 }
 

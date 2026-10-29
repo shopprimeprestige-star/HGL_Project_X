@@ -1,7 +1,10 @@
 /** ── PROVE: CHAT WHATSAPP · LA RICERCA DELL'ELENCO ───────────────────────────────────────────
  *
  *  Commessa 2026-10-28, PIANO.md T8 (correzione del revisore). `chatwa/cercaChat.ts`: il riquadro
- *  «Da rispondere» obbedisce alla ricerca ma NON alla pastiglia. Dati inventati. */
+ *  «Da rispondere» obbedisce alla ricerca; dal 28/10 (guasto delle pillole) anche alla pastiglia. Dati inventati. */
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export async function proveChatElenco(mod, { c, gruppo }) {
   const { combaciaRicerca } = mod["chatwa/cercaChat"];
@@ -17,6 +20,8 @@ export async function proveChatElenco(mod, { c, gruppo }) {
     combaciaRicerca(conScheda, "MAR"), combaciaRicerca(conScheda, "maria rossi"),
   ]);
   c("numero", [true, false], [combaciaRicerca(conScheda, "0001112"), combaciaRicerca(conScheda, "999")]);
+  c("numero scritto come si legge (con spazi) o solo in parte: si trovano le cifre", [true, true, false],
+    [combaciaRicerca(conScheda, "+39 000 111"), combaciaRicerca(conScheda, "000-111-222"), combaciaRicerca(conScheda, "000 999")]);
   c("numero senza scheda: si trova per nome salvato (display_name)", [true, false], [
     combaciaRicerca(senzaScheda, "marco"), combaciaRicerca(senzaScheda, "luigi"),
   ]);
@@ -33,6 +38,63 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   const pastigliaConLead = (x) => !!x.lead;
   c("riquadro con ricerca «mar» e pastiglia «Con lead»: il senza scheda resta", 2,
     inAttesa.filter((x) => combaciaRicerca(x, "mar")).length);
-  c("(la pastiglia da sola lo toglierebbe: è il difetto corretto)", 1,
+  c("(la pastiglia «Con lead» da sola lo toglie: ora vale anche per il riquadro)", 1,
     inAttesa.filter((x) => combaciaRicerca(x, "mar") && pastigliaConLead(x)).length);
+
+  // ── LE PILLOLE FILTRANO ANCHE I RIQUADRI (guasto del 28/10: «Non letti», «Con lead», «Sconosciuti»
+  //  non cambiavano l'elenco, perché «Da rispondere», «Da chiamare» e le «vecchie» le ignoravano
+  //  e quasi tutte le chat stanno lì sopra). Numeri 333000xxx finti.
+  const { passaFiltro } = mod["chatwa/cercaChat"];
+  const letta = { phone: "+39333000001", lead: scheda("Anna", "Bianchi"), unread: 0 };
+  const nonLetta = { phone: "+39333000002", lead: null, unread: 2 };
+  const nonLettaConLead = { phone: "+39333000003", lead: scheda("Luca", "Verdi"), unread: 1 };
+  const tutte = [letta, nonLetta, nonLettaConLead];
+  const con = (f) => tutte.filter((x) => passaFiltro(x, f)).map((x) => x.phone.slice(-1));
+  gruppo("CHAT ELENCO · LE PILLOLE FILTRANO (guasto del 28/10)");
+  c("«Tutte»: nessuna esce", ["1", "2", "3"], con("all"));
+  c("«Non letti»: solo con messaggi non letti", ["2", "3"], con("unread"));
+  c("«Con lead»: solo con la scheda", ["1", "3"], con("with-lead"));
+  c("«Sconosciuti»: solo senza scheda", ["2"], con("unknown"));
+
+  // ── LE STELLE SALGONO IN CIMA (28/10): 3, 2, 1, poi le altre nell'ordine di prima.
+  const { ordinaPerStelle } = mod["chatwa/cercaChat"];
+  const stelle = { "+39333000011": 1, "+39333000013": 3, "+39333000014": 2 };
+  const di = (p) => stelle[p] ?? 0;
+  const ordine = [
+    { phone: "+39333000010" }, { phone: "+39333000011" }, { phone: "+39333000012" },
+    { phone: "+39333000013" }, { phone: "+39333000014" },
+  ];
+  gruppo("CHAT ELENCO · L'ORDINE PER STELLE");
+  c("3 stelle, poi 2, poi 1, poi le altre nell'ordine di prima",
+    ["3", "4", "1", "0", "2"], ordinaPerStelle(ordine, di).map((x) => x.phone.slice(-1)));
+  c("senza stelle l'ordine non cambia (anche «Da rispondere»: il più vecchio resta sopra)",
+    ["+39333000022", "+39333000021"],
+    ordinaPerStelle([{ phone: "+39333000022" }, { phone: "+39333000021" }], () => 0).map((x) => x.phone));
+  c("a parità di stelle resta l'ordine di prima", ["2", "1"],
+    ordinaPerStelle([{ phone: "+39333000002" }, { phone: "+39333000001" }], () => 2).map((x) => x.phone.slice(-1)));
+  const copia = ordine.map((x) => x.phone);
+  ordinaPerStelle(ordine, di);
+  c("non muta l'ingresso", copia, ordine.map((x) => x.phone));
+  const elencoSrc = readFileSync(join(process.cwd(), "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("ElencoChat: ogni riquadro passa da ordinaPerStelle", true,
+    (elencoSrc.match(/perStelle\(/g) ?? []).length >= 3);
+
+  const radice = process.cwd();
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = (?:perStelle\\(\\s*)?perPastiglia\\(`).test(elenco);
+  c("ElencoChat: «Da rispondere» obbedisce alla pastiglia", true, sorgenteUsaFiltro("inAttesaTutti"));
+  c("ElencoChat: le «vecchie» obbediscono alla pastiglia", true, sorgenteUsaFiltro("vecchie"));
+
+  // ── IL NUMERO LEGGIBILE (28/10): +39 3xx xxx xxxx. Numeri finti 333000xxx.
+  const { numeroLeggibile } = mod["chatwa/formati"];
+  gruppo("CHAT ELENCO · IL NUMERO LEGGIBILE");
+  c("cellulare italiano a 10 cifre: +39 3xx xxx xxxx", "+39 333 000 1234", numeroLeggibile("+393330001234"));
+  c("cellulare italiano a 9 cifre: +39 3xx xxx xxx", "+39 333 000 123", numeroLeggibile("+39333000123"));
+  c("scritto con spazi o senza +: stesso risultato", "+39 333 000 1234", numeroLeggibile("39 333-000-1234"));
+  c("fisso italiano: +39 0x… a gruppi", "+39 06 1234 5678", numeroLeggibile("+390612345678"));
+  c("estero: +prefisso e gruppi da 3", "+44 790 000 0000", numeroLeggibile("+447900000000"));
+  c("vuoto o troppo corto: com'è, senza lanciare", ["", "+39", "12"], [numeroLeggibile(""), numeroLeggibile("+39"), numeroLeggibile("12")]);
+  c("null e undefined non lanciano", ["", ""], [numeroLeggibile(null), numeroLeggibile(undefined)]);
+  const convSrc = readFileSync(join(process.cwd(), "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("l'intestazione della chat mostra il numero leggibile sotto il nome", true, /numeroLeggibile\(attiva\.phone\)/.test(convSrc));
 }

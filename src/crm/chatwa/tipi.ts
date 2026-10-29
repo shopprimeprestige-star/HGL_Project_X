@@ -13,7 +13,7 @@ import type { Lead, LeadStatus } from "@/crm/types";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import type { StatoCasella } from "./stato";
 
-export type FiltroChat = "all" | "unread" | "with-lead" | "unknown";
+export type FiltroChat = "all" | "unread" | "with-lead" | "unknown" | "da-chiamare";
 
 export interface WaMessageRow {
   id: string;
@@ -65,8 +65,6 @@ export interface ChatItem {
     vecchia?: boolean;
   } | null;
   finestra?: { aperta: boolean; frase: string };
-  /** In attesa WhatsApp da più di 10 ore, senza risposta (crm/chatwa/daChiamare). */
-  daChiamare?: { si: boolean; dal: string | null };
   senzaScheda?: boolean;
   schedaAmbigua?: boolean;
   stop?: boolean;
@@ -77,9 +75,6 @@ export interface ChatWaApi {
   chats: ChatItem[];
   /** Le chat in «Da rispondere», già ordinate (la più vecchia sopra). */
   daRispondere: ChatItem[];
-  /** Le chat «Da chiamare» (in attesa WhatsApp da più di 10 ore), la più
-   *  vecchia sopra. */
-  daChiamare: ChatItem[];
   visibili: ChatItem[];
   filtro: FiltroChat;
   setFiltro: (f: FiltroChat) => void;
@@ -109,6 +104,8 @@ export interface ChatWaApi {
   /** Chat (per telefono) a cui il server ha detto «solo modelli». */
   forzaModelli: Record<string, boolean>;
   cambiaStato: (s: LeadStatus) => Promise<void>;
+  /** Come `cambiaStato`, ma per un lead qualunque (dalla riga dell'elenco, senza aprire la chat). */
+  cambiaStatoLead: (lead: Lead, s: LeadStatus) => Promise<void>;
   /** Chiavi Meta lette: `null` finché non si sa. Serve all'intestazione della pagina; T7 la sostituisce con `canale`/`stato`. */
   hasConfig: boolean | null;
 }

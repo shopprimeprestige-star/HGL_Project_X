@@ -1,8 +1,12 @@
-import { CheckCheck, Star } from "lucide-react";
+import { useState } from "react";
+import { CheckCheck, ChevronDown, Phone, Star } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL } from "@/crm/types";
+import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
+import { FinestraStati, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
+import { numeroDaComporre } from "@/crm/importa/chiamare";
+import { statiMenuRiga } from "./daChiamare";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { TemperaturaRiga } from "@/crm/Temperatura";
@@ -10,11 +14,11 @@ import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { anteprimaIn } from "./media";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
-import { formatTimeIT, initials } from "./formati";
+import { formatTimeIT, initials, numeroLeggibile } from "./formati";
 import type { ChatItem } from "./tipi";
 
 /** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
-export type ModoRiga = "normale" | "attesa" | "vecchia" | "chiamare";
+export type ModoRiga = "normale" | "attesa" | "vecchia";
 
 /** Il testo di una riga dell'elenco: anteprima come nella bolla (🎤 Vocale, «Messaggio non
  *  leggibile») su UNA riga sola. Nota 3 del revisore su T2: `anteprimaIn` lascia a capo e tab. */
@@ -27,7 +31,7 @@ function anteprimaRiga(testo: string | null | undefined): string {
 /** Nome da mostrare: scheda, poi nome salvato, poi il numero. */
 function nomeChat(c: ChatItem): string {
   const scheda = c.lead ? `${c.lead.data.nome} ${c.lead.data.cognome}`.trim() : "";
-  return scheda || c.contact?.display_name || c.phone;
+  return scheda || c.contact?.display_name || numeroLeggibile(c.phone);
 }
 
 interface RigaChatProps {
@@ -41,6 +45,8 @@ interface RigaChatProps {
   /** Le stelle di priorità (0-3) e il tocco che le cambia (vedi useStelle). */
   stelle?: number;
   onStelle?: () => void;
+  /** Cambia lo stato del lead dalla riga (salvataggio condiviso: useChatWa.cambiaStatoLead). */
+  onCambiaStato?: (lead: Lead, stato: LeadStatus) => void;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
@@ -57,20 +63,24 @@ export function RigaChat({
   onAbbina,
   stelle = 0,
   onStelle,
+  onCambiaStato,
 }: RigaChatProps) {
+  const [cambiaStato, setCambiaStato] = useState(false);
   const nome = nomeChat(c);
+  //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
+  const numero = numeroLeggibile(c.phone);
+  const numeroSotto = nome.replace(/\D/g, "") !== numero.replace(/\D/g, "");
+  const telefono = numeroDaComporre(c.phone);
+  //  Gli stati di chiamata che la regola del CRM (`statiPer`) ammette per QUESTO lead.
+  const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data) : []);
+  const opzioniStato = statiMenuRiga(c.lead?.data.stato, ammessi);
   const last = c.lastMessage;
   const inAttesa = modo === "attesa" || modo === "vecchia";
-  const daChiamare = modo === "chiamare";
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
 
   // `dal` c'è sempre se la chat è in attesa; se mancasse, meglio l'ora dell'ultimo messaggio che un «da meno di 1 min» falso.
-  const dal = inAttesa
-    ? (c.daRispondere?.dal ?? null)
-    : daChiamare
-      ? (c.daChiamare?.dal ?? null)
-      : null;
+  const dal = inAttesa ? (c.daRispondere?.dal ?? null) : null;
   const tempo = dal
     ? attesaInChiaro(dal, adesso)
     : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
@@ -85,9 +95,7 @@ export function RigaChat({
           c.lead?.id,
         ).testo
       : last?.body;
-  const anteprima = daChiamare
-    ? "In attesa su WhatsApp da oltre 10 ore: da chiamare"
-    : anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
+  const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
 
   return (
@@ -96,7 +104,11 @@ export function RigaChat({
         type="button"
         onClick={onApri}
         aria-current={attiva ? "true" : undefined}
-        className="flex w-full min-h-[72px] items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className={cn(
+          "flex w-full min-h-[72px] items-start gap-3 py-3 pl-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          //  Con la cornetta a destra (44 px) il testo si ferma prima.
+          c.lead && telefono ? "pr-14" : "pr-3",
+        )}
       >
         <Avatar className="h-11 w-11 shrink-0">
           <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
@@ -116,16 +128,17 @@ export function RigaChat({
             <span
               className={cn(
                 "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
-                modo === "attesa"
-                  ? "font-semibold text-amber-700"
-                  : daChiamare
-                    ? "font-semibold text-sky-700"
-                    : "text-muted-foreground",
+                modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
               )}
             >
               {tempo}
             </span>
           </span>
+          {numeroSotto && (
+            <span className="block truncate text-[12px] tabular-nums text-muted-foreground md:text-[11px]">
+              {numero}
+            </span>
+          )}
           <span className="mt-0.5 flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground md:text-[12px]">
               {!inAttesa && last?.direction === "outbound" && (
@@ -146,80 +159,116 @@ export function RigaChat({
               </span>
             )}
           </span>
-          {(c.lead || nome !== c.phone) && (
-            <span className={cn("mt-1 flex items-center gap-2", onStelle && "pr-16")}>
-              {c.lead && (
-                <span
-                  className={cn(
-                    "inline-flex min-w-0 items-center truncate rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none",
-                    LEAD_STATUS_COLOR[c.lead.data.stato],
-                  )}
-                >
-                  <span className="truncate">{LEAD_STATUS_LABEL[c.lead.data.stato]}</span>
-                </span>
-              )}
-              {/*  Di ritorno (28/10/2026): nella riga solo «↩ Ritorno», lo stato di
-                  prima nell'intestazione della chat e nel tooltip. */}
-              {ritorno && (
-                <span
-                  className="shrink-0 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
-                  title={ritorno.titolo}
-                >
-                  <span className="sm:hidden" aria-label={ritorno.corta}>
-                    ↩
-                  </span>
-                  <span className="hidden sm:inline">{ritorno.corta}</span>
-                </span>
-              )}
-              {/*  Com'è messo il cliente (28/10/2026): pallino e parola, niente risposte
-                  brevi (la riga è stretta; le risposte sono nel tasto info della chat). */}
-              {c.lead && mostraTemperatura(c.lead.data.stato) && (
-                <TemperaturaRiga dati={c.lead.data} max={0} className="shrink-0 text-[11px]" />
-              )}
-              {/*  Con la scheda il numero lascia il posto a stato e temperatura (la
-                  riga è stretta: con tutti e tre lo stato restava «Ap…»). Il
-                  numero si legge nell'intestazione della chat. */}
-              {!c.lead && (
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                  {c.phone}
-                </span>
-              )}
-            </span>
-          )}
-          {/*  Senza la terza riga, lo spazio per le stelle (che stanno fuori dal bottone). */}
-          {onStelle && !(c.lead || nome !== c.phone) && (
-            <span className="mt-1 block h-5" aria-hidden="true" />
-          )}
         </span>
       </button>
 
-      {/*  ── LE STELLE, DALLA LISTA (28/10/2026) ───────────────────────────
-          Un tocco ne aggiunge una (0 → 1 → 2 → 3 → 0). Fuori dal bottone della
-          riga, come «Crea scheda»: un bottone dentro un bottone non è valido. */}
-      {onStelle && (
-        <button
-          type="button"
-          onClick={onStelle}
-          //  All'altezza della terza riga (stato e numero), a destra, dove non c'è niente.
-          className="absolute right-2 top-[56px] inline-flex h-7 items-center gap-0.5 rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:top-[54px]"
-          aria-label={`Priorità di ${nome}: ${stelle} su 3. Tocca per cambiare`}
-          title={
-            stelle
-              ? `In osservazione: ${stelle} su 3 · tocca per cambiare`
-              : "Metti in osservazione"
-          }
+      {/*  ── CORNETTA (28/10/2026) ───────────────────────────────────────────
+          Su ogni riga con la scheda: apre il compositore con il numero (sul Mac lo
+          passa all'iPhone). Fuori dal bottone della riga e con stopPropagation, così
+          non apre la chat; 44 px di tocco sul telefono. */}
+      {c.lead && telefono && (
+        <Button
+          asChild
+          variant="ghost"
+          className="absolute right-1 top-2 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:h-9 md:w-9"
         >
-          {[1, 2, 3].map((i) => (
-            <Star
-              key={i}
-              aria-hidden="true"
-              className={cn(
-                "h-4 w-4",
-                i <= stelle ? "fill-amber-400 text-amber-500" : "text-muted-foreground/40",
-              )}
-            />
-          ))}
-        </button>
+          <a
+            href={`tel:${telefono}`}
+            aria-label={`Chiama ${nome}`}
+            title={`Chiama ${nome}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
+          </a>
+        </Button>
+      )}
+
+      {/*  ── STATO, RITORNO, TEMPERATURA E STELLE ────────────────────────────
+          Sotto il bottone della riga e non dentro: lo stato si cambia da qui (un
+          bottone dentro un bottone non è valido e sul telefono prende il tocco
+          sbagliato). Il tasto dello stato apre la STESSA finestra del resto del CRM
+          (FinestraStati) con gli stati di chiamata; il salvataggio è `onCambiaStato`. */}
+      {(c.lead || onStelle) && (
+        <div className="flex items-center gap-2 pb-1 pl-[68px] pr-2">
+          {c.lead && (
+            <button
+              type="button"
+              onClick={() => setCambiaStato(true)}
+              aria-haspopup="dialog"
+              aria-label={`Stato: ${LEAD_STATUS_LABEL[c.lead.data.stato]}. Cambialo`}
+              title={`${LEAD_STATUS_LABEL[c.lead.data.stato]} · cambia stato`}
+              className="inline-flex h-11 min-w-0 shrink items-center focus-visible:outline-none md:h-7"
+            >
+              <span
+                className={cn(
+                  "inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium leading-none",
+                  LEAD_STATUS_COLOR[c.lead.data.stato],
+                )}
+              >
+                <span className="truncate">{LEAD_STATUS_LABEL[c.lead.data.stato]}</span>
+                <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
+              </span>
+            </button>
+          )}
+          {/*  Di ritorno (28/10/2026): nella riga solo «↩ Ritorno», lo stato di
+              prima nell'intestazione della chat e nel tooltip. */}
+          {ritorno && (
+            <span
+              className="shrink-0 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
+              title={ritorno.titolo}
+            >
+              <span className="sm:hidden" aria-label={ritorno.corta}>
+                ↩
+              </span>
+              <span className="hidden sm:inline">{ritorno.corta}</span>
+            </span>
+          )}
+          {/*  Com'è messo il cliente (28/10/2026): pallino e parola, niente risposte
+              brevi (la riga è stretta; le risposte sono nel tasto info della chat). */}
+          {c.lead && mostraTemperatura(c.lead.data.stato) && (
+            <TemperaturaRiga dati={c.lead.data} max={0} className="shrink-0 text-[11px]" />
+          )}
+          <span className="flex-1" />
+          {/*  ── LE STELLE, DALLA LISTA (28/10/2026) ───────────────────────────
+              Un tocco ne aggiunge una (0 → 1 → 2 → 3 → 0). */}
+          {onStelle && (
+            <button
+              type="button"
+              onClick={onStelle}
+              className="inline-flex h-11 shrink-0 items-center gap-0.5 rounded-md px-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-7"
+              aria-label={`Priorità di ${nome}: ${stelle} su 3. Tocca per cambiare`}
+              title={
+                stelle
+                  ? `In osservazione: ${stelle} su 3 · tocca per cambiare`
+                  : "Metti in osservazione"
+              }
+            >
+              {[1, 2, 3].map((i) => (
+                <Star
+                  key={i}
+                  aria-hidden="true"
+                  className={cn(
+                    "h-4 w-4",
+                    i <= stelle ? "fill-amber-400 text-amber-500" : "text-muted-foreground/40",
+                  )}
+                />
+              ))}
+            </button>
+          )}
+        </div>
+      )}
+      {c.lead && (
+        <FinestraStati
+          aperta={cambiaStato}
+          onChiudi={() => setCambiaStato(false)}
+          stato={c.lead.data.stato}
+          opzioni={opzioniStato}
+          contesto={`${nome} · adesso: ${LEAD_STATUS_LABEL[c.lead.data.stato]}`}
+          onScegli={(s) => {
+            setCambiaStato(false);
+            if (c.lead) onCambiaStato?.(c.lead, s);
+          }}
+        />
       )}
 
       {(senzaScheda || ambigua) && (

@@ -28,12 +28,14 @@
  *   `api.daRispondere` contiene solo le chat con `attesa` vera.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
+import { combaciaRicerca, passaFiltro } from "./cercaChat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchCRM, useAuth } from "@/crm/AuthContext";
 import { useCRM } from "@/crm/CRMContext";
 import { supabase } from "@/integrations/supabase/client";
-import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
+import { LEAD_STATUS_LABEL, type Lead, type LeadData, type LeadStatus } from "@/crm/types";
+import { patchEsito } from "@/crm/importa/chi-chiamare";
 import { requiresAnyDialog } from "@/crm/QuickStatusDialog";
 import { caricaModelliSalvati } from "@/crm/EditorMessaggi";
 import { getWhatsAppMessageForStatus, segnapostiResidui } from "@/crm/whatsapp";
@@ -445,13 +447,9 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     //   messaggi qui. Se sono in attesa da più di 10 ore entrano lo stesso,
     //   così compaiono in «Da chiamare» e si chiamano dal tasto in alto.
     const ultime9 = new Set([...map.keys()].map((k) => k.replace(/\D/g, "").slice(-9)));
-    //  Il lead in attesa per numero: serve anche alle chat che esistono ma non
-    //  hanno una scheda sola (due schede sullo stesso numero, revisione 28/10).
-    const inAttesaPerNumero = new Map<string, (typeof leads)[number]>();
     for (const l of leads) {
       if (!calcolaDaChiamare({ dati: l.data, messaggi: [], adesso: new Date(adesso) }).si) continue;
       const tel = telefonoE164(l.data?.telefono);
-      if (tel) inAttesaPerNumero.set(tel.replace(/\D/g, "").slice(-9), l);
       if (!tel || ultime9.has(tel.replace(/\D/g, "").slice(-9))) continue;
       ultime9.add(tel.replace(/\D/g, "").slice(-9));
       map.set(tel, {
@@ -506,17 +504,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       };
       const f = finestra24({ contatto, messaggi, adesso });
       item.finestra = { aperta: f.aperta, frase: f.frase };
-      //  «Da chiamare» (28/10/2026): in attesa WhatsApp da più di 10 ore.
-      item.daChiamare = calcolaDaChiamare({
-        dati:
-          lead?.data ??
-          inAttesaPerNumero.get(item.phone.replace(/\D/g, "").slice(-9))?.data ??
-          null,
-        messaggi,
-        stop: item.stop,
-        ultimaEntrataIl: item.contact?.ultimo_in_entrata_il ?? null,
-        adesso: new Date(adesso),
-      });
     }
 
     // ordina per ultimo messaggio
@@ -546,27 +533,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     [chats],
   );
 
-  /** «Da chiamare»: chi aspetta una telefonata da più tempo sta sopra. */
-  const daChiamare = useMemo<ChatItem[]>(
-    () =>
-      chats
-        .filter((c) => c.daChiamare?.si && !c.daRispondere?.attesa)
-        .sort((a, b) => (a.daChiamare?.dal ?? "").localeCompare(b.daChiamare?.dal ?? "")),
-    [chats],
-  );
-
   const visibili = useMemo(() => {
     return chats.filter((c) => {
-      if (filtro === "unread" && c.unread === 0) return false;
-      if (filtro === "with-lead" && !c.lead) return false;
-      if (filtro === "unknown" && c.lead) return false;
-      if (ricerca.trim()) {
-        const q = ricerca.toLowerCase();
-        const name = `${c.lead?.data.nome ?? ""} ${c.lead?.data.cognome ?? ""}`.toLowerCase();
-        const nomeWa = (c.contact?.display_name ?? "").toLowerCase();
-        if (!name.includes(q) && !nomeWa.includes(q) && !c.phone.toLowerCase().includes(q))
-          return false;
-      }
+      if (!passaFiltro(c, filtro)) return false;
+      if (!combaciaRicerca(c, ricerca)) return false;
       return true;
     });
   }, [chats, filtro, ricerca]);
@@ -775,32 +745,67 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     await reload().catch(() => undefined);
   };
 
-  /** Cambio stato del lead — stesso comportamento della pagina Leads:
-   *  se lo stato richiede campi extra apre QuickStatusDialog,
-   *  altrimenti applica direttamente e precompila il template WA nel composer. */
-  const cambiaStato = async (newStatus: LeadStatus) => {
-    if (!attiva?.lead) return;
-    if (newStatus === attiva.lead.data.stato) return;
+  /** Cambio stato di UN lead (anche non aperto: dalla riga dell'elenco) — stesso comportamento
+   *  della pagina Leads e della coda dei lead importati: se lo stato richiede campi extra apre
+   *  QuickStatusDialog, altrimenti `updateLead` scrive stato, statoDal e statoPrecedente (e il
+   *  contatore dei tentativi, `patchEsito`). Se è la chat aperta precompila anche il template WA.
+   *  Il toast ha «Annulla»: rimette com'era, senza rinnovare `statoDal` (`annulla: true`). */
+  const cambiaStatoLead = async (lead: Lead, newStatus: LeadStatus) => {
+    if (newStatus === lead.data.stato) return;
     //  Le tre chiusure vinte hanno la loro finestra, che scrive stato, importi
     //  e modo di consegna in un salvataggio solo. ⚠️ Il ramo va PRIMA di
     //  `requiresAnyDialog` e non scrive niente da sé: vedi ChiusuraDialog.
-    if (opz.intercettaChiusura(attiva.lead, newStatus)) return;
+    if (opz.intercettaChiusura(lead, newStatus)) return;
     if (requiresAnyDialog(newStatus)) {
-      opz.apriStatoRapido(attiva.lead, newStatus);
+      opz.apriStatoRapido(lead, newStatus);
       return;
     }
     try {
-      await updateLead(attiva.lead.id, { stato: newStatus });
-      const refreshed = { ...attiva.lead, data: { ...attiva.lead.data, stato: newStatus } };
-      //  Il nome del consulente serve alla firma: senza, la riga sparisce e il
-      //  messaggio si chiude con "A presto," e basta.
-      const consulente = consultants.find((c) => c.id === refreshed.data.consulenteId)?.data.nome;
-      const template = getWhatsAppMessageForStatus(refreshed, consulente);
-      setBozza(template);
-      toast.success(`Stato → "${LEAD_STATUS_LABEL[newStatus]}". Template precompilato.`);
+      if (!(await updateLead(lead.id, patchEsito(lead.data, newStatus)))) {
+        toast.error("Stato NON salvato", {
+          description: "La scheda in archivio è rimasta com'era. Riprova.",
+        });
+        return;
+      }
+      const nome = `${lead.data.nome ?? ""} ${lead.data.cognome ?? ""}`.trim() || "Lead";
+      //  Com'era PRIMA, per «Annulla»: anche la data da cui valeva lo stato.
+      const prima: Partial<LeadData> = {
+        stato: lead.data.stato,
+        noRispondeCount: Number(lead.data.noRispondeCount) || 0,
+        statoPrecedente: lead.data.statoPrecedente,
+        statoPrecedenteIl: lead.data.statoPrecedenteIl,
+        statoDa: lead.data.statoDa,
+        statoDal: lead.data.statoDal,
+      };
+      const annulla = {
+        label: "Annulla",
+        onClick: () =>
+          void updateLead(lead.id, prima, { annulla: true }).then((ok) =>
+            ok
+              ? toast.success(`${nome}: tornato com'era`)
+              : toast.error("Non sono riuscito a tornare indietro"),
+          ),
+      };
+      if (lead.id === attiva?.lead?.id) {
+        //  Il nome del consulente serve alla firma: senza, la riga sparisce e il
+        //  messaggio si chiude con "A presto," e basta.
+        const refreshed = { ...lead, data: { ...lead.data, stato: newStatus } };
+        const consulente = consultants.find((c) => c.id === refreshed.data.consulenteId)?.data.nome;
+        setBozza(getWhatsAppMessageForStatus(refreshed, consulente));
+        toast.success(`Stato → "${LEAD_STATUS_LABEL[newStatus]}". Template precompilato.`, {
+          action: annulla,
+        });
+      } else {
+        toast.success(`${nome} → ${LEAD_STATUS_LABEL[newStatus]}`, { action: annulla });
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore cambio stato");
     }
+  };
+
+  /** Cambio stato della chat aperta (intestazione della conversazione). */
+  const cambiaStato = async (newStatus: LeadStatus) => {
+    if (attiva?.lead) await cambiaStatoLead(attiva.lead, newStatus);
   };
 
   /** Elimina TUTTI i messaggi WA della chat corrente lato CRM (non tocca WhatsApp del destinatario). */
@@ -853,7 +858,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   return {
     chats,
     daRispondere,
-    daChiamare,
     visibili,
     filtro,
     setFiltro,
@@ -878,6 +882,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     elimina,
     forzaModelli,
     cambiaStato,
+    cambiaStatoLead,
     hasConfig,
   };
 }
