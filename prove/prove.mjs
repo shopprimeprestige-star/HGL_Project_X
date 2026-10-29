@@ -20465,7 +20465,7 @@ function proveDelTestoDeiModelli() {
   c("i parametri al loro posto", true, /Gentile Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /La seguirà Filippo/.test(t));
   c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
   c("il nome «_v2» trova lo stesso testo", t, T.testoDelModello("hgl_meet_domani_v2", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]));
-  c("parametro mancante: «…», non un buco", true, /Gentile …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
+  c("parametro mancante: «…», non un buco", true, /Salve …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
   c("modello sconosciuto: nessun testo inventato", null, T.testoDelModello("modello_che_non_esiste", ["x"]));
   c("un testo libero resta com'è", { testo: "Ciao!" }, T.corpoLeggibile("Ciao!"));
   const v = T.corpoLeggibile("[template:consulenza_conferma_presenza]", { nome: "Mario", cognome: "Rossi", dataMeeting: "2026-10-29", oraMeeting: "15:00" });
