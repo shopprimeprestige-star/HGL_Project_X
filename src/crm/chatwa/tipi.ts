@@ -13,7 +13,14 @@ import type { Lead, LeadStatus } from "@/crm/types";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import type { StatoCasella } from "./stato";
 
-export type FiltroChat = "all" | "unread" | "with-lead" | "unknown" | "da-chiamare";
+export type FiltroChat =
+  | "all"
+  | "unread"
+  | "with-lead"
+  | "unknown"
+  | "da-chiamare"
+  | "chiuso-24h"
+  | "aperto-24h";
 
 export interface WaMessageRow {
   id: string;

@@ -74,7 +74,11 @@ export function RigaChat({
   onCambiaStato,
   mostraFinestra = false,
 }: RigaChatProps) {
-  const finestra = mostraFinestra ? pastigliaFinestra(c.finestra) : null;
+  //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
+  //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
+  //  quello verde «aperta» solo dove serve (`mostraFinestra`).
+  const finestra =
+    mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
   const apriWa =
     finestra && !finestra.aperta
       ? linkApriWhatsapp(c.phone, typeof navigator === "undefined" ? "" : navigator.userAgent)

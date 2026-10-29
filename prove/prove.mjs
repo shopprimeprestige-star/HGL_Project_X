@@ -21019,6 +21019,7 @@ proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
 proveDelModelloConsigliato();
+proveDeiFiltriFinestra();
 proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
@@ -21807,4 +21808,21 @@ function proveDelModelloConsigliato() {
   c("il testo col valore al posto di {{1}}", true, F.testoDelModello("hgl_non_risponde", ["Mario"]).includes("Mario"));
   c("un nome con _v3 usa la copia senza versione", true, !!F.testoDelModello("hgl_non_risponde_v3", ["Mario"]));
   c("valore vuoto o modello ignoto: null", [null, null], [F.testoDelModello("hgl_non_risponde", [""]), F.testoDelModello("ignoto", ["x"])]);
+}
+
+function proveDeiFiltriFinestra() {
+  gruppo("CHAT WHATSAPP: «CHIUSO 24H» E «24H APERTO» PER GLI APPUNTAMENTI FISSATI");
+  const { passaFiltro } = mod["chatwa/cercaChat"];
+  const chat = (stato, aperta) => ({ lead: stato ? { data: { stato } } : null, finestra: aperta === undefined ? null : { aperta } });
+  c("fissato, finestra chiusa: in «Chiuso 24h», non in «24h aperto»", [true, false], [passaFiltro(chat("appuntamento_fissato", false), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato", false), "aperto-24h")]);
+  c("il cliente riscrive: passa in «24h aperto»", [false, true], [passaFiltro(chat("appuntamento_fissato", true), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato", true), "aperto-24h")]);
+  c("anche il rifissato", true, passaFiltro(chat("appuntamento_rifissato", false), "chiuso-24h"));
+  c("altri stati, sconosciuti, finestra non calcolata: in nessuna delle due", [false, false, false], [passaFiltro(chat("attesa_whatsapp", false), "chiuso-24h"), passaFiltro(chat(null, false), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato"), "aperto-24h")]);
+  c("le pastiglie di prima non cambiano", [true, true], [passaFiltro(chat("appuntamento_fissato", false), "all"), passaFiltro(chat(null, true), "unknown")]);
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("le due pastiglie ci sono, col numero", true, /l: "Chiuso 24h"/.test(elenco) && /l: "24h aperto"/.test(elenco) && /contaFinestra\(f\.v\)/.test(elenco));
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(attiva\.phone/.test(conv));
 }

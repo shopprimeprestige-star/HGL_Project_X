@@ -23,6 +23,9 @@ const FILTRI: { v: FiltroChat; l: string }[] = [
   { v: "unread", l: "Non letti" },
   { v: "with-lead", l: "Con lead" },
   { v: "unknown", l: "Sconosciuti" },
+  //  Solo i lead con l'appuntamento fissato (29/10/2026): vedi `passaFiltro`.
+  { v: "chiuso-24h", l: "Chiuso 24h" },
+  { v: "aperto-24h", l: "24h aperto" },
 ];
 
 /** I chip dei sottofiltri (con la pillola «Da chiamare» accesa): «Tutti» + uno per stato. */
@@ -117,6 +120,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const daChiamareTutte = perPastiglia(perRicerca(api.chats)).filter(delConsulente);
   const conti = contaSottofiltri(daChiamareTutte);
   const contaPillola = contaSottofiltri(api.chats.filter(delConsulente)).tutti;
+  /** Quanti appuntamenti fissati con la finestra chiusa / aperta (di quel consulente). */
+  const contaFinestra = (f: "chiuso-24h" | "aperto-24h") =>
+    api.chats.filter((c) => delConsulente(c) && passaFiltro(c, f)).length;
   //  Un chip scelto che nel frattempo si svuota (stato cambiato dalla riga) torna a «Tutti».
   const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
   const perStato = chatDaChiamare(daChiamareTutte, sottoAttivo);
@@ -138,7 +144,11 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           .filter((c) => passaRichiamo(c.lead?.data, quandoAttivo, oggi))
           .sort((a, b) => chiaveOrdine(a.lead?.data).localeCompare(chiaveOrdine(b.lead?.data)));
 
-  const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = false) => (
+  const riga = (
+    c: ChatItem,
+    modo: ModoRiga,
+    mostraFinestra = filtro === "chiuso-24h" || filtro === "aperto-24h",
+  ) => (
     <RigaChat
       mostraFinestra={mostraFinestra}
       key={c.phone}
@@ -221,6 +231,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           >
             {f.l}
             {f.v === "da-chiamare" && contaPillola > 0 ? ` ${contaPillola}` : ""}
+            {(f.v === "chiuso-24h" || f.v === "aperto-24h") && contaFinestra(f.v) > 0
+              ? ` ${contaFinestra(f.v)}`
+              : ""}
           </button>
         ))}
         <button
