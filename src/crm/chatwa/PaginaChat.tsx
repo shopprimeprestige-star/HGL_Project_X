@@ -19,6 +19,7 @@ import { Conversazione } from "./Conversazione";
 import { ElencoChat } from "./ElencoChat";
 import type { ChatItem, ChatWaApi } from "./tipi";
 import { AbbinaScheda } from "./AbbinaScheda";
+import { StatoPonte } from "./StatoPonte";
 import { useChatWa } from "./useChatWa";
 import { usaAltezzaVisibile } from "./usaAltezzaVisibile";
 
@@ -325,6 +326,9 @@ export function PaginaChat({
           )}
         </div>
       </div>
+
+      {/*  Il ponte del Mac fermo o scollegato (T8): compare solo se qualcosa non va. */}
+      <StatoPonte />
 
       {api.erroreLettura && (
         <div
