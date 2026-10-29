@@ -470,6 +470,8 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ Le eco di ManyChat nascoste in chat: vedi proveDelleEcoInChat.
+  "chatwa/eco",
   //  ⚠️ «Attesa WhatsApp» → «Da chiamare» dopo 10 ore: vedi proveDelloStatoDaChiamare.
   "importa/attesa-da-chiamare",
   //  ⚠️ «Da chiamare» nella chat WhatsApp: vedi proveDelDaChiamare.
@@ -20744,6 +20746,32 @@ function proveDelloStatoDaChiamare() {
   c("il cron ogni 15 minuti sulla rotta giusta, e come si spegne", true, /programma_hook_cron\('attesa-da-chiamare-15min', '\*\/15 \* \* \* \*', '\/hooks\/attesa-da-chiamare'\)/.test(sql) && /cron\.unschedule\('attesa-da-chiamare-15min'\)/.test(sql));
 }
 
+
+/** ── LE ECO DI MANYCHAT, NASCOSTE IN CHAT (29/10/2026) ──────────────────────
+ *  Segnalazione del titolare: «duplica messaggi come se ha risposto il cliente
+ *  ma non l'ha fatto». Dati inventati. */
+function proveDelleEcoInChat() {
+  gruppo("CHAT WHATSAPP: LE ECO DI MANYCHAT NON SEMBRANO RISPOSTE DEL CLIENTE");
+  const E = mod["chatwa/eco"];
+  const cli = "+393330000000";
+  const r = (id, direction, body, extra = {}) => ({ id, direction, body, from_number: direction === "inbound" ? cli : "manychat", to_number: direction === "inbound" ? "manychat" : cli, wa_message_id: direction === "inbound" ? `mc-in:${id}` : null, created_at: `2026-10-29T17:${id.padStart(2, "0")}:00Z`, duplicato_di: null, ...extra });
+  const caso = [
+    r("1", "inbound", "La manutenzione e i costi accessori"),
+    r("2", "outbound", "Il prezzo viene definito in consulenza"),
+    r("3", "inbound", "La manutenzione e i costi accessori"),
+  ];
+  c("il caso dello screenshot: la seconda è un'eco e si nasconde", ["1", "2"], E.senzaEco(caso).map((x) => x.id));
+  c("senza un nostro messaggio in mezzo non è un'eco", ["1", "3"], E.senzaEco([caso[0], caso[2]]).map((x) => x.id));
+  c("testo diverso: resta", 3, E.senzaEco([caso[0], caso[1], r("3", "inbound", "Ok grazie")]).length);
+  const confermata = [...caso, { ...r("4", "inbound", "La manutenzione e i costi accessori"), canale: "baileys", wa_message_id: "b:4", duplicato_di: "3" }];
+  c("se il ponte l'ha vista arrivare, l'ha scritta davvero: resta", true, E.senzaEco(confermata).some((x) => x.id === "3"));
+  c("le righe del ponte non sono mai eco", false, E.idEco([r("1", "inbound", "sì"), r("2", "outbound", "ok?"), { ...r("3", "inbound", "sì"), wa_message_id: "b:3", canale: "baileys" }]).has("3"));
+  c("due eco di fila: entrambe nascoste", ["1", "2"], E.senzaEco([...caso, { ...caso[2], id: "5", wa_message_id: "mc-in:5" }]).map((x) => x.id));
+  c("niente da togliere: stesso elenco", true, E.senzaEco([caso[0]]).length === 1);
+  const hook = readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8");
+  c("la chat le toglie una volta per tutte (bolle, anteprima)", 3, (hook.match(/senzaEco\(/g) || []).length);
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20862,6 +20890,7 @@ proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
+proveDelleEcoInChat();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
