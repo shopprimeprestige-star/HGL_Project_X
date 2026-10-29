@@ -47,6 +47,7 @@ import { proveChatSottofiltri } from "./manychat/chat-sottofiltri.mjs";
 import { proveChatEntrata } from "./manychat/chat-entrata.mjs";
 import { proveChatUscita } from "./manychat/chat-uscita.mjs";
 import { proveChatCasella } from "./manychat/chat-casella.mjs";
+import { proveChatCosti } from "./manychat/chat-costi.mjs";
 import { proveChatPagina } from "./manychat/chat-pagina.mjs";
 import { proveChatRisposte } from "./manychat/chat-risposte.mjs";
 import { proveChatStile } from "./manychat/chat-stile.mjs";
@@ -327,6 +328,7 @@ export async function proveManychat(mod, aiuti) {
   await proveChatEntrata(mod, aiuti);
   await proveChatUscita(mod, aiuti);
   proveChatCasella(mod, aiuti);
+  proveChatCosti(mod, aiuti);
   await proveChatPagina(mod, aiuti);
   proveChatRisposte(mod, aiuti);
   proveChatStile(mod, aiuti);

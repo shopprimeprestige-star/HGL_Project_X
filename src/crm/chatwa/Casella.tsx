@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Ban, CalendarClock, Clock, Loader2, Send, TriangleAlert, X } from "lucide-react";
+import { Ban, CalendarClock, Clock, LayoutTemplate, Loader2, Send, TriangleAlert, X } from "lucide-react";
 import { usePuo } from "@/crm/AuthContext";
 import { OrariRapidi } from "@/crm/OrariRapidi";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
@@ -33,9 +34,6 @@ import { bozzaConDettato } from "./dettatura";
 import { AvvisoDettatura, BarraDettatura, TastoMicrofono, useDettatura } from "./RegistratoreVoce";
 import type { CasellaProps } from "./tipi";
 
-/** La frase della finestra chiusa, quella di `stato.ts` (mai scritta due volte). */
-const FRASE_CHIUSA = finestra24({ contatto: null, messaggi: [], adesso: 0 }).frase;
-
 /** La casella in fondo alla chat, come nell'app WhatsApp: fissa in basso, campo a 16 px
  *  (iOS non ingrandisce la pagina), invio da 44 px. Cosa mostra lo decide `api.stato`:
  *  `libera` il testo, `solo_modelli` la scelta dei modelli, `stop` niente, `configura` il blocco. */
@@ -52,6 +50,10 @@ export function Casella({ api }: CasellaProps) {
   const puoAgenda = usePuo()("agenda");
   const [orari, setOrari] = useState(false);
   useEffect(() => setOrari(false), [attiva?.phone]);
+  //  Finestra chiusa (29/10/2026): la chat si legge tutta e l'elenco dei modelli sta dietro
+  //  un pulsante. Parte sempre chiuso, e si richiude cambiando chat.
+  const [modelliAperti, setModelliAperti] = useState(false);
+  useEffect(() => setModelliAperti(false), [attiva?.phone]);
   const nomeConsulente =
     consultants.find((c) => c.id === attiva?.lead?.data.consulenteId)?.data.nome ?? "";
 
@@ -169,24 +171,62 @@ export function Casella({ api }: CasellaProps) {
     const nomeLead = attiva?.lead?.data.nome?.trim() || attiva?.contact?.display_name?.trim() || "";
     return (
       <div className={quadro}>
-        <p role="status" className="flex items-start gap-2 px-3 pt-2.5 text-[12px] text-amber-800">
-          <Clock className="h-3.5 w-3.5 shrink-0 mt-px" />
-          {FRASE_CHIUSA}
-        </p>
+        {/* Barra compatta: la chat sopra resta tutta leggibile. Il tasto è da 44 px. */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <p
+            role="status"
+            className="flex min-w-0 flex-1 items-center gap-2 text-[12px] leading-snug text-amber-800"
+          >
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            Finestra chiusa · solo modelli approvati
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setModelliAperti(true)}
+            className="min-h-11 shrink-0 gap-1.5 text-[13px]"
+          >
+            <LayoutTemplate className="h-4 w-4" />
+            Invia un modello
+          </Button>
+        </div>
         {bozza.trim() && (
-          <p className="px-3 pt-1 text-[11.5px] text-muted-foreground">
+          <p className="px-3 pb-2 text-[11.5px] text-muted-foreground">
             Il testo che hai scritto è conservato: tornerà nella casella quando il cliente riscrive.
           </p>
         )}
-        {/* La chiave è il numero: cambiando chat si riparte da capo (niente valori dell'altro cliente). */}
-        <ScegliModello
-          key={attiva?.phone ?? ""}
-          modelli={modelliDaProvare(canale)}
-          canale={canale?.canale ?? null}
-          dati={{ nomeLead, nomeConsulente }}
-          inviando={inviando}
-          onInvia={api.inviaModello}
-        />
+        <Sheet open={modelliAperti} onOpenChange={setModelliAperti}>
+          {/* Foglio dal basso; da tablet in su una colonna centrata, non a tutta larghezza.
+              La X di serie è piccola: la sostituisce il tasto «Chiudi» da 44 px. */}
+          <SheetContent
+            side="bottom"
+            className="mx-auto flex max-h-[85dvh] w-full flex-col gap-0 rounded-t-xl p-0 sm:max-w-lg [&>button]:hidden"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+              <SheetTitle className="text-[15px]">Invia un modello</SheetTitle>
+              <SheetClose asChild>
+                <Button type="button" variant="ghost" className="min-h-11 text-[13px]">
+                  Chiudi
+                </Button>
+              </SheetClose>
+            </div>
+            <SheetDescription className="sr-only">
+              Scegli il modello approvato da mandare a questo numero. Ogni modello si paga.
+            </SheetDescription>
+            {/* La chiave è il numero: cambiando chat si riparte da capo (niente valori dell'altro cliente). */}
+            <ScegliModello
+              key={attiva?.phone ?? ""}
+              modelli={modelliDaProvare(canale)}
+              canale={canale?.canale ?? null}
+              dati={{ nomeLead, nomeConsulente }}
+              inviando={inviando}
+              onInvia={async (m) => {
+                await api.inviaModello(m);
+                setModelliAperti(false);
+              }}
+            />
+          </SheetContent>
+        </Sheet>
       </div>
     );
   }

@@ -584,6 +584,9 @@ const MODULI = [
   "chatwa/cercaChat",
   "chatwa/formati",
   "chatwa/modelli-casella",
+  //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
+  //   prove in prove/manychat/chat-costi.mjs.
+  "chatwa/costi-whatsapp",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
   //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
   "chatwa/risposte-rapide",

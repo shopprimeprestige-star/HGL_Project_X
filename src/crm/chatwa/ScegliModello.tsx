@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { anteprimaTesto } from "@/crm/prova-modelli";
 import type { MetaTemplate } from "@/crm/wa-meta-templates";
 import { controllaModello, dividiModelli, valoriIniziali } from "./modelli-casella";
+import {
+  categoriaModello,
+  ETICHETTA_CATEGORIA,
+  euro,
+  notaPrezzi,
+  prezzoModello,
+} from "./costi-whatsapp";
 
 export interface ScegliModelloProps {
   /** Quelli che il canale permette (`modelliDaProvare`). */
@@ -19,6 +26,10 @@ function titolo(nome: string): string {
   const t = nome.replace(/^hgl_/, "").replace(/_/g, " ");
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+
+/** «Marketing · 0,0658 €»: la categoria vera e il prezzo di un modello. */
+const costoDi = (t: MetaTemplate) =>
+  `${ETICHETTA_CATEGORIA[categoriaModello(t.name, t.category)]} · ${euro(prezzoModello(t.name, t.category), 4)}`;
 
 /** La scelta del modello fuori finestra: elenco, poi anteprima con i campi, poi invio.
  *  Un clic sul modello apre soltanto l'anteprima: il messaggio parte solo dal pulsante dell'anteprima. */
@@ -48,7 +59,7 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
       );
     };
     return (
-      <div className="px-3 py-2.5 flex flex-col gap-2.5 max-h-[55dvh] overflow-y-auto">
+      <div className="px-3 py-2.5 flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto">
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -97,6 +108,9 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
           </div>
         </div>
         {!controllo.ok && <p className="text-[12px] text-amber-700">{controllo.motivo}</p>}
+        <p className="text-[12px] text-muted-foreground">
+          Questo messaggio si paga: {costoDi(scelto)} (tariffa Meta Italia).
+        </p>
         <Button
           type="button"
           onClick={conferma}
@@ -118,7 +132,12 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
         onClick={() => setScelto(t)}
         className="w-full min-h-11 text-left rounded-md border border-border bg-background px-3 py-2 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
-        <span className="block text-[13px] font-medium text-foreground">{titolo(t.name)}</span>
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="text-[13px] font-medium text-foreground">{titolo(t.name)}</span>
+          <span className="shrink-0 text-[11.5px] tabular-nums text-muted-foreground">
+            {costoDi(t)}
+          </span>
+        </span>
         <span className="block text-[11.5px] text-muted-foreground line-clamp-2">
           {anteprimaTesto(t, valoriIniziali(t, dati))}
         </span>
@@ -126,7 +145,10 @@ export function ScegliModello({ modelli, canale, dati, inviando, onInvia }: Sceg
     </li>
   );
   return (
-    <div className="px-3 py-2.5 flex flex-col gap-2 max-h-[45dvh] overflow-y-auto">
+    <div className="px-3 py-2.5 flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
+      <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-900">
+        {notaPrezzi()}
+      </p>
       {inEvidenza.length > 0 && (
         <>
           <div className="text-[11.5px] font-medium text-muted-foreground">Pronti da mandare</div>
