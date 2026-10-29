@@ -140,7 +140,7 @@ export async function proveChatMedia(mod, { c, gruppo }) {
   for (const v of [null, undefined, 5, {}, []]) c(`eSoloSegnaposto(${JSON.stringify(v)}) non lancia → false`, false, eSoloSegnaposto(v));
 
   c("{{last_input_text}} → illeggibile", "illeggibile", tipo("{{last_input_text}}"));
-  c("  etichetta «Messaggio non leggibile»", "Messaggio non leggibile", classificaTesto("{{last_input_text}}").etichetta);
+  c("  etichetta «Reazione, sticker o posizione: aprila in ManyChat»", "Reazione, sticker o posizione: aprila in ManyChat", classificaTesto("{{last_input_text}}").etichetta);
   c("  nessun url", undefined, classificaTesto("{{last_input_text}}").url);
   c("{{a}} {{b}} → illeggibile", "illeggibile", tipo("{{a}} {{b}}"));
   c("[messaggio senza testo] → illeggibile", "illeggibile", tipo("[messaggio senza testo]"));
@@ -183,8 +183,8 @@ export async function proveChatMedia(mod, { c, gruppo }) {
   c("video → «Video»", "Video", anteprimaIn(url("x.mp4")));
   c("pdf → «Documento»", "Documento", anteprimaIn(url("x.pdf")));
   c("altro allegato → «Allegato»", "Allegato", anteprimaIn(url("x.zip")));
-  c("{{...}} → «Messaggio non leggibile»", "Messaggio non leggibile", anteprimaIn("{{last_input_text}}"));
-  c("[messaggio senza testo] → «Messaggio non leggibile»", "Messaggio non leggibile", anteprimaIn("[messaggio senza testo]"));
+  c("{{...}} → «Reazione, sticker o posizione: aprila in ManyChat»", "Reazione, sticker o posizione: aprila in ManyChat", anteprimaIn("{{last_input_text}}"));
+  c("[messaggio senza testo] → «Reazione, sticker o posizione: aprila in ManyChat»", "Reazione, sticker o posizione: aprila in ManyChat", anteprimaIn("[messaggio senza testo]"));
   c("link di altro host: resta il testo (troncato)", ("https://evil.example/" + "a".repeat(200)).slice(0, 100) + "…", anteprimaIn("https://evil.example/" + "a".repeat(200)));
   for (const v of [null, undefined, 5, {}, []]) {
     let esito;

@@ -35,11 +35,11 @@ export interface TestoClassificato {
   tipo: TipoTesto;
   /** `url.href` normalizzato: solo per i media riconosciuti. */
   url?: string;
-  /** Cosa si scrive nella bolla/anteprima («Vocale» con la sua icona, «Messaggio non leggibile»…). */
+  /** Cosa si scrive nella bolla/anteprima («Vocale» con la sua icona, «Reazione, sticker o posizione: aprila in ManyChat»…). */
   etichetta: string;
 }
 
-const ETICHETTA_ILLEGGIBILE = "Messaggio non leggibile";
+const ETICHETTA_ILLEGGIBILE = "Reazione, sticker o posizione: aprila in ManyChat";
 /** Quello che `risposta.ts` scrive nella riga quando il cliente non ha mandato testo. */
 const SENZA_TESTO = "[messaggio senza testo]";
 

@@ -458,8 +458,8 @@ export async function proveChatEntrata(mod, { c, gruppo, radice }) {
         [r.esito, m.db.messaggi.length, m.db.messaggi[0]?.body],
       );
       c(
-        "…+1 non letto, anteprima «Messaggio non leggibile», in «Da rispondere»",
-        [1, "Messaggio non leggibile", true],
+        "…+1 non letto, anteprima «Reazione, sticker o posizione: aprila in ManyChat», in «Da rispondere»",
+        [1, "Reazione, sticker o posizione: aprila in ManyChat", true],
         [riga(m)?.unread_count, riga(m)?.ultimo_in_entrata_anteprima, inAttesa(riga(m))],
       );
 
