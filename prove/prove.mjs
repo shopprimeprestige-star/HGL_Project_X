@@ -597,6 +597,9 @@ const MODULI = [
   //  Dettatura voce → testo nella casella (commessa 2026-10-28-chat-dettatura):
   //   prove in prove/manychat/chat-dettatura.mjs.
   "chatwa/dettatura",
+  //  Le note vocali nella scheda lead (commessa 2026-10-30-ottimizzazioni, p7):
+  //   prove in prove/manychat/note-vocali.mjs.
+  "nota-vocale",
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
