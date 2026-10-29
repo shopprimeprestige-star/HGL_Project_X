@@ -30,6 +30,7 @@ import { proveProvaModelli } from "./prova-modelli.mjs";
 import { proveSheets } from "./sheets.mjs";
 import { proveDelPonte } from "./ponte.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
+import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
@@ -21033,6 +21034,7 @@ proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
+await proveIdeeAi(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21705,6 +21707,7 @@ async function proveDelleRisposteAi() {
         utente: async () => (o.utente === undefined ? "U1" : o.utente),
         battito: async (u) => { reg.battiti++; reg.utenti.push(u); },
         prendi: async (u) => { reg.utenti.push(u); return coda.shift() ?? null; },
+        bozza: async (u) => { reg.utenti.push(u); return null; },
         messaggiChat: async (u, t, scelti) => { reg.utenti.push(u); reg.scelti = scelti; return o.messaggi ?? chat; },
         scheda: async (u) => { reg.utenti.push(u); return { lead: { nome: "Mario" }, consulente: null }; },
         chiudi: async (u, id, e) => { reg.utenti.push(u); reg.chiusi.push([id, e]); return o.chiudi ?? true; },
@@ -21768,7 +21771,7 @@ async function proveDelleRisposteAi() {
   //  Il sorgente: utente in ogni tabella dell'installazione, niente testi nei log
   const srv = readFileSync(join(radice, "src/crm/risposte-ai/porte.server.ts"), "utf8");
   const catene = srv.split(/\.from\(/).slice(1);
-  c("porte: ogni tabella dell'installazione filtrata per utente", [], catene.filter((t) => !/^"(app_config|manychat_config)"/.test(t) && !/\.eq\("user_id", userId\)/.test(t.split(";")[0])).map((t) => t.slice(0, 30)));
+  c("porte: ogni tabella dell'installazione filtrata per utente", [], catene.filter((t) => !/^"(app_config|manychat_config)"/.test(t) && !/\.eq\("user_id", userId\)|user_id: userId,/.test(t.split(";")[0])).map((t) => t.slice(0, 30)));
   c("porte: nei log solo codici", true, (srv.match(/console\.\w+\([^)]*\)/g) ?? []).every((x) => /\[risposte-ai\]/.test(x) && !/telefono|testo|body|risposta\b/.test(x)));
   const servizio = readFileSync(join(radice, "strumenti/risposte-ai/src/index.mjs"), "utf8");
   c("servizio: Haiku, senza strumenti né impostazioni", true, /"--model",\s*"haiku"/.test(servizio) && /"--tools",\s*""/.test(servizio) && /"--setting-sources",\s*""/.test(servizio) && /--strict-mcp-config/.test(servizio));
