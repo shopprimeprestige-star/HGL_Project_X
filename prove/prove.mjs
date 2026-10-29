@@ -28,6 +28,7 @@ import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf
 import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
 import { proveSheets } from "./sheets.mjs";
+import { proveDelPonte } from "./ponte.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 
@@ -591,6 +592,14 @@ const MODULI = [
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
   "versione-crm",
+  //  ⚠️ PONTE WHATSAPP (Baileys) (commessa 2026-10-29-ponte-whatsapp-baileys):
+  //   i contratti congelati (`ponte/tipi`, compito T0), l'abbinamento con
+  //   ManyChat (`ponte/pari`) e l'ingresso della rotta (`ponte/ingresso`), questi
+  //   due del compito T3: entrano nel pacchetto quando il file esiste. Un file
+  //   di prove per compito in `prove/ponte/`, chiamati da `proveDelPonte`
+  //   (prove/ponte.mjs): qui basta questo elenco.
+  "ponte/tipi",
+  ...["ponte/pari", "ponte/ingresso"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
   //  «Lead importati» semplice (commessa 2026-10-28-lead-importati-semplice):
   //   prove in prove/lead-semplice.mjs. Entrano nel pacchetto quando il file
   //   esiste (li crea il compito T1 del piano).
@@ -20840,6 +20849,7 @@ await proveManychat(mod, { c, gruppo, radice });
 proveProvaModelli(mod, { c, gruppo, radice });
 await proveSheets(mod, { c, gruppo, radice });
 await proveLeadSemplice(mod, { c, gruppo, radice });
+await proveDelPonte(mod, { c, gruppo, radice });
 await proveLeadSemplicePagina(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
@@ -21112,7 +21122,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
