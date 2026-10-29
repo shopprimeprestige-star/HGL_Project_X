@@ -14,7 +14,8 @@
  *  ⚠️ UN CALCOLO SOLO PER TUTTA LA SQUADRA. Il calendario di un consulente si
  *   ritaglia da quello di tutti (`giornoDi`): così le scelte fatte su
  *   consulenti diversi si ricontrollano sugli stessi giorni prima di scrivere.
- *  ⚠️ IL MESSAGGIO NON DICE NOMI: il consulente serve a chi sceglie.
+ *  ⚠️ IL NOME NEL MESSAGGIO SOLO COL CONSULENTE SCELTO (29/10/2026): con «Tutti»
+ *   resta senza nomi, perché chi farà la consulenza si decide dopo.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (prova degli hook).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useMemo, useState } from "react";
@@ -117,7 +118,11 @@ export function OrariRapidi(p: {
       });
       return;
     }
-    const testo = messaggioOrari(valide, oggi, p.nome);
+    //  Col consulente scelto il messaggio dice il suo nome (29/10/2026); con
+    //  «Tutti» resta senza nomi: chi farà la consulenza si decide dopo.
+    const nomeConsulente =
+      chi === "tutti" ? null : (squadra.find((c) => c.id === chi)?.data?.nome ?? null);
+    const testo = messaggioOrari(valide, oggi, p.nome, nomeConsulente);
     if (testo) p.onInserisci(testo);
   };
 
@@ -136,8 +141,9 @@ export function OrariRapidi(p: {
       contesto="Tocca gli orari da proporre, anche di più giorni e consulenti"
       icona={CalendarClock}
       larghezza="xl"
-      //  Sul telefono il foglio è alto quanto lo schermo: è un calendario, non un avviso.
-      className="max-sm:h-[92dvh]"
+      //  Sul telefono a tutto schermo (richiesta del titolare, 28/10/2026): è un
+      //  calendario, non un avviso, e la spunta resta sempre in fondo.
+      className="max-sm:top-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:border-0"
       azioni={
         <div className="flex min-w-0 flex-col gap-2.5 sm:flex-1">
           {riepilogo.length > 0 && (

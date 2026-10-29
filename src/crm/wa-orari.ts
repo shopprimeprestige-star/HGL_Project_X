@@ -188,7 +188,14 @@ const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /** Il testo da mandare: un giorno per riga («Domani, giovedì 29 ottobre: alle
  *  10:00 o alle 15:30»), le ore in ordine, la domanda in fondo. Col «Lei»,
  *  come gli altri messaggi dello studio. Vuoto se non c'è niente di scelto. */
-export function messaggioOrari(scelte: OrarioScelto[], oggi: string, nome?: string | null): string {
+export function messaggioOrari(
+  scelte: OrarioScelto[],
+  oggi: string,
+  nome?: string | null,
+  /** Il consulente scelto (non «Tutti»): entra nel testo, «Filippo è
+   *  disponibile…» (richiesta del titolare, 29/10/2026). Vuoto = senza nome. */
+  consulente?: string | null,
+): string {
   const righe = scelteDelGiorno(scelte).map((r) => ({
     giorno: giornoPerMessaggio(r.data, oggi),
     ore: r.ore,
@@ -202,16 +209,24 @@ export function messaggioOrari(scelte: OrarioScelto[], oggi: string, nome?: stri
   //  «mario» scritto a mano diventa «Mario».
   const primo = maiuscola(parola);
   const saluto = primo ? `Gentile ${primo}, ` : "";
+  const chi = maiuscola(
+    String(consulente ?? "")
+      .trim()
+      .split(/\s+/)[0] ?? "",
+  );
+  const apertura = chi
+    ? `${chi} è disponibile per la consulenza gratuita online`
+    : "per la consulenza gratuita online avrei";
   if (quante === 1) {
     const r = righe[0];
     //  «oggi, mercoledì 28 ottobre, alle 15:00»: la virgola chiude l'inciso.
     const giorno = r.giorno.includes(",") ? `${r.giorno},` : r.giorno;
     return maiuscola(
-      `${saluto}per la consulenza gratuita online avrei libero ${giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`,
+      `${saluto}${apertura}${chi ? "" : " libero"} ${giorno} ${oreInFila(r.ore)}.\n\nLe va bene?`,
     );
   }
   const elenco = righe.map((r) => `${maiuscola(r.giorno)}: ${oreInFila(r.ore)}`).join("\n");
   return maiuscola(
-    `${saluto}per la consulenza gratuita online avrei liberi questi orari:\n\n${elenco}\n\nQuale preferisce?`,
+    `${saluto}${apertura}${chi ? " in questi orari" : " liberi questi orari"}:\n\n${elenco}\n\nQuale preferisce?`,
   );
 }
