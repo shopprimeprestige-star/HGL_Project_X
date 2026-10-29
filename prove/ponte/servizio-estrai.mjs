@@ -66,9 +66,28 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("posizione in tempo reale", { testo: "📍 Posizione", tipo: "posizione" }, solo(wa({ liveLocationMessage: {} })));
   c("contatto", { testo: "👤 Contatto", tipo: "contatto" }, solo(wa({ contactMessage: { displayName: "X", vcard: "BEGIN:VCARD" } })));
   c("più contatti", { testo: "👤 Contatto", tipo: "contatto" }, solo(wa({ contactsArrayMessage: { contacts: [] } })));
-  c("un modello con bottoni porta il suo testo", { testo: "Ti aspettiamo domani", tipo: "testo" }, solo(wa({ templateMessage: { hydratedTemplate: { hydratedContentText: "Ti aspettiamo domani" } } })));
-  c("risposta a un bottone porta il testo scelto", { testo: "Confermo", tipo: "testo" }, solo(wa({ buttonsResponseMessage: { selectedDisplayText: "Confermo" } })));
-  c("messaggio interattivo senza testo → altro", { testo: "📎 Allegato", tipo: "altro" }, solo(wa({ interactiveMessage: {} })));
+  //  I modelli (guasto 2): il testo con la marca «📋 », così la chat li
+  //  riconosce e l'abbinamento a un `[template:…]` del CRM vale solo per loro.
+  const P = mod["ponte/pari"];
+  c("marca e segnaposto dei modelli copiati da pari.ts", [P.MARCA_MODELLO, P.MODELLO_NASCOSTO], [E.MARCA_MODELLO, E.MODELLO_NASCOSTO]);
+  const MN = "📋 Modello inviato (testo non visibile)";
+  c("il segnaposto del modello è quello chiesto dal titolare", MN, E.MODELLO_NASCOSTO);
+  c("modello con bottoni (hydratedTemplate)", { testo: "📋 Ti aspettiamo domani", tipo: "testo" }, solo(wa({ templateMessage: { hydratedTemplate: { hydratedContentText: "Ti aspettiamo domani" } } })));
+  c("modello a quattro righe (hydratedFourRowTemplate)", { testo: "📋 Promemoria: domani alle 10", tipo: "testo" }, solo(wa({ templateMessage: { hydratedFourRowTemplate: { hydratedTitleText: "Titolo", hydratedContentText: "Promemoria: domani alle 10" } } })));
+  c("modello interattivo (interactiveMessageTemplate.body.text)", { testo: "📋 Confermi l'appuntamento?", tipo: "testo" }, solo(wa({ templateMessage: { interactiveMessageTemplate: { header: { title: "HGL" }, body: { text: "Confermi l'appuntamento?" } } } })));
+  c("modello: solo il titolo → il titolo", { testo: "📋 Solo titolo", tipo: "testo" }, solo(wa({ templateMessage: { hydratedTemplate: { hydratedTitleText: "Solo titolo" } } })));
+  c("modello dentro un modello strutturato (fourRowTemplate.content.hydratedHsm)", { testo: "📋 Dentro", tipo: "testo" }, solo(wa({ templateMessage: { fourRowTemplate: { content: { hydratedHsm: { hydratedTemplate: { hydratedContentText: "Dentro" } } } } } })));
+  c("modello senza testo leggibile → segnaposto del modello", { testo: MN, tipo: "altro" }, solo(wa({ templateMessage: { hydratedTemplate: {} } }, { fromMe: true })));
+  c("interactiveMessage (body.text)", { testo: "📋 Scegli un orario", tipo: "testo" }, solo(wa({ interactiveMessage: { body: { text: "Scegli un orario" }, footer: { text: "HGL" } } })));
+  c("interactiveMessage senza testo → segnaposto del modello", { testo: MN, tipo: "altro" }, solo(wa({ interactiveMessage: {} })));
+  c("buttonsMessage (contentText)", { testo: "📋 Vuoi confermare?", tipo: "testo" }, solo(wa({ buttonsMessage: { contentText: "Vuoi confermare?", footerText: "HGL" } })));
+  c("listMessage (description, poi title)", [{ testo: "📋 Gli orari liberi", tipo: "testo" }, { testo: "📋 Orari", tipo: "testo" }], [solo(wa({ listMessage: { title: "Orari", description: "Gli orari liberi" } })), solo(wa({ listMessage: { title: "Orari" } }))]);
+  c("highlyStructuredMessage con hydratedHsm leggibile", { testo: "📋 Ciao, ti aspettiamo", tipo: "testo" }, solo(wa({ highlyStructuredMessage: { namespace: "x", elementName: "promemoria_1", params: ["Maria"], hydratedHsm: { hydratedTemplate: { hydratedContentText: "Ciao, ti aspettiamo" } } } })));
+  c("highlyStructuredMessage senza testo leggibile → segnaposto (mai il nome del modello né i parametri)", { testo: MN, tipo: "altro" }, solo(wa({ highlyStructuredMessage: { namespace: "x", elementName: "promemoria_1", params: ["Maria"] } }, { fromMe: true })));
+  c("placeholderMessage (nascosto ai dispositivi collegati) → segnaposto del modello", { testo: MN, tipo: "altro" }, solo(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })));
+  c("un modello uscito è out come gli altri", ["out", "sent"], [leggi(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })).messaggio?.dir, leggi(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })).messaggio?.stato]);
+  c("risposta a un bottone porta il testo scelto, senza marca", { testo: "Confermo", tipo: "testo" }, solo(wa({ buttonsResponseMessage: { selectedDisplayText: "Confermo" } })));
+  c("risposta a una lista senza marca", { testo: "Sabato", tipo: "testo" }, solo(wa({ listResponseMessage: { title: "Sabato" } })));
   c("tipo che non conosciamo → scartato, mai inventato", { scarto: "tipo_sconosciuto" }, solo(wa({ nuovoTipoDelDomani: {} })));
 
   //  Le etichette sono quelle che la chat sa già disegnare (media.ts).

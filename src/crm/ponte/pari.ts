@@ -29,6 +29,23 @@ import {
   type RigaDaAbbinare,
 } from "./tipi";
 
+/** La marca dei modelli che il ponte legge (`templateMessage`,
+ *  `interactiveMessage`, `buttonsMessage`, `listMessage`,
+ *  `highlyStructuredMessage`, `placeholderMessage`): il testo del ponte
+ *  comincia così. Copiata in `strumenti/ponte-whatsapp/src/estrai.mjs` (le
+ *  prove confrontano i valori). Guasto 2: un `[template:…]` del CRM fa da pari
+ *  SOLO a un modello, mai a un testo o a un media mandati a mano dall'app. */
+export const MARCA_MODELLO = "📋 ";
+/** Un modello uscito di cui WhatsApp non ha dato il testo al ponte. */
+export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
+
+/** Le righe del ponte uscite senza niente da mostrare: fanno da pari a
+ *  qualunque uscita del CRM vicina (nasconderle non toglie niente). */
+const SENZA_TESTO_DEL_PONTE: readonly string[] = [MODELLO_NASCOSTO];
+
+const eModelloDelPonte = (x: string | null | undefined): boolean =>
+  typeof x === "string" && x.startsWith(MARCA_MODELLO);
+
 /** Caratteri invisibili che ManyChat o le tastiere aggiungono (§c1.5). */
 const INVISIBILI = /[\u200B-\u200D\uFEFF\u2060]/g;
 
@@ -91,17 +108,22 @@ export function ammessoCome(r: RigaCrm, q: RichiestaCandidato): boolean {
   );
 }
 
-/** Le regole 4-5 fra una riga del ponte e un candidato già filtrato. */
+/** Le regole 4-5 fra una riga del ponte e un candidato già filtrato.
+ *  Uscite: una riga del ponte senza testo (modello nascosto) fa da pari a
+ *  ogni uscita del CRM entro la finestra opaca; un `[template:…]` del CRM
+ *  solo a un modello del ponte (marca `MARCA_MODELLO`). */
 function compatibili(riga: RigaDaAbbinare, c: CandidatoCrm): boolean {
   if (c.k !== riga.k || c.canale === CANALE_PONTE) return false;
   if (c.direction !== (riga.d === "in" ? "inbound" : "outbound")) return false;
   const dt = distanza(riga.t, c.created_at);
   if (!Number.isFinite(dt)) return false;
+  if (riga.d === "out" && SENZA_TESTO_DEL_PONTE.includes(riga.x)) return dt <= FINESTRA_OPACA_S;
   const opaco = eOpaco(c.body);
-  if (opaco === "modello") return riga.d === "out" && dt <= FINESTRA_OPACA_S;
+  if (opaco === "modello") return riga.d === "out" && eModelloDelPonte(riga.x) && dt <= FINESTRA_OPACA_S;
   if (opaco === "media") return riga.d === "in" && riga.m !== null && dt <= FINESTRA_OPACA_S;
   if (dt > FINESTRA_PARI_S) return false;
-  const a = normalizzaTesto(riga.x).slice(0, CONFRONTO_CARATTERI);
+  const testo = eModelloDelPonte(riga.x) ? riga.x.slice(MARCA_MODELLO.length) : riga.x;
+  const a = normalizzaTesto(testo).slice(0, CONFRONTO_CARATTERI);
   return a !== "" && a === normalizzaTesto(c.body).slice(0, CONFRONTO_CARATTERI);
 }
 

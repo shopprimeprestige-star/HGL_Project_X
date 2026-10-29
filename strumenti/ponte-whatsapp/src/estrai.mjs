@@ -45,6 +45,12 @@ export const SEGNAPOSTO = {
   altro: "📎 Allegato",
 };
 
+/** Copie di `MARCA_MODELLO` e `MODELLO_NASCOSTO` di `src/crm/ponte/pari.ts`
+ *  (le prove confrontano i valori): il testo dei modelli comincia con la
+ *  marca, così l'abbinamento a un `[template:…]` del CRM vale solo per loro. */
+export const MARCA_MODELLO = "📋 ";
+export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
+
 const ID_VALIDO = /^[A-Za-z0-9_.-]{1,128}$/;
 const NUMERO_VALIDO = /^\d{8,15}$/;
 
@@ -190,14 +196,36 @@ function apri(message) {
 
 const conDidascalia = (base, didascalia) => (testoPieno(didascalia) ? `${base}: ${testoPieno(didascalia)}` : base);
 
-/** Testo dei modelli e delle risposte ai bottoni (gli invii automatici
- *  escono così dal nostro numero): il primo testo pieno, se c'è. */
+/** Il testo leggibile di un `TemplateMessage` (anche quello dentro un
+ *  `highlyStructuredMessage.hydratedHsm` o un `fourRowTemplate`). Mai il
+ *  nome del modello né i parametri da soli: non sono il messaggio. */
+function testoModello(v, livello = 0) {
+  if (!v || typeof v !== "object" || livello > 3) return "";
+  const h = v.hydratedTemplate ?? {};
+  const q = v.hydratedFourRowTemplate ?? {};
+  const i = v.interactiveMessageTemplate ?? {};
+  const pieno = [h.hydratedContentText, q.hydratedContentText, i.body?.text, h.hydratedTitleText, q.hydratedTitleText, i.header?.title].map(testoPieno).find(Boolean);
+  return pieno ?? testoStrutturato(v.fourRowTemplate?.content, livello + 1);
+}
+
+/** `highlyStructuredMessage`: leggibile solo se porta il modello idratato. */
+const testoStrutturato = (v, livello = 0) => testoModello(v?.hydratedHsm, livello + 1);
+
+/** I modelli (gli invii automatici escono così dal nostro numero): il testo
+ *  con la marca, o il segnaposto se non c'è niente di leggibile. */
+const MODELLI = {
+  templateMessage: (v) => testoModello(v),
+  highlyStructuredMessage: (v) => testoStrutturato(v),
+  interactiveMessage: (v) => [v?.body?.text, v?.header?.title].map(testoPieno).find(Boolean) ?? "",
+  buttonsMessage: (v) => [v?.contentText, v?.text].map(testoPieno).find(Boolean) ?? "",
+  listMessage: (v) => [v?.description, v?.title].map(testoPieno).find(Boolean) ?? "",
+  placeholderMessage: () => "",
+};
+
+/** Testo delle risposte ai bottoni e alle liste (le scrive il cliente): il
+ *  primo testo pieno, se c'è. */
 function testoInterattivo(tipo, v) {
   const candidati = {
-    templateMessage: [v?.hydratedTemplate?.hydratedContentText, v?.hydratedFourRowTemplate?.hydratedContentText],
-    buttonsMessage: [v?.contentText, v?.text],
-    interactiveMessage: [v?.body?.text],
-    listMessage: [v?.description, v?.title],
     buttonsResponseMessage: [v?.selectedDisplayText],
     templateButtonReplyMessage: [v?.selectedDisplayText],
     listResponseMessage: [v?.title, v?.singleSelectReply?.selectedRowId],
@@ -286,6 +314,10 @@ function contenuto(message) {
     case "contactsArrayMessage":
       return { tipo: "contatto", testo: SEGNAPOSTO.contatto };
     default: {
+      if (MODELLI[tipo]) {
+        const t = MODELLI[tipo](v);
+        return t ? { tipo: "testo", testo: `${MARCA_MODELLO}${t}` } : { tipo: "altro", testo: MODELLO_NASCOSTO };
+      }
       const t = testoInterattivo(tipo, v);
       if (t === null) return { motivo: "tipo_sconosciuto" };
       return t ? { tipo: "testo", testo: t } : { tipo: "altro", testo: SEGNAPOSTO.altro };
