@@ -28,6 +28,8 @@ import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf
 import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
 import { proveSheets } from "./sheets.mjs";
+import { proveLeadSemplice } from "./lead-semplice.mjs";
+import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -586,6 +588,12 @@ const MODULI = [
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
+  //  «Lead importati» semplice (commessa 2026-10-28-lead-importati-semplice):
+  //   prove in prove/lead-semplice.mjs. Entrano nel pacchetto quando il file
+  //   esiste (li crea il compito T1 del piano).
+  ...["importa/pillole-stato", "importa/coda-pagina", "importa/avvisi-pagina", "importa/sezioni-altro"].filter((m) =>
+    existsSync(join(radice, `src/crm/${m}.ts`)),
+  ),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -3235,8 +3243,11 @@ function proveDegliHook() {
     //  sempre disegnata, nessuna uscita; che resti così.
     "src/crm/OrariRapidi.tsx",
   ];
+  //  I pezzi estratti dalla pagina (compito T3 di 2026-10-28-lead-importati-
+  //   semplice) entrano nell'elenco quando esistono: un hook sotto un'uscita
+  //   anticipata li spegne come spegnerebbe la pagina.
   const colpevoli = [];
-  for (const f of file) {
+  for (const f of [...file, ...FILE_DELLA_PAGINA.slice(1).filter((x) => existsSync(join(radice, x)))]) {
     const righe = readFileSync(f, "utf8").split("\n");
     let uscitaVista = false;
     let dentroUnIf = false;
@@ -11382,15 +11393,18 @@ function proveDelleLinguette() {
   c("fuoriDallaLista: lista vuota, restano tutti", "a,b,c", fuoriDallaLista(rit, new Set()).map((x) => x.id).join(","));
   c("fuoriDallaLista: tutti in lista, nessuno sotto", 0, fuoriDallaLista(rit, new Set(["a", "b", "c"])).length);
   c("fuoriDallaLista: non tocca l'elenco ricevuto", 3, rit.length);
-  const pagina = readFileSync("src/routes/CRM.importa.tsx", "utf8");
+  const pagina = sorgentePagina(radice);
   c("la pagina passa al blocco solo chi è fuori dalla lista e lo nasconde se è vuoto", true,
     /fuoriDallaLista\(/.test(pagina) && /diRitornoFuori\.length\s*>\s*0\s*&&\s*\(\s*<SchedaRimandati/.test(pagina));
-  c("la pagina rimette la fascia dei ritorni, che apre lo Stato «Di ritorno»", true,
-    pagina.includes("Aprili tutti") && pagina.includes("fasciaDeiRitorni("));
+  //  ⚠️ CAMBIATA APPOSTA (28/10/2026, SPEC «Lead importati semplice»): i tre avvisi
+  //   sono diventati UNA fascia (FasciaAvvisi) e i ritorni ne sono una voce, che
+  //   apre sempre lo Stato «Di ritorno». Prima: la fascia a sé con «Aprili tutti».
+  c("la pagina ha i ritorni nell'avviso unico, che apre lo Stato «Di ritorno»", true,
+    /avvisiPagina\(/.test(pagina) && /<FasciaAvvisi/.test(pagina) && !pagina.includes("Aprili tutti"));
   c("la pagina usa la riga al posto della schermata vuota, con lo Stato «Di ritorno»", true,
     pagina.includes("nessunRitornoInLista("));
-  c("e la barra dei filtri si vede anche a lista vuota se ci sono ritorni", true,
-    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraFiltri/.test(pagina));
+  c("e la riga delle pillole si vede anche a lista vuota se ci sono ritorni", true,
+    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraPillole/.test(pagina));
 
   //  ── ⚠️ I MENU SONO DI RADIX, E LE SCORCIATOIE LO SANNO ──────────────────
   //  Un «1» premuto dentro un menu aperto non deve dare l'esito «Non risponde»
@@ -11401,7 +11415,9 @@ function proveDelleLinguette() {
   const ui = readFileSync("src/crm/ui.tsx", "utf8");
   c("il freno delle scorciatoie guarda i menu di Radix", true,
     ui.includes('document.querySelector("[data-radix-popper-content-wrapper]")'));
-  for (const f of ["src/crm/importa/FiltriLista.tsx", "src/crm/importa/MenuAltro.tsx"]) {
+  //  Il menu Altro e il pannello Filtra stanno ora dentro PannelloBasso (Popover sul
+  //  computer, foglio dal basso sul telefono): è lui a importare i componenti di Radix.
+  for (const f of ["src/crm/importa/FiltriLista.tsx", "src/crm/importa/PannelloBasso.tsx"]) {
     const src = readFileSync(f, "utf8");
     c(`${f}: i menu sono i componenti di Radix già nel progetto`, true,
       /from "@\/components\/ui\/(popover|dropdown-menu)"/.test(src));
@@ -11409,9 +11425,15 @@ function proveDelleLinguette() {
       /<select\b|role="(listbox|menu)"/.test(src));
   }
   const filtri = readFileSync("src/crm/importa/FiltriLista.tsx", "utf8");
-  c("i tre filtri hanno i tre nomi della spec", true,
-    ["Annuncio", "Risposta", "Stato"].every((n) => filtri.includes(`"${n}"`)));
-  c("c'è «Azzera filtri»", true, filtri.includes("Azzera filtri"));
+  //  ⚠️ CAMBIATE APPOSTA (28/10/2026): lo Stato non è più un menu qui ma la riga
+  //   delle pillole; restano quattro menu nel pannello «Filtra».
+  const pannelloFiltra = readFileSync("src/crm/importa/PannelloFiltra.tsx", "utf8");
+  const barraPillole = readFileSync("src/crm/importa/BarraPillole.tsx", "utf8");
+  c("i quattro menu del pannello Filtra hanno i loro nomi", true,
+    ["Annuncio", "Risposta", "Origine", "Quando"].every((n) => filtri.includes(`nome="${n}"`)));
+  c("lo Stato ha la sua riga di pillole", true, /aria-label="Stato"/.test(barraPillole));
+  c("c'è «Azzera», sempre, con una pillola accesa (la coda può essere vuota)", true,
+    /accesi > 0 && \(\s*<Button[\s\S]{0,400}Azzera/.test(barraPillole) && pannelloFiltra.includes("Azzera i filtri"));
   const altro = readFileSync("src/crm/importa/MenuAltro.tsx", "utf8");
   c("il menu Altro porta all'elenco completo con un collegamento vero", true,
     altro.includes('to="/CRM/avanzamento"'));
@@ -17180,7 +17202,7 @@ function proveDellAnteprimaDiImportazione() {
   c("SchedaTutti riceve moduloDi dalla pagina e non rilegge le risposte", true,
     /moduloDi:\s*\(d: Partial<LeadData>\)/.test(schedaTutti) && !/moduloLetto\(/.test(schedaTutti));
   c("e la pagina glielo passa", true,
-    /<SchedaTutti[\s\S]{0,400}?importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8")));
+    /<SchedaTutti[\s\S]{0,400}?importati=\{importati\}\s+moduloDi=\{moduloDi\}/.test(sorgentePagina(radice)));
 
   //  ── Il cablaggio nel pannello e nella scheda KPI ──────────────────────────
   const pannello = readFileSync(join(radice, "src/crm/importa/PannelloCarica.tsx"), "utf8");
@@ -17706,7 +17728,7 @@ function proveDeiQuattroEsiti() {
   c("nessun esito si perde", lista.length, d.inVista.length + d.inAltro.length);
   c("sui contatti di ritorno «irreperibile» prende il posto di «non risponde»", "irreperibile,richiamo",
     dividiEsiti(["irreperibile", "segreteria", "richiamo"]).inVista.join(","));
-  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  const pagina = sorgentePagina(radice);
   c("le scorciatoie numeriche puntano ai pulsanti in vista", true, /esitiDivisi\.inVista\s*\.slice\(0, 9\)/.test(pagina));
   c("il menu «Altro» degli esiti è di Radix (i tasti tacciono dentro)", true, /<DropdownMenuItem key=\{s\} onSelect=\{\(\) => onEsito\(s\)\}/.test(pagina));
 }
@@ -18239,7 +18261,7 @@ async function proveDeiPostiDelPallino() {
   const leggi = (f) => (existsSync(join(radice, f)) ? readFileSync(join(radice, f), "utf8") : "");
   gruppo("LEAD IMPORTATI: IL PALLINO AL POSTO DI «CALDO», E LA STRISCIA");
   const rigaChiamata = leggi("src/crm/importa/RigaChiamata.tsx");
-  const importa = leggi("src/routes/CRM.importa.tsx");
+  const importa = sorgentePagina(radice);
   c("la targhetta disegna il pallino", true, rigaChiamata.includes("<PallinoTemperatura"));
   c(
     "l'elenco «Poi» passa la temperatura, col modulo già in cache",
@@ -20166,11 +20188,13 @@ function proveDeiPulsantiDelloStato() {
     `${leggiRicercaImporta({ stato: "segreteria" }).stato} ${leggiRicercaImporta({ stato: "nonRisponde" }).stato}`);
   c("…e ancora «ritentare»", "ritentare", leggiRicercaImporta({ stato: "ritentare" }).stato);
   const barra = readFileSync(join(radice, "src/crm/importa/FiltriLista.tsx"), "utf8");
-  c("i pulsanti nell'ordine di prima",
-    true,
-    /STATI_DA_MOSTRARE: StatoFiltro\[\] = \[\s*"tutti",\s*"mai",\s*"nonRisponde",\s*"segreteria",\s*"richiamo",\s*"ciRicontatta",\s*"whatsapp",\s*"daChiamare",\s*"ritorno",?\s*\]/.test(barra));
-  c("la fila dello stato sta sopra i menu", true,
-    /<PulsantiStato[\s\S]{0,3000}<MenuAnnuncio/.test(barra));
+  //  ⚠️ CAMBIATE APPOSTA (28/10/2026): STATI_DA_MOSTRARE e PulsantiStato sono
+  //   usciti da FiltriLista.tsx; le otto pillole sono PILLOLE (pillole-stato) e
+  //   la riga è BarraPillole, che sta sopra «Filtra» nella pagina.
+  c("le pillole nell'ordine della spec (PILLOLE)", ["tutti", "mai", "whatsapp", "daChiamare", "nonRisposto", "richiamo", "ciRicontatta", "ritorno"],
+    mod["importa/pillole-stato"].PILLOLE);
+  c("la riga dello stato sta sopra «Filtra»", true,
+    /<BarraPillole[\s\S]{0,3000}<PannelloFiltra/.test(sorgentePagina(radice)));
   c("lo stato non è più chiuso in un menu", false, /function MenuStato/.test(barra));
 
   //  Richiamo concordato e Ci ricontatta lui separati; Attesa WhatsApp.
@@ -20180,21 +20204,26 @@ function proveDeiPulsantiDelloStato() {
   c("un richiamo concordato è un richiamo", true, cadeNelloStato("promessa", { stato: "richiamo" }, "richiamo"));
   const scritto = { stato: "da_contattare", ...patchWhatsappInviato({}, new Date("2026-10-20T10:00:00Z")) };
   c("scritto su WhatsApp: in attesa", true, inAttesaWhatsapp(scritto));
-  c("…e cade in «Attesa WhatsApp»", true, cadeNelloStato("prima", scritto, "whatsapp"));
+  //  ⚠️ ROVESCIATA APPOSTA (28/10/2026, SPEC «Lead importati semplice»): la pillola
+  //   «Attesa WhatsApp» conta lo stato, non più anche il tasto premuto a mano.
+  c("…ma la pillola «Attesa WhatsApp» guarda solo lo stato: il tasto premuto non basta", false, cadeNelloStato("prima", scritto, "whatsapp"));
   c("lo stato cambia dopo il messaggio: fuori dall'attesa", false,
     inAttesaWhatsapp({ ...scritto, stato: "richiamo", statoPrecedenteIl: "2026-10-20T11:00:00Z" }));
   c("lo stato era cambiato prima del messaggio: resta in attesa", true,
     inAttesaWhatsapp({ ...scritto, statoPrecedenteIl: "2026-10-19T11:00:00Z" }));
   c("mai scritto: non in attesa", false, inAttesaWhatsapp({ stato: "da_contattare" }));
   c("il conto dei messaggi sale", 2, patchWhatsappInviato(scritto).whatsappInviatoVolte);
-  c("«Richiami» (tasto rosso in testata) accende le due metà", true, /promesse: \["richiamo", "ciRicontatta"\]/.test(barra));
+  c("«Richiami» (il link dei richiami scaduti) accende le due metà", ["richiamo", "ciRicontatta"], mod["importa/pillole-stato"].pilloleAccese("promesse"));
 
   //  Già lavorati: tutti gli altri stati, e aprono «Tutti» filtrata.
-  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
-  c("i pulsanti «Già lavorati» ci sono", true, /aria-label="Già lavorati"/.test(barra));
+  const pagina = sorgentePagina(radice);
+  //  ⚠️ CAMBIATA APPOSTA (28/10/2026): «Già lavorati» non è più una fila in cima ma
+  //   una sezione del menu Altro (sezioni-altro.ts), con le stesse voci.
+  c("i «Già lavorati» ci sono, in Altro", true,
+    mod["importa/sezioni-altro"].sezioniAltro({ giaLavorati: [{ stato: "annullato", n: 1 }] }).some((x) => x.titolo === "Già lavorati"));
   c("…aprono «Tutti» già filtrata", true, /setStatoTutti\(st\);\s*setVista\("tutti"\)/.test(pagina) && /statoIniziale=\{statoTutti\}/.test(pagina));
-  c("la barra c'è in ogni linguetta, anche a lista vuota", true,
-    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraFiltri/.test(pagina) && !/vista === "coda" && \(coda\.length > 0[^\n]*\n\s*<BarraFiltri/.test(pagina));
+  c("la riga delle pillole c'è in ogni vista, anche a lista vuota", true,
+    /\{importati\.length > 0 && \([\s\S]{0,200}<BarraPillole/.test(pagina) && !/vista === "coda" && \(coda\.length > 0[^\n]*\n\s*<BarraPillole/.test(pagina));
   c("il tasto WhatsApp segna l'attesa", true, /onClick=\{\(\) => onWhatsAppInviato\?\.\(\)\}/.test(pagina));
 
   //  Il messaggio del lead nuovo: lei, le due soluzioni, online, mattina o sera.
@@ -20365,7 +20394,7 @@ function proveDelTermometroInvisibleDerm() {
  *  Richiesta del titolare: «fai che posso eliminare i lead da lead importati». */
 function proveDellEliminaDallaCoda() {
   gruppo("LEAD IMPORTATI: SI ELIMINA ANCHE DALLA SCHEDA DELLA CODA");
-  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  const pagina = sorgentePagina(radice);
   c("voce «Elimina lead…» nel menu Altro della scheda", true, /onSelect=\{onElimina\}[\s\S]{0,200}Elimina lead…/.test(pagina));
   c("solo a chi ha il permesso", true, /onElimina=\{puoEliminare \? \(\) => setDaEliminare\(prossimo\) : undefined\}/.test(pagina));
   c("prima chiede, col nome", true, /titolo="Eliminare questo lead\?"[\s\S]{0,120}nomeDi\(daEliminare\)/.test(pagina));
@@ -20716,7 +20745,7 @@ function proveDelloStatoAttesaWhatsapp() {
     CHIAM.motivoChiamata({ id: "x", data: { stato: "attesa_whatsapp", importato: true, createdAt: "2026-10-01T10:00:00Z" } }, new Date("2026-10-20T10:00:00Z")).testo);
   const { MODELLI_ORIGINALI: M } = mod["whatsapp"];
   c("ha un messaggio suo, col lei", true, /Le avevo scritto/.test(M.attesa_whatsapp) && /mattina o la sera\?$/.test(M.attesa_whatsapp));
-  const pagina = readFileSync(join(radice, "src/routes/CRM.importa.tsx"), "utf8");
+  const pagina = sorgentePagina(radice);
   const tel = readFileSync(join(radice, "src/crm/kpi/TelefonoScheda.tsx"), "utf8");
   c("KPI Telefono: ha la sua riga (niente avviso «stati senza esito»)", true,
     /attesa_whatsapp: "attesa_whatsapp"/.test(tel) && /chiave: "attesa_whatsapp"/.test(tel));
@@ -20807,6 +20836,8 @@ proveDelRiquadroDelPromemoria();
 await proveManychat(mod, { c, gruppo, radice });
 proveProvaModelli(mod, { c, gruppo, radice });
 await proveSheets(mod, { c, gruppo, radice });
+await proveLeadSemplice(mod, { c, gruppo, radice });
+await proveLeadSemplicePagina(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
 proveDiWhatsappOrariStelle();

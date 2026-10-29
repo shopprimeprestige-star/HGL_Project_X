@@ -140,7 +140,11 @@ function CRMLayout() {
     <div className="crm-theme min-h-screen">
       <AuthProvider>
         <CRMGate />
-        <Toaster />
+        {/*  Sul telefono, in «Lead importati», la barra degli esiti è fissa in
+            basso: la pagina scrive la sua altezza in `--barra-esiti` e i messaggi
+            (con «Annulla») salgono sopra. Altrove la variabile non c'è e vale 16px,
+            il valore di sempre. */}
+        <Toaster mobileOffset={{ bottom: "var(--barra-esiti, 16px)" }} />
       </AuthProvider>
     </div>
   );

@@ -18,6 +18,7 @@
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: `{ c, gruppo, radice }`. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sorgentePagina } from "../lead-semplice-pagina.mjs";
 
 export async function proveOrigine(mod, { c, gruppo, radice }) {
   const OR = mod["importa/origine"];
@@ -545,7 +546,7 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
   const altroTsx = leggi("src/crm/importa/MenuAltro.tsx");
   const tuttiTsx = leggi("src/crm/importa/SchedaTutti.tsx");
   const rigaTsx = leggi("src/crm/importa/RigaChiamata.tsx");
-  const paginaTsx = leggi("src/routes/CRM.importa.tsx");
+  const paginaTsx = sorgentePagina(radice);
   const dialogTsx = leggi("src/crm/LeadDialog.tsx");
 
   c(
@@ -559,9 +560,12 @@ export async function proveOrigine(mod, { c, gruppo, radice }) {
           .split("\nfunction ")[0],
       ),
   );
-  c("la barra di «Da chiamare» ha il menu Origine", true, /<MenuOrigine\b/.test(filtriTsx));
+  //  ⚠️ CAMBIATE APPOSTA (28/10/2026): il menu Origine sta nel pannello «Filtra»
+  //   e le etichette accese in EtichetteAccese, entrambi in PannelloFiltra.tsx.
+  const pannelloTsx = leggi("src/crm/importa/PannelloFiltra.tsx");
+  c("il pannello «Filtra» di «Da chiamare» ha il menu Origine", true, /<MenuOrigine\b/.test(pannelloTsx));
   c("«Tutta la lista» ha il menu Origine", true, /<MenuOrigine\b/.test(tuttiTsx));
-  c("l'origine accesa si legge come etichetta da spegnere", true, filtriTsx.includes("Origine: "));
+  c("l'origine accesa si legge come etichetta da spegnere", true, pannelloTsx.includes("Origine: "));
   c(
     "«Azzera filtri» spegne anche l'origine",
     true,

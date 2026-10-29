@@ -1,8 +1,10 @@
-/** ── I FILTRI DELLA LISTA «DA CHIAMARE» ────────────────────────────────────
+/** ── I MENU DEI FILTRI DELLA LISTA «DA CHIAMARE» ───────────────────────────
  *
- *  Prima: sei pastiglie di stato, quattro di tempo, e filtri diversi da una
- *  scheda all'altra. Adesso: TRE menu (Annuncio, Risposta, Stato), sempre gli
- *  stessi, e sotto i filtri accesi come etichette che si spengono con un clic.
+ *  Dal 28/10/2026 (commessa «Lead importati semplice») lo Stato non è più un
+ *  menu né una fila di pulsanti qui: sono le otto pillole di `BarraPillole`
+ *  (nomi e ordine in pillole-stato.ts). Restano i quattro menu — Annuncio,
+ *  Risposta, Origine, Quando — che il pannello «Filtra» (PannelloFiltra) mette
+ *  insieme, e «Tutta la lista» (SchedaTutti) usa ancora per conto suo.
  *
  *  Le regole (quali righe passano, che numero sta accanto a ogni voce) sono di
  *  `filtri-lista.ts`, provate. Qui si disegna soltanto.
@@ -35,62 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NOME_FETTA_TEMPO, SPIEGA_FETTA_TEMPO, type FettaTempo } from "@/crm/quando-stato";
 import type { FiltriLista, OpzioniFiltri, StatoFiltro } from "./filtri-lista";
-import { voceStatoAttiva } from "./reparti";
-import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
 import { NOME_VIA, type ViaOrigine } from "./origine";
-
-/** I nomi delle voci di Stato. ⚠️ Gli stessi nomi dei pulsanti di prima del
- *  12/10 (Da contattare, Non risponde, Segreteria…): il titolare li riconosce
- *  così (20/10/2026). */
-export const NOME_STATO_FILTRO: Record<StatoFiltro, string> = {
-  tutti: "Tutti",
-  mai: "Da contattare",
-  nonRisponde: "Non risponde",
-  segreteria: "Segreteria",
-  ritentare: "Da ritentare",
-  richiamo: "Richiamo concordato",
-  ciRicontatta: "Ci ricontatta lui",
-  promesse: "Richiami",
-  whatsapp: "Attesa WhatsApp",
-  daChiamare: "Da chiamare",
-  ritorno: "Di ritorno",
-};
-
-const SPIEGA_STATO_FILTRO: Record<StatoFiltro, string> = {
-  tutti: "Tutta la lista",
-  mai: "Non li ha mai chiamati nessuno: sono le prime chiamate",
-  nonRisponde: "Hanno squillato a vuoto: ritenti rapidi, uno dietro l'altro",
-  segreteria: "Hai lasciato un messaggio e stai riprovando",
-  ritentare: "Non risponde e segreteria: ritenti rapidi",
-  richiamo: "Richiamo concordato col cliente, quando il giorno è arrivato: hanno la precedenza",
-  ciRicontatta: "Ha detto che ci ricontatta lui: quando il giorno è arrivato, si prova noi",
-  promesse: "Richiamo concordato e «ci ricontatta lui», quando il giorno è arrivato",
-  whatsapp: "Gli hai scritto su WhatsApp e aspetti la risposta: esce da qui appena segni un esito",
-  daChiamare:
-    "Più di 10 ore in Attesa WhatsApp senza risposta: il CRM li ha spostati qui, adesso si chiamano",
-  ritorno: "Contatti di ritorno: erano già in archivio e sono ricomparsi in una lista",
-};
-
-/** I pulsanti in vista, nell'ordine di prima del 12/10, più «Attesa WhatsApp».
- *  «Da ritentare» e «Richiami» non ci sono: ci sono le loro due metà. */
-const STATI_DA_MOSTRARE: StatoFiltro[] = [
-  "tutti",
-  "mai",
-  "nonRisponde",
-  "segreteria",
-  "richiamo",
-  "ciRicontatta",
-  "whatsapp",
-  "daChiamare",
-  "ritorno",
-];
-
-/** Le voci di prima che accendono le loro due metà (indirizzi salvati, e il
- *  tasto rosso dei richiami scaduti in testata). */
-const META_DI: Partial<Record<StatoFiltro, StatoFiltro[]>> = {
-  ritentare: ["nonRisponde", "segreteria"],
-  promesse: ["richiamo", "ciRicontatta"],
-};
 
 /** Quanti filtri sono accesi: serve a «Azzera filtri» e al titolo dell'elenco. */
 export function filtriAccesi(f: FiltriLista): number {
@@ -104,7 +51,7 @@ export function filtriAccesi(f: FiltriLista): number {
 }
 
 /** Lo stesso filtro, ripulito: niente chiavi vuote nell'indirizzo. */
-function pulito(f: FiltriLista): FiltriLista {
+export function pulito(f: FiltriLista): FiltriLista {
   const out: FiltriLista = {};
   if (f.annuncio) out.annuncio = f.annuncio;
   if (f.risposte?.length) out.risposte = f.risposte;
@@ -122,8 +69,8 @@ function pulito(f: FiltriLista): FiltriLista {
     e senza il menu si aprirebbe nell'angolo della pagina. */
 const TastoMenu = forwardRef<
   HTMLButtonElement,
-  { nome: string; valore: string; acceso: boolean } & ComponentProps<typeof Button>
->(({ nome, valore, acceso, ...resto }, ref) => (
+  { nome: string; valore: string; acceso: boolean; alto?: boolean } & ComponentProps<typeof Button>
+>(({ nome, valore, acceso, alto, ...resto }, ref) => (
   <Button
     ref={ref}
     type="button"
@@ -131,6 +78,9 @@ const TastoMenu = forwardRef<
     variant="outline"
     className={cn(
       "h-9 max-w-[15rem] gap-1.5 text-[12px] font-normal sm:h-8",
+      //  Dentro il pannello «Filtra» (compito T4 di 2026-10-28): largo quanto il
+      //  pannello e alto almeno 44 px sul telefono.
+      alto && "h-11 w-full max-w-none justify-start text-[13px] sm:h-9",
       acceso && "border-foreground/40 bg-foreground/[0.05]",
     )}
     {...resto}
@@ -170,7 +120,7 @@ function VoceScelta({
       disabled={vuota}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12.5px] outline-none transition-colors",
+        "flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12.5px] outline-none transition-colors sm:min-h-0",
         "hover:bg-accent focus-visible:bg-accent disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent",
         rientro && "pl-6",
         scelta && "font-semibold",
@@ -192,7 +142,7 @@ function VoceScelta({
 
 /** Come si chiama, a parole, la voce scelta. Una chiave che nessuno ha più
  *  (annuncio spento da Meta) esiste comunque in `opzioni`, a zero. */
-function nomeAnnuncio(chiave: string, opzioni: OpzioniFiltri): string {
+export function nomeAnnuncio(chiave: string, opzioni: OpzioniFiltri): string {
   for (const g of opzioni.annuncio) {
     if (g.chiave === chiave) return g.gruppo;
     const a = g.annunci.find((x) => x.chiave === chiave);
@@ -206,10 +156,13 @@ export function MenuAnnuncio({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const [aperto, setAperto] = useState(false);
   const totale = opzioni.annuncio.reduce((t, g) => t + g.n, 0);
@@ -221,12 +174,13 @@ export function MenuAnnuncio({
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
         <TastoMenu
+          alto={alto}
           nome="Annuncio"
           valore={filtri.annuncio ? nomeAnnuncio(filtri.annuncio, opzioni) : "tutti"}
           acceso={!!filtri.annuncio}
         />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-[60vh] w-80 overflow-y-auto p-1">
+      <PopoverContent align="start" className="crm-theme max-h-[60vh] w-80 overflow-y-auto p-1">
         {opzioni.annuncio.length === 0 ? (
           <p className="px-2 py-3 text-[12.5px] text-muted-foreground">
             Nessun annuncio nelle liste caricate.
@@ -271,7 +225,7 @@ export function MenuAnnuncio({
 
 const campoDi = (chiave: string) => chiave.slice(0, chiave.indexOf("|"));
 
-function etichettaRispostaScelta(chiave: string, opzioni: OpzioniFiltri): string {
+export function etichettaRispostaScelta(chiave: string, opzioni: OpzioniFiltri): string {
   for (const r of opzioni.risposte) {
     const v = r.voci.find((x) => x.chiave === chiave);
     if (v) return `${r.titolo}: ${v.etichetta}`;
@@ -283,10 +237,13 @@ export function MenuRisposta({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const scelte = filtri.risposte ?? [];
   /*  Premendo una voce si accende; premendola di nuovo si spegne; premendone
@@ -307,9 +264,9 @@ export function MenuRisposta({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <TastoMenu nome="Risposta" valore={valore} acceso={scelte.length > 0} />
+        <TastoMenu alto={alto} nome="Risposta" valore={valore} acceso={scelte.length > 0} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-[60vh] w-80 overflow-y-auto p-1">
+      <PopoverContent align="start" className="crm-theme max-h-[60vh] w-80 overflow-y-auto p-1">
         {opzioni.risposte.length === 0 ? (
           <p className="px-2 py-3 text-[12.5px] text-muted-foreground">
             Nessuna risposta del modulo nelle liste caricate.
@@ -356,10 +313,13 @@ export function MenuOrigine({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const [aperto, setAperto] = useState(false);
   const totale = opzioni.origine.reduce((t, v) => t + v.n, 0);
@@ -371,12 +331,13 @@ export function MenuOrigine({
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
         <TastoMenu
+          alto={alto}
           nome="Origine"
           valore={filtri.origine ? NOME_VIA[filtri.origine] : "tutte"}
           acceso={!!filtri.origine}
         />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-1">
+      <PopoverContent align="start" className="crm-theme w-64 p-1">
         <VoceScelta scelta={!filtri.origine} n={totale} onClick={() => scegli(undefined)}>
           Tutte le origini
         </VoceScelta>
@@ -400,84 +361,20 @@ export function MenuOrigine({
    STATO — perché è in lista, e da quando ha quello stato
    ═════════════════════════════════════════════════════════════════════════ */
 
-/** ── I PULSANTI DELLO STATO, SEMPRE IN VISTA ─────────────────────────────
- *  Richiesta del titolare (20/10/2026): «hai tolto i filtri da richiamare,
- *  segreteria… rimettili come erano prima, ottimizzati». Dal 12/10 stavano
- *  chiusi in un menu e si sceglievano alla cieca. Adesso: una fila sola, il
- *  numero accanto a ogni nome, e quello scelto pieno.
- *  ⚠️ `shrink-0` e la fila che scorre: su uno schermo stretto i pulsanti non si
- *   schiacciano fino a nascondere il numero, che è quello che si guarda.
- *  ⚠️ A ZERO NON SPARISCE, SI SPEGNE: una fila che si accorcia mentre lavori
- *   sposta i pulsanti sotto il dito. */
-function PulsantiStato({
-  filtri,
-  opzioni,
-  onCambia,
-  ritorni,
-  spento,
-}: {
-  filtri: FiltriLista;
-  opzioni: OpzioniFiltri;
-  onCambia: (f: FiltriLista) => void;
-  ritorni: number;
-  /** Durante un'operazione di gruppo: spenti anche da tastiera. */
-  spento?: boolean;
-}) {
-  const stato = filtri.stato ?? "tutti";
-  const nStato = (v: StatoFiltro) => opzioni.stato.find((x) => x.valore === v)?.n ?? 0;
-  //  «Di ritorno» porta il numero della vecchia stanza (ritorni + «si fanno vivi
-  //  loro»), che comprende anche chi è fuori dalla lista.
-  const nVoce = (v: StatoFiltro) => (v === "ritorno" ? Math.max(nStato(v), ritorni) : nStato(v));
-  //  Un indirizzo salvato con «Da ritentare» o «Richiami» accende le sue due metà.
-  const acceso = (v: StatoFiltro) => v === stato || !!META_DI[stato]?.includes(v);
-  return (
-    <div
-      role="group"
-      aria-label="Stato"
-      className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5"
-    >
-      {STATI_DA_MOSTRARE.map((v) => {
-        const si = acceso(v);
-        return (
-          <button
-            key={v}
-            type="button"
-            aria-pressed={si}
-            title={SPIEGA_STATO_FILTRO[v]}
-            disabled={spento || !voceStatoAttiva(v, nStato(v), stato, ritorni)}
-            onClick={() => onCambia(pulito({ ...filtri, stato: v }))}
-            className={cn(
-              "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition sm:h-8",
-              "disabled:cursor-not-allowed disabled:opacity-45",
-              si
-                ? "border-foreground bg-foreground font-semibold text-background"
-                : "border-border bg-background font-medium text-foreground hover:border-foreground/40",
-            )}
-          >
-            {NOME_STATO_FILTRO[v]}
-            <span
-              className={cn("tabular-nums", si ? "text-background/80" : "text-muted-foreground")}
-            >
-              {nVoce(v)}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /** «Quando ho messo lo stato»: le segreterie di ieri, i non risponde di oggi.
  *  Resta un menu: si usa meno, e accanto ai pulsanti dello stato si legge come
  *  la loro seconda metà. */
-function MenuQuando({
+export function MenuQuando({
   filtri,
   opzioni,
   onCambia,
+  alto,
 }: {
   filtri: FiltriLista;
   opzioni: OpzioniFiltri;
   onCambia: (f: FiltriLista) => void;
+  /** Dentro il pannello «Filtra»: tasto largo e alto 44 px sul telefono. */
+  alto?: boolean;
 }) {
   const quando = filtri.quando ?? "sempre";
   const nQuando = (v: FettaTempo) => opzioni.quando.find((x) => x.valore === v)?.n ?? 0;
@@ -485,12 +382,13 @@ function MenuQuando({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <TastoMenu
+          alto={alto}
           nome="Quando"
           valore={NOME_FETTA_TEMPO[quando].toLowerCase()}
           acceso={quando !== "sempre"}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-72">
+      <DropdownMenuContent align="start" className="crm-theme w-72">
         <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Quando ho messo lo stato
         </DropdownMenuLabel>
@@ -504,7 +402,7 @@ function MenuQuando({
               value={v}
               title={SPIEGA_FETTA_TEMPO[v]}
               disabled={nQuando(v) === 0 && quando !== v}
-              className="text-[12.5px]"
+              className="min-h-11 text-[12.5px] sm:min-h-0"
             >
               <span className="flex-1">{NOME_FETTA_TEMPO[v]}</span>
               <span className="ml-3 tabular-nums text-muted-foreground">{nQuando(v)}</span>
@@ -520,159 +418,16 @@ function MenuQuando({
    LA BARRA: I TRE MENU, LE ETICHETTE ACCESE, «AZZERA FILTRI»
    ═════════════════════════════════════════════════════════════════════════ */
 
-function Etichetta({ testo, onToglie }: { testo: string; onToglie: () => void }) {
+export function Etichetta({ testo, onToglie }: { testo: string; onToglie: () => void }) {
   return (
     <button
       type="button"
       onClick={onToglie}
       title="Togli questo filtro"
-      className="inline-flex max-w-[18rem] items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pl-2.5 pr-1.5 text-[11.5px] font-medium text-foreground transition hover:border-foreground/30 hover:bg-muted"
+      className="inline-flex min-h-11 max-w-[18rem] items-center gap-1 rounded-full border border-border bg-muted/50 py-0.5 pl-3 pr-2.5 md:min-h-0 md:pl-2.5 md:pr-1.5 text-[11.5px] font-medium text-foreground transition hover:border-foreground/30 hover:bg-muted"
     >
       <span className="truncate">{testo}</span>
       <X className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Togli" />
     </button>
-  );
-}
-
-export function BarraFiltri({
-  filtri,
-  opzioni,
-  onCambia,
-  disabilitato,
-  ritorni = 0,
-  altriStati = [],
-  onAltroStato,
-  conOrigine = false,
-}: {
-  filtri: FiltriLista;
-  opzioni: OpzioniFiltri;
-  onCambia: (f: FiltriLista) => void;
-  /** ── GLI STATI FUORI DALLA LISTA DA CHIAMARE (20/10/2026) ─────────────
-   *  Richiesta del titolare: in alto devono esserci TUTTI gli stati che si
-   *  possono dare, per vedere solo quei lead. Quelli già lavorati (appuntamento,
-   *  non interessato, irreperibile…) non sono nella lista da chiamare: il
-   *  pulsante apre l'elenco completo già filtrato su quello stato. */
-  altriStati?: { stato: LeadStatus; n: number }[];
-  onAltroStato?: (s: LeadStatus) => void;
-  /** C'è almeno un lead entrato dal foglio Google: solo allora il menu Origine
-   *  ha qualcosa da scegliere. Lo dice la pagina sull'archivio intero e non su
-   *  quello che i filtri lasciano vedere, altrimenti il tasto comparirebbe e
-   *  sparirebbe mentre si filtra. Un filtro Origine acceso si vede comunque. */
-  conOrigine?: boolean;
-  /** Quanti contatti di ritorno e «si fanno vivi loro» ci sono in tutto, anche
-   *  fuori dalla lista: finché sono più di zero la voce Stato «Di ritorno» resta
-   *  accesa (vedi `voceStatoAttiva`). */
-  ritorni?: number;
-  /** Mentre una scrittura di gruppo lavora, cambiare la fetta di elenco farebbe
-   *  sparire la barra con il contatore: i menu si spengono. */
-  disabilitato?: boolean;
-}) {
-  const accesi = filtriAccesi(filtri);
-  return (
-    <div className="space-y-2" aria-disabled={disabilitato || undefined}>
-      {/*  Prima lo stato, in vista: è il filtro che si usa ogni giorno. */}
-      <div className={cn(disabilitato && "pointer-events-none opacity-50")}>
-        <PulsantiStato
-          filtri={filtri}
-          opzioni={opzioni}
-          onCambia={onCambia}
-          ritorni={ritorni}
-          spento={disabilitato}
-        />
-      </div>
-      {altriStati.length > 0 && onAltroStato && (
-        <div
-          role="group"
-          aria-label="Già lavorati"
-          className={cn(
-            "-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5",
-            disabilitato && "pointer-events-none opacity-50",
-          )}
-        >
-          <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground/80">
-            Già lavorati
-          </span>
-          {altriStati.map(({ stato, n }) => (
-            <button
-              key={stato}
-              type="button"
-              disabled={disabilitato}
-              onClick={() => onAltroStato(stato)}
-              title={`Apri l'elenco dei lead importati con stato «${LEAD_STATUS_LABEL[stato]}»`}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-3 text-[12px] font-medium text-foreground transition hover:border-foreground/40 sm:h-7"
-            >
-              {LEAD_STATUS_LABEL[stato]}
-              <span className="tabular-nums text-muted-foreground">{n}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-2",
-          disabilitato && "pointer-events-none opacity-50",
-        )}
-      >
-        <MenuAnnuncio filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
-        <MenuRisposta filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
-        {(conOrigine || filtri.origine) && (
-          <MenuOrigine filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
-        )}
-        <MenuQuando filtri={filtri} opzioni={opzioni} onCambia={onCambia} />
-        {accesi > 0 && (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-9 text-[12px] text-muted-foreground hover:text-foreground sm:h-8"
-            onClick={() => onCambia({})}
-          >
-            Azzera filtri
-          </Button>
-        )}
-      </div>
-      {accesi > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-            Accesi
-          </span>
-          {filtri.annuncio && (
-            <Etichetta
-              testo={nomeAnnuncio(filtri.annuncio, opzioni)}
-              onToglie={() => onCambia(pulito({ ...filtri, annuncio: undefined }))}
-            />
-          )}
-          {(filtri.risposte ?? []).map((k) => (
-            <Etichetta
-              key={k}
-              testo={etichettaRispostaScelta(k, opzioni)}
-              onToglie={() =>
-                onCambia(
-                  pulito({ ...filtri, risposte: (filtri.risposte ?? []).filter((x) => x !== k) }),
-                )
-              }
-            />
-          ))}
-          {filtri.origine && (
-            <Etichetta
-              testo={`Origine: ${NOME_VIA[filtri.origine]}`}
-              onToglie={() => onCambia(pulito({ ...filtri, origine: undefined }))}
-            />
-          )}
-          {filtri.stato && filtri.stato !== "tutti" && (
-            <Etichetta
-              testo={`Stato: ${NOME_STATO_FILTRO[filtri.stato]}`}
-              onToglie={() => onCambia(pulito({ ...filtri, stato: undefined }))}
-            />
-          )}
-          {filtri.quando && filtri.quando !== "sempre" && (
-            <Etichetta
-              testo={`Stato messo: ${NOME_FETTA_TEMPO[filtri.quando].toLowerCase()}`}
-              onToglie={() => onCambia(pulito({ ...filtri, quando: undefined }))}
-            />
-          )}
-        </div>
-      )}
-    </div>
   );
 }

@@ -33,17 +33,23 @@ import type {
 } from "../types";
 import { CAMPI_MODULO } from "../types";
 import { dentroLaFetta, FETTE_TEMPO, type FettaTempo } from "../quando-stato";
-import { inAttesaWhatsapp } from "./attesa-whatsapp";
 import { etichettaRisposta, pulisci, titoloDomanda, type DomandaModulo } from "../modulo-lead";
 import { origineDi, VIE_ORIGINE, type ViaOrigine } from "./origine";
 
-/** ⚠️ LE VOCI IN VISTA (20/10/2026): il titolare le vuole separate come prima
+/** ⚠️ DAL 28/10/2026 (commessa «Lead importati semplice») le pillole sono otto
+ *  (crm/importa/pillole-stato): «Non risponde» e «Segreteria» sono fuse in
+ *  «Non ha risposto» (`nonRisposto`, i due stati restano distinti nel database).
+ *  I valori vecchi restano qui perché i collegamenti salvati non si rompano:
+ *  `conStatoCanonico` li traduce prima che arrivino alla pagina.
+ *
+ *  ⚠️ LE VOCI IN VISTA (20/10/2026): il titolare le vuole separate come prima
  *  del 12/10 — Non risponde, Segreteria, Richiamo concordato, Ci ricontatta
  *  lui — più «Attesa WhatsApp». «ritentare» e «promesse» (le coppie di prima)
  *  restano valide per gli indirizzi già salvati, ma non sono più pulsanti. */
 export type StatoFiltro =
   | "tutti"
   | "mai"
+  | "nonRisposto"
   | "nonRisponde"
   | "segreteria"
   | "ritentare"
@@ -57,6 +63,7 @@ export type StatoFiltro =
 export const STATI_FILTRO: StatoFiltro[] = [
   "tutti",
   "mai",
+  "nonRisposto",
   "nonRisponde",
   "segreteria",
   "ritentare",
@@ -69,20 +76,22 @@ export const STATI_FILTRO: StatoFiltro[] = [
 ];
 
 /** La riga cade nella voce `scelta` del filtro Stato?
- *  «Non risponde»/«Segreteria» sono le due metà di «Da ritentare», «Richiamo
- *  concordato»/«Ci ricontatta lui» quelle di «Promesse»: si riconoscono dallo
- *  stato della scheda. «Attesa WhatsApp» guarda il messaggio inviato
- *  (crm/importa/attesa-whatsapp) e si somma alle altre: chi è in attesa resta
- *  anche nel suo stato. */
+ *  «Non risponde»/«Segreteria» sono le due metà di «Da ritentare» e di «Non ha
+ *  risposto», «Richiamo concordato»/«Ci ricontatta lui» quelle di «Promesse»: si
+ *  riconoscono dallo stato della scheda.
+ *  ⚠️ «Attesa WhatsApp» guarda SOLO lo stato (28/10/2026). Prima si sommava il
+ *   «tasto WhatsApp premuto a mano» (`inAttesaWhatsapp`) e lo stesso lead era
+ *   contato due volte; chi scrive a mano dalla scheda non cambia stato e resta
+ *   sotto la pillola del suo stato. */
 export function cadeNelloStato(
   motivo: MotivoChiamata,
   d: Partial<LeadData>,
   scelta: StatoFiltro,
 ): boolean {
   if (scelta === "tutti") return true;
-  //  Lo stato «Attesa WhatsApp» impostato a mano, oppure il tasto WhatsApp
-  //  premuto e nessun esito da allora.
-  if (scelta === "whatsapp") return d.stato === "attesa_whatsapp" || inAttesaWhatsapp(d);
+  if (scelta === "whatsapp") return d.stato === "attesa_whatsapp";
+  //  Hanno squillato a vuoto o hanno lasciato la segreteria: un'unica pillola.
+  if (scelta === "nonRisposto") return d.stato === "non_risponde" || d.stato === "segreteria";
   //  ⚠️ I PULSANTI DI UNO STATO GUARDANO LO STATO DELLA SCHEDA, non il motivo
   //   della chiamata: un «richiamo» senza giorno ha motivo «ritento» e finiva
   //   sotto «Non risponde» (revisione del 20/10/2026). «Mostra solo quei
@@ -117,6 +126,15 @@ export interface RigaDaFiltrare {
   data: Partial<LeadData>;
   motivo: MotivoChiamata;
   modulo?: RisposteModulo;
+  /** ── È NELLA CODA DI OGGI? (28/10/2026) ────────────────────────────────
+   *  La pagina costruisce le righe dalla LISTA (regola di sempre, «Attesa
+   *  WhatsApp» compresa) e dice di ognuna se sta anche nella CODA, cioè fra
+   *  quelli da chiamare adesso: crm/importa/coda-pagina. Senza una pillola
+   *  scelta (o con «Tutta la coda») le righe fuori coda non contano e non si
+   *  vedono; con una pillola scelta sì, perché è la setter ad averla voluta.
+   *  ⚠️ ASSENTE = VERO: chi non sa niente della coda (le prove di prima, le altre
+   *   schermate) vede le righe come sempre. */
+  inCoda?: boolean;
 }
 
 /** Il separatore fra gruppo e annuncio nelle chiavi: un carattere che nei nomi
@@ -279,8 +297,14 @@ function passa(r: RigaDaFiltrare, f: FiltriLista, oggi: string, no: Escludi = {}
     const e = etichettaAnnuncio(r.data.tracking);
     if (f.annuncio !== e.chiaveGruppo && f.annuncio !== e.chiaveAnnuncio) return false;
   }
-  if (f.stato && f.stato !== "tutti" && !no.stato) {
-    if (!cadeNelloStato(r.motivo, r.data, f.stato)) return false;
+  if (!no.stato) {
+    if (f.stato && f.stato !== "tutti") {
+      if (!cadeNelloStato(r.motivo, r.data, f.stato)) return false;
+    } else if (r.inCoda === false) {
+      //  Nessuna pillola scelta: la lista è la coda, e chi è fuori coda
+      //  (Attesa WhatsApp che sta ancora aspettando) non c'è.
+      return false;
+    }
   }
   if (f.quando && !no.quando && !dentroLaFetta(r.data, f.quando, oggi)) return false;
   if (f.origine && !no.origine && origineDi(r.data).via !== f.origine) return false;
