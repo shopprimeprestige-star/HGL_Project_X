@@ -209,7 +209,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     });
     await col.avvia();
     const s1 = socket[0];
-    c("socket: opzioni del §a3", { browser: ["Mac OS", "Desktop", "14.4.1"], syncFullHistory: true, markOnlineOnConnect: false, logger: K.LOGGER_MUTO, auth: { cartella: P.auth } }, { browser: s1.opzioni.browser, syncFullHistory: s1.opzioni.syncFullHistory, markOnlineOnConnect: s1.opzioni.markOnlineOnConnect, logger: s1.opzioni.logger, auth: s1.opzioni.auth });
+    c("socket: opzioni del §a3", { browser: ["Mac OS", "Chrome", "14.4.1"], syncFullHistory: true, markOnlineOnConnect: false, logger: K.LOGGER_MUTO, auth: { cartella: P.auth } }, { browser: s1.opzioni.browser, syncFullHistory: s1.opzioni.syncFullHistory, markOnlineOnConnect: s1.opzioni.markOnlineOnConnect, logger: s1.opzioni.logger, auth: s1.opzioni.auth });
     c("socket: getMessage non restituisce mai un messaggio (niente reinvii)", undefined, await s1.opzioni.getMessage({ id: "X" }));
     c("auth/ creata con permessi 700", 0o700, permessi(P.auth));
     await s1.emetti("creds.update", {});
