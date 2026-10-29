@@ -7,12 +7,14 @@ import {
   MessageCircle,
   MoreVertical,
   Phone,
+  Sparkles,
   Trash2,
   UserPlus,
   UserRound,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +31,8 @@ import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
 import { Casella } from "./Casella";
+import { BarraRispostaAi } from "./BarraRispostaAi";
+import { useRispostaAi } from "./useRispostaAi";
 import { initials, numeroLeggibile } from "./formati";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
@@ -64,6 +68,20 @@ export function Conversazione({
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  //  ── RISPOSTA AI (29/10/2026) ───────────────────────────────────────────
+  //  Si scelgono 1-4 messaggi, il Mac scrive la risposta e la mette nella
+  //  casella. La bozza si legge quando arriva (ref): nel frattempo si può
+  //  aver scritto altro, e quello resta, con la risposta sotto.
+  const bozzaRef = useRef(api.bozza);
+  bozzaRef.current = api.bozza;
+  const ai = useRispostaAi({
+    telefono: attiva?.phone ?? null,
+    messaggi,
+    onRisposta: (t) => {
+      const prima = bozzaRef.current.trim();
+      api.setBozza(prima ? `${bozzaRef.current.trimEnd()}\n\n${t}` : t);
+    },
+  });
   /** Si sta guardando la fine della chat (vedi l'effetto qui sotto). */
   const inFondo = useRef(true);
 
@@ -298,46 +316,112 @@ export function Conversazione({
           )}
 
           {/* Messaggi */}
-          <div
-            ref={scrollRef}
-            role="log"
-            aria-label="Messaggi della chat"
-            //  Sfondo tenue di WhatsApp (#efeae2): le bolle bianche ci si staccano senza bordi.
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#efeae2] px-2.5 py-2 md:px-[6%] md:py-3"
-          >
-            <div className="mx-auto flex max-w-3xl flex-col">
-              {messaggi.length === 0 ? (
-                <div className="mt-4 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
-                  Nessun messaggio ancora · scrivi il primo
-                </div>
-              ) : (
-                messaggi.map((m, i) => {
-                  const d = new Date(m.created_at);
-                  const prima = i > 0 ? new Date(messaggi[i - 1].created_at) : null;
-                  const nuovoGiorno =
-                    !Number.isNaN(d.getTime()) && (!prima || giornoRoma(prima) !== giornoRoma(d));
-                  return (
-                    <Fragment key={m.id}>
-                      {nuovoGiorno && (
-                        <div className="sticky top-1 z-10 mb-1 mt-3 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first:mt-0 first-letter:uppercase">
-                          {etichettaGiorno(d, adesso)}
-                        </div>
-                      )}
-                      <BollaMessaggio
-                        messaggio={m}
-                        lead={attiva.lead}
-                        attaccata={
-                          !nuovoGiorno && attaccataAllaPrecedente(m, messaggi[i - 1] ?? null)
-                        }
-                      />
-                    </Fragment>
-                  );
-                })
-              )}
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div
+              ref={scrollRef}
+              role="log"
+              aria-label="Messaggi della chat"
+              //  Sfondo tenue di WhatsApp (#efeae2): le bolle bianche ci si staccano senza bordi.
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#efeae2] px-2.5 py-2 md:px-[6%] md:py-3"
+            >
+              <div
+                className={cn(
+                  "mx-auto flex max-w-3xl flex-col",
+                  //  Spazio sotto l'ultima bolla per il tasto «Rispondi con AI».
+                  !ai.attivo && "pb-14 md:pb-12",
+                )}
+              >
+                {messaggi.length === 0 ? (
+                  <div className="mt-4 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
+                    Nessun messaggio ancora · scrivi il primo
+                  </div>
+                ) : (
+                  messaggi.map((m, i) => {
+                    const d = new Date(m.created_at);
+                    const prima = i > 0 ? new Date(messaggi[i - 1].created_at) : null;
+                    const nuovoGiorno =
+                      !Number.isNaN(d.getTime()) && (!prima || giornoRoma(prima) !== giornoRoma(d));
+                    return (
+                      <Fragment key={m.id}>
+                        {nuovoGiorno && (
+                          <div className="sticky top-1 z-10 mb-1 mt-3 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first:mt-0 first-letter:uppercase">
+                            {etichettaGiorno(d, adesso)}
+                          </div>
+                        )}
+                        {ai.attivo && m.body?.trim() ? (
+                          //  In scelta: tutta la riga si tocca; il segno a sinistra
+                          //  dice se è scelto (come «Seleziona» di WhatsApp).
+                          <div
+                            role="checkbox"
+                            aria-checked={ai.scelti.includes(m.id)}
+                            aria-label="Scegli questo messaggio per la risposta AI"
+                            tabIndex={0}
+                            onClick={() => ai.fase === "scelta" && ai.cambia(m.id)}
+                            onKeyDown={(e) => {
+                              if ((e.key === " " || e.key === "Enter") && ai.fase === "scelta") {
+                                e.preventDefault();
+                                ai.cambia(m.id);
+                              }
+                            }}
+                            className={cn(
+                              "-mx-2.5 flex cursor-pointer items-center gap-2 px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 md:-mx-3 md:px-3",
+                              ai.scelti.includes(m.id) && "bg-violet-500/15",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "grid h-5 w-5 shrink-0 place-items-center rounded-full border-2",
+                                ai.scelti.includes(m.id)
+                                  ? "border-violet-600 bg-violet-600 text-white"
+                                  : "border-[#8696a0] bg-white",
+                              )}
+                              aria-hidden
+                            >
+                              {ai.scelti.includes(m.id) && <Check className="h-3 w-3" />}
+                            </span>
+                            <div className="pointer-events-none min-w-0 flex-1 flex flex-col">
+                              <BollaMessaggio
+                                messaggio={m}
+                                lead={attiva.lead}
+                                attaccata={
+                                  !nuovoGiorno &&
+                                  attaccataAllaPrecedente(m, messaggi[i - 1] ?? null)
+                                }
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <BollaMessaggio
+                            messaggio={m}
+                            lead={attiva.lead}
+                            attaccata={
+                              !nuovoGiorno && attaccataAllaPrecedente(m, messaggi[i - 1] ?? null)
+                            }
+                          />
+                        )}
+                      </Fragment>
+                    );
+                  })
+                )}
+              </div>
             </div>
+
+            {/*  Il tasto della risposta AI: in basso a destra sopra i messaggi,
+              per non togliere spazio alla barra in alto sul telefono. */}
+            {!ai.attivo && messaggi.some((m) => m.body?.trim()) && (
+              <Button
+                onClick={ai.apri}
+                className="absolute bottom-3 right-3 z-20 h-11 rounded-full bg-violet-600 px-4 text-white shadow-lg hover:bg-violet-700 md:h-9"
+                aria-label="Rispondi con l'AI: scegli i messaggi"
+                title="Scegli i messaggi e il Mac scrive la risposta"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="text-[13px]">Rispondi con AI</span>
+              </Button>
+            )}
           </div>
 
-          <Casella api={api} />
+          {ai.attivo ? <BarraRispostaAi ai={ai} /> : <Casella api={api} />}
         </>
       )}
     </section>

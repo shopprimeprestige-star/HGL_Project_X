@@ -474,6 +474,9 @@ const MODULI = [
   "importa/attesa-da-chiamare",
   //  ⚠️ «Da chiamare» nella chat WhatsApp: vedi proveDelDaChiamare.
   "chatwa/daChiamare",
+  //  ⚠️ La risposta scritta dall'AI sul Mac: vedi proveDelleRisposteAi.
+  "risposte-ai/regole",
+  "risposte-ai/ingresso",
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
   "push/webpush",
   "push/avviso",
@@ -20858,6 +20861,7 @@ await proveDelleNotifichePush();
 proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
+await proveDelleRisposteAi();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21122,7 +21126,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
@@ -21472,4 +21476,129 @@ function proveDelRiquadroDelPromemoria() {
   c("ricorda il consenso prima di accendere", true, /consenso|modulo di prenotazione/i.test(pan));
   const doc = readFileSync(join(radice, "docs/whatsapp-setup.md"), "utf8");
   c("il documento di setup ha la sezione e la riga del cron", true, /Conferma consulenze/.test(doc) && doc.includes("SELECT public.programma_hook_cron('promemoria-whatsapp-2min', '*/2 * * * *', '/hooks/promemoria-whatsapp');"));
+}
+
+async function proveDelleRisposteAi() {
+  gruppo("CHAT WHATSAPP: RISPOSTA SCRITTA DALL'AI SUL MAC");
+  const R = mod["risposte-ai/regole"];
+  const I = mod["risposte-ai/ingresso"];
+  const P = await import(join(radice, "strumenti/risposte-ai/src/prompt.mjs"));
+  const ID = "11111111-2222-4333-8444-555555555555";
+
+  //  Il corpo del Mac
+  c("prendi", { azione: "prendi" }, R.leggiRichiestaMac({ azione: "prendi" }));
+  c("consegna pulita", { azione: "consegna", id: ID, risposta: "Buongiorno Mario" }, R.leggiRichiestaMac({ azione: "consegna", id: ID, risposta: " «Buongiorno Mario» " }));
+  c("consegna vuota: no", null, R.leggiRichiestaMac({ azione: "consegna", id: ID, risposta: "  " }));
+  c("id non uuid: no", null, R.leggiRichiestaMac({ azione: "consegna", id: "1; drop", risposta: "x" }));
+  c("errore libero diventa un codice", { azione: "fallita", id: ID, errore: "errore" }, R.leggiRichiestaMac({ azione: "fallita", id: ID, errore: "Mario Rossi 333" }));
+  c("errore col codice giusto", "tempo_scaduto", R.leggiRichiestaMac({ azione: "fallita", id: ID, errore: "tempo_scaduto" }).errore);
+  c("azione sconosciuta / array: no", [null, null], [R.leggiRichiestaMac({ azione: "x", id: ID }), R.leggiRichiestaMac([1])]);
+
+  //  La pulizia del testo
+  c("senza «Risposta:» e blocchi di codice", "Salve, certo.", R.pulisciRisposta("```\nRisposta: Salve, certo.\n```"));
+  c("virgolette tolte solo se avvolgono tutto", 'Lei ha detto "sì" e "no"', R.pulisciRisposta('Lei ha detto "sì" e "no"'));
+  c("righe vuote in eccesso", "a\n\nb", R.pulisciRisposta("a\n\n\n\nb"));
+  c("tagliata al limite", R.LIMITE_RISPOSTA, R.pulisciRisposta("x".repeat(9000)).length);
+
+  //  Il lavoro per il Mac
+  const msg = (id, direction, body, min) => ({ id, direction, body, created_at: new Date(Date.UTC(2026, 9, 29, 8, min)).toISOString() });
+  const chat = [msg("a", "outbound", "Buongiorno, sono Luca", 0), msg("b", "inbound", "Quanto costa?", 5), msg("c", "inbound", "E dove siete?", 6), msg("d", "inbound", null, 7)];
+  const L = R.lavoroPerMac({ id: ID, scelti: ["b", "c"], messaggi: [...chat].reverse(), lead: { nome: "Mario", stato: "attesa_whatsapp", dataMeeting: "2026-10-30", oraMeeting: "18:00", telefono: "3331234567", email: "m@x.it" }, consulente: "Luca" });
+  c("in ordine di tempo, senza i vuoti", ["noi", "cliente", "cliente"], L.messaggi.map((m) => m.chi));
+  c("i scelti segnati", [false, true, true], L.messaggi.map((m) => m.scelto));
+  c("la scheda in due righe", { nome: "Mario", stato: "Attesa WhatsApp", consulenza: "2026-10-30 alle 18:00", consulente: "Luca", note: null }, L.cliente);
+  c("niente telefono né email per il modello", false, /3331234567|m@x\.it/.test(JSON.stringify(L)));
+  c("scelti che non ci sono: nessun lavoro", null, R.lavoroPerMac({ id: ID, scelti: ["z"], messaggi: chat }));
+  const lunga = Array.from({ length: 40 }, (_, i) => msg(`m${i}`, i % 2 ? "inbound" : "outbound", `t${i}`, i));
+  const L2 = R.lavoroPerMac({ id: ID, scelti: ["m3"], messaggi: lunga });
+  c("un scelto vecchio c'è lo stesso, col contesto da lì", ["m3", 37], [L2.messaggi[0].testo === "t3" ? "m3" : "?", L2.messaggi.length]);
+  c("contesto: gli ultimi 20 se i scelti sono recenti", 20, R.lavoroPerMac({ id: ID, scelti: ["m39"], messaggi: lunga }).messaggi.length);
+
+  //  Nel CRM
+  c("scelti di partenza: i messaggi del cliente dopo la nostra ultima", ["b", "c"], R.sceltiDiPartenza(chat.slice(0, 3)));
+  c("…al massimo 4", 4, R.sceltiDiPartenza(Array.from({ length: 6 }, (_, i) => msg(`x${i}`, "inbound", "ciao", i))).length);
+  c("…nessuno se l'ultima è nostra", [], R.sceltiDiPartenza([...chat.slice(0, 3), msg("e", "outbound", "ok", 9)]));
+  const ora = new Date("2026-10-29T10:00:00Z");
+  c("Mac acceso / spento / non so", [true, false, null], [R.pcAcceso("2026-10-29T09:59:40Z", ora), R.pcAcceso("2026-10-29T09:50:00Z", ora), R.pcAcceso(null, ora)]);
+  c("ogni errore ha una frase", true, ["claude_non_trovato", "tempo_scaduto", "x"].every((k) => R.erroreInChiaro(k).length > 10));
+
+  //  La rotta del Mac, con porte finte
+  const SEG = "s".repeat(40);
+  const finte = (o = {}) => {
+    const reg = { avvisi: [], chiusi: [], battiti: 0, utenti: [] };
+    const coda = [...(o.coda ?? [])];
+    return {
+      reg,
+      porte: {
+        avviso: (k) => reg.avvisi.push(k),
+        utente: async () => (o.utente === undefined ? "U1" : o.utente),
+        battito: async (u) => { reg.battiti++; reg.utenti.push(u); },
+        prendi: async (u) => { reg.utenti.push(u); return coda.shift() ?? null; },
+        messaggiChat: async (u, t, scelti) => { reg.utenti.push(u); reg.scelti = scelti; return o.messaggi ?? chat; },
+        scheda: async (u) => { reg.utenti.push(u); return { lead: { nome: "Mario" }, consulente: null }; },
+        chiudi: async (u, id, e) => { reg.utenti.push(u); reg.chiusi.push([id, e]); return o.chiudi ?? true; },
+      },
+    };
+  };
+  const rich = (corpo, token = SEG) => new Request("https://x/api/public/risposte-ai", { method: "POST", headers: token ? { "x-hgl-token": token } : {}, body: typeof corpo === "string" ? corpo : JSON.stringify(corpo) });
+  const esegui = async (f, corpo, o = {}) => {
+    const r = await I.gestisciRisposteAi(f.porte, { request: rich(corpo, o.token), segreto: o.segreto === undefined ? SEG : o.segreto });
+    return { stato: r.status, corpo: await r.json() };
+  };
+  let f = finte();
+  c("senza segreto: 503", 503, (await esegui(f, { azione: "prendi" }, { segreto: "" })).stato);
+  c("segreto corto: 503", 503, (await esegui(f, { azione: "prendi" }, { segreto: "corto" })).stato);
+  c("chiave sbagliata: 401", 401, (await esegui(f, { azione: "prendi" }, { token: "x".repeat(40) })).stato);
+  c("senza chiave: 401", 401, (await esegui(f, { azione: "prendi" }, { token: null })).stato);
+  c("corpo non valido: 400", 400, (await esegui(f, "{rotto")).stato);
+  f = finte();
+  let r = await esegui(f, { azione: "prendi" });
+  c("niente in coda: lavoro null, e il battito c'è", [200, null, 1], [r.stato, r.corpo.lavoro, f.reg.battiti]);
+  f = finte({ coda: [{ id: ID, telefono: "+393331234567", messaggi: ["b"], indicazione: "breve" }] });
+  r = await esegui(f, { azione: "prendi" });
+  c("in coda: il lavoro con i scelti e l'indicazione", [ID, "breve", 1], [r.corpo.lavoro.id, r.corpo.lavoro.indicazione, r.corpo.lavoro.messaggi.filter((m) => m.scelto).length]);
+  c("…i scelti arrivano a chi legge i messaggi", ["b"], f.reg.scelti);
+  c("…sempre l'utente dell'installazione", ["U1"], [...new Set(f.reg.utenti)]);
+  c("…niente numero nel lavoro", false, JSON.stringify(r.corpo).includes("3331234567"));
+  f = finte({ coda: [{ id: ID, telefono: "+39333", messaggi: ["z"] }, { id: "2" + ID.slice(1), telefono: "+39333", messaggi: ["c"] }] });
+  r = await esegui(f, { azione: "prendi" });
+  c("messaggi spariti: chiusa con errore e si passa alla successiva", [[ID, { errore: "messaggi_mancanti" }]], f.reg.chiusi);
+  c("…e il Mac ha la successiva", "2" + ID.slice(1), r.corpo.lavoro.id);
+  f = finte();
+  r = await esegui(f, { azione: "consegna", id: ID, risposta: "Salve Mario" });
+  c("consegna: chiusa con la risposta", [200, [[ID, { risposta: "Salve Mario" }]]], [r.stato, f.reg.chiusi]);
+  f = finte({ chiudi: false });
+  c("consegna di una non più in lavoro: 409", 409, (await esegui(f, { azione: "fallita", id: ID, errore: "tempo_scaduto" })).stato);
+  f = finte({ utente: null });
+  c("installazione senza utente: 503", 503, (await esegui(f, { azione: "prendi" })).stato);
+  f = finte();
+  f.porte.prendi = async () => { throw new Error("db giù"); };
+  r = await esegui(f, { azione: "prendi" });
+  c("database giù: 500 e solo un codice nel log", [500, ["errore_database"]], [r.stato, f.reg.avvisi]);
+
+  //  Le istruzioni per Haiku
+  const sis = P.istruzioni([{ nome: "voce.md", testo: "Parliamo semplice." }, { nome: "vuoto", testo: "  " }]);
+  c("le regole: lei, niente prezzi, niente firma, niente invenzioni", true, /«lei»/.test(sis) && /Mai prezzi/.test(sis) && /Niente firma/.test(sis) && /Non inventare/.test(sis));
+  c("…i documenti dentro, i vuoti no", [true, false], [sis.includes("### voce.md\nParliamo semplice."), sis.includes("### vuoto")]);
+  c("…con un tetto alla conoscenza", true, P.istruzioni(Array.from({ length: 10 }, (_, i) => ({ nome: `f${i}`, testo: "x".repeat(20000) }))).length < P.MAX_CONOSCENZA + 3000);
+  c("…senza documenti restano le regole", true, P.istruzioni([]).startsWith("Scrivi le bozze"));
+  const dom = P.domanda(L);
+  c("la domanda: ▶ sui scelti, chi parla, la scheda", true, /▶ \[.*\] CLIENTE: Quanto costa\?/.test(dom) && /  \[.*\] NOI: Buongiorno/.test(dom) && /Nome: Mario/.test(dom));
+  c("…l'indicazione del titolare quando c'è", [false, true], [dom.includes("INDICAZIONE"), P.domanda({ ...L, indicazione: "più breve" }).includes("INDICAZIONE DEL TITOLARE: più breve")]);
+  c("esito claude: risposta", { risposta: "Salve" }, P.esitoClaude(JSON.stringify({ is_error: false, result: "Salve" }), 0));
+  c("esito claude: accesso", { errore: "accesso_claude" }, P.esitoClaude(JSON.stringify({ is_error: true, result: "Not logged in · Please run /login" }), 1));
+  c("esito claude: vuoto / rotto", [{ errore: "risposta_vuota" }, { errore: "errore_claude" }], [P.esitoClaude(JSON.stringify({ is_error: false, result: " " }), 0), P.esitoClaude("boh", 1)]);
+
+  //  Il sorgente: utente in ogni tabella dell'installazione, niente testi nei log
+  const srv = readFileSync(join(radice, "src/crm/risposte-ai/porte.server.ts"), "utf8");
+  const catene = srv.split(/\.from\(/).slice(1);
+  c("porte: ogni tabella dell'installazione filtrata per utente", [], catene.filter((t) => !/^"(app_config|manychat_config)"/.test(t) && !/\.eq\("user_id", userId\)/.test(t.split(";")[0])).map((t) => t.slice(0, 30)));
+  c("porte: nei log solo codici", true, (srv.match(/console\.\w+\([^)]*\)/g) ?? []).every((x) => /\[risposte-ai\]/.test(x) && !/telefono|testo|body|risposta\b/.test(x)));
+  const servizio = readFileSync(join(radice, "strumenti/risposte-ai/src/index.mjs"), "utf8");
+  c("servizio: Haiku, senza strumenti né impostazioni", true, /"--model",\s*"haiku"/.test(servizio) && /"--tools",\s*""/.test(servizio) && /"--setting-sources",\s*""/.test(servizio) && /--strict-mcp-config/.test(servizio));
+  c("servizio: nessuna chiave scritta, si legge dal ponte", [false, true], [/[A-Za-z0-9]{40,}/.test(servizio), /ponte-wa\/config\.env/.test(servizio)]);
+  const sql = readFileSync(join(radice, "supabase/migrations/20261029200000_risposte_ai.sql"), "utf8");
+  c("migrazione: RLS, leggo e chiedo solo le mie, niente UPDATE per gli utenti", [true, true, true, false], [/ENABLE ROW LEVEL SECURITY/.test(sql), /FOR SELECT TO authenticated\s+USING \(auth\.uid\(\) = user_id\)/.test(sql), /FOR INSERT TO authenticated[\s\S]*stato = 'in_coda'/.test(sql), /FOR (UPDATE|ALL|DELETE) TO/.test(sql)]);
+  c("migrazione: la funzione solo al server", true, /REVOKE ALL ON FUNCTION public\.risposte_ai_prendi\(uuid\) FROM PUBLIC, anon, authenticated/.test(sql) && /TO service_role/.test(sql));
+  c("migrazione: niente DROP né DELETE fuori dai commenti", false, /^\s*(DROP TABLE|DELETE|TRUNCATE)/im.test(sql.replace(/^--.*$/gm, "")));
 }

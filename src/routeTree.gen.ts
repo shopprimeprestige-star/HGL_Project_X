@@ -111,6 +111,7 @@ import { Route as ApiPublicValidateDiscountRouteImport } from './routes/api.publ
 import { Route as ApiPublicTurnRouteImport } from './routes/api.public.turn'
 import { Route as ApiPublicSheetsIngressoRouteImport } from './routes/api.public.sheets-ingresso'
 import { Route as ApiPublicSalaAttesaRouteImport } from './routes/api.public.sala-attesa'
+import { Route as ApiPublicRisposteAiRouteImport } from './routes/api.public.risposte-ai'
 import { Route as ApiPublicRegiaGruppoRouteImport } from './routes/api.public.regia-gruppo'
 import { Route as ApiPublicQuoteCreateRouteImport } from './routes/api.public.quote-create'
 import { Route as ApiPublicQuoteRouteImport } from './routes/api.public.quote'
@@ -719,6 +720,11 @@ const ApiPublicSheetsIngressoRoute = ApiPublicSheetsIngressoRouteImport.update({
 const ApiPublicSalaAttesaRoute = ApiPublicSalaAttesaRouteImport.update({
   id: '/api/public/sala-attesa',
   path: '/api/public/sala-attesa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRisposteAiRoute = ApiPublicRisposteAiRouteImport.update({
+  id: '/api/public/risposte-ai',
+  path: '/api/public/risposte-ai',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRegiaGruppoRoute = ApiPublicRegiaGruppoRouteImport.update({
@@ -1404,6 +1410,7 @@ export interface FileRoutesByFullPath {
   '/api/public/quote': typeof ApiPublicQuoteRoute
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
+  '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
@@ -1599,6 +1606,7 @@ export interface FileRoutesByTo {
   '/api/public/quote': typeof ApiPublicQuoteRoute
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
+  '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
@@ -1800,6 +1808,7 @@ export interface FileRoutesById {
   '/api/public/quote': typeof ApiPublicQuoteRoute
   '/api/public/quote-create': typeof ApiPublicQuoteCreateRoute
   '/api/public/regia-gruppo': typeof ApiPublicRegiaGruppoRoute
+  '/api/public/risposte-ai': typeof ApiPublicRisposteAiRoute
   '/api/public/sala-attesa': typeof ApiPublicSalaAttesaRoute
   '/api/public/sheets-ingresso': typeof ApiPublicSheetsIngressoRoute
   '/api/public/turn': typeof ApiPublicTurnRoute
@@ -2002,6 +2011,7 @@ export interface FileRouteTypes {
     | '/api/public/quote'
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
+    | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
     | '/api/public/turn'
@@ -2197,6 +2207,7 @@ export interface FileRouteTypes {
     | '/api/public/quote'
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
+    | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
     | '/api/public/turn'
@@ -2397,6 +2408,7 @@ export interface FileRouteTypes {
     | '/api/public/quote'
     | '/api/public/quote-create'
     | '/api/public/regia-gruppo'
+    | '/api/public/risposte-ai'
     | '/api/public/sala-attesa'
     | '/api/public/sheets-ingresso'
     | '/api/public/turn'
@@ -2557,6 +2569,7 @@ export interface RootRouteChildren {
   ApiPublicQuoteRoute: typeof ApiPublicQuoteRoute
   ApiPublicQuoteCreateRoute: typeof ApiPublicQuoteCreateRoute
   ApiPublicRegiaGruppoRoute: typeof ApiPublicRegiaGruppoRoute
+  ApiPublicRisposteAiRoute: typeof ApiPublicRisposteAiRoute
   ApiPublicSalaAttesaRoute: typeof ApiPublicSalaAttesaRoute
   ApiPublicSheetsIngressoRoute: typeof ApiPublicSheetsIngressoRoute
   ApiPublicTurnRoute: typeof ApiPublicTurnRoute
@@ -3279,6 +3292,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/sala-attesa'
       fullPath: '/api/public/sala-attesa'
       preLoaderRoute: typeof ApiPublicSalaAttesaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/risposte-ai': {
+      id: '/api/public/risposte-ai'
+      path: '/api/public/risposte-ai'
+      fullPath: '/api/public/risposte-ai'
+      preLoaderRoute: typeof ApiPublicRisposteAiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/regia-gruppo': {
@@ -4248,6 +4268,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicQuoteRoute: ApiPublicQuoteRoute,
   ApiPublicQuoteCreateRoute: ApiPublicQuoteCreateRoute,
   ApiPublicRegiaGruppoRoute: ApiPublicRegiaGruppoRoute,
+  ApiPublicRisposteAiRoute: ApiPublicRisposteAiRoute,
   ApiPublicSalaAttesaRoute: ApiPublicSalaAttesaRoute,
   ApiPublicSheetsIngressoRoute: ApiPublicSheetsIngressoRoute,
   ApiPublicTurnRoute: ApiPublicTurnRoute,
