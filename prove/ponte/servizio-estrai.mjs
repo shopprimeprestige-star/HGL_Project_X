@@ -189,15 +189,15 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   );
   c("codice: al più 40 caratteri", true, E.codice("a".repeat(100)).length <= 40);
   c(
-    "tipoBaileys: il tipo dopo gli involucri, senza il contorno",
+    "tipoGrezzo: il tipo dopo gli involucri, senza il contorno",
     ["conversation", "template_message", "placeholder_message", "stub", "vuoto", "vuoto"],
     [
-      E.tipoBaileys(wa({ messageContextInfo: {}, conversation: "x" })),
-      E.tipoBaileys(wa({ ephemeralMessage: { message: { templateMessage: {} } } })),
-      E.tipoBaileys(wa({ placeholderMessage: { type: 0 } })),
-      E.tipoBaileys(wa(undefined, {}, { messageStubType: 2 })),
-      E.tipoBaileys(wa(undefined)),
-      E.tipoBaileys(null),
+      E.tipoGrezzo(wa({ messageContextInfo: {}, conversation: "x" })),
+      E.tipoGrezzo(wa({ ephemeralMessage: { message: { templateMessage: {} } } })),
+      E.tipoGrezzo(wa({ placeholderMessage: { type: 0 } })),
+      E.tipoGrezzo(wa(undefined, {}, { messageStubType: 2 })),
+      E.tipoGrezzo(wa(undefined)),
+      E.tipoGrezzo(null),
     ],
   );
   const nodo = (figli) => ({ tag: "message", attrs: { id: "3EB0AA09", from: `${NOI}@s.whatsapp.net`, recipient: JID, t: String(TS) }, content: figli });
@@ -247,7 +247,7 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("nodo ospitato senza orario → orario_non_valido", { scarto: "orario_non_valido" }, dalNodo(nodoOsp({ t: undefined })));
   c("nodo ospitato con id non valido → id_non_valido", { scarto: "id_non_valido" }, dalNodo(nodoOsp({ id: "a b" })));
   c("nodo senza attrs o non oggetto → non_ospitato, nessun errore", [{ scarto: "non_ospitato" }, { scarto: "fanout_non_nostro" }], [dalNodo(null), dalNodo({ tag: "message", content: ospitato })]);
-  c("il messaggio finto del nodo non ha testo né message", [undefined, "invio_nascosto"], [E.messaggioDaNodo(nodoOsp({}), { proprioNumero: NOI }).wamsg.message, E.tipoBaileys(E.messaggioDaNodo(nodoOsp({}), { proprioNumero: NOI }).wamsg)]);
+  c("il messaggio finto del nodo non ha testo né message", [undefined, "invio_nascosto"], [E.messaggioDaNodo(nodoOsp({}), { proprioNumero: NOI }).wamsg.message, E.tipoGrezzo(E.messaggioDaNodo(nodoOsp({}), { proprioNumero: NOI }).wamsg)]);
   c("un WAMessage vero senza message resta vuoto (il segno non si può falsificare dal proto)", { scarto: "vuoto" }, solo(wa(undefined, {}, { invioNascosto: true })));
 
   //  Le cifre del JID, la regola unica.

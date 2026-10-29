@@ -29,7 +29,7 @@
  *   codici fissi e contatori.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, risolutoreLid, tipoBaileys } from "./estrai.mjs";
+import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
 import { codiceChiusura, decidi, STORIA_VUOTA } from "./riconnessione.mjs";
 
 const muto = () => undefined;
@@ -180,7 +180,7 @@ export function creaCollegamento({
     let ultimo = 0;
     for (const m of lista) {
       estrazione.letti++;
-      conta(diagnosi.tipi, `${m?.key?.fromMe ? "out" : "in"}_${tipoBaileys(m)}`);
+      conta(diagnosi.tipi, `${m?.key?.fromMe ? "out" : "in"}_${tipoGrezzo(m)}`);
       const r = leggiMessaggio(m, { proprioNumero, risolviLid, adesso: Math.floor(orologio() / 1000), dal });
       if (!r.ok) {
         conta(diagnosi.scarti, r.motivo);

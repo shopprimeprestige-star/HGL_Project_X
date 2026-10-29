@@ -261,7 +261,7 @@ export function codice(x) {
 /** Diagnosi: il tipo grezzo di un `WAMessage` (la prima chiave di contenuto
  *  dopo gli involucri), come codice. `stub` = messaggio di sistema o non
  *  decifrato; `vuoto` = niente contenuto. Mai il testo. */
-export function tipoBaileys(wamsg) {
+export function tipoGrezzo(wamsg) {
   if (!wamsg || typeof wamsg !== "object") return "vuoto";
   if (wamsg[SEGNO_INVIO_NASCOSTO]) return "invio_nascosto";
   if (wamsg.messageStubType) return "stub";
