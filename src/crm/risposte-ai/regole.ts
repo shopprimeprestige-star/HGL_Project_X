@@ -24,7 +24,7 @@ export const MAX_SCELTI = 4;
 export const MESSAGGI_CONTESTO = 20;
 /** Il Mac chiede lavoro ogni pochi secondi: se tace da più di così è spento. */
 export const PC_SPENTO_DOPO_S = 45;
-/** Dopo quanto il CRM smette di aspettare (la tabella scade a 10 minuti). */
+/** Dopo quanto il CRM smette di aspettare: la migrazione usa la stessa finestra. */
 export const ATTESA_MAX_S = 180;
 export const CHIAVE_BATTITO = "risposte_ai_battito";
 export const LIMITE_RISPOSTA = 4000;

@@ -65,7 +65,7 @@ export function BarraRispostaAi({ ai }: { ai: RispostaAiApi }) {
         {ai.pc === false && !attesa && (
           <p className="text-[12px] leading-snug text-amber-800">
             Il Mac non si sente da qualche minuto: la richiesta parte lo stesso e la risposta arriva
-            appena si riaccende (entro 3 minuti, poi si annulla).
+            se si riaccende entro 3 minuti, poi si annulla.
           </p>
         )}
         <div className="flex items-center gap-2">

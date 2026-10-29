@@ -324,7 +324,13 @@ export function Conversazione({
               //  Sfondo tenue di WhatsApp (#efeae2): le bolle bianche ci si staccano senza bordi.
               className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#efeae2] px-2.5 py-2 md:px-[6%] md:py-3"
             >
-              <div className="mx-auto flex max-w-3xl flex-col">
+              <div
+                className={cn(
+                  "mx-auto flex max-w-3xl flex-col",
+                  //  Spazio sotto l'ultima bolla per il tasto «Rispondi con AI».
+                  !ai.attivo && "pb-14 md:pb-12",
+                )}
+              >
                 {messaggi.length === 0 ? (
                   <div className="mt-4 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
                     Nessun messaggio ancora · scrivi il primo

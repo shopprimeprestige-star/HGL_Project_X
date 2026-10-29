@@ -62,9 +62,9 @@ CREATE POLICY "risposte ai: chiedo per me"
     AND finita_il IS NULL
   );
 
--- Prende la richiesta più vecchia ancora valida (ultimi 10 minuti): quella in
--- coda, o una presa da più di 3 minuti e mai finita (il Mac si era fermato a
--- metà). Una sola alla volta, senza doppioni anche con due Mac.
+-- Prende la richiesta più vecchia ancora valida (ultimi 3 minuti, quanto il
+-- CRM aspetta: dopo, nessuno la legge più): quella in coda, o una presa da
+-- più di 2 minuti e mai finita (il Mac si era fermato a metà). Una sola alla volta, senza doppioni anche con due Mac.
 CREATE OR REPLACE FUNCTION public.risposte_ai_prendi(p_user_id uuid)
 RETURNS SETOF public.wa_risposte_ai
 LANGUAGE plpgsql
@@ -78,9 +78,9 @@ BEGIN
    WHERE r.id = (
      SELECT x.id FROM public.wa_risposte_ai x
       WHERE x.user_id = p_user_id
-        AND x.creata_il > now() - interval '10 minutes'
+        AND x.creata_il > now() - interval '3 minutes'
         AND (x.stato = 'in_coda'
-             OR (x.stato = 'in_lavoro' AND x.presa_il < now() - interval '3 minutes'))
+             OR (x.stato = 'in_lavoro' AND x.presa_il < now() - interval '2 minutes'))
       ORDER BY x.creata_il
       LIMIT 1
       FOR UPDATE SKIP LOCKED

@@ -130,25 +130,34 @@ export function useRispostaAi(p: {
     }
     const id = String(data.id);
     const fine = Date.now() + ATTESA_MAX_S * 1000;
-    while (Date.now() < fine) {
-      await new Promise((ok) => setTimeout(ok, 2000));
-      if (mio !== giro.current) return;
-      const { data: r } = await tabella("wa_risposte_ai")
-        .select("stato, risposta, errore")
-        .eq("id", id)
-        .maybeSingle();
-      if (mio !== giro.current) return;
-      if (r?.stato === "pronta" && typeof r.risposta === "string") {
-        p.onRisposta(r.risposta);
-        chiudi();
-        return;
+    try {
+      while (Date.now() < fine) {
+        await new Promise((ok) => setTimeout(ok, 2000));
+        if (mio !== giro.current) return;
+        const { data: r } = await tabella("wa_risposte_ai")
+          .select("stato, risposta, errore")
+          .eq("id", id)
+          .maybeSingle();
+        if (mio !== giro.current) return;
+        if (r?.stato === "pronta" && typeof r.risposta === "string") {
+          p.onRisposta(r.risposta);
+          chiudi();
+          return;
+        }
+        if (r?.stato === "errore") {
+          setFase("scelta");
+          setErrore(erroreInChiaro(r.errore as string | null));
+          return;
+        }
       }
-      if (r?.stato === "errore") {
-        setFase("scelta");
-        setErrore(erroreInChiaro(r.errore as string | null));
-        return;
-      }
+    } catch {
+      //  Senza rete la lettura lancia: la barra non resta su «Scrivendo…».
+      if (mio !== giro.current) return;
+      setFase("scelta");
+      setErrore("Non riesco a leggere la risposta: controlla la connessione e riprova.");
+      return;
     }
+    if (mio !== giro.current) return;
     setFase("scelta");
     setErrore(
       "Il Mac non ha risposto in tempo. Controlla che sia acceso e collegato, poi riprova.",
