@@ -23,7 +23,7 @@ export async function proveChatMedia(mod, { c, gruppo }) {
 
   const vero = classificaTesto(url("original_abc123.ogg"));
   c(".ogg del titolare → audio", "audio", vero.tipo);
-  c("  etichetta «🎤 Vocale»", "🎤 Vocale", vero.etichetta);
+  c("  etichetta «Vocale»", "Vocale", vero.etichetta);
   c("  url = href normalizzato", url("original_abc123.ogg"), vero.url);
   for (const est of ["oga", "mp3", "m4a", "opus", "aac", "amr", "OGG", "Mp3"]) {
     c(`.${est} → audio`, "audio", tipo(url(`x.${est}`)));
@@ -31,14 +31,14 @@ export async function proveChatMedia(mod, { c, gruppo }) {
   for (const est of ["jpg", "jpeg", "png", "webp", "JPG"]) {
     c(`.${est} → immagine`, "immagine", tipo(url(`x.${est}`)));
   }
-  c("immagine: etichetta «📷 Foto»", "📷 Foto", classificaTesto(url("x.jpg")).etichetta);
+  c("immagine: etichetta «Foto»", "Foto", classificaTesto(url("x.jpg")).etichetta);
   c(".mp4 → video", "video", tipo(url("x.mp4")));
-  c("video: etichetta «🎥 Video»", "🎥 Video", classificaTesto(url("x.mp4")).etichetta);
+  c("video: etichetta «Video»", "Video", classificaTesto(url("x.mp4")).etichetta);
   c(".pdf → documento", "documento", tipo(url("x.pdf")));
-  c("documento: etichetta «📎 Documento»", "📎 Documento", classificaTesto(url("x.pdf")).etichetta);
+  c("documento: etichetta «Documento»", "Documento", classificaTesto(url("x.pdf")).etichetta);
   c(".zip → allegato", "allegato", tipo(url("x.zip")));
   c("senza estensione → allegato", "allegato", tipo(url("x")));
-  c("allegato: etichetta «📎 Allegato»", "📎 Allegato", classificaTesto(url("x.zip")).etichetta);
+  c("allegato: etichetta «Allegato»", "Allegato", classificaTesto(url("x.zip")).etichetta);
   c("secondo host ammesso → audio", "audio", tipo(url("x.ogg", H2)));
   c("query string ammessa (link firmati)", "audio", tipo(url("x.ogg") + "?X-Amz-Signature=abc&e=1"));
   c("  e l'url la conserva", url("x.ogg") + "?X-Amz-Signature=abc&e=1", classificaTesto(url("x.ogg") + "?X-Amz-Signature=abc&e=1").url);
@@ -140,7 +140,7 @@ export async function proveChatMedia(mod, { c, gruppo }) {
   for (const v of [null, undefined, 5, {}, []]) c(`eSoloSegnaposto(${JSON.stringify(v)}) non lancia → false`, false, eSoloSegnaposto(v));
 
   c("{{last_input_text}} → illeggibile", "illeggibile", tipo("{{last_input_text}}"));
-  c("  etichetta «Messaggio non leggibile»", "Messaggio non leggibile", classificaTesto("{{last_input_text}}").etichetta);
+  c("  etichetta «Reazione, sticker o posizione: aprila in ManyChat»", "Reazione, sticker o posizione: aprila in ManyChat", classificaTesto("{{last_input_text}}").etichetta);
   c("  nessun url", undefined, classificaTesto("{{last_input_text}}").url);
   c("{{a}} {{b}} → illeggibile", "illeggibile", tipo("{{a}} {{b}}"));
   c("[messaggio senza testo] → illeggibile", "illeggibile", tipo("[messaggio senza testo]"));
@@ -178,13 +178,13 @@ export async function proveChatMedia(mod, { c, gruppo }) {
   c("100 caratteri esatti: invariato", "a".repeat(100), anteprimaIn("a".repeat(100)));
   c("101 caratteri → 100 + «…»", "a".repeat(100) + "…", anteprimaIn("a".repeat(101)));
   c("300 caratteri → 100 + «…»", "b".repeat(100) + "…", anteprimaIn("b".repeat(300)));
-  c("vocale → «🎤 Vocale»", "🎤 Vocale", anteprimaIn(url("x.ogg")));
-  c("foto → «📷 Foto»", "📷 Foto", anteprimaIn(url("x.jpg")));
-  c("video → «🎥 Video»", "🎥 Video", anteprimaIn(url("x.mp4")));
-  c("pdf → «📎 Documento»", "📎 Documento", anteprimaIn(url("x.pdf")));
-  c("altro allegato → «📎 Allegato»", "📎 Allegato", anteprimaIn(url("x.zip")));
-  c("{{...}} → «Messaggio non leggibile»", "Messaggio non leggibile", anteprimaIn("{{last_input_text}}"));
-  c("[messaggio senza testo] → «Messaggio non leggibile»", "Messaggio non leggibile", anteprimaIn("[messaggio senza testo]"));
+  c("vocale → «Vocale»", "Vocale", anteprimaIn(url("x.ogg")));
+  c("foto → «Foto»", "Foto", anteprimaIn(url("x.jpg")));
+  c("video → «Video»", "Video", anteprimaIn(url("x.mp4")));
+  c("pdf → «Documento»", "Documento", anteprimaIn(url("x.pdf")));
+  c("altro allegato → «Allegato»", "Allegato", anteprimaIn(url("x.zip")));
+  c("{{...}} → «Reazione, sticker o posizione: aprila in ManyChat»", "Reazione, sticker o posizione: aprila in ManyChat", anteprimaIn("{{last_input_text}}"));
+  c("[messaggio senza testo] → «Reazione, sticker o posizione: aprila in ManyChat»", "Reazione, sticker o posizione: aprila in ManyChat", anteprimaIn("[messaggio senza testo]"));
   c("link di altro host: resta il testo (troncato)", ("https://evil.example/" + "a".repeat(200)).slice(0, 100) + "…", anteprimaIn("https://evil.example/" + "a".repeat(200)));
   for (const v of [null, undefined, 5, {}, []]) {
     let esito;

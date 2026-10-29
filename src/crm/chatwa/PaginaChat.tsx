@@ -358,7 +358,7 @@ export function PaginaChat({
         {/* Colonna elenco: larghezza e visibilità qui, non nel figlio (R12) */}
         <div
           className={cn(
-            "w-full flex-col md:flex md:w-[340px] md:shrink-0",
+            "w-full flex-col md:flex md:w-[300px] md:shrink-0 lg:w-[340px]",
             conversazioneAperta ? "hidden" : "flex",
           )}
         >

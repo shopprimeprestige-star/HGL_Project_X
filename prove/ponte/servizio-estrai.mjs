@@ -76,9 +76,10 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   const blocco = media.match(/const ETICHETTE[^{]*\{([\s\S]*?)\n\};/)?.[1] ?? "";
   const etichette = Object.fromEntries([...blocco.matchAll(/(\w+): "([^"]+)"/g)].map((m) => [m[1], m[2]]));
   c(
-    "segnaposto uguali a ETICHETTE di media.ts",
+    "segnaposto uguali a ETICHETTE di media.ts (la chat toglie l'emoja davanti)",
     [etichette.immagine, etichette.audio, etichette.video, etichette.documento, etichette.allegato],
-    [E.SEGNAPOSTO.foto, E.SEGNAPOSTO.vocale, E.SEGNAPOSTO.video, E.SEGNAPOSTO.documento, E.SEGNAPOSTO.sticker],
+    [E.SEGNAPOSTO.foto, E.SEGNAPOSTO.vocale, E.SEGNAPOSTO.video, E.SEGNAPOSTO.documento, E.SEGNAPOSTO.sticker]
+      .map((t) => t.replace(/^\p{Extended_Pictographic}\uFE0F?\s+/u, "")),
   );
   c("ETICHETTE di media.ts lette davvero (5 voci)", 5, Object.keys(etichette).length);
   c("ogni tipo del ponte è un TipoContenuto", true, Object.keys(E.SEGNAPOSTO).every((x) => T.TIPI_CONTENUTO.includes(x)));
