@@ -14,6 +14,8 @@ import {
   type Sottofiltro,
 } from "./daChiamare";
 import type { ChatItem, ElencoChatProps, FiltroChat } from "./tipi";
+import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
+import { oggiIso } from "@/crm/ui";
 
 const FILTRI: { v: FiltroChat; l: string }[] = [
   { v: "all", l: "Tutte" },
@@ -60,6 +62,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const [soloStelle, setSoloStelle] = useState(false);
   //  Il sottofiltro della pillola «Da chiamare» (28/10/2026): UN elenco, ordinato per stato.
   const [sotto, setSotto] = useState<Sottofiltro>("tutti");
+  //  Quando richiamarlo (29/10/2026): Scaduti, Oggi, Domani, poi le date.
+  const [quando, setQuando] = useState<FiltroRichiamo>("tutti");
   /*  ── IL FILTRO DEL CONSULENTE (28/10/2026) ─────────────────────────────
       Richiesta del titolare: le chat dei lead assegnati a un consulente (che ha
       fatto o ha in programma la consulenza con lui: `consulenteId` della
@@ -115,7 +119,24 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const contaPillola = contaSottofiltri(api.chats.filter(delConsulente)).tutti;
   //  Un chip scelto che nel frattempo si svuota (stato cambiato dalla riga) torna a «Tutti».
   const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
-  const elencoDaChiamare = chatDaChiamare(daChiamareTutte, sottoAttivo);
+  const perStato = chatDaChiamare(daChiamareTutte, sottoAttivo);
+  /*  ── QUANDO RICHIAMARLO (29/10/2026) ───────────────────────────────────
+      Richiesta del titolare: «devo avere il filtro di quando richiamarlo, oggi,
+      domani ecc. con le date». Le voci si contano sulle chat del chip scelto;
+      una voce scelta che si svuota torna a «Tutti». Con una voce scelta
+      l'elenco va per data e ora del richiamo (prima gli scaduti). */
+  const oggi = oggiIso(new Date(adesso));
+  const vociQuando = vociFiltro(
+    perStato.map((c) => c.lead?.data),
+    oggi,
+  );
+  const quandoAttivo: FiltroRichiamo = vociQuando.some((x) => x.v === quando) ? quando : "tutti";
+  const elencoDaChiamare =
+    quandoAttivo === "tutti"
+      ? perStato
+      : perStato
+          .filter((c) => passaRichiamo(c.lead?.data, quandoAttivo, oggi))
+          .sort((a, b) => chiaveOrdine(a.lead?.data).localeCompare(chiaveOrdine(b.lead?.data)));
 
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = false) => (
     <RigaChat
@@ -241,6 +262,27 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             </button>
           ))}
         </div>
+      )}
+      {filtro === "da-chiamare" && vociQuando.length > 1 && (
+        <label className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 pb-2 text-[13px] text-muted-foreground md:px-2 md:text-[12px]">
+          <span className="shrink-0">Richiamo</span>
+          {/*  Nativa come quella del consulente: sul telefono la rotella di sistema. */}
+          <select
+            value={quandoAttivo}
+            onChange={(e) => setQuando(e.target.value)}
+            aria-label="Quando richiamarlo"
+            className={cn(
+              "h-11 min-w-0 flex-1 rounded-md border bg-background px-2 text-base text-foreground md:h-8 md:text-[13px]",
+              quandoAttivo !== "tutti" ? "border-sky-300" : "border-input",
+            )}
+          >
+            {vociQuando.map((x) => (
+              <option key={x.v} value={x.v}>
+                {x.v === "tutti" ? `Tutti (con data: ${x.n})` : `${x.l} (${x.n})`}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

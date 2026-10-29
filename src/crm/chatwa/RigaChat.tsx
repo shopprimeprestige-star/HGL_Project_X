@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCheck, ChevronDown, Phone, Star, Undo2 } from "lucide-react";
+import { CalendarClock, CheckCheck, ChevronDown, Phone, Star, Undo2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,8 @@ import { anteprimaIn, mediaInAnteprima } from "./media";
 import { IconaMedia } from "./IconaMedia";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
+import { etichettaRichiamo, stileRichiamo } from "./richiamo";
+import { oggiIso } from "@/crm/ui";
 import { formatTimeIT, initials, numeroLeggibile } from "./formati";
 import type { ChatItem } from "./tipi";
 
@@ -106,6 +108,7 @@ export function RigaChat({
   //  ha ancora l'emoji di prima del 28/10.
   const media = mediaInAnteprima(anteprima);
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
+  const richiamo = c.lead ? etichettaRichiamo(c.lead.data, oggiIso(new Date(adesso))) : null;
 
   return (
     <li className={cn("relative border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
@@ -219,6 +222,20 @@ export function RigaChat({
                 <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
               </span>
             </button>
+          )}
+          {/*  Quando richiamarlo (29/10/2026): la data messa nella finestra dello
+              stato, rossa se è passata. */}
+          {richiamo && (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none tabular-nums",
+                stileRichiamo(richiamo),
+              )}
+              title={richiamo.titolo}
+            >
+              <CalendarClock aria-hidden="true" className="h-3 w-3 shrink-0" />
+              {richiamo.testo}
+            </span>
           )}
           {/*  Finestra di 24 ore (29/10/2026, solo in «Da chiamare»): verde = si
               può scrivere, rosso = finestra chiusa, serve un modello. */}

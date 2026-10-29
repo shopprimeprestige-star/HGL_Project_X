@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Ban,
+  CalendarClock,
   Check,
   Clock,
   MessageCircle,
@@ -9,9 +10,9 @@ import {
   Phone,
   Sparkles,
   Trash2,
+  Undo2,
   UserPlus,
   UserRound,
-  Undo2,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ import { useRispostaAi } from "./useRispostaAi";
 import { initials, numeroLeggibile } from "./formati";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
+import { etichettaRichiamo, stileRichiamo } from "./richiamo";
+import { oggiIso } from "@/crm/ui";
 import { attaccataAllaPrecedente } from "./stile";
 import type { ConversazioneProps } from "./tipi";
 
@@ -116,6 +119,7 @@ export function Conversazione({
   const adesso = new Date();
   const inAttesa = attiva?.daRispondere?.attesa === true;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
+  const richiamo = attiva?.lead ? etichettaRichiamo(attiva.lead.data, oggiIso(adesso)) : null;
 
   return (
     <section className="w-full h-full flex flex-col min-w-0 bg-muted/30">
@@ -257,6 +261,20 @@ export function Conversazione({
               ) : (
                 <span className="whitespace-nowrap text-[12px] text-muted-foreground">
                   {attiva.schedaAmbigua ? "Più schede con questo numero" : "Numero senza scheda"}
+                </span>
+              )}
+              {/*  Quando richiamarlo (29/10/2026): giorno e ora per esteso nel
+                tooltip, rosso se è passato. */}
+              {richiamo && (
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[12px] font-medium leading-none tabular-nums",
+                    stileRichiamo(richiamo),
+                  )}
+                  title={richiamo.titolo}
+                >
+                  <CalendarClock aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                  {richiamo.testo}
                 </span>
               )}
               {/*  Com'è messo, per esteso: nella riga sua c'è posto per la parola. */}

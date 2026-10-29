@@ -594,6 +594,7 @@ const MODULI = [
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
+  "chatwa/richiamo",
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
   "versione-crm",
@@ -20838,6 +20839,37 @@ function proveDelloStatoAttesaWhatsapp() {
   c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
 }
 
+/** ── QUANDO RICHIAMARLO, DALLA CHAT (29/10/2026) ──────────────────────────── */
+function proveDelRichiamoInChat() {
+  gruppo("WHATSAPP: QUANDO RICHIAMARLO, NELLA RIGA E NEL FILTRO");
+  const R = mod["chatwa/richiamo"];
+  const oggi = "2026-10-29";
+  const d = (data, ora, stato = "richiamo") => ({ stato, dataRicontatto: data, oraRicontatto: ora });
+  c("legge giorno e ora del richiamo", { data: "2026-10-29", ora: "15:00" }, R.richiamoDi(d("2026-10-29", "15:00")));
+  c("l'ora è facoltativa", { data: "2026-10-30", ora: null }, R.richiamoDi(d("2026-10-30", "")));
+  c("vale anche per «ci ricontatta lui»", true, R.richiamoDi(d("2026-10-30", "", "ci_ricontatta_lui")) !== null);
+  c("una data rimasta da uno stato di prima non conta", null, R.richiamoDi(d("2026-10-30", "10:00", "appuntamento_fissato")));
+  c("pastiglia di oggi con l'ora", "Richiamo oggi 15:00", R.etichettaRichiamo(d(oggi, "15:00"), oggi).testo);
+  c("pastiglia di domani senza ora", "Richiamo domani", R.etichettaRichiamo(d("2026-10-30", null), oggi).testo);
+  c("pastiglia di un giorno più avanti", "Richiamo lun 2 nov 10:00", R.etichettaRichiamo(d("2026-11-02", "10:00"), oggi).testo);
+  const sc = R.etichettaRichiamo(d("2026-10-27", "9:30"), oggi);
+  c("scaduto: lo dice ed è rosso", ["Richiamo scaduto 27 ott 09:30", true, true],
+    [sc.testo, sc.scaduto, /red/.test(R.stileRichiamo(sc))]);
+  c("il tooltip dice il giorno per esteso", "Da richiamare martedì 27 ottobre alle 09:30", sc.titolo);
+  c("le voci: scaduti, oggi, domani, date, senza data", ["tutti:5", "scaduti:1", "oggi:1", "domani:1", "2026-11-02:1", "senza:1"],
+    R.vociFiltro([d("2026-10-27", ""), d(oggi, "15:00"), d("2026-10-30", ""), d("2026-11-02", ""), d("", ""), { stato: "non_risponde" }, null], oggi).map((x) => `${x.v}:${x.n}`));
+  c("la voce di una data si legge", "Lunedì 2 novembre", R.vociFiltro([d("2026-11-02", "")], oggi).find((x) => x.v === "2026-11-02").l);
+  c("«Oggi» prende solo quelli di oggi", [true, false], [R.passaRichiamo(d(oggi, ""), "oggi", oggi), R.passaRichiamo(d("2026-10-30", ""), "oggi", oggi)]);
+  c("«Tutti» non toglie nessuno", true, R.passaRichiamo({ stato: "non_risponde" }, "tutti", oggi));
+  c("in ordine: prima gli scaduti, poi per ora", ["a", "c", "b"],
+    [{ k: "b", d: d(oggi, "") }, { k: "c", d: d(oggi, "10:00") }, { k: "a", d: d("2026-10-27", "18:00") }]
+      .sort((x, y) => R.chiaveOrdine(x.d).localeCompare(R.chiaveOrdine(y.d))).map((x) => x.k));
+  const el = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("il filtro «Richiamo» sta in «Da chiamare»", true, /filtro === "da-chiamare" && vociQuando\.length > 1/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
+  c("la data nella riga e nell'intestazione", true,
+    ["RigaChat.tsx", "Conversazione.tsx"].every((f) => /etichettaRichiamo\(/.test(readFileSync(join(radice, "src/crm/chatwa", f), "utf8"))));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -20931,6 +20963,7 @@ proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
+proveDelRichiamoInChat();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
