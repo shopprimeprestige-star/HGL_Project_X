@@ -32,6 +32,8 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Le risposte arrivate fra M2 e la pubblicazione (vedi sopra).
+-- Esclude i messaggi del ponte WhatsApp (canale 'baileys'): sono storico, non
+-- risposte a un invio, e rilanciando questo blocco non devono sbloccare il freno.
 UPDATE public.manychat_invii i
    SET risposta_il = r.primo
   FROM (
@@ -40,6 +42,7 @@ UPDATE public.manychat_invii i
       JOIN public.whatsapp_messages w
         ON w.user_id = i2.user_id
        AND w.direction = 'inbound'
+       AND w.canale IS DISTINCT FROM 'baileys'
        AND ltrim(w.from_number, '+') = i2.telefono
        AND w.created_at > coalesce(i2.inviato_il, i2.prenotato_il)
        AND w.created_at <= coalesce(i2.inviato_il, i2.prenotato_il) + interval '7 days'
