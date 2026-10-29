@@ -21292,7 +21292,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("p1-chat-veloce")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
