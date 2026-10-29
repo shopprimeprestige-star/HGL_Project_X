@@ -35,6 +35,7 @@ type ErroreDb = { code?: string; message?: string } | null;
 type Risultato<T> = PromiseLike<{ data: T | null; error: ErroreDb }>;
 interface Filtro<T> extends Risultato<T> {
   eq(c: string, v: string): Filtro<T>;
+  in(c: string, v: string[]): Filtro<T>;
   not(c: string, op: string, v: null): Filtro<T>;
   order(c: string, o: { ascending: boolean }): Filtro<T>;
   limit(n: number): Filtro<T>;
@@ -180,7 +181,21 @@ export function portePortaVere(
         .order("prenotato_il", { ascending: false })
         .limit(1);
       const id = Number(data?.[0]?.subscriber_id);
-      return Number.isSafeInteger(id) && id > 0 ? id : null;
+      if (Number.isSafeInteger(id) && id > 0) return id;
+      //  ⚠️ IL CONTATTO GIÀ VISTO IN RUBRICA (29/10/2026). Chi ha scritto lui a
+      //   ManyChat ha il suo id nella rubrica delle chat (`whatsapp_contacts`,
+      //   scritto dall'arrivo dei messaggi), ma non sempre si trova per numero
+      //   in ManyChat: la ricerca falliva, la creazione rispondeva «esiste già»
+      //   e il promemoria della consulenza finiva «da collegare» senza partire.
+      const { data: rubrica } = await db
+        .from("whatsapp_contacts")
+        .select<{ subscriber_id?: string | null }[]>("subscriber_id")
+        .eq("user_id", userId)
+        .in("phone_e164", [`+${telefono.replace(/\D/g, "")}`, telefono.replace(/\D/g, "")])
+        .not("subscriber_id", "is", null)
+        .limit(1);
+      const daRubrica = Number(rubrica?.[0]?.subscriber_id);
+      return Number.isSafeInteger(daRubrica) && daRubrica > 0 ? daRubrica : null;
     },
     registra: async (m: MessaggioPorta) => {
       await db.from("whatsapp_messages").insert({

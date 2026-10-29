@@ -1451,6 +1451,35 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       false,
       /Bearer [A-Za-z0-9]{12,}|[A-Za-z0-9]{40,}/.test(api + porta + server),
     );
+    {
+      //  29/10/2026: promemoria «da collegare» per chi in ManyChat non si trova
+      //  per numero ma ci ha già scritto. Il ripiego è la rubrica delle chat.
+      const noto = server.slice(
+        server.indexOf("subscriberNoto:"),
+        server.indexOf("registra:", server.indexOf("subscriberNoto:")),
+      );
+      c(
+        "subscriberNoto: prima manychat_invii, poi la rubrica whatsapp_contacts",
+        true,
+        noto.indexOf('from("manychat_invii")') > 0 &&
+          noto.indexOf('from("whatsapp_contacts")') > noto.indexOf('from("manychat_invii")'),
+      );
+      const rubrica = noto.slice(noto.indexOf('from("whatsapp_contacts")'));
+      c(
+        "…la rubrica solo dello stesso studio, col numero con e senza «+», solo id presenti",
+        [true, true, true],
+        [
+          /\.eq\("user_id", userId\)/.test(rubrica),
+          /\.in\("phone_e164", \[`\+\$\{/.test(rubrica),
+          /\.not\("subscriber_id", "is", null\)/.test(rubrica),
+        ],
+      );
+      c(
+        "…e un id che non è un intero positivo non vale",
+        true,
+        /Number\.isSafeInteger\(daRubrica\) && daRubrica > 0/.test(rubrica),
+      );
+    }
     c(
       "nei log solo codici: nessun console.* che stampi corpo, numero o chiave",
       false,
