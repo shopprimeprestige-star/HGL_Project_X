@@ -1630,6 +1630,17 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [false, 2],
         [/hasConfig/.test(pagina), (pagina.match(/api\.stato === "configura"/g) ?? []).length],
       );
+      //  Sul telefono il `title` non si vede: l'ora dell'ultima lettura sta scritta nel tasto.
+      const tasto = pagina.slice(pagina.indexOf("<RefreshCw"));
+      const corpoTasto = tasto.slice(0, tasto.indexOf("</Button>"));
+      c(
+        "il tasto «Aggiorna» porta scritto «Aggiornato hh:mm» (non solo nel title, che sul telefono non si vede)",
+        [true, true],
+        [
+          /Aggiornato \$\{oraBreve\(api\.aggiornatoIl\)\}/.test(corpoTasto),
+          /api\.aggiornatoIl/.test(corpoTasto),
+        ],
+      );
       const abbinaScheda = leggi("src/crm/chatwa/AbbinaScheda.tsx");
       const prima = abbinaScheda.slice(abbinaScheda.indexOf("const conferma"));
       const dopoCatch = prima.slice(prima.indexOf("catch"), prima.indexOf("};"));
