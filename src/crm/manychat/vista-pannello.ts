@@ -407,6 +407,7 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   { modello: "hgl_promemoria_sede", etichetta: "Appuntamento in sede" },
   { modello: "hgl_sede_disdetta", etichetta: "Appuntamento in sede disdetto" },
   { modello: "hgl_ultimo_tentativo", etichetta: "Irreperibile: ultimo tentativo" },
+  { modello: "hgl_acconto", etichetta: "Attesa acconto" },
 ];
 
 /** Lead nuovi al giorno.
@@ -461,7 +462,7 @@ export const STATI_RIQUADRO: StatoRiquadro[] = [
   {
     stato: "in_attesa_acconto",
     etichetta: LEAD_STATUS_LABEL.in_attesa_acconto,
-    modello: "hgl_ricontatto_consulenza",
+    modello: "hgl_acconto",
     quando: A_DATA,
     chi: CONSULENTI,
   },

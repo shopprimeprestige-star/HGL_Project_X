@@ -105,7 +105,9 @@ const ASSENTE: RigaStato = {
   codice: "as",
 };
 
-/** Stato → riga. «Cliente assente» è `no_show` E `non_fatto`; «Non risponde» e
+/** Stato → riga. «Attesa acconto» ha il suo modello (`hgl_acconto`, commessa
+ *  2026-10-29) ma resta A DATA, come prima, con il suo interruttore.
+ *  «Cliente assente» è `no_show` E `non_fatto`; «Non risponde» e
  *  «Segreteria» sono due stati con lo stesso modello e lo stesso evento (`nr`).
  *  «Da riprogrammare» è A DATA se ha una data, altrimenti a evento dopo 30'
  *  (`attesaMin`, `codice: "rp"`). Gli stati che non ci sono (Da contattare,
@@ -114,7 +116,12 @@ const ASSENTE: RigaStato = {
 export const TABELLA_STATI: Partial<Record<LeadStatus, RigaStato>> = {
   da_ricontattare: RICONTATTO,
   sta_valutando: RICONTATTO,
-  in_attesa_acconto: RICONTATTO,
+  in_attesa_acconto: {
+    modello: "hgl_acconto",
+    tag: "crm-stato-acconto",
+    quando: "a_data",
+    chi: "consulente",
+  },
   gestire_in_chat: RICONTATTO,
   fissa_meet_dopo: {
     modello: "hgl_meet_da_fissare",

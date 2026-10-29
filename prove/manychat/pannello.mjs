@@ -2096,7 +2096,7 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       da_ricontattare: "hgl_ricontatto_consulenza",
       sta_valutando: "hgl_ricontatto_consulenza",
       fissa_meet_dopo: "hgl_meet_da_fissare",
-      in_attesa_acconto: "hgl_ricontatto_consulenza",
+      in_attesa_acconto: "hgl_acconto",
       gestire_in_chat: "hgl_ricontatto_consulenza",
       richiamo: "hgl_richiamo_concordato",
       non_risponde: "hgl_non_risponde",
@@ -2121,6 +2121,13 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     "stati: «Ricontatto fissato» resta legato all'interruttore dei ricontatti, nessun altro stato lo è",
     ["da_ricontattare"],
     V.STATI_RIQUADRO.filter((s) => s.legatoA === "ricontatti").map((s) => s.stato),
+  );
+  c(
+    "stati: «Attesa acconto» ha l'interruttore suo di sempre (non legato ai ricontatti, nessuno insieme a lui)",
+    [["in_attesa_acconto"], undefined, undefined],
+    ((r) => [V.statiDiRiga(r), r.insieme, r.legatoA])(
+      V.STATI_RIQUADRO.find((s) => s.stato === "in_attesa_acconto"),
+    ),
   );
   c(
     "stati: l'etichetta è quella che si legge nel CRM",
@@ -2148,7 +2155,7 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     );
   }
   c(
-    "flussi per le sequenze: i sette della sequenza (con il ritorno e i casi reali) e gli otto dei messaggi per stato, nessuno già fra i tre vecchi",
+    "flussi per le sequenze: i sette della sequenza (con il ritorno e i casi reali) e gli otto dei messaggi per stato (più «Attesa acconto» in coda), nessuno già fra i tre vecchi",
     [
       "hgl_primo_contatto",
       "hgl_richiamo_24h",
@@ -2165,6 +2172,7 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       "hgl_promemoria_sede",
       "hgl_sede_disdetta",
       "hgl_ultimo_tentativo",
+      "hgl_acconto",
     ],
     V.MODELLI_FLUSSO_SEQUENZE.map((m) => m.modello),
   );
