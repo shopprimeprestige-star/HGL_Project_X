@@ -26,7 +26,7 @@ export async function provePontePari(mod, { c, gruppo }) {
 
   // ── normalizzaTesto ──
   c("normalizza: minuscole, spazi e a capo ridotti, bordi tolti", "ciao mondo ok", P.normalizzaTesto("  Ciao  MONDO\n\n ok "));
-  c("normalizza: tolti gli invisibili (200B-200D, FEFF, 2060)", "ciao", P.normalizzaTesto("c​i‌a‍﻿o⁠"));
+  c("normalizza: tolti gli invisibili (200B-200D, FEFF, 2060)", "ciao", P.normalizzaTesto("c\u200Bi\u200Ca\u200D\uFEFFo\u2060"));
   c("normalizza: NFKC (legature, larghezza piena)", "fine a", P.normalizzaTesto("ﬁne Ａ"));
   c("normalizza: null e non stringhe → vuoto", ["", ""], [P.normalizzaTesto(null), P.normalizzaTesto(undefined)]);
 

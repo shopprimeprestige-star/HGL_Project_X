@@ -30,7 +30,7 @@ import {
 } from "./tipi";
 
 /** Caratteri invisibili che ManyChat o le tastiere aggiungono (§c1.5). */
-const INVISIBILI = /[​-‍﻿⁠]/g;
+const INVISIBILI = /[\u200B-\u200D\uFEFF\u2060]/g;
 
 /** Il testo come si confronta (§c1.5): NFKC, minuscole, senza invisibili,
  *  spazi e a capo ridotti a uno, senza bordi. Il taglio a
