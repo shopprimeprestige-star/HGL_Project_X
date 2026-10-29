@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
 import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
+import { proveIdeeCosti } from "./idee/costi.mjs";
 import { proveSheets } from "./sheets.mjs";
 import { proveDelPonte } from "./ponte.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
@@ -21033,6 +21034,7 @@ proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
+proveIdeeCosti(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21857,7 +21859,9 @@ function proveDelleCorrezioniManychat() {
     { tipo: "promemoria", modello: null, conFlusso: false, inviatoIl: "2026-10-29T10:00:00Z" },
     { tipo: "conferma", modello: null, conFlusso: false, inviatoIl: "2026-10-29T11:00:00Z" },
   ], "oggi", adesso);
-  c("promemoria e conferme partiti come testo: testi, non modelli (niente costo di modello)", [2, 0], [r.testiLiberi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
+  //  Dal 30/10/2026 (idea 9) i testi del giro non sono più «testi liberi» (quelli sono solo
+  //  gli scritti a mano): sono messaggi risparmiati. Sempre senza costo di modello.
+  c("promemoria e conferme partiti come testo: risparmiati, non testi a mano né modelli pagati", [0, 2, 0], [r.testiLiberi, r.risparmio.messaggi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
   const porta = readFileSync(join(radice, "src/crm/manychat/porta.ts"), "utf8");
   c("modello di riserva partito: il registro ha il suo flusso", true, /ns = nsRiserva;/.test(porta) && /modelloDiRiserva && ns \? \{ flow_ns: ns \}/.test(porta));
 }
