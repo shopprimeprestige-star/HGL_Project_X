@@ -14,7 +14,8 @@
  *  ⚠️ UN CALCOLO SOLO PER TUTTA LA SQUADRA. Il calendario di un consulente si
  *   ritaglia da quello di tutti (`giornoDi`): così le scelte fatte su
  *   consulenti diversi si ricontrollano sugli stessi giorni prima di scrivere.
- *  ⚠️ IL MESSAGGIO NON DICE NOMI: il consulente serve a chi sceglie.
+ *  ⚠️ IL NOME NEL MESSAGGIO SOLO COL CONSULENTE SCELTO (29/10/2026): con «Tutti»
+ *   resta senza nomi, perché chi farà la consulenza si decide dopo.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (prova degli hook).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useMemo, useState } from "react";
@@ -31,6 +32,7 @@ import {
   eScelto,
   giornoDi,
   messaggioOrari,
+  consulenteComune,
   scelteAncoraLibere,
   scelteDelGiorno,
   type OrarioScelto,
@@ -72,7 +74,7 @@ const corto = (data: string, oggi: string) => {
 };
 
 const PILLOLA =
-  "inline-flex h-9 shrink-0 items-center rounded-full border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
+  "inline-flex h-11 shrink-0 items-center rounded-full sm:h-9 border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
 
 export function OrariRapidi(p: {
   /** il nome del cliente, per il saluto (solo la prima parola) */
@@ -117,7 +119,14 @@ export function OrariRapidi(p: {
       });
       return;
     }
-    const testo = messaggioOrari(valide, oggi, p.nome);
+    //  Il nome del consulente (29/10/2026) solo se TUTTE le ore scelte sono
+    //  sue: con «Tutti» o con ore di più consulenti il messaggio resta senza
+    //  nomi (chi farà la consulenza si decide dopo).
+    const idComune = consulenteComune(valide);
+    const nomeConsulente = idComune
+      ? (squadra.find((c) => c.id === idComune)?.data?.nome ?? null)
+      : null;
+    const testo = messaggioOrari(valide, oggi, p.nome, nomeConsulente);
     if (testo) p.onInserisci(testo);
   };
 
@@ -136,8 +145,9 @@ export function OrariRapidi(p: {
       contesto="Tocca gli orari da proporre, anche di più giorni e consulenti"
       icona={CalendarClock}
       larghezza="xl"
-      //  Sul telefono il foglio è alto quanto lo schermo: è un calendario, non un avviso.
-      className="max-sm:h-[92dvh]"
+      //  Sul telefono a tutto schermo (richiesta del titolare, 28/10/2026): è un
+      //  calendario, non un avviso, e la spunta resta sempre in fondo.
+      className="max-sm:top-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:border-0"
       azioni={
         <div className="flex min-w-0 flex-col gap-2.5 sm:flex-1">
           {riepilogo.length > 0 && (

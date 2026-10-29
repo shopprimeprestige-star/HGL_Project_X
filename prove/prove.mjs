@@ -411,6 +411,8 @@ const MODULI = [
   "fascia-consulenza",
   //  ⚠️ Quanti posti restano e a che ora. Vedi proveDegliSlotLiberi.
   "slot-liberi",
+  //  ⚠️ Le chiusure tolte dai posti liberi (soloSlotAperti): vedi proveDiProponiOrariConsulente.
+  "blocchi",
   //  ⚠️ I preventivi quando sono in più di uno: le stanze, la penna, e che
   //   cosa vede ciascuno. Vedi proveDeiPreventiviDiGruppo.
   "shop/preventivi-di-gruppo",
@@ -592,6 +594,7 @@ const MODULI = [
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
+  "chatwa/richiamo",
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
   "versione-crm",
@@ -20462,7 +20465,7 @@ function proveDiWhatsappSulTelefono() {
   //  regole, controllate dove stanno adesso.
   const pg = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[340px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
+  c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[300px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
   c("la chat si vede da sola quando è aperta", true, /md:block", conversazioneAperta \? "block" : "hidden"/.test(pg));
   c("c'è la freccia per tornare all'elenco", true, /onIndietro=\{tornaElenco\}/.test(pg) && /onClick=\{onIndietro\}[\s\S]{0,80}md:hidden/.test(conv));
   c("il pannello lead affiancato solo da 1280 px", true, /leadsPanelOpen && \(\s*<div className="hidden xl:flex">/.test(pg));
@@ -20658,7 +20661,7 @@ function proveDiWhatsappTemperaturaConsulente() {
   const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("la riga della chat ha pallino e parola (non dopo la vendita)", true, /mostraTemperatura\(c\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga dati=\{c\.lead\.data\} max=\{0\}/.test(riga));
-  c("l'intestazione della chat pure", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,400}soloPallino[\s\S]{0,60}sm:hidden/.test(conv));
+  c("l'intestazione della chat pure (per esteso, nella seconda riga)", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga[\s\S]{0,80}max=\{0\}/.test(conv));
   c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
@@ -20744,6 +20747,75 @@ function proveDelloStatoDaChiamare() {
   c("il cron ogni 15 minuti sulla rotta giusta, e come si spegne", true, /programma_hook_cron\('attesa-da-chiamare-15min', '\*\/15 \* \* \* \*', '\/hooks\/attesa-da-chiamare'\)/.test(sql) && /cron\.unschedule\('attesa-da-chiamare-15min'\)/.test(sql));
 }
 
+/** ── WHATSAPP: NUMERO IN TESTA, ICONE AL POSTO DELLE EMOJI (28/10/2026) ──── */
+function proveDiWhatsappDisegnoMobile() {
+  gruppo("WHATSAPP: NUMERO IN TESTA, ICONE OUTLINE, DUE RIGHE");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  const pag = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
+  c("il numero sta sempre nell'intestazione (anche sul telefono)", true, /font-mono text-\[12px\][^"]*tabular-nums">\s*\{numeroLeggibile\(attiva\.phone\)\}/.test(conv) && !/hidden sm:inline text-\[11px\] text-muted-foreground font-mono/.test(conv));
+  c("stato e temperatura nella seconda riga, che scorre e non va a capo", true, /overflow-x-auto px-3 pb-2/.test(conv) && /<PastigliaStato/.test(conv));
+  c("sul tablet i tasti sono solo icona fino a 1024 px", true, /hidden lg:inline">Chiama/.test(conv));
+  c("sul tablet l'elenco è più stretto", true, /md:w-\[300px\] md:shrink-0 lg:w-\[340px\]/.test(pag));
+  const files = ["BollaMessaggio.tsx", "RigaChat.tsx", "ElencoChat.tsx", "Conversazione.tsx", "media.ts", "ritorno.ts"]
+    .map((f) => readFileSync(join(radice, "src/crm/chatwa", f), "utf8").replace(/\/\/.*$|\/\*[\s\S]*?\*\/|const EMOJI_VECCHIE.*$/gm, ""));
+  c("nessuna emoji nell'interfaccia della chat (🎤📷🎥📎★↩)", false, files.some((t) => /[🎤📷🎥📎★↩]/u.test(t)));
+  const M = mod["chatwa/media"];
+  if (M?.mediaInAnteprima) {
+    c("un'anteprima salvata con l'emoji vecchia si legge con l'icona", { tipo: "audio", testo: "Vocale" }, M.mediaInAnteprima("🎤 Vocale"));
+    c("…e quella nuova pure", { tipo: "immagine", testo: "Foto" }, M.mediaInAnteprima("Foto"));
+    c("un testo normale resta com'è", { tipo: null, testo: "ciao" }, M.mediaInAnteprima("ciao"));
+    c("un'emoji scritta dal cliente non si tocca", { tipo: null, testo: "📷 ecco la foto della nuca" }, M.mediaInAnteprima("📷 ecco la foto della nuca"));
+  }
+
+}
+/** ── PROPONI ORARI A TUTTO SCHERMO, COL CONSULENTE (28/10/2026) ──────────── */
+function proveDiProponiOrariConsulente() {
+  gruppo("PROPONI ORARI: CONSULENTE, ORE VERE, MESSAGGIO COL SUO NOME");
+  const W = mod["wa-orari"];
+  const oggi = "2026-10-28";
+  c("un orario col consulente", "Gentile Mario, Filippo è disponibile per la consulenza gratuita online oggi, mercoledì 28 ottobre, alle 15:00.\n\nLe va bene?",
+    W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario", "Filippo Esempio"));
+  c("più orari e giorni col consulente", "Gentile Mario, Filippo è disponibile per la consulenza gratuita online in questi orari:\n\nOggi, mercoledì 28 ottobre: alle 15:00 o alle 17:00\nDomani, giovedì 29 ottobre: alle 10:00\n\nQuale preferisce?",
+    W.messaggioOrari([{ data: "2026-10-29", ora: "10:00" }, { data: oggi, ora: "17:00" }, { data: oggi, ora: "15:00" }], oggi, "Mario", "Filippo"));
+  c("senza consulente resta il testo di prima", true, W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario").includes("avrei libero oggi, mercoledì 28 ottobre, alle 15:00") && !W.messaggioOrari([{ data: oggi, ora: "15:00" }], oggi, "Mario").includes("disponibile"));
+  //  Le ore VERE, provate sul comportamento (revisione del 28/10).
+  const B = mod["blocchi"];
+  const giorno = "2030-03-09"; // un sabato lontano: nessuna «ora già passata»
+  const consulente = { id: "c1", user_id: "", created_at: "", updated_at: "", data: { nome: "Filippo", giorniLavorativi: [6], fasceOrarie: [{ inizio: "09:00", fine: "12:00" }], attivo: true } };
+  const libere = (leads = []) => BKG.slotDelGiorno(consulente, giorno, 60, leads).filter((x) => x.libero).map((x) => x.ora);
+  B.registraBlocchi([]);
+  c("senza chiusure: tutte le ore del sabato", ["09:00", "10:00", "11:00"], B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).map((x) => x.ora));
+  B.registraBlocchi([{ id: "b1", quando: "data", data: giorno, attivo: true, creato: "2030-01-01T00:00:00Z" }]);
+  c("sabato chiuso dallo studio: nessuna ora proposta", [], B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).map((x) => x.ora));
+  B.registraBlocchi([{ id: "b2", quando: "data", data: giorno, inizio: "10:00", fine: "11:00", attivo: true, creato: "2030-01-01T00:00:00Z" }]);
+  c("chiusa solo l'ora delle 10: le altre restano", ["09:00", "11:00"], B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).map((x) => x.ora));
+  B.registraBlocchi([{ id: "b3", consulenteId: "altro", quando: "data", data: giorno, attivo: true, creato: "2030-01-01T00:00:00Z" }]);
+  c("la chiusura di un altro consulente non tocca Filippo", 3, B.soloSlotAperti(BKG.slotDelGiorno(consulente, giorno, 60, []), "c1", giorno, 60).length);
+  B.registraBlocchi([]);
+  const preso = [{ id: "l1", user_id: "", created_at: "", updated_at: "", data: { nome: "Mario", stato: "appuntamento_fissato", consulenteId: "c1", dataMeeting: giorno, oraMeeting: "09:00", durataMeeting: 60 } }];
+  const prima = BKG.capienzaConsulenza();
+  BKG.impostaCapienza(1);
+  c("capienza 1: l'ora con un cliente non si propone", false, libere(preso).includes("09:00"));
+  BKG.impostaCapienza(3);
+  c("capienza 3: la stessa ora ha ancora posto", true, libere(preso).includes("09:00"));
+  BKG.impostaCapienza(prima);
+  const hook = readFileSync(join(radice, "src/crm/useGiorniLiberi.ts"), "utf8");
+  c("le ore sono quelle vere: chiusure e capienza lette prima del calcolo", true,
+    /Promise\.all\(\[assicuraBlocchi\(\), assicuraCapienza\(\)\]\)/.test(hook) && /oreTenute, adesso, caricati\]/.test(hook));
+  c("…e il calcolo comune toglie le chiusure", true, /soloSlotAperti\(slot, c\.id, data, DURATA_PREDEFINITA\)/.test(hook));
+  const or = readFileSync(join(radice, "src/crm/OrariRapidi.tsx"), "utf8");
+  c("finestra a tutto schermo sul telefono", true, /max-sm:h-\[100dvh\]/.test(or) && /<Finestra/.test(or));
+  c("si sceglie il consulente (o «Tutti»)", true, /onClick=\{\(\) => setChi\(c\.id\)\}/.test(or));
+  c("la spunta mette il messaggio nella chat", true, /if \(testo\) p\.onInserisci\(testo\)/.test(or));
+  c("nel messaggio solo le ore ancora libere", true, /const valide = scelteAncoraLibere\(scelte, giorni, oggi\)/.test(or));
+  c("tutte le ore di Filippo: il nome c'è", "c1", W.consulenteComune([{ data: oggi, ora: "10:00", chi: "c1" }, { data: oggi, ora: "15:00", chi: "c1" }]));
+  c("ore di Filippo e di Marco: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "c1" }, { data: oggi, ora: "15:00", chi: "c2" }]));
+  c("un'ora scelta con «Tutti» e una di Marco: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "tutti" }, { data: oggi, ora: "15:00", chi: "c2" }]));
+  c("solo «Tutti»: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "tutti" }]));
+  c("il nome viene dalle ore scelte, non dal consulente acceso adesso", true,
+    /const idComune = consulenteComune\(valide\)/.test(or) && /messaggioOrari\(valide, oggi, p\.nome, nomeConsulente\)/.test(or));
+}
+
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
  *  Richiesta del titolare: «non c'è lo stato che posso impostare Attesa WhatsApp». */
 function proveDelloStatoAttesaWhatsapp() {
@@ -20769,6 +20841,37 @@ function proveDelloStatoAttesaWhatsapp() {
   c("Da fare: diventa una chiamata da rifare", true,
     /stato === "segreteria" \|\|\s*stato === "attesa_whatsapp"/.test(readFileSync(join(radice, "src/crm/dafare/righe.tsx"), "utf8")));
   c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
+}
+
+/** ── QUANDO RICHIAMARLO, DALLA CHAT (29/10/2026) ──────────────────────────── */
+function proveDelRichiamoInChat() {
+  gruppo("WHATSAPP: QUANDO RICHIAMARLO, NELLA RIGA E NEL FILTRO");
+  const R = mod["chatwa/richiamo"];
+  const oggi = "2026-10-29";
+  const d = (data, ora, stato = "richiamo") => ({ stato, dataRicontatto: data, oraRicontatto: ora });
+  c("legge giorno e ora del richiamo", { data: "2026-10-29", ora: "15:00" }, R.richiamoDi(d("2026-10-29", "15:00")));
+  c("l'ora è facoltativa", { data: "2026-10-30", ora: null }, R.richiamoDi(d("2026-10-30", "")));
+  c("vale anche per «ci ricontatta lui»", true, R.richiamoDi(d("2026-10-30", "", "ci_ricontatta_lui")) !== null);
+  c("una data rimasta da uno stato di prima non conta", null, R.richiamoDi(d("2026-10-30", "10:00", "appuntamento_fissato")));
+  c("pastiglia di oggi con l'ora", "Richiamo oggi 15:00", R.etichettaRichiamo(d(oggi, "15:00"), oggi).testo);
+  c("pastiglia di domani senza ora", "Richiamo domani", R.etichettaRichiamo(d("2026-10-30", null), oggi).testo);
+  c("pastiglia di un giorno più avanti", "Richiamo lun 2 nov 10:00", R.etichettaRichiamo(d("2026-11-02", "10:00"), oggi).testo);
+  const sc = R.etichettaRichiamo(d("2026-10-27", "9:30"), oggi);
+  c("scaduto: lo dice ed è rosso", ["Richiamo scaduto 27 ott 09:30", true, true],
+    [sc.testo, sc.scaduto, /red/.test(R.stileRichiamo(sc))]);
+  c("il tooltip dice il giorno per esteso", "Da richiamare martedì 27 ottobre alle 09:30", sc.titolo);
+  c("le voci: scaduti, oggi, domani, date, senza data", ["tutti:5", "scaduti:1", "oggi:1", "domani:1", "2026-11-02:1", "senza:1"],
+    R.vociFiltro([d("2026-10-27", ""), d(oggi, "15:00"), d("2026-10-30", ""), d("2026-11-02", ""), d("", ""), { stato: "non_risponde" }, null], oggi).map((x) => `${x.v}:${x.n}`));
+  c("la voce di una data si legge", "Lunedì 2 novembre", R.vociFiltro([d("2026-11-02", "")], oggi).find((x) => x.v === "2026-11-02").l);
+  c("«Oggi» prende solo quelli di oggi", [true, false], [R.passaRichiamo(d(oggi, ""), "oggi", oggi), R.passaRichiamo(d("2026-10-30", ""), "oggi", oggi)]);
+  c("«Tutti» non toglie nessuno", true, R.passaRichiamo({ stato: "non_risponde" }, "tutti", oggi));
+  c("in ordine: prima gli scaduti, poi per ora", ["a", "c", "b"],
+    [{ k: "b", d: d(oggi, "") }, { k: "c", d: d(oggi, "10:00") }, { k: "a", d: d("2026-10-27", "18:00") }]
+      .sort((x, y) => R.chiaveOrdine(x.d).localeCompare(R.chiaveOrdine(y.d))).map((x) => x.k));
+  const el = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("il filtro «Richiamo» sta in «Da chiamare»", true, /filtro === "da-chiamare" && vociQuando\.length > 1/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
+  c("la data nella riga e nell'intestazione", true,
+    ["RigaChat.tsx", "Conversazione.tsx"].every((f) => /etichettaRichiamo\(/.test(readFileSync(join(radice, "src/crm/chatwa", f), "utf8"))));
 }
 
 proveDeiTipi();
@@ -20862,6 +20965,9 @@ proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
+proveDiWhatsappDisegnoMobile();
+proveDiProponiOrariConsulente();
+proveDelRichiamoInChat();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

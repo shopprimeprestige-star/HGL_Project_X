@@ -487,3 +487,22 @@ export function scriviPauseDelGiorno(
   const elenco = Array.isArray(grezzo) ? (grezzo as Pausa[]).filter(Boolean) : [];
   return [...elenco.filter((p) => p?.giorno !== dow), ...nuove];
 }
+
+/** ── GLI SLOT CHE UNA CHIUSURA NON COPRE (28/10/2026) ───────────────────────
+ *  `slotDelGiorno` guarda solo le indisponibilità della scheda del consulente,
+ *  non le chiusure dello studio: le toglieva ogni pagina per conto suo (agenda,
+ *  Orari disponibili), e Slot liberi, la striscia di Oggi e «Proponi orari» in
+ *  WhatsApp mostravano libere ore chiuse. Qui una regola sola per chi riassume
+ *  i posti liberi (crm/useGiorniLiberi). */
+export function soloSlotAperti<T extends { ora: string }>(
+  slot: T[],
+  consulenteId: string,
+  dataIso: string,
+  durataMin: number,
+): T[] {
+  if (registro.length === 0) return slot;
+  return slot.filter((s) => {
+    const m = minutiDaOra(s.ora);
+    return m == null || !slotBloccato(consulenteId, dataIso, m, m + durataMin);
+  });
+}
