@@ -88,15 +88,20 @@ function leggiMessaggio(v: unknown, tsMassimo: number): MessaggioPonte | null {
   //  Solo cifre 8-15: un `@lid` o un gruppo (18 cifre e più) non passa.
   if (typeof numero !== "string" || !NUMERO.test(numero)) return null;
   if (dir !== "in" && dir !== "out") return null;
-  if (typeof ts !== "number" || !Number.isInteger(ts) || ts < TS_MINIMO || ts > tsMassimo) return null;
-  if (typeof tipo !== "string" || !(TIPI_CONTENUTO as readonly string[]).includes(tipo)) return null;
+  if (typeof ts !== "number" || !Number.isInteger(ts) || ts < TS_MINIMO || ts > tsMassimo)
+    return null;
+  if (typeof tipo !== "string" || !(TIPI_CONTENUTO as readonly string[]).includes(tipo))
+    return null;
   if (typeof testo !== "string") return null;
   const pulito = pulisci(testo, LIMITI.testo);
   if (!pulito.trim()) return null;
   const m: MessaggioPonte = { id, numero, dir, ts, testo: pulito, tipo: tipo as TipoContenuto };
   //  Lo stato è cosmetico: uno sconosciuto vale `sent`, non fa perdere il messaggio.
   if (dir === "out")
-    m.stato = typeof stato === "string" && (STATI_INVIO as readonly string[]).includes(stato) ? (stato as StatoInvio) : "sent";
+    m.stato =
+      typeof stato === "string" && (STATI_INVIO as readonly string[]).includes(stato)
+        ? (stato as StatoInvio)
+        : "sent";
   return m;
 }
 
@@ -130,7 +135,13 @@ export function leggiLotto(json: unknown, adesso: Date): LottoLetto | null {
       if (nome) nomi[n] = nome;
     }
   }
-  return { origine, messaggi, nomi, ricevuti: grezzi.length, scartati: grezzi.length - messaggi.length };
+  return {
+    origine,
+    messaggi,
+    nomi,
+    ricevuti: grezzi.length,
+    scartati: grezzi.length - messaggi.length,
+  };
 }
 
 // ── Il battito (§b3) ──────────────────────────────────────────────────────
@@ -161,14 +172,20 @@ function data(v: unknown): string | null {
  *  `contatori` (prima degli altri, così il taglio a 20 non li perde). */
 export function leggiBattito(json: unknown): BattitoPulito | null {
   if (!oggetto(json) || json.v !== VERSIONE_CORPO || json.tipo !== "battito") return null;
-  const stato = (STATI_PONTE as readonly unknown[]).includes(json.stato) ? (json.stato as StatoPonteWa) : "errore";
-  const versione = typeof json.versione === "string" ? pulisci(json.versione.trim(), 40) || null : null;
+  const stato = (STATI_PONTE as readonly unknown[]).includes(json.stato)
+    ? (json.stato as StatoPonteWa)
+    : "errore";
+  const versione =
+    typeof json.versione === "string" ? pulisci(json.versione.trim(), 40) || null : null;
   return {
     stato,
     collegato_dal: data(json.collegato_dal),
     ultimo_messaggio_il: data(json.ultimo_messaggio_il),
     storico: soloNumeri(json.storico),
-    contatori: soloNumeri(json.contatori, soloNumeri({ in_coda: json.in_coda, scartati: json.scartati })),
+    contatori: soloNumeri(
+      json.contatori,
+      soloNumeri({ in_coda: json.in_coda, scartati: json.scartati }),
+    ),
     versione,
   };
 }
@@ -195,9 +212,15 @@ function funzioniAssenti(e: unknown): boolean {
  *  senza pari, i candidati di adesso, e si scrivono solo i pari. Restituisce
  *  quanti ne ha scritti. */
 async function riconcilia(porte: PortePonte, userId: string, adesso: Date): Promise<number> {
-  const righe = await porte.recentiDelPonte(userId, new Date(adesso.getTime() - RICONCILIA_MINUTI * 60e3));
+  const righe = await porte.recentiDelPonte(
+    userId,
+    new Date(adesso.getTime() - RICONCILIA_MINUTI * 60e3),
+  );
   if (righe.length === 0) return 0;
-  const candidati = await porte.candidati(userId, righe.map(({ k, n, d, t }) => ({ k, n, d, t })));
+  const candidati = await porte.candidati(
+    userId,
+    righe.map(({ k, n, d, t }) => ({ k, n, d, t })),
+  );
   const pari = abbinaPari(righe, candidati);
   if (pari.length === 0) return 0;
   const esito = await porte.scrivi(userId, { righe: [], pari, nomi: {} });
@@ -208,7 +231,11 @@ async function riconcilia(porte: PortePonte, userId: string, adesso: Date): Prom
 
 /** Il controllo tardivo dopo una scrittura già fatta: se fallisce lo dice nel
  *  log e basta (il lotto è scritto, ritentarlo non serve; lo rifà il battito). */
-async function riconciliaSenzaErrori(porte: PortePonte, userId: string, adesso: Date): Promise<number> {
+async function riconciliaSenzaErrori(
+  porte: PortePonte,
+  userId: string,
+  adesso: Date,
+): Promise<number> {
   try {
     return await riconcilia(porte, userId, adesso);
   } catch (e) {
@@ -217,7 +244,12 @@ async function riconciliaSenzaErrori(porte: PortePonte, userId: string, adesso: 
   }
 }
 
-async function giroLotto(porte: PortePonte, userId: string, l: LottoLetto, adesso: Date): Promise<RispostaLotto> {
+async function giroLotto(
+  porte: PortePonte,
+  userId: string,
+  l: LottoLetto,
+  adesso: Date,
+): Promise<RispostaLotto> {
   const esito: RispostaLotto = {
     ok: true,
     ricevuti: l.ricevuti,
@@ -247,7 +279,10 @@ async function giroLotto(porte: PortePonte, userId: string, l: LottoLetto, adess
     x: m.testo,
     m: m.tipo === "testo" ? null : m.tipo,
   }));
-  const candidati = await porte.candidati(userId, daAbbinare.map(({ k, n, d, t }) => ({ k, n, d, t })));
+  const candidati = await porte.candidati(
+    userId,
+    daAbbinare.map(({ k, n, d, t }) => ({ k, n, d, t })),
+  );
   const pari = abbinaPari(daAbbinare, candidati);
   const conPari = new Set(pari.map((p) => p.k));
 

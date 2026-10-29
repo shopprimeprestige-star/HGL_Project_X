@@ -67,7 +67,8 @@ interface RigaPonteDb {
 }
 
 /** Un intero ≥ 0 dal jsonb di `ponte_wa_scrivi` (un campo mancante vale 0). */
-const intero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+const intero = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
 
 export function porteIngresso(): PortePonte {
   /** Il codice dell'ultimo errore lanciato: `ingresso.ts` riconosce come
@@ -83,7 +84,8 @@ export function porteIngresso(): PortePonte {
   return {
     avviso(codice: CodiceAvviso, conteggi?: Record<string, number>) {
       const daMigrazione =
-        codice === "funzioni_assenti" || (codice === "database" && CODICI_MIGRAZIONE.includes(ultimoCodice));
+        codice === "funzioni_assenti" ||
+        (codice === "database" && CODICI_MIGRAZIONE.includes(ultimoCodice));
       if (daMigrazione) {
         if (migrazioneAvvisata) return;
         migrazioneAvvisata = true;
@@ -95,7 +97,8 @@ export function porteIngresso(): PortePonte {
         .map(([k, v]) => ` ${k}=${v}`)
         .join("");
       const riga = `[ponte-wa] ${codice}${numeri}`;
-      if (codice === "lotto" || codice === "battito" || codice === "riconciliati") console.info(riga);
+      if (codice === "lotto" || codice === "battito" || codice === "riconciliati")
+        console.info(riga);
       else console.warn(riga);
     },
 
@@ -110,7 +113,10 @@ export function porteIngresso(): PortePonte {
     },
 
     noti: async (userId, numeri) => {
-      const { data, error } = await db().rpc<string[]>("ponte_wa_noti", { p_user_id: userId, p_numeri: numeri });
+      const { data, error } = await db().rpc<string[]>("ponte_wa_noti", {
+        p_user_id: userId,
+        p_numeri: numeri,
+      });
       if (error) return lancia(error);
       return (data ?? []).filter((n): n is string => typeof n === "string");
     },
@@ -147,7 +153,9 @@ export function porteIngresso(): PortePonte {
     recentiDelPonte: async (userId, dal) => {
       const { data, error } = await db()
         .from("whatsapp_messages")
-        .select<RigaPonteDb[]>("wa_message_id, direction, from_number, to_number, created_at, body, media_type")
+        .select<
+          RigaPonteDb[]
+        >("wa_message_id, direction, from_number, to_number, created_at, body, media_type")
         .eq("user_id", userId)
         .eq("canale", CANALE_PONTE)
         .is("duplicato_di", null)
@@ -173,21 +181,19 @@ export function porteIngresso(): PortePonte {
     },
 
     battito: async (userId, b) => {
-      const { error } = await db()
-        .from("ponte_wa_stato")
-        .upsert(
-          {
-            user_id: userId,
-            stato: b.stato,
-            collegato_dal: b.collegato_dal,
-            ultimo_messaggio_il: b.ultimo_messaggio_il,
-            storico: b.storico,
-            contatori: b.contatori,
-            versione: b.versione,
-            aggiornato_il: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
+      const { error } = await db().from("ponte_wa_stato").upsert(
+        {
+          user_id: userId,
+          stato: b.stato,
+          collegato_dal: b.collegato_dal,
+          ultimo_messaggio_il: b.ultimo_messaggio_il,
+          storico: b.storico,
+          contatori: b.contatori,
+          versione: b.versione,
+          aggiornato_il: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
       if (error) lancia(error);
     },
   };

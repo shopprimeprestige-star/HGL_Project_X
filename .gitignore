@@ -49,4 +49,4 @@ app-state-sync-*
 config.env
 *.qr.png
 qr.png
-fila/
+strumenti/ponte-whatsapp/**/fila/
