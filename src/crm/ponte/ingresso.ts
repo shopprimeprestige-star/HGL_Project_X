@@ -253,10 +253,16 @@ async function giroLotto(porte: PortePonte, userId: string, l: LottoLetto, adess
 
   //  D8: un messaggio uscito dal telefono, vivo, senza pari, degli ultimi 7 giorni.
   const dal = adesso.getTime() / 1000 - EFFETTO_MAX_GIORNI * 86400;
-  const righe: RigaScrittura[] = daAbbinare.map((r, i) => ({
-    ...r,
-    e: l.origine === "vivo" && r.d === "out" && !conPari.has(r.k) && r.t >= dal,
-    s: r.d === "in" ? "delivered" : (dentro[i].stato ?? "sent"),
+  //  I campi nell'ordine del contratto (`RigaScrittura`).
+  const righe: RigaScrittura[] = daAbbinare.map(({ k, n, d, t, x, m }, i) => ({
+    k,
+    n,
+    d,
+    t,
+    x,
+    e: l.origine === "vivo" && d === "out" && !conPari.has(k) && t >= dal,
+    m,
+    s: d === "in" ? "delivered" : (dentro[i].stato ?? "sent"),
   }));
   const nomi: NomiScrittura = {};
   for (const n of numeri) if (noti.has(n) && l.nomi[n]) nomi[n] = l.nomi[n];

@@ -328,7 +328,7 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
       prova("battito → 200 con i pari tardivi riconciliati", [200, { ok: true, riconciliati: 1 }], [r.stato, r.json]);
       prova("il battito scrive lo stato ripulito", { stato: "collegato", storico: { fatto: 1 } }, f.db.stato && { stato: f.db.stato.stato, storico: f.db.stato.storico });
       const ult = f.chiamate.scrivi.at(-1)?.s;
-      prova("il controllo tardivo scrive solo p_pari", { righe: [], nomi: {}, pari: [{ k: `bw:${NUM}:3EB0A1`, crm: "c9" }] }, ult);
+      prova("il controllo tardivo scrive solo p_pari", { righe: [], pari: [{ k: `bw:${NUM}:3EB0A1`, crm: "c9" }], nomi: {} }, ult);
       prova("la riga del ponte ora è un doppione", "c9", f.db.messaggi.get(`bw:${NUM}:3EB0A1`)?.duplicato_di);
       const r2 = await vai(f.porte, { v: 1, tipo: "battito", stato: "collegato" });
       prova("al battito dopo niente da riconciliare, niente scritto", [0, f.chiamate.scrivi.length], [r2.json.riconciliati, f.chiamate.scrivi.length]);
