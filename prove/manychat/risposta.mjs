@@ -37,6 +37,9 @@ export async function proveRisposta(mod, { c, gruppo }) {
       invii: o.invii ?? [],
       contatti: o.contatti ?? [],
       messaggi: [],
+      //  righe già in whatsapp_messages prima della richiesta (anche di altri canali)
+      storia: o.storia ?? [],
+      entrateLette: 0,
       schede: o.schede ?? [],
       rpc: [],
       avvisi: [],
@@ -85,8 +88,34 @@ export async function proveRisposta(mod, { c, gruppo }) {
           to_number: "manychat",
           body: msg.testo,
           canale: "manychat",
+          created_at: msg.adesso.toISOString(),
         });
         return "nuovo";
+      },
+      //  Le ultime entrate del numero (eco del Default Reply): le righe di
+      //  `storia` (scritte da altri canali o prima) più quelle scritte qui,
+      //  senza i doppioni, la più nuova per prima, al più 5.
+      ultimeEntrate: async (userId, tel) => {
+        m.letture++;
+        if (m.guasto === "entrate") throw { code: "XX004", message: `dato ${TEL}` };
+        m.entrateLette++;
+        return [...m.storia, ...m.messaggi]
+          .map((x, i) => ({ x, i }))
+          .filter(
+            ({ x }) =>
+              x.user_id === userId &&
+              x.direction === "inbound" &&
+              formati(tel).includes(x.from_number) &&
+              x.canale !== "baileys" &&
+              !x.duplicato_di,
+          )
+          .sort((a, b) => Date.parse(b.x.created_at) - Date.parse(a.x.created_at) || b.i - a.i)
+          .slice(0, 5)
+          .map(({ x }) => ({
+            testo: x.body ?? "",
+            il: new Date(x.created_at),
+            media: x.media_type ?? null,
+          }));
       },
       aggiornaContatto: async (userId, x) => {
         const r = m.contatti.find(
@@ -692,6 +721,307 @@ export async function proveRisposta(mod, { c, gruppo }) {
     void U_ALTRO_INVIO;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════
+   *  L'ECO DEL DEFAULT REPLY (29/10/2026, fix/manychat-eco)
+   *  Con la coesistenza, ogni messaggio mandato dall'app WhatsApp Business fa
+   *  ripartire il Default Reply di ManyChat con `{{Last Text Input}}`, che è
+   *  ancora l'ultimo testo del CLIENTE (caso vero: testo delle 13:31, eco alle
+   *  17:22:13 e alle 17:23:03 dopo due vocali del titolare). L'impronta per
+   *  minuto non la ferma: il minuto è cambiato.
+   * ═══════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · L'ECO DEL DEFAULT REPLY");
+  {
+    const TESTO = "Buongiorno, volevo sapere i prezzi per il trattamento e se avete posto sabato";
+    const PRIMA = new Date(ADESSO.getTime() - 4 * 3600e3).toISOString();
+    const entrata = (o = {}) => ({
+      user_id: "u-1",
+      direction: "inbound",
+      from_number: `+${TEL}`,
+      to_number: "manychat",
+      body: TESTO,
+      canale: "manychat",
+      created_at: PRIMA,
+      ...o,
+    });
+    const uscita = (o = {}) => ({
+      user_id: "u-1",
+      direction: "outbound",
+      from_number: "baileys",
+      to_number: `+${TEL}`,
+      body: "🎤 Vocale",
+      canale: "baileys",
+      media_type: "vocale",
+      created_at: new Date(ADESSO.getTime() - 5_000).toISOString(),
+      ...o,
+    });
+    const noto = () => [
+      { user_id: "u-1", phone_e164: `+${TEL}`, lead_id: U_LEAD, last_message_at: PRIMA },
+    ];
+    const conAppuntamento = () => {
+      const s = scheda();
+      s.data.contattoWa = {
+        stato: "in_attesa",
+        il: PRIMA,
+        da: "automatico",
+        motivo: "ricontatto",
+        storia: [],
+      };
+      return s;
+    };
+
+    //  Il caso vero: testo del cliente 4 ore fa (riga ManyChat + riga del ponte
+    //  abbinata), poi un vocale dall'app, e 5 s dopo l'eco.
+    let m = mondo({
+      invii: [invioConferma()],
+      contatti: noto(),
+      schede: [conAppuntamento()],
+      storia: [
+        entrata(),
+        entrata({
+          canale: "baileys",
+          to_number: "baileys",
+          duplicato_di: "riga-mc",
+          created_at: PRIMA,
+        }),
+        uscita(),
+      ],
+    });
+    let r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "eco del Default Reply (stesso testo dell'ultima entrata, 4 ore fa) → «eco»",
+      [200, "eco"],
+      [r.stato, r.esito],
+    );
+    c("…nessuna riga nuova in whatsapp_messages", 0, m.messaggi.length);
+    c(
+      "…la rubrica non si muove (niente non letti, niente «Da rispondere»)",
+      PRIMA,
+      m.contatti[0].last_message_at,
+    );
+    c(
+      "…né ora della risposta, né conferma, né secondo stato",
+      [0, 0, "in_attesa"],
+      [m.rispostaLog.length, m.rpc.length, m.schede[0].data.contattoWa.stato],
+    );
+
+    //  Due eco di fila (17:22:13 e 17:23:03): tutte e due scartate.
+    r = await RS.gestisciRisposta(
+      m.porte,
+      richiesta({ corpo: corpo({ testo: TESTO }), adesso: new Date(ADESSO.getTime() + 50_000) }),
+    );
+    c(
+      "la seconda eco, un minuto dopo → ancora «eco», sempre zero righe",
+      ["eco", 0],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  L'eco di un «Sì» non riconferma, l'eco di uno STOP non rifà lo STOP.
+    m = mondo({
+      invii: [invioConferma()],
+      contatti: noto(),
+      schede: [scheda()],
+      storia: [entrata({ body: "Sì" })],
+    });
+    r = await RS.gestisciRisposta(
+      m.porte,
+      richiesta({ corpo: corpo({ crmInvioId: U_INVIO, testo: "Sì" }) }),
+    );
+    c(
+      "eco di un «Sì» vecchio → «eco», la conferma non gira",
+      ["eco", 0, undefined],
+      [r.esito, m.rpc.length, m.schede[0].data.promemoria.confermatoIl],
+    );
+    m = mondo({ contatti: noto(), storia: [entrata({ body: "STOP" })] });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: "STOP" }) }));
+    c(
+      "eco di uno STOP vecchio → «eco», non_scrivere_dal non si scrive",
+      ["eco", undefined],
+      [r.esito, m.contatti[0].non_scrivere_dal],
+    );
+
+    //  Lo stesso testo scritto in modo un po' diverso (maiuscole, spazi, a capo).
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata({
+          body: "  buongiorno,  VOLEVO sapere i prezzi per il trattamento\ne se avete posto sabato ",
+        }),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "ultimo testo con maiuscole, spazi e a capo diversi → «eco»",
+      ["eco", 0],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Le righe del ponte non le legge nessuna regola (I1): un testo uguale
+    //  visto SOLO dal ponte non fa scartare niente.
+    m = mondo({ contatti: noto(), storia: [entrata({ canale: "baileys", to_number: "baileys" })] });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "stesso testo solo in una riga del ponte (4 ore fa, visibile) → registrato",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  `Last Text Input` è l'ultimo TESTO: una foto dopo il testo non lo cambia.
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata(),
+        entrata({
+          canale: "baileys",
+          to_number: "baileys",
+          body: "📷 Foto",
+          media_type: "foto",
+          created_at: new Date(ADESSO.getTime() - 3600e3).toISOString(),
+        }),
+        entrata({
+          body: "[messaggio senza testo]",
+          created_at: new Date(ADESSO.getTime() - 3599e3).toISOString(),
+        }),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "testo, poi una foto (ponte e ManyChat), poi l'eco del testo → «eco»",
+      ["eco", 0],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Un testo nuovo, diverso dall'ultimo: si registra come sempre.
+    m = mondo({ contatti: noto(), storia: [entrata(), uscita()] });
+    r = await RS.gestisciRisposta(
+      m.porte,
+      richiesta({ corpo: corpo({ testo: "perfetto, a sabato" }) }),
+    );
+    c(
+      "testo diverso dall'ultima entrata → registrato",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+    c("…e la rubrica si aggiorna", ADESSO.toISOString(), m.contatti[0].last_message_at);
+
+    //  Conta solo l'ULTIMA entrata: un testo uguale a uno più vecchio si registra.
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata(),
+        entrata({ body: "grazie", created_at: new Date(ADESSO.getTime() - 3600e3).toISOString() }),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "testo uguale a un'entrata vecchia ma NON all'ultima → registrato",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Una riga doppione (duplicato_di) non è «l'ultima entrata».
+    m = mondo({ contatti: noto(), storia: [entrata({ duplicato_di: "x" })] });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "l'unica entrata uguale è un doppione (duplicato_di) → registrato",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Lo stesso messaggio visto PRIMA dal ponte (pochi secondi fa): la copia
+    //  ManyChat del messaggio vero si registra.
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata({
+          canale: "baileys",
+          to_number: "baileys",
+          created_at: new Date(ADESSO.getTime() - 8_000).toISOString(),
+        }),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "stesso testo arrivato dal ponte 8 s prima → è lo stesso messaggio: registrato",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Flusso + Default Reply a cavallo del minuto (impronte diverse): un solo messaggio.
+    m = mondo({
+      contatti: noto(),
+      storia: [entrata({ created_at: new Date(ADESSO.getTime() - 25_000).toISOString() })],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "stesso testo da ManyChat 25 s prima, minuto diverso → «doppione», nessuna riga",
+      ["doppione", 0],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  LIMITE ACCETTATO (documentato): il cliente che riscrive DAVVERO lo stesso
+    //  identico testo dopo più di 60 s, senza altro testo in mezzo, si perde nel
+    //  registro ManyChat (col ponte acceso la riga del ponte resta visibile).
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata({ body: "ok", created_at: new Date(ADESSO.getTime() - 120_000).toISOString() }),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: "ok" }) }));
+    c(
+      "LIMITE: lo stesso «ok» riscritto davvero 2 minuti dopo → scartato come «eco»",
+      "eco",
+      r.esito,
+    );
+
+    //  Il controllo si guasta: si registra come prima (meglio un doppione di un
+    //  messaggio perso) e l'avviso ha solo il codice.
+    m = mondo({ contatti: noto(), storia: [entrata()], guasto: "entrate" });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "lettura delle entrate guasta → si registra lo stesso",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+    c(
+      "…avviso col solo codice, mai il numero",
+      [true, false],
+      [/XX004/.test(m.avvisi.join(" ")), m.avvisi.join(" ").includes(TEL)],
+    );
+
+    //  Un testo vuoto (solo segnaposto, da un noto) non si confronta.
+    m = mondo({ contatti: noto(), storia: [entrata({ body: "[messaggio senza testo]" })] });
+    r = await RS.gestisciRisposta(
+      m.porte,
+      richiesta({ corpo: corpo({ testo: "{{last_input_text}}" }) }),
+    );
+    c(
+      "segnaposto da un noto con l'ultima entrata senza testo → registrato come prima",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Né eco né doppione per un altro numero o un'altra installazione.
+    m = mondo({
+      contatti: noto(),
+      storia: [entrata({ from_number: "+393339999999" }), entrata({ user_id: "u-2" })],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "lo stesso testo di un altro numero o di un altro utente → registrato",
+      ["registrata", 1],
+      [r.esito, m.messaggi.length],
+    );
+
+    //  Uno sconosciuto con solo segnaposto si scarta PRIMA di leggere le entrate.
+    m = mondo();
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: "{{x}}" }) }));
+    c(
+      "sconosciuto con solo segnaposto → «segnaposto», le entrate non si leggono",
+      ["segnaposto", 0],
+      [r.esito, m.entrateLette],
+    );
+  }
   /* ── nessuna chiamata fuori, mai ───────────────────────────────────── */
   c("in tutte le prove: nessuna chiamata esterna", 0, chiamateEsterne);
   globalThis.fetch = fetchVero;

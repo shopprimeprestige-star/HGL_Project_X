@@ -26,7 +26,8 @@ import { STATI_RICONTATTO_AUTOMATICO, type InvioPerFreno } from "./regole";
 import type { SchedaQuando } from "./quando";
 import type { PorteRisposta as PorteConferma } from "../promemoria/in-entrata";
 import type { InvioAbbinabile } from "./ritorno";
-import type { PorteRispostaManychat } from "./risposta";
+import { ENTRATE_DA_LEGGERE, type PorteRispostaManychat } from "./risposta";
+import { CANALE_PONTE } from "../ponte/tipi";
 
 type ErroreDb = { code?: string | null; message?: string | null } | null;
 type Esito<T> = PromiseLike<{ data: T | null; error: ErroreDb }>;
@@ -196,6 +197,32 @@ export function porteRisposta(): PorteRispostaManychat {
         .limit(1);
       if (error) return lancia(error);
       return data && data.length > 0 ? { leadId: data[0].lead_id } : null;
+    },
+
+    ultimeEntrate: async (userId, telefono) => {
+      type Riga = { body: string | null; created_at: string; media_type: string | null };
+      const leggi = (senzaDoppioni: boolean) => {
+        const q = db()
+          .from("whatsapp_messages")
+          .select<Riga[]>("body, created_at, media_type")
+          .eq("user_id", userId)
+          .eq("direction", "inbound")
+          .in("from_number", formati(telefono))
+          //  Mai le righe del ponte: nessuna regola le legge (I1).
+          .or(`canale.is.null,canale.neq.${CANALE_PONTE}`);
+        return (senzaDoppioni ? q.is("duplicato_di", null) : q)
+          .order("created_at", { ascending: false })
+          .limit(ENTRATE_DA_LEGGERE);
+      };
+      let { data, error } = await leggi(true);
+      //  Senza la migrazione del ponte `duplicato_di` non c'è (e nemmeno i doppioni).
+      if (error && migrazioneChatMancante(error)) ({ data, error } = await leggi(false));
+      if (error) return lancia(error);
+      return (data ?? []).map((r) => ({
+        testo: r.body ?? "",
+        il: new Date(r.created_at),
+        media: r.media_type || null,
+      }));
     },
 
     registraMessaggio: async (userId, m) => {
