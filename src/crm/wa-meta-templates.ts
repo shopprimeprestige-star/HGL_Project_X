@@ -186,7 +186,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_primo_contatto",
     "MARKETING",
-    `Gentile {{lead_name}}, sono il team di Hair Genius Labs: abbiamo ricevuto la Sua richiesta di informazioni, grazie.\n\nCi occupiamo di soluzioni non chirurgiche per la perdita dei capelli: la patch cutanea e Invisible Derm. Nella prima consulenza gratuita, online in videochiamata, Filippo Le spiegherà entrambe e quale è più adatta alla Sua situazione.\n\nPer fissarla, preferisce oggi o domani?`,
+    `Salve {{lead_name}}, sono Maurizio di Hair Genius Labs. Ho visto la sua richiesta di informazioni.\n\nLe va di fare una consulenza gratuita online, così capiamo insieme la soluzione più adatta a lei? Preferisce oggi o domani?`,
     ["lead_name"],
   ),
   tpl(
