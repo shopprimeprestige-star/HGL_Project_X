@@ -18,11 +18,14 @@ export function InfoModulo({
   dati,
   nome,
   telefono,
+  compatto,
 }: {
   dati: Partial<LeadData>;
   nome: string;
-  /** Sul telefono il numero non sta nell'intestazione: si legge qui. */
+  /** Il numero, ripetuto anche qui insieme alle risposte. */
   telefono?: string;
+  /** Nella seconda riga dell'intestazione: tasto piccolo con la scritta «Info». */
+  compatto?: boolean;
 }) {
   const [aperta, setAperta] = useState(false);
   const modulo = moduloLetto(dati);
@@ -34,16 +37,28 @@ export function InfoModulo({
   const d = t.termometro;
   return (
     <>
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={() => setAperta(true)}
-        className="h-11 w-11 md:h-9 md:w-9 shrink-0"
-        aria-label="Risposte del modulo"
-        title="Risposte del modulo"
-      >
-        <Info className="h-5 w-5 md:h-4 md:w-4" />
-      </Button>
+      {compatto ? (
+        <Button
+          variant="outline"
+          onClick={() => setAperta(true)}
+          className="h-11 shrink-0 gap-1 rounded-full px-3 text-[12px] md:h-7"
+          aria-label="Info: risposte del modulo e dettagli"
+          title="Risposte del modulo e dettagli"
+        >
+          <Info className="h-3.5 w-3.5" /> Info
+        </Button>
+      ) : (
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => setAperta(true)}
+          className="h-11 w-11 md:h-9 md:w-9 shrink-0"
+          aria-label="Risposte del modulo"
+          title="Risposte del modulo"
+        >
+          <Info className="h-5 w-5 md:h-4 md:w-4" />
+        </Button>
+      )}
       {aperta && (
         <Finestra
           aperta
