@@ -261,6 +261,7 @@ async function main() {
       return;
     }
     const r = await spedisci({ url, token, corpo });
+    if (r.stato === 200) fila.segnalaBuono(); // il database risponde: un 500 ripetuto è colpa del lotto
     if (r.stato === 200) erroreServer = false;
     else if (r.stato === 401 || r.stato === 503) erroreServer = true;
     if (r.stato !== 200) registro("battito_non_arrivato", { http: r.stato ?? 0 });

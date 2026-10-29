@@ -8,12 +8,14 @@
  *    fila/storico/  lotti dello storico (`messaging-history.set`)
  *    fila/vivo/     lotti dei messaggi vivi (`messages.upsert`), pronti dopo
  *                   `ATTESA_PARI_SECONDI`; passano sempre prima dello storico
- *    fila/scartati/ lotti rifiutati (400, 413 o tre 500 su un messaggio solo,
- *                   file rotti): contengono testi di clienti, si cancellano
- *                   dopo 14 giorni (`pulisciScartati`)
+ *    fila/scartati/ lotti rifiutati (400, 413 su un messaggio solo, file
+ *                   rotti): contengono testi di clienti, si cancellano dopo
+ *                   14 giorni (`pulisciScartati`). Un 500 NON scarta mai: la
+ *                   rotta lo dà per ogni errore del database (anche migrazione
+ *                   mancante o Supabase giù) e lo storico arriva una volta sola
  *
  *  Ogni file: `{ lotto: LottoPonte, prossimo_il, primo_invio_il, tentativi,
- *  errori500 }` (tempi in ms). Scrittura atomica: file temporaneo + `rename`.
+ *  errori500, primo500_il, attese_lunghe }` (tempi in ms). Scrittura atomica: file temporaneo + `rename`.
  *
  *  Come si usa (T6): `aggiungi` quando arrivano messaggi; un giro che chiede
  *  `prossimo()`, lo spedisce con `spedisci` e passa la risposta a `esito`;
@@ -39,8 +41,13 @@ export const RITMO = {
   ritentativi: [5000, 15_000, 60_000, 300_000],
   /** 401 e 503 (chiave o server non configurati): fino a 10 minuti */
   attesaChiave: [60_000, 120_000, 300_000, 600_000],
-  /** tre 500 sullo stesso lotto → si divide a metà (lotto avvelenato) */
+  /** tre 500 sullo stesso lotto → si divide a metà (lotto avvelenato), ma
+   *  solo se dal primo di quei 500 un altro lotto o il battito ha avuto 200:
+   *  allora il database funziona e il guaio è davvero quel lotto */
   erroriPerDividere: 3,
+  /** il messaggio avvelenato da solo resta in fila: 1 h, 2 h, 4 h… fino a 24 h */
+  attesaAvvelenato: 3_600_000,
+  attesaAvvelenatoMassima: 86_400_000,
   /** vivi rimandati come `non_noti`: si ritentano ogni 60 s per 10 minuti */
   attesaNonNoti: 60_000,
   tenutaNonNoti: 600_000,
@@ -125,6 +132,8 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
   const inVolo = new Set();
   let progressivo = 0;
   const ritmo = { pausa: RITMO.pausaStorico, buoni: 0, ultimo: -Infinity };
+  /** l'ultimo 200 dal server (un lotto o il battito, `segnalaBuono`), in ms */
+  let ultimoBuono = -Infinity;
   const conti = { scartati: 0, non_noti_scaduti: 0, divisi: 0 };
 
   function nuovoNome(origine) {
@@ -228,7 +237,8 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
     return min;
   }
 
-  /** Divide il lotto (413 o tre 500); un messaggio solo va in scartati/. */
+  /** Divide il lotto (413 o tre 500 col database vivo); col 413 un
+   *  messaggio solo va in scartati/ (troppo grande lo resta per sempre). */
   function dividiOScarta(nome, v, motivo) {
     if (v.dati.lotto.messaggi.length <= 1) {
       scarta(nome, v.origine, motivo);
@@ -264,6 +274,7 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
     let errore = false;
 
     if (stato === 200) {
+      ultimoBuono = adesso;
       const ids = !storico && Array.isArray(corpo?.non_noti) ? new Set(corpo.non_noti.filter((x) => typeof x === "string")) : new Set();
       const tenere = v.dati.lotto.messaggi.filter((m) => ids.has(m.id));
       if (tenere.length === 0) {
@@ -295,8 +306,19 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
     } else if (stato === 500) {
       errore = true;
       v.dati.errori500++;
-      if (v.dati.errori500 >= RITMO.erroriPerDividere) azione = dividiOScarta(voce.nome, v, "errore_500");
-      else {
+      v.dati.primo500_il ??= adesso;
+      const databaseVivo = ultimoBuono > v.dati.primo500_il;
+      const troppi = v.dati.errori500 >= RITMO.erroriPerDividere;
+      if (troppi && databaseVivo && v.dati.lotto.messaggi.length > 1) azione = dividiOScarta(voce.nome, v, "errore_500");
+      else if (troppi && databaseVivo) {
+        // il messaggio avvelenato, da solo: in fila con un'attesa lunga, mai buttato
+        const volte = v.dati.attese_lunghe ?? 0;
+        v.dati.attese_lunghe = volte + 1;
+        v.dati.prossimo_il = adesso + Math.min(RITMO.attesaAvvelenato * 2 ** Math.min(volte, 10), RITMO.attesaAvvelenatoMassima);
+        scrivi(voce.nome, v.origine, v.dati);
+        azione = "ritenta";
+      } else {
+        // nessun 200 da quando il lotto fallisce: il database è giù, si aspetta
         rimanda(voce.nome, v, RITMO.ritentativi);
         azione = "ritenta";
       }
@@ -360,7 +382,12 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
     return tolti;
   }
 
-  return { aggiungi, prossimo, esito, prossimaSveglia, contatori, pulisciScartati };
+  /** Un 200 arrivato da fuori della fila (il battito): il database risponde. */
+  function segnalaBuono() {
+    ultimoBuono = orologio();
+  }
+
+  return { aggiungi, prossimo, esito, segnalaBuono, prossimaSveglia, contatori, pulisciScartati };
 }
 
 /** Spedisce un corpo (lotto o battito) alla rotta del CRM.

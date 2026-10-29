@@ -135,34 +135,81 @@ export async function provePonteServizioLotti(mod, { c, gruppo, radice }) {
       c("l'attesa sale ma non supera 10 minuti", true, massimo > 60_000 && massimo <= 600_000);
     }
 
-    //  Il lotto avvelenato: un 500 permanente su un messaggio fra cinquanta.
+    //  Il database giù (migrazione mancante, Supabase fermo): 500 per ore.
+    //  Nessun 200 da nessuna parte → non si divide e non si scarta niente:
+    //  lo storico arriva una volta sola e non si può buttare.
     {
       const cart = nuovaCartella();
       const ora = orologio();
       const f = L.creaFila({ cartella: cart, orologio: ora });
-      f.aggiungi("storico", molti(50), {});
-      const veleno = "ID0031";
-      const passati = new Set();
-      let risposte500 = 0;
-      for (let giri = 0; giri < 5000 && f.contatori().in_coda > 0; giri++) {
+      f.aggiungi("storico", molti(80), {});
+      f.aggiungi("vivo", molti(20, "393330000002").map((m) => ({ ...m, id: `V${m.id}` })), {}, { prontoIl: T0 });
+      let risposte = 0;
+      while (ora() - T0 < 6 * 3_600_000) {
         const v = f.prossimo();
         if (!v) {
-          ora.vai(1000);
+          ora.vai(10_000);
+          continue;
+        }
+        risposte++;
+        f.esito(v, { stato: 500, corpo: { ok: false, errore: "database" } });
+      }
+      const k = f.contatori();
+      c("500 per 6 ore senza un 200: ritentato davvero", true, risposte > 20);
+      c("e nessun messaggio scartato o diviso: tutti e 100 in coda", { in_coda: 100, scartati: 0, divisi: 0 }, { in_coda: k.in_coda, scartati: k.scartati, divisi: k.divisi });
+      c("scartati/ vuota anche su disco", 0, file(join(cart, "scartati")).length);
+      f.segnalaBuono(); // il database torna: il battito riceve 200
+      let passati = 0;
+      for (let i = 0; i < 2000 && f.contatori().in_coda > 0; i++) {
+        const v = f.prossimo();
+        if (!v) {
+          ora.vai(10_000);
+          continue;
+        }
+        passati += v.lotto.messaggi.length;
+        f.esito(v, { stato: 200, corpo: { ok: true, non_noti: [] } });
+      }
+      c("quando il database torna passano tutti", 100, passati);
+    }
+
+    //  Il lotto avvelenato: un 500 permanente su un messaggio fra cento,
+    //  mentre il resto (altri lotti, il battito ogni 60 s) riceve 200.
+    {
+      const cart = nuovaCartella();
+      const ora = orologio();
+      const f = L.creaFila({ cartella: cart, orologio: ora });
+      f.aggiungi("storico", molti(100), {});
+      const veleno = "ID0031";
+      const passati = new Set();
+      const tentativiSingolo = [];
+      let battito = T0;
+      for (let giri = 0; giri < 20000 && ora() - T0 < 3 * 86_400_000; giri++) {
+        if (ora() - battito >= 60_000) {
+          battito = ora();
+          f.segnalaBuono();
+        }
+        const v = f.prossimo();
+        if (!v) {
+          // al prossimo lotto pronto o al prossimo battito, il primo dei due
+          ora.a(Math.max(ora() + 1, Math.min(f.prossimaSveglia() ?? Infinity, battito + 60_000)) - T0);
           continue;
         }
         if (v.lotto.messaggi.some((m) => m.id === veleno)) {
-          risposte500++;
+          if (v.lotto.messaggi.length === 1) tentativiSingolo.push(ora());
           f.esito(v, { stato: 500, corpo: { ok: false, errore: "database" } });
         } else {
           v.lotto.messaggi.forEach((m) => passati.add(m.id));
           f.esito(v, { stato: 200, corpo: { ok: true, non_noti: [] } });
         }
       }
-      c("dopo tre 500 si divide fino al singolo: 49 passano", 49, passati.size);
+      c("con dei 200 in mezzo si divide fino al singolo: 99 passano", 99, passati.size);
       c("il messaggio avvelenato non è passato", false, passati.has(veleno));
-      const sc = file(join(cart, "scartati"));
-      c("e sta da solo in scartati/", [1, [veleno]], [sc.length, sc.length ? JSON.parse(readFileSync(join(cart, "scartati", sc[0]), "utf8")).lotto.messaggi.map((m) => m.id) : []]);
-      c("tre 500 per ogni livello di divisione (50→25→13→7→3→1)", 3 * 6, risposte500);
+      c("ma resta in fila, da solo, e non in scartati/", { in_coda: 1, scartati: 0 }, { in_coda: f.contatori().in_coda, scartati: file(join(cart, "scartati")).length });
+      const salti = tentativiSingolo.slice(1).map((t, i) => t - tentativiSingolo[i]);
+      const lunghi = salti.slice(2);
+      c("il singolo si ritenta: prima 3 volte, poi a lungo", true, tentativiSingolo.length >= 6);
+      c("le attese lunghe vanno da 1 ora a 24 ore", true, lunghi.length > 0 && lunghi[0] >= 3_600_000 && lunghi.every((x) => x >= 3_600_000 && x <= 86_400_000 + 60_000));
+      c("e arrivano al tetto di 24 ore", true, lunghi.some((x) => x >= 86_400_000));
     }
 
     //  Due code: i vivi non aspettano lo storico; l'attesa dei 30 s.
