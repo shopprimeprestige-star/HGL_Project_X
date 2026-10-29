@@ -97,7 +97,7 @@ export function porteIngresso(): PortePonte {
         .map(([k, v]) => ` ${k}=${v}`)
         .join("");
       const riga = `[ponte-wa] ${codice}${numeri}`;
-      if (codice === "lotto" || codice === "battito" || codice === "riconciliati")
+      if (codice === "lotto" || codice === "battito" || codice === "riconciliati" || codice === "noti")
         console.info(riga);
       else console.warn(riga);
     },

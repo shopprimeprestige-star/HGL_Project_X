@@ -23,6 +23,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFil
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chiaveCache, controllaCache, creaCache } from "./cache.mjs";
 import { creaCollegamento } from "./collega.mjs";
 import { leggiConfig } from "./config.mjs";
 import { creaFila, spedisci } from "./lotti.mjs";
@@ -34,6 +35,8 @@ export const nodeAmmesso = (versione) => NODE_AMMESSI.includes(Number(String(ver
 
 export const LOG_MAX_BYTE = 5 * 1024 * 1024;
 export const BATTITO_MS = 60_000;
+/** ogni quanto la cache chiede al CRM se un suo numero è diventato noto (p3) */
+export const CONTROLLO_CACHE_MS = 600_000;
 const GIORNO_MS = 86_400_000;
 const CODICE = /^[a-z_]+$/;
 
@@ -53,6 +56,8 @@ export function percorsiDi(casa) {
     stato: join(base, "stato.json"),
     lid: join(base, "lid.json"),
     qr: join(base, "qr.png"),
+    cache: join(base, "cache"),
+    chiaveCache: join(base, "chiave-cache"),
     log: join(casa, "Library/Logs/hgl-ponte-wa.log"),
   };
 }
@@ -151,8 +156,9 @@ export function contiDiagnosi(d) {
  *  parole della lista chiusa, date ISO e numeri. Il QR non c'è mai.
  *  `contatori` resta entro 18 chiavi: il CRM ne tiene 20 con `in_coda` e
  *  `scartati`. Il dettaglio va in `diagnosi` (stato.json e log; la rotta del
- *  CRM non lo legge e non lo salva). */
-export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
+ *  CRM non lo legge e non lo salva). `cache`: `{ numeri, promossi }` della
+ *  cache sul Mac (p3), 0 se manca. */
+export function corpoBattito(ist, fc, { erroreServer = false, cache } = {}) {
   let stato = ist.stato;
   if (stato === "collegato" && erroreServer) stato = "errore";
   else if (stato === "collegato" && fc.piena) stato = "coda_piena";
@@ -182,6 +188,8 @@ export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
       tipo_sconosciuto: numero(d.scarti?.tipo_sconosciuto),
       fanout_ospitati: numero(d.nodi?.hosted_unavailable_fanout),
       fanout_registrati: numero(e.invii_nascosti),
+      cache_numeri: numero(cache?.numeri),
+      cache_promossi: numero(cache?.promossi),
     },
     versione: VERSIONE_BAILEYS,
     diagnosi: { scarti: soloConti(d.scarti), tipi: soloConti(d.tipi), nodi: soloConti(d.nodi) },
@@ -227,7 +235,23 @@ async function main() {
   const senzaInvio = process.argv.includes("--senza-invio");
   if (senzaInvio) registro("senza_invio");
 
-  const fila = creaFila({ cartella: P.fila, attesaPariMs: attesaPariSecondi * 1000 });
+  // La cache dei numeri fuori dal CRM (p3). Se non si apre il ponte va avanti
+  // come prima: i non noti si buttano.
+  let cache = null;
+  try {
+    cache = creaCache({ cartella: P.cache, chiave: chiaveCache(P.chiaveCache) });
+    registro("cache_aperta", { ...cache.contatori(), tolti: cache.pulisci() });
+  } catch {
+    registro("cache_non_aperta");
+  }
+  let promossi = 0;
+  const allaCache = (messaggi, nomi) => {
+    const r = cache?.metti(messaggi, nomi);
+    if (r?.rifiutati) registro("cache_piena", { rifiutati: r.rifiutati });
+  };
+  const contiCache = () => ({ numeri: cache?.contatori().numeri ?? 0, promossi });
+
+  const fila = creaFila({ cartella: P.fila, attesaPariMs: attesaPariSecondi * 1000, fuoriRubrica: allaCache });
   registro("scartati_puliti", { tolti: fila.pulisciScartati() });
 
   let erroreServer = false;
@@ -237,7 +261,7 @@ async function main() {
 
   function scriviStato() {
     try {
-      scriviJson(P.stato, { ...corpoBattito(col.istantanea(), fila.contatori(), { erroreServer }), aggiornato_il: new Date().toISOString() });
+      scriviJson(P.stato, { ...corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, cache: contiCache() }), aggiornato_il: new Date().toISOString() });
     } catch {
       registro("stato_non_scritto");
     }
@@ -278,8 +302,26 @@ async function main() {
   /** la riga `diagnosi` si scrive solo quando cambia (il log non si gonfia) */
   let ultimaDiagnosi = "";
 
+  /** Chiede al CRM se un numero della cache è diventato noto e mette la sua
+   *  cronologia in fila (storico). Uno alla volta; mai con --senza-invio. */
+  let inControllo = false;
+  async function controllo() {
+    if (!cache || senzaInvio || fermo || inControllo) return;
+    inControllo = true;
+    try {
+      const e = await controllaCache({ cache, fila, invia: (corpo) => spedisci({ url, token, corpo }) });
+      promossi += e.promossi;
+      registro("cache_controllo", { chiesti: e.chiesti, noti: e.noti, promossi: e.promossi, http: e.stato, piena: e.piena ? 1 : 0 });
+      if (e.promossi) giro();
+    } catch {
+      registro("cache_controllo_fallito");
+    } finally {
+      inControllo = false;
+    }
+  }
+
   async function battito() {
-    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer });
+    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, cache: contiCache() });
     scriviStato();
     registro(`battito_${corpo.stato}`, { in_coda: corpo.in_coda, scartati: corpo.scartati, ...corpo.contatori });
     const conti = contiDiagnosi(corpo.diagnosi);
@@ -313,17 +355,22 @@ async function main() {
   });
 
   const battiti = setInterval(() => void battito(), BATTITO_MS);
-  const pulizia = setInterval(() => registro("scartati_puliti", { tolti: fila.pulisciScartati() }), GIORNO_MS);
+  const pulizia = setInterval(() => {
+    registro("scartati_puliti", { tolti: fila.pulisciScartati() });
+    if (cache) registro("cache_pulita", { tolti: cache.pulisci() });
+  }, GIORNO_MS);
+  const controlli = setInterval(() => void controllo(), CONTROLLO_CACHE_MS);
 
   async function chiudi() {
     if (fermo) return;
     fermo = true;
     clearInterval(battiti);
     clearInterval(pulizia);
+    clearInterval(controlli);
     if (sveglia) clearTimeout(sveglia);
     col.ferma();
     await Promise.race([inVolo ?? Promise.resolve(), pausa(10_000)]).catch(() => {});
-    const corpo = corpoBattito(col.istantanea(), fila.contatori(), {});
+    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { cache: contiCache() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });
     registro("fermo");
@@ -335,6 +382,7 @@ async function main() {
   await col.avvia();
   void battito();
   giro();
+  void controllo();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

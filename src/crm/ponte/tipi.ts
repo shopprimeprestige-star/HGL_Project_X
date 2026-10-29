@@ -41,6 +41,8 @@ export const LIMITI = {
   id: 128,
   /** voci di `nomi` */
   nomi: 200,
+  /** numeri di una richiesta `noti` (la cache del ponte, p3 30/10) */
+  numeri: 200,
   /** chiavi di `storico` e di `contatori` nel battito, dopo la ripulitura */
   chiaviContatori: 20,
   /** `ts` accettato fino ad adesso + 10 minuti */
@@ -187,9 +189,11 @@ export interface RispostaErrore {
   errore: CodiceErrore;
 }
 
-/** Risposta 200 a un lotto (§b2). `non_noti`: solo per i lotti `vivo`, gli
- *  `id` WhatsApp da ritentare (D7); per lo `storico` è sempre `[]` e i non noti
- *  si contano in `fuori_rubrica`. `doppioni` = righe scritte con un pari. */
+/** Risposta 200 a un lotto (§b2). `non_noti`: gli `id` WhatsApp dei messaggi
+ *  con un numero non noto (D7). Per i `vivo` il ponte li ritenta; per lo
+ *  `storico` (dal 30/10, p3) li tiene nella sua cache sul Mac, e si contano
+ *  anche in `fuori_rubrica` (un ponte di prima li ignora). `doppioni` = righe
+ *  scritte con un pari. */
 export interface RispostaLotto {
   ok: true;
   ricevuti: number;
@@ -205,6 +209,20 @@ export interface RispostaLotto {
 export interface RispostaBattito {
   ok: true;
   riconciliati: number;
+}
+
+/** Domanda della cache del ponte (p3, 30/10): dei `numeri` (cifre 8-15, da 1
+ *  a `LIMITI.numeri`) quali il CRM conosce adesso (D7). Nessun testo. */
+export interface RichiestaNoti {
+  v: 1;
+  tipo: "noti";
+  numeri: string[];
+}
+
+/** Risposta 200 a `RichiestaNoti`: i soli numeri chiesti che il CRM conosce. */
+export interface RispostaNoti {
+  ok: true;
+  noti: string[];
 }
 
 // ── 2. Logica → database: le forme JSON delle tre funzioni SQL (§e.5) ─────
@@ -331,6 +349,7 @@ export const CODICI_AVVISO = [
   "battito",
   "riconciliati",
   "pari_persi",
+  "noti",
 ] as const;
 export type CodiceAvviso = (typeof CODICI_AVVISO)[number];
 

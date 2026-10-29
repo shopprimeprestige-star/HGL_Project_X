@@ -446,6 +446,16 @@ export async function provePonteRotta(_mod, { c, gruppo, radice }) {
       c("un secondo battito aggiorna la stessa riga", [1, "fermo"], [m.tab.ponte_wa_stato.length, m.tab.ponte_wa_stato[0].stato]);
     }
 
+    gruppo("PONTE WHATSAPP · LA ROTTA · LA DOMANDA «NOTI» DELLA CACHE SUL MAC (p3)");
+    {
+      const m = nuovoMondo(base());
+      const x = await chiama(POST, { corpo: { v: 1, tipo: "noti", numeri: [NOTO, IGNOTO] } });
+      c("noti → 200 con i soli numeri noti", [200, { ok: true, noti: [NOTO] }], [x.r.status, x.json]);
+      c("…una sola funzione, ponte_wa_noti, con l'utente di manychat_config", [["ponte_wa_noti"], UTENTE], [m.rpc.map((r) => r.fn), m.rpc[0]?.args.p_user_id]);
+      c("…e nessuna scrittura", [], m.scritture);
+      c("…nel log solo il codice e i conteggi", ["[ponte-wa] noti chiesti=2 noti=1"], x.log);
+    }
+
     gruppo("PONTE WHATSAPP · LA ROTTA · IL DATABASE CHE DICE DI NO (compito T4)");
     {
       Route = rotta.carica();
