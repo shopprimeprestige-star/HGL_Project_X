@@ -88,6 +88,24 @@ const ms = (x: string | null | undefined) => (x ? Date.parse(x) : NaN);
 
 const FRASE_INVIO = "Invio non riuscito, riprova";
 
+/** ── UNA RICHIESTA APPESA NON BLOCCA LA PAGINA (29/10/2026) ──────────────────
+ *  Sul telefono, a rete appena tornata, una richiesta può restare appesa senza
+ *  mai rispondere: il tasto «Aggiorna» resterebbe disabilitato e ogni ricarica
+ *  dopo resterebbe in fila per sempre. Ogni attesa di rete ha un tetto. */
+const LIMITE_RETE = 10_000;
+/** Una ricarica «in corso» da più di così si considera persa: la prossima parte lo stesso. */
+const LIMITE_RICARICA = 30_000;
+/** Con l'errore che persiste, la sessione si rinnova al massimo una volta ogni tanto. */
+const PAUSA_RINNOVO = 60_000;
+
+function conTempo<T>(p: PromiseLike<T>, ms = LIMITE_RETE): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const scade = new Promise<never>((_, no) => {
+    t = setTimeout(() => no(new Error("tempo scaduto")), ms);
+  });
+  return Promise.race([Promise.resolve(p), scade]).finally(() => clearTimeout(t));
+}
+
 /** Come la pagina decide di cambiare stato a un lead: la finestra di chiusura e
  *  le finestre rapide stanno nella pagina (`PaginaChat`), il lead da cambiare no. */
 export interface OpzioniChatWa {
@@ -119,6 +137,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   const [aggiornando, setAggiornando] = useState(false);
   /** «Aggiorna» a mano: riapre il canale e rilegge (lo imposta l'effetto del tempo reale). */
   const forzaRef = useRef<(() => Promise<void>) | null>(null);
+  /** Ultimo rinnovo della sessione dopo un errore: con la rete giù non se ne fa uno a ogni giro. */
+  const rinnovatoRef = useRef(0);
   /** Chat (per telefono) uscite da «Da rispondere» PRIMA che la ricarica lo confermi: ora locale. */
   const [ottimistici, setOttimistici] = useState<Record<string, number>>({});
   /** Chat a cui il server ha detto «solo modelli»: telefono → ultimo messaggio del cliente allora. */
@@ -195,34 +215,42 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     if (!user) return;
     //  Lo spinner solo al primo caricamento (`caricamento` parte vero): ogni
     //  risposta fa più ricariche, e l'elenco non deve lampeggiare né perdere un tocco.
+    //  Una lettura appesa o caduta vale come una lettura in errore (`null`).
     const leggi = () =>
-      Promise.all([
-        tabella("whatsapp_messages")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(2000),
-        tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
-      ]);
-    let [m, ct] = await leggi();
+      conTempo(
+        Promise.all([
+          tabella("whatsapp_messages")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(2000),
+          tabella("whatsapp_contacts").select("*").eq("user_id", user.id),
+        ]),
+      ).catch(() => null);
+    let letti = await leggi();
     /*  ── LA SESSIONE SCADUTA SUL TELEFONO (29/10/2026) ──────────────────────
         Il titolare vedeva sul telefono solo le chat del giorno prima. Con il CRM
         lasciato aperto in un browser dentro un'app, i timer si fermano e la
         sessione scade senza rinnovarsi: ogni lettura tornava errore e la pagina
         teneva, ZITTA, i dati vecchi. Ora: al primo errore si rinnova la sessione
         e si riprova; se fallisce ancora, l'errore si mostra in alto con «Aggiorna». */
-    if (m.error || ct.error) {
-      await supabase.auth.refreshSession().catch(() => null);
-      [m, ct] = await leggi();
+    if (
+      (!letti || letti[0].error || letti[1].error) &&
+      Date.now() - rinnovatoRef.current > PAUSA_RINNOVO
+    ) {
+      rinnovatoRef.current = Date.now();
+      await conTempo(supabase.auth.refreshSession()).catch(() => null);
+      letti = await leggi();
     }
     //  Errore di lettura (rete, RLS): si tengono i dati di prima, non si svuota l'elenco.
-    if (m.error || ct.error) {
+    if (!letti || letti[0].error || letti[1].error) {
       setErroreLettura(
         "Chat non aggiornate: connessione o accesso scaduto. Tocca «Aggiorna» o ricarica la pagina.",
       );
       setCaricamento(false);
       return;
     }
+    const [m, ct] = letti;
     setErroreLettura(null);
     setAggiornatoIl(Date.now());
     const cts = (ct.data as WaContactRow[] | null) ?? [];
@@ -262,21 +290,26 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   useEffect(() => {
     if (!user) return;
     let vivo = true;
-    let inCorso = false;
+    //  `inCorso` è l'ora d'inizio della ricarica in corso (0 = nessuna). Una ricarica
+    //  appesa da più di LIMITE_RICARICA non tiene più in fila le altre: la sua
+    //  fine, se mai arriva, non tocca più niente (`turno`).
+    let inCorso = 0;
+    let turno = 0;
     let ancora = false;
     const ricarica = async () => {
-      if (inCorso) {
+      if (inCorso && Date.now() - inCorso < LIMITE_RICARICA) {
         ancora = true;
         return;
       }
-      inCorso = true;
+      inCorso = Date.now();
+      const mio = ++turno;
       try {
         await reloadRef.current();
       } catch {
         //  Rete caduta: si riprova al prossimo segnale (canale, controllo, ritorno sulla pagina).
       } finally {
-        inCorso = false;
-        if (ancora && vivo) {
+        if (mio === turno) inCorso = 0;
+        if (mio === turno && ancora && vivo) {
           ancora = false;
           void ricarica();
         }
@@ -285,12 +318,17 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
 
     let ch: ReturnType<typeof supabase.channel> | null = null;
     let riprova: ReturnType<typeof setTimeout> | null = null;
+    //  Ogni `apri` ha il suo numero: se mentre aspetta la sessione ne parte un altro
+    //  («Aggiorna», ritorno sulla pagina, ritento dei 5 s), il primo si ritira senza
+    //  aprire niente. Così di canali vivi ce n'è sempre uno solo.
+    let generazione = 0;
     const apri = async () => {
       if (!vivo) return;
-      const { data } = await supabase.auth.getSession();
+      const mia = ++generazione;
+      const { data } = await conTempo(supabase.auth.getSession());
       const token = data.session?.access_token;
-      if (token) await supabase.realtime.setAuth(token);
-      if (!vivo) return;
+      if (token) await conTempo(supabase.realtime.setAuth(token));
+      if (!vivo || mia !== generazione) return;
       const questo = supabase
         .channel(`wa-${user.id}-${Date.now()}`)
         .on(
@@ -365,7 +403,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     const controllaZitto = () => controlla().catch(() => {});
     //  «Aggiorna»: sessione rinnovata, canale riaperto da capo, tutto riletto.
     forzaRef.current = async () => {
-      await supabase.auth.refreshSession().catch(() => null);
+      await conTempo(supabase.auth.refreshSession()).catch(() => null);
       if (riprova) {
         clearTimeout(riprova);
         riprova = null;

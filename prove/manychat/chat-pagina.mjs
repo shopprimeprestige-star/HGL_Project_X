@@ -48,7 +48,11 @@ export const fetchCRM = (url, init) => globalThis.fetch(url, init);`,
   client: `export const supabase = {
   from: (t) => globalThis.__T.db.from(t),
   rpc: (fn, args) => globalThis.__T.db.rpc(fn, args),
-  auth: { getSession: async () => ({ data: { session: { access_token: "gettone-finto" } } }) },
+  //  La sessione la decide la prova (\`__T.auth\`): così si contano i rinnovi e si appendono.
+  auth: {
+    getSession: () => globalThis.__T.auth.getSession(),
+    refreshSession: () => globalThis.__T.auth.refreshSession(),
+  },
   realtime: { setAuth: async () => {} },
   channel: () => globalThis.__T.db.canale(),
   removeChannel: (c) => c?.chiudi?.(),
@@ -148,6 +152,7 @@ function creaDb(tabelle) {
     gate: null, // promessa da aspettare prima di leggere i contatti
     rifiutaColonne: false, // un update con le colonne nuove dà 42703
     erroreLettura: false, // le letture di messaggi e contatti danno un errore (rete, RLS)
+    falliscono: 0, // le prossime N letture di messaggi o contatti danno errore, poi tornano buone
     erroreUpdate: false, // ogni update dà un errore che non è «colonna mancante»
     congelaUpdate: false, // gli update vengono registrati ma non toccano le righe (come una RLS che non lascia passare)
     rpcRisposta: null, // (fn, args) => {data, error}
@@ -167,7 +172,10 @@ function creaDb(tabelle) {
           ch.stato = stato;
           return ch;
         },
-        chiudi: () => ch.stato?.("CLOSED"),
+        chiudi: () => {
+          ch.chiuso = true;
+          ch.stato?.("CLOSED");
+        },
       };
       db.canali.push(ch);
       return ch;
@@ -217,6 +225,10 @@ function creaDb(tabelle) {
         (!orFiltri || orFiltri.some(([k, v]) => String(r[k]) === v));
       if (q.op === "select" && db.erroreLettura && q.t !== "whatsapp_settings")
         return { data: null, error: { code: "XX000", message: "rete giù" } };
+      if (q.op === "select" && db.falliscono > 0 && q.t !== "whatsapp_settings") {
+        db.falliscono--;
+        return { data: null, error: { code: "PGRST301", message: "JWT expired" } };
+      }
       if (q.op === "update" && db.erroreUpdate)
         return { data: null, error: { code: "XX000", message: "update rifiutato" } };
       if (q.op === "select") {
@@ -358,6 +370,18 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         ora: T0,
         chiamate: [],
         timers: new Map(),
+        auth: {
+          sessioni: 0,
+          rinnovi: 0,
+          getSession: async () => {
+            T.auth.sessioni++;
+            return { data: { session: { access_token: "gettone-finto" } } };
+          },
+          refreshSession: async () => {
+            T.auth.rinnovi++;
+            return { data: { session: { access_token: "gettone-nuovo" } }, error: null };
+          },
+        },
       };
       let nTimer = 0;
       Date.now = () => T.ora;
@@ -1654,6 +1678,308 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         c("smontando, la chiusura del canale non riapre niente", 0, attese.length);
       } finally {
         globalThis.setTimeout = setTimeoutVero;
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+     *  10 · IL TELEFONO CHE TORNA (29/10/2026): sessione scaduta, pausa lunga,
+     *       richieste appese, «Aggiorna». Timer, pagina e finestra sono finti.
+     * ════════════════════════════════════════════════════════════════════════ */
+    gruppo("CHAT WHATSAPP · PAGINA · TELEFONO IN SOTTOFONDO E «AGGIORNA»");
+    {
+      const veri = {
+        setTimeout: globalThis.setTimeout,
+        clearTimeout: globalThis.clearTimeout,
+        document: Object.getOwnPropertyDescriptor(globalThis, "document"),
+        window: Object.getOwnPropertyDescriptor(globalThis, "window"),
+      };
+      //  I timer a scadenza si scatenano a mano: `scadono(ms)` fa partire quelli di quella durata.
+      const attese = new Map();
+      let nAttesa = 0;
+      globalThis.setTimeout = (f, ms) => {
+        attese.set(++nAttesa, { f, ms });
+        return nAttesa;
+      };
+      globalThis.clearTimeout = (id) => attese.delete(id);
+      const scadono = (ms) => {
+        for (const [id, t] of [...attese]) {
+          if (t.ms !== ms) continue;
+          attese.delete(id);
+          t.f();
+        }
+      };
+      //  Una pagina e una finestra finte, con il conto degli ascoltatori.
+      const ascolta = () => {
+        const l = new Map();
+        return {
+          l,
+          addEventListener: (tipo, f) => l.set(tipo, [...(l.get(tipo) ?? []), f]),
+          removeEventListener: (tipo, f) =>
+            l.set(
+              tipo,
+              (l.get(tipo) ?? []).filter((g) => g !== f),
+            ),
+          lancia: (tipo) => (l.get(tipo) ?? []).forEach((f) => f()),
+          quanti: () => [...l.values()].reduce((n, x) => n + x.length, 0),
+        };
+      };
+      const doc = { visibilityState: "visible", ...ascolta() };
+      const win = ascolta();
+      Object.defineProperty(globalThis, "document", {
+        value: doc,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(globalThis, "window", {
+        value: win,
+        configurable: true,
+        writable: true,
+      });
+      const letture = (p) =>
+        p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000)
+          .length;
+      const vivi = (p) => p.db.canali.filter((x) => !x.chiuso).length;
+      const base = () => ({
+        contatti: [contatto("c1", P1, { ultimo_in_entrata_il: iso(-3 * ORA_MS) })],
+      });
+      try {
+        // ── Errore che PERSISTE: un solo rinnovo, due letture, errore in pagina.
+        {
+          const p = await monta(base());
+          c(
+            "pagina aperta: niente errore, ora dell'ultima lettura segnata",
+            [null, T0],
+            [p.api().erroreLettura, p.api().aggiornatoIl],
+          );
+          const prima = letture(p);
+          p.db.erroreLettura = true;
+          p.T.ora += 2 * MIN;
+          p.db.emetti("whatsapp_contacts");
+          await p.assesta();
+          c(
+            "lettura in errore: UN rinnovo della sessione, DUE letture, errore mostrato, dati di prima tenuti",
+            [1, 2, true, 1, T0],
+            [
+              p.T.auth.rinnovi,
+              letture(p) - prima,
+              typeof p.api().erroreLettura === "string" && p.api().erroreLettura.length > 0,
+              p.api().chats.length,
+              p.api().aggiornatoIl,
+            ],
+          );
+          // Passano 15 s: il controllo vede l'errore e fa UNA ricarica, senza un altro rinnovo.
+          const dopo = letture(p);
+          p.T.ora += 15_000;
+          for (const t of [...p.T.timers.values()].filter((t) => t.ms === 15_000)) t.f();
+          await p.assesta();
+          await p.assesta();
+          c(
+            "15 s dopo, errore ancora lì: una sola lettura in più, nessun rinnovo nuovo (al massimo uno al minuto)",
+            [1, 1],
+            [letture(p) - dopo, p.T.auth.rinnovi],
+          );
+          fine(p);
+        }
+
+        // ── Errore che PASSA al secondo tentativo (sessione rinnovata): niente errore.
+        {
+          const p = await monta(base());
+          p.T.ora += 2 * MIN;
+          p.db.falliscono = 1;
+          p.db.tabelle.whatsapp_contacts.push(contatto("c2", P2));
+          p.db.emetti("whatsapp_contacts");
+          await p.assesta();
+          c(
+            "prima lettura respinta (gettone scaduto), rinnovo, seconda buona: niente errore, ora aggiornata, dati nuovi",
+            [1, null, T0 + 2 * MIN, 2],
+            [p.T.auth.rinnovi, p.api().erroreLettura, p.api().aggiornatoIl, p.api().chats.length],
+          );
+          fine(p);
+        }
+
+        // ── Ritorno dopo una pausa lunga: canale riaperto da capo, UNO solo vivo.
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const primo = p.db.canali.at(-1);
+          // Un ritento dei 5 s era già in attesa quando il telefono è andato in tasca.
+          primo.stato("CHANNEL_ERROR");
+          c(
+            "canale caduto: un ritento dei 5 s in attesa",
+            1,
+            [...attese.values()].filter((t) => t.ms === 5_000).length,
+          );
+          p.T.ora += 10 * MIN;
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          await p.assesta();
+          c(
+            "tornato dopo 10 min: vecchio canale chiuso, un canale vivo, ritento dei 5 s annullato, sessione rinnovata",
+            [true, 1, 0, 1],
+            [
+              primo.chiuso === true,
+              vivi(p),
+              [...attese.values()].filter((t) => t.ms === 5_000).length,
+              p.T.auth.rinnovi,
+            ],
+          );
+          fine(p);
+        }
+
+        // ── `pageshow` e `focus` insieme (l'app riaperta li manda entrambi): UNA riapertura.
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const canaliPrima = p.db.canali.length;
+          p.T.ora += 5 * MIN;
+          win.lancia("pageshow");
+          win.lancia("focus");
+          await p.assesta();
+          await p.assesta();
+          c(
+            "pageshow + focus dopo 5 min: un solo canale nuovo, uno solo vivo, un solo rinnovo",
+            [1, 1, 1],
+            [p.db.canali.length - canaliPrima, vivi(p), p.T.auth.rinnovi],
+          );
+          fine(p);
+        }
+
+        // ── Due riaperture in volo insieme: quella superata non apre un secondo canale.
+        {
+          const p = await monta(base());
+          await p.assesta();
+          let sblocca;
+          const ferma = new Promise((r) => (sblocca = r));
+          const sessioneVera = p.T.auth.getSession;
+          p.T.auth.getSession = async () => {
+            await ferma;
+            return sessioneVera();
+          };
+          p.db.canali.at(-1).stato("TIMED_OUT");
+          scadono(5_000); // il ritento parte e resta ad aspettare la sessione
+          const az = p.api().aggiorna(); // e intanto il titolare tocca «Aggiorna»
+          await p.assesta();
+          sblocca();
+          await az;
+          await p.assesta();
+          await p.assesta();
+          c("ritento dei 5 s e «Aggiorna» insieme: resta UN canale vivo", [1], [vivi(p)]);
+          fine(p);
+        }
+
+        // ── Il tasto «Aggiorna».
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const primo = p.db.canali.at(-1);
+          const prima = letture(p);
+          p.T.ora += 30_000;
+          p.db.tabelle.whatsapp_contacts.push(contatto("c2", P2));
+          await p.api().aggiorna();
+          await p.assesta();
+          c(
+            "«Aggiorna»: sessione rinnovata, canale riaperto (uno vivo), tutto riletto, ora nuova, tasto libero",
+            [1, true, 1, 1, 2, T0 + 30_000, false],
+            [
+              p.T.auth.rinnovi,
+              primo.chiuso === true,
+              vivi(p),
+              letture(p) - prima,
+              p.api().chats.length,
+              p.api().aggiornatoIl,
+              p.api().aggiornando,
+            ],
+          );
+          fine(p);
+        }
+
+        // ── Rinnovo della sessione APPESO: dopo 10 s si va avanti, il tasto si libera.
+        {
+          const p = await monta(base());
+          await p.assesta();
+          p.T.auth.refreshSession = () => new Promise(() => {});
+          const az = p.api().aggiorna();
+          await p.assesta();
+          c("rinnovo appeso: il tasto aspetta", [true], [p.api().aggiornando]);
+          scadono(10_000);
+          //  Senza tetto `az` non finirebbe mai: si guarda se è finita, non la si aspetta.
+          const finita = await Promise.race([
+            az.then(() => "finita"),
+            p.assesta().then(() => "appesa"),
+          ]);
+          await p.assesta();
+          c(
+            "dopo 10 s il rinnovo si abbandona: «Aggiorna» finisce, tasto di nuovo libero, niente errore",
+            ["finita", false, null],
+            [finita, p.api().aggiornando, p.api().erroreLettura],
+          );
+          fine(p);
+        }
+
+        // ── Lettura APPESA: dopo 10 s errore in pagina; dopo 30 s non blocca più le ricariche.
+        {
+          const p = await monta(base());
+          await p.assesta();
+          p.T.ora += 2 * MIN;
+          p.db.gate = new Promise(() => {}); // i contatti non rispondono più
+          p.db.emetti("whatsapp_contacts");
+          await p.assesta();
+          const appese = letture(p);
+          p.db.emetti("whatsapp_contacts"); // un altro messaggio mentre la prima è appesa
+          await p.assesta();
+          c("con una ricarica appesa la successiva aspetta in fila", [appese], [letture(p)]);
+          scadono(10_000); // la prima lettura scade → rinnovo → seconda lettura (appesa anche lei)
+          await p.assesta();
+          scadono(10_000);
+          await p.assesta();
+          c(
+            "dopo i due tetti da 10 s: errore mostrato in pagina",
+            [true],
+            [typeof p.api().erroreLettura === "string"],
+          );
+          // La fila riparte: e se anche questa resta appesa, dopo 30 s non tiene ferme le altre.
+          const ora = letture(p);
+          p.T.ora += 31_000;
+          p.db.emetti("whatsapp_contacts");
+          await p.assesta();
+          c(
+            "ricarica rimasta appesa da più di 30 s: la nuova parte lo stesso",
+            [true],
+            [letture(p) > ora],
+          );
+          p.db.gate = null;
+          for (let i = 0; i < 4; i++) {
+            scadono(10_000);
+            await p.assesta();
+          }
+          fine(p);
+        }
+
+        // ── Pulizia: niente timer, niente canali, niente ascoltatori.
+        {
+          const p = await monta(base());
+          await p.assesta();
+          p.db.canali.at(-1).stato("CLOSED"); // un ritento in attesa al momento dello smontaggio
+          c(
+            "prima di smontare: ascoltatori su pagina e finestra",
+            [true],
+            [doc.quanti() + win.quanti() > 0],
+          );
+          p.smonta();
+          await p.assesta().catch(() => {});
+          c(
+            "smontata: zero timer (intervalli e attese), zero canali vivi, zero ascoltatori",
+            [0, 0, 0, 0],
+            [p.T.timers.size, attese.size, vivi(p), doc.quanti() + win.quanti()],
+          );
+        }
+      } finally {
+        globalThis.setTimeout = veri.setTimeout;
+        globalThis.clearTimeout = veri.clearTimeout;
+        if (veri.document) Object.defineProperty(globalThis, "document", veri.document);
+        else delete globalThis.document;
+        if (veri.window) Object.defineProperty(globalThis, "window", veri.window);
+        else delete globalThis.window;
       }
     }
   } finally {
