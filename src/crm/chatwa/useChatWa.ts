@@ -631,7 +631,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         vecchia: dr.vecchia,
       };
       const f = finestra24({ contatto, messaggi, adesso });
-      item.finestra = { aperta: f.aperta, frase: f.frase };
+      item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };
     }
 
     // ordina per ultimo movimento, come WhatsApp: il messaggio più recente fra quelli

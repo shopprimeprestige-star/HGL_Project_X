@@ -34,6 +34,8 @@ import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { linkApriWhatsapp } from "./apriWhatsapp";
+import { testoPerWhatsapp } from "./testoWhatsapp";
+import { useCRM } from "@/crm/CRMContext";
 import { Casella } from "./Casella";
 import { BarraRispostaAi } from "./BarraRispostaAi";
 import { useRispostaAi } from "./useRispostaAi";
@@ -73,6 +75,7 @@ export function Conversazione({
   onAbbina,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
+  const { consultants } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   //  ── RISPOSTA AI (29/10/2026) ───────────────────────────────────────────
   //  Si scelgono 1-4 messaggi, il Mac scrive la risposta e la mette nella
@@ -119,8 +122,20 @@ export function Conversazione({
   }, [attiva?.phone]);
 
   const adesso = new Date();
+  //  A finestra chiusa il link porta già il promemoria giusto nella casella (30/10/2026), se la
+  //  scheda ha tutto per scriverlo; altrimenti solo il numero (vedi testoWhatsapp.ts).
   const linkWaChat = attiva
-    ? linkApriWhatsapp(attiva.phone, typeof navigator === "undefined" ? "" : navigator.userAgent)
+    ? linkApriWhatsapp(
+        attiva.phone,
+        typeof navigator === "undefined" ? "" : navigator.userAgent,
+        attiva.finestra?.aperta === false
+          ? testoPerWhatsapp(
+              attiva,
+              consultants.find((x) => x.id === attiva.lead?.data?.consulenteId)?.data.nome,
+              adesso,
+            )
+          : "",
+      )
     : "";
   const inAttesa = attiva?.daRispondere?.attesa === true;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
