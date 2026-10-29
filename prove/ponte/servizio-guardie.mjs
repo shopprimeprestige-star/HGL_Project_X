@@ -303,10 +303,13 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     const testoDis = readFileSync(dis, "utf8");
     const righeIns = testoIns.split("\n").filter((r) => !/^\s*#/.test(r));
     c("installa.sh: npm ci --omit=dev --ignore-scripts, col npm accanto al Node LTS", true, righeIns.some((r) => /"\$NPM" ci --omit=dev --ignore-scripts/.test(r)));
-    c("installa.sh: la chiave si legge con read -s (non si vede)", true, /read -r?s[a-z]* [^\n]*TOKEN/.test(testoIns));
-    c("installa.sh: la chiave non si stampa mai", [], righeIns.filter((r) => /(echo|printf)[^\n]*\$\{?TOKEN/.test(r) && !/config/.test(r)));
+    c("installa.sh: la chiave si legge con read -s (non si vede)", true, /^\s*read\b[^\n]*\s-r?s\b[^\n]*\bTOKEN\s*$/m.test(testoIns));
+    c("installa.sh: la chiave non si stampa mai (va solo nel file temporaneo)", [], righeIns.filter((r) => /\$\{?TOKEN\b/.test(r) && /(echo|printf)/.test(r) && !/>>"\$tmp"\s*$/.test(r)));
+    c("installa.sh: la chiave si scrive una volta sola, in config.env.tmp", 1, righeIns.filter((r) => /printf 'PONTE_TOKEN=%s\\n' "\$TOKEN" >>"\$tmp"/.test(r)).length);
     c("installa.sh e disinstalla.sh: nessun launchctl load", [false, false], [/launchctl load/.test(testoIns), /launchctl load/.test(testoDis)]);
-    c("installa.sh: non avvia il servizio da solo (bootstrap solo in scollega o stampato)", [], righeIns.filter((r) => /launchctl (bootstrap|kickstart)/.test(r) && !/echo|printf|scollega_/.test(r) && !/^\s*launchctl bootstrap "gui\/\$\(id -u\)" "\$PLIST" \|\| true\s*$/.test(r)));
+    const corpoInstalla = testoIns.match(/^installa\(\) \{\n([\s\S]*?)^\}/m)?.[1] ?? null;
+    c("installa.sh: installa() non lancia launchctl (lo dice e basta)", [true, []], [corpoInstalla !== null, (corpoInstalla ?? "").split("\n").filter((r) => /^\s*launchctl\b/.test(r))]);
+    c("installa.sh: il Node si controlla prima di scrivere qualunque cosa", true, (corpoInstalla ?? "").indexOf("trova_node") < (corpoInstalla ?? "").indexOf("mkdir"));
     c("installa.sh: sottocomandi installa, stato, scollega, chiave", true, ["installa)", "stato)", "scollega)", "chiave)"].every((k) => testoIns.includes(k)));
     c("installa.sh: stessa etichetta e cartella del servizio", [true, true], [testoIns.includes("it.hgl.ponte-whatsapp"), testoIns.includes("Library/Application Support/HGL/ponte-wa")]);
     c("disinstalla.sh: --tutto chiede conferma prima di cancellare la cartella di stato", true, /--tutto/.test(testoDis) && /read -r/.test(testoDis));
