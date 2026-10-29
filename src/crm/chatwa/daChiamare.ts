@@ -19,10 +19,11 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { LeadData } from "@/crm/types";
 import { inAttesaWhatsapp } from "@/crm/importa/attesa-whatsapp";
+import { eRigaPonte } from "./stato";
 
 export const ORE_PRIMA_DI_CHIAMARE = 10;
 
-type Messaggio = { direction: string; created_at: string };
+type Messaggio = { direction: string; created_at: string; canale?: string | null };
 
 export interface DaChiamare {
   si: boolean;
@@ -65,7 +66,8 @@ export function calcolaDaChiamare(p: {
   if (!giaDaChiamare && p.adesso.getTime() - inizio < ORE_PRIMA_DI_CHIAMARE * 3600_000) return NO;
   let ultimaEntrata = Date.parse(String(p.ultimaEntrataIl ?? "")) || 0;
   for (const m of p.messaggi)
-    if (m.direction === "inbound")
+    //  Le righe del ponte WhatsApp (storico) sono solo da vedere: non contano come risposta.
+    if (m.direction === "inbound" && !eRigaPonte(m))
       ultimaEntrata = Math.max(ultimaEntrata, Date.parse(m.created_at) || 0);
   if (ultimaEntrata > inizio) return NO;
   return { si: true, dal };

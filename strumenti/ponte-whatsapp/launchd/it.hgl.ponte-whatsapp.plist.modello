@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Ponte WhatsApp HGL (commessa 2026-10-29-ponte-whatsapp-baileys, PIANO §a2).
+  MODELLO: installa.sh sostituisce {{NODE}} (un Node LTS 22 o 24), {{APP}}
+  (la copia in ~/Library/Application Support/HGL/ponte-wa/app) e {{LOG}}
+  (~/Library/Logs/hgl-ponte-wa.log) e lo scrive in ~/Library/LaunchAgents/.
+  Il segreto NON sta qui: il ponte lo legge da config.env.
+  KeepAlive solo sulle uscite con errore: un config.env sbagliato o un Node
+  non LTS escono con 0 e non ripartono in ciclo (la notifica dice cosa fare).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>it.hgl.ponte-whatsapp</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>{{NODE}}</string>
+    <string>src/index.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{{APP}}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>{{LOG}}</string>
+  <key>StandardErrorPath</key>
+  <string>{{LOG}}</string>
+</dict>
+</plist>

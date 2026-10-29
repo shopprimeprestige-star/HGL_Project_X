@@ -119,6 +119,7 @@ import { Route as ApiPublicProvaCapelliRouteImport } from './routes/api.public.p
 import { Route as ApiPublicProvaAnteprimaRouteImport } from './routes/api.public.prova-anteprima'
 import { Route as ApiPublicProvaAcquistoRouteImport } from './routes/api.public.prova-acquisto'
 import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricing'
+import { Route as ApiPublicPonteWhatsappRouteImport } from './routes/api.public.ponte-whatsapp'
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
 import { Route as ApiPublicManychatRispostaRouteImport } from './routes/api.public.manychat-risposta'
 import { Route as ApiPublicManychatPrenotaRouteImport } from './routes/api.public.manychat-prenota'
@@ -761,6 +762,11 @@ const ApiPublicPricingRoute = ApiPublicPricingRouteImport.update({
   path: '/api/public/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPonteWhatsappRoute = ApiPublicPonteWhatsappRouteImport.update({
+  id: '/api/public/ponte-whatsapp',
+  path: '/api/public/ponte-whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicMetaLeadgenWebhookRoute =
   ApiPublicMetaLeadgenWebhookRouteImport.update({
     id: '/api/public/meta-leadgen-webhook',
@@ -1389,6 +1395,7 @@ export interface FileRoutesByFullPath {
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
+  '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
   '/api/public/prova-anteprima': typeof ApiPublicProvaAnteprimaRoute
@@ -1583,6 +1590,7 @@ export interface FileRoutesByTo {
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
+  '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
   '/api/public/prova-anteprima': typeof ApiPublicProvaAnteprimaRoute
@@ -1783,6 +1791,7 @@ export interface FileRoutesById {
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
+  '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
   '/api/public/prova-acquisto': typeof ApiPublicProvaAcquistoRoute
   '/api/public/prova-anteprima': typeof ApiPublicProvaAnteprimaRoute
@@ -1984,6 +1993,7 @@ export interface FileRouteTypes {
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
+    | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
     | '/api/public/prova-anteprima'
@@ -2178,6 +2188,7 @@ export interface FileRouteTypes {
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
+    | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
     | '/api/public/prova-anteprima'
@@ -2377,6 +2388,7 @@ export interface FileRouteTypes {
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
     | '/api/public/meta-leadgen-webhook'
+    | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
     | '/api/public/prova-acquisto'
     | '/api/public/prova-anteprima'
@@ -2536,6 +2548,7 @@ export interface RootRouteChildren {
   ApiPublicManychatPrenotaRoute: typeof ApiPublicManychatPrenotaRoute
   ApiPublicManychatRispostaRoute: typeof ApiPublicManychatRispostaRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
+  ApiPublicPonteWhatsappRoute: typeof ApiPublicPonteWhatsappRoute
   ApiPublicPricingRoute: typeof ApiPublicPricingRoute
   ApiPublicProvaAcquistoRoute: typeof ApiPublicProvaAcquistoRoute
   ApiPublicProvaAnteprimaRoute: typeof ApiPublicProvaAnteprimaRoute
@@ -3322,6 +3335,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/pricing'
       fullPath: '/api/public/pricing'
       preLoaderRoute: typeof ApiPublicPricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ponte-whatsapp': {
+      id: '/api/public/ponte-whatsapp'
+      path: '/api/public/ponte-whatsapp'
+      fullPath: '/api/public/ponte-whatsapp'
+      preLoaderRoute: typeof ApiPublicPonteWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/meta-leadgen-webhook': {
@@ -4219,6 +4239,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicManychatPrenotaRoute: ApiPublicManychatPrenotaRoute,
   ApiPublicManychatRispostaRoute: ApiPublicManychatRispostaRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,
+  ApiPublicPonteWhatsappRoute: ApiPublicPonteWhatsappRoute,
   ApiPublicPricingRoute: ApiPublicPricingRoute,
   ApiPublicProvaAcquistoRoute: ApiPublicProvaAcquistoRoute,
   ApiPublicProvaAnteprimaRoute: ApiPublicProvaAnteprimaRoute,
