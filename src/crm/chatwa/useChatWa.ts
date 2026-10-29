@@ -27,6 +27,7 @@
  *   non è in elenco, serve alla riga «N chat senza risposta da più di 7 giorni»).
  *   `api.daRispondere` contiene solo le chat con `attesa` vera.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { senzaEco } from "./eco";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
 import { combaciaRicerca, passaFiltro } from "./cercaChat";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -505,13 +506,19 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     };
   }, [user, activePhone, letture]);
 
-  /** I recenti e la chat aperta, senza doppioni per `id`, dal più vecchio. */
+  /** I recenti e la chat aperta, senza doppioni per `id`, dal più vecchio.
+   *  ⚠️ Senza le eco di ManyChat (crm/chatwa/eco): le righe salvate prima della
+   *   correzione del 29/10 sembravano risposte del cliente. Si tolgono qui, una
+   *   volta, per le bolle della chat. «Da rispondere» e l'anteprima dell'elenco
+   *   leggono le colonne del contatto: lì le vecchie eco si chiudono con «Fatto». */
   const tutti = useMemo<WaMessageRow[]>(() => {
-    if (!extra) return messages;
+    if (!extra) return senzaEco(messages);
     const noti = new Set(messages.map((x) => x.id));
     const nuovi = extra.righe.filter((x) => !noti.has(x.id));
-    if (nuovi.length === 0) return messages;
-    return [...messages, ...nuovi].sort((x, y) => ms(x.created_at) - ms(y.created_at));
+    if (nuovi.length === 0) return senzaEco(messages);
+    return senzaEco(
+      [...messages, ...nuovi].sort((x, y) => ms(x.created_at) - ms(y.created_at)),
+    );
   }, [messages, extra]);
 
   // Costruisco l'elenco chat: una per phone unico (interlocutore = "altro" rispetto a noi)

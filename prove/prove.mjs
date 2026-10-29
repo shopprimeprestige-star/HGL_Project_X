@@ -472,6 +472,8 @@ const MODULI = [
   //   il riepilogo dell'anteprima: vedi proveDeiFiltriDellaLista.
   "importa/filtri-lista",
   "importa/attesa-whatsapp",
+  //  ⚠️ Le eco di ManyChat nascoste in chat: vedi proveDelleEcoInChat.
+  "chatwa/eco",
   //  ⚠️ «Attesa WhatsApp» → «Da chiamare» dopo 10 ore: vedi proveDelloStatoDaChiamare.
   "importa/attesa-da-chiamare",
   //  ⚠️ «Da chiamare» nella chat WhatsApp: vedi proveDelDaChiamare.
@@ -20747,6 +20749,34 @@ function proveDelloStatoDaChiamare() {
   c("il cron ogni 15 minuti sulla rotta giusta, e come si spegne", true, /programma_hook_cron\('attesa-da-chiamare-15min', '\*\/15 \* \* \* \*', '\/hooks\/attesa-da-chiamare'\)/.test(sql) && /cron\.unschedule\('attesa-da-chiamare-15min'\)/.test(sql));
 }
 
+
+/** ── LE ECO DI MANYCHAT, NASCOSTE IN CHAT (29/10/2026) ──────────────────────
+ *  Segnalazione del titolare: «duplica messaggi come se ha risposto il cliente
+ *  ma non l'ha fatto». Dati inventati. */
+function proveDelleEcoInChat() {
+  gruppo("CHAT WHATSAPP: LE ECO DI MANYCHAT (PRIMA DELLA CORREZIONE) NON SEMBRANO RISPOSTE");
+  const E = mod["chatwa/eco"];
+  const cli = "+393330000000";
+  let min = 0;
+  const r = (id, direction, body, extra = {}) => ({ id, direction, body, from_number: direction === "inbound" ? cli : "manychat", to_number: direction === "inbound" ? "manychat" : cli, wa_message_id: direction === "inbound" ? `mc-in:${id}` : null, created_at: new Date(Date.UTC(2026, 9, 29, 16, 0) + (min++) * 60000).toISOString(), duplicato_di: null, ...extra });
+  const caso = [
+    r("1", "inbound", "La manutenzione e i costi accessori"),
+    r("2", "outbound", "Il prezzo viene definito in consulenza"),
+    r("3", "inbound", "La manutenzione e i costi accessori"),
+  ];
+  c("il caso dello screenshot: la seconda è un'eco e si nasconde", ["1", "2"], E.senzaEco(caso).map((x) => x.id));
+  c("senza un nostro messaggio in mezzo non è un'eco", ["1", "3"], E.senzaEco([caso[0], caso[2]]).map((x) => x.id));
+  c("testo diverso: resta", 3, E.senzaEco([caso[0], caso[1], r("4", "inbound", "Ok grazie")]).length);
+  const dopo = caso.map((x) => ({ ...x, created_at: new Date(E.FINO_A + Number(x.id) * 60000).toISOString() }));
+  c("dopo la correzione del server non si nasconde niente (un «sì» ripetuto davvero resta)", 3, E.senzaEco(dopo).length);
+  c("le righe del ponte non sono mai eco", false, E.idEco([r("5", "inbound", "sì"), r("6", "outbound", "ok?"), { ...r("7", "inbound", "sì"), wa_message_id: "b:7", canale: "baileys" }]).has("7"));
+  const pos = [r("8", "inbound", "[messaggio senza testo]"), r("9", "outbound", "ricevuto"), r("10", "inbound", "[messaggio senza testo]")];
+  c("media / senza testo ripetuti: non sono eco", 3, E.senzaEco(pos).length);
+  const fotoInMezzo = [r("11", "inbound", "Quanto costa?"), r("12", "inbound", "[messaggio senza testo]"), r("13", "outbound", "Glielo dico in consulenza"), r("14", "inbound", "Quanto costa?")];
+  c("testo, foto, nostra risposta, eco del testo: l'eco si nasconde (come il server)", false, E.senzaEco(fotoInMezzo).some((x) => x.id === "14"));
+  c("due eco di fila: entrambe nascoste", ["1", "2"], E.senzaEco([...caso, { ...r("15", "inbound", "La manutenzione e i costi accessori") }]).map((x) => x.id));
+}
+
 /** ── WHATSAPP: NUMERO IN TESTA, ICONE AL POSTO DELLE EMOJI (28/10/2026) ──── */
 function proveDiWhatsappDisegnoMobile() {
   gruppo("WHATSAPP: NUMERO IN TESTA, ICONE OUTLINE, DUE RIGHE");
@@ -20965,6 +20995,7 @@ proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
+proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
