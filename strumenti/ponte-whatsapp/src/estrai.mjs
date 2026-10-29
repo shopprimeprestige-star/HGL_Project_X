@@ -45,6 +45,18 @@ export const SEGNAPOSTO = {
   altro: "📎 Allegato",
 };
 
+/** Copie di `MARCA_MODELLO` e `MODELLO_NASCOSTO` di `src/crm/ponte/pari.ts`
+ *  (le prove confrontano i valori): il testo dei modelli comincia con la
+ *  marca, così l'abbinamento a un `[template:…]` del CRM vale solo per loro. */
+export const MARCA_MODELLO = "📋 ";
+export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
+/** Copia di `INVIO_NASCOSTO` di `pari.ts`: l'invio dall'API arrivato senza
+ *  contenuto (`hosted_unavailable_fanout`). */
+export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
+/** Il segno del messaggio finto fatto da `messaggioDaNodo`: un simbolo, che un
+ *  `WAMessage` vero (decodificato dal proto) non può avere. */
+const SEGNO_INVIO_NASCOSTO = Symbol("invio_nascosto");
+
 const ID_VALIDO = /^[A-Za-z0-9_.-]{1,128}$/;
 const NUMERO_VALIDO = /^\d{8,15}$/;
 
@@ -190,14 +202,36 @@ function apri(message) {
 
 const conDidascalia = (base, didascalia) => (testoPieno(didascalia) ? `${base}: ${testoPieno(didascalia)}` : base);
 
-/** Testo dei modelli e delle risposte ai bottoni (gli invii automatici
- *  escono così dal nostro numero): il primo testo pieno, se c'è. */
+/** Il testo leggibile di un `TemplateMessage` (anche quello dentro un
+ *  `highlyStructuredMessage.hydratedHsm` o un `fourRowTemplate`). Mai il
+ *  nome del modello né i parametri da soli: non sono il messaggio. */
+function testoModello(v, livello = 0) {
+  if (!v || typeof v !== "object" || livello > 3) return "";
+  const h = v.hydratedTemplate ?? {};
+  const q = v.hydratedFourRowTemplate ?? {};
+  const i = v.interactiveMessageTemplate ?? {};
+  const pieno = [h.hydratedContentText, q.hydratedContentText, i.body?.text, h.hydratedTitleText, q.hydratedTitleText, i.header?.title].map(testoPieno).find(Boolean);
+  return pieno ?? testoStrutturato(v.fourRowTemplate?.content, livello + 1);
+}
+
+/** `highlyStructuredMessage`: leggibile solo se porta il modello idratato. */
+const testoStrutturato = (v, livello = 0) => testoModello(v?.hydratedHsm, livello + 1);
+
+/** I modelli (gli invii automatici escono così dal nostro numero): il testo
+ *  con la marca, o il segnaposto se non c'è niente di leggibile. */
+const MODELLI = {
+  templateMessage: (v) => testoModello(v),
+  highlyStructuredMessage: (v) => testoStrutturato(v),
+  interactiveMessage: (v) => [v?.body?.text, v?.header?.title].map(testoPieno).find(Boolean) ?? "",
+  buttonsMessage: (v) => [v?.contentText, v?.text].map(testoPieno).find(Boolean) ?? "",
+  listMessage: (v) => [v?.description, v?.title].map(testoPieno).find(Boolean) ?? "",
+  placeholderMessage: () => "",
+};
+
+/** Testo delle risposte ai bottoni e alle liste (le scrive il cliente): il
+ *  primo testo pieno, se c'è. */
 function testoInterattivo(tipo, v) {
   const candidati = {
-    templateMessage: [v?.hydratedTemplate?.hydratedContentText, v?.hydratedFourRowTemplate?.hydratedContentText],
-    buttonsMessage: [v?.contentText, v?.text],
-    interactiveMessage: [v?.body?.text],
-    listMessage: [v?.description, v?.title],
     buttonsResponseMessage: [v?.selectedDisplayText],
     templateButtonReplyMessage: [v?.selectedDisplayText],
     listResponseMessage: [v?.title, v?.singleSelectReply?.selectedRowId],
@@ -207,11 +241,82 @@ function testoInterattivo(tipo, v) {
   return candidati.map(testoPieno).find(Boolean) ?? "";
 }
 
+/** Le chiavi di contenuto di un `message` già aperto (senza il contorno). */
+const chiaviContenuto = (m) => Object.keys(m).filter((k) => !CONTORNO.has(k) && m[k] != null);
+
+/** Un nome qualunque (tipo del proto, attributo di un nodo) → codice per il
+ *  log e il battito: parole minuscole separate da `_`, niente cifre né
+ *  simboli, al più 40 caratteri (`extendedTextMessage` → `extended_text_message`). */
+export function codice(x) {
+  if (typeof x !== "string") return "sconosciuto";
+  const c = x
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, "_")
+    .slice(0, 40)
+    .replace(/^_+|_+$/g, "");
+  return c || "sconosciuto";
+}
+
+/** Diagnosi: il tipo grezzo di un `WAMessage` (la prima chiave di contenuto
+ *  dopo gli involucri), come codice. `stub` = messaggio di sistema o non
+ *  decifrato; `vuoto` = niente contenuto. Mai il testo. */
+export function tipoGrezzo(wamsg) {
+  if (!wamsg || typeof wamsg !== "object") return "vuoto";
+  if (wamsg[SEGNO_INVIO_NASCOSTO]) return "invio_nascosto";
+  if (wamsg.messageStubType) return "stub";
+  const m = apri(wamsg.message);
+  if (!m || typeof m !== "object") return "vuoto";
+  const chiavi = chiaviContenuto(m);
+  return chiavi.length ? codice(chiavi[0]) : "vuoto";
+}
+
+/** Diagnosi: il tipo di `<unavailable type="…">` di un nodo `message` grezzo
+ *  (WhatsApp non ha mandato il contenuto a questo dispositivo), come codice;
+ *  `senza_tipo` se manca; null se il nodo ha il suo contenuto. Baileys 7
+ *  scarta `hosted_unavailable_fanout` senza emettere niente. */
+export function nonDisponibile(nodo) {
+  const figli = Array.isArray(nodo?.content) ? nodo.content : [];
+  const u = figli.find((f) => f?.tag === "unavailable");
+  if (!u) return null;
+  return typeof u.attrs?.type === "string" ? codice(u.attrs.type) : "senza_tipo";
+}
+
+/** La parte utente di un JID personale (anche `@hosted`, `@hosted.lid`), senza
+ *  dispositivo, oppure null. */
+function utenteDi(jid) {
+  if (typeof jid !== "string") return null;
+  const [utente, server] = jid.split("@");
+  if (!["s.whatsapp.net", "c.us", "lid", "hosted", "hosted.lid"].includes(server)) return null;
+  const u = (utente ?? "").split(":")[0];
+  return /^\d+$/.test(u) ? u : null;
+}
+
+/** Da un nodo `message` grezzo con `<unavailable type="hosted_unavailable_fanout">`
+ *  (un invio fatto dall'API, che Baileys scarta senza emettere niente) a un
+ *  `WAMessage` finto da passare a `leggiMessaggio`: `{ wamsg }` oppure
+ *  `{ motivo }`. Si leggono SOLO `id`, `from`, `recipient`, `recipient_pn` e
+ *  `t`, come fa Baileys (`decodeMessageNode`): il mittente
+ *  deve essere il nostro numero (o il nostro LID) e il destinatario è il
+ *  cliente. Il testo non c'è e non si inventa: `leggiMessaggio` mette
+ *  `INVIO_NASCOSTO`. `opzioni`: `proprioNumero` (JID o cifre), `proprioLid` (JID). */
+export function messaggioDaNodo(nodo, opzioni = {}) {
+  if (nonDisponibile(nodo) !== "hosted_unavailable_fanout") return { motivo: "non_ospitato" };
+  const a = nodo.attrs ?? {};
+  if (typeof a.from === "string" && a.from.endsWith("@g.us")) return { motivo: "gruppo" };
+  const noi = [comeNumero(opzioni.proprioNumero ?? null), utenteDi(opzioni.proprioLid)].filter(Boolean);
+  const mittente = utenteDi(a.from);
+  if (!mittente || !noi.includes(mittente) || typeof a.recipient !== "string") return { motivo: "fanout_non_nostro" };
+  const key = { remoteJid: a.recipient, fromMe: true, id: a.id };
+  if (typeof a.recipient_pn === "string") key.remoteJidAlt = a.recipient_pn;
+  return { wamsg: { key, messageTimestamp: a.t, [SEGNO_INVIO_NASCOSTO]: true } };
+}
+
 /** Il contenuto: `{ tipo, testo }` oppure `{ motivo }`. */
 function contenuto(message) {
   const m = apri(message);
   if (!m || typeof m !== "object") return { motivo: "vuoto" };
-  const chiavi = Object.keys(m).filter((k) => !CONTORNO.has(k) && m[k] != null);
+  const chiavi = chiaviContenuto(m);
   if (chiavi.length === 0) return { motivo: Object.keys(m).length ? "sistema" : "vuoto" };
   const tipo = chiavi[0];
   const v = m[tipo];
@@ -246,6 +351,10 @@ function contenuto(message) {
     case "contactsArrayMessage":
       return { tipo: "contatto", testo: SEGNAPOSTO.contatto };
     default: {
+      if (MODELLI[tipo]) {
+        const t = MODELLI[tipo](v);
+        return t ? { tipo: "testo", testo: `${MARCA_MODELLO}${t}` } : { tipo: "altro", testo: MODELLO_NASCOSTO };
+      }
       const t = testoInterattivo(tipo, v);
       if (t === null) return { motivo: "tipo_sconosciuto" };
       return t ? { tipo: "testo", testo: t } : { tipo: "altro", testo: SEGNAPOSTO.altro };
@@ -280,7 +389,7 @@ export function leggiMessaggio(wamsg, opzioni = {}) {
   // 2. che cosa c'è dentro
   if (wamsg.messageStubType) return scarto("sistema");
   if (typeof key.id !== "string" || !ID_VALIDO.test(key.id)) return scarto("id_non_valido");
-  const cosa = contenuto(wamsg.message);
+  const cosa = wamsg[SEGNO_INVIO_NASCOSTO] ? { tipo: "altro", testo: INVIO_NASCOSTO } : contenuto(wamsg.message);
   if (cosa.motivo) return scarto(cosa.motivo);
 
   // 3. quando

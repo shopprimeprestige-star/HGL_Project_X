@@ -66,9 +66,28 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("posizione in tempo reale", { testo: "📍 Posizione", tipo: "posizione" }, solo(wa({ liveLocationMessage: {} })));
   c("contatto", { testo: "👤 Contatto", tipo: "contatto" }, solo(wa({ contactMessage: { displayName: "X", vcard: "BEGIN:VCARD" } })));
   c("più contatti", { testo: "👤 Contatto", tipo: "contatto" }, solo(wa({ contactsArrayMessage: { contacts: [] } })));
-  c("un modello con bottoni porta il suo testo", { testo: "Ti aspettiamo domani", tipo: "testo" }, solo(wa({ templateMessage: { hydratedTemplate: { hydratedContentText: "Ti aspettiamo domani" } } })));
-  c("risposta a un bottone porta il testo scelto", { testo: "Confermo", tipo: "testo" }, solo(wa({ buttonsResponseMessage: { selectedDisplayText: "Confermo" } })));
-  c("messaggio interattivo senza testo → altro", { testo: "📎 Allegato", tipo: "altro" }, solo(wa({ interactiveMessage: {} })));
+  //  I modelli (guasto 2): il testo con la marca «📋 », così la chat li
+  //  riconosce e l'abbinamento a un `[template:…]` del CRM vale solo per loro.
+  const P = mod["ponte/pari"];
+  c("marca e segnaposto dei modelli copiati da pari.ts", [P.MARCA_MODELLO, P.MODELLO_NASCOSTO], [E.MARCA_MODELLO, E.MODELLO_NASCOSTO]);
+  const MN = "📋 Modello inviato (testo non visibile)";
+  c("il segnaposto del modello è quello chiesto dal titolare", MN, E.MODELLO_NASCOSTO);
+  c("modello con bottoni (hydratedTemplate)", { testo: "📋 Ti aspettiamo domani", tipo: "testo" }, solo(wa({ templateMessage: { hydratedTemplate: { hydratedContentText: "Ti aspettiamo domani" } } })));
+  c("modello a quattro righe (hydratedFourRowTemplate)", { testo: "📋 Promemoria: domani alle 10", tipo: "testo" }, solo(wa({ templateMessage: { hydratedFourRowTemplate: { hydratedTitleText: "Titolo", hydratedContentText: "Promemoria: domani alle 10" } } })));
+  c("modello interattivo (interactiveMessageTemplate.body.text)", { testo: "📋 Confermi l'appuntamento?", tipo: "testo" }, solo(wa({ templateMessage: { interactiveMessageTemplate: { header: { title: "HGL" }, body: { text: "Confermi l'appuntamento?" } } } })));
+  c("modello: solo il titolo → il titolo", { testo: "📋 Solo titolo", tipo: "testo" }, solo(wa({ templateMessage: { hydratedTemplate: { hydratedTitleText: "Solo titolo" } } })));
+  c("modello dentro un modello strutturato (fourRowTemplate.content.hydratedHsm)", { testo: "📋 Dentro", tipo: "testo" }, solo(wa({ templateMessage: { fourRowTemplate: { content: { hydratedHsm: { hydratedTemplate: { hydratedContentText: "Dentro" } } } } } })));
+  c("modello senza testo leggibile → segnaposto del modello", { testo: MN, tipo: "altro" }, solo(wa({ templateMessage: { hydratedTemplate: {} } }, { fromMe: true })));
+  c("interactiveMessage (body.text)", { testo: "📋 Scegli un orario", tipo: "testo" }, solo(wa({ interactiveMessage: { body: { text: "Scegli un orario" }, footer: { text: "HGL" } } })));
+  c("interactiveMessage senza testo → segnaposto del modello", { testo: MN, tipo: "altro" }, solo(wa({ interactiveMessage: {} })));
+  c("buttonsMessage (contentText)", { testo: "📋 Vuoi confermare?", tipo: "testo" }, solo(wa({ buttonsMessage: { contentText: "Vuoi confermare?", footerText: "HGL" } })));
+  c("listMessage (description, poi title)", [{ testo: "📋 Gli orari liberi", tipo: "testo" }, { testo: "📋 Orari", tipo: "testo" }], [solo(wa({ listMessage: { title: "Orari", description: "Gli orari liberi" } })), solo(wa({ listMessage: { title: "Orari" } }))]);
+  c("highlyStructuredMessage con hydratedHsm leggibile", { testo: "📋 Ciao, ti aspettiamo", tipo: "testo" }, solo(wa({ highlyStructuredMessage: { namespace: "x", elementName: "promemoria_1", params: ["Maria"], hydratedHsm: { hydratedTemplate: { hydratedContentText: "Ciao, ti aspettiamo" } } } })));
+  c("highlyStructuredMessage senza testo leggibile → segnaposto (mai il nome del modello né i parametri)", { testo: MN, tipo: "altro" }, solo(wa({ highlyStructuredMessage: { namespace: "x", elementName: "promemoria_1", params: ["Maria"] } }, { fromMe: true })));
+  c("placeholderMessage (nascosto ai dispositivi collegati) → segnaposto del modello", { testo: MN, tipo: "altro" }, solo(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })));
+  c("un modello uscito è out come gli altri", ["out", "sent"], [leggi(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })).messaggio?.dir, leggi(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })).messaggio?.stato]);
+  c("risposta a un bottone porta il testo scelto, senza marca", { testo: "Confermo", tipo: "testo" }, solo(wa({ buttonsResponseMessage: { selectedDisplayText: "Confermo" } })));
+  c("risposta a una lista senza marca", { testo: "Sabato", tipo: "testo" }, solo(wa({ listResponseMessage: { title: "Sabato" } })));
   c("tipo che non conosciamo → scartato, mai inventato", { scarto: "tipo_sconosciuto" }, solo(wa({ nuovoTipoDelDomani: {} })));
 
   //  Le etichette sono quelle che la chat sa già disegnare (media.ts).
@@ -161,6 +180,76 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
     E.risolutoreLid({ "123456789012345": "393330000004" }),
   );
   c("nomi dai contatti dello storico (name prima di notify, lid risolti, niente gruppi)", { [CLIENTE]: "Cliente Prova", "393330000002": "Seconda Prova", "393330000004": "Da Lid" }, nomi);
+
+  //  Diagnosi (guasto 2): il tipo grezzo di Baileys e i nodi senza contenuto,
+  //  solo come codici [a-z_] buoni per il log e il battito.
+  c(
+    "codice: camelCase → parole minuscole con _, cifre e simboli via",
+    ["extended_text_message", "poll_creation_message_v", "hosted_unavailable_fanout", "sconosciuto", "sconosciuto"],
+    [E.codice("extendedTextMessage"), E.codice("pollCreationMessageV3"), E.codice("hosted_unavailable_fanout"), E.codice(""), E.codice(null)],
+  );
+  c("codice: al più 40 caratteri", true, E.codice("a".repeat(100)).length <= 40);
+  c(
+    "tipoGrezzo: il tipo dopo gli involucri, senza il contorno",
+    ["conversation", "template_message", "placeholder_message", "stub", "vuoto", "vuoto"],
+    [
+      E.tipoGrezzo(wa({ messageContextInfo: {}, conversation: "x" })),
+      E.tipoGrezzo(wa({ ephemeralMessage: { message: { templateMessage: {} } } })),
+      E.tipoGrezzo(wa({ placeholderMessage: { type: 0 } })),
+      E.tipoGrezzo(wa(undefined, {}, { messageStubType: 2 })),
+      E.tipoGrezzo(wa(undefined)),
+      E.tipoGrezzo(null),
+    ],
+  );
+  const nodo = (figli) => ({ tag: "message", attrs: { id: "3EB0AA09", from: `${NOI}@s.whatsapp.net`, recipient: JID, t: String(TS) }, content: figli });
+  c(
+    "nonDisponibile: il tipo di <unavailable>, oppure null",
+    ["hosted_unavailable_fanout", "view_once_unavailable_fanout", "senza_tipo", null, null, null],
+    [
+      E.nonDisponibile(nodo([{ tag: "unavailable", attrs: { type: "hosted_unavailable_fanout" } }])),
+      E.nonDisponibile(nodo([{ tag: "unavailable", attrs: { type: "view_once_unavailable_fanout" } }])),
+      E.nonDisponibile(nodo([{ tag: "unavailable", attrs: {} }])),
+      E.nonDisponibile(nodo([{ tag: "enc", attrs: { type: "msg" } }])),
+      E.nonDisponibile(nodo(new Uint8Array(3))),
+      E.nonDisponibile(undefined),
+    ],
+  );
+
+  //  L'invio fatto dall'API (ManyChat) che arriva senza contenuto (guasto 2):
+  //  dal nodo grezzo solo id, destinatario e orario, mai altro.
+  c("il segnaposto dell'invio nascosto è copiato da pari.ts", P.INVIO_NASCOSTO, E.INVIO_NASCOSTO);
+  c("il segnaposto dell'invio nascosto è quello chiesto dal titolare", "📋 Messaggio inviato da ManyChat (testo non visibile)", E.INVIO_NASCOSTO);
+  const LID_NOI = "88880000000001";
+  const ospitato = [{ tag: "unavailable", attrs: { type: "hosted_unavailable_fanout" } }];
+  const nodoOsp = (attrs, figli = ospitato) => ({ tag: "message", attrs: { id: "3EB0FF01", from: `${NOI}:99@s.whatsapp.net`, recipient: JID, t: String(TS), type: "text", ...attrs }, content: figli });
+  const dalNodo = (n, o = {}) => {
+    const d = E.messaggioDaNodo(n, { proprioNumero: NOI, proprioLid: `${LID_NOI}:0@lid`, ...o });
+    if (d.motivo) return { scarto: d.motivo };
+    const r = leggi(d.wamsg);
+    return r.ok ? r.messaggio : { scarto: r.motivo };
+  };
+  c(
+    "nodo ospitato uscito da noi → MessaggioPonte out con il segnaposto",
+    { id: "3EB0FF01", numero: CLIENTE, dir: "out", ts: TS, testo: E.INVIO_NASCOSTO, tipo: "altro", stato: "sent" },
+    dalNodo(nodoOsp({})),
+  );
+  c("mittente @hosted o @lid nostro → è nostro", [CLIENTE, CLIENTE], [dalNodo(nodoOsp({ from: `${NOI}:99@hosted` })).numero, dalNodo(nodoOsp({ from: `${LID_NOI}:99@hosted.lid` })).numero]);
+  c("destinatario @lid con recipient_pn → il numero", CLIENTE, dalNodo(nodoOsp({ recipient: "123456789012345@lid", recipient_pn: JID })).numero);
+  c("destinatario @lid risolto con la mappa", CLIENTE, (() => {
+    const d = E.messaggioDaNodo(nodoOsp({ recipient: "123456789012345@lid" }), { proprioNumero: NOI });
+    return E.leggiMessaggio(d.wamsg, { ...opz, risolviLid: E.risolutoreLid({ "123456789012345": CLIENTE }) }).messaggio?.numero;
+  })());
+  c("destinatario @lid sconosciuto → senza_numero (mai inventato)", { scarto: "senza_numero" }, dalNodo(nodoOsp({ recipient: "123456789012345@lid" })));
+  c("nodo ospitato di un altro (non da noi) → scartato", { scarto: "fanout_non_nostro" }, dalNodo(nodoOsp({ from: JID, recipient: undefined })));
+  c("nodo ospitato senza destinatario → scartato", { scarto: "fanout_non_nostro" }, dalNodo(nodoOsp({ recipient: undefined })));
+  c("nodo ospitato in un gruppo → scartato", { scarto: "gruppo" }, dalNodo(nodoOsp({ from: "120363000000000001@g.us", participant: `${NOI}@s.whatsapp.net`, recipient: undefined })));
+  c("nodo con altro <unavailable> (view once) → non è un invio nascosto", { scarto: "non_ospitato" }, dalNodo(nodoOsp({}, [{ tag: "unavailable", attrs: { type: "view_once_unavailable_fanout" } }])));
+  c("nodo con il contenuto (enc) → non è un invio nascosto", { scarto: "non_ospitato" }, dalNodo(nodoOsp({}, [{ tag: "enc", attrs: {} }])));
+  c("nodo ospitato senza orario → orario_non_valido", { scarto: "orario_non_valido" }, dalNodo(nodoOsp({ t: undefined })));
+  c("nodo ospitato con id non valido → id_non_valido", { scarto: "id_non_valido" }, dalNodo(nodoOsp({ id: "a b" })));
+  c("nodo senza attrs o non oggetto → non_ospitato, nessun errore", [{ scarto: "non_ospitato" }, { scarto: "fanout_non_nostro" }], [dalNodo(null), dalNodo({ tag: "message", content: ospitato })]);
+  c("il messaggio finto del nodo non ha testo né message", [undefined, "invio_nascosto"], [E.messaggioDaNodo(nodoOsp({}), { proprioNumero: NOI }).wamsg.message, E.tipoGrezzo(E.messaggioDaNodo(nodoOsp({}), { proprioNumero: NOI }).wamsg)]);
+  c("un WAMessage vero senza message resta vuoto (il segno non si può falsificare dal proto)", { scarto: "vuoto" }, solo(wa(undefined, {}, { invioNascosto: true })));
 
   //  Le cifre del JID, la regola unica.
   c("cifreDaJid", [CLIENTE, CLIENTE, null, null], [E.cifreDaJid(JID), E.cifreDaJid(`${CLIENTE}:7@s.whatsapp.net`), E.cifreDaJid("123@lid"), E.cifreDaJid(undefined)]);

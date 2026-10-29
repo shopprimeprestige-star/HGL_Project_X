@@ -131,13 +131,33 @@ export function blindaUscite(registro, { terminale = Boolean(process.stdout.isTT
 
 const numero = (x) => (Number.isFinite(x) ? x : 0);
 
+/** Una mappa di diagnosi ripulita: chiavi `[a-z_]`, valori numeri finiti. */
+function soloConti(m) {
+  if (!m || typeof m !== "object") return {};
+  return Object.fromEntries(Object.entries(m).filter(([k, v]) => CODICE.test(k) && typeof v === "number" && Number.isFinite(v)));
+}
+
+/** La diagnosi per il log, in una riga: `scarto_<motivo>`, `tipo_<in|out>_<tipo>`,
+ *  `nodo_<tipo di unavailable>` → quante volte. Solo codici e numeri. */
+export function contiDiagnosi(d) {
+  const conti = {};
+  for (const [prefisso, m] of [["scarto", d?.scarti], ["tipo", d?.tipi], ["nodo", d?.nodi]]) {
+    for (const [k, v] of Object.entries(soloConti(m))) conti[`${prefisso}_${k}`] = v;
+  }
+  return conti;
+}
+
 /** Il battito (`BattitoPonte`, §b3) da stato del collegamento e fila: solo
- *  parole della lista chiusa, date ISO e numeri. Il QR non c'è mai. */
+ *  parole della lista chiusa, date ISO e numeri. Il QR non c'è mai.
+ *  `contatori` resta entro 18 chiavi: il CRM ne tiene 20 con `in_coda` e
+ *  `scartati`. Il dettaglio va in `diagnosi` (stato.json e log; la rotta del
+ *  CRM non lo legge e non lo salva). */
 export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
   let stato = ist.stato;
   if (stato === "collegato" && erroreServer) stato = "errore";
   else if (stato === "collegato" && fc.piena) stato = "coda_piena";
   const e = ist.estrazione ?? {};
+  const d = ist.diagnosi ?? {};
   return {
     v: 1,
     tipo: "battito",
@@ -159,8 +179,12 @@ export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
       lid_risolti: numero(e.lid_risolti),
       lid_errori: numero(e.lid_errori),
       storico_rifiutati: numero(e.storico_rifiutati),
+      tipo_sconosciuto: numero(d.scarti?.tipo_sconosciuto),
+      fanout_ospitati: numero(d.nodi?.hosted_unavailable_fanout),
+      fanout_registrati: numero(e.invii_nascosti),
     },
     versione: VERSIONE_BAILEYS,
+    diagnosi: { scarti: soloConti(d.scarti), tipi: soloConti(d.tipi), nodi: soloConti(d.nodi) },
   };
 }
 
@@ -251,10 +275,17 @@ async function main() {
     }
   }
 
+  /** la riga `diagnosi` si scrive solo quando cambia (il log non si gonfia) */
+  let ultimaDiagnosi = "";
+
   async function battito() {
     const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer });
     scriviStato();
     registro(`battito_${corpo.stato}`, { in_coda: corpo.in_coda, scartati: corpo.scartati, ...corpo.contatori });
+    const conti = contiDiagnosi(corpo.diagnosi);
+    const firma = JSON.stringify(conti);
+    if (firma !== ultimaDiagnosi && Object.keys(conti).length) registro("diagnosi", conti);
+    ultimaDiagnosi = firma;
     if (senzaInvio) {
       const k = corpo.contatori;
       dici(`[senza invio] messaggi letti ${k.letti}, validi ${k.validi}, chat ${k.chat}, in fila ${corpo.in_coda}, storico ${corpo.storico.avanzamento}% · stato ${corpo.stato}`);

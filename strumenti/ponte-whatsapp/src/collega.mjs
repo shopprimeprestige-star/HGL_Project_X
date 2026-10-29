@@ -13,9 +13,15 @@
  *  (`{ makeWASocket, useMultiFileAuthState, Browsers }`), così le prove usano
  *  un socket finto, senza rete e senza WhatsApp.
  *
+ *    ws «CB:message»         → i nodi senza contenuto (`<unavailable>`) si
+ *                               contano; `hosted_unavailable_fanout` uscito da
+ *                               noi (invio dell'API, che Baileys scarta) →
+ *                               `estrai.mjs` → «📋 Messaggio inviato da
+ *                               ManyChat (testo non visibile)» → fila vivo
+ *
  *  ⚠️ SOLA LETTURA. Il socket si chiama sempre `sock` quando lo si usa (la
  *   guardia delle prove cerca le chiamate `sock.…(`). Si chiamano soltanto
- *   `ev.on`, `end` e
+ *   `ev.on`, `ws.on` (ascolto dei nodi ricevuti), `end` e
  *   `signalRepository.lidMapping.getPNForLID` (legge le chiavi locali): mai un
  *   invio, una conferma di lettura, una presenza, un logout. Lo controlla
  *   `prove/ponte/servizio-guardie.mjs` con una lista bianca.
@@ -23,7 +29,7 @@
  *   codici fissi e contatori.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, nomiDaContatti, risolutoreLid } from "./estrai.mjs";
+import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
 import { codiceChiusura, decidi, STORIA_VUOTA } from "./riconnessione.mjs";
 
 const muto = () => undefined;
@@ -61,6 +67,14 @@ function scriviMappa(percorso, mappa) {
 
 const iso = (ms) => new Date(ms).toISOString();
 
+/** Voci al più per mappa di diagnosi: oltre, tutto in `altri` (i tipi del
+ *  proto sono un elenco chiuso, ma un nodo strano non deve gonfiare il log). */
+const MAX_VOCI = 40;
+function conta(mappa, chiave) {
+  const k = chiave in mappa || Object.keys(mappa).length < MAX_VOCI ? chiave : "altri";
+  mappa[k] = (mappa[k] ?? 0) + 1;
+}
+
 /** Il collegamento a WhatsApp.
  *
  *  `opzioni`:
@@ -74,7 +88,9 @@ const iso = (ms) => new Date(ms).toISOString();
  *   - `orologio`, `casuale`, `pianifica`, `annulla`: li sostituiscono le prove.
  *
  *  Uscita: `{ avvia, ferma, istantanea }`. `istantanea()` = solo stato e
- *  numeri: `{ stato, collegato_dal, ultimo_messaggio_il, storico, estrazione }`. */
+ *  numeri: `{ stato, collegato_dal, ultimo_messaggio_il, storico, estrazione,
+ *  diagnosi }`; `diagnosi` = `{ scarti, tipi, nodi }` (motivo, `in_`/`out_` +
+ *  tipo di Baileys, tipo di `<unavailable>` → quante volte). */
 export function creaCollegamento({
   baileys,
   percorsi,
@@ -95,6 +111,7 @@ export function creaCollegamento({
   let attesa = null;
   let fermato = false;
   let proprioNumero = null;
+  let proprioLid = null;
   const stato = {
     stato: "in_collegamento",
     collegato_dal: null,
@@ -102,7 +119,9 @@ export function creaCollegamento({
     // con una sessione già salvata lo storico è già arrivato una volta
     storico: existsSync(`${percorsi.auth}/creds.json`) ? { fatto: true, avanzamento: 100 } : { fatto: false, avanzamento: 0 },
   };
-  const estrazione = { letti: 0, validi: 0, chat: 0, lid_risolti: 0, lid_errori: 0, storico_rifiutati: 0 };
+  const estrazione = { letti: 0, validi: 0, chat: 0, lid_risolti: 0, lid_errori: 0, storico_rifiutati: 0, invii_nascosti: 0 };
+  /** guasto 2: perché si scarta, che cosa arriva, che cosa arriva senza contenuto */
+  const diagnosi = { scarti: {}, tipi: {}, nodi: {} };
   /** i numeri visti, solo in memoria e solo per contarli (`--senza-invio`) */
   const chatViste = new Set();
 
@@ -161,9 +180,10 @@ export function creaCollegamento({
     let ultimo = 0;
     for (const m of lista) {
       estrazione.letti++;
+      conta(diagnosi.tipi, `${m?.key?.fromMe ? "out" : "in"}_${tipoGrezzo(m)}`);
       const r = leggiMessaggio(m, { proprioNumero, risolviLid, adesso: Math.floor(orologio() / 1000), dal });
       if (!r.ok) {
-        estrazione[r.motivo] = (estrazione[r.motivo] ?? 0) + 1;
+        conta(diagnosi.scarti, r.motivo);
         continue;
       }
       estrazione.validi++;
@@ -195,6 +215,21 @@ export function creaCollegamento({
         await f(dati);
       } catch {
         registro("evento_fallito", { [nome.replace(/[^a-z]/g, "_")]: 1 });
+      }
+    });
+  }
+
+  /** Ascolta i nodi `message` grezzi (sola lettura, guasto 2). L'ascolto non
+   *  lancia mai: un errore qui dentro cadrebbe dentro Baileys. Restituisce la
+   *  promessa (l'`EventEmitter` la ignora, le prove la aspettano). */
+  function ascoltaNodi(sock, g, f) {
+    if (typeof sock.ws?.on !== "function") return registro("nodi_non_ascoltati");
+    sock.ws.on("CB:message", async (nodo) => {
+      if (g !== generazione || fermato) return;
+      try {
+        await f(nodo);
+      } catch {
+        registro("nodo_fallito");
       }
     });
   }
@@ -262,6 +297,7 @@ export function creaCollegamento({
         if (u?.connection === "open") {
           storia = { ...STORIA_VUOTA };
           proprioNumero = cifreDaJid(questo.user?.id);
+          proprioLid = typeof questo.user?.lid === "string" ? questo.user.lid : null;
           qr.togli();
           registro("collegato");
           cambia({ stato: "collegato", collegato_dal: iso(orologio()) });
@@ -297,6 +333,23 @@ export function creaCollegamento({
       });
 
       ascolta(questo, g, "lid-mapping.update", (voce) => aggiornaLid(Array.isArray(voce) ? voce : [voce]));
+
+      ascoltaNodi(questo, g, async (nodo) => {
+        const tipo = nonDisponibile(nodo);
+        if (!tipo) return;
+        conta(diagnosi.nodi, tipo);
+        if (tipo !== "hosted_unavailable_fanout") return;
+        const n = messaggioDaNodo(nodo, { proprioNumero, proprioLid });
+        if (n.motivo) {
+          conta(diagnosi.scarti, n.motivo);
+          return;
+        }
+        await preparaLid(questo, [n.wamsg]);
+        const { messaggi } = estrai([n.wamsg]);
+        estrazione.invii_nascosti += messaggi.length;
+        metti("vivo", messaggi, {});
+        avvisa();
+      });
     } catch {
       // chiavi illeggibili, Baileys che non parte: si riprova come per la rete
       registro("apertura_fallita");
@@ -323,6 +376,11 @@ export function creaCollegamento({
       }
       stato.stato = "fermo";
     },
-    istantanea: () => ({ ...stato, storico: { ...stato.storico }, estrazione: { ...estrazione } }),
+    istantanea: () => ({
+      ...stato,
+      storico: { ...stato.storico },
+      estrazione: { ...estrazione },
+      diagnosi: { scarti: { ...diagnosi.scarti }, tipi: { ...diagnosi.tipi }, nodi: { ...diagnosi.nodi } },
+    }),
   };
 }

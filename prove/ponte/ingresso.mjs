@@ -312,7 +312,7 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
       const crm = [{ id: "c1", direction: "outbound", from_number: "manychat", to_number: `+${NUM}`, body: "[template:promemoria]", canale: "manychat", status: "sent", duplicato_di: null, created_at: new Date((ORA - 100) * 1000).toISOString() }];
       const f = finte({ P, crm });
       const r = await vai(f.porte, lotto([
-        msg({ id: "o1", dir: "out", ts: ORA - 80, testo: "Ti ricordo" }),
+        msg({ id: "o1", dir: "out", ts: ORA - 80, testo: "📋 Ti ricordo" }),
         msg({ id: "o2", dir: "out", ts: ORA - 8 * 86400, testo: "vecchio" }),
         msg({ id: "o3", dir: "out", ts: ORA - 6 * 86400, testo: "recente" }),
       ]));

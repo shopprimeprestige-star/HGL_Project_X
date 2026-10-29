@@ -84,11 +84,35 @@ export async function provePontePari(mod, { c, gruppo }) {
   c("3. due «Ok», uno solo nel CRM → uno pari (il più vicino), uno nuovo", ["a=c1"], abbina([riga({ id: "a", t: BASE, x: "Ok" }), riga({ id: "b", t: BASE + 30, x: "Ok" })], [crm({ id: "c1", t: BASE + 3, body: "Ok" })]));
   c("3b. l'ordine dei messaggi in ingresso non cambia l'esito", ["a=c1"], abbina([riga({ id: "b", t: BASE + 30, x: "Ok" }), riga({ id: "a", t: BASE, x: "Ok" })], [crm({ id: "c1", t: BASE + 3, body: "Ok" })]));
   c(
-    "4. modello [template:x] e messaggio uscito a +40 s → pari",
+    "4. modello [template:x] e modello uscito a +40 s → pari",
     ["a=c1"],
-    abbina([riga({ id: "a", d: "out", t: BASE + 40, x: "Ti ricordo l'appuntamento" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]),
+    abbina([riga({ id: "a", d: "out", t: BASE + 40, x: "📋 Ti ricordo l'appuntamento" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]),
   );
-  c("5. modello e messaggio uscito a +3 minuti → nuovo", [], abbina([riga({ id: "a", d: "out", t: BASE + 180, x: "Ti ricordo" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c("5. modello e modello uscito a +3 minuti → nuovo", [], abbina([riga({ id: "a", d: "out", t: BASE + 180, x: "📋 Ti ricordo" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  //  Guasto 2: un [template:…] non nasconde più un messaggio vero scritto a mano.
+  //  Casi reali di produzione: il giro esce dal ponte come testo semplice già compilato, 1-2 s dopo.
+  c("4m. caso reale: [template:consulenza_conferma] e testo semplice a +1 s → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 1, x: "Gentile Goran, la Sua consulenza è confermata" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:consulenza_conferma_1]" })]));
+  c("4n. caso reale: [template:hgl_ricontatto] e testo semplice a +2 s → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 2, x: "Buongiorno, la ricontattiamo per la consulenza" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:hgl_ricontatto]" })]));
+  c("4o. [template:x] e testo semplice: a 15 s pari, a 16 s nuovo", [["a=c1"], []], [
+    abbina([riga({ id: "a", d: "out", t: BASE + 15, x: "Ciao" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:x]" })]),
+    abbina([riga({ id: "a", d: "out", t: BASE + 16, x: "Ciao" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:x]" })]),
+  ]);
+  c("4p. [template:x] e un testo scritto a mano a +60 s → nuovo (resta visibile)", [], abbina([riga({ id: "a", d: "out", t: BASE + 60, x: "Ci vediamo domani allora" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c("4b. modello [template:x] e un testo scritto a mano a +40 s → nuovo (resta visibile)", [], abbina([riga({ id: "a", d: "out", t: BASE + 40, x: "Ti ricordo l'appuntamento" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c("4c. modello [template:x] e una foto mandata a mano → nuovo", [], abbina([riga({ id: "a", d: "out", t: BASE + 10, x: "📷 Foto", m: "foto" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c(
+    "4d. modello e testo a mano vicini: il modello prende il [template:x], il testo resta",
+    ["b=c1"],
+    abbina([riga({ id: "a", d: "out", t: BASE + 20, x: "Arrivo tra poco" }), riga({ id: "b", d: "out", t: BASE + 30, x: "📋 Ti ricordo" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]),
+  );
+  c("4e. modello senza testo visibile e [template:x] → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 20, x: P.MODELLO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c("4f. modello senza testo visibile e un testo uscito dal CRM → pari (non ha niente da mostrare)", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 20, x: P.MODELLO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "A domani!" })]));
+  c("4g. modello senza testo visibile oltre 120 s → nuovo", [], abbina([riga({ id: "a", d: "out", t: BASE + 121, x: P.MODELLO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "A domani!" })]));
+  c("4h. un modello con testo e lo stesso testo nel CRM → pari (la marca non conta)", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 3, x: "📋 Scegli un orario" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "Scegli un orario" })]));
+  c("4j. invio nascosto (fanout ManyChat) e [template:x] → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 30, x: P.INVIO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c("4k. invio nascosto e un testo uscito dal CRM → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 2, x: P.INVIO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "Ciao, a domani" })]));
+  c("4l. invio nascosto senza nulla nel CRM → nuovo (resta visibile)", [], abbina([riga({ id: "a", d: "out", t: BASE, x: P.INVIO_NASCOSTO, m: "altro" })], [crm({ id: "c1", t: BASE, body: "ciao" })]));
+  c("4i. un testo che il cliente comincia con 📋 non è un modello in entrata", [], abbina([riga({ id: "a", t: BASE + 3, x: "📋 lista" })], [crm({ id: "c1", t: BASE, body: "[template:x]" })]));
   c("6. media di ManyChat e «📷 Foto» → pari", ["a=c1"], abbina([riga({ id: "a", t: BASE, x: "📷 Foto", m: "foto" })], [crm({ id: "c1", t: BASE + 4, body: LINK })]));
   c("7. media di ManyChat e un testo → nuovo", [], abbina([riga({ id: "a", t: BASE, x: "ecco la foto" })], [crm({ id: "c1", t: BASE + 4, body: LINK })]));
   c("8. numero del CRM senza «+» (righe vecchie) → pari", ["a=c1"], abbina([riga({ id: "a", t: BASE, x: "Grazie" })], [crm({ id: "c1", t: BASE + 2, body: "Grazie", cliente: NUM })]));

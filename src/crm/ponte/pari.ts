@@ -29,6 +29,33 @@ import {
   type RigaDaAbbinare,
 } from "./tipi";
 
+/** La marca dei modelli che il ponte legge (`templateMessage`,
+ *  `interactiveMessage`, `buttonsMessage`, `listMessage`,
+ *  `highlyStructuredMessage`, `placeholderMessage`): il testo del ponte
+ *  comincia così. Copiata in `strumenti/ponte-whatsapp/src/estrai.mjs` (le
+ *  prove confrontano i valori). Guasto 2: un `[template:…]` del CRM fa da pari
+ *  SOLO a un modello, mai a un testo o a un media mandati a mano dall'app. */
+export const MARCA_MODELLO = "📋 ";
+/** Un modello uscito di cui WhatsApp non ha dato il testo al ponte. */
+export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
+
+/** Il giro ManyChat esce dal ponte anche come testo semplice già compilato,
+ *  1-2 s dopo la riga `[template:…]` (visto in produzione): un testo semplice
+ *  fa da pari a un `[template:…]` solo entro questa finestra, così un
+ *  messaggio scritto a mano dall'app poco dopo resta visibile. */
+export const FINESTRA_ECO_MODELLO_S = 15;
+
+/** Un invio fatto dall'API (ManyChat) che WhatsApp non mostra ai dispositivi
+ *  collegati (`hosted_unavailable_fanout`): il ponte ne sa solo numero e ora. */
+export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
+
+/** Le righe del ponte uscite senza niente da mostrare: fanno da pari a
+ *  qualunque uscita del CRM vicina (nasconderle non toglie niente). */
+const SENZA_TESTO_DEL_PONTE: readonly string[] = [MODELLO_NASCOSTO, INVIO_NASCOSTO];
+
+const eModelloDelPonte = (x: string | null | undefined): boolean =>
+  typeof x === "string" && x.startsWith(MARCA_MODELLO);
+
 /** Caratteri invisibili che ManyChat o le tastiere aggiungono (§c1.5). */
 const INVISIBILI = /[\u200B-\u200D\uFEFF\u2060]/g;
 
@@ -91,17 +118,27 @@ export function ammessoCome(r: RigaCrm, q: RichiestaCandidato): boolean {
   );
 }
 
-/** Le regole 4-5 fra una riga del ponte e un candidato già filtrato. */
+/** Le regole 4-5 fra una riga del ponte e un candidato già filtrato.
+ *  Uscite: una riga del ponte senza testo (modello nascosto) fa da pari a
+ *  ogni uscita del CRM entro la finestra opaca; un `[template:…]` del CRM a
+ *  un modello del ponte (marca `MARCA_MODELLO`) entro la finestra opaca, a un
+ *  testo semplice solo entro `FINESTRA_ECO_MODELLO_S`, mai a un media. */
 function compatibili(riga: RigaDaAbbinare, c: CandidatoCrm): boolean {
   if (c.k !== riga.k || c.canale === CANALE_PONTE) return false;
   if (c.direction !== (riga.d === "in" ? "inbound" : "outbound")) return false;
   const dt = distanza(riga.t, c.created_at);
   if (!Number.isFinite(dt)) return false;
+  if (riga.d === "out" && SENZA_TESTO_DEL_PONTE.includes(riga.x)) return dt <= FINESTRA_OPACA_S;
   const opaco = eOpaco(c.body);
-  if (opaco === "modello") return riga.d === "out" && dt <= FINESTRA_OPACA_S;
+  if (opaco === "modello") {
+    if (riga.d !== "out") return false;
+    if (eModelloDelPonte(riga.x)) return dt <= FINESTRA_OPACA_S;
+    return riga.m === null && dt <= FINESTRA_ECO_MODELLO_S;
+  }
   if (opaco === "media") return riga.d === "in" && riga.m !== null && dt <= FINESTRA_OPACA_S;
   if (dt > FINESTRA_PARI_S) return false;
-  const a = normalizzaTesto(riga.x).slice(0, CONFRONTO_CARATTERI);
+  const testo = eModelloDelPonte(riga.x) ? riga.x.slice(MARCA_MODELLO.length) : riga.x;
+  const a = normalizzaTesto(testo).slice(0, CONFRONTO_CARATTERI);
   return a !== "" && a === normalizzaTesto(c.body).slice(0, CONFRONTO_CARATTERI);
 }
 
