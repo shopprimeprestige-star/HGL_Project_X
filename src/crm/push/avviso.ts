@@ -35,6 +35,72 @@ export function avvisoWhatsapp(p: {
   };
 }
 
+/** ── UNA NOTIFICA PER NUMERO OGNI 180 SECONDI (30/10/2026) ──────────────────
+ *  Lo stesso messaggio del cliente può arrivare da due strade (ManyChat e il
+ *  ponte del Mac, o il webhook di Meta): la porta `push_avviso_porta` lascia
+ *  passare un avviso per numero in questa finestra, che è quella in cui il
+ *  ponte riconosce lo stesso messaggio (`FINESTRA_PARI_S`). La notifica dice
+ *  solo il nome, quindi un secondo messaggio dentro la finestra non porta
+ *  niente di nuovo: la notifica di prima è ancora lì. */
+export const FINESTRA_AVVISO_S = 180;
+
+/** A chi va: il titolare (iscrizione senza consulente) e il consulente del
+ *  lead. Un lead senza consulente (o un numero senza scheda): solo il titolare. */
+export function destinatari<T extends { consulente_id?: string | null }>(
+  lista: T[],
+  consulenteId: string | null | undefined,
+): T[] {
+  return lista.filter(
+    (i) => !i.consulente_id || (!!consulenteId && i.consulente_id === consulenteId),
+  );
+}
+
+/** Le porte di `avvisaRisposta` (le vere in `invio.server.ts`). */
+export interface PorteAvviso<T extends { consulente_id?: string | null }> {
+  /** le chiavi VAPID ci sono */
+  acceso(): boolean;
+  /** `push_avviso_porta`: vero = si avvisa. Può lanciare (migrazione assente). */
+  porta(userId: string, chiave: string): Promise<boolean>;
+  /** nome e consulente della scheda (dal lead, o dal numero in rubrica). Può lanciare. */
+  scheda(
+    userId: string,
+    leadId: string | null,
+    telefono: string,
+  ): Promise<{ nome: string | null; consulenteId: string | null } | null>;
+  iscrizioni(userId: string): Promise<T[]>;
+  invia(userId: string, avviso: AvvisoPush, lista: T[]): Promise<unknown>;
+}
+
+/** Un messaggio in entrata vero: porta → scheda → destinatari → invio.
+ *  ⚠️ NON LANCIA MAI: un guasto qui non deve far perdere il messaggio. Una
+ *   porta guasta (migrazione non applicata) lascia passare: meglio due
+ *   notifiche che nessuna. */
+export async function avvisaRisposta<T extends { consulente_id?: string | null }>(
+  porte: PorteAvviso<T>,
+  p: { userId: string; telefono: string; leadId?: string | null; nomeProfilo?: string | null },
+): Promise<"spento" | "gia_avvisato" | "nessuno" | "inviato" | "errore"> {
+  try {
+    if (!porte.acceso() || !p.userId) return "spento";
+    const chiave = chiaveTelefono(p.telefono);
+    if (chiave && !(await porte.porta(p.userId, chiave).catch(() => true))) return "gia_avvisato";
+    const scheda = await porte.scheda(p.userId, p.leadId ?? null, p.telefono).catch(() => null);
+    const lista = destinatari(await porte.iscrizioni(p.userId), scheda?.consulenteId);
+    if (lista.length === 0) return "nessuno";
+    await porte.invia(
+      p.userId,
+      avvisoWhatsapp({
+        telefono: p.telefono,
+        nomeScheda: scheda?.nome,
+        nomeProfilo: p.nomeProfilo,
+      }),
+      lista,
+    );
+    return "inviato";
+  } catch {
+    return "errore";
+  }
+}
+
 /** Le chiavi VAPID dalle variabili del server. `null` se mancano: le notifiche
  *  restano spente e la pagina lo dice, senza errori. */
 export function chiaviDaAmbiente(env: Record<string, string | undefined>) {
