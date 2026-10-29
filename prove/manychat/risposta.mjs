@@ -890,6 +890,27 @@ export async function proveRisposta(mod, { c, gruppo }) {
       [r.esito, m.messaggi.length],
     );
 
+    //  L'eco di un VOCALE: ManyChat rimanda il link del file (29/10/2026, caso vero).
+    const LINK = "https://manybot-files.s3.example/vocale-123.ogg";
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata(),
+        entrata({ body: LINK, created_at: new Date(ADESSO.getTime() - 1500e3).toISOString() }),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: LINK }) }));
+    c("eco del link di un vocale (ultima entrata) → «eco», niente riga", ["eco", 0], [r.esito, m.messaggi.length]);
+    m = mondo({
+      contatti: noto(),
+      storia: [entrata({ body: LINK, created_at: new Date(ADESSO.getTime() - 1500e3).toISOString() })],
+    });
+    r = await RS.gestisciRisposta(
+      m.porte,
+      richiesta({ corpo: corpo({ testo: "https://manybot-files.s3.example/vocale-456.ogg" }) }),
+    );
+    c("un vocale NUOVO (link diverso) → registrato", ["registrata", 1], [r.esito, m.messaggi.length]);
+
     //  Un testo nuovo, diverso dall'ultimo: si registra come sempre.
     m = mondo({ contatti: noto(), storia: [entrata(), uscita()] });
     r = await RS.gestisciRisposta(

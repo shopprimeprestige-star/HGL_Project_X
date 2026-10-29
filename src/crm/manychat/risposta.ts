@@ -149,9 +149,13 @@ export function ecoDi(
 ): "eco" | "doppione" | null {
   const a = normalizzaTesto(testo).slice(0, CONFRONTO_CARATTERI);
   if (!a) return null;
-  const ultima = ultimoTesto(entrate);
+  const uguale = (e: EntrataRegistrata | null | undefined) =>
+    !!e && normalizzaTesto(e.testo).slice(0, CONFRONTO_CARATTERI) === a;
+  //  L'ultimo testo (`{{Last Text Input}}`), oppure l'ultima entrata in assoluto:
+  //  per un vocale o una foto ManyChat rimanda il link del file (29/10/2026,
+  //  eco di un vocale dopo un vocale mandato dall'app).
+  const ultima = [ultimoTesto(entrate), entrate[0]].find(uguale) ?? null;
   if (!ultima) return null;
-  if (normalizzaTesto(ultima.testo).slice(0, CONFRONTO_CARATTERI) !== a) return null;
   return adesso.getTime() - ultima.il.getTime() >= ECO_DOPO_MS ? "eco" : "doppione";
 }
 
