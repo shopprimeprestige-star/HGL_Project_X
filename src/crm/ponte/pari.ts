@@ -39,6 +39,12 @@ export const MARCA_MODELLO = "📋 ";
 /** Un modello uscito di cui WhatsApp non ha dato il testo al ponte. */
 export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
 
+/** Il giro ManyChat esce dal ponte anche come testo semplice già compilato,
+ *  1-2 s dopo la riga `[template:…]` (visto in produzione): un testo semplice
+ *  fa da pari a un `[template:…]` solo entro questa finestra, così un
+ *  messaggio scritto a mano dall'app poco dopo resta visibile. */
+export const FINESTRA_ECO_MODELLO_S = 15;
+
 /** Un invio fatto dall'API (ManyChat) che WhatsApp non mostra ai dispositivi
  *  collegati (`hosted_unavailable_fanout`): il ponte ne sa solo numero e ora. */
 export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
@@ -114,8 +120,9 @@ export function ammessoCome(r: RigaCrm, q: RichiestaCandidato): boolean {
 
 /** Le regole 4-5 fra una riga del ponte e un candidato già filtrato.
  *  Uscite: una riga del ponte senza testo (modello nascosto) fa da pari a
- *  ogni uscita del CRM entro la finestra opaca; un `[template:…]` del CRM
- *  solo a un modello del ponte (marca `MARCA_MODELLO`). */
+ *  ogni uscita del CRM entro la finestra opaca; un `[template:…]` del CRM a
+ *  un modello del ponte (marca `MARCA_MODELLO`) entro la finestra opaca, a un
+ *  testo semplice solo entro `FINESTRA_ECO_MODELLO_S`, mai a un media. */
 function compatibili(riga: RigaDaAbbinare, c: CandidatoCrm): boolean {
   if (c.k !== riga.k || c.canale === CANALE_PONTE) return false;
   if (c.direction !== (riga.d === "in" ? "inbound" : "outbound")) return false;
@@ -123,7 +130,11 @@ function compatibili(riga: RigaDaAbbinare, c: CandidatoCrm): boolean {
   if (!Number.isFinite(dt)) return false;
   if (riga.d === "out" && SENZA_TESTO_DEL_PONTE.includes(riga.x)) return dt <= FINESTRA_OPACA_S;
   const opaco = eOpaco(c.body);
-  if (opaco === "modello") return riga.d === "out" && eModelloDelPonte(riga.x) && dt <= FINESTRA_OPACA_S;
+  if (opaco === "modello") {
+    if (riga.d !== "out") return false;
+    if (eModelloDelPonte(riga.x)) return dt <= FINESTRA_OPACA_S;
+    return riga.m === null && dt <= FINESTRA_ECO_MODELLO_S;
+  }
   if (opaco === "media") return riga.d === "in" && riga.m !== null && dt <= FINESTRA_OPACA_S;
   if (dt > FINESTRA_PARI_S) return false;
   const testo = eModelloDelPonte(riga.x) ? riga.x.slice(MARCA_MODELLO.length) : riga.x;
