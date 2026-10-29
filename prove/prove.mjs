@@ -596,6 +596,7 @@ const MODULI = [
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
+  "chatwa/apriWhatsapp",
   "chatwa/richiamo",
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
@@ -20904,6 +20905,23 @@ function proveDelRichiamoInChat() {
     ["RigaChat.tsx", "Conversazione.tsx"].every((f) => /etichettaRichiamo\(/.test(readFileSync(join(radice, "src/crm/chatwa", f), "utf8"))));
 }
 
+/** ── FINESTRA CHIUSA: SI PASSA ALL'APP WHATSAPP (29/10/2026) ──────────────── */
+function proveDellApriWhatsapp() {
+  gruppo("WHATSAPP: DALLA FINESTRA CHIUSA ALL'APP, BUSINESS PRIMA");
+  const A = mod["chatwa/apriWhatsapp"];
+  const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15";
+  const android = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36";
+  c("wa.me con le sole cifre", "https://wa.me/393331234567", A.linkWaMe("+39 333 123 4567"));
+  c("numero troppo corto: nessun link", "", A.linkWaMe("12345"));
+  c("iPhone e computer: wa.me", "https://wa.me/393331234567", A.linkApriWhatsapp("+393331234567", iphone));
+  const l = A.linkApriWhatsapp("+393331234567", android);
+  c("Android: WhatsApp Business per primo", true, l.startsWith("intent://send/?phone=393331234567#Intent;scheme=whatsapp;package=com.whatsapp.w4b;"));
+  c("Android senza Business: torna a wa.me", true, l.includes("S.browser_fallback_url=" + encodeURIComponent("https://wa.me/393331234567") + ";end"));
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  c("la pastiglia «Finestra chiusa» è un link con l'icona WhatsApp", true,
+    /href=\{apriWa\}/.test(riga) && /<IconaWhatsApp/.test(riga) && /finestra && !finestra\.aperta/.test(riga));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -20999,6 +21017,7 @@ proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
+proveDellApriWhatsapp();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

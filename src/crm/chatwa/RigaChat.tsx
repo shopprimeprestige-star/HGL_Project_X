@@ -15,6 +15,8 @@ import { anteprimaIn, mediaInAnteprima } from "./media";
 import { IconaMedia } from "./IconaMedia";
 import { attesaInChiaro } from "./stato";
 import { ritornoInChat } from "./ritorno";
+import { linkApriWhatsapp } from "./apriWhatsapp";
+import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
 import { formatTimeIT, initials, numeroLeggibile } from "./formati";
@@ -73,6 +75,10 @@ export function RigaChat({
   mostraFinestra = false,
 }: RigaChatProps) {
   const finestra = mostraFinestra ? pastigliaFinestra(c.finestra) : null;
+  const apriWa =
+    finestra && !finestra.aperta
+      ? linkApriWhatsapp(c.phone, typeof navigator === "undefined" ? "" : navigator.userAgent)
+      : "";
   const [cambiaStato, setCambiaStato] = useState(false);
   const nome = nomeChat(c);
   //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
@@ -239,19 +245,37 @@ export function RigaChat({
           )}
           {/*  Finestra di 24 ore (29/10/2026, solo in «Da chiamare»): verde = si
               può scrivere, rosso = finestra chiusa, serve un modello. */}
-          {finestra && (
-            <span
-              className={cn(
-                "shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none",
-                finestra.aperta
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                  : "border-red-300 bg-red-50 text-red-700",
-              )}
-              title={finestra.titolo}
-            >
-              {finestra.testo}
-            </span>
-          )}
+          {finestra &&
+            (finestra.aperta || !apriWa ? (
+              <span
+                className={cn(
+                  "shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none",
+                  finestra.aperta
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-red-300 bg-red-50 text-red-700",
+                )}
+                title={finestra.titolo}
+              >
+                {finestra.testo}
+              </span>
+            ) : (
+              /*  Finestra chiusa (29/10/2026): l'icona di WhatsApp e il tocco apre
+                  l'app sul numero (Business prima, su Android): lì si scrive a mano. */
+              <a
+                href={apriWa}
+                //  wa.me in una scheda nuova (il CRM resta aperto); il link Android si apre e basta.
+                target={apriWa.startsWith("https:") ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                title={`${finestra.titolo}. Tocca per aprire la chat nell'app WhatsApp`}
+                aria-label="Finestra chiusa: apri la chat nell'app WhatsApp"
+                className="inline-flex h-11 shrink-0 items-center focus-visible:outline-none md:h-7"
+              >
+                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-medium leading-none text-red-700 hover:bg-red-100">
+                  {finestra.testo}
+                  <IconaWhatsApp className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                </span>
+              </a>
+            ))}
           {/*  Di ritorno (28/10/2026): nella riga solo «Ritorno» con l'icona, lo stato di
               prima nell'intestazione della chat e nel tooltip. */}
           {ritorno && (
