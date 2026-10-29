@@ -50,6 +50,12 @@ export const SEGNAPOSTO = {
  *  marca, così l'abbinamento a un `[template:…]` del CRM vale solo per loro. */
 export const MARCA_MODELLO = "📋 ";
 export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
+/** Copia di `INVIO_NASCOSTO` di `pari.ts`: l'invio dall'API arrivato senza
+ *  contenuto (`hosted_unavailable_fanout`). */
+export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
+/** Il segno del messaggio finto fatto da `messaggioDaNodo`: un simbolo, che un
+ *  `WAMessage` vero (decodificato dal proto) non può avere. */
+const SEGNO_INVIO_NASCOSTO = Symbol("invio_nascosto");
 
 const ID_VALIDO = /^[A-Za-z0-9_.-]{1,128}$/;
 const NUMERO_VALIDO = /^\d{8,15}$/;
@@ -257,6 +263,7 @@ export function codice(x) {
  *  decifrato; `vuoto` = niente contenuto. Mai il testo. */
 export function tipoBaileys(wamsg) {
   if (!wamsg || typeof wamsg !== "object") return "vuoto";
+  if (wamsg[SEGNO_INVIO_NASCOSTO]) return "invio_nascosto";
   if (wamsg.messageStubType) return "stub";
   const m = apri(wamsg.message);
   if (!m || typeof m !== "object") return "vuoto";
@@ -273,6 +280,36 @@ export function nonDisponibile(nodo) {
   const u = figli.find((f) => f?.tag === "unavailable");
   if (!u) return null;
   return typeof u.attrs?.type === "string" ? codice(u.attrs.type) : "senza_tipo";
+}
+
+/** La parte utente di un JID personale (anche `@hosted`, `@hosted.lid`), senza
+ *  dispositivo, oppure null. */
+function utenteDi(jid) {
+  if (typeof jid !== "string") return null;
+  const [utente, server] = jid.split("@");
+  if (!["s.whatsapp.net", "c.us", "lid", "hosted", "hosted.lid"].includes(server)) return null;
+  const u = (utente ?? "").split(":")[0];
+  return /^\d+$/.test(u) ? u : null;
+}
+
+/** Da un nodo `message` grezzo con `<unavailable type="hosted_unavailable_fanout">`
+ *  (un invio fatto dall'API, che Baileys scarta senza emettere niente) a un
+ *  `WAMessage` finto da passare a `leggiMessaggio`: `{ wamsg }` oppure
+ *  `{ motivo }`. Si leggono SOLO `id`, `from`, `recipient`, `recipient_pn` e
+ *  `t`, come fa Baileys (`decodeMessageNode`): il mittente
+ *  deve essere il nostro numero (o il nostro LID) e il destinatario è il
+ *  cliente. Il testo non c'è e non si inventa: `leggiMessaggio` mette
+ *  `INVIO_NASCOSTO`. `opzioni`: `proprioNumero` (JID o cifre), `proprioLid` (JID). */
+export function messaggioDaNodo(nodo, opzioni = {}) {
+  if (nonDisponibile(nodo) !== "hosted_unavailable_fanout") return { motivo: "non_ospitato" };
+  const a = nodo.attrs ?? {};
+  if (typeof a.from === "string" && a.from.endsWith("@g.us")) return { motivo: "gruppo" };
+  const noi = [comeNumero(opzioni.proprioNumero ?? null), utenteDi(opzioni.proprioLid)].filter(Boolean);
+  const mittente = utenteDi(a.from);
+  if (!mittente || !noi.includes(mittente) || typeof a.recipient !== "string") return { motivo: "fanout_non_nostro" };
+  const key = { remoteJid: a.recipient, fromMe: true, id: a.id };
+  if (typeof a.recipient_pn === "string") key.remoteJidAlt = a.recipient_pn;
+  return { wamsg: { key, messageTimestamp: a.t, [SEGNO_INVIO_NASCOSTO]: true } };
 }
 
 /** Il contenuto: `{ tipo, testo }` oppure `{ motivo }`. */
@@ -352,7 +389,7 @@ export function leggiMessaggio(wamsg, opzioni = {}) {
   // 2. che cosa c'è dentro
   if (wamsg.messageStubType) return scarto("sistema");
   if (typeof key.id !== "string" || !ID_VALIDO.test(key.id)) return scarto("id_non_valido");
-  const cosa = contenuto(wamsg.message);
+  const cosa = wamsg[SEGNO_INVIO_NASCOSTO] ? { tipo: "altro", testo: INVIO_NASCOSTO } : contenuto(wamsg.message);
   if (cosa.motivo) return scarto(cosa.motivo);
 
   // 3. quando

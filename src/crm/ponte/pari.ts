@@ -39,9 +39,13 @@ export const MARCA_MODELLO = "📋 ";
 /** Un modello uscito di cui WhatsApp non ha dato il testo al ponte. */
 export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
 
+/** Un invio fatto dall'API (ManyChat) che WhatsApp non mostra ai dispositivi
+ *  collegati (`hosted_unavailable_fanout`): il ponte ne sa solo numero e ora. */
+export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
+
 /** Le righe del ponte uscite senza niente da mostrare: fanno da pari a
  *  qualunque uscita del CRM vicina (nasconderle non toglie niente). */
-const SENZA_TESTO_DEL_PONTE: readonly string[] = [MODELLO_NASCOSTO];
+const SENZA_TESTO_DEL_PONTE: readonly string[] = [MODELLO_NASCOSTO, INVIO_NASCOSTO];
 
 const eModelloDelPonte = (x: string | null | undefined): boolean =>
   typeof x === "string" && x.startsWith(MARCA_MODELLO);

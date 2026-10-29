@@ -251,6 +251,8 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     const vivi = readdirSync(join(stato8, "fila/vivo")).map((f) => JSON.parse(readFileSync(join(stato8, "fila/vivo", f), "utf8")));
     c("diagnosi: tipi di Baileys per direzione (storico e vivi)", { in_conversation: 7, out_conversation: 1 }, col.istantanea().diagnosi.tipi);
 
+    c("messages.upsert (notify e append) → fila/vivo, pronti dopo 30 s", [["V1", "in"], ["V2", "out"], [T0 + 30_000]], [...vivi.flatMap((v) => v.lotto.messaggi.map((m) => [m.id, m.dir])), [...new Set(vivi.map((v) => v.prossimo_il))]]);
+
     //  I nodi grezzi: si contano quelli senza contenuto, per tipo.
     const nodoMsg = (id, figli, attrs = {}) => ({ tag: "message", attrs: { id, from: `${NOI}:99@s.whatsapp.net`, recipient: `${C4}@s.whatsapp.net`, t: String(TS), ...attrs }, content: figli });
     const ospitato = [{ tag: "unavailable", attrs: { type: "hosted_unavailable_fanout" } }];
@@ -260,15 +262,20 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     let nodoRotto = "nessun errore";
     try {
       await s1.emettiNodo(null);
-      await s1.emettiNodo({ tag: "message", get attrs() { throw new Error("nodo rotto"); }, content: [] });
+      await s1.emettiNodo({ tag: "message", get attrs() { throw new Error("nodo rotto"); }, content: ospitato });
     } catch {
       nodoRotto = "errore uscito";
     }
     c("un nodo rotto non fa cadere Baileys (nessun errore esce dall'ascolto)", "nessun errore", nodoRotto);
-    c("diagnosi: nodi senza contenuto contati per tipo", { hosted_unavailable_fanout: 1, view_once_unavailable_fanout: 1 }, col.istantanea().diagnosi.nodi);
+    c("diagnosi: nodi senza contenuto contati per tipo", { hosted_unavailable_fanout: 2, view_once_unavailable_fanout: 1 }, col.istantanea().diagnosi.nodi);
+    const nascosti = readdirSync(join(stato8, "fila/vivo"))
+      .map((f) => JSON.parse(readFileSync(join(stato8, "fila/vivo", f), "utf8")).lotto.messaggi)
+      .flat()
+      .filter((m) => m.id === "H1");
+    c("il nodo ospitato uscito da noi va in fila/vivo col segnaposto", [{ id: "H1", numero: C4, dir: "out", ts: TS, testo: "📋 Messaggio inviato da ManyChat (testo non visibile)", tipo: "altro", stato: "sent" }], nascosti);
+    c("estrazione: invii nascosti registrati, contati come letti e validi", [1, 9, 6], [col.istantanea().estrazione.invii_nascosti, col.istantanea().estrazione.letti, col.istantanea().estrazione.validi]);
+    c("diagnosi: l'invio nascosto contato come tipo out_invio_nascosto", 1, col.istantanea().diagnosi.tipi.out_invio_nascosto);
     c("l'ascolto dei nodi è uno solo per socket", 1, s1.nodiAscoltati());
-    c("messages.upsert (notify e append) → fila/vivo, pronti dopo 30 s", [["V1", "in"], ["V2", "out"], [T0 + 30_000]], [...vivi.flatMap((v) => v.lotto.messaggi.map((m) => [m.id, m.dir])), [...new Set(vivi.map((v) => v.prossimo_il))]]);
-
     await s1.emetti("lid-mapping.update", { lid: "888@lid", pn: `${C4}@s.whatsapp.net` });
     c("lid-mapping.update (una voce) → lid.json", C4, JSON.parse(readFileSync(P.lid, "utf8"))["888"]);
     c("dopo ogni cambiamento si avvisa (stato.json e invio)", true, avvisi.length >= 5);
@@ -281,9 +288,9 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("dopo l'attesa un socket nuovo", 2, socket.length);
     const s2 = socket[1];
     await s1.emetti("messages.upsert", { type: "notify", messages: [wa(`${C4}@s.whatsapp.net`, "VECCHIO", "dal socket vecchio")] });
-    c("gli eventi del socket vecchio si ignorano", 2, readdirSync(join(stato8, "fila/vivo")).length);
+    c("gli eventi del socket vecchio si ignorano", 3, readdirSync(join(stato8, "fila/vivo")).length);
     await s1.emettiNodo(nodoMsg("H9", ospitato));
-    c("i nodi del socket vecchio non si contano", 1, col.istantanea().diagnosi.nodi.hosted_unavailable_fanout);
+    c("i nodi del socket vecchio non si contano", 2, col.istantanea().diagnosi.nodi.hosted_unavailable_fanout);
 
     //  Rete: attese crescenti, mai un ciclo stretto.
     await s2.emetti("connection.update", { connection: "close", lastDisconnect: { error: { output: { statusCode: 428 } } } });
@@ -315,13 +322,13 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
       collegato_dal: "2026-10-29T11:00:00.000Z",
       ultimo_messaggio_il: null,
       storico: { fatto: true, avanzamento: 100 },
-      estrazione: { letti: 10, validi: 8 },
+      estrazione: { letti: 10, validi: 8, invii_nascosti: 2 },
       diagnosi: { scarti: { gruppo: 1, tipo_sconosciuto: 1 }, tipi: { in_conversation: 9, out_placeholder_message: 1 }, nodi: { hosted_unavailable_fanout: 3 } },
     };
     const filaC = { in_coda: 4, lotti_storico: 1, lotti_vivo: 1, scartati: 2, non_noti_scaduti: 0, divisi: 0, piena: false };
     const b = I.corpoBattito(ist, filaC, {});
     c("battito: la forma di BattitoPonte (più diagnosi, che il CRM ignora)", ["v", "tipo", "stato", "collegato_dal", "ultimo_messaggio_il", "storico", "in_coda", "scartati", "contatori", "versione", "diagnosi"], Object.keys(b));
-    c("battito: nei contatori i nodi ospitati e i tipi sconosciuti", { fanout_ospitati: 3, tipo_sconosciuto: 1 }, { fanout_ospitati: b.contatori.fanout_ospitati, tipo_sconosciuto: b.contatori.tipo_sconosciuto });
+    c("battito: nei contatori i nodi ospitati, quelli registrati e i tipi sconosciuti", { fanout_ospitati: 3, fanout_registrati: 2, tipo_sconosciuto: 1 }, { fanout_ospitati: b.contatori.fanout_ospitati, fanout_registrati: b.contatori.fanout_registrati, tipo_sconosciuto: b.contatori.tipo_sconosciuto });
     c("battito: diagnosi intera (scarti, tipi, nodi)", ist.diagnosi, b.diagnosi);
     c("battito: la diagnosi tiene solo numeri e chiavi [a-z_]", { scarti: { gruppo: 1 }, tipi: {}, nodi: {} }, I.corpoBattito({ ...ist, diagnosi: { scarti: { gruppo: 1, "Brutta Chiave": 2, testo: "x" }, tipi: null } }, filaC, {}).diagnosi);
     const conti = I.contiDiagnosi(b.diagnosi);

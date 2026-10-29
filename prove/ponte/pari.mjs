@@ -101,6 +101,9 @@ export async function provePontePari(mod, { c, gruppo }) {
   c("4f. modello senza testo visibile e un testo uscito dal CRM → pari (non ha niente da mostrare)", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 20, x: P.MODELLO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "A domani!" })]));
   c("4g. modello senza testo visibile oltre 120 s → nuovo", [], abbina([riga({ id: "a", d: "out", t: BASE + 121, x: P.MODELLO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "A domani!" })]));
   c("4h. un modello con testo e lo stesso testo nel CRM → pari (la marca non conta)", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 3, x: "📋 Scegli un orario" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "Scegli un orario" })]));
+  c("4j. invio nascosto (fanout ManyChat) e [template:x] → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 30, x: P.INVIO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "[template:promemoria]" })]));
+  c("4k. invio nascosto e un testo uscito dal CRM → pari", ["a=c1"], abbina([riga({ id: "a", d: "out", t: BASE + 2, x: P.INVIO_NASCOSTO, m: "altro" })], [crm({ id: "c1", dir: "outbound", t: BASE, body: "Ciao, a domani" })]));
+  c("4l. invio nascosto senza nulla nel CRM → nuovo (resta visibile)", [], abbina([riga({ id: "a", d: "out", t: BASE, x: P.INVIO_NASCOSTO, m: "altro" })], [crm({ id: "c1", t: BASE, body: "ciao" })]));
   c("4i. un testo che il cliente comincia con 📋 non è un modello in entrata", [], abbina([riga({ id: "a", t: BASE + 3, x: "📋 lista" })], [crm({ id: "c1", t: BASE, body: "[template:x]" })]));
   c("6. media di ManyChat e «📷 Foto» → pari", ["a=c1"], abbina([riga({ id: "a", t: BASE, x: "📷 Foto", m: "foto" })], [crm({ id: "c1", t: BASE + 4, body: LINK })]));
   c("7. media di ManyChat e un testo → nuovo", [], abbina([riga({ id: "a", t: BASE, x: "ecco la foto" })], [crm({ id: "c1", t: BASE + 4, body: LINK })]));

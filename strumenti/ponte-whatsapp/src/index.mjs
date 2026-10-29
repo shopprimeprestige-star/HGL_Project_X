@@ -181,6 +181,7 @@ export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
       storico_rifiutati: numero(e.storico_rifiutati),
       tipo_sconosciuto: numero(d.scarti?.tipo_sconosciuto),
       fanout_ospitati: numero(d.nodi?.hosted_unavailable_fanout),
+      fanout_registrati: numero(e.invii_nascosti),
     },
     versione: VERSIONE_BAILEYS,
     diagnosi: { scarti: soloConti(d.scarti), tipi: soloConti(d.tipi), nodi: soloConti(d.nodi) },
