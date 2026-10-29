@@ -552,6 +552,7 @@ const MODULI = [
   "manychat/api",
   "manychat/ritorno",
   "manychat/porta",
+  "manychat/finestra",
   "manychat/risposta",
   "manychat/giro",
   //  ⚠️ LEAD DA GOOGLE SHEETS + SEQUENZE WHATSAPP (commessa 2026-10-25): la
