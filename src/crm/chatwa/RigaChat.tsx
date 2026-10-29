@@ -268,9 +268,9 @@ export function RigaChat({
                 rel="noopener noreferrer"
                 title={`${finestra.titolo}. Tocca per aprire la chat nell'app WhatsApp`}
                 aria-label="Finestra chiusa: apri la chat nell'app WhatsApp"
-                className="inline-flex h-11 shrink-0 items-center focus-visible:outline-none md:h-7"
+                className="group inline-flex h-11 shrink-0 items-center focus-visible:outline-none md:h-7"
               >
-                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-medium leading-none text-red-700 hover:bg-red-100">
+                <span className="inline-flex items-center gap-1 group-focus-visible:ring-2 group-focus-visible:ring-ring whitespace-nowrap rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-medium leading-none text-red-700 hover:bg-red-100">
                   {finestra.testo}
                   <IconaWhatsApp className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                 </span>
