@@ -278,7 +278,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           >
             {vociQuando.map((x) => (
               <option key={x.v} value={x.v}>
-                {x.v === "tutti" ? `Tutti (con data: ${x.n})` : `${x.l} (${x.n})`}
+                {`${x.l} (${x.n})`}
               </option>
             ))}
           </select>

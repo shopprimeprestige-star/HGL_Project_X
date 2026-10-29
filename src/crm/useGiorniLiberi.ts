@@ -71,9 +71,6 @@ export function useOreTenute(): Record<string, "solo"> {
 export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
   squadra: Consultant[];
   giorni: GiornoLibero[];
-  /** Vero quando chiusure e capienza sono state lette: prima i posti
-   *  potrebbero essere più di quelli veri. */
-  pronto: boolean;
 } {
   const periodo = o.quanti;
   const chi = o.chi ?? "tutti";
@@ -146,5 +143,5 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
     return out;
   }, [leads, scelti, periodo, oreTenute, adesso, caricati]);
 
-  return { squadra, giorni, pronto: caricati > 0 };
+  return { squadra, giorni };
 }

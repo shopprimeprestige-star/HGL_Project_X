@@ -90,9 +90,20 @@ export interface OrarioScelto {
   data: string;
   /** HH:MM */
   ora: string;
-  /** con chi era libero quando è stato scelto ("tutti" o l'id): solo per chi
-   *  sceglie, il messaggio non lo dice mai */
+  /** con chi era libero quando è stato scelto ("tutti" o l'id). Il messaggio
+   *  dice il nome solo se TUTTE le ore scelte sono dello stesso consulente
+   *  (`consulenteComune`). */
   chi?: string;
+}
+
+/** L'id del consulente se tutte le ore scelte sono sue; altrimenti `null`
+ *  (ore di più consulenti, o scelte con «Tutti»): il messaggio non dice nomi,
+ *  perché un nome sbagliato promette al cliente una persona che quell'ora non
+ *  è libera (revisione del 29/10/2026). */
+export function consulenteComune(scelte: OrarioScelto[]): string | null {
+  const chi = scelte[0]?.chi;
+  if (!chi || chi === "tutti") return null;
+  return scelte.every((s) => s.chi === chi) ? chi : null;
 }
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;

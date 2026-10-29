@@ -32,6 +32,7 @@ import {
   eScelto,
   giornoDi,
   messaggioOrari,
+  consulenteComune,
   scelteAncoraLibere,
   scelteDelGiorno,
   type OrarioScelto,
@@ -73,7 +74,7 @@ const corto = (data: string, oggi: string) => {
 };
 
 const PILLOLA =
-  "inline-flex h-9 shrink-0 items-center rounded-full border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
+  "inline-flex h-11 shrink-0 items-center rounded-full sm:h-9 border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
 
 export function OrariRapidi(p: {
   /** il nome del cliente, per il saluto (solo la prima parola) */
@@ -118,10 +119,13 @@ export function OrariRapidi(p: {
       });
       return;
     }
-    //  Col consulente scelto il messaggio dice il suo nome (29/10/2026); con
-    //  «Tutti» resta senza nomi: chi farà la consulenza si decide dopo.
-    const nomeConsulente =
-      chi === "tutti" ? null : (squadra.find((c) => c.id === chi)?.data?.nome ?? null);
+    //  Il nome del consulente (29/10/2026) solo se TUTTE le ore scelte sono
+    //  sue: con «Tutti» o con ore di più consulenti il messaggio resta senza
+    //  nomi (chi farà la consulenza si decide dopo).
+    const idComune = consulenteComune(valide);
+    const nomeConsulente = idComune
+      ? (squadra.find((c) => c.id === idComune)?.data?.nome ?? null)
+      : null;
     const testo = messaggioOrari(valide, oggi, p.nome, nomeConsulente);
     if (testo) p.onInserisci(testo);
   };

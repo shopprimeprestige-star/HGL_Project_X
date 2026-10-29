@@ -20808,8 +20808,12 @@ function proveDiProponiOrariConsulente() {
   c("si sceglie il consulente (o «Tutti»)", true, /onClick=\{\(\) => setChi\(c\.id\)\}/.test(or));
   c("la spunta mette il messaggio nella chat", true, /if \(testo\) p\.onInserisci\(testo\)/.test(or));
   c("nel messaggio solo le ore ancora libere", true, /const valide = scelteAncoraLibere\(scelte, giorni, oggi\)/.test(or));
-  c("il nome del consulente entra nel testo (non con «Tutti»)", true,
-    /chi === "tutti" \? null/.test(or) && /messaggioOrari\(valide, oggi, p\.nome, nomeConsulente\)/.test(or));
+  c("tutte le ore di Filippo: il nome c'è", "c1", W.consulenteComune([{ data: oggi, ora: "10:00", chi: "c1" }, { data: oggi, ora: "15:00", chi: "c1" }]));
+  c("ore di Filippo e di Marco: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "c1" }, { data: oggi, ora: "15:00", chi: "c2" }]));
+  c("un'ora scelta con «Tutti» e una di Marco: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "tutti" }, { data: oggi, ora: "15:00", chi: "c2" }]));
+  c("solo «Tutti»: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "tutti" }]));
+  c("il nome viene dalle ore scelte, non dal consulente acceso adesso", true,
+    /const idComune = consulenteComune\(valide\)/.test(or) && /messaggioOrari\(valide, oggi, p\.nome, nomeConsulente\)/.test(or));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
