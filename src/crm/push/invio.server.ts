@@ -136,7 +136,8 @@ async function consulentiNonAttivi(lista: Iscrizione[]): Promise<Set<string>> {
   }
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- tabelle e funzioni nuove, fuori dai tipi generati */
+//  I tipi generati non conoscono la funzione e la tabella nuove.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const sb = () =>
   supabaseAdmin as unknown as {
     from: (t: string) => any;
