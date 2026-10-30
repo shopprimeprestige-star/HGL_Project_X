@@ -191,7 +191,13 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       persona). Sta in una barra incollata sopra tutte le sezioni e NON esce dalla sua sezione: i
       numeri di «Da rispondere» devono restare quelli del pulsante, e una chat che sparisce da lì
       sembrerebbe già risposta. In sezione la riga ha solo il segno viola. Si aggiorna col timer. */
-  const meet = prossimoMeet(trovate, oggi, adesso, consultants);
+  //  In «Da chiamare» si guarda l'elenco mostrato: mai un meet la cui riga non c'è.
+  const meet = prossimoMeet(
+    filtri.coda === "da-chiamare" ? elencoDaChiamare : trovate,
+    oggi,
+    adesso,
+    consultants,
+  );
 
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
     <RigaChat
