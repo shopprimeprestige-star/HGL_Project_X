@@ -76,7 +76,8 @@ export function testoConNome(testo: string, nome: string): string | null {
   if (!t) return null;
   const n = String(nome ?? "").trim();
   if (/\{nome\}/i.test(t) && !n) return null;
-  return t.replace(/\{nome\}/gi, n);
+  //  Funzione, non stringa: un nome con «$&» o «$1» non deve diventare una sostituzione.
+  return t.replace(/\{nome\}/gi, () => n);
 }
 
 /** Cosa fa partire il giro per questa scheda, secondo la finestra delle 24 ore.
@@ -116,4 +117,20 @@ export function messaggioPerSalvare(
     .slice(0, MAX_TESTO_MESSAGGIO);
   if (!pulito && fuoriFinestra !== "generico") return undefined;
   return { stato, testo: pulito, fuoriFinestra, scrittoIl: adesso.toISOString() };
+}
+
+/** Cosa ha fatto il riquadro nella finestra: `null` = mai toccato; `{ valore }` = toccato, con il
+ *  messaggio da salvare (`undefined` = l'utente lo ha svuotato apposta). */
+export type BozzaMessaggio = { valore: MessaggioStato | undefined } | null;
+
+/** La parte di patch col messaggio. Se il riquadro non è stato toccato NON c'è nessuna chiave:
+ *  `{...scheda, ...patch}` (updateLead) lascerebbe altrimenti `undefined` al posto del messaggio
+ *  già salvato, cancellandolo in silenzio. Per cancellarlo bisogna farlo apposta (testo vuoto e
+ *  «modello dello stato»). Gli stati senza messaggio non hanno mai la chiave. */
+export function patchMessaggio(
+  stato: unknown,
+  bozza: BozzaMessaggio,
+): { messaggioStato?: MessaggioStato } {
+  if (!bozza || !statoHaMessaggio(stato)) return {};
+  return { messaggioStato: bozza.valore };
 }

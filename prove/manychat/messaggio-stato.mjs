@@ -91,6 +91,11 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
   c("{nome} ma nome mancante → null (mai «{nome}» al cliente)", null, M.testoConNome("Ciao {nome}", ""));
   c("senza {nome} il nome non serve", "Ok", M.testoConNome("Ok", ""));
   c("testo vuoto → null", null, M.testoConNome("   ", "Anna"));
+  c(
+    "un nome con «$&» o «$1» resta com'è (nessuna sostituzione speciale)",
+    "Ciao A$&B$1, ok",
+    M.testoConNome("Ciao {nome}, ok", "A$&B$1"),
+  );
 
   gruppo("MESSAGGIO PER STATO · CHE COSA PARTE");
   const S = (m, finestra, generico = true) =>
@@ -143,6 +148,33 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
       flussoGenericoCollegato: true,
       nome: "",
     }),
+  );
+
+  gruppo("MESSAGGIO PER STATO · COSA ENTRA NELLA PATCH (riquadro toccato o no)");
+  const salvata = { messaggioStato: ms() };
+  const unisci = (patch) => ({ ...salvata, ...patch });
+  c(
+    "riquadro NON toccato: nessuna chiave nella patch, il messaggio già salvato resta",
+    [false, ms()],
+    ((p) => ["messaggioStato" in p, unisci(p).messaggioStato])(M.patchMessaggio("in_attesa_acconto", null)),
+  );
+  c(
+    "riquadro toccato e svuotato (scelta esplicita): la chiave c'è, vuota → il messaggio salvato si cancella",
+    [true, undefined],
+    ((p) => ["messaggioStato" in p, unisci(p).messaggioStato])(
+      M.patchMessaggio("in_attesa_acconto", { valore: undefined }),
+    ),
+  );
+  const nuovo = ms({ testo: "Nuovo", scrittoIl: "2026-10-30T11:00:00.000Z" });
+  c(
+    "riquadro toccato con un testo: la patch porta quel messaggio",
+    nuovo,
+    unisci(M.patchMessaggio("in_attesa_acconto", { valore: nuovo })).messaggioStato,
+  );
+  c(
+    "stato senza messaggio: mai nessuna chiave, anche se il riquadro risulta toccato",
+    false,
+    "messaggioStato" in M.patchMessaggio("venduto", { valore: nuovo }),
   );
 
   gruppo("MESSAGGIO PER STATO · COSA SI SALVA");
@@ -267,8 +299,16 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
     [(quick.match(/<RiquadroMessaggioStato/g) ?? []).length, (dialogoLead.match(/<RiquadroMessaggioStato/g) ?? []).length],
   );
   c(
-    "…e le finestre scrivono messaggioStato solo per gli stati che ne hanno uno",
+    "…le due finestre mettono la chiave nella patch SOLO via patchMessaggio (toccato o no), mai a mano",
+    [2, 0],
+    [
+      (quick.match(/Object\.assign\(patch, patchMessaggio\((newStatus|stato), messaggio\)\)/g) ?? []).length,
+      (quick.match(/patch\.messaggioStato\s*=/g) ?? []).length,
+    ],
+  );
+  c(
+    "…e la bozza del messaggio si azzera a ogni apertura e a ogni cambio di lead (due effetti)",
     2,
-    (quick.match(/if \(statoHaMessaggio\((newStatus|stato)\)\) patch\.messaggioStato = messaggio;/g) ?? []).length,
+    (quick.match(/setMessaggio\(null\)/g) ?? []).length,
   );
 }

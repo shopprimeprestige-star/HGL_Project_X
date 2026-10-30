@@ -115,7 +115,11 @@ import { CLASSE_BADGE_STATO, Tasto, classiStato, dataBreve, eur, useTastoComando
 import { ScorciatoieFinestra, useSalvaConTastiera } from "./SchedaCliente";
 //  Il messaggio automatico dello stato, scritto dal consulente (commessa 2026-10-30).
 import { RiquadroMessaggioStato } from "./RiquadroMessaggioStato";
-import { statoHaMessaggio, type MessaggioStato } from "./manychat/messaggio-stato";
+import {
+  patchMessaggio,
+  statoHaMessaggio,
+  type BozzaMessaggio,
+} from "./manychat/messaggio-stato";
 
 interface DefaultValues {
   acconto?: number;
@@ -259,7 +263,12 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
   const { updateLead, consultants } = useCRM();
   const { user } = useAuth();
   //  Il messaggio automatico scritto qui (solo «Attesa acconto» passa da questo modulo).
-  const [messaggio, setMessaggio] = useState<MessaggioStato | undefined>(undefined);
+  //  `null` = il riquadro non è stato toccato: nella patch non c'è nessuna chiave. Si azzera a ogni
+  //  apertura e a ogni cambio di lead (questo componente resta montato fra un cliente e l'altro).
+  const [messaggio, setMessaggio] = useState<BozzaMessaggio>(null);
+  useEffect(() => {
+    setMessaggio(null);
+  }, [open, lead?.id, newStatus]);
   const [defaults, setDefaults] = useState<DefaultValues>({});
   const [saving, setSaving] = useState(false);
 
@@ -503,7 +512,7 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
         //  della vecchia barra, dove la data finiva dove l'elenco non guardava.
         if (dataSollecito) patch.dataRicontatto = dataSollecito;
         //  Vuoto o non toccato = la chiave non c'è: tutto come prima.
-        if (statoHaMessaggio(newStatus)) patch.messaggioStato = messaggio;
+        Object.assign(patch, patchMessaggio(newStatus, messaggio));
         // Aggiungiamo l'interesse dentro le note in modo umano leggibile (non rompiamo il modello)
         const tag = `[Interesse ${interesse}/10]`;
         const existing = (noteForm || "").trim();
@@ -791,7 +800,7 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
                 consulente={nomeDelConsulente(
                   (consultants ?? []).find((c) => c?.id === lead.data.consulenteId),
                 )}
-                onCambia={setMessaggio}
+                onCambia={(valore) => setMessaggio({ valore })}
               />
             )}
             <CampoFinestra
@@ -1739,7 +1748,11 @@ function ProceduraQuando({
   const cmd = useTastoComando();
   const richiesta = QUANDO_GUIDATO[stato];
   //  Il messaggio automatico scritto all'ultimo passo (solo per gli stati che ne hanno uno).
-  const [messaggio, setMessaggio] = useState<MessaggioStato | undefined>(undefined);
+  //  `null` = il riquadro non è stato toccato (nessuna chiave nella patch); si azzera a ogni apertura.
+  const [messaggio, setMessaggio] = useState<BozzaMessaggio>(null);
+  useEffect(() => {
+    setMessaggio(null);
+  }, [aperta, lead.id, stato]);
 
   const [passo, setPasso] = useState<PassoQuando>("giorno");
   const [data, setData] = useState("");
@@ -2039,7 +2052,7 @@ function ProceduraQuando({
       )}${chi}${scritto ? ` — ${scritto}` : ""}`;
       patch.note = precedenti.trim() ? `${precedenti}\n${riga}` : riga;
       //  Vuoto o non toccato = la chiave non c'è: tutto come prima.
-      if (statoHaMessaggio(stato)) patch.messaggioStato = messaggio;
+      Object.assign(patch, patchMessaggio(stato, messaggio));
 
       //  ⚠️ Come nell'altro ramo: la spunta verde si dà solo dopo aver letto la
       //   risposta. Qui si promette un giorno e un'ora a un cliente — un
@@ -2335,13 +2348,13 @@ function ProceduraQuando({
           perdere quello che si è scritto. */}
       {statoHaMessaggio(stato) && (
         <RiquadroMessaggioStato
-          key={`${lead.id}-${stato}`}
+          key={`${lead.id}-${stato}-${aperta}`}
           stato={stato}
           scheda={lead.data}
           consulente={nomeDelConsulente(
             (consultants ?? []).find((c) => c?.id === lead.data.consulenteId),
           )}
-          onCambia={setMessaggio}
+          onCambia={(valore) => setMessaggio({ valore })}
           className={passo === "note" ? undefined : "hidden"}
         />
       )}
