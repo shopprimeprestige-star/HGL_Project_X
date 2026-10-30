@@ -16,9 +16,9 @@ const SCELTE: { valore: ModoInvito; titolo: string; testo: string }[] = [
   },
   {
     valore: "senza",
-    titolo: "Senza link (lo mando io a mano)",
+    titolo: "Senza link",
     testo:
-      "Il messaggio dice che il link arriva tra poco. Il link lo manda il consulente, in un secondo messaggio.",
+      "Il messaggio dice che il link arriva tra poco: il link lo manda a mano il consulente, in un secondo messaggio.",
   },
 ];
 
@@ -39,7 +39,7 @@ export function SceltaInvitoMeet({
           className={cn(
             "flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border bg-white px-3 py-2.5",
             "transition-colors hover:bg-slate-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-slate-400",
-            valore === s.valore ? "border-slate-400" : "border-slate-200",
+            valore === s.valore ? "border-slate-500 bg-slate-50" : "border-slate-200",
           )}
         >
           <input

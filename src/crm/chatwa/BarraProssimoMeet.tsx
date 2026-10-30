@@ -61,12 +61,16 @@ export function BarraProssimoMeet({
           <TastoInvito invito={invito} cliente={cliente} />
         </div>
       </div>
-      {/*  Promemoria: l'invito è partito ma il link no. Resta finché l'invito di oggi è registrato. */}
-      {ricordaLink && (
-        <p role="status" className="pb-2 pl-11 pr-3 text-[12px] font-medium leading-4 text-violet-900">
-          {PROMEMORIA_LINK}
-        </p>
-      )}
+      {/*  Promemoria: l'invito è partito ma il link no. Resta finché l'invito di oggi è registrato.
+          Il contenitore c'è sempre (vuoto non occupa spazio): così lo screen reader annuncia il testo
+          quando compare. */}
+      <div role="status">
+        {ricordaLink && (
+          <p className="pb-2 pl-11 pr-3 text-[12px] font-medium leading-4 text-violet-900">
+            {PROMEMORIA_LINK}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

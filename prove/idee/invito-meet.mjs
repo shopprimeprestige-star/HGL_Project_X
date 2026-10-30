@@ -133,7 +133,7 @@ export function proveInvitoMeet(mod, { c, gruppo, radice }) {
   const elenco = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
   c("la scelta sta nei dati del consulente (JSON esistente): nessuna migrazione", true, /invitoMeet\?: "meetly" \| "senza"/.test(tipi));
   c("la scheda del consulente mostra la scelta nell'anagrafica", true, /<SceltaInvitoMeet[\s\S]*?valore=\{modoInvito\(bozza\)\}[\s\S]*?cambia\("invitoMeet"/.test(scheda));
-  c("la scelta ha due opzioni radio con le parole del titolare", true, /type="radio"/.test(scelta) && /Col link di Meetly/.test(scelta) && /Senza link/.test(scelta) && /lo mando io a mano/.test(scelta));
+  c("la scelta ha due opzioni radio con le parole del titolare", true, /type="radio"/.test(scelta) && /Col link di Meetly/.test(scelta) && /Senza link/.test(scelta) && /lo manda a mano il consulente/.test(scelta));
   c("le opzioni sono un gruppo con legenda (accessibile)", true, /<fieldset/.test(scelta) && /<legend/.test(scelta));
   c("ogni opzione è alta almeno 44 px", true, /min-h-11/.test(scelta));
   c("la barra legge la scelta del consulente di quel meet", true, /modoDelConsulente\(consultants, meet\.chat\.lead\?\.data\?\.consulenteId\)/.test(barra));
@@ -141,7 +141,7 @@ export function proveInvitoMeet(mod, { c, gruppo, radice }) {
   c("il tasto passa la scelta a preparaInvito", true, /preparaInvito\(chat, ora, consulente, modo\)/.test(hook));
   c("il promemoria dice «Ricordati di mandare il link»", "Ricordati di mandare il link", I.PROMEMORIA_LINK);
   c("il promemoria compare solo dopo un invio senza link", true, /ricordaLink = invito\.preparato\.ok && invito\.preparato\.invito\.senzaLink && !!invito\.fatto/.test(barra) && /\{ricordaLink && \(/.test(barra));
-  c("il promemoria è annunciato (role=status)", true, /role="status"[\s\S]*?\{PROMEMORIA_LINK\}/.test(barra));
+  c("il promemoria è annunciato (role=status sempre presente)", true, /<div role="status">[\s\S]*?\{PROMEMORIA_LINK\}/.test(barra));
   c("il toast dopo l'invio ricorda il link se è senza link", true, /senzaLink\) toast\.success\("Invito inviato", \{ description: PROMEMORIA_LINK/.test(hook));
   c("l'elenco chat non cambia (prossimo-meet.ts e ElencoChat.tsx intatti)", true, !/modoInvito|SceltaInvitoMeet/.test(elenco));
 }
