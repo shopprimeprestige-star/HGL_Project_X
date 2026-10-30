@@ -9,6 +9,14 @@
  *    messages.upsert          → `estrai.mjs` → `fila.aggiungi("vivo", …)`
  *    lid-mapping.update       → mappa LID → numero, salvata in `lid.json`
  *
+ *  LE IMMAGINI (commessa 2026-10-30-ponte-storico-completo, compito T8). Una foto
+ *  valida, viva o dello storico, oltre alla sua riga di testo («📷 Foto») va in
+ *  coda a `immagini.mjs` (`immagini.accoda`): la coda sta su disco, il download e il
+ *  carico li fa quel modulo, uno alla volta. Qui NON entra niente di nuovo sul
+ *  socket: la foto si legge dallo stesso messaggio che `estrai` ha già in mano
+ *  (`immagineDa`, stesse regole di `leggiMessaggio`), e il download è una funzione
+ *  di Baileys che non passa dal socket (la riceve `immagini.mjs` da `index.mjs`).
+ *
  *  Baileys NON si importa qui: arriva da `index.mjs` come parametro
  *  (`{ makeWASocket, useMultiFileAuthState, Browsers }`), così le prove usano
  *  un socket finto, senza rete e senza WhatsApp.
@@ -45,7 +53,7 @@
  *   codici fissi e contatori.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
+import { aggiornaMappaLid, cifreDaJid, immagineDa, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
 import { codiceChiusura, decidi, STORIA_VUOTA } from "./riconnessione.mjs";
 
 const muto = () => undefined;
@@ -122,6 +130,8 @@ function conta(mappa, chiave) {
  *   - `baileys`: `{ makeWASocket, useMultiFileAuthState, Browsers }`;
  *   - `percorsi`: `{ auth, lid }` (cartella delle chiavi e `lid.json`);
  *   - `fila`: quella di `creaFila` (`lotti.mjs`);
+ *   - `immagini`: quella di `creaImmagini` (`immagini.mjs`), oppure null (--senza-invio,
+ *     guasto all'avvio): senza, le foto restano la sola riga di testo di sempre;
  *   - `qr`: quello di `creaQr` (`qr.mjs`);
  *   - `registro(codice, conteggi)`: il log (solo codici e numeri);
  *   - `storicoDal`: secondi UNIX del taglio di STORICO_GIORNI (assente = tutto);
@@ -138,6 +148,7 @@ export function creaCollegamento({
   baileys,
   percorsi,
   fila,
+  immagini = null,
   qr,
   registro = () => {},
   identita = "Chrome",
@@ -258,6 +269,18 @@ export function creaCollegamento({
     conta(diagnosi.scarti, "non_decifrato_arrivato"); // nel log: quanti stub si sono risolti da soli
   }
 
+  /** La foto di un messaggio valido va nella coda delle immagini. Non lancia mai (il messaggio
+   *  di testo è già al sicuro in `messaggi`) e non scrive nel registro altro che un codice fisso:
+   *  è `immagini.accoda` a decidere se la foto è buona (origine, tipo, peso, età). */
+  function accodaFoto(wamsg, opzioni) {
+    try {
+      const foto = immagineDa(wamsg, opzioni);
+      if (foto) immagini.accoda(foto);
+    } catch {
+      registro("immagini_accoda_fallita");
+    }
+  }
+
   /** WAMessage[] → `{ messaggi, nomi }` validi, contando gli scarti per motivo.
    *  `vivo`: i non decifrati dei messaggi in arrivo ora aspettano il vero. */
   function estrai(lista, dal, vivo = false) {
@@ -268,7 +291,8 @@ export function creaCollegamento({
     for (const m of lista) {
       estrazione.letti++;
       conta(diagnosi.tipi, `${m?.key?.fromMe ? "out" : "in"}_${tipoGrezzo(m)}`);
-      const r = leggiMessaggio(m, { proprioNumero, risolviLid, adesso: Math.floor(orologio() / 1000), dal });
+      const opzioni = { proprioNumero, risolviLid, adesso: Math.floor(orologio() / 1000), dal };
+      const r = leggiMessaggio(m, opzioni);
       if (!r.ok) {
         conta(diagnosi.scarti, r.motivo);
         if (vivo && r.segnaposto) aspettaVero(r.segnaposto);
@@ -279,6 +303,7 @@ export function creaCollegamento({
       chatViste.add(r.messaggio.numero);
       estrazione.chat = chatViste.size;
       messaggi.push(r.messaggio);
+      if (immagini && r.messaggio.tipo === "foto") accodaFoto(m, opzioni);
       if (r.nome && !nomi[r.messaggio.numero]) nomi[r.messaggio.numero] = r.nome;
       if (r.messaggio.ts > ultimo) ultimo = r.messaggio.ts;
     }

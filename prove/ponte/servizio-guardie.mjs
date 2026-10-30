@@ -51,6 +51,53 @@ export function violazioniUnSoloInvio(codice) {
   return v;
 }
 
+/** La lista bianca del download delle immagini (commessa 2026-10-30-ponte-storico-completo, T8, PIANO c.1):
+ *  · `downloadMediaMessage`, `updateMediaMessage`, `reuploadRequest`, `requestPlaceholderResend` non compaiono in
+ *    nessun file (il primo accetta l'`url` del messaggio; gli altri chiedono al telefono di rimandare i media);
+ *  · `downloadContentFromMessage` compare UNA volta sola, in `index.mjs`, come valore di `scarica` (Baileys
+ *    arriva solo da lì); `immagini.mjs` lo riceve come parametro;
+ *  · in `immagini.mjs` `scarica(` si chiama una volta sola, con `(copia, "image", { host: … })`, e `copia` ha SOLO
+ *    `mediaKey` e `directPath` (mai `url`, mai l'oggetto del messaggio); il lavoro viene da `accoda`, che chiama
+ *    `validaOrigine` PRIMA di scrivere in coda, o dal disco, riletto con `lavoroValido`;
+ *  · nessun modulo di rete di Node; `fetch(` solo verso `PONTE_URL` (`lotti.mjs`, `fetch(url`) e verso l'URL di
+ *    carico già validato (`immagini.mjs`, `fetch(urlCarico`, che esce da `urlCaricoValido`).
+ *  `codice` = file → sorgente senza commenti. Restituisce le violazioni (vuoto = regola rispettata). */
+export function violazioniImmagini(codice) {
+  const v = [];
+  const dove = (re) => Object.entries(codice).flatMap(([f, t]) => [...t.matchAll(re)].map(() => f));
+  for (const nome of ["downloadMediaMessage", "updateMediaMessage", "reuploadRequest", "requestPlaceholderResend"]) {
+    const f = dove(new RegExp(`\\b${nome}\\b`, "g"));
+    if (f.length) v.push(`${nome} nel codice: ${[...new Set(f)].join(", ")}`);
+  }
+  const scarico = dove(/\bdownloadContentFromMessage\b/g);
+  if (scarico.length !== 1 || scarico[0] !== "index.mjs") v.push(`downloadContentFromMessage deve comparire una volta sola, in index.mjs (trovato: ${scarico.join(", ") || "mai"})`);
+  if (!/\bscarica:\s*baileys\.downloadContentFromMessage\b/.test(codice["index.mjs"] ?? "")) v.push("index.mjs non passa baileys.downloadContentFromMessage come `scarica`");
+
+  const im = codice["immagini.mjs"] ?? "";
+  const chiamate = [...im.matchAll(/\bscarica\(([^)]*)\)/g)].map((m) => m[1].replace(/\s+/g, " ").trim());
+  if (chiamate.length !== 1 || chiamate[0] !== 'copia, "image", { host: lavoro.host }') v.push(`in immagini.mjs scarica( si chiama una volta, con (copia, "image", { host: lavoro.host }); trovato: ${chiamate.join(" | ") || "mai"}`);
+  const copie = [...im.matchAll(/\bconst copia = \{([^}]*)\}/g)].map((m) => [...m[1].matchAll(/(\w+)\s*:/g)].map((k) => k[1]).sort().join(","));
+  if (copie.length !== 1 || copie[0] !== "directPath,mediaKey") v.push(`la copia per Baileys deve avere solo mediaKey e directPath (trovato: ${copie.join(" | ") || "nessuna"})`);
+  const accoda = im.slice(Math.max(0, im.indexOf("accoda(richiesta)")));
+  const prima = accoda.indexOf("const origine = validaOrigine(immagine);");
+  const scrive = accoda.indexOf("indice.set(nome, lavoro)");
+  if (prima < 0 || scrive < 0 || prima > scrive) v.push("accoda deve chiamare validaOrigine prima di mettere in coda");
+  if ((im.match(/\bindice\.set\(/g) ?? []).length !== 2 || !/lavoroValido\(nome, JSON\.parse\(readFileSync/.test(im)) v.push("i lavori entrano in coda solo da accoda (validaOrigine) o dal disco riletto con lavoroValido");
+
+  for (const [f, t] of Object.entries(codice)) {
+    if (/from\s+"node:(http|https|http2|net|tls|dgram|dns)"/.test(t) || /\brequire\(\s*"(node:)?(http|https|http2|net|tls|dgram|dns)"/.test(t)) v.push(`${f}: modulo di rete di Node`);
+    if (/\b(XMLHttpRequest|WebSocket|EventSource)\b/.test(t) || /\bundici\b/.test(t)) v.push(`${f}: client di rete diverso da fetch`);
+  }
+  const ammessi = { "lotti.mjs": ["fetch(url"], "immagini.mjs": ["fetch(urlCarico"] };
+  for (const [f, t] of Object.entries(codice)) {
+    const trovati = [...t.matchAll(/\bfetch\s*\(\s*(\w+)/g)].map((m) => `fetch(${m[1]}`);
+    const fuori = trovati.filter((x) => !(ammessi[f] ?? []).includes(x));
+    if (fuori.length) v.push(`${f}: fetch fuori lista (${fuori.join(", ")})`);
+  }
+  if (!/const urlCarico = risposta\.esito === "carica" \? urlCaricoValido\(/.test(im)) v.push("immagini.mjs: l'URL di carico deve uscire da urlCaricoValido");
+  return v;
+}
+
 /** Un `WAMessage` finto. */
 function wa(remoteJid, id, testo, key = {}) {
   return { key: { remoteJid, fromMe: false, id, ...key }, messageTimestamp: TS, message: { conversation: testo }, pushName: "Cliente Finto" };
@@ -107,7 +154,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
   try {
     // ── 1. Guardie statiche su TUTTO il servizio ─────────────────────────
     const file = readdirSync(src).filter((f) => f.endsWith(".mjs")).sort();
-    c("il servizio ha i file del piano", true, ["cache.mjs", "collega.mjs", "config.mjs", "estrai.mjs", "index.mjs", "invio.mjs", "lotti.mjs", "qr.mjs", "riconnessione.mjs"].every((f) => file.includes(f)));
+    c("il servizio ha i file del piano", true, ["cache.mjs", "collega.mjs", "config.mjs", "estrai.mjs", "immagini.mjs", "index.mjs", "invio.mjs", "lotti.mjs", "qr.mjs", "riconnessione.mjs"].every((f) => file.includes(f)));
     const codice = Object.fromEntries(file.map((f) => [f, senzaCommenti(readFileSync(join(src, f), "utf8"))]));
     const vietati = ["readMessages", "sendReceipt", "sendPresenceUpdate", "groupCreate", "updateProfile", "relayMessage", "chatModify", "logout", "sendNode", "rejectCall", "presenceSubscribe", "updateBlockStatus", "appPatch", "sendRetryRequest", "sendWAMBuffer", "query("];
     c("nessuna chiamata che scrive o legge a nome del titolare (tranne l'invio a mano), in nessun file", [], file.flatMap((f) => vietati.filter((v) => codice[f].includes(v)).map((v) => `${f}: ${v}`)));
@@ -131,6 +178,30 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     writeFileSync(join(copia, "collega.mjs"), senzaInvio);
     writeFileSync(join(copia, "invio.mjs"), readFileSync(join(src, "invio.mjs"), "utf8"));
     c("negativa: nessuna sendMessage (la regola non è vuota) fa fallire la regola", true, violazioniUnSoloInvio(dellaCopia()).length > 0);
+    //  Le immagini (T8): lista bianca del download. Il socket non c'entra: il download è una funzione di Baileys
+    //  che riceve la sola copia {mediaKey, directPath} e l'host deciso da noi.
+    c("immagini: download e rete solo come da lista bianca (nessun downloadMediaMessage, un solo downloadContentFromMessage in index.mjs, copia senza url, fetch solo verso il ponte e l'URL di carico)", [], violazioniImmagini(codice));
+    {
+      const originale = Object.fromEntries(file.map((f) => [f, readFileSync(join(src, f), "utf8")]));
+      const prova = (nome, cambia, attesa = true) => {
+        const m = { ...originale };
+        cambia(m);
+        const trovate = violazioniImmagini(Object.fromEntries(Object.entries(m).map(([f, t]) => [f, senzaCommenti(t)])));
+        c(`negativa (immagini): ${nome}`, attesa, trovate.length > 0);
+      };
+      c("la copia intatta passa la regola delle immagini (le prove negative partono da qui)", [], violazioniImmagini(Object.fromEntries(Object.entries(originale).map(([f, t]) => [f, senzaCommenti(t)]))));
+      for (const nome of ["downloadMediaMessage", "updateMediaMessage", "reuploadRequest", "requestPlaceholderResend"]) prova(`${nome} in collega.mjs`, (m) => (m["collega.mjs"] += `\nconst x = ${nome};\n`));
+      prova("una seconda downloadContentFromMessage in immagini.mjs", (m) => (m["immagini.mjs"] += "\nconst y = downloadContentFromMessage;\n"));
+      prova("index.mjs non passa più downloadContentFromMessage", (m) => (m["index.mjs"] = m["index.mjs"].replace("scarica: baileys.downloadContentFromMessage", "scarica: undefined")));
+      prova("la copia per Baileys porta anche l'url", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace("directPath: lavoro.directPath };", "directPath: lavoro.directPath, url: lavoro.url };")));
+      prova("download senza l'host fissato", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace('"image", { host: lavoro.host }', '"image"')));
+      prova("download con un tipo diverso da «image»", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace('"image", { host: lavoro.host }', '"video", { host: lavoro.host }')));
+      prova("accoda mette in coda prima di validare", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace("const origine = validaOrigine(immagine);", "const origine = { ok: true };")));
+      prova("un fetch verso un indirizzo qualunque in immagini.mjs", (m) => (m["immagini.mjs"] += "\nconst z = fetch(indirizzo);\n"));
+      prova("un fetch in collega.mjs", (m) => (m["collega.mjs"] += "\nconst w = fetch(url);\n"));
+      prova("l'URL di carico non validato", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace("urlCaricoValido(risposta.url_carico)", "risposta.url_carico")));
+      prova("un modulo di rete di Node", (m) => (m["immagini.mjs"] = `import { request } from "node:https";\n${m["immagini.mjs"]}`));
+    }
     //  Lista bianca: sul socket si chiamano SOLO questi (tutto il resto è vietato).
     //  `ws.on` (guasto 2): solo per ASCOLTARE i nodi `message` ricevuti, e
     //  contare quelli senza contenuto (`hosted_unavailable_fanout`). Ascoltare
@@ -152,7 +223,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     // ── 2. Dove scrive: solo nella cartella di stato e nel log ────────────
     const p = I.percorsiDi("/Users/finto");
     const casa = "/Users/finto/Library/Application Support/HGL/ponte-wa";
-    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, cache: `${casa}/cache`, chiaveCache: `${casa}/chiave-cache`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
+    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, immagini: `${casa}/immagini`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, cache: `${casa}/cache`, chiaveCache: `${casa}/chiave-cache`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
     c("percorsi: nessuno nel repo né nel com.ponte.whatsapp di Oclak", [], Object.values(p).filter((x) => x.includes("Documents") || x.includes("/ponte-whatsapp")));
 
     // ── 3. Node: solo LTS 22 o 24, come engines ──────────────────────────
