@@ -134,6 +134,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { IconaWhatsApp } from "@/crm/chatwa/IconaWhatsApp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,7 +239,6 @@ import { TastoMessaggio } from "./TastoMessaggio";
 import { BloccoAnagrafica } from "./DatiAnagrafici";
 import {
   buildMeetReminderMessage,
-  buildWhatsAppLink,
   getWhatsAppMessageForStatus,
   linkStanzaDi,
   etichettaPromemoria,
@@ -2376,15 +2376,14 @@ function TastiContatto({
           )}
           title={etichettaExtra || "Scrivi il secondo messaggio"}
         >
-          <a
-            href={buildWhatsAppLink(telefono, messaggioExtra)}
-            target="_blank"
-            rel="noreferrer"
+          <LinkWhatsapp
+            telefono={telefono}
+            testo={messaggioExtra}
             aria-label={etichettaExtra || "Scrivi il secondo messaggio"}
           >
             <Bell className="h-3.5 w-3.5 text-amber-500" />
             {esteso && "Promemoria"}
-          </a>
+          </LinkWhatsapp>
         </Button>
       )}
     </>
@@ -4715,13 +4714,9 @@ function PassiWizard({
               )}
               {creato ? (
                 <Button asChild variant="outline" className="w-full sm:w-auto">
-                  <a
-                    href={buildWhatsAppLink(form.telefono, messaggioWhatsApp || "")}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <LinkWhatsapp telefono={form.telefono} testo={messaggioWhatsApp || ""}>
                     <IconaWhatsApp className="h-3.5 w-3.5 text-emerald-600" /> Manda la conferma
-                  </a>
+                  </LinkWhatsapp>
                 </Button>
               ) : (
                 <Button variant="outline" disabled className="w-full sm:w-auto">

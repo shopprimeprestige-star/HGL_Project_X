@@ -34,6 +34,7 @@
  *     erano il modo più rapido per farli divergere.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useMemo, useState } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,7 +56,7 @@ import { capienzaConsulenza, getFreeSlotsForDate, presiPerOra } from "@/crm/book
 //  La spunta «quest'ora solo per questa persona»: la stessa di tutto il CRM.
 import { SpuntaSoloUnaPersona, useModiFascia } from "@/crm/ModoDellaFascia";
 import { DURATA_PREDEFINITA } from "@/crm/invito";
-import { buildWhatsAppLink, getWhatsAppMessageForStatus } from "@/crm/whatsapp";
+import { getWhatsAppMessageForStatus } from "@/crm/whatsapp";
 import { formatDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
@@ -662,21 +663,17 @@ export function LineaDelGiorno({
                         variant="ghost"
                         className="h-10 w-10 text-muted-foreground hover:text-foreground sm:h-9 sm:w-9"
                       >
-                        <a
-                          href={buildWhatsAppLink(
-                            l.data.telefono,
-                            getWhatsAppMessageForStatus(
-                              l,
-                              nomeConsulente?.(l.data.consulenteId) ?? "",
-                            ),
+                        <LinkWhatsapp
+                          telefono={l.data.telefono}
+                          testo={getWhatsAppMessageForStatus(
+                            l,
+                            nomeConsulente?.(l.data.consulenteId) ?? "",
                           )}
-                          target="_blank"
-                          rel="noreferrer"
                           title="WhatsApp"
                           aria-label="Scrivi su WhatsApp"
                         >
                           <MessageCircle className="h-4 w-4" />
-                        </a>
+                        </LinkWhatsapp>
                       </Button>
                     </>
                   )}

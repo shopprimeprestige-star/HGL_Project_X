@@ -2,6 +2,7 @@
  *  compito T3): la scheda del prossimo (con le risposte del modulo e le note).
  *  Solo uno spostamento: nessuna riga di logica è cambiata. */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import {
   Check,
   ClipboardList,
@@ -566,17 +567,16 @@ export function SchedaProssimo({
                     «apri WhatsApp». Al ritorno la pagina chiede se il
                     messaggio è partito davvero, e scrive solo il «sì» — vedi
                     la striscia in fondo. */}
-                <a
-                  href={linkRifissa}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => decisione.onWhatsApp()}
+                <LinkWhatsapp
+                  telefono={telefono}
+                  testo={messaggioRif}
+                  onNativo={() => decisione.onWhatsApp()}
                 >
                   <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
                   {daRifissare(d) && d.dataMeeting
                     ? `WhatsApp: «rifissiamo la consulenza del ${dataBreve(d.dataMeeting)}?»`
                     : "WhatsApp: «riprendiamo da dove eravamo rimasti»"}
-                </a>
+                </LinkWhatsapp>
               </Button>
             )}
           </div>

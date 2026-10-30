@@ -24,6 +24,7 @@
  *   si apre la pagina (vedi crm/importa/ripesca).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { TemperaturaRiga } from "@/crm/Temperatura";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, useState } from "react";
 import { Check, FishSymbol, MessageCircle, User } from "lucide-react";
@@ -295,15 +296,10 @@ function Riga({
               <User className="mr-1 h-3.5 w-3.5" /> Scheda
             </Button>
             {link && (
-              <Button
-                asChild
-                size="sm"
-                className="h-8 bg-[#25D366] text-white hover:bg-[#1da851]"
-                onClick={onRipescato}
-              >
-                <a href={link} target="_blank" rel="noreferrer">
+              <Button asChild size="sm" className="h-8 bg-[#25D366] text-white hover:bg-[#1da851]">
+                <LinkWhatsapp telefono={telefono} testo={messaggio} onNativo={onRipescato}>
                   <MessageCircle className="mr-1 h-3.5 w-3.5" /> Riscrivile
-                </a>
+                </LinkWhatsapp>
               </Button>
             )}
           </div>

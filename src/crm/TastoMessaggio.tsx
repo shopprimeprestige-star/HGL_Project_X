@@ -21,7 +21,7 @@
 import { useCallback, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { buildWhatsAppLink } from "./whatsapp";
+import { LinkWhatsapp } from "./chatwa/SceltaWhatsapp";
 import { conLinkLavori, consulenzaAlleSpalle, messaggioRipresa } from "./lavori";
 import { ascoltaLavori, commutaLavori, lavoriAttiviPer } from "./lavori-attivi";
 
@@ -113,10 +113,11 @@ export function TastoMessaggio({
   };
 
   return (
-    <a
-      href={buildWhatsAppLink(telefono, testo)}
-      target="_blank"
-      rel="noreferrer"
+    <LinkWhatsapp
+      telefono={telefono}
+      testo={testo}
+      //  ⚠️ Solo scegliendo l'app: lì il messaggio parte davvero (vedi sotto).
+      onNativo={onInviato}
       onPointerDown={() => {
         lunga.current = false;
         ferma();
@@ -144,16 +145,15 @@ export function TastoMessaggio({
       onContextMenu={(e) => e.preventDefault()}
       onClick={(e) => {
         e.stopPropagation();
+        //  ⚠️ Dopo la pressione lunga il messaggio NON parte e il menu non si
+        //   apre (`preventDefault` lo ferma in LinkWhatsapp). La riga si segna
+        //   come scritta solo scegliendo «WhatsApp» (`onNativo`): segnarla prima
+        //   sarebbe una bugia — di quelle che si scoprono a fine giornata, quando
+        //   quella persona non ha ricevuto niente e nessuno la richiama.
         if (lunga.current) {
           e.preventDefault();
           lunga.current = false;
-          return;
         }
-        //  ⚠️ Solo qui: dopo la pressione lunga il messaggio NON parte, e
-        //   segnare la riga come scritta sarebbe una bugia — di quelle che si
-        //   scoprono a fine giornata, quando quella persona non ha ricevuto
-        //   niente e nessuno la richiama.
-        onInviato?.();
       }}
       title={
         conLink
@@ -172,6 +172,6 @@ export function TastoMessaggio({
       )}
     >
       {children ?? <MessageCircle className="h-3.5 w-3.5" />}
-    </a>
+    </LinkWhatsapp>
   );
 }

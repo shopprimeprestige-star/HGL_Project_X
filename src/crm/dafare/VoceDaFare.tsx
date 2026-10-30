@@ -48,6 +48,7 @@ import {
   type ComponentType,
   type PointerEvent,
 } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import {
   BellRing,
   CalendarClock,
@@ -89,7 +90,6 @@ import { TastoMessaggio } from "@/crm/TastoMessaggio";
 import { ascoltaScritti, eScritto, segnaScritto } from "@/crm/scritti";
 import {
   buildMeetReminderMessage,
-  buildWhatsAppLink,
   getWhatsAppMessageForStatus,
   etichettaPromemoria,
   promemoriaUtile,
@@ -709,17 +709,16 @@ export function VoceDaFare({
             />
           )}
           {!!messaggioPromemoria && messaggioPromemoria !== messaggioStato && (
-            <a
-              href={buildWhatsAppLink(riga.lead.data.telefono, messaggioPromemoria)}
-              target="_blank"
-              rel="noreferrer"
+            <LinkWhatsapp
+              telefono={riga.lead.data.telefono}
+              testo={messaggioPromemoria}
               onClick={(e) => e.stopPropagation()}
               title={`Manda a ${riga.chi} ${etichettaPromemoria(riga.lead?.data, oggi)}`}
               aria-label={`Promemoria per ${riga.chi}`}
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
             >
               <BellRing className="h-3.5 w-3.5" />
-            </a>
+            </LinkWhatsapp>
           )}
         </>
       )}
