@@ -34,7 +34,7 @@ import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
 import { IconaWhatsApp } from "./IconaWhatsApp";
-import { linkApriWhatsapp } from "./apriWhatsapp";
+import { tastoWhatsappNativo } from "./apriWhatsapp";
 import { testoPerWhatsapp } from "./testoWhatsapp";
 import { useCRM } from "@/crm/CRMContext";
 import { Casella } from "./Casella";
@@ -164,10 +164,13 @@ export function Conversazione({
   const adesso = new Date();
   //  A finestra chiusa il link porta già il promemoria giusto nella casella (30/10/2026), se la
   //  scheda ha tutto per scriverlo; altrimenti solo il numero (vedi testoWhatsapp.ts).
-  const linkWaChat = attiva
-    ? linkApriWhatsapp(
+  //  WhatsApp nativo SEMPRE (30/10/2026): il tasto c'è con qualunque finestra e canale; a finestra
+  //  chiusa è in evidenza (vedi apriWhatsapp.ts).
+  const nativo = attiva
+    ? tastoWhatsappNativo(
         attiva.phone,
         typeof navigator === "undefined" ? "" : navigator.userAgent,
+        attiva.finestra,
         attiva.finestra?.aperta === false
           ? testoPerWhatsapp(
               attiva,
@@ -176,7 +179,7 @@ export function Conversazione({
             )
           : "",
       )
-    : "";
+    : null;
   const inAttesa = attiva?.daRispondere?.attesa === true;
   //  Come nella riga dell'elenco (30/10/2026): l'ultimo è mio e lui non ha risposto.
   const senzaRisposta = attiva
@@ -263,24 +266,40 @@ export function Conversazione({
                   </a>
                 </Button>
               )}
-              {/*  ── FINESTRA CHIUSA: SI SCRIVE DALL'APP (29/10/2026) ────────
-                Fuori dalle 24 ore dal CRM parte solo un modello (a pagamento):
-                l'icona di WhatsApp apre la chat nell'app del telefono. */}
-              {attiva.finestra?.aperta === false && linkWaChat && (
+              {/*  ── WHATSAPP NATIVO SEMPRE (29/10 e 30/10/2026) ─────────────
+                L'icona di WhatsApp apre la chat nell'app del telefono, con qualunque
+                finestra. A finestra chiusa (dal CRM parte solo un modello, a pagamento)
+                è rossa e dice perché; altrimenti è discreta. */}
+              {nativo && (
                 <Button
                   asChild
                   variant="outline"
-                  className="h-11 w-11 lg:w-auto px-0 lg:px-3 shrink-0 md:h-9 md:w-9 border-red-200 text-red-700 hover:bg-red-50"
+                  className={cn(
+                    "h-11 w-11 lg:w-auto px-0 lg:px-3 shrink-0 md:h-9 md:w-9",
+                    nativo.evidente
+                      ? "border-red-200 text-red-700 hover:bg-red-50"
+                      : "border-emerald-200 text-emerald-700 hover:bg-emerald-50",
+                  )}
                 >
                   <a
-                    href={linkWaChat}
-                    target={linkWaChat.startsWith("https:") ? "_blank" : undefined}
+                    href={nativo.href}
+                    target={nativo.href.startsWith("https:") ? "_blank" : undefined}
                     rel="noopener noreferrer"
-                    aria-label="Finestra di 24 ore chiusa: apri la chat nell'app WhatsApp"
-                    title="Finestra di 24 ore chiusa: scrivi dall'app WhatsApp"
+                    aria-label={
+                      nativo.evidente
+                        ? "Finestra di 24 ore chiusa: apri la chat nell'app WhatsApp"
+                        : "Apri la chat nell'app WhatsApp"
+                    }
+                    title={
+                      nativo.evidente
+                        ? "Finestra di 24 ore chiusa: scrivi dall'app WhatsApp"
+                        : "Apri la chat nell'app WhatsApp"
+                    }
                   >
                     <IconaWhatsApp className="h-4 w-4 text-emerald-600" />
-                    <span className="hidden lg:inline">24h chiusa</span>
+                    <span className="hidden lg:inline">
+                      {nativo.evidente ? "24h chiusa" : "WhatsApp"}
+                    </span>
                   </a>
                 </Button>
               )}
@@ -609,7 +628,7 @@ export function Conversazione({
               onScarta={bozzaAi.scarta}
             />
           )}
-          {ai.attivo ? <BarraRispostaAi ai={ai} /> : <Casella api={api} />}
+          {ai.attivo ? <BarraRispostaAi ai={ai} /> : <Casella api={api} linkWa={nativo?.href} />}
         </>
       )}
     </section>

@@ -609,6 +609,9 @@ const MODULI = [
   "chatwa/media",
   "chatwa/stato",
   "chatwa/cercaChat",
+  //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
+  //   prove in prove/manychat/chat-per-stato.mjs.
+  "chatwa/perStato",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
@@ -22005,7 +22008,8 @@ function proveDeiFiltriFinestra() {
   const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
   c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(\s*attiva\.phone/.test(conv));
+  //  30/10/2026: il tasto c'è SEMPRE (non solo a finestra chiusa); a finestra chiusa è in evidenza (prove/manychat/chat-per-stato.mjs).
+  c("chat aperta: il tasto per l'app WhatsApp, in evidenza con la finestra chiusa", true, /nativo\.evidente/.test(conv) && /tastoWhatsappNativo\(\s*attiva\.phone/.test(conv));
 }
 
 function proveDellOsservazioneComePastiglia() {
