@@ -30,6 +30,7 @@
  *   `attesa` vera, e il filtro «Da rispondere» ne mostra esattamente le stesse.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { senzaEco } from "./eco";
+import { quandoUltimo } from "./ordineWhatsapp";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
 import { combaciaRicerca } from "./cercaChat";
 import { passaFiltri } from "./filtri";
@@ -811,20 +812,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };
     }
 
-    // ordina per ultimo movimento, come WhatsApp: il messaggio più recente fra quelli
-    // caricati, l'ultimo messaggio del contatto e l'ultima entrata del cliente.
-    const t = (v: string | null | undefined) => {
-      const n = ms(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-    const quando = (x: ChatItem) =>
-      Math.max(
-        t(x.lastMessage?.created_at),
-        t(x.contact?.last_message_at),
-        t(x.contact?.ultimo_in_entrata_il),
-        t(x.contact?.ultimo_messaggio_il),
-      );
-    return Array.from(map.values()).sort((a, b) => quando(b) - quando(a));
+    // ordina per ultimo movimento, come WhatsApp: la stessa ora di «Tutte» (ordineWhatsapp.ts), cioè il
+    // messaggio più recente fra quelli caricati e l'ultimo messaggio del contatto. NON `last_message_at`
+    // né l'ultima entrata: li scrive anche l'eco di ManyChat (poi nascosta come doppione).
+    return Array.from(map.values()).sort((a, b) => quandoUltimo(b) - quandoUltimo(a));
   }, [tutti, contacts, leads, adesso, ottimistici]);
 
   /** «Da rispondere»: come su WhatsApp, l'ultima chat che si è mossa sta sopra

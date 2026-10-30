@@ -16,6 +16,7 @@ export function proveOrdineWhatsapp(mod, { c, gruppo, radice }) {
   /** `o.ultimo`: il trigger del contatto; `o.letto`: l'ultimo messaggio letto in pagina. */
   const chat = (o = {}) => {
     n++;
+    //  `o.vecchia`: contatto letto PRIMA della migrazione dell'ultimo messaggio (la colonna non c'è).
     return {
       phone: `+39333222${String(n).padStart(4, "0")}`,
       lead: o.senzaScheda ? null : { data: { stato: "da_contattare" } },
@@ -23,7 +24,7 @@ export function proveOrdineWhatsapp(mod, { c, gruppo, radice }) {
         ? { direction: o.dir ?? "inbound", body: "x", created_at: o.letto }
         : null,
       contact: {
-        ultimo_messaggio_il: o.ultimo ?? null,
+        ...(o.vecchia ? {} : { ultimo_messaggio_il: o.ultimo ?? null }),
         ultimo_messaggio_direzione: o.dir ?? null,
         last_message_at: o.lma ?? null,
         ultimo_in_entrata_il: o.entrata ?? null,
@@ -64,12 +65,12 @@ export function proveOrdineWhatsapp(mod, { c, gruppo, radice }) {
   c(
     "senza l'ultimo messaggio, ripiega su last_message_at (chat vecchie, prima della migrazione)",
     Date.parse(alle("08:00")),
-    O.quandoUltimo(chat({ lma: alle("08:00") })),
+    O.quandoUltimo(chat({ lma: alle("08:00"), vecchia: true })),
   );
   c(
     "…e sull'ultima entrata se manca anche quella",
     Date.parse(alle("07:00")),
-    O.quandoUltimo(chat({ entrata: alle("07:00") })),
+    O.quandoUltimo(chat({ entrata: alle("07:00"), vecchia: true })),
   );
   c("una data rotta vale zero, non rompe l'elenco", 0, O.quandoUltimo(chat({ ultimo: "boh" })));
 

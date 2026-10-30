@@ -54,6 +54,7 @@ import {
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
+import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
@@ -21416,6 +21417,7 @@ await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
+await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 

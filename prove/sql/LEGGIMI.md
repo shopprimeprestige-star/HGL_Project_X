@@ -132,3 +132,19 @@ Se un controllo dice `KO`, **la migrazione delle immagini non va applicata in pr
 Serve un database di prova con **tutte** le migrazioni applicate (il file non ne applica: usa `ponte_wa_scrivi` v2, `ponte_wa_ritira`, `ponte_wa_promuovi`, `ponte_wa_candidati`). Lo stesso comando di sopra, con `prove/sql/ponte-reimport.sql`. Uscita attesa: 33 righe `ok` e `TUTTI I CONTROLLI DEL SECONDO IMPORT PASSANO`.
 
 Cosa prova (il mondo è descritto in testa al file): un lotto «storico» con una riga già importata, una già nascosta, una **visibile e già promossa** il cui pari ManyChat compare dopo, un vecchio mai importato uguale a una riga ManyChat (−5 s) e uno a 4 minuti, ripassato **due volte**. La prima volta `nuovi` sono solo i mai visti; il vecchio uguale entra nascosto, quello a 4 minuti visibile; la riga già nascosta mantiene il suo `duplicato_di` (anche se si offre un altro pari); la riga promossa con il pari tardivo prende `duplicato_di`, `promosso_il` si svuota e i non letti scendono di **uno, una volta sola** (2 → 1). La seconda volta tutto `gia_presenti`, nessun secondo −1, nemmeno rilanciando gli stessi pari. Invariati: `lead_id`, `non_scrivere_dal`, `risposto_il`, `ultimo_in_entrata_*`, `subscriber_id`, nome e `last_message_at` di tutti i contatti (l'unico a cambiare è quello della riga promossa, e solo nei non letti); lo storico non scrive `attesa_dal` né `promosso_il`; `ponte_wa_promuovi` dopo il reimport → 0. Le **tre misure di b.4** girano sul mondo inventato: doppioni esterni prima/dopo (1 e 1, ma sono righe diverse: la sonda a 600 s vede quella a 4 minuti, l'abbinamento a 180 s no, di proposito), interni 0 (1 se si inserisce lo stesso id con due numeri), segnaposto `-nd` 0 (1 con un segnaposto).
+
+## `eco-entrata.sql` (commessa 2026-10-30-eco-manychat-entrata, l'eco non resta sul contatto)
+
+Serve un database di prova con tutte le migrazioni di prima applicate in ordine (`p8_controllo_notte` per `wa_segna_eco_doppioni`, `p1-chat-veloce` per `ultimo_messaggio_*`, `ponte_tutte_le_chat` per `promosso_il`). La migrazione nuova, `20261030230000_eco_entrata_contatti.sql`, la applica lo script stesso, **due volte**. Dalla radice del repo:
+
+```sh
+psql "$DB" -f prove/sql/eco-entrata.sql
+```
+
+Gira in una transazione che finisce con `ROLLBACK`; ogni controllo stampa `ok  <nome>`, al primo sbagliato si ferma con `KO <nome>: atteso …, avuto …`. Uscita attesa: 9 `ok` e in fondo `FINE: tutti i controlli ok (ROLLBACK)`.
+
+Cosa prova: la sequenza vera del 28/10 (uscite dal telefono, ognuna seguita 2-21 secondi dopo dall'eco del vecchio testo, con la rotta che scrive il contatto): il contatto è sporco (entrata = eco, ultimo messaggio = eco, 5 non letti); la pulizia della notte segna 4 eco; a fine transazione l'ultima entrata torna a quella vera, l'ultimo messaggio al nostro delle 17:59:56, `last_message_at` non è più l'ora dell'eco, i non letti scendono a 1; un'entrata vera arrivata dopo l'eco non si tocca; la funzione su una riga non segnata non fa niente; `anon`/`authenticated` senza `EXECUTE`.
+
+Dentro la transazione il riallineo (trigger differito) si forza con `SET CONSTRAINTS trg_wa_eco_segnata IMMEDIATE`, come farebbe il `COMMIT`.
+
+Eseguito il 30/10/2026 su un Postgres 16 locale usa-e-getta con tutte le migrazioni (estensioni e `storage` finti): 9 `ok`.

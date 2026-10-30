@@ -75,6 +75,9 @@ const MINUTO = 60_000;
 const GIORNO = 24 * ORA;
 /** Un «non leggibile» di ManyChat arrivato entro questo tempo dalla nostra risposta è l'eco di quella risposta. */
 const ECO_SEGNAPOSTO = 2 * MINUTO;
+/** Un'«entrata» che arriva entro questo tempo DOPO un nostro messaggio (partito) è l'eco di quel
+ *  messaggio (vedi `daRispondere`). Viste: da 2 a 21 secondi. */
+const ECO_ENTRATA = 5 * MINUTO;
 
 const FRASE_CHIUSA = "Finestra di 24 ore chiusa: puoi mandare solo un modello approvato";
 
@@ -135,7 +138,24 @@ export function daRispondere(i: IngressoStato): DaRispondere {
       entrata > risposto &&
       entrata - risposto <= ECO_SEGNAPOSTO &&
       eAnteprimaIlleggibile(i.contatto?.ultimo_in_entrata_anteprima);
-    const attesa = (risposto === null || entrata > risposto) && !eco && !chiusoDaNoi(entrata);
+    //  ── L'ECO DI UN MESSAGGIO NOSTRO (30/10/2026) ─────────────────────────────
+    //  Ogni messaggio mandato dal telefono torna da ManyChat dopo pochi secondi come «entrata» col
+    //  testo vecchio del cliente. La rotta scrive `ultimo_in_entrata_il` PRIMA che l'eco venga
+    //  riconosciuta e nascosta (`duplicato_di`), e nessuno lo riporta indietro: l'«entrata» risulta
+    //  DOPO il nostro messaggio e la chat restava in «Da rispondere» con «Tu: …» sulla riga.
+    //  Un vero messaggio del cliente, invece, diventa lui l'ultimo messaggio (trigger sul contatto,
+    //  o messaggio letto in pagina) e non c'è più niente di nostro in fondo. Quindi: ultimo nostro
+    //  e partito, entrata entro 5 minuti dopo → eco, il cliente non aspetta. Più tardi di così la
+    //  colonna vale ancora (nel dubbio la chat resta in attesa, mai un cliente perso).
+    const tUltimo = ms(ultimo.created_at);
+    const ecoDelNostro =
+      ultimo.direction === "outbound" &&
+      ultimo.status !== "failed" &&
+      tUltimo !== null &&
+      entrata > tUltimo &&
+      entrata - tUltimo <= ECO_ENTRATA;
+    const attesa =
+      (risposto === null || entrata > risposto) && !eco && !ecoDelNostro && !chiusoDaNoi(entrata);
     return {
       attesa,
       dal: attesa ? (i.contatto?.ultimo_in_entrata_il as string) : null,
