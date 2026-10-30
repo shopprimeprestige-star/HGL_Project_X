@@ -87,7 +87,7 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     /href=\{`tel:\$\{/.test(riga) && /aria-label=\{`Chiama \$\{nome\}`\}/.test(riga) && /numeroDaComporre\(/.test(riga));
   c("cornetta: non apre la chat (stopPropagation) e ha 44 px di tocco", true,
     /e\.stopPropagation\(\)/.test(riga.slice(riga.indexOf("tel:") - 400, riga.indexOf("tel:") + 400)) && /h-11 w-11/.test(riga));
-  c("cornetta su ogni riga con scheda (non solo Da chiamare)", true, /c\.lead && telefono/.test(riga));
+  c("cornetta su ogni riga con un numero, con o senza scheda (30/10/2026)", true, /\{telefono && \(/.test(riga) && !/c\.lead && telefono/.test(riga));
   c("cambio stato dalla riga: la finestra condivisa del CRM (FinestraStati), con i sette stati", true,
     /FinestraStati/.test(riga) && /statiMenuRiga\(/.test(riga));
   c("…e salva col meccanismo condiviso: onCambiaStato → cambiaStatoLead → updateLead (nessun supabase in riga)", true,

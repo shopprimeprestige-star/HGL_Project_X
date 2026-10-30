@@ -348,6 +348,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       stelle={stelleDi(c.phone)}
       onStelle={() => cambiaStelle(c.phone)}
       onCambiaStato={(lead, stato) => void api.cambiaStatoLead(lead, stato)}
+      onCreaSchedaConStato={(stato) => void api.creaSchedaConStato(c, stato)}
       selezione={
         blocco
           ? {

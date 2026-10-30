@@ -26,3 +26,30 @@ export function proveSottofiltriScorrevoli(mod, { c, gruppo, radice }) {
   c("«Quando richiamare» (Scaduti/Oggi/Domani…) diventa una riga uguale, senza il menu a tendina", true,
     /Quando richiamare/.test(sotto) && !/<select/.test(sotto) && /aria-pressed=\{quandoAttivo === x\.v\}/.test(sotto));
 }
+
+export function proveCreaSchedaDaChat(mod, { c, gruppo, radice }) {
+  const leggi = (p) => readFileSync(join(radice, p), "utf8");
+  const S = mod["chatwa/schedaDaChat"];
+  gruppo("CHAT RITOCCHI 2: LA SCHEDA NASCE DAL NUMERO");
+  const d = S.schedaDaChat({ phone: "+393331112222", contact: { display_name: "Anna Verdi" } }, new Date("2026-10-30T10:00:00Z"));
+  c("col numero della chat, nome del contatto, origine fuori da ADV, stato di partenza", ["+393331112222", "Anna Verdi", "Organico", "da_contattare", "2026-10-30T10:00:00.000Z"],
+    [d.telefono, d.nome, d.fonte, d.stato, d.createdAt]);
+  const senza = S.schedaDaChat({ phone: "+393331112222", contact: null }, new Date("2026-10-30T10:00:00Z"));
+  c("senza nome salvato: nome vuoto (si vede il numero), mai «null»", ["", ""], [senza.nome, senza.cognome]);
+  c("origine «WhatsApp» scritta nelle note, per chi apre la scheda", ["WhatsApp", "Origine: WhatsApp"], [S.ORIGINE_SCHEDA_DA_CHAT, d.note]);
+
+  const riga = leggi("src/crm/chatwa/RigaChat.tsx");
+  const hook = leggi("src/crm/chatwa/useChatWa.ts");
+  const tipi = leggi("src/crm/chatwa/tipi.ts");
+  const pagina = leggi("src/crm/chatwa/PaginaChat.tsx");
+  c("la cornetta non dipende più dalla scheda", false, /c\.lead && telefono/.test(riga));
+  c("la cornetta c'è con un numero da comporre", true, /\{telefono && \(/.test(riga) && /href=\{`tel:\$\{telefono\}`\}/.test(riga));
+  c("il tasto stato c'è anche senza scheda (non con più schede)", true, /puoiCambiareStato/.test(riga) && /!ambigua/.test(riga));
+  c("senza scheda la scelta crea la scheda (onCreaSchedaConStato)", true, /onCreaSchedaConStato\?\.\(s\)/.test(riga));
+  c("l'hook crea la scheda e poi cambia stato con lo stesso salvataggio del CRM", true,
+    /creaSchedaConStato/.test(hook) && /createLead\(schedaDaChat\(/.test(hook) && /await cambiaStatoLead\(/.test(hook));
+  c("un secondo tocco mentre salva non crea due schede", true, /inCreazione/.test(hook));
+  c("il contratto dell'api lo dichiara", true, /creaSchedaConStato: \(chat: ChatItem, s: LeadStatus\) => Promise<void>/.test(tipi));
+  c("l'elenco lo passa alla riga", true, /onCreaSchedaConStato=\{/.test(leggi("src/crm/chatwa/ElencoChat.tsx")));
+  void pagina;
+}

@@ -44,7 +44,10 @@ import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
-import { proveSottofiltriScorrevoli } from "./idee/chat-ritocchi.mjs";
+import {
+  proveCreaSchedaDaChat,
+  proveSottofiltriScorrevoli,
+} from "./idee/chat-ritocchi.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
@@ -627,6 +630,8 @@ const MODULI = [
   "chatwa/perStato",
   //  I filtri della chat a gruppi (30/10/2026): vedi prove/idee/filtri-chat.mjs.
   "chatwa/filtri",
+  //  Ritocchi alla chat (30/10/2026): prove in prove/idee/chat-ritocchi.mjs.
+  "chatwa/schedaDaChat",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
@@ -21397,6 +21402,7 @@ proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
+proveCreaSchedaDaChat(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });

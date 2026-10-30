@@ -160,6 +160,8 @@ export interface ChatWaApi {
   cambiaStato: (s: LeadStatus) => Promise<void>;
   /** Come `cambiaStato`, ma per un lead qualunque (dalla riga dell'elenco, senza aprire la chat). */
   cambiaStatoLead: (lead: Lead, s: LeadStatus) => Promise<void>;
+  /** Chat senza scheda (30/10/2026): crea la scheda col numero e le dà lo stato, con lo stesso salvataggio. */
+  creaSchedaConStato: (chat: ChatItem, s: LeadStatus) => Promise<void>;
   /** Chiavi Meta lette: `null` finché non si sa. Serve all'intestazione della pagina; T7 la sostituisce con `canale`/`stato`. */
   hasConfig: boolean | null;
   /** Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale). Facoltativo: senza, la chat è quella di prima. */
