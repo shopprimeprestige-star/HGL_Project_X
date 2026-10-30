@@ -569,7 +569,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "riga unica dei filtri rapidi: scorre di lato, tasti da 44 px (h-11), aria-pressed",
     true,
-    /flex gap-2 overflow-x-auto/.test(elenco) &&
+    /RIGA_SCORREVOLE, "gap-2/.test(elenco) && /overflow-x-auto/.test(elenco) &&
       /aria-pressed=\{acceso\}/.test(elenco) &&
       /VOCI_RIGA\.map/.test(elenco) &&
       !/grid grid-cols-2/.test(elenco) &&
@@ -600,10 +600,10 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "stato della chiamata e quando richiamare: ci sono, i chip vanno a capo",
+    "stato della chiamata e quando richiamare: ci sono, in righe che scorrono (30/10/2026)",
     true,
     /aria-label="Stato della chiamata"/.test(elenco) &&
-      /flex flex-wrap/.test(elenco) &&
+      /RIGA_SCORREVOLE/.test(elenco) &&
       /Quando richiamare/.test(elenco) &&
       /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(elenco),
   );
@@ -702,7 +702,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "rosso: pallino «Finestra chiusa» e richiami «Scaduti»",
     true,
-    /bg-red-600/.test(pannello) && /quandoAttivo === "scaduti"[\s\S]{0,60}red-700/.test(elenco),
+    /bg-red-600/.test(pannello) && /x\.v === "scaduti"/.test(elenco) && /allarme[\s\S]{0,80}red-700/.test(elenco),
   );
   c(
     "il fuoco è un contorno pieno (non l'anello al 40%)",

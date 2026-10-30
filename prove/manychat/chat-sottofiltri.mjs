@@ -102,8 +102,8 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     /"chiamare"/.test(riga) || /oltre 10 ore/.test(riga) || /daChiamare:\s*ChatItem\[\]/.test(tipi) || /\bdaChiamare,$/m.test(hook));
   c("pillole e chip a 44 px sul telefono (h-11), 28 px dal desktop", false, /"h-10 shrink-0/.test(elenco));
   //  30/10/2026 (sera): CAMBIA DI NUOVO, su richiesta del titolare («difficili da trovare da telefono»): i filtri rapidi
-  //   sono UNA riga che scorre di lato (la pagina no: lo scorrimento sta nella riga); i chip di «Stato della chiamata`
-  //   restano a capo.
-  c("telefono: una sola riga di filtri che scorre di lato dentro il suo contenitore, chip dello stato a capo", true,
-    /flex gap-2 overflow-x-auto overscroll-x-contain/.test(elenco) && /flex flex-wrap/.test(elenco) && !/grid grid-cols-2/.test(elenco) && /min-w-0/.test(riga));
+  //   sono UNA riga che scorre di lato (la pagina no: lo scorrimento sta nella riga); dal 30/10 (sera) anche i
+  //   sottofiltri di «Da chiamare» scorrono nello stesso modo (prove/idee/chat-ritocchi.mjs).
+  c("telefono: una sola riga di filtri che scorre di lato dentro il suo contenitore", true,
+    /overflow-x-auto overscroll-x-contain/.test(elenco) && /RIGA_SCORREVOLE/.test(elenco) && !/grid grid-cols-2/.test(elenco) && /min-w-0/.test(riga));
 }
