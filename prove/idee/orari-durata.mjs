@@ -29,7 +29,11 @@ export function proveOrariDurata(mod, { c, gruppo }) {
   const G = mod["giorni-liberi"];
 
   gruppo("PROPONI ORARI: LA DURATA (predefinita, scelte rapide, valore libero)");
-  c("predefinita 45 minuti, passo di un quarto d'ora", [45, 15], [W.DURATA_ORARI, W.PASSO_ORARI]);
+  c(
+    "predefinita 45 minuti, passo = la durata, come il calendario (30/10)",
+    [45, null],
+    [W.DURATA_ORARI, W.PASSO_ORARI],
+  );
   c("scelte rapide 30, 45, 60, 90", [30, 45, 60, 90], W.DURATE_RAPIDE);
   c(
     "un valore libero si accetta fra 15 e 180 minuti, intero",
@@ -334,9 +338,31 @@ export function proveOrariDurata(mod, { c, gruppo }) {
   const mattina = vero(undefined);
   c(
     "in_attesa_acconto tiene il posto (10:30–11:15), no_show / da_spostare / annullato lo liberano",
-    [false, false, true, true, true, true],
-    ["10:30", "10:45", "11:15", "11:30", "12:00", "12:45"].map((o) => mattina.includes(o)),
+    [false, true, true, true],
+    ["10:30", "11:15", "12:00", "12:45"].map((o) => mattina.includes(o)),
   );
+  {
+    //  30/10/2026: la chat dà GLI STESSI orari del calendario (griglia della durata).
+    const chat = ore(
+      G.giornoDellaSquadra({
+        data: LUNEDI,
+        persone: [fil],
+        leads: [...fissate, ...altre],
+        durata: W.DURATA_ORARI,
+        passo: W.PASSO_ORARI ?? undefined,
+        soloLibere: true,
+      }),
+    );
+    const griglia = new Set(
+      mod["booking-utils"].slotDelGiorno(fil, LUNEDI, W.DURATA_ORARI, []).map((x) => x.ora),
+    );
+    c(
+      "ogni orario della chat sta sulla griglia del calendario (slotDelGiorno senza passo, fascia 45)",
+      [],
+      chat.filter((o) => !griglia.has(o)),
+    );
+    c("…e ce ne sono", true, chat.length > 0);
+  }
   c(
     "l'ultimo orario prima delle 13:30 è 12:45 (finisce alle 13:30)",
     "12:45",
