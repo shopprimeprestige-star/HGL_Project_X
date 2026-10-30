@@ -120,6 +120,32 @@ export async function proveConsulenze(mod, { c, gruppo, radice }) {
       K.confermaMancata(scheda({ contattoWa: cw(voce("in_attesa", DOMANI_INV, "meet_domani"), voce("stop", "2026-10-29T15:00:00.000Z", "stop")) }), t("2026-10-30T10:00:00.000Z")));
   }
 
+  gruppo("CONSULENZE · (10) UN «OK» AL MESSAGGIO DEL GIORNO PRIMA VALE COME CONFERMA");
+  {
+    //  Il percorso vero: il giro manda meet_domani (dopoInvio), il cliente risponde (dopoRisposta).
+    const CT = mod["manychat/contatto"];
+    const applica = (prima, cambio) => CT.applicaCambio(prima, cambio);
+    const inviato = applica(
+      undefined,
+      CT.dopoInvio(undefined, {
+        tipo: "meet_domani",
+        inviatoIl: t(DOMANI_INV),
+        inizioMeet: t("2026-10-30T14:00:00.000Z"),
+        invioId: "inv-1",
+      }),
+    );
+    const senza = scheda({ contattoWa: inviato });
+    c("partito e senza risposta: dopo 3 ore va chiamato", true,
+      !!K.confermaMancata(senza, t("2026-10-29T17:00:00.000Z")));
+    for (const testo of ["ok", "Sì", "👍", "ok, confermo"]) {
+      const risposto = scheda({
+        contattoWa: applica(inviato, CT.dopoRisposta(inviato, testo, t("2026-10-29T15:00:00.000Z"))),
+      });
+      c(`risposta «${testo}» al giorno prima: confermata, nessuna telefonata`, null,
+        K.confermaMancata(risposto, t("2026-10-30T10:00:00.000Z")));
+    }
+  }
+
   gruppo("CONSULENZE · (10) IN CIMA A «DA FARE»");
   {
     const lead = (id, extra) => ({ id, data: scheda(extra) });

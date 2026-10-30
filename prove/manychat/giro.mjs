@@ -102,6 +102,17 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
   const giornoRoma = (ms) =>
     new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome" }).format(new Date(ms));
 
+  /** `entrate`: { n: ore fa } → { ultime 9 cifre di cifre(n): ISO }; solo per i telefoni chiesti
+   *  (cifre col prefisso). */
+  const entrateDi = (entrate, telefoni) => {
+    const fuori = {};
+    for (const [n, oreFa] of Object.entries(entrate ?? {})) {
+      if (telefoni.includes(cifre(n)) && oreFa !== null)
+        fuori[cifre(n).slice(-9)] = new Date(ADESSO - oreFa * 3_600_000).toISOString();
+    }
+    return fuori;
+  };
+
   function mondo(o = {}) {
     const f =
       o.finto ??
@@ -131,6 +142,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       /** le chiamate alla funzione del cambio di stato (commessa 2026-10-28, stato dopo il primo) */
       statoLog: [],
       avvisi: [],
+      lettureEntrate: [],
       eventi: [],
       spenti: [],
       annullati: [],
@@ -304,6 +316,13 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
         }),
         chiaveManychat: () => !o.senzaChiave,
         consulenti: async () => CONSULENTI,
+        //  L'ultima entrata per telefono (ultime 9 cifre → ISO), una lettura per giro.
+        ultimeEntrate: async (userId, telefoni) => {
+          m.eventi.push("entrate");
+          m.lettureEntrate.push([...telefoni]);
+          if (o.guastoEntrate) throw { code: "XX006", message: `db giù per ${cifre(1)} Anna` };
+          return entrateDi(o.entrate, telefoni);
+        },
         schede: async () =>
           m.schede
             .filter((s) => s.userId === U)
@@ -368,6 +387,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
             adesso: () => orologio.adesso(),
             client: () => clientUnico,
             flusso: async (modello) => config.flussi[modello] ?? null,
+            //  La finestra come la vede la porta al momento dell'invio (può essere cambiata).
+            ultimaEntrata: async (telefono) =>
+              Object.values(entrateDi(o.entratePorta ?? o.entrate, [String(telefono)]))[0] ?? null,
             prenota: async () => {
               throw new Error("la porta non deve prenotare da sola: lo fa il giro");
             },
@@ -1614,8 +1636,8 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       [m.invii[0]?.tipo, m.invii[1]?.tipo, m.invii.length],
     );
 
-    //  ── 24 ore prima: SPENTO (decisione del titolare, 28/10) ──
-    //  Il meet è sabato 24/10 alle 15:11, sono le 15:11 di venerdì: un tempo sarebbe partito meet_domani.
+    //  ── 24 ore prima: SOLO SE GRATIS (30/10/2026; il 28/10 il modello era stato spento) ──
+    //  Il meet è sabato 24/10 alle 15:11, sono le 15:11 di venerdì: il bersaglio è adesso.
     const domani = (id, n, extra) =>
       meet(id, n, {
         dataMeeting: "2026-10-24",
@@ -1623,11 +1645,15 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
         fissatoIl: "2026-10-20T09:00:00.000Z",
         ...extra,
       });
-    c("l'interruttore del giorno prima è spento (MEET_DOMANI_ACCESO = false)", false, G.MEET_DOMANI_ACCESO);
+    c(
+      "il modello del giorno prima resta spento (MEET_DOMANI_ACCESO = false); il testo gratis è acceso (MEET_DOMANI_SOLO_GRATIS)",
+      [false, true],
+      [G.MEET_DOMANI_ACCESO, G.MEET_DOMANI_SOLO_GRATIS],
+    );
     m = mondo({ schede: [domani("d1", 1)], config: accesa });
     e = await m.giroOra();
     c(
-      "promemoria del giorno prima spento: nessun meet_domani dal giro (zero invii, zero chiamate a ManyChat, scheda intatta)",
+      "il cliente non ha mai scritto: nessun meet_domani, mai un modello (zero invii, zero chiamate a ManyChat, scheda intatta)",
       [0, 0, 0, "da_contattare"],
       [
         e.nuoviInviati + e.promemoriInviati,
@@ -1636,14 +1662,32 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
         m.schede[0].data.contattoWa?.stato ?? "da_contattare",
       ],
     );
+    c(
+      "…e non è un guasto: niente nei problemi del riquadro",
+      [],
+      m.giro.stato.problemi.filter((p) => p.tipo === "meet_domani"),
+    );
+    m = mondo({ schede: [domani("d1", 1)], config: accesa, entrate: { 1: 30 } });
+    e = await m.giroOra();
+    c(
+      "…ha scritto 30 ore fa (finestra chiusa): stessa cosa, zero chiamate",
+      [0, 0],
+      [m.invii.length, m.f.chiamate.length],
+    );
     m = mondo({ schede: [domani("d1", 1)], config: accesa });
     const eProva = await m.giroOra(true);
     c(
-      "prova a secco: nessuna riga meet_domani, e non scrive niente",
-      [0, 0, 0],
-      [eProva.righe.filter((r) => r.tipo === "meet_domani").length, m.invii.length, m.f.chiamate.length],
+      "prova a secco senza entrata: una riga meet_domani «salta» con la frase della finestra, e non scrive niente",
+      [[["meet_domani", "salta", "saltato: finestra chiusa, si risparmia il modello"]], 0, 0],
+      [
+        eProva.righe
+          .filter((r) => r.tipo === "meet_domani")
+          .map((r) => [r.tipo, r.esito, r.motivo]),
+        m.invii.length,
+        m.f.chiamate.length,
+      ],
     );
-    //  il resto del giorno del meet resta acceso: la mattina (meet_oggi) parte, il giorno prima no
+    //  il resto del giorno del meet resta acceso: la mattina (meet_oggi) parte
     m = mondo({
       schede: [domani("d1", 1), meet("o1", 2, { oraMeeting: "18:00" }), lead("n1", 3)],
       config: accesa,
@@ -1653,6 +1697,161 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       "ordine: meet_oggi, poi il primo contatto; mai più di 2 per giro e nessun meet_domani in mezzo",
       ["meet_oggi", "primo_contatto", 2],
       [m.invii[0]?.tipo, m.invii[1]?.tipo, m.invii.length],
+    );
+
+    //  ── la finestra è aperta: parte il TESTO, mai il modello ──
+    //  L'ultima entrata si legge UNA volta, per i soli telefoni dei meet di domani.
+    //  il flusso di hgl_meet_domani qui NON è collegato: il testo non ne ha bisogno
+    const senzaFlussoDomani = {
+      ...accesa,
+      flussi: Object.fromEntries(
+        Object.entries(accesa.flussi).filter(([k]) => k !== "hgl_meet_domani"),
+      ),
+    };
+    m = mondo({
+      schede: [domani("d1", 1), meet("o1", 2, { oraMeeting: "18:00" })],
+      config: senzaFlussoDomani,
+      entrate: { 1: 2 },
+    });
+    e = await m.giroOra();
+    const testi = m.f.chiamate.filter((x) => x.percorso === PERCORSI.testo);
+    c(
+      "finestra aperta (2 ore fa): parte meet_domani come TESTO, senza flusso (hgl_meet_domani non è nemmeno collegato)",
+      [1, 1, 0],
+      [
+        m.riga("meet_domani").length,
+        testi.length,
+        m.flussi().filter((x) => x.corpo.flow_ns === "content-m3").length,
+      ],
+    );
+    c(
+      "…il registro: inviato, senza flusso, chiave d|tel9|giorno-ora, previsto_il vuoto",
+      ["inviato", null, true],
+      [
+        m.riga("meet_domani")[0].stato,
+        m.riga("meet_domani")[0].flowNs,
+        /^d\|\d{9}\|2026-10-24T15:11$/.test(m.riga("meet_domani")[0].chiave),
+      ],
+    );
+    const testo = testi[0]?.corpo.data.content.messages[0].text ?? "";
+    c(
+      "…il testo chiede una risposta breve, ha il giorno, l'ora e il consulente, nessun segnaposto",
+      [true, true, true, true, false],
+      [
+        /Mi confermi con un ok\?/.test(testo),
+        /Anna/.test(testo),
+        /15:11/.test(testo),
+        /Giulia/.test(testo),
+        /\{\{/.test(testo),
+      ],
+    );
+    c(
+      "…una sola lettura delle entrate, con il solo telefono del meet di domani (non quello della mattina)",
+      [1, [cifre(1)]],
+      [m.lettureEntrate.length, m.lettureEntrate[0]],
+    );
+    c(
+      "…la scheda va «In attesa» con motivo meet_domani e scadenza all'inizio del meet",
+      ["in_attesa", "meet_domani", new Date("2026-10-24T15:11:00+02:00").toISOString()],
+      [
+        m.schede[0].data.contattoWa.stato,
+        m.schede[0].data.contattoWa.motivo,
+        m.schede[0].data.contattoWa.scadeRisposta,
+      ],
+    );
+    c(
+      "…e non riparte: il giro dopo non rimanda (chiave presa) e non rilegge nemmeno le entrate",
+      [1, 1],
+      [(await m.giroOra(), m.riga("meet_domani").length), m.lettureEntrate.length],
+    );
+    m = mondo({ schede: [meet("o1", 2, { oraMeeting: "18:00" })], config: accesa, entrate: { 2: 1 } });
+    await m.giroOra();
+    c("senza meet di domani non si legge niente", 0, m.lettureEntrate.length);
+    m = mondo({ schede: [domani("d1", 1)], config: { ...accesa, giornoMeet: false }, entrate: { 1: 2 } });
+    await m.giroOra();
+    c(
+      "«Giorno del meet» spento: niente lettura e niente invio",
+      [0, 0],
+      [m.lettureEntrate.length, m.invii.length],
+    );
+
+    //  ── tra la decisione e l'invio la finestra si chiude: MAI il modello ──
+    m = mondo({
+      schede: [domani("d1", 1)],
+      config: { ...accesa, flussi: { ...accesa.flussi, hgl_meet_domani: "content-m3" } },
+      entrate: { 1: 2 },
+      entratePorta: { 1: 23.5 },
+    });
+    e = await m.giroOra();
+    c(
+      "finestra chiusa all'invio (anche col flusso collegato): riga «saltato» con la chiave, nessuna chiamata, nessun problema",
+      ["saltato", true, 0, 0, false, []],
+      [
+        m.riga("meet_domani")[0]?.stato,
+        !!m.riga("meet_domani")[0]?.chiave,
+        m.f.chiamate.length,
+        e.nuoviInviati,
+        m.config.acceso === false,
+        m.giro.stato.problemi,
+      ],
+    );
+    c(
+      "…conta come saltato, non come guasto: non spegne niente, i falliti restano 0, la scheda non cambia",
+      [1, [], 0, undefined],
+      [e.saltati, m.spenti, m.giro.falliti, m.schede[0].data.contattoWa?.stato],
+    );
+    await m.giroOra();
+    c("…una volta per meet: il giro dopo non ci riprova", 1, m.riga("meet_domani").length);
+
+    //  ManyChat rifiuta il testo (3011): niente ripiego sul flusso
+    m = mondo({
+      schede: [domani("d1", 1)],
+      config: { ...accesa, flussi: { ...accesa.flussi, hgl_meet_domani: "content-m3" } },
+      entrate: { 1: 2 },
+    });
+    m.f.su("POST", PERCORSI.testo, {
+      http: 400,
+      corpo: { status: "error", message: "x", code: 3011 },
+    });
+    e = await m.giroOra();
+    c(
+      "ManyChat rifiuta il testo (3011): «saltato», NESSUN sendFlow, niente spento, falliti a 0",
+      ["saltato", 0, [], 0, 0],
+      [
+        m.riga("meet_domani")[0]?.stato,
+        m.flussi().length,
+        m.spenti,
+        m.giro.falliti,
+        e.nuoviInviati,
+      ],
+    );
+
+    //  la lettura delle entrate si guasta: si risparmia, il resto del giro prosegue
+    m = mondo({
+      schede: [domani("d1", 1), meet("o1", 2, { oraMeeting: "18:00" })],
+      config: accesa,
+      entrate: { 1: 2 },
+      guastoEntrate: true,
+    });
+    e = await m.giroOra();
+    c(
+      "lettura delle entrate guasta: nessun meet_domani, il resto parte (meet_oggi), niente spento",
+      [0, 1, []],
+      [m.riga("meet_domani").length, m.riga("meet_oggi").length, m.spenti],
+    );
+    c(
+      "…solo un codice nei log, mai numero o nome",
+      [true, false],
+      [m.avvisi.some((x) => /entrate/.test(x)), m.avvisi.some((x) => /\d{6,}|Anna/.test(x))],
+    );
+
+    //  la prova a secco con l'entrata: «scriverebbe», e basta
+    m = mondo({ schede: [domani("d1", 1)], config: accesa, entrate: { 1: 2 } });
+    const eProva2 = await m.giroOra(true);
+    c(
+      "prova a secco con la finestra aperta: meet_domani «scriverebbe», nessuna scrittura",
+      [["meet_domani", "scriverebbe"], 0, 0],
+      [eProva2.righe.map((r) => [r.tipo, r.esito])[0], m.invii.length, m.f.chiamate.length],
     );
 
     //  ritmo: ricontatto dovuto parte entro un'ora anche con un primo contatto ogni 15'

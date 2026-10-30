@@ -63,12 +63,14 @@ import {
 } from "./quando";
 import { TIPI_COL_RITMO, TIPI_NEI_TETTI, numeroWa, type InvioPerFreno } from "./regole";
 import {
+  FRASE_FINESTRA_CHIUSA,
   PREFISSO_CASI,
   PREFISSO_IMPORTATO,
   PREFISSO_RITORNO,
   decidiGiornoMeet,
   decidiLeadNuovi,
   decidiMeetDomani,
+  telefoniMeetDomani,
 } from "./sequenze";
 import { TABELLA_STATI, decidiPerStato } from "./stati";
 import {
@@ -93,8 +95,16 @@ export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
 /** La mattina del meet col link dentro (30/10/2026). Facoltativo: serve il flusso in
  *  `config.flussi` E il link in scheda; altrimenti la mattina è `hgl_meet_oggi`. */
 export const MODELLO_MEET_OGGI_LINK = "hgl_meet_oggi_link";
-/** Il promemoria 24 ore prima della consulenza. Spento dal titolare il 28/10. */
+/** Il testo (non un modello Meta, senza flusso) del giorno prima solo se gratis: la porta lo
+ *  cerca in `wa-meta-templates` e lo manda come messaggio normale. */
+export const TESTO_MEET_DOMANI = "hgl_meet_domani_testo";
+/** Il promemoria 24 ore prima della consulenza COME MODELLO. Spento dal titolare il 28/10:
+ *  niente modello in più. Resta `false`. */
 export const MEET_DOMANI_ACCESO = false;
+/** Il promemoria 24 ore prima SOLO SE GRATIS (30/10/2026): parte come testo, con la finestra di
+ *  24 ore aperta (ultima entrata < 23 ore), e la porta non ripiega mai sul modello. Altrimenti
+ *  si salta. Si spegne con `false`; con `MEET_DOMANI_ACCESO` vero vale quello (modello ammesso). */
+export const MEET_DOMANI_SOLO_GRATIS = true;
 /** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
 export const TAG_PROMEMORIA = "crm-promemoria";
 export const TAG_RICONTATTO = "crm-ricontatto";
@@ -316,6 +326,11 @@ export interface PorteGiro {
   /** c'è `MANYCHAT_API_KEY` fra i segreti? */
   chiaveManychat(): boolean;
   consulenti(userId: string): Promise<Pick<Consultant, "id" | "data">[]>;
+  /** L'ultimo messaggio del cliente per ognuno di questi telefoni (solo cifre col prefisso;
+   *  in uscita: ultime 9 cifre → ISO), da
+   *  `whatsapp_contacts.ultimo_in_entrata_il`: una sola lettura per giro, solo per i meet di
+   *  domani. Chi non ha scritto non compare. */
+  ultimeEntrate(userId: string, telefoni: string[]): Promise<Record<string, string>>;
   /** le schede che il giro può dover toccare: appuntamenti di oggi in poi, schede
    *  negli stati dei ricontatti a data, e quelle che chiede `ambito` */
   schede(userId: string, oggi: string, ambito: AmbitoSchede): Promise<SchedaQuando[]>;
@@ -463,6 +478,9 @@ export interface DatiDecisioni {
   tetti: Tetti;
   /** `manychat_giro.prossimo_ricontatto_dopo` */
   prossimoDopo: Date | null;
+  /** ultime 9 cifre → ISO dell'ultimo messaggio del cliente, per i soli meet di domani
+   *  (`telefoniMeetDomani`). Assente o senza il telefono = finestra chiusa: nessun testo gratis. */
+  ultimeEntrate?: Record<string, string | null>;
 }
 
 /** Quali messaggi sono accesi e con quali date. */
@@ -599,10 +617,15 @@ export function decisioniDelGiro(
           : "meet_oggi",
     );
   //  Il promemoria 24 ore prima: stesso interruttore, subito dopo la mattina del meet.
-  //  Spento per ora (decisione del titolare 28/10: solo mattina, −20' e ora esatta).
-  if (scelta.giornoMeet && MEET_DOMANI_ACCESO)
+  //  Come modello è spento (decisione del titolare 28/10); come testo gratis parte solo con
+  //  la finestra aperta (30/10: `MEET_DOMANI_SOLO_GRATIS`).
+  if (scelta.giornoMeet && (MEET_DOMANI_ACCESO || MEET_DOMANI_SOLO_GRATIS))
     aggiungi(
-      decidiMeetDomani(schede, adesso, base),
+      decidiMeetDomani(schede, adesso, {
+        ...base,
+        soloGratis: !MEET_DOMANI_ACCESO,
+        ultimeEntrate: dati.ultimeEntrate,
+      }),
       (x) => ({ tipo: x.quale, extra: { inizio: x.inizioMeet } }),
       () => "meet_domani",
     );
@@ -660,6 +683,8 @@ const NON_SONO_PROBLEMI = [
   "sequenza finita",
   "saltato: c'è già il promemoria",
   "la conferma è già partita oggi",
+  //  il giorno prima, solo se gratis: senza finestra aperta si risparmia, non è un guasto
+  FRASE_FINESTRA_CHIUSA,
 ];
 //  I motivi degli importati e dei ritorni (numero storto, nome mancante, revoca…) non sono
 //  guasti: sono tanti, e riempirebbero i 20 posti dei problemi veri.
@@ -835,6 +860,8 @@ type Candidato = {
   d: Extract<DecisioneQuando<ExtraVoce>, { tipo: "invia" }>;
   modello: string;
   tag: string;
+  /** mai come modello: solo il testo, o «saltato» (porta.ts, `soloTesto`) */
+  soloTesto?: boolean;
 };
 
 /** Come è andato un tentativo di invio. */
@@ -934,7 +961,19 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const invii: InvioPerFreno[] = [...registro];
   const tetti = tettiDelGiorno(config.tetti, config.primaAccensione, adesso);
   const prossimoDopo = giro.prossimoRicontattoDopo ? new Date(giro.prossimoRicontattoDopo) : null;
-  const dati: DatiDecisioni = { consulenti, invii, tetti, prossimoDopo };
+  //  Il giorno prima, solo se gratis: serve l'ultima entrata dei soli meet di domani. Se la
+  //  lettura si guasta nessuno ha la finestra aperta: si risparmia, il resto del giro prosegue.
+  let ultimeEntrate: Record<string, string> = {};
+  if (scelta.giornoMeet && !MEET_DOMANI_ACCESO && MEET_DOMANI_SOLO_GRATIS) {
+    const telefoni = telefoniMeetDomani(schede, adesso, invii);
+    if (telefoni.length > 0)
+      try {
+        ultimeEntrate = await porte.ultimeEntrate(userId, telefoni);
+      } catch (e) {
+        porte.avviso(`giro_entrate_errore_${codiceErrore(e)}`);
+      }
+  }
+  const dati: DatiDecisioni = { consulenti, invii, tetti, prossimoDopo, ultimeEntrate };
 
   //  3. «Non ha risposto» sulle schede scadute.
   if (!prova) {
@@ -983,11 +1022,13 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       v.tipo === "meet_oggi" && mattinaColLink(v.d.scheda, config.flussi),
     );
     if (!mt) continue;
-    if (!config.flussi[mt.modello]) {
+    //  Il giorno prima, solo se gratis, parte come testo: il suo flusso non serve e non si usa.
+    const soloTesto = v.tipo === "meet_domani" && !MEET_DOMANI_ACCESO;
+    if (!soloTesto && !config.flussi[mt.modello]) {
       senzaFlusso.add(mt.modello);
       continue;
     }
-    candidati.push({ tipo: v.tipo, d: v.d, ...mt });
+    candidati.push({ tipo: v.tipo, d: v.d, ...mt, ...(soloTesto ? { soloTesto } : {}) });
   }
   if (senzaFlusso.size > 0) {
     const nomi = [...senzaFlusso].map((m) => NOME_MODELLO[m] ?? m);
@@ -1091,12 +1132,14 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     const r = await inviaWhatsapp(porta, {
       canale: "manychat",
       a: `+${numero}`,
-      modello: cand.modello,
+      //  Il giorno prima: il testo proprio (`hgl_meet_domani_testo`), mai il modello Meta.
+      modello: cand.soloTesto ? TESTO_MEET_DOMANI : cand.modello,
       parametri,
       nome: d.nome,
       leadId: scheda.id,
       tipo: cand.tipo,
       chiave,
+      ...(cand.soloTesto ? { soloTesto: true } : {}),
     });
 
     //  ── Rifiutato dalla prenotazione: non è partito niente. ──
@@ -1212,6 +1255,11 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       }
       case "riprova_fra_poco":
       case "gia_preso":
+        return { fine: "continua" };
+      case "saltato":
+        //  Solo testo e la finestra si è chiusa tra la decisione e l'invio: non è partito
+        //  niente, non si paga, non è un guasto. La riga resta «saltato» con la sua chiave.
+        esito.saltati++;
         return { fine: "continua" };
       case "stop": {
         const cambio = dopoRisposta(scheda.data.contattoWa, "stop", ora);

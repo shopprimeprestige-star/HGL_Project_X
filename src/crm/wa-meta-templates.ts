@@ -213,6 +213,17 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     `Ciao {{lead_name}}, ti ricordo che domani, {{appointment_day}}, alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{consultant_name}}. Se hai un imprevisto, rispondi qui e troviamo un altro orario.`,
     ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
   ),
+  //  Il giorno prima SOLO COME TESTO, dentro le 24 ore (30/10/2026, `MEET_DOMANI_SOLO_GRATIS`):
+  //  NON è un modello Meta e non ha un flusso in ManyChat. Il nome separato lascia
+  //  `hgl_meet_domani` identico al testo approvato (la chat lo propone a finestra chiusa). La
+  //  domanda finale chiede una risposta breve, che riapre la finestra e fa partire gratis
+  //  anche il messaggio del mattino dopo.
+  tpl(
+    "hgl_meet_domani_testo",
+    "UTILITY",
+    `Ciao {{lead_name}}, ti ricordo la consulenza online di domani, {{appointment_day}}, alle {{appointment_time}} con {{consultant_name}}. Mi confermi con un ok?`,
+    ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
+  ),
   tpl(
     "hgl_meet_oggi",
     "UTILITY",

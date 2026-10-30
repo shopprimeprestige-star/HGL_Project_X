@@ -1630,15 +1630,23 @@ async function proveRotte(mod, { c, gruppo, radice }) {
       s1.righe.find((r) => r.tipo === "meet_oggi")?.esito,
     ],
   );
-  //  24 ore prima: SPENTO (decisione del titolare, 28/10). Il meet è sabato 24/10 alle 15:11,
-  //  sono le 15:11 di venerdì 23/10: un tempo la prova avrebbe mostrato meet_domani.
-  const sD = secco([
-    meet("m9", 9, "15:11", { dataMeeting: "2026-10-24", fissatoIl: "2026-10-20T09:00:00.000Z" }),
-  ]);
+  //  24 ore prima: SOLO SE GRATIS (30/10/2026). Il meet è sabato 24/10 alle 15:11, sono le
+  //  15:11 di venerdì 23/10. Senza un'entrata del cliente la prova non lo manda: lo dice.
+  const meD = meet("m9", 9, "15:11", {
+    dataMeeting: "2026-10-24",
+    fissatoIl: "2026-10-20T09:00:00.000Z",
+  });
+  const sD = secco([meD]);
   c(
-    "la prova a secco non mostra più il promemoria 24 ore prima (spento): nessuna riga meet_domani",
-    0,
-    sD.righe.filter((r) => r.tipo === "meet_domani").length,
+    "la prova a secco: il giorno prima senza entrata del cliente «salta» (finestra chiusa, mai un modello)",
+    [[["salta", "saltato: finestra chiusa, si risparmia il modello"]]],
+    [sD.righe.filter((r) => r.tipo === "meet_domani").map((r) => [r.esito, r.motivo])],
+  );
+  const sD2 = secco([meD], { ultimeEntrate: { "330000009": "2026-10-23T11:11:00.000Z" } });
+  c(
+    "…con un'entrata di 2 ore fa: «scriverebbe»",
+    [["scriverebbe"]],
+    [sD2.righe.filter((r) => r.tipo === "meet_domani").map((r) => r.esito)],
   );
   c("…l'ora è quella data", ora1511.toISOString(), s1.adesso);
   c("…mai il telefono nelle righe", false, /\d{6,}/.test(JSON.stringify(s1)));
@@ -3370,6 +3378,16 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   /* ── i sorgenti: server, rotta, contratto ───────────────────────────────── */
   gruppo("MANYCHAT · RIQUADRO · SEQUENZE · SORGENTI");
   const server = letto("src/crm/manychat/pannello.server.ts");
+  c(
+    "pannello.server: una riga «saltato» per finestra chiusa (il giorno prima) non è un problema del riquadro",
+    true,
+    /\.in\("stato", \["fallito", "saltato", "incerto"\]\)\s*\/\/[^\n]*\n\s*\.or\("motivo\.is\.null,motivo\.neq\.finestra_chiusa"\)/.test(server),
+  );
+  c(
+    "…e la prova a secco avvisa (solo il codice) se la lettura delle entrate si guasta",
+    true,
+    /prova_entrate_errore_/.test(server),
+  );
   const rotta = letto("src/routes/api.crm.manychat.ts");
   const client = letto("src/crm/manychat/client-crm.ts");
   c(

@@ -695,7 +695,7 @@ export function ManychatPannello() {
                       nota={
                         <>
                           Il giorno del meet: un messaggio la mattina e uno all'ora esatta, con il
-                          link per entrare. Il promemoria 24 ore prima è spento.
+                          link per entrare. Il promemoria del giorno prima: solo se gratis (parte come testo solo con la finestra di 24 ore aperta, mai come modello).
                           {sequenze.giornoMeet.nota && (
                             <span className="mt-0.5 block text-amber-800">
                               {sequenze.giornoMeet.nota}

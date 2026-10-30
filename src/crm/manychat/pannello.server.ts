@@ -46,6 +46,7 @@ import type { SchedaQuando } from "./quando";
 import { portePortaVere } from "./porta.server";
 import { ambitoDi, sceltaDaConfig } from "./giro";
 import { porteGiro } from "./porte.server";
+import { telefoniMeetDomani } from "./sequenze";
 import type { ClientManychat } from "./api";
 
 type ErroreDb = { code?: string | null; message?: string | null } | null;
@@ -56,6 +57,7 @@ interface Filtro<T> extends Esito<T> {
   gte(c: string, v: string): Filtro<T>;
   lte(c: string, v: string): Filtro<T>;
   not(c: string, op: string, v: null): Filtro<T>;
+  or(filtri: string): Filtro<T>;
   order(c: string, o: { ascending: boolean }): Filtro<T>;
   limit(n: number): Filtro<T>;
   select<U = { id: string }[]>(c: string): Filtro<U>;
@@ -166,6 +168,8 @@ export async function leggiDatiStato(
     .eq("user_id", userId)
     .in("tipo", TIPI_AUTOMATICI)
     .in("stato", ["fallito", "saltato", "incerto"])
+    //  Il giorno prima, solo se gratis: «finestra chiusa» all'invio non è un guasto, si risparmia.
+    .or("motivo.is.null,motivo.neq.finestra_chiusa")
     .order("prenotato_il", { ascending: false })
     .limit(20);
   if (rotti.error) lancia(rotti.error);
@@ -311,6 +315,18 @@ export async function leggiDatiSecco(
   const oggi = aRoma(adesso).giorno;
   const scelta = sceltaDaConfig({ ...config, fraseModuloDal }, adesso, true);
   const schede = await porteGiro().schede(userId, oggi, ambitoDi(scelta));
+  //  Il giorno prima parte solo se gratis: la prova legge le entrate come il giro. Se la
+  //  lettura non riesce la prova mostra «finestra chiusa» (nel dubbio si risparmia).
+  const telefoniDomani = telefoniMeetDomani(schede, adesso);
+  const ultimeEntrate =
+    telefoniDomani.length > 0
+      ? await porteGiro()
+          .ultimeEntrate(userId, telefoniDomani)
+          .catch((e) => {
+            console.warn("[manychat-pannello]", `prova_entrate_errore_${(e as { code?: string })?.code ?? "?"}`);
+            return {} as Record<string, string>;
+          })
+      : {};
 
   const consulenti = await db()
     .from("crm_consultants")
@@ -363,6 +379,7 @@ export async function leggiDatiSecco(
       chiave: r.chiave,
     })),
     prossimoDopo: Number.isFinite(prossimo) ? new Date(prossimo) : null,
+    ultimeEntrate,
   };
 }
 

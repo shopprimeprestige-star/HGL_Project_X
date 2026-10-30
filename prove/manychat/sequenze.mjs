@@ -1639,6 +1639,169 @@ export async function proveSequenze(mod, { c, gruppo }) {
   );
 
   /* ════════════════════════════════════════════════════════════════════════
+   *  IL GIORNO PRIMA, SOLO SE GRATIS (30/10/2026)
+   *  Parte solo come testo, con la finestra di 24 ore aperta; se la finestra
+   *  chiude prima del bersaglio, si anticipa a un'ora prima della chiusura.
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · IL GIORNO PRIMA, SOLO SE GRATIS (meet_domani come testo)");
+  {
+    const FRASE_CHIUSA = "saltato: finestra chiusa, si risparmia il modello";
+    //  `entrata`: l'ultimo messaggio del cliente (ISO) o null; lunedì 26/10 è "oggi".
+    const gratis = (schede, adesso, entrata, extra) =>
+      domani(schede, adesso, {
+        soloGratis: true,
+        ultimeEntrate: entrata === undefined ? {} : { [t9(1)]: entrata },
+        ...extra,
+      });
+    const E = (ymdhm) => `${ymdhm}:00+01:00`;
+
+    //  Finestra aperta oltre il bersaglio: nessun anticipo, parte all'ora del meet.
+    const apertaFino = E("2026-10-26T12:00"); // chiude martedì 11:00 (23 h)
+    c(
+      "finestra aperta oltre il bersaglio: aspetta fino alle 18:00, poi invia (stessa chiave di prima)",
+      [
+        ["aspetta", "promemoria 24 ore prima: parte alle 18:00"],
+        ["invia", chiaveD("18:00")],
+      ],
+      [uno(gratis([m18d], lun("17:59"), apertaFino)), uno(gratis([m18d], lun("18:00"), apertaFino))],
+    );
+    //  Mai come modello: senza entrata, o con entrata vecchia, si salta (e lo dice).
+    c(
+      "mai scritto (nessuna entrata): salta con la frase «finestra chiusa», a ogni ora del giorno",
+      [["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA]],
+      ["09:00", "12:00", "18:00"].map((o) => uno(gratis([m18d], lun(o), undefined))),
+    );
+    c(
+      "…entrata nulla o illeggibile: stessa cosa",
+      [["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA]],
+      [uno(gratis([m18d], lun("18:00"), null)), uno(gratis([m18d], lun("18:00"), "boh"))],
+    );
+    c(
+      "entrata di tre giorni fa: salta",
+      ["salta", FRASE_CHIUSA],
+      uno(gratis([m18d], lun("18:00"), E("2026-10-23T18:00"))),
+    );
+
+    //  Anticipo: la finestra chiude (23 h) prima del bersaglio.
+    const chiudeAlle18 = E("2026-10-25T19:00"); // + 23 h = lunedì 18:00
+    c(
+      "la finestra chiude alle 18:00 (bersaglio 18:00): si anticipa alle 17:00, un'ora prima",
+      [
+        ["aspetta", "promemoria 24 ore prima: parte alle 17:00"],
+        ["invia", chiaveD("18:00")],
+        ["invia", chiaveD("18:00")],
+      ],
+      [
+        uno(gratis([m18d], lun("16:59"), chiudeAlle18)),
+        uno(gratis([m18d], lun("17:00"), chiudeAlle18)),
+        uno(gratis([m18d], lun("17:59"), chiudeAlle18)),
+      ],
+    );
+    c(
+      "…e quando la finestra si chiude, salta (non parte il modello)",
+      ["salta", FRASE_CHIUSA],
+      uno(gratis([m18d], lun("18:00"), chiudeAlle18)),
+    );
+    //  Anticipo mai prima delle 9:00 del giorno prima.
+    const chiudeAlle0930 = E("2026-10-25T10:30"); // + 23 h = lunedì 09:30
+    c(
+      "la finestra chiude alle 9:30: l'anticipo non va prima delle 9:00 (alle 9:00 parte, alle 9:30 salta)",
+      [["aspetta", "promemoria 24 ore prima: parte alle 09:00"], ["invia"], ["salta", FRASE_CHIUSA]],
+      [
+        uno(gratis([m18d], lun("08:59"), chiudeAlle0930)),
+        tipi(gratis([m18d], lun("09:00"), chiudeAlle0930)),
+        uno(gratis([m18d], lun("09:30"), chiudeAlle0930)),
+      ],
+    );
+    //  Già chiusa all'ora dell'anticipo: si salta, anche presto.
+    const chiudeAlle0830 = E("2026-10-25T09:30"); // + 23 h = lunedì 08:30
+    c(
+      "la finestra chiude alle 8:30, prima delle 9:00: a quell'ora è già chiusa → salta, mai un modello",
+      [["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA]],
+      [uno(gratis([m18d], lun("09:00"), chiudeAlle0830)), uno(gratis([m18d], lun("12:00"), chiudeAlle0830))],
+    );
+    //  Meet presto (8:30): bersaglio 9:00; chiude alle 9:30 → anticipo 8:30 → 9:00.
+    c(
+      "meet alle 8:30 (bersaglio 9:00) con la finestra aperta fino alle 9:30: parte alle 9:00",
+      [["aspetta"], ["invia"]],
+      [tipi(gratis([m0830], lun("08:59"), chiudeAlle0930)), tipi(gratis([m0830], lun("09:00"), chiudeAlle0930))],
+    );
+    //  Meet tardi (21:00): bersaglio 19:30; mai dopo le 20:00.
+    const chiudeAlle1930 = E("2026-10-25T20:30"); // + 23 h = lunedì 19:30
+    c(
+      "meet alle 21:00 (bersaglio 19:30) con la finestra che chiude alle 19:30: parte alle 18:30; alle 19:30 salta",
+      [["aspetta", "promemoria 24 ore prima: parte alle 18:30"], ["invia"], ["salta", FRASE_CHIUSA]],
+      [
+        uno(gratis([m2100], lun("18:29"), chiudeAlle1930)),
+        tipi(gratis([m2100], lun("18:30"), chiudeAlle1930)),
+        uno(gratis([m2100], lun("19:30"), chiudeAlle1930)),
+      ],
+    );
+    c(
+      "meet alle 21:00, finestra aperta fino a domani: 19:30 parte, 20:00 no (giro in ritardo)",
+      [["invia"], ["salta", "saltato: giro in ritardo"]],
+      [
+        tipi(gratis([m2100], lun("19:59"), E("2026-10-26T15:00"))),
+        uno(gratis([m2100], lun("20:00"), E("2026-10-26T15:00"))),
+      ],
+    );
+    //  Il resto delle regole non cambia.
+    c(
+      "chiave già nel registro: niente, né invio né rumore",
+      [],
+      gratis([m18d], lun("18:30"), apertaFino, {
+        invii: [invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("18:00") })],
+      }),
+    );
+    c(
+      "STOP o senza consenso: salta col suo motivo, non con quello della finestra",
+      [["salta", "STOP"], ["salta", "manca il consenso WhatsApp"]],
+      [
+        uno(gratis([md("18:00", { contattoWa: { stato: "stop" } })], lun("18:00"), apertaFino)),
+        uno(gratis([md("18:00", { okWhatsapp: { si: false } })], lun("18:00"), apertaFino)),
+      ],
+    );
+    c(
+      "un'ora dopo la fine il salto per la finestra smette di comparire",
+      [["salta"], []],
+      [tipi(gratis([m18d], lun("20:59"), undefined)), gratis([m18d], lun("21:00"), undefined)],
+    );
+    //  Senza `soloGratis` (modello ammesso) la decisione non guarda le entrate: come prima.
+    c(
+      "senza `soloGratis` non guarda le entrate (modello ammesso): invia anche senza entrata",
+      ["invia"],
+      tipi(domani([m18d], lun("18:00"), { ultimeEntrate: {} })),
+    );
+    c(
+      "…e chi ha già la chiave del messaggio nel registro non si legge più (inviato o saltato)",
+      [[], [num(1)]],
+      [
+        S.telefoniMeetDomani([m18d], t(lun("10:00")), [
+          invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("18:00") }),
+        ]),
+        S.telefoniMeetDomani([m18d], t(lun("10:00")), [
+          invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("19:00") }),
+        ]),
+      ],
+    );
+    //  I telefoni da leggere: solo i meet di domani, con tutto quello che serve per partire.
+    c(
+      "telefoniMeetDomani: solo i meet di domani con consulente e numero (cifre col prefisso, senza doppioni)",
+      [num(1)],
+      S.telefoniMeetDomani(
+        [
+          m18d,
+          md("18:00", {}, "lead-z"),
+          md("18:00", {}, "lead-y", 2, "2026-10-28"),
+          md("18:00", { consulenteId: undefined }, "lead-x", 3),
+          md("18:00", { stato: "da_contattare" }, "lead-w", 4),
+        ],
+        t(lun("10:00")),
+      ),
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
    *  VARIABILI DEI MODELLI (testi.ts) E COSTANTI
    * ════════════════════════════════════════════════════════════════════════ */
   gruppo("MANYCHAT · LE VARIABILI DELLE SEQUENZE (testi.ts)");
