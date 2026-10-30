@@ -201,6 +201,11 @@ export async function provePonteInvioServizio(mod, { c, gruppo, radice }) {
       c("inviaTesto: ok con l'id di WhatsApp e l'ora vera in secondi", { ok: true, id: "ID0", ts: 1792000000 }, r1);
       c("inviaTesto: numero non valido o testo vuoto → rifiutato senza chiamare", [{ ok: false, motivo: "numero_non_valido" }, { ok: false, motivo: "numero_non_valido" }, { ok: false, motivo: "testo_non_valido" }, 1], [await col.inviaTesto(`${C1}@lid`, "x"), await col.inviaTesto("../etc", "x"), await col.inviaTesto(C1, ""), s.chiamate.length]);
       c("getMessage: dopo l'invio restituisce il contenuto di QUEL messaggio", { conversation: "Ciao, a domani" }, await s.opzioni.getMessage({ id: "ID0", remoteJid: `${C1}@s.whatsapp.net`, fromMe: true }));
+      const chiaveGiusta = { id: "ID0", remoteJid: `${C1}@s.whatsapp.net`, fromMe: true };
+      c("getMessage: stesso id ma un altro destinatario → undefined", undefined, await s.opzioni.getMessage({ ...chiaveGiusta, remoteJid: `${C2}@s.whatsapp.net` }));
+      c("getMessage: fromMe falso o assente → undefined", [undefined, undefined], [await s.opzioni.getMessage({ ...chiaveGiusta, fromMe: false }), await s.opzioni.getMessage({ id: "ID0", remoteJid: chiaveGiusta.remoteJid })]);
+      c("getMessage: senza remoteJid, gruppo o @lid sconosciuto → undefined", [undefined, undefined, undefined], [await s.opzioni.getMessage({ id: "ID0", fromMe: true }), await s.opzioni.getMessage({ ...chiaveGiusta, remoteJid: "120363000000000000@g.us" }), await s.opzioni.getMessage({ ...chiaveGiusta, remoteJid: "999@lid" })]);
+      c("getMessage: lo stesso destinatario con il dispositivo (…:7@) → il messaggio", { conversation: "Ciao, a domani" }, await s.opzioni.getMessage({ ...chiaveGiusta, remoteJid: `${C1}:7@s.whatsapp.net` }));
       c("getMessage: un id sconosciuto → undefined", [undefined, undefined, undefined], [await s.opzioni.getMessage({ id: "SCONOSCIUTO" }), await s.opzioni.getMessage({}), await s.opzioni.getMessage(undefined)]);
 
       //  l'eccezione e il tempo scaduto sono «non so se è partito»: mai un ritentativo da soli
@@ -225,7 +230,7 @@ export async function provePonteInvioServizio(mod, { c, gruppo, radice }) {
       for (let i = 0; i < 51; i++) await col.inviaTesto(C1, `messaggio ${i}`);
       const ids = s.chiamate.map((_, i) => `ID${i}`);
       const presenti = [];
-      for (const id of ids) if (await s.opzioni.getMessage({ id })) presenti.push(id);
+      for (const id of ids) if (await s.opzioni.getMessage({ id, remoteJid: `${C1}@s.whatsapp.net`, fromMe: true })) presenti.push(id);
       c("getMessage: ricorda al più gli ultimi 50 inviati (il più vecchio non c'è più)", [50, false, true], [presenti.length, presenti.includes("ID0"), presenti.includes(ids.at(-1))]);
       const file5 = readdirSync(dir5, { recursive: true }).map(String);
       c("getMessage: la memoria non scrive niente su disco", [], file5.filter((f) => /msg|messaggi|ricord|inviat/i.test(f)));

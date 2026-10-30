@@ -134,7 +134,7 @@ export function creaCollegamento({
   let fermato = false;
   let proprioNumero = null;
   let proprioLid = null;
-  /** gli ultimi messaggi inviati da noi, per `key.id`: solo in RAM */
+  /** gli ultimi messaggi inviati da noi, per `key.id`: `{ numero, message }`, solo in RAM */
   const inviati = new Map();
   const stato = {
     stato: "in_collegamento",
@@ -322,7 +322,14 @@ export function creaCollegamento({
         logger: LOGGER_MUTO,
         //  Baileys lo chiede per rimandare un messaggio che il destinatario non
         //  ha saputo decifrare: si rende solo ciò che abbiamo inviato noi.
-        getMessage: async (chiave) => inviati.get(chiave?.id),
+        //  Solo per la stessa chat e solo per un messaggio NOSTRO: stesso id con un
+        //  altro destinatario (o `fromMe` falso) non rende niente.
+        getMessage: async (chiave) => {
+          const voce = inviati.get(chiave?.id);
+          if (!voce || chiave?.fromMe !== true) return undefined;
+          const numero = cifreDaJid(chiave.remoteJid) ?? risolutoreLid(mappa)(chiave.remoteJid);
+          return numero === voce.numero ? voce.message : undefined;
+        },
       });
       sock = questo;
 
@@ -419,7 +426,7 @@ export function creaCollegamento({
       const r = await Promise.race([sock.sendMessage(jid, { text: testo }), scaduto]);
       const id = r?.key?.id;
       if (typeof id !== "string" || !id) return { ok: false, motivo: "esito_incerto" };
-      inviati.set(id, r.message ?? { conversation: testo });
+      inviati.set(id, { numero, message: r.message ?? { conversation: testo } });
       if (inviati.size > MEMORIA_INVIATI) inviati.delete(inviati.keys().next().value);
       return { ok: true, id, ts: secondiDi(r.messageTimestamp) ?? Math.floor(orologio() / 1000) };
     } catch {
