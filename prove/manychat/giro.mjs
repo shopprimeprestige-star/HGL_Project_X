@@ -1545,16 +1545,11 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     const alle = (hm) => Date.parse(`2026-10-23T${hm}:00+02:00`);
     m = mondo({ schede: [meet("s1", 1, { oraMeeting: "15:11" })], config: accesa });
     e = await m.giroOra();
+    //  30/10/2026: il messaggio all'ora (meet_adesso) è spento dal titolare (MEET_ADESSO_ACCESO).
     c(
-      "all'ora esatta (15:11 = inizio del meet) parte meet_adesso, senza ritmo e «Contattato» senza scadenza",
-      [1, "meet_adesso", "contattato", undefined, null],
-      [
-        e.nuoviInviati + e.promemoriInviati,
-        m.invii.at(-1).tipo,
-        m.schede[0].data.contattoWa.stato,
-        m.schede[0].data.contattoWa.scadeRisposta,
-        m.giro.prossimo,
-      ],
+      "all'ora esatta (15:11 = inizio del meet) NON parte niente: il messaggio all'ora è spento",
+      [0, false],
+      [e.nuoviInviati + e.promemoriInviati, m.invii.some((x) => x.tipo === "meet_adesso")],
     );
     m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00" })], config: accesa });
     e = await m.giroOra();
@@ -1632,8 +1627,8 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     });
     e = await m.giroOra();
     c(
-      "ordine: meet_adesso prima del promemoria; mai più di 2 per giro (il primo contatto aspetta)",
-      ["meet_adesso", "promemoria", 2],
+      "messaggio all'ora spento: parte il promemoria, poi il primo contatto; mai più di 2 per giro",
+      ["promemoria", "primo_contatto", 2],
       [m.invii[0]?.tipo, m.invii[1]?.tipo, m.invii.length],
     );
 
@@ -2025,9 +2020,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     });
     e = await m.giroOra();
     c(
-      "totale abbassato a 40, 10 primi contatti già partiti: il primo contatto salta, il meet_adesso parte (riserva)",
-      [1, "meet_adesso"],
-      [e.nuoviInviati, m.invii.at(-1).tipo],
+      "totale abbassato a 40, 10 primi contatti già partiti: il primo contatto salta (e il messaggio all'ora è spento)",
+      [0, false],
+      [e.nuoviInviati, m.invii.some((x) => x.tipo === "meet_adesso")],
     );
 
     //  ── il richiamo a 24 ore, da capo a fondo ──
@@ -2213,8 +2208,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
     });
     e = await m.giroOra();
     c(
-      "STOP in rubrica: né il primo contatto né l'ora esatta partono, e le schede vanno in STOP",
-      [0, 0, "stop", "stop"],
+      //  30/10/2026: l'ora esatta è spenta, quindi la scheda del meet non viene nemmeno valutata.
+      "STOP in rubrica: il primo contatto non parte e la sua scheda va in STOP (l'ora esatta è spenta)",
+      [0, 0, "stop", undefined],
       [
         e.nuoviInviati,
         m.flussi().length,

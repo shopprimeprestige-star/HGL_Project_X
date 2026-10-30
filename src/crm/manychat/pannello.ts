@@ -911,7 +911,9 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   //  ha fissato da oltre 3 giorni (30/10/2026, `MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI`).
   if (modello === "hgl_meet_domani")
     return !!s?.giornoMeet && MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI !== null;
-  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso") return !!s?.giornoMeet;
+  //  Il messaggio all'ora è spento dal titolare (30/10/2026): il suo flusso non serve.
+  if (modello === "hgl_meet_adesso") return false;
+  if (modello === "hgl_meet_oggi") return !!s?.giornoMeet;
   //  I modelli per stato: serve se uno degli stati che lo usano è acceso («Ricontatto
   //  fissato» è l'interruttore dei ricontatti).
   return STATI_RIQUADRO.some(

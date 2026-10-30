@@ -408,7 +408,7 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
     etichetta:
       "Giorno del meet: promemoria 24 ore prima (a pagamento, se fissata da oltre 3 giorni)",
   },
-  { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
+  { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link (spento)" },
   { modello: "hgl_meet_da_fissare", etichetta: "Meet da fissare" },
   { modello: "hgl_richiamo_concordato", etichetta: "Richiamo concordato" },
   { modello: "hgl_non_risponde", etichetta: "Non risponde e Segreteria" },
