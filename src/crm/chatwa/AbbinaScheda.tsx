@@ -33,7 +33,7 @@ interface Props {
 export function AbbinaScheda({ chat, api, onChiudi }: Props) {
   return (
     <Dialog open={chat !== null} onOpenChange={(aperto) => !aperto && onChiudi()}>
-      <DialogContent className="flex max-h-[85dvh] w-[calc(100vw-1.5rem)] max-w-md flex-col gap-3 p-4 md:p-6">
+      <DialogContent className="crm-theme bg-white text-foreground flex max-h-[85dvh] w-[calc(100vw-1.5rem)] max-w-md flex-col gap-3 p-4 md:p-6">
         {chat && <Corpo key={chat.phone} chat={chat} api={api} onChiudi={onChiudi} />}
       </DialogContent>
     </Dialog>

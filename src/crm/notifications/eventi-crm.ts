@@ -62,7 +62,7 @@ const ORA = 60 * MIN;
 /** Pratiche finite: si portano dietro date vecchie che non vanno più annunciate. */
 const CHIUSI = new Set<LeadStatus>(["concluso", "annullato", "perdi_tempo", "ripensamento"]);
 /** Per i promemoria di appuntamento anche "cliente assente" è una storia finita. */
-const CHIUSI_O_ASSENTE = new Set<LeadStatus>([...CHIUSI, "no_show"]);
+const CHIUSI_O_ASSENTE = new Set<LeadStatus>([...CHIUSI, "no_show", "per_ora_no"]);
 /** Chi ha già pagato non va richiamato per il ricontatto rimasto in scheda.
  *  ⚠️ L'elenco NON è più scritto a mano: `STATI_VINTI` (crm/types.ts) conosce
  *   anche le tre chiusure di oggi. Scritto a mano si fermava al vecchio

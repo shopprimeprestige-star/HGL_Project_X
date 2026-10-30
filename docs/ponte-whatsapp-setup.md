@@ -1,8 +1,8 @@
 # Ponte WhatsApp · le chat dell'app WhatsApp Business nel CRM · guida passo passo
 
-Cosa fa: un piccolo programma sul tuo Mac (il «ponte») si collega al tuo numero come un dispositivo in più, tipo WhatsApp Web, e porta le chat nel CRM con l'orario vero di ogni messaggio. Sono in **Chat** insieme a quelle di ManyChat: quello che scrivi dall'app del telefono compare nel CRM entro pochi secondi, e così quello che scrivono i clienti. All'inizio arriva anche lo storico (solo dei numeri che il CRM conosce già).
+Cosa fa: un piccolo programma sul tuo Mac (il «ponte») si collega al tuo numero come un dispositivo in più, tipo WhatsApp Web, e porta le chat nel CRM con l'orario vero di ogni messaggio. Sono in **Chat** insieme a quelle di ManyChat: quello che scrivi dall'app del telefono compare nel CRM entro pochi secondi, e così quello che scrivono i clienti. All'inizio arriva anche lo storico. **Entrano tutte le chat individuali, anche dei numeri che il CRM non conosce** (dal 30/10/2026): nascono come «Sconosciuto», col numero al posto del nome. Restano fuori solo gruppi, stati, broadcast e newsletter.
 
-Il ponte **non manda «letto»** e, di serie, **non scrive a nessuno**: legge e basta. Solo se lo accendi tu (sezione «Rispondere dopo le 24 ore», più sotto) può mandare, a mano e uno alla volta, un messaggio a chi ti ha già scritto. Le righe che porta sono **solo da vedere**: non cambiano «Da rispondere», i messaggi non letti, il giro automatico né le liste «Attesa WhatsApp» e «Da chiamare».
+Il ponte **non manda «letto»** e, di serie, **non scrive a nessuno**: legge e basta. Solo se lo accendi tu (sezione «Rispondere dopo le 24 ore», più sotto) può mandare, a mano e uno alla volta, un messaggio a chi ti ha già scritto. Lo **storico** è solo da vedere: non cambia «Da rispondere», i messaggi non letti, il giro automatico né le liste «Attesa WhatsApp» e «Da chiamare». Un messaggio **nuovo** che ManyChat non porta (arrivato solo sull'app) conta invece come non letto e come «Da rispondere» dopo circa 2 minuti, senza doppio conteggio se ManyChat lo porta poco dopo. Il giro automatico, i promemoria e le regole che scrivono ai clienti **non cambiano**: uno sconosciuto non riceve mai niente in automatico.
 
 Tempo: circa 45 minuti la prima volta, più il collaudo.
 
@@ -30,7 +30,9 @@ Resta fermo finché non esci e rientri nel Mac (poi riparte da solo). Per riavvi
 
 Poi togli comunque il dispositivo dal telefono (come sopra): il disinstallatore non lo fa.
 
-**Annullare nel database:** la migrazione ha in cima, nei commenti, la sezione «COME SI ANNULLA» (`supabase/migrations/20261029120000_ponte_whatsapp.sql`). Cancella le righe portate dal ponte e le tre funzioni. Non serve quasi mai: le righe del ponte sono solo da vedere. Un'unica cosa non torna indietro: se hai risposto dal telefono a una chat, quella chat è già uscita da «Da rispondere» (effetto lieve).
+**Annullare nel database:** la migrazione ha in cima, nei commenti, la sezione «COME SI ANNULLA» (`supabase/migrations/20261029120000_ponte_whatsapp.sql`). Cancella le righe portate dal ponte e le tre funzioni. Non serve quasi mai: lo storico del ponte è solo da vedere. Due cose non tornano indietro: se hai risposto dal telefono a una chat, quella chat è già uscita da «Da rispondere» (effetto lieve); e i non letti già portati avanti dalle entrate nuove promosse dal ponte (dal 30/10) restano al loro posto.
+
+**Annullare «tutte le chat»:** `supabase/migrations/20261030160000_ponte_tutte_le_chat.sql` ha la sua sezione «COME SI ANNULLA»; i passi della messa in opera sono in `commesse/2026-10-30-ponte-tutte-le-chat/PASSI-TITOLARE.md`.
 
 ## Prima di cominciare: cose da sapere
 
@@ -58,6 +60,8 @@ Poi togli comunque il dispositivo dal telefono (come sopra): il disinstallatore 
   Poi `installa.sh` lo trova da solo in `/opt/homebrew/opt/node@24`. Non fare `brew link`.
 
 ## Passo 1 · La migrazione del database
+
+(Dal 30/10/2026 c'è anche `20261030160000_ponte_tutte_le_chat.sql`, che si applica **dopo** questa: vedi «Tutte le chat» più sotto.)
 
 La migrazione `supabase/migrations/20261029120000_ponte_whatsapp.sql` **da sola non cambia niente di visibile**: aggiunge una colonna per i doppioni, una per riconoscere i contatti creati dal ponte, la tabella dello stato del ponte e tre funzioni che solo il server può chiamare. La squadra l'ha provata su un database di prova, **non sul tuo**: la applichi tu, dopo averla letta.
 
@@ -132,7 +136,7 @@ Compare un **codice da inquadrare** (anche nel terminale). Si apre da solo anche
 1. Sul telefono: **WhatsApp Business → Impostazioni → Dispositivi collegati → Collega un dispositivo**.
 2. Inquadra il codice. Si rinnova ogni 20 secondi circa: se scade, inquadra quello nuovo (l'Anteprima si aggiorna da sola; il file è `~/Library/Application Support/HGL/ponte-wa/qr.png`).
 3. Se la notifica non appare, la prima volta macOS può chiederti il permesso: **Impostazioni di Sistema → Notifiche**.
-4. Nel terminale compaiono i conteggi: `[senza invio] messaggi letti …, validi …, chat …`. Aspetta che lo storico arrivi (la percentuale sale) e **confronta il numero di chat con quelle del telefono**. WhatsApp decide quanto storico mandare alla prima associazione: può essere meno di quello che vedi sul telefono.
+4. Nel terminale compaiono i conteggi: `[senza invio] messaggi letti …, validi …, chat …`. Aspetta che lo storico arrivi (la percentuale sale) e **confronta il numero di chat con quelle del telefono**. WhatsApp decide quanto storico mandare alla prima associazione: può essere meno di quello che vedi sul telefono. Per riaverlo dopo, vedi «Riavere tutto lo storico (ricollegare)».
 5. Chiudi con **Ctrl-C**.
 
 In questa prova **non parte niente verso il CRM**: i messaggi letti restano in coda sul Mac (`fila/`) e partono quando avvii il ponte per davvero. Non lasciarla aperta per ore.
@@ -175,6 +179,26 @@ Passate le 24 ore, in una chat compare accanto a «Invia un modello» il tasto *
 
 I passi per applicare la migrazione, aggiornare il ponte e fare il collaudo sono in `commesse/2026-10-30-ponte-invio-manuale/PASSI-TITOLARE.md`.
 
+## Tutte le chat, anche gli sconosciuti (dal 30/10/2026)
+
+Decisione del titolare: ogni chat individuale di WhatsApp Business entra nel CRM, anche dei numeri che il CRM non conosce. Dal 30/10 il CRM non scarta più nessun numero (prima valeva «solo i numeri del CRM»): storico e messaggi nuovi, in entrata e in uscita, nascono come contatto senza scheda («Sconosciuto»). In **Tutte** si vedono, in **Sconosciuti** stanno da soli, in **Non letti** ci sono con gli altri. Il Mac non cambia in questo: la cache cifrata dei numeri tenuti da parte si svuota da sola al primo controllo dopo la pubblicazione.
+
+Come si aggiorna, in ordine: migrazione `20261030160000_ponte_tutte_le_chat.sql` (SQL Editor, come al Passo 1), pubblicazione del CRM (Passo 2), `./installa.sh` + `launchctl kickstart -k gui/$(id -u)/it.hgl.ponte-whatsapp` sul Mac, prova con un numero sconosciuto. Il testo completo, con i controlli, è in `commesse/2026-10-30-ponte-tutte-le-chat/PASSI-TITOLARE.md`.
+
+I messaggi già nella cache del Mac e quelli arrivati durante un ricollegamento entrano **come storico**: ci sono nella chat con la data vera, ma non fanno non letti né «Da rispondere».
+
+## Riavere tutto lo storico (ricollegare)
+
+WhatsApp manda lo storico al Mac **solo al primo abbinamento**. Le chat dei numeri sconosciuti, scartate il 29/10, non sono più sul Mac: per riaverle si ricollega il Mac col codice, **una volta, la sera**.
+
+1. **Prima**, nel SQL Editor: `select count(*) from public.whatsapp_contacts;`. Se è **oltre 3000, fermati**: il CRM legge al massimo 5000 contatti (5 pagine da 1000) e oltre taglia. Annota anche «Non letti», il numeretto di «Da rispondere» e `select count(*) from public.whatsapp_messages where promosso_il is not null;`.
+2. Mac acceso, sveglio, in carica. `./installa.sh scollega`, scrivi `SCOLLEGA`, inquadra il codice (WhatsApp Business → Impostazioni → Dispositivi collegati → Collega un dispositivo). **Non togliere ancora il vecchio «Mac OS»** dal telefono.
+3. L'import dura circa 10-20 minuti per ~10.000 messaggi (50 ogni 3 secondi). Il ponte accetta ora ogni tipo di storico che il telefono manda (`shouldSyncHistoryMessage`) e la coda regge fino a 10.000 file e 1 GiB. Se compare **«coda piena»** o `storico_rifiutati` è maggiore di 0 nel log, fermati (`launchctl bootout gui/$(id -u)/it.hgl.ponte-whatsapp`) e chiedi a chi ti assiste.
+4. **Dopo:** `./installa.sh stato` (storico 100%); `grep battito_collegato ~/Library/Logs/hgl-ponte-wa.log | tail -1` per `letti`, `validi`, `chat`, `storico_rifiutati` (il primo giro: 11.792, 9.374, 826; `storico_rifiutati` deve essere 0). «Non letti», «Da rispondere» e `promosso_il` **come prima**: se salgono di colpo, ferma il ponte.
+5. Solo a controlli fatti togli dal telefono il «Mac OS» **più vecchio**.
+
+Non è garantito che il telefono mandi più storico del primo giro: si misura al punto 4. Per tornare alla sessione di prima (se hai ancora il vecchio «Mac OS» sul telefono): `launchctl bootout …`, `mv auth auth.nuovo-fallito`, `mv auth.scollegato-<data> auth`, `launchctl bootstrap …`; i passi esatti sono in `PASSI-TITOLARE.md`.
+
 ## Cosa vedi nel CRM
 
 In **Chat**, in cima, compare una fascia **solo se qualcosa non va**: «il ponte non risponde da N minuti» (Mac spento, addormentato o ponte fermo), «WhatsApp ha scollegato il ponte» (c'è un codice nuovo da inquadrare sul Mac), «lo storico è ancora in arrivo (62%)». Se non vedi niente, va tutto bene. L'avviso lo vede solo chi apre la Chat: non arriva una notifica sul telefono.
@@ -188,11 +212,11 @@ Il numero 5 è il più importante.
 3. **Avvio vero** (Passo 6) e guarda **Chat** nel CRM mentre lo storico arriva.
 4. **Orari.** Prendi 5 messaggi vecchi a caso: ora e giorno nel CRM devono essere uguali a quelli del telefono.
 5. **Doppioni.** Da un altro telefono scrivi al numero; rispondi dal CRM; rispondi anche dall'app Business. Ogni messaggio deve comparire **una volta sola**, e la chat esce da «Da rispondere» quando rispondi dall'app.
-6. **Il giro.** Guarda «Attesa WhatsApp» e «Da chiamare»: devono essere come il giorno prima. Lo storico vecchio non deve farti credere che un cliente abbia appena risposto.
+6. **Il giro.** Guarda «Attesa WhatsApp» e «Da chiamare»: devono essere come il giorno prima. Lo storico vecchio non deve farti credere che un cliente abbia appena risposto, e i non letti non devono salire per i messaggi vecchi.
 7. **Caduta della rete.** Spegni il Wi-Fi del Mac per 5 minuti: nel CRM compare l'avviso, e alla riaccensione sparisce da solo.
 8. **Scollegamento.** Scollega il dispositivo dal telefono: nel CRM compare l'avviso e sul Mac si apre un codice nuovo.
 9. **Riavvio del Mac.** Riavvia, fai il login: il ponte deve ripartire da solo (con FileVault, solo dopo il login).
-10. **Una settimana dopo:** conta i messaggi dei clienti che compaiono nella chat ma non sono in «Da rispondere» (quelli che ManyChat non porta). Sono «solo da vedere» in questa versione; se sono tanti si può cambiare.
+10. **Numero sconosciuto (dal 30/10):** da un telefono che il CRM non conosce scrivi al numero Business. Entro circa 3 minuti la chat compare in Tutte, Sconosciuti, Non letti (+1) e Da rispondere, col numero al posto del nome; se rispondi dall'app esce da «Da rispondere».
 
 ## Quando qualcosa non va
 
@@ -211,9 +235,9 @@ Il log: `tail -n 50 ~/Library/Logs/hgl-ponte-wa.log`. Righe tipo `battito_colleg
 
 - Non scarica foto, vocali o allegati: compare un segnaposto («📷 Foto», «🎤 Vocale»). Non ne manda nemmeno: scrivendo dal telefono si manda solo testo.
 - Non segue le modifiche e le cancellazioni: un messaggio modificato o cancellato per tutti resta com'era nel CRM.
-- Importa solo i numeri che il CRM conosce già. Un cliente nuovo entra dopo che ManyChat gli ha creato il contatto (entro circa 10 minuti).
+- Non salva il nome del profilo WhatsApp degli sconosciuti: si vedono col numero.
 - Non mette il codice da inquadrare nel CRM: sta solo sul Mac.
-- Un messaggio del cliente che ManyChat non porta si vede nella chat ma non conta come «da rispondere». E un messaggio «STOP» arrivato solo al telefono non ferma il giro: è come prima.
+- Un messaggio nuovo che ManyChat non porta conta come non letto e «Da rispondere» dopo circa 2 minuti (non subito). Se ManyChat lo porta con un testo diverso o oltre 3 minuti dopo, può contare 2 non letti (raro). Un messaggio «STOP» arrivato solo al telefono non ferma il giro: è come prima.
 
 ## Controllo delle dipendenze (npm audit)
 

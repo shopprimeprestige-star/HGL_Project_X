@@ -79,3 +79,34 @@ Cosa prova: `ponte_wa_invio_fatti` (entrata da ManyChat, dal ponte e dal Cloud s
 **Cosa non prova lo script da solo:** la corsa vera fra due sessioni. Il lucchetto `pg_advisory_xact_lock` si prova a mano con due terminali: nel primo `BEGIN; SELECT public.ponte_wa_invii_prendi(…); SELECT pg_sleep(6); COMMIT;`, nel secondo la stessa chiamata entro 2 secondi: deve aspettare la fine del primo e poi rispondere `invio: null` con `attendi_s` > 0 (provato il 30/10/2026 su Postgres 16: la seconda sessione ha aspettato 4 secondi, nessun doppio prelievo).
 
 Se un controllo dice `KO`, **la migrazione dell'invio non va applicata in produzione**: l'uscita va in LAVAGNA.
+
+## `ponte-tutte.sql` (Blocco 1 della commessa 2026-10-30-ponte-tutte-le-chat)
+
+Serve un database di prova con le migrazioni applicate in ordine **fino a `20261030140000`** (la migrazione nuova, `20261030160000_ponte_tutte_le_chat.sql`, la applica lo script stesso, **due volte**, dopo quella del ponte). Un solo passo, dalla radice del repo:
+
+```sh
+psql "$DB" -f prove/sql/ponte-tutte.sql
+```
+
+Gira in una transazione che finisce con `ROLLBACK`; ogni controllo stampa `ok  <nome>`, al primo sbagliato si ferma con `KO <nome>: atteso …, avuto …`. Uscita attesa: 43 righe `ok` e in fondo `TUTTI I CONTROLLI DI «TUTTE LE CHAT» PASSANO`. Dentro la transazione `now()` è fermo: l'attesa dei 120 secondi si prova con `p_attesa_s = 0` e riscrivendo `attesa_dal`.
+
+Cosa prova: uno sconosciuto che scrive adesso (contatto `baileys` senza scheda, 0 non letti, **nome non salvato**; `attesa_dal` scritto; `promuovi(120)` a 0, 100 e 130 secondi; +1 non letti, entrata all'ora vera, anteprima; rilancio = 0; lo stesso lotto di nuovo non riscrive `attesa_dal`); il pari ManyChat trovato **prima** (mai promossa); il pari ManyChat **dopo** la promozione (ritiro −1 una volta sola, `promosso_il` vuoto, rilancio dei pari senza secondo −1); il pari **Cloud** dopo la promozione (nessun ritiro); lo storico, un'entrata di 8 giorni e un'uscita viva (mai `attesa_dal`, nessun non letto); `risposto_il` successivo al messaggio (saltata, nessun +1); non letti già a 0 e ritiro (resta 0); **R1b** vedi sotto; il nome (contatto del ponte senza scheda e senza nome: resta vuoto; con nome: resta; con scheda: si scrive come oggi); la promozione di un lead (scheda, id ManyChat, STOP, `risposto_il` identici; un messaggio più vecchio dell'ultima entrata non la riporta indietro); contatto assente (la riga resta), attesa di 2 giorni fa (mai), tetto di 500 per chiamata (600 → 500 + 100), parametri nulli, altro utente; `anon`/`authenticated` senza `EXECUTE` su `ponte_wa_promuovi`, `ponte_wa_ritira`, `ponte_wa_scrivi`.
+
+**Regressione di `ponte_wa_scrivi` (v2 contro v1).** `ponte-wa.sql` e `ponte-invio.sql` applicano solo le migrazioni vecchie. Per rilanciarli con la migrazione nuova già applicata (dalla radice del repo, file temporanei fuori dal repo):
+
+```sh
+for f in ponte-wa ponte-invio; do
+  awk '{print} /^\\i :migrazione/ {c++; if (c==2) {print "\\i supabase/migrations/20261030160000_ponte_tutte_le_chat.sql"; print "\\i supabase/migrations/20261030160000_ponte_tutte_le_chat.sql"}}' prove/sql/$f.sql > /tmp/$f-v2.sql
+done
+sed -i '' "s/|Prova Uno|true'/|true'/" /tmp/ponte-wa-v2.sql      # l'UNICA differenza attesa: il nome del profilo non si salva più (E7)
+psql "$DB" -f /tmp/ponte-wa-v2.sql
+psql "$DB" -f /tmp/ponte-invio-v2.sql
+```
+
+Le due prove vecchie passano **identiche** salvo quel nome: è la conferma che `ponte_wa_scrivi` v2 non ha rotto altro. Il confronto del testo con la v1 lo fa anche `prove/ponte/tutte-migrazione.mjs` (entra in `npm test`).
+
+**R1b, pari che non si abbina.** Se un'entrata viva del ponte e quella di ManyChat sono lo stesso messaggio ma **non si abbinano** (testo diverso, oppure ManyChat arriva oltre i 180 s), il ponte promuove la sua (+1) e ManyChat fa il suo (+1) **senza ritiro**: il contatto conta 2 non letti per un messaggio solo (prima restava una riga doppia visibile e 1 non letto). Raro, accettato, scritto nel piano (R1b). Il ritiro non scende mai sotto 0 (caso 7).
+
+**Cosa non prova lo script da solo:** la corsa vera fra due sessioni. Si prova a mano: con un lotto vivo scritto e committato, sessione 1 `BEGIN; SELECT ponte_wa_promuovi(u, 0); SELECT pg_sleep(4); COMMIT;` e, entro 1 secondo, sessione 2 `SELECT ponte_wa_promuovi(u, 0);`. La seconda **non aspetta** (`SKIP LOCKED`) e risponde `promosse: 0`; alla fine i non letti sono 1. Provato il 30/10/2026 su Postgres 16: sessione 1 `promosse: 1`, sessione 2 `promosse: 0`, non letti 1.
+
+Eseguito il 30/10/2026 su un Postgres 16 locale usa-e-getta con tutte le 74 migrazioni di prima: `ponte-tutte.sql` 43 `ok`; `ponte-wa-v2` 25 `ok`; `ponte-invio-v2` 73 `ok`.

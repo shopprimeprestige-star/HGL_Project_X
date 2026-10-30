@@ -349,7 +349,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     titolo: "Non interessato",
     testo: "Capito {nome}, nessun problema. Se più avanti vorrà riparlarne, ci scriva pure qui.",
     temi: ["rifiuto"],
-    stati: ["annullato", "perdi_tempo"],
+    stati: ["annullato", "per_ora_no", "perdi_tempo"],
   },
   {
     id: "grazie",

@@ -29,6 +29,13 @@ export type LeadStatus =
   | "da_chiamare"
   | "richiamo"
   | "annullato"
+  //  Richiesta del titolare (30/10/2026): chi dice «per ora no» («non ho soldi
+  //  ora», «ci sentiamo più avanti»). Famiglia rossa, accanto a «Non
+  //  interessato». ⚠️ NON È `annullato` (il no vero) né `ci_ricontatta_lui` (la
+  //  palla ce l'ha lui): è un no che ha una scadenza. Nessun messaggio
+  //  automatico e nessuna regola lo sposta da sola: si risente solo alla data
+  //  `dataRicontatto`, se c'è (compare in «Da fare oggi»).
+  | "per_ora_no"
   | "appuntamento_fissato"
   //  ── L'APPUNTAMENTO DI CHI ERA GIÀ PASSATO DI QUI ───────────────────────
   //   Un contatto che risulta già in archivio e che si riporta a un
@@ -175,6 +182,8 @@ export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   //  "per ora lascia perdere": l'etichetta lo dice senza farlo confondere con
   //  un appuntamento annullato.
   annullato: "Non interessato",
+  //  Corta di proposito: «più avanti» sta nella descrizione (`LEAD_STATUS_NOTA`).
+  per_ora_no: "Per ora no",
   ripensamento: "Ripensamento",
   appuntamento_fissato: "Appuntamento fissato",
   //  Si legge "ri-fissato" ma si scrive unito: è la forma corretta in italiano
@@ -329,6 +338,9 @@ export const LEAD_STATUS_PHASE: Record<LeadStatus, LeadPhase> = {
   acconto: "vinta",
   // Chiuse male.
   annullato: "persa",
+  //  Persa per ora: stessa famiglia rossa di «Non interessato», tinta più chiara
+  //  (vedi `LEAD_STATUS_COLOR`). Nei conteggi per fase vale come perso.
+  per_ora_no: "persa",
   //  Persa, non in sospeso: chi ci ha ripensato ha detto di no, e tenerlo fra
   //  le pratiche aperte gonfierebbe le code di lavoro con gente che non aspetta
   //  più niente. Che sia una perdita RECUPERABILE è un'altra domanda, e si fa
@@ -469,12 +481,26 @@ export const MODO_CONSEGNA_DA_STATO: Partial<
 
 //  Derivato dalla fase: aggiungere uno stato nuovo non richiede di inventare
 //  un colore, basta dire in che fase sta.
-export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = Object.fromEntries(
-  (Object.keys(LEAD_STATUS_PHASE) as LeadStatus[]).map((s) => [
-    s,
-    LEAD_PHASE_COLOR[LEAD_STATUS_PHASE[s]],
-  ]),
-) as Record<LeadStatus, string>;
+//  Unica eccezione: «Per ora no» resta nella famiglia rossa ma più chiara, per
+//  non confonderla col no vero. Classi scritte per esteso (Tailwind legge il sorgente).
+export const TINTA_PER_ORA_NO = "bg-rose-300/20 text-rose-600 border-rose-300/50";
+/** Pallino/barretta della stessa tinta, per il selettore a griglia. */
+export const PUNTO_PER_ORA_NO = "bg-rose-300";
+
+export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
+  ...(Object.fromEntries(
+    (Object.keys(LEAD_STATUS_PHASE) as LeadStatus[]).map((s) => [
+      s,
+      LEAD_PHASE_COLOR[LEAD_STATUS_PHASE[s]],
+    ]),
+  ) as Record<LeadStatus, string>),
+  per_ora_no: TINTA_PER_ORA_NO,
+};
+
+/** Descrizione/tooltip per gli stati che hanno bisogno di una riga in più. */
+export const LEAD_STATUS_NOTA: Partial<Record<LeadStatus, string>> = {
+  per_ora_no: "più avanti: non ha soldi ora o preferisce sentirci dopo (data facoltativa)",
+};
 
 export type LeadFonte = "ADV" | "Organico" | "Passa parola" | "Store";
 
@@ -2234,6 +2260,7 @@ export const STATI_PRIMO_CONTATTO: LeadStatus[] = [
       «Richiamo concordato», cioè un impegno NOSTRO che nessuno aveva preso. */
   "ci_ricontatta_lui",
   "annullato",
+  "per_ora_no",
   "appuntamento_fissato",
   //  Lavorando una lista importata capita di riconoscere qualcuno che era già
   //  in archivio: l'esito di quella telefonata è un appuntamento di ritorno, e
@@ -2276,6 +2303,7 @@ export const STATI_TRATTATIVA: LeadStatus[] = [
   "fissa_meet_dopo",
   "no_show",
   "annullato",
+  "per_ora_no",
   //  ── L'USCITA NEGATIVA DI «ATTESA ACCONTO» ────────────────────────────
   //   Sta qui e NON fra gli esiti di primo contatto: presuppone che ci sia
   //   stata una trattativa e un sì. Su una lista da chiamare non può capitare,
@@ -2332,6 +2360,7 @@ export const SELECTABLE_LEAD_STATUSES: LeadStatus[] = [
   "fissa_meet_dopo",
   "no_show",
   "annullato",
+  "per_ora_no",
   //  ── L'USCITA NEGATIVA DI «ATTESA ACCONTO» ────────────────────────────
   //   Sta qui e NON fra gli esiti di primo contatto: presuppone che ci sia
   //   stata una trattativa e un sì. Su una lista da chiamare non può capitare,
@@ -2362,6 +2391,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "da_chiamare",
   "richiamo",
   "annullato",
+  "per_ora_no",
   "ripensamento",
   "appuntamento_fissato",
   "appuntamento_rifissato",

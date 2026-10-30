@@ -2460,16 +2460,25 @@ function BloccoChiamata({
         <Pillola
           attiva={form.stato === "attesa_whatsapp"}
           onClick={() => update("stato", "attesa_whatsapp")}
-          className="py-2.5"
+          className="py-2.5 sm:col-span-2"
         >
           Attesa WhatsApp
         </Pillola>
         <Pillola
           attiva={form.stato === "annullato"}
           onClick={() => update("stato", "annullato")}
-          className="py-2.5 sm:col-span-2"
+          className="py-2.5"
         >
           Non interessato
+        </Pillola>
+        {/*  Accanto a «Non interessato» (30/10/2026): la data, facoltativa, si scrive
+            sotto in «Data del richiamo». */}
+        <Pillola
+          attiva={form.stato === "per_ora_no"}
+          onClick={() => update("stato", "per_ora_no")}
+          className="py-2.5"
+        >
+          Per ora no
         </Pillola>
       </div>
 

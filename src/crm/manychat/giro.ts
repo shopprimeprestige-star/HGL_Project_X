@@ -109,6 +109,10 @@ export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
 /** La mattina del meet col link dentro (30/10/2026). Facoltativo: serve il flusso in
  *  `config.flussi` E il link in scheda; altrimenti la mattina è `hgl_meet_oggi`. */
 export const MODELLO_MEET_OGGI_LINK = "hgl_meet_oggi_link";
+/** Il primo contatto con le TRE fasce (mattina, pomeriggio o sera; richiesta del titolare
+ *  30/10/2026). Parte appena il suo flusso è collegato in `config.flussi`; finché manca resta
+ *  `hgl_primo_contatto` (mattina o sera): nessun lead nuovo resta senza messaggio. */
+export const MODELLO_PRIMO_CONTATTO_TRE_FASCE = "hgl_primo_contatto_tre_fasce";
 /** Il testo (non un modello Meta, senza flusso) del giorno prima solo se gratis: la porta lo
  *  cerca in `wa-meta-templates` e lo manda come messaggio normale. */
 export const TESTO_MEET_DOMANI = "hgl_meet_domani_testo";
@@ -777,11 +781,13 @@ export function righeDiProva(voci: Voce[], nomeDi: (s: SchedaQuando) => string):
 }
 
 /** Il modello e il tag di un messaggio. `null` = uno stato senza riga nella tabella. */
-function modelloETag(
+export function modelloETag(
   tipo: TipoGiro,
   stato: string | null,
   /** la mattina del meet va col link? (`mattinaColLink`) */
   conLink = false,
+  /** il primo contatto ha il flusso con le tre fasce? */
+  treFasce = false,
 ): { modello: string; tag: string } | null {
   if (tipo === "promemoria") return { modello: MODELLO_PROMEMORIA, tag: TAG_PROMEMORIA };
   if (
@@ -795,7 +801,9 @@ function modelloETag(
   )
     return tipo === "meet_oggi" && conLink
       ? { ...MODELLI_SEQUENZE.meet_oggi, modello: MODELLO_MEET_OGGI_LINK }
-      : MODELLI_SEQUENZE[tipo];
+      : tipo === "primo_contatto" && treFasce
+        ? { ...MODELLI_SEQUENZE.primo_contatto, modello: MODELLO_PRIMO_CONTATTO_TRE_FASCE }
+        : MODELLI_SEQUENZE[tipo];
   const riga = TABELLA_STATI[(stato ?? "da_ricontattare") as keyof typeof TABELLA_STATI];
   return riga ? { modello: riga.modello, tag: riga.tag } : null;
 }
@@ -1043,6 +1051,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       v.tipo,
       v.d.extra.stato,
       v.tipo === "meet_oggi" && mattinaColLink(v.d.scheda, config.flussi),
+      !!config.flussi[MODELLO_PRIMO_CONTATTO_TRE_FASCE],
     );
     if (!mt) continue;
     //  Il giorno prima, solo se gratis, parte come testo: il suo flusso non serve e non si usa.
@@ -1118,10 +1127,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     if (cand.messaggio) {
       const nome = nomePerModello(d.nome) ?? "";
       const sc = sceltaInvio(cand.messaggio, {
-        finestraAperta: finestraPerTesto(
-          entrateMessaggi[ultimeNoveCifre(numero)],
-          porte.adesso(),
-        ),
+        finestraAperta: finestraPerTesto(entrateMessaggi[ultimeNoveCifre(numero)], porte.adesso()),
         flussoGenericoCollegato: !!config.flussi[MODELLO_GENERICO],
         nome,
       });
@@ -1163,6 +1169,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           buona.tipo,
           buona.d.extra.stato,
           buona.tipo === "meet_oggi" && mattinaColLink(buona.d.scheda, config.flussi),
+          !!config.flussi[MODELLO_PRIMO_CONTATTO_TRE_FASCE],
         )?.modello === cand.modello
       );
     };

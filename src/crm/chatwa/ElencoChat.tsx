@@ -30,6 +30,8 @@ const FILTRI: { v: FiltroChat; l: string }[] = [
   { v: "da-chiamare", l: "Da chiamare" },
   //  I lead in «Attesa WhatsApp» (30/10/2026): vedi `passaFiltro`.
   { v: "attesa-whatsapp", l: "Attesa WhatsApp" },
+  //  I lead in «Per ora no» (30/10/2026): vedi `passaFiltro`.
+  { v: "per-ora-no", l: "Per ora no" },
   { v: "unread", l: "Non letti" },
   { v: "with-lead", l: "Con lead" },
   { v: "unknown", l: "Sconosciuti" },
@@ -166,7 +168,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const conti = contaSottofiltri(daChiamareTutte);
   const contaPillola = contaSottofiltri(api.chats.filter(delConsulente)).tutti;
   /** Quanti appuntamenti fissati con la finestra chiusa / aperta (di quel consulente). */
-  const contaFinestra = (f: "chiuso-24h" | "aperto-24h" | "attesa-whatsapp") =>
+  const contaFinestra = (f: "chiuso-24h" | "aperto-24h" | "attesa-whatsapp" | "per-ora-no") =>
     api.chats.filter((c) => delConsulente(c) && passaFiltro(c, f)).length;
   /*  ── UN FILTRO PER OGNI STATO DEL LEAD (30/10/2026) ───────────────────
       Richiesta del titolare, in fondo alle pastiglie: «Per stato» apre una fila di chip
@@ -289,7 +291,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             >
               {f.l}
               {f.v === "da-chiamare" && contaPillola > 0 ? ` ${contaPillola}` : ""}
-              {(f.v === "chiuso-24h" || f.v === "aperto-24h" || f.v === "attesa-whatsapp") &&
+              {(f.v === "chiuso-24h" ||
+                f.v === "aperto-24h" ||
+                f.v === "attesa-whatsapp" ||
+                f.v === "per-ora-no") &&
               contaFinestra(f.v) > 0
                 ? ` ${contaFinestra(f.v)}`
                 : ""}

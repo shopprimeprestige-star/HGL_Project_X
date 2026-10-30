@@ -354,6 +354,10 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
 
   annullato: `Capito {nome}, nessun problema — sono {consulente|un consulente} di Hair Genius Labs.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}\n\nSe più avanti vorrai riparlarne, scrivimi qui.`,
 
+  //  «Per ora no» (30/10/2026): si manda SOLO a mano, mai da una regola automatica
+  //  (nessun modello ManyChat, nessun suggerimento in chat). Riprende il «più avanti».
+  per_ora_no: `Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — come ci eravamo detti ti riscrivo per sapere se adesso è un momento migliore.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}\n\nSe ti va di riparlarne, scrivimi qui.`,
+
   // ── APPUNTAMENTO ────────────────────────────────────────────────────────
   //  Il link è quello della NOSTRA stanza, generato quando l'appuntamento
   //  viene fissato: dentro c'è il preventivo che si compone in diretta, le

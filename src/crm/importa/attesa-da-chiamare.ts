@@ -4,9 +4,10 @@
  *  in Da chiamare» quando resta in attesa più di 10 ore. Lo fa il server ogni
  *  15 minuti (hooks/attesa-da-chiamare), anche a CRM chiuso.
  *
- *  Chi si sposta: stato `attesa_whatsapp` da almeno 10 ore (stessa regola della
- *  sezione «Da chiamare» della chat, crm/chatwa/daChiamare), senza un messaggio
- *  del cliente da allora, senza STOP sul numero.
+ *  Chi si sposta (30/10/2026, «la palla è al cliente»): stato `attesa_whatsapp`
+ *  il cui ULTIMO messaggio è nostro (qualunque canale) da almeno 10 ore, senza un
+ *  messaggio del cliente dopo (le eco non contano), senza STOP sul numero. Stessa
+ *  regola della chat: crm/chatwa/daChiamare, `calcolaDaChiamare`.
  *  ⚠️ Solo chi è nello STATO «Attesa WhatsApp»: il solo tasto WhatsApp premuto
  *   (senza stato) non cambia la scheda di nessuno.
  *  ⚠️ La modifica tocca solo lo stato e la sua storia (stato di prima e ora):
@@ -14,7 +15,7 @@
  *   non è cambiata nel frattempo (vedi la rotta).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { LEAD_STATUS_LABEL, type LeadData, type LeadStatus } from "@/crm/types";
-import { calcolaDaChiamare } from "@/crm/chatwa/daChiamare";
+import { calcolaDaChiamare, type MessaggioAttesa } from "@/crm/chatwa/daChiamare";
 import { aRoma } from "@/crm/promemoria/formati";
 import { conNota } from "@/crm/manychat/prenota-scheda";
 
@@ -31,16 +32,19 @@ export const nove = (t?: string | null): string =>
     .replace(/\D/g, "")
     .slice(-9);
 
-/** La modifica da scrivere sulla scheda, o `null` se non va spostata. */
+/** La modifica da scrivere sulla scheda, o `null` se non va spostata.
+ *  `messaggi`: quelli di QUEL numero (ultimi 7 giorni); senza, vale la regola
+ *  di prima (dall'ingresso nello stato). */
 export function patchDaChiamare(
   d: Partial<LeadData> | null | undefined,
   contatto: ContattoWa | null | undefined,
   adesso: Date,
+  messaggi: MessaggioAttesa[] = [],
 ): Partial<LeadData> | null {
   if (!d || d.stato !== "attesa_whatsapp") return null;
   const esito = calcolaDaChiamare({
     dati: d,
-    messaggi: [],
+    messaggi,
     stop: contatto?.stop ?? false,
     ultimaEntrataIl: contatto?.ultimoInEntrataIl ?? null,
     adesso,
@@ -60,7 +64,7 @@ export function patchDaChiamare(
  *  riapre la finestra delle 24 ore e la scheda torna da sola in «Attesa
  *  WhatsApp», così si vede subito e si risponde.
  *  ⚠️ ELENCO CHIUSO: solo questi quattro stati cambiano. Tutto il resto (Non
- *   interessato, Richiamo concordato, Appuntamento fissato/rifissato, Ci
+ *   interessato, Per ora no, Richiamo concordato, Appuntamento fissato/rifissato, Ci
  *   ricontatta lui, Perditempo e ogni stato dopo la consulenza) resta com'è
  *   anche se il cliente scrive. Un nuovo stato NON entra qui da solo.
  *  Vale se l'ultimo messaggio del cliente è arrivato DOPO l'ingresso nello
