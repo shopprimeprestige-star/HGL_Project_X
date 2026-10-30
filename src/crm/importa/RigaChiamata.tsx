@@ -42,11 +42,14 @@ const CLASSE_MOTIVO: Record<MotivoChiamata, string> = {
 export function Targhetta({
   motivo,
   temperatura,
+  dati,
   className,
 }: {
   motivo: MotivoDiChiamata;
   /** `temperaturaLead(modulo, qualifica)`: se c'è, il pallino prende il posto di «caldo». */
   temperatura?: TemperaturaLead;
+  /** I dati del lead: toccando il pallino si aprono le risposte del modulo. */
+  dati?: Partial<LeadData>;
   className?: string;
 }) {
   return (
@@ -58,7 +61,7 @@ export function Targhetta({
       </span>
       <span className="min-w-0 text-[12px] text-muted-foreground">{motivo.testo}</span>
       {temperatura ? (
-        <PallinoTemperatura t={temperatura} className="shrink-0 text-[12px]" />
+        <PallinoTemperatura t={temperatura} dati={dati} className="shrink-0 text-[12px]" />
       ) : (
         motivo.caldo && (
           <span
@@ -131,7 +134,7 @@ export function RigaChiamata({
                 />
               )}
             </span>
-            <Targhetta motivo={motivo} temperatura={temperatura} />
+            <Targhetta motivo={motivo} temperatura={temperatura} dati={d} />
           </span>
           {/*  Sul telefono la riga va a capo (due righe): una sola tagliava Fastidio e
               Annuncio, che sono il motivo per cui si sceglie quel nome. */}

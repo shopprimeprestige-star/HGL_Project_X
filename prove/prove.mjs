@@ -18318,6 +18318,64 @@ export const disegna = (cosa, dati, o = {}) =>
 }
 
 
+/** ── LA TEMPERATURA APRE LE RISPOSTE (30/10/2026) ──────────────────────────
+ *  Richiesta del titolare: in tutto il CRM, toccando l'etichetta della
+ *  temperatura si apre un pop-up con tutte le risposte del modulo. Il tocco
+ *  sta UNA volta, nel componente (crm/Temperatura); il contenuto è quello del
+ *  tasto Info della chat, scritto una volta sola. Il clic vero, Esc e il tocco
+ *  fuori si guardano nel browser: qui il disegno e i sorgenti. Dati inventati. */
+async function proveDellaTemperaturaCheApre() {
+  gruppo("LA TEMPERATURA SI TOCCA E APRE LE RISPOSTE DEL MODULO");
+  const disegna = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TemperaturaRiga, PallinoTemperatura, RisposteDelModulo } from "@/crm/Temperatura";
+import { temperaturaLead } from "@/crm/temperatura-lead";
+import { moduloLetto } from "@/crm/modulo-lead";
+export const disegna = (cosa, dati, o = {}) =>
+  renderToStaticMarkup(
+    cosa === "pallino" ? createElement(PallinoTemperatura, { t: temperaturaLead(moduloLetto(dati), dati.qualifica), ...o })
+    : cosa === "risposte" ? createElement(RisposteDelModulo, { dati, ...o })
+    : createElement(TemperaturaRiga, { dati, ...o }),
+  );`,
+    "temperatura-apre",
+  );
+  const caldo = { nome: "Mario", cognome: "Finto", modulo: { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" } };
+  const tasto = (html) => /role="button"/.test(html) && /tabindex="0"/.test(html) && /aria-haspopup="dialog"/.test(html);
+  c("la riga si tocca: è un tasto raggiungibile da tastiera", true, tasto(disegna(null, null, "riga", caldo)));
+  c("…anche col solo pallino", true, tasto(disegna(null, null, "riga", caldo, { soloPallino: true })));
+  c("…e con max=0 (le liste)", true, tasto(disegna(null, null, "riga", caldo, { max: 0 })));
+  c("il nome del tasto dice il livello e cosa apre", true,
+    /aria-label="Caldo: risposte del modulo"/.test(disegna(null, null, "riga", caldo)));
+  c("il pallino con i dati si tocca", true, tasto(disegna(null, null, "pallino", caldo, { dati: caldo })));
+  c("il pallino senza dati resta solo disegno (dentro il pop-up)", false,
+    /role="button"/.test(disegna(null, null, "pallino", caldo)));
+  c("senza temperatura niente tasto", "", disegna(null, null, "riga", { modulo: { zona: "nord" } }));
+  c("il pop-up non si disegna finché non si tocca", false,
+    /Quello che ha detto nel modulo/.test(disegna(null, null, "riga", caldo)));
+  c("sul telefono il tocco è da 44 px (after:h-11), sul computer la misura vera", true,
+    /after:h-11/.test(disegna(null, null, "riga", caldo)) && /md:after:hidden/.test(disegna(null, null, "riga", caldo)));
+  const risposte = disegna(null, null, "risposte", caldo).replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+  c("il pop-up mostra le risposte del modulo", true, /Fastidio|Già provato/i.test(risposte) && risposte.includes("Caldo"));
+  c("senza risposte il pop-up lo dice", true,
+    disegna(null, null, "risposte", { qualifica: { disagio: 8 } }).includes("Nessuna risposta al modulo."));
+  c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
+  const sorg = readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8");
+  c("il tocco non apre la riga: si ferma la propagazione (clic e tastiera)", true,
+    /const apri = \(e: SyntheticEvent\) => \{\s*e\.stopPropagation\(\);/.test(sorg) && /onClick=\{apri\}/.test(sorg) &&
+    /if \(e\.key === "Enter" \|\| e\.key === " "\) apri\(e\);/.test(sorg));
+  c("…anche per i clic dentro il pop-up (il portale risale l'albero di React)", true,
+    /<span className="contents" onClick=\{ferma\} onKeyDown=\{ferma\} onPointerDown=\{ferma\}>/.test(sorg));
+  const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
+  c("InfoModulo usa lo stesso contenuto (niente logica doppia)", true,
+    /<FinestraRisposte/.test(info) && !/voci\.map|<dl/.test(info));
+  const rigaChiamata = readFileSync(join(radice, "src/crm/importa/RigaChiamata.tsx"), "utf8");
+  c("in Lead importati la targhetta passa i dati al pallino", true,
+    /<PallinoTemperatura t=\{temperatura\} dati=\{dati\}/.test(rigaChiamata) && /<Targhetta motivo=\{motivo\} temperatura=\{temperatura\} dati=\{d\}/.test(rigaChiamata));
+  c("…anche nella scheda grande", true,
+    /temperatura=\{temperaturaLead\(modulo, d\.qualifica\)\}\s*dati=\{d\}/.test(readFileSync(join(radice, "src/crm/importa/SchedaProssimo.tsx"), "utf8")));
+}
+
 /** ── COMPITI 7-10: DOVE SI VEDONO IL PALLINO E LA STRISCIA ─────────────────
  *  Lead importati, la scheda del lead, «Oggi» del consulente e «Oggi» in sola
  *  lettura. Le regole sono già provate sopra (temperatura, vistaOggi,
@@ -20719,7 +20777,7 @@ function proveDiWhatsappTemperaturaConsulente() {
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("la riga della chat ha pallino e parola (non dopo la vendita)", true, /mostraTemperatura\(c\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga dati=\{c\.lead\.data\} max=\{0\}/.test(riga));
   c("l'intestazione della chat pure (per esteso, nella seconda riga)", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga[\s\S]{0,80}max=\{0\}/.test(conv));
-  c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
+  c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /<FinestraRisposte/.test(info) && /vociModulo\(modulo\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
     /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /perPastiglia\(perRicerca\(api\.chats\.filter\(eVecchia\)\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
@@ -21104,6 +21162,7 @@ await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();
 await proveDeiDuePezzi();
+await proveDellaTemperaturaCheApre();
 await proveDeiPostiDelPallino();
 await proveDellaConsulenza();
 await proveDelPrimoEventoDellaVisita();
