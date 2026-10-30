@@ -409,14 +409,16 @@ export function togliPerId<T extends { id: string }>(righe: T[], id: string): T[
 /** L'ultimo messaggio di una chat, per l'anteprima dell'elenco: il più recente fra
  *  quello letto in pagina e quello salvato sul contatto (entrata o uscita). A pari
  *  ora vince quello letto. Senza le colonne (migrazione non applicata) resta il letto. */
-export function ultimoDellaChat(
-  letto: { direction: string; body: string | null; created_at: string } | null,
+export function ultimoDellaChat<
+  M extends { direction: string; body: string | null; created_at: string },
+>(
+  letto: M | null,
   contatto: {
     ultimo_messaggio_il?: string | null;
     ultimo_messaggio_anteprima?: string | null;
     ultimo_messaggio_direzione?: string | null;
   } | null,
-): { direction: string; body: string | null; created_at: string } | null {
+): M | { direction: string; body: string | null; created_at: string; status?: undefined } | null {
   const il = contatto?.ultimo_messaggio_il ?? null;
   const t = ms(il);
   if (t === null || (letto && (ms(letto.created_at) ?? -Infinity) >= t)) return letto;

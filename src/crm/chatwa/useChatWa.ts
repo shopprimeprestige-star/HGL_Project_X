@@ -323,8 +323,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     //  Lo spinner solo al primo caricamento (`caricamento` parte vero): ogni
     //  risposta fa più ricariche, e l'elenco non deve lampeggiare né perdere un tocco.
     //  Una lettura appesa o caduta vale come una lettura in errore (`null`).
-    const leggi = () =>
-      conTempo(Promise.all([leggiMessaggi(), leggiContatti()])).catch(() => null);
+    const leggi = () => conTempo(Promise.all([leggiMessaggi(), leggiContatti()])).catch(() => null);
     let letti = await leggi();
     /*  ── LA SESSIONE SCADUTA SUL TELEFONO (29/10/2026) ──────────────────────
         Il titolare vedeva sul telefono solo le chat del giorno prima. Con il CRM
@@ -360,8 +359,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       ? unisciMessaggi(
           [...righeM].reverse(),
           ora.messaggi.filter(
-            (x) =>
-              curM !== null && !letteOra.has(x.id) && (x.cambiato_il ?? x.created_at) > curM,
+            (x) => curM !== null && !letteOra.has(x.id) && (x.cambiato_il ?? x.created_at) > curM,
           ),
         )
       : unisciMessaggi(ora.messaggi, righeM);

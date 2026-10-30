@@ -2066,6 +2066,12 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           /toast/.test(dopoCatch),
         ],
       );
+      const riga = leggi("src/crm/chatwa/RigaChat.tsx");
+      c(
+        "p1-chat-veloce: l'anteprima della riga è il più recente fra il letto e quello salvato sul contatto",
+        [true, false],
+        [/const last = ultimoDellaChat\(c\.lastMessage, c\.contact\);/.test(riga), /const last = c\.lastMessage;/.test(riga)],
+      );
       c(
         "«Fatto» passa dalla rpc, non da una scrittura di risposto_il",
         [true],
