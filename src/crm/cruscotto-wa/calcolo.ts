@@ -48,6 +48,8 @@ export function tariffeValide(
   x: { marketing?: unknown; utility?: unknown } | null | undefined,
 ): Tariffe {
   const ok = (v: unknown, ripiego: number) => {
+    //  Vuoto o null (colonna non compilata) = listino, mai 0 €: Number(null) e Number("") fanno 0.
+    if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) return ripiego;
     const n = typeof v === "string" ? Number(v.replace(",", ".")) : Number(v);
     return Number.isFinite(n) && n >= 0 && n <= 5 ? Math.round(n * 1e6) / 1e6 : ripiego;
   };

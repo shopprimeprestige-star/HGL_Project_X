@@ -32,6 +32,17 @@ export function proveCruscottoWa(mod, { c, gruppo }) {
     ],
   );
   c(
+    "tariffe vuote, null o spazi tornano al listino (mai 0 €)",
+    [0.0658, 0.0248, 0.0658, 0.0248],
+    [
+      K.tariffeValide({ marketing: null, utility: "" }).marketing,
+      K.tariffeValide({ marketing: null, utility: "" }).utility,
+      K.tariffeValide({ marketing: "  ", utility: undefined }).marketing,
+      K.tariffeValide({ marketing: "  ", utility: undefined }).utility,
+    ],
+  );
+  c("uno 0 scritto davvero resta 0", 0, K.tariffeValide({ marketing: 0 }).marketing);
+  c(
     "soglia: 10 di serie, valida 1-240",
     [10, 10, 15],
     [K.sogliaValida(undefined), K.sogliaValida(0), K.sogliaValida("15")],
