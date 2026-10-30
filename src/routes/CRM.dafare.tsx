@@ -186,6 +186,11 @@ import { PastigliaStato, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
 import { SELECTABLE_LEAD_STATUSES } from "@/crm/types";
 import { BarraSelezione } from "@/crm/ui";
 import { AvvisoScadenza } from "@/crm/contabilita-AvvisoScadenza";
+//  «Chi chiamare adesso» e i doppioni segnalati (commessa 2026-10-30, p6).
+import { classificaAdesso } from "@/crm/chi-chiamare-adesso";
+import { doppioniPerTelefono } from "@/crm/doppioni";
+import { ChiChiamareAdesso } from "@/crm/dafare/ChiChiamareAdesso";
+import { DoppioniDaGuardare } from "@/crm/dafare/DoppioniDaGuardare";
 //  Lo scheletro delle azioni di gruppo: lo stesso dei lead importati.
 import { aLotti } from "@/crm/azioni-di-gruppo";
 
@@ -520,6 +525,24 @@ function DaFareOggiPage() {
   const diChi = useCallback((r: RigaDaFare) => rigaDiChi(r), []);
 
   const passaChi = useCallback((r: RigaDaFare) => rigaPassaChi(r, chi, mestieri), [chi, mestieri]);
+
+  /** ── CHI CHIAMARE ADESSO (commessa 2026-10-30, idea 7) ──────────────────
+   *  Le regole in crm/chi-chiamare-adesso. Di chi: il filtro «di chi» se è
+   *  acceso (stessa regola delle righe, `rigaPassaChi`); altrimenti, per chi
+   *  è entrato col PIN, i suoi; per il titolare, tutti. */
+  const chiamareAdesso = useMemo(() => {
+    const voci = classificaAdesso(leads, new Date(adesso));
+    if (chi) return voci.filter((v) => rigaPassaChi({ lead: v.lead } as RigaDaFare, chi, mestieri));
+    if (consulente?.id) return voci.filter((v) => v.lead.data?.consulenteId === consulente.id);
+    return voci;
+  }, [leads, adesso, chi, mestieri, consulente?.id]);
+  const notaChiamare = chi
+    ? `filtro: ${mestieri.get(chi)?.nome ?? "acceso"}`
+    : consulente?.id
+      ? "i tuoi"
+      : "di tutto il centro";
+  /** I numeri con più di una scheda ancora in gioco (crm/doppioni). */
+  const gruppiDoppi = useMemo(() => doppioniPerTelefono(leads), [leads]);
 
   /** ── QUANTE NE HA CIASCUNO ──────────────────────────────────────────────
    *  Il numero su ogni tessera del filtro. Si calcola con gli ALTRI filtri
@@ -1045,6 +1068,22 @@ function DaFareOggiPage() {
           dopo tre secondi la si vede solo se in quel momento si era davanti
           allo schermo. Non scrive niente nella lista: legge e disegna. */}
       <AvvisoScadenza />
+
+      {/*  ── CHI CHIAMARE ADESSO, E I DOPPIONI DA GUARDARE ───────────────
+          In cima perché è la prima domanda della mattina. Senza nessuno da
+          chiamare e senza doppioni non compare niente. */}
+      <DoppioniDaGuardare
+        gruppi={gruppiDoppi}
+        chi={consulente?.nome || user?.email}
+        onApri={(l) => apriLead(l.id)}
+      />
+      <ChiChiamareAdesso
+        voci={chiamareAdesso}
+        nomeConsulente={nomeConsulente}
+        mostraConsulente={!chi && !consulente?.id}
+        onApri={apriLead}
+        nota={notaChiamare}
+      />
 
       <KpiRiga colonne={4}>
         <Kpi

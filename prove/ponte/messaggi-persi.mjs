@@ -258,7 +258,9 @@ export async function provePonteMessaggiPersi(mod, { c, gruppo, radice }) {
   c("ManyChat ha il testo vero a +3 s: il segnaposto è il suo pari (nascosto)", ["x-nd=c1"], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO })], [crm({ id: "c1", t: BASE + 3, body: "Ci sono domani" })]));
   c("ManyChat non ha niente: il segnaposto resta visibile", [], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO })], []));
   c("un'uscita del CRM vicina non è il suo pari", [], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO })], [crm({ id: "c1", dir: "outbound", t: BASE + 3, body: "Ok, vi aspetto" })]));
-  c("un'entrata a 3 minuti non basta (finestra di 2)", [], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO })], [crm({ id: "c1", t: BASE + 150, body: "Ci sono domani" })]));
+  c("un'entrata a 30 s non basta (finestra stretta di 20 s)", [], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO })], [crm({ id: "c1", t: BASE + 30, body: "Ci sono domani" })]));
+  c("revisore: segnaposto a T, «Ok» del ponte a T+30, solo «Ok» di ManyChat a T+32 → l'Ok è abbinato, il segnaposto resta visibile", ["ok-ponte=mcOk"], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO }), riga({ id: "ok-ponte", t: BASE + 30, x: "Ok" })], [crm({ id: "mcOk", t: BASE + 32, body: "Ok" })]));
+  c("…e se in più ManyChat ha anche il messaggio non decifrato, il segnaposto prende quello", ["ok-ponte=mcOk", "x-nd=mcX"], abbina([riga({ id: "x-nd", t: BASE, x: P.NON_DECIFRATO }), riga({ id: "ok-ponte", t: BASE + 30, x: "Ok" })], [crm({ id: "mcOk", t: BASE + 32, body: "Ok" }), crm({ id: "mcX", t: BASE + 2, body: "Ci sono domani" })]));
   c("un messaggio vero uguale non viene sostituito: due «Ok» veri e un solo Ok di ManyChat → uno visibile", ["a=c1"], abbina([riga({ id: "a", t: BASE, x: "Ok" }), riga({ id: "b", t: BASE + 40, x: "Ok" })], [crm({ id: "c1", t: BASE + 2, body: "Ok" })]));
 
   gruppo("MESSAGGI PERSI · 5. LA DIAGNOSI PER FONTE È DI SOLA LETTURA");

@@ -323,6 +323,6 @@ export async function provePonteMigrazione(mod, { c, gruppo, radice }) {
       /due volte non fa danni/i.test(grezzo),
     ],
   );
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale")).sort();
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030")).sort();
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.at(-1));
 }

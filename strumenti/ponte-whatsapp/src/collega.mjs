@@ -252,6 +252,7 @@ export function creaCollegamento({
     annulla(voce.timer);
     nonDecifrati.delete(k);
     estrazione.non_decifrati_arrivati++;
+    conta(diagnosi.scarti, "non_decifrato_arrivato"); // nel log: quanti stub si sono risolti da soli
   }
 
   /** WAMessage[] → `{ messaggi, nomi }` validi, contando gli scarti per motivo.

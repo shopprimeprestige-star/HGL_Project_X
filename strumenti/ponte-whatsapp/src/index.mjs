@@ -29,6 +29,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFil
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chiaveCache, controllaCache, creaCache } from "./cache.mjs";
 import { creaCollegamento } from "./collega.mjs";
 import { leggiConfig } from "./config.mjs";
 import { creaInvii } from "./invio.mjs";
@@ -41,6 +42,8 @@ export const nodeAmmesso = (versione) => NODE_AMMESSI.includes(Number(String(ver
 
 export const LOG_MAX_BYTE = 5 * 1024 * 1024;
 export const BATTITO_MS = 60_000;
+/** ogni quanto la cache chiede al CRM se un suo numero è diventato noto (p3) */
+export const CONTROLLO_CACHE_MS = 600_000;
 const GIORNO_MS = 86_400_000;
 const CODICE = /^[a-z_]+$/;
 
@@ -61,6 +64,8 @@ export function percorsiDi(casa) {
     stato: join(base, "stato.json"),
     lid: join(base, "lid.json"),
     qr: join(base, "qr.png"),
+    cache: join(base, "cache"),
+    chiaveCache: join(base, "chiave-cache"),
     log: join(casa, "Library/Logs/hgl-ponte-wa.log"),
   };
 }
@@ -157,11 +162,12 @@ export function contiDiagnosi(d) {
 
 /** Il battito (`BattitoPonte`, §b3) da stato del collegamento e fila: solo
  *  parole della lista chiusa, date ISO e numeri. Il QR non c'è mai.
- *  `contatori` resta entro 18 chiavi: il CRM ne tiene 20 con `in_coda` e
+ *  `contatori` resta entro 20 chiavi: il CRM ne tiene 22 con `in_coda` e
  *  `scartati`. `invii` = `{ invii_attivi, invii_ok, invii_ko }` di `invio.mjs`
- *  (assente = ponte senza invii: tre zeri). Il dettaglio va in `diagnosi` (stato.json e log; la rotta del
- *  CRM non lo legge e non lo salva). */
-export function corpoBattito(ist, fc, { erroreServer = false, invii = {} } = {}) {
+ *  (assente = ponte senza invii: tre zeri). `cache`: `{ numeri, promossi, errori }`
+ *  della cache sul Mac (p3), 0 se manca. Il dettaglio va in `diagnosi`
+ *  (stato.json e log; la rotta del CRM non lo legge e non lo salva). */
+export function corpoBattito(ist, fc, { erroreServer = false, invii = {}, cache } = {}) {
   let stato = ist.stato;
   if (stato === "collegato" && erroreServer) stato = "errore";
   else if (stato === "collegato" && fc.piena) stato = "coda_piena";
@@ -188,12 +194,16 @@ export function corpoBattito(ist, fc, { erroreServer = false, invii = {} } = {})
       lid_risolti: numero(e.lid_risolti),
       lid_errori: numero(e.lid_errori),
       storico_rifiutati: numero(e.storico_rifiutati),
-      tipo_sconosciuto: numero(d.scarti?.tipo_sconosciuto),
+      //  i segnaposto «non leggibile» scritti (prima qui c'era tipo_sconosciuto: ora vale sempre 0)
+      non_decifrati: numero(e.non_decifrati),
       fanout_ospitati: numero(d.nodi?.hosted_unavailable_fanout),
       fanout_registrati: numero(e.invii_nascosti),
       invii_attivi: numero(invii?.invii_attivi),
       invii_ok: numero(invii?.invii_ok),
       invii_ko: numero(invii?.invii_ko),
+      cache_numeri: numero(cache?.numeri),
+      cache_promossi: numero(cache?.promossi),
+      cache_errori: numero(cache?.errori),
     },
     versione: VERSIONE_BAILEYS,
     diagnosi: { scarti: soloConti(d.scarti), tipi: soloConti(d.tipi), nodi: soloConti(d.nodi) },
@@ -239,7 +249,40 @@ async function main() {
   const senzaInvio = process.argv.includes("--senza-invio");
   if (senzaInvio) registro("senza_invio");
 
-  const fila = creaFila({ cartella: P.fila, attesaPariMs: attesaPariSecondi * 1000 });
+  // La cache dei numeri fuori dal CRM (p3). Se non si apre (chiave che non si
+  // legge, disco) si salta per quel giro e si riprova al prossimo: la chiave
+  // buona non si rigenera mai per un errore momentaneo.
+  let cache = null;
+  function apriCache() {
+    if (cache) return cache;
+    try {
+      cache = creaCache({ cartella: P.cache, chiave: chiaveCache(P.chiaveCache) });
+      registro("cache_aperta", { ...cache.contatori(), tolti: cache.pulisci() });
+    } catch {
+      registro("cache_non_aperta");
+    }
+    return cache;
+  }
+  apriCache();
+  let promossi = 0;
+  /** scritture in cache fallite fuori dalla cache stessa (cache non aperta) */
+  let erroriFuori = 0;
+  const allaCache = (messaggi, nomi) => {
+    try {
+      const c = apriCache();
+      if (!c) {
+        erroriFuori++;
+        return;
+      }
+      const r = c.metti(messaggi, nomi);
+      if (r.rifiutati) registro("cache_piena", { rifiutati: r.rifiutati });
+    } catch {
+      erroriFuori++;
+    }
+  };
+  const contiCache = () => ({ numeri: cache?.contatori().numeri ?? 0, promossi, errori: (cache?.contatori().errori ?? 0) + erroriFuori });
+
+  const fila = creaFila({ cartella: P.fila, attesaPariMs: attesaPariSecondi * 1000, fuoriRubrica: allaCache });
   registro("scartati_puliti", { tolti: fila.pulisciScartati() });
 
   let erroreServer = false;
@@ -250,7 +293,7 @@ async function main() {
 
   function scriviStato() {
     try {
-      scriviJson(P.stato, { ...corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, invii: invii?.contatori() }), aggiornato_il: new Date().toISOString() });
+      scriviJson(P.stato, { ...corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, invii: invii?.contatori(), cache: contiCache() }), aggiornato_il: new Date().toISOString() });
     } catch {
       registro("stato_non_scritto");
     }
@@ -291,8 +334,26 @@ async function main() {
   /** la riga `diagnosi` si scrive solo quando cambia (il log non si gonfia) */
   let ultimaDiagnosi = "";
 
+  /** Chiede al CRM se un numero della cache è diventato noto e mette la sua
+   *  cronologia in fila (storico). Uno alla volta; mai con --senza-invio. */
+  let inControllo = false;
+  async function controllo() {
+    if (senzaInvio || fermo || inControllo || !apriCache()) return;
+    inControllo = true;
+    try {
+      const e = await controllaCache({ cache, fila, invia: (corpo) => spedisci({ url, token, corpo }) });
+      promossi += e.promossi;
+      registro("cache_controllo", { chiesti: e.chiesti, noti: e.noti, promossi: e.promossi, http: e.stato, piena: e.piena ? 1 : 0 });
+      if (e.promossi) giro();
+    } catch {
+      registro("cache_controllo_fallito");
+    } finally {
+      inControllo = false;
+    }
+  }
+
   async function battito() {
-    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, invii: invii?.contatori() });
+    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, invii: invii?.contatori(), cache: contiCache() });
     scriviStato();
     registro(`battito_${corpo.stato}`, { in_coda: corpo.in_coda, scartati: corpo.scartati, ...corpo.contatori });
     const conti = contiDiagnosi(corpo.diagnosi);
@@ -339,18 +400,23 @@ async function main() {
   if (inviAttivi === 1 && !senzaInvio) registro("invii_attivi");
 
   const battiti = setInterval(() => void battito(), BATTITO_MS);
-  const pulizia = setInterval(() => registro("scartati_puliti", { tolti: fila.pulisciScartati() }), GIORNO_MS);
+  const pulizia = setInterval(() => {
+    registro("scartati_puliti", { tolti: fila.pulisciScartati() });
+    if (cache) registro("cache_pulita", { tolti: cache.pulisci() });
+  }, GIORNO_MS);
+  const controlli = setInterval(() => void controllo(), CONTROLLO_CACHE_MS);
 
   async function chiudi() {
     if (fermo) return;
     fermo = true;
     clearInterval(battiti);
     clearInterval(pulizia);
+    clearInterval(controlli);
     if (sveglia) clearTimeout(sveglia);
     //  `col.ferma()` aspetta (al massimo 6 s) lo scarico del buffer di Baileys: i messaggi
     //  arrivati a ponte spento sono già confermati a WhatsApp e chiudendo prima si perdono.
     await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
-    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori() });
+    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori(), cache: contiCache() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });
     registro("fermo");
@@ -363,6 +429,7 @@ async function main() {
   void invii.avvia(); // consegna gli esiti rimasti e chiude gli invii a metà (non invia mai da sé)
   void battito();
   giro();
+  void controllo();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

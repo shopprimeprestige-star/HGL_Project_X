@@ -1,13 +1,21 @@
 /** ── SPEDIRE LE NOTIFICHE A TUTTI I TELEFONI ISCRITTI ───────────────────────
- *  Lo chiamano i due ingressi dei messaggi WhatsApp (webhook di Meta e risposte
- *  di ManyChat) quando arriva un messaggio NUOVO.
+ *  Lo chiamano i tre ingressi dei messaggi WhatsApp (webhook di Meta, risposte
+ *  di ManyChat, ponte del Mac per i soli messaggi vivi) quando arriva un
+ *  messaggio NUOVO. Dal 30/10/2026 va al consulente del lead e al titolare,
+ *  non più a tutti i telefoni dello studio (`destinatari` in avviso.ts).
  *  ⚠️ NON LANCIA MAI e non fa aspettare: un guasto qui non deve far perdere il
  *   messaggio in arrivo. Ogni invio ha un tetto di 4 secondi.
  *  ⚠️ Un'iscrizione che il servizio dice morta (404/410: notifiche disattivate,
  *   app tolta dalla Home) si cancella, così non si riprova all'infinito.
  *  Nei log solo codici, mai nomi o numeri. */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { avvisoWhatsapp, chiaviDaAmbiente, type AvvisoPush } from "./avviso";
+import {
+  FINESTRA_AVVISO_S,
+  avvisaRisposta,
+  chiaviDaAmbiente,
+  type AvvisoPush,
+  type PorteAvviso,
+} from "./avviso";
 import { richiestaPush } from "./webpush";
 
 type Iscrizione = {
@@ -128,47 +136,103 @@ async function consulentiNonAttivi(lista: Iscrizione[]): Promise<Set<string>> {
   }
 }
 
-/** Il nome della scheda (nome e cognome), letto dal server. */
-async function nomeScheda(leadId: string | null | undefined): Promise<string | null> {
-  if (!leadId) return null;
-  try {
-    const { data } = await (
-      supabaseAdmin as unknown as {
-        from: (t: string) => {
-          select: (c: string) => {
-            eq: (
-              k: string,
-              v: string,
-            ) => {
-              maybeSingle: () => Promise<{
-                data: { data?: { nome?: string; cognome?: string } } | null;
-              }>;
-            };
-          };
-        };
-      }
-    )
-      .from("crm_leads")
-      .select("data")
-      .eq("id", leadId)
-      .maybeSingle();
-    const d = data?.data;
-    return d ? `${d.nome ?? ""} ${d.cognome ?? ""}`.trim() || null : null;
-  } catch {
-    return null;
+//  I tipi generati non conoscono la funzione e la tabella nuove.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const sb = () =>
+  supabaseAdmin as unknown as {
+    from: (t: string) => any;
+    rpc: (f: string, a: Record<string, unknown>) => any;
+  };
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Nome e consulente della scheda, letti dal server: dal lead se c'è,
+ *  altrimenti dal numero nella rubrica WhatsApp (il ponte non ha il lead).
+ *  Sempre con `user_id` nel filtro: la chiave di servizio salta la RLS. */
+async function schedaDi(
+  userId: string,
+  leadId: string | null,
+  telefono: string,
+): Promise<{ nome: string | null; consulenteId: string | null } | null> {
+  let id = leadId;
+  if (!id) {
+    const cifre = telefono.replace(/\D/g, "");
+    if (!cifre) return null;
+    const { data, error } = await sb()
+      .from("whatsapp_contacts")
+      .select("lead_id")
+      .eq("user_id", userId)
+      .in("phone_e164", [`+${cifre}`, cifre])
+      .not("lead_id", "is", null)
+      .limit(1);
+    if (error) throw { code: error.code };
+    id = (data as { lead_id: string | null }[] | null)?.[0]?.lead_id ?? null;
   }
+  if (!id) return null;
+  const { data, error } = await sb()
+    .from("crm_leads")
+    .select("data")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw { code: error.code };
+  const d = (
+    data as { data?: { nome?: string; cognome?: string; consulenteId?: string | null } } | null
+  )?.data;
+  if (!d) return null;
+  return {
+    nome: `${d.nome ?? ""} ${d.cognome ?? ""}`.trim() || null,
+    consulenteId: typeof d.consulenteId === "string" && d.consulenteId ? d.consulenteId : null,
+  };
 }
 
-/** Un messaggio WhatsApp nuovo: avvisa tutti i telefoni iscritti dello studio. */
+/** Le porte vere di `avvisaRisposta`. */
+const porteAvviso: PorteAvviso<Iscrizione> = {
+  acceso: () => !!chiaviDaAmbiente(process.env as Record<string, string | undefined>),
+  porta: async (userId, chiave) => {
+    const { data, error } = await sb().rpc("push_avviso_porta", {
+      p_user_id: userId,
+      p_chiave: chiave,
+      p_finestra_s: FINESTRA_AVVISO_S,
+    });
+    //  Senza la migrazione la porta non c'è: `avvisaRisposta` avvisa comunque.
+    if (error) throw { code: error.code };
+    return data === true;
+  },
+  scheda: schedaDi,
+  iscrizioni: async (userId) => {
+    const { data, error } = await db()
+      .from("push_iscrizioni")
+      .select("id, endpoint, p256dh, auth, consulente_id")
+      .eq("user_id", userId);
+    if (error) throw { code: (error as { code?: string }).code };
+    return data ?? [];
+  },
+  invia: (userId, avviso, lista) => inviaATutti(userId, avviso, lista),
+};
+
+/** Un messaggio WhatsApp in entrata vero (ManyChat, webhook di Meta, ponte
+ *  vivo): avvisa il consulente del lead e il titolare, una volta per numero
+ *  ogni `FINESTRA_AVVISO_S` (lo stesso messaggio arriva da più strade). Non
+ *  lancia mai. Eco, doppioni e storico non arrivano qui: li scartano prima
+ *  `manychat/risposta.ts` e `ponte/ingresso.ts`. */
 export async function avvisaMessaggioWhatsapp(p: {
   userId: string;
   telefono: string;
   leadId?: string | null;
   nomeProfilo?: string | null;
 }): Promise<void> {
-  const nome = await nomeScheda(p.leadId);
-  await inviaATutti(
-    p.userId,
-    avvisoWhatsapp({ telefono: p.telefono, nomeScheda: nome, nomeProfilo: p.nomeProfilo }),
+  const esito = await avvisaRisposta(porteAvviso, p);
+  if (esito === "errore") console.warn("[push] avviso non riuscito");
+}
+
+/** I numeri del ponte vivo che hanno scritto (`ponte/ingresso.ts`). */
+export async function avvisaEntratePonte(
+  userId: string,
+  entrate: { numero: string; nome: string | null }[],
+): Promise<void> {
+  await Promise.all(
+    entrate.map((e) =>
+      avvisaMessaggioWhatsapp({ userId, telefono: `+${e.numero}`, nomeProfilo: e.nome }),
+    ),
   );
 }

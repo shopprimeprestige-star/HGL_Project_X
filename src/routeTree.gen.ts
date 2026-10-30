@@ -52,6 +52,7 @@ import { Route as HooksTiktokAdPauseRouteImport } from './routes/hooks/tiktok-ad
 import { Route as HooksTiktokAdInsightsRouteImport } from './routes/hooks/tiktok-ad-insights'
 import { Route as HooksScoreSnapshotRouteImport } from './routes/hooks/score-snapshot'
 import { Route as HooksRiepilogoSeraleRouteImport } from './routes/hooks/riepilogo-serale'
+import { Route as HooksRiepilogoMattinoRouteImport } from './routes/hooks/riepilogo-mattino'
 import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/promemoria-whatsapp'
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
@@ -60,7 +61,9 @@ import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-g
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
+import { Route as HooksControlloNotteRouteImport } from './routes/hooks/controllo-notte'
 import { Route as HooksAttesaDaChiamareRouteImport } from './routes/hooks/attesa-da-chiamare'
+import { Route as HooksAssenzaMeetRouteImport } from './routes/hooks/assenza-meet'
 import { Route as ConsulenteRegistratiRouteImport } from './routes/consulente.registrati'
 import { Route as ConsulenteLeadsRouteImport } from './routes/consulente.leads'
 import { Route as ConsulenteKpiRouteImport } from './routes/consulente.kpi'
@@ -93,6 +96,7 @@ import { Route as CRMImportaLeadRouteImport } from './routes/CRM.importa-lead'
 import { Route as CRMImportaRouteImport } from './routes/CRM.importa'
 import { Route as CRMFattureRouteImport } from './routes/CRM.fatture'
 import { Route as CRMDafareRouteImport } from './routes/CRM.dafare'
+import { Route as CRMCruscottoWaRouteImport } from './routes/CRM.cruscotto-wa'
 import { Route as CRMContabilitaRouteImport } from './routes/CRM.contabilita'
 import { Route as CRMConsulentiRouteImport } from './routes/CRM.consulenti'
 import { Route as CRMChatRouteImport } from './routes/CRM.chat'
@@ -195,11 +199,13 @@ import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-mo
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmDettaturaRouteImport } from './routes/api.crm.dettatura'
+import { Route as ApiCrmCruscottoWaRouteImport } from './routes/api.crm.cruscotto-wa'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
 import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
 import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
+import { Route as ApiCrmAssenzaAutoRouteImport } from './routes/api.crm.assenza-auto'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
 import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
@@ -428,6 +434,11 @@ const HooksRiepilogoSeraleRoute = HooksRiepilogoSeraleRouteImport.update({
   path: '/hooks/riepilogo-serale',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HooksRiepilogoMattinoRoute = HooksRiepilogoMattinoRouteImport.update({
+  id: '/hooks/riepilogo-mattino',
+  path: '/hooks/riepilogo-mattino',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HooksPromemoriaWhatsappRoute = HooksPromemoriaWhatsappRouteImport.update({
   id: '/hooks/promemoria-whatsapp',
   path: '/hooks/promemoria-whatsapp',
@@ -468,9 +479,19 @@ const HooksCronHistoryRoute = HooksCronHistoryRouteImport.update({
   path: '/hooks/cron-history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HooksControlloNotteRoute = HooksControlloNotteRouteImport.update({
+  id: '/hooks/controllo-notte',
+  path: '/hooks/controllo-notte',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HooksAttesaDaChiamareRoute = HooksAttesaDaChiamareRouteImport.update({
   id: '/hooks/attesa-da-chiamare',
   path: '/hooks/attesa-da-chiamare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksAssenzaMeetRoute = HooksAssenzaMeetRouteImport.update({
+  id: '/hooks/assenza-meet',
+  path: '/hooks/assenza-meet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsulenteRegistratiRoute = ConsulenteRegistratiRouteImport.update({
@@ -631,6 +652,11 @@ const CRMFattureRoute = CRMFattureRouteImport.update({
 const CRMDafareRoute = CRMDafareRouteImport.update({
   id: '/dafare',
   path: '/dafare',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMCruscottoWaRoute = CRMCruscottoWaRouteImport.update({
+  id: '/cruscotto-wa',
+  path: '/cruscotto-wa',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMContabilitaRoute = CRMContabilitaRouteImport.update({
@@ -1157,6 +1183,11 @@ const ApiCrmDettaturaRoute = ApiCrmDettaturaRouteImport.update({
   path: '/api/crm/dettatura',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmCruscottoWaRoute = ApiCrmCruscottoWaRouteImport.update({
+  id: '/api/crm/cruscotto-wa',
+  path: '/api/crm/cruscotto-wa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmCopiaAutomaticaRoute = ApiCrmCopiaAutomaticaRouteImport.update({
   id: '/api/crm/copia-automatica',
   path: '/api/crm/copia-automatica',
@@ -1180,6 +1211,11 @@ const ApiCrmBlogRoute = ApiCrmBlogRouteImport.update({
 const ApiCrmBackupRoute = ApiCrmBackupRouteImport.update({
   id: '/api/crm/backup',
   path: '/api/crm/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCrmAssenzaAutoRoute = ApiCrmAssenzaAutoRouteImport.update({
+  id: '/api/crm/assenza-auto',
+  path: '/api/crm/assenza-auto',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCrmAnteprimeStatoRoute = ApiCrmAnteprimeStatoRouteImport.update({
@@ -1273,6 +1309,7 @@ export interface FileRoutesByFullPath {
   '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
+  '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
@@ -1305,7 +1342,9 @@ export interface FileRoutesByFullPath {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
+  '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
@@ -1314,6 +1353,7 @@ export interface FileRoutesByFullPath {
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
   '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
+  '/hooks/riepilogo-mattino': typeof HooksRiepilogoMattinoRoute
   '/hooks/riepilogo-serale': typeof HooksRiepilogoSeraleRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
@@ -1344,11 +1384,13 @@ export interface FileRoutesByFullPath {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1474,6 +1516,7 @@ export interface FileRoutesByTo {
   '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
+  '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
@@ -1504,7 +1547,9 @@ export interface FileRoutesByTo {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
+  '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
@@ -1513,6 +1558,7 @@ export interface FileRoutesByTo {
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
   '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
+  '/hooks/riepilogo-mattino': typeof HooksRiepilogoMattinoRoute
   '/hooks/riepilogo-serale': typeof HooksRiepilogoSeraleRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
@@ -1543,11 +1589,13 @@ export interface FileRoutesByTo {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1677,6 +1725,7 @@ export interface FileRoutesById {
   '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
+  '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
@@ -1709,7 +1758,9 @@ export interface FileRoutesById {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
+  '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
@@ -1718,6 +1769,7 @@ export interface FileRoutesById {
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
   '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
+  '/hooks/riepilogo-mattino': typeof HooksRiepilogoMattinoRoute
   '/hooks/riepilogo-serale': typeof HooksRiepilogoSeraleRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
@@ -1748,11 +1800,13 @@ export interface FileRoutesById {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1883,6 +1937,7 @@ export interface FileRouteTypes {
     | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
+    | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
     | '/CRM/fatture'
     | '/CRM/importa'
@@ -1915,7 +1970,9 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
+    | '/hooks/controllo-notte'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
@@ -1924,6 +1981,7 @@ export interface FileRouteTypes {
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
     | '/hooks/promemoria-whatsapp'
+    | '/hooks/riepilogo-mattino'
     | '/hooks/riepilogo-serale'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
@@ -1954,11 +2012,13 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/cruscotto-wa'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2084,6 +2144,7 @@ export interface FileRouteTypes {
     | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
+    | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
     | '/CRM/fatture'
     | '/CRM/importa'
@@ -2114,7 +2175,9 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
+    | '/hooks/controllo-notte'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
@@ -2123,6 +2186,7 @@ export interface FileRouteTypes {
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
     | '/hooks/promemoria-whatsapp'
+    | '/hooks/riepilogo-mattino'
     | '/hooks/riepilogo-serale'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
@@ -2153,11 +2217,13 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/cruscotto-wa'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2286,6 +2352,7 @@ export interface FileRouteTypes {
     | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
+    | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
     | '/CRM/fatture'
     | '/CRM/importa'
@@ -2318,7 +2385,9 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
+    | '/hooks/controllo-notte'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
@@ -2327,6 +2396,7 @@ export interface FileRouteTypes {
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
     | '/hooks/promemoria-whatsapp'
+    | '/hooks/riepilogo-mattino'
     | '/hooks/riepilogo-serale'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
@@ -2357,11 +2427,13 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/cruscotto-wa'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2489,7 +2561,9 @@ export interface RootRouteChildren {
   ApiWhatsappSendRoute: typeof ApiWhatsappSendRoute
   ApiWhatsappTemplatesRoute: typeof ApiWhatsappTemplatesRoute
   BlogSlugRoute: typeof BlogSlugRoute
+  HooksAssenzaMeetRoute: typeof HooksAssenzaMeetRoute
   HooksAttesaDaChiamareRoute: typeof HooksAttesaDaChiamareRoute
+  HooksControlloNotteRoute: typeof HooksControlloNotteRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
@@ -2498,6 +2572,7 @@ export interface RootRouteChildren {
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
   HooksPromemoriaWhatsappRoute: typeof HooksPromemoriaWhatsappRoute
+  HooksRiepilogoMattinoRoute: typeof HooksRiepilogoMattinoRoute
   HooksRiepilogoSeraleRoute: typeof HooksRiepilogoSeraleRoute
   HooksScoreSnapshotRoute: typeof HooksScoreSnapshotRoute
   HooksTiktokAdInsightsRoute: typeof HooksTiktokAdInsightsRoute
@@ -2521,11 +2596,13 @@ export interface RootRouteChildren {
   ApiCrmAccessoRoute: typeof ApiCrmAccessoRoute
   ApiCrmAiRoute: typeof ApiCrmAiRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
+  ApiCrmAssenzaAutoRoute: typeof ApiCrmAssenzaAutoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
   ApiCrmBlogRoute: typeof ApiCrmBlogRoute
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
   ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
+  ApiCrmCruscottoWaRoute: typeof ApiCrmCruscottoWaRoute
   ApiCrmDettaturaRoute: typeof ApiCrmDettaturaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
@@ -2920,6 +2997,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HooksRiepilogoSeraleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hooks/riepilogo-mattino': {
+      id: '/hooks/riepilogo-mattino'
+      path: '/hooks/riepilogo-mattino'
+      fullPath: '/hooks/riepilogo-mattino'
+      preLoaderRoute: typeof HooksRiepilogoMattinoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/hooks/promemoria-whatsapp': {
       id: '/hooks/promemoria-whatsapp'
       path: '/hooks/promemoria-whatsapp'
@@ -2976,11 +3060,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HooksCronHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hooks/controllo-notte': {
+      id: '/hooks/controllo-notte'
+      path: '/hooks/controllo-notte'
+      fullPath: '/hooks/controllo-notte'
+      preLoaderRoute: typeof HooksControlloNotteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/hooks/attesa-da-chiamare': {
       id: '/hooks/attesa-da-chiamare'
       path: '/hooks/attesa-da-chiamare'
       fullPath: '/hooks/attesa-da-chiamare'
       preLoaderRoute: typeof HooksAttesaDaChiamareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/assenza-meet': {
+      id: '/hooks/assenza-meet'
+      path: '/hooks/assenza-meet'
+      fullPath: '/hooks/assenza-meet'
+      preLoaderRoute: typeof HooksAssenzaMeetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consulente/registrati': {
@@ -3205,6 +3303,13 @@ declare module '@tanstack/react-router' {
       path: '/dafare'
       fullPath: '/CRM/dafare'
       preLoaderRoute: typeof CRMDafareRouteImport
+      parentRoute: typeof CRMRoute
+    }
+    '/CRM/cruscotto-wa': {
+      id: '/CRM/cruscotto-wa'
+      path: '/cruscotto-wa'
+      fullPath: '/CRM/cruscotto-wa'
+      preLoaderRoute: typeof CRMCruscottoWaRouteImport
       parentRoute: typeof CRMRoute
     }
     '/CRM/contabilita': {
@@ -3921,6 +4026,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmDettaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/cruscotto-wa': {
+      id: '/api/crm/cruscotto-wa'
+      path: '/api/crm/cruscotto-wa'
+      fullPath: '/api/crm/cruscotto-wa'
+      preLoaderRoute: typeof ApiCrmCruscottoWaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/copia-automatica': {
       id: '/api/crm/copia-automatica'
       path: '/api/crm/copia-automatica'
@@ -3954,6 +4066,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/backup'
       fullPath: '/api/crm/backup'
       preLoaderRoute: typeof ApiCrmBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/assenza-auto': {
+      id: '/api/crm/assenza-auto'
+      path: '/api/crm/assenza-auto'
+      fullPath: '/api/crm/assenza-auto'
+      preLoaderRoute: typeof ApiCrmAssenzaAutoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/anteprime-stato': {
@@ -4073,6 +4192,7 @@ interface CRMRouteChildren {
   CRMChatRoute: typeof CRMChatRoute
   CRMConsulentiRoute: typeof CRMConsulentiRoute
   CRMContabilitaRoute: typeof CRMContabilitaRoute
+  CRMCruscottoWaRoute: typeof CRMCruscottoWaRoute
   CRMDafareRoute: typeof CRMDafareRoute
   CRMFattureRoute: typeof CRMFattureRoute
   CRMImportaRoute: typeof CRMImportaRoute
@@ -4108,6 +4228,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMChatRoute: CRMChatRoute,
   CRMConsulentiRoute: CRMConsulentiRoute,
   CRMContabilitaRoute: CRMContabilitaRoute,
+  CRMCruscottoWaRoute: CRMCruscottoWaRoute,
   CRMDafareRoute: CRMDafareRoute,
   CRMFattureRoute: CRMFattureRoute,
   CRMImportaRoute: CRMImportaRoute,
@@ -4212,7 +4333,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappSendRoute: ApiWhatsappSendRoute,
   ApiWhatsappTemplatesRoute: ApiWhatsappTemplatesRoute,
   BlogSlugRoute: BlogSlugRoute,
+  HooksAssenzaMeetRoute: HooksAssenzaMeetRoute,
   HooksAttesaDaChiamareRoute: HooksAttesaDaChiamareRoute,
+  HooksControlloNotteRoute: HooksControlloNotteRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
@@ -4221,6 +4344,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
   HooksPromemoriaWhatsappRoute: HooksPromemoriaWhatsappRoute,
+  HooksRiepilogoMattinoRoute: HooksRiepilogoMattinoRoute,
   HooksRiepilogoSeraleRoute: HooksRiepilogoSeraleRoute,
   HooksScoreSnapshotRoute: HooksScoreSnapshotRoute,
   HooksTiktokAdInsightsRoute: HooksTiktokAdInsightsRoute,
@@ -4244,11 +4368,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmAccessoRoute: ApiCrmAccessoRoute,
   ApiCrmAiRoute: ApiCrmAiRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
+  ApiCrmAssenzaAutoRoute: ApiCrmAssenzaAutoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,
   ApiCrmBlogRoute: ApiCrmBlogRoute,
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,
   ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
+  ApiCrmCruscottoWaRoute: ApiCrmCruscottoWaRoute,
   ApiCrmDettaturaRoute: ApiCrmDettaturaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,

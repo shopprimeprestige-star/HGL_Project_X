@@ -9,6 +9,7 @@
 --  appaiata    = riga del ponte con duplicato_di (vista da due fonti)
 --  solo_ponte  = entrata del ponte senza pari: ManyChat non l'ha mandata, o è un testo ripetuto
 --                (colonna ripete_testo) scartato come eco/doppione da ecoDi
+--  appaiata_o_prima_del_ponte = entrata ManyChat/Cloud con la riga del ponte, oppure precedente alla prima riga del ponte
 --  solo_altra  = entrata ManyChat/Cloud senza riga del ponte, DOPO la prima riga del ponte:
 --                il ponte non l'ha vista, oppure è un'eco (colonna dopo_uscita_90s: un'uscita
 --                dello studio nei 90 s prima)
@@ -42,7 +43,7 @@ WITH params AS (
          CASE WHEN e.fonte = 'ponte' AND e.duplicato_di IS NOT NULL THEN 'appaiata'
               WHEN e.fonte = 'ponte' THEN 'solo_ponte'
               WHEN e.duplicato_di IS NULL AND NOT e.ha_pari_del_ponte AND e.created_at >= coalesce(pd.da, 'infinity') THEN 'solo_altra'
-              ELSE 'appaiata' END AS classe
+              ELSE 'appaiata_o_prima_del_ponte' END AS classe
     FROM entrate e LEFT JOIN ponte_dal pd USING (user_id)
    WHERE e.duplicato_di IS NULL OR e.fonte = 'ponte'
 )
@@ -57,7 +58,7 @@ SELECT classe, fonte, count(*) AS entrate,
 
 -- 2. Per ora (UTC) e classe: dove cadono i buchi (rilanciate la parte WITH con questa SELECT).
 -- SELECT date_trunc('hour', created_at) AS ora_utc, classe, count(*) FROM classi
---  WHERE classe <> 'appaiata' GROUP BY 1, 2 ORDER BY 1, 2;
+--  WHERE classe NOT LIKE 'appaiata%' GROUP BY 1, 2 ORDER BY 1, 2;
 
 -- 3. Dopo quante ore dall'ultima uscita dello studio cade una entrata «solo ponte»:
 --    se ManyChat tace per ore dopo una nostra risposta, è la pausa dell'automazione (Live Chat).

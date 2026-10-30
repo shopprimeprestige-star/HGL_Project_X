@@ -47,11 +47,22 @@ Cosa prova: `ponte_wa_noti` (scheda sulle ultime 9 cifre, contatto col «+» o s
 
 Se un controllo dice `KO`, **la migrazione del ponte non va applicata in produzione**: l'uscita va in LAVAGNA.
 
-## Stato
+## `chat-veloce.sql` (p1-chat-veloce, commessa 2026-10-30-ottimizzazioni)
+
+Serve un database di prova con TUTTE le migrazioni applicate in ordine (`supabase start` va bene). Un solo passo, dalla radice del repo:
+
+```sh
+psql "$DB" -f prove/sql/chat-veloce.sql
+```
+
+Gira in una transazione che finisce con `ROLLBACK`: crea chat inventate, applica `20261030101100_p1-chat-veloce.sql` **due volte** e controlla il riempimento delle anteprime (uscite comprese, contatto col «+» o senza, doppioni del ponte ed eco vecchie di ManyChat escluse, un utente non tocca l'altro), il trigger dei messaggi nuovi (anteprima tagliata a 200 caratteri, mai indietro con lo storico, mai per un doppione, `updated_at` del contatto mosso), `cambiato_il` scritto dal database all'inserimento e a ogni modifica, il contatto creato dopo il suo primo messaggio, le funzioni chiuse a `anon` e `authenticated`. Uscita attesa: tutte righe `ok` e in fondo `TUTTI I CONTROLLI DELLA CHAT VELOCE PASSANO`.
+
 
 `sheets-lucchetto.sql`: scritto insieme alla migrazione S1 ma **non ancora eseguito** (nella postazione dove sono stati scritti non c'era un Postgres). Li lancia chi ha il database di prova, e la loro uscita va in LAVAGNA prima di applicare S1.
 
 `ponte-wa.sql`: scritto con T1 (29/10) ma **non ancora eseguito**: nella postazione dello sviluppatore non c'è Postgres (`which postgres psql` vuoto). Va lanciato prima di applicare la migrazione.
+
+`chat-veloce.sql`: eseguito il 30/10 su un Postgres 16 locale usa-e-getta con le sole tabelle `whatsapp_messages` e `whatsapp_contacts` (non tutte le migrazioni): tutte righe `ok`. La migrazione è stata provata anche su tabelle SENZA le colonne del ponte (`canale`, `duplicato_di`): si applica e il trigger lavora. Il 30/10 il capo progetto l'ha lanciato con TUTTE le 66 migrazioni (`commesse/2026-10-30-ottimizzazioni/strumenti/pg-prova.sh`): il controllo delle eco falliva perché i trigger della migrazione, già applicata, scattavano mentre si creava il mondo «di prima»; lo script ora li toglie prima (dentro la transazione). Rilanciato: tutte le 17 righe `ok` e `TUTTI I CONTROLLI DELLA CHAT VELOCE PASSANO`.
 
 ## `ponte-invio.sql` (T1, invio a mano dal ponte dopo le 24 ore)
 

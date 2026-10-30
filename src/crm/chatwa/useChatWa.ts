@@ -9,9 +9,11 @@
  *   1. carica i modelli di testo salvati (servono a otto pagine, non solo all'editor);
  *   2. legge le chiavi Meta (`whatsapp_settings`) → `hasConfig`;
  *   3. legge il canale (`/api/crm/whatsapp-canale`) → `canale`;
- *   4. carica messaggi + contatti al montaggio e cambio utente (`reload`);
- *   5. realtime su `whatsapp_messages` e `whatsapp_contacts` → `reload`;
- *   6. legge TUTTA la chat aperta (e la rilegge a ogni `reload`);
+ *   4. carica messaggi + contatti al montaggio e cambio utente (`reload("tutto")`):
+ *      prima 300 messaggi (la pagina si vede subito), poi i 2000 (`"completa"`);
+ *   5. realtime su `whatsapp_messages` e `whatsapp_contacts` → `reload()` A PEZZI:
+ *      solo le righe scritte da poco (p1-chat-veloce, 30/10/2026, vedi sotto);
+ *   6. legge TUTTA la chat aperta (e la rilegge a ogni lettura completa);
  *   7. segna letto il contatto quando si apre una chat con `unread_count > 0`;
  *   8. un solo timer (30 s) tiene vere «da 25 min» e le ore rimaste.
  *  (Lo scorrimento in basso dei messaggi sta in `Conversazione`, dov'è il suo elemento.)
@@ -46,10 +48,14 @@ import {
   type EventoDb,
   eventoDaIgnorare,
   finestra24,
+  cursore,
   leggiContattiAPagine,
   leggiSenzaDoppioni,
   schedaUnica,
   statoCasella,
+  togliPerId,
+  unisciContatti,
+  unisciMessaggi,
 } from "./stato";
 import type { ChatItem, ChatWaApi, FiltroChat, WaContactRow, WaMessageRow } from "./tipi";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
@@ -67,6 +73,7 @@ interface Esito {
 interface Query extends PromiseLike<Esito> {
   select(colonne: string): Query;
   eq(colonna: string, valore: string): Query;
+  gte(colonna: string, valore: string): Query;
   is(colonna: string, valore: null): Query;
   range(da: number, a: number): Query;
   or(condizioni: string): Query;
@@ -91,6 +98,29 @@ const filtroNumero = (phone: string) => {
   const d = digitsOnly(phone);
   return `from_number.eq.+${d},to_number.eq.+${d},from_number.eq.${d},to_number.eq.${d}`;
 };
+
+/** Le colonne dei messaggi che servono alla pagina: senza `raw_payload` (il carico
+ *  grosso, sul telefono). Se una manca (migrazioni non applicate) si ripiega su `*`. */
+const COLONNE_MSG =
+  "id,user_id,lead_id,direction,from_number,to_number,body,status,wa_message_id," +
+  "error_message,created_at,delivered_at,read_at,canale,duplicato_di,cambiato_il";
+
+/** ── LE LETTURE A PEZZI (p1-chat-veloce, 30/10/2026) ──────────────────────
+ *  Prima ogni evento rileggeva 2000 messaggi e tutti i contatti. Ora:
+ *   · prima lettura: 300 messaggi + i contatti (la pagina si vede subito), poi
+ *     i 2000 in sottofondo (`"completa"`), solo se ce ne sono di più;
+ *   · ogni evento, controllo dei 15 s, invio, «Fatto»: solo le righe scritte da
+ *     poco (`cursore` in stato.ts), unite per id a quelle in pagina;
+ *   · «Aggiorna» e il ritorno dopo una pausa lunga: tutto da capo (`"tutto"`).
+ *  Le cancellazioni la lettura a pezzi non le vede: arrivano dall'evento DELETE.
+ *  Senza la migrazione (`cambiato_il` manca) i messaggi si leggono interi, come prima. */
+type Modo = "pezzi" | "tutto" | "completa";
+const PRIMA_LETTURA = 300;
+const RECENTI = 2000;
+/** Oltre così tante righe cambiate insieme (storico importato) si rilegge tutto. */
+const PEZZO_MSG = 500;
+const PEZZO_CONTATTI = 1000;
+const PESO: Record<Modo, number> = { pezzi: 0, completa: 1, tutto: 2 };
 
 /** Il messaggio più nuovo/i più recenti dell'utente, senza i doppioni del ponte (`duplicato_di` vuoto). */
 const messaggiRecenti = (userId: string, colonne: string, n: number) => (filtra: boolean) => {
@@ -140,6 +170,14 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   const [bozza, setBozza] = useState("");
   const [messages, setMessages] = useState<WaMessageRow[]>([]);
   const [contacts, setContacts] = useState<WaContactRow[]>([]);
+  /** Le stesse righe di `messages`/`contacts`, subito (senza aspettare il rendering):
+   *  le letture a pezzi si uniscono qui. `letture` = letture riuscite (0 = mai). */
+  const datiRef = useRef({
+    messaggi: [] as WaMessageRow[],
+    contatti: [] as WaContactRow[],
+    troncato: false,
+    letture: 0,
+  });
   const [caricamento, setCaricamento] = useState(true);
   const [inviando, setInviando] = useState(false);
   const [hasConfig, setHasConfig] = useState<boolean | null>(null);
@@ -227,26 +265,67 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   // Caricamento messaggi + contatti
   //  ⚠️ I messaggi si leggono dal PIÙ NUOVO (DESC) e poi si capovolgono: con ASC
   //   si prendevano i 2000 più VECCHI e, superata quota, i nuovi sparivano.
-  const reload = async () => {
+  //  `modo`: "pezzi" (di norma), "tutto" (prima volta, «Aggiorna»), "completa"
+  //  (i 2000 messaggi dopo i primi 300; i contatti a pezzi).
+  const reload = async (modo: Modo = "pezzi"): Promise<void> => {
     if (!user) return;
+    const d = datiRef.current;
+    const primo = d.letture === 0;
+    const curM = cursore(d.messaggi as unknown as Record<string, unknown>[], [
+      "cambiato_il",
+      "created_at",
+    ]);
+    const curC = cursore(d.contatti as unknown as Record<string, unknown>[], ["updated_at"]);
+    const tuttiMsg = primo || modo !== "pezzi" || curM === null;
+    const tuttiCont = primo || modo === "tutto" || curC === null;
+    const quanti = primo && modo !== "completa" ? PRIMA_LETTURA : RECENTI;
+
+    const recenti = async () => {
+      //  Senza i doppioni del ponte: non consumano posti dei 2000 (`leggiSenzaDoppioni`).
+      let r = await leggiSenzaDoppioni(messaggiRecenti(user.id, COLONNE_MSG, quanti));
+      //  Manca `cambiato_il` (migrazione p1 non applicata): tutte le colonne, come prima.
+      if (r.error && mancaColonna(r.error))
+        r = await leggiSenzaDoppioni(messaggiRecenti(user.id, "*", quanti));
+      return { ...r, tutti: true };
+    };
+    const leggiMessaggi = async () => {
+      if (tuttiMsg) return recenti();
+      //  Senza filtro sui doppioni: un doppione marcato DOPO deve arrivare, per toglierlo.
+      const r = await tabella("whatsapp_messages")
+        .select(COLONNE_MSG)
+        .eq("user_id", user.id)
+        .gte("cambiato_il", curM as string)
+        .order("cambiato_il", { ascending: true })
+        .limit(PEZZO_MSG);
+      if (r.error ? mancaColonna(r.error) : ((r.data as unknown[]) ?? []).length >= PEZZO_MSG)
+        return recenti();
+      return { ...r, tutti: false };
+    };
+    const tuttiIContatti = () =>
+      //  I contatti a pagine di 1000: una richiesta sola ne darebbe 1000 in silenzio.
+      leggiContattiAPagine((da, a) =>
+        tabella("whatsapp_contacts")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("id", { ascending: true })
+          .range(da, a),
+      ).then((r) => ({ ...r, tutti: true }));
+    const leggiContatti = async () => {
+      if (tuttiCont) return tuttiIContatti();
+      const r = await tabella("whatsapp_contacts")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("updated_at", curC as string)
+        .order("updated_at", { ascending: true })
+        .limit(PEZZO_CONTATTI);
+      if (!r.error && ((r.data as unknown[]) ?? []).length >= PEZZO_CONTATTI)
+        return tuttiIContatti();
+      return { ...r, troncato: false, tutti: false };
+    };
     //  Lo spinner solo al primo caricamento (`caricamento` parte vero): ogni
     //  risposta fa più ricariche, e l'elenco non deve lampeggiare né perdere un tocco.
     //  Una lettura appesa o caduta vale come una lettura in errore (`null`).
-    const leggi = () =>
-      conTempo(
-        Promise.all([
-          //  Senza i doppioni del ponte: non consumano posti dei 2000 (`leggiSenzaDoppioni`).
-          leggiSenzaDoppioni(messaggiRecenti(user.id, "*", 2000)),
-          //  I contatti a pagine di 1000: una richiesta sola ne darebbe 1000 in silenzio.
-          leggiContattiAPagine((da, a) =>
-            tabella("whatsapp_contacts")
-              .select("*")
-              .eq("user_id", user.id)
-              .order("id", { ascending: true })
-              .range(da, a),
-          ),
-        ]),
-      ).catch(() => null);
+    const leggi = () => conTempo(Promise.all([leggiMessaggi(), leggiContatti()])).catch(() => null);
     let letti = await leggi();
     /*  ── LA SESSIONE SCADUTA SUL TELEFONO (29/10/2026) ──────────────────────
         Il titolare vedeva sul telefono solo le chat del giorno prima. Con il CRM
@@ -271,17 +350,42 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       return;
     }
     const [m, ct] = letti;
+    //  Uniti ai dati di ADESSO (`datiRef`), non a quelli di prima dell'attesa.
+    const ora = datiRef.current;
+    const righeM = (m.data as WaMessageRow[] | null) ?? [];
+    const righeC = (ct.data as WaContactRow[] | null) ?? [];
+    //  Una lettura completa fotografa il database: le righe arrivate in pagina
+    //  DOPO la sua partenza (lettura a pezzi in parallelo) si tengono.
+    const letteOra = new Set(righeM.map((x) => x.id));
+    const msgs = m.tutti
+      ? unisciMessaggi(
+          [...righeM].reverse(),
+          ora.messaggi.filter(
+            (x) => curM !== null && !letteOra.has(x.id) && (x.cambiato_il ?? x.created_at) > curM,
+          ),
+        )
+      : unisciMessaggi(ora.messaggi, righeM);
+    const cts = ct.tutti ? righeC : unisciContatti(ora.contatti, righeC);
+    datiRef.current = {
+      messaggi: msgs,
+      contatti: cts,
+      troncato: ct.tutti ? ct.troncato : ora.troncato,
+      letture: ora.letture + 1,
+    };
     //  shortcut: l'avviso dei contatti troncati riusa il banner d'errore in alto (con «Aggiorna»);
     //  se serve un avviso a parte, aggiungere un campo a `ChatWaApi`.
     setErroreLettura(
-      ct.troncato
+      datiRef.current.troncato
         ? "Ci sono più di 5000 contatti: se ne vedono solo i primi 5000, alcune chat potrebbero mancare."
         : null,
     );
     setAggiornatoIl(Date.now());
-    const cts = (ct.data as WaContactRow[] | null) ?? [];
-    setMessages(((m.data as WaMessageRow[] | null) ?? []).reverse());
+    setMessages(msgs);
     setContacts(cts);
+    //  Un doppione marcato dopo esce anche dalla chat aperta (letta a parte).
+    const doppi = new Set(righeM.filter((x) => x.duplicato_di).map((x) => x.id));
+    if (doppi.size > 0)
+      setExtra((e) => (e ? { ...e, righe: e.righe.filter((x) => !doppi.has(x.id)) } : e));
     //  Se il cliente ha riscritto, il «solo modelli» forzato non vale più.
     setForzati((prima) => {
       const resta = Object.entries(prima).filter(
@@ -291,13 +395,30 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       return resta.length === Object.keys(prima).length ? prima : Object.fromEntries(resta);
     });
     setCaricamento(false);
-    setLetture((n) => n + 1);
+    //  La chat aperta si rilegge intera solo dopo una lettura completa: a pezzi
+    //  le sue righe nuove arrivano già con le altre.
+    if (m.tutti) setLetture((n) => n + 1);
+    //  I primi 300 erano pieni: gli altri (fino a 2000) in sottofondo, a pagina già visibile.
+    if (primo && quanti === PRIMA_LETTURA && righeM.length >= PRIMA_LETTURA)
+      await reload("completa");
   };
 
-  useEffect(() => {
-    void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  /** Toglie una riga cancellata (evento DELETE): la lettura a pezzi non la vede. */
+  const togli = (t: "whatsapp_messages" | "whatsapp_contacts", id: string) => {
+    const d = datiRef.current;
+    if (t === "whatsapp_messages") {
+      const msgs = togliPerId(d.messaggi, id);
+      if (msgs === d.messaggi) return;
+      datiRef.current = { ...d, messaggi: msgs };
+      setMessages(msgs);
+      setExtra((e) => (e ? { ...e, righe: togliPerId(e.righe, id) } : e));
+    } else {
+      const cts = togliPerId(d.contatti, id);
+      if (cts === d.contatti) return;
+      datiRef.current = { ...d, contatti: cts };
+      setContacts(cts);
+    }
+  };
 
   /** ── I MESSAGGI NUOVI ARRIVANO SEMPRE (28/10/2026) ──────────────────────
    *  Il titolare riceveva messaggi che nella chat non comparivano finché non
@@ -313,6 +434,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
    *  Le ricariche si mettono in fila: mai due insieme. */
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
+  const togliRef = useRef(togli);
+  togliRef.current = togli;
   useEffect(() => {
     if (!user) return;
     let vivo = true;
@@ -321,25 +444,34 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     //  fine, se mai arriva, non tocca più niente (`turno`).
     let inCorso = 0;
     let turno = 0;
-    let ancora = false;
-    const ricarica = async () => {
+    //  La ricarica rimasta in fila: se ne chiedono più, vale la più ampia («tutto» vince).
+    let ancora: Modo | null = null;
+    const ricarica = async (modo: Modo = "pezzi") => {
       if (inCorso && Date.now() - inCorso < LIMITE_RICARICA) {
-        ancora = true;
+        if (ancora === null || PESO[modo] > PESO[ancora]) ancora = modo;
         return;
       }
       inCorso = Date.now();
       const mio = ++turno;
       try {
-        await reloadRef.current();
+        await reloadRef.current(modo);
       } catch {
         //  Rete caduta: si riprova al prossimo segnale (canale, controllo, ritorno sulla pagina).
       } finally {
         if (mio === turno) inCorso = 0;
-        if (mio === turno && ancora && vivo) {
-          ancora = false;
-          void ricarica();
+        if (mio === turno && ancora !== null && vivo) {
+          const poi = ancora;
+          ancora = null;
+          void ricarica(poi);
         }
       }
+    };
+    //  La prima lettura: tutto (300 messaggi subito, poi i 2000).
+    void ricarica("tutto");
+    //  Una riga cancellata si toglie subito dalla pagina (la lettura a pezzi non la vedrebbe).
+    const cancellata = (t: "whatsapp_messages" | "whatsapp_contacts", e: EventoDb) => {
+      const id = e?.eventType === "DELETE" ? e.old?.id : undefined;
+      if (typeof id === "string") togliRef.current(t, id);
     };
 
     let ch: ReturnType<typeof supabase.channel> | null = null;
@@ -367,6 +499,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           },
           //  Lo storico del ponte (messaggi vecchi) non riavvia la lettura: il controllo ogni 15 s resta la rete.
           (e: EventoDb) => {
+            cancellata("whatsapp_messages", e);
             if (!eventoDaIgnorare("whatsapp_messages", e, Date.now())) void ricarica();
           },
         )
@@ -379,6 +512,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             filter: `user_id=eq.${user.id}`,
           },
           (e: EventoDb) => {
+            cancellata("whatsapp_contacts", e);
             if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
           },
         );
@@ -439,7 +573,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       ch = null;
       if (vecchio) void supabase.removeChannel(vecchio);
       void apri().catch(() => {});
-      await ricarica();
+      await ricarica("tutto");
     };
     void controllaZitto();
     const giro = setInterval(() => void controllaZitto(), 15_000);
@@ -483,7 +617,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   }, [user]);
 
   //  Tutta la chat aperta, per telefono: i recenti non bastano per una chat vecchia.
-  //  Si rilegge a ogni `reload` (`letture`) e si butta via se la risposta arriva tardi.
+  //  Si rilegge a ogni lettura completa (`letture`) e si butta via se la risposta arriva tardi.
+  //  Senza `raw_payload` (`COLONNE_MSG`); se manca una colonna nuova, `*` come prima.
   useEffect(() => {
     if (!user || !activePhone) {
       setExtra(null);
@@ -493,7 +628,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     void (async () => {
       const { data } = await leggiSenzaDoppioni((filtra) => {
         const q = tabella("whatsapp_messages")
-          .select("*")
+          .select(filtra ? COLONNE_MSG : "*")
           .eq("user_id", user.id)
           .or(filtroNumero(activePhone));
         return (filtra ? q.is("duplicato_di", null) : q)
@@ -647,6 +782,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         t(x.lastMessage?.created_at),
         t(x.contact?.last_message_at),
         t(x.contact?.ultimo_in_entrata_il),
+        t(x.contact?.ultimo_messaggio_il),
       );
     return Array.from(map.values()).sort((a, b) => quando(b) - quando(a));
   }, [tutti, contacts, leads, adesso, ottimistici]);
@@ -963,7 +1099,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         .eq("user_id", user.id)
         .or(filtroNumero(attiva.phone));
       if (error) throw new Error(error.message);
-      // Azzero il contatto, se esiste: anche l'ultimo messaggio del cliente e il «risposto»,
+      // Azzero il contatto, se esiste: anche l'ultimo messaggio del cliente, il «risposto» e l'ultimo messaggio salvato,
       // altrimenti una chat eliminata resterebbe in «Da rispondere» (D19).
       let azzerato = true;
       if (attiva.contact) {
@@ -977,6 +1113,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           last_message_at: null,
           ultimo_in_entrata_il: null,
           risposto_il: null,
+          //  p1-chat-veloce: l'anteprima salvata sul contatto sparisce con i messaggi.
+          ultimo_messaggio_il: null,
+          ultimo_messaggio_anteprima: null,
+          ultimo_messaggio_direzione: null,
         });
         //  Colonne non ancora create: si riprova col solo set di prima.
         if (r.error && mancaColonna(r.error)) {
@@ -988,6 +1128,14 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       if (azzerato) toast.success("Chat eliminata");
       else toast.error("Messaggi eliminati, ma il contatto non si è azzerato: riprova");
       setActivePhone(null);
+      //  I messaggi cancellati escono subito dalla pagina (la lettura a pezzi non li vede).
+      const cifre = digitsOnly(attiva.phone);
+      const d = datiRef.current;
+      const resta = d.messaggi.filter(
+        (x) => digitsOnly(x.direction === "inbound" ? x.from_number : x.to_number) !== cifre,
+      );
+      datiRef.current = { ...d, messaggi: resta };
+      setMessages(resta);
       void reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore eliminazione");

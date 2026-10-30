@@ -391,6 +391,8 @@ function contenuto(message) {
       //  Un tipo che non conosciamo (prodotto, ordine, evento, invito…) è quasi
       //  sempre qualcosa che il cliente ha mandato davvero: si mostra il segnaposto,
       //  non si butta. Le cose che NON sono messaggi stanno in `NON_DA_MOSTRARE`.
+      //  Vale anche per un contenuto NOSTRO (`fromMe`) che non conosciamo, e per lo storico: una
+      //  riga in uscita «📎 Allegato» è voluta (la chat deve mostrare che qualcosa è partito).
       //  Il tipo resta nel conteggio `tipi` della diagnosi (`tipoGrezzo`).
       return t ? { tipo: "testo", testo: t } : { tipo: "altro", testo: SEGNAPOSTO.altro };
     }

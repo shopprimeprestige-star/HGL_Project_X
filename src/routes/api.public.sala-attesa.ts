@@ -36,6 +36,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { chiaveSessione } from "@/shop/chiave-sessione";
 import { BASE_SALA, leggiSala, scriviSala } from "@/shop/sala-attesa";
+import { BASE_PRESENZA } from "@/crm/manychat/consulenze";
 import { INTESTAZIONI_SALA, SEGRETO_INTESTAZIONE, trattaBussata, trattaStato, type Archivio } from "@/shop/uscita";
 
 const cors = {
@@ -110,8 +111,9 @@ export const Route = createFileRoute("/api/public/sala-attesa")({
             si rimette da sé al giro dopo — e l'alternativa (una tabella con un
             lock) vorrebbe dire una migrazione su un archivio di produzione.
             Se la decisione c'è già non si scrive niente (vedi `trattaBussata`). */
+        const sess = String(b.sess ?? "");
         const r = await trattaBussata(archivioSala, {
-          sess: String(b.sess ?? ""),
+          sess,
           pid: String(b.pid ?? ""),
           nome: String(b.nome ?? ""),
           dev: String(b.dev ?? ""),
@@ -120,6 +122,18 @@ export const Route = createFileRoute("/api/public/sala-attesa")({
           segreto: String(b.segreto ?? ""),
           k: String(b.k ?? ""),
         });
+        /*  ── LA PRESENZA CHE NON SI POTA (commessa 2026-10-30, p5) ──────────
+            La riga della sala si pota dopo mezz'ora: il giro dell'assenza
+            (hooks/assenza-meet) leggerebbe «nessuno» a chi è entrato da più di
+            30'. Qui si segna l'ora dell'ultima bussata, in una chiave che non si
+            pota. Un errore non ferma mai la bussata. */
+        if (r.status < 400 && sess.trim()) {
+          try {
+            await archivioSala.scrivi(chiaveSessione(BASE_PRESENZA, sess), String(Date.now()));
+          } catch {
+            /* la bussata vale lo stesso */
+          }
+        }
         return json(r.body, r.status);
       },
     },

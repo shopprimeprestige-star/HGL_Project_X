@@ -31,6 +31,7 @@ import { provePonteMigrazione } from "./ponte/migrazione.mjs";
 import { provePonteNonInterferenza } from "./ponte/non-interferenza.mjs";
 import { provePontePari } from "./ponte/pari.mjs";
 import { provePonteRotta } from "./ponte/rotta.mjs";
+import { provePonteServizioCache } from "./ponte/servizio-cache.mjs";
 import { provePonteServizioEstrai } from "./ponte/servizio-estrai.mjs";
 import { provePonteServizioGuardie } from "./ponte/servizio-guardie.mjs";
 import { provePonteServizioLotti } from "./ponte/servizio-lotti.mjs";
@@ -49,7 +50,7 @@ function campi(sorgente, nome) {
 function proveDelloScheletro(mod, { c, gruppo, radice }) {
   gruppo("PONTE WHATSAPP · LO SCHELETRO (compito T0)");
   const T = mod["ponte/tipi"];
-  c("i limiti del §b", { corpoByte: 262144, messaggi: 200, messaggiStorico: 50, testo: 4000, nome: 80, id: 128, nomi: 200, chiaviContatori: 20, tsOltreMinuti: 10, tokenMinimo: 32 }, T.LIMITI);
+  c("i limiti del §b", { corpoByte: 262144, messaggi: 200, messaggiStorico: 50, testo: 4000, nome: 80, id: 128, nomi: 200, numeri: 200, chiaviContatori: 22, tsOltreMinuti: 10, tokenMinimo: 32 }, T.LIMITI);
   c(
     "finestre e soglie del §c",
     [180, 120, 1000, 60, 7, 1230768000, 1200, "baileys", 1],
@@ -72,6 +73,8 @@ function proveDelloScheletro(mod, { c, gruppo, radice }) {
     BattitoPulito: ["stato", "collegato_dal", "ultimo_messaggio_il", "storico", "contatori", "versione"],
     RispostaLotto: ["ok", "ricevuti", "nuovi", "gia_presenti", "doppioni", "scartati", "fuori_rubrica", "non_noti"],
     RispostaBattito: ["ok", "riconciliati"],
+    RichiestaNoti: ["v", "tipo", "numeri"],
+    RispostaNoti: ["ok", "noti"],
     RigaScrittura: ["k", "n", "d", "t", "x", "e", "m", "s"],
     Pari: ["k", "crm"],
     Scrittura: ["righe", "pari", "nomi"],
@@ -87,7 +90,7 @@ function proveDelloScheletro(mod, { c, gruppo, radice }) {
   //  esporre i nomi del piano.
   const funzioni = {
     "ponte/pari": ["normalizzaTesto", "eOpaco", "abbinaPari"],
-    "ponte/ingresso": ["leggiLotto", "leggiBattito", "gestisciRichiesta"],
+    "ponte/ingresso": ["leggiLotto", "leggiBattito", "leggiNoti", "gestisciRichiesta"],
   };
   for (const [nome, attese] of Object.entries(funzioni)) {
     if (!existsSync(join(radice, `src/crm/${nome}.ts`))) continue;
@@ -113,6 +116,7 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteServizioEstrai(mod, aiuti);
   await provePonteMessaggiPersi(mod, aiuti);
   await provePonteServizioLotti(mod, aiuti);
+  await provePonteServizioCache(mod, aiuti);
   await provePonteServizioGuardie(mod, aiuti);
   await provePonteStatoChat(mod, aiuti);
   await provePonteBanner(mod, aiuti);

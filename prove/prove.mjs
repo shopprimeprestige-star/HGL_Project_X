@@ -29,7 +29,9 @@ import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
 import { proveIdeeCosti } from "./idee/costi.mjs";
 import { proveSheets } from "./sheets.mjs";
+import { provePushRisposte } from "./push.mjs";
 import { proveDelPonte } from "./ponte.mjs";
+import { proveLeadDoppiChiamate } from "./lead-doppi-chiamate.mjs";
 import { proveRiepilogoSerale } from "./idee/serale.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { proveIdeeAi } from "./idee/ai.mjs";
@@ -599,6 +601,8 @@ const MODULI = [
   //   prove in prove/manychat/chat-costi.mjs.
   "chatwa/costi-whatsapp",
   "chatwa/calcolo-costi",
+  //  Il Cruscotto WhatsApp (pacchetto p4-cruscotto-wa): prove in prove/manychat/cruscotto-wa.mjs.
+  "cruscotto-wa/calcolo",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
   //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
   "chatwa/risposte-rapide",
@@ -608,6 +612,9 @@ const MODULI = [
   //  Dettatura voce → testo nella casella (commessa 2026-10-28-chat-dettatura):
   //   prove in prove/manychat/chat-dettatura.mjs.
   "chatwa/dettatura",
+  //  Le note vocali nella scheda lead (commessa 2026-10-30-ottimizzazioni, p7):
+  //   prove in prove/manychat/note-vocali.mjs.
+  "nota-vocale",
   //  «Di ritorno» con lo stato di prima, nella chat (commessa
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
@@ -641,6 +648,9 @@ const MODULI = [
   ...["importa/pillole-stato", "importa/coda-pagina", "importa/avvisi-pagina", "importa/sezioni-altro"].filter((m) =>
     existsSync(join(radice, `src/crm/${m}.ts`)),
   ),
+  //  «Chi chiamare adesso» e il riepilogo del mattino (commessa
+  //   2026-10-30-ottimizzazioni, p6): prove in prove/lead-doppi-chiamate.mjs.
+  ...["chi-chiamare-adesso", "riepilogo-mattino"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21022,6 +21032,14 @@ function proveDellApriWhatsapp() {
     /href=\{apriWa\}/.test(riga) && /<IconaWhatsApp/.test(riga) && /finestra && !finestra\.aperta/.test(riga));
 }
 
+/** ── WHATSAPP: UNA DATA ALLA VOLTA IN CIMA ALLA CHAT (30/10/2026) ─────────── */
+function proveDelleDateInCima() {
+  gruppo("WHATSAPP: LA DATA NUOVA SPINGE VIA LA VECCHIA");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("un contenitore per giorno, con la sua data incollata in alto", true,
+    /giorniDi\(voci\)\.map\(\(g\) =>/.test(conv) && /className="mt-3 flex flex-col first:mt-0"/.test(conv) && /"sticky top-1 z-10/.test(conv));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21105,10 +21123,13 @@ await proveSheets(mod, { c, gruppo, radice });
 await proveLeadSemplice(mod, { c, gruppo, radice });
 await proveDelPonte(mod, { c, gruppo, radice });
 await proveLeadSemplicePagina(mod, { c, gruppo, radice });
+await proveLeadDoppiChiamate(mod, { c, gruppo, radice });
 proveDiWhatsappSulTelefono();
 proveDelTestoDeiModelli();
 proveDiWhatsappOrariStelle();
 await proveDelleNotifichePush();
+//  La notifica quando un lead risponde (commessa 2026-10-30, p2): prove/push.mjs.
+await provePushRisposte(mod, { c, gruppo, radice });
 proveDiWhatsappTemperaturaConsulente();
 proveDelDaChiamare();
 proveDelloStatoDaChiamare();
@@ -21127,6 +21148,7 @@ proveIdeeDafare(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
+proveDelleDateInCima();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21391,7 +21413,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 

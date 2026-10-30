@@ -52,9 +52,13 @@ export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non vis
 /** Un messaggio del cliente che WhatsApp ha consegnato al Mac ma che il ponte non
  *  ha potuto leggere (non decifrato, e il telefono non l'ha rimandato): il
  *  ponte ne sa solo numero e ora. Copiata in `strumenti/ponte-whatsapp/src/
- *  estrai.mjs` (le prove confrontano i valori). Fa da pari a qualunque ENTRATA
- *  vicina del CRM (ManyChat l'ha di sicuro letta): nasconderla non toglie niente,
- *  e senza quella riga il cliente ha scritto e noi non lo sapremmo. */
+ *  estrai.mjs` (le prove confrontano i valori). Fa da pari a un'ENTRATA vicina
+ *  del CRM (ManyChat ha letto lo stesso messaggio, di solito in pochi secondi) solo
+ *  in un SECONDO passaggio (`abbinaPari`), con i candidati che i messaggi veri non
+ *  hanno preso, e solo entro `FINESTRA_NON_DECIFRATO_S`: ManyChat può aver perso il
+ *  messaggio (47 entrate viste solo dal ponte) e allora il segnaposto deve restare
+ *  visibile, mai rubare la riga di un altro messaggio. */
+export const FINESTRA_NON_DECIFRATO_S = 20;
 export const NON_DECIFRATO = "⚠️ Messaggio non leggibile dal ponte: aprilo sul telefono";
 
 /** Le righe del ponte uscite senza niente da mostrare: fanno da pari a
@@ -136,8 +140,8 @@ function compatibili(riga: RigaDaAbbinare, c: CandidatoCrm): boolean {
   if (c.direction !== (riga.d === "in" ? "inbound" : "outbound")) return false;
   const dt = distanza(riga.t, c.created_at);
   if (!Number.isFinite(dt)) return false;
+  if (riga.x === NON_DECIFRATO) return riga.d === "in" && dt <= FINESTRA_NON_DECIFRATO_S;
   if (riga.d === "out" && SENZA_TESTO_DEL_PONTE.includes(riga.x)) return dt <= FINESTRA_OPACA_S;
-  if (riga.d === "in" && riga.x === NON_DECIFRATO) return dt <= FINESTRA_OPACA_S;
   const opaco = eOpaco(c.body);
   if (opaco === "modello") {
     if (riga.d !== "out") return false;
@@ -159,21 +163,26 @@ export function abbinaPari(righe: RigaDaAbbinare[], candidati: CandidatoCrm[]): 
   const usati = new Set<string>();
   const pari: Pari[] = [];
   const ordinate = [...righe].sort((a, b) => a.t - b.t || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
-  for (const riga of ordinate) {
-    let scelto: CandidatoCrm | null = null;
-    for (const c of candidati) {
-      if (usati.has(c.id) || !compatibili(riga, c)) continue;
-      if (!scelto) {
-        scelto = c;
-        continue;
+  //  Due passaggi: prima i messaggi veri; i segnaposto «non leggibile» solo dopo, con le
+  //  righe CRM rimaste (mai davanti a un messaggio vero che le avrebbe prese).
+  for (const passaggio of [false, true]) {
+    for (const riga of ordinate) {
+      if ((riga.x === NON_DECIFRATO) !== passaggio) continue;
+      let scelto: CandidatoCrm | null = null;
+      for (const c of candidati) {
+        if (usati.has(c.id) || !compatibili(riga, c)) continue;
+        if (!scelto) {
+          scelto = c;
+          continue;
+        }
+        const d = distanza(riga.t, c.created_at) - distanza(riga.t, scelto.created_at);
+        const eta = Date.parse(c.created_at) - Date.parse(scelto.created_at);
+        if (d < 0 || (d === 0 && (eta < 0 || (eta === 0 && c.id < scelto.id)))) scelto = c;
       }
-      const d = distanza(riga.t, c.created_at) - distanza(riga.t, scelto.created_at);
-      const eta = Date.parse(c.created_at) - Date.parse(scelto.created_at);
-      if (d < 0 || (d === 0 && (eta < 0 || (eta === 0 && c.id < scelto.id)))) scelto = c;
-    }
-    if (scelto) {
-      usati.add(scelto.id);
-      pari.push({ k: riga.k, crm: scelto.id });
+      if (scelto) {
+        usati.add(scelto.id);
+        pari.push({ k: riga.k, crm: scelto.id });
+      }
     }
   }
   return pari;

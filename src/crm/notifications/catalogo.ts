@@ -204,6 +204,7 @@ const ETICHETTE_STORICHE: Record<string, string> = {
   no_lead_24h: "Nessun lead",
   lps_below_threshold: "Qualità lead bassa",
   creative_degraded: "Creative in degrado",
+  controllo_whatsapp: "Controllo WhatsApp",
 };
 
 export function etichettaTipo(kind: string): string {
