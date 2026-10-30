@@ -321,4 +321,104 @@ export async function proveChatStato(mod, { c, gruppo }) {
     c("molti segnaposto di fila e basta: ignorato", false, dr(null, [msg("inbound", ORA, "{{a}} {{b}}\n{{c}}")]).attesa);
     c("segnaposto + testo vero: è un messaggio vero", true, dr(null, [msg("inbound", ORA, "{{a}} ciao")]).attesa);
   }
+
+  /* ── p1-chat-veloce (30/10): letture a pezzi e anteprima dal contatto ── */
+  gruppo("CHAT · LETTURE A PEZZI: CURSORE E UNIONE (p1-chat-veloce)");
+  {
+    c("il margine è di 2 minuti", 2 * MIN, S.MARGINE_LETTURA);
+    c("nessuna riga: nessun cursore (si legge tutto)", null, S.cursore([], ["updated_at"]));
+    c("righe senza la colonna: nessun cursore", null, S.cursore([{ id: "a" }], ["updated_at"]));
+    c(
+      "il più recente fra le colonne date, meno il margine",
+      fa(5 * MIN + 2 * MIN),
+      S.cursore(
+        [
+          { created_at: fa(ORA), cambiato_il: fa(5 * MIN) },
+          { created_at: fa(10 * MIN), cambiato_il: null },
+          { created_at: fa(2 * ORA) },
+        ],
+        ["cambiato_il", "created_at"],
+      ),
+    );
+    const m = (id, quando, extra = {}) => ({ id, created_at: fa(quando), ...extra });
+    const prima = [m("a", 3 * ORA), m("b", 2 * ORA), m("c", ORA)];
+    const uniti = S.unisciMessaggi(prima, [
+      m("b", 2 * ORA, { status: "read" }),
+      m("d", 30 * MIN),
+      m("vecchio", 5 * ORA),
+      m("c", ORA, { duplicato_di: "x" }),
+    ]);
+    c(
+      "messaggi: il nuovo vince, gli aggiunti al loro posto (dal più vecchio), un doppione marcato dopo sparisce",
+      [["vecchio", "a", "b", "d"], "read"],
+      [uniti.map((x) => x.id), uniti.find((x) => x.id === "b").status],
+    );
+    c("messaggi: niente di nuovo → stesso elenco (stessa istanza)", true, S.unisciMessaggi(prima, []) === prima);
+    c("l'ingresso non si tocca", ["a", "b", "c"], prima.map((x) => x.id));
+    const contatti = [{ id: "c1", unread_count: 0 }, { id: "c2", unread_count: 0 }];
+    c(
+      "contatti: per id, il nuovo vince, i nuovi in fondo",
+      [["c1", "c2", "c3"], 4],
+      ((r) => [r.map((x) => x.id), r[1].unread_count])(
+        S.unisciContatti(contatti, [{ id: "c2", unread_count: 4 }, { id: "c3", unread_count: 1 }]),
+      ),
+    );
+    c("togli per id (evento DELETE)", ["c2"], S.togliPerId(contatti, "c1").map((x) => x.id));
+    c("togli un id che non c'è: stessa istanza", true, S.togliPerId(contatti, "zz") === contatti);
+  }
+
+  gruppo("CHAT · ANTEPRIMA: L'ULTIMO MESSAGGIO ANCHE DELLE CHAT VECCHIE (p1-chat-veloce)");
+  {
+    const caricato = { direction: "inbound", body: "letto", created_at: fa(ORA) };
+    const contatto = (quando, body = "dal contatto", direction = "outbound") => ({
+      ultimo_messaggio_il: fa(quando),
+      ultimo_messaggio_anteprima: body,
+      ultimo_messaggio_direzione: direction,
+    });
+    c("niente di niente: null", null, S.ultimoDellaChat(null, null));
+    c("solo il messaggio letto: quello", caricato, S.ultimoDellaChat(caricato, null));
+    c("contatto senza colonne (migrazione non applicata): il letto", caricato, S.ultimoDellaChat(caricato, {}));
+    c(
+      "chat vecchia (nessun messaggio letto): dal contatto, uscita compresa",
+      { direction: "outbound", body: "dal contatto", created_at: fa(300 * GIORNO) },
+      S.ultimoDellaChat(null, contatto(300 * GIORNO)),
+    );
+    c(
+      "il contatto è più nuovo del letto: vince il contatto",
+      "dal contatto",
+      S.ultimoDellaChat(caricato, contatto(MIN)).body,
+    );
+    c("il letto è più nuovo o uguale: vince il letto", ["letto", "letto"], [
+      S.ultimoDellaChat(caricato, contatto(2 * ORA)).body,
+      S.ultimoDellaChat(caricato, contatto(ORA)).body,
+    ]);
+    c(
+      "direzione sconosciuta sul contatto: vale come entrata",
+      "inbound",
+      S.ultimoDellaChat(null, contatto(MIN, "x", null)).direction,
+    );
+  }
+
+  gruppo("CHAT · LO STORICO DEL PONTE NON RIAVVIA LA LETTURA ANCHE CON L'ANTEPRIMA (p1-chat-veloce)");
+  {
+    const vecchio = { id: "c1", unread_count: 0, updated_at: fa(ORA), last_message_at: fa(ORA) };
+    const nuovo = {
+      ...vecchio,
+      updated_at: fa(0),
+      last_message_at: fa(0),
+      ultimo_messaggio_il: fa(0),
+      ultimo_messaggio_anteprima: "storico",
+      ultimo_messaggio_direzione: "inbound",
+    };
+    c(
+      "cambiano solo ora, anteprima e direzione dell'ultimo messaggio: si ignora",
+      true,
+      S.eventoDaIgnorare("whatsapp_contacts", { eventType: "UPDATE", new: nuovo, old: vecchio }, ADESSO),
+    );
+    c(
+      "…ma se cambia anche unread_count: si legge",
+      false,
+      S.eventoDaIgnorare("whatsapp_contacts", { eventType: "UPDATE", new: { ...nuovo, unread_count: 1 }, old: vecchio }, ADESSO),
+    );
+  }
 }
