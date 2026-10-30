@@ -37,6 +37,7 @@ import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
+import { provePercheModello } from "./idee/perche-modello.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
@@ -488,6 +489,7 @@ const MODULI = [
   "importa/attesa-da-chiamare",
   //  ⚠️ «Da chiamare» nella chat WhatsApp: vedi proveDelDaChiamare.
   "chatwa/daChiamare",
+  "chatwa/perche-modello",
   //  ⚠️ La risposta scritta dall'AI sul Mac: vedi proveDelleRisposteAi.
   "risposte-ai/regole",
   "risposte-ai/ingresso",
@@ -21150,6 +21152,7 @@ proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
+provePercheModello(mod, { c, gruppo, radice });
 proveIdeeDafare(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
