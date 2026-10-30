@@ -1414,6 +1414,9 @@ export interface RicaricoLead {
   volte: number;
   /** L'ultima volta (ISO). */
   ultimo: string;
+  /** I giorni di Roma (AAAA-MM-GG) dei ritorni, i più recenti in fondo, al
+   *  massimo 30 (dal 30/10/2026): li conta «N lead oggi» come i nuovi. */
+  giorni?: string[];
   /** Il nome del file che l'ha riportata a galla l'ultima volta. */
   lista?: string;
   /** Aspetta una decisione: finché è vero sta in cima ai «Lead importati».
@@ -2521,10 +2524,7 @@ export const COSTO_SPEDIZIONE_PREDEFINITO = 8;
  *   importi azzerati da «perdi tempo», il saldo ricalcolato. Quelle non
  *   contraddicono nessuno — mettono in ordine i numeri di quello che è stato
  *   deciso. */
-export function applyAutoStatus(
-  data: LeadData,
-  opzioni?: { statoScelto?: boolean },
-): LeadData {
+export function applyAutoStatus(data: LeadData, opzioni?: { statoScelto?: boolean }): LeadData {
   let d = data;
 
   /*  ── ⚠️ UN PACCO NON HA UN INSTALLATORE NÉ UN PARRUCCHIERE ─────────────

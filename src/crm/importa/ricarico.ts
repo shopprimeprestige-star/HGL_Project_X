@@ -49,7 +49,11 @@ import type {
   TrackingInfo,
 } from "@/crm/types";
 import { LEAD_STATUS_LABEL, eStatoNonSvolta } from "@/crm/types";
-import { giaSpostatoDalRitorno, patchAttesaDelRitorno, statoPrimaDelRitorno } from "./ritorno-attesa";
+import {
+  giaSpostatoDalRitorno,
+  patchAttesaDelRitorno,
+  statoPrimaDelRitorno,
+} from "./ritorno-attesa";
 //  ⚠️ I TESTI NON STANNO PIÙ QUI: stanno nei modelli, con tutti gli altri
 //   messaggi che partono ai clienti, e si modificano dal pannello senza
 //   pubblicare niente. Da qui si sceglie soltanto QUALE serve.
@@ -308,6 +312,12 @@ export function patchRicarico(
     ricarico: {
       volte: (prima?.volte ?? 0) + 1,
       ultimo: ora.toISOString(),
+      //  Ogni ritorno col suo giorno (30/10/2026): per Meta e per il foglio è
+      //  un lead del giorno, e il conto dei lead di oggi lo deve vedere.
+      giorni: [
+        ...(Array.isArray(prima?.giorni) ? prima!.giorni : []).filter((g) => typeof g === "string"),
+        ora.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }),
+      ].slice(-30),
       ...(String(lista || "").trim() ? { lista: String(lista).trim() } : {}),
       daDecidere: true,
       //  Lo stato di QUESTO momento: serve a raccontare dov'era quando è

@@ -277,4 +277,24 @@ export function proveSpesaLead(mod, { c, gruppo, radice }) {
     false,
     /overflow-x-auto|overflow-x-scroll/.test(pannello),
   );
+
+  gruppo("SPESA E LEAD · ANCHE I CONTATTI DI RITORNO (30/10/2026)");
+  {
+    //  Il caso del titolare: 13 schede nuove e 6 ritorni = 19, come Meta e il foglio.
+    const OGGI = "2026-10-30";
+    const gg = [OGGI, "2026-10-29"];
+    const nuove = Array.from({ length: 13 }, () => ({ data: { createdAt: "2026-10-30T09:00:00Z" } }));
+    const tornate = Array.from({ length: 6 }, () => ({
+      data: { createdAt: "2026-09-22T09:00:00Z", ricarico: { volte: 1, ultimo: "2026-10-30T10:00:00Z", giorni: [OGGI] } },
+    }));
+    const r = S.righeGiorni({ giorni: gg, leads: [...nuove, ...tornate], aMano: [], meta: new Map([[OGGI, 95]]) })[0];
+    c("oggi: 19 lead = 13 nuovi + 6 di ritorno", [19, 13, 6], [r.lead, r.nuovi, r.ritorni]);
+    c("il costo per lead divide per tutti e 19, come Meta", 5, r.costoLead);
+    c("una scheda vecchia senza giorni: conta l'ultimo ritorno", [OGGI], S.giorniDiRitorno({ ricarico: { volte: 2, ultimo: "2026-10-30T08:00:00Z" } }));
+    c("tornata due volte in giorni diversi: un ritorno per giorno", [1, 1], gg.map((g) => S.ritorniPerGiorno([{ data: { ricarico: { volte: 2, ultimo: "x", giorni: ["2026-10-29", OGGI] } } }], gg).get(g)));
+    c("due ritorni lo stesso giorno: uno solo", 1, S.ritorniPerGiorno([{ data: { ricarico: { volte: 2, ultimo: "x", giorni: [OGGI, OGGI] } } }], gg).get(OGGI));
+    c("senza ritorno: niente", [], S.giorniDiRitorno({ createdAt: "2026-10-30" }));
+    const src = readFileSync(join(radice, "src/crm/importa/ricarico.ts"), "utf8");
+    c("ogni ritorno scrive il suo giorno di Roma (al massimo 30)", true, /giorni: \[[\s\S]*?timeZone: "Europe\/Rome"[\s\S]*?\]\.slice\(-30\)/.test(src));
+  }
 }
