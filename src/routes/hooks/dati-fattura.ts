@@ -25,7 +25,8 @@ export const Route = createFileRoute("/hooks/dati-fattura")({
       POST: async ({ request }) => {
         const auth = request.headers.get("authorization");
         const attesa = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
-        if (!auth || !auth.includes(attesa || "__mancante__")) return json({ error: "unauthorized" }, 401);
+        if (!auth || !auth.includes(attesa || "__mancante__"))
+          return json({ error: "unauthorized" }, 401);
         try {
           return json(await giroDatiFattura(porteDatiFatturaVere()));
         } catch (e) {

@@ -200,6 +200,7 @@ import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-mo
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmDettaturaRouteImport } from './routes/api.crm.dettatura'
+import { Route as ApiCrmDatiFatturaRouteImport } from './routes/api.crm.dati-fattura'
 import { Route as ApiCrmCruscottoWaRouteImport } from './routes/api.crm.cruscotto-wa'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
 import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
@@ -1189,6 +1190,11 @@ const ApiCrmDettaturaRoute = ApiCrmDettaturaRouteImport.update({
   path: '/api/crm/dettatura',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmDatiFatturaRoute = ApiCrmDatiFatturaRouteImport.update({
+  id: '/api/crm/dati-fattura',
+  path: '/api/crm/dati-fattura',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmCruscottoWaRoute = ApiCrmCruscottoWaRouteImport.update({
   id: '/api/crm/cruscotto-wa',
   path: '/api/crm/cruscotto-wa',
@@ -1398,6 +1404,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
+  '/api/crm/dati-fattura': typeof ApiCrmDatiFatturaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1604,6 +1611,7 @@ export interface FileRoutesByTo {
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
+  '/api/crm/dati-fattura': typeof ApiCrmDatiFatturaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1816,6 +1824,7 @@ export interface FileRoutesById {
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
+  '/api/crm/dati-fattura': typeof ApiCrmDatiFatturaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -2029,6 +2038,7 @@ export interface FileRouteTypes {
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/cruscotto-wa'
+    | '/api/crm/dati-fattura'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2235,6 +2245,7 @@ export interface FileRouteTypes {
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/cruscotto-wa'
+    | '/api/crm/dati-fattura'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2446,6 +2457,7 @@ export interface FileRouteTypes {
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/cruscotto-wa'
+    | '/api/crm/dati-fattura'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2616,6 +2628,7 @@ export interface RootRouteChildren {
   ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
   ApiCrmCruscottoWaRoute: typeof ApiCrmCruscottoWaRoute
+  ApiCrmDatiFatturaRoute: typeof ApiCrmDatiFatturaRoute
   ApiCrmDettaturaRoute: typeof ApiCrmDettaturaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
@@ -4046,6 +4059,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmDettaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/dati-fattura': {
+      id: '/api/crm/dati-fattura'
+      path: '/api/crm/dati-fattura'
+      fullPath: '/api/crm/dati-fattura'
+      preLoaderRoute: typeof ApiCrmDatiFatturaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/cruscotto-wa': {
       id: '/api/crm/cruscotto-wa'
       path: '/api/crm/cruscotto-wa'
@@ -4396,6 +4416,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
   ApiCrmCruscottoWaRoute: ApiCrmCruscottoWaRoute,
+  ApiCrmDatiFatturaRoute: ApiCrmDatiFatturaRoute,
   ApiCrmDettaturaRoute: ApiCrmDettaturaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,

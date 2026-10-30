@@ -72,7 +72,10 @@ export interface PorteDatiFattura {
   salvaConfig(c: ConfigDatiFattura): Promise<void>;
   /** le schede con `accontoPagato > 0` */
   schedeConAcconto(): Promise<SchedaGiro[]>;
-  contatto(userId: string, telefono: string): Promise<{ ultimaEntrata: string | null; stop: boolean }>;
+  contatto(
+    userId: string,
+    telefono: string,
+  ): Promise<{ ultimaEntrata: string | null; stop: boolean }>;
   /** il modello è utilizzabile fuori finestra? (flusso ManyChat mappato / modello approvato) */
   modelloPronto(userId: string, config: ConfigDatiFattura): Promise<boolean>;
   invia(i: {
@@ -198,7 +201,12 @@ async function chiedi(
   }
   if (esito === "riprova") return; // pausa del contatto: al prossimo giro
   //  Non è partito e non partirà da solo: resta in «Da fare» per una persona.
-  const motivo = esito === "stop" ? "numero_in_stop" : esito === "saltato" ? "finestra_chiusa" : "invio_non_riuscito";
+  const motivo =
+    esito === "stop"
+      ? "numero_in_stop"
+      : esito === "saltato"
+        ? "finestra_chiusa"
+        : "invio_non_riuscito";
   if (await porte.scriviScheda(s, { stato: "promemoria", motivo })) out.promemoria++;
 }
 
@@ -294,7 +302,14 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
       out.errori++;
       return;
     }
-    if (await porte.scriviScheda(s, { ...base, stato: "bozza_pronta", bozzaIl: adesso.toISOString(), motivo: undefined }))
+    if (
+      await porte.scriviScheda(s, {
+        ...base,
+        stato: "bozza_pronta",
+        bozzaIl: adesso.toISOString(),
+        motivo: undefined,
+      })
+    )
       out.bozze++;
     return;
   }
@@ -304,7 +319,10 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
       await porte.scriviScheda(s, base);
       return;
     }
-    if (await porte.scriviScheda(s, { ...base, stato: "da_guardare", motivo: motivo || "non_letto" })) out.daGuardare++;
+    if (
+      await porte.scriviScheda(s, { ...base, stato: "da_guardare", motivo: motivo || "non_letto" })
+    )
+      out.daGuardare++;
     return;
   }
   await porte.scriviScheda(s, base);

@@ -100,7 +100,8 @@ export function decidiRichiesta(i: {
 }): DecisioneRichiesta {
   const { scheda, config } = i;
   if (!config.acceso) return { azione: "niente", motivo: "spento" };
-  if (!(Number(scheda.payment?.accontoPagato) > 0)) return { azione: "niente", motivo: "senza_acconto" };
+  if (!(Number(scheda.payment?.accontoPagato) > 0))
+    return { azione: "niente", motivo: "senza_acconto" };
   if (STATI_SENZA_RICHIESTA.has(String(scheda.stato))) return { azione: "niente", motivo: "stato" };
   const st = scheda.datiFattura?.stato;
   //  UNA volta sola: l'unico stato che si riprova è il promemoria.
@@ -115,7 +116,10 @@ export function decidiRichiesta(i: {
 
 /** Il primo nome per il parametro del modello ({{1}}); senza nome: «cliente». */
 export function nomePerModello(nome?: string): string {
-  const n = String(nome ?? "").trim().split(/\s+/)[0] ?? "";
+  const n =
+    String(nome ?? "")
+      .trim()
+      .split(/\s+/)[0] ?? "";
   return n ? n.charAt(0).toUpperCase() + n.slice(1).toLowerCase() : "cliente";
 }
 
@@ -124,7 +128,11 @@ export const chiaveRichiesta = (telefono: string, leadId: string) =>
   `df|${String(telefono).replace(/\D/g, "").slice(-9)}|${leadId}`;
 
 /** ── UNA RISPOSTA È ENTRO IL TEMPO? ──────────────────────────────────── */
-export function entroIlTempo(richiestaIl: string | undefined, arrivato: string, giorni = GIORNI_PER_RISPONDERE) {
+export function entroIlTempo(
+  richiestaIl: string | undefined,
+  arrivato: string,
+  giorni = GIORNI_PER_RISPONDERE,
+) {
   const a = Date.parse(String(richiestaIl ?? ""));
   const b = Date.parse(arrivato);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
@@ -140,7 +148,8 @@ export type CosaFareConMessaggio =
 
 const CF_NEL_TESTO = /\b[A-Za-z]{6}\d{2}[A-Za-z]\d{2}[A-Za-z]\d{3}[A-Za-z]\b/;
 const PIVA_NEL_TESTO = /(?:^|[^\d])\d{11}(?:[^\d]|$)/;
-const CAP_E_VIA = /\b(via|viale|v\.le|piazza|p\.zza|corso|largo|vicolo|strada|loc\.|località)\b[^\n]{3,}\b\d{5}\b/i;
+const CAP_E_VIA =
+  /\b(via|viale|v\.le|piazza|p\.zza|corso|largo|vicolo|strada|loc\.|località)\b[^\n]{3,}\b\d{5}\b/i;
 
 /** Il testo sembra contenere dati da fattura? (Per non pagare l'AI su ogni «grazie».) */
 export function sembraConDati(testo: string): boolean {
@@ -181,7 +190,14 @@ export const PESO_MASSIMO_FILE = 8 * 1024 * 1024;
 
 /** Il percorso nel bucket privato: sorteggiato, senza nome del cliente. */
 export function percorsoFile(userId: string, leadId: string, casuale: string, mime: string) {
-  const est = mime === "application/pdf" ? "pdf" : mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+  const est =
+    mime === "application/pdf"
+      ? "pdf"
+      : mime === "image/png"
+        ? "png"
+        : mime === "image/webp"
+          ? "webp"
+          : "jpg";
   return `${userId}/${leadId}/${casuale}.${est}`;
 }
 
@@ -194,18 +210,21 @@ export interface DatiLetti extends DatiDocumento {
 }
 
 export const PROMPT_TESTO_DATI =
-  "The text below is a message from an Italian customer who was asked for the data needed for an invoice. "
-  + "Extract ONLY these fields and return STRICT JSON, no prose, no markdown fence:\n"
-  + '{"nome":"","cognome":"","denominazione":"","codiceFiscale":"","partitaIva":"","indirizzo":"","cap":"","comune":"","provincia":"","pec":"","codiceDestinatario":""}\n'
-  + "Rules: use \"\" for anything not clearly written — never guess, never invent. "
-  + "denominazione is a company name (only if the customer is a company). codiceFiscale is the 16-character tax code, uppercase. "
-  + "partitaIva is 11 digits. indirizzo is street and house number only. cap 5 digits. provincia 2 letters. "
-  + "codiceDestinatario is the 7-character SDI code. Do not return anything else.\n\nMESSAGE:\n";
+  "The text below is a message from an Italian customer who was asked for the data needed for an invoice. " +
+  "Extract ONLY these fields and return STRICT JSON, no prose, no markdown fence:\n" +
+  '{"nome":"","cognome":"","denominazione":"","codiceFiscale":"","partitaIva":"","indirizzo":"","cap":"","comune":"","provincia":"","pec":"","codiceDestinatario":""}\n' +
+  'Rules: use "" for anything not clearly written — never guess, never invent. ' +
+  "denominazione is a company name (only if the customer is a company). codiceFiscale is the 16-character tax code, uppercase. " +
+  "partitaIva is 11 digits. indirizzo is street and house number only. cap 5 digits. provincia 2 letters. " +
+  "codiceDestinatario is the 7-character SDI code. Do not return anything else.\n\nMESSAGE:\n";
 
 /** Ripulisce il JSON del modello (testo): quello che non torna non entra. */
 export function normalizzaDatiTesto(o: Record<string, unknown>): DatiLetti {
   const base = normalizzaDocumento(o);
-  const pul = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
+  const pul = (v: unknown) =>
+    String(v ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
   const d: DatiLetti = { ...base };
   const den = pul(o.denominazione);
   if (den) d.denominazione = den.slice(0, 80);
@@ -236,7 +255,9 @@ export function unisciLetture(letture: DatiLetti[]): DatiLetti {
   for (const l of letture)
     for (const [k, v] of Object.entries(l)) {
       if (k === "documenti") {
-        out.documenti = Array.from(new Set([...(((out.documenti as string[]) ?? [])), ...((v as string[]) ?? [])]));
+        out.documenti = Array.from(
+          new Set([...((out.documenti as string[]) ?? []), ...((v as string[]) ?? [])]),
+        );
       } else if (v && !out[k]) out[k] = v;
     }
   return out as DatiLetti;
@@ -271,7 +292,11 @@ export function bozzaDaDati(i: {
   //  (in fattura devono combaciare) ma SOLO su una bozza nuova; su una esistente non si tocca niente.
   const base: ClienteFattura = esistente
     ? partenza
-    : { ...partenza, nome: letti.nome || partenza.nome, cognome: letti.cognome || partenza.cognome };
+    : {
+        ...partenza,
+        nome: letti.nome || partenza.nome,
+        cognome: letti.cognome || partenza.cognome,
+      };
   const inn = innestaDocumento(base, letti);
   const cliente: ClienteFattura = { ...inn.dati };
   const riempiti = [...inn.riempiti];
@@ -291,12 +316,14 @@ export function bozzaDaDati(i: {
     }
   }
   if (!esistente && azienda) cliente.azienda = true;
-  if (cliente.codiceFiscale && !codiceFiscaleValido(cliente.codiceFiscale)) cliente.codiceFiscale = "";
+  if (cliente.codiceFiscale && !codiceFiscaleValido(cliente.codiceFiscale))
+    cliente.codiceFiscale = "";
 
   if (esistente) return { bozza: { ...esistente, cliente }, riempiti };
 
   const versato = Number(scheda.payment?.accontoPagato) || 0;
-  const prezzo = Number(scheda.payment?.prezzoFinaleVendita) || Number(scheda.payment?.prezzoTotale) || 0;
+  const prezzo =
+    Number(scheda.payment?.prezzoFinaleVendita) || Number(scheda.payment?.prezzoTotale) || 0;
   const conto = contoDaLordo(versato, i.aliquota);
   const tipo: Fattura["tipo"] = prezzo > 0 && versato >= prezzo - 0.01 ? "unica" : "acconto";
   return {

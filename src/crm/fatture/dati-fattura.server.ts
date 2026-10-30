@@ -44,10 +44,19 @@ const MODELLO_AI = "google/gemini-2.5-flash";
 const db = () => supabaseAdmin as unknown as { from: (t: string) => any; storage: any };
 
 export async function leggiConfigDatiFattura(): Promise<ConfigDatiFattura> {
-  const { data } = await db().from("app_config").select("value").eq("key", CHIAVE_CONFIG_DATI_FATTURA).maybeSingle();
+  const { data } = await db()
+    .from("app_config")
+    .select("value")
+    .eq("key", CHIAVE_CONFIG_DATI_FATTURA)
+    .maybeSingle();
   try {
     const c = JSON.parse(String(data?.value ?? "{}")) as Partial<ConfigDatiFattura>;
-    return { acceso: c.acceso === true, modelloApprovato: c.modelloApprovato === true, avvio: c.avvio, attivoDal: c.attivoDal };
+    return {
+      acceso: c.acceso === true,
+      modelloApprovato: c.modelloApprovato === true,
+      avvio: c.avvio,
+      attivoDal: c.attivoDal,
+    };
   } catch {
     return { acceso: false };
   }
@@ -56,13 +65,21 @@ export async function leggiConfigDatiFattura(): Promise<ConfigDatiFattura> {
 export async function scriviConfigDatiFattura(c: ConfigDatiFattura): Promise<void> {
   const { error } = await db()
     .from("app_config")
-    .upsert({ key: CHIAVE_CONFIG_DATI_FATTURA, value: JSON.stringify(c), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    .upsert(
+      {
+        key: CHIAVE_CONFIG_DATI_FATTURA,
+        value: JSON.stringify(c),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
   if (error) throw new Error(`config: ${error.code ?? ""}`);
 }
 
 function inBase64(bytes: Uint8Array): string {
   let s = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
 
@@ -94,7 +111,12 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
           .order("id", { ascending: true })
           .range(da, da + 999);
         if (error) throw error;
-        for (const r of (data ?? []) as { id: string; user_id: string; data: SchedaGiro["data"]; updated_at: string }[])
+        for (const r of (data ?? []) as {
+          id: string;
+          user_id: string;
+          data: SchedaGiro["data"];
+          updated_at: string;
+        }[])
           if (Number(r.data?.payment?.accontoPagato) > 0)
             out.push({ id: r.id, userId: r.user_id, data: r.data, updatedAt: r.updated_at });
         if ((data ?? []).length < 1000) return out;
@@ -109,14 +131,25 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         .select("ultimo_in_entrata_il, non_scrivere_dal")
         .eq("user_id", userId)
         .in("phone_e164", [e164, e164.slice(1)]);
-      const righe = (data ?? []) as { ultimo_in_entrata_il: string | null; non_scrivere_dal: string | null }[];
-      const ultime = righe.map((r) => r.ultimo_in_entrata_il).filter(Boolean).sort() as string[];
-      return { ultimaEntrata: ultime.at(-1) ?? null, stop: righe.some((r) => !!r.non_scrivere_dal) };
+      const righe = (data ?? []) as {
+        ultimo_in_entrata_il: string | null;
+        non_scrivere_dal: string | null;
+      }[];
+      const ultime = righe
+        .map((r) => r.ultimo_in_entrata_il)
+        .filter(Boolean)
+        .sort() as string[];
+      return {
+        ultimaEntrata: ultime.at(-1) ?? null,
+        stop: righe.some((r) => !!r.non_scrivere_dal),
+      };
     },
 
     modelloPronto: async (userId, config) => {
       const c = await canaleDi(userId);
-      return c.canale === "manychat" ? !!c.flussi[NOME_MODELLO_DATI_FATTURA] : config.modelloApprovato === true;
+      return c.canale === "manychat"
+        ? !!c.flussi[NOME_MODELLO_DATI_FATTURA]
+        : config.modelloApprovato === true;
     },
 
     invia: async (i): Promise<EsitoInvioRichiesta> => {
@@ -138,13 +171,20 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         soloTesto: i.come === "testo" && !c.flussi[NOME_MODELLO_DATI_FATTURA],
       });
       switch (r.esito) {
-        case "ok": return "ok";
-        case "gia_preso": return "gia_preso";
-        case "saltato": return "saltato";
-        case "riprova_fra_poco": return "riprova";
-        case "stop": return "stop";
-        case "incerto": return "incerto";
-        default: return "errore";
+        case "ok":
+          return "ok";
+        case "gia_preso":
+          return "gia_preso";
+        case "saltato":
+          return "saltato";
+        case "riprova_fra_poco":
+          return "riprova";
+        case "stop":
+          return "stop";
+        case "incerto":
+          return "incerto";
+        default:
+          return "errore";
       }
     },
 
@@ -176,16 +216,29 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         .order("created_at", { ascending: true })
         .limit(50);
       if (error) throw error;
-      return ((data ?? []) as { wa_message_id: string | null; body: string | null; canale: string | null; created_at: string }[])
+      return (
+        (data ?? []) as {
+          wa_message_id: string | null;
+          body: string | null;
+          canale: string | null;
+          created_at: string;
+        }[]
+      )
         .filter((m) => m.wa_message_id)
-        .map((m) => ({ id: String(m.wa_message_id), body: String(m.body ?? ""), canale: m.canale, creatoIl: m.created_at }));
+        .map((m) => ({
+          id: String(m.wa_message_id),
+          body: String(m.body ?? ""),
+          canale: m.canale,
+          creatoIl: m.created_at,
+        }));
     },
 
     scaricaESalva: async (userId, leadId, url) => {
       try {
         //  Solo i link che la chat riconosce come media ManyChat (nessun altro indirizzo).
         const k = classificaTesto(url);
-        if (!k.url || k.url !== url || (k.tipo !== "immagine" && k.tipo !== "documento")) return null;
+        if (!k.url || k.url !== url || (k.tipo !== "immagine" && k.tipo !== "documento"))
+          return null;
         const mime = mimeDaUrl(url);
         if (!mime) return null;
         const r = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000) });
@@ -198,7 +251,9 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         if (!documentoAccettabile(dataUrl).ok) return null;
         const casuale = crypto.randomUUID().replace(/-/g, "");
         const percorso = percorsoFile(userId, leadId, casuale, mime);
-        const { error } = await db().storage.from(BUCKET_DATI_FATTURA).upload(percorso, bytes, { contentType: mime, upsert: false });
+        const { error } = await db()
+          .storage.from(BUCKET_DATI_FATTURA)
+          .upload(percorso, bytes, { contentType: mime, upsert: false });
         if (error) return null;
         return { percorso, dataUrl };
       } catch {
@@ -244,7 +299,11 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         }
         const corpo = (await r.json()) as { choices?: { message?: { content?: unknown } }[] };
         const c = corpo.choices?.[0]?.message?.content;
-        return typeof c === "string" ? c : Array.isArray(c) ? c.map((p) => (p as { text?: string })?.text || "").join(" ") : "";
+        return typeof c === "string"
+          ? c
+          : Array.isArray(c)
+            ? c.map((p) => (p as { text?: string })?.text || "").join(" ")
+            : "";
       } catch {
         console.error("[dati-fattura] ai rete");
         return null;
