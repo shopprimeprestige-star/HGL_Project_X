@@ -64,7 +64,7 @@ export function patchDaChiamare(
  *  riapre la finestra delle 24 ore e la scheda torna da sola in «Attesa
  *  WhatsApp», così si vede subito e si risponde.
  *  ⚠️ ELENCO CHIUSO: solo questi quattro stati cambiano. Tutto il resto (Non
- *   interessato, Richiamo concordato, Appuntamento fissato/rifissato, Ci
+ *   interessato, Per ora no, Richiamo concordato, Appuntamento fissato/rifissato, Ci
  *   ricontatta lui, Perditempo e ogni stato dopo la consulenza) resta com'è
  *   anche se il cliente scrive. Un nuovo stato NON entra qui da solo.
  *  Vale se l'ultimo messaggio del cliente è arrivato DOPO l'ingresso nello

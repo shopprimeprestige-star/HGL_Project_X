@@ -55,6 +55,7 @@ const CHIUSI = new Set<string>([
   ...STATI_VINTI,
   "concluso",
   "annullato",
+  "per_ora_no",
   "perdi_tempo",
   "non_interessato",
 ]);

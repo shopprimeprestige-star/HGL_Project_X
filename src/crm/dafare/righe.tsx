@@ -182,6 +182,8 @@ const VERBO_PER_STATO: Partial<Record<LeadStatus, string>> = {
   attesa_whatsapp: "Sentire, aspetta la risposta su WhatsApp,",
   //  10 ore su WhatsApp senza risposta (28/10/2026): ora si chiama.
   da_chiamare: "Chiamare, su WhatsApp non ha risposto,",
+  //  «Per ora no» (30/10/2026): è arrivato il giorno che aveva detto, si risente.
+  per_ora_no: "Risentire, aveva detto «per ora no»,",
 };
 
 export function verboRiga(tipo: TipoRiga, stato?: LeadStatus): string {

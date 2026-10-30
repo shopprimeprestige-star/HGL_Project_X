@@ -70,7 +70,9 @@ export const Route = createFileRoute("/CRM/trattative-perse")({
  *  significava avere una pagina sulle perdite che non guardava dove si perde
  *  davvero. Il motivo lì non viene chiesto: infatti finiscono quasi tutte fra
  *  quelle «senza motivo», ed è giusto che si veda. */
-const STATI_PERSI: LeadStatus[] = Array.from(new Set<LeadStatus>([...LOST_STATUSES, "annullato"]));
+const STATI_PERSI: LeadStatus[] = Array.from(
+  new Set<LeadStatus>([...LOST_STATUSES, "annullato", "per_ora_no"]),
+);
 
 /** I motivi che sono un «non adesso» e non un no: sono la miniera. */
 const MOTIVI_RIPRENDIBILI: LostReason[] = ["tempo", "prezzo", "non_risponde", "ripensamento"];
