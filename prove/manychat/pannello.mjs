@@ -2182,6 +2182,7 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       "hgl_sede_disdetta",
       "hgl_ultimo_tentativo",
       "hgl_acconto",
+      "hgl_come_eravamo_rimasti",
     ],
     V.MODELLI_FLUSSO_SEQUENZE.map((m) => m.modello),
   );

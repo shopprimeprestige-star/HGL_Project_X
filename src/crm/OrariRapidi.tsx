@@ -16,6 +16,10 @@
  *   consulenti diversi si ricontrollano sugli stessi giorni prima di scrivere.
  *  ⚠️ IL NOME NEL MESSAGGIO SOLO COL CONSULENTE SCELTO (29/10/2026): con «Tutti»
  *   resta senza nomi, perché chi farà la consulenza si decide dopo.
+ *  ⚠️ LA DURATA (commessa 2026-10-30): predefinita 45 minuti, scelte rapide
+ *   30/45/60/90 e un valore libero; ogni orario mostrato è libero per TUTTA la
+ *   durata, e ne parte uno ogni mezz'ora (crm/wa-orari, crm/giorni-liberi).
+ *   L'ultima scelta resta nel browser; il messaggio dice la durata.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (prova degli hook).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useMemo, useState } from "react";
@@ -27,6 +31,15 @@ import { Finestra } from "@/crm/ui/Finestra";
 import { useGiorniLiberi } from "@/crm/useGiorniLiberi";
 import { giornoParlato } from "@/crm/promemoria/formati";
 import {
+  CHIAVE_DURATA,
+  DURATE_RAPIDE,
+  DURATA_ORARI,
+  DURATA_MASSIMA,
+  DURATA_MINIMA,
+  PASSO_ORARI,
+  durataParlata,
+  durataValida,
+  leggiDurata,
   cambiaScelta,
   consulenteDiPartenza,
   eScelto,
@@ -73,6 +86,25 @@ const corto = (data: string, oggi: string) => {
   return `${GIORNO_CORTO[d.getUTCDay()]} ${d.getUTCDate()}`;
 };
 
+/** «09:30» + minuti → «10:15». */
+const finisce = (ora: string, min: number) => {
+  const [h, m] = ora.split(":").map(Number);
+  const t = h * 60 + m + min;
+  return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
+
+/** La durata salvata nel browser (niente browser = la predefinita). */
+const durataSalvata = (): number => {
+  try {
+    return leggiDurata(window.localStorage.getItem(CHIAVE_DURATA));
+  } catch {
+    return DURATA_ORARI;
+  }
+};
+
+const SEGMENTO =
+  "inline-flex h-10 min-w-[2.75rem] items-center justify-center rounded-full px-2.5 text-[13px] font-medium tabular-nums transition-colors sm:h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
+
 const PILLOLA =
   "inline-flex h-11 shrink-0 items-center rounded-full sm:h-9 border px-3.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400";
 
@@ -85,7 +117,14 @@ export function OrariRapidi(p: {
   onInserisci: (testo: string) => void;
   onChiudi: () => void;
 }) {
-  const { squadra, giorni } = useGiorniLiberi({ quanti: SETTIMANE * 7 });
+  const [durata, setDurata] = useState<number>(durataSalvata);
+  //  Il campo del valore libero: aperto/chiuso e quello che c'è scritto.
+  const [libero, setLibero] = useState<string | null>(null);
+  const { squadra, giorni } = useGiorniLiberi({
+    quanti: SETTIMANE * 7,
+    durata,
+    passo: PASSO_ORARI,
+  });
   const oggi = giorni[0]?.data ?? "";
   //  null = non ancora toccato: vale il consulente del lead (la squadra può arrivare dopo).
   const [scelta, setChi] = useState<string | null>(null);
@@ -108,6 +147,24 @@ export function OrariRapidi(p: {
   );
   const nessunPosto = visti.length > 0 && visti.every((g) => g.fasce.length === 0);
 
+  const scegliDurata = (n: number) => {
+    setDurata(n);
+    setLibero(null);
+    try {
+      window.localStorage.setItem(CHIAVE_DURATA, String(n));
+    } catch {
+      /* senza memoria del browser vale per questa volta */
+    }
+  };
+  const confermaLibero = () => {
+    if (libero === null) return;
+    const n = durataValida(libero);
+    if (n !== null) scegliDurata(n);
+    else if (!libero.trim()) setLibero(null);
+  };
+  const liberoStorto = libero !== null && libero.trim() !== "" && durataValida(libero) === null;
+  const durataRapida = (DURATE_RAPIDE as readonly number[]).includes(durata);
+
   const conferma = () => {
     //  La finestra può restare aperta a lungo: un'ora passata o un posto preso nel frattempo esce.
     const valide = scelteAncoraLibere(scelte, giorni, oggi);
@@ -115,7 +172,7 @@ export function OrariRapidi(p: {
       setScelte(valide);
       const n = scelte.length - valide.length;
       toast.warning(n === 1 ? "Un orario non è più libero" : `${n} orari non sono più liberi`, {
-        description: `${n === 1 ? "L'ho tolto" : "Li ho tolti"} dalla scelta: ricontrolla e conferma.`,
+        description: `${n === 1 ? "L'ho tolto" : "Li ho tolti"} dalla scelta (durata ${durataParlata(durata)}): ricontrolla e conferma.`,
       });
       return;
     }
@@ -126,16 +183,14 @@ export function OrariRapidi(p: {
     const nomeConsulente = idComune
       ? (squadra.find((c) => c.id === idComune)?.data?.nome ?? null)
       : null;
-    const testo = messaggioOrari(valide, oggi, p.nome, nomeConsulente);
+    const testo = messaggioOrari(valide, oggi, p.nome, nomeConsulente, durata);
     if (testo) p.onInserisci(testo);
   };
 
   const quanti =
     riepilogo.length === 0
       ? "Nessun orario scelto"
-      : riepilogo.length === 1
-        ? "1 orario scelto"
-        : `${riepilogo.length} orari scelti`;
+      : `${riepilogo.length === 1 ? "1 orario scelto" : `${riepilogo.length} orari scelti`} · ${durata} min`;
 
   return (
     <Finestra
@@ -222,34 +277,112 @@ export function OrariRapidi(p: {
             ))}
           </div>
 
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-9 w-9 border-slate-200 bg-white"
-              disabled={settimana === 0}
-              onClick={() => setSettimana((s) => s - 1)}
-              aria-label="Settimana prima"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span
-              className="text-[13px] font-medium tabular-nums text-slate-800"
-              aria-live="polite"
-            >
-              {visti.length > 0 &&
-                `${giornoMese(visti[0].data)} – ${giornoMese(visti[visti.length - 1].data)}`}
-            </span>
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-9 w-9 border-slate-200 bg-white"
-              disabled={settimana >= SETTIMANE - 1}
-              onClick={() => setSettimana((s) => s + 1)}
-              aria-label="Settimana dopo"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+          {/*  Durata a sinistra, settimana a destra; sul telefono una sopra l'altra. */}
+          <div className="mb-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span id="durata-orari" className="text-[13px] font-medium text-slate-600">
+                Durata
+              </span>
+              <div
+                role="group"
+                aria-labelledby="durata-orari"
+                className="inline-flex items-center rounded-full border border-slate-200 bg-white p-0.5"
+              >
+                {DURATE_RAPIDE.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={durata === n && libero === null}
+                    aria-label={durataParlata(n)}
+                    onClick={() => scegliDurata(n)}
+                    className={cn(
+                      SEGMENTO,
+                      durata === n && libero === null
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-700 hover:bg-slate-100",
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-pressed={!durataRapida || libero !== null}
+                  aria-label={
+                    durataRapida ? "Altra durata" : `Altra durata, ora ${durataParlata(durata)}`
+                  }
+                  onClick={() => setLibero(durataRapida ? "" : String(durata))}
+                  className={cn(
+                    SEGMENTO,
+                    !durataRapida || libero !== null
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-700 hover:bg-slate-100",
+                  )}
+                >
+                  {durataRapida ? "Altro" : durata}
+                </button>
+              </div>
+              {libero !== null ? (
+                <label className="inline-flex items-center gap-1.5 text-[13px] text-slate-600">
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={libero}
+                    onChange={(e) => setLibero(e.target.value.replace(/\D/g, ""))}
+                    onBlur={confermaLibero}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        confermaLibero();
+                      }
+                    }}
+                    placeholder="50"
+                    aria-label={`Minuti, da ${DURATA_MINIMA} a ${DURATA_MASSIMA}`}
+                    aria-invalid={liberoStorto}
+                    className={cn(
+                      "h-10 w-16 rounded-lg border bg-white px-2 text-center text-[14px] tabular-nums text-slate-900 sm:h-8",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+                      liberoStorto ? "border-red-500" : "border-slate-300",
+                    )}
+                  />
+                  <span className={liberoStorto ? "text-red-600" : undefined}>
+                    {liberoStorto ? `min, da ${DURATA_MINIMA} a ${DURATA_MASSIMA}` : "min"}
+                  </span>
+                </label>
+              ) : (
+                <span className="text-[13px] text-slate-500">min</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 sm:justify-end">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 border-slate-200 bg-white"
+                disabled={settimana === 0}
+                onClick={() => setSettimana((s) => s - 1)}
+                aria-label="Settimana prima"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span
+                className="min-w-[8.5rem] text-center text-[13px] font-medium tabular-nums text-slate-800"
+                aria-live="polite"
+              >
+                {visti.length > 0 &&
+                  `${giornoMese(visti[0].data)} – ${giornoMese(visti[visti.length - 1].data)}`}
+              </span>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-9 w-9 border-slate-200 bg-white"
+                disabled={settimana >= SETTIMANE - 1}
+                onClick={() => setSettimana((s) => s + 1)}
+                aria-label="Settimana dopo"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {nessunPosto && (
@@ -288,22 +421,23 @@ export function OrariRapidi(p: {
                       Nessun posto
                     </p>
                   ) : (
-                    <div className="flex flex-1 flex-wrap gap-1.5 md:flex-col">
+                    <div className="flex flex-1 flex-wrap content-start gap-1.5 md:grid md:grid-cols-1 xl:grid-cols-2">
                       {g.fasce.map((f) => {
                         const si = eScelto(scelte, g.data, f.ora);
                         const posti = `${f.posti} ${f.posti === 1 ? "posto" : "posti"}`;
+                        const fascia = `${f.ora}–${finisce(f.ora, durata)}`;
                         return (
                           <button
                             key={f.ora}
                             type="button"
                             aria-pressed={si}
-                            aria-label={`${f.ora}, ${posti}`}
-                            title={posti}
+                            aria-label={`${fascia}, ${posti}`}
+                            title={`${fascia} · ${posti}`}
                             onClick={() =>
                               setScelte((s) => cambiaScelta(s, { data: g.data, ora: f.ora, chi }))
                             }
                             className={cn(
-                              "inline-flex h-10 min-w-[4.25rem] items-center justify-center gap-1 rounded-lg border px-2 text-[14px] font-medium tabular-nums transition-colors md:h-9 md:w-full",
+                              "inline-flex h-10 min-w-[4.25rem] items-center justify-center gap-1 rounded-lg border px-2 text-[14px] font-medium tabular-nums transition-colors md:h-9 md:w-full md:min-w-0 md:gap-0.5 md:px-1 md:text-[13px]",
                               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600",
                               //  La scelta: spunta e fondo tenue (regola delle finestre del CRM).
                               si

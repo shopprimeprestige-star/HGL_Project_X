@@ -42,6 +42,7 @@
 //  coda, e chi guarda crederebbe di essere in pari. Per questo si apre su tutto
 //  lo storico e l'avvertimento qui sotto compare appena si restringe.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { toast } from "sonner";
 import { useCRM } from "@/crm/CRMContext";
 import { useAuth, usePuo } from "@/crm/AuthContext";
@@ -93,7 +94,6 @@ import { AvvisoExtra, richiedeChiusura, useChiusura } from "@/crm/ChiusuraDialog
 //  Il selettore di stato è uno solo in tutto il CRM (crm/SelettoreStatoDialog):
 //  qui la riga aveva la sua tendina.
 import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
-import { buildWhatsAppLink } from "@/crm/whatsapp";
 import { COLONNE_ANTEPRIMA, celleAnteprima } from "@/crm/importa/riepilogo-import";
 //  IL RICONOSCIMENTO DEL CSV NON STA QUI. Intestazioni in italiano e in
 //  inglese, separatore, stati con un altro nome, righe scartate, colonne
@@ -1712,15 +1712,14 @@ export function DaFareScheda({
                             l'icona spenta è meglio del viaggio a vuoto. */}
                         {soloCifre(telefono).length >= 3 && (
                           <Button asChild size="icon" variant="ghost" className="h-9 w-9">
-                            <a
-                              href={buildWhatsAppLink(telefono, "")}
-                              target="_blank"
-                              rel="noreferrer"
+                            <LinkWhatsapp
+                              telefono={telefono}
+                              testo={""}
                               title="Scrivi su WhatsApp"
                               aria-label="Scrivi su WhatsApp"
                             >
                               <MessageCircle className="h-4 w-4" />
-                            </a>
+                            </LinkWhatsapp>
                           </Button>
                         )}
                       </div>

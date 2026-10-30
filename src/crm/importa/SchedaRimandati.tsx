@@ -30,6 +30,7 @@
  *   altri. Confonderli vorrebbe dire smettere di telefonare ai rimandati.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { TemperaturaRiga } from "@/crm/Temperatura";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { useMemo, type ComponentType } from "react";
 import { Check, Clock, MessageCircle, PhoneCall, RotateCcw, Undo2, User, X } from "lucide-react";
@@ -539,12 +540,12 @@ function Riga({
                 che può ripensarci o sbagliare chat. Qui si avvisa la pagina,
                 che al ritorno CHIEDE se il messaggio è partito davvero; scrive
                 solo il «sì». Il collegamento resta un collegamento. */}
-              <a href={linkRifissa} target="_blank" rel="noreferrer" onClick={() => onWhatsApp?.()}>
+              <LinkWhatsapp telefono={telefono} testo={messaggio} onNativo={() => onWhatsApp?.()}>
                 <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
                 {d.dataMeeting
                   ? `WhatsApp: rifissiamo quella del ${dataBreve(d.dataMeeting)}`
                   : "WhatsApp: riprendiamo da dove eravamo"}
-              </a>
+              </LinkWhatsapp>
             </Button>
           )}
         </div>

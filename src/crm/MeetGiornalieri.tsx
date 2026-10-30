@@ -44,6 +44,7 @@
 //  fatto. Così non esiste il caso "meeting completato ma lead ancora da
 //  contattare": non ci sono due verità da tenere allineate.
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import {
   Bell,
   CalendarCheck,
@@ -128,7 +129,6 @@ import {
   buildMeetReminderMessage,
   etichettaPromemoria,
   promemoriaUtile,
-  buildWhatsAppLink,
   getWhatsAppMessageForStatus,
 } from "./whatsapp";
 //  eStatoNonSvolta (crm/types) è IL criterio di "svolta", scritto una volta
@@ -849,6 +849,8 @@ interface VoceInvia {
   testo: string;
   nota: string;
   href?: string;
+  /** Messaggio WhatsApp al lead: apre la scelta app / chat del CRM (LinkWhatsapp). */
+  wa?: { telefono: string; testo: string };
   onScegli?: () => void;
 }
 
@@ -907,7 +909,20 @@ function MenuInvia({ voci }: { voci: VoceInvia[] }) {
               </span>
             </>
           );
-          return v.href ? (
+          //  ⚠️ `onSelect` fermato: il menu resta aperto sotto la scelta «WhatsApp /
+          //   WhatsApp del CRM», che si apre accanto alla voce.
+          return v.wa ? (
+            <DropdownMenuItem
+              key={v.chiave}
+              asChild
+              className="cursor-pointer items-start gap-2.5"
+              onSelect={(e) => e.preventDefault()}
+            >
+              <LinkWhatsapp telefono={v.wa.telefono} testo={v.wa.testo} allinea="end">
+                {corpo}
+              </LinkWhatsapp>
+            </DropdownMenuItem>
+          ) : v.href ? (
             <DropdownMenuItem key={v.chiave} asChild className="cursor-pointer items-start gap-2.5">
               <a href={v.href} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()}>
                 {corpo}
@@ -1235,7 +1250,7 @@ export function RigaLead({
       tinta: "text-muted-foreground",
       testo: "Link della consulenza",
       nota: "Solo il link, e che non serve scaricare nulla",
-      href: buildWhatsAppLink(l.data.telefono, buildLinkConsulenzaMessage(l, consulente)),
+      wa: { telefono: l.data.telefono, testo: buildLinkConsulenzaMessage(l, consulente) },
     });
   }
   if (l.data.telefono && mostraPromemoria && haStanzaNostra(l.data)) {
@@ -1245,7 +1260,7 @@ export function RigaLead({
       tinta: "text-muted-foreground",
       testo: "Promemoria dell'appuntamento",
       nota: "Giorno, ora e link, con richiesta di conferma",
-      href: buildWhatsAppLink(l.data.telefono, buildMeetReminderMessage(l, consulente)),
+      wa: { telefono: l.data.telefono, testo: buildMeetReminderMessage(l, consulente) },
     });
   }
   //  ⚠️ La pagina dell'appuntamento NON chiede il telefono, ed è voluto: un
@@ -1561,17 +1576,16 @@ export function RigaLead({
                 ancora ad appuntamento l'incontro di oggi va ricordato, su una
                 andata avanti serve solo se ce n'è già uno NUOVO più in là. */}
             {gesti && promemoriaUtile(l.data, oggiLocale()) && (
-              <a
-                href={buildWhatsAppLink(l.data.telefono, buildMeetReminderMessage(l, consulente))}
-                target="_blank"
-                rel="noopener"
+              <LinkWhatsapp
+                telefono={l.data.telefono}
+                testo={buildMeetReminderMessage(l, consulente)}
                 title={`Manda ${etichettaPromemoria(l.data, oggiLocale())}`}
                 aria-label="Manda il promemoria"
                 onClick={(e) => e.stopPropagation()}
                 className="shrink-0 rounded-md p-1.5 text-amber-600 transition hover:bg-amber-50"
               >
                 <Bell className="h-4 w-4" />
-              </a>
+              </LinkWhatsapp>
             )}
           </>
         )}
@@ -1854,27 +1868,25 @@ export function SchedaAdesso({
                 non esiste più, e mandarlo vuol dire spedire il cliente davanti
                 a una porta chiusa. */}
             {haStanzaNostra(l.data) && (
-              <a
-                href={buildWhatsAppLink(l.data.telefono, buildLinkConsulenzaMessage(l, consulente))}
-                target="_blank"
-                rel="noopener"
+              <LinkWhatsapp
+                telefono={l.data.telefono}
+                testo={buildLinkConsulenzaMessage(l, consulente)}
                 title="Manda il link della consulenza (spiega che non serve scaricare nulla)"
                 aria-label="Manda il link della consulenza"
                 className={`${tondo} text-sky-600`}
               >
                 <Video className="h-4 w-4" />
-              </a>
+              </LinkWhatsapp>
             )}
-            <a
-              href={buildWhatsAppLink(l.data.telefono, buildMeetReminderMessage(l, consulente))}
-              target="_blank"
-              rel="noopener"
+            <LinkWhatsapp
+              telefono={l.data.telefono}
+              testo={buildMeetReminderMessage(l, consulente)}
               title={`Manda ${etichettaPromemoria(l.data, oggiLocale())}`}
               aria-label="Manda il promemoria"
               className={`${tondo} text-amber-600`}
             >
               <Bell className="h-4 w-4" />
-            </a>
+            </LinkWhatsapp>
           </>
         )}
       </div>

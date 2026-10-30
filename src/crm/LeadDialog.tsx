@@ -134,6 +134,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { IconaWhatsApp } from "@/crm/chatwa/IconaWhatsApp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,7 +239,6 @@ import { TastoMessaggio } from "./TastoMessaggio";
 import { BloccoAnagrafica } from "./DatiAnagrafici";
 import {
   buildMeetReminderMessage,
-  buildWhatsAppLink,
   getWhatsAppMessageForStatus,
   linkStanzaDi,
   etichettaPromemoria,
@@ -291,6 +291,7 @@ import { linkPerPersona } from "@/shop/chi-dal-link";
 //  La spunta «quest'ora solo per questa persona»: la stessa di tutto il CRM.
 import { SpuntaSoloUnaPersona, useModiFascia } from "@/crm/ModoDellaFascia";
 //  «Questo numero ce l'abbiamo già»: la regola sta lì, con il suo perché.
+import { RiquadroMessaggioStato } from "@/crm/RiquadroMessaggioStato";
 import { avvisoDoppione, chiaveTelefono, schedeConLoStessoNumero } from "@/crm/telefono-doppio";
 import {
   STATI_CHE_TENGONO_LO_STATO,
@@ -2376,15 +2377,14 @@ function TastiContatto({
           )}
           title={etichettaExtra || "Scrivi il secondo messaggio"}
         >
-          <a
-            href={buildWhatsAppLink(telefono, messaggioExtra)}
-            target="_blank"
-            rel="noreferrer"
+          <LinkWhatsapp
+            telefono={telefono}
+            testo={messaggioExtra}
             aria-label={etichettaExtra || "Scrivi il secondo messaggio"}
           >
             <Bell className="h-3.5 w-3.5 text-amber-500" />
             {esteso && "Promemoria"}
-          </a>
+          </LinkWhatsapp>
         </Button>
       )}
     </>
@@ -2483,6 +2483,11 @@ function BloccoChiamata({
  *  in base al menu di stato accanto, e uno spostamento finiva sul richiamo
  *  lasciando l'appuntamento vecchio in agenda. */
 function CampiRichiamo({ form, update }: { form: LeadData; update: Update }) {
+  //  Il nome del consulente serve solo alle anteprime del messaggio automatico.
+  const { consultants } = useCRM();
+  const consulente = nomeConsulente(
+    (Array.isArray(consultants) ? consultants : []).find((c) => c?.id === form.consulenteId),
+  );
   //  ⚠️ CON «Ci ricontatta lui» LE PAROLE CAMBIANO, e non è un vezzo: «Data
   //   del richiamo» su una scheda in cui la telefonata la fa il cliente fa
   //   richiamare chi aveva chiesto di non essere richiamato.
@@ -2537,6 +2542,17 @@ function CampiRichiamo({ form, update }: { form: LeadData; update: Update }) {
           </span>
         </p>
       )}
+      {/*  Il messaggio automatico dello stato, scritto dal consulente: compare solo per gli
+          stati che ne hanno uno. Il testo va nel modulo (`messaggioStato`) e si salva con la
+          scheda; `conStatoDal` lo toglie se lo stato cambia. */}
+      <RiquadroMessaggioStato
+        key={`${form.stato}`}
+        stato={form.stato}
+        scheda={form}
+        consulente={consulente}
+        onCambia={(m) => update("messaggioStato", m)}
+        className="mt-3"
+      />
     </div>
   );
 }
@@ -4715,13 +4731,9 @@ function PassiWizard({
               )}
               {creato ? (
                 <Button asChild variant="outline" className="w-full sm:w-auto">
-                  <a
-                    href={buildWhatsAppLink(form.telefono, messaggioWhatsApp || "")}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <LinkWhatsapp telefono={form.telefono} testo={messaggioWhatsApp || ""}>
                     <IconaWhatsApp className="h-3.5 w-3.5 text-emerald-600" /> Manda la conferma
-                  </a>
+                  </LinkWhatsapp>
                 </Button>
               ) : (
                 <Button variant="outline" disabled className="w-full sm:w-auto">

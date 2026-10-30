@@ -222,12 +222,26 @@ export function schedaUnica<
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Legge `?chat=` dall'indirizzo: solo un uuid, altro = ignorato (D21). */
-export function leggiRicercaChat(raw: Record<string, unknown>): { chat?: string } {
+/** Il limite di un messaggio WhatsApp (come `LIMITE_WHATSAPP` in whatsapp.ts). */
+const LIMITE_TESTO = 4096;
+
+/** Legge `?chat=` dall'indirizzo: solo un uuid, altro = ignorato (D21).
+ *  `&testo=` (30/10/2026, scelta «WhatsApp del CRM»): il messaggio da mettere
+ *  nella casella; vale solo insieme a una chat valida. */
+export function leggiRicercaChat(raw: Record<string, unknown>): { chat?: string; testo?: string } {
   if (!raw || typeof raw !== "object" || !Object.prototype.hasOwnProperty.call(raw, "chat"))
     return {};
   const v = raw.chat;
-  return typeof v === "string" && UUID.test(v) ? { chat: v.toLowerCase() } : {};
+  if (typeof v !== "string" || !UUID.test(v)) return {};
+  const t = typeof raw.testo === "string" ? raw.testo.trim().slice(0, LIMITE_TESTO) : "";
+  return t ? { chat: v.toLowerCase(), testo: t } : { chat: v.toLowerCase() };
+}
+
+/** Il messaggio arrivato con l'indirizzo entra nella casella solo se è vuota:
+ *  una bozza già scritta non si sovrascrive. `null` = non toccare. */
+export function bozzaDaIndirizzo(bozza: string, testo?: string | null): string | null {
+  if (!testo || bozza.trim()) return null;
+  return testo;
 }
 
 /** Quante chat sono in attesa: il numeretto del menu (D25). */
