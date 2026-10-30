@@ -80,6 +80,11 @@ export interface RichiestaInvio {
    *  finestra di 24 ore aperta. Se non si può (finestra chiusa, testo impossibile, testo
    *  rifiutato da ManyChat) niente ripiego sul flusso: esito «saltato». Serve `modello`. */
   soloTesto?: boolean;
+  /** Il testo che il consulente ha scritto per lo stato (commessa 2026-10-30-messaggio-per-stato):
+   *  con la finestra di 24 ore aperta parte QUESTO al posto del testo del modello; altrimenti
+   *  (finestra chiusa, porta della finestra assente o guasta) parte il modello, come sempre.
+   *  Il modello resta di riserva anche se ManyChat rifiuta il testo. Serve `modello`. */
+  testoLibero?: string;
 }
 
 export interface RisultatoPorta {
@@ -241,8 +246,9 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   let modelloDiRiserva: string | null = null;
   if (r.modello && porte.ultimaEntrata) {
     const ultima = await porte.ultimaEntrata(cifre).catch(() => null);
+    //  Il testo del consulente, se c'è, vale più di quello del modello (stessa finestra).
     const testo = finestraPerTesto(ultima, porte.adesso())
-      ? testoDelModello(r.modello, parametri)
+      ? r.testoLibero?.trim() || testoDelModello(r.modello, parametri)
       : null;
     if (testo) {
       //  Con `soloTesto` il modello non è di riserva: non parte mai.
