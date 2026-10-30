@@ -13,8 +13,10 @@
  *   il resto della scheda resta com'è. Il server la scrive solo se la scheda
  *   non è cambiata nel frattempo (vedi la rotta).
  *  ───────────────────────────────────────────────────────────────────────── */
-import type { LeadData } from "@/crm/types";
+import { LEAD_STATUS_LABEL, type LeadData, type LeadStatus } from "@/crm/types";
 import { calcolaDaChiamare } from "@/crm/chatwa/daChiamare";
+import { aRoma } from "@/crm/promemoria/formati";
+import { conNota } from "@/crm/manychat/prenota-scheda";
 
 export interface ContattoWa {
   /** l'ultimo messaggio del cliente */
@@ -53,33 +55,65 @@ export function patchDaChiamare(
   };
 }
 
-/** ── E INDIETRO: DA «DA CHIAMARE» AD «ATTESA WHATSAPP» (29/10/2026) ─────────
- *  Richiesta del titolare: chi è in «Da chiamare» e risponde in chat (si riapre
- *  la finestra delle 24 ore) torna in «Attesa WhatsApp» ed esce dal filtro «Da
- *  chiamare». SOLO chi era in «Da chiamare»: ogni altro stato resta com'è anche
- *  se il cliente scrive.
- *  Vale se l'ultimo messaggio del cliente è arrivato DOPO l'ingresso in «Da
- *  chiamare» ed entro le ultime 24 ore (finestra aperta); mai con lo STOP. */
+/** ── E INDIETRO: CHI SCRIVE TORNA IN «ATTESA WHATSAPP» (29-30/10/2026) ──────
+ *  Richiesta del titolare: se il lead è in uno stato «da setter» e scrive, si
+ *  riapre la finestra delle 24 ore e la scheda torna da sola in «Attesa
+ *  WhatsApp», così si vede subito e si risponde.
+ *  ⚠️ ELENCO CHIUSO: solo questi quattro stati cambiano. Tutto il resto (Non
+ *   interessato, Richiamo concordato, Appuntamento fissato/rifissato, Ci
+ *   ricontatta lui, Perditempo e ogni stato dopo la consulenza) resta com'è
+ *   anche se il cliente scrive. Un nuovo stato NON entra qui da solo.
+ *  Vale se l'ultimo messaggio del cliente è arrivato DOPO l'ingresso nello
+ *  stato ed entro le ultime 24 ore (finestra aperta); mai con lo STOP.
+ *  «Messaggio del cliente» = `ultimo_in_entrata_il` della rubrica, che lo
+ *  scrive solo ManyChat DOPO i controlli su eco e doppioni: i messaggi nostri
+ *  non lo toccano. Le chiamate WhatsApp in entrata non arrivano da nessuna
+ *  fonte (il ponte le scarta, il webhook Cloud non legge `calls`): non contano. */
+export const STATI_CHE_TORNANO_IN_ATTESA = [
+  "da_contattare",
+  "non_risponde",
+  "segreteria",
+  "da_chiamare",
+] as const satisfies readonly LeadStatus[];
+
 const FINESTRA_MS = 24 * 3600_000;
+const due = (n: number) => String(n).padStart(2, "0");
+
+/** «30/10 alle 00:09», ora di Roma. */
+function quandoARoma(iso: number): string {
+  const r = aRoma(new Date(iso));
+  const [, mese, giorno] = r.giorno.split("-");
+  return `${giorno}/${mese} alle ${due(Math.floor(r.minuti / 60))}:${due(r.minuti % 60)}`;
+}
+
+/** `modificataIl`: l'`updated_at` della riga, solo come ripiego quando la scheda
+ *  non ha `statoDal` né `statoPrecedenteIl` (schede vecchie o importate): senza
+ *  una data d'ingresso non si saprebbe dire se ha scritto DOPO. */
 export function patchRitornoAttesa(
   d: Partial<LeadData> | null | undefined,
   contatto: ContattoWa | null | undefined,
   adesso: Date,
+  modificataIl?: string | null,
 ): Partial<LeadData> | null {
-  if (!d || d.stato !== "da_chiamare" || !contatto || contatto.stop) return null;
+  if (!d || !contatto || contatto.stop) return null;
+  const stato = d.stato as string | undefined;
+  if (!stato || !(STATI_CHE_TORNANO_IN_ATTESA as readonly string[]).includes(stato)) return null;
   const entrata = Date.parse(contatto.ultimoInEntrataIl ?? "");
   if (!Number.isFinite(entrata)) return null;
   if (adesso.getTime() - entrata > FINESTRA_MS) return null;
-  const dal = [d.statoDal, d.statoPrecedenteIl]
-    .map((x) => Date.parse(String(x ?? "")))
-    .filter((x) => Number.isFinite(x));
-  //  Senza data d'ingresso non si sa se ha risposto DOPO: si lascia com'è.
+  const date = (xs: unknown[]) =>
+    xs.map((x) => Date.parse(String(x ?? ""))).filter((x) => Number.isFinite(x));
+  let dal = date([d.statoDal, d.statoPrecedenteIl]);
+  if (dal.length === 0) dal = date([modificataIl]);
+  //  Senza nessuna data non si sa se ha scritto DOPO: si lascia com'è.
   if (dal.length === 0 || entrata <= Math.max(...dal)) return null;
   const ora = adesso.toISOString();
+  const riga = `Tornato in Attesa WhatsApp: ha scritto il ${quandoARoma(entrata)} (era: ${LEAD_STATUS_LABEL[stato as LeadStatus] ?? stato})`;
   return {
     stato: "attesa_whatsapp",
-    statoPrecedente: "da_chiamare",
+    statoPrecedente: stato as LeadStatus,
     statoPrecedenteIl: ora,
     statoDal: ora,
+    note: conNota(d.note, riga),
   };
 }
