@@ -18,9 +18,8 @@
  *  Il pannello non scrive avvisi nella campanella (`useAvvisiTask`): lo fa la
  *  pagina «Da fare oggi», e due scrittori della stessa riga sono un doppione. */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ChevronDown, ExternalLink, Sun, X } from "lucide-react";
+import { ChevronDown, Sun, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
 import { useAuth, useConsulenteCollegato, usePuo } from "@/crm/AuthContext";
@@ -264,18 +263,11 @@ export function PannelloOggi({
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <Sun className="h-4 w-4 shrink-0 text-amber-500" />
         <span className="text-[13px] font-semibold text-foreground">Oggi</span>
-        <Link
-          to="/CRM"
-          className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
-          title="Apri la pagina «Oggi» completa"
-        >
-          Pagina intera <ExternalLink className="h-3 w-3" />
-        </Link>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="ml-auto grid h-9 w-9 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label="Nascondi il pannello Oggi"
             title="Nascondi il pannello Oggi"
           >
