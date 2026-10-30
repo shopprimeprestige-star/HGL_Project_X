@@ -50,7 +50,9 @@ export type StatoDatiFattura =
   | "promemoria"
   | "richiesta_inviata"
   | "bozza_pronta"
-  | "da_guardare";
+  | "da_guardare"
+  /** esiste già una fattura EMESSA per questa scheda: non si crea un'altra bozza */
+  | "fattura_emessa";
 
 export interface DatiFatturaScheda {
   stato: StatoDatiFattura;

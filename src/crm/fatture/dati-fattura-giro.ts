@@ -106,6 +106,8 @@ export interface PorteDatiFattura {
    *  ⚠️ UNA LETTURA SOLA PER MESSAGGIO: il giro scrive il risultato già interpretato sulla scheda
    *  (`datiFattura.letture`, con gli id dei messaggi) PRIMA di fare altro, e non lo rifà. */
   leggi(i: { file: string[] } | { testo: string }): Promise<string | null>;
+  /** esiste già una fattura emessa per questa scheda? */
+  giaEmessa(leadId: string): Promise<boolean>;
   aliquota(): Promise<number>;
   leggiBozza(leadId: string): Promise<Fattura | null>;
   scriviBozza(f: Fattura): Promise<string | null>;
@@ -155,10 +157,19 @@ async function giroSottoLucchetto(
 
   //  ── L'AVVIO: chi ha già un acconto non riceve niente ─────────────────
   if (config.avvio === "da_fare") {
+    let mancanti = 0;
     for (const s of schede) {
       if (s.data.datiFattura) continue;
-      if (await porte.scriviScheda(s, { stato: "preesistente" })) out.preesistenti++;
+      try {
+        if (await porte.scriviScheda(s, { stato: "preesistente" })) out.preesistenti++;
+        else mancanti++;
+      } catch {
+        mancanti++;
+      }
     }
+    //  ⚠️ «fatto» solo se TUTTE le schede con acconto sono state segnate: se una non lo è, si
+    //   ritenta al giro dopo, e nessuna scheda con un acconto vecchio riceve la richiesta.
+    if (mancanti > 0) return { ...out, stato: "avvio", errori: mancanti };
     await porte.salvaConfig({ ...config, avvio: "fatto", attivoDal: adesso.toISOString() });
     return { ...out, stato: "avvio" };
   }
@@ -342,6 +353,11 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     //   messaggi letti) è il lucchetto: se un altro l'ha cambiata nel frattempo, la bozza NON si
     //   scrive. Così per uno stesso acconto la bozza nasce una volta sola (e se esiste già si
     //   completa soltanto, mai si sostituisce).
+    //  Fattura già emessa per questo cliente: niente seconda bozza, si segna sulla scheda e si salta.
+    if (await porte.giaEmessa(s.id)) {
+      await porte.scriviScheda(s, { ...base, letture: undefined, stato: "fattura_emessa" });
+      return;
+    }
     const nuovoStato: DatiFatturaScheda = {
       ...base,
       //  le letture restano finché la bozza non è scritta (se fallisce, non si rifanno)

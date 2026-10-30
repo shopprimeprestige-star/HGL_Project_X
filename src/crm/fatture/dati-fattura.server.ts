@@ -35,6 +35,7 @@ import type {
   SchedaGiro,
 } from "./dati-fattura-giro";
 import type { Fattura } from "./tipi";
+import { scriviSchedaCondizionata, type ClienteSchede } from "./dati-fattura-scheda";
 
 export const BUCKET_DATI_FATTURA = "dati-fattura";
 export const CHIAVE_CONFIG_DATI_FATTURA = "dati_fattura_config";
@@ -74,6 +75,30 @@ export async function scriviConfigDatiFattura(c: ConfigDatiFattura): Promise<voi
       { onConflict: "key" },
     );
   if (error) throw new Error(`config: ${error.code ?? ""}`);
+}
+
+async function leggiConTetto(r: Response, tetto: number): Promise<Uint8Array | null> {
+  if (!r.body) return null;
+  const lettore = r.body.getReader();
+  const pezzi: Uint8Array[] = [];
+  let tot = 0;
+  for (;;) {
+    const { done, value } = await lettore.read();
+    if (done) break;
+    tot += value.length;
+    if (tot > tetto) {
+      await lettore.cancel().catch(() => undefined);
+      return null;
+    }
+    pezzi.push(value);
+  }
+  const out = new Uint8Array(tot);
+  let o = 0;
+  for (const p of pezzi) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
 }
 
 function inBase64(bytes: Uint8Array): string {
@@ -298,21 +323,7 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
       }
     },
 
-    scriviScheda: async (s, d) => {
-      const nuova = { ...s.data, datiFattura: d };
-      const adesso = new Date().toISOString();
-      const { data, error } = await db()
-        .from("crm_leads")
-        .update({ data: nuova, updated_at: adesso })
-        .eq("id", s.id)
-        .eq("updated_at", s.updatedAt)
-        .select("id");
-      if (error) throw error;
-      if (!data?.length) return false; // la scheda è cambiata nel frattempo: si riprova al prossimo giro
-      s.data = nuova;
-      s.updatedAt = adesso;
-      return true;
-    },
+    scriviScheda: (s, d) => scriviSchedaCondizionata(db() as unknown as ClienteSchede, s, d),
 
     messaggiIn: async (userId, leadId, dal): Promise<MessaggioIn[]> => {
       const { data, error } = await db()
@@ -355,8 +366,9 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         if (!r.ok) return null;
         const dichiarato = Number(r.headers.get("content-length") ?? 0);
         if (dichiarato > PESO_MASSIMO_FILE) return null;
-        const bytes = new Uint8Array(await r.arrayBuffer());
-        if (bytes.length > PESO_MASSIMO_FILE || bytes.length < 2048) return null;
+        //  La dimensione si controlla MENTRE si scarica: oltre il tetto si smette di leggere.
+        const bytes = await leggiConTetto(r, PESO_MASSIMO_FILE);
+        if (!bytes || bytes.length < 2048) return null;
         const dataUrl = `data:${mime};base64,${inBase64(bytes)}`;
         if (!documentoAccettabile(dataUrl).ok) return null;
         const casuale = crypto.randomUUID().replace(/-/g, "");
@@ -372,6 +384,17 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
     },
 
     leggi: chiediAllAi,
+
+    giaEmessa: async (leadId) => {
+      const emesse = await archivio.leggiPrefisso("fattura:");
+      return emesse.some((e) => {
+        try {
+          return (JSON.parse(e.value) as Fattura).leadId === leadId;
+        } catch {
+          return false;
+        }
+      });
+    },
 
     aliquota: async () => (await leggiAziendaSu(archivio)).aliquotaPredefinita,
 

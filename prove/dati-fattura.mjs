@@ -123,6 +123,7 @@ export async function proveDatiFattura(mod, { c, gruppo, radice }) {
   c("nessuna cache dell'AI: niente prefisso di lettura, niente upsert di risposte", [false, false], [/dati_fattura_ai/.test(srv), /upsert\(\{ key: kc/.test(srv)]);
   c("l'unica scrittura di dati in app_config oltre a config/lucchetto è la bozza (archivio)", true, /fattura_bozza:\$\{f\.leadId\}/.test(srv));
 
+  await proveScheda(mod, { c, gruppo });
   await proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H });
 }
 
@@ -150,6 +151,8 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
       rilasci: 0,
       rifiutaBozzaPronta: 0,
       bozzeScritte: 0,
+      emessa: false,
+      rifiutaScheda: 0,
       versione: 0,
       ...o,
     };
@@ -169,6 +172,7 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
       scriviScheda: async (s, d) => {
         const rec = m.schede.find((x) => x.id === s.id);
         if (!rec || rec.updatedAt !== s.updatedAt) return false;
+        if (m.rifiutaScheda > 0) { m.rifiutaScheda--; return false; }
         if (d.stato === "bozza_pronta" && m.rifiutaBozzaPronta > 0) { m.rifiutaBozzaPronta--; return false; }
         rec.data.datiFattura = d;
         rec.updatedAt = `v${++m.versione}`;
@@ -180,6 +184,7 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
       messaggiIn: async (u, l) => m.messaggi[l] ?? [],
       scaricaESalva: async (u, l, url) => { m.scaricati.push(url); return m.scarica ? { percorso: `${u}/${l}/f${m.scaricati.length}.jpg`, dataUrl: "data:image/jpeg;base64,AAAA" } : null; },
       leggi: async (i) => { m.chiamateAi++; m.lettureAi.push(i); return m.ai(i); },
+      giaEmessa: async () => m.emessa,
       aliquota: async () => 22,
       leggiBozza: async (l) => m.bozze[l] ?? null,
       scriviBozza: async (f) => {
@@ -233,6 +238,18 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
   await G.giroDatiFattura(m.porte);
   c("chiave già nel registro → segnata come inviata, senza secondo messaggio", "richiesta_inviata", m.schede[0].data.datiFattura.stato);
 
+  //  ── AVVIO: «fatto» solo se TUTTE le schede sono state segnate ──
+  m = mondo({ config: { acceso: true, avvio: "da_fare" }, schede: [S("A"), S("B")], rifiutaScheda: 1 });
+  r = await G.giroDatiFattura(m.porte);
+  c("avvio con una scheda non segnata: NON si scrive «fatto», si ritenta", ["da_fare", 1, 1], [m.config.avvio, r.preesistenti, r.errori]);
+  c("…e nessuna richiesta parte nel frattempo", 0, m.inviati.length);
+  r = await G.giroDatiFattura(m.porte);
+  c("al giro dopo tutte segnate, «fatto» e ancora nessuna richiesta", ["fatto", 0, "preesistente", "preesistente"], [m.config.avvio, m.inviati.length, m.schede[0].data.datiFattura.stato, m.schede[1].data.datiFattura.stato]);
+  m = mondo({ config: { acceso: true, avvio: "da_fare" }, schede: [S("A")] });
+  m.porte.scriviScheda = async () => { throw new Error("db"); };
+  await G.giroDatiFattura(m.porte);
+  c("avvio con errore di scrittura: resta «da_fare»", "da_fare", m.config.avvio);
+
   /* ── LA SICUREZZA: UN GIRO ALLA VOLTA, UN MESSAGGIO SOLO, UNA BOZZA SOLA ── */
   gruppo("DATI FATTURA · SICUREZZA (LUCCHETTO, INVIO IDEMPOTENTE, BOZZA DOPO LA SCHEDA)");
   m = mondo({ schede: [S("A")], lockOccupato: true });
@@ -276,6 +293,12 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
 
   /* sicurezza sulla risposta */
   const foto = (id = "w1") => ({ id, body: H + `${id}.jpg`, canale: "manychat", creatoIl: dopo(2) });
+  m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] }, emessa: true });
+  await G.giroDatiFattura(m.porte);
+  c("fattura già EMESSA per il cliente: nessuna seconda bozza, scheda segnata «fattura_emessa»", [0, "fattura_emessa", undefined], [m.bozzeScritte, m.schede[0].data.datiFattura.stato, m.schede[0].data.datiFattura.letture]);
+  const gE = await G.giroDatiFattura(m.porte);
+  c("e al giro dopo non si tocca più", [0, 0], [gE.bozze, m.bozzeScritte]);
+
   m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] } });
   await G.giroDatiFattura(m.porte);
   c("bozza scritta: i dati interpretati NON restano sulla scheda", undefined, m.schede[0].data.datiFattura.letture);
@@ -345,4 +368,37 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
   r = await G.giroDatiFattura(m.porte);
   c("una scheda che dà errore non ferma le altre", [1, 1], [r.errori, r.richieste]);
   c("il risultato del giro non porta dati (solo conteggi)", true, Object.values(r).every((v) => typeof v === "number" || typeof v === "string"));
+}
+
+/* ═══ LA SCRITTURA DELLA SCHEDA, CON UN DATABASE CHE IMITA IL TRIGGER ═════════ */
+async function proveScheda(mod, { c, gruppo }) {
+  const W = mod["fatture/dati-fattura-scheda"];
+  gruppo("DATI FATTURA · SCRITTURA CONDIZIONATA (IL DATABASE RISCRIVE updated_at)");
+  //  Il database finto fa quello che fa trg_crm_leads_updated: porta updated_at a now() (qui T1, T2…)
+  //  qualunque valore gli si mandi. Chi si tiene l'orologio suo, alla seconda scrittura non trova più la riga.
+  const riga = { id: "L", data: { nome: "x" }, updated_at: "T0" };
+  let n = 0;
+  const client = {
+    from: () => {
+      let patch = null;
+      const filtri = {};
+      const q = {
+        update: (v) => { patch = v; return q; },
+        eq: (k, v) => { filtri[k] = v; return q; },
+        select: async () => {
+          if (filtri.id !== riga.id || filtri.updated_at !== riga.updated_at) return { data: [], error: null };
+          riga.data = patch.data;
+          riga.updated_at = `T${++n}`; // il trigger: ignora quello mandato
+          return { data: [{ updated_at: riga.updated_at }], error: null };
+        },
+      };
+      return q;
+    },
+  };
+  const s = { id: "L", data: { nome: "x" }, updatedAt: "T0" };
+  c("prima scrittura riuscita, updatedAt = quello del database", [true, "T1"], [await W.scriviSchedaCondizionata(client, s, { stato: "promemoria" }), s.updatedAt]);
+  c("SECONDA scrittura sulla stessa scheda riuscita (era il difetto)", [true, "T2", "richiesta_inviata"], [await W.scriviSchedaCondizionata(client, s, { stato: "richiesta_inviata" }), s.updatedAt, riga.data.datiFattura.stato]);
+  c("terza, quarta: sempre", [true, true], [await W.scriviSchedaCondizionata(client, s, { stato: "bozza_pronta" }), await W.scriviSchedaCondizionata(client, s, { stato: "bozza_pronta", bozzaIl: "x" })]);
+  const vecchia = { id: "L", data: { nome: "x" }, updatedAt: "T0" };
+  c("copia vecchia (la scheda è cambiata): non scrive e non cambia la copia", [false, "T0"], [await W.scriviSchedaCondizionata(client, vecchia, { stato: "promemoria" }), vecchia.updatedAt]);
 }

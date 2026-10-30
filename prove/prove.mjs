@@ -105,6 +105,7 @@ const MODULI = [
   //  Dopo l'acconto: richiesta dei dati, lettura della risposta, bozza (mai emessa). prove/dati-fattura.mjs.
   "fatture/dati-fattura",
   "fatture/dati-fattura-giro",
+  "fatture/dati-fattura-scheda",
   //  ⚠️ Acconto, saldo o fattura intera: vedi proveDelTipoProposto. Una
   //   proposta sbagliata si accetta senza guardarla, ed e' finita al cliente.
   "fatture/conti",
