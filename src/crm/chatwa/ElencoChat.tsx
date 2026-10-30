@@ -483,9 +483,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           )
         ) : tutte ? (
           <ul aria-label="Tutte le chat, dall'ultimo messaggio">
-            {elencoTutte.map((c) =>
-              riga(c, c.daRispondere?.attesa ? "attesa" : eVecchia(c) ? "vecchia" : "normale"),
-            )}
+            {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
+            {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
           </ul>
         ) : (
           <>

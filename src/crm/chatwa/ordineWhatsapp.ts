@@ -8,7 +8,7 @@
  *  L'ora è quella che la riga mostra a destra (`ultimoDellaChat`, stato.ts): il più recente fra
  *  l'ultimo messaggio letto in pagina e quello che il trigger salva sul contatto
  *  (`ultimo_messaggio_il`), e nessuno dei due conta i doppioni del ponte (`duplicato_di`).
- *  ⚠️ NON si usa `last_message_at` finché c'è di meglio: il ponte lo spinge in avanti anche con un
+ *  NON si usa `last_message_at` finché c'è di meglio: il ponte lo spinge in avanti anche con un
  *  doppione nascosto, e la chat salirebbe per un messaggio che nessuno vede.
  *  Pura: niente React, niente Supabase. Provata in prove/idee/ordine-whatsapp.mjs. */
 
