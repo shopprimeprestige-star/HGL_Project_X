@@ -10,13 +10,17 @@
  *   (503 se manca o è più corto di 32 caratteri, 401 se la chiave è
  *   sbagliata, 413 oltre 256 KB, 400 corpo non valido, 500 database). Il
  *   segreto sta solo nei segreti del Worker e in `config.env` sul Mac.
+ *  Dal 30/10/2026 la stessa rotta serve anche l'invio a mano dopo le 24 ore:
+ *  `tipo` `prendi` ed `esito` (il Mac prende un testo dalla coda e riporta
+ *  l'esito) e il battito che risponde `invii_in_attesa`. Con la migrazione
+ *  non applicata lotti e battiti vanno come prima (`invii` non lancia mai).
  *  ⚠️ L'utente non arriva mai dal corpo: è `manychat_config.user_id`.
  *  ⚠️ Nei log solo codici e contatori (li scrive `porte.avviso`): mai numeri,
  *   nomi, testi o id.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { gestisciRichiesta } from "@/crm/ponte/ingresso";
-import { porteIngresso } from "@/crm/ponte/porte.server";
+import { porteIngresso, porteInvio } from "@/crm/ponte/porte.server";
 
 export const Route = createFileRoute("/api/public/ponte-whatsapp")({
   server: {
@@ -26,6 +30,7 @@ export const Route = createFileRoute("/api/public/ponte-whatsapp")({
           request,
           segreto: process.env.PONTE_WA_TOKEN,
           adesso: new Date(),
+          invii: porteInvio(),
         }),
     },
   },
