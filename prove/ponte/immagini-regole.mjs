@@ -16,7 +16,10 @@ const UTENTE = "0b0b0b0b-1111-4222-8333-444444444444";
 const ALTRO = "99999999-1111-4222-8333-444444444444";
 const NUMERO = "393331234567";
 const CHIAVE = `bw:${NUMERO}:3EB0A1`;
-const PATH = "7c1e5f0a-9b2d-4e6f-8a3b-0d1c2e3f4a5b.jpg";
+const NOME_FILE = "7c1e5f0a-9b2d-4e6f-8a3b-0d1c2e3f4a5b.jpg";
+const PATH = NOME_FILE;
+/** L'identificativo del file per la GET: il nome `<uuid>.<ext>`, senza dati del cliente. */
+const ID = "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.png";
 const ACCESO = '{"acceso":true,"tettoGB":0.8}';
 const MIB8 = 8 * 1024 * 1024;
 
@@ -55,8 +58,8 @@ function porteFinte(o = {}) {
       lancia("fatto");
       return o.fatto ?? { stato: "pronta" };
     },
-    async percorsoPronto(u, chiave) {
-      chiamate.push(["percorsoPronto", u, chiave]);
+    async percorsoPronto(u, id) {
+      chiamate.push(["percorsoPronto", u, id]);
       lancia("percorsoPronto");
       return o.percorso === undefined ? PATH : o.percorso;
     },
@@ -103,6 +106,8 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
   c("i rifiuti del Worker: lista chiusa", ["spenta", "tetto", "troppo_grande", "tipo"], [...T.MOTIVI_RIFIUTO_MEDIA]);
   c("bucket e chiave dell'interruttore", ["ponte-media", "ponte_immagini"], [T.BUCKET_MEDIA, T.CHIAVE_INTERRUTTORE]);
   c("il tetto di serie è 0,8 GB; il link di lettura dura 300 secondi", [0.8, 300], [T.TETTO_GB_DI_SERIE, T.FIRMA_LETTURA_S]);
+  c("l'identificativo del file per la GET: <uuid minuscolo>.<jpg|png|webp>, mai la chiave né un numero", [true, true, true, false, false, false, false, false, false, false],
+    [ID, NOME_FILE, "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.webp", "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e", "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.svg", ID.toUpperCase(), CHIAVE, `${UTENTE}/${ID}`, `${ID}\n`, `${ID}&x=1`].map((k) => T.ID_MEDIA.test(k)));
   c("la chiave del messaggio: bw:<cifre>:<id>", [true, true, false, false, false, false, false],
     [CHIAVE, "bw:393331234567:a.b-c_D", "bw:123:x", "xx:393331234567:3EB0A1", "bw:393331234567:", "bw:393331234567:a b", `${CHIAVE}\n`].map((k) => T.CHIAVE_MEDIA.test(k)));
 
@@ -234,6 +239,13 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
       c(`il database dice no (${rompi}): 500 database, il Mac ritenta`, [500, { ok: false, errore: "database" }], [x.stato, x.json]);
       c(`…il log dice solo il codice`, true, logPulito(p.avvisi));
     }
+    //  22023 = argomento non valido per la funzione SQL (chiave, numero o utente): è colpa del corpo, non del database.
+    for (const rompi of ["permesso", "interruttore"]) {
+      p = porteFinte({ rompi, codice: "22023" });
+      x = await leggi(await M.gestisciMedia(p, UTENTE, permessoDi()));
+      c(`SQLSTATE 22023 (${rompi}): 400 corpo_non_valido, non 500`, [400, { ok: false, errore: "corpo_non_valido" }], [x.stato, x.json]);
+      c("…il log dice solo il codice", true, logPulito(p.avvisi) && p.avvisi.some(([k]) => k === "media_non_valido"));
+    }
     for (const codice of ["42883", "PGRST202", "42P01", "PGRST205"]) {
       p = porteFinte({ rompi: "permesso", codice });
       x = await leggi(await M.gestisciMedia(p, UTENTE, permessoDi()));
@@ -277,6 +289,9 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
     p = porteFinte({ rompi: "fatto", codice: "42883" });
     x = await leggi(await M.gestisciMedia(p, UTENTE, fattoDi()));
     c("migrazione assente: 503 migrazione", [503, "migrazione"], [x.stato, x.json?.errore]);
+    p = porteFinte({ rompi: "fatto", codice: "22023" });
+    x = await leggi(await M.gestisciMedia(p, UTENTE, fattoDi()));
+    c("SQLSTATE 22023 in media_fatto: 400 corpo_non_valido, non 500", [400, "corpo_non_valido"], [x.stato, x.json?.errore]);
     p = porteFinte();
     x = await leggi(await M.gestisciMedia(p, UTENTE, fattoDi({ chiave: "bw:1:2" })));
     c("chiave storta: 400, il database non si tocca", [400, []], [x.stato, p.chiamate]);
@@ -290,13 +305,13 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
   /* ═══ 6. LA LETTURA (GET) ═══════════════════════════════════════════════ */
   gruppo("PONTE · IMMAGINI · gestisciLettura (T5)");
   {
-    const chiedi = (p, o = {}) => M.gestisciLettura(p, { adminUserId: UTENTE, chiave: CHIAVE, ...o });
+    const chiedi = (p, o = {}) => M.gestisciLettura(p, { adminUserId: UTENTE, id: ID, ...o });
     let p = porteFinte();
     let x = await chiedi(p);
     c("riga pronta dell'utente: 200 con l'URL firmato", [200, true], [x.stato, /^https:\/\/x\.supabase\.co\/storage\/v1\/object\/sign\/ponte-media\//.test(x.corpo.url)]);
     c("…ok e url, nient'altro (né percorso né numero)", ["ok", "url"], Object.keys(x.corpo).sort());
-    c("…la riga si cerca per l'utente della sessione e la chiave; la firma dura 300 secondi",
-      [["percorsoPronto", UTENTE, CHIAVE], ["firmaLettura", PATH, 300]], p.chiamate.filter((k) => k[0] === "percorsoPronto" || k[0] === "firmaLettura"));
+    c("…la riga si cerca per l'utente della sessione e l'identificativo (mai la chiave); la firma dura 300 secondi",
+      [["percorsoPronto", UTENTE, ID], ["firmaLettura", PATH, 300]], p.chiamate.filter((k) => k[0] === "percorsoPronto" || k[0] === "firmaLettura"));
 
     p = porteFinte();
     x = await chiedi(p, { adminUserId: "" });
@@ -306,10 +321,10 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
     c("installazione diversa da quella del database: 403, la riga non si cerca", [403, "non_autorizzato", []], [x.stato, x.corpo.motivo, p.chiamate.filter((k) => k[0] === "percorsoPronto")]);
     x = await chiedi(porteFinte({ utente: null }));
     c("database senza utente configurato: 403", 403, x.stato);
-    for (const chiave of [null, undefined, "", "bw:1:2", `${CHIAVE}\n`, 5, "x".repeat(500)]) {
+    for (const id of [null, undefined, "", CHIAVE, "bw:1:2", NOME_FILE.toUpperCase(), `${ID}\n`, `${UTENTE}/${ID}`, ID.replace(".png", ""), ID.replace(".png", ".svg"), 5, "x".repeat(500)]) {
       p = porteFinte();
-      x = await chiedi(p, { chiave });
-      c(`chiave non valida (${String(chiave).slice(0, 12)}): 400, la riga non si cerca`, [400, "chiave_non_valida", []], [x.stato, x.corpo.motivo, p.chiamate.filter((k) => k[0] === "percorsoPronto")]);
+      x = await chiedi(p, { id });
+      c(`identificativo non valido (${String(id).slice(0, 12)}): 400, la riga non si cerca`, [400, "id_non_valido", []], [x.stato, x.corpo.motivo, p.chiamate.filter((k) => k[0] === "percorsoPronto")]);
     }
     p = porteFinte({ percorso: null });
     x = await chiedi(p);
@@ -323,6 +338,19 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
     }
     x = await chiedi(porteFinte({ rompi: "percorsoPronto", codice: "42P01" }));
     c("tabella assente: 503 migrazione", [503, "migrazione"], [x.stato, x.corpo.motivo]);
+    //  Un guasto passeggero di Storage (rete, 5xx) NON è «la foto non c'è più»: 503, e la chat lascia Riprova.
+    p = porteFinte({ rompi: "firmaLettura", codice: "storage" });
+    x = await chiedi(p);
+    c("Storage in errore (non «oggetto assente»): 503 storage, non 404", [503, "storage", true], [x.stato, x.corpo.motivo, logPulito(p.avvisi)]);
+    c("…il log lo dice con un codice fisso", true, p.avvisi.some(([k]) => k === "media_storage"));
+    c("«oggetto assente» (la porta risponde null) resta 404", 404, (await chiedi(porteFinte({ firma: null }))).stato);
+
+    //  Che cosa è «oggetto assente» per Storage: solo lo stato 404 (anche nel corpo, con HTTP 400); tutto il resto è un guasto.
+    c("oggettoAssente: 404 sì (status o statusCode, numero o testo)", [true, true, true, true], [{ status: 404 }, { statusCode: "404" }, { status: 400, statusCode: "404" }, { statusCode: 404 }].map(M.oggettoAssente));
+    c("oggettoAssente: 400, 403, 429, 500, 503, rete, vuoto, testo no", [false, false, false, false, false, false, false, false, false, false], [
+      { status: 400, statusCode: "400" }, { status: 403 }, { status: 429 }, { status: 500 }, { status: 503 }, new TypeError("fetch failed"), {}, null, undefined, "404"].map(M.oggettoAssente));
+    c("oggettoAssente: un messaggio che contiene «404» non basta", false, M.oggettoAssente({ message: "Object not found 404", status: 500 }));
+    c("percorsoDi: <utente>/<nome del file>, nient'altro", `${UTENTE}/${ID}`, M.percorsoDi(UTENTE, ID));
   }
 
   /* ═══ 7. I SORGENTI ═════════════════════════════════════════════════════ */
@@ -340,6 +368,8 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
       [...new Set([...server.matchAll(/\.from\(\s*"(\w+)"/g)].map((x) => x[1]))].sort());
     c("media.server: la chiave di servizio col cast, mai il messaggio d'errore, niente fetch", [true, false, false],
       [server.includes("supabaseAdmin as unknown as") || server.includes("supabaseAdmin.storage"), /\.message\b/.test(server), /\bfetch\s*\(/.test(server)]);
+    c("media.server: la riga si cerca per utente e percorso `<utente>/<id>` (mai per chiave); Storage assente = 404, il resto lancia", [true, true, true, false],
+      [/percorsoDi\(userId, id\)/.test(server), /oggettoAssente\(error\)/.test(server), /code: "storage"/.test(server), /\.eq\("chiave"/.test(server)]);
     c("media.server: nessuna scrittura diretta (il database si scrive solo con le due funzioni)", false, /\.(insert|update|upsert|delete)\(/.test(server));
     c("media.server: il bucket è quello di T4 e non si sceglie dal corpo", true, server.includes("BUCKET_MEDIA"));
     const ingresso = senzaCommenti(sorgente("src/crm/ponte/ingresso.ts"));

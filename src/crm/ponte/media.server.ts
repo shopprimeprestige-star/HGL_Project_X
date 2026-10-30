@@ -15,6 +15,7 @@
  *  ⚠️ Nei log solo `[ponte-media] <codice>` e contatori numerici.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { oggettoAssente, percorsoDi } from "./media";
 import {
   BUCKET_MEDIA,
   CHIAVE_INTERRUTTORE,
@@ -114,24 +115,27 @@ export function porteMedia(): PorteMedia {
       return data as EsitoFattoSql;
     },
 
-    percorsoPronto: async (userId, chiave) => {
+    //  Per nome del file (`<utente>/<uuid>.<ext>`): l'indirizzo della GET non porta il numero del cliente.
+    percorsoPronto: async (userId, id) => {
       const { data, error } = await db()
         .from("ponte_wa_media")
         .select<{ path: string | null }[]>("path")
         .eq("user_id", userId)
-        .eq("chiave", chiave)
+        .eq("path", percorsoDi(userId, id))
         .eq("stato", "pronta")
         .maybeSingle();
       if (error) return lancia(error);
       return typeof data?.path === "string" ? data.path : null;
     },
 
-    //  Un oggetto assente non è un guasto: la firma fallisce e la rotta dice 404.
+    //  Un oggetto assente (404) non è un guasto: la rotta dice 404. Un altro errore di Storage
+    //  (429, 5xx, rete) sì: si lancia e la rotta dice 503, così la chat lascia Riprova.
     firmaLettura: async (path, secondi) => {
       const { data, error } = await supabaseAdmin.storage
         .from(BUCKET_MEDIA)
         .createSignedUrl(path, secondi);
-      return error || !data?.signedUrl ? null : data.signedUrl;
+      if (error) return oggettoAssente(error) ? null : lancia({ code: "storage" });
+      return data?.signedUrl ?? null;
     },
   };
 }

@@ -6,7 +6,10 @@
  *    1. la riga si legge dal database (RLS: chi vede le chat vede le foto), tutte
  *       le righe della chat in UNA lettura sola (`leggiRiga` raggruppa i messaggi
  *       che la chiedono nello stesso istante);
- *    2. al tocco si chiede l'indirizzo firmato (5 minuti) a `GET /api/crm/ponte-media`;
+ *    2. al tocco si chiede l'indirizzo firmato (5 minuti) a `GET /api/crm/ponte-media?id=…`,
+ *       con l'identificativo del file in Storage (il nome casuale `<uuid>.<estensione>`, preso
+ *       dal percorso della riga): nell'indirizzo non entrano né il numero del cliente né la
+ *       chiave del messaggio;
  *    3. la foto si scarica in memoria e si mostra da un indirizzo `blob:` locale.
  *  Senza riga (foto vecchia, ponte spento, lettura fallita) la bolla resta il
  *  testo «📷 Foto» di sempre.
@@ -45,6 +48,12 @@ export function fotoDelPonte(m: {
 
 // ── Chiedere e scaricare la foto ──────────────────────────────────────────
 
+/** L'identificativo di un file in Storage: il suo nome `<uuid>.<jpg|png|webp>` (minuscolo, come lo scrive il database). */
+const ID_FOTO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp)$/;
+/** Il percorso di una riga: `<uuid dell'utente>/<nome del file>`; il gruppo è il nome. */
+const PERCORSO_FOTO =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp))$/;
+
 /** Il peso massimo accettato (il bucket è a 8 MiB; il margine copre l'involucro). */
 const PESO_MAX = 9 * 1024 * 1024;
 const TIPI_FOTO = ["image/jpeg", "image/png", "image/webp"];
@@ -66,15 +75,18 @@ export interface RetiFoto {
 const guasto = (riprova = true): EsitoFoto => ({ ok: false, frase: FRASE_RIPROVA, riprova });
 
 /** Chiede l'indirizzo firmato, scarica la foto e la restituisce come `Blob`.
- *  Non lancia mai: ogni guasto è un `{ ok:false, frase, riprova }` da mostrare. */
-export async function caricaFoto(chiave: string, reti: RetiFoto): Promise<EsitoFoto> {
+ *  `id` = l'identificativo del file (`idFoto`): un indirizzo con il numero del cliente
+ *  resterebbe nei log di accesso. Non lancia mai: ogni guasto è un `{ ok:false, frase, riprova }`. */
+export async function caricaFoto(id: string, reti: RetiFoto): Promise<EsitoFoto> {
+  if (!ID_FOTO.test(id)) return guasto(false); // mai niente di diverso dal nome di un file in un indirizzo
   try {
-    const r = await reti.chiedi(`/api/crm/ponte-media?chiave=${encodeURIComponent(chiave)}`, {
+    const r = await reti.chiedi(`/api/crm/ponte-media?id=${id}`, {
       method: "GET",
       cache: "no-store",
       signal: reti.segnale,
     });
-    //  404: la riga non c'è (più) o non è di questo utente: ritentare non serve.
+    //  404: la riga o l'oggetto non ci sono (più): ritentare non serve. Ogni altro errore
+    //  (anche il 503 di un guasto passeggero di Storage) lascia il tasto Riprova.
     if (r.status === 404) return { ok: false, frase: FRASE_NON_PIU, riprova: false };
     if (!r.ok) return guasto();
     const corpo: unknown = await r.json().catch(() => null);
@@ -110,7 +122,7 @@ interface Catena {
     k: string,
     v: string[],
   ) => Promise<{
-    data: { chiave: string; stato: string }[] | null;
+    data: { chiave: string; stato: string; path: string | null }[] | null;
     error: unknown;
   }>;
 }
@@ -126,6 +138,11 @@ interface Voce {
   pronta: boolean;
 }
 const cache = new Map<string, Voce>();
+/** chiave del messaggio → identificativo del file, per le sole righe pronte (serve al tocco). */
+const ids = new Map<string, string>();
+
+/** L'identificativo (nome del file) di una foto pronta già letta, o `null`. */
+export const idFoto = (chiave: string): string | null => ids.get(chiave) ?? null;
 let lotto: { chiavi: Set<string>; esito: Promise<Map<string, StatoRiga>> } | null = null;
 
 async function leggiLotto(chiavi: string[]): Promise<Map<string, StatoRiga>> {
@@ -133,11 +150,15 @@ async function leggiLotto(chiavi: string[]): Promise<Map<string, StatoRiga>> {
   for (let i = 0; i < chiavi.length; i += PER_LETTURA) {
     const { data, error } = await (supabase as unknown as { from: (t: string) => Catena })
       .from("ponte_wa_media")
-      .select("chiave,stato")
+      .select("chiave,stato,path")
       .in("chiave", chiavi.slice(i, i + PER_LETTURA));
     if (error) throw new Error("lettura");
-    for (const r of data ?? [])
+    for (const r of data ?? []) {
       trovate.set(r.chiave, r.stato === "pronta" ? "pronta" : "in_arrivo");
+      const id = r.stato === "pronta" ? PERCORSO_FOTO.exec(r.path ?? "")?.[1] : undefined;
+      if (id) ids.set(r.chiave, id);
+      else ids.delete(r.chiave);
+    }
   }
   return trovate;
 }
@@ -251,12 +272,19 @@ export function useMediaPonte(
 
   const mostra = useCallback(() => {
     if (!chiave || inCorso.current) return;
+    const id = idFoto(chiave);
+    if (!id) {
+      //  la riga non ha (più) un file leggibile: si rilegge e si lascia Riprova
+      setAzione({ fase: "errore", frase: FRASE_RIPROVA, riprova: true });
+      leggi(true);
+      return;
+    }
     inCorso.current = true;
     libera();
     const ctrl = new AbortController();
     annulla.current = ctrl;
     setAzione({ fase: "carico" });
-    void caricaFoto(chiave, { chiedi: fetchCRM, scarica: fetch, segnale: ctrl.signal }).then(
+    void caricaFoto(id, { chiedi: fetchCRM, scarica: fetch, segnale: ctrl.signal }).then(
       (e) => {
         inCorso.current = false;
         if (!vivo.current) return;
@@ -266,7 +294,7 @@ export function useMediaPonte(
         setAzione({ fase: "vista", src });
       },
     );
-  }, [chiave, libera]);
+  }, [chiave, libera, leggi]);
 
   const nonSiApre = useCallback(() => {
     libera();

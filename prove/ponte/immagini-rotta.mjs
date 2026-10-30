@@ -50,7 +50,7 @@ function permessoMedia(a) {
   if (usati + a.p_byte > a.p_tetto_byte) return { esito: "rifiutato", motivo: "tetto" };
   if (k) return { esito: "carica", path: k.path };
   const ext = a.p_mime === "image/png" ? "png" : a.p_mime === "image/webp" ? "webp" : "jpg";
-  const path = String(++__m).padStart(8, "a") + "-1111-4222-8333-444444444444." + ext;
+  const path = a.p_user_id + "/" + String(++__m).padStart(8, "a") + "-1111-4222-8333-444444444444." + ext;
   tutte.push({ user_id: a.p_user_id, chiave: a.p_chiave, numero: a.p_numero, path, mime: a.p_mime, byte: a.p_byte, stato: "in_caricamento" });
   scritto("ponte_wa_media", "insert", ["user_id", "chiave", "numero", "path", "mime", "byte", "stato"], "ponte_wa_media_permesso");
   return { esito: "carica", path };
@@ -88,7 +88,9 @@ export const supabaseAdmin = {
       },
       createSignedUrl: async (path, secondi) => {
         firme().push({ azione: "lettura", bucket, path, secondi });
-        if (!oggetti().has(path)) return { data: null, error: { message: "Object not found " + path } };
+        if (st().guasti.lettura) return { data: null, error: { name: "StorageApiError", status: 503, statusCode: "503", message: "errore con " + path } };
+        if (st().guasti.lettura_rete) return { data: null, error: { name: "StorageUnknownError", message: "fetch failed per " + path } };
+        if (!oggetti().has(path)) return { data: null, error: { name: "StorageApiError", status: 400, statusCode: "404", message: "Object not found " + path } };
         return { data: { signedUrl: "https://prova.supabase.co/storage/v1/object/sign/" + bucket + "/" + path + "?token=SEGRETO-DI-LETTURA" }, error: null };
       },
     }),
@@ -152,14 +154,15 @@ const base = (extra = {}) => ({
 });
 
 /** Una riga di `ponte_wa_media`. */
-const riga = (o = {}) => ({ user_id: UTENTE, chiave: CHIAVE, numero: NUMERO, path: "bbbbbbb1-1111-4222-8333-444444444444.jpg", mime: "image/jpeg", byte: 5000, stato: "pronta", ...o });
+const NOME_PRONTA = "bbbbbbb1-1111-4222-8333-444444444444.jpg";
+const riga = (o = {}) => ({ user_id: UTENTE, chiave: CHIAVE, numero: NUMERO, path: `${UTENTE}/${NOME_PRONTA}`, mime: "image/jpeg", byte: 5000, stato: "pronta", ...o });
 
 const permesso = (o = {}) => ({ v: 1, tipo: "media_permesso", chiave: CHIAVE, mime: "image/jpeg", byte: 5000, ...o });
 const fatto = (o = {}) => ({ v: 1, tipo: "media_fatto", chiave: CHIAVE, ...o });
 
 /** Sessione scelta dalla prova + chiamata GET. */
-async function leggiMedia(GET, { chiave = CHIAVE, sessione = "ok", query } = {}) {
-  //  `query: ""` = nessun parametro (un `chiave: undefined` varrebbe la chiave di serie).
+async function leggiMedia(GET, { id = NOME_PRONTA, sessione = "ok", query } = {}) {
+  //  `query: ""` = nessun parametro (un `id: undefined` varrebbe l'identificativo di serie).
   globalThis.__guardia = async () =>
     sessione === "nessuna"
       ? { ok: false, risposta: new Response(JSON.stringify({ error: "Accedi al CRM." }), { status: 401 }) }
@@ -169,7 +172,7 @@ async function leggiMedia(GET, { chiave = CHIAVE, sessione = "ok", query } = {})
   const log = [];
   for (const k of livelli) console[k] = (...a) => log.push(a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" "));
   try {
-    const q = query ?? (chiave === undefined ? "" : `?chiave=${encodeURIComponent(chiave)}`);
+    const q = query ?? (id === undefined ? "" : `?id=${encodeURIComponent(id)}`);
     const request = new Request(`https://sito.test${PERCORSO_MEDIA}${q}`, { method: "GET", headers: { authorization: "Bearer finto" } });
     const r = await GET({ request });
     const testo = await r.text();
@@ -198,6 +201,7 @@ export async function provePonteImmaginiRotta(mod, { c, gruppo, radice }) {
   {
     c("rotta del browser: il percorso giusto", true, rottaWeb.includes(`createFileRoute("${PERCORSO_MEDIA}")`));
     c("rotta del browser: solo OPTIONS e GET (niente scritture)", ["OPTIONS", "GET"], [...rottaWeb.matchAll(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*:/g)].map((x) => x[1]));
+    c("rotta del browser: legge ?id=… e non ?chiave (nell'indirizzo non entra il numero del cliente)", [true, false], [/searchParams\.get\("id"\)/.test(rottaWeb), /chiave/.test(rottaWeb)]);
     c("rotta del browser: guardiaCRM(request, cors, null), una volta sola", [1, 1], [(rottaWeb.match(/guardiaCRM\(request, cors, null\)/g) ?? []).length, (rottaWeb.match(/guardiaCRM\(/g) ?? []).length]);
     c("rotta del browser: l'installazione della sessione, no-store, niente console né fetch né lettura del corpo", [true, true, false, false, false],
       [rottaWeb.includes("adminUserId"), rottaWeb.includes("no-store"), /console\./.test(rottaWeb), /\bfetch\s*\(/.test(rottaWeb), /request\.(body|json|text|formData)/.test(rottaWeb)]);
@@ -394,11 +398,26 @@ export async function provePonteImmaginiRotta(mod, { c, gruppo, radice }) {
       m = nuovoMondo(base());
       x = await leggiMedia(GET);
       c("nessuna riga: 404", 404, x.r.status);
-      for (const chiave of [null, "", "bw:1:2", "x".repeat(400)]) {
+      for (const id of [null, "", "bw:1:2", CHIAVE, NOME_PRONTA.replace(".jpg", ""), `${UTENTE}/${NOME_PRONTA}`, "x".repeat(400)]) {
         m = nuovoMondo(base({ ponte_wa_media: [pronta] }));
-        x = await leggiMedia(GET, chiave === null ? { query: "" } : { chiave });
-        c(`chiave non valida (${chiave === null ? "assente" : chiave.slice(0, 8) || "vuota"}): 400, la riga non si legge`, [400, 0], [x.r.status, m.chiamate.filter((q) => q.tabella === "ponte_wa_media").length]);
+        x = await leggiMedia(GET, id === null ? { query: "" } : { id });
+        c(`identificativo non valido (${id === null ? "assente" : id.slice(0, 8) || "vuoto"}): 400, la riga non si legge`, [400, 0], [x.r.status, m.chiamate.filter((q) => q.tabella === "ponte_wa_media").length]);
       }
+      //  La vecchia forma (?chiave=bw:…, con il numero del cliente nell'indirizzo) non è più accettata.
+      m = nuovoMondo(base({ ponte_wa_media: [pronta] }));
+      m.oggetti = new Map([[pronta.path, 5000]]);
+      x = await leggiMedia(GET, { query: `?chiave=${encodeURIComponent(CHIAVE)}` });
+      c("la vecchia query ?chiave=bw:… non vale più: 400, nessuna riga letta", [400, 0], [x.r.status, m.chiamate.filter((q) => q.tabella === "ponte_wa_media").length]);
+      //  Un guasto di Storage non è «foto sparita».
+      m = nuovoMondo(base({ ponte_wa_media: [pronta] }), { lettura: "x" });
+      m.oggetti = new Map([[pronta.path, 5000]]);
+      x = await leggiMedia(GET);
+      c("Storage risponde 503 alla firma: 503 storage (non 404), niente nel log che sia un percorso o un link", [503, "storage", []], [x.r.status, x.json?.motivo, x.log.filter((l) => /bbbbbbb|supabase|\.jpg|0b0b/.test(l) || !/^\[ponte-media\] [a-z_]+( [a-z_]+=\d+)*$/.test(l))]);
+      c("…no-store anche qui", "no-store", x.r.headers.get("cache-control"));
+      m = nuovoMondo(base({ ponte_wa_media: [pronta] }), { lettura_rete: "x" });
+      m.oggetti = new Map([[pronta.path, 5000]]);
+      x = await leggiMedia(GET);
+      c("rete caduta verso Storage (errore senza stato): 503 storage", [503, "storage"], [x.r.status, x.json?.motivo]);
       m = nuovoMondo(base({ ponte_wa_media: [pronta] }), { ponte_wa_media: "08006" });
       x = await leggiMedia(GET);
       c("database guasto: 500 e il log dice solo il codice", [500, true], [x.r.status, x.log.every((l) => /^\[ponte-media\] [a-z_]+( [a-z_]+=\d+)*$/.test(l))]);

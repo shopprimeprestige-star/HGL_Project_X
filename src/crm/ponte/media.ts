@@ -23,6 +23,7 @@ import { CODICI_MIGRAZIONE } from "./invio-giro";
 import {
   CHIAVE_MEDIA,
   FIRMA_LETTURA_S,
+  ID_MEDIA,
   MEDIA_MAX_BYTE,
   MEDIA_MIME,
   TETTO_GB_DI_SERIE,
@@ -119,9 +120,17 @@ export function percorsoValido(path: unknown, numero: string): path is string {
 
 // ── Il Mac: `media_permesso` e `media_fatto` ───────────────────────────────
 
-/** Un errore del database: 503 `migrazione` se manca la migrazione (il Mac
- *  trattiene), 500 `database` per il resto (il Mac ritenta). */
+/** SQLSTATE 22023 (`invalid_parameter_value`): la funzione SQL ha rifiutato chiave, numero o
+ *  utente. La rotta li ha già controllati, quindi è colpa del corpo e non del database. */
+const CODICE_PARAMETRO_NON_VALIDO = "22023";
+/** Il codice con cui le porte dicono «Storage non ha risposto» (non «oggetto assente»). */
+const CODICE_STORAGE = "storage";
+
+/** Un errore del database: 400 se la funzione rifiuta un parametro (22023), 503
+ *  `migrazione` se manca la migrazione (il Mac trattiene), 500 `database` per il
+ *  resto (il Mac ritenta). */
 function erroreDb(porte: PorteMedia, e: unknown): Response {
+  if (codiceDi(e) === CODICE_PARAMETRO_NON_VALIDO) return nonValido(porte);
   if (CODICI_MIGRAZIONE.includes(codiceDi(e))) {
     porte.avviso("media_migrazione");
     return risposta(503, { ok: false, errore: "migrazione" satisfies ErroreMedia });
@@ -196,6 +205,18 @@ function nonValido(porte: PorteMedia): Response {
 
 // ── Il browser: `GET` del link di una foto ─────────────────────────────────
 
+/** Il percorso in Storage di un file: la cartella dell'utente e il nome (`ID_MEDIA`), come lo
+ *  sceglie la migrazione (`<user_id>/<uuid>.<ext>`). */
+export const percorsoDi = (userId: string, id: string): string => `${userId}/${id}`;
+
+/** Storage dice «l'oggetto non c'è»? Vale lo stato 404, sia nello stato HTTP sia nel corpo (con
+ *  HTTP 400 lo Storage di Supabase scrive `statusCode: "404"`). Ogni altro errore (429, 5xx, rete)
+ *  è un guasto passeggero, non una foto sparita. Mai il testo del messaggio: può portare il percorso. */
+export function oggettoAssente(errore: unknown): boolean {
+  if (!oggetto(errore)) return false;
+  return [errore.status, errore.statusCode].some((v) => String(v) === "404");
+}
+
 const rifiutoLettura = (
   stato: number,
   motivo: Extract<RispostaLettura["corpo"], { ok: false }>["motivo"],
@@ -205,12 +226,13 @@ const rifiutoLettura = (
 });
 
 /** Il link di una foto pronta. `adminUserId` è l'installazione della sessione:
- *  deve essere quella del database, altrimenti 403. La riga si cerca per
- *  l'utente della sessione (già verificato uguale a quello del database): la
- *  foto di un altro utente è «non trovata». */
+ *  deve essere quella del database, altrimenti 403. `id` = il nome del file
+ *  (`ID_MEDIA`), mai la chiave del messaggio (porta il numero del cliente). La
+ *  riga si cerca per l'utente della sessione (già verificato uguale a quello del
+ *  database): la foto di un altro utente è «non trovata». */
 export async function gestisciLettura(
   porte: PorteMedia,
-  i: { adminUserId: string; chiave: unknown },
+  i: { adminUserId: string; id: unknown },
 ): Promise<RispostaLettura> {
   try {
     const userId = await porte.utente();
@@ -218,12 +240,12 @@ export async function gestisciLettura(
       porte.avviso("media_lettura", { rifiutata: 1 });
       return rifiutoLettura(403, "non_autorizzato");
     }
-    const k = leggiChiave(i.chiave);
-    if (!k) {
+    const id = typeof i.id === "string" && ID_MEDIA.test(i.id) ? i.id : null;
+    if (!id) {
       porte.avviso("media_lettura", { non_valida: 1 });
-      return rifiutoLettura(400, "chiave_non_valida");
+      return rifiutoLettura(400, "id_non_valido");
     }
-    const path = await porte.percorsoPronto(userId, k.chiave);
+    const path = await porte.percorsoPronto(userId, id);
     const url = path ? await porte.firmaLettura(path, FIRMA_LETTURA_S) : null;
     if (!url) {
       porte.avviso("media_lettura", { non_trovata: 1 });
@@ -235,6 +257,10 @@ export async function gestisciLettura(
     if (CODICI_MIGRAZIONE.includes(codiceDi(e))) {
       porte.avviso("media_migrazione");
       return rifiutoLettura(503, "migrazione");
+    }
+    if (codiceDi(e) === CODICE_STORAGE) {
+      porte.avviso("media_storage");
+      return rifiutoLettura(503, "storage");
     }
     porte.avviso("media_database");
     return rifiutoLettura(500, "database");

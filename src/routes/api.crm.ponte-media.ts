@@ -2,9 +2,11 @@
  *  LEGGERE UNA FOTO DEL PONTE WHATSAPP (LINK A TEMPO)
  *
  *  Commessa 2026-10-30-ponte-storico-completo, compito T5 (PIANO c.3 punto 4).
- *  GET /api/crm/ponte-media?chiave=bw:<numero>:<id> → { ok:true, url } con un
- *  link di Storage che vale 300 secondi, oppure { ok:false, motivo } con lo
- *  stato HTTP del motivo (400, 403, 404, 500, 503). La logica sta in
+ *  GET /api/crm/ponte-media?id=<uuid>.<ext> → { ok:true, url } con un link di
+ *  Storage che vale 300 secondi, oppure { ok:false, motivo } con lo stato HTTP
+ *  del motivo (400, 403, 404, 500, 503). `id` è il nome casuale del file in
+ *  Storage: nell'indirizzo (e quindi nei log di accesso) non c'è il numero del
+ *  cliente. 503 `storage` = guasto passeggero di Storage (la chat lascia Riprova). La logica sta in
  *  `crm/ponte/media.ts` (provata con porte finte); la foto la carica il Mac,
  *  qui si LEGGE soltanto.
  *
@@ -44,7 +46,7 @@ export const Route = createFileRoute("/api/crm/ponte-media")({
         if (!g.ok) return g.risposta;
         const r = await gestisciLettura(porteMedia(), {
           adminUserId: g.chi.adminUserId,
-          chiave: new URL(request.url).searchParams.get("chiave"),
+          id: new URL(request.url).searchParams.get("id"),
         });
         return json(r.corpo, r.stato);
       },

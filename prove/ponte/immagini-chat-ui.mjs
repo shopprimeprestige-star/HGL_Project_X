@@ -64,7 +64,7 @@ export async function provePonteImmaginiChatUi(_mod, { c, gruppo, radice }) {
 import { renderToStaticMarkup } from "react-dom/server";
 export { React, renderToStaticMarkup };
 export { BollaMessaggio, VistaFotoPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa/BollaMessaggio.tsx"))};
-export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } from ${JSON.stringify(join(radice, "src/crm/chatwa/usaMediaPonte.ts"))};`,
+export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPROVA } from ${JSON.stringify(join(radice, "src/crm/chatwa/usaMediaPonte.ts"))};`,
     );
     await esbuild.build({
       entryPoints: [join(dir, "ingresso.tsx")],
@@ -101,12 +101,17 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       fotoDelPonte,
       caricaFoto,
       leggiRiga,
+      idFoto,
     } = U;
     const disegna = (el) => renderToStaticMarkup(el);
 
     /* ═══ Quale messaggio è una foto del ponte ═══ */
     gruppo("PONTE · IMMAGINI · QUALE MESSAGGIO È UNA FOTO (T7)");
     const CH = "bw:393330000001:3EB0A1B2C3D4";
+    //  L'identificativo della foto per la rotta GET: il nome casuale del file in Storage (`<uuid>.<ext>`), senza dati del cliente.
+    const NOME = "7c1e5f0a-9b2d-4e6f-8a3b-0d1c2e3f4a5b";
+    const ID = `${NOME}.jpg`;
+    const UTENTE_FINTO = "0b0b0b0b-1111-4222-8333-444444444444";
     const base = { canale: "baileys", wa_message_id: CH, body: "📷 Foto" };
     c(
       "riga del ponte con «📷 Foto»: è una foto, senza didascalia",
@@ -182,16 +187,21 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       };
     };
     const r1 = rete();
-    const ok = await caricaFoto(CH, r1);
+    const ok = await caricaFoto(ID, r1);
     c(
       "tutto bene: restituisce la foto (Blob image/jpeg)",
       [true, "image/jpeg"],
       [ok.ok, ok.ok && ok.blob.type],
     );
     c(
-      "chiede alla rotta GET con la chiave codificata, senza cache",
-      [`/api/crm/ponte-media?chiave=${encodeURIComponent(CH)}`, "GET", "no-store"],
+      "chiede alla rotta GET con l'identificativo del file, senza cache",
+      [`/api/crm/ponte-media?id=${ID}`, "GET", "no-store"],
       [r1.reg.chiesti[0].p, r1.reg.chiesti[0].init.method, r1.reg.chiesti[0].init.cache],
+    );
+    c(
+      "…l'indirizzo non ha il numero del cliente né la chiave del messaggio",
+      false,
+      /3933300|bw:|bw%3A|chiave/.test(r1.reg.chiesti[0].p),
     );
     c(
       "scarica dall'indirizzo ricevuto, senza cookie né referrer, senza cache",
@@ -209,38 +219,47 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       JSON.stringify({ ...ok, blob: undefined }).includes("GETTONE"),
     );
     const nonRiuscita = (e) => [e.ok, e.ok ? null : e.riprova];
-    const e404 = await caricaFoto(CH, rete({ chiedi: () => json({ ok: false }, 404) }));
+    const e404 = await caricaFoto(ID, rete({ chiedi: () => json({ ok: false }, 404) }));
     c(
       "404 (riga assente o di un altro): «non più disponibile», niente Riprova",
       [false, false, true],
       [e404.ok, e404.riprova, e404.frase === U.FRASE_NON_PIU],
     );
     for (const st of [401, 403, 429, 500, 503]) {
-      const e = await caricaFoto(CH, rete({ chiedi: () => json({ ok: false }, st) }));
+      const e = await caricaFoto(ID, rete({ chiedi: () => json({ ok: false }, st) }));
       c(
         `${st} dalla rotta: errore con Riprova, frase pulita`,
         [false, true, U.FRASE_RIPROVA],
         [e.ok, e.riprova, e.frase],
       );
     }
+    {
+      const e = await caricaFoto(ID, rete({ chiedi: () => json({ ok: false, motivo: "storage" }, 503) }));
+      c("503 «storage» (guasto passeggero): errore con Riprova, NON «non più disponibile»", [false, true, U.FRASE_RIPROVA], [e.ok, e.riprova, e.frase]);
+    }
+    for (const x of [CH, NOME, `${NOME}.svg`, ID.toUpperCase(), `${ID}&x=1`, `${UTENTE_FINTO}/${ID}`, "", "../x"]) {
+      const r = rete();
+      const e = await caricaFoto(x, r);
+      c(`identificativo non valido «${x.slice(0, 14)}»: nessuna richiesta, errore`, [false, 0, 0], [e.ok, r.reg.chiesti.length, r.reg.scaricati.length]);
+    }
     c(
       "rete caduta nella richiesta: errore con Riprova (non lancia)",
       [false, true],
       nonRiuscita(
-        await caricaFoto(CH, rete({ chiedi: () => Promise.reject(new TypeError("rete")) })),
+        await caricaFoto(ID, rete({ chiedi: () => Promise.reject(new TypeError("rete")) })),
       ),
     );
     c(
       "rete caduta nello scarico: errore con Riprova",
       [false, true],
       nonRiuscita(
-        await caricaFoto(CH, rete({ scarica: () => Promise.reject(new TypeError("rete")) })),
+        await caricaFoto(ID, rete({ scarica: () => Promise.reject(new TypeError("rete")) })),
       ),
     );
     c(
       "scarico rifiutato (403 per indirizzo scaduto): errore con Riprova",
       [false, true],
-      nonRiuscita(await caricaFoto(CH, rete({ scarica: () => new Response("", { status: 403 }) }))),
+      nonRiuscita(await caricaFoto(ID, rete({ scarica: () => new Response("", { status: 403 }) }))),
     );
     c(
       "risposta senza `url`, o con `url` non testo: errore",
@@ -249,15 +268,15 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
         [false, true],
       ],
       [
-        await caricaFoto(CH, rete({ chiedi: () => json({ ok: true }) })),
-        await caricaFoto(CH, rete({ chiedi: () => json({ ok: true, url: 5 }) })),
+        await caricaFoto(ID, rete({ chiedi: () => json({ ok: true }) })),
+        await caricaFoto(ID, rete({ chiedi: () => json({ ok: true, url: 5 }) })),
       ].map(nonRiuscita),
     );
     c(
       "risposta che non è JSON: errore",
       [false, true],
       nonRiuscita(
-        await caricaFoto(CH, rete({ chiedi: () => new Response("<html>", { status: 200 }) })),
+        await caricaFoto(ID, rete({ chiedi: () => new Response("<html>", { status: 200 }) })),
       ),
     );
     for (const url of [
@@ -267,7 +286,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       "non un indirizzo",
     ]) {
       const r = rete({ chiedi: () => json({ ok: true, url }) });
-      const e = await caricaFoto(CH, r);
+      const e = await caricaFoto(ID, r);
       c(
         `indirizzo non https «${url.slice(0, 20)}»: errore e nessuno scarico`,
         [false, 0],
@@ -276,7 +295,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
     }
     for (const tipo of ["image/svg+xml", "text/html", "application/octet-stream", ""]) {
       const e = await caricaFoto(
-        CH,
+        ID,
         rete({ scarica: () => new Response(new Blob(["<svg onload=alert(1)>"], { type: tipo })) }),
       );
       c(
@@ -290,7 +309,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       false,
       (
         await caricaFoto(
-          CH,
+          ID,
           rete({ scarica: () => new Response(new Blob([], { type: "image/png" })) }),
         )
       ).ok,
@@ -300,7 +319,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       false,
       (
         await caricaFoto(
-          CH,
+          ID,
           rete({
             scarica: () =>
               new Response(new Blob([new Uint8Array(9 * 1024 * 1024 + 1)], { type: "image/webp" })),
@@ -314,13 +333,13 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       [
         (
           await caricaFoto(
-            CH,
+            ID,
             rete({ scarica: () => new Response(new Blob(["x"], { type: "image/png" })) }),
           )
         ).ok,
         (
           await caricaFoto(
-            CH,
+            ID,
             rete({ scarica: () => new Response(new Blob(["x"], { type: "image/webp" })) }),
           )
         ).ok,
@@ -332,7 +351,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       "richiesta annullata (la bolla sparisce): non lancia",
       false,
       (
-        await caricaFoto(CH, {
+        await caricaFoto(ID, {
           ...rete({ chiedi: () => Promise.reject(new DOMException("x", "AbortError")) }),
           segnale: ctrl.signal,
         })
@@ -342,12 +361,14 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
     /* ═══ La riga in ponte_wa_media ═══ */
     gruppo("PONTE · IMMAGINI · LA RIGA, LETTA A GRUPPI (T7)");
     globalThis.__letture = [];
+    //  Il percorso in Storage è `<utente>/<uuid>.<ext>`: l'identificativo per la rotta è l'uuid.
+    const percorsoDi = () => `${UTENTE_FINTO}/${ID}`;
     globalThis.__risposta = (_t, v) => ({
       data: v
         .filter((x) => x.endsWith(":P"))
-        .map((chiave) => ({ chiave, stato: "pronta" }))
+        .map((chiave) => ({ chiave, stato: "pronta", path: percorsoDi() }))
         .concat(
-          v.filter((x) => x.endsWith(":C")).map((chiave) => ({ chiave, stato: "in_caricamento" })),
+          v.filter((x) => x.endsWith(":C")).map((chiave) => ({ chiave, stato: "in_caricamento", path: percorsoDi() })),
         ),
       error: null,
     });
@@ -359,16 +380,19 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
       [1, "ponte_wa_media", 3],
       [globalThis.__letture.length, globalThis.__letture[0].t, globalThis.__letture[0].v.length],
     );
-    c("…la lettura chiede solo chiave e stato", "chiave,stato", globalThis.__letture[0].s);
+    c("…la lettura chiede chiave, stato e percorso (per l'identificativo)", "chiave,stato,path", globalThis.__letture[0].s);
+    c("l'identificativo della foto pronta è il nome del file (uuid e estensione)", ID, idFoto(k("P")));
+    c("…una riga non ancora pronta o senza riga non ha identificativo", [null, null, null], [idFoto(k("C")), idFoto(k("N")), idFoto("bw:393330000001:MAI")]);
     await leggiRiga(k("P"));
     c("una riga pronta resta in memoria: nessuna nuova lettura", 1, globalThis.__letture.length);
     await leggiRiga(k("N"));
     c("«senza riga» vale 30 s: subito dopo, nessuna nuova lettura", 1, globalThis.__letture.length);
     globalThis.__risposta = (_t, v) => ({
-      data: v.map((chiave) => ({ chiave, stato: "pronta" })),
+      data: v.map((chiave) => ({ chiave, stato: "pronta", path: `${UTENTE_FINTO}/${NOME}.png` })),
       error: null,
     });
     c("`fresco`: rilegge e vede che ora è pronta", "pronta", await leggiRiga(k("N"), true));
+    c("…e ha il suo identificativo (anche con un'altra estensione)", `${NOME}.png`, idFoto(k("N")));
     c("…e ora quella lettura è una in più", 2, globalThis.__letture.length);
     const molte = Array.from({ length: 250 }, (_, i) => k(`M${i}`));
     globalThis.__letture = [];
@@ -383,10 +407,18 @@ export { fotoDelPonte, caricaFoto, leggiRiga, FRASE_NON_PIU, FRASE_RIPROVA } fro
     await leggiRiga(k("E")).catch(() => (rifiutata = true));
     c("lettura fallita: la promessa rifiuta (la bolla resta «📷 Foto»)", true, rifiutata);
     globalThis.__risposta = (_t, v) => ({
-      data: v.map((chiave) => ({ chiave, stato: "pronta" })),
+      data: v.map((chiave) => ({ chiave, stato: "pronta", path: `${UTENTE_FINTO}/${NOME}.webp` })),
       error: null,
     });
     c("…un guasto non si ricorda: la volta dopo rilegge", "pronta", await leggiRiga(k("E")));
+    globalThis.__risposta = (_t, v) => ({
+      data: v.map((chiave, i) => ({ chiave, stato: "pronta", path: [`${UTENTE_FINTO}/${NOME}.svg`, `${UTENTE_FINTO}/non-un-uuid.jpg`, null, ID][i] })),
+      error: null,
+    });
+    const strane = ["S0", "S1", "S2", "S3"].map(k);
+    globalThis.__letture = [];
+    await Promise.all(strane.map((x) => leggiRiga(x)));
+    c("percorso con estensione non ammessa, senza uuid, nullo o senza cartella: pronta ma senza identificativo (mai usato in un indirizzo)", [null, null, null, null], strane.map(idFoto));
 
     /* ═══ La bolla, stato per stato ═══ */
     gruppo("PONTE · IMMAGINI · LA BOLLA, STATO PER STATO (T7)");

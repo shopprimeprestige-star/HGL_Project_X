@@ -37,6 +37,12 @@ export const FIRMA_LETTURA_S = 300;
 /** `bw:<cifre del numero>:<id WhatsApp>`: la stessa di `chiaveMessaggio` (`tipi.ts`). */
 export const CHIAVE_MEDIA = /^bw:(\d{8,15}):([A-Za-z0-9_.-]{1,128})$/;
 
+/** L'identificativo di un file per la lettura: il suo nome in Storage, `<uuid>.<jpg|png|webp>`
+ *  (minuscolo, come lo scrive il database). Non porta dati del cliente: la GET lo mette
+ *  nell'indirizzo al posto della chiave `bw:<numero>:<id>`, che finirebbe nei log di accesso. */
+export const ID_MEDIA =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp)$/;
+
 // ── Mac → server (estende `POST /api/public/ponte-whatsapp`) ───────────────
 
 export interface CorpoMediaPermesso {
@@ -93,14 +99,17 @@ export interface Interruttore {
   tettoGB: number;
 }
 
-// ── Browser → server (`GET /api/crm/ponte-media?chiave=bw:…`) ──────────────
+// ── Browser → server (`GET /api/crm/ponte-media?id=<uuid>.<ext>`) ───────────
 
+/** `storage` = Storage non ha firmato per un guasto passeggero (non perché l'oggetto manca):
+ *  la chat lascia «Riprova» invece di dire che la foto non c'è più. */
 export type MotivoLettura =
   | "non_autorizzato"
-  | "chiave_non_valida"
+  | "id_non_valido"
   | "non_trovata"
   | "database"
-  | "migrazione";
+  | "migrazione"
+  | "storage";
 
 export interface RispostaLettura {
   stato: number;
@@ -117,6 +126,7 @@ export type CodiceAvvisoMedia =
   | "media_lettura"
   | "media_non_valido"
   | "media_database"
+  | "media_storage"
   | "media_migrazione";
 
 /** Le porte dei media (`media.server.ts` le implementa, `media.ts` le usa).
@@ -136,9 +146,10 @@ export interface PorteMedia {
   firmaCarico(path: string): Promise<string>;
   /** `ponte_wa_media_fatto`. */
   fatto(userId: string, chiave: string): Promise<EsitoFattoSql>;
-  /** Il percorso di una riga `pronta` di QUESTO utente; null = non c'è. */
-  percorsoPronto(userId: string, chiave: string): Promise<string | null>;
-  /** Link di lettura a tempo; null = l'oggetto non c'è in Storage. */
+  /** Il percorso di una riga `pronta` di QUESTO utente, dal nome del file (`ID_MEDIA`); null = non c'è. */
+  percorsoPronto(userId: string, id: string): Promise<string | null>;
+  /** Link di lettura a tempo; null = l'oggetto non c'è in Storage. LANCIA `{ code: "storage" }`
+   *  se Storage non risponde per un altro motivo (guasto passeggero: non è «assente»). */
   firmaLettura(path: string, secondi: number): Promise<string | null>;
   /** Una riga di log: solo il codice e, se servono, contatori numerici. */
   avviso(codice: CodiceAvvisoMedia, conteggi?: Record<string, number>): void;
