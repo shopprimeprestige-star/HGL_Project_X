@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { FinestraStati, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
@@ -406,21 +408,35 @@ function RigaChatBase({
           passa all'iPhone). Fuori dal bottone della riga e con stopPropagation, così
           non apre la chat; 44 px di tocco sul telefono. */}
       {telefono && (
-        <Button
-          asChild
-          inert={selezione?.attiva}
-          variant="ghost"
-          className="absolute right-1 top-0 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:top-0.5 md:h-9 md:w-9"
-        >
-          <a
-            href={`tel:${telefono}`}
-            aria-label={`Chiama ${nome}`}
-            title={`Chiama ${nome}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
-          </a>
-        </Button>
+        <>
+          {/*  Numero estero (30/10/2026): stesso posto, rosso e bloccato. Il WhatsApp è
+              nella chat aperta, dove il tasto nativo c'è sempre. */}
+          {!chiamabile(telefono) && (
+            <ChiamaEstero
+              telefono={telefono}
+              senzaWhatsapp
+              inerte={selezione?.attiva}
+              className="absolute right-1 top-0 h-11 w-11 p-0 md:top-0.5 md:h-9 md:w-9"
+            />
+          )}
+          {chiamabile(telefono) && (
+            <Button
+              asChild
+              inert={selezione?.attiva}
+              variant="ghost"
+              className="absolute right-1 top-0 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:top-0.5 md:h-9 md:w-9"
+            >
+              <a
+                href={`tel:${telefono}`}
+                aria-label={`Chiama ${nome}`}
+                title={`Chiama ${nome}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
+              </a>
+            </Button>
+          )}
+        </>
       )}
 
       {/*  ── FINESTRA CHIUSA: APRI WHATSAPP (29/10/2026) ──────────────────────

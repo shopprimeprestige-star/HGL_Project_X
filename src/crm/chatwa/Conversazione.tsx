@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -259,7 +261,17 @@ export function Conversazione({
                 Richiesta del titolare: il tasto per telefonare sopra la chat.
                 Sul telefono apre il compositore con il numero; sul Mac lo
                 passa all'iPhone (Continuità) o all'app che gestisce «tel:». */}
-              {numeroDaComporre(attiva.phone) && (
+              {numeroDaComporre(attiva.phone) && !chiamabile(attiva.phone) && (
+                //  Numero estero (30/10/2026): rosso e bloccato; il WhatsApp è il tasto
+                //  nativo qui accanto, sempre presente.
+                <ChiamaEstero
+                  telefono={attiva.phone}
+                  senzaWhatsapp
+                  etichetta={<span className="hidden lg:inline">Chiama</span>}
+                  className="h-11 w-11 shrink-0 px-0 md:h-9 md:w-9 lg:w-auto lg:px-3"
+                />
+              )}
+              {numeroDaComporre(attiva.phone) && chiamabile(attiva.phone) && (
                 <Button
                   asChild
                   variant="outline"

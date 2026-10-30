@@ -59,6 +59,8 @@ import {
   valoriDaLead,
 } from "@/crm/whatsapp";
 import { MessageCircle, Phone, RotateCcw, TrendingDown, TriangleAlert } from "lucide-react";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 
 export const Route = createFileRoute("/CRM/trattative-perse")({
   component: PaginaTrattativePerse,
@@ -414,13 +416,17 @@ function PaginaTrattativePerse() {
                   <div className="flex shrink-0 items-center gap-1">
                     {l.data.telefono && (
                       <>
-                        <a
-                          href={`tel:${l.data.telefono}`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent"
-                          title={`Chiama ${l.data.telefono}`}
-                        >
-                          <Phone className="h-3.5 w-3.5" />
-                        </a>
+                        {chiamabile(l.data.telefono) ? (
+                          <a
+                            href={`tel:${l.data.telefono}`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-accent"
+                            title={`Chiama ${l.data.telefono}`}
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                          </a>
+                        ) : (
+                          <ChiamaEstero telefono={l.data.telefono} senzaWhatsapp />
+                        )}
                         <LinkWhatsapp
                           telefono={l.data.telefono}
                           testo={messaggio}

@@ -137,6 +137,8 @@ import {
 import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { IconaWhatsApp } from "@/crm/chatwa/IconaWhatsApp";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NotaVocale } from "@/crm/NotaVocale";
@@ -2332,22 +2334,32 @@ function TastiContatto({
   const spento = !telefono;
   return (
     <>
-      <Button
-        asChild
-        size={esteso ? "sm" : "icon"}
-        variant="outline"
-        className={cn(
-          esteso ? "h-9" : "h-9 w-9",
-          "shrink-0",
-          spento && "pointer-events-none opacity-40",
-        )}
-        title="Chiama"
-      >
-        <a href={`tel:${telefono}`} aria-label="Chiama">
-          <Phone className="h-3.5 w-3.5 text-slate-500" />
-          {esteso && "Chiama"}
-        </a>
-      </Button>
+      {chiamabile(telefono) ? (
+        <Button
+          asChild
+          size={esteso ? "sm" : "icon"}
+          variant="outline"
+          className={cn(
+            esteso ? "h-9" : "h-9 w-9",
+            "shrink-0",
+            spento && "pointer-events-none opacity-40",
+          )}
+          title="Chiama"
+        >
+          <a href={`tel:${telefono}`} aria-label="Chiama">
+            <Phone className="h-3.5 w-3.5 text-slate-500" />
+            {esteso && "Chiama"}
+          </a>
+        </Button>
+      ) : (
+        //  Numero estero: rosso e bloccato; il tasto WhatsApp è il successivo.
+        <ChiamaEstero
+          telefono={telefono}
+          etichetta={esteso ? "Chiama" : undefined}
+          senzaWhatsapp
+          className={cn(spento && "opacity-40")}
+        />
+      )}
       {/*  ⚠️ Passa dalla domanda sui lavori (crm/TastoMessaggio): le
           fotografie al primo messaggio rispondono alla domanda che il cliente
           non fa — «ma si vede?» — e a chi ha appena finito la consulenza non

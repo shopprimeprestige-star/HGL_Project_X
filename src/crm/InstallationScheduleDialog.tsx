@@ -29,6 +29,8 @@ import { useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 //  cui si ripara (SenzaInstallatori).
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -3397,13 +3399,17 @@ export function AzioniInstallazione({
         </Button>
       )}
 
-      {lead.data.telefono && (
-        <Button asChild size="sm" variant="outline" className="h-7 w-7 p-0" title="Chiama">
-          <a href={`tel:${lead.data.telefono}`} aria-label={`Chiama ${nomeCompleto(lead)}`}>
-            <Phone className="h-3.5 w-3.5" />
-          </a>
-        </Button>
-      )}
+      {lead.data.telefono &&
+        (chiamabile(lead.data.telefono) ? (
+          <Button asChild size="sm" variant="outline" className="h-7 w-7 p-0" title="Chiama">
+            <a href={`tel:${lead.data.telefono}`} aria-label={`Chiama ${nomeCompleto(lead)}`}>
+              <Phone className="h-3.5 w-3.5" />
+            </a>
+          </Button>
+        ) : (
+          //  Numero estero: tasto rosso e bloccato; il WhatsApp sta qui accanto.
+          <ChiamaEstero telefono={lead.data.telefono} senzaWhatsapp />
+        ))}
 
       {/*  ── SCRIVERE, ACCANTO AL CHIAMARE ────────────────────────────────
            Richiesta del committente. La stessa apertura che sta dentro la

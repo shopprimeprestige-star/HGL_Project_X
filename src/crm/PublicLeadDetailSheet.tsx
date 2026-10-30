@@ -19,6 +19,8 @@ import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -208,12 +210,16 @@ export function PublicLeadDetailSheet({ lead, open, onOpenChange, onSaved }: Pro
           </CampoFinestra>
         </div>
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button asChild variant="outline" size="sm">
-            <a href={`tel:${draft.telefono}`}>
-              <Phone className="h-3.5 w-3.5" />
-              Chiama
-            </a>
-          </Button>
+          {chiamabile(draft.telefono) ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={`tel:${draft.telefono}`}>
+                <Phone className="h-3.5 w-3.5" />
+                Chiama
+              </a>
+            </Button>
+          ) : (
+            <ChiamaEstero telefono={draft.telefono} etichetta="Chiama" senzaWhatsapp />
+          )}
           <Button asChild variant="outline" size="sm">
             <LinkWhatsapp
               telefono={draft.telefono}
