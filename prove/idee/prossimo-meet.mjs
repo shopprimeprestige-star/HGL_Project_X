@@ -106,7 +106,8 @@ export function proveProssimoMeet(mod, { c, gruppo, radice }) {
   const elencoSrc = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
   const barraSrc = senzaCommenti(leggi("src/crm/chatwa/BarraProssimoMeet.tsx"));
   const rigaSrc = senzaCommenti(leggi("src/crm/chatwa/RigaChat.tsx"));
-  c("l'elenco lo calcola dalle chat che passano filtri e ricerca", true, /prossimoMeet\(\s*trovate,\s*oggi,\s*adesso,\s*consultants/.test(elencoSrc));
+  c("l'elenco lo calcola dalle chat che passano filtri e ricerca (in «Da chiamare» da quelle mostrate)", true,
+    /prossimoMeet\(\s*filtri\.coda === "da-chiamare" \? elencoDaChiamare : trovate,\s*oggi,\s*adesso,\s*consultants/.test(elencoSrc));
   c("la barra sta dentro l'area che scorre, prima di tutte le sezioni", true, elencoSrc.indexOf("<BarraProssimoMeet") > elencoSrc.indexOf("overflow-y-auto") && elencoSrc.indexOf("<BarraProssimoMeet") < elencoSrc.indexOf('aria-labelledby="titolo-in-scadenza"'));
   c("la barra tocca la chat e la apre", true, /onApri=\{\(\) => apri\(/.test(elencoSrc.slice(elencoSrc.indexOf("<BarraProssimoMeet"))));
   c("la barra è incollata in alto, sopra le righe", true, /sticky top-0 z-10/.test(barraSrc));
