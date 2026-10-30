@@ -51,7 +51,13 @@ export const ORE_RISPOSTO_DA_POCO = 24;
 const SCARTO_OROLOGI_MS = 5 * 60_000;
 
 /** Le pratiche finite: non si chiamano, qualunque cosa scrivano. */
-const CHIUSI = new Set<string>([...STATI_VINTI, "concluso", "annullato", "perdi_tempo", "non_interessato"]);
+const CHIUSI = new Set<string>([
+  ...STATI_VINTI,
+  "concluso",
+  "annullato",
+  "perdi_tempo",
+  "non_interessato",
+]);
 
 type LeadMinimo = { id: string; data?: Partial<LeadData> | null };
 

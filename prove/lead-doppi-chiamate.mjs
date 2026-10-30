@@ -165,6 +165,27 @@ export async function proveLeadDoppiChiamate(mod, { c, gruppo, radice }) {
   c("…una volta al giorno: prima la notifica con la chiave del giorno, poi gli invii", true,
     hook.indexOf("dedupe_key") > -1 && hook.indexOf("dedupe_key") < hook.indexOf("inviaATutti("));
 
+  gruppo("P6 · SICUREZZA DEL RIEPILOGO: UNA VOLTA AL GIORNO, LINK FISSI");
+  const salvate = new Map();
+  const porta = {
+    aggiornaSeDiverso: async (k, g) => (salvate.has(k) && salvate.get(k) !== g ? (salvate.set(k, g), 1) : 0),
+    inserisci: async (k, g) => (salvate.has(k) ? "esiste" : (salvate.set(k, g), "ok")),
+  };
+  const kA = RIE.chiaveInvio("u1", "anna");
+  c("la chiave dice installazione e destinatario", ["riepilogo_mattino:u1:anna", "riepilogo_mattino:u1:titolare"], [kA, RIE.chiaveInvio("u1", "")]);
+  const giri = [];
+  for (let i = 0; i < 3; i++) giri.push(await RIE.prenotaInvio(porta, kA, "2026-10-30"));
+  c("chiamata tre volte lo stesso giorno: manda la prima, le altre no", [true, false, false], giri);
+  c("…il giorno dopo si riparte", [true, false], [await RIE.prenotaInvio(porta, kA, "2026-10-31"), await RIE.prenotaInvio(porta, kA, "2026-10-31")]);
+  c("…un consulente non blocca l'altro", true, await RIE.prenotaInvio(porta, RIE.chiaveInvio("u1", "bruno"), "2026-10-30"));
+  c("…giorno illeggibile: non manda", false, await RIE.prenotaInvio(porta, RIE.chiaveInvio("u1", "carla"), "boh"));
+  const servi = hook.slice(hook.indexOf("async function servi"));
+  c("ogni invio (push o email) passa dal lucchetto, prima", true,
+    [...servi.matchAll(/inviaATutti\(|mandaEmail\(/g)].every((m) => servi.lastIndexOf("prenotaInvio(", m.index) > -1)
+    && (servi.match(/prenotaInvio\(/g) ?? []).length >= 2);
+  c("⚠️ i link delle email non vengono dall'intestazione Host", [false, true],
+    [/request\.url|headers\.get\("host"\)|\.origin\b/.test(hook), /import \{ SITO \} from "@\/lib\/sito"/.test(hook)]);
+
   gruppo("P6 · LA MIGRAZIONE");
   const cartella = join(radice, "supabase/migrations");
   const nostra = readdirSync(cartella).filter((f) => /^20261030\d{6}_p6-lead-doppi-chiamate\.sql$/.test(f));

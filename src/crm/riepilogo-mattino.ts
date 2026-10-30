@@ -48,7 +48,10 @@ export interface RiepilogoMattino {
   titolare: RiepilogoTitolare;
 }
 
-type ConsulenteMinimo = { id: string; data?: { nome?: string; email?: string; attivo?: boolean } | null };
+type ConsulenteMinimo = {
+  id: string;
+  data?: { nome?: string; email?: string; attivo?: boolean } | null;
+};
 
 function conta(leads: Lead[], adesso: Date, giorno: string, id?: string | null): ConteggiMattino {
   const voci = classificaAdesso(leads, adesso, id);
@@ -127,7 +130,9 @@ export function avvisoRiepilogo(
   r: ConteggiMattino & { nome?: string } & Partial<RiepilogoTitolare>,
   giorno: string,
 ): AvvisoPush {
-  const nome = String(r.nome ?? "").trim().slice(0, 40);
+  const nome = String(r.nome ?? "")
+    .trim()
+    .slice(0, 40);
   return {
     titolo: nome ? `Buongiorno ${nome}` : "Buongiorno",
     corpo: frasi(r).join(" · ") || "Oggi niente in agenda",
@@ -138,7 +143,10 @@ export function avvisoRiepilogo(
 }
 
 const sicuro = (t: string) =>
-  t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+  t.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
+  );
 
 export function emailRiepilogo(
   r: ConteggiMattino & { nome?: string } & Partial<RiepilogoTitolare>,
@@ -156,4 +164,41 @@ export function emailRiepilogo(
 <p style="margin:0"><a href="${sicuro(link)}">Apri «Da fare oggi»</a>: in cima trovi chi chiamare adesso.</p>
 </div>`,
   };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UNA VOLTA AL GIORNO PER CHI LO RICEVE
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/** ── IL LUCCHETTO DEL GIORNO ────────────────────────────────────────────────
+ *  La rotta si chiama con la chiave pubblicabile, come gli altri hook: chi ce
+ *  l'ha potrebbe chiamarla dieci volte e far arrivare dieci email e dieci
+ *  notifiche a ogni consulente. Prima di ogni invio si «prenota» il giorno per
+ *  quel destinatario: una riga per destinatario (app_config, chiave
+ *  `chiaveInvio`) con l'ultimo giorno servito. Si aggiorna SOLO se il giorno
+ *  è diverso (scrittura condizionata, atomica nel database); se la riga non
+ *  c'è si crea, e due giri insieme si fermano sull'indice unico della chiave.
+ *  ⚠️ PRIMA SI PRENOTA, POI SI MANDA: se l'invio fallisce quel giorno salta
+ *   (meglio un riepilogo perso che due).
+ *  ⚠️ Una riga per destinatario che si riscrive ogni giorno: non cresce, e
+ *   niente si cancella. */
+export interface PortaLucchetto {
+  /** Scrive `giorno` solo se il valore salvato è diverso (o vuoto). Quante righe ha scritto. */
+  aggiornaSeDiverso: (chiave: string, giorno: string) => Promise<number>;
+  /** Crea la riga. "esiste" se c'era già (indice unico). */
+  inserisci: (chiave: string, giorno: string) => Promise<"ok" | "esiste">;
+}
+
+export const chiaveInvio = (userId: string, destinatario: string) =>
+  `riepilogo_mattino:${userId}:${destinatario || "titolare"}`;
+
+/** `true` = questo destinatario oggi non l'ha ancora ricevuto, e adesso è suo. */
+export async function prenotaInvio(
+  porta: PortaLucchetto,
+  chiave: string,
+  giorno: string,
+): Promise<boolean> {
+  if (!chiave || !/^\d{4}-\d{2}-\d{2}$/.test(giorno)) return false;
+  if ((await porta.aggiornaSeDiverso(chiave, giorno)) > 0) return true;
+  return (await porta.inserisci(chiave, giorno)) === "ok";
 }

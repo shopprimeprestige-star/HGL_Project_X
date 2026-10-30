@@ -38,8 +38,8 @@ export function DoppioniDaGuardare({
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
         <Copy className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1">
-          {quante} due schede con lo stesso numero. Guardale e decidi tu se unirle: non si
-          cancella niente.
+          {quante} due schede con lo stesso numero. Guardale e decidi tu se unirle: non si cancella
+          niente.
         </span>
         <Button
           type="button"
