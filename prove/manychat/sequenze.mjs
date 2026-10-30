@@ -1772,6 +1772,18 @@ export async function proveSequenze(mod, { c, gruppo }) {
       ["invia"],
       tipi(domani([m18d], lun("18:00"), { ultimeEntrate: {} })),
     );
+    c(
+      "…e chi ha già la chiave del messaggio nel registro non si legge più (inviato o saltato)",
+      [[], [num(1)]],
+      [
+        S.telefoniMeetDomani([m18d], t(lun("10:00")), [
+          invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("18:00") }),
+        ]),
+        S.telefoniMeetDomani([m18d], t(lun("10:00")), [
+          invio(1, "meet_domani", "2026-10-26T17:00:00.000Z", { chiave: chiaveD("19:00") }),
+        ]),
+      ],
+    );
     //  I telefoni da leggere: solo i meet di domani, con tutto quello che serve per partire.
     c(
       "telefoniMeetDomani: solo i meet di domani con consulente e numero (cifre col prefisso, senza doppioni)",

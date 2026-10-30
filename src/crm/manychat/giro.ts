@@ -961,7 +961,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   //  lettura si guasta nessuno ha la finestra aperta: si risparmia, il resto del giro prosegue.
   let ultimeEntrate: Record<string, string> = {};
   if (scelta.giornoMeet && !MEET_DOMANI_ACCESO && MEET_DOMANI_SOLO_GRATIS) {
-    const telefoni = telefoniMeetDomani(schede, adesso);
+    const telefoni = telefoniMeetDomani(schede, adesso, invii);
     if (telefoni.length > 0)
       try {
         ultimeEntrate = await porte.ultimeEntrate(userId, telefoni);

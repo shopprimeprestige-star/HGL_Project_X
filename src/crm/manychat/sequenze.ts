@@ -933,14 +933,21 @@ export const FRASE_FINESTRA_CHIUSA = "saltato: finestra chiusa, si risparmia il 
 
 /** I telefoni (solo cifre col prefisso, senza doppioni) dei meet di domani che `decidiMeetDomani`
  *  può far partire: sono i soli di cui il giro deve leggere l'ultima entrata (pochi al giorno). */
-export function telefoniMeetDomani(schede: SchedaQuando[], adesso: Date): string[] {
+export function telefoniMeetDomani(
+  schede: SchedaQuando[],
+  adesso: Date,
+  /** il registro: chi ha già la chiave presa (inviato o saltato) non serve più */
+  invii: InvioPerFreno[] = [],
+): string[] {
   const domani = giornoDopo(aRoma(adesso).giorno);
   const telefoni = new Map<string, string>();
   for (const { data: d } of schede) {
     if (!eAppuntamento(d.stato) || !d.consulenteId) continue;
-    if (giornoVero(d.dataMeeting) !== domani || !oraNormale(d.oraMeeting)) continue;
+    const hm = oraNormale(d.oraMeeting);
+    if (giornoVero(d.dataMeeting) !== domani || !hm) continue;
     const numero = numeroWa(d.telefono);
     const tel9 = ultimeNoveCifre(numero);
+    if (chiaveGiaPresa(invii, `d|${tel9}|${domani}T${hm}`)) continue;
     if (numero && tel9 && !telefoni.has(tel9)) telefoni.set(tel9, numero);
   }
   return [...telefoni.values()];

@@ -3378,6 +3378,16 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   /* ── i sorgenti: server, rotta, contratto ───────────────────────────────── */
   gruppo("MANYCHAT · RIQUADRO · SEQUENZE · SORGENTI");
   const server = letto("src/crm/manychat/pannello.server.ts");
+  c(
+    "pannello.server: una riga «saltato» per finestra chiusa (il giorno prima) non è un problema del riquadro",
+    true,
+    /\.in\("stato", \["fallito", "saltato", "incerto"\]\)\s*\/\/[^\n]*\n\s*\.or\("motivo\.is\.null,motivo\.neq\.finestra_chiusa"\)/.test(server),
+  );
+  c(
+    "…e la prova a secco avvisa (solo il codice) se la lettura delle entrate si guasta",
+    true,
+    /prova_entrate_errore_/.test(server),
+  );
   const rotta = letto("src/routes/api.crm.manychat.ts");
   const client = letto("src/crm/manychat/client-crm.ts");
   c(

@@ -1737,9 +1737,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       ],
     );
     c(
-      "…e non riparte: il giro dopo non rimanda (chiave presa)",
-      1,
-      (await m.giroOra(), m.riga("meet_domani").length),
+      "…e non riparte: il giro dopo non rimanda (chiave presa) e non rilegge nemmeno le entrate",
+      [1, 1],
+      [(await m.giroOra(), m.riga("meet_domani").length), m.lettureEntrate.length],
     );
     m = mondo({ schede: [meet("o1", 2, { oraMeeting: "18:00" })], config: accesa, entrate: { 2: 1 } });
     await m.giroOra();
