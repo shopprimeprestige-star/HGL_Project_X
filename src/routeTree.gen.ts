@@ -60,6 +60,7 @@ import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-remin
 import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-giro'
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
+import { Route as HooksDatiFatturaRouteImport } from './routes/hooks/dati-fattura'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
 import { Route as HooksControlloNotteRouteImport } from './routes/hooks/controllo-notte'
 import { Route as HooksAttesaDaChiamareRouteImport } from './routes/hooks/attesa-da-chiamare'
@@ -472,6 +473,11 @@ const HooksFxRatesRoute = HooksFxRatesRouteImport.update({
 const HooksDiagnosticDriftRoute = HooksDiagnosticDriftRouteImport.update({
   id: '/hooks/diagnostic-drift',
   path: '/hooks/diagnostic-drift',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksDatiFatturaRoute = HooksDatiFatturaRouteImport.update({
+  id: '/hooks/dati-fattura',
+  path: '/hooks/dati-fattura',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksCronHistoryRoute = HooksCronHistoryRouteImport.update({
@@ -1346,6 +1352,7 @@ export interface FileRoutesByFullPath {
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
+  '/hooks/dati-fattura': typeof HooksDatiFatturaRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
@@ -1551,6 +1558,7 @@ export interface FileRoutesByTo {
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
+  '/hooks/dati-fattura': typeof HooksDatiFatturaRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
@@ -1762,6 +1770,7 @@ export interface FileRoutesById {
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
+  '/hooks/dati-fattura': typeof HooksDatiFatturaRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
@@ -1974,6 +1983,7 @@ export interface FileRouteTypes {
     | '/hooks/attesa-da-chiamare'
     | '/hooks/controllo-notte'
     | '/hooks/cron-history'
+    | '/hooks/dati-fattura'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
@@ -2179,6 +2189,7 @@ export interface FileRouteTypes {
     | '/hooks/attesa-da-chiamare'
     | '/hooks/controllo-notte'
     | '/hooks/cron-history'
+    | '/hooks/dati-fattura'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
@@ -2389,6 +2400,7 @@ export interface FileRouteTypes {
     | '/hooks/attesa-da-chiamare'
     | '/hooks/controllo-notte'
     | '/hooks/cron-history'
+    | '/hooks/dati-fattura'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
@@ -2565,6 +2577,7 @@ export interface RootRouteChildren {
   HooksAttesaDaChiamareRoute: typeof HooksAttesaDaChiamareRoute
   HooksControlloNotteRoute: typeof HooksControlloNotteRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
+  HooksDatiFatturaRoute: typeof HooksDatiFatturaRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
   HooksManychatGiroRoute: typeof HooksManychatGiroRoute
@@ -3051,6 +3064,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/diagnostic-drift'
       fullPath: '/hooks/diagnostic-drift'
       preLoaderRoute: typeof HooksDiagnosticDriftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/dati-fattura': {
+      id: '/hooks/dati-fattura'
+      path: '/hooks/dati-fattura'
+      fullPath: '/hooks/dati-fattura'
+      preLoaderRoute: typeof HooksDatiFatturaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/cron-history': {
@@ -4337,6 +4357,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksAttesaDaChiamareRoute: HooksAttesaDaChiamareRoute,
   HooksControlloNotteRoute: HooksControlloNotteRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
+  HooksDatiFatturaRoute: HooksDatiFatturaRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
   HooksManychatGiroRoute: HooksManychatGiroRoute,
