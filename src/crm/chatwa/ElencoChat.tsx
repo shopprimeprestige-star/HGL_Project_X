@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, Loader2, Search, Star, X } from "lucide-react";
+import { CheckCircle2, Loader2, Search, Star, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { combaciaRicerca, ordinaPerStelle } from "./cercaChat";
@@ -58,9 +58,6 @@ const chip = (acceso: boolean) =>
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
-/** Chat con risposta mancante da più di 7 giorni (ripiego sui messaggi, D5/R10). */
-const eVecchia = (c: ChatItem) => c.daRispondere?.vecchia === true;
-
 /** L'ora «adesso», aggiornata ogni 30 secondi. */
 function useAdesso(): number {
   const [adesso, setAdesso] = useState(() => Date.now());
@@ -71,8 +68,7 @@ function useAdesso(): number {
   return adesso;
 }
 
-/** L'elenco delle chat: in cima «Da rispondere», poi le altre, in fondo le senza risposta da
- *  più di 7 giorni. Riempie il contenitore che gli dà `PaginaChat`: larghezza e visibilità
+/** L'elenco delle chat: in cima «Da rispondere», poi le altre. Riempie il contenitore che gli dà `PaginaChat`: larghezza e visibilità
  *  non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
@@ -83,7 +79,6 @@ function useAdesso(): number {
 export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva, apri } = api;
   const adesso = useAdesso();
-  const [vecchieAperte, setVecchieAperte] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   //  Le stelle (28/10/2026): ordinano sempre l'elenco, prima le tre; ora sono anche un filtro.
   const { di: stelleDi, cambia: cambiaStelle } = useStelle();
@@ -137,9 +132,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           passaFiltri(c, { ...filtri, consulente: "" }, stelleDi),
       ).length - inAttesa.length
     : 0;
-  const vecchie = perStelle(fuoriScadenza.filter(eVecchia));
-  // Una chat una volta sola: se sta fra quelle che aspettano o fra le «vecchie», non si ripete fra le altre.
-  const altre = perStelle(fuoriScadenza.filter((c) => !c.daRispondere?.attesa && !eVecchia(c)));
+  // Una chat una volta sola: se sta fra quelle che aspettano, non si ripete fra le altre.
+  const altre = perStelle(fuoriScadenza.filter((c) => !c.daRispondere?.attesa));
 
   //  ── «DA CHIAMARE» CON I SOTTOFILTRI (28/10/2026) ──────────────────────
   //  Con «Da chiamare» acceso NON ci sono riquadri: un elenco solo, ordinato per stato (non
@@ -504,30 +498,6 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                   {filtri.stelle ? "Con stelle" : "Altre chat"}
                 </h2>
                 <ul>{altre.map((c) => riga(c, "normale"))}</ul>
-              </section>
-            )}
-
-            {vecchie.length > 0 && (
-              <section>
-                <button
-                  type="button"
-                  aria-expanded={vecchieAperte}
-                  onClick={() => setVecchieAperte((v) => !v)}
-                  className={cn(
-                    "t-corpo flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left font-semibold text-muted-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
-                    "min-h-11 lg:pointer-fine:min-h-9",
-                  )}
-                >
-                  <span>Senza risposta da oltre 7 giorni ({vecchie.length})</span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform",
-                      vecchieAperte && "rotate-180",
-                    )}
-                  />
-                </button>
-                {vecchieAperte && <ul>{vecchie.map((c) => riga(c, "vecchia"))}</ul>}
               </section>
             )}
           </>

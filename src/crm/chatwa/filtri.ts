@@ -63,7 +63,7 @@ export type CampoFiltro = keyof FiltriChat;
 /** Quello che serve di una chat per filtrarla (la riga di `ChatItem`, in piccolo). */
 export type ChatFiltrabile = Parameters<typeof passaFiltro>[0] & {
   phone: string;
-  daRispondere?: { attesa?: boolean; vecchia?: boolean } | null;
+  daRispondere?: { attesa?: boolean } | null;
   lead?: { data?: { consulenteId?: string | null } | null } | null;
 };
 
@@ -221,12 +221,11 @@ const FILTRO_FASE_VALIDO = new Set<string>([
 export const faseValida = (v: unknown): v is string =>
   typeof v === "string" && FILTRO_FASE_VALIDO.has(v);
 
-/** «Da rispondere»: la chat aspetta una risposta, oppure è ferma da oltre 7 giorni (è l'altro
- *  riquadro, ripiegato in fondo: lo dice la specifica). */
+/** «Da rispondere»: l'ultimo messaggio è del cliente (regola unica, vedi `daRispondere` in stato.ts). */
 function passaCoda(c: ChatFiltrabile, coda: CodaChat): boolean {
   if (coda === "non-letti") return passaFiltro(c, "unread");
   if (coda === "da-chiamare") return passaFiltro(c, "da-chiamare");
-  return c.daRispondere?.attesa === true || c.daRispondere?.vecchia === true;
+  return c.daRispondere?.attesa === true;
 }
 
 /** La chat passa TUTTI i gruppi accesi (E)? Non guarda la ricerca. */
@@ -262,9 +261,7 @@ export const contaAccesi = (f: FiltriChat): number =>
   (Object.keys(FILTRI_VUOTI) as CampoFiltro[]).filter((k) => f[k] !== FILTRI_VUOTI[k]).length;
 
 /** Quante chat vedresti se accendessi `campo = valore` tenendo gli altri gruppi come sono
- *  (ricerca esclusa). Il gruppo di `campo` viene sostituito, non sommato.
- *  «Da rispondere» conta solo chi aspetta davvero: le chat ferme da oltre 7 giorni stanno nel loro
- *  riquadro ripiegato e non sono «da rispondere» ora (il numero è quello del riquadro). */
+ *  (ricerca esclusa). Il gruppo di `campo` viene sostituito, non sommato. */
 export function contaVoce(
   chats: readonly ChatFiltrabile[],
   f: FiltriChat,
@@ -273,14 +270,7 @@ export function contaVoce(
   valore: string | true,
 ): number {
   const prova = { ...f, [campo]: valore } as FiltriChat;
-  const soloAttesa = campo === "coda" && valore === "da-rispondere";
-  let n = 0;
-  for (const c of chats) {
-    if (!passaFiltri(c, prova, stelleDi)) continue;
-    if (soloAttesa && c.daRispondere?.attesa !== true) continue;
-    n++;
-  }
-  return n;
+  return chats.filter((c) => passaFiltri(c, prova, stelleDi)).length;
 }
 
 /** Quante chat passano i filtri così come sono (ricerca esclusa). */

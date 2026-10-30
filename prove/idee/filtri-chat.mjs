@@ -32,7 +32,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       unread: o.unread ?? 0,
       lead: data ? { data } : null,
       finestra: o.aperta === undefined ? null : { aperta: o.aperta },
-      daRispondere: { attesa: o.attesa === true, vecchia: o.vecchia === true },
+      daRispondere: { attesa: o.attesa === true },
       stelle: o.stelle ?? 0,
     };
   };
@@ -40,8 +40,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     chat({ attesa: true, unread: 2, stato: "attesa_whatsapp", consulente: "luca" }),
     chat({ attesa: true, unread: 1, stato: "attesa_whatsapp", acconto: 100, stelle: 2 }),
     chat({ attesa: true, stato: "appuntamento_fissato", aperta: true, consulente: "luca" }),
-    chat({ vecchia: true, stato: "sta_valutando", unread: 1 }),
-    chat({ vecchia: true, senzaScheda: true }),
+    chat({ attesa: true, stato: "sta_valutando", unread: 1 }),
+    chat({ attesa: true, senzaScheda: true }),
     chat({ stato: "appuntamento_fissato", aperta: false, consulente: "anna", stelle: 3 }),
     chat({ stato: "appuntamento_rifissato", aperta: false, acconto: 50 }),
     chat({ stato: "da_chiamare", consulente: "luca", stelle: 1 }),
@@ -126,8 +126,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     indice(
       mondo.filter(
         (x) =>
-          (x.daRispondere.attesa || x.daRispondere.vecchia) &&
-          x.lead?.data?.consulenteId === "luca",
+          x.daRispondere.attesa && x.lead?.data?.consulenteId === "luca",
       ),
     ),
     indice(passano(con({ coda: "da-rispondere", consulente: "luca" }))),
@@ -348,14 +347,13 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
 
   gruppo("FILTRI CHAT: «DA RISPONDERE» È ANCHE UN FILTRO");
   const attesa = mondo.filter((x) => x.daRispondere.attesa);
-  const vecchie = mondo.filter((x) => x.daRispondere.vecchia);
   c(
-    "fa passare chi aspetta e le chat ferme da oltre 7 giorni (il loro riquadro, in fondo)",
-    indice([...attesa, ...vecchie].sort((a, b) => mondo.indexOf(a) - mondo.indexOf(b))),
+    "fa passare chi aspetta (l'ultimo messaggio è del cliente), senza altri riquadri",
+    indice(attesa),
     indice(passano(con({ coda: "da-rispondere" }))),
   );
   c(
-    "il numero della voce è quello del riquadro «Da rispondere»: solo chi aspetta",
+    "il numero della voce è quello del riquadro «Da rispondere»: gli stessi",
     attesa.length,
     F.contaVoce(mondo, V, stelleDi, "coda", "da-rispondere"),
   );
@@ -547,8 +545,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "i titoli dei riquadri sono quelli nuovi",
     true,
-    /Senza risposta da oltre 7 giorni \(\{vecchie\.length\}\)/.test(elenco) &&
-      /Da rispondere \(\{inAttesa\.length\}\)/.test(elenco) &&
+    /Da rispondere \(\{inAttesa\.length\}\)/.test(elenco) &&
       /"Con stelle" : "Altre chat"/.test(elenco) &&
       /non di questo consulente/.test(elenco),
   );

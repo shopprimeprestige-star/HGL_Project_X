@@ -113,10 +113,8 @@ export interface IngressoAnteprima {
   contatto: ContattoAnteprima | null;
   /** `c.daRispondere`: serve solo come ripiego quando manca l'ultimo messaggio. */
   attesa?: { anteprima: string | null } | null;
-  /** La riga è in «Da rispondere» (modo attesa o vecchia). */
+  /** La riga è in «Da rispondere». */
   inAttesa: boolean;
-  /** Fra quelle in attesa, la riga «vecchia» (oltre 7 giorni) è attenuata: niente grassetto. */
-  vecchia?: boolean;
   nonLetti: number;
   adesso: number;
   /** Legge un nostro modello («[template:x]») come nella bolla; solo per le uscite. */
@@ -157,7 +155,7 @@ export function anteprimaRiga(i: IngressoAnteprima): AnteprimaRiga {
     media: media.tipo,
     mio,
     spunte: mio ? spunteDi(ultimo?.status) : null,
-    nonLetto: !mio && media.testo !== "" && (i.nonLetti > 0 || (i.inAttesa && !i.vecchia)),
+    nonLetto: !mio && media.testo !== "" && (i.nonLetti > 0 || i.inAttesa),
     senzaRisposta: senzaRispostaDa(ultimo, i.inAttesa, i.adesso),
     nessunMessaggio: !ultimo && media.testo === "" && !contatto?.last_message_at,
   };

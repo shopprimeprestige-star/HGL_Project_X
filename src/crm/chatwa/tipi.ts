@@ -90,8 +90,6 @@ export interface ChatItem {
     attesa: boolean;
     dal: string | null;
     anteprima: string | null;
-    /** Ripiego sui messaggi: senza risposta da più di 7 giorni (non è in elenco). */
-    vecchia?: boolean;
   } | null;
   /** `scadeIl`: quando chiude la finestra aperta (ISO), per il bollino «chiude tra…» (30/10/2026). */
   finestra?: { aperta: boolean; frase: string; scadeIl?: string | null };

@@ -20846,8 +20846,8 @@ function proveDiWhatsappTemperaturaConsulente() {
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
     //  30/10/2026: il consulente è un gruppo dei filtri, composto in E con gli altri in `passaFiltri`: tutti i riquadri
-    //   (Da rispondere, Altre chat, Senza risposta da oltre 7 giorni, Finestra in chiusura) partono da `trovate`.
-    /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const inAttesa = perStelle\(fuoriScadenza\.filter/.test(elenco) && /const vecchie = perStelle\(fuoriScadenza\.filter\(eVecchia\)\)/.test(elenco) && /const altre = perStelle\(fuoriScadenza\.filter/.test(elenco));
+    //   (Da rispondere, Altre chat, Finestra in chiusura) partono da `trovate`.
+    /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const inAttesa = perStelle\(fuoriScadenza\.filter/.test(elenco) && /const altre = perStelle\(fuoriScadenza\.filter/.test(elenco));
   c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
   //  30/10/2026: il messaggio «Nessun cliente di questo consulente aspetta una risposta» è sostituito dal generico
   //   «Nessuna con questi filtri» (il consulente è uno dei filtri accesi, con la sua etichetta ✕); «altri M in attesa» → «altre M non di questo consulente».

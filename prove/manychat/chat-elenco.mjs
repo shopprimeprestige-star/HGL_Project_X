@@ -77,7 +77,7 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   c("non muta l'ingresso", copia, ordine.map((x) => x.phone));
   const elencoSrc = readFileSync(join(process.cwd(), "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("ElencoChat: ogni riquadro passa da ordinaPerStelle", true,
-    (elencoSrc.match(/perStelle\(/g) ?? []).length >= 3);
+    (elencoSrc.match(/perStelle\(/g) ?? []).length >= 2);
 
   const radice = process.cwd();
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
@@ -86,7 +86,7 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = perStelle\\(fuoriScadenza\\.filter`).test(elenco);
   c("ElencoChat: tutto parte da chat che passano filtri e ricerca", true, /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const passa = \(c: ChatItem\) => passaFiltri\(c, filtri, stelleDi\)/.test(elenco));
   c("ElencoChat: «Da rispondere» obbedisce ai filtri", true, sorgenteUsaFiltro("inAttesa"));
-  c("ElencoChat: le «vecchie» obbediscono ai filtri", true, sorgenteUsaFiltro("vecchie"));
+  c("ElencoChat: non c'è più il riquadro delle «vecchie» (regola unica: tutte le chat in attesa stanno in «Da rispondere»)", false, /vecchie/.test(elenco));
 
   // ── IL NUMERO LEGGIBILE (28/10): +39 3xx xxx xxxx. Numeri finti 333000xxx.
   const { numeroLeggibile } = mod["chatwa/formati"];

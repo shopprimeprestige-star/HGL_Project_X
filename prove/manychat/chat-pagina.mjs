@@ -641,14 +641,14 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           iso(-3 * ORA_MS),
           "Ciao, sono Anna",
           false,
-          { attesa: false, vecchia: false, dal: null, anteprima: null },
+          { attesa: false, dal: null, anteprima: null },
         ],
         [
           per(P1).daRispondere.attesa,
           per(P1).daRispondere.dal,
           per(P1).daRispondere.anteprima,
           per(P3).daRispondere.attesa,
-          (({ attesa, vecchia, dal, anteprima }) => ({ attesa, vecchia, dal, anteprima }))(
+          (({ attesa, dal, anteprima }) => ({ attesa, dal, anteprima }))(
             per(P3).daRispondere,
           ),
         ],
@@ -700,24 +700,23 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       });
       const perq = (tel) => q.api().chats.find((x) => x.phone === tel);
       c(
-        "colonne assenti: ultimo messaggio del cliente degli ultimi 7 giorni senza risposta → in attesa",
-        [[P1], true],
+        "colonne assenti: ultimo messaggio del cliente senza risposta → in attesa (qualunque età)",
+        [[P1, P2], true],
         [telefoni(q.api().daRispondere), perq(P1).daRispondere.attesa],
       );
       c(
-        "colonne assenti: oltre 7 giorni NON è in elenco, ma resta segnata (attesa falsa, dal valorizzato) per la riga «da più di 7 giorni»",
-        [false, true, iso(-9 * GIORNO), []],
+        "colonne assenti: anche oltre 7 giorni è in elenco (regola unica: l'ultimo messaggio è del cliente, senza limite di età)",
+        [true, iso(-9 * GIORNO), [P2]],
         [
           perq(P2).daRispondere.attesa,
-          perq(P2).daRispondere.vecchia,
           perq(P2).daRispondere.dal,
           telefoni(q.api().daRispondere).filter((t) => t === P2),
         ],
       );
       c(
-        "colonne assenti: se c'è una risposta dopo, non è in attesa e non è «vecchia»",
-        [false, false],
-        [perq(P3).daRispondere.attesa, perq(P3).daRispondere.vecchia],
+        "colonne assenti: se c'è una risposta dopo, non è in attesa",
+        false,
+        perq(P3).daRispondere.attesa,
       );
       fine(q);
     }
