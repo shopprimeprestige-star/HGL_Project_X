@@ -402,7 +402,7 @@ export async function provePonteServizioLotti(mod, { c, gruppo, radice }) {
     gruppo("PONTE WHATSAPP · IL SERVIZIO: config.env (compito T5)");
     const token = "a1".repeat(32);
     const buono = `# commento\nPONTE_URL=https://crm.example.test/api/public/ponte-whatsapp\nPONTE_TOKEN="${token}"\nSTORICO_GIORNI=0\nexport ATTESA_PARI_SECONDI=30\n`;
-    c("config valida", { ok: true, config: { url: "https://crm.example.test/api/public/ponte-whatsapp", token, storicoGiorni: 0, attesaPariSecondi: 30, invii: 0 } }, C.analizzaConfig(buono));
+    c("config valida", { ok: true, config: { url: "https://crm.example.test/api/public/ponte-whatsapp", token, storicoGiorni: 0, attesaPariSecondi: 30, invii: 0, identita: "Chrome" } }, C.analizzaConfig(buono));
     c("valori di serie: storico intero, 30 s", { storicoGiorni: 0, attesaPariSecondi: 30 }, (({ storicoGiorni, attesaPariSecondi }) => ({ storicoGiorni, attesaPariSecondi }))(C.analizzaConfig(`PONTE_URL=https://a.test\nPONTE_TOKEN=${token}`).config));
     c("URL http → url_non_https", "url_non_https", C.analizzaConfig(`PONTE_URL=http://crm.example.test\nPONTE_TOKEN=${token}`).errore);
     c("URL con credenziali → url_non_valido", "url_non_valido", C.analizzaConfig(`PONTE_URL=https://u:p@crm.example.test\nPONTE_TOKEN=${token}`).errore);
@@ -410,6 +410,15 @@ export async function provePonteServizioLotti(mod, { c, gruppo, radice }) {
     c("token assente → manca_token", "manca_token", C.analizzaConfig("PONTE_URL=https://a.test").errore);
     c("token di 31 caratteri → token_corto", "token_corto", C.analizzaConfig(`PONTE_URL=https://a.test\nPONTE_TOKEN=${"b".repeat(31)}`).errore);
     c("STORICO_GIORNI non numerico → valore_non_valido", "valore_non_valido", C.analizzaConfig(`PONTE_URL=https://a.test\nPONTE_TOKEN=${token}\nSTORICO_GIORNI=tanti`).errore);
+    //  IDENTITA (30/10, commessa ponte-storico-completo, T1): di serie Chrome; solo Chrome o Desktop.
+    const base2 = `PONTE_URL=https://a.test\nPONTE_TOKEN=${token}`;
+    c("IDENTITA assente o vuota → Chrome (come oggi)", ["Chrome", "Chrome"], [C.analizzaConfig(base2).config.identita, C.analizzaConfig(`${base2}\nIDENTITA=`).config.identita]);
+    c("IDENTITA=Desktop e IDENTITA=Chrome (anche tra virgolette) si accettano", ["Desktop", "Chrome"], [C.analizzaConfig(`${base2}\nIDENTITA=Desktop`).config.identita, C.analizzaConfig(`${base2}\nIDENTITA="Chrome"`).config.identita]);
+    c("IDENTITA ripetuta: vale l'ultima riga", "Desktop", C.analizzaConfig(`${base2}\nIDENTITA=Chrome\nIDENTITA=Desktop`).config.identita);
+    const strana = C.analizzaConfig(`${base2}\nIDENTITA=Firefox`);
+    c("IDENTITA=Firefox → valore_non_valido", "valore_non_valido", strana.errore);
+    c("IDENTITA=desktop (minuscolo) → valore_non_valido: i valori sono due, scritti così", "valore_non_valido", C.analizzaConfig(`${base2}\nIDENTITA=desktop`).errore);
+    c("il messaggio nomina IDENTITA e non contiene il token né il valore scritto", [true, false, false], [/IDENTITA/.test(strana.messaggio), JSON.stringify(strana).includes(token), JSON.stringify(strana).includes("Firefox")]);
     const corto = C.analizzaConfig(`PONTE_URL=https://a.test\nPONTE_TOKEN=${"segreto".repeat(4)}`);
     c("il messaggio d'errore non contiene il token", false, JSON.stringify(corto).includes("segreto"));
     const cart = join(base, "config");

@@ -13,7 +13,7 @@
  *   · il criterio NON è scritto qui: è `contaDaRispondere` di ./stato, la stessa
  *     regola che decide la lista della pagina. ⚠️ Ma l'INSIEME è più stretto: il
  *     menu legge solo i contatti con le colonne nuove, la pagina ripiega anche
- *     sui messaggi degli ultimi 7 giorni (D5). Nei primi giorni dopo la
+ *     sui messaggi caricati (senza limite di età dal 30/10). Nei primi giorni dopo la
  *     migrazione il menu può dire meno della pagina, finché i clienti non
  *     riscrivono: non è un errore di conto, è l'insieme;
  *   · non può mai rompere il menu né mostrare un errore: colonne non ancora

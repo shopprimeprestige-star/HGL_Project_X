@@ -129,6 +129,10 @@ export type LeadStatus =
   //  tutto da conoscere). Questo è una persona che conosciamo, che ha già
   //  ricevuto un preventivo, e che ha smesso di rispondere.
   | "irreperibile"
+  //  Da ricontattare nel tempo ma SENZA una data e senza pretendere niente dalla
+  //  persona: nessuna scadenza, nessun messaggio automatico. ⚠️ NON è
+  //  "da_ricontattare" (data e ora fissate) né "ci_ricontatta_lui" (aspetta lui).
+  | "ricontatto_aperto"
   | "da_ricontattare"
   //  ── RICHIAMA LUI, NON NOI ───────────────────────────────────────────────
   //   Richiesta del committente: «aggiungi come stato "ci ricontatta lui", e
@@ -230,6 +234,7 @@ export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   //  (LOST_REASON_LABEL.non_risponde) e quasi identico allo stato di primo
   //  contatto "Non risponde": tre diciture uguali per tre cose diverse.
   irreperibile: "Irreperibile",
+  ricontatto_aperto: "Ricontatto senza data",
   //  Data e ora ci sono già: non è "da ricontattare un giorno", è fissato.
   da_ricontattare: "Ricontatto fissato",
   //  Le parole del committente, e si leggono da sole: la palla ce l'ha lui.
@@ -326,6 +331,7 @@ export const LEAD_STATUS_PHASE: Record<LeadStatus, LeadPhase> = {
   //  più. Metterla fra le perse avrebbe fatto sparire dalla vista l'unica coda
   //  che vale la pena riprendere quando il telefono è fermo.
   irreperibile: "in_sospeso",
+  ricontatto_aperto: "in_sospeso",
   // Chiuse bene.
   venduto: "vinta",
   //  Le tre chiusure vinte pesano quanto pesava "venduto", né più né meno: nella
@@ -2295,6 +2301,7 @@ export const STATI_TRATTATIVA: LeadStatus[] = [
   //  già parlati. In una lista da chiamare il silenzio si segna con "Non
   //  risponde", che porta con sé il contatore dei tentativi.
   "irreperibile",
+  "ricontatto_aperto",
   "da_ricontattare",
   //  E anche qui, sull'altra metà della richiesta: dopo una consulenza «ci
   //  sentiamo noi» e «vi faccio sapere io» sono due esiti diversi, e solo il
@@ -2352,6 +2359,7 @@ export const SELECTABLE_LEAD_STATUSES: LeadStatus[] = [
   "gestire_in_chat",
   "sta_valutando",
   "irreperibile",
+  "ricontatto_aperto",
   "da_ricontattare",
   //  Accanto al ricontatto, che è la sua coppia: dopo «ci penso» le due
   //  risposte più frequenti sono «richiamatemi» e «vi faccio sapere io», e
@@ -2411,6 +2419,7 @@ export const ALL_LEAD_STATUSES: LeadStatus[] = [
   "gestire_in_chat",
   "sta_valutando",
   "irreperibile",
+  "ricontatto_aperto",
   "da_ricontattare",
   //  Richiesta del committente: deve essere scegliibile «sia per il setter sui
   //  lead importati sia sui lead effettivi». Essendo qui, entra da solo anche

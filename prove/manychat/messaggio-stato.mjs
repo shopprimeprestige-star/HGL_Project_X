@@ -18,12 +18,13 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
 
   gruppo("MESSAGGIO PER STATO · QUALI STATI HANNO UN MESSAGGIO");
   c(
-    "«Attesa acconto», «Richiamo concordato», «Non risponde» sì; «Da contattare» e «Venduto» no",
-    [true, true, true, false, false, false],
+    "«Lead in chat», «Richiamo concordato», «Non risponde» sì; «Attesa acconto» (spenta il 30/10/2026), «Da contattare» e «Venduto» no",
+    [true, true, true, false, false, false, false],
     [
-      M.statoHaMessaggio("in_attesa_acconto"),
+      M.statoHaMessaggio("gestire_in_chat"),
       M.statoHaMessaggio("richiamo"),
       M.statoHaMessaggio("non_risponde"),
+      M.statoHaMessaggio("in_attesa_acconto"),
       M.statoHaMessaggio("da_contattare"),
       M.statoHaMessaggio("venduto"),
       M.statoHaMessaggio(undefined),
@@ -32,13 +33,13 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
 
   gruppo("MESSAGGIO PER STATO · COSA SI LEGGE DALLA SCHEDA");
   const ms = (extra) => ({
-    stato: "in_attesa_acconto",
+    stato: "gestire_in_chat",
     testo: "Ciao {nome}, ti scrivo per l'acconto",
     fuoriFinestra: "stato",
     scrittoIl: "2026-10-30T09:00:00.000Z",
     ...extra,
   });
-  const scheda = (extra, stato = "in_attesa_acconto") => ({ nome: "Anna", stato, ...extra });
+  const scheda = (extra, stato = "gestire_in_chat") => ({ nome: "Anna", stato, ...extra });
   c(
     "scheda dello stesso stato: si legge com'è",
     ms(),
@@ -156,20 +157,20 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
   c(
     "riquadro NON toccato: nessuna chiave nella patch, il messaggio già salvato resta",
     [false, ms()],
-    ((p) => ["messaggioStato" in p, unisci(p).messaggioStato])(M.patchMessaggio("in_attesa_acconto", null)),
+    ((p) => ["messaggioStato" in p, unisci(p).messaggioStato])(M.patchMessaggio("gestire_in_chat", null)),
   );
   c(
     "riquadro toccato e svuotato (scelta esplicita): la chiave c'è, vuota → il messaggio salvato si cancella",
     [true, undefined],
     ((p) => ["messaggioStato" in p, unisci(p).messaggioStato])(
-      M.patchMessaggio("in_attesa_acconto", { valore: undefined }),
+      M.patchMessaggio("gestire_in_chat", { valore: undefined }),
     ),
   );
   const nuovo = ms({ testo: "Nuovo", scrittoIl: "2026-10-30T11:00:00.000Z" });
   c(
     "riquadro toccato con un testo: la patch porta quel messaggio",
     nuovo,
-    unisci(M.patchMessaggio("in_attesa_acconto", { valore: nuovo })).messaggioStato,
+    unisci(M.patchMessaggio("gestire_in_chat", { valore: nuovo })).messaggioStato,
   );
   c(
     "stato senza messaggio: mai nessuna chiave, anche se il riquadro risulta toccato",
@@ -181,22 +182,22 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
   c(
     "testo + scelta → l'oggetto con stato, testo pulito e data",
     {
-      stato: "in_attesa_acconto",
+      stato: "gestire_in_chat",
       testo: "Ciao",
       fuoriFinestra: "generico",
       scrittoIl: ADESSO.toISOString(),
     },
-    M.messaggioPerSalvare("in_attesa_acconto", "  Ciao ", "generico", ADESSO),
+    M.messaggioPerSalvare("gestire_in_chat", "  Ciao ", "generico", ADESSO),
   );
   c(
     "vuoto e «modello dello stato» (non toccato) → undefined: la chiave sparisce, come oggi",
     undefined,
-    M.messaggioPerSalvare("in_attesa_acconto", "  ", "stato", ADESSO),
+    M.messaggioPerSalvare("gestire_in_chat", "  ", "stato", ADESSO),
   );
   c(
     "vuoto ma «generico» → si salva (la scelta conta anche senza testo)",
     "generico",
-    M.messaggioPerSalvare("in_attesa_acconto", "", "generico", ADESSO)?.fuoriFinestra,
+    M.messaggioPerSalvare("gestire_in_chat", "", "generico", ADESSO)?.fuoriFinestra,
   );
   c(
     "stato senza messaggio → undefined",
@@ -215,7 +216,7 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
   );
 
   gruppo("MESSAGGIO PER STATO · CAMBIA LO STATO, IL TESTO SI AZZERA");
-  const prima = { stato: "in_attesa_acconto", messaggioStato: ms(), nome: "Anna" };
+  const prima = { stato: "gestire_in_chat", messaggioStato: ms(), nome: "Anna" };
   c(
     "stesso stato: la scheda resta identica (lo stesso oggetto)",
     true,
@@ -234,7 +235,7 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
     "messaggioStato" in
       D.conStatoDal(
         { stato: "sta_valutando", messaggioStato: ms() },
-        { stato: "in_attesa_acconto", messaggioStato: ms() },
+        { stato: "gestire_in_chat", messaggioStato: ms() },
         ADESSO,
       ),
   );
@@ -244,7 +245,7 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
     D.conStatoDal(
       { stato: "sta_valutando" },
       {
-        stato: "in_attesa_acconto",
+        stato: "gestire_in_chat",
         messaggioStato: ms({ testo: "Nuovo", scrittoIl: "2026-10-30T10:00:00.000Z" }),
       },
       ADESSO,
@@ -256,7 +257,7 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
     "messaggioStato" in
       D.conStatoDal(
         { stato: "sta_valutando" },
-        { stato: "in_attesa_acconto", messaggioStato: ms({ stato: "richiamo", scrittoIl: "x" }) },
+        { stato: "gestire_in_chat", messaggioStato: ms({ stato: "richiamo", scrittoIl: "x" }) },
         ADESSO,
       ),
   );

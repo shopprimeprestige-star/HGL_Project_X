@@ -1164,6 +1164,8 @@ export const AZIONE_PER_STATO: Partial<Record<LeadStatus, string>> = {
   //  Non è un no: è una persona che non si riesce più a raggiungere, e il
   //  gesto è riprovare — non archiviare.
   irreperibile: "Riprova a raggiungerlo",
+  //  Nessuna data: il gesto è riprenderlo quando c'è un momento buono.
+  ricontatto_aperto: "Riprendi il discorso",
   in_attesa_acconto: "Sollecita l'acconto",
   viene_in_sede: "Fissa data in sede",
   gestire_in_chat: "In gestione via chat",

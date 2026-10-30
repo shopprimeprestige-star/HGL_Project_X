@@ -641,14 +641,14 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           iso(-3 * ORA_MS),
           "Ciao, sono Anna",
           false,
-          { attesa: false, vecchia: false, dal: null, anteprima: null },
+          { attesa: false, dal: null, anteprima: null },
         ],
         [
           per(P1).daRispondere.attesa,
           per(P1).daRispondere.dal,
           per(P1).daRispondere.anteprima,
           per(P3).daRispondere.attesa,
-          (({ attesa, vecchia, dal, anteprima }) => ({ attesa, vecchia, dal, anteprima }))(
+          (({ attesa, dal, anteprima }) => ({ attesa, dal, anteprima }))(
             per(P3).daRispondere,
           ),
         ],
@@ -700,24 +700,23 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       });
       const perq = (tel) => q.api().chats.find((x) => x.phone === tel);
       c(
-        "colonne assenti: ultimo messaggio del cliente degli ultimi 7 giorni senza risposta → in attesa",
-        [[P1], true],
+        "colonne assenti: ultimo messaggio del cliente senza risposta → in attesa (qualunque età)",
+        [[P1, P2], true],
         [telefoni(q.api().daRispondere), perq(P1).daRispondere.attesa],
       );
       c(
-        "colonne assenti: oltre 7 giorni NON è in elenco, ma resta segnata (attesa falsa, dal valorizzato) per la riga «da più di 7 giorni»",
-        [false, true, iso(-9 * GIORNO), []],
+        "colonne assenti: anche oltre 7 giorni è in elenco (regola unica: l'ultimo messaggio è del cliente, senza limite di età)",
+        [true, iso(-9 * GIORNO), [P2]],
         [
           perq(P2).daRispondere.attesa,
-          perq(P2).daRispondere.vecchia,
           perq(P2).daRispondere.dal,
           telefoni(q.api().daRispondere).filter((t) => t === P2),
         ],
       );
       c(
-        "colonne assenti: se c'è una risposta dopo, non è in attesa e non è «vecchia»",
-        [false, false],
-        [perq(P3).daRispondere.attesa, perq(P3).daRispondere.vecchia],
+        "colonne assenti: se c'è una risposta dopo, non è in attesa",
+        false,
+        perq(P3).daRispondere.attesa,
       );
       fine(q);
     }
@@ -741,7 +740,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           msg("x3", "inbound", P1, "tre", -3 * ORA_MS),
         ],
       });
-      c("il pallino conta 3, non 1", [3], [p.api().chats[0].unread]);
+      c("il pallino conta 3, non 1", [3], [p.api().chats[0].contact.unread_count]);
       p.api().apri(P1);
       await p.assesta();
       const u = p.scritture("whatsapp_contacts");
@@ -760,7 +759,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       c(
         "dopo l'apertura i non letti sono 0 ma la chat resta in «Da rispondere»",
         [0, [P1]],
-        [p.api().chats[0].unread, telefoni(p.api().daRispondere)],
+        [p.api().chats[0].contact.unread_count, telefoni(p.api().daRispondere)],
       );
       c(
         "tre timer: controllo dei messaggi nuovi (15 s), battito anti-congelamento (20 s), orologio (30 s)",
@@ -822,7 +821,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       c(
         "un messaggio nuovo a chat aperta si segna letto una volta",
         [1, 0],
-        [q.scritture("whatsapp_contacts").length, q.api().chats[0].unread],
+        [q.scritture("whatsapp_contacts").length, q.api().chats[0].contact.unread_count],
       );
       fine(q);
 
@@ -1658,7 +1657,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       p.db.gate = null;
       apri2();
       await p.assesta();
-      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].unread]);
+      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].contact.unread_count]);
 
       // Errore di lettura: si tengono i dati di prima.
       p.db.erroreLettura = true;
@@ -1936,7 +1935,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         ["m4", 1, "m2"],
         [
           p.api().chats.find((x) => x.phone === P2)?.lastMessage?.id,
-          p.api().chats.find((x) => x.phone === P2)?.unread,
+          p.api().chats.find((x) => x.phone === P2)?.contact?.unread_count,
           p.api().chats.find((x) => x.phone === P1)?.lastMessage?.id,
         ],
       );

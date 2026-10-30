@@ -18,6 +18,8 @@ import {
   soloVisibili,
   type AzioneBlocco,
 } from "./selezione";
+import { BarraProssimoMeet } from "./BarraProssimoMeet";
+import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
@@ -37,7 +39,7 @@ import {
   filtriValidi,
   passaFiltri,
   togli,
-  VOCI_GRIGLIA,
+  VOCI_RIGA,
   type CampoFiltro,
 } from "./filtri";
 import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri";
@@ -68,9 +70,6 @@ const chip = (acceso: boolean) =>
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
-/** Chat con risposta mancante da più di 7 giorni (ripiego sui messaggi, D5/R10). */
-const eVecchia = (c: ChatItem) => c.daRispondere?.vecchia === true;
-
 /** L'ora «adesso», aggiornata ogni 30 secondi. */
 function useAdesso(): number {
   const [adesso, setAdesso] = useState(() => Date.now());
@@ -81,19 +80,17 @@ function useAdesso(): number {
   return adesso;
 }
 
-/** L'elenco delle chat: in cima «Da rispondere», poi le altre, in fondo le senza risposta da
- *  più di 7 giorni. Riempie il contenitore che gli dà `PaginaChat`: larghezza e visibilità
- *  non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
+/** L'elenco delle chat: in cima «Da rispondere», poi le altre. Riempie il contenitore che gli
+ *  dà `PaginaChat`: larghezza e visibilità non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
  *  ── I FILTRI A GRUPPI (30/10/2026) ──────────────────────────────────────
- *  Quattro pulsanti sempre in vista (Da rispondere · Non letti · Da chiamare · Con stelle) e il
+ *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
 export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva, apri } = api;
   const adesso = useAdesso();
-  const [vecchieAperte, setVecchieAperte] = useState(false);
   const [pannelloAperto, setPannelloAperto] = useState(false);
   //  Le stelle (28/10/2026): ordinano sempre l'elenco, prima le tre; ora sono anche un filtro.
   const { di: stelleDi, cambia: cambiaStelle, metti: mettiStelle } = useStelle();
@@ -119,6 +116,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
     String(consultants.find((x) => x.id === id)?.data?.nome ?? "").trim() || "Senza nome";
   const accesi = contaAccesi(filtri);
   const cercando = ricerca.trim() !== "";
+  //  «Tutte» è acceso quando nessun filtro è attivo (il consulente scelto non conta: si ricorda).
+  const soloRiga = contaAccesi({ ...filtri, consulente: "" }) === 0;
 
   // ── Quante chat con questi filtri, e quanti numeri per ogni voce (ricerca esclusa) ────────
   const passa = (c: ChatItem) => passaFiltri(c, filtri, stelleDi);
@@ -147,9 +146,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           passaFiltri(c, { ...filtri, consulente: "" }, stelleDi),
       ).length - inAttesa.length
     : 0;
-  const vecchie = perStelle(fuoriScadenza.filter(eVecchia));
-  // Una chat una volta sola: se sta fra quelle che aspettano o fra le «vecchie», non si ripete fra le altre.
-  const altre = perStelle(fuoriScadenza.filter((c) => !c.daRispondere?.attesa && !eVecchia(c)));
+  // Una chat una volta sola: se sta fra quelle che aspettano, non si ripete fra le altre.
+  const altre = perStelle(fuoriScadenza.filter((c) => !c.daRispondere?.attesa));
 
   //  ── «DA CHIAMARE» CON I SOTTOFILTRI (28/10/2026) ──────────────────────
   //  Con «Da chiamare» acceso NON ci sono riquadri: un elenco solo, ordinato per stato (non
@@ -177,8 +175,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           .sort((a, b) => chiaveOrdine(a.lead?.data).localeCompare(chiaveOrdine(b.lead?.data)));
 
   /*  ── SELEZIONE TENENDO PREMUTO (30/10/2026) ───────────────────────────────
-      Le chat «visibili» sono quelle che l'elenco mostra ORA, riquadri compresi (le «vecchie»
-      solo se aperte): «Seleziona tutto» e le azioni valgono per loro, mai per chat nascoste
+      Le chat «visibili» sono quelle che l'elenco mostra ORA, riquadri compresi: «Seleziona tutto» e le azioni valgono per loro, mai per chat nascoste
       da un filtro cambiato dopo. Le regole stanno in selezione.ts. */
   const [inSel, setInSel] = useState(false);
   const [scelte, setScelte] = useState<Set<string>>(() => new Set());
@@ -187,7 +184,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const mostrate = senzaDoppioni(
     filtri.coda === "da-chiamare"
       ? elencoDaChiamare
-      : [...inScadenza, ...inAttesa, ...altre, ...(vecchieAperte ? vecchie : [])],
+      : [...inScadenza, ...inAttesa, ...altre],
   );
   const scelteVisibili = inSel ? soloVisibili(scelte, mostrate) : [];
   const esciDallaSelezione = () => {
@@ -210,7 +207,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       azione,
       scelteVisibili.map((c) => ({
         phone: c.phone,
-        unread: c.unread,
+        unread: c.contact?.unread_count ?? 0,
         haContatto: c.contact !== null,
         inAttesa: c.daRispondere?.attesa === true,
         stelle: stelleDi(c.phone),
@@ -293,8 +290,22 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const etichette = etichetteAccese(filtri, nomeConsulente);
   const azzera = () => setFiltri(FILTRI_VUOTI);
 
+  /*  ── IL PROSSIMO MEET IN CIMA (30/10/2026) ──────────────────────────────
+      Fra le chat che passano filtri e ricerca (con il filtro consulente è il prossimo meet di quella
+      persona). Sta in una barra incollata sopra tutte le sezioni e NON esce dalla sua sezione: i
+      numeri di «Da rispondere» devono restare quelli del pulsante, e una chat che sparisce da lì
+      sembrerebbe già risposta. In sezione la riga ha solo il segno viola. Si aggiorna col timer. */
+  //  In «Da chiamare» si guarda l'elenco mostrato: mai un meet la cui riga non c'è.
+  const meet = prossimoMeet(
+    filtri.coda === "da-chiamare" ? elencoDaChiamare : trovate,
+    oggi,
+    adesso,
+    consultants,
+  );
+
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
     <RigaChat
+      prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}
       chat={c}
@@ -421,15 +432,31 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         />
       </div>
 
-      {/*  ── I QUATTRO PULSANTI SEMPRE IN VISTA (30/10/2026) ───────────────────
-          Griglia 2×2, nessuno scorrimento di lato. Acceso = pieno primario E `aria-pressed`
-          (il colore non basta da solo). Il numero è quello che vedrai se tocchi. */}
+      {/*  ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ──────────────────────────
+          Una riga sola che scorre di lato (sul telefono si scorre col dito), nell'ordine d'uso:
+          Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti. Tasti alti 44 px, nomi corti.
+          Acceso = pieno primario E `aria-pressed` (il colore non basta da solo). Il numero è quello
+          che vedrai se tocchi. «Tutte» spegne i filtri ma non il consulente, che si ricorda. */}
       <div
         role="group"
-        aria-label="Cosa fare adesso"
-        className="grid grid-cols-2 gap-2 px-3 pb-2 md:px-2"
+        aria-label="Filtri rapidi"
+        className="flex gap-2 overflow-x-auto overscroll-x-contain px-3 pb-2 [scrollbar-width:none] md:px-2 [&::-webkit-scrollbar]:hidden"
       >
-        {VOCI_GRIGLIA.map((v) => {
+        <button
+          type="button"
+          aria-pressed={soloRiga}
+          onClick={() => setFiltri({ ...FILTRI_VUOTI, consulente: filtri.consulente })}
+          className={cn(
+            "t-corpo flex h-11 shrink-0 items-center rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
+            soloRiga
+              ? "border-primary bg-primary text-primary-foreground"
+              : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
+            FUOCO,
+          )}
+        >
+          Tutte
+        </button>
+        {VOCI_RIGA.map((v) => {
           const acceso = eAcceso(filtri, v.campo, v.valore);
           return (
             <button
@@ -438,25 +465,20 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               aria-pressed={acceso}
               onClick={() => setFiltri(commuta(filtri, v.campo, v.valore))}
               className={cn(
-                "t-corpo flex h-11 min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 font-medium transition-colors lg:pointer-fine:h-8",
+                "t-corpo flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
                 acceso
                   ? "border-primary bg-primary text-primary-foreground"
                   : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
                 FUOCO,
               )}
             >
-              <span className="flex min-w-0 items-center gap-1.5">
-                {v.campo === "stelle" && (
-                  <Star
-                    aria-hidden="true"
-                    className={cn(
-                      "h-3.5 w-3.5 shrink-0",
-                      acceso ? "text-amber-300" : "text-amber-600",
-                    )}
-                  />
-                )}
-                <span className="truncate">{v.nome}</span>
-              </span>
+              {v.campo === "stelle" && (
+                <Star
+                  aria-hidden="true"
+                  className={cn("h-3.5 w-3.5 shrink-0", acceso ? "text-amber-300" : "text-amber-600")}
+                />
+              )}
+              <span className="whitespace-nowrap">{v.nome}</span>
               <Contatore
                 n={conta(v.campo, v.valore)}
                 acceso={acceso}
@@ -562,6 +584,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
+        {!caricamento && meet && (
+          <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
+        )}
         {caricamento ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Caricamento chat…
@@ -634,30 +659,6 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
                   {filtri.stelle ? "Con stelle" : "Altre chat"}
                 </h2>
                 <ul>{altre.map((c) => riga(c, "normale"))}</ul>
-              </section>
-            )}
-
-            {vecchie.length > 0 && (
-              <section>
-                <button
-                  type="button"
-                  aria-expanded={vecchieAperte}
-                  onClick={() => setVecchieAperte((v) => !v)}
-                  className={cn(
-                    "t-corpo flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left font-semibold text-muted-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
-                    "min-h-11 lg:pointer-fine:min-h-9",
-                  )}
-                >
-                  <span>Senza risposta da oltre 7 giorni ({vecchie.length})</span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform",
-                      vecchieAperte && "rotate-180",
-                    )}
-                  />
-                </button>
-                {vecchieAperte && <ul>{vecchie.map((c) => riga(c, "vecchia"))}</ul>}
               </section>
             )}
           </>

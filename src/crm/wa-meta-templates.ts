@@ -192,7 +192,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_primo_contatto_tre_fasce",
     "UTILITY",
-    `Buongiorno {{lead_name}}, abbiamo ricevuto la sua richiesta di informazioni a Hair Genius Labs. Per gestirla ci serve sapere quando contattarla: preferisce la mattina, il pomeriggio o la sera?`,
+    `Gentile {{lead_name}}, la sua richiesta di informazioni a Hair Genius Labs è stata registrata. Per programmare la chiamata di risposta, indichi la fascia oraria in cui è reperibile: mattina, pomeriggio o sera.`,
     ["lead_name"],
   ),
   tpl(
@@ -213,10 +213,12 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     `{{lead_name}}, le lascio qui alcuni casi reali dei nostri clienti, con foto e video. Come vedrà, il nostro non è la classica patch cutanea: è l'Invisible Derm Protocol, su misura. Siamo a Roma e facciamo tutto in giornata, in meno di 2 ore: per questo vengono da noi da tutta Europa.`,
     ["lead_name"],
   ),
+  //  Il giorno prima COME MODELLO Utility (nuova versione, 30/10/2026): parte solo se la
+  //  consulenza è stata fissata da oltre 3 giorni (`MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI`).
   tpl(
     "hgl_meet_domani",
     "UTILITY",
-    `Ciao {{lead_name}}, ti ricordo che domani, {{appointment_day}}, alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{consultant_name}}. Se hai un imprevisto, rispondi qui e troviamo un altro orario.`,
+    `Ciao {{lead_name}}, promemoria del tuo appuntamento: consulenza online domani, {{appointment_day}}, alle {{appointment_time}} con {{consultant_name}}.\n\nIl link per collegarti ti arriva domattina. Se non puoi esserci, rispondi qui e lo spostiamo.`,
     ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
   ),
   //  Il giorno prima SOLO COME TESTO, dentro le 24 ore (30/10/2026, `MEET_DOMANI_SOLO_GRATIS`):

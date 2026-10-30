@@ -11,7 +11,7 @@
  *  (campi in più, tutti facoltativi) senza togliere niente a quelli del T0.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { CANALE_PONTE } from "../ponte/tipi";
-import { eSoloSegnaposto } from "./media";
+import { eAnteprimaIlleggibile, eSoloSegnaposto } from "./media";
 
 /** Un istante: testo ISO, millisecondi o `Date`. */
 export type Istante = string | number | Date;
@@ -51,8 +51,6 @@ export interface IngressoStato {
 
 export interface DaRispondere {
   attesa: boolean;
-  /** Ripiego sui messaggi: ultimo del cliente senza risposta ma oltre 7 giorni (D5, R10). */
-  vecchia: boolean;
   dal: string | null;
   anteprima: string | null;
   fonte: "colonne" | "messaggi" | null;
@@ -71,8 +69,8 @@ export type EsitoScheda<L> = { tipo: "una"; lead: L } | { tipo: "nessuna" } | { 
 const ORA = 3_600_000;
 const MINUTO = 60_000;
 const GIORNO = 24 * ORA;
-/** Oltre questa età il ripiego sui messaggi non mette più la chat in attesa (D5). */
-const SETTE_GIORNI = 7 * GIORNO;
+/** Un «non leggibile» di ManyChat arrivato entro questo tempo dalla nostra risposta è l'eco di quella risposta. */
+const ECO_SEGNAPOSTO = 2 * MINUTO;
 
 const FRASE_CHIUSA = "Finestra di 24 ore chiusa: puoi mandare solo un modello approvato";
 
@@ -83,18 +81,33 @@ function ms(x: Istante | null | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-/** È in «Da rispondere»? Colonne se ci sono, altrimenti i messaggi caricati (D5, D17). */
+/** ── LA REGOLA UNICA «DA RISPONDERE» (30/10/2026) ───────────────────────────
+ *  Una chat aspetta se e solo se l'ULTIMO messaggio è del cliente. Niente finestra di 24 ore,
+ *  niente limite di età: una chat ferma da mesi con l'ultima parola del cliente è in attesa.
+ *  Una nostra uscita dopo l'ultimo del cliente (CRM, app WhatsApp nativa col ponte, inbox di
+ *  ManyChat) lo chiude, senza «Fatto». I messaggi AUTOMATICI (giro, modelli) NON lo chiudono:
+ *  non scrivono `risposto_il`, che lo muovono solo la risposta dal CRM, un'uscita viva del
+ *  ponte senza pari e «Fatto» (il riconoscimento sta nel percorso di scrittura, non qui). Le righe
+ *  del ponte restano solo da vedere anche nel ripiego (I3): contano le colonne del contatto.
+ *  Colonne se ci sono, altrimenti i messaggi caricati (D5, D17). */
 export function daRispondere(i: IngressoStato): DaRispondere {
-  const adesso = ms(i.adesso);
   const risposto = ms(i.contatto?.risposto_il);
   const entrata = ms(i.contatto?.ultimo_in_entrata_il);
 
-  // Con la colonna d'entrata vale lei, e l'attesa non ha limite di età (D17).
+  // Con la colonna d'entrata vale lei, senza limite di età (D17).
   if (entrata !== null) {
-    const attesa = risposto === null || entrata > risposto;
+    //  Un «non leggibile» di ManyChat subito dopo una nostra risposta è l'eco di quella risposta
+    //  (il Default Reply riparte a ogni messaggio mandato dall'app, con un testo che non sa leggere):
+    //  non è il cliente che riscrive. Una sticker vera nei 2 minuti dopo la risposta non riapre
+    //  la chat: costa poco, e «Da rispondere» non resta pieno di chat già risposte.
+    const eco =
+      risposto !== null &&
+      entrata > risposto &&
+      entrata - risposto <= ECO_SEGNAPOSTO &&
+      eAnteprimaIlleggibile(i.contatto?.ultimo_in_entrata_anteprima);
+    const attesa = (risposto === null || entrata > risposto) && !eco;
     return {
       attesa,
-      vecchia: false,
       dal: attesa ? (i.contatto?.ultimo_in_entrata_il as string) : null,
       anteprima: attesa ? (i.contatto?.ultimo_in_entrata_anteprima ?? null) : null,
       fonte: "colonne",
@@ -106,9 +119,9 @@ export function daRispondere(i: IngressoStato): DaRispondere {
   let tIn = -Infinity;
   let tOut = risposto ?? -Infinity;
   for (const m of i.messaggi) {
-    if (eRigaPonte(m)) continue;
     const t = ms(m.created_at);
     if (t === null) continue;
+    if (eRigaPonte(m)) continue;
     if (m.direction === "inbound") {
       if (!(m.body && eSoloSegnaposto(m.body)) && t > tIn) {
         tIn = t;
@@ -116,22 +129,9 @@ export function daRispondere(i: IngressoStato): DaRispondere {
       }
     } else if (t > tOut) tOut = t;
   }
-  if (!ultimo || tOut >= tIn)
-    return { attesa: false, vecchia: false, dal: null, anteprima: null, fonte: null };
+  if (!ultimo || tOut >= tIn) return { attesa: false, dal: null, anteprima: null, fonte: null };
 
-  const oltre = adesso !== null && adesso - tIn > SETTE_GIORNI;
-  return {
-    attesa: !oltre,
-    vecchia: oltre,
-    dal: ultimo.created_at,
-    anteprima: ultimo.body ?? null,
-    fonte: "messaggi",
-  };
-}
-
-/** Quante chat hanno `vecchia` (D5, R10): la riga «N chat senza risposta da più di 7 giorni». */
-export function contaVecchie(righe: DaRispondere[]): number {
-  return righe.filter((r) => r.vecchia).length;
+  return { attesa: true, dal: ultimo.created_at, anteprima: ultimo.body ?? null, fonte: "messaggi" };
 }
 
 /** Chi aspetta da più tempo sta sopra; parità stabile; non muta l'ingresso (D17). */

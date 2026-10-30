@@ -196,7 +196,7 @@ function proveDelloScheletroChat(mod, { c, gruppo }) {
   const funzioni = {
     "chatwa/media": ["classificaTesto", "eSoloSegnaposto", "anteprimaIn"],
     "chatwa/stato": [
-      "daRispondere", "contaVecchie", "ordinaDaRispondere", "attesaInChiaro", "finestra24",
+      "daRispondere", "ordinaDaRispondere", "attesaInChiaro", "finestra24",
       "statoCasella", "schedaUnica", "leggiRicercaChat", "contaDaRispondere",
     ],
   };
