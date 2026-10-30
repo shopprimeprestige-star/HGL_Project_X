@@ -310,7 +310,25 @@ export async function provePonteServizioLotti(mod, { c, gruppo, radice }) {
       c("oltre il limite di file lo storico non entra", { accettati: 150, lotti: 3, piena: true }, f.aggiungi("storico", molti(200), {}));
       c("ma i vivi sì", { accettati: 1, lotti: 1, piena: false }, f.aggiungi("vivo", [msg(1)], {}));
       c("la fila dice di essere piena", true, f.contatori().piena);
-      c("limiti di serie: 2000 file e 500 MB", [2000, 500 * 1024 * 1024], [L.RITMO.maxFile, L.RITMO.maxByte]);
+      //  TUTTE LE CHAT (30/10): con `shouldSyncHistoryMessage` vero il telefono potrebbe mandare MOLTO più
+      //  del primo giro (9.374 messaggi validi, 190 lotti). Il tetto di prima (2000 file) rifiutava lo storico
+      //  oltre ~100.000 messaggi e quello rifiutato non si recupera senza un nuovo abbinamento.
+      c("limiti di serie: 10.000 file e 1 GiB", [10_000, 1024 * 1024 * 1024], [L.RITMO.maxFile, L.RITMO.maxByte]);
+    }
+
+    //  Un FULL 13 volte più grande del primo giro entra tutto: 120.000 messaggi sono 2400 lotti (il primo
+    //  collegamento ne ha fatti 190), oltre i vecchi 2000 file: con i limiti di serie nessuno viene rifiutato.
+    {
+      const ora = orologio();
+      const f = L.creaFila({ cartella: nuovaCartella(), orologio: ora });
+      let accettati = 0;
+      let rifiutato = false;
+      for (let b = 0; b < 24; b++) {
+        const r = f.aggiungi("storico", Array.from({ length: 5000 }, (_, i) => msg(b * 5000 + i, `3933300${String(i % 800).padStart(5, "0")}`)), {});
+        accettati += r.accettati;
+        rifiutato ||= r.piena;
+      }
+      c("120.000 messaggi di storico (2400 lotti): entrano tutti", [120_000, false, false], [accettati, rifiutato, f.contatori().piena]);
     }
 
     //  scartati/ si svuota dopo 14 giorni.
