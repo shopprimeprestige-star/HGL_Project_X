@@ -511,7 +511,9 @@ export async function proveIngresso(mod, { c, gruppo, radice }) {
     c("…nessuna scheda nuova", 1, m.schede.length);
     const d = m.schede[0].data;
     c("…contatore +1, daDecidere, lista, stato di allora", [1, true, "Google Sheets · Lead HGL", "sta_valutando"], [d.ricarico?.volte, d.ricarico?.daDecidere, d.ricarico?.lista, d.ricarico?.statoAllora]);
-    c("…stato, note e consulente intatti", ["sta_valutando", "chiamato lunedì, vuole richiamo", "cons-1", "Vecchio"], [d.stato, d.note, d.consulenteId, d.cognome]);
+    //  30/10/2026: chi torna passa in «Attesa WhatsApp», lo stato di prima resta in statoPrecedente.
+    c("…stato in Attesa WhatsApp, con lo stato di prima", ["attesa_whatsapp", "sta_valutando"], [d.stato, d.statoPrecedente]);
+    c("…note e consulente intatti", ["chiamato lunedì, vuole richiamo", "cons-1", "Vecchio"], [d.note, d.consulenteId, d.cognome]);
     c("…il tracking si riempie e non sostituisce (vince quello che c'era)", ["sito", "120253730513900721"], [d.tracking?.utm_source, d.tracking?.ad_id]);
     c("…le risposte del modulo entrano (la scheda non ne aveva)", "valutando", d.modulo?.urgenza);
     c("…consenso del modulo scritto (la scheda non ne aveva)", "modulo_meta", d.consensoModulo?.via);
@@ -572,7 +574,8 @@ export async function proveIngresso(mod, { c, gruppo, radice }) {
     });
     const r = await manda(m, richiesta(corpo(riga("63", "Mario Esempio", "p:+393330000101"))));
     const d = m.schede[0].data;
-    c("scheda cambiata sotto di noi: si rilegge e si rifà sul valore nuovo", [200, 2, "non_risponde", "scritta nel frattempo", 1], [r.stato, m.chiamate.scriviScheda, d.stato, d.note, d.ricarico?.volte]);
+    //  Rifatta sul valore nuovo: lo stato di prima è quello scritto nel frattempo (30/10/2026: chi torna va in Attesa WhatsApp).
+    c("scheda cambiata sotto di noi: si rilegge e si rifà sul valore nuovo", [200, 2, "attesa_whatsapp", "non_risponde", "scritta nel frattempo", 1], [r.stato, m.chiamate.scriviScheda, d.stato, d.statoPrecedente, d.note, d.ricarico?.volte]);
   }
   {
     const m = mondo({ schede: [{ id: "s1", data: { nome: "Mario", telefono: "3330000101", stato: "da_contattare", ricarico: { volte: 2, ultimo: "2026-10-01T10:00:00Z" } } }] });

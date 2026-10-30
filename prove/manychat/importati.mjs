@@ -408,6 +408,27 @@ export async function proveImportati(mod, { c, gruppo, radice }) {
         "ripensamento",
       ].map((stato) => sec([rit("r-1", 1, { stato })], MAR10)),
     );
+    //  30/10/2026: chi torna passa da solo in «Attesa WhatsApp» (ricarico.inAttesaIl).
+    //  Conta lo stato di PRIMA: a chi aveva già avuto la consulenza non si scrive
+    //  «Vuole fissare la consulenza gratuita?» solo perché lo stato è cambiato.
+    c(
+      "spostato in Attesa WhatsApp dal ritorno: decide lo stato di prima (valutazione → niente, non interessato → parte)",
+      [[], ["invia"], ["invia"]],
+      [
+        sec([rit("r-1", 1, { stato: "attesa_whatsapp" }, { statoAllora: "sta_valutando", inAttesaIl: ULTIMO })], MAR10),
+        tipi(sec([rit("r-1", 1, { stato: "attesa_whatsapp" }, { statoAllora: "annullato", inAttesaIl: ULTIMO })], MAR10)),
+        tipi(sec([rit("r-1", 1, { stato: "da_chiamare" }, { statoAllora: "non_risponde", inAttesaIl: ULTIMO })], MAR10)),
+      ],
+    );
+    {
+      //  Revisione 30/10: «In valutazione» torna DUE volte. Il secondo ritorno tiene lo
+      //  stato di prima, quindi hgl_ritorno non parte nemmeno dopo.
+      const RIC = mod["importa/ricarico"];
+      const base = { nome: "Dario", telefono: tel(1), stato: "sta_valutando", importato: true };
+      const uno = { ...base, ...RIC.patchRicarico(base, "L", t("2026-10-26T08:00:00.000Z")) };
+      const due = { ...uno, ...RIC.patchRicarico(uno, "L", t(ULTIMO)) };
+      c("in valutazione tornato due volte → niente hgl_ritorno", [], sec([{ id: "r-1", data: due }], MAR10));
+    }
     c(
       "stati di primo contatto (da contattare, non risponde, segreteria, richiamo, ci ricontatta lui) → parte",
       [["invia"], ["invia"], ["invia"], ["invia"], ["invia"]],

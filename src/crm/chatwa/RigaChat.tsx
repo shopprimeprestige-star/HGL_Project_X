@@ -28,6 +28,7 @@ import { anteprimaRiga, type Spunte } from "./anteprima-riga";
 import { IconaMedia } from "./IconaMedia";
 import { attesaInChiaro, ultimoDellaChat } from "./stato";
 import { ritornoInChat } from "./ritorno";
+import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import { linkApriWhatsapp } from "./apriWhatsapp";
 import { scadenzaFinestra, segnoConferma } from "./segniRiga";
 import { testoPerWhatsapp } from "./testoWhatsapp";
@@ -441,6 +442,16 @@ export function RigaChat({
               <Undo2 aria-hidden="true" className="h-3 w-3 sm:mr-1" />
               <span className="sr-only sm:not-sr-only">{ritorno.corta}</span>
             </span>
+          )}
+          {/*  «prima: …» (30/10/2026): sotto la fila delle pastiglie, a filo dello
+              stato. `order-last basis-full` la manda a capo da sola senza toccare
+              stelle e pastiglie; l'icona ↩ c'è già nella pastiglia del ritorno. */}
+          {c.lead && (
+            <PrimaDelRitorno
+              dati={c.lead.data}
+              icona={false}
+              className="order-last -mt-1 basis-full pl-2"
+            />
           )}
           {/*  ── LE STELLE, DALLA LISTA (28/10/2026) ───────────────────────────
               Un tocco ne aggiunge una (0 → 1 → 2 → 3 → 0). Sempre in fondo a

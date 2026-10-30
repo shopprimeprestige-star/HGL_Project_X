@@ -140,6 +140,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1007,13 +1008,17 @@ export function SchedaTutti({
                             stato non seleziona anche la riga sotto le dita. */}
                         {/*  Il secondo stato (WhatsApp), solo se la scheda ne ha uno. */}
                         {d.contattoWa && <PastigliaContattoLead lead={l} className="shrink-0" />}
-                        <PastigliaStato
-                          dati={d}
-                          contesto={nome}
-                          onScegli={(s) => onStato(l, s)}
-                          disabilitata={occupato}
-                          className="max-w-[160px] shrink-0"
-                        />
+                        {/*  «prima: …» sotto lo stato per chi è tornato (30/10/2026). */}
+                        <span className="inline-flex min-w-0 max-w-full shrink-0 flex-col items-start gap-0.5">
+                          <PastigliaStato
+                            dati={d}
+                            contesto={nome}
+                            onScegli={(s) => onStato(l, s)}
+                            disabilitata={occupato}
+                            className="max-w-[160px] shrink-0"
+                          />
+                          <PrimaDelRitorno dati={d} className="max-w-[160px] pl-1" />
+                        </span>
                         <Button
                           size="sm"
                           variant="ghost"
