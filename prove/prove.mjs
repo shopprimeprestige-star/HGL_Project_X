@@ -38,6 +38,7 @@ import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
+import { proveDatiFattura } from "./dati-fattura.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -101,6 +102,9 @@ const MODULI = [
   //  ⚠️ Decide se una vendita viene annunciata a Meta: vedi provePosaAggiunta.
   "lead-analytics",
   "fatture/messaggio-dati",
+  //  Dopo l'acconto: richiesta dei dati, lettura della risposta, bozza (mai emessa). prove/dati-fattura.mjs.
+  "fatture/dati-fattura",
+  "fatture/dati-fattura-giro",
   //  ⚠️ Acconto, saldo o fattura intera: vedi proveDelTipoProposto. Una
   //   proposta sbagliata si accetta senza guardarla, ed e' finita al cliente.
   "fatture/conti",
@@ -21151,6 +21155,7 @@ proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
 proveIdeeDafare(mod, { c, gruppo, radice });
+await proveDatiFattura(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
