@@ -1143,6 +1143,9 @@ export interface DatiSecco {
   /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo Meta
    *  (assente = nessuna data segnata, il modulo non vale per nessuno) */
   fraseModuloDal?: string | null;
+  /** ultime 9 cifre → ISO dell'ultimo messaggio del cliente, per i meet di domani
+   *  (il giorno prima parte solo se gratis); assente = nessuno ha la finestra aperta */
+  ultimeEntrate?: Record<string, string>;
 }
 
 /** shortcut: le righe della prova si fermano a 100; con più schede il resto si
@@ -1167,7 +1170,13 @@ export function provaASecco(d: DatiSecco, adesso: Date): ProvaASecco {
   const voci = decisioniDelGiro(
     d.schede,
     adesso,
-    { consulenti: d.consulenti, invii: d.invii, tetti, prossimoDopo: d.prossimoDopo },
+    {
+      consulenti: d.consulenti,
+      invii: d.invii,
+      tetti,
+      prossimoDopo: d.prossimoDopo,
+      ultimeEntrate: d.ultimeEntrate,
+    },
     scelta,
   );
   const righe: RigaProva[] = righeDiProva(voci, (s) => nomeDi(s.data));

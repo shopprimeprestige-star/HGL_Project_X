@@ -52,6 +52,9 @@ export type EsitoPorta =
   | "flusso_mancante"
   /** chiave rifiutata, canale scollegato, modello in pausa, limite */
   | "blocco"
+  /** `soloTesto` e il testo gratuito non è possibile (finestra chiusa): non è partito niente,
+   *  la riga del registro è «saltato» e tiene la sua chiave */
+  | "saltato"
   /** rete giù, timeout, 5xx: non si sa se è partito; non si rimanda */
   | "incerto";
 
@@ -73,6 +76,10 @@ export interface RichiestaInvio {
   tipo: TipoInvioPorta;
   /** chiave unica dell'invio (`p|tel9|…`, `r|tel9|…`); assente per la chat a mano */
   chiave?: string;
+  /** MAI come modello (il giorno prima, 30/10/2026): parte solo il testo del modello, con la
+   *  finestra di 24 ore aperta. Se non si può (finestra chiusa, testo impossibile, testo
+   *  rifiutato da ManyChat) niente ripiego sul flusso: esito «saltato». Serve `modello`. */
+  soloTesto?: boolean;
 }
 
 export interface RisultatoPorta {
@@ -238,13 +245,18 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
       ? testoDelModello(r.modello, parametri)
       : null;
     if (testo) {
-      modelloDiRiserva = r.modello;
+      //  Con `soloTesto` il modello non è di riserva: non parte mai.
+      modelloDiRiserva = r.soloTesto ? null : r.modello;
       r = { ...r, modello: undefined, testo };
     }
   }
+  //  ⚠️ SOLO TESTO: se il testo non c'è (finestra chiusa tra la decisione e l'invio, porta della
+  //   finestra assente o guasta, testo impossibile) il modello NON parte. La riga si prenota
+  //   comunque, e dopo si chiude «saltato» tenendo la chiave: una volta per meet.
+  const senzaTesto = !!r.soloTesto && !r.testo;
 
   let ns: string | null = null;
-  if (r.modello) {
+  if (r.modello && !senzaTesto) {
     try {
       ns = await porte.flusso(r.modello);
     } catch {
@@ -252,7 +264,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     }
     //  Modello senza flusso: rifiuto senza nessuna chiamata (nemmeno al registro).
     if (!ns) return { esito: "flusso_mancante", codice: "flusso_mancante" };
-  } else if (!r.testo) {
+  } else if (!r.testo && !senzaTesto) {
     return { esito: "blocco", codice: "richiesta_vuota" };
   }
 
@@ -287,6 +299,11 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     }
     return { esito, invioId, ...(codice ? { codice } : {}) };
   };
+  /** Non è partito niente e non deve partire: «saltato» col motivo, chiave tenuta. */
+  const saltato = () =>
+    chiudi("saltato", "finestra_chiusa", { stato: "saltato", motivo: "finestra_chiusa" }, null);
+  if (senzaTesto) return saltato();
+
   /** Un'API che non ha detto «fatto», PRIMA di `sendFlow`: ricerca, creazione o
    *  campi non mandano niente, quindi è certo che nulla è partito. Un `incerto`
    *  qui è un `blocco` col suo codice e la riga si chiude «fallito»: la
@@ -371,6 +388,8 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   const esito = ESITO_DA_API[s.esito] ?? "incerto";
   //  Oltre le 24 ore il testo libero non passa: lo dice il codice numerico di ManyChat.
   const codice = /_(3011|3031)$/.test(s.codice ?? "") ? "fuori_24h" : s.codice;
+  //  Solo testo e ManyChat dice «finestra chiusa»: non è partito niente, e il flusso NON si usa.
+  if (r.soloTesto && codice === "fuori_24h") return saltato();
   if (esito === "incerto") {
     await registraDi(porte, r, "queued", `mc:${invioId}`, "esito incerto");
     return { esito, invioId, ...(codice ? { codice } : {}) };

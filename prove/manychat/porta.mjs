@@ -705,6 +705,109 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         [chat.f.percorsi().includes(PERCORSI.testo), chat.f.percorsi().includes(PERCORSI.flusso)],
       );
     }
+    //  ── SOLO TESTO (30/10/2026): il giorno prima non parte mai come modello ──
+    {
+      const conEntrata = (ore, o = {}) => {
+        const x = creaPorte(o);
+        x.porte.ultimaEntrata = async () =>
+          ore === "guasto"
+            ? Promise.reject(new Error("db giù"))
+            : ore === null
+              ? null
+              : new Date(x.orologio.ms - ore * 3600_000).toISOString();
+        return x;
+      };
+      const solo = { ...conferma, soloTesto: true, chiave: "d|k1|g1", tipo: "meet_domani" };
+      const chiamate = (x) => x.f.percorsi().filter((p) => p.startsWith("/fb/sending"));
+      const aperta = conEntrata(2, { flussi: {} });
+      const ra = await invia(aperta, solo);
+      c(
+        "soloTesto, finestra aperta: parte il TESTO, senza bisogno del flusso (flussi vuoti)",
+        ["ok", [PERCORSI.testo], null],
+        [ra.esito, chiamate(aperta), aperta.righe[0].flowNs],
+      );
+      for (const [nome, ore, extra] of [
+        ["finestra chiusa (23,5 ore)", 23.5, {}],
+        ["cliente che non ha mai scritto", null, {}],
+        ["lettura della finestra guasta", "guasto", {}],
+      ]) {
+        const x = conEntrata(ore, { flussi: { [MODELLO]: FLUSSO } });
+        const r = await invia(x, solo);
+        c(
+          `soloTesto, ${nome}: «saltato», nessuna chiamata a ManyChat (né testo né flusso)`,
+          ["saltato", "finestra_chiusa", []],
+          [r.esito, r.codice, x.f.percorsi()],
+        );
+        c(
+          `…${nome}: la riga del registro è «saltato» e TIENE la chiave (una volta per meet), niente messaggio in chat`,
+          ["saltato", "finestra_chiusa", "d|k1|g1", 0],
+          [x.righe[0].stato, x.righe[0].motivo, x.righe[0].chiave, x.messaggi.length],
+        );
+      }
+      const senzaPorta = creaPorte();
+      const rsp = await invia(senzaPorta, solo);
+      c(
+        "soloTesto senza la porta della finestra: «saltato», mai il flusso",
+        ["saltato", false],
+        [rsp.esito, senzaPorta.f.percorsi().includes(PERCORSI.flusso)],
+      );
+      const vuoto = conEntrata(1);
+      const rv = await invia(vuoto, { ...solo, parametri: ["Maria", "", "10:00", "Filippo"] });
+      c(
+        "soloTesto con un valore vuoto (testo impossibile): «saltato», mai il flusso",
+        ["saltato", false],
+        [rv.esito, vuoto.f.percorsi().includes(PERCORSI.flusso)],
+      );
+      const ignoto = conEntrata(1);
+      const ri2 = await invia(ignoto, { ...solo, modello: "hgl_modello_ignoto" });
+      c(
+        "soloTesto con un modello che il CRM non conosce: «saltato», mai il flusso",
+        ["saltato", false],
+        [ri2.esito, ignoto.f.percorsi().includes(PERCORSI.flusso)],
+      );
+      //  ManyChat rifiuta il testo (3011/3031: per lui la finestra è chiusa): niente ripiego sul flusso.
+      for (const codice of [3011, 3031]) {
+        const rifiutato = conEntrata(2, {
+          finto: nuovoFinto().su("POST", PERCORSI.testo, {
+            http: 400,
+            corpo: { status: "error", message: "x", code: codice },
+          }),
+        });
+        const rr = await invia(rifiutato, solo);
+        c(
+          `soloTesto, ManyChat rifiuta il testo (${codice}): «saltato», NESSUN ripiego sul flusso`,
+          ["saltato", false, "saltato", "finestra_chiusa"],
+          [
+            rr.esito,
+            rifiutato.f.percorsi().includes(PERCORSI.flusso),
+            rifiutato.righe[0].stato,
+            rifiutato.righe[0].motivo,
+          ],
+        );
+      }
+      const incertoSolo = conEntrata(2, { finto: nuovoFinto().su("POST", PERCORSI.testo, { http: 503, corpo: {} }) });
+      const rin = await invia(incertoSolo, solo);
+      c(
+        "soloTesto, testo dall'esito incerto: incerto, niente secondo invio",
+        ["incerto", false],
+        [rin.esito, incertoSolo.f.percorsi().includes(PERCORSI.flusso)],
+      );
+      //  La prenotazione viene PRIMA: STOP e pausa contano come sempre.
+      const inStop = conEntrata(2, { stop: [NUMERO] });
+      c(
+        "soloTesto con STOP: «stop», niente da ManyChat",
+        ["stop", []],
+        await invia(inStop, solo).then((r) => [r.esito, inStop.f.percorsi()]),
+      );
+      //  Senza soloTesto, tutto come prima (il flusso di riserva c'è).
+      const normale = conEntrata(23.5);
+      await invia(normale, conferma);
+      c(
+        "senza soloTesto la finestra chiusa manda il flusso, come sempre",
+        true,
+        normale.f.percorsi().includes(PERCORSI.flusso),
+      );
+    }
     //  Guasti attorno all'invio.
     const senza = creaPorte({ senzaChiave: true });
     c(

@@ -207,10 +207,13 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     `{{lead_name}}, le lascio qui alcuni casi reali dei nostri clienti, con foto e video. Come vedrà, il nostro non è la classica patch cutanea: è l'Invisible Derm Protocol, su misura. Siamo a Roma e facciamo tutto in giornata, in meno di 2 ore: per questo vengono da noi da tutta Europa.`,
     ["lead_name"],
   ),
+  //  Il giorno prima parte SOLO come testo, dentro le 24 ore (30/10/2026, `MEET_DOMANI_SOLO_GRATIS`):
+  //  il modello Meta non si usa. La domanda finale chiede una risposta breve, che riapre la
+  //  finestra e fa partire gratis anche il messaggio del mattino dopo.
   tpl(
     "hgl_meet_domani",
     "UTILITY",
-    `Ciao {{lead_name}}, ti ricordo che domani, {{appointment_day}}, alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{consultant_name}}. Se hai un imprevisto, rispondi qui e troviamo un altro orario.`,
+    `Ciao {{lead_name}}, ti ricordo la consulenza online di domani, {{appointment_day}}, alle {{appointment_time}} con {{consultant_name}}. Mi confermi con un ok?`,
     ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
   ),
   tpl(

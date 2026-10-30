@@ -87,6 +87,7 @@ import {
   campiPrimoContatto,
   campiRitorno,
 } from "./testi";
+import { ORE_TESTO_LIBERO, finestraPerTesto } from "./finestra";
 
 /** Gli stati in cui un lead è ancora «nuovo» per queste sequenze.
  *  «attesa_whatsapp» (commessa 2026-10-28): è lo stato in cui il giro stesso porta un
@@ -148,6 +149,12 @@ export interface ContestoLeadNuovi extends ContestoQuando {
 export interface ContestoGiornoMeet extends ContestoQuando {
   /** come sopra: il consenso del modulo vale solo da questa data */
   fraseModuloDal: string | null;
+  /** Il giorno prima parte SOLO se gratis (`MEET_DOMANI_SOLO_GRATIS`, giro.ts): solo come
+   *  testo, con la finestra di 24 ore aperta. Serve `ultimeEntrate`. Assente = come prima. */
+  soloGratis?: boolean;
+  /** ultime 9 cifre del telefono → ISO dell'ultimo messaggio del cliente (`whatsapp_contacts`).
+   *  Chi manca, o ha una data illeggibile, non ha la finestra aperta. */
+  ultimeEntrate?: Record<string, string | null>;
 }
 
 /** Quale dei due messaggi del lead nuovo. */
@@ -921,7 +928,30 @@ export function decidiGiornoMeet(
     .map((x) => x.d);
 }
 
-/** ── 24 ORE PRIMA DEL MEET ───────────────────────────────────────────────── */
+/** Il motivo di un salto quando il giorno prima non può partire gratis. */
+export const FRASE_FINESTRA_CHIUSA = "saltato: finestra chiusa, si risparmia il modello";
+
+/** I telefoni (solo cifre col prefisso, senza doppioni) dei meet di domani che `decidiMeetDomani`
+ *  può far partire: sono i soli di cui il giro deve leggere l'ultima entrata (pochi al giorno). */
+export function telefoniMeetDomani(schede: SchedaQuando[], adesso: Date): string[] {
+  const domani = giornoDopo(aRoma(adesso).giorno);
+  const telefoni = new Map<string, string>();
+  for (const { data: d } of schede) {
+    if (!eAppuntamento(d.stato) || !d.consulenteId) continue;
+    if (giornoVero(d.dataMeeting) !== domani || !oraNormale(d.oraMeeting)) continue;
+    const numero = numeroWa(d.telefono);
+    const tel9 = ultimeNoveCifre(numero);
+    if (numero && tel9 && !telefoni.has(tel9)) telefoni.set(tel9, numero);
+  }
+  return [...telefoni.values()];
+}
+
+/** ── 24 ORE PRIMA DEL MEET ─────────────────────────────────────────────────
+ *  Con `contesto.soloGratis` (30/10/2026) parte SOLO come testo, con la finestra di
+ *  24 ore aperta: mai un modello a pagamento. Il bersaglio è l'ora del meet; se la
+ *  finestra (23 ore dall'ultima entrata, `finestraPerTesto`) chiude prima, si anticipa
+ *  a un'ora prima della chiusura (mai prima delle 9:00, mai dopo il bersaglio). Se a
+ *  quell'ora è già chiusa, o il cliente non ha mai scritto, si salta e lo si dice. */
 export function decidiMeetDomani(
   schede: SchedaQuando[],
   adesso: Date,
@@ -1044,17 +1074,39 @@ export function decidiMeetDomani(
 
     const { parte, bersaglioMin } = k;
     const chiusura = (istanteDiRoma(oggi, oraDi(CHIUSURA_RICONTATTI_MIN)) as Date).getTime();
-    const fine = Math.min(parte + FINESTRA_MEET_DOMANI_MIN * MIN_MS, chiusura);
-    if (ora < parte) {
+    //  Solo gratis: da che ora si può scrivere col testo, e la finestra c'è a quell'ora?
+    let partenza = parte;
+    let partenzaMin = bersaglioMin;
+    let finestraChiusa = false;
+    const entrata = contesto.ultimeEntrate?.[k.tel9];
+    if (contesto.soloGratis) {
+      const chiude = Date.parse(String(entrata ?? "")) + ORE_TESTO_LIBERO * ORA_MS;
+      if (chiude <= parte) {
+        const apertura = (istanteDiRoma(oggi, oraDi(APERTURA_RICONTATTI_MIN)) as Date).getTime();
+        partenza = Math.max(apertura, chiude - ORA_MS);
+        partenzaMin = aRoma(new Date(partenza)).minuti;
+      }
+      finestraChiusa = !finestraPerTesto(entrata, new Date(partenza));
+    }
+    const fine = Math.min(partenza + FINESTRA_MEET_DOMANI_MIN * MIN_MS, chiusura);
+    if (finestraChiusa) {
+      //  Come il ritardo: si vede fino a un'ora dopo la fine normale (bersaglio + 2 ore), poi tace.
+      const fineNormale = Math.min(parte + FINESTRA_MEET_DOMANI_MIN * MIN_MS, chiusura);
+      if (ora < fineNormale + MEMORIA_SALTI_MIN * MIN_MS)
+        metti({ tipo: "salta", scheda: k.scheda, motivo: FRASE_FINESTRA_CHIUSA });
+    } else if (ora < partenza) {
       metti({
         tipo: "aspetta",
         scheda: k.scheda,
-        motivo: `promemoria 24 ore prima: parte alle ${oraDi(bersaglioMin)}`,
+        motivo: `promemoria 24 ore prima: parte alle ${oraDi(partenzaMin)}`,
       });
     } else if (ora >= fine) {
       //  Scaduto: per un'ora il ritardo si vede, poi tace.
       if (ora < fine + MEMORIA_SALTI_MIN * MIN_MS)
         metti({ tipo: "salta", scheda: k.scheda, motivo: "saltato: giro in ritardo" });
+    } else if (contesto.soloGratis && !finestraPerTesto(entrata, new Date(ora))) {
+      //  La finestra si è chiusa mentre si aspettava: niente modello.
+      metti({ tipo: "salta", scheda: k.scheda, motivo: FRASE_FINESTRA_CHIUSA });
     } else if (contaOggi(invii, oggi, TIPI_NEI_TETTI) >= tetti.totale) {
       metti({ tipo: "salta", scheda: k.scheda, motivo: "tetto di messaggi di oggi raggiunto" });
     } else if (inPausa(invii, k.tel9, adesso)) {

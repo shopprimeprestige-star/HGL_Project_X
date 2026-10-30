@@ -18,6 +18,7 @@
  *   porta ripiega SUBITO sul modello, nello stesso invio: niente va perso.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { findMetaTemplate } from "@/crm/wa-meta-templates";
+import { ultimeNoveCifre } from "./regole";
 
 /** Margine prima della chiusura vera (24 h): oltre 23 h si usa il modello. */
 export const ORE_TESTO_LIBERO = 23;
@@ -48,4 +49,21 @@ export function testoDelModello(nome: string, parametri: string[]): string | nul
   });
   if (mancante || /\{\{|\}\}/.test(testo) || !testo.trim()) return null;
   return testo.trim();
+}
+
+/** Le righe di `whatsapp_contacts` → ultime 9 cifre del telefono → ISO dell'ultima entrata più
+ *  recente (la rubrica può avere il numero con e senza «+»). Date vuote o rotte e numeri
+ *  troppo corti non contano: chi manca non ha la finestra aperta. */
+export function ultimeEntrateDaRighe(
+  righe: { phone_e164?: string | null; ultimo_in_entrata_il?: string | null }[],
+): Record<string, string> {
+  const fuori: Record<string, string> = {};
+  for (const r of righe) {
+    const tel = ultimeNoveCifre(r.phone_e164);
+    const quando = Date.parse(String(r.ultimo_in_entrata_il ?? ""));
+    if (!tel || !Number.isFinite(quando)) continue;
+    const prima = Date.parse(fuori[tel] ?? "");
+    if (!(prima >= quando)) fuori[tel] = r.ultimo_in_entrata_il as string;
+  }
+  return fuori;
 }

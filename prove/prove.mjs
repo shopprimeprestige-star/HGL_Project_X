@@ -20519,7 +20519,7 @@ function proveDelTestoDeiModelli() {
   gruppo("WHATSAPP: IL MODELLO SI LEGGE COL SUO TESTO");
   const T = mod["testo-modello"];
   const t = T.testoDelModello("hgl_meet_domani", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
-  c("i parametri al loro posto", true, /Ciao Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /Ti seguirà Filippo/.test(t));
+  c("i parametri al loro posto", true, /Ciao Mario, .*domani, giovedì 29 ottobre, alle 15:00 con Filippo\. Mi confermi con un ok\?/.test(t));
   c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
   c("il nome «_v2» trova lo stesso testo", t, T.testoDelModello("hgl_meet_domani_v2", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]));
   c("parametro mancante: «…», non un buco", true, /Salve …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
@@ -21937,6 +21937,22 @@ function proveDelModelloConsigliato() {
   c("il testo col valore al posto di {{1}}", true, F.testoDelModello("hgl_non_risponde", ["Mario"]).includes("Mario"));
   c("un nome con _v3 usa la copia senza versione", true, !!F.testoDelModello("hgl_non_risponde_v3", ["Mario"]));
   c("valore vuoto o modello ignoto: null", [null, null], [F.testoDelModello("hgl_non_risponde", [""]), F.testoDelModello("ignoto", ["x"])]);
+  //  L'ultima entrata per telefono, come la legge il giro per il giorno prima (30/10/2026).
+  const righe = [
+    { phone_e164: "+393330000001", ultimo_in_entrata_il: "2026-10-28T16:18:00Z" },
+    { phone_e164: "393330000001", ultimo_in_entrata_il: "2026-10-29T08:00:00Z" },
+    { phone_e164: "+393330000002", ultimo_in_entrata_il: null },
+    { phone_e164: "+393330000003", ultimo_in_entrata_il: "boh" },
+    { phone_e164: "+393330000004", ultimo_in_entrata_il: "2026-10-27T10:00:00Z" },
+    { phone_e164: "123", ultimo_in_entrata_il: "2026-10-27T10:00:00Z" },
+    { phone_e164: null, ultimo_in_entrata_il: "2026-10-27T10:00:00Z" },
+  ];
+  c(
+    "ultime entrate: per le ultime 9 cifre, vince la più recente (con o senza «+»); vuote, rotte e numeri corti fuori",
+    { "330000001": "2026-10-29T08:00:00Z", "330000004": "2026-10-27T10:00:00Z" },
+    F.ultimeEntrateDaRighe(righe),
+  );
+  c("nessuna riga: nessuna entrata", {}, F.ultimeEntrateDaRighe([]));
 }
 
 function proveDeiFiltriFinestra() {

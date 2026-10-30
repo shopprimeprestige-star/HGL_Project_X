@@ -46,6 +46,7 @@ import type { SchedaQuando } from "./quando";
 import { portePortaVere } from "./porta.server";
 import { ambitoDi, sceltaDaConfig } from "./giro";
 import { porteGiro } from "./porte.server";
+import { telefoniMeetDomani } from "./sequenze";
 import type { ClientManychat } from "./api";
 
 type ErroreDb = { code?: string | null; message?: string | null } | null;
@@ -311,6 +312,15 @@ export async function leggiDatiSecco(
   const oggi = aRoma(adesso).giorno;
   const scelta = sceltaDaConfig({ ...config, fraseModuloDal }, adesso, true);
   const schede = await porteGiro().schede(userId, oggi, ambitoDi(scelta));
+  //  Il giorno prima parte solo se gratis: la prova legge le entrate come il giro. Se la
+  //  lettura non riesce la prova mostra «finestra chiusa» (nel dubbio si risparmia).
+  const telefoniDomani = telefoniMeetDomani(schede, adesso);
+  const ultimeEntrate =
+    telefoniDomani.length > 0
+      ? await porteGiro()
+          .ultimeEntrate(userId, telefoniDomani)
+          .catch(() => ({}) as Record<string, string>)
+      : {};
 
   const consulenti = await db()
     .from("crm_consultants")
@@ -363,6 +373,7 @@ export async function leggiDatiSecco(
       chiave: r.chiave,
     })),
     prossimoDopo: Number.isFinite(prossimo) ? new Date(prossimo) : null,
+    ultimeEntrate,
   };
 }
 
