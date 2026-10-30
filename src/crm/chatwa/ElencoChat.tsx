@@ -7,7 +7,7 @@ import { combaciaRicerca, ordinaPerStelle, passaFiltro } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
-import { BarraSelezione } from "./BarraSelezione";
+import { AzioniSelezione, TestataSelezione } from "./BarraSelezione";
 import {
   commuta,
   fraseEsito,
@@ -352,15 +352,14 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   return (
     <aside className="flex h-full w-full flex-col border-r border-border bg-card">
       {inSel ? (
-        <BarraSelezione
+        <TestataSelezione
           quante={scelteVisibili.length}
           tutte={sonoTutte(scelte, mostrate)}
-          inCorso={inCorso}
+          occupata={inCorso !== null}
           onTutte={() =>
             setScelte(sonoTutte(scelte, mostrate) ? new Set() : selezionaTutte(mostrate))
           }
           onAnnulla={esciDallaSelezione}
-          onAzione={(a) => void esegui(a)}
         />
       ) : (
         <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-3 md:py-2.5">
@@ -712,6 +711,13 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           </>
         )}
       </div>
+      {inSel && (
+        <AzioniSelezione
+          quante={scelteVisibili.length}
+          inCorso={inCorso}
+          onAzione={(a) => void esegui(a)}
+        />
+      )}
     </aside>
   );
 }
