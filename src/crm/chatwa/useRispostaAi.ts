@@ -6,17 +6,27 @@
  *  Qui: la riga in `wa_risposte_ai`, l'attesa (lettura ogni 2 secondi, fino
  *  a 3 minuti) e lo stato del Mac (`app_config` «risposte_ai_battito»).
  *  ⚠️ Senza la migrazione 20261029200000 la tabella non c'è: si dice in chiaro.
+ *  ⚠️ UN TOCCO (30/10/2026): con messaggi del cliente senza risposta «Rispondi
+ *   con AI» parte subito, con quei messaggi; nella barra si può annullare o
+ *   cambiare i messaggi (`ferma`) e riprovare. Senza messaggi si apre la scelta.
+ *  ⚠️ ORARI LIBERI (30/10/2026): la richiesta porta gli orari veri dei prossimi
+ *   giorni (`useGiorniLiberi`, lo stesso di Slot liberi) nella colonna `orari`.
+ *   Senza la migrazione 20261030100000 la colonna manca: si riprova senza.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useGiorniLiberi } from "@/crm/useGiorniLiberi";
+import { oggiIso } from "@/crm/ui";
 import {
   ATTESA_MAX_S,
   CHIAVE_BATTITO,
   LIMITE_INDICAZIONE,
   MAX_SCELTI,
+  colonnaMancante,
   erroreInChiaro,
   pcAcceso,
   sceltiDiPartenza,
+  testoOrari,
 } from "@/crm/risposte-ai/regole";
 import type { WaMessageRow } from "./tipi";
 
@@ -43,6 +53,8 @@ export interface RispostaAiApi {
   pc: boolean | null;
   apri: () => void;
   chiudi: () => void;
+  /** smette di aspettare e torna alla scelta, con gli stessi messaggi, per cambiarli e riprovare */
+  ferma: () => void;
   scrivi: () => Promise<void>;
   errore: string | null;
 }
@@ -59,6 +71,10 @@ export function useRispostaAi(p: {
   const [indicazione, setIndicazioneGrezza] = useState("");
   const [pc, setPc] = useState<boolean | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
+  //  Gli orari liberi dei prossimi 7 giorni, letti al momento di chiedere.
+  const { giorni } = useGiorniLiberi({ quanti: 7 });
+  const giorniRef = useRef(giorni);
+  giorniRef.current = giorni;
   /** la richiesta in corso: se cambia chat o si annulla, la risposta non arriva più */
   const giro = useRef(0);
 
@@ -94,10 +110,19 @@ export function useRispostaAi(p: {
   }, [attivo]);
 
   const apri = () => {
-    setScelti(sceltiDiPartenza(p.messaggi));
+    const partenza = sceltiDiPartenza(p.messaggi);
+    setScelti(partenza);
     setErrore(null);
     setFase("scelta");
     setAttivo(true);
+    //  Un tocco: se c'è qualcuno da rispondere si parte subito.
+    if (partenza.length > 0) void scrivi(partenza);
+  };
+
+  const ferma = () => {
+    giro.current++;
+    setFase("scelta");
+    setErrore(null);
   };
 
   const cambia = (id: string) =>
@@ -105,19 +130,24 @@ export function useRispostaAi(p: {
       s.includes(id) ? s.filter((x) => x !== id) : s.length >= MAX_SCELTI ? s : [...s, id],
     );
 
-  const scrivi = async () => {
-    if (!p.telefono || scelti.length === 0 || fase === "attesa") return;
+  /** `daScrivere`: i messaggi da rispondere; senza, quelli scelti nella barra. */
+  const scrivi = async (daScrivere?: string[]) => {
+    const messaggiScelti = daScrivere ?? scelti;
+    if (!p.telefono || messaggiScelti.length === 0 || fase === "attesa") return;
     const mio = ++giro.current;
     setErrore(null);
     setFase("attesa");
-    const { data, error } = await tabella("wa_risposte_ai")
-      .insert({
-        telefono: p.telefono,
-        messaggi: scelti,
-        indicazione: indicazione.trim() || null,
-      })
-      .select("id")
-      .single();
+    const richiesta = {
+      telefono: p.telefono,
+      messaggi: messaggiScelti,
+      indicazione: indicazione.trim() || null,
+    };
+    const orari = testoOrari(giorniRef.current, oggiIso(new Date()));
+    const mandaRichiesta = (v: Record<string, unknown>) =>
+      tabella("wa_risposte_ai").insert(v).select("id").single();
+    let { data, error } = await mandaRichiesta(orari ? { ...richiesta, orari } : richiesta);
+    //  Migrazione degli orari non ancora applicata: si chiede senza.
+    if (orari && colonnaMancante(error)) ({ data, error } = await mandaRichiesta(richiesta));
     if (mio !== giro.current) return;
     if (error || !data?.id) {
       setFase("scelta");
@@ -174,7 +204,8 @@ export function useRispostaAi(p: {
     pc,
     apri,
     chiudi,
-    scrivi,
+    ferma,
+    scrivi: () => scrivi(),
     errore,
   };
 }

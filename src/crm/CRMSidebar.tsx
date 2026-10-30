@@ -1053,17 +1053,26 @@ export function CRMSidebar() {
     });
   }, [scadenza]);
 
+  //  ⚠️ Il minuto entra nei dati del conto (30/10/2026): le righe di «chi non
+  //   ha confermato» compaiono a un'ora precisa (le 12, o 2 ore e mezza prima)
+  //   senza che cambi nessuna scheda, e il badge deve accendersi lo stesso.
+  const [minutoAttuale, setMinutoAttuale] = useState(() => Math.floor(Date.now() / 60_000));
+  useEffect(() => {
+    const id = window.setInterval(() => setMinutoAttuale(Math.floor(Date.now() / 60_000)), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   /** Quante cose ci sono da fare OGGI: la stessa funzione della pagina, sulla
    *  stessa giornata. Le spuntate non contano — il badge dice quello che resta,
    *  e a giornata finita deve sparire. */
   const daFareOggi = useMemo(() => {
-    const ora = new Date();
+    const ora = new Date(minutoAttuale * 60_000);
     const righe = costruisciRighe({ leads, task: taskManuali, ora });
     //  ⚠️ La data LOCALE, la stessa della pagina: `toISOString()` è in UTC, e
     //   fra mezzanotte e le 2 il numero non contava niente di oggi.
     const oggi = oggiIso(ora);
     return righe.filter((r) => !r.fatta && r.giorno === oggi).length;
-  }, [leads, taskManuali]);
+  }, [leads, taskManuali, minutoAttuale]);
 
   const conteggi: Record<ChiaveConteggio, ContoBadge> = useMemo(
     () => ({

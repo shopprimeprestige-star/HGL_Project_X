@@ -1,8 +1,10 @@
 import { useState } from "react";
 import {
   CalendarClock,
+  Check,
   CheckCheck,
   ChevronDown,
+  Clock,
   Lock,
   LockOpen,
   Phone,
@@ -25,6 +27,8 @@ import { IconaMedia } from "./IconaMedia";
 import { attesaInChiaro, ultimoDellaChat } from "./stato";
 import { ritornoInChat } from "./ritorno";
 import { linkApriWhatsapp } from "./apriWhatsapp";
+import { scadenzaFinestra, segnoConferma } from "./segniRiga";
+import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
@@ -88,10 +92,6 @@ export function RigaChat({
   //  quello verde «aperta» solo dove serve (`mostraFinestra`).
   const finestra =
     mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
-  const apriWa =
-    finestra && !finestra.aperta
-      ? linkApriWhatsapp(c.phone, typeof navigator === "undefined" ? "" : navigator.userAgent)
-      : "";
   const [cambiaStato, setCambiaStato] = useState(false);
   const nome = nomeChat(c);
   //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
@@ -114,15 +114,25 @@ export function RigaChat({
     ? attesaInChiaro(dal, adesso)
     : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
   const { consultants } = useCRM();
+  const nomeConsulente =
+    consultants.find((x) => x.id === c.lead?.data?.consulenteId)?.data.nome ?? null;
+  //  Con la finestra chiusa il link porta già il promemoria giusto nella casella (30/10/2026),
+  //  se la scheda ha tutto per scriverlo; altrimenti solo il numero (vedi testoWhatsapp.ts).
+  const apriWa =
+    finestra && !finestra.aperta
+      ? linkApriWhatsapp(
+          c.phone,
+          typeof navigator === "undefined" ? "" : navigator.userAgent,
+          testoPerWhatsapp(c, nomeConsulente, new Date(adesso)),
+        )
+      : "";
+  //  Conferma e finestra in scadenza (30/10/2026): vedi segniRiga.ts.
+  const conferma = segnoConferma(c.lead?.data, new Date(adesso));
+  const scadenza = scadenzaFinestra(c, adesso);
   //  Un nostro modello («[template:nome]») si legge col suo testo, come nella bolla.
   const ultimo =
     last?.direction === "outbound"
-      ? corpoLeggibile(
-          last.body,
-          c.lead?.data,
-          consultants.find((x) => x.id === c.lead?.data?.consulenteId)?.data.nome ?? null,
-          c.lead?.id,
-        ).testo
+      ? corpoLeggibile(last.body, c.lead?.data, nomeConsulente, c.lead?.id).testo
       : last?.body;
   const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
   //  Un media si legge con la sua icona outline, anche se l'anteprima salvata
@@ -322,6 +332,37 @@ export function RigaChat({
                 <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
               </span>
             </button>
+          )}
+          {/*  ── CONFERMA E FINESTRA IN SCADENZA (30/10/2026) ───────────────────
+              Solo per gli appuntamenti fissati. «Confermato» verde con la spunta,
+              «Da confermare» arancione col pallino: testo semplice, senza bordo, per
+              non sembrare un altro stato. «chiude tra…» ambra con l'orologio: scrivi
+              ora, gratis, prima che serva un modello. Stanno nella riga delle
+              pastiglie (che va a capo): nessun allargamento a 375 px. */}
+          {conferma && (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-medium leading-4",
+                conferma.tipo === "confermato" ? "text-emerald-700" : "text-orange-700",
+              )}
+              title={conferma.titolo}
+            >
+              {conferma.tipo === "confermato" ? (
+                <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0" strokeWidth={3} />
+              ) : (
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-orange-500" />
+              )}
+              {conferma.testo}
+            </span>
+          )}
+          {scadenza && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-amber-800"
+              title={scadenza.titolo}
+            >
+              <Clock aria-hidden="true" className="h-3 w-3 shrink-0" />
+              {scadenza.testo}
+            </span>
           )}
           {/*  Quando richiamarlo (29/10/2026): la data messa nella finestra dello
               stato, rossa se è passata. A vista senza «Richiamo» (lo dice

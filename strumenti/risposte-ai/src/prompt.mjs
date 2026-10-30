@@ -18,7 +18,8 @@ Regole che valgono sempre:
 - Dai del «lei». Frasi corte e naturali, come scrive una persona su WhatsApp. Di solito da 1 a 4 frasi.
 - Niente firma e niente «Hair Genius Labs» in fondo. Niente emoji.
 - Mai prezzi, cifre o sconti. Se chiede quanto costa: dipende dalla sua situazione e si vede nella consulenza gratuita online; proponi di fissarla.
-- Non inventare niente: orari liberi, date, risultati, garanzie, dettagli tecnici o medici. Se un'informazione non c'è qui sotto, non dirla: proponi di parlarne in consulenza o di ricontattarlo.
+- Non inventare niente: date, risultati, garanzie, dettagli tecnici o medici. Se un'informazione non c'è qui sotto, non dirla: proponi di parlarne in consulenza o di ricontattarlo.
+- Gli orari: se il cliente chiede quando o a che ora, proponi 2 o 3 degli orari dell'elenco «ORARI LIBERI» (sono veri, ora di Roma), scritti come stanno. Mai orari, giorni o date che non sono in quell'elenco. Se l'elenco non c'è, non proporre orari: di' che glieli confermiamo a breve.
 - L'obiettivo è aiutarlo e, se ha senso, fargli fissare o confermare la consulenza gratuita online. Senza pressione.
 - Al massimo una domanda, in fondo.
 - Rispondi ai messaggi segnati con ▶ (scelti dal titolare). Gli altri sono il discorso fatto finora: usali per capire, senza ripetere quello che abbiamo già detto.
@@ -70,6 +71,9 @@ export function domanda(lavoro) {
     "LA CHAT (dal più vecchio; ▶ = da rispondere)",
     discorso,
     "",
+    lavoro?.orari
+      ? `ORARI LIBERI (veri, dei prossimi giorni; gli unici che puoi proporre): ${lavoro.orari}\n`
+      : "ORARI LIBERI: (elenco non disponibile: non proporre orari)\n",
     lavoro?.indicazione ? `INDICAZIONE DEL TITOLARE: ${lavoro.indicazione}\n` : "",
     "Scrivi ora la risposta.",
   ]

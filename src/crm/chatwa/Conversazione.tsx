@@ -34,8 +34,12 @@ import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { linkApriWhatsapp } from "./apriWhatsapp";
+import { testoPerWhatsapp } from "./testoWhatsapp";
+import { useCRM } from "@/crm/CRMContext";
 import { Casella } from "./Casella";
 import { BarraRispostaAi } from "./BarraRispostaAi";
+import { BozzaAiPronta } from "./BozzaAiPronta";
+import { useBozzaAi } from "./useBozzaAi";
 import { useRispostaAi } from "./useRispostaAi";
 import { initials, numeroLeggibile } from "./formati";
 import { attesaInChiaro } from "./stato";
@@ -74,6 +78,7 @@ export function Conversazione({
   onAbbina,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
+  const { consultants } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   //  ── SCRIVI DAL TELEFONO (30/10/2026) ───────────────────────────────────
   //  I messaggi messi in coda e non ancora arrivati si mescolano ai messaggi
@@ -92,13 +97,21 @@ export function Conversazione({
   //  aver scritto altro, e quello resta, con la risposta sotto.
   const bozzaRef = useRef(api.bozza);
   bozzaRef.current = api.bozza;
+  /** Mette il testo nella casella: se c'è già qualcosa lo lascia e aggiunge sotto. */
+  const mettiInCasella = (t: string) => {
+    const prima = bozzaRef.current.trim();
+    api.setBozza(prima ? `${bozzaRef.current.trimEnd()}\n\n${t}` : t);
+  };
   const ai = useRispostaAi({
     telefono: attiva?.phone ?? null,
     messaggi,
-    onRisposta: (t) => {
-      const prima = bozzaRef.current.trim();
-      api.setBozza(prima ? `${bozzaRef.current.trimEnd()}\n\n${t}` : t);
-    },
+    onRisposta: mettiInCasella,
+  });
+  //  ── BOZZA PRONTA (30/10/2026): scritta dal Mac per le chat che aspettano ──
+  const bozzaAi = useBozzaAi({
+    telefono: attiva?.phone ?? null,
+    inAttesa: attiva?.daRispondere?.attesa === true,
+    messaggi,
   });
   /** Si sta guardando la fine della chat (vedi l'effetto qui sotto). */
   const inFondo = useRef(true);
@@ -131,8 +144,20 @@ export function Conversazione({
   }, [attiva?.phone]);
 
   const adesso = new Date();
+  //  A finestra chiusa il link porta già il promemoria giusto nella casella (30/10/2026), se la
+  //  scheda ha tutto per scriverlo; altrimenti solo il numero (vedi testoWhatsapp.ts).
   const linkWaChat = attiva
-    ? linkApriWhatsapp(attiva.phone, typeof navigator === "undefined" ? "" : navigator.userAgent)
+    ? linkApriWhatsapp(
+        attiva.phone,
+        typeof navigator === "undefined" ? "" : navigator.userAgent,
+        attiva.finestra?.aperta === false
+          ? testoPerWhatsapp(
+              attiva,
+              consultants.find((x) => x.id === attiva.lead?.data?.consulenteId)?.data.nome,
+              adesso,
+            )
+          : "",
+      )
     : "";
   const inAttesa = attiva?.daRispondere?.attesa === true;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
@@ -482,6 +507,16 @@ export function Conversazione({
             )}
           </div>
 
+          {!ai.attivo && bozzaAi.bozza?.risposta && (
+            <BozzaAiPronta
+              testo={bozzaAi.bozza.risposta}
+              onUsa={() => {
+                mettiInCasella(bozzaAi.bozza?.risposta ?? "");
+                bozzaAi.scarta();
+              }}
+              onScarta={bozzaAi.scarta}
+            />
+          )}
           {ai.attivo ? <BarraRispostaAi ai={ai} /> : <Casella api={api} />}
         </>
       )}

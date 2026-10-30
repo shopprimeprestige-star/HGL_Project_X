@@ -124,7 +124,12 @@ export async function proveConsulenze(mod, { c, gruppo, radice }) {
   {
     const lead = (id, extra) => ({ id, data: scheda(extra) });
     const daConfermare = lead("l-1", { contattoWa: cw(voce("in_attesa", OGGI_INV, "meet_oggi")) });
-    const confermato = lead("l-2", { contattoWa: cw(voce("in_attesa", OGGI_INV, "meet_oggi"), voce("ha_risposto", "2026-10-30T08:30:00.000Z")) });
+    //  Confermato per tutte e due le regole: risposta su WhatsApp (p5) e
+    //  conferma del promemoria (`senza-conferma` di main, che legge `promemoria`).
+    const confermato = lead("l-2", {
+      contattoWa: cw(voce("in_attesa", OGGI_INV, "meet_oggi"), voce("ha_risposto", "2026-10-30T08:30:00.000Z")),
+      promemoria: { stato: "inviato", chiave: "2026-10-30T15:00|330000001", inviatoIl: OGGI_INV, confermatoIl: "2026-10-30T08:30:00.000Z", confermatoVia: "whatsapp" },
+    });
     const ricontatto = lead("l-3", { stato: "da_ricontattare", dataRicontatto: "2026-10-30", oraRicontatto: "11:30", contattoWa: undefined });
     const ora = t("2026-10-30T11:00:00.000Z"); // 12:00 di Roma
     const righe = DF.costruisciRighe({ leads: [ricontatto, confermato, daConfermare], task: [], ora });

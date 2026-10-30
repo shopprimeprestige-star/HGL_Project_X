@@ -27,12 +27,17 @@ import { fileURLToPath } from "node:url";
 import { pdfFontRitagliato, pdfProtetto, pdfScansione, pdfStampato } from "./pdf-finti.mjs";
 import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
+import { proveIdeeCosti } from "./idee/costi.mjs";
 import { proveSheets } from "./sheets.mjs";
 import { provePushRisposte } from "./push.mjs";
 import { proveDelPonte } from "./ponte.mjs";
 import { proveLeadDoppiChiamate } from "./lead-doppi-chiamate.mjs";
+import { proveRiepilogoSerale } from "./idee/serale.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
+import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
+import { proveIdeeRighe } from "./idee/righe.mjs";
+import { proveIdeeDafare } from "./idee/dafare.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -162,6 +167,9 @@ const MODULI = [
   "whatsapp",
   //  Le righe della pagina «Da fare oggi»: vedi proveDelleRigheDaFare.
   "dafare/righe",
+  //  Chi non ha confermato la consulenza di oggi, in cima a «Da fare oggi»
+  //   (idea 2, commessa 2026-10-30): prove in prove/idee/dafare.mjs.
+  "dafare/senza-conferma",
   //  ⚠️ La tabella del gesto successivo per stato: vedi proveDelGestoPerStato.
   "ui",
   //  ⚠️ Il testo con cui si chiede l'immagine della prova capelli: vedi
@@ -486,6 +494,8 @@ const MODULI = [
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
   "push/webpush",
   "push/avviso",
+  //  Il riepilogo della sera (idea 10, 30/10/2026): prove in prove/idee/serale.mjs.
+  "push/riepilogo",
   //  ⚠️ Orari rapidi e stelle nella chat WhatsApp: vedi proveDiWhatsappOrariStelle.
   "wa-orari",
   //  ⚠️ Il modello inviato come lo legge il cliente: vedi proveDelTestoDeiModelli.
@@ -610,6 +620,10 @@ const MODULI = [
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
   "chatwa/richiamo",
+  //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
+  //   prove in prove/idee/righe.mjs.
+  "chatwa/segniRiga",
+  "chatwa/testoWhatsapp",
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
   "versione-crm",
@@ -658,7 +672,7 @@ for (const m of MODULI) {
           ? `src/crm/${m}.tsx`
         //  `dafare/agenda-task` è l'eccezione dichiarata: un .ts puro dentro
         //  la cartella della pagina, perché non tocca niente di React.
-        : m === "dafare/agenda-task" || m === "dafare/di-chi" || m === "preventivi/duplica" || m === "preventivi/dati"
+        : m === "dafare/agenda-task" || m === "dafare/di-chi" || m === "dafare/senza-conferma" || m === "preventivi/duplica" || m === "preventivi/dati"
           ? `src/crm/${m}.ts`
         //  `dafare/righe` è un .tsx: costruisce righe, non disegna niente, ma
         //  vive nella cartella della pagina e ne segue l'estensione.
@@ -20804,11 +20818,41 @@ function proveDelloStatoDaChiamare() {
     CHIAM.motivoChiamata({ id: "x", data: { stato: "da_chiamare", importato: true, createdAt: "2026-10-01T10:00:00Z" } }, new Date("2026-10-20T10:00:00Z")).testo);
   const hook = readFileSync(join(radice, "src/routes/hooks/attesa-da-chiamare.ts"), "utf8");
   const sql = readFileSync(join(radice, "supabase/migrations/20261028190000_attesa_da_chiamare_cron.sql"), "utf8");
+  //  Tutti i messaggi del cliente contano (30/10/2026): Cloud API e ponte, non solo ManyChat.
+  const U = A.unisciEntrate;
+  const u1 = "u1";
+  const cont = [{ user_id: u1, phone_e164: "+393330000001", ultimo_in_entrata_il: null, non_scrivere_dal: null },
+    { user_id: u1, phone_e164: "+393330000002", ultimo_in_entrata_il: "2026-10-20T10:00:00Z", non_scrivere_dal: "2026-10-20T10:00:00Z" }];
+  const msg = (from, direction, created_at, extra = {}) => ({ user_id: u1, from_number: from, direction, created_at, canale: "baileys", ...extra });
+  const mappa = U(cont, [
+    msg("393330000001", "inbound", "2026-10-28T18:00:00Z"),
+    msg("+39 333 000 0003", "inbound", "2026-10-28T17:00:00Z", { duplicato_di: "x" }),
+    msg("393330000004", "outbound", "2026-10-28T17:00:00Z"),
+    msg("393330000002", "inbound", "2026-10-28T18:00:00Z"),
+  ]);
+  c("un messaggio arrivato dal canale diretto o dal ponte conta come «ha scritto»", "2026-10-28T18:00:00Z", mappa.get("u1|333000001")?.ultimoInEntrataIl ?? mappa.get(`u1|${A.nove("+393330000001")}`)?.ultimoInEntrataIl);
+  c("…e fa tornare in Attesa WhatsApp chi era in Non risponde", "attesa_whatsapp",
+    A.patchRitornoAttesa({ stato: "non_risponde", statoDal: "2026-10-28T12:00:00Z" }, mappa.get(`u1|${A.nove("+393330000001")}`), adesso)?.stato);
+  c("la riga del ponte che ha già un pari non conta due volte", false, mappa.has(`u1|${A.nove("393330000003")}`));
+  c("un messaggio NOSTRO non conta mai", false, mappa.has(`u1|${A.nove("393330000004")}`));
+  c("lo STOP della rubrica vale anche se ha scritto da un altro canale", true, mappa.get(`u1|${A.nove("393330000002")}`)?.stop);
+  c("…e allora non torna in attesa", null,
+    A.patchRitornoAttesa({ stato: "non_risponde", statoDal: "2026-10-28T12:00:00Z" }, mappa.get(`u1|${A.nove("393330000002")}`), adesso));
+  const firmati = new Set([u1]);
+  c("Cloud API firmato (App Secret configurato): conta", true, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: null }), firmati));
+  c("Cloud API SENZA App Secret (messaggio forse non firmato): non conta", false, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: null }), new Set()));
+  c("le righe di ManyChat non si contano due volte (sono già nella rubrica, dopo il controllo eco)", false, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: "manychat" }), firmati));
+  c("canale sconosciuto: non conta", false, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: "altro" }), firmati));
+  c("tra rubrica e messaggi vince il più recente", "2026-10-28T19:00:00Z",
+    U([{ user_id: u1, phone_e164: "+393330000005", ultimo_in_entrata_il: "2026-10-28T19:00:00Z", non_scrivere_dal: null }], [msg("393330000005", "inbound", "2026-10-28T18:00:00Z")]).get(`u1|${A.nove("393330000005")}`)?.ultimoInEntrataIl);
   c("il server scrive solo se la scheda non è cambiata nel frattempo", true, /\.eq\("updated_at", r\.updated_at\)/.test(hook));
   c("il server scrive condizionando su updated_at anche nel ritorno (due scritture, entrambe protette)", 2, (hook.match(/\.eq\("updated_at", r\.updated_at\)/g) ?? []).length);
   c("l'andata legge solo chi è in Attesa WhatsApp", true, /\.eq\("data->>stato", stato\)/.test(hook) && /schedeInAttesa\(\)/.test(hook));
+  c("il ritorno legge anche i messaggi in entrata di ogni canale delle ultime 24 ore, senza i doppioni", true,
+    /\.from\("whatsapp_messages"\)/.test(hook) && /\.eq\("direction", "inbound"\)/.test(hook) && /\.is\("duplicato_di", null\)/.test(hook) && /\.gte\("created_at", dal\)/.test(hook) && /unisciEntrate\(contatti, messaggi, conFirma\)/.test(hook) && /\.from\("whatsapp_settings"\)/.test(hook));
+  c("gli STOP della rubrica si leggono anche se vecchi", true, /non_scrivere_dal\.not\.is\.null/.test(hook));
   c("il ritorno legge solo i 4 stati dell'elenco chiuso (non per nome sparso)", true, /\.in\("data->>stato", \[\.\.\.STATI_CHE_TORNANO_IN_ATTESA\]\)/.test(hook));
-  c("il ritorno parte dai contatti che hanno scritto nelle ultime 24 ore", true, /\.gte\("ultimo_in_entrata_il"/.test(hook));
+  c("il ritorno parte dai contatti che hanno scritto nelle ultime 24 ore", true, /ultimo_in_entrata_il\.gte\./.test(hook));
   c("legge le schede a pagine (oltre le 1000)", true, /\.range\(da, da \+ PAGINA - 1\)/.test(hook) && /\.order\("id"/.test(hook));
   c("legge i contatti dell'andata dei SOLI candidati, a blocchi", true, /\.in\("phone_e164", elenco\.slice\(i, i \+ 100\)\)/.test(hook) && !/\.in\("user_id"/.test(hook));
   c("nei log solo conteggi e codici (niente nomi, numeri o note)", false, /console\.(log|warn|error)\([^)]*(telefono|nome|note)/.test(hook));
@@ -21091,6 +21135,11 @@ proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
+proveIdeeRighe(mod, { c, gruppo, radice });
+proveIdeeDafare(mod, { c, gruppo, radice });
+await proveIdeeAi(mod, { c, gruppo, radice });
+proveIdeeCosti(mod, { c, gruppo, radice });
+await proveRiepilogoSerale(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21355,7 +21404,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
@@ -21763,6 +21812,7 @@ async function proveDelleRisposteAi() {
         utente: async () => (o.utente === undefined ? "U1" : o.utente),
         battito: async (u) => { reg.battiti++; reg.utenti.push(u); },
         prendi: async (u) => { reg.utenti.push(u); return coda.shift() ?? null; },
+        bozza: async (u) => { reg.utenti.push(u); return null; },
         messaggiChat: async (u, t, scelti) => { reg.utenti.push(u); reg.scelti = scelti; return o.messaggi ?? chat; },
         scheda: async (u) => { reg.utenti.push(u); return { lead: { nome: "Mario" }, consulente: null }; },
         chiudi: async (u, id, e) => { reg.utenti.push(u); reg.chiusi.push([id, e]); return o.chiudi ?? true; },
@@ -21826,7 +21876,7 @@ async function proveDelleRisposteAi() {
   //  Il sorgente: utente in ogni tabella dell'installazione, niente testi nei log
   const srv = readFileSync(join(radice, "src/crm/risposte-ai/porte.server.ts"), "utf8");
   const catene = srv.split(/\.from\(/).slice(1);
-  c("porte: ogni tabella dell'installazione filtrata per utente", [], catene.filter((t) => !/^"(app_config|manychat_config)"/.test(t) && !/\.eq\("user_id", userId\)/.test(t.split(";")[0])).map((t) => t.slice(0, 30)));
+  c("porte: ogni tabella dell'installazione filtrata per utente", [], catene.filter((t) => !/^"(app_config|manychat_config)"/.test(t) && !/\.eq\("user_id", userId\)|user_id: userId,/.test(t.split(";")[0])).map((t) => t.slice(0, 30)));
   c("porte: nei log solo codici", true, (srv.match(/console\.\w+\([^)]*\)/g) ?? []).every((x) => /\[risposte-ai\]/.test(x) && !/telefono|testo|body|risposta\b/.test(x)));
   const servizio = readFileSync(join(radice, "strumenti/risposte-ai/src/index.mjs"), "utf8");
   c("servizio: Haiku, senza strumenti né impostazioni", true, /"--model",\s*"haiku"/.test(servizio) && /"--tools",\s*""/.test(servizio) && /"--setting-sources",\s*""/.test(servizio) && /--strict-mcp-config/.test(servizio));
@@ -21894,7 +21944,7 @@ function proveDeiFiltriFinestra() {
   const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
   c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(attiva\.phone/.test(conv));
+  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(\s*attiva\.phone/.test(conv));
 }
 
 function proveDellOsservazioneComePastiglia() {
@@ -21915,7 +21965,9 @@ function proveDelleCorrezioniManychat() {
     { tipo: "promemoria", modello: null, conFlusso: false, inviatoIl: "2026-10-29T10:00:00Z" },
     { tipo: "conferma", modello: null, conFlusso: false, inviatoIl: "2026-10-29T11:00:00Z" },
   ], "oggi", adesso);
-  c("promemoria e conferme partiti come testo: testi, non modelli (niente costo di modello)", [2, 0], [r.testiLiberi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
+  //  Dal 30/10/2026 (idea 9) i testi del giro non sono più «testi liberi» (quelli sono solo
+  //  gli scritti a mano): sono messaggi risparmiati. Sempre senza costo di modello.
+  c("promemoria e conferme partiti come testo: risparmiati, non testi a mano né modelli pagati", [0, 2, 0], [r.testiLiberi, r.risparmio.messaggi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
   const porta = readFileSync(join(radice, "src/crm/manychat/porta.ts"), "utf8");
   c("modello di riserva partito: il registro ha il suo flusso", true, /ns = nsRiserva;/.test(porta) && /modelloDiRiserva && ns \? \{ flow_ns: ns \}/.test(porta));
 }

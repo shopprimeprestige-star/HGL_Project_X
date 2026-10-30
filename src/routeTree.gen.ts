@@ -51,6 +51,7 @@ import { Route as HooksTiktokAdUpdateRouteImport } from './routes/hooks/tiktok-a
 import { Route as HooksTiktokAdPauseRouteImport } from './routes/hooks/tiktok-ad-pause'
 import { Route as HooksTiktokAdInsightsRouteImport } from './routes/hooks/tiktok-ad-insights'
 import { Route as HooksScoreSnapshotRouteImport } from './routes/hooks/score-snapshot'
+import { Route as HooksRiepilogoSeraleRouteImport } from './routes/hooks/riepilogo-serale'
 import { Route as HooksRiepilogoMattinoRouteImport } from './routes/hooks/riepilogo-mattino'
 import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/promemoria-whatsapp'
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
@@ -426,6 +427,11 @@ const HooksTiktokAdInsightsRoute = HooksTiktokAdInsightsRouteImport.update({
 const HooksScoreSnapshotRoute = HooksScoreSnapshotRouteImport.update({
   id: '/hooks/score-snapshot',
   path: '/hooks/score-snapshot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksRiepilogoSeraleRoute = HooksRiepilogoSeraleRouteImport.update({
+  id: '/hooks/riepilogo-serale',
+  path: '/hooks/riepilogo-serale',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksRiepilogoMattinoRoute = HooksRiepilogoMattinoRouteImport.update({
@@ -1348,6 +1354,7 @@ export interface FileRoutesByFullPath {
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
   '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/riepilogo-mattino': typeof HooksRiepilogoMattinoRoute
+  '/hooks/riepilogo-serale': typeof HooksRiepilogoSeraleRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1552,6 +1559,7 @@ export interface FileRoutesByTo {
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
   '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/riepilogo-mattino': typeof HooksRiepilogoMattinoRoute
+  '/hooks/riepilogo-serale': typeof HooksRiepilogoSeraleRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1762,6 +1770,7 @@ export interface FileRoutesById {
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
   '/hooks/promemoria-whatsapp': typeof HooksPromemoriaWhatsappRoute
   '/hooks/riepilogo-mattino': typeof HooksRiepilogoMattinoRoute
+  '/hooks/riepilogo-serale': typeof HooksRiepilogoSeraleRoute
   '/hooks/score-snapshot': typeof HooksScoreSnapshotRoute
   '/hooks/tiktok-ad-insights': typeof HooksTiktokAdInsightsRoute
   '/hooks/tiktok-ad-pause': typeof HooksTiktokAdPauseRoute
@@ -1973,6 +1982,7 @@ export interface FileRouteTypes {
     | '/hooks/meta-spend-sync'
     | '/hooks/promemoria-whatsapp'
     | '/hooks/riepilogo-mattino'
+    | '/hooks/riepilogo-serale'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -2177,6 +2187,7 @@ export interface FileRouteTypes {
     | '/hooks/meta-spend-sync'
     | '/hooks/promemoria-whatsapp'
     | '/hooks/riepilogo-mattino'
+    | '/hooks/riepilogo-serale'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -2386,6 +2397,7 @@ export interface FileRouteTypes {
     | '/hooks/meta-spend-sync'
     | '/hooks/promemoria-whatsapp'
     | '/hooks/riepilogo-mattino'
+    | '/hooks/riepilogo-serale'
     | '/hooks/score-snapshot'
     | '/hooks/tiktok-ad-insights'
     | '/hooks/tiktok-ad-pause'
@@ -2561,6 +2573,7 @@ export interface RootRouteChildren {
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
   HooksPromemoriaWhatsappRoute: typeof HooksPromemoriaWhatsappRoute
   HooksRiepilogoMattinoRoute: typeof HooksRiepilogoMattinoRoute
+  HooksRiepilogoSeraleRoute: typeof HooksRiepilogoSeraleRoute
   HooksScoreSnapshotRoute: typeof HooksScoreSnapshotRoute
   HooksTiktokAdInsightsRoute: typeof HooksTiktokAdInsightsRoute
   HooksTiktokAdPauseRoute: typeof HooksTiktokAdPauseRoute
@@ -2975,6 +2988,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/score-snapshot'
       fullPath: '/hooks/score-snapshot'
       preLoaderRoute: typeof HooksScoreSnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/riepilogo-serale': {
+      id: '/hooks/riepilogo-serale'
+      path: '/hooks/riepilogo-serale'
+      fullPath: '/hooks/riepilogo-serale'
+      preLoaderRoute: typeof HooksRiepilogoSeraleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/riepilogo-mattino': {
@@ -4325,6 +4345,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
   HooksPromemoriaWhatsappRoute: HooksPromemoriaWhatsappRoute,
   HooksRiepilogoMattinoRoute: HooksRiepilogoMattinoRoute,
+  HooksRiepilogoSeraleRoute: HooksRiepilogoSeraleRoute,
   HooksScoreSnapshotRoute: HooksScoreSnapshotRoute,
   HooksTiktokAdInsightsRoute: HooksTiktokAdInsightsRoute,
   HooksTiktokAdPauseRoute: HooksTiktokAdPauseRoute,

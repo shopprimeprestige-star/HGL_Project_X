@@ -6,6 +6,7 @@ import { combaciaRicerca, ordinaPerStelle, passaFiltro } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
+import { ordinaPerScadenza } from "./segniRiga";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import {
   chatDaChiamare,
@@ -103,8 +104,28 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   //  La pastiglia vale per TUTTI i riquadri (guasto del 28/10: li ignorava e l'elenco non cambiava).
   //  Anche «In osservazione» (le chat con stelle) vale per tutti i riquadri, e in ognuno le
   //  chat con più stelle salgono in cima (`perStelle`): a parità resta l'ordine del riquadro.
+  //  ── FINESTRA IN SCADENZA IN CIMA (30/10/2026) ──────────────────────────
+  //  Nella pastiglia «24h aperto» le chat che chiudono entro 4 ore hanno un riquadro tutto
+  //  loro, sopra «Da rispondere», dalla scadenza più vicina: si scrive gratis finché si può.
+  //  Escono dagli altri riquadri (una chat una volta sola). Vedi segniRiga.ts.
+  const inScadenza =
+    filtro === "aperto-24h"
+      ? ordinaPerScadenza(
+          perRicerca(api.chats).filter(
+            (c) =>
+              delConsulente(c) && passaFiltro(c, filtro) && (!soloStelle || stelleDi(c.phone) > 0),
+          ),
+          adesso,
+        )
+      : [];
+  const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
   const perPastiglia = (righe: ChatItem[]) =>
-    righe.filter((c) => passaFiltro(c, filtro) && (!soloStelle || stelleDi(c.phone) > 0));
+    righe.filter(
+      (c) =>
+        passaFiltro(c, filtro) &&
+        (!soloStelle || stelleDi(c.phone) > 0) &&
+        !inScadenzaTel.has(c.phone),
+    );
   const perStelle = (righe: ChatItem[]) => ordinaPerStelle(righe, stelleDi);
 
   const inAttesaTutti = perPastiglia(perRicerca(api.daRispondere));
@@ -117,7 +138,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const giaSopra = new Set(
     [...api.daRispondere, ...api.chats.filter(eVecchia)].map((c) => c.phone),
   );
-  const altreTutte = visibili.filter((c) => !giaSopra.has(c.phone) && delConsulente(c));
+  const altreTutte = visibili.filter(
+    (c) => !giaSopra.has(c.phone) && !inScadenzaTel.has(c.phone) && delConsulente(c),
+  );
   const altre = perStelle(
     soloStelle ? altreTutte.filter((c) => stelleDi(c.phone) > 0) : altreTutte,
   );
@@ -343,6 +366,19 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           )
         ) : (
           <>
+            {inScadenza.length > 0 && (
+              <section aria-labelledby="titolo-in-scadenza">
+                <h2
+                  id="titolo-in-scadenza"
+                  className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-semibold text-amber-900 md:text-xs"
+                >
+                  Chiudono presto ({inScadenza.length}) · scrivi ora, è gratis
+                </h2>
+                <ul>
+                  {inScadenza.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+                </ul>
+              </section>
+            )}
             <section aria-labelledby="titolo-da-rispondere">
               <h2
                 id="titolo-da-rispondere"
