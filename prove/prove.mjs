@@ -37,6 +37,7 @@ import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
+import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
@@ -21153,6 +21154,7 @@ proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
+proveAttesaERitorno(mod, { c, gruppo, radice });
 proveIdeeDafare(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
