@@ -364,13 +364,13 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
       collegato_dal: "2026-10-29T11:00:00.000Z",
       ultimo_messaggio_il: null,
       storico: { fatto: true, avanzamento: 100 },
-      estrazione: { letti: 10, validi: 8, invii_nascosti: 2 },
+      estrazione: { letti: 10, validi: 8, invii_nascosti: 2, non_decifrati: 1 },
       diagnosi: { scarti: { gruppo: 1, tipo_sconosciuto: 1 }, tipi: { in_conversation: 9, out_placeholder_message: 1 }, nodi: { hosted_unavailable_fanout: 3 } },
     };
     const filaC = { in_coda: 4, lotti_storico: 1, lotti_vivo: 1, scartati: 2, non_noti_scaduti: 0, divisi: 0, piena: false };
     const b = I.corpoBattito(ist, filaC, {});
     c("battito: la forma di BattitoPonte (più diagnosi, che il CRM ignora)", ["v", "tipo", "stato", "collegato_dal", "ultimo_messaggio_il", "storico", "in_coda", "scartati", "contatori", "versione", "diagnosi"], Object.keys(b));
-    c("battito: nei contatori i nodi ospitati, quelli registrati e i tipi sconosciuti", { fanout_ospitati: 3, fanout_registrati: 2, tipo_sconosciuto: 1 }, { fanout_ospitati: b.contatori.fanout_ospitati, fanout_registrati: b.contatori.fanout_registrati, tipo_sconosciuto: b.contatori.tipo_sconosciuto });
+    c("battito: nei contatori i nodi ospitati, quelli registrati e i segnaposto non decifrati", { fanout_ospitati: 3, fanout_registrati: 2, non_decifrati: 1 }, { fanout_ospitati: b.contatori.fanout_ospitati, fanout_registrati: b.contatori.fanout_registrati, non_decifrati: b.contatori.non_decifrati });
     c("battito: diagnosi intera (scarti, tipi, nodi)", ist.diagnosi, b.diagnosi);
     c("battito: la diagnosi tiene solo numeri e chiavi [a-z_]", { scarti: { gruppo: 1 }, tipi: {}, nodi: {} }, I.corpoBattito({ ...ist, diagnosi: { scarti: { gruppo: 1, "Brutta Chiave": 2, testo: "x" }, tipi: null } }, filaC, {}).diagnosi);
     const conti = I.contiDiagnosi(b.diagnosi);
