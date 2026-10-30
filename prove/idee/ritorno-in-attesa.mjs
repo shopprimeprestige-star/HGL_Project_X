@@ -32,6 +32,23 @@ export function proveRitornoInAttesa(mod, { c, gruppo, radice }) {
   c("le note e il resto della scheda non si toccano", ["ricarico", "stato", "statoDal", "statoPrecedente", "statoPrecedenteIl"], Object.keys(p1).sort());
   c("statoAllora resta lo stato di quando è tornato", "annullato", p1.ricarico.statoAllora);
 
+  gruppo("RITORNO · IL SECONDO RITORNO NON CANCELLA IL «PRIMA»");
+  //  Revisione 30/10: tornava una seconda volta e `statoAllora` diventava
+  //  «attesa_whatsapp», `inAttesaIl` spariva: niente «prima» e hgl_ritorno a chi
+  //  era «In valutazione».
+  const val1 = { ...scheda("sta_valutando"), ...RIC.patchRicarico(scheda("sta_valutando"), "L", ORA) };
+  const ORA2 = new Date("2026-10-31T10:00:00Z");
+  const p2 = RIC.patchRicarico(val1, "L2", ORA2);
+  const val2 = { ...val1, ...p2 };
+  c("secondo ritorno in Attesa WhatsApp: statoAllora, inAttesaIl e statoPrecedente restano quelli di prima", ["sta_valutando", ISO, "sta_valutando", 2], [val2.ricarico.statoAllora, val2.ricarico.inAttesaIl, val2.statoPrecedente, val2.ricarico.volte]);
+  c("…lo stato non si riscrive (è già Attesa WhatsApp)", false, "stato" in p2);
+  c("…e il «prima» si vede ancora", "In valutazione", R.primaDelRitorno(val2));
+  const dc = { ...val1, stato: "da_chiamare", statoPrecedente: "attesa_whatsapp", statoPrecedenteIl: "2026-10-30T20:00:00Z" };
+  const p3 = RIC.patchRicarico(dc, "L3", ORA2);
+  const dc2 = { ...dc, ...p3 };
+  c("secondo ritorno da «Da chiamare»: torna in Attesa WhatsApp ma tiene lo stato di prima originale", ["attesa_whatsapp", "attesa_whatsapp", "sta_valutando", ISO, ORA2.toISOString()], [dc2.stato, dc2.statoPrecedente, dc2.ricarico.statoAllora, dc2.ricarico.inAttesaIl, dc2.statoPrecedenteIl]);
+  c("…e il «prima» resta «In valutazione»", "In valutazione", R.primaDelRitorno(dc2));
+
   gruppo("RITORNO · LE ECCEZIONI RESTANO DOVE SONO");
   for (const stato of ["appuntamento_fissato", "appuntamento_rifissato", "viene_in_sede", "acconto", "in_attesa_acconto", "posa_in_sede", "posa_a_domicilio", "posa_da_spedire", "venduto"]) {
     const p = RIC.patchRicarico(scheda(stato), "Lista.csv", ORA);
@@ -64,6 +81,16 @@ export function proveRitornoInAttesa(mod, { c, gruppo, radice }) {
   c("appuntamento: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("appuntamento_fissato"), ORA));
   c("acconto pagato: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("sta_valutando", { payment: { accontoPagato: 50 } }), ORA));
   c("non di ritorno: niente", null, RIC.patchRitornoRimastoIndietro(scheda("annullato"), ORA));
+  //  Revisione 30/10: le decisioni già prese non si toccano, né STOP e revoca.
+  const confermato = vecchio("annullato");
+  Object.assign(confermato, RIC.patchConferma(confermato));
+  c("«Conferma» già premuto (daDecidere tolto): resta", null, RIC.patchRitornoRimastoIndietro(confermato, ORA));
+  c("«Vedi dopo»: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("annullato", {}, { rimandatoIl: "2026-10-26T09:00:00Z" }), ORA));
+  c("«Contatta su WhatsApp»: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("annullato", {}, { whatsappIl: "2026-10-26T09:00:00Z" }), ORA));
+  c("messo da parte: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("annullato", { saltatoIl: "2026-10-26T09:00:00Z" }), ORA));
+  c("STOP sul contatto: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("annullato", { contattoWa: { stato: "stop" } }), ORA));
+  c("revoca di «Ok a WhatsApp»: resta", null, RIC.patchRitornoRimastoIndietro(vecchio("annullato", { okWhatsapp: { si: false } }), ORA));
+  c("…e con «Ok a WhatsApp» dato si sposta", "attesa_whatsapp", RIC.patchRitornoRimastoIndietro(vecchio("annullato", { okWhatsapp: { si: true } }), ORA)?.stato);
   c("già in Attesa WhatsApp: niente", null, RIC.patchRitornoRimastoIndietro(vecchio("attesa_whatsapp"), ORA));
 
   const hook = readFileSync(join(radice, "src/routes/hooks/attesa-da-chiamare.ts"), "utf8");

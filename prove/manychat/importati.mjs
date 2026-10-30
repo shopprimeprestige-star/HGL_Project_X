@@ -420,6 +420,15 @@ export async function proveImportati(mod, { c, gruppo, radice }) {
         tipi(sec([rit("r-1", 1, { stato: "da_chiamare" }, { statoAllora: "non_risponde", inAttesaIl: ULTIMO })], MAR10)),
       ],
     );
+    {
+      //  Revisione 30/10: «In valutazione» torna DUE volte. Il secondo ritorno tiene lo
+      //  stato di prima, quindi hgl_ritorno non parte nemmeno dopo.
+      const RIC = mod["importa/ricarico"];
+      const base = { nome: "Dario", telefono: tel(1), stato: "sta_valutando", importato: true };
+      const uno = { ...base, ...RIC.patchRicarico(base, "L", t("2026-10-26T08:00:00.000Z")) };
+      const due = { ...uno, ...RIC.patchRicarico(uno, "L", t(ULTIMO)) };
+      c("in valutazione tornato due volte → niente hgl_ritorno", [], sec([{ id: "r-1", data: due }], MAR10));
+    }
     c(
       "stati di primo contatto (da contattare, non risponde, segreteria, richiamo, ci ricontatta lui) → parte",
       [["invia"], ["invia"], ["invia"], ["invia"], ["invia"]],

@@ -265,6 +265,9 @@ type RigaRitorno = {
   statoDal: string | null;
   statoPrecedenteIl: string | null;
   ricarico: LeadData["ricarico"] | null;
+  saltatoIl: string | null;
+  contattoWa: LeadData["contattoWa"] | null;
+  okWhatsapp: LeadData["okWhatsapp"] | null;
 };
 
 /** I ritorni rimasti nello stato di prima: si giudica sulla versione leggera
@@ -277,7 +280,7 @@ export async function giroRitorniRimastiIndietro(adesso = new Date()) {
     const { data, error } = await db()
       .from("crm_leads")
       .select(
-        "id, user_id, updated_at, stato:data->>stato, statoDal:data->>statoDal, statoPrecedenteIl:data->>statoPrecedenteIl, ricarico:data->ricarico",
+        "id, user_id, updated_at, stato:data->>stato, statoDal:data->>statoDal, statoPrecedenteIl:data->>statoPrecedenteIl, ricarico:data->ricarico, saltatoIl:data->>saltatoIl, contattoWa:data->contattoWa, okWhatsapp:data->okWhatsapp",
       )
       .not("data->ricarico->>ultimo", "is", null)
       .is("data->ricarico->>inAttesaIl", null)
@@ -291,6 +294,9 @@ export async function giroRitorniRimastiIndietro(adesso = new Date()) {
         statoDal: r.statoDal,
         statoPrecedenteIl: r.statoPrecedenteIl,
         ricarico: r.ricarico,
+        saltatoIl: r.saltatoIl,
+        contattoWa: r.contattoWa,
+        okWhatsapp: r.okWhatsapp,
       } as Partial<LeadData>;
       if (patchRitornoRimastoIndietro(leggera, adesso)) candidati.push(r.id);
     }

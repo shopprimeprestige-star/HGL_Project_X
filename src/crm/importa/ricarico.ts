@@ -49,7 +49,7 @@ import type {
   TrackingInfo,
 } from "@/crm/types";
 import { LEAD_STATUS_LABEL, eStatoNonSvolta } from "@/crm/types";
-import { patchAttesaDelRitorno, statoPrimaDelRitorno } from "./ritorno-attesa";
+import { giaSpostatoDalRitorno, patchAttesaDelRitorno, statoPrimaDelRitorno } from "./ritorno-attesa";
 //  ⚠️ I TESTI NON STANNO PIÙ QUI: stanno nei modelli, con tutti gli altri
 //   messaggi che partono ai clienti, e si modificano dal pannello senza
 //   pubblicare niente. Da qui si sceglie soltanto QUALE serve.
@@ -297,7 +297,12 @@ export function patchRicarico(
 ): Partial<LeadData> {
   const prima = ricaricoDi(d);
   const daDove = arrivoDaFile(arrivo);
+  //  Secondo ritorno di chi il ritorno aveva già spostato: si tiene lo stato di
+  //  prima ORIGINALE (`giaSpostatoDalRitorno`). Da «Da chiamare» torna in Attesa
+  //  WhatsApp, ma `statoPrecedente` resta com'era.
+  const gia = giaSpostatoDalRitorno(d);
   const attesa = patchAttesaDelRitorno(d, ora);
+  if (gia && attesa) delete attesa.statoPrecedente;
   const patch: Partial<LeadData> = {
     ...attesa,
     ricarico: {
@@ -309,8 +314,12 @@ export function patchRicarico(
       //  ricomparso, anche dopo che il pulsante l'ha rimesso fra i da
       //  contattare. Senza, la riga «era in appuntamento fissato» sparirebbe
       //  proprio nel caso in cui serve saperlo.
-      ...(d?.stato ? { statoAllora: d.stato } : {}),
-      ...(attesa ? { inAttesaIl: ora.toISOString() } : {}),
+      ...(gia
+        ? { statoAllora: prima!.statoAllora, inAttesaIl: prima!.inAttesaIl }
+        : {
+            ...(d?.stato ? { statoAllora: d.stato } : {}),
+            ...(attesa ? { inAttesaIl: ora.toISOString() } : {}),
+          }),
       ...(daDove.ricarico ? { arrivo: daDove.ricarico } : {}),
     },
   };
