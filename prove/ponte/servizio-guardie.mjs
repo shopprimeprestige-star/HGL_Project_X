@@ -54,7 +54,7 @@ export function violazioniUnSoloInvio(codice) {
 /** La lista bianca del download delle immagini (commessa 2026-10-30-ponte-storico-completo, T8, PIANO c.1):
  *  · `downloadMediaMessage`, `updateMediaMessage`, `reuploadRequest`, `requestPlaceholderResend` non compaiono in
  *    nessun file (il primo accetta l'`url` del messaggio; gli altri chiedono al telefono di rimandare i media);
- *  · `downloadContentFromMessage` compare UNA volta sola, in `index.mjs`, come valore di `scarica` (Baileys
+ *  · `downloadContentFromMessage` compare solo in `index.mjs` (il controllo che esista e il valore di `scarica`; Baileys
  *    arriva solo da lì); `immagini.mjs` lo riceve come parametro;
  *  · in `immagini.mjs` `scarica(` si chiama una volta sola, con `(copia, "image", { host: … })`, e `copia` ha SOLO
  *    `mediaKey` e `directPath` (mai `url`, mai l'oggetto del messaggio); il lavoro viene da `accoda`, che chiama
@@ -70,7 +70,7 @@ export function violazioniImmagini(codice) {
     if (f.length) v.push(`${nome} nel codice: ${[...new Set(f)].join(", ")}`);
   }
   const scarico = dove(/\bdownloadContentFromMessage\b/g);
-  if (scarico.length !== 1 || scarico[0] !== "index.mjs") v.push(`downloadContentFromMessage deve comparire una volta sola, in index.mjs (trovato: ${scarico.join(", ") || "mai"})`);
+  if (scarico.length === 0 || scarico.some((f) => f !== "index.mjs")) v.push(`downloadContentFromMessage deve comparire solo in index.mjs (trovato: ${[...new Set(scarico)].join(", ") || "mai"})`);
   if (!/\bscarica:\s*baileys\.downloadContentFromMessage\b/.test(codice["index.mjs"] ?? "")) v.push("index.mjs non passa baileys.downloadContentFromMessage come `scarica`");
 
   const im = codice["immagini.mjs"] ?? "";
