@@ -31,6 +31,8 @@ export interface RigaStatoPonte {
   aggiornato_il: string;
   /** numeri ripuliti dal server: `fatto` 0/1 e `avanzamento` 0-100 */
   storico?: Record<string, number> | null;
+  /** i contatori del battito (es. `invii_attivi` 0/1, commessa 2026-10-30-ponte-invio-manuale) */
+  contatori?: Record<string, number> | null;
 }
 
 export type GravitaPonte = "nessuna" | "info" | "attenzione" | "grave";

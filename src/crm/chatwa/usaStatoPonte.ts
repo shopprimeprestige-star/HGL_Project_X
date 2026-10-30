@@ -2,6 +2,9 @@
  *
  *  Commessa 2026-10-29-ponte-whatsapp-baileys, compito T8. Legge la riga
  *  dell'utente in `ponte_wa_stato` e ne ricava l'avviso (`avvisoPonte`).
+ *  Commessa 2026-10-30-ponte-invio-manuale, T6: la lettura è `useRigaPonte`
+ *  (con i `contatori`), così la riusa anche l'invio dal telefono: UNA lettura al
+ *  minuto, non due. `useStatoPonte` ne ricava l'avviso.
  *
  *  Stesso passo di `useDaRispondere`, per lo stesso motivo: costa poco e non
  *  rompe niente. Una lettura all'apertura, una al minuto, una quando la scheda
@@ -11,7 +14,7 @@
  *  questa lettura. Vale anche dopo una lettura buona: un avviso come «da 12
  *  minuti» invecchierebbe, quindi con un errore si toglie.
  *  Nei log non scrive niente. */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "../AuthContext";
 import { avvisoPonte, type AvvisoPonte, type RigaStatoPonte } from "./avvisoPonte";
@@ -29,15 +32,16 @@ interface Catena {
 
 const NIENTE: AvvisoPonte = { mostra: false, gravita: "nessuna", frase: "" };
 
-/** L'avviso da mostrare adesso; `nessuna` finché non si sa o se qualcosa va storto. */
-export function useStatoPonte(): AvvisoPonte {
+/** La riga di stato del ponte, riletta ogni minuto; `null` finché non si sa, se
+ *  non c'è, o se qualcosa va storto (rete, permessi, tabella non creata). */
+export function useRigaPonte(): RigaStatoPonte | null {
   const { user } = useAuth();
   const userId = user?.id;
-  const [avviso, setAvviso] = useState<AvvisoPonte>(NIENTE);
+  const [riga, setRiga] = useState<RigaStatoPonte | null>(null);
 
   useEffect(() => {
     if (!userId) {
-      setAvviso(NIENTE);
+      setRiga(null);
       return;
     }
     let vivo = true;
@@ -46,19 +50,19 @@ export function useStatoPonte(): AvvisoPonte {
     const aggiorna = async () => {
       if (inCorso || document.visibilityState === "hidden") return;
       inCorso = true;
-      let nuovo = NIENTE;
+      let nuova: RigaStatoPonte | null = null;
       try {
         const { data, error } = await (supabase as unknown as { from: (t: string) => Catena })
           .from("ponte_wa_stato")
-          .select("stato,aggiornato_il,storico")
+          .select("stato,aggiornato_il,storico,contatori")
           .eq("user_id", userId)
           .maybeSingle();
-        if (!error) nuovo = avvisoPonte(data, new Date());
+        if (!error) nuova = data;
       } catch {
-        //  rete o permessi: nessun avviso
+        //  rete o permessi: nessuna riga
       }
       inCorso = false;
-      if (vivo) setAvviso(nuovo);
+      if (vivo) setRiga(nuova);
     };
 
     const rileggi = () => void aggiorna();
@@ -72,5 +76,12 @@ export function useStatoPonte(): AvvisoPonte {
     };
   }, [userId]);
 
-  return avviso;
+  return riga;
+}
+
+/** L'avviso da mostrare adesso; `nessuna` finché non si sa o se qualcosa va storto. */
+export function useStatoPonte(): AvvisoPonte {
+  const riga = useRigaPonte();
+  //  L'ora si guarda a ogni lettura (ogni minuto): un avviso sparisce o arriva con la riga nuova.
+  return useMemo(() => (riga ? avvisoPonte(riga, new Date()) : NIENTE), [riga]);
 }
