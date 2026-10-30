@@ -30,7 +30,7 @@
  *   `attesa` vera, e il filtro «Da rispondere» ne mostra esattamente le stesse.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { senzaEco } from "./eco";
-import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
+import { costruisciChat } from "./costruisciChat";
 import { combaciaRicerca } from "./cercaChat";
 import { passaFiltri } from "./filtri";
 import { useFiltriChat } from "./useFiltriChat";
@@ -132,6 +132,8 @@ const RECENTI = 2000;
 /** Oltre così tante righe cambiate insieme (storico importato) si rilegge tutto. */
 const PEZZO_MSG = 500;
 const PEZZO_CONTATTI = 1000;
+/** Gli eventi in tempo reale che arrivano insieme si leggono insieme (una lettura ogni tanto). */
+const RAGGRUPPA_EVENTI_MS = 250;
 const PESO: Record<Modo, number> = { pezzi: 0, completa: 1, tutto: 2 };
 
 /** Il messaggio più nuovo/i più recenti dell'utente, senza i doppioni del ponte (`duplicato_di` vuoto). */
@@ -481,6 +483,31 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     };
     //  La prima lettura: tutto (300 messaggi subito, poi i 2000).
     void ricarica("tutto");
+    //  ── UNA RAFFICA DI EVENTI È UNA LETTURA SOLA (p1-chat-veloce, 30/10/2026) ──
+    //  Ogni evento (e ogni messaggio ne fa due: riga e contatto) lanciava una lettura e un ridisegno
+    //  completo: 30 messaggi in 3 secondi = 68 richieste e quasi un secondo di blocco ciascuno sul telefono.
+    //  Ora: un evento dopo una pausa legge SUBITO; gli altri entro `RAGGRUPPA_EVENTI_MS` si raggruppano
+    //  in una lettura sola, alla fine dell'intervallo. Canale, controllo e ritorno non aspettano.
+    let timerEventi: ReturnType<typeof setTimeout> | null = null;
+    let ultimaPerEvento = 0;
+    const alEvento = () => {
+      const passato = Date.now() - ultimaPerEvento;
+      //  Passato l'intervallo (o l'orologio è tornato indietro, o il timer è rimasto fermo con la pagina
+      //  congelata): si legge adesso.
+      if (passato < 0 || passato >= RAGGRUPPA_EVENTI_MS) {
+        if (timerEventi) clearTimeout(timerEventi);
+        timerEventi = null;
+        ultimaPerEvento = Date.now();
+        void ricarica();
+        return;
+      }
+      if (timerEventi) return;
+      timerEventi = setTimeout(() => {
+        timerEventi = null;
+        ultimaPerEvento = Date.now();
+        if (vivo) void ricarica();
+      }, RAGGRUPPA_EVENTI_MS - passato);
+    };
     //  Una riga cancellata si toglie subito dalla pagina (la lettura a pezzi non la vedrebbe).
     const cancellata = (t: "whatsapp_messages" | "whatsapp_contacts", e: EventoDb) => {
       const id = e?.eventType === "DELETE" ? e.old?.id : undefined;
@@ -513,7 +540,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           //  Lo storico del ponte (messaggi vecchi) non riavvia la lettura: il controllo ogni 15 s resta la rete.
           (e: EventoDb) => {
             cancellata("whatsapp_messages", e);
-            if (!eventoDaIgnorare("whatsapp_messages", e, Date.now())) void ricarica();
+            if (!eventoDaIgnorare("whatsapp_messages", e, Date.now())) alEvento();
           },
         )
         .on(
@@ -526,7 +553,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           },
           (e: EventoDb) => {
             cancellata("whatsapp_contacts", e);
-            if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
+            if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) alEvento();
           },
         );
       //  Un canale rimasto da un tentativo più vecchio si chiude: mai due canali aperti insieme.
@@ -646,6 +673,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       clearInterval(giro);
       clearInterval(battito);
       if (riprova) clearTimeout(riprova);
+      if (timerEventi) clearTimeout(timerEventi);
       if (pagina) {
         document.removeEventListener("visibilitychange", torna);
         window.removeEventListener("focus", torna);
@@ -697,135 +725,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   }, [messages, extra]);
 
   // Costruisco l'elenco chat: una per phone unico (interlocutore = "altro" rispetto a noi)
-  const chats = useMemo<ChatItem[]>(() => {
-    const map = new Map<string, ChatItem>();
-    const perChat = new Map<string, WaMessageRow[]>();
-
-    // partenza: contatti
-    for (const c of contacts) {
-      map.set(c.phone_e164, {
-        phone: c.phone_e164,
-        leadId: c.lead_id ?? null,
-        lead: null,
-        contact: c,
-        lastMessage: null,
-      });
-    }
-
-    // aggiungo dai messaggi (per phone "interlocutore")
-    for (const m of tutti) {
-      const peer = m.direction === "inbound" ? m.from_number : m.to_number;
-      // se peer è un phone_number_id (nessun +), lo skip
-      if (!peer || !peer.startsWith("+")) {
-        // outbound persistito con peer = numero destinatario (ok). inbound: m.from_number è già normalizzato +...
-        // se non parte con + skippiamo (è solo phone_number_id meta)
-        if (m.direction === "outbound") {
-          // peer = m.to_number normalizzato
-        } else {
-          continue;
-        }
-      }
-      const key = peer.startsWith("+") ? peer : `+${peer}`;
-      let item = map.get(key);
-      if (!item) {
-        item = {
-          phone: key,
-          leadId: m.lead_id ?? null,
-          lead: null,
-          contact: null,
-          lastMessage: null,
-        };
-        map.set(key, item);
-      }
-      const suoi = perChat.get(key);
-      if (suoi) suoi.push(m);
-      else perChat.set(key, [m]);
-      if (!item.lastMessage || new Date(m.created_at) > new Date(item.lastMessage.created_at)) {
-        item.lastMessage = m;
-      }
-    }
-
-    //  ── CHI ASPETTA SU WHATSAPP MA NEL CRM NON HA UNA CHAT (28/10/2026) ──
-    //   La setter scrive spesso dal WhatsApp del telefono: quei lead non hanno
-    //   messaggi qui. Se sono in attesa da più di 10 ore entrano lo stesso,
-    //   così compaiono in «Da chiamare» e si chiamano dal tasto in alto.
-    const ultime9 = new Set([...map.keys()].map((k) => k.replace(/\D/g, "").slice(-9)));
-    //   Qui `messaggi` è vuoto di proposito (30/10/2026): chi ha anche un solo messaggio o
-    //   contatto ha già la sua chat in `map` e viene saltato più sotto; chi non ce l'ha non ha
-    //   messaggi da passare. Per le chat con scheda decide lo STATO, che il cron scrive con
-    //   la stessa funzione pura (`calcolaDaChiamare` con i messaggi degli ultimi 7 giorni).
-    for (const l of leads) {
-      if (!calcolaDaChiamare({ dati: l.data, messaggi: [], adesso: new Date(adesso) }).si) continue;
-      const tel = telefonoE164(l.data?.telefono);
-      if (!tel || ultime9.has(tel.replace(/\D/g, "").slice(-9))) continue;
-      ultime9.add(tel.replace(/\D/g, "").slice(-9));
-      map.set(tel, {
-        phone: tel,
-        leadId: l.id,
-        lead: null,
-        contact: null,
-        lastMessage: null,
-      });
-    }
-
-    // scheda, «Da rispondere», finestra di 24 ore, STOP (le regole sono in stato.ts)
-    for (const item of map.values()) {
-      //  La scheda scelta vince; altrimenti per telefono SOLO se ce n'è una sola (D18).
-      let lead = item.leadId ? (leads.find((l) => l.id === item.leadId) ?? null) : null;
-      let senzaScheda = false;
-      let schedaAmbigua = false;
-      if (!lead) {
-        const e = schedaUnica(leads, item.phone);
-        if (e.tipo === "una") lead = e.lead;
-        else if (e.tipo === "piu") schedaAmbigua = true;
-        else senzaScheda = true;
-      }
-      item.lead = lead;
-      item.leadId = lead?.id ?? item.leadId;
-      item.senzaScheda = senzaScheda;
-      item.schedaAmbigua = schedaAmbigua;
-      item.stop = Boolean(item.contact?.non_scrivere_dal);
-
-      //  Risposta appena data (o «Fatto»): vale come il database la scriverà,
-      //  `greatest(ora, ultimo messaggio del cliente)`, così un orologio indietro non la smentisce.
-      const fatto = ottimistici[item.phone];
-      const entrata = item.contact?.ultimo_in_entrata_il ?? null;
-      const rispostoServer = item.contact?.risposto_il ?? null;
-      const risposto =
-        fatto === undefined
-          ? rispostoServer
-          : new Date(Math.max(fatto, ms(entrata) || 0, ms(rispostoServer) || 0)).toISOString();
-      const contatto = item.contact
-        ? { ...item.contact, risposto_il: risposto }
-        : risposto
-          ? { risposto_il: risposto }
-          : null;
-      const messaggi = perChat.get(item.phone) ?? [];
-      const dr = calcolaDaRispondere({ contatto, messaggi, adesso, ultimo: item.lastMessage });
-      item.daRispondere = {
-        attesa: dr.attesa,
-        dal: dr.dal,
-        anteprima: dr.anteprima,
-      };
-      const f = finestra24({ contatto, messaggi, adesso });
-      item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };
-    }
-
-    // ordina per ultimo movimento, come WhatsApp: il messaggio più recente fra quelli
-    // caricati, l'ultimo messaggio del contatto e l'ultima entrata del cliente.
-    const t = (v: string | null | undefined) => {
-      const n = ms(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-    const quando = (x: ChatItem) =>
-      Math.max(
-        t(x.lastMessage?.created_at),
-        t(x.contact?.last_message_at),
-        t(x.contact?.ultimo_in_entrata_il),
-        t(x.contact?.ultimo_messaggio_il),
-      );
-    return Array.from(map.values()).sort((a, b) => quando(b) - quando(a));
-  }, [tutti, contacts, leads, adesso, ottimistici]);
+  const chats = useMemo<ChatItem[]>(
+    () => costruisciChat({ tutti, contacts, leads, adesso, ottimistici }),
+    [tutti, contacts, leads, adesso, ottimistici],
+  );
 
   /** «Da rispondere»: come su WhatsApp, l'ultima chat che si è mossa sta sopra
    *  (richiesta del titolare, 29/10/2026: prima stava sopra chi aspettava da più

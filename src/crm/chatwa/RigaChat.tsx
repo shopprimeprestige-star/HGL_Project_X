@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { memo, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   AlertCircle,
   CalendarClock,
@@ -114,7 +114,7 @@ interface RigaChatProps {
  *  sotto, fuori dal bottone (un bottone dentro un bottone non è valido e sul telefono
  *  prende il tocco sbagliato). Il nome ha sempre la riga tutta per sé: pastiglia di
  *  stato e numero vanno sotto, così non lo schiacciano. */
-export function RigaChat({
+function RigaChatBase({
   chat: c,
   modo,
   attiva,
@@ -646,3 +646,22 @@ export function RigaChat({
     </li>
   );
 }
+
+/** ── LA RIGA SI RIDISEGNA SOLO SE CAMBIA QUELLO CHE MOSTRA (p1-chat-veloce, 30/10/2026) ──
+ *  Le funzioni (`onApri`…) non contano: `ElencoChat` le passa con identità fissa che chiamano
+ *  sempre la versione di adesso. Della `selezione` contano `attiva` e `scelta`. */
+const stesseProps = (a: RigaChatProps, b: RigaChatProps): boolean => {
+  for (const k of Object.keys(b) as (keyof RigaChatProps)[]) {
+    if (typeof b[k] === "function") continue;
+    if (k === "selezione") {
+      if (
+        a.selezione?.attiva !== b.selezione?.attiva ||
+        a.selezione?.scelta !== b.selezione?.scelta
+      )
+        return false;
+      if (Boolean(a.selezione) !== Boolean(b.selezione)) return false;
+    } else if (a[k] !== b[k]) return false;
+  }
+  return Object.keys(a).length === Object.keys(b).length;
+};
+export const RigaChat = memo(RigaChatBase, stesseProps);
