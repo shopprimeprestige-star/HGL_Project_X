@@ -15,7 +15,15 @@
  *   - un `@lid` si risolve, in ordine, con `key.remoteJidAlt` e con
  *     `risolviLid` (mappa `lid.json` + `getPNForLID`, la prepara T6);
  *     altrimenti si scarta `senza_numero`: un numero non si inventa mai;
- *   - l'orario è `messageTimestamp` in secondi UNIX, senza conversioni di fuso.
+ *   - l'orario è `messageTimestamp` in secondi UNIX, senza conversioni di fuso;
+ *   - MAI scartare in silenzio un messaggio del cliente (commessa
+ *     2026-10-30-messaggi-persi): un contenuto che non conosciamo diventa il
+ *     segnaposto «📎 Allegato»; un messaggio che WhatsApp non ha saputo
+ *     decifrare per questo Mac (stub CIPHERTEXT) dà `motivo: "non_decifrato"`
+ *     con un `segnaposto` pronto, che `collega.mjs` scrive solo se il vero
+ *     messaggio non arriva entro pochi minuti. Si scartano soltanto cose che
+ *     non sono messaggi (reazioni, modifiche, cancellazioni, sondaggi,
+ *     chiamate, album-contenitore, sistema).
  *
  *  ⚠️ Qui passano testi e numeri dei clienti: nessun `console.*` in questo file.
  *   I motivi di scarto sono parole fisse, buone per i contatori dei log.
@@ -53,10 +61,19 @@ export const MODELLO_NASCOSTO = "📋 Modello inviato (testo non visibile)";
 /** Copia di `INVIO_NASCOSTO` di `pari.ts`: l'invio dall'API arrivato senza
  *  contenuto (`hosted_unavailable_fanout`). */
 export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
+/** Copia di `NON_DECIFRATO` di `pari.ts` (le prove confrontano i valori): una
+ *  riga in entrata del ponte che dice «WhatsApp ha consegnato qualcosa che
+ *  questo Mac non ha potuto leggere». Si abbina a qualunque entrata vicina. */
+export const NON_DECIFRATO = "⚠️ Messaggio non leggibile dal ponte: aprilo sul telefono";
+/** Il suffisso dell'id del segnaposto: se il vero messaggio arriva dopo
+ *  (stesso id di WhatsApp) non trova la riga già occupata. */
+export const SUFFISSO_NON_DECIFRATO = "-nd";
 /** Il segno del messaggio finto fatto da `messaggioDaNodo`: un simbolo, che un
  *  `WAMessage` vero (decodificato dal proto) non può avere. */
 const SEGNO_INVIO_NASCOSTO = Symbol("invio_nascosto");
 
+/** `proto.WebMessageInfo.StubType.CIPHERTEXT` (il proto è un enum numerico). */
+const STUB_CIPHERTEXT = 2;
 const ID_VALIDO = /^[A-Za-z0-9_.-]{1,128}$/;
 const NUMERO_VALIDO = /^\d{8,15}$/;
 
@@ -70,10 +87,12 @@ const INVOLUCRI = [
   "editedMessage",
   "groupMentionedMessage",
   "botInvokeMessage",
+  //  i figli di un album (foto/video) arrivano così: dentro c'è il media vero
+  "associatedChildMessage",
 ];
 
 /** Chiavi di contorno che stanno accanto al contenuto vero e non lo sono. */
-const CONTORNO = new Set(["messageContextInfo", "senderKeyDistributionMessage", "deviceSentMessage"]);
+const CONTORNO = new Set(["messageContextInfo", "senderKeyDistributionMessage", "fastRatchetKeySenderKeyDistributionMessage", "deviceSentMessage"]);
 
 /** Contenuti che non sono messaggi da mostrare: tipo → motivo dello scarto. */
 const NON_DA_MOSTRARE = {
@@ -91,6 +110,19 @@ const NON_DA_MOSTRARE = {
   keepInChatMessage: "sistema",
   pinInChatMessage: "sistema",
   requestPhoneNumberMessage: "sistema",
+  //  l'intestazione di un album: i figli (foto, video) arrivano da soli
+  albumMessage: "album",
+  //  carichi cifrati di reazioni, voti e commenti; sincronizzazioni interne
+  secretEncryptedMessage: "sistema",
+  encCommentMessage: "sistema",
+  encEventResponseMessage: "sistema",
+  stickerSyncRmrMessage: "sistema",
+  messageHistoryBundle: "sistema",
+  messageHistoryNotice: "sistema",
+  statusNotificationMessage: "sistema",
+  limitSharingMessage: "sistema",
+  pollResultSnapshotMessage: "sondaggio",
+  pollCreationOptionImageMessage: "sondaggio",
 };
 
 /** `protocolMessage.type` (enum del proto): 0 REVOKE, 14 MESSAGE_EDIT. */
@@ -356,7 +388,10 @@ function contenuto(message) {
         return t ? { tipo: "testo", testo: `${MARCA_MODELLO}${t}` } : { tipo: "altro", testo: MODELLO_NASCOSTO };
       }
       const t = testoInterattivo(tipo, v);
-      if (t === null) return { motivo: "tipo_sconosciuto" };
+      //  Un tipo che non conosciamo (prodotto, ordine, evento, invito…) è quasi
+      //  sempre qualcosa che il cliente ha mandato davvero: si mostra il segnaposto,
+      //  non si butta. Le cose che NON sono messaggi stanno in `NON_DA_MOSTRARE`.
+      //  Il tipo resta nel conteggio `tipi` della diagnosi (`tipoGrezzo`).
       return t ? { tipo: "testo", testo: t } : { tipo: "altro", testo: SEGNAPOSTO.altro };
     }
   }
@@ -373,7 +408,9 @@ function contenuto(message) {
  *
  *  Uscita: `{ ok: true, messaggio, nome? }` oppure
  *  `{ ok: false, scarto: true, motivo }`. `nome` è il `pushName` dei soli
- *  messaggi `in` (in un `out` sarebbe il nostro). */
+ *  messaggi `in` (in un `out` sarebbe il nostro). Con `motivo` `non_decifrato`
+ *  c'è anche `segnaposto: { messaggio, nome?, idVero }`: la riga da scrivere se
+ *  il messaggio vero non arriva (id = quello di WhatsApp + `-nd`). */
 export function leggiMessaggio(wamsg, opzioni = {}) {
   if (!wamsg || typeof wamsg !== "object") return scarto("vuoto");
   const { proprioNumero, risolviLid, dal } = opzioni;
@@ -387,7 +424,19 @@ export function leggiMessaggio(wamsg, opzioni = {}) {
   if (noi && chat.numero === noi) return scarto("se_stesso");
 
   // 2. che cosa c'è dentro
-  if (wamsg.messageStubType) return scarto("sistema");
+  if (wamsg.messageStubType) {
+    //  Non decifrato (CIPHERTEXT): WhatsApp ha consegnato qualcosa a questo Mac
+    //  che non si legge (sessione da rifare, annuncio «click to WhatsApp» senza
+    //  contenuto). Baileys chiede il testo al telefono; se il telefono non
+    //  risponde il messaggio non arriva mai. Qui si prepara il segnaposto.
+    const cifrato = !key.fromMe && (wamsg.messageStubType === STUB_CIPHERTEXT || wamsg.messageStubType === "CIPHERTEXT");
+    const ts = secondi(wamsg.messageTimestamp);
+    const valido = typeof key.id === "string" && ID_VALIDO.test(key.id) && key.id.length + SUFFISSO_NON_DECIFRATO.length <= 128 && ts !== null && ts >= LIMITI_ESTRAZIONE.tsMinimo && ts <= adesso + LIMITI_ESTRAZIONE.tsOltreMinuti * 60 && !(typeof dal === "number" && ts < dal);
+    if (!cifrato || !valido) return scarto("sistema");
+    const messaggio = { id: `${key.id}${SUFFISSO_NON_DECIFRATO}`, numero: chat.numero, dir: "in", ts, testo: NON_DECIFRATO, tipo: "altro" };
+    const nome = taglia(testoPieno(wamsg.pushName), LIMITI_ESTRAZIONE.nome);
+    return { ok: false, scarto: true, motivo: "non_decifrato", segnaposto: nome ? { messaggio, nome, idVero: key.id } : { messaggio, idVero: key.id } };
+  }
   if (typeof key.id !== "string" || !ID_VALIDO.test(key.id)) return scarto("id_non_valido");
   const cosa = wamsg[SEGNO_INVIO_NASCOSTO] ? { tipo: "altro", testo: INVIO_NASCOSTO } : contenuto(wamsg.message);
   if (cosa.motivo) return scarto(cosa.motivo);

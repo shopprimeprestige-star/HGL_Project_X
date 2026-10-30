@@ -49,6 +49,14 @@ export const FINESTRA_ECO_MODELLO_S = 15;
  *  collegati (`hosted_unavailable_fanout`): il ponte ne sa solo numero e ora. */
 export const INVIO_NASCOSTO = "📋 Messaggio inviato da ManyChat (testo non visibile)";
 
+/** Un messaggio del cliente che WhatsApp ha consegnato al Mac ma che il ponte non
+ *  ha potuto leggere (non decifrato, e il telefono non l'ha rimandato): il
+ *  ponte ne sa solo numero e ora. Copiata in `strumenti/ponte-whatsapp/src/
+ *  estrai.mjs` (le prove confrontano i valori). Fa da pari a qualunque ENTRATA
+ *  vicina del CRM (ManyChat l'ha di sicuro letta): nasconderla non toglie niente,
+ *  e senza quella riga il cliente ha scritto e noi non lo sapremmo. */
+export const NON_DECIFRATO = "⚠️ Messaggio non leggibile dal ponte: aprilo sul telefono";
+
 /** Le righe del ponte uscite senza niente da mostrare: fanno da pari a
  *  qualunque uscita del CRM vicina (nasconderle non toglie niente). */
 const SENZA_TESTO_DEL_PONTE: readonly string[] = [MODELLO_NASCOSTO, INVIO_NASCOSTO];
@@ -129,6 +137,7 @@ function compatibili(riga: RigaDaAbbinare, c: CandidatoCrm): boolean {
   const dt = distanza(riga.t, c.created_at);
   if (!Number.isFinite(dt)) return false;
   if (riga.d === "out" && SENZA_TESTO_DEL_PONTE.includes(riga.x)) return dt <= FINESTRA_OPACA_S;
+  if (riga.d === "in" && riga.x === NON_DECIFRATO) return dt <= FINESTRA_OPACA_S;
   const opaco = eOpaco(c.body);
   if (opaco === "modello") {
     if (riga.d !== "out") return false;

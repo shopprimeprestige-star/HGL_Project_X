@@ -347,8 +347,9 @@ async function main() {
     clearInterval(battiti);
     clearInterval(pulizia);
     if (sveglia) clearTimeout(sveglia);
-    col.ferma();
-    await Promise.race([Promise.all([inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
+    //  `col.ferma()` aspetta (al massimo 6 s) lo scarico del buffer di Baileys: i messaggi
+    //  arrivati a ponte spento sono già confermati a WhatsApp e chiudendo prima si perdono.
+    await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
     const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });

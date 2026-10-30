@@ -19,6 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { provePonteBanner } from "./ponte/banner.mjs";
 import { provePonteIngresso } from "./ponte/ingresso.mjs";
+import { provePonteMessaggiPersi } from "./ponte/messaggi-persi.mjs";
 import { provePonteInvioChatHook } from "./ponte/invio-chat-hook.mjs";
 import { provePonteInvioChatUi } from "./ponte/invio-chat-ui.mjs";
 import { provePonteInvioMigrazione } from "./ponte/invio-migrazione.mjs";
@@ -110,6 +111,7 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteRotta(mod, aiuti);
   await provePonteNonInterferenza(mod, aiuti);
   await provePonteServizioEstrai(mod, aiuti);
+  await provePonteMessaggiPersi(mod, aiuti);
   await provePonteServizioLotti(mod, aiuti);
   await provePonteServizioGuardie(mod, aiuti);
   await provePonteStatoChat(mod, aiuti);
