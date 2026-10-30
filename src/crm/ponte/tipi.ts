@@ -21,6 +21,15 @@
  *
  *  ⚠️ Nei log solo codici e contatori (`CodiceAvviso`): mai numeri, nomi, testi,
  *   id WhatsApp, uuid.
+ *
+ *  30/10/2026, commessa ponte-tutte-le-chat (decisione del titolare: tutte le
+ *  chat nel CRM, anche gli sconosciuti). Due regole di prima sono cambiate:
+ *   · D7 «solo numeri del CRM» è TOLTA: ogni numero entra, `non_noti` è sempre
+ *     vuoto, `fuori_rubrica` sempre 0 (restano nei tipi per i Mac di prima) e
+ *     la porta `noti` non c'è più.
+ *   · D9 «solo da vedere» è CAMBIATA: un'entrata viva che ManyChat/Cloud non
+ *     porta entro `PROMOZIONE_ATTESA_S` diventa un'entrata vera (porta
+ *     `promuovi`); `RigaScrittura.e` vale anche per le entrate.
  *  ───────────────────────────────────────────────────────────────────────── */
 
 // ── Limiti e finestre ─────────────────────────────────────────────────────
@@ -59,8 +68,14 @@ export const FINESTRA_OPACA_S = 120;
 export const CONFRONTO_CARATTERI = 1000;
 /** Il controllo tardivo riprende le righe del ponte degli ultimi 60 minuti (§c1.8). */
 export const RICONCILIA_MINUTI = 60;
-/** D8: un messaggio uscito dal telefono sposta `risposto_il` solo se è degli ultimi 7 giorni. */
+/** D8: un messaggio uscito dal telefono sposta `risposto_il` solo se è degli ultimi 7 giorni.
+ *  D9 (30/10): vale anche per l'attesa di un'entrata viva (`RigaScrittura.e`). */
 export const EFFETTO_MAX_GIORNI = 7;
+/** D9 (30/10): secondi che un'entrata viva, portata solo dal ponte, aspetta il suo pari
+ *  (ManyChat o Meta) prima di diventare un'entrata vera: ~30 s di attesa sul Mac + la
+ *  finestra dei pari (ManyChat risponde in 2-10 s) con margine. Misurati dall'INSERIMENTO
+ *  nel CRM, non dall'ora del messaggio. */
+export const PROMOZIONE_ATTESA_S = 120;
 /** `ts` più vecchio accettato: 1/1/2009 00:00 UTC, in secondi (§b2). */
 export const TS_MINIMO = 1230768000;
 /** `body` dei candidati, tagliato dall'SQL (§e.5, `ponte_wa_candidati`). */
@@ -190,11 +205,10 @@ export interface RispostaErrore {
   errore: CodiceErrore;
 }
 
-/** Risposta 200 a un lotto (§b2). `non_noti`: gli `id` WhatsApp dei messaggi
- *  con un numero non noto (D7). Per i `vivo` il ponte li ritenta; per lo
- *  `storico` (dal 30/10, p3) li tiene nella sua cache sul Mac, e si contano
- *  anche in `fuori_rubrica` (un ponte di prima li ignora). `doppioni` = righe
- *  scritte con un pari. */
+/** Risposta 200 a un lotto (§b2). `non_noti` e `fuori_rubrica` sono i campi di
+ *  D7, TOLTA il 30/10: da allora `non_noti` è sempre `[]` e `fuori_rubrica` 0
+ *  (restano per i Mac di prima, che li leggono). `doppioni` = righe scritte
+ *  con un pari. */
 export interface RispostaLotto {
   ok: true;
   ricevuti: number;
@@ -213,14 +227,15 @@ export interface RispostaBattito {
 }
 
 /** Domanda della cache del ponte (p3, 30/10): dei `numeri` (cifre 8-15, da 1
- *  a `LIMITI.numeri`) quali il CRM conosce adesso (D7). Nessun testo. */
+ *  a `LIMITI.numeri`) quali il CRM conosce adesso. Dal 30/10 (D7 tolta) li
+ *  conosce tutti: la risposta li rimanda tutti, senza interrogare il database. */
 export interface RichiestaNoti {
   v: 1;
   tipo: "noti";
   numeri: string[];
 }
 
-/** Risposta 200 a `RichiestaNoti`: i soli numeri chiesti che il CRM conosce. */
+/** Risposta 200 a `RichiestaNoti`: i numeri chiesti (ripuliti), tutti dal 30/10. */
 export interface RispostaNoti {
   ok: true;
   noti: string[];
@@ -257,8 +272,10 @@ export interface RigaScrittura {
   t: number;
   /** testo già ripulito e tagliato (`body`) */
   x: string;
-  /** D8: `vivo` + `out` + senza pari + `t` entro `EFFETTO_MAX_GIORNI` → porta
-   *  avanti `risposto_il` del contatto, solo se la riga è inserita adesso */
+  /** `vivo` + senza pari + `t` entro `EFFETTO_MAX_GIORNI`. Per `out` (D8) porta
+   *  avanti `risposto_il` del contatto; per `in` (D9, dal 30/10) la riga nasce
+   *  con `attesa_dal` e, dopo `PROMOZIONE_ATTESA_S` senza pari, la promuove
+   *  `promuovi`. Solo se la riga è inserita adesso. Lo storico è sempre `false`. */
   e: boolean;
   /** `media_type`: il tipo se non è `testo`, altrimenti null */
   m: Exclude<TipoContenuto, "testo"> | null;
@@ -326,9 +343,13 @@ export interface CandidatoCrm {
   canale: string | null;
 }
 
-/** `ponte_wa_noti(p_user_id, p_numeri text[]) returns text[]`: entrano e
- *  escono solo cifre (D7). */
-export type NumeriNoti = string[];
+/** Uscita di `ponte_wa_promuovi` (jsonb, solo interi ≥ 0): `promosse` entrate
+ *  diventate vere (+1 non letti sul contatto); `saltate` righe non contate
+ *  perché il titolare aveva già risposto dal telefono. */
+export interface EsitoPromozione {
+  promosse: number;
+  saltate: number;
+}
 
 /** Una riga del ponte da riabbinare (controllo tardivo, §c1.8), letta da
  *  `PortePonte.recentiDelPonte`; è anche l'ingresso di `abbinaPari`. `m` null =
@@ -351,6 +372,7 @@ export const CODICI_AVVISO = [
   "riconciliati",
   "pari_persi",
   "noti",
+  "promosse",
 ] as const;
 export type CodiceAvviso = (typeof CODICI_AVVISO)[number];
 
@@ -361,12 +383,13 @@ export interface PortePonte {
   /** `manychat_config.user_id` (riga `id=1`); null = non configurato (503).
    *  L'utente non arriva mai dal corpo. */
   utente(): Promise<string | null>;
-  /** `ponte_wa_noti`: dei `numeri` (cifre) quelli che il CRM conosce. */
-  noti(userId: string, numeri: string[]): Promise<NumeriNoti>;
   /** `ponte_wa_candidati`, `p_righe` = `righe`. */
   candidati(userId: string, righe: RichiestaCandidato[]): Promise<CandidatoCrm[]>;
   /** `ponte_wa_scrivi`, una transazione. */
   scrivi(userId: string, scrittura: Scrittura): Promise<EsitoScrittura>;
+  /** `ponte_wa_promuovi`: le entrate vive senza pari, in attesa da almeno `attesaS`
+   *  secondi, diventano entrate vere (D9). Dopo i pari, a ogni lotto vivo e battito. */
+  promuovi(userId: string, attesaS: number): Promise<EsitoPromozione>;
   /** Le righe `canale='baileys'` con `duplicato_di` vuoto e `created_at ≥ dal`
    *  (di solito adesso − `RICONCILIA_MINUTI`). */
   recentiDelPonte(userId: string, dal: Date): Promise<RigaDaAbbinare[]>;
