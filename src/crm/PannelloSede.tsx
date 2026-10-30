@@ -54,6 +54,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { TESTO_NUMERO_ESTERO, chiamabile } from "@/crm/chiamabile";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -817,9 +818,20 @@ export function PannelloSede({
               senza ricopiare il numero a mano. */}
           <DatoFinestra etichetta="Telefono">
             {dati.telefono ? (
-              <a href={`tel:${dati.telefono}`} className="underline underline-offset-2">
-                {dati.telefono}
-              </a>
+              chiamabile(dati.telefono) ? (
+                <a href={`tel:${dati.telefono}`} className="underline underline-offset-2">
+                  {dati.telefono}
+                </a>
+              ) : (
+                //  Numero estero: si legge ma non si chiama (solo WhatsApp).
+                <span
+                  aria-disabled="true"
+                  title={TESTO_NUMERO_ESTERO}
+                  className="cursor-not-allowed text-red-700"
+                >
+                  {dati.telefono}
+                </span>
+              )
             ) : (
               "—"
             )}

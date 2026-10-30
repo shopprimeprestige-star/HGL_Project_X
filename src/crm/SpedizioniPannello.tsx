@@ -45,6 +45,8 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Consultant, Lead } from "./types";
@@ -682,13 +684,17 @@ function RigaSpedizione({ lead, onApri }: { lead: Lead; onApri: (l: Lead) => voi
               <Truck className="mr-1 h-3.5 w-3.5" /> Spedisci
             </Button>
           )}
-          {lead.data.telefono && (
-            <Button asChild size="sm" variant="outline" className="h-7 w-7 p-0" title="Chiama">
-              <a href={`tel:${lead.data.telefono}`} aria-label={`Chiama ${nomeCompleto(lead)}`}>
-                <Phone className="h-3.5 w-3.5" />
-              </a>
-            </Button>
-          )}
+          {lead.data.telefono &&
+            (chiamabile(lead.data.telefono) ? (
+              <Button asChild size="sm" variant="outline" className="h-7 w-7 p-0" title="Chiama">
+                <a href={`tel:${lead.data.telefono}`} aria-label={`Chiama ${nomeCompleto(lead)}`}>
+                  <Phone className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            ) : (
+              //  Numero estero: rosso e bloccato; il WhatsApp è il tasto qui sotto.
+              <ChiamaEstero telefono={lead.data.telefono} senzaWhatsapp />
+            ))}
           {/*  Anche qui accanto alla cornetta, come sulle righe delle pose: è
                lo stesso gesto e deve stare nello stesso posto, o su due schede
                della stessa pagina lo si cerca in due punti diversi.

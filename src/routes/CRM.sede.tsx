@@ -41,6 +41,8 @@ import {
 } from "lucide-react";
 import { useCRM } from "@/crm/CRMContext";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
@@ -522,11 +524,15 @@ function RigaSede({
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 bg-muted/30 px-3 py-2">
         {d.telefono && (
           <>
-            <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-[11.5px]">
-              <a href={`tel:${d.telefono}`}>
-                <Phone className="mr-1 h-3.5 w-3.5" /> Chiama
-              </a>
-            </Button>
+            {chiamabile(d.telefono) ? (
+              <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-[11.5px]">
+                <a href={`tel:${d.telefono}`}>
+                  <Phone className="mr-1 h-3.5 w-3.5" /> Chiama
+                </a>
+              </Button>
+            ) : (
+              <ChiamaEstero telefono={d.telefono} etichetta="Chiama" senzaWhatsapp={!!wa} />
+            )}
             {wa && (
               <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-[11.5px]">
                 <LinkWhatsapp telefono={d.telefono} testo={wa}>

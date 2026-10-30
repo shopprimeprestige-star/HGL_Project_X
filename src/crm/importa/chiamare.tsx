@@ -26,6 +26,8 @@ import { Copy, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { Pannello } from "@/crm/ui/Finestra";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 
 /** Vero solo dove il dito è l'unico modo di puntare. Si calcola dopo il
  *  montaggio: nel render sul server `window` non esiste. */
@@ -90,6 +92,17 @@ export function TastoChiama({
       <Button size={misura} disabled className={classe} title="Questa scheda non ha un numero">
         <Phone className={icona} /> {compatto ? "Senza numero" : "Numero mancante"}
       </Button>
+    );
+  }
+
+  //  Numero estero (30/10/2026): rosso e bloccato, il contatto si scrive su WhatsApp.
+  if (!chiamabile(telefono)) {
+    return (
+      <ChiamaEstero
+        telefono={telefono}
+        etichetta="Chiama"
+        className={compatto ? "px-2.5" : "h-12 min-w-[9rem] flex-1 text-[15px]"}
+      />
     );
   }
 

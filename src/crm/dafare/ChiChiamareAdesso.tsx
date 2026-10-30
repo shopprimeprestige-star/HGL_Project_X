@@ -11,6 +11,8 @@
 import { useState } from "react";
 import { Phone, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { cn } from "@/lib/utils";
 import { CLASSE_BADGE_STATO, Scheda } from "@/crm/ui";
 import { TemperaturaRiga } from "@/crm/Temperatura";
@@ -82,7 +84,13 @@ export function ChiChiamareAdesso({
                   {[v.testo, chi ? `di ${chi}` : ""].filter(Boolean).join(" · ")}
                 </span>
               </button>
-              {tel && (
+              {tel && !chiamabile(tel) && (
+                <ChiamaEstero
+                  telefono={tel}
+                  etichetta={<span className="sr-only sm:not-sr-only">Chiama</span>}
+                />
+              )}
+              {tel && chiamabile(tel) && (
                 <Button
                   asChild
                   size="sm"

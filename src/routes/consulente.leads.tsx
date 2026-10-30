@@ -10,6 +10,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageCircle, Phone, RefreshCw, Search, X } from "lucide-react";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { toast } from "sonner";
 import { useConsulente, azioneLead, mieiLead } from "@/crm/consulente-sessione";
 import { Input } from "@/components/ui/input";
@@ -215,13 +217,17 @@ function MieiLeadPage() {
                 </div>
                 {l.data.telefono && (
                   <>
-                    <a
-                      href={`tel:${l.data.telefono.replace(/[^\d+]/g, "")}`}
-                      title="Chiama"
-                      className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-accent hover:text-foreground"
-                    >
-                      <Phone className="h-4 w-4" />
-                    </a>
+                    {chiamabile(l.data.telefono) ? (
+                      <a
+                        href={`tel:${l.data.telefono.replace(/[^\d+]/g, "")}`}
+                        title="Chiama"
+                        className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                      >
+                        <Phone className="h-4 w-4" />
+                      </a>
+                    ) : (
+                      <ChiamaEstero telefono={l.data.telefono} senzaWhatsapp />
+                    )}
                     <a
                       href={buildWhatsAppLink(
                         l.data.telefono,

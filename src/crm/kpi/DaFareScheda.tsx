@@ -48,6 +48,8 @@ import { useCRM } from "@/crm/CRMContext";
 import { useAuth, usePuo } from "@/crm/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
@@ -379,6 +381,17 @@ function BottoneChiama({ lead, className }: { lead: Lead; className?: string }) 
         <Phone className="mr-1 h-3.5 w-3.5 opacity-50" />
         <span className="hidden sm:inline">senza numero</span>
       </span>
+    );
+  }
+
+  //  Numero estero (30/10/2026): rosso e bloccato, si scrive solo su WhatsApp.
+  if (!chiamabile(numero)) {
+    return (
+      <ChiamaEstero
+        telefono={numero}
+        etichetta={<span className="hidden sm:inline">Chiama</span>}
+        className={className}
+      />
     );
   }
 

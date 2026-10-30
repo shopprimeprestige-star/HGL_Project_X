@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { useCRM } from "@/crm/CRMContext";
 import { useAuth } from "@/crm/AuthContext";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
@@ -2561,7 +2563,8 @@ function LeadsPage() {
           return;
         case "c":
         case "C":
-          if (corrente?.data.telefono) {
+          //  Numero estero (30/10/2026): la scorciatoia non chiama, come il tasto.
+          if (corrente?.data.telefono && chiamabile(corrente.data.telefono)) {
             e.preventDefault();
             window.location.href = `tel:${corrente.data.telefono}`;
           }
@@ -3858,17 +3861,25 @@ function LeadsPage() {
                     <PulsanteChiamate lead={l} onCambia={(n) => void segnaChiamate(l, n)} />
                     {l.data.telefono && (
                       <>
-                        <Button
-                          asChild
-                          size="icon"
-                          variant="ghost"
-                          className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
-                          title="Chiama (C)"
-                        >
-                          <a href={`tel:${l.data.telefono}`}>
-                            <Phone className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
+                        {chiamabile(l.data.telefono) ? (
+                          <Button
+                            asChild
+                            size="icon"
+                            variant="ghost"
+                            className={`h-7 w-7 ${conPannello ? "lg:max-2xl:hidden!" : ""}`}
+                            title="Chiama (C)"
+                          >
+                            <a href={`tel:${l.data.telefono}`}>
+                              <Phone className="h-3.5 w-3.5" />
+                            </a>
+                          </Button>
+                        ) : (
+                          <ChiamaEstero
+                            telefono={l.data.telefono}
+                            senzaWhatsapp
+                            className={conPannello ? "lg:max-2xl:hidden!" : ""}
+                          />
+                        )}
                         <Button
                           size="icon"
                           variant="ghost"
@@ -4000,7 +4011,14 @@ function LeadsPage() {
                 21rem non si preme né si legge. */}
             <div className="space-y-1.5 border-b border-border p-3">
               <div className="flex gap-1.5">
-                {dettaglio.data.telefono ? (
+                {dettaglio.data.telefono && !chiamabile(dettaglio.data.telefono) ? (
+                  <ChiamaEstero
+                    telefono={dettaglio.data.telefono}
+                    etichetta="Chiama"
+                    senzaWhatsapp
+                    className="flex-1 text-[12.5px]"
+                  />
+                ) : dettaglio.data.telefono ? (
                   <Button asChild size="sm" variant="outline" className="flex-1">
                     <a href={`tel:${dettaglio.data.telefono}`}>
                       <Phone className="mr-1 h-3.5 w-3.5" /> Chiama
