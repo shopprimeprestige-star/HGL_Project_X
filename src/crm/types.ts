@@ -8,6 +8,7 @@
 //  indietro senza che niente lo dica. `import type` sparisce alla
 //  compilazione: nel pacchetto mandato al browser non entra nulla.
 import type { TipoMedia } from "@/media/galleria";
+import type { MessaggioStato } from "./manychat/messaggio-stato";
 
 export type LeadStatus =
   // ── STATI DI PRIMO CONTATTO ──────────────────────────────────────────────
@@ -1681,6 +1682,12 @@ export interface LeadData {
    *  Assente = stato messo prima della pubblicazione, o da una strada che non
    *  passa da `conStatoDal`: nessun messaggio a evento (scelta prudente). */
   statoDal?: string;
+  /** ── IL MESSAGGIO AUTOMATICO DELLO STATO, SCRITTO DAL CONSULENTE ──────
+   *  Il testo libero che il giro manda se il cliente ha scritto nelle ultime 24 ore, e cosa
+   *  mandare oltre le 24 ore (il modello dello stato o il generico). Vale SOLO per lo stato
+   *  in cui è stato scritto (`messaggioStato.stato`): `conStatoDal` lo toglie al cambio di
+   *  stato. Assente = tutto come prima. Vedi crm/manychat/messaggio-stato. */
+  messaggioStato?: MessaggioStato;
   // origine pubblica (id del public_lead se importato)
   publicLeadId?: string;
   // ── LAVORAZIONE IN CHAT ────────────────────────────────────────────────

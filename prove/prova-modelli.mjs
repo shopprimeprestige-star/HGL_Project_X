@@ -326,9 +326,9 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
     hgl_meet_da_fissare: 2, hgl_richiamo_concordato: 2, hgl_non_risponde: 1,
     hgl_cliente_assente: 1, hgl_da_riprogrammare: 2, hgl_promemoria_sede: 4,
     hgl_sede_disdetta: 1, hgl_ultimo_tentativo: 1, hgl_ritorno: 1, hgl_casi_reali: 1,
-    hgl_acconto: 2,
+    hgl_acconto: 2, hgl_come_eravamo_rimasti: 2,
   };
-  c("ci sono tutti i 20 modelli hgl_ di ManyChat (19 con flusso + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
+  c("ci sono tutti i 21 modelli hgl_ di ManyChat (20 con flusso + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
   c(
     "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna",
     [],

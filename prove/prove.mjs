@@ -577,6 +577,9 @@ const MODULI = [
   "stato-dal",
   "manychat/sequenze",
   "manychat/stati",
+  //  Il messaggio dello stato lo scrive il consulente (commessa 2026-10-30-messaggio-per-stato):
+  //   prove in prove/manychat/messaggio-stato.mjs.
+  "manychat/messaggio-stato",
   //  ⚠️ PRENOTA LA CONSULENZA IN CHAT (commessa 2026-10-27): i contratti
   //   (`prenota-tipi`) e i moduli che li riempiono. Un file di prove per
   //   compito in `prove/manychat/prenota*.mjs`, chiamati da `proveManychat`.

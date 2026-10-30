@@ -313,6 +313,15 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nCome ci eravamo detti in consulenza, ti scrivo per l'acconto: appena lo ricevo blocchiamo la data e prepariamo il tuo impianto su misura.\n\nTi mando qui i dati per il bonifico? Se prima vuoi chiarire qualcosa, scrivimi pure 😊`,
     ["lead_name", "consultant_name"],
   ),
+  //  Il messaggio GENERICO, buono per tutti gli stati (commessa 2026-10-30-messaggio-per-stato):
+  //  il consulente lo sceglie, nella finestra dello stato, per quando il cliente non scrive da
+  //  più di 24 ore. Stesse due variabili del ricontatto. Inviato a Meta come MARKETING.
+  tpl(
+    "hgl_come_eravamo_rimasti",
+    "MARKETING",
+    `Ciao {{lead_name}}, buongiorno! Come va?\n\nSono {{consultant_name}} di Hair Genius Labs, ti scrivo per sapere alla fine come eravamo rimasti.`,
+    ["lead_name", "consultant_name"],
+  ),
 ];
 
 export function findMetaTemplate(name: string): MetaTemplate | undefined {
