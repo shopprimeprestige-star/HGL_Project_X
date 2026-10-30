@@ -28,6 +28,7 @@ import type { PorteRisposta as PorteConferma } from "../promemoria/in-entrata";
 import type { InvioAbbinabile } from "./ritorno";
 import { ENTRATE_DA_LEGGERE, type PorteRispostaManychat } from "./risposta";
 import { CANALE_PONTE } from "../ponte/tipi";
+import { CHIAVE_CONFIG_STELLE, mettiStellaUno } from "../wa-orari";
 
 type ErroreDb = { code?: string | null; message?: string | null } | null;
 type Esito<T> = PromiseLike<{ data: T | null; error: ErroreDb }>;
@@ -41,6 +42,7 @@ interface Filtro<T> extends Esito<T> {
   or(filtri: string): Filtro<T>;
   order(c: string, o: { ascending: boolean }): Filtro<T>;
   limit(n: number): Filtro<T>;
+  select(c: string): Filtro<Record<string, unknown>[]>;
   maybeSingle(): Esito<T extends (infer U)[] ? U : T>;
 }
 /** I tipi generati non conoscono le tabelle nuove né le colonne nuove. */
@@ -372,6 +374,44 @@ async function scriviAttesaWhatsapp(userId: string, leadId: string, il: Date): P
   return data === true;
 }
 
+/** ── STELLA 1 DAL GIRO ─────────────────────────────────────────────────────
+ *  `app_config.wa_stelle` è UNA riga per tutto lo studio (la chat la legge dal
+ *  browser con la RLS, qui c'è la chiave di servizio: stessa riga). Niente
+ *  leggi-e-riscrivi cieco: si scrive solo se la riga è ancora quella letta
+ *  (`update … where value = <letto>`, oppure `insert` se non c'era: la chiave
+ *  unica fa da cancello). Se è cambiata torna falso e `mettiStellaUno` riprova.
+ *  Lancia solo `{ code }`. */
+const stellePorte = {
+  leggi: async (): Promise<string | null> => {
+    const { data, error } = await db()
+      .from("app_config")
+      .select<{ value?: string | null }>("value")
+      .eq("key", CHIAVE_CONFIG_STELLE)
+      .maybeSingle();
+    if (error) return lancia(error);
+    return data?.value ?? null;
+  },
+  scrivi: async (vecchio: string | null, nuovo: string): Promise<boolean> => {
+    const adesso = new Date().toISOString();
+    if (vecchio === null) {
+      const { error } = await db()
+        .from("app_config")
+        .insert({ key: CHIAVE_CONFIG_STELLE, value: nuovo, updated_at: adesso });
+      //  23505 = la riga è nata nel frattempo (un altro salvataggio): si rilegge.
+      if (error) return error.code === "23505" ? false : lancia(error);
+      return true;
+    }
+    const { data, error } = await db()
+      .from("app_config")
+      .update({ value: nuovo, updated_at: adesso })
+      .eq("key", CHIAVE_CONFIG_STELLE)
+      .eq("value", vecchio)
+      .select("key");
+    if (error) return lancia(error);
+    return (data?.length ?? 0) > 0;
+  },
+};
+
 //  ═══════════════════════════════════════════════════════════════════════════
 //   LA PARTE DEL GIRO (compito 3)
 //  ═══════════════════════════════════════════════════════════════════════════
@@ -701,6 +741,7 @@ export function porteGiro(): PorteGiro {
     aggiornaContatto: (userId, leadId, cambio, seInvio) =>
       scriviContattoWa(userId, leadId, cambio, seInvio),
     attesaWhatsapp: scriviAttesaWhatsapp,
+    stellaUno: (telefono) => mettiStellaUno(stellePorte, telefono),
 
     porta: (userId, config) => portePortaVere(userId, { flussi: config.flussi }),
 

@@ -38,6 +38,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { Consultant, TipoInvio } from "../types";
 import { aRoma } from "../promemoria/formati";
+import { STATI_STELLA_UNO } from "../wa-orari";
 import type { ClientManychat } from "./api";
 import {
   dopoInvio,
@@ -340,6 +341,9 @@ export interface PorteGiro {
     cambio: CambioContatto,
     seInvio?: string,
   ): Promise<boolean>;
+  /** Stella 1 alla chat di quel numero (`mettiStellaUno` di wa-orari su `app_config.wa_stelle`, una
+   *  riga per tutto lo studio: niente `userId`). Può lanciare `{ code }`: il giro lo cattura. */
+  stellaUno(telefono: string): Promise<"messa" | "gia_uno" | "senza_numero" | "conflitto">;
   /** `lead_attesa_whatsapp`: «da contattare» → «attesa_whatsapp» (con `statoDal` = `il`), SOLO se
    *  la scheda è ancora «da contattare» al momento della scrittura. Vero se ha scritto. */
   attesaWhatsapp(userId: string, leadId: string, il: Date): Promise<boolean>;
@@ -1171,6 +1175,19 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
           await porte
             .aggiornaContatto(userId, scheda.id, cambio)
             .catch((e) => porte.avviso(`giro_contatto_errore_${codiceErrore(e)}`));
+        }
+        //  I quattro stati dopo la consulenza: la chat va a stella 1 (anche se ne aveva 2 o 3).
+        //  Un guasto qui NON ferma il giro né rimanda il messaggio: già partito, si avvisa il codice.
+        if (
+          cand.tipo === "ricontatto" &&
+          (STATI_STELLA_UNO as readonly unknown[]).includes(riletta.data.stato)
+        ) {
+          try {
+            const s = await porte.stellaUno(numero);
+            if (s === "conflitto") porte.avviso("giro_stella_conflitto");
+          } catch (e) {
+            porte.avviso(`giro_stella_errore_${codiceErrore(e)}`);
+          }
         }
         //  Dopo il primo messaggio (o il ritorno) la scheda «da contattare» passa ad «Attesa
         //  WhatsApp». Solo dopo un «inviato»: chi non lo riceve resta com'è. La condizione
