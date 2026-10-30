@@ -382,6 +382,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     setAggiornatoIl(Date.now());
     setMessages(msgs);
     setContacts(cts);
+    //  Un doppione marcato dopo esce anche dalla chat aperta (letta a parte).
+    const doppi = new Set(righeM.filter((x) => x.duplicato_di).map((x) => x.id));
+    if (doppi.size > 0)
+      setExtra((e) => (e ? { ...e, righe: e.righe.filter((x) => !doppi.has(x.id)) } : e));
     //  Se il cliente ha riscritto, il «solo modelli» forzato non vale più.
     setForzati((prima) => {
       const resta = Object.entries(prima).filter(
