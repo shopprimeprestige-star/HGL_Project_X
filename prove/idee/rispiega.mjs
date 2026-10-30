@@ -381,7 +381,7 @@ export async function proveRispiega(mod, { c, gruppo, radice }) {
     "il nome è il più recente fra le migrazioni",
     true,
     readdirSync(join(radice, "supabase/migrations"))
-      .filter((n) => n.endsWith(".sql"))
+      .filter((n) => n.endsWith(".sql") && !n.includes("eco_entrata_contatti")) // l'eco sul contatto (eco-manychat-entrata) viene dopo: ha il suo ordine
       .sort()
       .at(-1) === nomi[0],
   );

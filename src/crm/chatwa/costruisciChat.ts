@@ -3,6 +3,7 @@
  *  misurare e provare senza React. Pura: niente rete, niente stato. Una chat per telefono
  *  (contatti, messaggi letti, schede senza chat «da chiamare»), con scheda, «Da rispondere»,
  *  finestra di 24 ore e STOP (le regole stanno in stato.ts), dal movimento più recente. */
+import { quandoUltimo } from "./ordineWhatsapp";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
 import { daRispondere as calcolaDaRispondere, finestra24, indiceSchede } from "./stato";
 import type { Lead } from "@/crm/types";
@@ -137,22 +138,12 @@ export function costruisciChat(p: {
     item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };
   }
 
-  // ordina per ultimo movimento, come WhatsApp: il messaggio più recente fra quelli
-  // caricati, l'ultimo messaggio del contatto e l'ultima entrata del cliente.
-  const t = (v: string | null | undefined) => {
-    const n = ms(v);
-    return Number.isFinite(n) ? n : 0;
-  };
-  const quando = (x: ChatItem) =>
-    Math.max(
-      t(x.lastMessage?.created_at),
-      t(x.contact?.last_message_at),
-      t(x.contact?.ultimo_in_entrata_il),
-      t(x.contact?.ultimo_messaggio_il),
-    );
+  // ordina per ultimo movimento, come WhatsApp: la stessa ora di «Tutte» (ordineWhatsapp.ts), cioè il
+  // messaggio più recente fra quelli caricati e l'ultimo messaggio del contatto. NON `last_message_at`
+  // né l'ultima entrata: li scrive anche l'eco di ManyChat (poi nascosta come doppione).
   //  Le ore si calcolano una volta per chat, non a ogni confronto del sort (stabile: a pari ora resta l'ordine).
   return Array.from(map.values())
-    .map((c) => ({ c, q: quando(c) }))
+    .map((c) => ({ c, q: quandoUltimo(c) }))
     .sort((a, b) => b.q - a.q)
     .map((x) => x.c);
 }
