@@ -21389,6 +21389,15 @@ function proveDeiPermessiInstallazioneChat() {
   c("Anticipa sulla riga solo con «installazioni»", true, /puoInstallazioni && c\.lead && puoAnticipare/.test(r));
 }
 
+/** ── BLOCCO ACCONTI: PRIMA SENZA GIORNO, SOTTO CON GIORNO (31/10/2026) ───── */
+function proveDellOrdineAcconti() {
+  gruppo("ACCONTI IN CIMA: PRIMA SENZA GIORNO, POI CON GIORNO");
+  const A = mod["chatwa/accontiInCima"];
+  const l = (id, inc, posa) => ({ lead: { id, data: { nome: id, cognome: "Prova", stato: "posa_in_sede", payment: { accontoPagato: 100, incassi: [{ id: "i" + id, data: inc, importo: 100 }] }, ...(posa ? { installazione: { dataInstallazione: posa } } : {}) } } });
+  const ordine = A.chatDaInstallare([l("conGiornoTardi", "2026-10-01", "2026-11-20"), l("senzaRecente", "2026-10-20"), l("conGiornoVicino", "2026-10-25", "2026-11-05"), l("senzaVecchio", "2026-09-01")]).map((c) => c.lead.id);
+  c("prima senza giorno (acconto più vecchio), poi con giorno (dal più vicino)", ["senzaVecchio", "senzaRecente", "conGiornoVicino", "conGiornoTardi"], ordine);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21532,6 +21541,7 @@ await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
+proveDellOrdineAcconti();
 proveDeiContatoriABadge();
 rmSync(dove, { recursive: true, force: true });
 
