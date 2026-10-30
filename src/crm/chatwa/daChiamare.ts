@@ -209,6 +209,10 @@ export const STATI_CAMBIO_RAPIDO = [
 ] as const;
 
 interface ChatConStato {
+  /** finestra di 24 ore (per i numeri senza scheda) */
+  finestra?: { aperta: boolean } | null;
+  stop?: boolean;
+  schedaAmbigua?: boolean;
   lead?: {
     data?: {
       stato?: string | null;
@@ -218,8 +222,16 @@ interface ChatConStato {
   } | null;
 }
 
-/** Lo stato di chiamata della chat, o `null` se non ha scheda o lo stato è un altro. */
+/** Lo stato di chiamata della chat, o `null` se lo stato è un altro.
+ *  ── I NUMERI SENZA SCHEDA (30/10/2026) ───────────────────────────────────
+ *  Richiesta del titolare: anche chi non ha la scheda, quando la finestra di
+ *  24 ore si chiude, va «da chiamare»; se la setter fissa la consulenza crea
+ *  la scheda (la riga ha già «Crea scheda» e «Abbina»). Mai con lo STOP, mai
+ *  se i numeri hanno più schede (lì si abbina prima), mai a finestra aperta
+ *  o non calcolata. */
 export function statoChiamata(c: ChatConStato): StatoChiamata | null {
+  if (!c.lead)
+    return c.finestra?.aperta === false && !c.stop && !c.schedaAmbigua ? "da_chiamare" : null;
   const s = String(c.lead?.data?.stato ?? "");
   return (STATI_SOTTOFILTRI as readonly string[]).includes(s) ? (s as StatoChiamata) : null;
 }

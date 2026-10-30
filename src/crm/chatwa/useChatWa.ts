@@ -25,9 +25,9 @@
  *  ⚠️ APRIRE UNA CHAT NON LA TOGLIE da «Da rispondere»: il segna-letto scrive solo
  *   `unread_count`. Escono solo la risposta dal CRM e «Fatto».
  *  ⚠️ `daRispondere` di una chat è il risultato intero di `stato.ts`: `attesa`, `dal`,
- *   `anteprima`, `vecchia` (ripiego sui messaggi, senza risposta da più di 7 giorni:
- *   non è in elenco, serve alla riga «N chat senza risposta da più di 7 giorni»).
- *   `api.daRispondere` contiene solo le chat con `attesa` vera.
+ *   `anteprima`. Regola unica (30/10/2026): in attesa se l'ultimo messaggio è del cliente, senza
+ *   limite di età e senza guardare la finestra di 24 ore. `api.daRispondere` contiene le chat con
+ *   `attesa` vera, e il filtro «Da rispondere» ne mostra esattamente le stesse.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { senzaEco } from "./eco";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
@@ -59,7 +59,15 @@ import {
   unisciContatti,
   unisciMessaggi,
 } from "./stato";
-import type { ChatItem, ChatWaApi, WaContactRow, WaMessageRow } from "./tipi";
+import type {
+  ApiBlocco,
+  ChatItem,
+  ChatWaApi,
+  EsitoBlocco,
+  WaContactRow,
+  WaMessageRow,
+} from "./tipi";
+import { aBlocchi } from "./selezione";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
@@ -75,6 +83,7 @@ interface Esito {
 interface Query extends PromiseLike<Esito> {
   select(colonne: string): Query;
   eq(colonna: string, valore: string): Query;
+  in(colonna: string, valori: string[]): Query;
   gte(colonna: string, valore: string): Query;
   is(colonna: string, valore: null): Query;
   range(da: number, a: number): Query;
@@ -519,6 +528,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
           },
         );
+      //  Un canale rimasto da un tentativo più vecchio si chiude: mai due canali aperti insieme.
+      if (ch && ch !== questo) void supabase.removeChannel(ch);
       ch = questo;
       questo.subscribe((stato) => {
         //  ⚠️ `removeChannel` richiama la callback del canale tolto con CLOSED:
@@ -531,12 +542,23 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             riprova = null;
             ch = null;
             void supabase.removeChannel(questo);
-            void apri().catch(() => {});
+            tenta();
           }, 5_000);
         }
       });
     };
-    void apri().catch(() => {});
+    //  ⚠️ Se `apri` stesso fallisce (sessione appesa: `getSession` scade dopo il ritorno da WhatsApp) il
+    //   canale non si riapriva MAI più: nessuno stato lo richiamava. Ora ritenta ogni 5 s finché c'è.
+    const tenta = () => {
+      void apri().catch(() => {
+        if (!vivo || riprova) return;
+        riprova = setTimeout(() => {
+          riprova = null;
+          tenta();
+        }, 5_000);
+      });
+    };
+    tenta();
 
     //  Rete di sicurezza: una riga sola per tabella, si rilegge tutto solo se è cambiato qualcosa.
     let impronta = "";
@@ -565,8 +587,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       primo = false;
     };
     const controllaZitto = () => controlla().catch(() => {});
-    //  «Aggiorna»: sessione rinnovata, canale riaperto da capo, tutto riletto.
-    forzaRef.current = async () => {
+    //  Sessione rinnovata e canale riaperto da capo (anche se il rinnovo non risponde: ha un tetto).
+    const riapriCanale = async () => {
       await conTempo(supabase.auth.refreshSession()).catch(() => null);
       if (riprova) {
         clearTimeout(riprova);
@@ -575,20 +597,34 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       const vecchio = ch;
       ch = null;
       if (vecchio) void supabase.removeChannel(vecchio);
-      void apri().catch(() => {});
+      tenta();
+    };
+    //  «Aggiorna»: sessione rinnovata, canale riaperto da capo, tutto riletto.
+    forzaRef.current = async () => {
+      await riapriCanale();
       await ricarica("tutto");
     };
     void controllaZitto();
     const giro = setInterval(() => void controllaZitto(), 15_000);
-    //  Al ritorno sulla pagina: se è stata ferma a lungo (telefono in tasca) il
-    //  canale è quasi certamente morto: si riapre tutto come con «Aggiorna».
+    //  Al ritorno sulla pagina si rilegge SUBITO (senza aspettare il rinnovo della sessione) e, se la pagina è
+    //  stata ferma a lungo (telefono in tasca) o è stata in sfondo anche solo qualche secondo (iPhone: WhatsApp e
+    //  ritorno, iOS può aver chiuso il socket senza dirlo), il canale si riapre come con «Aggiorna».
     let ultimoGiro = Date.now();
+    let nascostoDal = 0;
     const torna = () => {
-      if (typeof document === "undefined" || document.visibilityState !== "visible") return;
-      const fermo = Date.now() - ultimoGiro > 60_000;
-      ultimoGiro = Date.now();
+      if (typeof document === "undefined") return;
+      if (document.visibilityState !== "visible") {
+        if (!nascostoDal) nascostoDal = Date.now();
+        return;
+      }
+      const ora = Date.now();
+      const fermo = ora - ultimoGiro > 60_000;
+      const inSfondo = nascostoDal > 0 && ora - nascostoDal > 5_000;
+      ultimoGiro = ora;
+      nascostoDal = 0;
+      void ricarica();
       if (fermo && forzaRef.current) void forzaRef.current();
-      else void ricarica();
+      else if (inSfondo) void riapriCanale();
     };
     const battito = setInterval(() => {
       //  I timer sospesi non battono: un buco di oltre un minuto vuol dire pagina congelata.
@@ -672,7 +708,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: c,
         lastMessage: null,
-        unread: c.unread_count || 0,
       });
     }
 
@@ -698,7 +733,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           lead: null,
           contact: null,
           lastMessage: null,
-          unread: 0,
         };
         map.set(key, item);
       }
@@ -730,7 +764,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: null,
         lastMessage: null,
-        unread: 0,
       });
     }
 
@@ -772,7 +805,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         attesa: dr.attesa,
         dal: dr.dal,
         anteprima: dr.anteprima,
-        vecchia: dr.vecchia,
       };
       const f = finestra24({ contatto, messaggi, adesso });
       item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };
@@ -876,12 +908,14 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   });
 
   /** Fa uscire la chat da «Da rispondere» subito e lascia che la ricarica lo confermi. */
-  const rispostoOra = async (tel: string) => {
-    setOttimistici((prima) => ({ ...prima, [tel]: Date.now() }));
+  const rispostoOra = async (tel: string | string[]) => {
+    const tels = Array.isArray(tel) ? tel : [tel];
+    const ora = Date.now();
+    setOttimistici((prima) => ({ ...prima, ...Object.fromEntries(tels.map((t) => [t, ora])) }));
     await reload().catch(() => undefined);
     setOttimistici((prima) => {
       const resto = { ...prima };
-      delete resto[tel];
+      for (const t of tels) delete resto[t];
       return resto;
     });
   };
@@ -998,6 +1032,72 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     } catch {
       toast.error("Non sono riuscito a segnare «Fatto», riprova");
     }
+  };
+
+  /** ── LE AZIONI SU PIÙ CHAT (selezione tenendo premuto, 30/10/2026) ────────
+   *  «Letto» è la STESSA scrittura dell'apertura della chat (`unread_count = 0`), qui a
+   *  blocchi con `in(...)`; sempre con `user_id` (RLS e filtro): mai chat di altri.
+   *  `.select()` in coda riporta le righe davvero scritte: quelle che mancano sono
+   *  `fallite`, e l'elenco lo dice (nessun «fatto» di cortesia). Anche sul posto, subito. */
+  const BLOCCO = 50;
+  const scriviNonLetti = async (telefoni: string[], valore: number): Promise<EsitoBlocco> => {
+    if (!user) return { riuscite: [], fallite: telefoni };
+    const riuscite: string[] = [];
+    for (const blocco of aBlocchi(telefoni, BLOCCO)) {
+      try {
+        const r = await conTempo(
+          tabella("whatsapp_contacts")
+            .update({ unread_count: valore })
+            .eq("user_id", user.id)
+            .in("phone_e164", blocco)
+            .select("phone_e164"),
+        );
+        if (!r.error)
+          riuscite.push(...((r.data as { phone_e164: string }[] | null) ?? []).map((x) => x.phone_e164));
+      } catch {
+        // un blocco caduto: le sue chat finiscono fra le `fallite`, gli altri blocchi proseguono
+      }
+    }
+    if (riuscite.length > 0) {
+      const scritte = new Set(riuscite);
+      const d = datiRef.current;
+      const cts = d.contatti.map((x) =>
+        scritte.has(x.phone_e164) ? { ...x, unread_count: valore } : x,
+      );
+      datiRef.current = { ...d, contatti: cts };
+      setContacts(cts);
+    }
+    return { riuscite, fallite: telefoni.filter((t) => !riuscite.includes(t)) };
+  };
+
+  /** «Fatto» su più chat: la stessa funzione del database di `segnaFatto`, cinque alla volta. */
+  const segnaFattoMolte = async (telefoni: string[]): Promise<EsitoBlocco> => {
+    if (!user) return { riuscite: [], fallite: telefoni };
+    const riuscite: string[] = [];
+    let manca = false;
+    for (const gruppo of aBlocchi(telefoni, 5)) {
+      await Promise.all(
+        gruppo.map(async (tel) => {
+          try {
+            const { data, error } = await conTempo(
+              chiamaFunzione("whatsapp_segna_fatto", { p_phone: tel }),
+            );
+            if (error && mancaFunzione(error)) manca = true;
+            else if (!error && data !== false) riuscite.push(tel);
+          } catch {
+            // questa chat resta fra le `fallite`
+          }
+        }),
+      );
+    }
+    if (riuscite.length > 0) await rispostoOra(riuscite);
+    return { riuscite, fallite: telefoni.filter((t) => !riuscite.includes(t)), manca };
+  };
+
+  const inBlocco: ApiBlocco = {
+    segnaLetto: (telefoni) => scriviNonLetti(telefoni, 0),
+    segnaDaLeggere: (telefoni) => scriviNonLetti(telefoni, 1),
+    segnaFatto: segnaFattoMolte,
   };
 
   /** «Abbina a una scheda»: scrive `lead_id` sul contatto (RLS dell'utente).
@@ -1193,5 +1293,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     cambiaStatoLead,
     hasConfig,
     ponte,
+    inBlocco,
   };
 }

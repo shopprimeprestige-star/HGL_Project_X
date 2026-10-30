@@ -112,6 +112,11 @@ export function eImportato(l: { data: Partial<LeadData> }): boolean {
   return !!l.data.importato && !(l.data.dataMeeting && l.data.consulenteId);
 }
 
+/** Il promemoria dell'acconto («Attesa acconto», `hgl_acconto`) è SPENTO (30/10/2026, richiesta del
+ *  titolare): nessun messaggio automatico, l'interruttore del riquadro resta spento e non
+ *  si accende. Per riaccenderlo basta metterlo a `true`. */
+export const PROMEMORIA_ACCONTO_ACCESO = false;
+
 /** Gli stati dei messaggi «A DATA» (piano §5g): il giorno di `dataRicontatto` il
  *  consulente ricontatta. «Ricontatto fissato», «In valutazione», «Meet da
  *  fissare», «Attesa acconto», «Lead in chat» e «Da riprogrammare» (quest'ultimo
@@ -122,7 +127,7 @@ export const STATI_RICONTATTO_AUTOMATICO = [
   "da_ricontattare",
   "sta_valutando",
   "fissa_meet_dopo",
-  "in_attesa_acconto",
+  ...(PROMEMORIA_ACCONTO_ACCESO ? ["in_attesa_acconto"] : []),
   "gestire_in_chat",
   "da_spostare",
 ];

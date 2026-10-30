@@ -48,6 +48,7 @@ import {
   TIPI_COL_RITMO,
   TIPI_NEI_TETTI,
   TIPI_SENZA_FRENO,
+  PROMEMORIA_ACCONTO_ACCESO,
   aspettaRisposta,
   consensoWhatsapp,
   eDelConsulente,
@@ -118,12 +119,18 @@ const ASSENTE: RigaStato = {
 export const TABELLA_STATI: Partial<Record<LeadStatus, RigaStato>> = {
   da_ricontattare: RICONTATTO,
   sta_valutando: RICONTATTO,
-  in_attesa_acconto: {
-    modello: "hgl_acconto",
-    tag: "crm-stato-acconto",
-    quando: "a_data",
-    chi: "consulente",
-  },
+  //  Spento il 30/10/2026 (`PROMEMORIA_ACCONTO_ACCESO`): senza riga non parte niente, né
+  //  dal giro né dal messaggio scritto a mano per lo stato.
+  ...(PROMEMORIA_ACCONTO_ACCESO
+    ? {
+        in_attesa_acconto: {
+          modello: "hgl_acconto",
+          tag: "crm-stato-acconto",
+          quando: "a_data",
+          chi: "consulente",
+        } as RigaStato,
+      }
+    : {}),
   gestire_in_chat: RICONTATTO,
   fissa_meet_dopo: {
     modello: "hgl_meet_da_fissare",

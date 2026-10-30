@@ -27,6 +27,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { creaClient, type FetchManychat } from "./api";
+import { entrateVereDi } from "./entrate-vere.server";
 import type { CanaleWhatsapp, MessaggioPorta, PortePorta, PrenotazionePorta } from "./porta";
 
 const META_API = "https://graph.facebook.com/v21.0";
@@ -198,17 +199,31 @@ export function portePortaVere(
       return Number.isSafeInteger(daRubrica) && daRubrica > 0 ? daRubrica : null;
     },
     //  La finestra di 24 ore: la stessa colonna che usa la chat (`finestra24`).
+    //  ⚠️ Una reazione («[messaggio senza testo]») non riapre la finestra: `entrateVereDi` porta
+    //   l'entrata all'ultimo messaggio vero (o a niente: parte il modello).
     ultimaEntrata: async (telefono) => {
       const cifre = String(telefono).replace(/\D/g, "");
       const { data } = await db
         .from("whatsapp_contacts")
-        .select<{ ultimo_in_entrata_il?: string | null }[]>("ultimo_in_entrata_il")
+        .select<
+          {
+            phone_e164?: string | null;
+            ultimo_in_entrata_il?: string | null;
+            ultimo_in_entrata_anteprima?: string | null;
+          }[]
+        >("phone_e164, ultimo_in_entrata_il, ultimo_in_entrata_anteprima")
         .eq("user_id", userId)
         .in("phone_e164", [`+${cifre}`, cifre])
         .not("ultimo_in_entrata_il", "is", null)
         .order("ultimo_in_entrata_il", { ascending: false })
-        .limit(1);
-      return data?.[0]?.ultimo_in_entrata_il ?? null;
+        .limit(2);
+      const righe = await entrateVereDi(userId, data ?? []);
+      return (
+        righe
+          .map((r) => r.ultimo_in_entrata_il ?? "")
+          .sort()
+          .at(-1) || null
+      );
     },
     registra: async (m: MessaggioPorta) => {
       await db.from("whatsapp_messages").insert({

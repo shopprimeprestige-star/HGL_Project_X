@@ -161,14 +161,19 @@ export function proveOrdineWhatsapp(mod, { c, gruppo, radice }) {
   c("ElencoChat usa ordinaComeWhatsapp", true, /ordinaComeWhatsapp\(/.test(src));
   c("c'è la pastiglia «Tutte»", true, />\s*Tutte\s*</.test(src) || /"Tutte"/.test(src));
   c(
-    "«Tutte» è accesa quando nessuna coda è scelta (aria-pressed)",
+    "la pastiglia «Tutte» è accesa quando nessun filtro è attivo (aria-pressed)",
     true,
-    /filtri\.coda === null/.test(src) && /aria-pressed=\{tutte\}/.test(src),
+    /aria-pressed=\{soloRiga\}/.test(src),
   );
   c(
-    "toccare «Tutte» toglie solo la coda: gli altri gruppi restano",
+    "toccare «Tutte» spegne i filtri ma ricorda il consulente",
     true,
-    /setFiltri\(\{ \.\.\.filtri, coda: null \}\)/.test(src),
+    /setFiltri\(\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \}\)/.test(src),
+  );
+  c(
+    "l'elenco è nell'ordine di WhatsApp finché non c'è una coda scelta",
+    true,
+    /const tutte = filtri\.coda === null;/.test(src),
   );
   c(
     "l'elenco «Tutte» è una lista sola, con il suo nome per chi usa lo screen reader",
@@ -187,7 +192,7 @@ export function proveOrdineWhatsapp(mod, { c, gruppo, radice }) {
     /filtri\.coda !== null && filtri\.finestra === "aperta"/.test(src),
   );
   c("le righe non vanno per stelle in «Tutte»", false, /tutte[^;]*perStelle/i.test(src));
-  c("pastiglia a 44 px col dito (h-11)", true, /const PASTIGLIA =[\s\S]{0,200}h-11/.test(src));
+  c("pastiglia a 44 px col dito (h-11)", true, /aria-pressed=\{soloRiga\}[\s\S]{0,300}h-11/.test(src));
   c("nessuna emoji nel disegno", false, /\p{Extended_Pictographic}/u.test(src + mod_));
   c(
     "il modulo dell'ordine è puro: niente React né Supabase",

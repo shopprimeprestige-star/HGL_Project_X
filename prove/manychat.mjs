@@ -60,6 +60,7 @@ import { proveChatVersione } from "./manychat/chat-versione.mjs";
 import { proveNoteVocali } from "./manychat/note-vocali.mjs";
 import { proveControlloNotte } from "./manychat/controllo-notte.mjs";
 import { proveMessaggioStato } from "./manychat/messaggio-stato.mjs";
+import { proveFinestraReazioni } from "./manychat/finestra-reazioni.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -196,7 +197,7 @@ function proveDelloScheletroChat(mod, { c, gruppo }) {
   const funzioni = {
     "chatwa/media": ["classificaTesto", "eSoloSegnaposto", "anteprimaIn"],
     "chatwa/stato": [
-      "daRispondere", "contaVecchie", "ordinaDaRispondere", "attesaInChiaro", "finestra24",
+      "daRispondere", "ordinaDaRispondere", "attesaInChiaro", "finestra24",
       "statoCasella", "schedaUnica", "leggiRicercaChat", "contaDaRispondere",
     ],
   };
@@ -350,4 +351,6 @@ export async function proveManychat(mod, aiuti) {
   await proveControlloNotte(mod, aiuti);
   //  Commessa 2026-10-30-messaggio-per-stato: il messaggio dello stato lo scrive il consulente.
   proveMessaggioStato(mod, aiuti);
+  //  Fix 30/10/2026: una reazione non riapre la finestra di 24 ore.
+  await proveFinestraReazioni(mod, aiuti);
 }

@@ -30,6 +30,7 @@ import { provePonteInvioServizio } from "./ponte/invio-servizio.mjs";
 import { provePonteMigrazione } from "./ponte/migrazione.mjs";
 import { provePonteNonInterferenza } from "./ponte/non-interferenza.mjs";
 import { provePontePari } from "./ponte/pari.mjs";
+import { provePonteLidEPari } from "./ponte/lid-e-pari.mjs";
 import { provePonteRotta } from "./ponte/rotta.mjs";
 import { proveDocumentiExport } from "./ponte/documenti-export.mjs";
 import { provePonteServizioCache } from "./ponte/servizio-cache.mjs";
@@ -116,6 +117,7 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteMigrazione(mod, aiuti);
   await provePonteVecchieMigrazioni(mod, aiuti);
   await provePontePari(mod, aiuti);
+  await provePonteLidEPari(mod, aiuti);
   await provePonteIngresso(mod, aiuti);
   await provePonteRotta(mod, aiuti);
   await provePonteNonInterferenza(mod, aiuti);
