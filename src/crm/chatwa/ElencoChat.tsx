@@ -6,6 +6,8 @@ import { combaciaRicerca, ordinaPerStelle } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
+import { BarraProssimoMeet } from "./BarraProssimoMeet";
+import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
@@ -184,8 +186,16 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const etichette = etichetteAccese(filtri, nomeConsulente);
   const azzera = () => setFiltri(FILTRI_VUOTI);
 
+  /*  ── IL PROSSIMO MEET IN CIMA (30/10/2026) ──────────────────────────────
+      Fra le chat che passano filtri e ricerca (con il filtro consulente è il prossimo meet di quella
+      persona). Sta in una barra incollata sopra tutte le sezioni e NON esce dalla sua sezione: i
+      numeri di «Da rispondere» devono restare quelli del pulsante, e una chat che sparisce da lì
+      sembrerebbe già risposta. In sezione la riga ha solo il segno viola. Si aggiorna col timer. */
+  const meet = prossimoMeet(trovate, oggi, adesso, consultants);
+
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
     <RigaChat
+      prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}
       chat={c}
@@ -413,6 +423,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
+        {!caricamento && meet && (
+          <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
+        )}
         {caricamento ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Caricamento chat…
