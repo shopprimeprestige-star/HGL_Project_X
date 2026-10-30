@@ -108,9 +108,9 @@ export async function proveChatStato(mod, { c, gruppo }) {
       dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: fa(ORA + MIN) }).attesa);
     c("il cliente riscrive dopo la nostra risposta: torna in attesa col nuovo orario", [true, fa(MIN)],
       ((r) => [r.attesa, r.dal])(dr({ ultimo_in_entrata_il: fa(MIN), risposto_il: fa(ORA) })));
-    //  Un messaggio AUTOMATICO del giro non scrive risposto_il: la chat resta in attesa anche se
-    //  l'ultimo messaggio è nostro (la colonna dei messaggi caricati non la smentisce).
-    c("messaggio automatico (modello) dopo il cliente: resta in attesa", true,
+    //  (Dal 30/10 un messaggio automatico CHIUDE la chat, ma lo dice l'ultimo messaggio del contatto
+    //  `ultimo_messaggio_*`, non la lista `messaggi`: vedi prove/idee/da-rispondere-ultimo-mio.mjs.)
+    c("la lista `messaggi` passata a parte non basta a chiudere (decide il contatto)", true,
       dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: null }, [msg("inbound", 2 * ORA), { direction: "outbound", body: "[template:conferma]", created_at: fa(ORA), canale: "manychat" }]).attesa);
     //  Eco del Default Reply di ManyChat dopo la risposta dall'app, con un testo che non sa leggere.
     const ILLEGGIBILE = "Reazione, sticker o posizione: aprila in ManyChat";

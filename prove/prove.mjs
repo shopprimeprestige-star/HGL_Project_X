@@ -44,6 +44,7 @@ import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
+import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
@@ -620,6 +621,7 @@ const MODULI = [
   //   `proveManychat`.
   "chatwa/media",
   "chatwa/stato",
+  "chatwa/menuDaRispondere",
   "chatwa/cercaChat",
   //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
   //   prove in prove/manychat/chat-per-stato.mjs.
@@ -21395,6 +21397,7 @@ provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
+await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });

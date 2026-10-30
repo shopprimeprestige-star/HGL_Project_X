@@ -52,6 +52,8 @@ type Contatto = {
   phone_e164: string;
   ultimo_in_entrata_il: string | null;
   non_scrivere_dal: string | null;
+  ultimo_messaggio_il?: string | null;
+  ultimo_messaggio_direzione?: string | null;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,16 +94,25 @@ async function contattiDi(candidati: Riga[]): Promise<Map<string, ContattoWa>> {
   for (const [userId, numeri] of perUtente) {
     const elenco = [...numeri];
     for (let i = 0; i < elenco.length; i += 100) {
-      const { data, error } = await db()
-        .from("whatsapp_contacts")
-        .select("user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal")
-        .eq("user_id", userId)
-        .in("phone_e164", elenco.slice(i, i + 100));
+      //  Le colonne dell'ultimo messaggio (p1-chat-veloce): se la migrazione non c'è, si legge come prima.
+      const leggi = (colonne: string) =>
+        db()
+          .from("whatsapp_contacts")
+          .select(colonne)
+          .eq("user_id", userId)
+          .in("phone_e164", elenco.slice(i, i + 100));
+      let { data, error } = await leggi(
+        "user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal, ultimo_messaggio_il, ultimo_messaggio_direzione",
+      );
+      if (error && ["42703", "PGRST204"].includes(String(error.code ?? "")))
+        ({ data, error } = await leggi("user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal"));
       if (error) throw error;
       for (const c of (data ?? []) as Contatto[])
         perNumero.set(`${c.user_id}|${nove(c.phone_e164)}`, {
           ultimoInEntrataIl: c.ultimo_in_entrata_il,
           stop: !!c.non_scrivere_dal,
+          ultimoMessaggioIl: c.ultimo_messaggio_il ?? null,
+          ultimoMessaggioDirezione: c.ultimo_messaggio_direzione ?? null,
         });
     }
   }
@@ -137,7 +148,7 @@ async function messaggiDi(
       for (let da = 0; ; da += PAGINA) {
         const { data, error } = await db()
           .from("whatsapp_messages")
-          .select("direction, created_at, canale, duplicato_di, from_number, to_number, body")
+          .select("direction, created_at, canale, duplicato_di, from_number, to_number, body, status")
           .eq("user_id", userId)
           .is("duplicato_di", null)
           .or(`from_number.in.${lista},to_number.in.${lista}`)

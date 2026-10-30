@@ -48,6 +48,9 @@ export interface IngressoStato {
   contatto: ContattoStato | null;
   messaggi: MessaggioStato[];
   adesso: Istante;
+  /** L'ultimo messaggio letto in pagina (con `status`): serve a non chiudere la chat con un nostro
+   *  messaggio NON partito. Se manca vale quello salvato sul contatto (`ultimo_messaggio_*`). */
+  ultimo?: { direction: string; created_at: string; status?: string | null } | null;
 }
 
 export interface DaRispondere {
@@ -85,15 +88,41 @@ function ms(x: Istante | null | undefined): number | null {
 /** ── LA REGOLA UNICA «DA RISPONDERE» (30/10/2026) ───────────────────────────
  *  Una chat aspetta se e solo se l'ULTIMO messaggio è del cliente. Niente finestra di 24 ore,
  *  niente limite di età: una chat ferma da mesi con l'ultima parola del cliente è in attesa.
- *  Una nostra uscita dopo l'ultimo del cliente (CRM, app WhatsApp nativa col ponte, inbox di
- *  ManyChat) lo chiude, senza «Fatto». I messaggi AUTOMATICI (giro, modelli) NON lo chiudono:
- *  non scrivono `risposto_il`, che lo muovono solo la risposta dal CRM, un'uscita viva del
- *  ponte senza pari e «Fatto» (il riconoscimento sta nel percorso di scrittura, non qui). Le righe
- *  del ponte restano solo da vedere anche nel ripiego (I3): contano le colonne del contatto.
+ *  Una nostra uscita dopo l'ultimo del cliente, DA QUALUNQUE CANALE (CRM, app WhatsApp nativa col
+ *  ponte, inbox di ManyChat, modello automatico o giro), lo chiude, senza «Fatto» (regola del
+ *  titolare, 30/10/2026: prima i messaggi automatici non lo chiudevano e la riga diceva «Tu: …»
+ *  mentre la chat restava in lista). Lo dice l'ultimo messaggio salvato sul contatto
+ *  (`ultimo_messaggio_*`) o letto in pagina, se è partito (`status` non `failed`). Le entrate del ponte
+ *  restano solo da vedere (I3): per quelle contano le colonne d'entrata del contatto.
+ *  Il contrario NON accade mai: se l'ultimo è del cliente la chat resta qui, anche dopo giorni e con
+ *  la finestra di 24 ore chiusa (nessun limite di età, nessuna finestra, nessuna regola di «Da chiamare»).
  *  Colonne se ci sono, altrimenti i messaggi caricati (D5, D17). */
 export function daRispondere(i: IngressoStato): DaRispondere {
   const risposto = ms(i.contatto?.risposto_il);
   const entrata = ms(i.contatto?.ultimo_in_entrata_il);
+  //  ── L'ULTIMA PAROLA È NOSTRA (30/10/2026) ──────────────────────────────────
+  //  `risposto_il` lo scrivono SOLO la risposta dal CRM, l'uscita viva del ponte (entro 7 giorni)
+  //  e «Fatto»: un modello automatico di ManyChat, il giro, una risposta dall'inbox o dal telefono
+  //  oltre i 7 giorni NON lo muovono, e la chat restava «Da rispondere» con «Tu: …» sulla riga.
+  //  Il database però salva su ogni contatto l'ultimo messaggio con la sua direzione
+  //  (`ultimo_messaggio_*`, trigger): è la stessa fonte dell'anteprima. Se l'ultimo è nostro,
+  //  partito e successivo all'ultima entrata, il cliente non aspetta più noi.
+  const letto = i.ultimo ?? null;
+  const dalContatto = {
+    direction: i.contatto?.ultimo_messaggio_direzione === "outbound" ? "outbound" : "inbound",
+    created_at: i.contatto?.ultimo_messaggio_il as string | null | undefined,
+    status: null as string | null,
+  };
+  //  Il più recente fra quello letto in pagina e quello del contatto; a pari ora vince il letto.
+  const ultimo =
+    letto && (ms(dalContatto.created_at) ?? -Infinity) <= (ms(letto.created_at) ?? -Infinity)
+      ? letto
+      : dalContatto;
+  const chiusoDaNoi = (dopo: number): boolean => {
+    if (ultimo.direction !== "outbound" || ultimo.status === "failed") return false;
+    const t = ms(ultimo.created_at);
+    return t !== null && t > dopo;
+  };
 
   // Con la colonna d'entrata vale lei, senza limite di età (D17).
   if (entrata !== null) {
@@ -106,7 +135,7 @@ export function daRispondere(i: IngressoStato): DaRispondere {
       entrata > risposto &&
       entrata - risposto <= ECO_SEGNAPOSTO &&
       eAnteprimaIlleggibile(i.contatto?.ultimo_in_entrata_anteprima);
-    const attesa = (risposto === null || entrata > risposto) && !eco;
+    const attesa = (risposto === null || entrata > risposto) && !eco && !chiusoDaNoi(entrata);
     return {
       attesa,
       dal: attesa ? (i.contatto?.ultimo_in_entrata_il as string) : null,
@@ -115,8 +144,9 @@ export function daRispondere(i: IngressoStato): DaRispondere {
     };
   }
 
-  // Ripiego: l'ultimo messaggio vero del cliente e l'ultima uscita (o «Fatto»).
-  let ultimo: MessaggioStato | null = null;
+  // Ripiego: l'ultimo messaggio vero del cliente e l'ultima uscita (o «Fatto»). Le righe del ponte
+  // in `messaggi` restano solo da vedere (I3); la nostra uscita dal telefono la dice `ultimo` (sopra).
+  let ultimoIn: MessaggioStato | null = null;
   let tIn = -Infinity;
   let tOut = risposto ?? -Infinity;
   for (const m of i.messaggi) {
@@ -126,16 +156,16 @@ export function daRispondere(i: IngressoStato): DaRispondere {
     if (m.direction === "inbound") {
       if (!(m.body && eSoloSegnaposto(m.body)) && t > tIn) {
         tIn = t;
-        ultimo = m;
+        ultimoIn = m;
       }
     } else if (t > tOut) tOut = t;
   }
-  if (!ultimo || tOut >= tIn) return { attesa: false, dal: null, anteprima: null, fonte: null };
+  if (!ultimoIn || tOut >= tIn || chiusoDaNoi(tIn)) return { attesa: false, dal: null, anteprima: null, fonte: null };
 
   return {
     attesa: true,
-    dal: ultimo.created_at,
-    anteprima: ultimo.body ?? null,
+    dal: ultimoIn.created_at,
+    anteprima: ultimoIn.body ?? null,
     fonte: "messaggi",
   };
 }

@@ -800,7 +800,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           ? { risposto_il: risposto }
           : null;
       const messaggi = perChat.get(item.phone) ?? [];
-      const dr = calcolaDaRispondere({ contatto, messaggi, adesso });
+      const dr = calcolaDaRispondere({ contatto, messaggi, adesso, ultimo: item.lastMessage });
       item.daRispondere = {
         attesa: dr.attesa,
         dal: dr.dal,
