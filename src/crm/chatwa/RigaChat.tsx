@@ -67,7 +67,7 @@ function SpunteRiga({ stato }: { stato: Spunte }) {
 }
 
 /** Nome da mostrare: scheda, poi nome salvato, poi il numero. */
-function nomeChat(c: ChatItem): string {
+export function nomeChat(c: ChatItem): string {
   const scheda = c.lead ? `${c.lead.data.nome} ${c.lead.data.cognome}`.trim() : "";
   return scheda || c.contact?.display_name || numeroLeggibile(c.phone);
 }
@@ -88,6 +88,9 @@ interface RigaChatProps {
   /** Solo in «Da chiamare»: pastiglia verde se si può scrivere (finestra di 24 ore
    *  aperta), rossa se è chiusa e serve un modello approvato. */
   mostraFinestra?: boolean;
+  /** È la chat del prossimo meet di oggi (vedi prossimo-meet.ts): la barra in cima la ripete, qui
+   *  resta lo sfondo e il bordo viola, così la si riconosce anche scorrendo. */
+  prossimoMeet?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
@@ -106,6 +109,7 @@ export function RigaChat({
   onStelle,
   onCambiaStato,
   mostraFinestra = false,
+  prossimoMeet = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -175,7 +179,14 @@ export function RigaChat({
   const rigaAnteprima = a.testo !== "" || nessunMessaggio || c.unread > 0;
 
   return (
-    <li className={cn("relative border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
+    <li
+      className={cn(
+        "relative border-b border-border",
+        attiva
+          ? "bg-emerald-50/60"
+          : prossimoMeet && "bg-violet-50/70 ring-1 ring-inset ring-violet-300",
+      )}
+    >
       {/*  ── LA RIGA, STILE WHATSAPP (29/10/2026) ──────────────────────────────
           Richiesta del titolare: compatta, senza vuoti. Nome e ora sulla prima
           riga, sotto il numero, sotto ancora la finestra di 24 ore (piccola), poi

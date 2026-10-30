@@ -44,6 +44,7 @@ import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat } from "./idee/filtri-chat.mjs";
+import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
@@ -651,6 +652,9 @@ const MODULI = [
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
   //   prove in prove/idee/righe.mjs.
   "chatwa/segniRiga",
+  //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
+  //   prove in prove/idee/prossimo-meet.mjs.
+  "chatwa/prossimo-meet",
   "chatwa/testoWhatsapp",
   //  L'anteprima della riga = l'ULTIMO messaggio, chi l'ha scritto e «senza risposta»
   //   (commessa 2026-10-30-wa-anteprima-ultimo): vedi proveDellAnteprimaUltimo.
@@ -21324,6 +21328,7 @@ proveAttesaPalla(mod, { c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
+proveProssimoMeet(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
