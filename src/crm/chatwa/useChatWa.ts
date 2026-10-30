@@ -519,6 +519,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
           },
         );
+      //  Un canale rimasto da un tentativo più vecchio si chiude: mai due canali aperti insieme.
+      if (ch && ch !== questo) void supabase.removeChannel(ch);
       ch = questo;
       questo.subscribe((stato) => {
         //  ⚠️ `removeChannel` richiama la callback del canale tolto con CLOSED:
