@@ -132,6 +132,8 @@ const RECENTI = 2000;
 /** Oltre così tante righe cambiate insieme (storico importato) si rilegge tutto. */
 const PEZZO_MSG = 500;
 const PEZZO_CONTATTI = 1000;
+/** Gli eventi in tempo reale che arrivano insieme si leggono insieme (una lettura ogni tanto). */
+const RAGGRUPPA_EVENTI_MS = 250;
 const PESO: Record<Modo, number> = { pezzi: 0, completa: 1, tutto: 2 };
 
 /** Il messaggio più nuovo/i più recenti dell'utente, senza i doppioni del ponte (`duplicato_di` vuoto). */
@@ -481,6 +483,19 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     };
     //  La prima lettura: tutto (300 messaggi subito, poi i 2000).
     void ricarica("tutto");
+    //  ── UNA RAFFICA DI EVENTI È UNA LETTURA SOLA (p1-chat-veloce, 30/10/2026) ──
+    //  Ogni evento (e ogni messaggio ne fa due: riga e contatto) lanciava una lettura e un ridisegno
+    //  completo: 30 messaggi in 3 secondi = 68 richieste e quasi un secondo di blocco ciascuno sul telefono.
+    //  Ora gli eventi si raggruppano: la lettura parte al massimo ogni `RAGGRUPPA_EVENTI_MS`, la prima
+    //  dopo un quarto di secondo (sul telefono non si nota). Canale, controllo e ritorno non aspettano.
+    let timerEventi: ReturnType<typeof setTimeout> | null = null;
+    const alEvento = () => {
+      if (timerEventi) return;
+      timerEventi = setTimeout(() => {
+        timerEventi = null;
+        if (vivo) void ricarica();
+      }, RAGGRUPPA_EVENTI_MS);
+    };
     //  Una riga cancellata si toglie subito dalla pagina (la lettura a pezzi non la vedrebbe).
     const cancellata = (t: "whatsapp_messages" | "whatsapp_contacts", e: EventoDb) => {
       const id = e?.eventType === "DELETE" ? e.old?.id : undefined;
@@ -513,7 +528,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           //  Lo storico del ponte (messaggi vecchi) non riavvia la lettura: il controllo ogni 15 s resta la rete.
           (e: EventoDb) => {
             cancellata("whatsapp_messages", e);
-            if (!eventoDaIgnorare("whatsapp_messages", e, Date.now())) void ricarica();
+            if (!eventoDaIgnorare("whatsapp_messages", e, Date.now())) alEvento();
           },
         )
         .on(
@@ -526,7 +541,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           },
           (e: EventoDb) => {
             cancellata("whatsapp_contacts", e);
-            if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
+            if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) alEvento();
           },
         );
       //  Un canale rimasto da un tentativo più vecchio si chiude: mai due canali aperti insieme.
@@ -646,6 +661,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       clearInterval(giro);
       clearInterval(battito);
       if (riprova) clearTimeout(riprova);
+      if (timerEventi) clearTimeout(timerEventi);
       if (pagina) {
         document.removeEventListener("visibilitychange", torna);
         window.removeEventListener("focus", torna);
