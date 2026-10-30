@@ -14,6 +14,10 @@
  *  `tipo` `prendi` ed `esito` (il Mac prende un testo dalla coda e riporta
  *  l'esito) e il battito che risponde `invii_in_attesa`. Con la migrazione
  *  non applicata lotti e battiti vanno come prima (`invii` non lancia mai).
+ *  Dal 30/10/2026 serve anche le immagini: `tipo` `media_permesso` ed
+ *  `media_fatto` (il Mac chiede il permesso di caricare una foto su Storage e
+ *  poi dice «fatto»; i byte non passano dal Worker). Con la migrazione non
+ *  applicata rispondono 503 `migrazione` e il Mac trattiene la foto.
  *  ⚠️ L'utente non arriva mai dal corpo: è `manychat_config.user_id`.
  *  ⚠️ Un messaggio vivo nuovo in entrata, senza pari, fa suonare il telefono
  *   del consulente del lead e del titolare (`avvisa`); lo storico mai.
@@ -22,7 +26,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { gestisciRichiesta } from "@/crm/ponte/ingresso";
-import { porteIngresso, porteInvio } from "@/crm/ponte/porte.server";
+import { porteIngresso, porteInvio, porteMedia } from "@/crm/ponte/porte.server";
 import { avvisaEntratePonte } from "@/crm/push/invio.server";
 
 export const Route = createFileRoute("/api/public/ponte-whatsapp")({
@@ -36,6 +40,8 @@ export const Route = createFileRoute("/api/public/ponte-whatsapp")({
           invii: porteInvio(),
           //  La notifica sul telefono per i messaggi vivi nuovi (30/10/2026).
           avvisa: avvisaEntratePonte,
+          //  Le immagini (30/10/2026): `media_permesso` e `media_fatto`.
+          media: porteMedia(),
         }),
     },
   },

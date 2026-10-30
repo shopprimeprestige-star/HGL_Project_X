@@ -294,8 +294,10 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
       "src/routes/api.public.ponte-whatsapp.ts",
     ];
     const invio = ["src/crm/ponte/invio-giro.ts", "src/crm/ponte/invio-tipi.ts", "src/crm/ponte/invio.server.ts", "src/crm/ponte/invio.ts"];
+    //  Le immagini (commessa 2026-10-30-ponte-storico-completo, T5): tre file, alla pari dell'invio.
+    invio.push("src/crm/ponte/media-tipi.ts", "src/crm/ponte/media.ts", "src/crm/ponte/media.server.ts");
     c("il codice del ponte: ingresso, pari, porte, tipi, rotta (ci sono tutti)", [], vecchi.filter((x) => !nomiPonte.includes(x)));
-    c("…e in più solo i file dell'invio a mano (invio-tipi, invio, invio-giro, invio.server)", [], nomiPonte.filter((x) => !vecchi.includes(x) && !invio.includes(x)));
+    c("…e in più solo i file dell'invio a mano (invio-tipi, invio, invio-giro, invio.server) e delle immagini (media-tipi, media, media.server)", [], nomiPonte.filter((x) => !vecchi.includes(x) && !invio.includes(x)));
     c("…invio-tipi.ts e invio.ts esistono già (T0)", true, nomiPonte.includes("src/crm/ponte/invio-tipi.ts") && nomiPonte.includes("src/crm/ponte/invio.ts"));
     const nominate = ponte.flatMap((f) => {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
