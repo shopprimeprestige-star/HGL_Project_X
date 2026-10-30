@@ -56,6 +56,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
+import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
@@ -21522,6 +21523,7 @@ proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
+await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
