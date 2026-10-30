@@ -14,6 +14,10 @@ export function proveChatStile(mod, { c, gruppo, radice }) {
   const S = mod["chatwa/stile"];
 
   gruppo("CHAT · VOCALI · IL TEMPO E LA VELOCITÀ");
+  c("velocità salvata: valori ammessi", [1, 1.5, 2], ["1", "1.5", "2"].map(S.velocitaValida));
+  c("velocità salvata: strana o mancante → 1×", [1, 1, 1, 1], [null, "3", "abc", undefined].map(S.velocitaValida));
+  c("velocità senza archivio del browser → 1×", 1, S.velocitaSalvata());
+  c("salvare senza archivio non rompe", undefined, S.salvaVelocita(2));
   c("zero", "0:00", S.tempoVocale(0));
   c("sette secondi", "0:07", S.tempoVocale(7.4));
   c("un minuto e cinque", "1:05", S.tempoVocale(65));

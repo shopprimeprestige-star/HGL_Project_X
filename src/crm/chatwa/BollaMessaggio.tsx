@@ -18,7 +18,15 @@ import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
 import { IconaMedia } from "./IconaMedia";
-import { barreFinte, etichettaVelocita, quotaDaPunto, tempoVocale, velocitaDopo } from "./stile";
+import {
+  barreFinte,
+  etichettaVelocita,
+  quotaDaPunto,
+  salvaVelocita,
+  tempoVocale,
+  velocitaDopo,
+  velocitaSalvata,
+} from "./stile";
 import type { BollaProps } from "./tipi";
 
 /** ── LA BOLLA ─────────────────────────────────────────────────────────────
@@ -74,7 +82,9 @@ function Collegamento({ url, testo }: { url: string; testo: string }) {
      · i tocchi non prendono il fuoco (`preventDefault` sul pointerdown): la
        tastiera, se è su, resta su;
      · UN SOLO VOCALE ALLA VOLTA: chi parte ferma quello di prima (`vocaleInCorso`).
-    ⚠️ Nessuna richiesta finché non si preme play (`preload="none"`, D14). */
+    Dal 30/10/2026 (richiesta del titolare): si vede la DURATA prima di premere play
+    (`preload="metadata"`: il browser legge solo l'intestazione del file, non il vocale
+    intero) e la velocità scelta (1× / 1,5× / 2×) resta salvata per i vocali dopo. */
 let vocaleInCorso: HTMLAudioElement | null = null;
 const BARRE = 28;
 
@@ -90,6 +100,8 @@ function Vocale({ url }: { url: string }) {
   const [tempo, setTempo] = useState(0);
   const [durata, setDurata] = useState(0);
   const [velocita, setVelocita] = useState(1);
+  //  Dopo il montaggio (non nel primo disegno, che può venire dal server).
+  useEffect(() => setVelocita(velocitaSalvata()), []);
   const [partito, setPartito] = useState(false);
   const barre = useMemo(() => barreFinte(url, BARRE), [url]);
 
@@ -149,7 +161,7 @@ function Vocale({ url }: { url: string }) {
     <div className="flex w-[15.5rem] max-w-full items-center gap-2.5 py-0.5">
       <audio
         ref={audio}
-        preload="none"
+        preload="metadata"
         src={url}
         onLoadedMetadata={(e) => setDurata(e.currentTarget.duration)}
         onDurationChange={(e) => setDurata(e.currentTarget.duration)}
@@ -252,6 +264,7 @@ function Vocale({ url }: { url: string }) {
               onClick={() => {
                 const v = velocitaDopo(velocita);
                 setVelocita(v);
+                salvaVelocita(v);
                 if (audio.current) audio.current.playbackRate = v;
               }}
               aria-label={`Velocità ${etichettaVelocita(velocita)}, tocca per cambiarla`}
