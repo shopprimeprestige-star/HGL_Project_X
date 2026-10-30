@@ -52,6 +52,8 @@ import {
   statoCasella,
 } from "./stato";
 import type { ChatItem, ChatWaApi, FiltroChat, WaContactRow, WaMessageRow } from "./tipi";
+//  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
+import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
 function digitsOnly(s: string): string {
   return (s || "").replace(/\D/g, "");
@@ -716,6 +718,18 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     [forzati],
   );
 
+  /*  ── SCRIVERE DAL TELEFONO DOPO LE 24 ORE (30/10/2026) ──────────────────
+      Commessa 2026-10-30-ponte-invio-manuale. I dati della coda e le due azioni
+      (mettere in coda, riprovare). ⚠️ `messaggi` resta quello di prima: le bolle
+      della coda le mescola solo la conversazione, al momento di disegnare. */
+  const ponte = useInvioPonte({
+    userId: user?.id,
+    attiva,
+    messaggi: activeMessages,
+    adesso,
+    letture,
+  });
+
   /** Fa uscire la chat da «Da rispondere» subito e lascia che la ricarica lo confermi. */
   const rispostoOra = async (tel: string) => {
     setOttimistici((prima) => ({ ...prima, [tel]: Date.now() }));
@@ -1021,5 +1035,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     cambiaStato,
     cambiaStatoLead,
     hasConfig,
+    ponte,
   };
 }

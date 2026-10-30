@@ -67,6 +67,7 @@ export const fetchCRM = (url, init) => globalThis.fetch(url, init);`,
 export const segnapostiResidui = (t) => Array.from(new Set((t.match(/\\{\\{?[^{}]*\\}?\\}/g) ?? [])));`,
   //  La regola vera di `patchEsito` (contatore dei tentativi) è provata altrove; qui basta lo stato.
   esito: `export const patchEsito = (_d, stato) => ({ stato });`,
+  invioPonte: `export const useInvioPonte = () => undefined;`,
   tipi: `export const LEAD_STATUS_LABEL = {};
 export const eStatoDaChiamare = () => true;`,
 };
@@ -310,6 +311,9 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
     alias["@/crm/whatsapp"] = scrivi("whatsapp", FINTI.whatsapp);
     alias["@/crm/types"] = scrivi("tipi", FINTI.tipi);
     alias["@/crm/importa/chi-chiamare"] = scrivi("esito", FINTI.esito);
+    //  L'invio dal telefono (commessa 2026-10-30-ponte-invio-manuale) ha le sue prove
+    //  (prove/ponte/invio-chat-hook.mjs): qui la pagina è quella di prima, senza `ponte`.
+    alias["@/crm/chatwa/usaInvioPonte"] = scrivi("invio-ponte", FINTI.invioPonte);
     alias["@"] = join(radice, "src");
     const fuori = join(dir, "hook.cjs");
     await esbuild.build({

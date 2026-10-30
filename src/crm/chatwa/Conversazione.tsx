@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import {
   ArrowLeft,
   Ban,
@@ -47,6 +47,7 @@ import { ritornoInChat } from "./ritorno";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
 import { attaccataAllaPrecedente } from "./stile";
+import { ID_CODA, unisciConCoda } from "./invioPonte";
 import type { ConversazioneProps } from "./tipi";
 
 /** Il giorno di calendario a Roma («2026-10-28»): il CRM si legge con l'ora italiana da qualunque fuso. */
@@ -79,6 +80,17 @@ export function Conversazione({
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
   const { consultants } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  //  ── SCRIVI DAL TELEFONO (30/10/2026) ───────────────────────────────────
+  //  I messaggi messi in coda e non ancora arrivati si mescolano ai messaggi
+  //  veri SOLO per disegnarli (`voci`). `messaggi` resta quello di prima: la
+  //  risposta AI, il tasto «Rispondi con AI», «Da rispondere» e il ripiego sulle
+  //  24 ore non vedono mai la coda (una bolla in coda non è una risposta).
+  const coda = api.ponte?.coda;
+  const voci = useMemo(() => unisciConCoda(messaggi, coda ?? []), [messaggi, coda]);
+  const bolleCoda = useMemo(
+    () => new Map((coda ?? []).map((b) => [`${ID_CODA}${b.id}`, b])),
+    [coda],
+  );
   //  ── RISPOSTA AI (29/10/2026) ───────────────────────────────────────────
   //  Si scelgono 1-4 messaggi, il Mac scrive la risposta e la mette nella
   //  casella. La bozza si legge quando arriva (ref): nel frattempo si può
@@ -109,7 +121,7 @@ export function Conversazione({
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     inFondo.current = true;
-  }, [messaggi.length, attiva?.phone]);
+  }, [voci.length, attiva?.phone]);
 
   //  Come nell'app WhatsApp: se si stava guardando la fine della chat e l'area
   //  si accorcia (tastiera che si apre, risposte rapide sopra la casella), gli
@@ -398,14 +410,21 @@ export function Conversazione({
                   !ai.attivo && "pb-14 md:pb-12",
                 )}
               >
-                {messaggi.length === 0 ? (
+                {voci.length === 0 ? (
                   <div className="mt-4 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
                     Nessun messaggio ancora · scrivi il primo
                   </div>
                 ) : (
-                  messaggi.map((m, i) => {
+                  voci.map((m, i) => {
                     const d = new Date(m.created_at);
-                    const prima = i > 0 ? new Date(messaggi[i - 1].created_at) : null;
+                    const prima = i > 0 ? new Date(voci[i - 1].created_at) : null;
+                    //  La riga della coda porta il suo stato e il suo «Riprova».
+                    const bolla = bolleCoda.get(m.id);
+                    const daCoda = bolla && {
+                      ...bolla,
+                      //  Se l'esito era incerto la bolla ha già chiesto conferma.
+                      onRiprova: () => void api.ponte?.riprova(bolla.id, bolla.incerto),
+                    };
                     const nuovoGiorno =
                       !Number.isNaN(d.getTime()) && (!prima || giornoRoma(prima) !== giornoRoma(d));
                     return (
@@ -415,7 +434,7 @@ export function Conversazione({
                             {etichettaGiorno(d, adesso)}
                           </div>
                         )}
-                        {ai.attivo && m.body?.trim() ? (
+                        {ai.attivo && m.body?.trim() && !bolla ? (
                           //  In scelta: tutta la riga si tocca; il segno a sinistra
                           //  dice se è scelto (come «Seleziona» di WhatsApp).
                           <div
@@ -451,8 +470,7 @@ export function Conversazione({
                                 messaggio={m}
                                 lead={attiva.lead}
                                 attaccata={
-                                  !nuovoGiorno &&
-                                  attaccataAllaPrecedente(m, messaggi[i - 1] ?? null)
+                                  !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
                                 }
                               />
                             </div>
@@ -461,8 +479,9 @@ export function Conversazione({
                           <BollaMessaggio
                             messaggio={m}
                             lead={attiva.lead}
+                            coda={daCoda}
                             attaccata={
-                              !nuovoGiorno && attaccataAllaPrecedente(m, messaggi[i - 1] ?? null)
+                              !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
                             }
                           />
                         )}

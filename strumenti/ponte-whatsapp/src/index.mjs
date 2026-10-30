@@ -9,7 +9,13 @@
  *  In ordine: umask 077 → registro e uscite sostituite → Node 22 o 24 →
  *  `config.env` → fila → Baileys (import dinamico, solo qui) → collegamento
  *  → giro d'invio dei lotti → battito ogni 60 s. SIGTERM/SIGINT: chiude il
- *  socket, aspetta il lotto in volo, scrive `fermo`, esce.
+ *  socket, aspetta il lotto e l'eventuale invio in volo, scrive `fermo`, esce.
+ *
+ *  UN SOLO PUNTO D'INVIO (commessa 2026-10-30-ponte-invio-manuale): con
+ *  `INVII_ATTIVI=1` in config.env il ponte manda, a mano e con limiti, i testi
+ *  che il CRM mette in coda (`invio.mjs`, `inviaTesto` di `collega.mjs`); di
+ *  serie è spento e il ponte resta di sola lettura. Il ciclo parte dalla
+ *  risposta al battito (`invii_in_attesa`), non da un polling fisso.
  *
  *  ⚠️ LOG (obiezione 5 del revisore). Le librerie di cifratura scrivono con
  *   `console.*` per conto loro e i loro oggetti contengono JID e testi: qui
@@ -25,6 +31,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { creaCollegamento } from "./collega.mjs";
 import { leggiConfig } from "./config.mjs";
+import { creaInvii } from "./invio.mjs";
 import { creaFila, spedisci } from "./lotti.mjs";
 import { creaQr } from "./qr.mjs";
 
@@ -49,6 +56,7 @@ export function percorsiDi(casa) {
     app: join(base, "app"),
     auth: join(base, "auth"),
     fila: join(base, "fila"),
+    invii: join(base, "invii"),
     config: join(base, "config.env"),
     stato: join(base, "stato.json"),
     lid: join(base, "lid.json"),
@@ -150,9 +158,10 @@ export function contiDiagnosi(d) {
 /** Il battito (`BattitoPonte`, §b3) da stato del collegamento e fila: solo
  *  parole della lista chiusa, date ISO e numeri. Il QR non c'è mai.
  *  `contatori` resta entro 18 chiavi: il CRM ne tiene 20 con `in_coda` e
- *  `scartati`. Il dettaglio va in `diagnosi` (stato.json e log; la rotta del
+ *  `scartati`. `invii` = `{ invii_attivi, invii_ok, invii_ko }` di `invio.mjs`
+ *  (assente = ponte senza invii: tre zeri). Il dettaglio va in `diagnosi` (stato.json e log; la rotta del
  *  CRM non lo legge e non lo salva). */
-export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
+export function corpoBattito(ist, fc, { erroreServer = false, invii = {} } = {}) {
   let stato = ist.stato;
   if (stato === "collegato" && erroreServer) stato = "errore";
   else if (stato === "collegato" && fc.piena) stato = "coda_piena";
@@ -182,6 +191,9 @@ export function corpoBattito(ist, fc, { erroreServer = false } = {}) {
       tipo_sconosciuto: numero(d.scarti?.tipo_sconosciuto),
       fanout_ospitati: numero(d.nodi?.hosted_unavailable_fanout),
       fanout_registrati: numero(e.invii_nascosti),
+      invii_attivi: numero(invii?.invii_attivi),
+      invii_ok: numero(invii?.invii_ok),
+      invii_ko: numero(invii?.invii_ko),
     },
     versione: VERSIONE_BAILEYS,
     diagnosi: { scarti: soloConti(d.scarti), tipi: soloConti(d.tipi), nodi: soloConti(d.nodi) },
@@ -223,7 +235,7 @@ async function main() {
     await qr.notifica("config");
     process.exit(0);
   }
-  const { url, token, storicoGiorni, attesaPariSecondi } = conf.config;
+  const { url, token, storicoGiorni, attesaPariSecondi, invii: inviAttivi } = conf.config;
   const senzaInvio = process.argv.includes("--senza-invio");
   if (senzaInvio) registro("senza_invio");
 
@@ -232,12 +244,13 @@ async function main() {
 
   let erroreServer = false;
   let fermo = false;
+  let invii = null;
   let inVolo = null;
   let sveglia = null;
 
   function scriviStato() {
     try {
-      scriviJson(P.stato, { ...corpoBattito(col.istantanea(), fila.contatori(), { erroreServer }), aggiornato_il: new Date().toISOString() });
+      scriviJson(P.stato, { ...corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, invii: invii?.contatori() }), aggiornato_il: new Date().toISOString() });
     } catch {
       registro("stato_non_scritto");
     }
@@ -279,7 +292,7 @@ async function main() {
   let ultimaDiagnosi = "";
 
   async function battito() {
-    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer });
+    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { erroreServer, invii: invii?.contatori() });
     scriviStato();
     registro(`battito_${corpo.stato}`, { in_coda: corpo.in_coda, scartati: corpo.scartati, ...corpo.contatori });
     const conti = contiDiagnosi(corpo.diagnosi);
@@ -293,6 +306,7 @@ async function main() {
     }
     const r = await spedisci({ url, token, corpo });
     if (r.stato === 200) fila.segnalaBuono(); // il database risponde: un 500 ripetuto è colpa del lotto
+    if (r.stato === 200) invii?.dopoBattito(r.corpo); // «ce n'è in coda» → il ciclo degli invii
     if (r.stato === 200) erroreServer = false;
     else if (r.stato === 401 || r.stato === 503) erroreServer = true;
     if (r.stato !== 200) registro("battito_non_arrivato", { http: r.stato ?? 0 });
@@ -312,6 +326,18 @@ async function main() {
     },
   });
 
+  //  Gli invii a mano: spenti di serie (INVII_ATTIVI=0) e mai con --senza-invio.
+  invii = creaInvii({
+    url,
+    token,
+    cartella: P.invii,
+    attivo: inviAttivi === 1 && !senzaInvio,
+    collegato: () => col.istantanea().stato === "collegato",
+    inviaTesto: (numero, testo) => col.inviaTesto(numero, testo),
+    registro,
+  });
+  if (inviAttivi === 1 && !senzaInvio) registro("invii_attivi");
+
   const battiti = setInterval(() => void battito(), BATTITO_MS);
   const pulizia = setInterval(() => registro("scartati_puliti", { tolti: fila.pulisciScartati() }), GIORNO_MS);
 
@@ -322,8 +348,8 @@ async function main() {
     clearInterval(pulizia);
     if (sveglia) clearTimeout(sveglia);
     col.ferma();
-    await Promise.race([inVolo ?? Promise.resolve(), pausa(10_000)]).catch(() => {});
-    const corpo = corpoBattito(col.istantanea(), fila.contatori(), {});
+    await Promise.race([Promise.all([inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
+    const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });
     registro("fermo");
@@ -333,6 +359,7 @@ async function main() {
   process.on("SIGINT", () => void chiudi());
 
   await col.avvia();
+  void invii.avvia(); // consegna gli esiti rimasti e chiude gli invii a metà (non invia mai da sé)
   void battito();
   giro();
 }

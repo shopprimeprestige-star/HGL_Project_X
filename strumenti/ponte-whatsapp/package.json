@@ -2,7 +2,7 @@
   "name": "hgl-ponte-whatsapp",
   "version": "0.1.0",
   "private": true,
-  "description": "Ponte WhatsApp (Baileys, sola lettura) verso il CRM Hair Genius Labs. Si installa solo con `npm ci --ignore-scripts`.",
+  "description": "Ponte WhatsApp (Baileys) verso il CRM Hair Genius Labs: legge i messaggi e, solo se acceso con INVII_ATTIVI=1, manda a mano e con limiti un testo a chi ha già scritto. Si installa solo con `npm ci --ignore-scripts`.",
   "type": "module",
   "engines": {
     "node": "^22.0.0 || ^24.0.0"
