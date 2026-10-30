@@ -236,13 +236,14 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     const avvisi = [];
     const notifiche = [];
     const mostrati = [];
+    const log8 = [];
     const qrFinto = { mostra: async (t) => void mostrati.push(t), togli: () => void mostrati.push("tolto"), notifica: async (k) => void notifiche.push(k) };
     const col = K.creaCollegamento({
       baileys,
       percorsi: P,
       fila,
       qr: qrFinto,
-      registro: () => {},
+      registro: (codice, conteggi) => void log8.push([codice, conteggi]),
       orologio: () => T0,
       casuale: () => 0.5,
       pianifica: (f, ms) => timer.push({ f, ms }),
@@ -261,6 +262,27 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
       s1.opzioni.shouldSyncHistoryMessage?.({}),
       typeof s1.opzioni.shouldSyncHistoryMessage,
     ]);
+    //  T1 (30/10, ponte-storico-completo): l'identità arriva da config.env; di serie Chrome, come oggi.
+    {
+      const stato8b = join(base, "stato8b");
+      mkdirSync(stato8b, { mode: 0o700 });
+      const f = baileysFinto();
+      const colD = K.creaCollegamento({
+        baileys: f.baileys,
+        percorsi: { auth: join(stato8b, "auth"), lid: join(stato8b, "lid.json") },
+        fila: L.creaFila({ cartella: join(stato8b, "fila"), orologio: () => T0 }),
+        qr: qrFinto,
+        identita: "Desktop",
+        registro: () => {},
+        orologio: () => T0,
+        casuale: () => 0.5,
+        pianifica: () => {},
+        annulla: () => {},
+      });
+      await colD.avvia();
+      c("socket: con identita Desktop il browser è Mac OS Desktop", ["Mac OS", "Desktop"], f.socket[0].opzioni.browser.slice(0, 2));
+      c("socket: le chiavi delle opzioni restano quelle di prima (nessuna in più)", ["auth", "browser", "getMessage", "logger", "markOnlineOnConnect", "shouldSyncHistoryMessage", "syncFullHistory"], Object.keys(f.socket[0].opzioni).sort());
+    }
     c("socket: getMessage rende solo i messaggi inviati da noi (id sconosciuto → undefined)", undefined, await s1.opzioni.getMessage({ id: "X" }));
     c("auth/ creata con permessi 700", 0o700, permessi(P.auth));
     await s1.emetti("creds.update", {});
@@ -284,10 +306,16 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
       contacts: [{ id: `${C1}@s.whatsapp.net`, notify: "Cliente Uno" }],
       lidPnMappings: [{ lid: "555@lid", pn: `${C2}@s.whatsapp.net` }],
       progress: 40,
+      syncType: 2,
     });
     const lotti8 = readdirSync(join(stato8, "fila/storico")).map((f) => JSON.parse(readFileSync(join(stato8, "fila/storico", f), "utf8")).lotto);
     c("storico → in fila/storico i tre messaggi con numero", [["S1", C1], ["S2", C2], ["S3", C3]], lotti8.flatMap((l) => l.messaggi.map((m) => [m.id, m.numero])));
     c("storico → i nomi dei contatti viaggiano col lotto", "Cliente Uno", lotti8[0].nomi[C1]);
+    c("log storico: solo letti, validi e tipo (syncType, un numero); mai altro", [["storico", { letti: 6, validi: 3, tipo: 2 }]], log8.filter(([k]) => k === "storico"));
+    c("log storico: nessun testo, numero di telefono o nome", false, /Cliente|ciao|\d{9,}/.test(JSON.stringify(log8.filter(([k]) => k === "storico"))));
+    //  un syncType che non è un numero non entra nel log
+    await s1.emetti("messaging-history.set", { messages: [], syncType: "2; messaggio di prova", progress: 40 });
+    c("log storico: un syncType non numerico non viene scritto", { letti: 0, validi: 0 }, log8.filter(([k]) => k === "storico").at(-1)[1]);
     c("storico → avanzamento dal progress", { fatto: false, avanzamento: 40 }, col.istantanea().storico);
     c("estrazione: letti e validi", { letti: 6, validi: 3 }, Object.fromEntries(["letti", "validi"].map((k) => [k, col.istantanea().estrazione[k]])));
     c("diagnosi: scarti per motivo, solo numeri", { senza_numero: 1, gruppo: 1, se_stesso: 1 }, col.istantanea().diagnosi.scarti);
