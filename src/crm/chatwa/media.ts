@@ -11,6 +11,7 @@
  *      e `[^{}]` non possono mangiare, quindi non c'è più di un modo di spezzare il testo;
  *    - RIGA_SOLA   `^[\x21-\x7e]+$`: un solo quantificatore;
  *    - PERCORSO    `^/[^/]+/wa/\d{4}/\d{2}/\d{2}/[^/]+$`: i `[^/]+` non mangiano mai `/`;
+ *    - VOCALE_CON_DURATA  `^Vocale \d{1,3}:[0-5]\d$`: ancorata, quantificatori su cifre con i due punti in mezzo;
  *    - le altre sono lettere e basta. Le prove misurano il tempo (sotto 50 ms).
  *  ⚠️ Un link è un media solo se è TUTTO il testo e passa ogni controllo in
  *   ordine (D14, R8): nel dubbio resta testo, mai un link né un `src`.
@@ -76,6 +77,9 @@ const ETICHETTE: Record<string, string> = {
   allegato: "Allegato",
 };
 
+/** «Vocale 0:12»: il ponte WhatsApp scrive la durata dopo l'etichetta (minuti da 1 a 3 cifre, secondi 00-59). */
+const VOCALE_CON_DURATA = new RegExp(`^${ETICHETTE.audio} \\d{1,3}:[0-5]\\d$`);
+
 /** Le emoji che le anteprime salvate PRIMA del 28/10 hanno ancora davanti. */
 const EMOJI_VECCHIE = /^(?:🎤|📷|🎥|📎)\uFE0F?\s*/u;
 
@@ -91,7 +95,9 @@ export function mediaInAnteprima(testo: string | null | undefined): {
   //  ⚠️ L'emoji si toglie SOLO se resta un'etichetta nostra: «📷 ecco la foto
   //   della nuca» l'ha scritto il cliente e resta com'è (revisione del 28/10).
   const pulito = t.replace(EMOJI_VECCHIE, "");
-  const tipo = (Object.keys(ETICHETTE) as TipoMedia[]).find((k) => ETICHETTE[k] === pulito);
+  const tipo =
+    (Object.keys(ETICHETTE) as TipoMedia[]).find((k) => ETICHETTE[k] === pulito) ??
+    (VOCALE_CON_DURATA.test(pulito) ? "audio" : undefined);
   return tipo ? { tipo, testo: pulito } : { tipo: null, testo: t };
 }
 

@@ -33,10 +33,18 @@
  *  ⚠️ Le porte `inviatiDalCrm` e `inAttesa` NON LANCIANO MAI: con la migrazione
  *   non applicata il ponte già online importa e batte come prima. Senza
  *   `invii` questo file si comporta esattamente come prima.
+ *
+ *  Le immagini (commessa 2026-10-30-ponte-storico-completo, T5). Se la richiesta
+ *  porta `media` (le `PorteMedia`), `tipo` `media_permesso` e `media_fatto` vanno
+ *  a `gestisciMedia` (`media.ts`): il Worker dà un permesso e un indirizzo di
+ *  carico, i byte non passano di qui. Senza `media` quei due `tipo` sono corpo non
+ *  valido, come prima.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { leggiCorpoLimitato, stessaChiave } from "../manychat/ritorno";
 import { gestisciPonte } from "./invio-giro";
 import type { PorteInvio } from "./invio-tipi";
+import { gestisciMedia } from "./media";
+import type { PorteMedia } from "./media-tipi";
 import { abbinaPari } from "./pari";
 import {
   EFFETTO_MAX_GIORNI,
@@ -451,6 +459,7 @@ export async function gestisciRichiesta(
     adesso: Date;
     invii?: PorteInvio;
     avvisa?: AvvisaEntrate;
+    media?: PorteMedia;
   },
 ): Promise<Response> {
   if (!i.segreto) {
@@ -481,8 +490,10 @@ export async function gestisciRichiesta(
   const battito = tipo === "battito" ? leggiBattito(json) : null;
   //  Senza `invii` prendi ed esito non esistono: corpo non valido, come prima.
   const invio = !!i.invii && (tipo === "prendi" || tipo === "esito");
+  //  Lo stesso per i media: senza la porta `media` non esistono.
+  const immagine = !!i.media && (tipo === "media_permesso" || tipo === "media_fatto");
   const numeri = tipo === "noti" ? leggiNoti(json) : null;
-  if (!lotto && !battito && !invio && !numeri) {
+  if (!lotto && !battito && !invio && !immagine && !numeri) {
     porte.avviso("corpo_non_valido");
     return errore("corpo_non_valido");
   }
@@ -502,6 +513,7 @@ export async function gestisciRichiesta(
       return errore("non_configurato");
     }
     if (invio) return await gestisciPonte(i.invii!, userId, json, i.adesso);
+    if (immagine) return await gestisciMedia(i.media!, userId, json);
     if (lotto) {
       const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii, i.avvisa);
       porte.avviso("lotto", {

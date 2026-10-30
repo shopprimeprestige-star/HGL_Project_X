@@ -77,6 +77,22 @@ export function proveDocumentiExport(_mod, { c, gruppo, radice }) {
   dice("lo scollegamento chiede SCOLLEGA", /SCOLLEGA/);
   dice("il ritorno indietro (auth.scollegato)", /auth\.scollegato-/);
 
+  // ── La sezione «Le immagini» (T3b) ─────────────────────────────────────
+  const img = sezione(doc, "Le immagini");
+  c("la sezione «Le immagini» c'è", true, img.length > 800);
+  const diceImg = (nome, re) => c(`la guida delle immagini dice: ${nome}`, true, re instanceof RegExp ? re.test(img) : re);
+  diceImg("l'interruttore in app_config (ponte_immagini), acceso e spento", /ponte_immagini/.test(img) && /"acceso":true/.test(img) && /"acceso":false/.test(img));
+  diceImg("il tetto di 0,8 GB e il piano gratuito da 1 GB", /0,8 GB/.test(img) && /1 GB/.test(img));
+  diceImg("come controllare lo spazio (somma di byte in ponte_wa_media)", /sum\(byte\)[\s\S]*ponte_wa_media/.test(img));
+  diceImg("la riga di log immagini e i suoi contatori", /ok[\s\S]*scadute[\s\S]*errori[\s\S]*tetto[\s\S]*in_coda/.test(img));
+  diceImg("la cancellazione a mano delle foto di un numero (file prima, righe dopo)", /Cancellare le foto di un cliente/.test(img) && /delete from public\.ponte_wa_media where numero/.test(img));
+  diceImg("la coda su disco è dato cliente, non va in backup né nei log", /dato cliente/.test(img) && /backup/.test(img));
+  diceImg("come spegnere", /spegni/i.test(img));
+  diceImg("solo le foto degli ultimi 14 giorni", /14 giorni/.test(img));
+  diceImg("la migrazione è quella delle immagini e si annulla dai suoi commenti", /20261030170000_ponte_immagini/.test(img));
+  diceImg("niente richieste al telefono per i media scaduti", /non chiede mai al telefono/.test(img));
+  c("la guida delle immagini usa il numero finto e non un indirizzo e-mail", [true, 0], [/393331234567/.test(img), [...img.matchAll(/[\w.+-]+@[\w-]+\.[a-z]{2,}/gi)].length]);
+
   // ── I comandi coincidono con installa.sh ──────────────────────────────
   const sottocomandi = new Set([...installa.matchAll(/^\s+(\w+)\)\s/gm)].map((m) => m[1]));
   const etichetta = installa.match(/^ETICHETTA="([^"]+)"/m)?.[1];
@@ -110,6 +126,8 @@ export function proveDocumentiExport(_mod, { c, gruppo, radice }) {
     const dopoConfig = parteA.slice(parteA.indexOf("cambia la riga `INVII_ATTIVI=1`"), parteA.indexOf("### I passi"));
     c("PASSI: dopo aver modificato config.env si controlla con ./installa.sh stato", true, /\.\/installa\.sh stato/.test(dopoConfig));
     c("PASSI: i comandi per tornare alla sessione di prima ci sono", true, ["launchctl bootout gui/$(id -u)/it.hgl.ponte-whatsapp", "mv auth auth.nuovo-fallito", "mv auth.scollegato-<data> auth", "launchctl bootstrap gui/$(id -u)"].every((s) => parteA.includes(s)));
+    const parteB = passi.split(/\n## PARTE B/)[1] ?? "";
+    c("PASSI Parte B: interruttore, tetto 0,8, spazio, cancellazione (rimando alla guida), privacy della cartella, foto di prova", [true, true, true, true, true, true], [/ponte_immagini/.test(parteB), /0,8 GB/.test(parteB), /ponte_wa_media/.test(parteB), /Le immagini/.test(parteB), /non copiarla/.test(parteB), /Prima foto vera/.test(parteB)]);
     c("PASSI: «Non letti» non salgono, salvo messaggi veri arrivati stasera", true, /salvo[^.\n]*messaggi veri/i.test(parteA));
   }
 }

@@ -110,3 +110,25 @@ Le due prove vecchie passano **identiche** salvo quel nome: è la conferma che `
 **Cosa non prova lo script da solo:** la corsa vera fra due sessioni. Si prova a mano: con un lotto vivo scritto e committato, sessione 1 `BEGIN; SELECT ponte_wa_promuovi(u, 0); SELECT pg_sleep(4); COMMIT;` e, entro 1 secondo, sessione 2 `SELECT ponte_wa_promuovi(u, 0);`. La seconda **non aspetta** (`SKIP LOCKED`) e risponde `promosse: 0`; alla fine i non letti sono 1. Provato il 30/10/2026 su Postgres 16: sessione 1 `promosse: 1`, sessione 2 `promosse: 0`, non letti 1.
 
 Eseguito il 30/10/2026 su un Postgres 16 locale usa-e-getta con tutte le 74 migrazioni di prima: `ponte-tutte.sql` 43 `ok`; `ponte-wa-v2` 25 `ok`; `ponte-invio-v2` 73 `ok`.
+
+## `ponte-immagini.sql` (T4 della commessa 2026-10-30-ponte-storico-completo, le immagini del ponte)
+
+Serve un database di prova con **tutte** le migrazioni applicate in ordine, compresa `20261030170000_ponte_immagini.sql` (lo script la riapplica altre due volte), e con lo schema `storage` (`buckets` e `objects`: `supabase start` ce l'ha; il banco usa-e-getta `commesse/2026-10-30-ottimizzazioni/strumenti/pg-prova.sh` lo imita). Un solo passo, dalla radice del repo:
+
+```sh
+bash "<cartella commesse>/2026-10-30-ottimizzazioni/strumenti/pg-prova.sh" "$PWD" prove/sql/ponte-immagini.sql
+# oppure, su un database già pronto:
+psql "$DB" -f prove/sql/ponte-immagini.sql
+```
+
+Gira in una transazione che finisce con `ROLLBACK`; ogni controllo stampa `ok  <nome>`, al primo sbagliato si ferma con `KO <nome>: atteso …, avuto …`. Uscita attesa: 56 righe `ok` (più `migrazioni ok=N ko=0` dello script) e in fondo `TUTTI I CONTROLLI DELLE IMMAGINI PASSANO`. Gli «oggetti» di Storage sono righe finte in `storage.objects`.
+
+Cosa prova: il bucket `ponte-media` (privato, 8 MiB, solo jpeg/png/webp, né SVG né HTML; la migrazione non aggiunge policy a `storage.objects` e nessuna nomina `ponte-media`); il seme di `app_config` (spento di serie, 0,8 GB, in testo; riapplicata non riscrive una scelta già fatta); `ponte_wa_media_permesso` (tipo e peso fuori lista → rifiuto senza riga; chiave, numero o utente non validi → errore, mai una riga; percorso `<user_id>/<uuid>.<ext>` senza il numero; stessa chiave due volte → stesso percorso e una sola riga; foto già pronta → `gia_presente` anche a tetto zero; **tetto**: solo `ponte-media`, peso vero degli oggetti e non il dichiarato, inclusivo, tetto nullo o zero → rifiuto, un caricamento in corso di 3 ore non conta e uno di 1 ora e 59 sì; **ripresa** di un caricamento riuscito ma non confermato); `ponte_wa_media_fatto` (senza oggetto resta `in_caricamento`; con l'oggetto prende **il peso di `metadata.size`** anche se il dichiarato era 1; altro bucket, peso illeggibile o oltre 8 MiB non valgono; un altro utente non chiude la riga altrui); `anon` e `authenticated` senza `EXECUTE`; `authenticated` legge solo le sue righe e non scrive; la policy ha la stessa forma di quella di `whatsapp_messages`; nessuna scrittura su `whatsapp_messages` né `whatsapp_contacts`.
+
+Se un controllo dice `KO`, **la migrazione delle immagini non va applicata in produzione**: l'uscita va in LAVAGNA.
+
+## `ponte-reimport.sql` (T4, il «secondo import» dopo il ricollegamento)
+
+Serve un database di prova con **tutte** le migrazioni applicate (il file non ne applica: usa `ponte_wa_scrivi` v2, `ponte_wa_ritira`, `ponte_wa_promuovi`, `ponte_wa_candidati`). Lo stesso comando di sopra, con `prove/sql/ponte-reimport.sql`. Uscita attesa: 33 righe `ok` e `TUTTI I CONTROLLI DEL SECONDO IMPORT PASSANO`.
+
+Cosa prova (il mondo è descritto in testa al file): un lotto «storico» con una riga già importata, una già nascosta, una **visibile e già promossa** il cui pari ManyChat compare dopo, un vecchio mai importato uguale a una riga ManyChat (−5 s) e uno a 4 minuti, ripassato **due volte**. La prima volta `nuovi` sono solo i mai visti; il vecchio uguale entra nascosto, quello a 4 minuti visibile; la riga già nascosta mantiene il suo `duplicato_di` (anche se si offre un altro pari); la riga promossa con il pari tardivo prende `duplicato_di`, `promosso_il` si svuota e i non letti scendono di **uno, una volta sola** (2 → 1). La seconda volta tutto `gia_presenti`, nessun secondo −1, nemmeno rilanciando gli stessi pari. Invariati: `lead_id`, `non_scrivere_dal`, `risposto_il`, `ultimo_in_entrata_*`, `subscriber_id`, nome e `last_message_at` di tutti i contatti (l'unico a cambiare è quello della riga promossa, e solo nei non letti); lo storico non scrive `attesa_dal` né `promosso_il`; `ponte_wa_promuovi` dopo il reimport → 0. Le **tre misure di b.4** girano sul mondo inventato: doppioni esterni prima/dopo (1 e 1, ma sono righe diverse: la sonda a 600 s vede quella a 4 minuti, l'abbinamento a 180 s no, di proposito), interni 0 (1 se si inserisce lo stesso id con due numeri), segnaposto `-nd` 0 (1 con un segnaposto).

@@ -204,4 +204,22 @@ export async function proveChatMedia(mod, { c, gruppo }) {
   c("150 emoji → 100 emoji + «…»", "😀".repeat(100) + "…", anteprimaIn("😀".repeat(150)));
   const fine = anteprimaIn("😀".repeat(150));
   c("  nessuna metà di coppia surrogata", false, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(fine));
+
+  // ── IL VOCALE CON LA DURATA DEL PONTE (T6, 30/10/2026) ───────────────────────
+  //  Il ponte scrive «🎤 Vocale 0:12»: la chat lo mostra come «Vocale 0:12» con l'icona del vocale.
+  gruppo("CHAT MEDIA · «VOCALE 0:12» DEL PONTE");
+  const { mediaInAnteprima } = mod["chatwa/media"];
+  c("«🎤 Vocale 0:12» → vocale, testo «Vocale 0:12»", { tipo: "audio", testo: "Vocale 0:12" }, mediaInAnteprima("🎤 Vocale 0:12"));
+  c("«Vocale 0:12» (senza emoji) → vocale", { tipo: "audio", testo: "Vocale 0:12" }, mediaInAnteprima("Vocale 0:12"));
+  c("«🎤 Vocale 62:05» e «Vocale 999:59»", [{ tipo: "audio", testo: "Vocale 62:05" }, { tipo: "audio", testo: "Vocale 999:59" }], [mediaInAnteprima("🎤 Vocale 62:05"), mediaInAnteprima("Vocale 999:59")]);
+  c("«🎤 Vocale» senza durata: come prima", { tipo: "audio", testo: "Vocale" }, mediaInAnteprima("🎤 Vocale"));
+  for (const t of ["Vocale 0:1", "Vocale 0:123", "Vocale 1000:00", "Vocale 0:60", "Vocale 0:12 grazie", "Vocale  0:12", "Vocale 0:12\n", "vocale 0:12", "Vocale -1:00", "Vocale :12", "🎤 Vocale 0:12 ok"]) {
+    c(`«${t.replace("\n", "\\n")}» resta testo (lo ha scritto il cliente o non è nostro)`, { tipo: null, testo: t }, mediaInAnteprima(t));
+  }
+  const lungo = "Vocale " + "1".repeat(50000) + ":00";
+  const da2 = performance.now();
+  mediaInAnteprima(lungo);
+  mediaInAnteprima("🎤 ".repeat(20000) + "Vocale 0:12");
+  c("«Vocale » + 50000 cifre: sotto 50 ms", true, performance.now() - da2 < 50);
+  c("anteprimaIn lascia passare «🎤 Vocale 0:12» (è testo corto)", "🎤 Vocale 0:12", anteprimaIn("🎤 Vocale 0:12"));
 }
