@@ -141,6 +141,20 @@ export async function proveControlloNotte(_mod, { c, gruppo, radice }) {
     { aperte: 2, scadute: 1 },
     finestra,
   );
+  //  Una reazione (anteprima senza testo) non apre una finestra: non è «aperta» né «scaduta».
+  c(
+    "solo una reazione: né aperta né scaduta; un testo vero sì",
+    { aperte: 1, scadute: 0 },
+    R.finestra24h(
+      [
+        { ...contatto(fa(2 * ORA)), ultimo_in_entrata_anteprima: "Reazione, sticker o posizione: aprila in ManyChat" },
+        { ...contatto(fa(30 * ORA)), ultimo_in_entrata_anteprima: "[messaggio senza testo]" },
+        { ...contatto(fa(2 * ORA)), ultimo_in_entrata_anteprima: "Buongiorno" },
+      ],
+      VENERDI,
+      dal,
+    ),
+  );
   c(
     "settimana: le chiuse senza risposta di 7 giorni",
     { aperte: 0, scadute: 2 },

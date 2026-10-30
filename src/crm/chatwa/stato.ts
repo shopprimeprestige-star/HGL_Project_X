@@ -11,6 +11,7 @@
  *  (campi in più, tutti facoltativi) senza togliere niente a quelli del T0.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { CANALE_PONTE } from "../ponte/tipi";
+import { entrataPerFinestra, eEntrataVera } from "./entrata-vera";
 import { eSoloSegnaposto } from "./media";
 
 /** Un istante: testo ISO, millisecondi o `Date`. */
@@ -160,10 +161,14 @@ export function attesaInChiaro(dal: Istante | null, adesso: Istante): string {
 /** La finestra di 24 ore dall'ultimo messaggio in entrata (D15). */
 export function finestra24(i: IngressoStato): Finestra24 {
   // La colonna se c'è; altrimenti il più recente inbound caricato (anche un segnaposto: il cliente ha scritto).
-  let ultimo = ms(i.contatto?.ultimo_in_entrata_il);
-  if (ultimo === null) {
+  //  ⚠️ Una reazione («[messaggio senza testo]») non riapre la finestra (30/10/2026, vedi
+  //   `entrata-vera`): se l'ultima entrata era senza testo vale l'ultimo messaggio vero fra quelli
+  //   caricati. shortcut: se è più vecchio dei messaggi caricati la finestra risulta chiusa (modello),
+  //   mai aperta per errore; cambiarla se la chat caricasse meno di 24 ore di messaggi.
+  let ultimo = ms(entrataPerFinestra(i.contatto, i.messaggi));
+  if (ultimo === null && ms(i.contatto?.ultimo_in_entrata_il) === null) {
     for (const m of i.messaggi) {
-      if (eRigaPonte(m)) continue;
+      if (eRigaPonte(m) || !eEntrataVera(m.body)) continue;
       const t = ms(m.created_at);
       if (m.direction === "inbound" && t !== null && (ultimo === null || t > ultimo)) ultimo = t;
     }

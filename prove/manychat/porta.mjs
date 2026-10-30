@@ -705,6 +705,68 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         [chat.f.percorsi().includes(PERCORSI.testo), chat.f.percorsi().includes(PERCORSI.flusso)],
       );
     }
+    //  ── UNA REAZIONE NON APRE LA FINESTRA (30/10/2026) ───────────────────
+    //  Reazione, sticker o posizione: ManyChat li salva come «[messaggio senza
+    //  testo]» e il testo libero non arriva mai. La porta legge l'ultima entrata
+    //  VERA con lo stesso pezzo del server (`entrateVere`): qui il database finto.
+    {
+      const F = mod["chatwa/entrata-vera"];
+      const SENZA = "Reazione, sticker o posizione: aprila in ManyChat";
+      const conContatto = (oreFa, anteprima, messaggi = [], o = {}) => {
+        const x = creaPorte(o);
+        const adessoMs = () => x.orologio.ms;
+        const iso = (ore) => new Date(adessoMs() - ore * 3600_000).toISOString();
+        x.porte.ultimaEntrata = async () => {
+          const righe = [
+            { phone_e164: `+${NUMERO}`, ultimo_in_entrata_il: iso(oreFa), ultimo_in_entrata_anteprima: anteprima },
+          ];
+          const vere = await F.entrateVere(righe, async () =>
+            messaggi.map((m) => ({
+              from_number: `+${NUMERO}`,
+              direction: "inbound",
+              canale: "manychat",
+              body: m.body,
+              created_at: iso(m.oreFa),
+            })),
+          );
+          return vere[0].ultimo_in_entrata_il;
+        };
+        return x;
+      };
+      const usa = (x) => [x.f.percorsi().includes(PERCORSI.testo), x.f.percorsi().includes(PERCORSI.flusso)];
+
+      const reazione = conContatto(2, SENZA);
+      await invia(reazione, conferma);
+      c("solo una reazione 2 ore fa (nessun altro testo): parte il MODELLO, non il testo", [false, true], usa(reazione));
+      const grezzo = conContatto(2, "[messaggio senza testo]");
+      await invia(grezzo, conferma);
+      c("…anche con l'anteprima scritta com'era prima del 28/10", [false, true], usa(grezzo));
+      const vuota = conContatto(2, "");
+      await invia(vuota, conferma);
+      c("…e con l'anteprima vuota", [false, true], usa(vuota));
+      const testo = conContatto(2, "Buongiorno, volevo spostare");
+      await invia(testo, conferma);
+      c("testo vero 2 ore fa: parte il TESTO", [true, false], usa(testo));
+      const vocale = conContatto(2, "Vocale");
+      await invia(vocale, conferma);
+      c("vocale o foto (media con link) 2 ore fa: la finestra è aperta, parte il TESTO", [true, false], usa(vocale));
+      const vecchio = conContatto(1, SENZA, [{ oreFa: 5, body: "Ciao, sono io" }, { oreFa: 1, body: "[messaggio senza testo]" }]);
+      await invia(vecchio, conferma);
+      c("reazione 1 ora fa ma testo vero 5 ore fa: la finestra è aperta dal testo, parte il TESTO", [true, false], usa(vecchio));
+      const scaduto = conContatto(1, SENZA, [{ oreFa: 30, body: "Ciao" }]);
+      await invia(scaduto, conferma);
+      c("reazione 1 ora fa e testo vero 30 ore fa: finestra chiusa, parte il MODELLO", [false, true], usa(scaduto));
+      const guasta = conContatto(2, SENZA);
+      guasta.porte.ultimaEntrata = async () => {
+        const v = await F.entrateVere(
+          [{ phone_e164: `+${NUMERO}`, ultimo_in_entrata_il: new Date(guasta.orologio.ms).toISOString(), ultimo_in_entrata_anteprima: SENZA }],
+          async () => Promise.reject(new Error("db giù")),
+        );
+        return v[0].ultimo_in_entrata_il;
+      };
+      await invia(guasta, conferma);
+      c("reazione e lettura dei messaggi guasta: nel dubbio il MODELLO", [false, true], usa(guasta));
+    }
     //  ── TESTO LIBERO DEL CONSULENTE (commessa 2026-10-30-messaggio-per-stato) ──
     {
       const conEntrata = (ore, o = {}) => {
