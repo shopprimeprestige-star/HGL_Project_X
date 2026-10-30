@@ -279,6 +279,7 @@ export function PannelloOggi({
                       onElimina={elimina}
                       onSposta={(id, data, ora) => void gesto({ tipo: "sposta", id, data, ora })}
                       occupato={salvando}
+                      compatta
                     />
                   ))}
                 </ul>

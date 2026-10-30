@@ -135,4 +135,15 @@ export function provePannelloOggi(mod, { c, gruppo, radice }) {
       /<WhatsAppLeadsPanel\b/.test(pan) &&
       /vistaOggi\(/.test(pan),
   );
+  c(
+    "nel pannello le righe da fare sono nella variante compatta",
+    true,
+    /<VoceDaFare[\s\S]{0,600}\bcompatta\b/.test(pan),
+  );
+  const dafare = readFileSync(join(radice, "src/routes/CRM.dafare.tsx"), "utf8");
+  c(
+    "la pagina «Da fare oggi» non usa la variante compatta (resta identica)",
+    false,
+    /\bcompatta\b/.test(dafare),
+  );
 }
