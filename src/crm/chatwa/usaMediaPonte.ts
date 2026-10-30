@@ -284,16 +284,14 @@ export function useMediaPonte(
     const ctrl = new AbortController();
     annulla.current = ctrl;
     setAzione({ fase: "carico" });
-    void caricaFoto(id, { chiedi: fetchCRM, scarica: fetch, segnale: ctrl.signal }).then(
-      (e) => {
-        inCorso.current = false;
-        if (!vivo.current) return;
-        if (!e.ok) return setAzione({ fase: "errore", frase: e.frase, riprova: e.riprova });
-        const src = URL.createObjectURL(e.blob);
-        blobUrl.current = src;
-        setAzione({ fase: "vista", src });
-      },
-    );
+    void caricaFoto(id, { chiedi: fetchCRM, scarica: fetch, segnale: ctrl.signal }).then((e) => {
+      inCorso.current = false;
+      if (!vivo.current) return;
+      if (!e.ok) return setAzione({ fase: "errore", frase: e.frase, riprova: e.riprova });
+      const src = URL.createObjectURL(e.blob);
+      blobUrl.current = src;
+      setAzione({ fase: "vista", src });
+    });
   }, [chiave, libera, leggi]);
 
   const nonSiApre = useCallback(() => {
