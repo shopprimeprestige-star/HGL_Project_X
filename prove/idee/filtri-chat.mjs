@@ -32,7 +32,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       unread: o.unread ?? 0,
       lead: data ? { data } : null,
       finestra: o.aperta === undefined ? null : { aperta: o.aperta },
-      daRispondere: { attesa: o.attesa === true, vecchia: o.vecchia === true },
+      daRispondere: { attesa: o.attesa === true },
       stelle: o.stelle ?? 0,
     };
   };
@@ -40,8 +40,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     chat({ attesa: true, unread: 2, stato: "attesa_whatsapp", consulente: "luca" }),
     chat({ attesa: true, unread: 1, stato: "attesa_whatsapp", acconto: 100, stelle: 2 }),
     chat({ attesa: true, stato: "appuntamento_fissato", aperta: true, consulente: "luca" }),
-    chat({ vecchia: true, stato: "sta_valutando", unread: 1 }),
-    chat({ vecchia: true, senzaScheda: true }),
+    chat({ attesa: true, stato: "sta_valutando", unread: 1 }),
+    chat({ attesa: true, senzaScheda: true }),
     chat({ stato: "appuntamento_fissato", aperta: false, consulente: "anna", stelle: 3 }),
     chat({ stato: "appuntamento_rifissato", aperta: false, acconto: 50 }),
     chat({ stato: "da_chiamare", consulente: "luca", stelle: 1 }),
@@ -66,7 +66,6 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
 
   gruppo("FILTRI CHAT: NIENTE DI OGGI SPARISCE (ogni voce vecchia, da sola, dà le stesse chat)");
   const vecchioNuovo = [
-    ["unread", con({ coda: "non-letti" })],
     ["with-lead", con({ tipo: "con-scheda" })],
     ["unknown", con({ tipo: "senza-scheda" })],
     ["da-chiamare", con({ coda: "da-chiamare" })],
@@ -112,9 +111,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     indice(passano(con({ fase: "attesa-whatsapp", acconto: true }))),
   );
   c(
-    "Non letti + Con stelle (scenario del titolare): solo chi ha entrambi",
-    indice(mondo.filter((x) => x.unread > 0 && x.stelle > 0)),
-    indice(passano(con({ coda: "non-letti", stelle: true }))),
+    "Da rispondere + Con stelle: solo chi ha entrambi",
+    indice(mondo.filter((x) => x.daRispondere.attesa && x.stelle > 0)),
+    indice(passano(con({ coda: "da-rispondere", stelle: true }))),
   );
   c(
     "«Con stelle» ora si combina con una fase (prima la spegneva)",
@@ -126,8 +125,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     indice(
       mondo.filter(
         (x) =>
-          (x.daRispondere.attesa || x.daRispondere.vecchia) &&
-          x.lead?.data?.consulenteId === "luca",
+          x.daRispondere.attesa && x.lead?.data?.consulenteId === "luca",
       ),
     ),
     indice(passano(con({ coda: "da-rispondere", consulente: "luca" }))),
@@ -315,18 +313,18 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   c("nessuna combinazione mostra un numero maggiore di zero con l'elenco vuoto", 0, positiviVuoti);
   c(
-    "scenario del titolare: «Non letti», poi «Con stelle» = esattamente le righe dell'elenco",
-    [indice(mondo.filter((x) => x.unread > 0 && x.stelle > 0)).length, true],
+    "«Da rispondere», poi «Con stelle» = esattamente le righe dell'elenco",
+    [indice(mondo.filter((x) => x.daRispondere.attesa && x.stelle > 0)).length, true],
     [
-      F.contaVoce(mondo, con({ coda: "non-letti" }), stelleDi, "stelle", true),
-      F.contaVisibili(mondo, con({ coda: "non-letti", stelle: true }), stelleDi) ===
-        F.contaVoce(mondo, con({ coda: "non-letti" }), stelleDi, "stelle", true),
+      F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "stelle", true),
+      F.contaVisibili(mondo, con({ coda: "da-rispondere", stelle: true }), stelleDi) ===
+        F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "stelle", true),
     ],
   );
   c(
     "il numero di una voce sostituisce il suo gruppo (non si somma a se stesso)",
     F.contaVoce(mondo, V, stelleDi, "coda", "da-chiamare"),
-    F.contaVoce(mondo, con({ coda: "non-letti" }), stelleDi, "coda", "da-chiamare"),
+    F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "coda", "da-chiamare"),
   );
   c(
     "il numero di «Da chiamare» tiene conto degli altri gruppi (consulente Anna)",
@@ -348,14 +346,13 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
 
   gruppo("FILTRI CHAT: «DA RISPONDERE» È ANCHE UN FILTRO");
   const attesa = mondo.filter((x) => x.daRispondere.attesa);
-  const vecchie = mondo.filter((x) => x.daRispondere.vecchia);
   c(
-    "fa passare chi aspetta e le chat ferme da oltre 7 giorni (il loro riquadro, in fondo)",
-    indice([...attesa, ...vecchie].sort((a, b) => mondo.indexOf(a) - mondo.indexOf(b))),
+    "fa passare chi aspetta (l'ultimo messaggio è del cliente), senza altri riquadri",
+    indice(attesa),
     indice(passano(con({ coda: "da-rispondere" }))),
   );
   c(
-    "il numero della voce è quello del riquadro «Da rispondere»: solo chi aspetta",
+    "il numero della voce è quello del riquadro «Da rispondere»: gli stessi",
     attesa.length,
     F.contaVoce(mondo, V, stelleDi, "coda", "da-rispondere"),
   );
@@ -383,8 +380,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     F.GRUPPI_FILTRI.map((g) => g.titolo),
   );
   c(
-    "le 4 voci sempre in vista, in ordine",
-    ["Da rispondere", "Non letti", "Da chiamare", "Con stelle"],
+    "le 3 voci sempre in vista, in ordine (niente «Non letti»)",
+    ["Da rispondere", "Da chiamare", "Con stelle"],
     F.VOCI_GRIGLIA.map((v) => v.nome),
   );
   const nomi = F.GRUPPI_FILTRI.flatMap((g) => g.voci.map((v) => v.nome));
@@ -438,9 +435,10 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
 
   gruppo("FILTRI CHAT: COSA SI RICORDA, E I VALORI SALVATI CHE NON ESISTONO PIÙ");
-  const salvati = con({ coda: "non-letti", fase: NO_SHOW, acconto: true, consulente: "luca" });
+  const salvati = con({ coda: "da-rispondere", fase: NO_SHOW, acconto: true, consulente: "luca" });
   const giro = F.leggiFiltri(F.scriviFiltriSessione(salvati), "luca");
   c("scritti e riletti sono uguali", salvati, giro);
+  c("un «non-letti» salvato da una versione vecchia si ignora", null, F.leggiFiltri(JSON.stringify({ coda: "non-letti" }), null).coda);
   c(
     "il consulente NON sta nella sessione (ha il suo posto, che resta dopo la chiusura)",
     false,
@@ -487,7 +485,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   c(
     "gli altri filtri non cambiano nel controllo del consulente",
-    "non-letti",
+    "da-rispondere",
     F.filtriValidi(salvati, new Set()).coda,
   );
 
@@ -547,8 +545,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "i titoli dei riquadri sono quelli nuovi",
     true,
-    /Senza risposta da oltre 7 giorni \(\{vecchie\.length\}\)/.test(elenco) &&
-      /Da rispondere \(\{inAttesa\.length\}\)/.test(elenco) &&
+    /Da rispondere \(\{inAttesa\.length\}\)/.test(elenco) &&
       /"Con stelle" : "Altre chat"/.test(elenco) &&
       /non di questo consulente/.test(elenco),
   );
@@ -570,16 +567,37 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     /role="status" aria-live="polite"/.test(elenco) && /\$\{trovate\.length\} chat/.test(elenco),
   );
   c(
-    "griglia 2×2 dei quattro pulsanti, aria-pressed",
+    "riga unica dei filtri rapidi: scorre di lato, tasti da 44 px (h-11), aria-pressed",
     true,
-    /grid grid-cols-2 gap-2/.test(elenco) &&
+    /flex gap-2 overflow-x-auto/.test(elenco) &&
       /aria-pressed=\{acceso\}/.test(elenco) &&
-      /VOCI_GRIGLIA/.test(elenco),
+      /VOCI_RIGA\.map/.test(elenco) &&
+      !/grid grid-cols-2/.test(elenco) &&
+      (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "nessuna fila che scorre di lato (né pastiglie né chip)",
-    false,
-    /overflow-x-auto|snap-x|mask-image/.test(elenco + pannello),
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti"],
+    F.VOCI_RIGA.map((v) => v.nome),
+  );
+  {
+    const tasto = readFileSync(join(process.cwd(), "src/crm/chatwa/PannelloFiltri.tsx"), "utf8");
+    c(
+      "con un consulente scelto il tasto «Filtri» ne porta il nome («Filtri · Giulia»), anche per lo screen reader",
+      true,
+      /p\.consulenti\.find\(\(x\) => x\.id === p\.filtri\.consulente\)/.test(tasto) &&
+        /\{consulente && \(/.test(tasto) &&
+        /consulente \$\{consulente\}/.test(tasto),
+    );
+  }
+  c("«Tutte» è il primo tasto della riga", true, elenco.indexOf(">\n          Tutte\n") < elenco.indexOf("VOCI_RIGA.map"));
+  c(
+    "«Sconosciuti» è lo stesso filtro di «Senza scheda»: stesse chat, e senza «Non letti» nella riga",
+    [indice(mondo.filter((x) => !x.lead)), false],
+    [
+      indice(passano(con({ tipo: "senza-scheda" }))),
+      F.VOCI_RIGA.some((v) => /letti/i.test(v.nome)),
+    ],
   );
   c(
     "stato della chiamata e quando richiamare: ci sono, i chip vanno a capo",

@@ -24,11 +24,11 @@ export async function proveChatStato(mod, { c, gruppo }) {
   {
     const r = dr({ ultimo_in_entrata_il: fa(10 * MIN), ultimo_in_entrata_anteprima: "Buongiorno", risposto_il: fa(2 * ORA) });
     c("entrata dopo la risposta: in attesa, dal = entrata, fonte colonne",
-      { attesa: true, vecchia: false, dal: fa(10 * MIN), anteprima: "Buongiorno", fonte: "colonne" }, r);
+      { attesa: true, dal: fa(10 * MIN), anteprima: "Buongiorno", fonte: "colonne" }, r);
   }
   c("risposta dopo l'entrata: non in attesa",
-    [false, false, null, "colonne"],
-    ((r) => [r.attesa, r.vecchia, r.dal, r.fonte])(dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: fa(10 * MIN) })));
+    [false, null, "colonne"],
+    ((r) => [r.attesa, r.dal, r.fonte])(dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: fa(10 * MIN) })));
   c("risposta nello stesso istante dell'entrata: non in attesa",
     false, dr({ ultimo_in_entrata_il: fa(5 * MIN), risposto_il: fa(5 * MIN) }).attesa);
   c("risposto vuoto (null): in attesa", true, dr({ ultimo_in_entrata_il: fa(5 * MIN), risposto_il: null }).attesa);
@@ -38,8 +38,8 @@ export async function proveChatStato(mod, { c, gruppo }) {
     const r = dr({ ultimo_in_entrata_il: fa(3 * MIN), risposto_il: fa(ORA) });
     c("il cliente riscrive dopo la risposta: rientra col nuovo orario", [true, fa(3 * MIN)], [r.attesa, r.dal]);
   }
-  c("in attesa da più di 7 giorni con le colonne: resta in attesa, mai `vecchia` (l'attesa non ha limite)",
-    [true, false], ((r) => [r.attesa, r.vecchia])(dr({ ultimo_in_entrata_il: fa(30 * GIORNO) })));
+  c("in attesa da più di 7 giorni con le colonne: resta in attesa (l'attesa non ha limite)",
+    true, dr({ ultimo_in_entrata_il: fa(30 * GIORNO) }).attesa);
   c("STOP non lo toglie: la funzione non conosce lo stop e resta in attesa",
     true, dr({ ultimo_in_entrata_il: fa(MIN), risposto_il: null, non_scrivere_dal: fa(ORA) }).attesa);
   c("le colonne contano più dei messaggi caricati (un'uscita nei messaggi non cambia)",
@@ -53,32 +53,29 @@ export async function proveChatStato(mod, { c, gruppo }) {
   {
     const r = dr(null, [msg("outbound", 3 * GIORNO), msg("inbound", 2 * GIORNO, "Salve")]);
     c("colonne assenti + inbound di 2 giorni fa: in attesa, fonte messaggi",
-      { attesa: true, vecchia: false, dal: fa(2 * GIORNO), anteprima: "Salve", fonte: "messaggi" }, r);
+      { attesa: true, dal: fa(2 * GIORNO), anteprima: "Salve", fonte: "messaggi" }, r);
   }
   c("contatto con le colonne vuote (non null) = come colonne assenti",
     ["messaggi", true],
     ((r) => [r.fonte, r.attesa])(dr({ ultimo_in_entrata_il: null, risposto_il: null }, [msg("inbound", GIORNO)])));
   {
     const r = dr(null, [msg("inbound", 8 * GIORNO, "Vecchio")]);
-    c("inbound di 8 giorni fa: non in attesa ma `vecchia`", [false, true, "messaggi"], [r.attesa, r.vecchia, r.fonte]);
-    c("…e `dal`/`anteprima` restano visibili alla riga «più di 7 giorni»", [fa(8 * GIORNO), "Vecchio"], [r.dal, r.anteprima]);
+    c("inbound di 8 giorni fa: in attesa lo stesso (nessun limite di età), con `dal` e anteprima", [true, "messaggi", fa(8 * GIORNO), "Vecchio"], [r.attesa, r.fonte, r.dal, r.anteprima]);
   }
-  c("esattamente 7 giorni: ancora in attesa", true, dr(null, [msg("inbound", 7 * GIORNO)]).attesa);
-  c("poco oltre 7 giorni: `vecchia`", [false, true],
-    ((r) => [r.attesa, r.vecchia])(dr(null, [msg("inbound", 7 * GIORNO + MIN)])));
-  c("ultimo messaggio outbound dopo l'inbound: non in attesa e non `vecchia`",
-    [false, false, null],
-    ((r) => [r.attesa, r.vecchia, r.fonte])(dr(null, [msg("inbound", 2 * ORA), msg("outbound", ORA)])));
+  c("anche un inbound di un anno fa, senza risposta, è in attesa", true, dr(null, [msg("inbound", 365 * GIORNO)]).attesa);
+  c("ultimo messaggio outbound dopo l'inbound: non in attesa",
+    [false, null],
+    ((r) => [r.attesa, r.fonte])(dr(null, [msg("inbound", 2 * ORA), msg("outbound", ORA)])));
   c("…neanche se l'inbound è vecchio di 8 giorni",
-    [false, false], ((r) => [r.attesa, r.vecchia])(dr(null, [msg("inbound", 8 * GIORNO), msg("outbound", 7 * GIORNO)])));
+    false, dr(null, [msg("inbound", 8 * GIORNO), msg("outbound", 7 * GIORNO)]).attesa);
   c("uscita nello stesso istante dell'entrata (ripiego): vale come risposta, come nelle colonne",
-    [false, false], ((r) => [r.attesa, r.vecchia])(dr(null, [msg("inbound", ORA), msg("outbound", ORA)])));
+    false, dr(null, [msg("inbound", ORA), msg("outbound", ORA)]).attesa);
   c("outbound PRIMA dell'inbound: l'inbound è senza risposta", true,
     dr(null, [msg("outbound", 3 * ORA), msg("inbound", ORA)]).attesa);
   c("i messaggi non sono ordinati: conta il più recente per data, non per posizione",
     [true, fa(ORA)],
     ((r) => [r.attesa, r.dal])(dr(null, [msg("inbound", ORA), msg("inbound", 5 * ORA), msg("outbound", 3 * ORA)])));
-  c("nessun messaggio: tutto vuoto", { attesa: false, vecchia: false, dal: null, anteprima: null, fonte: null }, dr(null, []));
+  c("nessun messaggio: tutto vuoto", { attesa: false, dal: null, anteprima: null, fonte: null }, dr(null, []));
   c("solo messaggi in uscita: non in attesa", false, dr(null, [msg("outbound", ORA)]).attesa);
   // {{...}} come ultimo inbound: ignorato, vale l'inbound vero precedente
   c("`{{last_input_text}}` come ultimo inbound: ignorato (non conta)", false,
@@ -93,28 +90,41 @@ export async function proveChatStato(mod, { c, gruppo }) {
   // «Fatto» premuto su una chat vecchia (colonne vuote ma `risposto_il` scritto)
   c("«Fatto» dopo l'inbound, colonne d'entrata vuote: non in attesa",
     false, dr({ ultimo_in_entrata_il: null, risposto_il: fa(10 * MIN) }, [msg("inbound", ORA)]).attesa);
-  c("«Fatto» dopo un inbound di 8 giorni: non `vecchia` (l'ha già gestita)",
-    [false, false], ((r) => [r.attesa, r.vecchia])(dr({ risposto_il: fa(GIORNO) }, [msg("inbound", 8 * GIORNO)])));
+  c("«Fatto» dopo un inbound di 8 giorni: non in attesa (l'ha già gestita)",
+    false, dr({ risposto_il: fa(GIORNO) }, [msg("inbound", 8 * GIORNO)]).attesa);
   c("il cliente riscrive dopo il «Fatto»: rientra",
     true, dr({ risposto_il: fa(2 * ORA) }, [msg("inbound", ORA)]).attesa);
 
-  /* ── contaVecchie ──────────────────────────────────────────────────────── */
-  gruppo("CHAT · LE VECCHIE (R10)");
+  /* ── LA REGOLA UNICA (30/10/2026) ──────────────────────────────────────── */
+  gruppo("CHAT · DA RISPONDERE: L'ULTIMO MESSAGGIO È DEL CLIENTE (regola unica)");
   {
-    const righe = [
-      dr(null, [msg("inbound", 8 * GIORNO)]), // vecchia
-      dr(null, [msg("inbound", 20 * GIORNO)]), // vecchia
-      dr(null, [msg("inbound", ORA)]), // in attesa vera (messaggi)
-      dr(null, [msg("inbound", 2 * GIORNO)]), // in attesa vera (messaggi)
-      dr({ ultimo_in_entrata_il: fa(30 * GIORNO) }), // colonne: in attesa vera
-      dr(null, [msg("inbound", 9 * GIORNO), msg("outbound", 8 * GIORNO)]), // già risposta
-      dr({ risposto_il: fa(GIORNO) }, [msg("inbound", 8 * GIORNO)]), // «Fatto»
-      dr(null, []), // niente
-    ];
-    //  3 in attesa vere, 2 vecchie: se si contasse `attesa` (3) o tutto (5) non tornerebbe.
-    c("contaVecchie conta solo `vecchia` (non quelle in attesa vere né quelle risposte)", 2, S.contaVecchie(righe));
-    c("…le in attesa vere sono 3, diverse dalle vecchie", 3, righe.filter((r) => r.attesa).length);
-    c("contaVecchie([]) = 0", 0, S.contaVecchie([]));
+    const ponte = (direction, ms, body, canale = "baileys") => ({ direction, body, created_at: fa(ms), canale });
+    c("il cliente scrive e nessuno risponde: in attesa", true, dr({ ultimo_in_entrata_il: fa(5 * MIN) }).attesa);
+    c("finestra di 24 ore CHIUSA (entrata di 3 giorni fa): in attesa lo stesso", true, dr({ ultimo_in_entrata_il: fa(3 * GIORNO) }).attesa);
+    c("finestra APERTA (entrata di 1 ora fa): in attesa", true, dr({ ultimo_in_entrata_il: fa(ORA) }).attesa);
+    c("risposta dal CRM (risposto_il dopo l'entrata): non in attesa, senza «Fatto»", false,
+      dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: fa(ORA) }).attesa);
+    c("risposta dall'app nativa/ponte o dall'inbox ManyChat (stesso risposto_il scritto dal ponte): non in attesa", false,
+      dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: fa(ORA + MIN) }).attesa);
+    c("il cliente riscrive dopo la nostra risposta: torna in attesa col nuovo orario", [true, fa(MIN)],
+      ((r) => [r.attesa, r.dal])(dr({ ultimo_in_entrata_il: fa(MIN), risposto_il: fa(ORA) })));
+    //  Un messaggio AUTOMATICO del giro non scrive risposto_il: la chat resta in attesa anche se
+    //  l'ultimo messaggio è nostro (la colonna dei messaggi caricati non la smentisce).
+    c("messaggio automatico (modello) dopo il cliente: resta in attesa", true,
+      dr({ ultimo_in_entrata_il: fa(2 * ORA), risposto_il: null }, [msg("inbound", 2 * ORA), { direction: "outbound", body: "[template:conferma]", created_at: fa(ORA), canale: "manychat" }]).attesa);
+    //  Eco del Default Reply di ManyChat dopo la risposta dall'app, con un testo che non sa leggere.
+    const ILLEGGIBILE = "Reazione, sticker o posizione: aprila in ManyChat";
+    c("un «non leggibile» di ManyChat 20 s DOPO la nostra risposta è l'eco: non riapre la chat", false,
+      dr({ ultimo_in_entrata_il: fa(ORA - 20_000), ultimo_in_entrata_anteprima: ILLEGGIBILE, risposto_il: fa(ORA) }).attesa);
+    c("…ma un testo vero 20 s dopo la risposta sì (è il cliente che riscrive)", true,
+      dr({ ultimo_in_entrata_il: fa(ORA - 20_000), ultimo_in_entrata_anteprima: "Grazie, e il prezzo?", risposto_il: fa(ORA) }).attesa);
+    c("…e un «non leggibile» 10 minuti dopo la risposta sì (oltre i 2 minuti non è più eco)", true,
+      dr({ ultimo_in_entrata_il: fa(ORA - 10 * MIN), ultimo_in_entrata_anteprima: ILLEGGIBILE, risposto_il: fa(ORA) }).attesa);
+    c("un «non leggibile» senza nessuna risposta prima: in attesa (nessuna eco da cui difendersi)", true,
+      dr({ ultimo_in_entrata_il: fa(MIN), ultimo_in_entrata_anteprima: ILLEGGIBILE, risposto_il: null }).attesa);
+    //  Nel ripiego le righe del ponte restano solo da vedere (I3): la risposta nativa arriva da `risposto_il`.
+    c("ripiego: l'entrata del ponte da sola non apre l'attesa (la promuove il server)", false,
+      dr(null, [ponte("inbound", ORA, "Ciao")]).attesa);
   }
 
   /* ── ordinaDaRispondere ────────────────────────────────────────────────── */

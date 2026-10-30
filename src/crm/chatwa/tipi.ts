@@ -20,7 +20,6 @@ import type { ApiPonteInvio, BollaCoda } from "@/crm/ponte/invio-tipi";
  *  `FiltriChat` (filtri.ts) tiene un valore per gruppo e li compone in E. */
 export type FiltroChat =
   | "all"
-  | "unread"
   | "with-lead"
   | "unknown"
   | "da-chiamare"
@@ -84,14 +83,11 @@ export interface ChatItem {
   lead: Lead | null;
   contact: WaContactRow | null;
   lastMessage: WaMessageRow | null;
-  unread: number;
   /** I campi che seguono li riempie T7; finché non c'è, mancano. */
   daRispondere?: {
     attesa: boolean;
     dal: string | null;
     anteprima: string | null;
-    /** Ripiego sui messaggi: senza risposta da più di 7 giorni (non è in elenco). */
-    vecchia?: boolean;
   } | null;
   /** `scadeIl`: quando chiude la finestra aperta (ISO), per il bollino «chiude tra…» (30/10/2026). */
   finestra?: { aperta: boolean; frase: string; scadeIl?: string | null };

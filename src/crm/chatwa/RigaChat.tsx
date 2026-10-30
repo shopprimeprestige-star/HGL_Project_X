@@ -38,8 +38,8 @@ import { oggiIso } from "@/crm/ui";
 import { formatTimeIT, initials, numeroLeggibile } from "./formati";
 import type { ChatItem } from "./tipi";
 
-/** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
-export type ModoRiga = "normale" | "attesa" | "vecchia";
+/** Come si disegna una riga: normale, o in attesa di risposta («Da rispondere»). */
+export type ModoRiga = "normale" | "attesa";
 
 /** Le spunte del mio ultimo messaggio, come nella bolla: lette in azzurro, il resto in grigio. */
 function SpunteRiga({ stato }: { stato: Spunte }) {
@@ -128,7 +128,7 @@ export function RigaChat({
   //  p1-chat-veloce: l'ultimo messaggio anche delle chat vecchie (fuori dai letti),
   //  salvato sul contatto — entrata o uscita. Il più recente dei due.
   const last = ultimoDellaChat(c.lastMessage, c.contact);
-  const inAttesa = modo === "attesa" || modo === "vecchia";
+  const inAttesa = modo === "attesa";
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
 
@@ -162,8 +162,6 @@ export function RigaChat({
     contatto: c.contact,
     attesa: c.daRispondere,
     inAttesa,
-    vecchia: modo === "vecchia",
-    nonLetti: c.unread,
     adesso,
     testoUscita: (corpo) => corpoLeggibile(corpo, c.lead?.data, nomeConsulente, c.lead?.id).testo,
   });
@@ -176,7 +174,7 @@ export function RigaChat({
   //  `temperatura` dice solo se c'è la riga del numero; il pallino lo decide TemperaturaRiga.
   const temperatura = !!c.lead && mostraTemperatura(c.lead.data.stato);
   const nessunMessaggio = a.nessunMessaggio;
-  const rigaAnteprima = a.testo !== "" || nessunMessaggio || c.unread > 0;
+  const rigaAnteprima = a.testo !== "" || nessunMessaggio;
 
   return (
     <li
@@ -209,10 +207,7 @@ export function RigaChat({
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
             <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 md:text-[13px] md:leading-[18px]",
-                modo === "vecchia" ? "text-muted-foreground" : "text-foreground",
-              )}
+              className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-foreground md:text-[13px] md:leading-[18px]"
             >
               {nome}
             </span>
@@ -304,12 +299,6 @@ export function RigaChat({
                   {nessunMessaggio ? "Nessun messaggio" : a.testo}
                 </span>
               </span>
-              {c.unread > 0 && (
-                <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold leading-none text-white">
-                  {c.unread > 99 ? "99+" : c.unread}
-                  <span className="sr-only"> non letti</span>
-                </span>
-              )}
             </span>
           )}
         </span>

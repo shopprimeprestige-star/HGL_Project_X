@@ -144,6 +144,11 @@ export function classificaTesto(testo: string): TestoClassificato {
   return { tipo: "testo", etichetta: testo };
 }
 
+/** L'anteprima di un'entrata è quella del messaggio che ManyChat non sa leggere? */
+export function eAnteprimaIlleggibile(anteprima: string | null | undefined): boolean {
+  return anteprima === ETICHETTA_ILLEGGIBILE;
+}
+
 /** Il testo è fatto SOLO di segnaposto non risolti (`{{x}}`)? Vuoto = no. */
 export function eSoloSegnaposto(testo: string): boolean {
   return typeof testo === "string" && SEGNAPOSTO.test(testo);

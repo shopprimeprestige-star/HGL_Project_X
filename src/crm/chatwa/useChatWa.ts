@@ -25,9 +25,9 @@
  *  ⚠️ APRIRE UNA CHAT NON LA TOGLIE da «Da rispondere»: il segna-letto scrive solo
  *   `unread_count`. Escono solo la risposta dal CRM e «Fatto».
  *  ⚠️ `daRispondere` di una chat è il risultato intero di `stato.ts`: `attesa`, `dal`,
- *   `anteprima`, `vecchia` (ripiego sui messaggi, senza risposta da più di 7 giorni:
- *   non è in elenco, serve alla riga «N chat senza risposta da più di 7 giorni»).
- *   `api.daRispondere` contiene solo le chat con `attesa` vera.
+ *   `anteprima`. Regola unica (30/10/2026): in attesa se l'ultimo messaggio è del cliente, senza
+ *   limite di età e senza guardare la finestra di 24 ore. `api.daRispondere` contiene le chat con
+ *   `attesa` vera, e il filtro «Da rispondere» ne mostra esattamente le stesse.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { senzaEco } from "./eco";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
@@ -672,7 +672,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: c,
         lastMessage: null,
-        unread: c.unread_count || 0,
       });
     }
 
@@ -698,7 +697,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           lead: null,
           contact: null,
           lastMessage: null,
-          unread: 0,
         };
         map.set(key, item);
       }
@@ -730,7 +728,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: null,
         lastMessage: null,
-        unread: 0,
       });
     }
 
@@ -772,7 +769,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         attesa: dr.attesa,
         dal: dr.dal,
         anteprima: dr.anteprima,
-        vecchia: dr.vecchia,
       };
       const f = finestra24({ contatto, messaggi, adesso });
       item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };

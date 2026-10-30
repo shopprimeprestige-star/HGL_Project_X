@@ -20752,7 +20752,7 @@ function proveDiWhatsappOrariStelle() {
   c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
   //  30/10/2026 (filtri a gruppi): «In osservazione» è «Con stelle», una delle 4 voci sempre in vista
   //   (nome e numero nella griglia: prove/idee/filtri-chat.mjs); le stelle ordinano sempre ogni riquadro.
-  c("filtro «Con stelle» col suo numero, prima le tre stelle", true, /VOCI_GRIGLIA\.map/.test(elenco) && /conta\(v\.campo, v\.valore\)/.test(elenco) && /ordinaPerStelle\(/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA.some((v) => v.campo === "stelle" && v.nome === "Con stelle"));
+  c("filtro «Con stelle» col suo numero, prima le tre stelle", true, /VOCI_RIGA\.map/.test(elenco) && /conta\(v\.campo, v\.valore\)/.test(elenco) && /ordinaPerStelle\(/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA.some((v) => v.campo === "stelle" && v.nome === "Con stelle"));
   c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
@@ -20846,8 +20846,8 @@ function proveDiWhatsappTemperaturaConsulente() {
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
     //  30/10/2026: il consulente è un gruppo dei filtri, composto in E con gli altri in `passaFiltri`: tutti i riquadri
-    //   (Da rispondere, Altre chat, Senza risposta da oltre 7 giorni, Finestra in chiusura) partono da `trovate`.
-    /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const inAttesa = perStelle\(fuoriScadenza\.filter/.test(elenco) && /const vecchie = perStelle\(fuoriScadenza\.filter\(eVecchia\)\)/.test(elenco) && /const altre = perStelle\(fuoriScadenza\.filter/.test(elenco));
+    //   (Da rispondere, Altre chat, Finestra in chiusura) partono da `trovate`.
+    /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const inAttesa = perStelle\(fuoriScadenza\.filter/.test(elenco) && /const altre = perStelle\(fuoriScadenza\.filter/.test(elenco));
   c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
   //  30/10/2026: il messaggio «Nessun cliente di questo consulente aspetta una risposta» è sostituito dal generico
   //   «Nessuna con questi filtri» (il consulente è uno dei filtri accesi, con la sua etichetta ✕); «altri M in attesa» → «altre M non di questo consulente».
@@ -22220,7 +22220,7 @@ function proveDellAnteprimaUltimo() {
   const adesso = Date.parse("2026-10-30T12:00:00Z");
   const fa = (ms) => new Date(adesso - ms).toISOString();
   const msg = (direction, body, ms, status) => ({ direction, body, created_at: fa(ms), status });
-  const base = { contatto: null, attesa: null, inAttesa: false, nonLetti: 0, adesso };
+  const base = { contatto: null, attesa: null, inAttesa: false, adesso };
 
   //  1. L'ultimo è mio.
   const mio = A.anteprimaRiga({ ...base, ultimo: msg("outbound", "Perfetto, a giovedì", 2 * 24 * ORA_MS, "read") });
@@ -22237,11 +22237,10 @@ function proveDellAnteprimaUltimo() {
   c("data illeggibile: niente «senza risposta» inventato", null, A.anteprimaRiga({ ...base, ultimo: { direction: "outbound", body: "x", created_at: "boh" } }).senzaRisposta);
 
   //  2. L'ultimo è del cliente.
-  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" }, nonLetti: 1 });
+  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" } });
   c("del cliente: niente prefisso, nessuna spunta, non letto in evidenza", [false, null, "Va bene, grazie", true, null], [suo.mio, suo.spunte, suo.testo, suo.nonLetto, suo.senzaRisposta]);
   c("…vince l'ultimo messaggio vero, non l'anteprima di «Da rispondere»", "Va bene, grazie", suo.testo);
   c("del cliente già visto (non in attesa, nessun non letto): normale", false, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).nonLetto);
-  c("del cliente non in attesa ma con messaggi non letti: in evidenza", true, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS), nonLetti: 2 }).nonLetto);
   c("del cliente non ha mai «senza risposta»", null, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).senzaRisposta);
 
   //  3. «Da rispondere» con l'ultimo mio (risposto dal telefono, non ancora segnato): si dice, e tocca a noi.
