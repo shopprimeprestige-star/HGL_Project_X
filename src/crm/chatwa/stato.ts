@@ -287,6 +287,31 @@ export function schedaUnica<
   return trovate.length === 0 ? { tipo: "nessuna" } : { tipo: "piu" };
 }
 
+/** Come `schedaUnica`, per MOLTI numeri: le schede si indicizzano una volta sola per ultime 9 cifre
+ *  (il confronto di `schedaUnica` — numero uguale o stesse ultime 9 cifre — è proprio l'uguaglianza
+ *  delle ultime 9 cifre), e ogni numero costa una ricerca, non un giro su tutte le schede.
+ *  Stesso risultato di `schedaUnica` (prova: prove/idee/chat-veloce.mjs). */
+export function indiceSchede<
+  L extends { phone?: string | null; data?: { telefono?: string | null } | null },
+>(leads: readonly L[]): (telefono: string) => EsitoScheda<L> {
+  const per9 = new Map<string, L[]>();
+  for (const l of leads) {
+    const y = cifre(l.phone ?? l.data?.telefono);
+    if (!y) continue;
+    const k = y.slice(-9);
+    const g = per9.get(k);
+    if (g) g.push(l);
+    else per9.set(k, [l]);
+  }
+  return (telefono) => {
+    const x = cifre(telefono);
+    if (x.length < 8) return { tipo: "nessuna" };
+    const trovate = per9.get(x.slice(-9)) ?? [];
+    if (trovate.length === 1) return { tipo: "una", lead: trovate[0] };
+    return trovate.length === 0 ? { tipo: "nessuna" } : { tipo: "piu" };
+  };
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Il limite di un messaggio WhatsApp (come `LIMITE_WHATSAPP` in whatsapp.ts). */

@@ -102,7 +102,7 @@ export async function proveEcoManychatEntrata(mod, { c, gruppo, radice }) {
       chat("+39333000201", sporco()),
       chat("+39333000402", { ultimo_messaggio_il: alle("18:00:00") }),
     ]).map((x) => x.phone));
-  const hook = leggi("src/crm/chatwa/useChatWa.ts");
+  const hook = leggi("src/crm/chatwa/costruisciChat.ts"); // l'elenco si costruisce qui (chat veloce)
   c("«Da rispondere» ordina con la stessa ora di «Tutte» (quandoUltimo), non con last_message_at né l'ultima entrata", [true, false],
     [/quandoUltimo\(/.test(hook), /const quando = \(x: ChatItem\)[\s\S]{0,400}ultimo_in_entrata_il/.test(hook)]);
 

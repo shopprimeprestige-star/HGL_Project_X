@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { TESTO_NUMERO_ESTERO, chiamabile } from "@/crm/chiamabile";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { segnapostiResidui } from "@/crm/whatsapp";
@@ -359,12 +360,23 @@ function FinestraAzioni({
               c'è un programma per telefonare: il tasto sembra rotto e si preme
               tre volte. Per questo accanto c'è sempre «copia», che funziona
               ovunque — stessa scelta già fatta nella postazione delle chiamate. */}
-          <VoceScelta
-            icona={Phone}
-            titolo={q.telefono}
-            nota="Apre il programma per telefonare, se su questo computer c'è"
-            onClick={() => fai(() => window.open(`tel:${componibile}`, "_self"))}
-          />
+          {chiamabile(q.telefono) ? (
+            <VoceScelta
+              icona={Phone}
+              titolo={q.telefono}
+              nota="Apre il programma per telefonare, se su questo computer c'è"
+              onClick={() => fai(() => window.open(`tel:${componibile}`, "_self"))}
+            />
+          ) : (
+            //  Numero estero (30/10/2026): rosso e bloccato; il WhatsApp è il tasto della riga.
+            <VoceScelta
+              icona={Phone}
+              titolo={q.telefono}
+              nota={TESTO_NUMERO_ESTERO}
+              disabilitata
+              className="min-h-11 border-red-300 bg-red-50 opacity-100 [&_svg]:text-red-600 [&_span]:text-red-700"
+            />
+          )}
           <VoceScelta
             icona={Copy}
             titolo="Copia il numero"

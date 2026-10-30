@@ -36,6 +36,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -647,16 +649,20 @@ export function LineaDelGiorno({
                   )}
                   {!stretta && l.data.telefono && (
                     <>
-                      <Button
-                        asChild
-                        size="icon"
-                        variant="ghost"
-                        className="h-10 w-10 text-muted-foreground hover:text-foreground sm:h-9 sm:w-9"
-                      >
-                        <a href={`tel:${l.data.telefono}`} title="Chiama" aria-label="Chiama">
-                          <Phone className="h-4 w-4" />
-                        </a>
-                      </Button>
+                      {chiamabile(l.data.telefono) ? (
+                        <Button
+                          asChild
+                          size="icon"
+                          variant="ghost"
+                          className="h-10 w-10 text-muted-foreground hover:text-foreground sm:h-9 sm:w-9"
+                        >
+                          <a href={`tel:${l.data.telefono}`} title="Chiama" aria-label="Chiama">
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : (
+                        <ChiamaEstero telefono={l.data.telefono} senzaWhatsapp />
+                      )}
                       <Button
                         asChild
                         size="icon"

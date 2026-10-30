@@ -35,6 +35,7 @@ import { proveLeadDoppiChiamate } from "./lead-doppi-chiamate.mjs";
 import { proveRiepilogoSerale } from "./idee/serale.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { proveIdeeAi } from "./idee/ai.mjs";
+import { proveRispiega } from "./idee/rispiega.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
@@ -55,6 +56,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
+import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
@@ -521,6 +523,8 @@ const MODULI = [
   //  ⚠️ La risposta scritta dall'AI sul Mac: vedi proveDelleRisposteAi.
   "risposte-ai/regole",
   "risposte-ai/ingresso",
+  //  «Rispiega con AI» (30/10/2026): prove in prove/idee/rispiega.mjs.
+  "risposte-ai/rispiega",
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
   "push/webpush",
   "push/avviso",
@@ -666,6 +670,7 @@ const MODULI = [
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
+  "chiamabile",
   "chatwa/scelta-whatsapp",
   "chatwa/entrata-vera",
   "chatwa/richiamo",
@@ -681,6 +686,9 @@ const MODULI = [
   //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
   //   prove in prove/idee/ordine-whatsapp.mjs.
   "chatwa/ordineWhatsapp",
+  //  La chat veloce (commessa 2026-10-30-chat-veloce): prove in prove/idee/chat-veloce.mjs.
+  "chatwa/costruisciChat",
+  "chatwa/finestraLista",
   "chatwa/testoWhatsapp",
   //  L'anteprima della riga = l'ULTIMO messaggio, chi l'ha scritto e «senza risposta»
   //   (commessa 2026-10-30-wa-anteprima-ultimo): vedi proveDellAnteprimaUltimo.
@@ -20911,7 +20919,10 @@ function proveDelDaChiamare() {
   c("senza scheda: no", false, D.calcolaDaChiamare({ dati: null, messaggi: [], adesso }).si);
   c("numeri della scheda nel formato delle chat", ["+393331234567", "+393331234567", "+393331234567", "+447700900123", ""],
     ["333 123 4567", "+39 333 1234567", "0039 3331234567", "+44 7700 900123", "123"].map(D.telefonoE164));
-  const hook = readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8");
+  //  Il calcolo dell'elenco sta in costruisciChat.ts dal 30/10 (p1-chat-veloce): hook + funzione.
+  const hook =
+    readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8") +
+    readFileSync(join(radice, "src/crm/chatwa/costruisciChat.ts"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
@@ -21245,6 +21256,81 @@ function proveDellApriWhatsapp() {
     /href=\{apriWa\}/.test(riga) && /<IconaWhatsApp/.test(riga) && /finestra && !finestra\.aperta/.test(riga));
 }
 
+/** ── CHIAMARE SOLO L'ITALIA (30/10/2026) ────────────────────────────────────
+ *  Un numero che non è +39 ha il tasto «Chiama» rosso, bloccato e senza `tel:`;
+ *  si scrive solo su WhatsApp. La regola è pura (`crm/chiamabile.ts`); i punti
+ *  del CRM la usano tutti. */
+async function proveDelChiamaSoloItalia() {
+  gruppo("CHIAMARE SOLO L'ITALIA: LA REGOLA");
+  const K = mod["chiamabile"];
+  const sì = [
+    "+39 333 123 4567", "+393331234567", "0039 333 1234567", "00393331234567",
+    "333 1234567", "3331234567", "393331234567", "39 333 1234567", "(333) 123-4567",
+    "392 1234567", "06 1234567", "+39 06 1234567", "0039 02 12345678", "+39 800 123456", "800123456", "199 123456", "+39 199 123456",
+    "803 001", "0039 840 123456", "848 800 123", "892 424", "+39 892424", "+39 803 164", "39800123456", "0612345678", "390612345678",
+    "\u200e+39 333 1234567", "+39 3331234567 ", "+39 320 0001111",
+  ];
+  for (const n of sì) c(`italiano: ${JSON.stringify(n)}`, true, K.chiamabile(n));
+  const no = [
+    "+44 7700 900123", "+1 202 555 0143", "0044 7700 900123", "447700900123", "+34 612 345 678",
+    "+41 79 123 45 67", "+49 151 23456789", "+33 6 12 34 56 78", "+380 50 123 4567", "+393",
+    "+39", "00", "12345", "+39 500 123456", "+39 2 1234567", "+39 80 123", "500123456", "n/d", "+40 721 234 567", "+355 69 123 4567", "0033 6 12 34 56 78",
+  ];
+  for (const n of no) c(`non chiamabile: ${JSON.stringify(n)}`, false, K.chiamabile(n));
+  c("vuoto, null, undefined: non chiamabile", [false, false, false, false],
+    [K.chiamabile(""), K.chiamabile(null), K.chiamabile(undefined), K.chiamabile("   ")]);
+  c("un numero come valore numerico", true, K.chiamabile(3331234567));
+  c("estero: ha cifre e non si chiama", [true, true], [K.numeroEstero("+44 7700 900123"), K.numeroEstero("447700900123")]);
+  c("vuoto o italiano: non è «estero»", [false, false, false, false],
+    [K.numeroEstero(""), K.numeroEstero(null), K.numeroEstero("n/d"), K.numeroEstero("+39 333 1234567")]);
+  c("il testo del tasto", "Numero estero: contattalo su WhatsApp", K.TESTO_NUMERO_ESTERO);
+
+  gruppo("CHIAMARE SOLO L'ITALIA: IL TASTO ROSSO");
+  const disegna = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
+export const disegna = (props) => renderToStaticMarkup(createElement(ChiamaEstero, props));`,
+    "chiama-estero",
+  );
+  const h = disegna({}, undefined, { telefono: "+44 7700 900123", etichetta: "Chiama" });
+  c("rosso", true, /border-red-300/.test(h) && /bg-red-50/.test(h) && /text-red-700/.test(h));
+  c("bloccato: aria-disabled, nessun tel:", true, /aria-disabled="true"/.test(h) && !/tel:/.test(h));
+  c("il titolo dice di usare WhatsApp", 1, (h.match(/Numero estero: contattalo su WhatsApp/g) || []).length);
+  c("il nome accessibile contiene «Chiama»", true, /aria-label="Chiama: numero estero, contattalo su WhatsApp"/.test(h));
+  c("tocco da 44 px", true, /min-h-11/.test(h) && /min-w-11/.test(h));
+  c("il link a WhatsApp porta al numero", true, /href="https:\/\/wa\.me\/447700900123"/.test(h));
+  c("il link ha l'icona WhatsApp", true, /viewBox="0 0 24 24"/.test(h) && /aria-label="Scrivi su WhatsApp"/.test(h));
+  c("nessun emoji", false, /\p{Extended_Pictographic}/u.test(h));
+  const g = disegna({}, undefined, { telefono: "+44 7700 900123", senzaWhatsapp: true });
+  c("senzaWhatsapp: il tasto rosso resta, il link no", [true, false], [/aria-disabled/.test(g), /wa\.me/.test(g)]);
+
+  gruppo("CHIAMARE SOLO L'ITALIA: I PUNTI DEL CRM");
+  const leggiF = (f) => readFileSync(join(radice, f), "utf8");
+  //  Ogni file con un `tel:` di una scheda deve passare dalla regola.
+  const punti = [
+    ["src/crm/chatwa/RigaChat.tsx", 1], ["src/crm/chatwa/Conversazione.tsx", 1],
+    ["src/crm/LeadDialog.tsx", 1], ["src/crm/PublicLeadDetailSheet.tsx", 1],
+    ["src/crm/MeetGiornalieri.tsx", 2], ["src/crm/PannelloSede.tsx", 1],
+    ["src/crm/kpi/DaFareScheda.tsx", 1], ["src/crm/dafare/ChiChiamareAdesso.tsx", 1],
+    ["src/crm/dafare/VoceDaFare.tsx", 3], ["src/crm/agenda/AgendaDaySheet.tsx", 1],
+    ["src/crm/InstallationScheduleDialog.tsx", 1], ["src/crm/SpedizioniPannello.tsx", 1],
+    ["src/crm/preventivi/Riga.tsx", 1], ["src/crm/importa/chiamare.tsx", 1],
+    ["src/routes/CRM.sede.tsx", 1], ["src/routes/CRM.trattative.tsx", 3],
+    ["src/routes/CRM.trattative-perse.tsx", 1], ["src/routes/consulente.leads.tsx", 1],
+    ["src/routes/CRM.nuovi-contatti.tsx", 1],
+  ];
+  for (const [f, quanti] of punti) {
+    const t = leggiF(f);
+    const usa = /from "@\/crm\/chiamabile"/.test(t);
+    const verifiche = (t.match(/\b(?:chiamabile|numeroEstero)\(/g) || []).length;
+    c(`${f.replace("src/", "")}: usa la regola`, true, usa && verifiche >= quanti);
+    c(`${f.replace("src/", "")}: mostra il tasto rosso`, true, /ChiamaEstero|TESTO_NUMERO_ESTERO/.test(t));
+  }
+  //  Il testo dei messaggi non si tocca.
+  c("promemoria/conferma.ts non usa il tasto", false, /ChiamaEstero/.test(leggiF("src/crm/promemoria/conferma.ts")));
+}
+
 /** ── WHATSAPP: UNA DATA ALLA VOLTA IN CIMA ALLA CHAT (30/10/2026) ─────────── */
 function proveDelleDateInCima() {
   gruppo("WHATSAPP: LA DATA NUOVA SPINGE VIA LA VECCHIA");
@@ -21389,6 +21475,7 @@ proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
+await proveDelChiamaSoloItalia();
 proveIdeeRighe(mod, { c, gruppo, radice });
 proveAttesaERitorno(mod, { c, gruppo, radice });
 proveRitornoInAttesa(mod, { c, gruppo, radice });
@@ -21400,6 +21487,7 @@ await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
+await proveRispiega(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
@@ -21418,6 +21506,7 @@ proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 await proveEcoManychatEntrata(mod, { c, gruppo, radice });
+proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 
