@@ -2494,6 +2494,71 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           fine(p);
         }
 
+        // ── TELEFONO: LA SCHEDA VA IN SFONDO E TORNA (30/10/2026, iPhone: WhatsApp e ritorno al CRM) ──
+        //  Il titolare passa a WhatsApp e torna. Prima: se la pausa era breve (i timer di iOS ancora vivi, il battito
+        //  rimette a zero il conto) la pagina rileggeva soltanto, senza riaprire il canale che iOS può aver chiuso;
+        //  dopo una pausa lunga la lettura aspettava il rinnovo della sessione (fino a 10 s) e, se anche
+        //  `getSession` scadeva, il canale non si riapriva MAI più (nessun ritento).
+        const lette = (p) =>
+          p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1).length;
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const primo = p.db.canali.at(-1);
+          doc.visibilityState = "hidden";
+          doc.lancia("visibilitychange");
+          p.T.ora += 20_000;
+          for (const t of [...p.T.timers.values()].filter((t) => t.ms === 20_000)) t.f(); // il battito gira ancora
+          p.T.ora += 20_000;
+          for (const t of [...p.T.timers.values()].filter((t) => t.ms === 20_000)) t.f();
+          doc.visibilityState = "visible";
+          const prima = lette(p);
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          await p.assesta();
+          c(
+            "in sfondo 40 s (timer ancora vivi), poi di nuovo visibile: canale riaperto (uno solo vivo) e lettura subito",
+            [true, 1, true],
+            [primo.chiuso === true, vivi(p), lette(p) > prima],
+          );
+          fine(p);
+        }
+        {
+          const p = await monta(base());
+          await p.assesta();
+          p.T.auth.refreshSession = () => new Promise(() => {}); // il rinnovo non risponde (rete appena tornata)
+          const prima = lette(p);
+          p.T.ora += 10 * MIN;
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          c("dopo 10 min il rinnovo appeso NON ritarda la lettura: parte subito", [true], [lette(p) > prima]);
+          fine(p);
+        }
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const sessioneVera = p.T.auth.getSession;
+          p.T.auth.getSession = () => new Promise(() => {}); // anche `getSession` resta appesa
+          p.T.ora += 10 * MIN;
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          scadono(10_000); // il rinnovo e poi getSession scadono
+          await p.assesta();
+          scadono(10_000);
+          await p.assesta();
+          c(
+            "getSession scaduta alla riapertura: niente canale per ora, ma un ritento dei 5 s è in attesa",
+            [0, 1],
+            [vivi(p), [...attese.values()].filter((t) => t.ms === 5_000).length],
+          );
+          p.T.auth.getSession = sessioneVera;
+          scadono(5_000);
+          await p.assesta();
+          await p.assesta();
+          c("il ritento riapre il canale: uno vivo", [1], [vivi(p)]);
+          fine(p);
+        }
+
         // ── Pulizia: niente timer, niente canali, niente ascoltatori.
         {
           const p = await monta(base());
