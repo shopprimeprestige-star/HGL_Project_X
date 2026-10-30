@@ -323,9 +323,25 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   ),
 ];
 
+/** (30/10/2026) Modelli di commesse recenti, ANCORA DA FAR APPROVARE: stanno fuori da
+ *  `MODELLI_MANYCHAT` (che è l'elenco dei modelli già approvati e con flusso, provato a
+ *  parte) ma `findMetaTemplate` li trova, così dentro le 24 ore il loro testo parte normale. */
+export const MODELLI_DA_APPROVARE: MetaTemplate[] = [
+  //  (30/10/2026) Dopo l'acconto: i dati per la fattura. Da far approvare (Utility) e da
+  //  collegare a un flusso ManyChat con lo stesso nome. Dentro le 24 ore parte come testo normale.
+  tpl(
+    "hgl_dati_fattura",
+    "UTILITY",
+    `Ciao {{lead_name}}, abbiamo ricevuto il tuo acconto, grazie!\n\nPer preparare la fattura ci servono questi dati: nome e cognome (o ragione sociale), codice fiscale o partita IVA, indirizzo completo con CAP e città, ed eventuale PEC o codice SDI.\n\nPuoi scriverli qui, oppure mandarci una foto della carta d'identità o della tessera sanitaria: i dati li leggiamo noi.\n\nHair Genius Labs`,
+    ["lead_name"],
+  ),
+];
+
 export function findMetaTemplate(name: string): MetaTemplate | undefined {
   return (
-    META_TEMPLATES.find((t) => t.name === name) ?? MODELLI_MANYCHAT.find((t) => t.name === name)
+    META_TEMPLATES.find((t) => t.name === name) ??
+    MODELLI_MANYCHAT.find((t) => t.name === name) ??
+    MODELLI_DA_APPROVARE.find((t) => t.name === name)
   );
 }
 

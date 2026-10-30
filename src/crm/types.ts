@@ -1812,6 +1812,11 @@ export interface LeadData {
    *  funzione SQL `contatto_wa_aggiorna` (anche per i cambi a mano), mai il
    *  browser con una patch. Le regole sono in crm/manychat/contatto. */
   contattoWa?: ContattoWa;
+  /** ── DATI PER LA FATTURA DOPO L'ACCONTO (30/10/2026) ───────────────────────
+   *  Lo scrive il giro `/hooks/dati-fattura` (crm/fatture/dati-fattura-giro). Additivo:
+   *  le schede vecchie non ce l'hanno. Foto e dati veri NON stanno qui: le foto sono nel
+   *  bucket privato `dati-fattura`, i dati nella bozza di fattura. */
+  datiFattura?: import("./fatture/dati-fattura").DatiFatturaScheda;
   /** «Ok a WhatsApp» messo a mano sulla scheda, dopo averlo chiesto a voce.
    *  Lo scrive il browser con una patch. Vedi crm/manychat/regole. */
   okWhatsapp?: OkWhatsapp;
