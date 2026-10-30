@@ -173,7 +173,6 @@ export interface ChatWaApi {
 export interface ElencoChatProps {
   api: ChatWaApi;
   onCreaScheda: (chat: ChatItem) => void;
-  onAbbina: (chat: ChatItem) => void;
 }
 
 export interface ConversazioneProps {

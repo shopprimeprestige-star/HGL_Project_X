@@ -12,6 +12,7 @@ import {
   Phone,
   Star,
   Undo2,
+  UserPlus,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,6 @@ interface RigaChatProps {
   adesso: number;
   onApri: () => void;
   onCreaScheda: () => void;
-  onAbbina: () => void;
   /** Le stelle di priorità (0-3) e il tocco che le cambia (vedi useStelle). */
   stelle?: number;
   onStelle?: () => void;
@@ -110,7 +110,7 @@ interface RigaChatProps {
   comeWhatsapp?: boolean;
 }
 
-/** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
+/** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» sta
  *  sotto, fuori dal bottone (un bottone dentro un bottone non è valido e sul telefono
  *  prende il tocco sbagliato). Il nome ha sempre la riga tutta per sé: pastiglia di
  *  stato e numero vanno sotto, così non lo schiacciano. */
@@ -121,7 +121,6 @@ export function RigaChat({
   adesso,
   onApri,
   onCreaScheda,
-  onAbbina,
   stelle = 0,
   onStelle,
   onCambiaStato,
@@ -623,33 +622,25 @@ export function RigaChat({
       {(senzaScheda || ambigua) && (
         <div
           inert={selezione?.attiva}
-          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3"
+          className="flex flex-wrap items-center gap-x-3 pb-1 pl-[68px] pr-3"
         >
           <span className="text-[12px] text-muted-foreground">
             {ambigua ? "Più schede con questo numero" : "Numero senza scheda"}
           </span>
-          <div className="flex flex-wrap gap-1.5">
-            {!ambigua && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onCreaScheda}
-                className="h-11 px-3 text-[13px] md:h-8 md:text-xs"
-              >
-                Crea scheda
-              </Button>
-            )}
+          {/*  Un solo tasto, leggero (30/10/2026): senza bordo, icona + testo corto. L'abbinamento a una
+              scheda che c'è già resta nel menu ⋮ della conversazione aperta. */}
+          {!ambigua && (
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              onClick={onAbbina}
-              className="h-11 px-3 text-[13px] md:h-8 md:text-xs"
+              variant="ghost"
+              onClick={onCreaScheda}
+              className="-ml-2 h-11 gap-1 px-2 text-[13px] text-primary hover:text-primary md:h-8 md:text-xs"
             >
-              Abbina a una scheda
+              <UserPlus aria-hidden="true" className="h-4 w-4" />
+              Crea scheda
             </Button>
-          </div>
+          )}
         </div>
       )}
     </li>

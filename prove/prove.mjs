@@ -46,6 +46,7 @@ import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import {
   proveCreaSchedaDaChat,
+  proveNienteAbbinaInRiga,
   proveSottofiltriScorrevoli,
 } from "./idee/chat-ritocchi.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
@@ -21403,6 +21404,7 @@ proveFiltriChat(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
+proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });

@@ -110,7 +110,7 @@ function useAdesso(): number {
  *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
-export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
+export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
   const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva, apri } = api;
   const adesso = useAdesso();
   const [pannelloAperto, setPannelloAperto] = useState(false);
@@ -344,7 +344,6 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       adesso={adesso}
       onApri={() => apri(c.phone)}
       onCreaScheda={() => onCreaScheda(c)}
-      onAbbina={() => onAbbina(c)}
       stelle={stelleDi(c.phone)}
       onStelle={() => cambiaStelle(c.phone)}
       onCambiaStato={(lead, stato) => void api.cambiaStatoLead(lead, stato)}

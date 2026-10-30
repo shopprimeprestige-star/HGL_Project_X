@@ -53,3 +53,20 @@ export function proveCreaSchedaDaChat(mod, { c, gruppo, radice }) {
   c("l'elenco lo passa alla riga", true, /onCreaSchedaConStato=\{/.test(leggi("src/crm/chatwa/ElencoChat.tsx")));
   void pagina;
 }
+
+export function proveNienteAbbinaInRiga(mod, { c, gruppo, radice }) {
+  const leggi = (p) => readFileSync(join(radice, p), "utf8");
+  gruppo("CHAT RITOCCHI 3: «ABBINA» NON È PIÙ IN RIGA");
+  const riga = leggi("src/crm/chatwa/RigaChat.tsx");
+  const elenco = leggi("src/crm/chatwa/ElencoChat.tsx");
+  const conv = leggi("src/crm/chatwa/Conversazione.tsx");
+  const tipi = leggi("src/crm/chatwa/tipi.ts");
+  c("la riga non ha il tasto «Abbina a una scheda»", false, /Abbina a una scheda|onAbbina/.test(riga));
+  c("l'elenco non passa onAbbina", false, /onAbbina/.test(elenco));
+  c("l'elenco non lo chiede nelle sue props", false, /ElencoChatProps[\s\S]{0,200}onAbbina/.test(tipi));
+  c("resta «Crea scheda», corto, con l'icona, da 44 px sul telefono", true,
+    />\s*<UserPlus[^>]*\/>\s*Crea scheda\s*</.test(riga) && /h-11/.test(riga.slice(riga.lastIndexOf("Crea scheda") - 700, riga.lastIndexOf("Crea scheda"))));
+  c("l'abbinamento resta nel menu ⋮ della conversazione aperta", true, /onSelect=\{\(\) => onAbbina\(attiva\)\}/.test(conv) && /Abbina a una scheda/.test(conv));
+  c("nell'intestazione della chat non c'è un tasto «Abbina» a vista", false,
+    /<Button[^>]*onClick=\{\(\) => onAbbina/.test(conv));
+}
