@@ -44,6 +44,7 @@ import type { TonoAttesa } from "@/crm/ui";
 import { giorniFra, istanteDi, oraPulita } from "./quando";
 import { senzaConfermaOggi, type SenzaConferma } from "./senza-conferma";
 import type { TaskManuale } from "./task-manuali";
+import { assenzaSegnalataDi, confermaMancata } from "@/crm/manychat/consulenze";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    1. I TIPI DI RIGA — che gesto è, detto con un verbo
@@ -66,6 +67,16 @@ export type TipoRiga =
    *  mattina ha una risposta che per mesi non era in questa pagina — c'è un
    *  impianto da posare alle 15, e stava scritto solo in un'altra schermata. */
   | "installazione"
+  /** ── LA CONSULENZA DA CONFERMARE A VOCE (commessa 2026-10-30, p5) ─────────
+   *  Il promemoria automatico della consulenza non ha avuto risposta da 3 ore
+   *  (`confermaMancata`, crm/manychat/consulenze): prima dell'inizio la si
+   *  conferma con una telefonata. È l'unica riga di un appuntamento ancora in
+   *  piedi, e sta in cima ad «Adesso». */
+  | "conferma_meet"
+  /** Il cliente non è entrato in stanza 15' dopo l'inizio e l'interruttore
+   *  `assenza_auto` è spento: si segnala soltanto, la telefonata la fa il
+   *  consulente (crm/manychat/consulenze, `assenzaSegnalataDi`). */
+  | "assente_meet"
   | "task";
 
 export interface MetaRiga {
@@ -82,6 +93,17 @@ export interface MetaRiga {
 }
 
 export const META_RIGA: Record<TipoRiga, MetaRiga> = {
+  assente_meet: {
+    verbo: "Chiamare, non è entrato alla consulenza,",
+    filtro: "Non entrati alla consulenza",
+    spiegazione: "15 minuti dopo l'inizio nessuno era nella stanza: si chiama e si segna l'esito.",
+  },
+  conferma_meet: {
+    verbo: "Chiamare per confermare la consulenza con",
+    filtro: "Consulenze da confermare",
+    spiegazione:
+      "Il promemoria su WhatsApp non ha avuto risposta da 3 ore: una telefonata prima dell'inizio.",
+  },
   senza_conferma: {
     verbo: "Chiamare",
     filtro: "Non confermati",
@@ -158,6 +180,8 @@ export function verboRiga(tipo: TipoRiga, stato?: LeadStatus): string {
  *  vengono provate su ogni lead: dalla più precisa (c'è una data concordata)
  *  alla più dedotta (lo stato dice che c'è da riprovare). */
 export const TIPI_RIGA: TipoRiga[] = [
+  "assente_meet",
+  "conferma_meet",
   "senza_conferma",
   "ricontatto",
   "meet_da_fissare",
@@ -404,12 +428,38 @@ export function costruisciRighe({ leads, task, ora }: IngressoRighe): RigaDaFare
     //   Oggi. Qui c'è il contorno della giornata, non l'agenda.
     //   Il giorno in cui il committente le volesse anche qui, è UNA regola in
     //   più in `candidatiDi` che legge dataMeeting/oraMeeting.
-    //  ⚠️ L'UNICA ECCEZIONE (30/10/2026, richiesta del titolare): la consulenza
-    //   di OGGI di chi non ha confermato. Non è un secondo elenco
-    //   dell'agenda: è la telefonata che serve prima che l'ora arrivi, e sparisce
-    //   da sola appena il cliente conferma. Vedi ./senza-conferma.
+    //  ⚠️ LE ECCEZIONI (commessa 2026-10-30), una sola riga per lead, in
+    //   quest'ordine:
+    //   · chi non è entrato alla consulenza (p5): si chiama;
+    //   · il promemoria su WhatsApp rimasto senza risposta da 3 ore (p5): una
+    //     telefonata prima dell'inizio, col motivo preciso;
+    //   · la consulenza di OGGI di chi non ha confermato (idea 2, richiesta del
+    //     titolare): la telefonata che serve prima che l'ora arrivi, e sparisce
+    //     da sola appena il cliente conferma. Vedi ./senza-conferma.
+    //   Non sono un secondo elenco dell'agenda: l'agenda non le dice.
     const senza = senzaConfermaOggi(d, ora);
-    if (eAppuntamento(d.stato) && !senza) continue;
+    if (eAppuntamento(d.stato)) {
+      const assente = !!assenzaSegnalataDi(d);
+      if (assente || confermaMancata(d, ora)) {
+        const tipo: TipoRiga = assente ? "assente_meet" : "conferma_meet";
+        const chiConferma = nomeDi(d);
+        const giornoMeet = soloData(d.dataMeeting);
+        const oraMeet = oraPulita(d.oraMeeting);
+        righe.push({
+          id: `lead:${l.id}`,
+          tipo,
+          cosa: `${META_RIGA[tipo].verbo} ${chiConferma}`.trim(),
+          chi: chiConferma,
+          lead: l,
+          giorno: giornoMeet,
+          ora: oraMeet,
+          istante: istanteDi(giornoMeet, oraMeet),
+          fatta: false,
+        });
+        continue;
+      }
+      if (!senza) continue;
+    }
 
     const regola = scegliCandidato(candidatiDi(d, oggi), oggi);
     //  Nessun gesto, o un gesto senza giorno: non appartiene a nessuna
@@ -560,6 +610,10 @@ export function fasciaDi(r: RigaDaFare, adesso: number, oggi: string): Fascia {
   //  anche di «Rimasto indietro»: tra un'ora potrebbe non esserci più niente da
   //  salvare. Esce da solo quando `costruisciRighe` non produce più il segno.
   if (r.senzaConferma) return "daSentire";
+  //  La conferma va fatta adesso, prima della consulenza: l'ora che porta è
+  //  quella della consulenza, non quella della telefonata.
+  if ((r.tipo === "conferma_meet" || r.tipo === "assente_meet") && r.giorno === oggi)
+    return "adesso";
   if (r.giorno < oggi) return r.tipo === "task" ? "daIeri" : "arretrato";
   //  Il futuro è un gruppo suo e non «quando capita»: una cosa scritta per
   //  venerdì non è una cosa da fare oggi quando il telefono è libero, ed è la
@@ -651,6 +705,9 @@ export function ordinaRighe(righe: RigaDaFare[]): RigaDaFare[] {
     //  (vedere quello che si è fatto è metà del motivo per cui si tiene una
     //  lista) ma non stanno in mezzo al lavoro ancora aperto.
     if (a.fatta !== b.fatta) return a.fatta ? 1 : -1;
+    //  Le consulenze da confermare in cima: hanno una scadenza vera (l'inizio).
+    const inCima = (r: RigaDaFare) => r.tipo === "assente_meet" || r.tipo === "conferma_meet";
+    if (inCima(a) !== inCima(b)) return inCima(a) ? -1 : 1;
     //  ⚠️ Il giorno viene PRIMA dell'ora, e conta solo nei tre gruppi che
     //   mescolano più giornate (l'arretrato, il rimasto indietro, i prossimi
     //   giorni). Senza, una cosa di dieci giorni fa senza orario finiva sotto

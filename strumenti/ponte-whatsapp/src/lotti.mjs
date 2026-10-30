@@ -21,6 +21,10 @@
  *  `prossimo()`, lo spedisce con `spedisci` e passa la risposta a `esito`;
  *  `prossimaSveglia()` dice quando ripassare. Una spedizione alla volta.
  *
+ *  I non noti (D7): i vivi rimandati in `non_noti` si ritentano per 10
+ *  minuti, poi, come quelli dello storico, passano a `fuoriRubrica(messaggi,
+ *  nomi)` (la cache sul Mac, `cache.mjs`, p3 30/10) prima di uscire dalla fila.
+ *
  *  ⚠️ Qui passano testi e numeri: nessun `console.*`. I contatori sono numeri.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
@@ -120,8 +124,10 @@ function datiValidi(d, origine) {
  *
  *  `opzioni`: `cartella` (obbligatoria), `orologio` (ms, di serie
  *  `Date.now`), `attesaPariMs` (di serie 30 s, da `ATTESA_PARI_SECONDI`),
- *  `limiti` (per le prove: `{ maxFile, maxByte }`). */
-export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_PARI_MS, limiti = {} }) {
+ *  `limiti` (per le prove: `{ maxFile, maxByte }`), `fuoriRubrica(messaggi,
+ *  nomi)` (riceve i messaggi dei numeri che il CRM non conosce; se lancia, la
+ *  fila va avanti lo stesso). */
+export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_PARI_MS, limiti = {}, fuoriRubrica = () => {} }) {
   const maxFile = limiti.maxFile ?? RITMO.maxFile;
   const maxByte = limiti.maxByte ?? RITMO.maxByte;
   const dir = { storico: join(cartella, "storico"), vivo: join(cartella, "vivo"), scartati: join(cartella, "scartati") };
@@ -150,6 +156,15 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
     writeFileSync(temporaneo, testo, { mode: 0o600 });
     renameSync(temporaneo, finale);
     indice.set(nome, { origine, dati, byte: Buffer.byteLength(testo) });
+  }
+
+  /** Passa i non noti alla cache: prima di togliere il lotto dal disco. */
+  function allaCache(messaggi, nomi) {
+    try {
+      fuoriRubrica(messaggi, nomiDi(messaggi, nomi));
+    } catch {
+      // la cache non è la fila: un suo errore non ferma gli invii
+    }
   }
 
   function togli(nome, origine) {
@@ -275,9 +290,11 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
 
     if (stato === 200) {
       ultimoBuono = adesso;
-      const ids = !storico && Array.isArray(corpo?.non_noti) ? new Set(corpo.non_noti.filter((x) => typeof x === "string")) : new Set();
+      const ids = Array.isArray(corpo?.non_noti) ? new Set(corpo.non_noti.filter((x) => typeof x === "string")) : new Set();
       const tenere = v.dati.lotto.messaggi.filter((m) => ids.has(m.id));
-      if (tenere.length === 0) {
+      if (tenere.length === 0 || storico) {
+        // storico: i non noti non si ritentano, vanno nella cache sul Mac (p3)
+        if (tenere.length) allaCache(tenere, v.dati.lotto.nomi);
         togli(voce.nome, v.origine);
         azione = "cancellato";
       } else if (adesso - (v.dati.primo_invio_il ?? adesso) < RITMO.tenutaNonNoti) {
@@ -289,7 +306,8 @@ export function creaFila({ cartella, orologio = Date.now, attesaPariMs = ATTESA_
         scrivi(voce.nome, v.origine, v.dati);
         azione = "tenuto";
       } else {
-        // non è del CRM: si cancella e basta, nemmeno in scartati/ (R10)
+        // non è del CRM: nella cache sul Mac (p3), mai in scartati/ (R10)
+        allaCache(tenere, v.dati.lotto.nomi);
         togli(voce.nome, v.origine);
         conti.non_noti_scaduti += tenere.length;
         azione = "scaduto";

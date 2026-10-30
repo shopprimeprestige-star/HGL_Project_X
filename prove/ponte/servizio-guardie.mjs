@@ -107,7 +107,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
   try {
     // ── 1. Guardie statiche su TUTTO il servizio ─────────────────────────
     const file = readdirSync(src).filter((f) => f.endsWith(".mjs")).sort();
-    c("il servizio ha i file del piano", true, ["collega.mjs", "config.mjs", "estrai.mjs", "index.mjs", "invio.mjs", "lotti.mjs", "qr.mjs", "riconnessione.mjs"].every((f) => file.includes(f)));
+    c("il servizio ha i file del piano", true, ["cache.mjs", "collega.mjs", "config.mjs", "estrai.mjs", "index.mjs", "invio.mjs", "lotti.mjs", "qr.mjs", "riconnessione.mjs"].every((f) => file.includes(f)));
     const codice = Object.fromEntries(file.map((f) => [f, senzaCommenti(readFileSync(join(src, f), "utf8"))]));
     const vietati = ["readMessages", "sendReceipt", "sendPresenceUpdate", "groupCreate", "updateProfile", "relayMessage", "chatModify", "logout", "sendNode", "rejectCall", "presenceSubscribe", "updateBlockStatus", "appPatch", "sendRetryRequest", "sendWAMBuffer", "query("];
     c("nessuna chiamata che scrive o legge a nome del titolare (tranne l'invio a mano), in nessun file", [], file.flatMap((f) => vietati.filter((v) => codice[f].includes(v)).map((v) => `${f}: ${v}`)));
@@ -152,7 +152,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     // ── 2. Dove scrive: solo nella cartella di stato e nel log ────────────
     const p = I.percorsiDi("/Users/finto");
     const casa = "/Users/finto/Library/Application Support/HGL/ponte-wa";
-    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
+    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, cache: `${casa}/cache`, chiaveCache: `${casa}/chiave-cache`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
     c("percorsi: nessuno nel repo né nel com.ponte.whatsapp di Oclak", [], Object.values(p).filter((x) => x.includes("Documents") || x.includes("/ponte-whatsapp")));
 
     // ── 3. Node: solo LTS 22 o 24, come engines ──────────────────────────
@@ -375,9 +375,13 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("battito: la diagnosi tiene solo numeri e chiavi [a-z_]", { scarti: { gruppo: 1 }, tipi: {}, nodi: {} }, I.corpoBattito({ ...ist, diagnosi: { scarti: { gruppo: 1, "Brutta Chiave": 2, testo: "x" }, tipi: null } }, filaC, {}).diagnosi);
     const conti = I.contiDiagnosi(b.diagnosi);
     c("log della diagnosi: chiavi con prefisso, solo numeri", { scarto_gruppo: 1, scarto_tipo_sconosciuto: 1, tipo_in_conversation: 9, tipo_out_placeholder_message: 1, nodo_hosted_unavailable_fanout: 3 }, conti);
-    c("il CRM tiene tutti i contatori del battito (al più 20 con in_coda e scartati)", true, Object.keys(b.contatori).length + 2 <= 20);
+    c("il CRM tiene tutti i contatori del battito (al più 22 con in_coda e scartati)", true, Object.keys(b.contatori).length + 2 <= 22);
     c("battito: v 1, tipo battito, versione di Baileys", [1, "battito", I.VERSIONE_BAILEYS], [b.v, b.tipo, b.versione]);
-    c("battito: contatori solo numeri, chiavi minuscole, al più 18 (+ in_coda e scartati)", [true, true], [Object.entries(b.contatori).every(([k, v]) => /^[a-z_]+$/.test(k) && Number.isFinite(v)), Object.keys(b.contatori).length <= 18]);
+    c("battito: contatori solo numeri, chiavi minuscole, al più 20 (+ in_coda e scartati)", [true, true], [Object.entries(b.contatori).every(([k, v]) => /^[a-z_]+$/.test(k) && Number.isFinite(v)), Object.keys(b.contatori).length <= 20]);
+    const bc = I.corpoBattito(ist, filaC, { cache: { numeri: 3, promossi: 7, errori: 2 } });
+    c("battito: i numeri della cache (numeri, messaggi passati al CRM, scritture fallite)", { cache_numeri: 3, cache_promossi: 7, cache_errori: 2 }, { cache_numeri: bc.contatori.cache_numeri, cache_promossi: bc.contatori.cache_promossi, cache_errori: bc.contatori.cache_errori });
+    c("battito: con la cache i contatori restano al più 20", true, Object.keys(bc.contatori).length <= 20);
+    c("battito: senza cache i suoi contatori valgono 0", [0, 0, 0], [b.contatori.cache_numeri, b.contatori.cache_promossi, b.contatori.cache_errori]);
     c("battito: fila piena e collegato → coda_piena", "coda_piena", I.corpoBattito(ist, { ...filaC, piena: true }, {}).stato);
     c("battito: 401/503 dal CRM e collegato → errore", "errore", I.corpoBattito(ist, filaC, { erroreServer: true }).stato);
     c("battito: senza WhatsApp vince lo stato del collegamento", "attesa_qr", I.corpoBattito({ ...ist, stato: "attesa_qr" }, filaC, { erroreServer: true }).stato);

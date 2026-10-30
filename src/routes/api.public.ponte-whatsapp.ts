@@ -15,12 +15,15 @@
  *  l'esito) e il battito che risponde `invii_in_attesa`. Con la migrazione
  *  non applicata lotti e battiti vanno come prima (`invii` non lancia mai).
  *  ⚠️ L'utente non arriva mai dal corpo: è `manychat_config.user_id`.
+ *  ⚠️ Un messaggio vivo nuovo in entrata, senza pari, fa suonare il telefono
+ *   del consulente del lead e del titolare (`avvisa`); lo storico mai.
  *  ⚠️ Nei log solo codici e contatori (li scrive `porte.avviso`): mai numeri,
  *   nomi, testi o id.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { gestisciRichiesta } from "@/crm/ponte/ingresso";
 import { porteIngresso, porteInvio } from "@/crm/ponte/porte.server";
+import { avvisaEntratePonte } from "@/crm/push/invio.server";
 
 export const Route = createFileRoute("/api/public/ponte-whatsapp")({
   server: {
@@ -31,6 +34,8 @@ export const Route = createFileRoute("/api/public/ponte-whatsapp")({
           segreto: process.env.PONTE_WA_TOKEN,
           adesso: new Date(),
           invii: porteInvio(),
+          //  La notifica sul telefono per i messaggi vivi nuovi (30/10/2026).
+          avvisa: avvisaEntratePonte,
         }),
     },
   },

@@ -14,9 +14,10 @@
  *  ⚠️ L'utente non arriva MAI dal corpo: è `porte.utente()`.
  *  ⚠️ Il corpo si legge solo dopo la chiave giusta; un segreto più corto di
  *   `LIMITI.tokenMinimo` vale come assente (503).
- *  ⚠️ Un numero non noto non entra mai (D7): né riga né contatto. Per i `vivo`
- *   torna in `non_noti` (il ponte ritenta per 10 minuti), per lo `storico` si
- *   conta in `fuori_rubrica`.
+ *  ⚠️ Un numero non noto non entra mai (D7): né riga né contatto. I suoi id
+ *   tornano in `non_noti`: per i `vivo` il ponte ritenta per 10 minuti, poi
+ *   (come per lo `storico`, che li conta anche in `fuori_rubrica`) li tiene
+ *   nella sua cache sul Mac e chiede con `noti` quando il numero diventa noto.
  *  ⚠️ Nei log solo `porte.avviso(codice, contatori)`: mai numeri, nomi, testi,
  *   id. Niente `console` in questo file.
  *
@@ -54,6 +55,7 @@ import {
   type RigaDaAbbinare,
   type RigaScrittura,
   type RispostaLotto,
+  type RispostaNoti,
   type StatoInvio,
   type StatoPonteWa,
   type TipoContenuto,
@@ -181,7 +183,7 @@ function data(v: unknown): string | null {
 
 /** Legge e ripulisce un battito. `null` = corpo non valido (400). Lo `stato`
  *  fuori lista diventa `errore`; `in_coda` e `scartati` vanno dentro
- *  `contatori` (prima degli altri, così il taglio a 20 non li perde). */
+ *  `contatori` (prima degli altri, così il taglio a `LIMITI.chiaviContatori` non li perde). */
 export function leggiBattito(json: unknown): BattitoPulito | null {
   if (!oggetto(json) || json.v !== VERSIONE_CORPO || json.tipo !== "battito") return null;
   const stato = (STATI_PONTE as readonly unknown[]).includes(json.stato)
@@ -200,6 +202,18 @@ export function leggiBattito(json: unknown): BattitoPulito | null {
     ),
     versione,
   };
+}
+
+// ── La domanda «noti» della cache del ponte (p3, 30/10) ───────────────────
+
+/** I numeri di una `RichiestaNoti`, ripuliti: solo cifre 8-15, senza
+ *  ripetizioni (le altre righe si saltano). `null` = corpo non valido (400):
+ *  `v`, `tipo` sbagliati, `numeri` vuoto o oltre `LIMITI.numeri`. */
+export function leggiNoti(json: unknown): string[] | null {
+  if (!oggetto(json) || json.v !== VERSIONE_CORPO || json.tipo !== "noti") return null;
+  const grezzi = json.numeri;
+  if (!Array.isArray(grezzi) || grezzi.length < 1 || grezzi.length > LIMITI.numeri) return null;
+  return [...new Set(grezzi.filter((n): n is string => typeof n === "string" && NUMERO.test(n)))];
 }
 
 // ── Il giro ───────────────────────────────────────────────────────────────
@@ -284,12 +298,52 @@ async function chiaviNostre(
   }
 }
 
+// ── La notifica sul telefono (commessa 2026-10-30, p2-push-risposte) ─────
+
+/** Un numero che ha scritto, da avvisare: cifre e nome del profilo WhatsApp. */
+export interface EntrataDaAvvisare {
+  numero: string;
+  nome: string | null;
+}
+
+/** Chi spedisce le notifiche (la rotta passa `avvisaEntratePonte`). */
+export type AvvisaEntrate = (userId: string, entrate: EntrataDaAvvisare[]) => Promise<void>;
+
+/** Numeri avvisati al più per lotto: ogni avviso costa qualche richiesta al
+ *  database e ai servizi push, e il Worker ne ha un tetto.
+ *  shortcut: tetto fisso, basta finché un lotto vivo porta pochi numeri (il
+ *  ponte li manda ogni 30 s); se il Mac recupera ore di messaggi dopo il
+ *  sonno, quelli oltre il decimo numero non suonano (sono comunque in chat). */
+export const AVVISI_PER_LOTTO = 10;
+
+/** I numeri da avvisare dopo la scrittura: solo un lotto `vivo` (mai lo
+ *  storico), solo entrate, solo senza pari (il pari è lo stesso messaggio già
+ *  arrivato da ManyChat o Meta, che ha già avvisato), e solo se qualcosa è
+ *  stato scritto adesso (un lotto rimandato dà `nuovi: 0`).
+ *  shortcut: `ponte_wa_scrivi` dà solo i conteggi, non quali righe sono nuove;
+ *  in un lotto in parte nuovo e in parte già presente si avvisa per tutte le
+ *  entrate senza pari (la porta dei 180 s toglie le ripetizioni vicine). Se
+ *  servisse esatto, far restituire all'SQL le chiavi inserite. */
+function entrateDaAvvisare(
+  l: LottoLetto,
+  righe: RigaScrittura[],
+  conPari: Set<string>,
+  nuovi: number,
+): EntrataDaAvvisare[] {
+  if (l.origine !== "vivo" || nuovi <= 0) return [];
+  const numeri = new Set(righe.filter((r) => r.d === "in" && !conPari.has(r.k)).map((r) => r.n));
+  return [...numeri]
+    .slice(0, AVVISI_PER_LOTTO)
+    .map((numero) => ({ numero, nome: l.nomi[numero] ?? null }));
+}
+
 async function giroLotto(
   porte: PortePonte,
   userId: string,
   letto: LottoLetto,
   adesso: Date,
   invii?: PorteInvio,
+  avvisa?: AvvisaEntrate,
 ): Promise<RispostaLotto> {
   //  Le uscite che il CRM ha già scritto con l'esito (stessa chiave): non si
   //  riscrivono e non si abbinano a un modello vicino (D7). Contano come già presenti.
@@ -322,8 +376,10 @@ async function giroLotto(
   const noti = new Set(await porte.noti(userId, numeri));
   const dentro = l.messaggi.filter((m) => noti.has(m.numero));
   const fuori = l.messaggi.filter((m) => !noti.has(m.numero));
-  if (l.origine === "vivo") esito.non_noti = fuori.map((m) => m.id);
-  else esito.fuori_rubrica = fuori.length;
+  //  Gli id dei non noti tornano sempre: il ponte ritenta i vivi e mette lo
+  //  storico nella sua cache sul Mac (p3). Nel CRM non entra niente.
+  esito.non_noti = fuori.map((m) => m.id);
+  if (l.origine === "storico") esito.fuori_rubrica = fuori.length;
   if (dentro.length === 0) return esito;
 
   const daAbbinare: RigaDaAbbinare[] = dentro.map((m) => ({
@@ -363,16 +419,33 @@ async function giroLotto(
   esito.doppioni = scritto.doppioni;
   if (scritto.pari_persi > 0) porte.avviso("pari_persi", { n: scritto.pari_persi });
   if (l.origine === "vivo") await riconciliaSenzaErrori(porte, userId, adesso, invii);
+  //  Per ultima: il lotto è già scritto, una notifica guasta non lo fa
+  //  ritentare (la risposta al Mac resta 200).
+  const entrate = entrateDaAvvisare(l, righe, conPari, scritto.nuovi);
+  if (avvisa && entrate.length) {
+    try {
+      await avvisa(userId, entrate);
+    } catch {
+      /* la notifica è un di più: il messaggio è in chat */
+    }
+  }
   return esito;
 }
 
 /** La rotta intera (§b1): 503 senza segreto (o più corto di 32), 401 con la
  *  chiave sbagliata (il corpo non si legge), 413 oltre 256 KB, 400 corpo non
  *  valido, 503 senza `manychat_config`, 500 se il database fallisce (il ponte
- *  ritenta: è sicuro, per l'idempotenza), 200 con i conteggi. */
+ *  ritenta: è sicuro, per l'idempotenza), 200 con i conteggi. Tre corpi:
+ *  `lotto`, `battito` e `noti` (la domanda della cache del ponte, p3). */
 export async function gestisciRichiesta(
   porte: PortePonte,
-  i: { request: Request; segreto: string | undefined; adesso: Date; invii?: PorteInvio },
+  i: {
+    request: Request;
+    segreto: string | undefined;
+    adesso: Date;
+    invii?: PorteInvio;
+    avvisa?: AvvisaEntrate;
+  },
 ): Promise<Response> {
   if (!i.segreto) {
     porte.avviso("non_configurato");
@@ -402,7 +475,8 @@ export async function gestisciRichiesta(
   const battito = tipo === "battito" ? leggiBattito(json) : null;
   //  Senza `invii` prendi ed esito non esistono: corpo non valido, come prima.
   const invio = !!i.invii && (tipo === "prendi" || tipo === "esito");
-  if (!lotto && !battito && !invio) {
+  const numeri = tipo === "noti" ? leggiNoti(json) : null;
+  if (!lotto && !battito && !invio && !numeri) {
     porte.avviso("corpo_non_valido");
     return errore("corpo_non_valido");
   }
@@ -415,7 +489,7 @@ export async function gestisciRichiesta(
     }
     if (invio) return await gestisciPonte(i.invii!, userId, json, i.adesso);
     if (lotto) {
-      const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii);
+      const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii, i.avvisa);
       porte.avviso("lotto", {
         ricevuti: esito.ricevuti,
         nuovi: esito.nuovi,
@@ -426,6 +500,16 @@ export async function gestisciRichiesta(
         non_noti: esito.non_noti.length,
       });
       return risposta(200, esito);
+    }
+    if (numeri) {
+      //  Solo lettura: nessuna riga, nessun contatto, nessun controllo tardivo.
+      const chiesti = new Set(numeri);
+      const noti = numeri.length
+        ? (await porte.noti(userId, numeri)).filter((n) => chiesti.has(n))
+        : [];
+      porte.avviso("noti", { chiesti: numeri.length, noti: noti.length });
+      const corpo: RispostaNoti = { ok: true, noti };
+      return risposta(200, corpo);
     }
     await porte.battito(userId, battito!);
     const riconciliati = await riconciliaSenzaErrori(porte, userId, i.adesso, i.invii);

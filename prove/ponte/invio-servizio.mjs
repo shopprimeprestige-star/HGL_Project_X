@@ -516,7 +516,7 @@ export async function provePonteInvioServizio(mod, { c, gruppo, radice }) {
       c("battito: invii_attivi, invii_ok, invii_ko nei contatori", { invii_attivi: 1, invii_ok: 3, invii_ko: 1 }, { invii_attivi: b.contatori.invii_attivi, invii_ok: b.contatori.invii_ok, invii_ko: b.contatori.invii_ko });
       const senza = I.corpoBattito(ist, filaC, {});
       c("battito senza invii: i tre contatori ci sono, a zero (ponte vecchio = spento)", [0, 0, 0], [senza.contatori.invii_attivi, senza.contatori.invii_ok, senza.contatori.invii_ko]);
-      c("battito: al più 18 contatori (il CRM ne tiene 20 con in_coda e scartati)", true, Object.keys(b.contatori).length <= 18 && Object.keys(b.contatori).length + 2 <= 20);
+      c("battito: al più 20 contatori (il CRM ne tiene 22 con in_coda e scartati)", true, Object.keys(b.contatori).length <= 20 && Object.keys(b.contatori).length + 2 <= 22);
       c("battito: tutti i contatori sono numeri con chiave [a-z_]", true, Object.entries(b.contatori).every(([k, v]) => /^[a-z_]+$/.test(k) && Number.isFinite(v)));
     }
 

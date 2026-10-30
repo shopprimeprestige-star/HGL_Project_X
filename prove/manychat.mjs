@@ -28,6 +28,7 @@ import { proveImportati } from "./manychat/importati.mjs";
 import { proveStatoDopoPrimo } from "./manychat/stato-dopo-primo.mjs";
 import { proveCasiReali } from "./manychat/casi-reali.mjs";
 import { proveStati } from "./manychat/stati.mjs";
+import { proveConsulenze } from "./manychat/consulenze.mjs";
 import { proveSequenzeMigrazione } from "./manychat/sequenze-migrazione.mjs";
 import { proveDelleParolePrenota } from "./manychat/prenota-parole.mjs";
 import { proveDegliOrariPrenota } from "./manychat/prenota-orari.mjs";
@@ -48,12 +49,15 @@ import { proveChatEntrata } from "./manychat/chat-entrata.mjs";
 import { proveChatUscita } from "./manychat/chat-uscita.mjs";
 import { proveChatCasella } from "./manychat/chat-casella.mjs";
 import { proveChatCosti } from "./manychat/chat-costi.mjs";
+import { proveCruscottoWa } from "./manychat/cruscotto-wa.mjs";
 import { proveChatPagina } from "./manychat/chat-pagina.mjs";
 import { proveChatRisposte } from "./manychat/chat-risposte.mjs";
 import { proveChatStile } from "./manychat/chat-stile.mjs";
 import { proveChatDettatura } from "./manychat/chat-dettatura.mjs";
 import { proveChatRitorno } from "./manychat/chat-ritorno.mjs";
 import { proveChatVersione } from "./manychat/chat-versione.mjs";
+import { proveNoteVocali } from "./manychat/note-vocali.mjs";
+import { proveControlloNotte } from "./manychat/controllo-notte.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -303,6 +307,7 @@ export async function proveManychat(mod, aiuti) {
   //  Commessa 2026-10-28 (secondo messaggio «casi reali» e anteprima dei link).
   await proveCasiReali(mod, aiuti);
   await proveStati(mod, aiuti);
+  await proveConsulenze(mod, aiuti);
   await proveSequenzeMigrazione(mod, aiuti);
   //  Commessa 2026-10-27 (prenota in chat): un file per compito, vuoti finché
   //  il compito non li riempie.
@@ -335,4 +340,9 @@ export async function proveManychat(mod, aiuti) {
   await proveChatDettatura(mod, aiuti);
   proveChatRitorno(mod, aiuti);
   proveChatVersione(mod, aiuti);
+  proveNoteVocali(mod, aiuti);
+  //  Pacchetto p4-cruscotto-wa (30/10/2026): prove in prove/manychat/cruscotto-wa.mjs.
+  proveCruscottoWa(mod, aiuti);
+  //  Commessa 2026-10-30 (p8): il controllo della notte e la pulizia delle eco.
+  await proveControlloNotte(mod, aiuti);
 }

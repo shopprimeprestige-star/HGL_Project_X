@@ -40,7 +40,14 @@
 /** Il minimo che serve sapere di una scheda per riconoscerla. */
 export interface SchedaConTelefono {
   id: string;
-  data?: { telefono?: string | null; nome?: string | null; cognome?: string | null; stato?: string | null } | null;
+  data?: {
+    telefono?: string | null;
+    nome?: string | null;
+    cognome?: string | null;
+    stato?: string | null;
+    /** L'id della scheda in cui è stata unita (crm/doppioni). */
+    unitoIn?: string | null;
+  } | null;
 }
 
 /** Quante cifre servono prima di dire qualcosa. */
@@ -73,8 +80,15 @@ export function schedeConLoStessoNumero<T extends SchedaConTelefono>(p: {
   const chiave = chiaveTelefono(p.telefono);
   if (!chiave) return [];
   const io = String(p.escludiId || "");
+  //  ⚠️ Una scheda già UNITA in un'altra (crm/doppioni) non è un doppione:
+  //   è la stessa persona già sistemata. Contarla faceva restare rosso il campo
+  //   della scheda principale anche dopo l'unione, per sempre.
   return (p.schede ?? []).filter(
-    (l) => l && l.id !== io && chiaveTelefono(l.data?.telefono) === chiave,
+    (l) =>
+      l &&
+      l.id !== io &&
+      !String(l.data?.unitoIn ?? "").trim() &&
+      chiaveTelefono(l.data?.telefono) === chiave,
   );
 }
 

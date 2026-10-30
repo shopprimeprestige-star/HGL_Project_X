@@ -138,6 +138,8 @@ import { IconaWhatsApp } from "@/crm/chatwa/IconaWhatsApp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { NotaVocale } from "@/crm/NotaVocale";
+import { notaConDettato } from "@/crm/nota-vocale";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
@@ -1613,6 +1615,9 @@ export function LeadDialog({
               value={form.note || ""}
               onChange={(e) => update("note", e.target.value)}
             />
+            {/*  Nota vocale: il testo dettato va in fondo alle note, da rileggere.
+                 Non parte niente verso il cliente. */}
+            <NotaVocale onTesto={(t) => update("note", notaConDettato(form.note, t, new Date()))} />
           </SezioneFinestra>
 
           {/* ═══ 4bis · I SUOI PREVENTIVI ═══

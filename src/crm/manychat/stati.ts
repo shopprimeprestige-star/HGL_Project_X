@@ -56,6 +56,7 @@ import {
 } from "./regole";
 import { MEMORIA_SALTI_MIN, primoIstanteUtile, quandoParte } from "./sequenze";
 import { campiPerStato } from "./testi";
+import { eAssenzaAutomatica } from "./consulenze";
 
 /** Quando parte il messaggio di uno stato (piano §5g, «tre regole del quando»). */
 export type QuandoStato = "a_data" | "a_evento" | "a_orario";
@@ -344,9 +345,10 @@ export function decidiPerStato(
         ora - Date.parse(i.prenotatoIl) < GIORNI_FRA_DUE_UGUALI * 24 * ORA_MS,
     );
     const extra: ExtraStato = { tipo: "ricontatto", stato, inizio: null };
-    const parte = primoIstanteUtile(
-      new Date(Math.max(evento + (riga.attesaMin ?? 0) * MIN_MS, ora)),
-    );
+    //  «Da riprogrammare» messo da solo dopo un'assenza (commessa 2026-10-30, p5): il
+    //  messaggio parte subito, cioè 15' dopo l'inizio della consulenza saltata.
+    const attesaMin = eAssenzaAutomatica(d) ? 0 : (riga.attesaMin ?? 0);
+    const parte = primoIstanteUtile(new Date(Math.max(evento + attesaMin * MIN_MS, ora)));
     if (settimana) {
       salta("già un messaggio uguale a questo numero negli ultimi 7 giorni");
     } else if (ora > entro) {

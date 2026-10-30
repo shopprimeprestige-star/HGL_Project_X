@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PromemoriaWhatsappPannello } from "@/crm/PromemoriaWhatsappPannello";
 import { ManychatPannello } from "@/crm/ManychatPannello";
 import { PrenotaChatPannello } from "@/crm/PrenotaChatPannello";
+import { AssenzaAutoPannello } from "@/crm/AssenzaAutoPannello";
 import { ProvaModelliWhatsapp } from "@/crm/ProvaModelliWhatsapp";
 import { cn } from "@/lib/utils";
 import {
@@ -1315,6 +1316,7 @@ function ImpostazioniPage() {
             <PromemoriaWhatsappPannello />
             <ManychatPannello />
             <PrenotaChatPannello />
+            <AssenzaAutoPannello />
             <ProvaModelliWhatsapp />
 
             <SezioneIndirizziGoogle />
