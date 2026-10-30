@@ -405,19 +405,27 @@ export function eventoDaIgnorare(
 /** Il margine all'indietro di ogni lettura a pezzi. */
 export const MARGINE_LETTURA = 2 * MINUTO;
 
-/** Da dove riprendere: il più recente fra le colonne date di tutte le righe, meno
- *  il margine. `null` = nessuna riga con un'ora = si legge tutto. */
+/** Da dove riprendere: il più recente fra le righe, meno il margine. Di ogni riga conta UNA
+ *  colonna sola: la prima di `colonne` che ha un'ora (per i messaggi `cambiato_il`, e
+ *  `created_at` solo se manca). ⚠️ Il cursore deve stare sullo STESSO orologio su cui la
+ *  richiesta filtra (`cambiato_il`, quello del database): `created_at` di un messaggio del
+ *  ponte è l'ora scritta da WhatsApp (anche di un telefono con l'orologio avanti, fino a
+ *  10 minuti nel futuro), e un cursore in avanti faceva ignorare in silenzio ogni riga
+ *  nuova finché l'orologio non lo raggiungeva. `null` = nessuna riga con un'ora = si legge tutto. */
 export function cursore(
   righe: readonly Record<string, unknown>[],
   colonne: readonly string[],
   margine = MARGINE_LETTURA,
 ): string | null {
   let max: number | null = null;
-  for (const r of righe)
+  for (const r of righe) {
+    let t: number | null = null;
     for (const k of colonne) {
-      const t = ms(r[k] as Istante | null | undefined);
-      if (t !== null && (max === null || t > max)) max = t;
+      t = ms(r[k] as Istante | null | undefined);
+      if (t !== null) break;
     }
+    if (t !== null && (max === null || t > max)) max = t;
+  }
   return max === null ? null : new Date(max - margine).toISOString();
 }
 

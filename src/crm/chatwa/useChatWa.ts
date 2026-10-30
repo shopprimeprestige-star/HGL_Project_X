@@ -519,6 +519,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             if (!eventoDaIgnorare("whatsapp_contacts", e, Date.now())) void ricarica();
           },
         );
+      //  Un canale rimasto da un tentativo più vecchio si chiude: mai due canali aperti insieme.
+      if (ch && ch !== questo) void supabase.removeChannel(ch);
       ch = questo;
       questo.subscribe((stato) => {
         //  ⚠️ `removeChannel` richiama la callback del canale tolto con CLOSED:
@@ -531,12 +533,23 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
             riprova = null;
             ch = null;
             void supabase.removeChannel(questo);
-            void apri().catch(() => {});
+            tenta();
           }, 5_000);
         }
       });
     };
-    void apri().catch(() => {});
+    //  ⚠️ Se `apri` stesso fallisce (sessione appesa: `getSession` scade dopo il ritorno da WhatsApp) il
+    //   canale non si riapriva MAI più: nessuno stato lo richiamava. Ora ritenta ogni 5 s finché c'è.
+    const tenta = () => {
+      void apri().catch(() => {
+        if (!vivo || riprova) return;
+        riprova = setTimeout(() => {
+          riprova = null;
+          tenta();
+        }, 5_000);
+      });
+    };
+    tenta();
 
     //  Rete di sicurezza: una riga sola per tabella, si rilegge tutto solo se è cambiato qualcosa.
     let impronta = "";
@@ -565,8 +578,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       primo = false;
     };
     const controllaZitto = () => controlla().catch(() => {});
-    //  «Aggiorna»: sessione rinnovata, canale riaperto da capo, tutto riletto.
-    forzaRef.current = async () => {
+    //  Sessione rinnovata e canale riaperto da capo (anche se il rinnovo non risponde: ha un tetto).
+    const riapriCanale = async () => {
       await conTempo(supabase.auth.refreshSession()).catch(() => null);
       if (riprova) {
         clearTimeout(riprova);
@@ -575,20 +588,34 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       const vecchio = ch;
       ch = null;
       if (vecchio) void supabase.removeChannel(vecchio);
-      void apri().catch(() => {});
+      tenta();
+    };
+    //  «Aggiorna»: sessione rinnovata, canale riaperto da capo, tutto riletto.
+    forzaRef.current = async () => {
+      await riapriCanale();
       await ricarica("tutto");
     };
     void controllaZitto();
     const giro = setInterval(() => void controllaZitto(), 15_000);
-    //  Al ritorno sulla pagina: se è stata ferma a lungo (telefono in tasca) il
-    //  canale è quasi certamente morto: si riapre tutto come con «Aggiorna».
+    //  Al ritorno sulla pagina si rilegge SUBITO (senza aspettare il rinnovo della sessione) e, se la pagina è
+    //  stata ferma a lungo (telefono in tasca) o è stata in sfondo anche solo qualche secondo (iPhone: WhatsApp e
+    //  ritorno, iOS può aver chiuso il socket senza dirlo), il canale si riapre come con «Aggiorna».
     let ultimoGiro = Date.now();
+    let nascostoDal = 0;
     const torna = () => {
-      if (typeof document === "undefined" || document.visibilityState !== "visible") return;
-      const fermo = Date.now() - ultimoGiro > 60_000;
-      ultimoGiro = Date.now();
+      if (typeof document === "undefined") return;
+      if (document.visibilityState !== "visible") {
+        if (!nascostoDal) nascostoDal = Date.now();
+        return;
+      }
+      const ora = Date.now();
+      const fermo = ora - ultimoGiro > 60_000;
+      const inSfondo = nascostoDal > 0 && ora - nascostoDal > 5_000;
+      ultimoGiro = ora;
+      nascostoDal = 0;
+      void ricarica();
       if (fermo && forzaRef.current) void forzaRef.current();
-      else void ricarica();
+      else if (inSfondo) void riapriCanale();
     };
     const battito = setInterval(() => {
       //  I timer sospesi non battono: un buco di oltre un minuto vuol dire pagina congelata.
