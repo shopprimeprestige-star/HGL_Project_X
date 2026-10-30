@@ -77,6 +77,7 @@ export const STATI_CHE_LIBERANO_LO_SLOT: string[] = [
   "per_ora_no",
   "perdi_tempo",
   "irreperibile",
+  "ricontatto_aperto",
   "concluso",
   //  La visita in sede è stata disdetta: l'ora in negozio torna libera.
   "sede_disdetta",

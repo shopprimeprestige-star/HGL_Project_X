@@ -37,7 +37,7 @@
  *  scrive perfino a schermo sotto la data.
  *  ───────────────────────────────────────────────────────────────────────── */
 
-import type { LeadStatus } from "./types";
+import type { LeadData, LeadStatus } from "./types";
 
 export type ChiaveData = "dataMeeting" | "dataRicontatto" | "dataVieneInSede";
 export type ChiaveOra = "oraMeeting" | "oraRicontatto" | "oraVieneInSede";
@@ -214,4 +214,14 @@ export const STATI_CON_DATA: ReadonlySet<LeadStatus> = new Set(
  *  un `undefined` qui dentro non deve diventare un errore di render. */
 export function chiedeUnaData(s: LeadStatus | string | null | undefined): boolean {
   return !!s && STATI_CON_DATA.has(s as LeadStatus);
+}
+
+/** «Ricontatto senza data» (`ricontatto_aperto`) non ha scadenza: scegliendolo si azzerano data, ora e
+ *  ricontatto automatico di un ricontatto di prima, altrimenti «Da fare» lo mostrerebbe come arretrato.
+ *  Gli altri stati passano com'erano. Si usa in `updateLead`, il punto unico da cui passano tutte le modifiche. */
+export function conRicontattoSenzaData<T extends Partial<LeadData>>(d: T): T {
+  if (d.stato !== "ricontatto_aperto") return d;
+  const { dataRicontatto, oraRicontatto, callbackAt, ...resto } = d;
+  void dataRicontatto, void oraRicontatto, void callbackAt;
+  return resto as T;
 }

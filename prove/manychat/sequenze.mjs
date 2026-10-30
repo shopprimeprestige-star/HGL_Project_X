@@ -1802,6 +1802,103 @@ export async function proveSequenze(mod, { c, gruppo }) {
   }
 
   /* ════════════════════════════════════════════════════════════════════════
+   *  IL GIORNO PRIMA A PAGAMENTO SE FISSATA DA OLTRE 3 GIORNI (30/10/2026)
+   *  Fissata da più di 3 giorni (data in cui è stata fissata → data del meet):
+   *  alle 9:00 del giorno prima parte il MODELLO, anche a finestra chiusa.
+   *  Fissata da 3 giorni o meno: resta «solo se gratis».
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · IL GIORNO PRIMA A PAGAMENTO (fissata da oltre 3 giorni)");
+  {
+    const FRASE_CHIUSA = "saltato: finestra chiusa, si risparmia il modello";
+    //  Il meet è martedì 27/10; lunedì 26/10 è «oggi». Mai scritto: finestra chiusa.
+    const pago = (schede, adesso, extra) =>
+      domani(schede, adesso, { soloGratis: true, pagaOltreGiorni: 3, ultimeEntrate: {}, ...extra });
+    const conFissata = (iso, extra) => md("18:00", { fissatoIl: iso, ...extra });
+    const lontana = conFissata("2026-10-23T10:00:00+01:00"); // 4 giorni prima: a pagamento
+    const limite = conFissata("2026-10-24T10:00:00+01:00"); // 3 giorni prima: gratis
+
+    c(
+      "fissata 4 giorni prima: alle 8:59 aspetta, alle 9:00 parte (modello, anche a finestra chiusa)",
+      [["aspetta", "promemoria 24 ore prima: parte alle 09:00"], ["invia", chiaveD("18:00"), true]],
+      [
+        uno(pago([lontana], lun("08:59"))),
+        ((x) => [x?.tipo, x?.chiave, x?.extra?.aPagamento])(unica(pago([lontana], lun("09:00")))),
+      ],
+    );
+    c(
+      "…alle 10:59 parte ancora, dalle 11:00 salta (giro in ritardo), un'ora dopo tace",
+      [["invia"], ["salta", "saltato: giro in ritardo"], []],
+      [tipi(pago([lontana], lun("10:59"))), uno(pago([lontana], lun("11:00"))), pago([lontana], lun("12:00"))],
+    );
+    c(
+      "fissata 3 giorni prima (o meno): resta «solo se gratis», senza finestra salta",
+      [["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA]],
+      [uno(pago([limite], lun("18:00"))), uno(pago([conFissata("2026-10-26T08:00:00+01:00")], lun("18:00")))],
+    );
+    c(
+      "…e se la finestra è aperta parte come testo (senza «a pagamento»)",
+      [["invia", undefined]],
+      [
+        ((x) => [x?.tipo, x?.extra?.aPagamento])(
+          unica(pago([limite], lun("18:00"), { ultimeEntrate: { [t9(1)]: lun("12:00") } })),
+        ),
+      ],
+    );
+    c(
+      "la data vale a giorni di Roma, non a ore: 4 giorni di calendario anche se fra 3 giorni e poche ore",
+      ["invia"],
+      tipi(pago([conFissata("2026-10-23T23:30:00+02:00")], lun("09:00"))),
+    );
+    //  La data di quando è stata fissata: la più recente fra `fissatoIl` e `statoDal`.
+    c(
+      "senza fissatoIl vale statoDal dell'appuntamento; se più recente di fissatoIl vince (appuntamento rifissato)",
+      [["invia"], ["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA]],
+      [
+        tipi(pago([conFissata(undefined, { statoDal: "2026-10-20T09:00:00.000Z" })], lun("09:00"))),
+        uno(pago([conFissata("2026-10-20T09:00:00.000Z", { statoDal: "2026-10-25T09:00:00.000Z" })], lun("18:00"))),
+        //  senza nessuna data di quando è stata fissata non si paga: createdAt non conta
+        uno(pago([conFissata(undefined, { createdAt: "2026-09-01T09:00:00.000Z" })], lun("18:00"))),
+      ],
+    );
+    c(
+      "spento (pagaOltreGiorni assente o nullo): fissata da una vita, resta solo gratis",
+      [["salta", FRASE_CHIUSA], ["salta", FRASE_CHIUSA]],
+      [
+        uno(pago([lontana], lun("18:00"), { pagaOltreGiorni: undefined })),
+        uno(pago([lontana], lun("18:00"), { pagaOltreGiorni: null })),
+      ],
+    );
+    c(
+      "una volta sola per meet: con la chiave già nel registro, niente",
+      [],
+      pago([lontana], lun("09:30"), {
+        invii: [invio(1, "meet_domani", "2026-10-26T08:00:00.000Z", { chiave: chiaveD("18:00") })],
+      }),
+    );
+    c(
+      "STOP e senza consenso saltano col loro motivo anche a pagamento",
+      [["salta", "STOP"], ["salta", "manca il consenso WhatsApp"]],
+      [
+        uno(pago([conFissata("2026-10-20T09:00:00Z", { contattoWa: { stato: "stop" } })], lun("09:00"))),
+        uno(pago([conFissata("2026-10-20T09:00:00Z", { okWhatsapp: { si: false } })], lun("09:00"))),
+      ],
+    );
+    c(
+      "il tetto di messaggi di oggi vale anche a pagamento",
+      [["salta", "tetto di messaggi di oggi raggiunto"]],
+      [uno(pago([lontana], lun("09:30"), { invii: righeOggi(3, "meet_domani", { prenotatoIl: "2026-10-26T08:00:00.000Z" }), tetti: { ...TETTI, totale: 3 } }))],
+    );
+    c(
+      "senza `senzaGratis` i vicini restano gratis; con `senzaGratis` (gratis spento) non partono",
+      [[], ["invia"]],
+      [
+        pago([limite], lun("18:00"), { senzaGratis: true, ultimeEntrate: { [t9(1)]: lun("12:00") } }),
+        tipi(pago([lontana], lun("09:00"), { senzaGratis: true })),
+      ],
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
    *  VARIABILI DEI MODELLI (testi.ts) E COSTANTI
    * ════════════════════════════════════════════════════════════════════════ */
   gruppo("MANYCHAT · LE VARIABILI DELLE SEQUENZE (testi.ts)");

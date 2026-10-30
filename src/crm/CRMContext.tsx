@@ -40,6 +40,7 @@ import { OGNI_MS as RILEGGI_OGNI_MS, daRileggere, mostraLaCopia, type Motivo } f
 //  farà): la regola sta lì e si prova senza browser.
 import { patchChiFissa } from "./chi-ha-fissato";
 import { statoDalDopo } from "./stato-dal";
+import { conRicontattoSenzaData } from "./quando-per-stato";
 //  «L'appuntamento si è spostato?» — la regola sta a parte perché si prova:
 //  vedi crm/spostamento-meet.ts e proveDelloSpostamento in prove/prove.mjs.
 import { anteprimaDaRifare, consulenzaSpostata } from "./spostamento-meet";
@@ -894,6 +895,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const oggi = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       merged = { ...merged, ciRicontattaDettoIl: oggi };
     }
+    //  «Ricontatto senza data»: niente data né ora di prima (se no «Da fare» lo dà per arretrato).
+    merged = conRicontattoSenzaData(merged);
     // Doppia data attribuzione: appena il lead diventa convertito per la prima
     // volta, registra `convertedAt` (ISO). Le KPI di chiusura/fatturato
     // useranno questo campo invece di `created_at`.
