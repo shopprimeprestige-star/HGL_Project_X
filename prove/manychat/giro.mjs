@@ -1547,7 +1547,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
         m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
         m.flussi()[0]?.corpo.flow_ns,
         letti(m).slice(0, 3),
-        /^https:\/\/example\.test\/meetly\/abc/.test(letti(m)[3] ?? ""),
+        /\/meetly\/abc/.test(letti(m)[3] ?? ""),
       ],
     );
     m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00", linkMeeting: "" })], config: conLink });

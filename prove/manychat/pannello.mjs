@@ -2162,6 +2162,7 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       "hgl_ritorno",
       "hgl_casi_reali",
       "hgl_meet_oggi",
+      "hgl_meet_oggi_link",
       "hgl_meet_domani",
       "hgl_meet_adesso",
       "hgl_meet_da_fissare",
