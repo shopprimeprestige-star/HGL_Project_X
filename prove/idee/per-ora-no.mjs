@@ -75,11 +75,14 @@ export function provePerOraNo(mod, { c, gruppo, radice }) {
       passaFiltro(chat(null), "per-ora-no"),
     ],
   );
-  const elenco = leggi("src/crm/chatwa/ElencoChat.tsx");
+  //  30/10/2026 (filtri a gruppi): la pastiglia è la voce «Per ora no» del gruppo «Fase del lead» nel pannello.
+  const voceNo = mod["chatwa/filtri"].GRUPPI_FILTRI.find((g) => g.id === "fase").voci[1];
   c(
-    "la pastiglia c'è, col numero",
+    "la voce c'è, col numero",
     true,
-    /l: "Per ora no"/.test(elenco) && /f\.v === "per-ora-no"/.test(elenco),
+    voceNo.nome === "Per ora no" &&
+      voceNo.valore === "per-ora-no" &&
+      /conta\(v\.campo, v\.valore\)/.test(leggi("src/crm/chatwa/PannelloFiltri.tsx")),
   );
 
   gruppo("PER ORA NO: NESSUN MESSAGGIO AUTOMATICO, NESSUNO SPOSTAMENTO");
