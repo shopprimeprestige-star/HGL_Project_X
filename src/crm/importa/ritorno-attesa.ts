@@ -67,10 +67,13 @@ export function patchRitornoRimastoIndietro(
   ora: Date,
 ): Partial<LeadData> | null {
   const r = d?.ricarico;
-  if (!r || !(Number(r.volte) >= 1) || r.inAttesaIl || !r.statoAllora || d?.stato !== r.statoAllora) return null;
+  if (!r || !(Number(r.volte) >= 1) || r.inAttesaIl || !r.statoAllora || d?.stato !== r.statoAllora)
+    return null;
   const ultimo = Date.parse(String(r.ultimo ?? ""));
   if (!Number.isFinite(ultimo)) return null;
-  const cambiatoDopo = [d?.statoPrecedenteIl, d?.statoDal].some((x) => Date.parse(String(x ?? "")) > ultimo);
+  const cambiatoDopo = [d?.statoPrecedenteIl, d?.statoDal].some(
+    (x) => Date.parse(String(x ?? "")) > ultimo,
+  );
   if (cambiatoDopo) return null;
   const attesa = patchAttesaDelRitorno(d, ora);
   if (!attesa) return null;

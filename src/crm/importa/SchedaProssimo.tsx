@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import {
   LEAD_STATUS_LABEL,
   type Lead,
@@ -421,6 +422,8 @@ export function SchedaProssimo({
                 </span>
               )}
             </div>
+            {/*  «prima: …» (30/10/2026): lo stato di prima, se il ritorno l'ha spostato. */}
+            <PrimaDelRitorno dati={d} className="mt-1" />
             {motivo && (
               <Targhetta
                 motivo={motivo}

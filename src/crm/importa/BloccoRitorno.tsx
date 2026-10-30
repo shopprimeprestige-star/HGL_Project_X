@@ -7,6 +7,7 @@ import { LEAD_STATUS_LABEL, type Lead } from "@/crm/types";
 import { CLASSE_BADGE_STATO, Scheda, classiStato, dettoIlInChiaro } from "@/crm/ui";
 import { mappaMestieri } from "@/crm/dafare/di-chi";
 import { SchedaRimandati } from "@/crm/importa/SchedaRimandati";
+import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 
   /** ── SOTTO LA LISTA, CON LO STATO «DI RITORNO» ─────────────────────────
    *  Decisione 6 del piano: la vista «Di ritorno» non ha più una stanza sua ma è
@@ -101,8 +102,11 @@ export function BloccoRitorno({
                           .join(" · ")}
                       </span>
                     </span>
-                    <span className={cn(CLASSE_BADGE_STATO, classiStato(d.stato), "shrink-0")}>
-                      {LEAD_STATUS_LABEL[d.stato]}
+                    <span className="inline-flex shrink-0 flex-col items-end gap-0.5">
+                      <span className={cn(CLASSE_BADGE_STATO, classiStato(d.stato), "shrink-0")}>
+                        {LEAD_STATUS_LABEL[d.stato]}
+                      </span>
+                      <PrimaDelRitorno dati={d} />
                     </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
