@@ -214,6 +214,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
 
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
     <RigaChat
+      comeWhatsapp={tutte}
       prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}

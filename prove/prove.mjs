@@ -22294,9 +22294,9 @@ function proveDellAnteprimaUltimo() {
   c("spunte: lette, consegnato, inviato e errore con le icone outline", true, /CheckCheck/.test(r) && /<Check\b/.test(r) && /AlertCircle/.test(r));
   c("il non letto del cliente è in grassetto scuro", true, /a\.nonLetto[^;]{0,80}font-semibold text-foreground/.test(r));
   c("«senza risposta» a destra del nome, in ardesia con la clessidra (non ambra, non rosso, non azzurro come lo stato)", true,
-    /a\.senzaRisposta \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
+    /a\.senzaRisposta && !comeWhatsapp \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
   c("…e non aggiunge una riga all'elenco (niente pastiglia nella riga di stato)", false, /\(c\.lead \|\| onStelle \|\| a\.senzaRisposta\)/.test(r));
-  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" \? "font-semibold text-amber-700"/.test(r));
+  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" && !comeWhatsapp\s*\? "font-semibold text-amber-700"/.test(r));
   c("la chat aperta mostra «senza risposta» nella barra, con la stessa funzione", true, /senzaRispostaDa\(/.test(conv) && /Senza risposta/.test(pulito(conv)));
   c("la regola di «Da rispondere» non è stata toccata: la riga legge ancora c.daRispondere", true, /c\.daRispondere\?\.dal/.test(r) && /attesa: c\.daRispondere/.test(r));
 }
