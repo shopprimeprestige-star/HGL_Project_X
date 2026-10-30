@@ -63,6 +63,11 @@ export interface DatiFatturaScheda {
   /** id dei messaggi già letti (`wa_message_id`) */
   letti?: string[];
   bozzaIl?: string;
+  /** ── LE LETTURE GIÀ FATTE, PER NON LEGGERE DUE VOLTE LA STESSA FOTO ──────────
+   *  Chiave = id dei messaggi letti (`f:<id,id>` per le foto, `t:<id>` per un testo); valore =
+   *  i dati GIÀ INTERPRETATI. Stanno sulla scheda (che ha già i permessi giusti), mai in
+   *  `app_config`. Si tolgono appena la bozza è scritta. */
+  letture?: Record<string, DatiLetti>;
 }
 
 export interface ConfigDatiFattura {

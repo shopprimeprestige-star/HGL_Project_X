@@ -103,11 +103,9 @@ export interface PorteDatiFattura {
     url: string,
   ): Promise<{ percorso: string; dataUrl: string } | null>;
   /** L'AI: da uno o più file (data URL) oppure da un testo; null = guasto (si riprova).
-   *  ⚠️ UNA LETTURA SOLA PER MESSAGGIO: `chiave` nasce dagli id dei messaggi; la porta tiene la
-   *  risposta finché `dimentica` non la toglie, così un giro rifatto non paga (né legge) due volte. */
-  leggi(i: { file: string[] } | { testo: string }, chiave: string): Promise<string | null>;
-  /** toglie le risposte tenute da `leggi` (quando la scheda è stata scritta) */
-  dimentica(chiavi: string[]): Promise<void>;
+   *  ⚠️ UNA LETTURA SOLA PER MESSAGGIO: il giro scrive il risultato già interpretato sulla scheda
+   *  (`datiFattura.letture`, con gli id dei messaggi) PRIMA di fare altro, e non lo rifà. */
+  leggi(i: { file: string[] } | { testo: string }): Promise<string | null>;
   aliquota(): Promise<number>;
   leggiBozza(leadId: string): Promise<Fattura | null>;
   scriviBozza(f: Fattura): Promise<string | null>;
@@ -299,35 +297,43 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     idFile.push(m.id);
   }
 
-  //  L'AI: una chiamata per i file (insieme) e una per ogni testo, ognuna con la SUA chiave
-  //  (gli id dei messaggi): un giro rifatto non legge due volte lo stesso messaggio.
-  const letture: DatiLetti[] = [];
-  const chiavi: string[] = [];
+  //  L'AI: una chiamata per i file (insieme) e una per ogni testo. Ogni lettura ha la sua chiave (gli
+  //  id dei messaggi): se la scheda la ricorda già (`letture`), l'AI NON si richiama.
+  const ricordate = sc.letture ?? {};
+  const nuove: Record<string, DatiLetti> = {};
   let guasto = false;
-  if (dataUrl.length) {
-    const k = `lettura:${s.id}:f:${idFile.join(",")}`;
-    chiavi.push(k);
-    const r = await porte.leggi({ file: dataUrl }, k);
+  const leggiUna = async (k: string, ingresso: { file: string[] } | { testo: string }) => {
+    if (ricordate[k]) return;
+    const r = await porte.leggi(ingresso);
     if (r === null) guasto = true;
-    else letture.push(leggiJsonDatiTesto(r));
+    else nuove[k] = leggiJsonDatiTesto(r);
+  };
+  const chiaviViste: string[] = [];
+  if (dataUrl.length) {
+    chiaviViste.push(`f:${idFile.join(",")}`);
+    await leggiUna(chiaviViste[0], { file: dataUrl });
   }
   for (const t of testi) {
-    const k = `lettura:${s.id}:t:${t.id}`;
-    chiavi.push(k);
-    const r = await porte.leggi({ testo: t.testo }, k);
-    if (r === null) guasto = true;
-    else letture.push(leggiJsonDatiTesto(r));
+    chiaviViste.push(`t:${t.id}`);
+    await leggiUna(`t:${t.id}`, { testo: t.testo });
   }
-  //  L'AI non risponde (credito finito, rete): i messaggi non si segnano letti, così il
-  //  prossimo giro riprova (le letture già fatte restano tenute: non si pagano due volte).
+  //  Se l'AI non risponde i messaggi non si segnano letti e il giro dopo riprova; le letture già
+  //  riuscite si salvano comunque sulla scheda, così non si rifanno.
+  let corrente: DatiFatturaScheda = { ...sc, file };
+  if (Object.keys(nuove).length) {
+    corrente = { ...corrente, letture: { ...ricordate, ...nuove } };
+    if (!(await porte.scriviScheda(s, corrente))) return;
+  }
   if (guasto) {
     out.errori++;
     return;
   }
+  const letture: DatiLetti[] = chiaviViste.map((k) => nuove[k] ?? ricordate[k]);
 
   const unite = unisciLetture(letture);
   const base: DatiFatturaScheda = {
-    ...sc,
+    ...corrente,
+    letture: undefined,
     file,
     letti: [...(sc.letti ?? []), ...visti].slice(-MESSAGGI_RICORDATI),
   };
@@ -338,6 +344,8 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     //   completa soltanto, mai si sostituisce).
     const nuovoStato: DatiFatturaScheda = {
       ...base,
+      //  le letture restano finché la bozza non è scritta (se fallisce, non si rifanno)
+      letture: corrente.letture,
       stato: "bozza_pronta",
       bozzaIl: adesso.toISOString(),
       motivo: undefined,
@@ -355,12 +363,13 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     if (errore) {
       //  La bozza non c'è: la scheda torna com'era (con i file salvati) così il prossimo giro
       //  riprova; la lettura AI è ancora tenuta e non si rifà.
-      await porte.scriviScheda(s, { ...sc, file });
+      await porte.scriviScheda(s, { ...corrente });
       out.errori++;
       return;
     }
     out.bozze++;
-    await porte.dimentica(chiavi);
+    //  Bozza scritta: i dati interpretati non servono più sulla scheda.
+    await porte.scriviScheda(s, { ...nuovoStato, letture: undefined });
     return;
   }
   //  Arrivato qualcosa ma non si legge: foto storta, o dato incompleto.
@@ -371,7 +380,6 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
         : { ...base, stato: "da_guardare", motivo: motivo || "non_letto" };
     if (!(await porte.scriviScheda(s, nuovo))) return;
     if (sc.stato !== "bozza_pronta") out.daGuardare++;
-    await porte.dimentica(chiavi);
     return;
   }
   await porte.scriviScheda(s, base);

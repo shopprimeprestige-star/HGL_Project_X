@@ -15,7 +15,7 @@ function cfConControllo(quindici) {
   return quindici + "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[s % 26];
 }
 
-export async function proveDatiFattura(mod, { c, gruppo }) {
+export async function proveDatiFattura(mod, { c, gruppo, radice }) {
   const D = mod["fatture/dati-fattura"];
   const G = mod["fatture/dati-fattura-giro"];
   const M = mod["wa-meta-templates"];
@@ -106,6 +106,23 @@ export async function proveDatiFattura(mod, { c, gruppo }) {
   const az = D.bozzaDaDati({ scheda, letti: { denominazione: "Rossi Srl", partitaIva: "12345678901", codiceDestinatario: "ABCDEFG" }, esistente: null, aliquota: 22, adesso: ADESSO }).bozza;
   c("azienda: ragione sociale, P.IVA, codice destinatario", [true, "Rossi Srl", "12345678901", "ABCDEFG"], [az.cliente.azienda, az.cliente.denominazione, az.cliente.partitaIva, az.cliente.codiceDestinatario]);
 
+  gruppo("DATI FATTURA · «DA FARE» (PROMEMORIA)");
+  const R = mod["dafare/righe"];
+  const lead = (id, df) => ({ id, created_at: ore(100), data: { nome: id, cognome: "X", telefono: "+393331110000", stato: "acconto", createdAt: ore(100), payment: { accontoPagato: 100 }, ...(df ? { datiFattura: df } : {}) } });
+  const righe = R.costruisciRighe({ leads: [lead("P", { stato: "promemoria", motivo: "finestra_chiusa_senza_modello" }), lead("G", { stato: "da_guardare" }), lead("I", { stato: "richiesta_inviata" }), lead("B", { stato: "bozza_pronta" }), lead("N")], task: [], ora: ADESSO }).filter((r) => r.tipo === "dati_fattura");
+  c("in «Da fare» restano solo promemoria e da guardare", ["G", "P"], righe.map((r) => r.lead.id).sort());
+  c("la frase dice cosa fare", true, righe.every((r) => r.cosa.startsWith("Chiedere i dati per la fattura a")));
+  c("il filtro esiste", true, R.TIPI_RIGA.includes("dati_fattura") && !!R.META_RIGA.dati_fattura.filtro);
+
+  gruppo("DATI FATTURA · NIENTE DATI PERSONALI IN app_config (se non nella bozza)");
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const srv = readFileSync(join(radice, "src/crm/fatture/dati-fattura.server.ts"), "utf8");
+  const chiavi = [...srv.matchAll(/CHIAVE_[A-Z_]+ = "([^"]+)"/g)].map((x) => x[1]).sort();
+  c("le uniche chiavi proprie in app_config: interruttore e lucchetto", ["dati_fattura_config", "dati_fattura_lock"], chiavi);
+  c("nessuna cache dell'AI: niente prefisso di lettura, niente upsert di risposte", [false, false], [/dati_fattura_ai/.test(srv), /upsert\(\{ key: kc/.test(srv)]);
+  c("l'unica scrittura di dati in app_config oltre a config/lucchetto è la bozza (archivio)", true, /fattura_bozza:\$\{f\.leadId\}/.test(srv));
+
   await proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H });
 }
 
@@ -128,8 +145,7 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
       scritture: [],
       chiamateAi: 0,
       scaricati: [],
-      cache: new Map(),
-      dimenticate: [],
+      lettureAi: [],
       lockOccupato: false,
       rilasci: 0,
       rifiutaBozzaPronta: 0,
@@ -163,14 +179,7 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
       },
       messaggiIn: async (u, l) => m.messaggi[l] ?? [],
       scaricaESalva: async (u, l, url) => { m.scaricati.push(url); return m.scarica ? { percorso: `${u}/${l}/f${m.scaricati.length}.jpg`, dataUrl: "data:image/jpeg;base64,AAAA" } : null; },
-      leggi: async (i, chiave) => {
-        if (m.cache.has(chiave)) return m.cache.get(chiave);
-        m.chiamateAi++;
-        const r = m.ai(i);
-        if (r !== null) m.cache.set(chiave, r);
-        return r;
-      },
-      dimentica: async (chiavi) => { m.dimenticate.push(...chiavi); chiavi.forEach((k) => m.cache.delete(k)); },
+      leggi: async (i) => { m.chiamateAi++; m.lettureAi.push(i); return m.ai(i); },
       aliquota: async () => 22,
       leggiBozza: async (l) => m.bozze[l] ?? null,
       scriviBozza: async (f) => {
@@ -269,8 +278,11 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
   const foto = (id = "w1") => ({ id, body: H + `${id}.jpg`, canale: "manychat", creatoIl: dopo(2) });
   m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] } });
   await G.giroDatiFattura(m.porte);
-  c("la lettura AI ha una chiave con l'id del messaggio", true, m.dimenticate.length === 1 && m.dimenticate[0].includes("w1"));
-  c("finita la scheda, la risposta tenuta dell'AI si toglie", 0, m.cache.size);
+  c("bozza scritta: i dati interpretati NON restano sulla scheda", undefined, m.schede[0].data.datiFattura.letture);
+  m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] }, rifiutaBozzaPronta: 1 });
+  await G.giroDatiFattura(m.porte);
+  c("la lettura è salvata SULLA SCHEDA con l'id del messaggio (non in app_config)", ["f:w1"], Object.keys(m.schede[0].data.datiFattura.letture ?? {}));
+  c("…ed è già interpretata (campi puliti), non il testo del modello", CF, m.schede[0].data.datiFattura.letture["f:w1"].codiceFiscale);
   m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] }, rifiutaBozzaPronta: 1 });
   await G.giroDatiFattura(m.porte);
   c("scheda cambiata nel frattempo (scrittura rifiutata): la bozza NON si scrive", [0, 1], [m.bozzeScritte, m.chiamateAi]);

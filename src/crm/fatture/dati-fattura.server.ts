@@ -84,7 +84,6 @@ function inBase64(bytes: Uint8Array): string {
 }
 
 const CHIAVE_LUCCHETTO = "dati_fattura_lock";
-const PREFISSO_LETTURA = "dati_fattura_ai:";
 /** Un giro dura pochi secondi: se muore, dopo 4 minuti il lucchetto è libero. */
 const SCADENZA_LUCCHETTO_MS = 4 * 60_000;
 
@@ -142,14 +141,6 @@ export function lucchettoDatiFattura(adesso: () => Date = () => new Date()) {
       valoreMio = null;
     },
   };
-}
-
-async function impronta(chiave: string): Promise<string> {
-  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(chiave));
-  return [...new Uint8Array(h)]
-    .slice(0, 20)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 async function chiediAllAi(i: { file: string[] } | { testo: string }): Promise<string | null> {
@@ -380,35 +371,7 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
       }
     },
 
-    //  Le risposte dell'AI si tengono (per chiave dei messaggi) finché la scheda non è scritta:
-    //  sono gli stessi dati che finiranno nella bozza, e poi si tolgono (`dimentica`).
-    dimentica: async (chiavi) => {
-      for (const k of chiavi) {
-        await db()
-          .from("app_config")
-          .delete()
-          .eq("key", `${PREFISSO_LETTURA}${await impronta(k)}`);
-      }
-    },
-
-    leggi: async (i, chiave) => {
-      const kc = `${PREFISSO_LETTURA}${await impronta(chiave)}`;
-      const { data: tenuta } = await db()
-        .from("app_config")
-        .select("value")
-        .eq("key", kc)
-        .maybeSingle();
-      if (typeof tenuta?.value === "string") return tenuta.value;
-      const risposta = await chiediAllAi(i);
-      if (risposta !== null)
-        await db()
-          .from("app_config")
-          .upsert(
-            { key: kc, value: risposta, updated_at: new Date().toISOString() },
-            { onConflict: "key" },
-          );
-      return risposta;
-    },
+    leggi: chiediAllAi,
 
     aliquota: async () => (await leggiAziendaSu(archivio)).aliquotaPredefinita,
 
