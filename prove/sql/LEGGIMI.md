@@ -52,3 +52,19 @@ Se un controllo dice `KO`, **la migrazione del ponte non va applicata in produzi
 `sheets-lucchetto.sql`: scritto insieme alla migrazione S1 ma **non ancora eseguito** (nella postazione dove sono stati scritti non c'era un Postgres). Li lancia chi ha il database di prova, e la loro uscita va in LAVAGNA prima di applicare S1.
 
 `ponte-wa.sql`: scritto con T1 (29/10) ma **non ancora eseguito**: nella postazione dello sviluppatore non c'è Postgres (`which postgres psql` vuoto). Va lanciato prima di applicare la migrazione.
+
+## `ponte-invio.sql` (T1, invio a mano dal ponte dopo le 24 ore)
+
+Serve un database di prova con le migrazioni applicate in ordine **fino a `20261029200000_risposte_ai.sql`** (la migrazione dell'invio la applica lo script stesso, due volte). Un solo passo, dalla radice del repo:
+
+```sh
+psql "$DB" -f prove/sql/ponte-invio.sql
+```
+
+Gira tutto in una transazione che finisce con `ROLLBACK`; ogni controllo stampa `ok  <nome>`, al primo sbagliato si ferma con `KO <nome>: atteso …, avuto …`. Uscita attesa: tutte righe `ok` e in fondo `TUTTI I CONTROLLI DELL'INVIO A MANO PASSANO`. Dentro la transazione `now()` è fermo: gli orari si spostano riscrivendo `created_at` e `preso_il` delle righe di prova.
+
+Cosa prova: `ponte_wa_invio_fatti` (entrata da ManyChat, dal ponte e dal Cloud senza «+»; STOP; numero mai scritto; altro utente; `invii_attivi` assente, non numerico, 0, 1); `ponte_wa_invii_prendi` (coda vuota; due righe → una sola `in_invio`, la seconda aspetta 20 s; il 20° prelievo passa e il 21° no con `attendi_s` esatto; riga di 11 minuti → `scaduto`; `in_invio` di 4 minuti → `esito_incerto`, mai riofferta; STOP e «mai scritto» respinti e si passa alla successiva; parametri nulli → errore); `ponte_wa_invio_esito` (una sola riga `bw:` e `nuovo=false` alla ripetizione; **eco prima dell'esito** e **esito prima dell'eco**: una riga, `risposto_il` una volta; esito dopo `esito_incerto` → `inviato`; **esito `inviato` su riga tornata `in_attesa` → `ok:false`**; `wa_id` storto; `ts` nel futuro, troppo vecchio, `NaN`; contatto che manca; errore con motivo della lista, fuori lista, ripetuto, su riga non `in_invio`); `unread_count`, `ultimo_in_entrata_*`, `lead_id`, `subscriber_id`, `non_scrivere_dal` del contatto identici; i vincoli della tabella (2000 emoji passano, 2001 caratteri no); `anon` e `authenticated` senza `EXECUTE`; **`authenticated` non scrive la tabella nemmeno dopo aver ripristinato i GRANT di serie di Supabase** (lo script li rimette prima di riapplicare la migrazione); un secondo utente non legge le righe del primo.
+
+**Cosa non prova lo script da solo:** la corsa vera fra due sessioni. Il lucchetto `pg_advisory_xact_lock` si prova a mano con due terminali: nel primo `BEGIN; SELECT public.ponte_wa_invii_prendi(…); SELECT pg_sleep(6); COMMIT;`, nel secondo la stessa chiamata entro 2 secondi: deve aspettare la fine del primo e poi rispondere `invio: null` con `attendi_s` > 0 (provato il 30/10/2026 su Postgres 16: la seconda sessione ha aspettato 4 secondi, nessun doppio prelievo).
+
+Se un controllo dice `KO`, **la migrazione dell'invio non va applicata in produzione**: l'uscita va in LAVAGNA.
