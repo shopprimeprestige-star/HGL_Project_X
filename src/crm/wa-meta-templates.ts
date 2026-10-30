@@ -306,7 +306,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   ),
   //  Acconto (commessa 2026-10-29): parte il giorno della data di ricontatto di
   //  «Attesa acconto». Tono del «tu», come i ricontatti: in consulenza si è
-  //  entrati in confidenza. Approvato da Meta come MARKETING.
+  //  entrati in confidenza. Ora UTILITY (modello hgl_acconto_u, 30/10).
   tpl(
     "hgl_acconto",
     "UTILITY",
