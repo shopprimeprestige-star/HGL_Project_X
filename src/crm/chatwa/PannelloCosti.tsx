@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Loader2, Wallet } from "lucide-react";
 import { fetchCRM } from "@/crm/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   PERIODI,
@@ -24,7 +30,11 @@ const messaggi = (n: number) => (n === 1 ? "1 messaggio" : `${n} messaggi`);
 
 /** «29/10»: il giorno di Roma da cui comincia il periodo. */
 const giornoBreve = (iso: string) =>
-  new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", timeZone: "Europe/Rome" });
+  new Date(iso).toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Rome",
+  });
 
 /** Il pannello «Costi WhatsApp»: una stima dei messaggi a pagamento già partiti, per periodo.
  *  Foglio dal basso (sul computer una colonna centrata). Legge solo conteggi dal server. */
@@ -105,7 +115,10 @@ export function PannelloCosti({ aperto, onChiudi }: { aperto: boolean; onChiudi:
           </div>
 
           {lettura.fase === "carico" && (
-            <p role="status" className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground">
+            <p
+              role="status"
+              className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground"
+            >
               <Loader2 className="h-4 w-4 animate-spin" /> Calcolo i costi…
             </p>
           )}
@@ -161,6 +174,26 @@ function Riepilogo({ costi }: { costi: Costi }) {
             : `${messaggi(costi.messaggi)} a pagamento`}
         </p>
       </div>
+
+      {costi.risparmio.messaggi > 0 && (
+        <div
+          className="rounded-lg border border-border bg-muted/40 px-3 py-2.5"
+          data-testid="costi-risparmio"
+        >
+          <p className="text-[15px] font-semibold leading-snug text-foreground">
+            Risparmiati circa <span className="tabular-nums">{euro(costi.risparmio.euro, 2)}</span>
+          </p>
+          <p className="text-[12.5px] leading-snug text-foreground">
+            {messaggi(costi.risparmio.messaggi)}{" "}
+            {costi.risparmio.messaggi === 1 ? "partito" : "partiti"} come testo invece che come
+            modello.
+          </p>
+          <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
+            È una stima: il prezzo dei modelli che sarebbero partiti. Un testo dentro le 24 ore, per
+            Meta, non si paga.
+          </p>
+        </div>
+      )}
 
       <section aria-labelledby="costi-categorie">
         <h3 id="costi-categorie" className="mb-1 text-[12px] font-medium text-muted-foreground">
@@ -226,7 +259,12 @@ function Gruppo({
       ) : (
         <ul className="divide-y divide-border">
           {righe.map((t) => (
-            <Riga key={t.tipo} nome={t.etichetta} dettaglio={messaggi(t.messaggi)} costo={t.costo} />
+            <Riga
+              key={t.tipo}
+              nome={t.etichetta}
+              dettaglio={messaggi(t.messaggi)}
+              costo={t.costo}
+            />
           ))}
         </ul>
       )}
@@ -241,7 +279,9 @@ function Riga({ nome, dettaglio, costo }: { nome: string; dettaglio: string; cos
         <p className="truncate text-[13px] text-foreground">{nome}</p>
         <p className="text-[11.5px] text-muted-foreground">{dettaglio}</p>
       </div>
-      <p className="shrink-0 text-[13px] font-medium tabular-nums text-foreground">{euro(costo, 2)}</p>
+      <p className="shrink-0 text-[13px] font-medium tabular-nums text-foreground">
+        {euro(costo, 2)}
+      </p>
     </li>
   );
 }

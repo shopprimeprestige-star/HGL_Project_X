@@ -11,11 +11,16 @@
  *  ⚠️ COSA SI PAGA: un invio con un modello (arriva dal flusso di ManyChat). Un testo
  *   libero dalla chat dentro la finestra non ha flusso: si conta a parte (`testiLiberi`)
  *   e non entra nel totale.
+ *  ⚠️ IL RISPARMIO (30/10/2026): un messaggio del giro (promemoria, conferma…) partito
+ *   come TESTO nella finestra aperta non ha flusso, ma avrebbe avuto un modello: il
+ *   risparmio è il prezzo di quel modello (`MODELLO_DEL_TIPO`) meno il costo del testo
+ *   (`COSTO_TESTO_IN_FINESTRA`, gratis per Meta). Non entra nel totale. È una stima.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { aRoma } from "../promemoria/formati";
 import { istanteDiRoma } from "../manychat/contatto";
 import {
   categoriaConosciuta,
+  COSTO_TESTO_IN_FINESTRA,
   categoriaModello,
   ETICHETTA_CATEGORIA,
   TARIFFE,
@@ -73,8 +78,10 @@ export interface Costi {
   perTipo: RigaTipo[];
   /** messaggi di cui il modello non si conosce: costo stimato con la categoria del tipo (o la più cara) */
   stimati: number;
-  /** testi liberi dalla chat (nessun flusso): non entrano nel totale */
+  /** testi scritti a mano dalla chat (nessun flusso): non entrano nel totale */
   testiLiberi: number;
+  /** messaggi del giro partiti come testo invece che come modello, e quanto si è risparmiato (stima) */
+  risparmio: { messaggi: number; euro: number };
 }
 
 const ETICHETTE_TIPO: Record<string, string> = {
@@ -96,7 +103,7 @@ const ETICHETTE_TIPO: Record<string, string> = {
 };
 
 /** Il modello tipico di un tipo, per quando la riga non dice quale flusso ha mandato. */
-const MODELLO_DEL_TIPO: Record<string, string> = {
+export const MODELLO_DEL_TIPO: Record<string, string> = {
   primo_contatto: "primo_contatto",
   richiamo_24h: "richiamo_24h",
   ritorno: "ritorno",
@@ -136,6 +143,7 @@ export function calcolaCosti(
   const tipi = new Map<string, RigaTipo>();
   let stimati = 0;
   let testiLiberi = 0;
+  const risparmio = { messaggi: 0, euro: 0 };
 
   for (const i of invii as (Partial<InvioPagato> | null | undefined)[]) {
     const quando = Date.parse(i?.inviatoIl ?? "");
@@ -148,7 +156,15 @@ export function calcolaCosti(
     //  anche promemoria e giro, quando il cliente ha scritto da poco (finestra
     //  aperta). Non è un modello: niente prezzo di modello.
     if (!i.conFlusso && !i.modello) {
-      testiLiberi++;
+      //  Un tipo del giro (ha un modello tipico) partito come testo: il modello non è
+      //  stato pagato, e la differenza è il risparmio. Gli altri sono testi a mano.
+      const tipico = MODELLO_DEL_TIPO[tipo];
+      if (tipico) {
+        risparmio.messaggi++;
+        risparmio.euro = arrotonda(
+          risparmio.euro + Math.max(0, TARIFFE[categoriaModello(tipico)] - COSTO_TESTO_IN_FINESTRA),
+        );
+      } else testiLiberi++;
       continue;
     }
     const modello = i.modello || MODELLO_DEL_TIPO[tipo] || null;
@@ -192,5 +208,6 @@ export function calcolaCosti(
     perTipo,
     stimati,
     testiLiberi,
+    risparmio,
   };
 }
