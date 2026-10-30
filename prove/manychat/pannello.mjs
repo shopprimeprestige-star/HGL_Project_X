@@ -2139,6 +2139,15 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     ),
   );
   c(
+    "«Attesa acconto» è spenta (30/10/2026): la riga c'è ma dice che è spenta, non è accendibile e non è nella tabella dei messaggi",
+    [true, false, false],
+    [
+      !!V.STATI_RIQUADRO.find((s) => s.stato === "in_attesa_acconto")?.spento,
+      V.STATI_ACCENDIBILI.includes("in_attesa_acconto"),
+      "in_attesa_acconto" in carica(radice, "src/crm/manychat/stati.ts").TABELLA_STATI,
+    ],
+  );
+  c(
     "stati: l'etichetta è quella che si legge nel CRM",
     [],
     V.STATI_RIQUADRO.filter((s) => s.etichetta !== TY.LEAD_STATUS_LABEL[s.stato]).map(
@@ -2155,7 +2164,9 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
   if (dellaTabella.length > 0) {
     // dopo la fusione con T: stessi stati, stessi modelli
     const miei = Object.fromEntries(
-      V.STATI_RIQUADRO.flatMap((s) => V.statiDiRiga(s).map((k) => [k, s.modello])),
+      V.STATI_RIQUADRO.filter((s) => !s.spento).flatMap((s) =>
+        V.statiDiRiga(s).map((k) => [k, s.modello]),
+      ),
     );
     c(
       "stati: il riquadro elenca gli stessi stati e gli stessi modelli della tabella di stati.ts",

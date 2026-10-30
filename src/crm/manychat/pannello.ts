@@ -916,6 +916,7 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   //  fissato» è l'interruttore dei ricontatti).
   return STATI_RIQUADRO.some(
     (r) =>
+      !r.spento &&
       r.modello === modello &&
       (r.legatoA ? i.interruttori[r.legatoA] : statiDiRiga(r).some((k) => !!s?.stati[k])),
   );

@@ -3096,15 +3096,16 @@ export const supabaseAdminDefault = supabaseAdmin;`,
    *  IL MESSAGGIO DELLO STATO LO SCRIVE IL CONSULENTE (commessa 2026-10-30)
    * ════════════════════════════════════════════════════════════════════════ */
   gruppo("MANYCHAT · GIRO · IL MESSAGGIO DELLO STATO SCRITTO DAL CONSULENTE");
+  //  (30/10/2026: il promemoria dell'acconto è spento; il gruppo usa «Lead in chat», che ha la
+  //  stessa forma: a data, dei consulenti, due variabili. Il testo libero dice ancora «acconto»: è solo un testo.)
   {
     const ISO0 = "2026-10-20T00:00:00.000Z";
-    const NS_ACC = "content-acc";
+    const NS_ACC = NS_RIC; // il flusso del ricontatto (era quello dell'acconto)
     const NS_GEN = "content-gen";
     const accesa = {
-      stati: { in_attesa_acconto: ISO0, sta_valutando: ISO0, richiamo: ISO0 },
+      stati: { gestire_in_chat: ISO0, sta_valutando: ISO0, richiamo: ISO0 },
       flussi: {
         ...CONFIG.flussi,
-        hgl_acconto: NS_ACC,
         hgl_richiamo_concordato: "content-rc",
         [MODELLO_GENERICO_PROVA]: NS_GEN,
       },
@@ -3116,7 +3117,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       ),
     };
     const msg = (extra) => ({
-      stato: "in_attesa_acconto",
+      stato: "gestire_in_chat",
       testo: "Ciao {nome}, ti scrivo per l'acconto, fammi sapere!",
       fuoriFinestra: "stato",
       scrittoIl: "2026-10-23T09:00:00.000Z",
@@ -3124,7 +3125,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
     });
     const acc = (id, n, extra) =>
       scheda(id, n, {
-        stato: "in_attesa_acconto",
+        stato: "gestire_in_chat",
         dataRicontatto: "2026-10-23",
         messaggioStato: msg(),
         ...extra,
@@ -3204,7 +3205,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       );
       c(
         `…${nome}, generico: tag di sempre, scheda «In attesa», stella 1`,
-        ["crm-stato-acconto", "in_attesa", 1],
+        ["crm-ricontatto", "in_attesa", 1],
         [
           m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
           m.schede[0].data.contattoWa.stato,
@@ -3250,7 +3251,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       [
         e.ricontattiInviati,
         nsFlusso(m),
-        /acconto/.test(corpoTesto(m)),
+        /Ti scrivo per la consulenza/.test(corpoTesto(m)),
         /come eravamo rimasti/.test(corpoTesto(m)),
       ],
     );
@@ -3295,7 +3296,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
     });
     e = await m.giroOra();
     c(
-      "il testo è di «Attesa acconto» ma la scheda è «In valutazione»: testo ignorato, parte il testo del modello del ricontatto (come oggi), nessuna lettura delle entrate",
+      "il testo è di «Lead in chat» ma la scheda è «In valutazione»: testo ignorato, parte il testo del modello del ricontatto (come oggi), nessuna lettura delle entrate",
       [1, [], 1, false, true, 0],
       [
         e.ricontattiInviati,
@@ -3481,7 +3482,6 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       stati: {
         da_ricontattare: OGGI_ISO,
         sta_valutando: OGGI_ISO,
-        in_attesa_acconto: OGGI_ISO,
         gestire_in_chat: OGGI_ISO,
         fissa_meet_dopo: OGGI_ISO,
         non_risponde: OGGI_ISO,
@@ -3490,7 +3490,6 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       },
       flussi: {
         ...CONFIG.flussi,
-        hgl_acconto: "content-acc",
         hgl_meet_da_fissare: "content-mdf",
         hgl_non_risponde: "content-nr",
         hgl_richiamo_concordato: "content-rc",
@@ -3502,7 +3501,8 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       scheda(id, n, { stato, dataRicontatto: "2026-10-23", ...extra });
 
     //  ── i 4 stati mettono 1 ──
-    for (const stato of ["da_ricontattare", "sta_valutando", "in_attesa_acconto", "gestire_in_chat"]) {
+    //  (30/10/2026: «Attesa acconto» non manda più niente, quindi qui non c'è)
+    for (const stato of ["da_ricontattare", "sta_valutando", "gestire_in_chat"]) {
       const m = mondo({ schede: [conData("s1", 1, stato)], config: accesa });
       const e = await m.giroOra();
       c(
