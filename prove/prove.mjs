@@ -21032,6 +21032,14 @@ function proveDellApriWhatsapp() {
     /href=\{apriWa\}/.test(riga) && /<IconaWhatsApp/.test(riga) && /finestra && !finestra\.aperta/.test(riga));
 }
 
+/** ── WHATSAPP: UNA DATA ALLA VOLTA IN CIMA ALLA CHAT (30/10/2026) ─────────── */
+function proveDelleDateInCima() {
+  gruppo("WHATSAPP: LA DATA NUOVA SPINGE VIA LA VECCHIA");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  c("un contenitore per giorno, con la sua data incollata in alto", true,
+    /giorniDi\(voci\)\.map\(\(g\) =>/.test(conv) && /className="mt-3 flex flex-col first:mt-0"/.test(conv) && /"sticky top-1 z-10/.test(conv));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21140,6 +21148,7 @@ proveIdeeDafare(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
+proveDelleDateInCima();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
