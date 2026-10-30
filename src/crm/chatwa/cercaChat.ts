@@ -32,7 +32,9 @@ export function combaciaRicerca(c: ChatCercabile, ricerca: string): boolean {
  *  ignoravano e, siccome quasi tutte le chat stanno lì sopra, cliccare non cambiava niente. */
 export function passaFiltro(
   c: {
-    lead?: { data?: { stato?: string | null } | null } | null;
+    lead?: {
+      data?: { stato?: string | null; payment?: { accontoPagato?: unknown } | null } | null;
+    } | null;
     unread?: number;
     finestra?: { aperta: boolean } | null;
   },
@@ -45,6 +47,7 @@ export function passaFiltro(
     | "chiuso-24h"
     | "aperto-24h"
     | "attesa-whatsapp"
+    | "acconto"
     | FiltroPerStato,
 ): boolean {
   //  Un filtro per ogni stato del lead (30/10/2026): vedi perStato.ts.
@@ -61,6 +64,16 @@ export function passaFiltro(
   //  aperto». Una chat senza finestra calcolata non sta in nessuna delle due.
   //  I lead in stato «Attesa WhatsApp» (richiesta del titolare, 30/10/2026).
   if (filtro === "attesa-whatsapp") return c.lead?.data?.stato === "attesa_whatsapp";
+  /*  ── CHI HA LASCIATO L'ACCONTO (30/10/2026) ─────────────────────────────
+      Richiesta del titolare: tutti i clienti che hanno lasciato l'acconto, in
+      QUALUNQUE stato siano poi finiti (nel nostro centro, da spedire, a domicilio,
+      installazione…). Quindi NON si guarda lo stato ma l'importo: `payment.accontoPagato`
+      sopra zero, lo stesso campo che porta una scheda a «Acconto incassato» e che
+      i KPI chiamano «soldi entrati» (kpi-calcoli, eConversione). Non contano la
+      spunta «viene in sede con acconto» (è una promessa) né il solo stato senza
+      importo. `chiusura.accontoIncassato` è lo specchio dello stesso numero: se
+      diverge, vale payment. */
+  if (filtro === "acconto") return (Number(c.lead?.data?.payment?.accontoPagato) || 0) > 0;
   if (filtro === "chiuso-24h" || filtro === "aperto-24h") {
     const stato = c.lead?.data?.stato;
     if (stato !== "appuntamento_fissato" && stato !== "appuntamento_rifissato") return false;
