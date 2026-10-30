@@ -420,7 +420,12 @@ export function PaginaChat({
       {/* Foglio «Oggi» sotto 1280 px: a tutta larghezza sul telefono. Lo spazio a
           destra della testata lascia posto alla X del foglio. */}
       <Sheet open={foglioOggi} onOpenChange={setFoglioOggi}>
-        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[420px]">
+        <SheetContent
+          side="right"
+          //  `crm-theme` (30/10/2026): il foglio vive in un portale fuori dal CRM e
+          //  senza la classe prendeva i colori scuri del sito: righe illeggibili.
+          className="crm-theme w-full gap-0 bg-white p-0 text-foreground sm:max-w-[420px]"
+        >
           <SheetTitle className="sr-only">Oggi</SheetTitle>
           <SheetDescription className="sr-only">
             Consulenze e cose da fare di oggi; nella scheda «Lead» l'elenco dei lead.
