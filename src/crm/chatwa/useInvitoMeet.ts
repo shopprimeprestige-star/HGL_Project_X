@@ -76,13 +76,24 @@ export function useInvitoMeet(chat: ChatPerInvito, ora: string, consulente: stri
   const inCorso = useRef(false);
 
   //  Il registro si legge dopo il primo disegno: sul server non c'è localStorage.
+  //  Le voci di altri giorni si buttano subito (anche dal dispositivo): niente numeri vecchi in giro.
   useEffect(() => {
     try {
-      setRegistro(leggiRegistro(window.localStorage.getItem(CHIAVE_INVITI)));
+      const oggi = oggiIso();
+      const tutte = leggiRegistro(window.localStorage.getItem(CHIAVE_INVITI));
+      const diOggi = Object.fromEntries(Object.entries(tutte).filter(([, v]) => v.giorno === oggi));
+      setRegistro(diOggi);
+      if (Object.keys(diOggi).length !== Object.keys(tutte).length)
+        window.localStorage.setItem(CHIAVE_INVITI, JSON.stringify(diOggi));
     } catch {
       /* senza localStorage resta vuoto: il tasto funziona lo stesso */
     }
   }, []);
+
+  //  Un altro meet nella barra: il «passa a WhatsApp» del cliente di prima non vale per lui.
+  useEffect(() => {
+    setForzaWa(false);
+  }, [chat.phone]);
 
   const segna = useCallback(
     (via: VoceInvito["via"]) => {
