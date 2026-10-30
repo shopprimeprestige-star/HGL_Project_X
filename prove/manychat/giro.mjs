@@ -47,6 +47,7 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
   const G = mod["manychat/giro"];
   const A = mod["manychat/api"];
   const CT = mod["manychat/contatto"];
+  const W = mod["wa-orari"];
 
   /* ── il mondo finto ───────────────────────────────────────────────────── */
   const consenso = { si: true, il: "2026-10-01T09:00:00.000Z", da: "Giulia Demo" };
@@ -138,6 +139,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       dopoPrenota: o.dopoPrenota ?? null,
       /** per le prove: cosa succede quando parte sendFlow */
       dopoFlusso: o.dopoFlusso ?? null,
+      /** `app_config.wa_stelle` (testo, come sta nella riga) e cosa fa il browser fra lettura e scrittura */
+      stelle: o.stelle ?? null,
+      dopoLetturaStelle: o.dopoLetturaStelle ?? null,
     };
     let nRiga = 0;
     const iso = (ms) => new Date(ms).toISOString();
@@ -339,6 +343,25 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
         },
         aggiornaContatto: async (...a) => aggiornaContattoModello(...a),
         attesaWhatsapp: async (...a) => attesaWhatsappModello(...a),
+        //  `mettiStellaUno` vera, sulla riga finta: scrive solo se la riga è ancora quella letta.
+        stellaUno: async (telefono) => {
+          m.eventi.push("stella");
+          if (o.guastoStella) throw { code: "XX006", message: `db giù per ${cifre(1)} Anna` };
+          return W.mettiStellaUno(
+            {
+              leggi: async () => m.stelle,
+              scrivi: async (vecchio, nuovo) => {
+                const hook = m.dopoLetturaStelle;
+                m.dopoLetturaStelle = null;
+                hook?.(m);
+                if (m.stelle !== vecchio) return false;
+                m.stelle = nuovo;
+                return true;
+              },
+            },
+            telefono,
+          );
+        },
         porta: (userId, config) => {
           clientUnico ??= client();
           return {
@@ -2816,5 +2839,228 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         G.nomeAbbreviato({}),
       ],
     );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  STELLA 1 IN CHAT QUANDO PARTE IL MESSAGGIO DEI 4 STATI DOPO LA CONSULENZA
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · STELLA 1 IN CHAT DOPO IL RICONTATTO");
+  {
+    const OGGI_ISO = "2026-10-20T00:00:00.000Z";
+    const accesa = {
+      stati: {
+        da_ricontattare: OGGI_ISO,
+        sta_valutando: OGGI_ISO,
+        in_attesa_acconto: OGGI_ISO,
+        gestire_in_chat: OGGI_ISO,
+        fissa_meet_dopo: OGGI_ISO,
+        non_risponde: OGGI_ISO,
+        richiamo: OGGI_ISO,
+        viene_in_sede: OGGI_ISO,
+      },
+      flussi: {
+        ...CONFIG.flussi,
+        hgl_acconto: "content-acc",
+        hgl_meet_da_fissare: "content-mdf",
+        hgl_non_risponde: "content-nr",
+        hgl_richiamo_concordato: "content-rc",
+        hgl_promemoria_sede: "content-sede",
+      },
+    };
+    const stellaDi = (m, n) => W.stelleDi(W.leggiStelle(m.stelle), tel(n));
+    const conData = (id, n, stato, extra) =>
+      scheda(id, n, { stato, dataRicontatto: "2026-10-23", ...extra });
+
+    //  ── i 4 stati mettono 1 ──
+    for (const stato of ["da_ricontattare", "sta_valutando", "in_attesa_acconto", "gestire_in_chat"]) {
+      const m = mondo({ schede: [conData("s1", 1, stato)], config: accesa });
+      const e = await m.giroOra();
+      c(
+        `«${stato}»: messaggio partito → stella 1 in chat`,
+        [1, 1],
+        [e.ricontattiInviati, stellaDi(m, 1)],
+      );
+      c(
+        `…«${stato}»: la stella si mette DOPO il flusso`,
+        true,
+        m.eventi.indexOf("stella") > m.eventi.indexOf(`mc:${PERCORSI.flusso}`),
+      );
+    }
+
+    //  ── anche sopra 2 o 3 stelle: si rimette sempre 1; gli altri numeri non si toccano ──
+    for (const prima of [2, 3]) {
+      const m = mondo({
+        schede: [ric("r1", 1)],
+        config: accesa,
+        stelle: W.scriviStelle(
+          W.conStelle(W.conStelle({}, tel(1), prima), tel(7), 3),
+        ),
+      });
+      await m.giroOra();
+      c(
+        `chat già a ${prima} stelle → torna a 1; l'altra chat resta a 3`,
+        [1, 3],
+        [stellaDi(m, 1), stellaDi(m, 7)],
+      );
+    }
+    {
+      const m = mondo({ schede: [ric("r1", 1)], config: accesa });
+      await m.giroOra();
+      c(
+        "…la riga salvata è nel formato di sempre ({v:1, stelle}) e con la chiave a nove cifre",
+        { v: 1, stelle: { [cifre(1).slice(-9)]: 1 } },
+        JSON.parse(m.stelle),
+      );
+    }
+
+    //  ── gli altri stati e gli altri tipi: niente stella ──
+    const senza = async (nome, schedeProva, config = accesa) => {
+      const m = mondo({ schede: schedeProva, config });
+      const e = await m.giroOra();
+      c(
+        `${nome}: parte il messaggio ma niente stella`,
+        [true, null, false],
+        [
+          e.ricontattiInviati + e.nuoviInviati + e.promemoriInviati > 0,
+          m.stelle,
+          m.eventi.includes("stella"),
+        ],
+      );
+    };
+    await senza("«Da fissare meet» (a data, altro stato)", [conData("s1", 1, "fissa_meet_dopo")]);
+    await senza("«Non risponde» (a evento)", [
+      scheda("s1", 1, {
+        stato: "non_risponde",
+        statoDal: new Date(ADESSO - 60 * MIN).toISOString(),
+      }),
+    ]);
+    await senza("«Richiamo concordato» (promemoria chiamata)", [
+      scheda("s1", 1, { stato: "richiamo", dataRicontatto: "2026-10-23", oraRicontatto: "15:30" }),
+    ]);
+    await senza("promemoria del meet", [meet("s1", 1)]);
+    await senza(
+      "primo contatto",
+      [
+        scheda("s1", 1, {
+          okWhatsapp: undefined,
+          consulenteId: undefined,
+          stato: "da_contattare",
+          importato: true,
+          createdAt: "2026-06-01T10:00:00.000Z",
+        }),
+      ],
+      {
+        ...accesa,
+        leadNuovo: true,
+        leadNuovoDal: "2026-10-20T00:00:00.000Z",
+        fraseModuloDal: "2026-10-01T00:00:00.000Z",
+        flussi: { ...accesa.flussi, hgl_primo_contatto: "content-n1" },
+      },
+    );
+
+    //  ── prova a secco e invii non riusciti: niente stella ──
+    {
+      const m = mondo({ schede: [ric("r1", 1)], config: accesa });
+      await m.giroOra(true);
+      c("prova a secco: niente stella", [null, false], [m.stelle, m.eventi.includes("stella")]);
+    }
+    {
+      const m = mondo({ schede: [ric("r1", 1)], config: accesa });
+      m.f.su("POST", PERCORSI.flusso, esiti.modelloRifiutato());
+      const e = await m.giroOra();
+      c(
+        "invio fallito (modello rifiutato): niente stella",
+        [0, null, false],
+        [e.ricontattiInviati, m.stelle, m.eventi.includes("stella")],
+      );
+    }
+    {
+      const m = mondo({ schede: [ric("r1", 1)], config: accesa });
+      m.f.su("POST", PERCORSI.flusso, esiti.errore500());
+      const e = await m.giroOra();
+      c(
+        "invio incerto (500): niente stella",
+        [0, 1, null],
+        [e.ricontattiInviati, e.incerti, m.stelle],
+      );
+    }
+    {
+      //  la prenotazione rifiutata (tetto) non è un invio
+      const m = mondo({ schede: [ric("r1", 1)], config: { ...accesa, tetti: { ricontatti: 0 } } });
+      const e = await m.giroOra();
+      c("prenotazione rifiutata (tetto): niente stella", [0, null], [e.ricontattiInviati, m.stelle]);
+    }
+
+    //  ── un guasto sulla stella non ferma né fa ripetere l'invio ──
+    {
+      const m = mondo({ schede: [ric("r1", 1)], config: accesa, guastoStella: true });
+      const e = await m.giroOra();
+      c(
+        "guasto sulla stella: il messaggio è partito comunque, una volta, niente spegnimenti",
+        [1, 1, 0, 0],
+        [e.ricontattiInviati, m.flussi().length, m.spenti.length, m.giro.falliti],
+      );
+      c(
+        "…l'avviso porta solo il codice (niente numero, nome, testo del database)",
+        [true, false],
+        [
+          m.avvisi.includes("giro_stella_errore_XX006"),
+          /3930000|333 000|Anna|giù per/.test(JSON.stringify([m.avvisi, m.giro.stato])),
+        ],
+      );
+      c("…la scheda è «In attesa» come sempre", "in_attesa", m.schede[0].data.contattoWa.stato);
+      m.orologio.avanza(40 * MIN);
+      await m.giroOra();
+      c("…e il giro dopo non rimanda", 1, m.flussi().length);
+    }
+
+    //  ── il browser scrive fra la lettura e la scrittura: non si perde niente ──
+    {
+      const m = mondo({
+        schede: [ric("r1", 1)],
+        config: accesa,
+        stelle: W.scriviStelle(W.conStelle({}, tel(1), 3)),
+        dopoLetturaStelle: (x) => {
+          x.stelle = W.scriviStelle(W.conStelle(W.conStelle({}, tel(1), 3), tel(8), 2));
+        },
+      });
+      await m.giroOra();
+      c(
+        "una stella messa dal browser nel frattempo si conserva (riprova sulla riga nuova)",
+        [1, 2],
+        [stellaDi(m, 1), stellaDi(m, 8)],
+      );
+    }
+
+    //  ── mettiStellaUno da sola ──
+    {
+      let riga = null;
+      const scritture = [];
+      const porte = (extra = {}) => ({
+        leggi: async () => riga,
+        scrivi: async (vecchio, nuovo) => {
+          scritture.push([vecchio, nuovo]);
+          if (extra.sempreConflitto) return false;
+          riga = nuovo;
+          return true;
+        },
+      });
+      c("riga assente: la crea con la chat a 1", "messa", await W.mettiStellaUno(porte(), tel(1)));
+      c("…{v:1, stelle:{tel9:1}}", { v: 1, stelle: { [cifre(1).slice(-9)]: 1 } }, JSON.parse(riga));
+      const n = scritture.length;
+      c("già a 1: non scrive", ["gia_uno", n], [await W.mettiStellaUno(porte(), tel(1)), scritture.length]);
+      c("senza numero valido: non legge né scrive", ["senza_numero", n], [
+        await W.mettiStellaUno(porte(), "12"),
+        scritture.length,
+      ]);
+      riga = "non è json";
+      c("riga illeggibile: riparte da vuoto, senza lanciare", "messa", await W.mettiStellaUno(porte(), tel(2)));
+      scritture.length = 0;
+      c(
+        "scritture sempre in conflitto: si ferma dopo 4 tentativi, senza lanciare",
+        ["conflitto", 4],
+        [await W.mettiStellaUno(porte({ sempreConflitto: true }), tel(3)), scritture.length],
+      );
+    }
   }
 }

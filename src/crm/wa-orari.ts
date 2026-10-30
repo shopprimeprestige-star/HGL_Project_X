@@ -69,6 +69,46 @@ export function conStelle(
   return out;
 }
 
+/** ── STELLA 1 DAL GIRO (30/10/2026) ────────────────────────────────────────
+ *  Titolare: quando parte il messaggio automatico dopo la consulenza, la chat
+ *  va in priorità stella 1. Solo i quattro stati dopo la consulenza: Ricontatto
+ *  fissato, In valutazione, Attesa acconto, Lead in chat. Se la chat ha già 2 o
+ *  3 stelle si RIMETTE 1: il messaggio appena partito è la cosa da seguire.
+ *  ⚠️ Lo scrive il server (il giro), mentre il browser può salvare le sue: la
+ *   scrittura è condizionata alla riga letta (`scrivi(vecchio, nuovo)` torna
+ *   falso se nel frattempo è cambiata) e riprova sulla riga nuova. Nessuna
+ *   funzione SQL: basta un `update … where value = <letto>`. */
+export const STATI_STELLA_UNO = [
+  "da_ricontattare",
+  "sta_valutando",
+  "in_attesa_acconto",
+  "gestire_in_chat",
+] as const;
+
+export interface PorteStelle {
+  /** il testo di `wa_stelle` com'è adesso; `null` se la riga non c'è */
+  leggi(): Promise<string | null>;
+  /** scrive `nuovo` SOLO se la riga è ancora `vecchio` (`null` = ancora assente); falso se è cambiata */
+  scrivi(vecchio: string | null, nuovo: string): Promise<boolean>;
+}
+
+/** Quanti tentativi prima di arrendersi: ogni conflitto è un salvataggio altrui nello stesso istante. */
+export const TENTATIVI_STELLA = 4;
+
+export async function mettiStellaUno(
+  porte: PorteStelle,
+  telefono: string | null | undefined,
+): Promise<"messa" | "gia_uno" | "senza_numero" | "conflitto"> {
+  if (!chiaveTelefono(telefono)) return "senza_numero";
+  for (let i = 0; i < TENTATIVI_STELLA; i++) {
+    const letto = await porte.leggi();
+    const mappa = leggiStelle(letto);
+    if (stelleDi(mappa, telefono) === 1) return "gia_uno";
+    if (await porte.scrivi(letto, scriviStelle(conStelle(mappa, telefono, 1)))) return "messa";
+  }
+  return "conflitto";
+}
+
 /** Un tocco sulle stelle: 0 → 1 → 2 → 3 → 0. */
 export const stellaDopo = (n: Stelle): Stelle => ((n + 1) % 4) as Stelle;
 
