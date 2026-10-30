@@ -53,6 +53,7 @@ import {
   CalendarClock,
   CalendarPlus,
   Clock,
+  FileText,
   Info,
   MessageCircle,
   Phone,
@@ -124,6 +125,8 @@ const ICONA_RIGA: Record<TipoRiga, ComponentType<{ className?: string }>> = {
   //   aggiunge un tipo di riga aggiunge la sua icona nello stesso momento — il
   //   controllo dei tipi lo pretende, ma `vite build` non lo esegue.
   installazione: Wrench,
+  //  La stessa busta con cui si riconosce una fattura da preparare.
+  dati_fattura: FileText,
   task: StickyNote,
 };
 
@@ -366,6 +369,11 @@ export interface ProprietaVoce {
    *   prima parola. */
   scelta?: boolean;
   onScegli?: (blocco: boolean) => void;
+  /** ── COLONNA STRETTA (pannello «Oggi» della chat, 380 px) ───────────────
+   *  Il testo prende tutta la prima riga e i comandi vanno a capo sotto, a
+   *  destra; titolo su due righe e pastiglie che vanno a capo invece di
+   *  schiacciarsi. Assente = la riga della pagina «Da fare oggi», identica. */
+  compatta?: boolean;
 }
 
 /** ── ⚠️ MENTRE LA PAGINA SCORRE, I RIQUADRI NON SI APRONO ──────────────────
@@ -409,6 +417,7 @@ export function VoceDaFare({
   onNotaLead,
   scelta,
   onScegli,
+  compatta = false,
 }: ProprietaVoce) {
   //  ⚠️ TUTTI GLI HOOK STANNO QUI, SOPRA QUALUNQUE USCITA ANTICIPATA. Un
   //  `return` prima di un hook è l'errore React 310, che in sviluppo non si
@@ -563,6 +572,7 @@ export function VoceDaFare({
         //  larghezza (etichetta + Chiama): sul telefono non ci starebbe accanto
         //  agli altri comandi.
         riga.senzaConferma && "flex-wrap",
+        compatta && "flex-wrap justify-end gap-y-1.5",
         riga.fatta
           ? "border-border bg-muted/40 opacity-60"
           : scelta
@@ -628,13 +638,13 @@ export function VoceDaFare({
         <button
           type="button"
           onClick={() => onApriLead(riga.lead!.id)}
-          className="min-w-0 flex-1 text-left"
+          className={cn("min-w-0 flex-1 text-left", compatta && "basis-[calc(100%-2.5rem)]")}
         >
-          <RigaTesto riga={riga} oggi={oggi} nomeConsulente={nomeConsulente} />
+          <RigaTesto riga={riga} oggi={oggi} nomeConsulente={nomeConsulente} compatta={compatta} />
         </button>
       ) : (
-        <div className="min-w-0 flex-1">
-          <RigaTesto riga={riga} oggi={oggi} nomeConsulente={nomeConsulente} />
+        <div className={cn("min-w-0 flex-1", compatta && "basis-[calc(100%-2.5rem)]")}>
+          <RigaTesto riga={riga} oggi={oggi} nomeConsulente={nomeConsulente} compatta={compatta} />
         </div>
       )}
 
@@ -875,10 +885,12 @@ function RigaTesto({
   riga,
   oggi,
   nomeConsulente,
+  compatta = false,
 }: {
   riga: RigaDaFare;
   oggi: string;
   nomeConsulente?: (id?: string | null) => string;
+  compatta?: boolean;
 }) {
   const d = riga.lead?.data;
   /*  ── LA CONSULENZA, SE È GIÀ STATA FATTA ────────────────────────────────
@@ -910,16 +922,28 @@ function RigaTesto({
     <>
       <div
         className={cn(
-          "truncate text-[13px] font-medium leading-tight",
+          "text-[13px] font-medium leading-tight",
+          compatta ? "line-clamp-2" : "truncate",
           riga.fatta && "line-through",
         )}
       >
         {riga.cosa}
       </div>
-      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+      <div
+        className={cn(
+          "mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground",
+          compatta && "flex-wrap gap-y-0.5",
+        )}
+      >
         {d ? (
           <>
-            <span className={cn(CLASSE_BADGE_STATO, classiStato(d.stato))}>
+            <span
+              className={cn(
+                CLASSE_BADGE_STATO,
+                classiStato(d.stato),
+                compatta && "shrink-0 whitespace-nowrap",
+              )}
+            >
               {etichettaStato(d.stato)}
             </span>
             {/*  ── «DA ANTICIPARE», ANCHE QUI ────────────────────────────

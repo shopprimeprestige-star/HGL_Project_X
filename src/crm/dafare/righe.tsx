@@ -67,6 +67,12 @@ export type TipoRiga =
    *  mattina ha una risposta che per mesi non era in questa pagina — c'è un
    *  impianto da posare alle 15, e stava scritto solo in un'altra schermata. */
   | "installazione"
+  /** ── I DATI PER LA FATTURA DA CHIEDERE A MANO (30/10/2026) ────────────────
+   *  Dopo l'acconto il CRM chiede da solo i dati al cliente (crm/fatture/dati-fattura).
+   *  Se non può (finestra chiusa senza modello approvato, numero in STOP, invio non riuscito)
+   *  o se è arrivato qualcosa che non si legge da soli, la scheda resta qui finché una
+   *  persona non la sistema. Nasce da una scheda VINTA, come la posa. */
+  | "dati_fattura"
   /** ── LA CONSULENZA DA CONFERMARE A VOCE (commessa 2026-10-30, p5) ─────────
    *  Il promemoria automatico della consulenza non ha avuto risposta da 3 ore
    *  (`confermaMancata`, crm/manychat/consulenze): prima dell'inizio la si
@@ -141,6 +147,12 @@ export const META_RIGA: Record<TipoRiga, MetaRiga> = {
     spiegazione:
       "L'impianto è pagato e la posa è in calendario: c'è un giorno, e quasi sempre un'ora.",
   },
+  dati_fattura: {
+    verbo: "Chiedere i dati per la fattura a",
+    filtro: "Dati fattura",
+    spiegazione:
+      "C'è un acconto ma la richiesta dei dati non è partita da sola, o è arrivato qualcosa da guardare in chat.",
+  },
   task: {
     verbo: "",
     filtro: "Scritte a mano",
@@ -189,6 +201,7 @@ export const TIPI_RIGA: TipoRiga[] = [
   "chat",
   "richiamo_setter",
   "installazione",
+  "dati_fattura",
   "task",
 ];
 
@@ -414,6 +427,23 @@ export function costruisciRighe({ leads, task, ora }: IngressoRighe): RigaDaFare
         giorno: giornoPosa,
         ora: oraPosa,
         istante: istanteDi(giornoPosa, oraPosa),
+        fatta: false,
+      });
+    }
+
+    //  Dati per la fattura: prima del filtro sulle vinte (l'acconto è uno stato vinto).
+    const df = d.datiFattura?.stato;
+    if (df === "promemoria" || df === "da_guardare") {
+      const chiFattura = nomeDi(d);
+      righe.push({
+        id: `fattura:${l.id}`,
+        tipo: "dati_fattura",
+        cosa: `${META_RIGA.dati_fattura.verbo} ${chiFattura}`.trim(),
+        chi: chiFattura,
+        lead: l,
+        giorno: oggi,
+        ora: "",
+        istante: null,
         fatta: false,
       });
     }

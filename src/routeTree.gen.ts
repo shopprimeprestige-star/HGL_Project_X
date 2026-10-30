@@ -60,6 +60,7 @@ import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-remin
 import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-giro'
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
+import { Route as HooksDatiFatturaRouteImport } from './routes/hooks/dati-fattura'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
 import { Route as HooksControlloNotteRouteImport } from './routes/hooks/controllo-notte'
 import { Route as HooksAttesaDaChiamareRouteImport } from './routes/hooks/attesa-da-chiamare'
@@ -199,6 +200,7 @@ import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-mo
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmDettaturaRouteImport } from './routes/api.crm.dettatura'
+import { Route as ApiCrmDatiFatturaRouteImport } from './routes/api.crm.dati-fattura'
 import { Route as ApiCrmCruscottoWaRouteImport } from './routes/api.crm.cruscotto-wa'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
 import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
@@ -472,6 +474,11 @@ const HooksFxRatesRoute = HooksFxRatesRouteImport.update({
 const HooksDiagnosticDriftRoute = HooksDiagnosticDriftRouteImport.update({
   id: '/hooks/diagnostic-drift',
   path: '/hooks/diagnostic-drift',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksDatiFatturaRoute = HooksDatiFatturaRouteImport.update({
+  id: '/hooks/dati-fattura',
+  path: '/hooks/dati-fattura',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksCronHistoryRoute = HooksCronHistoryRouteImport.update({
@@ -1183,6 +1190,11 @@ const ApiCrmDettaturaRoute = ApiCrmDettaturaRouteImport.update({
   path: '/api/crm/dettatura',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmDatiFatturaRoute = ApiCrmDatiFatturaRouteImport.update({
+  id: '/api/crm/dati-fattura',
+  path: '/api/crm/dati-fattura',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmCruscottoWaRoute = ApiCrmCruscottoWaRouteImport.update({
   id: '/api/crm/cruscotto-wa',
   path: '/api/crm/cruscotto-wa',
@@ -1346,6 +1358,7 @@ export interface FileRoutesByFullPath {
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
+  '/hooks/dati-fattura': typeof HooksDatiFatturaRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
@@ -1391,6 +1404,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
+  '/api/crm/dati-fattura': typeof ApiCrmDatiFatturaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1551,6 +1565,7 @@ export interface FileRoutesByTo {
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
+  '/hooks/dati-fattura': typeof HooksDatiFatturaRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
@@ -1596,6 +1611,7 @@ export interface FileRoutesByTo {
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
+  '/api/crm/dati-fattura': typeof ApiCrmDatiFatturaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1762,6 +1778,7 @@ export interface FileRoutesById {
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
+  '/hooks/dati-fattura': typeof HooksDatiFatturaRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
@@ -1807,6 +1824,7 @@ export interface FileRoutesById {
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
   '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
+  '/api/crm/dati-fattura': typeof ApiCrmDatiFatturaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1974,6 +1992,7 @@ export interface FileRouteTypes {
     | '/hooks/attesa-da-chiamare'
     | '/hooks/controllo-notte'
     | '/hooks/cron-history'
+    | '/hooks/dati-fattura'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
@@ -2019,6 +2038,7 @@ export interface FileRouteTypes {
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/cruscotto-wa'
+    | '/api/crm/dati-fattura'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2179,6 +2199,7 @@ export interface FileRouteTypes {
     | '/hooks/attesa-da-chiamare'
     | '/hooks/controllo-notte'
     | '/hooks/cron-history'
+    | '/hooks/dati-fattura'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
@@ -2224,6 +2245,7 @@ export interface FileRouteTypes {
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/cruscotto-wa'
+    | '/api/crm/dati-fattura'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2389,6 +2411,7 @@ export interface FileRouteTypes {
     | '/hooks/attesa-da-chiamare'
     | '/hooks/controllo-notte'
     | '/hooks/cron-history'
+    | '/hooks/dati-fattura'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
@@ -2434,6 +2457,7 @@ export interface FileRouteTypes {
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
     | '/api/crm/cruscotto-wa'
+    | '/api/crm/dati-fattura'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2565,6 +2589,7 @@ export interface RootRouteChildren {
   HooksAttesaDaChiamareRoute: typeof HooksAttesaDaChiamareRoute
   HooksControlloNotteRoute: typeof HooksControlloNotteRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
+  HooksDatiFatturaRoute: typeof HooksDatiFatturaRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
   HooksManychatGiroRoute: typeof HooksManychatGiroRoute
@@ -2603,6 +2628,7 @@ export interface RootRouteChildren {
   ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
   ApiCrmCruscottoWaRoute: typeof ApiCrmCruscottoWaRoute
+  ApiCrmDatiFatturaRoute: typeof ApiCrmDatiFatturaRoute
   ApiCrmDettaturaRoute: typeof ApiCrmDettaturaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
@@ -3051,6 +3077,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/diagnostic-drift'
       fullPath: '/hooks/diagnostic-drift'
       preLoaderRoute: typeof HooksDiagnosticDriftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/dati-fattura': {
+      id: '/hooks/dati-fattura'
+      path: '/hooks/dati-fattura'
+      fullPath: '/hooks/dati-fattura'
+      preLoaderRoute: typeof HooksDatiFatturaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/cron-history': {
@@ -4026,6 +4059,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmDettaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/dati-fattura': {
+      id: '/api/crm/dati-fattura'
+      path: '/api/crm/dati-fattura'
+      fullPath: '/api/crm/dati-fattura'
+      preLoaderRoute: typeof ApiCrmDatiFatturaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/cruscotto-wa': {
       id: '/api/crm/cruscotto-wa'
       path: '/api/crm/cruscotto-wa'
@@ -4337,6 +4377,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksAttesaDaChiamareRoute: HooksAttesaDaChiamareRoute,
   HooksControlloNotteRoute: HooksControlloNotteRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
+  HooksDatiFatturaRoute: HooksDatiFatturaRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
   HooksManychatGiroRoute: HooksManychatGiroRoute,
@@ -4375,6 +4416,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
   ApiCrmCruscottoWaRoute: ApiCrmCruscottoWaRoute,
+  ApiCrmDatiFatturaRoute: ApiCrmDatiFatturaRoute,
   ApiCrmDettaturaRoute: ApiCrmDettaturaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,

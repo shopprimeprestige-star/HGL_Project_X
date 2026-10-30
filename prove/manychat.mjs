@@ -45,6 +45,7 @@ import { proveChatMedia } from "./manychat/chat-media.mjs";
 import { proveChatStato } from "./manychat/chat-stato.mjs";
 import { proveChatElenco } from "./manychat/chat-elenco.mjs";
 import { proveChatSottofiltri } from "./manychat/chat-sottofiltri.mjs";
+import { proveChatPerStato } from "./manychat/chat-per-stato.mjs";
 import { proveChatEntrata } from "./manychat/chat-entrata.mjs";
 import { proveChatUscita } from "./manychat/chat-uscita.mjs";
 import { proveChatCasella } from "./manychat/chat-casella.mjs";
@@ -58,6 +59,7 @@ import { proveChatRitorno } from "./manychat/chat-ritorno.mjs";
 import { proveChatVersione } from "./manychat/chat-versione.mjs";
 import { proveNoteVocali } from "./manychat/note-vocali.mjs";
 import { proveControlloNotte } from "./manychat/controllo-notte.mjs";
+import { proveMessaggioStato } from "./manychat/messaggio-stato.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -330,6 +332,7 @@ export async function proveManychat(mod, aiuti) {
   await proveChatStato(mod, aiuti);
   await proveChatElenco(mod, aiuti);
   proveChatSottofiltri(mod, aiuti);
+  proveChatPerStato(mod, aiuti);
   await proveChatEntrata(mod, aiuti);
   await proveChatUscita(mod, aiuti);
   proveChatCasella(mod, aiuti);
@@ -345,4 +348,6 @@ export async function proveManychat(mod, aiuti) {
   proveCruscottoWa(mod, aiuti);
   //  Commessa 2026-10-30 (p8): il controllo della notte e la pulizia delle eco.
   await proveControlloNotte(mod, aiuti);
+  //  Commessa 2026-10-30-messaggio-per-stato: il messaggio dello stato lo scrive il consulente.
+  proveMessaggioStato(mod, aiuti);
 }

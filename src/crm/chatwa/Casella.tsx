@@ -23,6 +23,7 @@ import {
 import { useCRM } from "@/crm/CRMContext";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
+import { IconaWhatsApp } from "./IconaWhatsApp";
 import { ScegliModello } from "./ScegliModello";
 import { ScriviDalPonte } from "./ScriviDalPonte";
 import { modelloConsigliato } from "./modelli-casella";
@@ -68,7 +69,7 @@ import type { CasellaProps } from "./tipi";
 /** La casella in fondo alla chat, come nell'app WhatsApp: fissa in basso, campo a 16 px
  *  (iOS non ingrandisce la pagina), invio da 44 px. Cosa mostra lo decide `api.stato`:
  *  `libera` il testo, `solo_modelli` la scelta dei modelli, `stop` niente, `configura` il blocco. */
-export function Casella({ api }: CasellaProps) {
+export function Casella({ api, linkWa }: CasellaProps) {
   const { bozza, setBozza, residuiBozza, invia, inviando, stato, attiva, canale } = api;
   const { consultants } = useCRM();
   /*  ── PROPONI ORARI (28/10/2026) ────────────────────────────────────────
@@ -265,6 +266,27 @@ export function Casella({ api }: CasellaProps) {
             tastoModello
           )}
         </div>
+        {/*  ── WHATSAPP NATIVO SEMPRE (30/10/2026) ───────────────────────────
+            A casella bloccata il modo gratuito per scrivere a mano è l'app WhatsApp
+            del telefono: il tasto sta in barra, da 44 px, non nascosto in un menu. */}
+        {linkWa && (
+          <div className="px-3 pb-2">
+            <Button
+              asChild
+              variant="outline"
+              className="min-h-11 w-full gap-2 border-emerald-300 text-[13px] text-emerald-800 hover:bg-emerald-50 md:w-auto"
+            >
+              <a
+                href={linkWa}
+                target={linkWa.startsWith("https:") ? "_blank" : undefined}
+                rel="noopener noreferrer"
+              >
+                <IconaWhatsApp className="h-4 w-4 text-emerald-600" />
+                Apri in WhatsApp
+              </a>
+            </Button>
+          </div>
+        )}
         {ponteOk && restanti !== null && restanti <= 5 && (
           <p className="px-3 pb-2 text-[11.5px] text-muted-foreground">
             {`Dal telefono puoi mandare ancora ${restanti} ${restanti === 1 ? "messaggio" : "messaggi"} nelle prossime 24 ore.`}

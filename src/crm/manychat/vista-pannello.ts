@@ -409,6 +409,9 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   { modello: "hgl_sede_disdetta", etichetta: "Appuntamento in sede disdetto" },
   { modello: "hgl_ultimo_tentativo", etichetta: "Irreperibile: ultimo tentativo" },
   { modello: "hgl_acconto", etichetta: "Attesa acconto" },
+  //  Facoltativo: lo sceglie il consulente nella finestra dello stato, per chi non scrive da
+  //  più di 24 ore. Senza flusso collegato si manda il modello dello stato.
+  { modello: "hgl_come_eravamo_rimasti", etichetta: "Messaggio generico: come eravamo rimasti" },
 ];
 
 /** Lead nuovi al giorno.
