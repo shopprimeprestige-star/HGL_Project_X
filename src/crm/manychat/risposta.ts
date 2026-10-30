@@ -120,8 +120,11 @@ export interface EntrataRegistrata {
   media: string | null;
 }
 
-/** Quante entrate leggere: basta trovare l'ultimo TESTO dietro qualche media. */
-export const ENTRATE_DA_LEGGERE = 5;
+/** Quante entrate leggere: basta trovare l'ultimo TESTO dietro i media. Con 5 un cliente che
+ *  manda un album di foto o vocali dopo l'ultimo testo faceva sfuggire l'eco (30/10/2026).
+ *  shortcut: 50 righe, oltre l'eco di un testo più vecchio di 50 media passa; quando succede
+ *  si cerca l'ultimo testo con una query a parte. */
+export const ENTRATE_DA_LEGGERE = 50;
 /** Più vecchia di così, la stessa entrata ripetuta è un'eco. Sotto, è lo
  *  stesso messaggio che arriva da due strade (ManyChat dopo il ponte, o
  *  flusso + Default Reply a cavallo del minuto). */

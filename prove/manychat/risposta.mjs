@@ -110,7 +110,7 @@ export async function proveRisposta(mod, { c, gruppo }) {
               !x.duplicato_di,
           )
           .sort((a, b) => Date.parse(b.x.created_at) - Date.parse(a.x.created_at) || b.i - a.i)
-          .slice(0, 5)
+          .slice(0, RS.ENTRATE_DA_LEGGERE)
           .map(({ x }) => ({
             testo: x.body ?? "",
             il: new Date(x.created_at),
@@ -910,6 +910,29 @@ export async function proveRisposta(mod, { c, gruppo }) {
       richiesta({ corpo: corpo({ testo: "https://manybot-files.s3.example/vocale-456.ogg" }) }),
     );
     c("un vocale NUOVO (link diverso) → registrato", ["registrata", 1], [r.esito, m.messaggi.length]);
+
+    //  ⚠️ IL GUASTO DEL 30/10 («alcune chat non si aggiornano, anche vocali»): il cliente manda un
+    //  testo e poi un album di foto e vocali (più di 5 entrate); il titolare risponde dall'app; il
+    //  Default Reply riparte col vecchio testo. Con soli 5 messaggi letti l'ultimo testo non si
+    //  trovava più, l'eco passava per una risposta nuova del cliente e la chat tornava «Da rispondere».
+    m = mondo({
+      contatti: noto(),
+      storia: [
+        entrata(),
+        ...Array.from({ length: 8 }, (_, i) =>
+          entrata({
+            body: `https://manybot-files.s3.amazonaws.com/ab12/wa/2026/10/30/vocale-${i}.ogg`,
+            created_at: new Date(ADESSO.getTime() - (3000 - i * 100) * 1e3).toISOString(),
+          }),
+        ),
+      ],
+    });
+    r = await RS.gestisciRisposta(m.porte, richiesta({ corpo: corpo({ testo: TESTO }) }));
+    c(
+      "testo, poi 8 vocali/foto, poi l'eco del testo → «eco» (non una nuova entrata)",
+      ["eco", 0],
+      [r.esito, m.messaggi.length],
+    );
 
     //  Un testo nuovo, diverso dall'ultimo: si registra come sempre.
     m = mondo({ contatti: noto(), storia: [entrata(), uscita()] });
