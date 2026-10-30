@@ -24,6 +24,7 @@ export type FiltroChat =
   | "chiuso-24h"
   | "aperto-24h"
   | "attesa-whatsapp"
+  | "per-ora-no"
   //  Un filtro per ogni stato del lead (30/10/2026): vedi perStato.ts.
   | FiltroPerStato;
 

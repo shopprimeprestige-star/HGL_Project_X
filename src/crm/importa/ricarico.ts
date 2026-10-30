@@ -737,6 +737,7 @@ const ANCORA_AL_TELEFONO: string[] = [
   "da_chiamare",
   "richiamo",
   "annullato",
+  "per_ora_no",
   "fissa_meet_dopo",
 ];
 
@@ -894,6 +895,12 @@ export function storiaDelRitorno(d?: Partial<LeadData> | null): StoriaDelRitorno
         tentativi > 1 ? `Non ha mai risposto · ${tentativi} tentativi` : "Non ha mai risposto",
       nota: "Provato al telefono senza riuscire a parlarci: non sa ancora chi siamo.",
       tono: "freddo",
+    };
+  if (IN(stato, ["per_ora_no"]))
+    return {
+      etichetta: "Aveva detto «per ora no»",
+      nota: "Ci aveva chiesto di sentirci più avanti: la porta era aperta.",
+      tono: "attesa",
     };
   if (IN(stato, ["annullato", "perdi_tempo", "concluso", "sede_disdetta"]))
     return {

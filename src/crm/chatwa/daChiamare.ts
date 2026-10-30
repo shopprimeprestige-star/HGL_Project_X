@@ -5,7 +5,11 @@
  *  attesa WhatsApp per più di 10 ore di fila» si spostano nella scheda «Da
  *  chiamare» della chat, con il tasto per telefonare sopra la chat.
  *
- *  LA REGOLA (pura, provata in prove/prove.mjs, proveDelDaChiamare):
+ *  ⚠️ AGGIORNATA IL 30/10/2026: vale «la palla è al cliente» (vedi sotto,
+ *  `calcolaDaChiamare`): l'attesa si misura dal NOSTRO ultimo messaggio, non
+ *  solo dall'ingresso nello stato, e le eco non sono risposte.
+ *
+ *  LA REGOLA DI BASE (pura, provata in prove/prove.mjs, proveDelDaChiamare):
  *   · il lead è «in attesa WhatsApp» come nel resto del CRM: stato
  *     `attesa_whatsapp`, oppure il tasto WhatsApp premuto e nessun cambio di
  *     stato da allora (`inAttesaWhatsapp`, crm/importa/attesa-whatsapp);
@@ -19,11 +23,26 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { LeadData } from "@/crm/types";
 import { inAttesaWhatsapp } from "@/crm/importa/attesa-whatsapp";
-import { eRigaPonte } from "./stato";
+import { CONFRONTO_CARATTERI } from "../ponte/tipi";
+import { normalizzaTesto } from "../ponte/pari";
 
 export const ORE_PRIMA_DI_CHIAMARE = 10;
 
-type Messaggio = { direction: string; created_at: string; canale?: string | null };
+/** Un'eco arriva entro un minuto DOPO il messaggio nostro che ripete. */
+export const ECO_ENTRO_MS = 60_000;
+
+/** Un messaggio della conversazione. `body`, `from_number` e `to_number` servono
+ *  solo al riconoscimento dell'eco, in memoria: mai nei log. */
+export type MessaggioAttesa = {
+  direction: string;
+  created_at: string;
+  canale?: string | null;
+  duplicato_di?: string | null;
+  from_number?: string | null;
+  to_number?: string | null;
+  body?: string | null;
+};
+type Messaggio = MessaggioAttesa;
 
 export interface DaChiamare {
   si: boolean;
@@ -45,13 +64,77 @@ export function inAttesaDal(d?: Partial<LeadData> | null): string | null {
   return inAttesaWhatsapp(d) ? valido(d.whatsappInviatoIl) : null;
 }
 
+const ultime9 = (t?: string | null): string =>
+  String(t ?? "")
+    .replace(/\D/g, "")
+    .slice(-9);
+const ms = (x: unknown): number => {
+  const t = Date.parse(String(x ?? ""));
+  return Number.isFinite(t) ? t : NaN;
+};
+
+/** ── LE ECO NON SONO RISPOSTE (30/10/2026) ──────────────────────────────────
+ *  Con ManyChat in coesistenza con l'app, un messaggio che il titolare scrive
+ *  dal telefono torna indietro come riga IN ENTRATA di ManyChat, col suo stesso
+ *  testo, pochi secondi dopo. Non è il cliente. Eco = riga inbound/manychat
+ *  col testo uguale a un nostro outbound dello stesso numero, arrivata entro
+ *  `ECO_ENTRO_MS` DOPO di lui. Le righe con `duplicato_di` non contano. Pura.
+ *  Restituisce le righe eco: il loro istante serve anche a scartare il valore
+ *  della rubrica `ultimo_in_entrata_il`, scritto nello stesso momento. */
+export function righeEco(messaggi: readonly Messaggio[]): Set<Messaggio> {
+  const testo = (m: Messaggio) => normalizzaTesto(m.body).slice(0, CONFRONTO_CARATTERI);
+  const nostri = messaggi.filter(
+    (m) =>
+      m.direction === "outbound" &&
+      !m.duplicato_di &&
+      testo(m) &&
+      Number.isFinite(ms(m.created_at)),
+  );
+  const out = new Set<Messaggio>();
+  for (const e of messaggi) {
+    if (e.direction !== "inbound" || e.canale !== "manychat" || e.duplicato_di) continue;
+    const te = ms(e.created_at);
+    const t = testo(e);
+    if (!t || !Number.isFinite(te)) continue;
+    //  Stesso numero: se una delle due righe non lo dice, vale la conversazione
+    //  già scelta da chi chiama.
+    const stesso = (n: Messaggio) => {
+      const a = ultime9(e.from_number);
+      const b = ultime9(n.to_number);
+      return !a || !b || a === b;
+    };
+    if (
+      nostri.some((n) => {
+        const dopo = te - ms(n.created_at);
+        return dopo >= 0 && dopo <= ECO_ENTRO_MS && testo(n) === t && stesso(n);
+      })
+    )
+      out.add(e);
+  }
+  return out;
+}
+
+/** ── LA PALLA È AL CLIENTE (30/10/2026) ─────────────────────────────────────
+ *  Un lead in attesa WhatsApp va in «Da chiamare» se:
+ *   · l'ULTIMO messaggio della conversazione è NOSTRO, da qualunque canale
+ *     (ManyChat, scritto dal telefono col ponte, Cloud API);
+ *   · da quel messaggio sono passate almeno `ORE_PRIMA_DI_CHIAMARE` ore;
+ *   · il cliente non ha scritto dopo (le eco e i doppioni non sono lui);
+ *   · niente STOP.
+ *  L'attesa comincia al più recente fra l'ingresso nello stato (`inAttesaDal`)
+ *  e il nostro ultimo messaggio: chi risponde una volta e poi tace dopo un
+ *  NOSTRO messaggio non resta in attesa per sempre.
+ *  Senza messaggi nostri caricati vale la regola di prima: dall'ingresso nello
+ *  stato, se il cliente non ha scritto da allora (anche solo per la rubrica).
+ *  Pura: la usano il cron (patchDaChiamare) e la chat. */
 export function calcolaDaChiamare(p: {
   /** la scheda del lead della chat (senza scheda non c'è attesa) */
   dati?: Partial<LeadData> | null;
+  /** i messaggi di quel numero (quelli caricati: il cron legge gli ultimi 7 giorni) */
   messaggi: Messaggio[];
   stop?: boolean;
   /** l'ultimo messaggio del cliente secondo la rubrica: vale anche se i
-   *  messaggi caricati non arrivano così indietro */
+   *  messaggi caricati non arrivano così indietro (non se è un'eco) */
   ultimaEntrataIl?: string | null;
   adesso: Date;
 }): DaChiamare {
@@ -62,15 +145,27 @@ export function calcolaDaChiamare(p: {
     ? (p.dati?.statoPrecedenteIl ?? p.dati?.statoDal ?? null)
     : inAttesaDal(p.dati);
   if (!dal || !Number.isFinite(Date.parse(dal))) return NO;
-  const inizio = Date.parse(dal);
+  const eco = righeEco(p.messaggi);
+  const eEco = (t: number) => [...eco].some((e) => Math.abs(ms(e.created_at) - t) <= ECO_ENTRO_MS);
+  let ultimoNostro = NaN;
+  let ultimaEntrata = ms(p.ultimaEntrataIl);
+  //  Il valore della rubrica scritto dall'eco non è il cliente.
+  if (Number.isFinite(ultimaEntrata) && eEco(ultimaEntrata)) ultimaEntrata = NaN;
+  let ultimaEntrataMsg = NaN;
+  const piu = (a: number, b: number) => (Number.isFinite(a) ? Math.max(a, b) : b);
+  for (const m of p.messaggi) {
+    const t = ms(m.created_at);
+    if (!Number.isFinite(t) || m.duplicato_di) continue;
+    if (m.direction === "outbound") ultimoNostro = piu(ultimoNostro, t);
+    else if (m.direction === "inbound" && !eco.has(m)) ultimaEntrataMsg = piu(ultimaEntrataMsg, t);
+  }
+  const entrata = Math.max(ultimaEntrata || 0, ultimaEntrataMsg || 0);
+  //  Se l'ultimo messaggio è del cliente, la palla è nostra («Da rispondere»).
+  if (Number.isFinite(ultimoNostro) && entrata > ultimoNostro) return NO;
+  const inizio = Math.max(Date.parse(dal), Number.isFinite(ultimoNostro) ? ultimoNostro : 0);
   if (!giaDaChiamare && p.adesso.getTime() - inizio < ORE_PRIMA_DI_CHIAMARE * 3600_000) return NO;
-  let ultimaEntrata = Date.parse(String(p.ultimaEntrataIl ?? "")) || 0;
-  for (const m of p.messaggi)
-    //  Le righe del ponte WhatsApp (storico) sono solo da vedere: non contano come risposta.
-    if (m.direction === "inbound" && !eRigaPonte(m))
-      ultimaEntrata = Math.max(ultimaEntrata, Date.parse(m.created_at) || 0);
-  if (ultimaEntrata > inizio) return NO;
-  return { si: true, dal };
+  if (entrata > inizio) return NO;
+  return { si: true, dal: inizio === Date.parse(dal) ? dal : new Date(inizio).toISOString() };
 }
 
 /** Il numero della scheda nel formato delle chat («+39…»), o "" se non si sa

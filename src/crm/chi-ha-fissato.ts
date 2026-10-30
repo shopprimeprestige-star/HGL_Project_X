@@ -116,7 +116,7 @@ export type EsitoFissato = "in piedi" | "andata" | "da recuperare" | "persa";
 
 const ANDATA: string[] = ["venduto", "acconto", "posa_in_sede", "in_attesa_acconto", "installato"];
 const DA_RECUPERARE: string[] = ["no_show", "da_spostare", "fissa_meet_dopo", "da_ricontattare", "sta_valutando", "gestire_in_chat"];
-const PERSA: string[] = ["annullato", "non_interessato", "perso", "perdi_tempo", "numero_errato"];
+const PERSA: string[] = ["annullato", "per_ora_no", "non_interessato", "perso", "perdi_tempo", "numero_errato"];
 
 export function esitoFissato(d?: Partial<LeadData> | null): EsitoFissato {
   const s = testo(d?.stato);

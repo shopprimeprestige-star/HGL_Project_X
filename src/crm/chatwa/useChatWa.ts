@@ -712,6 +712,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     //   messaggi qui. Se sono in attesa da più di 10 ore entrano lo stesso,
     //   così compaiono in «Da chiamare» e si chiamano dal tasto in alto.
     const ultime9 = new Set([...map.keys()].map((k) => k.replace(/\D/g, "").slice(-9)));
+    //   Qui `messaggi` è vuoto di proposito (30/10/2026): chi ha anche un solo messaggio o
+    //   contatto ha già la sua chat in `map` e viene saltato più sotto; chi non ce l'ha non ha
+    //   messaggi da passare. Per le chat con scheda decide lo STATO, che il cron scrive con
+    //   la stessa funzione pura (`calcolaDaChiamare` con i messaggi degli ultimi 7 giorni).
     for (const l of leads) {
       if (!calcolaDaChiamare({ dati: l.data, messaggi: [], adesso: new Date(adesso) }).si) continue;
       const tel = telefonoE164(l.data?.telefono);

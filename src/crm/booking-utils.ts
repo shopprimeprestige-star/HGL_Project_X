@@ -74,6 +74,7 @@ export const STATI_CHE_LIBERANO_LO_SLOT: string[] = [
   ...STATI_NON_SVOLTA,
   //  Non succederà più: la trattativa è chiusa o la persona non si trova.
   "annullato",
+  "per_ora_no",
   "perdi_tempo",
   "irreperibile",
   "concluso",
