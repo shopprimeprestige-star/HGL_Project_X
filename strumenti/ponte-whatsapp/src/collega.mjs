@@ -125,6 +125,8 @@ function conta(mappa, chiave) {
  *   - `qr`: quello di `creaQr` (`qr.mjs`);
  *   - `registro(codice, conteggi)`: il log (solo codici e numeri);
  *   - `storicoDal`: secondi UNIX del taglio di STORICO_GIORNI (assente = tutto);
+ *   - `identita`: `Chrome` (di serie) o `Desktop`, da IDENTITA di config.env: il
+ *     nome con cui il ponte si presenta al telefono (conta al QR nuovo);
  *   - `avvisa()`: chiamato a ogni cambiamento (stato.json, giro d'invio);
  *   - `orologio`, `casuale`, `pianifica`, `annulla`: li sostituiscono le prove.
  *
@@ -138,6 +140,7 @@ export function creaCollegamento({
   fila,
   qr,
   registro = () => {},
+  identita = "Chrome",
   storicoDal,
   avvisa = () => {},
   orologio = Date.now,
@@ -387,12 +390,13 @@ export function creaCollegamento({
       const questo = baileys.makeWASocket({
         ...(versione ? { version: versione } : {}),
         auth: state,
-        browser: baileys.Browsers.macOS("Chrome"),
+        browser: baileys.Browsers.macOS(identita),
         syncFullHistory: true,
         //  Tutte le chat (30/10/2026): il default di Baileys scarta la sincronizzazione FULL
         //  (`syncType !== FULL`), l'unica che porta lo storico di TUTTE le chat. Si accetta ogni
         //  tipo; la coda del Mac regge anche un FULL molto più grande del primo giro (lotti.mjs).
-        //  L'identità resta «Mac Chrome» (Desktop dava 428).
+        //  L'identità è quella di IDENTITA in config.env (di serie «Mac Chrome»; «Desktop» è
+        //  l'ipotesi del README di Baileys per ricevere più storico: se dà 428 si torna a Chrome).
         shouldSyncHistoryMessage: () => true,
         markOnlineOnConnect: false,
         logger: LOGGER_MUTO,
@@ -446,7 +450,8 @@ export function creaCollegamento({
         const tutti = { ...nomi, ...nomiDaContatti(h?.contacts, risolutoreLid(mappa)) };
         metti("storico", messaggi, tutti);
         if (Number.isFinite(h?.progress)) stato.storico = { fatto: h.progress >= 100, avanzamento: Math.max(0, Math.min(100, Math.round(h.progress))) };
-        registro("storico", { letti: lista.length, validi: messaggi.length });
+        //  `tipo` = syncType del telefono (un numero: 2 = FULL); se non è un numero non si scrive
+        registro("storico", { letti: lista.length, validi: messaggi.length, ...(Number.isFinite(h?.syncType) ? { tipo: h.syncType } : {}) });
         avvisa();
       });
 

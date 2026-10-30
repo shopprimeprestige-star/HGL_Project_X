@@ -189,15 +189,79 @@ I messaggi già nella cache del Mac e quelli arrivati durante un ricollegamento 
 
 ## Riavere tutto lo storico (ricollegare)
 
-WhatsApp manda lo storico al Mac **solo al primo abbinamento**. Le chat dei numeri sconosciuti, scartate il 29/10, non sono più sul Mac: per riaverle si ricollega il Mac col codice, **una volta, la sera**.
+WhatsApp manda lo storico al Mac **solo quando si collega un dispositivo nuovo**. Per riaverlo si ricollega il Mac con un codice QR nuovo, **una volta, la sera**: il telefono rimanda lo storico e il ponte lo porta nel CRM con le funzioni di oggi (nessun doppione: la chiave `bw:<cifre>:<id>` è unica). Non si costruisce niente di nuovo: è una riga di `config.env`, un ricollegamento e dei controlli. **Non ricollegare più di una volta al giorno.** Il testo per il titolare, con le condizioni passo per passo, è `PASSI-TITOLARE.md` (Parte A) della commessa `2026-10-30-ponte-storico-completo`.
 
-1. **Prima**, nel SQL Editor: `select count(*) from public.whatsapp_contacts;`. Se è **oltre 3000, fermati**: il CRM legge al massimo 5000 contatti (5 pagine da 1000) e oltre taglia. Annota anche «Non letti», il numeretto di «Da rispondere» e `select count(*) from public.whatsapp_messages where promosso_il is not null;`.
-2. Mac acceso, sveglio, in carica. `./installa.sh scollega`, scrivi `SCOLLEGA`, inquadra il codice (WhatsApp Business → Impostazioni → Dispositivi collegati → Collega un dispositivo). **Non togliere ancora il vecchio «Mac OS»** dal telefono.
-3. L'import dura circa 10-20 minuti per ~10.000 messaggi (50 ogni 3 secondi). Il ponte accetta ora ogni tipo di storico che il telefono manda (`shouldSyncHistoryMessage`) e la coda regge fino a 10.000 file e 1 GiB. Se compare **«coda piena»** o `storico_rifiutati` è maggiore di 0 nel log, fermati (`launchctl bootout gui/$(id -u)/it.hgl.ponte-whatsapp`) e chiedi a chi ti assiste.
-4. **Dopo:** `./installa.sh stato` (storico 100%); `grep battito_collegato ~/Library/Logs/hgl-ponte-wa.log | tail -1` per `letti`, `validi`, `chat`, `storico_rifiutati` (il primo giro: 11.792, 9.374, 826; `storico_rifiutati` deve essere 0). «Non letti», «Da rispondere» e `promosso_il` **come prima**: se salgono di colpo, ferma il ponte.
-5. Solo a controlli fatti togli dal telefono il «Mac OS» **più vecchio**.
+**Un'ipotesi, non una prova:** il README di Baileys dice che il collegamento «Desktop» riceve più storico di quello «Chrome» (di serie). Il 29/10 il ponte era «Chrome» e non registrava il tipo di storico ricevuto, quindi non sappiamo se il telefono avesse già mandato tutto. Il log dice l'esito (punto 4).
 
-Non è garantito che il telefono mandi più storico del primo giro: si misura al punto 4. Per tornare alla sessione di prima (se hai ancora il vecchio «Mac OS» sul telefono): `launchctl bootout …`, `mv auth auth.nuovo-fallito`, `mv auth.scollegato-<data> auth`, `launchctl bootstrap …`; i passi esatti sono in `PASSI-TITOLARE.md`.
+### Prima del codice QR (tutte, nell'ordine)
+
+1. Il ponte del ramo con `IDENTITA` è sul Mac (`./installa.sh`).
+2. È sera, Mac acceso, **in carica, coperchio aperto**, nessun follow-up da fare ai clienti fino a domani.
+3. Nel SQL Editor: `select count(*) from public.whatsapp_contacts;`. Se è **oltre 3000, fermati**: il CRM legge al massimo 5000 contatti (5 pagine da 1000) e oltre taglia. Annota anche «Non letti» e il numeretto di «Da rispondere».
+4. Lancia e **salva** le tre misure dei doppioni e le due SELECT sulla chat di un numero (qui sotto): è il «prima». Sono pesanti: una volta sola prima e una dopo, fuori orario; se si fermano per il tempo massimo, metti in testa `set statement_timeout = '120s';` o fai un numero alla volta.
+5. **Il telefono suona**: da un altro telefono scrivi al numero; il tuo telefono deve suonare. È la base di «normale».
+6. In `~/Library/Application Support/HGL/ponte-wa/config.env` (permessi 600): cambia la riga `INVII_ATTIVI=1` in `INVII_ATTIVI=0` (non aggiungerne una seconda: vale l'ultima, ma poi il «rimetti 1» sbaglia). Se c'è già una riga `IDENTITA`, cambiala in `IDENTITA=Desktop`; se non c'è, aggiungila. Gli invii a mano dal CRM restano fermi fino ai controlli: un dispositivo appena collegato che scarica lo storico e intanto manda messaggi è il comportamento peggiore agli occhi di WhatsApp.
+
+### I passi
+
+1. Nella cartella `strumenti/ponte-whatsapp`: `./installa.sh scollega`, scrivi `SCOLLEGA`, inquadra il codice (WhatsApp Business → Impostazioni → Dispositivi collegati → Collega un dispositivo). **Non togliere ancora il vecchio «Mac OS»** dal telefono: serve per tornare indietro.
+2. **Aspetta, senza spegnere il Mac.** Nel CRM compare «storico ancora in arrivo»; poi guarda `./installa.sh stato` (`in_coda` scende a 0: circa 14 messaggi al secondo, 100.000 messaggi sono circa 2 ore; il tetto della coda è 10.000 file e 1 GiB, cioè 500.000 messaggi).
+3. **Leggi il tipo di storico** nel log: `grep " storico " ~/Library/Logs/hgl-ponte-wa.log`. Ogni riga ha `letti`, `validi` e `tipo=<numero>` (il tipo di sincronizzazione scelto dal telefono: `0` primo scarico, `2` completo, `3` recente, altri numeri possibili). **Se non compare mai `tipo=2` il telefono non ha mandato lo storico completo**: nemmeno con `Desktop` si può forzare. Per confronto, il primo giro del 29/10 ebbe 11.792 messaggi letti, 9.374 validi, 826 chat; `grep battito_collegato ~/Library/Logs/hgl-ponte-wa.log | tail -1` dà i totali (`storico_rifiutati` deve restare 0; se compare **«coda piena»** fermati: `launchctl bootout gui/$(id -u)/it.hgl.ponte-whatsapp`).
+4. **Controlla**, a coda vuota: i contatti sotto 3000; rilancia le misure di «prima»; i doppioni interni **uguali** a prima, gli esterni non in forte salita; «Non letti» e «Da rispondere» **non devono salire, salvo messaggi veri arrivati stasera** (possono scendere di qualche unità: è normale, il ponte nasconde un doppione trovato in ritardo); le righe del numero di prova hanno date più vecchie di oggi.
+5. **Il telefono suona ancora?** Da un altro telefono scrivi al numero. Se non suona, o se i numeri salgono, **fermati** e chiedi a chi ti assiste: non togliere niente.
+6. **Il giorno dopo**: rifai il test del suono; se tutto va bene, cambia `INVII_ATTIVI=0` in `INVII_ATTIVI=1`, `launchctl kickstart -k gui/$(id -u)/it.hgl.ponte-whatsapp`, e solo allora togli dal telefono il «Mac OS» **più vecchio**.
+
+**Se il codice non compare o si richiude subito (errore 428):** cambia la riga `IDENTITA` in `IDENTITA=Chrome` e rilancia il passo 1; lo storico sarà quello «recente». **Se con `Desktop` il telefono non suona più:** `IDENTITA=Chrome` e ricollega (lo storico resta nel CRM).
+
+**Per tornare alla sessione di prima** (se hai ancora il vecchio «Mac OS» sul telefono): `launchctl bootout gui/$(id -u)/it.hgl.ponte-whatsapp`, `mv auth auth.nuovo-fallito`, `mv auth.scollegato-<data> auth`, `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/it.hgl.ponte-whatsapp.plist` (nella cartella `~/Library/Application Support/HGL/ponte-wa`).
+
+### Le misure del «prima» e del «dopo»
+
+Solo contatori e date: niente testi. Negli esempi c'è un numero **finto** (`393331234567`): al suo posto metti quello vero **solo nel tuo SQL Editor**, mai in un documento del repo.
+
+```sql
+-- 1) esterni: righe del ponte che hanno un gemello ManyChat/Cloud ancora visibile.
+--    Sonda di proposito più larga dell'abbinamento vero (600 s e 100 caratteri contro 180 s e 1000 caratteri).
+select count(*) as possibili_doppioni_esterni
+  from public.whatsapp_messages b
+  join public.whatsapp_messages m
+    on m.user_id = b.user_id and m.id <> b.id and m.direction = b.direction
+   and m.canale is distinct from 'baileys'
+   and right(regexp_replace(case when m.direction = 'inbound' then m.from_number else m.to_number end, '\D', '', 'g'), 9)
+     = right(regexp_replace(case when b.direction = 'inbound' then b.from_number else b.to_number end, '\D', '', 'g'), 9)
+   and abs(extract(epoch from b.created_at - m.created_at)) <= 600
+   and lower(left(coalesce(b.body, ''), 100)) = lower(left(coalesce(m.body, ''), 100))
+ where b.canale = 'baileys' and b.duplicato_di is null and m.duplicato_di is null;
+
+-- 2) interni: lo stesso id WhatsApp con due chiavi diverse (un LID risolto in modo diverso). Deve restare INVARIATO.
+select count(*) as doppioni_interni
+  from (select split_part(wa_message_id, ':', 3) from public.whatsapp_messages
+         where canale = 'baileys' group by 1 having count(*) > 1) x;
+
+-- 3) segnaposto «non leggibile» ancora presenti (…-nd). Può solo restare uguale o salire di poco.
+select count(*) as segnaposto_nd from public.whatsapp_messages where canale = 'baileys' and wa_message_id like 'bw:%-nd';
+```
+
+Regola: la 2) non deve cambiare; la 1) non deve crescere in modo sensibile (due «Ok» veri ravvicinati contano in entrambe le letture); se una delle due cresce molto, fermati e chiedi a chi ti assiste. **Mai cancellazioni automatiche:** decide il titolare.
+
+Per **una chat sola** (il caso «lead noto con solo i messaggi di oggi»), prima e dopo, con il numero finto al posto di quello vero:
+
+```sql
+-- righe di quella chat per canale e direzione, dalla più vecchia alla più recente
+select m.canale, m.direction, count(*) n, min(m.created_at) dal, max(m.created_at) al
+  from public.whatsapp_messages m
+ where right(regexp_replace(case when m.direction = 'inbound' then m.from_number else m.to_number end, '\D', '', 'g'), 9) = right('393331234567', 9)
+ group by 1, 2 order by 1, 2;
+-- quando è nata la scheda (nata dopo il 2026-10-29 14:57 UTC? Allora il suo storico di quel giorno fu scartato)
+select created_at from public.crm_leads
+ where right(regexp_replace(coalesce(data ->> 'telefono', ''), '\D', '', 'g'), 9) = right('393331234567', 9);
+```
+
+Come leggere l'esito: righe `baileys` con date **prima di oggi** dopo l'esportazione = lo storico è arrivato; ancora solo oggi **e** nel log è comparso `tipo=2` = la chat inizia davvero oggi; ancora solo oggi e **nessun** `tipo=2` = il telefono non ha mandato lo storico completo (non dice niente su quella chat).
+
+### Cosa può non arrivare
+
+Lo decide il telefono: anche con `Desktop` può mandare meno di quello che vedi sul telefono. Sono esclusi per scelta gruppi, stati, canali, reazioni, modifiche e sondaggi. Nel secondo import le righe già presenti non si riscrivono; ogni messaggio ripassa però dall'abbinamento con ManyChat: se per una riga già visibile compare adesso il suo gemello ManyChat, la riga si nasconde e i «Non letti» scendono di 1 (una volta sola). Per questo possono scendere, mai salire.
 
 ## Cosa vedi nel CRM
 

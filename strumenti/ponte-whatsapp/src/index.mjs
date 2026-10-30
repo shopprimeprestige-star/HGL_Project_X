@@ -245,7 +245,7 @@ async function main() {
     await qr.notifica("config");
     process.exit(0);
   }
-  const { url, token, storicoGiorni, attesaPariSecondi, invii: inviAttivi } = conf.config;
+  const { url, token, storicoGiorni, attesaPariSecondi, invii: inviAttivi, identita } = conf.config;
   const senzaInvio = process.argv.includes("--senza-invio");
   if (senzaInvio) registro("senza_invio");
 
@@ -380,6 +380,7 @@ async function main() {
     fila,
     qr,
     registro,
+    identita,
     storicoDal: storicoGiorni > 0 ? Math.floor(Date.now() / 1000) - storicoGiorni * 86_400 : undefined,
     avvisa: () => {
       scriviStato();
