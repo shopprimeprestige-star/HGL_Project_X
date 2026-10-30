@@ -14,9 +14,10 @@
  *  ⚠️ L'utente non arriva MAI dal corpo: è `porte.utente()`.
  *  ⚠️ Il corpo si legge solo dopo la chiave giusta; un segreto più corto di
  *   `LIMITI.tokenMinimo` vale come assente (503).
- *  ⚠️ Un numero non noto non entra mai (D7): né riga né contatto. Per i `vivo`
- *   torna in `non_noti` (il ponte ritenta per 10 minuti), per lo `storico` si
- *   conta in `fuori_rubrica`.
+ *  ⚠️ Un numero non noto non entra mai (D7): né riga né contatto. I suoi id
+ *   tornano in `non_noti`: per i `vivo` il ponte ritenta per 10 minuti, poi
+ *   (come per lo `storico`, che li conta anche in `fuori_rubrica`) li tiene
+ *   nella sua cache sul Mac e chiede con `noti` quando il numero diventa noto.
  *  ⚠️ Nei log solo `porte.avviso(codice, contatori)`: mai numeri, nomi, testi,
  *   id. Niente `console` in questo file.
  *
@@ -54,6 +55,7 @@ import {
   type RigaDaAbbinare,
   type RigaScrittura,
   type RispostaLotto,
+  type RispostaNoti,
   type StatoInvio,
   type StatoPonteWa,
   type TipoContenuto,
@@ -181,7 +183,7 @@ function data(v: unknown): string | null {
 
 /** Legge e ripulisce un battito. `null` = corpo non valido (400). Lo `stato`
  *  fuori lista diventa `errore`; `in_coda` e `scartati` vanno dentro
- *  `contatori` (prima degli altri, così il taglio a 20 non li perde). */
+ *  `contatori` (prima degli altri, così il taglio a `LIMITI.chiaviContatori` non li perde). */
 export function leggiBattito(json: unknown): BattitoPulito | null {
   if (!oggetto(json) || json.v !== VERSIONE_CORPO || json.tipo !== "battito") return null;
   const stato = (STATI_PONTE as readonly unknown[]).includes(json.stato)
@@ -200,6 +202,18 @@ export function leggiBattito(json: unknown): BattitoPulito | null {
     ),
     versione,
   };
+}
+
+// ── La domanda «noti» della cache del ponte (p3, 30/10) ───────────────────
+
+/** I numeri di una `RichiestaNoti`, ripuliti: solo cifre 8-15, senza
+ *  ripetizioni (le altre righe si saltano). `null` = corpo non valido (400):
+ *  `v`, `tipo` sbagliati, `numeri` vuoto o oltre `LIMITI.numeri`. */
+export function leggiNoti(json: unknown): string[] | null {
+  if (!oggetto(json) || json.v !== VERSIONE_CORPO || json.tipo !== "noti") return null;
+  const grezzi = json.numeri;
+  if (!Array.isArray(grezzi) || grezzi.length < 1 || grezzi.length > LIMITI.numeri) return null;
+  return [...new Set(grezzi.filter((n): n is string => typeof n === "string" && NUMERO.test(n)))];
 }
 
 // ── Il giro ───────────────────────────────────────────────────────────────
@@ -362,8 +376,10 @@ async function giroLotto(
   const noti = new Set(await porte.noti(userId, numeri));
   const dentro = l.messaggi.filter((m) => noti.has(m.numero));
   const fuori = l.messaggi.filter((m) => !noti.has(m.numero));
-  if (l.origine === "vivo") esito.non_noti = fuori.map((m) => m.id);
-  else esito.fuori_rubrica = fuori.length;
+  //  Gli id dei non noti tornano sempre: il ponte ritenta i vivi e mette lo
+  //  storico nella sua cache sul Mac (p3). Nel CRM non entra niente.
+  esito.non_noti = fuori.map((m) => m.id);
+  if (l.origine === "storico") esito.fuori_rubrica = fuori.length;
   if (dentro.length === 0) return esito;
 
   const daAbbinare: RigaDaAbbinare[] = dentro.map((m) => ({
@@ -419,7 +435,8 @@ async function giroLotto(
 /** La rotta intera (§b1): 503 senza segreto (o più corto di 32), 401 con la
  *  chiave sbagliata (il corpo non si legge), 413 oltre 256 KB, 400 corpo non
  *  valido, 503 senza `manychat_config`, 500 se il database fallisce (il ponte
- *  ritenta: è sicuro, per l'idempotenza), 200 con i conteggi. */
+ *  ritenta: è sicuro, per l'idempotenza), 200 con i conteggi. Tre corpi:
+ *  `lotto`, `battito` e `noti` (la domanda della cache del ponte, p3). */
 export async function gestisciRichiesta(
   porte: PortePonte,
   i: {
@@ -458,7 +475,8 @@ export async function gestisciRichiesta(
   const battito = tipo === "battito" ? leggiBattito(json) : null;
   //  Senza `invii` prendi ed esito non esistono: corpo non valido, come prima.
   const invio = !!i.invii && (tipo === "prendi" || tipo === "esito");
-  if (!lotto && !battito && !invio) {
+  const numeri = tipo === "noti" ? leggiNoti(json) : null;
+  if (!lotto && !battito && !invio && !numeri) {
     porte.avviso("corpo_non_valido");
     return errore("corpo_non_valido");
   }
@@ -482,6 +500,16 @@ export async function gestisciRichiesta(
         non_noti: esito.non_noti.length,
       });
       return risposta(200, esito);
+    }
+    if (numeri) {
+      //  Solo lettura: nessuna riga, nessun contatto, nessun controllo tardivo.
+      const chiesti = new Set(numeri);
+      const noti = numeri.length
+        ? (await porte.noti(userId, numeri)).filter((n) => chiesti.has(n))
+        : [];
+      porte.avviso("noti", { chiesti: numeri.length, noti: noti.length });
+      const corpo: RispostaNoti = { ok: true, noti };
+      return risposta(200, corpo);
     }
     await porte.battito(userId, battito!);
     const riconciliati = await riconciliaSenzaErrori(porte, userId, i.adesso, i.invii);

@@ -212,7 +212,7 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
         storico: { fatto: 1, avanzamento: 100 },
         versione: "7".repeat(40),
       }, b && { stato: b.stato, collegato_dal: b.collegato_dal, ultimo_messaggio_il: b.ultimo_messaggio_il, storico: b.storico, versione: b.versione });
-      prova("battito: contatori al più 20 chiavi, in_coda e scartati dentro", [20, 3, 1], [Object.keys(b?.contatori ?? {}).length, b?.contatori.in_coda, b?.contatori.scartati]);
+      prova("battito: contatori al più 22 chiavi, in_coda e scartati dentro", [22, 3, 1], [Object.keys(b?.contatori ?? {}).length, b?.contatori.in_coda, b?.contatori.scartati]);
       prova("battito: solo i sei campi (il QR non passa mai)", ["collegato_dal", "contatori", "stato", "storico", "ultimo_messaggio_il", "versione"], Object.keys(b ?? {}).sort());
       prova("battito: stato fuori lista → errore", "errore", I.leggiBattito({ v: 1, tipo: "battito", stato: "boh" })?.stato);
       prova("battito minimo: tutto vuoto", { stato: "fermo", collegato_dal: null, ultimo_messaggio_il: null, storico: {}, contatori: {}, versione: null }, I.leggiBattito({ v: 1, tipo: "battito", stato: "fermo", storico: "x", contatori: [1, 2] }));
@@ -298,7 +298,9 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
     {
       const f = finte({ P, noti: [NUM] });
       const r = await vai(f.porte, lotto([msg(), msg({ id: "X9", numero: ALTRO }), msg({ id: "z z" })], { origine: "storico" }));
-      prova("storico: fuori rubrica contato e non scritto, non_noti vuoto, scartati contati", { ricevuti: 3, nuovi: 1, fuori_rubrica: 1, non_noti: [], scartati: 1 }, { ricevuti: r.json.ricevuti, nuovi: r.json.nuovi, fuori_rubrica: r.json.fuori_rubrica, non_noti: r.json.non_noti, scartati: r.json.scartati });
+      //  p3 (30/10): anche per lo storico i non noti tornano in non_noti, così il
+      //  ponte li tiene nella sua cache sul Mac (un ponte vecchio li ignora).
+      prova("storico: fuori rubrica contato e non scritto, id in non_noti, scartati contati", { ricevuti: 3, nuovi: 1, fuori_rubrica: 1, non_noti: ["X9"], scartati: 1 }, { ricevuti: r.json.ricevuti, nuovi: r.json.nuovi, fuori_rubrica: r.json.fuori_rubrica, non_noti: r.json.non_noti, scartati: r.json.scartati });
       prova("storico: nessun effetto e nessun controllo tardivo", [false, 0], [f.chiamate.scrivi[0]?.s.righe[0]?.e, f.chiamate.recenti.length]);
       const f2 = finte({ P, noti: [] });
       const r2 = await vai(f2.porte, lotto([msg()], { origine: "storico" }));
@@ -335,6 +337,26 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
       prova("battito con v sbagliato → 400", 400, (await vai(f.porte, { v: 2, tipo: "battito", stato: "collegato" })).stato);
     }
     {
+      //  p3 (30/10): la richiesta «noti» del ponte. Entrano solo cifre, escono
+      //  solo quelle che il CRM conosce; nessuna scrittura.
+      const N = (numeri, o = {}) => ({ v: 1, tipo: "noti", numeri, ...o });
+      prova("leggiNoti: solo cifre 8-15, senza ripetizioni", [NUM, ALTRO], I.leggiNoti(N([NUM, ALTRO, NUM, "+393331234567", "abc", 5, "120363012345678901"])));
+      const no = [null, N([]), N("x"), N([NUM], { v: 2 }), { ...N([NUM]), tipo: "lotto" }, N(Array.from({ length: 201 }, (_, i) => `39333${String(i).padStart(7, "0")}`))];
+      prova("leggiNoti: corpo non valido → null (vuoto, v, tipo, 201 numeri)", no.map(() => null), no.map((x) => I.leggiNoti(x)));
+      prova("leggiNoti: 200 numeri passano", 200, I.leggiNoti(N(Array.from({ length: 200 }, (_, i) => `39333${String(i).padStart(7, "0")}`)))?.length);
+      const f = finte({ P, noti: [NUM] });
+      const r = await vai(f.porte, N([NUM, ALTRO]));
+      prova("noti → 200 con i soli numeri noti, niente scritto né riconciliato", [200, { ok: true, noti: [NUM] }, 0, 0, 0], [r.stato, r.json, f.chiamate.scrivi.length, f.chiamate.recenti.length, f.chiamate.battito.length]);
+      prova("noti: l'utente dal server, i numeri passati a ponte_wa_noti", [UTENTE, [NUM, ALTRO]], [f.chiamate.noti[0]?.u, f.chiamate.noti[0]?.numeri]);
+      const r2 = await vai(f.porte, N(["abc"]));
+      prova("noti con sole righe non valide → 200 vuoto, il database non si chiama", [200, [], 1], [r2.stato, r2.json.noti, f.chiamate.noti.length]);
+      prova("noti con v sbagliato → 400", 400, (await vai(f.porte, N([NUM], { v: 2 }))).stato);
+      prova("noti senza chiave → 401, il database non si chiama", [401, 1], [(await vai(f.porte, N([NUM]), { token: "sbagliata".repeat(4) })).stato, f.chiamate.noti.length]);
+      const g = finte({ P });
+      g.porte.noti = async () => { throw { code: "PGRST202" }; };
+      prova("noti con il database giù → 500", 500, (await vai(g.porte, N([NUM]))).stato);
+    }
+    {
       const f = finte({ P, rompi: "scrivi", codice: "PGRST202" });
       const r = await vai(f.porte, lotto([msg()]));
       prova("errore del database → 500 database, nel log solo il codice funzioni_assenti", [500, "database", true], [r.stato, r.json.errore, f.avvisi.some(([k]) => k === "funzioni_assenti")]);
@@ -361,5 +383,5 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
     tuttiAvvisi.filter(([k, n]) => !T.CODICI_AVVISO.includes(k) || (n !== undefined && (typeof n !== "object" || Object.entries(n).some(([ch, v]) => !/^[a-z_]+$/.test(ch) || typeof v !== "number")))),
   );
   c("nei log nessun numero, id, testo o nome", false, /3933|3EB0|Giulia|Fornitore|Ciao|bw:/.test(JSON.stringify(tuttiAvvisi)));
-  c("gli avvisi ci sono (lotto, battito)", [true, true], ["lotto", "battito"].map((k) => tuttiAvvisi.some(([x]) => x === k)));
+  c("gli avvisi ci sono (lotto, battito, noti)", [true, true, true], ["lotto", "battito", "noti"].map((k) => tuttiAvvisi.some(([x]) => x === k)));
 }

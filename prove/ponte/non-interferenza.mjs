@@ -124,7 +124,11 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     const somma = (k) => esiti.reduce((t, e) => t + (e?.[k] ?? 0), 0);
     c("10 lotti da 50, tutti 200", 10, esiti.filter((e) => e?.ok === true).length);
     c("ricevuti 500, nuovi 360 (A, B, C), fuori rubrica 140 (D)", [500, 360, 140, 0], [somma("ricevuti"), somma("nuovi"), somma("fuori_rubrica"), somma("scartati")]);
-    c("lo storico non rimanda mai non_noti", 0, esiti.reduce((t, e) => t + (e?.non_noti?.length ?? 0), 0));
+    //  p3 (30/10): lo storico rimanda gli id dei non noti (e solo quelli), che il
+    //  ponte tiene nella sua cache sul Mac; nel CRM non entra niente di D.
+    const idD = new Set(messaggi.filter((x) => x.numero === D).map((x) => x.id));
+    const rimandati = esiti.flatMap((e) => e?.non_noti ?? []);
+    c("lo storico rimanda in non_noti solo gli id dei non noti (140 di D)", [140, true], [rimandati.length, rimandati.every((id) => idD.has(id))]);
 
     gruppo("PONTE WHATSAPP · NON-INTERFERENZA · COSA È STATO SCRITTO (I1, I2)");
     const dopo = m.tab;
