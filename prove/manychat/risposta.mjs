@@ -839,6 +839,50 @@ export async function proveRisposta(mod, { c, gruppo }) {
       [r.esito, m.contatti[0].non_scrivere_dal],
     );
 
+    //  ── Il giorno prima chiede un «ok» (30/10/2026): la risposta uguale a una di giorni fa è vera ──
+    {
+      const TRE_GIORNI = new Date(ADESSO.getTime() - 3 * 86400e3).toISOString();
+      const domaniInviato = (o = {}) =>
+        invioConferma({
+          tipo: "meet_domani",
+          prenotatoIl: new Date(ADESSO.getTime() - 3600e3).toISOString(),
+          ...o,
+        });
+      const prova = async (invii, testo = "ok") => {
+        const x = mondo({
+          invii,
+          contatti: noto(),
+          schede: [conAppuntamento()],
+          storia: [entrata({ body: "ok", created_at: TRE_GIORNI })],
+        });
+        x.schede[0].data.contattoWa.motivo = "meet_domani";
+        const e = await RS.gestisciRisposta(x.porte, richiesta({ corpo: corpo({ testo }) }));
+        return { x, e };
+      };
+      let { x, e } = await prova([domaniInviato()]);
+      c(
+        "un «ok» uguale a quello di 3 giorni fa, dopo il messaggio del giorno prima → registrato, non eco",
+        [200, true, 1],
+        [e.stato, !["eco", "doppione"].includes(e.esito), x.messaggi.length],
+      );
+      c(
+        "…la rubrica si aggiorna (ultima entrata di adesso) e la scheda passa a «Ha risposto» (conferma)",
+        [ADESSO.toISOString(), ["ha_risposto"], "ha_risposto"],
+        [x.contatti[0].last_message_at, x.contattoLog, x.schede[0].data.contattoWa.stato],
+      );
+      c("…e il freno vede la risposta (rispostaArrivata sull'invio)", 1, x.rispostaLog.length);
+      ({ x, e } = await prova([domaniInviato({ prenotatoIl: new Date(ADESSO.getTime() - 4 * 86400e3).toISOString() })]));
+      c(
+        "se il messaggio del giorno prima è PIÙ VECCHIO dell'ultima entrata uguale: eco come prima",
+        ["eco", 0],
+        [e.esito, x.messaggi.length],
+      );
+      ({ x, e } = await prova([domaniInviato({ tipo: "meet_oggi" })]));
+      c("lo stesso con un altro tipo di messaggio (la mattina): eco come prima", ["eco", 0], [e.esito, x.messaggi.length]);
+      ({ x, e } = await prova([]));
+      c("senza nessun invio abbinato: eco come prima", ["eco", 0], [e.esito, x.messaggi.length]);
+    }
+
     //  Lo stesso testo scritto in modo un po' diverso (maiuscole, spazi, a capo).
     m = mondo({
       contatti: noto(),
