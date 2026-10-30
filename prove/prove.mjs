@@ -46,6 +46,7 @@ import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
+import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 import { proveSpesaLead } from "./spesa-lead.mjs";
@@ -657,6 +658,9 @@ const MODULI = [
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
   //   prove in prove/idee/righe.mjs.
   "chatwa/segniRiga",
+  //  Selezione delle chat tenendo premuto e azioni in blocco (commessa
+  //   2026-10-30-selezione-chat): prove in prove/idee/selezione-chat.mjs.
+  "chatwa/selezione",
   //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
   //   prove in prove/idee/prossimo-meet.mjs.
   "chatwa/prossimo-meet",
@@ -21359,6 +21363,7 @@ proveRitornoInAttesa(mod, { c, gruppo, radice });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
+proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });

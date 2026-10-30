@@ -59,7 +59,15 @@ import {
   unisciContatti,
   unisciMessaggi,
 } from "./stato";
-import type { ChatItem, ChatWaApi, WaContactRow, WaMessageRow } from "./tipi";
+import type {
+  ApiBlocco,
+  ChatItem,
+  ChatWaApi,
+  EsitoBlocco,
+  WaContactRow,
+  WaMessageRow,
+} from "./tipi";
+import { aBlocchi } from "./selezione";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
@@ -75,6 +83,7 @@ interface Esito {
 interface Query extends PromiseLike<Esito> {
   select(colonne: string): Query;
   eq(colonna: string, valore: string): Query;
+  in(colonna: string, valori: string[]): Query;
   gte(colonna: string, valore: string): Query;
   is(colonna: string, valore: null): Query;
   range(da: number, a: number): Query;
@@ -899,12 +908,14 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   });
 
   /** Fa uscire la chat da «Da rispondere» subito e lascia che la ricarica lo confermi. */
-  const rispostoOra = async (tel: string) => {
-    setOttimistici((prima) => ({ ...prima, [tel]: Date.now() }));
+  const rispostoOra = async (tel: string | string[]) => {
+    const tels = Array.isArray(tel) ? tel : [tel];
+    const ora = Date.now();
+    setOttimistici((prima) => ({ ...prima, ...Object.fromEntries(tels.map((t) => [t, ora])) }));
     await reload().catch(() => undefined);
     setOttimistici((prima) => {
       const resto = { ...prima };
-      delete resto[tel];
+      for (const t of tels) delete resto[t];
       return resto;
     });
   };
@@ -1021,6 +1032,72 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     } catch {
       toast.error("Non sono riuscito a segnare «Fatto», riprova");
     }
+  };
+
+  /** ── LE AZIONI SU PIÙ CHAT (selezione tenendo premuto, 30/10/2026) ────────
+   *  «Letto» è la STESSA scrittura dell'apertura della chat (`unread_count = 0`), qui a
+   *  blocchi con `in(...)`; sempre con `user_id` (RLS e filtro): mai chat di altri.
+   *  `.select()` in coda riporta le righe davvero scritte: quelle che mancano sono
+   *  `fallite`, e l'elenco lo dice (nessun «fatto» di cortesia). Anche sul posto, subito. */
+  const BLOCCO = 50;
+  const scriviNonLetti = async (telefoni: string[], valore: number): Promise<EsitoBlocco> => {
+    if (!user) return { riuscite: [], fallite: telefoni };
+    const riuscite: string[] = [];
+    for (const blocco of aBlocchi(telefoni, BLOCCO)) {
+      try {
+        const r = await conTempo(
+          tabella("whatsapp_contacts")
+            .update({ unread_count: valore })
+            .eq("user_id", user.id)
+            .in("phone_e164", blocco)
+            .select("phone_e164"),
+        );
+        if (!r.error)
+          riuscite.push(...((r.data as { phone_e164: string }[] | null) ?? []).map((x) => x.phone_e164));
+      } catch {
+        // un blocco caduto: le sue chat finiscono fra le `fallite`, gli altri blocchi proseguono
+      }
+    }
+    if (riuscite.length > 0) {
+      const scritte = new Set(riuscite);
+      const d = datiRef.current;
+      const cts = d.contatti.map((x) =>
+        scritte.has(x.phone_e164) ? { ...x, unread_count: valore } : x,
+      );
+      datiRef.current = { ...d, contatti: cts };
+      setContacts(cts);
+    }
+    return { riuscite, fallite: telefoni.filter((t) => !riuscite.includes(t)) };
+  };
+
+  /** «Fatto» su più chat: la stessa funzione del database di `segnaFatto`, cinque alla volta. */
+  const segnaFattoMolte = async (telefoni: string[]): Promise<EsitoBlocco> => {
+    if (!user) return { riuscite: [], fallite: telefoni };
+    const riuscite: string[] = [];
+    let manca = false;
+    for (const gruppo of aBlocchi(telefoni, 5)) {
+      await Promise.all(
+        gruppo.map(async (tel) => {
+          try {
+            const { data, error } = await conTempo(
+              chiamaFunzione("whatsapp_segna_fatto", { p_phone: tel }),
+            );
+            if (error && mancaFunzione(error)) manca = true;
+            else if (!error && data !== false) riuscite.push(tel);
+          } catch {
+            // questa chat resta fra le `fallite`
+          }
+        }),
+      );
+    }
+    if (riuscite.length > 0) await rispostoOra(riuscite);
+    return { riuscite, fallite: telefoni.filter((t) => !riuscite.includes(t)), manca };
+  };
+
+  const inBlocco: ApiBlocco = {
+    segnaLetto: (telefoni) => scriviNonLetti(telefoni, 0),
+    segnaDaLeggere: (telefoni) => scriviNonLetti(telefoni, 1),
+    segnaFatto: segnaFattoMolte,
   };
 
   /** «Abbina a una scheda»: scrive `lead_id` sul contatto (RLS dell'utente).
@@ -1216,5 +1293,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     cambiaStatoLead,
     hasConfig,
     ponte,
+    inBlocco,
   };
 }

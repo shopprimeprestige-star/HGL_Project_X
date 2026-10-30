@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   AlertCircle,
   CalendarClock,
@@ -31,6 +31,7 @@ import { ritornoInChat } from "./ritorno";
 import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import { linkApriWhatsapp } from "./apriWhatsapp";
 import { scadenzaFinestra, segnoConferma } from "./segniRiga";
+import { eSpostamento, PRESSIONE_LUNGA_MS } from "./selezione";
 import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
@@ -88,6 +89,16 @@ interface RigaChatProps {
   /** Solo in «Da chiamare»: pastiglia verde se si può scrivere (finestra di 24 ore
    *  aperta), rossa se è chiusa e serve un modello approvato. */
   mostraFinestra?: boolean;
+  /** Selezione tenendo premuto (30/10/2026). Senza, la riga è quella di sempre.
+   *  `attiva`: la modalità è accesa (il tocco aggiunge/toglie); `scelta`: questa riga è scelta. */
+  selezione?: {
+    attiva: boolean;
+    scelta: boolean;
+    /** Pressione lunga con la modalità spenta: la accende con questa riga scelta. */
+    onInizia: () => void;
+    /** Tocco con la modalità accesa: aggiunge o toglie la riga. */
+    onTocca: () => void;
+  };
   /** È la chat del prossimo meet di oggi (vedi prossimo-meet.ts): la barra in cima la ripete, qui
    *  resta lo sfondo e il bordo viola, così la si riconosce anche scorrendo. */
   prossimoMeet?: boolean;
@@ -109,6 +120,7 @@ export function RigaChat({
   onStelle,
   onCambiaStato,
   mostraFinestra = false,
+  selezione,
   prossimoMeet = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
@@ -117,6 +129,40 @@ export function RigaChat({
   const finestra =
     mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
   const [cambiaStato, setCambiaStato] = useState(false);
+  /*  ── PRESSIONE LUNGA (30/10/2026) ──────────────────────────────────────────
+      Touch e mouse con gli eventi del puntatore. Si annulla se il dito scorre
+      (`eSpostamento`), se lo si alza prima o se il browser prende il gesto (scorrimento:
+      `pointercancel`). Quando scatta, il rilascio che segue NON deve aprire la chat: lo
+      dice `lungo`. Sul telefono il menu di sistema (tieni premuto) si blocca solo dopo
+      un tocco vero, così col mouse il tasto destro resta quello del browser. */
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const partenza = useRef<{ x: number; y: number } | null>(null);
+  const lungo = useRef(false);
+  const tocco = useRef(false);
+  const annullaPressione = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    partenza.current = null;
+  };
+  useEffect(() => annullaPressione, []);
+  const iniziaPressione = (e: PointerEvent) => {
+    //  Si azzera PRIMA di ogni uscita: su Android, dopo una pressione lunga, il click
+    //  può non arrivare mai e il flag resterebbe acceso, mangiando il tocco dopo.
+    lungo.current = false;
+    tocco.current = e.pointerType === "touch";
+    if (!selezione || selezione.attiva || (e.pointerType === "mouse" && e.button !== 0)) return;
+    partenza.current = { x: e.clientX, y: e.clientY };
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      lungo.current = true;
+      if (typeof navigator !== "undefined") navigator.vibrate?.(15);
+      selezione.onInizia();
+    }, PRESSIONE_LUNGA_MS);
+  };
+  const muoviPressione = (e: PointerEvent) => {
+    const p = partenza.current;
+    if (p && eSpostamento(e.clientX - p.x, e.clientY - p.y)) annullaPressione();
+  };
   const nome = nomeChat(c);
   //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
   const numero = numeroLeggibile(c.phone);
@@ -183,6 +229,7 @@ export function RigaChat({
         attiva
           ? "bg-emerald-50/60"
           : prossimoMeet && "bg-violet-50/70 ring-1 ring-inset ring-violet-300",
+        selezione?.scelta && "bg-emerald-100/60",
       )}
     >
       {/*  ── LA RIGA, STILE WHATSAPP (29/10/2026) ──────────────────────────────
@@ -191,19 +238,53 @@ export function RigaChat({
           l'anteprima. Le pastiglie stanno sotto, vanno a capo e non escono mai. */}
       <button
         type="button"
-        onClick={onApri}
+        onClick={() => {
+          //  Il rilascio dopo una pressione lunga ha già acceso la selezione: non apre la chat.
+          if (lungo.current) {
+            lungo.current = false;
+            return;
+          }
+          if (selezione?.attiva) selezione.onTocca();
+          else onApri();
+        }}
+        onPointerDown={iniziaPressione}
+        onPointerMove={muoviPressione}
+        onPointerUp={annullaPressione}
+        onPointerLeave={annullaPressione}
+        onPointerCancel={annullaPressione}
+        onContextMenu={(e) => {
+          if (selezione && (tocco.current || lungo.current)) e.preventDefault();
+        }}
         aria-current={attiva ? "true" : undefined}
+        aria-pressed={selezione?.attiva ? selezione.scelta : undefined}
         className={cn(
+          selezione && "select-none [-webkit-touch-callout:none]",
           "flex w-full items-start gap-3 pb-1.5 pl-3 pt-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           //  Con la cornetta a destra (44 px + 4 di margine) il testo si ferma prima.
           c.lead && telefono ? "pr-12 md:pr-10" : "pr-3",
         )}
       >
-        <Avatar className="h-11 w-11 shrink-0 md:h-10 md:w-10">
-          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
-            {c.lead ? initials(c.lead.data.nome, c.lead.data.cognome) : "?"}
-          </AvatarFallback>
-        </Avatar>
+        <span className="relative shrink-0">
+          <Avatar className="h-11 w-11 md:h-10 md:w-10">
+            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
+              {c.lead ? initials(c.lead.data.nome, c.lead.data.cognome) : "?"}
+            </AvatarFallback>
+          </Avatar>
+          {/*  In selezione: spunta verde se scelta, cerchio vuoto se no (come WhatsApp). */}
+          {selezione?.attiva && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2",
+                selezione.scelta
+                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  : "border-muted-foreground/50 bg-background",
+              )}
+            >
+              {selezione.scelta && <Check className="h-3 w-3" strokeWidth={3} />}
+            </span>
+          )}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
             <span
@@ -311,6 +392,7 @@ export function RigaChat({
       {c.lead && telefono && (
         <Button
           asChild
+          inert={selezione?.attiva}
           variant="ghost"
           className="absolute right-1 top-0 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:top-0.5 md:h-9 md:w-9"
         >
@@ -333,6 +415,7 @@ export function RigaChat({
       {finestra && !finestra.aperta && apriWa && (
         <a
           href={apriWa}
+          inert={selezione?.attiva}
           //  wa.me in una scheda nuova (il CRM resta aperto); il link Android si apre e basta.
           target={apriWa.startsWith("https:") ? "_blank" : undefined}
           rel="noopener noreferrer"
@@ -360,7 +443,10 @@ export function RigaChat({
            alti ~22 px a vista, e sul telefono un `after:` trasparente allarga
            l'area del tocco sopra e sotto (dal computer non serve). */}
       {(c.lead || onStelle) && (
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16">
+        <div
+          inert={selezione?.attiva}
+          className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16"
+        >
           {c.lead && (
             <button
               type="button"
@@ -497,7 +583,10 @@ export function RigaChat({
       )}
 
       {(senzaScheda || ambigua) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3">
+        <div
+          inert={selezione?.attiva}
+          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3"
+        >
           <span className="text-[12px] text-muted-foreground">
             {ambigua ? "Più schede con questo numero" : "Numero senza scheda"}
           </span>

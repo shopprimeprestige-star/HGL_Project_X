@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, Search, Star, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ListChecks, Loader2, Search, Star, X } from "lucide-react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { combaciaRicerca, ordinaPerStelle } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
+import { AzioniSelezione, TestataSelezione } from "./BarraSelezione";
+import {
+  commuta as commutaScelta,
+  fraseEsito,
+  pianoAzione,
+  selezionaTutte,
+  senzaDoppioni,
+  sonoTutte,
+  soloVisibili,
+  type AzioneBlocco,
+} from "./selezione";
 import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
@@ -81,7 +93,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const adesso = useAdesso();
   const [pannelloAperto, setPannelloAperto] = useState(false);
   //  Le stelle (28/10/2026): ordinano sempre l'elenco, prima le tre; ora sono anche un filtro.
-  const { di: stelleDi, cambia: cambiaStelle } = useStelle();
+  const { di: stelleDi, cambia: cambiaStelle, metti: mettiStelle } = useStelle();
   //  Il sottofiltro di «Da chiamare» (28/10/2026): UN elenco, ordinato per stato.
   const [sotto, setSotto] = useState<Sottofiltro>("tutti");
   //  Quando richiamarlo (29/10/2026): Scaduti, Oggi, Domani, poi le date.
@@ -162,6 +174,102 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           .filter((c) => passaRichiamo(c.lead?.data, quandoAttivo, oggi))
           .sort((a, b) => chiaveOrdine(a.lead?.data).localeCompare(chiaveOrdine(b.lead?.data)));
 
+  /*  ── SELEZIONE TENENDO PREMUTO (30/10/2026) ───────────────────────────────
+      Le chat «visibili» sono quelle che l'elenco mostra ORA, riquadri compresi: «Seleziona tutto» e le azioni valgono per loro, mai per chat nascoste
+      da un filtro cambiato dopo. Le regole stanno in selezione.ts. */
+  const [inSel, setInSel] = useState(false);
+  const [scelte, setScelte] = useState<Set<string>>(() => new Set());
+  const [inCorso, setInCorso] = useState<AzioneBlocco | null>(null);
+  const blocco = api.inBlocco;
+  const mostrate = senzaDoppioni(
+    filtri.coda === "da-chiamare"
+      ? elencoDaChiamare
+      : [...inScadenza, ...inAttesa, ...altre],
+  );
+  const scelteVisibili = inSel ? soloVisibili(scelte, mostrate) : [];
+  const esciDallaSelezione = () => {
+    setInSel(false);
+    setScelte(new Set());
+  };
+  //  Esc esce, come «Annulla».
+  useEffect(() => {
+    if (!inSel) return;
+    const alTasto = (e: KeyboardEvent) => {
+      if (e.key === "Escape") esciDallaSelezione();
+    };
+    window.addEventListener("keydown", alTasto);
+    return () => window.removeEventListener("keydown", alTasto);
+  }, [inSel]);
+
+  const esegui = async (azione: AzioneBlocco) => {
+    if (!blocco || inCorso) return;
+    const piano = pianoAzione(
+      azione,
+      scelteVisibili.map((c) => ({
+        phone: c.phone,
+        unread: c.contact?.unread_count ?? 0,
+        haContatto: c.contact !== null,
+        inAttesa: c.daRispondere?.attesa === true,
+        stelle: stelleDi(c.phone),
+      })),
+      attiva?.phone ?? null,
+    );
+    //  «Fatto» non si disfa: su più chat si chiede prima (come «Elimina»).
+    if (
+      azione === "fatto" &&
+      piano.fare.length > 1 &&
+      !confirm(
+        `Segnare «Fatto» su ${piano.fare.length} chat?\n\nEscono da «Da rispondere» senza mandare nulla ai clienti.`,
+      )
+    )
+      return;
+    setInCorso(azione);
+    let fatte = 0;
+    let rimaste: string[] = [];
+    let manca = false;
+    try {
+      if (piano.fare.length > 0) {
+        if (azione === "osservazione") {
+          const ok = await mettiStelle(piano.fare, 1).catch(() => false);
+          if (ok) fatte = piano.fare.length;
+          else rimaste = piano.fare;
+        } else {
+          const r = await (azione === "letto"
+            ? blocco.segnaLetto
+            : azione === "da-leggere"
+              ? blocco.segnaDaLeggere
+              : blocco.segnaFatto)(piano.fare);
+          fatte = r.riuscite.length;
+          rimaste = r.fallite;
+          manca = r.manca === true;
+        }
+      }
+    } catch {
+      //  Un guasto imprevisto non deve sembrare un successo: tutte le chat da fare restano da fare.
+      fatte = 0;
+      rimaste = piano.fare;
+    } finally {
+      setInCorso(null);
+    }
+    if (manca) toast.error("Manca l'aggiornamento del database: avvisa il titolare");
+    else {
+      const esito = fraseEsito(azione, {
+        fatte,
+        gia: piano.gia.length,
+        saltate: piano.saltate.length,
+        fallite: rimaste.length,
+        motivoSaltate: piano.saltate[0]?.motivo,
+      });
+      if (esito.tipo === "ok") toast.success(esito.testo);
+      else if (esito.tipo === "niente") toast.info(esito.testo);
+      else if (esito.tipo === "parziale") toast.warning(esito.testo);
+      else toast.error(esito.testo);
+    }
+    //  Se qualcuna non è riuscita restano scelte solo quelle: riprovare è un tocco.
+    if (rimaste.length > 0) setScelte(new Set(rimaste));
+    else esciDallaSelezione();
+  };
+
   // ── Le voci del pannello che cambiano con i dati ──────────────────────────────────────────
   //  «Altri stati»: gli stati con almeno una chat (con gli altri filtri accesi), più quello scelto.
   const stati = contaPerStato(
@@ -210,6 +318,23 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       stelle={stelleDi(c.phone)}
       onStelle={() => cambiaStelle(c.phone)}
       onCambiaStato={(lead, stato) => void api.cambiaStatoLead(lead, stato)}
+      selezione={
+        blocco
+          ? {
+              attiva: inSel,
+              scelta: inSel && scelte.has(c.phone),
+              onInizia: () => {
+                setInSel(true);
+                setScelte(new Set([c.phone]));
+              },
+              onTocca: () => {
+                const nuove = commutaScelta(scelte, c.phone);
+                if (nuove.size === 0) esciDallaSelezione();
+                else setScelte(nuove);
+              },
+            }
+          : undefined
+      }
     />
   );
 
@@ -244,18 +369,41 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
 
   return (
     <aside className="flex h-full w-full flex-col border-r border-border bg-card">
-      <div className="px-3 pb-1 pt-3 md:px-2 md:py-2.5">
-        {/*  Il titolo dice cosa si sta guardando: con nessun filtro, tutte (la pastiglia «Tutte» non c'è più). */}
-        <p className="t-riga font-semibold text-foreground">
-          {accesi > 0 ? "Chat filtrate" : "Tutte le chat"}
-          {!caricamento && (
-            <span className="tabular-nums text-muted-foreground">
-              {" · "}
-              {accesi > 0 ? trovate.length : api.chats.length}
-            </span>
+      {inSel ? (
+        <TestataSelezione
+          quante={scelteVisibili.length}
+          tutte={sonoTutte(scelte, mostrate)}
+          occupata={inCorso !== null}
+          onTutte={() =>
+            setScelte(sonoTutte(scelte, mostrate) ? new Set() : selezionaTutte(mostrate))
+          }
+          onAnnulla={esciDallaSelezione}
+        />
+      ) : (
+        <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-3 md:px-2 md:py-2.5">
+          {/*  Il titolo dice cosa si sta guardando: con nessun filtro, tutte (la pastiglia «Tutte» non c'è più). */}
+          <p className="t-riga font-semibold text-foreground">
+            {accesi > 0 ? "Chat filtrate" : "Tutte le chat"}
+            {!caricamento && (
+              <span className="tabular-nums text-muted-foreground">
+                {" · "}
+                {accesi > 0 ? trovate.length : api.chats.length}
+              </span>
+            )}
+          </p>
+          {/*  Per chi non usa la pressione lunga (tastiera, mouse): accende la selezione senza scegliere. */}
+          {blocco && (
+            <button
+              type="button"
+              onClick={() => setInSel(true)}
+              className="t-corpo -my-2 inline-flex h-11 items-center gap-1.5 rounded-md px-3 font-medium text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:pointer-fine:my-0 lg:pointer-fine:h-8 lg:pointer-fine:px-2"
+            >
+              <ListChecks aria-hidden="true" className="h-4 w-4" />
+              Seleziona
+            </button>
           )}
-        </p>
-      </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 px-3 pb-2 md:px-2">
         <div className="relative min-w-0 flex-1">
@@ -516,6 +664,13 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
           </>
         )}
       </div>
+      {inSel && (
+        <AzioniSelezione
+          quante={scelteVisibili.length}
+          inCorso={inCorso}
+          onAzione={(a) => void esegui(a)}
+        />
+      )}
     </aside>
   );
 }
