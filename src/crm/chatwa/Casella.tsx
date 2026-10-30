@@ -536,20 +536,29 @@ export function Casella({ api, linkWa }: CasellaProps) {
               "text-base leading-6 md:min-h-10 md:text-[14px] md:leading-5 md:rounded-lg md:px-3",
             )}
           />
+          {/*  ── LA X CHE SVUOTA, PIÙ EVIDENTE (30/10/2026) ───────────────────
+              Richiesta del titolare: «icona più evidente… più semplice da cliccare».
+              Un cerchio pieno con la X dentro (24 px) dentro un'area di tocco da 44×44 px
+              (40 dal computer), misure fisse: comparendo non sposta nient'altro che la
+              larghezza del campo, e l'altezza non cambia. Il tocco non toglie il fuoco alla
+              casella: `pointerdown` e `mousedown` (alcuni browser mandano solo il secondo)
+              sono annullati, quindi la tastiera resta su. Il microfono che stava qui accanto
+              è stato tolto (scrittura vocale), resta il tasto verde a destra. */}
           {bozza !== "" && configurata && (
             <button
               type="button"
-              //  Il tocco non toglie il fuoco alla casella: la tastiera resta su.
+              onPointerDown={(e) => e.preventDefault()}
               onMouseDown={(e) => e.preventDefault()}
               onClick={svuota}
               aria-label="Svuota il messaggio"
               title="Svuota il messaggio"
-              className="grid h-11 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-10"
+              className="group/x grid h-11 w-11 shrink-0 place-items-center rounded-full focus-visible:outline-none md:h-10 md:w-10"
             >
-              <X className="h-[18px] w-[18px]" aria-hidden />
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-muted-foreground text-background transition-colors group-hover/x:bg-foreground group-focus-visible/x:ring-2 group-focus-visible/x:ring-ring group-focus-visible/x:ring-offset-2 group-focus-visible/x:ring-offset-background">
+                <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+              </span>
             </button>
           )}
-          {bozza.trim() !== "" && dettaturaPossibile && <TastoMicrofono d={dettatura} />}
         </div>
         {!bozza.trim() && dettaturaPossibile ? (
           <TastoMicrofono d={dettatura} grande />

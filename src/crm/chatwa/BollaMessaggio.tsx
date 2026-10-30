@@ -1,8 +1,9 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import {
   AlertCircle,
   Check,
   CheckCheck,
+  ChevronDown,
   Clock,
   ExternalLink,
   ImageIcon,
@@ -10,8 +11,15 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { FRASE_CONFERMA_INCERTO } from "../ponte/invio";
 import { useCRM } from "@/crm/CRMContext";
@@ -28,6 +36,7 @@ import {
   velocitaDopo,
   velocitaSalvata,
 } from "./stile";
+import { eSpostamento, PRESSIONE_LUNGA_MS } from "./selezione";
 import type { BollaProps } from "./tipi";
 
 /** ── LA BOLLA ─────────────────────────────────────────────────────────────
@@ -570,8 +579,44 @@ function BollaBase({
   lead,
   coda,
   attaccata = false,
-}: BollaProps & { attaccata?: boolean }) {
+  rispiega,
+}: BollaProps & {
+  attaccata?: boolean;
+  /** «Rispiega con AI» (30/10/2026): se c'è, la bolla si può scegliere con la pressione lunga
+   *  (telefono e mouse) o dal menu che compare al passaggio del mouse. `onInizia` accende la selezione. */
+  rispiega?: { onInizia: () => void };
+}) {
   const fromMe = m.direction === "outbound";
+  /*  ── PRESSIONE LUNGA (30/10/2026) ───────────────────────────────────────
+      Come nelle righe dell'elenco (RigaChat): eventi del puntatore, si annulla se il dito
+      scorre (`eSpostamento`), se lo si alza prima o se il browser prende il gesto
+      (`pointercancel`). Non parte da link, tasti, lettore del vocale: lì il tocco è loro.
+      Sul telefono il testo non si seleziona a mano (come WhatsApp, dove la pressione lunga
+      sceglie il messaggio): altrimenti iOS apre la sua selezione sopra la nostra. */
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const partenza = useRef<{ x: number; y: number } | null>(null);
+  const tocco = useRef(false);
+  const annullaPressione = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    partenza.current = null;
+  };
+  useEffect(() => annullaPressione, []);
+  const iniziaPressione = (e: PointerEvent<HTMLDivElement>) => {
+    tocco.current = e.pointerType === "touch" || e.pointerType === "pen";
+    if (!rispiega || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if ((e.target as HTMLElement).closest("a,button,audio,video,input,[role='slider']")) return;
+    partenza.current = { x: e.clientX, y: e.clientY };
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      if (typeof navigator !== "undefined") navigator.vibrate?.(15);
+      rispiega.onInizia();
+    }, PRESSIONE_LUNGA_MS);
+  };
+  const muoviPressione = (e: PointerEvent<HTMLDivElement>) => {
+    const p = partenza.current;
+    if (p && eSpostamento(e.clientX - p.x, e.clientY - p.y)) annullaPressione();
+  };
   const { consultants } = useCRM();
   const c = fromMe ? null : classificaTesto(m.body ?? "");
   //  La foto del ponte (in entrata o mandata dal telefono): finché è solo il testo «📷 Foto» l'ora
@@ -588,8 +633,22 @@ function BollaBase({
       : !c || c.tipo === "testo" || c.tipo === "illeggibile" || c.tipo === "audio" || !c.url;
   return (
     <div
+      onPointerDown={rispiega ? iniziaPressione : undefined}
+      onPointerMove={rispiega ? muoviPressione : undefined}
+      onPointerUp={rispiega ? annullaPressione : undefined}
+      onPointerLeave={rispiega ? annullaPressione : undefined}
+      onPointerCancel={rispiega ? annullaPressione : undefined}
+      onContextMenu={
+        rispiega
+          ? (e) => {
+              //  Il menu di sistema della pressione lunga (Android) non deve coprire la nostra selezione.
+              if (tocco.current) e.preventDefault();
+            }
+          : undefined
+      }
       className={cn(
-        "relative min-w-0 max-w-[80%] rounded-lg px-2.5 pb-1.5 pt-1.5 md:max-w-[65%]",
+        "group/bolla relative min-w-0 max-w-[80%] rounded-lg px-2.5 pb-1.5 pt-1.5 md:max-w-[65%]",
+        rispiega && "pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
         "text-[15px] leading-5 text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] md:text-[14px] md:leading-[19px]",
         attaccata ? "mt-0.5" : "mt-2.5 first:mt-0",
         fromMe
@@ -616,6 +675,32 @@ function BollaBase({
         <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
       ) : (
         <Contenuto messaggio={m} c={c} />
+      )}
+      {rispiega && (
+        <DropdownMenu>
+          {/* Dal computer: una freccia in alto a destra che compare al passaggio del mouse o
+              con la tastiera (sul telefono c'è la pressione lunga, qui sarebbe un bersaglio invisibile). */}
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Azioni su questo messaggio"
+              title="Azioni su questo messaggio"
+              className={cn(
+                "absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-full pointer-coarse:hidden",
+                "opacity-0 shadow-sm transition-opacity group-hover/bolla:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                fromMe ? "bg-[#d9fdd3] hover:bg-[#c9f2c2]" : "bg-white hover:bg-[#f0f2f5]",
+              )}
+            >
+              <ChevronDown className="h-4 w-4 text-[#54656f]" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            <DropdownMenuItem className="gap-2" onSelect={rispiega.onInizia}>
+              <Sparkles className="text-violet-600" aria-hidden /> Rispiega con AI
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
       <div
         className={cn(

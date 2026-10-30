@@ -173,6 +173,7 @@ export function porteRisposteAi(): PorteRisposteAi {
             messaggi: r.messaggi ?? [],
             indicazione: r.indicazione,
             orari: r.orari ?? null,
+            modo: r.modo === "rispiega" ? "rispiega" : "rispondi",
           }
         : null;
     },
@@ -195,17 +196,20 @@ export function porteRisposteAi(): PorteRisposteAi {
       }
     },
 
-    messaggiChat: async (userId, telefono, scelti) => {
+    messaggiChat: async (userId, telefono, scelti, soloScelti) => {
       const [a, b] = forme(telefono);
       const filtro = `from_number.eq.${a},to_number.eq.${a},from_number.eq.${b},to_number.eq.${b}`;
-      const ultimi: Esito<MessaggioRiga[]> = await db()
-        .from("whatsapp_messages")
-        .select(COLONNE_MSG)
-        .eq("user_id", userId)
-        .or(filtro)
-        .is("duplicato_di", null)
-        .order("created_at", { ascending: false })
-        .limit(MESSAGGI_CONTESTO);
+      //  «Rispiega con AI»: del resto della chat non serve niente, non si legge nemmeno.
+      const ultimi: Esito<MessaggioRiga[]> = soloScelti
+        ? { data: [], error: null }
+        : await db()
+            .from("whatsapp_messages")
+            .select(COLONNE_MSG)
+            .eq("user_id", userId)
+            .or(filtro)
+            .is("duplicato_di", null)
+            .order("created_at", { ascending: false })
+            .limit(MESSAGGI_CONTESTO);
       if (ultimi.error) return lancia(ultimi.error);
       //  I scelti anche se più vecchi degli ultimi: ma solo di QUESTA chat.
       const vecchi: Esito<MessaggioRiga[]> = scelti.length
