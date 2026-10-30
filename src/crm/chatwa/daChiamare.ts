@@ -25,6 +25,7 @@ import type { LeadData } from "@/crm/types";
 import { inAttesaWhatsapp } from "@/crm/importa/attesa-whatsapp";
 import { CONFRONTO_CARATTERI } from "../ponte/tipi";
 import { normalizzaTesto } from "../ponte/pari";
+import { ultimoDellaChat } from "./stato";
 
 export const ORE_PRIMA_DI_CHIAMARE = 10;
 
@@ -213,6 +214,15 @@ interface ChatConStato {
   finestra?: { aperta: boolean } | null;
   stop?: boolean;
   schedaAmbigua?: boolean;
+  /** Se la chat aspetta noi (`c.daRispondere`) NON è «Da chiamare»: una chat o l'una o l'altra. */
+  daRispondere?: { attesa?: boolean } | null;
+  /** L'ultimo messaggio (per i numeri senza scheda): letto in pagina e/o salvato sul contatto. */
+  lastMessage?: { direction: string; body: string | null; created_at: string } | null;
+  contact?: {
+    ultimo_messaggio_il?: string | null;
+    ultimo_messaggio_anteprima?: string | null;
+    ultimo_messaggio_direzione?: string | null;
+  } | null;
   lead?: {
     data?: {
       stato?: string | null;
@@ -230,8 +240,18 @@ interface ChatConStato {
  *  se i numeri hanno più schede (lì si abbina prima), mai a finestra aperta
  *  o non calcolata. */
 export function statoChiamata(c: ChatConStato): StatoChiamata | null {
-  if (!c.lead)
-    return c.finestra?.aperta === false && !c.stop && !c.schedaAmbigua ? "da_chiamare" : null;
+  //  ── DA RISPONDERE VINCE (regola del titolare, 30/10/2026) ───────────────────
+  //  Se l'ultimo messaggio è del cliente la palla è nostra: resta in «Da rispondere», anche a
+  //  finestra chiusa e anche dopo giorni. Mai in «Da chiamare» per il solo passare del tempo.
+  if (c.daRispondere?.attesa) return null;
+  if (!c.lead) {
+    if (!(c.finestra?.aperta === false && !c.stop && !c.schedaAmbigua)) return null;
+    //  Senza scheda la finestra chiusa non basta: se l'ultimo messaggio è del cliente non lo si
+    //  manda a chiamare (tocca rispondere); si chiama chi ha avuto l'ultima parola da parte nostra.
+    //  Ultimo messaggio ignoto (nessun dato): come prima.
+    const ultimo = ultimoDellaChat(c.lastMessage ?? null, c.contact ?? null);
+    return ultimo?.direction === "inbound" ? null : "da_chiamare";
+  }
   const s = String(c.lead?.data?.stato ?? "");
   return (STATI_SOTTOFILTRI as readonly string[]).includes(s) ? (s as StatoChiamata) : null;
 }

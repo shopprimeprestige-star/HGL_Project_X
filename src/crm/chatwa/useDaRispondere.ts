@@ -6,7 +6,7 @@
  *  PERCHÉ È FATTO COSÌ
  *  La barra è su ogni pagina del CRM: il costo di questo numero lo paga tutto il
  *  giorno chiunque, anche chi non apre mai la chat. Quindi:
- *   · legge SOLO tre colonne (`id`, `ultimo_in_entrata_il`, `risposto_il`) e solo
+ *   · legge poche colonne (entrata, risposto, ultimo messaggio e sua direzione) e solo
  *     dei contatti che hanno già scritto almeno una volta;
  *   · NESSUN realtime: una lettura all'apertura, una al minuto, una quando la
  *     finestra torna visibile. A scheda nascosta non legge niente;
@@ -28,7 +28,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "../AuthContext";
 import type { WaContactRow } from "./tipi";
-import { contaDaRispondere } from "./stato";
+import { colonnaMancante, contaDaRispondere } from "./stato";
 
 /** Ogni quanto si rilegge, a finestra visibile. */
 const OGNI_MS = 60_000;
@@ -38,7 +38,19 @@ const PAGINA = 1000;
  *  si ferma lì (sotto-stima); quando succede, passare a un conteggio sul server. */
 const MAX_PAGINE = 5;
 
-type Riga = Pick<WaContactRow, "id" | "ultimo_in_entrata_il" | "risposto_il">;
+/** Le ultime due servono a vedere se l'ultimo messaggio è NOSTRO (regola del 30/10/2026). */
+const COLONNE_BASE = "id,ultimo_in_entrata_il,risposto_il,ultimo_in_entrata_anteprima";
+const COLONNE = `${COLONNE_BASE},ultimo_messaggio_il,ultimo_messaggio_direzione`;
+
+type Riga = Pick<
+  WaContactRow,
+  | "id"
+  | "ultimo_in_entrata_il"
+  | "risposto_il"
+  | "ultimo_in_entrata_anteprima"
+  | "ultimo_messaggio_il"
+  | "ultimo_messaggio_direzione"
+>;
 
 /** La catena di Supabase, ridotta ai soli metodi usati qui (come in useChatWa). */
 interface Catena {
@@ -82,14 +94,19 @@ export function useDaRispondere(attivo: boolean): number {
     let vivo = true;
 
     const leggi: LeggiPagina = async (da, a) => {
-      const { data, error } = await (supabase as unknown as { from: (t: string) => Catena })
-        .from("whatsapp_contacts")
-        .select("id,ultimo_in_entrata_il,risposto_il")
-        .eq("user_id", userId)
-        .not("ultimo_in_entrata_il", "is", null)
-        .order("id")
-        .range(da, a);
-      return error ? null : data;
+      const pagina = (colonne: string) =>
+        (supabase as unknown as { from: (t: string) => Catena })
+          .from("whatsapp_contacts")
+          .select(colonne)
+          .eq("user_id", userId)
+          .not("ultimo_in_entrata_il", "is", null)
+          .order("id")
+          .range(da, a);
+      const r = await pagina(COLONNE);
+      //  Migrazione dell'ultimo messaggio non applicata: si conta come prima (solo `risposto_il`).
+      if (r.error && colonnaMancante(r.error as { code?: string; message: string }))
+        return (await pagina(COLONNE_BASE)).data;
+      return r.error ? null : r.data;
     };
 
     //  Una lettura alla volta: se la rete è lenta e un'altra scatta, si salta.
