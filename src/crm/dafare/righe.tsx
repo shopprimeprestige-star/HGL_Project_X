@@ -43,7 +43,7 @@ import { oggiIso, soloData } from "@/crm/ui";
 import type { TonoAttesa } from "@/crm/ui";
 import { giorniFra, istanteDi, oraPulita } from "./quando";
 import type { TaskManuale } from "./task-manuali";
-import { confermaMancata } from "@/crm/manychat/consulenze";
+import { assenzaSegnalataDi, confermaMancata } from "@/crm/manychat/consulenze";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    1. I TIPI DI RIGA — che gesto è, detto con un verbo
@@ -67,6 +67,10 @@ export type TipoRiga =
    *  conferma con una telefonata. È l'unica riga di un appuntamento ancora in
    *  piedi, e sta in cima ad «Adesso». */
   | "conferma_meet"
+  /** Il cliente non è entrato in stanza 15' dopo l'inizio e l'interruttore
+   *  `assenza_auto` è spento: si segnala soltanto, la telefonata la fa il
+   *  consulente (crm/manychat/consulenze, `assenzaSegnalataDi`). */
+  | "assente_meet"
   | "task";
 
 export interface MetaRiga {
@@ -83,6 +87,12 @@ export interface MetaRiga {
 }
 
 export const META_RIGA: Record<TipoRiga, MetaRiga> = {
+  assente_meet: {
+    verbo: "Chiamare, non è entrato alla consulenza,",
+    filtro: "Non entrati alla consulenza",
+    spiegazione:
+      "15 minuti dopo l'inizio nessuno era nella stanza: si chiama e si segna l'esito.",
+  },
   conferma_meet: {
     verbo: "Chiamare per confermare la consulenza con",
     filtro: "Consulenze da confermare",
@@ -159,6 +169,7 @@ export function verboRiga(tipo: TipoRiga, stato?: LeadStatus): string {
  *  vengono provate su ogni lead: dalla più precisa (c'è una data concordata)
  *  alla più dedotta (lo stato dice che c'è da riprovare). */
 export const TIPI_RIGA: TipoRiga[] = [
+  "assente_meet",
   "conferma_meet",
   "ricontatto",
   "meet_da_fissare",
@@ -404,15 +415,16 @@ export function costruisciRighe({ leads, task, ora }: IngressoRighe): RigaDaFare
     //   promemoria è rimasto senza risposta da 3 ore. Non è un secondo elenco
     //   dell'agenda: è una telefonata da fare PRIMA, e l'agenda non la dice.
     if (eAppuntamento(d.stato)) {
-      const conferma = confermaMancata(d, ora);
-      if (!conferma) continue;
+      const assente = !!assenzaSegnalataDi(d);
+      if (!assente && !confermaMancata(d, ora)) continue;
+      const tipo: TipoRiga = assente ? "assente_meet" : "conferma_meet";
       const chiConferma = nomeDi(d);
       const giornoMeet = soloData(d.dataMeeting);
       const oraMeet = oraPulita(d.oraMeeting);
       righe.push({
         id: `lead:${l.id}`,
-        tipo: "conferma_meet",
-        cosa: `${META_RIGA.conferma_meet.verbo} ${chiConferma}`.trim(),
+        tipo,
+        cosa: `${META_RIGA[tipo].verbo} ${chiConferma}`.trim(),
         chi: chiConferma,
         lead: l,
         giorno: giornoMeet,
@@ -560,7 +572,8 @@ const CONFINE_POMERIGGIO_MIN = 13 * 60;
 export function fasciaDi(r: RigaDaFare, adesso: number, oggi: string): Fascia {
   //  La conferma va fatta adesso, prima della consulenza: l'ora che porta è
   //  quella della consulenza, non quella della telefonata.
-  if (r.tipo === "conferma_meet" && r.giorno === oggi) return "adesso";
+  if ((r.tipo === "conferma_meet" || r.tipo === "assente_meet") && r.giorno === oggi)
+    return "adesso";
   if (r.giorno < oggi) return r.tipo === "task" ? "daIeri" : "arretrato";
   //  Il futuro è un gruppo suo e non «quando capita»: una cosa scritta per
   //  venerdì non è una cosa da fare oggi quando il telefono è libero, ed è la
@@ -653,8 +666,8 @@ export function ordinaRighe(righe: RigaDaFare[]): RigaDaFare[] {
     //  lista) ma non stanno in mezzo al lavoro ancora aperto.
     if (a.fatta !== b.fatta) return a.fatta ? 1 : -1;
     //  Le consulenze da confermare in cima: hanno una scadenza vera (l'inizio).
-    const ca = a.tipo === "conferma_meet";
-    if (ca !== (b.tipo === "conferma_meet")) return ca ? -1 : 1;
+    const inCima = (r: RigaDaFare) => r.tipo === "assente_meet" || r.tipo === "conferma_meet";
+    if (inCima(a) !== inCima(b)) return inCima(a) ? -1 : 1;
     //  ⚠️ Il giorno viene PRIMA dell'ora, e conta solo nei tre gruppi che
     //   mescolano più giornate (l'arretrato, il rimasto indietro, i prossimi
     //   giorni). Senza, una cosa di dieci giorni fa senza orario finiva sotto

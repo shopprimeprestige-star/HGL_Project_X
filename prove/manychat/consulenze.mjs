@@ -202,4 +202,120 @@ export async function proveConsulenze(mod, { c, gruppo, radice }) {
     c("messo a mano: aspetta i 30' di sempre", "aspetta",
       T.decidiPerStato([aMano], quando(16), ctx)[0]?.tipo);
   }
+
+  gruppo("CONSULENZE · (12) INTERRUTTORE SPENTO: SOLO SEGNALAZIONE");
+  {
+    const d = scheda({});
+    const INIZIO = Date.parse("2026-10-30T14:00:00.000Z");
+    const quando = (min) => new Date(INIZIO + min * 60_000);
+    const e = K.decidiAssenza(d, quando(15), [], false);
+    c("spento: segnala soltanto", "segnala", e?.tipo);
+    c("…lo stato non si tocca (nessun messaggio)", undefined, e?.patch.stato);
+    c("…col segno della consulenza", "2026-10-30T15:00", e?.patch.assenzaSegnalata.meet);
+    const segnalata = { ...d, ...e.patch };
+    c("una volta sola per consulenza", null, K.decidiAssenza(segnalata, quando(20), [], false));
+    c("presente in stanza: niente segnalazione", "lascia", K.decidiAssenza(d, quando(15), [{ at: INIZIO }], false)?.tipo);
+    c("la segnalazione vale per QUESTA consulenza", true, !!K.assenzaSegnalataDi(segnalata));
+    c("…non per una consulenza spostata dopo", null,
+      K.assenzaSegnalataDi({ ...segnalata, oraMeeting: "17:00" }));
+    c("…né dopo l'esito segnato", null, K.assenzaSegnalataDi({ ...segnalata, stato: "no_show" }));
+    const righe = DF.costruisciRighe({ leads: [{ id: "l-9", data: segnalata }], task: [], ora: quando(20) });
+    c("in «Da fare» diventa una telefonata", "assente_meet", righe[0]?.tipo);
+    c("…in «Adesso»", "adesso", DF.fasciaDi(righe[0], quando(20).getTime(), "2026-10-30"));
+    c("interruttore: solo `acceso: true` esatto lo accende", [true, false, false, false],
+      [K.rigaAssenzaAuto(true), K.rigaAssenzaAuto(false), '{"acceso":"si"}', "rotto"].map(K.leggiAssenzaAuto));
+    c("presenza: si rilegge l'ora salvata, il resto non vale", [1730296800000, null, null],
+      ["1730296800000", "", "abc"].map(K.leggiPresenza));
+  }
+
+  gruppo("CONSULENZE · (12) IL GIRO SU UN DATABASE FINTO");
+  {
+    const INIZIO = Date.parse("2026-10-30T14:00:00.000Z");
+    const MIN = 60_000;
+    const quando = (min) => new Date(INIZIO + min * MIN);
+    /** Il database finto: schede con `updated_at`, la sala (potata) e la presenza che non si pota. */
+    const mondo = ({ acceso = true, sala = {}, visto = {}, schede }) => {
+      const db = new Map(schede.map((r) => [r.id, structuredClone(r)]));
+      const scritture = [];
+      const porte = {
+        acceso: async () => acceso,
+        appuntamenti: async () => [...db.values()].map((r) => structuredClone(r)),
+        presenze: async (d) => {
+          if (!/\/meetly\//.test(d.linkMeeting ?? "")) return null;
+          return [...(sala[d.linkMeeting] ?? []), ...(visto[d.linkMeeting] ? [{ at: visto[d.linkMeeting] }] : [])];
+        },
+        scrivi: async (r, data, adesso) => {
+          const ora = db.get(r.id);
+          if (ora.updated_at !== r.updated_at) return false; // cambiata nel frattempo
+          db.set(r.id, { ...ora, data, updated_at: adesso.toISOString() });
+          scritture.push(r.id);
+          return true;
+        },
+      };
+      return { db, scritture, porte };
+    };
+    const riga = (id, extra) => ({
+      id,
+      updated_at: "2026-10-30T09:00:00.000Z",
+      data: scheda({ linkMeeting: `https://hairgeniuslabs.com/meetly/${id}-aaa-bbb`, ...extra }),
+    });
+    const link = (id) => `https://hairgeniuslabs.com/meetly/${id}-aaa-bbb`;
+
+    //  Entrato alle 15:00 (orario d'inizio): la sala lo ha potato, la presenza no.
+    {
+      const m = mondo({ schede: [riga("a")], sala: { [link("a")]: [] }, visto: { [link("a")]: INIZIO + 2 * MIN } });
+      const r = await K.giroAssenza(m.porte, quando(35));
+      c("entrato e poi potato dalla sala: NON si sposta", [0, 1], [r.spostati, r.lasciati]);
+      c("…e la scheda resta com'era", "appuntamento_fissato", m.db.get("a").data.stato);
+    }
+    //  Entrato tardi (15:10): al giro delle 15:15 c'è, non si sposta.
+    {
+      const m = mondo({ schede: [riga("b")], visto: { [link("b")]: INIZIO + 10 * MIN } });
+      const r = await K.giroAssenza(m.porte, quando(15));
+      c("entrato in ritardo (prima del giro): resta", [0, 1], [r.spostati, r.lasciati]);
+    }
+    //  Entrato prima dell'inizio (14:30): conta.
+    {
+      const m = mondo({ schede: [riga("b2")], visto: { [link("b2")]: INIZIO - 30 * MIN } });
+      c("entrato mezz'ora prima: resta", 0, (await K.giroAssenza(m.porte, quando(40))).spostati);
+    }
+    //  Nessuno: acceso sposta, spento segnala.
+    {
+      const m = mondo({ schede: [riga("c")] });
+      const r = await K.giroAssenza(m.porte, quando(16));
+      c("acceso, nessuno in stanza: spostato", [true, 1], [r.acceso, r.spostati]);
+      c("…in «Da riprogrammare»", "da_spostare", m.db.get("c").data.stato);
+      const r2 = await K.giroAssenza(m.porte, quando(21));
+      c("…e il giro dopo non lo riscrive", [0, 1], [r2.spostati, m.scritture.length]);
+    }
+    {
+      const m = mondo({ acceso: false, schede: [riga("d")] });
+      const r = await K.giroAssenza(m.porte, quando(16));
+      c("spento, nessuno in stanza: solo segnalato", [false, 0, 1], [r.acceso, r.spostati, r.segnalati]);
+      c("…lo stato resta l'appuntamento", "appuntamento_fissato", m.db.get("d").data.stato);
+      c("…col segno per «Da fare»", true, !!K.assenzaSegnalataDi(m.db.get("d").data));
+      const r2 = await K.giroAssenza(m.porte, quando(21));
+      c("…una volta sola", [0, 1], [r2.segnalati, m.scritture.length]);
+    }
+    //  Scrittura protetta: il consulente ha segnato l'esito fra lettura e scrittura.
+    {
+      const m = mondo({ schede: [riga("e")] });
+      const lette = m.porte.appuntamenti;
+      m.porte.appuntamenti = async (a) => {
+        const r = await lette(a);
+        const ora = m.db.get("e");
+        m.db.set("e", { ...ora, data: { ...ora.data, stato: "fatto" }, updated_at: "2026-10-30T14:15:30.000Z" });
+        return r;
+      };
+      const r = await K.giroAssenza(m.porte, quando(16));
+      c("scheda cambiata nel frattempo: non si scrive", [0, 1], [r.spostati, r.cambiatiNelFrattempo]);
+      c("…e vince l'esito del consulente", "fatto", m.db.get("e").data.stato);
+    }
+    //  Stanza non Meetly: niente.
+    {
+      const m = mondo({ schede: [riga("f", { linkMeeting: "chiamo io" })] });
+      const r = await K.giroAssenza(m.porte, quando(16));
+      c("senza stanza Meetly: resta com'è", [0, 1], [r.spostati, r.lasciati]);
+    }
+  }
 }

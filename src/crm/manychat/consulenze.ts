@@ -31,6 +31,16 @@
  *    collegamento; un vero assente non spostato lo segna il consulente come oggi.
  *   ⚠️ Oltre un'ora e mezza dall'inizio il giro non tocca più niente: dopo una
  *    pubblicazione o un fermo non si rimettono in moto le consulenze di ieri.
+ *   ⚠️ LA PRESENZA NON SI POTA (revisione del 30/10): la riga della sala si pota
+ *    dopo 30' (`DECISIONE_TTL_MS`), quindi un cliente entrato alle 11:00 alle
+ *    11:35 non ci sarebbe più. Ogni bussata scrive anche `presenza_meet:<codice>`
+ *    (l'ora dell'ultima bussata, mai potata: api.public.sala-attesa), e il giro
+ *    legge tutte e due. Una presenza dall'ora prima dell'inizio in poi basta a
+ *    non spostare MAI.
+ *   ⚠️ INTERRUTTORE `assenza_auto` (app_config, spento di serie; Impostazioni →
+ *    WhatsApp): spento, il giro SEGNALA soltanto — segno `assenzaSegnalata` sulla
+ *    scheda e riga «Chiamare … non è entrato alla consulenza» in «Da fare»;
+ *    stato e messaggi non cambiano. Acceso, sposta come sopra.
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { ContattoWa, LeadData, LeadStatus, VoceContattoWa } from "../types";
 import { eAppuntamento } from "../types";
@@ -62,7 +72,36 @@ export interface AssenzaAuto {
   /** la consulenza saltata, «AAAA-MM-GGTHH:MM» (ora di Roma) */
   meet: string;
 }
-type SchedaConAssenza = Partial<LeadData> & { assenzaAuto?: AssenzaAuto };
+type SchedaConAssenza = Partial<LeadData> & {
+  assenzaAuto?: AssenzaAuto;
+  assenzaSegnalata?: AssenzaAuto;
+};
+
+/** L'interruttore in `app_config`. Vale solo `acceso: true` esatto: una riga
+ *  assente o illeggibile è spenta. */
+export const CHIAVE_ASSENZA_AUTO = "assenza_auto";
+export function leggiAssenzaAuto(testo: string | null | undefined): boolean {
+  try {
+    return (JSON.parse(String(testo ?? "")) as { acceso?: unknown })?.acceso === true;
+  } catch {
+    return false;
+  }
+}
+export const rigaAssenzaAuto = (acceso: boolean): string => JSON.stringify({ acceso });
+
+/** La presenza che non si pota: `presenza_meet:<codice>` = ms dell'ultima bussata. */
+export const BASE_PRESENZA = "presenza_meet";
+export function leggiPresenza(testo: string | null | undefined): number | null {
+  const n = Number(String(testo ?? "").trim());
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** «AAAA-MM-GGTHH:MM» della consulenza in scheda, `null` se non si legge. */
+function meetDi(d: Partial<LeadData>): string | null {
+  const inizio = inizioConsulenza(d);
+  const ora = oraNormale(d.oraMeeting);
+  return inizio && ora ? `${aRoma(inizio).giorno}T${ora}` : null;
+}
 
 /** L'inizio della consulenza (ora di Roma), `null` se giorno o ora non si leggono. */
 export function inizioConsulenza(d: Partial<LeadData> | null | undefined): Date | null {
@@ -130,19 +169,24 @@ export interface BussataSala {
 
 export type EsitoAssenza =
   | { tipo: "sposta"; patch: Partial<LeadData> & { assenzaAuto: AssenzaAuto } }
+  | { tipo: "segnala"; patch: { assenzaSegnalata: AssenzaAuto } }
   | { tipo: "lascia"; motivo: string };
 
 const dueCifre = (n: number) => String(n).padStart(2, "0");
 
 /** ── (12) NESSUNO IN STANZA 15' DOPO L'INIZIO ─────────────────────────────
  *  `sala`: le persone della riga `sala_attesa:<codice>` così come sono salvate
- *  (anche quelle già uscite); `null` = la consulenza non ha una stanza Meetly.
+ *  (anche quelle già uscite) più la presenza che non si pota (`{ at: visto }`);
+ *  `null` = la consulenza non ha una stanza Meetly.
+ *  `acceso`: l'interruttore `assenza_auto`. Spento → `segnala`, una volta per
+ *  consulenza; acceso → `sposta`.
  *  `null` in uscita = la scheda non è affar suo (nessun appuntamento in questa
  *  finestra); `lascia` = sarebbe affar suo, ma nel dubbio resta com'è. */
 export function decidiAssenza(
   d: Partial<LeadData> | null | undefined,
   adesso: Date,
   sala: BussataSala[] | null,
+  acceso = true,
 ): EsitoAssenza | null {
   if (!d || !eAppuntamento(d.stato)) return null;
   const inizio = inizioConsulenza(d);
@@ -164,6 +208,12 @@ export function decidiAssenza(
     return lascia("ha scritto da poco: decide il consulente");
 
   const iso = adesso.toISOString();
+  const meet = meetDi(d) as string;
+  if (!acceso) {
+    //  Una volta sola per consulenza: il giro passa ogni 5' e non riscrive la scheda.
+    if ((d as SchedaConAssenza).assenzaSegnalata?.meet === meet) return null;
+    return { tipo: "segnala", patch: { assenzaSegnalata: { il: iso, meet } } };
+  }
   const r = aRoma(adesso);
   const [, mese, giorno] = r.giorno.split("-");
   const ora = oraNormale(d.oraMeeting) as string;
@@ -178,7 +228,7 @@ export function decidiAssenza(
       statoPrecedenteIl: iso,
       statoDal: iso,
       note: conNota(d.note, riga),
-      assenzaAuto: { il: iso, meet: `${aRoma(inizio).giorno}T${ora}` },
+      assenzaAuto: { il: iso, meet },
     },
   };
 }
@@ -188,4 +238,51 @@ export function decidiAssenza(
 export function eAssenzaAutomatica(d: Partial<LeadData> | null | undefined): boolean {
   const a = (d as SchedaConAssenza | null | undefined)?.assenzaAuto;
   return d?.stato === "da_spostare" && !!a?.il && a.il === d.statoDal;
+}
+
+/** La consulenza ancora in piedi della scheda è quella segnalata come «non è
+ *  entrato» (interruttore spento): la pagina «Da fare» ne fa una telefonata. */
+export function assenzaSegnalataDi(d: Partial<LeadData> | null | undefined): AssenzaAuto | null {
+  if (!d || !eAppuntamento(d.stato)) return null;
+  const a = (d as SchedaConAssenza).assenzaSegnalata;
+  return a?.meet && a.meet === meetDi(d) ? a : null;
+}
+
+/** ── IL GIRO, CON LE PORTE DA FUORI (prove: database finto) ──────────────── */
+export interface RigaScheda {
+  id: string;
+  data: Partial<LeadData>;
+  updated_at: string;
+}
+export interface PorteAssenza {
+  /** l'interruttore `assenza_auto` */
+  acceso(): Promise<boolean>;
+  /** gli appuntamenti in piedi di ieri e di oggi */
+  appuntamenti(adesso: Date): Promise<RigaScheda[]>;
+  /** sala d'attesa + presenza che non si pota; `null` = nessuna stanza Meetly */
+  presenze(d: Partial<LeadData>): Promise<BussataSala[] | null>;
+  /** scrive SOLO se `updated_at` è ancora quello letto; `false` = cambiata nel frattempo */
+  scrivi(r: RigaScheda, data: Partial<LeadData>, adesso: Date): Promise<boolean>;
+}
+
+export async function giroAssenza(porte: PorteAssenza, adesso: Date) {
+  const acceso = await porte.acceso();
+  const schede = await porte.appuntamenti(adesso);
+  const conto = { acceso, appuntamenti: schede.length, spostati: 0, segnalati: 0, lasciati: 0, cambiatiNelFrattempo: 0 };
+  for (const r of schede) {
+    //  Prima la regola senza sala (finestra, stato, già segnalata): la sala si
+    //  legge solo per chi sarebbe davvero da toccare.
+    if (!decidiAssenza(r.data, adesso, [], acceso)) continue;
+    const esito = decidiAssenza(r.data, adesso, await porte.presenze(r.data), acceso);
+    if (!esito) continue;
+    if (esito.tipo === "lascia") {
+      conto.lasciati++;
+      continue;
+    }
+    if (await porte.scrivi(r, { ...r.data, ...esito.patch }, adesso)) {
+      if (esito.tipo === "sposta") conto.spostati++;
+      else conto.segnalati++;
+    } else conto.cambiatiNelFrattempo++;
+  }
+  return conto;
 }

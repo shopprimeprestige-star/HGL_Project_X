@@ -199,6 +199,7 @@ import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
 import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
+import { Route as ApiCrmAssenzaAutoRouteImport } from './routes/api.crm.assenza-auto'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
 import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
@@ -1176,6 +1177,11 @@ const ApiCrmBackupRoute = ApiCrmBackupRouteImport.update({
   path: '/api/crm/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmAssenzaAutoRoute = ApiCrmAssenzaAutoRouteImport.update({
+  id: '/api/crm/assenza-auto',
+  path: '/api/crm/assenza-auto',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmAnteprimeStatoRoute = ApiCrmAnteprimeStatoRouteImport.update({
   id: '/api/crm/anteprime-stato',
   path: '/api/crm/anteprime-stato',
@@ -1338,6 +1344,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
@@ -1536,6 +1543,7 @@ export interface FileRoutesByTo {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
@@ -1740,6 +1748,7 @@ export interface FileRoutesById {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
@@ -1945,6 +1954,7 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
@@ -2143,6 +2153,7 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
@@ -2346,6 +2357,7 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
@@ -2509,6 +2521,7 @@ export interface RootRouteChildren {
   ApiCrmAccessoRoute: typeof ApiCrmAccessoRoute
   ApiCrmAiRoute: typeof ApiCrmAiRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
+  ApiCrmAssenzaAutoRoute: typeof ApiCrmAssenzaAutoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
   ApiCrmBlogRoute: typeof ApiCrmBlogRoute
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
@@ -3936,6 +3949,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/assenza-auto': {
+      id: '/api/crm/assenza-auto'
+      path: '/api/crm/assenza-auto'
+      fullPath: '/api/crm/assenza-auto'
+      preLoaderRoute: typeof ApiCrmAssenzaAutoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/anteprime-stato': {
       id: '/api/crm/anteprime-stato'
       path: '/api/crm/anteprime-stato'
@@ -4224,6 +4244,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmAccessoRoute: ApiCrmAccessoRoute,
   ApiCrmAiRoute: ApiCrmAiRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
+  ApiCrmAssenzaAutoRoute: ApiCrmAssenzaAutoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,
   ApiCrmBlogRoute: ApiCrmBlogRoute,
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,

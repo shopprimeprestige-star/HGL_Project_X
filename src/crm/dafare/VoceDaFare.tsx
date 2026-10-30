@@ -57,6 +57,7 @@ import {
   MessageCircle,
   Phone,
   PhoneCall,
+  PhoneMissed,
   PhoneOff,
   Repeat,
   StickyNote,
@@ -104,6 +105,8 @@ import { AzioniLead } from "./AzioniLead";
 const ICONA_RIGA: Record<TipoRiga, ComponentType<{ className?: string }>> = {
   //  La cornetta che squilla: è una telefonata da fare adesso, prima della consulenza.
   conferma_meet: PhoneCall,
+  //  La chiamata persa: alla consulenza non si è collegato nessuno.
+  assente_meet: PhoneMissed,
   ricontatto: Phone,
   meet_da_fissare: CalendarPlus,
   meet_da_rifissare: CalendarClock,
