@@ -431,7 +431,8 @@ export function proveIdeeRighe(mod, { c, gruppo, radice }) {
     "useChatWa copia scadeIl nella finestra",
     true,
     /finestra = \{ aperta: f\.aperta, frase: f\.frase, scadeIl: f\.scadeIl \}/.test(
-      src("useChatWa.ts"),
+      //  Il calcolo dell'elenco sta in costruisciChat.ts dal 30/10 (p1-chat-veloce).
+      src("useChatWa.ts") + src("costruisciChat.ts"),
     ),
   );
   c(

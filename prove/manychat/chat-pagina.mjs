@@ -140,6 +140,7 @@ function creaRuntime(hook, opz) {
         render();
       }
       await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setTimeoutReale(r, 1)); // il raggruppamento degli eventi (vedi proveChatPagina)
       if (!sporco) return;
     }
     throw new Error("la pagina non si assesta (ciclo di rendering?)");
@@ -327,6 +328,9 @@ function creaDb(tabelle) {
   return db;
 }
 
+/** Il timer vero, preso prima che le prove ne mettano di finti. */
+const setTimeoutReale = globalThis.setTimeout;
+
 export async function proveChatPagina(_mod, { c, gruppo, radice }) {
   const dir = mkdtempSync(join(tmpdir(), "chat-pagina-"));
   const esbuild = createRequire(import.meta.url)("esbuild");
@@ -334,11 +338,17 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
   const originali = {
     fetch: globalThis.fetch,
     now: Date.now,
+    setTimeout: globalThis.setTimeout,
     setInterval: globalThis.setInterval,
     clearInterval: globalThis.clearInterval,
     confirm: globalThis.confirm,
     warn: console.warn,
   };
+  //  p1-chat-veloce: gli eventi in tempo reale che arrivano insieme si raggruppano (250 ms). Qui il
+  //  tempo è finto e fermo: l'attesa corta scatta subito, così «un evento = una lettura» resta provabile.
+  //  Installato UNA volta, prima dei timer finti delle singole prove (che lo richiamano per il resto).
+  globalThis.setTimeout = (f, ms, ...a) =>
+    originali.setTimeout(f, ms !== undefined && ms <= 250 ? 0 : ms, ...a);
   try {
     /* ── Impacchetto l'hook vero con i moduli finti ───────────────────────── */
     const alias = {};
@@ -2683,6 +2693,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
   } finally {
     globalThis.fetch = originali.fetch;
     Date.now = originali.now;
+    globalThis.setTimeout = originali.setTimeout;
     globalThis.setInterval = originali.setInterval;
     globalThis.clearInterval = originali.clearInterval;
     globalThis.confirm = originali.confirm;

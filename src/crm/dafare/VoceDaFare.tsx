@@ -74,6 +74,8 @@ import { SegnoPriorita } from "@/crm/PrioritaPosa";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { numeroDaComporre } from "@/crm/importa/chiamare";
 import { Pannello, Pillola } from "@/crm/ui/Finestra";
 import {
@@ -683,15 +685,20 @@ export function VoceDaFare({
            si presenta a nome di nessuno. */}
       {riga.lead?.data?.telefono && (
         <>
-          <a
-            href={`tel:${riga.lead.data.telefono}`}
-            onClick={(e) => e.stopPropagation()}
-            title={`Chiama ${riga.chi}`}
-            aria-label={`Chiama ${riga.chi}`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Phone className="h-3.5 w-3.5" />
-          </a>
+          {chiamabile(riga.lead.data.telefono) ? (
+            <a
+              href={`tel:${riga.lead.data.telefono}`}
+              onClick={(e) => e.stopPropagation()}
+              title={`Chiama ${riga.chi}`}
+              aria-label={`Chiama ${riga.chi}`}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Phone className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            //  Numero estero: rosso e bloccato; i WhatsApp sono qui sotto.
+            <ChiamaEstero telefono={riga.lead.data.telefono} senzaWhatsapp />
+          )}
           {/* ── I DUE MESSAGGI ────────────────────────────────────────────
                 Il testo dello stato e, quando c'è un appuntamento, il
                 promemoria col link. Vedi la nota sopra: ognuno manda una cosa
@@ -765,7 +772,14 @@ export function VoceDaFare({
           <span className="min-w-0 text-[12.5px] font-semibold leading-snug text-amber-900">
             {riga.senzaConferma.etichetta}
           </span>
-          {numeroDaComporre(riga.lead?.data?.telefono ?? "") ? (
+          {numeroDaComporre(riga.lead?.data?.telefono ?? "") &&
+          !chiamabile(riga.lead?.data?.telefono) ? (
+            <ChiamaEstero
+              telefono={riga.lead?.data?.telefono ?? ""}
+              etichetta="Chiama"
+              className="h-11 px-4 text-[13px]"
+            />
+          ) : numeroDaComporre(riga.lead?.data?.telefono ?? "") ? (
             <Button asChild className="h-10 shrink-0 px-4 text-[13px] font-semibold">
               <a
                 href={`tel:${numeroDaComporre(riga.lead?.data?.telefono ?? "")}`}
@@ -851,7 +865,7 @@ export function VoceDaFare({
                 </div>
               )}
             </div>
-            {telefono && (
+            {telefono && chiamabile(telefono) && (
               <a
                 href={`tel:${telefono}`}
                 className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px] font-medium text-slate-700"
@@ -859,6 +873,9 @@ export function VoceDaFare({
                 <Phone className="h-3.5 w-3.5" />
                 {telefono}
               </a>
+            )}
+            {telefono && !chiamabile(telefono) && (
+              <ChiamaEstero telefono={telefono} etichetta={telefono} />
             )}
           </div>
 

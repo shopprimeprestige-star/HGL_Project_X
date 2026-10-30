@@ -76,6 +76,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
@@ -1538,15 +1540,19 @@ export function RigaLead({
             nel menu qui accanto (vedi MenuInvia per il perché). */}
         {l.data.telefono && (
           <>
-            <a
-              href={`tel:${l.data.telefono}`}
-              title="Chiama"
-              aria-label="Chiama"
-              onClick={(e) => e.stopPropagation()}
-              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            >
-              <Phone className="h-4 w-4" />
-            </a>
+            {chiamabile(l.data.telefono) ? (
+              <a
+                href={`tel:${l.data.telefono}`}
+                title="Chiama"
+                aria-label="Chiama"
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <Phone className="h-4 w-4" />
+              </a>
+            ) : (
+              <ChiamaEstero telefono={l.data.telefono} senzaWhatsapp />
+            )}
             {/* ── IL MESSAGGIO GIÀ SCRITTO, IN BASE ALLO STATO ──────────────
                 Qui il collegamento apriva WhatsApp VUOTO: si finiva a
                 riscrivere ogni volta lo stesso messaggio a mano, e chi scrive
@@ -1853,14 +1859,18 @@ export function SchedaAdesso({
             >
               <MessageCircle className="h-4 w-4" />
             </TastoMessaggio>
-            <a
-              href={`tel:${l.data.telefono}`}
-              title="Chiama"
-              aria-label="Chiama"
-              className={`${tondo} text-muted-foreground`}
-            >
-              <Phone className="h-4 w-4" />
-            </a>
+            {chiamabile(l.data.telefono) ? (
+              <a
+                href={`tel:${l.data.telefono}`}
+                title="Chiama"
+                aria-label="Chiama"
+                className={`${tondo} text-muted-foreground`}
+              >
+                <Phone className="h-4 w-4" />
+              </a>
+            ) : (
+              <ChiamaEstero telefono={l.data.telefono} senzaWhatsapp />
+            )}
             {/*  Consegna il link e dice che non serve scaricare nulla: è il
                 messaggio del momento in cui l'ora è quella e il cliente non
                 è ancora entrato. Compare solo con una stanza NOSTRA: sulle

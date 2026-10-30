@@ -26,6 +26,8 @@ import { useAuth } from "@/crm/AuthContext";
 import { useCRM } from "@/crm/CRMContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -809,17 +811,21 @@ function LeadCard({
 
           {/* Quick contacts */}
           <div className="flex items-center gap-0.5 ml-auto">
-            <Button
-              asChild
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <a href={`tel:${p.telefono}`} title="Chiama">
-                <Phone className="h-3.5 w-3.5" />
-              </a>
-            </Button>
+            {chiamabile(p.telefono) ? (
+              <Button
+                asChild
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <a href={`tel:${p.telefono}`} title="Chiama">
+                  <Phone className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            ) : (
+              <ChiamaEstero telefono={p.telefono} senzaWhatsapp />
+            )}
             <Button
               asChild
               size="icon"

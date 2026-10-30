@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { memo, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   AlertCircle,
   CalendarClock,
@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLOR, LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { FinestraStati, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
@@ -117,7 +119,7 @@ interface RigaChatProps {
  *  sotto, fuori dal bottone (un bottone dentro un bottone non è valido e sul telefono
  *  prende il tocco sbagliato). Il nome ha sempre la riga tutta per sé: pastiglia di
  *  stato e numero vanno sotto, così non lo schiacciano. */
-export function RigaChat({
+function RigaChatBase({
   chat: c,
   modo,
   attiva,
@@ -409,21 +411,35 @@ export function RigaChat({
           passa all'iPhone). Fuori dal bottone della riga e con stopPropagation, così
           non apre la chat; 44 px di tocco sul telefono. */}
       {telefono && (
-        <Button
-          asChild
-          inert={selezione?.attiva}
-          variant="ghost"
-          className="absolute right-1 top-0 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:top-0.5 md:h-9 md:w-9"
-        >
-          <a
-            href={`tel:${telefono}`}
-            aria-label={`Chiama ${nome}`}
-            title={`Chiama ${nome}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
-          </a>
-        </Button>
+        <>
+          {/*  Numero estero (30/10/2026): stesso posto, rosso e bloccato. Il WhatsApp è
+              nella chat aperta, dove il tasto nativo c'è sempre. */}
+          {!chiamabile(telefono) && (
+            <ChiamaEstero
+              telefono={telefono}
+              senzaWhatsapp
+              inerte={selezione?.attiva}
+              className="absolute right-1 top-0 h-11 w-11 p-0 md:top-0.5 md:h-9 md:w-9"
+            />
+          )}
+          {chiamabile(telefono) && (
+            <Button
+              asChild
+              inert={selezione?.attiva}
+              variant="ghost"
+              className="absolute right-1 top-0 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:top-0.5 md:h-9 md:w-9"
+            >
+              <a
+                href={`tel:${telefono}`}
+                aria-label={`Chiama ${nome}`}
+                title={`Chiama ${nome}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
+              </a>
+            </Button>
+          )}
+        </>
       )}
 
       {/*  ── FINESTRA CHIUSA: APRI WHATSAPP (29/10/2026) ──────────────────────
@@ -662,3 +678,22 @@ export function RigaChat({
     </li>
   );
 }
+
+/** ── LA RIGA SI RIDISEGNA SOLO SE CAMBIA QUELLO CHE MOSTRA (p1-chat-veloce, 30/10/2026) ──
+ *  Le funzioni (`onApri`…) non contano: `ElencoChat` le passa con identità fissa che chiamano
+ *  sempre la versione di adesso. Della `selezione` contano `attiva` e `scelta`. */
+const stesseProps = (a: RigaChatProps, b: RigaChatProps): boolean => {
+  for (const k of Object.keys(b) as (keyof RigaChatProps)[]) {
+    if (typeof b[k] === "function") continue;
+    if (k === "selezione") {
+      if (
+        a.selezione?.attiva !== b.selezione?.attiva ||
+        a.selezione?.scelta !== b.selezione?.scelta
+      )
+        return false;
+      if (Boolean(a.selezione) !== Boolean(b.selezione)) return false;
+    } else if (a[k] !== b[k]) return false;
+  }
+  return Object.keys(a).length === Object.keys(b).length;
+};
+export const RigaChat = memo(RigaChatBase, stesseProps);

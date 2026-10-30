@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { chiamabile } from "@/crm/chiamabile";
+import { ChiamaEstero } from "@/crm/ChiamaEstero";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -41,6 +43,8 @@ import { testoPerWhatsapp } from "./testoWhatsapp";
 import { useCRM } from "@/crm/CRMContext";
 import { Casella } from "./Casella";
 import { BarraRispostaAi } from "./BarraRispostaAi";
+import { BarraRispiega } from "./BarraRispiega";
+import { selezionabile } from "@/crm/risposte-ai/rispiega";
 import { BozzaAiPronta } from "./BozzaAiPronta";
 import { useBozzaAi } from "./useBozzaAi";
 import { useRispostaAi } from "./useRispostaAi";
@@ -127,6 +131,13 @@ export function Conversazione({
     messaggi,
     onRisposta: mettiInCasella,
   });
+  //  ── RISPIEGA CON AI (30/10/2026) ───────────────────────────────────────
+  //  Pressione lunga su una bolla (o la voce nel suo menu) accende la selezione: la nostra
+  //  risposta e le domande del cliente. La stessa scelta di «Rispondi con AI», con la barra
+  //  sua (`BarraRispiega`) e un prompt suo; il risultato va nella casella, mai inviato.
+  //  `lungo`: il rilascio che segue la pressione lunga NON deve togliere la bolla appena scelta
+  //  (la bolla cambia di posto nell'albero e il «click» arriva sulla riga nuova).
+  const lungo = useRef(false);
   //  ── BOZZA PRONTA (30/10/2026): scritta dal Mac per le chat che aspettano ──
   const bozzaAi = useBozzaAi({
     telefono: attiva?.phone ?? null,
@@ -252,7 +263,17 @@ export function Conversazione({
                 Richiesta del titolare: il tasto per telefonare sopra la chat.
                 Sul telefono apre il compositore con il numero; sul Mac lo
                 passa all'iPhone (Continuità) o all'app che gestisce «tel:». */}
-              {numeroDaComporre(attiva.phone) && (
+              {numeroDaComporre(attiva.phone) && !chiamabile(attiva.phone) && (
+                //  Numero estero (30/10/2026): rosso e bloccato; il WhatsApp è il tasto
+                //  nativo qui accanto, sempre presente.
+                <ChiamaEstero
+                  telefono={attiva.phone}
+                  senzaWhatsapp
+                  etichetta={<span className="hidden lg:inline">Chiama</span>}
+                  className="h-11 w-11 shrink-0 px-0 md:h-9 md:w-9 lg:w-auto lg:px-3"
+                />
+              )}
+              {numeroDaComporre(attiva.phone) && chiamabile(attiva.phone) && (
                 <Button
                   asChild
                   variant="outline"
@@ -508,6 +529,9 @@ export function Conversazione({
               ref={scrollRef}
               role="log"
               aria-label="Messaggi della chat"
+              onPointerDownCapture={() => {
+                lungo.current = false;
+              }}
               //  Sfondo tenue di WhatsApp (#efeae2): le bolle bianche ci si staccano senza bordi.
               className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#efeae2] px-2.5 py-2 md:px-[6%] md:py-3"
             >
@@ -549,15 +573,27 @@ export function Conversazione({
                                 {etichettaGiorno(d, adesso)}
                               </div>
                             )}
-                            {ai.attivo && m.body?.trim() && !bolla ? (
+                            {ai.attivo &&
+                            (ai.modo === "rispiega" ? selezionabile(m) : m.body?.trim()) &&
+                            !bolla ? (
                               //  In scelta: tutta la riga si tocca; il segno a sinistra
                               //  dice se è scelto (come «Seleziona» di WhatsApp).
                               <div
                                 role="checkbox"
                                 aria-checked={ai.scelti.includes(m.id)}
-                                aria-label="Scegli questo messaggio per la risposta AI"
+                                aria-label={
+                                  ai.modo === "rispiega"
+                                    ? "Scegli questo messaggio da rispiegare"
+                                    : "Scegli questo messaggio per la risposta AI"
+                                }
                                 tabIndex={0}
-                                onClick={() => ai.fase === "scelta" && ai.cambia(m.id)}
+                                onClick={() => {
+                                  if (lungo.current) {
+                                    lungo.current = false;
+                                    return;
+                                  }
+                                  if (ai.fase === "scelta") ai.cambia(m.id);
+                                }}
                                 onKeyDown={(e) => {
                                   if (
                                     (e.key === " " || e.key === "Enter") &&
@@ -602,6 +638,16 @@ export function Conversazione({
                                 attaccata={
                                   !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
                                 }
+                                rispiega={
+                                  !ai.attivo && !bolla && selezionabile(m)
+                                    ? {
+                                        onInizia: () => {
+                                          lungo.current = true;
+                                          ai.apriRispiega(m.id);
+                                        },
+                                      }
+                                    : undefined
+                                }
                               />
                             )}
                           </Fragment>
@@ -638,7 +684,15 @@ export function Conversazione({
               onScarta={bozzaAi.scarta}
             />
           )}
-          {ai.attivo ? <BarraRispostaAi ai={ai} /> : <Casella api={api} linkWa={nativo?.href} />}
+          {ai.attivo ? (
+            ai.modo === "rispiega" ? (
+              <BarraRispiega ai={ai} messaggi={messaggi} />
+            ) : (
+              <BarraRispostaAi ai={ai} />
+            )
+          ) : (
+            <Casella api={api} linkWa={nativo?.href} />
+          )}
         </>
       )}
     </section>

@@ -16,7 +16,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { domanda, esitoClaude, istruzioni } from "./prompt.mjs";
+import {
+  domanda,
+  domandaRispiega,
+  esitoClaude,
+  istruzioni,
+  istruzioniRispiega,
+} from "./prompt.mjs";
 
 const QUI = dirname(fileURLToPath(import.meta.url));
 const CONFIG_PONTE = join(homedir(), "Library/Application Support/HGL/ponte-wa/config.env");
@@ -137,7 +143,11 @@ async function giro(cfg) {
   const { lavoro } = await chiama(cfg, { azione: "prendi" });
   if (!lavoro) return false;
   const inizio = Date.now();
-  const esito = await scrivi(istruzioni(leggiFonti()), domanda(lavoro));
+  //  «Rispiega con AI»: istruzioni sue, senza i documenti dell'azienda.
+  const esito =
+    lavoro.modo === "rispiega"
+      ? await scrivi(istruzioniRispiega(), domandaRispiega(lavoro))
+      : await scrivi(istruzioni(leggiFonti()), domanda(lavoro));
   if (esito.risposta)
     await chiama(cfg, { azione: "consegna", id: lavoro.id, risposta: esito.risposta });
   else await chiama(cfg, { azione: "fallita", id: lavoro.id, errore: esito.errore });
