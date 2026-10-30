@@ -164,7 +164,4 @@ export interface BollaProps {
   messaggio: WaMessageRow;
   /** Una riga della coda del ponte (invio a mano): si disegna come bolla in uscita con il suo stato. */
   coda?: BollaCoda & { onRiprova: () => void };
-  /** L'ultima entrata del cliente prima di questo messaggio (`entratePrima`):
-   *  sotto un modello dice com'era la finestra di 24 ore. `undefined` = non si sa. */
-  ultimaEntrataPrima?: string | null;
 }
