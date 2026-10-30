@@ -215,7 +215,21 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     c("…e le porte di scrittura ci sono davvero (il grep vede qualcosa)", true, scritture >= 3);
 
     const ponte = [...fileTs(join(radice, "src/crm/ponte")), join(radice, "src/routes/api.public.ponte-whatsapp.ts")];
-    c("il codice del ponte: ingresso, pari, porte, tipi, rotta", 5, ponte.length);
+    //  I file attesi sono una lista di nomi, non un numero: l'invio a mano
+    //  (commessa 2026-10-30-ponte-invio-manuale) ne aggiunge, uno per compito
+    //  (`invio-giro.ts` e `invio.server.ts` arrivano con il blocco B).
+    const nomiPonte = ponte.map((f) => f.slice(radice.length + 1)).sort();
+    const vecchi = [
+      "src/crm/ponte/ingresso.ts",
+      "src/crm/ponte/pari.ts",
+      "src/crm/ponte/porte.server.ts",
+      "src/crm/ponte/tipi.ts",
+      "src/routes/api.public.ponte-whatsapp.ts",
+    ];
+    const invio = ["src/crm/ponte/invio-giro.ts", "src/crm/ponte/invio-tipi.ts", "src/crm/ponte/invio.server.ts", "src/crm/ponte/invio.ts"];
+    c("il codice del ponte: ingresso, pari, porte, tipi, rotta (ci sono tutti)", [], vecchi.filter((x) => !nomiPonte.includes(x)));
+    c("…e in più solo i file dell'invio a mano (invio-tipi, invio, invio-giro, invio.server)", [], nomiPonte.filter((x) => !vecchi.includes(x) && !invio.includes(x)));
+    c("…invio-tipi.ts e invio.ts esistono già (T0)", true, nomiPonte.includes("src/crm/ponte/invio-tipi.ts") && nomiPonte.includes("src/crm/ponte/invio.ts"));
     const nominate = ponte.flatMap((f) => {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
       return VIETATE.filter((v) => codice.includes(v)).map((v) => `${f.slice(radice.length + 1)}: ${v}`);

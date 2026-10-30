@@ -12,6 +12,7 @@
 import type { Lead, LeadStatus } from "@/crm/types";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import type { StatoCasella } from "./stato";
+import type { ApiPonteInvio, BollaCoda } from "@/crm/ponte/invio-tipi";
 
 export type FiltroChat =
   | "all"
@@ -126,6 +127,8 @@ export interface ChatWaApi {
   cambiaStatoLead: (lead: Lead, s: LeadStatus) => Promise<void>;
   /** Chiavi Meta lette: `null` finché non si sa. Serve all'intestazione della pagina; T7 la sostituisce con `canale`/`stato`. */
   hasConfig: boolean | null;
+  /** Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale). Facoltativo: senza, la chat è quella di prima. */
+  ponte?: ApiPonteInvio;
 }
 
 export interface ElencoChatProps {
@@ -150,4 +153,6 @@ export interface BollaProps {
   /** la scheda della chat: serve a ricostruire il testo dei modelli inviati */
   lead?: Lead | null;
   messaggio: WaMessageRow;
+  /** Una riga della coda del ponte (invio a mano): si disegna come bolla in uscita con il suo stato. */
+  coda?: BollaCoda & { onRiprova: () => void };
 }
