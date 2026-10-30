@@ -19,12 +19,17 @@
  *                               `estrai.mjs` → «📋 Messaggio inviato da
  *                               ManyChat (testo non visibile)» → fila vivo
  *
- *  ⚠️ SOLA LETTURA. Il socket si chiama sempre `sock` quando lo si usa (la
- *   guardia delle prove cerca le chiamate `sock.…(`). Si chiamano soltanto
- *   `ev.on`, `ws.on` (ascolto dei nodi ricevuti), `end` e
- *   `signalRepository.lidMapping.getPNForLID` (legge le chiavi locali): mai un
- *   invio, una conferma di lettura, una presenza, un logout. Lo controlla
- *   `prove/ponte/servizio-guardie.mjs` con una lista bianca.
+ *  ⚠️ UN SOLO PUNTO D'INVIO (commessa 2026-10-30-ponte-invio-manuale, T3).
+ *   Il ponte nasce di sola lettura; adesso c'è UNA SOLA scrittura verso i
+ *   clienti: `inviaTesto`, che manda un testo a mano a un numero già validato
+ *   (`^\d{8,15}$`, JID `<cifre>@s.whatsapp.net`), con `{ text }` e nient'altro
+ *   (niente citazioni, menzioni, media, anteprime). Il resto del socket resta
+ *   di sola lettura: si chiamano soltanto `ev.on`, `ws.on` (ascolto dei nodi
+ *   ricevuti), `end` e `signalRepository.lidMapping.getPNForLID`; mai una
+ *   conferma di lettura, una presenza, un logout, un controllo `onWhatsApp`.
+ *   Il socket si chiama sempre `sock` quando lo si usa (la guardia delle prove
+ *   cerca le chiamate `sock.…(`); l'elenco ammesso e l'unicità dell'invio li
+ *   controlla `prove/ponte/servizio-guardie.mjs`.
  *  ⚠️ Qui passano numeri, nomi e testi: nessun `console`, e al registro solo
  *   codici fissi e contatori.
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -33,6 +38,23 @@ import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, messaggioDaNodo, nonDispo
 import { codiceChiusura, decidi, STORIA_VUOTA } from "./riconnessione.mjs";
 
 const muto = () => undefined;
+
+/** Il JID del cliente da un numero di sole cifre (8-15), altrimenti null: un
+ *  gruppo, un `@lid`, un `+39…` o un percorso non diventano mai un indirizzo. */
+export function jidDaNumero(numero) {
+  return typeof numero === "string" && /^\d{8,15}$/.test(numero) ? `${numero}@s.whatsapp.net` : null;
+}
+
+/** Quanto si aspetta Baileys dopo l'invio, poi «non so se è partito». */
+const TEMPO_INVIO_MS = 30_000;
+/** Messaggi inviati tenuti in RAM per `getMessage` (mai su disco né nei log). */
+const MEMORIA_INVIATI = 50;
+
+/** I secondi UNIX di `messageTimestamp` (numero o Long), o null. */
+function secondiDi(x) {
+  const n = typeof x?.toNumber === "function" ? x.toNumber() : Number(x);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 /** Il logger di Baileys: non scrive niente, mai (i suoi oggetti contengono
  *  JID, chiavi e messaggi). Forma di `ILogger` più `fatal`. */
@@ -112,6 +134,8 @@ export function creaCollegamento({
   let fermato = false;
   let proprioNumero = null;
   let proprioLid = null;
+  /** gli ultimi messaggi inviati da noi, per `key.id`: solo in RAM */
+  const inviati = new Map();
   const stato = {
     stato: "in_collegamento",
     collegato_dal: null,
@@ -296,7 +320,9 @@ export function creaCollegamento({
         syncFullHistory: true,
         markOnlineOnConnect: false,
         logger: LOGGER_MUTO,
-        getMessage: async () => undefined,
+        //  Baileys lo chiede per rimandare un messaggio che il destinatario non
+        //  ha saputo decifrare: si rende solo ciò che abbiamo inviato noi.
+        getMessage: async (chiave) => inviati.get(chiave?.id),
       });
       sock = questo;
 
@@ -375,8 +401,37 @@ export function creaCollegamento({
     }
   }
 
+  /** Manda un testo a mano al cliente. Non lancia mai. Risultato: `{ ok:true,
+   *  id, ts }`, oppure `{ ok:false, motivo }` con `numero_non_valido`,
+   *  `testo_non_valido`, `non_collegato` (certo: non è partito) o
+   *  `esito_incerto` (eccezione, 30 s senza risposta, nessun id: forse è
+   *  partito; non si riprova mai da soli). */
+  async function inviaTesto(numero, testo) {
+    const jid = jidDaNumero(numero);
+    if (!jid) return { ok: false, motivo: "numero_non_valido" };
+    if (typeof testo !== "string" || !testo) return { ok: false, motivo: "testo_non_valido" };
+    if (stato.stato !== "collegato" || !sock || fermato) return { ok: false, motivo: "non_collegato" };
+    let tempo = null;
+    try {
+      const scaduto = new Promise((_, no) => {
+        tempo = pianifica(() => no(new Error("tempo")), TEMPO_INVIO_MS);
+      });
+      const r = await Promise.race([sock.sendMessage(jid, { text: testo }), scaduto]);
+      const id = r?.key?.id;
+      if (typeof id !== "string" || !id) return { ok: false, motivo: "esito_incerto" };
+      inviati.set(id, r.message ?? { conversation: testo });
+      if (inviati.size > MEMORIA_INVIATI) inviati.delete(inviati.keys().next().value);
+      return { ok: true, id, ts: secondiDi(r.messageTimestamp) ?? Math.floor(orologio() / 1000) };
+    } catch {
+      return { ok: false, motivo: "esito_incerto" };
+    } finally {
+      if (tempo !== null) annulla(tempo);
+    }
+  }
+
   return {
     avvia: () => apri(),
+    inviaTesto,
     /** Chiude il socket e non riconnette più (SIGTERM). Non scollega il
      *  dispositivo: la sessione resta valida per il prossimo avvio. */
     ferma() {

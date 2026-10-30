@@ -1,6 +1,8 @@
-/** ── PROVE: IL SERVIZIO SUL MAC: GUARDIE (niente invii, log puliti) ──
+/** ── PROVE: IL SERVIZIO SUL MAC: GUARDIE (un solo punto d'invio, log puliti) ──
  *
- *  File d'area della commessa 2026-10-29-ponte-whatsapp-baileys, compito T6.
+ *  File d'area della commessa 2026-10-29-ponte-whatsapp-baileys, compito T6;
+ *  la regola «sola lettura» è diventata «un solo `sendMessage`, a mano, con
+ *  limiti» nella commessa 2026-10-30-ponte-invio-manuale, compito T3.
  *  Prova l'esecuzione del servizio (`index.mjs`, `collega.mjs`, `qr.mjs`, il
  *  plist modello, `installa.sh`, `disinstalla.sh`) SENZA WhatsApp e senza
  *  rete: Baileys è sostituito da un socket finto, il QR da un PNG finto, le
@@ -28,6 +30,26 @@ const permessi = (p) => statSync(p).mode & 0o777;
 
 /** Il codice senza commenti: le guardie guardano solo quello che gira. */
 const senzaCommenti = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "$1");
+
+/** La regola dell'invio (commessa 2026-10-30-ponte-invio-manuale): in tutto il
+ *  servizio `sendMessage` compare UNA volta sola, in `collega.mjs`, come
+ *  `sock.sendMessage(jid, { text: <testo> })`, senza altre chiavi (citazioni,
+ *  menzioni, media, anteprime…). `codice` = file → sorgente senza commenti.
+ *  Restituisce l'elenco delle violazioni (vuoto = regola rispettata). */
+export function violazioniUnSoloInvio(codice) {
+  const v = [];
+  const dove = Object.entries(codice).flatMap(([f, t]) => [...t.matchAll(/sendMessage/g)].map(() => f));
+  if (dove.length !== 1) v.push(`sendMessage compare ${dove.length} volte (deve essere 1)`);
+  if (dove.some((f) => f !== "collega.mjs")) v.push(`sendMessage fuori da collega.mjs: ${dove.filter((f) => f !== "collega.mjs").join(", ")}`);
+  const esatte = Object.values(codice).flatMap((t) => [...t.matchAll(/\bsock\.sendMessage\(jid, \{ text: \w+ \}\)/g)]);
+  if (esatte.length !== 1) v.push("manca la forma sock.sendMessage(jid, { text: testo })");
+  for (const [f, t] of Object.entries(codice)) {
+    for (const m of t.matchAll(/sendMessage\(([^)]*)\)/g)) {
+      if (/\b(quoted|mentions|image|video|document|audio|sticker|location|contacts|react|forward|edit|delete|linkPreview|caption|viewOnce|ptt)\b/.test(m[1])) v.push(`${f}: sendMessage con una chiave non ammessa`);
+    }
+  }
+  return v;
+}
 
 /** Un `WAMessage` finto. */
 function wa(remoteJid, id, testo, key = {}) {
@@ -85,18 +107,38 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
   try {
     // ── 1. Guardie statiche su TUTTO il servizio ─────────────────────────
     const file = readdirSync(src).filter((f) => f.endsWith(".mjs")).sort();
-    c("il servizio ha i file del piano", true, ["collega.mjs", "config.mjs", "estrai.mjs", "index.mjs", "lotti.mjs", "qr.mjs", "riconnessione.mjs"].every((f) => file.includes(f)));
+    c("il servizio ha i file del piano", true, ["collega.mjs", "config.mjs", "estrai.mjs", "index.mjs", "invio.mjs", "lotti.mjs", "qr.mjs", "riconnessione.mjs"].every((f) => file.includes(f)));
     const codice = Object.fromEntries(file.map((f) => [f, senzaCommenti(readFileSync(join(src, f), "utf8"))]));
-    const vietati = ["sendMessage", "readMessages", "sendReceipt", "sendPresenceUpdate", "groupCreate", "updateProfile", "relayMessage", "chatModify", "logout", "sendNode", "rejectCall", "presenceSubscribe", "updateBlockStatus", "appPatch", "sendRetryRequest", "sendWAMBuffer", "query("];
-    c("nessuna chiamata che scrive su WhatsApp, in nessun file", [], file.flatMap((f) => vietati.filter((v) => codice[f].includes(v)).map((v) => `${f}: ${v}`)));
+    const vietati = ["readMessages", "sendReceipt", "sendPresenceUpdate", "groupCreate", "updateProfile", "relayMessage", "chatModify", "logout", "sendNode", "rejectCall", "presenceSubscribe", "updateBlockStatus", "appPatch", "sendRetryRequest", "sendWAMBuffer", "query("];
+    c("nessuna chiamata che scrive o legge a nome del titolare (tranne l'invio a mano), in nessun file", [], file.flatMap((f) => vietati.filter((v) => codice[f].includes(v)).map((v) => `${f}: ${v}`)));
+    c("UN SOLO sendMessage in tutto il servizio, in collega.mjs, solo {text}", [], violazioniUnSoloInvio(codice));
+    //  Prova negativa: una copia del sorgente con una seconda scrittura (o con una
+    //  chiave in più) deve far fallire la regola.
+    const copia = join(base, "copia-src");
+    mkdirSync(copia);
+    for (const f of file) writeFileSync(join(copia, f), readFileSync(join(src, f), "utf8"));
+    const dellaCopia = () => Object.fromEntries(file.map((f) => [f, senzaCommenti(readFileSync(join(copia, f), "utf8"))]));
+    c("la copia intatta passa la regola (la prova negativa parte da qui)", [], violazioniUnSoloInvio(dellaCopia()));
+    const collegaOriginale = readFileSync(join(copia, "collega.mjs"), "utf8");
+    writeFileSync(join(copia, "collega.mjs"), `${collegaOriginale}\nasync function altroInvio(jid) { return sock.sendMessage(jid, { text: "ciao" }); }\n`);
+    c("negativa: una seconda sendMessage in collega.mjs fa fallire la regola", true, violazioniUnSoloInvio(dellaCopia()).length > 0);
+    writeFileSync(join(copia, "collega.mjs"), collegaOriginale.replace("sock.sendMessage(jid, { text: testo })", "sock.sendMessage(jid, { text: testo, mentions: [jid] })"));
+    c("negativa: una chiave in più (mentions) accanto a sendMessage fa fallire la regola", true, violazioniUnSoloInvio(dellaCopia()).length > 0);
+    writeFileSync(join(copia, "collega.mjs"), collegaOriginale);
+    writeFileSync(join(copia, "invio.mjs"), `${readFileSync(join(copia, "invio.mjs"), "utf8")}\nconst x = (s) => s.sendMessage(1, { text: "a" });\n`);
+    c("negativa: sendMessage in un altro file (invio.mjs) fa fallire la regola", true, violazioniUnSoloInvio(dellaCopia()).length > 0);
+    const senzaInvio = collegaOriginale.replace("sock.sendMessage(jid, { text: testo })", "Promise.resolve({})");
+    writeFileSync(join(copia, "collega.mjs"), senzaInvio);
+    writeFileSync(join(copia, "invio.mjs"), readFileSync(join(src, "invio.mjs"), "utf8"));
+    c("negativa: nessuna sendMessage (la regola non è vuota) fa fallire la regola", true, violazioniUnSoloInvio(dellaCopia()).length > 0);
     //  Lista bianca: sul socket si chiamano SOLO questi (tutto il resto è vietato).
     //  `ws.on` (guasto 2): solo per ASCOLTARE i nodi `message` ricevuti, e
     //  contare quelli senza contenuto (`hosted_unavailable_fanout`). Ascoltare
     //  non manda niente: `ws.send`, `ws.emit` e il resto restano vietati.
-    const ammesse = new Set(["ev.on", "ws.on", "end", "signalRepository.lidMapping.getPNForLID"]);
+    const ammesse = new Set(["ev.on", "ws.on", "end", "signalRepository.lidMapping.getPNForLID", "sendMessage"]);
     const chiamate = file.flatMap((f) => [...codice[f].matchAll(/\bsock\??\.([\w?.]+)\s*\(/g)].map((m) => m[1].replace(/\?/g, "")));
-    c("sul socket si chiamano solo ev.on, ws.on, end e getPNForLID", [], chiamate.filter((x) => !ammesse.has(x)));
-    c("il socket si usa davvero (la guardia non è vuota)", true, chiamate.includes("ev.on") && chiamate.includes("ws.on") && chiamate.includes("signalRepository.lidMapping.getPNForLID"));
+    c("sul socket si chiamano solo ev.on, ws.on, end, getPNForLID e l'unico sendMessage", [], chiamate.filter((x) => !ammesse.has(x)));
+    c("il socket si usa davvero (la guardia non è vuota)", true, chiamate.includes("ev.on") && chiamate.includes("ws.on") && chiamate.includes("signalRepository.lidMapping.getPNForLID") && chiamate.filter((x) => x === "sendMessage").length === 1);
     c("ws.on solo per CB:message (nessun altro nodo, nessun frame)", [], [...Object.values(codice).join("\n").matchAll(/\bsock\??\.ws\??\.on\(\s*([^,]*),/g)].map((m) => m[1]).filter((x) => x !== '"CB:message"'));
     c("sul websocket niente send, emit, write, close", [], file.filter((f) => /\bws\??\.(send|sendNode|emit|write|close|end)\b/.test(codice[f])));
     c("nessun console.<metodo>(…) né console[…] in nessun file", [], file.filter((f) => /\bconsole\s*(\.\s*\w+\s*\(|\[)/.test(codice[f])));
@@ -110,7 +152,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     // ── 2. Dove scrive: solo nella cartella di stato e nel log ────────────
     const p = I.percorsiDi("/Users/finto");
     const casa = "/Users/finto/Library/Application Support/HGL/ponte-wa";
-    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
+    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
     c("percorsi: nessuno nel repo né nel com.ponte.whatsapp di Oclak", [], Object.values(p).filter((x) => x.includes("Documents") || x.includes("/ponte-whatsapp")));
 
     // ── 3. Node: solo LTS 22 o 24, come engines ──────────────────────────
@@ -210,7 +252,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     await col.avvia();
     const s1 = socket[0];
     c("socket: opzioni del §a3", { browser: ["Mac OS", "Chrome", "14.4.1"], syncFullHistory: true, markOnlineOnConnect: false, logger: K.LOGGER_MUTO, auth: { cartella: P.auth } }, { browser: s1.opzioni.browser, syncFullHistory: s1.opzioni.syncFullHistory, markOnlineOnConnect: s1.opzioni.markOnlineOnConnect, logger: s1.opzioni.logger, auth: s1.opzioni.auth });
-    c("socket: getMessage non restituisce mai un messaggio (niente reinvii)", undefined, await s1.opzioni.getMessage({ id: "X" }));
+    c("socket: getMessage rende solo i messaggi inviati da noi (id sconosciuto → undefined)", undefined, await s1.opzioni.getMessage({ id: "X" }));
     c("auth/ creata con permessi 700", 0o700, permessi(P.auth));
     await s1.emetti("creds.update", {});
     c("creds.update salva le credenziali", 1, salvataggi.n);
