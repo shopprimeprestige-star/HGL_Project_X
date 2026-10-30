@@ -29,6 +29,21 @@ export function formatTimeIT(d: string | Date | null | undefined): string {
   return date.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" });
 }
 
+/** L'ora a destra della riga come la scrive WhatsApp (vista «Tutte», 30/10/2026): oggi «18:03», ieri
+ *  «Ieri», nei cinque giorni prima il giorno della settimana («lunedì»), poi la data «21/10/2026».
+ *  Si contano i giorni di calendario, non le 24 ore. `adesso` in ms (si passa, così è provabile). */
+export function formatOraWhatsapp(d: string | Date | null | undefined, adesso: number): string {
+  if (!d) return "";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "";
+  const giorno = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const fa = Math.round((giorno(new Date(adesso)) - giorno(date)) / 86_400_000);
+  if (fa <= 0) return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (fa === 1) return "Ieri";
+  if (fa <= 6) return date.toLocaleDateString("it-IT", { weekday: "long" });
+  return date.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 export function previewText(body: string | null): string {
   if (!body) return "";
   return body.length > 60 ? body.slice(0, 60) + "…" : body;

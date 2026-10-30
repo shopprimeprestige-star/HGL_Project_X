@@ -45,6 +45,7 @@ import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
@@ -664,6 +665,9 @@ const MODULI = [
   //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
   //   prove in prove/idee/prossimo-meet.mjs.
   "chatwa/prossimo-meet",
+  //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
+  //   prove in prove/idee/ordine-whatsapp.mjs.
+  "chatwa/ordineWhatsapp",
   "chatwa/testoWhatsapp",
   //  L'anteprima della riga = l'ULTIMO messaggio, chi l'ha scritto e «senza risposta»
   //   (commessa 2026-10-30-wa-anteprima-ultimo): vedi proveDellAnteprimaUltimo.
@@ -21377,6 +21381,7 @@ proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
+proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 
@@ -22337,9 +22342,9 @@ function proveDellAnteprimaUltimo() {
   c("spunte: lette, consegnato, inviato e errore con le icone outline", true, /CheckCheck/.test(r) && /<Check\b/.test(r) && /AlertCircle/.test(r));
   c("il non letto del cliente è in grassetto scuro", true, /a\.nonLetto[^;]{0,80}font-semibold text-foreground/.test(r));
   c("«senza risposta» a destra del nome, in ardesia con la clessidra (non ambra, non rosso, non azzurro come lo stato)", true,
-    /a\.senzaRisposta \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
+    /a\.senzaRisposta && !comeWhatsapp \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
   c("…e non aggiunge una riga all'elenco (niente pastiglia nella riga di stato)", false, /\(c\.lead \|\| onStelle \|\| a\.senzaRisposta\)/.test(r));
-  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" \? "font-semibold text-amber-700"/.test(r));
+  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" && !comeWhatsapp\s*\? "font-semibold text-amber-700"/.test(r));
   c("la chat aperta mostra «senza risposta» nella barra, con la stessa funzione", true, /senzaRispostaDa\(/.test(conv) && /Senza risposta/.test(pulito(conv)));
   c("la regola di «Da rispondere» non è stata toccata: la riga legge ancora c.daRispondere", true, /c\.daRispondere\?\.dal/.test(r) && /attesa: c\.daRispondere/.test(r));
 }
