@@ -523,6 +523,8 @@ export async function proveDellaSchedaPrenota(mod, { c, gruppo, radice }) {
       "src/crm/CRMContext.tsx": "updateLead scrive fissatoDa con patchChiFissa: la chat fa lo stesso (daPrenotare)",
       "src/crm/MeetGiornalieri.tsx": "«Fissati da me»: fissataDa(l.data, io); «cliente-chat» non è l'id di nessuno",
       "src/crm/chi-ha-fissato.ts": "le funzioni stesse",
+      "src/crm/cruscotto-wa/calcolo.ts": "Cruscotto WhatsApp (p4): legge solo fissatoIl per contare le prenotazioni, non scrive niente",
+      "src/crm/cruscotto-wa/leggi.server.ts": "Cruscotto WhatsApp (p4): seleziona fissatoIl dalla scheda, sola lettura",
       "src/crm/manychat/prenota-scheda.ts": "la chat (T4)",
       "src/crm/manychat/prenota-tipi.ts": "la costante FISSATO_DA_CHAT (T0)",
       "src/crm/manychat/sequenze.ts": "usa solo fissatoIl (freno 24 ore del promemoria)",
