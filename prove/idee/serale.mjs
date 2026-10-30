@@ -215,8 +215,10 @@ export async function proveRiepilogoSerale(mod, { c, gruppo, radice }) {
     const porte = {
       leggiUltimo: async () => s.ultimo,
       scriviUltimo: async (g) => {
+        if (s.ultimo === g) return false;
         s.ultimo = g;
         s.scritti.push(g);
+        return true;
       },
       utenti: async () => s.utenti ?? ["u1"],
       schede: async (u, g) => {
@@ -328,6 +330,13 @@ export async function proveRiepilogoSerale(mod, { c, gruppo, radice }) {
       ["42703", null, 0],
       [errore, s.ultimo, s.inviati.length],
     );
+  }
+  {
+    //  Revisione di sicurezza (30/10): due chiamate insieme, una sola notifica.
+    const { s, porte } = nuovo({ schede: dati });
+    const [a, b] = await Promise.all([R.giroRiepilogo(porte, ADESSO), R.giroRiepilogo(porte, ADESSO)]);
+    c("due chiamate insieme: una sola manda", [1, 1], [[a, b].filter((x) => x.fatto).length, s.scritti.length]);
+    c("…l'altra si ferma su «già mandato»", "gia_mandato", [a, b].find((x) => !x.fatto)?.motivo);
   }
   {
     const { s, porte } = nuovo({ schede: dati });

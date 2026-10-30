@@ -65,14 +65,25 @@ export function porteVere(): PorteRiepilogo {
       if (error) throw error;
       return (data?.value as string | null | undefined) ?? null;
     },
+    //  Atomico (revisione di sicurezza del 30/10): la prima volta un INSERT
+    //  (la chiave è unica: due insieme, uno solo passa); poi un UPDATE solo se
+    //  il giorno è diverso. Vince chi riceve la riga indietro.
     scriviUltimo: async (giorno) => {
-      const { error } = await db()
+      const ora = new Date().toISOString();
+      const nuovo = await db()
         .from("app_config")
-        .upsert(
-          { key: CHIAVE_ULTIMO, value: giorno, updated_at: new Date().toISOString() },
-          { onConflict: "key" },
-        );
+        .insert({ key: CHIAVE_ULTIMO, value: giorno, updated_at: ora })
+        .select("key");
+      if (!nuovo.error) return (nuovo.data?.length ?? 0) > 0;
+      if (nuovo.error.code !== "23505") throw nuovo.error;
+      const { data, error } = await db()
+        .from("app_config")
+        .update({ value: giorno, updated_at: ora })
+        .eq("key", CHIAVE_ULTIMO)
+        .neq("value", giorno)
+        .select("key");
       if (error) throw error;
+      return (data?.length ?? 0) > 0;
     },
     utenti: async () => {
       const righe = await tutte<{ user_id: string }>(() =>

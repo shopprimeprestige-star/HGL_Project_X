@@ -123,7 +123,9 @@ export function avvisoRiepilogo(c: ConteggioSerale): AvvisoPush | null {
 export interface PorteRiepilogo {
   /** il giorno dell'ultimo riepilogo mandato, «AAAA-MM-GG», `null` se mai */
   leggiUltimo(): Promise<string | null>;
-  scriviUltimo(giorno: string): Promise<void>;
+  /** Prende il giorno in modo ATOMICO: `true` solo per chi lo segna per primo
+   *  (due chiamate insieme non mandano due notifiche). */
+  scriviUltimo(giorno: string): Promise<boolean>;
   /** le installazioni con almeno un telefono iscritto */
   utenti(): Promise<string[]>;
   /** le schede dell'utente con la consulenza nel giorno dato */
@@ -161,7 +163,8 @@ export async function giroRiepilogo(porte: PorteRiepilogo, adesso: Date): Promis
     });
     if (avviso) daMandare.push({ userId, avviso });
   }
-  await porte.scriviUltimo(oggi);
+  //  Il segno PRIMA degli invii e atomico: chi arriva secondo si ferma qui.
+  if (!(await porte.scriviUltimo(oggi))) return { fatto: false, motivo: "gia_mandato" };
   let inviate = 0;
   for (const { userId, avviso } of daMandare)
     inviate += (await porte.invia(userId, avviso)).inviate;
