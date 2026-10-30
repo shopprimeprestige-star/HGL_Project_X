@@ -46,6 +46,7 @@ const CATEGORIA_DEI_MODELLI: Record<string, CategoriaCosto> = {
   meet_adesso: "utility",
   meet_domani: "utility",
   meet_oggi: "utility",
+  meet_oggi_link: "utility",
   non_risponde: "utility",
   promemoria_meet: "utility",
   promemoria_sede: "utility",

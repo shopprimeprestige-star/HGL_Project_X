@@ -321,14 +321,14 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
   //  Quante variabili manda il CRM per ogni modello (testi.ts → crm_v1…crm_v4):
   //  se un testo qui ne ha un numero diverso, la prova direbbe il falso.
   const VARIABILI = {
-    hgl_primo_contatto: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_oggi: 3,
+    hgl_primo_contatto: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_oggi: 3, hgl_meet_oggi_link: 4,
     hgl_promemoria_meet: 4, hgl_meet_adesso: 3, hgl_ricontatto_consulenza: 2,
     hgl_meet_da_fissare: 2, hgl_richiamo_concordato: 2, hgl_non_risponde: 1,
     hgl_cliente_assente: 1, hgl_da_riprogrammare: 2, hgl_promemoria_sede: 4,
     hgl_sede_disdetta: 1, hgl_ultimo_tentativo: 1, hgl_ritorno: 1, hgl_casi_reali: 1,
     hgl_acconto: 2,
   };
-  c("ci sono tutti i 18 modelli hgl_ di ManyChat", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
+  c("ci sono tutti i 19 modelli hgl_ di ManyChat", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
   c(
     "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna",
     [],
@@ -344,6 +344,20 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
       const v = PM.valoriDiEsempio(t);
       return v.some((x) => !x.trim()) || /\{\{\d+\}\}/.test(PM.anteprimaTesto(t, v));
     }).map((t) => t.name),
+  );
+  //  ⚠️ La chat manda questo testo come testo libero: deve essere IDENTICO ai modelli Meta.
+  c(
+    "il testo dei due modelli della mattina è quello approvato da Meta (v5 col link, v4 senza)",
+    [
+      "Ciao {{1}}, ci vediamo oggi alle {{2}} per la tua consulenza online con {{3}}.\n\nIl link per collegarti è questo: {{4}}\nPoco prima te lo ricordo qui.",
+      "Ciao {{1}}, ti ricordo che oggi alle ore {{2}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{3}}. Poco prima dell'inizio ti arriva il link per collegarti.\n\nSe hai un imprevisto, rispondi qui e troviamo un altro orario.",
+      ["lead_name", "appointment_time", "consultant_name", "meet_link"],
+    ],
+    [
+      findMetaTemplate("hgl_meet_oggi_link").body,
+      findMetaTemplate("hgl_meet_oggi").body,
+      findMetaTemplate("hgl_meet_oggi_link").params.map((p) => p.key),
+    ],
   );
   c("findMetaTemplate trova anche i modelli di ManyChat", "hgl_meet_oggi", findMetaTemplate("hgl_meet_oggi")?.name);
   c("…e i vecchi restano dove sono (META_TEMPLATES non cambia)", false, META_TEMPLATES.some((t) => t.name.startsWith("hgl_")));

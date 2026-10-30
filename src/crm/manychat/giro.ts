@@ -75,11 +75,13 @@ import {
   campiMeetAdesso,
   campiMeetDomani,
   campiMeetOggi,
+  campiMeetOggiLink,
   campiPerStato,
   campiPrimoContatto,
   campiPromemoria,
   campiRichiamo,
   campiRitorno,
+  linkPerCliente,
   type CampiOSalta,
 } from "./testi";
 
@@ -87,6 +89,9 @@ import {
  *  del modello è la chiave in `manychat_config.flussi`. */
 export const MODELLO_PROMEMORIA = "hgl_promemoria_meet";
 export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
+/** La mattina del meet col link dentro (30/10/2026). Facoltativo: serve il flusso in
+ *  `config.flussi` E il link in scheda; altrimenti la mattina è `hgl_meet_oggi`. */
+export const MODELLO_MEET_OGGI_LINK = "hgl_meet_oggi_link";
 /** Il promemoria 24 ore prima della consulenza. Spento dal titolare il 28/10. */
 export const MEET_DOMANI_ACCESO = false;
 /** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
@@ -732,6 +737,8 @@ export function righeDiProva(voci: Voce[], nomeDi: (s: SchedaQuando) => string):
 function modelloETag(
   tipo: TipoGiro,
   stato: string | null,
+  /** la mattina del meet va col link? (`mattinaColLink`) */
+  conLink = false,
 ): { modello: string; tag: string } | null {
   if (tipo === "promemoria") return { modello: MODELLO_PROMEMORIA, tag: TAG_PROMEMORIA };
   if (
@@ -743,10 +750,17 @@ function modelloETag(
     tipo === "meet_domani" ||
     tipo === "meet_adesso"
   )
-    return MODELLI_SEQUENZE[tipo];
+    return tipo === "meet_oggi" && conLink
+      ? { ...MODELLI_SEQUENZE.meet_oggi, modello: MODELLO_MEET_OGGI_LINK }
+      : MODELLI_SEQUENZE[tipo];
   const riga = TABELLA_STATI[(stato ?? "da_ricontattare") as keyof typeof TABELLA_STATI];
   return riga ? { modello: riga.modello, tag: riga.tag } : null;
 }
+
+/** La mattina del meet parte col link se la scheda ha un link usabile (stessa fonte del
+ *  promemoria) E il flusso col link è collegato; altrimenti col messaggio di prima. */
+const mattinaColLink = (scheda: SchedaQuando, flussi: Record<string, string>): boolean =>
+  !!flussi[MODELLO_MEET_OGGI_LINK] && !!linkPerCliente(scheda.data, scheda.id);
 
 /** Le variabili del modello, nell'ordine in cui il modello le vuole. */
 function campiDi(
@@ -755,6 +769,7 @@ function campiDi(
   scheda: SchedaQuando,
   consulente: string | undefined,
   indirizzoSede: string | null,
+  conLink = false,
 ): CampiOSalta {
   const d = scheda.data;
   switch (tipo) {
@@ -769,7 +784,7 @@ function campiDi(
     case "casi_reali":
       return campiCasiReali(d);
     case "meet_oggi":
-      return campiMeetOggi(d, consulente);
+      return conLink ? campiMeetOggiLink(d, consulente, scheda.id) : campiMeetOggi(d, consulente);
     case "meet_domani":
       return campiMeetDomani(d, consulente);
     case "meet_adesso":
@@ -958,7 +973,11 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const senzaFlusso = new Set<string>();
   for (const v of voci) {
     if (v.d.tipo !== "invia") continue;
-    const mt = modelloETag(v.tipo, v.d.extra.stato);
+    const mt = modelloETag(
+      v.tipo,
+      v.d.extra.stato,
+      v.tipo === "meet_oggi" && mattinaColLink(v.d.scheda, config.flussi),
+    );
     if (!mt) continue;
     if (!config.flussi[mt.modello]) {
       senzaFlusso.add(mt.modello);
@@ -984,7 +1003,14 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     const d = scheda.data;
     const numero = numeroWa(d.telefono);
     const consulente = consulenti.find((c) => c.id === d.consulenteId);
-    const campi = campiDi(cand.tipo, extra, scheda, consulente?.data?.nome, config.indirizzoSede);
+    const campi = campiDi(
+      cand.tipo,
+      extra,
+      scheda,
+      consulente?.data?.nome,
+      config.indirizzoSede,
+      cand.modello === MODELLO_MEET_OGGI_LINK,
+    );
     if (!numero || campi.tipo === "salta") return { fine: "continua" };
     //  L'ordine delle variabili è quello dei campi (v1…v4 del modello): una lista sola.
     const parametri = Object.values(campi.campi);
@@ -1005,7 +1031,13 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       if (!buona || buona.d.tipo !== "invia") return false;
       //  Stessa chiave ma stato cambiato (r|tel9|giorno è uguale per quattro stati):
       //  se il modello non è più lo stesso, non si manda quello.
-      return modelloETag(buona.tipo, buona.d.extra.stato)?.modello === cand.modello;
+      return (
+        modelloETag(
+          buona.tipo,
+          buona.d.extra.stato,
+          buona.tipo === "meet_oggi" && mattinaColLink(buona.d.scheda, config.flussi),
+        )?.modello === cand.modello
+      );
     };
 
     const porta: PortePorta = {

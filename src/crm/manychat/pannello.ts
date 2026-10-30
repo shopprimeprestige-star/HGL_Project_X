@@ -1014,6 +1014,9 @@ async function righeFlussi(
     }
     //  Nessun flusso scelto: è un problema solo se quel messaggio deve partire.
     const serve = flussoServe(modello, i);
+    //  La mattina col link è un'aggiunta con ripiego: mai rossa, mai «da verificare».
+    if (modello === "hgl_meet_oggi_link")
+      return riga(id, "non_serve", `${etichetta}: senza, la mattina parte senza il link.`);
     //  I flussi nuovi, a interruttore spento, sono grigi: non un dubbio, non un errore.
     if (!serve && nuovi.has(modello))
       return riga(id, "non_serve", `${etichetta}: serve quando lo accendi.`);
