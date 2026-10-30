@@ -576,8 +576,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti"],
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Clienti",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Clienti"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
   {

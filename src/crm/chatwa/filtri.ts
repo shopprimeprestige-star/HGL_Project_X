@@ -12,7 +12,7 @@
  *   2. Fase del lead      Attesa WhatsApp · Per ora no · un altro stato: una sola
  *   3. Finestra WhatsApp  Si può scrivere · Finestra chiusa: una sola
  *   4. Pagamento          Acconto versato (acceso/spento)
- *   5. Tipo di contatto   Con scheda · Senza scheda: una sola
+ *   5. Tipo di contatto   Con scheda · Senza scheda · Clienti: una sola
  *   6. Consulente         uno solo
  *
  *  ⚠️ `passaFiltro` (cercaChat.ts) NON si tocca: è provata da migliaia di
@@ -27,13 +27,14 @@
  *
  *  Tutto puro: niente React, niente Supabase. Provato in prove/idee/filtri-chat.mjs.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
+import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
+import { eConversione } from "@/crm/kpi-calcoli";
 import { passaFiltro } from "./cercaChat";
 import { STATI_PER_STATO } from "./perStato";
 
 export type CodaChat = "da-rispondere" | "da-chiamare";
 export type FinestraChat = "aperta" | "chiusa";
-export type TipoContatto = "con-scheda" | "senza-scheda";
+export type TipoContatto = "con-scheda" | "senza-scheda" | "cliente";
 
 /** Lo stato dei filtri. `null`/`false`/`""` = gruppo spento. */
 export interface FiltriChat {
@@ -185,6 +186,12 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
         nome: "Senza scheda",
         spiega: "Numeri non ancora collegati a un lead: da abbinare o creare.",
       },
+      {
+        campo: "tipo",
+        valore: "cliente",
+        nome: "Clienti",
+        spiega: "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
+      },
     ],
   },
 ];
@@ -200,11 +207,19 @@ export const VOCE_SCONOSCIUTI: VoceFiltro = {
   spiega: "Numeri non ancora collegati a un lead del CRM.",
 };
 
+/** «Clienti» (30/10/2026): chi ha comprato davvero. Stessa voce del gruppo «Tipo di contatto». */
+export const VOCE_CLIENTI: VoceFiltro = {
+  campo: "tipo",
+  valore: "cliente",
+  nome: "Clienti",
+  spiega: "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
+};
+
 /** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
  *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere ·
- *  Da chiamare · Con stelle · Sconosciuti. «Tutte» (spenti tutti i filtri) la disegna `ElencoChat`;
- *  qui ci sono le quattro voci vere. Il consulente sta nel pannello «Filtri». */
-export const VOCI_RIGA: readonly VoceFiltro[] = [...VOCI_GRIGLIA, VOCE_SCONOSCIUTI];
+ *  Da chiamare · Con stelle · Sconosciuti · Clienti. «Tutte» (spenti tutti i filtri) la disegna `ElencoChat`;
+ *  qui ci sono le cinque voci vere. Il consulente sta nel pannello «Filtri». */
+export const VOCI_RIGA: readonly VoceFiltro[] = [...VOCI_GRIGLIA, VOCE_SCONOSCIUTI, VOCE_CLIENTI];
 
 /** La voce di uno stato scelto da «Altri stati»: nome del CRM, nessuna spiegazione. */
 export const voceDelloStato = (stato: LeadStatus): VoceFiltro => ({
@@ -243,7 +258,12 @@ export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi
   if (f.finestra && !passaFiltro(c, f.finestra === "aperta" ? "aperto-24h" : "chiuso-24h"))
     return false;
   if (f.acconto && !passaFiltro(c, "acconto")) return false;
-  if (f.tipo && !passaFiltro(c, f.tipo === "con-scheda" ? "with-lead" : "unknown")) return false;
+  if (f.tipo === "cliente") {
+    //  Cliente = la definizione del CRM (`eConversione`, kpi-calcoli): acconto incassato (importo),
+    //  una chiusura vinta o il vecchio «venduto». Nessuna regola nuova. Senza scheda non lo è.
+    if (!c.lead || !eConversione(c.lead as Pick<Lead, "data">)) return false;
+  } else if (f.tipo && !passaFiltro(c, f.tipo === "con-scheda" ? "with-lead" : "unknown"))
+    return false;
   if (f.consulente && c.lead?.data?.consulenteId !== f.consulente) return false;
   return true;
 }
@@ -346,7 +366,8 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
     fase: faseValida(o.fase) ? o.fase : null,
     finestra: o.finestra === "aperta" || o.finestra === "chiusa" ? o.finestra : null,
     acconto: o.acconto === true,
-    tipo: o.tipo === "con-scheda" || o.tipo === "senza-scheda" ? o.tipo : null,
+    tipo:
+      o.tipo === "con-scheda" || o.tipo === "senza-scheda" || o.tipo === "cliente" ? o.tipo : null,
     consulente: typeof consulente === "string" ? consulente.slice(0, 80) : "",
   };
 }

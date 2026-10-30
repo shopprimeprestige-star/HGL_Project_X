@@ -97,3 +97,40 @@ export function proveRiquadroSenzaScheda(mod, { c, gruppo, radice }) {
   c("nelle viste «Da rispondere» e «Da chiamare» il riquadro non c'è", true, /const senzaSchedaCon = tutte \?/.test(elenco));
   c("«Seleziona tutto» comprende anche le chat del riquadro", true, /\.\.\.senzaSchedaCon,/.test(elenco));
 }
+
+export function proveClienti(mod, { c, gruppo, radice }) {
+  const leggi = (p) => readFileSync(join(radice, p), "utf8");
+  const F = mod["chatwa/filtri"];
+  gruppo("CHAT RITOCCHI 5: PILLOLA «CLIENTI» (STESSA DEFINIZIONE DEI KPI)");
+  const K = mod["kpi-calcoli"];
+  const chat = (data) => ({ phone: "+39" + Math.random(), lead: data ? { id: "x", data } : null, finestra: null });
+  const casi = {
+    "acconto incassato (importo)": { stato: "da_contattare", payment: { accontoPagato: 200 } },
+    "nel nostro centro": { stato: "posa_in_sede" },
+    "a domicilio": { stato: "posa_a_domicilio" },
+    "da spedire": { stato: "posa_da_spedire" },
+    "vecchio «venduto»": { stato: "venduto" },
+    "acconto (stato)": { stato: "acconto" },
+    "in sede con la spunta dell'acconto": { stato: "viene_in_sede", accontoVieneInSede: true },
+  };
+  const fc = { ...F.FILTRI_VUOTI, tipo: "cliente" };
+  const nessuno = () => 0;
+  for (const [nome, data] of Object.entries(casi)) {
+    c(`cliente: ${nome}`, [true, true], [F.passaFiltri(chat(data), fc, nessuno), K.eConversione({ data })]);
+  }
+  for (const [nome, data] of Object.entries({
+    "da contattare": { stato: "da_contattare" },
+    "appuntamento fissato": { stato: "appuntamento_fissato" },
+    "promessa di acconto, soldi no": { stato: "viene_in_sede", accontoVieneInSede: false, payment: { accontoPagato: 0 } },
+    annullato: { stato: "annullato" },
+  })) c(`non cliente: ${nome}`, false, F.passaFiltri(chat(data), fc, nessuno));
+  c("senza scheda non è cliente", false, F.passaFiltri(chat(null), fc, nessuno));
+  c("«Clienti» è nella riga rapida e nel pannello, dopo «Sconosciuti» (che resta: è il filtro del pannello)",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Clienti"], F.VOCI_RIGA.map((v) => v.nome));
+  c("è nel gruppo «Tipo di contatto»: una sola scelta fra Con scheda, Senza scheda, Clienti",
+    { tipo: "cliente" }, { tipo: F.commuta(F.commuta(F.FILTRI_VUOTI, "tipo", "senza-scheda"), "tipo", "cliente").tipo });
+  c("si ricorda e si legge dal salvataggio", "cliente", F.leggiFiltri(F.scriviFiltriSessione(fc), null).tipo);
+  c("l'etichetta sul riepilogo", "Clienti", F.etichetteAccese(fc, () => "")[0].etichetta);
+  c("conta come le altre voci (a faccette)", 1, F.contaVoce([chat(casi["nel nostro centro"]), chat({ stato: "da_contattare" })], F.FILTRI_VUOTI, nessuno, "tipo", "cliente"));
+  c("riusa eConversione del CRM, non una regola nuova", true, /eConversione/.test(leggi("src/crm/chatwa/filtri.ts")));
+}

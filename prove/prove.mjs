@@ -45,6 +45,7 @@ import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import {
+  proveClienti,
   proveCreaSchedaDaChat,
   proveNienteAbbinaInRiga,
   proveRiquadroSenzaScheda,
@@ -21408,6 +21409,7 @@ proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
 proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
 proveRiquadroSenzaScheda(mod, { c, gruppo, radice });
+proveClienti(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
