@@ -97,6 +97,25 @@ export interface ChatItem {
   stop?: boolean;
 }
 
+/** Cosa è riuscito in un'azione su più chat (telefoni): le altre sono `fallite`, e si dice. */
+export interface EsitoBlocco {
+  riuscite: string[];
+  fallite: string[];
+  /** Manca la funzione del database (migrazione non applicata): non è un guasto di rete. */
+  manca?: boolean;
+}
+
+/** Le azioni su più chat insieme (selezione tenendo premuto, 30/10/2026). Ogni funzione
+ *  riceve i telefoni già scelti dall'elenco e scrive solo su quelli dell'utente (RLS e `user_id`). */
+export interface ApiBlocco {
+  /** Come l'apertura della chat: `unread_count` a 0. */
+  segnaLetto: (telefoni: string[]) => Promise<EsitoBlocco>;
+  /** Rimette il badge: `unread_count` a 1 (non si sa quanti, uno basta). */
+  segnaDaLeggere: (telefoni: string[]) => Promise<EsitoBlocco>;
+  /** Come «Fatto» su ogni chat (`whatsapp_segna_fatto`). */
+  segnaFatto: (telefoni: string[]) => Promise<EsitoBlocco>;
+}
+
 /** Ritorno di `useChatWa`: l'unica cosa che i componenti conoscono dei dati. */
 export interface ChatWaApi {
   chats: ChatItem[];
@@ -144,6 +163,8 @@ export interface ChatWaApi {
   hasConfig: boolean | null;
   /** Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale). Facoltativo: senza, la chat è quella di prima. */
   ponte?: ApiPonteInvio;
+  /** Azioni su più chat (selezione tenendo premuto). Facoltativo: senza, l'elenco non offre la selezione. */
+  inBlocco?: ApiBlocco;
 }
 
 export interface ElencoChatProps {
