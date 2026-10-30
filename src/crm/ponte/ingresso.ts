@@ -390,7 +390,9 @@ export async function gestisciRichiesta(
     if (numeri) {
       //  Solo lettura: nessuna riga, nessun contatto, nessun controllo tardivo.
       const chiesti = new Set(numeri);
-      const noti = numeri.length ? (await porte.noti(userId, numeri)).filter((n) => chiesti.has(n)) : [];
+      const noti = numeri.length
+        ? (await porte.noti(userId, numeri)).filter((n) => chiesti.has(n))
+        : [];
       porte.avviso("noti", { chiesti: numeri.length, noti: noti.length });
       const corpo: RispostaNoti = { ok: true, noti };
       return risposta(200, corpo);

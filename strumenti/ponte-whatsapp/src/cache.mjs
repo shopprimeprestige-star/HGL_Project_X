@@ -25,7 +25,15 @@
  *   contatori sono numeri. Niente WhatsApp: solo disco.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 export const CACHE = {
@@ -72,7 +80,15 @@ export function chiaveCache(percorso) {
 
 /** Un messaggio come lo scrive `estrai.mjs` (`MessaggioPonte`), o null. */
 function valido(m) {
-  return m && typeof m === "object" && typeof m.id === "string" && ID.test(m.id) && typeof m.numero === "string" && NUMERO.test(m.numero) && Number.isInteger(m.ts) ? m : null;
+  return m &&
+    typeof m === "object" &&
+    typeof m.id === "string" &&
+    ID.test(m.id) &&
+    typeof m.numero === "string" &&
+    NUMERO.test(m.numero) &&
+    Number.isInteger(m.ts)
+    ? m
+    : null;
 }
 
 /** La cache su disco.
@@ -84,8 +100,12 @@ function valido(m) {
 export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }) {
   const maxNumeri = limiti.maxNumeri ?? CACHE.maxNumeri;
   const maxPerNumero = limiti.maxPerNumero ?? CACHE.maxPerNumero;
-  const chiaveCifra = Buffer.from(hkdfSync("sha256", chiave, Buffer.alloc(0), "hgl-ponte-cache-cifra", 32));
-  const chiaveNome = Buffer.from(hkdfSync("sha256", chiave, Buffer.alloc(0), "hgl-ponte-cache-nome", 32));
+  const chiaveCifra = Buffer.from(
+    hkdfSync("sha256", chiave, Buffer.alloc(0), "hgl-ponte-cache-cifra", 32),
+  );
+  const chiaveNome = Buffer.from(
+    hkdfSync("sha256", chiave, Buffer.alloc(0), "hgl-ponte-cache-nome", 32),
+  );
   mkdirSync(cartella, { recursive: true, mode: 0o700 });
   chmodSync(cartella, 0o700);
 
@@ -93,7 +113,11 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
   const indice = new Map();
   const conti = { illeggibili: 0, rifiutati: 0 };
 
-  const fileDi = (numero) => join(cartella, `${createHmac("sha256", chiaveNome).update(numero).digest("hex").slice(0, 32)}.bin`);
+  const fileDi = (numero) =>
+    join(
+      cartella,
+      `${createHmac("sha256", chiaveNome).update(numero).digest("hex").slice(0, 32)}.bin`,
+    );
   const limite = () => Math.floor(orologio() / 1000) - CACHE.giorni * GIORNO_S;
 
   function cifra(voce) {
@@ -111,7 +135,9 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
       const d = createDecipheriv("aes-256-gcm", chiaveCifra, b.subarray(0, 12));
       d.setAAD(AAD);
       d.setAuthTag(b.subarray(12, 28));
-      const voce = JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString("utf8"));
+      const voce = JSON.parse(
+        Buffer.concat([d.update(b.subarray(28)), d.final()]).toString("utf8"),
+      );
       return voce && NUMERO.test(voce.numero) && Array.isArray(voce.messaggi) ? voce : null;
     } catch {
       return null;
@@ -166,11 +192,16 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
         rifiutati += nuovi.length;
         continue;
       }
-      const perId = new Map((vecchia?.messaggi ?? []).filter((m) => m.ts >= dal).map((m) => [m.id, m]));
+      const perId = new Map(
+        (vecchia?.messaggi ?? []).filter((m) => m.ts >= dal).map((m) => [m.id, m]),
+      );
       const prima = perId.size;
       for (const m of nuovi) perId.set(m.id, m);
-      const tutti = [...perId.values()].sort((a, b) => a.ts - b.ts || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(-maxPerNumero);
-      const nome = typeof nomi?.[numero] === "string" && nomi[numero] ? nomi[numero] : (vecchia?.nome ?? null);
+      const tutti = [...perId.values()]
+        .sort((a, b) => a.ts - b.ts || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .slice(-maxPerNumero);
+      const nome =
+        typeof nomi?.[numero] === "string" && nomi[numero] ? nomi[numero] : (vecchia?.nome ?? null);
       salva({ numero, nome, messaggi: tutti });
       messi += perId.size - prima;
     }
@@ -215,7 +246,12 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
   function contatori() {
     let messaggi = 0;
     for (const v of indice.values()) messaggi += v.messaggi;
-    return { numeri: indice.size, messaggi, illeggibili: conti.illeggibili, rifiutati: conti.rifiutati };
+    return {
+      numeri: indice.size,
+      messaggi,
+      illeggibili: conti.illeggibili,
+      rifiutati: conti.rifiutati,
+    };
   }
 
   return { metti, numeri: () => [...indice.keys()].sort(), prendi, togli, pulisci, contatori };
@@ -245,7 +281,8 @@ export async function controllaCache({ cache, fila, invia }) {
       const voce = cache.prendi(n);
       if (!voce) continue;
       // con la fila piena la cronologia resta qui (lo storico è idempotente nel CRM)
-      if (fila.aggiungi("storico", voce.messaggi, voce.nomi).piena) return { ...esito, piena: true };
+      if (fila.aggiungi("storico", voce.messaggi, voce.nomi).piena)
+        return { ...esito, piena: true };
       cache.togli(n);
       esito.promossi += voce.messaggi.length;
     }
