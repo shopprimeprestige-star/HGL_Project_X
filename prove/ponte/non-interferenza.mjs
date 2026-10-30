@@ -189,7 +189,11 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     let scritture = 0;
     //  UNA lettura ammessa (fix/manychat-eco, 29/10/2026): `ultimeEntrate` per
     //  l'eco del Default Reply, che esclude le righe del ponte nel filtro stesso.
-    const LETTURE_AMMESSE = { "src/crm/manychat/porte.server.ts": 1 };
+    const LETTURE_AMMESSE = {
+      "src/crm/manychat/porte.server.ts": 1,
+      //  p8: il conto degli invii falliti del controllo della notte, senza il ponte.
+      "src/routes/hooks/controllo-notte.ts": 1,
+    };
     const FILTRO_SENZA_PONTE = "canale.is.null,canale.neq.${CANALE_PONTE}";
     for (const f of file) {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
