@@ -54,8 +54,20 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   //  I media diventano segnaposto (§b4).
   c("foto senza didascalia", { testo: "📷 Foto", tipo: "foto" }, solo(wa({ imageMessage: { mimetype: "image/jpeg", url: "https://mmg.whatsapp.net/x" } })));
   c("foto con didascalia", { testo: "📷 Foto: il mio colore", tipo: "foto" }, solo(wa({ imageMessage: { caption: "il mio colore" } })));
-  c("vocale (ptt)", { testo: "🎤 Vocale", tipo: "vocale" }, solo(wa({ audioMessage: { ptt: true, seconds: 7 } })));
+  c("vocale (ptt) con la durata", { testo: "🎤 Vocale 0:07", tipo: "vocale" }, solo(wa({ audioMessage: { ptt: true, seconds: 7 } })));
+  c("vocale senza durata", { testo: "🎤 Vocale", tipo: "vocale" }, solo(wa({ audioMessage: { ptt: true } })));
   c("audio non vocale", { testo: "🎤 Vocale", tipo: "audio" }, solo(wa({ audioMessage: { ptt: false } })));
+  //  La durata del vocale (T6, 30/10): «🎤 Vocale 0:12». Il vocale NON si scarica: è solo il segnaposto.
+  const vocale = (seconds, extra = {}) => solo(wa({ audioMessage: { ptt: true, seconds, ...extra } })).testo;
+  c("vocale di 12 secondi → «🎤 Vocale 0:12»", "🎤 Vocale 0:12", vocale(12));
+  c("vocale di 75 secondi → 1:15; di 60 → 1:00; di 59 → 0:59", ["🎤 Vocale 1:15", "🎤 Vocale 1:00", "🎤 Vocale 0:59"], [vocale(75), vocale(60), vocale(59)]);
+  c("vocale di un'ora → 60:00; di 3725 secondi → 62:05; di 59999 → 999:59", ["🎤 Vocale 60:00", "🎤 Vocale 62:05", "🎤 Vocale 999:59"], [vocale(3600), vocale(3725), vocale(59999)]);
+  c("durata come Long, come stringa di cifre, con decimali", ["🎤 Vocale 0:12", "🎤 Vocale 0:12", "🎤 Vocale 0:12"], [vocale(long(12)), vocale("12"), vocale(12.9)]);
+  c("durata assente, zero, negativa, enorme, non numerica → solo «🎤 Vocale»", Array(8).fill("🎤 Vocale"), [vocale(undefined), vocale(0), vocale(-3), vocale(60000), vocale("abc"), vocale(Number.NaN), vocale({}), vocale(null)]);
+  c("anche l'audio non vocale porta la durata", { testo: "🎤 Vocale 0:30", tipo: "audio" }, solo(wa({ audioMessage: { ptt: false, seconds: 30 } })));
+  c("vocale dentro un effimero: la durata c'è", "🎤 Vocale 0:05", solo(wa({ ephemeralMessage: { message: { audioMessage: { ptt: true, seconds: 5 } } } })).testo);
+  const anteprima = mod["chatwa/media"]?.mediaInAnteprima;
+  c("la chat riconosce il vocale con la durata (anteprima: icona e «Vocale 0:12»)", [{ tipo: "audio", testo: "Vocale 0:12" }, { tipo: "audio", testo: "Vocale" }], [anteprima?.(vocale(12)), anteprima?.(vocale(undefined))]);
   c("video con didascalia", { testo: "🎥 Video: prima e dopo", tipo: "video" }, solo(wa({ videoMessage: { caption: "prima e dopo" } })));
   c("gif → video", { testo: "🎥 Video", tipo: "video" }, solo(wa({ videoMessage: { gifPlayback: true } })));
   c("documento con nome", { testo: "📎 Documento: listino.pdf", tipo: "documento" }, solo(wa({ documentMessage: { fileName: "listino.pdf", mimetype: "application/pdf" } })));
@@ -89,6 +101,26 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("risposta a un bottone porta il testo scelto, senza marca", { testo: "Confermo", tipo: "testo" }, solo(wa({ buttonsResponseMessage: { selectedDisplayText: "Confermo" } })));
   c("risposta a una lista senza marca", { testo: "Sabato", tipo: "testo" }, solo(wa({ listResponseMessage: { title: "Sabato" } })));
   c("tipo che non conosciamo → segnaposto «Allegato», mai buttato (messaggi persi 30/10)", { testo: "📎 Allegato", tipo: "altro" }, solo(wa({ nuovoTipoDelDomani: {} })));
+
+  //  Le immagini da scaricare (T6): `immagineDa` dà chiave, orario e `imageMessage`; la validazione dell'origine è di immagini.mjs.
+  const IMG = { mimetype: "image/jpeg", mediaKey: new Uint8Array(32), directPath: "/v/t62/x.enc", url: "https://mmg.whatsapp.net/v/t62/x.enc", fileLength: 4000 };
+  const daFoto = (m, o = {}, k = {}, altro = {}) => E.immagineDa(wa(m, k, altro), { ...opz, ...o });
+  const f1 = daFoto({ imageMessage: IMG });
+  c("immagineDa: chiave bw:<cifre>:<id>, orario del messaggio, e l'imageMessage così com'è", ["bw:393330000001:3EB0AA01", TS, true], [f1?.chiave, f1?.ts, f1?.immagine === IMG]);
+  c("immagineDa: la chiave è quella del contratto (tipi.ts)", T.chiaveMessaggio(CLIENTE, "3EB0AA01"), f1?.chiave);
+  c("immagineDa: coincide con il messaggio che leggiMessaggio manda al CRM", [leggi(wa({ imageMessage: IMG })).messaggio.id, leggi(wa({ imageMessage: IMG })).messaggio.numero], [f1.chiave.split(":")[2], f1.chiave.split(":")[1]]);
+  c("immagineDa: anche una foto mandata da noi (fromMe)", "bw:393330000001:3EB0AA01", daFoto({ imageMessage: IMG }, {}, { fromMe: true })?.chiave);
+  c("immagineDa: dentro un messaggio effimero", true, daFoto({ ephemeralMessage: { message: { imageMessage: IMG } } })?.immagine === IMG);
+  c("immagineDa: dentro un album (figlio)", true, daFoto({ associatedChildMessage: { message: { imageMessage: IMG } } })?.immagine === IMG);
+  c("immagineDa: chat con un LID risolto → le cifre del numero", `bw:${CLIENTE}:3EB0AA01`, daFoto({ imageMessage: IMG }, { risolviLid: () => CLIENTE }, { remoteJid: "555@lid" })?.chiave);
+  c("immagineDa: LID non risolto → niente (come leggiMessaggio)", null, daFoto({ imageMessage: IMG }, {}, { remoteJid: "555@lid" }));
+  c("immagineDa: gruppo, stato, se stessi → niente", [null, null, null], [daFoto({ imageMessage: IMG }, {}, { remoteJid: "120363000000000000@g.us" }), daFoto({ imageMessage: IMG }, {}, { remoteJid: "status@broadcast" }), daFoto({ imageMessage: IMG }, {}, { remoteJid: `${NOI}@s.whatsapp.net` })]);
+  c("immagineDa: «visualizza una volta» NON si scarica (v1, v2, v2 extension, flag, dentro un effimero)", [null, null, null, null, null], [daFoto({ viewOnceMessage: { message: { imageMessage: IMG } } }), daFoto({ viewOnceMessageV2: { message: { imageMessage: IMG } } }), daFoto({ viewOnceMessageV2Extension: { message: { imageMessage: IMG } } }), daFoto({ imageMessage: { ...IMG, viewOnce: true } }), daFoto({ ephemeralMessage: { message: { viewOnceMessageV2: { message: { imageMessage: IMG } } } } })]);
+  c("immagineDa: video, sticker, vocale, documento, testo → niente", [null, null, null, null, null], [daFoto({ videoMessage: {} }), daFoto({ stickerMessage: {} }), daFoto({ audioMessage: { ptt: true } }), daFoto({ documentMessage: {} }), daFoto({ conversation: "ciao" })]);
+  c("immagineDa: messaggio non decifrato, senza orario, senza id, vuoto → niente", [null, null, null, null], [E.immagineDa(wa(null, {}, { messageStubType: 2 }), opz), daFoto({ imageMessage: IMG }, {}, {}, { messageTimestamp: undefined }), E.immagineDa({ key: { remoteJid: JID, id: "a b" }, messageTimestamp: TS, message: { imageMessage: IMG } }, opz), E.immagineDa(null, opz)]);
+  c("immagineDa: più vecchio del taglio STORICO_GIORNI → niente", null, daFoto({ imageMessage: IMG }, { dal: TS + 1 }));
+  c("immagineDa: un url ostile passa così com'è (lo ferma validaOrigine, non l'estrazione)", "http://127.0.0.1/x", daFoto({ imageMessage: { ...IMG, url: "http://127.0.0.1/x" } })?.immagine.url);
+  c("la foto resta «📷 Foto» per il CRM (il segnaposto non cambia)", { testo: "📷 Foto", tipo: "foto" }, solo(wa({ imageMessage: IMG })));
 
   //  Le etichette sono quelle che la chat sa già disegnare (media.ts).
   const media = readFileSync(join(radice, "src/crm/chatwa/media.ts"), "utf8");
