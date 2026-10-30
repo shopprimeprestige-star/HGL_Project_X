@@ -187,6 +187,11 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     //  l'eco del Default Reply, che esclude le righe del ponte nel filtro stesso.
     const LETTURE_AMMESSE = { "src/crm/manychat/porte.server.ts": 1 };
     const FILTRO_SENZA_PONTE = "canale.is.null,canale.neq.${CANALE_PONTE}";
+    //  UNA lettura CON il ponte, voluta dal titolare (30/10/2026, «contano tutti i
+    //  messaggi»): il ritorno in «Attesa WhatsApp» quando il cliente scrive, da
+    //  qualsiasi canale. Legge solo le entrate senza pari (`duplicato_di` nullo) e
+    //  non scrive nulla su whatsapp_messages: le altre regole restano senza ponte.
+    const LETTURE_COL_PONTE = { "src/routes/hooks/attesa-da-chiamare.ts": 1 };
     for (const f of file) {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
       const rel = f.slice(radice.length + 1);
@@ -197,9 +202,11 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
       scritture += insert.filter((x) => x[1] === "insert").length;
       const select = insert.filter((x) => x[1] === "select").length;
       const ammesse = LETTURE_AMMESSE[rel] ?? 0;
+      const colPonte = LETTURE_COL_PONTE[rel] ?? 0;
       const lettureOk =
-        select === ammesse &&
-        (ammesse === 0 || codice.split(FILTRO_SENZA_PONTE).length - 1 === ammesse);
+        select === ammesse + colPonte &&
+        (ammesse === 0 || codice.split(FILTRO_SENZA_PONTE).length - 1 === ammesse) &&
+        (colPonte === 0 || /\.is\(\s*["'`]duplicato_di["'`]\s*,\s*null\s*\)/.test(codice));
       if (
         nomi !== insert.length ||
         insert.some((x) => x[1] !== "insert" && x[1] !== "select") ||

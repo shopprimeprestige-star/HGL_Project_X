@@ -24,7 +24,10 @@ import {
   patchDaChiamare,
   patchRitornoAttesa,
   STATI_CHE_TORNANO_IN_ATTESA,
+  unisciEntrate,
   type ContattoWa,
+  type RigaContatto,
+  type RigaMessaggio,
 } from "@/crm/importa/attesa-da-chiamare";
 import { telefonoE164 } from "@/crm/chatwa/daChiamare";
 import type { LeadData } from "@/crm/types";
@@ -127,29 +130,43 @@ export async function giroAttesaDaChiamare(adesso = new Date()) {
   return { inAttesa: schede.length, spostati, cambiatiNelFrattempo: cambiati };
 }
 
-/** I contatti che hanno scritto nelle ultime 24 ore (pochi), per numero. Non
- *  serve altro: chi non ha scritto non può tornare in attesa. A pagine, in
- *  ordine fisso. */
+/** Chi ha scritto nelle ultime 24 ore, per numero (`unisciEntrate`): la rubrica
+ *  (ManyChat, e gli STOP anche vecchi) PIÙ le righe in entrata di
+ *  `whatsapp_messages` da ogni canale (Cloud API, ponte col QR code). A pagine,
+ *  in ordine fisso. */
 async function contattiCheHannoScritto(adesso: Date): Promise<Map<string, ContattoWa>> {
-  const perNumero = new Map<string, ContattoWa>();
   const dal = new Date(adesso.getTime() - 24 * 3600_000).toISOString();
   const PAGINA = 1000;
+  const contatti: RigaContatto[] = [];
   for (let da = 0; ; da += PAGINA) {
     const { data, error } = await db()
       .from("whatsapp_contacts")
       .select("user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal")
-      .gte("ultimo_in_entrata_il", dal)
+      .or(`ultimo_in_entrata_il.gte.${dal},non_scrivere_dal.not.is.null`)
       .order("id", { ascending: true })
       .range(da, da + PAGINA - 1);
     if (error) throw error;
-    const righe = (data ?? []) as Contatto[];
-    for (const c of righe)
-      perNumero.set(`${c.user_id}|${nove(c.phone_e164)}`, {
-        ultimoInEntrataIl: c.ultimo_in_entrata_il,
-        stop: !!c.non_scrivere_dal,
-      });
-    if (righe.length < PAGINA) return perNumero;
+    const righe = (data ?? []) as RigaContatto[];
+    contatti.push(...righe);
+    if (righe.length < PAGINA) break;
   }
+  const messaggi: RigaMessaggio[] = [];
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await db()
+      .from("whatsapp_messages")
+      .select("user_id, from_number, direction, created_at, duplicato_di")
+      .eq("direction", "inbound")
+      .is("duplicato_di", null)
+      .gte("created_at", dal)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const righe = (data ?? []) as RigaMessaggio[];
+    messaggi.push(...righe);
+    if (righe.length < PAGINA) break;
+  }
+  return unisciEntrate(contatti, messaggi);
 }
 
 type RigaLeggera = {

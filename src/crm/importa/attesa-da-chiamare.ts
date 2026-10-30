@@ -117,3 +117,64 @@ export function patchRitornoAttesa(
     note: conNota(d.note, riga),
   };
 }
+
+/** ── TUTTI I MESSAGGI DEL CLIENTE CONTANO (30/10/2026) ──────────────────────
+ *  Richiesta del titolare: per il ritorno in «Attesa WhatsApp» vale anche un
+ *  messaggio arrivato dal canale diretto di Meta (webhook Cloud API) o dal
+ *  collegamento col QR code (ponte, canale «baileys»), non solo da ManyChat.
+ *  Si uniscono qui: la rubrica (`ultimo_in_entrata_il`, che scrive solo
+ *  ManyChat, e lo STOP) e le righe IN ENTRATA di `whatsapp_messages` delle
+ *  ultime 24 ore. Per numero vince il messaggio più recente; lo STOP della
+ *  rubrica vale sempre.
+ *  ⚠️ Le righe del ponte che hanno già un pari (`duplicato_di`) non contano due
+ *   volte, e i messaggi nostri (outbound) non contano mai: si scartano qui.
+ *  ⚠️ `ultimo_in_entrata_il` NON si tocca: lo usano altre regole (risposte al
+ *   promemoria), che restano com'erano. */
+export interface RigaContatto {
+  user_id: string;
+  phone_e164: string | null;
+  ultimo_in_entrata_il: string | null;
+  non_scrivere_dal: string | null;
+}
+export interface RigaMessaggio {
+  user_id: string | null;
+  from_number: string | null;
+  direction: string | null;
+  created_at: string | null;
+  duplicato_di?: string | null;
+}
+export function unisciEntrate(
+  contatti: RigaContatto[],
+  messaggi: RigaMessaggio[],
+): Map<string, ContattoWa> {
+  const out = new Map<string, ContattoWa>();
+  const piuRecente = (a?: string | null, b?: string | null) => {
+    const ta = Date.parse(a ?? "");
+    const tb = Date.parse(b ?? "");
+    if (!Number.isFinite(ta)) return Number.isFinite(tb) ? b! : null;
+    if (!Number.isFinite(tb)) return a!;
+    return tb > ta ? b! : a!;
+  };
+  for (const c of contatti) {
+    const n = nove(c.phone_e164);
+    if (!n) continue;
+    const k = `${c.user_id}|${n}`;
+    const prima = out.get(k);
+    out.set(k, {
+      ultimoInEntrataIl: piuRecente(prima?.ultimoInEntrataIl, c.ultimo_in_entrata_il),
+      stop: !!prima?.stop || !!c.non_scrivere_dal,
+    });
+  }
+  for (const m of messaggi) {
+    if (m.direction !== "inbound" || m.duplicato_di || !m.user_id) continue;
+    const n = nove(m.from_number);
+    if (!n) continue;
+    const k = `${m.user_id}|${n}`;
+    const prima = out.get(k);
+    out.set(k, {
+      ultimoInEntrataIl: piuRecente(prima?.ultimoInEntrataIl, m.created_at),
+      stop: !!prima?.stop,
+    });
+  }
+  return out;
+}
