@@ -232,4 +232,43 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
         ADESSO,
       ),
   );
+
+  gruppo("MESSAGGIO PER STATO · L'INTERFACCIA (controlli sul sorgente)");
+  const leggi = (f) => readFileSync(join(radice, f), "utf8");
+  const riq = leggi("src/crm/RiquadroMessaggioStato.tsx");
+  const quick = leggi("src/crm/QuickStatusDialog.tsx");
+  const dialogoLead = leggi("src/crm/LeadDialog.tsx");
+  c(
+    "il riquadro compare solo per gli stati con messaggio (statoHaMessaggio, tabella del giro) e non lancia hook dopo l'uscita",
+    [true, true],
+    [
+      /if \(!statoHaMessaggio\(stato\)\) return null;/.test(riq),
+      riq.indexOf("useState(") < riq.indexOf("return null;"),
+    ],
+  );
+  c(
+    "le due domande ci sono, con le parole del titolare; il generico e il modello dello stato hanno l'anteprima",
+    [true, true, true, true],
+    [
+      /Il tuo messaggio \(parte se il cliente ti ha scritto nelle ultime 24 ore\)/.test(riq),
+      /Se sono passate più di 24 ore manda:/.test(riq),
+      /Il modello dello stato \(di serie\)/.test(riq),
+      /Il messaggio generico «Come eravamo rimasti»/.test(riq),
+    ],
+  );
+  c(
+    "tasti da almeno 44 px (min-h-11) e campo con etichetta collegata",
+    [true, true],
+    [/min-h-11/.test(riq), /htmlFor=\{`\$\{id\}-testo`\}/.test(riq)],
+  );
+  c(
+    "il riquadro è nelle tre finestre: modulo «Attesa acconto», procedura guidata e scheda del lead",
+    [2, 1],
+    [(quick.match(/<RiquadroMessaggioStato/g) ?? []).length, (dialogoLead.match(/<RiquadroMessaggioStato/g) ?? []).length],
+  );
+  c(
+    "…e le finestre scrivono messaggioStato solo per gli stati che ne hanno uno",
+    2,
+    (quick.match(/if \(statoHaMessaggio\((newStatus|stato)\)\) patch\.messaggioStato = messaggio;/g) ?? []).length,
+  );
 }

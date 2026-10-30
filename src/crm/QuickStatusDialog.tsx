@@ -113,6 +113,9 @@ import { CLASSE_BADGE_STATO, Tasto, classiStato, dataBreve, eur, useTastoComando
 //  promemoria: qui si importano, non si riscrivono (l'import va in una
 //  direzione sola, quindi non nasce un ciclo).
 import { ScorciatoieFinestra, useSalvaConTastiera } from "./SchedaCliente";
+//  Il messaggio automatico dello stato, scritto dal consulente (commessa 2026-10-30).
+import { RiquadroMessaggioStato } from "./RiquadroMessaggioStato";
+import { statoHaMessaggio, type MessaggioStato } from "./manychat/messaggio-stato";
 
 interface DefaultValues {
   acconto?: number;
@@ -253,8 +256,10 @@ function testoDi(v: unknown): string {
 }
 
 export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalvato }: Props) {
-  const { updateLead } = useCRM();
+  const { updateLead, consultants } = useCRM();
   const { user } = useAuth();
+  //  Il messaggio automatico scritto qui (solo «Attesa acconto» passa da questo modulo).
+  const [messaggio, setMessaggio] = useState<MessaggioStato | undefined>(undefined);
   const [defaults, setDefaults] = useState<DefaultValues>({});
   const [saving, setSaving] = useState(false);
 
@@ -497,6 +502,8 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
         //  (`dataRicontatto`), mai in un campo scelto qui: è il guasto storico
         //  della vecchia barra, dove la data finiva dove l'elenco non guardava.
         if (dataSollecito) patch.dataRicontatto = dataSollecito;
+        //  Vuoto o non toccato = la chiave non c'è: tutto come prima.
+        if (statoHaMessaggio(newStatus)) patch.messaggioStato = messaggio;
         // Aggiungiamo l'interesse dentro le note in modo umano leggibile (non rompiamo il modello)
         const tag = `[Interesse ${interesse}/10]`;
         const existing = (noteForm || "").trim();
@@ -776,6 +783,17 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
               />
             </CampoFinestra>
             {note}
+            {lead && (
+              <RiquadroMessaggioStato
+                key={`${lead.id}-${newStatus}-${open}`}
+                stato={newStatus}
+                scheda={lead.data}
+                consulente={nomeDelConsulente(
+                  (consultants ?? []).find((c) => c?.id === lead.data.consulenteId),
+                )}
+                onCambia={setMessaggio}
+              />
+            )}
             <CampoFinestra
               etichetta="Interesse percepito"
               nota="1 = lo perdiamo · 10 = paga domani. Finisce nelle note."
@@ -1720,6 +1738,8 @@ function ProceduraQuando({
   const { updateLead, consultants, leads } = useCRM();
   const cmd = useTastoComando();
   const richiesta = QUANDO_GUIDATO[stato];
+  //  Il messaggio automatico scritto all'ultimo passo (solo per gli stati che ne hanno uno).
+  const [messaggio, setMessaggio] = useState<MessaggioStato | undefined>(undefined);
 
   const [passo, setPasso] = useState<PassoQuando>("giorno");
   const [data, setData] = useState("");
@@ -2018,6 +2038,8 @@ function ProceduraQuando({
         ora,
       )}${chi}${scritto ? ` — ${scritto}` : ""}`;
       patch.note = precedenti.trim() ? `${precedenti}\n${riga}` : riga;
+      //  Vuoto o non toccato = la chiave non c'è: tutto come prima.
+      if (statoHaMessaggio(stato)) patch.messaggioStato = messaggio;
 
       //  ⚠️ Come nell'altro ramo: la spunta verde si dà solo dopo aver letto la
       //   risposta. Qui si promette un giorno e un'ora a un cliente — un
@@ -2306,6 +2328,22 @@ function ProceduraQuando({
             perdono. Maiusc+Invio va a capo.
           </p>
         </SezioneFinestra>
+      )}
+
+      {/*  IL MESSAGGIO AUTOMATICO, solo all'ultimo passo e solo per gli stati che ne hanno
+          uno. Resta montato (nascosto) negli altri passi, così tornare indietro non fa
+          perdere quello che si è scritto. */}
+      {statoHaMessaggio(stato) && (
+        <RiquadroMessaggioStato
+          key={`${lead.id}-${stato}`}
+          stato={stato}
+          scheda={lead.data}
+          consulente={nomeDelConsulente(
+            (consultants ?? []).find((c) => c?.id === lead.data.consulenteId),
+          )}
+          onCambia={setMessaggio}
+          className={passo === "note" ? undefined : "hidden"}
+        />
       )}
 
       {/*  LA SCELTA IN CHIARO, SEMPRE SOTTO: è l'unico modo di accorgersi di
