@@ -421,7 +421,7 @@ export function OrariRapidi(p: {
                       Nessun posto
                     </p>
                   ) : (
-                    <div className="flex flex-1 flex-wrap gap-1.5 md:grid md:grid-cols-1 xl:grid-cols-2">
+                    <div className="flex flex-1 flex-wrap content-start gap-1.5 md:grid md:grid-cols-1 xl:grid-cols-2">
                       {g.fasce.map((f) => {
                         const si = eScelto(scelte, g.data, f.ora);
                         const posti = `${f.posti} ${f.posti === 1 ? "posto" : "posti"}`;
