@@ -245,7 +245,7 @@ export function LinkWhatsapp({
               <MessagesSquare aria-hidden="true" className="h-5 w-5 shrink-0" />
               <span className="min-w-0">
                 <span className="t-riga block font-medium">WhatsApp del CRM</span>
-                <span className="t-nota block">
+                <span className="t-nota block text-slate-500">
                   {crm.stato === "leggo"
                     ? "Controllo la finestra di 24 ore…"
                     : crm.stato === "errore"
