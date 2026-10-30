@@ -6,7 +6,9 @@
  *  PERCHÉ È FATTO COSÌ
  *  La barra è su ogni pagina del CRM: il costo di questo numero lo paga tutto il
  *  giorno chiunque, anche chi non apre mai la chat. Quindi:
- *   · legge poche colonne (entrata, risposto, ultimo messaggio e sua direzione) e solo
+ *   · legge poche colonne (entrata, risposto, ultimo messaggio e sua direzione; i nostri invii
+ *     `failed` solo per i pochi contatti che l'ultimo messaggio nostro toglierebbe dall'attesa: vedi
+ *     ./menuDaRispondere) e solo
  *     dei contatti che hanno già scritto almeno una volta;
  *   · NESSUN realtime: una lettura all'apertura, una al minuto, una quando la
  *     finestra torna visibile. A scheda nascosta non legge niente;
@@ -27,57 +29,20 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "../AuthContext";
-import type { WaContactRow } from "./tipi";
-import { colonnaMancante, contaDaRispondere } from "./stato";
+import { contaDalDatabase, type PorteMenu } from "./menuDaRispondere";
 
 /** Ogni quanto si rilegge, a finestra visibile. */
 const OGNI_MS = 60_000;
-/** Il tetto di righe per richiesta di Supabase è 1000: si legge a pagine. */
-const PAGINA = 1000;
-/** shortcut: al massimo 5000 contatti con messaggi in entrata, oltre il numero
- *  si ferma lì (sotto-stima); quando succede, passare a un conteggio sul server. */
-const MAX_PAGINE = 5;
-
-/** Le ultime due servono a vedere se l'ultimo messaggio è NOSTRO (regola del 30/10/2026). */
-const COLONNE_BASE = "id,ultimo_in_entrata_il,risposto_il,ultimo_in_entrata_anteprima";
-const COLONNE = `${COLONNE_BASE},ultimo_messaggio_il,ultimo_messaggio_direzione`;
-
-type Riga = Pick<
-  WaContactRow,
-  | "id"
-  | "ultimo_in_entrata_il"
-  | "risposto_il"
-  | "ultimo_in_entrata_anteprima"
-  | "ultimo_messaggio_il"
-  | "ultimo_messaggio_direzione"
->;
 
 /** La catena di Supabase, ridotta ai soli metodi usati qui (come in useChatWa). */
-interface Catena {
+interface Catena extends PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }> {
   select: (s: string) => Catena;
   eq: (k: string, v: string) => Catena;
   not: (k: string, op: string, v: null) => Catena;
+  in: (k: string, v: string[]) => Catena;
+  gte: (k: string, v: string) => Catena;
   order: (k: string) => Catena;
-  range: (da: number, a: number) => Promise<{ data: Riga[] | null; error: unknown }>;
-}
-
-/** La lettura vera: una pagina di righe, `null` se il database dice no. */
-type LeggiPagina = (da: number, a: number) => Promise<Riga[] | null>;
-
-/** Quante chat sono in attesa, leggendo tutte le pagine; `null` a qualunque errore. */
-export async function contaDalDatabase(leggi: LeggiPagina, adesso: Date): Promise<number | null> {
-  try {
-    const righe: Riga[] = [];
-    for (let p = 0; p < MAX_PAGINE; p++) {
-      const pagina = await leggi(p * PAGINA, (p + 1) * PAGINA - 1);
-      if (!pagina) return null;
-      righe.push(...pagina);
-      if (pagina.length < PAGINA) break;
-    }
-    return contaDaRispondere(righe, adesso);
-  } catch {
-    return null;
-  }
+  range: (da: number, a: number) => Catena;
 }
 
 /** Il numero di chat in attesa per l'utente collegato; `0` finché non si sa. */
@@ -93,20 +58,26 @@ export function useDaRispondere(attivo: boolean): number {
     }
     let vivo = true;
 
-    const leggi: LeggiPagina = async (da, a) => {
-      const pagina = (colonne: string) =>
-        (supabase as unknown as { from: (t: string) => Catena })
-          .from("whatsapp_contacts")
+    const tabella = (t: string) => (supabase as unknown as { from: (t: string) => Catena }).from(t);
+    const porte: PorteMenu = {
+      contatti: async (colonne, da, a) =>
+        await tabella("whatsapp_contacts")
           .select(colonne)
           .eq("user_id", userId)
           .not("ultimo_in_entrata_il", "is", null)
           .order("id")
-          .range(da, a);
-      const r = await pagina(COLONNE);
-      //  Migrazione dell'ultimo messaggio non applicata: si conta come prima (solo `risposto_il`).
-      if (r.error && colonnaMancante(r.error as { code?: string; message: string }))
-        return (await pagina(COLONNE_BASE)).data;
-      return r.error ? null : r.data;
+          .range(da, a),
+      //  I nostri invii non partiti (`failed`) dei soli numeri che servono.
+      fallitiDi: async (numeri, dal) => {
+        const { data, error } = await tabella("whatsapp_messages")
+          .select("to_number,created_at")
+          .eq("user_id", userId)
+          .eq("direction", "outbound")
+          .eq("status", "failed")
+          .in("to_number", numeri)
+          .gte("created_at", dal);
+        return error ? null : (data as { to_number: string; created_at: string }[] | null);
+      },
     };
 
     //  Una lettura alla volta: se la rete è lenta e un'altra scatta, si salta.
@@ -114,7 +85,7 @@ export function useDaRispondere(attivo: boolean): number {
     const aggiorna = async () => {
       if (inCorso || document.visibilityState === "hidden") return;
       inCorso = true;
-      const conto = await contaDalDatabase(leggi, new Date());
+      const conto = await contaDalDatabase(porte, new Date());
       inCorso = false;
       //  `null` = lettura fallita: si tiene il numero di prima.
       if (vivo && conto !== null) setN(conto);

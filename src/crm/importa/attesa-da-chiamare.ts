@@ -24,6 +24,9 @@ export interface ContattoWa {
   ultimoInEntrataIl?: string | null;
   /** STOP: ha chiesto di non essere contattato */
   stop?: boolean;
+  /** l'ultimo messaggio della chat e la sua direzione (`ultimo_messaggio_*`) */
+  ultimoMessaggioIl?: string | null;
+  ultimoMessaggioDirezione?: string | null;
 }
 
 /** Le ultime nove cifre: la stessa impronta del numero usata in tutto il CRM. */
@@ -47,6 +50,7 @@ export function patchDaChiamare(
     messaggi,
     stop: contatto?.stop ?? false,
     ultimaEntrataIl: contatto?.ultimoInEntrataIl ?? null,
+    ultimoMessaggio: { il: contatto?.ultimoMessaggioIl, direzione: contatto?.ultimoMessaggioDirezione },
     adesso,
   });
   if (!esito.si) return null;

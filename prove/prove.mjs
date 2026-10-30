@@ -621,6 +621,7 @@ const MODULI = [
   //   `proveManychat`.
   "chatwa/media",
   "chatwa/stato",
+  "chatwa/menuDaRispondere",
   "chatwa/cercaChat",
   //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
   //   prove in prove/manychat/chat-per-stato.mjs.
@@ -21392,7 +21393,7 @@ provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
-proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
+await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });

@@ -42,6 +42,8 @@ export type MessaggioAttesa = {
   from_number?: string | null;
   to_number?: string | null;
   body?: string | null;
+  /** `failed` = non è partito: il cliente non l'ha mai visto, non è una nostra risposta. */
+  status?: string | null;
 };
 type Messaggio = MessaggioAttesa;
 
@@ -137,6 +139,9 @@ export function calcolaDaChiamare(p: {
   /** l'ultimo messaggio del cliente secondo la rubrica: vale anche se i
    *  messaggi caricati non arrivano così indietro (non se è un'eco) */
   ultimaEntrataIl?: string | null;
+  /** L'ultimo messaggio della chat secondo il contatto (`ultimo_messaggio_*`, scritto dal trigger
+   *  per ogni canale): serve quando i messaggi caricati non arrivano così indietro. */
+  ultimoMessaggio?: { il?: string | null; direzione?: string | null } | null;
   adesso: Date;
 }): DaChiamare {
   if (p.stop) return NO;
@@ -157,10 +162,24 @@ export function calcolaDaChiamare(p: {
   for (const m of p.messaggi) {
     const t = ms(m.created_at);
     if (!Number.isFinite(t) || m.duplicato_di) continue;
+    //  Un nostro invio non partito non è una risposta: il cliente non l'ha ricevuto.
+    if (m.direction === "outbound" && m.status === "failed") continue;
     if (m.direction === "outbound") ultimoNostro = piu(ultimoNostro, t);
     else if (m.direction === "inbound" && !eco.has(m)) ultimaEntrataMsg = piu(ultimaEntrataMsg, t);
   }
   const entrata = Math.max(ultimaEntrata || 0, ultimaEntrataMsg || 0);
+  //  ── L'ULTIMA PAROLA È DEL CLIENTE (30/10/2026) ───────────────────────────
+  //  Se il contatto dice che l'ultimo messaggio della chat è in entrata (e non è un'eco), il
+  //  cliente aspetta noi: non è «Da chiamare» a prescindere da quanto tempo è passato e da quanti
+  //  nostri messaggi stanno oltre i 7 giorni caricati. Senza questo dato vale il confronto sotto.
+  const ult = ms(p.ultimoMessaggio?.il);
+  if (
+    p.ultimoMessaggio?.direzione === "inbound" &&
+    Number.isFinite(ult) &&
+    !eEco(ult) &&
+    (!Number.isFinite(ultimoNostro) || ult > ultimoNostro)
+  )
+    return NO;
   //  Se l'ultimo messaggio è del cliente, la palla è nostra («Da rispondere»).
   if (Number.isFinite(ultimoNostro) && entrata > ultimoNostro) return NO;
   const inizio = Math.max(Date.parse(dal), Number.isFinite(ultimoNostro) ? ultimoNostro : 0);
@@ -195,6 +214,9 @@ export const STATI_SOTTOFILTRI = [
   "richiamo",
   "ci_ricontatta_lui",
 ] as const;
+/** Un numero senza scheda con l'ultimo messaggio più vecchio di così NON è «Da chiamare»
+ *  (decisione del titolare, 30/10/2026): resta nella lista «Sconosciuti» e in «Tutte». */
+export const GIORNI_SCONOSCIUTI_DA_CHIAMARE = 60;
 export type StatoChiamata = (typeof STATI_SOTTOFILTRI)[number];
 export type Sottofiltro = "tutti" | StatoChiamata;
 
@@ -239,7 +261,7 @@ interface ChatConStato {
  *  la scheda (la riga ha già «Crea scheda» e «Abbina»). Mai con lo STOP, mai
  *  se i numeri hanno più schede (lì si abbina prima), mai a finestra aperta
  *  o non calcolata. */
-export function statoChiamata(c: ChatConStato): StatoChiamata | null {
+export function statoChiamata(c: ChatConStato, adesso: number = Date.now()): StatoChiamata | null {
   //  ── DA RISPONDERE VINCE (regola del titolare, 30/10/2026) ───────────────────
   //  Se l'ultimo messaggio è del cliente la palla è nostra: resta in «Da rispondere», anche a
   //  finestra chiusa e anche dopo giorni. Mai in «Da chiamare» per il solo passare del tempo.
@@ -250,7 +272,13 @@ export function statoChiamata(c: ChatConStato): StatoChiamata | null {
     //  manda a chiamare (tocca rispondere); si chiama chi ha avuto l'ultima parola da parte nostra.
     //  Ultimo messaggio ignoto (nessun dato): come prima.
     const ultimo = ultimoDellaChat(c.lastMessage ?? null, c.contact ?? null);
-    return ultimo?.direction === "inbound" ? null : "da_chiamare";
+    if (ultimo?.direction === "inbound") return null;
+    //  Chat ferma da più di 60 giorni (qualunque direzione): resta fra gli «Sconosciuti», non si chiama.
+    //  Senza data non si sa: come prima. shortcut: `adesso` di default è l'ora del telefono; la
+    //  lista lo passa se serve un'ora fissa, cambiarla se l'orologio del telefono diventa un problema.
+    const t = Date.parse(String(ultimo?.created_at ?? ""));
+    if (Number.isFinite(t) && adesso - t > GIORNI_SCONOSCIUTI_DA_CHIAMARE * 86_400_000) return null;
+    return "da_chiamare";
   }
   const s = String(c.lead?.data?.stato ?? "");
   return (STATI_SOTTOFILTRI as readonly string[]).includes(s) ? (s as StatoChiamata) : null;

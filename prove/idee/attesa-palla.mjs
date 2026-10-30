@@ -313,9 +313,9 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
     hook.indexOf("export async function giroAttesaDaChiamare"),
   );
   c(
-    "legge i messaggi con le sole colonne che servono (body incluso, per l'eco)",
+    "legge i messaggi con le sole colonne che servono (body per l'eco, status per gli invii non partiti)",
     true,
-    /\.select\("direction, created_at, canale, duplicato_di, from_number, to_number, body"\)/.test(
+    /\.select\("direction, created_at, canale, duplicato_di, from_number, to_number, body, status"\)/.test(
       giro,
     ),
   );
