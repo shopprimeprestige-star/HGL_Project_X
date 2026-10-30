@@ -1,5 +1,14 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, ListChecks, Loader2, Search, Star, Wrench, X } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ListChecks,
+  Loader2,
+  Search,
+  Star,
+  Wrench,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -65,9 +74,25 @@ const RIGA_SCORREVOLE =
 
 /** Un sottofiltro (30/10/2026): la versione leggera della pillola, solo testo con la linea sotto
  *  per quello scelto. 44 px di tocco sul telefono come le pillole, 32 dal computer. */
+/** ── IL CONTATORE DELLE LINGUETTE (31/10/2026) ──────────────────────────
+ *  Richiesta del titolare: «il numero dentro ogni filtro come badge, non
+ *  attaccato al testo». Un tondino piccolo, grigio a riposo, del colore della
+ *  linguetta quando è scelta, rosso per «Scaduti». */
+const contatore = (acceso: boolean, allarme = false) =>
+  cn(
+    "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 t-etichetta font-semibold tabular-nums",
+    allarme
+      ? acceso
+        ? "bg-red-700 text-white"
+        : "bg-red-50 text-red-700"
+      : acceso
+        ? "bg-primary text-primary-foreground"
+        : "bg-muted text-muted-foreground",
+  );
+
 const sottoTasto = (acceso: boolean, allarme = false) =>
   cn(
-    "t-nota inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-2.5 font-medium transition-colors lg:pointer-fine:h-8",
+    "t-nota inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 font-medium transition-colors lg:pointer-fine:h-8",
     acceso
       ? allarme
         ? "border-red-700 text-red-700"
@@ -160,7 +185,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  Nelle code gli acconti salgono DENTRO la sezione (30/10/2026), prima delle stelle; con «Con stelle»
   //  acceso l'ordine resta quello delle stelle, che è ciò che si sta cercando.
   const perStelle = (righe: ChatItem[]) =>
-    filtri.stelle ? ordinaPerStelle(righe, stelleDi) : saliAcconti(ordinaPerStelle(righe, stelleDi));
+    filtri.stelle
+      ? ordinaPerStelle(righe, stelleDi)
+      : saliAcconti(ordinaPerStelle(righe, stelleDi));
   //  ── FINESTRA IN CHIUSURA IN CIMA (30/10/2026) ───────────────────────────
   //  Con «Si può scrivere» le chat che chiudono entro 4 ore hanno un riquadro tutto loro, sopra
   //  «Da rispondere», dalla scadenza più vicina: si scrive gratis finché si può.
@@ -331,11 +358,13 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           if (ok) fatte = piano.fare.length;
           else rimaste = piano.fare;
         } else {
-          const r = await (azione === "letto"
-            ? blocco.segnaLetto
-            : azione === "da-leggere"
-              ? blocco.segnaDaLeggere
-              : blocco.segnaFatto)(piano.fare);
+          const r = await (
+            azione === "letto"
+              ? blocco.segnaLetto
+              : azione === "da-leggere"
+                ? blocco.segnaDaLeggere
+                : blocco.segnaFatto
+          )(piano.fare);
           fatte = r.riuscite.length;
           rimaste = r.fallite;
           manca = r.manca === true;
@@ -573,7 +602,10 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
               {v.campo === "stelle" && (
                 <Star
                   aria-hidden="true"
-                  className={cn("h-3.5 w-3.5 shrink-0", acceso ? "text-amber-300" : "text-amber-600")}
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0",
+                    acceso ? "text-amber-300" : "text-amber-600",
+                  )}
                 />
               )}
               <span className="whitespace-nowrap">{v.nome}</span>
@@ -626,7 +658,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           quella scelta). I numeri sono quelli che vedrai toccando. */}
       {filtri.coda === "da-chiamare" && (
         <div className="border-y border-border bg-muted/30 px-3 md:px-2">
-          <div role="group" aria-label="Stato della chiamata" className={cn(RIGA_SCORREVOLE, "gap-1")}>
+          <div
+            role="group"
+            aria-label="Stato della chiamata"
+            className={cn(RIGA_SCORREVOLE, "gap-1")}
+          >
             {CHIP_SOTTOFILTRI.filter((x) => x.v === "tutti" || conti[x.v] > 0).map((x) => (
               <button
                 key={x.v}
@@ -635,7 +671,8 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 onClick={() => setSotto(x.v)}
                 className={sottoTasto(sottoAttivo === x.v)}
               >
-                {x.l} <span className="tabular-nums">{conti[x.v]}</span>
+                {x.l}
+                <span className={contatore(sottoAttivo === x.v)}>{conti[x.v]}</span>
               </button>
             ))}
           </div>
@@ -654,7 +691,8 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                   onClick={() => setQuando(x.v)}
                   className={sottoTasto(quandoAttivo === x.v, x.v === "scaduti")}
                 >
-                  {x.l} <span className="tabular-nums">{x.n}</span>
+                  {x.l}
+                  <span className={contatore(quandoAttivo === x.v, x.v === "scaduti")}>{x.n}</span>
                 </button>
               ))}
             </div>
@@ -699,13 +737,18 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                   </span>
                 </h2>
                 <ul>
-                  {senzaSchedaVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+                  {senzaSchedaVis.map((c) =>
+                    riga(c, c.daRispondere?.attesa ? "attesa" : "normale"),
+                  )}
                 </ul>
               </section>
             )}
             {daInstallareTutte.length > 0 && (
               <section aria-labelledby="titolo-da-installare">
-                <h2 id="titolo-da-installare" className="border-b border-violet-200 bg-violet-50/70">
+                <h2
+                  id="titolo-da-installare"
+                  className="border-b border-violet-200 bg-violet-50/70"
+                >
                   <button
                     type="button"
                     aria-expanded={apertoAcconti}
