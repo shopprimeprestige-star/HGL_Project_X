@@ -26,14 +26,17 @@ export function velocitaValida(v: unknown): number {
   const n = Number(v);
   return (VELOCITA as readonly number[]).includes(n) ? n : 1;
 }
+let ultimaVelocita = 1; // vale anche con l'archivio bloccato (navigazione privata)
 export function velocitaSalvata(): number {
   try {
-    return velocitaValida(globalThis.localStorage?.getItem(CHIAVE_VELOCITA));
+    const salvata = globalThis.localStorage?.getItem(CHIAVE_VELOCITA);
+    return salvata == null ? ultimaVelocita : velocitaValida(salvata);
   } catch {
-    return 1;
+    return ultimaVelocita;
   }
 }
 export function salvaVelocita(v: number): void {
+  ultimaVelocita = velocitaValida(v);
   try {
     globalThis.localStorage?.setItem(CHIAVE_VELOCITA, String(velocitaValida(v)));
   } catch {

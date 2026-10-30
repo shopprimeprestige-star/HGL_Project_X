@@ -18,6 +18,8 @@ export function proveChatStile(mod, { c, gruppo, radice }) {
   c("velocità salvata: strana o mancante → 1×", [1, 1, 1, 1], [null, "3", "abc", undefined].map(S.velocitaValida));
   c("velocità senza archivio del browser → 1×", 1, S.velocitaSalvata());
   c("salvare senza archivio non rompe", undefined, S.salvaVelocita(2));
+  c("senza archivio: salva 2× → rileggi 2× (vale per il vocale dopo)", 2, S.velocitaSalvata());
+  S.salvaVelocita(1);
   c("zero", "0:00", S.tempoVocale(0));
   c("sette secondi", "0:07", S.tempoVocale(7.4));
   c("un minuto e cinque", "1:05", S.tempoVocale(65));

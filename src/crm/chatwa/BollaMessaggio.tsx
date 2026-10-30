@@ -124,7 +124,10 @@ function Vocale({ url }: { url: string }) {
     }
     if (vocaleInCorso && vocaleInCorso !== a) vocaleInCorso.pause();
     vocaleInCorso = a;
-    a.playbackRate = velocita;
+    //  La velocità scelta su un altro vocale vale anche per questo.
+    const v = velocitaSalvata();
+    setVelocita(v);
+    a.playbackRate = v;
     setPartito(true);
     if (a.readyState < 3) setStato("carica");
     a.play().catch((e: unknown) => {
@@ -216,7 +219,7 @@ function Vocale({ url }: { url: string }) {
             tabIndex={0}
             aria-label="Posizione nel vocale"
             aria-valuemin={0}
-            aria-valuemax={Math.round(durata) || 0}
+            aria-valuemax={Number.isFinite(durata) ? Math.round(durata) : 0}
             aria-valuenow={Math.round(tempo)}
             aria-valuetext={`${tempoVocale(tempo)} di ${tempoVocale(durata)}`}
             //  `touch-none` solo qui: trascinare la barra non deve far scorrere la chat.
