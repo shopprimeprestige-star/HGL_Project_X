@@ -56,6 +56,7 @@ import {
   Info,
   MessageCircle,
   Phone,
+  PhoneCall,
   PhoneOff,
   Repeat,
   StickyNote,
@@ -70,6 +71,7 @@ import { SegnoPriorita } from "@/crm/PrioritaPosa";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { numeroDaComporre } from "@/crm/importa/chiamare";
 import { Pannello, Pillola } from "@/crm/ui/Finestra";
 import {
   CLASSE_BADGE_STATO,
@@ -101,6 +103,8 @@ import { AzioniLead } from "./AzioniLead";
  *  esteso: chi conosce la pagina legge l'icona, chi ci arriva oggi legge la
  *  frase. Non sono un doppione, sono due velocità di lettura. */
 const ICONA_RIGA: Record<TipoRiga, ComponentType<{ className?: string }>> = {
+  //  La cornetta che squilla: è l'unica riga che chiede di chiamare ADESSO.
+  senza_conferma: PhoneCall,
   ricontatto: Phone,
   meet_da_fissare: CalendarPlus,
   meet_da_rifissare: CalendarClock,
@@ -550,6 +554,10 @@ export function VoceDaFare({
       }}
       className={cn(
         "flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors",
+        //  La riga di «non ha confermato» ha sotto la sua striscia a tutta
+        //  larghezza (etichetta + Chiama): sul telefono non ci starebbe accanto
+        //  agli altri comandi.
+        riga.senzaConferma && "flex-wrap",
         riga.fatta
           ? "border-border bg-muted/40 opacity-60"
           : scelta
@@ -562,16 +570,21 @@ export function VoceDaFare({
               //   invece che con una barretta sovrapposta — ma è lo stesso
               //   segno, nello stesso posto, e vuol dire la stessa cosa.
               "border-primary/40 border-l-[3px] border-l-primary bg-primary/[0.07]"
-            : scritto
-              ? //  ⚠️ Azzurro chiaro e SENZA anello: «è adesso» ha il bordo
-                //   acceso e l'anello perché chiama; questa riga invece è
-                //   sistemata, e deve calmarsi — non gridare un secondo
-                //   allarme accanto a quello vero. Vince su «è adesso» proprio
-                //   per questo: scritto il messaggio, l'urgenza è passata.
-                "border-sky-200 bg-sky-50/80"
-              : eAdesso
-                ? "border-sky-500 bg-sky-50/70 ring-1 ring-sky-500/40"
-                : "border-border bg-card hover:bg-accent/50",
+            : riga.senzaConferma
+              ? //  Ambra: è l'avviso di una consulenza che può saltare. Non il
+                //  rosso del ritardo (nessuno ha sbagliato niente) e non
+                //  l'azzurro di «adesso» (che dice «è il momento»).
+                "border-amber-400 bg-amber-50/80"
+              : scritto
+                ? //  ⚠️ Azzurro chiaro e SENZA anello: «è adesso» ha il bordo
+                  //   acceso e l'anello perché chiama; questa riga invece è
+                  //   sistemata, e deve calmarsi — non gridare un secondo
+                  //   allarme accanto a quello vero. Vince su «è adesso» proprio
+                  //   per questo: scritto il messaggio, l'urgenza è passata.
+                  "border-sky-200 bg-sky-50/80"
+                : eAdesso
+                  ? "border-sky-500 bg-sky-50/70 ring-1 ring-sky-500/40"
+                  : "border-border bg-card hover:bg-accent/50",
       )}
     >
       {onScegli ? (
@@ -725,6 +738,32 @@ export function VoceDaFare({
 
       {riga.task && !riga.fatta && (
         <SpostaTask riga={riga} occupato={occupato} onSposta={onSposta} />
+      )}
+
+      {/* ── NON HA CONFERMATO: LA FRASE E IL TASTO PER CHIAMARE ───────────
+          Su una striscia sua, a tutta larghezza (30/10/2026): la frase non si
+          tronca e il tasto è grande abbastanza per il dito, anche a 375 px.
+          Il tasto è un collegamento `tel:` come quello della chat, col numero
+          pulito da `numeroDaComporre`. */}
+      {riga.senzaConferma && (
+        <div className="flex basis-full items-center justify-between gap-3 border-t border-amber-200 pt-2">
+          <span className="min-w-0 text-[12.5px] font-semibold leading-snug text-amber-900">
+            {riga.senzaConferma.etichetta}
+          </span>
+          {numeroDaComporre(riga.lead?.data?.telefono ?? "") ? (
+            <Button asChild className="h-10 shrink-0 px-4 text-[13px] font-semibold">
+              <a
+                href={`tel:${numeroDaComporre(riga.lead?.data?.telefono ?? "")}`}
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Chiama ${riga.chi}`}
+              >
+                <Phone className="mr-1.5 h-4 w-4" /> Chiama
+              </a>
+            </Button>
+          ) : (
+            <span className="shrink-0 text-[11.5px] text-amber-800">Senza numero</span>
+          )}
+        </div>
       )}
 
       {riga.task && (

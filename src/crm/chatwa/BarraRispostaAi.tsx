@@ -21,7 +21,13 @@ export function BarraRispostaAi({ ai }: { ai: RispostaAiApi }) {
           <Sparkles className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
           <span className="min-w-0 flex-1 text-[13px] leading-tight text-foreground">
             {attesa ? (
-              "Il Mac sta scrivendo la risposta…"
+              <>
+                Il Mac sta scrivendo la risposta…
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {n} {n === 1 ? "messaggio" : "messaggi"}
+                </span>
+              </>
             ) : n === 0 ? (
               "Tocca i messaggi a cui rispondere"
             ) : (
@@ -95,6 +101,15 @@ export function BarraRispostaAi({ ai }: { ai: RispostaAiApi }) {
             <span className="sm:hidden">{attesa ? "…" : "Scrivi"}</span>
           </Button>
         </div>
+        {attesa && (
+          <button
+            type="button"
+            onClick={ai.ferma}
+            className="-my-1 self-start rounded px-1 py-2.5 text-[12.5px] font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:py-1"
+          >
+            Cambia i messaggi scelti
+          </button>
+        )}
         {ai.errore && (
           <p role="alert" className="text-[12.5px] leading-snug text-rose-700">
             {ai.errore}

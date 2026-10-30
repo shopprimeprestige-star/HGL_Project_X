@@ -28,6 +28,12 @@ export const TARIFFE: Record<CategoriaCosto, number> = {
 export const TARIFFE_DAL = "2026-10-01";
 export const TARIFFE_FONTE = "https://developers.facebook.com/docs/whatsapp/pricing";
 
+/** € di un testo normale dentro la finestra aperta dal cliente: per Meta è gratis
+ *  (fino a 1.000 conversazioni di servizio al mese per numero, come dice il pannello).
+ *  È l'ipotesi già scritta nel pannello dei costi: il «risparmio» è prezzo del modello meno questo.
+ *  shortcut: non si conta il tetto delle 1.000 al mese; da cambiare se un mese ci si avvicina. */
+export const COSTO_TESTO_IN_FINESTRA = 0;
+
 export const ETICHETTA_CATEGORIA: Record<CategoriaCosto, string> = {
   marketing: "Marketing",
   utility: "Utility",
@@ -59,7 +65,8 @@ const CATEGORIA_DEI_MODELLI: Record<string, CategoriaCosto> = {
 const nomeBase = (nome: string) => nome.replace(/^hgl_/, "").replace(/_v\d+$/, "");
 
 /** Il modello è nell'elenco delle categorie vere? Se no, la cifra è solo una stima. */
-export const categoriaConosciuta = (nome: string): boolean => nomeBase(nome) in CATEGORIA_DEI_MODELLI;
+export const categoriaConosciuta = (nome: string): boolean =>
+  nomeBase(nome) in CATEGORIA_DEI_MODELLI;
 
 /** La categoria di un modello. Se non è nell'elenco vale quella dichiarata dal
  *  modello; senza nemmeno quella, Marketing (la più cara: mai sottostimare). */

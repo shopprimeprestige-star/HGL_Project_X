@@ -8,8 +8,21 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { LeadData } from "@/crm/types";
-import { CHIAVE_BATTITO, MESSAGGI_CONTESTO, type MessaggioRiga } from "./regole";
-import type { PorteRisposteAi, RichiestaInCoda } from "./ingresso";
+import {
+  BOZZA_ENTRO_ORE,
+  CHIAVE_BATTITO,
+  MESSAGGI_CONTESTO,
+  colonnaMancante,
+  tempoDiCercareBozza,
+  type ContattoBozza,
+  type MessaggioRiga,
+} from "./regole";
+import {
+  preparaBozza,
+  type LettureBozza,
+  type PorteRisposteAi,
+  type RichiestaInCoda,
+} from "./ingresso";
 
 type Esito<T> = { data: T | null; error: { message?: string; code?: string } | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,6 +39,99 @@ const forme = (telefono: string) => {
 };
 
 const COLONNE_MSG = "id, direction, body, created_at";
+
+/** L'ultima ricerca a vuoto di una bozza (per istanza del server).
+ *  shortcut: la memoria è di un'istanza sola, con più istanze la ricerca si fa
+ *  qualche volta in più; basta per tenere leggero il database, da rivedere se
+ *  le richieste del Mac diventano molte. */
+let ultimaRicercaBozza = 0;
+
+/** Le letture della bozza automatica sul database vero. Ognuna filtra per utente. */
+const lettureBozza = (userId: string): LettureBozza => ({
+  automaticheRecenti: async (adesso) => {
+    const da = new Date(adesso.getTime() - BOZZA_ENTRO_ORE * 3_600_000).toISOString();
+    const r: Esito<{ id: string }[]> = await db()
+      .from("wa_risposte_ai")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("automatica", true)
+      .gte("creata_il", da)
+      .limit(200);
+    if (r.error) return lancia(r.error);
+    return r.data?.length ?? 0;
+  },
+
+  contatti: async (adesso) => {
+    const da = new Date(adesso.getTime() - BOZZA_ENTRO_ORE * 3_600_000).toISOString();
+    const r: Esito<ContattoBozza[]> = await db()
+      .from("whatsapp_contacts")
+      .select("phone_e164, lead_id, ultimo_in_entrata_il, risposto_il, non_scrivere_dal")
+      .eq("user_id", userId)
+      .not("lead_id", "is", null)
+      .is("non_scrivere_dal", null)
+      .gte("ultimo_in_entrata_il", da)
+      .order("ultimo_in_entrata_il", { ascending: false })
+      .limit(40);
+    if (r.error) return lancia(r.error);
+    return r.data ?? [];
+  },
+
+  messaggi: async (telefono) => {
+    const [a, b] = forme(telefono);
+    const r: Esito<MessaggioRiga[]> = await db()
+      .from("whatsapp_messages")
+      .select(COLONNE_MSG)
+      .eq("user_id", userId)
+      .or(`from_number.eq.${a},to_number.eq.${a},from_number.eq.${b},to_number.eq.${b}`)
+      .is("duplicato_di", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (r.error) return lancia(r.error);
+    return r.data ?? [];
+  },
+
+  richiestaDopo: async (telefono, dopo) => {
+    const r: Esito<{ id: string }[]> = await db()
+      .from("wa_risposte_ai")
+      .select("id")
+      .eq("user_id", userId)
+      .in("telefono", forme(telefono))
+      .gt("creata_il", dopo)
+      .limit(1);
+    if (r.error) return lancia(r.error);
+    return (r.data?.length ?? 0) > 0;
+  },
+
+  schedaEsiste: async (leadId) => {
+    const r: Esito<{ id: string }> = await db()
+      .from("crm_leads")
+      .select("id")
+      .eq("id", leadId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (r.error) return lancia(r.error);
+    return Boolean(r.data);
+  },
+
+  crea: async (telefono, leadId, scelti) => {
+    const r: Esito<RichiestaInCoda> = await db()
+      .from("wa_risposte_ai")
+      .insert({
+        user_id: userId,
+        telefono,
+        lead_id: leadId,
+        messaggi: scelti,
+        automatica: true,
+        //  Nasce già presa: la rotta la dà al Mac subito, nessun altro la prende.
+        stato: "in_lavoro",
+        presa_il: new Date().toISOString(),
+      })
+      .select("id, telefono, messaggi, indicazione")
+      .single();
+    if (r.error || !r.data) return lancia(r.error ?? new Error("bozza_non_scritta"));
+    return { ...r.data, messaggi: r.data.messaggi ?? [], orari: null };
+  },
+});
 
 export function porteRisposteAi(): PorteRisposteAi {
   return {
@@ -61,8 +167,32 @@ export function porteRisposteAi(): PorteRisposteAi {
       if (error) return lancia(error);
       const r = data?.[0];
       return r
-        ? { id: r.id, telefono: r.telefono, messaggi: r.messaggi ?? [], indicazione: r.indicazione }
+        ? {
+            id: r.id,
+            telefono: r.telefono,
+            messaggi: r.messaggi ?? [],
+            indicazione: r.indicazione,
+            orari: r.orari ?? null,
+          }
         : null;
+    },
+
+    //  Mai un errore verso il Mac: la bozza è un di più. Senza la colonna
+    //  `automatica` (migrazione non applicata) si tace e tutto va come prima.
+    bozza: async (userId) => {
+      const adesso = Date.now();
+      if (!tempoDiCercareBozza(ultimaRicercaBozza, adesso)) return null;
+      try {
+        const q = await preparaBozza(lettureBozza(userId), new Date(adesso));
+        //  Trovata: il Mac richiede subito, può essercene un'altra; a vuoto si aspetta.
+        ultimaRicercaBozza = q ? 0 : adesso;
+        return q;
+      } catch (e) {
+        ultimaRicercaBozza = adesso;
+        if (!colonnaMancante(e as { code?: string }))
+          console.warn("[risposte-ai] bozza_non_preparata");
+        return null;
+      }
     },
 
     messaggiChat: async (userId, telefono, scelti) => {

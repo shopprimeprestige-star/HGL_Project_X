@@ -42,6 +42,7 @@ import { accontoDi } from "@/crm/kpi-calcoli";
 import { oggiIso, soloData } from "@/crm/ui";
 import type { TonoAttesa } from "@/crm/ui";
 import { giorniFra, istanteDi, oraPulita } from "./quando";
+import { senzaConfermaOggi, type SenzaConferma } from "./senza-conferma";
 import type { TaskManuale } from "./task-manuali";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -49,6 +50,11 @@ import type { TaskManuale } from "./task-manuali";
    ═════════════════════════════════════════════════════════════════════════ */
 
 export type TipoRiga =
+  /** ── CHI NON HA CONFERMATO LA CONSULENZA DI OGGI (30/10/2026) ───────────
+   *  L'altra riga che nasce da un APPUNTAMENTO, che qui sotto è escluso: entra
+   *  solo se la consulenza è oggi, l'ora si avvicina e il cliente non ha
+   *  confermato. Le regole stanno in ./senza-conferma. */
+  | "senza_conferma"
   | "ricontatto"
   | "meet_da_fissare"
   | "meet_da_rifissare"
@@ -76,6 +82,12 @@ export interface MetaRiga {
 }
 
 export const META_RIGA: Record<TipoRiga, MetaRiga> = {
+  senza_conferma: {
+    verbo: "Chiamare",
+    filtro: "Non confermati",
+    spiegazione:
+      "La consulenza è oggi e il cliente non ha ancora confermato: si chiama prima che arrivi l'ora.",
+  },
   ricontatto: {
     verbo: "Ricontattare",
     filtro: "Ricontatti",
@@ -146,6 +158,7 @@ export function verboRiga(tipo: TipoRiga, stato?: LeadStatus): string {
  *  vengono provate su ogni lead: dalla più precisa (c'è una data concordata)
  *  alla più dedotta (lo stato dice che c'è da riprovare). */
 export const TIPI_RIGA: TipoRiga[] = [
+  "senza_conferma",
   "ricontatto",
   "meet_da_fissare",
   "meet_da_rifissare",
@@ -179,6 +192,11 @@ export interface RigaDaFare {
   istante: number | null;
   /** Solo per le righe scritte a mano: già spuntata. */
   fatta: boolean;
+  /** Presente quando il lead ha la consulenza OGGI e non ha confermato: la riga
+   *  sale nel gruppo «Da sentire» con questa etichetta. Resta UNA riga anche se
+   *  il lead è nell'elenco per un altro motivo: il motivo in più si aggiunge qui
+   *  e non fa un'altra riga. */
+  senzaConferma?: SenzaConferma;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -386,24 +404,35 @@ export function costruisciRighe({ leads, task, ora }: IngressoRighe): RigaDaFare
     //   Oggi. Qui c'è il contorno della giornata, non l'agenda.
     //   Il giorno in cui il committente le volesse anche qui, è UNA regola in
     //   più in `candidatiDi` che legge dataMeeting/oraMeeting.
-    if (eAppuntamento(d.stato)) continue;
+    //  ⚠️ L'UNICA ECCEZIONE (30/10/2026, richiesta del titolare): la consulenza
+    //   di OGGI di chi non ha confermato. Non è un secondo elenco
+    //   dell'agenda: è la telefonata che serve prima che l'ora arrivi, e sparisce
+    //   da sola appena il cliente conferma. Vedi ./senza-conferma.
+    const senza = senzaConfermaOggi(d, ora);
+    if (eAppuntamento(d.stato) && !senza) continue;
 
     const regola = scegliCandidato(candidatiDi(d, oggi), oggi);
     //  Nessun gesto, o un gesto senza giorno: non appartiene a nessuna
     //  giornata, quindi è coda e non lavoro di oggi.
-    if (!regola) continue;
+    if (!regola && !senza) continue;
 
+    //  Una persona = una riga: se c'è già un gesto per altri motivi la riga è
+    //  quella, e `senzaConferma` la fa salire in cima con l'etichetta in più.
+    const tipo: TipoRiga = regola?.tipo ?? "senza_conferma";
+    const giorno = regola?.giorno ?? String(d.dataMeeting);
+    const oraRiga = regola ? regola.ora : (senza?.ora ?? "");
     const chi = nomeDi(d);
     righe.push({
       id: `lead:${l.id}`,
-      tipo: regola.tipo,
-      cosa: `${verboRiga(regola.tipo, d.stato)} ${chi}`.trim(),
+      tipo,
+      cosa: `${verboRiga(tipo, d.stato)} ${chi}`.trim(),
       chi,
       lead: l,
-      giorno: regola.giorno,
-      ora: regola.ora,
-      istante: istanteDi(regola.giorno, regola.ora),
+      giorno,
+      ora: oraRiga,
+      istante: istanteDi(giorno, oraRiga),
       fatta: false,
+      ...(senza ? { senzaConferma: senza } : {}),
     });
   }
 
@@ -443,6 +472,7 @@ export function costruisciRighe({ leads, task, ora }: IngressoRighe): RigaDaFare
    ═════════════════════════════════════════════════════════════════════════ */
 
 export type Fascia =
+  | "daSentire"
   | "daIeri"
   | "adesso"
   | "mattina"
@@ -464,6 +494,7 @@ export type Fascia =
  *     Se stesse sopra, la prima cosa che si legge aprendo la pagina sarebbe
  *     lavoro che non è ancora nostro. */
 export const FASCE: Fascia[] = [
+  "daSentire",
   "daIeri",
   "adesso",
   "mattina",
@@ -474,6 +505,7 @@ export const FASCE: Fascia[] = [
 ];
 
 export const TITOLO_FASCIA: Record<Fascia, string> = {
+  daSentire: "Da sentire subito",
   daIeri: "Rimasto indietro",
   adesso: "Adesso",
   mattina: "Stamattina",
@@ -484,6 +516,7 @@ export const TITOLO_FASCIA: Record<Fascia, string> = {
 };
 
 export const NOTA_FASCIA: Record<Fascia, string> = {
+  daSentire: "Consulenza di oggi senza conferma: si chiama prima che arrivi l'ora",
   daIeri: "Scritto a mano nei giorni scorsi e mai spuntato: si sposta a oggi in un clic",
   adesso: "È il momento — o lo era, e nessuno l'ha ancora fatto",
   mattina: "Ha un'ora, prima delle 13",
@@ -523,6 +556,10 @@ const SOGLIA_RITARDO_MS = 30 * 60_000;
 const CONFINE_POMERIGGIO_MIN = 13 * 60;
 
 export function fasciaDi(r: RigaDaFare, adesso: number, oggi: string): Fascia {
+  //  Chi non ha confermato la consulenza di oggi sta in cima a tutto, prima
+  //  anche di «Rimasto indietro»: tra un'ora potrebbe non esserci più niente da
+  //  salvare. Esce da solo quando `costruisciRighe` non produce più il segno.
+  if (r.senzaConferma) return "daSentire";
   if (r.giorno < oggi) return r.tipo === "task" ? "daIeri" : "arretrato";
   //  Il futuro è un gruppo suo e non «quando capita»: una cosa scritta per
   //  venerdì non è una cosa da fare oggi quando il telefono è libero, ed è la

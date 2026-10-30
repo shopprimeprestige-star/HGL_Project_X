@@ -12,19 +12,30 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 /** Il link wa.me del numero (solo cifre, col prefisso internazionale). Vuoto
- *  se il numero non ha abbastanza cifre per essere vero. */
-export function linkWaMe(telefono?: string | null): string {
+ *  se il numero non ha abbastanza cifre per essere vero. Con `testo` (30/10/2026)
+ *  il messaggio arriva già scritto nella casella: `?text=` codificato. */
+export function linkWaMe(telefono?: string | null, testo?: string | null): string {
   const cifre = String(telefono ?? "").replace(/\D/g, "");
-  return cifre.length >= 8 ? `https://wa.me/${cifre}` : "";
+  if (cifre.length < 8) return "";
+  const t = String(testo ?? "").trim();
+  return `https://wa.me/${cifre}${t ? `?text=${encodeURIComponent(t)}` : ""}`;
 }
 
-/** Il link da aprire: su Android WhatsApp Business (ripiego wa.me), altrove wa.me. */
-export function linkApriWhatsapp(telefono: string | null | undefined, userAgent: string): string {
-  const waMe = linkWaMe(telefono);
+/** Il link da aprire: su Android WhatsApp Business (ripiego wa.me), altrove wa.me.
+ *  Il `testo` (facoltativo) è il messaggio già scritto: `text=` anche nell'intent
+ *  (lo schema `whatsapp://send` lo accetta), e il ripiego wa.me lo porta uguale. */
+export function linkApriWhatsapp(
+  telefono: string | null | undefined,
+  userAgent: string,
+  testo?: string | null,
+): string {
+  const waMe = linkWaMe(telefono, testo);
   if (!waMe || !/Android/i.test(userAgent)) return waMe;
-  const cifre = waMe.slice("https://wa.me/".length);
+  const cifre = waMe.slice("https://wa.me/".length).split("?")[0];
+  const t = String(testo ?? "").trim();
   return (
-    `intent://send/?phone=${cifre}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;` +
+    `intent://send/?phone=${cifre}${t ? `&text=${encodeURIComponent(t)}` : ""}` +
+    `#Intent;scheme=whatsapp;package=com.whatsapp.w4b;` +
     `S.browser_fallback_url=${encodeURIComponent(waMe)};end`
   );
 }

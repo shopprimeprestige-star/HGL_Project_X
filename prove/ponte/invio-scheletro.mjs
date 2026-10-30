@@ -100,5 +100,5 @@ export async function provePonteInvioScheletro(mod, { c, gruppo, radice }) {
   const sette = ["scheletro", "regole", "migrazione", "rotta", "servizio", "chat-ui", "chat-hook"];
   c("ci sono i sette file di prova nuovi", sette.map(() => true), sette.map((x) => existsSync(join(radice, `prove/ponte/invio-${x}.mjs`))));
   c("ponte.mjs li importa e li chiama tutti e sette", sette.map(() => true), sette.map((x) => pm.includes(`./ponte/invio-${x}.mjs`)));
-  c("la prova della migrazione del ponte ignora ponte_invio_manuale", true, /!n\.includes\("risposte_ai"\) && !n\.includes\("ponte_invio_manuale"\)/.test(readFileSync(join(radice, "prove/ponte/migrazione.mjs"), "utf8")));
+  c("la prova della migrazione del ponte ignora ponte_invio_manuale", true, /!n\.includes\("ponte_invio_manuale"\)/.test(readFileSync(join(radice, "prove/ponte/migrazione.mjs"), "utf8")));
 }

@@ -192,7 +192,7 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
     const r = C.calcolaCosti([inv("2026-10-29T08:00:00Z", "primo_contatto", "hgl_primo_contatto")], "oggi", ADESSO);
     const testo = JSON.stringify(r);
     c("la risposta ha solo conteggi e importi", false, /telefono|nome|body|testo[^L]|lead|subscriber|\+?\d{9,}/i.test(testo));
-    c("le chiavi sono quelle attese", ["automatici", "categorie", "dal", "mano", "messaggi", "perTipo", "periodo", "stimati", "testiLiberi", "totale"], Object.keys(r).sort());
+    c("le chiavi sono quelle attese", ["automatici", "categorie", "dal", "mano", "messaggi", "perTipo", "periodo", "risparmio", "stimati", "testiLiberi", "totale"], Object.keys(r).sort());
   }
 
   gruppo("CHAT · COSTI · LA ROTTA E IL PANNELLO (sorgenti)");
