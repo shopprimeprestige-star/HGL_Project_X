@@ -217,7 +217,7 @@ export function perModello(
     const t = ms(i.inviatoIl);
     if (!Number.isFinite(t) || t < dal || t > adesso.getTime()) continue;
     const nome = i.modello || i.tipo;
-    const categoria = categoriaModello(i.modello || "");
+    const categoria = categoriaModello(i.modello || "", undefined, t);
     const r = mappa.get(nome) ?? {
       modello: nome,
       categoria,
@@ -231,6 +231,9 @@ export function perModello(
       costo: 0,
     };
     r.inviati++;
+    //  Il costo è della categoria del giorno dell'invio; la riga mostra l'ultima vista.
+    r.costo = arrotonda(r.costo + tariffe[categoria]);
+    r.categoria = categoria;
     if (i.rispostaIl) r.risposte++;
     if (i.leadId) {
       r.conScheda++;
@@ -245,7 +248,6 @@ export function perModello(
       ...r,
       tassoRisposta: tasso(r.risposte, r.inviati),
       tassoPrenotazione: tasso(r.prenotazioni, r.conScheda),
-      costo: arrotonda(r.inviati * tariffe[r.categoria]),
     }))
     .sort((a, b) => b.inviati - a.inviati || a.modello.localeCompare(b.modello));
 }

@@ -165,6 +165,7 @@ import {
 import { PastigliaStato } from "./SelettoreStatoDialog";
 import { PastigliaContattoLead } from "./manychat/PastigliaContattoLead";
 import { TargaConferma } from "./ConfermeDaSentire";
+import { consulenzeDelGiorno } from "./consulenze-del-giorno";
 
 type Esito = "programmato" | "completato" | "no_show";
 
@@ -2750,13 +2751,10 @@ export function MeetGiornalieri({
    *  montaggio: una sola scheda malformata arrivata dall'archivio, qui dentro,
    *  non fa sparire una riga — fa sparire tutta la pagina. */
   const insieme = useMemo(() => {
+    //  Una giornata: la stessa scelta del pannello «Oggi» della chat (una regola sola).
+    if (!storico) return consulenzeDelGiorno(leads, giorno.iso, chi);
     const tutti = Array.isArray(leads) ? leads : [];
     const miei = tutti.filter((l) => !chi || l?.data?.consulenteId === chi);
-    if (!storico) {
-      return miei
-        .filter((l) => soloGiorno(l?.data?.dataMeeting) === giorno.iso)
-        .sort((a, b) => (a?.data?.oraMeeting || "").localeCompare(b?.data?.oraMeeting || ""));
-    }
     //  Stessa porta dei badge del calendario: una data che `giorniDaOggi` non
     //  sa leggere non è un giorno, e nell'archivio importato ce ne sono a
     //  centinaia. Se entrassero qui, si ritroverebbero in fondo all'elenco
