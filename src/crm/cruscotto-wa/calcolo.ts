@@ -15,7 +15,12 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { aRoma } from "../promemoria/formati";
 import { istanteDiRoma } from "../manychat/contatto";
-import { TARIFFE, categoriaConosciuta, categoriaModello, type CategoriaCosto } from "../chatwa/costi-whatsapp";
+import {
+  TARIFFE,
+  categoriaConosciuta,
+  categoriaModello,
+  type CategoriaCosto,
+} from "../chatwa/costi-whatsapp";
 import type { Costi } from "../chatwa/calcolo-costi";
 
 export type PeriodoCruscotto = "7" | "30" | "90";
@@ -39,7 +44,9 @@ export type Tariffe = Record<CategoriaCosto, number>;
 export const TARIFFE_PREDEFINITE: Tariffe = { ...TARIFFE };
 
 /** Le tariffe scelte dal titolare: un numero non valido torna a quello di listino. */
-export function tariffeValide(x: { marketing?: unknown; utility?: unknown } | null | undefined): Tariffe {
+export function tariffeValide(
+  x: { marketing?: unknown; utility?: unknown } | null | undefined,
+): Tariffe {
   const ok = (v: unknown, ripiego: number) => {
     const n = typeof v === "string" ? Number(v.replace(",", ".")) : Number(v);
     return Number.isFinite(n) && n >= 0 && n <= 5 ? Math.round(n * 1e6) / 1e6 : ripiego;
@@ -91,7 +98,8 @@ export interface SchedaLead {
 // ── utilità ─────────────────────────────────────────────────────────────────
 const ms = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : NaN);
 const arrotonda = (n: number, c = 6) => Math.round(n * 10 ** c) / 10 ** c;
-const tasso = (a: number, b: number): number | null => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
+const tasso = (a: number, b: number): number | null =>
+  b > 0 ? Math.round((a / b) * 1000) / 10 : null;
 
 /** I giorni di Roma del periodo, dal più vecchio a oggi. */
 export function giorniDelPeriodo(periodo: string, adesso: Date): string[] {
@@ -225,7 +233,8 @@ export function perModello(
     if (i.leadId) {
       r.conScheda++;
       const f = fissata.get(i.leadId);
-      if (f !== undefined && f >= t && f <= t + FINESTRA_PRENOTAZIONE_GIORNI * MS_GIORNO) r.prenotazioni++;
+      if (f !== undefined && f >= t && f <= t + FINESTRA_PRENOTAZIONE_GIORNI * MS_GIORNO)
+        r.prenotazioni++;
     }
     mappa.set(nome, r);
   }

@@ -62,7 +62,8 @@ const lancia = (e: NonNullable<ErroreDb>): never => {
   throw { code: e.code ?? "?" };
 };
 /** Tabella o colonna che il database non ha ancora (migrazione non applicata). */
-const manca = (e: ErroreDb) => ["42P01", "42703", "PGRST205", "PGRST204"].includes(String(e?.code ?? ""));
+const manca = (e: ErroreDb) =>
+  ["42P01", "42703", "PGRST205", "PGRST204"].includes(String(e?.code ?? ""));
 
 /** Legge a pagine; `troncato` se si è fermato al tetto. */
 async function pagine<T>(
@@ -89,17 +90,29 @@ export interface ImpostazioniCruscotto {
 export async function leggiImpostazioni(userId: string): Promise<ImpostazioniCruscotto> {
   const r = await db
     .from("cruscotto_wa_impostazioni")
-    .select<{ tariffa_marketing: number | string | null; tariffa_utility: number | string | null; soglia_minuti: number | null }[]>(
-      "tariffa_marketing, tariffa_utility, soglia_minuti",
-    )
+    .select<
+      {
+        tariffa_marketing: number | string | null;
+        tariffa_utility: number | string | null;
+        soglia_minuti: number | null;
+      }[]
+    >("tariffa_marketing, tariffa_utility, soglia_minuti")
     .eq("user_id", userId)
     .maybeSingle();
   if (r.error) {
-    if (manca(r.error)) return { tariffe: { ...TARIFFE_PREDEFINITE }, sogliaMinuti: SOGLIA_MINUTI_PREDEFINITA, salvabili: false };
+    if (manca(r.error))
+      return {
+        tariffe: { ...TARIFFE_PREDEFINITE },
+        sogliaMinuti: SOGLIA_MINUTI_PREDEFINITA,
+        salvabili: false,
+      };
     lancia(r.error);
   }
   return {
-    tariffe: tariffeValide({ marketing: r.data?.tariffa_marketing, utility: r.data?.tariffa_utility }),
+    tariffe: tariffeValide({
+      marketing: r.data?.tariffa_marketing,
+      utility: r.data?.tariffa_utility,
+    }),
     sogliaMinuti: sogliaValida(r.data?.soglia_minuti),
     salvabili: true,
   };
@@ -112,7 +125,8 @@ export async function salvaImpostazioni(
   const prima = await leggiImpostazioni(userId);
   if (!prima.salvabili) throw { code: "manca_migrazione" };
   const tariffe = tariffeValide({ ...prima.tariffe, ...(nuove.tariffe ?? {}) });
-  const sogliaMinuti = nuove.sogliaMinuti === undefined ? prima.sogliaMinuti : sogliaValida(nuove.sogliaMinuti);
+  const sogliaMinuti =
+    nuove.sogliaMinuti === undefined ? prima.sogliaMinuti : sogliaValida(nuove.sogliaMinuti);
   const { error } = await db.from("cruscotto_wa_impostazioni").upsert(
     {
       user_id: userId,
@@ -178,7 +192,9 @@ async function leggiInvii(userId: string, dal: string, modelli: Map<string, stri
   const r = await pagine<Riga>((da, a) =>
     db
       .from("manychat_invii")
-      .select<Riga[]>("tipo, stato, motivo, flow_ns, inviato_il, prenotato_il, risposta_il, lead_id")
+      .select<
+        Riga[]
+      >("tipo, stato, motivo, flow_ns, inviato_il, prenotato_il, risposta_il, lead_id")
       .eq("user_id", userId)
       .gte("prenotato_il", dal)
       .order("prenotato_il", { ascending: false })
@@ -199,7 +215,10 @@ async function leggiInvii(userId: string, dal: string, modelli: Map<string, stri
   return { invii, troncato: r.troncato };
 }
 
-async function leggiSchede(userId: string, dal: string): Promise<{ schede: SchedaLead[]; troncato: boolean }> {
+async function leggiSchede(
+  userId: string,
+  dal: string,
+): Promise<{ schede: SchedaLead[]; troncato: boolean }> {
   interface Riga {
     id: string;
     creatoIl: string | null;
@@ -239,7 +258,11 @@ async function leggiSchede(userId: string, dal: string): Promise<{ schede: Sched
 }
 
 /** I lead che WhatsApp ha già toccato: hanno un contatto con messaggi o un invio partito. */
-async function leadConWhatsapp(userId: string, ids: string[], invii: InvioRegistro[]): Promise<Set<string>> {
+async function leadConWhatsapp(
+  userId: string,
+  ids: string[],
+  invii: InvioRegistro[],
+): Promise<Set<string>> {
   const set = new Set<string>();
   for (const i of invii) if (i.leadId && i.stato === "inviato") set.add(i.leadId);
   for (let p = 0; p < ids.length; p += 200) {
@@ -269,14 +292,22 @@ export interface Cruscotto {
   troncato: boolean;
 }
 
-export async function leggiCruscotto(userId: string, periodo: string, adesso: Date): Promise<Cruscotto> {
+export async function leggiCruscotto(
+  userId: string,
+  periodo: string,
+  adesso: Date,
+): Promise<Cruscotto> {
   const dal = inizioCruscotto(periodo, adesso).toISOString();
   const impostazioni = await leggiImpostazioni(userId);
   const cfg = await db
     .from("manychat_config")
-    .select<{ acceso: boolean | null; fermato_motivo: string | null; flussi: Record<string, unknown> | null }[]>(
-      "acceso, fermato_motivo, flussi",
-    )
+    .select<
+      {
+        acceso: boolean | null;
+        fermato_motivo: string | null;
+        flussi: Record<string, unknown> | null;
+      }[]
+    >("acceso, fermato_motivo, flussi")
     .eq("user_id", userId)
     .maybeSingle();
   if (cfg.error && !manca(cfg.error)) lancia(cfg.error);
@@ -289,21 +320,34 @@ export async function leggiCruscotto(userId: string, periodo: string, adesso: Da
     leggiInvii(userId, dal, modelli),
     leggiSchede(userId, dal),
     leggiCosti(userId, periodo, adesso),
-    db.from("crm_consultants").select<{ id: string; nome: string | null }[]>("id, nome:data->>nome").eq("user_id", userId),
+    db
+      .from("crm_consultants")
+      .select<{ id: string; nome: string | null }[]>("id, nome:data->>nome")
+      .eq("user_id", userId),
   ]);
   if (consulenti.error) lancia(consulenti.error);
   const nomi = new Map((consulenti.data ?? []).map((x) => [x.id, x.nome ?? "Consulente"]));
-  const ids = s.schede.filter((x) => x.fissatoIl && Date.parse(x.fissatoIl) >= Date.parse(dal)).map((x) => x.id);
+  const ids = s.schede
+    .filter((x) => x.fissatoIl && Date.parse(x.fissatoIl) >= Date.parse(dal))
+    .map((x) => x.id);
   const conWa = await leadConWhatsapp(userId, ids, i.invii);
 
   const giorni = perGiorno(m.messaggi, s.schede, conWa, periodo, adesso);
-  const somma = (k: "inviati" | "dalTelefono" | "risposte" | "prenotazioni") => giorni.reduce((n, g) => n + g[k], 0);
-  const config = cfg.data ? { acceso: !!cfg.data.acceso, fermatoMotivo: cfg.data.fermato_motivo } : null;
+  const somma = (k: "inviati" | "dalTelefono" | "risposte" | "prenotazioni") =>
+    giorni.reduce((n, g) => n + g[k], 0);
+  const config = cfg.data
+    ? { acceso: !!cfg.data.acceso, fermatoMotivo: cfg.data.fermato_motivo }
+    : null;
   return {
     periodo,
     dal,
     giorni,
-    totali: { inviati: somma("inviati"), dalTelefono: somma("dalTelefono"), risposte: somma("risposte"), prenotazioni: somma("prenotazioni") },
+    totali: {
+      inviati: somma("inviati"),
+      dalTelefono: somma("dalTelefono"),
+      risposte: somma("risposte"),
+      prenotazioni: somma("prenotazioni"),
+    },
     modelli: perModello(i.invii, s.schede, impostazioni.tariffe, periodo, adesso),
     costo: costoConTariffe(costiGrezzi, impostazioni.tariffe),
     consulenti: velocitaConsulenti(s.schede, nomi, impostazioni.sogliaMinuti, periodo, adesso),

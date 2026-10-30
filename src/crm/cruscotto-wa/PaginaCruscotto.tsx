@@ -14,7 +14,10 @@ import { euro } from "@/crm/chatwa/costi-whatsapp";
 import { PERIODI_CRUSCOTTO, type PeriodoCruscotto } from "./calcolo";
 import type { Cruscotto } from "./leggi.server";
 
-type Lettura = { fase: "carico" } | { fase: "errore"; frase: string } | { fase: "ok"; c: Cruscotto };
+type Lettura =
+  | { fase: "carico" }
+  | { fase: "errore"; frase: string }
+  | { fase: "ok"; c: Cruscotto };
 const FRASE_RETE = "Non riesco a leggere il cruscotto: controlla la connessione e riprova.";
 const pct = (n: number | null) => (n === null ? "—" : `${String(n).replace(".", ",")}%`);
 const minuti = (n: number | null) => (n === null ? "—" : `${String(n).replace(".", ",")} min`);
@@ -31,7 +34,10 @@ export function PaginaCruscotto() {
     (async () => {
       try {
         const res = await fetchCRM(`/api/crm/cruscotto-wa?periodo=${periodo}`);
-        const corpo = (await res.json().catch(() => null)) as { cruscotto?: Cruscotto; error?: unknown } | null;
+        const corpo = (await res.json().catch(() => null)) as {
+          cruscotto?: Cruscotto;
+          error?: unknown;
+        } | null;
         if (annullata) return;
         if (res.ok && corpo?.cruscotto) setLettura({ fase: "ok", c: corpo.cruscotto });
         else
@@ -83,12 +89,19 @@ export function PaginaCruscotto() {
       {lettura.fase === "errore" && (
         <div role="alert" className="flex flex-col items-start gap-2 py-4">
           <p className="text-[13px]">{lettura.frase}</p>
-          <Button type="button" variant="outline" className="min-h-11" onClick={() => setTentativo((n) => n + 1)}>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => setTentativo((n) => n + 1)}
+          >
             Riprova
           </Button>
         </div>
       )}
-      {lettura.fase === "ok" && <Corpo c={lettura.c} onSalvato={() => setTentativo((n) => n + 1)} />}
+      {lettura.fase === "ok" && (
+        <Corpo c={lettura.c} onSalvato={() => setTentativo((n) => n + 1)} />
+      )}
     </Pagina>
   );
 }
@@ -104,26 +117,38 @@ function Corpo({ c, onSalvato }: { c: Cruscotto; onSalvato: () => void }) {
         </p>
       )}
       <section aria-label="Totali" className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Numero etichetta="Messaggi inviati" valore={totali.inviati} nota={totali.dalTelefono ? `+ ${totali.dalTelefono} dal telefono` : undefined} />
+        <Numero
+          etichetta="Messaggi inviati"
+          valore={totali.inviati}
+          nota={totali.dalTelefono ? `+ ${totali.dalTelefono} dal telefono` : undefined}
+        />
         <Numero etichetta="Risposte (persone)" valore={totali.risposte} />
         <Numero etichetta="Prenotazioni" valore={totali.prenotazioni} />
-        <Numero etichetta="Costo stimato" valore={`≈ ${euro(c.costo.totale, 2)}`} nota={`${c.costo.messaggi} a pagamento`} />
+        <Numero
+          etichetta="Costo stimato"
+          valore={`≈ ${euro(c.costo.totale, 2)}`}
+          nota={`${c.costo.messaggi} a pagamento`}
+        />
       </section>
 
       <Sezione titolo="Giorno per giorno">
         <Tabella
           intest={["Giorno", "Inviati", "Risposte", "Prenotazioni"]}
-          righe={[...c.giorni].reverse().map((g) => [giornoBreve(g.giorno), g.inviati, g.risposte, g.prenotazioni])}
+          righe={[...c.giorni]
+            .reverse()
+            .map((g) => [giornoBreve(g.giorno), g.inviati, g.risposte, g.prenotazioni])}
         />
         <p className="mt-1 text-[11.5px] text-muted-foreground">
-          Risposte = persone diverse che hanno scritto quel giorno (eco e doppioni esclusi). Prenotazioni =
-          appuntamenti presi quel giorno da lead già toccati da WhatsApp.
+          Risposte = persone diverse che hanno scritto quel giorno (eco e doppioni esclusi).
+          Prenotazioni = appuntamenti presi quel giorno da lead già toccati da WhatsApp.
         </p>
       </Sezione>
 
       <Sezione titolo="Per modello">
         {c.modelli.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">Nessun modello inviato in questo periodo.</p>
+          <p className="text-[13px] text-muted-foreground">
+            Nessun modello inviato in questo periodo.
+          </p>
         ) : (
           <Tabella
             intest={["Modello", "Inviati", "Risposta", "Prenotazione", "Costo"]}
@@ -137,15 +162,20 @@ function Corpo({ c, onSalvato }: { c: Cruscotto; onSalvato: () => void }) {
           />
         )}
         <p className="mt-1 text-[11.5px] text-muted-foreground">
-          Risposta = il cliente ha scritto dopo il messaggio. Prenotazione = ha preso appuntamento entro 7 giorni
-          (calcolata sugli invii collegati a una scheda).
+          Risposta = il cliente ha scritto dopo il messaggio. Prenotazione = ha preso appuntamento
+          entro 7 giorni (calcolata sugli invii collegati a una scheda).
         </p>
       </Sezione>
 
       <Sezione titolo="Costo dei messaggi a pagamento">
         <Tabella
           intest={["Categoria", "Messaggi", "Tariffa", "Costo"]}
-          righe={c.costo.categorie.map((x) => [x.categoria === "marketing" ? "Marketing" : "Utility", x.messaggi, euro(x.tariffa, 4), euro(x.costo, 2)])}
+          righe={c.costo.categorie.map((x) => [
+            x.categoria === "marketing" ? "Marketing" : "Utility",
+            x.messaggi,
+            euro(x.tariffa, 4),
+            euro(x.costo, 2),
+          ])}
         />
         {c.costo.stimati > 0 && (
           <p className="mt-1 text-[11.5px] text-muted-foreground">
@@ -161,14 +191,21 @@ function Corpo({ c, onSalvato }: { c: Cruscotto; onSalvato: () => void }) {
         ) : (
           <ul className="divide-y divide-border">
             {c.consulenti.map((r) => (
-              <li key={r.consulenteId || "nessuno"} className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
+              <li
+                key={r.consulenteId || "nessuno"}
+                className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2"
+              >
                 <p className="flex items-center gap-1.5 text-[13px] font-medium">
-                  {r.avviso && <AlertTriangle aria-label="Oltre la soglia" className="h-4 w-4 text-red-600" />}
+                  {r.avviso && (
+                    <AlertTriangle aria-label="Oltre la soglia" className="h-4 w-4 text-red-600" />
+                  )}
                   {r.nome}
                 </p>
                 <p className="text-[12.5px] tabular-nums text-muted-foreground">
-                  {r.lead} lead · mediana {minuti(r.medianaMinuti)} · entro soglia {pct(r.entroSoglia)}
-                  {r.inAttesa > 0 && ` · ${r.inAttesa} in attesa${r.inRitardoOra ? ` (${r.inRitardoOra} in ritardo)` : ""}`}
+                  {r.lead} lead · mediana {minuti(r.medianaMinuti)} · entro soglia{" "}
+                  {pct(r.entroSoglia)}
+                  {r.inAttesa > 0 &&
+                    ` · ${r.inAttesa} in attesa${r.inRitardoOra ? ` (${r.inRitardoOra} in ritardo)` : ""}`}
                   {r.senzaDato > 0 && ` · ${r.senzaDato} senza dato`}
                 </p>
               </li>
@@ -176,8 +213,9 @@ function Corpo({ c, onSalvato }: { c: Cruscotto; onSalvato: () => void }) {
           </ul>
         )}
         <p className="mt-1 text-[11.5px] text-muted-foreground">
-          Tempo fra l&apos;arrivo del lead e il primo contatto (stesso calcolo del «tempo di prima risposta» di
-          AIOS). Rosso se la mediana supera la soglia o c&apos;è un lead ancora da contattare oltre la soglia.
+          Tempo fra l&apos;arrivo del lead e il primo contatto (stesso calcolo del «tempo di prima
+          risposta» di AIOS). Rosso se la mediana supera la soglia o c&apos;è un lead ancora da
+          contattare oltre la soglia.
         </p>
       </Sezione>
     </div>
@@ -202,13 +240,23 @@ function AvvisoSaldo({ saldo }: { saldo: Cruscotto["saldo"] }) {
       <div>
         <p className="font-medium">Saldo di invio (segnale indiretto)</p>
         <p>{saldo.frase}</p>
-        {saldo.livello === "ok" && <p className="text-[12px] text-muted-foreground">{saldo.fraseManuale}</p>}
+        {saldo.livello === "ok" && (
+          <p className="text-[12px] text-muted-foreground">{saldo.fraseManuale}</p>
+        )}
       </div>
     </section>
   );
 }
 
-function Numero({ etichetta, valore, nota }: { etichetta: string; valore: string | number; nota?: string }) {
+function Numero({
+  etichetta,
+  valore,
+  nota,
+}: {
+  etichetta: string;
+  valore: string | number;
+  nota?: string;
+}) {
   return (
     <div className="rounded-lg border border-border px-3 py-2">
       <p className="text-[12px] text-muted-foreground">{etichetta}</p>
@@ -286,7 +334,8 @@ function Impostazioni({ c, onSalvato }: { c: Cruscotto; onSalvato: () => void })
   return (
     <details className="mt-3 rounded-lg border border-border px-3 py-2">
       <summary className="min-h-11 cursor-pointer py-2 text-[13px] font-medium">
-        Tariffe e soglia{c.costo.tariffePersonalizzate ? " (personalizzate)" : " (listino Meta Italia)"}
+        Tariffe e soglia
+        {c.costo.tariffePersonalizzate ? " (personalizzate)" : " (listino Meta Italia)"}
       </summary>
       <div className="grid gap-2 py-2 sm:grid-cols-3">
         <label className="text-[12px]">
@@ -306,11 +355,16 @@ function Impostazioni({ c, onSalvato }: { c: Cruscotto; onSalvato: () => void })
         <Button type="button" className="min-h-11" disabled={invio} onClick={salva}>
           Salva
         </Button>
-        {esito && <p role="status" className="text-[12.5px]">{esito}</p>}
+        {esito && (
+          <p role="status" className="text-[12.5px]">
+            {esito}
+          </p>
+        )}
       </div>
       {!c.impostazioni.salvabili && (
         <p className="mt-1 text-[11.5px] text-muted-foreground">
-          Per salvare serve l&apos;aggiornamento del database (non ancora applicato): per ora valgono i valori di serie.
+          Per salvare serve l&apos;aggiornamento del database (non ancora applicato): per ora
+          valgono i valori di serie.
         </p>
       )}
     </details>

@@ -42,11 +42,18 @@ export const Route = createFileRoute("/api/crm/cruscotto-wa")({
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
         if (!g.chi.adminUserId)
-          return json({ error: "Non si sa di quale installazione si parla: rientra nel CRM." }, 403);
-        const chiesto = new URL(request.url).searchParams.get("periodo") ?? PERIODO_CRUSCOTTO_INIZIALE;
+          return json(
+            { error: "Non si sa di quale installazione si parla: rientra nel CRM." },
+            403,
+          );
+        const chiesto =
+          new URL(request.url).searchParams.get("periodo") ?? PERIODO_CRUSCOTTO_INIZIALE;
         if (!periodoCruscottoValido(chiesto)) return json({ error: "Periodo non valido." }, 400);
         try {
-          return json({ ok: true, cruscotto: await leggiCruscotto(g.chi.adminUserId, chiesto, new Date()) });
+          return json({
+            ok: true,
+            cruscotto: await leggiCruscotto(g.chi.adminUserId, chiesto, new Date()),
+          });
         } catch (e) {
           console.warn("[cruscotto-wa]", codiceDi(e));
           return json({ error: "Non riesco a leggere il cruscotto: riprova fra poco." }, 500);
@@ -57,12 +64,16 @@ export const Route = createFileRoute("/api/crm/cruscotto-wa")({
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
         if (!g.chi.adminUserId)
-          return json({ error: "Non si sa di quale installazione si parla: rientra nel CRM." }, 403);
+          return json(
+            { error: "Non si sa di quale installazione si parla: rientra nel CRM." },
+            403,
+          );
         const corpo = (await request.json().catch(() => null)) as {
           tariffe?: { marketing?: unknown; utility?: unknown };
           sogliaMinuti?: unknown;
         } | null;
-        if (!corpo || typeof corpo !== "object") return json({ error: "Richiesta non valida." }, 400);
+        if (!corpo || typeof corpo !== "object")
+          return json({ error: "Richiesta non valida." }, 400);
         try {
           const impostazioni = await salvaImpostazioni(g.chi.adminUserId, {
             tariffe: corpo.tariffe,
