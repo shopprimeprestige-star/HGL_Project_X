@@ -4,7 +4,7 @@
  *  (contatti, messaggi letti, schede senza chat «da chiamare»), con scheda, «Da rispondere»,
  *  finestra di 24 ore e STOP (le regole stanno in stato.ts), dal movimento più recente. */
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
-import { daRispondere as calcolaDaRispondere, finestra24, schedaUnica } from "./stato";
+import { daRispondere as calcolaDaRispondere, finestra24, indiceSchede } from "./stato";
 import type { Lead } from "@/crm/types";
 import type { ChatItem, WaContactRow, WaMessageRow } from "./tipi";
 
@@ -60,7 +60,7 @@ export function costruisciChat(p: {
     const suoi = perChat.get(key);
     if (suoi) suoi.push(m);
     else perChat.set(key, [m]);
-    if (!item.lastMessage || new Date(m.created_at) > new Date(item.lastMessage.created_at)) {
+    if (!item.lastMessage || ms(m.created_at) > ms(item.lastMessage.created_at)) {
       item.lastMessage = m;
     }
   }
@@ -74,8 +74,9 @@ export function costruisciChat(p: {
   //   contatto ha già la sua chat in `map` e viene saltato più sotto; chi non ce l'ha non ha
   //   messaggi da passare. Per le chat con scheda decide lo STATO, che il cron scrive con
   //   la stessa funzione pura (`calcolaDaChiamare` con i messaggi degli ultimi 7 giorni).
+  const orologio = new Date(adesso);
   for (const l of leads) {
-    if (!calcolaDaChiamare({ dati: l.data, messaggi: [], adesso: new Date(adesso) }).si) continue;
+    if (!calcolaDaChiamare({ dati: l.data, messaggi: [], adesso: orologio }).si) continue;
     const tel = telefonoE164(l.data?.telefono);
     if (!tel || ultime9.has(tel.replace(/\D/g, "").slice(-9))) continue;
     ultime9.add(tel.replace(/\D/g, "").slice(-9));
@@ -89,13 +90,18 @@ export function costruisciChat(p: {
   }
 
   // scheda, «Da rispondere», finestra di 24 ore, STOP (le regole sono in stato.ts)
+  //  Le schede si indicizzano UNA volta (per id e per ultime 9 cifre): prima ogni chat rileggeva
+  //  tutte le schede (2.000 schede x 1.400 chat = milioni di confronti a ogni evento).
+  const perId = new Map<string, Lead>();
+  for (const l of leads) if (!perId.has(l.id)) perId.set(l.id, l);
+  const schedaUnica = indiceSchede(leads);
   for (const item of map.values()) {
     //  La scheda scelta vince; altrimenti per telefono SOLO se ce n'è una sola (D18).
-    let lead = item.leadId ? (leads.find((l) => l.id === item.leadId) ?? null) : null;
+    let lead = item.leadId ? (perId.get(item.leadId) ?? null) : null;
     let senzaScheda = false;
     let schedaAmbigua = false;
     if (!lead) {
-      const e = schedaUnica(leads, item.phone);
+      const e = schedaUnica(item.phone);
       if (e.tipo === "una") lead = e.lead;
       else if (e.tipo === "piu") schedaAmbigua = true;
       else senzaScheda = true;
@@ -144,5 +150,9 @@ export function costruisciChat(p: {
       t(x.contact?.ultimo_in_entrata_il),
       t(x.contact?.ultimo_messaggio_il),
     );
-  return Array.from(map.values()).sort((a, b) => quando(b) - quando(a));
+  //  Le ore si calcolano una volta per chat, non a ogni confronto del sort (stabile: a pari ora resta l'ordine).
+  return Array.from(map.values())
+    .map((c) => ({ c, q: quando(c) }))
+    .sort((a, b) => b.q - a.q)
+    .map((x) => x.c);
 }
