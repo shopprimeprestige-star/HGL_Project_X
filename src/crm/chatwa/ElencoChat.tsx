@@ -68,8 +68,8 @@ function useAdesso(): number {
   return adesso;
 }
 
-/** L'elenco delle chat: in cima «Da rispondere», poi le altre. Riempie il contenitore che gli dà `PaginaChat`: larghezza e visibilità
- *  non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
+/** L'elenco delle chat: in cima «Da rispondere», poi le altre. Riempie il contenitore che gli
+ *  dà `PaginaChat`: larghezza e visibilità non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
  *  ── I FILTRI A GRUPPI (30/10/2026) ──────────────────────────────────────

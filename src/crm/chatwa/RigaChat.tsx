@@ -38,7 +38,7 @@ import { oggiIso } from "@/crm/ui";
 import { formatTimeIT, initials, numeroLeggibile } from "./formati";
 import type { ChatItem } from "./tipi";
 
-/** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
+/** Come si disegna una riga: normale, o in attesa di risposta («Da rispondere»). */
 export type ModoRiga = "normale" | "attesa";
 
 /** Le spunte del mio ultimo messaggio, come nella bolla: lette in azzurro, il resto in grigio. */

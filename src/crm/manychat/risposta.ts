@@ -122,8 +122,8 @@ export interface EntrataRegistrata {
 
 /** Quante entrate leggere: basta trovare l'ultimo TESTO dietro i media. Con 5 un cliente che
  *  manda un album di foto o vocali dopo l'ultimo testo faceva sfuggire l'eco (30/10/2026).
- *  shortcut: 50 righe, oltre l'eco di un testo più vecchio di 50 media passa; quando succede
- *  si cerca l'ultimo testo con una query a parte. */
+ *  LIMITE NOTO: con più di 50 media dopo l'ultimo testo, l'eco di quel testo non si riconosce
+ *  e conta come un messaggio nuovo (nessun ripiego: la chat si chiude con «Fatto»). */
 export const ENTRATE_DA_LEGGERE = 50;
 /** Più vecchia di così, la stessa entrata ripetuta è un'eco. Sotto, è lo
  *  stesso messaggio che arriva da due strade (ManyChat dopo il ponte, o
