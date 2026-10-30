@@ -127,6 +127,7 @@ export function provePannelloOggi(mod, { c, gruppo, radice }) {
     /<WhatsAppLeadsPanel\b/.test(pag),
   );
   const pan = readFileSync(join(radice, "src/crm/chatwa/PannelloOggi.tsx"), "utf8");
+  c("il pannello Oggi non ha più il tasto «Pagina intera» (richiesta del titolare, 31/10/2026)", false, /Pagina intera/.test(pan));
   c(
     "il pannello riusa i pezzi esistenti: RigaLead, VoceDaFare, WhatsAppLeadsPanel, vistaOggi",
     true,
