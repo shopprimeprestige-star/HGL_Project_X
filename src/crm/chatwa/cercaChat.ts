@@ -1,4 +1,5 @@
 import { statoChiamata } from "./daChiamare";
+import { eFiltroPerStato, passaPerStato, type FiltroPerStato } from "./perStato";
 
 /** La ricerca dell'elenco, per conto di `ElencoChat`: nome della scheda, numero e, in più di
  *  `visibili` (useChatWa), il nome salvato dal contatto, così un «numero senza scheda» col
@@ -43,8 +44,11 @@ export function passaFiltro(
     | "da-chiamare"
     | "chiuso-24h"
     | "aperto-24h"
-    | "attesa-whatsapp",
+    | "attesa-whatsapp"
+    | FiltroPerStato,
 ): boolean {
+  //  Un filtro per ogni stato del lead (30/10/2026): vedi perStato.ts.
+  if (eFiltroPerStato(filtro)) return passaPerStato(c, filtro);
   if (filtro === "unread") return (c.unread ?? 0) > 0;
   if (filtro === "with-lead") return Boolean(c.lead);
   if (filtro === "unknown") return !c.lead;

@@ -12,6 +12,7 @@
 import type { Lead, LeadStatus } from "@/crm/types";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import type { StatoCasella } from "./stato";
+import type { FiltroPerStato } from "./perStato";
 import type { ApiPonteInvio, BollaCoda } from "@/crm/ponte/invio-tipi";
 
 export type FiltroChat =
@@ -22,7 +23,9 @@ export type FiltroChat =
   | "da-chiamare"
   | "chiuso-24h"
   | "aperto-24h"
-  | "attesa-whatsapp";
+  | "attesa-whatsapp"
+  //  Un filtro per ogni stato del lead (30/10/2026): vedi perStato.ts.
+  | FiltroPerStato;
 
 export interface WaMessageRow {
   id: string;
@@ -157,6 +160,8 @@ export interface ConversazioneProps {
 
 export interface CasellaProps {
   api: ChatWaApi;
+  /** Il link per aprire la chat nell'app WhatsApp: a casella bloccata (solo modelli) è un tasto in barra. */
+  linkWa?: string;
 }
 
 export interface BollaProps {
