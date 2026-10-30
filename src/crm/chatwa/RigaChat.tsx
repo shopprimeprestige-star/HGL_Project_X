@@ -24,6 +24,7 @@ import { FinestraStati, statiSelezionabili } from "@/crm/SelettoreStatoDialog";
 import { numeroDaComporre } from "@/crm/importa/chiamare";
 import { statiMenuRiga, pastigliaFinestra } from "./daChiamare";
 import { useCRM } from "@/crm/CRMContext";
+import { usePuo } from "@/crm/AuthContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
@@ -141,6 +142,8 @@ function RigaChatBase({
   const finestra =
     mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
   const [cambiaStato, setCambiaStato] = useState(false);
+  //  «Anticipa» solo a chi gestisce le installazioni (revisione di sicurezza, 31/10/2026).
+  const puoInstallazioni = usePuo()("installazioni");
   /*  ── PRESSIONE LUNGA (30/10/2026) ──────────────────────────────────────────
       Touch e mouse con gli eventi del puntatore. Si annulla se il dito scorre
       (`eSpostamento`), se lo si alza prima o se il browser prende il gesto (scorrimento:
@@ -596,7 +599,7 @@ function RigaChatBase({
               cresce); il tocco apre la sua finestrella (giorno chiesto,
               togli). Le stelle sotto sono un'altra cosa: «in osservazione». Il tocco è da 44 px sul
               telefono con `after:`, come le stelle. */}
-          {c.lead && puoAnticipare(c.lead) && (
+          {puoInstallazioni && c.lead && puoAnticipare(c.lead) && (
             <TastoPriorita
               lead={c.lead}
               esteso={inPriorita(c.lead)}

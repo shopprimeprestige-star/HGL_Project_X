@@ -21371,6 +21371,19 @@ function proveDelMeetAdessoSpento() {
   c("nel pannello il suo flusso non serve più", true, /modello === "hgl_meet_adesso"\) return false/.test(pan));
 }
 
+/** ── TASTO «INSTALLAZIONE» DALLA CHAT: STESSI PERMESSI DELLE PAGINE (31/10/2026) ── */
+function proveDeiPermessiInstallazioneChat() {
+  gruppo("CHAT: POSA, INCASSI E ANTICIPA SOLO A CHI HA I PERMESSI");
+  const g = readFileSync(join(radice, "src/crm/chatwa/GestioneInstallazione.tsx"), "utf8");
+  c("posa e priorità chiedono «installazioni», incassi «pagamenti»", true,
+    /puo\("installazioni"\)/.test(g) && /puo\("pagamenti"\)/.test(g));
+  c("senza nessuno dei due il tasto non c'è", true, /if \(!puoPosa && !puoIncassi\) return null/.test(g));
+  c("le finestre si montano solo col permesso", true,
+    /puoPosa && \(\s*<InstallationScheduleDialog/.test(g) && /puoIncassi && <FinestraIncasso/.test(g) && /puoPosa && \(\s*<FinestraAzioniPosa/.test(g));
+  const r = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  c("Anticipa sulla riga solo con «installazioni»", true, /puoInstallazioni && c\.lead && puoAnticipare/.test(r));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21511,6 +21524,7 @@ proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
+proveDeiPermessiInstallazioneChat();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

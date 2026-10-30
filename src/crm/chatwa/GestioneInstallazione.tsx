@@ -12,7 +12,14 @@
  *  Sta nella riga delle pastiglie e non accanto a «Chiama»: la prima riga a 375 px ha già quattro
  *  tasti da 44 px e il nome non deve ridursi a due lettere. */
 import { useState } from "react";
-import { ArrowUpToLine, CalendarClock, MoreHorizontal, UserRound, Wallet, Wrench } from "lucide-react";
+import {
+  ArrowUpToLine,
+  CalendarClock,
+  MoreHorizontal,
+  UserRound,
+  Wallet,
+  Wrench,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Finestra, VoceScelta } from "@/crm/ui/Finestra";
 import {
@@ -24,6 +31,7 @@ import {
   saldoAllaConsegna,
 } from "@/crm/InstallationScheduleDialog";
 import { inPriorita, useAzioniPriorita } from "@/crm/priorita";
+import { usePuo } from "@/crm/AuthContext";
 import { eur } from "@/crm/ui";
 import type { Lead } from "@/crm/types";
 import { puoAnticipare } from "./accontiInCima";
@@ -40,6 +48,11 @@ export function GestioneInstallazione({
   const [incasso, setIncasso] = useState(false);
   const [altre, setAltre] = useState(false);
   const { metti, togli } = useAzioniPriorita();
+  //  Gli stessi permessi delle pagine: posa e priorità con «installazioni», incassi con «pagamenti».
+  //  Senza nessuno dei due il tasto non c'è (revisione di sicurezza, 31/10/2026).
+  const puo = usePuo();
+  const puoPosa = puo("installazioni");
+  const puoIncassi = puo("pagamenti");
 
   const completata = posaCompletata(lead);
   const senzaData = !lead.data.installazione?.dataInstallazione;
@@ -52,6 +65,7 @@ export function GestioneInstallazione({
     azione();
   };
 
+  if (!puoPosa && !puoIncassi) return null;
   return (
     <>
       <button
@@ -85,7 +99,7 @@ export function GestioneInstallazione({
         contesto={nomeCompleto(lead)}
         classeCorpo="space-y-1.5"
       >
-        {!completata && (
+        {puoPosa && !completata && (
           <VoceScelta
             className="min-h-11"
             icona={CalendarClock}
@@ -94,14 +108,17 @@ export function GestioneInstallazione({
             onClick={() => fai(() => setProgramma(true))}
           />
         )}
-        <VoceScelta
-          className="min-h-11"
-          icona={Wallet}
-          titolo="Registra un incasso"
-          nota={resta > 0 ? `Mancano ${eur(resta)}` : "Saldo o acconto, con IVA e metodo"}
-          onClick={() => fai(() => setIncasso(true))}
-        />
-        {puoAnticipare(lead) &&
+        {puoIncassi && (
+          <VoceScelta
+            className="min-h-11"
+            icona={Wallet}
+            titolo="Registra un incasso"
+            nota={resta > 0 ? `Mancano ${eur(resta)}` : "Saldo o acconto, con IVA e metodo"}
+            onClick={() => fai(() => setIncasso(true))}
+          />
+        )}
+        {puoPosa &&
+          puoAnticipare(lead) &&
           (inCima ? (
             <VoceScelta
               className="min-h-11"
@@ -126,24 +143,30 @@ export function GestioneInstallazione({
           nota="Anagrafica, importi, storico"
           onClick={() => fai(onApriScheda)}
         />
-        <VoceScelta
-          className="min-h-11"
-          icona={MoreHorizontal}
-          titolo="Altre azioni"
-          nota="Conto, posa eseguita, materiale, consegna"
-          onClick={() => fai(() => setAltre(true))}
-        />
+        {puoPosa && (
+          <VoceScelta
+            className="min-h-11"
+            icona={MoreHorizontal}
+            titolo="Altre azioni"
+            nota="Conto, posa eseguita, materiale, consegna"
+            onClick={() => fai(() => setAltre(true))}
+          />
+        )}
       </Finestra>
 
-      <InstallationScheduleDialog lead={lead} open={programma} onOpenChange={setProgramma} />
-      <FinestraIncasso lead={lead} aperta={incasso} onCambio={setIncasso} />
-      <FinestraAzioniPosa
-        lead={lead}
-        aperta={altre}
-        onCambio={setAltre}
-        onApri={() => onApriScheda()}
-        onProgramma={() => setProgramma(true)}
-      />
+      {puoPosa && (
+        <InstallationScheduleDialog lead={lead} open={programma} onOpenChange={setProgramma} />
+      )}
+      {puoIncassi && <FinestraIncasso lead={lead} aperta={incasso} onCambio={setIncasso} />}
+      {puoPosa && (
+        <FinestraAzioniPosa
+          lead={lead}
+          aperta={altre}
+          onCambio={setAltre}
+          onApri={() => onApriScheda()}
+          onProgramma={() => setProgramma(true)}
+        />
+      )}
     </>
   );
 }
