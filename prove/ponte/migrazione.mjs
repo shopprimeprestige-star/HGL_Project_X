@@ -323,6 +323,6 @@ export async function provePonteMigrazione(mod, { c, gruppo, radice }) {
       /due volte non fa danni/i.test(grezzo),
     ],
   );
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai")).sort();
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && n < "20261030").sort(); // le migrazioni dal 30/10 vengono dopo apposta
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.at(-1));
 }
