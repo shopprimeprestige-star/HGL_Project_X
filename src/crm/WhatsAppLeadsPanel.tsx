@@ -52,7 +52,8 @@ import {
 //  Chi fa le consulenze si chiede lì, e solo lì: vedi la testata di quel file.
 import { TESTO_SOLO_CONSULENTI, consulentiPerConsulenza } from "./chi-fa-la-consulenza";
 import { findMetaTemplate } from "./wa-meta-templates";
-import { buildWhatsAppLink, getWhatsAppMessageForStatus } from "./whatsapp";
+import { getWhatsAppMessageForStatus } from "./whatsapp";
+import { LinkWhatsapp } from "./chatwa/SceltaWhatsapp";
 
 /** ── LE DATE DEL CRM SONO STRINGHE, NON TIMESTAMP ─────────────────────────
  *  Nel lead la data sta come "2026-08-14" e l'ora come "15:30", separate.
@@ -422,14 +423,9 @@ export function WhatsAppLeadsPanel({ onClose }: Props) {
                           )}
                         </Button>
                       ) : (
-                        <a
-                          href={
-                            l.data.telefono
-                              ? buildWhatsAppLink(l.data.telefono, messaggioLibero)
-                              : undefined
-                          }
-                          target="_blank"
-                          rel="noreferrer"
+                        <LinkWhatsapp
+                          telefono={l.data.telefono}
+                          testo={messaggioLibero}
                           aria-disabled={!l.data.telefono}
                           className={cn(
                             "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-emerald-500/40 text-emerald-700",
@@ -437,10 +433,10 @@ export function WhatsAppLeadsPanel({ onClose }: Props) {
                               ? "hover:bg-emerald-500/10"
                               : "pointer-events-none opacity-40",
                           )}
-                          title="Nessun template approvato per questo stato: apre WhatsApp col messaggio già scritto"
+                          title="Nessun template approvato per questo stato: scegli fra app WhatsApp e chat del CRM, col messaggio già scritto"
                         >
                           <ExternalLink className="h-3 w-3" />
-                        </a>
+                        </LinkWhatsapp>
                       )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

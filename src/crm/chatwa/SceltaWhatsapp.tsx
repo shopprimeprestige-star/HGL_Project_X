@@ -196,9 +196,13 @@ export function LinkWhatsapp({
               //  wa.me in una scheda nuova (il CRM resta aperto); il link Android si apre e basta.
               target={nativo.startsWith("https:") ? "_blank" : undefined}
               rel="noopener noreferrer"
+              //  ⚠️ Chiusura al giro dopo: un'ancora tolta dalla pagina durante il
+              //   clic non apre niente, e chi la usa (campanella) può smontarla.
               onClick={() => {
-                onNativo?.();
-                setAperto(false);
+                window.setTimeout(() => {
+                  onNativo?.();
+                  setAperto(false);
+                }, 0);
               }}
               className={cn(voce, "hover:bg-slate-50 focus-visible:bg-slate-100")}
             >
@@ -223,7 +227,8 @@ export function LinkWhatsapp({
           {crm.stato === "aperta" ? (
             <Link
               to="/CRM/whatsapp"
-              search={{ chat: crm.contattoId }}
+              //  Il messaggio previsto arriva già nella casella (PaginaChat, `bozzaDaIndirizzo`).
+              search={{ chat: crm.contattoId, testo: testo?.trim() || undefined }}
               onClick={() => {
                 onCrm?.();
                 setAperto(false);

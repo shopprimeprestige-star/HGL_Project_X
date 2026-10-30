@@ -30,6 +30,21 @@ export function proveSceltaWhatsapp(mod, { c, gruppo, radice }) {
 
   c("link alla chat del CRM col contatto", `/CRM/whatsapp?chat=${id1}`, S.linkChatCrm(id1));
   c("id non valido: nessun link (la pagina vuole un uuid)", "", S.linkChatCrm("393331234567"));
+  c("col messaggio: `testo` codificato nell'indirizzo", `/CRM/whatsapp?chat=${id1}&testo=Ciao%20Mario%20%26%20co`, S.linkChatCrm(id1, " Ciao Mario & co "));
+
+  gruppo("SCELTA WHATSAPP: IL MESSAGGIO ARRIVA NELLA CASELLA DEL CRM");
+  const T = mod["chatwa/stato"];
+  c("?chat=&testo=: letti tutti e due", { chat: id1, testo: "Ciao" }, T.leggiRicercaChat({ chat: id1, testo: "Ciao" }));
+  c("testo senza chat valida: ignorato", {}, T.leggiRicercaChat({ chat: "x", testo: "Ciao" }));
+  c("testo vuoto o non stringa: solo la chat", [{ chat: id1 }, { chat: id1 }], [T.leggiRicercaChat({ chat: id1, testo: "  " }), T.leggiRicercaChat({ chat: id1, testo: 5 })]);
+  c("testo oltre il limite di WhatsApp: tagliato a 4096", 4096, T.leggiRicercaChat({ chat: id1, testo: "a".repeat(5000) }).testo.length);
+  c("casella vuota: il messaggio entra", "Ciao", T.bozzaDaIndirizzo("", "Ciao"));
+  c("casella con solo spazi: il messaggio entra", "Ciao", T.bozzaDaIndirizzo("  \n", "Ciao"));
+  c("bozza già scritta: non si tocca", null, T.bozzaDaIndirizzo("Sto scrivendo", "Ciao"));
+  c("nessun testo: niente", null, T.bozzaDaIndirizzo("", undefined));
+  const pagina = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");
+  c("la pagina mette il testo nella bozza e lo toglie dall'indirizzo", true,
+    /bozzaDaIndirizzo\(/.test(pagina) && /testo: testoUrl|testoUrl/.test(pagina) && /search: \{ chat: chatUrl \}/.test(pagina));
   c("la frase della finestra chiusa", true, /Finestra di 24 ore chiusa/.test(S.FRASE_FINESTRA_CHIUSA) && /modello/.test(S.FRASE_FINESTRA_CHIUSA));
 
   c("il nativo: wa.me col testo", "https://wa.me/393331234567?text=Ciao", S.linkNativo("+39 333 1234567", "Ciao", ""));
@@ -41,6 +56,10 @@ export function proveSceltaWhatsapp(mod, { c, gruppo, radice }) {
   c("il componente legge la finestra al tocco e spegne il CRM se chiusa", true,
     /ultimo_in_entrata_il/.test(comp) && /sceltaCrm\(/.test(comp) && /FRASE_FINESTRA_CHIUSA/.test(comp) && /aria-disabled/.test(comp));
   c("tocchi da 44 px", true, /min-h-11/.test(comp));
+  c("la voce CRM porta anche il messaggio", true, /testo: testo\?\.trim\(\) \|\| undefined/.test(comp));
+  const campanella = readFileSync(join(radice, "src/crm/notifications/NotificationsBell.tsx"), "utf8");
+  c("campanella: il tasto WhatsApp solo sugli avvisi di un lead col telefono, fuori dal bottone della riga", true,
+    /<\/button>\s*\{a\.leadId && \(\s*<WhatsappAvviso/.test(campanella) && /if \(!lead \|\| !telefono\) return null/.test(campanella));
   const usano = [
     "src/crm/TastoMessaggio.tsx",
     "src/crm/LeadDialog.tsx",
@@ -48,6 +67,8 @@ export function proveSceltaWhatsapp(mod, { c, gruppo, radice }) {
     "src/crm/dafare/VoceDaFare.tsx",
     "src/crm/MeetGiornalieri.tsx",
     "src/crm/preventivi/Riga.tsx",
+    "src/crm/notifications/NotificationsBell.tsx",
+    "src/crm/WhatsAppLeadsPanel.tsx",
   ];
   for (const f of usano) {
     const s = readFileSync(join(radice, f), "utf8");

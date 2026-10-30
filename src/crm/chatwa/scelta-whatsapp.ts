@@ -64,10 +64,13 @@ export function sceltaCrm(contatto: ContattoPerScelta | null, adesso: Date): Sce
   return { stato: "chiusa", contattoId: contatto?.id ?? null };
 }
 
-/** La pagina WhatsApp del CRM con aperta la chat del contatto (`?chat=` vuole un uuid). */
-export function linkChatCrm(contattoId?: string | null): string {
+/** La pagina WhatsApp del CRM con aperta la chat del contatto (`?chat=` vuole un uuid);
+ *  con `testo` il messaggio arriva già nella casella (`&testo=`, vedi PaginaChat). */
+export function linkChatCrm(contattoId?: string | null, testo?: string | null): string {
   const id = String(contattoId ?? "");
-  return UUID.test(id) ? `/CRM/whatsapp?chat=${id.toLowerCase()}` : "";
+  if (!UUID.test(id)) return "";
+  const t = String(testo ?? "").trim();
+  return `/CRM/whatsapp?chat=${id.toLowerCase()}${t ? `&testo=${encodeURIComponent(t)}` : ""}`;
 }
 
 /** L'app del telefono: Business prima su Android, altrove wa.me; vuoto se il numero è rotto. */
