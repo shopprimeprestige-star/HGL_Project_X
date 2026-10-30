@@ -2158,7 +2158,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         "il tasto «Aggiorna» porta scritto «Aggiornato hh:mm» (non solo nel title, che sul telefono non si vede)",
         [true, true],
         [
-          /Aggiornato \$\{oraBreve\(api\.aggiornatoIl\)\}/.test(corpoTasto),
+          //  30/10: sul telefono l'ora sotto l'icona, da 768 px «Aggiornato hh:mm».
+          /Aggiornato <\/span>\s*\{oraBreve\(api\.aggiornatoIl\)\}/.test(corpoTasto),
           /api\.aggiornatoIl/.test(corpoTasto),
         ],
       );

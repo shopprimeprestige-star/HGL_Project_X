@@ -167,13 +167,15 @@ export function TastoSpesaLead() {
         onClick={apri}
         aria-label="Lead di oggi e spesa pubblicitaria"
         title="Lead di oggi e spesa pubblicitaria"
-        className="flex min-h-11 min-w-0 items-center gap-2 rounded-md pr-1 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9"
+        className="flex min-h-11 shrink-0 items-center gap-2 rounded-md pr-1 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9"
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-emerald-100 bg-emerald-50 text-emerald-600">
           <MessageCircle className="h-4 w-4" />
         </span>
         <span className="flex shrink-0 flex-col leading-tight tabular-nums">
-          <span className="text-[12px] font-semibold text-foreground">{nLead(riga0.lead)}</span>
+          <span className="text-[13px] font-semibold text-foreground">
+            {nLead(riga0.lead)} <span className="font-normal text-muted-foreground">oggi</span>
+          </span>
           {riga0.costoLead !== null && (
             <span className="text-[11px] text-muted-foreground">
               {euroPreciso(riga0.costoLead)} a lead
