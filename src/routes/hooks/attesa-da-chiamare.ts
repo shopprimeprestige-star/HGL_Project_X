@@ -4,6 +4,11 @@
  *  «Attesa WhatsApp» da più di 10 ore, senza risposta del cliente, passano a
  *  «Da chiamare». La regola è in crm/importa/attesa-da-chiamare (provata).
  *
+ *  Nello stesso giro c'è anche il RITORNO (30/10/2026): chi è in «Da contattare»,
+ *  «Non risponde», «Segreteria» o «Da chiamare» e ha scritto su WhatsApp (finestra
+ *  delle 24 ore riaperta) torna in «Attesa WhatsApp», con una riga nelle note.
+ *  Solo questi quattro stati: gli altri non si toccano mai.
+ *
  *  COME LO SI CHIAMA
  *  POST /hooks/attesa-da-chiamare con Authorization che porta la chiave
  *  pubblicabile, come gli altri hook: chi ce l'ha può solo anticipare un giro
@@ -18,6 +23,7 @@ import {
   nove,
   patchDaChiamare,
   patchRitornoAttesa,
+  STATI_CHE_TORNANO_IN_ATTESA,
   type ContattoWa,
 } from "@/crm/importa/attesa-da-chiamare";
 import { telefonoE164 } from "@/crm/chatwa/daChiamare";
@@ -121,30 +127,99 @@ export async function giroAttesaDaChiamare(adesso = new Date()) {
   return { inAttesa: schede.length, spostati, cambiatiNelFrattempo: cambiati };
 }
 
-/** Il ritorno: «Da chiamare» → «Attesa WhatsApp» quando il cliente ha risposto
- *  (regola `patchRitornoAttesa`). Stessa scrittura protetta da `updated_at`. */
+/** I contatti che hanno scritto nelle ultime 24 ore (pochi), per numero. Non
+ *  serve altro: chi non ha scritto non può tornare in attesa. A pagine, in
+ *  ordine fisso. */
+async function contattiCheHannoScritto(adesso: Date): Promise<Map<string, ContattoWa>> {
+  const perNumero = new Map<string, ContattoWa>();
+  const dal = new Date(adesso.getTime() - 24 * 3600_000).toISOString();
+  const PAGINA = 1000;
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await db()
+      .from("whatsapp_contacts")
+      .select("user_id, phone_e164, ultimo_in_entrata_il, non_scrivere_dal")
+      .gte("ultimo_in_entrata_il", dal)
+      .order("id", { ascending: true })
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const righe = (data ?? []) as Contatto[];
+    for (const c of righe)
+      perNumero.set(`${c.user_id}|${nove(c.phone_e164)}`, {
+        ultimoInEntrataIl: c.ultimo_in_entrata_il,
+        stop: !!c.non_scrivere_dal,
+      });
+    if (righe.length < PAGINA) return perNumero;
+  }
+}
+
+type RigaLeggera = {
+  id: string;
+  user_id: string;
+  updated_at: string;
+  stato: string | null;
+  telefono: string | null;
+  statoDal: string | null;
+  statoPrecedenteIl: string | null;
+};
+
+/** Le schede dei 4 stati, in versione LEGGERA (le «Da contattare» importate sono
+ *  migliaia: la scheda intera si rilegge solo per chi deve davvero tornare). */
+async function schedeLeggere(): Promise<RigaLeggera[]> {
+  const out: RigaLeggera[] = [];
+  const PAGINA = 1000;
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await db()
+      .from("crm_leads")
+      .select(
+        "id, user_id, updated_at, stato:data->>stato, telefono:data->>telefono, statoDal:data->>statoDal, statoPrecedenteIl:data->>statoPrecedenteIl",
+      )
+      .in("data->>stato", [...STATI_CHE_TORNANO_IN_ATTESA])
+      .order("id", { ascending: true })
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const righe = (data ?? []) as RigaLeggera[];
+    out.push(...righe);
+    if (righe.length < PAGINA) return out;
+  }
+}
+
+/** Il ritorno: chi è in uno dei 4 stati (`STATI_CHE_TORNANO_IN_ATTESA`) e ha
+ *  scritto → «Attesa WhatsApp» (regola `patchRitornoAttesa`). Stessa scrittura
+ *  protetta da `updated_at`. */
 export async function giroRitornoAttesa(adesso = new Date()) {
-  const schede = await schedeInAttesa("da_chiamare");
-  if (schede.length === 0) return { daChiamare: 0, tornati: 0, cambiatiNelFrattempo: 0 };
-  const perNumero = await contattiDi(schede);
+  const perNumero = await contattiCheHannoScritto(adesso);
+  if (perNumero.size === 0) return { hannoScritto: 0, tornati: 0, cambiatiNelFrattempo: 0 };
+  //  Prima il giudizio sulla versione leggera, poi la scheda intera dei soli candidati.
+  const candidati = (await schedeLeggere()).filter((r) => {
+    if (!telefonoE164(r.telefono)) return false;
+    const contatto = perNumero.get(`${r.user_id}|${nove(r.telefono)}`);
+    const leggera = { stato: r.stato, statoDal: r.statoDal, statoPrecedenteIl: r.statoPrecedenteIl };
+    return !!patchRitornoAttesa(leggera as Partial<LeadData>, contatto, adesso, r.updated_at);
+  });
   let tornati = 0;
   let cambiati = 0;
-  for (const r of schede) {
-    if (!telefonoE164(r.data?.telefono)) continue;
-    const contatto = perNumero.get(`${r.user_id}|${nove(r.data?.telefono)}`);
-    const patch = patchRitornoAttesa(r.data, contatto, adesso);
-    if (!patch) continue;
-    const { data: scritte, error } = await db()
+  for (let i = 0; i < candidati.length; i += 100) {
+    const { data, error } = await db()
       .from("crm_leads")
-      .update({ data: { ...r.data, ...patch }, updated_at: adesso.toISOString() })
-      .eq("id", r.id)
-      .eq("updated_at", r.updated_at)
-      .select("id");
+      .select("id, user_id, data, updated_at")
+      .in("id", candidati.slice(i, i + 100).map((r) => r.id));
     if (error) throw error;
-    if (scritte?.length) tornati++;
-    else cambiati++;
+    for (const r of (data ?? []) as Riga[]) {
+      const contatto = perNumero.get(`${r.user_id}|${nove(r.data?.telefono)}`);
+      const patch = patchRitornoAttesa(r.data, contatto, adesso, r.updated_at);
+      if (!patch) continue;
+      const { data: scritte, error: e2 } = await db()
+        .from("crm_leads")
+        .update({ data: { ...r.data, ...patch }, updated_at: adesso.toISOString() })
+        .eq("id", r.id)
+        .eq("updated_at", r.updated_at)
+        .select("id");
+      if (e2) throw e2;
+      if (scritte?.length) tornati++;
+      else cambiati++;
+    }
   }
-  return { daChiamare: schede.length, tornati, cambiatiNelFrattempo: cambiati };
+  return { hannoScritto: perNumero.size, tornati, cambiatiNelFrattempo: cambiati };
 }
 
 export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
@@ -157,7 +232,7 @@ export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
           return json({ error: "unauthorized" }, 401);
         try {
           const adesso = new Date();
-          //  Prima il ritorno (chi ha risposto), poi l'andata: chi torna adesso
+          //  Prima il ritorno (chi ha scritto), poi l'andata: chi torna adesso
           //  ha `statoDal` nuovo e non riparte subito per «Da chiamare».
           const ritorno = await giroRitornoAttesa(adesso);
           return json({ ...(await giroAttesaDaChiamare(adesso)), ritorno });
