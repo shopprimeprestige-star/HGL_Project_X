@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, ListChecks, Loader2, Search, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { combaciaRicerca, ordinaPerStelle } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
+import { useStabile } from "./apiElenco";
 import { PASSO_RIGHE, RIGHE_INIZIALI, tagliaSezioni } from "./finestraLista";
 import { AzioniSelezione, TestataSelezione } from "./BarraSelezione";
 import {
@@ -93,14 +94,6 @@ const chip = (acceso: boolean) =>
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
-/** Una funzione con identità fissa che chiama sempre la versione di ADESSO: le righe in memoria
- *  (`RigaChat` ignora le funzioni nel confronto) non restano mai con una copia vecchia. */
-function useStabile<A extends unknown[], R>(f: (...a: A) => R): (...a: A) => R {
-  const ref = useRef(f);
-  ref.current = f;
-  return useCallback((...a: A) => ref.current(...a), []);
-}
-
 /** L'ora «adesso», aggiornata ogni 30 secondi. */
 function useAdesso(): number {
   const [adesso, setAdesso] = useState(() => Date.now());
@@ -120,7 +113,7 @@ function useAdesso(): number {
  *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
-export function ElencoChat({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) {
+function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) {
   const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva } = api;
   //  Funzioni stabili: le righe non si ridisegnano se cambia solo la loro identità.
   const apri = useStabile(api.apri);
@@ -774,3 +767,6 @@ export function ElencoChat({ api, onCreaScheda: creaSchedaProp }: ElencoChatProp
     </aside>
   );
 }
+
+/** In memoria: si ridisegna solo se cambia l'`api` che le dà `useApiElenco` (vedi apiElenco.ts). */
+export const ElencoChat = memo(ElencoChatBase);

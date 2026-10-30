@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Check,
@@ -565,7 +565,7 @@ function StatoCoda({ coda }: { coda: NonNullable<BollaProps["coda"]> }) {
 /** Una bolla di messaggio, stile WhatsApp: uscita verde chiaro, entrata bianca,
  *  angolo «a punta» solo sulla prima di una serie dello stesso lato (`attaccata`:
  *  la decide la conversazione, vedi `attaccataAllaPrecedente` in ./stile). */
-export function BollaMessaggio({
+function BollaBase({
   messaggio: m,
   lead,
   coda,
@@ -644,3 +644,6 @@ export function BollaMessaggio({
     </div>
   );
 }
+
+/** In memoria (p1-chat-veloce): scrivere nella casella non ridisegna le 500 bolle della chat aperta. */
+export const BollaMessaggio = memo(BollaBase);

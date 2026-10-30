@@ -23,6 +23,7 @@ import { StatoPonte } from "./StatoPonte";
 import { PannelloCosti, TastoCosti } from "./PannelloCosti";
 import { TastoSpesaLead } from "./PannelloSpesaLead";
 import { useChatWa } from "./useChatWa";
+import { useApiElenco, useStabile } from "./apiElenco";
 import { bozzaDaIndirizzo } from "./stato";
 import { PannelloOggi } from "./PannelloOggi";
 import { chatDelLead } from "./pannello-oggi";
@@ -196,6 +197,9 @@ export function PaginaChat({
   // I figli ricevono l'`apri` che naviga; il resto dell'api è quello dell'hook.
   const apiPagina: ChatWaApi = { ...api, apri: apriChat };
 
+  //  L'elenco non si ridisegna a ogni lettera della casella (vedi apiElenco.ts).
+  const apiElenco = useApiElenco(apiPagina);
+
   /** Numero sconosciuto → dialog nuovo lead con telefono prefillato (l'utente sceglie consulente, fascia oraria, ecc.). */
   const creaScheda = (chat: ChatItem) => {
     setLeadDialogLead(null);
@@ -205,6 +209,7 @@ export function PaginaChat({
     });
     setLeadDialogOpen(true);
   };
+  const creaSchedaElenco = useStabile(creaScheda);
 
   //  «Abbina a una scheda»: `api.abbina` lavora sulla chat aperta, quindi prima
   //  si apre quella chat; la finestra passa anche il numero, e l'hook rifiuta se
@@ -455,7 +460,7 @@ export function PaginaChat({
             conversazioneAperta ? "hidden" : "flex",
           )}
         >
-          <ElencoChat api={apiPagina} onCreaScheda={creaScheda} />
+          <ElencoChat api={apiElenco} onCreaScheda={creaSchedaElenco} />
         </div>
 
         {/* Colonna conversazione */}
