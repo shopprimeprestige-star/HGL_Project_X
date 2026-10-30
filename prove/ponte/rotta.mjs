@@ -287,7 +287,8 @@ export async function provePonteRotta(_mod, { c, gruppo, radice }) {
     c("risponde solo a POST", ["POST"], [...codice.matchAll(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s*:/g)].map((x) => x[1]));
     c("legge il segreto PONTE_WA_TOKEN e nessun altro interruttore", ["PONTE_WA_TOKEN"], [...codice.matchAll(/process\.env\.(\w+)/g)].map((x) => x[1]));
     c("passa tutto a gestisciRichiesta con le porte vere", true, codice.includes("gestisciRichiesta(porteIngresso()"));
-    c("i soli import: router, ingresso, porte", ["@/crm/ponte/ingresso", "@/crm/ponte/porte.server", "@tanstack/react-router"],
+    //  + l'avviso push dei messaggi vivi (commessa 2026-10-30, p2-push-risposte).
+    c("i soli import: router, ingresso, porte, avviso push", ["@/crm/ponte/ingresso", "@/crm/ponte/porte.server", "@/crm/push/invio.server", "@tanstack/react-router"],
       [...codice.matchAll(/from\s+"([^"]+)"/g)].map((x) => x[1]).sort());
     c("non legge il corpo da sé (lo fa gestisciRichiesta, dopo la chiave)", false, /\.(json|text|formData|arrayBuffer|blob)\s*\(|\.body\b/.test(codice));
     c("niente fetch, niente console (i log li fa porte.avviso)", [false, false], [/\bfetch\s*\(/.test(codice), /console\./.test(codice)]);
