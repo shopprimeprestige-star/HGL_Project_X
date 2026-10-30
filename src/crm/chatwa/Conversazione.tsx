@@ -5,6 +5,7 @@ import {
   CalendarClock,
   Check,
   Clock,
+  Hourglass,
   MessageCircle,
   MoreVertical,
   Phone,
@@ -43,7 +44,8 @@ import { BozzaAiPronta } from "./BozzaAiPronta";
 import { useBozzaAi } from "./useBozzaAi";
 import { useRispostaAi } from "./useRispostaAi";
 import { initials, numeroLeggibile } from "./formati";
-import { attesaInChiaro } from "./stato";
+import { attesaInChiaro, ultimoDellaChat } from "./stato";
+import { senzaRispostaDa } from "./anteprima-riga";
 import { ritornoInChat } from "./ritorno";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
@@ -178,6 +180,14 @@ export function Conversazione({
       )
     : "";
   const inAttesa = attiva?.daRispondere?.attesa === true;
+  //  Come nella riga dell'elenco (30/10/2026): l'ultimo è mio e lui non ha risposto.
+  const senzaRisposta = attiva
+    ? senzaRispostaDa(
+        ultimoDellaChat(attiva.lastMessage, attiva.contact),
+        inAttesa,
+        adesso.getTime(),
+      )
+    : null;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
   const richiamo = attiva?.lead ? etichettaRichiamo(attiva.lead.data, oggiIso(adesso)) : null;
 
@@ -327,6 +337,17 @@ export function Conversazione({
               </DropdownMenu>
             </div>
             <div className="flex min-w-0 items-center gap-2 overflow-x-auto px-3 pb-2 pt-0.5 [scrollbar-width:none] md:px-4 [&::-webkit-scrollbar]:hidden">
+              {/*  Senza risposta (30/10/2026): per prima, così sul telefono non resta fuori
+                dalla riga che scorre. Ardesia: «tocca a lui»; l'ambra sotto è «tocca a noi». */}
+              {senzaRisposta && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 py-1 text-[12px] font-medium leading-none tabular-nums text-slate-700"
+                  title={`Hai scritto tu per ultimo e il cliente non ha ancora risposto (${senzaRisposta.da})`}
+                >
+                  <Hourglass aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                  Senza risposta {senzaRisposta.breve}
+                </span>
+              )}
               {/* ── LO STATO SI CAMBIA DALLA PASTIGLIA ──────────────────
                 È la stessa finestra a griglia di tutto il CRM (rispetta `statiPer`). */}
               {attiva.lead ? (

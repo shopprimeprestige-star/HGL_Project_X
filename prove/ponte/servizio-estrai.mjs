@@ -88,7 +88,7 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("un modello uscito è out come gli altri", ["out", "sent"], [leggi(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })).messaggio?.dir, leggi(wa({ placeholderMessage: { type: 0 } }, { fromMe: true })).messaggio?.stato]);
   c("risposta a un bottone porta il testo scelto, senza marca", { testo: "Confermo", tipo: "testo" }, solo(wa({ buttonsResponseMessage: { selectedDisplayText: "Confermo" } })));
   c("risposta a una lista senza marca", { testo: "Sabato", tipo: "testo" }, solo(wa({ listResponseMessage: { title: "Sabato" } })));
-  c("tipo che non conosciamo → scartato, mai inventato", { scarto: "tipo_sconosciuto" }, solo(wa({ nuovoTipoDelDomani: {} })));
+  c("tipo che non conosciamo → segnaposto «Allegato», mai buttato (messaggi persi 30/10)", { testo: "📎 Allegato", tipo: "altro" }, solo(wa({ nuovoTipoDelDomani: {} })));
 
   //  Le etichette sono quelle che la chat sa già disegnare (media.ts).
   const media = readFileSync(join(radice, "src/crm/chatwa/media.ts"), "utf8");

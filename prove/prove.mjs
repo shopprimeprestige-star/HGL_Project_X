@@ -626,6 +626,9 @@ const MODULI = [
   //   prove in prove/idee/righe.mjs.
   "chatwa/segniRiga",
   "chatwa/testoWhatsapp",
+  //  L'anteprima della riga = l'ULTIMO messaggio, chi l'ha scritto e «senza risposta»
+  //   (commessa 2026-10-30-wa-anteprima-ultimo): vedi proveDellAnteprimaUltimo.
+  "chatwa/anteprima-riga",
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
   "versione-crm",
@@ -21139,6 +21142,7 @@ await proveDelleRisposteAi();
 proveDelModelloConsigliato();
 proveDeiFiltriFinestra();
 proveDellOsservazioneComePastiglia();
+proveDellAnteprimaUltimo();
 proveDelleCorrezioniManychat();
 proveDelleEcoInChat();
 proveDiWhatsappDisegnoMobile();
@@ -21965,6 +21969,93 @@ function proveDellOsservazioneComePastiglia() {
   c("accenderla porta il filtro a «Tutte» (con «Sconosciuti» acceso l'elenco era vuoto)", true, /if \(!soloStelle\) setFiltro\("all"\);\s*setSoloStelle\(\(v\) => !v\);/.test(src));
   c("un'altra pastiglia la spegne", true, /setFiltro\(f\.v\);\s*setSoloStelle\(false\);/.test(src));
   c("con l'osservazione accesa nessun'altra pastiglia sembra scelta", 2, (src.match(/filtro === f\.v &&\s+!soloStelle/g) || []).length);
+}
+
+/** ── L'ANTEPRIMA DELLA RIGA È L'ULTIMO MESSAGGIO (30/10/2026) ──────────────
+ *  Richiesta del titolare: nella riga si vede l'ultimo messaggio, di chiunque sia,
+ *  si capisce chi l'ha scritto, e se l'ultimo è mio e lui non ha risposto lo dice.
+ *  Dati inventati. Le regole di «Da rispondere» (stato.ts) non si toccano. */
+function proveDellAnteprimaUltimo() {
+  gruppo("CHAT WHATSAPP: ANTEPRIMA = ULTIMO MESSAGGIO, CHI L'HA SCRITTO, SENZA RISPOSTA");
+  const A = mod["chatwa/anteprima-riga"];
+  const ORA_MS = 3_600_000;
+  const adesso = Date.parse("2026-10-30T12:00:00Z");
+  const fa = (ms) => new Date(adesso - ms).toISOString();
+  const msg = (direction, body, ms, status) => ({ direction, body, created_at: fa(ms), status });
+  const base = { contatto: null, attesa: null, inAttesa: false, nonLetti: 0, adesso };
+
+  //  1. L'ultimo è mio.
+  const mio = A.anteprimaRiga({ ...base, ultimo: msg("outbound", "Perfetto, a giovedì", 2 * 24 * ORA_MS, "read") });
+  c("mio: si dice, con le spunte lette", [true, "lette", "Perfetto, a giovedì", false], [mio.mio, mio.spunte, mio.testo, mio.nonLetto]);
+  c("mio e senza risposta: da quanto, per esteso e in breve", { da: "da 2 giorni", breve: "da 2 g" }, mio.senzaRisposta && { da: mio.senzaRisposta.da, breve: mio.senzaRisposta.breve });
+  c("…e il momento del mio messaggio", fa(2 * 24 * ORA_MS), mio.senzaRisposta.dal);
+  const stati = ["read", "delivered", "sent", "queued", "failed", undefined].map((s) => A.anteprimaRiga({ ...base, ultimo: msg("outbound", "x", ORA_MS, s) }).spunte);
+  c("le spunte seguono lo stato (senza stato: solo inviato)", ["lette", "consegnato", "inviato", "inviato", "errore", "inviato"], stati);
+  c("la durata si mostra da un'ora in su", [false, false, true, true], [20_000, 25 * 60_000, 3 * ORA_MS, 2 * 24 * ORA_MS].map((ms) => A.anteprimaRiga({ ...base, ultimo: msg("outbound", "x", ms, "sent") }).senzaRisposta.daOre));
+  c("pochi secondi fa: «da poco»", "da poco", A.anteprimaRiga({ ...base, ultimo: msg("outbound", "x", 20_000, "sent") }).senzaRisposta.breve);
+  c("minuti e ore", ["da 25 min", "da 3 h"], [25 * 60_000, 3 * ORA_MS].map((ms) => A.anteprimaRiga({ ...base, ultimo: msg("outbound", "x", ms, "sent") }).senzaRisposta.breve));
+  c("un solo giorno", "da 1 g", A.anteprimaRiga({ ...base, ultimo: msg("outbound", "x", 25 * ORA_MS, "sent") }).senzaRisposta.breve);
+  c("un messaggio non partito (failed) non è «senza risposta»", null, A.anteprimaRiga({ ...base, ultimo: msg("outbound", "x", ORA_MS, "failed") }).senzaRisposta);
+  c("data illeggibile: niente «senza risposta» inventato", null, A.anteprimaRiga({ ...base, ultimo: { direction: "outbound", body: "x", created_at: "boh" } }).senzaRisposta);
+
+  //  2. L'ultimo è del cliente.
+  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" }, nonLetti: 1 });
+  c("del cliente: niente prefisso, nessuna spunta, non letto in evidenza", [false, null, "Va bene, grazie", true, null], [suo.mio, suo.spunte, suo.testo, suo.nonLetto, suo.senzaRisposta]);
+  c("…vince l'ultimo messaggio vero, non l'anteprima di «Da rispondere»", "Va bene, grazie", suo.testo);
+  c("del cliente già visto (non in attesa, nessun non letto): normale", false, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).nonLetto);
+  c("del cliente non in attesa ma con messaggi non letti: in evidenza", true, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS), nonLetti: 2 }).nonLetto);
+  c("del cliente non ha mai «senza risposta»", null, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).senzaRisposta);
+
+  //  3. «Da rispondere» con l'ultimo mio (risposto dal telefono, non ancora segnato): si dice, e tocca a noi.
+  const ancora = A.anteprimaRiga({ ...base, ultimo: msg("outbound", "Ti ho scritto", ORA_MS, "delivered"), inAttesa: true, attesa: { anteprima: "domanda" } });
+  c("in «Da rispondere» con l'ultimo mio: «Tu:» onesto, ma niente «senza risposta» (tocca a noi)", [true, "Ti ho scritto", null], [ancora.mio, ancora.testo, ancora.senzaRisposta]);
+
+  //  4. Modelli, media, una riga sola.
+  const chiamate = [];
+  const modello = A.anteprimaRiga({ ...base, ultimo: msg("outbound", "[template:hgl_x]", ORA_MS, "sent"), testoUscita: (b) => (chiamate.push(b), "Gentile Mario, promemoria") });
+  c("un nostro modello si legge col suo testo", "Gentile Mario, promemoria", modello.testo);
+  A.anteprimaRiga({ ...base, ultimo: msg("inbound", "[template:hgl_x]", ORA_MS), testoUscita: (b) => (chiamate.push(b), "NO") });
+  c("…ma solo se è in uscita", ["[template:hgl_x]"], chiamate);
+  const voc = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "https://manybot-files.s3.eu-central-1.amazonaws.com/p/wa/2026/10/30/a.ogg", ORA_MS) });
+  c("un vocale ha la sua etichetta e l'icona", ["Vocale", "audio"], [voc.testo, voc.media]);
+  const vecchioMedia = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "🎤 Vocale", ORA_MS) });
+  c("l'emoji vecchia di un media non resta", ["Vocale", "audio"], [vecchioMedia.testo, vecchioMedia.media]);
+  c("a capo e tab diventano uno spazio, su una riga sola", "uno due tre", A.anteprimaRiga({ ...base, ultimo: msg("inbound", "uno\n\ndue\t tre  ", ORA_MS) }).testo);
+  c("un media mio resta mio", [true, "Foto"], ((r) => [r.mio, r.testo])(A.anteprimaRiga({ ...base, ultimo: msg("outbound", "Foto", ORA_MS, "sent") })));
+
+  //  5. Senza l'ultimo messaggio (chat vecchia): si ripiega su quello che c'è, senza inventare.
+  const entrata = fa(5 * ORA_MS);
+  const conCol = { last_message_at: entrata, ultimo_in_entrata_il: entrata, ultimo_in_entrata_anteprima: "Buongiorno" };
+  const nullo = { ultimo: null, ...base };
+  c("chat vecchia con l'ultimo uguale all'ultima entrata: è del cliente", [false, "Buongiorno", null], ((r) => [r.mio, r.testo, r.senzaRisposta])(A.anteprimaRiga({ ...nullo, contatto: conCol })));
+  c("…con pochi secondi di differenza vale lo stesso", "Buongiorno", A.anteprimaRiga({ ...nullo, contatto: { ...conCol, last_message_at: fa(5 * ORA_MS - 20_000) } }).testo);
+  const dopo = A.anteprimaRiga({ ...nullo, contatto: { ...conCol, last_message_at: fa(ORA_MS) } });
+  c("dopo l'ultima entrata c'è altro, ma non si sa cosa: niente testo inventato", ["", false, null, false], [dopo.testo, dopo.mio, dopo.senzaRisposta, dopo.nessunMessaggio]);
+  const inAtt = A.anteprimaRiga({ ...nullo, inAttesa: true, attesa: { anteprima: "Mi richiami?" }, contatto: null });
+  c("in attesa senza l'ultimo: l'anteprima di «Da rispondere», del cliente", [false, "Mi richiami?", true], [inAtt.mio, inAtt.testo, inAtt.nonLetto]);
+  c("nessun messaggio e nessun contatto", [true, ""], ((r) => [r.nessunMessaggio, r.testo])(A.anteprimaRiga({ ...nullo, contatto: null })));
+  c("un contatto con un'ora ma nessun testo: non è «nessun messaggio»", false, A.anteprimaRiga({ ...nullo, contatto: { last_message_at: entrata } }).nessunMessaggio);
+
+  //  6. La stessa regola serve alla chat aperta.
+  c("senzaRispostaDa: mio senza risposta", "da 3 h", A.senzaRispostaDa(msg("outbound", "x", 3 * ORA_MS), false, adesso)?.da);
+  c("…del cliente, o tocca a noi, o niente: nessuna", [null, null, null], [A.senzaRispostaDa(msg("inbound", "x", ORA_MS), false, adesso), A.senzaRispostaDa(msg("outbound", "x", ORA_MS), true, adesso), A.senzaRispostaDa(null, false, adesso)]);
+
+  //  7. Disegno.
+  const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
+  const pulito = (t) => t.replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, "");
+  const r = pulito(riga);
+  c("la riga non prende più l'anteprima di «Da rispondere» al posto dell'ultimo messaggio", false, /daRispondere\?\.anteprima \?\? ultimo/.test(r));
+  c("la riga usa la funzione pura, con l'ultimo della chat", true, /anteprimaRiga\(\{[\s\S]{0,300}ultimo: last/.test(r));
+  c("«Tu:» e le spunte non si tagliano (shrink-0), il testo sì (truncate)", true, /shrink-0[^"]*">\s*\{a\.spunte[\s\S]{0,600}Tu:/.test(r) && /min-w-0 truncate/.test(r));
+  c("spunte: lette, consegnato, inviato e errore con le icone outline", true, /CheckCheck/.test(r) && /<Check\b/.test(r) && /AlertCircle/.test(r));
+  c("il non letto del cliente è in grassetto scuro", true, /a\.nonLetto[^;]{0,80}font-semibold text-foreground/.test(r));
+  c("«senza risposta» a destra del nome, in ardesia con la clessidra (non ambra, non rosso, non azzurro come lo stato)", true,
+    /a\.senzaRisposta \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
+  c("…e non aggiunge una riga all'elenco (niente pastiglia nella riga di stato)", false, /\(c\.lead \|\| onStelle \|\| a\.senzaRisposta\)/.test(r));
+  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" \? "font-semibold text-amber-700"/.test(r));
+  c("la chat aperta mostra «senza risposta» nella barra, con la stessa funzione", true, /senzaRispostaDa\(/.test(conv) && /Senza risposta/.test(pulito(conv)));
+  c("la regola di «Da rispondere» non è stata toccata: la riga legge ancora c.daRispondere", true, /c\.daRispondere\?\.dal/.test(r) && /attesa: c\.daRispondere/.test(r));
 }
 
 function proveDelleCorrezioniManychat() {

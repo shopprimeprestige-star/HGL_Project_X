@@ -19,6 +19,17 @@
  *                               `estrai.mjs` → «📋 Messaggio inviato da
  *                               ManyChat (testo non visibile)» → fila vivo
  *
+ *  MESSAGGI PERSI (commessa 2026-10-30-messaggi-persi). Baileys non sa
+ *  «andare a prendere» i messaggi arrivati mentre il ponte era spento: li
+ *  riceve da solo alla riconnessione (coda offline di WhatsApp, evento
+ *  `messages.upsert` di tipo `append`, che qui passa come gli altri). I buchi
+ *  veri sono altri e qui sono chiusi:
+ *   · alla (ri)connessione Baileys tiene gli eventi in un buffer fino a 30 s
+ *     (`CB:ib,,offline`) ma ha già confermato i messaggi a WhatsApp: fermare il
+ *     socket in quella finestra li perde → `ferma()` aspetta lo scarico;
+ *   · un messaggio non decifrabile (stub CIPHERTEXT) non ha testo: si scrive un
+ *     segnaposto solo se il vero non arriva entro `ATTESA_NON_DECIFRATO_MS`
+ *     (Baileys lo chiede al telefono, che di solito risponde in pochi secondi).
  *  ⚠️ UN SOLO PUNTO D'INVIO (commessa 2026-10-30-ponte-invio-manuale, T3).
  *   Il ponte nasce di sola lettura; adesso c'è UNA SOLA scrittura verso i
  *   clienti: `inviaTesto`, che manda un testo a mano a un numero già validato
@@ -45,6 +56,14 @@ export function jidDaNumero(numero) {
   return typeof numero === "string" && /^\d{8,15}$/.test(numero) ? `${numero}@s.whatsapp.net` : null;
 }
 
+/** Quanto si aspetta il vero messaggio prima di scrivere il segnaposto «non
+ *  leggibile» (il telefono risponde alla richiesta di Baileys in pochi secondi). */
+export const ATTESA_NON_DECIFRATO_MS = 120_000;
+/** Quanto aspetta `ferma()` che Baileys scarichi il buffer della connessione (30 s
+ *  al massimo per lui; qui meno, perché launchd ci chiude dopo 20 s). */
+export const ATTESA_SCARICO_MS = 6000;
+/** Segnaposto in attesa al più; oltre, si scrivono subito (mai buttati). */
+const MAX_NON_DECIFRATI = 200;
 /** Quanto si aspetta Baileys dopo l'invio, poi «non so se è partito». */
 const TEMPO_INVIO_MS = 30_000;
 /** Messaggi inviati tenuti in RAM per `getMessage` (mai su disco né nei log). */
@@ -132,6 +151,15 @@ export function creaCollegamento({
   let storia = { ...STORIA_VUOTA };
   let attesa = null;
   let fermato = false;
+  /** vero solo dopo l'attesa dello scarico in `ferma()`: da qui gli eventi non contano più */
+  let spento = false;
+  /** Baileys ha scaricato il buffer di questa connessione (`receivedPendingNotifications`) */
+  let scaricato = false;
+  let sbloccaScarico = null;
+  /** gli ascolti in corso (per non chiudere il socket a metà di un messaggio) */
+  const inCorso = new Set();
+  /** `numero:idVero` → { timer, riga, nomi }: segnaposto in attesa del messaggio vero */
+  const nonDecifrati = new Map();
   let proprioNumero = null;
   let proprioLid = null;
   /** gli ultimi messaggi inviati da noi, per `key.id`: `{ numero, message }`, solo in RAM */
@@ -143,7 +171,7 @@ export function creaCollegamento({
     // con una sessione già salvata lo storico è già arrivato una volta
     storico: existsSync(`${percorsi.auth}/creds.json`) ? { fatto: true, avanzamento: 100 } : { fatto: false, avanzamento: 0 },
   };
-  const estrazione = { letti: 0, validi: 0, chat: 0, lid_risolti: 0, lid_errori: 0, storico_rifiutati: 0, invii_nascosti: 0 };
+  const estrazione = { letti: 0, validi: 0, chat: 0, lid_risolti: 0, lid_errori: 0, storico_rifiutati: 0, invii_nascosti: 0, non_decifrati: 0, non_decifrati_arrivati: 0 };
   /** guasto 2: perché si scarta, che cosa arriva, che cosa arriva senza contenuto */
   const diagnosi = { scarti: {}, tipi: {}, nodi: {} };
   /** i numeri visti, solo in memoria e solo per contarli (`--senza-invio`) */
@@ -196,8 +224,40 @@ export function creaCollegamento({
     if (imparate.length) aggiornaLid(imparate);
   }
 
-  /** WAMessage[] → `{ messaggi, nomi }` validi, contando gli scarti per motivo. */
-  function estrai(lista, dal) {
+  /** Un messaggio non decifrabile: il segnaposto si scrive tra `ATTESA_NON_DECIFRATO_MS`
+   *  se il vero (stesso id di WhatsApp) non è arrivato. Mai buttato: con troppi in
+   *  attesa si scrive subito. Non lancia. */
+  function aspettaVero({ messaggio, nome, idVero }) {
+    const k = `${messaggio.numero}:${idVero}`;
+    if (nonDecifrati.has(k)) return;
+    const scrivi = () => {
+      nonDecifrati.delete(k);
+      try {
+        estrazione.non_decifrati++;
+        metti("vivo", [messaggio], nome ? { [messaggio.numero]: nome } : {});
+        avvisa();
+      } catch {
+        registro("evento_fallito", { non_decifrato: 1 });
+      }
+    };
+    if (nonDecifrati.size >= MAX_NON_DECIFRATI) return scrivi();
+    nonDecifrati.set(k, { timer: pianifica(scrivi, ATTESA_NON_DECIFRATO_MS), scrivi });
+  }
+
+  /** Il messaggio vero è arrivato: il segnaposto non serve più. */
+  function veroArrivato(messaggio) {
+    const k = `${messaggio.numero}:${messaggio.id}`;
+    const voce = nonDecifrati.get(k);
+    if (!voce) return;
+    annulla(voce.timer);
+    nonDecifrati.delete(k);
+    estrazione.non_decifrati_arrivati++;
+    conta(diagnosi.scarti, "non_decifrato_arrivato"); // nel log: quanti stub si sono risolti da soli
+  }
+
+  /** WAMessage[] → `{ messaggi, nomi }` validi, contando gli scarti per motivo.
+   *  `vivo`: i non decifrati dei messaggi in arrivo ora aspettano il vero. */
+  function estrai(lista, dal, vivo = false) {
     const risolviLid = risolutoreLid(mappa);
     const messaggi = [];
     const nomi = {};
@@ -208,8 +268,10 @@ export function creaCollegamento({
       const r = leggiMessaggio(m, { proprioNumero, risolviLid, adesso: Math.floor(orologio() / 1000), dal });
       if (!r.ok) {
         conta(diagnosi.scarti, r.motivo);
+        if (vivo && r.segnaposto) aspettaVero(r.segnaposto);
         continue;
       }
+      if (nonDecifrati.size) veroArrivato(r.messaggio);
       estrazione.validi++;
       chatViste.add(r.messaggio.numero);
       estrazione.chat = chatViste.size;
@@ -231,14 +293,23 @@ export function creaCollegamento({
     }
   }
 
-  /** Avvolge un ascolto: ignora i socket vecchi e non lascia scappare errori. */
+  /** Avvolge un ascolto: ignora i socket vecchi e non lascia scappare errori.
+   *  Tiene il conto degli ascolti in corso, così `ferma()` non chiude a metà. */
   function ascolta(sock, g, nome, f) {
     sock.ev.on(nome, async (dati) => {
-      if (g !== generazione || fermato) return;
+      if (g !== generazione || spento) return;
+      const corsa = (async () => {
+        try {
+          await f(dati);
+        } catch {
+          registro("evento_fallito", { [nome.replace(/[^a-z]/g, "_")]: 1 });
+        }
+      })();
+      inCorso.add(corsa);
       try {
-        await f(dati);
-      } catch {
-        registro("evento_fallito", { [nome.replace(/[^a-z]/g, "_")]: 1 });
+        await corsa;
+      } finally {
+        inCorso.delete(corsa);
       }
     });
   }
@@ -249,7 +320,7 @@ export function creaCollegamento({
   function ascoltaNodi(sock, g, f) {
     if (typeof sock.ws?.on !== "function") return registro("nodi_non_ascoltati");
     sock.ws.on("CB:message", async (nodo) => {
-      if (g !== generazione || fermato) return;
+      if (g !== generazione || spento) return;
       try {
         await f(nodo);
       } catch {
@@ -332,6 +403,7 @@ export function creaCollegamento({
         },
       });
       sock = questo;
+      scaricato = false;
 
       ascolta(questo, g, "creds.update", () => saveCreds());
 
@@ -350,7 +422,13 @@ export function creaCollegamento({
           cambia({ stato: "collegato", collegato_dal: iso(orologio()) });
         } else if (u?.connection === "close") {
           generazione++; // da qui gli eventi di questo socket non contano più
+          sbloccaScarico?.(); // chiuso: non c'è più niente da aspettare
           await chiusura(u);
+        }
+        //  Baileys ha consegnato tutto quello che aveva in buffer dalla connessione.
+        if (u?.receivedPendingNotifications === true) {
+          scaricato = true;
+          sbloccaScarico?.();
         }
       });
 
@@ -374,7 +452,7 @@ export function creaCollegamento({
       ascolta(questo, g, "messages.upsert", async (u) => {
         const lista = Array.isArray(u?.messages) ? u.messages : [];
         await preparaLid(questo, lista);
-        const { messaggi, nomi } = estrai(lista);
+        const { messaggi, nomi } = estrai(lista, undefined, true);
         metti("vivo", messaggi, nomi);
         avvisa();
       });
@@ -440,11 +518,33 @@ export function creaCollegamento({
     avvia: () => apri(),
     inviaTesto,
     /** Chiude il socket e non riconnette più (SIGTERM). Non scollega il
-     *  dispositivo: la sessione resta valida per il prossimo avvio. */
-    ferma() {
+     *  dispositivo: la sessione resta valida per il prossimo avvio. Subito
+     *  `fermato` (niente invii, niente riconnessioni); il socket si chiude
+     *  però solo dopo lo scarico del buffer di Baileys (al massimo
+     *  `ATTESA_SCARICO_MS`) e dopo gli ascolti in corso: i messaggi arrivati
+     *  mentre il ponte era spento sono già confermati a WhatsApp e, chiusi
+     *  prima, andrebbero persi. I segnaposto «non leggibile» ancora in attesa
+     *  si scrivono subito in fila. Senza aspetti (non collegato) è sincrona. */
+    async ferma() {
       fermato = true;
       if (attesa) annulla(attesa);
       attesa = null;
+      if (sock && stato.stato === "collegato" && !scaricato) {
+        await new Promise((ok) => {
+          const t = pianifica(ok, ATTESA_SCARICO_MS);
+          sbloccaScarico = () => {
+            annulla(t);
+            ok();
+          };
+        });
+        sbloccaScarico = null;
+      }
+      if (inCorso.size) await Promise.allSettled([...inCorso]);
+      spento = true;
+      for (const [, voce] of [...nonDecifrati]) {
+        annulla(voce.timer);
+        voce.scrivi();
+      }
       try {
         sock?.end(undefined);
       } catch {

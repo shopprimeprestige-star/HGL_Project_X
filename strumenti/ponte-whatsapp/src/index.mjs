@@ -194,7 +194,8 @@ export function corpoBattito(ist, fc, { erroreServer = false, invii = {}, cache 
       lid_risolti: numero(e.lid_risolti),
       lid_errori: numero(e.lid_errori),
       storico_rifiutati: numero(e.storico_rifiutati),
-      tipo_sconosciuto: numero(d.scarti?.tipo_sconosciuto),
+      //  i segnaposto «non leggibile» scritti (prima qui c'era tipo_sconosciuto: ora vale sempre 0)
+      non_decifrati: numero(e.non_decifrati),
       fanout_ospitati: numero(d.nodi?.hosted_unavailable_fanout),
       fanout_registrati: numero(e.invii_nascosti),
       invii_attivi: numero(invii?.invii_attivi),
@@ -412,8 +413,9 @@ async function main() {
     clearInterval(pulizia);
     clearInterval(controlli);
     if (sveglia) clearTimeout(sveglia);
-    col.ferma();
-    await Promise.race([Promise.all([inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
+    //  `col.ferma()` aspetta (al massimo 6 s) lo scarico del buffer di Baileys: i messaggi
+    //  arrivati a ponte spento sono già confermati a WhatsApp e chiudendo prima si perdono.
+    await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
     const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori(), cache: contiCache() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });
