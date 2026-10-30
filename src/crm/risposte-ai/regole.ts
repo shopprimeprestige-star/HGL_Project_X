@@ -30,6 +30,21 @@ export const CHIAVE_BATTITO = "risposte_ai_battito";
 export const LIMITE_RISPOSTA = 4000;
 export const LIMITE_INDICAZIONE = 500;
 
+/* ── IDEE DEL 30/10/2026: BOZZE PRONTE E ORARI LIBERI ──────────────────── */
+
+/** Gli orari liberi nella richiesta: la colonna `orari` accetta fino a 600. */
+export const LIMITE_ORARI = 600;
+export const ORARI_MAX = 8;
+export const ORARI_CARATTERI = 400;
+/** Quante bozze automatiche al massimo in 24 ore (il tetto prudente). */
+export const BOZZE_AL_GIORNO = 40;
+/** Una bozza automatica si prepara solo per un messaggio arrivato da meno di così. */
+export const BOZZA_ENTRO_ORE = 24;
+/** Quante chat in attesa si guardano a ogni ricerca di una bozza da preparare. */
+export const BOZZE_CHAT_MAX = 15;
+/** A coda vuota il Mac chiede ogni pochi secondi: la ricerca di una bozza si fa al massimo così spesso. */
+export const BOZZA_OGNI_S = 30;
+
 /* ── LE RICHIESTE DEL MAC ──────────────────────────────────────────────── */
 
 export type RichiestaMac =
@@ -109,6 +124,8 @@ export interface LavoroMac {
   };
   /** in ordine di tempo, dal più vecchio; i scelti hanno `scelto: true` */
   messaggi: MessaggioLavoro[];
+  /** gli orari liberi veri dei prossimi giorni, in una riga; `null` se non ci sono */
+  orari: string | null;
 }
 
 const ORA_ROMA = (iso: string) => {
@@ -140,6 +157,8 @@ export function lavoroPerMac(p: {
   messaggi: MessaggioRiga[];
   lead?: Partial<LeadData> | null;
   consulente?: string | null;
+  /** gli orari liberi scritti dal CRM nella richiesta */
+  orari?: string | null;
 }): LavoroMac | null {
   const scelti = new Set(p.scelti);
   const ordinati = [...p.messaggi]
@@ -173,6 +192,7 @@ export function lavoroPerMac(p: {
       quando: ORA_ROMA(m.created_at),
       scelto: scelti.has(m.id),
     })),
+    orari: corto(typeof p.orari === "string" ? p.orari.replace(/\s+/g, " ") : null, LIMITE_ORARI),
   };
 }
 
@@ -215,4 +235,185 @@ export function erroreInChiaro(codice: string | null | undefined): string {
     default:
       return "Il Mac non è riuscito a scrivere la risposta. Riprova.";
   }
+}
+
+/* ── ORARI LIBERI NELLA RISPOSTA (idea 6) ──────────────────────────────── */
+
+const GIORNI_BREVI = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"];
+const MESI_BREVI = [
+  "gen",
+  "feb",
+  "mar",
+  "apr",
+  "mag",
+  "giu",
+  "lug",
+  "ago",
+  "set",
+  "ott",
+  "nov",
+  "dic",
+];
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const ORA_HHMM = /^\d{1,2}:\d{2}$/;
+
+const dataPiu = (data: string, n: number) => {
+  const d = new Date(`${data}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** «oggi», «domani», «ven 6 nov». */
+const giornoBreve = (data: string, oggi: string): string => {
+  if (data === oggi) return "oggi";
+  if (data === dataPiu(oggi, 1)) return "domani";
+  const d = new Date(`${data}T12:00:00Z`);
+  return `${GIORNI_BREVI[d.getUTCDay()]} ${d.getUTCDate()} ${MESI_BREVI[d.getUTCMonth()]}`;
+};
+
+/** `k` orari sparsi nel giorno (il primo, uno di mezzo, l'ultimo): più scelta che tre orari attaccati. */
+const sparsi = (ore: string[], k: number): string[] => {
+  if (ore.length <= k) return ore;
+  if (k <= 1) return ore.slice(0, 1);
+  return Array.from({ length: k }, (_, i) => ore[Math.round((i * (ore.length - 1)) / (k - 1))]);
+};
+
+/** Gli orari liberi veri in una riga compatta: «oggi 15:00, 17:30 · domani 10:00 …».
+ *  Al massimo `ORARI_MAX` orari e `ORARI_CARATTERI` caratteri, tre per giorno al
+ *  massimo. `giorni` è quello di `useGiorniLiberi` (già senza ore passate o
+ *  prese); `oggi` è «AAAA-MM-GG». `null` se non c'è nessun orario. */
+export function testoOrari(
+  giorni: { data: string; fasce: { ora: string }[] }[],
+  oggi: string,
+  o: { maxOrari?: number; maxCaratteri?: number; perGiorno?: number } = {},
+): string | null {
+  const maxOrari = o.maxOrari ?? ORARI_MAX;
+  const maxCaratteri = o.maxCaratteri ?? ORARI_CARATTERI;
+  const perGiorno = o.perGiorno ?? 3;
+  if (!DATA_ISO.test(oggi)) return null;
+  const parti: string[] = [];
+  let n = 0;
+  for (const g of Array.isArray(giorni) ? giorni : []) {
+    if (n >= maxOrari) break;
+    if (!g || !DATA_ISO.test(g.data) || g.data < oggi) continue;
+    const ore = (Array.isArray(g.fasce) ? g.fasce : [])
+      .map((f) => String(f?.ora ?? "").trim())
+      .filter((ora) => ORA_HHMM.test(ora));
+    const scelte = sparsi(ore, Math.min(perGiorno, maxOrari - n));
+    if (scelte.length === 0) continue;
+    const parte = `${giornoBreve(g.data, oggi)} ${scelte.join(", ")}`;
+    if ([...parti, parte].join(" · ").length > maxCaratteri) break;
+    parti.push(parte);
+    n += scelte.length;
+  }
+  return parti.length ? parti.join(" · ") : null;
+}
+
+/** La colonna (o la tabella) non c'è: la migrazione non è applicata. Vale per
+ *  Postgres (42703) e per PostgREST (PGRST204) quando si scrive una colonna ignota. */
+export function colonnaMancante(errore: { code?: string } | null | undefined): boolean {
+  return ["42703", "PGRST204"].includes(String(errore?.code ?? ""));
+}
+
+/* ── BOZZE PRONTE SU «DA RISPONDERE» (idea 5) ──────────────────────────── */
+
+/** I campi di `whatsapp_contacts` che servono a scegliere una chat per la bozza. */
+export interface ContattoBozza {
+  phone_e164: string | null;
+  lead_id: string | null;
+  ultimo_in_entrata_il: string | null;
+  risposto_il: string | null;
+  non_scrivere_dal: string | null;
+}
+
+const ms = (t: unknown): number => {
+  const v = Date.parse(String(t ?? ""));
+  return Number.isFinite(v) ? v : NaN;
+};
+
+/** Le chat che aspettano una risposta e meritano una bozza: con la scheda, senza
+ *  STOP, l'ultimo messaggio del cliente arrivato nelle ultime 24 ore e non
+ *  ancora risposto. Dalla più recente, al massimo `BOZZE_CHAT_MAX`. */
+export function chatPerBozza(
+  contatti: ContattoBozza[],
+  adesso: Date,
+): { telefono: string; leadId: string }[] {
+  const limite = adesso.getTime() - BOZZA_ENTRO_ORE * 3_600_000;
+  return contatti
+    .filter((c) => {
+      const entrata = ms(c.ultimo_in_entrata_il);
+      const risposto = ms(c.risposto_il);
+      return (
+        Boolean(c.phone_e164) &&
+        Boolean(c.lead_id) &&
+        !c.non_scrivere_dal &&
+        Number.isFinite(entrata) &&
+        entrata >= limite &&
+        entrata <= adesso.getTime() + 60_000 &&
+        (!Number.isFinite(risposto) || entrata > risposto)
+      );
+    })
+    .sort((a, b) => ms(b.ultimo_in_entrata_il) - ms(a.ultimo_in_entrata_il))
+    .slice(0, BOZZE_CHAT_MAX)
+    .map((c) => ({ telefono: String(c.phone_e164), leadId: String(c.lead_id) }));
+}
+
+/** I messaggi da rispondere con la bozza: l'ultimo messaggio della chat deve
+ *  essere del cliente, con del testo, arrivato nelle ultime 24 ore. Restituisce
+ *  gli id (come `sceltiDiPartenza`) e l'ora di quell'ultimo messaggio. */
+export function sceltiPerBozza(
+  messaggi: MessaggioRiga[],
+  adesso: Date,
+): { scelti: string[]; ultimoIl: string } | null {
+  const ordinati = messaggi
+    .filter((m) => Number.isFinite(ms(m.created_at)))
+    .sort((a, b) => ms(a.created_at) - ms(b.created_at));
+  const ultimo = ordinati.at(-1);
+  if (!ultimo || ultimo.direction !== "inbound" || !ultimo.body?.trim()) return null;
+  if (adesso.getTime() - ms(ultimo.created_at) > BOZZA_ENTRO_ORE * 3_600_000) return null;
+  const scelti = sceltiDiPartenza(ordinati);
+  return scelti.length ? { scelti, ultimoIl: ultimo.created_at } : null;
+}
+
+/** Ha senso cercare una bozza adesso? Al massimo una ricerca a vuoto ogni `BOZZA_OGNI_S`. */
+export function tempoDiCercareBozza(ultimaRicerca: number, adesso: number): boolean {
+  return !(adesso - ultimaRicerca < BOZZA_OGNI_S * 1000);
+}
+
+export interface BozzaRiga {
+  id: string;
+  risposta: string | null;
+  creata_il: string;
+}
+
+/** La bozza automatica da mostrare sopra la casella: `pronta`, non scartata,
+ *  più recente dell'ultimo messaggio del cliente e senza una nostra uscita dopo
+ *  (se abbiamo già risposto non serve più). La più recente. */
+export function bozzaDaMostrare(
+  bozze: BozzaRiga[],
+  messaggi: { direction: string; created_at: string }[],
+  scartate: readonly string[],
+): BozzaRiga | null {
+  let ultimoCliente = NaN;
+  let ultimaNostra = NaN;
+  for (const m of messaggi) {
+    const t = ms(m.created_at);
+    if (!Number.isFinite(t)) continue;
+    if (m.direction === "inbound") ultimoCliente = Math.max(ultimoCliente || t, t);
+    else ultimaNostra = Math.max(ultimaNostra || t, t);
+  }
+  if (!Number.isFinite(ultimoCliente)) return null;
+  const buone = bozze
+    .filter((b) => {
+      const t = ms(b.creata_il);
+      return (
+        Boolean(b.risposta?.trim()) &&
+        !scartate.includes(b.id) &&
+        Number.isFinite(t) &&
+        t > ultimoCliente &&
+        (!Number.isFinite(ultimaNostra) || ultimaNostra < t)
+      );
+    })
+    .sort((a, b) => ms(b.creata_il) - ms(a.creata_il));
+  return buone[0] ?? null;
 }

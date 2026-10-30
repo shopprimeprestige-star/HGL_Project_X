@@ -38,6 +38,8 @@ import { testoPerWhatsapp } from "./testoWhatsapp";
 import { useCRM } from "@/crm/CRMContext";
 import { Casella } from "./Casella";
 import { BarraRispostaAi } from "./BarraRispostaAi";
+import { BozzaAiPronta } from "./BozzaAiPronta";
+import { useBozzaAi } from "./useBozzaAi";
 import { useRispostaAi } from "./useRispostaAi";
 import { initials, numeroLeggibile } from "./formati";
 import { attesaInChiaro } from "./stato";
@@ -83,13 +85,21 @@ export function Conversazione({
   //  aver scritto altro, e quello resta, con la risposta sotto.
   const bozzaRef = useRef(api.bozza);
   bozzaRef.current = api.bozza;
+  /** Mette il testo nella casella: se c'è già qualcosa lo lascia e aggiunge sotto. */
+  const mettiInCasella = (t: string) => {
+    const prima = bozzaRef.current.trim();
+    api.setBozza(prima ? `${bozzaRef.current.trimEnd()}\n\n${t}` : t);
+  };
   const ai = useRispostaAi({
     telefono: attiva?.phone ?? null,
     messaggi,
-    onRisposta: (t) => {
-      const prima = bozzaRef.current.trim();
-      api.setBozza(prima ? `${bozzaRef.current.trimEnd()}\n\n${t}` : t);
-    },
+    onRisposta: mettiInCasella,
+  });
+  //  ── BOZZA PRONTA (30/10/2026): scritta dal Mac per le chat che aspettano ──
+  const bozzaAi = useBozzaAi({
+    telefono: attiva?.phone ?? null,
+    inAttesa: attiva?.daRispondere?.attesa === true,
+    messaggi,
   });
   /** Si sta guardando la fine della chat (vedi l'effetto qui sotto). */
   const inFondo = useRef(true);
@@ -478,6 +488,16 @@ export function Conversazione({
             )}
           </div>
 
+          {!ai.attivo && bozzaAi.bozza?.risposta && (
+            <BozzaAiPronta
+              testo={bozzaAi.bozza.risposta}
+              onUsa={() => {
+                mettiInCasella(bozzaAi.bozza?.risposta ?? "");
+                bozzaAi.scarta();
+              }}
+              onScarta={bozzaAi.scarta}
+            />
+          )}
           {ai.attivo ? <BarraRispostaAi ai={ai} /> : <Casella api={api} />}
         </>
       )}
