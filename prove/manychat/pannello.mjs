@@ -1634,7 +1634,8 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   //  15:11 di venerdì 23/10. Senza un'entrata del cliente la prova non lo manda: lo dice.
   const meD = meet("m9", 9, "15:11", {
     dataMeeting: "2026-10-24",
-    fissatoIl: "2026-10-20T09:00:00.000Z",
+    //  fissata 2 giorni prima del meet (3 o meno): resta «solo se gratis»
+    fissatoIl: "2026-10-22T09:00:00.000Z",
   });
   const sD = secco([meD]);
   c(
@@ -2138,6 +2139,15 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     ),
   );
   c(
+    "«Attesa acconto» è spenta (30/10/2026): la riga c'è ma dice che è spenta, non è accendibile e non è nella tabella dei messaggi",
+    [true, false, false],
+    [
+      !!V.STATI_RIQUADRO.find((s) => s.stato === "in_attesa_acconto")?.spento,
+      V.STATI_ACCENDIBILI.includes("in_attesa_acconto"),
+      "in_attesa_acconto" in carica(radice, "src/crm/manychat/stati.ts").TABELLA_STATI,
+    ],
+  );
+  c(
     "stati: l'etichetta è quella che si legge nel CRM",
     [],
     V.STATI_RIQUADRO.filter((s) => s.etichetta !== TY.LEAD_STATUS_LABEL[s.stato]).map(
@@ -2154,7 +2164,9 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
   if (dellaTabella.length > 0) {
     // dopo la fusione con T: stessi stati, stessi modelli
     const miei = Object.fromEntries(
-      V.STATI_RIQUADRO.flatMap((s) => V.statiDiRiga(s).map((k) => [k, s.modello])),
+      V.STATI_RIQUADRO.filter((s) => !s.spento).flatMap((s) =>
+        V.statiDiRiga(s).map((k) => [k, s.modello]),
+      ),
     );
     c(
       "stati: il riquadro elenca gli stessi stati e gli stessi modelli della tabella di stati.ts",
@@ -3200,8 +3212,8 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "giorno del meet acceso senza i flussi → rossi mattina e all'ora; il 24 ore prima (spento dal 28/10) non serve",
-    ["errore", "non_serve", "errore", "non_serve"],
+    "giorno del meet acceso senza i flussi → rossi mattina, 24 ore prima (modello per chi ha fissato da oltre 3 giorni, 30/10) e all'ora",
+    ["errore", "errore", "errore", "non_serve"],
     [
       colMeet["flusso:hgl_meet_oggi"],
       colMeet["flusso:hgl_meet_domani"],

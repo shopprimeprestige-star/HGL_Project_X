@@ -156,6 +156,12 @@ export interface ContestoGiornoMeet extends ContestoQuando {
   /** ultime 9 cifre del telefono → ISO dell'ultimo messaggio del cliente (`whatsapp_contacts`).
    *  Chi manca, o ha una data illeggibile, non ha la finestra aperta. */
   ultimeEntrate?: Record<string, string | null>;
+  /** Il giorno prima parte COME MODELLO (a pagamento, alle 9:00, anche a finestra chiusa) se la
+   *  consulenza è stata fissata da PIÙ di questi giorni (30/10/2026). `null`/assente = mai.
+   *  Vale solo con `soloGratis`; gli altri restano «solo se gratis». */
+  pagaOltreGiorni?: number | null;
+  /** Spento il «solo se gratis» (`MEET_DOMANI_SOLO_GRATIS`): chi non è a pagamento non parte. */
+  senzaGratis?: boolean;
 }
 
 /** Quale dei due messaggi del lead nuovo. */
@@ -183,7 +189,12 @@ export const CASI_REALI_DAL = "2026-10-29T00:00:00+01:00";
 /** Quale dei due messaggi del giorno del meet, con l'inizio del meet. */
 export type ExtraGiornoMeet = { quale: "meet_oggi" | "meet_adesso"; inizioMeet: Date };
 /** Il promemoria 24 ore prima, con l'inizio del meet. */
-export type ExtraMeetDomani = { quale: "meet_domani"; inizioMeet: Date };
+export type ExtraMeetDomani = {
+  quale: "meet_domani";
+  inizioMeet: Date;
+  /** fissata da oltre `pagaOltreGiorni`: parte come modello, non come testo gratuito */
+  aPagamento?: boolean;
+};
 
 /** «lunedì 26 ottobre» (ora di Roma). */
 const GIORNO_A_PAROLE = new Intl.DateTimeFormat("it-IT", {
@@ -930,6 +941,19 @@ export function decidiGiornoMeet(
     .map((x) => x.d);
 }
 
+/** Da quanti giorni di calendario (Roma) la consulenza era stata fissata, il giorno del meet.
+ *  Vale la data più recente fra `fissatoIl` e `statoDal` dell'appuntamento (un appuntamento
+ *  rifissato conta dal rifissaggio). Nessuna data → `null`: non si paga mai su una supposizione
+ *  (`createdAt` dice quando è nato il lead, non quando è stato fissato). */
+export function giorniDaFissata(d: SchedaQuando["data"], giornoMeet: string): number | null {
+  const date = [d.fissatoIl, eAppuntamento(d.stato) ? d.statoDal : undefined]
+    .map((x) => Date.parse(String(x ?? "")))
+    .filter(Number.isFinite);
+  if (date.length === 0) return null;
+  const giorno = aRoma(new Date(Math.max(...date))).giorno;
+  return Math.round((Date.parse(giornoMeet) - Date.parse(giorno)) / 86_400_000);
+}
+
 /** Il motivo di un salto quando il giorno prima non può partire gratis. */
 export const FRASE_FINESTRA_CHIUSA = "saltato: finestra chiusa, si risparmia il modello";
 
@@ -960,7 +984,10 @@ export function telefoniMeetDomani(
  *  24 ore aperta: mai un modello a pagamento. Il bersaglio è l'ora del meet; se la
  *  finestra (23 ore dall'ultima entrata, `finestraPerTesto`) chiude prima, si anticipa
  *  a un'ora prima della chiusura (mai prima delle 9:00, mai dopo il bersaglio). Se a
- *  quell'ora è già chiusa, o il cliente non ha mai scritto, si salta e lo si dice. */
+ *  quell'ora è già chiusa, o il cliente non ha mai scritto, si salta e lo si dice.
+ *  Con `contesto.pagaOltreGiorni` (30/10/2026): se la consulenza è stata fissata da PIÙ di quei
+ *  giorni parte come MODELLO alle 9:00 del giorno prima, anche a finestra chiusa (`aPagamento`);
+ *  la chiave è la stessa, quindi una volta sola per meet. */
 export function decidiMeetDomani(
   schede: SchedaQuando[],
   adesso: Date,
@@ -983,6 +1010,7 @@ export function decidiMeetDomani(
     consulente: string | undefined;
     bersaglioMin: number;
     parte: number;
+    aPagamento: boolean;
   }[] = [];
 
   //  Un ordine fisso: fra due doppioni vince sempre la stessa scheda.
@@ -1004,7 +1032,16 @@ export function decidiMeetDomani(
         : minMeet >= CHIUSURA_RICONTATTI_MIN
           ? ULTIMO_BERSAGLIO_DOMANI_MIN
           : minMeet;
-    const parte = (istanteDiRoma(oggi, oraDi(bersaglioMin)) as Date).getTime();
+    //  Fissata da oltre N giorni (e il gratis è la regola): a pagamento, alle 9:00.
+    const giorniFissata = giorniDaFissata(d, giornoMeet);
+    const aPagamento =
+      !!contesto.soloGratis &&
+      contesto.pagaOltreGiorni != null &&
+      giorniFissata !== null &&
+      giorniFissata > contesto.pagaOltreGiorni;
+    if (contesto.senzaGratis && !aPagamento) continue;
+    const bersaglioDi = aPagamento ? APERTURA_RICONTATTI_MIN : bersaglioMin;
+    const parte = (istanteDiRoma(oggi, oraDi(bersaglioDi)) as Date).getTime();
     //  La conferma di QUESTA consulenza: se a questo numero ne è partita una da
     //  24 ore prima dell'inizio (o dal bersaglio, se viene prima) in poi, è stata
     //  fissata da poco e il promemoria sarebbe un doppione: niente, in silenzio.
@@ -1059,8 +1096,9 @@ export function decidiMeetDomani(
       ora: hm,
       tel9: ultimeNoveCifre(numero),
       consulente: consulente.data?.nome,
-      bersaglioMin,
+      bersaglioMin: bersaglioDi,
       parte,
+      aPagamento,
     });
   }
 
@@ -1088,7 +1126,7 @@ export function decidiMeetDomani(
     let partenzaMin = bersaglioMin;
     let finestraChiusa = false;
     const entrata = contesto.ultimeEntrate?.[k.tel9];
-    if (contesto.soloGratis) {
+    if (contesto.soloGratis && !k.aPagamento) {
       const chiude = Date.parse(String(entrata ?? "")) + ORE_TESTO_LIBERO * ORA_MS;
       if (chiude <= parte) {
         const apertura = (istanteDiRoma(oggi, oraDi(APERTURA_RICONTATTI_MIN)) as Date).getTime();
@@ -1113,7 +1151,7 @@ export function decidiMeetDomani(
       //  Scaduto: per un'ora il ritardo si vede, poi tace.
       if (ora < fine + MEMORIA_SALTI_MIN * MIN_MS)
         metti({ tipo: "salta", scheda: k.scheda, motivo: "saltato: giro in ritardo" });
-    } else if (contesto.soloGratis && !finestraPerTesto(entrata, new Date(ora))) {
+    } else if (contesto.soloGratis && !k.aPagamento && !finestraPerTesto(entrata, new Date(ora))) {
       //  La finestra si è chiusa mentre si aspettava: niente modello.
       metti({ tipo: "salta", scheda: k.scheda, motivo: FRASE_FINESTRA_CHIUSA });
     } else if (contaOggi(invii, oggi, TIPI_NEI_TETTI) >= tetti.totale) {
@@ -1125,7 +1163,11 @@ export function decidiMeetDomani(
         tipo: "invia",
         scheda: k.scheda,
         chiave,
-        extra: { quale: "meet_domani", inizioMeet: k.inizio },
+        extra: {
+          quale: "meet_domani",
+          inizioMeet: k.inizio,
+          ...(k.aPagamento ? { aPagamento: true } : {}),
+        },
       });
     }
   }

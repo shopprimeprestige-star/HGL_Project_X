@@ -102,14 +102,9 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     ]),
   );
   c(
-    "«Attesa acconto» → hgl_acconto, tag suo, sempre A DATA e dei consulenti (parte il giorno del ricontatto, come prima)",
-    ["hgl_acconto", "crm-stato-acconto", "a_data", "consulente"],
-    [TB.in_attesa_acconto.modello, TB.in_attesa_acconto.tag, TB.in_attesa_acconto.quando, TB.in_attesa_acconto.chi],
-  );
-  c(
-    "«Attesa acconto» non è più la riga dei ricontatti (nemmeno lo stesso oggetto)",
-    true,
-    TB.in_attesa_acconto !== TB.da_ricontattare && TB.in_attesa_acconto.tag !== TB.da_ricontattare.tag,
+    "«Attesa acconto» è spenta (30/10/2026, PROMEMORIA_ACCONTO_ACCESO): nessuna riga, nessun messaggio automatico",
+    [undefined, false],
+    [TB.in_attesa_acconto, "in_attesa_acconto" in TB],
   );
   c(
     "«Cliente assente» = no_show + non_fatto; «Non risponde» e «Segreteria» condividono modello e codice evento",
@@ -183,9 +178,10 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     ),
   ].map((m) => [m[1], m[2]]);
   c(
-    "il riquadro e la tabella dicono lo stesso modello per ogni stato",
+    "il riquadro e la tabella dicono lo stesso modello per ogni stato (tranne «Attesa acconto», riga spenta il 30/10/2026)",
     true,
-    righeRiquadro.length >= 12 && righeRiquadro.every(([s, m]) => TB[s]?.modello === m),
+    righeRiquadro.length >= 12 &&
+      righeRiquadro.every(([s, m]) => (s === "in_attesa_acconto" ? !TB[s] : TB[s]?.modello === m)),
   );
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -276,11 +272,14 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     }),
   );
   c(
-    "«Attesa acconto» il giorno del ricontatto → parte con hgl_acconto (stesso interruttore: acceso in ACCESO)",
-    ["invia", "hgl_acconto"],
-    ((x) => [x?.tipo, TB[x?.extra.stato]?.modello])(
-      unica(coda([stato("l-1", 1, "in_attesa_acconto")], MAR10)),
-    ),
+    "«Attesa acconto» il giorno del ricontatto → niente (spenta il 30/10/2026), anche con l'interruttore acceso",
+    [[], []],
+    [
+      coda([stato("l-1", 1, "in_attesa_acconto")], MAR10),
+      coda([stato("l-1", 1, "in_attesa_acconto")], MAR10, {
+        statiAccesi: { in_attesa_acconto: "2026-10-01T08:00:00.000Z" },
+      }),
+    ],
   );
   c(
     "…senza consulente assegnato (o di un altro ruolo, o un lead importato) → niente",
@@ -295,9 +294,9 @@ export async function proveStati(mod, { c, gruppo, radice }) {
     "interruttore spento → niente; acceso dopo la data del ricontatto → mai",
     [[], []],
     [
-      coda([stato("l-1", 1, "in_attesa_acconto")], MAR10, { statiAccesi: {} }),
-      coda([stato("l-1", 1, "in_attesa_acconto", { dataRicontatto: "2026-10-22" })], MAR10, {
-        statiAccesi: { in_attesa_acconto: "2026-10-24T08:00:00.000Z" },
+      coda([stato("l-1", 1, "gestire_in_chat")], MAR10, { statiAccesi: {} }),
+      coda([stato("l-1", 1, "gestire_in_chat", { dataRicontatto: "2026-10-22" })], MAR10, {
+        statiAccesi: { gestire_in_chat: "2026-10-24T08:00:00.000Z" },
       }),
     ],
   );
