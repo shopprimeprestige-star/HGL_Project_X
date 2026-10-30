@@ -9,6 +9,7 @@ import { RigaChat, type ModoRiga } from "./RigaChat";
 import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
+import { ordinaComeWhatsapp } from "./ordineWhatsapp";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
 import {
@@ -55,6 +56,10 @@ const chip = (acceso: boolean) =>
       : `${BORDO_TASTO} bg-background text-muted-foreground group-hover:bg-muted`,
   );
 
+/** Una pastiglia in vista (Tutte, Da rispondere…): 44 px col dito, 32 col mouse. Acceso = pieno primario. */
+const PASTIGLIA =
+  "t-corpo flex h-11 min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 font-medium transition-colors lg:pointer-fine:h-8";
+
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
@@ -71,7 +76,8 @@ function useAdesso(): number {
   return adesso;
 }
 
-/** L'elenco delle chat: in cima «Da rispondere», poi le altre, in fondo le senza risposta da
+/** L'elenco delle chat. Con «Tutte» (la vista di partenza) è l'elenco di WhatsApp: uno solo, per ultimo
+ *  messaggio. Con una coda scelta: in cima «Da rispondere», poi le altre, in fondo le senza risposta da
  *  più di 7 giorni. Riempie il contenitore che gli dà `PaginaChat`: larghezza e visibilità
  *  non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
@@ -122,7 +128,14 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   //  Con «Si può scrivere» le chat che chiudono entro 4 ore hanno un riquadro tutto loro, sopra
   //  «Da rispondere», dalla scadenza più vicina: si scrive gratis finché si può.
   //  Escono dagli altri riquadri (una chat una volta sola). Vedi segniRiga.ts.
-  const inScadenza = filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
+  //  ── «TUTTE» (30/10/2026) ────────────────────────────────────────────────
+  //  Senza una coda scelta l'elenco è UNO solo, nell'ordine di WhatsApp (ordineWhatsapp.ts): niente
+  //  riquadri, niente stelle in cima. Per questo anche il riquadro «Finestra in chiusura» (che è una
+  //  sezione) esce: con «Si può scrivere» la riga ha comunque il suo bollino.
+  const tutte = filtri.coda === null;
+  const elencoTutte = tutte ? ordinaComeWhatsapp(trovate) : [];
+  const inScadenza =
+    filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
   const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
   const fuoriScadenza = trovate.filter((c) => !inScadenzaTel.has(c.phone));
 
@@ -249,7 +262,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   return (
     <aside className="flex h-full w-full flex-col border-r border-border bg-card">
       <div className="px-3 pb-1 pt-3 md:px-2 md:py-2.5">
-        {/*  Il titolo dice cosa si sta guardando: con nessun filtro, tutte (la pastiglia «Tutte» non c'è più). */}
+        {/*  Il titolo dice cosa si sta guardando: con nessun filtro, tutte. */}
         <p className="t-riga font-semibold text-foreground">
           {accesi > 0 ? "Chat filtrate" : "Tutte le chat"}
           {!caricamento && (
@@ -296,6 +309,25 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         aria-label="Cosa fare adesso"
         className="grid grid-cols-2 gap-2 px-3 pb-2 md:px-2"
       >
+        {/*  «Tutte» = nessuna coda scelta: l'elenco di WhatsApp. Toglie solo la coda, gli altri gruppi restano. */}
+        <button
+          type="button"
+          aria-pressed={tutte}
+          onClick={() => setFiltri({ ...filtri, coda: null })}
+          className={cn(
+            PASTIGLIA,
+            tutte
+              ? "border-primary bg-primary text-primary-foreground"
+              : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
+            FUOCO,
+          )}
+        >
+          <span className="truncate">Tutte</span>
+          <Contatore
+            n={api.chats.filter((c) => passaFiltri(c, { ...filtri, coda: null }, stelleDi)).length}
+            acceso={tutte}
+          />
+        </button>
         {VOCI_GRIGLIA.map((v) => {
           const acceso = eAcceso(filtri, v.campo, v.valore);
           return (
@@ -305,7 +337,9 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               aria-pressed={acceso}
               onClick={() => setFiltri(commuta(filtri, v.campo, v.valore))}
               className={cn(
-                "t-corpo flex h-11 min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 font-medium transition-colors lg:pointer-fine:h-8",
+                PASTIGLIA,
+                //  Cinque pastiglie in due colonne: «Con stelle», l'ultima, prende tutta la riga.
+                v.campo === "stelle" && "col-span-2",
                 acceso
                   ? "border-primary bg-primary text-primary-foreground"
                   : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
@@ -446,6 +480,12 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               {elencoDaChiamare.map((c) => riga(c, "normale", true))}
             </ul>
           )
+        ) : tutte ? (
+          <ul aria-label="Tutte le chat, dall'ultimo messaggio">
+            {elencoTutte.map((c) =>
+              riga(c, c.daRispondere?.attesa ? "attesa" : eVecchia(c) ? "vecchia" : "normale"),
+            )}
+          </ul>
         ) : (
           <>
             {inScadenza.length > 0 && (
