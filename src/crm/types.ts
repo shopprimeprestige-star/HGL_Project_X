@@ -1389,6 +1389,10 @@ export interface RicaricoLead {
   daDecidere?: boolean;
   /** Lo stato in cui era quando è ricomparsa: serve a raccontarlo dopo. */
   statoAllora?: LeadStatus;
+  /** Quando il ritorno ha spostato la scheda in «Attesa WhatsApp» (30/10/2026,
+   *  crm/importa/ricarico `patchAttesaDelRitorno`). Assente = lo stato non l'ha
+   *  cambiato il ritorno. */
+  inAttesaIl?: string;
   /** Quando è stata rimessa fra i «Da contattare» con lo stato azzerato. */
   rimessoIl?: string;
   /** ── ⚠️ «VEDI DOPO»: LA DECISIONE È RIMANDATA, NON PRESA ───────────────

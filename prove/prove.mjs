@@ -38,6 +38,7 @@ import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
+import { proveRitornoInAttesa } from "./idee/ritorno-in-attesa.mjs";
 import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
@@ -17252,7 +17253,8 @@ function proveDellAnteprimaDiImportazione() {
   const attuale = archivio[0].data;
   const patch = RIC.patchRicarico(attuale, "lead-12-ottobre.csv", ora, { tracking: ritorni[0].letto.tracking, modulo: ritorni[0].letto.modulo });
   c("patchRicarico con arrivo: ricarico.arrivo.ad_name", "589\u20ac - 001 - ok", patch.ricarico?.arrivo?.ad_name);
-  c("e non tocca stato ne' note", false, "stato" in patch || "note" in patch);
+  //  30/10/2026: lo stato passa in «Attesa WhatsApp» (prove/idee/ritorno-in-attesa.mjs); le note no.
+  c("e non tocca le note; lo stato va in Attesa WhatsApp", [false, "attesa_whatsapp", "non_risponde"], ["note" in patch, patch.stato, patch.statoPrecedente]);
 
   //  ── Excel: il messaggio dice cosa fare, il pannello lo usa ───────────────
   c("il messaggio dice di scaricare in CSV", true, /CSV/.test(MESSAGGIO_FILE_EXCEL) && /Google Fogli/.test(MESSAGGIO_FILE_EXCEL));
@@ -20952,7 +20954,7 @@ function proveDelloStatoDaChiamare() {
   c("tra rubrica e messaggi vince il più recente", "2026-10-28T19:00:00Z",
     U([{ user_id: u1, phone_e164: "+393330000005", ultimo_in_entrata_il: "2026-10-28T19:00:00Z", non_scrivere_dal: null }], [msg("393330000005", "inbound", "2026-10-28T18:00:00Z")]).get(`u1|${A.nove("393330000005")}`)?.ultimoInEntrataIl);
   c("il server scrive solo se la scheda non è cambiata nel frattempo", true, /\.eq\("updated_at", r\.updated_at\)/.test(hook));
-  c("il server scrive condizionando su updated_at anche nel ritorno (due scritture, entrambe protette)", 2, (hook.match(/\.eq\("updated_at", r\.updated_at\)/g) ?? []).length);
+  c("il server scrive condizionando su updated_at anche nel ritorno e nei ritorni rimasti indietro (tre scritture, tutte protette)", 3, (hook.match(/\.eq\("updated_at", r\.updated_at\)/g) ?? []).length);
   c("l'andata legge solo chi è in Attesa WhatsApp", true, /\.eq\("data->>stato", stato\)/.test(hook) && /schedeInAttesa\(\)/.test(hook));
   c("il ritorno legge anche i messaggi in entrata di ogni canale delle ultime 24 ore, senza i doppioni", true,
     /\.from\("whatsapp_messages"\)/.test(hook) && /\.eq\("direction", "inbound"\)/.test(hook) && /\.is\("duplicato_di", null\)/.test(hook) && /\.gte\("created_at", dal\)/.test(hook) && /unisciEntrate\(contatti, messaggi, conFirma\)/.test(hook) && /\.from\("whatsapp_settings"\)/.test(hook));
@@ -21261,6 +21263,7 @@ proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
 proveAttesaERitorno(mod, { c, gruppo, radice });
+proveRitornoInAttesa(mod, { c, gruppo, radice });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });

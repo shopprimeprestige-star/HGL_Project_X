@@ -12,6 +12,7 @@
  *  La lettura del ricarico è quella dell'importazione (`ricaricoDi`): una sola,
  *  o la chat e «Lead importati» contano volte diverse. */
 import { ricaricoDi } from "@/crm/importa/ricarico";
+import { statoPrimaDelRitorno } from "@/crm/importa/ritorno-attesa";
 import {
   LEAD_STATUS_LABEL,
   LOST_REASON_LABEL,
@@ -65,6 +66,14 @@ export function ritornoInChat(d?: Partial<LeadData> | null): RitornoChat | null 
     .filter(Boolean)
     .join(" · ");
   return { volte, prima, corta: "Ritorno", completa, titolo };
+}
+
+/** «prima: …» sotto lo stato (30/10/2026): l'etichetta del CRM dello stato che
+ *  aveva prima che il ritorno lo spostasse in «Attesa WhatsApp». `null` = non
+ *  di ritorno, non spostato, o stato già cambiato a mano (`statoPrimaDelRitorno`). */
+export function primaDelRitorno(d?: Partial<LeadData> | null): string | null {
+  const s = statoPrimaDelRitorno(d);
+  return (s && Object.hasOwn(LEAD_STATUS_LABEL, s) && LEAD_STATUS_LABEL[s]) || null;
 }
 
 /* ── IL RIQUADRO DEL RITORNO (30/10/2026) ──────────────────────────────────

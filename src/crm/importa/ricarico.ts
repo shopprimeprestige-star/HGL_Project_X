@@ -49,6 +49,7 @@ import type {
   TrackingInfo,
 } from "@/crm/types";
 import { LEAD_STATUS_LABEL, eStatoNonSvolta } from "@/crm/types";
+import { patchAttesaDelRitorno, statoPrimaDelRitorno } from "./ritorno-attesa";
 //  ⚠️ I TESTI NON STANNO PIÙ QUI: stanno nei modelli, con tutti gli altri
 //   messaggi che partono ai clienti, e si modificano dal pannello senza
 //   pubblicare niente. Da qui si sceglie soltanto QUALE serve.
@@ -268,6 +269,15 @@ export function chiedeAncoraUnaDecisione(
   return repartoDelRitorno(l) === "daparte";
 }
 
+//  Chi torna va in «Attesa WhatsApp» (30/10/2026): la regola sta in un file
+//  leggero (solo i tipi), perché la leggono anche il giro di ManyChat e il cron.
+export {
+  STATI_CHE_RESTANO_AL_RITORNO,
+  patchAttesaDelRitorno,
+  patchRitornoRimastoIndietro,
+  statoPrimaDelRitorno,
+} from "./ritorno-attesa";
+
 /** ── LA MODIFICA DA SALVARE QUANDO IL FILE LA RIPORTA A GALLA ─────────────
  *  ⚠️ NON TOCCA NIENT'ALTRO, ed è il punto della richiesta: «mantenendo stato
  *   attuale, note e tutto». Il file sa meno dell'archivio — di solito ha solo
@@ -276,7 +286,9 @@ export function chiedeAncoraUnaDecisione(
  *  ⚠️ E IL CONTATORE NON RIPARTE MAI DA UNO: si somma a quello che c'era. È il
  *   numero che il committente vuole leggere sulla scheda — «quante volte
  *   l'abbiamo già ricaricato» — e azzerarlo a ogni decisione lo renderebbe una
- *   spia che dice sempre «una». */
+ *   spia che dice sempre «una».
+ *  ⚠️ ECCEZIONE DAL 30/10/2026: lo STATO cambia (`patchAttesaDelRitorno`, qui
+ *   sopra), note e tutto il resto no. */
 export function patchRicarico(
   d?: Partial<LeadData> | null,
   lista?: string,
@@ -285,7 +297,9 @@ export function patchRicarico(
 ): Partial<LeadData> {
   const prima = ricaricoDi(d);
   const daDove = arrivoDaFile(arrivo);
+  const attesa = patchAttesaDelRitorno(d, ora);
   const patch: Partial<LeadData> = {
+    ...attesa,
     ricarico: {
       volte: (prima?.volte ?? 0) + 1,
       ultimo: ora.toISOString(),
@@ -296,6 +310,7 @@ export function patchRicarico(
       //  contattare. Senza, la riga «era in appuntamento fissato» sparirebbe
       //  proprio nel caso in cui serve saperlo.
       ...(d?.stato ? { statoAllora: d.stato } : {}),
+      ...(attesa ? { inAttesaIl: ora.toISOString() } : {}),
       ...(daDove.ricarico ? { arrivo: daDove.ricarico } : {}),
     },
   };
@@ -845,8 +860,11 @@ export function storiaDelRitorno(d?: Partial<LeadData> | null): StoriaDelRitorno
   //  Lo stato che RACCONTA: quello di allora se la scheda è stata rimessa in
   //  circolo (lì il corrente è «da contattare» per forza), altrimenti quello
   //  di adesso.
+  //  E quello di prima se è stato il ritorno a spostarla in «Attesa WhatsApp».
   const rimesso = !!r?.rimessoIl && d?.stato === STATO_RIMESSO;
-  const stato = String((rimesso ? r?.statoAllora : d?.stato) || d?.stato || "");
+  const stato = String(
+    (rimesso ? r?.statoAllora : (statoPrimaDelRitorno(d) ?? d?.stato)) || d?.stato || "",
+  );
   const tentativi = Number(d?.noRispondeCount) || 0;
 
   if (IN(stato, ["posa_in_sede", "posa_a_domicilio", "posa_da_spedire", "venduto", "acconto"]))
