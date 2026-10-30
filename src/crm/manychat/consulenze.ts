@@ -6,9 +6,9 @@
  *
  *  (10) CONFERMA A DUE PASSI — `confermaMancata`
  *   Il primo passo è il promemoria automatico della consulenza: quello del giorno
- *   prima (`meet_domani`) o, finché quello resta spento (decisione del titolare
- *   del 28/10, `MEET_DOMANI_ACCESO` in giro.ts), quello della mattina
- *   (`meet_oggi`). Se da 3 ore non c'è risposta, il secondo passo è una
+ *   prima (`meet_domani`, solo se gratis: `MEET_DOMANI_SOLO_GRATIS` in giro.ts, e
+ *   un ok a quel messaggio vale come risposta) o, se non è partito, quello della
+ *   mattina (`meet_oggi`). Se da 3 ore non c'è risposta, il secondo passo è una
  *   telefonata del consulente prima dell'inizio: la scheda va in cima a «Da fare»
  *   (`dafare/righe.tsx`, riga `conferma_meet`). Si legge tutto dalla storia del
  *   secondo stato (`contattoWa.storia`): nessuna lettura in più, nessuna colonna.

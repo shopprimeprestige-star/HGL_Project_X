@@ -580,6 +580,7 @@ const FRASI_MOTIVO: Record<string, string> = {
   stop: "il numero ha chiesto di non ricevere messaggi",
   pausa_contatto: "pausa per contatto: un invio a questo numero meno di due minuti fa",
   gia_preso: "già preso da un altro giro",
+  finestra_chiusa: "finestra di 24 ore chiusa: il testo gratis non si poteva mandare",
   blocco: "ManyChat ha bloccato l'invio",
   incerto: "esito incerto",
 };
@@ -903,7 +904,7 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
     modello === "hgl_casi_reali"
   )
     return !!s?.leadNuovo;
-  //  Il promemoria 24 ore prima è spento (titolare, 28/10): il suo flusso non serve.
+  //  Il promemoria 24 ore prima parte solo come testo (30/10): il suo flusso non serve.
   if (modello === "hgl_meet_domani") return false;
   if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso")
     return !!s?.giornoMeet;

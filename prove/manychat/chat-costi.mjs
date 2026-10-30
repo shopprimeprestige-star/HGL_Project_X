@@ -175,6 +175,13 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
     );
     c("modello ignoto: dal tipo / più caro", [r6(0.0248 + 0.0658 + 0.0658), 3], [x.totale, x.messaggi]);
     c("…quanti sono solo stimati", 3, x.stimati);
+    //  Il giorno prima solo se gratis (30/10): parte come testo, senza flusso → non si paga, è un risparmio.
+    const g = C.calcolaCosti(
+      [inv("2026-10-29T08:00:00Z", "meet_domani", null, { conFlusso: false })],
+      "oggi",
+      ADESSO,
+    );
+    c("meet_domani partito come testo: costo zero e un messaggio risparmiato", [0, 1], [g.totale, g.risparmio.messaggi]);
   }
   {
     const v = C.calcolaCosti([], "30", ADESSO);
