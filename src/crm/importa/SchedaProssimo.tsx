@@ -425,6 +425,7 @@ export function SchedaProssimo({
               <Targhetta
                 motivo={motivo}
                 temperatura={temperaturaLead(modulo, d.qualifica)}
+                dati={d}
                 className="mt-1"
               />
             )}

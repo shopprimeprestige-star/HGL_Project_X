@@ -3,12 +3,12 @@
  *  ecc., e cliccando sull'icona info mostra tutte le risposte alle domande».
  *  La temperatura è la stessa di Oggi, Lead importati e della scheda
  *  (crm/temperatura-lead); le risposte quelle della scheda (`vociModulo`).
- *  Solo testo React: le risposte vengono da un modulo, mai HTML. */
+ *  Il pop-up è `FinestraRisposte` (crm/Temperatura), lo stesso che si apre
+ *  toccando la temperatura in tutto il CRM (30/10/2026): scritto una volta. */
 import { useState } from "react";
-import { ClipboardList, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Finestra } from "@/crm/ui/Finestra";
-import { PallinoTemperatura } from "@/crm/Temperatura";
+import { FinestraRisposte } from "@/crm/Temperatura";
 import { moduloLetto, vociModulo } from "@/crm/modulo-lead";
 import { mostraTemperatura, temperaturaLead } from "@/crm/temperatura-lead";
 import type { LeadData } from "@/crm/types";
@@ -29,12 +29,10 @@ export function InfoModulo({
 }) {
   const [aperta, setAperta] = useState(false);
   const modulo = moduloLetto(dati);
-  const voci = vociModulo(modulo);
   const t = temperaturaLead(modulo, dati.qualifica);
   const conTemperatura = t.livello !== "nessuna" && mostraTemperatura(dati.stato);
   const ritorno = ritornoInChat(dati);
-  if (voci.length === 0 && !conTemperatura && !telefono && !ritorno) return null;
-  const d = t.termometro;
+  if (vociModulo(modulo).length === 0 && !conTemperatura && !telefono && !ritorno) return null;
   return (
     <>
       {compatto ? (
@@ -60,59 +58,13 @@ export function InfoModulo({
         </Button>
       )}
       {aperta && (
-        <Finestra
-          aperta
-          onCambio={setAperta}
-          icona={ClipboardList}
-          titolo="Quello che ha detto nel modulo"
-          contesto={nome}
-          larghezza="sm"
-        >
-          <div className="space-y-3 p-4 text-[13px]">
-            {telefono && (
-              <p className="font-mono text-[12.5px] text-muted-foreground">{telefono}</p>
-            )}
-            {/*  Di ritorno: qui per intero, con la data (sul telefono il tooltip non c'è). */}
-            {ritorno && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
-                <p className="font-medium">{ritorno.completa}</p>
-                <p className="mt-0.5 text-[12px]">{ritorno.titolo}</p>
-              </div>
-            )}
-            {conTemperatura && (
-              <div className="space-y-1.5">
-                <p className="text-slate-700">
-                  <PallinoTemperatura t={t} />
-                  {t.perche && <span className="text-muted-foreground"> — {t.perche}</span>}
-                </p>
-                {d && (
-                  <>
-                    <p className="text-[12.5px] text-slate-700">{d.motivazione}</p>
-                    <p className="text-[12.5px] font-medium text-foreground">
-                      Da fare: <span className="font-normal">{d.azione_consigliata}</span>
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-            {voci.length > 0 ? (
-              <dl className="divide-y divide-border rounded-lg border border-border">
-                {voci.map((v) => (
-                  <div key={v.campo} className="px-3 py-2">
-                    <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {v.titolo}
-                    </dt>
-                    <dd className="mt-0.5 whitespace-normal text-foreground" title={v.testo}>
-                      {v.valore}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-muted-foreground">Nessuna risposta al modulo.</p>
-            )}
-          </div>
-        </Finestra>
+        <FinestraRisposte
+          dati={dati}
+          nome={nome}
+          telefono={telefono}
+          ritorno={ritorno}
+          onChiudi={() => setAperta(false)}
+        />
       )}
     </>
   );
