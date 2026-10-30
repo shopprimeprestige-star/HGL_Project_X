@@ -60,6 +60,7 @@ import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
 import { Route as HooksAttesaDaChiamareRouteImport } from './routes/hooks/attesa-da-chiamare'
+import { Route as HooksAssenzaMeetRouteImport } from './routes/hooks/assenza-meet'
 import { Route as ConsulenteRegistratiRouteImport } from './routes/consulente.registrati'
 import { Route as ConsulenteLeadsRouteImport } from './routes/consulente.leads'
 import { Route as ConsulenteKpiRouteImport } from './routes/consulente.kpi'
@@ -464,6 +465,11 @@ const HooksCronHistoryRoute = HooksCronHistoryRouteImport.update({
 const HooksAttesaDaChiamareRoute = HooksAttesaDaChiamareRouteImport.update({
   id: '/hooks/attesa-da-chiamare',
   path: '/hooks/attesa-da-chiamare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksAssenzaMeetRoute = HooksAssenzaMeetRouteImport.update({
+  id: '/hooks/assenza-meet',
+  path: '/hooks/assenza-meet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsulenteRegistratiRoute = ConsulenteRegistratiRouteImport.update({
@@ -1293,6 +1299,7 @@ export interface FileRoutesByFullPath {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
@@ -1490,6 +1497,7 @@ export interface FileRoutesByTo {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
@@ -1693,6 +1701,7 @@ export interface FileRoutesById {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
@@ -1897,6 +1906,7 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
@@ -2094,6 +2104,7 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
@@ -2296,6 +2307,7 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
@@ -2465,6 +2477,7 @@ export interface RootRouteChildren {
   ApiWhatsappSendRoute: typeof ApiWhatsappSendRoute
   ApiWhatsappTemplatesRoute: typeof ApiWhatsappTemplatesRoute
   BlogSlugRoute: typeof BlogSlugRoute
+  HooksAssenzaMeetRoute: typeof HooksAssenzaMeetRoute
   HooksAttesaDaChiamareRoute: typeof HooksAttesaDaChiamareRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
@@ -2948,6 +2961,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/attesa-da-chiamare'
       fullPath: '/hooks/attesa-da-chiamare'
       preLoaderRoute: typeof HooksAttesaDaChiamareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/assenza-meet': {
+      id: '/hooks/assenza-meet'
+      path: '/hooks/assenza-meet'
+      fullPath: '/hooks/assenza-meet'
+      preLoaderRoute: typeof HooksAssenzaMeetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consulente/registrati': {
@@ -4172,6 +4192,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappSendRoute: ApiWhatsappSendRoute,
   ApiWhatsappTemplatesRoute: ApiWhatsappTemplatesRoute,
   BlogSlugRoute: BlogSlugRoute,
+  HooksAssenzaMeetRoute: HooksAssenzaMeetRoute,
   HooksAttesaDaChiamareRoute: HooksAttesaDaChiamareRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
