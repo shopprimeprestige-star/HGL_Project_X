@@ -168,7 +168,6 @@ function porteDelPonte(P, o = {}) {
   const scritti = new Set();
   return {
     utente: async () => UTENTE,
-    noti: async (_u, numeri) => numeri.filter((n) => (o.noti ?? [NUM, ALTRO]).includes(n)),
     candidati: async (_u, righe) => {
       const out = [];
       for (const r of righe)
@@ -195,6 +194,8 @@ function porteDelPonte(P, o = {}) {
       }
       return e;
     },
+    //  30/10 «tutte le chat»: la promozione c'è (non fa niente qui) e `noti` non esiste più.
+    promuovi: async () => ({ promosse: 0, saltate: 0 }),
     recentiDelPonte: async () => [],
     battito: async () => undefined,
     avviso: () => undefined,
@@ -259,8 +260,10 @@ async function proveDelPonteVivo(mod, { c, gruppo }) {
   r = await manda(porteDelPonte(P), lotto([msg({ dir: "out" })]));
   c("un messaggio in uscita non avvisa", 0, r.avvisi.length);
 
-  r = await manda(porteDelPonte(P, { noti: [] }), lotto([msg()]));
-  c("un numero non nel CRM non avvisa (e non entra)", 0, r.avvisi.length);
+  //  30/10, decisione del titolare («push anche per sconosciuti»): D7 tolta, un numero che il CRM
+  //  non conosce entra come ogni altro e la notifica parte (col numero, come ManyChat per i nuovi).
+  r = await manda(porteDelPonte(P), lotto([msg({ numero: "393330000777" })]));
+  c("un numero che il CRM non conosce avvisa come gli altri (e ora entra)", [200, [{ u: UTENTE, entrate: [{ numero: "393330000777", nome: null }] }]], [r.stato, r.avvisi]);
 
   //  La riga ManyChat dello stesso messaggio, 20 s prima: il ponte la riconosce come pari.
   const crm = [
@@ -297,7 +300,7 @@ async function proveDelPonteVivo(mod, { c, gruppo }) {
   const tanti = Array.from({ length: 14 }, (_, i) =>
     msg({ id: `M${i}`, numero: `39333000${String(i).padStart(4, "0")}` }),
   );
-  r = await manda(porteDelPonte(P, { noti: tanti.map((m) => m.numero) }), lotto(tanti));
+  r = await manda(porteDelPonte(P), lotto(tanti));
   c(
     "un lotto con tanti numeri avvisa al più AVVISI_PER_LOTTO numeri",
     [10, I.AVVISI_PER_LOTTO],

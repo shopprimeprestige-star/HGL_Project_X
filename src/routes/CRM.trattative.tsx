@@ -202,7 +202,11 @@ const GRUPPI: { chiave: Gruppo; titolo: string; spiega: string }[] = [
   },
   //  Il gruppo raccoglie lo stato "annullato", che adesso si legge "Non
   //  interessato": la scheda deve chiamarlo con lo stesso nome della pastiglia.
-  { chiave: "annullati", titolo: "Non interessati", spiega: "Chiusi senza appuntamento" },
+  {
+    chiave: "annullati",
+    titolo: "Non interessati",
+    spiega: "Chiusi senza appuntamento, anche «Per ora no»",
+  },
   {
     chiave: "conclusi",
     titolo: "Conclusi",
@@ -213,6 +217,10 @@ const GRUPPI: { chiave: Gruppo; titolo: string; spiega: string }[] = [
   //  è un numero che si legge e basta.
   { chiave: "tutte", titolo: "Tutte", spiega: "L'archivio completo, senza partizioni" },
 ];
+
+/** Il gruppo «Non interessati»: il no vero e il «per ora no» (30/10/2026), che ha
+ *  il suo filtro per stato per tenerli separati. */
+const STATI_NON_INTERESSATI: string[] = ["annullato", "per_ora_no"];
 
 /** Stati che raccolgono chi va risentito: alimentano il gruppo "Da ricontattare". */
 const DA_RICONTATTARE: string[] = [
@@ -250,7 +258,7 @@ const eImportato = (l: Lead) => !!l.data.importato && !(l.data.dataMeeting && l.
 
 /** Gli stati in cui non c'è nessuna consulenza da avviare: la pratica è chiusa
  *  o il contatto non è mai diventato un lead lavorabile. */
-const STATI_SENZA_CONSULENZA: string[] = ["concluso", "annullato", "perdi_tempo"];
+const STATI_SENZA_CONSULENZA: string[] = ["concluso", "annullato", "per_ora_no", "perdi_tempo"];
 
 /** Si può avviare la videoconsulenza di questo lead?
  *  Servono tutte e tre: il consulente (entra come padrone di casa), il giorno e
@@ -1837,7 +1845,7 @@ function LeadsPage() {
         !imp &&
         ![
           "concluso",
-          "annullato",
+          ...STATI_NON_INTERESSATI,
           "da_contattare",
           "non_risponde",
           "segreteria",
@@ -1848,7 +1856,7 @@ function LeadsPage() {
         c.attivi++;
       if (DA_RICONTATTARE.includes(l.data.stato) || l.data.callbackAt) c.ricontattare++;
       if (l.data.giaPresente) c.gia_presenti++;
-      if (l.data.stato === "annullato" && !imp) c.annullati++;
+      if (STATI_NON_INTERESSATI.includes(l.data.stato) && !imp) c.annullati++;
       if (l.data.stato === "concluso") c.conclusi++;
     }
     return c;
@@ -1864,7 +1872,7 @@ function LeadsPage() {
       return leads.filter((l) => DA_RICONTATTARE.includes(l.data.stato) || !!l.data.callbackAt);
     if (gruppo === "gia_presenti") return leads.filter((l) => !!l.data.giaPresente);
     if (gruppo === "annullati")
-      return leads.filter((l) => l.data.stato === "annullato" && !eImportato(l));
+      return leads.filter((l) => STATI_NON_INTERESSATI.includes(l.data.stato) && !eImportato(l));
     if (gruppo === "conclusi") return leads.filter((l) => l.data.stato === "concluso");
     //  L'archivio intero: si arriva qui dal totale del conteggio, e la domanda
     //  è "dov'è finito quel nome", non "cosa devo fare oggi".
@@ -1875,7 +1883,7 @@ function LeadsPage() {
         !eImportato(l) &&
         ![
           "concluso",
-          "annullato",
+          ...STATI_NON_INTERESSATI,
           "da_contattare",
           "non_risponde",
           "segreteria",

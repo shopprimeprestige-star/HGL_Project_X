@@ -1139,6 +1139,8 @@ export const AZIONE_PER_STATO: Partial<Record<LeadStatus, string>> = {
   segreteria: "Riprova a chiamare",
   attesa_whatsapp: "Aspetta la risposta su WhatsApp",
   da_chiamare: "Chiamalo: su WhatsApp non ha risposto",
+  //  «Per ora no» (30/10/2026): niente chiamate finché non arriva la data, se c'è.
+  per_ora_no: "Risentilo più avanti",
   richiamo: "Fissa il richiamo",
   appuntamento_fissato: "Fissa data e ora",
   //  Stato storico, non più assegnabile: sulle schede vecchie resta però la

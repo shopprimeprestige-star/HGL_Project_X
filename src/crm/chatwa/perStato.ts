@@ -21,7 +21,7 @@ const PREFISSO = "stato:";
 export type FiltroPerStato = typeof FILTRO_PER_STATO | `stato:${string}`;
 
 /** Stati che hanno già una pastiglia tutta loro. */
-const CON_PASTIGLIA: readonly string[] = ["attesa_whatsapp", "da_chiamare"];
+const CON_PASTIGLIA: readonly string[] = ["attesa_whatsapp", "da_chiamare", "per_ora_no"];
 
 /** Per ogni valore, quello «canonico» con la stessa etichetta (il primo dichiarato). */
 const CANONICO: Record<string, LeadStatus> = (() => {

@@ -29,7 +29,7 @@ export function proveOrariDurata(mod, { c, gruppo }) {
   const G = mod["giorni-liberi"];
 
   gruppo("PROPONI ORARI: LA DURATA (predefinita, scelte rapide, valore libero)");
-  c("predefinita 45 minuti, passo di mezz'ora", [45, 30], [W.DURATA_ORARI, W.PASSO_ORARI]);
+  c("predefinita 45 minuti, passo di un quarto d'ora", [45, 15], [W.DURATA_ORARI, W.PASSO_ORARI]);
   c("scelte rapide 30, 45, 60, 90", [30, 45, 60, 90], W.DURATE_RAPIDE);
   c(
     "un valore libero si accetta fra 15 e 180 minuti, intero",
@@ -281,5 +281,79 @@ export function proveOrariDurata(mod, { c, gruppo }) {
     "con la stessa durata, ogni ora di Slot liberi è anche in Proponi orari",
     true,
     ore(slotLiberi).every((o) => proponi.includes(o)),
+  );
+
+  gruppo("PROPONI ORARI: I DATI VERI DEL 30/10 (consulenze in fila da 45 minuti)");
+  //  Segnalazione del titolare (30/10/2026): con il consulente e 45 minuti il tasto
+  //  proponeva 13:30, 15:00, 16:30, 18:00, cioè gli inizi di consulenze già fissate.
+  const fil = consulente("c1", "Consulente", [{ inizio: "09:00", fine: "21:00" }]);
+  const fissate = ["13:30", "14:15", "15:00", "15:45", "16:30", "17:15", "18:00", "18:45"].map(
+    (ora, i) =>
+      scheda(`f${i}`, {
+        consulenteId: "c1",
+        dataMeeting: LUNEDI,
+        oraMeeting: ora,
+        durataMeeting: 45,
+        stato: "appuntamento_fissato",
+      }),
+  );
+  const altre = [
+    ["10:30", "in_attesa_acconto"],
+    ["11:15", "no_show"],
+    ["11:15", "da_spostare"],
+    ["12:00", "annullato"],
+    ["12:45", "no_show"],
+  ].map(([ora, stato], i) =>
+    scheda(`a${i}`, {
+      consulenteId: "c1",
+      dataMeeting: LUNEDI,
+      oraMeeting: ora,
+      durataMeeting: 45,
+      stato,
+    }),
+  );
+  const vero = (dopo) =>
+    ore(
+      G.giornoDellaSquadra({
+        data: LUNEDI,
+        persone: [fil],
+        leads: [...fissate, ...altre],
+        durata: W.DURATA_ORARI,
+        passo: W.PASSO_ORARI,
+        dopo,
+        soloLibere: true,
+      }),
+    );
+  const alle13 = vero(13 * 60);
+  c(
+    "alle 13:00: niente fra le 13:00 e le 19:30 (né gli inizi delle consulenze né orari sovrapposti)",
+    [],
+    alle13.filter((o) => o >= "13:00" && o < "19:30"),
+  );
+  c("…e la prima ora libera è 19:30, subito dopo la consulenza delle 18:45", "19:30", alle13[0]);
+  const mattina = vero(undefined);
+  c(
+    "in_attesa_acconto tiene il posto (10:30–11:15), no_show / da_spostare / annullato lo liberano",
+    [false, false, true, true, true, true],
+    ["10:30", "10:45", "11:15", "11:30", "12:00", "12:45"].map((o) => mattina.includes(o)),
+  );
+  c(
+    "l'ultimo orario prima delle 13:30 è 12:45 (finisce alle 13:30)",
+    "12:45",
+    mattina.filter((o) => o < "13:30").at(-1),
+  );
+  c(
+    "Slot liberi tiene la sua regola dei gruppi: alle 13:30 c'è ancora posto",
+    true,
+    ore(
+      G.giornoDellaSquadra({
+        data: LUNEDI,
+        persone: [fil],
+        leads: fissate,
+        durata: 45,
+        passo: 45,
+        dopo: 13 * 60,
+      }),
+    ).includes("13:30"),
   );
 }

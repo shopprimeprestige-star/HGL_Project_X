@@ -63,6 +63,7 @@ import {
 import {
   Archive,
   CalendarCheck,
+  CalendarClock,
   CalendarDays,
   CalendarPlus,
   CalendarX,
@@ -107,7 +108,9 @@ import {
 } from "./ui";
 import {
   LEAD_PHASE_LABEL,
+  LEAD_STATUS_NOTA,
   LEAD_STATUS_PHASE,
+  PUNTO_PER_ORA_NO,
   statiPer,
   type ExtraDaChiedere,
   type Lead,
@@ -190,6 +193,8 @@ export const ICONA_STATO: Partial<Record<LeadStatus, ComponentType<{ className?:
   perdi_tempo: TimerOff,
   //  "Non interessato": è il cliente che dice no, non un errore nostro.
   annullato: ThumbsDown,
+  //  «Per ora no»: un no con la scadenza, quindi l'orologio e non il pollice giù.
+  per_ora_no: CalendarClock,
   //  Una freccia che torna indietro: ha fatto un passo avanti e l'ha disfatto.
   //  Non il pollice giù di «Non interessato» — quello dichiara un no mai
   //  cambiato, questo un sì che si è sciolto.
@@ -286,11 +291,13 @@ function PulsanteStato({
       title={
         attuale
           ? `${etichetta} · è lo stato attuale`
-          : conData
-            ? `${etichetta} · chiederà giorno e ora`
-            : conImporti
-              ? `${etichetta} · chiederà gli importi`
-              : etichetta
+          : LEAD_STATUS_NOTA[stato]
+            ? `${etichetta} · ${LEAD_STATUS_NOTA[stato]}`
+            : conData
+              ? `${etichetta} · chiederà giorno e ora`
+              : conImporti
+                ? `${etichetta} · chiederà gli importi`
+                : etichetta
       }
       className={cn(
         //  56px: il bersaglio del pollice. Sotto i 44 si sbaglia riga, e questa
@@ -309,7 +316,10 @@ function PulsanteStato({
           della fase. Stessa tinta delle pastiglie in elenco, quindi già nota. */}
       <span
         aria-hidden="true"
-        className={cn("absolute inset-y-0 left-0 w-[3px]", PUNTO_TONO[tonoStato(stato)])}
+        className={cn(
+          "absolute inset-y-0 left-0 w-[3px]",
+          stato === "per_ora_no" ? PUNTO_PER_ORA_NO : PUNTO_TONO[tonoStato(stato)],
+        )}
       />
       {Icona ? <Icona className="h-4 w-4 shrink-0 text-slate-500" /> : null}
       <span className="min-w-0 flex-1 text-[12.5px] font-medium leading-snug text-slate-900">

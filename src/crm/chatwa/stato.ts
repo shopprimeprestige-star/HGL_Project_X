@@ -34,9 +34,13 @@ export interface MessaggioStato {
   canale?: string | null;
 }
 
-/** ── PONTE WHATSAPP (commessa 2026-10-29): LE RIGHE DELLO STORICO SONO SOLO DA VEDERE ──
+/** ── PONTE WHATSAPP (commessa 2026-10-29): LE RIGHE DEL PONTE SONO SOLO DA VEDERE ──
  *  Una riga `canale='baileys'` si mostra nella chat e nell'anteprima, ma non
- *  decide niente: né «Da rispondere», né la finestra di 24 ore, né «Da chiamare». */
+ *  decide niente: né «Da rispondere», né la finestra di 24 ore, né «Da chiamare».
+ *  Commessa 2026-10-30 (tutte le chat): vale ancora per il ripiego sui messaggi. Un'entrata
+ *  VIVA del ponte che ManyChat non porta la promuove il SERVER (dopo ~2 minuti, `ponte_wa_promuovi`)
+ *  scrivendo le colonne del CONTATTO (`unread_count`, `ultimo_in_entrata_*`): quelle sì le
+ *  leggono `daRispondere()`, `contaDaRispondere` e «Non letti». Lo storico non le tocca mai. */
 export const eRigaPonte = (m: { canale?: string | null }): boolean => m.canale === CANALE_PONTE;
 
 export interface IngressoStato {
@@ -337,6 +341,10 @@ const COLONNE_DEL_PONTE = [
  *   · `INSERT` di un messaggio del ponte con `created_at` più vecchio di 10 minuti;
  *   · `UPDATE` di un contatto in cui cambiano solo `last_message_at`, `display_name`, `updated_at`
  *     e l'ultimo messaggio salvato sul contatto (`ultimo_messaggio_*`).
+ *   · `INSERT` di un contatto del ponte «silenzioso» (30/10, tutte le chat): `origine='baileys'`, senza non
+ *     letti, `ultimo_in_entrata_il`, `lead_id`, `non_scrivere_dal` né `risposto_il`. L'import dello storico
+ *     ne crea centinaia, e uno sconosciuto nuovo non ha ancora niente da mostrare di diverso. Con `risposto_il`
+ *     (nato da un'uscita viva dal telefono) o con un non letto è invece un evento vero.
  *  Ogni altra cosa (messaggio vivo, ManyChat, `unread_count`, `risposto_il`…) rilegge.
  *  Evento illeggibile = si rilegge. Il controllo ogni 15 s resta la rete di sicurezza
  *  (guarda `updated_at` del contatto: anche un messaggio vivo arrivato in ritardo lo muove). */
@@ -351,6 +359,17 @@ export function eventoDaIgnorare(
     const t = ms(e.new.created_at as string | null);
     const ora = ms(adesso);
     return t !== null && ora !== null && ora - t > ETA_STORICO;
+  }
+  if (e.eventType === "INSERT") {
+    const n = e.new;
+    return (
+      n.origine === CANALE_PONTE &&
+      !((n.unread_count as number | null | undefined) ?? 0) &&
+      !n.ultimo_in_entrata_il &&
+      !n.lead_id &&
+      !n.non_scrivere_dal &&
+      !n.risposto_il
+    );
   }
   if (e.eventType !== "UPDATE" || !e.old || Object.keys(e.old).length === 0) return false;
   const nuovo = e.new;

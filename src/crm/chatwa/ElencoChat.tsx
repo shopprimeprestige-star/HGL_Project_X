@@ -30,6 +30,8 @@ const FILTRI: { v: FiltroChat; l: string }[] = [
   { v: "da-chiamare", l: "Da chiamare" },
   //  I lead in «Attesa WhatsApp» (30/10/2026): vedi `passaFiltro`.
   { v: "attesa-whatsapp", l: "Attesa WhatsApp" },
+  //  I lead in «Per ora no» (30/10/2026): vedi `passaFiltro`.
+  { v: "per-ora-no", l: "Per ora no" },
   //  Chi ha lasciato l'acconto, in qualunque stato sia (30/10/2026): vedi `passaFiltro`.
   { v: "acconto", l: "Acconto" },
   { v: "unread", l: "Non letti" },
@@ -167,9 +169,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const daChiamareTutte = perPastiglia(perRicerca(api.chats)).filter(delConsulente);
   const conti = contaSottofiltri(daChiamareTutte);
   const contaPillola = contaSottofiltri(api.chats.filter(delConsulente)).tutti;
-  /** Quanti per pastiglia (finestra chiusa / aperta, attesa WhatsApp, acconto), di quel consulente. */
-  const contaFinestra = (f: "chiuso-24h" | "aperto-24h" | "attesa-whatsapp" | "acconto") =>
-    api.chats.filter((c) => delConsulente(c) && passaFiltro(c, f)).length;
+  /** Quanti per pastiglia (finestra chiusa / aperta, attesa WhatsApp, per ora no, acconto), di quel consulente. */
+  const contaFinestra = (
+    f: "chiuso-24h" | "aperto-24h" | "attesa-whatsapp" | "per-ora-no" | "acconto",
+  ) => api.chats.filter((c) => delConsulente(c) && passaFiltro(c, f)).length;
   /*  ── UN FILTRO PER OGNI STATO DEL LEAD (30/10/2026) ───────────────────
       Richiesta del titolare, in fondo alle pastiglie: «Per stato» apre una fila di chip
       (come quella di «Da chiamare») con gli stati che hanno almeno una chat, nell'ordine
@@ -294,6 +297,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               {(f.v === "chiuso-24h" ||
                 f.v === "aperto-24h" ||
                 f.v === "attesa-whatsapp" ||
+                f.v === "per-ora-no" ||
                 f.v === "acconto") &&
               contaFinestra(f.v) > 0
                 ? ` ${contaFinestra(f.v)}`

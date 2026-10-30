@@ -6,9 +6,11 @@
  *  (`src/crm/ponte/porte.server.ts`); finti solo due pezzi:
  *  `@tanstack/react-router` (restituisce le opzioni) e il client Supabase con
  *  la chiave di servizio, che diventa un database in memoria (`MONDO_FINTO`).
- *  Le tre funzioni SQL lì dentro imitano quelle di T1 (stesse regole del
- *  testo SQL, dette in JavaScript): servono a far girare il codice vero, non a
- *  provare l'SQL (lo prova T1 su Postgres, `prove/sql/ponte-wa.sql`).
+ *  Le funzioni SQL lì dentro imitano quelle di T1 e della commessa «tutte le
+ *  chat» (stesse regole del testo SQL, dette in JavaScript): servono a far
+ *  girare il codice vero, non a provare l'SQL (lo provano `prove/sql/ponte-wa.sql`
+ *  e `prove/sql/ponte-tutte.sql` su Postgres). `ponte_wa_noti` non c'è più: dal
+ *  30/10 (D7 tolta) la rotta non la chiama, e se la chiamasse sarebbe un errore.
  *  `fetch` è un allarme: la rotta non chiama nessuno fuori dal database.
  *
  *  `MONDO_FINTO` e `caricaRotta` servono anche a `non-interferenza.mjs`.
@@ -31,7 +33,6 @@ export const UTENTE = "0b0b0b0b-1111-4222-8333-444444444444";
 export const MONDO_FINTO = `
 const st = () => globalThis.__ponteMondo;
 const cifre = (t) => String(t ?? "").replace(/\\D/g, "");
-const nove = (t) => cifre(t).slice(-9);
 const sec = (iso) => Date.parse(iso) / 1000;
 const iso = (s) => new Date(s * 1000).toISOString();
 const righe = (t) => (st().tab[t] ??= []);
@@ -83,13 +84,6 @@ function tabella(nome) {
   return q;
 }
 
-/** ponte_wa_noti: contatto non del ponte con le stesse cifre, o scheda con le stesse ultime 9. */
-function noti(a) {
-  const c = righe("whatsapp_contacts").filter((r) => r.user_id === a.p_user_id && r.origine !== "baileys");
-  const s = righe("crm_leads").filter((r) => r.user_id === a.p_user_id);
-  return a.p_numeri.filter((n) => c.some((r) => cifre(r.phone_e164) === n) || s.some((r) => nove(r.data?.telefono) === nove(n)));
-}
-
 /** ponte_wa_candidati: le regole 1-4 del §c1, più «non già presa». */
 function candidati(a) {
   const out = [];
@@ -104,7 +98,63 @@ function candidati(a) {
   return out;
 }
 
-/** ponte_wa_scrivi: le righe, i pari delle già presenti, i contatti, D8. */
+/** D9 (30/10): solo un'entrata viva, mai nata con un pari (nemmeno perso), degli ultimi 7 giorni. */
+const attesa = (r, pari) => (r.e && r.d === "in" && !pari.some((p) => p.k === r.k) && r.t >= Date.now() / 1000 - 7 * 86400 ? new Date().toISOString() : null);
+
+/** ponte_wa_ritira: il pari di ManyChat arriva dopo la promozione, si toglie il +1 (una volta). */
+function ritira(u, riga) {
+  if (!riga.promosso_il) return false;
+  const p = righe("whatsapp_messages").find((m) => m.id === riga.duplicato_di && m.user_id === u && m.canale === "manychat");
+  if (!p) return false;
+  const n = cliente(riga);
+  const x = righe("whatsapp_contacts").filter((c) => c.user_id === u && (c.phone_e164 === "+" + n || c.phone_e164 === n))
+    .sort((p1, q) => (q.phone_e164 === "+" + n) - (p1.phone_e164 === "+" + n))[0];
+  if (x) {
+    x.unread_count = Math.max((x.unread_count ?? 0) - 1, 0);
+    x.updated_at = new Date().toISOString();
+    scritto("whatsapp_contacts", "update", ["unread_count", "updated_at"], "ponte_wa_ritira");
+  }
+  riga.promosso_il = null;
+  scritto("whatsapp_messages", "update", ["promosso_il"], "ponte_wa_ritira");
+  return true;
+}
+
+/** ponte_wa_promuovi: dopo l'attesa un'entrata solo del ponte diventa un'entrata vera. */
+function promuovi(a) {
+  const u = a.p_user_id;
+  const attesaS = a.p_attesa_s ?? 120;
+  const ora = Date.now();
+  const cont = righe("whatsapp_contacts");
+  const da = righe("whatsapp_messages")
+    .filter((m) => m.user_id === u && m.canale === "baileys" && m.direction === "inbound" && !m.duplicato_di && !m.promosso_il && m.attesa_dal &&
+      Date.parse(m.attesa_dal) >= ora - 86400e3 && Date.parse(m.attesa_dal) <= ora - attesaS * 1000)
+    .sort((p, q) => (p.created_at < q.created_at ? -1 : 1)).slice(0, 500);
+  const esito = { promosse: 0, saltate: 0 };
+  for (const m of da) {
+    const n = cifre(m.from_number);
+    const x = cont.filter((c) => c.user_id === u && (c.phone_e164 === "+" + n || c.phone_e164 === n))
+      .sort((p, q) => (q.phone_e164 === "+" + n) - (p.phone_e164 === "+" + n))[0];
+    if (!x) continue;
+    if (x.risposto_il && x.risposto_il >= m.created_at) {
+      m.attesa_dal = null;
+      scritto("whatsapp_messages", "update", ["attesa_dal"], "ponte_wa_promuovi");
+      esito.saltate++;
+      continue;
+    }
+    const piuRecente = !x.ultimo_in_entrata_il || m.created_at >= x.ultimo_in_entrata_il;
+    x.unread_count = (x.unread_count ?? 0) + 1;
+    if (piuRecente) { x.ultimo_in_entrata_anteprima = m.body.slice(0, 100); x.ultimo_in_entrata_il = m.created_at; }
+    if (!x.last_message_at || m.created_at > x.last_message_at) x.last_message_at = m.created_at;
+    x.updated_at = new Date().toISOString();
+    scritto("whatsapp_contacts", "update", ["unread_count", "ultimo_in_entrata_anteprima", "ultimo_in_entrata_il", "last_message_at", "updated_at"], "ponte_wa_promuovi");
+    m.promosso_il = new Date().toISOString();
+    scritto("whatsapp_messages", "update", ["promosso_il"], "ponte_wa_promuovi");
+    esito.promosse++;
+  }
+  return esito;
+}
+
+/** ponte_wa_scrivi: le righe, i pari delle già presenti, i contatti, D8, D9. */
 function scrivi(a) {
   const u = a.p_user_id;
   const msg = righe("whatsapp_messages");
@@ -127,7 +177,7 @@ function scrivi(a) {
       from_number: r.d === "in" ? "+" + r.n : "baileys", to_number: r.d === "in" ? "baileys" : "+" + r.n,
       body: r.x.slice(0, 4000), media_type: r.m, status: r.d === "in" ? "delivered" : r.s,
       canale: "baileys", created_at: iso(r.t), raw_payload: {},
-      ...(crm ? { duplicato_di: crm } : {}),
+      ...(crm ? { duplicato_di: crm } : { attesa_dal: attesa(r, a.p_pari) }),
     };
     msg.push(riga);
     scritto("whatsapp_messages", "insert", Object.keys(riga).filter((k) => k !== "id"), "ponte_wa_scrivi");
@@ -143,6 +193,7 @@ function scrivi(a) {
     r.duplicato_di = crm;
     scritto("whatsapp_messages", "update", ["duplicato_di"], "ponte_wa_scrivi");
     esito.doppioni++;
+    ritira(u, r);
   }
   const perNumero = new Map();
   for (const { riga, effetto } of inseriti) {
@@ -159,12 +210,13 @@ function scrivi(a) {
       .sort((p, q) => (q.phone_e164 === "+" + n) - (p.phone_e164 === "+" + n))[0];
     if (x) {
       x.last_message_at = !x.last_message_at || v.ultimo > x.last_message_at ? v.ultimo : x.last_message_at;
-      x.display_name = x.display_name ?? nome;
+      //  E7: il nome del profilo non si salva per un contatto del ponte senza scheda.
+      x.display_name = x.origine === "baileys" && !x.lead_id ? x.display_name : (x.display_name ?? nome);
       if (v.risposta && (!x.risposto_il || v.risposta > x.risposto_il)) { x.risposto_il = v.risposta; esito.risposto++; }
       x.updated_at = new Date().toISOString();
       scritto("whatsapp_contacts", "update", ["last_message_at", "display_name", "risposto_il", "updated_at"], "ponte_wa_scrivi");
     } else {
-      const nuovo = { user_id: u, phone_e164: "+" + n, display_name: nome, last_message_at: v.ultimo, risposto_il: v.risposta, origine: "baileys" };
+      const nuovo = { user_id: u, phone_e164: "+" + n, display_name: null, last_message_at: v.ultimo, risposto_il: v.risposta, origine: "baileys" };
       cont.push({ ...nuovo, unread_count: 0 });
       scritto("whatsapp_contacts", "insert", Object.keys(nuovo), "ponte_wa_scrivi");
       esito.contatti_nuovi++;
@@ -180,9 +232,9 @@ export const supabaseAdmin = {
     st().rpc.push({ fn, args: JSON.parse(JSON.stringify(a)) });
     const g = guasto(fn);
     if (g) return g;
-    if (fn === "ponte_wa_noti") return { data: noti(a), error: null };
     if (fn === "ponte_wa_candidati") return { data: candidati(a), error: null };
     if (fn === "ponte_wa_scrivi") return { data: scrivi(a), error: null };
+    if (fn === "ponte_wa_promuovi") return { data: promuovi(a), error: null };
     return { data: null, error: { code: "42883", message: "function does not exist" } };
   },
 };`;
@@ -302,8 +354,11 @@ export async function provePonteRotta(_mod, { c, gruppo, radice }) {
   gruppo("PONTE WHATSAPP · LE PORTE VERE · SORGENTE (compito T4)");
   {
     const codice = senzaCommenti(porte);
-    c("le tre funzioni SQL per nome, e nessun'altra", ["ponte_wa_candidati", "ponte_wa_noti", "ponte_wa_scrivi"],
+    //  30/10 «tutte le chat»: ponte_wa_noti non è più chiamata dal TypeScript (D7 tolta; la funzione SQL
+    //  resta nella migrazione 20261029120000, solo aggiuntiva, senza chiamanti); c'è ponte_wa_promuovi (D9).
+    c("le funzioni SQL per nome, e nessun'altra", ["ponte_wa_candidati", "ponte_wa_promuovi", "ponte_wa_scrivi"],
       [...new Set([...codice.matchAll(/\.rpc(?:<.*?>)?\(\s*"(\w+)"/g)].map((x) => x[1]))].sort());
+    c("ponte_wa_noti e ponte_wa_ritira non compaiono nel TypeScript delle porte (ritira la chiama solo l'SQL)", [false, false], [/ponte_wa_noti/.test(codice), /ponte_wa_ritira/.test(codice)]);
     c("le tabelle toccate: manychat_config, ponte_wa_stato, whatsapp_messages", ["manychat_config", "ponte_wa_stato", "whatsapp_messages"],
       [...new Set([...codice.matchAll(/\.from\(\s*"(\w+)"/g)].map((x) => x[1]))].sort());
     c("la chiave di servizio, con il cast come nelle altre porte", true,
@@ -388,26 +443,34 @@ export async function provePonteRotta(_mod, { c, gruppo, radice }) {
         user_id: ALTRO_UTENTE,
       };
       const x = await chiama(POST, { corpo });
-      c("200 con i conteggi del §b2", { ok: true, ricevuti: 3, nuovi: 2, gia_presenti: 0, doppioni: 1, scartati: 0, fuori_rubrica: 0, non_noti: ["3EB0AA03"] }, x.json);
+      //  D7 tolta: anche il numero sconosciuto (IGNOTO) entra, non_noti è sempre vuoto.
+      c("200 con i conteggi del §b2: tutte e tre scritte, anche la riga dello sconosciuto", { ok: true, ricevuti: 3, nuovi: 3, gia_presenti: 0, doppioni: 1, scartati: 0, fuori_rubrica: 0, non_noti: [] }, x.json);
       const utenti = [...new Set(m.rpc.map((r) => r.args.p_user_id))];
       c("ogni funzione riceve l'utente di manychat_config, non quello del corpo", [UTENTE], utenti);
       c("utente letto da manychat_config con id=1", true, m.chiamate.some((q) => q.tabella === "manychat_config" && q.azione === "select"));
-      c("le funzioni nell'ordine: noti, candidati, scrivi (poi il controllo tardivo)", ["ponte_wa_noti", "ponte_wa_candidati", "ponte_wa_scrivi"], m.rpc.slice(0, 3).map((r) => r.fn));
-      c("ponte_wa_noti riceve p_user_id e p_numeri (cifre)", ["p_numeri", "p_user_id"], Object.keys(m.rpc[0].args).sort());
-      c("ponte_wa_candidati riceve p_righe {k,n,d,t}", ["k", "n", "d", "t"], Object.keys(m.rpc[1].args.p_righe[0]));
-      c("ponte_wa_scrivi riceve p_righe, p_pari, p_nomi come da contratto", ["p_nomi", "p_pari", "p_righe", "p_user_id"], Object.keys(m.rpc[2].args).sort());
-      c("…con le righe nell'ordine dei campi di RigaScrittura", ["k", "n", "d", "t", "x", "e", "m", "s"], Object.keys(m.rpc[2].args.p_righe[0]));
-      c("…e il pari verso la riga ManyChat", [{ k: `bw:${NOTO}:3EB0AA02`, crm: CRM_ID }], m.rpc[2].args.p_pari);
+      c("le funzioni nell'ordine: candidati, scrivi, poi il controllo tardivo (candidati) e la promozione", ["ponte_wa_candidati", "ponte_wa_scrivi", "ponte_wa_candidati", "ponte_wa_promuovi"], m.rpc.map((r) => r.fn));
+      c("ponte_wa_candidati riceve p_righe {k,n,d,t}", ["k", "n", "d", "t"], Object.keys(m.rpc[0].args.p_righe[0]));
+      c("ponte_wa_scrivi riceve p_righe, p_pari, p_nomi come da contratto", ["p_nomi", "p_pari", "p_righe", "p_user_id"], Object.keys(m.rpc[1].args).sort());
+      c("…con le righe nell'ordine dei campi di RigaScrittura", ["k", "n", "d", "t", "x", "e", "m", "s"], Object.keys(m.rpc[1].args.p_righe[0]));
+      c("…e il pari verso la riga ManyChat", [{ k: `bw:${NOTO}:3EB0AA02`, crm: CRM_ID }], m.rpc[1].args.p_pari);
+      c("ponte_wa_promuovi riceve p_user_id e p_attesa_s = 120", [{ p_user_id: UTENTE, p_attesa_s: 120 }], [m.rpc[3].args]);
       const ponte = m.tab.whatsapp_messages.filter((r) => r.canale === "baileys");
-      c("due righe del ponte, una è il doppione", [2, 1], [ponte.length, ponte.filter((r) => r.duplicato_di === CRM_ID).length]);
-      c("il numero ignoto non scrive niente", false, JSON.stringify(m.tab).includes(IGNOTO));
+      c("tre righe del ponte, una è il doppione", [3, 1], [ponte.length, ponte.filter((r) => r.duplicato_di === CRM_ID).length]);
+      const ignoto = m.tab.whatsapp_contacts.find((r) => r.phone_e164 === "+" + IGNOTO);
+      c("lo sconosciuto ha un contatto del ponte: senza scheda, 0 non letti, nessuna entrata, senza nome", [["baileys", undefined, 0, undefined, null]],
+        [[ignoto?.origine, ignoto?.lead_id, ignoto?.unread_count, ignoto?.ultimo_in_entrata_il, ignoto?.display_name]]);
+      c("…e la sua entrata viva senza pari aspetta (attesa_dal), quella col pari no", [true, false], [
+        Boolean(ponte.find((r) => r.wa_message_id === `bw:${IGNOTO}:3EB0AA03`)?.attesa_dal),
+        Boolean(ponte.find((r) => r.wa_message_id === `bw:${NOTO}:3EB0AA02`)?.attesa_dal),
+      ]);
+      c("subito dopo il lotto la promozione non promuove niente (120 secondi di attesa): i non letti di NOTO restano 2", 2, m.tab.whatsapp_contacts.find((r) => r.phone_e164 === "+" + NOTO)?.unread_count);
       c("il controllo tardivo legge whatsapp_messages (solo lettura)", true,
         m.chiamate.some((q) => q.tabella === "whatsapp_messages" && q.azione === "select"));
       c("nessuna scrittura diretta delle porte durante un lotto", [], m.scritture.filter((w) => w.via === "diretta"));
 
       const y = await chiama(POST, { corpo });
-      c("lo stesso lotto di nuovo: niente di nuovo (idempotenza)", [0, 2], [y.json?.nuovi, y.json?.gia_presenti]);
-      c("…e le righe del ponte restano due", 2, m.tab.whatsapp_messages.filter((r) => r.canale === "baileys").length);
+      c("lo stesso lotto di nuovo: niente di nuovo (idempotenza)", [0, 3], [y.json?.nuovi, y.json?.gia_presenti]);
+      c("…e le righe del ponte restano tre", 3, m.tab.whatsapp_messages.filter((r) => r.canale === "baileys").length);
 
       const tutti = [...x.log, ...y.log];
       c("i log cominciano tutti con [ponte-wa]", true, tutti.length > 0 && tutti.every((l) => l.startsWith("[ponte-wa] ")));
@@ -447,21 +510,73 @@ export async function provePonteRotta(_mod, { c, gruppo, radice }) {
       c("un secondo battito aggiorna la stessa riga", [1, "fermo"], [m.tab.ponte_wa_stato.length, m.tab.ponte_wa_stato[0].stato]);
     }
 
-    gruppo("PONTE WHATSAPP · LA ROTTA · LA DOMANDA «NOTI» DELLA CACHE SUL MAC (p3)");
+    gruppo("PONTE WHATSAPP · LA ROTTA · LA DOMANDA «NOTI» DELLA CACHE SUL MAC (p3, D7 tolta il 30/10)");
     {
       const m = nuovoMondo(base());
       const x = await chiama(POST, { corpo: { v: 1, tipo: "noti", numeri: [NOTO, IGNOTO] } });
-      c("noti → 200 con i soli numeri noti", [200, { ok: true, noti: [NOTO] }], [x.r.status, x.json]);
-      c("…una sola funzione, ponte_wa_noti, con l'utente di manychat_config", [["ponte_wa_noti"], UTENTE], [m.rpc.map((r) => r.fn), m.rpc[0]?.args.p_user_id]);
+      c("noti → 200 con TUTTI i numeri chiesti (il CRM ora li accetta tutti)", [200, { ok: true, noti: [NOTO, IGNOTO] }], [x.r.status, x.json]);
+      c("…nessuna funzione SQL e nessuna lettura del database", [[], []], [m.rpc.map((r) => r.fn), m.chiamate]);
       c("…e nessuna scrittura", [], m.scritture);
-      c("…nel log solo il codice e i conteggi", ["[ponte-wa] noti chiesti=2 noti=1"], x.log);
+      c("…nel log solo il codice e i conteggi", ["[ponte-wa] noti chiesti=2 noti=2"], x.log);
+    }
+
+    gruppo("PONTE WHATSAPP · LA ROTTA · LA PROMOZIONE DELLE ENTRATE SOLO DEL PONTE (D9, 30/10)");
+    {
+      //  Un'entrata viva di uno sconosciuto, senza pari: dopo 120 secondi diventa vera; il pari di
+      //  ManyChat che arriva dopo la ritira. Il tempo si sposta riscrivendo attesa_dal.
+      Route = rotta.carica();
+      POST = Route.options.server.handlers.POST;
+      const m = nuovoMondo(base());
+      const nuovoNumero = "393330000555";
+      await chiama(POST, { corpo: lotto([msg({ id: "3EB0PR01", numero: nuovoNumero, testo: "Buongiorno, mi chiamo Anna Finta" })], { nomi: { [nuovoNumero]: "Profilo Finto" } }) });
+      const contatto = () => m.tab.whatsapp_contacts.find((r) => r.phone_e164 === "+" + nuovoNumero);
+      const riga = () => m.tab.whatsapp_messages.find((r) => r.wa_message_id === `bw:${nuovoNumero}:3EB0PR01`);
+      c("entrata viva di uno sconosciuto: contatto del ponte a 0 non letti, riga in attesa", [0, true, null], [contatto()?.unread_count, Boolean(riga()?.attesa_dal), riga()?.promosso_il ?? null]);
+      const b0 = await chiama(POST, { corpo: battito });
+      c("un battito subito dopo: ancora niente (non sono passati 120 secondi)", [200, 0], [b0.r.status, contatto()?.unread_count]);
+      riga().attesa_dal = new Date(Date.now() - 130_000).toISOString();
+      const b1 = await chiama(POST, { corpo: battito });
+      c("dopo 130 secondi il battito promuove: +1 non letti, entrata all'ora vera, anteprima", [200, 1, riga().created_at, "Buongiorno, mi chiamo Anna Finta"],
+        [b1.r.status, contatto()?.unread_count, contatto()?.ultimo_in_entrata_il, contatto()?.ultimo_in_entrata_anteprima]);
+      c("…nel log solo «promosse» col conteggio, nessun numero né testo", [true, false], [
+        b1.log.includes("[ponte-wa] promosse n=1"),
+        b1.log.some((l) => l.includes(nuovoNumero) || l.includes("Anna") || l.includes("Profilo")),
+      ]);
+      const b2 = await chiama(POST, { corpo: battito });
+      c("un altro battito: non si conta due volte", [200, 1], [b2.r.status, contatto()?.unread_count]);
+      c("…il contatto resta senza scheda e senza nome; la riga ha promosso_il", [undefined, null, true], [contatto()?.lead_id, contatto()?.display_name, Boolean(riga()?.promosso_il)]);
+      //  Ora il pari di ManyChat: scritto dopo, con il suo +1; il controllo tardivo lo trova e ritira il +1 del ponte.
+      m.tab.whatsapp_messages.push({ id: "mc-pr-1", user_id: UTENTE, wa_message_id: "mc-in:pr1", direction: "inbound", from_number: "+" + nuovoNumero,
+        to_number: "manychat", body: "Buongiorno, mi chiamo Anna Finta", status: "delivered", canale: "manychat", created_at: iso(-25) });
+      contatto().unread_count += 1;
+      const b3 = await chiama(POST, { corpo: battito });
+      c("il pari di ManyChat dopo la promozione: doppione, e i non letti tornano a 1 (non 2)", [200, "mc-pr-1", 1, true], [b3.r.status, riga().duplicato_di, contatto()?.unread_count, riga().promosso_il == null]);
+      const b4 = await chiama(POST, { corpo: battito });
+      c("un battito dopo: nessun secondo ritiro", [200, 1], [b4.r.status, contatto()?.unread_count]);
+      c("la promozione scrive sui contatti solo le colonne di E3, mai scheda, id ManyChat, STOP, nome, risposto_il", [], (() => {
+        const P = ["unread_count", "ultimo_in_entrata_anteprima", "ultimo_in_entrata_il", "last_message_at", "updated_at"];
+        return m.scritture.filter((w) => w.tabella === "whatsapp_contacts" && (w.via === "ponte_wa_promuovi" || w.via === "ponte_wa_ritira") && !w.colonne.every((k) => P.includes(k)));
+      })());
+      c("…e nessuna scrittura diretta delle porte", [], m.scritture.filter((w) => w.via === "diretta" && w.tabella !== "ponte_wa_stato"));
+    }
+
+    gruppo("PONTE WHATSAPP · LA ROTTA · LA PROMOZIONE CHE NON C'È (migrazione non applicata)");
+    {
+      Route = rotta.carica();
+      POST = Route.options.server.handlers.POST;
+      const m = nuovoMondo(base(), { ponte_wa_promuovi: "PGRST202" });
+      const a = await chiama(POST, { corpo: lotto([msg()]) });
+      const b = await chiama(POST, { corpo: battito });
+      c("ponte_wa_promuovi assente: il lotto e il battito vanno lo stesso (200)", [200, 1, 200], [a.r.status, a.json?.nuovi, b.r.status]);
+      c("…con l'avviso funzioni_assenti una volta sola per processo", [1, 0], [a.log.filter((l) => l.includes("funzioni_assenti")).length, b.log.filter((l) => l.includes("funzioni_assenti")).length]);
+      c("…e la riga è stata scritta (il ponte importa come prima)", 1, m.tab.whatsapp_messages.filter((r) => r.canale === "baileys").length);
     }
 
     gruppo("PONTE WHATSAPP · LA ROTTA · IL DATABASE CHE DICE DI NO (compito T4)");
     {
       Route = rotta.carica();
       POST = Route.options.server.handlers.POST;
-      let m = nuovoMondo(base(), { ponte_wa_noti: "PGRST202" });
+      let m = nuovoMondo(base(), { ponte_wa_candidati: "PGRST202" });
       const a = await chiama(POST, { corpo: lotto([msg()]) });
       const b = await chiama(POST, { corpo: lotto([msg()]) });
       c("funzioni SQL assenti: 500 database", [500, "database", 500], [a.r.status, a.json?.errore, b.r.status]);

@@ -2,7 +2,7 @@
  *
  *  Commessa 2026-10-29-ponte-whatsapp-baileys, compito T4 (PIANO §b, §e.5).
  *  Il collegamento fra `ingresso.ts` (T3, la logica) e Supabase: nessuna
- *  regola qui, solo le tre funzioni SQL di T1, la lettura delle righe del
+ *  regola qui, solo le funzioni SQL di T1 (candidati, scrivi) e la promozione (30/10), la lettura delle righe del
  *  ponte per il controllo tardivo e la riga di `ponte_wa_stato`.
  *
  *  ⚠️ Chiave di servizio (la RLS qui non vale): l'utente viene SOLO da
@@ -18,6 +18,7 @@ import {
   cifre,
   type CandidatoCrm,
   type CodiceAvviso,
+  type EsitoPromozione,
   type EsitoScrittura,
   type PortePonte,
   type RigaDaAbbinare,
@@ -43,7 +44,7 @@ const db = () =>
     rpc<T>(fn: string, a: Record<string, unknown>): Esito<T>;
   };
 
-/** La migrazione `20261029120000_ponte_whatsapp.sql` non è applicata (o la
+/** La migrazione `20261029120000_ponte_whatsapp.sql` (o `20261030160000_ponte_tutte_le_chat.sql`, per la promozione) non è applicata (o la
  *  cache dello schema non la vede ancora): funzione, tabella o colonna assente. */
 const CODICI_MIGRAZIONE = ["42883", "PGRST202", "42P01", "PGRST205", "42703", "PGRST204"];
 
@@ -121,14 +122,8 @@ export function porteIngresso(): PortePonte {
       return data?.user_id || null;
     },
 
-    noti: async (userId, numeri) => {
-      const { data, error } = await db().rpc<string[]>("ponte_wa_noti", {
-        p_user_id: userId,
-        p_numeri: numeri,
-      });
-      if (error) return lancia(error);
-      return (data ?? []).filter((n): n is string => typeof n === "string");
-    },
+    //  `noti` non c'è più (D7 tolta il 30/10): la funzione SQL `ponte_wa_noti`
+    //  resta nella migrazione 20261029120000 (solo aggiuntiva) e non la chiama nessuno.
 
     candidati: async (userId, righe) => {
       const { data, error } = await db().rpc<CandidatoCrm[]>("ponte_wa_candidati", {
@@ -156,6 +151,17 @@ export function porteIngresso(): PortePonte {
         contatti_nuovi: intero(d.contatti_nuovi),
         risposto: intero(d.risposto),
       };
+      return esito;
+    },
+
+    promuovi: async (userId, attesaS) => {
+      const { data, error } = await db().rpc<Record<string, unknown>>("ponte_wa_promuovi", {
+        p_user_id: userId,
+        p_attesa_s: attesaS,
+      });
+      if (error) return lancia(error);
+      const d = data ?? {};
+      const esito: EsitoPromozione = { promosse: intero(d.promosse), saltate: intero(d.saltate) };
       return esito;
     },
 

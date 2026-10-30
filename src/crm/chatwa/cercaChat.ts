@@ -47,6 +47,7 @@ export function passaFiltro(
     | "chiuso-24h"
     | "aperto-24h"
     | "attesa-whatsapp"
+    | "per-ora-no"
     | "acconto"
     | FiltroPerStato,
 ): boolean {
@@ -64,6 +65,8 @@ export function passaFiltro(
   //  aperto». Una chat senza finestra calcolata non sta in nessuna delle due.
   //  I lead in stato «Attesa WhatsApp» (richiesta del titolare, 30/10/2026).
   if (filtro === "attesa-whatsapp") return c.lead?.data?.stato === "attesa_whatsapp";
+  //  I lead in «Per ora no» (richiesta del titolare, 30/10/2026): da non disturbare fino alla data.
+  if (filtro === "per-ora-no") return c.lead?.data?.stato === "per_ora_no";
   /*  ── CHI HA LASCIATO L'ACCONTO (30/10/2026) ─────────────────────────────
       Richiesta del titolare: tutti i clienti che hanno lasciato l'acconto, in
       QUALUNQUE stato siano poi finiti (nel nostro centro, da spedire, a domicilio,

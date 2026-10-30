@@ -188,7 +188,7 @@ export function FinestraRisposte(p: {
 }) {
   return (
     <Dialog open={p.aperta} onOpenChange={(v) => !v && p.onChiudi()}>
-      <DialogContent className="flex max-h-[85dvh] w-[calc(100vw-1.5rem)] max-w-lg flex-col gap-3 p-4 md:p-6">
+      <DialogContent className="crm-theme bg-white text-foreground flex max-h-[85dvh] w-[calc(100vw-1.5rem)] max-w-lg flex-col gap-3 p-4 md:p-6">
         {p.aperta && <CorpoFinestra key={p.daModificare?.id ?? "elenco"} {...p} />}
       </DialogContent>
     </Dialog>

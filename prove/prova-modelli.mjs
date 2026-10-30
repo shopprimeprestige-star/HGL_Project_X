@@ -321,7 +321,7 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
   //  Quante variabili manda il CRM per ogni modello (testi.ts → crm_v1…crm_v4):
   //  se un testo qui ne ha un numero diverso, la prova direbbe il falso.
   const VARIABILI = {
-    hgl_primo_contatto: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_domani_testo: 4, hgl_meet_oggi: 3, hgl_meet_oggi_link: 4,
+    hgl_primo_contatto: 1, hgl_primo_contatto_tre_fasce: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_domani_testo: 4, hgl_meet_oggi: 3, hgl_meet_oggi_link: 4,
     hgl_promemoria_meet: 4, hgl_meet_adesso: 3, hgl_ricontatto_consulenza: 2,
     hgl_meet_da_fissare: 2, hgl_richiamo_concordato: 2, hgl_non_risponde: 1,
     hgl_cliente_assente: 1, hgl_da_riprogrammare: 2, hgl_promemoria_sede: 4,
@@ -330,7 +330,7 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
   };
   //  Il giro passa il consulente (v2) anche a questi due, ma il loro testo Utility non lo nomina: un segnaposto in meno.
   const SENZA_CONSULENTE_NEL_TESTO = new Set(["hgl_da_riprogrammare", "hgl_come_eravamo_rimasti"]);
-  c("ci sono tutti i 21 modelli hgl_ di ManyChat (20 con flusso + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
+  c("ci sono tutti i 22 modelli hgl_ di ManyChat (21 con flusso, compreso il primo contatto con tre fasce, + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
   c(
     "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna (salvo il consulente non nominato dal testo)",
     [],

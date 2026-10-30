@@ -389,6 +389,11 @@ export function creaCollegamento({
         auth: state,
         browser: baileys.Browsers.macOS("Chrome"),
         syncFullHistory: true,
+        //  Tutte le chat (30/10/2026): il default di Baileys scarta la sincronizzazione FULL
+        //  (`syncType !== FULL`), l'unica che porta lo storico di TUTTE le chat. Si accetta ogni
+        //  tipo; la coda del Mac regge anche un FULL molto più grande del primo giro (lotti.mjs).
+        //  L'identità resta «Mac Chrome» (Desktop dava 428).
+        shouldSyncHistoryMessage: () => true,
         markOnlineOnConnect: false,
         logger: LOGGER_MUTO,
         //  Baileys lo chiede per rimandare un messaggio che il destinatario non

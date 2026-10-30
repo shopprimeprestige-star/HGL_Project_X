@@ -79,7 +79,7 @@ export function PannelloCosti({ aperto, onChiudi }: { aperto: boolean; onChiudi:
     <Sheet open={aperto} onOpenChange={(v) => !v && onChiudi()}>
       <SheetContent
         side="bottom"
-        className="mx-auto flex max-h-[90dvh] w-full flex-col gap-0 rounded-t-xl p-0 sm:max-w-lg [&>button]:hidden"
+        className="crm-theme mx-auto flex max-h-[90dvh] w-full flex-col gap-0 rounded-t-xl bg-white p-0 text-foreground sm:max-w-lg [&>button]:hidden"
       >
         <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
           <SheetTitle className="text-[15px]">Costi WhatsApp</SheetTitle>
