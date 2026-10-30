@@ -39,7 +39,7 @@ export interface TestoClassificato {
   etichetta: string;
 }
 
-const ETICHETTA_ILLEGGIBILE = "Reazione, sticker o posizione: aprila in ManyChat";
+export const ETICHETTA_ILLEGGIBILE = "Reazione, sticker o posizione: aprila in ManyChat";
 /** Quello che `risposta.ts` scrive nella riga quando il cliente non ha mandato testo. */
 const SENZA_TESTO = "[messaggio senza testo]";
 

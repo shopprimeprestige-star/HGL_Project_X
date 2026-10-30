@@ -18,6 +18,7 @@ import { classificaTesto } from "@/crm/chatwa/media";
 import { telefonoE164 } from "@/crm/chatwa/daChiamare";
 import { inviaWhatsapp } from "@/crm/manychat/porta";
 import { leggiCanale, portePortaVere } from "@/crm/manychat/porta.server";
+import { entrateVereDi } from "@/crm/manychat/entrate-vere.server";
 import { archivioSu, leggiAziendaSu } from "./archivio";
 import { documentoAccettabile, PROMPT_DOCUMENTO } from "./lettura-documento";
 import {
@@ -263,14 +264,17 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
       if (!e164) return { ultimaEntrata: null, stop: false };
       const { data } = await db()
         .from("whatsapp_contacts")
-        .select("ultimo_in_entrata_il, non_scrivere_dal")
+        .select("phone_e164, ultimo_in_entrata_il, ultimo_in_entrata_anteprima, non_scrivere_dal")
         .eq("user_id", userId)
         .in("phone_e164", [e164, e164.slice(1)]);
       const righe = (data ?? []) as {
+        phone_e164: string | null;
         ultimo_in_entrata_il: string | null;
+        ultimo_in_entrata_anteprima: string | null;
         non_scrivere_dal: string | null;
       }[];
-      const ultime = righe
+      //  Una reazione non riapre la finestra: l'entrata torna all'ultimo messaggio vero.
+      const ultime = (await entrateVereDi(userId, righe))
         .map((r) => r.ultimo_in_entrata_il)
         .filter(Boolean)
         .sort() as string[];

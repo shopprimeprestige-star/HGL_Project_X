@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../AuthContext";
 import { IconaWhatsApp } from "./IconaWhatsApp";
+import { anteprimaSenzaTesto, type MessaggioEntrata } from "./entrata-vera";
 import {
   FRASE_FINESTRA_CHIUSA,
   contattoDelNumero,
@@ -52,6 +53,36 @@ type Catena = {
   limit: (n: number) => Promise<{ data: ContattoPerScelta[] | null; error: unknown }>;
 };
 
+/** Gli ultimi messaggi in entrata di quel numero (solo se l'ultima entrata era una reazione:
+ *  serve a trovare l'ultimo messaggio vero). Un guasto vale «nessuno»: finestra chiusa. */
+async function messaggiRecenti(userId: string, telefono: string): Promise<MessaggioEntrata[]> {
+  const cifre = telefono.replace(/\D/g, "");
+  if (!cifre) return [];
+  const da = new Date(Date.now() - 25 * 3_600_000).toISOString();
+  type CatenaMsg = {
+    select: (c: string) => CatenaMsg;
+    eq: (c: string, v: string) => CatenaMsg;
+    in: (c: string, v: string[]) => CatenaMsg;
+    gte: (c: string, v: string) => CatenaMsg;
+    order: (c: string, o: { ascending: boolean }) => CatenaMsg;
+    limit: (n: number) => Promise<{ data: MessaggioEntrata[] | null; error: unknown }>;
+  };
+  try {
+    const { data, error } = await (supabase as unknown as { from: (t: string) => CatenaMsg })
+      .from("whatsapp_messages")
+      .select("from_number,direction,body,created_at,canale")
+      .eq("user_id", userId)
+      .eq("direction", "inbound")
+      .in("from_number", [`+${cifre}`, cifre])
+      .gte("created_at", da)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    return error ? [] : (data ?? []);
+  } catch {
+    return [];
+  }
+}
+
 /** Una lettura puntuale del contatto di quel numero, all'apertura del menu. */
 function useSceltaCrm(
   aperto: boolean,
@@ -66,12 +97,20 @@ function useSceltaCrm(
   const dato = contatto !== undefined;
   const cId = contatto?.id ?? null;
   const cUltima = contatto?.ultimo_in_entrata_il ?? null;
+  const cAnteprima = contatto?.ultimo_in_entrata_anteprima ?? null;
 
   useEffect(() => {
     if (!aperto) return;
     //  Il contatto c'è già (la pagina l'ha caricato): nessuna lettura.
     if (dato) {
-      setLettura(sceltaCrm(cId ? { id: cId, ultimo_in_entrata_il: cUltima } : null, new Date()));
+      setLettura(
+        sceltaCrm(
+          cId
+            ? { id: cId, ultimo_in_entrata_il: cUltima, ultimo_in_entrata_anteprima: cAnteprima }
+            : null,
+          new Date(),
+        ),
+      );
       return;
     }
     const filtro = filtroNumero(telefono);
@@ -81,27 +120,31 @@ function useSceltaCrm(
     }
     let vivo = true;
     setLettura({ stato: "leggo" });
-    void (supabase as unknown as { from: (t: string) => Catena })
-      .from("whatsapp_contacts")
-      .select("id,phone_e164,ultimo_in_entrata_il")
-      .eq("user_id", userId)
-      .like("phone_e164", filtro)
-      .limit(10)
-      .then(
-        ({ data, error }) => {
-          if (!vivo) return;
-          setLettura(
-            error
-              ? { stato: "errore" }
-              : sceltaCrm(contattoDelNumero(data ?? [], telefono), new Date()),
-          );
-        },
-        () => vivo && setLettura({ stato: "errore" }),
-      );
+    void (async () => {
+      try {
+        const { data, error } = await (supabase as unknown as { from: (t: string) => Catena })
+          .from("whatsapp_contacts")
+          .select("id,phone_e164,ultimo_in_entrata_il,ultimo_in_entrata_anteprima")
+          .eq("user_id", userId)
+          .like("phone_e164", filtro)
+          .limit(10);
+        if (!vivo) return;
+        if (error) return setLettura({ stato: "errore" });
+        const trovato = contattoDelNumero(data ?? [], telefono);
+        //  Una reazione non riapre la finestra: se l'ultima entrata era senza testo, si cerca l'ultimo messaggio vero.
+        const messaggi =
+          trovato && anteprimaSenzaTesto(trovato.ultimo_in_entrata_anteprima)
+            ? await messaggiRecenti(userId, trovato.phone_e164 ?? telefono)
+            : [];
+        if (vivo) setLettura(sceltaCrm(trovato, new Date(), messaggi));
+      } catch {
+        if (vivo) setLettura({ stato: "errore" });
+      }
+    })();
     return () => {
       vivo = false;
     };
-  }, [aperto, telefono, dato, cId, cUltima, userId]);
+  }, [aperto, telefono, dato, cId, cUltima, cAnteprima, userId]);
 
   return lettura;
 }

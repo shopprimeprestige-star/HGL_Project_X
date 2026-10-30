@@ -652,6 +652,7 @@ const MODULI = [
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
   "chatwa/scelta-whatsapp",
+  "chatwa/entrata-vera",
   "chatwa/richiamo",
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
   //   prove in prove/idee/righe.mjs.
