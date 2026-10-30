@@ -22,7 +22,8 @@ export type FiltroChat =
   | "da-chiamare"
   | "chiuso-24h"
   | "aperto-24h"
-  | "attesa-whatsapp";
+  | "attesa-whatsapp"
+  | "per-ora-no";
 
 export interface WaMessageRow {
   id: string;

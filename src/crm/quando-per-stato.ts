@@ -139,6 +139,20 @@ export const QUANDO_PER_STATO: Partial<Record<LeadStatus, RichiestaQuando>> = {
     nota: "L'ha detto lui: se quel giorno passa in silenzio, la scheda torna in coda",
     oraObbligatoria: false,
   },
+  /*  ── PER ORA NO (30/10/2026) ─────────────────────────────────────────
+      Richiesta del titolare: «non ho soldi ora», «ci sentiamo più avanti».
+      La data è FACOLTATIVA: chi non la sa preme «Non adesso» e il lead resta
+      «Per ora no» senza scadenza. Con la data, quel giorno compare in «Da fare
+      oggi» (è un ricontatto come gli altri, stessi campi). Nessun messaggio
+      parte da solo, né prima né dopo la data. */
+  per_ora_no: {
+    chiaveData: "dataRicontatto",
+    chiaveOra: "oraRicontatto",
+    nomeCampo: "Quando ricontattarlo",
+    titolo: "Quando lo risenti",
+    nota: "Facoltativa: se non la sai, premi «Non adesso»",
+    oraObbligatoria: false,
+  },
   fissa_meet_dopo: {
     chiaveData: "dataRicontatto",
     chiaveOra: "oraRicontatto",

@@ -39,6 +39,7 @@ import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./le
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
+import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 
@@ -21185,6 +21186,7 @@ await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
+provePerOraNo(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
