@@ -202,13 +202,16 @@ export function scelteAncoraLibere(
 /** ── LA DURATA DA PROPORRE (commessa 2026-10-30) ───────────────────────────
  *  Richiesta del titolare: «durata predefinita 45 minuti, modificabile con
  *  30, 45, 60, 90 e un valore libero»; l'orario proposto è libero per TUTTA
- *  la durata (crm/giorni-liberi). Un orario parte ogni mezz'ora: è la riga
- *  dell'agenda di tutti i consulenti (30 minuti) e il passo del link di
- *  prenotazione (api.crm.disponibilita); al quarto d'ora sarebbero il doppio
- *  dei tasti per orari come «10:15» che nessuno propone al telefono.
+ *  la durata (crm/giorni-liberi), senza nessuno dentro. Un orario parte ogni
+ *  QUARTO D'ORA (30/10/2026, seconda): le consulenze si fissano in fila da 45
+ *  minuti (13:30, 14:15, 15:00…), e a mezz'ora l'ora libera subito dopo quella
+ *  delle 18:45 (19:30) c'era, ma quella dopo una delle 14:15 (15:00) o una
+ *  libera alle 11:45 no. Allineare gli inizi alle fine delle consulenze
+ *  lascerebbe fuori le fine di pose, pause e chiusure: il quarto d'ora le
+ *  prende tutte con una regola sola.
  *  L'ultima durata scelta resta nel browser (`CHIAVE_DURATA`). */
 export const DURATA_ORARI = 45;
-export const PASSO_ORARI = 30;
+export const PASSO_ORARI = 15;
 export const DURATE_RAPIDE = [30, 45, 60, 90] as const;
 export const DURATA_MINIMA = 15;
 export const DURATA_MASSIMA = 180;
