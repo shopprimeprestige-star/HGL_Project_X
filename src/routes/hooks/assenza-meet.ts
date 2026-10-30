@@ -41,7 +41,6 @@ const json = (o: unknown, status = 200) =>
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as unknown as { from: (t: string) => any };
 

@@ -268,7 +268,14 @@ export interface PorteAssenza {
 export async function giroAssenza(porte: PorteAssenza, adesso: Date) {
   const acceso = await porte.acceso();
   const schede = await porte.appuntamenti(adesso);
-  const conto = { acceso, appuntamenti: schede.length, spostati: 0, segnalati: 0, lasciati: 0, cambiatiNelFrattempo: 0 };
+  const conto = {
+    acceso,
+    appuntamenti: schede.length,
+    spostati: 0,
+    segnalati: 0,
+    lasciati: 0,
+    cambiatiNelFrattempo: 0,
+  };
   for (const r of schede) {
     //  Prima la regola senza sala (finestra, stato, già segnalata): la sala si
     //  legge solo per chi sarebbe davvero da toccare.

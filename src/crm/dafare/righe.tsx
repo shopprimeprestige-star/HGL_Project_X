@@ -90,8 +90,7 @@ export const META_RIGA: Record<TipoRiga, MetaRiga> = {
   assente_meet: {
     verbo: "Chiamare, non è entrato alla consulenza,",
     filtro: "Non entrati alla consulenza",
-    spiegazione:
-      "15 minuti dopo l'inizio nessuno era nella stanza: si chiama e si segna l'esito.",
+    spiegazione: "15 minuti dopo l'inizio nessuno era nella stanza: si chiama e si segna l'esito.",
   },
   conferma_meet: {
     verbo: "Chiamare per confermare la consulenza con",

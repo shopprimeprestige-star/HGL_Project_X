@@ -49,7 +49,9 @@ export function AssenzaAutoPannello() {
         return;
       }
       setAcceso(r.acceso);
-      toast.success(r.acceso ? "Assenza automatica accesa" : "Assenza automatica spenta: solo segnalazione");
+      toast.success(
+        r.acceso ? "Assenza automatica accesa" : "Assenza automatica spenta: solo segnalazione",
+      );
     } catch {
       toast.error("Non salvato: il server non risponde.");
       await ricarica();
@@ -63,9 +65,9 @@ export function AssenzaAutoPannello() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Cliente non entrato alla consulenza</CardTitle>
         <p className="text-[13px] text-muted-foreground">
-          15 minuti dopo l'inizio, se nessuno è entrato nella stanza Meetly, il CRM lo
-          segnala in «Da fare». Acceso, sposta anche la scheda in «Da riprogrammare» e
-          manda il messaggio di quello stato.
+          15 minuti dopo l'inizio, se nessuno è entrato nella stanza Meetly, il CRM lo segnala in
+          «Da fare». Acceso, sposta anche la scheda in «Da riprogrammare» e manda il messaggio di
+          quello stato.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
