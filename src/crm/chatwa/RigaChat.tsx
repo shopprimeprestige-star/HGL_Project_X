@@ -39,6 +39,9 @@ import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
+import { puoAnticipare } from "./accontiInCima";
+import { TastoPriorita } from "@/crm/PrioritaPosa";
+import { inPriorita } from "@/crm/priorita";
 import type { ChatItem } from "./tipi";
 
 /** Come si disegna una riga: normale, o in attesa di risposta («Da rispondere»). */
@@ -569,6 +572,19 @@ export function RigaChat({
               dati={c.lead.data}
               icona={false}
               className="order-last -mt-1 basis-full pl-2"
+            />
+          )}
+          {/*  ── ACCONTO E «ANTICIPA» (30/10/2026) ──────────────────────────────
+              «Anticipa» è la priorità della SCHEDA, la stessa della pagina Installazioni:
+              viola con la parola «In cima» quando è accesa, solo la freccia quando è spenta (così la riga non
+              cresce); il tocco apre la sua finestrella (giorno chiesto,
+              togli). Le stelle sotto sono un'altra cosa: «in osservazione». Il tocco è da 44 px sul
+              telefono con `after:`, come le stelle. */}
+          {c.lead && puoAnticipare(c.lead) && (
+            <TastoPriorita
+              lead={c.lead}
+              esteso={inPriorita(c.lead)}
+              className="relative after:absolute after:inset-x-0 after:-inset-y-2 md:after:hidden"
             />
           )}
           {/*  ── LE STELLE, DALLA LISTA (28/10/2026) ───────────────────────────

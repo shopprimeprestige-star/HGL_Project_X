@@ -54,6 +54,7 @@ import {
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
+import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
@@ -715,6 +716,9 @@ const MODULI = [
   //  «Chi chiamare adesso» e il riepilogo del mattino (commessa
   //   2026-10-30-ottimizzazioni, p6): prove in prove/lead-doppi-chiamate.mjs.
   ...["chi-chiamare-adesso", "riepilogo-mattino"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
+  //  Acconti in cima alla chat e «Anticipa» condiviso (commessa 2026-10-30-wa-acconti-priorita):
+  //   prove in prove/idee/acconti-in-cima.mjs.
+  "chatwa/accontiInCima",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21416,6 +21420,7 @@ await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
+proveAccontiInCima(mod, { c, gruppo, radice });
 proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 

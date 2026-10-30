@@ -33,6 +33,8 @@ import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
 import { InfoModulo } from "./InfoModulo";
+import { GestioneInstallazione } from "./GestioneInstallazione";
+import { haUnaPosa } from "./accontiInCima";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { tastoWhatsappNativo } from "./apriWhatsapp";
 import { testoPerWhatsapp } from "./testoWhatsapp";
@@ -381,6 +383,11 @@ export function Conversazione({
                 <span className="whitespace-nowrap text-[12px] text-muted-foreground">
                   {attiva.schedaAmbigua ? "Più schede con questo numero" : "Numero senza scheda"}
                 </span>
+              )}
+              {/*  Posa, incasso e priorità «Anticipa» dalla chat (30/10/2026): un tasto solo,
+                solo per chi ha una posa in mano. Vedi GestioneInstallazione. */}
+              {attiva.lead && haUnaPosa(attiva.lead) && (
+                <GestioneInstallazione lead={attiva.lead} onApriScheda={onApriLead} />
               )}
               {/*  Quando richiamarlo (29/10/2026): giorno e ora per esteso nel
                 tooltip, rosso se è passato. */}
