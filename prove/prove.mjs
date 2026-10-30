@@ -43,7 +43,7 @@ import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
-import { proveFiltriChat } from "./idee/filtri-chat.mjs";
+import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
@@ -21369,6 +21369,7 @@ proveAttesaPalla(mod, { c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
+proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 

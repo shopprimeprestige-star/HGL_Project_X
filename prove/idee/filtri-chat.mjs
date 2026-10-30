@@ -736,3 +736,12 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     [/text-amber-600/.test(elenco), /bg-emerald-700/.test(pannello)],
   );
 }
+export function proveSconosciutiDaChiamare(mod, { c, gruppo }) {
+  gruppo("CHAT: I NUMERI SENZA SCHEDA CON LA FINESTRA CHIUSA SONO DA CHIAMARE (30/10/2026)");
+  const D = mod["chatwa/daChiamare"];
+  c("senza scheda, finestra chiusa: da chiamare", "da_chiamare", D.statoChiamata({ lead: null, finestra: { aperta: false } }));
+  c("senza scheda, finestra aperta o non calcolata: no", [null, null], [D.statoChiamata({ lead: null, finestra: { aperta: true } }), D.statoChiamata({ lead: null })]);
+  c("con lo STOP o con più schede: no", [null, null], [D.statoChiamata({ lead: null, finestra: { aperta: false }, stop: true }), D.statoChiamata({ lead: null, finestra: { aperta: false }, schedaAmbigua: true })]);
+  c("con la scheda vale lo stato come prima", [null, "non_risponde"], [D.statoChiamata({ lead: { data: { stato: "fatto" } }, finestra: { aperta: false } }), D.statoChiamata({ lead: { data: { stato: "non_risponde" } } })]);
+  c("contano nel sottofiltro «Da chiamare»", 1, D.contaSottofiltri([{ lead: null, finestra: { aperta: false } }]).da_chiamare);
+}

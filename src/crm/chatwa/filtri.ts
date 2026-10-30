@@ -107,7 +107,7 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
         valore: "da-chiamare",
         nome: "Da chiamare",
         spiega:
-          "Lead da sentire al telefono: da chiamare, non risponde, segreteria, richiamo concordato, ci ricontatta lui.",
+          "Da sentire al telefono: da chiamare, non risponde, segreteria, richiamo concordato, ci ricontatta lui, e i numeri senza scheda con la finestra chiusa.",
       },
       {
         campo: "stelle",
