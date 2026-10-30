@@ -43,6 +43,7 @@ import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
+import { proveFiltriChat } from "./idee/filtri-chat.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
@@ -619,6 +620,8 @@ const MODULI = [
   //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
   //   prove in prove/manychat/chat-per-stato.mjs.
   "chatwa/perStato",
+  //  I filtri della chat a gruppi (30/10/2026): vedi prove/idee/filtri-chat.mjs.
+  "chatwa/filtri",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
@@ -20743,7 +20746,9 @@ function proveDiWhatsappOrariStelle() {
   const casella = readFileSync(join(radice, "src/crm/chatwa/Casella.tsx"), "utf8");
   const hook = readFileSync(join(radice, "src/crm/chatwa/useStelle.ts"), "utf8");
   c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
-  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /ordinaPerStelle\(/.test(elenco));
+  //  30/10/2026 (filtri a gruppi): «In osservazione» è «Con stelle», una delle 4 voci sempre in vista
+  //   (nome e numero nella griglia: prove/idee/filtri-chat.mjs); le stelle ordinano sempre ogni riquadro.
+  c("filtro «Con stelle» col suo numero, prima le tre stelle", true, /VOCI_GRIGLIA\.map/.test(elenco) && /conta\(v\.campo, v\.valore\)/.test(elenco) && /ordinaPerStelle\(/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA.some((v) => v.campo === "stelle" && v.nome === "Con stelle"));
   c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
@@ -20836,11 +20841,15 @@ function proveDiWhatsappTemperaturaConsulente() {
   c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /<FinestraRisposte/.test(info) && /vociModulo\(modulo\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
-    /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /perPastiglia\(perRicerca\(api\.chats\.filter\(eVecchia\)\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
+    //  30/10/2026: il consulente è un gruppo dei filtri, composto in E con gli altri in `passaFiltri`: tutti i riquadri
+    //   (Da rispondere, Altre chat, Senza risposta da oltre 7 giorni, Finestra in chiusura) partono da `trovate`.
+    /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const inAttesa = perStelle\(fuoriScadenza\.filter/.test(elenco) && /const vecchie = perStelle\(fuoriScadenza\.filter\(eVecchia\)\)/.test(elenco) && /const altre = perStelle\(fuoriScadenza\.filter/.test(elenco));
   c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
-  c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /Nessun cliente di questo consulente aspetta una risposta/.test(elenco));
+  //  30/10/2026: il messaggio «Nessun cliente di questo consulente aspetta una risposta» è sostituito dal generico
+  //   «Nessuna con questi filtri» (il consulente è uno dei filtri accesi, con la sua etichetta ✕); «altri M in attesa» → «altre M non di questo consulente».
+  c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /altre \$\{nascostiInAttesa\} non di questo consulente/.test(elenco));
   c("la riga mostra il numero leggibile sotto il nome (anche senza scheda), non più in terza riga", true, /numeroSotto && \(/.test(riga) && !/font-mono text-\[11px\] text-muted-foreground/.test(riga));
-  c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId === consulente/.test(elenco));
+  c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId !== f\.consulente/.test(readFileSync(join(radice, "src/crm/chatwa/filtri.ts"), "utf8")));
   //  Il pannello di temperatura per un lead del modulo «22-ott» e per uno senza risposte.
   const T = mod["temperatura-lead"];
   c("lead col modulo: c'è il grado da mostrare", "Caldo", T.temperaturaLead({ roma: "si", inizio: "subito", budget: "approfondire", aspettativa: "adatto" }).parola);
@@ -21144,7 +21153,8 @@ function proveDelRichiamoInChat() {
     [{ k: "b", d: d(oggi, "") }, { k: "c", d: d(oggi, "10:00") }, { k: "a", d: d("2026-10-27", "18:00") }]
       .sort((x, y) => R.chiaveOrdine(x.d).localeCompare(R.chiaveOrdine(y.d))).map((x) => x.k));
   const el = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("il filtro «Richiamo» sta in «Da chiamare»", true, /filtro === "da-chiamare" && vociQuando\.length > 1/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
+  //  30/10/2026: «Richiamo» si chiama «Quando richiamare» e sta sotto la griglia con «Da chiamare» acceso (filtri.coda).
+  c("il filtro «Quando richiamare» sta in «Da chiamare»", true, /filtri\.coda === "da-chiamare"/.test(el) && /vociQuando\.length > 1/.test(el) && /Quando richiamare/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
   c("la data nella riga e nell'intestazione", true,
     ["RigaChat.tsx", "Conversazione.tsx"].every((f) => /etichettaRichiamo\(/.test(readFileSync(join(radice, "src/crm/chatwa", f), "utf8"))));
 }
@@ -21313,6 +21323,7 @@ proveDelleDateInCima();
 proveAttesaPalla(mod, { c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
+proveFiltriChat(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22147,9 +22158,11 @@ function proveDelFiltroAcconto() {
   c("«Per stato» e «Acconto» sono due strade: l'acconto non accende i chip dello stato", false, mod["chatwa/perStato"].eFiltroPerStato("acconto"));
 
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("la pastiglia «Acconto» c'è", true, /\{ v: "acconto", l: "Acconto" \}/.test(elenco));
-  c("la pastiglia mostra il numero, calcolato sulle chat del consulente scelto", true,
-    /contaFinestra\(f\.v\)/.test(elenco) && /api\.chats\.filter\(\(c\) => delConsulente\(c\) && passaFiltro\(c, f\)\)/.test(elenco) && /f\.v === "acconto"/.test(elenco));
+  //  30/10/2026 (filtri a gruppi): «Acconto» è «Acconto versato», gruppo Pagamento del pannello; il numero è a faccette,
+  //   cioè tiene conto del consulente e di ogni altro filtro acceso (prove/idee/filtri-chat.mjs).
+  c("la voce «Acconto versato» c'è, nel gruppo Pagamento", ["Pagamento", "Acconto versato"], ((g) => [g.titolo, g.voci[0].nome])(mod["chatwa/filtri"].GRUPPI_FILTRI.find((x) => x.voci.some((v) => v.campo === "acconto"))));
+  c("la voce mostra il numero, calcolato con i filtri accesi (consulente compreso)", true,
+    /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")) && /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(elenco));
   const tipi = readFileSync(join(radice, "src/crm/chatwa/tipi.ts"), "utf8");
   c("il tipo FiltroChat conosce «acconto»", true, /\|\s*"acconto"/.test(tipi));
   //  Da «Tutte» non sparisce niente: il filtro è una pastiglia come le altre, non toglie nulla al resto.
@@ -22168,7 +22181,9 @@ function proveDeiFiltriFinestra() {
   c("altri stati, sconosciuti, finestra non calcolata: in nessuna delle due", [false, false, false], [passaFiltro(chat("attesa_whatsapp", false), "chiuso-24h"), passaFiltro(chat(null, false), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato"), "aperto-24h")]);
   c("le pastiglie di prima non cambiano", [true, true], [passaFiltro(chat("appuntamento_fissato", false), "all"), passaFiltro(chat(null, true), "unknown")]);
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("le due pastiglie ci sono, col numero", true, /l: "Chiuso 24h"/.test(elenco) && /l: "24h aperto"/.test(elenco) && /contaFinestra\(f\.v\)/.test(elenco));
+  //  30/10/2026: «Chiuso 24h» → «Finestra chiusa», «24h aperto» → «Si può scrivere» (come la riga dell'elenco), nel gruppo
+  //   «Appuntamenti fissati: finestra WhatsApp» del pannello, col numero a faccette. Le regole di chi entra non cambiano (passaFiltro).
+  c("le due voci ci sono, con i nomi nuovi, col numero", true, ((v) => v.map((x) => x.nome).join("|") === "Si può scrivere|Finestra chiusa")(mod["chatwa/filtri"].GRUPPI_FILTRI.find((g) => g.id === "finestra").voci) && /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")));
   const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
   c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
@@ -22177,11 +22192,16 @@ function proveDeiFiltriFinestra() {
 }
 
 function proveDellOsservazioneComePastiglia() {
-  gruppo("CHAT WHATSAPP: «IN OSSERVAZIONE» NON SI SOMMA ALLE ALTRE PASTIGLIE");
+  //  30/10/2026 (filtri a gruppi): «In osservazione» ora è «Con stelle» e SI COMBINA con gli altri gruppi (prima accenderla
+  //   portava il filtro a «Tutte» e spegneva gli altri: la regola del guasto del 29/10 è superata da `contaVoce`, che conta
+  //   esattamente le righe dell'elenco). Le prove nuove sono in prove/idee/filtri-chat.mjs; qui resta il collegamento nei file.
+  gruppo("CHAT WHATSAPP: «CON STELLE» (EX «IN OSSERVAZIONE») SI COMBINA CON GLI ALTRI FILTRI");
   const src = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("accenderla porta il filtro a «Tutte» (con «Sconosciuti» acceso l'elenco era vuoto)", true, /if \(!soloStelle\) setFiltro\("all"\);\s*setSoloStelle\(\(v\) => !v\);/.test(src));
-  c("un'altra pastiglia la spegne", true, /setFiltro\(f\.v\);\s*setSoloStelle\(false\);/.test(src));
-  c("con l'osservazione accesa nessun'altra pastiglia sembra scelta", 2, (src.match(/filtro === f\.v &&\s+!soloStelle/g) || []).length);
+  const F = mod["chatwa/filtri"];
+  c("accenderla non spegne gli altri gruppi", ["non-letti", true], ((f) => [f.coda, f.stelle])(F.commuta(F.commuta(F.FILTRI_VUOTI, "coda", "non-letti"), "stelle", true)));
+  c("toccare un'altra voce del suo gruppo (la coda) non la spegne", true, F.commuta(F.commuta(F.FILTRI_VUOTI, "stelle", true), "coda", "da-chiamare").stelle);
+  c("nessun interruttore a parte nell'elenco (soloStelle) e nessun reset a «Tutte»", false, /soloStelle|setFiltro\("all"\)/.test(src));
+  c("il numero è calcolato con la stessa funzione dell'elenco (nessun numero diverso dall'elenco)", true, /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(src) && /passaFiltri\(c, filtri, stelleDi\)/.test(src));
 }
 
 /** ── L'ANTEPRIMA DELLA RIGA È L'ULTIMO MESSAGGIO (30/10/2026) ──────────────

@@ -7,8 +7,9 @@ export function proveAttesaERitorno(mod, { c, gruppo, radice }) {
   const { passaFiltro } = mod["chatwa/cercaChat"];
   const chat = (stato) => ({ lead: stato ? { data: { stato } } : null });
   c("in attesa WhatsApp: sì; altri stati e sconosciuti: no", [true, false, false], [passaFiltro(chat("attesa_whatsapp"), "attesa-whatsapp"), passaFiltro(chat("da_chiamare"), "attesa-whatsapp"), passaFiltro(chat(null), "attesa-whatsapp")]);
-  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("la pastiglia c'è, col numero", true, /l: "Attesa WhatsApp"/.test(elenco) && /f\.v === "attesa-whatsapp"/.test(elenco));
+  //  30/10/2026 (filtri a gruppi): la pastiglia è la voce «Attesa WhatsApp» del gruppo «Fase del lead» nel pannello.
+  const voceAttesa = mod["chatwa/filtri"].GRUPPI_FILTRI.find((g) => g.id === "fase").voci[0];
+  c("la voce c'è, col numero", true, voceAttesa.nome === "Attesa WhatsApp" && voceAttesa.valore === "attesa-whatsapp" && /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")));
 
   gruppo("CHAT WHATSAPP: IL RITORNO SI APRE CON LO STATO DI PRIMA E LE NOTE");
   const R = mod["chatwa/ritorno"];
