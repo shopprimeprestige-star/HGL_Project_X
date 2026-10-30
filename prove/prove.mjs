@@ -21152,6 +21152,16 @@ function proveDelloStatoRicontattoAperto() {
     typeof mod["whatsapp"].MODELLI_ORIGINALI[k] === "string" && mod["whatsapp"].MODELLI_ORIGINALI[k].length > 20);
   const sel = readFileSync(join(radice, "src/crm/SelettoreStatoDialog.tsx"), "utf8");
   c("ha la sua icona nel selettore", true, /ricontatto_aperto: \w+,/.test(sel));
+  //  Senza data davvero: scegliendo lo stato, la data/ora di un ricontatto di prima si azzerano,
+  //  altrimenti «Da fare» lo mostra come arretrato (revisore, N1).
+  const QS = mod["quando-per-stato"];
+  const vecchio = { nome: "Anna", stato: "ricontatto_aperto", dataRicontatto: "2026-10-01", oraRicontatto: "10:30", callbackAt: "2026-10-01T09:30:00.000Z" };
+  const pulito = QS.conRicontattoSenzaData(vecchio);
+  c("azzera data, ora e ricontatto automatico", ["", "", "", "Anna"], [pulito.dataRicontatto ?? "", pulito.oraRicontatto ?? "", pulito.callbackAt ?? "", pulito.nome]);
+  c("gli altri stati tengono la loro data", vecchio.dataRicontatto, QS.conRicontattoSenzaData({ ...vecchio, stato: "da_ricontattare" }).dataRicontatto);
+  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
+  c("lo fa updateLead, il punto unico da cui passano scheda, chat e importati", true,
+    /merged = conRicontattoSenzaData\(merged\)/.test(ctx) && /import \{[^}]*conRicontattoSenzaData[^}]*\} from "\.\/quando-per-stato"/.test(ctx));
   const tratt = readFileSync(join(radice, "src/routes/CRM.trattative.tsx"), "utf8");
   c("Trattative: sta fra chi va risentito", true, /const DA_RICONTATTARE: string\[\] = \[[\s\S]*?"ricontatto_aperto"/.test(tratt));
 }
