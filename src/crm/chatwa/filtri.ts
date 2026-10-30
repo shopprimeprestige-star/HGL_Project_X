@@ -189,8 +189,22 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
   },
 ];
 
-/** Le 4 voci sempre in vista (griglia 2×2), nell'ordine delle celle. */
+/** Le voci della coda: Da rispondere, Da chiamare, Con stelle. */
 export const VOCI_GRIGLIA: readonly VoceFiltro[] = GRUPPI_FILTRI[0].voci;
+
+/** «Sconosciuti» (numeri senza scheda): stesso filtro di «Senza scheda» del pannello, in vista. */
+export const VOCE_SCONOSCIUTI: VoceFiltro = {
+  campo: "tipo",
+  valore: "senza-scheda",
+  nome: "Sconosciuti",
+  spiega: "Numeri non ancora collegati a un lead del CRM.",
+};
+
+/** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
+ *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere ·
+ *  Da chiamare · Con stelle · Sconosciuti. «Tutte» (spenti tutti i filtri) la disegna `ElencoChat`;
+ *  qui ci sono le quattro voci vere. Il consulente sta nel pannello «Filtri». */
+export const VOCI_RIGA: readonly VoceFiltro[] = [...VOCI_GRIGLIA, VOCE_SCONOSCIUTI];
 
 /** La voce di uno stato scelto da «Altri stati»: nome del CRM, nessuna spiegazione. */
 export const voceDelloStato = (stato: LeadStatus): VoceFiltro => ({

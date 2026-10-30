@@ -27,7 +27,7 @@ import {
   filtriValidi,
   passaFiltri,
   togli,
-  VOCI_GRIGLIA,
+  VOCI_RIGA,
   type CampoFiltro,
 } from "./filtri";
 import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri";
@@ -73,7 +73,7 @@ function useAdesso(): number {
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
  *  ── I FILTRI A GRUPPI (30/10/2026) ──────────────────────────────────────
- *  Quattro pulsanti sempre in vista (Da rispondere · Da chiamare · Con stelle) e il
+ *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
 export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
@@ -104,6 +104,8 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
     String(consultants.find((x) => x.id === id)?.data?.nome ?? "").trim() || "Senza nome";
   const accesi = contaAccesi(filtri);
   const cercando = ricerca.trim() !== "";
+  //  «Tutte» è acceso quando nessun filtro è attivo (il consulente scelto non conta: si ricorda).
+  const soloRiga = contaAccesi({ ...filtri, consulente: "" }) === 0;
 
   // ── Quante chat con questi filtri, e quanti numeri per ogni voce (ricerca esclusa) ────────
   const passa = (c: ChatItem) => passaFiltri(c, filtri, stelleDi);
@@ -282,15 +284,31 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         />
       </div>
 
-      {/*  ── I QUATTRO PULSANTI SEMPRE IN VISTA (30/10/2026) ───────────────────
-          Griglia 2×2, nessuno scorrimento di lato. Acceso = pieno primario E `aria-pressed`
-          (il colore non basta da solo). Il numero è quello che vedrai se tocchi. */}
+      {/*  ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ──────────────────────────
+          Una riga sola che scorre di lato (sul telefono si scorre col dito), nell'ordine d'uso:
+          Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti. Tasti alti 44 px, nomi corti.
+          Acceso = pieno primario E `aria-pressed` (il colore non basta da solo). Il numero è quello
+          che vedrai se tocchi. «Tutte» spegne i filtri ma non il consulente, che si ricorda. */}
       <div
         role="group"
-        aria-label="Cosa fare adesso"
-        className="grid grid-cols-2 gap-2 px-3 pb-2 md:px-2"
+        aria-label="Filtri rapidi"
+        className="flex gap-2 overflow-x-auto overscroll-x-contain px-3 pb-2 [scrollbar-width:none] md:px-2 [&::-webkit-scrollbar]:hidden"
       >
-        {VOCI_GRIGLIA.map((v) => {
+        <button
+          type="button"
+          aria-pressed={soloRiga}
+          onClick={() => setFiltri({ ...FILTRI_VUOTI, consulente: filtri.consulente })}
+          className={cn(
+            "t-corpo flex h-11 shrink-0 items-center rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
+            soloRiga
+              ? "border-primary bg-primary text-primary-foreground"
+              : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
+            FUOCO,
+          )}
+        >
+          Tutte
+        </button>
+        {VOCI_RIGA.map((v) => {
           const acceso = eAcceso(filtri, v.campo, v.valore);
           return (
             <button
@@ -299,25 +317,20 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               aria-pressed={acceso}
               onClick={() => setFiltri(commuta(filtri, v.campo, v.valore))}
               className={cn(
-                "t-corpo flex h-11 min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 font-medium transition-colors lg:pointer-fine:h-8",
+                "t-corpo flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
                 acceso
                   ? "border-primary bg-primary text-primary-foreground"
                   : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
                 FUOCO,
               )}
             >
-              <span className="flex min-w-0 items-center gap-1.5">
-                {v.campo === "stelle" && (
-                  <Star
-                    aria-hidden="true"
-                    className={cn(
-                      "h-3.5 w-3.5 shrink-0",
-                      acceso ? "text-amber-300" : "text-amber-600",
-                    )}
-                  />
-                )}
-                <span className="truncate">{v.nome}</span>
-              </span>
+              {v.campo === "stelle" && (
+                <Star
+                  aria-hidden="true"
+                  className={cn("h-3.5 w-3.5 shrink-0", acceso ? "text-amber-300" : "text-amber-600")}
+                />
+              )}
+              <span className="whitespace-nowrap">{v.nome}</span>
               <Contatore
                 n={conta(v.campo, v.valore)}
                 acceso={acceso}

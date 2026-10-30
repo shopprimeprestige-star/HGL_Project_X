@@ -567,16 +567,27 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     /role="status" aria-live="polite"/.test(elenco) && /\$\{trovate\.length\} chat/.test(elenco),
   );
   c(
-    "griglia 2×2 dei quattro pulsanti, aria-pressed",
+    "riga unica dei filtri rapidi: scorre di lato, tasti da 44 px (h-11), aria-pressed",
     true,
-    /grid grid-cols-2 gap-2/.test(elenco) &&
+    /flex gap-2 overflow-x-auto/.test(elenco) &&
       /aria-pressed=\{acceso\}/.test(elenco) &&
-      /VOCI_GRIGLIA/.test(elenco),
+      /VOCI_RIGA\.map/.test(elenco) &&
+      !/grid grid-cols-2/.test(elenco) &&
+      (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "nessuna fila che scorre di lato (né pastiglie né chip)",
-    false,
-    /overflow-x-auto|snap-x|mask-image/.test(elenco + pannello),
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti"],
+    F.VOCI_RIGA.map((v) => v.nome),
+  );
+  c("«Tutte» è il primo tasto della riga", true, elenco.indexOf(">\n          Tutte\n") < elenco.indexOf("VOCI_RIGA.map"));
+  c(
+    "«Sconosciuti» è lo stesso filtro di «Senza scheda»: stesse chat, e senza «Non letti» nella riga",
+    [indice(mondo.filter((x) => !x.lead)), false],
+    [
+      indice(passano(con({ tipo: "senza-scheda" }))),
+      F.VOCI_RIGA.some((v) => /letti/i.test(v.nome)),
+    ],
   );
   c(
     "stato della chiamata e quando richiamare: ci sono, i chip vanno a capo",

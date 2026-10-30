@@ -20752,7 +20752,7 @@ function proveDiWhatsappOrariStelle() {
   c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
   //  30/10/2026 (filtri a gruppi): «In osservazione» è «Con stelle», una delle 4 voci sempre in vista
   //   (nome e numero nella griglia: prove/idee/filtri-chat.mjs); le stelle ordinano sempre ogni riquadro.
-  c("filtro «Con stelle» col suo numero, prima le tre stelle", true, /VOCI_GRIGLIA\.map/.test(elenco) && /conta\(v\.campo, v\.valore\)/.test(elenco) && /ordinaPerStelle\(/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA.some((v) => v.campo === "stelle" && v.nome === "Con stelle"));
+  c("filtro «Con stelle» col suo numero, prima le tre stelle", true, /VOCI_RIGA\.map/.test(elenco) && /conta\(v\.campo, v\.valore\)/.test(elenco) && /ordinaPerStelle\(/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA.some((v) => v.campo === "stelle" && v.nome === "Con stelle"));
   c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
