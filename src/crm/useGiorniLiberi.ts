@@ -75,6 +75,8 @@ export function useGiorniLiberi(o: {
   durata?: number;
   /** ogni quanti minuti parte un orario; assente = la durata (vedi crm/giorni-liberi) */
   passo?: number;
+  /** solo ore senza nessuno dentro (vedi crm/giorni-liberi); assente = regola dei posti */
+  soloLibere?: boolean;
 }): {
   squadra: Consultant[];
   giorni: GiornoLibero[];
@@ -83,6 +85,7 @@ export function useGiorniLiberi(o: {
   const chi = o.chi ?? "tutti";
   const durata = o.durata ?? DURATA_PREDEFINITA;
   const passo = o.passo;
+  const soloLibere = o.soloLibere;
   const { leads, consultants } = useCRM();
   const oreTenute = useOreTenute();
   //  L'ora corrente, rinfrescata ogni minuto: le ore di oggi già passate escono.
@@ -145,12 +148,13 @@ export function useGiorniLiberi(o: {
           modi,
           durata,
           passo,
+          soloLibere,
           dopo: i === 0 ? minutiAdesso : undefined,
         }),
       );
     }
     return out;
-  }, [leads, scelti, periodo, oreTenute, adesso, caricati, durata, passo]);
+  }, [leads, scelti, periodo, oreTenute, adesso, caricati, durata, passo, soloLibere]);
 
   return { squadra, giorni };
 }
