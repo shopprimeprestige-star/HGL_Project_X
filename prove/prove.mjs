@@ -601,6 +601,9 @@ const MODULI = [
   "chatwa/media",
   "chatwa/stato",
   "chatwa/cercaChat",
+  //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
+  //   prove in prove/manychat/chat-per-stato.mjs.
+  "chatwa/perStato",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):

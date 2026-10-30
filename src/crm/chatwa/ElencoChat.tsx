@@ -9,6 +9,13 @@ import { RigaChat, type ModoRiga } from "./RigaChat";
 import { ordinaPerScadenza } from "./segniRiga";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import {
+  contaPerStato,
+  eFiltroPerStato,
+  FILTRO_PER_STATO,
+  filtroDelloStato,
+  vociConScelto,
+} from "./perStato";
+import {
   chatDaChiamare,
   contaSottofiltri,
   STATI_SOTTOFILTRI,
@@ -161,6 +168,14 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   /** Quanti appuntamenti fissati con la finestra chiusa / aperta (di quel consulente). */
   const contaFinestra = (f: "chiuso-24h" | "aperto-24h" | "attesa-whatsapp") =>
     api.chats.filter((c) => delConsulente(c) && passaFiltro(c, f)).length;
+  /*  ── UN FILTRO PER OGNI STATO DEL LEAD (30/10/2026) ───────────────────
+      Richiesta del titolare, in fondo alle pastiglie: «Per stato» apre una fila di chip
+      (come quella di «Da chiamare») con gli stati che hanno almeno una chat, nell'ordine
+      del CRM. Il numero segue il consulente scelto. Lo stato scelto resta in fila anche
+      se intanto si svuota: il filtro non resta mai acceso senza vedersi. */
+  const perStatoAperto = eFiltroPerStato(filtro) && !soloStelle;
+  const contiStato = contaPerStato(api.chats.filter(delConsulente));
+  const chipStato = vociConScelto(contiStato.voci, filtro);
   //  Un chip scelto che nel frattempo si svuota (stato cambiato dalla riga) torna a «Tutti».
   const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
   const perStato = chatDaChiamare(daChiamareTutte, sottoAttivo);
@@ -299,8 +314,79 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             In osservazione{conStelle ? ` ${conStelle}` : ""}
           </span>
         </button>
+        {/*  Per stato (30/10/2026): in fondo, stessa pastiglia delle altre. Riprenderla la chiude. */}
+        <button
+          type="button"
+          aria-pressed={perStatoAperto}
+          aria-expanded={perStatoAperto}
+          onClick={() => {
+            setSoloStelle(false);
+            setFiltro(eFiltroPerStato(filtro) ? "all" : FILTRO_PER_STATO);
+          }}
+          className={TASTO}
+        >
+          <span
+            className={pastiglia(
+              perStatoAperto && "border-emerald-200 bg-emerald-50 text-emerald-700",
+            )}
+          >
+            Per stato{contiStato.tutti > 0 ? ` ${contiStato.tutti}` : ""}
+            <ChevronDown
+              aria-hidden="true"
+              className={cn("ml-1 h-3.5 w-3.5 transition-transform", perStatoAperto && "rotate-180")}
+            />
+          </span>
+        </button>
         <span aria-hidden="true" className="w-6 shrink-0" />
       </div>
+
+      {perStatoAperto &&
+        (chipStato.length === 0 ? (
+          <p className="border-b border-border bg-muted/30 px-3 py-2.5 text-[13px] text-muted-foreground md:px-2 md:text-[12px]">
+            {consulente
+              ? "Nessuna chat di questo consulente ha uno stato."
+              : "Nessuna chat ha ancora uno stato."}
+          </p>
+        ) : (
+          <div
+            role="group"
+            aria-label="Quale stato del lead"
+            className={cn(FILA, "border-b border-border bg-muted/30")}
+          >
+            <button
+              type="button"
+              aria-pressed={filtro === FILTRO_PER_STATO}
+              onClick={() => setFiltro(FILTRO_PER_STATO)}
+              className={TASTO}
+            >
+              <span
+                className={pastiglia(
+                  filtro === FILTRO_PER_STATO && "border-sky-300 bg-sky-50 text-sky-800",
+                )}
+              >
+                Tutti <span className="ml-1 tabular-nums">{contiStato.tutti}</span>
+              </span>
+            </button>
+            {chipStato.map((v) => (
+              <button
+                key={v.stato}
+                type="button"
+                aria-pressed={filtro === filtroDelloStato(v.stato)}
+                onClick={() => setFiltro(filtroDelloStato(v.stato))}
+                className={TASTO}
+              >
+                <span
+                  className={pastiglia(
+                    filtro === filtroDelloStato(v.stato) && "border-sky-300 bg-sky-50 text-sky-800",
+                  )}
+                >
+                  {v.etichetta} <span className="ml-1 tabular-nums">{v.n}</span>
+                </span>
+              </button>
+            ))}
+            <span aria-hidden="true" className="w-6 shrink-0" />
+          </div>
+        ))}
 
       {filtro === "da-chiamare" && (
         <div
@@ -418,7 +504,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
 
             {visibili.length === 0 ? (
               <p className="px-4 py-10 text-center text-xs text-muted-foreground">
-                Nessuna chat in questa vista
+                {perStatoAperto ? "Nessuna chat con questo stato" : "Nessuna chat in questa vista"}
               </p>
             ) : consulente && altre.length === 0 && !soloStelle ? (
               <p className="px-4 py-8 text-center text-xs text-muted-foreground">
