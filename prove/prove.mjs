@@ -21289,6 +21289,7 @@ proveDelloStatoDaChiamare();
 await proveDelleRisposteAi();
 proveDelModelloConsigliato();
 proveDeiFiltriFinestra();
+proveDelFiltroAcconto();
 proveDellOsservazioneComePastiglia();
 proveDellAnteprimaUltimo();
 proveDelleCorrezioniManychat();
@@ -22116,6 +22117,45 @@ function proveDelModelloConsigliato() {
     F.ultimeEntrateDaRighe(righe),
   );
   c("nessuna riga: nessuna entrata", {}, F.ultimeEntrateDaRighe([]));
+}
+
+function proveDelFiltroAcconto() {
+  gruppo("CHAT WHATSAPP: PASTIGLIA «ACCONTO» (CHI HA LASCIATO L'ACCONTO, IN QUALUNQUE STATO)");
+  const { passaFiltro } = mod["chatwa/cercaChat"];
+  //  Dati inventati. `acconto` va in payment.accontoPagato, come lo scrive il CRM.
+  const chat = (stato, acconto, extra = {}) => ({
+    lead: stato === null ? null : { data: { stato, ...(acconto === undefined ? {} : { payment: { accontoPagato: acconto } }), ...extra } },
+  });
+  const a = (x) => passaFiltro(x, "acconto");
+  c(
+    "acconto sopra zero: passa in QUALUNQUE stato (acconto, nel centro, da spedire, a domicilio, concluso, ripensamento…)",
+    [true, true, true, true, true, true, true],
+    ["acconto", "posa_in_sede", "posa_da_spedire", "posa_a_domicilio", "concluso", "ripensamento", "sta_valutando"].map((s) => a(chat(s, 150))),
+  );
+  c("acconto a zero, mancante, vuoto o sporco: non passa", [false, false, false, false, false, false],
+    [a(chat("acconto", 0)), a(chat("acconto")), a(chat("acconto", null)), a(chat("acconto", "")), a(chat("acconto", "boh")), a(chat("acconto", -20))]);
+  c("l'acconto scritto come testo numerico (importazioni) vale come numero", true, a(chat("acconto", "200")));
+  c("senza scheda, o scheda senza dati: mai", [false, false, false], [a(chat(null)), a({ lead: { data: null } }), a({})]);
+  c("la sola spunta «viene in sede con acconto» è una promessa, non un incasso: non passa", false,
+    a(chat("viene_in_sede", undefined, { accontoVieneInSede: true })));
+  c("il solo stato «Acconto incassato» senza importo non passa (comanda l'importo, come i KPI)", false, a(chat("acconto")));
+  c("le pastiglie di prima non cambiano", [true, true, true], [
+    passaFiltro(chat("acconto", 100), "all"),
+    passaFiltro(chat("acconto", 100), "with-lead"),
+    passaFiltro(chat("attesa_whatsapp"), "attesa-whatsapp"),
+  ]);
+  c("«Per stato» e «Acconto» sono due strade: l'acconto non accende i chip dello stato", false, mod["chatwa/perStato"].eFiltroPerStato("acconto"));
+
+  const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("la pastiglia «Acconto» c'è", true, /\{ v: "acconto", l: "Acconto" \}/.test(elenco));
+  c("la pastiglia mostra il numero, calcolato sulle chat del consulente scelto", true,
+    /contaFinestra\(f\.v\)/.test(elenco) && /api\.chats\.filter\(\(c\) => delConsulente\(c\) && passaFiltro\(c, f\)\)/.test(elenco) && /f\.v === "acconto"/.test(elenco));
+  const tipi = readFileSync(join(radice, "src/crm/chatwa/tipi.ts"), "utf8");
+  c("il tipo FiltroChat conosce «acconto»", true, /\|\s*"acconto"/.test(tipi));
+  //  Da «Tutte» non sparisce niente: il filtro è una pastiglia come le altre, non toglie nulla al resto.
+  const lista = [chat("acconto", 100), chat("sta_valutando"), chat(null), chat("posa_in_sede", 0)];
+  c("da «Tutte» passano tutte le chat (nessuna sparisce)", 4, lista.filter((x) => passaFiltro(x, "all")).length);
+  c("«Acconto» ne tiene solo quante hanno l'acconto", 1, lista.filter(a).length);
 }
 
 function proveDeiFiltriFinestra() {
