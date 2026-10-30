@@ -729,7 +729,8 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         icon: MessageCircle,
         scheme: "kpi",
         permesso: "impostazioni",
-        alias: "whatsapp manychat modelli template costi saldo wallet velocità risposta lead nuovi tasso prenotazioni",
+        alias:
+          "whatsapp manychat modelli template costi saldo wallet velocità risposta lead nuovi tasso prenotazioni",
       },
       {
         //  ── SI DICE COLLABORATORI ──────────────────────────────────────────
