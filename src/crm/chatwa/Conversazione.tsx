@@ -70,6 +70,21 @@ function etichettaGiorno(d: Date, adesso: Date): string {
 
 /** La chat aperta: barra in alto, messaggi e casella. Riempie il contenitore che le dà
  *  `PaginaChat` (R12). Sul telefono è a tutto schermo e la freccia ← torna all'elenco. */
+/** Gli indici dei messaggi, divisi per giorno di Roma (nell'ordine in cui
+ *  arrivano). Una data illeggibile resta nel giorno di prima. */
+export function giorniDi(voci: { created_at: string }[]): number[][] {
+  const out: number[][] = [];
+  let ultimo = "";
+  voci.forEach((m, i) => {
+    const d = new Date(m.created_at);
+    const g = Number.isNaN(d.getTime()) ? ultimo : giornoRoma(d);
+    if (out.length === 0 || g !== ultimo) out.push([i]);
+    else out[out.length - 1].push(i);
+    ultimo = g;
+  });
+  return out;
+}
+
 export function Conversazione({
   api,
   onIndietro,
@@ -415,79 +430,92 @@ export function Conversazione({
                     Nessun messaggio ancora · scrivi il primo
                   </div>
                 ) : (
-                  voci.map((m, i) => {
-                    const d = new Date(m.created_at);
-                    const prima = i > 0 ? new Date(voci[i - 1].created_at) : null;
-                    //  La riga della coda porta il suo stato e il suo «Riprova».
-                    const bolla = bolleCoda.get(m.id);
-                    const daCoda = bolla && {
-                      ...bolla,
-                      //  Se l'esito era incerto la bolla ha già chiesto conferma.
-                      onRiprova: () => void api.ponte?.riprova(bolla.id, bolla.incerto),
-                    };
-                    const nuovoGiorno =
-                      !Number.isNaN(d.getTime()) && (!prima || giornoRoma(prima) !== giornoRoma(d));
-                    return (
-                      <Fragment key={m.id}>
-                        {nuovoGiorno && (
-                          <div className="sticky top-1 z-10 mb-1 mt-3 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first:mt-0 first-letter:uppercase">
-                            {etichettaGiorno(d, adesso)}
-                          </div>
-                        )}
-                        {ai.attivo && m.body?.trim() && !bolla ? (
-                          //  In scelta: tutta la riga si tocca; il segno a sinistra
-                          //  dice se è scelto (come «Seleziona» di WhatsApp).
-                          <div
-                            role="checkbox"
-                            aria-checked={ai.scelti.includes(m.id)}
-                            aria-label="Scegli questo messaggio per la risposta AI"
-                            tabIndex={0}
-                            onClick={() => ai.fase === "scelta" && ai.cambia(m.id)}
-                            onKeyDown={(e) => {
-                              if ((e.key === " " || e.key === "Enter") && ai.fase === "scelta") {
-                                e.preventDefault();
-                                ai.cambia(m.id);
-                              }
-                            }}
-                            className={cn(
-                              "-mx-2.5 flex cursor-pointer items-center gap-2 px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 md:-mx-3 md:px-3",
-                              ai.scelti.includes(m.id) && "bg-violet-500/15",
+                  //  Un contenitore per giorno (30/10/2026): la data resta in alto solo
+                  //  dentro il suo giorno e quella nuova spinge via la vecchia, come
+                  //  in WhatsApp. Tutte nello stesso contenitore si sovrapponevano.
+                  giorniDi(voci).map((g) => (
+                    <div key={voci[g[0]].id} className="mt-3 flex flex-col first:mt-0">
+                      {g.map((i) => {
+                        const m = voci[i];
+                        const d = new Date(m.created_at);
+                        const prima = i > 0 ? new Date(voci[i - 1].created_at) : null;
+                        //  La riga della coda porta il suo stato e il suo «Riprova».
+                        const bolla = bolleCoda.get(m.id);
+                        const daCoda = bolla && {
+                          ...bolla,
+                          //  Se l'esito era incerto la bolla ha già chiesto conferma.
+                          onRiprova: () => void api.ponte?.riprova(bolla.id, bolla.incerto),
+                        };
+                        const nuovoGiorno =
+                          !Number.isNaN(d.getTime()) &&
+                          (!prima || giornoRoma(prima) !== giornoRoma(d));
+                        return (
+                          <Fragment key={m.id}>
+                            {nuovoGiorno && (
+                              <div className="sticky top-1 z-10 mb-1 self-center rounded-lg bg-white px-3 py-1 text-[12.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] first-letter:uppercase">
+                                {etichettaGiorno(d, adesso)}
+                              </div>
                             )}
-                          >
-                            <span
-                              className={cn(
-                                "grid h-5 w-5 shrink-0 place-items-center rounded-full border-2",
-                                ai.scelti.includes(m.id)
-                                  ? "border-violet-600 bg-violet-600 text-white"
-                                  : "border-[#8696a0] bg-white",
-                              )}
-                              aria-hidden
-                            >
-                              {ai.scelti.includes(m.id) && <Check className="h-3 w-3" />}
-                            </span>
-                            <div className="pointer-events-none min-w-0 flex-1 flex flex-col">
+                            {ai.attivo && m.body?.trim() && !bolla ? (
+                              //  In scelta: tutta la riga si tocca; il segno a sinistra
+                              //  dice se è scelto (come «Seleziona» di WhatsApp).
+                              <div
+                                role="checkbox"
+                                aria-checked={ai.scelti.includes(m.id)}
+                                aria-label="Scegli questo messaggio per la risposta AI"
+                                tabIndex={0}
+                                onClick={() => ai.fase === "scelta" && ai.cambia(m.id)}
+                                onKeyDown={(e) => {
+                                  if (
+                                    (e.key === " " || e.key === "Enter") &&
+                                    ai.fase === "scelta"
+                                  ) {
+                                    e.preventDefault();
+                                    ai.cambia(m.id);
+                                  }
+                                }}
+                                className={cn(
+                                  "-mx-2.5 flex cursor-pointer items-center gap-2 px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 md:-mx-3 md:px-3",
+                                  ai.scelti.includes(m.id) && "bg-violet-500/15",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border-2",
+                                    ai.scelti.includes(m.id)
+                                      ? "border-violet-600 bg-violet-600 text-white"
+                                      : "border-[#8696a0] bg-white",
+                                  )}
+                                  aria-hidden
+                                >
+                                  {ai.scelti.includes(m.id) && <Check className="h-3 w-3" />}
+                                </span>
+                                <div className="pointer-events-none min-w-0 flex-1 flex flex-col">
+                                  <BollaMessaggio
+                                    messaggio={m}
+                                    lead={attiva.lead}
+                                    attaccata={
+                                      !nuovoGiorno &&
+                                      attaccataAllaPrecedente(m, voci[i - 1] ?? null)
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            ) : (
                               <BollaMessaggio
                                 messaggio={m}
                                 lead={attiva.lead}
+                                coda={daCoda}
                                 attaccata={
                                   !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
                                 }
                               />
-                            </div>
-                          </div>
-                        ) : (
-                          <BollaMessaggio
-                            messaggio={m}
-                            lead={attiva.lead}
-                            coda={daCoda}
-                            attaccata={
-                              !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
-                            }
-                          />
-                        )}
-                      </Fragment>
-                    );
-                  })
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                  ))
                 )}
               </div>
             </div>
