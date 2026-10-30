@@ -415,6 +415,7 @@ export function RigaChat({
             <ChiamaEstero
               telefono={telefono}
               senzaWhatsapp
+              inerte={selezione?.attiva}
               className="absolute right-1 top-0 h-11 w-11 p-0 md:top-0.5 md:h-9 md:w-9"
             />
           )}

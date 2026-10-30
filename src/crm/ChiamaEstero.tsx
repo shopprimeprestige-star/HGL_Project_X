@@ -13,13 +13,14 @@ import { Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IconaWhatsApp } from "@/crm/chatwa/IconaWhatsApp";
 import { linkApriWhatsapp } from "@/crm/chatwa/apriWhatsapp";
-import { TESTO_NUMERO_ESTERO } from "@/crm/chiamabile";
+import { ETICHETTA_NUMERO_ESTERO, TESTO_NUMERO_ESTERO } from "@/crm/chiamabile";
 
 export function ChiamaEstero({
   telefono,
   etichetta,
   className,
   senzaWhatsapp,
+  inerte,
 }: {
   telefono: string;
   /** Il testo accanto alla cornetta («Chiama»); senza, è solo l'icona. */
@@ -28,6 +29,8 @@ export function ChiamaEstero({
   className?: string;
   /** Vero dove accanto c'è già un tasto WhatsApp: non lo si duplica. */
   senzaWhatsapp?: boolean;
+  /** Come il tasto vero in selezione multipla: niente focus né tocco. */
+  inerte?: boolean;
 }) {
   const href = senzaWhatsapp
     ? ""
@@ -37,7 +40,8 @@ export function ChiamaEstero({
       <span
         role="button"
         aria-disabled="true"
-        aria-label={TESTO_NUMERO_ESTERO}
+        inert={inerte}
+        aria-label={ETICHETTA_NUMERO_ESTERO}
         title={TESTO_NUMERO_ESTERO}
         onClick={(e) => {
           e.preventDefault();

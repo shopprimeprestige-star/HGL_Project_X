@@ -21255,14 +21255,15 @@ async function proveDelChiamaSoloItalia() {
   const sì = [
     "+39 333 123 4567", "+393331234567", "0039 333 1234567", "00393331234567",
     "333 1234567", "3331234567", "393331234567", "39 333 1234567", "(333) 123-4567",
-    "392 1234567", "06 1234567", "+39 06 1234567", "0039 02 12345678", "0612345678", "390612345678",
+    "392 1234567", "06 1234567", "+39 06 1234567", "0039 02 12345678", "+39 800 123456", "800123456", "199 123456", "+39 199 123456",
+    "803 001", "0039 840 123456", "848 800 123", "892 424", "+39 892424", "+39 803 164", "39800123456", "0612345678", "390612345678",
     "\u200e+39 333 1234567", "+39 3331234567 ", "+39 320 0001111",
   ];
   for (const n of sì) c(`italiano: ${JSON.stringify(n)}`, true, K.chiamabile(n));
   const no = [
     "+44 7700 900123", "+1 202 555 0143", "0044 7700 900123", "447700900123", "+34 612 345 678",
     "+41 79 123 45 67", "+49 151 23456789", "+33 6 12 34 56 78", "+380 50 123 4567", "+393",
-    "+39", "00", "12345", "n/d", "+40 721 234 567", "+355 69 123 4567", "0033 6 12 34 56 78",
+    "+39", "00", "12345", "+39 500 123456", "+39 2 1234567", "+39 80 123", "500123456", "n/d", "+40 721 234 567", "+355 69 123 4567", "0033 6 12 34 56 78",
   ];
   for (const n of no) c(`non chiamabile: ${JSON.stringify(n)}`, false, K.chiamabile(n));
   c("vuoto, null, undefined: non chiamabile", [false, false, false, false],
@@ -21284,7 +21285,8 @@ export const disegna = (props) => renderToStaticMarkup(createElement(ChiamaEster
   const h = disegna({}, undefined, { telefono: "+44 7700 900123", etichetta: "Chiama" });
   c("rosso", true, /border-red-300/.test(h) && /bg-red-50/.test(h) && /text-red-700/.test(h));
   c("bloccato: aria-disabled, nessun tel:", true, /aria-disabled="true"/.test(h) && !/tel:/.test(h));
-  c("titolo e aria-label dicono di usare WhatsApp", 2, (h.match(/Numero estero: contattalo su WhatsApp/g) || []).length);
+  c("il titolo dice di usare WhatsApp", 1, (h.match(/Numero estero: contattalo su WhatsApp/g) || []).length);
+  c("il nome accessibile contiene «Chiama»", true, /aria-label="Chiama: numero estero, contattalo su WhatsApp"/.test(h));
   c("tocco da 44 px", true, /min-h-11/.test(h) && /min-w-11/.test(h));
   c("il link a WhatsApp porta al numero", true, /href="https:\/\/wa\.me\/447700900123"/.test(h));
   c("il link ha l'icona WhatsApp", true, /viewBox="0 0 24 24"/.test(h) && /aria-label="Scrivi su WhatsApp"/.test(h));
