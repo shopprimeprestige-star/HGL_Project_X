@@ -73,7 +73,9 @@ export async function provePonteStatoChat(mod, { c, gruppo }) {
   );
   c("solo storico del ponte: la finestra di 24 ore resta chiusa (niente 'puoi scrivere libero')", false, regole([ponte("inbound", 5 * MIN)]).f24.aperta);
   c("lo stesso messaggio, se arriva da ManyChat, la apre", true, regole([msg("inbound", 5 * MIN, "manychat")]).f24.aperta);
-  c("inbound del ponte di 30 minuti fa: non toglie «Da chiamare»", true, regole([ponte("inbound", 30 * MIN)]).chiamare.si);
+  //  Cambiato il 30/10/2026 (richiesta del titolare, «la palla è al cliente»): per «Da chiamare»
+  //  contano i messaggi di OGNI canale, ponte compreso; «Da rispondere» e finestra restano senza ponte.
+  c("inbound del ponte di 30 minuti fa: toglie «Da chiamare» (il cliente ha scritto, da qualunque canale)", false, regole([ponte("inbound", 30 * MIN)]).chiamare.si);
   c("inbound ManyChat di 30 minuti fa: toglie «Da chiamare» (come prima)", false, regole([msg("inbound", 30 * MIN, "manychat")]).chiamare.si);
   c("un messaggio d'uscita del ponte non fa uscire la chat da «Da rispondere»", true, regole([msg("inbound", 2 * ORA, "manychat"), ponte("outbound", 5 * MIN)]).dr.attesa);
 
@@ -91,9 +93,11 @@ export async function provePonteStatoChat(mod, { c, gruppo }) {
         ponte(caso() < 0.5 ? "inbound" : "outbound", Math.floor(caso() * 60 * GIORNO)),
       );
       const contatto = caso() < 0.5 ? colonneVuote : { ultimo_in_entrata_il: fa(Math.floor(caso() * 5 * GIORNO)), risposto_il: caso() < 0.5 ? fa(Math.floor(caso() * 5 * GIORNO)) : null };
-      if (JSON.stringify(regole(giusti, contatto)) === JSON.stringify(regole([...giusti, ...extra], contatto))) uguali++;
+      //  «Da chiamare» è fuori: dal 30/10/2026 legge anche il ponte (vedi sopra).
+      const senzaChiamare = ({ dr, f24 }) => JSON.stringify({ dr, f24 });
+      if (senzaChiamare(regole(giusti, contatto)) === senzaChiamare(regole([...giusti, ...extra], contatto))) uguali++;
     }
-    c(`${CASI} casi a caso (seme fisso): con le righe del ponte le regole non cambiano mai`, CASI, uguali);
+    c(`${CASI} casi a caso (seme fisso): con le righe del ponte «Da rispondere» e la finestra non cambiano mai`, CASI, uguali);
   }
 
   gruppo("PONTE · CHAT: LETTURA DEI CONTATTI A PAGINE");
