@@ -107,7 +107,7 @@ export function proveChatPerStato(mod, { c, gruppo, radice }) {
   gruppo("CHAT PER STATO · CABLAGGIO NELLA PAGINA");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("la pastiglia «Per stato» sta in fondo alle altre (dopo «In osservazione»)", true,
-    elenco.indexOf("In osservazione{conStelle") > 0 && elenco.indexOf("Per stato") > elenco.indexOf("In osservazione{conStelle"));
+    elenco.indexOf("In osservazione{conStelle") > 0 && elenco.indexOf("Per stato{contiStato") > elenco.indexOf("In osservazione{conStelle"));
   c("la fila dei chip si disegna con la pastiglia accesa e usa i conti del consulente", true,
     /contaPerStato\(api\.chats\.filter\(delConsulente\)\)/.test(elenco) && /eFiltroPerStato\(filtro\)/.test(elenco));
   c("lo stato scelto resta visibile anche se si svuota (il filtro non resta acceso senza vedersi)", true, /vociConScelto\(contiStato\.voci, filtro\)/.test(elenco));

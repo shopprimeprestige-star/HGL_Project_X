@@ -318,7 +318,6 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         <button
           type="button"
           aria-pressed={perStatoAperto}
-          aria-expanded={perStatoAperto}
           onClick={() => {
             setSoloStelle(false);
             setFiltro(eFiltroPerStato(filtro) ? "all" : FILTRO_PER_STATO);
@@ -333,7 +332,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             Per stato{contiStato.tutti > 0 ? ` ${contiStato.tutti}` : ""}
             <ChevronDown
               aria-hidden="true"
-              className={cn("ml-1 h-3.5 w-3.5 transition-transform", perStatoAperto && "rotate-180")}
+              className={cn(
+                "ml-1 h-3.5 w-3.5 transition-transform",
+                perStatoAperto && "rotate-180",
+              )}
             />
           </span>
         </button>
