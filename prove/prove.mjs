@@ -20808,11 +20808,41 @@ function proveDelloStatoDaChiamare() {
     CHIAM.motivoChiamata({ id: "x", data: { stato: "da_chiamare", importato: true, createdAt: "2026-10-01T10:00:00Z" } }, new Date("2026-10-20T10:00:00Z")).testo);
   const hook = readFileSync(join(radice, "src/routes/hooks/attesa-da-chiamare.ts"), "utf8");
   const sql = readFileSync(join(radice, "supabase/migrations/20261028190000_attesa_da_chiamare_cron.sql"), "utf8");
+  //  Tutti i messaggi del cliente contano (30/10/2026): Cloud API e ponte, non solo ManyChat.
+  const U = A.unisciEntrate;
+  const u1 = "u1";
+  const cont = [{ user_id: u1, phone_e164: "+393330000001", ultimo_in_entrata_il: null, non_scrivere_dal: null },
+    { user_id: u1, phone_e164: "+393330000002", ultimo_in_entrata_il: "2026-10-20T10:00:00Z", non_scrivere_dal: "2026-10-20T10:00:00Z" }];
+  const msg = (from, direction, created_at, extra = {}) => ({ user_id: u1, from_number: from, direction, created_at, canale: "baileys", ...extra });
+  const mappa = U(cont, [
+    msg("393330000001", "inbound", "2026-10-28T18:00:00Z"),
+    msg("+39 333 000 0003", "inbound", "2026-10-28T17:00:00Z", { duplicato_di: "x" }),
+    msg("393330000004", "outbound", "2026-10-28T17:00:00Z"),
+    msg("393330000002", "inbound", "2026-10-28T18:00:00Z"),
+  ]);
+  c("un messaggio arrivato dal canale diretto o dal ponte conta come «ha scritto»", "2026-10-28T18:00:00Z", mappa.get("u1|333000001")?.ultimoInEntrataIl ?? mappa.get(`u1|${A.nove("+393330000001")}`)?.ultimoInEntrataIl);
+  c("…e fa tornare in Attesa WhatsApp chi era in Non risponde", "attesa_whatsapp",
+    A.patchRitornoAttesa({ stato: "non_risponde", statoDal: "2026-10-28T12:00:00Z" }, mappa.get(`u1|${A.nove("+393330000001")}`), adesso)?.stato);
+  c("la riga del ponte che ha già un pari non conta due volte", false, mappa.has(`u1|${A.nove("393330000003")}`));
+  c("un messaggio NOSTRO non conta mai", false, mappa.has(`u1|${A.nove("393330000004")}`));
+  c("lo STOP della rubrica vale anche se ha scritto da un altro canale", true, mappa.get(`u1|${A.nove("393330000002")}`)?.stop);
+  c("…e allora non torna in attesa", null,
+    A.patchRitornoAttesa({ stato: "non_risponde", statoDal: "2026-10-28T12:00:00Z" }, mappa.get(`u1|${A.nove("393330000002")}`), adesso));
+  const firmati = new Set([u1]);
+  c("Cloud API firmato (App Secret configurato): conta", true, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: null }), firmati));
+  c("Cloud API SENZA App Secret (messaggio forse non firmato): non conta", false, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: null }), new Set()));
+  c("le righe di ManyChat non si contano due volte (sono già nella rubrica, dopo il controllo eco)", false, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: "manychat" }), firmati));
+  c("canale sconosciuto: non conta", false, A.rigaConta(msg("393330000006", "inbound", "2026-10-28T18:00:00Z", { canale: "altro" }), firmati));
+  c("tra rubrica e messaggi vince il più recente", "2026-10-28T19:00:00Z",
+    U([{ user_id: u1, phone_e164: "+393330000005", ultimo_in_entrata_il: "2026-10-28T19:00:00Z", non_scrivere_dal: null }], [msg("393330000005", "inbound", "2026-10-28T18:00:00Z")]).get(`u1|${A.nove("393330000005")}`)?.ultimoInEntrataIl);
   c("il server scrive solo se la scheda non è cambiata nel frattempo", true, /\.eq\("updated_at", r\.updated_at\)/.test(hook));
   c("il server scrive condizionando su updated_at anche nel ritorno (due scritture, entrambe protette)", 2, (hook.match(/\.eq\("updated_at", r\.updated_at\)/g) ?? []).length);
   c("l'andata legge solo chi è in Attesa WhatsApp", true, /\.eq\("data->>stato", stato\)/.test(hook) && /schedeInAttesa\(\)/.test(hook));
+  c("il ritorno legge anche i messaggi in entrata di ogni canale delle ultime 24 ore, senza i doppioni", true,
+    /\.from\("whatsapp_messages"\)/.test(hook) && /\.eq\("direction", "inbound"\)/.test(hook) && /\.is\("duplicato_di", null\)/.test(hook) && /\.gte\("created_at", dal\)/.test(hook) && /unisciEntrate\(contatti, messaggi, conFirma\)/.test(hook) && /\.from\("whatsapp_settings"\)/.test(hook));
+  c("gli STOP della rubrica si leggono anche se vecchi", true, /non_scrivere_dal\.not\.is\.null/.test(hook));
   c("il ritorno legge solo i 4 stati dell'elenco chiuso (non per nome sparso)", true, /\.in\("data->>stato", \[\.\.\.STATI_CHE_TORNANO_IN_ATTESA\]\)/.test(hook));
-  c("il ritorno parte dai contatti che hanno scritto nelle ultime 24 ore", true, /\.gte\("ultimo_in_entrata_il"/.test(hook));
+  c("il ritorno parte dai contatti che hanno scritto nelle ultime 24 ore", true, /ultimo_in_entrata_il\.gte\./.test(hook));
   c("legge le schede a pagine (oltre le 1000)", true, /\.range\(da, da \+ PAGINA - 1\)/.test(hook) && /\.order\("id"/.test(hook));
   c("legge i contatti dell'andata dei SOLI candidati, a blocchi", true, /\.in\("phone_e164", elenco\.slice\(i, i \+ 100\)\)/.test(hook) && !/\.in\("user_id"/.test(hook));
   c("nei log solo conteggi e codici (niente nomi, numeri o note)", false, /console\.(log|warn|error)\([^)]*(telefono|nome|note)/.test(hook));
