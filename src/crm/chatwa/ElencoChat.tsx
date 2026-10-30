@@ -561,7 +561,15 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
               key={`${v.campo}:${String(v.valore)}`}
               type="button"
               aria-pressed={acceso}
-              onClick={() => setFiltri(commuta(filtri, v.campo, v.valore))}
+              //  Un filtro rapido alla volta (titolare, 31/10): toccarne uno spegne gli altri; ritoccarlo
+              //  torna a «Tutte». Il consulente scelto nel pannello resta.
+              onClick={() =>
+                setFiltri(
+                  acceso
+                    ? { ...FILTRI_VUOTI, consulente: filtri.consulente }
+                    : commuta({ ...FILTRI_VUOTI, consulente: filtri.consulente }, v.campo, v.valore),
+                )
+              }
               className={cn(
                 "t-corpo flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
                 acceso
