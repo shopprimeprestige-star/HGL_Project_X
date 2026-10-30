@@ -51,6 +51,7 @@ import {
   proveRiquadroSenzaScheda,
   proveSottofiltriScorrevoli,
 } from "./idee/chat-ritocchi.mjs";
+import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
@@ -627,6 +628,7 @@ const MODULI = [
   //   `proveManychat`.
   "chatwa/media",
   "chatwa/stato",
+  "chatwa/menuDaRispondere",
   "chatwa/cercaChat",
   //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
   //   prove in prove/manychat/chat-per-stato.mjs.
@@ -21410,6 +21412,7 @@ proveCreaSchedaDaChat(mod, { c, gruppo, radice });
 proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
 proveRiquadroSenzaScheda(mod, { c, gruppo, radice });
 proveClienti(mod, { c, gruppo, radice });
+await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
