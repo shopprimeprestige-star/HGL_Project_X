@@ -35,7 +35,15 @@ export function passaFiltro(
     unread?: number;
     finestra?: { aperta: boolean } | null;
   },
-  filtro: "all" | "unread" | "with-lead" | "unknown" | "da-chiamare" | "chiuso-24h" | "aperto-24h",
+  filtro:
+    | "all"
+    | "unread"
+    | "with-lead"
+    | "unknown"
+    | "da-chiamare"
+    | "chiuso-24h"
+    | "aperto-24h"
+    | "attesa-whatsapp",
 ): boolean {
   if (filtro === "unread") return (c.unread ?? 0) > 0;
   if (filtro === "with-lead") return Boolean(c.lead);
@@ -47,6 +55,8 @@ export function passaFiltro(
   //  scrivono da più di 24 ore vanno in «Chiuso 24h» (si scrive solo con un
   //  modello, o dal telefono); appena il cliente riscrive passano in «24h
   //  aperto». Una chat senza finestra calcolata non sta in nessuna delle due.
+  //  I lead in stato «Attesa WhatsApp» (richiesta del titolare, 30/10/2026).
+  if (filtro === "attesa-whatsapp") return c.lead?.data?.stato === "attesa_whatsapp";
   if (filtro === "chiuso-24h" || filtro === "aperto-24h") {
     const stato = c.lead?.data?.stato;
     if (stato !== "appuntamento_fissato" && stato !== "appuntamento_rifissato") return false;
