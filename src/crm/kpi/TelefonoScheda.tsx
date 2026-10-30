@@ -74,6 +74,7 @@ const ESITO_DI: Partial<Record<LeadStatus, string>> = {
   da_chiamare: "da_chiamare",
   non_risponde: "non_risponde",
   annullato: "annullato",
+  per_ora_no: "per_ora_no",
   perdi_tempo: "perdi_tempo",
   da_contattare: "da_contattare",
 };
@@ -92,6 +93,7 @@ const ORDINE_ESITI: { chiave: string; etichetta: string }[] = [
   { chiave: "da_chiamare", etichetta: LEAD_STATUS_LABEL.da_chiamare },
   { chiave: "non_risponde", etichetta: LEAD_STATUS_LABEL.non_risponde },
   { chiave: "annullato", etichetta: LEAD_STATUS_LABEL.annullato },
+  { chiave: "per_ora_no", etichetta: LEAD_STATUS_LABEL.per_ora_no },
   { chiave: "perdi_tempo", etichetta: LEAD_STATUS_LABEL.perdi_tempo },
   { chiave: "da_contattare", etichetta: LEAD_STATUS_LABEL.da_contattare },
 ];

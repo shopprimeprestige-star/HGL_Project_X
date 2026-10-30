@@ -112,7 +112,8 @@ const ASSENTE: RigaStato = {
  *  «Segreteria» sono due stati con lo stesso modello e lo stesso evento (`nr`).
  *  «Da riprogrammare» è A DATA se ha una data, altrimenti a evento dopo 30'
  *  (`attesaMin`, `codice: "rp"`). Gli stati che non ci sono (Da contattare,
- *  Attesa WhatsApp, Ci ricontatta lui, Non interessato, Perditempo,
+ *  Attesa WhatsApp, Ci ricontatta lui, Non interessato, Per ora no (30/10/2026:
+ * da NON disturbare finché non torna la data), Perditempo,
  *  Ripensamento, tutti quelli dopo la vendita) non hanno messaggio, per scelta. */
 export const TABELLA_STATI: Partial<Record<LeadStatus, RigaStato>> = {
   da_ricontattare: RICONTATTO,

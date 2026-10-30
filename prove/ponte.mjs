@@ -36,6 +36,7 @@ import { provePonteServizioEstrai } from "./ponte/servizio-estrai.mjs";
 import { provePonteServizioGuardie } from "./ponte/servizio-guardie.mjs";
 import { provePonteServizioLotti } from "./ponte/servizio-lotti.mjs";
 import { provePonteStatoChat } from "./ponte/stato-chat.mjs";
+import { provePonteTutteMigrazione } from "./ponte/tutte-migrazione.mjs";
 import { provePonteVecchieMigrazioni } from "./ponte/vecchie-migrazioni.mjs";
 
 /** I campi di un'interfaccia (o i metodi), letti dal sorgente, in ordine. */
@@ -56,6 +57,8 @@ function proveDelloScheletro(mod, { c, gruppo, radice }) {
     [180, 120, 1000, 60, 7, 1230768000, 1200, "baileys", 1],
     [T.FINESTRA_PARI_S, T.FINESTRA_OPACA_S, T.CONFRONTO_CARATTERI, T.RICONCILIA_MINUTI, T.EFFETTO_MAX_GIORNI, T.TS_MINIMO, T.BODY_CANDIDATI, T.CANALE_PONTE, T.VERSIONE_CORPO],
   );
+  //  30/10 «tutte le chat» (D9 cambiata): un'entrata viva solo del ponte diventa vera dopo 120 secondi.
+  c("attesa del pari prima di promuovere un'entrata del ponte (E2): 120 secondi", 120, T.PROMOZIONE_ATTESA_S);
   c("stati del ponte: lista chiusa del §b3", ["collegato", "in_collegamento", "attesa_qr", "sessione_scaduta", "sostituita", "rete_assente", "coda_piena", "errore", "fermo"], [...T.STATI_PONTE]);
   c("tipi di contenuto del §b2", ["testo", "foto", "vocale", "audio", "video", "documento", "sticker", "posizione", "contatto", "altro"], [...T.TIPI_CONTENUTO]);
   c("stati di invio", ["sent", "delivered", "read", "failed"], [...T.STATI_INVIO]);
@@ -81,7 +84,9 @@ function proveDelloScheletro(mod, { c, gruppo, radice }) {
     EsitoScrittura: ["nuovi", "gia_presenti", "doppioni", "pari_persi", "contatti_nuovi", "risposto"],
     RichiestaCandidato: ["k", "n", "d", "t"],
     CandidatoCrm: ["k", "id", "created_at", "direction", "body", "canale"],
-    PortePonte: ["utente", "noti", "candidati", "scrivi", "recentiDelPonte", "battito", "avviso"],
+    //  30/10 «tutte le chat»: `noti` non c'è più (D7 tolta), c'è `promuovi` (D9 cambiata).
+    EsitoPromozione: ["promosse", "saltate"],
+    PortePonte: ["utente", "candidati", "scrivi", "promuovi", "recentiDelPonte", "battito", "avviso"],
   };
   for (const [nome, attesi] of Object.entries(forme)) c(`forma congelata: ${nome}`, attesi, campi(src, nome));
   c("p_righe non porta duplicato_di (il pari arriva solo da p_pari)", false, campi(src, "RigaScrittura")?.includes("duplicato_di"));
@@ -119,6 +124,7 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteServizioCache(mod, aiuti);
   await provePonteServizioGuardie(mod, aiuti);
   await provePonteStatoChat(mod, aiuti);
+  await provePonteTutteMigrazione(mod, aiuti);
   await provePonteBanner(mod, aiuti);
   //  Invio a mano dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale): sette file, uno per area.
   await provePonteInvioScheletro(mod, aiuti);

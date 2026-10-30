@@ -1,8 +1,9 @@
 /** ── IL GIRO «ATTESA WHATSAPP» → «DA CHIAMARE» (28/10/2026) ─────────────────
  *
  *  Ogni 15 minuti (pg_cron, migrazione `attesa_da_chiamare_cron`): le schede in
- *  «Attesa WhatsApp» da più di 10 ore, senza risposta del cliente, passano a
- *  «Da chiamare». La regola è in crm/importa/attesa-da-chiamare (provata).
+ *  «Attesa WhatsApp» il cui ultimo messaggio è NOSTRO da più di 10 ore (30/10/2026,
+ *  «la palla è al cliente»), senza risposta del cliente, passano a «Da chiamare».
+ *  La regola è in crm/chatwa/daChiamare e crm/importa/attesa-da-chiamare (provate).
  *
  *  Nello stesso giro c'è anche il RITORNO (30/10/2026): chi è in «Da contattare»,
  *  «Non risponde», «Segreteria» o «Da chiamare» e ha scritto su WhatsApp (finestra
@@ -29,7 +30,7 @@ import {
   type RigaContatto,
   type RigaMessaggio,
 } from "@/crm/importa/attesa-da-chiamare";
-import { telefonoE164 } from "@/crm/chatwa/daChiamare";
+import { telefonoE164, type MessaggioAttesa } from "@/crm/chatwa/daChiamare";
 import type { LeadData } from "@/crm/types";
 
 const json = (o: unknown, status = 200) =>
@@ -100,6 +101,58 @@ async function contattiDi(candidati: Riga[]): Promise<Map<string, ContattoWa>> {
   return perNumero;
 }
 
+/** I messaggi degli ultimi 7 giorni dei SOLI candidati, per `user_id` e numero
+ *  (nove cifre): servono a sapere chi ha scritto per ultimo e a riconoscere le
+ *  eco. A blocchi di numeri, a pagine. `body` serve solo al confronto in
+ *  memoria: mai nei log. Il numero del cliente è il lato che non è il canale. */
+const GIORNI_DI_MESSAGGI = 7;
+async function messaggiDi(
+  candidati: Riga[],
+  adesso: Date,
+): Promise<Map<string, MessaggioAttesa[]>> {
+  const dal = new Date(adesso.getTime() - GIORNI_DI_MESSAGGI * 24 * 3600_000).toISOString();
+  const perNumero = new Map<string, MessaggioAttesa[]>();
+  const perUtente = new Map<string, Set<string>>();
+  for (const r of candidati) {
+    const tel = telefonoE164(r.data?.telefono);
+    if (!tel) continue;
+    const insieme = perUtente.get(r.user_id) ?? new Set<string>();
+    insieme.add(tel);
+    perUtente.set(r.user_id, insieme);
+  }
+  const PAGINA = 1000;
+  for (const [userId, numeri] of perUtente) {
+    const elenco = [...numeri];
+    for (let i = 0; i < elenco.length; i += 30) {
+      //  Il numero con il «+» e senza, come lo scrivono i vari canali.
+      const forme = elenco.slice(i, i + 30).flatMap((n) => [n, n.replace(/\D/g, "")]);
+      const lista = `(${forme.join(",")})`;
+      for (let da = 0; ; da += PAGINA) {
+        const { data, error } = await db()
+          .from("whatsapp_messages")
+          .select("direction, created_at, canale, duplicato_di, from_number, to_number, body")
+          .eq("user_id", userId)
+          .is("duplicato_di", null)
+          .or(`from_number.in.${lista},to_number.in.${lista}`)
+          .gte("created_at", dal)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(da, da + PAGINA - 1);
+        if (error) throw error;
+        const righe = (data ?? []) as MessaggioAttesa[];
+        for (const m of righe) {
+          const k = `${userId}|${nove(m.direction === "inbound" ? m.from_number : m.to_number)}`;
+          const suoi = perNumero.get(k);
+          if (suoi) suoi.push(m);
+          else perNumero.set(k, [m]);
+        }
+        if (righe.length < PAGINA) break;
+      }
+    }
+  }
+  return perNumero;
+}
+
 export async function giroAttesaDaChiamare(adesso = new Date()) {
   const schede = await schedeInAttesa();
   if (schede.length === 0) return { inAttesa: 0, spostati: 0, cambiatiNelFrattempo: 0 };
@@ -107,6 +160,7 @@ export async function giroAttesaDaChiamare(adesso = new Date()) {
   //  contatti dei soli candidati.
   const candidati = schede.filter((r) => patchDaChiamare(r.data, null, adesso));
   const perNumero = await contattiDi(candidati);
+  const messaggi = await messaggiDi(candidati, adesso);
 
   let spostati = 0;
   let cambiati = 0;
@@ -114,8 +168,8 @@ export async function giroAttesaDaChiamare(adesso = new Date()) {
     //  Un numero che non si sa scrivere nel formato delle chat non si può
     //  controllare in rubrica: meglio lasciarlo in attesa che spostarlo alla cieca.
     if (!telefonoE164(r.data?.telefono)) continue;
-    const contatto = perNumero.get(`${r.user_id}|${nove(r.data?.telefono)}`);
-    const patch = patchDaChiamare(r.data, contatto, adesso);
+    const chiave = `${r.user_id}|${nove(r.data?.telefono)}`;
+    const patch = patchDaChiamare(r.data, perNumero.get(chiave), adesso, messaggi.get(chiave));
     if (!patch) continue;
     const { data: scritte, error: e3 } = await db()
       .from("crm_leads")
@@ -221,7 +275,11 @@ export async function giroRitornoAttesa(adesso = new Date()) {
   const candidati = (await schedeLeggere()).filter((r) => {
     if (!telefonoE164(r.telefono)) return false;
     const contatto = perNumero.get(`${r.user_id}|${nove(r.telefono)}`);
-    const leggera = { stato: r.stato, statoDal: r.statoDal, statoPrecedenteIl: r.statoPrecedenteIl };
+    const leggera = {
+      stato: r.stato,
+      statoDal: r.statoDal,
+      statoPrecedenteIl: r.statoPrecedenteIl,
+    };
     return !!patchRitornoAttesa(leggera as Partial<LeadData>, contatto, adesso, r.updated_at);
   });
   let tornati = 0;
@@ -230,7 +288,10 @@ export async function giroRitornoAttesa(adesso = new Date()) {
     const { data, error } = await db()
       .from("crm_leads")
       .select("id, user_id, data, updated_at")
-      .in("id", candidati.slice(i, i + 100).map((r) => r.id));
+      .in(
+        "id",
+        candidati.slice(i, i + 100).map((r) => r.id),
+      );
     if (error) throw error;
     for (const r of (data ?? []) as Riga[]) {
       const contatto = perNumero.get(`${r.user_id}|${nove(r.data?.telefono)}`);

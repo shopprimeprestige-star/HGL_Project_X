@@ -614,7 +614,13 @@ html.hg-guest body {
    CRM minimal theme — Linear/Notion style
    Override locale dei design token solo dentro .crm-theme.
    Niente glow, palette neutra, tipografia compatta, bordi sottili.
-   ============================================================ */
+   ============================================================
+   ⚠️ ANCHE FUORI DAL GUSCIO (30/10/2026): tendine, menu, finestre e fogli
+   (Radix) vivono in un portale attaccato a <body>, FUORI da .crm-theme, e
+   prendevano i token della landing (fondo navy): nella scheda «Oggi» della
+   chat righe e tasti erano illeggibili. Quando nella pagina c'è il CRM, i
+   portali ricevono gli stessi token. Sulla landing (senza .crm-theme) niente
+   cambia. */
 .crm-theme {
   /* Surface */
   --background: oklch(0.995 0.002 250);
@@ -664,6 +670,42 @@ html.hg-guest body {
   letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Solo i TOKEN (le variabili --*), MAI sfondo, colore o caratteri: con le
+   proprietà vere lo strato scuro dietro le finestre diventava bianco pieno
+   (revisione del 30/10). Lo sfondo dei fogli lo mette chi li disegna. */
+body:has(.crm-theme) > [data-radix-popper-content-wrapper],
+body:has(.crm-theme) > [role="dialog"],
+body:has(.crm-theme) > [role="alertdialog"] {
+  --background: oklch(0.995 0.002 250);
+  --foreground: oklch(0.18 0.015 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.015 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.015 255);
+  --primary: var(--brand-scuro);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.965 0.003 250);
+  --secondary-foreground: oklch(0.25 0.015 255);
+  --muted: oklch(0.965 0.003 250);
+  --muted-foreground: oklch(0.48 0.012 255);
+  --accent: oklch(0.95 0.005 250);
+  --accent-foreground: oklch(0.18 0.015 255);
+  --destructive: oklch(0.58 0.21 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.9 0.005 250);
+  --input: oklch(0.92 0.005 250);
+  --ring: oklch(0.55 0.16 252 / 0.4);
+  --sidebar: oklch(0.975 0.003 250);
+  --sidebar-foreground: oklch(0.25 0.015 255);
+  --sidebar-primary: var(--brand-scuro);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.005 250);
+  --sidebar-accent-foreground: oklch(0.18 0.015 255);
+  --sidebar-border: oklch(0.9 0.005 250);
+  --sidebar-ring: oklch(0.55 0.16 252 / 0.4);
+  --radius: 0.5rem;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

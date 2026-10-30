@@ -3,7 +3,10 @@
  *  File d'area della commessa 2026-10-29-ponte-whatsapp-baileys, compito T3.
  *  `leggiLotto`, `leggiBattito` e `gestisciRichiesta` con porte finte: un
  *  piccolo database in memoria che fa quello che promettono le tre funzioni
- *  SQL (§e.5), abbastanza per vedere idempotenza, `non_noti` e pari tardivi.
+ *  SQL (§e.5), abbastanza per vedere idempotenza e pari tardivi.
+ *  30/10 «tutte le chat»: D7 tolta (ogni numero entra, `non_noti` sempre vuoto,
+ *  `noti` non si consulta più) e D9 cambiata (`e` vale anche per le entrate
+ *  vive senza pari; `promuovi` dopo ogni lotto vivo e ogni battito).
  *  I contratti stanno in `src/crm/ponte/tipi.ts` (`mod["ponte/tipi"]`).
  *  Dati inventati: nessun numero né nome vero.
  *
@@ -42,7 +45,7 @@ function finte(o = {}) {
     contatti: new Map(), // cifre → { origine, nome }
     stato: null,
   };
-  const chiamate = { utente: 0, noti: [], candidati: [], scrivi: [], recenti: [], battito: [] };
+  const chiamate = { utente: 0, noti: [], candidati: [], scrivi: [], recenti: [], battito: [], promuovi: [] };
   const avvisi = [];
   const presi = () => new Set([...db.messaggi.values()].map((m) => m.duplicato_di).filter(Boolean));
   const P = o.P;
@@ -52,9 +55,10 @@ function finte(o = {}) {
       if (o.rompi === "utente") throw { code: "08006" };
       return o.utente === undefined ? UTENTE : o.utente;
     },
+    //  Dal 30/10 la porta `noti` non esiste più (D7 tolta): questa finta c'è solo
+    //  per accorgersi se qualcuno la richiama (`chiamate.noti` deve restare vuoto).
     async noti(u, numeri) {
       chiamate.noti.push({ u, numeri });
-      //  Come `ponte_wa_noti`: un contatto creato dal ponte NON rende noto.
       return numeri.filter((n) => db.noti.has(n));
     },
     async candidati(u, righe) {
@@ -98,6 +102,11 @@ function finte(o = {}) {
         esito.doppioni++;
       }
       return esito;
+    },
+    async promuovi(u, attesaS) {
+      chiamate.promuovi.push({ u, attesaS });
+      if (o.rompi === "promuovi") throw { code: o.codice ?? "XX000" };
+      return { promosse: o.promosse ?? 0, saltate: 0 };
     },
     async recentiDelPonte(u, dal) {
       chiamate.recenti.push({ u, dal: dal.toISOString() });
@@ -258,56 +267,72 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
       const f = finte({ P });
       const corpo = { ...lotto([msg({ testo: "Va bene, grazie" }), msg({ id: "B2", dir: "out", ts: ORA - 30, testo: "📷 Foto", tipo: "foto", stato: "read" })], { nomi: { [NUM]: "Giulia", [ALTRO]: "Fornitore" } }), user_id: "11111111-1111-4111-8111-111111111111" };
       const r = await vai(f.porte, corpo);
-      prova("lotto vivo noto → 200 con i conteggi", [200, { ok: true, ricevuti: 2, nuovi: 2, gia_presenti: 0, doppioni: 0, scartati: 0, fuori_rubrica: 0, non_noti: [] }], [r.stato, r.json]);
+      prova("lotto vivo → 200 con i conteggi", [200, { ok: true, ricevuti: 2, nuovi: 2, gia_presenti: 0, doppioni: 0, scartati: 0, fuori_rubrica: 0, non_noti: [] }], [r.stato, r.json]);
       const s = f.chiamate.scrivi[0]?.s;
       prova(
-        "p_righe come il contratto: chiave bw:, in → delivered, out → stato, media_type, effetto solo sull'uscita viva",
+        "p_righe come il contratto: chiave bw:, in → delivered, out → stato, media_type, effetto (e) sull'entrata viva senza pari (D9) e sull'uscita viva (D8)",
         [
-          { k: `bw:${NUM}:3EB0A1`, n: NUM, d: "in", t: ORA - 60, x: "Va bene, grazie", e: false, m: null, s: "delivered" },
+          { k: `bw:${NUM}:3EB0A1`, n: NUM, d: "in", t: ORA - 60, x: "Va bene, grazie", e: true, m: null, s: "delivered" },
           { k: `bw:${NUM}:B2`, n: NUM, d: "out", t: ORA - 30, x: "📷 Foto", e: true, m: "foto", s: "read" },
         ],
         s?.righe,
       );
-      prova("p_nomi solo dei numeri scritti", { [NUM]: "Giulia" }, s?.nomi);
-      prova("l'utente è quello del server, mai quello del corpo", [UTENTE], [...new Set([...f.chiamate.noti, ...f.chiamate.candidati, ...f.chiamate.scrivi, ...f.chiamate.recenti].map((x) => x.u))]);
-      prova("noti chiamato con le cifre una volta per numero", [NUM], f.chiamate.noti[0]?.numeri);
+      prova("p_nomi: i nomi dei numeri del lotto, per intero (se salvarli lo decide l'SQL: E7)", { [NUM]: "Giulia" }, s?.nomi);
+      prova("l'utente è quello del server, mai quello del corpo", [UTENTE], [...new Set([...f.chiamate.candidati, ...f.chiamate.scrivi, ...f.chiamate.recenti, ...f.chiamate.promuovi].map((x) => x.u))]);
+      prova("D7 tolta: il giro del lotto non chiama mai noti", 0, f.chiamate.noti.length);
       prova("dopo un lotto vivo, il controllo tardivo degli ultimi 60 minuti", new Date(ADESSO.getTime() - 60 * 60e3).toISOString(), f.chiamate.recenti[0]?.dal);
       const prima = f.db.messaggi.size;
       const r2 = await vai(f.porte, corpo);
       prova("lotto ripetuto → stesso database, già presenti", [prima, 200, 0, 2], [f.db.messaggi.size, r2.stato, r2.json.nuovi, r2.json.gia_presenti]);
     }
     {
-      //  D7: vivi non noti, in entrata e in uscita.
+      //  D7 TOLTA (30/10, «tutte le chat»): un numero che il CRM non conosce entra
+      //  come ogni altro, in entrata e in uscita, e nasce un contatto senza scheda.
       const f = finte({ P, noti: [] });
       const corpo = lotto([msg({ numero: ALTRO }), msg({ id: "B2", numero: ALTRO, dir: "out" })], { nomi: { [ALTRO]: "Fornitore" } });
       const r = await vai(f.porte, corpo);
-      prova("vivo in e out con numero non noto → in non_noti, niente scritto, nessun contatto", [200, ["3EB0A1", "B2"], 0, 0, 0], [r.stato, r.json.non_noti, r.json.nuovi, f.db.messaggi.size, f.db.contatti.size]);
-      prova("…e non si cercano nemmeno i candidati", [0, 0], [f.chiamate.candidati.length, f.chiamate.scrivi.filter((x) => x.s.righe.length).length]);
-      f.db.noti.add(ALTRO);
+      prova("vivo in e out di un numero sconosciuto → scritti, nessun non_noti, contatto nuovo", [200, [], 2, 2, 1, 0], [r.stato, r.json.non_noti, r.json.nuovi, f.db.messaggi.size, f.db.contatti.size, r.json.fuori_rubrica]);
+      prova("…cercando i candidati anche per lui (2 righe) e senza consultare noti", [2, 0], [f.chiamate.candidati[0]?.righe.length, f.chiamate.noti.length]);
+      prova("…il contatto è del ponte e il nome arriva all'SQL (che per gli sconosciuti non lo salva)", [["baileys"], { [ALTRO]: "Fornitore" }], [[f.db.contatti.get(ALTRO)?.origine], f.chiamate.scrivi[0]?.s.nomi]);
       const r2 = await vai(f.porte, corpo);
-      prova("stesso numero noto al ritentativo → scritto", [[], 2, "Fornitore"], [r2.json.non_noti, r2.json.nuovi, f.db.contatti.get(ALTRO)?.nome]);
+      prova("lo stesso lotto di nuovo: niente di nuovo, ancora nessun non_noti", [[], 0, 2], [r2.json.non_noti, r2.json.nuovi, r2.json.gia_presenti]);
     }
     {
-      //  Un contatto creato dal ponte non rende noto il numero: l'ingresso
-      //  chiede sempre a `noti`, non guarda la rubrica da sé.
+      //  Un contatto creato dal ponte non cambia niente: la rotta non guarda la rubrica.
       const f = finte({ P, noti: [] });
       f.db.contatti.set(ALTRO, { origine: "baileys", nome: null });
       const r = await vai(f.porte, lotto([msg({ numero: ALTRO })]));
-      prova("un contatto con origine baileys non rende noto un numero", [["3EB0A1"], 1], [r.json.non_noti, f.chiamate.noti.length]);
+      prova("un contatto con origine baileys: il numero entra lo stesso, noti mai consultata", [[], 1, 0], [r.json.non_noti, r.json.nuovi, f.chiamate.noti.length]);
     }
     {
       const f = finte({ P, noti: [NUM] });
       const r = await vai(f.porte, lotto([msg(), msg({ id: "X9", numero: ALTRO }), msg({ id: "z z" })], { origine: "storico" }));
-      //  p3 (30/10): anche per lo storico i non noti tornano in non_noti, così il
-      //  ponte li tiene nella sua cache sul Mac (un ponte vecchio li ignora).
-      prova("storico: fuori rubrica contato e non scritto, id in non_noti, scartati contati", { ricevuti: 3, nuovi: 1, fuori_rubrica: 1, non_noti: ["X9"], scartati: 1 }, { ricevuti: r.json.ricevuti, nuovi: r.json.nuovi, fuori_rubrica: r.json.fuori_rubrica, non_noti: r.json.non_noti, scartati: r.json.scartati });
-      prova("storico: nessun effetto e nessun controllo tardivo", [false, 0], [f.chiamate.scrivi[0]?.s.righe[0]?.e, f.chiamate.recenti.length]);
+      //  Dal 30/10 anche lo storico di un numero sconosciuto entra: niente più
+      //  fuori_rubrica né non_noti (un ponte vecchio li ignora comunque).
+      prova("storico: tutti scritti (anche lo sconosciuto), fuori_rubrica 0, non_noti vuoto, scartati contati", { ricevuti: 3, nuovi: 2, fuori_rubrica: 0, non_noti: [], scartati: 1 }, { ricevuti: r.json.ricevuti, nuovi: r.json.nuovi, fuori_rubrica: r.json.fuori_rubrica, non_noti: r.json.non_noti, scartati: r.json.scartati });
+      prova("storico: nessun effetto (e falso per ogni riga, in e out), nessun controllo tardivo, nessuna promozione", [[false, false], 0, 0], [f.chiamate.scrivi[0]?.s.righe.map((x) => x.e), f.chiamate.recenti.length, f.chiamate.promuovi.length]);
       const f2 = finte({ P, noti: [] });
       const r2 = await vai(f2.porte, lotto([msg()], { origine: "storico" }));
-      prova("storico tutto fuori rubrica → 200 a zero, niente scritto", [200, 1, 0, 0], [r2.stato, r2.json.fuori_rubrica, r2.json.nuovi, f2.chiamate.scrivi.length]);
+      prova("storico di un numero sconosciuto → 200, scritto, mai marcato", [200, 0, 1, 1, false], [r2.stato, r2.json.fuori_rubrica, r2.json.nuovi, f2.chiamate.scrivi.length, f2.chiamate.scrivi[0]?.s.righe[0].e]);
       const f3 = finte({ P });
       const r3 = await vai(f3.porte, lotto([msg({ id: "a b" })]));
       prova("lotto vuoto dopo gli scarti → 200 a zero", [200, 1, 0, 0], [r3.stato, r3.json.scartati, r3.json.nuovi, f3.chiamate.scrivi.length]);
+    }
+    {
+      //  D9 cambiata: «e» vale anche per le entrate, solo vive e senza pari, entro 7 giorni.
+      const crm = [{ id: "c2", direction: "inbound", from_number: `+${NUM}`, to_number: "manychat", body: "Ok", canale: "manychat", status: "delivered", duplicato_di: null, created_at: new Date((ORA - 50) * 1000).toISOString() }];
+      const f = finte({ P, crm, noti: [] });
+      await vai(f.porte, lotto([
+        msg({ id: "i1", ts: ORA - 60, testo: "Ok" }), // ha il pari ManyChat
+        msg({ id: "i2", ts: ORA - 70, testo: "domanda libera", numero: ALTRO }), // sconosciuto, senza pari
+        msg({ id: "i3", ts: ORA - 8 * 86400, testo: "di otto giorni fa", numero: ALTRO }), // troppo vecchia
+        msg({ id: "o1", dir: "out", ts: ORA - 20, testo: "risposta dal telefono", numero: ALTRO }), // D8
+      ]));
+      prova("vivo: entrata col pari no, entrata senza pari sì (anche sconosciuta), entrata di 8 giorni no, uscita sì", { i1: false, i2: true, i3: false, o1: true },
+        Object.fromEntries((f.chiamate.scrivi[0]?.s.righe ?? []).map((x) => [x.k.split(":")[2], x.e])));
+      const g = finte({ P });
+      await vai(g.porte, lotto([msg({ id: "s1" }), msg({ id: "s2", dir: "out" })], { origine: "storico" }));
+      prova("storico: e falso per entrata e uscita, qualunque sia la data", [false, false], g.chiamate.scrivi[0]?.s.righe.map((x) => x.e));
     }
     {
       //  D8: effetto solo per vivo + out + senza pari + entro 7 giorni.
@@ -344,17 +369,45 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
       const no = [null, N([]), N("x"), N([NUM], { v: 2 }), { ...N([NUM]), tipo: "lotto" }, N(Array.from({ length: 201 }, (_, i) => `39333${String(i).padStart(7, "0")}`))];
       prova("leggiNoti: corpo non valido → null (vuoto, v, tipo, 201 numeri)", no.map(() => null), no.map((x) => I.leggiNoti(x)));
       prova("leggiNoti: 200 numeri passano", 200, I.leggiNoti(N(Array.from({ length: 200 }, (_, i) => `39333${String(i).padStart(7, "0")}`)))?.length);
+      //  30/10: D7 tolta, il CRM «conosce» ogni numero. La richiesta risponde con
+      //  tutti i numeri chiesti (ripuliti) senza interrogare il database: il Mac
+      //  mette in fila come storico tutta la sua cache.
       const f = finte({ P, noti: [NUM] });
-      const r = await vai(f.porte, N([NUM, ALTRO]));
-      prova("noti → 200 con i soli numeri noti, niente scritto né riconciliato", [200, { ok: true, noti: [NUM] }, 0, 0, 0], [r.stato, r.json, f.chiamate.scrivi.length, f.chiamate.recenti.length, f.chiamate.battito.length]);
-      prova("noti: l'utente dal server, i numeri passati a ponte_wa_noti", [UTENTE, [NUM, ALTRO]], [f.chiamate.noti[0]?.u, f.chiamate.noti[0]?.numeri]);
+      const r = await vai(f.porte, N([NUM, ALTRO, NUM, "abc"]));
+      prova("noti → 200 con TUTTI i numeri chiesti (ripuliti, senza ripetizioni), niente scritto né riconciliato", [200, { ok: true, noti: [NUM, ALTRO] }, 0, 0, 0], [r.stato, r.json, f.chiamate.scrivi.length, f.chiamate.recenti.length, f.chiamate.battito.length]);
+      prova("noti: nessuna porta del database consultata (nemmeno l'utente)", [0, 0, 0], [f.chiamate.noti.length, f.chiamate.candidati.length, f.chiamate.promuovi.length]);
       const r2 = await vai(f.porte, N(["abc"]));
-      prova("noti con sole righe non valide → 200 vuoto, il database non si chiama", [200, [], 1], [r2.stato, r2.json.noti, f.chiamate.noti.length]);
+      prova("noti con sole righe non valide → 200 vuoto", [200, []], [r2.stato, r2.json.noti]);
       prova("noti con v sbagliato → 400", 400, (await vai(f.porte, N([NUM], { v: 2 }))).stato);
-      prova("noti senza chiave → 401, il database non si chiama", [401, 1], [(await vai(f.porte, N([NUM]), { token: "sbagliata".repeat(4) })).stato, f.chiamate.noti.length]);
+      prova("noti senza chiave → 401", 401, (await vai(f.porte, N([NUM]), { token: "sbagliata".repeat(4) })).stato);
+      const g = finte({ P, rompi: "utente" });
+      prova("noti con il database giù → 200 lo stesso (non lo usa)", 200, (await vai(g.porte, N([NUM]))).stato);
+      prova("noti nel log: solo i conteggi chiesti e noti", [["noti", { chiesti: 2, noti: 2 }]], f.avvisi.filter(([k]) => k === "noti").slice(0, 1).map(([k, n]) => [k, n]));
+    }
+    {
+      //  D9: la promozione dopo ogni lotto vivo e ogni battito, mai dopo lo storico.
+      const f = finte({ P, promosse: 2 });
+      await vai(f.porte, lotto([msg()]));
+      prova("dopo un lotto vivo: promuovi con l'utente del server e 120 secondi di attesa", [[{ u: UTENTE, attesaS: T.PROMOZIONE_ATTESA_S }], 120], [structuredClone(f.chiamate.promuovi), T.PROMOZIONE_ATTESA_S]);
+      prova("…dopo i pari (il controllo tardivo viene prima) e se promuove nel log c'è «promosse» col conteggio", [true, [["promosse", { n: 2 }]]], [f.chiamate.recenti.length === 1, f.avvisi.filter(([k]) => k === "promosse")]);
+      const b = await vai(f.porte, { v: 1, tipo: "battito", stato: "collegato" });
+      prova("dopo un battito: promuovi di nuovo (anche con nulla da riconciliare)", [200, 2], [b.stato, f.chiamate.promuovi.length]);
+      await vai(f.porte, lotto([msg({ id: "S1" })], { origine: "storico" }));
+      prova("dopo lo storico: nessuna promozione", 2, f.chiamate.promuovi.length);
       const g = finte({ P });
-      g.porte.noti = async () => { throw { code: "PGRST202" }; };
-      prova("noti con il database giù → 500", 500, (await vai(g.porte, N([NUM]))).stato);
+      await vai(g.porte, lotto([msg()]));
+      prova("promuovi che non promuove niente: nessun avviso «promosse»", 0, g.avvisi.filter(([k]) => k === "promosse").length);
+      const h = finte({ P, rompi: "promuovi", codice: "PGRST202" });
+      const rh = await vai(h.porte, lotto([msg()]));
+      const bh = await vai(h.porte, { v: 1, tipo: "battito", stato: "collegato" });
+      prova("promuovi che lancia (migrazione non applicata): lotto e battito restano 200, nel log funzioni_assenti", [200, 1, 200, true], [rh.stato, rh.json.nuovi, bh.stato, h.avvisi.some(([k]) => k === "funzioni_assenti")]);
+      const k = finte({ P, rompi: "promuovi", codice: "57014" });
+      const rk = await vai(k.porte, lotto([msg()]));
+      prova("promuovi che fallisce per altro: 200 e codice «database» nel log", [200, true], [rk.stato, k.avvisi.some(([x]) => x === "database")]);
+      //  Il controllo tardivo che esce presto (nessuna riga) non salta la promozione.
+      const v = finte({ P });
+      await vai(v.porte, { v: 1, tipo: "battito", stato: "collegato" });
+      prova("battito senza nessuna riga recente: la promozione gira lo stesso", 1, v.chiamate.promuovi.length);
     }
     {
       const f = finte({ P, rompi: "scrivi", codice: "PGRST202" });
@@ -383,5 +436,5 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
     tuttiAvvisi.filter(([k, n]) => !T.CODICI_AVVISO.includes(k) || (n !== undefined && (typeof n !== "object" || Object.entries(n).some(([ch, v]) => !/^[a-z_]+$/.test(ch) || typeof v !== "number")))),
   );
   c("nei log nessun numero, id, testo o nome", false, /3933|3EB0|Giulia|Fornitore|Ciao|bw:/.test(JSON.stringify(tuttiAvvisi)));
-  c("gli avvisi ci sono (lotto, battito, noti)", [true, true, true], ["lotto", "battito", "noti"].map((k) => tuttiAvvisi.some(([x]) => x === k)));
+  c("gli avvisi ci sono (lotto, battito, noti, promosse)", [true, true, true, true], ["lotto", "battito", "noti", "promosse"].map((k) => tuttiAvvisi.some(([x]) => x === k)));
 }

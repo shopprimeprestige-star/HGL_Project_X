@@ -55,9 +55,14 @@ export const RITMO = {
   /** vivi rimandati come `non_noti`: si ritentano ogni 60 s per 10 minuti */
   attesaNonNoti: 60_000,
   tenutaNonNoti: 600_000,
-  /** oltre, lo storico non entra più (stato `coda_piena`); i vivi sì */
-  maxFile: 2000,
-  maxByte: 500 * 1024 * 1024,
+  /** oltre, lo storico non entra più (stato `coda_piena`); i vivi sì.
+   *  Tutte le chat (30/10/2026): con `shouldSyncHistoryMessage` vero il telefono può mandare un
+   *  FULL molto più grande del primo giro (190 lotti da 50): lo storico rifiutato non torna senza
+   *  un nuovo abbinamento. 10.000 file = 500.000 messaggi (~8 ore di import a 50 ogni 3 s).
+   *  shortcut: tetto fisso, non una regola che si adatta; basta finché un FULL resta sotto i 500.000
+   *  messaggi, da rialzare se `storico_rifiutati` nel log non è 0. */
+  maxFile: 10_000,
+  maxByte: 1024 * 1024 * 1024,
   scadenzaScartati: 14 * 86_400_000,
 };
 
