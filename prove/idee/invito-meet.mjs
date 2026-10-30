@@ -78,8 +78,70 @@ export function proveInvitoMeet(mod, { c, gruppo, radice }) {
   c("nessuna emoji, nessuna righetta colorata", false, /\p{Extended_Pictographic}|border-l-/u.test(barra));
   c("l'invio va alla stessa strada della casella, col telefono, il testo e la scheda", true, /fetch\("\/api\/whatsapp-send"/.test(hook) && /JSON\.stringify\(\{ to: telefono, body: testo, leadId \}\)/.test(hook));
   c("una chiamata alla volta (doppio tocco)", true, /inCorso\.current \|\| strada !== "crm"/.test(hook) && /inCorso\.current = true/.test(hook));
-  c("toast «Invito inviato» solo se è partito", true, /esito === "ok"[\s\S]*?toast\.success\("Invito inviato"\)/.test(hook));
+  c("toast «Invito inviato» solo se è partito", true, /esito === "ok"[\s\S]*?toast\.success\(/.test(hook) && /"Invito inviato"/.test(hook));
   c("rimandare chiede conferma", true, /Rimandarlo\?/.test(hook));
   c("se il server dice «oltre le 24 ore» si passa a WhatsApp", true, /fuori_finestra[\s\S]*?setForzaWa\(true\)/.test(hook));
   c("non tocca i file della prestazione né il prossimo-meet", true, !/invito-meet|useInvitoMeet/.test(leggi("src/crm/chatwa/useChatWa.ts") + leggi("src/crm/chatwa/RigaChat.tsx") + leggi("src/crm/chatwa/prossimo-meet.ts")));
+
+  //  ── Per consulente: col link di Meetly oppure senza link (commessa 2026-10-31-invito-senza-link) ──
+  gruppo("INVITO AL MEET · SCELTA DEL CONSULENTE: COL LINK O SENZA");
+  c("di serie (nessuna scelta salvata): col link di Meetly", "meetly", I.modoInvito({}));
+  c("consulente non trovato o dati vuoti: col link", "meetly", I.modoInvito(null));
+  c("valore storto: col link (mai un invito senza link per sbaglio)", "meetly", I.modoInvito({ invitoMeet: "boh" }));
+  c("«senza» scelto: senza link", "senza", I.modoInvito({ invitoMeet: "senza" }));
+  const salvata = JSON.parse(JSON.stringify({ nome: "Mirko", attivo: true, invitoMeet: "senza" }));
+  c("la scelta salvata e riletta dall'archivio (JSON) resta «senza»", "senza", I.modoInvito(salvata));
+  c("e quella «meetly» scritta esplicitamente resta «meetly»", "meetly", I.modoInvito(JSON.parse(JSON.stringify({ invitoMeet: "meetly" }))));
+  const squadra = [
+    { id: "a", data: { nome: "Mirko", invitoMeet: "senza" } },
+    { id: "b", data: { nome: "Anna" } },
+  ];
+  c("il meet di Mirko: senza link", "senza", I.modoDelConsulente(squadra, "a"));
+  c("il meet di Anna (nessuna scelta): col link", "meetly", I.modoDelConsulente(squadra, "b"));
+  c("meet senza consulente o con consulente cancellato: col link", ["meetly", "meetly"], [I.modoDelConsulente(squadra, null), I.modoDelConsulente(squadra, "zzz")]);
+
+  const col = I.preparaInvito(chat(), "10:30", "Mirko", "meetly");
+  c("col link: il testo è quello di sempre", p.invito.testo, col.invito.testo);
+  c("col link: nessuna indicazione espressa = col link", p.invito.testo, I.preparaInvito(chat(), "10:30", "Mirko").invito.testo);
+  const sen = I.preparaInvito(chat(), "10:30", "Mirko", "senza");
+  c("senza link: pronto", true, sen.ok);
+  c(
+    "senza link: il testo promette il link e non lo contiene",
+    "Ciao Giulia, la tua consulenza con Hair Genius Labs è alle 10:30: Mirko ti aspetta. Tra poco ti mando qui il link per entrare.",
+    sen.invito?.testo,
+  );
+  c("senza link: nel testo non c'è nessun indirizzo", false, /https?:|www\./.test(sen.invito.testo));
+  c("senza link: lo dice (per il promemoria)", true, sen.invito.senzaLink);
+  c("col link: non è un invito senza link", false, col.invito.senzaLink);
+  c("senza consulente: «ti aspettiamo»", true, /10:30: ti aspettiamo\. Tra poco/.test(I.preparaInvito(chat(), "10:30", null, "senza").invito.testo));
+  c("senza link NON serve il link: manca il link, il tasto resta acceso", true, I.preparaInvito(chat({ link: "chiamo io" }), "10:30", "Mirko", "senza").ok);
+  c("col link, senza link nel lead: resta spento col motivo", "Manca il link del meet", I.preparaInvito(chat({ link: "chiamo io" }), "10:30", "Mirko", "meetly").motivo);
+  c("senza link ma senza telefono: spento", "Manca il telefono", I.preparaInvito(chat({ phone: "" }), "10:30", "Mirko", "senza").motivo);
+  c("senza link ma STOP: spento", false, I.preparaInvito(chat({ stop: true }), "10:30", "Mirko", "senza").ok);
+  const senzaNome = I.preparaInvito({ ...chat(), lead: { id: "l1", data: {} } }, "10:30", "Mirko", "senza");
+  c("senza link e senza nome del cliente: «Ciao,»", true, senzaNome.invito.testo.startsWith("Ciao, la tua consulenza"));
+  //  «Già inviato oggi» riconosce anche l'invito senza link, dal suo segno, non dal link.
+  const nostroSenza = { direction: "outbound", body: sen.invito.testo, created_at: "2026-10-31T09:40:00Z" };
+  c("senza link: l'ultimo messaggio nostro di oggi con la frase del link in arrivo: già inviato", "09:40", I.invitoDiOggi(chat({ lastMessage: nostroSenza }), vuoto, OGGI, sen.invito.segno, ora, giorno)?.alle);
+  c("senza link: il segno non è vuoto (non scambia ogni messaggio per un invito)", true, sen.invito.segno.length > 10);
+  c("senza link: un messaggio nostro qualunque non conta", null, I.invitoDiOggi(chat({ lastMessage: { ...nostroSenza, body: "ok a dopo" } }), vuoto, OGGI, sen.invito.segno, ora, giorno));
+
+  gruppo("INVITO AL MEET · SCELTA DEL CONSULENTE (sorgente)");
+  const tipi = senzaCommenti(leggi("src/crm/types.ts"));
+  const scheda = senzaCommenti(leggi("src/crm/ConsultantKPIDialog.tsx"));
+  const scelta = senzaCommenti(leggi("src/crm/chatwa/SceltaInvitoMeet.tsx"));
+  const elenco = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
+  c("la scelta sta nei dati del consulente (JSON esistente): nessuna migrazione", true, /invitoMeet\?: "meetly" \| "senza"/.test(tipi));
+  c("la scheda del consulente mostra la scelta nell'anagrafica", true, /<SceltaInvitoMeet[\s\S]*?valore=\{modoInvito\(bozza\)\}[\s\S]*?cambia\("invitoMeet"/.test(scheda));
+  c("la scelta ha due opzioni radio con le parole del titolare", true, /type="radio"/.test(scelta) && /Col link di Meetly/.test(scelta) && /Senza link/.test(scelta) && /lo mando io a mano/.test(scelta));
+  c("le opzioni sono un gruppo con legenda (accessibile)", true, /<fieldset/.test(scelta) && /<legend/.test(scelta));
+  c("ogni opzione è alta almeno 44 px", true, /min-h-11/.test(scelta));
+  c("la barra legge la scelta del consulente di quel meet", true, /modoDelConsulente\(consultants, meet\.chat\.lead\?\.data\?\.consulenteId\)/.test(barra));
+  c("la barra passa la scelta all'invio", true, /useInvitoMeet\(meet\.chat, meet\.ora, meet\.consulente, modo\)/.test(barra));
+  c("il tasto passa la scelta a preparaInvito", true, /preparaInvito\(chat, ora, consulente, modo\)/.test(hook));
+  c("il promemoria dice «Ricordati di mandare il link»", "Ricordati di mandare il link", I.PROMEMORIA_LINK);
+  c("il promemoria compare solo dopo un invio senza link", true, /ricordaLink = invito\.preparato\.ok && invito\.preparato\.invito\.senzaLink && !!invito\.fatto/.test(barra) && /\{ricordaLink && \(/.test(barra));
+  c("il promemoria è annunciato (role=status)", true, /role="status"[\s\S]*?\{PROMEMORIA_LINK\}/.test(barra));
+  c("il toast dopo l'invio ricorda il link se è senza link", true, /senzaLink\) toast\.success\("Invito inviato", \{ description: PROMEMORIA_LINK/.test(hook));
+  c("l'elenco chat non cambia (prossimo-meet.ts e ElencoChat.tsx intatti)", true, !/modoInvito|SceltaInvitoMeet/.test(elenco));
 }

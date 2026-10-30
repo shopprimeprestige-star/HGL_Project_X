@@ -1,4 +1,6 @@
 import { ExternalLink, Loader2, Send, Video } from "lucide-react";
+import { useCRM } from "@/crm/CRMContext";
+import { PROMEMORIA_LINK, modoDelConsulente } from "./invito-meet";
 import type { ProssimoMeet } from "./prossimo-meet";
 import type { ChatItem } from "./tipi";
 import { nomeChat } from "./RigaChat";
@@ -15,6 +17,10 @@ import { useInvitoMeet } from "./useInvitoMeet";
  *  destra); il resto della barra continua ad aprire la chat. Finestra di 24 ore aperta: manda il
  *  testo dalla chat del CRM; chiusa: apre WhatsApp col testo scritto. Senza link o telefono il tasto
  *  è spento e DICE perché. Già mandato oggi: «Rimanda» con l'ora. Le regole: invito-meet.ts.
+ *  ── COL LINK O SENZA (31/10/2026) ──
+ *  Il consulente del meet sceglie nella sua scheda se l'invito porta il link di Meetly o no
+ *  (`modoDelConsulente`). Senza link il tasto resta acceso anche se il link manca, e dopo l'invio
+ *  sotto la barra compare «Ricordati di mandare il link» (il link lo manda lui a mano).
  *  Le regole di quale chat sia stanno in prossimo-meet.ts. */
 export function BarraProssimoMeet({
   meet,
@@ -24,32 +30,43 @@ export function BarraProssimoMeet({
   onApri: () => void;
 }) {
   const cliente = nomeChat(meet.chat);
-  const invito = useInvitoMeet(meet.chat, meet.ora, meet.consulente);
+  const { consultants } = useCRM();
+  const modo = modoDelConsulente(consultants, meet.chat.lead?.data?.consulenteId);
+  const invito = useInvitoMeet(meet.chat, meet.ora, meet.consulente, modo);
+  const ricordaLink = invito.preparato.ok && invito.preparato.invito.senzaLink && !!invito.fatto;
   return (
     <div
       role="region"
       aria-label="Prossimo meet"
-      className="sticky top-0 z-10 flex items-center border-b border-violet-300 bg-violet-50"
+      className="sticky top-0 z-10 border-b border-violet-300 bg-violet-50"
     >
-      <button
-        type="button"
-        onClick={onApri}
-        title={`Apri la chat di ${cliente}`}
-        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 self-stretch py-2 pl-3 pr-2 text-left transition-colors hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-600 lg:pointer-fine:min-h-10 lg:pointer-fine:py-1.5"
-      >
-        <Video aria-hidden="true" className="h-5 w-5 shrink-0 text-violet-700" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] font-semibold leading-5 text-violet-950 md:text-[13px]">
-            {meet.etichetta}
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={onApri}
+          title={`Apri la chat di ${cliente}`}
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-3 self-stretch py-2 pl-3 pr-2 text-left transition-colors hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-600 lg:pointer-fine:min-h-10 lg:pointer-fine:py-1.5"
+        >
+          <Video aria-hidden="true" className="h-5 w-5 shrink-0 text-violet-700" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[14px] font-semibold leading-5 text-violet-950 md:text-[13px]">
+              {meet.etichetta}
+            </span>
+            <span className="block truncate text-[13px] leading-[18px] text-violet-800 md:text-[12px]">
+              {cliente}
+            </span>
           </span>
-          <span className="block truncate text-[13px] leading-[18px] text-violet-800 md:text-[12px]">
-            {cliente}
-          </span>
-        </span>
-      </button>
-      <div className="shrink-0 py-1.5 pl-1 pr-3">
-        <TastoInvito invito={invito} cliente={cliente} />
+        </button>
+        <div className="shrink-0 py-1.5 pl-1 pr-3">
+          <TastoInvito invito={invito} cliente={cliente} />
+        </div>
       </div>
+      {/*  Promemoria: l'invito è partito ma il link no. Resta finché l'invito di oggi è registrato. */}
+      {ricordaLink && (
+        <p role="status" className="pb-2 pl-11 pr-3 text-[12px] font-medium leading-4 text-violet-900">
+          {PROMEMORIA_LINK}
+        </p>
+      )}
     </div>
   );
 }
