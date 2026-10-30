@@ -36,7 +36,8 @@ import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
-import { formatTimeIT, initials, numeroLeggibile } from "./formati";
+import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
+import { quandoUltimo } from "./ordineWhatsapp";
 import type { ChatItem } from "./tipi";
 
 /** Come si disegna una riga: normale, o in attesa di risposta («Da rispondere»). */
@@ -102,6 +103,9 @@ interface RigaChatProps {
   /** È la chat del prossimo meet di oggi (vedi prossimo-meet.ts): la barra in cima la ripete, qui
    *  resta lo sfondo e il bordo viola, così la si riconosce anche scorrendo. */
   prossimoMeet?: boolean;
+  /** Vista «Tutte» (30/10/2026): a destra sempre l'ora dell'ultimo messaggio come WhatsApp
+   *  («18:03», «Ieri», «lunedì», «21/10/2026»), mai «da 5 min» né «Senza risposta». */
+  comeWhatsapp?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
@@ -122,6 +126,7 @@ export function RigaChat({
   mostraFinestra = false,
   selezione,
   prossimoMeet = false,
+  comeWhatsapp = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -180,9 +185,12 @@ export function RigaChat({
 
   // `dal` c'è sempre se la chat è in attesa; se mancasse, meglio l'ora dell'ultimo messaggio che un «da meno di 1 min» falso.
   const dal = inAttesa ? (c.daRispondere?.dal ?? null) : null;
-  const tempo = dal
-    ? attesaInChiaro(dal, adesso)
-    : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
+  const ultimaOra = quandoUltimo(c);
+  const tempo = comeWhatsapp
+    ? formatOraWhatsapp(ultimaOra > 0 ? new Date(ultimaOra) : null, adesso)
+    : dal
+      ? attesaInChiaro(dal, adesso)
+      : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
   const { consultants } = useCRM();
   const nomeConsulente =
     consultants.find((x) => x.id === c.lead?.data?.consulenteId)?.data.nome ?? null;
@@ -297,7 +305,7 @@ export function RigaChat({
                 clessidra = tocca a lui. Ardesia e non azzurro: l'azzurro è già nello stato.
                 Niente riga in più nell'elenco. Sul tablet (colonna stretta) restano
                 clessidra e durata, la frase c'è per chi legge con lo schermo. */}
-            {a.senzaRisposta ? (
+            {a.senzaRisposta && !comeWhatsapp ? (
               <span
                 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 text-[11px] font-medium leading-5 tabular-nums text-slate-700 md:leading-[18px]"
                 title={`Hai scritto tu per ultimo e il cliente non ha ancora risposto (${a.senzaRisposta.da})`}
@@ -312,7 +320,9 @@ export function RigaChat({
               <span
                 className={cn(
                   "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
-                  modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
+                  modo === "attesa" && !comeWhatsapp
+                    ? "font-semibold text-amber-700"
+                    : "text-muted-foreground",
                 )}
               >
                 {tempo}

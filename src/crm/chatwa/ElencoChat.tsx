@@ -21,6 +21,7 @@ import {
 import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
+import { ordinaComeWhatsapp } from "./ordineWhatsapp";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
 import {
@@ -80,7 +81,8 @@ function useAdesso(): number {
   return adesso;
 }
 
-/** L'elenco delle chat: in cima «Da rispondere», poi le altre. Riempie il contenitore che gli
+/** L'elenco delle chat. Con «Tutte» (la vista di partenza) è l'elenco di WhatsApp: uno solo, per ultimo
+ *  messaggio. Con una coda scelta: in cima «Da rispondere», poi le altre. Riempie il contenitore che gli
  *  dà `PaginaChat`: larghezza e visibilità non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
@@ -131,7 +133,14 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   //  Con «Si può scrivere» le chat che chiudono entro 4 ore hanno un riquadro tutto loro, sopra
   //  «Da rispondere», dalla scadenza più vicina: si scrive gratis finché si può.
   //  Escono dagli altri riquadri (una chat una volta sola). Vedi segniRiga.ts.
-  const inScadenza = filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
+  //  ── «TUTTE» (30/10/2026) ────────────────────────────────────────────────
+  //  Senza una coda scelta l'elenco è UNO solo, nell'ordine di WhatsApp (ordineWhatsapp.ts): niente
+  //  riquadri, niente stelle in cima. Per questo anche il riquadro «Finestra in chiusura» (che è una
+  //  sezione) esce: con «Si può scrivere» la riga ha comunque il suo bollino.
+  const tutte = filtri.coda === null;
+  const elencoTutte = tutte ? ordinaComeWhatsapp(trovate) : [];
+  const inScadenza =
+    filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
   const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
   const fuoriScadenza = trovate.filter((c) => !inScadenzaTel.has(c.phone));
 
@@ -305,6 +314,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
 
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
     <RigaChat
+      comeWhatsapp={tutte}
       prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}
@@ -381,7 +391,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         />
       ) : (
         <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-3 md:px-2 md:py-2.5">
-          {/*  Il titolo dice cosa si sta guardando: con nessun filtro, tutte (la pastiglia «Tutte» non c'è più). */}
+          {/*  Il titolo dice cosa si sta guardando: con nessun filtro, tutte. */}
           <p className="t-riga font-semibold text-foreground">
             {accesi > 0 ? "Chat filtrate" : "Tutte le chat"}
             {!caricamento && (
@@ -601,6 +611,11 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
               {elencoDaChiamare.map((c) => riga(c, "normale", true))}
             </ul>
           )
+        ) : tutte ? (
+          <ul aria-label="Tutte le chat, dall'ultimo messaggio">
+            {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
+            {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+          </ul>
         ) : (
           <>
             {inScadenza.length > 0 && (
