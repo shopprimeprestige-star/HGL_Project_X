@@ -142,9 +142,11 @@ export function RigaChat({
   };
   useEffect(() => annullaPressione, []);
   const iniziaPressione = (e: PointerEvent) => {
+    //  Si azzera PRIMA di ogni uscita: su Android, dopo una pressione lunga, il click
+    //  può non arrivare mai e il flag resterebbe acceso, mangiando il tocco dopo.
+    lungo.current = false;
     tocco.current = e.pointerType === "touch";
     if (!selezione || selezione.attiva || (e.pointerType === "mouse" && e.button !== 0)) return;
-    lungo.current = false;
     partenza.current = { x: e.clientX, y: e.clientY };
     timer.current = setTimeout(() => {
       timer.current = null;

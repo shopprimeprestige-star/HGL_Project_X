@@ -88,11 +88,13 @@ export function useStelle(): {
     setStelle(ref.current);
     //  Un solo «leggi, cambia, scrivi» per tutti, in fila con gli altri salvataggi.
     const fatto = coda.current.then(async () => {
-      const { data } = await supabase
+      const { data, error: eLettura } = await supabase
         .from("app_config")
         .select("value")
         .eq("key", CHIAVE_CONFIG_STELLE)
         .maybeSingle();
+      //  Lettura fallita: non si scrive (si perderebbero le stelle che ci sono).
+      if (eLettura) throw eLettura;
       //  Sopra le stelle di un collega non si scrive: si mettono solo dove ancora non ce n'è.
       const letta = leggiStelle(data?.value);
       const mappa = daFare
