@@ -580,6 +580,16 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
+  {
+    const tasto = readFileSync(join(process.cwd(), "src/crm/chatwa/PannelloFiltri.tsx"), "utf8");
+    c(
+      "con un consulente scelto il tasto «Filtri» ne porta il nome («Filtri · Giulia»), anche per lo screen reader",
+      true,
+      /p\.consulenti\.find\(\(x\) => x\.id === p\.filtri\.consulente\)/.test(tasto) &&
+        /\{consulente && \(/.test(tasto) &&
+        /consulente \$\{consulente\}/.test(tasto),
+    );
+  }
   c("«Tutte» è il primo tasto della riga", true, elenco.indexOf(">\n          Tutte\n") < elenco.indexOf("VOCI_RIGA.map"));
   c(
     "«Sconosciuti» è lo stesso filtro di «Senza scheda»: stesse chat, e senza «Non letti» nella riga",
