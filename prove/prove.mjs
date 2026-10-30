@@ -35,6 +35,7 @@ import { proveLeadDoppiChiamate } from "./lead-doppi-chiamate.mjs";
 import { proveRiepilogoSerale } from "./idee/serale.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { proveIdeeAi } from "./idee/ai.mjs";
+import { proveRispiega } from "./idee/rispiega.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
@@ -520,6 +521,8 @@ const MODULI = [
   //  ⚠️ La risposta scritta dall'AI sul Mac: vedi proveDelleRisposteAi.
   "risposte-ai/regole",
   "risposte-ai/ingresso",
+  //  «Rispiega con AI» (30/10/2026): prove in prove/idee/rispiega.mjs.
+  "risposte-ai/rispiega",
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
   "push/webpush",
   "push/avviso",
@@ -21399,6 +21402,7 @@ await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
+await proveRispiega(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
