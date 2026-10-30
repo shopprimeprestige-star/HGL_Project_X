@@ -199,7 +199,10 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     //  messaggi»): il ritorno in «Attesa WhatsApp» quando il cliente scrive, da
     //  qualsiasi canale. Legge solo le entrate senza pari (`duplicato_di` nullo) e
     //  non scrive nulla su whatsapp_messages: le altre regole restano senza ponte.
-    const LETTURE_COL_PONTE = { "src/routes/hooks/attesa-da-chiamare.ts": 1 };
+    //  Una seconda lettura (30/10/2026, «la palla è al cliente»): i messaggi nostri e suoi
+    //  degli ultimi 7 giorni dei soli candidati a «Da chiamare», ponte compreso, solo
+    //  senza pari (`duplicato_di` nullo), per sapere chi ha scritto per ultimo. Non scrive nulla.
+    const LETTURE_COL_PONTE = { "src/routes/hooks/attesa-da-chiamare.ts": 2 };
     for (const f of file) {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
       const rel = f.slice(radice.length + 1);
