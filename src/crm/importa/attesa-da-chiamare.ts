@@ -65,9 +65,9 @@ export function patchDaChiamare(
  *   anche se il cliente scrive. Un nuovo stato NON entra qui da solo.
  *  Vale se l'ultimo messaggio del cliente è arrivato DOPO l'ingresso nello
  *  stato ed entro le ultime 24 ore (finestra aperta); mai con lo STOP.
- *  «Messaggio del cliente» = `ultimo_in_entrata_il` della rubrica, che lo
- *  scrive solo ManyChat DOPO i controlli su eco e doppioni: i messaggi nostri
- *  non lo toccano. Le chiamate WhatsApp in entrata non arrivano da nessuna
+ *  «Messaggio del cliente» = `ultimo_in_entrata_il` della rubrica (ManyChat,
+ *  dopo i controlli su eco e doppioni) più le entrate del ponte e del webhook
+ *  Cloud API firmato (`unisciEntrate`, più sotto): i messaggi nostri non contano. Le chiamate WhatsApp in entrata non arrivano da nessuna
  *  fonte (il ponte le scarta, il webhook Cloud non legge `calls`): non contano. */
 export const STATI_CHE_TORNANO_IN_ATTESA = [
   "da_contattare",
@@ -142,10 +142,25 @@ export interface RigaMessaggio {
   direction: string | null;
   created_at: string | null;
   duplicato_di?: string | null;
+  /** `manychat`, `baileys` (ponte) o vuoto (webhook Cloud API) */
+  canale?: string | null;
 }
+/** Quali righe di `whatsapp_messages` contano. ManyChat NO: è già nella rubrica
+ *  (`ultimo_in_entrata_il`, scritta dopo i controlli su eco e doppioni). Il
+ *  ponte SÌ (la sua rotta è protetta dalla sua chiave). Il webhook Cloud API
+ *  (canale vuoto) SOLO per chi ha l'App Secret: senza, il webhook accetta anche
+ *  messaggi non firmati e un estraneo potrebbe spostare le schede. */
+export function rigaConta(m: RigaMessaggio, conFirma: ReadonlySet<string>): boolean {
+  if (m.direction !== "inbound" || m.duplicato_di || !m.user_id) return false;
+  if (m.canale === "baileys") return true;
+  if (m.canale == null || m.canale === "") return conFirma.has(m.user_id);
+  return false;
+}
+
 export function unisciEntrate(
   contatti: RigaContatto[],
   messaggi: RigaMessaggio[],
+  conFirma: ReadonlySet<string> = new Set(),
 ): Map<string, ContattoWa> {
   const out = new Map<string, ContattoWa>();
   const piuRecente = (a?: string | null, b?: string | null) => {
@@ -166,7 +181,7 @@ export function unisciEntrate(
     });
   }
   for (const m of messaggi) {
-    if (m.direction !== "inbound" || m.duplicato_di || !m.user_id) continue;
+    if (!rigaConta(m, conFirma)) continue;
     const n = nove(m.from_number);
     if (!n) continue;
     const k = `${m.user_id}|${n}`;

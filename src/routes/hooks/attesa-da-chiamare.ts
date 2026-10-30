@@ -154,7 +154,7 @@ async function contattiCheHannoScritto(adesso: Date): Promise<Map<string, Contat
   for (let da = 0; ; da += PAGINA) {
     const { data, error } = await db()
       .from("whatsapp_messages")
-      .select("user_id, from_number, direction, created_at, duplicato_di")
+      .select("user_id, from_number, direction, created_at, duplicato_di, canale")
       .eq("direction", "inbound")
       .is("duplicato_di", null)
       .gte("created_at", dal)
@@ -166,7 +166,18 @@ async function contattiCheHannoScritto(adesso: Date): Promise<Map<string, Contat
     messaggi.push(...righe);
     if (righe.length < PAGINA) break;
   }
-  return unisciEntrate(contatti, messaggi);
+  //  Chi ha l'App Secret: solo i suoi messaggi Cloud API sono firmati (`rigaConta`).
+  const { data: imp, error: eImp } = await db()
+    .from("whatsapp_settings")
+    .select("user_id, app_secret")
+    .not("app_secret", "is", null);
+  if (eImp) throw eImp;
+  const conFirma = new Set(
+    ((imp ?? []) as { user_id: string; app_secret: string | null }[])
+      .filter((r) => String(r.app_secret ?? "").trim() !== "")
+      .map((r) => r.user_id),
+  );
+  return unisciEntrate(contatti, messaggi, conFirma);
 }
 
 type RigaLeggera = {
