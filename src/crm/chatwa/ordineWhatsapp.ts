@@ -31,7 +31,11 @@ const ms = (v: string | null | undefined): number => {
 export function quandoUltimo(c: ChatConOra): number {
   const vero = Math.max(ms(c.lastMessage?.created_at), ms(c.contact?.ultimo_messaggio_il));
   if (vero > 0) return vero;
-  //  Chat senza l'ultimo messaggio salvato (prima della migrazione): meglio un'ora larga che nessuna.
+  //  ⚠️ Con la migrazione dell'ultimo messaggio applicata (la colonna c'è, anche vuota) NIENTE ripiego:
+  //  `last_message_at` e `ultimo_in_entrata_il` li scrive anche l'eco di ManyChat (poi nascosta come
+  //  doppione), e una chat senza messaggi veri saliva all'ora di un messaggio che nessuno vede.
+  //  Il ripiego resta solo se la colonna non esiste (chat vecchie, prima della migrazione).
+  if (c.contact?.ultimo_messaggio_il !== undefined) return 0;
   return ms(c.contact?.last_message_at) || ms(c.contact?.ultimo_in_entrata_il);
 }
 
