@@ -297,6 +297,9 @@ function creaDb(tabelle) {
         out = out.slice(0, db.maxRighe);
         voce.n = out.length; // quante righe ha risposto, per le prove
         out = out.map((r) => ({ ...r }));
+        //  Come PostgREST: «telefono:data->>telefono» dà solo id e il numero.
+        if (/telefono:data->>telefono/.test(q.cols ?? ""))
+          out = out.map((r) => ({ id: r.id, telefono: r.data?.telefono ?? null }));
         return { data: q.single ? (out[0] ?? null) : out, error: null };
       }
       if (q.op === "update") {
@@ -420,6 +423,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         whatsapp_messages: mondo.messaggi ?? [],
         whatsapp_contacts: mondo.contatti ?? [],
         whatsapp_settings: mondo.impostazioni ?? [],
+        crm_leads: mondo.schedeInArchivio ?? [],
       });
       if (mondo.gate) db.gate = mondo.gate;
       if (mondo.maxRighe) db.maxRighe = mondo.maxRighe;
@@ -427,7 +431,13 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       if (mondo.senzaCambiatoIl) db.senzaCambiatoIl = true;
       const T = {
         user: { id: U },
-        crm: { leads: mondo.leads ?? [], consultants: [], updateLead: async () => {} },
+        crm: {
+          leads: mondo.leads ?? [],
+          consultants: [],
+          loading: mondo.caricamentoCrm ?? false,
+          updateLead: mondo.updateLead ?? (async () => true),
+          createLead: mondo.createLead ?? (async () => null),
+        },
         db,
         toasts: [],
         ora: T0,
@@ -1470,6 +1480,88 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [q.T.toasts.at(-1)?.tipo, eSenza],
       );
       fine(q);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · «CREA SCHEDA CON STATO»: MAI DOPPIONI (30/10)");
+    {
+      const chatDi = (p, tel) => p.api().chats.find((x) => x.phone === tel);
+      const altra = scheda("lead-altra", "+393339990009", "Altra");
+      const mondoBase = { contatti: [contatto("c3", P3)], messaggi: [msg("z", "inbound", P3, "ciao", -MIN)], leads: [altra] };
+
+      // 1 · schede ancora in arrivo: non crea niente
+      for (const [nome, extra] of [
+        ["CRM in caricamento", { caricamentoCrm: true }],
+        ["elenco schede vuoto", { leads: [] }],
+      ]) {
+        const creati = [];
+        const p = await monta({ ...mondoBase, ...extra, createLead: async (d) => (creati.push(d), { id: "nuova", data: d }) });
+        await p.api().creaSchedaConStato(chatDi(p, P3), "non_risponde");
+        c(`${nome}: nessuna scheda creata, una frase`, [0, "errore", 0], [creati.length, p.T.toasts.at(-1)?.tipo, p.db.log.filter((q) => q.t === "crm_leads").length]);
+        fine(p);
+      }
+
+      // 2 · l'archivio ha già la scheda (la copia a schermo non la vede): si usa quella
+      {
+        const creati = [];
+        const cambi = [];
+        const p = await monta({
+          ...mondoBase,
+          schedeInArchivio: [
+            { id: "gia-la", user_id: U, data: { nome: "Gia", cognome: "Lì", telefono: "333 333 0003", stato: "da_contattare" } },
+            { id: "altrui", user_id: "altro-utente", data: { nome: "X", cognome: "Y", telefono: "+39 333 333 0003", stato: "da_contattare" } },
+          ],
+          createLead: async (d) => (creati.push(d), { id: "nuova", data: d }),
+          updateLead: async (id, patch) => (cambi.push([id, patch.stato]), true),
+        });
+        await p.api().creaSchedaConStato(chatDi(p, P3), "non_risponde");
+        c("scheda già in archivio (ultime 9 cifre, solo di questo utente): non ne crea una nuova", 0, creati.length);
+        c("…e lo stato va sulla scheda che c'era", [["gia-la", "non_risponde"]], cambi);
+        fine(p);
+      }
+
+      // 3 · più schede con quel numero: non sceglie, non crea
+      {
+        const creati = [];
+        const cambi = [];
+        const p = await monta({
+          ...mondoBase,
+          schedeInArchivio: [
+            { id: "a1", user_id: U, data: { nome: "A", cognome: "1", telefono: "+393333330003", stato: "nuovo" } },
+            { id: "a2", user_id: U, data: { nome: "A", cognome: "2", telefono: "333 3330003", stato: "nuovo" } },
+          ],
+          createLead: async (d) => (creati.push(d), { id: "nuova", data: d }),
+          updateLead: async (id) => (cambi.push(id), true),
+        });
+        await p.api().creaSchedaConStato(chatDi(p, P3), "non_risponde");
+        c("più schede con quel numero: né crea né cambia stato, lo dice", [0, 0, "errore"], [creati.length, cambi.length, p.T.toasts.at(-1)?.tipo]);
+        fine(p);
+      }
+
+      // 4 · lettura dell'archivio fallita: non crea
+      {
+        const creati = [];
+        const p = await monta({ ...mondoBase, createLead: async (d) => (creati.push(d), { id: "nuova", data: d }) });
+        p.db.erroreLettura = true;
+        await p.api().creaSchedaConStato(chatDi(p, P3), "non_risponde");
+        c("archivio non leggibile: nessuna scheda creata", [0, "errore"], [creati.length, p.T.toasts.at(-1)?.tipo]);
+        fine(p);
+      }
+
+      // 5 · davvero nessuna scheda: ne nasce UNA (anche con due tocchi insieme) e prende lo stato
+      {
+        const creati = [];
+        const cambi = [];
+        const p = await monta({
+          ...mondoBase,
+          createLead: async (d) => (creati.push(d), { id: "nuova", data: d }),
+          updateLead: async (id, patch) => (cambi.push([id, patch.stato]), true),
+        });
+        const ch = chatDi(p, P3);
+        await Promise.all([p.api().creaSchedaConStato(ch, "non_risponde"), p.api().creaSchedaConStato(ch, "non_risponde")]);
+        c("nessuna scheda: ne crea una sola, col numero della chat", [1, P3], [creati.length, creati[0]?.telefono]);
+        c("…e le dà lo stato scelto", [["nuova", "non_risponde"]], cambi);
+        fine(p);
+      }
     }
 
     gruppo("CHAT WHATSAPP · PAGINA · RICERCA");
