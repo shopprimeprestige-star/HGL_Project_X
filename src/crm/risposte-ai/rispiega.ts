@@ -117,7 +117,8 @@ export function lavoroRispiega(p: {
     };
   }
   const per = new Map(p.messaggi.map((m) => [m.id, m]));
-  const nome = typeof p.lead?.nome === "string" ? p.lead.nome.trim().slice(0, 40) : "";
+  const nome =
+    typeof p.lead?.nome === "string" ? p.lead.nome.replace(/\s+/g, " ").trim().slice(0, 40) : "";
   return {
     lavoro: {
       id: p.id,
