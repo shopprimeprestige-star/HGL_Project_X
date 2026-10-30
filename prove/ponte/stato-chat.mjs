@@ -238,11 +238,8 @@ export async function provePonteStatoChat(mod, { c, gruppo }) {
     }));
     const passano = (f) => chat.filter((x) => passaFiltro(x, f));
     const sconosciute = chat.filter((x) => !x.lead);
-    const attesaNonLetti = chat.filter((x) => x.unread > 0);
     c("«Tutte» lascia passare 2000 chat su 2000", 2000, passano("all").length);
     c("«Tutte» include ogni sconosciuta", 600, passano("all").filter((x) => !x.lead).length);
-    c("«Non letti» = tutte e sole le chat con non letti", attesaNonLetti.map((x) => x.phone), passano("unread").map((x) => x.phone));
-    c("«Non letti» include gli sconosciuti con non letti", 120, passano("unread").filter((x) => !x.lead).length);
     c("«Sconosciuti» = chi non ha scheda", sconosciute.map((x) => x.phone), passano("unknown").map((x) => x.phone));
     c("«Con lead» + «Sconosciuti» = 2000, senza sovrapposizioni", [2000, 0], [passano("with-lead").length + passano("unknown").length, passano("with-lead").filter((x) => passaFiltro(x, "unknown")).length]);
 

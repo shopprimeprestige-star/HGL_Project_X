@@ -52,7 +52,6 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   const con = (f) => tutte.filter((x) => passaFiltro(x, f)).map((x) => x.phone.slice(-1));
   gruppo("CHAT ELENCO · LE PILLOLE FILTRANO (guasto del 28/10)");
   c("«Tutte»: nessuna esce", ["1", "2", "3"], con("all"));
-  c("«Non letti»: solo con messaggi non letti", ["2", "3"], con("unread"));
   c("«Con lead»: solo con la scheda", ["1", "3"], con("with-lead"));
   c("«Sconosciuti»: solo senza scheda", ["2"], con("unknown"));
 

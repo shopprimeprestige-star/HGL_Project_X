@@ -672,7 +672,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: c,
         lastMessage: null,
-        unread: c.unread_count || 0,
       });
     }
 
@@ -698,7 +697,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           lead: null,
           contact: null,
           lastMessage: null,
-          unread: 0,
         };
         map.set(key, item);
       }
@@ -730,7 +728,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: null,
         lastMessage: null,
-        unread: 0,
       });
     }
 

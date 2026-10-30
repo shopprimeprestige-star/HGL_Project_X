@@ -22220,7 +22220,7 @@ function proveDellAnteprimaUltimo() {
   const adesso = Date.parse("2026-10-30T12:00:00Z");
   const fa = (ms) => new Date(adesso - ms).toISOString();
   const msg = (direction, body, ms, status) => ({ direction, body, created_at: fa(ms), status });
-  const base = { contatto: null, attesa: null, inAttesa: false, nonLetti: 0, adesso };
+  const base = { contatto: null, attesa: null, inAttesa: false, adesso };
 
   //  1. L'ultimo è mio.
   const mio = A.anteprimaRiga({ ...base, ultimo: msg("outbound", "Perfetto, a giovedì", 2 * 24 * ORA_MS, "read") });
@@ -22237,11 +22237,10 @@ function proveDellAnteprimaUltimo() {
   c("data illeggibile: niente «senza risposta» inventato", null, A.anteprimaRiga({ ...base, ultimo: { direction: "outbound", body: "x", created_at: "boh" } }).senzaRisposta);
 
   //  2. L'ultimo è del cliente.
-  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" }, nonLetti: 1 });
+  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" } });
   c("del cliente: niente prefisso, nessuna spunta, non letto in evidenza", [false, null, "Va bene, grazie", true, null], [suo.mio, suo.spunte, suo.testo, suo.nonLetto, suo.senzaRisposta]);
   c("…vince l'ultimo messaggio vero, non l'anteprima di «Da rispondere»", "Va bene, grazie", suo.testo);
   c("del cliente già visto (non in attesa, nessun non letto): normale", false, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).nonLetto);
-  c("del cliente non in attesa ma con messaggi non letti: in evidenza", true, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS), nonLetti: 2 }).nonLetto);
   c("del cliente non ha mai «senza risposta»", null, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).senzaRisposta);
 
   //  3. «Da rispondere» con l'ultimo mio (risposto dal telefono, non ancora segnato): si dice, e tocca a noi.

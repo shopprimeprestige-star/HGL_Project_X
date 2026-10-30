@@ -66,7 +66,6 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
 
   gruppo("FILTRI CHAT: NIENTE DI OGGI SPARISCE (ogni voce vecchia, da sola, dà le stesse chat)");
   const vecchioNuovo = [
-    ["unread", con({ coda: "non-letti" })],
     ["with-lead", con({ tipo: "con-scheda" })],
     ["unknown", con({ tipo: "senza-scheda" })],
     ["da-chiamare", con({ coda: "da-chiamare" })],
@@ -112,9 +111,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     indice(passano(con({ fase: "attesa-whatsapp", acconto: true }))),
   );
   c(
-    "Non letti + Con stelle (scenario del titolare): solo chi ha entrambi",
-    indice(mondo.filter((x) => x.unread > 0 && x.stelle > 0)),
-    indice(passano(con({ coda: "non-letti", stelle: true }))),
+    "Da rispondere + Con stelle: solo chi ha entrambi",
+    indice(mondo.filter((x) => x.daRispondere.attesa && x.stelle > 0)),
+    indice(passano(con({ coda: "da-rispondere", stelle: true }))),
   );
   c(
     "«Con stelle» ora si combina con una fase (prima la spegneva)",
@@ -314,18 +313,18 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   c("nessuna combinazione mostra un numero maggiore di zero con l'elenco vuoto", 0, positiviVuoti);
   c(
-    "scenario del titolare: «Non letti», poi «Con stelle» = esattamente le righe dell'elenco",
-    [indice(mondo.filter((x) => x.unread > 0 && x.stelle > 0)).length, true],
+    "«Da rispondere», poi «Con stelle» = esattamente le righe dell'elenco",
+    [indice(mondo.filter((x) => x.daRispondere.attesa && x.stelle > 0)).length, true],
     [
-      F.contaVoce(mondo, con({ coda: "non-letti" }), stelleDi, "stelle", true),
-      F.contaVisibili(mondo, con({ coda: "non-letti", stelle: true }), stelleDi) ===
-        F.contaVoce(mondo, con({ coda: "non-letti" }), stelleDi, "stelle", true),
+      F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "stelle", true),
+      F.contaVisibili(mondo, con({ coda: "da-rispondere", stelle: true }), stelleDi) ===
+        F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "stelle", true),
     ],
   );
   c(
     "il numero di una voce sostituisce il suo gruppo (non si somma a se stesso)",
     F.contaVoce(mondo, V, stelleDi, "coda", "da-chiamare"),
-    F.contaVoce(mondo, con({ coda: "non-letti" }), stelleDi, "coda", "da-chiamare"),
+    F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "coda", "da-chiamare"),
   );
   c(
     "il numero di «Da chiamare» tiene conto degli altri gruppi (consulente Anna)",
@@ -381,8 +380,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     F.GRUPPI_FILTRI.map((g) => g.titolo),
   );
   c(
-    "le 4 voci sempre in vista, in ordine",
-    ["Da rispondere", "Non letti", "Da chiamare", "Con stelle"],
+    "le 3 voci sempre in vista, in ordine (niente «Non letti»)",
+    ["Da rispondere", "Da chiamare", "Con stelle"],
     F.VOCI_GRIGLIA.map((v) => v.nome),
   );
   const nomi = F.GRUPPI_FILTRI.flatMap((g) => g.voci.map((v) => v.nome));
@@ -436,9 +435,10 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
 
   gruppo("FILTRI CHAT: COSA SI RICORDA, E I VALORI SALVATI CHE NON ESISTONO PIÙ");
-  const salvati = con({ coda: "non-letti", fase: NO_SHOW, acconto: true, consulente: "luca" });
+  const salvati = con({ coda: "da-rispondere", fase: NO_SHOW, acconto: true, consulente: "luca" });
   const giro = F.leggiFiltri(F.scriviFiltriSessione(salvati), "luca");
   c("scritti e riletti sono uguali", salvati, giro);
+  c("un «non-letti» salvato da una versione vecchia si ignora", null, F.leggiFiltri(JSON.stringify({ coda: "non-letti" }), null).coda);
   c(
     "il consulente NON sta nella sessione (ha il suo posto, che resta dopo la chiusura)",
     false,
@@ -485,7 +485,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   c(
     "gli altri filtri non cambiano nel controllo del consulente",
-    "non-letti",
+    "da-rispondere",
     F.filtriValidi(salvati, new Set()).coda,
   );
 

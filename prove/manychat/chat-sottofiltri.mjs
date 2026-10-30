@@ -77,7 +77,7 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
   gruppo("CHAT DA CHIAMARE · CABLAGGIO");
   c("pillola «Da chiamare» fra le pillole, col numero", true,
     //  30/10/2026: la pillola è la 3ª cella della griglia 2×2 (VOCI_GRIGLIA, filtri.ts); il suo numero è a faccette.
-    /"da-chiamare"/.test(tipi) && /VOCI_GRIGLIA/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA[2].valore === "da-chiamare" && /contaSottofiltri\(/.test(elenco));
+    /"da-chiamare"/.test(tipi) && /VOCI_GRIGLIA/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA[1].valore === "da-chiamare" && /contaSottofiltri\(/.test(elenco));
   c("la pillola filtra con lo stesso insieme del modulo puro", true, /statoChiamata\(c\) !== null/.test(cerca));
   c("una riga di chip dei sottofiltri solo con la pillola accesa, a zero nascosti", true,
     /filtri\.coda === "da-chiamare"/.test(elenco) && /conti\[x\.v\] > 0/.test(elenco) && /aria-pressed=\{sottoAttivo === x\.v\}/.test(elenco));

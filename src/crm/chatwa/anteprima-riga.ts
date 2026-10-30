@@ -115,7 +115,6 @@ export interface IngressoAnteprima {
   attesa?: { anteprima: string | null } | null;
   /** La riga è in «Da rispondere». */
   inAttesa: boolean;
-  nonLetti: number;
   adesso: number;
   /** Legge un nostro modello («[template:x]») come nella bolla; solo per le uscite. */
   testoUscita?: (body: string | null) => string;
@@ -155,7 +154,7 @@ export function anteprimaRiga(i: IngressoAnteprima): AnteprimaRiga {
     media: media.tipo,
     mio,
     spunte: mio ? spunteDi(ultimo?.status) : null,
-    nonLetto: !mio && media.testo !== "" && (i.nonLetti > 0 || i.inAttesa),
+    nonLetto: !mio && media.testo !== "" && i.inAttesa,
     senzaRisposta: senzaRispostaDa(ultimo, i.inAttesa, i.adesso),
     nessunMessaggio: !ultimo && media.testo === "" && !contatto?.last_message_at,
   };

@@ -740,7 +740,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           msg("x3", "inbound", P1, "tre", -3 * ORA_MS),
         ],
       });
-      c("il pallino conta 3, non 1", [3], [p.api().chats[0].unread]);
+      c("il pallino conta 3, non 1", [3], [p.api().chats[0].contact.unread_count]);
       p.api().apri(P1);
       await p.assesta();
       const u = p.scritture("whatsapp_contacts");
@@ -759,7 +759,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       c(
         "dopo l'apertura i non letti sono 0 ma la chat resta in «Da rispondere»",
         [0, [P1]],
-        [p.api().chats[0].unread, telefoni(p.api().daRispondere)],
+        [p.api().chats[0].contact.unread_count, telefoni(p.api().daRispondere)],
       );
       c(
         "tre timer: controllo dei messaggi nuovi (15 s), battito anti-congelamento (20 s), orologio (30 s)",
@@ -821,7 +821,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       c(
         "un messaggio nuovo a chat aperta si segna letto una volta",
         [1, 0],
-        [q.scritture("whatsapp_contacts").length, q.api().chats[0].unread],
+        [q.scritture("whatsapp_contacts").length, q.api().chats[0].contact.unread_count],
       );
       fine(q);
 
@@ -1657,7 +1657,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       p.db.gate = null;
       apri2();
       await p.assesta();
-      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].unread]);
+      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].contact.unread_count]);
 
       // Errore di lettura: si tengono i dati di prima.
       p.db.erroreLettura = true;
@@ -1935,7 +1935,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         ["m4", 1, "m2"],
         [
           p.api().chats.find((x) => x.phone === P2)?.lastMessage?.id,
-          p.api().chats.find((x) => x.phone === P2)?.unread,
+          p.api().chats.find((x) => x.phone === P2)?.contact?.unread_count,
           p.api().chats.find((x) => x.phone === P1)?.lastMessage?.id,
         ],
       );

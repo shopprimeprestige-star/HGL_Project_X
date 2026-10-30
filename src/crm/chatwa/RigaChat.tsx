@@ -162,7 +162,6 @@ export function RigaChat({
     contatto: c.contact,
     attesa: c.daRispondere,
     inAttesa,
-    nonLetti: c.unread,
     adesso,
     testoUscita: (corpo) => corpoLeggibile(corpo, c.lead?.data, nomeConsulente, c.lead?.id).testo,
   });
@@ -175,7 +174,7 @@ export function RigaChat({
   //  `temperatura` dice solo se c'è la riga del numero; il pallino lo decide TemperaturaRiga.
   const temperatura = !!c.lead && mostraTemperatura(c.lead.data.stato);
   const nessunMessaggio = a.nessunMessaggio;
-  const rigaAnteprima = a.testo !== "" || nessunMessaggio || c.unread > 0;
+  const rigaAnteprima = a.testo !== "" || nessunMessaggio;
 
   return (
     <li
@@ -300,12 +299,6 @@ export function RigaChat({
                   {nessunMessaggio ? "Nessun messaggio" : a.testo}
                 </span>
               </span>
-              {c.unread > 0 && (
-                <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold leading-none text-white">
-                  {c.unread > 99 ? "99+" : c.unread}
-                  <span className="sr-only"> non letti</span>
-                </span>
-              )}
             </span>
           )}
         </span>

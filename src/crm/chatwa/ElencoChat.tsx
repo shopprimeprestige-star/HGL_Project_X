@@ -73,7 +73,7 @@ function useAdesso(): number {
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
  *  ── I FILTRI A GRUPPI (30/10/2026) ──────────────────────────────────────
- *  Quattro pulsanti sempre in vista (Da rispondere · Non letti · Da chiamare · Con stelle) e il
+ *  Quattro pulsanti sempre in vista (Da rispondere · Da chiamare · Con stelle) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
 export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {

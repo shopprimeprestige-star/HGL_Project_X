@@ -7,7 +7,7 @@
  *  Regola unica: **gruppi diversi si sommano (E); dentro un gruppo la scelta è
  *  una sola; «Azzera» toglie tutto.** La ricerca si somma sempre a tutto.
  *
- *   1. Cosa fare adesso   coda (Da rispondere · Non letti · Da chiamare): una sola
+ *   1. Cosa fare adesso   coda (Da rispondere · Da chiamare): una sola
  *                         + stelle (acceso/spento, si combina con tutto)
  *   2. Fase del lead      Attesa WhatsApp · Per ora no · un altro stato: una sola
  *   3. Finestra WhatsApp  Si può scrivere · Finestra chiusa: una sola
@@ -31,7 +31,7 @@ import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
 import { passaFiltro } from "./cercaChat";
 import { STATI_PER_STATO } from "./perStato";
 
-export type CodaChat = "da-rispondere" | "non-letti" | "da-chiamare";
+export type CodaChat = "da-rispondere" | "da-chiamare";
 export type FinestraChat = "aperta" | "chiusa";
 export type TipoContatto = "con-scheda" | "senza-scheda";
 
@@ -101,12 +101,6 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
         valore: "da-rispondere",
         nome: "Da rispondere",
         spiega: "Il cliente ha scritto e nessuno ha ancora risposto.",
-      },
-      {
-        campo: "coda",
-        valore: "non-letti",
-        nome: "Non letti",
-        spiega: "Messaggi che nessuno ha ancora aperto.",
       },
       {
         campo: "coda",
@@ -223,7 +217,6 @@ export const faseValida = (v: unknown): v is string =>
 
 /** «Da rispondere»: l'ultimo messaggio è del cliente (regola unica, vedi `daRispondere` in stato.ts). */
 function passaCoda(c: ChatFiltrabile, coda: CodaChat): boolean {
-  if (coda === "non-letti") return passaFiltro(c, "unread");
   if (coda === "da-chiamare") return passaFiltro(c, "da-chiamare");
   return c.daRispondere?.attesa === true;
 }
@@ -316,7 +309,7 @@ export function etichetteAccese(
 //  browser resta aperta (sessionStorage). Cosa si legge può essere vecchio, rotto o scritto da una
 //  versione diversa: ogni valore che non si riconosce si ignora, senza errori.
 
-const CODE: readonly string[] = ["da-rispondere", "non-letti", "da-chiamare"];
+const CODE: readonly string[] = ["da-rispondere", "da-chiamare"];
 
 /** Gli altri filtri, come stringa per `sessionStorage` (il consulente ha il suo posto). */
 export function scriviFiltriSessione(f: FiltriChat): string {
