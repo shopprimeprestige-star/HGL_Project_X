@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, ListChecks, Loader2, Search, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { combaciaRicerca, ordinaPerStelle } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
 import { RigaChat, type ModoRiga } from "./RigaChat";
+import { PASSO_RIGHE, RIGHE_INIZIALI, tagliaSezioni } from "./finestraLista";
 import { AzioniSelezione, TestataSelezione } from "./BarraSelezione";
 import {
   commuta as commutaScelta,
@@ -92,6 +93,14 @@ const chip = (acceso: boolean) =>
 /** Ogni quanto si rinfrescano «da 25 min» e simili (un solo timer per tutto l'elenco). */
 const RINFRESCO_MS = 30_000;
 
+/** Una funzione con identità fissa che chiama sempre la versione di ADESSO: le righe in memoria
+ *  (`RigaChat` ignora le funzioni nel confronto) non restano mai con una copia vecchia. */
+function useStabile<A extends unknown[], R>(f: (...a: A) => R): (...a: A) => R {
+  const ref = useRef(f);
+  ref.current = f;
+  return useCallback((...a: A) => ref.current(...a), []);
+}
+
 /** L'ora «adesso», aggiornata ogni 30 secondi. */
 function useAdesso(): number {
   const [adesso, setAdesso] = useState(() => Date.now());
@@ -111,8 +120,13 @@ function useAdesso(): number {
  *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
-export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
-  const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva, apri } = api;
+export function ElencoChat({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) {
+  const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva } = api;
+  //  Funzioni stabili: le righe non si ridisegnano se cambia solo la loro identità.
+  const apri = useStabile(api.apri);
+  const onCreaScheda = useStabile(creaSchedaProp);
+  const cambiaStatoLead = useStabile(api.cambiaStatoLead);
+  const creaSchedaConStato = useStabile(api.creaSchedaConStato);
   const adesso = useAdesso();
   const [pannelloAperto, setPannelloAperto] = useState(false);
   //  Le stelle (28/10/2026): ordinano sempre l'elenco, prima le tre; ora sono anche un filtro.
@@ -218,6 +232,9 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
       da un filtro cambiato dopo. Le regole stanno in selezione.ts. */
   const [inSel, setInSel] = useState(false);
   const [scelte, setScelte] = useState<Set<string>>(() => new Set());
+  //  Le righe in memoria non rivedono `scelte`: il tocco legge sempre quella di adesso.
+  const scelteRef = useRef(scelte);
+  scelteRef.current = scelte;
   const [inCorso, setInCorso] = useState<AzioneBlocco | null>(null);
   const blocco = api.inBlocco;
   const mostrate = senzaDoppioni(
@@ -225,6 +242,39 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
       ? elencoDaChiamare
       : [...senzaSchedaCon, ...inScadenza, ...inAttesa, ...altre],
   );
+  //  ── SI DISEGNANO LE PRIME RIGHE (p1-chat-veloce, 30/10/2026) ─────────────────
+  //  Con 2.000+ chat le righe nella pagina erano 95.000 nodi: ora ne bastano 40, e altre 40 a ogni
+  //  discesa verso il fondo. I numeri, «Seleziona tutto» e `mostrate` restano sugli elenchi interi.
+  const [visti, setVisti] = useState(RIGHE_INIZIALI);
+  const chiaveVista = JSON.stringify([filtri, ricerca, sottoAttivo, quandoAttivo]);
+  const [chiavePrec, setChiavePrec] = useState(chiaveVista);
+  if (chiavePrec !== chiaveVista) {
+    setChiavePrec(chiaveVista);
+    setVisti(RIGHE_INIZIALI);
+  }
+  const [senzaSchedaVis, tutteVis] = tagliaSezioni(visti, senzaSchedaCon, elencoTutte);
+  const [inScadenzaVis, inAttesaVis, altreVis] = tagliaSezioni(visti, inScadenza, inAttesa, altre);
+  const elencoDaChiamareVis = elencoDaChiamare.slice(0, visti);
+  const fondoRef = useRef<HTMLDivElement>(null);
+  const daDisegnare = mostrate.length;
+  useEffect(() => {
+    const fondo = fondoRef.current;
+    if (!fondo || visti >= daDisegnare) return;
+    //  shortcut: senza IntersectionObserver (browser molto vecchi) si disegna tutto come prima.
+    if (typeof IntersectionObserver === "undefined") {
+      setVisti(daDisegnare);
+      return;
+    }
+    const o = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setVisti((v) => v + PASSO_RIGHE);
+      },
+      { root: fondo.parentElement, rootMargin: "800px" },
+    );
+    o.observe(fondo);
+    return () => o.disconnect();
+  }, [visti, daDisegnare]);
+
   const scelteVisibili = inSel ? soloVisibili(scelte, mostrate) : [];
   const esciDallaSelezione = () => {
     setInSel(false);
@@ -356,8 +406,8 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
       onCreaScheda={() => onCreaScheda(c)}
       stelle={stelleDi(c.phone)}
       onStelle={() => cambiaStelle(c.phone)}
-      onCambiaStato={(lead, stato) => void api.cambiaStatoLead(lead, stato)}
-      onCreaSchedaConStato={(stato) => void api.creaSchedaConStato(c, stato)}
+      onCambiaStato={(lead, stato) => void cambiaStatoLead(lead, stato)}
+      onCreaSchedaConStato={(stato) => void creaSchedaConStato(c, stato)}
       selezione={
         blocco
           ? {
@@ -368,7 +418,7 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
                 setScelte(new Set([c.phone]));
               },
               onTocca: () => {
-                const nuove = commutaScelta(scelte, c.phone);
+                const nuove = commutaScelta(scelteRef.current, c.phone);
                 if (nuove.size === 0) esciDallaSelezione();
                 else setScelte(nuove);
               },
@@ -624,7 +674,7 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
             vuoto
           ) : (
             <ul aria-label="Chat da chiamare, per stato">
-              {elencoDaChiamare.map((c) => riga(c, "normale", true))}
+              {elencoDaChiamareVis.map((c) => riga(c, "normale", true))}
             </ul>
           )
         ) : tutte ? (
@@ -641,13 +691,13 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
                   </span>
                 </h2>
                 <ul>
-                  {senzaSchedaCon.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+                  {senzaSchedaVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
                 </ul>
               </section>
             )}
             <ul aria-label="Tutte le chat, dall'ultimo messaggio">
               {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
-              {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+              {tutteVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
             </ul>
           </>
         ) : (
@@ -661,7 +711,7 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
                   Finestra in chiusura ({inScadenza.length}) · scrivi ora, è gratis
                 </h2>
                 <ul>
-                  {inScadenza.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+                  {inScadenzaVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
                 </ul>
               </section>
             )}
@@ -695,7 +745,7 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
                       : "Nessuno aspetta una risposta"}
                 </p>
               ) : (
-                <ul>{inAttesa.map((c) => riga(c, "attesa"))}</ul>
+                <ul>{inAttesaVis.map((c) => riga(c, "attesa"))}</ul>
               )}
             </section>
 
@@ -707,11 +757,12 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
                 >
                   {filtri.stelle ? "Con stelle" : "Altre chat"}
                 </h2>
-                <ul>{altre.map((c) => riga(c, "normale"))}</ul>
+                <ul>{altreVis.map((c) => riga(c, "normale"))}</ul>
               </section>
             )}
           </>
         )}
+        {visti < daDisegnare && <div ref={fondoRef} aria-hidden="true" className="h-px" />}
       </div>
       {inSel && (
         <AzioniSelezione

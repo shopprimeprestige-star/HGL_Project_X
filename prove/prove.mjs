@@ -54,6 +54,7 @@ import {
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
+import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
@@ -680,6 +681,9 @@ const MODULI = [
   //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
   //   prove in prove/idee/ordine-whatsapp.mjs.
   "chatwa/ordineWhatsapp",
+  //  La chat veloce (commessa 2026-10-30-chat-veloce): prove in prove/idee/chat-veloce.mjs.
+  "chatwa/costruisciChat",
+  "chatwa/finestraLista",
   "chatwa/testoWhatsapp",
   //  L'anteprima della riga = l'ULTIMO messaggio, chi l'ha scritto e «senza risposta»
   //   (commessa 2026-10-30-wa-anteprima-ultimo): vedi proveDellAnteprimaUltimo.
@@ -20910,7 +20914,10 @@ function proveDelDaChiamare() {
   c("senza scheda: no", false, D.calcolaDaChiamare({ dati: null, messaggi: [], adesso }).si);
   c("numeri della scheda nel formato delle chat", ["+393331234567", "+393331234567", "+393331234567", "+447700900123", ""],
     ["333 123 4567", "+39 333 1234567", "0039 3331234567", "+44 7700 900123", "123"].map(D.telefonoE164));
-  const hook = readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8");
+  //  Il calcolo dell'elenco sta in costruisciChat.ts dal 30/10 (p1-chat-veloce): hook + funzione.
+  const hook =
+    readFileSync(join(radice, "src/crm/chatwa/useChatWa.ts"), "utf8") +
+    readFileSync(join(radice, "src/crm/chatwa/costruisciChat.ts"), "utf8");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
@@ -21416,6 +21423,7 @@ await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
+proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 
