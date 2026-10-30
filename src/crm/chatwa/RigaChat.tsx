@@ -654,7 +654,10 @@ const stesseProps = (a: RigaChatProps, b: RigaChatProps): boolean => {
   for (const k of Object.keys(b) as (keyof RigaChatProps)[]) {
     if (typeof b[k] === "function") continue;
     if (k === "selezione") {
-      if (a.selezione?.attiva !== b.selezione?.attiva || a.selezione?.scelta !== b.selezione?.scelta)
+      if (
+        a.selezione?.attiva !== b.selezione?.attiva ||
+        a.selezione?.scelta !== b.selezione?.scelta
+      )
         return false;
       if (Boolean(a.selezione) !== Boolean(b.selezione)) return false;
     } else if (a[k] !== b[k]) return false;

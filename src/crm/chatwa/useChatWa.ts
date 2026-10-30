@@ -486,15 +486,27 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     //  ── UNA RAFFICA DI EVENTI È UNA LETTURA SOLA (p1-chat-veloce, 30/10/2026) ──
     //  Ogni evento (e ogni messaggio ne fa due: riga e contatto) lanciava una lettura e un ridisegno
     //  completo: 30 messaggi in 3 secondi = 68 richieste e quasi un secondo di blocco ciascuno sul telefono.
-    //  Ora gli eventi si raggruppano: la lettura parte al massimo ogni `RAGGRUPPA_EVENTI_MS`, la prima
-    //  dopo un quarto di secondo (sul telefono non si nota). Canale, controllo e ritorno non aspettano.
+    //  Ora: un evento dopo una pausa legge SUBITO; gli altri entro `RAGGRUPPA_EVENTI_MS` si raggruppano
+    //  in una lettura sola, alla fine dell'intervallo. Canale, controllo e ritorno non aspettano.
     let timerEventi: ReturnType<typeof setTimeout> | null = null;
+    let ultimaPerEvento = 0;
     const alEvento = () => {
+      const passato = Date.now() - ultimaPerEvento;
+      //  Passato l'intervallo (o l'orologio è tornato indietro, o il timer è rimasto fermo con la pagina
+      //  congelata): si legge adesso.
+      if (passato < 0 || passato >= RAGGRUPPA_EVENTI_MS) {
+        if (timerEventi) clearTimeout(timerEventi);
+        timerEventi = null;
+        ultimaPerEvento = Date.now();
+        void ricarica();
+        return;
+      }
       if (timerEventi) return;
       timerEventi = setTimeout(() => {
         timerEventi = null;
+        ultimaPerEvento = Date.now();
         if (vivo) void ricarica();
-      }, RAGGRUPPA_EVENTI_MS);
+      }, RAGGRUPPA_EVENTI_MS - passato);
     };
     //  Una riga cancellata si toglie subito dalla pagina (la lettura a pezzi non la vedrebbe).
     const cancellata = (t: "whatsapp_messages" | "whatsapp_contacts", e: EventoDb) => {
