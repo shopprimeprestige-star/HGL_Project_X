@@ -59,6 +59,7 @@ import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-g
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
+import { Route as HooksControlloNotteRouteImport } from './routes/hooks/controllo-notte'
 import { Route as HooksAttesaDaChiamareRouteImport } from './routes/hooks/attesa-da-chiamare'
 import { Route as ConsulenteRegistratiRouteImport } from './routes/consulente.registrati'
 import { Route as ConsulenteLeadsRouteImport } from './routes/consulente.leads'
@@ -459,6 +460,11 @@ const HooksDiagnosticDriftRoute = HooksDiagnosticDriftRouteImport.update({
 const HooksCronHistoryRoute = HooksCronHistoryRouteImport.update({
   id: '/hooks/cron-history',
   path: '/hooks/cron-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksControlloNotteRoute = HooksControlloNotteRouteImport.update({
+  id: '/hooks/controllo-notte',
+  path: '/hooks/controllo-notte',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksAttesaDaChiamareRoute = HooksAttesaDaChiamareRouteImport.update({
@@ -1294,6 +1300,7 @@ export interface FileRoutesByFullPath {
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
+  '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
@@ -1491,6 +1498,7 @@ export interface FileRoutesByTo {
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
+  '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
@@ -1694,6 +1702,7 @@ export interface FileRoutesById {
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
+  '/hooks/controllo-notte': typeof HooksControlloNotteRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
@@ -1898,6 +1907,7 @@ export interface FileRouteTypes {
     | '/consulente/leads'
     | '/consulente/registrati'
     | '/hooks/attesa-da-chiamare'
+    | '/hooks/controllo-notte'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
@@ -2095,6 +2105,7 @@ export interface FileRouteTypes {
     | '/consulente/leads'
     | '/consulente/registrati'
     | '/hooks/attesa-da-chiamare'
+    | '/hooks/controllo-notte'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
@@ -2297,6 +2308,7 @@ export interface FileRouteTypes {
     | '/consulente/leads'
     | '/consulente/registrati'
     | '/hooks/attesa-da-chiamare'
+    | '/hooks/controllo-notte'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
@@ -2466,6 +2478,7 @@ export interface RootRouteChildren {
   ApiWhatsappTemplatesRoute: typeof ApiWhatsappTemplatesRoute
   BlogSlugRoute: typeof BlogSlugRoute
   HooksAttesaDaChiamareRoute: typeof HooksAttesaDaChiamareRoute
+  HooksControlloNotteRoute: typeof HooksControlloNotteRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
@@ -2941,6 +2954,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/cron-history'
       fullPath: '/hooks/cron-history'
       preLoaderRoute: typeof HooksCronHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/controllo-notte': {
+      id: '/hooks/controllo-notte'
+      path: '/hooks/controllo-notte'
+      fullPath: '/hooks/controllo-notte'
+      preLoaderRoute: typeof HooksControlloNotteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/attesa-da-chiamare': {
@@ -4173,6 +4193,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappTemplatesRoute: ApiWhatsappTemplatesRoute,
   BlogSlugRoute: BlogSlugRoute,
   HooksAttesaDaChiamareRoute: HooksAttesaDaChiamareRoute,
+  HooksControlloNotteRoute: HooksControlloNotteRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
