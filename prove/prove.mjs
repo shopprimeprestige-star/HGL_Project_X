@@ -32,6 +32,7 @@ import { proveDelPonte } from "./ponte.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
+import { proveIdeeDafare } from "./idee/dafare.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -161,6 +162,9 @@ const MODULI = [
   "whatsapp",
   //  Le righe della pagina «Da fare oggi»: vedi proveDelleRigheDaFare.
   "dafare/righe",
+  //  Chi non ha confermato la consulenza di oggi, in cima a «Da fare oggi»
+  //   (idea 2, commessa 2026-10-30): prove in prove/idee/dafare.mjs.
+  "dafare/senza-conferma",
   //  ⚠️ La tabella del gesto successivo per stato: vedi proveDelGestoPerStato.
   "ui",
   //  ⚠️ Il testo con cui si chiede l'immagine della prova capelli: vedi
@@ -646,7 +650,7 @@ for (const m of MODULI) {
           ? `src/crm/${m}.tsx`
         //  `dafare/agenda-task` è l'eccezione dichiarata: un .ts puro dentro
         //  la cartella della pagina, perché non tocca niente di React.
-        : m === "dafare/agenda-task" || m === "dafare/di-chi" || m === "preventivi/duplica" || m === "preventivi/dati"
+        : m === "dafare/agenda-task" || m === "dafare/di-chi" || m === "dafare/senza-conferma" || m === "preventivi/duplica" || m === "preventivi/dati"
           ? `src/crm/${m}.ts`
         //  `dafare/righe` è un .tsx: costruisce righe, non disegna niente, ma
         //  vive nella cartella della pagina e ne segue l'estensione.
@@ -21051,6 +21055,7 @@ proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
+proveIdeeDafare(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

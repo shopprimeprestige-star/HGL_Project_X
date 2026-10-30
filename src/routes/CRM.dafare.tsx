@@ -415,7 +415,8 @@ function DaFareOggiPage() {
       if (nuova.ok) setTask(nuova.lista);
       const t = esito.task;
       if (esito.bloccata) toast.success(`Salvata, e l'agenda è bloccata dalle ${t?.ora}`);
-      else if (t && t.data !== oggi) toast.success(`Salvata per ${quandoInChiaro(t.data, t.ora || "")}`);
+      else if (t && t.data !== oggi)
+        toast.success(`Salvata per ${quandoInChiaro(t.data, t.ora || "")}`);
       setFinestraAperta(false);
     },
     [consulente, user, oggi],
@@ -518,10 +519,7 @@ function DaFareOggiPage() {
    *  le cose scritte a mano, che una scheda non ce l'hanno — chi l'ha scritta. */
   const diChi = useCallback((r: RigaDaFare) => rigaDiChi(r), []);
 
-  const passaChi = useCallback(
-    (r: RigaDaFare) => rigaPassaChi(r, chi, mestieri),
-    [chi, mestieri],
-  );
+  const passaChi = useCallback((r: RigaDaFare) => rigaPassaChi(r, chi, mestieri), [chi, mestieri]);
 
   /** ── QUANTE NE HA CIASCUNO ──────────────────────────────────────────────
    *  Il numero su ogni tessera del filtro. Si calcola con gli ALTRI filtri
@@ -564,7 +562,14 @@ function DaFareOggiPage() {
     let prossimi = 0;
     let mie = 0;
     for (const { riga, fascia } of conFascia) {
-      if (riga.tipo === "task" && !!io && !!riga.task && padroneDelTask(riga.task) === io && !riga.fatta) mie += 1;
+      if (
+        riga.tipo === "task" &&
+        !!io &&
+        !!riga.task &&
+        padroneDelTask(riga.task) === io &&
+        !riga.fatta
+      )
+        mie += 1;
       if (riga.fatta || !passaTipo(riga) || !passaMie(riga) || !passaChi(riga)) continue;
       if (fascia === "arretrato") arretrato += 1;
       if (fascia === "piuAvanti") prossimi += 1;
@@ -1330,11 +1335,13 @@ function DaFareOggiPage() {
         oggi={oggi}
         adesso={adesso}
         persone={personeFiltro}
-        io={consulente?.id
-          ? { id: consulente.id, nome: consulente.nome || "Io" }
-          : user?.id
-            ? { id: user.id, nome: user.email || "Io" }
-            : undefined}
+        io={
+          consulente?.id
+            ? { id: consulente.id, nome: consulente.nome || "Io" }
+            : user?.id
+              ? { id: user.id, nome: user.email || "Io" }
+              : undefined
+        }
         leads={leads}
         salvando={salvando}
         onCrea={(campi) => void creaConDettagli(campi)}
@@ -1398,7 +1405,11 @@ function DaFareOggiPage() {
                   //  comando. Basta che le tre smettano di combaciare perché un
                   //  mucchio si tinga di rosso e non si possa girare.
                   urgenza={
-                    f === "adesso" ? "oggi" : FASCE_ARRETRATE.includes(f) ? "ritardo" : "info"
+                    f === "adesso" || f === "daSentire"
+                      ? "oggi"
+                      : FASCE_ARRETRATE.includes(f)
+                        ? "ritardo"
+                        : "info"
                   }
                   titolo={`${daFare} da fare in questo gruppo`}
                 />
@@ -1424,7 +1435,7 @@ function DaFareOggiPage() {
                   ogni scatto dell'orologio. */}
               <ul
                 className="flex flex-col gap-1.5 p-2"
-                aria-live={f === "adesso" ? "polite" : undefined}
+                aria-live={f === "adesso" || f === "daSentire" ? "polite" : undefined}
               >
                 {mostrate.map((r) => (
                   <VoceDaFare
