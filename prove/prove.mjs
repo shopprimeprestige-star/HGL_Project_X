@@ -29,6 +29,7 @@ import { proveManychat } from "./manychat.mjs";
 import { proveProvaModelli } from "./prova-modelli.mjs";
 import { proveSheets } from "./sheets.mjs";
 import { proveDelPonte } from "./ponte.mjs";
+import { proveRiepilogoSerale } from "./idee/serale.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 
@@ -484,6 +485,8 @@ const MODULI = [
   //  ⚠️ Le notifiche push dei messaggi WhatsApp: vedi proveDelleNotifichePush.
   "push/webpush",
   "push/avviso",
+  //  Il riepilogo della sera (idea 10, 30/10/2026): prove in prove/idee/serale.mjs.
+  "push/riepilogo",
   //  ⚠️ Orari rapidi e stelle nella chat WhatsApp: vedi proveDiWhatsappOrariStelle.
   "wa-orari",
   //  ⚠️ Il modello inviato come lo legge il cliente: vedi proveDelTestoDeiModelli.
@@ -21033,6 +21036,7 @@ proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
+await proveRiepilogoSerale(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21297,7 +21301,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
