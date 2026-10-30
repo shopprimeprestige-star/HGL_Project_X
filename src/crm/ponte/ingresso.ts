@@ -284,12 +284,52 @@ async function chiaviNostre(
   }
 }
 
+// ── La notifica sul telefono (commessa 2026-10-30, p2-push-risposte) ─────
+
+/** Un numero che ha scritto, da avvisare: cifre e nome del profilo WhatsApp. */
+export interface EntrataDaAvvisare {
+  numero: string;
+  nome: string | null;
+}
+
+/** Chi spedisce le notifiche (la rotta passa `avvisaEntratePonte`). */
+export type AvvisaEntrate = (userId: string, entrate: EntrataDaAvvisare[]) => Promise<void>;
+
+/** Numeri avvisati al più per lotto: ogni avviso costa qualche richiesta al
+ *  database e ai servizi push, e il Worker ne ha un tetto.
+ *  shortcut: tetto fisso, basta finché un lotto vivo porta pochi numeri (il
+ *  ponte li manda ogni 30 s); se il Mac recupera ore di messaggi dopo il
+ *  sonno, quelli oltre il decimo numero non suonano (sono comunque in chat). */
+export const AVVISI_PER_LOTTO = 10;
+
+/** I numeri da avvisare dopo la scrittura: solo un lotto `vivo` (mai lo
+ *  storico), solo entrate, solo senza pari (il pari è lo stesso messaggio già
+ *  arrivato da ManyChat o Meta, che ha già avvisato), e solo se qualcosa è
+ *  stato scritto adesso (un lotto rimandato dà `nuovi: 0`).
+ *  shortcut: `ponte_wa_scrivi` dà solo i conteggi, non quali righe sono nuove;
+ *  in un lotto in parte nuovo e in parte già presente si avvisa per tutte le
+ *  entrate senza pari (la porta dei 180 s toglie le ripetizioni vicine). Se
+ *  servisse esatto, far restituire all'SQL le chiavi inserite. */
+function entrateDaAvvisare(
+  l: LottoLetto,
+  righe: RigaScrittura[],
+  conPari: Set<string>,
+  nuovi: number,
+): EntrataDaAvvisare[] {
+  if (l.origine !== "vivo" || nuovi <= 0) return [];
+  const numeri = new Set(righe.filter((r) => r.d === "in" && !conPari.has(r.k)).map((r) => r.n));
+  return [...numeri]
+    .slice(0, AVVISI_PER_LOTTO)
+    .map((numero) => ({ numero, nome: l.nomi[numero] ?? null }));
+}
+
 async function giroLotto(
   porte: PortePonte,
   userId: string,
   letto: LottoLetto,
   adesso: Date,
   invii?: PorteInvio,
+  avvisa?: AvvisaEntrate,
 ): Promise<RispostaLotto> {
   //  Le uscite che il CRM ha già scritto con l'esito (stessa chiave): non si
   //  riscrivono e non si abbinano a un modello vicino (D7). Contano come già presenti.
@@ -363,6 +403,16 @@ async function giroLotto(
   esito.doppioni = scritto.doppioni;
   if (scritto.pari_persi > 0) porte.avviso("pari_persi", { n: scritto.pari_persi });
   if (l.origine === "vivo") await riconciliaSenzaErrori(porte, userId, adesso, invii);
+  //  Per ultima: il lotto è già scritto, una notifica guasta non lo fa
+  //  ritentare (la risposta al Mac resta 200).
+  const entrate = entrateDaAvvisare(l, righe, conPari, scritto.nuovi);
+  if (avvisa && entrate.length) {
+    try {
+      await avvisa(userId, entrate);
+    } catch {
+      /* la notifica è un di più: il messaggio è in chat */
+    }
+  }
   return esito;
 }
 
@@ -372,7 +422,13 @@ async function giroLotto(
  *  ritenta: è sicuro, per l'idempotenza), 200 con i conteggi. */
 export async function gestisciRichiesta(
   porte: PortePonte,
-  i: { request: Request; segreto: string | undefined; adesso: Date; invii?: PorteInvio },
+  i: {
+    request: Request;
+    segreto: string | undefined;
+    adesso: Date;
+    invii?: PorteInvio;
+    avvisa?: AvvisaEntrate;
+  },
 ): Promise<Response> {
   if (!i.segreto) {
     porte.avviso("non_configurato");
@@ -415,7 +471,7 @@ export async function gestisciRichiesta(
     }
     if (invio) return await gestisciPonte(i.invii!, userId, json, i.adesso);
     if (lotto) {
-      const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii);
+      const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii, i.avvisa);
       porte.avviso("lotto", {
         ricevuti: esito.ricevuti,
         nuovi: esito.nuovi,
