@@ -14,9 +14,11 @@
  *  ⚠️ «DA SENTIRE» = consulenze di domani NON confermate (`statoConferma`):
  *   anche quelle senza messaggio partito, perché a quelle nessuno ha chiesto
  *   niente. Quindi confermate + da sentire = consulenze.
- *  ⚠️ «CHAT SENZA RISPOSTA» = come «Da rispondere» della chat: l'ultimo
- *   messaggio è del cliente (`ultimo_in_entrata_il` dopo `risposto_il`), ed è
- *   di meno di 24 ore fa.
+ *  ⚠️ «CHAT SENZA RISPOSTA»: l'ultimo messaggio è del cliente
+ *   (`ultimo_in_entrata_il` dopo `risposto_il`) ed è di meno di 24 ore fa.
+ *   NON è «Da rispondere» della chat, che non ha limite di età: qui contano
+ *   solo quelle a cui si può ancora rispondere gratis, quindi il numero può
+ *   essere più basso.
  *  ⚠️ Toccando la notifica si apre /CRM/whatsapp: è lì che si risponde e si
  *   scrive a chi non ha confermato. «Da fare oggi» alle 20 racconta la
  *   giornata che finisce, non quella di domani.
@@ -142,9 +144,8 @@ export type EsitoGiro =
 /** Il giro della sera. Fuori dalle 20:00-20:59 di Roma non fa niente; il segno
  *  del giorno si scrive PRIMA di spedire: un errore dopo non fa mandare due
  *  riepiloghi, un errore prima (lettura) non brucia la serata.
- *  shortcut: due giri nello stesso istante possono mandare due volte (il segno
- *  non è atomico); il cron suona una volta per ora UTC, quindi non succede da
- *  solo. Da cambiare con un UPDATE condizionato se si aggiungono altri chiamanti. */
+ *  Il segno è ATOMICO (`scriviUltimo`, 30/10): due giri nello stesso istante
+ *  ne fanno partire uno solo. */
 export async function giroRiepilogo(porte: PorteRiepilogo, adesso: Date): Promise<EsitoGiro> {
   if (!eOraDelRiepilogo(adesso)) return { fatto: false, motivo: "fuori_orario" };
   const oggi = aRoma(adesso).giorno;

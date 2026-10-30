@@ -76,7 +76,11 @@ export function testoPerWhatsapp(
     giorno: giornoPerMessaggio(String(dati.dataMeeting), aRoma(adesso).giorno),
     ora: oraNormale(dati.oraMeeting),
     link: dati.linkMeeting,
-  }).trim();
+  })
+    //  Senza nome «{nome}, fra poco…» diventerebbe «, fra poco…» (revisione 30/10).
+    .replace(/^[\s,]+/, "")
+    .trim()
+    .replace(/^\p{Ll}/u, (l) => l.toUpperCase());
   //  Un segnaposto rimasto ({link}, {ora_richiamo}, {indirizzo}…) o un testo troppo lungo: niente.
   if (/\{[^{}]*\}/.test(testo) || testo.length > MAX_CARATTERI_TESTO) return "";
   return testo;

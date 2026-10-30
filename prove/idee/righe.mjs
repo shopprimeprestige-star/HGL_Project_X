@@ -373,6 +373,13 @@ export function proveIdeeRighe(mod, { c, gruppo, radice }) {
     fra.includes("Il link è questo: https://meet.example/abc") && fra.includes("alle 15:00"),
   );
   c(
+    "senza nome da nessuna parte il testo non comincia con la virgola (revisione 30/10)",
+    true,
+    /^Fra poco/.test(
+      T.testoPerWhatsapp(chatDi(scheda({ nome: "", linkMeeting: "https://meet.example/abc" })), "Giulia", quasi(20)),
+    ),
+  );
+  c(
     "nessun segnaposto rimasto nei testi buoni",
     [false, false, false],
     [oggi, dom, fra].map((t) => /\{[^{}]*\}/.test(t)),
