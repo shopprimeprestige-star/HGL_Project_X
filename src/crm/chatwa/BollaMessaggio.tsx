@@ -3,13 +3,17 @@ import {
   AlertCircle,
   Check,
   CheckCheck,
+  Clock,
   ExternalLink,
   ImageIcon,
   Loader2,
   Pause,
   Play,
+  RotateCcw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { FRASE_CONFERMA_INCERTO } from "../ponte/invio";
 import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
@@ -363,20 +367,99 @@ function ModelloLeggibile({
   );
 }
 
+/*  ── LA BOLLA DELLA CODA: «SCRIVI DAL TELEFONO» (30/10/2026) ──────────────
+    Commessa 2026-10-30-ponte-invio-manuale. Un messaggio messo in coda dal CRM
+    e non ancora (o mai) arrivato come riga vera: stessa bolla verde delle
+    nostre uscite, col suo stato scritto a parole (il significato non sta nel
+    solo colore) e, se non è partito, il tasto «Riprova» da 44 px. Se l'esito è
+    incerto il messaggio potrebbe essere già partito: prima di riprovare si
+    chiede conferma, con la frase unica del piano. Il testo resta un nodo di
+    testo, mai HTML. */
+
+/** «Questo cliente…» → «questo cliente…»: la frase segue «Non inviato: ». */
+const inMinuscolo = (frase: string) => frase.charAt(0).toLowerCase() + frase.slice(1);
+
+/** Lo stato sotto il testo: in volo, oppure «Non inviato» col motivo e il riprova. */
+function StatoCoda({ coda }: { coda: NonNullable<BollaProps["coda"]> }) {
+  //  Per un invio incerto il tasto chiede prima conferma (il messaggio potrebbe essere già partito).
+  const [chiedi, setChiedi] = useState(false);
+  if (coda.fase === "in_attesa" || coda.fase === "in_invio") {
+    return (
+      <p
+        role="status"
+        className="mt-1 flex items-center gap-1.5 text-[12px] leading-4 text-[#54656f]"
+      >
+        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        In invio dal telefono…
+      </p>
+    );
+  }
+  if (coda.fase !== "non_inviato") return null;
+  return (
+    <div role="status" className="mt-1.5 flex flex-col gap-1.5 border-t border-black/10 pt-1.5">
+      <p className="flex items-start gap-1.5 text-[12.5px] leading-snug text-rose-800">
+        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+        {coda.incerto ? coda.frase : `Non inviato: ${inMinuscolo(coda.frase)}`}
+      </p>
+      {coda.puoRiprovare &&
+        (chiedi ? (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[12.5px] leading-snug">{FRASE_CONFERMA_INCERTO}</p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setChiedi(false);
+                  coda.onRiprova();
+                }}
+                className="min-h-11 flex-1 gap-1.5 bg-white/70 text-[13px]"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden />
+                Sì, riprova
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setChiedi(false)}
+                className="min-h-11 flex-1 text-[13px]"
+              >
+                No
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => (coda.incerto ? setChiedi(true) : coda.onRiprova())}
+            className="min-h-11 gap-1.5 self-start bg-white/70 text-[13px]"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden />
+            Riprova
+          </Button>
+        ))}
+    </div>
+  );
+}
+
 /** Una bolla di messaggio, stile WhatsApp: uscita verde chiaro, entrata bianca,
  *  angolo «a punta» solo sulla prima di una serie dello stesso lato (`attaccata`:
  *  la decide la conversazione, vedi `attaccataAllaPrecedente` in ./stile). */
 export function BollaMessaggio({
   messaggio: m,
   lead,
+  coda,
   attaccata = false,
 }: BollaProps & { attaccata?: boolean }) {
   const fromMe = m.direction === "outbound";
   const { consultants } = useCRM();
   const c = fromMe ? null : classificaTesto(m.body ?? "");
   //  Testo (anche illeggibile o link non riconosciuto) e vocale: l'ora si posa sull'ultima riga.
-  const oraSopra =
-    !c || c.tipo === "testo" || c.tipo === "illeggibile" || c.tipo === "audio" || !c.url;
+  //  La bolla della coda ha lo stato sotto il testo: l'ora sta sotto lo stato (solo «inviato» la tiene sopra).
+  const oraSopra = coda
+    ? coda.fase === "inviato"
+    : !c || c.tipo === "testo" || c.tipo === "illeggibile" || c.tipo === "audio" || !c.url;
   return (
     <div
       className={cn(
@@ -388,7 +471,12 @@ export function BollaMessaggio({
           : cn("self-start bg-white", !attaccata && "rounded-tl-none"),
       )}
     >
-      {fromMe ? (
+      {coda ? (
+        <>
+          <p className={cn(TESTO, coda.fase === "inviato" && spazioOra(true))}>{coda.testo}</p>
+          <StatoCoda coda={coda} />
+        </>
+      ) : fromMe ? (
         <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
       ) : (
         <Contenuto messaggio={m} c={c} />
@@ -400,16 +488,17 @@ export function BollaMessaggio({
         )}
       >
         <span>{ora(m.created_at)}</span>
-        {fromMe && m.status === "read" && (
+        {coda?.fase === "inviato" && <Check className="h-4 w-4" aria-label="Inviato" />}
+        {!coda && fromMe && m.status === "read" && (
           <CheckCheck className="h-4 w-4 text-sky-600" aria-label="Letto" />
         )}
-        {fromMe && m.status === "delivered" && (
+        {!coda && fromMe && m.status === "delivered" && (
           <CheckCheck className="h-4 w-4" aria-label="Consegnato" />
         )}
-        {fromMe && (m.status === "sent" || m.status === "queued") && (
+        {!coda && fromMe && (m.status === "sent" || m.status === "queued") && (
           <Check className="h-4 w-4" aria-label="Inviato" />
         )}
-        {fromMe && m.status === "failed" && (
+        {!coda && fromMe && m.status === "failed" && (
           <AlertCircle
             className="h-4 w-4 text-rose-600"
             aria-label={m.error_message ? `Non inviato: ${m.error_message}` : "Non inviato"}

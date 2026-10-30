@@ -19,8 +19,20 @@
  *   conta in `fuori_rubrica`.
  *  ⚠️ Nei log solo `porte.avviso(codice, contatori)`: mai numeri, nomi, testi,
  *   id. Niente `console` in questo file.
+ *
+ *  Invio a mano (commessa 2026-10-30-ponte-invio-manuale, T5). Se la richiesta
+ *  porta `invii` (le `PorteInvio`):
+ *   · `tipo` `prendi` ed `esito` vanno a `gestisciPonte` (`invio-giro.ts`);
+ *   · il battito risponde anche `invii_in_attesa` (solo se > 0: a coda vuota
+ *     la risposta è IDENTICA a quella di prima);
+ *   · un lotto non riscrive né abbina i messaggi che sono già nostri invii.
+ *  ⚠️ Le porte `inviatiDalCrm` e `inAttesa` NON LANCIANO MAI: con la migrazione
+ *   non applicata il ponte già online importa e batte come prima. Senza
+ *   `invii` questo file si comporta esattamente come prima.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { leggiCorpoLimitato, stessaChiave } from "../manychat/ritorno";
+import { gestisciPonte } from "./invio-giro";
+import type { PorteInvio } from "./invio-tipi";
 import { abbinaPari } from "./pari";
 import {
   EFFETTO_MAX_GIORNI,
@@ -211,11 +223,23 @@ function funzioniAssenti(e: unknown): boolean {
 /** Il controllo tardivo (§c1.8): le righe del ponte dell'ultima ora ancora
  *  senza pari, i candidati di adesso, e si scrivono solo i pari. Restituisce
  *  quanti ne ha scritti. */
-async function riconcilia(porte: PortePonte, userId: string, adesso: Date): Promise<number> {
-  const righe = await porte.recentiDelPonte(
+async function riconcilia(
+  porte: PortePonte,
+  userId: string,
+  adesso: Date,
+  invii?: PorteInvio,
+): Promise<number> {
+  const tutte = await porte.recentiDelPonte(
     userId,
     new Date(adesso.getTime() - RICONCILIA_MINUTI * 60e3),
   );
+  //  I nostri invii non si abbinano mai a una riga di ManyChat (D7).
+  const nostre = await chiaviNostre(
+    invii,
+    userId,
+    tutte.filter((r) => r.d === "out").map((r) => r.k),
+  );
+  const righe = nostre.size ? tutte.filter((r) => !nostre.has(r.k)) : tutte;
   if (righe.length === 0) return 0;
   const candidati = await porte.candidati(
     userId,
@@ -235,21 +259,51 @@ async function riconciliaSenzaErrori(
   porte: PortePonte,
   userId: string,
   adesso: Date,
+  invii?: PorteInvio,
 ): Promise<number> {
   try {
-    return await riconcilia(porte, userId, adesso);
+    return await riconcilia(porte, userId, adesso, invii);
   } catch (e) {
     porte.avviso(funzioniAssenti(e) ? "funzioni_assenti" : "database");
     return 0;
   }
 }
 
+/** Delle `chiavi` (`bw:<numero>:<id>`), quelle che sono invii fatti dal CRM.
+ *  La porta non lancia mai; per sicurezza un'eccezione vale «nessuna». */
+async function chiaviNostre(
+  invii: PorteInvio | undefined,
+  userId: string,
+  chiavi: string[],
+): Promise<Set<string>> {
+  if (!invii || chiavi.length === 0) return new Set();
+  try {
+    return new Set(await invii.inviatiDalCrm(userId, chiavi));
+  } catch {
+    return new Set();
+  }
+}
+
 async function giroLotto(
   porte: PortePonte,
   userId: string,
-  l: LottoLetto,
+  letto: LottoLetto,
   adesso: Date,
+  invii?: PorteInvio,
 ): Promise<RispostaLotto> {
+  //  Le uscite che il CRM ha già scritto con l'esito (stessa chiave): non si
+  //  riscrivono e non si abbinano a un modello vicino (D7). Contano come già presenti.
+  const nostre = await chiaviNostre(
+    invii,
+    userId,
+    letto.messaggi.filter((m) => m.dir === "out").map((m) => chiaveMessaggio(m.numero, m.id)),
+  );
+  const l: LottoLetto = nostre.size
+    ? {
+        ...letto,
+        messaggi: letto.messaggi.filter((m) => !nostre.has(chiaveMessaggio(m.numero, m.id))),
+      }
+    : letto;
   const esito: RispostaLotto = {
     ok: true,
     ricevuti: l.ricevuti,
@@ -260,6 +314,7 @@ async function giroLotto(
     fuori_rubrica: 0,
     non_noti: [],
   };
+  esito.gia_presenti = nostre.size;
   if (l.messaggi.length === 0) return esito;
 
   //  D7: sempre, storico e vivi, in entrata e in uscita.
@@ -304,10 +359,10 @@ async function giroLotto(
 
   const scritto = await porte.scrivi(userId, { righe, pari, nomi });
   esito.nuovi = scritto.nuovi;
-  esito.gia_presenti = scritto.gia_presenti;
+  esito.gia_presenti += scritto.gia_presenti;
   esito.doppioni = scritto.doppioni;
   if (scritto.pari_persi > 0) porte.avviso("pari_persi", { n: scritto.pari_persi });
-  if (l.origine === "vivo") await riconciliaSenzaErrori(porte, userId, adesso);
+  if (l.origine === "vivo") await riconciliaSenzaErrori(porte, userId, adesso, invii);
   return esito;
 }
 
@@ -317,7 +372,7 @@ async function giroLotto(
  *  ritenta: è sicuro, per l'idempotenza), 200 con i conteggi. */
 export async function gestisciRichiesta(
   porte: PortePonte,
-  i: { request: Request; segreto: string | undefined; adesso: Date },
+  i: { request: Request; segreto: string | undefined; adesso: Date; invii?: PorteInvio },
 ): Promise<Response> {
   if (!i.segreto) {
     porte.avviso("non_configurato");
@@ -345,7 +400,9 @@ export async function gestisciRichiesta(
   const tipo = oggetto(json) ? json.tipo : null;
   const lotto = tipo === "lotto" ? leggiLotto(json, i.adesso) : null;
   const battito = tipo === "battito" ? leggiBattito(json) : null;
-  if (!lotto && !battito) {
+  //  Senza `invii` prendi ed esito non esistono: corpo non valido, come prima.
+  const invio = !!i.invii && (tipo === "prendi" || tipo === "esito");
+  if (!lotto && !battito && !invio) {
     porte.avviso("corpo_non_valido");
     return errore("corpo_non_valido");
   }
@@ -356,8 +413,9 @@ export async function gestisciRichiesta(
       porte.avviso("non_configurato");
       return errore("non_configurato");
     }
+    if (invio) return await gestisciPonte(i.invii!, userId, json, i.adesso);
     if (lotto) {
-      const esito = await giroLotto(porte, userId, lotto, i.adesso);
+      const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii);
       porte.avviso("lotto", {
         ricevuti: esito.ricevuti,
         nuovi: esito.nuovi,
@@ -370,9 +428,17 @@ export async function gestisciRichiesta(
       return risposta(200, esito);
     }
     await porte.battito(userId, battito!);
-    const riconciliati = await riconciliaSenzaErrori(porte, userId, i.adesso);
+    const riconciliati = await riconciliaSenzaErrori(porte, userId, i.adesso, i.invii);
     porte.avviso("battito", { riconciliati });
-    return risposta(200, { ok: true, riconciliati });
+    //  Quante righe aspettano: il Mac chiede la coda solo se > 0. Con la coda
+    //  vuota (o la tabella assente) la risposta resta quella di sempre.
+    const inAttesa = i.invii ? await i.invii.inAttesa(userId).catch(() => 0) : 0;
+    return risposta(
+      200,
+      inAttesa > 0
+        ? { ok: true, riconciliati, invii_in_attesa: inAttesa }
+        : { ok: true, riconciliati },
+    );
   } catch (e) {
     porte.avviso(funzioniAssenti(e) ? "funzioni_assenti" : "database");
     return errore("database");

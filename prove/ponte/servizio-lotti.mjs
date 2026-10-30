@@ -384,7 +384,7 @@ export async function provePonteServizioLotti(mod, { c, gruppo, radice }) {
     gruppo("PONTE WHATSAPP · IL SERVIZIO: config.env (compito T5)");
     const token = "a1".repeat(32);
     const buono = `# commento\nPONTE_URL=https://crm.example.test/api/public/ponte-whatsapp\nPONTE_TOKEN="${token}"\nSTORICO_GIORNI=0\nexport ATTESA_PARI_SECONDI=30\n`;
-    c("config valida", { ok: true, config: { url: "https://crm.example.test/api/public/ponte-whatsapp", token, storicoGiorni: 0, attesaPariSecondi: 30 } }, C.analizzaConfig(buono));
+    c("config valida", { ok: true, config: { url: "https://crm.example.test/api/public/ponte-whatsapp", token, storicoGiorni: 0, attesaPariSecondi: 30, invii: 0 } }, C.analizzaConfig(buono));
     c("valori di serie: storico intero, 30 s", { storicoGiorni: 0, attesaPariSecondi: 30 }, (({ storicoGiorni, attesaPariSecondi }) => ({ storicoGiorni, attesaPariSecondi }))(C.analizzaConfig(`PONTE_URL=https://a.test\nPONTE_TOKEN=${token}`).config));
     c("URL http → url_non_https", "url_non_https", C.analizzaConfig(`PONTE_URL=http://crm.example.test\nPONTE_TOKEN=${token}`).errore);
     c("URL con credenziali → url_non_valido", "url_non_valido", C.analizzaConfig(`PONTE_URL=https://u:p@crm.example.test\nPONTE_TOKEN=${token}`).errore);

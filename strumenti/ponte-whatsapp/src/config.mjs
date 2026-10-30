@@ -8,6 +8,9 @@
  *    PONTE_TOKEN          lo stesso segreto di `PONTE_WA_TOKEN` del Worker (≥ 32)
  *    STORICO_GIORNI       0 = tutto (di serie; non si cambia senza il titolare)
  *    ATTESA_PARI_SECONDI  attesa dei vivi prima di spedirli (di serie 30)
+ *    INVII_ATTIVI         0 o 1: 1 = il ponte può mandare i testi scritti a
+ *                         mano dal CRM (di serie 0, spento; si accende solo
+ *                         con una riga voluta dal titolare)
  *
  *  ⚠️ Gli errori sono parole fisse con una frase per il titolare: non
  *   contengono mai il token né l'indirizzo.
@@ -25,7 +28,7 @@ const MESSAGGI = {
   url_non_https: "PONTE_URL deve cominciare con https://",
   manca_token: "Manca PONTE_TOKEN in config.env.",
   token_corto: `PONTE_TOKEN è troppo corto: servono almeno ${TOKEN_MINIMO} caratteri (openssl rand -hex 32).`,
-  valore_non_valido: "STORICO_GIORNI e ATTESA_PARI_SECONDI devono essere numeri interi (0-3650 e 0-300).",
+  valore_non_valido: "STORICO_GIORNI, ATTESA_PARI_SECONDI e INVII_ATTIVI devono essere numeri interi (0-3650, 0-300 e 0 o 1).",
 };
 
 const errore = (codice) => ({ ok: false, errore: codice, messaggio: MESSAGGI[codice] });
@@ -68,8 +71,9 @@ export function analizzaConfig(testo) {
   if (v.PONTE_TOKEN.length < TOKEN_MINIMO) return errore("token_corto");
   const storicoGiorni = intero(v.STORICO_GIORNI, 0, 3650);
   const attesaPariSecondi = intero(v.ATTESA_PARI_SECONDI, 30, 300);
-  if (storicoGiorni === null || attesaPariSecondi === null) return errore("valore_non_valido");
-  return { ok: true, config: { url: v.PONTE_URL, token: v.PONTE_TOKEN, storicoGiorni, attesaPariSecondi } };
+  const invii = intero(v.INVII_ATTIVI, 0, 1);
+  if (storicoGiorni === null || attesaPariSecondi === null || invii === null) return errore("valore_non_valido");
+  return { ok: true, config: { url: v.PONTE_URL, token: v.PONTE_TOKEN, storicoGiorni, attesaPariSecondi, invii } };
 }
 
 /** Legge `config.env` da `percorso`: rifiuta il file se altri utenti

@@ -19,6 +19,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { provePonteBanner } from "./ponte/banner.mjs";
 import { provePonteIngresso } from "./ponte/ingresso.mjs";
+import { provePonteInvioChatHook } from "./ponte/invio-chat-hook.mjs";
+import { provePonteInvioChatUi } from "./ponte/invio-chat-ui.mjs";
+import { provePonteInvioMigrazione } from "./ponte/invio-migrazione.mjs";
+import { provePonteInvioRegole } from "./ponte/invio-regole.mjs";
+import { provePonteInvioRotta } from "./ponte/invio-rotta.mjs";
+import { provePonteInvioScheletro } from "./ponte/invio-scheletro.mjs";
+import { provePonteInvioServizio } from "./ponte/invio-servizio.mjs";
 import { provePonteMigrazione } from "./ponte/migrazione.mjs";
 import { provePonteNonInterferenza } from "./ponte/non-interferenza.mjs";
 import { provePontePari } from "./ponte/pari.mjs";
@@ -107,4 +114,12 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteServizioGuardie(mod, aiuti);
   await provePonteStatoChat(mod, aiuti);
   await provePonteBanner(mod, aiuti);
+  //  Invio a mano dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale): sette file, uno per area.
+  await provePonteInvioScheletro(mod, aiuti);
+  await provePonteInvioRegole(mod, aiuti);
+  await provePonteInvioMigrazione(mod, aiuti);
+  await provePonteInvioRotta(mod, aiuti);
+  await provePonteInvioServizio(mod, aiuti);
+  await provePonteInvioChatUi(mod, aiuti);
+  await provePonteInvioChatHook(mod, aiuti);
 }

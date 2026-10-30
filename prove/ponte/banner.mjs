@@ -308,11 +308,11 @@ export { StatoPonte, FasciaPonte } from ${JSON.stringify(join(radice, "src/crm/c
     const hook = readFileSync(join(radice, "src/crm/chatwa/usaStatoPonte.ts"), "utf8");
     const codice = hook.replace(/\/\*\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     c(
-      "la lettura chiede la tabella giusta, per l'utente, con tre colonne",
+      "la lettura chiede la tabella giusta, per l'utente, con le colonne dello stato (e i contatori, per l'invio dal telefono)",
       [true, true, true],
       [
         codice.includes('.from("ponte_wa_stato")'),
-        codice.includes('.select("stato,aggiornato_il,storico")'),
+        codice.includes('.select("stato,aggiornato_il,storico,contatori")'),
         codice.includes('.eq("user_id", userId)'),
       ],
     );
@@ -334,7 +334,7 @@ export { StatoPonte, FasciaPonte } from ${JSON.stringify(join(radice, "src/crm/c
     c(
       "con un errore l'avviso si toglie (non resta uno vecchio)",
       true,
-      /let nuovo = NIENTE;[\s\S]*if \(!error\) nuovo = avvisoPonte/.test(codice),
+      /let nuova: RigaStatoPonte \| null = null;[\s\S]*if \(!error\) nuova = data[\s\S]*riga \? avvisoPonte\(riga, new Date\(\)\) : NIENTE/.test(codice),
     );
 
     // ── i) Il punto di montaggio ────────────────────────────────────────
