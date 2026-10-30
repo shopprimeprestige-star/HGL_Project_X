@@ -190,6 +190,12 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     ["lead_name"],
   ),
   tpl(
+    "hgl_primo_contatto_tre_fasce",
+    "UTILITY",
+    `Buongiorno {{lead_name}}, abbiamo ricevuto la sua richiesta di informazioni a Hair Genius Labs. Per gestirla ci serve sapere quando contattarla: preferisce la mattina, il pomeriggio o la sera?`,
+    ["lead_name"],
+  ),
+  tpl(
     "hgl_richiamo_24h",
     "UTILITY",
     `Buongiorno {{lead_name}}, la sua richiesta di informazioni è ancora aperta. Per completarla ci indichi se preferisce essere contattato la mattina o la sera.`,
@@ -357,7 +363,9 @@ export function buildMetaTemplatesTxt(): string {
   lines.push("1. Vai su https://business.facebook.com/wa/manage/message-templates/");
   lines.push("2. Clicca 'Crea template' per ciascuna voce qui sotto.");
   lines.push("3. Imposta NAME, CATEGORY e LANGUAGE come indicato.");
-  lines.push("4. Incolla il BODY: i placeholder {{1}}, {{2}}, ... sono già numerici come richiede Meta.");
+  lines.push(
+    "4. Incolla il BODY: i placeholder {{1}}, {{2}}, ... sono già numerici come richiede Meta.",
+  );
   lines.push("5. Aggiungi i SAMPLE VALUES nello stesso ordine indicato.");
   lines.push("");
 

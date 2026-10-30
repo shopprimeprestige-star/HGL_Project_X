@@ -393,12 +393,19 @@ export const MODELLI_FLUSSO: { modello: string; etichetta: string }[] = [
  *  quarto modello dei ricontatti (`hgl_ricontatto_consulenza`) è già sopra. */
 export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] = [
   { modello: "hgl_primo_contatto", etichetta: "Lead nuovo: primo messaggio" },
+  {
+    modello: "hgl_primo_contatto_tre_fasce",
+    etichetta: "Lead nuovo: primo messaggio con mattina, pomeriggio o sera (sostituisce il primo)",
+  },
   { modello: "hgl_richiamo_24h", etichetta: "Lead nuovo: richiamo dopo 24 ore" },
   { modello: "hgl_ritorno", etichetta: "Lead nuovo: messaggio di ritorno" },
   { modello: "hgl_casi_reali", etichetta: "Lead nuovo: casi reali" },
   { modello: "hgl_meet_oggi", etichetta: "Giorno del meet: messaggio del mattino" },
   { modello: "hgl_meet_oggi_link", etichetta: "Giorno del meet: mattina col link (facoltativo)" },
-  { modello: "hgl_meet_domani", etichetta: "Giorno del meet: promemoria 24 ore prima (solo testo, senza flusso)" },
+  {
+    modello: "hgl_meet_domani",
+    etichetta: "Giorno del meet: promemoria 24 ore prima (solo testo, senza flusso)",
+  },
   { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
   { modello: "hgl_meet_da_fissare", etichetta: "Meet da fissare" },
   { modello: "hgl_richiamo_concordato", etichetta: "Richiamo concordato" },

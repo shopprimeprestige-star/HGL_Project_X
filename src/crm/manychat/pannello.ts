@@ -897,17 +897,14 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   if (modello === "consulenza_conferma_presenza") return i.canale === "manychat";
   if (modello === "hgl_promemoria_meet") return i.interruttori.promemoria;
   const s = i.sequenze;
-  if (
-    modello === "hgl_primo_contatto" ||
-    modello === "hgl_richiamo_24h" ||
-    modello === "hgl_ritorno" ||
-    modello === "hgl_casi_reali"
-  )
+  //  Col flusso del primo contatto a tre fasce collegato, il vecchio non serve più (30/10/2026).
+  if (modello === "hgl_primo_contatto")
+    return !!s?.leadNuovo && !i.flussi["hgl_primo_contatto_tre_fasce"];
+  if (modello === "hgl_richiamo_24h" || modello === "hgl_ritorno" || modello === "hgl_casi_reali")
     return !!s?.leadNuovo;
   //  Il promemoria 24 ore prima parte solo come testo (30/10): il suo flusso non serve.
   if (modello === "hgl_meet_domani") return false;
-  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso")
-    return !!s?.giornoMeet;
+  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso") return !!s?.giornoMeet;
   //  I modelli per stato: serve se uno degli stati che lo usano è acceso («Ricontatto
   //  fissato» è l'interruttore dei ricontatti).
   return STATI_RIQUADRO.some(
@@ -1018,6 +1015,13 @@ async function righeFlussi(
     //  La mattina col link è un'aggiunta con ripiego: mai rossa, mai «da verificare».
     if (modello === "hgl_meet_oggi_link")
       return riga(id, "non_serve", `${etichetta}: senza, la mattina parte senza il link.`);
+    //  Il primo contatto a tre fasce è un'aggiunta con ripiego: senza, parte il vecchio.
+    if (modello === "hgl_primo_contatto_tre_fasce")
+      return riga(
+        id,
+        "non_serve",
+        `${etichetta}: senza, il primo messaggio chiede solo mattina o sera.`,
+      );
     //  I flussi nuovi, a interruttore spento, sono grigi: non un dubbio, non un errore.
     if (!serve && nuovi.has(modello))
       return riga(id, "non_serve", `${etichetta}: serve quando lo accendi.`);

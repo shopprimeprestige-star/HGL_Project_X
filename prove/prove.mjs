@@ -21172,6 +21172,24 @@ function proveDelleDateInCima() {
     /giorniDi\(voci\)\.map\(\(g\) =>/.test(conv) && /className="mt-3 flex flex-col first:mt-0"/.test(conv) && /"sticky top-1 z-10/.test(conv));
 }
 
+/** ── PRIMO CONTATTO CON MATTINA, POMERIGGIO O SERA (30/10/2026) ──────────── */
+function proveDelPrimoContattoTreFasce() {
+  gruppo("PRIMO CONTATTO: MATTINA, POMERIGGIO O SERA");
+  const G = mod["manychat/giro"];
+  const T = mod["wa-meta-templates"];
+  c("senza il flusso nuovo resta il modello di prima", "hgl_primo_contatto", G.modelloETag("primo_contatto", null, false, false).modello);
+  c("col flusso nuovo parte quello con le tre fasce", "hgl_primo_contatto_tre_fasce", G.modelloETag("primo_contatto", null, false, true).modello);
+  c("stesso tag di prima", "crm-primo-contatto", G.modelloETag("primo_contatto", null, false, true).tag);
+  c("le altre sequenze non cambiano", "hgl_richiamo_24h", G.modelloETag("richiamo_24h", null, false, true).modello);
+  const m = T.MODELLI_MANYCHAT.find((x) => x.name === "hgl_primo_contatto_tre_fasce");
+  c("il testo chiede mattina, pomeriggio o sera", true, !!m && /la mattina, il pomeriggio o la sera\?$/.test(m.body));
+  c("una sola variabile, il nome", ["lead_name"], m ? m.params.map((p) => p.key) : null);
+  const giro = readFileSync(join(radice, "src/crm/manychat/giro.ts"), "utf8");
+  c("i due punti del giro guardano il flusso nuovo", 2, (giro.match(/!!config\.flussi\[MODELLO_PRIMO_CONTATTO_TRE_FASCE\]/g) || []).length);
+  const vista = readFileSync(join(radice, "src/crm/manychat/vista-pannello.ts"), "utf8");
+  c("nel pannello c'è la riga per collegarne il flusso", true, /modello: "hgl_primo_contatto_tre_fasce"/.test(vista));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21290,6 +21308,7 @@ await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
 proveAttesaPalla(mod, { c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
+proveDelPrimoContattoTreFasce();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

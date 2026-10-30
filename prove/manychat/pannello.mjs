@@ -2166,6 +2166,8 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
     "flussi per le sequenze: i sette della sequenza (con il ritorno e i casi reali) e gli otto dei messaggi per stato (più «Attesa acconto» in coda), nessuno già fra i tre vecchi",
     [
       "hgl_primo_contatto",
+      //  30/10/2026: il primo contatto con mattina, pomeriggio o sera (facoltativo, sostituisce il primo).
+      "hgl_primo_contatto_tre_fasce",
       "hgl_richiamo_24h",
       "hgl_ritorno",
       "hgl_casi_reali",
