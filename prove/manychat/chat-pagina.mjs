@@ -1887,6 +1887,82 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       fine(p);
     }
 
+    gruppo("CHAT WHATSAPP · PAGINA · TEMPO REALE: UN MESSAGGIO CON L'ORA IN AVANTI NON FERMA LE LETTURE (30/10)");
+    {
+      //  Il ponte scrive in `created_at` l'ora di WhatsApp, che per un'uscita dal telefono è quella del telefono
+      //  (accettata fino a 10 minuti nel futuro). Il cursore delle letture a pezzi partiva da lì: con un messaggio
+      //  così in pagina ogni riga nuova (scritta «adesso» dal database) restava sotto il cursore e non si leggeva.
+      //  La chat si aggiornava solo ricaricando la pagina. (`cambiato_il` c'è: la migrazione p1 è applicata.)
+      const bw = (id, dir, testo, dopo, extra = {}) =>
+        msg(id, dir, P2, testo, dopo, {
+          canale: "baileys",
+          wa_message_id: `bw:${id}`,
+          from_number: dir === "inbound" ? P2 : "baileys",
+          to_number: dir === "inbound" ? "baileys" : P2,
+          ...extra,
+        });
+      const p = await monta({
+        messaggi: [msg("m0", "inbound", P2, "ciao", -60 * MIN, { canale: "manychat" }), bw("avanti", "outbound", "ok, a dopo", 8 * MIN, { cambiato_il: iso(-MIN) })],
+        contatti: [contatto("c2", P2, { last_message_at: iso(-60 * MIN), updated_at: iso(-60 * MIN) })],
+      });
+      p.api().apri(P2);
+      await p.assesta();
+      for (let i = 0; i < 3; i++) {
+        p.T.ora += 20_000;
+        const nuovo = bw(`n${i}`, "inbound", `vivo ${i}`, p.T.ora - T0);
+        p.db.tabelle.whatsapp_messages.push(nuovo);
+        p.db.emetti("whatsapp_messages", { eventType: "INSERT", new: nuovo, old: {} });
+        await p.assesta();
+        c(
+          `messaggio vivo n${i}: la chat aperta lo mostra subito, senza ricaricare`,
+          true,
+          p.api().messaggi.some((x) => x.id === `n${i}`),
+        );
+      }
+      c(
+        "…tutti, nel loro ordine",
+        ["m0", "n0", "n1", "n2", "avanti"],
+        p.api().messaggi.map((x) => x.id),
+      );
+      fine(p);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · PONTE: LA RISPOSTA DAL TELEFONO COMPARE (caso con scheda, 30/10)");
+    {
+      //  Come nel database del 30/10: entrata del ponte (doppione), la stessa entrata di ManyChat, due uscite dal telefono.
+      const bw = (id, dir, testo, dopo, extra = {}) =>
+        msg(id, dir, P1, testo, dopo, {
+          canale: "baileys",
+          wa_message_id: `bw:${id}`,
+          from_number: dir === "inbound" ? P1 : "baileys",
+          to_number: dir === "inbound" ? "baileys" : P1,
+          ...extra,
+        });
+      const dopo = (n) => n * MIN;
+      const entrata = bw("e-ponte", "inbound", "Sera", dopo(-6), { duplicato_di: "e-mc" });
+      const mc = msg("e-mc", "inbound", P1, "Sera", dopo(-6) + 2000, { canale: "manychat", wa_message_id: "mc-in:1" });
+      const p = await monta({
+        messaggi: [entrata, mc],
+        contatti: [contatto("c1", P1, { last_message_at: mc.created_at, ultimo_in_entrata_il: mc.created_at, ultimo_in_entrata_anteprima: "Sera", unread_count: 1, updated_at: mc.created_at })],
+        leads: [scheda("l1", P1)],
+      });
+      p.api().apri(P1);
+      await p.assesta();
+      for (const [id, testo, min] of [["u1", "Ha preferenze di orario?", -3], ["u2", "Perfetto sera!", 0]]) {
+        p.T.ora = T0 + dopo(min) + 30_000;
+        const u = bw(id, "outbound", testo, dopo(min), { status: "sent" });
+        p.db.tabelle.whatsapp_messages.push(u);
+        const prima = { ...p.db.tabelle.whatsapp_contacts[0] };
+        Object.assign(p.db.tabelle.whatsapp_contacts[0], { last_message_at: u.created_at, risposto_il: u.created_at, updated_at: new Date(p.T.ora).toISOString(), ultimo_messaggio_il: u.created_at, ultimo_messaggio_anteprima: testo, ultimo_messaggio_direzione: "outbound" });
+        p.db.emetti("whatsapp_messages", { eventType: "INSERT", new: u, old: {} });
+        p.db.emetti("whatsapp_contacts", { eventType: "UPDATE", new: { ...p.db.tabelle.whatsapp_contacts[0] }, old: prima });
+        await p.assesta();
+      }
+      c("la chat aperta mostra l'entrata (una volta sola) e le due uscite del telefono", ["e-mc", "u1", "u2"], p.api().messaggi.map((x) => x.id));
+      c("l'elenco: ultimo messaggio = l'ultima uscita; non è più «da rispondere»", ["u2", false], [p.api().chats[0].lastMessage.id, p.api().chats[0].daRispondere.attesa]);
+      fine(p);
+    }
+
     /* ════════════════════════════════════════════════════════════════════════
      *  8c · p1-chat-veloce (30/10/2026): LE LETTURE A PEZZI E L'ANTEPRIMA
      * ════════════════════════════════════════════════════════════════════════ */

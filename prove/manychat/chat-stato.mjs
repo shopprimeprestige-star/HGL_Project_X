@@ -340,6 +340,16 @@ export async function proveChatStato(mod, { c, gruppo }) {
         ["cambiato_il", "created_at"],
       ),
     );
+    c(
+      "un messaggio del ponte con `created_at` nel futuro non porta il cursore in avanti: conta `cambiato_il`",
+      fa(5 * MIN + 2 * MIN),
+      S.cursore([{ created_at: fa(-8 * MIN), cambiato_il: fa(5 * MIN) }, { created_at: fa(ORA), cambiato_il: fa(ORA) }], ["cambiato_il", "created_at"]),
+    );
+    c(
+      "…senza `cambiato_il` (riga di prima della migrazione) vale `created_at`",
+      fa(10 * MIN + 2 * MIN),
+      S.cursore([{ created_at: fa(10 * MIN) }, { created_at: fa(ORA), cambiato_il: null }], ["cambiato_il", "created_at"]),
+    );
     const m = (id, quando, extra = {}) => ({ id, created_at: fa(quando), ...extra });
     const prima = [m("a", 3 * ORA), m("b", 2 * ORA), m("c", ORA)];
     const uniti = S.unisciMessaggi(prima, [
