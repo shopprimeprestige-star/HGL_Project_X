@@ -45,7 +45,8 @@ import { useRispostaAi } from "./useRispostaAi";
 import { initials, numeroLeggibile } from "./formati";
 import { attesaInChiaro, ultimoDellaChat } from "./stato";
 import { senzaRispostaDa } from "./anteprima-riga";
-import { ritornoInChat } from "./ritorno";
+import { ritornoInChat, vociRitorno } from "./ritorno";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
 import { attaccataAllaPrecedente } from "./stile";
@@ -395,14 +396,56 @@ export function Conversazione({
                   compatto
                 />
               )}
-              {ritorno && (
-                <span
-                  className="shrink-0 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700"
-                  title={ritorno.titolo}
-                >
-                  <Undo2 aria-hidden="true" className="mr-1 inline h-3 w-3 align-[-1px]" />
-                  {ritorno.completa}
-                </span>
+              {/*  ── IL RITORNO SI APRE (30/10/2026) ─────────────────────────
+                Richiesta del titolare: toccando il ritorno si vede lo stato di
+                prima, cosa aveva fatto e le note (`vociRitorno`), e da lì si
+                apre la scheda intera. */}
+              {ritorno && attiva.lead && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-11 shrink-0 items-center focus-visible:outline-none md:h-7"
+                      aria-label={`${ritorno.titolo}. Tocca per vedere com'era prima`}
+                      title={ritorno.titolo}
+                    >
+                      <span className="whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium leading-none text-amber-700 hover:bg-amber-100">
+                        <Undo2 aria-hidden="true" className="mr-1 inline h-3 w-3 align-[-1px]" />
+                        {ritorno.completa}
+                      </span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-3">
+                    <p className="mb-2 text-[13px] font-semibold text-foreground">
+                      Di ritorno: com&apos;era prima
+                    </p>
+                    <dl className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+                      {vociRitorno(
+                        attiva.lead.data,
+                        consultants.find((x) => x.id === attiva.lead?.data.consulenteId)?.data.nome,
+                      ).map((v) => (
+                        <div key={v.etichetta}>
+                          <dt className="text-[11px] text-muted-foreground">{v.etichetta}</dt>
+                          <dd
+                            className={cn(
+                              "text-[13px] text-foreground",
+                              v.lungo && "whitespace-pre-wrap break-words",
+                            )}
+                          >
+                            {v.valore}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <Button
+                      variant="outline"
+                      className="mt-3 h-11 w-full md:h-9"
+                      onClick={onApriLead}
+                    >
+                      <UserRound className="h-4 w-4" /> Apri la scheda completa
+                    </Button>
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
           </div>
