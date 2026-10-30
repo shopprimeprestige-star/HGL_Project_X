@@ -55,11 +55,11 @@ const CATEGORIA_DEI_MODELLI: Record<string, CategoriaCosto> = {
   casi_reali: "marketing",
   da_riprogrammare: "marketing",
   meet_da_fissare: "marketing",
-  primo_contatto: "marketing",
-  richiamo_24h: "marketing",
-  ricontatto_consulenza: "marketing",
-  ritorno: "marketing",
-  ultimo_tentativo: "marketing",
+  primo_contatto: "utility",
+  richiamo_24h: "utility",
+  ricontatto_consulenza: "utility",
+  ritorno: "utility",
+  ultimo_tentativo: "utility",
 };
 
 const nomeBase = (nome: string) => nome.replace(/^hgl_/, "").replace(/_v\d+$/, "");

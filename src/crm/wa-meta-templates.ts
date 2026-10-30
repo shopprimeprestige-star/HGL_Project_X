@@ -185,20 +185,20 @@ export const META_TEMPLATES: MetaTemplate[] = [
 export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_primo_contatto",
-    "MARKETING",
-    `Salve {{lead_name}}, sono Maurizio di Hair Genius Labs. Ho visto la sua richiesta di informazioni.\n\nLe va di fare una consulenza gratuita online, così capiamo insieme la soluzione più adatta a lei? Preferisce oggi o domani?`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, abbiamo ricevuto la sua richiesta di informazioni a Hair Genius Labs. Per gestirla ci serve sapere quando contattarla: preferisce la mattina o la sera?`,
     ["lead_name"],
   ),
   tpl(
     "hgl_richiamo_24h",
-    "MARKETING",
-    `Gentile {{lead_name}}, Le avevamo scritto per la Sua richiesta a Hair Genius Labs.\n\nSe desidera fissare la consulenza gratuita online, ci risponda pure qui indicando se preferisce la mattina o la sera: Le proponiamo subito un orario.\n\nHair Genius Labs`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, la sua richiesta di informazioni è ancora aperta. Per completarla ci indichi se preferisce essere contattato la mattina o la sera.`,
     ["lead_name"],
   ),
   tpl(
     "hgl_ritorno",
-    "MARKETING",
-    `Gentile {{lead_name}}, abbiamo visto che ci ha scritto di nuovo per avere informazioni da Hair Genius Labs, grazie.\n\nVuole fissare la consulenza gratuita online? Preferisce la mattina o la sera?`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, abbiamo ricevuto il suo nuovo messaggio. Per riprendere la sua richiesta ci dice se preferisce essere contattato la mattina o la sera?`,
     ["lead_name"],
   ),
   tpl(
@@ -252,8 +252,8 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   ),
   tpl(
     "hgl_ricontatto_consulenza",
-    "MARKETING",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nEravamo rimasti che mi avresti fatto sapere: hai deciso come procedere o ti serve ancora qualche chiarimento?\n\nScrivimi pure qui, sono a tua disposizione.`,
+    "UTILITY",
+    `Ciao {{lead_name}}, sono {{consultant_name}}. Ti scrivo per la consulenza che abbiamo fatto insieme: hai domande sulla soluzione di cui abbiamo parlato?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
@@ -300,8 +300,8 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   ),
   tpl(
     "hgl_ultimo_tentativo",
-    "MARKETING",
-    `Gentile {{lead_name}}, abbiamo provato più volte a contattarLa da Hair Genius Labs per la Sua richiesta, senza riuscirci.\n\nSe è ancora interessato, ci risponda qui: altrimenti non La disturberemo più.`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, non avendo ricevuto risposta, chiudiamo la sua richiesta di informazioni. Se vuole riaprirla, ci risponda qui.`,
     ["lead_name"],
   ),
   //  Acconto (commessa 2026-10-29): parte il giorno della data di ricontatto di
