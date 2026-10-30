@@ -20519,7 +20519,9 @@ function proveDelTestoDeiModelli() {
   gruppo("WHATSAPP: IL MODELLO SI LEGGE COL SUO TESTO");
   const T = mod["testo-modello"];
   const t = T.testoDelModello("hgl_meet_domani", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
-  c("i parametri al loro posto", true, /Ciao Mario, .*domani, giovedì 29 ottobre, alle 15:00 con Filippo\. Mi confermi con un ok\?/.test(t));
+  c("i parametri al loro posto", true, /Ciao Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /Ti seguirà Filippo/.test(t));
+  const tt = T.testoDelModello("hgl_meet_domani_testo", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
+  c("il giorno prima come testo: copia separata, chiede un ok, e il modello Meta resta com'era", [true, false], [/Ciao Mario, .*domani, giovedì 29 ottobre, alle 15:00 con Filippo\. Mi confermi con un ok\?/.test(tt), /Mi confermi/.test(t)]);
   c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
   c("il nome «_v2» trova lo stesso testo", t, T.testoDelModello("hgl_meet_domani_v2", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]));
   c("parametro mancante: «…», non un buco", true, /Salve …,/.test(T.testoDelModello("hgl_primo_contatto", [])));

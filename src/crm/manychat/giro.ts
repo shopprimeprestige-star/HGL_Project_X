@@ -94,6 +94,9 @@ export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
 /** La mattina del meet col link dentro (30/10/2026). Facoltativo: serve il flusso in
  *  `config.flussi` E il link in scheda; altrimenti la mattina è `hgl_meet_oggi`. */
 export const MODELLO_MEET_OGGI_LINK = "hgl_meet_oggi_link";
+/** Il testo (non un modello Meta, senza flusso) del giorno prima solo se gratis: la porta lo
+ *  cerca in `wa-meta-templates` e lo manda come messaggio normale. */
+export const TESTO_MEET_DOMANI = "hgl_meet_domani_testo";
 /** Il promemoria 24 ore prima della consulenza COME MODELLO. Spento dal titolare il 28/10:
  *  niente modello in più. Resta `false`. */
 export const MEET_DOMANI_ACCESO = false;
@@ -1125,7 +1128,8 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     const r = await inviaWhatsapp(porta, {
       canale: "manychat",
       a: `+${numero}`,
-      modello: cand.modello,
+      //  Il giorno prima: il testo proprio (`hgl_meet_domani_testo`), mai il modello Meta.
+      modello: cand.soloTesto ? TESTO_MEET_DOMANI : cand.modello,
       parametri,
       nome: d.nome,
       leadId: scheda.id,

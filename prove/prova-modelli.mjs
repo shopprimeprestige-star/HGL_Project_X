@@ -321,14 +321,14 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
   //  Quante variabili manda il CRM per ogni modello (testi.ts → crm_v1…crm_v4):
   //  se un testo qui ne ha un numero diverso, la prova direbbe il falso.
   const VARIABILI = {
-    hgl_primo_contatto: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_oggi: 3, hgl_meet_oggi_link: 4,
+    hgl_primo_contatto: 1, hgl_richiamo_24h: 1, hgl_meet_domani: 4, hgl_meet_domani_testo: 4, hgl_meet_oggi: 3, hgl_meet_oggi_link: 4,
     hgl_promemoria_meet: 4, hgl_meet_adesso: 3, hgl_ricontatto_consulenza: 2,
     hgl_meet_da_fissare: 2, hgl_richiamo_concordato: 2, hgl_non_risponde: 1,
     hgl_cliente_assente: 1, hgl_da_riprogrammare: 2, hgl_promemoria_sede: 4,
     hgl_sede_disdetta: 1, hgl_ultimo_tentativo: 1, hgl_ritorno: 1, hgl_casi_reali: 1,
     hgl_acconto: 2,
   };
-  c("ci sono tutti i 19 modelli hgl_ di ManyChat", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
+  c("ci sono tutti i 20 modelli hgl_ di ManyChat (19 con flusso + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
   c(
     "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna",
     [],
