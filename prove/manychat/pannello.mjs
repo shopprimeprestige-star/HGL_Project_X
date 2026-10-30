@@ -2162,6 +2162,7 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       "hgl_ritorno",
       "hgl_casi_reali",
       "hgl_meet_oggi",
+      "hgl_meet_oggi_link",
       "hgl_meet_domani",
       "hgl_meet_adesso",
       "hgl_meet_da_fissare",
@@ -3172,6 +3173,20 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
       nuovoClientDi(A, sano()),
       ingr({}, { leadNuovo: false, giornoMeet: true, stati: {} }),
     ),
+  );
+  c(
+    "la mattina col link, facoltativa: senza flusso mai rossa (giorno del meet acceso o spento); con un flusso che esiste è verde",
+    ["non_serve", "non_serve", true],
+    [
+      colMeet["flusso:hgl_meet_oggi_link"],
+      eLead["flusso:hgl_meet_oggi_link"],
+      esitoDi(
+        await P.statoCollegamento(
+          nuovoClientDi(A, sano()),
+          ingr({}, { leadNuovo: false, giornoMeet: true, stati: {} }),
+        ),
+      )["flusso:hgl_meet_oggi_link"] === "non_serve",
+    ],
   );
   c(
     "giorno del meet acceso senza i flussi → rossi mattina e all'ora; il 24 ore prima (spento dal 28/10) non serve",

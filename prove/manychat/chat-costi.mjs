@@ -53,6 +53,11 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
     K.categoriaModello("altro_nuovo", "MARKETING"),
   ]);
   c("…e senza categoria vale la più cara (mai sottostimare)", "marketing", K.categoriaModello("altro_nuovo"));
+  c("la mattina col link (hgl_meet_oggi_link, v5) è Utility", ["utility", "utility", true], [
+    K.categoriaModello("hgl_meet_oggi_link"),
+    K.categoriaModello("hgl_meet_oggi_link_v5", "MARKETING"),
+    K.categoriaConosciuta("hgl_meet_oggi_link"),
+  ]);
   c("prezzo di un modello", [0.0658, 0.0248], [K.prezzoModello("hgl_ritorno"), K.prezzoModello("hgl_meet_oggi")]);
   c("euro: virgola all'italiana", ["0,0658 €", "1,23 €", "0,00 €"], [K.euro(0.0658, 4), K.euro(1.2345, 2), K.euro(0, 2)]);
   c(
