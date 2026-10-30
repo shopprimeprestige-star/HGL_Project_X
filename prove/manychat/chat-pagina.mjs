@@ -32,6 +32,10 @@ const COLONNE_NUOVE = [
   "ultimo_in_entrata_anteprima",
   "risposto_il",
   "subscriber_id",
+  //  p1-chat-veloce: l'ultimo messaggio salvato sul contatto.
+  "ultimo_messaggio_il",
+  "ultimo_messaggio_anteprima",
+  "ultimo_messaggio_direzione",
 ];
 
 /* ── I moduli finti, in un file ciascuno: leggono tutto da `globalThis.__T` ─── */
@@ -145,7 +149,31 @@ function creaRuntime(hook, opz) {
 }
 
 /** ── Il database finto ────────────────────────────────────────────────────── */
+/** p1-chat-veloce: le colonne che il database scrive da solo a ogni insert/update
+ *  (`updated_at` dei contatti, `cambiato_il` dei messaggi, la migrazione nuova). */
+const ORA_AUTO = { whatsapp_contacts: "updated_at", whatsapp_messages: "cambiato_il" };
 function creaDb(tabelle) {
+  //  I contatti già presenti hanno `updated_at` (default del database); i messaggi
+  //  vecchi NO `cambiato_il` (la migrazione non riscrive le righe che ci sono).
+  for (const r of tabelle.whatsapp_contacts ?? []) r.updated_at ??= r.created_at;
+  /** Il trigger finto: ogni riga nuova o cambiata (anche toccata a mano da una
+   *  prova) prende l'ora del database alla prima richiesta dopo. */
+  const viste = new WeakMap();
+  const impronta = (t, r) => {
+    const { [ORA_AUTO[t]]: _, ...resto } = r;
+    return JSON.stringify(resto);
+  };
+  const scatta = (t, primaVolta) => {
+    if (!ORA_AUTO[t]) return;
+    for (const r of db.tabelle[t] ?? []) {
+      const ora = impronta(t, r);
+      if (viste.get(r) === ora) continue;
+      if (!primaVolta && !db.senzaCambiatoIl) r[ORA_AUTO[t]] = new Date(Date.now()).toISOString();
+      if (!primaVolta && db.senzaCambiatoIl && t === "whatsapp_contacts")
+        r.updated_at = new Date(Date.now()).toISOString();
+      viste.set(r, ora);
+    }
+  };
   const db = {
     tabelle,
     log: [],
@@ -164,6 +192,7 @@ function creaDb(tabelle) {
     },
     maxRighe: Infinity, // il tetto di righe per richiesta di PostgREST (1000 in produzione)
     senzaDuplicatoDi: false, // migrazione del ponte non applicata: filtrare `duplicato_di` dà 42703
+    senzaCambiatoIl: false, // migrazione p1-chat-veloce non applicata: chiedere `cambiato_il` dà 42703
     canali: [],
     canale() {
       const ch = {
@@ -195,6 +224,8 @@ function creaDb(tabelle) {
         t,
         op: "select",
         eq: [],
+        gte: [],
+        cols: null,
         or: null,
         ord: null,
         lim: null,
@@ -205,12 +236,13 @@ function creaDb(tabelle) {
         single: false,
       };
       const b = {
-        select: () => {
-          if (q.op === "select") q.op = "select";
+        select: (cols) => {
+          if (q.op === "select") q.cols = cols ?? "*";
           else q.sel = true;
           return b;
         },
         eq: (k, v) => (q.eq.push([k, v]), b),
+        gte: (k, v) => (q.gte.push([k, v]), b),
         or: (s) => ((q.or = s), b),
         is: (k, v) => (q.is.push([k, v]), b),
         range: (da, a) => ((q.rng = [da, a]), b),
@@ -224,6 +256,7 @@ function creaDb(tabelle) {
       return b;
     },
     async esegui(q) {
+      for (const t of Object.keys(ORA_AUTO)) scatta(t, false);
       const voce = JSON.parse(JSON.stringify(q));
       db.log.push(voce);
       if (q.t === "whatsapp_contacts" && q.op === "select" && db.gate) await db.gate;
@@ -231,6 +264,7 @@ function creaDb(tabelle) {
       const orFiltri = q.or ? q.or.split(",").map((p) => p.split(".eq.")) : null;
       const dentro = (r) =>
         q.eq.every(([k, v]) => String(r[k]) === v) &&
+        q.gte.every(([k, v]) => r[k] != null && String(r[k]) >= v) &&
         (!orFiltri || orFiltri.some(([k, v]) => String(r[k]) === v));
       if (q.op === "select" && db.erroreLettura && q.t !== "whatsapp_settings")
         return { data: null, error: { code: "XX000", message: "rete giù" } };
@@ -240,6 +274,12 @@ function creaDb(tabelle) {
       }
       if (q.op === "update" && db.erroreUpdate)
         return { data: null, error: { code: "XX000", message: "update rifiutato" } };
+      if (
+        q.op === "select" &&
+        db.senzaCambiatoIl &&
+        (/cambiato_il/.test(q.cols ?? "") || q.gte.some(([k]) => k === "cambiato_il"))
+      )
+        return { data: null, error: { code: "42703", message: "column cambiato_il does not exist" } };
       if (q.op === "select" && q.is.length && db.senzaDuplicatoDi)
         return { data: null, error: { code: "42703", message: "column duplicato_di does not exist" } };
       if (q.op === "select") {
@@ -278,6 +318,7 @@ function creaDb(tabelle) {
       return { data: null, error: null };
     },
   };
+  for (const t of Object.keys(ORA_AUTO)) scatta(t, true);
   return db;
 }
 
@@ -381,6 +422,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       if (mondo.gate) db.gate = mondo.gate;
       if (mondo.maxRighe) db.maxRighe = mondo.maxRighe;
       if (mondo.senzaDuplicatoDi) db.senzaDuplicatoDi = true;
+      if (mondo.senzaCambiatoIl) db.senzaCambiatoIl = true;
       const T = {
         user: { id: U },
         crm: { leads: mondo.leads ?? [], consultants: [], updateLead: async () => {} },
@@ -488,11 +530,24 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           contatto("c-1", P1),
         ],
       });
-      const qMsg = p.db.log.find((q) => q.t === "whatsapp_messages" && q.op === "select");
+      const lettureMsg = p.db.log.filter(
+        (q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1,
+      );
+      const qMsg = lettureMsg[0];
       c(
-        "i messaggi si leggono dal PIÙ NUOVO (order created_at DESC), limite 2000, filtrati per utente",
-        [{ col: "created_at", asc: false }, 2000, [["user_id", U]]],
-        [qMsg.ord, qMsg.lim, qMsg.eq],
+        "i messaggi si leggono dal PIÙ NUOVO (order created_at DESC), filtrati per utente: prima 300 (pagina subito), poi 2000",
+        [{ col: "created_at", asc: false }, [["user_id", U]], [300, 2000], { col: "created_at", asc: false }],
+        [qMsg.ord, qMsg.eq, lettureMsg.map((q) => q.lim), lettureMsg[1].ord],
+      );
+      c(
+        "p1-chat-veloce: senza `raw_payload` (il carico grosso sul telefono), con `cambiato_il`",
+        [false, true, false],
+        [/raw_payload/.test(qMsg.cols), /cambiato_il/.test(qMsg.cols), qMsg.cols === "*"],
+      );
+      c(
+        "dopo i 2000 l'elenco ha la chat più recente e l'ultimo messaggio giusto",
+        "m2499",
+        p.api().chats.find((x) => x.phone === "+393335550005")?.lastMessage?.id,
       );
       const qCont = p.db.log.find((q) => q.t === "whatsapp_contacts" && q.op === "select");
       c(
@@ -1446,6 +1501,9 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
             unread_count: 2,
             last_message_at: iso(-3 * ORA_MS),
             ultimo_in_entrata_il: iso(-3 * ORA_MS),
+            ultimo_messaggio_il: iso(-2 * ORA_MS),
+            ultimo_messaggio_anteprima: "due",
+            ultimo_messaggio_direzione: "outbound",
           }),
         ],
         messaggi: [
@@ -1472,12 +1530,26 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         .scritture("whatsapp_contacts")
         .filter((q) => q.vals && "last_message_at" in q.vals);
       c(
-        "azzera anche ultimo_in_entrata_il e risposto_il, oltre a non letti e ultimo messaggio",
+        "azzera anche ultimo_in_entrata_il, risposto_il e l'ultimo messaggio salvato (p1-chat-veloce), oltre a non letti e ultimo messaggio",
         [
           1,
-          { unread_count: 0, last_message_at: null, ultimo_in_entrata_il: null, risposto_il: null },
+          {
+            unread_count: 0,
+            last_message_at: null,
+            ultimo_in_entrata_il: null,
+            risposto_il: null,
+            ultimo_messaggio_il: null,
+            ultimo_messaggio_anteprima: null,
+            ultimo_messaggio_direzione: null,
+          },
         ],
         [azzera.length, azzera[0]?.vals],
+      );
+      const rimasto = p.db.tabelle.whatsapp_contacts.find((x) => x.phone_e164 === P1);
+      c(
+        "p1-chat-veloce: sul contatto della chat eliminata non resta l'anteprima (la riga non mostra un messaggio cancellato)",
+        [null, null, null],
+        [rimasto?.ultimo_messaggio_il, rimasto?.ultimo_messaggio_anteprima, rimasto?.ultimo_messaggio_direzione],
       );
       c(
         "la chat eliminata non è più in «Da rispondere», la chat aperta si chiude, l'altra chat (senza colonne) resta com'è",
@@ -1506,7 +1578,15 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         "colonne mancanti: il primo tentativo dà 42703, si riprova col solo set di prima",
         [
           [
-            ["last_message_at", "risposto_il", "ultimo_in_entrata_il", "unread_count"],
+            [
+              "last_message_at",
+              "risposto_il",
+              "ultimo_in_entrata_il",
+              "ultimo_messaggio_anteprima",
+              "ultimo_messaggio_direzione",
+              "ultimo_messaggio_il",
+              "unread_count",
+            ],
             ["last_message_at", "unread_count"],
           ],
           "Chat eliminata",
@@ -1710,7 +1790,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
       //  Migrazione non ancora applicata: il filtro dà 42703, si rilegge senza filtro e si scarta in codice.
       const r = await monta({ messaggi: righe, contatti: [], senzaDuplicatoDi: true });
-      const rm = r.db.log.filter((x) => x.t === "whatsapp_messages" && x.op === "select" && x.lim === 2000);
+      const rm = r.db.log.filter((x) => x.t === "whatsapp_messages" && x.op === "select" && !x.or && x.lim !== 1);
       c(
         "errore 42703: rilegge senza filtro (stessa richiesta, niente `is`), nessun errore in pagina",
         [[1, 0], null],
@@ -1729,7 +1809,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
     gruppo("CHAT WHATSAPP · PAGINA · PONTE: LO STORICO NON RIAVVIA LA LETTURA");
     {
-      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000).length;
+      //  p1-chat-veloce: una «lettura» è anche quella a pezzi (non più solo i 2000).
+      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1).length;
       const mondo = () => ({
         messaggi: [msg("m1", "inbound", P1, "ciao", -5 * MIN, { canale: "manychat" })],
         contatti: [contatto("c1", P1, { last_message_at: iso(-5 * MIN), updated_at: iso(-5 * MIN), ultimo_in_entrata_il: iso(-5 * MIN) })],
@@ -1778,7 +1859,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
     {
       //  Il Mac era spento: il messaggio è di 3 ore fa ma il ponte lo scrive adesso. Per il tempo reale è «storico»
       //  (non rilegge); lo prende il controllo dei 15 s, perché il contatto ha `updated_at` nuovo.
-      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000).length;
+      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1).length;
       const p = await monta({
         messaggi: [msg("m1", "outbound", P1, "ciao", -6 * ORA_MS, { canale: "manychat" })],
         contatti: [contatto("c1", P1, { last_message_at: iso(-6 * ORA_MS), updated_at: iso(-6 * ORA_MS) })],
@@ -1802,6 +1883,163 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         "…ed è solo da vedere: la chat NON entra in «Da rispondere» (storia col ponte = niente attesa)",
         [false, false],
         [p.api().chats[0].daRispondere.attesa, p.api().daRispondere.length > 0],
+      );
+      fine(p);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+     *  8c · p1-chat-veloce (30/10/2026): LE LETTURE A PEZZI E L'ANTEPRIMA
+     * ════════════════════════════════════════════════════════════════════════ */
+    gruppo("CHAT WHATSAPP · PAGINA · LETTURE A PEZZI (p1-chat-veloce)");
+    {
+      const selMsg = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1);
+      const selCont = (p) => p.db.log.filter((q) => q.t === "whatsapp_contacts" && q.op === "select");
+      const mondo = () => ({
+        messaggi: [
+          msg("m1", "inbound", P1, "ciao", -2 * ORA_MS),
+          msg("m2", "outbound", P1, "buongiorno", -ORA_MS),
+          msg("m3", "inbound", P2, "salve", -30 * MIN),
+        ],
+        contatti: [
+          contatto("c1", P1, { updated_at: iso(-ORA_MS) }),
+          contatto("c2", P2, { updated_at: iso(-30 * MIN) }),
+        ],
+      });
+
+      const p = await monta(mondo());
+      const m0 = selMsg(p).length;
+      const c0 = selCont(p).length;
+      p.T.ora += 5 * MIN;
+      p.db.tabelle.whatsapp_messages.push(msg("m4", "inbound", P2, "ci sono", 0, { created_at: new Date(p.T.ora).toISOString() }));
+      p.db.tabelle.whatsapp_contacts[1].unread_count = 1;
+      p.db.emetti("whatsapp_messages", { eventType: "INSERT", new: { id: "m4" }, old: {} });
+      await p.assesta();
+      const qm = selMsg(p).slice(m0);
+      const qc = selCont(p).slice(c0);
+      c(
+        "un evento: UNA lettura dei messaggi a pezzi (gte cambiato_il, al più 500) e UNA dei contatti (gte updated_at), niente 2000 né pagine",
+        [1, "cambiato_il", 500, 1, "updated_at", null],
+        [qm.length, qm[0]?.gte[0]?.[0], qm[0]?.lim, qc.length, qc[0]?.gte[0]?.[0], qc[0]?.rng],
+      );
+      c(
+        "il cursore dei messaggi: il più recente già visto meno 2 minuti (righe vecchie: created_at)",
+        new Date(T0 - 30 * MIN - 2 * MIN).toISOString(),
+        qm[0]?.gte[0]?.[1],
+      );
+      c(
+        "le righe lette a pezzi sono poche (solo il nuovo/cambiato)",
+        [1, 1],
+        [qm[0]?.n, qc[0]?.n],
+      );
+      c(
+        "il messaggio nuovo e il non letto ci sono, la chat di prima è rimasta",
+        ["m4", 1, "m2"],
+        [
+          p.api().chats.find((x) => x.phone === P2)?.lastMessage?.id,
+          p.api().chats.find((x) => x.phone === P2)?.unread,
+          p.api().chats.find((x) => x.phone === P1)?.lastMessage?.id,
+        ],
+      );
+      p.api().apri(P1);
+      await p.assesta();
+      c("la chat aperta ha ancora tutti i suoi messaggi", ["m1", "m2"], p.api().messaggi.map((x) => x.id));
+      const chatPrima = p.db.log.filter((q) => q.t === "whatsapp_messages" && q.or).length;
+
+      // Un messaggio che CAMBIA (spunte): arriva con la lettura a pezzi.
+      p.T.ora += MIN;
+      p.db.tabelle.whatsapp_messages.find((x) => x.id === "m2").status = "read";
+      p.db.emetti("whatsapp_messages", { eventType: "UPDATE", new: { id: "m2" }, old: { id: "m2" } });
+      await p.assesta();
+      c("un messaggio cambiato (letto): lo stato nuovo arriva", "read", p.api().messaggi.find((x) => x.id === "m2")?.status);
+      c(
+        "…e la chat aperta NON si rilegge intera a ogni evento",
+        chatPrima,
+        p.db.log.filter((q) => q.t === "whatsapp_messages" && q.or).length,
+      );
+
+      // Un doppione marcato dopo dal ponte: sparisce.
+      p.T.ora += MIN;
+      p.db.tabelle.whatsapp_messages.find((x) => x.id === "m1").duplicato_di = "m-crm";
+      p.db.emetti("whatsapp_messages", { eventType: "UPDATE", new: { id: "m1" }, old: { id: "m1" } });
+      await p.assesta();
+      c("una riga marcata doppione dopo: esce dalla chat", ["m2"], p.api().messaggi.map((x) => x.id));
+
+      // Una cancellazione (DELETE): la lettura a pezzi non la vede, la toglie l'evento.
+      const via = p.db.tabelle.whatsapp_messages.find((x) => x.id === "m2");
+      p.db.tabelle.whatsapp_messages = p.db.tabelle.whatsapp_messages.filter((x) => x.id !== "m2");
+      p.db.emetti("whatsapp_messages", { eventType: "DELETE", new: {}, old: via });
+      await p.assesta();
+      c("messaggio cancellato altrove: sparisce subito", [], p.api().messaggi.map((x) => x.id));
+      const cv = p.db.tabelle.whatsapp_contacts.find((x) => x.id === "c2");
+      p.db.tabelle.whatsapp_contacts = p.db.tabelle.whatsapp_contacts.filter((x) => x.id !== "c2");
+      p.db.emetti("whatsapp_contacts", { eventType: "DELETE", new: {}, old: cv });
+      await p.assesta();
+      c("contatto cancellato altrove: esce dai contatti", false, p.api().chats.some((x) => x.contact?.id === "c2"));
+
+      // «Aggiorna»: tutto da capo (2000 messaggi, contatti a pagine).
+      const m1 = selMsg(p).length;
+      const c1 = selCont(p).length;
+      await p.api().aggiorna();
+      await p.assesta();
+      c(
+        "«Aggiorna»: lettura completa (2000 messaggi, contatti a pagine dal primo)",
+        [2000, [0, 999]],
+        [selMsg(p).slice(m1).find((q) => q.lim === 2000)?.lim, selCont(p).slice(c1).find((q) => q.rng)?.rng],
+      );
+      fine(p);
+
+      // Tante righe cambiate insieme (storico importato): oltre 500 si rilegge tutto.
+      const q = await monta(mondo());
+      const qm0 = selMsg(q).length;
+      q.T.ora += MIN;
+      for (let i = 0; i < 520; i++)
+        q.db.tabelle.whatsapp_messages.push(msg(`s${i}`, "inbound", P3, `storico ${i}`, -10 * GIORNO + i * MIN));
+      q.db.emetti("whatsapp_messages", undefined);
+      await q.assesta();
+      c(
+        "520 righe nuove insieme: la lettura a pezzi è piena, si rilegge tutto (2000)",
+        [500, 2000],
+        selMsg(q).slice(qm0).map((x) => x.lim),
+      );
+      c("…e lo storico c'è", true, q.api().chats.some((x) => x.phone === P3));
+      fine(q);
+
+      // Migrazione non applicata (`cambiato_il` manca): si legge come prima, senza errori.
+      const r = await monta({ ...mondo(), senzaCambiatoIl: true });
+      c("senza migrazione: la pagina si carica, nessun errore", [true, null], [r.api().chats.length === 2, r.api().erroreLettura]);
+      const rm0 = selMsg(r).length;
+      r.T.ora += MIN;
+      r.db.tabelle.whatsapp_messages.push(msg("m9", "inbound", P1, "nuovo", 0, { created_at: new Date(r.T.ora).toISOString() }));
+      r.db.emetti("whatsapp_messages", undefined);
+      await r.assesta();
+      const dopo = selMsg(r).slice(rm0);
+      c(
+        "…un evento: la lettura a pezzi dà 42703, si ripiega sui recenti con tutte le colonne (`*`)",
+        [true, "*", "m9", null],
+        [dopo.some((x) => x.gte.length), dopo.at(-1)?.cols, r.api().chats.find((x) => x.phone === P1)?.lastMessage?.id, r.api().erroreLettura],
+      );
+      fine(r);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · ANTEPRIMA DAL CONTATTO (p1-chat-veloce)");
+    {
+      const OLD = "+393339990001";
+      const p = await monta({
+        messaggi: [msg("m1", "inbound", P1, "recente", -ORA_MS)],
+        contatti: [
+          contatto("c1", P1),
+          contatto("c-old", OLD, {
+            last_message_at: iso(-300 * GIORNO),
+            ultimo_messaggio_il: iso(-10 * MIN),
+            ultimo_messaggio_anteprima: "[template:hgl_ritorno]",
+            ultimo_messaggio_direzione: "outbound",
+          }),
+        ],
+      });
+      c(
+        "una chat senza messaggi letti ma con l'ultimo salvato sul contatto sale in cima per quell'ora",
+        [OLD, P1],
+        telefoni(p.api().chats),
       );
       fine(p);
     }
@@ -1860,6 +2098,12 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           /setErrore\(\s*"/.test(dopoCatch),
           /toast/.test(dopoCatch),
         ],
+      );
+      const riga = leggi("src/crm/chatwa/RigaChat.tsx");
+      c(
+        "p1-chat-veloce: l'anteprima della riga è il più recente fra il letto e quello salvato sul contatto",
+        [true, false],
+        [/const last = ultimoDellaChat\(c\.lastMessage, c\.contact\);/.test(riga), /const last = c\.lastMessage;/.test(riga)],
       );
       c(
         "«Fatto» passa dalla rpc, non da una scrittura di risposto_il",

@@ -309,11 +309,20 @@ export interface EventoDb {
 /** Oltre questa età, una riga del ponte appena scritta è storico, non un messaggio vivo. */
 const ETA_STORICO = 10 * MINUTO;
 /** Le colonne dei contatti che il ponte aggiorna durante lo storico, senza cambiare altro. */
-const COLONNE_DEL_PONTE = ["last_message_at", "display_name", "updated_at"];
+const COLONNE_DEL_PONTE = [
+  "last_message_at",
+  "display_name",
+  "updated_at",
+  //  p1-chat-veloce: l'ultimo messaggio sul contatto lo muove un trigger, anche per lo storico.
+  "ultimo_messaggio_il",
+  "ultimo_messaggio_anteprima",
+  "ultimo_messaggio_direzione",
+];
 
 /** La chat NON si rilegge per questo evento (carico dello storico, obiezione 11):
  *   · `INSERT` di un messaggio del ponte con `created_at` più vecchio di 10 minuti;
- *   · `UPDATE` di un contatto in cui cambiano solo `last_message_at`, `display_name`, `updated_at`.
+ *   · `UPDATE` di un contatto in cui cambiano solo `last_message_at`, `display_name`, `updated_at`
+ *     e l'ultimo messaggio salvato sul contatto (`ultimo_messaggio_*`).
  *  Ogni altra cosa (messaggio vivo, ManyChat, `unread_count`, `risposto_il`…) rilegge.
  *  Evento illeggibile = si rilegge. Il controllo ogni 15 s resta la rete di sicurezza
  *  (guarda `updated_at` del contatto: anche un messaggio vivo arrivato in ritardo lo muove). */
@@ -338,4 +347,84 @@ export function eventoDaIgnorare(
     if (JSON.stringify(nuovo[k] ?? null) !== JSON.stringify(vecchio[k] ?? null)) return false;
   }
   return true;
+}
+
+/* ── LE LETTURE A PEZZI (commessa 2026-10-30, p1-chat-veloce) ────────────────
+ *  La chat rileggeva 2000 messaggi e tutti i contatti a ogni evento. Ora dopo la
+ *  prima lettura si chiedono solo le righe scritte da poco: i contatti per
+ *  `updated_at`, i messaggi per `cambiato_il` (lo scrive il database a ogni
+ *  insert o update; sulle righe di prima della migrazione è vuoto e vale
+ *  `created_at`). Il cursore è l'ora più recente già vista, presa dalle righe
+ *  stesse (orologio del database, non del telefono), meno un margine: una riga
+ *  scritta da una transazione lenta porta l'ora d'inizio, non quella di commit.
+ *  Rileggere due volte la stessa riga non fa danni: si unisce per `id`. */
+
+/** Il margine all'indietro di ogni lettura a pezzi. */
+export const MARGINE_LETTURA = 2 * MINUTO;
+
+/** Da dove riprendere: il più recente fra le colonne date di tutte le righe, meno
+ *  il margine. `null` = nessuna riga con un'ora = si legge tutto. */
+export function cursore(
+  righe: readonly Record<string, unknown>[],
+  colonne: readonly string[],
+  margine = MARGINE_LETTURA,
+): string | null {
+  let max: number | null = null;
+  for (const r of righe)
+    for (const k of colonne) {
+      const t = ms(r[k] as Istante | null | undefined);
+      if (t !== null && (max === null || t > max)) max = t;
+    }
+  return max === null ? null : new Date(max - margine).toISOString();
+}
+
+const tempo = (x: string | null | undefined) => ms(x) ?? 0;
+
+/** I messaggi già in pagina più quelli appena letti: per `id` vince il nuovo, i
+ *  doppioni del ponte (anche marcati dopo) escono, dal più vecchio. Non muta l'ingresso. */
+export function unisciMessaggi<
+  T extends { id: string; created_at: string; duplicato_di?: string | null },
+>(prima: T[], nuove: readonly T[]): T[] {
+  if (nuove.length === 0) return prima;
+  const perId = new Map(prima.map((r) => [r.id, r]));
+  for (const r of nuove) perId.set(r.id, r);
+  return senzaDoppioni([...perId.values()]).sort(
+    (a, b) => tempo(a.created_at) - tempo(b.created_at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+}
+
+/** I contatti già in pagina più quelli appena letti: per `id` vince il nuovo, i nuovi in fondo. */
+export function unisciContatti<T extends { id: string }>(prima: T[], nuove: readonly T[]): T[] {
+  if (nuove.length === 0) return prima;
+  const perId = new Map(prima.map((r) => [r.id, r]));
+  for (const r of nuove) perId.set(r.id, r);
+  return [...perId.values()];
+}
+
+/** Una riga cancellata (evento DELETE): la lettura a pezzi non la vedrebbe mai. */
+export function togliPerId<T extends { id: string }>(righe: T[], id: string): T[] {
+  return righe.some((r) => r.id === id) ? righe.filter((r) => r.id !== id) : righe;
+}
+
+/** L'ultimo messaggio di una chat, per l'anteprima dell'elenco: il più recente fra
+ *  quello letto in pagina e quello salvato sul contatto (entrata o uscita). A pari
+ *  ora vince quello letto. Senza le colonne (migrazione non applicata) resta il letto. */
+export function ultimoDellaChat<
+  M extends { direction: string; body: string | null; created_at: string },
+>(
+  letto: M | null,
+  contatto: {
+    ultimo_messaggio_il?: string | null;
+    ultimo_messaggio_anteprima?: string | null;
+    ultimo_messaggio_direzione?: string | null;
+  } | null,
+): M | { direction: string; body: string | null; created_at: string; status?: undefined } | null {
+  const il = contatto?.ultimo_messaggio_il ?? null;
+  const t = ms(il);
+  if (t === null || (letto && (ms(letto.created_at) ?? -Infinity) >= t)) return letto;
+  return {
+    direction: contatto?.ultimo_messaggio_direzione === "outbound" ? "outbound" : "inbound",
+    body: contatto?.ultimo_messaggio_anteprima ?? null,
+    created_at: il as string,
+  };
 }

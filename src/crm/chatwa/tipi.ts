@@ -41,6 +41,8 @@ export interface WaMessageRow {
   canale?: string | null;
   /** Ponte WhatsApp: id del messaggio del CRM di cui questa riga è doppione (nascosta). */
   duplicato_di?: string | null;
+  /** p1-chat-veloce: ora dell'ultima scrittura (insert o update), dal database. Vuota sulle righe vecchie. */
+  cambiato_il?: string | null;
 }
 
 export interface WaContactRow {
@@ -59,6 +61,12 @@ export interface WaContactRow {
   subscriber_id?: string | null;
   /** STOP del cliente: colonna già in produzione (20261022140000_promemoria_whatsapp.sql), non nei tipi generati */
   non_scrivere_dal?: string | null;
+  /** C'è da sempre (trigger), non era nei tipi: la lettura a pezzi la usa come cursore. */
+  updated_at?: string;
+  /** p1-chat-veloce: l'ultimo messaggio della chat (entrata o uscita), scritto da un trigger. */
+  ultimo_messaggio_il?: string | null;
+  ultimo_messaggio_anteprima?: string | null;
+  ultimo_messaggio_direzione?: string | null;
 }
 
 export interface ChatItem {

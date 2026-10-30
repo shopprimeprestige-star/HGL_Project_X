@@ -22,7 +22,7 @@ import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { anteprimaIn, mediaInAnteprima } from "./media";
 import { IconaMedia } from "./IconaMedia";
-import { attesaInChiaro } from "./stato";
+import { attesaInChiaro, ultimoDellaChat } from "./stato";
 import { ritornoInChat } from "./ritorno";
 import { linkApriWhatsapp } from "./apriWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
@@ -101,7 +101,9 @@ export function RigaChat({
   //  Gli stati di chiamata che la regola del CRM (`statiPer`) ammette per QUESTO lead.
   const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data) : []);
   const opzioniStato = statiMenuRiga(c.lead?.data.stato, ammessi);
-  const last = c.lastMessage;
+  //  p1-chat-veloce: l'ultimo messaggio anche delle chat vecchie (fuori dai letti),
+  //  salvato sul contatto — entrata o uscita. Il più recente dei due.
+  const last = ultimoDellaChat(c.lastMessage, c.contact);
   const inAttesa = modo === "attesa" || modo === "vecchia";
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
