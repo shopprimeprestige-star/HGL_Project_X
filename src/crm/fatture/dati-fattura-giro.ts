@@ -68,6 +68,11 @@ export interface MessaggioIn {
 
 export interface PorteDatiFattura {
   adesso(): Date;
+  /** ── IL LUCCHETTO: UN SOLO GIRO ALLA VOLTA ────────────────────────────────
+   *  L'hook è chiamabile da chiunque abbia la chiave pubblicabile: due giri insieme non
+   *  devono mai mandare due messaggi né scrivere due volte. `prendi` è una scrittura
+   *  CONDIZIONATA con scadenza (se il giro muore, il lucchetto scade da solo). */
+  lucchetto: { prendi(): Promise<boolean>; rilascia(): Promise<void> };
   leggiConfig(): Promise<ConfigDatiFattura>;
   salvaConfig(c: ConfigDatiFattura): Promise<void>;
   /** le schede con `accontoPagato > 0` */
@@ -97,15 +102,19 @@ export interface PorteDatiFattura {
     leadId: string,
     url: string,
   ): Promise<{ percorso: string; dataUrl: string } | null>;
-  /** l'AI: da uno o più file (data URL) oppure da un testo; null = guasto (si riprova) */
-  leggi(i: { file: string[] } | { testo: string }): Promise<string | null>;
+  /** L'AI: da uno o più file (data URL) oppure da un testo; null = guasto (si riprova).
+   *  ⚠️ UNA LETTURA SOLA PER MESSAGGIO: `chiave` nasce dagli id dei messaggi; la porta tiene la
+   *  risposta finché `dimentica` non la toglie, così un giro rifatto non paga (né legge) due volte. */
+  leggi(i: { file: string[] } | { testo: string }, chiave: string): Promise<string | null>;
+  /** toglie le risposte tenute da `leggi` (quando la scheda è stata scritta) */
+  dimentica(chiavi: string[]): Promise<void>;
   aliquota(): Promise<number>;
   leggiBozza(leadId: string): Promise<Fattura | null>;
   scriviBozza(f: Fattura): Promise<string | null>;
 }
 
 export interface EsitoGiro {
-  stato: "spento" | "avvio" | "ok";
+  stato: "spento" | "avvio" | "occupato" | "ok";
   preesistenti: number;
   richieste: number;
   promemoria: number;
@@ -129,6 +138,21 @@ export async function giroDatiFattura(porte: PorteDatiFattura): Promise<EsitoGir
   const adesso = porte.adesso();
   const config = await porte.leggiConfig();
   if (!config.acceso) return { ...out, stato: "spento" };
+  //  ⚠️ Un giro solo alla volta: chi non prende il lucchetto non fa niente.
+  if (!(await porte.lucchetto.prendi().catch(() => false))) return { ...out, stato: "occupato" };
+  try {
+    return await giroSottoLucchetto(porte, config, out, adesso);
+  } finally {
+    await porte.lucchetto.rilascia().catch(() => undefined);
+  }
+}
+
+async function giroSottoLucchetto(
+  porte: PorteDatiFattura,
+  config: ConfigDatiFattura,
+  out: EsitoGiro,
+  adesso: Date,
+): Promise<EsitoGiro> {
   const schede = await porte.schedeConAcconto();
 
   //  ── L'AVVIO: chi ha già un acconto non riceve niente ─────────────────
@@ -180,6 +204,15 @@ async function chiedi(
     if (await porte.scriviScheda(s, { stato: "promemoria", motivo: d.motivo })) out.promemoria++;
     return;
   }
+  //  ⚠️ PRIMA SI PRENOTA, POI SI INVIA. La scheda si segna «richiesta inviata» con una scrittura
+  //   condizionata su `updated_at`: se due giri arrivano insieme, uno solo la vince e solo lui
+  //   manda il messaggio. Se il giro muore dopo la prenotazione la richiesta resta segnata
+  //   (mai un secondo messaggio: al peggio una persona la rimanda a mano).
+  const richiestaIl = adesso.toISOString();
+  if (
+    !(await porte.scriviScheda(s, { stato: "richiesta_inviata", richiestaIl, motivo: "in_invio" }))
+  )
+    return;
   const esito = await porte.invia({
     userId: s.userId,
     leadId: s.id,
@@ -191,23 +224,26 @@ async function chiedi(
   });
   if (esito === "ok" || esito === "gia_preso" || esito === "incerto") {
     //  «incerto»: non si sa se è partito, e non si rimanda (come per tutti gli invii).
-    const ok = await porte.scriviScheda(s, {
+    await porte.scriviScheda(s, {
       stato: "richiesta_inviata",
-      richiestaIl: adesso.toISOString(),
+      richiestaIl,
       ...(esito === "incerto" ? { motivo: "esito_incerto" } : {}),
     });
-    if (ok) out.richieste++;
+    out.richieste++;
     return;
   }
-  if (esito === "riprova") return; // pausa del contatto: al prossimo giro
-  //  Non è partito e non partirà da solo: resta in «Da fare» per una persona.
+  //  Non è partito: la prenotazione si toglie e la richiesta torna «da fare» per una persona
+  //  (o per il prossimo giro: i promemoria si riprovano).
   const motivo =
     esito === "stop"
       ? "numero_in_stop"
       : esito === "saltato"
         ? "finestra_chiusa"
-        : "invio_non_riuscito";
-  if (await porte.scriviScheda(s, { stato: "promemoria", motivo })) out.promemoria++;
+        : esito === "riprova"
+          ? "pausa_contatto"
+          : "invio_non_riuscito";
+  await porte.scriviScheda(s, { stato: "promemoria", motivo });
+  if (esito !== "riprova") out.promemoria++;
 }
 
 /** ── B. LE RISPOSTE ───────────────────────────────────────────────────── */
@@ -224,7 +260,8 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
 
   const file = [...(sc.file ?? [])];
   const dataUrl: string[] = [];
-  const testi: string[] = [];
+  const idFile: string[] = [];
+  const testi: { id: string; testo: string }[] = [];
   const visti: string[] = [];
   let daGuardare = false;
   let motivo = "";
@@ -241,7 +278,7 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
       continue;
     }
     if (cosa.tipo === "testo") {
-      testi.push(m.body);
+      testi.push({ id: m.id, testo: m.body });
       visti.push(m.id);
       continue;
     }
@@ -259,24 +296,30 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     }
     file.push(f.percorso);
     dataUrl.push(f.dataUrl);
+    idFile.push(m.id);
   }
 
-  //  L'AI: una chiamata per i file (insieme) e una per ogni testo.
+  //  L'AI: una chiamata per i file (insieme) e una per ogni testo, ognuna con la SUA chiave
+  //  (gli id dei messaggi): un giro rifatto non legge due volte lo stesso messaggio.
   const letture: DatiLetti[] = [];
+  const chiavi: string[] = [];
   let guasto = false;
   if (dataUrl.length) {
-    const r = await porte.leggi({ file: dataUrl });
+    const k = `lettura:${s.id}:f:${idFile.join(",")}`;
+    chiavi.push(k);
+    const r = await porte.leggi({ file: dataUrl }, k);
     if (r === null) guasto = true;
     else letture.push(leggiJsonDatiTesto(r));
   }
   for (const t of testi) {
-    const r = await porte.leggi({ testo: t });
+    const k = `lettura:${s.id}:t:${t.id}`;
+    chiavi.push(k);
+    const r = await porte.leggi({ testo: t.testo }, k);
     if (r === null) guasto = true;
     else letture.push(leggiJsonDatiTesto(r));
   }
-  //  L'AI non risponde (credito finito, rete): i FILE sono già al sicuro, ma i messaggi
-  //  non si segnano letti, così il prossimo giro riprova. I file non si salvano due volte:
-  //  si ricorda solo ciò che è stato già scaricato.
+  //  L'AI non risponde (credito finito, rete): i messaggi non si segnano letti, così il
+  //  prossimo giro riprova (le letture già fatte restano tenute: non si pagano due volte).
   if (guasto) {
     out.errori++;
     return;
@@ -289,6 +332,17 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     letti: [...(sc.letti ?? []), ...visti].slice(-MESSAGGI_RICORDATI),
   };
   if (conAlmenoUnDato(unite)) {
+    //  ⚠️ LA SCHEDA PRIMA, LA BOZZA DOPO. La scrittura condizionata della scheda («bozza pronta»,
+    //   messaggi letti) è il lucchetto: se un altro l'ha cambiata nel frattempo, la bozza NON si
+    //   scrive. Così per uno stesso acconto la bozza nasce una volta sola (e se esiste già si
+    //   completa soltanto, mai si sostituisce).
+    const nuovoStato: DatiFatturaScheda = {
+      ...base,
+      stato: "bozza_pronta",
+      bozzaIl: adesso.toISOString(),
+      motivo: undefined,
+    };
+    if (!(await porte.scriviScheda(s, nuovoStato))) return;
     const esistente = await porte.leggiBozza(s.id);
     const { bozza } = bozzaDaDati({
       scheda: { id: s.id, ...s.data },
@@ -299,30 +353,25 @@ async function leggiRisposte(porte: PorteDatiFattura, s: SchedaGiro, adesso: Dat
     });
     const errore = await porte.scriviBozza(bozza);
     if (errore) {
+      //  La bozza non c'è: la scheda torna com'era (con i file salvati) così il prossimo giro
+      //  riprova; la lettura AI è ancora tenuta e non si rifà.
+      await porte.scriviScheda(s, { ...sc, file });
       out.errori++;
       return;
     }
-    if (
-      await porte.scriviScheda(s, {
-        ...base,
-        stato: "bozza_pronta",
-        bozzaIl: adesso.toISOString(),
-        motivo: undefined,
-      })
-    )
-      out.bozze++;
+    out.bozze++;
+    await porte.dimentica(chiavi);
     return;
   }
   //  Arrivato qualcosa ma non si legge: foto storta, o dato incompleto.
   if (daGuardare || dataUrl.length || testi.length) {
-    if (sc.stato === "bozza_pronta") {
-      await porte.scriviScheda(s, base);
-      return;
-    }
-    if (
-      await porte.scriviScheda(s, { ...base, stato: "da_guardare", motivo: motivo || "non_letto" })
-    )
-      out.daGuardare++;
+    const nuovo: DatiFatturaScheda =
+      sc.stato === "bozza_pronta"
+        ? base
+        : { ...base, stato: "da_guardare", motivo: motivo || "non_letto" };
+    if (!(await porte.scriviScheda(s, nuovo))) return;
+    if (sc.stato !== "bozza_pronta") out.daGuardare++;
+    await porte.dimentica(chiavi);
     return;
   }
   await porte.scriviScheda(s, base);

@@ -128,23 +128,57 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
       scritture: [],
       chiamateAi: 0,
       scaricati: [],
+      cache: new Map(),
+      dimenticate: [],
+      lockOccupato: false,
+      rilasci: 0,
+      rifiutaBozzaPronta: 0,
+      bozzeScritte: 0,
+      versione: 0,
       ...o,
     };
     m.porte = {
       adesso: () => ADESSO,
+      lucchetto: {
+        prendi: async () => !m.lockOccupato,
+        rilascia: async () => { m.rilasci++; },
+      },
       leggiConfig: async () => m.config,
       salvaConfig: async (cfg) => { m.config = cfg; },
-      schedeConAcconto: async () => m.schede,
+      //  Come il database vero: ogni giro riceve COPIE, e la scrittura è condizionata su updatedAt.
+      schedeConAcconto: async () => m.schede.map((s) => structuredClone(s)),
       contatto: async (u, t) => m.contatti[t] ?? { ultimaEntrata: ore(1), stop: false },
       modelloPronto: async () => m.modello,
       invia: async (i) => { m.inviati.push(i); return m.esitoInvio; },
-      scriviScheda: async (s, d) => { s.data.datiFattura = d; m.scritture.push(d); return true; },
+      scriviScheda: async (s, d) => {
+        const rec = m.schede.find((x) => x.id === s.id);
+        if (!rec || rec.updatedAt !== s.updatedAt) return false;
+        if (d.stato === "bozza_pronta" && m.rifiutaBozzaPronta > 0) { m.rifiutaBozzaPronta--; return false; }
+        rec.data.datiFattura = d;
+        rec.updatedAt = `v${++m.versione}`;
+        s.data = structuredClone(rec.data);
+        s.updatedAt = rec.updatedAt;
+        m.scritture.push(d);
+        return true;
+      },
       messaggiIn: async (u, l) => m.messaggi[l] ?? [],
       scaricaESalva: async (u, l, url) => { m.scaricati.push(url); return m.scarica ? { percorso: `${u}/${l}/f${m.scaricati.length}.jpg`, dataUrl: "data:image/jpeg;base64,AAAA" } : null; },
-      leggi: async (i) => { m.chiamateAi++; return m.ai(i); },
+      leggi: async (i, chiave) => {
+        if (m.cache.has(chiave)) return m.cache.get(chiave);
+        m.chiamateAi++;
+        const r = m.ai(i);
+        if (r !== null) m.cache.set(chiave, r);
+        return r;
+      },
+      dimentica: async (chiavi) => { m.dimenticate.push(...chiavi); chiavi.forEach((k) => m.cache.delete(k)); },
       aliquota: async () => 22,
       leggiBozza: async (l) => m.bozze[l] ?? null,
-      scriviBozza: async (f) => { m.bozze[f.leadId] = f; return null; },
+      scriviBozza: async (f) => {
+        if (m.bozzaGuasta) { m.bozzaGuasta = false; return "errore"; }
+        m.bozzeScritte++;
+        m.bozze[f.leadId] = f;
+        return null;
+      },
     };
     return m;
   };
@@ -182,13 +216,41 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
   }
   m = mondo({ schede: [S("A")], esitoInvio: "riprova" });
   await G.giroDatiFattura(m.porte);
-  c("pausa del contatto → non si scrive niente, si riprova", 0, m.scritture.length);
+  c("pausa del contatto → torna promemoria (si riprova al prossimo giro)", ["promemoria", "pausa_contatto"], [m.schede[0].data.datiFattura.stato, m.schede[0].data.datiFattura.motivo]);
   m = mondo({ schede: [S("A")], esitoInvio: "incerto" });
   await G.giroDatiFattura(m.porte);
   c("esito incerto → segnata come inviata (non si rimanda)", "richiesta_inviata", m.schede[0].data.datiFattura.stato);
   m = mondo({ schede: [S("A")], esitoInvio: "gia_preso" });
   await G.giroDatiFattura(m.porte);
   c("chiave già nel registro → segnata come inviata, senza secondo messaggio", "richiesta_inviata", m.schede[0].data.datiFattura.stato);
+
+  /* ── LA SICUREZZA: UN GIRO ALLA VOLTA, UN MESSAGGIO SOLO, UNA BOZZA SOLA ── */
+  gruppo("DATI FATTURA · SICUREZZA (LUCCHETTO, INVIO IDEMPOTENTE, BOZZA DOPO LA SCHEDA)");
+  m = mondo({ schede: [S("A")], lockOccupato: true });
+  r = await G.giroDatiFattura(m.porte);
+  c("lucchetto occupato: il giro non fa NIENTE", ["occupato", 0, 0, 0], [r.stato, m.inviati.length, m.scritture.length, m.rilasci]);
+  m = mondo({ schede: [S("A")] });
+  await G.giroDatiFattura(m.porte);
+  c("lucchetto preso e rilasciato a fine giro", 1, m.rilasci);
+  m = mondo({ schede: [S("A")] });
+  m.porte.contatto = async () => { throw new Error("db giù"); };
+  await G.giroDatiFattura(m.porte);
+  c("anche se qualcosa si rompe il lucchetto viene rilasciato", 1, m.rilasci);
+  m = mondo({ schede: [S("A")] });
+  let statoPrimaDelInvio = null;
+  m.porte.invia = async (i) => { statoPrimaDelInvio = m.schede[0].data.datiFattura?.stato; m.inviati.push(i); return "ok"; };
+  await G.giroDatiFattura(m.porte);
+  c("la scheda è già «richiesta inviata» PRIMA che il messaggio parta", "richiesta_inviata", statoPrimaDelInvio);
+  m = mondo({ schede: [S("A"), S("B")] });
+  const slot = m.porte.invia;
+  m.porte.invia = async (i) => { await new Promise((r2) => setTimeout(r2, 5)); return slot(i); };
+  const [g1, g2] = await Promise.all([G.giroDatiFattura(m.porte), G.giroDatiFattura(m.porte)]);
+  c("DUE giri insieme (senza lucchetto): un solo messaggio per scheda", [2, 2], [m.inviati.length, g1.richieste + g2.richieste]);
+  c("…e mai lo stesso lead due volte", 2, new Set(m.inviati.map((x) => x.leadId)).size);
+  m = mondo({ schede: [S("A")], esitoInvio: "errore" });
+  await G.giroDatiFattura(m.porte);
+  await G.giroDatiFattura(m.porte);
+  c("invio fallito: la prenotazione è tolta (promemoria) e non si riprova a raffica", "promemoria", m.schede[0].data.datiFattura.stato);
 
   /* ── LA RISPOSTA ── */
   const dopo = (h) => ore(h);
@@ -202,6 +264,28 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
   c("messaggi letti ricordati", ["w0", "w1"], [...dfa.letti].sort());
   await G.giroDatiFattura(m.porte);
   c("secondo giro: nessun nuovo scarico né nuova lettura", [1, 1], [m.scaricati.length, m.chiamateAi]);
+
+  /* sicurezza sulla risposta */
+  const foto = (id = "w1") => ({ id, body: H + `${id}.jpg`, canale: "manychat", creatoIl: dopo(2) });
+  m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] } });
+  await G.giroDatiFattura(m.porte);
+  c("la lettura AI ha una chiave con l'id del messaggio", true, m.dimenticate.length === 1 && m.dimenticate[0].includes("w1"));
+  c("finita la scheda, la risposta tenuta dell'AI si toglie", 0, m.cache.size);
+  m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] }, rifiutaBozzaPronta: 1 });
+  await G.giroDatiFattura(m.porte);
+  c("scheda cambiata nel frattempo (scrittura rifiutata): la bozza NON si scrive", [0, 1], [m.bozzeScritte, m.chiamateAi]);
+  await G.giroDatiFattura(m.porte);
+  c("giro dopo: la bozza nasce SENZA rileggere con l'AI", [1, 1, "bozza_pronta"], [m.bozzeScritte, m.chiamateAi, m.schede[0].data.datiFattura.stato]);
+  m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] }, bozzaGuasta: true });
+  r = await G.giroDatiFattura(m.porte);
+  c("bozza non scritta: la scheda torna com'era (si riprova), errore contato", ["richiesta_inviata", undefined, 1], [m.schede[0].data.datiFattura.stato, m.schede[0].data.datiFattura.letti, r.errori]);
+  await G.giroDatiFattura(m.porte);
+  c("…e il giro dopo la scrive, con la lettura AI già tenuta (una chiamata sola in tutto)", [1, 1, "bozza_pronta"], [m.bozzeScritte, m.chiamateAi, m.schede[0].data.datiFattura.stato]);
+  m = mondo({ schede: [inviata("A")], messaggi: { A: [foto()] } });
+  const ai0 = m.porte.leggi;
+  m.porte.leggi = async (i, k) => { await new Promise((r2) => setTimeout(r2, 5)); return ai0(i, k); };
+  await Promise.all([G.giroDatiFattura(m.porte), G.giroDatiFattura(m.porte)]);
+  c("DUE giri insieme sulla stessa foto: UNA bozza sola", [1, "bozza_pronta"], [m.bozzeScritte, m.schede[0].data.datiFattura.stato]);
 
   m = mondo({ schede: [inviata("A")], messaggi: { A: [{ id: "w1", body: `Sono Anna Verdi ${CF} via Po 3 00198 Roma`, canale: "manychat", creatoIl: dopo(2) }] } });
   r = await G.giroDatiFattura(m.porte);

@@ -83,6 +83,124 @@ function inBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
+const CHIAVE_LUCCHETTO = "dati_fattura_lock";
+const PREFISSO_LETTURA = "dati_fattura_ai:";
+/** Un giro dura pochi secondi: se muore, dopo 4 minuti il lucchetto è libero. */
+const SCADENZA_LUCCHETTO_MS = 4 * 60_000;
+
+/** ── IL LUCCHETTO: UNA RIGA IN `app_config`, PRESA CON SCRITTURA CONDIZIONATA ──
+ *  · riga assente → `insert` (la chiave è primaria: il secondo che prova fallisce);
+ *  · riga scaduta → `update … where value = <quello letto>` (compare-and-swap: se un altro
+ *    l'ha già presa, il valore è cambiato e non si aggiorna niente);
+ *  · riga viva → occupato. Si rilascia con lo stesso confronto sul proprio valore. */
+export function lucchettoDatiFattura(adesso: () => Date = () => new Date()) {
+  const mio = crypto.randomUUID();
+  let valoreMio: string | null = null;
+  return {
+    async prendi(): Promise<boolean> {
+      const ora = adesso();
+      const nuovo = JSON.stringify({
+        id: mio,
+        fino: new Date(ora.getTime() + SCADENZA_LUCCHETTO_MS).toISOString(),
+      });
+      const { data } = await db()
+        .from("app_config")
+        .select("value")
+        .eq("key", CHIAVE_LUCCHETTO)
+        .maybeSingle();
+      if (!data) {
+        const { error } = await db()
+          .from("app_config")
+          .insert({ key: CHIAVE_LUCCHETTO, value: nuovo });
+        if (error) return false;
+      } else {
+        let fino = 0;
+        try {
+          fino = Date.parse((JSON.parse(String(data.value)) as { fino?: string }).fino ?? "");
+        } catch {
+          fino = 0;
+        }
+        if (Number.isFinite(fino) && fino > ora.getTime()) return false;
+        const { data: scritte, error } = await db()
+          .from("app_config")
+          .update({ value: nuovo })
+          .eq("key", CHIAVE_LUCCHETTO)
+          .eq("value", String(data.value))
+          .select("key");
+        if (error || !scritte?.length) return false;
+      }
+      valoreMio = nuovo;
+      return true;
+    },
+    async rilascia(): Promise<void> {
+      if (!valoreMio) return;
+      await db()
+        .from("app_config")
+        .update({ value: JSON.stringify({ id: mio, fino: "1970-01-01T00:00:00.000Z" }) })
+        .eq("key", CHIAVE_LUCCHETTO)
+        .eq("value", valoreMio);
+      valoreMio = null;
+    },
+  };
+}
+
+async function impronta(chiave: string): Promise<string> {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(chiave));
+  return [...new Uint8Array(h)]
+    .slice(0, 20)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function chiediAllAi(i: { file: string[] } | { testo: string }): Promise<string | null> {
+  try {
+    const cfg = await leggiConfigAI();
+    if (!cfg.pronto) return null;
+    const parti =
+      "file" in i
+        ? [
+            { type: "text", text: PROMPT_DOCUMENTO },
+            ...i.file.map((u, n) =>
+              u.startsWith("data:application/pdf")
+                ? { type: "file", file: { filename: `documento-${n + 1}.pdf`, file_data: u } }
+                : { type: "image_url", image_url: { url: u } },
+            ),
+          ]
+        : [{ type: "text", text: PROMPT_TESTO_DATI + i.testo.slice(0, 1500) }];
+    const haPdf = "file" in i && i.file.some((u) => u.startsWith("data:application/pdf"));
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "HTTP-Referer": "https://hair-genius-hub.hair",
+        "X-Title": "Dati fattura",
+      },
+      body: JSON.stringify({
+        model: MODELLO_AI,
+        max_tokens: 700,
+        ...(haPdf ? { plugins: [{ id: "file-parser", pdf: { engine: "native" } }] } : {}),
+        messages: [{ role: "user", content: parti }],
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!r.ok) {
+      console.error("[dati-fattura] ai", r.status);
+      return null;
+    }
+    const corpo = (await r.json()) as { choices?: { message?: { content?: unknown } }[] };
+    const c = corpo.choices?.[0]?.message?.content;
+    return typeof c === "string"
+      ? c
+      : Array.isArray(c)
+        ? c.map((p) => (p as { text?: string })?.text || "").join(" ")
+        : "";
+  } catch {
+    console.error("[dati-fattura] ai rete");
+    return null;
+  }
+}
+
 export function porteDatiFatturaVere(): PorteDatiFattura {
   const canali = new Map<string, Awaited<ReturnType<typeof leggiCanale>>>();
   const canaleDi = async (userId: string) => {
@@ -97,6 +215,7 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
 
   return {
     adesso: () => new Date(),
+    lucchetto: lucchettoDatiFattura(),
     leggiConfig: leggiConfigDatiFattura,
     salvaConfig: scriviConfigDatiFattura,
 
@@ -261,53 +380,34 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
       }
     },
 
-    leggi: async (i) => {
-      try {
-        const cfg = await leggiConfigAI();
-        if (!cfg.pronto) return null;
-        const parti =
-          "file" in i
-            ? [
-                { type: "text", text: PROMPT_DOCUMENTO },
-                ...i.file.map((u, n) =>
-                  u.startsWith("data:application/pdf")
-                    ? { type: "file", file: { filename: `documento-${n + 1}.pdf`, file_data: u } }
-                    : { type: "image_url", image_url: { url: u } },
-                ),
-              ]
-            : [{ type: "text", text: PROMPT_TESTO_DATI + i.testo.slice(0, 1500) }];
-        const haPdf = "file" in i && i.file.some((u) => u.startsWith("data:application/pdf"));
-        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${cfg.apiKey}`,
-            "HTTP-Referer": "https://hair-genius-hub.hair",
-            "X-Title": "Dati fattura",
-          },
-          body: JSON.stringify({
-            model: MODELLO_AI,
-            max_tokens: 700,
-            ...(haPdf ? { plugins: [{ id: "file-parser", pdf: { engine: "native" } }] } : {}),
-            messages: [{ role: "user", content: parti }],
-          }),
-          signal: AbortSignal.timeout(45_000),
-        });
-        if (!r.ok) {
-          console.error("[dati-fattura] ai", r.status);
-          return null;
-        }
-        const corpo = (await r.json()) as { choices?: { message?: { content?: unknown } }[] };
-        const c = corpo.choices?.[0]?.message?.content;
-        return typeof c === "string"
-          ? c
-          : Array.isArray(c)
-            ? c.map((p) => (p as { text?: string })?.text || "").join(" ")
-            : "";
-      } catch {
-        console.error("[dati-fattura] ai rete");
-        return null;
+    //  Le risposte dell'AI si tengono (per chiave dei messaggi) finché la scheda non è scritta:
+    //  sono gli stessi dati che finiranno nella bozza, e poi si tolgono (`dimentica`).
+    dimentica: async (chiavi) => {
+      for (const k of chiavi) {
+        await db()
+          .from("app_config")
+          .delete()
+          .eq("key", `${PREFISSO_LETTURA}${await impronta(k)}`);
       }
+    },
+
+    leggi: async (i, chiave) => {
+      const kc = `${PREFISSO_LETTURA}${await impronta(chiave)}`;
+      const { data: tenuta } = await db()
+        .from("app_config")
+        .select("value")
+        .eq("key", kc)
+        .maybeSingle();
+      if (typeof tenuta?.value === "string") return tenuta.value;
+      const risposta = await chiediAllAi(i);
+      if (risposta !== null)
+        await db()
+          .from("app_config")
+          .upsert(
+            { key: kc, value: risposta, updated_at: new Date().toISOString() },
+            { onConflict: "key" },
+          );
+      return risposta;
     },
 
     aliquota: async () => (await leggiAziendaSu(archivio)).aliquotaPredefinita,
