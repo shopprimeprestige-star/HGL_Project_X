@@ -68,11 +68,9 @@ function etichettaGiorno(d: Date, adesso: Date): string {
   });
 }
 
-/** La chat aperta: barra in alto, messaggi e casella. Riempie il contenitore che le dà
- *  `PaginaChat` (R12). Sul telefono è a tutto schermo e la freccia ← torna all'elenco. */
 /** Gli indici dei messaggi, divisi per giorno di Roma (nell'ordine in cui
  *  arrivano). Una data illeggibile resta nel giorno di prima. */
-export function giorniDi(voci: { created_at: string }[]): number[][] {
+function giorniDi(voci: { created_at: string }[]): number[][] {
   const out: number[][] = [];
   let ultimo = "";
   voci.forEach((m, i) => {
@@ -85,6 +83,8 @@ export function giorniDi(voci: { created_at: string }[]): number[][] {
   return out;
 }
 
+/** La chat aperta: barra in alto, messaggi e casella. Riempie il contenitore che le dà
+ *  `PaginaChat` (R12). Sul telefono è a tutto schermo e la freccia ← torna all'elenco. */
 export function Conversazione({
   api,
   onIndietro,
