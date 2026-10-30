@@ -41,6 +41,16 @@ DO $f$ BEGIN
 END $f$;
 
 -- ── Prima della migrazione: chat che esistono già ────────────────────────────
+-- Se la migrazione è già applicata (database con TUTTE le migrazioni) i suoi
+-- trigger scatterebbero già mentre si crea il mondo «di prima»: si tolgono
+-- (dentro la transazione, il ROLLBACK li rimette) e la migrazione li ricrea.
+-- Senza, l'eco vecchia diventerebbe l'anteprima al suo inserimento e il
+-- riempimento (solo contatti vuoti) non la vedrebbe: in produzione le eco sono
+-- tutte di PRIMA della migrazione (dal 29/10 il server le scarta).
+DROP TRIGGER IF EXISTS trg_wa_messaggi_cambiato_il ON public.whatsapp_messages;
+DROP TRIGGER IF EXISTS trg_wa_messaggi_anteprima ON public.whatsapp_messages;
+DROP TRIGGER IF EXISTS trg_wa_contatti_anteprima ON public.whatsapp_contacts;
+
 -- +393330000301: ultima un'uscita (un modello), con un'entrata prima.
 -- 393330000302 (contatto SENZA «+», come quelli del ponte): ultima un'entrata.
 -- +393330000303: l'ultima riga è un doppione del ponte (non conta).
