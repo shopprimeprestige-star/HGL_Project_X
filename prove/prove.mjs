@@ -590,6 +590,8 @@ const MODULI = [
   //   prove in prove/manychat/chat-costi.mjs.
   "chatwa/costi-whatsapp",
   "chatwa/calcolo-costi",
+  //  Il Cruscotto WhatsApp (pacchetto p4-cruscotto-wa): prove in prove/manychat/cruscotto-wa.mjs.
+  "cruscotto-wa/calcolo",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
   //   2026-10-28-chat-risposte-rapide): prove in prove/manychat/chat-risposte.mjs.
   "chatwa/risposte-rapide",

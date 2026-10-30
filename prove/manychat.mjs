@@ -48,6 +48,7 @@ import { proveChatEntrata } from "./manychat/chat-entrata.mjs";
 import { proveChatUscita } from "./manychat/chat-uscita.mjs";
 import { proveChatCasella } from "./manychat/chat-casella.mjs";
 import { proveChatCosti } from "./manychat/chat-costi.mjs";
+import { proveCruscottoWa } from "./manychat/cruscotto-wa.mjs";
 import { proveChatPagina } from "./manychat/chat-pagina.mjs";
 import { proveChatRisposte } from "./manychat/chat-risposte.mjs";
 import { proveChatStile } from "./manychat/chat-stile.mjs";
@@ -337,4 +338,6 @@ export async function proveManychat(mod, aiuti) {
   proveChatRitorno(mod, aiuti);
   proveChatVersione(mod, aiuti);
   proveNoteVocali(mod, aiuti);
+  //  Pacchetto p4-cruscotto-wa (30/10/2026): prove in prove/manychat/cruscotto-wa.mjs.
+  proveCruscottoWa(mod, aiuti);
 }
