@@ -38,6 +38,7 @@ import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
+import { provePannelloOggi } from "./pannello-oggi.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -170,6 +171,10 @@ const MODULI = [
   //  Chi non ha confermato la consulenza di oggi, in cima a «Da fare oggi»
   //   (idea 2, commessa 2026-10-30): prove in prove/idee/dafare.mjs.
   "dafare/senza-conferma",
+  //  Il pannello «Oggi» nella chat (commessa 2026-10-30-oggi-e-fatture, A):
+  //   prove in prove/pannello-oggi.mjs.
+  "consulenze-del-giorno",
+  "chatwa/pannello-oggi",
   //  ⚠️ La tabella del gesto successivo per stato: vedi proveDelGestoPerStato.
   "ui",
   //  ⚠️ Il testo con cui si chiede l'immagine della prova capelli: vedi
@@ -20510,8 +20515,9 @@ function proveDiWhatsappSulTelefono() {
   c("l'elenco prende tutta la larghezza e si nasconde con una chat aperta", true, /"w-full flex-col md:flex md:w-\[300px\][^"]*",\s*conversazioneAperta \? "hidden" : "flex"/.test(pg));
   c("la chat si vede da sola quando è aperta", true, /md:block", conversazioneAperta \? "block" : "hidden"/.test(pg));
   c("c'è la freccia per tornare all'elenco", true, /onIndietro=\{tornaElenco\}/.test(pg) && /onClick=\{onIndietro\}[\s\S]{0,80}md:hidden/.test(conv));
-  c("il pannello lead affiancato solo da 1280 px", true, /leadsPanelOpen && \(\s*<div className="hidden xl:flex">/.test(pg));
-  c("sotto i 1280 px il pannello lead è un foglio sopra la pagina", true, /<Sheet open=\{foglioLead\}/.test(pg) && /SheetContent side="right" className="w-full/.test(pg));
+  //  Dal 30/10/2026 la colonna di destra è il pannello «Oggi» (con «Lead» dentro): stesse regole di misura.
+  c("il pannello Oggi affiancato solo da 1280 px", true, /pannelloOggi && \(\s*<div className="hidden[^"]*xl:flex">/.test(pg));
+  c("sotto i 1280 px il pannello Oggi è un foglio sopra la pagina", true, /<Sheet open=\{foglioOggi\}/.test(pg) && /SheetContent side="right" className="w-full/.test(pg));
 }
 
 
@@ -21151,6 +21157,7 @@ proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
 proveIdeeDafare(mod, { c, gruppo, radice });
+provePannelloOggi(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
