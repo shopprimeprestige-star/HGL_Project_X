@@ -207,6 +207,12 @@ export function TastoSpesaLead() {
               <p className="text-[28px] font-semibold leading-tight tabular-nums">
                 {nLead(riga0.lead)}
               </p>
+              {/*  Come Meta e il foglio: anche chi è tornato con lo stesso numero. */}
+              {riga0.ritorni > 0 && (
+                <p className="text-[13px] tabular-nums text-muted-foreground">
+                  {riga0.nuovi} {riga0.nuovi === 1 ? "nuovo" : "nuovi"} · {riga0.ritorni} di ritorno
+                </p>
+              )}
               <p className="text-[13px] tabular-nums text-muted-foreground">
                 Spesa {riga0.euro !== null ? euroPreciso(riga0.euro) : trattino} · costo per lead{" "}
                 {riga0.costoLead !== null ? euroPreciso(riga0.costoLead) : trattino}
@@ -322,7 +328,9 @@ function RigaDelGiorno({
             {giornoLungo(riga.giorno)}
           </span>
           <span className="block text-[11.5px] tabular-nums text-muted-foreground">
-            {nLead(riga.lead)} · spesa {riga.euro !== null ? euroPreciso(riga.euro) : trattino}
+            {nLead(riga.lead)}
+            {riga.ritorni > 0 ? ` (${riga.ritorni} di ritorno)` : ""} · spesa{" "}
+            {riga.euro !== null ? euroPreciso(riga.euro) : trattino}
             {riga.origine === "meta" ? " (Meta)" : ""}
           </span>
         </span>

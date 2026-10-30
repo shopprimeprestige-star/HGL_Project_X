@@ -18,6 +18,7 @@ import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
 import { IconaMedia } from "./IconaMedia";
+import { fotoDelPonte, useMediaPonte, type FaseFoto } from "./usaMediaPonte";
 import {
   barreFinte,
   etichettaVelocita,
@@ -328,6 +329,108 @@ const SPAZIO_ORA = "after:inline-block after:h-3 after:content-['']";
 const spazioOra = (fromMe: boolean) =>
   cn(SPAZIO_ORA, fromMe ? "after:w-[4.25rem]" : "after:w-[2.75rem]");
 
+/** ── LA FOTO DEL PONTE (commessa 2026-10-30-ponte-storico-completo, T7) ─────
+ *  Il ponte salva la foto e la chat la mostra al tocco (`useMediaPonte`). Cinque
+ *  aspetti, tutti alti quanto un tasto (nessun salto quando cambiano):
+ *   · senza riga (o lettura non riuscita): il testo «📷 Foto» di sempre;
+ *   · in arrivo: «Foto in arrivo» e «Ricontrolla»;
+ *   · pronta: «Foto · Tocca per vedere» (l'`<img>` non esiste ancora);
+ *   · in caricamento: tasto fermo con la rotellina;
+ *   · errore: la frase e «Riprova» (se ritentare ha senso).
+ *  ⚠️ Nel DOM c'è solo l'indirizzo locale `blob:`: quello firmato non ci arriva mai.
+ *  ⚠️ La didascalia la scrive il cliente: nodo di testo, mai HTML. */
+export function VistaFotoPonte({
+  stato,
+  corpo,
+  didascalia,
+  inUscita,
+  mostra,
+  ricontrolla,
+  nonSiApre,
+}: {
+  stato: FaseFoto;
+  /** Il testo della riga, per la fase «senza riga». */
+  corpo: string;
+  didascalia: string;
+  inUscita: boolean;
+  mostra: () => void;
+  ricontrolla: () => void;
+  nonSiApre: () => void;
+}) {
+  const tasto =
+    "inline-flex min-h-11 items-center gap-2 rounded-md bg-black/[0.04] px-3 py-2 text-left font-medium";
+  switch (stato.fase) {
+    case "verifica":
+    case "nessuna":
+      return <p className={cn(TESTO, spazioOra(inUscita))}>{corpo}</p>;
+    case "in_arrivo":
+      return (
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex min-h-11 items-center gap-2 font-medium text-[#54656f]">
+            <ImageIcon className="h-4 w-4 shrink-0" aria-hidden />
+            Foto in arrivo
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={ricontrolla}
+            className="min-h-11 gap-1.5 px-2 text-[13px]"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden />
+            Ricontrolla
+          </Button>
+        </div>
+      );
+    case "pronta":
+      return (
+        <button type="button" onClick={mostra} className={cn(tasto, "hover:bg-black/[0.07]")}>
+          <ImageIcon className="h-4 w-4 shrink-0" aria-hidden />
+          Foto · Tocca per vedere
+        </button>
+      );
+    case "carico":
+      return (
+        <span role="status" aria-busy="true" className={cn(tasto, "text-[#54656f]")}>
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+          Carico la foto…
+        </span>
+      );
+    case "vista":
+      return (
+        <>
+          <img
+            src={stato.src}
+            alt={inUscita ? "Foto inviata" : "Foto inviata dal cliente"}
+            referrerPolicy="no-referrer"
+            onError={nonSiApre}
+            className="-mx-1.5 -mt-0.5 max-h-80 max-w-[calc(100%+0.75rem)] rounded-md object-contain"
+          />
+          {didascalia && <p className={cn(TESTO, "mt-1")}>{didascalia}</p>}
+        </>
+      );
+    case "errore":
+      return (
+        <div role="status" className="flex flex-col items-start gap-1.5">
+          <p className="flex items-start gap-1.5 text-[12.5px] leading-snug text-rose-800">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            {stato.frase}
+          </p>
+          {stato.riprova && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={mostra}
+              className="min-h-11 gap-1.5 bg-white/70 text-[13px]"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Riprova
+            </Button>
+          )}
+        </div>
+      );
+  }
+}
+
 /** Il contenuto: solo i messaggi IN ENTRATA si interpretano; quelli scritti da noi sono sempre testo. */
 function Contenuto({ messaggio: m, c }: BollaProps & { c: TestoClassificato | null }) {
   if (!c || c.tipo === "testo") {
@@ -471,11 +574,18 @@ export function BollaMessaggio({
   const fromMe = m.direction === "outbound";
   const { consultants } = useCRM();
   const c = fromMe ? null : classificaTesto(m.body ?? "");
+  //  La foto del ponte (in entrata o mandata dal telefono): finché è solo il testo «📷 Foto» l'ora
+  //  sta accanto, come per ogni testo; con tasto, foto o errore sta sotto.
+  const fotoPonte = coda ? null : fotoDelPonte(m);
+  const gancioFoto = useMediaPonte(fotoPonte?.chiave ?? null, m.created_at);
+  const senzaFoto = gancioFoto.stato.fase === "verifica" || gancioFoto.stato.fase === "nessuna";
   //  Testo (anche illeggibile o link non riconosciuto) e vocale: l'ora si posa sull'ultima riga.
   //  La bolla della coda ha lo stato sotto il testo: l'ora sta sotto lo stato (solo «inviato» la tiene sopra).
   const oraSopra = coda
     ? coda.fase === "inviato"
-    : !c || c.tipo === "testo" || c.tipo === "illeggibile" || c.tipo === "audio" || !c.url;
+    : fotoPonte
+      ? senzaFoto
+      : !c || c.tipo === "testo" || c.tipo === "illeggibile" || c.tipo === "audio" || !c.url;
   return (
     <div
       className={cn(
@@ -492,6 +602,16 @@ export function BollaMessaggio({
           <p className={cn(TESTO, coda.fase === "inviato" && spazioOra(true))}>{coda.testo}</p>
           <StatoCoda coda={coda} />
         </>
+      ) : fotoPonte ? (
+        <VistaFotoPonte
+          stato={gancioFoto.stato}
+          corpo={m.body ?? ""}
+          didascalia={fotoPonte.didascalia}
+          inUscita={fromMe}
+          mostra={gancioFoto.mostra}
+          ricontrolla={gancioFoto.ricontrolla}
+          nonSiApre={gancioFoto.nonSiApre}
+        />
       ) : fromMe ? (
         <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
       ) : (

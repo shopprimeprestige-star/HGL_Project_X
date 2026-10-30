@@ -47,7 +47,32 @@ export function giorniRecenti(adesso: Date, n = GIORNI_ELENCO): string[] {
   return out;
 }
 
-/** Quanti lead sono arrivati in ciascuno dei giorni dati. */
+/** I giorni di Roma in cui la scheda è TORNATA (stesso numero, nuovo modulo).
+ *  Dal 30/10/2026 la scheda li tiene tutti (`ricarico.giorni`); prima solo
+ *  l'ultimo (`ricarico.ultimo`). */
+export function giorniDiRitorno(d: Partial<LeadData> | null | undefined): string[] {
+  const r = d?.ricarico;
+  if (!r || typeof r !== "object") return [];
+  if (Array.isArray(r.giorni)) return r.giorni.filter((g) => UN_GIORNO.test(String(g)));
+  const t = Date.parse(String(r.ultimo ?? ""));
+  return Number.isFinite(t) ? [aRoma(new Date(t)).giorno] : [];
+}
+
+/** Quanti contatti di ritorno ci sono stati in ciascuno dei giorni dati. Per
+ *  Meta e per il foglio Google sono lead del giorno come gli altri: senza
+ *  contarli il CRM diceva 13 dove Meta ne contava 19 (30/10/2026). */
+export function ritorniPerGiorno(
+  leads: { data?: Partial<LeadData> | null }[] | null | undefined,
+  giorni: string[],
+): Map<string, number> {
+  const conto = new Map(giorni.map((g) => [g, 0]));
+  for (const l of Array.isArray(leads) ? leads : [])
+    for (const g of new Set(giorniDiRitorno(l?.data)))
+      if (conto.has(g)) conto.set(g, (conto.get(g) ?? 0) + 1);
+  return conto;
+}
+
+/** Quante schede NUOVE sono arrivate in ciascuno dei giorni dati. */
 export function leadPerGiorno(
   leads: { data?: Partial<LeadData> | null }[] | null | undefined,
   giorni: string[],
@@ -103,7 +128,10 @@ export function costoPerLead(spesa: number | null, lead: number): number | null 
 
 export interface RigaGiorno extends SpesaGiorno {
   giorno: string;
+  /** nuovi + di ritorno: è il numero che contano Meta e il foglio */
   lead: number;
+  nuovi: number;
+  ritorni: number;
   costoLead: number | null;
 }
 
@@ -119,10 +147,13 @@ export function righeGiorni({
   meta: Map<string, number>;
 }): RigaGiorno[] {
   const conto = leadPerGiorno(leads, giorni);
+  const tornati = ritorniPerGiorno(leads, giorni);
   return giorni.map((giorno) => {
-    const lead = conto.get(giorno) ?? 0;
+    const nuovi = conto.get(giorno) ?? 0;
+    const ritorni = tornati.get(giorno) ?? 0;
+    const lead = nuovi + ritorni;
     const spesa = spesaDelGiorno(giorno, aMano, meta);
-    return { giorno, lead, ...spesa, costoLead: costoPerLead(spesa.euro, lead) };
+    return { giorno, lead, nuovi, ritorni, ...spesa, costoLead: costoPerLead(spesa.euro, lead) };
   });
 }
 

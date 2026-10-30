@@ -220,16 +220,28 @@ function secondi(x) {
   }
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
+/** Lo stesso convertitore, per chi legge altri campi interi del proto (peso, durata). */
+export const interoDa = secondi;
 
-/** Apre gli involucri (anche uno dentro l'altro, al più 5 livelli). */
-function apri(message) {
+/** Apre gli involucri (anche uno dentro l'altro, al più 5 livelli). Se si passa
+ *  `visti` (una lista), ci si scrivono i nomi degli involucri attraversati. */
+function apri(message, visti) {
   let m = message;
   for (let i = 0; i < 5 && m && typeof m === "object"; i++) {
     const inv = INVOLUCRI.find((k) => m[k]?.message);
     if (!inv) break;
+    visti?.push(inv);
     m = m[inv].message;
   }
   return m;
+}
+
+/** La durata di un vocale come « m:ss» (con lo spazio davanti), oppure vuota se
+ *  manca o non è credibile (zero, negativa, oltre 999:59). Mai un dato del mittente tale e quale. */
+function durataVocale(seconds) {
+  const n = secondi(seconds);
+  if (n === null || n < 1 || n > 59_999) return "";
+  return ` ${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
 const conDidascalia = (base, didascalia) => (testoPieno(didascalia) ? `${base}: ${testoPieno(didascalia)}` : base);
@@ -364,7 +376,8 @@ function contenuto(message) {
     case "imageMessage":
       return { tipo: "foto", testo: conDidascalia(SEGNAPOSTO.foto, v?.caption) };
     case "audioMessage":
-      return v?.ptt ? { tipo: "vocale", testo: SEGNAPOSTO.vocale } : { tipo: "audio", testo: SEGNAPOSTO.audio };
+      //  «🎤 Vocale 0:12»: il vocale non si scarica, il segnaposto dice quanto dura
+      return v?.ptt ? { tipo: "vocale", testo: `${SEGNAPOSTO.vocale}${durataVocale(v?.seconds)}` } : { tipo: "audio", testo: `${SEGNAPOSTO.audio}${durataVocale(v?.seconds)}` };
     case "videoMessage":
     case "ptvMessage":
       return { tipo: "video", testo: conDidascalia(SEGNAPOSTO.video, v?.caption) };
@@ -455,6 +468,22 @@ export function leggiMessaggio(wamsg, opzioni = {}) {
 
   const nome = dir === "in" ? taglia(testoPieno(wamsg.pushName), LIMITI_ESTRAZIONE.nome) : "";
   return nome ? { ok: true, messaggio, nome } : { ok: true, messaggio };
+}
+
+/** Da un `WAMessage` con una foto vera a `{ chiave, ts, immagine }` per `immagini.mjs`,
+ *  oppure null. Passa da `leggiMessaggio` (stesse regole di chat, numero, orario e
+ *  taglio), quindi la chiave `bw:<numero>:<id>` è quella con cui la riga di testo
+ *  entra nel CRM. `immagine` è l'`imageMessage` com'è: NON è controllato qui (lo
+ *  fa `validaOrigine` di `immagini.mjs`, prima di ogni richiesta).
+ *  «Visualizza una volta» (involucro `viewOnce*` o flag `viewOnce`) non si scarica:
+ *  il mittente l'ha mandata per essere vista una volta sola. */
+export function immagineDa(wamsg, opzioni = {}) {
+  const r = leggiMessaggio(wamsg, opzioni);
+  if (!r.ok || r.messaggio.tipo !== "foto") return null;
+  const visti = [];
+  const immagine = apri(wamsg.message, visti)?.imageMessage;
+  if (!immagine || typeof immagine !== "object" || immagine.viewOnce === true || visti.some((k) => k.startsWith("viewOnce"))) return null;
+  return { chiave: `bw:${r.messaggio.numero}:${r.messaggio.id}`, ts: r.messaggio.ts, immagine };
 }
 
 /** I nomi dai contatti dello storico (`messaging-history.set` → `contacts`):

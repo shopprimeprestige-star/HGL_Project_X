@@ -263,6 +263,46 @@ Come leggere l'esito: righe `baileys` con date **prima di oggi** dopo l'esportaz
 
 Lo decide il telefono: anche con `Desktop` può mandare meno di quello che vedi sul telefono. Sono esclusi per scelta gruppi, stati, canali, reazioni, modifiche e sondaggi. Nel secondo import le righe già presenti non si riscrivono; ogni messaggio ripassa però dall'abbinamento con ManyChat: se per una riga già visibile compare adesso il suo gemello ManyChat, la riga si nasconde e i «Non letti» scendono di 1 (una volta sola). Per questo possono scendere, mai salire.
 
+## Le immagini (foto dei clienti nella chat)
+
+Dopo l'esportazione dello storico (mai la stessa sera), il ponte può portare nel CRM anche le **foto**: solo le immagini (JPEG, PNG, WebP, al massimo 8 MiB) dei messaggi **degli ultimi 14 giorni**, in entrata e in uscita. Le più vecchie, i video, i vocali e i documenti restano il segnaposto di sempre («📷 Foto», «🎤 Vocale 0:12»). Nella chat la bolla dice «Foto · Tocca per vedere»: la foto si scarica solo al tocco. Le foto sono dati dei clienti (spesso volti): le vede chiunque entri nel CRM, come le chat.
+
+**Come funziona:** il Mac scarica la foto da WhatsApp e la carica da solo su un archivio privato (bucket `ponte-media` di Supabase Storage) con un indirizzo monouso che gli dà il CRM; sul Mac non c'è nessuna chiave di Supabase. La chat la legge con un link che vale 5 minuti e che nell'indirizzo ha solo il nome casuale del file, mai il numero del cliente. Il Mac non scarica mai un indirizzo scelto dal mittente: solo host `*.whatsapp.net`, a pezzi, con un tetto di peso e di tempo; e non chiede mai al telefono di rimandare i media scaduti.
+
+**Dove stanno le foto in attesa (dato cliente):** in `~/Library/Application Support/HGL/ponte-wa/immagini/coda/`, un file per foto (permessi 600), con la chiave del media e il numero del cliente. È la stessa cartella riservata delle credenziali di WhatsApp: **non va in backup condivisi, nei log o in un messaggio**. Un riavvio o un aggiornamento del ponte non perde niente; un file resta in coda al massimo 14 giorni dal messaggio (al massimo 5.000 file).
+
+**L'interruttore** è una riga di `app_config` (chiave `ponte_immagini`), spenta di serie e senza pannello:
+
+```sql
+-- accendi (tetto 0,8 GB)
+update public.app_config set value = '{"acceso":true,"tettoGB":0.8}' where key = 'ponte_immagini';
+-- spegni: nessun nuovo download; le foto già salvate restano visibili
+update public.app_config set value = '{"acceso":false,"tettoGB":0.8}' where key = 'ponte_immagini';
+```
+
+**Il tetto: 0,8 GB, non di più.** Il piano gratuito di Supabase ha **1 GB per tutto lo Storage** (c'è già `landing-media`): prima di accendere guarda in Storage quanto è libero, e se è meno abbassa `tettoGB`. Il tetto somma solo `ponte-media`. A tetto pieno il Mac tiene le foto in coda e riprova dopo 6 ore, senza perderle.
+
+**Controllare lo spazio e gli arrivi:**
+
+```sql
+select coalesce(sum(byte), 0) / 1e9 as gb from public.ponte_wa_media;
+select stato, count(*) from public.ponte_wa_media group by 1;
+```
+
+Sul Mac, `grep " immagini " ~/Library/Logs/hgl-ponte-wa.log | tail -3` dà i contatori `ok` (caricate), `scadute` (non più su WhatsApp), `errori` (scartate dopo 5 tentativi), `tetto` (rifiuti per tetto pieno) e `in_coda`. Se `in_coda` non scende per ore o `errori` cresce, spegni (riga qui sopra) e fermati.
+
+**Cosa non si perde:** se il CRM non è pronto (Worker vecchio, migrazione mancante, interruttore spento, tetto pieno, rete) le foto restano in coda e riprovano con attese crescenti (5 minuti, 15, 1 ora, 3). Si scartano solo quelle scadute su WhatsApp (404/410) e quelle fuori regola (tipo, peso, indirizzo non valido).
+
+**Cancellare le foto di un cliente** non è automatico, neppure eliminando la chat dal CRM. Con un numero finto di esempio:
+
+1. SQL Editor: `select path from public.ponte_wa_media where numero = '393331234567';` (annota i percorsi).
+2. Supabase → Storage → `ponte-media`: apri la cartella e cancella quei file.
+3. Solo dopo: `delete from public.ponte_wa_media where numero = '393331234567';`.
+
+**Come si annulla tutto:** spegni l'interruttore, svuota il bucket `ponte-media` dal pannello e usa i comandi di annullamento nel commento in cima a `supabase/migrations/20261030170000_ponte_immagini.sql`.
+
+**Da guardare con la prima foto vera** (non provato contro uno Storage vero): che la foto si apra nella chat, che `select ... from storage.objects where bucket_id = 'ponte-media'` mostri il peso in `metadata`, e che il log `immagini` conti una `ok`. La procedura con le condizioni da verificare prima di accendere è `PASSI-TITOLARE.md` (Parte B) della commessa `2026-10-30-ponte-storico-completo`.
+
 ## Cosa vedi nel CRM
 
 In **Chat**, in cima, compare una fascia **solo se qualcosa non va**: «il ponte non risponde da N minuti» (Mac spento, addormentato o ponte fermo), «WhatsApp ha scollegato il ponte» (c'è un codice nuovo da inquadrare sul Mac), «lo storico è ancora in arrivo (62%)». Se non vedi niente, va tutto bene. L'avviso lo vede solo chi apre la Chat: non arriva una notifica sul telefono.

@@ -33,6 +33,7 @@ import { chiaveCache, controllaCache, creaCache } from "./cache.mjs";
 import { creaCollegamento } from "./collega.mjs";
 import { leggiConfig } from "./config.mjs";
 import { creaInvii } from "./invio.mjs";
+import { creaImmagini } from "./immagini.mjs";
 import { creaFila, spedisci } from "./lotti.mjs";
 import { creaQr } from "./qr.mjs";
 
@@ -60,6 +61,7 @@ export function percorsiDi(casa) {
     auth: join(base, "auth"),
     fila: join(base, "fila"),
     invii: join(base, "invii"),
+    immagini: join(base, "immagini"),
     config: join(base, "config.env"),
     stato: join(base, "stato.json"),
     lid: join(base, "lid.json"),
@@ -158,6 +160,12 @@ export function contiDiagnosi(d) {
     for (const [k, v] of Object.entries(soloConti(m))) conti[`${prefisso}_${k}`] = v;
   }
   return conti;
+}
+
+/** I contatori delle immagini per la riga `immagini` del log: solo questi cinque, solo numeri
+ *  (`scartate` e `coda_piena` restano dentro `immagini.mjs`). */
+export function contiImmagini(c) {
+  return Object.fromEntries(["ok", "scadute", "errori", "tetto", "in_coda"].map((k) => [k, numero(c?.[k])]));
 }
 
 /** Il battito (`BattitoPonte`, §b3) da stato del collegamento e fila: solo
@@ -288,6 +296,7 @@ async function main() {
   let erroreServer = false;
   let fermo = false;
   let invii = null;
+  let immagini = null;
   let inVolo = null;
   let sveglia = null;
 
@@ -331,8 +340,9 @@ async function main() {
     }
   }
 
-  /** la riga `diagnosi` si scrive solo quando cambia (il log non si gonfia) */
+  /** le righe `diagnosi` e `immagini` si scrivono solo quando cambiano (il log non si gonfia) */
   let ultimaDiagnosi = "";
+  let ultimeImmagini = "";
 
   /** Chiede al CRM se un numero della cache è diventato noto e mette la sua
    *  cronologia in fila (storico). Uno alla volta; mai con --senza-invio. */
@@ -360,6 +370,12 @@ async function main() {
     const firma = JSON.stringify(conti);
     if (firma !== ultimaDiagnosi && Object.keys(conti).length) registro("diagnosi", conti);
     ultimaDiagnosi = firma;
+    if (immagini) {
+      const ci = contiImmagini(immagini.contatori());
+      const firmaImmagini = JSON.stringify(ci);
+      if (firmaImmagini !== ultimeImmagini) registro("immagini", ci);
+      ultimeImmagini = firmaImmagini;
+    }
     if (senzaInvio) {
       const k = corpo.contatori;
       dici(`[senza invio] messaggi letti ${k.letti}, validi ${k.validi}, chat ${k.chat}, in fila ${corpo.in_coda}, storico ${corpo.storico.avanzamento}% · stato ${corpo.stato}`);
@@ -374,10 +390,24 @@ async function main() {
   }
 
   const baileys = await import("@whiskeysockets/baileys");
+
+  //  Le immagini (commessa 2026-10-30-ponte-storico-completo, T8): mai con --senza-invio (non si
+  //  chiede niente al CRM). `scarica` è il download di Baileys, che non passa dal socket; l'host e la
+  //  copia da scaricare li decide `immagini.mjs`. Un guasto qui non deve fermare il ponte: senza
+  //  immagini le foto restano la riga di testo di sempre.
+  try {
+    if (!senzaInvio && typeof baileys.downloadContentFromMessage === "function") {
+      immagini = creaImmagini({ url, token, cartella: P.immagini, scarica: baileys.downloadContentFromMessage, registro });
+    }
+  } catch {
+    registro("immagini_non_avviate");
+  }
+
   const col = creaCollegamento({
     baileys: { makeWASocket: baileys.makeWASocket ?? baileys.default, useMultiFileAuthState: baileys.useMultiFileAuthState, Browsers: baileys.Browsers },
     percorsi: { auth: P.auth, lid: P.lid },
     fila,
+    immagini,
     qr,
     registro,
     identita,
@@ -416,7 +446,7 @@ async function main() {
     if (sveglia) clearTimeout(sveglia);
     //  `col.ferma()` aspetta (al massimo 6 s) lo scarico del buffer di Baileys: i messaggi
     //  arrivati a ponte spento sono già confermati a WhatsApp e chiudendo prima si perdono.
-    await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma()]), pausa(10_000)]).catch(() => {});
+    await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma(), immagini?.ferma()]), pausa(10_000)]).catch(() => {});
     const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori(), cache: contiCache() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });
@@ -428,6 +458,7 @@ async function main() {
 
   await col.avvia();
   void invii.avvia(); // consegna gli esiti rimasti e chiude gli invii a metà (non invia mai da sé)
+  void immagini?.avvia(); // riprende le foto rimaste in coda su disco (14 giorni, anche dopo un riavvio)
   void battito();
   giro();
   void controllo();

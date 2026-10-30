@@ -15,9 +15,13 @@
  *   del revisore). Se un compito li cambia senza passare dalla LAVAGNA, qui si
  *   vede.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { provePonteBanner } from "./ponte/banner.mjs";
+import { provePonteImmaginiChatUi } from "./ponte/immagini-chat-ui.mjs";
+import { provePonteImmaginiMigrazione } from "./ponte/immagini-migrazione.mjs";
+import { provePonteImmaginiRegole } from "./ponte/immagini-regole.mjs";
+import { provePonteImmaginiRotta } from "./ponte/immagini-rotta.mjs";
 import { provePonteIngresso } from "./ponte/ingresso.mjs";
 import { provePonteMessaggiPersi } from "./ponte/messaggi-persi.mjs";
 import { provePonteInvioChatHook } from "./ponte/invio-chat-hook.mjs";
@@ -35,7 +39,9 @@ import { provePonteRotta } from "./ponte/rotta.mjs";
 import { proveDocumentiExport } from "./ponte/documenti-export.mjs";
 import { provePonteServizioCache } from "./ponte/servizio-cache.mjs";
 import { provePonteServizioEstrai } from "./ponte/servizio-estrai.mjs";
+import { provePonteServizioCollegaImmagini } from "./ponte/servizio-collega-immagini.mjs";
 import { provePonteServizioGuardie } from "./ponte/servizio-guardie.mjs";
+import { provePonteServizioImmagini } from "./ponte/servizio-immagini.mjs";
 import { provePonteServizioLotti } from "./ponte/servizio-lotti.mjs";
 import { provePonteStatoChat } from "./ponte/stato-chat.mjs";
 import { provePonteTutteMigrazione } from "./ponte/tutte-migrazione.mjs";
@@ -109,6 +115,15 @@ function proveDelloScheletro(mod, { c, gruppo, radice }) {
   const pr = readFileSync(join(radice, "prove/prove.mjs"), "utf8");
   c("prove.mjs impacchetta ponte/tipi, ponte/pari, ponte/ingresso", [true, true, true], ['"ponte/tipi"', '"ponte/pari"', '"ponte/ingresso"'].map((x) => pr.includes(x)));
   c("prove.mjs chiama proveDelPonte", true, /^await proveDelPonte\(mod, \{ c, gruppo, radice \}\);$/m.test(pr));
+  //  Ogni file di prova di prove/ponte/ deve essere importato e chiamato qui: una prova dimenticata passerebbe in silenzio.
+  const sorgente = readFileSync(join(radice, "prove/ponte.mjs"), "utf8");
+  const sulDisco = readdirSync(join(radice, "prove/ponte")).filter((f) => f.endsWith(".mjs")).sort();
+  const importati = [...sorgente.matchAll(/^import \{ (\w+) \} from "\.\/ponte\/([\w-]+\.mjs)";$/gm)].map((m) => ({ funzione: m[1], file: m[2] }));
+  c("ogni file di prove/ponte/*.mjs è importato in ponte.mjs", [], sulDisco.filter((f) => !importati.some((i) => i.file === f)));
+  c("…e ogni import punta a un file che esiste", [], importati.filter((i) => !sulDisco.includes(i.file)).map((i) => i.file));
+  const chiamate = sorgente.slice(sorgente.indexOf("export async function proveDelPonte"));
+  c("…e ogni funzione importata è chiamata da proveDelPonte", [], importati.filter((i) => !new RegExp(`\\b${i.funzione}\\(mod, aiuti\\)`).test(chiamate)).map((i) => i.funzione));
+  c("prove.mjs impacchetta ponte/media-tipi e ponte/media quando i file esistono", [true, true], [pr.includes('"ponte/media-tipi"'), pr.includes('"ponte/media"')].map((x, i) => x && existsSync(join(radice, `src/crm/ponte/${["media-tipi", "media"][i]}.ts`))));
   c("il filtro delle «ultime» migrazioni esclude ponte_whatsapp", true, /const ultime = readdirSync\(cartella\)\.filter\([^\n]*!n\.includes\("ponte_whatsapp"\)/.test(pr));
 }
 
@@ -138,4 +153,11 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteInvioServizio(mod, aiuti);
   await provePonteInvioChatUi(mod, aiuti);
   await provePonteInvioChatHook(mod, aiuti);
+  //  Le immagini del ponte (commessa 2026-10-30-ponte-storico-completo, T4-T8): una prova per area.
+  await provePonteImmaginiMigrazione(mod, aiuti);
+  await provePonteImmaginiRegole(mod, aiuti);
+  await provePonteImmaginiRotta(mod, aiuti);
+  await provePonteServizioImmagini(mod, aiuti);
+  await provePonteServizioCollegaImmagini(mod, aiuti);
+  await provePonteImmaginiChatUi(mod, aiuti);
 }
