@@ -74,6 +74,8 @@ const intero = (v: unknown) =>
 //  Le porte dell'invio a mano: si ripassano da qui perché la rotta del ponte
 //  importa solo questo file (commessa 2026-10-30-ponte-invio-manuale).
 export { porteInvio } from "./invio.server";
+//  E quelle dei media (commessa 2026-10-30-ponte-storico-completo, T5), per lo stesso motivo.
+export { porteMedia } from "./media.server";
 
 export function porteIngresso(): PortePonte {
   /** Il codice dell'ultimo errore lanciato: `ingresso.ts` riconosce come
