@@ -140,12 +140,16 @@ export function anteprimaRiga(i: IngressoAnteprima): AnteprimaRiga {
     // (o se non c'è un'ora che dica il contrario).
     const entrata = ms(contatto?.ultimo_in_entrata_il);
     const ultima = ms(contatto?.last_message_at);
-    const stessa = ultima === null || (entrata !== null && Math.abs(ultima - entrata) <= STESSO_MESSAGGIO_MS);
-    if (contatto?.ultimo_in_entrata_anteprima && stessa) grezzo = contatto.ultimo_in_entrata_anteprima;
+    const stessa =
+      ultima === null || (entrata !== null && Math.abs(ultima - entrata) <= STESSO_MESSAGGIO_MS);
+    if (contatto?.ultimo_in_entrata_anteprima && stessa)
+      grezzo = contatto.ultimo_in_entrata_anteprima;
   }
 
   //  Una riga sola: `anteprimaIn` lascia a capo e tab (nota 3 del revisore su T2).
-  const testoPulito = anteprimaIn(grezzo ?? "").replace(/\s+/g, " ").trim();
+  const testoPulito = anteprimaIn(grezzo ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   const media = mediaInAnteprima(testoPulito);
 
   return {

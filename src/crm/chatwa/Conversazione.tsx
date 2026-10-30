@@ -179,7 +179,11 @@ export function Conversazione({
   const inAttesa = attiva?.daRispondere?.attesa === true;
   //  Come nella riga dell'elenco (30/10/2026): l'ultimo è mio e lui non ha risposto.
   const senzaRisposta = attiva
-    ? senzaRispostaDa(ultimoDellaChat(attiva.lastMessage, attiva.contact), inAttesa, adesso.getTime())
+    ? senzaRispostaDa(
+        ultimoDellaChat(attiva.lastMessage, attiva.contact),
+        inAttesa,
+        adesso.getTime(),
+      )
     : null;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
   const richiamo = attiva?.lead ? etichettaRichiamo(attiva.lead.data, oggiIso(adesso)) : null;

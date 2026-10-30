@@ -45,12 +45,20 @@ function SpunteRiga({ stato }: { stato: Spunte }) {
   const classe = "h-3.5 w-3.5 shrink-0";
   return (
     <>
-      {stato === "lette" && <CheckCheck aria-hidden="true" className={cn(classe, "text-sky-600")} />}
+      {stato === "lette" && (
+        <CheckCheck aria-hidden="true" className={cn(classe, "text-sky-600")} />
+      )}
       {stato === "consegnato" && <CheckCheck aria-hidden="true" className={classe} />}
       {stato === "inviato" && <Check aria-hidden="true" className={classe} />}
-      {stato === "errore" && <AlertCircle aria-hidden="true" className={cn(classe, "text-red-600")} />}
+      {stato === "errore" && (
+        <AlertCircle aria-hidden="true" className={cn(classe, "text-red-600")} />
+      )}
       <span className="sr-only">
-        {{ lette: "Letto", consegnato: "Consegnato", inviato: "Inviato", errore: "Non inviato" }[stato]}
+        {
+          { lette: "Letto", consegnato: "Consegnato", inviato: "Inviato", errore: "Non inviato" }[
+            stato
+          ]
+        }
         {". "}
       </span>
     </>
@@ -214,13 +222,13 @@ export function RigaChat({
               </span>
             ) : (
               <span
-              className={cn(
-                "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
-                modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
-              )}
-            >
-              {tempo}
-            </span>
+                className={cn(
+                  "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
+                  modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
+                )}
+              >
+                {tempo}
+              </span>
             )}
           </span>
           {/*  Il numero, e a destra sotto l'ora com'è messo il cliente (28/10/2026):
@@ -278,7 +286,9 @@ export function RigaChat({
                   </span>
                 )}
                 {a.media && <IconaMedia tipo={a.media} className="shrink-0" />}
-                <span className={cn("min-w-0 truncate", a.nonLetto && "font-semibold text-foreground")}>
+                <span
+                  className={cn("min-w-0 truncate", a.nonLetto && "font-semibold text-foreground")}
+                >
                   {nessunMessaggio ? "Nessun messaggio" : a.testo}
                 </span>
               </span>
