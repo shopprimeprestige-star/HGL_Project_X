@@ -54,6 +54,7 @@ import {
   CalendarClock,
   CalendarPlus,
   Clock,
+  FileText,
   Info,
   MessageCircle,
   Phone,
@@ -124,6 +125,8 @@ const ICONA_RIGA: Record<TipoRiga, ComponentType<{ className?: string }>> = {
   //   aggiunge un tipo di riga aggiunge la sua icona nello stesso momento — il
   //   controllo dei tipi lo pretende, ma `vite build` non lo esegue.
   installazione: Wrench,
+  //  La stessa busta con cui si riconosce una fattura da preparare.
+  dati_fattura: FileText,
   task: StickyNote,
 };
 

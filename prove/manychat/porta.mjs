@@ -705,6 +705,89 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         [chat.f.percorsi().includes(PERCORSI.testo), chat.f.percorsi().includes(PERCORSI.flusso)],
       );
     }
+    //  ── TESTO LIBERO DEL CONSULENTE (commessa 2026-10-30-messaggio-per-stato) ──
+    {
+      const conEntrata = (ore, o = {}) => {
+        const x = creaPorte(o);
+        x.porte.ultimaEntrata = async () =>
+          ore === "guasto"
+            ? Promise.reject(new Error("db giù"))
+            : ore === null
+              ? null
+              : new Date(x.orologio.ms - ore * 3600_000).toISOString();
+        return x;
+      };
+      const libero = { ...conferma, testoLibero: "Ciao Maria, ti scrivo per l'acconto" };
+      const aperta = conEntrata(2);
+      const ra = await invia(aperta, libero);
+      c(
+        "testo libero, finestra aperta: parte il TESTO del consulente, non il flusso",
+        ["ok", true, false],
+        [
+          ra.esito,
+          aperta.f.percorsi().includes(PERCORSI.testo),
+          aperta.f.percorsi().includes(PERCORSI.flusso),
+        ],
+      );
+      c(
+        "…in chat si vede il testo (non [template:…]) e nel registro non c'è il flusso",
+        ["Ciao Maria, ti scrivo per l'acconto", null],
+        [aperta.messaggi[0].corpo, aperta.righe[0].flowNs],
+      );
+      for (const [nome, ore] of [
+        ["finestra chiusa (23,5 ore)", 23.5],
+        ["cliente che non ha mai scritto", null],
+        ["lettura della finestra guasta", "guasto"],
+      ]) {
+        const x = conEntrata(ore);
+        const r = await invia(x, libero);
+        c(
+          `testo libero, ${nome}: parte il MODELLO (flusso), mai il testo`,
+          ["ok", true, false],
+          [r.esito, x.f.percorsi().includes(PERCORSI.flusso), x.f.percorsi().includes(PERCORSI.testo)],
+        );
+        c(
+          `…${nome}: in chat si registra il modello`,
+          `[template:${MODELLO}]`,
+          x.messaggi.at(-1).corpo,
+        );
+      }
+      const senzaPorta = creaPorte();
+      await invia(senzaPorta, libero);
+      c(
+        "testo libero senza la porta della finestra: il flusso, come prima",
+        [true, false],
+        [senzaPorta.f.percorsi().includes(PERCORSI.flusso), senzaPorta.f.percorsi().includes(PERCORSI.testo)],
+      );
+      const rifiutato = conEntrata(2, {
+        finto: nuovoFinto().su("POST", PERCORSI.testo, {
+          http: 400,
+          corpo: { status: "error", message: "x", code: 3011 },
+        }),
+      });
+      const rr = await invia(rifiutato, libero);
+      c(
+        "ManyChat rifiuta il testo libero (finestra chiusa per lui): parte SUBITO il modello, esito ok",
+        ["ok", true, true, `[template:${MODELLO}]`, FLUSSO],
+        [
+          rr.esito,
+          rifiutato.f.percorsi().includes(PERCORSI.testo),
+          rifiutato.f.percorsi().includes(PERCORSI.flusso),
+          rifiutato.messaggi.at(-1).corpo,
+          rifiutato.righe[0].flow_ns,
+        ],
+      );
+      const vuoto = conEntrata(2);
+      await invia(vuoto, { ...conferma, testoLibero: "   " });
+      c(
+        "testo libero vuoto: vale il testo del modello, come oggi",
+        true,
+        vuoto.messaggi[0].corpo.includes("Maria"),
+      );
+      const incerto = conEntrata(2, { finto: nuovoFinto().su("POST", PERCORSI.testo, { http: 503, corpo: {} }) });
+      const ri = await invia(incerto, libero);
+      c("testo libero dall'esito incerto: niente riserva, niente secondo invio", ["incerto", false], [ri.esito, incerto.f.percorsi().includes(PERCORSI.flusso)]);
+    }
     //  ── SOLO TESTO (30/10/2026): il giorno prima non parte mai come modello ──
     {
       const conEntrata = (ore, o = {}) => {

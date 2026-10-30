@@ -19,6 +19,16 @@ export function conStatoDal<T extends Partial<LeadData>>(
   adesso: Date,
 ): T {
   if (String(prima?.stato ?? "") === String(dopo.stato ?? "")) return dopo;
+  //  Il messaggio che il consulente ha scritto per lo stato di PRIMA non vale più (commessa
+  //  2026-10-30-messaggio-per-stato). Resta solo se è nuovo, scritto in questo stesso salvataggio
+  //  per lo stato nuovo: non basta che il suo `stato` combaci, perché A → B → A farebbe rivivere
+  //  quello vecchio (la scheda lo porta ancora dietro). Chi lo scrive adesso ha un `scrittoIl` diverso.
+  if ("messaggioStato" in dopo) {
+    const { messaggioStato: m, ...senza } = dopo;
+    const nuovo =
+      !!m && m.stato === dopo.stato && m.scrittoIl !== prima?.messaggioStato?.scrittoIl;
+    return { ...senza, ...(nuovo ? { messaggioStato: m } : {}), statoDal: adesso.toISOString() } as T;
+  }
   return { ...dopo, statoDal: adesso.toISOString() };
 }
 

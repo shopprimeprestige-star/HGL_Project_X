@@ -39,3 +39,20 @@ export function linkApriWhatsapp(
     `S.browser_fallback_url=${encodeURIComponent(waMe)};end`
   );
 }
+
+/** ── WHATSAPP NATIVO SEMPRE (30/10/2026) ───────────────────────────────────
+ *  Richiesta del titolare: in ogni chat deve esserci il modo di aprire la
+ *  conversazione su WhatsApp del telefono, anche e soprattutto a finestra
+ *  chiusa. Il link c'è SEMPRE se il numero è valido (qualunque canale, telefono
+ *  o computer); `evidente` dice se la finestra è chiusa e la casella del CRM è
+ *  bloccata: lì il tasto va messo in primo piano, altrimenti resta discreto.
+ *  Nessun cambio alla regola delle 24 ore: la finestra qui si legge soltanto. */
+export function tastoWhatsappNativo(
+  telefono: string | null | undefined,
+  userAgent: string,
+  finestra?: { aperta: boolean } | null,
+  testo?: string | null,
+): { href: string; evidente: boolean } | null {
+  const href = linkApriWhatsapp(telefono, userAgent, testo);
+  return href ? { href, evidente: finestra?.aperta === false } : null;
+}
