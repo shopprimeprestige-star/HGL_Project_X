@@ -31,6 +31,7 @@ import { proveSheets } from "./sheets.mjs";
 import { proveDelPonte } from "./ponte.mjs";
 import { proveLeadSemplice } from "./lead-semplice.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
+import { proveIdeeRighe } from "./idee/righe.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -603,6 +604,10 @@ const MODULI = [
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
   "chatwa/richiamo",
+  //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
+  //   prove in prove/idee/righe.mjs.
+  "chatwa/segniRiga",
+  "chatwa/testoWhatsapp",
   //  La scheda del CRM aperta da ieri si accorge della versione nuova (commessa
   //   2026-10-29-chat-aggiorna): prove in prove/manychat/chat-versione.mjs.
   "versione-crm",
@@ -21045,6 +21050,7 @@ proveDiWhatsappDisegnoMobile();
 proveDiProponiOrariConsulente();
 proveDelRichiamoInChat();
 proveDellApriWhatsapp();
+proveIdeeRighe(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21848,7 +21854,7 @@ function proveDeiFiltriFinestra() {
   const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
   c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
-  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(attiva\.phone/.test(conv));
+  c("chat aperta: con la finestra chiusa il tasto per l'app WhatsApp", true, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv) && /linkApriWhatsapp\(\s*attiva\.phone/.test(conv));
 }
 
 function proveDellOsservazioneComePastiglia() {
