@@ -28,6 +28,7 @@ import {
   type LavoroMac,
   type MessaggioRiga,
 } from "./regole";
+import { lavoroRispiega } from "./rispiega";
 import type { LeadData } from "@/crm/types";
 
 export const TOKEN_MINIMO = 32;
@@ -40,6 +41,8 @@ export interface RichiestaInCoda {
   indicazione: string | null;
   /** gli orari liberi scritti dal CRM (colonna `orari`, può mancare) */
   orari?: string | null;
+  /** `rispiega` = «Rispiega con AI» (colonna `modo`, può mancare: allora è `rispondi`) */
+  modo?: "rispondi" | "rispiega";
 }
 
 export interface PorteRisposteAi {
@@ -53,8 +56,13 @@ export interface PorteRisposteAi {
    *  risposta, già segnata «in_lavoro»; `null` se non ce n'è (o non si può) */
   bozza: (userId: string) => Promise<RichiestaInCoda | null>;
   /** gli ultimi messaggi della chat di quel numero (dell'utente), più i
-   *  scelti anche se sono più vecchi */
-  messaggiChat: (userId: string, telefono: string, scelti: string[]) => Promise<MessaggioRiga[]>;
+   *  scelti anche se sono più vecchi; con `soloScelti` solo i scelti (rispiega) */
+  messaggiChat: (
+    userId: string,
+    telefono: string,
+    scelti: string[],
+    soloScelti?: boolean,
+  ) => Promise<MessaggioRiga[]>;
   /** la scheda della chat e il nome del consulente, se c'è */
   scheda: (
     userId: string,
@@ -119,10 +127,18 @@ export async function gestisciRisposteAi(
       //  Prima le richieste di chi è in chat; la bozza solo a coda vuota.
       const q = (await porte.prendi(userId)) ?? (await porte.bozza(userId));
       if (!q) return json(200, { lavoro: null });
+      //  «Rispiega con AI»: solo i testi scelti e il nome, mai il resto della chat o della scheda.
+      const rispiega = q.modo === "rispiega";
       const [messaggi, { lead, consulente }] = await Promise.all([
-        porte.messaggiChat(userId, q.telefono, q.messaggi),
+        porte.messaggiChat(userId, q.telefono, q.messaggi, rispiega ? true : undefined),
         porte.scheda(userId, q.telefono),
       ]);
+      if (rispiega) {
+        const esito = lavoroRispiega({ id: q.id, scelti: q.messaggi, messaggi, lead });
+        if ("lavoro" in esito) return json(200, { lavoro: esito.lavoro });
+        await porte.chiudi(userId, q.id, { errore: esito.errore });
+        continue;
+      }
       const lavoro: LavoroMac | null = lavoroPerMac({
         id: q.id,
         indicazione: q.indicazione,

@@ -208,6 +208,6 @@ export async function provePonteTutteMigrazione(_mod, { c, gruppo, radice }) {
   ]);
   c("l'intestazione dice che il nome del profilo non si salva e che lead_id ≠ «Con lead» (nota 6 del revisore)", true,
     /NOME DEL PROFILO/.test(grezzo) && /lead_id IS NULL/.test(grezzo) && /la chat lega la scheda per telefono/.test(grezzo));
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("ponte_immagini")); // le immagini (commessa ponte-storico-completo) vengono DOPO: hanno il loro ordine
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("ponte_immagini") && !n.includes("chat_veloce_indici") && !n.includes("rispiega")); // chat veloce, rispiega e immagini vengono DOPO: hanno il loro ordine
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.sort().at(-1));
 }
