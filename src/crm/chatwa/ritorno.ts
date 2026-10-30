@@ -12,7 +12,13 @@
  *  La lettura del ricarico è quella dell'importazione (`ricaricoDi`): una sola,
  *  o la chat e «Lead importati» contano volte diverse. */
 import { ricaricoDi } from "@/crm/importa/ricarico";
-import { LEAD_STATUS_LABEL, type LeadData } from "@/crm/types";
+import {
+  LEAD_STATUS_LABEL,
+  LOST_REASON_LABEL,
+  type LeadData,
+  type LeadStatus,
+  type LostReason,
+} from "@/crm/types";
 
 export interface RitornoChat {
   /** Quante volte è ricomparso in una lista (≥ 1). */
@@ -59,4 +65,63 @@ export function ritornoInChat(d?: Partial<LeadData> | null): RitornoChat | null 
     .filter(Boolean)
     .join(" · ");
   return { volte, prima, corta: "Ritorno", completa, titolo };
+}
+
+/* ── IL RIQUADRO DEL RITORNO (30/10/2026) ──────────────────────────────────
+ *  Richiesta del titolare: toccando l'icona del ritorno si vede lo stato di
+ *  prima, cosa aveva fatto e le note, senza aprire la scheda. Solo campi già
+ *  nella scheda; quelli vuoti non compaiono. */
+export interface VoceRitorno {
+  etichetta: string;
+  valore: string;
+  /** testo lungo (note): va a capo e scorre */
+  lungo?: boolean;
+}
+
+const pulito = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+export function vociRitorno(
+  d?: Partial<LeadData> | null,
+  consulente?: string | null,
+): VoceRitorno[] {
+  const r = ritornoInChat(d);
+  if (!r || !d) return [];
+  const ric = ricaricoDi(d);
+  const voci: VoceRitorno[] = [];
+  voci.push({ etichetta: "Stato di prima", valore: r.prima ?? "non si sa (scheda vecchia)" });
+  const giorno = giornoRoma(ric?.ultimo);
+  voci.push({
+    etichetta: "Ricomparso",
+    valore: [
+      r.volte > 1 ? `${r.volte} volte` : "1 volta",
+      giorno && `l'ultima il ${giorno}`,
+      pulito(ric?.lista) && `dalla lista «${pulito(ric?.lista)}»`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  });
+  if (d.stato && Object.hasOwn(LEAD_STATUS_LABEL, d.stato))
+    voci.push({ etichetta: "Stato adesso", valore: LEAD_STATUS_LABEL[d.stato as LeadStatus] });
+  const dm = pulito(d.dataMeeting);
+  if (/^\d{4}-\d{2}-\d{2}/.test(dm))
+    voci.push({
+      etichetta: "Consulenza",
+      valore: `${giornoRoma(`${dm.slice(0, 10)}T12:00:00Z`)}${pulito(d.oraMeeting) ? ` alle ${pulito(d.oraMeeting)}` : ""}`,
+    });
+  if (pulito(consulente)) voci.push({ etichetta: "Consulente", valore: pulito(consulente) });
+  if (d.lostReason && Object.hasOwn(LOST_REASON_LABEL, d.lostReason))
+    voci.push({
+      etichetta: "Motivo perso",
+      valore: [LOST_REASON_LABEL[d.lostReason as LostReason], pulito(d.lostReasonNote)]
+        .filter(Boolean)
+        .join(" · "),
+    });
+  if (pulito(d.note)) voci.push({ etichetta: "Note", valore: pulito(d.note), lungo: true });
+  if (pulito(d.notePostCall))
+    voci.push({
+      etichetta: "Note dopo la consulenza",
+      valore: pulito(d.notePostCall),
+      lungo: true,
+    });
+  return voci;
 }
