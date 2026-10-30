@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 import { combaciaRicerca, ordinaPerStelle } from "./cercaChat";
 import { useStelle } from "./useStelle";
 import { useCRM } from "@/crm/CRMContext";
+import { useAuth, useConsulenteCollegato } from "@/crm/AuthContext";
+import { faConsulenze } from "@/crm/permessi";
+import { chiVale, consulenteDelloSchermo } from "@/crm/consulente-dentro";
 import { RigaChat, type ModoRiga } from "./RigaChat";
 import { useStabile } from "./apiElenco";
 import { PASSO_RIGHE, RIGHE_INIZIALI, tagliaSezioni } from "./finestraLista";
@@ -378,11 +381,24 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       numeri di «Da rispondere» devono restare quelli del pulsante, e una chat che sparisce da lì
       sembrerebbe già risposta. In sezione la riga ha solo il segno viola. Si aggiorna col timer. */
   //  In «Da chiamare» si guarda l'elenco mostrato: mai un meet la cui riga non c'è.
+  //  Chi è dentro (31/10/2026): il consulente vede solo il SUO prossimo meet, non quelli degli altri;
+  //  il titolare (senza consulente collegato) quello di tutti, com'era. Regole: consulente-dentro.ts.
+  const meSteso = useConsulenteCollegato();
+  const { accesso } = useAuth();
+  const soloDi = chiVale(
+    consulenteDelloSchermo({
+      collegatoId: meSteso?.id,
+      admin: accesso.ruolo === "admin",
+      faConsulenze: faConsulenze(accesso.puo),
+    }),
+    filtri.consulente || null,
+  );
   const meet = prossimoMeet(
     filtri.coda === "da-chiamare" ? elencoDaChiamare : trovate,
     oggi,
     adesso,
     consultants,
+    soloDi,
   );
 
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (

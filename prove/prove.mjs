@@ -54,6 +54,7 @@ import {
 } from "./idee/chat-ritocchi.mjs";
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
@@ -683,6 +684,10 @@ const MODULI = [
   //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
   //   prove in prove/idee/prossimo-meet.mjs.
   "chatwa/prossimo-meet",
+  //  «Oggi» del consulente che è dentro (commessa 2026-10-31-oggi-del-consulente):
+  //   prove in prove/idee/oggi-del-consulente.mjs.
+  "consulente-dentro",
+  "periodo-da-fare",
   //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
   //   prove in prove/idee/ordine-whatsapp.mjs.
   "chatwa/ordineWhatsapp",
@@ -21503,6 +21508,7 @@ proveRiquadroSenzaScheda(mod, { c, gruppo, radice });
 proveClienti(mod, { c, gruppo, radice });
 await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
+proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 await proveEcoManychatEntrata(mod, { c, gruppo, radice });
