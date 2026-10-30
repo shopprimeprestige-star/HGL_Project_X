@@ -199,9 +199,74 @@ export async function provePonteStatoChat(mod, { c, gruppo }) {
       c(`contatto: cambia anche ${k}: si rilegge`, false, ev(C, upd({ last_message_at: fa(0), updated_at: fa(0), [k]: k === "unread_count" ? 2 : fa(0) })));
     c("contatto: cambia una colonna che il piano non cita (es. nome in rubrica): si rilegge", false, ev(C, upd({ nome_rubrica: "Altro", updated_at: fa(0) })));
     c("contatto: INSERT di un contatto nuovo: si rilegge", false, ev(C, { eventType: "INSERT", new: base, old: {} }));
+    //  TUTTE LE CHAT (30/10): l'import dello storico crea centinaia di contatti `baileys`
+    //  senza scheda. Quell'INSERT silenzioso non rilegge la chat (lo recupera il controllo
+    //  ogni 15 s); ogni altro INSERT sì. Nota 2 del revisore: `risposto_il` vuoto, perché un
+    //  contatto nato da un'uscita viva dal telefono ha `risposto_il` ed è un evento vero.
+    const nuovoBaileys = (extra) => ({
+      eventType: "INSERT",
+      new: { id: "n1", origine: "baileys", unread_count: 0, ultimo_in_entrata_il: null, risposto_il: null, lead_id: null, non_scrivere_dal: null, display_name: null, last_message_at: fa(3 * ORA), updated_at: fa(0), ...extra },
+      old: {},
+    });
+    c("contatto: INSERT silenzioso del ponte (origine baileys, nessun non letto, nessuna scheda): si ignora", true, ev(C, nuovoBaileys()));
+    c("contatto: INSERT del ponte senza `unread_count` né colonne d'entrata (assenti): si ignora", true, ev(C, { eventType: "INSERT", new: { id: "n1", origine: "baileys" }, old: {} }));
+    c("contatto: INSERT del ponte con un non letto: si rilegge", false, ev(C, nuovoBaileys({ unread_count: 1 })));
+    c("contatto: INSERT del ponte con `ultimo_in_entrata_il`: si rilegge", false, ev(C, nuovoBaileys({ ultimo_in_entrata_il: fa(0) })));
+    c("contatto: INSERT del ponte con `lead_id`: si rilegge", false, ev(C, nuovoBaileys({ lead_id: "l1" })));
+    c("contatto: INSERT del ponte con `non_scrivere_dal`: si rilegge", false, ev(C, nuovoBaileys({ non_scrivere_dal: fa(0) })));
+    c("contatto: INSERT del ponte con `risposto_il` (nato da un'uscita viva dal telefono): si rilegge", false, ev(C, nuovoBaileys({ risposto_il: fa(0) })));
+    c("contatto: INSERT di un'altra origine (ManyChat, Cloud, nessuna): si rilegge", [false, false, false], [ev(C, nuovoBaileys({ origine: "manychat" })), ev(C, nuovoBaileys({ origine: "cloud" })), ev(C, nuovoBaileys({ origine: undefined }))]);
+    c("contatto: UPDATE di un contatto baileys con un non letto: si rilegge (la regola dell'INSERT non vale per gli UPDATE)", false, ev(C, { eventType: "UPDATE", new: { ...nuovoBaileys().new, unread_count: 1 }, old: nuovoBaileys().new }));
+    c("contatto: DELETE di un contatto baileys: si rilegge", false, ev(C, { eventType: "DELETE", new: {}, old: nuovoBaileys().new }));
     c("contatto: DELETE: si rilegge", false, ev(C, { eventType: "DELETE", new: {}, old: base }));
     c("contatto: UPDATE senza il vecchio valore completo: si rilegge", false, ev(C, { eventType: "UPDATE", new: base, old: { id: "c1" } }));
     c("contatto: UPDATE con vecchio vuoto: si rilegge", false, ev(C, { eventType: "UPDATE", new: base, old: {} }));
     c("evento assente o senza dati: si rilegge", [false, false, false], [ev(C, undefined), ev(M, null), ev(C, {})]);
+  }
+
+  //  TUTTE LE CHAT (30/10/2026): nessun filtro nasconde uno sconosciuto. Il tetto delle 5 pagine da
+  //  1000 contatti sta in `leggiContattiAPagine` (provato più su); qui si blocca la regola dei filtri
+  //  e del numeretto «Da rispondere» su un elenco grande, 600 chat senza scheda comprese.
+  gruppo("PONTE · CHAT: «TUTTE» E «NON LETTI» CONTANO ANCHE GLI SCONOSCIUTI");
+  {
+    const { passaFiltro } = mod["chatwa/cercaChat"];
+    //  2000 chat: 1400 con scheda, 600 sconosciute; ogni quinta ha non letti.
+    const chat = Array.from({ length: 2000 }, (_, i) => ({
+      phone: `3933300${String(i).padStart(5, "0")}`,
+      lead: i < 1400 ? { data: { stato: "nuovo" } } : null,
+      unread: i % 5 === 0 ? 1 + (i % 3) : 0,
+      finestra: null,
+    }));
+    const passano = (f) => chat.filter((x) => passaFiltro(x, f));
+    const sconosciute = chat.filter((x) => !x.lead);
+    const attesaNonLetti = chat.filter((x) => x.unread > 0);
+    c("«Tutte» lascia passare 2000 chat su 2000", 2000, passano("all").length);
+    c("«Tutte» include ogni sconosciuta", 600, passano("all").filter((x) => !x.lead).length);
+    c("«Non letti» = tutte e sole le chat con non letti", attesaNonLetti.map((x) => x.phone), passano("unread").map((x) => x.phone));
+    c("«Non letti» include gli sconosciuti con non letti", 120, passano("unread").filter((x) => !x.lead).length);
+    c("«Sconosciuti» = chi non ha scheda", sconosciute.map((x) => x.phone), passano("unknown").map((x) => x.phone));
+    c("«Con lead» + «Sconosciuti» = 2000, senza sovrapposizioni", [2000, 0], [passano("with-lead").length + passano("unknown").length, passano("with-lead").filter((x) => passaFiltro(x, "unknown")).length]);
+
+    //  «Da rispondere»: uno sconosciuto con un'entrata più recente della risposta conta come un lead.
+    const prima = fa(5 * ORA);
+    const dopo = fa(1 * ORA);
+    const contatti = [
+      { ultimo_in_entrata_il: dopo, risposto_il: prima }, // sconosciuto, entrata dopo la risposta: attesa
+      { ultimo_in_entrata_il: dopo, risposto_il: null }, // sconosciuto mai risposto: attesa
+      { ultimo_in_entrata_il: prima, risposto_il: dopo }, // già risposto: no
+      { ultimo_in_entrata_il: null, risposto_il: null }, // solo storico, nessuna colonna d'entrata: no
+    ];
+    c("`contaDaRispondere` conta gli sconosciuti con un'entrata dopo la risposta", 2, S.contaDaRispondere(contatti, ADESSO));
+    //  Solo storico del ponte: nessuna colonna d'entrata, nessun ripiego sulle righe `baileys`.
+    c(
+      "uno sconosciuto con il solo storico del ponte non è «Da rispondere»",
+      false,
+      S.daRispondere({ contatto: { ultimo_in_entrata_il: null, risposto_il: null }, messaggi: [ponte("inbound", 2 * ORA, "ciao dallo storico")], adesso: ADESSO }).attesa,
+    );
+    c(
+      "…e non apre la finestra di 24 ore",
+      false,
+      S.finestra24({ contatto: { ultimo_in_entrata_il: null, risposto_il: null }, messaggi: [ponte("inbound", 2 * ORA, "ciao dallo storico")], adesso: ADESSO }).aperta,
+    );
   }
 }

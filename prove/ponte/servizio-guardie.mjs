@@ -252,6 +252,15 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     await col.avvia();
     const s1 = socket[0];
     c("socket: opzioni del §a3", { browser: ["Mac OS", "Chrome", "14.4.1"], syncFullHistory: true, markOnlineOnConnect: false, logger: K.LOGGER_MUTO, auth: { cartella: P.auth } }, { browser: s1.opzioni.browser, syncFullHistory: s1.opzioni.syncFullHistory, markOnlineOnConnect: s1.opzioni.markOnlineOnConnect, logger: s1.opzioni.logger, auth: s1.opzioni.auth });
+    //  TUTTE LE CHAT (30/10): il default di Baileys scarta la sincronizzazione FULL (`syncType !== FULL`);
+    //  il ponte accetta ogni tipo di storico che il telefono manda al nuovo abbinamento.
+    c("socket: shouldSyncHistoryMessage accetta FULL, RECENT, INITIAL_BOOTSTRAP e ogni altro tipo", [true, true, true, true, "function"], [
+      s1.opzioni.shouldSyncHistoryMessage?.({ syncType: 2 }),
+      s1.opzioni.shouldSyncHistoryMessage?.({ syncType: 3 }),
+      s1.opzioni.shouldSyncHistoryMessage?.({ syncType: 0 }),
+      s1.opzioni.shouldSyncHistoryMessage?.({}),
+      typeof s1.opzioni.shouldSyncHistoryMessage,
+    ]);
     c("socket: getMessage rende solo i messaggi inviati da noi (id sconosciuto → undefined)", undefined, await s1.opzioni.getMessage({ id: "X" }));
     c("auth/ creata con permessi 700", 0o700, permessi(P.auth));
     await s1.emetti("creds.update", {});
