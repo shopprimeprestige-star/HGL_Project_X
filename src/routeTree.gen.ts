@@ -92,6 +92,7 @@ import { Route as CRMImportaLeadRouteImport } from './routes/CRM.importa-lead'
 import { Route as CRMImportaRouteImport } from './routes/CRM.importa'
 import { Route as CRMFattureRouteImport } from './routes/CRM.fatture'
 import { Route as CRMDafareRouteImport } from './routes/CRM.dafare'
+import { Route as CRMCruscottoWaRouteImport } from './routes/CRM.cruscotto-wa'
 import { Route as CRMContabilitaRouteImport } from './routes/CRM.contabilita'
 import { Route as CRMConsulentiRouteImport } from './routes/CRM.consulenti'
 import { Route as CRMChatRouteImport } from './routes/CRM.chat'
@@ -193,6 +194,7 @@ import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-mo
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
 import { Route as ApiCrmDettaturaRouteImport } from './routes/api.crm.dettatura'
+import { Route as ApiCrmCruscottoWaRouteImport } from './routes/api.crm.cruscotto-wa'
 import { Route as ApiCrmCopiaAutomaticaRouteImport } from './routes/api.crm.copia-automatica'
 import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-wa'
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
@@ -624,6 +626,11 @@ const CRMFattureRoute = CRMFattureRouteImport.update({
 const CRMDafareRoute = CRMDafareRouteImport.update({
   id: '/dafare',
   path: '/dafare',
+  getParentRoute: () => CRMRoute,
+} as any)
+const CRMCruscottoWaRoute = CRMCruscottoWaRouteImport.update({
+  id: '/cruscotto-wa',
+  path: '/cruscotto-wa',
   getParentRoute: () => CRMRoute,
 } as any)
 const CRMContabilitaRoute = CRMContabilitaRouteImport.update({
@@ -1145,6 +1152,11 @@ const ApiCrmDettaturaRoute = ApiCrmDettaturaRouteImport.update({
   path: '/api/crm/dettatura',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmCruscottoWaRoute = ApiCrmCruscottoWaRouteImport.update({
+  id: '/api/crm/cruscotto-wa',
+  path: '/api/crm/cruscotto-wa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmCopiaAutomaticaRoute = ApiCrmCopiaAutomaticaRouteImport.update({
   id: '/api/crm/copia-automatica',
   path: '/api/crm/copia-automatica',
@@ -1261,6 +1273,7 @@ export interface FileRoutesByFullPath {
   '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
+  '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
@@ -1336,6 +1349,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1460,6 +1474,7 @@ export interface FileRoutesByTo {
   '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
+  '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
@@ -1533,6 +1548,7 @@ export interface FileRoutesByTo {
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1661,6 +1677,7 @@ export interface FileRoutesById {
   '/CRM/chat': typeof CRMChatRoute
   '/CRM/consulenti': typeof CRMConsulentiRoute
   '/CRM/contabilita': typeof CRMContabilitaRoute
+  '/CRM/cruscotto-wa': typeof CRMCruscottoWaRoute
   '/CRM/dafare': typeof CRMDafareRoute
   '/CRM/fatture': typeof CRMFattureRoute
   '/CRM/importa': typeof CRMImportaRoute
@@ -1736,6 +1753,7 @@ export interface FileRoutesById {
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
   '/api/crm/contatto-wa': typeof ApiCrmContattoWaRoute
   '/api/crm/copia-automatica': typeof ApiCrmCopiaAutomaticaRoute
+  '/api/crm/cruscotto-wa': typeof ApiCrmCruscottoWaRoute
   '/api/crm/dettatura': typeof ApiCrmDettaturaRoute
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
@@ -1865,6 +1883,7 @@ export interface FileRouteTypes {
     | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
+    | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
     | '/CRM/fatture'
     | '/CRM/importa'
@@ -1940,6 +1959,7 @@ export interface FileRouteTypes {
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/cruscotto-wa'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2064,6 +2084,7 @@ export interface FileRouteTypes {
     | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
+    | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
     | '/CRM/fatture'
     | '/CRM/importa'
@@ -2137,6 +2158,7 @@ export interface FileRouteTypes {
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/cruscotto-wa'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2264,6 +2286,7 @@ export interface FileRouteTypes {
     | '/CRM/chat'
     | '/CRM/consulenti'
     | '/CRM/contabilita'
+    | '/CRM/cruscotto-wa'
     | '/CRM/dafare'
     | '/CRM/fatture'
     | '/CRM/importa'
@@ -2339,6 +2362,7 @@ export interface FileRouteTypes {
     | '/api/crm/consulente-pin'
     | '/api/crm/contatto-wa'
     | '/api/crm/copia-automatica'
+    | '/api/crm/cruscotto-wa'
     | '/api/crm/dettatura'
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
@@ -2501,6 +2525,7 @@ export interface RootRouteChildren {
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
   ApiCrmContattoWaRoute: typeof ApiCrmContattoWaRoute
   ApiCrmCopiaAutomaticaRoute: typeof ApiCrmCopiaAutomaticaRoute
+  ApiCrmCruscottoWaRoute: typeof ApiCrmCruscottoWaRoute
   ApiCrmDettaturaRoute: typeof ApiCrmDettaturaRoute
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
@@ -3172,6 +3197,13 @@ declare module '@tanstack/react-router' {
       path: '/dafare'
       fullPath: '/CRM/dafare'
       preLoaderRoute: typeof CRMDafareRouteImport
+      parentRoute: typeof CRMRoute
+    }
+    '/CRM/cruscotto-wa': {
+      id: '/CRM/cruscotto-wa'
+      path: '/cruscotto-wa'
+      fullPath: '/CRM/cruscotto-wa'
+      preLoaderRoute: typeof CRMCruscottoWaRouteImport
       parentRoute: typeof CRMRoute
     }
     '/CRM/contabilita': {
@@ -3881,6 +3913,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmDettaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/cruscotto-wa': {
+      id: '/api/crm/cruscotto-wa'
+      path: '/api/crm/cruscotto-wa'
+      fullPath: '/api/crm/cruscotto-wa'
+      preLoaderRoute: typeof ApiCrmCruscottoWaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/copia-automatica': {
       id: '/api/crm/copia-automatica'
       path: '/api/crm/copia-automatica'
@@ -4033,6 +4072,7 @@ interface CRMRouteChildren {
   CRMChatRoute: typeof CRMChatRoute
   CRMConsulentiRoute: typeof CRMConsulentiRoute
   CRMContabilitaRoute: typeof CRMContabilitaRoute
+  CRMCruscottoWaRoute: typeof CRMCruscottoWaRoute
   CRMDafareRoute: typeof CRMDafareRoute
   CRMFattureRoute: typeof CRMFattureRoute
   CRMImportaRoute: typeof CRMImportaRoute
@@ -4068,6 +4108,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMChatRoute: CRMChatRoute,
   CRMConsulentiRoute: CRMConsulentiRoute,
   CRMContabilitaRoute: CRMContabilitaRoute,
+  CRMCruscottoWaRoute: CRMCruscottoWaRoute,
   CRMDafareRoute: CRMDafareRoute,
   CRMFattureRoute: CRMFattureRoute,
   CRMImportaRoute: CRMImportaRoute,
@@ -4208,6 +4249,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,
   ApiCrmContattoWaRoute: ApiCrmContattoWaRoute,
   ApiCrmCopiaAutomaticaRoute: ApiCrmCopiaAutomaticaRoute,
+  ApiCrmCruscottoWaRoute: ApiCrmCruscottoWaRoute,
   ApiCrmDettaturaRoute: ApiCrmDettaturaRoute,
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,
