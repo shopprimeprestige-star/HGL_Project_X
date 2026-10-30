@@ -48,6 +48,7 @@ import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
+import { proveSpesaLead } from "./spesa-lead.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -629,6 +630,9 @@ const MODULI = [
   //   prove in prove/manychat/chat-costi.mjs.
   "chatwa/costi-whatsapp",
   "chatwa/calcolo-costi",
+  //  Lead di oggi e spesa pubblicitaria dal tasto WhatsApp (commessa 2026-10-30-spesa-lead-oggi):
+  //   prove in prove/spesa-lead.mjs.
+  "chatwa/spesa-lead",
   //  Il Cruscotto WhatsApp (pacchetto p4-cruscotto-wa): prove in prove/manychat/cruscotto-wa.mjs.
   "cruscotto-wa/calcolo",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
@@ -21320,6 +21324,7 @@ proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
+proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
