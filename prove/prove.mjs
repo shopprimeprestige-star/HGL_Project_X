@@ -56,6 +56,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
+import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
@@ -729,6 +730,9 @@ const MODULI = [
   //  «Chi chiamare adesso» e il riepilogo del mattino (commessa
   //   2026-10-30-ottimizzazioni, p6): prove in prove/lead-doppi-chiamate.mjs.
   ...["chi-chiamare-adesso", "riepilogo-mattino"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
+  //  Acconti in cima alla chat e «Anticipa» condiviso (commessa 2026-10-30-wa-acconti-priorita):
+  //   prove in prove/idee/acconti-in-cima.mjs.
+  "chatwa/accontiInCima",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21373,6 +21377,19 @@ function proveDelMeetAdessoSpento() {
   c("nel pannello il suo flusso non serve più", true, /modello === "hgl_meet_adesso"\) return false/.test(pan));
 }
 
+/** ── TASTO «INSTALLAZIONE» DALLA CHAT: STESSI PERMESSI DELLE PAGINE (31/10/2026) ── */
+function proveDeiPermessiInstallazioneChat() {
+  gruppo("CHAT: POSA, INCASSI E ANTICIPA SOLO A CHI HA I PERMESSI");
+  const g = readFileSync(join(radice, "src/crm/chatwa/GestioneInstallazione.tsx"), "utf8");
+  c("posa e priorità chiedono «installazioni», incassi «pagamenti»", true,
+    /puo\("installazioni"\)/.test(g) && /puo\("pagamenti"\)/.test(g));
+  c("senza nessuno dei due il tasto non c'è", true, /if \(!puoPosa && !puoIncassi\) return null/.test(g));
+  c("le finestre si montano solo col permesso", true,
+    /puoPosa && \(\s*<InstallationScheduleDialog/.test(g) && /puoIncassi && <FinestraIncasso/.test(g) && /puoPosa && \(\s*<FinestraAzioniPosa/.test(g));
+  const r = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
+  c("Anticipa sulla riga solo con «installazioni»", true, /puoInstallazioni && c\.lead && puoAnticipare/.test(r));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21511,9 +21528,11 @@ proveProssimoMeet(mod, { c, gruppo, radice });
 proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
+proveAccontiInCima(mod, { c, gruppo, radice });
 await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
+proveDeiPermessiInstallazioneChat();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

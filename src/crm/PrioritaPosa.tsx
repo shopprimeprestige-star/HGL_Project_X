@@ -119,9 +119,12 @@ export function TastoPriorita({
   lead,
   chiusa,
   esteso,
+  className,
 }: {
   lead: Lead;
   chiusa?: boolean;
+  /** Per chi lo monta altrove (la riga della chat allarga l'area del tocco a 44 px). */
+  className?: string;
   /** ── QUANDO IL PULSANTE PORTA ANCHE LA PAROLA ──────────────────────────
    *  ⚠️ ESISTE PERCHÉ IL COMANDO NON SI TROVAVA. Era — ed è ancora, dove lo
    *   spazio è poco — un quadratino da ventotto pixel con dentro una freccia e
@@ -192,6 +195,7 @@ export function TastoPriorita({
           className={cn(
             "h-7 shrink-0",
             esteso ? "px-2 text-[11.5px]" : "w-7 p-0",
+            className,
             attiva
               ? "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800"
               : "text-muted-foreground",

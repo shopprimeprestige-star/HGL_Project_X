@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, ListChecks, Loader2, Search, Star, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ListChecks, Loader2, Search, Star, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
 import { ordinaComeWhatsapp } from "./ordineWhatsapp";
 import { chatSenzaScheda } from "./senzaScheda";
+import { chatDaInstallare, saliAcconti } from "./accontiInCima";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
 import {
@@ -159,7 +160,10 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
 
   // I riquadri obbediscono a ricerca e filtri. «Una chat una volta sola»: sotto.
   const trovate = api.chats.filter((c) => passa(c) && combaciaRicerca(c, ricerca));
-  const perStelle = (righe: ChatItem[]) => ordinaPerStelle(righe, stelleDi);
+  //  Nelle code gli acconti salgono DENTRO la sezione (30/10/2026), prima delle stelle; con «Con stelle»
+  //  acceso l'ordine resta quello delle stelle, che è ciò che si sta cercando.
+  const perStelle = (righe: ChatItem[]) =>
+    filtri.stelle ? ordinaPerStelle(righe, stelleDi) : saliAcconti(ordinaPerStelle(righe, stelleDi));
   //  ── FINESTRA IN CHIUSURA IN CIMA (30/10/2026) ───────────────────────────
   //  Con «Si può scrivere» le chat che chiudono entro 4 ore hanno un riquadro tutto loro, sopra
   //  «Da rispondere», dalla scadenza più vicina: si scrive gratis finché si può.
@@ -176,8 +180,19 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  La pillola «Sconosciuti» resta: è il filtro che mostra SOLO queste, senza il resto.
   const senzaSchedaCon = tutte ? chatSenzaScheda(trovate) : [];
   const inSenzaSchedaTel = new Set(senzaSchedaCon.map((c) => c.phone));
+  //  ── ACCONTO, DA INSTALLARE IN CIMA (30/10/2026) ────────────────────────
+  //  In «Tutte», sotto la barra del prossimo meet, un blocco richiudibile con le chat di chi ha
+  //  lasciato l'acconto e non ha ancora la posa fatta: l'acconto più vecchio per primo, e chi ha
+  //  «Anticipa» acceso prima di tutti. Non si ripetono sotto. Il resto dell'elenco resta l'ordine
+  //  di WhatsApp. Nelle altre viste niente blocco (i numeri devono restare quelli dei pulsanti):
+  //  lì gli acconti salgono dentro la sezione. Le regole sono in accontiInCima.ts.
+  const daInstallareTutte = tutte ? chatDaInstallare(trovate) : [];
+  const inBloccoTel = new Set(daInstallareTutte.map((c) => c.phone));
+  const [apertoAcconti, setApertoAcconti] = useState(true);
   const elencoTutte = tutte
-    ? ordinaComeWhatsapp(trovate.filter((c) => !inSenzaSchedaTel.has(c.phone)))
+    ? ordinaComeWhatsapp(
+        trovate.filter((c) => !inSenzaSchedaTel.has(c.phone) && !inBloccoTel.has(c.phone)),
+      )
     : [];
   const inScadenza =
     filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
@@ -702,6 +717,44 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 <ul>
                   {senzaSchedaVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
                 </ul>
+              </section>
+            )}
+            {daInstallareTutte.length > 0 && (
+              <section aria-labelledby="titolo-da-installare">
+                <h2 id="titolo-da-installare" className="border-b border-violet-200 bg-violet-50/70">
+                  <button
+                    type="button"
+                    aria-expanded={apertoAcconti}
+                    aria-controls="elenco-da-installare"
+                    onClick={() => setApertoAcconti(!apertoAcconti)}
+                    className={cn(
+                      "t-corpo flex min-h-11 w-full items-center gap-2 px-3 text-left font-semibold text-foreground lg:pointer-fine:min-h-8",
+                      FUOCO,
+                    )}
+                  >
+                    <Wrench aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-700" />
+                    <span className="min-w-0 flex-1 truncate">
+                      Acconto, da installare ({daInstallareTutte.length})
+                      <span className="t-nota ml-2 font-normal text-muted-foreground">
+                        il più vecchio in alto
+                      </span>
+                    </span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                        apertoAcconti && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </h2>
+                {apertoAcconti && (
+                  <ul id="elenco-da-installare">
+                    {daInstallareTutte.map((c) =>
+                      riga(c, c.daRispondere?.attesa ? "attesa" : "normale"),
+                    )}
+                  </ul>
+                )}
               </section>
             )}
             <ul aria-label="Tutte le chat, dall'ultimo messaggio">
