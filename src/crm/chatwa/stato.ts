@@ -75,9 +75,9 @@ const MINUTO = 60_000;
 const GIORNO = 24 * ORA;
 /** Un «non leggibile» di ManyChat arrivato entro questo tempo dalla nostra risposta è l'eco di quella risposta. */
 const ECO_SEGNAPOSTO = 2 * MINUTO;
-/** Un'«entrata» che arriva entro questo tempo DOPO un nostro messaggio (partito) è l'eco di quel
- *  messaggio (vedi `daRispondere`). Viste: da 2 a 21 secondi. */
-const ECO_ENTRATA = 5 * MINUTO;
+/** Un'«entrata» che arriva entro questo tempo DOPO un nostro messaggio (partito), con l'ultimo messaggio
+ *  del contatto ancora nostro, è l'eco di quel messaggio (vedi `daRispondere`). Viste: da 2 a 21 secondi. */
+const ECO_ENTRATA = MINUTO;
 
 const FRASE_CHIUSA = "Finestra di 24 ore chiusa: puoi mandare solo un modello approvato";
 
@@ -143,10 +143,13 @@ export function daRispondere(i: IngressoStato): DaRispondere {
     //  testo vecchio del cliente. La rotta scrive `ultimo_in_entrata_il` PRIMA che l'eco venga
     //  riconosciuta e nascosta (`duplicato_di`), e nessuno lo riporta indietro: l'«entrata» risulta
     //  DOPO il nostro messaggio e la chat restava in «Da rispondere» con «Tu: …» sulla riga.
-    //  Un vero messaggio del cliente, invece, diventa lui l'ultimo messaggio (trigger sul contatto,
-    //  o messaggio letto in pagina) e non c'è più niente di nostro in fondo. Quindi: ultimo nostro
-    //  e partito, entrata entro 5 minuti dopo → eco, il cliente non aspetta. Più tardi di così la
-    //  colonna vale ancora (nel dubbio la chat resta in attesa, mai un cliente perso).
+    //  Un vero messaggio del cliente («Sera», «Ok»…), invece, diventa lui l'ultimo messaggio (trigger
+    //  sul contatto, o messaggio letto in pagina): l'ultimo NON è più nostro e la regola non scatta,
+    //  anche se arriva dopo 5 secondi. Quindi: ultimo nostro e partito, entrata entro 1 minuto dopo
+    //  → eco, il cliente non aspetta. Più tardi di così la colonna vale ancora (nel dubbio la chat
+    //  resta in attesa, mai un cliente perso).
+    //  ⚠️ Il testo NON si confronta con il nostro: l'eco porta il VECCHIO testo del cliente
+    //  (`{{Last Text Input}}`, vedi manychat/risposta `ecoDi`), non quello che abbiamo mandato.
     const tUltimo = ms(ultimo.created_at);
     const ecoDelNostro =
       ultimo.direction === "outbound" &&

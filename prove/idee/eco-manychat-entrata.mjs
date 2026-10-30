@@ -52,6 +52,14 @@ export async function proveEcoManychatEntrata(mod, { c, gruppo, radice }) {
   c("nostro messaggio NON partito (failed) letto in pagina, poi un'entrata: il cliente aspetta", true,
     dr({ ultimo_in_entrata_il: alle("18:00:04") },
       { ultimo: { direction: "outbound", created_at: alle("17:59:56"), status: "failed" } }).attesa);
+  c("il cliente risponde «Sera» 1 minuto dopo il nostro messaggio: è lui l'ultimo messaggio, resta in attesa", [true, alle("18:00:56")],
+    ((r) => [r.attesa, r.dal])(dr(sporco({ ultimo_messaggio_il: alle("18:00:55"), ultimo_messaggio_direzione: "inbound", ultimo_in_entrata_il: alle("18:00:56"), ultimo_in_entrata_anteprima: "Sera" }))));
+  c("«Sera» a 5 secondi dal nostro messaggio, ultimo messaggio del contatto già suo: in attesa", true,
+    dr(sporco({ ultimo_messaggio_il: alle("17:59:59"), ultimo_messaggio_direzione: "inbound", ultimo_in_entrata_il: alle("18:00:01"), ultimo_in_entrata_anteprima: "Sera" })).attesa);
+  c("«Sera» 61 secondi dopo il nostro messaggio (contatto non ancora aggiornato): oltre la finestra dell'eco, in attesa", true,
+    dr(sporco({ ultimo_in_entrata_il: alle("18:00:57"), ultimo_in_entrata_anteprima: "Sera" })).attesa);
+  c("eco con lo stesso vecchio testo 8 secondi dopo: fuori", false,
+    dr(sporco({ ultimo_in_entrata_il: alle("18:00:04"), ultimo_in_entrata_anteprima: "Va bene, grazie" })).attesa);
   c("entrata molto dopo il nostro messaggio (ore): non è un'eco, resta in attesa", true,
     dr(sporco({ ultimo_in_entrata_il: alle("21:30:00") })).attesa);
   c("nostro messaggio PRIMA dell'entrata di 1 ora (regola vecchia): resta in attesa", true,
