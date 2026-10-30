@@ -145,7 +145,7 @@ const FRASI: Record<MotivoInvio | MotivoRifiuto, string> = {
   errore_invio: "Il messaggio non è partito per un problema di invio. Puoi riprovare.",
   testo_vuoto: "Scrivi un messaggio prima di inviare.",
   testo_lungo: `Il messaggio è troppo lungo: al massimo ${L.caratteri} caratteri.`,
-  ponte_non_collegato: "Il telefono non è collegato al CRM in questo momento: riprova tra poco.",
+  ponte_non_collegato: "WhatsApp sul Mac non risponde in questo momento: riprova tra poco.",
   invii_spenti: "L'invio dal telefono non è attivo sul Mac.",
   limite_giornaliero: `Hai già mandato ${L.alGiorno} messaggi dal telefono nelle ultime ${L.giornoOre} ore: riprova più tardi.`,
   coda_piena: `Ci sono già ${L.inCodaMax} messaggi in attesa: aspetta che partano.`,
