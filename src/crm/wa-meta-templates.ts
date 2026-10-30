@@ -192,7 +192,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_primo_contatto_tre_fasce",
     "UTILITY",
-    `Buongiorno {{lead_name}}, abbiamo ricevuto la sua richiesta di informazioni a Hair Genius Labs. Per gestirla ci serve sapere quando contattarla: preferisce la mattina, il pomeriggio o la sera?`,
+    `Gentile {{lead_name}}, la sua richiesta di informazioni a Hair Genius Labs è stata registrata. Per programmare la chiamata di risposta, indichi la fascia oraria in cui è reperibile: mattina, pomeriggio o sera.`,
     ["lead_name"],
   ),
   tpl(
