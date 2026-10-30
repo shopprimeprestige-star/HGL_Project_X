@@ -641,14 +641,14 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           iso(-3 * ORA_MS),
           "Ciao, sono Anna",
           false,
-          { attesa: false, vecchia: false, dal: null, anteprima: null },
+          { attesa: false, dal: null, anteprima: null },
         ],
         [
           per(P1).daRispondere.attesa,
           per(P1).daRispondere.dal,
           per(P1).daRispondere.anteprima,
           per(P3).daRispondere.attesa,
-          (({ attesa, vecchia, dal, anteprima }) => ({ attesa, vecchia, dal, anteprima }))(
+          (({ attesa, dal, anteprima }) => ({ attesa, dal, anteprima }))(
             per(P3).daRispondere,
           ),
         ],
@@ -700,24 +700,23 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       });
       const perq = (tel) => q.api().chats.find((x) => x.phone === tel);
       c(
-        "colonne assenti: ultimo messaggio del cliente degli ultimi 7 giorni senza risposta → in attesa",
-        [[P1], true],
+        "colonne assenti: ultimo messaggio del cliente senza risposta → in attesa (qualunque età)",
+        [[P1, P2], true],
         [telefoni(q.api().daRispondere), perq(P1).daRispondere.attesa],
       );
       c(
-        "colonne assenti: oltre 7 giorni NON è in elenco, ma resta segnata (attesa falsa, dal valorizzato) per la riga «da più di 7 giorni»",
-        [false, true, iso(-9 * GIORNO), []],
+        "colonne assenti: anche oltre 7 giorni è in elenco (regola unica: l'ultimo messaggio è del cliente, senza limite di età)",
+        [true, iso(-9 * GIORNO), [P2]],
         [
           perq(P2).daRispondere.attesa,
-          perq(P2).daRispondere.vecchia,
           perq(P2).daRispondere.dal,
           telefoni(q.api().daRispondere).filter((t) => t === P2),
         ],
       );
       c(
-        "colonne assenti: se c'è una risposta dopo, non è in attesa e non è «vecchia»",
-        [false, false],
-        [perq(P3).daRispondere.attesa, perq(P3).daRispondere.vecchia],
+        "colonne assenti: se c'è una risposta dopo, non è in attesa",
+        false,
+        perq(P3).daRispondere.attesa,
       );
       fine(q);
     }
@@ -741,7 +740,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           msg("x3", "inbound", P1, "tre", -3 * ORA_MS),
         ],
       });
-      c("il pallino conta 3, non 1", [3], [p.api().chats[0].unread]);
+      c("il pallino conta 3, non 1", [3], [p.api().chats[0].contact.unread_count]);
       p.api().apri(P1);
       await p.assesta();
       const u = p.scritture("whatsapp_contacts");
@@ -760,7 +759,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       c(
         "dopo l'apertura i non letti sono 0 ma la chat resta in «Da rispondere»",
         [0, [P1]],
-        [p.api().chats[0].unread, telefoni(p.api().daRispondere)],
+        [p.api().chats[0].contact.unread_count, telefoni(p.api().daRispondere)],
       );
       c(
         "tre timer: controllo dei messaggi nuovi (15 s), battito anti-congelamento (20 s), orologio (30 s)",
@@ -822,7 +821,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       c(
         "un messaggio nuovo a chat aperta si segna letto una volta",
         [1, 0],
-        [q.scritture("whatsapp_contacts").length, q.api().chats[0].unread],
+        [q.scritture("whatsapp_contacts").length, q.api().chats[0].contact.unread_count],
       );
       fine(q);
 
@@ -1658,7 +1657,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       p.db.gate = null;
       apri2();
       await p.assesta();
-      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].unread]);
+      c("e a ricarica finita i dati nuovi ci sono", [2], [p.api().chats[0].contact.unread_count]);
 
       // Errore di lettura: si tengono i dati di prima.
       p.db.erroreLettura = true;
@@ -1887,6 +1886,82 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       fine(p);
     }
 
+    gruppo("CHAT WHATSAPP · PAGINA · TEMPO REALE: UN MESSAGGIO CON L'ORA IN AVANTI NON FERMA LE LETTURE (30/10)");
+    {
+      //  Il ponte scrive in `created_at` l'ora di WhatsApp, che per un'uscita dal telefono è quella del telefono
+      //  (accettata fino a 10 minuti nel futuro). Il cursore delle letture a pezzi partiva da lì: con un messaggio
+      //  così in pagina ogni riga nuova (scritta «adesso» dal database) restava sotto il cursore e non si leggeva.
+      //  La chat si aggiornava solo ricaricando la pagina. (`cambiato_il` c'è: la migrazione p1 è applicata.)
+      const bw = (id, dir, testo, dopo, extra = {}) =>
+        msg(id, dir, P2, testo, dopo, {
+          canale: "baileys",
+          wa_message_id: `bw:${id}`,
+          from_number: dir === "inbound" ? P2 : "baileys",
+          to_number: dir === "inbound" ? "baileys" : P2,
+          ...extra,
+        });
+      const p = await monta({
+        messaggi: [msg("m0", "inbound", P2, "ciao", -60 * MIN, { canale: "manychat" }), bw("avanti", "outbound", "ok, a dopo", 8 * MIN, { cambiato_il: iso(-MIN) })],
+        contatti: [contatto("c2", P2, { last_message_at: iso(-60 * MIN), updated_at: iso(-60 * MIN) })],
+      });
+      p.api().apri(P2);
+      await p.assesta();
+      for (let i = 0; i < 3; i++) {
+        p.T.ora += 20_000;
+        const nuovo = bw(`n${i}`, "inbound", `vivo ${i}`, p.T.ora - T0);
+        p.db.tabelle.whatsapp_messages.push(nuovo);
+        p.db.emetti("whatsapp_messages", { eventType: "INSERT", new: nuovo, old: {} });
+        await p.assesta();
+        c(
+          `messaggio vivo n${i}: la chat aperta lo mostra subito, senza ricaricare`,
+          true,
+          p.api().messaggi.some((x) => x.id === `n${i}`),
+        );
+      }
+      c(
+        "…tutti, nel loro ordine",
+        ["m0", "n0", "n1", "n2", "avanti"],
+        p.api().messaggi.map((x) => x.id),
+      );
+      fine(p);
+    }
+
+    gruppo("CHAT WHATSAPP · PAGINA · PONTE: LA RISPOSTA DAL TELEFONO COMPARE (caso con scheda, 30/10)");
+    {
+      //  Come nel database del 30/10: entrata del ponte (doppione), la stessa entrata di ManyChat, due uscite dal telefono.
+      const bw = (id, dir, testo, dopo, extra = {}) =>
+        msg(id, dir, P1, testo, dopo, {
+          canale: "baileys",
+          wa_message_id: `bw:${id}`,
+          from_number: dir === "inbound" ? P1 : "baileys",
+          to_number: dir === "inbound" ? "baileys" : P1,
+          ...extra,
+        });
+      const dopo = (n) => n * MIN;
+      const entrata = bw("e-ponte", "inbound", "Sera", dopo(-6), { duplicato_di: "e-mc" });
+      const mc = msg("e-mc", "inbound", P1, "Sera", dopo(-6) + 2000, { canale: "manychat", wa_message_id: "mc-in:1" });
+      const p = await monta({
+        messaggi: [entrata, mc],
+        contatti: [contatto("c1", P1, { last_message_at: mc.created_at, ultimo_in_entrata_il: mc.created_at, ultimo_in_entrata_anteprima: "Sera", unread_count: 1, updated_at: mc.created_at })],
+        leads: [scheda("l1", P1)],
+      });
+      p.api().apri(P1);
+      await p.assesta();
+      for (const [id, testo, min] of [["u1", "Ha preferenze di orario?", -3], ["u2", "Perfetto sera!", 0]]) {
+        p.T.ora = T0 + dopo(min) + 30_000;
+        const u = bw(id, "outbound", testo, dopo(min), { status: "sent" });
+        p.db.tabelle.whatsapp_messages.push(u);
+        const prima = { ...p.db.tabelle.whatsapp_contacts[0] };
+        Object.assign(p.db.tabelle.whatsapp_contacts[0], { last_message_at: u.created_at, risposto_il: u.created_at, updated_at: new Date(p.T.ora).toISOString(), ultimo_messaggio_il: u.created_at, ultimo_messaggio_anteprima: testo, ultimo_messaggio_direzione: "outbound" });
+        p.db.emetti("whatsapp_messages", { eventType: "INSERT", new: u, old: {} });
+        p.db.emetti("whatsapp_contacts", { eventType: "UPDATE", new: { ...p.db.tabelle.whatsapp_contacts[0] }, old: prima });
+        await p.assesta();
+      }
+      c("la chat aperta mostra l'entrata (una volta sola) e le due uscite del telefono", ["e-mc", "u1", "u2"], p.api().messaggi.map((x) => x.id));
+      c("l'elenco: ultimo messaggio = l'ultima uscita; non è più «da rispondere»", ["u2", false], [p.api().chats[0].lastMessage.id, p.api().chats[0].daRispondere.attesa]);
+      fine(p);
+    }
+
     /* ════════════════════════════════════════════════════════════════════════
      *  8c · p1-chat-veloce (30/10/2026): LE LETTURE A PEZZI E L'ANTEPRIMA
      * ════════════════════════════════════════════════════════════════════════ */
@@ -1936,7 +2011,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         ["m4", 1, "m2"],
         [
           p.api().chats.find((x) => x.phone === P2)?.lastMessage?.id,
-          p.api().chats.find((x) => x.phone === P2)?.unread,
+          p.api().chats.find((x) => x.phone === P2)?.contact?.unread_count,
           p.api().chats.find((x) => x.phone === P1)?.lastMessage?.id,
         ],
       );
@@ -2083,7 +2158,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         "il tasto «Aggiorna» porta scritto «Aggiornato hh:mm» (non solo nel title, che sul telefono non si vede)",
         [true, true],
         [
-          /Aggiornato \$\{oraBreve\(api\.aggiornatoIl\)\}/.test(corpoTasto),
+          //  30/10: sul telefono l'ora sotto l'icona, da 768 px «Aggiornato hh:mm».
+          /Aggiornato <\/span>\s*\{oraBreve\(api\.aggiornatoIl\)\}/.test(corpoTasto),
           /api\.aggiornatoIl/.test(corpoTasto),
         ],
       );
@@ -2415,6 +2491,71 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
             scadono(10_000);
             await p.assesta();
           }
+          fine(p);
+        }
+
+        // ── TELEFONO: LA SCHEDA VA IN SFONDO E TORNA (30/10/2026, iPhone: WhatsApp e ritorno al CRM) ──
+        //  Il titolare passa a WhatsApp e torna. Prima: se la pausa era breve (i timer di iOS ancora vivi, il battito
+        //  rimette a zero il conto) la pagina rileggeva soltanto, senza riaprire il canale che iOS può aver chiuso;
+        //  dopo una pausa lunga la lettura aspettava il rinnovo della sessione (fino a 10 s) e, se anche
+        //  `getSession` scadeva, il canale non si riapriva MAI più (nessun ritento).
+        const lette = (p) =>
+          p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1).length;
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const primo = p.db.canali.at(-1);
+          doc.visibilityState = "hidden";
+          doc.lancia("visibilitychange");
+          p.T.ora += 20_000;
+          for (const t of [...p.T.timers.values()].filter((t) => t.ms === 20_000)) t.f(); // il battito gira ancora
+          p.T.ora += 20_000;
+          for (const t of [...p.T.timers.values()].filter((t) => t.ms === 20_000)) t.f();
+          doc.visibilityState = "visible";
+          const prima = lette(p);
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          await p.assesta();
+          c(
+            "in sfondo 40 s (timer ancora vivi), poi di nuovo visibile: canale riaperto (uno solo vivo) e lettura subito",
+            [true, 1, true],
+            [primo.chiuso === true, vivi(p), lette(p) > prima],
+          );
+          fine(p);
+        }
+        {
+          const p = await monta(base());
+          await p.assesta();
+          p.T.auth.refreshSession = () => new Promise(() => {}); // il rinnovo non risponde (rete appena tornata)
+          const prima = lette(p);
+          p.T.ora += 10 * MIN;
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          c("dopo 10 min il rinnovo appeso NON ritarda la lettura: parte subito", [true], [lette(p) > prima]);
+          fine(p);
+        }
+        {
+          const p = await monta(base());
+          await p.assesta();
+          const sessioneVera = p.T.auth.getSession;
+          p.T.auth.getSession = () => new Promise(() => {}); // anche `getSession` resta appesa
+          p.T.ora += 10 * MIN;
+          doc.lancia("visibilitychange");
+          await p.assesta();
+          scadono(10_000); // il rinnovo e poi getSession scadono
+          await p.assesta();
+          scadono(10_000);
+          await p.assesta();
+          c(
+            "getSession scaduta alla riapertura: niente canale per ora, ma un ritento dei 5 s è in attesa",
+            [0, 1],
+            [vivi(p), [...attese.values()].filter((t) => t.ms === 5_000).length],
+          );
+          p.T.auth.getSession = sessioneVera;
+          scadono(5_000);
+          await p.assesta();
+          await p.assesta();
+          c("il ritento riapre il canale: uno vivo", [1], [vivi(p)]);
           fine(p);
         }
 

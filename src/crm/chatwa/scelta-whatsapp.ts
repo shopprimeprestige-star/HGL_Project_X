@@ -9,6 +9,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { finestraPerTesto } from "@/crm/manychat/finestra";
 import { ultimeNoveCifre } from "@/crm/manychat/regole";
+import { entrataPerFinestra, type MessaggioEntrata } from "./entrata-vera";
 import { linkApriWhatsapp } from "./apriWhatsapp";
 
 /** La frase sopra le opzioni quando la finestra è chiusa (stesso tono di Casella). */
@@ -20,6 +21,8 @@ export interface ContattoPerScelta {
   id: string;
   phone_e164?: string | null;
   ultimo_in_entrata_il?: string | null;
+  /** Per capire se l'ultima entrata era una reazione (senza testo): non riapre la finestra. */
+  ultimo_in_entrata_anteprima?: string | null;
 }
 
 /** L'opzione «WhatsApp del CRM»: accesa sulla chat del contatto, o spenta. */
@@ -57,9 +60,15 @@ export function contattoDelNumero(
   return meglio;
 }
 
-/** Accesa solo con la finestra aperta (regola delle 23 ore) e un contatto vero. */
-export function sceltaCrm(contatto: ContattoPerScelta | null, adesso: Date): SceltaCrm {
-  if (contatto?.id && finestraPerTesto(contatto.ultimo_in_entrata_il, adesso))
+/** Accesa solo con la finestra aperta (regola delle 23 ore) e un contatto vero.
+ *  Una reazione non apre la finestra: `messaggi` (in entrata, recenti) servono solo se l'ultima
+ *  entrata era senza testo, per trovare l'ultimo messaggio vero. Senza: finestra chiusa. */
+export function sceltaCrm(
+  contatto: ContattoPerScelta | null,
+  adesso: Date,
+  messaggi: MessaggioEntrata[] = [],
+): SceltaCrm {
+  if (contatto?.id && finestraPerTesto(entrataPerFinestra(contatto, messaggi), adesso))
     return { stato: "aperta", contattoId: contatto.id };
   return { stato: "chiusa", contattoId: contatto?.id ?? null };
 }

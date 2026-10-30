@@ -132,6 +132,12 @@ const eMeetAdesso = (d: { tipo: string; motivo?: string; extra?: { quale?: strin
  *  24 ore aperta (ultima entrata < 23 ore), e la porta non ripiega mai sul modello. Altrimenti
  *  si salta. Si spegne con `false`; con `MEET_DOMANI_ACCESO` vero vale quello (modello ammesso). */
 export const MEET_DOMANI_SOLO_GRATIS = true;
+/** Il promemoria 24 ore prima COME MODELLO Utility (`hgl_meet_domani`), a pagamento, alle 9:00 del
+ *  giorno prima e anche a finestra chiusa, se la consulenza è stata fissata da PIÙ di questi
+ *  giorni (30/10/2026): chi l'ha fissata da tanto se la può dimenticare. Fissata da meno resta
+ *  «solo se gratis». Una sola volta per meet (stessa chiave `d|…`). Serve il flusso
+ *  `hgl_meet_domani` in `config.flussi`. Si spegne con `null`. */
+export const MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI: number | null = 3;
 /** I tag per ritrovare in ManyChat chi ha ricevuto cosa. */
 export const TAG_PROMEMORIA = "crm-promemoria";
 export const TAG_RICONTATTO = "crm-ricontatto";
@@ -486,6 +492,8 @@ export interface ExtraVoce {
   stato: string | null;
   inizio: Date | null;
   recupero: boolean;
+  /** il giorno prima fissato da oltre `MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI`: va come modello */
+  aPagamento?: boolean;
 }
 
 /** Una decisione col suo tipo di messaggio. Per `aspetta` e `salta` il tipo è
@@ -648,14 +656,24 @@ export function decisioniDelGiro(
   //  Il promemoria 24 ore prima: stesso interruttore, subito dopo la mattina del meet.
   //  Come modello è spento (decisione del titolare 28/10); come testo gratis parte solo con
   //  la finestra aperta (30/10: `MEET_DOMANI_SOLO_GRATIS`).
-  if (scelta.giornoMeet && (MEET_DOMANI_ACCESO || MEET_DOMANI_SOLO_GRATIS))
+  if (
+    scelta.giornoMeet &&
+    (MEET_DOMANI_ACCESO ||
+      MEET_DOMANI_SOLO_GRATIS ||
+      MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI !== null)
+  )
     aggiungi(
       decidiMeetDomani(schede, adesso, {
         ...base,
         soloGratis: !MEET_DOMANI_ACCESO,
+        pagaOltreGiorni: MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI,
+        senzaGratis: !MEET_DOMANI_SOLO_GRATIS,
         ultimeEntrate: dati.ultimeEntrate,
       }),
-      (x) => ({ tipo: x.quale, extra: { inizio: x.inizioMeet } }),
+      (x) => ({
+        tipo: x.quale,
+        extra: { inizio: x.inizioMeet, ...(x.aPagamento ? { aPagamento: true } : {}) },
+      }),
       () => "meet_domani",
     );
   if (scelta.leadNuovo)
@@ -1066,7 +1084,9 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     );
     if (!mt) continue;
     //  Il giorno prima, solo se gratis, parte come testo: il suo flusso non serve e non si usa.
-    const soloTesto = v.tipo === "meet_domani" && !MEET_DOMANI_ACCESO;
+    //  Eccetto se fissata da oltre 3 giorni: quella va come modello (`aPagamento`).
+    const soloTesto =
+      v.tipo === "meet_domani" && !MEET_DOMANI_ACCESO && !v.d.extra.aPagamento;
     if (!soloTesto && !config.flussi[mt.modello]) {
       senzaFlusso.add(mt.modello);
       continue;

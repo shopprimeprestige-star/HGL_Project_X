@@ -103,10 +103,18 @@ export interface PropsPannelloFiltri {
 export function PannelloFiltri(p: PropsPannelloFiltri) {
   const piccolo = useSchermoPiccolo();
   const accesi = contaAccesi(p.filtri);
+  //  Con un consulente scelto il tasto lo dice («Filtri · Giulia»): «Tutte» non deve sembrare tutte.
+  const consulente = p.filtri.consulente
+    ? (p.consulenti.find((x) => x.id === p.filtri.consulente)?.nome ?? "")
+    : "";
   const tasto = (
     <button
       type="button"
-      aria-label={accesi > 0 ? `Filtri, ${accesi} accesi` : "Filtri"}
+      aria-label={
+        accesi > 0
+          ? `Filtri, ${accesi} accesi${consulente ? `, consulente ${consulente}` : ""}`
+          : "Filtri"
+      }
       className={cn(
         "t-corpo inline-flex w-auto shrink-0 items-center gap-1.5 rounded-md border px-3 font-medium transition-colors",
         "h-11 lg:pointer-fine:h-8",
@@ -118,6 +126,12 @@ export function PannelloFiltri(p: PropsPannelloFiltri) {
     >
       <SlidersHorizontal aria-hidden="true" className="h-4 w-4 shrink-0" />
       Filtri
+      {consulente && (
+        <span className="max-w-[7rem] truncate">
+          {"· "}
+          {consulente}
+        </span>
+      )}
       {accesi > 0 && <Contatore n={accesi} acceso />}
     </button>
   );

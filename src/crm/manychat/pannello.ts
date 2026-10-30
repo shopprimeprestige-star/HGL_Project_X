@@ -50,7 +50,12 @@ import {
   type CambioContatto,
   type StatoContatto,
 } from "./contatto";
-import { decisioniDelGiro, righeDiProva, sceltaDaConfig } from "./giro";
+import {
+  MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI,
+  decisioniDelGiro,
+  righeDiProva,
+  sceltaDaConfig,
+} from "./giro";
 import { TETTO_RICONTATTI, TETTO_TOTALE, tettiDelGiorno, type SchedaQuando } from "./quando";
 import {
   STATI_ARRIVATI,
@@ -902,8 +907,10 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
     return !!s?.leadNuovo && !i.flussi["hgl_primo_contatto_tre_fasce"];
   if (modello === "hgl_richiamo_24h" || modello === "hgl_ritorno" || modello === "hgl_casi_reali")
     return !!s?.leadNuovo;
-  //  Il promemoria 24 ore prima parte solo come testo (30/10): il suo flusso non serve.
-  if (modello === "hgl_meet_domani") return false;
+  //  Il promemoria 24 ore prima: come testo gratis non ha flusso; il modello serve solo per chi
+  //  ha fissato da oltre 3 giorni (30/10/2026, `MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI`).
+  if (modello === "hgl_meet_domani")
+    return !!s?.giornoMeet && MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI !== null;
   //  Il messaggio all'ora è spento dal titolare (30/10/2026): il suo flusso non serve.
   if (modello === "hgl_meet_adesso") return false;
   if (modello === "hgl_meet_oggi") return !!s?.giornoMeet;
@@ -911,6 +918,7 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
   //  fissato» è l'interruttore dei ricontatti).
   return STATI_RIQUADRO.some(
     (r) =>
+      !r.spento &&
       r.modello === modello &&
       (r.legatoA ? i.interruttori[r.legatoA] : statiDiRiga(r).some((k) => !!s?.stati[k])),
   );
