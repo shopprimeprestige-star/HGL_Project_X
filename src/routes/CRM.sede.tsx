@@ -26,6 +26,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { useEffect, useMemo, useState } from "react";
 import {
   Check,
@@ -465,9 +466,7 @@ function RigaSede({
   const manca = cosaMancaVisita(d, visita);
   const acconto = Number(d.payment?.accontoPagato) || 0;
   const meeting = soloData(d.dataMeeting);
-  const wa = d.telefono
-    ? buildWhatsAppLink(d.telefono, getWhatsAppMessageForStatus(lead, consulente))
-    : null;
+  const wa = d.telefono ? getWhatsAppMessageForStatus(lead, consulente) : null;
 
   return (
     <li className="border-t border-border first:border-t-0">
@@ -530,9 +529,9 @@ function RigaSede({
             </Button>
             {wa && (
               <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-[11.5px]">
-                <a href={wa} target="_blank" rel="noreferrer">
+                <LinkWhatsapp telefono={d.telefono} testo={wa}>
                   WhatsApp
-                </a>
+                </LinkWhatsapp>
               </Button>
             )}
           </>

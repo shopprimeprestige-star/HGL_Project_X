@@ -40,6 +40,7 @@ import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
 import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
+import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 
@@ -639,6 +640,7 @@ const MODULI = [
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
+  "chatwa/scelta-whatsapp",
   "chatwa/richiamo",
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
   //   prove in prove/idee/righe.mjs.
@@ -21196,6 +21198,7 @@ proveIdeeRighe(mod, { c, gruppo, radice });
 proveAttesaERitorno(mod, { c, gruppo, radice });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
+proveSceltaWhatsapp(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });

@@ -17,6 +17,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Pannello, VuotoFinestra } from "@/crm/ui/Finestra";
 import { useRicerca } from "@/crm/ui";
 import { cn } from "@/lib/utils";
+import { useCRM } from "@/crm/CRMContext";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
+import { IconaWhatsApp } from "@/crm/chatwa/IconaWhatsApp";
+import { getWhatsAppMessageForStatus } from "@/crm/whatsapp";
 import { AttivaNotifiche, useStatoAudio } from "./AttivaNotifiche";
 import { usePermesso } from "./permesso";
 import { useAvvisi, type Avviso } from "./useAvvisi";
@@ -38,6 +42,36 @@ export function quandoBreve(iso: string) {
   if (h < 24) return `${h}h fa`;
   const g = Math.floor(h / 24);
   return `${g}g fa`;
+}
+
+/** ── WHATSAPP DALLA CAMPANELLA (30/10/2026) ─────────────────────────────────
+ *  Sugli avvisi di un lead col telefono, accanto alla riga, il tasto WhatsApp
+ *  con la stessa scelta del resto del CRM («WhatsApp» / «WhatsApp del CRM»,
+ *  regola della finestra compresa): si scrive senza aprire prima la scheda.
+ *  Il messaggio è quello dello stato del lead, come il tasto della scheda.
+ *  Sta FUORI dal bottone della riga: un tasto dentro un bottone non è valido e
+ *  sul telefono prende il tocco sbagliato. */
+function WhatsappAvviso({ leadId, onScelto }: { leadId: string; onScelto: () => void }) {
+  const { leads, consultants } = useCRM();
+  const lead = leads.find((l) => l.id === leadId);
+  const telefono = lead?.data.telefono;
+  if (!lead || !telefono) return null;
+  const consulente = consultants.find((c) => c.id === lead.data.consulenteId)?.data.nome ?? "";
+  const chi = `${lead.data.nome ?? ""} ${lead.data.cognome ?? ""}`.trim() || "il lead";
+  return (
+    <LinkWhatsapp
+      telefono={telefono}
+      testo={getWhatsAppMessageForStatus(lead, consulente)}
+      allinea="end"
+      onNativo={onScelto}
+      onCrm={onScelto}
+      title={`Scrivi a ${chi} su WhatsApp`}
+      aria-label={`Scrivi a ${chi} su WhatsApp`}
+      className="flex w-12 shrink-0 items-center justify-center text-emerald-600 transition-colors hover:bg-slate-50 focus-visible:bg-slate-100 focus-visible:outline-none md:w-10"
+    >
+      <IconaWhatsApp className="h-4 w-4" />
+    </LinkWhatsapp>
+  );
 }
 
 export function NotificationsBell() {
@@ -110,11 +144,11 @@ export function NotificationsBell() {
           ) : (
             <ul className="divide-y divide-slate-200 bg-white">
               {avvisi.slice(0, 40).map((a) => (
-                <li key={a.id}>
+                <li key={a.id} className="flex items-stretch">
                   <button
                     type="button"
                     onClick={() => apri(a)}
-                    className="flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+                    className="flex min-w-0 flex-1 items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
                   >
                     <span
                       className={cn(
@@ -144,6 +178,15 @@ export function NotificationsBell() {
                       <span className="mt-1 block text-[11px] text-slate-400">{a.etichetta}</span>
                     </span>
                   </button>
+                  {a.leadId && (
+                    <WhatsappAvviso
+                      leadId={a.leadId}
+                      onScelto={() => {
+                        void segnaLetta(a);
+                        setAperta(false);
+                      }}
+                    />
+                  )}
                 </li>
               ))}
             </ul>

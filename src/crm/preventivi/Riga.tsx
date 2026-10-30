@@ -32,6 +32,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import { useEffect, useMemo, useState } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import {
   AlertTriangle,
   CalendarClock,
@@ -56,7 +57,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { buildWhatsAppLink, segnapostiResidui } from "@/crm/whatsapp";
+import { segnapostiResidui } from "@/crm/whatsapp";
 import { linkPreventivo } from "@/shop/quote-link";
 import { CLASSE_BADGE_STATO, Chip, Scheda, dataBreve, eur } from "@/crm/ui";
 import { Finestra, NotaFinestra, Pannello, SezioneFinestra, VoceScelta } from "@/crm/ui/Finestra";
@@ -232,14 +233,14 @@ function PannelloWhatsApp({
               }
             >
               {pronto ? (
-                <a
-                  href={buildWhatsAppLink(numero, testo)}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => setAperto(false)}
+                <LinkWhatsapp
+                  telefono={numero}
+                  testo={testo}
+                  onNativo={() => setAperto(false)}
+                  onCrm={() => setAperto(false)}
                 >
                   <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Scrivi
-                </a>
+                </LinkWhatsapp>
               ) : (
                 <span>
                   <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Scrivi
