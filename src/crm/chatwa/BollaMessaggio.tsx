@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { percheModello } from "./perche-modello";
 import {
   AlertCircle,
   Check,
@@ -348,9 +349,11 @@ function ModelloLeggibile({
   messaggio: m,
   lead,
   consultants,
+  ultimaEntrataPrima,
 }: BollaProps & { consultants: { id: string; data: { nome?: string } }[] }) {
   const consulente = consultants.find((x) => x.id === lead?.data?.consulenteId)?.data.nome ?? null;
   const v = corpoLeggibile(m.body, lead?.data, consulente, lead?.id);
+  const perche = percheModello(m.created_at, ultimaEntrataPrima);
   return (
     <>
       <p className={cn(TESTO, !v.modello && spazioOra(true))}>{v.testo}</p>
@@ -361,6 +364,17 @@ function ModelloLeggibile({
           title={`Modello «${v.modello}»`}
         >
           {v.ricostruito ? "Modello · testo ricostruito dalla scheda" : "Modello"}
+        </p>
+      )}
+      {v.modello && m.direction === "outbound" && perche && (
+        <p
+          className={cn(
+            "text-[11px] leading-4",
+            perche.aperta ? "text-amber-700" : "text-[#54656f]",
+            spazioOra(true),
+          )}
+        >
+          {perche.frase}
         </p>
       )}
     </>
@@ -451,6 +465,7 @@ export function BollaMessaggio({
   lead,
   coda,
   attaccata = false,
+  ultimaEntrataPrima,
 }: BollaProps & { attaccata?: boolean }) {
   const fromMe = m.direction === "outbound";
   const { consultants } = useCRM();
@@ -477,7 +492,12 @@ export function BollaMessaggio({
           <StatoCoda coda={coda} />
         </>
       ) : fromMe ? (
-        <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
+        <ModelloLeggibile
+          messaggio={m}
+          lead={lead}
+          consultants={consultants}
+          ultimaEntrataPrima={ultimaEntrataPrima}
+        />
       ) : (
         <Contenuto messaggio={m} c={c} />
       )}

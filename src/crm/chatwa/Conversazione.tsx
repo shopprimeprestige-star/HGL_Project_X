@@ -31,6 +31,7 @@ import { numeroDaComporre } from "@/crm/importa/chiamare";
 import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
 import { BollaMessaggio } from "./BollaMessaggio";
+import { entratePrima } from "./perche-modello";
 import { InfoModulo } from "./InfoModulo";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { linkApriWhatsapp } from "./apriWhatsapp";
@@ -93,6 +94,8 @@ export function Conversazione({
   onAbbina,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
+  //  Sotto un modello: com'era la finestra di 24 ore quando è partito (30/10/2026).
+  const entrate = useMemo(() => entratePrima(messaggi), [messaggi]);
   const { consultants } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   //  ── SCRIVI DAL TELEFONO (30/10/2026) ───────────────────────────────────
@@ -494,6 +497,7 @@ export function Conversazione({
                                   <BollaMessaggio
                                     messaggio={m}
                                     lead={attiva.lead}
+                                    ultimaEntrataPrima={entrate.get(m.id)}
                                     attaccata={
                                       !nuovoGiorno &&
                                       attaccataAllaPrecedente(m, voci[i - 1] ?? null)
@@ -506,6 +510,7 @@ export function Conversazione({
                                 messaggio={m}
                                 lead={attiva.lead}
                                 coda={daCoda}
+                                ultimaEntrataPrima={entrate.get(m.id)}
                                 attaccata={
                                   !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
                                 }
