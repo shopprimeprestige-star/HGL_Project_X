@@ -156,8 +156,8 @@ export function contiDiagnosi(d) {
  *  parole della lista chiusa, date ISO e numeri. Il QR non c'è mai.
  *  `contatori` resta entro 18 chiavi: il CRM ne tiene 20 con `in_coda` e
  *  `scartati`. Il dettaglio va in `diagnosi` (stato.json e log; la rotta del
- *  CRM non lo legge e non lo salva). `cache`: `{ numeri, promossi }` della
- *  cache sul Mac (p3), 0 se manca. */
+ *  CRM non lo legge e non lo salva). `cache`: `{ numeri, promossi, errori }`
+ *  della cache sul Mac (p3), 0 se manca. */
 export function corpoBattito(ist, fc, { erroreServer = false, cache } = {}) {
   let stato = ist.stato;
   if (stato === "collegato" && erroreServer) stato = "errore";
@@ -190,6 +190,7 @@ export function corpoBattito(ist, fc, { erroreServer = false, cache } = {}) {
       fanout_registrati: numero(e.invii_nascosti),
       cache_numeri: numero(cache?.numeri),
       cache_promossi: numero(cache?.promossi),
+      cache_errori: numero(cache?.errori),
     },
     versione: VERSIONE_BAILEYS,
     diagnosi: { scarti: soloConti(d.scarti), tipi: soloConti(d.tipi), nodi: soloConti(d.nodi) },
@@ -235,21 +236,38 @@ async function main() {
   const senzaInvio = process.argv.includes("--senza-invio");
   if (senzaInvio) registro("senza_invio");
 
-  // La cache dei numeri fuori dal CRM (p3). Se non si apre il ponte va avanti
-  // come prima: i non noti si buttano.
+  // La cache dei numeri fuori dal CRM (p3). Se non si apre (chiave che non si
+  // legge, disco) si salta per quel giro e si riprova al prossimo: la chiave
+  // buona non si rigenera mai per un errore momentaneo.
   let cache = null;
-  try {
-    cache = creaCache({ cartella: P.cache, chiave: chiaveCache(P.chiaveCache) });
-    registro("cache_aperta", { ...cache.contatori(), tolti: cache.pulisci() });
-  } catch {
-    registro("cache_non_aperta");
+  function apriCache() {
+    if (cache) return cache;
+    try {
+      cache = creaCache({ cartella: P.cache, chiave: chiaveCache(P.chiaveCache) });
+      registro("cache_aperta", { ...cache.contatori(), tolti: cache.pulisci() });
+    } catch {
+      registro("cache_non_aperta");
+    }
+    return cache;
   }
+  apriCache();
   let promossi = 0;
+  /** scritture in cache fallite fuori dalla cache stessa (cache non aperta) */
+  let erroriFuori = 0;
   const allaCache = (messaggi, nomi) => {
-    const r = cache?.metti(messaggi, nomi);
-    if (r?.rifiutati) registro("cache_piena", { rifiutati: r.rifiutati });
+    try {
+      const c = apriCache();
+      if (!c) {
+        erroriFuori++;
+        return;
+      }
+      const r = c.metti(messaggi, nomi);
+      if (r.rifiutati) registro("cache_piena", { rifiutati: r.rifiutati });
+    } catch {
+      erroriFuori++;
+    }
   };
-  const contiCache = () => ({ numeri: cache?.contatori().numeri ?? 0, promossi });
+  const contiCache = () => ({ numeri: cache?.contatori().numeri ?? 0, promossi, errori: (cache?.contatori().errori ?? 0) + erroriFuori });
 
   const fila = creaFila({ cartella: P.fila, attesaPariMs: attesaPariSecondi * 1000, fuoriRubrica: allaCache });
   registro("scartati_puliti", { tolti: fila.pulisciScartati() });
@@ -306,7 +324,7 @@ async function main() {
    *  cronologia in fila (storico). Uno alla volta; mai con --senza-invio. */
   let inControllo = false;
   async function controllo() {
-    if (!cache || senzaInvio || fermo || inControllo) return;
+    if (senzaInvio || fermo || inControllo || !apriCache()) return;
     inControllo = true;
     try {
       const e = await controllaCache({ cache, fila, invia: (corpo) => spedisci({ url, token, corpo }) });

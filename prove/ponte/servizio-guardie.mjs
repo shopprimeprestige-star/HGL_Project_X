@@ -336,10 +336,10 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("il CRM tiene tutti i contatori del battito (al più 20 con in_coda e scartati)", true, Object.keys(b.contatori).length + 2 <= 20);
     c("battito: v 1, tipo battito, versione di Baileys", [1, "battito", I.VERSIONE_BAILEYS], [b.v, b.tipo, b.versione]);
     c("battito: contatori solo numeri, chiavi minuscole, al più 18 (+ in_coda e scartati)", [true, true], [Object.entries(b.contatori).every(([k, v]) => /^[a-z_]+$/.test(k) && Number.isFinite(v)), Object.keys(b.contatori).length <= 18]);
-    const bc = I.corpoBattito(ist, filaC, { cache: { numeri: 3, promossi: 7 } });
-    c("battito: i numeri della cache (quanti numeri, quanti messaggi passati al CRM)", { cache_numeri: 3, cache_promossi: 7 }, { cache_numeri: bc.contatori.cache_numeri, cache_promossi: bc.contatori.cache_promossi });
+    const bc = I.corpoBattito(ist, filaC, { cache: { numeri: 3, promossi: 7, errori: 2 } });
+    c("battito: i numeri della cache (numeri, messaggi passati al CRM, scritture fallite)", { cache_numeri: 3, cache_promossi: 7, cache_errori: 2 }, { cache_numeri: bc.contatori.cache_numeri, cache_promossi: bc.contatori.cache_promossi, cache_errori: bc.contatori.cache_errori });
     c("battito: con la cache i contatori restano al più 18", true, Object.keys(bc.contatori).length <= 18);
-    c("battito: senza cache i suoi contatori valgono 0", [0, 0], [b.contatori.cache_numeri, b.contatori.cache_promossi]);
+    c("battito: senza cache i suoi contatori valgono 0", [0, 0, 0], [b.contatori.cache_numeri, b.contatori.cache_promossi, b.contatori.cache_errori]);
     c("battito: fila piena e collegato → coda_piena", "coda_piena", I.corpoBattito(ist, { ...filaC, piena: true }, {}).stato);
     c("battito: 401/503 dal CRM e collegato → errore", "errore", I.corpoBattito(ist, filaC, { erroreServer: true }).stato);
     c("battito: senza WhatsApp vince lo stato del collegamento", "attesa_qr", I.corpoBattito({ ...ist, stato: "attesa_qr" }, filaC, { erroreServer: true }).stato);

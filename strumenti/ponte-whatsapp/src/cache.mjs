@@ -60,18 +60,22 @@ function scriviAtomico(percorso, dati) {
   renameSync(temporaneo, percorso);
 }
 
-/** La chiave della cache: 32 byte da `percorso`; se manca o è rovinata se ne
- *  crea una nuova (la cache vecchia diventa illeggibile e `creaCache` la
- *  toglie). I permessi si riportano a 600. */
+/** La chiave della cache: 32 byte da `percorso`. Se il file MANCA o ha una
+ *  lunghezza sbagliata se ne crea una nuova (la cache vecchia diventa
+ *  illeggibile e `creaCache` la toglie). Ogni altro errore di lettura
+ *  (permesso momentaneo, una cartella al posto del file) LANCIA: chi chiama
+ *  salta la cache per quel giro, e la chiave buona non si perde. I permessi
+ *  si riportano a 600. */
 export function chiaveCache(percorso) {
+  let letta = null;
   try {
-    const letta = readFileSync(percorso);
-    if (letta.length === 32) {
-      chmodSync(percorso, 0o600);
-      return letta;
-    }
-  } catch {
-    // non c'è ancora: si crea
+    letta = readFileSync(percorso);
+  } catch (e) {
+    if (e?.code !== "ENOENT") throw e;
+  }
+  if (letta?.length === 32) {
+    chmodSync(percorso, 0o600);
+    return letta;
   }
   const nuova = randomBytes(32);
   scriviAtomico(percorso, nuova);
@@ -111,7 +115,8 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
 
   /** numero → { file, messaggi }: solo quanti, i testi restano sul disco */
   const indice = new Map();
-  const conti = { illeggibili: 0, rifiutati: 0 };
+  /** `errori` = scritture fallite (disco pieno, permessi): il battito le mostra */
+  const conti = { illeggibili: 0, rifiutati: 0, errori: 0 };
 
   const fileDi = (numero) =>
     join(
@@ -144,16 +149,24 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
     }
   }
 
-  /** Scrive la voce (o cancella il file se non ha più messaggi). */
+  /** Scrive la voce (o cancella il file se non ha più messaggi). Non lancia:
+   *  una scrittura fallita si conta in `errori` e restituisce false. */
   function salva(voce) {
     const file = fileDi(voce.numero);
-    if (!voce.messaggi.length) {
-      rmSync(file, { force: true });
-      indice.delete(voce.numero);
-      return;
+    try {
+      if (!voce.messaggi.length) {
+        rmSync(file, { force: true });
+        indice.delete(voce.numero);
+        return true;
+      }
+      scriviAtomico(file, cifra(voce));
+      indice.set(voce.numero, { file, messaggi: voce.messaggi.length });
+      return true;
+    } catch {
+      conti.errori++;
+      rmSync(`${file}.tmp-${process.pid}`, { force: true });
+      return false;
     }
-    scriviAtomico(file, cifra(voce));
-    indice.set(voce.numero, { file, messaggi: voce.messaggi.length });
   }
 
   // Al via: si rilegge la cartella; i temporanei e i file illeggibili si tolgono.
@@ -202,8 +215,7 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
         .slice(-maxPerNumero);
       const nome =
         typeof nomi?.[numero] === "string" && nomi[numero] ? nomi[numero] : (vecchia?.nome ?? null);
-      salva({ numero, nome, messaggi: tutti });
-      messi += perId.size - prima;
+      if (salva({ numero, nome, messaggi: tutti })) messi += perId.size - prima;
     }
     conti.rifiutati += rifiutati;
     return { messi, rifiutati };
@@ -251,6 +263,7 @@ export function creaCache({ cartella, chiave, orologio = Date.now, limiti = {} }
       messaggi,
       illeggibili: conti.illeggibili,
       rifiutati: conti.rifiutati,
+      errori: conti.errori,
     };
   }
 

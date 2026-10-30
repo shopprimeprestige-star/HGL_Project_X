@@ -8,7 +8,16 @@
  *  Dati inventati (prefisso 39 333 000…).
  *
  *  `mod`: i moduli impacchettati da `prove/prove.mjs`. `aiuti`: `{ c, gruppo, radice }`. */
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -62,6 +71,35 @@ export async function provePonteServizioCache(_mod, { c, gruppo, radice }) {
         "chiave rovinata → se ne fa una nuova (la cache vecchia diventa illeggibile)",
         [32, false],
         [k2.length, k2.equals(k1)],
+      );
+      //  Nota del revisore: un altro errore di lettura (permesso momentaneo, una
+      //  cartella al posto del file) NON rigenera la chiave: lancia, e il ponte
+      //  salta la cache per quel giro. La chiave sul disco resta quella.
+      chmodSync(p, 0o000);
+      let errore = null;
+      try {
+        K.chiaveCache(p);
+      } catch (e) {
+        errore = e?.code ?? "errore";
+      }
+      chmodSync(p, 0o600);
+      c(
+        "chiave che non si legge (permesso) → errore, la chiave resta la stessa",
+        ["EACCES", true],
+        [errore, readFileSync(p).equals(k2)],
+      );
+      const cartellaChiave = join(base, "chiave-cartella");
+      mkdirSync(cartellaChiave);
+      let errore2 = null;
+      try {
+        K.chiaveCache(cartellaChiave);
+      } catch (e) {
+        errore2 = e?.code ?? "errore";
+      }
+      c(
+        "chiave che è una cartella → errore, niente di riscritto",
+        ["EISDIR", []],
+        [errore2, readdirSync(cartellaChiave)],
       );
     }
 
@@ -130,7 +168,7 @@ export async function provePonteServizioCache(_mod, { c, gruppo, radice }) {
       );
       c(
         "contatori: solo numeri",
-        { numeri: 2, messaggi: 4, illeggibili: 0, rifiutati: 0 },
+        { numeri: 2, messaggi: 4, illeggibili: 0, rifiutati: 0, errori: 0 },
         dopo.contatori(),
       );
 
@@ -150,6 +188,35 @@ export async function provePonteServizioCache(_mod, { c, gruppo, radice }) {
         "con un'altra chiave i file non si leggono: si tolgono e si contano",
         [[], 1, 0],
         [altra.numeri(), altra.contatori().illeggibili, readdirSync(cart).length],
+      );
+    }
+
+    // ── Nota del revisore: una scrittura fallita si conta (cache_errori) ──
+    {
+      const cart = nuova();
+      const cache = K.creaCache({
+        cartella: cart,
+        chiave: K.chiaveCache(join(base, "k-err")),
+        orologio: orologio(),
+      });
+      chmodSync(cart, 0o500);
+      let lanciato = false;
+      let r = null;
+      try {
+        r = cache.metti([msg("E1", C1), msg("E2", C2)], {});
+      } catch {
+        lanciato = true;
+      }
+      chmodSync(cart, 0o700);
+      c(
+        "cartella non scrivibile → metti non lancia, ogni numero non scritto è un errore",
+        [false, 0, 2, []],
+        [lanciato, r?.messi, cache.contatori().errori, cache.numeri()],
+      );
+      c(
+        "dopo, la cache torna a scrivere",
+        [1, 2],
+        [cache.metti([msg("E3", C1)], {}).messi, cache.contatori().errori],
       );
     }
 
