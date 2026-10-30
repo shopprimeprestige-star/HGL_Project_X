@@ -65,12 +65,7 @@ export async function provePonteStatoChat(mod, { c, gruppo }) {
   //  Uno storico di sole righe del ponte, con tanti inbound vecchi senza risposta.
   const soloStorico = Array.from({ length: 50 }, (_, i) => ponte("inbound", (8 + i) * GIORNO, `vecchio ${i}`));
   const r = regole(soloStorico);
-  c("solo storico del ponte: non è «Da rispondere»", [false, false, null, null], [r.dr.attesa, r.dr.vecchia, r.dr.dal, r.dr.fonte]);
-  c(
-    "uno storico di inbound vecchi non aggiunge «N chat senza risposta da più di 7 giorni»",
-    0,
-    S.contaVecchie([r.dr, regole([...soloStorico, ...soloStorico]).dr]),
-  );
+  c("solo storico del ponte: non è «Da rispondere»", [false, null, null], [r.dr.attesa, r.dr.dal, r.dr.fonte]);
   c("solo storico del ponte: la finestra di 24 ore resta chiusa (niente 'puoi scrivere libero')", false, regole([ponte("inbound", 5 * MIN)]).f24.aperta);
   c("lo stesso messaggio, se arriva da ManyChat, la apre", true, regole([msg("inbound", 5 * MIN, "manychat")]).f24.aperta);
   //  Cambiato il 30/10/2026 (richiesta del titolare, «la palla è al cliente»): per «Da chiamare»
@@ -243,11 +238,8 @@ export async function provePonteStatoChat(mod, { c, gruppo }) {
     }));
     const passano = (f) => chat.filter((x) => passaFiltro(x, f));
     const sconosciute = chat.filter((x) => !x.lead);
-    const attesaNonLetti = chat.filter((x) => x.unread > 0);
     c("«Tutte» lascia passare 2000 chat su 2000", 2000, passano("all").length);
     c("«Tutte» include ogni sconosciuta", 600, passano("all").filter((x) => !x.lead).length);
-    c("«Non letti» = tutte e sole le chat con non letti", attesaNonLetti.map((x) => x.phone), passano("unread").map((x) => x.phone));
-    c("«Non letti» include gli sconosciuti con non letti", 120, passano("unread").filter((x) => !x.lead).length);
     c("«Sconosciuti» = chi non ha scheda", sconosciute.map((x) => x.phone), passano("unknown").map((x) => x.phone));
     c("«Con lead» + «Sconosciuti» = 2000, senza sovrapposizioni", [2000, 0], [passano("with-lead").length + passano("unknown").length, passano("with-lead").filter((x) => passaFiltro(x, "unknown")).length]);
 

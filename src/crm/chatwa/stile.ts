@@ -19,6 +19,31 @@ export function velocitaDopo(v: number): number {
   return i < 0 ? 1 : VELOCITA[(i + 1) % VELOCITA.length];
 }
 
+/** La velocità scelta resta per i vocali dopo (anche dopo aver ricaricato la pagina):
+ *  si salva su questo dispositivo. Un valore strano o mancante torna a 1×. */
+const CHIAVE_VELOCITA = "hgl-vocale-velocita";
+export function velocitaValida(v: unknown): number {
+  const n = Number(v);
+  return (VELOCITA as readonly number[]).includes(n) ? n : 1;
+}
+let ultimaVelocita = 1; // vale anche con l'archivio bloccato (navigazione privata)
+export function velocitaSalvata(): number {
+  try {
+    const salvata = globalThis.localStorage?.getItem(CHIAVE_VELOCITA);
+    return salvata == null ? ultimaVelocita : velocitaValida(salvata);
+  } catch {
+    return ultimaVelocita;
+  }
+}
+export function salvaVelocita(v: number): void {
+  ultimaVelocita = velocitaValida(v);
+  try {
+    globalThis.localStorage?.setItem(CHIAVE_VELOCITA, String(velocitaValida(v)));
+  } catch {
+    //  Archivio bloccato (navigazione privata): vale solo per questa pagina.
+  }
+}
+
 export function etichettaVelocita(v: number): string {
   return `${String(v).replace(".", ",")}×`;
 }

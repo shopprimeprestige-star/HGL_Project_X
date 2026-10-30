@@ -27,7 +27,7 @@ export function combaciaRicerca(c: ChatCercabile, ricerca: string): boolean {
   );
 }
 
-/** La pastiglia scelta (Tutte / Non letti / Con lead / Sconosciuti) lascia passare la chat?
+/** La pastiglia scelta (Con lead / Sconosciuti / Da chiamare…) lascia passare la chat?
  *  Vale per OGNI riquadro dell'elenco: «Da rispondere», «Da chiamare» e le «vecchie» la
  *  ignoravano e, siccome quasi tutte le chat stanno lì sopra, cliccare non cambiava niente. */
 export function passaFiltro(
@@ -35,12 +35,10 @@ export function passaFiltro(
     lead?: {
       data?: { stato?: string | null; payment?: { accontoPagato?: unknown } | null } | null;
     } | null;
-    unread?: number;
     finestra?: { aperta: boolean } | null;
   },
   filtro:
     | "all"
-    | "unread"
     | "with-lead"
     | "unknown"
     | "da-chiamare"
@@ -53,7 +51,6 @@ export function passaFiltro(
 ): boolean {
   //  Un filtro per ogni stato del lead (30/10/2026): vedi perStato.ts.
   if (eFiltroPerStato(filtro)) return passaPerStato(c, filtro);
-  if (filtro === "unread") return (c.unread ?? 0) > 0;
   if (filtro === "with-lead") return Boolean(c.lead);
   if (filtro === "unknown") return !c.lead;
   //  «Da chiamare»: lead in uno dei cinque stati di chiamata (vedi daChiamare.ts).

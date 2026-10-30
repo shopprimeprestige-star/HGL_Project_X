@@ -218,7 +218,7 @@ scollega() {
   (umask 077 && mkdir "$BASE/auth")
   rm -f "$BASE/lid.json"
   echo "Sessione messa da parte in: $dest"
-  echo "Sul telefono: WhatsApp Business, Dispositivi collegati: togli il vecchio «Mac OS» del ponte."
+  echo "Sul telefono: WhatsApp Business, Dispositivi collegati: NON togliere ancora il vecchio «Mac OS» (serve per tornare indietro); toglilo solo dopo i controlli della guida."
   if [ "$caricato" = 1 ]; then
     launchctl bootstrap "$DOMINIO" "$PLIST"
     echo "Ponte riavviato: tra poco si apre il codice."

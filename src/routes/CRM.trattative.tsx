@@ -234,6 +234,8 @@ const DA_RICONTATTARE: string[] = [
   //   in silenzio non lo guarda nessuno. Di CHI sia il turno lo dice lo stato,
   //   che resta scritto sulla riga.
   "ci_ricontatta_lui",
+  //  Senza data, ma è comunque gente da risentire.
+  "ricontatto_aperto",
 ];
 
 /** Importato finché non ha una consulenza fissata: data E consulente.

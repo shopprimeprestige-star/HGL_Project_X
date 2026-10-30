@@ -21,6 +21,7 @@ import type { ChatItem, ChatWaApi } from "./tipi";
 import { AbbinaScheda } from "./AbbinaScheda";
 import { StatoPonte } from "./StatoPonte";
 import { PannelloCosti, TastoCosti } from "./PannelloCosti";
+import { TastoSpesaLead } from "./PannelloSpesaLead";
 import { useChatWa } from "./useChatWa";
 import { bozzaDaIndirizzo } from "./stato";
 import { PannelloOggi } from "./PannelloOggi";
@@ -286,9 +287,14 @@ export function PaginaChat({
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <div className="h-8 w-8 shrink-0 rounded-md bg-emerald-50 grid place-items-center text-emerald-600 border border-emerald-100">
-            <MessageCircle className="h-4 w-4" />
-          </div>
+          {/*  L'icona è un tasto (30/10/2026): lead di oggi e spesa, solo a chi vede i costi. */}
+          {vedeCosti ? (
+            <TastoSpesaLead />
+          ) : (
+            <div className="h-8 w-8 shrink-0 rounded-md bg-emerald-50 grid place-items-center text-emerald-600 border border-emerald-100">
+              <MessageCircle className="h-4 w-4" />
+            </div>
+          )}
           <div className="min-w-0">
             <h1 className="truncate text-[15px] font-semibold leading-tight text-foreground">
               WhatsApp Business

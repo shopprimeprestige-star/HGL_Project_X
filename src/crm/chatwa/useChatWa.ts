@@ -25,13 +25,15 @@
  *  ⚠️ APRIRE UNA CHAT NON LA TOGLIE da «Da rispondere»: il segna-letto scrive solo
  *   `unread_count`. Escono solo la risposta dal CRM e «Fatto».
  *  ⚠️ `daRispondere` di una chat è il risultato intero di `stato.ts`: `attesa`, `dal`,
- *   `anteprima`, `vecchia` (ripiego sui messaggi, senza risposta da più di 7 giorni:
- *   non è in elenco, serve alla riga «N chat senza risposta da più di 7 giorni»).
- *   `api.daRispondere` contiene solo le chat con `attesa` vera.
+ *   `anteprima`. Regola unica (30/10/2026): in attesa se l'ultimo messaggio è del cliente, senza
+ *   limite di età e senza guardare la finestra di 24 ore. `api.daRispondere` contiene le chat con
+ *   `attesa` vera, e il filtro «Da rispondere» ne mostra esattamente le stesse.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { senzaEco } from "./eco";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
-import { combaciaRicerca, passaFiltro } from "./cercaChat";
+import { combaciaRicerca } from "./cercaChat";
+import { passaFiltri } from "./filtri";
+import { useFiltriChat } from "./useFiltriChat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchCRM, useAuth } from "@/crm/AuthContext";
@@ -57,7 +59,7 @@ import {
   unisciContatti,
   unisciMessaggi,
 } from "./stato";
-import type { ChatItem, ChatWaApi, FiltroChat, WaContactRow, WaMessageRow } from "./tipi";
+import type { ChatItem, ChatWaApi, WaContactRow, WaMessageRow } from "./tipi";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
@@ -164,7 +166,8 @@ export interface OpzioniChatWa {
 export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   const { user } = useAuth();
   const { leads, updateLead, consultants } = useCRM();
-  const [filtro, setFiltro] = useState<FiltroChat>("all");
+  //  I filtri a gruppi (30/10/2026): stato e memoria in useFiltriChat, regole in filtri.ts.
+  const { filtri, setFiltri } = useFiltriChat(user?.id);
   const [ricerca, setRicerca] = useState("");
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [bozza, setBozza] = useState("");
@@ -669,7 +672,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: c,
         lastMessage: null,
-        unread: c.unread_count || 0,
       });
     }
 
@@ -695,7 +697,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           lead: null,
           contact: null,
           lastMessage: null,
-          unread: 0,
         };
         map.set(key, item);
       }
@@ -727,7 +728,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         lead: null,
         contact: null,
         lastMessage: null,
-        unread: 0,
       });
     }
 
@@ -769,7 +769,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         attesa: dr.attesa,
         dal: dr.dal,
         anteprima: dr.anteprima,
-        vecchia: dr.vecchia,
       };
       const f = finestra24({ contatto, messaggi, adesso });
       item.finestra = { aperta: f.aperta, frase: f.frase, scadeIl: f.scadeIl };
@@ -800,13 +799,15 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     [chats],
   );
 
-  const visibili = useMemo(() => {
-    return chats.filter((c) => {
-      if (!passaFiltro(c, filtro)) return false;
-      if (!combaciaRicerca(c, ricerca)) return false;
-      return true;
-    });
-  }, [chats, filtro, ricerca]);
+  /** Le chat che passano ricerca e filtri. Le stelle no: stanno in `useStelle`, che legge il database
+   *  una volta sola dentro `ElencoChat`; è lui a sommarle e a disegnare i riquadri (non usa questa lista). */
+  const visibili = useMemo(
+    () =>
+      chats.filter(
+        (c) => passaFiltri(c, { ...filtri, stelle: false }, () => 0) && combaciaRicerca(c, ricerca),
+      ),
+    [chats, filtri, ricerca],
+  );
 
   const attiva = useMemo<ChatItem | null>(() => {
     if (!activePhone) return null;
@@ -1150,8 +1151,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     chats,
     daRispondere,
     visibili,
-    filtro,
-    setFiltro,
+    filtri,
+    setFiltri,
     ricerca,
     setRicerca,
     attiva,

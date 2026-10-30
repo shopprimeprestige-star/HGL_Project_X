@@ -106,11 +106,14 @@ export function proveChatPerStato(mod, { c, gruppo, radice }) {
 
   gruppo("CHAT PER STATO · CABLAGGIO NELLA PAGINA");
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("la pastiglia «Per stato» sta in fondo alle altre (dopo «In osservazione»)", true,
-    elenco.indexOf("In osservazione{conStelle") > 0 && elenco.indexOf("Per stato{contiStato") > elenco.indexOf("In osservazione{conStelle"));
-  c("la fila dei chip si disegna con la pastiglia accesa e usa i conti del consulente", true,
-    /contaPerStato\(api\.chats\.filter\(delConsulente\)\)/.test(elenco) && /eFiltroPerStato\(filtro\)/.test(elenco));
-  c("lo stato scelto resta visibile anche se si svuota (il filtro non resta acceso senza vedersi)", true, /vociConScelto\(contiStato\.voci, filtro\)/.test(elenco));
+  //  30/10/2026 (filtri a gruppi): «Per stato» diventa la sezione ripiegata «Altri stati (N)» del gruppo «Fase del lead», dopo le
+  //   due voci «Attesa WhatsApp» e «Per ora no»; i conti tengono conto di consulente e degli altri filtri accesi (a faccette).
+  const pannello = readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8");
+  c("«Altri stati» sta nel gruppo della fase, dopo le due voci", true,
+    pannello.indexOf('g.id === "fase"') > pannello.indexOf("g.voci.map(voce)") && /Altri stati/.test(pannello));
+  c("l'elenco degli stati si calcola sulle chat dei filtri accesi (consulente compreso) e usa gli stessi conti", true,
+    /contaPerStato\(\s*api\.chats\.filter\(\(c\) =>\s*passaFiltri\(c, \{ \.\.\.filtri, fase: null \}, stelleDi\),?\s*\),?\s*\)/.test(elenco) && /conta\("fase", `stato:\$\{v\.stato\}`\)/.test(elenco));
+  c("lo stato scelto resta visibile anche se si svuota (il filtro non resta acceso senza vedersi)", true, /vociConScelto\(stati\.voci, filtri\.fase \?\? ""\)/.test(elenco));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
   c("chat aperta: il tasto WhatsApp non dipende più dalla finestra chiusa", false, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv));
   c("chat aperta: usa tastoWhatsappNativo", true, /tastoWhatsappNativo\(/.test(conv));

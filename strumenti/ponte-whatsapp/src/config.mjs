@@ -11,6 +11,11 @@
  *    INVII_ATTIVI         0 o 1: 1 = il ponte può mandare i testi scritti a
  *                         mano dal CRM (di serie 0, spento; si accende solo
  *                         con una riga voluta dal titolare)
+ *    IDENTITA             `Chrome` (di serie, come oggi) o `Desktop`: come il ponte
+ *                         si presenta al telefono. Conta solo al collegamento
+ *                         con un QR nuovo (`installa.sh scollega`): `Desktop`
+ *                         chiede al telefono più storico (commessa 30/10,
+ *                         ponte-storico-completo)
  *
  *  ⚠️ Gli errori sono parole fisse con una frase per il titolare: non
  *   contengono mai il token né l'indirizzo.
@@ -28,7 +33,7 @@ const MESSAGGI = {
   url_non_https: "PONTE_URL deve cominciare con https://",
   manca_token: "Manca PONTE_TOKEN in config.env.",
   token_corto: `PONTE_TOKEN è troppo corto: servono almeno ${TOKEN_MINIMO} caratteri (openssl rand -hex 32).`,
-  valore_non_valido: "STORICO_GIORNI, ATTESA_PARI_SECONDI e INVII_ATTIVI devono essere numeri interi (0-3650, 0-300 e 0 o 1).",
+  valore_non_valido: "STORICO_GIORNI, ATTESA_PARI_SECONDI e INVII_ATTIVI devono essere numeri interi (0-3650, 0-300 e 0 o 1); IDENTITA deve essere Chrome o Desktop.",
 };
 
 const errore = (codice) => ({ ok: false, errore: codice, messaggio: MESSAGGI[codice] });
@@ -55,6 +60,9 @@ function intero(v, di_serie, max) {
   return n <= max ? n : null;
 }
 
+/** Le identità ammesse: `Browsers.macOS(<identità>)` di Baileys. */
+export const IDENTITA_AMMESSE = ["Chrome", "Desktop"];
+
 /** Il testo di `config.env` → `{ ok: true, config }` o `{ ok: false, errore, messaggio }`. */
 export function analizzaConfig(testo) {
   const v = righe(testo);
@@ -72,8 +80,9 @@ export function analizzaConfig(testo) {
   const storicoGiorni = intero(v.STORICO_GIORNI, 0, 3650);
   const attesaPariSecondi = intero(v.ATTESA_PARI_SECONDI, 30, 300);
   const invii = intero(v.INVII_ATTIVI, 0, 1);
-  if (storicoGiorni === null || attesaPariSecondi === null || invii === null) return errore("valore_non_valido");
-  return { ok: true, config: { url: v.PONTE_URL, token: v.PONTE_TOKEN, storicoGiorni, attesaPariSecondi, invii } };
+  const identita = v.IDENTITA === undefined || v.IDENTITA === "" ? "Chrome" : v.IDENTITA;
+  if (storicoGiorni === null || attesaPariSecondi === null || invii === null || !IDENTITA_AMMESSE.includes(identita)) return errore("valore_non_valido");
+  return { ok: true, config: { url: v.PONTE_URL, token: v.PONTE_TOKEN, storicoGiorni, attesaPariSecondi, invii, identita } };
 }
 
 /** Legge `config.env` da `percorso`: rifiuta il file se altri utenti
