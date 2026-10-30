@@ -25,7 +25,7 @@
  *  contrario si farebbe un giro di import.
  *  ⚠️ IL TOCCO NON APRE LA RIGA. Quasi sempre la temperatura sta dentro una
  *   riga che si apre al tocco (spesso un <button>): il tasto ferma clic e
- *   tastiera. E i clic DENTRO il pop-up risalgono lo stesso l'albero di React
+ *   tastiera (non pointerdown: nessuna riga lo usa, e la Finestra sì). E i clic DENTRO il pop-up risalgono lo stesso l'albero di React
  *   (il portale non li ferma): li ferma l'involucro `contents` intorno.
  *  ⚠️ <span role="button">, NON <button>: dentro un <button> un altro
  *   <button> non è HTML valido (il browser lo sposta fuori dalla riga).
@@ -34,7 +34,7 @@
  *   (`md:`) si tocca l'etichetta com'è. Dove un antenato taglia (`truncate`)
  *   l'area resta tagliata alla sua scatola.
  *  ───────────────────────────────────────────────────────────────────────── */
-import { useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
+import { useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import { ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Finestra } from "@/crm/ui/Finestra";
@@ -183,6 +183,18 @@ function ApreRisposte({
   children: ReactNode;
 }) {
   const [aperta, setAperta] = useState(false);
+  const tasto = useRef<HTMLSpanElement>(null);
+  //  Il fuoco torna sul tasto: senza un DialogTrigger Radix non sa dove
+  //  rimetterlo, e con la tastiera si ripartiva dall'inizio della pagina.
+  //  Dopo che la finestra è sparita: prima la sua trappola lo riprende.
+  const chiudi = () => {
+    setAperta(false);
+    setTimeout(() => tasto.current?.focus(), 0);
+  };
+  const fuori = (e: SyntheticEvent) => {
+    e.stopPropagation();
+    if (!(e.target as Element).closest?.('[role="dialog"]')) chiudi();
+  };
   const apri = (e: SyntheticEvent) => {
     e.stopPropagation();
     //  Dentro un <a> o un <button> di un modulo: niente navigazione né invio.
@@ -192,13 +204,13 @@ function ApreRisposte({
   return (
     <>
       <span
+        ref={tasto}
         role="button"
         tabIndex={0}
         aria-haspopup="dialog"
         aria-label={`${t.parola}: risposte del modulo`}
         title={title}
         onClick={apri}
-        onPointerDown={ferma}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") apri(e);
         }}
@@ -213,8 +225,13 @@ function ApreRisposte({
         {children}
       </span>
       {aperta && (
-        <span className="contents" onClick={ferma} onKeyDown={ferma} onPointerDown={ferma}>
-          <FinestraRisposte dati={dati} onChiudi={() => setAperta(false)} />
+        //  ⚠️ NON pointerdown: fermarlo qui lo ferma anche sul <body>, e la
+        //   Finestra non sente più il tocco fuori (chiusura rotta, provato).
+        //  ⚠️ E IL CLIC FERMATO SI PAGA SUL TELEFONO: col dito Radix chiude al
+        //   «click» sul documento, che qui non arriva più. Il tocco sul velo
+        //   (fuori dalla finestra) lo chiudiamo noi (provato a 375 px).
+        <span className="contents" onClick={fuori} onKeyDown={ferma}>
+          <FinestraRisposte dati={dati} onChiudi={chiudi} />
         </span>
       )}
     </>

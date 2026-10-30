@@ -18365,7 +18365,13 @@ export const disegna = (cosa, dati, o = {}) =>
     /const apri = \(e: SyntheticEvent\) => \{\s*e\.stopPropagation\(\);/.test(sorg) && /onClick=\{apri\}/.test(sorg) &&
     /if \(e\.key === "Enter" \|\| e\.key === " "\) apri\(e\);/.test(sorg));
   c("…anche per i clic dentro il pop-up (il portale risale l'albero di React)", true,
-    /<span className="contents" onClick=\{ferma\} onKeyDown=\{ferma\} onPointerDown=\{ferma\}>/.test(sorg));
+    /<span className="contents" onClick=\{fuori\} onKeyDown=\{ferma\}>/.test(sorg) &&
+    /const fuori = \(e: SyntheticEvent\) => \{\s*e\.stopPropagation\(\);/.test(sorg));
+  c("…e il tocco sul velo chiude lo stesso (sul telefono Radix aspetta quel clic)", true,
+    /if \(!\(e\.target as Element\)\.closest\?\.\('\[role="dialog"\]'\)\) chiudi\(\);/.test(sorg));
+  c("chiuso il pop-up, il fuoco torna sul tasto", true, /tasto\.current\?\.focus\(\)/.test(sorg) && /onChiudi=\{chiudi\}/.test(sorg));
+  c("…ma non il pointerdown: la Finestra lo ascolta sul documento per chiudersi al tocco fuori", false,
+    /onPointerDown/.test(sorg));
   const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
   c("InfoModulo usa lo stesso contenuto (niente logica doppia)", true,
     /<FinestraRisposte/.test(info) && !/voci\.map|<dl/.test(info));
