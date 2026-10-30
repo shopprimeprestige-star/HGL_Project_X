@@ -62,6 +62,7 @@ import {
 } from "react";
 import {
   Archive,
+  Bookmark,
   CalendarCheck,
   CalendarClock,
   CalendarDays,
@@ -177,6 +178,8 @@ export const ICONA_STATO: Partial<Record<LeadStatus, ComponentType<{ className?:
   //  confonderebbe proprio con "non_risponde", che è l'altra cosa che questo
   //  stato non è (types.ts lo dice per esteso).
   irreperibile: SearchX,
+  //  Senza data: il segnalibro, non un orologio né una cornetta.
+  ricontatto_aperto: Bookmark,
   in_attesa_acconto: Hourglass,
   viene_in_sede: MapPin,
   sede_disdetta: MapPinOff,

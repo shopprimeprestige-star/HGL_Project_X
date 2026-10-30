@@ -21131,6 +21131,31 @@ function proveDelloStatoAttesaWhatsapp() {
   c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
 }
 
+/** ── LO STATO «RICONTATTO SENZA DATA» (30/10/2026) ──────────────────────────
+ *  Da ricontattare nel tempo, senza una data e senza pretendere niente dalla persona. */
+function proveDelloStatoRicontattoAperto() {
+  gruppo("STATO «RICONTATTO SENZA DATA»: IN SOSPESO, SENZA MESSAGGIO AUTOMATICO");
+  const T = mod["types"];
+  const k = "ricontatto_aperto";
+  c("ha il suo nome", "Ricontatto senza data", T.LEAD_STATUS_LABEL[k]);
+  c("sta nella fase «in sospeso»", "in_sospeso", T.LEAD_STATUS_PHASE[k]);
+  c("stesso colore degli altri in sospeso", T.LEAD_STATUS_COLOR.irreperibile, T.LEAD_STATUS_COLOR[k]);
+  c("si sceglie sui lead di sempre", true, T.SELECTABLE_LEAD_STATUSES.includes(k));
+  c("si sceglie nelle trattative", true, T.STATI_TRATTATIVA.includes(k));
+  c("non si offre sui lead di una lista da chiamare", false, T.STATI_PRIMO_CONTATTO.includes(k));
+  c("è fra gli stati conosciuti (filtri, KPI)", true, T.ALL_LEAD_STATUSES.includes(k));
+  c("è fra gli esiti di chiamata", true, T.POST_CALL_STATUSES.includes(k));
+  c("nessun elenco lo ripete due volte", true,
+    [T.SELECTABLE_LEAD_STATUSES, T.ALL_LEAD_STATUSES, T.STATI_TRATTATIVA].every((l) => l.filter((x) => x === k).length <= 1));
+  c("nessun messaggio automatico per stato", false, k in mod["manychat/stati"].TABELLA_STATI);
+  c("ha il testo per la chat, senza segnaposto sconosciuti", true,
+    typeof mod["whatsapp"].MODELLI_ORIGINALI[k] === "string" && mod["whatsapp"].MODELLI_ORIGINALI[k].length > 20);
+  const sel = readFileSync(join(radice, "src/crm/SelettoreStatoDialog.tsx"), "utf8");
+  c("ha la sua icona nel selettore", true, /ricontatto_aperto: \w+,/.test(sel));
+  const tratt = readFileSync(join(radice, "src/routes/CRM.trattative.tsx"), "utf8");
+  c("Trattative: sta fra chi va risentito", true, /const DA_RICONTATTARE: string\[\] = \[[\s\S]*?"ricontatto_aperto"/.test(tratt));
+}
+
 /** ── QUANDO RICHIAMARLO, DALLA CHAT (29/10/2026) ──────────────────────────── */
 function proveDelRichiamoInChat() {
   gruppo("WHATSAPP: QUANDO RICHIAMARLO, NELLA RIGA E NEL FILTRO");
@@ -21273,6 +21298,7 @@ proveDeiRitocchiDellaBarra();
 proveDelModulo589();
 proveDeiPulsantiDelloStato();
 proveDelloStatoAttesaWhatsapp();
+proveDelloStatoRicontattoAperto();
 proveDellOrarioSulDoppione();
 proveDelTermometroInvisibleDerm();
 proveDellEliminaDallaCoda();

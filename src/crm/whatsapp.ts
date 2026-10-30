@@ -582,6 +582,11 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
   //  suonerebbe come se non ce ne ricordassimo.
   irreperibile: `Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — non ti disturbo oltre. Il preventivo per il tuo impianto capillare resta valido.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}\n\nQuando vuoi riprendere, scrivimi qui.`,
 
+  //  Ricontatto senza data: nessuna scadenza e nessuna domanda, come per
+  //  «Ci ricontatta lui», ma qui la palla è nostra e il messaggio la tiene
+  //  leggera. Non parte da solo (non è in TABELLA_STATI): lo si usa dalla chat.
+  ricontatto_aperto: `Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs. Nessuna fretta e nessuna scadenza: il preventivo per il tuo impianto capillare resta valido.\n\nIntanto ti lascio qui i risultati veri di alcuni nostri clienti:\n${LINK_RISULTATI}\n\nQuando vuoi riprendere il discorso, scrivimi pure su questo numero.`,
+
   // ── CHIUSURE ────────────────────────────────────────────────────────────
   perdi_tempo: `{nome}, sono {consulente|un consulente} di Hair Genius Labs: grazie comunque per il tempo dedicato.\n\nQui trovi i risultati veri di alcuni nostri clienti, così sai con chi stai parlando:\n${LINK_RISULTATI}`,
 
