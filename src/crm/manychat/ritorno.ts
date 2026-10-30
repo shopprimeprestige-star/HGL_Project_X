@@ -178,8 +178,6 @@ export interface InvioAbbinabile {
   /** ISO */
   prenotatoIl: string;
   stato: string;
-  /** `manychat_invii.tipo`: serve a riconoscere un messaggio che chiede un «ok» (`meet_domani`) */
-  tipo?: string;
 }
 
 export type Abbinamento =

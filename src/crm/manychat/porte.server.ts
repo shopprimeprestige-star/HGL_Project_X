@@ -82,7 +82,6 @@ interface RigaInvio {
   subscriber_id: string | null;
   prenotato_il: string;
   stato: string;
-  tipo: string;
 }
 
 /** La funzione SQL della chat (o una colonna nuova) non c'è ancora: migrazione
@@ -174,7 +173,7 @@ export function porteRisposta(): PorteRispostaManychat {
       if (o.length === 0) return [];
       const { data, error } = await db()
         .from("manychat_invii")
-        .select<RigaInvio[]>("id, lead_id, telefono, subscriber_id, prenotato_il, stato, tipo")
+        .select<RigaInvio[]>("id, lead_id, telefono, subscriber_id, prenotato_il, stato")
         .eq("user_id", userId)
         .gte("prenotato_il", dal.toISOString())
         .or(o.join(","))
@@ -189,7 +188,6 @@ export function porteRisposta(): PorteRispostaManychat {
           subscriberId: r.subscriber_id,
           prenotatoIl: r.prenotato_il,
           stato: r.stato,
-          tipo: r.tipo,
         }),
       );
     },

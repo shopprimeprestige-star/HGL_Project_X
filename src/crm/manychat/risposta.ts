@@ -38,9 +38,6 @@
  *   Cloud, non doppione) e più vecchio di `ECO_DOPO_MS` è un'eco: si scarta
  *   («eco») senza toccare rubrica, conferma, STOP, freno. Un messaggio nostro in
  *   uscita in mezzo NON la esclude: è proprio quello che la fa partire.
- *   ECCEZIONE (30/10/2026): se la risposta si abbina a un nostro messaggio del giorno prima
- *   (`meet_domani`, che chiede «mi confermi con un ok?») partito DOPO l'ultima entrata uguale,
- *   non è un'eco: è la risposta (chi scrive sempre «👍» conferma e riapre la finestra).
  *   LIMITE ACCETTATO: il cliente che riscrive davvero lo stesso identico testo
  *   (anche «ok», «sì») dopo più di 60 s, senza un altro testo in mezzo, non
  *   entra nel registro ManyChat (col ponte acceso la sua riga resta visibile
@@ -144,16 +141,11 @@ function ultimoTesto(entrate: EntrataRegistrata[]): EntrataRegistrata | null {
 /** Il testo arrivato è un'eco o un doppione dell'ultimo testo in entrata?
  *  `eco` = uguale e più vecchio di `ECO_DOPO_MS`; `doppione` = uguale e più
  *  giovane (lo stesso messaggio da flusso e Default Reply, a cavallo del
- *  minuto: l'impronta non li unisce); `null` = si registra. Pura.
- *  `chiestoIl`: quando è partito un NOSTRO messaggio che chiede un «ok» (il giorno prima,
- *  `meet_domani`) al quale questo testo risponde. Se è più recente dell'ultima entrata uguale,
- *  l'«ok» è una risposta vera (chi risponde sempre «👍» non va perso), non l'eco di quello
- *  di giorni prima. */
+ *  minuto: l'impronta non li unisce); `null` = si registra. Pura. */
 export function ecoDi(
   testo: string,
   entrate: EntrataRegistrata[],
   adesso: Date,
-  chiestoIl?: Date | null,
 ): "eco" | "doppione" | null {
   const a = normalizzaTesto(testo).slice(0, CONFRONTO_CARATTERI);
   if (!a) return null;
@@ -164,7 +156,6 @@ export function ecoDi(
   //  eco di un vocale dopo un vocale mandato dall'app).
   const ultima = [ultimoTesto(entrate), entrate[0]].find(uguale) ?? null;
   if (!ultima) return null;
-  if (chiestoIl && chiestoIl.getTime() > ultima.il.getTime()) return null;
   return adesso.getTime() - ultima.il.getTime() >= ECO_DOPO_MS ? "eco" : "doppione";
 }
 
@@ -289,12 +280,7 @@ async function tratta(
   if (testo) {
     let eco: "eco" | "doppione" | null = null;
     try {
-      //  Il giorno prima chiede un «ok»: una risposta uguale a una di giorni fa è vera.
-      const chiesto =
-        abbinata.tipo === "invio" && abbinata.invio.tipo === "meet_domani"
-          ? new Date(abbinata.invio.prenotatoIl)
-          : null;
-      eco = ecoDi(testo, await porte.ultimeEntrate(userId, telefono), adesso, chiesto);
+      eco = ecoDi(testo, await porte.ultimeEntrate(userId, telefono), adesso);
     } catch (e) {
       porte.avviso(`errore (${codiceErrore(e)}): controllo dell'eco saltato`);
     }
