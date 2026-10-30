@@ -22,6 +22,7 @@ import { AbbinaScheda } from "./AbbinaScheda";
 import { StatoPonte } from "./StatoPonte";
 import { PannelloCosti, TastoCosti } from "./PannelloCosti";
 import { useChatWa } from "./useChatWa";
+import { bozzaDaIndirizzo } from "./stato";
 import { PannelloOggi } from "./PannelloOggi";
 import { chatDelLead } from "./pannello-oggi";
 import { usaAltezzaVisibile } from "./usaAltezzaVisibile";
@@ -95,7 +96,10 @@ export function PaginaChat({
   const navigate = useNavigate();
   const router = useRouter();
   //  `strict: false`: la pagina vive su due rotte, entrambe con `leggiRicercaChat`.
-  const { chat: chatUrl } = useSearch({ strict: false }) as { chat?: string };
+  const { chat: chatUrl, testo: testoUrl } = useSearch({ strict: false }) as {
+    chat?: string;
+    testo?: string;
+  };
   const [telefonoLocale, setTelefonoLocale] = useState<string | null>(null);
   /** Vero se la chat si è aperta con un `navigate` in questa visita: ← può fare `history.back()`. */
   const aperturaPush = useRef(false);
@@ -153,6 +157,21 @@ export function PaginaChat({
       void navigate({ to: percorso, search: {}, replace: true });
     }
   }, [chatUrl, chatDaUrl, api.caricamento, navigate, percorso]);
+
+  // «WhatsApp del CRM» col messaggio pronto (30/10/2026): `&testo=` entra nella
+  // casella quando la chat è aperta, solo se la casella è vuota (una bozza già
+  // scritta non si tocca); poi si toglie dall'indirizzo, così un «ricarica» o un
+  // «indietro» non lo rimette.
+  const bozzaOra = useRef(api.bozza);
+  bozzaOra.current = api.bozza;
+  const mettiBozza = useRef(api.setBozza);
+  mettiBozza.current = api.setBozza;
+  useEffect(() => {
+    if (!testoUrl || !chatUrl || !chatDaUrl || api.attiva?.phone !== chatDaUrl.phone) return;
+    const b = bozzaDaIndirizzo(bozzaOra.current, testoUrl);
+    if (b !== null) mettiBozza.current(b);
+    void navigate({ to: percorso, search: { chat: chatUrl }, replace: true });
+  }, [testoUrl, chatUrl, chatDaUrl, api.attiva?.phone, navigate, percorso]);
 
   // L'elenco chiama `apri` con il telefono: qui diventa navigazione per id.
   const apriChat = (chiave: string) => {

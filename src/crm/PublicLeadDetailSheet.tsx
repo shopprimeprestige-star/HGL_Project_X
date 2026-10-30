@@ -15,6 +15,7 @@
  *  avere due verità sullo stesso pulsante.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useState } from "react";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,6 @@ import type { PublicLead } from "@/crm/types";
 import { disagioHeat, urgenzaHeat, heatDotClass, HEAT_LABEL } from "@/crm/heat-utils";
 import { DisagioBar } from "@/crm/DisagioBar";
 import { Phone, MessageCircle, UserRound } from "lucide-react";
-import { buildWhatsAppLink } from "@/crm/whatsapp";
 import { formatDate } from "@/lib/date-format";
 import {
   CampoFinestra,
@@ -215,17 +215,13 @@ export function PublicLeadDetailSheet({ lead, open, onOpenChange, onSaved }: Pro
             </a>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <a
-              href={buildWhatsAppLink(
-                draft.telefono,
-                `Ciao ${draft.nome}, ho ricevuto la tua richiesta per ${NOME_PRODOTTO}. Ti contatto a breve!`,
-              )}
-              target="_blank"
-              rel="noreferrer"
+            <LinkWhatsapp
+              telefono={draft.telefono}
+              testo={`Ciao ${draft.nome}, ho ricevuto la tua richiesta per ${NOME_PRODOTTO}. Ti contatto a breve!`}
             >
               <MessageCircle className="h-3.5 w-3.5" />
               WhatsApp
-            </a>
+            </LinkWhatsapp>
           </Button>
         </div>
       </SezioneFinestra>

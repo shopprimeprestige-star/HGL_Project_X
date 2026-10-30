@@ -176,19 +176,63 @@ export function scelteDelGiorno(scelte: OrarioScelto[]): { data: string; ore: st
 }
 
 /** Prima di scrivere il messaggio: via quello che nel frattempo non è più
- *  libero (un'ora passata, un posto preso). `giorni` sono quelli di tutta la
- *  squadra; un giorno che non c'è fra quelli guardati non si giudica. */
+ *  libero (un'ora passata, un posto preso, una durata cambiata). `giorni` sono
+ *  quelli di tutta la squadra; un giorno che non c'è fra quelli guardati non si
+ *  giudica. Un'ora scelta su un consulente (`chi`) deve essere libera per LUI:
+ *  libera solo per un collega non basta, il messaggio direbbe il nome sbagliato
+ *  (commessa 2026-10-30). */
 export function scelteAncoraLibere(
   scelte: OrarioScelto[],
-  giorni: { data: string; fasce: { ora: string }[] }[],
+  giorni: { data: string; fasce: { ora: string; chi?: { id: string }[] }[] }[],
   oggi: string,
 ): OrarioScelto[] {
-  const libere = new Map(giorni.map((g) => [g.data, new Set(g.fasce.map((f) => ora2(f.ora)))]));
+  const libere = new Map(
+    giorni.map((g) => [g.data, new Map(g.fasce.map((f) => [ora2(f.ora), f.chi]))]),
+  );
   return scelte.filter((s) => {
     if (s.data < oggi) return false;
     const ore = libere.get(s.data);
-    return !ore || ore.has(ora2(s.ora));
+    if (!ore) return true;
+    if (!ore.has(ora2(s.ora))) return false;
+    const chi = ore.get(ora2(s.ora));
+    return !s.chi || s.chi === "tutti" || !chi || chi.some((c) => c.id === s.chi);
   });
+}
+
+/** ── LA DURATA DA PROPORRE (commessa 2026-10-30) ───────────────────────────
+ *  Richiesta del titolare: «durata predefinita 45 minuti, modificabile con
+ *  30, 45, 60, 90 e un valore libero»; l'orario proposto è libero per TUTTA
+ *  la durata (crm/giorni-liberi). Un orario parte ogni mezz'ora: è la riga
+ *  dell'agenda di tutti i consulenti (30 minuti) e il passo del link di
+ *  prenotazione (api.crm.disponibilita); al quarto d'ora sarebbero il doppio
+ *  dei tasti per orari come «10:15» che nessuno propone al telefono.
+ *  L'ultima durata scelta resta nel browser (`CHIAVE_DURATA`). */
+export const DURATA_ORARI = 45;
+export const PASSO_ORARI = 30;
+export const DURATE_RAPIDE = [30, 45, 60, 90] as const;
+export const DURATA_MINIMA = 15;
+export const DURATA_MASSIMA = 180;
+export const CHIAVE_DURATA = "hg_wa_orari_durata";
+
+/** Un valore scritto a mano: intero fra 15 e 180 minuti, altrimenti `null`. */
+export function durataValida(v: unknown): number | null {
+  const t = String(v ?? "").trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n >= DURATA_MINIMA && n <= DURATA_MASSIMA ? n : null;
+}
+
+/** La durata salvata nel browser; storta o assente = 45. */
+export const leggiDurata = (testo?: string | null): number => durataValida(testo) ?? DURATA_ORARI;
+
+/** «45 minuti», «un'ora», «un'ora e mezza», «2 ore e 15 minuti». */
+export function durataParlata(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h === 0) return `${m} minuti`;
+  const ore = h === 1 ? "un'ora" : `${h} ore`;
+  if (m === 0) return ore;
+  return m === 30 ? `${ore} e mezza` : `${ore} e ${m} minuti`;
 }
 
 /** Il consulente da cui parte il calendario: quello del lead, se è fra chi fa
@@ -246,6 +290,9 @@ export function messaggioOrari(
   /** Il consulente scelto (non «Tutti»): entra nel testo, «Filippo è
    *  disponibile…» (richiesta del titolare, 29/10/2026). Vuoto = senza nome. */
   consulente?: string | null,
+  /** La durata scelta nel calendario (minuti): entra nel testo, «la consulenza
+   *  gratuita online di 45 minuti». Assente = il testo di prima. */
+  durata?: number | null,
 ): string {
   const righe = scelteDelGiorno(scelte).map((r) => ({
     giorno: giornoPerMessaggio(r.data, oggi),
@@ -265,9 +312,10 @@ export function messaggioOrari(
       .trim()
       .split(/\s+/)[0] ?? "",
   );
+  const quanto = durata ? ` di ${durataParlata(durata)}` : "";
   const apertura = chi
-    ? `${chi} è disponibile per la consulenza gratuita online`
-    : "per la consulenza gratuita online avrei";
+    ? `${chi} è disponibile per la consulenza gratuita online${quanto}`
+    : `per la consulenza gratuita online${quanto} avrei`;
   if (quante === 1) {
     const r = righe[0];
     //  «oggi, mercoledì 28 ottobre, alle 15:00»: la virgola chiude l'inciso.

@@ -19,6 +19,7 @@
  *  nuovo.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/crm/AuthContext";
@@ -49,7 +50,7 @@ import {
   Sparkles,
   Flame,
 } from "lucide-react";
-import { buildWhatsAppLink, componiMessaggio, modelloDi } from "@/crm/whatsapp";
+import { componiMessaggio, modelloDi } from "@/crm/whatsapp";
 import { PublicLeadDetailSheet } from "@/crm/PublicLeadDetailSheet";
 import { DisagioBar } from "@/crm/DisagioBar";
 import { Segmento, Vuoto } from "@/crm/ui";
@@ -829,20 +830,16 @@ function LeadCard({
               {/*  Il primo messaggio è quello modificabile da /CRM/whatsapp:
                    qui c'era una frase scritta a mano, e chi correggeva i testi
                    non capiva perché da questa pagina ne partisse un'altra. */}
-              <a
-                href={buildWhatsAppLink(
-                  p.telefono,
-                  componiMessaggio(modelloDi("da_contattare"), {
-                    nome: p.nome,
-                    cognome: p.cognome,
-                  }),
-                )}
-                target="_blank"
-                rel="noreferrer"
+              <LinkWhatsapp
+                telefono={p.telefono}
+                testo={componiMessaggio(modelloDi("da_contattare"), {
+                  nome: p.nome,
+                  cognome: p.cognome,
+                })}
                 title="WhatsApp"
               >
                 <MessageCircle className="h-3.5 w-3.5" />
-              </a>
+              </LinkWhatsapp>
             </Button>
             <Button
               size="icon"

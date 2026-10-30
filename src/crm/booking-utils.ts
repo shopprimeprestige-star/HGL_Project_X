@@ -537,7 +537,15 @@ function isSlotBlocked(
   return false;
 }
 
-function generateSlotsForDay(consultant: Consultant, date: string, duration: number): string[] {
+/** `passo` = ogni quanti minuti parte un orario. Assente = la durata stessa
+ *  (com'è sempre stato: Slot liberi e l'agenda contano posti che non si
+ *  accavallano). «Proponi orari» nella chat passa 30: vedi crm/giorni-liberi. */
+function generateSlotsForDay(
+  consultant: Consultant,
+  date: string,
+  duration: number,
+  passo: number = duration,
+): string[] {
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return [];
   const dow = d.getDay();
@@ -560,7 +568,7 @@ function generateSlotsForDay(consultant: Consultant, date: string, duration: num
       ) {
         out.push(s);
       }
-      cur += duration;
+      cur += passo > 0 ? passo : duration;
     }
   });
   //  Fasce scritte in disordine (pomeriggio prima del mattino) uscivano in
@@ -772,8 +780,10 @@ export function slotDelGiorno(
    *  il server lo sapeva, il browser no. Chi ha l'elenco lo passa (lo dà
    *  `api/crm/disponibilita`); chi non ce l'ha resta com'era. */
   modi?: Map<string, ModoFascia> | Record<string, ModoFascia> | null,
+  /** Ogni quanti minuti parte un orario; assente = la durata (vedi generateSlotsForDay). */
+  passo?: number,
 ): SlotConStato[] {
-  const tutti = generateSlotsForDay(consultant, date, duration);
+  const tutti = generateSlotsForDay(consultant, date, duration, passo);
   if (tutti.length === 0) return [];
   const modoDi = (ora: string): ModoFascia | undefined =>
     !modi ? undefined : modi instanceof Map ? modi.get(ora) : modi[ora];

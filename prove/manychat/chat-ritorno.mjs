@@ -49,7 +49,7 @@ export function proveChatRitorno(mod, { c, gruppo, radice }) {
   const leggi = (f) => readFileSync(join(radice, "src/crm/chatwa", f), "utf8");
   c("la riga mostra la versione corta", true, /ritornoInChat\(/.test(leggi("RigaChat.tsx")) && /\.corta/.test(leggi("RigaChat.tsx")));
   c("l'intestazione della chat mostra quella completa", true, /\.completa/.test(leggi("Conversazione.tsx")));
-  c("Info lo racconta con la data (sul telefono non c'è il tooltip)", true, /ritornoInChat\(/.test(leggi("InfoModulo.tsx")) && /\.titolo/.test(leggi("InfoModulo.tsx")));
+  c("Info lo racconta con la data (sul telefono non c'è il tooltip)", true, /ritornoInChat\(/.test(leggi("InfoModulo.tsx")) && /ritorno=\{ritorno\}/.test(leggi("InfoModulo.tsx")) && /ritorno\.titolo/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
 
   //  Seconda metà della commessa: /chat, la stessa pagina da sola a schermo intero.
   gruppo("CHAT · /chat · SOLO LA CHAT, A SCHERMO INTERO");

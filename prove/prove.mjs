@@ -38,9 +38,11 @@ import { proveIdeeAi } from "./idee/ai.mjs";
 import { FILE_DELLA_PAGINA, proveLeadSemplicePagina, sorgentePagina } from "./lead-semplice-pagina.mjs";
 import { proveIdeeRighe } from "./idee/righe.mjs";
 import { proveAttesaERitorno } from "./idee/attesa-ritorno.mjs";
+import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
+import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 
@@ -511,6 +513,8 @@ const MODULI = [
   "push/riepilogo",
   //  ⚠️ Orari rapidi e stelle nella chat WhatsApp: vedi proveDiWhatsappOrariStelle.
   "wa-orari",
+  //  «Proponi orari» con la durata scelta (commessa 2026-10-30): vedi prove/idee/orari-durata.mjs.
+  "giorni-liberi",
   //  ⚠️ Il modello inviato come lo legge il cliente: vedi proveDelTestoDeiModelli.
   "testo-modello",
   //  ⚠️ Il lead che c'è già prende l'orario scelto nel nuovo: vedi
@@ -638,6 +642,7 @@ const MODULI = [
   //   2026-10-28-chat-ritorno-e-link): prove in prove/manychat/chat-ritorno.mjs.
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
+  "chatwa/scelta-whatsapp",
   "chatwa/richiamo",
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
   //   prove in prove/idee/righe.mjs.
@@ -18188,7 +18193,9 @@ function proveDelleFontiDiOggi() {
   c(
     "l'aggancio riassume i giorni con le regole di Slot liberi",
     true,
-    aggancio.includes("riassumiGiorno("),
+    //  Commessa 2026-10-30: il ciclo del giorno sta in crm/giorni-liberi (provato).
+    aggancio.includes("giornoDellaSquadra(") &&
+      readFileSync(join(radice, "src/crm/giorni-liberi.ts"), "utf8").includes("riassumiGiorno("),
   );
   c(
     "l'aggancio legge le ore tenute per una persona sola",
@@ -18330,6 +18337,70 @@ export const disegna = (cosa, dati, o = {}) =>
   c("nessuna temperatura: nessun pallino", "", disegna(null, null, "pallino", {}));
 }
 
+
+/** ── LA TEMPERATURA APRE LE RISPOSTE (30/10/2026) ──────────────────────────
+ *  Richiesta del titolare: in tutto il CRM, toccando l'etichetta della
+ *  temperatura si apre un pop-up con tutte le risposte del modulo. Il tocco
+ *  sta UNA volta, nel componente (crm/Temperatura); il contenuto è quello del
+ *  tasto Info della chat, scritto una volta sola. Il clic vero, Esc e il tocco
+ *  fuori si guardano nel browser: qui il disegno e i sorgenti. Dati inventati. */
+async function proveDellaTemperaturaCheApre() {
+  gruppo("LA TEMPERATURA SI TOCCA E APRE LE RISPOSTE DEL MODULO");
+  const disegna = await disegnatore(
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TemperaturaRiga, PallinoTemperatura, RisposteDelModulo } from "@/crm/Temperatura";
+import { temperaturaLead } from "@/crm/temperatura-lead";
+import { moduloLetto } from "@/crm/modulo-lead";
+export const disegna = (cosa, dati, o = {}) =>
+  renderToStaticMarkup(
+    cosa === "pallino" ? createElement(PallinoTemperatura, { t: temperaturaLead(moduloLetto(dati), dati.qualifica), ...o })
+    : cosa === "risposte" ? createElement(RisposteDelModulo, { dati, ...o })
+    : createElement(TemperaturaRiga, { dati, ...o }),
+  );`,
+    "temperatura-apre",
+  );
+  const caldo = { nome: "Mario", cognome: "Finto", modulo: { urgenza: "subito", giaFatto: "farmaci", fastidio: "molto" } };
+  const tasto = (html) => /role="button"/.test(html) && /tabindex="0"/.test(html) && /aria-haspopup="dialog"/.test(html);
+  c("la riga si tocca: è un tasto raggiungibile da tastiera", true, tasto(disegna(null, null, "riga", caldo)));
+  c("…anche col solo pallino", true, tasto(disegna(null, null, "riga", caldo, { soloPallino: true })));
+  c("…e con max=0 (le liste)", true, tasto(disegna(null, null, "riga", caldo, { max: 0 })));
+  c("il nome del tasto dice il livello e cosa apre", true,
+    /aria-label="Caldo: risposte del modulo"/.test(disegna(null, null, "riga", caldo)));
+  c("il pallino con i dati si tocca", true, tasto(disegna(null, null, "pallino", caldo, { dati: caldo })));
+  c("il pallino senza dati resta solo disegno (dentro il pop-up)", false,
+    /role="button"/.test(disegna(null, null, "pallino", caldo)));
+  c("senza temperatura niente tasto", "", disegna(null, null, "riga", { modulo: { zona: "nord" } }));
+  c("il pop-up non si disegna finché non si tocca", false,
+    /Quello che ha detto nel modulo/.test(disegna(null, null, "riga", caldo)));
+  c("sul telefono il tocco è da 44 px (after:h-11), sul computer la misura vera", true,
+    /after:h-11/.test(disegna(null, null, "riga", caldo)) && /md:after:hidden/.test(disegna(null, null, "riga", caldo)));
+  const risposte = disegna(null, null, "risposte", caldo).replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+  c("il pop-up mostra le risposte del modulo", true, /Fastidio|Già provato/i.test(risposte) && risposte.includes("Caldo"));
+  c("senza risposte il pop-up lo dice", true,
+    disegna(null, null, "risposte", { qualifica: { disagio: 8 } }).includes("Nessuna risposta al modulo."));
+  c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
+  const sorg = readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8");
+  c("il tocco non apre la riga: si ferma la propagazione (clic e tastiera)", true,
+    /const apri = \(e: SyntheticEvent\) => \{\s*e\.stopPropagation\(\);/.test(sorg) && /onClick=\{apri\}/.test(sorg) &&
+    /if \(e\.key === "Enter" \|\| e\.key === " "\) apri\(e\);/.test(sorg));
+  c("…anche per i clic dentro il pop-up (il portale risale l'albero di React)", true,
+    /<span className="contents" onClick=\{fuori\} onKeyDown=\{ferma\}>/.test(sorg) &&
+    /const fuori = \(e: SyntheticEvent\) => \{\s*e\.stopPropagation\(\);/.test(sorg));
+  c("…e il tocco sul velo chiude lo stesso (sul telefono Radix aspetta quel clic)", true,
+    /if \(!\(e\.target as Element\)\.closest\?\.\('\[role="dialog"\]'\)\) chiudi\(\);/.test(sorg));
+  c("chiuso il pop-up, il fuoco torna sul tasto", true, /tasto\.current\?\.focus\(\)/.test(sorg) && /onChiudi=\{chiudi\}/.test(sorg));
+  c("…ma non il pointerdown: la Finestra lo ascolta sul documento per chiudersi al tocco fuori", false,
+    /onPointerDown/.test(sorg));
+  const info = readFileSync(join(radice, "src/crm/chatwa/InfoModulo.tsx"), "utf8");
+  c("InfoModulo usa lo stesso contenuto (niente logica doppia)", true,
+    /<FinestraRisposte/.test(info) && !/voci\.map|<dl/.test(info));
+  const rigaChiamata = readFileSync(join(radice, "src/crm/importa/RigaChiamata.tsx"), "utf8");
+  c("in Lead importati la targhetta passa i dati al pallino", true,
+    /<PallinoTemperatura t=\{temperatura\} dati=\{dati\}/.test(rigaChiamata) && /<Targhetta motivo=\{motivo\} temperatura=\{temperatura\} dati=\{d\}/.test(rigaChiamata));
+  c("…anche nella scheda grande", true,
+    /temperatura=\{temperaturaLead\(modulo, d\.qualifica\)\}\s*dati=\{d\}/.test(readFileSync(join(radice, "src/crm/importa/SchedaProssimo.tsx"), "utf8")));
+}
 
 /** ── COMPITI 7-10: DOVE SI VEDONO IL PALLINO E LA STRISCIA ─────────────────
  *  Lead importati, la scheda del lead, «Oggi» del consulente e «Oggi» in sola
@@ -20760,7 +20831,7 @@ function proveDiWhatsappTemperaturaConsulente() {
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("la riga della chat ha pallino e parola (non dopo la vendita)", true, /mostraTemperatura\(c\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga dati=\{c\.lead\.data\} max=\{0\}/.test(riga));
   c("l'intestazione della chat pure (per esteso, nella seconda riga)", true, /mostraTemperatura\(attiva\.lead\.data\.stato\)[\s\S]{0,80}<TemperaturaRiga[\s\S]{0,80}max=\{0\}/.test(conv));
-  c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /vociModulo\(modulo\)/.test(info) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(info));
+  c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /<FinestraRisposte/.test(info) && /vociModulo\(modulo\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
     /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /perPastiglia\(perRicerca\(api\.chats\.filter\(eVecchia\)\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
@@ -20995,8 +21066,16 @@ function proveDiProponiOrariConsulente() {
   BKG.impostaCapienza(prima);
   const hook = readFileSync(join(radice, "src/crm/useGiorniLiberi.ts"), "utf8");
   c("le ore sono quelle vere: chiusure e capienza lette prima del calcolo", true,
-    /Promise\.all\(\[assicuraBlocchi\(\), assicuraCapienza\(\)\]\)/.test(hook) && /oreTenute, adesso, caricati\]/.test(hook));
-  c("…e il calcolo comune toglie le chiusure", true, /soloSlotAperti\(slot, c\.id, data, DURATA_PREDEFINITA\)/.test(hook));
+    /Promise\.all\(\[assicuraBlocchi\(\), assicuraCapienza\(\)\]\)/.test(hook) && /oreTenute, adesso, caricati[,\]]/.test(hook));
+  //  Commessa 2026-10-30: il calcolo comune sta in crm/giorni-liberi, con la durata data (60 di serie).
+  const calcolo = readFileSync(join(radice, "src/crm/giorni-liberi.ts"), "utf8");
+  c(
+    "…e il calcolo comune toglie le chiusure",
+    true,
+    /soloSlotAperti\(slot, c\.id, p\.data, p\.durata\)/.test(calcolo) &&
+      /giornoDellaSquadra\(/.test(hook) &&
+      /o\.durata \?\? DURATA_PREDEFINITA/.test(hook),
+  );
   const or = readFileSync(join(radice, "src/crm/OrariRapidi.tsx"), "utf8");
   c("finestra a tutto schermo sul telefono", true, /max-sm:h-\[100dvh\]/.test(or) && /<Finestra/.test(or));
   c("si sceglie il consulente (o «Tutti»)", true, /onClick=\{\(\) => setChi\(c\.id\)\}/.test(or));
@@ -21007,7 +21086,7 @@ function proveDiProponiOrariConsulente() {
   c("un'ora scelta con «Tutti» e una di Marco: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "tutti" }, { data: oggi, ora: "15:00", chi: "c2" }]));
   c("solo «Tutti»: nessun nome", null, W.consulenteComune([{ data: oggi, ora: "10:00", chi: "tutti" }]));
   c("il nome viene dalle ore scelte, non dal consulente acceso adesso", true,
-    /const idComune = consulenteComune\(valide\)/.test(or) && /messaggioOrari\(valide, oggi, p\.nome, nomeConsulente\)/.test(or));
+    /const idComune = consulenteComune\(valide\)/.test(or) && /messaggioOrari\(valide, oggi, p\.nome, nomeConsulente, durata\)/.test(or));
 }
 
 /** ── LO STATO «ATTESA WHATSAPP» (20/10/2026) ────────────────────────────────
@@ -21145,6 +21224,7 @@ await proveDeiNumeriDiSlotLiberi();
 proveDelleFontiDiOggi();
 proveDellaFinestraInPosti();
 await proveDeiDuePezzi();
+await proveDellaTemperaturaCheApre();
 await proveDeiPostiDelPallino();
 await proveDellaConsulenza();
 await proveDelPrimoEventoDellaVisita();
@@ -21199,7 +21279,9 @@ proveDelRichiamoInChat();
 proveDellApriWhatsapp();
 proveIdeeRighe(mod, { c, gruppo, radice });
 proveAttesaERitorno(mod, { c, gruppo, radice });
+proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
+proveSceltaWhatsapp(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });

@@ -28,6 +28,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import { createFileRoute } from "@tanstack/react-router";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { useMemo, useState } from "react";
 import { useCRM } from "@/crm/CRMContext";
 import { LeadDialog } from "@/crm/LeadDialog";
@@ -53,7 +54,6 @@ import {
   dataBreve,
 } from "@/crm/ui";
 import {
-  buildWhatsAppLink,
   componiMessaggio,
   modelloDi,
   valoriDaLead,
@@ -421,15 +421,14 @@ function PaginaTrattativePerse() {
                         >
                           <Phone className="h-3.5 w-3.5" />
                         </a>
-                        <a
-                          href={buildWhatsAppLink(l.data.telefono, messaggio)}
-                          target="_blank"
-                          rel="noreferrer"
+                        <LinkWhatsapp
+                          telefono={l.data.telefono}
+                          testo={messaggio}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                           title="Scrivi su WhatsApp per riaprire il discorso"
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
-                        </a>
+                        </LinkWhatsapp>
                       </>
                     )}
                     {/*  Riprendere non è cambiare stato e basta: serve una data,

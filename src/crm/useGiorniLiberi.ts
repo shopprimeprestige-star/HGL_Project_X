@@ -21,13 +21,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCRM } from "@/crm/CRMContext";
 import { intestazioniCRM } from "@/crm/AuthContext";
-import { assicuraBlocchi, soloSlotAperti } from "@/crm/blocchi";
+import { assicuraBlocchi } from "@/crm/blocchi";
 import { assicuraCapienza } from "@/crm/capienza";
-import { slotDelGiorno } from "@/crm/booking-utils";
 import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
 import { DURATA_PREDEFINITA } from "@/crm/invito";
 import type { ModoFascia } from "@/crm/fascia-consulenza";
-import { riassumiGiorno, type GiornoLibero } from "@/crm/slot-liberi";
+import { giornoDellaSquadra } from "@/crm/giorni-liberi";
+import type { GiornoLibero } from "@/crm/slot-liberi";
 import type { Consultant } from "@/crm/types";
 
 const iso = (d: Date) =>
@@ -68,12 +68,21 @@ export function useOreTenute(): Record<string, "solo"> {
 /** I giorni della squadra da oggi in avanti, `quanti` giorni di calendario
  *  (oggi senza le ore già passate). `chi`: "tutti" oppure l'id di un
  *  consulente. `squadra` = chi fa consulenze, attivo, con una settimana. */
-export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
+export function useGiorniLiberi(o: {
+  quanti: number;
+  chi?: string;
+  /** minuti che un orario deve restare libero; assente = la durata di serie (Slot liberi) */
+  durata?: number;
+  /** ogni quanti minuti parte un orario; assente = la durata (vedi crm/giorni-liberi) */
+  passo?: number;
+}): {
   squadra: Consultant[];
   giorni: GiornoLibero[];
 } {
   const periodo = o.quanti;
   const chi = o.chi ?? "tutti";
+  const durata = o.durata ?? DURATA_PREDEFINITA;
+  const passo = o.passo;
   const { leads, consultants } = useCRM();
   const oreTenute = useOreTenute();
   //  L'ora corrente, rinfrescata ogni minuto: le ore di oggi già passate escono.
@@ -127,21 +136,21 @@ export function useGiorniLiberi(o: { quanti: number; chi?: string }): {
         const [g, ora] = k.split(" ");
         if (g === data && ora) modi.set(ora, v);
       }
-      const persone = scelti.map((c) => {
-        let slot: ReturnType<typeof slotDelGiorno> = [];
-        try {
-          slot = slotDelGiorno(c, data, DURATA_PREDEFINITA, elenco, undefined, undefined, modi);
-          //  Le chiusure dello studio (Orari disponibili): `slotDelGiorno` non le guarda.
-          slot = soloSlotAperti(slot, c.id, data, DURATA_PREDEFINITA);
-        } catch {
-          /* un consulente con orari illeggibili non ferma la pagina */
-        }
-        return { id: c.id, nome: c.data.nome || "Senza nome", slot };
-      });
-      out.push(riassumiGiorno({ data, persone, dopo: i === 0 ? minutiAdesso : undefined }));
+      //  Il giorno lo calcola crm/giorni-liberi (provato senza browser).
+      out.push(
+        giornoDellaSquadra({
+          data,
+          persone: scelti,
+          leads: elenco,
+          modi,
+          durata,
+          passo,
+          dopo: i === 0 ? minutiAdesso : undefined,
+        }),
+      );
     }
     return out;
-  }, [leads, scelti, periodo, oreTenute, adesso, caricati]);
+  }, [leads, scelti, periodo, oreTenute, adesso, caricati, durata, passo]);
 
   return { squadra, giorni };
 }
