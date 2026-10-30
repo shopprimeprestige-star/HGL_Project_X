@@ -21198,7 +21198,7 @@ function proveDelPrimoContattoTreFasce() {
   c("stesso tag di prima", "crm-primo-contatto", G.modelloETag("primo_contatto", null, false, true).tag);
   c("le altre sequenze non cambiano", "hgl_richiamo_24h", G.modelloETag("richiamo_24h", null, false, true).modello);
   const m = T.MODELLI_MANYCHAT.find((x) => x.name === "hgl_primo_contatto_tre_fasce");
-  c("il testo chiede mattina, pomeriggio o sera", true, !!m && /fascia oraria che preferisce: mattina, pomeriggio o sera\.$/.test(m.body));
+  c("il testo chiede mattina, pomeriggio o sera", true, !!m && /fascia oraria in cui è reperibile: mattina, pomeriggio o sera\.$/.test(m.body));
   c("una sola variabile, il nome", ["lead_name"], m ? m.params.map((p) => p.key) : null);
   const giro = readFileSync(join(radice, "src/crm/manychat/giro.ts"), "utf8");
   c("i due punti del giro guardano il flusso nuovo", 2, (giro.match(/!!config\.flussi\[MODELLO_PRIMO_CONTATTO_TRE_FASCE\]/g) || []).length);
