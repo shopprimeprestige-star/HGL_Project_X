@@ -130,7 +130,7 @@ export function candidatiPerStato(
         ? ["hgl_cliente_assente", "hgl_da_riprogrammare"]
         : ["hgl_da_riprogrammare"];
     case "da_contattare":
-      return ["hgl_primo_contatto"];
+      return ["hgl_primo_contatto", "hgl_primo_contatto_tre_fasce"];
     case "attesa_whatsapp":
       return ["hgl_richiamo_24h", "hgl_non_risponde"];
     case "da_chiamare":
