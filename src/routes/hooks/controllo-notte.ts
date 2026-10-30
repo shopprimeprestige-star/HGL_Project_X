@@ -20,6 +20,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { inviaATutti } from "@/crm/push/invio.server";
 import type { RigaStatoPonte } from "@/crm/chatwa/avvisoPonte";
+import { CANALE_PONTE } from "@/crm/ponte/tipi";
 import {
   avvisoPushControllo,
   chiaveNotifica,
@@ -131,7 +132,9 @@ export async function giroControlloNotte(adesso = new Date()) {
         .eq("user_id", userId)
         .eq("direction", "outbound")
         .eq("status", "failed")
-        .gte("created_at", dal.toISOString());
+        .gte("created_at", dal.toISOString())
+        //  Solo gli invii del CRM: le righe del ponte non le legge nessuna regola (I1).
+        .or(`canale.is.null,canale.neq.${CANALE_PONTE}`);
       if (error) throw error;
       return count ?? 0;
     },
