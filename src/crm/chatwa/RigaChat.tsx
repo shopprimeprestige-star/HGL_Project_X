@@ -12,6 +12,7 @@ import {
   Phone,
   Star,
   Undo2,
+  UserPlus,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -81,12 +82,13 @@ interface RigaChatProps {
   adesso: number;
   onApri: () => void;
   onCreaScheda: () => void;
-  onAbbina: () => void;
   /** Le stelle di priorità (0-3) e il tocco che le cambia (vedi useStelle). */
   stelle?: number;
   onStelle?: () => void;
   /** Cambia lo stato del lead dalla riga (salvataggio condiviso: useChatWa.cambiaStatoLead). */
   onCambiaStato?: (lead: Lead, stato: LeadStatus) => void;
+  /** Senza scheda (30/10/2026): la scelta dello stato crea la scheda col numero e le dà quello stato. */
+  onCreaSchedaConStato?: (stato: LeadStatus) => void;
   /** Solo in «Da chiamare»: pastiglia verde se si può scrivere (finestra di 24 ore
    *  aperta), rossa se è chiusa e serve un modello approvato. */
   mostraFinestra?: boolean;
@@ -108,7 +110,7 @@ interface RigaChatProps {
   comeWhatsapp?: boolean;
 }
 
-/** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
+/** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» sta
  *  sotto, fuori dal bottone (un bottone dentro un bottone non è valido e sul telefono
  *  prende il tocco sbagliato). Il nome ha sempre la riga tutta per sé: pastiglia di
  *  stato e numero vanno sotto, così non lo schiacciano. */
@@ -119,10 +121,10 @@ export function RigaChat({
   adesso,
   onApri,
   onCreaScheda,
-  onAbbina,
   stelle = 0,
   onStelle,
   onCambiaStato,
+  onCreaSchedaConStato,
   mostraFinestra = false,
   selezione,
   prossimoMeet = false,
@@ -175,13 +177,17 @@ export function RigaChat({
   const telefono = numeroDaComporre(c.phone);
   //  Gli stati di chiamata che la regola del CRM (`statiPer`) ammette per QUESTO lead.
   const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data) : []);
-  const opzioniStato = statiMenuRiga(c.lead?.data.stato, ammessi);
+  //  Senza scheda: nascerà «Da contattare», quindi tutti e sette gli stati di chiamata.
+  const opzioniStato = statiMenuRiga(c.lead ? c.lead.data.stato : "da_contattare", ammessi);
   //  p1-chat-veloce: l'ultimo messaggio anche delle chat vecchie (fuori dai letti),
   //  salvato sul contatto — entrata o uscita. Il più recente dei due.
   const last = ultimoDellaChat(c.lastMessage, c.contact);
   const inAttesa = modo === "attesa";
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
+  //  Lo stato si cambia dalla riga se c'è la scheda; se NON c'è, la scelta la crea (30/10/2026).
+  //  Con più schede su quel numero no: non si sa a quale darlo, e se ne farebbe una terza.
+  const puoiCambiareStato = !!c.lead || (senzaScheda && !ambigua);
 
   // `dal` c'è sempre se la chat è in attesa; se mancasse, meglio l'ora dell'ultimo messaggio che un «da meno di 1 min» falso.
   const dal = inAttesa ? (c.daRispondere?.dal ?? null) : null;
@@ -269,7 +275,7 @@ export function RigaChat({
           selezione && "select-none [-webkit-touch-callout:none]",
           "flex w-full items-start gap-3 pb-1.5 pl-3 pt-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           //  Con la cornetta a destra (44 px + 4 di margine) il testo si ferma prima.
-          c.lead && telefono ? "pr-12 md:pr-10" : "pr-3",
+          telefono ? "pr-12 md:pr-10" : "pr-3",
         )}
       >
         <span className="relative shrink-0">
@@ -396,10 +402,10 @@ export function RigaChat({
       </button>
 
       {/*  ── CORNETTA (28/10/2026) ───────────────────────────────────────────
-          Su ogni riga con la scheda: apre il compositore con il numero (sul Mac lo
+          Su ogni riga con un numero, con o senza scheda (30/10/2026): apre il compositore con il numero (sul Mac lo
           passa all'iPhone). Fuori dal bottone della riga e con stopPropagation, così
           non apre la chat; 44 px di tocco sul telefono. */}
-      {c.lead && telefono && (
+      {telefono && (
         <Button
           asChild
           inert={selezione?.attiva}
@@ -452,7 +458,7 @@ export function RigaChat({
           ⚠️ I TOCCHI RESTANO DA 44 PX SENZA ALZARE LA RIGA: stato e stelle sono
            alti ~22 px a vista, e sul telefono un `after:` trasparente allarga
            l'area del tocco sopra e sotto (dal computer non serve). */}
-      {(c.lead || onStelle) && (
+      {(puoiCambiareStato || onStelle) && (
         <div
           inert={selezione?.attiva}
           className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16"
@@ -473,6 +479,22 @@ export function RigaChat({
                 )}
               >
                 <span className="truncate">{LEAD_STATUS_LABEL[c.lead.data.stato]}</span>
+                <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
+              </span>
+            </button>
+          )}
+          {/*  Senza scheda: stessa pastiglia, neutra e tratteggiata. Scegliere uno stato crea la scheda. */}
+          {!c.lead && puoiCambiareStato && (
+            <button
+              type="button"
+              onClick={() => setCambiaStato(true)}
+              aria-haspopup="dialog"
+              aria-label={`Imposta lo stato di ${nome}: crea la scheda`}
+              title="Imposta lo stato · crea la scheda"
+              className="relative inline-flex min-w-0 max-w-full items-center rounded-full after:absolute after:inset-x-0 after:-inset-y-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:after:hidden"
+            >
+              <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-dashed border-muted-foreground/50 px-2 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground">
+                <span className="truncate">Imposta stato</span>
                 <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
               </span>
             </button>
@@ -578,16 +600,21 @@ export function RigaChat({
           )}
         </div>
       )}
-      {c.lead && (
+      {puoiCambiareStato && (
         <FinestraStati
           aperta={cambiaStato}
           onChiudi={() => setCambiaStato(false)}
-          stato={c.lead.data.stato}
+          stato={c.lead?.data.stato}
           opzioni={opzioniStato}
-          contesto={`${nome} · adesso: ${LEAD_STATUS_LABEL[c.lead.data.stato]}`}
+          contesto={
+            c.lead
+              ? `${nome} · adesso: ${LEAD_STATUS_LABEL[c.lead.data.stato]}`
+              : `${nome} · senza scheda: si crea con lo stato che scegli`
+          }
           onScegli={(s) => {
             setCambiaStato(false);
             if (c.lead) onCambiaStato?.(c.lead, s);
+            else onCreaSchedaConStato?.(s);
           }}
         />
       )}
@@ -595,33 +622,25 @@ export function RigaChat({
       {(senzaScheda || ambigua) && (
         <div
           inert={selezione?.attiva}
-          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3"
+          className="flex flex-wrap items-center gap-x-3 pb-1 pl-[68px] pr-3"
         >
           <span className="text-[12px] text-muted-foreground">
             {ambigua ? "Più schede con questo numero" : "Numero senza scheda"}
           </span>
-          <div className="flex flex-wrap gap-1.5">
-            {!ambigua && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onCreaScheda}
-                className="h-11 px-3 text-[13px] md:h-8 md:text-xs"
-              >
-                Crea scheda
-              </Button>
-            )}
+          {/*  Un solo tasto, leggero (30/10/2026): senza bordo, icona + testo corto. L'abbinamento a una
+              scheda che c'è già resta nel menu ⋮ della conversazione aperta. */}
+          {!ambigua && (
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              onClick={onAbbina}
-              className="h-11 px-3 text-[13px] md:h-8 md:text-xs"
+              variant="ghost"
+              onClick={onCreaScheda}
+              className="-ml-2 h-11 gap-1 px-2 text-[13px] text-primary hover:text-primary md:h-8 md:text-xs"
             >
-              Abbina a una scheda
+              <UserPlus aria-hidden="true" className="h-4 w-4" />
+              Crea scheda
             </Button>
-          </div>
+          )}
         </div>
       )}
     </li>

@@ -68,6 +68,7 @@ import type {
   WaMessageRow,
 } from "./tipi";
 import { aBlocchi } from "./selezione";
+import { schedaDaChat } from "./schedaDaChat";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
@@ -174,7 +175,7 @@ export interface OpzioniChatWa {
 
 export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   const { user } = useAuth();
-  const { leads, updateLead, consultants } = useCRM();
+  const { leads, updateLead, createLead, consultants, loading: crmInCaricamento } = useCRM();
   //  I filtri a gruppi (30/10/2026): stato e memoria in useFiltriChat, regole in filtri.ts.
   const { filtri, setFiltri } = useFiltriChat(user?.id);
   const [ricerca, setRicerca] = useState("");
@@ -1187,6 +1188,79 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     }
   };
 
+  /** Numeri la cui scheda si sta creando: un secondo tocco non ne fa due. */
+  const inCreazione = useRef(new Set<string>());
+
+  /** Rilegge dall'ARCHIVIO le schede di questo utente con questo numero (ultime 9 cifre, come
+   *  `schedaUnica`): la copia a schermo può essere vecchia o ancora in arrivo, e creare una scheda
+   *  doppia è peggio che aspettare. Legge solo id e telefono, a pagine da 1000. `null` = lettura
+   *  fallita (non si crea niente). Con una sola scheda torna intera, per cambiarle lo stato. */
+  const schedaInArchivio = async (
+    telefono: string,
+  ): Promise<{ tipo: "nessuna" | "piu" } | { tipo: "una"; lead: Lead } | null> => {
+    if (!user) return null;
+    const righe: { id: string; phone: string }[] = [];
+    for (let da = 0; da < 100_000; da += 1000) {
+      const { data, error } = await tabella("crm_leads")
+        .select("id, telefono:data->>telefono")
+        .eq("user_id", user.id)
+        .order("id", { ascending: true })
+        .range(da, da + 999);
+      if (error || !Array.isArray(data)) return null;
+      for (const r of data as { id: string; telefono?: unknown }[])
+        righe.push({ id: r.id, phone: String(r.telefono ?? "") });
+      if (data.length < 1000) break;
+    }
+    const e = schedaUnica(righe, telefono);
+    if (e.tipo !== "una") return { tipo: e.tipo };
+    const { data, error } = await tabella("crm_leads")
+      .select("*")
+      .eq("id", e.lead.id)
+      .eq("user_id", user.id)
+      .limit(1);
+    const intera = Array.isArray(data) ? (data[0] as Lead | undefined) : undefined;
+    return error || !intera ? null : { tipo: "una", lead: intera };
+  };
+
+  /** Dalla riga di una chat SENZA scheda (30/10/2026): crea la scheda col numero (origine «WhatsApp»)
+   *  e le dà lo stato scelto con `cambiaStatoLead`, quindi con le stesse finestre e lo stesso
+   *  salvataggio del resto del CRM. Se la scheda non nasce lo dice e non cambia niente.
+   *  ⚠️ Mai doppioni: non parte se le schede non sono ancora arrivate, e prima di creare rilegge
+   *  l'archivio — se quel numero ha già una scheda, il nuovo stato va su quella. */
+  const creaSchedaConStato = async (chat: ChatItem, newStatus: LeadStatus) => {
+    if (chat.lead || chat.schedaAmbigua || inCreazione.current.has(chat.phone)) return;
+    if (crmInCaricamento || leads.length === 0) {
+      toast.error("Le schede si stanno ancora caricando", { description: "Riprova fra un istante." });
+      return;
+    }
+    inCreazione.current.add(chat.phone);
+    try {
+      const trovata = await schedaInArchivio(chat.phone);
+      if (!trovata) {
+        toast.error("Non riesco a controllare le schede", { description: "Nessuna scheda creata: riprova." });
+        return;
+      }
+      if (trovata.tipo === "piu") {
+        toast.error("Più schede con questo numero", { description: "Scegli la scheda giusta, non ne creo un'altra." });
+        return;
+      }
+      if (trovata.tipo === "una") {
+        await cambiaStatoLead(trovata.lead, newStatus);
+        return;
+      }
+      const nuova = await createLead(schedaDaChat(chat));
+      if (!nuova) {
+        toast.error("Scheda NON creata", { description: "Riprova fra un istante." });
+        return;
+      }
+      await cambiaStatoLead(nuova, newStatus);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore nella creazione della scheda");
+    } finally {
+      inCreazione.current.delete(chat.phone);
+    }
+  };
+
   /** Cambio stato della chat aperta (intestazione della conversazione). */
   const cambiaStato = async (newStatus: LeadStatus) => {
     if (attiva?.lead) await cambiaStatoLead(attiva.lead, newStatus);
@@ -1291,6 +1365,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     forzaModelli,
     cambiaStato,
     cambiaStatoLead,
+    creaSchedaConStato,
     hasConfig,
     ponte,
     inBlocco,

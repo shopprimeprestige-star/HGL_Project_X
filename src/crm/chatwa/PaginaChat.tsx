@@ -455,7 +455,7 @@ export function PaginaChat({
             conversazioneAperta ? "hidden" : "flex",
           )}
         >
-          <ElencoChat api={apiPagina} onCreaScheda={creaScheda} onAbbina={abbinaChat} />
+          <ElencoChat api={apiPagina} onCreaScheda={creaScheda} />
         </div>
 
         {/* Colonna conversazione */}

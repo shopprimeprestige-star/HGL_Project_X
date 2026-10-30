@@ -22,6 +22,7 @@ import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
 import { ordinaComeWhatsapp } from "./ordineWhatsapp";
+import { chatSenzaScheda } from "./senzaScheda";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
 import {
@@ -53,6 +54,26 @@ const CHIP_SOTTOFILTRI: { v: Sottofiltro; l: string }[] = [
   { v: "tutti", l: "Tutti" },
   ...STATI_SOTTOFILTRI.map((v) => ({ v, l: LEAD_STATUS_LABEL[v] })),
 ];
+
+/** La riga che scorre di lato (sul telefono col dito), uguale per le pillole principali e per i
+ *  sottofiltri di «Da chiamare». La barra di scorrimento non si vede. */
+const RIGA_SCORREVOLE =
+  "flex overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+/** Un sottofiltro (30/10/2026): la versione leggera della pillola, solo testo con la linea sotto
+ *  per quello scelto. 44 px di tocco sul telefono come le pillole, 32 dal computer. */
+const sottoTasto = (acceso: boolean, allarme = false) =>
+  cn(
+    "t-nota inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-2.5 font-medium transition-colors lg:pointer-fine:h-8",
+    acceso
+      ? allarme
+        ? "border-red-700 text-red-700"
+        : "border-primary text-primary"
+      : allarme
+        ? "border-transparent text-red-700/80 hover:text-red-700"
+        : "border-transparent text-muted-foreground hover:text-foreground",
+    FUOCO,
+  );
 
 /** Il tasto di un chip: 44 px di tocco col dito, 32 dal computer col mouse. Il chip a vista
  *  (`chip`) è più basso: il resto è area da toccare, trasparente. */
@@ -90,7 +111,7 @@ function useAdesso(): number {
  *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
  *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
  *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
-export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
+export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
   const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva, apri } = api;
   const adesso = useAdesso();
   const [pannelloAperto, setPannelloAperto] = useState(false);
@@ -138,7 +159,16 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   //  riquadri, niente stelle in cima. Per questo anche il riquadro «Finestra in chiusura» (che è una
   //  sezione) esce: con «Si può scrivere» la riga ha comunque il suo bollino.
   const tutte = filtri.coda === null;
-  const elencoTutte = tutte ? ordinaComeWhatsapp(trovate) : [];
+  //  ── «SENZA SCHEDA» IN CIMA (30/10/2026) ────────────────────────────────
+  //  In «Tutte» le chat senza scheda (con messaggi, anche vecchi) hanno un riquadro tutto loro
+  //  sopra l'elenco: sono clienti non ancora salvati nel CRM. Non si ripetono sotto. Nelle altre
+  //  viste no: i numeri di «Da rispondere» e «Da chiamare» devono restare quelli dei pulsanti.
+  //  La pillola «Sconosciuti» resta: è il filtro che mostra SOLO queste, senza il resto.
+  const senzaSchedaCon = tutte ? chatSenzaScheda(trovate) : [];
+  const inSenzaSchedaTel = new Set(senzaSchedaCon.map((c) => c.phone));
+  const elencoTutte = tutte
+    ? ordinaComeWhatsapp(trovate.filter((c) => !inSenzaSchedaTel.has(c.phone)))
+    : [];
   const inScadenza =
     filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
   const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
@@ -193,7 +223,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
   const mostrate = senzaDoppioni(
     filtri.coda === "da-chiamare"
       ? elencoDaChiamare
-      : [...inScadenza, ...inAttesa, ...altre],
+      : [...senzaSchedaCon, ...inScadenza, ...inAttesa, ...altre],
   );
   const scelteVisibili = inSel ? soloVisibili(scelte, mostrate) : [];
   const esciDallaSelezione = () => {
@@ -324,10 +354,10 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       adesso={adesso}
       onApri={() => apri(c.phone)}
       onCreaScheda={() => onCreaScheda(c)}
-      onAbbina={() => onAbbina(c)}
       stelle={stelleDi(c.phone)}
       onStelle={() => cambiaStelle(c.phone)}
       onCambiaStato={(lead, stato) => void api.cambiaStatoLead(lead, stato)}
+      onCreaSchedaConStato={(stato) => void api.creaSchedaConStato(c, stato)}
       selezione={
         blocco
           ? {
@@ -450,7 +480,7 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
       <div
         role="group"
         aria-label="Filtri rapidi"
-        className="flex gap-2 overflow-x-auto overscroll-x-contain px-3 pb-2 [scrollbar-width:none] md:px-2 [&::-webkit-scrollbar]:hidden"
+        className={cn(RIGA_SCORREVOLE, "gap-2 px-3 pb-2 md:px-2")}
       >
         <button
           type="button"
@@ -533,57 +563,43 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
         </div>
       )}
 
-      {/*  Sotto «Da chiamare»: lo stato della chiamata e quando richiamare. Vanno a capo, non scorrono. */}
+      {/*  Sotto «Da chiamare» (30/10/2026): lo stato della chiamata e, se serve, quando richiamare.
+          Righe che scorrono di lato come le pillole sopra, ma più leggere (solo testo, linea sotto
+          quella scelta). I numeri sono quelli che vedrai toccando. */}
       {filtri.coda === "da-chiamare" && (
-        <div className="flex flex-col border-y border-border bg-muted/30 px-3 py-1 md:px-2">
-          <div
-            role="group"
-            aria-label="Stato della chiamata"
-            className="flex flex-wrap items-center gap-x-1.5"
-          >
-            <span className="t-nota mr-1 text-muted-foreground">Stato della chiamata</span>
+        <div className="border-y border-border bg-muted/30 px-3 md:px-2">
+          <div role="group" aria-label="Stato della chiamata" className={cn(RIGA_SCORREVOLE, "gap-1")}>
             {CHIP_SOTTOFILTRI.filter((x) => x.v === "tutti" || conti[x.v] > 0).map((x) => (
               <button
                 key={x.v}
                 type="button"
                 aria-pressed={sottoAttivo === x.v}
                 onClick={() => setSotto(x.v)}
-                className={TASTO_CHIP}
+                className={sottoTasto(sottoAttivo === x.v)}
               >
-                <span className={chip(sottoAttivo === x.v)}>
-                  {x.l} <span className="tabular-nums">{conti[x.v]}</span>
-                </span>
+                {x.l} <span className="tabular-nums">{conti[x.v]}</span>
               </button>
             ))}
           </div>
           {vociQuando.length > 1 && (
-            <label className="t-nota flex items-center gap-2 py-1 text-muted-foreground">
-              <span className="shrink-0">Quando richiamare</span>
-              {/*  Nativa come quella del consulente: sul telefono la rotella di sistema. «Scaduti» in rosso. */}
-              <select
-                value={quandoAttivo}
-                onChange={(e) => setQuando(e.target.value)}
-                className={cn(
-                  "h-11 min-w-0 flex-1 rounded-md border bg-background px-2 text-base lg:pointer-fine:h-8 lg:pointer-fine:text-[13px]",
-                  quandoAttivo === "scaduti"
-                    ? "border-red-700 text-red-700"
-                    : quandoAttivo !== "tutti"
-                      ? "border-primary text-primary"
-                      : `${BORDO_TASTO} text-foreground`,
-                  FUOCO,
-                )}
-              >
-                {vociQuando.map((x) => (
-                  <option
-                    key={x.v}
-                    value={x.v}
-                    className={x.v === "scaduti" ? "text-red-700" : undefined}
-                  >
-                    {`${x.l} (${x.n})`}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div
+              role="group"
+              aria-label="Quando richiamare"
+              className={cn(RIGA_SCORREVOLE, "gap-1 border-t border-border/60")}
+            >
+              {/*  «Scaduti» in rosso. */}
+              {vociQuando.map((x) => (
+                <button
+                  key={x.v}
+                  type="button"
+                  aria-pressed={quandoAttivo === x.v}
+                  onClick={() => setQuando(x.v)}
+                  className={sottoTasto(quandoAttivo === x.v, x.v === "scaduti")}
+                >
+                  {x.l} <span className="tabular-nums">{x.n}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -612,10 +628,28 @@ export function ElencoChat({ api, onCreaScheda, onAbbina }: ElencoChatProps) {
             </ul>
           )
         ) : tutte ? (
-          <ul aria-label="Tutte le chat, dall'ultimo messaggio">
-            {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
-            {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
-          </ul>
+          <>
+            {senzaSchedaCon.length > 0 && (
+              <section aria-labelledby="titolo-senza-scheda">
+                <h2
+                  id="titolo-senza-scheda"
+                  className="t-corpo border-b border-primary/20 bg-primary/5 px-3 py-2 font-semibold text-foreground"
+                >
+                  Senza scheda ({senzaSchedaCon.length})
+                  <span className="t-nota ml-2 font-normal text-muted-foreground">
+                    clienti da salvare nel CRM
+                  </span>
+                </h2>
+                <ul>
+                  {senzaSchedaCon.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+                </ul>
+              </section>
+            )}
+            <ul aria-label="Tutte le chat, dall'ultimo messaggio">
+              {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
+              {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+            </ul>
+          </>
         ) : (
           <>
             {inScadenza.length > 0 && (

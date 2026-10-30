@@ -87,7 +87,7 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     /href=\{`tel:\$\{/.test(riga) && /aria-label=\{`Chiama \$\{nome\}`\}/.test(riga) && /numeroDaComporre\(/.test(riga));
   c("cornetta: non apre la chat (stopPropagation) e ha 44 px di tocco", true,
     /e\.stopPropagation\(\)/.test(riga.slice(riga.indexOf("tel:") - 400, riga.indexOf("tel:") + 400)) && /h-11 w-11/.test(riga));
-  c("cornetta su ogni riga con scheda (non solo Da chiamare)", true, /c\.lead && telefono/.test(riga));
+  c("cornetta su ogni riga con un numero, con o senza scheda (30/10/2026)", true, /\{telefono && \(/.test(riga) && !/c\.lead && telefono/.test(riga));
   c("cambio stato dalla riga: la finestra condivisa del CRM (FinestraStati), con i sette stati", true,
     /FinestraStati/.test(riga) && /statiMenuRiga\(/.test(riga));
   c("…e salva col meccanismo condiviso: onCambiaStato → cambiaStatoLead → updateLead (nessun supabase in riga)", true,
@@ -102,8 +102,8 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
     /"chiamare"/.test(riga) || /oltre 10 ore/.test(riga) || /daChiamare:\s*ChatItem\[\]/.test(tipi) || /\bdaChiamare,$/m.test(hook));
   c("pillole e chip a 44 px sul telefono (h-11), 28 px dal desktop", false, /"h-10 shrink-0/.test(elenco));
   //  30/10/2026 (sera): CAMBIA DI NUOVO, su richiesta del titolare («difficili da trovare da telefono»): i filtri rapidi
-  //   sono UNA riga che scorre di lato (la pagina no: lo scorrimento sta nella riga); i chip di «Stato della chiamata`
-  //   restano a capo.
-  c("telefono: una sola riga di filtri che scorre di lato dentro il suo contenitore, chip dello stato a capo", true,
-    /flex gap-2 overflow-x-auto overscroll-x-contain/.test(elenco) && /flex flex-wrap/.test(elenco) && !/grid grid-cols-2/.test(elenco) && /min-w-0/.test(riga));
+  //   sono UNA riga che scorre di lato (la pagina no: lo scorrimento sta nella riga); dal 30/10 (sera) anche i
+  //   sottofiltri di «Da chiamare» scorrono nello stesso modo (prove/idee/chat-ritocchi.mjs).
+  c("telefono: una sola riga di filtri che scorre di lato dentro il suo contenitore", true,
+    /overflow-x-auto overscroll-x-contain/.test(elenco) && /RIGA_SCORREVOLE/.test(elenco) && !/grid grid-cols-2/.test(elenco) && /min-w-0/.test(riga));
 }
