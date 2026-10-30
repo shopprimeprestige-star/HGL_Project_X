@@ -144,7 +144,31 @@ function creaRuntime(hook, opz) {
 }
 
 /** ── Il database finto ────────────────────────────────────────────────────── */
+/** p1-chat-veloce: le colonne che il database scrive da solo a ogni insert/update
+ *  (`updated_at` dei contatti, `cambiato_il` dei messaggi, la migrazione nuova). */
+const ORA_AUTO = { whatsapp_contacts: "updated_at", whatsapp_messages: "cambiato_il" };
 function creaDb(tabelle) {
+  //  I contatti già presenti hanno `updated_at` (default del database); i messaggi
+  //  vecchi NO `cambiato_il` (la migrazione non riscrive le righe che ci sono).
+  for (const r of tabelle.whatsapp_contacts ?? []) r.updated_at ??= r.created_at;
+  /** Il trigger finto: ogni riga nuova o cambiata (anche toccata a mano da una
+   *  prova) prende l'ora del database alla prima richiesta dopo. */
+  const viste = new WeakMap();
+  const impronta = (t, r) => {
+    const { [ORA_AUTO[t]]: _, ...resto } = r;
+    return JSON.stringify(resto);
+  };
+  const scatta = (t, primaVolta) => {
+    if (!ORA_AUTO[t]) return;
+    for (const r of db.tabelle[t] ?? []) {
+      const ora = impronta(t, r);
+      if (viste.get(r) === ora) continue;
+      if (!primaVolta && !db.senzaCambiatoIl) r[ORA_AUTO[t]] = new Date(Date.now()).toISOString();
+      if (!primaVolta && db.senzaCambiatoIl && t === "whatsapp_contacts")
+        r.updated_at = new Date(Date.now()).toISOString();
+      viste.set(r, ora);
+    }
+  };
   const db = {
     tabelle,
     log: [],
@@ -163,6 +187,7 @@ function creaDb(tabelle) {
     },
     maxRighe: Infinity, // il tetto di righe per richiesta di PostgREST (1000 in produzione)
     senzaDuplicatoDi: false, // migrazione del ponte non applicata: filtrare `duplicato_di` dà 42703
+    senzaCambiatoIl: false, // migrazione p1-chat-veloce non applicata: chiedere `cambiato_il` dà 42703
     canali: [],
     canale() {
       const ch = {
@@ -194,6 +219,8 @@ function creaDb(tabelle) {
         t,
         op: "select",
         eq: [],
+        gte: [],
+        cols: null,
         or: null,
         ord: null,
         lim: null,
@@ -204,12 +231,13 @@ function creaDb(tabelle) {
         single: false,
       };
       const b = {
-        select: () => {
-          if (q.op === "select") q.op = "select";
+        select: (cols) => {
+          if (q.op === "select") q.cols = cols ?? "*";
           else q.sel = true;
           return b;
         },
         eq: (k, v) => (q.eq.push([k, v]), b),
+        gte: (k, v) => (q.gte.push([k, v]), b),
         or: (s) => ((q.or = s), b),
         is: (k, v) => (q.is.push([k, v]), b),
         range: (da, a) => ((q.rng = [da, a]), b),
@@ -223,6 +251,7 @@ function creaDb(tabelle) {
       return b;
     },
     async esegui(q) {
+      for (const t of Object.keys(ORA_AUTO)) scatta(t, false);
       const voce = JSON.parse(JSON.stringify(q));
       db.log.push(voce);
       if (q.t === "whatsapp_contacts" && q.op === "select" && db.gate) await db.gate;
@@ -230,6 +259,7 @@ function creaDb(tabelle) {
       const orFiltri = q.or ? q.or.split(",").map((p) => p.split(".eq.")) : null;
       const dentro = (r) =>
         q.eq.every(([k, v]) => String(r[k]) === v) &&
+        q.gte.every(([k, v]) => r[k] != null && String(r[k]) >= v) &&
         (!orFiltri || orFiltri.some(([k, v]) => String(r[k]) === v));
       if (q.op === "select" && db.erroreLettura && q.t !== "whatsapp_settings")
         return { data: null, error: { code: "XX000", message: "rete giù" } };
@@ -239,6 +269,12 @@ function creaDb(tabelle) {
       }
       if (q.op === "update" && db.erroreUpdate)
         return { data: null, error: { code: "XX000", message: "update rifiutato" } };
+      if (
+        q.op === "select" &&
+        db.senzaCambiatoIl &&
+        (/cambiato_il/.test(q.cols ?? "") || q.gte.some(([k]) => k === "cambiato_il"))
+      )
+        return { data: null, error: { code: "42703", message: "column cambiato_il does not exist" } };
       if (q.op === "select" && q.is.length && db.senzaDuplicatoDi)
         return { data: null, error: { code: "42703", message: "column duplicato_di does not exist" } };
       if (q.op === "select") {
@@ -277,6 +313,7 @@ function creaDb(tabelle) {
       return { data: null, error: null };
     },
   };
+  for (const t of Object.keys(ORA_AUTO)) scatta(t, true);
   return db;
 }
 
@@ -377,6 +414,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       if (mondo.gate) db.gate = mondo.gate;
       if (mondo.maxRighe) db.maxRighe = mondo.maxRighe;
       if (mondo.senzaDuplicatoDi) db.senzaDuplicatoDi = true;
+      if (mondo.senzaCambiatoIl) db.senzaCambiatoIl = true;
       const T = {
         user: { id: U },
         crm: { leads: mondo.leads ?? [], consultants: [], updateLead: async () => {} },
@@ -484,11 +522,24 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
           contatto("c-1", P1),
         ],
       });
-      const qMsg = p.db.log.find((q) => q.t === "whatsapp_messages" && q.op === "select");
+      const lettureMsg = p.db.log.filter(
+        (q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1,
+      );
+      const qMsg = lettureMsg[0];
       c(
-        "i messaggi si leggono dal PIÙ NUOVO (order created_at DESC), limite 2000, filtrati per utente",
-        [{ col: "created_at", asc: false }, 2000, [["user_id", U]]],
-        [qMsg.ord, qMsg.lim, qMsg.eq],
+        "i messaggi si leggono dal PIÙ NUOVO (order created_at DESC), filtrati per utente: prima 300 (pagina subito), poi 2000",
+        [{ col: "created_at", asc: false }, [["user_id", U]], [300, 2000], { col: "created_at", asc: false }],
+        [qMsg.ord, qMsg.eq, lettureMsg.map((q) => q.lim), lettureMsg[1].ord],
+      );
+      c(
+        "p1-chat-veloce: senza `raw_payload` (il carico grosso sul telefono), con `cambiato_il`",
+        [false, true, false],
+        [/raw_payload/.test(qMsg.cols), /cambiato_il/.test(qMsg.cols), qMsg.cols === "*"],
+      );
+      c(
+        "dopo i 2000 l'elenco ha la chat più recente e l'ultimo messaggio giusto",
+        "m2499",
+        p.api().chats.find((x) => x.phone === "+393335550005")?.lastMessage?.id,
       );
       const qCont = p.db.log.find((q) => q.t === "whatsapp_contacts" && q.op === "select");
       c(
@@ -1706,7 +1757,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
       //  Migrazione non ancora applicata: il filtro dà 42703, si rilegge senza filtro e si scarta in codice.
       const r = await monta({ messaggi: righe, contatti: [], senzaDuplicatoDi: true });
-      const rm = r.db.log.filter((x) => x.t === "whatsapp_messages" && x.op === "select" && x.lim === 2000);
+      const rm = r.db.log.filter((x) => x.t === "whatsapp_messages" && x.op === "select" && !x.or && x.lim !== 1);
       c(
         "errore 42703: rilegge senza filtro (stessa richiesta, niente `is`), nessun errore in pagina",
         [[1, 0], null],
@@ -1725,7 +1776,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
     gruppo("CHAT WHATSAPP · PAGINA · PONTE: LO STORICO NON RIAVVIA LA LETTURA");
     {
-      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000).length;
+      //  p1-chat-veloce: una «lettura» è anche quella a pezzi (non più solo i 2000).
+      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1).length;
       const mondo = () => ({
         messaggi: [msg("m1", "inbound", P1, "ciao", -5 * MIN, { canale: "manychat" })],
         contatti: [contatto("c1", P1, { last_message_at: iso(-5 * MIN), updated_at: iso(-5 * MIN), ultimo_in_entrata_il: iso(-5 * MIN) })],
@@ -1774,7 +1826,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
     {
       //  Il Mac era spento: il messaggio è di 3 ore fa ma il ponte lo scrive adesso. Per il tempo reale è «storico»
       //  (non rilegge); lo prende il controllo dei 15 s, perché il contatto ha `updated_at` nuovo.
-      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && q.lim === 2000).length;
+      const letture = (p) => p.db.log.filter((q) => q.t === "whatsapp_messages" && q.op === "select" && !q.or && q.lim !== 1).length;
       const p = await monta({
         messaggi: [msg("m1", "outbound", P1, "ciao", -6 * ORA_MS, { canale: "manychat" })],
         contatti: [contatto("c1", P1, { last_message_at: iso(-6 * ORA_MS), updated_at: iso(-6 * ORA_MS) })],
