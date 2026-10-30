@@ -52,6 +52,9 @@ export interface RichiestaQuando {
   nota: string;
   /** true = l'ora fa parte della promessa fatta al cliente. */
   oraObbligatoria: boolean;
+  /** true = anche il GIORNO è facoltativo: la finestra offre «Senza data»
+   *  (lo stato si salva e il lead non viene ricontattato). */
+  dataFacoltativa?: boolean;
   /** true = ha senso passare all'agenda del consulente (solo la consulenza). */
   conOrariLiberi?: boolean;
 }
@@ -150,8 +153,9 @@ export const QUANDO_PER_STATO: Partial<Record<LeadStatus, RichiestaQuando>> = {
     chiaveOra: "oraRicontatto",
     nomeCampo: "Quando ricontattarlo",
     titolo: "Quando lo risenti",
-    nota: "Facoltativa: se non la sai, premi «Non adesso»",
+    nota: "Facoltativa: senza data («Non adesso» o «Senza data») non viene ricontattato",
     oraObbligatoria: false,
+    dataFacoltativa: true,
   },
   fissa_meet_dopo: {
     chiaveData: "dataRicontatto",

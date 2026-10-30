@@ -21371,6 +21371,7 @@ proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
+proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22352,4 +22353,14 @@ function proveDelleCorrezioniManychat() {
   c("promemoria e conferme partiti come testo: risparmiati, non testi a mano né modelli pagati", [0, 2, 0], [r.testiLiberi, r.risparmio.messaggi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
   const porta = readFileSync(join(radice, "src/crm/manychat/porta.ts"), "utf8");
   c("modello di riserva partito: il registro ha il suo flusso", true, /ns = nsRiserva;/.test(porta) && /modelloDiRiserva && ns \? \{ flow_ns: ns \}/.test(porta));
+}
+
+function proveDelPerOraNoSenzaData() {
+  gruppo("«PER ORA NO»: LA DATA È FACOLTATIVA ANCHE NELLA FINESTRA DELLO STATO");
+  const q = readFileSync(join(radice, "src/crm/quando-per-stato.ts"), "utf8");
+  c("per_ora_no ha la data facoltativa", true, /per_ora_no: \{[\s\S]*?dataFacoltativa: true/.test(q));
+  c("solo per_ora_no, per ora", 1, (q.match(/dataFacoltativa: true/g) || []).length);
+  const d = readFileSync(join(radice, "src/crm/QuickStatusDialog.tsx"), "utf8");
+  c("la finestra offre «Senza data» solo se la data è facoltativa", true, /richiesta\?\.dataFacoltativa && \(/.test(d) && />\s*Senza data\s*</.test(d));
+  c("senza data: lo stato si salva e il giorno del ricontatto si svuota", true, /const senzaData = async/.test(d) && /patch\[richiesta\.chiaveData as "dataRicontatto"\] = ""/.test(d));
 }

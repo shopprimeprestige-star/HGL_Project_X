@@ -115,11 +115,7 @@ import { CLASSE_BADGE_STATO, Tasto, classiStato, dataBreve, eur, useTastoComando
 import { ScorciatoieFinestra, useSalvaConTastiera } from "./SchedaCliente";
 //  Il messaggio automatico dello stato, scritto dal consulente (commessa 2026-10-30).
 import { RiquadroMessaggioStato } from "./RiquadroMessaggioStato";
-import {
-  patchMessaggio,
-  statoHaMessaggio,
-  type BozzaMessaggio,
-} from "./manychat/messaggio-stato";
+import { patchMessaggio, statoHaMessaggio, type BozzaMessaggio } from "./manychat/messaggio-stato";
 
 interface DefaultValues {
   acconto?: number;
@@ -2005,6 +2001,40 @@ function ProceduraQuando({
   const puoAvanzare =
     passo === "giorno" ? !!data : passo === "ora" ? !oraObbligatoria || !!ora : !!data;
 
+  /*  ── SENZA DATA (30/10/2026) ──────────────────────────────────────────
+      Richiesta del titolare: «Per ora no» con la data facoltativa. Senza data
+      lo stato si salva lo stesso e il giorno del ricontatto si svuota: non
+      lo risente nessuno finché non gliela si mette. */
+  const senzaData = async () => {
+    if (!richiesta?.dataFacoltativa || inCorso.current) return;
+    inCorso.current = true;
+    setSalvando(true);
+    try {
+      const patch: Partial<LeadData> = { stato };
+      patch[richiesta.chiaveData as "dataRicontatto"] = "";
+      patch[richiesta.chiaveOra as "oraRicontatto"] = "";
+      const precedenti = typeof lead.data.note === "string" ? lead.data.note : "";
+      const riga = `${dataBreve(new Date().toISOString())} · ${LEAD_STATUS_LABEL[stato]}, senza data`;
+      patch.note = precedenti.trim() ? `${precedenti}\n${riga}` : riga;
+      if (!(await updateLead(lead.id, patch))) {
+        toast.error("Non salvato", {
+          description: "La scheda in archivio è rimasta com'era. Riprova.",
+        });
+        return;
+      }
+      toast.success(`${nomeCliente} → ${LEAD_STATUS_LABEL[stato]}`, {
+        description: "Senza data: non verrà ricontattato",
+      });
+      onSalvato?.({ stato });
+      onCambio(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Aggiornamento non riuscito");
+    } finally {
+      inCorso.current = false;
+      setSalvando(false);
+    }
+  };
+
   const conferma = async () => {
     if (!richiesta || inCorso.current) return;
     if (!data) {
@@ -2127,9 +2157,16 @@ function ProceduraQuando({
             </span>
           </ScorciatoieFinestra>
           {passo === "giorno" ? (
-            <Button variant="outline" onClick={() => onCambio(false)} disabled={salvando}>
-              Annulla
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => onCambio(false)} disabled={salvando}>
+                Annulla
+              </Button>
+              {richiesta?.dataFacoltativa && (
+                <Button variant="outline" onClick={() => void senzaData()} disabled={salvando}>
+                  Senza data
+                </Button>
+              )}
+            </>
           ) : (
             <Button
               variant="outline"
