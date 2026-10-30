@@ -12,11 +12,16 @@
  *  ⚠️ ORARI LIBERI (30/10/2026): la richiesta porta gli orari veri dei prossimi
  *   giorni (`useGiorniLiberi`, lo stesso di Slot liberi) nella colonna `orari`.
  *   Senza la migrazione 20261030100000 la colonna manca: si riprova senza.
+ *  ⚠️ RISPIEGA (30/10/2026): stessa strada, `modo: "rispiega"`. Si sceglie la nostra
+ *   risposta e le domande del cliente (fino a 8, anche nostre: `apriRispiega`), niente
+ *   parte da solo, nessuna indicazione né orario. Senza la migrazione 20261030180000
+ *   (colonna `modo`) NON si riprova senza: sarebbe una risposta a un'altra domanda.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useGiorniLiberi } from "@/crm/useGiorniLiberi";
 import { oggiIso } from "@/crm/ui";
+import { MAX_RISPIEGA, commuta, controllaScelta, fraseControllo } from "@/crm/risposte-ai/rispiega";
 import {
   ATTESA_MAX_S,
   CHIAVE_BATTITO,
@@ -41,9 +46,12 @@ type Q = {
 const tabella = (t: string) => (supabase as unknown as { from: (t: string) => Q }).from(t);
 
 export type FaseAi = "scelta" | "attesa";
+/** `rispondi` = «Rispondi con AI»; `rispiega` = «Rispiega con AI» (barra e prompt suoi). */
+export type ModoAi = "rispondi" | "rispiega";
 
 export interface RispostaAiApi {
   attivo: boolean;
+  modo: ModoAi;
   fase: FaseAi;
   scelti: string[];
   cambia: (id: string) => void;
@@ -52,6 +60,8 @@ export interface RispostaAiApi {
   /** `true` acceso, `false` spento, `null` non si sa (mai visto) */
   pc: boolean | null;
   apri: () => void;
+  /** accende la selezione per «Rispiega con AI», con questa bolla già scelta */
+  apriRispiega: (id: string) => void;
   chiudi: () => void;
   /** smette di aspettare e torna alla scelta, con gli stessi messaggi, per cambiarli e riprovare */
   ferma: () => void;
@@ -66,6 +76,7 @@ export function useRispostaAi(p: {
   onRisposta: (testo: string) => void;
 }): RispostaAiApi {
   const [attivo, setAttivo] = useState(false);
+  const [modo, setModo] = useState<ModoAi>("rispondi");
   const [fase, setFase] = useState<FaseAi>("scelta");
   const [scelti, setScelti] = useState<string[]>([]);
   const [indicazione, setIndicazioneGrezza] = useState("");
@@ -81,6 +92,7 @@ export function useRispostaAi(p: {
   const chiudi = useCallback(() => {
     giro.current++;
     setAttivo(false);
+    setModo("rispondi");
     setFase("scelta");
     setScelti([]);
     setIndicazioneGrezza("");
@@ -110,6 +122,7 @@ export function useRispostaAi(p: {
   }, [attivo]);
 
   const apri = () => {
+    setModo("rispondi");
     const partenza = sceltiDiPartenza(p.messaggi);
     setScelti(partenza);
     setErrore(null);
@@ -117,6 +130,17 @@ export function useRispostaAi(p: {
     setAttivo(true);
     //  Un tocco: se c'è qualcuno da rispondere si parte subito.
     if (partenza.length > 0) void scrivi(partenza);
+  };
+
+  const apriRispiega = (id: string) => {
+    //  Una scelta già aperta (anche l'altra) non si sovrascrive da una pressione lunga.
+    if (attivo) return;
+    setModo("rispiega");
+    setScelti([id]);
+    setIndicazioneGrezza("");
+    setErrore(null);
+    setFase("scelta");
+    setAttivo(true);
   };
 
   const ferma = () => {
@@ -127,22 +151,36 @@ export function useRispostaAi(p: {
 
   const cambia = (id: string) =>
     setScelti((s) =>
-      s.includes(id) ? s.filter((x) => x !== id) : s.length >= MAX_SCELTI ? s : [...s, id],
+      modo === "rispiega"
+        ? commuta(s, id, MAX_RISPIEGA)
+        : s.includes(id)
+          ? s.filter((x) => x !== id)
+          : s.length >= MAX_SCELTI
+            ? s
+            : [...s, id],
     );
 
   /** `daScrivere`: i messaggi da rispondere; senza, quelli scelti nella barra. */
   const scrivi = async (daScrivere?: string[]) => {
     const messaggiScelti = daScrivere ?? scelti;
     if (!p.telefono || messaggiScelti.length === 0 || fase === "attesa") return;
+    const rispiega = modo === "rispiega";
+    //  Rispiega: prima si controlla la scelta (serve una bolla nostra), poi si chiede.
+    const controllo = rispiega ? controllaScelta(messaggiScelti, p.messaggi) : null;
+    if (controllo && !controllo.ok) {
+      setErrore(fraseControllo(controllo.motivo));
+      return;
+    }
     const mio = ++giro.current;
     setErrore(null);
     setFase("attesa");
-    const richiesta = {
+    const richiesta: Record<string, unknown> = {
       telefono: p.telefono,
-      messaggi: messaggiScelti,
-      indicazione: indicazione.trim() || null,
+      messaggi: controllo?.ok ? controllo.ids : messaggiScelti,
+      indicazione: rispiega ? null : indicazione.trim() || null,
+      ...(rispiega && { modo: "rispiega" }),
     };
-    const orari = testoOrari(giorniRef.current, oggiIso(new Date()));
+    const orari = rispiega ? null : testoOrari(giorniRef.current, oggiIso(new Date()));
     const mandaRichiesta = (v: Record<string, unknown>) =>
       tabella("wa_risposte_ai").insert(v).select("id").single();
     let { data, error } = await mandaRichiesta(orari ? { ...richiesta, orari } : richiesta);
@@ -154,7 +192,9 @@ export function useRispostaAi(p: {
       setErrore(
         ["42P01", "PGRST205"].includes(String(error?.code ?? ""))
           ? "Manca la tabella delle risposte AI nel database (migrazione da applicare)."
-          : "Non riesco a mandare la richiesta. Riprova.",
+          : rispiega && colonnaMancante(error)
+            ? "«Rispiega con AI» non è ancora attivo: manca un aggiornamento del database (migrazione da applicare)."
+            : "Non riesco a mandare la richiesta. Riprova.",
       );
       return;
     }
@@ -196,6 +236,7 @@ export function useRispostaAi(p: {
 
   return {
     attivo,
+    modo,
     fase,
     scelti,
     cambia,
@@ -203,6 +244,7 @@ export function useRispostaAi(p: {
     setIndicazione: (t) => setIndicazioneGrezza(t.slice(0, LIMITE_INDICAZIONE)),
     pc,
     apri,
+    apriRispiega,
     chiudi,
     ferma,
     scrivi: () => scrivi(),

@@ -255,7 +255,7 @@ export { FormScriviDalPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa
     const conv = senzaCommenti(sorgente("src/crm/chatwa/Conversazione.tsx"));
     c("la conversazione mescola la coda solo qui, con unisciConCoda", [true, true], [/unisciConCoda\(/.test(conv), /api\.ponte\?*\.coda/.test(conv)]);
     c("…la risposta AI e il tasto «Rispondi con l'AI» restano sui messaggi veri", [true, true], [/useRispostaAi\(\{[\s\S]{0,200}messaggi,/.test(conv), /messaggi\.some\(/.test(conv)]);
-    c("…le bolle della coda non si scelgono per la risposta AI", true, /m\.body\?\.trim\(\) && !bolla \?/.test(conv));
+    c("…le bolle della coda non si scelgono per la risposta AI", true, /m\.body\?\.trim\(\)\)\s*&&\s*!bolla \?/.test(conv));
     c("…il riprova passa da api.ponte.riprova", true, /api\.ponte\??\.riprova\(/.test(conv));
     c("…scorre in fondo anche quando arriva una bolla (dipende dalla lunghezza mescolata)", true, /voci\.length/.test(conv));
   } finally {

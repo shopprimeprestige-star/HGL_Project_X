@@ -232,6 +232,11 @@ export function erroreInChiaro(codice: string | null | undefined): string {
       return "Non trovo più i messaggi scelti. Ricarica la chat e riprova.";
     case "accesso_claude":
       return "Claude sul Mac non è collegato all'account. Apri Claude sul Mac e accedi.";
+    //  «Rispiega con AI» (30/10/2026): vedi ./rispiega.
+    case "senza_nostro":
+      return "Per rispiegare serve anche almeno un tuo messaggio: scegline uno e riprova.";
+    case "troppo_testo":
+      return "I messaggi scelti sono troppo lunghi: togline qualcuno e riprova.";
     default:
       return "Il Mac non è riuscito a scrivere la risposta. Riprova.";
   }
