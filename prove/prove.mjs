@@ -20534,6 +20534,16 @@ function proveDiWhatsappSulTelefono() {
   c("sotto i 1280 px il pannello Oggi è un foglio sopra la pagina", true, /<Sheet open=\{foglioOggi\}/.test(pg) && /<SheetContent\s+side="right"[\s\S]{0,300}className="crm-theme w-full/.test(pg));
   c("i fogli e le tendine del CRM hanno i colori del CRM anche fuori dal guscio (30/10)", true, /body:has\(\.crm-theme\) > \[data-radix-popper-content-wrapper\]/.test(readFileSync(join(radice, "src/styles.css"), "utf8")));
   {
+    //  Revisione del 30/10: ai portali SOLO variabili, mai sfondo o caratteri
+    //  (lo strato scuro dietro le finestre diventava bianco pieno).
+    const css = readFileSync(join(radice, "src/styles.css"), "utf8");
+    const i = css.indexOf("body:has(.crm-theme) > [data-radix-popper-content-wrapper]");
+    const corpo = css.slice(css.indexOf("{", i) + 1, css.indexOf("}", i));
+    const proprieta = corpo.split(";").map((x) => x.trim()).filter(Boolean);
+    c("portali: solo variabili --*", true, proprieta.length > 10 && proprieta.every((x) => x.startsWith("--")));
+    c("portali: lo strato dietro le finestre (div[data-state]) non è toccato", false, /body:has\(\.crm-theme\) > div\[data-state\]/.test(css));
+  }
+  {
     const po = readFileSync(join(radice, "src/crm/chatwa/PannelloOggi.tsx"), "utf8");
     c("Oggi: consulenze in tre gruppi, «Già fatte» chiuso di partenza", true, /\["fatte", "Già fatte"/.test(po) && /CHIUSI_DI_PARTENZA = new Set\(\["fatte"/.test(po));
     c("Oggi: le fasce di «Da fare» si aprono e chiudono", true, /aperto=\{gruppiAperti\.aperto\(g\.fascia\)\}/.test(po));
