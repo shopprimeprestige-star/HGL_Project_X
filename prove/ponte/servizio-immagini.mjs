@@ -69,7 +69,7 @@ export async function provePonteServizioImmagini(_mod, { c, gruppo, radice }) {
     const stato = { ora: opz.ora ?? T0, pause: [], chiamate: [], violazioni: [], log: [], scarichi: [], put: [], avvii: [] };
     const server = {
       permesso: () => ({ stato: 200, corpo: { ok: true, esito: "carica", url_carico: CARICO } }),
-      fatto: () => ({ stato: 200, corpo: { ok: true } }),
+      fatto: () => ({ stato: 200, corpo: { ok: true, esito: "pronta" } }),
       put: () => ({ status: 200 }),
       ...(opz.server ?? {}),
     };
@@ -81,7 +81,7 @@ export async function provePonteServizioImmagini(_mod, { c, gruppo, radice }) {
         if (r.rete) throw new Error("rete assente http://segreto.example/x");
         return { status: r.stato, text: async () => JSON.stringify(r.corpo ?? null) };
       }
-      if (/^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/upload\/sign\/ponte-media\//.test(String(indirizzo)) && init.method === "PUT") {
+      if (/^https:\/\/[a-z0-9-]+(\.storage)?\.supabase\.co\/storage\/v1\/object\/upload\/sign\/ponte-media\//.test(String(indirizzo)) && init.method === "PUT") {
         stato.put.push(init.body);
         const r = server.put(init);
         if (r.rete) throw new Error("rete assente");
@@ -511,11 +511,101 @@ export async function provePonteServizioImmagini(_mod, { c, gruppo, radice }) {
     {
       //  'fatto' che non va: la foto è già su Storage, il lavoro resta SENZA riscaricare né ricaricare.
       let n = 0;
-      const x = nuovo({ server: { fatto: () => (n++ < 2 ? { stato: 500, corpo: null } : { stato: 200, corpo: { ok: true } }) } });
+      const x = nuovo({ server: { fatto: () => (n++ < 2 ? { stato: 500, corpo: null } : { stato: 200, corpo: { ok: true, esito: "pronta" } }) } });
       accodaUna(x, 1);
       await x.img.avvia();
       c("'fatto' fallito due volte: un solo download, un solo PUT, tre 'fatto', poi finito", [1, 1, 3, 0, 1], [x.stato.scarichi.length, x.stato.put.length, x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_fatto").length, nelDisco(x.coda).length, x.img.contatori().ok]);
       c("'fatto' ritentato senza ripetere il permesso", 1, x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_permesso").length);
+    }
+    {
+      //  L'esito di 'fatto' è quello VERO di T5 (media-tipi.ts): sempre 200 {ok:true, esito:"pronta"|"in_caricamento"|"assente"}.
+      const fatti = (x) => x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_fatto").length;
+      const permessiChiesti = (x) => x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_permesso").length;
+      const risposta = (esito) => ({ stato: 200, corpo: esito === undefined ? { ok: true } : { ok: true, esito } });
+
+      const a1 = nuovo({ server: { fatto: () => risposta("pronta") } });
+      accodaUna(a1, 1);
+      await a1.img.avvia();
+      c("'fatto' → pronta: lavoro concluso, contato 'ok', file tolto", [1, 0], [a1.img.contatori().ok, nelDisco(a1.coda).length]);
+
+      //  in_caricamento: la foto NON è pronta, il lavoro resta con caricato:true e si ritenta solo il 'fatto'.
+      const b1 = nuovo({ server: { fatto: () => risposta("in_caricamento") }, maxPause: 1 });
+      accodaUna(b1, 1);
+      await b1.img.avvia();
+      const dopo1 = JSON.parse(readFileSync(join(b1.coda, nomeFile(chiave(1))), "utf8"));
+      c("'fatto' → in_caricamento: il lavoro RESTA (non è 'ok'), con caricato:true e un guasto", [0, 1, true, 1], [b1.img.contatori().ok, nelDisco(b1.coda).length, dopo1.caricato, dopo1.guasti]);
+      const b2 = nuovo({ server: { fatto: () => risposta("in_caricamento") }, maxPause: 40 });
+      accodaUna(b2, 1);
+      await b2.img.avvia();
+      const lunghe = b2.stato.pause.filter((ms) => ms > 10_000).map((ms) => Math.round(ms / 60_000));
+      c("'fatto' → in_caricamento sempre: 5 tentativi con attese 5, 15, 60, 180 minuti, poi scartato 'errori'", [[5, 15, 60, 180], 5, 0, 1, 0], [lunghe, fatti(b2), nelDisco(b2.coda).length, b2.img.contatori().errori, b2.img.contatori().ok]);
+      c("in_caricamento: un solo download, un solo PUT, un solo permesso (si ritenta solo il 'fatto')", [1, 1, 1], [b2.stato.scarichi.length, b2.stato.put.length, permessiChiesti(b2)]);
+      let n1 = 0;
+      const b3 = nuovo({ server: { fatto: () => risposta(n1++ < 2 ? "in_caricamento" : "pronta") } });
+      accodaUna(b3, 1);
+      await b3.img.avvia();
+      c("in_caricamento due volte, poi pronta: finito, contato 'ok'", [1, 0, 3], [b3.img.contatori().ok, nelDisco(b3.coda).length, fatti(b3)]);
+
+      //  assente: la riga di permesso non c'è più → caricato:false e si rifà il permesso (e il carico).
+      let n2 = 0;
+      const d1 = nuovo({ server: { fatto: () => risposta(n2++ < 1 ? "assente" : "pronta") } });
+      accodaUna(d1, 1);
+      await d1.img.avvia();
+      c("'fatto' → assente: si rifà il permesso, il download e il carico; poi pronta", [2, 2, 2, 2, 1, 0], [permessiChiesti(d1), d1.stato.scarichi.length, d1.stato.put.length, fatti(d1), d1.img.contatori().ok, nelDisco(d1.coda).length]);
+      const d2 = nuovo({ server: { fatto: () => risposta("assente") }, maxPause: 1 });
+      accodaUna(d2, 1);
+      await d2.img.avvia();
+      const dopo2 = JSON.parse(readFileSync(join(d2.coda, nomeFile(chiave(1))), "utf8"));
+      c("'fatto' → assente: nel file caricato:false e un guasto contato; il lavoro resta", [false, 1, 0], [dopo2.caricato === true, dopo2.guasti, d2.img.contatori().ok]);
+      const d3 = nuovo({ server: { fatto: () => risposta("assente") }, maxPause: 80 });
+      accodaUna(d3, 1);
+      await d3.img.avvia();
+      c("'fatto' → assente sempre: dopo 5 tentativi scartato 'errori' (nessun giro infinito)", [0, 1, 0], [nelDisco(d3.coda).length, d3.img.contatori().errori, d3.img.contatori().ok]);
+
+      //  Qualunque altra risposta 200+ok senza 'pronta' è 'non pronta'.
+      for (const [nome, esito] of [["senza esito", undefined], ["esito sconosciuto", "forse"], ["esito non stringa", 7]]) {
+        const e1 = nuovo({ server: { fatto: () => risposta(esito) }, maxPause: 1 });
+        accodaUna(e1, 1);
+        await e1.img.avvia();
+        c(`'fatto' ${nome}: non è pronta, il lavoro resta e non è contato 'ok'`, [0, 1], [e1.img.contatori().ok, nelDisco(e1.coda).length]);
+      }
+    }
+    {
+      //  Un lavoro "avvelenato" (il CRM gli risponde sempre 500) non ferma la coda e dopo 5 tentativi è scartato.
+      let x;
+      let nuove = 0;
+      x = nuovo({
+        maxPause: 400,
+        server: {
+          permesso: (corpo) => {
+            if (corpo.chiave !== chiave(1)) return { stato: 200, corpo: { ok: true, esito: "carica", url_carico: CARICO } };
+            accodaUna(x, 100 + ++nuove); // intanto arrivano foto nuove, e vanno bene
+            return { stato: 500, corpo: null };
+          },
+        },
+      });
+      accodaUna(x, 1, img(), TS - 100);
+      await x.img.avvia();
+      c("lavoro avvelenato (sempre 500) mentre le altre foto vanno: scartato 'errori' al 5° tentativo", [1, 0], [x.img.contatori().errori, nelDisco(x.coda).length]);
+      c("  e le altre foto sono state caricate (tutte), nessuna persa", [nuove, nuove], [x.img.contatori().ok, x.stato.put.length]);
+      c("  il lavoro avvelenato ha chiesto il permesso 5 volte, non di più", 5, x.stato.chiamate.filter((k) => k.corpo?.chiave === chiave(1)).length);
+
+      //  Un CRM giù per TUTTI (nessuna risposta buona) non scarta niente.
+      const giu = nuovo({ server: { permesso: () => ({ stato: 500, corpo: null }) }, maxPause: 60 });
+      for (let i = 1; i <= 3; i++) accodaUna(giu, i);
+      await giu.img.avvia();
+      c("Worker che dà 500 a tutti per ore: nessun lavoro scartato, tutti e 3 restano", [0, 3, 0], [giu.img.contatori().errori, nelDisco(giu.coda).length, giu.img.contatori().ok]);
+    }
+    {
+      //  L'URL di carico può stare anche su <ref>.storage.supabase.co.
+      const nuovoDominio = "https://abcdefgh.storage.supabase.co/storage/v1/object/upload/sign/ponte-media/u/p.jpg?token=A";
+      const x = nuovo({ server: { permesso: () => ({ stato: 200, corpo: { ok: true, esito: "carica", url_carico: nuovoDominio } }) } });
+      accodaUna(x, 1);
+      await x.img.avvia();
+      const dominiNo = nuovo({ server: { permesso: () => ({ stato: 200, corpo: { ok: true, esito: "carica", url_carico: "https://abcdefgh.storage.supabase.co.evil.example/storage/v1/object/upload/sign/ponte-media/u/p.jpg" } }) }, maxPause: 2 });
+      accodaUna(dominiNo, 1);
+      await dominiNo.img.avvia();
+      c("url_carico su <ref>.storage.supabase.co: accettato; con un suffisso estraneo no", [1, 0, []], [x.stato.chiamate.filter((k) => k.metodo === "PUT" && k.url === nuovoDominio).length, dominiNo.stato.put.length, dominiNo.stato.violazioni]);
     }
 
     // ── 5. La coda su disco (D5, c.2) ───────────────────────────────────

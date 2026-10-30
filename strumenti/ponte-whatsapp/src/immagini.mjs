@@ -80,7 +80,7 @@ const CHIAVE_VALIDA = /^bw:\d{8,15}:[A-Za-z0-9_.-]{1,128}$/;
 const FILE_CODA = /^[0-9a-f]{64}\.json$/;
 const BASE64_32 = /^[A-Za-z0-9+/]{43}=$/;
 const STORAGE_PERCORSO = "/storage/v1/object/upload/sign/ponte-media/";
-const HOST_STORAGE = /^[a-z0-9-]+\.supabase\.co$/;
+const HOST_STORAGE = /^[a-z0-9-]+(\.storage)?\.supabase\.co$/;
 
 const oggetto = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
 
@@ -223,7 +223,13 @@ export function creaImmagini({ url, token, cartella, scarica, registro = () => {
   const conti = { ok: 0, scadute: 0, errori: 0, tetto: 0, scartate: 0, coda_piena: 0 };
   let partiti = [];
   let sospesoFino = 0;
-  let guastiServer = 0;
+  /** risposte storte del CRM di fila (si azzera a ogni risposta buona); `ultimoBuono` e `primo`/`ultimo`
+   *  dei lavori sono numeri d'ordine degli eventi (`ordine`), non orari: due eventi nello stesso millisecondo si distinguono. */
+  let fallitiDiFila = 0;
+  let ordine = 0;
+  let ultimoBuono = 0;
+  /** per lavoro: quante volte il CRM l'ha rifiutato in modo storto (400/5xx…), da quando, ultima volta; solo in memoria */
+  const serverPerLavoro = new Map();
   let avviato = false;
   let fermato = false;
   let corso = null;
@@ -234,6 +240,7 @@ export function creaImmagini({ url, token, cartella, scarica, registro = () => {
 
   function togli(nome) {
     indice.delete(nome);
+    serverPerLavoro.delete(nome);
     rmSync(fileDi(nome), { force: true });
   }
 
@@ -286,10 +293,34 @@ export function creaImmagini({ url, token, cartella, scarica, registro = () => {
       }, Math.max(0, ms));
     });
 
-  /** Il CRM non è pronto (Worker vecchio, migrazione mancante, chiave, rete, risposta storta): il lavoro RESTA, il ciclo dorme. */
-  function serverNonPronto(http) {
+  /** Il CRM ha risposto bene (200 + ok): la rete e il Worker funzionano. */
+  function serverVivo() {
+    fallitiDiFila = 0;
+    ultimoBuono = ++ordine;
+  }
+
+  /** Il CRM non è pronto (Worker vecchio, migrazione mancante, chiave, rete, risposta storta): il lavoro RESTA.
+   *  Il lavoro aspetta 5 min → 15 min → 1 h → 3 h; solo dalla seconda risposta storta di fila dorme anche
+   *  tutto il ciclo (un CRM giù). Un lavoro che prende 5 risposte storte mentre il CRM risponde bene agli
+   *  altri (almeno una buona fra la quarta e la quinta) è lui il problema: scartato (`errori`), così non
+   *  blocca la coda. Un CRM giù per tutti non scarta niente. */
+  function serverNonPronto(nome, lavoro, http) {
     registro("immagini_server_non_pronto", { http: http ?? 0 });
-    sospesoFino = orologio() + L.attese[Math.min(guastiServer++, L.attese.length - 1)];
+    const adesso = orologio();
+    fallitiDiFila++;
+    const attesa = L.attese[Math.min(fallitiDiFila - 1, L.attese.length - 1)];
+    const prima = serverPerLavoro.get(nome);
+    const s = prima ?? { n: 0, primo: ++ordine, ultimo: 0 };
+    s.n++;
+    const serverRispondeBene = ultimoBuono > s.primo && ultimoBuono > s.ultimo;
+    s.ultimo = ++ordine;
+    serverPerLavoro.set(nome, s);
+    if (s.n >= L.tentativi && serverRispondeBene) {
+      serverPerLavoro.delete(nome);
+      return { tipo: "scarta", conto: "errori" };
+    }
+    lavoro.prossimo_il = adesso + attesa;
+    if (fallitiDiFila >= 2) sospesoFino = adesso + attesa;
     return { tipo: "sospeso" };
   }
 
@@ -378,29 +409,38 @@ export function creaImmagini({ url, token, cartella, scarica, registro = () => {
     if (!lavoro.caricato) {
       const p = await spedisci({ url, token, corpo: { v: 1, tipo: "media_permesso", chiave: lavoro.chiave, mime: lavoro.mime, byte: lavoro.byte }, fetch });
       const risposta = p.corpo;
-      if (p.stato !== 200 || risposta?.ok !== true) return serverNonPronto(p.stato);
-      guastiServer = 0;
-      if (risposta.esito === "gia_presente") return { tipo: "scarta", conto: "scartate" };
+      if (p.stato !== 200 || risposta?.ok !== true) return serverNonPronto(nome, lavoro, p.stato);
+      //  `serverVivo` solo quando la risposta è una di quelle previste: una risposta che non capiamo non prova che il CRM stia bene.
+      if (risposta.esito === "gia_presente") {
+        serverVivo();
+        return { tipo: "scarta", conto: "scartate" };
+      }
       if (risposta.esito === "rifiutato") {
         if (risposta.motivo === "spenta") {
+          serverVivo();
           registro("immagini_spente");
           sospesoFino = orologio() + L.pausaSpentaMs;
           return { tipo: "sospeso" };
         }
         if (risposta.motivo === "tetto") {
+          serverVivo();
           conti.tetto++;
           registro("immagini_tetto_pieno");
           sospesoFino = orologio() + L.pausaTettoMs;
           return { tipo: "sospeso" };
         }
-        if (risposta.motivo === "troppo_grande" || risposta.motivo === "tipo") return { tipo: "scarta", conto: "scartate" };
-        return serverNonPronto(p.stato);
+        if (risposta.motivo === "troppo_grande" || risposta.motivo === "tipo") {
+          serverVivo();
+          return { tipo: "scarta", conto: "scartate" };
+        }
+        return serverNonPronto(nome, lavoro, p.stato);
       }
       const urlCarico = risposta.esito === "carica" ? urlCaricoValido(risposta.url_carico) : null;
       if (!urlCarico) {
         registro("immagini_url_carico_non_valido");
-        return serverNonPronto(p.stato);
+        return serverNonPronto(nome, lavoro, p.stato);
       }
+      serverVivo();
 
       const d = await scaricaProtetto(lavoro);
       if (!d.ok) {
@@ -418,9 +458,18 @@ export function creaImmagini({ url, token, cartella, scarica, registro = () => {
     }
 
     const f = await spedisci({ url, token, corpo: { v: 1, tipo: "media_fatto", chiave: lavoro.chiave }, fetch });
-    if (f.stato !== 200 || f.corpo?.ok !== true) return serverNonPronto(f.stato);
-    guastiServer = 0;
-    return { tipo: "fatto" };
+    if (f.stato !== 200 || f.corpo?.ok !== true) return serverNonPronto(nome, lavoro, f.stato);
+    //  Il CRM risponde SEMPRE 200 e dice com'è andata: `pronta` (Storage ha l'oggetto), `in_caricamento` (non lo
+    //  vede ancora) o `assente` (nessun permesso per quella chiave). Chiuso solo con `pronta`; qualunque altra
+    //  cosa (anche un esito che non conosciamo) è «non pronta»: la foto non si butta.
+    if (!["pronta", "in_caricamento", "assente"].includes(f.corpo.esito)) return serverNonPronto(nome, lavoro, f.stato);
+    serverVivo();
+    if (f.corpo.esito === "pronta") return { tipo: "fatto" };
+    if (f.corpo.esito === "assente") {
+      //  la riga di permesso non c'è più: si rifà il permesso da capo (stesso percorso)
+      lavoro.caricato = false;
+    }
+    return { tipo: "guasto" };
   }
 
   /** Un lavoro, dall'inizio all'esito. Non lancia mai. Restituisce `true` se ha lavorato davvero (poi la pausa di cortesia). */
@@ -483,7 +532,9 @@ export function creaImmagini({ url, token, cartella, scarica, registro = () => {
   function sveglia() {
     if (fermato) return Promise.resolve();
     if (corso) return corso;
-    corso = ciclo()
+    //  Si parte in un tick successivo: `corso` è già assegnato se `accoda` richiama `sveglia` durante il primo giro (due cicli insieme = due download insieme).
+    corso = Promise.resolve()
+      .then(ciclo)
       .catch(() => registro("immagini_ciclo_fallito"))
       .finally(() => {
         corso = null;
