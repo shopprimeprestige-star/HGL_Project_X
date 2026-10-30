@@ -119,6 +119,15 @@ export const TESTO_MEET_DOMANI = "hgl_meet_domani_testo";
 /** Il promemoria 24 ore prima della consulenza COME MODELLO. Spento dal titolare il 28/10:
  *  niente modello in più. Resta `false`. */
 export const MEET_DOMANI_ACCESO = false;
+/** Il messaggio all'ora della consulenza (`hgl_meet_adesso`, col link). Spento dal titolare il
+ *  30/10/2026: «disattiva il messaggio automatico di quando arriva l'orario della consulenza,
+ *  lascia solo i promemoria». Il promemoria 20 minuti prima e la mattina del meet restano. */
+export const MEET_ADESSO_ACCESO = false;
+/** Una decisione del giorno del meet riguarda il messaggio all'ora? (stessa regola della voce). */
+const eMeetAdesso = (d: { tipo: string; motivo?: string; extra?: { quale?: string } }): boolean =>
+  d.tipo === "invia"
+    ? d.extra?.quale === "meet_adesso"
+    : /messaggio all'ora|giro in ritardo|link/.test(d.motivo ?? "");
 /** Il promemoria 24 ore prima SOLO SE GRATIS (30/10/2026): parte come testo, con la finestra di
  *  24 ore aperta (ultima entrata < 23 ore), e la porta non ripiega mai sul modello. Altrimenti
  *  si salta. Si spegne con `false`; con `MEET_DOMANI_ACCESO` vero vale quello (modello ammesso). */
@@ -626,7 +635,9 @@ export function decisioniDelGiro(
     );
   if (scelta.giornoMeet)
     aggiungi(
-      decidiGiornoMeet(schede, adesso, base),
+      decidiGiornoMeet(schede, adesso, base).filter(
+        (d) => MEET_ADESSO_ACCESO || !eMeetAdesso(d as Parameters<typeof eMeetAdesso>[0]),
+      ),
       (x) => ({ tipo: x.quale, extra: { inizio: x.inizioMeet } }),
       //  I motivi di un salto dicono da soli di quale messaggio si parla.
       (d) =>

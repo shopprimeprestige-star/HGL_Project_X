@@ -21206,6 +21206,17 @@ function proveDelPrimoContattoTreFasce() {
   c("nel pannello c'è la riga per collegarne il flusso", true, /modello: "hgl_primo_contatto_tre_fasce"/.test(vista));
 }
 
+/** ── IL MESSAGGIO ALL'ORA DELLA CONSULENZA È SPENTO (30/10/2026) ─────────── */
+function proveDelMeetAdessoSpento() {
+  gruppo("MANYCHAT: IL MESSAGGIO ALL'ORA DEL MEET È SPENTO, I PROMEMORIA RESTANO");
+  const G = mod["manychat/giro"];
+  c("l'interruttore del messaggio all'ora è spento", false, G.MEET_ADESSO_ACCESO);
+  const giro = readFileSync(join(radice, "src/crm/manychat/giro.ts"), "utf8");
+  c("il giro filtra il messaggio all'ora, non il resto del giorno del meet", true, /MEET_ADESSO_ACCESO \|\| !eMeetAdesso/.test(giro));
+  const pan = readFileSync(join(radice, "src/crm/manychat/pannello.ts"), "utf8");
+  c("nel pannello il suo flusso non serve più", true, /modello === "hgl_meet_adesso"\) return false/.test(pan));
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21329,6 +21340,7 @@ provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
+proveDelMeetAdessoSpento();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

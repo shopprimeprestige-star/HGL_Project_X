@@ -904,7 +904,9 @@ function flussoServe(modello: string, i: IngressoCollegamento): boolean {
     return !!s?.leadNuovo;
   //  Il promemoria 24 ore prima parte solo come testo (30/10): il suo flusso non serve.
   if (modello === "hgl_meet_domani") return false;
-  if (modello === "hgl_meet_oggi" || modello === "hgl_meet_adesso") return !!s?.giornoMeet;
+  //  Il messaggio all'ora è spento dal titolare (30/10/2026): il suo flusso non serve.
+  if (modello === "hgl_meet_adesso") return false;
+  if (modello === "hgl_meet_oggi") return !!s?.giornoMeet;
   //  I modelli per stato: serve se uno degli stati che lo usano è acceso («Ricontatto
   //  fissato» è l'interruttore dei ricontatti).
   return STATI_RIQUADRO.some(

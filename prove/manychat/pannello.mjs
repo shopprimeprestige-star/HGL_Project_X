@@ -1623,8 +1623,9 @@ async function proveRotte(mod, { c, gruppo, radice }) {
     [s1.righe.every((r) => r.motivo.length > 3), s1.righe[0].nome],
   );
   c(
-    "…e con la stessa prova si vede anche cosa farebbero la mattina e l'ora esatta del meet",
-    ["aspetta", "salta"],
+    //  30/10/2026: il messaggio all'ora è spento, quindi non compare più nella prova.
+    "…e con la stessa prova si vede anche cosa farebbe la mattina del meet (l'ora esatta è spenta)",
+    [undefined, "salta"],
     [
       s1.righe.find((r) => r.tipo === "meet_adesso")?.esito,
       s1.righe.find((r) => r.tipo === "meet_oggi")?.esito,
@@ -3200,8 +3201,8 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "giorno del meet acceso senza i flussi → rossi mattina e all'ora; il 24 ore prima (spento dal 28/10) non serve",
-    ["errore", "non_serve", "errore", "non_serve"],
+    "giorno del meet acceso senza i flussi → rossa la mattina; all'ora (spento dal 30/10) e il 24 ore prima (spento dal 28/10) non servono",
+    ["errore", "non_serve", "non_serve", "non_serve"],
     [
       colMeet["flusso:hgl_meet_oggi"],
       colMeet["flusso:hgl_meet_domani"],
