@@ -465,9 +465,10 @@ export function proveIdeeRighe(mod, { c, gruppo, radice }) {
     /attiva\.finestra\?\.aperta === false\s*\?\s*testoPerWhatsapp\(/.test(conv),
   );
   c(
-    "elenco: «24h aperto» ha il riquadro delle scadenze in cima",
+    //  30/10/2026: «24h aperto» è «Si può scrivere» (filtri.finestra === "aperta"); il riquadro è «Finestra in chiusura».
+    "elenco: «Si può scrivere» ha il riquadro delle scadenze in cima",
     true,
-    /filtro === "aperto-24h"\s*\?\s*ordinaPerScadenza\(/.test(elenco) &&
+    /filtri\.finestra === "aperta"\s*\?\s*ordinaPerScadenza\(/.test(elenco) &&
       elenco.indexOf('id="titolo-in-scadenza"') < elenco.indexOf('id="titolo-da-rispondere"'),
   );
   c(

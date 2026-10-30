@@ -32,7 +32,7 @@ export function TestataSelezione({ quante, tutte, occupata, onTutte, onAnnulla }
     <div className="flex items-center gap-1 bg-emerald-50/70 px-3 pb-1 pt-3 md:px-2 md:py-2.5">
       <p
         role="status"
-        className="min-w-0 flex-1 truncate text-[17px] font-semibold text-foreground md:text-[13px]"
+        className="min-w-0 flex-1 truncate t-riga font-semibold text-foreground"
       >
         {quante === 0 ? "Nessuna selezionata" : `${quante} selezionat${quante === 1 ? "a" : "e"}`}
       </p>
@@ -40,7 +40,7 @@ export function TestataSelezione({ quante, tutte, occupata, onTutte, onAnnulla }
         type="button"
         onClick={onTutte}
         disabled={occupata}
-        className="-my-2 inline-flex h-11 shrink-0 items-center rounded-md px-3 text-[14px] font-medium text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 md:my-0 md:h-7 md:px-2 md:text-[12px]"
+        className="-my-2 inline-flex h-11 shrink-0 items-center rounded-md px-3 t-corpo font-medium text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 lg:pointer-fine:my-0 lg:pointer-fine:h-8 lg:pointer-fine:px-2"
       >
         {tutte ? "Deseleziona tutto" : "Seleziona tutto"}
       </button>
@@ -48,7 +48,7 @@ export function TestataSelezione({ quante, tutte, occupata, onTutte, onAnnulla }
         type="button"
         onClick={onAnnulla}
         disabled={occupata}
-        className="-my-2 inline-flex h-11 shrink-0 items-center gap-1 rounded-md px-3 text-[14px] font-medium text-foreground hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 md:my-0 md:h-7 md:px-2 md:text-[12px]"
+        className="-my-2 inline-flex h-11 shrink-0 items-center gap-1 rounded-md px-3 t-corpo font-medium text-foreground hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 lg:pointer-fine:my-0 lg:pointer-fine:h-8 lg:pointer-fine:px-2"
       >
         <X aria-hidden="true" className="h-4 w-4" />
         Annulla
@@ -79,7 +79,7 @@ export function AzioniSelezione({ quante, inCorso, onAzione }: AzioniProps) {
           onClick={() => onAzione(v)}
           disabled={occupata || quante === 0}
           aria-busy={inCorso === v}
-          className="inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200 bg-background px-4 text-[14px] font-medium text-emerald-800 transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 md:h-8 md:px-3 md:text-[12px]"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200 bg-background px-4 t-corpo font-medium text-emerald-800 transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 lg:pointer-fine:h-8 lg:pointer-fine:px-3"
         >
           {inCorso === v ? (
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />

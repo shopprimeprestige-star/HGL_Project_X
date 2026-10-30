@@ -81,9 +81,12 @@ export async function proveChatElenco(mod, { c, gruppo }) {
 
   const radice = process.cwd();
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = (?:perStelle\\(\\s*)?perPastiglia\\(`).test(elenco);
-  c("ElencoChat: «Da rispondere» obbedisce alla pastiglia", true, sorgenteUsaFiltro("inAttesaTutti"));
-  c("ElencoChat: le «vecchie» obbediscono alla pastiglia", true, sorgenteUsaFiltro("vecchie"));
+  //  30/10/2026: la «pastiglia» è l'insieme dei filtri a gruppi (`passa` = `passaFiltri`); ogni riquadro parte da `trovate`
+  //   (filtri + ricerca) e passa da `fuoriScadenza`. Provato a fondo in prove/idee/filtri-chat.mjs.
+  const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = perStelle\\(fuoriScadenza\\.filter`).test(elenco);
+  c("ElencoChat: tutto parte da chat che passano filtri e ricerca", true, /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const passa = \(c: ChatItem\) => passaFiltri\(c, filtri, stelleDi\)/.test(elenco));
+  c("ElencoChat: «Da rispondere» obbedisce ai filtri", true, sorgenteUsaFiltro("inAttesa"));
+  c("ElencoChat: le «vecchie» obbediscono ai filtri", true, sorgenteUsaFiltro("vecchie"));
 
   // ── IL NUMERO LEGGIBILE (28/10): +39 3xx xxx xxxx. Numeri finti 333000xxx.
   const { numeroLeggibile } = mod["chatwa/formati"];

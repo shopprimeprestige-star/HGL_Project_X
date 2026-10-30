@@ -31,7 +31,9 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { senzaEco } from "./eco";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
-import { combaciaRicerca, passaFiltro } from "./cercaChat";
+import { combaciaRicerca } from "./cercaChat";
+import { passaFiltri } from "./filtri";
+import { useFiltriChat } from "./useFiltriChat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { fetchCRM, useAuth } from "@/crm/AuthContext";
@@ -62,7 +64,6 @@ import type {
   ChatItem,
   ChatWaApi,
   EsitoBlocco,
-  FiltroChat,
   WaContactRow,
   WaMessageRow,
 } from "./tipi";
@@ -174,7 +175,8 @@ export interface OpzioniChatWa {
 export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
   const { user } = useAuth();
   const { leads, updateLead, consultants } = useCRM();
-  const [filtro, setFiltro] = useState<FiltroChat>("all");
+  //  I filtri a gruppi (30/10/2026): stato e memoria in useFiltriChat, regole in filtri.ts.
+  const { filtri, setFiltri } = useFiltriChat(user?.id);
   const [ricerca, setRicerca] = useState("");
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [bozza, setBozza] = useState("");
@@ -810,13 +812,15 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     [chats],
   );
 
-  const visibili = useMemo(() => {
-    return chats.filter((c) => {
-      if (!passaFiltro(c, filtro)) return false;
-      if (!combaciaRicerca(c, ricerca)) return false;
-      return true;
-    });
-  }, [chats, filtro, ricerca]);
+  /** Le chat che passano ricerca e filtri. Le stelle no: stanno in `useStelle`, che legge il database
+   *  una volta sola dentro `ElencoChat`; è lui a sommarle e a disegnare i riquadri (non usa questa lista). */
+  const visibili = useMemo(
+    () =>
+      chats.filter(
+        (c) => passaFiltri(c, { ...filtri, stelle: false }, () => 0) && combaciaRicerca(c, ricerca),
+      ),
+    [chats, filtri, ricerca],
+  );
 
   const attiva = useMemo<ChatItem | null>(() => {
     if (!activePhone) return null;
@@ -1228,8 +1232,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     chats,
     daRispondere,
     visibili,
-    filtro,
-    setFiltro,
+    filtri,
+    setFiltri,
     ricerca,
     setRicerca,
     attiva,
