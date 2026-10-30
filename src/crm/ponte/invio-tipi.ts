@@ -209,7 +209,11 @@ export interface PorteInvio {
   ): Promise<{ id: string; stato: StatoCoda; nuovo: boolean }>;
   riga(userId: string, id: string): Promise<RigaCoda | null>;
   /** `UPDATE` condizionato sulla stessa riga (D10); `null` = la riga non c'è. */
-  riprova(userId: string, id: string, confermaIncerto: boolean): Promise<{ stato: StatoCoda | null }>;
+  riprova(
+    userId: string,
+    id: string,
+    confermaIncerto: boolean,
+  ): Promise<{ stato: StatoCoda | null }>;
   /** `ponte_wa_invii_prendi` con `LIMITI_INVIO` come parametri. */
   prendi(userId: string): Promise<RispostaPrendi>;
   /** `ponte_wa_invio_esito`; `null` = la riga non c'è (404). */
