@@ -42,6 +42,7 @@ const GIORNO = 86_400_000;
 const U = "u-1";
 const NS_PROM = "content-prom-1";
 const NS_RIC = "content-ric-1";
+const MODELLO_GENERICO_PROVA = "hgl_come_eravamo_rimasti";
 
 export async function proveGiro(mod, { c, gruppo, radice }) {
   const G = mod["manychat/giro"];
@@ -3037,6 +3038,385 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         G.nomeAbbreviato({ nome: "Mario" }),
         G.nomeAbbreviato({}),
       ],
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  IL MESSAGGIO DELLO STATO LO SCRIVE IL CONSULENTE (commessa 2026-10-30)
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · IL MESSAGGIO DELLO STATO SCRITTO DAL CONSULENTE");
+  {
+    const ISO0 = "2026-10-20T00:00:00.000Z";
+    const NS_ACC = "content-acc";
+    const NS_GEN = "content-gen";
+    const accesa = {
+      stati: { in_attesa_acconto: ISO0, sta_valutando: ISO0, richiamo: ISO0 },
+      flussi: {
+        ...CONFIG.flussi,
+        hgl_acconto: NS_ACC,
+        hgl_richiamo_concordato: "content-rc",
+        [MODELLO_GENERICO_PROVA]: NS_GEN,
+      },
+    };
+    const senzaGenerico = {
+      ...accesa,
+      flussi: Object.fromEntries(
+        Object.entries(accesa.flussi).filter(([k]) => k !== MODELLO_GENERICO_PROVA),
+      ),
+    };
+    const msg = (extra) => ({
+      stato: "in_attesa_acconto",
+      testo: "Ciao {nome}, ti scrivo per l'acconto, fammi sapere!",
+      fuoriFinestra: "stato",
+      scrittoIl: "2026-10-23T09:00:00.000Z",
+      ...extra,
+    });
+    const acc = (id, n, extra) =>
+      scheda(id, n, {
+        stato: "in_attesa_acconto",
+        dataRicontatto: "2026-10-23",
+        messaggioStato: msg(),
+        ...extra,
+      });
+    const testi = (m) => m.f.chiamate.filter((x) => x.percorso === PERCORSI.testo);
+    const corpoTesto = (m) => testi(m)[0]?.corpo.data.content.messages[0].text ?? "";
+    const nsFlusso = (m) => m.flussi().map((x) => x.corpo.flow_ns);
+    const campiFlusso = (m) => {
+      const campi = m.f.chiamate.find((x) => x.percorso === PERCORSI.scriviCampi)?.corpo.fields ?? [];
+      return ["crm_v1", "crm_v2"].map((k) => campi.find((x) => x.field_name === k)?.field_value);
+    };
+
+    //  ── dentro le 24 ore: il testo del consulente ──
+    let m = mondo({ schede: [acc("s1", 1)], config: accesa, entrate: { 1: 2 } });
+    let e = await m.giroOra();
+    c(
+      "finestra aperta (2 ore fa): parte il TESTO del consulente, col nome, e nessun flusso",
+      [1, 1, [], "Ciao Anna, ti scrivo per l'acconto, fammi sapere!"],
+      [e.ricontattiInviati, testi(m).length, nsFlusso(m), corpoTesto(m)],
+    );
+    c(
+      "…il registro dice testo libero: inviato, tipo ricontatto, senza flusso; in chat è il testo",
+      ["inviato", "ricontatto", null, "Ciao Anna, ti scrivo per l'acconto, fammi sapere!"],
+      [m.invii[0].stato, m.invii[0].tipo, m.invii[0].flowNs, m.messaggi[0]?.corpo],
+    );
+    c(
+      "…una sola lettura delle entrate, col solo telefono della scheda",
+      [[cifre(1)]],
+      [m.lettureEntrate.length === 1 ? m.lettureEntrate[0] : m.lettureEntrate],
+    );
+    c(
+      "…la scheda va «In attesa» (come per il modello) e la stella va a 1 (stella 1 dopo il ricontatto)",
+      ["in_attesa", 1],
+      [
+        m.schede[0].data.contattoWa.stato,
+        W.stelleDi(W.leggiStelle(m.stelle), tel(1)),
+      ],
+    );
+    c(
+      "…non riparte: il giro dopo non rimanda (chiave presa)",
+      1,
+      (await m.giroOra(), m.invii.length),
+    );
+
+    //  ── oltre le 24 ore: il modello scelto ──
+    for (const [nome, entrate] of [
+      ["scritto 30 ore fa", { 1: 30 }],
+      ["non ha mai scritto", {}],
+    ]) {
+      m = mondo({ schede: [acc("s1", 1)], config: accesa, entrate });
+      e = await m.giroOra();
+      c(
+        `${nome}, scelta «modello dello stato»: parte il flusso dell'acconto, nessun testo`,
+        [1, [NS_ACC], 0],
+        [e.ricontattiInviati, nsFlusso(m), testi(m).length],
+      );
+      m = mondo({
+        schede: [acc("s1", 1, { messaggioStato: msg({ fuoriFinestra: "generico" }) })],
+        config: accesa,
+        entrate,
+      });
+      e = await m.giroOra();
+      c(
+        `${nome}, scelta «generico»: parte il flusso GENERICO con nome e consulente (v1, v2), nessun testo`,
+        [1, [NS_GEN], 0, ["Anna", "Giulia Demo"]],
+        [e.ricontattiInviati, nsFlusso(m), testi(m).length, campiFlusso(m)],
+      );
+      c(
+        `…${nome}, generico: registro = tipo ricontatto, flusso del generico, chiave di sempre; in chat è il modello`,
+        ["ricontatto", NS_GEN, true, "[template:hgl_come_eravamo_rimasti]"],
+        [
+          m.invii[0].tipo,
+          m.invii[0].flowNs,
+          /^r\|\d{9}\|2026-10-23$/.test(m.invii[0].chiave),
+          m.messaggi[0]?.corpo,
+        ],
+      );
+      c(
+        `…${nome}, generico: tag di sempre, scheda «In attesa», stella 1`,
+        ["crm-stato-acconto", "in_attesa", 1],
+        [
+          m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+          m.schede[0].data.contattoWa.stato,
+          W.stelleDi(W.leggiStelle(m.stelle), tel(1)),
+        ],
+      );
+    }
+    m = mondo({
+      schede: [acc("s1", 1, { messaggioStato: msg({ fuoriFinestra: "generico" }) })],
+      config: accesa,
+      entrate: { 1: 30 },
+    });
+    await m.giroOra();
+    c(
+      "…il generico non è letto come «scheda cambiata» dopo la prenotazione",
+      [0, "inviato"],
+      [m.annullati.length, m.invii[0].stato],
+    );
+
+    //  ── generico scelto ma flusso non collegato: il modello dello stato (mai niente che non parte) ──
+    m = mondo({
+      schede: [acc("s1", 1, { messaggioStato: msg({ fuoriFinestra: "generico" }) })],
+      config: senzaGenerico,
+      entrate: { 1: 30 },
+    });
+    e = await m.giroOra();
+    c(
+      "generico senza flusso collegato → parte il modello dello stato, nessuna nota di flusso mancante",
+      [1, [NS_ACC], 0, null],
+      [e.ricontattiInviati, nsFlusso(m), testi(m).length, m.giro.stato.nota],
+    );
+
+    //  ── finestra aperta, ma niente testo e scelta «generico»: si resta com'era (la scelta vale oltre le 24 ore) ──
+    m = mondo({
+      schede: [acc("s1", 1, { messaggioStato: msg({ testo: "", fuoriFinestra: "generico" }) })],
+      config: accesa,
+      entrate: { 1: 2 },
+    });
+    e = await m.giroOra();
+    c(
+      "senza testo + generico + finestra aperta: il modello dello stato, che la porta manda come testo (non il generico)",
+      [1, [], true, false],
+      [
+        e.ricontattiInviati,
+        nsFlusso(m),
+        /acconto/.test(corpoTesto(m)),
+        /come eravamo rimasti/.test(corpoTesto(m)),
+      ],
+    );
+
+    //  ── il testo libero con il generico di riserva ──
+    m = mondo({
+      schede: [acc("s1", 1, { messaggioStato: msg({ fuoriFinestra: "generico" }) })],
+      config: accesa,
+      entrate: { 1: 2 },
+      entratePorta: { 1: 30 },
+    });
+    e = await m.giroOra();
+    c(
+      "il giro vede la finestra aperta ma al momento dell'invio è chiusa: parte il modello scelto (generico), mai il testo",
+      [1, [NS_GEN], 0],
+      [e.ricontattiInviati, nsFlusso(m), testi(m).length],
+    );
+    m = mondo({
+      schede: [acc("s1", 1)],
+      config: accesa,
+      entrate: { 1: 2 },
+      entratePorta: { 1: 30 },
+    });
+    e = await m.giroOra();
+    c(
+      "…stessa cosa con «modello dello stato»: parte il flusso dell'acconto",
+      [1, [NS_ACC], 0],
+      [e.ricontattiInviati, nsFlusso(m), testi(m).length],
+    );
+
+    //  ── lo stato è cambiato: il testo non vale ──
+    m = mondo({
+      schede: [
+        scheda("s1", 1, {
+          stato: "sta_valutando",
+          dataRicontatto: "2026-10-23",
+          messaggioStato: msg(),
+        }),
+      ],
+      config: accesa,
+      entrate: { 1: 2 },
+    });
+    e = await m.giroOra();
+    c(
+      "il testo è di «Attesa acconto» ma la scheda è «In valutazione»: testo ignorato, parte il testo del modello del ricontatto (come oggi), nessuna lettura delle entrate",
+      [1, [], 1, false, true, 0],
+      [
+        e.ricontattiInviati,
+        nsFlusso(m),
+        testi(m).length,
+        /ti scrivo per l'acconto, fammi sapere/.test(corpoTesto(m)),
+        corpoTesto(m).length > 0,
+        m.lettureEntrate.length,
+      ],
+    );
+    m = mondo({
+      schede: [
+        scheda("s1", 1, {
+          stato: "sta_valutando",
+          dataRicontatto: "2026-10-23",
+          messaggioStato: msg(),
+        }),
+      ],
+      config: accesa,
+      entrate: { 1: 30 },
+    });
+    e = await m.giroOra();
+    c(
+      "…e fuori finestra parte il flusso del ricontatto (mai il generico, mai il testo)",
+      [1, [NS_RIC], 0],
+      [e.ricontattiInviati, nsFlusso(m), testi(m).length],
+    );
+
+    //  ── campo vuoto / non toccato: come oggi ──
+    for (const [nome, extra] of [
+      ["nessun messaggio salvato", { messaggioStato: undefined }],
+      ["testo vuoto e «modello dello stato»", { messaggioStato: msg({ testo: "  " }) }],
+      ["forma rotta", { messaggioStato: "boh" }],
+    ]) {
+      m = mondo({ schede: [acc("s1", 1, extra)], config: accesa, entrate: { 1: 2 } });
+      e = await m.giroOra();
+      c(
+        `${nome}: parte il modello dello stato come prima (come testo del modello, finestra aperta), nessuna lettura in più delle entrate`,
+        [1, [], 0],
+        [e.ricontattiInviati, nsFlusso(m), m.lettureEntrate.length],
+      );
+    }
+    m = mondo({ schede: [acc("s1", 1, { messaggioStato: undefined })], config: accesa, entrate: { 1: 30 } });
+    e = await m.giroOra();
+    c(
+      "nessun messaggio salvato, finestra chiusa: il flusso dell'acconto, 0 letture delle entrate",
+      [1, [NS_ACC], 0],
+      [e.ricontattiInviati, nsFlusso(m), m.lettureEntrate.length],
+    );
+
+    //  ── {nome} senza nome in scheda: non esce mai «{nome}» ──
+    m = mondo({
+      schede: [acc("s1", 1, { nome: "" })],
+      config: accesa,
+      entrate: { 1: 2 },
+    });
+    await m.giroOra();
+    c("scheda senza nome: niente messaggio (il nome serve ai modelli) e mai un «{nome}» al cliente", true, !/\{nome\}/.test(corpoTesto(m)));
+
+    //  ── guasto nella lettura delle entrate: il modello, il giro prosegue ──
+    m = mondo({ schede: [acc("s1", 1)], config: accesa, entrate: { 1: 2 }, guastoEntrate: true });
+    e = await m.giroOra();
+    c(
+      "lettura delle entrate guasta: niente testo libero, parte comunque (testo del modello via porta), niente spento, avviso con il solo codice",
+      [1, [], [], true],
+      [e.ricontattiInviati, nsFlusso(m), m.spenti, m.avvisi.includes("giro_entrate_errore_XX006")],
+    );
+    c(
+      "…e il testo del consulente non è uscito",
+      false,
+      /ti scrivo per l'acconto, fammi sapere/.test(corpoTesto(m)),
+    );
+
+    //  ── la scheda cambia fra la prenotazione e l'invio ──
+    m = mondo({
+      schede: [acc("s1", 1)],
+      config: accesa,
+      entrate: { 1: 2 },
+      dopoPrenota: (mm) => {
+        mm.schede[0].data.messaggioStato = msg({ testo: "Un altro testo" });
+      },
+    });
+    e = await m.giroOra();
+    c(
+      "il consulente cambia il testo dopo la prenotazione: non parte nulla, la riga è «saltato» senza chiave (al giro dopo)",
+      [0, "saltato", null, "scheda_cambiata", 0],
+      [e.ricontattiInviati, m.invii[0].stato, m.invii[0].chiave, m.invii[0].motivo, m.f.chiamate.length],
+    );
+    m.dopoPrenota = null;
+    //  il ritmo dei ricontatti (27-33') è già stato preso dalla prenotazione annullata
+    m.orologio.avanza(34 * MIN);
+    await m.giroOra();
+    c(
+      "…al giro dopo parte il testo nuovo",
+      "Un altro testo",
+      corpoTesto(m),
+    );
+
+    //  ── STOP, tetti, ritmo, prova a secco: invariati ──
+    m = mondo({ schede: [acc("s1", 1)], config: accesa, entrate: { 1: 2 }, stop: [cifre(1)] });
+    e = await m.giroOra();
+    c(
+      "STOP: non parte né il testo né il modello",
+      [0, 0, 0],
+      [e.ricontattiInviati, testi(m).length, m.flussi().length],
+    );
+    m = mondo({ schede: [acc("s1", 1)], config: { ...accesa, tetti: { ricontatti: 0 } }, entrate: { 1: 2 } });
+    e = await m.giroOra();
+    c(
+      "tetto dei ricontatti a 0: non parte niente, nemmeno il testo",
+      [0, 0, 0],
+      [e.ricontattiInviati, testi(m).length, m.flussi().length],
+    );
+    m = mondo({
+      schede: [acc("s1", 1), acc("s2", 2)],
+      config: accesa,
+      entrate: { 1: 2, 2: 2 },
+    });
+    e = await m.giroOra();
+    c(
+      "due schede con testo: il ritmo vale come sempre, UN ricontatto per giro",
+      [1, 1],
+      [e.ricontattiInviati, testi(m).length],
+    );
+    m = mondo({ schede: [acc("s1", 1)], config: accesa, entrate: { 1: 2 } });
+    const eProva = await m.giroOra(true);
+    c(
+      "prova a secco: scriverebbe, nessuna chiamata, nessuna lettura delle entrate",
+      [1, 0, 0, 0],
+      [
+        eProva.righe.filter((r) => r.esito === "scriverebbe").length,
+        m.f.chiamate.length,
+        m.invii.length,
+        m.lettureEntrate.length,
+      ],
+    );
+
+    //  ── anche «Richiamo concordato» (a orario) e «In valutazione» ──
+    m = mondo({
+      schede: [
+        scheda("s1", 1, {
+          stato: "richiamo",
+          dataRicontatto: "2026-10-23",
+          oraRicontatto: "15:30",
+          messaggioStato: msg({ stato: "richiamo", testo: "Ti chiamo alle 15:30, ok?" }),
+        }),
+      ],
+      config: accesa,
+      entrate: { 1: 2 },
+    });
+    e = await m.giroOra();
+    c(
+      "«Richiamo concordato» (a orario): finestra aperta → il testo del consulente",
+      [1, "Ti chiamo alle 15:30, ok?", "promemoria_chiamata"],
+      [testi(m).length, corpoTesto(m), m.invii[0]?.tipo],
+    );
+    m = mondo({
+      schede: [
+        scheda("s1", 1, {
+          stato: "sta_valutando",
+          dataRicontatto: "2026-10-23",
+          messaggioStato: msg({ stato: "sta_valutando", fuoriFinestra: "generico" }),
+        }),
+      ],
+      config: accesa,
+      entrate: { 1: 30 },
+    });
+    await m.giroOra();
+    c(
+      "«In valutazione» (a data), generico: il flusso generico (e la stella 1)",
+      [[NS_GEN], 1],
+      [nsFlusso(m), W.stelleDi(W.leggiStelle(m.stelle), tel(1))],
     );
   }
 

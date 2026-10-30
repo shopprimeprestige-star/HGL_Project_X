@@ -37,7 +37,7 @@
  *   di scheda, mai il telefono: lo legge solo il server.
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { Consultant, TipoInvio } from "../types";
-import { aRoma } from "../promemoria/formati";
+import { aRoma, nomePerModello } from "../promemoria/formati";
 import { STATI_STELLA_UNO } from "../wa-orari";
 import type { ClientManychat } from "./api";
 import {
@@ -49,6 +49,13 @@ import {
   type CambioContatto,
   type IngressoInvio,
 } from "./contatto";
+import { finestraPerTesto } from "./finestra";
+import {
+  MODELLO_GENERICO,
+  leggiMessaggioStato,
+  sceltaInvio,
+  type MessaggioStato,
+} from "./messaggio-stato";
 import { inviaWhatsapp, type PortePorta, type PrenotazionePorta } from "./porta";
 import {
   ANTICIPO_PROMEMORIA_MIN,
@@ -61,7 +68,13 @@ import {
   type SchedaQuando,
   type Tetti,
 } from "./quando";
-import { TIPI_COL_RITMO, TIPI_NEI_TETTI, numeroWa, type InvioPerFreno } from "./regole";
+import {
+  TIPI_COL_RITMO,
+  TIPI_NEI_TETTI,
+  numeroWa,
+  ultimeNoveCifre,
+  type InvioPerFreno,
+} from "./regole";
 import {
   FRASE_FINESTRA_CHIUSA,
   PREFISSO_CASI,
@@ -83,6 +96,7 @@ import {
   campiPrimoContatto,
   campiPromemoria,
   campiRichiamo,
+  campiRicontatto,
   campiRitorno,
   linkPerCliente,
   type CampiOSalta,
@@ -862,7 +876,16 @@ type Candidato = {
   tag: string;
   /** mai come modello: solo il testo, o «saltato» (porta.ts, `soloTesto`) */
   soloTesto?: boolean;
+  /** il messaggio che il consulente ha scritto per lo stato della scheda (se vale ancora) */
+  messaggio?: MessaggioStato | null;
 };
+
+/** Il messaggio scritto dal consulente, per i soli messaggi legati a uno stato (ricontatto e i
+ *  due promemoria a orario): per gli altri tipi non esiste. `null` = tutto come prima. */
+const messaggioDelloStato = (tipo: TipoGiro, scheda: SchedaQuando): MessaggioStato | null =>
+  tipo === "ricontatto" || tipo === "promemoria_chiamata" || tipo === "promemoria_sede"
+    ? leggiMessaggioStato(scheda.data)
+    : null;
 
 /** Come è andato un tentativo di invio. */
 type Tentativo =
@@ -1028,8 +1051,32 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       senzaFlusso.add(mt.modello);
       continue;
     }
-    candidati.push({ tipo: v.tipo, d: v.d, ...mt, ...(soloTesto ? { soloTesto } : {}) });
+    candidati.push({
+      tipo: v.tipo,
+      d: v.d,
+      ...mt,
+      ...(soloTesto ? { soloTesto } : {}),
+      messaggio: messaggioDelloStato(v.tipo, v.d.scheda),
+    });
   }
+  //  Il messaggio dello stato scritto dal consulente: per sapere se la finestra delle 24 ore è
+  //  aperta si legge l'ultima entrata (una volta sola) dei soli telefoni di chi ha un messaggio.
+  //  Se la lettura si guasta nessuno ha la finestra aperta: parte il modello, il giro prosegue.
+  let entrateMessaggi: Record<string, string> = {};
+  const telefoniMessaggi = [
+    ...new Set(
+      candidati
+        .filter((x) => x.messaggio)
+        .map((x) => numeroWa(x.d.scheda.data.telefono))
+        .filter((n): n is string => !!n),
+    ),
+  ];
+  if (telefoniMessaggi.length > 0)
+    try {
+      entrateMessaggi = await porte.ultimeEntrate(userId, telefoniMessaggi);
+    } catch (e) {
+      porte.avviso(`giro_entrate_errore_${codiceErrore(e)}`);
+    }
   if (senzaFlusso.size > 0) {
     const nomi = [...senzaFlusso].map((m) => NOME_MODELLO[m] ?? m);
     nota =
@@ -1058,8 +1105,36 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     );
     if (!numero || campi.tipo === "salta") return { fine: "continua" };
     //  L'ordine delle variabili è quello dei campi (v1…v4 del modello): una lista sola.
-    const parametri = Object.values(campi.campi);
+    let parametri = Object.values(campi.campi);
     const previstoIl = previstoDi(cand.tipo, extra.inizio);
+
+    //  ── IL MESSAGGIO CHE HA SCRITTO IL CONSULENTE ──
+    //  Finestra aperta → il suo testo (la porta lo manda come testo, col modello di riserva).
+    //  Altrimenti il modello scelto: quello dello stato o il generico «come eravamo rimasti»
+    //  (v1 nome, v2 consulente, come il ricontatto). Senza messaggio, o con lo stato cambiato,
+    //  non cambia niente.
+    let modelloDaMandare = cand.modello;
+    let testoLibero: string | null = null;
+    if (cand.messaggio) {
+      const nome = nomePerModello(d.nome) ?? "";
+      const sc = sceltaInvio(cand.messaggio, {
+        finestraAperta: finestraPerTesto(
+          entrateMessaggi[ultimeNoveCifre(numero)],
+          porte.adesso(),
+        ),
+        flussoGenericoCollegato: !!config.flussi[MODELLO_GENERICO],
+        nome,
+      });
+      testoLibero = sc.testoLibero;
+      if (sc.generico) {
+        const g = campiRicontatto(d, consulente?.data?.nome);
+        //  Senza il nome del consulente il generico non si può compilare: resta il modello dello stato.
+        if (g.tipo === "campi") {
+          modelloDaMandare = MODELLO_GENERICO;
+          parametri = Object.values(g.campi);
+        }
+      }
+    }
 
     /** Perché la prenotazione non c'è stata (se non c'è stata), con la parola dell'SQL. */
     let rifiuto: string | null = null;
@@ -1074,6 +1149,13 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
         (x) => x.d.tipo === "invia" && x.d.chiave === chiave,
       );
       if (!buona || buona.d.tipo !== "invia") return false;
+      //  Il consulente ha cambiato (o tolto) il suo messaggio dopo la lettura: non si manda quello
+      //  vecchio. La riga si annulla senza chiave e il giro dopo riparte col messaggio nuovo.
+      if (
+        JSON.stringify(messaggioDelloStato(buona.tipo, buona.d.scheda)) !==
+        JSON.stringify(cand.messaggio ?? null)
+      )
+        return false;
       //  Stessa chiave ma stato cambiato (r|tel9|giorno è uguale per quattro stati):
       //  se il modello non è più lo stesso, non si manda quello.
       return (
@@ -1133,8 +1215,9 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       canale: "manychat",
       a: `+${numero}`,
       //  Il giorno prima: il testo proprio (`hgl_meet_domani_testo`), mai il modello Meta.
-      modello: cand.soloTesto ? TESTO_MEET_DOMANI : cand.modello,
+      modello: cand.soloTesto ? TESTO_MEET_DOMANI : modelloDaMandare,
       parametri,
+      ...(testoLibero ? { testoLibero } : {}),
       nome: d.nome,
       leadId: scheda.id,
       tipo: cand.tipo,
