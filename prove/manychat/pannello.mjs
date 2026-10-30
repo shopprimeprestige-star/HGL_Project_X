@@ -1634,7 +1634,8 @@ async function proveRotte(mod, { c, gruppo, radice }) {
   //  15:11 di venerdì 23/10. Senza un'entrata del cliente la prova non lo manda: lo dice.
   const meD = meet("m9", 9, "15:11", {
     dataMeeting: "2026-10-24",
-    fissatoIl: "2026-10-20T09:00:00.000Z",
+    //  fissata 2 giorni prima del meet (3 o meno): resta «solo se gratis»
+    fissatoIl: "2026-10-22T09:00:00.000Z",
   });
   const sD = secco([meD]);
   c(
@@ -3200,8 +3201,8 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "giorno del meet acceso senza i flussi → rossi mattina e all'ora; il 24 ore prima (spento dal 28/10) non serve",
-    ["errore", "non_serve", "errore", "non_serve"],
+    "giorno del meet acceso senza i flussi → rossi mattina, 24 ore prima (modello per chi ha fissato da oltre 3 giorni, 30/10) e all'ora",
+    ["errore", "errore", "errore", "non_serve"],
     [
       colMeet["flusso:hgl_meet_oggi"],
       colMeet["flusso:hgl_meet_domani"],

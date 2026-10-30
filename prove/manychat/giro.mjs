@@ -1643,7 +1643,8 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       meet(id, n, {
         dataMeeting: "2026-10-24",
         oraMeeting: "15:11",
-        fissatoIl: "2026-10-20T09:00:00.000Z",
+        //  fissata 2 giorni prima del meet: «3 giorni o meno», resta solo gratis
+        fissatoIl: "2026-10-22T09:00:00.000Z",
         ...extra,
       });
     c(
@@ -1825,6 +1826,56 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
         m.giro.falliti,
         e.nuoviInviati,
       ],
+    );
+
+    //  ── fissata da OLTRE 3 giorni: il modello Utility, alle 9:00, anche a finestra chiusa ──
+    c(
+      "le soglie: a pagamento oltre 3 giorni di fissata",
+      3,
+      G.MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI,
+    );
+    const alle0930 = () =>
+      creaFinto({ orologio: creaOrologio(Date.parse("2026-10-23T07:30:00Z")) }).su(
+        "GET",
+        PERCORSI.campi,
+        esiti.successo([{ id: 501, name: "crm_telefono", type: "text" }]),
+      );
+    const lontana = (id, n) => domani(id, n, { fissatoIl: "2026-10-20T09:00:00.000Z" });
+    m = mondo({ schede: [lontana("p1", 1)], config: accesa, finto: alle0930() });
+    e = await m.giroOra();
+    c(
+      "fissata 4 giorni prima, ore 9:30, il cliente non ha mai scritto: parte il MODELLO (un flusso, nessun testo)",
+      [1, 1, 0, "inviato"],
+      [
+        m.riga("meet_domani").length,
+        m.flussi().filter((x) => x.corpo.flow_ns === "content-m3").length,
+        m.f.chiamate.filter((x) => x.percorso === PERCORSI.testo).length,
+        m.riga("meet_domani")[0]?.stato,
+      ],
+    );
+    c(
+      "…con la chiave d|tel9|giorno-ora e il flusso nel registro; la scheda va «In attesa» fino al meet",
+      [true, "content-m3", "in_attesa", "meet_domani"],
+      [
+        /^d\|\d{9}\|2026-10-24T15:11$/.test(m.riga("meet_domani")[0]?.chiave ?? ""),
+        m.riga("meet_domani")[0]?.flowNs,
+        m.schede[0].data.contattoWa?.stato,
+        m.schede[0].data.contattoWa?.motivo,
+      ],
+    );
+    await m.giroOra();
+    c("…una sola volta per meet: il giro dopo non rimanda", 1, m.riga("meet_domani").length);
+    //  Stessa scheda ma fissata 2 giorni prima: alle 9:30 non parte niente (il gratis aspetta l'ora del meet).
+    m = mondo({ schede: [domani("p2", 1)], config: accesa, finto: alle0930() });
+    await m.giroOra();
+    c("fissata 2 giorni prima, ore 9:30: niente (non è a pagamento)", [0, 0], [m.invii.length, m.f.chiamate.length]);
+    //  Il flusso del modello non è collegato: non parte, e lo dice.
+    m = mondo({ schede: [lontana("p3", 1)], config: senzaFlussoDomani, finto: alle0930() });
+    await m.giroOra();
+    c(
+      "fissata 4 giorni prima ma `hgl_meet_domani` non collegato in ManyChat: non parte niente",
+      [0, 0],
+      [m.invii.length, m.f.chiamate.filter((x) => x.percorso === PERCORSI.testo).length],
     );
 
     //  la lettura delle entrate si guasta: si risparmia, il resto del giro prosegue
