@@ -13,6 +13,7 @@
  *  Prove in `prove/manychat/controllo-notte.mjs`.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { aRoma } from "../promemoria/formati";
+import { anteprimaSenzaTesto } from "../chatwa/entrata-vera";
 import { avvisoPonte, type RigaStatoPonte } from "../chatwa/avvisoPonte";
 import type { AvvisoPush } from "../push/avviso";
 
@@ -80,6 +81,8 @@ export interface ContattoFinestra {
   ultimo_in_entrata_il: string | null;
   risposto_il: string | null;
   non_scrivere_dal: string | null;
+  /** Se l'ultima entrata era una reazione (senza testo) non apre la finestra. */
+  ultimo_in_entrata_anteprima?: string | null;
 }
 
 /** I contatti si leggono da un giorno prima del periodo: una finestra chiusa
@@ -99,6 +102,9 @@ export function finestra24h(
   const ora = adesso.getTime();
   for (const k of contatti) {
     if (k.non_scrivere_dal) continue;
+    //  Una reazione non apre la finestra (30/10/2026). shortcut: non si cerca l'ultimo messaggio
+    //  vero sotto la reazione: è un conteggio del rapporto, non decide invii; cambiarla se serve esatto.
+    if (anteprimaSenzaTesto(k.ultimo_in_entrata_anteprima)) continue;
     const entrata = Date.parse(k.ultimo_in_entrata_il ?? "");
     if (!Number.isFinite(entrata)) continue;
     const risposto = Date.parse(k.risposto_il ?? "");

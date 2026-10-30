@@ -11,7 +11,8 @@
  *  (campi in più, tutti facoltativi) senza togliere niente a quelli del T0.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { CANALE_PONTE } from "../ponte/tipi";
-import { eSoloSegnaposto } from "./media";
+import { entrataPerFinestra, eEntrataVera } from "./entrata-vera";
+import { eAnteprimaIlleggibile, eSoloSegnaposto } from "./media";
 
 /** Un istante: testo ISO, millisecondi o `Date`. */
 export type Istante = string | number | Date;
@@ -51,8 +52,6 @@ export interface IngressoStato {
 
 export interface DaRispondere {
   attesa: boolean;
-  /** Ripiego sui messaggi: ultimo del cliente senza risposta ma oltre 7 giorni (D5, R10). */
-  vecchia: boolean;
   dal: string | null;
   anteprima: string | null;
   fonte: "colonne" | "messaggi" | null;
@@ -71,8 +70,8 @@ export type EsitoScheda<L> = { tipo: "una"; lead: L } | { tipo: "nessuna" } | { 
 const ORA = 3_600_000;
 const MINUTO = 60_000;
 const GIORNO = 24 * ORA;
-/** Oltre questa età il ripiego sui messaggi non mette più la chat in attesa (D5). */
-const SETTE_GIORNI = 7 * GIORNO;
+/** Un «non leggibile» di ManyChat arrivato entro questo tempo dalla nostra risposta è l'eco di quella risposta. */
+const ECO_SEGNAPOSTO = 2 * MINUTO;
 
 const FRASE_CHIUSA = "Finestra di 24 ore chiusa: puoi mandare solo un modello approvato";
 
@@ -83,18 +82,33 @@ function ms(x: Istante | null | undefined): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-/** È in «Da rispondere»? Colonne se ci sono, altrimenti i messaggi caricati (D5, D17). */
+/** ── LA REGOLA UNICA «DA RISPONDERE» (30/10/2026) ───────────────────────────
+ *  Una chat aspetta se e solo se l'ULTIMO messaggio è del cliente. Niente finestra di 24 ore,
+ *  niente limite di età: una chat ferma da mesi con l'ultima parola del cliente è in attesa.
+ *  Una nostra uscita dopo l'ultimo del cliente (CRM, app WhatsApp nativa col ponte, inbox di
+ *  ManyChat) lo chiude, senza «Fatto». I messaggi AUTOMATICI (giro, modelli) NON lo chiudono:
+ *  non scrivono `risposto_il`, che lo muovono solo la risposta dal CRM, un'uscita viva del
+ *  ponte senza pari e «Fatto» (il riconoscimento sta nel percorso di scrittura, non qui). Le righe
+ *  del ponte restano solo da vedere anche nel ripiego (I3): contano le colonne del contatto.
+ *  Colonne se ci sono, altrimenti i messaggi caricati (D5, D17). */
 export function daRispondere(i: IngressoStato): DaRispondere {
-  const adesso = ms(i.adesso);
   const risposto = ms(i.contatto?.risposto_il);
   const entrata = ms(i.contatto?.ultimo_in_entrata_il);
 
-  // Con la colonna d'entrata vale lei, e l'attesa non ha limite di età (D17).
+  // Con la colonna d'entrata vale lei, senza limite di età (D17).
   if (entrata !== null) {
-    const attesa = risposto === null || entrata > risposto;
+    //  Un «non leggibile» di ManyChat subito dopo una nostra risposta è l'eco di quella risposta
+    //  (il Default Reply riparte a ogni messaggio mandato dall'app, con un testo che non sa leggere):
+    //  non è il cliente che riscrive. Una sticker vera nei 2 minuti dopo la risposta non riapre
+    //  la chat: costa poco, e «Da rispondere» non resta pieno di chat già risposte.
+    const eco =
+      risposto !== null &&
+      entrata > risposto &&
+      entrata - risposto <= ECO_SEGNAPOSTO &&
+      eAnteprimaIlleggibile(i.contatto?.ultimo_in_entrata_anteprima);
+    const attesa = (risposto === null || entrata > risposto) && !eco;
     return {
       attesa,
-      vecchia: false,
       dal: attesa ? (i.contatto?.ultimo_in_entrata_il as string) : null,
       anteprima: attesa ? (i.contatto?.ultimo_in_entrata_anteprima ?? null) : null,
       fonte: "colonne",
@@ -106,9 +120,9 @@ export function daRispondere(i: IngressoStato): DaRispondere {
   let tIn = -Infinity;
   let tOut = risposto ?? -Infinity;
   for (const m of i.messaggi) {
-    if (eRigaPonte(m)) continue;
     const t = ms(m.created_at);
     if (t === null) continue;
+    if (eRigaPonte(m)) continue;
     if (m.direction === "inbound") {
       if (!(m.body && eSoloSegnaposto(m.body)) && t > tIn) {
         tIn = t;
@@ -116,22 +130,14 @@ export function daRispondere(i: IngressoStato): DaRispondere {
       }
     } else if (t > tOut) tOut = t;
   }
-  if (!ultimo || tOut >= tIn)
-    return { attesa: false, vecchia: false, dal: null, anteprima: null, fonte: null };
+  if (!ultimo || tOut >= tIn) return { attesa: false, dal: null, anteprima: null, fonte: null };
 
-  const oltre = adesso !== null && adesso - tIn > SETTE_GIORNI;
   return {
-    attesa: !oltre,
-    vecchia: oltre,
+    attesa: true,
     dal: ultimo.created_at,
     anteprima: ultimo.body ?? null,
     fonte: "messaggi",
   };
-}
-
-/** Quante chat hanno `vecchia` (D5, R10): la riga «N chat senza risposta da più di 7 giorni». */
-export function contaVecchie(righe: DaRispondere[]): number {
-  return righe.filter((r) => r.vecchia).length;
 }
 
 /** Chi aspetta da più tempo sta sopra; parità stabile; non muta l'ingresso (D17). */
@@ -160,10 +166,14 @@ export function attesaInChiaro(dal: Istante | null, adesso: Istante): string {
 /** La finestra di 24 ore dall'ultimo messaggio in entrata (D15). */
 export function finestra24(i: IngressoStato): Finestra24 {
   // La colonna se c'è; altrimenti il più recente inbound caricato (anche un segnaposto: il cliente ha scritto).
-  let ultimo = ms(i.contatto?.ultimo_in_entrata_il);
-  if (ultimo === null) {
+  //  ⚠️ Una reazione («[messaggio senza testo]») non riapre la finestra (30/10/2026, vedi
+  //   `entrata-vera`): se l'ultima entrata era senza testo vale l'ultimo messaggio vero fra quelli
+  //   caricati. shortcut: se è più vecchio dei messaggi caricati la finestra risulta chiusa (modello),
+  //   mai aperta per errore; cambiarla se la chat caricasse meno di 24 ore di messaggi.
+  let ultimo = ms(entrataPerFinestra(i.contatto, i.messaggi));
+  if (ultimo === null && ms(i.contatto?.ultimo_in_entrata_il) === null) {
     for (const m of i.messaggi) {
-      if (eRigaPonte(m)) continue;
+      if (eRigaPonte(m) || !eEntrataVera(m.body)) continue;
       const t = ms(m.created_at);
       if (m.direction === "inbound" && t !== null && (ultimo === null || t > ultimo)) ultimo = t;
     }
@@ -395,19 +405,27 @@ export function eventoDaIgnorare(
 /** Il margine all'indietro di ogni lettura a pezzi. */
 export const MARGINE_LETTURA = 2 * MINUTO;
 
-/** Da dove riprendere: il più recente fra le colonne date di tutte le righe, meno
- *  il margine. `null` = nessuna riga con un'ora = si legge tutto. */
+/** Da dove riprendere: il più recente fra le righe, meno il margine. Di ogni riga conta UNA
+ *  colonna sola: la prima di `colonne` che ha un'ora (per i messaggi `cambiato_il`, e
+ *  `created_at` solo se manca). ⚠️ Il cursore deve stare sullo STESSO orologio su cui la
+ *  richiesta filtra (`cambiato_il`, quello del database): `created_at` di un messaggio del
+ *  ponte è l'ora scritta da WhatsApp (anche di un telefono con l'orologio avanti, fino a
+ *  10 minuti nel futuro), e un cursore in avanti faceva ignorare in silenzio ogni riga
+ *  nuova finché l'orologio non lo raggiungeva. `null` = nessuna riga con un'ora = si legge tutto. */
 export function cursore(
   righe: readonly Record<string, unknown>[],
   colonne: readonly string[],
   margine = MARGINE_LETTURA,
 ): string | null {
   let max: number | null = null;
-  for (const r of righe)
+  for (const r of righe) {
+    let t: number | null = null;
     for (const k of colonne) {
-      const t = ms(r[k] as Istante | null | undefined);
-      if (t !== null && (max === null || t > max)) max = t;
+      t = ms(r[k] as Istante | null | undefined);
+      if (t !== null) break;
     }
+    if (t !== null && (max === null || t > max)) max = t;
+  }
   return max === null ? null : new Date(max - margine).toISOString();
 }
 

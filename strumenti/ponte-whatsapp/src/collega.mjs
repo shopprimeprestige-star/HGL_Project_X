@@ -67,6 +67,16 @@ export function jidDaNumero(numero) {
 /** Quanto si aspetta il vero messaggio prima di scrivere il segnaposto «non
  *  leggibile» (il telefono risponde alla richiesta di Baileys in pochi secondi). */
 export const ATTESA_NON_DECIFRATO_MS = 120_000;
+/** ── CHAT @lid NON ANCORA TRADOTTE (30/10/2026) ─────────────────────────────
+ *  Un messaggio in una chat `@lid` di cui non si sa ancora il numero non si butta: si tiene in RAM
+ *  (mai su disco, mai nei log) finché WhatsApp non dà la coppia lid/numero (rubrica, contatti,
+ *  `chats.phoneNumberShare`) o `getPNForLID` non la conosce, e allora entra in fila come se fosse
+ *  arrivato adesso (stessa origine: vivo o storico). Ogni `RIPROVA_LID_MS` si richiede a Baileys.
+ *  Nel log solo il codice `lid_non_risolto` con i conteggi; oltre i tetti `lid_scartato`.
+ *  shortcut: tetti in RAM e perdita al riavvio del ponte; quando serve, salvarli su disco come la fila. */
+export const RIPROVA_LID_MS = 180_000;
+export const MAX_LID_MESSAGGI = 500;
+export const MAX_LID_CHAT = 100;
 /** Quanto aspetta `ferma()` che Baileys scarichi il buffer della connessione (30 s
  *  al massimo per lui; qui meno, perché launchd ci chiude dopo 20 s). */
 export const ATTESA_SCARICO_MS = 6000;
@@ -176,6 +186,10 @@ export function creaCollegamento({
   const nonDecifrati = new Map();
   let proprioNumero = null;
   let proprioLid = null;
+  /** `lid` → messaggi `@lid` senza numero, in attesa della coppia: `{ m, vivo, dal }[]` */
+  const inAttesaLid = new Map();
+  let messaggiInAttesaLid = 0;
+  let provaLid = null;
   /** gli ultimi messaggi inviati da noi, per `key.id`: `{ numero, message }`, solo in RAM */
   const inviati = new Map();
   const stato = {
@@ -205,6 +219,68 @@ export function creaCollegamento({
     } catch {
       registro("lid_non_scritto");
     }
+    rilasciaLid();
+  }
+
+  /** Le coppie lid/numero che un contatto, una chat o un evento portano (nei due versi). */
+  function coppieDa(x) {
+    const lid = [x?.id, x?.lid, x?.lidJid, x?.jid].find((v) => typeof v === "string" && v.endsWith("@lid"));
+    const pn = [x?.phoneNumber, x?.pnJid, x?.id, x?.jid].find((v) => cifreDaJid(v));
+    return lid && pn ? [{ lid, pn }] : [];
+  }
+  const impara = (lista) => {
+    const voci = (Array.isArray(lista) ? lista : [lista]).flatMap(coppieDa);
+    if (voci.length) aggiornaLid(voci);
+  };
+
+  /** Un messaggio `@lid` senza numero: si tiene (entro i tetti). Vero se tenuto. */
+  function trattieniLid(m, vivo, dal) {
+    const lid = m.key.remoteJid;
+    if (!inAttesaLid.has(lid) && inAttesaLid.size >= MAX_LID_CHAT) return false;
+    if (messaggiInAttesaLid >= MAX_LID_MESSAGGI) return false;
+    const voci = inAttesaLid.get(lid) ?? [];
+    voci.push({ m, vivo, dal });
+    inAttesaLid.set(lid, voci);
+    messaggiInAttesaLid++;
+    return true;
+  }
+
+  /** Per i lid che ora si sanno tradurre, i messaggi tenuti entrano in fila. */
+  function rilasciaLid() {
+    if (!inAttesaLid.size) return;
+    const risolvi = risolutoreLid(mappa);
+    for (const [lid, voci] of [...inAttesaLid]) {
+      if (!risolvi(lid)) continue;
+      inAttesaLid.delete(lid);
+      messaggiInAttesaLid -= voci.length;
+      for (const vivo of [true, false]) {
+        const parte = voci.filter((v) => v.vivo === vivo);
+        if (!parte.length) continue;
+        const { messaggi, nomi } = estrai(parte.map((v) => v.m), vivo ? undefined : parte[0].dal, vivo, false);
+        metti(vivo ? "vivo" : "storico", messaggi, nomi);
+        conta(diagnosi.scarti, "lid_recuperato");
+      }
+    }
+    if (!inAttesaLid.size && provaLid !== null) {
+      annulla(provaLid);
+      provaLid = null;
+    }
+    avvisa();
+  }
+
+  /** Ogni tanto si richiede a Baileys il numero dei lid ancora senza traduzione. */
+  function pianificaProvaLid() {
+    if (provaLid !== null || !inAttesaLid.size || fermato) return;
+    provaLid = pianifica(async () => {
+      provaLid = null;
+      if (!inAttesaLid.size || fermato) return;
+      try {
+        await preparaLid(sock, []);
+      } catch {
+        registro("evento_fallito", { prova_lid: 1 });
+      }
+      pianificaProvaLid();
+    }, RIPROVA_LID_MS);
   }
 
   /** `getPNForLID` è asincrono e `estrai.mjs` vuole un risolutore sincrono:
@@ -221,6 +297,7 @@ export function creaCollegamento({
       if (cifreDaJid(m.key.remoteJidAlt)) imparate.push({ lid: jid, pn: m.key.remoteJidAlt });
       else if (!risolvi(jid)) mancanti.add(jid);
     }
+    for (const lid of inAttesaLid.keys()) mancanti.add(lid);
     const repo = sock?.signalRepository?.lidMapping;
     if (mancanti.size && typeof repo?.getPNForLID === "function") {
       for (const lid of mancanti) {
@@ -283,8 +360,10 @@ export function creaCollegamento({
 
   /** WAMessage[] → `{ messaggi, nomi }` validi, contando gli scarti per motivo.
    *  `vivo`: i non decifrati dei messaggi in arrivo ora aspettano il vero. */
-  function estrai(lista, dal, vivo = false) {
+  function estrai(lista, dal, vivo = false, trattieni = true) {
     const risolviLid = risolutoreLid(mappa);
+    let trattenuti = 0;
+    let persi = 0;
     const messaggi = [];
     const nomi = {};
     let ultimo = 0;
@@ -296,6 +375,10 @@ export function creaCollegamento({
       if (!r.ok) {
         conta(diagnosi.scarti, r.motivo);
         if (vivo && r.segnaposto) aspettaVero(r.segnaposto);
+        if (trattieni && r.motivo === "senza_numero" && typeof m?.key?.remoteJid === "string" && m.key.remoteJid.endsWith("@lid")) {
+          if (trattieniLid(m, vivo, dal)) trattenuti++;
+          else persi++;
+        }
         continue;
       }
       if (nonDecifrati.size) veroArrivato(r.messaggio);
@@ -307,6 +390,12 @@ export function creaCollegamento({
       if (r.nome && !nomi[r.messaggio.numero]) nomi[r.messaggio.numero] = r.nome;
       if (r.messaggio.ts > ultimo) ultimo = r.messaggio.ts;
     }
+    //  Mai in silenzio: solo il codice e i conteggi (né lid né numeri né testi).
+    if (trattenuti) {
+      registro("lid_non_risolto", { chat: inAttesaLid.size, messaggi: messaggiInAttesaLid });
+      pianificaProvaLid();
+    }
+    if (persi) registro("lid_scartato", { messaggi: persi });
     if (ultimo && (!stato.ultimo_messaggio_il || ultimo * 1000 > Date.parse(stato.ultimo_messaggio_il))) stato.ultimo_messaggio_il = iso(ultimo * 1000);
     return { messaggi, nomi };
   }
@@ -469,6 +558,7 @@ export function creaCollegamento({
       ascolta(questo, g, "messaging-history.set", async (h) => {
         const lista = Array.isArray(h?.messages) ? h.messages : [];
         if (Array.isArray(h?.lidPnMappings)) aggiornaLid(h.lidPnMappings);
+        impara([...(Array.isArray(h?.contacts) ? h.contacts : []), ...(Array.isArray(h?.chats) ? h.chats : [])]);
         await preparaLid(questo, lista);
         const { messaggi, nomi } = estrai(lista, storicoDal);
         // il nome della rubrica (o quello dei contatti dello storico) vince sul pushName
@@ -491,6 +581,11 @@ export function creaCollegamento({
         metti("vivo", messaggi, nomi);
         avvisa();
       });
+
+      //  La rubrica e i contatti portano la coppia lid/numero: i messaggi tenuti entrano.
+      ascolta(questo, g, "contacts.upsert", impara);
+      ascolta(questo, g, "contacts.update", impara);
+      ascolta(questo, g, "chats.phoneNumberShare", impara);
 
       ascolta(questo, g, "lid-mapping.update", (voce) => aggiornaLid(Array.isArray(voce) ? voce : [voce]));
 
@@ -564,6 +659,8 @@ export function creaCollegamento({
       fermato = true;
       if (attesa) annulla(attesa);
       attesa = null;
+      if (provaLid !== null) annulla(provaLid);
+      provaLid = null;
       if (sock && stato.stato === "collegato" && !scaricato) {
         await new Promise((ok) => {
           const t = pianifica(ok, ATTESA_SCARICO_MS);

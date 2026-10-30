@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   AlertCircle,
   CalendarClock,
@@ -31,15 +31,17 @@ import { ritornoInChat } from "./ritorno";
 import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import { linkApriWhatsapp } from "./apriWhatsapp";
 import { scadenzaFinestra, segnoConferma } from "./segniRiga";
+import { eSpostamento, PRESSIONE_LUNGA_MS } from "./selezione";
 import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { oggiIso } from "@/crm/ui";
-import { formatTimeIT, initials, numeroLeggibile } from "./formati";
+import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
+import { quandoUltimo } from "./ordineWhatsapp";
 import type { ChatItem } from "./tipi";
 
-/** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
-export type ModoRiga = "normale" | "attesa" | "vecchia";
+/** Come si disegna una riga: normale, o in attesa di risposta («Da rispondere»). */
+export type ModoRiga = "normale" | "attesa";
 
 /** Le spunte del mio ultimo messaggio, come nella bolla: lette in azzurro, il resto in grigio. */
 function SpunteRiga({ stato }: { stato: Spunte }) {
@@ -67,7 +69,7 @@ function SpunteRiga({ stato }: { stato: Spunte }) {
 }
 
 /** Nome da mostrare: scheda, poi nome salvato, poi il numero. */
-function nomeChat(c: ChatItem): string {
+export function nomeChat(c: ChatItem): string {
   const scheda = c.lead ? `${c.lead.data.nome} ${c.lead.data.cognome}`.trim() : "";
   return scheda || c.contact?.display_name || numeroLeggibile(c.phone);
 }
@@ -88,6 +90,22 @@ interface RigaChatProps {
   /** Solo in «Da chiamare»: pastiglia verde se si può scrivere (finestra di 24 ore
    *  aperta), rossa se è chiusa e serve un modello approvato. */
   mostraFinestra?: boolean;
+  /** Selezione tenendo premuto (30/10/2026). Senza, la riga è quella di sempre.
+   *  `attiva`: la modalità è accesa (il tocco aggiunge/toglie); `scelta`: questa riga è scelta. */
+  selezione?: {
+    attiva: boolean;
+    scelta: boolean;
+    /** Pressione lunga con la modalità spenta: la accende con questa riga scelta. */
+    onInizia: () => void;
+    /** Tocco con la modalità accesa: aggiunge o toglie la riga. */
+    onTocca: () => void;
+  };
+  /** È la chat del prossimo meet di oggi (vedi prossimo-meet.ts): la barra in cima la ripete, qui
+   *  resta lo sfondo e il bordo viola, così la si riconosce anche scorrendo. */
+  prossimoMeet?: boolean;
+  /** Vista «Tutte» (30/10/2026): a destra sempre l'ora dell'ultimo messaggio come WhatsApp
+   *  («18:03», «Ieri», «lunedì», «21/10/2026»), mai «da 5 min» né «Senza risposta». */
+  comeWhatsapp?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» e «Abbina» stanno
@@ -106,6 +124,9 @@ export function RigaChat({
   onStelle,
   onCambiaStato,
   mostraFinestra = false,
+  selezione,
+  prossimoMeet = false,
+  comeWhatsapp = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -113,6 +134,40 @@ export function RigaChat({
   const finestra =
     mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
   const [cambiaStato, setCambiaStato] = useState(false);
+  /*  ── PRESSIONE LUNGA (30/10/2026) ──────────────────────────────────────────
+      Touch e mouse con gli eventi del puntatore. Si annulla se il dito scorre
+      (`eSpostamento`), se lo si alza prima o se il browser prende il gesto (scorrimento:
+      `pointercancel`). Quando scatta, il rilascio che segue NON deve aprire la chat: lo
+      dice `lungo`. Sul telefono il menu di sistema (tieni premuto) si blocca solo dopo
+      un tocco vero, così col mouse il tasto destro resta quello del browser. */
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const partenza = useRef<{ x: number; y: number } | null>(null);
+  const lungo = useRef(false);
+  const tocco = useRef(false);
+  const annullaPressione = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    partenza.current = null;
+  };
+  useEffect(() => annullaPressione, []);
+  const iniziaPressione = (e: PointerEvent) => {
+    //  Si azzera PRIMA di ogni uscita: su Android, dopo una pressione lunga, il click
+    //  può non arrivare mai e il flag resterebbe acceso, mangiando il tocco dopo.
+    lungo.current = false;
+    tocco.current = e.pointerType === "touch";
+    if (!selezione || selezione.attiva || (e.pointerType === "mouse" && e.button !== 0)) return;
+    partenza.current = { x: e.clientX, y: e.clientY };
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      lungo.current = true;
+      if (typeof navigator !== "undefined") navigator.vibrate?.(15);
+      selezione.onInizia();
+    }, PRESSIONE_LUNGA_MS);
+  };
+  const muoviPressione = (e: PointerEvent) => {
+    const p = partenza.current;
+    if (p && eSpostamento(e.clientX - p.x, e.clientY - p.y)) annullaPressione();
+  };
   const nome = nomeChat(c);
   //  Il numero sotto il nome, anche per gli sconosciuti; se il nome È già il numero non si ripete.
   const numero = numeroLeggibile(c.phone);
@@ -124,15 +179,18 @@ export function RigaChat({
   //  p1-chat-veloce: l'ultimo messaggio anche delle chat vecchie (fuori dai letti),
   //  salvato sul contatto — entrata o uscita. Il più recente dei due.
   const last = ultimoDellaChat(c.lastMessage, c.contact);
-  const inAttesa = modo === "attesa" || modo === "vecchia";
+  const inAttesa = modo === "attesa";
   const ambigua = c.schedaAmbigua === true;
   const senzaScheda = !c.lead && (c.senzaScheda ?? true);
 
   // `dal` c'è sempre se la chat è in attesa; se mancasse, meglio l'ora dell'ultimo messaggio che un «da meno di 1 min» falso.
   const dal = inAttesa ? (c.daRispondere?.dal ?? null) : null;
-  const tempo = dal
-    ? attesaInChiaro(dal, adesso)
-    : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
+  const ultimaOra = quandoUltimo(c);
+  const tempo = comeWhatsapp
+    ? formatOraWhatsapp(ultimaOra > 0 ? new Date(ultimaOra) : null, adesso)
+    : dal
+      ? attesaInChiaro(dal, adesso)
+      : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
   const { consultants } = useCRM();
   const nomeConsulente =
     consultants.find((x) => x.id === c.lead?.data?.consulenteId)?.data.nome ?? null;
@@ -158,8 +216,6 @@ export function RigaChat({
     contatto: c.contact,
     attesa: c.daRispondere,
     inAttesa,
-    vecchia: modo === "vecchia",
-    nonLetti: c.unread,
     adesso,
     testoUscita: (corpo) => corpoLeggibile(corpo, c.lead?.data, nomeConsulente, c.lead?.id).testo,
   });
@@ -172,36 +228,75 @@ export function RigaChat({
   //  `temperatura` dice solo se c'è la riga del numero; il pallino lo decide TemperaturaRiga.
   const temperatura = !!c.lead && mostraTemperatura(c.lead.data.stato);
   const nessunMessaggio = a.nessunMessaggio;
-  const rigaAnteprima = a.testo !== "" || nessunMessaggio || c.unread > 0;
+  const rigaAnteprima = a.testo !== "" || nessunMessaggio;
 
   return (
-    <li className={cn("relative border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
+    <li
+      className={cn(
+        "relative border-b border-border",
+        attiva
+          ? "bg-emerald-50/60"
+          : prossimoMeet && "bg-violet-50/70 ring-1 ring-inset ring-violet-300",
+        selezione?.scelta && "bg-emerald-100/60",
+      )}
+    >
       {/*  ── LA RIGA, STILE WHATSAPP (29/10/2026) ──────────────────────────────
           Richiesta del titolare: compatta, senza vuoti. Nome e ora sulla prima
           riga, sotto il numero, sotto ancora la finestra di 24 ore (piccola), poi
           l'anteprima. Le pastiglie stanno sotto, vanno a capo e non escono mai. */}
       <button
         type="button"
-        onClick={onApri}
+        onClick={() => {
+          //  Il rilascio dopo una pressione lunga ha già acceso la selezione: non apre la chat.
+          if (lungo.current) {
+            lungo.current = false;
+            return;
+          }
+          if (selezione?.attiva) selezione.onTocca();
+          else onApri();
+        }}
+        onPointerDown={iniziaPressione}
+        onPointerMove={muoviPressione}
+        onPointerUp={annullaPressione}
+        onPointerLeave={annullaPressione}
+        onPointerCancel={annullaPressione}
+        onContextMenu={(e) => {
+          if (selezione && (tocco.current || lungo.current)) e.preventDefault();
+        }}
         aria-current={attiva ? "true" : undefined}
+        aria-pressed={selezione?.attiva ? selezione.scelta : undefined}
         className={cn(
+          selezione && "select-none [-webkit-touch-callout:none]",
           "flex w-full items-start gap-3 pb-1.5 pl-3 pt-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           //  Con la cornetta a destra (44 px + 4 di margine) il testo si ferma prima.
           c.lead && telefono ? "pr-12 md:pr-10" : "pr-3",
         )}
       >
-        <Avatar className="h-11 w-11 shrink-0 md:h-10 md:w-10">
-          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
-            {c.lead ? initials(c.lead.data.nome, c.lead.data.cognome) : "?"}
-          </AvatarFallback>
-        </Avatar>
+        <span className="relative shrink-0">
+          <Avatar className="h-11 w-11 md:h-10 md:w-10">
+            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
+              {c.lead ? initials(c.lead.data.nome, c.lead.data.cognome) : "?"}
+            </AvatarFallback>
+          </Avatar>
+          {/*  In selezione: spunta verde se scelta, cerchio vuoto se no (come WhatsApp). */}
+          {selezione?.attiva && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2",
+                selezione.scelta
+                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  : "border-muted-foreground/50 bg-background",
+              )}
+            >
+              {selezione.scelta && <Check className="h-3 w-3" strokeWidth={3} />}
+            </span>
+          )}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
             <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 md:text-[13px] md:leading-[18px]",
-                modo === "vecchia" ? "text-muted-foreground" : "text-foreground",
-              )}
+              className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-foreground md:text-[13px] md:leading-[18px]"
             >
               {nome}
             </span>
@@ -210,7 +305,7 @@ export function RigaChat({
                 clessidra = tocca a lui. Ardesia e non azzurro: l'azzurro è già nello stato.
                 Niente riga in più nell'elenco. Sul tablet (colonna stretta) restano
                 clessidra e durata, la frase c'è per chi legge con lo schermo. */}
-            {a.senzaRisposta ? (
+            {a.senzaRisposta && !comeWhatsapp ? (
               <span
                 className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 text-[11px] font-medium leading-5 tabular-nums text-slate-700 md:leading-[18px]"
                 title={`Hai scritto tu per ultimo e il cliente non ha ancora risposto (${a.senzaRisposta.da})`}
@@ -225,7 +320,9 @@ export function RigaChat({
               <span
                 className={cn(
                   "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
-                  modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
+                  modo === "attesa" && !comeWhatsapp
+                    ? "font-semibold text-amber-700"
+                    : "text-muted-foreground",
                 )}
               >
                 {tempo}
@@ -293,12 +390,6 @@ export function RigaChat({
                   {nessunMessaggio ? "Nessun messaggio" : a.testo}
                 </span>
               </span>
-              {c.unread > 0 && (
-                <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold leading-none text-white">
-                  {c.unread > 99 ? "99+" : c.unread}
-                  <span className="sr-only"> non letti</span>
-                </span>
-              )}
             </span>
           )}
         </span>
@@ -311,6 +402,7 @@ export function RigaChat({
       {c.lead && telefono && (
         <Button
           asChild
+          inert={selezione?.attiva}
           variant="ghost"
           className="absolute right-1 top-0 h-11 w-11 p-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 md:top-0.5 md:h-9 md:w-9"
         >
@@ -333,6 +425,7 @@ export function RigaChat({
       {finestra && !finestra.aperta && apriWa && (
         <a
           href={apriWa}
+          inert={selezione?.attiva}
           //  wa.me in una scheda nuova (il CRM resta aperto); il link Android si apre e basta.
           target={apriWa.startsWith("https:") ? "_blank" : undefined}
           rel="noopener noreferrer"
@@ -360,7 +453,10 @@ export function RigaChat({
            alti ~22 px a vista, e sul telefono un `after:` trasparente allarga
            l'area del tocco sopra e sotto (dal computer non serve). */}
       {(c.lead || onStelle) && (
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16">
+        <div
+          inert={selezione?.attiva}
+          className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16"
+        >
           {c.lead && (
             <button
               type="button"
@@ -497,7 +593,10 @@ export function RigaChat({
       )}
 
       {(senzaScheda || ambigua) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3">
+        <div
+          inert={selezione?.attiva}
+          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-3 pl-[68px] pr-3"
+        >
           <span className="text-[12px] text-muted-foreground">
             {ambigua ? "Più schede con questo numero" : "Numero senza scheda"}
           </span>

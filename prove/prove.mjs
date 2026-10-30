@@ -43,9 +43,14 @@ import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
+import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
+import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
+import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
+import { proveSpesaLead } from "./spesa-lead.mjs";
 
 const qui = dirname(fileURLToPath(import.meta.url));
 const radice = join(qui, "..");
@@ -619,12 +624,17 @@ const MODULI = [
   //  Un filtro per ogni stato del lead + WhatsApp nativo sempre (commessa 2026-10-30-filtri-stati-wa):
   //   prove in prove/manychat/chat-per-stato.mjs.
   "chatwa/perStato",
+  //  I filtri della chat a gruppi (30/10/2026): vedi prove/idee/filtri-chat.mjs.
+  "chatwa/filtri",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
   //   prove in prove/manychat/chat-costi.mjs.
   "chatwa/costi-whatsapp",
   "chatwa/calcolo-costi",
+  //  Lead di oggi e spesa pubblicitaria dal tasto WhatsApp (commessa 2026-10-30-spesa-lead-oggi):
+  //   prove in prove/spesa-lead.mjs.
+  "chatwa/spesa-lead",
   //  Il Cruscotto WhatsApp (pacchetto p4-cruscotto-wa): prove in prove/manychat/cruscotto-wa.mjs.
   "cruscotto-wa/calcolo",
   //  ⚠️ Le risposte rapide «/» e i suggerimenti della casella (commessa
@@ -644,10 +654,20 @@ const MODULI = [
   "chatwa/ritorno",
   "chatwa/apriWhatsapp",
   "chatwa/scelta-whatsapp",
+  "chatwa/entrata-vera",
   "chatwa/richiamo",
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
   //   prove in prove/idee/righe.mjs.
   "chatwa/segniRiga",
+  //  Selezione delle chat tenendo premuto e azioni in blocco (commessa
+  //   2026-10-30-selezione-chat): prove in prove/idee/selezione-chat.mjs.
+  "chatwa/selezione",
+  //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
+  //   prove in prove/idee/prossimo-meet.mjs.
+  "chatwa/prossimo-meet",
+  //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
+  //   prove in prove/idee/ordine-whatsapp.mjs.
+  "chatwa/ordineWhatsapp",
   "chatwa/testoWhatsapp",
   //  L'anteprima della riga = l'ULTIMO messaggio, chi l'ha scritto e «senza risposta»
   //   (commessa 2026-10-30-wa-anteprima-ultimo): vedi proveDellAnteprimaUltimo.
@@ -20635,7 +20655,7 @@ function proveDelTestoDeiModelli() {
   gruppo("WHATSAPP: IL MODELLO SI LEGGE COL SUO TESTO");
   const T = mod["testo-modello"];
   const t = T.testoDelModello("hgl_meet_domani", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
-  c("i parametri al loro posto", true, /Ciao Mario, .*domani, giovedì 29 ottobre, alle ore 15:00/.test(t) && /Ti seguirà Filippo/.test(t));
+  c("i parametri al loro posto", true, /Ciao Mario, promemoria del tuo appuntamento: consulenza online domani, giovedì 29 ottobre, alle 15:00 con Filippo\./.test(t) && /Il link per collegarti ti arriva domattina\. Se non puoi esserci, rispondi qui e lo spostiamo\./.test(t));
   const tt = T.testoDelModello("hgl_meet_domani_testo", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]);
   c("il giorno prima come testo: copia separata, chiede un ok, e il modello Meta resta com'era", [true, false], [/Ciao Mario, .*domani, giovedì 29 ottobre, alle 15:00 con Filippo\. Mi confermi con un ok\?/.test(tt), /Mi confermi/.test(t)]);
   c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
@@ -20747,7 +20767,9 @@ function proveDiWhatsappOrariStelle() {
   const casella = readFileSync(join(radice, "src/crm/chatwa/Casella.tsx"), "utf8");
   const hook = readFileSync(join(radice, "src/crm/chatwa/useStelle.ts"), "utf8");
   c("stelle dalla lista, tasto fuori dal bottone della riga", true, /onStelle && \(\s*<button/.test(riga) && /onStelle=\{\(\) => cambiaStelle\(c\.phone\)\}/.test(elenco));
-  c("filtro «In osservazione» col suo numero, prima le tre stelle", true, /In osservazione\{conStelle/.test(elenco) && /ordinaPerStelle\(/.test(elenco));
+  //  30/10/2026 (filtri a gruppi): «In osservazione» è «Con stelle», una delle 4 voci sempre in vista
+  //   (nome e numero nella griglia: prove/idee/filtri-chat.mjs); le stelle ordinano sempre ogni riquadro.
+  c("filtro «Con stelle» col suo numero, prima le tre stelle", true, /VOCI_RIGA\.map/.test(elenco) && /conta\(v\.campo, v\.valore\)/.test(elenco) && /ordinaPerStelle\(/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA.some((v) => v.campo === "stelle" && v.nome === "Con stelle"));
   c("i salvataggi delle stelle vanno in fila e rileggono prima di scrivere", true, /coda\.current = coda\.current\s*\.then\(/.test(hook) && /conStelle\(leggiStelle\(data\?\.value\), telefono, nuove\)/.test(hook));
   c("gli orari solo a chi ha l'agenda", true, /const puoAgenda = usePuo\(\)\("agenda"\)/.test(casella) && /orari && puoAgenda && configurata/.test(casella));
   c("il messaggio degli orari va nella casella", true, /<OrariRapidi[\s\S]{0,300}setBozza/.test(casella));
@@ -20840,11 +20862,15 @@ function proveDiWhatsappTemperaturaConsulente() {
   c("il tasto info apre tutte le risposte (vociModulo) e la temperatura", true, /<InfoModulo/.test(conv) && /<FinestraRisposte/.test(info) && /vociModulo\(modulo\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")) && /temperaturaLead\(modulo, dati\.qualifica\)/.test(readFileSync(join(radice, "src/crm/Temperatura.tsx"), "utf8")));
   c("le risposte sono solo testo (niente HTML)", false, /dangerouslySetInnerHTML/.test(info));
   c("il filtro del consulente vale per tutte le sezioni", true,
-    /inAttesaTutti\.filter\(delConsulente\)/.test(elenco) && /perPastiglia\(perRicerca\(api\.chats\.filter\(eVecchia\)\)\)\.filter\(delConsulente\)/.test(elenco) && /&& delConsulente\(c\)/.test(elenco));
+    //  30/10/2026: il consulente è un gruppo dei filtri, composto in E con gli altri in `passaFiltri`: tutti i riquadri
+    //   (Da rispondere, Altre chat, Finestra in chiusura) partono da `trovate`.
+    /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const inAttesa = perStelle\(fuoriScadenza\.filter/.test(elenco) && /const altre = perStelle\(fuoriScadenza\.filter/.test(elenco));
   c("il consulente scelto resta fra le opzioni anche senza chat", true, /conChat\.has\(x\.id\) \|\| x\.id === consulente/.test(elenco));
-  c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /Nessun cliente di questo consulente aspetta una risposta/.test(elenco));
+  //  30/10/2026: il messaggio «Nessun cliente di questo consulente aspetta una risposta» è sostituito dal generico
+  //   «Nessuna con questi filtri» (il consulente è uno dei filtri accesi, con la sua etichetta ✕); «altri M in attesa» → «altre M non di questo consulente».
+  c("con il filtro si dice quanti aspettano negli altri consulenti", true, /nascostiInAttesa > 0/.test(elenco) && /altre \$\{nascostiInAttesa\} non di questo consulente/.test(elenco));
   c("la riga mostra il numero leggibile sotto il nome (anche senza scheda), non più in terza riga", true, /numeroSotto && \(/.test(riga) && !/font-mono text-\[11px\] text-muted-foreground/.test(riga));
-  c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId === consulente/.test(elenco));
+  c("…ed è il consulente della scheda", true, /c\.lead\?\.data\?\.consulenteId !== f\.consulente/.test(readFileSync(join(radice, "src/crm/chatwa/filtri.ts"), "utf8")));
   //  Il pannello di temperatura per un lead del modulo «22-ott» e per uno senza risposte.
   const T = mod["temperatura-lead"];
   c("lead col modulo: c'è il grado da mostrare", "Caldo", T.temperaturaLead({ roma: "si", inizio: "subito", budget: "approfondire", aspettativa: "adatto" }).parola);
@@ -21122,6 +21148,41 @@ function proveDelloStatoAttesaWhatsapp() {
   c("nel menu «Altro» della scheda", true, /const ESITI_RAPIDI: LeadStatus\[\] = \[[\s\S]{0,200}"attesa_whatsapp"/.test(pagina));
 }
 
+/** ── LO STATO «RICONTATTO SENZA DATA» (30/10/2026) ──────────────────────────
+ *  Da ricontattare nel tempo, senza una data e senza pretendere niente dalla persona. */
+function proveDelloStatoRicontattoAperto() {
+  gruppo("STATO «RICONTATTO SENZA DATA»: IN SOSPESO, SENZA MESSAGGIO AUTOMATICO");
+  const T = mod["types"];
+  const k = "ricontatto_aperto";
+  c("ha il suo nome", "Ricontatto senza data", T.LEAD_STATUS_LABEL[k]);
+  c("sta nella fase «in sospeso»", "in_sospeso", T.LEAD_STATUS_PHASE[k]);
+  c("stesso colore degli altri in sospeso", T.LEAD_STATUS_COLOR.irreperibile, T.LEAD_STATUS_COLOR[k]);
+  c("si sceglie sui lead di sempre", true, T.SELECTABLE_LEAD_STATUSES.includes(k));
+  c("si sceglie nelle trattative", true, T.STATI_TRATTATIVA.includes(k));
+  c("non si offre sui lead di una lista da chiamare", false, T.STATI_PRIMO_CONTATTO.includes(k));
+  c("è fra gli stati conosciuti (filtri, KPI)", true, T.ALL_LEAD_STATUSES.includes(k));
+  c("è fra gli esiti di chiamata", true, T.POST_CALL_STATUSES.includes(k));
+  c("nessun elenco lo ripete due volte", true,
+    [T.SELECTABLE_LEAD_STATUSES, T.ALL_LEAD_STATUSES, T.STATI_TRATTATIVA].every((l) => l.filter((x) => x === k).length <= 1));
+  c("nessun messaggio automatico per stato", false, k in mod["manychat/stati"].TABELLA_STATI);
+  c("ha il testo per la chat, senza segnaposto sconosciuti", true,
+    typeof mod["whatsapp"].MODELLI_ORIGINALI[k] === "string" && mod["whatsapp"].MODELLI_ORIGINALI[k].length > 20);
+  const sel = readFileSync(join(radice, "src/crm/SelettoreStatoDialog.tsx"), "utf8");
+  c("ha la sua icona nel selettore", true, /ricontatto_aperto: \w+,/.test(sel));
+  //  Senza data davvero: scegliendo lo stato, la data/ora di un ricontatto di prima si azzerano,
+  //  altrimenti «Da fare» lo mostra come arretrato (revisore, N1).
+  const QS = mod["quando-per-stato"];
+  const vecchio = { nome: "Anna", stato: "ricontatto_aperto", dataRicontatto: "2026-10-01", oraRicontatto: "10:30", callbackAt: "2026-10-01T09:30:00.000Z" };
+  const pulito = QS.conRicontattoSenzaData(vecchio);
+  c("azzera data, ora e ricontatto automatico", ["", "", "", "Anna"], [pulito.dataRicontatto ?? "", pulito.oraRicontatto ?? "", pulito.callbackAt ?? "", pulito.nome]);
+  c("gli altri stati tengono la loro data", vecchio.dataRicontatto, QS.conRicontattoSenzaData({ ...vecchio, stato: "da_ricontattare" }).dataRicontatto);
+  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
+  c("lo fa updateLead, il punto unico da cui passano scheda, chat e importati", true,
+    /merged = conRicontattoSenzaData\(merged\)/.test(ctx) && /import \{[^}]*conRicontattoSenzaData[^}]*\} from "\.\/quando-per-stato"/.test(ctx));
+  const tratt = readFileSync(join(radice, "src/routes/CRM.trattative.tsx"), "utf8");
+  c("Trattative: sta fra chi va risentito", true, /const DA_RICONTATTARE: string\[\] = \[[\s\S]*?"ricontatto_aperto"/.test(tratt));
+}
+
 /** ── QUANDO RICHIAMARLO, DALLA CHAT (29/10/2026) ──────────────────────────── */
 function proveDelRichiamoInChat() {
   gruppo("WHATSAPP: QUANDO RICHIAMARLO, NELLA RIGA E NEL FILTRO");
@@ -21148,7 +21209,8 @@ function proveDelRichiamoInChat() {
     [{ k: "b", d: d(oggi, "") }, { k: "c", d: d(oggi, "10:00") }, { k: "a", d: d("2026-10-27", "18:00") }]
       .sort((x, y) => R.chiaveOrdine(x.d).localeCompare(R.chiaveOrdine(y.d))).map((x) => x.k));
   const el = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("il filtro «Richiamo» sta in «Da chiamare»", true, /filtro === "da-chiamare" && vociQuando\.length > 1/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
+  //  30/10/2026: «Richiamo» si chiama «Quando richiamare» e sta sotto la griglia con «Da chiamare» acceso (filtri.coda).
+  c("il filtro «Quando richiamare» sta in «Da chiamare»", true, /filtri\.coda === "da-chiamare"/.test(el) && /vociQuando\.length > 1/.test(el) && /Quando richiamare/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
   c("la data nella riga e nell'intestazione", true,
     ["RigaChat.tsx", "Conversazione.tsx"].every((f) => /etichettaRichiamo\(/.test(readFileSync(join(radice, "src/crm/chatwa", f), "utf8"))));
 }
@@ -21188,12 +21250,23 @@ function proveDelPrimoContattoTreFasce() {
   c("stesso tag di prima", "crm-primo-contatto", G.modelloETag("primo_contatto", null, false, true).tag);
   c("le altre sequenze non cambiano", "hgl_richiamo_24h", G.modelloETag("richiamo_24h", null, false, true).modello);
   const m = T.MODELLI_MANYCHAT.find((x) => x.name === "hgl_primo_contatto_tre_fasce");
-  c("il testo chiede mattina, pomeriggio o sera", true, !!m && /la mattina, il pomeriggio o la sera\?$/.test(m.body));
+  c("il testo chiede mattina, pomeriggio o sera", true, !!m && /fascia oraria in cui è reperibile: mattina, pomeriggio o sera\.$/.test(m.body));
   c("una sola variabile, il nome", ["lead_name"], m ? m.params.map((p) => p.key) : null);
   const giro = readFileSync(join(radice, "src/crm/manychat/giro.ts"), "utf8");
   c("i due punti del giro guardano il flusso nuovo", 2, (giro.match(/!!config\.flussi\[MODELLO_PRIMO_CONTATTO_TRE_FASCE\]/g) || []).length);
   const vista = readFileSync(join(radice, "src/crm/manychat/vista-pannello.ts"), "utf8");
   c("nel pannello c'è la riga per collegarne il flusso", true, /modello: "hgl_primo_contatto_tre_fasce"/.test(vista));
+}
+
+/** ── IL MESSAGGIO ALL'ORA DELLA CONSULENZA È SPENTO (30/10/2026) ─────────── */
+function proveDelMeetAdessoSpento() {
+  gruppo("MANYCHAT: IL MESSAGGIO ALL'ORA DEL MEET È SPENTO, I PROMEMORIA RESTANO");
+  const G = mod["manychat/giro"];
+  c("l'interruttore del messaggio all'ora è spento", false, G.MEET_ADESSO_ACCESO);
+  const giro = readFileSync(join(radice, "src/crm/manychat/giro.ts"), "utf8");
+  c("il giro filtra il messaggio all'ora, non il resto del giorno del meet", true, /MEET_ADESSO_ACCESO \|\| !eMeetAdesso/.test(giro));
+  const pan = readFileSync(join(radice, "src/crm/manychat/pannello.ts"), "utf8");
+  c("nel pannello il suo flusso non serve più", true, /modello === "hgl_meet_adesso"\) return false/.test(pan));
 }
 
 proveDeiTipi();
@@ -21263,6 +21336,7 @@ proveDeiRitocchiDellaBarra();
 proveDelModulo589();
 proveDeiPulsantiDelloStato();
 proveDelloStatoAttesaWhatsapp();
+proveDelloStatoRicontattoAperto();
 proveDellOrarioSulDoppione();
 proveDelTermometroInvisibleDerm();
 proveDellEliminaDallaCoda();
@@ -21308,8 +21382,10 @@ proveRitornoInAttesa(mod, { c, gruppo, radice });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
+proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
+proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
 proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
@@ -21317,6 +21393,12 @@ proveDelleDateInCima();
 proveAttesaPalla(mod, { c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
+proveFiltriChat(mod, { c, gruppo, radice });
+proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
+proveProssimoMeet(mod, { c, gruppo, radice });
+proveDelMeetAdessoSpento();
+proveOrdineWhatsapp(mod, { c, gruppo, radice });
+proveDelPerOraNoSenzaData();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22151,9 +22233,11 @@ function proveDelFiltroAcconto() {
   c("«Per stato» e «Acconto» sono due strade: l'acconto non accende i chip dello stato", false, mod["chatwa/perStato"].eFiltroPerStato("acconto"));
 
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("la pastiglia «Acconto» c'è", true, /\{ v: "acconto", l: "Acconto" \}/.test(elenco));
-  c("la pastiglia mostra il numero, calcolato sulle chat del consulente scelto", true,
-    /contaFinestra\(f\.v\)/.test(elenco) && /api\.chats\.filter\(\(c\) => delConsulente\(c\) && passaFiltro\(c, f\)\)/.test(elenco) && /f\.v === "acconto"/.test(elenco));
+  //  30/10/2026 (filtri a gruppi): «Acconto» è «Acconto versato», gruppo Pagamento del pannello; il numero è a faccette,
+  //   cioè tiene conto del consulente e di ogni altro filtro acceso (prove/idee/filtri-chat.mjs).
+  c("la voce «Acconto versato» c'è, nel gruppo Pagamento", ["Pagamento", "Acconto versato"], ((g) => [g.titolo, g.voci[0].nome])(mod["chatwa/filtri"].GRUPPI_FILTRI.find((x) => x.voci.some((v) => v.campo === "acconto"))));
+  c("la voce mostra il numero, calcolato con i filtri accesi (consulente compreso)", true,
+    /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")) && /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(elenco));
   const tipi = readFileSync(join(radice, "src/crm/chatwa/tipi.ts"), "utf8");
   c("il tipo FiltroChat conosce «acconto»", true, /\|\s*"acconto"/.test(tipi));
   //  Da «Tutte» non sparisce niente: il filtro è una pastiglia come le altre, non toglie nulla al resto.
@@ -22172,7 +22256,9 @@ function proveDeiFiltriFinestra() {
   c("altri stati, sconosciuti, finestra non calcolata: in nessuna delle due", [false, false, false], [passaFiltro(chat("attesa_whatsapp", false), "chiuso-24h"), passaFiltro(chat(null, false), "chiuso-24h"), passaFiltro(chat("appuntamento_fissato"), "aperto-24h")]);
   c("le pastiglie di prima non cambiano", [true, true], [passaFiltro(chat("appuntamento_fissato", false), "all"), passaFiltro(chat(null, true), "unknown")]);
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("le due pastiglie ci sono, col numero", true, /l: "Chiuso 24h"/.test(elenco) && /l: "24h aperto"/.test(elenco) && /contaFinestra\(f\.v\)/.test(elenco));
+  //  30/10/2026: «Chiuso 24h» → «Finestra chiusa», «24h aperto» → «Si può scrivere» (come la riga dell'elenco), nel gruppo
+  //   «Appuntamenti fissati: finestra WhatsApp» del pannello, col numero a faccette. Le regole di chi entra non cambiano (passaFiltro).
+  c("le due voci ci sono, con i nomi nuovi, col numero", true, ((v) => v.map((x) => x.nome).join("|") === "Si può scrivere|Finestra chiusa")(mod["chatwa/filtri"].GRUPPI_FILTRI.find((g) => g.id === "finestra").voci) && /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")));
   const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
   c("riga: finestra chiusa = bollino con WhatsApp in ogni elenco", true, /mostraFinestra \|\| c\.finestra\?\.aperta === false/.test(riga));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
@@ -22181,11 +22267,16 @@ function proveDeiFiltriFinestra() {
 }
 
 function proveDellOsservazioneComePastiglia() {
-  gruppo("CHAT WHATSAPP: «IN OSSERVAZIONE» NON SI SOMMA ALLE ALTRE PASTIGLIE");
+  //  30/10/2026 (filtri a gruppi): «In osservazione» ora è «Con stelle» e SI COMBINA con gli altri gruppi (prima accenderla
+  //   portava il filtro a «Tutte» e spegneva gli altri: la regola del guasto del 29/10 è superata da `contaVoce`, che conta
+  //   esattamente le righe dell'elenco). Le prove nuove sono in prove/idee/filtri-chat.mjs; qui resta il collegamento nei file.
+  gruppo("CHAT WHATSAPP: «CON STELLE» (EX «IN OSSERVAZIONE») SI COMBINA CON GLI ALTRI FILTRI");
   const src = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  c("accenderla porta il filtro a «Tutte» (con «Sconosciuti» acceso l'elenco era vuoto)", true, /if \(!soloStelle\) setFiltro\("all"\);\s*setSoloStelle\(\(v\) => !v\);/.test(src));
-  c("un'altra pastiglia la spegne", true, /setFiltro\(f\.v\);\s*setSoloStelle\(false\);/.test(src));
-  c("con l'osservazione accesa nessun'altra pastiglia sembra scelta", 2, (src.match(/filtro === f\.v &&\s+!soloStelle/g) || []).length);
+  const F = mod["chatwa/filtri"];
+  c("accenderla non spegne gli altri gruppi", ["non-letti", true], ((f) => [f.coda, f.stelle])(F.commuta(F.commuta(F.FILTRI_VUOTI, "coda", "non-letti"), "stelle", true)));
+  c("toccare un'altra voce del suo gruppo (la coda) non la spegne", true, F.commuta(F.commuta(F.FILTRI_VUOTI, "stelle", true), "coda", "da-chiamare").stelle);
+  c("nessun interruttore a parte nell'elenco (soloStelle) e nessun reset a «Tutte»", false, /soloStelle|setFiltro\("all"\)/.test(src));
+  c("il numero è calcolato con la stessa funzione dell'elenco (nessun numero diverso dall'elenco)", true, /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(src) && /passaFiltri\(c, filtri, stelleDi\)/.test(src));
 }
 
 /** ── L'ANTEPRIMA DELLA RIGA È L'ULTIMO MESSAGGIO (30/10/2026) ──────────────
@@ -22199,7 +22290,7 @@ function proveDellAnteprimaUltimo() {
   const adesso = Date.parse("2026-10-30T12:00:00Z");
   const fa = (ms) => new Date(adesso - ms).toISOString();
   const msg = (direction, body, ms, status) => ({ direction, body, created_at: fa(ms), status });
-  const base = { contatto: null, attesa: null, inAttesa: false, nonLetti: 0, adesso };
+  const base = { contatto: null, attesa: null, inAttesa: false, adesso };
 
   //  1. L'ultimo è mio.
   const mio = A.anteprimaRiga({ ...base, ultimo: msg("outbound", "Perfetto, a giovedì", 2 * 24 * ORA_MS, "read") });
@@ -22216,11 +22307,10 @@ function proveDellAnteprimaUltimo() {
   c("data illeggibile: niente «senza risposta» inventato", null, A.anteprimaRiga({ ...base, ultimo: { direction: "outbound", body: "x", created_at: "boh" } }).senzaRisposta);
 
   //  2. L'ultimo è del cliente.
-  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" }, nonLetti: 1 });
+  const suo = A.anteprimaRiga({ ...base, ultimo: msg("inbound", "Va bene, grazie", ORA_MS), inAttesa: true, attesa: { anteprima: "vecchio" } });
   c("del cliente: niente prefisso, nessuna spunta, non letto in evidenza", [false, null, "Va bene, grazie", true, null], [suo.mio, suo.spunte, suo.testo, suo.nonLetto, suo.senzaRisposta]);
   c("…vince l'ultimo messaggio vero, non l'anteprima di «Da rispondere»", "Va bene, grazie", suo.testo);
   c("del cliente già visto (non in attesa, nessun non letto): normale", false, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).nonLetto);
-  c("del cliente non in attesa ma con messaggi non letti: in evidenza", true, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS), nonLetti: 2 }).nonLetto);
   c("del cliente non ha mai «senza risposta»", null, A.anteprimaRiga({ ...base, ultimo: msg("inbound", "ok", ORA_MS) }).senzaRisposta);
 
   //  3. «Da rispondere» con l'ultimo mio (risposto dal telefono, non ancora segnato): si dice, e tocca a noi.
@@ -22268,9 +22358,9 @@ function proveDellAnteprimaUltimo() {
   c("spunte: lette, consegnato, inviato e errore con le icone outline", true, /CheckCheck/.test(r) && /<Check\b/.test(r) && /AlertCircle/.test(r));
   c("il non letto del cliente è in grassetto scuro", true, /a\.nonLetto[^;]{0,80}font-semibold text-foreground/.test(r));
   c("«senza risposta» a destra del nome, in ardesia con la clessidra (non ambra, non rosso, non azzurro come lo stato)", true,
-    /a\.senzaRisposta \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
+    /a\.senzaRisposta && !comeWhatsapp \?[\s\S]{0,500}bg-slate-100[^"]*text-slate-700/.test(r) && /Senza risposta/.test(r) && !/bg-sky-50[^"]*text-sky-800/.test(r));
   c("…e non aggiunge una riga all'elenco (niente pastiglia nella riga di stato)", false, /\(c\.lead \|\| onStelle \|\| a\.senzaRisposta\)/.test(r));
-  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" \? "font-semibold text-amber-700"/.test(r));
+  c("l'ambra di «tocca a noi» nell'ora a destra è rimasta", true, /modo === "attesa" && !comeWhatsapp\s*\? "font-semibold text-amber-700"/.test(r));
   c("la chat aperta mostra «senza risposta» nella barra, con la stessa funzione", true, /senzaRispostaDa\(/.test(conv) && /Senza risposta/.test(pulito(conv)));
   c("la regola di «Da rispondere» non è stata toccata: la riga legge ancora c.daRispondere", true, /c\.daRispondere\?\.dal/.test(r) && /attesa: c\.daRispondere/.test(r));
 }
@@ -22290,4 +22380,14 @@ function proveDelleCorrezioniManychat() {
   c("promemoria e conferme partiti come testo: risparmiati, non testi a mano né modelli pagati", [0, 2, 0], [r.testiLiberi, r.risparmio.messaggi, r.categorie ? r.categorie.reduce((n, x) => n + (x.messaggi ?? 0), 0) : 0]);
   const porta = readFileSync(join(radice, "src/crm/manychat/porta.ts"), "utf8");
   c("modello di riserva partito: il registro ha il suo flusso", true, /ns = nsRiserva;/.test(porta) && /modelloDiRiserva && ns \? \{ flow_ns: ns \}/.test(porta));
+}
+
+function proveDelPerOraNoSenzaData() {
+  gruppo("«PER ORA NO»: LA DATA È FACOLTATIVA ANCHE NELLA FINESTRA DELLO STATO");
+  const q = readFileSync(join(radice, "src/crm/quando-per-stato.ts"), "utf8");
+  c("per_ora_no ha la data facoltativa", true, /per_ora_no: \{[\s\S]*?dataFacoltativa: true/.test(q));
+  c("solo per_ora_no, per ora", 1, (q.match(/dataFacoltativa: true/g) || []).length);
+  const d = readFileSync(join(radice, "src/crm/QuickStatusDialog.tsx"), "utf8");
+  c("la finestra offre «Senza data» solo se la data è facoltativa", true, /richiesta\?\.dataFacoltativa && \(/.test(d) && />\s*Senza data\s*</.test(d));
+  c("senza data: lo stato si salva e il giorno del ricontatto si svuota", true, /const senzaData = async/.test(d) && /patch\[richiesta\.chiaveData as "dataRicontatto"\] = ""/.test(d));
 }

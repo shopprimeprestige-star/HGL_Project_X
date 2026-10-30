@@ -18,6 +18,7 @@ import { STATI_CON_MESSAGGIO } from "../promemoria/risposta";
 import { STATI_APPUNTAMENTO, type Consultant, type ContattoWa } from "../types";
 import { portePortaVere, chiaveManychatPresente } from "./porta.server";
 import { ultimeEntrateDaRighe } from "./finestra";
+import { entrateVereDi } from "./entrate-vere.server";
 import type { CambioContatto } from "./contatto";
 import type { AmbitoSchede, ConfigGiro, PorteGiro, RigaGiroDb, StatoGiroSalvato } from "./giro";
 import { configDaRiga, fraseModuloDa, type RigaConfig } from "./pannello";
@@ -520,21 +521,26 @@ export function porteGiro(): PorteGiro {
     //  L'ultima entrata dei soli meet di domani (pochi al giorno): una query ogni 50 telefoni,
     //  con e senza «+» (100 formati, al più 100 righe: lontano dal limite di 1000).
     ultimeEntrate: async (userId, telefoni) => {
-      const righe: { phone_e164?: string | null; ultimo_in_entrata_il?: string | null }[] = [];
+      const righe: {
+        phone_e164?: string | null;
+        ultimo_in_entrata_il?: string | null;
+        ultimo_in_entrata_anteprima?: string | null;
+      }[] = [];
       for (let i = 0; i < telefoni.length; i += TELEFONI_PER_BLOCCO) {
         const formati = telefoni
           .slice(i, i + TELEFONI_PER_BLOCCO)
           .flatMap((t) => [`+${t.replace(/\D/g, "")}`, t.replace(/\D/g, "")]);
         const { data, error } = await db()
           .from("whatsapp_contacts")
-          .select<typeof righe>("phone_e164, ultimo_in_entrata_il")
+          .select<typeof righe>("phone_e164, ultimo_in_entrata_il, ultimo_in_entrata_anteprima")
           .eq("user_id", userId)
           .in("phone_e164", formati)
           .not("ultimo_in_entrata_il", "is", null);
         if (error) return lancia(error);
         righe.push(...(data ?? []));
       }
-      return ultimeEntrateDaRighe(righe);
+      //  Una reazione non riapre la finestra: l'entrata torna all'ultimo messaggio vero.
+      return ultimeEntrateDaRighe(await entrateVereDi(userId, righe));
     },
     //  ⚠️ PostgREST dà al massimo 1000 righe per richiesta, in ordine qualunque, e
     //  taglia in silenzio: ogni lettura qui dentro ha quindi un LIMITE DI DATA (o un

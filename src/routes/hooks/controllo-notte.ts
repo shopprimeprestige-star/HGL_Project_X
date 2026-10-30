@@ -181,7 +181,9 @@ export async function giroControlloNotte(adesso = new Date()) {
         await aPagine<ContattoFinestra>(() =>
           db()
             .from("whatsapp_contacts")
-            .select("id, ultimo_in_entrata_il, risposto_il, non_scrivere_dal")
+            .select(
+              "id, ultimo_in_entrata_il, ultimo_in_entrata_anteprima, risposto_il, non_scrivere_dal",
+            )
             .eq("user_id", userId)
             .is("non_scrivere_dal", null)
             .gte("ultimo_in_entrata_il", inizioLetturaContatti(dal).toISOString())

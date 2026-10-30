@@ -13,11 +13,13 @@ import type { Lead, LeadStatus } from "@/crm/types";
 import type { StatoCanale } from "@/crm/prova-modelli";
 import type { StatoCasella } from "./stato";
 import type { FiltroPerStato } from "./perStato";
+import type { FiltriChat } from "./filtri";
 import type { ApiPonteInvio, BollaCoda } from "@/crm/ponte/invio-tipi";
 
+/** Il vocabolario di `passaFiltro` (cercaChat.ts). Dal 30/10/2026 non è più lo stato della chat:
+ *  `FiltriChat` (filtri.ts) tiene un valore per gruppo e li compone in E. */
 export type FiltroChat =
   | "all"
-  | "unread"
   | "with-lead"
   | "unknown"
   | "da-chiamare"
@@ -81,14 +83,11 @@ export interface ChatItem {
   lead: Lead | null;
   contact: WaContactRow | null;
   lastMessage: WaMessageRow | null;
-  unread: number;
   /** I campi che seguono li riempie T7; finché non c'è, mancano. */
   daRispondere?: {
     attesa: boolean;
     dal: string | null;
     anteprima: string | null;
-    /** Ripiego sui messaggi: senza risposta da più di 7 giorni (non è in elenco). */
-    vecchia?: boolean;
   } | null;
   /** `scadeIl`: quando chiude la finestra aperta (ISO), per il bollino «chiude tra…» (30/10/2026). */
   finestra?: { aperta: boolean; frase: string; scadeIl?: string | null };
@@ -97,14 +96,35 @@ export interface ChatItem {
   stop?: boolean;
 }
 
+/** Cosa è riuscito in un'azione su più chat (telefoni): le altre sono `fallite`, e si dice. */
+export interface EsitoBlocco {
+  riuscite: string[];
+  fallite: string[];
+  /** Manca la funzione del database (migrazione non applicata): non è un guasto di rete. */
+  manca?: boolean;
+}
+
+/** Le azioni su più chat insieme (selezione tenendo premuto, 30/10/2026). Ogni funzione
+ *  riceve i telefoni già scelti dall'elenco e scrive solo su quelli dell'utente (RLS e `user_id`). */
+export interface ApiBlocco {
+  /** Come l'apertura della chat: `unread_count` a 0. */
+  segnaLetto: (telefoni: string[]) => Promise<EsitoBlocco>;
+  /** Rimette il badge: `unread_count` a 1 (non si sa quanti, uno basta). */
+  segnaDaLeggere: (telefoni: string[]) => Promise<EsitoBlocco>;
+  /** Come «Fatto» su ogni chat (`whatsapp_segna_fatto`). */
+  segnaFatto: (telefoni: string[]) => Promise<EsitoBlocco>;
+}
+
 /** Ritorno di `useChatWa`: l'unica cosa che i componenti conoscono dei dati. */
 export interface ChatWaApi {
   chats: ChatItem[];
   /** Le chat in «Da rispondere», già ordinate come su WhatsApp (l'ultima che si è mossa sopra). */
   daRispondere: ChatItem[];
+  /** Le chat che passano ricerca e filtri a gruppi (senza le stelle: le somma `ElencoChat`). */
   visibili: ChatItem[];
-  filtro: FiltroChat;
-  setFiltro: (f: FiltroChat) => void;
+  /** I filtri a gruppi (30/10/2026): chi li accende, e come si ricordano, sta in `useFiltriChat`. */
+  filtri: FiltriChat;
+  setFiltri: (f: FiltriChat) => void;
   ricerca: string;
   setRicerca: (q: string) => void;
   /** La chat aperta, o `null`. */
@@ -144,6 +164,8 @@ export interface ChatWaApi {
   hasConfig: boolean | null;
   /** Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale). Facoltativo: senza, la chat è quella di prima. */
   ponte?: ApiPonteInvio;
+  /** Azioni su più chat (selezione tenendo premuto). Facoltativo: senza, l'elenco non offre la selezione. */
+  inBlocco?: ApiBlocco;
 }
 
 export interface ElencoChatProps {

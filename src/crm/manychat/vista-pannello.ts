@@ -25,6 +25,7 @@ import type {
 } from "../types";
 import type { Tono } from "../ui";
 import { aRoma } from "../promemoria/formati";
+import { PROMEMORIA_ACCONTO_ACCESO } from "./regole";
 import type {
   CollegamentoManychat,
   ConfigManychat,
@@ -404,9 +405,10 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   { modello: "hgl_meet_oggi_link", etichetta: "Giorno del meet: mattina col link (facoltativo)" },
   {
     modello: "hgl_meet_domani",
-    etichetta: "Giorno del meet: promemoria 24 ore prima (solo testo, senza flusso)",
+    etichetta:
+      "Giorno del meet: promemoria 24 ore prima (a pagamento, se fissata da oltre 3 giorni)",
   },
-  { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
+  { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link (spento)" },
   { modello: "hgl_meet_da_fissare", etichetta: "Meet da fissare" },
   { modello: "hgl_richiamo_concordato", etichetta: "Richiamo concordato" },
   { modello: "hgl_non_risponde", etichetta: "Non risponde e Segreteria" },
@@ -442,6 +444,8 @@ export interface StatoRiquadro {
   /** a chi */
   chi: string;
   legatoA?: "ricontatti";
+  /** la riga è spenta per scelta (non si accende): la frase che lo dice */
+  spento?: string;
 }
 
 const CONSULENTI = "Lead dei consulenti";
@@ -476,6 +480,10 @@ export const STATI_RIQUADRO: StatoRiquadro[] = [
     modello: "hgl_acconto",
     quando: A_DATA,
     chi: CONSULENTI,
+    //  Spento il 30/10/2026: si riaccende con `PROMEMORIA_ACCONTO_ACCESO` (regole.ts).
+    ...(PROMEMORIA_ACCONTO_ACCESO
+      ? {}
+      : { spento: "Spento: il promemoria dell'acconto non parte." }),
   },
   {
     stato: "gestire_in_chat",
@@ -547,9 +555,9 @@ export const STATI_RIQUADRO: StatoRiquadro[] = [
 export const statiDiRiga = (r: StatoRiquadro): LeadStatus[] => [r.stato, ...(r.insieme ?? [])];
 
 /** Gli stati che il riquadro sa accendere da solo (non «Ricontatto fissato»). */
-export const STATI_ACCENDIBILI: LeadStatus[] = STATI_RIQUADRO.filter((r) => !r.legatoA).flatMap(
-  statiDiRiga,
-);
+export const STATI_ACCENDIBILI: LeadStatus[] = STATI_RIQUADRO.filter(
+  (r) => !r.legatoA && !r.spento,
+).flatMap(statiDiRiga);
 
 /** Il tipo di invio in parole, per i problemi del giro. */
 export const ETICHETTA_TIPO: Record<string, string> = {
@@ -901,7 +909,7 @@ export function vistaSequenze(s: StatoManychat): {
     },
     giornoMeet: { disabilitato: senzaS2, nota: senzaS2 ? FRASE_S2 : "" },
     stati: STATI_RIQUADRO.map((r) => {
-      const dal = r.legatoA ? null : stati[r.stato];
+      const dal = r.legatoA || r.spento ? null : stati[r.stato];
       const acceso = r.legatoA ? config[r.legatoA] === true : !!dal;
       return {
         stato: r.stato,
@@ -912,16 +920,18 @@ export function vistaSequenze(s: StatoManychat): {
         ...(r.legatoA ? { legatoA: r.legatoA } : {}),
         acceso,
         ...(dal ? { dal: `acceso dal ${quandoBreve(dal)}` } : {}),
-        disabilitato: senzaS2 && !r.legatoA,
+        disabilitato: (senzaS2 && !r.legatoA) || !!r.spento,
         //  Spento senza S2: si dice perché (collaudo 26/10), invece del solo grigio.
-        ...(senzaS2 && !r.legatoA
-          ? { avviso: FRASE_S2 }
-          : r.stato === "viene_in_sede" && !config.indirizzoSede
-            ? {
-                avviso:
-                  "Scrivi prima l'indirizzo della sede (qui sotto): senza, il promemoria non parte.",
-              }
-            : {}),
+        ...(r.spento
+          ? { avviso: r.spento }
+          : senzaS2 && !r.legatoA
+            ? { avviso: FRASE_S2 }
+            : r.stato === "viene_in_sede" && !config.indirizzoSede
+              ? {
+                  avviso:
+                    "Scrivi prima l'indirizzo della sede (qui sotto): senza, il promemoria non parte.",
+                }
+              : {}),
       };
     }),
   };

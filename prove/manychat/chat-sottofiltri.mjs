@@ -76,10 +76,11 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
 
   gruppo("CHAT DA CHIAMARE · CABLAGGIO");
   c("pillola «Da chiamare» fra le pillole, col numero", true,
-    /"da-chiamare"/.test(tipi) && /v: "da-chiamare"/.test(elenco) && /contaSottofiltri\(/.test(elenco));
+    //  30/10/2026: la pillola è la 3ª cella della griglia 2×2 (VOCI_GRIGLIA, filtri.ts); il suo numero è a faccette.
+    /"da-chiamare"/.test(tipi) && /VOCI_RIGA/.test(elenco) && mod["chatwa/filtri"].VOCI_GRIGLIA[1].valore === "da-chiamare" && /contaSottofiltri\(/.test(elenco));
   c("la pillola filtra con lo stesso insieme del modulo puro", true, /statoChiamata\(c\) !== null/.test(cerca));
   c("una riga di chip dei sottofiltri solo con la pillola accesa, a zero nascosti", true,
-    /filtro === "da-chiamare"/.test(elenco) && /conti\[x\.v\] > 0/.test(elenco) && /aria-pressed=\{sottoAttivo === x\.v\}/.test(elenco));
+    /filtri\.coda === "da-chiamare"/.test(elenco) && /conti\[x\.v\] > 0/.test(elenco) && /aria-pressed=\{sottoAttivo === x\.v\}/.test(elenco));
   c("un elenco solo ordinato per stato (chatDaChiamare), niente scheda per stato", true,
     /chatDaChiamare\(/.test(elenco) && !/titolo-da-chiamare/.test(elenco));
   c("cornetta: tel: del numero, accessibile «Chiama <nome>», fuori dal bottone della riga", true,
@@ -100,6 +101,9 @@ export function proveChatSottofiltri(mod, { c, gruppo }) {
   c("niente codice morto della vecchia fascia (modo «chiamare», «oltre 10 ore» in riga, api.daChiamare)", false,
     /"chiamare"/.test(riga) || /oltre 10 ore/.test(riga) || /daChiamare:\s*ChatItem\[\]/.test(tipi) || /\bdaChiamare,$/m.test(hook));
   c("pillole e chip a 44 px sul telefono (h-11), 28 px dal desktop", false, /"h-10 shrink-0/.test(elenco));
-  c("telefono: pillole che scorrono di lato, nessuno scorrimento orizzontale della pagina", true,
-    /overflow-x-auto/.test(elenco) && /min-w-0/.test(riga));
+  //  30/10/2026 (sera): CAMBIA DI NUOVO, su richiesta del titolare («difficili da trovare da telefono»): i filtri rapidi
+  //   sono UNA riga che scorre di lato (la pagina no: lo scorrimento sta nella riga); i chip di «Stato della chiamata`
+  //   restano a capo.
+  c("telefono: una sola riga di filtri che scorre di lato dentro il suo contenitore, chip dello stato a capo", true,
+    /flex gap-2 overflow-x-auto overscroll-x-contain/.test(elenco) && /flex flex-wrap/.test(elenco) && !/grid grid-cols-2/.test(elenco) && /min-w-0/.test(riga));
 }

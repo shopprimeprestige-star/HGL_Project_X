@@ -741,8 +741,8 @@ export async function proveQuando(mod, { c, gruppo }) {
     ),
   );
   c(
-    "…accesi nel riquadro (prima di oggi) partono tutti e sei",
-    [true, true, true, true, true, true],
+    "…accesi nel riquadro (prima di oggi) partono tutti tranne «Attesa acconto», spenta il 30/10/2026 (PROMEMORIA_ACCONTO_ACCESO)",
+    [true, true, true, false, true, true],
     [
       "da_ricontattare",
       "sta_valutando",
