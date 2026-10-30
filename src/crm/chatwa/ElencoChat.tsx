@@ -22,6 +22,7 @@ import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
 import { ordinaComeWhatsapp } from "./ordineWhatsapp";
+import { chatSenzaScheda } from "./senzaScheda";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
 import {
@@ -158,7 +159,16 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
   //  riquadri, niente stelle in cima. Per questo anche il riquadro «Finestra in chiusura» (che è una
   //  sezione) esce: con «Si può scrivere» la riga ha comunque il suo bollino.
   const tutte = filtri.coda === null;
-  const elencoTutte = tutte ? ordinaComeWhatsapp(trovate) : [];
+  //  ── «SENZA SCHEDA» IN CIMA (30/10/2026) ────────────────────────────────
+  //  In «Tutte» le chat senza scheda (con messaggi, anche vecchi) hanno un riquadro tutto loro
+  //  sopra l'elenco: sono clienti non ancora salvati nel CRM. Non si ripetono sotto. Nelle altre
+  //  viste no: i numeri di «Da rispondere» e «Da chiamare» devono restare quelli dei pulsanti.
+  //  La pillola «Sconosciuti» resta: è il filtro che mostra SOLO queste, senza il resto.
+  const senzaSchedaCon = tutte ? chatSenzaScheda(trovate) : [];
+  const inSenzaSchedaTel = new Set(senzaSchedaCon.map((c) => c.phone));
+  const elencoTutte = tutte
+    ? ordinaComeWhatsapp(trovate.filter((c) => !inSenzaSchedaTel.has(c.phone)))
+    : [];
   const inScadenza =
     filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
   const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
@@ -213,7 +223,7 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
   const mostrate = senzaDoppioni(
     filtri.coda === "da-chiamare"
       ? elencoDaChiamare
-      : [...inScadenza, ...inAttesa, ...altre],
+      : [...senzaSchedaCon, ...inScadenza, ...inAttesa, ...altre],
   );
   const scelteVisibili = inSel ? soloVisibili(scelte, mostrate) : [];
   const esciDallaSelezione = () => {
@@ -618,10 +628,28 @@ export function ElencoChat({ api, onCreaScheda }: ElencoChatProps) {
             </ul>
           )
         ) : tutte ? (
-          <ul aria-label="Tutte le chat, dall'ultimo messaggio">
-            {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
-            {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
-          </ul>
+          <>
+            {senzaSchedaCon.length > 0 && (
+              <section aria-labelledby="titolo-senza-scheda">
+                <h2
+                  id="titolo-senza-scheda"
+                  className="t-corpo border-b border-primary/20 bg-primary/5 px-3 py-2 font-semibold text-foreground"
+                >
+                  Senza scheda ({senzaSchedaCon.length})
+                  <span className="t-nota ml-2 font-normal text-muted-foreground">
+                    clienti da salvare nel CRM
+                  </span>
+                </h2>
+                <ul>
+                  {senzaSchedaCon.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+                </ul>
+              </section>
+            )}
+            <ul aria-label="Tutte le chat, dall'ultimo messaggio">
+              {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
+              {elencoTutte.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
+            </ul>
+          </>
         ) : (
           <>
             {inScadenza.length > 0 && (

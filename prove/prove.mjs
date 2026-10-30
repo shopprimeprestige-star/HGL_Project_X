@@ -47,6 +47,7 @@ import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.
 import {
   proveCreaSchedaDaChat,
   proveNienteAbbinaInRiga,
+  proveRiquadroSenzaScheda,
   proveSottofiltriScorrevoli,
 } from "./idee/chat-ritocchi.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
@@ -633,6 +634,7 @@ const MODULI = [
   "chatwa/filtri",
   //  Ritocchi alla chat (30/10/2026): prove in prove/idee/chat-ritocchi.mjs.
   "chatwa/schedaDaChat",
+  "chatwa/senzaScheda",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
@@ -21405,6 +21407,7 @@ proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
 proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
+proveRiquadroSenzaScheda(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
