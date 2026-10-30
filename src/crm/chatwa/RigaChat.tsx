@@ -1,10 +1,12 @@
 import { useState } from "react";
 import {
+  AlertCircle,
   CalendarClock,
   Check,
   CheckCheck,
   ChevronDown,
   Clock,
+  Hourglass,
   Lock,
   LockOpen,
   Phone,
@@ -22,7 +24,7 @@ import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
-import { anteprimaIn, mediaInAnteprima } from "./media";
+import { anteprimaRiga, type Spunte } from "./anteprima-riga";
 import { IconaMedia } from "./IconaMedia";
 import { attesaInChiaro, ultimoDellaChat } from "./stato";
 import { ritornoInChat } from "./ritorno";
@@ -38,12 +40,21 @@ import type { ChatItem } from "./tipi";
 /** Come si disegna una riga: normale, in attesa di risposta, o attenuata (oltre 7 giorni, R10). */
 export type ModoRiga = "normale" | "attesa" | "vecchia";
 
-/** Il testo di una riga dell'elenco: anteprima come nella bolla (🎤 Vocale, «Messaggio non
- *  leggibile») su UNA riga sola. Nota 3 del revisore su T2: `anteprimaIn` lascia a capo e tab. */
-function anteprimaRiga(testo: string | null | undefined): string {
-  return anteprimaIn(testo ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Le spunte del mio ultimo messaggio, come nella bolla: lette in azzurro, il resto in grigio. */
+function SpunteRiga({ stato }: { stato: Spunte }) {
+  const classe = "h-3.5 w-3.5 shrink-0";
+  return (
+    <>
+      {stato === "lette" && <CheckCheck aria-hidden="true" className={cn(classe, "text-sky-600")} />}
+      {stato === "consegnato" && <CheckCheck aria-hidden="true" className={classe} />}
+      {stato === "inviato" && <Check aria-hidden="true" className={classe} />}
+      {stato === "errore" && <AlertCircle aria-hidden="true" className={cn(classe, "text-red-600")} />}
+      <span className="sr-only">
+        {{ lette: "Letto", consegnato: "Consegnato", inviato: "Inviato", errore: "Non inviato" }[stato]}
+        {". "}
+      </span>
+    </>
+  );
 }
 
 /** Nome da mostrare: scheda, poi nome salvato, poi il numero. */
@@ -129,15 +140,20 @@ export function RigaChat({
   //  Conferma e finestra in scadenza (30/10/2026): vedi segniRiga.ts.
   const conferma = segnoConferma(c.lead?.data, new Date(adesso));
   const scadenza = scadenzaFinestra(c, adesso);
-  //  Un nostro modello («[template:nome]») si legge col suo testo, come nella bolla.
-  const ultimo =
-    last?.direction === "outbound"
-      ? corpoLeggibile(last.body, c.lead?.data, nomeConsulente, c.lead?.id).testo
-      : last?.body;
-  const anteprima = anteprimaRiga(inAttesa ? (c.daRispondere?.anteprima ?? ultimo) : ultimo);
-  //  Un media si legge con la sua icona outline, anche se l'anteprima salvata
-  //  ha ancora l'emoji di prima del 28/10.
-  const media = mediaInAnteprima(anteprima);
+  //  L'anteprima è SEMPRE l'ultimo messaggio della chat, di chiunque sia (30/10/2026):
+  //  anche in «Da rispondere», dove prima si vedeva l'ultimo del cliente. Un nostro
+  //  modello («[template:nome]») si legge col suo testo, come nella bolla. Un media si
+  //  legge con la sua icona outline, anche se l'anteprima salvata ha l'emoji di prima del 28/10.
+  const a = anteprimaRiga({
+    ultimo: last,
+    contatto: c.contact,
+    attesa: c.daRispondere,
+    inAttesa,
+    vecchia: modo === "vecchia",
+    nonLetti: c.unread,
+    adesso,
+    testoUscita: (corpo) => corpoLeggibile(corpo, c.lead?.data, nomeConsulente, c.lead?.id).testo,
+  });
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
   const richiamo = c.lead ? etichettaRichiamo(c.lead.data, oggiIso(new Date(adesso))) : null;
 
@@ -146,8 +162,8 @@ export function RigaChat({
   //  dell'anteprima non si disegna: niente buco vuoto in mezzo alla riga.
   //  `temperatura` dice solo se c'è la riga del numero; il pallino lo decide TemperaturaRiga.
   const temperatura = !!c.lead && mostraTemperatura(c.lead.data.stato);
-  const nessunMessaggio = !last && !anteprima && !c.contact?.last_message_at;
-  const rigaAnteprima = media.testo !== "" || nessunMessaggio || c.unread > 0;
+  const nessunMessaggio = a.nessunMessaggio;
+  const rigaAnteprima = a.testo !== "" || nessunMessaggio || c.unread > 0;
 
   return (
     <li className={cn("relative border-b border-border", attiva ? "bg-emerald-50/60" : "")}>
@@ -180,7 +196,24 @@ export function RigaChat({
             >
               {nome}
             </span>
-            <span
+            {/*  A destra della prima riga ci sta SEMPRE di chi è la palla (30/10/2026):
+                «da 18 h» in ambra = tocca a noi; «Senza risposta da 2 g» in ardesia con la
+                clessidra = tocca a lui. Ardesia e non azzurro: l'azzurro è già nello stato.
+                Niente riga in più nell'elenco. Sul tablet (colonna stretta) restano
+                clessidra e durata, la frase c'è per chi legge con lo schermo. */}
+            {a.senzaRisposta ? (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 text-[11px] font-medium leading-5 tabular-nums text-slate-700 md:leading-[18px]"
+                title={`Hai scritto tu per ultimo e il cliente non ha ancora risposto (${a.senzaRisposta.da})`}
+              >
+                <Hourglass aria-hidden="true" className="h-3 w-3 shrink-0" />
+                <span>
+                  <span className="md:max-lg:sr-only">Senza risposta</span>
+                  {a.senzaRisposta.daOre && ` ${a.senzaRisposta.breve}`}
+                </span>
+              </span>
+            ) : (
+              <span
               className={cn(
                 "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
                 modo === "attesa" ? "font-semibold text-amber-700" : "text-muted-foreground",
@@ -188,6 +221,7 @@ export function RigaChat({
             >
               {tempo}
             </span>
+            )}
           </span>
           {/*  Il numero, e a destra sotto l'ora com'è messo il cliente (28/10/2026):
               pallino e parola, niente risposte brevi (le risposte sono nel tasto
@@ -232,18 +266,21 @@ export function RigaChat({
           )}
           {rigaAnteprima && (
             <span className="mt-0.5 flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] text-muted-foreground md:text-[12px] md:leading-4">
-                {!inAttesa && last?.direction === "outbound" && (
-                  <CheckCheck
-                    aria-hidden="true"
-                    className={cn(
-                      "mr-1 inline h-3.5 w-3.5 align-[-2px]",
-                      last.status === "read" ? "text-sky-600" : "text-muted-foreground",
-                    )}
-                  />
+              {/*  Chi ha scritto l'ultimo (30/10/2026): se sono io, davanti ci sono le
+                  spunte e «Tu:» e NON si tagliano (shrink-0); si taglia solo il testo, con
+                  i puntini, su una riga. Se è del cliente, niente prefisso; da leggere =
+                  grassetto scuro. */}
+              <span className="flex min-w-0 flex-1 items-center gap-1 text-[13px] leading-[18px] text-muted-foreground md:text-[12px] md:leading-4">
+                {a.mio && (
+                  <span className="inline-flex shrink-0 items-center gap-1">
+                    {a.spunte && <SpunteRiga stato={a.spunte} />}
+                    <span className="font-medium">Tu:</span>
+                  </span>
                 )}
-                {media.tipo && <IconaMedia tipo={media.tipo} className="mr-1 align-[-2px]" />}
-                {nessunMessaggio ? "Nessun messaggio" : media.testo}
+                {a.media && <IconaMedia tipo={a.media} className="shrink-0" />}
+                <span className={cn("min-w-0 truncate", a.nonLetto && "font-semibold text-foreground")}>
+                  {nessunMessaggio ? "Nessun messaggio" : a.testo}
+                </span>
               </span>
               {c.unread > 0 && (
                 <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold leading-none text-white">
