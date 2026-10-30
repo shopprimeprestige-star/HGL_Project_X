@@ -20751,7 +20751,7 @@ function proveDelloStatoDaChiamare() {
   const r1 = A.patchRitornoAttesa(dc, entrata, adesso);
   c("Da chiamare che risponde dopo: torna in Attesa WhatsApp, con stato di prima, ora e nota", ["attesa_whatsapp", "da_chiamare", adesso.toISOString(), adesso.toISOString()], [r1?.stato, r1?.statoPrecedente, r1?.statoPrecedenteIl, r1?.statoDal]);
   c("…e della scheda tocca solo stato, storia e note", ["note", "stato", "statoDal", "statoPrecedente", "statoPrecedenteIl"], Object.keys(r1 ?? {}).sort());
-  c("…la nota accoda senza cancellare quella che c'era (ora di Roma, stato di prima)", "x\nTornato in Attesa WhatsApp: ha scritto il 28/10 alle 20:00 (era: Da chiamare)", r1?.note);
+  c("…la nota accoda senza cancellare quella che c'era (ora di Roma, stato di prima)", "x\nTornato in Attesa WhatsApp: ha scritto il 28/10 alle 19:00 (era: Da chiamare)", r1?.note);
   c("la nota in ora legale/solare di Roma (30/10 00:09)", "Tornato in Attesa WhatsApp: ha scritto il 30/10 alle 00:09 (era: Non risponde)", A.patchRitornoAttesa({ stato: "non_risponde", statoDal: "2026-10-29T10:00:00Z" }, { ultimoInEntrataIl: "2026-10-29T23:09:00Z" }, new Date("2026-10-29T23:20:00Z"))?.note);
   c("risposta PRIMA di diventare Da chiamare: resta", null, A.patchRitornoAttesa(dc, { ultimoInEntrataIl: "2026-10-28T10:00:00Z" }, adesso));
   c("nessuna risposta: resta", null, A.patchRitornoAttesa(dc, { ultimoInEntrataIl: null }, adesso));
