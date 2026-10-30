@@ -2,7 +2,7 @@
 
 Cosa fa: un piccolo programma sul tuo Mac (il «ponte») si collega al tuo numero come un dispositivo in più, tipo WhatsApp Web, e porta le chat nel CRM con l'orario vero di ogni messaggio. Sono in **Chat** insieme a quelle di ManyChat: quello che scrivi dall'app del telefono compare nel CRM entro pochi secondi, e così quello che scrivono i clienti. All'inizio arriva anche lo storico (solo dei numeri che il CRM conosce già).
 
-Il ponte **non scrive mai** a nessuno e non manda «letto»: legge e basta. Le righe che porta sono **solo da vedere**: non cambiano «Da rispondere», i messaggi non letti, il giro automatico né le liste «Attesa WhatsApp» e «Da chiamare».
+Il ponte **non manda «letto»** e, di serie, **non scrive a nessuno**: legge e basta. Solo se lo accendi tu (sezione «Rispondere dopo le 24 ore», più sotto) può mandare, a mano e uno alla volta, un messaggio a chi ti ha già scritto. Le righe che porta sono **solo da vedere**: non cambiano «Da rispondere», i messaggi non letti, il giro automatico né le liste «Attesa WhatsApp» e «Da chiamare».
 
 Tempo: circa 45 minuti la prima volta, più il collaudo.
 
@@ -157,6 +157,24 @@ launchctl kickstart -k gui/$(id -u)/it.hgl.ponte-whatsapp
 
 Motivo: se manca il Node giusto o `config.env` è sbagliato, il ponte ti avvisa con una notifica ed esce **senza errore**, e il servizio apposta non lo rilancia in continuazione (altrimenti la notifica ti arriverebbe ogni 30 secondi). Dopo aver sistemato la cosa serve questo comando, che lo riavvia anche se è già in funzione. Vale anche dopo ogni `./installa.sh` che aggiorna il codice o `./installa.sh chiave`.
 
+## Rispondere dopo le 24 ore (scrivere dal telefono)
+
+Passate le 24 ore, in una chat compare accanto a «Invia un modello» il tasto **Scrivi dal telefono**: scrivi un testo libero e parte dal tuo numero WhatsApp Business, senza modello e senza il costo del modello. Entro le 24 ore non cambia niente: il testo libero parte come sempre.
+
+**Quando compare il tasto** (tutte insieme): il ponte è collegato e ha battuto negli ultimi 3 minuti; sul Mac hai acceso gli invii; il cliente ci ha già scritto almeno una volta; il cliente non ha chiesto STOP.
+
+**Limiti, contro il rischio di blocco del numero:** solo testo (niente foto), al massimo 2000 caratteri, un messaggio alla volta, **1 ogni 20 secondi**, **20 ogni 24 ore** in tutto. Un messaggio che non è partito entro **10 minuti** non parte più (compare «Non inviato» con «Riprova»). Il giro automatico, i promemoria e «Da rispondere» non usano mai questa strada.
+
+**Attesa:** il Mac guarda la coda a ogni controllo del ponte (circa un minuto) e poi ogni pochi secondi. Un messaggio parte quindi dopo circa un minuto, a volte meno. Nella chat vedi «In invio dal telefono…», poi la spunta.
+
+**Rischio:** WhatsApp può bloccare un numero che manda messaggi da un dispositivo non ufficiale. Un blocco ferma anche ManyChat. Per questo è spento di serie e va acceso apposta.
+
+**Come si accende:** nel file `config.env` del ponte (sul Mac) aggiungi la riga `INVII_ATTIVI=1` e riavvia il ponte.
+**Come si spegne subito:** togli la riga `INVII_ATTIVI=1` e riavvia il ponte (il tasto sparisce dal CRM entro 3 minuti); oppure scollega «Mac OS» da Dispositivi collegati.
+**Come si annulla nel database:** i `DROP` nel commento in cima a `supabase/migrations/20261030120000_ponte_invio_manuale.sql`.
+
+I passi per applicare la migrazione, aggiornare il ponte e fare il collaudo sono in `commesse/2026-10-30-ponte-invio-manuale/PASSI-TITOLARE.md`.
+
 ## Cosa vedi nel CRM
 
 In **Chat**, in cima, compare una fascia **solo se qualcosa non va**: «il ponte non risponde da N minuti» (Mac spento, addormentato o ponte fermo), «WhatsApp ha scollegato il ponte» (c'è un codice nuovo da inquadrare sul Mac), «lo storico è ancora in arrivo (62%)». Se non vedi niente, va tutto bene. L'avviso lo vede solo chi apre la Chat: non arriva una notifica sul telefono.
@@ -191,7 +209,7 @@ Il log: `tail -n 50 ~/Library/Logs/hgl-ponte-wa.log`. Righe tipo `battito_colleg
 
 ## Cosa non fa (per ora)
 
-- Non scarica foto, vocali o allegati: compare un segnaposto («📷 Foto», «🎤 Vocale»).
+- Non scarica foto, vocali o allegati: compare un segnaposto («📷 Foto», «🎤 Vocale»). Non ne manda nemmeno: scrivendo dal telefono si manda solo testo.
 - Non segue le modifiche e le cancellazioni: un messaggio modificato o cancellato per tutti resta com'era nel CRM.
 - Importa solo i numeri che il CRM conosce già. Un cliente nuovo entra dopo che ManyChat gli ha creato il contatto (entro circa 10 minuti).
 - Non mette il codice da inquadrare nel CRM: sta solo sul Mac.
