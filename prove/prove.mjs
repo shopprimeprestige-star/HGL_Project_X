@@ -21532,6 +21532,7 @@ await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
+proveDeiContatoriABadge();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22523,4 +22524,12 @@ function proveDelPerOraNoSenzaData() {
   const d = readFileSync(join(radice, "src/crm/QuickStatusDialog.tsx"), "utf8");
   c("la finestra offre «Senza data» solo se la data è facoltativa", true, /richiesta\?\.dataFacoltativa && \(/.test(d) && />\s*Senza data\s*</.test(d));
   c("senza data: lo stato si salva e il giorno del ricontatto si svuota", true, /const senzaData = async/.test(d) && /patch\[richiesta\.chiaveData as "dataRicontatto"\] = ""/.test(d));
+}
+
+function proveDeiContatoriABadge() {
+  gruppo("CHAT: I NUMERI DELLE LINGUETTE SONO BADGE (31/10/2026)");
+  const e = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("il contatore è un tondino con la scala t-etichetta", true, /const contatore = [\s\S]*?rounded-full[\s\S]*?t-etichetta/.test(e));
+  c("stato della chiamata e «quando richiamare» usano il contatore", 2, (e.match(/className=\{contatore\(/g) || []).length);
+  c("niente più numero attaccato al testo", false, /\{x\.l\} <span className="tabular-nums">/.test(e));
 }
