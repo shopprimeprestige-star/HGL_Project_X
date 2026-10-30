@@ -138,6 +138,11 @@ const ICONA_RIGA: Record<TipoRiga, ComponentType<{ className?: string }>> = {
  *  disegnato FUORI dalla riga — lo farebbe sparire a metà strada. */
 const PAUSA_CHIUSURA_MS = 220;
 
+/** La misura dei tasti quadrati di una riga. Nel pannello «Oggi» della chat (`compatta`) sono da 44 px
+ *  col dito (telefono e tablet) e da 28 col mouse; nella pagina «Da fare oggi» restano da 28 (31/10/2026). */
+const tocco = (compatta?: boolean) =>
+  compatta ? "h-11 w-11 lg:pointer-fine:h-7 lg:pointer-fine:w-7" : "h-7 w-7";
+
 /* ── SPOSTARE UNA COSA DA FARE ───────────────────────────────────────────── */
 
 /** Le distanze che si scelgono sempre. Sono le stesse — e nello stesso ordine —
@@ -172,9 +177,11 @@ function SpostaTask({
   riga,
   occupato,
   onSposta,
+  compatta,
 }: {
   riga: RigaDaFare;
   occupato?: boolean;
+  compatta?: boolean;
   onSposta: (id: string, data: string, ora: string) => void;
 }) {
   const [aperto, setAperto] = useState(false);
@@ -209,7 +216,10 @@ function SpostaTask({
           //  passaggio del mouse sul telefono non esiste.
           aria-label="Sposta questa cosa da fare a un altro giorno o a un'altra ora"
           title="Spostala a un altro giorno o cambia l'ora"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40",
+            tocco(compatta),
+          )}
         >
           <CalendarClock className="h-3.5 w-3.5" />
         </button>
@@ -623,7 +633,8 @@ export function VoceDaFare({
           disabled={occupato}
           onCheckedChange={(v) => onSpunta(riga.task!.id, v === true)}
           aria-label={riga.fatta ? "Segna come da fare" : "Segna come fatta"}
-          className="shrink-0"
+          //  Nel pannello stretto il tocco arriva a 44 px senza ingrandire il segno.
+          className={cn("shrink-0", compatta && "relative after:absolute after:-inset-3.5")}
         />
       ) : (
         <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background">
@@ -665,7 +676,10 @@ export function VoceDaFare({
               annullaChiusura();
             }}
             aria-label={`Cosa sapere prima di chiamare ${riga.chi}`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground",
+              tocco(compatta),
+            )}
           >
             <Info className="h-3.5 w-3.5" />
           </button>
@@ -691,7 +705,10 @@ export function VoceDaFare({
               onClick={(e) => e.stopPropagation()}
               title={`Chiama ${riga.chi}`}
               aria-label={`Chiama ${riga.chi}`}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground",
+                tocco(compatta),
+              )}
             >
               <Phone className="h-3.5 w-3.5" />
             </a>
@@ -723,7 +740,10 @@ export function VoceDaFare({
               stato={riga.lead.data.stato}
               onInviato={() => segnaScritto(idLead, statoLead, oggi)}
               titolo={`Scrivi a ${riga.chi} il messaggio giusto per il suo stato`}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground",
+                tocco(compatta),
+              )}
             />
           )}
           {!!messaggioPromemoria && messaggioPromemoria !== messaggioStato && (
@@ -733,7 +753,10 @@ export function VoceDaFare({
               onClick={(e) => e.stopPropagation()}
               title={`Manda a ${riga.chi} ${etichettaPromemoria(riga.lead?.data, oggi)}`}
               aria-label={`Promemoria per ${riga.chi}`}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground",
+                tocco(compatta),
+              )}
             >
               <BellRing className="h-3.5 w-3.5" />
             </LinkWhatsapp>
@@ -759,7 +782,7 @@ export function VoceDaFare({
       )}
 
       {riga.task && !riga.fatta && (
-        <SpostaTask riga={riga} occupato={occupato} onSposta={onSposta} />
+        <SpostaTask riga={riga} occupato={occupato} onSposta={onSposta} compatta={compatta} />
       )}
 
       {/* ── NON HA CONFERMATO: LA FRASE E IL TASTO PER CHIAMARE ───────────
@@ -801,7 +824,10 @@ export function VoceDaFare({
           disabled={occupato}
           onClick={() => onElimina(riga.task!.id)}
           aria-label="Elimina questa cosa da fare"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-rose-300 hover:text-rose-600 disabled:opacity-40"
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-rose-300 hover:text-rose-600 disabled:opacity-40",
+            tocco(compatta),
+          )}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

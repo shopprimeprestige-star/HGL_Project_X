@@ -249,7 +249,7 @@ function Pastiglie({ periodo, onCambia }: { periodo: Periodo; onCambia: (p: Peri
         <div className="flex items-center gap-2 px-3 pb-2">
           <input
             type="date"
-            aria-label="Dal giorno"
+            aria-label="Data di inizio"
             value={periodo.da}
             max={periodo.a || undefined}
             onChange={(e) => onCambia({ ...periodo, da: e.target.value })}
@@ -260,7 +260,7 @@ function Pastiglie({ periodo, onCambia }: { periodo: Periodo; onCambia: (p: Peri
           </span>
           <input
             type="date"
-            aria-label="Al giorno"
+            aria-label="Data di fine"
             value={periodo.a}
             min={periodo.da || undefined}
             onChange={(e) => onCambia({ ...periodo, a: e.target.value })}
