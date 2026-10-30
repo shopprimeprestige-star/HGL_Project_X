@@ -328,13 +328,15 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
     hgl_sede_disdetta: 1, hgl_ultimo_tentativo: 1, hgl_ritorno: 1, hgl_casi_reali: 1,
     hgl_acconto: 2, hgl_come_eravamo_rimasti: 2,
   };
+  //  Il giro passa il consulente (v2) anche a questi due, ma il loro testo Utility non lo nomina: un segnaposto in meno.
+  const SENZA_CONSULENTE_NEL_TESTO = new Set(["hgl_da_riprogrammare", "hgl_come_eravamo_rimasti"]);
   c("ci sono tutti i 21 modelli hgl_ di ManyChat (20 con flusso + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
   c(
-    "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna",
+    "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna (salvo il consulente non nominato dal testo)",
     [],
     MODELLI_MANYCHAT.filter((t) => {
       const n = (t.body.match(/\{\{\d+\}\}/g) ?? []).length;
-      return t.params.length !== VARIABILI[t.name] || t.params.length > MAX_PARAMETRI || n !== t.params.length;
+      return t.params.length !== VARIABILI[t.name] || t.params.length > MAX_PARAMETRI || n !== t.params.length - (SENZA_CONSULENTE_NEL_TESTO.has(t.name) ? 1 : 0);
     }).map((t) => t.name),
   );
   c(

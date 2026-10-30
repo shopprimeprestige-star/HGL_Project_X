@@ -207,15 +207,11 @@ export function proveMessaggioStato(mod, { c, gruppo, radice }) {
   gruppo("MESSAGGIO PER STATO · IL MODELLO GENERICO");
   const g = T.findMetaTemplate(M.MODELLO_GENERICO);
   c("nome del modello", "hgl_come_eravamo_rimasti", M.MODELLO_GENERICO);
+  //  Testo e categoria li decide la commessa dei modelli Utility (30/10): qui solo che c'è, con le due variabili.
   c(
-    "è in MODELLI_MANYCHAT: MARKETING, lead_name e consultant_name",
-    ["MARKETING", ["lead_name", "consultant_name"]],
-    [g?.category, g?.params.map((p) => p.key)],
-  );
-  c(
-    "il testo è quello chiesto dal titolare",
-    "Ciao {{1}}, buongiorno! Come va?\n\nSono {{2}} di Hair Genius Labs, ti scrivo per sapere alla fine come eravamo rimasti.",
-    g?.body,
+    "è in MODELLI_MANYCHAT con lead_name e consultant_name",
+    [true, ["lead_name", "consultant_name"]],
+    [!!g?.body, g?.params.map((p) => p.key)],
   );
 
   gruppo("MESSAGGIO PER STATO · CAMBIA LO STATO, IL TESTO SI AZZERA");

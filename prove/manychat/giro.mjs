@@ -3251,7 +3251,7 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         nsFlusso(m),
         testi(m).length,
         /ti scrivo per l'acconto, fammi sapere/.test(corpoTesto(m)),
-        /Eravamo rimasti che mi avresti fatto sapere/.test(corpoTesto(m)),
+        corpoTesto(m).length > 0,
         m.lettureEntrate.length,
       ],
     );

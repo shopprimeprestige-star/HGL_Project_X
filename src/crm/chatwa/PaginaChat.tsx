@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
-import { AlertCircle, Loader2, MessageCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, MessageCircle, RefreshCw, Sun } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { usePuo } from "@/crm/AuthContext";
-import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { LeadDialog } from "@/crm/LeadDialog";
 import { QuickStatusDialog } from "@/crm/QuickStatusDialog";
 import { useChiusura } from "@/crm/ChiusuraDialog";
@@ -23,6 +22,8 @@ import { AbbinaScheda } from "./AbbinaScheda";
 import { StatoPonte } from "./StatoPonte";
 import { PannelloCosti, TastoCosti } from "./PannelloCosti";
 import { useChatWa } from "./useChatWa";
+import { PannelloOggi } from "./PannelloOggi";
+import { chatDelLead } from "./pannello-oggi";
 import { usaAltezzaVisibile } from "./usaAltezzaVisibile";
 
 /** Le due viste della pagina: le conversazioni vere e i testi che le popolano. */
@@ -50,9 +51,12 @@ export function PaginaChat({
 } = {}) {
   const schermoIntero = percorso === "/chat";
   const [vista, setVista] = useState<Vista>("chat");
-  const [leadsPanelOpen, setLeadsPanelOpen] = useState(true);
-  //  Sotto 1280 px la colonna «Lead CRM» è un foglio che si apre a richiesta.
-  const [foglioLead, setFoglioLead] = useState(false);
+  //  ── LA COLONNA DI DESTRA È «OGGI» (30/10/2026) ──────────────────────────
+  //   Richiesta del titolare: al posto di «Lead CRM» la giornata (consulenze,
+  //   cose da fare). Il vecchio elenco lead è la scheda «Lead» del pannello.
+  const [pannelloOggi, setPannelloOggi] = useState(true);
+  //  Sotto 1280 px il pannello è un foglio che si apre a richiesta.
+  const [foglioOggi, setFoglioOggi] = useState(false);
   const visibile = usaAltezzaVisibile();
   //  «Costi WhatsApp» (29/10/2026): soldi, quindi solo a chi ha le impostazioni (come la rotta).
   const vedeCosti = usePuo()("impostazioni");
@@ -191,6 +195,26 @@ export function PaginaChat({
     setDaAbbinare(c);
   };
 
+  /** Tocco su una riga del pannello «Oggi»: la sua chat se c'è, altrimenti la scheda. */
+  const apriDaOggi = (lead: Lead) => {
+    setFoglioOggi(false);
+    const c = chatDelLead(api.chats, lead.id);
+    if (c) {
+      apriChat(c.phone);
+      return;
+    }
+    setLeadDialogLead(lead);
+    setLeadDialogPrefill(undefined);
+    setLeadDialogOpen(true);
+  };
+  const pannello = (onClose?: () => void) => (
+    <PannelloOggi
+      onApri={apriDaOggi}
+      onStato={(l, s) => void api.cambiaStatoLead(l, s)}
+      onClose={onClose}
+    />
+  );
+
   const openHeaderEdit = () => {
     const chat = api.attiva;
     if (!chat) return;
@@ -309,24 +333,25 @@ export function PaginaChat({
                 )}
                 {api.aggiornatoIl ? `Aggiornato ${oraBreve(api.aggiornatoIl)}` : "Aggiorna"}
               </Button>
-              {/* Sotto 1280 px «Lead CRM» è un foglio; da 1280 in su una colonna che si nasconde. */}
+              {/* Sotto 1280 px «Oggi» è un foglio; da 1280 in su una colonna che si nasconde. */}
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setFoglioLead(true)}
-                className="h-11 text-xs md:h-8 xl:hidden"
-                title="Apri l'elenco dei lead"
+                onClick={() => setFoglioOggi(true)}
+                className="h-11 gap-1.5 text-xs md:h-8 xl:hidden"
+                title="Consulenze e cose da fare di oggi"
               >
-                Lead
+                <Sun className="h-3.5 w-3.5" /> Oggi
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setLeadsPanelOpen((v) => !v)}
-                className="hidden h-8 text-xs xl:inline-flex"
-                title={leadsPanelOpen ? "Nascondi pannello lead" : "Mostra pannello lead"}
+                onClick={() => setPannelloOggi((v) => !v)}
+                className="hidden h-8 gap-1.5 text-xs xl:inline-flex"
+                title={pannelloOggi ? "Nascondi il pannello Oggi" : "Mostra il pannello Oggi"}
               >
-                {leadsPanelOpen ? "Nascondi lead" : "Mostra lead"}
+                <Sun className="h-3.5 w-3.5" />
+                {pannelloOggi ? "Nascondi Oggi" : "Mostra Oggi"}
               </Button>
             </>
           )}
@@ -359,7 +384,7 @@ export function PaginaChat({
       {/*  La chat resta montata mentre si guardano i modelli: tornando indietro
           si ritrova la conversazione aperta e lo scorrimento dov'era.
           Telefono: o l'elenco o la conversazione, a tutto schermo (D20). Da 768 px
-          in su le due colonne; «Lead CRM» inline solo da 1280 px. */}
+          in su le due colonne; «Oggi» inline solo da 1280 px. */}
       <div className={vista === "chat" ? "flex flex-1 min-h-0" : "hidden"}>
         {/* Colonna elenco: larghezza e visibilità qui, non nel figlio (R12) */}
         <div
@@ -382,26 +407,26 @@ export function PaginaChat({
           />
         </div>
 
-        {/* Pannello lead a destra — collassabile, solo da 1280 px */}
-        {leadsPanelOpen && (
-          <div className="hidden xl:flex">
-            <WhatsAppLeadsPanel onClose={() => setLeadsPanelOpen(false)} />
+        {/* Pannello «Oggi» a destra — collassabile, solo da 1280 px */}
+        {pannelloOggi && (
+          <div className="hidden w-[380px] shrink-0 border-l border-border xl:flex">
+            {pannello(() => setPannelloOggi(false))}
           </div>
         )}
       </div>
 
-      {/* Foglio «Lead CRM» sotto 1280 px: a tutta larghezza sul telefono.
-          La larghezza fissa del pannello (340 px) la annulla il contenitore. */}
       {vedeCosti && <PannelloCosti aperto={costiAperti} onChiudi={() => setCostiAperti(false)} />}
 
-      <Sheet open={foglioLead} onOpenChange={setFoglioLead}>
-        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[400px]">
-          <SheetTitle className="sr-only">Lead CRM</SheetTitle>
+      {/* Foglio «Oggi» sotto 1280 px: a tutta larghezza sul telefono. Lo spazio a
+          destra della testata lascia posto alla X del foglio. */}
+      <Sheet open={foglioOggi} onOpenChange={setFoglioOggi}>
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[420px]">
+          <SheetTitle className="sr-only">Oggi</SheetTitle>
           <SheetDescription className="sr-only">
-            Elenco dei lead del CRM, per mandare un messaggio.
+            Consulenze e cose da fare di oggi; nella scheda «Lead» l'elenco dei lead.
           </SheetDescription>
-          <div className="flex h-full min-h-0 flex-col [&>aside]:min-h-0 [&>aside]:w-full [&>aside]:flex-1 [&>aside]:border-l-0 [&>aside>div:first-child]:pr-11">
-            {foglioLead && <WhatsAppLeadsPanel />}
+          <div className="flex h-full min-h-0 flex-col [&>aside]:min-h-0 [&>aside]:flex-1 [&>aside>div:first-child]:pr-11">
+            {foglioOggi && pannello()}
           </div>
         </SheetContent>
       </Sheet>

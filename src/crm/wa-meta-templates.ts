@@ -185,20 +185,20 @@ export const META_TEMPLATES: MetaTemplate[] = [
 export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_primo_contatto",
-    "MARKETING",
-    `Salve {{lead_name}}, sono Maurizio di Hair Genius Labs. Ho visto la sua richiesta di informazioni.\n\nLe va di fare una consulenza gratuita online, così capiamo insieme la soluzione più adatta a lei? Preferisce oggi o domani?`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, abbiamo ricevuto la sua richiesta di informazioni a Hair Genius Labs. Per gestirla ci serve sapere quando contattarla: preferisce la mattina o la sera?`,
     ["lead_name"],
   ),
   tpl(
     "hgl_richiamo_24h",
-    "MARKETING",
-    `Gentile {{lead_name}}, Le avevamo scritto per la Sua richiesta a Hair Genius Labs.\n\nSe desidera fissare la consulenza gratuita online, ci risponda pure qui indicando se preferisce la mattina o la sera: Le proponiamo subito un orario.\n\nHair Genius Labs`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, la sua richiesta di informazioni è ancora aperta. Per completarla ci indichi se preferisce essere contattato la mattina o la sera.`,
     ["lead_name"],
   ),
   tpl(
     "hgl_ritorno",
-    "MARKETING",
-    `Gentile {{lead_name}}, abbiamo visto che ci ha scritto di nuovo per avere informazioni da Hair Genius Labs, grazie.\n\nVuole fissare la consulenza gratuita online? Preferisce la mattina o la sera?`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, abbiamo ricevuto il suo nuovo messaggio. Per riprendere la sua richiesta ci dice se preferisce essere contattato la mattina o la sera?`,
     ["lead_name"],
   ),
   tpl(
@@ -252,14 +252,14 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   ),
   tpl(
     "hgl_ricontatto_consulenza",
-    "MARKETING",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nEravamo rimasti che mi avresti fatto sapere: hai deciso come procedere o ti serve ancora qualche chiarimento?\n\nScrivimi pure qui, sono a tua disposizione.`,
+    "UTILITY",
+    `Ciao {{lead_name}}, sono {{consultant_name}}. Ti scrivo per la consulenza che abbiamo fatto insieme: hai domande sulla soluzione di cui abbiamo parlato?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
     "hgl_meet_da_fissare",
     "UTILITY",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs. Come d'accordo ti ricontatto per fissare la tua consulenza online.\n\nPreferisci la mattina o la sera? Ti propongo subito un orario.`,
+    `Buongiorno {{lead_name}}, sono {{consultant_name}}. Per fissare la data della sua consulenza ci indica se preferisce la mattina o la sera?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
@@ -283,7 +283,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_da_riprogrammare",
     "UTILITY",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs. Ti ricontatto per fissare il nuovo orario della tua consulenza online.\n\nPreferisci la mattina o la sera?`,
+    `Buongiorno {{lead_name}}, la sua consulenza va riprogrammata. Ci indica il giorno e l'orario che preferisce?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
@@ -300,26 +300,25 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   ),
   tpl(
     "hgl_ultimo_tentativo",
-    "MARKETING",
-    `Gentile {{lead_name}}, abbiamo provato più volte a contattarLa da Hair Genius Labs per la Sua richiesta, senza riuscirci.\n\nSe è ancora interessato, ci risponda qui: altrimenti non La disturberemo più.`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, non avendo ricevuto risposta, chiudiamo la sua richiesta di informazioni. Se vuole riaprirla, ci risponda qui.`,
     ["lead_name"],
   ),
   //  Acconto (commessa 2026-10-29): parte il giorno della data di ricontatto di
   //  «Attesa acconto». Tono del «tu», come i ricontatti: in consulenza si è
-  //  entrati in confidenza. Approvato da Meta come MARKETING.
+  //  entrati in confidenza. Ora UTILITY (modello hgl_acconto_u, 30/10).
   tpl(
     "hgl_acconto",
-    "MARKETING",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nCome ci eravamo detti in consulenza, ti scrivo per l'acconto: appena lo ricevo blocchiamo la data e prepariamo il tuo impianto su misura.\n\nTi mando qui i dati per il bonifico? Se prima vuoi chiarire qualcosa, scrivimi pure 😊`,
+    "UTILITY",
+    `Ciao {{lead_name}}, ti scrivo per l'acconto della soluzione concordata con {{consultant_name}}. Ti mando qui i dati per il versamento?`,
     ["lead_name", "consultant_name"],
   ),
-  //  Il messaggio GENERICO, buono per tutti gli stati (commessa 2026-10-30-messaggio-per-stato):
-  //  il consulente lo sceglie, nella finestra dello stato, per quando il cliente non scrive da
-  //  più di 24 ore. Stesse due variabili del ricontatto. Inviato a Meta come MARKETING.
+  //  Nuovo (30/10/2026): modello Utility «_u» di ManyChat. Il testo usa solo il nome; il consulente
+  //  resta tra i parametri perché il giro lo passa (v2 = consulente) e ManyChat si aspetta due variabili.
   tpl(
     "hgl_come_eravamo_rimasti",
-    "MARKETING",
-    `Ciao {{lead_name}}, buongiorno! Come va?\n\nSono {{consultant_name}} di Hair Genius Labs, ti scrivo per sapere alla fine come eravamo rimasti.`,
+    "UTILITY",
+    `Buongiorno {{lead_name}}, la sua richiesta di informazioni è ancora in sospeso. Ci indica quando possiamo ricontattarla?`,
     ["lead_name", "consultant_name"],
   ),
 ];
