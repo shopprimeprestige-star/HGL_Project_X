@@ -1085,7 +1085,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         .eq("user_id", user.id)
         .or(filtroNumero(attiva.phone));
       if (error) throw new Error(error.message);
-      // Azzero il contatto, se esiste: anche l'ultimo messaggio del cliente e il «risposto»,
+      // Azzero il contatto, se esiste: anche l'ultimo messaggio del cliente, il «risposto» e l'ultimo messaggio salvato,
       // altrimenti una chat eliminata resterebbe in «Da rispondere» (D19).
       let azzerato = true;
       if (attiva.contact) {
@@ -1099,6 +1099,10 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           last_message_at: null,
           ultimo_in_entrata_il: null,
           risposto_il: null,
+          //  p1-chat-veloce: l'anteprima salvata sul contatto sparisce con i messaggi.
+          ultimo_messaggio_il: null,
+          ultimo_messaggio_anteprima: null,
+          ultimo_messaggio_direzione: null,
         });
         //  Colonne non ancora create: si riprova col solo set di prima.
         if (r.error && mancaColonna(r.error)) {

@@ -32,6 +32,10 @@ const COLONNE_NUOVE = [
   "ultimo_in_entrata_anteprima",
   "risposto_il",
   "subscriber_id",
+  //  p1-chat-veloce: l'ultimo messaggio salvato sul contatto.
+  "ultimo_messaggio_il",
+  "ultimo_messaggio_anteprima",
+  "ultimo_messaggio_direzione",
 ];
 
 /* ── I moduli finti, in un file ciascuno: leggono tutto da `globalThis.__T` ─── */
@@ -1493,6 +1497,9 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
             unread_count: 2,
             last_message_at: iso(-3 * ORA_MS),
             ultimo_in_entrata_il: iso(-3 * ORA_MS),
+            ultimo_messaggio_il: iso(-2 * ORA_MS),
+            ultimo_messaggio_anteprima: "due",
+            ultimo_messaggio_direzione: "outbound",
           }),
         ],
         messaggi: [
@@ -1519,12 +1526,26 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         .scritture("whatsapp_contacts")
         .filter((q) => q.vals && "last_message_at" in q.vals);
       c(
-        "azzera anche ultimo_in_entrata_il e risposto_il, oltre a non letti e ultimo messaggio",
+        "azzera anche ultimo_in_entrata_il, risposto_il e l'ultimo messaggio salvato (p1-chat-veloce), oltre a non letti e ultimo messaggio",
         [
           1,
-          { unread_count: 0, last_message_at: null, ultimo_in_entrata_il: null, risposto_il: null },
+          {
+            unread_count: 0,
+            last_message_at: null,
+            ultimo_in_entrata_il: null,
+            risposto_il: null,
+            ultimo_messaggio_il: null,
+            ultimo_messaggio_anteprima: null,
+            ultimo_messaggio_direzione: null,
+          },
         ],
         [azzera.length, azzera[0]?.vals],
+      );
+      const rimasto = p.db.tabelle.whatsapp_contacts.find((x) => x.phone_e164 === P1);
+      c(
+        "p1-chat-veloce: sul contatto della chat eliminata non resta l'anteprima (la riga non mostra un messaggio cancellato)",
+        [null, null, null],
+        [rimasto?.ultimo_messaggio_il, rimasto?.ultimo_messaggio_anteprima, rimasto?.ultimo_messaggio_direzione],
       );
       c(
         "la chat eliminata non è più in «Da rispondere», la chat aperta si chiude, l'altra chat (senza colonne) resta com'è",
@@ -1553,7 +1574,15 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         "colonne mancanti: il primo tentativo dà 42703, si riprova col solo set di prima",
         [
           [
-            ["last_message_at", "risposto_il", "ultimo_in_entrata_il", "unread_count"],
+            [
+              "last_message_at",
+              "risposto_il",
+              "ultimo_in_entrata_il",
+              "ultimo_messaggio_anteprima",
+              "ultimo_messaggio_direzione",
+              "ultimo_messaggio_il",
+              "unread_count",
+            ],
             ["last_message_at", "unread_count"],
           ],
           "Chat eliminata",
