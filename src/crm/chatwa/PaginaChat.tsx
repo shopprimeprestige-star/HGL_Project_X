@@ -278,44 +278,134 @@ export function PaginaChat({
       data-tastiera={visibile?.tastiera ? "si" : undefined}
       style={misure}
     >
-      {/* Header sezione — coerente col resto del CRM. Sul telefono, con una chat aperta,
-          sparisce: la conversazione ha la sua barra e prende tutto lo schermo. */}
+      {/*  ── L'INTESTAZIONE (30/10/2026, rifatta) ─────────────────────────────
+          Guasto segnalato dal titolare: sul telefono «13 lead» scivolava sotto
+          «WhatsApp Business» (tagliato a «Wh…») e i tasti con le scritte lunghe
+          schiacciavano tutto. Ora:
+           · telefono, riga 1: a sinistra i lead di oggi (o il titolo), a destra
+             tre tasti da 44 px solo icona (costi · aggiorna con l'ora · Oggi);
+           · telefono, riga 2: le due viste, metà schermo ciascuna;
+           · da 768 px: una riga sola, col titolo e le scritte per esteso.
+          Sul telefono, con una chat aperta, sparisce: la conversazione ha la sua
+          barra e prende tutto lo schermo. */}
       <div
         className={cn(
-          "border-b border-border bg-card px-3 py-2 md:px-4 md:py-2.5 flex-wrap items-center gap-x-3 gap-y-2",
-          vista === "chat" && conversazioneAperta ? "hidden md:flex" : "flex",
+          "shrink-0 border-b border-border bg-card px-3 py-2 md:px-4 md:py-2",
+          vista === "chat" && conversazioneAperta ? "hidden md:block" : "block",
         )}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          {/*  L'icona è un tasto (30/10/2026): lead di oggi e spesa, solo a chi vede i costi. */}
-          {vedeCosti ? (
-            <TastoSpesaLead />
-          ) : (
-            <div className="h-8 w-8 shrink-0 rounded-md bg-emerald-50 grid place-items-center text-emerald-600 border border-emerald-100">
-              <MessageCircle className="h-4 w-4" />
+        <div className="flex items-center gap-2 md:gap-3">
+          {/*  Chi vede i costi: l'icona è il tasto dei lead di oggi e della spesa. */}
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            {vedeCosti ? (
+              <TastoSpesaLead />
+            ) : (
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-emerald-100 bg-emerald-50 text-emerald-600">
+                <MessageCircle className="h-4 w-4" />
+              </div>
+            )}
+            <div className={cn("min-w-0", vedeCosti && "hidden md:block")}>
+              <h1 className="truncate text-[15px] font-semibold leading-tight text-foreground">
+                WhatsApp Business
+              </h1>
+              <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
+                {api.stato === "configura"
+                  ? "Credenziali non configurate"
+                  : vista === "chat"
+                    ? "Conversazioni in tempo reale"
+                    : "I testi che partono da tutto il CRM"}
+              </p>
             </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-semibold leading-tight text-foreground">
-              WhatsApp Business
-            </h1>
-            <p className="truncate text-[11px] text-muted-foreground leading-tight mt-0.5">
-              {api.stato === "configura"
-                ? "Credenziali non configurate"
-                : vista === "chat"
-                  ? "Conversazioni in tempo reale"
-                  : "I testi che partono da tutto il CRM"}
-            </p>
+          </div>
+
+          {/*  Le due viste: da 768 px stanno qui, in mezzo. */}
+          <div className="hidden shrink-0 items-center gap-1.5 md:flex">
+            <Segmento attivo={vista === "chat"} onClick={() => setVista("chat")}>
+              Conversazioni
+            </Segmento>
+            <Segmento
+              attivo={vista === "modelli"}
+              onClick={() => setVista("modelli")}
+              titolo="I messaggi preimpostati per ogni stato"
+              className="whitespace-nowrap"
+            >
+              Messaggi preimpostati
+            </Segmento>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+            {vedeCosti && <TastoCosti onClick={() => setCostiAperti(true)} />}
+            {api.stato === "configura" && (
+              <Badge
+                variant="outline"
+                className="hidden gap-1 border-amber-200 bg-amber-50 font-medium text-amber-700 md:inline-flex"
+              >
+                <AlertCircle className="h-3 w-3" /> Configura in Impostazioni
+              </Badge>
+            )}
+            {vista === "chat" && (
+              <>
+                {/*  «Aggiorna»: l'ora dell'ultima lettura è SCRITTA (sul telefono un
+                    `title` non si vede): sul telefono solo l'ora, sotto l'icona. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void api.aggiorna()}
+                  disabled={api.aggiornando}
+                  className="h-11 w-11 flex-col gap-0 px-0 text-[10px] leading-none tabular-nums md:h-8 md:w-auto md:flex-row md:gap-1.5 md:px-3 md:text-xs"
+                  title="Aggiorna le chat"
+                  aria-label={
+                    api.aggiornatoIl
+                      ? `Aggiorna le chat, ultimo aggiornamento ${oraBreve(api.aggiornatoIl)}`
+                      : "Aggiorna le chat"
+                  }
+                >
+                  {api.aggiornando ? (
+                    <Loader2 className="h-4 w-4 animate-spin md:h-3.5 md:w-3.5" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                  )}
+                  {api.aggiornatoIl && (
+                    <span className="mt-0.5 md:mt-0">
+                      <span className="hidden md:inline">Aggiornato </span>
+                      {oraBreve(api.aggiornatoIl)}
+                    </span>
+                  )}
+                  {!api.aggiornatoIl && <span className="hidden md:inline">Aggiorna</span>}
+                </Button>
+                {/* Sotto 1280 px «Oggi» è un foglio; da 1280 in su una colonna che si nasconde. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setFoglioOggi(true)}
+                  className="h-11 w-11 gap-1.5 px-0 text-xs md:h-8 md:w-auto md:px-3 xl:hidden"
+                  title="Consulenze e cose da fare di oggi"
+                  aria-label="Oggi: consulenze e cose da fare"
+                >
+                  <Sun className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                  <span className="hidden md:inline">Oggi</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPannelloOggi((v) => !v)}
+                  className="hidden h-8 gap-1.5 text-xs xl:inline-flex"
+                  title={pannelloOggi ? "Nascondi il pannello Oggi" : "Mostra il pannello Oggi"}
+                >
+                  <Sun className="h-3.5 w-3.5" />
+                  {pannelloOggi ? "Nascondi Oggi" : "Mostra Oggi"}
+                </Button>
+              </>
+            )}
           </div>
         </div>
-        {/*  Due viste, non due pagine: i messaggi si correggono mentre si
-            scrive, non andando a cercare un pannello di impostazioni.
-            Sul telefono vanno in una riga loro, a scorrimento se non ci stanno. */}
-        <div className="order-last flex w-full items-center gap-1.5 overflow-x-auto md:order-none md:w-auto">
+
+        {/*  Le due viste sul telefono: una riga loro, metà schermo ciascuna. */}
+        <div className="mt-2 grid grid-cols-2 gap-1.5 md:hidden">
           <Segmento
             attivo={vista === "chat"}
             onClick={() => setVista("chat")}
-            className="min-h-11 md:min-h-0"
+            className="min-h-10 justify-center text-[13px]"
           >
             Conversazioni
           </Segmento>
@@ -323,63 +413,10 @@ export function PaginaChat({
             attivo={vista === "modelli"}
             onClick={() => setVista("modelli")}
             titolo="I messaggi preimpostati per ogni stato"
-            className="min-h-11 whitespace-nowrap md:min-h-0"
+            className="min-h-10 justify-center whitespace-nowrap text-[13px]"
           >
             Messaggi preimpostati
           </Segmento>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {vedeCosti && <TastoCosti onClick={() => setCostiAperti(true)} />}
-          {api.stato === "configura" && (
-            <Badge
-              variant="outline"
-              className="hidden bg-amber-50 text-amber-700 border-amber-200 gap-1 font-medium md:inline-flex"
-            >
-              <AlertCircle className="h-3 w-3" /> Configura in Impostazioni
-            </Badge>
-          )}
-          {vista === "chat" && (
-            <>
-              {/*  «Aggiorna» (29/10/2026): rilegge tutto a mano. L'ora dell'ultima lettura
-                  sta SCRITTA nel tasto: sul telefono un `title` non si vede, e «Aggiornato
-                  10:42» dice subito se la pagina è ferma. */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void api.aggiorna()}
-                disabled={api.aggiornando}
-                className="h-11 gap-1.5 text-xs tabular-nums md:h-8"
-                title="Aggiorna le chat"
-              >
-                {api.aggiornando ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                {api.aggiornatoIl ? `Aggiornato ${oraBreve(api.aggiornatoIl)}` : "Aggiorna"}
-              </Button>
-              {/* Sotto 1280 px «Oggi» è un foglio; da 1280 in su una colonna che si nasconde. */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setFoglioOggi(true)}
-                className="h-11 gap-1.5 text-xs md:h-8 xl:hidden"
-                title="Consulenze e cose da fare di oggi"
-              >
-                <Sun className="h-3.5 w-3.5" /> Oggi
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPannelloOggi((v) => !v)}
-                className="hidden h-8 gap-1.5 text-xs xl:inline-flex"
-                title={pannelloOggi ? "Nascondi il pannello Oggi" : "Mostra il pannello Oggi"}
-              >
-                <Sun className="h-3.5 w-3.5" />
-                {pannelloOggi ? "Nascondi Oggi" : "Mostra Oggi"}
-              </Button>
-            </>
-          )}
         </div>
       </div>
 
