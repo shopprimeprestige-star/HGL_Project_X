@@ -23,30 +23,61 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
     /^2026-10-01$/.test(K.TARIFFE_DAL),
     K.TARIFFE_FONTE.startsWith("https://developers.facebook.com/docs/whatsapp/pricing"),
   ]);
+  //  Cinque modelli (primo contatto, richiamo, ritorno, ricontatto, ultimo tentativo) sono passati da Marketing
+  //  a Utility il 30/10/2026 alle 12:00, acconto e meet da fissare alle 12:30; come eravamo rimasti e da
+  //  riprogrammare hanno il modello «_u» ancora in revisione (data null = Marketing). Gli invii prima della data restano
+  //  Marketing. Le prove danno SEMPRE la data dell'invio: nessuna dipende dall'ora in cui girano.
+  const cinque = ["primo_contatto", "richiamo_24h", "ricontatto_consulenza", "ritorno", "ultimo_tentativo"];
+  const due = ["acconto", "meet_da_fissare"];
+  const inRevisione = ["come_eravamo_rimasti", "da_riprogrammare"];
+  const passati = [...cinque, ...due, ...inRevisione];
+  const DAL = Date.parse(K.UTILITY_DAL.ritorno);
+  const PRIMA = DAL - 1;
+  const DOPO = DAL;
   const utility = [
     "consulenza_conferma_presenza", "cliente_assente", "meet_adesso", "meet_domani", "meet_oggi",
     "non_risponde", "promemoria_meet", "promemoria_sede", "richiamo_concordato", "sede_disdetta",
   ];
-  const marketing = [
-    "casi_reali", "da_riprogrammare", "meet_da_fissare", "primo_contatto", "richiamo_24h",
-    "ricontatto_consulenza", "ritorno", "ultimo_tentativo",
-  ];
-  c("le dieci Utility di ManyChat", [], utility.filter((n) => K.categoriaModello(`hgl_${n}`) !== "utility" && K.categoriaModello(n) !== "utility"));
-  c("le otto Marketing di ManyChat", [], marketing.filter((n) => K.categoriaModello(`hgl_${n}`) !== "marketing"));
+  const marketing = ["casi_reali"];
+  const cat = (n, quando = DOPO) => K.categoriaModello(`hgl_${n}`, undefined, quando);
+  c("UTILITY_DAL: i cinque passati il 30/10/2026 alle 12:00 di Roma, tutti con la stessa data", [true, "2026-10-30T11:00:00.000Z"], [
+    cinque.every((n) => K.UTILITY_DAL[n] === K.UTILITY_DAL.ritorno),
+    new Date(K.UTILITY_DAL.ritorno).toISOString(),
+  ]);
+  c("…acconto e meet_da_fissare alle 12:30 di Roma", ["2026-10-30T11:30:00.000Z", "2026-10-30T11:30:00.000Z"], due.map((n) => new Date(K.UTILITY_DAL[n]).toISOString()));
+  c("…i due in revisione hanno data null (ancora Marketing)", [], inRevisione.filter((n) => K.UTILITY_DAL[n] !== null));
+  c("le dieci Utility di ManyChat (prima e dopo)", [], utility.filter((n) => cat(n, PRIMA) !== "utility" || cat(n) !== "utility"));
+  c("casi_reali resta Marketing, prima e dopo", [], marketing.filter((n) => cat(n, PRIMA) !== "marketing" || cat(n) !== "marketing"));
+  c("i cinque passati: Marketing prima della data", [], cinque.filter((n) => cat(n, PRIMA) !== "marketing"));
+  c("…Utility dalla data in poi (anche una Date)", [], cinque.filter((n) => cat(n, DOPO) !== "utility" || cat(n, new Date(DOPO + 86_400_000)) !== "utility"));
+  const DAL2 = Date.parse(K.UTILITY_DAL.acconto);
+  c("acconto e meet_da_fissare: ancora Marketing alle 12:00, un istante prima delle 12:30 e quando erano ai flussi dei cinque", [], due.filter((n) => cat(n, DAL) !== "marketing" || cat(n, DAL2 - 1) !== "marketing"));
+  c("…Utility dalle 12:30 in poi", [], due.filter((n) => cat(n, DAL2) !== "utility" || cat(n, DAL2 + 86_400_000) !== "utility"));
+  c("i due in revisione: Marketing prima, dopo e in futuro (data null)", [], inRevisione.filter((n) =>
+    [PRIMA, DOPO, Date.parse("2031-01-01T00:00:00Z")].some((t) => cat(n, t) !== "marketing")));
+  c("…anche con «hgl_» e «_v2»", ["marketing", "utility", "utility"], [
+    K.categoriaModello("hgl_ritorno_v2", undefined, PRIMA),
+    K.categoriaModello("hgl_ritorno_v2", undefined, DOPO),
+    K.categoriaModello("primo_contatto", undefined, DOPO),
+  ]);
+  c("senza data vale adesso (come l'orologio)", K.categoriaModello("hgl_ritorno", undefined, Date.now()), K.categoriaModello("hgl_ritorno"));
+  c("nella copia dei modelli i nove sono dichiarati UTILITY", [], passati.filter((n) => T.findMetaTemplate(`hgl_${n}`).category !== "UTILITY"));
+  c("categoriaConosciuta non dipende dalla data", true, passati.every((n) => K.categoriaConosciuta(`hgl_${n}`)));
   c(
-    "la categoria vera vince su quella scritta nel codice (meet_da_fissare, da_riprogrammare)",
-    ["UTILITY", "UTILITY", "marketing", "marketing"],
+    "la categoria vera vince su quella scritta nel codice: sono dichiarati UTILITY ma fino a UTILITY_DAL (o per sempre, se null) si pagano Marketing",
+    ["UTILITY", "UTILITY", "marketing", "marketing", "marketing"],
     [
       T.findMetaTemplate("hgl_meet_da_fissare").category,
       T.findMetaTemplate("hgl_da_riprogrammare").category,
-      K.categoriaModello("hgl_meet_da_fissare", "UTILITY"),
-      K.categoriaModello("hgl_da_riprogrammare", "UTILITY"),
+      K.categoriaModello("hgl_meet_da_fissare", "UTILITY", PRIMA),
+      K.categoriaModello("hgl_da_riprogrammare", "UTILITY", PRIMA),
+      K.categoriaModello("hgl_da_riprogrammare", "UTILITY", DOPO),
     ],
   );
-  c("i nomi _v2 / _v3 valgono come l'originale", ["marketing", "utility", "marketing"], [
-    K.categoriaModello("hgl_primo_contatto_v2"),
-    K.categoriaModello("hgl_meet_oggi_v3"),
-    K.categoriaModello("primo_contatto_v2"),
+  c("i nomi _v2 / _v3 valgono come l'originale", ["utility", "utility", "utility"], [
+    K.categoriaModello("hgl_primo_contatto_v2", undefined, DOPO),
+    K.categoriaModello("hgl_meet_oggi_v3", undefined, DOPO),
+    K.categoriaModello("primo_contatto_v2", undefined, DOPO),
   ]);
   c("un modello sconosciuto usa la categoria dichiarata", ["utility", "marketing"], [
     K.categoriaModello("altro_nuovo", "UTILITY"),
@@ -58,7 +89,12 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
     K.categoriaModello("hgl_meet_oggi_link_v5", "MARKETING"),
     K.categoriaConosciuta("hgl_meet_oggi_link"),
   ]);
-  c("prezzo di un modello", [0.0658, 0.0248], [K.prezzoModello("hgl_ritorno"), K.prezzoModello("hgl_meet_oggi")]);
+  c("prezzo di un modello (un passato a Utility: Marketing prima, Utility dopo)", [0.0658, 0.0248, 0.0248, 0.0658], [
+    K.prezzoModello("hgl_ritorno", undefined, PRIMA),
+    K.prezzoModello("hgl_ritorno", undefined, DOPO),
+    K.prezzoModello("hgl_meet_oggi"),
+    K.prezzoModello("hgl_casi_reali"),
+  ]);
   c("euro: virgola all'italiana", ["0,0658 €", "1,23 €", "0,00 €"], [K.euro(0.0658, 4), K.euro(1.2345, 2), K.euro(0, 2)]);
   c(
     "la nota dei prezzi dice cifre, data e che si paga",
@@ -192,6 +228,31 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
       v.perTipo.length,
     ]);
     c("righe rotte o senza data: ignorate, mai un NaN", 0, C.calcolaCosti([{ tipo: "x", modello: null, conFlusso: true, inviatoIl: "boh" }, null, {}], "90", ADESSO).totale);
+  }
+
+  gruppo("CHAT · COSTI · IL PASSAGGIO A UTILITY (UTILITY_DAL)");
+  {
+    //  Un ritorno e un primo contatto prima e dopo il passaggio, più un Marketing che non cambia.
+    const dopo = new Date(DAL + 3_600_000);
+    const prima1 = new Date(DAL - 1000).toISOString();
+    const dopo1 = new Date(DAL).toISOString();
+    const invii = [
+      inv(prima1, "ritorno", "hgl_ritorno"), // un secondo prima: Marketing
+      inv(dopo1, "ritorno", "hgl_ritorno"), // allo scoccare: Utility
+      inv(dopo1, "primo_contatto", "hgl_primo_contatto_v2"), // la versione non conta: Utility
+      inv(dopo1, "casi_reali", "hgl_casi_reali"), // Marketing prima e dopo
+      inv(dopo1, "chat", "hgl_da_riprogrammare"), // _u ancora in revisione (data null): Marketing anche dopo
+    ];
+    const x = C.calcolaCosti(invii, "7", dopo);
+    c("per categoria: prima Marketing, dopo Utility, e il modello in revisione sempre Marketing", [["marketing", 3], ["utility", 2]], x.categorie.map((k) => [k.categoria, k.messaggi]));
+    c("…il totale è la somma", r6(3 * 0.0658 + 2 * 0.0248), x.totale);
+    const solo = (quando) => C.calcolaCosti([inv(quando, "ritorno", "hgl_ritorno")], "7", dopo);
+    c("un ritorno prima di UTILITY_DAL costa Marketing", [0.0658, "marketing"], [solo(prima1).totale, solo(prima1).categorie.find((k) => k.messaggi).categoria]);
+    c("un ritorno da UTILITY_DAL in poi costa Utility", [0.0248, "utility"], [solo(dopo1).totale, solo(dopo1).categorie.find((k) => k.messaggi).categoria]);
+    c("il periodo non cambia nulla: conta la data dell'invio (90 giorni, stesso conto)", x.totale, C.calcolaCosti(invii, "90", dopo).totale);
+    //  Il risparmio di un testo del giro usa il prezzo del modello nel giorno dell'invio.
+    const t = (quando) => C.calcolaCosti([{ tipo: "ritorno", modello: null, conFlusso: false, inviatoIl: quando }], "7", dopo).risparmio;
+    c("risparmio di un ritorno partito come testo: prezzo Marketing prima, Utility dopo", [0.0658, 0.0248], [t(prima1).euro, t(dopo1).euro]);
   }
 
   gruppo("CHAT · COSTI · NIENTE DI PRIVATO");

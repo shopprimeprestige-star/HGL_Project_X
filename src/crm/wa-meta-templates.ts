@@ -259,7 +259,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_meet_da_fissare",
     "UTILITY",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs. Come d'accordo ti ricontatto per fissare la tua consulenza online.\n\nPreferisci la mattina o la sera? Ti propongo subito un orario.`,
+    `Buongiorno {{lead_name}}, sono {{consultant_name}}. Per fissare la data della sua consulenza ci indica se preferisce la mattina o la sera?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
@@ -283,7 +283,7 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   tpl(
     "hgl_da_riprogrammare",
     "UTILITY",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs. Ti ricontatto per fissare il nuovo orario della tua consulenza online.\n\nPreferisci la mattina o la sera?`,
+    `Buongiorno {{lead_name}}, la sua consulenza va riprogrammata. Ci indica il giorno e l'orario che preferisce?`,
     ["lead_name", "consultant_name"],
   ),
   tpl(
@@ -309,8 +309,16 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
   //  entrati in confidenza. Approvato da Meta come MARKETING.
   tpl(
     "hgl_acconto",
-    "MARKETING",
-    `Ciao {{lead_name}}, sono {{consultant_name}} di Hair Genius Labs.\n\nCome ci eravamo detti in consulenza, ti scrivo per l'acconto: appena lo ricevo blocchiamo la data e prepariamo il tuo impianto su misura.\n\nTi mando qui i dati per il bonifico? Se prima vuoi chiarire qualcosa, scrivimi pure 😊`,
+    "UTILITY",
+    `Ciao {{lead_name}}, ti scrivo per l'acconto della soluzione concordata con {{consultant_name}}. Ti mando qui i dati per il versamento?`,
+    ["lead_name", "consultant_name"],
+  ),
+  //  Nuovo (30/10/2026): modello Utility «_u» di ManyChat. Il testo usa solo il nome; il consulente
+  //  resta tra i parametri perché il giro lo passa (v2 = consulente) e ManyChat si aspetta due variabili.
+  tpl(
+    "hgl_come_eravamo_rimasti",
+    "UTILITY",
+    `Buongiorno {{lead_name}}, la sua richiesta di informazioni è ancora in sospeso. Ci indica quando possiamo ricontattarla?`,
     ["lead_name", "consultant_name"],
   ),
 ];

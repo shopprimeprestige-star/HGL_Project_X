@@ -13,8 +13,8 @@
  *  ⚠️ Il ricarico di ManyChat sui messaggi non è documentato in modo che si possa
  *   leggere da qui: le cifre sono Meta, il resto è «stima».
  *  ⚠️ LA CATEGORIA VERA è quella approvata da Meta e vista in ManyChat, non il
- *   campo `category` di `wa-meta-templates.ts` (diverso per meet_da_fissare e
- *   da_riprogrammare, che Meta ha messo in Marketing). Per questo c'è l'elenco qui.
+ *   campo `category` di `wa-meta-templates.ts` (i modelli passati a Utility
+ *   sono Marketing prima di UTILITY_DAL). Per questo c'è l'elenco qui.
  *  ───────────────────────────────────────────────────────────────────────── */
 
 export type CategoriaCosto = "marketing" | "utility";
@@ -53,13 +53,34 @@ const CATEGORIA_DEI_MODELLI: Record<string, CategoriaCosto> = {
   richiamo_concordato: "utility",
   sede_disdetta: "utility",
   casi_reali: "marketing",
-  da_riprogrammare: "marketing",
-  meet_da_fissare: "marketing",
+  da_riprogrammare: "utility",
+  meet_da_fissare: "utility",
+  acconto: "utility",
+  come_eravamo_rimasti: "utility",
   primo_contatto: "utility",
   richiamo_24h: "utility",
   ricontatto_consulenza: "utility",
   ritorno: "utility",
   ultimo_tentativo: "utility",
+};
+
+/** Da quando ogni modello passato a Utility si paga Utility (ISO con fuso), per nome senza «hgl_».
+ *  Prima gli invii li ha pagati Marketing e la categoria non torna indietro. La imposta il capo
+ *  progetto quando i flussi «CRM hgl_…» passano ai modelli «_u» approvati da Meta.
+ *  `null` = il modello «_u» è ancora in revisione: si paga ancora Marketing. */
+export const UTILITY_DAL: Record<string, string | null> = {
+  //  Flussi passati ai modelli «_u» il 30/10/2026 verso le 12:00 (ora solare di Roma: +01:00).
+  primo_contatto: "2026-10-30T12:00:00+01:00",
+  richiamo_24h: "2026-10-30T12:00:00+01:00",
+  ritorno: "2026-10-30T12:00:00+01:00",
+  ricontatto_consulenza: "2026-10-30T12:00:00+01:00",
+  ultimo_tentativo: "2026-10-30T12:00:00+01:00",
+  //  Passati alle 12:30 dello stesso giorno.
+  acconto: "2026-10-30T12:30:00+01:00",
+  meet_da_fissare: "2026-10-30T12:30:00+01:00",
+  //  Ancora in revisione Meta: la data si mette quando si passano i loro flussi.
+  come_eravamo_rimasti: null,
+  da_riprogrammare: null,
 };
 
 const nomeBase = (nome: string) => nome.replace(/^hgl_/, "").replace(/_v\d+$/, "");
@@ -69,18 +90,30 @@ export const categoriaConosciuta = (nome: string): boolean =>
   nomeBase(nome) in CATEGORIA_DEI_MODELLI;
 
 /** La categoria di un modello. Se non è nell'elenco vale quella dichiarata dal
- *  modello; senza nemmeno quella, Marketing (la più cara: mai sottostimare). */
+ *  modello; senza nemmeno quella, Marketing (la più cara: mai sottostimare).
+ *  `quando` è l'istante dell'invio (ms o Date; senza, adesso): i modelli passati a Utility
+ *  si pagano Marketing prima della loro data in `UTILITY_DAL` (e sempre, se la data è `null`). */
 export function categoriaModello(
   nome: string,
   dichiarata?: "UTILITY" | "MARKETING",
+  quando: number | Date = Date.now(),
 ): CategoriaCosto {
-  const nota = CATEGORIA_DEI_MODELLI[nomeBase(nome)];
-  if (nota) return nota;
+  const base = nomeBase(nome);
+  const nota = CATEGORIA_DEI_MODELLI[base];
+  if (nota) {
+    const t = typeof quando === "number" ? quando : quando.getTime();
+    if (!(base in UTILITY_DAL)) return nota;
+    const dal = UTILITY_DAL[base];
+    return dal && t >= Date.parse(dal) ? nota : "marketing";
+  }
   return dichiarata === "UTILITY" ? "utility" : "marketing";
 }
 
-export const prezzoModello = (nome: string, dichiarata?: "UTILITY" | "MARKETING"): number =>
-  TARIFFE[categoriaModello(nome, dichiarata)];
+export const prezzoModello = (
+  nome: string,
+  dichiarata?: "UTILITY" | "MARKETING",
+  quando?: number | Date,
+): number => TARIFFE[categoriaModello(nome, dichiarata, quando)];
 
 /** «0,0658 €»: la virgola all'italiana. */
 export function euro(n: number, decimali = 2): string {
