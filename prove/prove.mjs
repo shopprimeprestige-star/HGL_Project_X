@@ -20534,7 +20534,7 @@ function proveDelTestoDeiModelli() {
   c("il giorno prima come testo: copia separata, chiede un ok, e il modello Meta resta com'era", [true, false], [/Ciao Mario, .*domani, giovedì 29 ottobre, alle 15:00 con Filippo\. Mi confermi con un ok\?/.test(tt), /Mi confermi/.test(t)]);
   c("nessun {{n}} rimasto", false, /\{\{\d+\}\}/.test(t));
   c("il nome «_v2» trova lo stesso testo", t, T.testoDelModello("hgl_meet_domani_v2", ["Mario", "giovedì 29 ottobre", "15:00", "Filippo"]));
-  c("parametro mancante: «…», non un buco", true, /Salve …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
+  c("parametro mancante: «…», non un buco", true, /Buongiorno …,/.test(T.testoDelModello("hgl_primo_contatto", [])));
   c("modello sconosciuto: nessun testo inventato", null, T.testoDelModello("modello_che_non_esiste", ["x"]));
   c("un testo libero resta com'è", { testo: "Ciao!" }, T.corpoLeggibile("Ciao!"));
   const v = T.corpoLeggibile("[template:consulenza_conferma_presenza]", { nome: "Mario", cognome: "Rossi", dataMeeting: "2026-10-29", oraMeeting: "15:00" });
@@ -20545,10 +20545,22 @@ function proveDelTestoDeiModelli() {
   c("…col link della scheda c'è il link vero", true, conLink.testo.includes("Entra da qui: https://esempio.test/stanza"));
   //  Acconto e testi col «tu» (commessa 2026-10-29): il testo ricostruito è quello che parte in ManyChat.
   const acc = T.corpoLeggibile("[template:hgl_acconto]", { nome: "Mario" }, "Filippo");
-  c("acconto: ricostruito dalla scheda, col tu e senza segnaposto", true, acc.ricostruito === true && !/\{\{\d+\}\}/.test(acc.testo) && acc.testo.startsWith("Ciao Mario, sono Filippo di Hair Genius Labs.\n\nCome ci eravamo detti in consulenza, ti scrivo per l'acconto:") && acc.testo.endsWith("scrivimi pure 😊") && !/\bLe\b|Gentile/.test(acc.testo));
+  c("acconto: ricostruito dalla scheda, col tu e senza segnaposto", true, acc.ricostruito === true && !/\{\{\d+\}\}/.test(acc.testo) && acc.testo === "Ciao Mario, ti scrivo per l'acconto della soluzione concordata con Filippo. Ti mando qui i dati per il versamento?" && !/\bLe\b|Gentile/.test(acc.testo));
   const ric = T.corpoLeggibile("[template:hgl_ricontatto_consulenza]", { nome: "Mario" }, "Filippo");
-  c("ricontatto: col tu", "Ciao Mario, sono Filippo di Hair Genius Labs.\n\nEravamo rimasti che mi avresti fatto sapere: hai deciso come procedere o ti serve ancora qualche chiarimento?\n\nScrivimi pure qui, sono a tua disposizione.", ric.testo);
-  c("i modelli di primo contatto restano col Lei", [true, true, true, true, true], ["hgl_primo_contatto", "hgl_richiamo_24h", "hgl_ritorno", "hgl_non_risponde", "hgl_ultimo_tentativo"].map((n) => /Gentile|Salve/.test(T.testoDelModello(n, ["Mario"]) ?? "")));
+  c("ricontatto: col tu (testo Utility)", "Ciao Mario, sono Filippo. Ti scrivo per la consulenza che abbiamo fatto insieme: hai domande sulla soluzione di cui abbiamo parlato?", ric.testo);
+  c("i modelli di primo contatto restano col Lei (ora «Buongiorno … la sua»)", [true, true, true, true, true], ["hgl_primo_contatto", "hgl_richiamo_24h", "hgl_ritorno", "hgl_non_risponde", "hgl_ultimo_tentativo"].map((n) => /Gentile|Salve|Buongiorno/.test(T.testoDelModello(n, ["Mario"]) ?? "")));
+  //  Quattro modelli passati a Utility (30/10/2026): testi dei modelli «_u» di ManyChat; due variabili (nome, consulente)
+  //  anche dove il testo non usa il consulente: nessun «…» e nessun {{n}} rimasto.
+  c("modelli Utility: il testo esatto, col consulente solo dove lo usa", [
+    "Ciao Mario, ti scrivo per l'acconto della soluzione concordata con Filippo. Ti mando qui i dati per il versamento?",
+    "Buongiorno Mario, la sua richiesta di informazioni è ancora in sospeso. Ci indica quando possiamo ricontattarla?",
+    "Buongiorno Mario, la sua consulenza va riprogrammata. Ci indica il giorno e l'orario che preferisce?",
+    "Buongiorno Mario, sono Filippo. Per fissare la data della sua consulenza ci indica se preferisce la mattina o la sera?",
+  ], ["hgl_acconto", "hgl_come_eravamo_rimasti", "hgl_da_riprogrammare", "hgl_meet_da_fissare"].map((n) => T.testoDelModello(n, ["Mario", "Filippo"])));
+  c("…hanno ancora due variabili (nome, consulente) e nessun «…» o {{n}} dalla scheda", [true, true, true, true], ["hgl_acconto", "hgl_come_eravamo_rimasti", "hgl_da_riprogrammare", "hgl_meet_da_fissare"].map((n) => {
+    const t = T.corpoLeggibile(`[template:${n}]`, { nome: "Mario" }, "Filippo").testo;
+    return T.modelloDi(n).params.length === 2 && !/…|\{\{\d+\}\}/.test(t);
+  }));
   c("segnaposto di un modello sconosciuto: resta il nome", "[template:boh]", T.corpoLeggibile("[template:boh]").testo);
   const sede = T.corpoLeggibile("[template:hgl_promemoria_sede_v2]", { nome: "Mario", dataMeeting: "2026-10-29", dataVieneInSede: "2026-11-05", oraVieneInSede: "11:00" });
   c("promemoria sede: il giorno è quello della visita, non del meet", true, sede.testo.includes("di giovedì 5 novembre alle ore 11:00") && !sede.testo.includes("29 ottobre"));

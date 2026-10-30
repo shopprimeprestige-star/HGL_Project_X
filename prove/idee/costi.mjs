@@ -20,7 +20,8 @@ export function proveIdeeCosti(mod, { c, gruppo, radice }) {
   gruppo("IDEE · COSTI · IL RISPARMIO DEI TESTI AUTOMATICI");
   c("un testo dentro la finestra costa zero (l'ipotesi del pannello: gratis per Meta)", 0, K.COSTO_TESTO_IN_FINESTRA);
   {
-    //  promemoria → hgl promemoria_meet (utility), conferma → utility, ritorno → marketing.
+    //  promemoria → hgl promemoria_meet (utility), conferma → utility, ritorno → marketing
+    //  (le 10:00 di Roma del 30/10/2026 sono prima di UTILITY_DAL, le 12:00: il ritorno passa a Utility solo da lì).
     const r = C.calcolaCosti(
       [testo("promemoria"), testo("conferma"), testo("ritorno"), testo("meet_oggi")],
       "oggi",

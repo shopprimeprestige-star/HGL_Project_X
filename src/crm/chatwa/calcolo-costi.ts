@@ -162,13 +162,13 @@ export function calcolaCosti(
       if (tipico) {
         risparmio.messaggi++;
         risparmio.euro = arrotonda(
-          risparmio.euro + Math.max(0, TARIFFE[categoriaModello(tipico)] - COSTO_TESTO_IN_FINESTRA),
+          risparmio.euro + Math.max(0, TARIFFE[categoriaModello(tipico, undefined, quando)] - COSTO_TESTO_IN_FINESTRA),
         );
       } else testiLiberi++;
       continue;
     }
     const modello = i.modello || MODELLO_DEL_TIPO[tipo] || null;
-    const categoria = modello ? categoriaModello(modello) : "marketing";
+    const categoria = modello ? categoriaModello(modello, undefined, quando) : "marketing";
     if (!i.modello || !categoriaConosciuta(modello ?? "")) stimati++;
     cat.set(categoria, (cat.get(categoria) ?? 0) + 1);
     const riga = tipi.get(tipo) ?? {
