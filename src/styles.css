@@ -614,8 +614,18 @@ html.hg-guest body {
    CRM minimal theme — Linear/Notion style
    Override locale dei design token solo dentro .crm-theme.
    Niente glow, palette neutra, tipografia compatta, bordi sottili.
-   ============================================================ */
-.crm-theme {
+   ============================================================
+   ⚠️ ANCHE FUORI DAL GUSCIO (30/10/2026): tendine, menu, finestre e fogli
+   (Radix) vivono in un portale attaccato a <body>, FUORI da .crm-theme, e
+   prendevano i token della landing (fondo navy): nella scheda «Oggi» della
+   chat righe e tasti erano illeggibili. Quando nella pagina c'è il CRM, i
+   portali ricevono gli stessi token. Sulla landing (senza .crm-theme) niente
+   cambia. */
+.crm-theme,
+body:has(.crm-theme) > [data-radix-popper-content-wrapper],
+body:has(.crm-theme) > [role="dialog"],
+body:has(.crm-theme) > [role="alertdialog"],
+body:has(.crm-theme) > div[data-state] {
   /* Surface */
   --background: oklch(0.995 0.002 250);
   --foreground: oklch(0.18 0.015 255);

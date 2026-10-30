@@ -20518,7 +20518,13 @@ function proveDiWhatsappSulTelefono() {
   c("c'è la freccia per tornare all'elenco", true, /onIndietro=\{tornaElenco\}/.test(pg) && /onClick=\{onIndietro\}[\s\S]{0,80}md:hidden/.test(conv));
   //  Dal 30/10/2026 la colonna di destra è il pannello «Oggi» (con «Lead» dentro): stesse regole di misura.
   c("il pannello Oggi affiancato solo da 1280 px", true, /pannelloOggi && \(\s*<div className="hidden[^"]*xl:flex">/.test(pg));
-  c("sotto i 1280 px il pannello Oggi è un foglio sopra la pagina", true, /<Sheet open=\{foglioOggi\}/.test(pg) && /SheetContent side="right" className="w-full/.test(pg));
+  c("sotto i 1280 px il pannello Oggi è un foglio sopra la pagina", true, /<Sheet open=\{foglioOggi\}/.test(pg) && /<SheetContent\s+side="right"[\s\S]{0,300}className="crm-theme w-full/.test(pg));
+  c("i fogli e le tendine del CRM hanno i colori del CRM anche fuori dal guscio (30/10)", true, /body:has\(\.crm-theme\) > \[data-radix-popper-content-wrapper\]/.test(readFileSync(join(radice, "src/styles.css"), "utf8")));
+  {
+    const po = readFileSync(join(radice, "src/crm/chatwa/PannelloOggi.tsx"), "utf8");
+    c("Oggi: consulenze in tre gruppi, «Già fatte» chiuso di partenza", true, /\["fatte", "Già fatte"/.test(po) && /CHIUSI_DI_PARTENZA = new Set\(\["fatte"/.test(po));
+    c("Oggi: le fasce di «Da fare» si aprono e chiudono", true, /aperto=\{gruppiAperti\.aperto\(g\.fascia\)\}/.test(po));
+  }
 }
 
 

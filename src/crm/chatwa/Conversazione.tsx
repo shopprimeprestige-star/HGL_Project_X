@@ -415,7 +415,10 @@ export function Conversazione({
                       </span>
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-[min(22rem,calc(100vw-2rem))] p-3">
+                  <PopoverContent
+                    align="start"
+                    className="crm-theme w-[min(22rem,calc(100vw-2rem))] bg-white p-3 text-foreground"
+                  >
                     <p className="mb-2 text-[13px] font-semibold text-foreground">
                       Di ritorno: com&apos;era prima
                     </p>
