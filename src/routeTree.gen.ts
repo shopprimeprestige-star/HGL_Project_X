@@ -61,6 +61,7 @@ import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
 import { Route as HooksCronHistoryRouteImport } from './routes/hooks/cron-history'
 import { Route as HooksAttesaDaChiamareRouteImport } from './routes/hooks/attesa-da-chiamare'
+import { Route as HooksAssenzaMeetRouteImport } from './routes/hooks/assenza-meet'
 import { Route as ConsulenteRegistratiRouteImport } from './routes/consulente.registrati'
 import { Route as ConsulenteLeadsRouteImport } from './routes/consulente.leads'
 import { Route as ConsulenteKpiRouteImport } from './routes/consulente.kpi'
@@ -202,6 +203,7 @@ import { Route as ApiCrmContattoWaRouteImport } from './routes/api.crm.contatto-
 import { Route as ApiCrmConsulentePinRouteImport } from './routes/api.crm.consulente-pin'
 import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
+import { Route as ApiCrmAssenzaAutoRouteImport } from './routes/api.crm.assenza-auto'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
 import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
@@ -473,6 +475,11 @@ const HooksCronHistoryRoute = HooksCronHistoryRouteImport.update({
 const HooksAttesaDaChiamareRoute = HooksAttesaDaChiamareRouteImport.update({
   id: '/hooks/attesa-da-chiamare',
   path: '/hooks/attesa-da-chiamare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksAssenzaMeetRoute = HooksAssenzaMeetRouteImport.update({
+  id: '/hooks/assenza-meet',
+  path: '/hooks/assenza-meet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsulenteRegistratiRoute = ConsulenteRegistratiRouteImport.update({
@@ -1194,6 +1201,11 @@ const ApiCrmBackupRoute = ApiCrmBackupRouteImport.update({
   path: '/api/crm/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmAssenzaAutoRoute = ApiCrmAssenzaAutoRouteImport.update({
+  id: '/api/crm/assenza-auto',
+  path: '/api/crm/assenza-auto',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmAnteprimeStatoRoute = ApiCrmAnteprimeStatoRouteImport.update({
   id: '/api/crm/anteprime-stato',
   path: '/api/crm/anteprime-stato',
@@ -1318,6 +1330,7 @@ export interface FileRoutesByFullPath {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
@@ -1357,6 +1370,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
@@ -1519,6 +1533,7 @@ export interface FileRoutesByTo {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
@@ -1558,6 +1573,7 @@ export interface FileRoutesByTo {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
@@ -1726,6 +1742,7 @@ export interface FileRoutesById {
   '/consulente/kpi': typeof ConsulenteKpiRoute
   '/consulente/leads': typeof ConsulenteLeadsRoute
   '/consulente/registrati': typeof ConsulenteRegistratiRoute
+  '/hooks/assenza-meet': typeof HooksAssenzaMeetRoute
   '/hooks/attesa-da-chiamare': typeof HooksAttesaDaChiamareRoute
   '/hooks/cron-history': typeof HooksCronHistoryRoute
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
@@ -1765,6 +1782,7 @@ export interface FileRoutesById {
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
+  '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
   '/api/crm/blog': typeof ApiCrmBlogRoute
   '/api/crm/consulente-pin': typeof ApiCrmConsulentePinRoute
@@ -1934,6 +1952,7 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
@@ -1973,6 +1992,7 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
@@ -2135,6 +2155,7 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
@@ -2174,6 +2195,7 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
@@ -2341,6 +2363,7 @@ export interface FileRouteTypes {
     | '/consulente/kpi'
     | '/consulente/leads'
     | '/consulente/registrati'
+    | '/hooks/assenza-meet'
     | '/hooks/attesa-da-chiamare'
     | '/hooks/cron-history'
     | '/hooks/diagnostic-drift'
@@ -2380,6 +2403,7 @@ export interface FileRouteTypes {
     | '/api/crm/accesso'
     | '/api/crm/ai'
     | '/api/crm/anteprime-stato'
+    | '/api/crm/assenza-auto'
     | '/api/crm/backup'
     | '/api/crm/blog'
     | '/api/crm/consulente-pin'
@@ -2513,6 +2537,7 @@ export interface RootRouteChildren {
   ApiWhatsappSendRoute: typeof ApiWhatsappSendRoute
   ApiWhatsappTemplatesRoute: typeof ApiWhatsappTemplatesRoute
   BlogSlugRoute: typeof BlogSlugRoute
+  HooksAssenzaMeetRoute: typeof HooksAssenzaMeetRoute
   HooksAttesaDaChiamareRoute: typeof HooksAttesaDaChiamareRoute
   HooksCronHistoryRoute: typeof HooksCronHistoryRoute
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
@@ -2545,6 +2570,7 @@ export interface RootRouteChildren {
   ApiCrmAccessoRoute: typeof ApiCrmAccessoRoute
   ApiCrmAiRoute: typeof ApiCrmAiRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
+  ApiCrmAssenzaAutoRoute: typeof ApiCrmAssenzaAutoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
   ApiCrmBlogRoute: typeof ApiCrmBlogRoute
   ApiCrmConsulentePinRoute: typeof ApiCrmConsulentePinRoute
@@ -3006,6 +3032,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/attesa-da-chiamare'
       fullPath: '/hooks/attesa-da-chiamare'
       preLoaderRoute: typeof HooksAttesaDaChiamareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/assenza-meet': {
+      id: '/hooks/assenza-meet'
+      path: '/hooks/assenza-meet'
+      fullPath: '/hooks/assenza-meet'
+      preLoaderRoute: typeof HooksAssenzaMeetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consulente/registrati': {
@@ -3995,6 +4028,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/assenza-auto': {
+      id: '/api/crm/assenza-auto'
+      path: '/api/crm/assenza-auto'
+      fullPath: '/api/crm/assenza-auto'
+      preLoaderRoute: typeof ApiCrmAssenzaAutoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/anteprime-stato': {
       id: '/api/crm/anteprime-stato'
       path: '/api/crm/anteprime-stato'
@@ -4253,6 +4293,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWhatsappSendRoute: ApiWhatsappSendRoute,
   ApiWhatsappTemplatesRoute: ApiWhatsappTemplatesRoute,
   BlogSlugRoute: BlogSlugRoute,
+  HooksAssenzaMeetRoute: HooksAssenzaMeetRoute,
   HooksAttesaDaChiamareRoute: HooksAttesaDaChiamareRoute,
   HooksCronHistoryRoute: HooksCronHistoryRoute,
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
@@ -4285,6 +4326,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmAccessoRoute: ApiCrmAccessoRoute,
   ApiCrmAiRoute: ApiCrmAiRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
+  ApiCrmAssenzaAutoRoute: ApiCrmAssenzaAutoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,
   ApiCrmBlogRoute: ApiCrmBlogRoute,
   ApiCrmConsulentePinRoute: ApiCrmConsulentePinRoute,

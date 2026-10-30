@@ -28,6 +28,7 @@ import { proveImportati } from "./manychat/importati.mjs";
 import { proveStatoDopoPrimo } from "./manychat/stato-dopo-primo.mjs";
 import { proveCasiReali } from "./manychat/casi-reali.mjs";
 import { proveStati } from "./manychat/stati.mjs";
+import { proveConsulenze } from "./manychat/consulenze.mjs";
 import { proveSequenzeMigrazione } from "./manychat/sequenze-migrazione.mjs";
 import { proveDelleParolePrenota } from "./manychat/prenota-parole.mjs";
 import { proveDegliOrariPrenota } from "./manychat/prenota-orari.mjs";
@@ -305,6 +306,7 @@ export async function proveManychat(mod, aiuti) {
   //  Commessa 2026-10-28 (secondo messaggio «casi reali» e anteprima dei link).
   await proveCasiReali(mod, aiuti);
   await proveStati(mod, aiuti);
+  await proveConsulenze(mod, aiuti);
   await proveSequenzeMigrazione(mod, aiuti);
   //  Commessa 2026-10-27 (prenota in chat): un file per compito, vuoti finché
   //  il compito non li riempie.
