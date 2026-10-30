@@ -1655,6 +1655,21 @@ export async function proveSequenze(mod, { c, gruppo }) {
     ((x) => [x.tipo, valori(x)])(T.campiMeetOggi(dati, "Filippo Demo")),
   );
   c(
+    "hgl_meet_oggi_link → nome, ora, consulente, link (in questo ordine)",
+    ["campi", ["Anna", "09:30", "Filippo Demo", T.linkPerCliente(dati, "lead-m")]],
+    ((x) => [x.tipo, valori(x)])(T.campiMeetOggiLink(dati, "Filippo Demo", "lead-m")),
+  );
+  c(
+    "…senza link, nome, ora o consulente: salta col motivo",
+    ["manca il link del meet", "manca il nome", "manca l'ora del meet", "manca il nome del consulente"],
+    [
+      T.campiMeetOggiLink({ ...dati, linkMeeting: "" }, "Filippo Demo").motivo,
+      T.campiMeetOggiLink({ ...dati, nome: "" }, "Filippo Demo").motivo,
+      T.campiMeetOggiLink({ ...dati, oraMeeting: "boh" }, "Filippo Demo").motivo,
+      T.campiMeetOggiLink(dati, "").motivo,
+    ],
+  );
+  c(
     "hgl_meet_domani → nome, giorno in italiano, ora, consulente (in questo ordine)",
     ["campi", ["Anna", "martedì 27 ottobre", "09:30", "Filippo Demo"]],
     ((x) => [x.tipo, valori(x)])(T.campiMeetDomani(dati, "Filippo Demo")),

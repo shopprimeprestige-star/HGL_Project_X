@@ -123,6 +123,21 @@ export function campiMeetOggi(
   return { tipo: "campi", campi: { crm_nome: nome, crm_ora_meet: ora, crm_consulente: chi } };
 }
 
+/** `hgl_meet_oggi_link` (la mattina del meet, col link, commessa 2026-10-30): v1 nome,
+ *  v2 ora, v3 consulente, v4 link (lo stesso del promemoria). Senza link non parte:
+ *  il giro in quel caso usa `hgl_meet_oggi`, senza link. */
+export function campiMeetOggiLink(
+  d: Partial<LeadData>,
+  consulente: string | null | undefined,
+  leadId?: string | null,
+): CampiOSalta {
+  const base = campiMeetOggi(d, consulente);
+  if (base.tipo === "salta") return base;
+  const link = linkPerCliente(d, leadId);
+  if (!link) return salta("manca il link del meet");
+  return { tipo: "campi", campi: { ...base.campi, crm_link_meet: link } };
+}
+
 /** `hgl_meet_domani` (24 ore prima): v1 nome, v2 giorno in italiano («giovedì 29
  *  ottobre»), v3 ora, v4 consulente. Niente link: arriva il giorno del meet. */
 export function campiMeetDomani(

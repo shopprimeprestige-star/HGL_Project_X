@@ -397,6 +397,7 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   { modello: "hgl_ritorno", etichetta: "Lead nuovo: messaggio di ritorno" },
   { modello: "hgl_casi_reali", etichetta: "Lead nuovo: casi reali" },
   { modello: "hgl_meet_oggi", etichetta: "Giorno del meet: messaggio del mattino" },
+  { modello: "hgl_meet_oggi_link", etichetta: "Giorno del meet: mattina col link (facoltativo)" },
   { modello: "hgl_meet_domani", etichetta: "Giorno del meet: promemoria 24 ore prima (spento)" },
   { modello: "hgl_meet_adesso", etichetta: "Giorno del meet: all'ora, col link" },
   { modello: "hgl_meet_da_fissare", etichetta: "Meet da fissare" },

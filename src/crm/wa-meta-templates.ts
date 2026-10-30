@@ -219,6 +219,14 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     `Ciao {{lead_name}}, ti ricordo che oggi alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs.\n\nTi seguirà {{consultant_name}}. Poco prima dell'inizio ti arriva il link per collegarti.\n\nSe hai un imprevisto, rispondi qui e troviamo un altro orario.`,
     ["lead_name", "appointment_time", "consultant_name"],
   ),
+  //  La mattina del meet COL LINK (modello Meta hgl_meet_oggi_v5, 30/10/2026). Il testo deve
+  //  essere IDENTICO a quello approvato: la chat lo manda anche come testo libero.
+  tpl(
+    "hgl_meet_oggi_link",
+    "UTILITY",
+    `Ciao {{lead_name}}, ci vediamo oggi alle {{appointment_time}} per la tua consulenza online con {{consultant_name}}.\n\nIl link per collegarti è questo: {{meet_link}}\nPoco prima te lo ricordo qui.`,
+    ["lead_name", "appointment_time", "consultant_name", "meet_link"],
+  ),
   tpl(
     "hgl_promemoria_meet",
     "UTILITY",

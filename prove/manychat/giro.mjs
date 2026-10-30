@@ -1528,6 +1528,53 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
       ],
     );
 
+    //  la mattina COL LINK (commessa 2026-10-30): serve il link in scheda E il flusso in config
+    const letti = (mm) => {
+      const campi = mm.f.chiamate.find((x) => x.percorso === PERCORSI.scriviCampi)?.corpo.fields ?? [];
+      return ["crm_v1", "crm_v2", "crm_v3", "crm_v4"].map(
+        (k) => campi.find((x) => x.field_name === k)?.field_value,
+      );
+    };
+    const conLink = { ...accesa, flussi: { ...accesa.flussi, hgl_meet_oggi_link: "content-ml" } };
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00" })], config: conLink });
+    e = await m.giroOra();
+    c(
+      "mattina col link (link in scheda + flusso): flusso nuovo, stesso tipo e stesso tag, v1..v4 = nome, ora, consulente, link",
+      [1, "meet_oggi", "crm-meet-oggi", "content-ml", ["Anna", "18:00", "Giulia Demo"], true],
+      [
+        e.nuoviInviati,
+        m.invii.at(-1).tipo,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+        m.flussi()[0]?.corpo.flow_ns,
+        letti(m).slice(0, 3),
+        /^https:\/\/example\.test\/meetly\/abc/.test(letti(m)[3] ?? ""),
+      ],
+    );
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00", linkMeeting: "" })], config: conLink });
+    e = await m.giroOra();
+    c(
+      "senza link in scheda: ripiego identico a prima (hgl_meet_oggi, 3 variabili)",
+      [1, "content-m1", ["Anna", "18:00", "Giulia Demo", undefined]],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, letti(m)],
+    );
+    m = mondo({
+      schede: [meet("s1", 1, { oraMeeting: "18:00", linkMeeting: "chiamo io" })],
+      config: conLink,
+    });
+    e = await m.giroOra();
+    c(
+      "…un appunto come «chiamo io» non è un link: ripiego",
+      ["content-m1", undefined],
+      [m.flussi()[0]?.corpo.flow_ns, letti(m)[3]],
+    );
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00" })], config: accesa });
+    e = await m.giroOra();
+    c(
+      "col link in scheda ma senza il flusso nuovo in config: ripiego (hgl_meet_oggi, 3 variabili)",
+      [1, "content-m1", undefined],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, letti(m)[3]],
+    );
+
     //  l'ordine e il limite di 2
     m = mondo({
       schede: [
