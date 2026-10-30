@@ -10,6 +10,12 @@
  *  delle 24 ore riaperta) torna in «Attesa WhatsApp», con una riga nelle note.
  *  Solo questi quattro stati: gli altri non si toccano mai.
  *
+ *  E chi era già TORNATO (ricomparso da modulo, foglio o file) prima della
+ *  regola del 30/10/2026 ed è rimasto nello stato di allora va in «Attesa
+ *  WhatsApp» (`patchRitornoRimastoIndietro`, crm/importa/ritorno-attesa). Dopo
+ *  il primo giro non trova più nessuno: i ritorni nuovi li sposta già
+ *  `patchRicarico` quando arrivano.
+ *
  *  COME LO SI CHIAMA
  *  POST /hooks/attesa-da-chiamare con Authorization che porta la chiave
  *  pubblicabile, come gli altri hook: chi ce l'ha può solo anticipare un giro
@@ -31,6 +37,7 @@ import {
   type RigaMessaggio,
 } from "@/crm/importa/attesa-da-chiamare";
 import { telefonoE164, type MessaggioAttesa } from "@/crm/chatwa/daChiamare";
+import { patchRitornoRimastoIndietro } from "@/crm/importa/ritorno-attesa";
 import type { LeadData } from "@/crm/types";
 
 const json = (o: unknown, status = 200) =>
@@ -311,6 +318,76 @@ export async function giroRitornoAttesa(adesso = new Date()) {
   return { hannoScritto: perNumero.size, tornati, cambiatiNelFrattempo: cambiati };
 }
 
+type RigaRitorno = {
+  id: string;
+  user_id: string;
+  updated_at: string;
+  stato: string | null;
+  statoDal: string | null;
+  statoPrecedenteIl: string | null;
+  ricarico: LeadData["ricarico"] | null;
+  saltatoIl: string | null;
+  contattoWa: LeadData["contattoWa"] | null;
+  okWhatsapp: LeadData["okWhatsapp"] | null;
+};
+
+/** I ritorni rimasti nello stato di prima: si giudica sulla versione leggera
+ *  (stato, date e `ricarico`, a pagine), si rilegge la scheda intera dei soli
+ *  candidati e si scrive solo se `updated_at` è ancora quello letto. */
+export async function giroRitorniRimastiIndietro(adesso = new Date()) {
+  const candidati: string[] = [];
+  const PAGINA = 1000;
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await db()
+      .from("crm_leads")
+      .select(
+        "id, user_id, updated_at, stato:data->>stato, statoDal:data->>statoDal, statoPrecedenteIl:data->>statoPrecedenteIl, ricarico:data->ricarico, saltatoIl:data->>saltatoIl, contattoWa:data->contattoWa, okWhatsapp:data->okWhatsapp",
+      )
+      .not("data->ricarico->>ultimo", "is", null)
+      .is("data->ricarico->>inAttesaIl", null)
+      .order("id", { ascending: true })
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const righe = (data ?? []) as RigaRitorno[];
+    for (const r of righe) {
+      const leggera = {
+        stato: r.stato,
+        statoDal: r.statoDal,
+        statoPrecedenteIl: r.statoPrecedenteIl,
+        ricarico: r.ricarico,
+        saltatoIl: r.saltatoIl,
+        contattoWa: r.contattoWa,
+        okWhatsapp: r.okWhatsapp,
+      } as Partial<LeadData>;
+      if (patchRitornoRimastoIndietro(leggera, adesso)) candidati.push(r.id);
+    }
+    if (righe.length < PAGINA) break;
+  }
+  let spostati = 0;
+  let cambiati = 0;
+  for (let i = 0; i < candidati.length; i += 100) {
+    const { data, error } = await db()
+      .from("crm_leads")
+      .select("id, user_id, data, updated_at")
+      .in("id", candidati.slice(i, i + 100));
+    if (error) throw error;
+    for (const r of (data ?? []) as Riga[]) {
+      const patch = patchRitornoRimastoIndietro(r.data, adesso);
+      if (!patch) continue;
+      const { data: scritte, error: e2 } = await db()
+        .from("crm_leads")
+        .update({ data: { ...r.data, ...patch }, updated_at: adesso.toISOString() })
+        .eq("id", r.id)
+        .eq("updated_at", r.updated_at)
+        .select("id");
+      if (e2) throw e2;
+      if (scritte?.length) spostati++;
+      else cambiati++;
+    }
+  }
+  return { candidati: candidati.length, spostati, cambiatiNelFrattempo: cambiati };
+}
+
 export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
   server: {
     handlers: {
@@ -323,8 +400,10 @@ export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
           const adesso = new Date();
           //  Prima il ritorno (chi ha scritto), poi l'andata: chi torna adesso
           //  ha `statoDal` nuovo e non riparte subito per «Da chiamare».
+          //  Prima ancora, chi era già tornato ed è rimasto nello stato di allora.
+          const rimasti = await giroRitorniRimastiIndietro(adesso);
           const ritorno = await giroRitornoAttesa(adesso);
-          return json({ ...(await giroAttesaDaChiamare(adesso)), ritorno });
+          return json({ ...(await giroAttesaDaChiamare(adesso)), ritorno, rimasti });
         } catch (e) {
           const code = (e as { code?: unknown } | null)?.code;
           console.error("[attesa-da-chiamare]", typeof code === "string" ? code : "errore");

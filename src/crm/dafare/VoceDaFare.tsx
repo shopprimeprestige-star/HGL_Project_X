@@ -100,6 +100,7 @@ import type { Lead, LeadStatus } from "@/crm/types";
 import { attesaRiga, schedaRapida, type RigaDaFare, type TipoRiga } from "./righe";
 import { fraGiorni, oraPulita, quandoDellaRiga, quandoInChiaro } from "./quando";
 import { AzioniLead } from "./AzioniLead";
+import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 
 /** L'icona dice il TIPO di gesto in un colpo d'occhio, il verbo lo dice per
  *  esteso: chi conosce la pagina legge l'icona, chi ci arriva oggi legge la
@@ -936,14 +937,18 @@ function RigaTesto({
       >
         {d ? (
           <>
-            <span
-              className={cn(
-                CLASSE_BADGE_STATO,
-                classiStato(d.stato),
-                compatta && "shrink-0 whitespace-nowrap",
-              )}
-            >
-              {etichettaStato(d.stato)}
+            {/*  «prima: …» sotto lo stato per chi è tornato (30/10/2026). */}
+            <span className="inline-flex min-w-0 max-w-full shrink-0 flex-col items-start gap-0.5">
+              <span
+                className={cn(
+                  CLASSE_BADGE_STATO,
+                  classiStato(d.stato),
+                  compatta && "shrink-0 whitespace-nowrap",
+                )}
+              >
+                {etichettaStato(d.stato)}
+              </span>
+              <PrimaDelRitorno dati={d} />
             </span>
             {/*  ── «DA ANTICIPARE», ANCHE QUI ────────────────────────────
                 Richiesta del committente: la priorità si deve vedere anche

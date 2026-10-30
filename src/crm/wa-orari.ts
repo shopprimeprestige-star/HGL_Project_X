@@ -211,7 +211,13 @@ export function scelteAncoraLibere(
  *  prende tutte con una regola sola.
  *  L'ultima durata scelta resta nel browser (`CHIAVE_DURATA`). */
 export const DURATA_ORARI = 45;
-export const PASSO_ORARI = 15;
+/** ⚠️ COME IL CALENDARIO (titolare, 30/10/2026, terza): «le disponibilità
+ *  nella chat devono essere le stesse del calendario; con la fascia da 45 il
+ *  calendario dà 12:45, 13:30, 14:15, 15:45, e a 15 minuti mi fai buchi negli
+ *  slot». Il passo è la DURATA, come `generateSlotsForDay` senza passo: la
+ *  stessa griglia del calendario, nessun orario sfalsato fra due fasce.
+ *  `null` = nessun passo proprio (lo decide la durata). */
+export const PASSO_ORARI: number | null = null;
 export const DURATE_RAPIDE = [30, 45, 60, 90] as const;
 export const DURATA_MINIMA = 15;
 export const DURATA_MASSIMA = 180;

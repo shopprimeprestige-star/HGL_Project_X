@@ -46,6 +46,7 @@
  *     (c'è già la conferma), e non dice niente.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento } from "../types";
+import { statoPrimaDelRitorno } from "../importa/ritorno-attesa";
 import { aRoma, oraNormale } from "../promemoria/formati";
 import { istanteDiRoma, scadenzaRicontatto } from "./contatto";
 import {
@@ -637,7 +638,8 @@ function decidiImportatiERitorni(
     if (Number.isFinite(ultimo)) {
       //  Solo chi non ha mai avuto una consulenza: stato di primo contatto, nessuna data di
       //  meet (passata o futura), nessun acconto.
-      if (!senzaConsulenza(d.stato) || nonVuoto(d.dataMeeting)) continue;
+      //  Spostato in «Attesa WhatsApp» dal ritorno (30/10/2026): conta lo stato di PRIMA.
+      if (!senzaConsulenza(statoPrimaDelRitorno(d) ?? d.stato) || nonVuoto(d.dataMeeting)) continue;
       if (Number(d.payment?.accontoPagato) > 0) continue;
       const dopo = (iso: unknown) => Date.parse(String(iso ?? "")) > ultimo;
       //  Già scritto DOPO il ritorno (invio arrivato, cambio del secondo stato, «Contatta su

@@ -229,6 +229,7 @@ import { QUANDO_PER_STATO, SPOSTA_CONSULENZA, type RichiestaQuando } from "./qua
  *  del «quando» è uscita da qui: il selettore la legge per l'icona calendario,
  *  e se fosse rimasta in questo file i due si importerebbero a vicenda. */
 import { PastigliaStato, etichettaDi } from "./SelettoreStatoDialog";
+import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import {
   generateAvailability,
   slotDelGiorno,
@@ -1551,6 +1552,8 @@ export function LeadDialog({
                   etichetta={etichettaStato}
                   onScegli={cambiaStato}
                 />
+                {/*  «prima: …» (30/10/2026): lo stato di prima, se il ritorno l'ha spostato. */}
+                <PrimaDelRitorno dati={form} className="mt-1.5 flex" />
               </SezioneFinestra>
 
               {/* ── STATO DEL CONTATTO (WhatsApp con ManyChat) ──────────────

@@ -18,7 +18,8 @@
  *   resta senza nomi, perché chi farà la consulenza si decide dopo.
  *  ⚠️ LA DURATA (commessa 2026-10-30): predefinita 45 minuti, scelte rapide
  *   30/45/60/90 e un valore libero; ogni orario mostrato è libero per TUTTA la
- *   durata, e ne parte uno ogni quarto d'ora, mai sopra una consulenza già fissata (crm/wa-orari, crm/giorni-liberi).
+ *   durata, sulla STESSA griglia del calendario (un orario ogni «durata»,
+ *   30/10/2026), mai sopra una consulenza già fissata (crm/wa-orari, crm/giorni-liberi).
  *   L'ultima scelta resta nel browser; il messaggio dice la durata.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (prova degli hook).
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -123,7 +124,7 @@ export function OrariRapidi(p: {
   const { squadra, giorni } = useGiorniLiberi({
     quanti: SETTIMANE * 7,
     durata,
-    passo: PASSO_ORARI,
+    passo: PASSO_ORARI ?? undefined,
     soloLibere: true,
   });
   const oggi = giorni[0]?.data ?? "";
