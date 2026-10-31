@@ -53,6 +53,7 @@ import {
 } from "./idee/chat-ritocchi.mjs";
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
@@ -21550,6 +21551,7 @@ proveDeiPermessiInstallazioneChat();
 proveDellOrdineAcconti();
 proveDeiContatoriABadge();
 proveDelContatoreChiamate();
+proveChiamateAzzera(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22564,10 +22566,9 @@ function proveDelContatoreChiamate() {
   c("secondo tocco in un altro stato: 2, la prima resta", [2, ora.toISOString(), dopo.toISOString()], [p2.volte, p2.prima, p2.ultima]);
   c("valori rotti: si riparte da 0, mai NaN", [0, 1], [C.chiamateDi({ chiamate: { volte: "x" } }), C.patchChiamata({ chiamate: { volte: -3 } }, ora).chiamate.volte]);
   c("le frasi", ["Mai chiamato", "Chiamato 1 volta", "Chiamato 4 volte"], [0, 1, 4].map(C.frasiChiamate));
-  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
-  c("il conto non scende mai: un salvataggio con un numero vecchio non lo tocca", true, /if \(patch\.chiamate && chiamateDi\(\{ chiamate: patch\.chiamate \}\) <= chiamateDi\(current\.data\)\)\s*patch\.chiamate = current\.data\.chiamate;/.test(ctx));
+  //  Il conto non scende per un modulo vecchio: ora lo garantisce `senzaChiamate` (prove/idee/chiamate-azzera.mjs).
   const ui = readFileSync(join(radice, "src/crm/ContaChiamate.tsx"), "utf8");
-  c("il tocco si conta sulla scheda riletta (funzione)", true, /updateLead\(lead\.id, \(d\) => patchChiamata\(d\)\)/.test(ui));
+  c("il tocco si conta sulla scheda riletta (funzione)", true, /updateLead\(lead\.id, \(d\) => patchChiamata\(d\), \{ registraChiamata: true \}\)/.test(ui));
   const cornette = ["src/crm/chatwa/RigaChat.tsx", "src/crm/chatwa/Conversazione.tsx", "src/crm/dafare/VoceDaFare.tsx", "src/crm/dafare/ChiChiamareAdesso.tsx", "src/crm/LeadDialog.tsx", "src/crm/importa/chiamare.tsx"];
   c("ogni cornetta dei lead conta e mostra il badge", [], cornette.filter((f) => { const t = readFileSync(join(radice, f), "utf8"); return !/segnaChiamata\(/.test(t) || !/<BadgeChiamate/.test(t); }));
 }

@@ -1061,6 +1061,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       const prima: Partial<LeadData> = {
         stato: lead.data.stato,
         noRispondeCount: Number(lead.data.noRispondeCount) || 0,
+        //  Il conto delle chiamate: se il cambio l'ha azzerato (entrata in appuntamento) torna com'era.
+        chiamate: lead.data.chiamate,
         statoPrecedente: lead.data.statoPrecedente,
         statoPrecedenteIl: lead.data.statoPrecedenteIl,
         statoDa: lead.data.statoDa,

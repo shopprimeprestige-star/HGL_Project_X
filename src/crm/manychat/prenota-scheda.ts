@@ -9,7 +9,7 @@
  *
  *  ⚠️ `daPrenotare` RIFÀ QUELLO CHE FA `updateLead` DEL BROWSER (CRMContext)
  *   per questo salvataggio, con le stesse funzioni (`conStatoDal`,
- *   `patchChiFissa`): se la setter fissasse la stessa consulenza dal CRM,
+ *   `patchChiFissa`, `patchAzzeraChiamate`): se la setter fissasse la stessa consulenza dal CRM,
  *   la scheda risulterebbe uguale, più due cose sole che il browser non fa:
  *   il marcatore `prenotatoChat` e la riga in nota. Il browser scrive anche
  *   altro che qui NON si scrive, ciascuno con la sua ragione (la prova li
@@ -27,6 +27,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { tieneLoSlot } from "../booking-utils";
 import { patchChiFissa } from "../chi-ha-fissato";
+import { patchAzzeraChiamate } from "../chiamate";
 import { aRoma, minutiAlla, oraNormale } from "../promemoria/formati";
 import { conStatoDal } from "../stato-dal";
 import { eChiusuraVinta } from "../types";
@@ -164,6 +165,8 @@ export function daPrenotare(prima: LeadData, p: DatiPrenotazione): LeadData {
       ora: p.adesso,
     }),
   };
+  //  Entra in appuntamento: il conto delle chiamate riparte da 0, il totale resta (crm/chiamate).
+  nuova = { ...nuova, ...patchAzzeraChiamate(prima, nuova, p.adesso) };
   //  L'ora del primo contatto: una volta sola, la prima volta che la scheda
   //  lascia «Da contattare».
   if (prima.stato === "da_contattare" && nuova.stato !== "da_contattare" && !nuova.firstContactAt) {
@@ -191,6 +194,7 @@ const CAMPI_TOCCATI = [
   "statoPrecedente",
   "statoPrecedenteIl",
   "firstContactAt",
+  "chiamate",
   "fissatoDa",
   "fissatoIl",
 ] as const;

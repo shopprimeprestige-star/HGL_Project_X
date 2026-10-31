@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { chiamateDi } from "./chiamate";
+import { patchAzzeraChiamate, senzaChiamate } from "./chiamate";
 import { assicuraCapienza } from "./capienza";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +50,8 @@ import { anteprimaDaRifare, consulenzaSpostata } from "./spostamento-meet";
  *  «Annulla» della coda dei lead importati): `statoDal` non si rinnova. */
 export interface OpzioniAggiornamento {
   annulla?: boolean;
+  /** Il tocco sulla cornetta (crm/ContaChiamate): è l'unico, con `annulla`, che può scrivere `chiamate`. */
+  registraChiamata?: boolean;
 }
 
 interface CRMContextValue {
@@ -799,12 +801,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     //   `merged` tiene così il `contattoWa` riletto dal database.
     const { contattoWa: _soloServer, ...patch } = risolviModifica(modifica, current.data);
     void _soloServer;
-    //  ⚠️ Il conto delle chiamate (31/10/2026, crm/chiamate) non scende MAI: un
-    //   modulo aperto prima di una chiamata lo riporterebbe indietro salvando.
-    //   Un conto non più alto di quello in archivio si sostituisce con quello.
-    if (patch.chiamate && chiamateDi({ chiamate: patch.chiamate }) <= chiamateDi(current.data))
-      patch.chiamate = current.data.chiamate;
-    let merged = applyAutoStatus({ ...current.data, ...patch } as LeadData, {
+    //  ⚠️ `chiamate` (il conto della cornetta, crm/chiamate) lo scrivono solo il tocco
+    //   (`registraChiamata`) e il «torna indietro» (`annulla`): un modulo aperto prima di una
+    //   chiamata, o prima dell'azzeramento al fissato, lo riporterebbe indietro salvando.
+    //   Per tutti gli altri si toglie dalla modifica e vale quello riletto dall'archivio.
+    const patchSenzaConto = senzaChiamate(
+      patch,
+      opzioni.registraChiamata === true || opzioni.annulla === true,
+    );
+    let merged = applyAutoStatus({ ...current.data, ...patchSenzaConto } as LeadData, {
       statoScelto: patch.stato !== undefined,
     });
     //  ⚠️ `statoDal`: lo stato FINALE (dopo `applyAutoStatus`) contro quello di prima,
@@ -872,6 +877,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         chi: consulenteCollegato?.id,
       }),
     };
+    //  Entra in appuntamento: il conto delle chiamate riparte da 0 (il totale resta). Non con
+    //  «Annulla», che rimette il conto di prima (crm/chiamate).
+    if (!opzioni.annulla) merged = { ...merged, ...patchAzzeraChiamate(current.data, merged) };
     /*  ── ⚠️ «CI RICONTATTA LUI»: LA DATA IN CUI L'HA DETTO È OGGI ────────
         Richiesta del committente: «aggiungi come stato ci ricontatta lui, e
         segna in dinamico la data di quando lo ha detto, quella di oggi,

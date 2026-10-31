@@ -1778,8 +1778,10 @@ export interface LeadData {
    *   questo oggetto a mano: un secondo punto che lo scrive è un secondo modo
    *   di contare le volte. */
   ricarico?: RicaricoLead;
-  /** Quante volte si è toccata la cornetta (31/10/2026, crm/chiamate): non si azzera mai. */
-  chiamate?: { volte: number; prima: string; ultima: string };
+  /** Quante volte si è toccata la cornetta (31/10/2026, crm/chiamate). `volte` si azzera
+   *  ENTRANDO in appuntamento fissato/rifissato (e solo lì): le azzerate vanno in `totale`,
+   *  `azzerateIl` dice quando. Il numero di sempre è `totaleChiamateDi` = totale + volte. */
+  chiamate?: { volte: number; prima: string; ultima: string; totale?: number; azzerateIl?: string };
   /** quante volte non ha risposto: guida i richiami */
   noRispondeCount?: number;
   /** ── MESSO DA PARTE DALLA POSTAZIONE ────────────────────────────────────

@@ -30,6 +30,7 @@ import {
 //  vieta di cancellare un lead e l'area mobile che lo lascia fare.
 import { risolviAccesso } from "@/crm/permessi";
 import { conStatoDal } from "@/crm/stato-dal";
+import { patchAzzeraChiamate } from "@/crm/chiamate";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
 const json = (o: unknown) => new Response(JSON.stringify(o), { status: 200, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -226,6 +227,9 @@ export const Route = createFileRoute("/api/consulente/azione")({
         //  `statoDal` anche da qui: è la strada dei consulenti per «Cliente assente»,
         //  «Da riprogrammare» e «In valutazione» (messaggi a evento).
         aggiornato = conStatoDal(attuale, aggiornato, new Date());
+        //  Se il consulente porta la scheda in «Appuntamento fissato/rifissato» il conto delle
+        //  chiamate riparte da 0 e il totale resta: stessa regola di `updateLead` (crm/chiamate).
+        aggiornato = { ...aggiornato, ...patchAzzeraChiamate(attuale, aggiornato) };
         const eraConvertito = eConvertito(attuale.stato);
         const oraConvertito = eConvertito(aggiornato.stato);
         if (!eraConvertito && oraConvertito && !aggiornato.convertedAt) {
