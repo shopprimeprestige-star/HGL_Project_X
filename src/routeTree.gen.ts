@@ -57,6 +57,7 @@ import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/prom
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
 import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-reminder'
+import { Route as HooksMediaScaduteRouteImport } from './routes/hooks/media-scadute'
 import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-giro'
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
@@ -190,6 +191,7 @@ import { Route as ApiCrmProvaCatalogoRouteImport } from './routes/api.crm.prova-
 import { Route as ApiCrmProvaCapelliRouteImport } from './routes/api.crm.prova-capelli'
 import { Route as ApiCrmPromemoriaWhatsappRouteImport } from './routes/api.crm.promemoria-whatsapp'
 import { Route as ApiCrmPrenotaChatRouteImport } from './routes/api.crm.prenota-chat'
+import { Route as ApiCrmPonteMediaAzioneRouteImport } from './routes/api.crm.ponte-media-azione'
 import { Route as ApiCrmPonteMediaRouteImport } from './routes/api.crm.ponte-media'
 import { Route as ApiCrmPonteInvioRouteImport } from './routes/api.crm.ponte-invio'
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
@@ -462,6 +464,11 @@ const HooksMetaLeadSyncRoute = HooksMetaLeadSyncRouteImport.update({
 const HooksMeetReminderRoute = HooksMeetReminderRouteImport.update({
   id: '/hooks/meet-reminder',
   path: '/hooks/meet-reminder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksMediaScaduteRoute = HooksMediaScaduteRouteImport.update({
+  id: '/hooks/media-scadute',
+  path: '/hooks/media-scadute',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksManychatGiroRoute = HooksManychatGiroRouteImport.update({
@@ -1143,6 +1150,11 @@ const ApiCrmPrenotaChatRoute = ApiCrmPrenotaChatRouteImport.update({
   path: '/api/crm/prenota-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmPonteMediaAzioneRoute = ApiCrmPonteMediaAzioneRouteImport.update({
+  id: '/api/crm/ponte-media-azione',
+  path: '/api/crm/ponte-media-azione',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmPonteMediaRoute = ApiCrmPonteMediaRouteImport.update({
   id: '/api/crm/ponte-media',
   path: '/api/crm/ponte-media',
@@ -1380,6 +1392,7 @@ export interface FileRoutesByFullPath {
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
+  '/hooks/media-scadute': typeof HooksMediaScaduteRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1436,6 +1449,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
+  '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
   '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
@@ -1590,6 +1604,7 @@ export interface FileRoutesByTo {
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
+  '/hooks/media-scadute': typeof HooksMediaScaduteRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1646,6 +1661,7 @@ export interface FileRoutesByTo {
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
+  '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
   '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
@@ -1806,6 +1822,7 @@ export interface FileRoutesById {
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
+  '/hooks/media-scadute': typeof HooksMediaScaduteRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1862,6 +1879,7 @@ export interface FileRoutesById {
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
+  '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
   '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
@@ -2023,6 +2041,7 @@ export interface FileRouteTypes {
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
+    | '/hooks/media-scadute'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2079,6 +2098,7 @@ export interface FileRouteTypes {
     | '/api/crm/meeting-session'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
+    | '/api/crm/ponte-media-azione'
     | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
@@ -2233,6 +2253,7 @@ export interface FileRouteTypes {
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
+    | '/hooks/media-scadute'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2289,6 +2310,7 @@ export interface FileRouteTypes {
     | '/api/crm/meeting-session'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
+    | '/api/crm/ponte-media-azione'
     | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
@@ -2448,6 +2470,7 @@ export interface FileRouteTypes {
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
+    | '/hooks/media-scadute'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2504,6 +2527,7 @@ export interface FileRouteTypes {
     | '/api/crm/meeting-session'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
+    | '/api/crm/ponte-media-azione'
     | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
@@ -2629,6 +2653,7 @@ export interface RootRouteChildren {
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
   HooksManychatGiroRoute: typeof HooksManychatGiroRoute
+  HooksMediaScaduteRoute: typeof HooksMediaScaduteRoute
   HooksMeetReminderRoute: typeof HooksMeetReminderRoute
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
@@ -2678,6 +2703,7 @@ export interface RootRouteChildren {
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
   ApiCrmPonteInvioRoute: typeof ApiCrmPonteInvioRoute
   ApiCrmPonteMediaRoute: typeof ApiCrmPonteMediaRoute
+  ApiCrmPonteMediaAzioneRoute: typeof ApiCrmPonteMediaAzioneRoute
   ApiCrmPrenotaChatRoute: typeof ApiCrmPrenotaChatRoute
   ApiCrmPromemoriaWhatsappRoute: typeof ApiCrmPromemoriaWhatsappRoute
   ApiCrmProvaCapelliRoute: typeof ApiCrmProvaCapelliRoute
@@ -3095,6 +3121,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/meet-reminder'
       fullPath: '/hooks/meet-reminder'
       preLoaderRoute: typeof HooksMeetReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/media-scadute': {
+      id: '/hooks/media-scadute'
+      path: '/hooks/media-scadute'
+      fullPath: '/hooks/media-scadute'
+      preLoaderRoute: typeof HooksMediaScaduteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/manychat-giro': {
@@ -4028,6 +4061,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmPrenotaChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/ponte-media-azione': {
+      id: '/api/crm/ponte-media-azione'
+      path: '/api/crm/ponte-media-azione'
+      fullPath: '/api/crm/ponte-media-azione'
+      preLoaderRoute: typeof ApiCrmPonteMediaAzioneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/ponte-media': {
       id: '/api/crm/ponte-media'
       path: '/api/crm/ponte-media'
@@ -4441,6 +4481,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
   HooksManychatGiroRoute: HooksManychatGiroRoute,
+  HooksMediaScaduteRoute: HooksMediaScaduteRoute,
   HooksMeetReminderRoute: HooksMeetReminderRoute,
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
@@ -4490,6 +4531,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
   ApiCrmPonteInvioRoute: ApiCrmPonteInvioRoute,
   ApiCrmPonteMediaRoute: ApiCrmPonteMediaRoute,
+  ApiCrmPonteMediaAzioneRoute: ApiCrmPonteMediaAzioneRoute,
   ApiCrmPrenotaChatRoute: ApiCrmPrenotaChatRoute,
   ApiCrmPromemoriaWhatsappRoute: ApiCrmPromemoriaWhatsappRoute,
   ApiCrmProvaCapelliRoute: ApiCrmProvaCapelliRoute,

