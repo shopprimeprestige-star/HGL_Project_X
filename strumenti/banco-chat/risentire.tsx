@@ -1,7 +1,9 @@
-/** Banco di «Ricontatti» con esito + data + nascondi (31/10/2026): ElencoChat VERO con una lista in memoria; il
+/** Banco di «Ricontatti» con esito + data + nascondi + priorità (31/10/2026): ElencoChat VERO con una lista in memoria; il
  *  salvataggio (updateLead) modifica la scheda finta. Dati inventati, nessuna rete.
  *  ?acceso=1 (parte già in Ricontatti) · ?fallisce=1 (il salvataggio non riesce) · ?largo=768 (larghezza, px)
- *  · ?molti=40 (altri 40 lead finti, per vedere la barra incollata scorrendo) · ?nascosti=1 (due già nascosti).
+ *  · ?molti=40 (altri 40 lead finti, per vedere la barra incollata scorrendo) · ?nascosti=1 (due già nascosti)
+ *  · ?priorita=1 (due già in priorità: Sara e Elena). Ogni lead ha un arrivo diverso (`createdAt`, giorni fa):
+ *  l'ordine dell'elenco è per ARRIVO, non per data di ricontatto.
  *  Uso: npx vite -c strumenti/banco-chat/vite.oggi.config.mjs  →  http://localhost:5198/risentire.html */
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -23,22 +25,26 @@ interface Caso {
   esito?: string;
   consulenteId?: string;
   nascosto?: boolean;
+  /** Quanti giorni fa è arrivato il lead (`createdAt`). */
+  arrivo?: number;
+  priorita?: boolean;
 }
 const CASI: Caso[] = [
-  { nome: "Giulia", cognome: "Verdi", stato: "in_attesa_acconto", data: 2, esito: "non_ha_risposto" },
-  { nome: "Marco", cognome: "Bianchi", stato: "in_attesa_acconto", esito: "piu_avanti" },
-  { nome: "Sara", cognome: "Neri", stato: "per_ora_no", data: 30, esito: "piu_avanti" },
-  { nome: "Elena", cognome: "Gialli", stato: "per_ora_no" },
-  { nome: "Charlotte", cognome: "Prova", stato: "da_ricontattare", data: -3, esito: "ci_sta_pensando" },
-  { nome: "Alessandra Maria", cognome: "Rossi Montefiore", stato: "da_ricontattare", esito: "aspetta_i_soldi" },
-  { nome: "Paolo", cognome: "Blu", stato: "sta_valutando", data: 5 },
-  { nome: "Luca", cognome: "Rosa", stato: "da_contattare", data: 1 },
-  { nome: "Altro", cognome: "Consulente", stato: "in_attesa_acconto", consulenteId: "f", data: 3 },
+  { nome: "Giulia", cognome: "Verdi", stato: "in_attesa_acconto", arrivo: 3, data: 2, esito: "non_ha_risposto" },
+  { nome: "Marco", cognome: "Bianchi", stato: "in_attesa_acconto", arrivo: 1, esito: "piu_avanti" },
+  { nome: "Sara", cognome: "Neri", stato: "per_ora_no", arrivo: 40, priorita: P.get("priorita") !== null, data: 30, esito: "piu_avanti" },
+  { nome: "Elena", cognome: "Gialli", stato: "per_ora_no", arrivo: 90, priorita: P.get("priorita") !== null },
+  { nome: "Charlotte", cognome: "Prova", stato: "da_ricontattare", arrivo: 12, data: -3, esito: "ci_sta_pensando" },
+  { nome: "Alessandra Maria", cognome: "Rossi Montefiore", stato: "da_ricontattare", arrivo: 6, esito: "aspetta_i_soldi" },
+  { nome: "Paolo", cognome: "Blu", stato: "sta_valutando", arrivo: 8, data: 5 },
+  { nome: "Luca", cognome: "Rosa", stato: "da_contattare", arrivo: 0, data: 1 },
+  { nome: "Altro", cognome: "Consulente", stato: "in_attesa_acconto", consulenteId: "f", arrivo: 2, data: 3 },
 ];
 const ALTRI: Caso[] = Array.from({ length: Number(P.get("molti") ?? 0) }, (_, i) => ({
   nome: `Lead${i + 1}`,
   cognome: "Finto",
   stato: i % 2 ? "per_ora_no" : "sta_valutando",
+  arrivo: 100 + i,
   data: i % 3 === 0 ? undefined : i - 10,
   esito: i % 4 === 0 ? "non_ha_risposto" : undefined,
 }));
@@ -72,6 +78,9 @@ const creaBase = (c: Caso, i: number): ChatItem =>
         consulenteId: c.consulenteId ?? "m",
         dataRicontatto: c.data === undefined ? undefined : giorno(c.data),
         esitoRicontatto: c.esito,
+        createdAt:
+          c.arrivo === undefined ? undefined : new Date(Date.now() - c.arrivo * GIORNO).toISOString(),
+        ricontattoPrioritaIl: c.priorita ? new Date().toISOString() : undefined,
       },
     },
   }) as unknown as ChatItem;

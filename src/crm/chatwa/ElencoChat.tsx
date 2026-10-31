@@ -68,10 +68,12 @@ import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./
 import {
   dividiNascosti,
   eNascosto,
+  ePrioritario,
   fraseRicontattiVuoti,
   ordinaRicontatti,
   patchMostra,
   patchNascondi,
+  patchPriorita,
 } from "./ricontatti";
 import { BarraEsitoRicontatti, RigaDataRicontatti } from "./RigheRisentire";
 import { oggiIso } from "@/crm/ui";
@@ -260,7 +262,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const daInstallareTutte = tutte && filtri.acconto ? chatDaInstallare(trovate) : [];
   const inBloccoTel = new Set(daInstallareTutte.map((c) => c.phone));
   const [apertoAcconti, setApertoAcconti] = useState(true);
-  //  «Ricontatti»: l'ordine è la data di ricontatto, dalla più recente (ricontatti.ts), non WhatsApp.
+  //  «Ricontatti»: in cima i lead in priorità, poi dal lead arrivato più di recente (ricontatti.ts), non WhatsApp.
   //  I lead nascosti (icona sulla riga) escono dall'elenco e vanno nel gruppo «Nascosti» in fondo; il
   //  gruppo parte chiuso. Restano dentro i filtri (esito, data, ricerca) come gli altri.
   const { visibili: ricPrincipali, nascosti: ricNascosti } =
@@ -510,6 +512,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const nascondi = async (c: ChatItem, nascondere: boolean) => {
     const lead = c.lead;
     if (!lead) return;
+    const prima = lead.data.ricontattoPrioritaIl;
     const ok = await updateLead(lead.id, nascondere ? patchNascondi(c) : patchMostra());
     if (!ok) {
       toast.error(nascondere ? "Lead NON nascosto" : "Lead NON rimesso", {
@@ -519,9 +522,37 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
     }
     if (nascondere)
       toast("Nascosto dai ricontatti", {
-        description: "Lo trovi in fondo, in «Nascosti».",
-        action: { label: "Annulla", onClick: () => void updateLead(lead.id, patchMostra()) },
+        description: prima
+          ? "Lo trovi in fondo, in «Nascosti». Non è più in priorità."
+          : "Lo trovi in fondo, in «Nascosti».",
+        //  «Annulla» rimette anche la priorità che aveva (nascondere la toglie).
+        action: { label: "Annulla", onClick: () => void updateLead(lead.id, patchMostra(prima)) },
       });
+  };
+
+  //  Mette (o toglie) la priorità: un campo sulla scheda, con «Annulla» come il nascondi. Non si chiede
+  //  conferma: un tocco sbagliato si disfa dal messaggio.
+  const priorita = async (c: ChatItem, metti: boolean) => {
+    const lead = c.lead;
+    if (!lead) return;
+    const prima = lead.data.ricontattoPrioritaIl;
+    const ok = await updateLead(lead.id, patchPriorita(metti));
+    if (!ok) {
+      toast.error(metti ? "Priorità NON messa" : "Priorità NON tolta", {
+        description: "La scheda è rimasta com'era. Riprova.",
+      });
+      return;
+    }
+    toast(metti ? "In priorità" : "Priorità tolta", {
+      description: metti
+        ? "Resta fisso in cima ai ricontatti."
+        : "Torna al suo posto, dal più recente.",
+      action: {
+        label: "Annulla",
+        onClick: () =>
+          void updateLead(lead.id, prima ? { ricontattoPrioritaIl: prima } : patchPriorita(false)),
+      },
+    });
   };
 
   const riga = (
@@ -535,6 +566,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       risentire={filtri.ricontatti}
       nascosto={nascosto}
       onNascondi={filtri.ricontatti && c.lead ? () => void nascondi(c, !nascosto) : undefined}
+      prioritario={ePrioritario(c)}
+      onPriorita={
+        filtri.ricontatti && c.lead && !nascosto
+          ? () => void priorita(c, !ePrioritario(c))
+          : undefined
+      }
       prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}
@@ -916,7 +953,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             <ul
               aria-label={
                 filtri.ricontatti
-                  ? "Ricontatti, dalla data più recente"
+                  ? "Ricontatti, dal lead più recente; in cima quelli in priorità"
                   : "Tutte le chat, dall'ultimo messaggio"
               }
             >

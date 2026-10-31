@@ -128,13 +128,13 @@ export interface GruppoFiltri {
   voci: VoceFiltro[];
 }
 
-/** «Ricontatti» (31/10/2026): i MIEI lead negli stati a data, tutti insieme, dalla data più recente.
+/** «Ricontatti» (31/10/2026): i MIEI lead negli stati a data, tutti insieme, dal lead più recente.
  *  Le regole stanno in ricontatti.ts. */
 export const VOCE_RICONTATTI: VoceFiltro = {
   campo: "ricontatti",
   valore: true,
   nome: "Ricontatti",
-  spiega: "I tuoi lead da risentire, dalla data più recente.",
+  spiega: "I tuoi lead da risentire, dal più recente.",
 };
 
 /** I gruppi del pannello, nell'ordine in cui si mostrano. «Altri stati» (dopo le due voci della

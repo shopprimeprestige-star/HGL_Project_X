@@ -1621,6 +1621,11 @@ export interface LeadData {
    *  ricontatto che aveva allora: se cambia, il lead torna da solo. Regole: chatwa/ricontatti.ts. */
   ricontattoNascostoIl?: string;
   ricontattoNascostoPer?: string;
+  /** ── LEAD IN PRIORITÀ NEI «RICONTATTI» (31/10/2026) ──────────────────────
+   *  La puntina sulla riga: il lead sta fisso in cima all'elenco, sopra l'ordine «dal più recente».
+   *  ISO di quando è stata messa; assente = niente priorità. Nascondere il lead la toglie.
+   *  ⚠️ NON È la priorità delle installazioni (`crm/priorita.ts`, «Anticipa»): campo e regole separati. */
+  ricontattoPrioritaIl?: string;
   /** ── QUANDO HA DETTO «VI RICONTATTO IO» ──────────────────────────────────
    *  ISO, scritto da solo ogni volta che si mette lo stato «Ci ricontatta lui»
    *  (crm/CRMContext, updateLead): è il giorno in cui l'ha detto, e non lo
