@@ -17,7 +17,7 @@ import { leggiConfigAI } from "@/routes/api.crm.ai";
 import { classificaTesto } from "@/crm/chatwa/media";
 import { telefonoE164 } from "@/crm/chatwa/daChiamare";
 import { inviaWhatsapp, type RichiestaInvio } from "@/crm/manychat/porta";
-import type { ChiaveMessaggio } from "@/crm/messaggi-automatici/catalogo";
+import { messaggioAcceso } from "@/crm/messaggi-automatici/registro.server";
 import { configConAcceso } from "@/crm/promemoria/pronto";
 import { leggiCanale, portePortaVere } from "@/crm/manychat/porta.server";
 import { entrateVereDi } from "@/crm/manychat/entrate-vere.server";
@@ -48,27 +48,10 @@ const MODELLO_AI = "google/gemini-2.5-flash";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as unknown as { from: (t: string) => any; storage: any };
 
-/** L'«acceso» del messaggio nel registro. Riga mancante, tabella assente o errore = spento
- *  (fail-closed): non parte niente finché non si sa. */
-async function accesoDalRegistro(chiave: ChiaveMessaggio): Promise<boolean> {
-  try {
-    //  shortcut: lettura diretta della riga; quando c'è `messaggioAcceso` del registro
-    //  (compito T2) si sostituisce con quello, che fa la stessa cosa.
-    const { data, error } = await db()
-      .from("messaggi_automatici")
-      .select("acceso")
-      .eq("chiave", chiave)
-      .maybeSingle();
-    return !error && data?.acceso === true;
-  } catch {
-    return false;
-  }
-}
-
 /** L'«acceso» è quello del REGISTRO; del vecchio JSON restano `modelloApprovato`, `avvio` e
  *  `attivoDal`. L'`acceso` rimasto nel JSON non si rilegge mai. */
 export async function leggiConfigDatiFattura(): Promise<ConfigDatiFattura> {
-  const acceso = await accesoDalRegistro("dati_fattura");
+  const acceso = await messaggioAcceso("dati_fattura");
   const { data } = await db()
     .from("app_config")
     .select("value")
@@ -316,9 +299,8 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
       const c = await canaleDi(i.userId);
       //  Solo ManyChat: col canale Cloud API questo giro non ha le chiavi, e non indovina.
       if (c.canale !== "manychat") return "errore";
-      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici). Il tipo con
-      //  `messaggio` esplicito vale anche prima che `RichiestaInvio` lo conosca (compito T3).
-      const richiesta: RichiestaInvio & { messaggio: ChiaveMessaggio } = {
+      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici).
+      const richiesta: RichiestaInvio = {
         canale: "manychat",
         a: telefonoE164(i.telefono) || i.telefono,
         modello: NOME_MODELLO_DATI_FATTURA,

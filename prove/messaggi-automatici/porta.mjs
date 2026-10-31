@@ -502,30 +502,50 @@ export async function provePortaMessaggi(mod, { c, gruppo, radice }) {
       false,
       /@\/integrations|process\.env\.[A-Z]/.test(porta),
     );
+    //  Dal 31/10/2026 la lettura sta in `registro.server.ts` (`messaggioAcceso`, provata a fondo in
+    //  `registro.mjs`): la porta vera la richiama e basta. Qui si controlla che sia così e che il
+    //  sorgente di chi legge mantenga le stesse garanzie di prima.
+    const registro = readFileSync(
+      join(radice, "src/crm/messaggi-automatici/registro.server.ts"),
+      "utf8",
+    );
+    const fn = registro.slice(registro.indexOf("export async function messaggioAcceso("));
+    const corpoRegistro = fn.slice(0, fn.indexOf("\n}\n"));
+    c(
+      "porta.server: `interruttore` è `messaggioAcceso` del registro (nessuna SELECT per conto suo)",
+      [true, false],
+      [
+        /interruttore:\s*\(chiave: ChiaveMessaggio\)\s*=>\s*messaggioAcceso\(chiave\)/.test(server),
+        /from\("messaggi_automatici"\)/.test(server),
+      ],
+    );
     c(
       "il database dell'interruttore: la tabella chiusa messaggi_automatici, colonna acceso",
       true,
-      /from\("messaggi_automatici"\)[\s\S]{0,200}acceso/.test(server),
+      /from\(T_REGISTRO\)[\s\S]{0,200}acceso/.test(corpoRegistro) &&
+        /T_REGISTRO = "messaggi_automatici"/.test(registro),
     );
     c(
-      "porta.server: solo `acceso === true` apre (nessun «truthy»)",
+      "registro: solo `acceso === true` apre (nessun «truthy»)",
       true,
-      /acceso === true/.test(server),
+      /acceso === true/.test(corpoRegistro),
     );
     c(
-      "porta.server: un errore del database chiude (false), la tabella mancante compresa",
+      "registro: un errore del database chiude (false), la tabella mancante compresa",
       true,
-      /if \(error\)[\s\S]{0,300}return false/.test(server),
+      /if \(error\)[\s\S]{0,300}return false/.test(corpoRegistro) &&
+        /catch \(e\)[\s\S]{0,200}return false/.test(corpoRegistro),
     );
     c(
-      "porta.server: l'interruttore non è memorizzato (si rilegge a ogni invio)",
+      "l'interruttore non è memorizzato (si rilegge a ogni invio)",
       false,
-      /interruttori?\s*(\?\?=|=\s*new Map)/.test(server),
+      /interruttori?\s*(\?\?=|=\s*new Map)/.test(server + corpoRegistro),
     );
     c(
-      "porta.server: nessuna scrittura sul registro dei messaggi automatici",
+      "nessuna scrittura sul registro dei messaggi automatici dalla porta né dalla lettura",
       false,
-      /messaggi_automatici[^;]{0,120}(insert|update|upsert|delete|rpc)/i.test(server),
+      /messaggi_automatici[^;]{0,120}(insert|update|upsert|delete|rpc)/i.test(server) ||
+        /(insert|update|upsert|delete|rpc)/i.test(corpoRegistro),
     );
   }
 }

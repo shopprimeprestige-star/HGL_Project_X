@@ -1282,9 +1282,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       tipo: cand.tipo,
       chiave,
       ...(cand.soloTesto ? { soloTesto: true } : {}),
-      //  shortcut: sparso in un oggetto perché `RichiestaInvio.messaggio` lo aggiunge il compito T3
-      //  (porta.ts); finito T3 si scrive come gli altri campi.
-      ...{ messaggio: chiaveMsg },
+      messaggio: chiaveMsg,
     });
 
     //  ── Rifiutato dalla prenotazione: non è partito niente. ──
@@ -1337,7 +1335,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
     //  Il registro ha spento questo messaggio fra la lettura del giro e l'invio (la porta è l'ultima
     //  barriera): non è partito niente, non c'è nessuna riga e NON è un guasto: non conta fra i
     //  falliti di fila e non spegne il generale. Il giro dopo non lo sceglie più.
-    if ((r.esito as string) === "spento") {
+    if (r.esito === "spento") {
       esito.saltati++;
       return { fine: "continua" };
     }

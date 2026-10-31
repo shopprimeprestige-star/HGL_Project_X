@@ -184,10 +184,6 @@ export function esitoInvio(r: RispostaInvio): EsitoInvio {
  *  `incerto` è SOLO rete giù, timeout e 5xx. Un esito che non conosco è
  *  `incerto`, mai `ok`. */
 function esitoDaPorta(porta: EsitoPorta, waId?: string): EsitoInvio {
-  //  ⚠️ Letto come testo: `"spento"` è un esito della porta (interruttore del messaggio
-  //   spento nel registro) e non si deve poter confondere con un guasto. Il tipo
-  //   `EsitoPorta` lo conosce solo dopo il compito T3: qui non si dipende da lui.
-  const e: string = porta;
   const cliente = (codice: ErroreMeta["codice"]): EsitoInvio => ({
     tipo: "rifiuto",
     errore: { tipo: "cliente", codice },
@@ -196,7 +192,7 @@ function esitoDaPorta(porta: EsitoPorta, waId?: string): EsitoInvio {
     tipo: "rifiuto",
     errore: { tipo: "tecnico", codice },
   });
-  switch (e) {
+  switch (porta) {
     case "ok":
       return { tipo: "ok", waId: waId ?? "mc:ok" };
     //  «spento» = messaggio spento nel registro: non è partito, non è un guasto e non consuma

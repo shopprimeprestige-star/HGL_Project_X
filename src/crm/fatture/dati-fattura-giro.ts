@@ -15,6 +15,7 @@
  *  ⚠️ L'interruttore è SPENTO di base. Quando lo si accende (`avvio: "da_fare"`), le
  *   schede che hanno GIÀ un acconto diventano «preesistenti» e non ricevono niente.
  */
+import type { EsitoPorta } from "../manychat/porta";
 import {
   bozzaDaDati,
   chiaveRichiesta,
@@ -61,9 +62,8 @@ export type EsitoInvioRichiesta =
 /** ── DALL'ESITO DELLA PORTA ALL'ESITO DEL GIRO ────────────────────────────
  *  `"spento"` (il messaggio è spento nel registro) è `riprova`, come la pausa del contatto:
  *  la richiesta non è partita, non è un guasto e non si segna come tale. Un esito che non
- *  conosco resta `errore`. Il parametro è un testo, non `EsitoPorta`: non dipende da quando
- *  il tipo della porta impara `"spento"`. */
-export function esitoRichiestaDaPorta(esito: string): EsitoInvioRichiesta {
+ *  conosco resta `errore`. */
+export function esitoRichiestaDaPorta(esito: EsitoPorta): EsitoInvioRichiesta {
   switch (esito) {
     case "ok":
       return "ok";

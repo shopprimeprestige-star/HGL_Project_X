@@ -165,9 +165,7 @@ export const Route = createFileRoute("/api/whatsapp-send")({
             nome: body.leadId ? await nomeDelLead(userId, body.leadId).catch(() => "") : "",
             leadId: body.leadId ?? null,
             tipo: "chat",
-            //  shortcut: spread perché `RichiestaInvio.messaggio` lo aggiunge T3; togliere lo spread
-            //  (scrivere `messaggio: …` diretto) quando T3 è unito.
-            ...{ messaggio: automatico ?? "manuale" },
+            messaggio: automatico ?? "manuale",
           });
           // Nei log solo il codice dell'esito: mai numero, testo o nome.
           if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");

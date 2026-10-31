@@ -47,7 +47,7 @@ import {
 import type { CodiceBlocco } from "@/crm/promemoria/pronto";
 import { inviaWhatsapp, rispostaPerConferma } from "@/crm/manychat/porta";
 import type { PortePorta, RichiestaInvio } from "@/crm/manychat/porta";
-import type { ChiaveMessaggio } from "@/crm/messaggi-automatici/catalogo";
+import { messaggioAcceso } from "@/crm/messaggi-automatici/registro.server";
 import { chiaveManychatPresente, leggiCanale, portePortaVere } from "@/crm/manychat/porta.server";
 import {
   giroPromemoria,
@@ -108,23 +108,6 @@ async function leggiJson<T>(chiave: string): Promise<T | null> {
   }
 }
 
-/** L'«acceso» della conferma nel registro dei messaggi automatici. Riga mancante, tabella
- *  assente o errore = spento (fail-closed): non parte niente finché non si sa. */
-async function accesoDalRegistro(chiave: ChiaveMessaggio): Promise<boolean> {
-  try {
-    //  shortcut: lettura diretta della riga; quando c'è `messaggioAcceso` del registro
-    //  (compito T2) si sostituisce con quello, che fa la stessa cosa.
-    const { data, error } = await db
-      .from("messaggi_automatici")
-      .select<{ acceso?: boolean | null }>("acceso")
-      .eq("chiave", chiave)
-      .maybeSingle();
-    return !error && data?.acceso === true;
-  } catch {
-    return false;
-  }
-}
-
 async function scriviJson(chiave: string, valore: unknown) {
   const { error } = await db
     .from("app_config")
@@ -168,7 +151,7 @@ export function porteVere(soloUtente: string | null): Porte {
     leggiConfig: async () => {
       const [json, acceso] = await Promise.all([
         leggiJson<Partial<ConfigPromemoria>>(CHIAVE_CONFIG),
-        accesoDalRegistro("conferma_consulenza"),
+        messaggioAcceso("conferma_consulenza"),
       ]);
       return configConAcceso(json, acceso);
     },
@@ -286,9 +269,8 @@ export function porteVere(soloUtente: string | null): Porte {
     //  Dalla porta unica: con `cloud` lo stesso corpo Graph di prima, con
     //  `manychat` la prenotazione, i campi e il flusso (vedi `manychat/porta.ts`).
     invia: async (imp, numero, parametri, contesto) => {
-      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici). Il tipo con
-      //  `messaggio` esplicito vale anche prima che `RichiestaInvio` lo conosca (compito T3).
-      const richiesta: RichiestaInvio & { messaggio: ChiaveMessaggio } = {
+      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici).
+      const richiesta: RichiestaInvio = {
         canale: imp.canale ?? "cloud",
         a: numero,
         modello: NOME_MODELLO,
