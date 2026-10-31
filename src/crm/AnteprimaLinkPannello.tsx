@@ -18,6 +18,7 @@ const ROTTA = "/api/crm/anteprima-link";
 interface Stato {
   acceso: boolean;
   chiavi: boolean;
+  sandbox: boolean;
 }
 
 export function AnteprimaLinkPannello() {
@@ -31,7 +32,7 @@ export function AnteprimaLinkPannello() {
       const res = await fetchCRM(ROTTA);
       const r = (await res.json().catch(() => null)) as (Stato & { error?: string }) | null;
       if (res.ok && r && typeof r.acceso === "boolean") {
-        setStato({ acceso: r.acceso, chiavi: !!r.chiavi });
+        setStato({ acceso: r.acceso, chiavi: !!r.chiavi, sandbox: !!r.sandbox });
         setErrore(null);
       } else setErrore(r?.error ?? "Non riesco a leggere l'impostazione: riprova fra poco.");
     } catch {
@@ -94,9 +95,11 @@ export function AnteprimaLinkPannello() {
               </span>
             </span>
             <span className="block text-[12px] leading-snug text-muted-foreground">
-              {senzaChiavi
-                ? "Per accenderlo servono le chiavi di Meta (token e Phone Number ID) in «WhatsApp Cloud API (Meta)»."
-                : "Se Meta non accetta il messaggio, parte da ManyChat. Il messaggio può non comparire nell'inbox di ManyChat: resta nel CRM. L'anteprima la decide Meta e non è garantita."}
+              {stato?.sandbox
+                ? "Il numero è in modalità Sandbox: l'anteprima funziona solo in modalità Live."
+                : senzaChiavi
+                  ? "Per accenderlo servono le chiavi di Meta (token e Phone Number ID) in «WhatsApp Cloud API (Meta)»."
+                  : "Se Meta non accetta il messaggio, parte da ManyChat. Il messaggio può non comparire nell'inbox di ManyChat: resta nel CRM. L'anteprima la decide Meta e non è garantita."}
             </span>
           </span>
           <Switch

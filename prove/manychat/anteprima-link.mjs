@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./finto.mjs";
 
@@ -404,9 +404,11 @@ export async function proveAnteprimaLink(mod, { c, gruppo, radice }) {
       /console\.(log|warn|error)[^\n]*(token|phoneNumberId|cloud\.)/i.test(server),
     );
     c(
-      "api.whatsapp-send: l'anteprima la dichiara solo la chat a mano (no modello, no automatico)",
+      "api.whatsapp-send: l'anteprima la passa solo se la chat la dichiara (=== true), mai per modello o automatico",
       true,
-      /anteprimaLink:\s*!automatico && !body\.templateName/.test(rotta),
+      /anteprimaLink:\s*body\.anteprimaLink === true && !automatico && !body\.templateName/.test(
+        rotta,
+      ),
     );
     c(
       "rotta dell'interruttore: dietro la guardia «impostazioni», accende solo con le chiavi, spegne sempre",
@@ -416,6 +418,232 @@ export async function proveAnteprimaLink(mod, { c, gruppo, radice }) {
         /chiaviMetaPresenti|chiavi/.test(pannello),
         /CHIAVE_ANTEPRIMA_LINK/.test(pannello),
         /console\.[a-z]+\([^)]*(token|access_token)/i.test(pannello),
+      ],
+    );
+  }
+
+  /* ── 8. IL WEBINAR E GLI ALTRI CHIAMANTI RESTANO SU MANYCHAT ─────────── */
+  {
+    const src = join(radice, "src");
+    const file = readdirSync(src, { recursive: true })
+      .map(String)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !f.endsWith("routeTree.gen.ts"));
+    const dichiarano = file.filter((f) =>
+      /anteprimaLink\s*:\s*true/.test(readFileSync(join(src, f), "utf8")),
+    );
+    c(
+      "solo la casella della chat dichiara `anteprimaLink: true` (il webinar e i pannelli no)",
+      ["crm/chatwa/useChatWa.ts"],
+      dichiarano,
+    );
+    const chat = readFileSync(join(src, "crm/chatwa/useChatWa.ts"), "utf8");
+    c(
+      "la chat lo dichiara solo per il testo libero, non per i modelli",
+      [true, false],
+      [
+        /manda\(\{ body: bozza\.trim\(\), anteprimaLink: true \}\)/.test(chat),
+        /templateName: m\.nome[^}]*anteprimaLink/.test(chat),
+      ],
+    );
+    const webinar = readFileSync(join(src, "routes/api.crm.webinar.ts"), "utf8");
+    c(
+      "il tasto del webinar non nomina l'anteprima né la strada Cloud",
+      false,
+      /anteprimaLink|preview_url/.test(webinar),
+    );
+    //  Quello che arriva alla porta dal webinar (testo con link, senza il campo) resta su ManyChat.
+    const x = creaPorte();
+    const r = await P.inviaWhatsapp(x.porte, {
+      ...manuale,
+      anteprimaLink: undefined,
+      testo: "Siamo in diretta: https://hair-genius-hub.hair/w/abc",
+    });
+    c(
+      "testo con link, interruttore acceso, finestra aperta, ma senza il campo: ManyChat",
+      ["ok", 0, true],
+      [r.esito, x.cloud.length, percorsiManychat(x).includes(PERCORSI.testo)],
+    );
+  }
+
+  /* ── 9. LE CHIAVI META SOLO SUL SERVER ────────────────────────────────── */
+  {
+    const W = mod["whatsapp-chiavi"];
+    const sorgente = (rel) => readFileSync(join(radice, rel), "utf8");
+    const migrazione = sorgente("supabase/migrations/20261031170000_whatsapp_chiavi_server.sql");
+    //  Solo le istruzioni, senza i commenti: i nomi dei segreti nei commenti ci possono stare.
+    const istruzioni = migrazione.replace(/--[^\n]*/g, "");
+    const grant = [...istruzioni.matchAll(/GRANT\s+(?:SELECT|INSERT|UPDATE)\s*\(([^)]*)\)/gi)].map(
+      (m) => m[1],
+    );
+    c(
+      "migrazione: toglie al browser SELECT, INSERT e UPDATE sull'intera tabella",
+      true,
+      /REVOKE\s+SELECT,\s*INSERT,\s*UPDATE\s+ON\s+public\.whatsapp_settings\s+FROM\s+anon,\s*authenticated/i.test(
+        istruzioni,
+      ),
+    );
+    c("migrazione: rida SELECT, INSERT e UPDATE solo per colonna (3 GRANT)", 3, grant.length);
+    c(
+      "migrazione: nessun GRANT concede access_token, app_secret o webhook_verify_token",
+      false,
+      grant.some((g) => /access_token|app_secret|webhook_verify_token/.test(g)),
+    );
+    c(
+      "migrazione: nessun GRANT di tabella intera (che annullerebbe la REVOKE di colonna)",
+      false,
+      /GRANT\s+(?:ALL|SELECT|INSERT|UPDATE)(?:\s*,\s*\w+)*\s+ON\s/i.test(istruzioni),
+    );
+    c(
+      "migrazione: solo permessi, nessun dato toccato",
+      false,
+      /\b(DROP|DELETE|TRUNCATE|ALTER\s+TABLE|UPDATE\s+public)\b/i.test(istruzioni),
+    );
+    c(
+      "…e la stessa migrazione è copiata in SETUP-COMPLETO.sql",
+      true,
+      sorgente("supabase/SETUP-COMPLETO.sql").includes(migrazione.trim()),
+    );
+
+    //  Il browser non seleziona più i segreti: nessun file che usa il client del browser li nomina vicino a whatsapp_settings.
+    const src = join(radice, "src");
+    const file = readdirSync(src, { recursive: true })
+      .map(String)
+      .filter((f) => /\.(ts|tsx)$/.test(f));
+    const colpevoli = [];
+    for (const f of file) {
+      const t = readFileSync(join(src, f), "utf8");
+      if (
+        f.startsWith("integrations/") ||
+        /supabaseAdmin/.test(t) ||
+        /\.server\.ts$/.test(f) ||
+        f.startsWith("routes/api.") ||
+        f.startsWith("routes/hooks/")
+      )
+        continue;
+      for (const m of t.matchAll(/from\("whatsapp_settings"\)/g)) {
+        const blocco = t.slice(m.index, m.index + 250);
+        if (/select\(\s*["'`]\*|access_token|app_secret|webhook_verify_token/.test(blocco))
+          colpevoli.push(f);
+      }
+    }
+    c("nessun file del browser seleziona o scrive i segreti di whatsapp_settings", [], colpevoli);
+    const chat = sorgente("src/crm/chatwa/useChatWa.ts");
+    c(
+      "la chat non legge più whatsapp_settings: le chiavi 'ci sono' vengono dalla rotta del canale",
+      [false, true],
+      [
+        /whatsapp_settings/.test(chat.replace(/\/\*[\s\S]*?\*\//, "")),
+        /chiaviMeta/.test(sorgente("src/routes/api.crm.whatsapp-canale.ts")) &&
+          /chiaviMeta/.test(chat),
+      ],
+    );
+
+    //  Il pannello.
+    const pannello = sorgente("src/routes/CRM.impostazioni.tsx");
+    c(
+      "il pannello: carica dalla rotta del server, non da un select",
+      [true, false],
+      [
+        /fetchCRM\("\/api\/crm\/whatsapp-chiavi"\)/.test(pannello),
+        /\.from\("whatsapp_settings"\)\s*\.select\("\*"\)/.test(pannello),
+      ],
+    );
+    c(
+      "il pannello: il «Salva» manda i segreti solo se digitati (mai `|| null`)",
+      [true, true, false],
+      [
+        /if \(wa\.access_token\.trim\(\)\) corpo\.access_token = wa\.access_token/.test(pannello),
+        /if \(wa\.app_secret\.trim\(\)\) corpo\.app_secret = wa\.app_secret/.test(pannello),
+        /access_token: wa\.access_token \|\| null/.test(pannello),
+      ],
+    );
+    c(
+      "il pannello: la bozza in sessionStorage non porta mai token né app secret",
+      [true, true],
+      [
+        /JSON\.stringify\(\{ \.\.\.v, access_token: "", app_secret: "" \}\)/.test(
+          pannello.replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")"),
+        ) ||
+          /JSON\.stringify\(\{\s*\.\.\.v,\s*access_token: "",\s*app_secret: "",?\s*\}\)/.test(
+            pannello,
+          ),
+        /access_token: "",\s*app_secret: "",\s*\}\s*:\s*null/.test(pannello),
+      ],
+    );
+
+    //  Le due regole pure.
+    const conSegreti = {
+      phone_number_id: "111",
+      business_account_id: "222",
+      mode: "live",
+      access_token: TOKEN_FINTO,
+      app_secret: "SEGRETO-APP-FINTO",
+      webhook_verify_token: "verifica",
+    };
+    const stato = W.statoChiavi(conSegreti);
+    c(
+      "lo stato per il browser: token e app secret solo sì/no",
+      [true, true, false, false],
+      [
+        stato.haToken,
+        stato.haAppSecret,
+        JSON.stringify(stato).includes(TOKEN_FINTO),
+        JSON.stringify(stato).includes("SEGRETO-APP-FINTO"),
+      ],
+    );
+    c(
+      "…il verify token esce (serve per incollarlo in Meta)",
+      "verifica",
+      stato.webhook_verify_token,
+    );
+    c(
+      "…senza riga, tutto vuoto e nessun segreto",
+      [false, false, "live"],
+      ((v) => [v.haToken, v.haAppSecret, v.mode])(W.statoChiavi(null)),
+    );
+    const salva = (corpo) => W.patchChiavi(corpo);
+    c(
+      "un salvataggio senza token non lo cancella",
+      { ok: true, patch: { phone_number_id: "111", business_account_id: "222", mode: "live" } },
+      salva({ phone_number_id: "111", business_account_id: "222", mode: "live" }),
+    );
+    c(
+      "…neanche con il token vuoto, spazi o app secret vuoto",
+      { ok: true, patch: { phone_number_id: "111" } },
+      salva({
+        phone_number_id: "111",
+        access_token: "",
+        app_secret: "   ",
+        webhook_verify_token: "",
+      }),
+    );
+    c(
+      "…con il token nuovo lo scrive (senza spazi)",
+      { ok: true, patch: { access_token: "EAAnuovo" } },
+      salva({ access_token: "  EAAnuovo " }),
+    );
+    c(
+      "…per cancellarlo serve dirlo",
+      { ok: true, patch: { access_token: null } },
+      salva({ cancella: ["access_token"] }),
+    );
+    c("…e si cancellano solo i segreti noti", false, salva({ cancella: ["phone_number_id"] }).ok);
+    c(
+      "modalità sbagliata o corpo non valido: rifiuto",
+      [false, false, false],
+      [salva({ mode: "boh" }).ok, salva(null).ok, salva({ access_token: 5 }).ok],
+    );
+
+    //  La rotta.
+    const rotta = sorgente("src/routes/api.crm.whatsapp-chiavi.ts");
+    c(
+      "rotta: GET e POST dietro «impostazioni» (403 senza), titolare obbligatorio, risposte mai col token",
+      [2, true, true, false],
+      [
+        (rotta.match(/guardiaCRM\(request, cors, "impostazioni"\)/g) ?? []).length,
+        /adminUserId\) return json\(\{ error: FRASE_TITOLARE \}, 403\)/.test(rotta),
+        /statoChiavi\(data\)/.test(rotta),
+        /console\.[a-z]+\([^)]*(token|secret)/i.test(rotta),
       ],
     );
   }

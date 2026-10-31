@@ -1,7 +1,7 @@
 /** L'interruttore «Anteprima dei link nei messaggi manuali (invio diretto a Meta)».
  *
  *  Commessa 2026-10-31-anteprima-link. Il riquadro in Impostazioni → WhatsApp parla solo con questa rotta:
- *   · GET  → `{ acceso, chiavi }`: l'interruttore (riga `anteprima_link_manuali` di `app_config`) e se
+ *   · GET  → `{ acceso, chiavi, sandbox }`: l'interruttore (riga `anteprima_link_manuali` di `app_config`) e se
  *            le chiavi Meta (token e phone_number_id) ci sono. Mai le chiavi, solo sì/no;
  *   · POST `{ acceso: boolean }` → accende o spegne. Accendere senza le chiavi è rifiutato (422);
  *            spegnere si può sempre.
@@ -14,7 +14,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { guardiaCRM } from "./api.crm.accesso";
 import { CHIAVE_ANTEPRIMA_LINK } from "@/crm/manychat/porta";
-import { anteprimaLinkAcceso, chiaviAnteprimaPresenti } from "@/crm/manychat/porta.server";
+import { anteprimaLinkAcceso, statoChiaviMeta } from "@/crm/manychat/porta.server";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +29,8 @@ const json = (o: unknown, status = 200) =>
   });
 
 const FRASE_TITOLARE = "Non si sa di quale installazione si parla: rientra nel CRM.";
+const FRASE_SANDBOX =
+  "Il numero è in modalità Sandbox: l'anteprima dei link funziona solo in modalità Live.";
 const FRASE_SENZA_CHIAVI =
   "Mancano le chiavi di Meta (token e Phone Number ID): inseriscile in «WhatsApp Cloud API (Meta)» e riprova.";
 
@@ -49,11 +51,11 @@ export const Route = createFileRoute("/api/crm/anteprima-link")({
         if (!g.ok) return g.risposta;
         if (!g.chi.adminUserId) return json({ error: FRASE_TITOLARE }, 403);
         try {
-          const [acceso, chiavi] = await Promise.all([
+          const [acceso, meta] = await Promise.all([
             anteprimaLinkAcceso(),
-            chiaviAnteprimaPresenti(g.chi.adminUserId),
+            statoChiaviMeta(g.chi.adminUserId),
           ]);
-          return json({ acceso, chiavi });
+          return json({ acceso, chiavi: meta.presenti && !meta.sandbox, sandbox: meta.sandbox });
         } catch (e) {
           return guasto(e);
         }
@@ -73,7 +75,9 @@ export const Route = createFileRoute("/api/crm/anteprima-link")({
           return json({ error: "Richiesta non valida." }, 400);
         try {
           //  Accendere solo con le chiavi presenti; spegnere sempre.
-          const chiavi = await chiaviAnteprimaPresenti(g.chi.adminUserId);
+          const meta = await statoChiaviMeta(g.chi.adminUserId);
+          const chiavi = meta.presenti && !meta.sandbox;
+          if (corpo.acceso && meta.sandbox) return json({ error: FRASE_SANDBOX }, 422);
           if (corpo.acceso && !chiavi) return json({ error: FRASE_SENZA_CHIAVI }, 422);
           const { error } = await supabaseAdmin.from("app_config").upsert(
             {
@@ -84,7 +88,7 @@ export const Route = createFileRoute("/api/crm/anteprima-link")({
             { onConflict: "key" },
           );
           if (error) throw error;
-          return json({ acceso: corpo.acceso, chiavi });
+          return json({ acceso: corpo.acceso, chiavi, sandbox: meta.sandbox });
         } catch (e) {
           return guasto(e);
         }

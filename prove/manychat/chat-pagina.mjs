@@ -893,7 +893,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         );
         c(
           "il corpo dell'invio: numero, testo senza spazi ai bordi, scheda; testo libero (nessun modello)",
-          [{ to: P1, body: "Buongiorno Anna", leadId: "lead-1" }],
+          [{ to: P1, body: "Buongiorno Anna", anteprimaLink: true, leadId: "lead-1" }],
           [p.corpo()],
         );
         c(
@@ -1111,13 +1111,15 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
       // g) Canale cloud: blocca solo se mancano le chiavi Meta. Canale non leggibile: non blocca.
       {
-        const cloud = () =>
+        //  Le chiavi Meta le dice la rotta del canale (sì/no): il browser non legge più whatsapp_settings.
+        const cloud = (chiaviMeta = false) =>
           risposta(200, {
             ok: true,
             canale: "cloud",
             modelliConFlusso: [],
             chiaveManychat: false,
             migrazione: true,
+            chiaviMeta,
           });
         const p = await monta({ ...base(), canale: cloud });
         p.api().apri(P1);
@@ -1135,8 +1137,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
 
         const q = await monta({
           ...base(),
-          canale: cloud,
-          impostazioni: [{ user_id: U, phone_number_id: "123", access_token: "tok" }],
+          canale: () => cloud(true),
         });
         q.api().apri(P1);
         await q.assesta();

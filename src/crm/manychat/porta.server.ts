@@ -172,10 +172,18 @@ export async function anteprimaLinkAcceso(): Promise<boolean> {
   return interruttoreAcceso(data?.value);
 }
 
+/** Le chiavi Meta ci sono (token e Phone Number ID) e il numero è dichiarato di prova? Mai le chiavi, solo sì/no. */
+export async function statoChiaviMeta(
+  userId: string,
+): Promise<{ presenti: boolean; sandbox: boolean }> {
+  const k = await chiaviCloudDi(userId);
+  return { presenti: !!k, sandbox: !!k?.sandbox };
+}
+
 /** Le chiavi Meta per l'anteprima ci sono e sono utilizzabili (non di prova)? Mai le chiavi, solo sì/no. */
 export async function chiaviAnteprimaPresenti(userId: string): Promise<boolean> {
-  const k = await chiaviCloudDi(userId);
-  return !!k && !k.sandbox;
+  const k = await statoChiaviMeta(userId);
+  return k.presenti && !k.sandbox;
 }
 
 /** Le porte vere per un'installazione. `cloud`: le chiavi della Cloud API, se

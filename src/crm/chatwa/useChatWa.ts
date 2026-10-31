@@ -7,7 +7,7 @@
  *
  *  Gli effetti, perché nello spostamento non ne sparisca uno:
  *   1. carica i modelli di testo salvati (servono a otto pagine, non solo all'editor);
- *   2. legge le chiavi Meta (`whatsapp_settings`) → `hasConfig`;
+ *   2. sa se le chiavi Meta ci sono (sì/no dalla rotta del canale, mai il token) → `hasConfig`;
  *   3. legge il canale (`/api/crm/whatsapp-canale`) → `canale`;
  *   4. carica messaggi + contatti al montaggio e cambio utente (`reload("tutto")`):
  *      prima 300 messaggi (la pagina si vede subito), poi i 2000 (`"completa"`);
@@ -225,34 +225,6 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     void caricaModelliSalvati();
   }, []);
 
-  // Carico config WhatsApp per mostrare banner se mancano credenziali
-  useEffect(() => {
-    if (!user) return;
-    void (async () => {
-      const { data } = await (
-        supabase as unknown as {
-          from: (t: string) => {
-            select: (s: string) => {
-              eq: (
-                k: string,
-                v: string,
-              ) => {
-                maybeSingle: () => Promise<{
-                  data: { phone_number_id?: string | null; access_token?: string | null } | null;
-                }>;
-              };
-            };
-          };
-        }
-      )
-        .from("whatsapp_settings")
-        .select("phone_number_id,access_token")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setHasConfig(Boolean(data?.phone_number_id && data?.access_token));
-    })();
-  }, [user]);
-
   //  Il canale (ManyChat o Meta): decide se la casella si blocca. Non leggibile
   //  (403, 503, rete) = `null` = non blocca mai, decide il server all'invio (D12).
   useEffect(() => {
@@ -261,12 +233,20 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     fetchCRM("/api/crm/whatsapp-canale")
       .then(async (res) => {
         if (!vivo) return;
-        const j = res.ok ? ((await res.json()) as Partial<StatoCanale>) : null;
+        const j = res.ok
+          ? ((await res.json()) as Partial<StatoCanale> & { chiaviMeta?: unknown })
+          : null;
         setCanale(
           j && (j.canale === "manychat" || j.canale === "cloud") ? (j as StatoCanale) : null,
         );
+        //  Le chiavi Meta ci sono? Sì/no dal server: il browser non legge più il token (`hasConfig`).
+        setHasConfig(typeof j?.chiaviMeta === "boolean" ? j.chiaviMeta : null);
       })
-      .catch(() => vivo && setCanale(null));
+      .catch(() => {
+        if (!vivo) return;
+        setCanale(null);
+        setHasConfig(null);
+      });
     return () => {
       vivo = false;
     };
@@ -834,6 +814,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     templateName?: string;
     templateLang?: string;
     templateParams?: string[];
+    /** Solo il testo scritto a mano nella casella: può partire da Meta con l'anteprima del link. */
+    anteprimaLink?: boolean;
   }): Promise<boolean> => {
     if (!user || !attiva || inviandoRef.current) return false;
     inviandoRef.current = true;
@@ -901,7 +883,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       return;
     //  Si svuota solo se nel frattempo nessuno ha scritto altro nella casella.
     const inviata = bozza;
-    if (await manda({ body: bozza.trim() })) setBozza((b) => (b === inviata ? "" : b));
+    if (await manda({ body: bozza.trim(), anteprimaLink: true }))
+      setBozza((b) => (b === inviata ? "" : b));
   };
 
   const inviaModello = async (m: { nome: string; lingua: string; parametri: string[] }) => {

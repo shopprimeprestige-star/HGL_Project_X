@@ -1,6 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useAuth, intestazioniCRM } from "@/crm/AuthContext";
+import { useAuth, intestazioniCRM, fetchCRM } from "@/crm/AuthContext";
+import type { StatoChiavi } from "@/crm/whatsapp-chiavi";
 /*  Il foglio delle istruzioni è UN FILE SOLO, in `docs/CLONARE.md`: finisce
     nella sorgente scaricabile e si scarica anche da qui. Due copie dello
     stesso testo sarebbero due fogli che un giorno dicono cose diverse. */
@@ -1823,7 +1824,8 @@ const EMPTY_WA: WhatsAppSettingsState = {
  *  Cambiando linguetta in Impostazioni la sezione si smonta, e con lei
  *  tutto ciò che non era ancora salvato. Quello che si scrive resta quindi
  *  in una bozza finché non si preme Salva.
- *  ⚠️ IN sessionStorage, NON in localStorage: dentro ci sono token e segreti.
+ *  ⚠️ IN sessionStorage, NON in localStorage, e SENZA i segreti: token e app secret non finiscono
+ *   mai nella bozza (il browser non li legge più dal database e non li tiene in archivio).
  *   La bozza vive solo in questa scheda del browser e sparisce quando la si
  *   chiude; salvata la configurazione, si cancella subito. */
 const bozzaWa = (userId: string) => `wa-bozza:${userId}`;
@@ -1831,7 +1833,12 @@ function leggiBozzaWa(userId: string): WhatsAppSettingsState | null {
   try {
     const grezzo = sessionStorage.getItem(bozzaWa(userId));
     return grezzo
-      ? { ...EMPTY_WA, ...(JSON.parse(grezzo) as Partial<WhatsAppSettingsState>) }
+      ? {
+          ...EMPTY_WA,
+          ...(JSON.parse(grezzo) as Partial<WhatsAppSettingsState>),
+          access_token: "",
+          app_secret: "",
+        }
       : null;
   } catch {
     return null;
@@ -1839,7 +1846,11 @@ function leggiBozzaWa(userId: string): WhatsAppSettingsState | null {
 }
 function scriviBozzaWa(userId: string, v: WhatsAppSettingsState | null) {
   try {
-    if (v) sessionStorage.setItem(bozzaWa(userId), JSON.stringify(v));
+    if (v)
+      sessionStorage.setItem(
+        bozzaWa(userId),
+        JSON.stringify({ ...v, access_token: "", app_secret: "" }),
+      );
     else sessionStorage.removeItem(bozzaWa(userId));
   } catch {
     /* senza archiviazione la bozza vive solo finché la sezione è aperta */
@@ -1897,6 +1908,10 @@ function WhatsAppSettingsSection() {
   const [copied, setCopied] = useState<string | null>(null);
   const [diag, setDiag] = useState<WhatsAppDiagnose | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
+  /** token e app secret sono già salvati sul server (il browser non li vede mai) */
+  const [haSegreti, setHaSegreti] = useState({ token: false, appSecret: false });
+  /** le credenziali non si sono lette: il «Salva» resta spento, per non scrivere su un form vuoto */
+  const [erroreChiavi, setErroreChiavi] = useState<string | null>(null);
   /** gli ultimi valori letti o scritti nel database: la bozza si misura su questi */
   const salvatoWa = useRef<WhatsAppSettingsState>(EMPTY_WA);
 
@@ -1926,37 +1941,37 @@ function WhatsAppSettingsSection() {
   useEffect(() => {
     const load = async () => {
       if (!user) return;
-      const { data } = await (
-        supabase as unknown as {
-          from: (t: string) => {
-            select: (s: string) => {
-              eq: (
-                k: string,
-                v: string,
-              ) => { maybeSingle: () => Promise<{ data: WhatsAppSettingsState | null }> };
-            };
-          };
-        }
-      )
-        .from("whatsapp_settings")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const salvato: WhatsAppSettingsState = data
-        ? {
-            phone_number_id: data.phone_number_id ?? "",
-            business_account_id: data.business_account_id ?? "",
-            access_token: data.access_token ?? "",
-            webhook_verify_token: data.webhook_verify_token ?? "",
-            app_secret: data.app_secret ?? "",
-            mode: ((data as unknown as { mode?: string }).mode as "live" | "sandbox") ?? "live",
-          }
-        : EMPTY_WA;
+      //  ⚠️ Le chiavi non si leggono più dal browser: la rotta del server dice solo se token e app secret
+      //   ci sono. I loro campi partono vuoti e vuoti restano finché non si scrive un valore nuovo.
+      let letto: StatoChiavi | null = null;
+      try {
+        const res = await fetchCRM("/api/crm/whatsapp-chiavi");
+        if (res.ok) letto = (await res.json()) as StatoChiavi;
+      } catch {
+        letto = null;
+      }
+      if (!letto) {
+        setErroreChiavi(
+          "Non riesco a leggere le credenziali (serve il permesso «impostazioni»). Riprova fra poco.",
+        );
+        setLoading(false);
+        return;
+      }
+      setErroreChiavi(null);
+      setHaSegreti({ token: letto.haToken, appSecret: letto.haAppSecret });
+      const salvato: WhatsAppSettingsState = {
+        phone_number_id: letto.phone_number_id,
+        business_account_id: letto.business_account_id,
+        access_token: "",
+        webhook_verify_token: letto.webhook_verify_token,
+        app_secret: "",
+        mode: letto.mode,
+      };
       salvatoWa.current = salvato;
       //  Una bozza non salvata vince sul database: è quello che si stava scrivendo.
       setWa(leggiBozzaWa(user.id) ?? salvato);
       // Diagnosi automatica se le credenziali ci sono
-      if (data?.phone_number_id && data.business_account_id && data.access_token) {
+      if (letto.phone_number_id && letto.business_account_id && letto.haToken) {
         void runDiagnose();
       }
       setLoading(false);
@@ -1968,41 +1983,49 @@ function WhatsAppSettingsSection() {
   //  Ogni modifica finisce nella bozza; tornati ai valori salvati, la bozza sparisce.
   useEffect(() => {
     if (!user || loading) return;
-    scriviBozzaWa(user.id, stessiValoriWa(wa, salvatoWa.current) ? null : wa);
+    scriviBozzaWa(
+      user.id,
+      stessiValoriWa({ ...wa, access_token: "", app_secret: "" }, salvatoWa.current) ? null : wa,
+    );
   }, [wa, user, loading]);
   const nonSalvato = !loading && !stessiValoriWa(wa, salvatoWa.current);
 
   const save = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await (
-      supabase as unknown as {
-        from: (t: string) => {
-          upsert: (
-            v: Record<string, unknown>,
-            o: { onConflict: string },
-          ) => Promise<{ error: { message: string } | null }>;
-        };
-      }
-    )
-      .from("whatsapp_settings")
-      .upsert(
-        {
-          user_id: user.id,
-          phone_number_id: wa.phone_number_id || null,
-          business_account_id: wa.business_account_id || null,
-          access_token: wa.access_token || null,
-          webhook_verify_token: wa.webhook_verify_token || null,
-          app_secret: wa.app_secret || null,
-          mode: wa.mode,
-        },
-        { onConflict: "user_id" },
-      );
+    //  ⚠️ Un segreto lasciato vuoto NON si manda (e il server non lo tocca): salvare senza riscrivere il
+    //   token non lo cancella mai.
+    const corpo: Record<string, unknown> = {
+      phone_number_id: wa.phone_number_id,
+      business_account_id: wa.business_account_id,
+      webhook_verify_token: wa.webhook_verify_token,
+      mode: wa.mode,
+    };
+    if (wa.access_token.trim()) corpo.access_token = wa.access_token;
+    if (wa.app_secret.trim()) corpo.app_secret = wa.app_secret;
+    let errore: string | null = null;
+    let nuovo: StatoChiavi | null = null;
+    try {
+      const res = await fetchCRM("/api/crm/whatsapp-chiavi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo),
+      });
+      const j = (await res.json().catch(() => null)) as (StatoChiavi & { error?: string }) | null;
+      if (res.ok && j) nuovo = j;
+      else errore = j?.error ?? "Non è stato salvato: riprova fra poco.";
+    } catch {
+      errore = "Il server non risponde: riprova fra poco.";
+    }
     setSaving(false);
-    if (error) {
-      toast.error(error.message);
+    if (errore || !nuovo) {
+      toast.error(errore ?? "Non è stato salvato: riprova fra poco.");
     } else {
-      salvatoWa.current = wa;
+      //  I segreti appena scritti spariscono dal form: da qui si vede solo «già salvato».
+      const salvato: WhatsAppSettingsState = { ...wa, access_token: "", app_secret: "" };
+      setHaSegreti({ token: nuovo.haToken, appSecret: nuovo.haAppSecret });
+      setWa(salvato);
+      salvatoWa.current = salvato;
       scriviBozzaWa(user.id, null);
       toast.success("Credenziali WhatsApp salvate");
       void runDiagnose();
@@ -2051,6 +2074,11 @@ function WhatsAppSettingsSection() {
           </TabsList>
 
           <TabsContent value="config" className="space-y-4 mt-4">
+            {erroreChiavi && (
+              <p role="alert" className="text-[13px] text-rose-700">
+                {erroreChiavi}
+              </p>
+            )}
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-[11.5px] leading-relaxed text-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200 dark:border-emerald-900/40">
               <div className="font-semibold mb-1 flex items-center gap-1.5">
                 <HelpCircle className="h-3.5 w-3.5" /> Guida rapida (5 minuti)
@@ -2267,7 +2295,12 @@ function WhatsAppSettingsSection() {
                   type="password"
                   value={wa.access_token}
                   onChange={(e) => setWa({ ...wa, access_token: e.target.value })}
-                  placeholder="EAAxxxxxxxxxxx…"
+                  placeholder={
+                    haSegreti.token
+                      ? "•••• già salvato, scrivi solo per sostituirlo"
+                      : "EAAxxxxxxxxxxx…"
+                  }
+                  autoComplete="off"
                 />
               </div>
               <div>
@@ -2290,12 +2323,17 @@ function WhatsAppSettingsSection() {
                   type="password"
                   value={wa.app_secret}
                   onChange={(e) => setWa({ ...wa, app_secret: e.target.value })}
-                  placeholder="32 caratteri esadecimali"
+                  placeholder={
+                    haSegreti.appSecret
+                      ? "•••• già salvato, scrivi solo per sostituirlo"
+                      : "32 caratteri esadecimali"
+                  }
+                  autoComplete="off"
                 />
               </div>
             </div>
 
-            <Button onClick={save} disabled={saving} className="w-full">
+            <Button onClick={save} disabled={saving || !!erroreChiavi} className="w-full">
               {saving ? "Salvataggio…" : "Salva credenziali WhatsApp"}
             </Button>
             {nonSalvato && (
