@@ -57,6 +57,10 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveMeetlySfuRegole } from "./idee/meetly-sfu-regole.mjs";
+import { proveMeetlySfuServer } from "./idee/meetly-sfu-server.mjs";
+import { proveMeetlySfuClient } from "./idee/meetly-sfu-client.mjs";
+import { proveMeetlySfuInnesti } from "./idee/meetly-sfu-innesti.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
@@ -749,6 +753,14 @@ const MODULI = [
   //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
   //   prove in prove/idee/riga-attesa-wame.mjs.
   "chatwa/attesaPosa",
+  //  Media della consulenza Meetly dall'SFU di Cloudflare, dietro interruttore (commessa
+  //   2026-10-31-meetly-connessione, Parte B). Le regole pure (T1) ci sono; gli altri tre
+  //   (nucleo del server e client Cloudflare: T2; client SFU: T3) entrano nel pacchetto quando il file esiste.
+  //   Prove in prove/idee/meetly-sfu-*.mjs (un file per compito, già registrati qui sotto).
+  "shop/meetly-sfu-regole",
+  ...["shop/meetly-sfu-stanza", "shop/meetly-sfu-cloudflare", "shop/meetly-sfu"].filter((m) =>
+    existsSync(join(radice, `src/${m}.ts`)),
+  ),
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21568,6 +21580,10 @@ proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+proveMeetlySfuRegole(mod, { c, gruppo, radice });
+proveMeetlySfuServer(mod, { c, gruppo, radice });
+proveMeetlySfuClient(mod, { c, gruppo, radice });
+proveMeetlySfuInnesti(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
