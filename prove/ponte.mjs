@@ -36,6 +36,7 @@ import { provePonteNonInterferenza } from "./ponte/non-interferenza.mjs";
 import { provePontePari } from "./ponte/pari.mjs";
 import { provePonteLidEPari } from "./ponte/lid-e-pari.mjs";
 import { provePonteRotta } from "./ponte/rotta.mjs";
+import { provePonteRevocheServizio } from "./ponte/revoche-servizio.mjs";
 import { proveDocumentiExport } from "./ponte/documenti-export.mjs";
 import { provePonteServizioCache } from "./ponte/servizio-cache.mjs";
 import { provePonteServizioEstrai } from "./ponte/servizio-estrai.mjs";
@@ -160,4 +161,6 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteServizioImmagini(mod, aiuti);
   await provePonteServizioCollegaImmagini(mod, aiuti);
   await provePonteImmaginiChatUi(mod, aiuti);
+  //  Le revoche (commessa 2026-10-31, ponte-revoche): un nostro messaggio eliminato per tutti sparisce dal CRM.
+  await provePonteRevocheServizio(mod, aiuti);
 }
