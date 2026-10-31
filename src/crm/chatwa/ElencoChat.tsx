@@ -55,6 +55,7 @@ import {
   FILTRI_VUOTI,
   filtriValidi,
   passaFiltri,
+  risentireDi,
   togli,
   VOCI_RIGA,
   type CampoFiltro,
@@ -63,6 +64,7 @@ import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri"
 import type { ChatItem, ElencoChatProps } from "./tipi";
 import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
 import { fraseRicontattiVuoti, ordinaRicontatti } from "./ricontatti";
+import { RigheRisentire } from "./RigheRisentire";
 import { oggiIso } from "@/crm/ui";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
@@ -184,6 +186,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
 
   // ── Quante chat con questi filtri, e quanti numeri per ogni voce (ricerca esclusa) ────────
   const passa = (c: ChatItem) => passaFiltri(c, filtri, stelleDi);
+  //  I miei ricontatti, senza le tre righe interne: la base dei numeri sulle loro pastiglie.
+  const ricontattiMiei = filtri.ricontatti
+    ? api.chats.filter((c) =>
+        passaFiltri(c, { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io }, stelleDi),
+      )
+    : [];
   const conta = (campo: CampoFiltro, valore: string | true) =>
     contaVoce(api.chats, filtri, stelleDi, campo, valore);
 
@@ -455,6 +463,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
     <RigaChat
       comeWhatsapp={tutte}
+      risentire={filtri.ricontatti}
       prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}
@@ -651,6 +660,17 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           );
         })}
       </div>
+
+      {/*  ── STATO + ESITO + DATA, SOLO IN «RICONTATTI» (31/10/2026) ─────────
+          Tre righe che si combinano. I numeri sono sui MIEI ricontatti (stessa porta, `passaFiltri`),
+          ricerca esclusa come per tutte le pastiglie. Ogni riga acceso ha la sua etichetta nel riepilogo. */}
+      {filtri.ricontatti && (
+        <RigheRisentire
+          chats={ricontattiMiei}
+          valore={risentireDi(filtri)}
+          onCambia={(r) => setFiltri({ ...filtri, rStato: r.stato, rEsito: r.esito, rData: r.data })}
+        />
+      )}
 
       {/*  Il riepilogo: mai un filtro acceso che non si vede. Ogni etichetta si toglie con la sua ✕. */}
       {accesi > 0 && (

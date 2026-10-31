@@ -47,6 +47,7 @@ import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cli
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveRicontatti } from "./idee/ricontatti.mjs";
+import { proveRisentire } from "./idee/risentire.mjs";
 import {
   proveClienti,
   proveCreaSchedaDaChat,
@@ -64,6 +65,7 @@ import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
+import { proveEcoFantasma } from "./idee/eco-fantasma.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
@@ -21550,6 +21552,7 @@ provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveRicontatti(mod, { c, gruppo, radice });
+proveRisentire(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
@@ -21573,6 +21576,7 @@ proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
 proveMessaggioIban(mod, { c, gruppo, radice });
+await proveEcoFantasma(mod, { c, gruppo });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

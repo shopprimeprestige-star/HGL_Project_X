@@ -1608,6 +1608,13 @@ export interface LeadData {
   // follow-up
   dataRicontatto?: string;
   oraRicontatto?: string;
+  /** ── ESITO DEL RICONTATTO (31/10/2026) ───────────────────────────────────
+   *  Secondo livello sotto lo stato, lo mette il titolare dalla chat WhatsApp («Ricontatti»):
+   *  `non_ha_risposto`, `piu_avanti`, `ci_sta_pensando`, `aspetta_i_soldi`. Assente = nessun esito.
+   *  Resta quando lo stato cambia (era «Attesa acconto», poi «sentiamoci più avanti»).
+   *  `esitoRicontattoIl` è l'ISO di quando è stato messo. Valori e nomi: chatwa/ricontatti.ts. */
+  esitoRicontatto?: string;
+  esitoRicontattoIl?: string;
   /** ── QUANDO HA DETTO «VI RICONTATTO IO» ──────────────────────────────────
    *  ISO, scritto da solo ogni volta che si mette lo stato «Ci ricontatta lui»
    *  (crm/CRMContext, updateLead): è il giorno in cui l'ha detto, e non lo

@@ -30,6 +30,7 @@ import type { PorteRisposta as PorteConferma } from "../promemoria/in-entrata";
 import type { InvioAbbinabile } from "./ritorno";
 import { ENTRATE_DA_LEGGERE, type PorteRispostaManychat } from "./risposta";
 import { CANALE_PONTE } from "../ponte/tipi";
+import { ECO_VUOTA_DOPO_MS, ECO_VUOTA_PRIMA_MS } from "../chatwa/eco";
 import { CHIAVE_CONFIG_STELLE, mettiStellaUno } from "../wa-orari";
 
 type ErroreDb = { code?: string | null; message?: string | null } | null;
@@ -230,6 +231,23 @@ export function porteRisposta(): PorteRispostaManychat {
         il: new Date(r.created_at),
         media: r.media_type || null,
       }));
+    },
+
+    ultimeUscite: async (userId, telefono, adesso) => {
+      const dalle = new Date(adesso.getTime() - ECO_VUOTA_DOPO_MS - 5_000);
+      const alle = new Date(adesso.getTime() + ECO_VUOTA_PRIMA_MS);
+      const { data, error } = await db()
+        .from("whatsapp_messages")
+        .select<{ created_at: string; status: string | null }[]>("created_at, status")
+        .eq("user_id", userId)
+        .eq("direction", "outbound")
+        .in("to_number", formati(telefono))
+        .gte("created_at", dalle.toISOString())
+        .lte("created_at", alle.toISOString())
+        .limit(20);
+      if (error) return lancia(error);
+      //  Un nostro messaggio non partito (`failed`) non può aver fatto ripartire il Default Reply.
+      return (data ?? []).filter((r) => r.status !== "failed").map((r) => new Date(r.created_at));
     },
 
     registraMessaggio: async (userId, m) => {
