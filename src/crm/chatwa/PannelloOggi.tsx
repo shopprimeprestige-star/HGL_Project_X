@@ -19,17 +19,20 @@
  *  pagina «Da fare oggi», e due scrittori della stessa riga sono un doppione. */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Sun, X } from "lucide-react";
+import { ChevronDown, Sun, UserRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
 import { useAuth, useConsulenteCollegato, usePuo } from "@/crm/AuthContext";
 import { vistaOggi } from "@/crm/vista-oggi";
+import { faConsulenze } from "@/crm/permessi";
+import { chiVale, consulenteDelloSchermo } from "@/crm/consulente-dentro";
+import { PERIODO_DI_SERIE, leggiPeriodo, scriviPeriodo, type Periodo } from "@/crm/periodo-da-fare";
 import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
 import { consulenzeDelGiorno } from "@/crm/consulenze-del-giorno";
 import { Elenco, RigaLead, attesaDi, esitoDi, iso, minutiDi } from "@/crm/MeetGiornalieri";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { VoceDaFare } from "@/crm/dafare/VoceDaFare";
-import { NOTA_FASCIA, TITOLO_FASCIA, costruisciRighe } from "@/crm/dafare/righe";
+import { NOTA_FASCIA, TITOLO_FASCIA, costruisciRighe, type Fascia } from "@/crm/dafare/righe";
 import { mappaMestieri } from "@/crm/dafare/di-chi";
 import { ordinaArretrati, useVersoArretrati } from "@/crm/dafare/arretrati";
 import { applicaGesto, caricaTask, type Gesto, type TaskManuale } from "@/crm/dafare/task-manuali";
@@ -44,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import type { Lead, LeadStatus } from "@/crm/types";
 import { contaRighe, daFareDelPannello } from "./pannello-oggi";
+import { BORDO_TASTO, FUOCO } from "./PannelloFiltri";
 
 type Scheda = "consulenze" | "dafare" | "lead";
 
@@ -109,7 +113,7 @@ function Gruppo({
           onClick={onCambia}
           title={nota}
           className={cn(
-            "flex min-h-11 w-full items-center gap-2 border-b border-border px-3 py-2 text-left md:min-h-9",
+            "flex min-h-11 w-full items-center gap-2 border-b border-border px-3 py-2 text-left lg:pointer-fine:min-h-9",
             "text-[12px] font-semibold uppercase tracking-wide",
             tono === "urgente" && "bg-rose-50 text-rose-800",
             tono === "attenzione" && "bg-amber-50 text-amber-900",
@@ -129,6 +133,142 @@ function Gruppo({
       </h3>
       {aperto && children}
     </section>
+  );
+}
+
+/* ── LE DATE DI «DA FARE» (31/10/2026) ─────────────────────────────────────
+ *  Richiesta del titolare: pastiglie come nelle chat, «Oggi», «Ieri», una data, da… a…. Le regole
+ *  (cosa vale ogni scelta, cosa si ricorda) stanno in crm/periodo-da-fare.ts. Di serie «Oggi»,
+ *  che è la giornata di sempre con il suo gruppo «Rimasto indietro»: le cose scadute prima di oggi
+ *  e non spuntate NON spariscono. La scelta si ricorda sul dispositivo solo per quel giorno
+ *  (localStorage: senza, vale finché la pagina è aperta). */
+const CHIAVE_PERIODO = "hgl_oggi_periodo_v1";
+
+function usePeriodo(oggi: string) {
+  const [periodo, setPeriodo] = useState<Periodo>(() => {
+    try {
+      return leggiPeriodo(window.localStorage.getItem(CHIAVE_PERIODO), oggi);
+    } catch {
+      return PERIODO_DI_SERIE;
+    }
+  });
+  const cambia = (p: Periodo) => {
+    setPeriodo(p);
+    try {
+      window.localStorage.setItem(CHIAVE_PERIODO, scriviPeriodo(p, oggi));
+    } catch {
+      /* niente: la scelta vale finché la pagina è aperta */
+    }
+  };
+  return { periodo, cambia };
+}
+
+/** La riga che scorre di lato (stessa delle chat: ElencoChat). La barra non si vede. */
+const RIGA_SCORREVOLE =
+  "flex overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+/** Pastiglia a tutta altezza di dito (44 px); più bassa solo dal computer col mouse. */
+const pastiglia = (acceso: boolean) =>
+  cn(
+    "t-corpo flex h-11 shrink-0 items-center whitespace-nowrap rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
+    acceso
+      ? "border-primary bg-primary text-primary-foreground"
+      : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
+    FUOCO,
+  );
+/** Il campo data: 16 px (sotto, iOS ingrandisce la pagina), alto come un tasto. */
+const CAMPO_DATA =
+  "h-11 min-w-0 flex-1 rounded-lg border border-muted-foreground/70 bg-background px-2 text-[16px] text-foreground lg:pointer-fine:h-8 lg:pointer-fine:text-[13px]";
+
+function Pastiglie({ periodo, onCambia }: { periodo: Periodo; onCambia: (p: Periodo) => void }) {
+  const { tipo } = periodo;
+  //  Una casella ancora vuota non svuota l'elenco (vale oggi, o il solo giorno scritto): lo si dice.
+  const manca =
+    tipo === "giorno" ? !periodo.da : tipo === "intervallo" && (!periodo.da || !periodo.a);
+  const nota = !manca
+    ? null
+    : tipo === "giorno" || (!periodo.da && !periodo.a)
+      ? "Scegli la data: intanto vedi oggi."
+      : "Manca una data: vedi solo il giorno scelto.";
+  return (
+    <div className="border-b border-border">
+      <div role="group" aria-label="Quando" className={cn(RIGA_SCORREVOLE, "gap-2 px-3 py-2")}>
+        <button
+          type="button"
+          aria-pressed={tipo === "oggi"}
+          onClick={() => onCambia(PERIODO_DI_SERIE)}
+          className={pastiglia(tipo === "oggi")}
+        >
+          Oggi
+        </button>
+        <button
+          type="button"
+          aria-pressed={tipo === "ieri"}
+          onClick={() => onCambia({ tipo: "ieri", da: "", a: "" })}
+          className={pastiglia(tipo === "ieri")}
+        >
+          Ieri
+        </button>
+        <button
+          type="button"
+          aria-pressed={tipo === "giorno"}
+          onClick={() =>
+            onCambia({ tipo: "giorno", da: tipo === "giorno" ? periodo.da : "", a: "" })
+          }
+          className={pastiglia(tipo === "giorno")}
+        >
+          Data
+        </button>
+        <button
+          type="button"
+          aria-pressed={tipo === "intervallo"}
+          onClick={() =>
+            onCambia({
+              tipo: "intervallo",
+              da: tipo === "intervallo" ? periodo.da : "",
+              a: tipo === "intervallo" ? periodo.a : "",
+            })
+          }
+          className={pastiglia(tipo === "intervallo")}
+        >
+          Da… a…
+        </button>
+      </div>
+      {tipo === "giorno" && (
+        <div className="px-3 pb-2">
+          <input
+            type="date"
+            aria-label="Giorno"
+            value={periodo.da}
+            onChange={(e) => onCambia({ tipo: "giorno", da: e.target.value, a: "" })}
+            className={cn(CAMPO_DATA, "w-full")}
+          />
+        </div>
+      )}
+      {tipo === "intervallo" && (
+        <div className="flex items-center gap-2 px-3 pb-2">
+          <input
+            type="date"
+            aria-label="Data di inizio"
+            value={periodo.da}
+            max={periodo.a || undefined}
+            onChange={(e) => onCambia({ ...periodo, da: e.target.value })}
+            className={CAMPO_DATA}
+          />
+          <span aria-hidden="true" className="t-nota text-muted-foreground">
+            –
+          </span>
+          <input
+            type="date"
+            aria-label="Data di fine"
+            value={periodo.a}
+            min={periodo.da || undefined}
+            onChange={(e) => onCambia({ ...periodo, a: e.target.value })}
+            className={CAMPO_DATA}
+          />
+        </div>
+      )}
+      {nota && <p className="t-nota px-3 pb-2 text-muted-foreground">{nota}</p>}
+    </div>
   );
 }
 
@@ -160,11 +300,26 @@ export function PannelloOggi({
   onClose?: () => void;
 }) {
   const { leads, consultants } = useCRM();
-  const { user } = useAuth();
+  const { user, accesso } = useAuth();
   const consulente = useConsulenteCollegato();
-  const vista = vistaOggi(usePuo());
+  const puo = usePuo();
+  const vista = vistaOggi(puo);
   const [scheda, setScheda] = useState<Scheda>("consulenze");
-  const [chi, setChi] = useState("");
+  //  ── CHI SI GUARDA (31/10/2026) ──────────────────────────────────────────
+  //  Il consulente che è dentro vede solo il suo lavoro e il menu non c'è; l'admin parte su tutti
+  //  e può scegliere un altro o «Tutti»; il titolare senza consulente parte su «Tutti». `scelto`
+  //  è quel che ha toccato nel menu (`null` = niente). Le regole: crm/consulente-dentro.ts.
+  const dentro = useMemo(
+    () =>
+      consulenteDelloSchermo({
+        collegatoId: consulente?.id,
+        admin: accesso.ruolo === "admin",
+        faConsulenze: faConsulenze(puo),
+      }),
+    [consulente?.id, accesso.ruolo, puo],
+  );
+  const [scelto, setScelto] = useState<string | null>(null);
+  const chi = chiVale(dentro, scelto);
   const [verso] = useVersoArretrati();
 
   //  L'orologio: «tra 25 min» e le fasce della giornata avanzano da soli.
@@ -175,6 +330,7 @@ export function PannelloOggi({
   }, []);
   const ora = new Date(adesso);
   const oggi = iso(ora);
+  const { periodo, cambia: cambiaPeriodo } = usePeriodo(oggi);
   const minutiAdesso = ora.getHours() * 60 + ora.getMinutes();
 
   /* ── LE COSE SCRITTE A MANO: la stessa lista di «Da fare oggi» ── */
@@ -235,8 +391,9 @@ export function PannelloOggi({
         chi,
         mestieri,
         ordinaArretrati: (r) => ordinaArretrati(r, verso),
+        periodo,
       }),
-    [leads, task, adesso, oggi, chi, mestieri, verso],
+    [leads, task, adesso, oggi, chi, mestieri, verso, periodo],
   );
   const quanteDaFare = contaRighe(gruppi);
   //  Le consulenze di oggi in tre gruppi: da fare, da recuperare (assente o da
@@ -281,7 +438,7 @@ export function PannelloOggi({
           attivo={scheda === "consulenze"}
           onClick={() => setScheda("consulenze")}
           conteggio={consulenze.length}
-          className="min-h-11 md:min-h-0"
+          className="min-h-11 lg:pointer-fine:min-h-8"
         >
           Consulenze
         </Segmento>
@@ -289,7 +446,7 @@ export function PannelloOggi({
           attivo={scheda === "dafare"}
           onClick={() => setScheda("dafare")}
           conteggio={quanteDaFare}
-          className="min-h-11 whitespace-nowrap md:min-h-0"
+          className="min-h-11 whitespace-nowrap lg:pointer-fine:min-h-8"
         >
           Da fare
         </Segmento>
@@ -297,29 +454,45 @@ export function PannelloOggi({
           attivo={scheda === "lead"}
           onClick={() => setScheda("lead")}
           titolo="Il vecchio elenco «Lead CRM»: cerca un lead e mandagli un messaggio"
-          className="min-h-11 md:min-h-0"
+          className="min-h-11 lg:pointer-fine:min-h-8"
         >
           Lead
         </Segmento>
       </div>
 
-      {scheda !== "lead" && (
-        <div className="border-b border-border px-3 py-2">
-          <Select value={chi || TUTTI} onValueChange={(v) => setChi(v === TUTTI ? "" : v)}>
-            <SelectTrigger className="h-11 text-[12.5px] md:h-8" aria-label="Filtra per consulente">
-              <SelectValue placeholder="Tutti i consulenti" />
-            </SelectTrigger>
-            <SelectContent className="crm-theme bg-white text-foreground">
-              <SelectItem value={TUTTI}>Tutti i consulenti</SelectItem>
-              {persone.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.data.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {scheda !== "lead" &&
+        (dentro.bloccato ? (
+          //  Il consulente vede solo il suo: niente menu, e una riga che lo dice.
+          <div className="border-b border-border px-3 py-2">
+            <p className="t-nota flex min-h-11 items-center gap-2 rounded-md bg-slate-50 px-3 text-slate-700 lg:pointer-fine:min-h-8">
+              <UserRound aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">
+                Solo il tuo lavoro{nomeDi(dentro.id) ? ` · ${nomeDi(dentro.id)}` : ""}
+              </span>
+            </p>
+          </div>
+        ) : (
+          <div className="border-b border-border px-3 py-2">
+            <Select value={chi || TUTTI} onValueChange={(v) => setScelto(v === TUTTI ? "" : v)}>
+              <SelectTrigger
+                className="h-11 text-[12.5px] lg:pointer-fine:h-8"
+                aria-label="Filtra per consulente"
+              >
+                <SelectValue placeholder="Tutti i consulenti" />
+              </SelectTrigger>
+              <SelectContent className="crm-theme bg-white text-foreground">
+                <SelectItem value={TUTTI}>Tutti i consulenti</SelectItem>
+                {persone.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.data.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+
+      {scheda === "dafare" && <Pastiglie periodo={periodo} onCambia={cambiaPeriodo} />}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {scheda === "consulenze" &&
@@ -383,15 +556,21 @@ export function PannelloOggi({
         {scheda === "dafare" &&
           (quanteDaFare === 0 ? (
             <VuotoRiga
-              testo={statoTask === "carico" ? "Carico le cose da fare…" : "Niente da fare adesso."}
+              testo={
+                statoTask === "carico"
+                  ? "Carico le cose da fare…"
+                  : periodo.tipo === "oggi"
+                    ? "Niente da fare adesso."
+                    : "Niente da fare in queste date."
+              }
             />
           ) : (
             gruppi.map((g) => (
               <Gruppo
                 key={g.fascia}
                 id={g.fascia}
-                titolo={TITOLO_FASCIA[g.fascia]}
-                nota={NOTA_FASCIA[g.fascia]}
+                titolo={g.titolo ?? TITOLO_FASCIA[g.fascia as Fascia]}
+                nota={g.titolo ? undefined : NOTA_FASCIA[g.fascia as Fascia]}
                 conteggio={g.righe.length}
                 tono={TONO_FASCIA[g.fascia] ?? "neutro"}
                 aperto={gruppiAperti.aperto(g.fascia)}

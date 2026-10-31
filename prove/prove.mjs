@@ -53,6 +53,7 @@ import {
 } from "./idee/chat-ritocchi.mjs";
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
@@ -683,6 +684,10 @@ const MODULI = [
   //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
   //   prove in prove/idee/prossimo-meet.mjs.
   "chatwa/prossimo-meet",
+  //  «Oggi» del consulente che è dentro (commessa 2026-10-31-oggi-del-consulente):
+  //   prove in prove/idee/oggi-del-consulente.mjs.
+  "consulente-dentro",
+  "periodo-da-fare",
   //  L'invito al meet dal tasto della barra (commessa 2026-10-31-invito-meet):
   //   prove in prove/idee/invito-meet.mjs.
   "chatwa/invito-meet",
@@ -21387,6 +21392,15 @@ function proveDeiPermessiInstallazioneChat() {
   c("Anticipa sulla riga solo con «installazioni»", true, /puoInstallazioni && c\.lead && puoAnticipare/.test(r));
 }
 
+/** ── BLOCCO ACCONTI: PRIMA SENZA GIORNO, SOTTO CON GIORNO (31/10/2026) ───── */
+function proveDellOrdineAcconti() {
+  gruppo("ACCONTI IN CIMA: PRIMA SENZA GIORNO, POI CON GIORNO");
+  const A = mod["chatwa/accontiInCima"];
+  const l = (id, inc, posa) => ({ lead: { id, data: { nome: id, cognome: "Prova", stato: "posa_in_sede", payment: { accontoPagato: 100, incassi: [{ id: "i" + id, data: inc, importo: 100 }] }, ...(posa ? { installazione: { dataInstallazione: posa } } : {}) } } });
+  const ordine = A.chatDaInstallare([l("conGiornoTardi", "2026-10-01", "2026-11-20"), l("senzaRecente", "2026-10-20"), l("conGiornoVicino", "2026-10-25", "2026-11-05"), l("senzaVecchio", "2026-09-01")]).map((c) => c.lead.id);
+  c("prima senza giorno (acconto più vecchio), poi con giorno (dal più vicino)", ["senzaVecchio", "senzaRecente", "conGiornoVicino", "conGiornoTardi"], ordine);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21521,6 +21535,7 @@ proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
 proveClienti(mod, { c, gruppo, radice });
 await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
+proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveInvitoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
@@ -21529,6 +21544,7 @@ await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
+proveDellOrdineAcconti();
 proveDeiContatoriABadge();
 rmSync(dove, { recursive: true, force: true });
 

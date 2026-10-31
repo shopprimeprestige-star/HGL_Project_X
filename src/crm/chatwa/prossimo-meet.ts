@@ -14,7 +14,9 @@
  *    cima non resta niente: un meet di ieri mattina non è «il prossimo»).
  *  - Il nome è la prima parola di `consultants[].data.nome`; senza consulente, o con uno
  *    cancellato o senza nome, l'etichetta è solo «Meet alle 15:00».
- *  Provato in prove/idee/prossimo-meet.mjs. */
+ *  - `soloDi` (31/10/2026): l'id del consulente che è dentro. Con lui conta solo il SUO meet; vuoto
+ *    (titolare) = di tutti, come prima. Chi è dentro: src/crm/consulente-dentro.ts.
+ *  Provato in prove/idee/prossimo-meet.mjs e prove/idee/oggi-del-consulente.mjs. */
 import { eAppuntamento } from "../types";
 import { minutiAlla, oraNormale } from "../promemoria/formati";
 
@@ -60,9 +62,12 @@ export function prossimoMeet<T extends ChatConMeet>(
   oggi: string,
   adesso: number,
   consulenti: { id: string; data?: { nome?: unknown } | null }[] = [],
+  soloDi = "",
 ): ProssimoMeet<T> | null {
   let migliore: { chat: T; ora: string } | null = null;
   for (const chat of chats) {
+    //  Chi è dentro vede solo i suoi: il meet di un altro (o di nessuno) non è «il prossimo».
+    if (soloDi && chat.lead?.data?.consulenteId !== soloDi) continue;
     const ora = oraDelMeet(chat, oggi, adesso);
     //  `<` stretto: a pari ora resta il primo trovato.
     if (ora && (!migliore || ora < migliore.ora)) migliore = { chat, ora };
