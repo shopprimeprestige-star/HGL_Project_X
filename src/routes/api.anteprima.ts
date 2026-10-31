@@ -51,6 +51,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { formaCodiceImmagineModello } from "@/crm/wa-meta-templates";
 import { guardiaCRM } from "./api.crm.accesso";
 import { guardia as guardiaPresentatore } from "./api.presenter.consultant";
 
@@ -172,6 +173,9 @@ export const Route = createFileRoute("/api/anteprima")({
         const file = form.get("file") as File | null;
         if (!tipo || !codice) return json({ ok: false, reason: "bad_request" }, 400);
         if (!file) return json({ ok: false, reason: "no_file" }, 400);
+        //  L'immagine dei modelli è SEMPRE di una persona: codice della stanza + gettone di chi la riceve.
+        if (tipo === "modello" && !formaCodiceImmagineModello(codice))
+          return json({ ok: false, reason: "codice_non_valido" }, 400);
 
         //  ⚠️ Il tipo dichiarato dal browser non basta: si guarda il peso, che
         //  è l'unica cosa che non si può mentire.

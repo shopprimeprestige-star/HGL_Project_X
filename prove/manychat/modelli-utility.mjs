@@ -491,11 +491,27 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     hgl_meet_adesso: "ns-vecchio-adesso",
     hgl_consulenza_in_corso_311026: "ns-nuovo-adesso",
   };
-  function creaPorte({ acceso, flussi = FLUSSI, ultimaEntrata, interruttoreGuasto, immagini = true, immaginiGuaste = false, cloudRisposte = [] } = {}) {
+  function creaPorte({ acceso, flussi = FLUSSI, ultimaEntrata, interruttoreGuasto, immagini = true, immaginiGuaste = false, cloudRisposte = [], campoNuovo = null } = {}) {
     const f = creaFinto().su("GET", PERCORSI.campi, esiti.successo([{ id: 501, name: "crm_telefono", type: "text" }]));
     const messaggi = [];
     const avvisi = [];
     const richiesteImmagini = [];
+    const patchRegistro = [];
+    let scritturaCampi = 0;
+    //  `campoNuovo`: la scrittura che porta `crm_img` fallisce, come se in ManyChat il campo non ci fosse
+    //  ("blocco": risposta 400) o la rete cadesse ("rete": errore non HTTP). "tutti": falliscono TUTTE le
+    //  scritture (ManyChat è davvero giù).
+    const fetchProvato = async (url, init) => {
+      if (new URL(String(url)).pathname === PERCORSI.scriviCampi) {
+        scritturaCampi++;
+        const nuovo = String(init?.body ?? "").includes("crm_img");
+        if (campoNuovo && (nuovo || campoNuovo.endsWith("-tutti"))) {
+          if (campoNuovo.startsWith("rete")) throw new TypeError("fetch failed");
+          return new Response(JSON.stringify({ status: "error", message: "Custom field not found" }), { status: 400, headers: { "content-type": "application/json" } });
+        }
+      }
+      return f.fetch(url, init);
+    };
     const porte = {
       avviso: (codice) => void avvisi.push(codice),
       //  L'immagine personale del cliente: esiste (deposita dal browser) o no. Senza la porta, no.
@@ -509,10 +525,10 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
             },
           }),
       adesso: () => f.orologio.adesso(),
-      client: () => A.creaClient({ chiave: "chiave-finta", fetch: f.fetch, timeoutMs: 25 }),
+      client: () => A.creaClient({ chiave: "chiave-finta", fetch: fetchProvato, timeoutMs: 25 }),
       flusso: async (m) => flussi[m] ?? null,
       prenota: async () => ({ id: "inv1" }),
-      esito: async () => undefined,
+      esito: async (_id, patch) => void patchRegistro.push(patch),
       subscriberNoto: async () => 1000001,
       registra: async (m) => void messaggi.push(m),
       cloud: async (corpo) => {
@@ -529,7 +545,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
             },
           }),
     };
-    return { porte, f, messaggi, avvisi, richiesteImmagini };
+    return { porte, f, messaggi, avvisi, richiesteImmagini, patchRegistro, scritture: () => scritturaCampi };
   }
   const campiDi = (x) =>
     Object.fromEntries(
@@ -598,6 +614,44 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     const altra = creaPorte({ acceso: true, immagini: ["xyz-abcd-efg_pb4b5c685"] });
     const r4 = await P.inviaWhatsapp(altra.porte, promemoria);
     c("esiste l'immagine di un altro cliente ma non la sua: il vecchio (mai il nome di un altro)", ["ok", "ns-vecchio-promemoria"], [r4.esito, flussoDi(altra)]);
+  }
+  {
+    //  ── MANCA IL CAMPO `crm_img` IN MANYCHAT (o la rete cade proprio lì) ──
+    //  Il nuovo non si può scrivere: parte il vecchio, nello stesso invio, e NON è un guasto da contare
+    //  (due falliti di fila, o un errore non HTTP, spegnerebbero tutto l'invio ManyChat).
+    for (const [come, campoNuovo] of [["manca il campo (400)", "blocco"], ["errore non HTTP (rete)", "rete"]]) {
+      const x = creaPorte({ acceso: true, campoNuovo });
+      const r = await P.inviaWhatsapp(x.porte, promemoria);
+      c(
+        `${come} sul campo nuovo: l'invio riesce col vecchio (esito «ok», nessun codice di guasto)`,
+        ["ok", undefined, "ns-vecchio-promemoria"],
+        [r.esito, r.codice, flussoDi(x)],
+      );
+      c(
+        `${come}: il vecchio parte coi suoi valori, col link nel testo, senza crm_img`,
+        [LINK_PERSONALE, false, "[template:hgl_promemoria_meet]"],
+        [campiDi(x).crm_v3, "crm_img" in campiDi(x), x.messaggi[0].corpo],
+      );
+      c(`${come}: nel registro c'è la riga col codice nuovo`, ["modelli311026_ripiego_campo"], x.avvisi);
+      c(
+        `${come}: la riga dell'invio non è «fallita» (non conta per lo spegnimento) e dice il flusso vecchio`,
+        [true, false],
+        [x.patchRegistro.some((p) => p.stato === "inviato" && p.flow_ns === "ns-vecchio-promemoria"), x.patchRegistro.some((p) => p.stato === "fallito" || p.motivo)],
+      );
+      c(`${come}: due scritture (la nuova, poi la vecchia) e un solo sendFlow`, [2, 1], [x.scritture(), x.f.chiamate.filter((q) => q.percorso === PERCORSI.flusso).length]);
+    }
+    //  Se ManyChat è DAVVERO giù (anche il vecchio non si scrive) il guasto resta un guasto, come sempre.
+    const giu = creaPorte({ acceso: true, campoNuovo: "rete-tutti" });
+    const rg = await P.inviaWhatsapp(giu.porte, promemoria);
+    c("ManyChat giù per davvero: esito di blocco, come prima (conta)", ["blocco", true], [rg.esito, giu.patchRegistro.some((p) => p.stato === "fallito")]);
+    //  Un modello senza il nuovo non cambia: la scrittura fallita è un guasto come sempre.
+    const sempre = creaPorte({ acceso: false, campoNuovo: "blocco-tutti" });
+    const rs = await P.inviaWhatsapp(sempre.porte, promemoria);
+    c("interruttore spento e scrittura fallita: «blocco», nessun ripiego (identico a prima)", ["blocco", []], [rs.esito, sempre.avvisi]);
+    //  Il flusso vecchio non è collegato: niente ripiego possibile, resta il guasto.
+    const senzaVecchio = creaPorte({ acceso: true, campoNuovo: "blocco", flussi: { hgl_promemoria_consulenza_311026: "ns-nuovo-promemoria" } });
+    const rn = await P.inviaWhatsapp(senzaVecchio.porte, promemoria);
+    c("nuovo con crm_img che non si scrive e vecchio non collegato: resta il guasto vero", "blocco", rn.esito);
   }
   {
     //  I modelli senza immagine non hanno `crm_img` e non controllano niente.
@@ -801,6 +855,13 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     c("…e se manca il deposito risponde 404, senza ripiego né rimando", [true, false, false], [/status: 404/.test(corpoModello), /RIPIEGO/.test(corpoModello), /status: 302/.test(corpoModello)]);
     c("…con cache corta (la data può cambiare) e solo JPEG/PNG vero", [true, true], [/DURATA_BREVE_S/.test(corpoModello), /image\/jpeg/.test(corpoModello)]);
     c("l'indirizzo a percorso accetta «modello»", true, /v === "modello"/.test(perPercorso));
+    c(
+      "la forma del codice si controlla: solo «<stanza>_p<gettone>» in minuscolo",
+      [true, false, false, false, false, false],
+      ["kfr-mbqd-tzp_pb4b5c685", "kfr-mbqd-tzp", "kfr-mbqd-tzp_PB4B5C685", "kfr-mbqd-tzp_b4b5c685", "_pb4b5c685", "kfr mbqd_pb4b5c685"].map((v) => T.formaCodiceImmagineModello(v)),
+    );
+    c("il deposito rifiuta un codice di forma sbagliata (400), prima di toccare lo spazio file", [true, true], [/tipo === "modello" && !formaCodiceImmagineModello\(codice\)/.test(dep), dep.indexOf("formaCodiceImmagineModello(codice)") < dep.indexOf("storage.createBucket")]);
+    c("la rotta risponde 404 a un codice di forma sbagliata, prima di leggere il deposito", [true, true], [/!formaCodiceImmagineModello\(codice\)/.test(corpoModello), corpoModello.indexOf("formaCodiceImmagineModello") < corpoModello.indexOf("anteprimaDepositata")]);
     c("l'anteprima di Meetly non cambia: l'og:image della stanza resta «invito»", true, /anteprimaStanza = \(code: string, chi\?: string\) =>\s*`https:\/\/hair-genius-hub\.hair\/api\/og\/anteprima\/invito\//.test(leggi("src/routes/meetly_.$code.tsx")));
     c("il browser deposita l'immagine da Utility dove deposita già il biglietto, solo sotto il codice personale", [true, true], [/tipo", "modello"/.test(link), /codiceImmaginePersonale/.test(link)]);
     c("la porta del server controlla il deposito direttamente nel database (nessuna richiesta HTTP al proprio sito)", [true, false], [/immagineModello:/.test(porta) && /chiaveImmagineModello/.test(porta), /fetch\(.*hair-genius/.test(porta)]);

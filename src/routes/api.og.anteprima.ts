@@ -37,6 +37,7 @@ import { DURATA_BREVE_S, quantoDuraImmagine } from "@/shop/anteprima-quanto-dura
 import { spezzaCodiceAnteprima } from "@/shop/chi-dal-link";
 import { attesoDalGettone, chiaveAttesi, consulenzaDiGruppo, leggiAttesi } from "@/crm/fascia-consulenza";
 import { chiaveInvitoDiLead } from "@/crm/invito";
+import { formaCodiceImmagineModello } from "@/crm/wa-meta-templates";
 
 /** ── IL RIPIEGO NON PUÒ ESSERE IL LOGO ────────────────────────────────────
  *  ⚠️ Qui c'era il logo dello studio, e prima ancora una figura presa da un
@@ -249,6 +250,8 @@ export async function serviImmagineModello(
       status: 404,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
+  //  Un codice che non è «<stanza>_p<gettone>» non è l'immagine di nessun cliente.
+  if (!formaCodiceImmagineModello(codice)) return nessuna();
   const { url, quando } = await anteprimaDepositata("modello", codice);
   if (!url) return nessuna();
   const marchio = `W/"modello-${codice}-${quando}"`;

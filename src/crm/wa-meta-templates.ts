@@ -771,6 +771,15 @@ export const codiceImmagineModello = (codice: unknown) =>
     .replace(/[^a-zA-Z0-9._-]/g, "")
     .slice(0, 64);
 
+/** Il codice ha la forma giusta: `<stanza>_p<gettone>`, già pulito (nessun carattere strano) e col
+ *  gettone di chi riceve il link, minuscolo. Lo chiedono il deposito e la rotta: un codice di altra forma
+ *  non è l'immagine di nessun cliente (sarebbe quella di una stanza, con il nome di un altro). */
+export const formaCodiceImmagineModello = (codice: unknown): boolean => {
+  const c = String(codice ?? "");
+  const { codice: stanza, gettone } = spezzaCodiceAnteprima(c);
+  return !!stanza && !!gettone && c === codiceImmagineModello(c) && /^[A-Za-z0-9-]+$/.test(stanza);
+};
+
 /** La chiave del deposito dell'immagine personale in `app_config` (come `chiaveAnteprima` del deposito). */
 export const chiaveImmagineModello = (codice: unknown) =>
   `anteprima:modello:${codiceImmagineModello(codice)}`;

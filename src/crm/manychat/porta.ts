@@ -367,11 +367,27 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     else if (n.nuovo) {
       const nsNuovo = await porte.flusso(n.modello);
       if (nsNuovo)
-        return { modello: n.modello, parametri: n.parametri, ns: nsNuovo, immagine: n.immagine };
+        return {
+          modello: n.modello,
+          parametri: n.parametri,
+          ns: nsNuovo,
+          immagine: n.immagine,
+          //  Il vecchio, per ripiegare se la scrittura dei campi del nuovo non riesce.
+          vecchio: { modello, parametri: valori } as { modello: string; parametri: string[] } | undefined,
+        };
       avvisaRipiego(porte, "ripiego_flusso");
     }
-    return { modello, parametri: valori, ns: await porte.flusso(modello), immagine: undefined };
+    return {
+      modello,
+      parametri: valori,
+      ns: await porte.flusso(modello),
+      immagine: undefined,
+      vecchio: undefined as { modello: string; parametri: string[] } | undefined,
+    };
   };
+  /** Se è partito il nuovo: il vecchio da usare se i campi del nuovo non si scrivono. */
+  let vecchio: { modello: string; parametri: string[] } | undefined;
+  let ripiegatoSuiCampi = false;
 
   let ns: string | null = null;
   if (r.modello && !senzaTesto) {
@@ -382,6 +398,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
         r = { ...r, modello: f.modello };
         parametri = f.parametri;
         immagine = f.immagine;
+        vecchio = f.vecchio;
       }
     } catch {
       return { esito: "blocco", codice: "configurazione" };
@@ -475,8 +492,27 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     if (immagine) campi.crm_img = immagine;
     return campi;
   };
-  if (ns) {
+  /** Scrive i campi del flusso. ⚠️ Se parte un modello NUOVO (`_311026`) e la scrittura non riesce
+   *  (tipicamente manca il campo `crm_img` in ManyChat, ma vale per qualunque errore, anche di rete),
+   *  l'invio ripiega sul modello VECCHIO nello stesso invio: nulla è partito, e il guasto NON deve
+   *  contare per lo spegnimento automatico di ManyChat (due falliti di fila, o un errore non HTTP).
+   *  Ripiega, quindi, e solo se anche il vecchio non si scrive è un guasto vero, come sempre. */
+  const scriviCampiFlusso = async () => {
     const w = await client.scriviCampi(subscriber, campiDelFlusso());
+    if (w.esito === "ok" || !vecchio) return w;
+    const nsVecchio = await porte.flusso(vecchio.modello).catch(() => null);
+    if (!nsVecchio) return w;
+    avvisaRipiego(porte, "ripiego_campo");
+    r = { ...r, modello: vecchio.modello };
+    parametri = vecchio.parametri;
+    immagine = undefined;
+    ns = nsVecchio;
+    vecchio = undefined;
+    ripiegatoSuiCampi = true;
+    return client.scriviCampi(subscriber, campiDelFlusso());
+  };
+  if (ns) {
+    const w = await scriviCampiFlusso();
     if (w.esito !== "ok") return fallita(w, subscriber);
   }
 
@@ -492,11 +528,12 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     if (riserva && nsRiserva) {
       parametri = riserva.parametri;
       immagine = riserva.immagine;
-      const w = await client.scriviCampi(subscriber, campiDelFlusso());
-      if (w.esito !== "ok") return fallita(w, subscriber);
+      vecchio = riserva.vecchio;
       r = { ...r, modello: riserva.modello, testo: undefined };
       ns = nsRiserva;
-      s = await client.mandaFlusso(subscriber, nsRiserva);
+      const w = await scriviCampiFlusso();
+      if (w.esito !== "ok") return fallita(w, subscriber);
+      s = await client.mandaFlusso(subscriber, ns);
     }
   }
   if (s.esito === "ok") {
@@ -508,6 +545,8 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
         //  Partito il modello di riserva: il registro lo dice (il pannello dei
         //  costi conta a prezzo di modello solo le righe con un flusso).
         ...(modelloDiRiserva && ns ? { flow_ns: ns } : {}),
+        //  Ripiego sul vecchio per i campi: il registro dice il flusso che è partito davvero.
+        ...(ripiegatoSuiCampi && ns ? { flow_ns: ns } : {}),
       })
       .catch(() => undefined);
     await registraDi(porte, r, "sent", `mc:${invioId}`, null);
