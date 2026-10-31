@@ -24,6 +24,12 @@
  *  ── CONTRATTO CON LA MIGRAZIONE DELLA CHAT (commessa 2026-10-28) ───────────
  *   whatsapp_segna_risposto(p_user_id uuid, p_phone text) → boolean
  *       scrive `risposto_il` (ora del database): il cliente esce da «Da rispondere»
+ *
+ *  ── CONTRATTO CON LA MIGRAZIONE DEI MESSAGGI AUTOMATICI (commessa 2026-10-31) ─
+ *   messaggi_automatici(chiave text PK, acceso boolean, acceso_dal timestamptz)
+ *       solo `service_role`; `interruttore(chiave)` la legge a OGNI invio (niente memoria:
+ *       spegnere vale subito) e apre solo con `acceso === true`. Senza la migrazione, con la
+ *       riga assente o con qualunque errore: chiuso (nel dubbio non si manda).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { creaClient, type FetchManychat } from "./api";
@@ -34,6 +40,7 @@ import {
 } from "../wa-meta-templates";
 import { entrateVereDi } from "./entrate-vere.server";
 import type { CanaleWhatsapp, MessaggioPorta, PortePorta, PrenotazionePorta } from "./porta";
+import type { ChiaveMessaggio } from "../messaggi-automatici/catalogo";
 
 const META_API = "https://graph.facebook.com/v21.0";
 
@@ -140,6 +147,23 @@ export function portePortaVere(
   let modelliUtility: Promise<boolean> | undefined;
   return {
     adesso: () => new Date(),
+    //  Il controllo unico degli invii automatici: il registro `messaggi_automatici`, una riga per messaggio.
+    //  ⚠️ FAIL-CLOSED: solo `acceso === true` apre. Errore del database (tabella mancante compresa), riga
+    //   assente o valore strano = spento. Nel log solo il codice dell'errore, e non per la tabella mancante
+    //   (codice pubblicato prima della migrazione: sarebbe una riga per messaggio).
+    interruttore: async (chiave: ChiaveMessaggio) => {
+      const { data, error } = await db
+        .from("messaggi_automatici")
+        .select<{ acceso?: unknown }>("acceso")
+        .eq("chiave", chiave)
+        .maybeSingle();
+      if (error) {
+        if (!mancaTabella(error))
+          console.warn("[messaggi-automatici] interruttore:", error.code ?? "");
+        return false;
+      }
+      return data?.acceso === true;
+    },
     //  Un client solo per tutta la vita delle porte: tiene l'id del campo
     //  `crm_telefono`, e un giro con più conferme non lo richiede ogni volta.
     client: () => {
