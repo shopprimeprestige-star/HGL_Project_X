@@ -779,26 +779,36 @@ function MenuFreccia({
   onFoglio?: () => void;
   rispiega?: { onInizia: () => void };
 }) {
-  const tasto = (
-    <button
-      type="button"
-      aria-label={onFoglio ? "Azioni su questo file" : "Azioni su questo messaggio"}
-      title={onFoglio ? "Azioni su questo file" : "Azioni su questo messaggio"}
-      onClick={onFoglio}
-      className={cn(
-        "absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-full pointer-coarse:hidden",
-        "opacity-0 shadow-sm transition-opacity group-hover/bolla:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        fromMe ? "bg-[#d9fdd3] hover:bg-[#c9f2c2]" : "bg-white hover:bg-[#f0f2f5]",
-      )}
-    >
-      <ChevronDown className="h-4 w-4 text-[#54656f]" aria-hidden />
-    </button>
+  const classe = cn(
+    "absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-full pointer-coarse:hidden",
+    "opacity-0 shadow-sm transition-opacity group-hover/bolla:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    fromMe ? "bg-[#d9fdd3] hover:bg-[#c9f2c2]" : "bg-white hover:bg-[#f0f2f5]",
   );
-  if (onFoglio || !rispiega) return tasto;
+  if (onFoglio || !rispiega)
+    return (
+      <button
+        type="button"
+        aria-label="Azioni su questo file"
+        title="Azioni su questo file"
+        onClick={onFoglio}
+        className={classe}
+      >
+        <ChevronDown className="h-4 w-4 text-[#54656f]" aria-hidden />
+      </button>
+    );
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>{tasto}</DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Azioni su questo messaggio"
+          title="Azioni su questo messaggio"
+          className={classe}
+        >
+          <ChevronDown className="h-4 w-4 text-[#54656f]" aria-hidden />
+        </button>
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52">
         <DropdownMenuItem className="gap-2" onSelect={rispiega.onInizia}>
           <Sparkles className="text-violet-600" aria-hidden /> Rispiega con AI
