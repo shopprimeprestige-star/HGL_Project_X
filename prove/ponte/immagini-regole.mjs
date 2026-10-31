@@ -61,7 +61,7 @@ function porteFinte(o = {}) {
     async percorsoPronto(u, id) {
       chiamate.push(["percorsoPronto", u, id]);
       lancia("percorsoPronto");
-      return o.percorso === undefined ? PATH : o.percorso;
+      return o.percorso === undefined ? { path: PATH, categoria: "foto", mime: "image/jpeg", nome: null } : o.percorso;
     },
     async firmaLettura(path, secondi) {
       chiamate.push(["firmaLettura", path, secondi]);
@@ -101,30 +101,31 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
 
   /* ═══ 1. I CONTRATTI ════════════════════════════════════════════════════ */
   gruppo("PONTE · IMMAGINI · CONTRATTI (T5)");
-  c("il tetto di una foto è 8 MiB", MIB8, T.MEDIA_MAX_BYTE);
-  c("solo jpeg, png, webp: mai SVG né HTML", ["image/jpeg", "image/png", "image/webp"], [...T.MEDIA_MIME]);
-  c("i rifiuti del Worker: lista chiusa", ["spenta", "tetto", "troppo_grande", "tipo"], [...T.MOTIVI_RIFIUTO_MEDIA]);
+  c("il tetto di una foto è 8 MiB", MIB8, T.LIMITI_MEDIA.foto);
+  c("foto: solo jpeg, png, webp: mai SVG né HTML", ["image/jpeg", "image/png", "image/webp"], [...T.MIME_PER_CATEGORIA.foto]);
+  c("i rifiuti del Worker: lista chiusa (dal 31/10 anche liberato e manuale)", ["spenta", "tetto", "troppo_grande", "tipo", "liberato", "manuale"], [...T.MOTIVI_RIFIUTO_MEDIA]);
   c("bucket e chiave dell'interruttore", ["ponte-media", "ponte_immagini"], [T.BUCKET_MEDIA, T.CHIAVE_INTERRUTTORE]);
-  c("il tetto di serie è 0,8 GB; il link di lettura dura 300 secondi", [0.8, 300], [T.TETTO_GB_DI_SERIE, T.FIRMA_LETTURA_S]);
-  c("l'identificativo del file per la GET: <uuid minuscolo>.<jpg|png|webp>, mai la chiave né un numero", [true, true, true, false, false, false, false, false, false, false],
-    [ID, NOME_FILE, "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.webp", "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e", "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.svg", ID.toUpperCase(), CHIAVE, `${UTENTE}/${ID}`, `${ID}\n`, `${ID}&x=1`].map((k) => T.ID_MEDIA.test(k)));
+  c("il tetto di serie è 5 GB (dal 31/10); il link di lettura dura 300 secondi", [5, 300], [T.TETTO_GB_DI_SERIE, T.FIRMA_LETTURA_S]);
+  c("l'identificativo del file per la GET: <uuid minuscolo>.<ext di 2-5 caratteri>, mai la chiave né un numero", [true, true, true, false, false, false, false, false, false, false],
+    [ID, NOME_FILE, "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.webp", "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e", "5d2b9c4e-0a1f-4b7c-9e3d-6f8a1b2c3d4e.s", ID.toUpperCase(), CHIAVE, `${UTENTE}/${ID}`, `${ID}\n`, `${ID}&x=1`].map((k) => T.ID_MEDIA.test(k)));
   c("la chiave del messaggio: bw:<cifre>:<id>", [true, true, false, false, false, false, false],
     [CHIAVE, "bw:393331234567:a.b-c_D", "bw:123:x", "xx:393331234567:3EB0A1", "bw:393331234567:", "bw:393331234567:a b", `${CHIAVE}\n`].map((k) => T.CHIAVE_MEDIA.test(k)));
 
   /* ═══ 2. L'INTERRUTTORE (c.4) ═══════════════════════════════════════════ */
   gruppo("PONTE · IMMAGINI · L'INTERRUTTORE (T5)");
-  const SPENTO = { acceso: false, tettoGB: 0.8 };
-  c("acceso con il suo tetto", { acceso: true, tettoGB: 0.8 }, M.leggiInterruttore('{"acceso":true,"tettoGB":0.8}'));
-  c("acceso con un altro tetto", { acceso: true, tettoGB: 0.5 }, M.leggiInterruttore('{"acceso":true,"tettoGB":0.5}'));
+  //  Dal 31/10: tetto di serie 5 GB e `auto` (senza, solo le foto); le prove di `auto` sono in media-regole.mjs.
+  const SPENTO = { acceso: false, tettoGB: 5, auto: ["foto"] };
+  c("acceso con il suo tetto", { acceso: true, tettoGB: 0.8, auto: ["foto"] }, M.leggiInterruttore('{"acceso":true,"tettoGB":0.8}'));
+  c("acceso con un altro tetto", { acceso: true, tettoGB: 0.5, auto: ["foto"] }, M.leggiInterruttore('{"acceso":true,"tettoGB":0.5}'));
   c("spento esplicito", SPENTO, M.leggiInterruttore('{"acceso":false,"tettoGB":0.8}'));
   c("riga assente (null, undefined): spento", [SPENTO, SPENTO], [M.leggiInterruttore(null), M.leggiInterruttore(undefined)]);
   c("testo rotto, vuoto, non un oggetto: spento", [SPENTO, SPENTO, SPENTO, SPENTO, SPENTO],
     ["{non è json", "", "true", "[]", "null"].map((x) => M.leggiInterruttore(x)));
   c("«acceso» che non è proprio true (stringa, numero): spento", [SPENTO, SPENTO, SPENTO],
     ['{"acceso":"true","tettoGB":0.8}', '{"acceso":1}', '{"tettoGB":0.8}'].map((x) => M.leggiInterruttore(x)));
-  c("tetto rotto (zero, negativo, testo, enorme): acceso ma con 0,8", [0.8, 0.8, 0.8, 0.8],
+  c("tetto rotto (zero, negativo, testo, enorme): acceso ma con 5", [5, 5, 5, 5],
     ['{"acceso":true,"tettoGB":0}', '{"acceso":true,"tettoGB":-3}', '{"acceso":true,"tettoGB":"molto"}', '{"acceso":true,"tettoGB":1e9}'].map((x) => M.leggiInterruttore(x).tettoGB));
-  c("un valore già oggetto (colonna jsonb) vale come il testo", { acceso: true, tettoGB: 0.8 }, M.leggiInterruttore({ acceso: true, tettoGB: 0.8 }));
+  c("un valore già oggetto (colonna jsonb) vale come il testo", { acceso: true, tettoGB: 0.8, auto: ["foto"] }, M.leggiInterruttore({ acceso: true, tettoGB: 0.8 }));
   c("il tetto in byte: GB × 10^9, intero", [800_000_000, 500_000_000], [M.tettoInByte(0.8), M.tettoInByte(0.5)]);
 
   /* ═══ 3. IL CORPO DEL MAC ═══════════════════════════════════════════════ */
@@ -154,8 +155,8 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
     [fattoDi({ chiave: "x" }), fattoDi({ v: 3 }), fattoDi({ tipo: "media_permesso" })].map((x) => M.leggiFatto(x)));
   c("chiave di lettura: valida o null", [{ chiave: CHIAVE, numero: NUMERO }, null, null, null],
     [CHIAVE, "bw:1:2", null, 7].map((x) => M.leggiChiave(x)));
-  c("il percorso: uuid.estensione, senza il numero, senza cartelle strane", [true, true, false, false, false, false, false, false],
-    [PATH, `u/${PATH}`, `${NUMERO}.jpg`, "../x.jpg", "/x.jpg", "a//b.jpg", "x.svg", 5].map((p) => M.percorsoValido(p, NUMERO)));
+  c("il percorso: uuid.estensione (2-5 caratteri, qualunque), senza il numero, senza cartelle strane", [true, true, false, false, false, false, false, false],
+    [PATH, `u/${PATH}`, `${NUMERO}.jpg`, "../x.jpg", "/x.jpg", "a//b.jpg", "x.s", 5].map((p) => M.percorsoValido(p, NUMERO)));
 
   /* ═══ 4. media_permesso ═════════════════════════════════════════════════ */
   gruppo("PONTE · IMMAGINI · media_permesso (T5)");
@@ -321,7 +322,7 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
     c("installazione diversa da quella del database: 403, la riga non si cerca", [403, "non_autorizzato", []], [x.stato, x.corpo.motivo, p.chiamate.filter((k) => k[0] === "percorsoPronto")]);
     x = await chiedi(porteFinte({ utente: null }));
     c("database senza utente configurato: 403", 403, x.stato);
-    for (const id of [null, undefined, "", CHIAVE, "bw:1:2", NOME_FILE.toUpperCase(), `${ID}\n`, `${UTENTE}/${ID}`, ID.replace(".png", ""), ID.replace(".png", ".svg"), 5, "x".repeat(500)]) {
+    for (const id of [null, undefined, "", CHIAVE, "bw:1:2", NOME_FILE.toUpperCase(), `${ID}\n`, `${UTENTE}/${ID}`, ID.replace(".png", ""), ID.replace(".png", ".s"), 5, "x".repeat(500)]) {
       p = porteFinte();
       x = await chiedi(p, { id });
       c(`identificativo non valido (${String(id).slice(0, 12)}): 400, la riga non si cerca`, [400, "id_non_valido", []], [x.stato, x.corpo.motivo, p.chiamate.filter((k) => k[0] === "percorsoPronto")]);
@@ -362,14 +363,14 @@ export async function provePonteImmaginiRegole(mod, { c, gruppo, radice }) {
         [/console\./.test(t), /\bfetch\s*\(/.test(t), /supabase/i.test(t), /process\.env/.test(t)]);
     }
     const server = senzaCommenti(sorgente("src/crm/ponte/media.server.ts"));
-    c("media.server: le funzioni SQL per nome, e nessun'altra", ["ponte_wa_media_fatto", "ponte_wa_media_permesso"],
+    c("media.server: le funzioni SQL per nome, e nessun'altra", ["ponte_wa_media_dettagli", "ponte_wa_media_fatto", "ponte_wa_media_permesso"],
       [...new Set([...server.matchAll(/\.rpc(?:<.*?>)?\(\s*"(\w+)"/g)].map((x) => x[1]))].sort());
-    c("media.server: le sole tabelle sono app_config, manychat_config e ponte_wa_media", ["app_config", "manychat_config", "ponte_wa_media"],
+    c("media.server: le sole tabelle sono app_config, ponte_wa_media e ponte_wa_media_richieste (manychat_config sta in media-db.server)", ["app_config", "ponte_wa_media", "ponte_wa_media_richieste"],
       [...new Set([...server.matchAll(/\.from\(\s*"(\w+)"/g)].map((x) => x[1]))].sort());
     c("media.server: la chiave di servizio col cast, mai il messaggio d'errore, niente fetch", [true, false, false],
       [server.includes("supabaseAdmin as unknown as") || server.includes("supabaseAdmin.storage"), /\.message\b/.test(server), /\bfetch\s*\(/.test(server)]);
     c("media.server: la riga si cerca per utente e percorso `<utente>/<id>` (mai per chiave); Storage assente = 404, il resto lancia", [true, true, true, false],
-      [/percorsoDi\(userId, id\)/.test(server), /oggettoAssente\(error\)/.test(server), /code: "storage"/.test(server), /\.eq\("chiave"/.test(server)]);
+      [/percorsoDi\(userId, id\)/.test(server), /oggettoAssente\(error\)/.test(server), /code: "storage"/.test(server), /percorsoPronto:[\s\S]*?firmaLettura:/.exec(server)?.[0].includes('.eq("chiave"')]);
     c("media.server: nessuna scrittura diretta (il database si scrive solo con le due funzioni)", false, /\.(insert|update|upsert|delete)\(/.test(server));
     c("media.server: il bucket è quello di T4 e non si sceglie dal corpo", true, server.includes("BUCKET_MEDIA"));
     const ingresso = senzaCommenti(sorgente("src/crm/ponte/ingresso.ts"));

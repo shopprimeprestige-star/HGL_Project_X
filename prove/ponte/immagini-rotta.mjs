@@ -86,8 +86,8 @@ export const supabaseAdmin = {
         if (g) return { data: null, error: { message: "errore con " + path } };
         return { data: { signedUrl: "https://prova.supabase.co/storage/v1/object/upload/sign/" + bucket + "/" + path + "?token=SEGRETO-DI-CARICO", token: "SEGRETO-DI-CARICO", path }, error: null };
       },
-      createSignedUrl: async (path, secondi) => {
-        firme().push({ azione: "lettura", bucket, path, secondi });
+      createSignedUrl: async (path, secondi, opzioni) => {
+        firme().push({ azione: "lettura", bucket, path, secondi, ...(opzioni?.download ? { download: opzioni.download } : {}) });
         if (st().guasti.lettura) return { data: null, error: { name: "StorageApiError", status: 503, statusCode: "503", message: "errore con " + path } };
         if (st().guasti.lettura_rete) return { data: null, error: { name: "StorageUnknownError", message: "fetch failed per " + path } };
         if (!oggetti().has(path)) return { data: null, error: { name: "StorageApiError", status: 400, statusCode: "404", message: "Object not found " + path } };
@@ -424,6 +424,30 @@ export async function provePonteImmaginiRotta(mod, { c, gruppo, radice }) {
       m = nuovoMondo(base({ ponte_wa_media: [pronta] }), { ponte_wa_media: "42P01" });
       x = await leggiMedia(GET);
       c("tabella assente: 503 migrazione", [503, "migrazione"], [x.r.status, x.json?.motivo]);
+      //  Dal 31/10: `uso` e i documenti (la logica fine è in media-regole.mjs; qui la rotta vera).
+      const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const NOME_DOC = "ccccccc1-1111-4222-8333-444444444444.docx";
+      const doc = riga({ path: `${UTENTE}/${NOME_DOC}`, mime: DOCX, categoria: "documento", nome: "Relazione", chiave: CHIAVE2 });
+      m = nuovoMondo(base({ ponte_wa_media: [doc] }));
+      m.oggetti = new Map([[doc.path, 5000]]);
+      x = await leggiMedia(GET, { id: NOME_DOC, query: `?id=${NOME_DOC}&uso=apri` });
+      c("documento, uso=apri: 200; il link è un allegato col nome ripulito e l'estensione del mime", [200, "Relazione.docx", 300], [x.r.status, m.firme[0]?.download, m.firme[0]?.secondi]);
+      x = await leggiMedia(GET, { query: `?id=${NOME_DOC}` });
+      c("documento senza uso (vale «vedi»): 400 uso_non_valido, nessuna firma", [400, "uso_non_valido", 1], [x.r.status, x.json?.motivo, m.firme.length]);
+      x = await leggiMedia(GET, { query: `?id=${NOME_DOC}&uso=scarica` });
+      c("uso inventato: 400 uso_non_valido", [400, "uso_non_valido"], [x.r.status, x.json?.motivo]);
+      const film = riga({ path: `${UTENTE}/${NOME_PRONTA.replace(".jpg", ".mp4")}`, mime: "video/mp4", categoria: "video", chiave: CHIAVE2 });
+      m = nuovoMondo(base({ ponte_wa_media: [film] }));
+      m.oggetti = new Map([[film.path, 5000]]);
+      x = await leggiMedia(GET, { query: `?id=${NOME_PRONTA.replace(".jpg", ".mp4")}&uso=video` });
+      c("video, uso=video: 200 con il link da 1.800 secondi", [200, 1800], [x.r.status, m.firme[0]?.secondi]);
+      m = nuovoMondo(base({ ponte_wa_media: [pronta] }));
+      m.oggetti = new Map([[pronta.path, 5000]]);
+      x = await leggiMedia(GET, { query: `?id=${NOME_PRONTA}&uso=video` });
+      c("foto con uso=video: 400 uso_non_valido", [400, "uso_non_valido"], [x.r.status, x.json?.motivo]);
+      x = await leggiMedia(GET, { query: `?id=${NOME_PRONTA}&uso=vedi` });
+      c("foto con uso=vedi: 200 come senza uso", 200, x.r.status);
+
       const o = await OPTIONS({});
       c("OPTIONS: 204", 204, o.status);
       c("nessuna chiamata fuori da Supabase (fetch intatto)", 0, esterne);
