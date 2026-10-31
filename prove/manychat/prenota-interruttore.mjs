@@ -1,5 +1,11 @@
 /** ── PROVE: L'INTERRUTTORE DELLA PRENOTAZIONE IN CHAT (Impostazioni → WhatsApp) ──
  *
+ *  ⚠️ Dal 31/10/2026 (commessa interruttori-automatici, T6) l'acceso sta nel registro dei messaggi
+ *   automatici: la rotta vecchia lo LEGGE da lì e rifiuta le scritture. `rigaConAcceso` resta
+ *   (puro, provato qui sotto) e la usa la porta `config` per leggere il resto della riga.
+ *   Il comportamento di `config()` col registro spento è in `prenota-porte.mjs`; quello della
+ *   rotta, per lettura del sorgente, qui.
+ *
  *  Commessa 2026-10-27, richiesta del titolare («posso attivare e disattivare
  *  questa funzione»). `rigaConAcceso` (puro, in `prenota-tipi.ts`) fa la riga
  *  nuova dalla vecchia; la rotta `/api/crm/prenota-chat` e il riquadro sono
@@ -112,7 +118,6 @@ export async function proveDellInterruttorePrenota(mod, { c, gruppo, radice }) {
       readFileSync(join(radice, "src/crm/PrenotaChatPannello.tsx"), "utf8"),
     );
     const albero = readFileSync(join(radice, "src/routeTree.gen.ts"), "utf8");
-    const imp = readFileSync(join(radice, "src/routes/CRM.impostazioni.tsx"), "utf8");
     c(
       "la rotta è /api/crm/prenota-chat",
       true,
@@ -131,32 +136,25 @@ export async function proveDellInterruttorePrenota(mod, { c, gruppo, radice }) {
         (rotta.match(/guardiaCRM\(/g) ?? []).length,
       ],
     );
+    //  Commessa 2026-10-31-interruttori-automatici (T6): l'acceso sta nel registro; la rotta non scrive più.
     c(
-      "scrive con rigaConAcceso e non cancella mai la riga",
-      [true, false],
-      [rotta.includes("rigaConAcceso("), /\.delete\(|elimina/i.test(rotta)],
+      "il GET legge l'acceso dal registro, con la chiave prenota_chat",
+      true,
+      rotta.includes('messaggioAcceso("prenota_chat")'),
+    );
+    c(
+      "il POST non scrive più: niente scriviRiga, rigaConAcceso né cancellazioni",
+      false,
+      /scriviRiga|rigaConAcceso|leggiRiga|\.delete\(|elimina/i.test(rotta),
+    );
+    c(
+      "il POST risponde 400 «Si cambia in Messaggi automatici» (una scheda vecchia non scrive)",
+      true,
+      /Si cambia in Messaggi automatici/.test(rotta) && /, 400\)/.test(rotta),
     );
     c("nessun console.log né numero in chiaro nei log", false, /console\./.test(rotta));
     c("la rotta è nell'albero generato", true, albero.includes("'/api/crm/prenota-chat'"));
-    c(
-      "il riquadro passa dalla rotta e non scrive app_config dal browser",
-      [true, false],
-      [riquadro.includes("/api/crm/prenota-chat"), /app_config|supabase/.test(riquadro)],
-    );
-    c(
-      "il riquadro usa lo Switch, è chiuso a chi non ha «impostazioni», dice l'errore",
-      [true, true, true],
-      [
-        riquadro.includes("<Switch"),
-        riquadro.includes('usePuo()("impostazioni")'),
-        riquadro.includes("toast.error"),
-      ],
-    );
-    c(
-      "il riquadro è nella scheda WhatsApp, una volta sola",
-      1,
-      (imp.match(/<PrenotaChatPannello \/>/g) ?? []).length,
-    );
+    c("il riquadro non scrive app_config dal browser", false, /app_config|supabase/.test(riquadro));
     const sql = readFileSync(join(radice, "supabase/PRENOTA-CHAT.sql"), "utf8");
     c("lo script dice che ora c'è l'interruttore nel CRM", true, /interruttore/i.test(sql));
   }
