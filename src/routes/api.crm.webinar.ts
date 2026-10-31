@@ -480,6 +480,9 @@ export const Route = createFileRoute("/api/crm/webinar")({
               titolo: stanza.titolo || "",
               link: urlPubblico(percorsoWebinar(codice)),
               tipo: "in-diretta",
+              //  L'unica chiamata che parte da sola: dichiara la sua chiave, e se in
+              //  «Messaggi automatici» è spenta la porta la ferma. Il tasto a mano non la passa.
+              automatico: "webinar_in_diretta",
               template: stanza.templatePromemoria || "",
               origine: new URL(request.url).origin,
               intestazioni: { authorization: request.headers.get("authorization") || "" },

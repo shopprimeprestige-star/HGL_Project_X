@@ -9,11 +9,20 @@
  *  `cloud` (e senza la migrazione M1) tutto resta com'era, compreso il corpo
  *  Graph, che ora lo scrive `corpoGraph` (identico, provato in porta.mjs).
  *  Esiti nuovi per la chat: 429 `riprova_fra_poco`, 403 `stop`.
+ *
+ *  INTERRUTTORI (commessa 2026-10-31-interruttori-automatici): un invio che parte da solo
+ *  (oggi solo «siamo in diretta» del webinar) dichiara la sua chiave nel campo `automatico`.
+ *  Se quel messaggio è spento nel registro la rotta risponde 409 `spento` e finisce qui:
+ *  il controllo sta PRIMA del ramo `manychat/cloud`, perché il ramo Cloud chiama Graph
+ *  senza passare da `inviaWhatsapp`. Il campo può solo FRENARE: assente, «manuale» o una
+ *  chiave che non è del catalogo = invio a mano, mai bloccato.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { corpoGraph, inviaWhatsapp, rispostaChat } from "@/crm/manychat/porta";
+import { eChiaveMessaggio } from "@/crm/messaggi-automatici/catalogo";
+import { messaggioAcceso } from "@/crm/messaggi-automatici/registro.server";
 import {
   leggiCanale,
   nomeDelLead,
@@ -49,6 +58,9 @@ interface SendBody {
   leadId?: string | null;
   /** Parametri posizionali del body del template, in ordine {{1}}, {{2}}, ... */
   templateParams?: string[];
+  /** La chiave del messaggio automatico che sta partendo (catalogo dei messaggi automatici).
+   *  Lo mette solo chi manda da solo; chi manda a mano non lo mette. Solo frena. */
+  automatico?: unknown;
 }
 
 interface PhoneNumberMeta {
@@ -103,6 +115,30 @@ export const Route = createFileRoute("/api/whatsapp-send")({
         }
         const to = normalizePhone(body.to);
 
+        //  ⚠️ L'INTERRUTTORE, PRIMA DI TUTTO IL RESTO. Un messaggio automatico spento non legge il
+        //   canale, non chiama Graph e non scrive nello storico. Un guasto nel leggere il registro
+        //   vale «spento»: meglio un messaggio in meno che uno non voluto.
+        const automatico = eChiaveMessaggio(body.automatico) ? body.automatico : null;
+        if (automatico) {
+          let acceso = false;
+          try {
+            acceso = await messaggioAcceso(automatico);
+          } catch {
+            acceso = false;
+          }
+          if (!acceso) {
+            console.error(`[whatsapp-send] interruttore_spento_${automatico}`);
+            return Response.json(
+              {
+                error: "messaggio_spento",
+                category: "spento",
+                message: "Questo messaggio automatico è spento: non è partito.",
+              },
+              { status: 409 },
+            );
+          }
+        }
+
         // Canale ManyChat: passa dalla porta, che prenota, trova il contatto e fa partire il flusso.
         // Un guasto nel leggere il canale NON ripiega sul Cloud: sarebbe il numero sbagliato.
         let canale;
@@ -129,6 +165,9 @@ export const Route = createFileRoute("/api/whatsapp-send")({
             nome: body.leadId ? await nomeDelLead(userId, body.leadId).catch(() => "") : "",
             leadId: body.leadId ?? null,
             tipo: "chat",
+            //  shortcut: spread perché `RichiestaInvio.messaggio` lo aggiunge T3; togliere lo spread
+            //  (scrivere `messaggio: …` diretto) quando T3 è unito.
+            ...{ messaggio: automatico ?? "manuale" },
           });
           // Nei log solo il codice dell'esito: mai numero, testo o nome.
           if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");
