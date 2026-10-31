@@ -9,6 +9,7 @@
  */
 
 import { SITO } from "@/lib/sito";
+import { CHIAVE_CHI, codiceAnteprimaDi, spezzaCodiceAnteprima } from "@/shop/chi-dal-link";
 
 export interface MetaTemplateParam {
   /** Posizione 1-based del placeholder nel body ({{1}}, {{2}}, ...) */
@@ -43,7 +44,16 @@ export interface MetaTemplate {
   /** Solo i modelli `_311026`: il nome del modello vecchio che sostituiscono. */
   sostituisce?: string;
   /** Solo i modelli `_311026`: l'immagine in testa al messaggio. */
-  header?: { tipo: "IMAGE"; file: string; url: string; pronta: boolean };
+  header?: {
+    tipo: "IMAGE";
+    /** Immagine fissa (solo i casi clienti): percorso nel repo e indirizzo pubblico. */
+    file?: string;
+    url?: string;
+    /** Immagine PERSONALE del cliente: a ogni invio si passa il suo indirizzo (`immagine` di
+     *  `convertiModelloUtility`). `esempio` è l'indirizzo di un'immagine finta per Meta. */
+    dinamica?: boolean;
+    esempio?: string;
+  };
   /** Solo i modelli `_311026`: il pulsante sotto il messaggio. */
   pulsante?: { testo: string; url: string; da?: "meet_link"; esempio?: string };
 }
@@ -376,12 +386,13 @@ export const MODELLI_DA_APPROVARE: MetaTemplate[] = [
  *  ⚠️ `hgl_meet_domani_testo` non ha un nuovo: non è un modello Meta, è il testo libero dentro le
  *   24 ore.
  *  ⚠️ PERCHÉ NON SI PERDE MAI UN INVIO: con l'interruttore acceso, se il nuovo non si può mandare
- *   (flusso non collegato, link non convertibile, più di 4 campi, immagine non ancora data, e sulla
+ *   (flusso non collegato, link non convertibile, più di 4 campi, immagine personale del cliente non
+ *   ancora generata, e sulla
  *   Cloud API Meta che risponde 132001/132015/132016) parte il vecchio e il registro dice il codice
  *   (`modelli311026_ripiego_…`, `modelli311026_cloud_…`).
  *  ── DA TOGLIERE QUANDO SI CANCELLANO I VECCHI MODELLI (e il ramo resta solo coi nuovi) ──────────
  *   · qui: `MODELLI_UTILITY_311026`, `NOME_NUOVO_311026`, `CHIAVE_INTERRUTTORE_311026`,
- *     `interruttoreAcceso`, `suffissoMeetly`, `convertiModelloUtility`, `IMMAGINE_MODELLI*` e la riga
+ *     `interruttoreAcceso`, `suffissoMeetly`, `convertiModelloUtility`, `IMMAGINE_MODELLI`, `*ImmagineModello` e la riga
  *     in `findMetaTemplate`; i vecchi nomi si sostituiscono coi nuovi nei file che li citano;
  *   · `porta.ts`: `modelloDaMandare`, `flussoDi`, il ripiego di `viaCloud`, `modelliUtility`,
  *     `avviso` e `immaginiModelli` di `PortePorta`;  `porta.server.ts`: le due porte omonime;
@@ -390,20 +401,17 @@ export const MODELLI_DA_APPROVARE: MetaTemplate[] = [
  *   · prove: `prove/manychat/modelli-utility.mjs` e le due righe in `prove/manychat.mjs`;
  *   · dati: la riga `modelli_utility_311026` in `app_config`. */
 
-/** L'immagine in testa ai modelli Utility col link: un file SOLO MARCHIO «Hair Genius Labs», senza frasi
- *  di vendita, che DEVE DARE IL TITOLARE (1200×630 circa, JPG sotto 1 MB) e che va messo in
- *  `public/modelli-header.jpg`. Non la scheda di Meetly (`anteprima-predefinita.jpg`): ha scritto
- *  «GRATUITA» e «Nessun impegno», e Meta riclasserebbe il modello come Marketing.
- *  ⚠️ Finché il file non c'è, `IMMAGINE_MODELLI_PRONTA` resta `false` e i modelli con l'immagine NON
- *   si usano: la conversione dice «ripiego: immagine» e parte il vecchio (come un flusso mancante).
- *   Quando il file arriva: si mette in `public/`, si porta la bandiera a `true` (la prova controlla
- *   che dica il vero). */
-export const IMMAGINE_MODELLI_PRONTA = false;
+/** ── L'IMMAGINE IN TESTA AI MODELLI COL LINK È PERSONALE (31/10/2026) ──────────────────────────
+ *  Richiesta del titolare: nel segnaposto dell'immagine va il link di QUEL cliente, con il suo nome
+ *  (es. «Mario» → l'immagine di Mario). È un biglietto da UTILITY (marchio, «Consulenza Hair Genius
+ *  Labs», nome, giorno, ora, consulente: niente «gratuita», prezzi o prodotti) che il browser del CRM
+ *  disegna e deposita quando nasce la stanza (`src/crm/biglietto-modello.ts`, tipo «modello»); il
+ *  server lo serve a `/api/og/anteprima/modello/<codice>.jpg`. NON è la scheda di Meetly.
+ *  Se per quel cliente l'immagine non c'è, il modello nuovo non parte e parte il vecchio. */
 const IMMAGINE_MODELLI = {
   tipo: "IMAGE" as const,
-  file: "public/modelli-header.jpg",
-  url: `${SITO}/modelli-header.jpg`,
-  pronta: IMMAGINE_MODELLI_PRONTA,
+  dinamica: true,
+  esempio: `${SITO}/api/og/anteprima/modello/esempio_pdemo.jpg`,
 };
 
 /** L'immagine dei casi clienti (MARKETING, come il vecchio): lì la scheda di Meetly va bene. */
@@ -411,7 +419,6 @@ const IMMAGINE_CASI = {
   tipo: "IMAGE" as const,
   file: "public/anteprima-predefinita.jpg",
   url: `${SITO}/anteprima-predefinita.jpg`,
-  pronta: true,
 };
 
 /** Il pulsante dei modelli col link del meet: la parte dopo `/meetly/` è variabile ({{1}} del pulsante). */
@@ -752,27 +759,58 @@ export function suffissoMeetly(link: string | null | undefined): string | null {
 }
 
 /** Perché il nuovo non si può mandare (e parte il vecchio): `valori` = manca un valore, `link` = non è
- *  una stanza nostra, `immagine` = il titolare non ha ancora dato l'immagine. */
+ *  una stanza nostra, `immagine` = il link non porta il gettone di chi lo riceve (nessuna immagine
+ *  personale possibile). */
 export type RipiegoModello = { ripiego: "valori" | "link" | "immagine" };
 
+/** Il codice sotto cui sta l'immagine personale: lettere, cifre, trattino, punto, trattino basso, al
+ *  massimo 64 (lo stesso ripulitore del deposito in `api.anteprima.ts`). */
+export const codiceImmagineModello = (codice: unknown) =>
+  String(codice ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .slice(0, 64);
+
+/** La chiave del deposito dell'immagine personale in `app_config` (come `chiaveAnteprima` del deposito). */
+export const chiaveImmagineModello = (codice: unknown) =>
+  `anteprima:modello:${codiceImmagineModello(codice)}`;
+
+/** L'indirizzo pubblico dell'immagine personale: SOLO il codice del meet e il gettone di chi lo riceve,
+ *  nessuna domanda, nessun altro dato. */
+export const urlImmagineModello = (codice: string) =>
+  `${SITO}/api/og/anteprima/modello/${codiceImmagineModello(codice)}.jpg`;
+
+/** Dal pezzo di link dopo `/meetly/` (`kfr-mbqd-tzp?chi=pb4b5c685`) al codice dell'immagine personale
+ *  (`kfr-mbqd-tzp_pb4b5c685`). `null` se il gettone non c'è o non è valido: l'immagine della sola stanza
+ *  porterebbe il nome di un altro cliente. */
+function codiceImmaginePersonale(suffisso: string): string | null {
+  const m = /^([^?#]+)(?:\?(.*))?$/.exec(suffisso);
+  if (!m) return null;
+  let stanza = "";
+  try {
+    stanza = decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+  const chi = new URLSearchParams(m[2] ?? "").get(CHIAVE_CHI) ?? "";
+  const codice = codiceImmagineModello(codiceAnteprimaDi(stanza, chi));
+  return spezzaCodiceAnteprima(codice).gettone ? codice : null;
+}
+
 /** I parametri del vecchio modello, convertiti per il nuovo: i valori del testo (per chiave, non
- *  per posizione) e, se il nuovo ha il pulsante, la parte variabile del link in coda.
+ *  per posizione) e, se il nuovo ha il pulsante, la parte variabile del link in coda. Se il nuovo ha
+ *  l'immagine personale, `immagine` dice codice e indirizzo (chi invia deve controllare che esista).
  *  `null` se il vecchio non ha un nuovo (niente da fare: non è un ripiego). Se il nuovo c'è ma non si
- *  può mandare, `{ ripiego }` col motivo: chi chiama manda il vecchio e lo scrive nel registro.
- *  `opzioni.immagini` forza lo stato dell'immagine (solo per le prove). */
+ *  può mandare, `{ ripiego }` col motivo: chi chiama manda il vecchio e lo scrive nel registro. */
 export function convertiModelloUtility(
   nome: string,
   parametri: string[],
-  opzioni: { immagini?: boolean } = {},
-): { modello: string; parametri: string[] } | RipiegoModello | null {
+): { modello: string; parametri: string[]; immagine?: { codice: string; url: string } } | RipiegoModello | null {
   const nuovoModello = MODELLI_UTILITY_311026.find((t) => t.sostituisce === nome);
   const vecchio = [...META_TEMPLATES, ...MODELLI_MANYCHAT, ...MODELLI_DA_APPROVARE].find(
     (t) => t.name === nome,
   );
   if (!nuovoModello || !vecchio) return null;
-  //  Un modello con l'immagine in testa non si usa finché l'immagine non c'è (è come un flusso mancante).
-  if (nuovoModello.header && !(opzioni.immagini ?? nuovoModello.header.pronta))
-    return { ripiego: "immagine" };
   const valore = (chiave: ParamKey) => {
     const i = vecchio.params.findIndex((p) => p.key === chiave);
     return i < 0 ? "" : String(parametri[i] ?? "").trim();
@@ -783,10 +821,20 @@ export function convertiModelloUtility(
     if (!v) return { ripiego: "valori" };
     fuori.push(v);
   }
+  let parte: string | null = null;
   if (nuovoModello.pulsante?.da) {
-    const parte = suffissoMeetly(valore(nuovoModello.pulsante.da));
+    parte = suffissoMeetly(valore(nuovoModello.pulsante.da));
     if (!parte) return { ripiego: valore(nuovoModello.pulsante.da) ? "link" : "valori" };
     fuori.push(parte);
+  }
+  if (nuovoModello.header?.dinamica) {
+    const codice = parte ? codiceImmaginePersonale(parte) : null;
+    if (!codice) return { ripiego: "immagine" };
+    return {
+      modello: nuovoModello.name,
+      parametri: fuori,
+      immagine: { codice, url: urlImmagineModello(codice) },
+    };
   }
   return { modello: nuovoModello.name, parametri: fuori };
 }

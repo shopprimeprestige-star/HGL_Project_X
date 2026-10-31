@@ -70,6 +70,9 @@ export interface RichiestaInvio {
   lingua?: string;
   /** parametri posizionali {{1}}, {{2}}… del modello */
   parametri?: string[];
+  /** Solo la porta lo imposta: l'immagine personale del cliente per i modelli `_311026` con l'header
+   *  dinamico (Cloud: parametro header; ManyChat: campo `crm_img`). Chi chiama non la passa. */
+  immagine?: string;
   /** il nome della persona: serve solo a creare il contatto in ManyChat, e ne
    *  parte la prima parola (mai il cognome) */
   nome?: string;
@@ -152,9 +155,10 @@ export interface PortePorta {
   /** Una riga di registro per un fatto da non perdere (solo un CODICE breve: mai numeri, nomi o link).
    *  Qui: ogni volta che, a interruttore acceso, parte il vecchio al posto del nuovo. */
   avviso?(codice: string): void;
-  /** SOLO PER LE PROVE: forza lo stato dell'immagine dei modelli `_311026` (di serie vale la bandiera
-   *  `IMMAGINE_MODELLI_PRONTA` del codice). */
-  immaginiModelli?: boolean;
+  /** L'immagine personale di questo cliente (codice = meet + gettone) è stata generata e depositata?
+   *  I modelli `_311026` con l'immagine in testa partono solo se sì. Assente o guasta = no: parte il
+   *  vecchio (mai un'immagine al buio, mai quella di un altro cliente). */
+  immagineModello?(codice: string): Promise<boolean>;
 }
 
 /** Quanti parametri del modello arrivano nei campi `crm_v1…crm_v4`. */
@@ -175,6 +179,8 @@ export function corpoGraph(r: {
   modello?: string;
   lingua?: string;
   parametri?: string[];
+  /** L'indirizzo dell'immagine personale del cliente, per i modelli con l'header dinamico. */
+  immagine?: string;
 }): Record<string, unknown> {
   const pulito = String(r.a ?? "").replace(/[^\d+]/g, "");
   const payload: Record<string, unknown> = {
@@ -195,10 +201,12 @@ export function corpoGraph(r: {
     const conPulsante = !!def?.pulsante?.da && Array.isArray(params) && params.length > 0;
     const perTesto = conPulsante ? params!.slice(0, -1) : params;
     const componenti: Record<string, unknown>[] = [];
-    if (def?.header)
+    //  L'header dinamico porta l'immagine DI QUEL CLIENTE; senza, non si manda un header vuoto.
+    const linkImmagine = def?.header?.dinamica ? r.immagine : def?.header?.url;
+    if (def?.header && linkImmagine)
       componenti.push({
         type: "header",
-        parameters: [{ type: "image", image: { link: def.header.url } }],
+        parameters: [{ type: "image", image: { link: linkImmagine } }],
       });
     if (Array.isArray(perTesto) && perTesto.length > 0)
       componenti.push({
@@ -232,18 +240,29 @@ async function modelloDaMandare(
   porte: PortePorta,
   modello: string,
   parametri: string[],
-): Promise<{ modello: string; parametri: string[]; nuovo: boolean }> {
+): Promise<{ modello: string; parametri: string[]; nuovo: boolean; immagine?: string }> {
   const com = { modello, parametri, nuovo: false };
   if (!porte.modelliUtility) return com;
   const acceso = await porte.modelliUtility().catch(() => false);
   if (!acceso) return com;
-  const conv = convertiModelloUtility(modello, parametri, { immagini: porte.immaginiModelli });
+  const conv = convertiModelloUtility(modello, parametri);
   if (!conv) return com;
   if ("ripiego" in conv) {
     avvisaRipiego(porte, `ripiego_${conv.ripiego}`);
     return com;
   }
-  return { ...conv, nuovo: true };
+  //  L'immagine personale di QUEL cliente deve esistere (si genera nel browser del CRM quando nasce la
+  //  stanza): se non c'è, o non si sa, il nuovo non parte.
+  if (conv.immagine) {
+    const c = conv.immagine.codice;
+    const esiste = porte.immagineModello ? await porte.immagineModello(c).catch(() => false) : false;
+    if (!esiste) {
+      avvisaRipiego(porte, "ripiego_immagine");
+      return com;
+    }
+    return { modello: conv.modello, parametri: conv.parametri, nuovo: true, immagine: conv.immagine.url };
+  }
+  return { modello: conv.modello, parametri: conv.parametri, nuovo: true };
 }
 
 /** Il vecchio parte al posto del nuovo: una riga di registro, solo il codice. */
@@ -278,7 +297,7 @@ async function viaCloud(porte: PortePorta, r: RichiestaInvio): Promise<Risultato
     const m = await modelloDaMandare(porte, r.modello, r.parametri);
     if (m.nuovo) {
       vecchio = r;
-      r = { ...r, modello: m.modello, parametri: m.parametri };
+      r = { ...r, modello: m.modello, parametri: m.parametri, immagine: m.immagine };
     }
   }
   try {
@@ -313,6 +332,8 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   if (r.parametri !== undefined && !Array.isArray(r.parametri))
     return { esito: "blocco", codice: "parametri_non_validi" };
   let parametri = r.parametri ?? [];
+  /** L'immagine personale del modello nuovo, se ce l'ha: va nel campo `crm_img` prima di `sendFlow`. */
+  let immagine: string | undefined;
   if (parametri.length > MAX_PARAMETRI) return { esito: "blocco", codice: "troppi_parametri" };
 
   //  ── DENTRO LE 24 ORE, TESTO NORMALE (29/10/2026) ─────────────────────
@@ -345,10 +366,11 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     if (n.nuovo && n.parametri.length > MAX_PARAMETRI) avvisaRipiego(porte, "ripiego_campi");
     else if (n.nuovo) {
       const nsNuovo = await porte.flusso(n.modello);
-      if (nsNuovo) return { modello: n.modello, parametri: n.parametri, ns: nsNuovo };
+      if (nsNuovo)
+        return { modello: n.modello, parametri: n.parametri, ns: nsNuovo, immagine: n.immagine };
       avvisaRipiego(porte, "ripiego_flusso");
     }
-    return { modello, parametri: valori, ns: await porte.flusso(modello) };
+    return { modello, parametri: valori, ns: await porte.flusso(modello), immagine: undefined };
   };
 
   let ns: string | null = null;
@@ -359,6 +381,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
       if (ns) {
         r = { ...r, modello: f.modello };
         parametri = f.parametri;
+        immagine = f.immagine;
       }
     } catch {
       return { esito: "blocco", codice: "configurazione" };
@@ -449,6 +472,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     campi.crm_invio_id = invioId;
     if (r.leadId) campi.crm_lead_id = r.leadId;
     campi.crm_telefono = cifre;
+    if (immagine) campi.crm_img = immagine;
     return campi;
   };
   if (ns) {
@@ -467,6 +491,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     const nsRiserva = riserva?.ns ?? null;
     if (riserva && nsRiserva) {
       parametri = riserva.parametri;
+      immagine = riserva.immagine;
       const w = await client.scriviCampi(subscriber, campiDelFlusso());
       if (w.esito !== "ok") return fallita(w, subscriber);
       r = { ...r, modello: riserva.modello, testo: undefined };

@@ -71,7 +71,7 @@ const PESO_MASSIMO = 512 * 1024;
 /** ⚠️ `webinar` è arrivato per ultimo e per una ragione precisa: il link della
  *  sala si manda a decine di persone in una volta, e mostrava la scheda della
  *  VIDEOCONSULENZA — un'altra cosa, con un'altra promessa. */
-export type TipoAnteprima = "invito" | "preventivo" | "webinar" | "capelli";
+export type TipoAnteprima = "invito" | "preventivo" | "webinar" | "capelli" | "modello";
 
 /** ⚠️ Il codice finisce dentro un nome di file e dentro una chiave: tutto ciò
  *  che non è lettera, cifra, trattino o punto se ne va. Senza questa riga un
@@ -84,7 +84,9 @@ const codicePulito = (v: unknown) =>
     .slice(0, 64);
 
 const tipoPulito = (v: unknown): TipoAnteprima | null =>
-  v === "invito" || v === "preventivo" || v === "webinar" || v === "capelli" ? v : null;
+  v === "invito" || v === "preventivo" || v === "webinar" || v === "capelli" || v === "modello"
+    ? v
+    : null;
 
 export const chiaveAnteprima = (tipo: TipoAnteprima, codice: string) =>
   `anteprima:${tipo}:${codice}`;
@@ -182,7 +184,9 @@ export const Route = createFileRoute("/api/anteprima")({
         //   il pubblico — quindi qui basta e serve la sessione del CRM. Senza
         //   questa riga la rotta accetterebbe da chiunque un'immagine da
         //   servire sul dominio del centro.
-        if (tipo === "invito" || tipo === "webinar" || tipo === "capelli") {
+        //  `modello` (31/10/2026): l'immagine personale in testa ai modelli Utility col link del meet,
+        //   disegnata dal browser del CRM; stessa porta dell'invito.
+        if (tipo === "invito" || tipo === "webinar" || tipo === "capelli" || tipo === "modello") {
           //  ⚠️ Due porte, perché il biglietto della stanza nasce in DUE posti
           //  diversi: nel CRM, dove c'è una sessione CRM, e dentro l'app del
           //  presentatore, dove c'è una sessione da presentatore e basta —

@@ -18,6 +18,7 @@
  *  browser e nient'altro. Da un servitore non si può fare (vedi api.anteprima).
  */
 import { disegnaBiglietto, type DatiBiglietto } from "./biglietto";
+import { codiceImmaginePersonale, disegnaBigliettoModello } from "./biglietto-modello";
 import { intestazioniCRM } from "./AuthContext";
 import { DURATA_PREDEFINITA, dataPulita, durataPulita, nomeDiBattesimo, oraPulita } from "./invito";
 import type { Lead } from "./types";
@@ -62,6 +63,53 @@ function motivoLeggibile(e: unknown): string {
   return t && t !== "[object Object]" ? t : "motivo sconosciuto";
 }
 
+/** ── L'IMMAGINE PERSONALE DEI MODELLI UTILITY (31/10/2026) ───────────────────────────────────
+ *  Insieme al biglietto di Meetly si deposita, sotto il solo codice PERSONALE (stanza + gettone), la
+ *  seconda immagine: nome, giorno, ora, consulente e «Consulenza Hair Genius Labs», senza una parola di
+ *  vendita (`biglietto-modello.ts`). È quella che i modelli WhatsApp col link del meet portano in testa.
+ *  ⚠️ SILENZIOSA E INDIPENDENTE: se non riesce, il biglietto di Meetly non ne risente; il CRM, al momento
+ *   di mandare il modello nuovo, vede che l'immagine non c'è e manda il vecchio.
+ *  ⚠️ La chiave del «già fatto» comprende giorno, ora, nome e consulente: se l'appuntamento si sposta
+ *   l'immagine si rifà (a differenza del biglietto, questa dice quando). */
+async function depositaImmagineModello(d: DatiBiglietto): Promise<void> {
+  const codice = codiceImmaginePersonale(d);
+  if (!codice) return;
+  const chiave = `modello|${codice}|${d.giorno}|${d.ora}|${d.nome}|${d.consulente ?? ""}`;
+  if (giaDepositate.has(chiave)) return;
+  giaDepositate.add(chiave);
+  try {
+    //  I caratteri del sito devono essere pronti prima di disegnare fuori schermo.
+    await Promise.all(
+      ["400 38px Inter", "600 48px Inter", "700 104px Inter"].map((f) => document.fonts?.load(f)),
+    ).catch(() => undefined);
+    const tela = document.createElement("canvas");
+    const fatta = disegnaBigliettoModello(tela, {
+      nome: d.nome,
+      giorno: d.giorno,
+      ora: d.ora,
+      consulente: d.consulente,
+      stanza: d.stanza,
+      gettone: d.gettone,
+    });
+    if (!fatta) throw new Error("dati insufficienti");
+    const blob = await new Promise<Blob | null>((ris) => tela.toBlob((b) => ris(b), "image/jpeg", 0.88));
+    if (!blob) throw new Error("immagine non prodotta");
+    const modulo = new FormData();
+    modulo.append("tipo", "modello");
+    modulo.append("codice", codice);
+    modulo.append("file", blob, `modello-${codice}.jpg`);
+    const r = (await fetch("/api/anteprima", {
+      method: "POST",
+      headers: await intestazioniCRM(),
+      body: modulo,
+    }).then((x) => x.json())) as { ok?: boolean; reason?: string };
+    if (!r?.ok) throw new Error(String(r?.reason || "rifiutata dal server"));
+  } catch (e) {
+    giaDepositate.delete(chiave);
+    console.warn("[anteprima-modello] non depositata:", motivoLeggibile(e));
+  }
+}
+
 /** ── DEPOSITA L'ANTEPRIMA ───────────────────────────────────────────────────
  *  `tela` è facoltativa: se il pannello ne ha già una disegnata si riusa, se no
  *  se ne fa una fuori schermo. È l'unica differenza fra i due richiamanti.
@@ -78,6 +126,7 @@ export async function depositaAnteprimaBiglietto(
   avvisa: (stato: EsitoAnteprima, motivo?: string) => void = () => {},
   tela?: HTMLCanvasElement | null,
 ): Promise<void> {
+  void depositaImmagineModello(d);
   const codici = codiciDi(d);
   if (!codici.length) return;
   const daFare = codici.filter((c) => !giaDepositate.has(c));
