@@ -54,6 +54,7 @@ import {
 } from "./idee/chat-ritocchi.mjs";
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
@@ -686,6 +687,9 @@ const MODULI = [
   //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
   //   prove in prove/idee/prossimo-meet.mjs.
   "chatwa/prossimo-meet",
+  //  «No show» e «Da spostare» sotto la barra del meet (commessa 2026-10-31-spostare-nonrisponde, T5):
+  //   prove in prove/idee/azioni-meet.mjs.
+  "chatwa/azioni-meet",
   //  «Oggi» del consulente che è dentro (commessa 2026-10-31-oggi-del-consulente):
   //   prove in prove/idee/oggi-del-consulente.mjs.
   "consulente-dentro",
@@ -21549,6 +21553,7 @@ proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
 proveDellOrdineAcconti();
 proveDeiContatoriABadge();
+proveAzioniMeet(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

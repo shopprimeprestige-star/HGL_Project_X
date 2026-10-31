@@ -32,6 +32,7 @@ import {
   soloVisibili,
   type AzioneBlocco,
 } from "./selezione";
+import { AzioniMeet } from "./AzioniMeet";
 import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
@@ -731,7 +732,10 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
         {!caricamento && meet && (
-          <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
+          <div className="sticky top-0 z-10">
+            <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
+            <AzioniMeet key={meet.chat.phone} meet={meet} onCambiaStato={cambiaStatoLead} />
+          </div>
         )}
         {caricamento ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
