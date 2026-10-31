@@ -89,6 +89,7 @@ import {
   campiRitorno,
 } from "./testi";
 import { ORE_TESTO_LIBERO, finestraPerTesto } from "./finestra";
+import type { ChiaveMessaggio } from "../messaggi-automatici/catalogo";
 
 /** Gli stati in cui un lead è ancora «nuovo» per queste sequenze.
  *  «attesa_whatsapp» (commessa 2026-10-28): è lo stato in cui il giro stesso porta un
@@ -145,6 +146,11 @@ export interface ContestoLeadNuovi extends ContestoQuando {
   /** ISO: i primi contatti partiti prima di questa data non ricevono i casi reali. Se manca vale
    *  `CASI_REALI_DAL` (le prove la passano per provare le regole con date del passato). */
   casiRealiDal?: string | null;
+  /** Le chiavi dei messaggi SPENTI nel registro (interruttori per messaggio, 31/10/2026). Un
+   *  messaggio spento non entra nella scelta: niente candidati, niente «aspetta» né «salta», e
+   *  soprattutto non occupa i posti dei tetti di quelli accesi (`casi.emessi`, `leadNuoviOggi`,
+   *  `totaleOggi`). Assente = tutti accesi. */
+  messaggiSpenti?: readonly ChiaveMessaggio[];
 }
 
 export interface ContestoGiornoMeet extends ContestoQuando {
@@ -162,6 +168,8 @@ export interface ContestoGiornoMeet extends ContestoQuando {
   pagaOltreGiorni?: number | null;
   /** Spento il «solo se gratis» (`MEET_DOMANI_SOLO_GRATIS`): chi non è a pagamento non parte. */
   senzaGratis?: boolean;
+  /** Le chiavi dei messaggi SPENTI nel registro: qui conta `meet_oggi` (la mattina). Assente = acceso. */
+  messaggiSpenti?: readonly ChiaveMessaggio[];
 }
 
 /** Quale dei due messaggi del lead nuovo. */
@@ -257,6 +265,10 @@ export function decidiLeadNuovi(
   //  Interruttore mai acceso: nessun lead è «nuovo».
   const dal = contesto.leadNuovoDal ? Date.parse(contesto.leadNuovoDal) : Number.NaN;
   if (!Number.isFinite(dal)) return [];
+  //  I messaggi spenti nel registro: si tolgono QUI, prima dei candidati e dei conteggi.
+  const spento = (k: ChiaveMessaggio) => !!contesto.messaggiSpenti?.includes(k);
+  const primoSpento = spento("primo_contatto");
+  const richiamoSpento = spento("richiamo_24h");
 
   type Candidato = {
     scheda: SchedaQuando;
@@ -289,6 +301,9 @@ export function decidiLeadNuovi(
     let bersaglioPrimo: Date | undefined;
     if (tel9 && chiaveGiaPresa(invii, `n24|${tel9}`)) continue; // la sequenza è finita
     if (!primo) {
+      //  Primo contatto spento: il lead non è in sequenza per nessuno (e il ramo degli importati,
+      //  sotto, non lo riprende con lo stesso messaggio: vedi `decidiImportatiERitorni`).
+      if (primoSpento) continue;
       //  In «attesa_whatsapp» c'è già stato un primo contatto (o l'ha scritto qualcuno a mano):
       //  senza il suo invio nel registro non se ne manda un altro, solo il richiamo ha senso.
       if (d.stato === "attesa_whatsapp" || d.stato === "da_chiamare") continue;
@@ -297,6 +312,8 @@ export function decidiLeadNuovi(
       const il = typeof d.consensoModulo.il === "string" ? Date.parse(d.consensoModulo.il) : NaN;
       if (Number.isFinite(il) && ora - il >= FINESTRA_LEAD_NUOVO_ORE * ORA_MS) continue;
     } else {
+      //  Richiamo spento: chi ha già il primo contatto non ha più niente da aspettare da qui.
+      if (richiamoSpento) continue;
       //  Il primo è in corso (invio che sta ancora partendo): non è ancora né finito né fallito.
       if (primo.stato === "prenotato") continue;
       //  Passato il tempo del richiamo (più un'ora in cui lo si vede) la sequenza tace:
@@ -382,13 +399,15 @@ export function decidiLeadNuovi(
 
   //  I casi reali passano davanti a ogni altro messaggio del lead nuovo: chi ha già ricevuto il
   //  primo contatto deve ricevere subito il secondo. Occupano un posto dei tetti.
-  const casi = decidiCasiReali(
-    ordinate,
-    adesso,
-    { invii, tetti, casiRealiDal: contesto.casiRealiDal },
-    contaOggi(invii, oggi, TIPI_LEAD_NUOVI),
-    contaOggi(invii, oggi, TIPI_NEI_TETTI),
-  );
+  const casi = spento("casi_reali")
+    ? { uscita: [], emessi: 0 }
+    : decidiCasiReali(
+        ordinate,
+        adesso,
+        { invii, tetti, casiRealiDal: contesto.casiRealiDal },
+        contaOggi(invii, oggi, TIPI_LEAD_NUOVI),
+        contaOggi(invii, oggi, TIPI_NEI_TETTI),
+      );
   const leadNuoviOggi = contaOggi(invii, oggi, TIPI_LEAD_NUOVI) + casi.emessi;
   const totaleOggi = contaOggi(invii, oggi, TIPI_NEI_TETTI) + casi.emessi;
   const prossimo = contesto.prossimoDopo ?? null;
@@ -460,6 +479,7 @@ export function decidiLeadNuovi(
     leadNuoviOggi,
     totaleOggi,
     uscita.filter((x) => x.tipo === "invia").length,
+    { primoSpento, ritornoSpento: spento("ritorno") },
   );
   //  Se uno di questi due messaggi prende in carico una scheda, i vecchi «salta» di
   //  quella scheda (consenso mancante, sequenza finita…) non hanno più senso.
@@ -606,6 +626,7 @@ function decidiImportatiERitorni(
   leadNuoviOggi: number,
   totaleOggi: number,
   gia: number,
+  spenti: { primoSpento: boolean; ritornoSpento: boolean },
 ): DecisioneQuando<ExtraLeadNuovo>[] {
   type Esito = DecisioneQuando<ExtraLeadNuovo>;
   type Candidato = {
@@ -647,6 +668,12 @@ function decidiImportatiERitorni(
     //  ── Ritorno: se il `ricarico` è salito la scheda è sua, e basta ──────────
     const ultimo = Date.parse(String(d.ricarico?.ultimo ?? ""));
     if (Number.isFinite(ultimo)) {
+      //  Ritorno spento: la scheda è comunque «sua» (non scivola nel primo contatto degli
+      //  importati, né dà il numero a un'altra scheda), ma non produce niente.
+      if (spenti.ritornoSpento) {
+        if (tel9) presi.add(tel9);
+        continue;
+      }
       //  Solo chi non ha mai avuto una consulenza: stato di primo contatto, nessuna data di
       //  meet (passata o futura), nessun acconto.
       //  Spostato in «Attesa WhatsApp» dal ritorno (30/10/2026): conta lo stato di PRIMA.
@@ -673,6 +700,8 @@ function decidiImportatiERitorni(
     //  ── Lead «da contattare» mai contattato (importato o no: richiesta del titolare
     //  28/10, «tutti i lead da contattare, anche quelli vecchi») ─────────────────
     if (d.stato !== "da_contattare" || nonVuoto(d.dataMeeting)) continue;
+    //  Primo contatto spento: gli importati sono il suo stesso messaggio (`hgl_primo_contatto`).
+    if (spenti.primoSpento) continue;
     //  Qualunque secondo stato è «già in chat / già scritto». Due eccezioni: STOP (si dice) e
     //  «non raggiungibile», che lascia il posto a UN ritentativo (sotto).
     const staScritto = d.contattoWa?.stato;
@@ -836,7 +865,12 @@ export function decidiGiornoMeet(
 
     // ── la mattina ──────────────────────────────────────────────────────────
     const chiaveO = `o|${k.tel9}|${k.giornoMeet}T${k.ora}`;
-    inMattina: if (!chiaveGiaPresa(invii, chiaveO) && inizio > ora) {
+    //  Mattina spenta (`meet_oggi`): niente candidato, niente «aspetta» né «salta».
+    inMattina: if (
+      !contesto.messaggiSpenti?.includes("meet_oggi") &&
+      !chiaveGiaPresa(invii, chiaveO) &&
+      inizio > ora
+    ) {
       const campi = campiMeetOggi(k.scheda.data, k.consulente);
       if (campi.tipo === "salta") {
         saltaDati(0, campi.motivo);
