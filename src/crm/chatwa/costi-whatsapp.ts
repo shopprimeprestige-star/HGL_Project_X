@@ -79,8 +79,8 @@ export const UTILITY_DAL: Record<string, string | null> = {
   acconto: "2026-10-30T12:30:00+01:00",
   meet_da_fissare: "2026-10-30T12:30:00+01:00",
   //  Ancora in revisione Meta: la data si mette quando si passano i loro flussi.
-  come_eravamo_rimasti: null,
-  da_riprogrammare: null,
+  come_eravamo_rimasti: "2026-10-30T12:29:00+01:00",
+  da_riprogrammare: "2026-10-30T12:29:00+01:00",
 };
 
 const nomeBase = (nome: string) => nome.replace(/^hgl_/, "").replace(/_v\d+$/, "");

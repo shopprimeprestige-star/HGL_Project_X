@@ -199,7 +199,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  riquadri, niente stelle in cima. Dal 31/10 anche gli sconosciuti (senza scheda) stanno IN MEZZO,
   //  all'ora del loro ultimo messaggio vero: «Tutte» è identica a WhatsApp. Per vederli a parte c'è
   //  la pastiglia «Sconosciuti». Restano sopra l'elenco, per richiesta esplicita, solo la barra del
-  //  prossimo meet e il blocco «Acconto, da installare». Per questo anche il riquadro «Finestra in chiusura» (che è una
+  //  prossimo meet (il blocco «Acconto, da installare» solo col filtro «Acconto», dal 31/10). Per questo anche il riquadro «Finestra in chiusura» (che è una
   //  sezione) esce: con «Si può scrivere» la riga ha comunque il suo bollino.
   const tutte = filtri.coda === null;
   //  ── ACCONTO, DA INSTALLARE IN CIMA (30/10/2026) ────────────────────────
@@ -208,7 +208,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  «Anticipa» acceso prima di tutti. Non si ripetono sotto. Il resto dell'elenco resta l'ordine
   //  di WhatsApp. Nelle altre viste niente blocco (i numeri devono restare quelli dei pulsanti):
   //  lì gli acconti salgono dentro la sezione. Le regole sono in accontiInCima.ts.
-  const daInstallareTutte = tutte ? chatDaInstallare(trovate) : [];
+  //  Dal 31/10/2026 (richiesta del titolare): «Tutte» identica a WhatsApp, SENZA il blocco in cima;
+  //  il blocco «Acconto, da installare» compare solo dentro il suo filtro «Acconto».
+  const daInstallareTutte = tutte && filtri.acconto ? chatDaInstallare(trovate) : [];
   const inBloccoTel = new Set(daInstallareTutte.map((c) => c.phone));
   const [apertoAcconti, setApertoAcconti] = useState(true);
   const elencoTutte = tutte
