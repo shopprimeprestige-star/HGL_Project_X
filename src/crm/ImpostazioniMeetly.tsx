@@ -36,6 +36,7 @@ import {
   Video,
   XCircle,
 } from "lucide-react";
+import { ImpostazioneTrasporto } from "./ImpostazioneTrasporto";
 import { Button } from "@/components/ui/button";
 import { intestazioniCRM, fetchCRM } from "./AuthContext";
 import { GoogleDriveRegistrazioni } from "./GoogleDriveRegistrazioni";
@@ -341,6 +342,9 @@ export function ImpostazioniMeetly() {
           {salvo ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Salva
         </Button>
       </div>
+
+      {/* ══ COME VIAGGIANO AUDIO E VIDEO ═══════════════════════════════ */}
+      <ImpostazioneTrasporto />
 
       {/* ══ DOVE STA IL RESTO ══════════════════════════════════════════ */}
       <div className="rounded-xl border p-4">

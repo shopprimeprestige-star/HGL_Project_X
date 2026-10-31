@@ -19,6 +19,19 @@ type Riga = { creato_il: string; dati: unknown };
 type Voce = { quando: string; blocco: Rapporto | null; esito: Rapporto | null };
 
 /** Unisce blocco ed esito dello stesso collegamento; il più recente in cima. */
+/** Il motivo del ripiego da SFU a collegamento diretto, in parole da leggere in una riga. */
+const MOTIVO_RIPIEGO: Record<string, string> = {
+  server: "errore del server",
+  "timeout-pub": "invio dei media scaduto",
+  "timeout-sub": "ricezione dei media scaduta",
+  "ice-fallita": "rete non riuscita",
+  "ospite-vecchio": "scheda non aggiornata",
+  ospite: "un partecipante non si agganciava",
+  "non-configurato": "SFU non configurato",
+  "tr-mesh": "deciso dal consulente",
+  "host-nuovo-senza-tr": "consulente ricaricato",
+};
+
 function raggruppa(righe: Riga[]): Voce[] {
   const per = new Map<string, Voce>();
   for (const r of righe) {
@@ -104,6 +117,8 @@ export function CollegamentiFalliti() {
                     {r.ruolo === "consulente" ? "Lato consulente" : "Lato cliente"} · {r.browser} su {r.sistema}
                     {rete ? ` · ${rete}` : ""}
                     {r.hasTurn === false ? " · senza TURN" : ""}
+                    {r.trasporto === "sfu" ? " · media via SFU" : ""}
+                    {r.ripiego ? ` · tornato al collegamento diretto (${MOTIVO_RIPIEGO[r.ripiego] ?? "altro"})` : ""}
                   </span>
                 </span>
                 <span className="flex items-start gap-2 sm:justify-end">

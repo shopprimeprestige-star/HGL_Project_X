@@ -76,6 +76,8 @@ export async function proveScatolaNera(mod, { c, gruppo, radice }) {
     tracce: { locali: { video: 1, audio: 1 }, remote: { video: 0, audio: 0, vive: 0 } },
     incontroMs: 15012,
     collegatoMs: null,
+    trasporto: "mesh",
+    ripiego: "",
   };
   const con = (extra) => ({ ...base, ...extra });
   c("un rapporto buono passa uguale", base, S.pulisciRapporto(base));
@@ -212,6 +214,8 @@ export async function proveScatolaNera(mod, { c, gruppo, radice }) {
     remoto: () => undefined,
     locale: () => null,
     mediaVivo: () => false,
+    trasporto: () => "mesh",
+    ripiego: () => "",
     ...extra,
   });
   const aspetta = (ms) => new Promise((ok) => fin.setTimeout(ok, ms));

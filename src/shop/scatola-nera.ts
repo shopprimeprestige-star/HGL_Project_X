@@ -68,6 +68,10 @@ export type Rapporto = {
   tracce: { locali: { video: number; audio: number }; remote: { video: number; audio: number; vive: number } };
   incontroMs: number;
   collegatoMs: number | null;
+  /** Come viaggiavano i media in quel momento. */
+  trasporto: "mesh" | "sfu";
+  /** Se da SFU si è tornati a mesh: perché (elenco chiuso, vedi RIPIEGHI). Vuoto = nessun ripiego. */
+  ripiego: string;
 };
 
 const TIPI = ["host", "srflx", "prflx", "relay"];
@@ -160,6 +164,11 @@ const ERRORI_MEDIA = new Set([
   "NotAllowedError", "SecurityError", "NotFoundError", "NotReadableError", "OverconstrainedError", "AbortError", "TypeError",
 ]);
 const PERMESSI = new Set(["concesso", "negato", "da-chiedere", "ignoto"]);
+//  I motivi di ripiego su mesh: quelli del client SFU (MotivoRipiego) e due di `adottaTrasporto`.
+//  Elenco chiuso a mano: qualsiasi altro testo diventa «altro», così non esce niente di libero.
+const RIPIEGHI = new Set([
+  "server", "timeout-pub", "timeout-sub", "ice-fallita", "ospite-vecchio", "ospite", "non-configurato", "tr-mesh", "host-nuovo-senza-tr",
+]);
 
 const IP4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 const IP6 = /\b[0-9a-f]{0,4}(?::[0-9a-f]{0,4}){2,7}\b/gi;
@@ -253,6 +262,8 @@ export function pulisciRapporto(x: unknown): Rapporto | null {
     },
     incontroMs: intero(o.incontroMs, 86_400_000),
     collegatoMs: typeof o.collegatoMs === "number" ? intero(o.collegatoMs, 86_400_000) : null,
+    trasporto: o.trasporto === "sfu" ? "sfu" : "mesh",
+    ripiego: typeof o.ripiego === "string" && o.ripiego ? dalElenco(o.ripiego, RIPIEGHI, "altro") : "",
   };
 }
 

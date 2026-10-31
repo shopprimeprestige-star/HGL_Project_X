@@ -37,6 +37,10 @@ export type DipendenzeScatola = {
   locale: () => MediaStream | null;
   /** C'è media remoto vivo da questo interlocutore? */
   mediaVivo: (pid: string) => boolean;
+  /** Il trasporto dei media in uso adesso ("mesh" / "sfu"). */
+  trasporto: () => "mesh" | "sfu";
+  /** Il motivo dell'ultimo ripiego da SFU a mesh ("" se non c'è stato). */
+  ripiego: () => string;
 };
 
 type Stato = {
@@ -151,6 +155,8 @@ export function creaScatola(dip: DipendenzeScatola) {
       },
       incontroMs: ora - st.inizio,
       collegatoMs: tipo === "esito" ? ora - st.inizio : null,
+      trasporto: dip.trasporto(),
+      ripiego: dip.ripiego(),
     });
   }
 
