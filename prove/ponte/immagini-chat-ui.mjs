@@ -55,7 +55,7 @@ export async function provePonteImmaginiChatUi(_mod, { c, gruppo, radice }) {
     );
     writeFileSync(
       join(dir, "auth.js"),
-      "export const fetchCRM = async () => new Response('{}', { status: 500 });",
+      "export const fetchCRM = async () => new Response('{}', { status: 500 }); export const useAuth = () => ({ user: null });",
     );
     writeFileSync(join(dir, "crm.js"), "export const useCRM = () => ({ consultants: [] });");
     writeFileSync(
@@ -63,7 +63,8 @@ export async function provePonteImmaginiChatUi(_mod, { c, gruppo, radice }) {
       `import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 export { React, renderToStaticMarkup };
-export { BollaMessaggio, VistaFotoPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa/BollaMessaggio.tsx"))};
+export { BollaMessaggio } from ${JSON.stringify(join(radice, "src/crm/chatwa/BollaMessaggio.tsx"))};
+export { VistaMediaPonte, QuadroFoto } from ${JSON.stringify(join(radice, "src/crm/chatwa/MediaPonte.tsx"))};
 export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPROVA } from ${JSON.stringify(join(radice, "src/crm/chatwa/usaMediaPonte.ts"))};`,
     );
     await esbuild.build({
@@ -84,7 +85,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
             b.onResolve({ filter: /^@\/integrations\/supabase\/client$/ }, () => ({
               path: join(dir, "client.js"),
             }));
-            b.onResolve({ filter: /^@\/crm\/AuthContext$/ }, () => ({
+            b.onResolve({ filter: /(^@\/crm\/|^\.\.\/)AuthContext$/ }, () => ({
               path: join(dir, "auth.js"),
             }));
             b.onResolve({ filter: /^@\/crm\/CRMContext$/ }, () => ({ path: join(dir, "crm.js") }));
@@ -97,7 +98,8 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       React,
       renderToStaticMarkup,
       BollaMessaggio,
-      VistaFotoPonte,
+      VistaMediaPonte,
+      QuadroFoto,
       fotoDelPonte,
       caricaFoto,
       leggiRiga,
@@ -194,8 +196,8 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       [ok.ok, ok.ok && ok.blob.type],
     );
     c(
-      "chiede alla rotta GET con l'identificativo del file, senza cache",
-      [`/api/crm/ponte-media?id=${ID}`, "GET", "no-store"],
+      "chiede alla rotta GET con l'identificativo del file e l'uso, senza cache",
+      [`/api/crm/ponte-media?id=${ID}&uso=vedi`, "GET", "no-store"],
       [r1.reg.chiesti[0].p, r1.reg.chiesti[0].init.method, r1.reg.chiesti[0].init.cache],
     );
     c(
@@ -234,13 +236,34 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       );
     }
     {
-      const e = await caricaFoto(ID, rete({ chiedi: () => json({ ok: false, motivo: "storage" }, 503) }));
-      c("503 «storage» (guasto passeggero): errore con Riprova, NON «non più disponibile»", [false, true, U.FRASE_RIPROVA], [e.ok, e.riprova, e.frase]);
+      const e = await caricaFoto(
+        ID,
+        rete({ chiedi: () => json({ ok: false, motivo: "storage" }, 503) }),
+      );
+      c(
+        "503 «storage» (guasto passeggero): errore con Riprova, NON «non più disponibile»",
+        [false, true, U.FRASE_RIPROVA],
+        [e.ok, e.riprova, e.frase],
+      );
     }
-    for (const x of [CH, NOME, `${NOME}.svg`, ID.toUpperCase(), `${ID}&x=1`, `${UTENTE_FINTO}/${ID}`, "", "../x"]) {
+    for (const x of [
+      CH,
+      NOME,
+      `${NOME}.s`,
+      `${NOME}.abcdef`,
+      ID.toUpperCase(),
+      `${ID}&x=1`,
+      `${UTENTE_FINTO}/${ID}`,
+      "",
+      "../x",
+    ]) {
       const r = rete();
       const e = await caricaFoto(x, r);
-      c(`identificativo non valido «${x.slice(0, 14)}»: nessuna richiesta, errore`, [false, 0, 0], [e.ok, r.reg.chiesti.length, r.reg.scaricati.length]);
+      c(
+        `identificativo non valido «${x.slice(0, 14)}»: nessuna richiesta, errore`,
+        [false, 0, 0],
+        [e.ok, r.reg.chiesti.length, r.reg.scaricati.length],
+      );
     }
     c(
       "rete caduta nella richiesta: errore con Riprova (non lancia)",
@@ -359,69 +382,113 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
     );
 
     /* ═══ La riga in ponte_wa_media ═══ */
-    gruppo("PONTE · IMMAGINI · LA RIGA, LETTA A GRUPPI (T7)");
+    gruppo("PONTE · IMMAGINI · LA RIGA, LETTA A GRUPPI (T7, aggiornato da T8)");
     globalThis.__letture = [];
+    const daMedia = () => globalThis.__letture.filter((l) => l.t === "ponte_wa_media");
     //  Il percorso in Storage è `<utente>/<uuid>.<ext>`: l'identificativo per la rotta è l'uuid.
     const percorsoDi = () => `${UTENTE_FINTO}/${ID}`;
-    globalThis.__risposta = (_t, v) => ({
-      data: v
-        .filter((x) => x.endsWith(":P"))
-        .map((chiave) => ({ chiave, stato: "pronta", path: percorsoDi() }))
-        .concat(
-          v.filter((x) => x.endsWith(":C")).map((chiave) => ({ chiave, stato: "in_caricamento", path: percorsoDi() })),
-        ),
+    globalThis.__risposta = (t, v) => ({
+      data:
+        t !== "ponte_wa_media"
+          ? []
+          : v
+              .filter((x) => x.endsWith(":P"))
+              .map((chiave) => ({ chiave, stato: "pronta", path: percorsoDi() }))
+              .concat(
+                v
+                  .filter((x) => x.endsWith(":C"))
+                  .map((chiave) => ({ chiave, stato: "in_caricamento", path: percorsoDi() })),
+              ),
       error: null,
     });
     const k = (id) => `bw:393330000001:${id}`;
     const tre = await Promise.all([leggiRiga(k("P")), leggiRiga(k("C")), leggiRiga(k("N"))]);
-    c("pronta / in arrivo / senza riga", ["pronta", "in_arrivo", "nessuna"], tre);
+    c(
+      "pronta / in caricamento / senza riga",
+      ["pronta", "in_caricamento", "nessuna"],
+      tre.map((x) => x.stato),
+    );
     c(
       "tre bolle nello stesso istante = UNA lettura di `ponte_wa_media` con le tre chiavi",
       [1, "ponte_wa_media", 3],
-      [globalThis.__letture.length, globalThis.__letture[0].t, globalThis.__letture[0].v.length],
+      [daMedia().length, daMedia()[0].t, daMedia()[0].v.length],
     );
-    c("…la lettura chiede chiave, stato e percorso (per l'identificativo)", "chiave,stato,path", globalThis.__letture[0].s);
-    c("l'identificativo della foto pronta è il nome del file (uuid e estensione)", ID, idFoto(k("P")));
-    c("…una riga non ancora pronta o senza riga non ha identificativo", [null, null, null], [idFoto(k("C")), idFoto(k("N")), idFoto("bw:393330000001:MAI")]);
+    c(
+      "…la lettura chiede chiave, stato e percorso (per l'identificativo) e le colonne dei media",
+      true,
+      daMedia()[0].s.startsWith("chiave,stato,path,"),
+    );
+    c(
+      "l'identificativo della foto pronta è il nome del file (uuid e estensione)",
+      ID,
+      idFoto(k("P")),
+    );
+    c(
+      "…una riga non ancora pronta o senza riga non ha identificativo",
+      [null, null, null],
+      [idFoto(k("C")), idFoto(k("N")), idFoto("bw:393330000001:MAI")],
+    );
     await leggiRiga(k("P"));
-    c("una riga pronta resta in memoria: nessuna nuova lettura", 1, globalThis.__letture.length);
+    c("una riga pronta resta in memoria: nessuna nuova lettura", 1, daMedia().length);
     await leggiRiga(k("N"));
-    c("«senza riga» vale 30 s: subito dopo, nessuna nuova lettura", 1, globalThis.__letture.length);
-    globalThis.__risposta = (_t, v) => ({
-      data: v.map((chiave) => ({ chiave, stato: "pronta", path: `${UTENTE_FINTO}/${NOME}.png` })),
+    c("«senza riga» vale 30 s: subito dopo, nessuna nuova lettura", 1, daMedia().length);
+    globalThis.__risposta = (t, v) => ({
+      data:
+        t !== "ponte_wa_media"
+          ? []
+          : v.map((chiave) => ({ chiave, stato: "pronta", path: `${UTENTE_FINTO}/${NOME}.png` })),
       error: null,
     });
-    c("`fresco`: rilegge e vede che ora è pronta", "pronta", await leggiRiga(k("N"), true));
+    c("`fresco`: rilegge e vede che ora è pronta", "pronta", (await leggiRiga(k("N"), true)).stato);
     c("…e ha il suo identificativo (anche con un'altra estensione)", `${NOME}.png`, idFoto(k("N")));
-    c("…e ora quella lettura è una in più", 2, globalThis.__letture.length);
+    c("…e ora quella lettura è una in più", 2, daMedia().length);
     const molte = Array.from({ length: 250 }, (_, i) => k(`M${i}`));
     globalThis.__letture = [];
     await Promise.all(molte.map((x) => leggiRiga(x)));
     c(
       "250 foto in chat: tre letture (100 + 100 + 50), mai un indirizzo enorme",
       [3, 100, 100, 50],
-      [globalThis.__letture.length, ...globalThis.__letture.map((l) => l.v.length)],
+      [daMedia().length, ...daMedia().map((l) => l.v.length)],
     );
     globalThis.__risposta = () => ({ data: null, error: { message: "permessi" } });
     let rifiutata = false;
     await leggiRiga(k("E")).catch(() => (rifiutata = true));
     c("lettura fallita: la promessa rifiuta (la bolla resta «📷 Foto»)", true, rifiutata);
-    globalThis.__risposta = (_t, v) => ({
-      data: v.map((chiave) => ({ chiave, stato: "pronta", path: `${UTENTE_FINTO}/${NOME}.webp` })),
+    globalThis.__risposta = (t, v) => ({
+      data:
+        t !== "ponte_wa_media"
+          ? []
+          : v.map((chiave) => ({ chiave, stato: "pronta", path: `${UTENTE_FINTO}/${NOME}.webp` })),
       error: null,
     });
-    c("…un guasto non si ricorda: la volta dopo rilegge", "pronta", await leggiRiga(k("E")));
-    globalThis.__risposta = (_t, v) => ({
-      data: v.map((chiave, i) => ({ chiave, stato: "pronta", path: [`${UTENTE_FINTO}/${NOME}.svg`, `${UTENTE_FINTO}/non-un-uuid.jpg`, null, ID][i] })),
+    c(
+      "…un guasto non si ricorda: la volta dopo rilegge",
+      "pronta",
+      (await leggiRiga(k("E"))).stato,
+    );
+    globalThis.__risposta = (t, v) => ({
+      data:
+        t !== "ponte_wa_media"
+          ? []
+          : v.map((chiave, i) => ({
+              chiave,
+              stato: "pronta",
+              path: [`${UTENTE_FINTO}/${NOME}.svg`, `${UTENTE_FINTO}/non-un-uuid.jpg`, null, ID][i],
+            })),
       error: null,
     });
     const strane = ["S0", "S1", "S2", "S3"].map(k);
-    globalThis.__letture = [];
     await Promise.all(strane.map((x) => leggiRiga(x)));
-    c("percorso con estensione non ammessa, senza uuid, nullo o senza cartella: pronta ma senza identificativo (mai usato in un indirizzo)", [null, null, null, null], strane.map(idFoto));
+    //  Dal 31/10 l'estensione è libera (`[a-z0-9]{2,5}`: la decide il server dal tipo vero); a proteggere
+    //  da un SVG è il controllo del tipo sul file scaricato (vedi sopra), non il nome.
+    c(
+      "percorso con estensione qualunque: ha l'identificativo; senza uuid, nullo o senza cartella: no",
+      [`${NOME}.svg`, null, null, null],
+      strane.map(idFoto),
+    );
 
     /* ═══ La bolla, stato per stato ═══ */
-    gruppo("PONTE · IMMAGINI · LA BOLLA, STATO PER STATO (T7)");
+    gruppo("PONTE · IMMAGINI · LA BOLLA, STATO PER STATO (T7, aggiornato da T8)");
     const msg = (o = {}) => ({
       id: "m1",
       user_id: "u",
@@ -440,15 +507,43 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       ...o,
     });
     const nulla = () => undefined;
-    const vista = (stato, o = {}) =>
+    const RIGA = {
+      stato: "pronta",
+      id: ID,
+      categoria: "foto",
+      nome: null,
+      byte: 1200,
+      durata_s: null,
+      larghezza: 800,
+      altezza: 600,
+      miniatura: null,
+      scade_il: null,
+      richiesta: null,
+    };
+    const vista = (fase, o = {}) =>
       disegna(
-        React.createElement(VistaFotoPonte, {
+        React.createElement(VistaMediaPonte, {
+          media: { chiave: CH, categoria: "foto", didascalia: "" },
+          g: {
+            fase: typeof fase === "string" ? { fase } : fase,
+            riga: RIGA,
+            richiedi: nulla,
+            ricontrolla: nulla,
+            segnaPerso: nulla,
+          },
+          segnaposto: React.createElement("p", null, o.corpo ?? "📷 Foto"),
+          inUscita: false,
+          vocale: () => null,
+        }),
+      );
+    const quadro = (stato, o = {}) =>
+      disegna(
+        React.createElement(QuadroFoto, {
+          riga: RIGA,
           stato,
-          corpo: "📷 Foto",
           didascalia: "",
           inUscita: false,
-          mostra: nulla,
-          ricontrolla: nulla,
+          riprova: nulla,
           nonSiApre: nulla,
           ...o,
         }),
@@ -457,9 +552,22 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
 
     const prima = bolla(msg());
     c(
-      "appena disegnata (ancora non si sa): resta il testo «📷 Foto», nessun <img>, nessun tasto",
+      "appena disegnata (ancora non si sa): resta il testo «📷 Foto», nessun <img>, nessun tasto di caricamento",
       [true, false, false],
-      [testoDi(prima).includes("📷 Foto"), /<img\b/.test(prima), /<button\b/.test(prima)],
+      [
+        testoDi(prima).includes("📷 Foto"),
+        /<img\b/.test(prima),
+        /Carico|Riprova|Ricontrolla/.test(prima),
+      ],
+    );
+    c(
+      "…l'unico tasto è la freccia delle azioni (dal computer), nascosta sul telefono",
+      [1, true, true],
+      [
+        (prima.match(/<button\b/g) ?? []).length,
+        /Azioni su questo file/.test(prima),
+        /pointer-coarse:hidden/.test(prima),
+      ],
     );
     c(
       "…l'ora c'è e sta accanto al testo come prima (posata in basso a destra, non su una riga sua)",
@@ -484,42 +592,41 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       testoDi(vista({ fase: "nessuna" }, { corpo: "📷 Foto: ecco la nuca" })),
     );
 
-    const pronta = vista({ fase: "pronta" });
+    //  Dal 31/10 la foto pronta si carica da sola (prima: «Tocca per vedere»): niente tasto, il riquadro ha già le sue misure.
+    const pronta = quadro({ fase: "idle" });
     c(
-      "pronta: «Foto · Tocca per vedere», un tasto da 44 px, nessun <img>",
-      [true, true, 1, false],
+      "pronta (prima del file): nessun tasto «Tocca per vedere», riquadro con le misure della riga, nessun <img> senza miniatura",
+      [false, true, false],
       [
-        testoDi(pronta) === "Foto · Tocca per vedere",
-        /min-h-11/.test(pronta),
-        (pronta.match(/<button\b/g) ?? []).length,
+        /Tocca per vedere|<button\b/.test(pronta),
+        /aspect-ratio:1\.33/.test(pronta),
         /<img\b/.test(pronta),
       ],
     );
+    const MINI = "/9j/4AAQSkZJRgABAQ" + "A".repeat(20) + "==";
+    const conMini = quadro({ fase: "idle" }, { riga: { ...RIGA, miniatura: MINI } });
     c(
-      "pronta: il tasto ha l'icona disegnata, senza emoji",
+      "pronta con miniatura: la miniatura da `data:` (locale), niente indirizzo firmato",
       [true, false],
-      [/lucide-image/.test(pronta), EMOJI.test(pronta)],
+      [
+        conMini.includes(`src="data:image/jpeg;base64,${MINI}"`),
+        /GETTONE|supabase\.co|token=/.test(conMini),
+      ],
     );
 
-    const carico = vista({ fase: "carico" });
+    const carico = quadro({ fase: "carico" });
     c(
-      "in caricamento: «Carico la foto…», annunciato (role=status, aria-busy), rotellina, senza tasti",
-      [true, true, true, true, false],
+      "in caricamento: annunciato (role=status), rotellina, senza tasti",
+      [true, true, true, false],
       [
-        testoDi(carico) === "Carico la foto…",
+        /Carico la foto/.test(carico),
         /role="status"/.test(carico),
-        /aria-busy="true"/.test(carico),
         /animate-spin/.test(carico),
         /<button\b/.test(carico),
       ],
     );
-    c(
-      "in caricamento: stessa altezza minima del tasto (nessun salto)",
-      true,
-      /min-h-11/.test(carico),
-    );
 
-    const arrivo = vista({ fase: "in_arrivo" });
+    const arrivo = vista("in_arrivo");
     c(
       "in arrivo: «Foto in arrivo» e «Ricontrolla» (tasto da 44 px), annunciato",
       [true, true, true],
@@ -530,7 +637,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       ],
     );
 
-    const errore = vista({
+    const errore = quadro({
       fase: "errore",
       frase: "Non riesco a caricare la foto.",
       riprova: true,
@@ -545,7 +652,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
         /lucide-circle-alert|lucide-alert-circle/.test(errore),
       ],
     );
-    const nonPiu = vista({
+    const nonPiu = quadro({
       fase: "errore",
       frase: "La foto non è più disponibile.",
       riprova: false,
@@ -564,7 +671,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
     );
 
     const BLOB = "blob:http://localhost/0b1c2d3e-0000-4000-8000-000000000001";
-    const mostrata = vista({ fase: "vista", src: BLOB });
+    const mostrata = quadro({ fase: "vista", src: BLOB });
     c(
       "vista: un <img> con la `blob:` locale, alt, senza referrer",
       [1, true, true, true],
@@ -578,7 +685,7 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
     c(
       "vista in uscita (mandata dal telefono): alt «Foto inviata»",
       true,
-      /alt="Foto inviata"/.test(vista({ fase: "vista", src: BLOB }, { inUscita: true })),
+      /alt="Foto inviata"/.test(quadro({ fase: "vista", src: BLOB }, { inUscita: true })),
     );
     c(
       "vista: nessun indirizzo firmato né `supabase.co` nel DOM",
@@ -586,11 +693,17 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       [mostrata.includes("GETTONE"), /supabase\.co/.test(mostrata), /token=/.test(mostrata)],
     );
     c(
-      "vista: altezza limitata (max-h-80, 20 rem) e mai più larga della bolla",
+      "vista: mai più larga della bolla e con il rapporto della foto (nessun salto)",
       true,
-      /max-h-80/.test(mostrata) && /max-w-\[calc\(100%\+0\.75rem\)\]/.test(mostrata),
+      /aspect-ratio/.test(mostrata) && /max-w-\[calc\(100%\+0\.75rem\)\]/.test(mostrata),
     );
-    const conDida = vista({ fase: "vista", src: BLOB }, { didascalia: "ecco la <b>nuca</b>" });
+    c(
+      "vista: iOS non offre «Salva immagine» (touch-callout e select-none anche sull'<img>)",
+      true,
+      /<img\b[^>]*select-none/.test(mostrata) &&
+        /<img\b[^>]*-webkit-touch-callout:none/.test(mostrata),
+    );
+    const conDida = quadro({ fase: "vista", src: BLOB }, { didascalia: "ecco la <b>nuca</b>" });
     c(
       "didascalia del cliente: solo testo (il <b> non diventa un tag)",
       [true, false],
@@ -599,9 +712,10 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
     c(
       "nessuna fase è un collegamento (<a>): la foto non ha un indirizzo da aprire",
       false,
-      ["pronta", "carico", "in_arrivo"].some((f) => /<a\b/.test(vista({ fase: f }))) ||
+      ["in_arrivo"].some((f) => /<a\b/.test(vista(f))) ||
         /<a\b/.test(mostrata) ||
-        /<a\b/.test(errore),
+        /<a\b/.test(errore) ||
+        /<a\b/.test(carico),
     );
 
     /* ── La bolla intera: entrata e uscita, e le altre righe com'erano ── */
@@ -641,10 +755,10 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
     );
 
     /* ═══ Il sorgente ═══ */
-    gruppo("PONTE · IMMAGINI · IL SORGENTE (T7)");
+    gruppo("PONTE · IMMAGINI · IL SORGENTE (T7, aggiornato da T8)");
     const sorgente = (p) => senzaCommenti(readFileSync(join(radice, p), "utf8"));
     const hook = sorgente("src/crm/chatwa/usaMediaPonte.ts");
-    const bs = sorgente("src/crm/chatwa/BollaMessaggio.tsx");
+    const vp = sorgente("src/crm/chatwa/MediaPonte.tsx");
     c(
       "l'indirizzo firmato non entra in uno stato React (nessun setState con `url`)",
       false,
@@ -661,27 +775,24 @@ export { fotoDelPonte, caricaFoto, leggiRiga, idFoto, FRASE_NON_PIU, FRASE_RIPRO
       [/new AbortController\(\)/.test(hook), /\.abort\(\)/.test(hook)],
     );
     c(
-      "la bolla non usa mai un indirizzo firmato in `src` o `href` (solo `stato.src`)",
+      "la foto usa solo `stato.src` (la `blob:`) come sorgente, mai un indirizzo firmato",
       [false, true],
-      [
-        /(src|href)=\{url\}/.test(bs.slice(bs.indexOf("VistaFotoPonte"))),
-        /src=\{stato\.src\}/.test(bs),
-      ],
+      [/(src|href)=\{url\}/.test(vp), /src=\{stato\.src\}/.test(vp)],
     );
     c(
       "il gancio legge la tabella con la sessione dell'utente (client del browser), non una chiave",
       [true, false],
-      [/from\("ponte_wa_media"\)/.test(hook), /service_role|supabaseAdmin/.test(hook)],
+      [/tabella\("ponte_wa_media"\)/.test(hook), /service_role|supabaseAdmin/.test(hook)],
     );
     c(
-      "nessun log, nessun emoji nei due file (a parte il segnaposto del ponte)",
+      "nessun log, nessun emoji nei file (a parte i segnaposto del ponte)",
       [false, false],
-      [/console\./.test(hook + bs), EMOJI.test(hook.replace(/📷/g, ""))],
+      [/console\./.test(hook + vp), EMOJI.test((hook + vp).replace(/[📷🎤🎥📎]/gu, ""))],
     );
     c(
       "l'aggiornamento della riga è solo per i messaggi recenti e si ferma quando è pronta",
       [true, true],
-      [/RECENTE_MS/.test(hook), /finita/.test(hook)],
+      [/RECENTE_MS/.test(hook), /pronta/.test(hook.slice(hook.indexOf("RECENTE_MS")))],
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
