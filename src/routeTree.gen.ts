@@ -129,6 +129,8 @@ import { Route as ApiPublicProvaAcquistoRouteImport } from './routes/api.public.
 import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricing'
 import { Route as ApiPublicPonteWhatsappRouteImport } from './routes/api.public.ponte-whatsapp'
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
+import { Route as ApiPublicMeetlySfuRouteImport } from './routes/api.public.meetly-sfu'
+import { Route as ApiPublicMeetlyDiagnosiRouteImport } from './routes/api.public.meetly-diagnosi'
 import { Route as ApiPublicManychatRispostaRouteImport } from './routes/api.public.manychat-risposta'
 import { Route as ApiPublicManychatPrenotaRouteImport } from './routes/api.public.manychat-prenota'
 import { Route as ApiPublicLinkOspiteRouteImport } from './routes/api.public.link-ospite'
@@ -828,6 +830,16 @@ const ApiPublicMetaLeadgenWebhookRoute =
     path: '/api/public/meta-leadgen-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMeetlySfuRoute = ApiPublicMeetlySfuRouteImport.update({
+  id: '/api/public/meetly-sfu',
+  path: '/api/public/meetly-sfu',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMeetlyDiagnosiRoute = ApiPublicMeetlyDiagnosiRouteImport.update({
+  id: '/api/public/meetly-diagnosi',
+  path: '/api/public/meetly-diagnosi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicManychatRispostaRoute =
   ApiPublicManychatRispostaRouteImport.update({
     id: '/api/public/manychat-risposta',
@@ -1498,6 +1510,8 @@ export interface FileRoutesByFullPath {
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
+  '/api/public/meetly-diagnosi': typeof ApiPublicMeetlyDiagnosiRoute
+  '/api/public/meetly-sfu': typeof ApiPublicMeetlySfuRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1708,6 +1722,8 @@ export interface FileRoutesByTo {
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
+  '/api/public/meetly-diagnosi': typeof ApiPublicMeetlyDiagnosiRoute
+  '/api/public/meetly-sfu': typeof ApiPublicMeetlySfuRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1924,6 +1940,8 @@ export interface FileRoutesById {
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
+  '/api/public/meetly-diagnosi': typeof ApiPublicMeetlyDiagnosiRoute
+  '/api/public/meetly-sfu': typeof ApiPublicMeetlySfuRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -2141,6 +2159,8 @@ export interface FileRouteTypes {
     | '/api/public/link-ospite'
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
+    | '/api/public/meetly-diagnosi'
+    | '/api/public/meetly-sfu'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
@@ -2351,6 +2371,8 @@ export interface FileRouteTypes {
     | '/api/public/link-ospite'
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
+    | '/api/public/meetly-diagnosi'
+    | '/api/public/meetly-sfu'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
@@ -2566,6 +2588,8 @@ export interface FileRouteTypes {
     | '/api/public/link-ospite'
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
+    | '/api/public/meetly-diagnosi'
+    | '/api/public/meetly-sfu'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
@@ -2740,6 +2764,8 @@ export interface RootRouteChildren {
   ApiPublicLinkOspiteRoute: typeof ApiPublicLinkOspiteRoute
   ApiPublicManychatPrenotaRoute: typeof ApiPublicManychatPrenotaRoute
   ApiPublicManychatRispostaRoute: typeof ApiPublicManychatRispostaRoute
+  ApiPublicMeetlyDiagnosiRoute: typeof ApiPublicMeetlyDiagnosiRoute
+  ApiPublicMeetlySfuRoute: typeof ApiPublicMeetlySfuRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
   ApiPublicPonteWhatsappRoute: typeof ApiPublicPonteWhatsappRoute
   ApiPublicPricingRoute: typeof ApiPublicPricingRoute
@@ -3599,6 +3625,20 @@ declare module '@tanstack/react-router' {
       path: '/api/public/meta-leadgen-webhook'
       fullPath: '/api/public/meta-leadgen-webhook'
       preLoaderRoute: typeof ApiPublicMetaLeadgenWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/meetly-sfu': {
+      id: '/api/public/meetly-sfu'
+      path: '/api/public/meetly-sfu'
+      fullPath: '/api/public/meetly-sfu'
+      preLoaderRoute: typeof ApiPublicMeetlySfuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/meetly-diagnosi': {
+      id: '/api/public/meetly-diagnosi'
+      path: '/api/public/meetly-diagnosi'
+      fullPath: '/api/public/meetly-diagnosi'
+      preLoaderRoute: typeof ApiPublicMeetlyDiagnosiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/manychat-risposta': {
@@ -4552,6 +4592,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicLinkOspiteRoute: ApiPublicLinkOspiteRoute,
   ApiPublicManychatPrenotaRoute: ApiPublicManychatPrenotaRoute,
   ApiPublicManychatRispostaRoute: ApiPublicManychatRispostaRoute,
+  ApiPublicMeetlyDiagnosiRoute: ApiPublicMeetlyDiagnosiRoute,
+  ApiPublicMeetlySfuRoute: ApiPublicMeetlySfuRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,
   ApiPublicPonteWhatsappRoute: ApiPublicPonteWhatsappRoute,
   ApiPublicPricingRoute: ApiPublicPricingRoute,

@@ -60,6 +60,7 @@ import {
   ETICHETTA_TIPO,
   MODELLI_FLUSSO,
   MODELLI_FLUSSO_SEQUENZE,
+  MODELLI_FLUSSO_UTILITY_311026,
   PAROLA_ESITO,
   TETTO_LEAD_NUOVI,
   allarmeGiro,
@@ -513,11 +514,13 @@ export function ManychatPannello() {
   // ── flussi ─────────────────────────────────────────────────────────────
   const modelli = useMemo(() => {
     const sequenze = config?.sequenze ? MODELLI_FLUSSO_SEQUENZE : [];
-    const noti = new Set([...MODELLI_FLUSSO, ...sequenze].map((m) => m.modello));
+    const noti = new Set(
+      [...MODELLI_FLUSSO, ...sequenze, ...MODELLI_FLUSSO_UTILITY_311026].map((m) => m.modello),
+    );
     const extra = Object.keys(config?.flussi ?? {})
       .filter((m) => !noti.has(m))
       .map((modello) => ({ modello, etichetta: modello }));
-    return [...MODELLI_FLUSSO, ...sequenze, ...extra];
+    return [...MODELLI_FLUSSO, ...sequenze, ...MODELLI_FLUSSO_UTILITY_311026, ...extra];
   }, [config?.flussi, config?.sequenze]);
   const flussiLetti = modelli.map((m) => ({
     modello: m.modello,
@@ -1076,6 +1079,11 @@ export function ManychatPannello() {
                       {config.sequenze && i === MODELLI_FLUSSO.length && (
                         <p className="mb-2 mt-3 text-[12px] font-semibold text-slate-900">
                           Sequenze e messaggi per stato
+                        </p>
+                      )}
+                      {i === MODELLI_FLUSSO.length + (config.sequenze ? MODELLI_FLUSSO_SEQUENZE.length : 0) && (
+                        <p className="mb-2 mt-3 text-[12px] font-semibold text-slate-900">
+                          Modelli nuovi (_311026), da collegare prima di accenderli
                         </p>
                       )}
                       <label
