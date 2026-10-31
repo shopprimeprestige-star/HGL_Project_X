@@ -156,6 +156,11 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
   c("se ne trova più d'uno ne tiene uno solo", 1, F.contaAccesi(F.leggiFiltri(JSON.stringify({ ricontatti: true, coda: "da-chiamare", stelle: true }), null)));
   c("filtriValidi mette «io» senza toccare il resto", ["io", "anna", true], ((f) => [f.io, f.consulente, f.ricontatti])(F.filtriValidi(acceso, new Set(["anna"]), "io")));
   c("filtriValidi senza io lo lascia vuoto", "", F.filtriValidi(con({}), new Set(), undefined).io);
+  c(
+    "in Ricontatti il consulente scelto prima non conta e non ha la sua etichetta",
+    [1, ["Ricontatti"]],
+    [F.contaAccesi(acceso), F.etichetteAccese(acceso, (x) => x).map((e) => e.etichetta)],
+  );
   c("Azzera spegne anche Ricontatti", 0, F.contaAccesi(F.FILTRI_VUOTI));
 
   gruppo("RICONTATTI: LA PASTIGLIA NELLA RIGA");

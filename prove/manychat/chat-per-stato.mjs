@@ -111,7 +111,7 @@ export function proveChatPerStato(mod, { c, gruppo, radice }) {
   const pannello = readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8");
   //  31/10/2026 (pannello più semplice): gli altri stati stanno in «Altri filtri», chiuso, in fondo al pannello.
   c("gli altri stati stanno in «Altri filtri», dopo il consulente", true,
-    pannello.indexOf("Altri filtri") > pannello.indexOf('titolo="Consulente"') && /voceDelloStato\(s\.stato\)/.test(pannello));
+    pannello.indexOf('id="filtri-altri"') > pannello.indexOf('titolo="Consulente"') && /voceDelloStato\(s\.stato\)/.test(pannello));
   c("l'elenco degli stati si calcola sulle chat del solo consulente (31/10/2026: filtri esclusivi) e usa gli stessi conti", true,
     /contaPerStato\(\s*api\.chats\.filter\(\(c\) =>\s*passaFiltri\(\s*c,\s*\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \},\s*stelleDi,?\s*\),?\s*\),?\s*\)/.test(elenco) && /conta\("fase", `stato:\$\{v\.stato\}`\)/.test(elenco));
   c("lo stato scelto resta visibile anche se si svuota (il filtro non resta acceso senza vedersi)", true, /vociConScelto\(stati\.voci, filtri\.fase \?\? ""\)/.test(elenco));

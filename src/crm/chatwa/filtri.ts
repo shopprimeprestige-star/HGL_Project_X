@@ -327,7 +327,8 @@ export function togli(f: FiltriChat, campo: CampoFiltro): FiltriChat {
 /** Quanti filtri sono accesi (il numero sul tasto «Filtri»). */
 export const contaAccesi = (f: FiltriChat): number =>
   (Object.keys(FILTRI_VUOTI) as (keyof FiltriChat)[]).filter(
-    (k) => k !== "io" && f[k] !== FILTRI_VUOTI[k],
+    //  In «Ricontatti» il menu del consulente non conta: vale solo chi è dentro (vedi passaFiltri).
+    (k) => k !== "io" && !(k === "consulente" && f.ricontatti) && f[k] !== FILTRI_VUOTI[k],
   ).length;
 
 /** Quante chat vedresti se toccassi `campo = valore`: la voce da sola (sostituisce quella accesa) più
@@ -382,7 +383,8 @@ export function etichetteAccese(
   if (f.finestra) out.push({ campo: "finestra", etichetta: nomeDi("finestra", f.finestra) });
   if (f.acconto) out.push({ campo: "acconto", etichetta: "Acconto versato" });
   if (f.tipo) out.push({ campo: "tipo", etichetta: nomeDi("tipo", f.tipo) });
-  if (f.consulente) out.push({ campo: "consulente", etichetta: nomeConsulente(f.consulente) });
+  if (f.consulente && !f.ricontatti)
+    out.push({ campo: "consulente", etichetta: nomeConsulente(f.consulente) });
   return out;
 }
 

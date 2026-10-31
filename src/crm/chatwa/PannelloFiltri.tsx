@@ -343,11 +343,11 @@ function ContenutoPannello({
               //  In «Ricontatti» vale solo chi è dentro: il menu non si somma, e lo si dice.
               <p className="t-nota text-muted-foreground">In «Ricontatti» vedi solo i tuoi lead.</p>
             ) : (
-              <label className="flex flex-col gap-1">
-                <span className="sr-only">Consulente</span>
+              <div className="flex flex-col gap-1">
                 {/*  Nativa: sul telefono apre la rotella di sistema, la più comoda col pollice.
                     16 px dove si tocca, altrimenti iOS ingrandisce la pagina. */}
                 <select
+                  aria-labelledby="filtri-consulente"
                   value={filtri.consulente}
                   onChange={(e) => onCambia({ ...filtri, consulente: e.target.value })}
                   className={cn(
@@ -364,7 +364,7 @@ function ContenutoPannello({
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
             )}
           </Gruppo>
         )}
