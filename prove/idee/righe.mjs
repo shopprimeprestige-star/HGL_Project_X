@@ -370,7 +370,7 @@ export function proveIdeeRighe(mod, { c, gruppo, radice }) {
   c(
     "link fra poco: il link c'è",
     true,
-    fra.includes("Il link è questo: https://meet.example/abc") && fra.includes("alle 15:00"),
+    fra.includes("Per collegarsi:\nhttps://meet.example/abc\n") && fra.includes("alle 15:00"),
   );
   c(
     "senza nome da nessuna parte il testo non comincia con la virgola (revisione 30/10)",

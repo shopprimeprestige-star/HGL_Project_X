@@ -63,6 +63,7 @@ import {
 //  due posti è esattamente ciò che qui si è deciso di non avere.
 import { etichettaMestieri, mestieriDi } from "./kpi-setter";
 import { buildWhatsAppLink } from "./whatsapp";
+import { testoWa } from "./chatwa/testoWa";
 import { toast } from "sonner";
 import {
   CHECKLIST_DEFAULT_BY_TYPE,
@@ -1614,13 +1615,22 @@ export function messaggioInstallazione(l: Lead): string {
   const quando = formatDate(inst?.dataInstallazione).toLowerCase();
   const ora = inst?.orarioInstallazione ? ` alle ${inst.orarioInstallazione}` : "";
   const saldo = saldoAllaConsegna(l);
-  return [
-    `Buongiorno ${l.data.nome}, le confermiamo l'installazione di ${quando}${ora}.`,
-    saldo > 0 ? `Al termine dell'intervento è previsto il saldo di ${eur(saldo)}.` : "",
+  //  A blocchi separati da una riga vuota (forma in chatwa/testoWa.ts, 31/10/2026).
+  return testoWa([
+    `Buongiorno ${l.data.nome},`,
+    `Le confermiamo l'installazione di ${quando}${ora}.`,
+    saldo > 0 && `Al termine dell'intervento è previsto il saldo di ${eur(saldo)}.`,
     "Restiamo a disposizione per qualsiasi necessità.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ]);
+}
+
+/** Senza la data della posa si chiede la disponibilità. */
+export function messaggioPosaSenzaData(l: Lead): string {
+  return testoWa([
+    `Buongiorno ${l.data.nome},`,
+    "Possiamo fissare la data di installazione.",
+    "Mi indica i giorni in cui è disponibile?",
+  ]);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3170,9 +3180,7 @@ export function scriviSuWhatsApp(lead: Lead) {
   window.open(
     buildWhatsAppLink(
       telefono,
-      senzaData
-        ? `Buongiorno ${lead.data.nome}, possiamo fissare la data di installazione. Mi indica i giorni in cui è disponibile?`
-        : messaggioInstallazione(lead),
+      senzaData ? messaggioPosaSenzaData(lead) : messaggioInstallazione(lead),
     ),
     "_blank",
     "noreferrer",
