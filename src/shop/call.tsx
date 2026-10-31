@@ -214,6 +214,19 @@ import {
   Minimize2,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { creaTrasportoSfu } from "@/shop/meetly-sfu";
+import {
+  LETTURA_INTERRUTTORE_MS,
+  adottaTrasporto,
+  dopoRipiegoLocale,
+  nuovoStatoAdozione,
+  sceltaTrasporto,
+  tettoSfu,
+  trasportoDaConfig,
+  type StatoAdozione,
+  type Trasporto,
+  type TrasportoSfu,
+} from "@/shop/meetly-sfu-regole";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -645,6 +658,28 @@ const lastSeen = new Map<string, number>();
 const firstSeen = new Map<string, number>();
 /** pid → da quando la RTCPeerConnection è in stato failed/closed/disconnected. */
 const badSince = new Map<string, number>();
+/*  ── COME PASSANO I MEDIA: MESH (DI SERIE) O SFU DI CLOUDFLARE ───────────────
+ *  Commessa Meetly SFU (PIANO.md §1.3). Con `sfu` i partecipanti in `peers` sono
+ *  ADATTATORI che si comportano da RTCPeerConnection (un `connectionState` che
+ *  dice «la persona c'è», niente offer/answer/ice): tutto il resto del file
+ *  continua a parlare con `peers` come sempre. Ogni innesto sta dietro
+ *  `trasportoSfu()`, falso finché il consulente non dichiara `sfu`.
+ *  ⚠️ Un solo verso: da mesh a SFU solo all'ingresso, da SFU a mesh quando serve,
+ *   mai il ritorno nella stessa chiamata (`statoAdozione.ripiegoFatto`). */
+let trasporto: Trasporto = "mesh";
+let sfu: TrasportoSfu | null = null;
+const trasportoSfu = () => trasporto === "sfu" && !!sfu;
+/** Cosa l'ospite sa del trasporto (regole in `meetly-sfu-regole`, note N1 e N3). */
+let statoAdozione: StatoAdozione = nuovoStatoAdozione();
+/** Il consulente ha già deciso il trasporto di questa chiamata: non si rilegge a chiamata avviata. */
+let trasportoDeciso = false;
+/** Ospiti che hanno già detto «per me l'SFU non va»: una volta per pid. */
+const trasportoFallitoDa = new Set<string>();
+/** Cosa DICHIARA il consulente nell'`hello` e nella `callstate`: «sfu» se è in SFU,
+ *  «mesh» solo dopo un ripiego, niente altrimenti (con l'interruttore spento i
+ *  messaggi sono quelli di sempre). L'ospite non dichiara mai. */
+const trDichiarato = () =>
+  S.role !== "host" ? null : trasportoSfu() ? "sfu" : statoAdozione.ripiegoFatto ? "mesh" : null;
 let chan: ReturnType<typeof supabase.channel> | null = null;
 let helloTimer: ReturnType<typeof setInterval> | null = null;
 let gcTimer: ReturnType<typeof setInterval> | null = null;
@@ -875,6 +910,11 @@ export function debugSnapshot(): string {
     `camera=${st.camOn} microfono=${st.micOn} condivisione=${st.sharing} focus=${st.focusPid} contentCam=${st.contentCam}`,
     `connessioni=${peers.size} flussiRemoti=${remoteStreams.size} partecipanti=${st.roster.length} inAttesa=${st.knocks.length}`,
     `puòTrasmettereStato=${canBroadcastState()} indirizzo=${typeof location !== "undefined" ? location.pathname + location.search : "?"}`,
+    `trasporto=${trasporto}${
+      sfu
+        ? ` pub=${sfu.stato().pub} sub=${sfu.stato().sub} annunciati=${sfu.stato().annunciati} ricostruzioni=${sfu.stato().ricostruzioni}`
+        : ""
+    }`,
   ].join("\n");
 }
 
@@ -938,6 +978,7 @@ const broadcastState = () => {
     contentCam: S.contentCam,
     sessionLive: S.sessionLive,
     ...(diciloIo ? { mode: S.mode, focusPid: S.focusPid } : {}),
+    ...(trDichiarato() ? { tr: trDichiarato() } : {}),
   });
 };
 
@@ -959,6 +1000,7 @@ export function setSessionLive(v: boolean) {
     //  Stessa regola di `broadcastState`: il modo lo ripete solo chi l'ha
     //  scelto ED è dentro la chiamata.
     ...(modoScelto && S.active ? { mode: S.mode, focusPid: S.focusPid } : {}),
+    ...(trDichiarato() ? { tr: trDichiarato() } : {}),
   });
   // sessione legata a QUESTA chiamata: alla chiusura il codice viene invalidato
   const p = readStoredPresenter();
@@ -1077,6 +1119,9 @@ export function kickGuest(pid: string, why: "removed" | "blocked" = "removed") {
   if (S.role !== "host") return;
   const dev = deviceOf.get(pid) || "";
   send("kick", { to: pid, dev, why });
+  //  ⚠️ In SFU il suo flusso non cade da solo chiudendo un pc: lo si ferma sul server.
+  //   `blockGuest` passa da qui, quindi l'espulsione parte una volta sola.
+  sfu?.espelli(pid);
   removePeer(pid, "kick");
 }
 /** Kick + blocco del DISPOSITIVO: con lo stesso link non potrà più rientrare. */
@@ -1154,6 +1199,13 @@ function sendHello(req = false) {
     vp: myViewport(),
     persona: miaPersonaDi(S.sessionId) || gettoneInMemoria(),
     suo: restaSulMioPreventivo(),
+    ...(S.role !== "host" ? { capSfu: true } : {}),
+    ...(trDichiarato() === "sfu"
+      ? { tr: "sfu", capSfu: true }
+      : trDichiarato() === "mesh"
+        ? { tr: "mesh" }
+        : {}),
+    ...(sfu?.annuncio() ? { sfu: sfu.annuncio() } : {}),
   });
 }
 
@@ -1198,6 +1250,7 @@ function diag(s: string) {
 
 // ── candidati ICE bufferizzati PER-PEER finché non c'è remoteDescription ───
 async function addIce(pid: string, c: RTCIceCandidateInit) {
+  if (trasportoSfu()) return; // l'adattatore ha un `remoteDescription` finto: addIceCandidate lancerebbe
   const p = peers.get(pid);
   if (p && p.remoteDescription && p.remoteDescription.type) {
     try {
@@ -1483,7 +1536,9 @@ function tuneVideoSenders() {
   /*  ⚠️ Il listino della CAMERA è più basso di quello dello SCHERMO a parità
       di risoluzione: vedi `listinoVideo`. È ciò che permette a due consulenti
       di stare entrambi su «Alta» sulla stessa linea. */
-  const listino = listinoVideo(q.br, S.sharing);
+  //  In SFU il flusso in uscita è uno solo e non si sa come Cloudflare tratti un abbonato lento:
+  //  tetto prudente finché non lo si prova (vale anche per lo schermo, limite dichiarato).
+  const listino = Math.min(listinoVideo(q.br, S.sharing), trasportoSfu() ? tettoSfu() : Infinity);
   for (const [pid, pc] of peers) {
     const sender = pc.getSenders().find((s) => s.track?.kind === "video");
     if (!sender) continue;
@@ -1554,14 +1609,242 @@ function tuneVideoSenders() {
   }
 }
 
+/* ── TRASPORTO SFU: DECISIONE, PASSAGGIO, RIPIEGO ───────────────────────────
+ *  Tutto ciò che segue gira SOLO se il consulente ha dichiarato `sfu` (di serie non
+ *  succede): con «mesh» nessuna di queste funzioni cambia una riga di quello che
+ *  la chiamata fa oggi. Le regole pure (scelta, accordo, soglie) stanno in
+ *  `shop/meetly-sfu-regole`; il lavoro di rete in `shop/meetly-sfu`. */
+/** Il segno di ripiego vale mezz'ora: poi si riprova (regola 3 di `sceltaTrasporto`). */
+const SEGNO_RIPIEGO_MS = 30 * 60_000;
+/** Dopo «trasportofallito» di un ospite si aspetta tanto, poi si guarda se si è collegato.
+ *  shortcut: cinque secondi scelti, non misurati; si cambia se il collaudo mostra ripieghi inutili. */
+const CONFERMA_OSPITE_MS = 5_000;
+/** Quanto si aspetta il «va bene» del server alla dichiarazione, prima di restare in mesh.
+ *  shortcut: tre secondi, non misurati; la dichiarazione ritarda il primo hello solo in SFU. */
+const DICHIARA_MAX_MS = 3_000;
+
+/** Una riga nel diario della chiamata (solo il consulente ha la sessione per scriverla).
+ *  Mai nomi, codici stanza o SDP: solo trasporto e motivo. */
+function diarioTrasporto(voce: string) {
+  if (isViewer()) return;
+  try {
+    void fetch("/api/presenter/diario", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ diario: "chiamata", voce }),
+    }).catch(() => {});
+  } catch {
+    /* mai in mezzo a una consulenza */
+  }
+}
+
+/** Il parametro `?trasporto=` del link del CONSULENTE, ricordato per questa scheda. */
+function paramTrasporto(): string | null {
+  try {
+    const v = new URLSearchParams(window.location.search).get("trasporto");
+    if (v) sessionStorage.setItem("hg_trparam", v);
+    return v || sessionStorage.getItem("hg_trparam");
+  } catch {
+    return null;
+  }
+}
+/** Questa scheda ha già ripiegato su mesh da meno di mezz'ora? (`mesh@<istante>`) */
+function segnoRipiegoValido(codice: string): boolean {
+  try {
+    const v = sessionStorage.getItem(`hg_tr_${codice}`) || "";
+    return Date.now() - Number(v.split("@")[1]) < SEGNO_RIPIEGO_MS;
+  } catch {
+    return false;
+  }
+}
+
+type LetturaInterruttore = { interruttore: Trasporto | null; pronto: boolean };
+/** Legge l'interruttore (`GET ?stato=1`), una volta, con un tetto di 1,5 s. Non lancia mai:
+ *  senza risposta, o senza i segreti Meetly (`pronto` falso), si resta in mesh. */
+function leggiInterruttore(): Promise<LetturaInterruttore> {
+  const stop = new AbortController();
+  const t = setTimeout(() => stop.abort(), LETTURA_INTERRUTTORE_MS);
+  return fetch("/api/public/meetly-sfu?stato=1", { cache: "no-store", signal: stop.signal })
+    .then((r) => (r.ok ? r.json() : null))
+    .then(
+      (j): LetturaInterruttore => ({
+        interruttore: trasportoDaConfig(j),
+        pronto: j?.pronto === true,
+      }),
+    )
+    .catch((): LetturaInterruttore => ({ interruttore: null, pronto: false }))
+    .finally(() => clearTimeout(t));
+}
+
+/** Il consulente dichiara la stanza «sfu» PRIMA di annunciarlo: così l'ospite che arriva per primo
+ *  non trova una stanza non dichiarata. Vero solo se il server ha detto di sì. */
+async function dichiaraSfu(codice: string, forzato: boolean): Promise<boolean> {
+  const stop = new AbortController();
+  const t = setTimeout(() => stop.abort(), DICHIARA_MAX_MS);
+  try {
+    const r = await fetch("/api/public/meetly-sfu", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ azione: "dichiara", codice, forzato }),
+      signal: stop.signal,
+    });
+    const j = await r.json().catch(() => null);
+    return r.ok && j?.ok === true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** CONSULENTE — decide il trasporto, una volta, quando i media sono pronti. In mesh non cambia
+ *  niente (a parte la riga nel diario). */
+async function decidiTrasporto(lettura: Promise<LetturaInterruttore>) {
+  if (S.role !== "host" || trasportoDeciso) return;
+  const { interruttore, pronto } = await lettura;
+  if (!localStream || trasportoDeciso) return; // chiamata chiusa, o decisa da un altro giro, mentre si aspettava
+  trasportoDeciso = true;
+  const codice = String(S.sessionId || "");
+  const sc = sceltaTrasporto({
+    ruolo: "consulente",
+    paramLink: paramTrasporto(),
+    segnoRipiego: segnoRipiegoValido(codice),
+    interruttore,
+    pronto,
+  });
+  if (sc.cancellaSegno) {
+    try {
+      sessionStorage.removeItem(`hg_tr_${codice}`);
+    } catch {
+      /* */
+    }
+  }
+  if (sc.trasporto === "sfu") {
+    if (!(await dichiaraSfu(codice, sc.motivo === "link-sfu"))) {
+      diarioTrasporto("trasporto=mesh motivo=non-dichiarato");
+      return;
+    }
+    if (!localStream) return; // chiusa durante la dichiarazione: niente da avviare
+    passaASfu();
+  }
+  diarioTrasporto(`trasporto=${trasporto} motivo=${sc.motivo}`);
+}
+
+/** Chiude tutti i pc in `peers` SENZA toccare il roster: le persone restano dov'erano,
+ *  cambia solo il modo di raggiungerle. */
+function chiudiPeerSenzaRoster() {
+  for (const [pid, p] of peers) {
+    try {
+      p.close();
+    } catch {
+      /* */
+    }
+    annullaRipresa(pid);
+  }
+  peers.clear();
+  remoteStreams.clear();
+  pendingIce.clear();
+  badSince.clear();
+  lastIceRestart.clear();
+  set({ connected: false });
+  emitStreams();
+}
+
+/** Passa a SFU (consulente: dopo la dichiarazione; ospite: `tr:"sfu"` del consulente). */
+function passaASfu() {
+  if (sfu) return;
+  let mio: TrasportoSfu;
+  try {
+    mio = creaTrasportoSfu({
+      codice: String(S.sessionId || ""),
+      pid: S.myPid,
+      ruolo: S.role === "host" ? "consulente" : "ospite",
+      credenziali: () => ({ dev: myDeviceId(), segreto: mioSegreto() }),
+      ice: () => cachedIce,
+      log: (m) => console.log("[SFU]", m),
+    });
+  } catch (e) {
+    console.warn("[SFU] modulo non disponibile: si resta in mesh", e);
+    statoAdozione = dopoRipiegoLocale(statoAdozione);
+    return;
+  }
+  chiudiPeerSenzaRoster(); // eventuali pc nati prima della decisione (l'ospite col pid minore offre subito)
+  sfu = mio;
+  trasporto = "sfu";
+  mio.onAnnuncio(() => sendHello()); // appena pubblicato, l'altro deve saperlo
+  mio.onFallito((m) => {
+    if (sfu !== mio) return; // un modulo già sostituito non parla più
+    const eOspite = isViewer();
+    ripiegaSuMesh(m);
+    if (eOspite) send("trasportofallito", { from: S.myPid, motivo: m });
+  });
+  if (localStream) mio.avvia(localStream);
+  S.roster.forEach((r) => maybeInitiate(r.pid));
+}
+
+/** Da SFU a mesh, a senso unico: chiude l'SFU (non il roster), si ricorda del ripiego e riparte
+ *  dalla riconnessione di sempre. Chiamarla due volte non fa danni. */
+function ripiegaSuMesh(motivo: string) {
+  if (trasporto !== "sfu" && !sfu) return;
+  chiudiPeerSenzaRoster();
+  try {
+    sfu?.chiudiTutto();
+  } catch {
+    /* */
+  }
+  sfu = null;
+  trasporto = "mesh";
+  statoAdozione = dopoRipiegoLocale(statoAdozione);
+  console.warn("[SFU] ripiego su mesh:", motivo);
+  if (!isViewer()) {
+    try {
+      sessionStorage.setItem(`hg_tr_${S.sessionId}`, `mesh@${Date.now()}`);
+    } catch {
+      /* */
+    }
+    diarioTrasporto(`trasporto=mesh motivo=${motivo}`);
+  }
+  sendHello(true);
+  S.roster.forEach((r) => maybeInitiate(r.pid));
+}
+
+/** OSPITE — cosa fare dell'`hello` di un consulente (le regole sono in `adottaTrasporto`). */
+function adottaTrasportoDelHost(pid: string, payload: any) {
+  const e = adottaTrasporto(
+    statoAdozione,
+    { pid, tr: payload?.tr },
+    { adesso: Date.now(), nessunPcConnesso: !anyConnected() },
+  );
+  statoAdozione = e.stato;
+  if (e.azione === "sfu") passaASfu();
+  else if (e.azione === "mesh") ripiegaSuMesh(e.motivo);
+}
+
+/** Fine chiamata o nuova sessione: l'SFU si chiude e si torna al trasporto di serie. */
+function azzeraTrasporto() {
+  try {
+    sfu?.chiudiTutto();
+  } catch {
+    /* */
+  }
+  sfu = null;
+  trasporto = "mesh";
+  statoAdozione = nuovoStatoAdozione();
+  trasportoDeciso = false;
+  trasportoFallitoDa.clear();
+}
+
 // SINCRONO (usa cachedIce): garantisce peers.set immediato → niente doppioni.
 function makePeer(pid: string): RTCPeerConnection {
   const existing = peers.get(pid);
   if (existing) return existing; // mai due connessioni per lo stesso pid
   console.log("[PEER] create", pid);
-  const p = new RTCPeerConnection({ iceServers: cachedIce });
+  const p = trasportoSfu() ? sfu!.nuovoPeer(pid) : new RTCPeerConnection({ iceServers: cachedIce });
   peers.set(pid, p); // set PRIMA di qualsiasi await del chiamante (anti-glare/duplicati)
-  if (localStream) localStream.getTracks().forEach((t) => p.addTrack(t, localStream!));
+  if (localStream && !trasportoSfu())
+    localStream.getTracks().forEach((t) => p.addTrack(t, localStream!));
   // parametri encoder appena il sender esiste (e di nuovo a connessione stabilita)
   try {
     tuneVideoSenders();
@@ -1698,6 +1981,10 @@ function chiediRipresa(pid: string, attesa: number, ancheSeConnessa = false) {
         //   sonda). Lì è proprio il momento di muoversi, ed è chi chiama a dire
         //   che sa quello che sta facendo.
         if (st === "connected" && !ancheSeConnessa) return;
+        if (trasportoSfu()) {
+          sfu!.riprova(pid, ancheSeConnessa);
+          return;
+        }
         //  Sul lato che non può offrire si passa da `reoffer(..., true)` dell'altro:
         //  il messaggio «riprova» supera la guardia dello stato connesso.
         if (S.myPid < pid) void reoffer(pid, ancheSeConnessa);
@@ -1749,6 +2036,12 @@ const silenzioDa = new Map<string, { byte: number; da: number }>();
 
 // ri-offerta con ICE-restart quando la connessione fallisce (solo l'offerer deterministico)
 async function reoffer(pid: string, chiestaDalPeer = false) {
+  //  ⚠️ `gcRoster` lo chiama dritto, senza passare da `chiediRipresa`: in SFU non c'è nessuna
+  //   offerta da rifare, la ripresa è una ricostruzione che decide l'adattatore.
+  if (trasportoSfu()) {
+    sfu!.riprova(pid, chiestaDalPeer);
+    return;
+  }
   const p = peers.get(pid);
   if (!p) return;
   const cs = p.connectionState;
@@ -1810,6 +2103,13 @@ async function reoffer(pid: string, chiestaDalPeer = false) {
 
 // regola deterministica anti-glare: offre solo il pid lessicograficamente minore
 async function maybeInitiate(pid: string) {
+  if (trasportoSfu()) {
+    // in SFU non offre nessuno: basta il posto in `peers` e che le tracce siano pubblicate
+    if (!localStream) return;
+    makePeer(pid);
+    sfu!.sincronizza();
+    return;
+  }
   if (!localStream || !(S.myPid < pid)) return;
   let p = peers.get(pid);
   if (!p) {
@@ -2064,6 +2364,7 @@ function resetRoster() {
   lastIceRestart.clear();
   ripresaTimer.forEach((t) => clearTimeout(t));
   ripresaTimer.clear();
+  azzeraTrasporto();
   set({ roster: [], connected: false, focusPid: null, activeSpeakerPid: null });
   emitStreams();
 }
@@ -2347,6 +2648,9 @@ function scordaDispositivi(quali: Tentativo["scorda"]) {
 }
 
 async function openMedia(): Promise<MediaStream> {
+  //  ⚠️ La lettura dell'interruttore parte QUI, in parallelo a permessi, camera e `prefetchIce`,
+  //   e NON si aspetta: la decisione serve solo prima del primo hello con i media (in fondo).
+  const lettura = S.role === "host" ? leggiInterruttore() : null;
   await prefetchIce(); // popola cachedIce PRIMA di creare qualsiasi peer (makePeer resta sincrono)
   // RISOLUZIONE RICHIESTA ESPLICITAMENTE. Con `video: true` il browser sceglie il
   // default della camera (spesso 640×480, a volte 320×240): quella è la
@@ -2406,6 +2710,10 @@ async function openMedia(): Promise<MediaStream> {
   // ora che ho i media, mi collego a chi è già presente + mi riannuncio
   // (con richiesta di risposta: se l'altro lato mi conosce già devo comunque
   //  ricevere il suo hello, altrimenti resto senza presentatore in lista)
+  //  Consulente: si decide il trasporto (al massimo 1,5 s, di solito la lettura è già pronta).
+  //  Ospite già passato a SFU prima dei media: l'invio parte adesso.
+  if (lettura) await decidiTrasporto(lettura);
+  else sfu?.avvia(s);
   sendHello(true);
   S.roster.forEach((r) => maybeInitiate(r.pid));
   return s;
@@ -5376,6 +5684,8 @@ function attachChannel(sessionId: string) {
     // Una scheda presentatore NON in diretta non partecipa affatto alla presenza:
     // non elenca ospiti e soprattutto non risponde (era la sorgente dei fantasmi).
     if (!isViewer() && !canBroadcastState()) return;
+    // il trasporto lo decide il consulente: l'ospite si allinea PRIMA di aprire qualsiasi pc
+    if (isViewer() && role === "host") adottaTrasportoDelHost(pid, payload);
     // MODERAZIONE: dispositivo bloccato → kick immediato, nessun ingresso
     const dev = String(payload?.dev || "");
     if (dev) deviceOf.set(pid, dev);
@@ -5518,6 +5828,12 @@ function attachChannel(sessionId: string) {
       broadcastState();
       broadcastRoster();
     } // il guest riceve subito mode/primary/contentCam + lista autorevole
+    if (!isViewer() && role === "viewer" && trasportoSfu() && payload?.capSfu !== true)
+      ripiegaSuMesh("ospite-vecchio"); // scheda aperta prima dell'aggiornamento: non sa l'SFU
+    if (trasportoSfu()) {
+      sfu!.viva(pid); // il saluto tiene vivo il suo `connectionState` (vedi `statoPeer`)
+      if (payload?.sfu && typeof payload.sfu === "object") sfu!.suAnnuncio(pid, payload.sfu);
+    }
     maybeInitiate(pid);
   });
   ch.on("broadcast", { event: "bye" }, ({ payload }: any) => {
@@ -5601,10 +5917,14 @@ function attachChannel(sessionId: string) {
   //  la connessione è davvero in attesa di risposta, ed eventuali errori vengono
   //  registrati in console senza allarmare nessuno.
   ch.on("broadcast", { event: "offer" }, ({ payload }: any) => {
+    if (trasportoSfu()) return; // in SFU non esistono offerte fra le persone
     if (payload?.to !== S.myPid || !localStream) return; // serve prima il consenso ai media
     const from = String(payload.from);
     const prev = offerQueue.get(from) || Promise.resolve();
     const next = prev.then(async () => {
+      //  ⚠️ La guardia in cima è sincrona, questa no: se nel frattempo si è passati a SFU,
+      //   `makePeer` farebbe nascere un adattatore su cui `setRemoteDescription` lancia.
+      if (trasportoSfu()) return;
       let p = peers.get(from);
       /* ── ⚠️ UNA RIPRESA NON SI SCARTA MAI ────────────────────────────────
          Questa guardia evita di ri-negoziare una connessione che va già bene.
@@ -5646,6 +5966,7 @@ function attachChannel(sessionId: string) {
     );
   });
   ch.on("broadcast", { event: "answer" }, async ({ payload }: any) => {
+    if (trasportoSfu()) return;
     if (payload?.to !== S.myPid) return;
     const p = peers.get(String(payload.from));
     if (!p || p.signalingState === "stable") return;
@@ -5901,6 +6222,7 @@ function attachChannel(sessionId: string) {
     console.log("[GUEST] ingresso rifiutato dal presentatore");
   });
   ch.on("broadcast", { event: "ice" }, ({ payload }: any) => {
+    if (trasportoSfu()) return;
     if (payload?.to === S.myPid) addIce(String(payload.from), payload.c);
   });
   /* ── «DA TE NON ARRIVA PIÙ NIENTE» ───────────────────────────────────────
@@ -5910,11 +6232,25 @@ function attachChannel(sessionId: string) {
      Senza questo messaggio la riparazione dipendeva da CHI dei due era caduto:
      metà delle volte non arrivava nessuno. */
   ch.on("broadcast", { event: "riprova" }, ({ payload }: any) => {
+    if (trasportoSfu()) return;
     if (payload?.to !== S.myPid) return;
     const from = String(payload.from || "");
     if (!from || !(S.myPid < from)) return; // offre sempre e solo il pid minore
     console.log("[PEER] ripresa chiesta da", from);
     void reoffer(from, true);
+  });
+  //  L'ospite non riesce a usare l'SFU. ⚠️ Il canale non è autenticato: conta solo da un pid del
+  //   roster e una volta per pid, e dopo una breve conferma di durata: se nel frattempo
+  //   quell'ospite si è collegato (suo hello con l'annuncio e tracce arrivate) non si ripiega.
+  ch.on("broadcast", { event: "trasportofallito" }, ({ payload }: any) => {
+    if (isViewer() || !trasportoSfu()) return;
+    const pid = String(payload?.from || "");
+    if (!pid || !S.roster.some((r) => r.pid === pid) || trasportoFallitoDa.has(pid)) return;
+    trasportoFallitoDa.add(pid);
+    window.setTimeout(() => {
+      if (!trasportoSfu() || peers.get(pid)?.connectionState === "connected") return;
+      ripiegaSuMesh("ospite");
+    }, CONFERMA_OSPITE_MS);
   });
   ch.subscribe((st) => {
     if (st !== "SUBSCRIBED") return;
@@ -5992,6 +6328,7 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
   badSince.clear();
   deviceOf.clear();
   lastIceRestart.clear();
+  azzeraTrasporto(); // chiude l'SFU (anche a uscita forzata) e torna al trasporto di serie
   stopBlurPipeline(); // canvas + traccia sorgente della sfocatura
   stopMicPipeline(); // grafo audio (soglia di attivazione) + sorgente microfono
   releasePlaceholders(); // tracce segnaposto (nero/silenzio)
@@ -7795,6 +8132,10 @@ function releasePlaceholders() {
 //  questa volta le crea CON le tracce.
 function attachLocalMediaToPeers(reason: string) {
   if (!localStream) return;
+  if (trasportoSfu()) {
+    sfu!.sincronizza(); // in SFU niente pc da ricostruire: l'adattatore pubblica ciò che manca
+    return;
+  }
   const missing: string[] = [];
   for (const [pid, pc] of peers) {
     const kinds = new Set(
@@ -7820,6 +8161,8 @@ async function replaceVideoTrackAll(track: MediaStreamTrack | null, reason = "no
     `[CAM] traccia video in uscita sostituita — motivo: ${reason}`,
     track ? `(${track.label || track.kind}, readyState=${track.readyState})` : "(null)",
   );
+  //  L'SFU ricorda la traccia CORRENTE (schermo, nera, sfocata): serve alla ricostruzione.
+  await sfu?.sostituisci("video", track).catch(() => {});
   for (const pc of peers.values()) {
     const s = pc.getSenders().find((s) => s.track?.kind === "video");
     if (s) {
@@ -7833,6 +8176,7 @@ async function replaceVideoTrackAll(track: MediaStreamTrack | null, reason = "no
   tuneVideoSenders();
 }
 async function replaceAudioTrackAll(track: MediaStreamTrack | null) {
+  await sfu?.sostituisci("audio", track).catch(() => {});
   for (const pc of peers.values()) {
     const s = pc.getSenders().find((s) => s.track?.kind === "audio");
     if (s) {
