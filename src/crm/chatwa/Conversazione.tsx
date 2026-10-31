@@ -55,6 +55,8 @@ import { senzaRispostaDa } from "./anteprima-riga";
 import { ritornoInChat, vociRitorno } from "./ritorno";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
+import { PastigliaEsito } from "./PastigliaEsito";
+import { eRicontatto, esitoDi } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { attaccataAllaPrecedente } from "./stile";
 import { ID_CODA, unisciConCoda } from "./invioPonte";
@@ -427,6 +429,19 @@ export function Conversazione({
                   <CalendarClock aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                   {richiamo.testo}
                 </span>
+              )}
+              {/*  L'esito del ricontatto (31/10/2026), solo per i lead negli stati da risentire come in
+                «Ricontatti»: stessa pastiglia e stesso foglio «Com'è andata?» della riga. */}
+              {attiva.lead && eRicontatto(attiva) && (
+                <PastigliaEsito
+                  leadId={attiva.lead.id}
+                  esito={esitoDi(attiva)}
+                  contesto={
+                    `${attiva.lead.data.nome ?? ""} ${attiva.lead.data.cognome ?? ""}`.trim() ||
+                    undefined
+                  }
+                  className="shrink-0 min-h-11 after:hidden md:min-h-0"
+                />
               )}
               {/*  Com'è messo, per esteso: nella riga sua c'è posto per la parola. */}
               {attiva.lead && mostraTemperatura(attiva.lead.data.stato) && (

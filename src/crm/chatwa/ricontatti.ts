@@ -102,6 +102,15 @@ export function esitoDi(c: ChatRicontatto): EsitoRicontatto | null {
   return ESITI_RICONTATTO.find((e) => e.v === v)?.v ?? null;
 }
 
+/** Cosa scrivere sulla scheda per mettere (o, con `null`, togliere) l'esito: l'unico punto che lo
+ *  decide, lo usa `PastigliaEsito` ovunque (riga, chat aperta, scheda). `undefined` sparisce alla
+ *  serializzazione: è così che si toglie la chiave da `lead.data`. */
+export function patchEsito(nuovo: EsitoRicontatto | null, adesso: Date = new Date()) {
+  return nuovo
+    ? { esitoRicontatto: nuovo, esitoRicontattoIl: adesso.toISOString() }
+    : { esitoRicontatto: undefined, esitoRicontattoIl: undefined };
+}
+
 /** Il giorno del ricontatto «AAAA-MM-GG», o `""` se manca o non è un giorno vero. */
 export function dataDi(c: ChatRicontatto): string {
   const giorno = String(c.lead?.data?.dataRicontatto ?? "").slice(0, 10);

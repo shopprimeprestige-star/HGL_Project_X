@@ -147,13 +147,22 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   c("compaiono solo in Ricontatti", true, /filtri\.ricontatti[\s\S]{0,200}RigheRisentire|RigheRisentire[\s\S]{0,80}/.test(elenco) && /<RigheRisentire/.test(elenco));
   c("la riga mostra «Senza data» con la X", true, /CalendarX/.test(riga) && /Senza data/.test(riga));
   c("e la data col calendario (richiamo) come prima", true, /CalendarClock/.test(riga));
-  c("l'esito è una pastiglia che si tocca, con 44 px sul telefono", true, /FinestraEsito/.test(riga) && /after:-inset-y-3/.test(riga) && /aria-haspopup="dialog"/.test(riga));
-  c("l'esito si salva come gli altri campi della scheda (updateLead)", true, /updateLead\(/.test(riga) && /esitoRicontatto/.test(riga) && /esitoRicontattoIl/.test(riga));
-  c("togliere l'esito lo toglie davvero", true, /esitoRicontatto: undefined/.test(riga));
-  c("se il salvataggio non riesce, lo si dice", true, /toast\.error\(/.test(riga));
+  const past = senzaCommenti(leggi("src/crm/chatwa/PastigliaEsito.tsx"));
+  const conv = senzaCommenti(leggi("src/crm/chatwa/Conversazione.tsx"));
+  const scheda = senzaCommenti(leggi("src/crm/LeadDialog.tsx"));
+  c("l'esito è una pastiglia che si tocca, con 44 px sul telefono (un componente solo)", true, /FinestraEsito/.test(past) && /after:-inset-y-3/.test(past) && /aria-haspopup="dialog"/.test(past));
+  c("l'esito si salva come gli altri campi della scheda (updateLead), in un posto solo", true, /updateLead\(/.test(past) && /patchEsito\(/.test(past));
+  c("la riga, la chat aperta e la scheda usano la stessa pastiglia, senza una scrittura propria", true, [riga, conv, scheda].every((t) => /<PastigliaEsito/.test(t)) && !/esitoRicontatto/.test(riga) && !/esitoRicontatto:/.test(conv) && !/esitoRicontatto:/.test(scheda));
+  c("se il salvataggio non riesce, lo si dice", true, /toast\.error\(/.test(past));
+  c("chat aperta: la pastiglia c'è solo per i lead negli stati da risentire (come Ricontatti)", true, /eRicontatto\(attiva\)[\s\S]{0,80}<PastigliaEsito|eRicontatto\(attiva\)/.test(conv) && /<PastigliaEsito/.test(conv));
+  c("scheda del cliente: solo negli stati da risentire e se la scheda è già salvata", true, /eRicontatto\(\{ lead: \{ data: form \} \}\)/.test(scheda) && /lead\?\.id[\s\S]{0,200}<PastigliaEsito|<PastigliaEsito[\s\S]{0,300}lead/.test(scheda));
+  c("in chat aperta e in scheda il tocco è alto 44 px davvero", true, /min-h-11/.test(conv.slice(conv.indexOf("<PastigliaEsito"), conv.indexOf("<PastigliaEsito") + 400)) && /min-h-11/.test(scheda.slice(scheda.indexOf("<PastigliaEsito"), scheda.indexOf("<PastigliaEsito") + 400)));
+  c("togliere l'esito lo toglie davvero", true, /esitoRicontatto: undefined/.test(senzaCommenti(leggi("src/crm/chatwa/ricontatti.ts"))));
+  c("patchEsito: mette esito e quando", { esitoRicontatto: "piu_avanti", esitoRicontattoIl: "2026-10-31T10:00:00.000Z" }, R.patchEsito("piu_avanti", new Date("2026-10-31T10:00:00Z")));
+  c("patchEsito: null toglie entrambi i campi", true, ((p) => "esitoRicontatto" in p && "esitoRicontattoIl" in p && p.esitoRicontatto === undefined && p.esitoRicontattoIl === undefined)(R.patchEsito(null)));
   c("le altre viste non cambiano: l'esito e «Senza data» solo in Ricontatti", true, /risentire/.test(riga) && /risentire=\{filtri\.ricontatti\}/.test(elenco));
   c("la finestra dell'esito: le quattro scelte, «Nessun esito» e Annulla, tasti da 44 px", true, /ESITI_RICONTATTO/.test(finestra) && /Nessun esito/.test(finestra) && /Annulla/.test(finestra) && /min-h-11/.test(finestra));
-  c("niente emoji nei file nuovi", true, ![righe, finestra].some((t) => /\p{Extended_Pictographic}/u.test(t)));
+  c("niente emoji nei file nuovi", true, ![righe, finestra, past].some((t) => /\p{Extended_Pictographic}/u.test(t)));
   c("il campo nuovo è dichiarato sulla scheda", true, /esitoRicontatto\?: string/.test(senzaCommenti(leggi("src/crm/types.ts"))));
   c("il giro automatico non è toccato", true, !/esitoRicontatto/.test(leggi("src/crm/manychat/giro.ts")));
 }
