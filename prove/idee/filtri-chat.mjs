@@ -576,8 +576,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Clienti",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Clienti"],
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Non risponde · Da riprogrammare · Con stelle · Sconosciuti · Clienti",
+    ["Da rispondere", "Da chiamare", "Non risponde", "Da riprogrammare", "Con stelle", "Sconosciuti", "Clienti"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
   {
@@ -588,6 +588,73 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       /p\.consulenti\.find\(\(x\) => x\.id === p\.filtri\.consulente\)/.test(tasto) &&
         /\{consulente && \(/.test(tasto) &&
         /consulente \$\{consulente\}/.test(tasto),
+    );
+  }
+  //  ── «Non risponde» e «Da riprogrammare» in riga (31/10/2026): voci di fase già esistenti, nessuna regola nuova ──
+  {
+    const riga = (nome) => F.VOCI_RIGA.find((v) => v.nome === nome);
+    const NR = riga("Non risponde");
+    const DR = riga("Da riprogrammare");
+    const fraDue = (...v) => v.every(Boolean);
+    c(
+      "le due pastiglie sono voci della fase, con il valore del filtro per stato",
+      [["fase", "stato:non_risponde"], ["fase", "stato:da_spostare"]],
+      [[NR?.campo, NR?.valore], [DR?.campo, DR?.valore]],
+    );
+    c(
+      "il nome è quello del CRM (non una parola nuova)",
+      [mod["types"].LEAD_STATUS_LABEL.non_risponde, mod["types"].LEAD_STATUS_LABEL.da_spostare],
+      [NR?.nome, DR?.nome],
+    );
+    c("ognuna spiega in una riga cosa mostra", true, fraDue(NR?.spiega?.length > 20, DR?.spiega?.length > 20));
+    c(
+      "il valore è una fase valida (si ricorda e si rilegge)",
+      [true, true],
+      [F.faseValida("stato:non_risponde"), F.faseValida("stato:da_spostare")],
+    );
+    //  Mondo: non_risponde (uno in «Da rispondere», uno di Luca), da_spostare (uno con tre stelle), da_chiamare.
+    const nr1 = chat({ stato: "non_risponde" });
+    const nr2 = chat({ stato: "non_risponde", attesa: true, consulente: "luca" });
+    const ds1 = chat({ stato: "da_spostare", stelle: 3 });
+    const ds2 = chat({ stato: "da_spostare", consulente: "luca" });
+    const dc1 = chat({ stato: "da_chiamare" });
+    const altro = chat({ stato: "sta_valutando" });
+    const sc = chat({ senzaScheda: true });
+    const m = [nr1, nr2, ds1, ds2, dc1, altro, sc];
+    const stelle = (tel) => m.find((x) => x.phone === tel)?.stelle ?? 0;
+    const quali = (f) => m.filter((x) => F.passaFiltri(x, f, stelle));
+    const num = (f, v) => F.contaVoce(m, f, stelle, v.campo, v.valore);
+    c("«Non risponde»: tutte le chat in quello stato, anche quella in «Da rispondere»", [nr1, nr2], quali(F.commuta(V, NR.campo, NR.valore)));
+    c("«Da riprogrammare»: solo le chat in quello stato", [ds1, ds2], quali(F.commuta(V, DR.campo, DR.valore)));
+    c("i numeri delle pastiglie", [2, 2], [num(V, NR), num(V, DR)]);
+    c(
+      "con un consulente il numero ne tiene conto (come le altre voci)",
+      [1, 1],
+      [num(con({ consulente: "luca" }), NR), num(con({ consulente: "luca" }), DR)],
+    );
+    c("si sommano alle stelle (gruppi diversi): E", [ds1], quali(F.commuta(con({ stelle: true }), DR.campo, DR.valore)));
+    c(
+      "si sommano alla coda «Da chiamare»: E (chi è in quello stato e anche in coda)",
+      m.filter((x) => passaFiltro(x, "da-chiamare") && x.lead?.data?.stato === "non_risponde"),
+      quali(F.commuta(con({ coda: "da-chiamare" }), NR.campo, NR.valore)),
+    );
+    c(
+      "fra loro si escludono (stessa fase): l'ultima sostituisce l'altra",
+      "stato:da_spostare",
+      F.commuta(F.commuta(V, NR.campo, NR.valore), DR.campo, DR.valore).fase,
+    );
+    c("un secondo tocco la spegne", null, F.commuta(F.commuta(V, DR.campo, DR.valore), DR.campo, DR.valore).fase);
+    c(
+      "la pastiglia «Non risponde» conta anche chi è in «Da rispondere» (il chip dentro «Da chiamare» no: i due numeri possono differire)",
+      true,
+      quali(F.commuta(V, NR.campo, NR.valore)).includes(nr2),
+    );
+    c("l'etichetta nel riepilogo dei filtri accesi è quella dello stato", "Da riprogrammare",
+      F.etichetteAccese(F.commuta(V, DR.campo, DR.valore), () => "")[0]?.etichetta);
+    c(
+      "le due voci restano anche in «Altri stati» del pannello (stessi valori, nessun filtro nuovo)",
+      [true, true],
+      [F.STATI_ALTRI.includes("non_risponde"), F.STATI_ALTRI.includes("da_spostare")],
     );
   }
   c("«Tutte» è il primo tasto della riga", true, elenco.indexOf(">\n          Tutte\n") < elenco.indexOf("VOCI_RIGA.map"));
