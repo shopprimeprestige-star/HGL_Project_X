@@ -148,3 +148,11 @@ Cosa prova: la sequenza vera del 28/10 (uscite dal telefono, ognuna seguita 2-21
 Dentro la transazione il riallineo (trigger differito) si forza con `SET CONSTRAINTS trg_wa_eco_segnata IMMEDIATE`, come farebbe il `COMMIT`.
 
 Eseguito il 30/10/2026 su un Postgres 16 locale usa-e-getta con tutte le migrazioni (estensioni e `storage` finti): 9 `ok`.
+
+## `ponte-revoche.sql` (commessa 2026-10-31, ponte-revoche: un messaggio nostro eliminato dal telefono sparisce dalla chat)
+
+Serve un database di prova con **tutte** le migrazioni applicate in ordine (la migrazione nuova, `20261031090000_ponte_revoche.sql`, la riapplica lo script, due volte). Lo stesso comando di `ponte-immagini.sql`, con `prove/sql/ponte-revoche.sql`. Gira in una transazione che finisce con `ROLLBACK`. Uscita attesa: 28 `ok` (più `migrazioni ok=N ko=0` dello script) e in fondo `TUTTI I CONTROLLI DELLE REVOCHE PASSANO`.
+
+Cosa prova: `ponte_wa_revoca` marca eliminata la riga del ponte con la chiave `bw:` **solo se è una nostra uscita** (una riga in entrata con quella chiave resta intatta; l'eco in entrata che punta a una nostra uscita non si marca) e il suo pari ManyChat/CRM nei due versi di `duplicato_di`; non cancella niente (stesso numero di righe); una riga già marcata non si ritocca (seconda volta: trovate 2, marcate 0); `cambiato_il` delle righe marcate si muove (realtime e lettura a pezzi); l'anteprima del contatto, `last_message_at` e `risposto_il` tornano all'ultimo messaggio / all'ultima uscita rimasti **solo se erano proprio il messaggio eliminato** (un «Fatto» a mano e un'anteprima più recente non si toccano; senza messaggi rimasti l'anteprima si svuota); numeri con e senza «+»; un altro utente con la stessa chiave non è toccato; chiave inesistente = 0 e 0; chiavi o parametri storti → errore 22023; `anon`/`authenticated` senza `EXECUTE`, SECURITY DEFINER con `search_path` fisso.
+
+Eseguito il 31/10/2026 su un Postgres 16 usa-e-getta con tutte le 81 migrazioni: `migrazioni ok=81 ko=0`, 28 `ok`.

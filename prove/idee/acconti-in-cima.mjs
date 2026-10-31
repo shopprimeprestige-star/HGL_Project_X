@@ -162,7 +162,7 @@ export function proveAccontiInCima(mod, { c, gruppo, radice }) {
   const riga = senzaCommenti(leggi("src/crm/chatwa/RigaChat.tsx"));
   const gest = senzaCommenti(leggi("src/crm/chatwa/GestioneInstallazione.tsx"));
   c("ElencoChat usa chatDaInstallare", true, /chatDaInstallare\(/.test(elenco));
-  c("il blocco è solo in «Tutte»", true, /const daInstallareTutte = tutte && !filtri\.ricontatti \?/.test(elenco));
+  c("il blocco è solo col filtro «Acconto» (31/10/2026: «Tutte» identica a WhatsApp)", true, /const daInstallareTutte = tutte && filtri\.acconto \?/.test(elenco));
   c(
     "le chat del blocco escono dall'elenco sotto (una riga una volta sola)",
     true,

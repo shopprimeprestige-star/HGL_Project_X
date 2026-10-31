@@ -172,7 +172,7 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
       nomiRiga.indexOf("Ricontatti") + 1 === nomiRiga.indexOf("Clienti"),
   );
   c("la voce è acceso/spento sul campo ricontatti", true, F.VOCI_RIGA.some((v) => v.nome === "Ricontatti" && v.campo === "ricontatti" && v.valore === true));
-  c("ogni voce della riga ha una voce nei gruppi (le prove esclusive le percorrono tutte)", true, F.VOCI_RIGA.every((v) => F.GRUPPI_FILTRI.some((g) => g.voci.some((x) => x.campo === v.campo && x.valore === v.valore))));
+  c("ogni voce della riga (tranne le pastiglie per stato) ha una voce nei gruppi (le prove esclusive le percorrono tutte)", true, F.VOCI_RIGA.filter((v) => !String(v.valore).startsWith("stato:")).every((v) => F.GRUPPI_FILTRI.some((g) => g.voci.some((x) => x.campo === v.campo && x.valore === v.valore))));
 
   gruppo("PANNELLO FILTRI PIÙ SEMPLICE: STRUTTURA");
   const pannello = leggi("src/crm/chatwa/PannelloFiltri.tsx");
@@ -203,7 +203,7 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
   const elVivo = senzaCommenti(elenco);
   c("l'elenco ordina con ordinaRicontatti", true, /ordinaRicontatti\(/.test(elVivo));
   c("«io» è chi ha digitato il PIN (useConsulenteCollegato), senza eccezione per l'admin", true, /useConsulenteCollegato\(\)/.test(elVivo) && /filtriValidi\(\s*filtriSalvati,\s*consulentiNoti,\s*io/.test(elVivo));
-  c("niente blocco «Acconto, da installare» dentro Ricontatti", true, /tutte && !filtri\.ricontatti/.test(elVivo));
+  c("niente blocco «Acconto, da installare» dentro Ricontatti (compare solo col filtro Acconto, esclusivo)", true, /tutte && filtri\.acconto/.test(elVivo));
   c("frase sincera quando non sei legato a nessun consulente", true, /fraseRicontattiVuoti\(/.test(elVivo));
   c("passaFiltri resta l'unica porta dei filtri (nessuna regola riscritta nell'elenco)", true, /passaFiltri\(c, filtri, stelleDi\)/.test(elVivo) && !/eMioRicontatto|eRicontatto\(/.test(elVivo));
 }

@@ -76,6 +76,8 @@ const intero = (v: unknown) =>
 export { porteInvio } from "./invio.server";
 //  E quelle dei media (commessa 2026-10-30-ponte-storico-completo, T5), per lo stesso motivo.
 export { porteMedia } from "./media.server";
+//  E quelle delle revoche (commessa 2026-10-31, ponte-revoche), per lo stesso motivo.
+export { porteRevoche } from "./revoche.server";
 
 export function porteIngresso(): PortePonte {
   /** Il codice dell'ultimo errore lanciato: `ingresso.ts` riconosce come
@@ -108,7 +110,8 @@ export function porteIngresso(): PortePonte {
         codice === "lotto" ||
         codice === "battito" ||
         codice === "riconciliati" ||
-        codice === "noti"
+        codice === "noti" ||
+        codice === "revoca"
       )
         console.info(riga);
       else console.warn(riga);
