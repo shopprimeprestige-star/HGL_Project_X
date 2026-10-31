@@ -119,7 +119,8 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
       ...extra,
     });
   /** [tipo, scheda, quale/motivo] di ogni decisione */
-  const sintesi = (r) => r.map((x) => [x.tipo, x.scheda.id, x.tipo === "invia" ? x.extra.quale : x.motivo]);
+  const sintesi = (r) =>
+    r.map((x) => [x.tipo, x.scheda.id, x.tipo === "invia" ? x.extra.quale : x.motivo]);
   const TETTO_LN = "tetto dei lead nuovi di oggi raggiunto: se ne parla domani";
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -133,7 +134,10 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
   //  casi reali (spento) davanti a un primo contatto (acceso): tetto dei lead nuovi 3, già 2 oggi.
   {
     const schede = [attesa("c-1", 1), nuovo("p-2", 2, "2026-10-27T08:30:00.000Z")];
-    const extra = { tetti: { ricontatti: 20, leadNuovi: 3, totale: 100 }, invii: [primo(1), ...oggi(1)] };
+    const extra = {
+      tetti: { ricontatti: 20, leadNuovi: 3, totale: 100 },
+      invii: [primo(1), ...oggi(1)],
+    };
     c(
       "tutto acceso, un posto solo: i casi reali passano davanti, il primo contatto aspetta",
       [
@@ -172,9 +176,10 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
     c(
       "casi reali SPENTO: il conteggio non cresce, il primo contatto parte e le tre schede non compaiono",
       [[["invia", "p-4", "primo_contatto"]], false],
-      ((r) => [sintesi(r), r.some((x) => /casi reali/.test(x.tipo === "invia" ? x.extra.quale : x.motivo))])(
-        lead(schede, MAR10, { ...extra, messaggiSpenti: ["casi_reali"] }),
-      ),
+      ((r) => [
+        sintesi(r),
+        r.some((x) => /casi reali/.test(x.tipo === "invia" ? x.extra.quale : x.motivo)),
+      ])(lead(schede, MAR10, { ...extra, messaggiSpenti: ["casi_reali"] })),
     );
   }
 
@@ -281,7 +286,10 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
   {
     const schede = [attesa("c-1", 1), nuovo("p-2", 2, "2026-10-27T08:30:00.000Z")];
     //  totale 33 → 33 − 30 di riserva = 3 posti per i lead nuovi; 2 già partiti oggi (primo(1) + 1)
-    const extra = { tetti: { ricontatti: 20, leadNuovi: 100, totale: 33 }, invii: [primo(1), ...oggi(1)] };
+    const extra = {
+      tetti: { ricontatti: 20, leadNuovi: 100, totale: 33 },
+      invii: [primo(1), ...oggi(1)],
+    };
     c(
       "tetto del totale a un posto dalla fine: tutto acceso, vincono i casi reali",
       [
@@ -389,9 +397,12 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
     c(
       "giro: spenti tutti e due: nessuna voce del meet, nemmeno un «salta»",
       [],
-      G.decisioniDelGiro(schede, t(MAR10), dati, scelta({ messaggiSpenti: ["meet_oggi", "meet_domani"] })).filter(
-        (v) => v.tipo === "meet_oggi" || v.tipo === "meet_domani",
-      ),
+      G.decisioniDelGiro(
+        schede,
+        t(MAR10),
+        dati,
+        scelta({ messaggiSpenti: ["meet_oggi", "meet_domani"] }),
+      ).filter((v) => v.tipo === "meet_oggi" || v.tipo === "meet_domani"),
     );
   }
 
@@ -433,7 +444,11 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
     });
     const schede = [ric("a-1", 1, "sta_valutando"), ric("b-2", 2, "da_ricontattare")];
     const voci = (extra) =>
-      G.decisioniDelGiro(schede, t(MAR10), dati, scelta(extra)).map((v) => [v.tipo, v.d.tipo, v.d.scheda.id]);
+      G.decisioniDelGiro(schede, t(MAR10), dati, scelta(extra)).map((v) => [
+        v.tipo,
+        v.d.tipo,
+        v.d.scheda.id,
+      ]);
     c(
       "tutti e due i ricontatti accesi: due candidati (il giro ne manderà UNO, per il ritmo)",
       [
@@ -498,12 +513,19 @@ export async function proveGiroMessaggi(mod, { c, gruppo, radice }) {
       ["primo_contatto", "meet_oggi", "meet_domani"],
       G.sceltaDaConfig(cfg, t(MAR10), false).messaggiSpenti,
     );
-    c("prova a secco: nessuna chiave spenta (come per gli interruttori)", [], G.sceltaDaConfig(cfg, t(MAR10), true).messaggiSpenti);
+    c(
+      "prova a secco: nessuna chiave spenta (come per gli interruttori)",
+      [],
+      G.sceltaDaConfig(cfg, t(MAR10), true).messaggiSpenti,
+    );
     const { messaggiSpenti: _tolto, ...senza } = cfg;
     c(
       "configurazione senza `messaggiSpenti` (porte vecchie, prove vecchie): nessuna chiave spenta",
       [[], []],
-      [G.sceltaDaConfig(senza, t(MAR10), false).messaggiSpenti, G.sceltaDaConfig(senza, t(MAR10), true).messaggiSpenti],
+      [
+        G.sceltaDaConfig(senza, t(MAR10), false).messaggiSpenti,
+        G.sceltaDaConfig(senza, t(MAR10), true).messaggiSpenti,
+      ],
     );
   }
 
@@ -609,7 +631,12 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         c(
           "giro: acceso/spento dei messaggi dal REGISTRO, le colonne vecchie ignorate",
           { promemoria: false, ricontatti: true, leadNuovo: true, giornoMeet: true },
-          { promemoria: g.promemoria, ricontatti: g.ricontatti, leadNuovo: g.leadNuovo, giornoMeet: g.giornoMeet },
+          {
+            promemoria: g.promemoria,
+            ricontatti: g.ricontatti,
+            leadNuovo: g.leadNuovo,
+            giornoMeet: g.giornoMeet,
+          },
         );
         c(
           "…«lead nuovo» parte dalla data PIÙ RECENTE fra i messaggi accesi della famiglia (D2), non da quella vecchia",
@@ -628,7 +655,14 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         );
         c(
           "…il resto resta letto da `manychat_config`: utente, canale, generale, tetti, flussi, sede",
-          ["u-1", "manychat", true, { ricontatti: 5 }, { hgl_promemoria_meet: "content-1" }, "Via Prova 1"],
+          [
+            "u-1",
+            "manychat",
+            true,
+            { ricontatti: 5 },
+            { hgl_promemoria_meet: "content-1" },
+            "Via Prova 1",
+          ],
           [g.userId, g.canale, g.acceso, g.tetti, g.flussi, g.indirizzoSede],
         );
         c(
@@ -642,19 +676,37 @@ export const supabaseAdminDefault = supabaseAdmin;`,
 
         //  registro illeggibile: fail-closed, il giro non fa niente e lo dice col solo codice
         avvisi.length = 0;
-        imposta({ manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO }, { messaggi_automatici: "42P01" });
+        imposta(
+          { manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO },
+          { messaggi_automatici: "42P01" },
+        );
         const gx = await PS.porteGiro().leggiConfig();
         c(
           "giro: registro illeggibile (tabella mancante) → tutto spento, ma il generale e il canale restano",
           [false, false, false, false, {}, null, true, "manychat"],
-          [gx.promemoria, gx.ricontatti, gx.leadNuovo, gx.giornoMeet, gx.stati, gx.leadNuovoDal, gx.acceso, gx.canale],
+          [
+            gx.promemoria,
+            gx.ricontatti,
+            gx.leadNuovo,
+            gx.giornoMeet,
+            gx.stati,
+            gx.leadNuovoDal,
+            gx.acceso,
+            gx.canale,
+          ],
         );
         c(
           "…e nei log c'è il codice dell'errore, senza utenti né testi",
           [true, false],
-          [avvisi.some((x) => /registro_non_letto_42P01/.test(x)), avvisi.some((x) => /u-1|Via Prova/.test(x))],
+          [
+            avvisi.some((x) => /registro_non_letto_42P01/.test(x)),
+            avvisi.some((x) => /u-1|Via Prova/.test(x)),
+          ],
         );
-        imposta({ manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO }, { messaggi_automatici: "XX000" });
+        imposta(
+          { manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO },
+          { messaggi_automatici: "XX000" },
+        );
         const gy = await PS.porteGiro().leggiConfig();
         c(
           "giro: qualunque altro guasto del registro → tutto spento (nessuna eccezione, il giro ripassa fra un minuto)",
@@ -683,7 +735,14 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         const cfg = P.configDaRiga(r.riga, r.sequenze);
         c(
           "riquadro: i vecchi interruttori mostrano il REGISTRO, non le colonne vecchie",
-          { promemoria: false, ricontatti: true, leadNuovo: true, giornoMeet: true, leadNuovoDal: D2, stati: { non_risponde: D3 } },
+          {
+            promemoria: false,
+            ricontatti: true,
+            leadNuovo: true,
+            giornoMeet: true,
+            leadNuovoDal: D2,
+            stati: { non_risponde: D3 },
+          },
           {
             promemoria: cfg.promemoria,
             ricontatti: cfg.ricontatti,
@@ -695,7 +754,15 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         );
         c(
           "…il resto della riga è com'è (canale, generale, tetti, flussi, sede) e `sequenze` resta vero",
-          ["manychat", true, { ricontatti: 5 }, { hgl_promemoria_meet: "content-1" }, "Via Prova 1", true, false],
+          [
+            "manychat",
+            true,
+            { ricontatti: 5 },
+            { hgl_promemoria_meet: "content-1" },
+            "Via Prova 1",
+            true,
+            false,
+          ],
           [cfg.canale, cfg.acceso, cfg.tetti, cfg.flussi, cfg.indirizzoSede, r.sequenze, r.manca],
         );
         c(
@@ -703,7 +770,10 @@ export const supabaseAdminDefault = supabaseAdmin;`,
           ["u-1", undefined],
           [r.riga.user_id, r.riga.controlli],
         );
-        imposta({ manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO }, { messaggi_automatici: "PGRST205" });
+        imposta(
+          { manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO },
+          { messaggi_automatici: "PGRST205" },
+        );
         const rx = await PN.leggiRigaConfig();
         const cx = P.configDaRiga(rx.riga, rx.sequenze);
         c(

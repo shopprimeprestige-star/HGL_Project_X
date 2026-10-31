@@ -3740,7 +3740,9 @@ export function chiaveDi(x) { return globalThis.__senzaChiave ? null : vera(x); 
             name: "porta-e-catalogo-finti",
             setup(b) {
               const delGiro = (a) => a.importer.endsWith("manychat/giro.ts");
-              b.onResolve({ filter: /^\.\/porta$/ }, (a) => (delGiro(a) ? { path: shimPorta } : null));
+              b.onResolve({ filter: /^\.\/porta$/ }, (a) =>
+                delGiro(a) ? { path: shimPorta } : null,
+              );
               b.onResolve({ filter: /messaggi-automatici\/catalogo$/ }, (a) =>
                 delGiro(a) ? { path: shimCatalogo } : null,
               );
@@ -3786,7 +3788,11 @@ export function chiaveDi(x) { return globalThis.__senzaChiave ? null : vera(x); 
         ["meet_oggi", "meet_oggi"],
         tipiInviati(m),
       );
-      m = mondo({ finto: mattina(), schede: tre(), config: { ...accesa, messaggiSpenti: ["meet_oggi"] } });
+      m = mondo({
+        finto: mattina(),
+        schede: tre(),
+        config: { ...accesa, messaggiSpenti: ["meet_oggi"] },
+      });
       const e1 = await G.giroManychat(m.porte(), { prova: false });
       c(
         "…con la mattina del meet SPENTA nel registro: parte il ricontatto, zero mattine, zero prenotazioni per loro",
@@ -3805,7 +3811,11 @@ export function chiaveDi(x) { return globalThis.__senzaChiave ? null : vera(x); 
         ric("b2", 8),
       ];
       const STATO_DAL = "2026-10-20T00:00:00.000Z";
-      m = mondo({ finto: mattina(), schede: dueRic(), config: { ...accesa, stati: { sta_valutando: STATO_DAL } } });
+      m = mondo({
+        finto: mattina(),
+        schede: dueRic(),
+        config: { ...accesa, stati: { sta_valutando: STATO_DAL } },
+      });
       await G.giroManychat(m.porte(), { prova: false });
       c(
         "due ricontatti accesi: ne parte UNO (il ritmo), il primo per ordine (lo stato)",
@@ -3822,7 +3832,11 @@ export function chiaveDi(x) { return globalThis.__senzaChiave ? null : vera(x); 
 
       // ── ogni invio porta la sua chiave del registro ──
       azzera();
-      m = mondo({ finto: mattina(), schede: [meet("o1", 1, { oraMeeting: "18:00" }), ric("r9", 9)], config: accesa });
+      m = mondo({
+        finto: mattina(),
+        schede: [meet("o1", 1, { oraMeeting: "18:00" }), ric("r9", 9)],
+        config: accesa,
+      });
       await G2.giroManychat(m.porte(), { prova: false });
       c(
         "ogni invio porta la sua chiave: la mattina del meet e il ricontatto fissato",
@@ -3888,7 +3902,11 @@ export function chiaveDi(x) { return globalThis.__senzaChiave ? null : vera(x); 
       azzera();
 
       // ── la prova a secco vede anche ciò che è spento ──
-      m = mondo({ finto: mattina(), schede: [meet("o1", 1, { oraMeeting: "18:00" })], config: { ...accesa, messaggiSpenti: ["meet_oggi"] } });
+      m = mondo({
+        finto: mattina(),
+        schede: [meet("o1", 1, { oraMeeting: "18:00" })],
+        config: { ...accesa, messaggiSpenti: ["meet_oggi"] },
+      });
       const secco = await G.giroManychat(m.porte(), { prova: true });
       c(
         "prova a secco con la mattina spenta: la riga c'è («scriverebbe»), nessuna scrittura",
