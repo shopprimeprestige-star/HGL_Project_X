@@ -30,7 +30,7 @@ export function eConsulenteDellaStanza(x: {
  *  dal browser: va bene per i prezzi, non per decidere chi comanda una stanza. Qui c'è una riga
  *  sua, `meetly_padrone:<codice>`, scritta SOLO con l'id di chi si è dimostrato al server (token
  *  CRM del PIN all'«Avvia», sessione presentatore col PIN all'apertura della diretta) e mai
- *  sovrascritta da un altro finché è fresca: chi conosce il codice di una stanza altrui non se
+ *  sovrascritta da un altro: chi conosce il codice di una stanza altrui non se
  *  la prende. Un collega che riprende davvero la stanza resta, per 24 ore, sul collegamento
  *  diretto di sempre (l'SFU non parte): un fastidio, non un buco. */
 export const PREFISSO_PADRONE = "meetly_padrone:";
@@ -53,11 +53,19 @@ export function padroneDa(grezzo: string | null, adesso: number): string {
   }
 }
 
-/** La riga da scrivere, o `null` se non si scrive (manca l'id, o la stanza è fresca di un altro). */
+/** La riga da scrivere, o `null` se non si scrive. Il padrone è il PRIMO che la stanza ha avuto e
+ *  non cambia mai: si scrive se la stanza non ne ha nessuno, e si rinnova solo per la stessa persona.
+ *  Una stanza col padrone scaduto resta senza SFU (collegamento diretto), non torna in palio. */
 export function nuovoPadrone(grezzo: string | null, id: string, adesso: number): string | null {
   const chi = String(id || "").trim();
   if (!chi) return null;
-  const ora = padroneDa(grezzo, adesso);
-  if (ora && ora !== chi) return null;
-  return JSON.stringify({ id: chi, il: new Date(adesso).toISOString() });
+  if (grezzo === null) return JSON.stringify({ id: chi, il: new Date(adesso).toISOString() });
+  let prima = "";
+  try {
+    const o = JSON.parse(grezzo) as { id?: unknown } | null;
+    prima = typeof o?.id === "string" ? o.id : "";
+  } catch {
+    return null;
+  }
+  return prima === chi ? JSON.stringify({ id: chi, il: new Date(adesso).toISOString() }) : null;
 }
