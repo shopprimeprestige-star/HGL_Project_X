@@ -63,6 +63,7 @@ import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
+import { proveEcoFantasma } from "./idee/eco-fantasma.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
@@ -21568,6 +21569,7 @@ proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+await proveEcoFantasma(mod, { c, gruppo });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

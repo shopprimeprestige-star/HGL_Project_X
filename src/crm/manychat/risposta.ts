@@ -67,6 +67,7 @@ import { anteprimaIn, classificaTesto, eSoloSegnaposto } from "../chatwa/media";
 import { dopoRisposta, eStop, type CambioContatto } from "./contatto";
 import { normalizzaTesto } from "../ponte/pari";
 import { CONFRONTO_CARATTERI } from "../ponte/tipi";
+import { eEcoVuota, eSenzaContenuto } from "../chatwa/eco";
 
 /** Lo stato HTTP della rotta: 503 senza segreto sul server, 401 senza chiave
  *  giusta, 413 corpo oltre 8 KB, 200 per ogni richiesta autorizzata. */
@@ -162,6 +163,15 @@ export function ecoDi(
   return adesso.getTime() - ultima.il.getTime() >= ECO_DOPO_MS ? "eco" : "doppione";
 }
 
+/** Un'entrata senza contenuto è l'eco di un nostro messaggio? `uscite`: gli istanti dei nostri
+ *  messaggi partiti dello stesso numero (ultimi secondi). Pura. */
+export function ecoSenzaContenuto(uscite: readonly Date[], adesso: Date): boolean {
+  return eEcoVuota(
+    adesso.getTime(),
+    uscite.map((u) => u.getTime()),
+  );
+}
+
 /** Le porte della rotta (database e avvisi). Le porte che leggono o scrivono
  *  LANCIANO in caso di errore (con un `code` breve, se ce l'hanno): le prende
  *  `gestisciRisposta`, che registra solo il codice. */
@@ -185,6 +195,10 @@ export interface PorteRispostaManychat {
    *  (`duplicato_di`), la più nuova per prima, al più `ENTRATE_DA_LEGGERE`.
    *  Serve a riconoscere l'eco. */
   ultimeEntrate(userId: string, telefono: string): Promise<EntrataRegistrata[]>;
+  /** (31/10/2026) gli istanti dei NOSTRI messaggi (uscita, di ogni canale: ponte, ManyChat,
+   *  Cloud) a quel telefono, partiti (non `failed`), di `ECO_VUOTA_DOPO_MS` fa fino a poco
+   *  dopo `adesso`. Serve a riconoscere l'eco senza testo. */
+  ultimeUscite(userId: string, telefono: string, adesso: Date): Promise<Date[]>;
   /** `whatsapp_messages` in entrata, deduplicato su `wa_message_id` */
   registraMessaggio(userId: string, messaggio: MessaggioInEntrata): Promise<"nuovo" | "doppione">;
   /** `whatsapp_contacts`: ultimo messaggio (+1 ai non letti), e la riga se non
@@ -280,7 +294,7 @@ async function tratta(
 
   //  L'eco del Default Reply (vedi in cima): PRIMA di scrivere qualunque cosa.
   //  Un guasto della lettura non ferma il messaggio (solo il codice nell'avviso).
-  if (testo) {
+  if (testo && !eSenzaContenuto(testo)) {
     let eco: "eco" | "doppione" | null = null;
     try {
       eco = ecoDi(testo, await porte.ultimeEntrate(userId, telefono), adesso);
@@ -288,6 +302,15 @@ async function tratta(
       porte.avviso(`errore (${codiceErrore(e)}): controllo dell'eco saltato`);
     }
     if (eco) return eco;
+  } else {
+    //  L'eco SENZA contenuto (vedi in cima): nessun testo da confrontare, ma un nostro messaggio
+    //  di un attimo prima la spiega. Un guasto della lettura non ferma il messaggio.
+    try {
+      if (ecoSenzaContenuto(await porte.ultimeUscite(userId, telefono, adesso), adesso))
+        return "eco";
+    } catch (e) {
+      porte.avviso(`errore (${codiceErrore(e)}): controllo dell'eco senza testo saltato`);
+    }
   }
 
   //  Il registro, deduplicato: flusso e Default Reply dello stesso messaggio
