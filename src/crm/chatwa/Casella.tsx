@@ -58,6 +58,8 @@ import {
   type RispostaRapida,
 } from "./risposte-rapide";
 import { useRisposteRapide } from "./useRisposteRapide";
+import { causaleSenzaPreventivo } from "./dati-acconto";
+import { useDatiAcconto } from "./useDatiAcconto";
 import { finestra24, type ContattoStato } from "./stato";
 import { bozzaDopoAnnulla } from "./stile";
 import { bozzaConDettato } from "./dettatura";
@@ -166,6 +168,10 @@ export function Casella({ api, linkWa }: CasellaProps) {
   const giornoConsulenza = /^\d{4}-\d{2}-\d{2}/.test(scheda?.dataMeeting ?? "")
     ? giornoPerMessaggio(scheda!.dataMeeting!.slice(0, 10), giornoRoma(new Date()))
     : "";
+  //  Dal 31/10/2026 anche i dati del bonifico (messaggio «IBAN per l'acconto»): acconto e causale
+  //  dal preventivo del lead, IBAN e intestatario dalle impostazioni Fatture. Si leggono una volta
+  //  per chat aperta (vedi useDatiAcconto); se mancano restano i segnaposto e la casella avvisa.
+  const bonifico = useDatiAcconto(attiva?.lead);
   const riempiChat = (t: string) =>
     riempi(t, {
       nome: nomePerMessaggio(attiva?.lead?.data.nome, attiva?.contact?.display_name),
@@ -174,6 +180,10 @@ export function Casella({ api, linkWa }: CasellaProps) {
       ora: scheda?.oraMeeting,
       link: scheda?.linkMeeting,
       oraRichiamo: scheda?.oraRicontatto,
+      acconto: bonifico.acconto,
+      causale: bonifico.causalePreventivo || causaleSenzaPreventivo(scheda?.nome, scheda?.cognome),
+      iban: bonifico.iban,
+      intestatario: bonifico.intestatario,
     });
   const inserisci = (r: RispostaRapida) => {
     const testo = riempiChat(r.testo);
@@ -380,6 +390,7 @@ export function Casella({ api, linkWa }: CasellaProps) {
         suggerite.length > 0 && (
           <FilaSuggerimenti
             risposte={suggerite}
+            riempi={riempiChat}
             onScegli={inserisci}
             onGestisci={() => setFinestra({ daModificare: null })}
           />

@@ -48,6 +48,7 @@ import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cli
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveRicontatti } from "./idee/ricontatti.mjs";
+import { proveRisentire } from "./idee/risentire.mjs";
 import {
   proveClienti,
   proveCreaSchedaDaChat,
@@ -64,12 +65,14 @@ import { proveMeetlySfuServer } from "./idee/meetly-sfu-server.mjs";
 import { proveMeetlySfuClient } from "./idee/meetly-sfu-client.mjs";
 import { proveMeetlySfuInnesti } from "./idee/meetly-sfu-innesti.mjs";
 import { proveMeetlyLancio } from "./idee/meetly-lancio.mjs";
+import { proveMessaggioIban } from "./idee/messaggio-iban.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
+import { proveEcoFantasma } from "./idee/eco-fantasma.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
@@ -770,6 +773,9 @@ const MODULI = [
   ...["shop/meetly-sfu-stanza", "shop/meetly-sfu-cloudflare", "shop/meetly-sfu"].filter((m) =>
     existsSync(join(radice, `src/${m}.ts`)),
   ),
+  //  Messaggio «IBAN per l'acconto» con importo, causale, IBAN e intestatario dinamici (31/10/2026):
+  //   prove in prove/idee/messaggio-iban.mjs. (`chatwa/risposte-rapide` è già registrato sopra.)
+  "chatwa/dati-acconto",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21568,6 +21574,7 @@ provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveRicontatti(mod, { c, gruppo, radice });
+proveRisentire(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
@@ -21596,6 +21603,8 @@ await proveMeetlySfuServer(mod, { c, gruppo, radice });
 proveMeetlySfuClient(mod, { c, gruppo, radice });
 proveMeetlySfuInnesti(mod, { c, gruppo, radice });
 await proveMeetlyLancio(mod, { c, gruppo, radice });
+proveMessaggioIban(mod, { c, gruppo, radice });
+await proveEcoFantasma(mod, { c, gruppo });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

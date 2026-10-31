@@ -232,6 +232,8 @@ import { QUANDO_PER_STATO, SPOSTA_CONSULENZA, type RichiestaQuando } from "./qua
  *  del «quando» è uscita da qui: il selettore la legge per l'icona calendario,
  *  e se fosse rimasta in questo file i due si importerebbero a vicenda. */
 import { PastigliaStato, etichettaDi } from "./SelettoreStatoDialog";
+import { PastigliaEsito } from "./chatwa/PastigliaEsito";
+import { eRicontatto, esitoDi } from "./chatwa/ricontatti";
 import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import {
   generateAvailability,
@@ -1558,6 +1560,22 @@ export function LeadDialog({
                 />
                 {/*  «prima: …» (30/10/2026): lo stato di prima, se il ritorno l'ha spostato. */}
                 <PrimaDelRitorno dati={form} className="mt-1.5 flex" />
+                {/*  L'esito del ricontatto (31/10/2026): stesso foglio «Com'è andata?» di «Ricontatti» e
+                    della chat. Solo per gli stati da risentire e a scheda già salvata (serve la riga su cui
+                    scrivere). Si salva subito, da solo, come «Ok a WhatsApp»: il modulo prende il valore
+                    senza segnare «modificato», e resta quando lo stato cambia. */}
+                {lead?.id && eRicontatto({ lead: { data: form } }) && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[12px] text-slate-600">Com'è andata</span>
+                    <PastigliaEsito
+                      leadId={lead.id}
+                      esito={esitoDi({ lead: { data: form } })}
+                      contesto={`${form.nome ?? ""} ${form.cognome ?? ""}`.trim() || undefined}
+                      className="min-h-11 after:hidden sm:min-h-0"
+                      onSalvato={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                    />
+                  </div>
+                )}
               </SezioneFinestra>
 
               {/* ── STATO DEL CONTATTO (WhatsApp con ManyChat) ──────────────
