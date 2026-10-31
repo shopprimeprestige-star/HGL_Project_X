@@ -262,14 +262,15 @@ export const VOCE_DA_RIPROGRAMMARE: VoceFiltro = {
 
 /** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
  *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare ·
- *  Non risponde · Da riprogrammare · Con stelle · Sconosciuti · Ricontatti · Clienti. «Tutte» (spenti tutti i
+ *  Con stelle · Sconosciuti · Ricontatti · Clienti. «Tutte» (spenti tutti i
  *  filtri) la disegna `ElencoChat`; qui ci sono le voci vere. Il consulente sta nel pannello «Filtri».
  *  Il pannello NON ripete le voci della riga: vedi `voceInRiga`.
- *  «Non risponde» e «Da riprogrammare» sono nella stessa fase: se ne accende una sola alla volta. */
+ *  Gli stati di chiamata (Non risponde, Segreteria…) sono i sottofiltri di «Da chiamare». */
+//  ⚠️ 31/10/2026, correzione del titolare: «Non risponde» e gli altri stati di
+//   chiamata stanno SOLO dentro «Da chiamare» (i suoi sottofiltri), non nella
+//   riga generale. «Da riprogrammare» resta in Filtri → Altri stati.
 export const VOCI_RIGA: readonly VoceFiltro[] = [
   ...VOCI_GRIGLIA.filter((v) => v.campo !== "stelle"),
-  VOCE_NON_RISPONDE,
-  VOCE_DA_RIPROGRAMMARE,
   ...VOCI_GRIGLIA.filter((v) => v.campo === "stelle"),
   VOCE_SCONOSCIUTI,
   VOCE_RICONTATTI,
