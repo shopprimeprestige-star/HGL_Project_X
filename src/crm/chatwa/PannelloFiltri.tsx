@@ -13,7 +13,7 @@
  *   text-foreground` sul contenuto, come fanno gli altri fogli della chat, o i token sono quelli
  *   della landing (fondo scuro). */
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sheet,
@@ -147,10 +147,10 @@ export function PannelloFiltri(p: PropsPannelloFiltri) {
       <SheetTrigger asChild>{tasto}</SheetTrigger>
       <SheetContent
         side="bottom"
-        className="crm-theme flex max-h-[85dvh] flex-col gap-0 rounded-t-xl bg-white p-0 text-foreground"
+        className="crm-theme flex max-h-[85dvh] flex-col gap-0 rounded-t-xl bg-white p-0 text-foreground [&>button]:hidden"
       >
-        {/*  Il titolo e la descrizione servono a chi usa lo screen reader; la ✕ del foglio sta
-            a destra dell'intestazione (che le lascia lo spazio). */}
+        {/*  Il titolo e la descrizione servono a chi usa lo screen reader. La ✕ di serie del foglio
+            (16 px, «Close» in inglese) è nascosta: la nostra sta nell'intestazione, da 44 px. */}
         <SheetDescription className="sr-only">
           Scegli quali chat mostrare, un filtro alla volta: toccarne un altro sostituisce il primo.
           Il consulente si somma, tranne in «Ricontatti».
@@ -264,6 +264,7 @@ function ContenutoPannello({
   mostra,
   onApri,
 }: PropsPannelloFiltri) {
+  const piccolo = useSchermoPiccolo();
   const accesi = contaAccesi(filtri);
   const nomeConsulente = (id: string) => consulenti.find((x) => x.id === id)?.nome ?? "";
 
@@ -305,21 +306,36 @@ function ContenutoPannello({
 
   return (
     <>
-      {/*  Intestazione fissa. `pr-12` lascia posto alla ✕ del foglio sul telefono. L'unico «Azzera». */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-2 pl-4 pr-12 lg:pr-4">
+      {/*  Intestazione fissa: titolo, l'unico «Azzera» e, sul telefono, la ✕ da 44 px. */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-1 pl-4 pr-2">
         <SheetTitleOrTesto />
-        <button
-          type="button"
-          disabled={accesi === 0}
-          onClick={() => onCambia(FILTRI_VUOTI)}
-          className={cn(
-            "t-corpo -mr-2 inline-flex items-center rounded-md px-2 font-medium text-primary hover:bg-muted disabled:pointer-events-none disabled:text-muted-foreground disabled:opacity-60",
-            ALTEZZA_TASTO,
-            FUOCO,
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={accesi === 0}
+            onClick={() => onCambia(FILTRI_VUOTI)}
+            className={cn(
+              "t-corpo inline-flex items-center rounded-md px-2 font-medium text-primary hover:bg-muted disabled:pointer-events-none disabled:text-muted-foreground disabled:opacity-60",
+              ALTEZZA_TASTO,
+              FUOCO,
+            )}
+          >
+            Azzera
+          </button>
+          {piccolo && (
+            <button
+              type="button"
+              aria-label="Chiudi i filtri"
+              onClick={() => onApri(false)}
+              className={cn(
+                "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-muted",
+                FUOCO,
+              )}
+            >
+              <X aria-hidden="true" className="h-5 w-5" />
+            </button>
           )}
-        >
-          Azzera
-        </button>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">

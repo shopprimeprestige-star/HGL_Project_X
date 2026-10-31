@@ -40,7 +40,6 @@ import {
   ESITI_RICONTATTO,
   ESITO_NESSUNO,
   passaRisentire,
-  STATI_RICONTATTI,
   type ChatRicontatto,
   type FiltroRisentire,
 } from "./ricontatti";
@@ -62,9 +61,8 @@ export interface FiltriChat {
   consulente: string;
   /** «Ricontatti» (31/10/2026): i miei lead a data. Acceso/spento, esclusivo come gli altri. */
   ricontatti: boolean;
-  /** Dentro «Ricontatti» (31/10/2026): stato, esito e data si COMBINANO (vedi ricontatti.ts). Non sono
+  /** Dentro «Ricontatti» (31/10/2026): esito e data si COMBINANO (vedi ricontatti.ts). Non sono
    *  filtri della riga: restano vuoti se «Ricontatti» è spento e non contano sul tasto «Filtri». */
-  rStato: string;
   rEsito: string;
   rData: FiltroRisentire["data"];
   /** Chi è dentro, come consulente (id di chi ha digitato il PIN), o `""` se non lo è. NON è un
@@ -81,23 +79,21 @@ export const FILTRI_VUOTI: FiltriChat = {
   tipo: null,
   consulente: "",
   ricontatti: false,
-  rStato: "",
   rEsito: "",
   rData: "",
   io: "",
 };
 
-/** I campi che sono filtri (`io` no: dice chi sei, non cosa mostrare; `rStato`, `rEsito`, `rData` no:
- *  sono le righe interne di «Ricontatti», non gruppi da accendere o contare). */
-export type CampoFiltro = Exclude<keyof FiltriChat, "io" | "rStato" | "rEsito" | "rData">;
-const CAMPI_INTERNI = ["io", "rStato", "rEsito", "rData"] as const;
+/** I campi che sono filtri (`io` no: dice chi sei, non cosa mostrare; `rEsito`, `rData` no:
+ *  sono i filtri interni di «Ricontatti», non gruppi da accendere o contare). */
+export type CampoFiltro = Exclude<keyof FiltriChat, "io" | "rEsito" | "rData">;
+const CAMPI_INTERNI = ["io", "rEsito", "rData"] as const;
 
-/** Le tre righe interne di «Ricontatti»: ognuna ha la sua etichetta con la ✕ nel riepilogo. */
-export type CampoRisentireFiltri = "rStato" | "rEsito" | "rData";
+/** I due filtri interni di «Ricontatti»: ognuno ha la sua etichetta con la ✕ nel riepilogo. */
+export type CampoRisentireFiltri = "rEsito" | "rData";
 
-/** Le tre righe interne di «Ricontatti», come le vuole `passaRisentire`. */
+/** I due filtri interni di «Ricontatti», come li vuole `passaRisentire`. */
 export const risentireDi = (f: FiltriChat): FiltroRisentire => ({
-  stato: f.rStato,
   esito: f.rEsito,
   data: f.rData,
 });
@@ -378,10 +374,8 @@ export function commuta(f: FiltriChat, campo: CampoFiltro, valore: string | true
 /** Il gruppo `campo` torna spento. */
 export function togli(f: FiltriChat, campo: CampoFiltro | CampoRisentireFiltri): FiltriChat {
   const spento = { ...f, [campo]: FILTRI_VUOTI[campo] };
-  //  Spegnendo «Ricontatti» le sue tre righe non restano accese di nascosto.
-  return campo === "ricontatti"
-    ? { ...spento, rStato: "", rEsito: "", rData: "" }
-    : spento;
+  //  Spegnendo «Ricontatti» i suoi due filtri non restano accesi di nascosto.
+  return campo === "ricontatti" ? { ...spento, rEsito: "", rData: "" } : spento;
 }
 
 /** Quanti filtri sono accesi (il numero sul tasto «Filtri»). */
@@ -442,9 +436,7 @@ export function etichetteAccese(
   if (f.coda) out.push({ campo: "coda", etichetta: nomeDi("coda", f.coda) });
   if (f.stelle) out.push({ campo: "stelle", etichetta: "Con stelle" });
   if (f.ricontatti) out.push({ campo: "ricontatti", etichetta: "Ricontatti" });
-  //  Le tre righe di «Ricontatti»: una etichetta per riga accesa, ognuna si toglie con la sua ✕.
-  if (f.ricontatti && f.rStato)
-    out.push({ campo: "rStato", etichetta: LEAD_STATUS_LABEL[f.rStato as LeadStatus] ?? f.rStato });
+  //  I due filtri di «Ricontatti»: una etichetta per filtro acceso, ognuna si toglie con la sua ✕.
   if (f.ricontatti && f.rEsito)
     out.push({
       campo: "rEsito",
@@ -488,9 +480,8 @@ export function soloUno(f: FiltriChat): FiltriChat {
   const tenuto = PRIORITA.find((k) => f[k] !== FILTRI_VUOTI[k]);
   const out: FiltriChat = { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io };
   if (tenuto) (out as unknown as Record<string, unknown>)[tenuto] = f[tenuto];
-  //  Le righe interne vivono solo con «Ricontatti» acceso.
+  //  I filtri interni vivono solo con «Ricontatti» acceso.
   if (tenuto === "ricontatti") {
-    out.rStato = f.rStato;
     out.rEsito = f.rEsito;
     out.rData = f.rData;
   }
@@ -522,7 +513,6 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
     tipo:
       o.tipo === "con-scheda" || o.tipo === "senza-scheda" || o.tipo === "cliente" ? o.tipo : null,
     ricontatti: o.ricontatti === true,
-    rStato: typeof o.rStato === "string" && STATI_RICONTATTI.has(o.rStato) ? o.rStato : "",
     rEsito:
       o.rEsito === ESITO_NESSUNO || ESITI_RICONTATTO.some((e) => e.v === o.rEsito)
         ? (o.rEsito as string)

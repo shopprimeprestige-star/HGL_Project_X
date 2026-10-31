@@ -24,9 +24,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MAX_CORPO_BYTE } from "@/shop/meetly-sfu-regole";
 import { statoPubblico, trattaSfu } from "@/shop/meetly-sfu-stanza";
-import { stanzaDiProduzione } from "@/shop/meetly-sfu.server";
+import { padroneDellaStanza, stanzaDiProduzione } from "@/shop/meetly-sfu.server";
 import { chiamanteCRM } from "./api.crm.accesso";
 import { sessioneDaRichiesta } from "./api.presenter.consultant";
+import { eConsulenteDellaStanza } from "@/shop/meetly-sfu-padrone";
+import { idAmbito } from "@/shop/ambito-listino";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -60,7 +62,21 @@ export const Route = createFileRoute("/api/public/meetly-sfu")({
         //  (nessun accesso al database per loro: senza credenziali le due letture tornano subito).
         const sessione = await sessioneDaRichiesta(request);
         const crm = sessione ? null : await chiamanteCRM(request);
-        const consulente = !!sessione || !!crm?.accesso.puo("agenda");
+        //  Consulente solo nella PROPRIA stanza (o il proprietario): vedi shop/meetly-sfu-padrone.
+        let codice = "";
+        try {
+          codice = String((JSON.parse(corpo) as { codice?: unknown })?.codice ?? "");
+        } catch {
+          /* corpo non JSON: lo rifiuta il nucleo */
+        }
+        const forse = !!sessione || !!crm?.accesso.puo("agenda");
+        const consulente =
+          forse &&
+          eConsulenteDellaStanza({
+            padrone: codice ? await padroneDellaStanza(codice) : "",
+            sessioneId: idAmbito(sessione?.id),
+            crm: crm ? { tipo: crm.tipo, consultantId: idAmbito(crm.consultantId), agenda: crm.accesso.puo("agenda") } : null,
+          });
         const r = await trattaSfu(stanzaDiProduzione(), {
           ruolo: consulente ? "consulente" : "ospite",
           puoConfigurare: !!sessione || !!crm?.accesso.puo("consulenti"),

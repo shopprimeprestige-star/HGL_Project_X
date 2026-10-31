@@ -1,6 +1,7 @@
-/** Banco di «Ricontatti» con stato + esito + data (31/10/2026): ElencoChat VERO con una lista in memoria; il
- *  salvataggio dell'esito (updateLead) modifica la scheda finta. Dati inventati, nessuna rete.
- *  ?fallisce=1 (il salvataggio non riesce) · ?largo=768 (larghezza del foglio, px).
+/** Banco di «Ricontatti» con esito + data + nascondi (31/10/2026): ElencoChat VERO con una lista in memoria; il
+ *  salvataggio (updateLead) modifica la scheda finta. Dati inventati, nessuna rete.
+ *  ?acceso=1 (parte già in Ricontatti) · ?fallisce=1 (il salvataggio non riesce) · ?largo=768 (larghezza, px)
+ *  · ?molti=40 (altri 40 lead finti, per vedere la barra incollata scorrendo) · ?nascosti=1 (due già nascosti).
  *  Uso: npx vite -c strumenti/banco-chat/vite.oggi.config.mjs  →  http://localhost:5198/risentire.html */
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -8,6 +9,7 @@ import "../../src/styles.css";
 import { Toaster } from "../../src/components/ui/sonner";
 import { ElencoChat } from "../../src/crm/chatwa/ElencoChat";
 import { FILTRI_VUOTI, type FiltriChat } from "../../src/crm/chatwa/filtri";
+import { patchNascondi } from "../../src/crm/chatwa/ricontatti";
 import type { ChatItem, ChatWaApi } from "../../src/crm/chatwa/tipi";
 
 const P = new URLSearchParams(location.search);
@@ -20,6 +22,7 @@ interface Caso {
   data?: number;
   esito?: string;
   consulenteId?: string;
+  nascosto?: boolean;
 }
 const CASI: Caso[] = [
   { nome: "Giulia", cognome: "Verdi", stato: "in_attesa_acconto", data: 2, esito: "non_ha_risposto" },
@@ -32,7 +35,26 @@ const CASI: Caso[] = [
   { nome: "Luca", cognome: "Rosa", stato: "da_contattare", data: 1 },
   { nome: "Altro", cognome: "Consulente", stato: "in_attesa_acconto", consulenteId: "f", data: 3 },
 ];
-const crea = (c: Caso, i: number): ChatItem =>
+const ALTRI: Caso[] = Array.from({ length: Number(P.get("molti") ?? 0) }, (_, i) => ({
+  nome: `Lead${i + 1}`,
+  cognome: "Finto",
+  stato: i % 2 ? "per_ora_no" : "sta_valutando",
+  data: i % 3 === 0 ? undefined : i - 10,
+  esito: i % 4 === 0 ? "non_ha_risposto" : undefined,
+}));
+const PRENASCOSTI: Caso[] = P.get("nascosti")
+  ? [
+      { nome: "Roberta", cognome: "Nascosta", stato: "in_attesa_acconto", data: 9, esito: "piu_avanti", nascosto: true },
+      { nome: "Tiziano", cognome: "Nascosto", stato: "per_ora_no", nascosto: true },
+    ]
+  : [];
+const crea = (c: Caso, i: number): ChatItem => {
+  const chat = creaBase(c, i);
+  return c.nascosto
+    ? ({ ...chat, lead: { ...chat.lead, data: { ...chat.lead!.data, ...patchNascondi(chat as never) } } } as ChatItem)
+    : chat;
+};
+const creaBase = (c: Caso, i: number): ChatItem =>
   ({
     phone: `+39320000${String(i).padStart(4, "0")}`,
     leadId: String(i),
@@ -55,7 +77,7 @@ const crea = (c: Caso, i: number): ChatItem =>
   }) as unknown as ChatItem;
 
 function Banco() {
-  const [chats, setChats] = useState<ChatItem[]>(CASI.map(crea));
+  const [chats, setChats] = useState<ChatItem[]>([...CASI, ...ALTRI, ...PRENASCOSTI].map(crea));
   const [filtri, setFiltri] = useState<FiltriChat>(P.get("acceso") ? { ...FILTRI_VUOTI, ricontatti: true } : FILTRI_VUOTI);
   const [ricerca, setRicerca] = useState("");
   useEffect(() => {

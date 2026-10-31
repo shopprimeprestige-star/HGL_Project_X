@@ -29,6 +29,8 @@ import { creaCloudflare } from "@/shop/meetly-sfu-cloudflare";
 import { sessioneViva, type Archivio, type DipendenzeStanza } from "@/shop/meetly-sfu-stanza";
 import { archivioSala } from "@/routes/api.public.sala-attesa";
 import { trattaStato } from "@/shop/uscita";
+import { chiavePadrone, nuovoPadrone, padroneDa } from "@/shop/meetly-sfu-padrone";
+import { idAmbito } from "@/shop/ambito-listino";
 
 const config = () => supabaseAdmin.from("app_config");
 
@@ -90,4 +92,31 @@ export function stanzaDiProduzione(): DipendenzeStanza {
     //  Una riga già ripulita dal nucleo (niente SDP, indirizzi, codici stanza).
     log: (riga) => console.warn(riga),
   };
+}
+
+/** Il padrone di una stanza per l'SFU, scritto solo dal server (vedi shop/meetly-sfu-padrone). */
+export async function padroneDellaStanza(codice: unknown): Promise<string> {
+  const k = chiavePadrone(codice);
+  return k ? idAmbito(padroneDa(await archivio.leggi(k), Date.now())) : "";
+}
+
+/** Da chiamare SOLO con un id dimostrato al server (token CRM, sessione presentatore col PIN).
+ *  Non lancia mai: un guasto qui vuol dire solo «niente SFU», mai una chiamata rotta. */
+export async function segnaPadroneDellaStanza(codice: unknown, idDimostrato: unknown): Promise<void> {
+  try {
+    const k = chiavePadrone(codice);
+    const id = idAmbito(idDimostrato);
+    if (!k || !id) return;
+    const prima = await archivio.leggi(k);
+    const riga = nuovoPadrone(prima, id, Date.now());
+    if (!riga) return;
+    const ora = new Date().toISOString();
+    //  ⚠️ ATOMICO: stanza senza padrone → INSERT (se nel frattempo l'ha presa un altro, il doppione
+    //   fallisce e non si scrive); padrone scaduto o stesso → UPDATE solo se la riga è ancora quella
+    //   letta. Mai una lettura e poi una scrittura alla cieca.
+    if (prima === null) await config().insert({ key: k, value: riga, updated_at: ora });
+    else await config().update({ value: riga, updated_at: ora }).eq("key", k).eq("value", prima);
+  } catch {
+    /* niente: resta il collegamento diretto */
+  }
 }
