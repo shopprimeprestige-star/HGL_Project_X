@@ -1,5 +1,4 @@
 import { memo, useEffect, useRef, useState, type PointerEvent } from "react";
-import { toast } from "sonner";
 import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   AlertCircle,
@@ -42,8 +41,8 @@ import { eSpostamento, PRESSIONE_LUNGA_MS } from "./selezione";
 import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
-import { FinestraEsito } from "./FinestraEsito";
-import { datiPerData, ESITI_RICONTATTO, esitoDi, type EsitoRicontatto } from "./ricontatti";
+import { PastigliaEsito } from "./PastigliaEsito";
+import { datiPerData, esitoDi } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
@@ -159,7 +158,6 @@ function RigaChatBase({
   const finestra =
     mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
   const [cambiaStato, setCambiaStato] = useState(false);
-  const [cambiaEsito, setCambiaEsito] = useState(false);
   //  Ogni tocco sulla cornetta si conta sulla scheda (31/10/2026).
   const segnaChiamata = useSegnaChiamata();
   //  «Anticipa» solo a chi gestisce le installazioni (revisione di sicurezza, 31/10/2026).
@@ -225,7 +223,7 @@ function RigaChatBase({
     : dal
       ? attesaInChiaro(dal, adesso)
       : formatTimeIT(last?.created_at ?? c.contact?.last_message_at ?? null);
-  const { consultants, updateLead } = useCRM();
+  const { consultants } = useCRM();
   const nomeConsulente =
     consultants.find((x) => x.id === c.lead?.data?.consulenteId)?.data.nome ?? null;
   //  Con la finestra chiusa il link porta già il promemoria giusto nella casella (30/10/2026),
@@ -268,19 +266,6 @@ function RigaChatBase({
   //  «Ricontatti» (31/10/2026): senza data si vede, con la X e la parola (non basta l'assenza).
   const senzaData = risentire && !!c.lead && !richiamo;
   const esito = risentire ? esitoDi(c) : null;
-  const nomeEsito = ESITI_RICONTATTO.find((e) => e.v === esito)?.nome ?? null;
-  /** Mette o toglie l'esito sulla scheda, come gli altri campi (updateLead). Resta se lo stato cambia. */
-  const salvaEsito = async (nuovo: EsitoRicontatto | null) => {
-    setCambiaEsito(false);
-    if (!c.lead || nuovo === esito) return;
-    const ok = await updateLead(
-      c.lead.id,
-      nuovo
-        ? { esitoRicontatto: nuovo, esitoRicontattoIl: new Date().toISOString() }
-        : { esitoRicontatto: undefined, esitoRicontattoIl: undefined },
-    );
-    if (!ok) toast.error("Esito NON salvato", { description: "La scheda è rimasta com'era. Riprova." });
-  };
 
   //  Nessun messaggio in archivio: si dice. Se invece la chat ha messaggi ma
   //  l'ultimo non è fra quelli letti (si leggono gli ultimi 500), la riga
@@ -562,31 +547,8 @@ function RigaChatBase({
               </span>
             </button>
           )}
-          {/*  ── L'ESITO (31/10/2026) ───────────────────────────────────────────
-              Solo in «Ricontatti». Stessa forma della pastiglia dello stato, grigio-azzurra; tratteggiata
-              «Esito» quando manca. Il tocco è da 44 px sul telefono (`after:`), apre «Com'è andata?». */}
-          {risentire && c.lead && (
-            <button
-              type="button"
-              onClick={() => setCambiaEsito(true)}
-              aria-haspopup="dialog"
-              aria-label={`Esito: ${nomeEsito ?? "nessuno"}. Cambialo`}
-              title={`${nomeEsito ?? "Nessun esito"} · cambia esito`}
-              className="relative inline-flex min-w-0 max-w-full items-center rounded-full after:absolute after:inset-x-0 after:-inset-y-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:after:hidden"
-            >
-              <span
-                className={cn(
-                  "inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4",
-                  nomeEsito
-                    ? "border-slate-300 bg-slate-100 text-slate-800"
-                    : "border-dashed border-muted-foreground/50 text-muted-foreground",
-                )}
-              >
-                <span className="truncate">{nomeEsito ?? "Esito"}</span>
-                <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
-              </span>
-            </button>
-          )}
+          {/*  ── L'ESITO (31/10/2026) ── solo in «Ricontatti»; pastiglia e foglio sono PastigliaEsito. */}
+          {risentire && c.lead && <PastigliaEsito leadId={c.lead.id} esito={esito} contesto={nome} />}
           {/*  Senza scheda: stessa pastiglia, neutra e tratteggiata. Scegliere uno stato crea la scheda. */}
           {!c.lead && puoiCambiareStato && (
             <button
@@ -744,15 +706,6 @@ function RigaChatBase({
             </button>
           )}
         </div>
-      )}
-      {risentire && c.lead && (
-        <FinestraEsito
-          aperta={cambiaEsito}
-          onChiudi={() => setCambiaEsito(false)}
-          esito={esito}
-          contesto={nome}
-          onScegli={(e) => void salvaEsito(e)}
-        />
       )}
       {puoiCambiareStato && (
         <FinestraStati
