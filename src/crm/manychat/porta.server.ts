@@ -150,6 +150,8 @@ export function portePortaVere(
       flussi ??= (await leggiCanale(userId)).flussi;
       return flussi[modello] ?? null;
     },
+    //  Le righe di registro dei modelli `_311026` (solo il codice, nessun dato del cliente).
+    avviso: (codice) => console.warn("[modelli-311026]", codice),
     //  I modelli nuovi `_311026` (31/10/2026): una riga di `app_config`, nessuna migrazione.
     //  Senza la riga, o se il database non risponde, è spento: partono i modelli di sempre.
     modelliUtility: () =>

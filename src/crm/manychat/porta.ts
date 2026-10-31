@@ -149,6 +149,12 @@ export interface PortePorta {
    *  il nuovo, se c'è, se il suo flusso è collegato e se i valori si convertono. Assente, falso o
    *  guasto = spento: partono i vecchi, come sempre. Vedi `MODELLI_UTILITY_311026`. */
   modelliUtility?(): Promise<boolean>;
+  /** Una riga di registro per un fatto da non perdere (solo un CODICE breve: mai numeri, nomi o link).
+   *  Qui: ogni volta che, a interruttore acceso, parte il vecchio al posto del nuovo. */
+  avviso?(codice: string): void;
+  /** SOLO PER LE PROVE: forza lo stato dell'immagine dei modelli `_311026` (di serie vale la bandiera
+   *  `IMMAGINE_MODELLI_PRONTA` del codice). */
+  immaginiModelli?: boolean;
 }
 
 /** Quanti parametri del modello arrivano nei campi `crm_v1…crm_v4`. */
@@ -231,9 +237,26 @@ async function modelloDaMandare(
   if (!porte.modelliUtility) return com;
   const acceso = await porte.modelliUtility().catch(() => false);
   if (!acceso) return com;
-  const conv = convertiModelloUtility(modello, parametri);
-  return conv ? { ...conv, nuovo: true } : com;
+  const conv = convertiModelloUtility(modello, parametri, { immagini: porte.immaginiModelli });
+  if (!conv) return com;
+  if ("ripiego" in conv) {
+    avvisaRipiego(porte, `ripiego_${conv.ripiego}`);
+    return com;
+  }
+  return { ...conv, nuovo: true };
 }
+
+/** Il vecchio parte al posto del nuovo: una riga di registro, solo il codice. */
+function avvisaRipiego(porte: PortePorta, codice: string) {
+  try {
+    porte.avviso?.(`modelli311026_${codice}`);
+  } catch {
+    /* il registro non deve mai fermare un invio */
+  }
+}
+
+/** Meta dice che il modello non si può usare (non approvato, in pausa, disabilitato): nulla è partito. */
+const MODELLO_NON_USABILE_CLOUD = [132001, 132015, 132016];
 
 /** Manda un messaggio WhatsApp dal canale scelto. Non lancia: ogni guasto è un
  *  esito. */
@@ -249,12 +272,22 @@ export async function inviaWhatsapp(
  *  stato e il corpo, che chi chiama legge come ha sempre fatto. `esito` serve
  *  solo ai log. */
 async function viaCloud(porte: PortePorta, r: RichiestaInvio): Promise<RisultatoPorta> {
+  //  Il modello vecchio da rimandare se Meta rifiuta il nuovo (solo se è partito il nuovo).
+  let vecchio: RichiestaInvio | null = null;
   if (r.modello && Array.isArray(r.parametri)) {
     const m = await modelloDaMandare(porte, r.modello, r.parametri);
-    if (m.nuovo) r = { ...r, modello: m.modello, parametri: m.parametri };
+    if (m.nuovo) {
+      vecchio = r;
+      r = { ...r, modello: m.modello, parametri: m.parametri };
+    }
   }
   try {
-    const { status, corpo } = await porte.cloud(corpoGraph(r));
+    let { status, corpo } = await porte.cloud(corpoGraph(r));
+    const codiceMeta = Number((corpo as { error?: { code?: unknown } } | null)?.error?.code);
+    if (vecchio && MODELLO_NON_USABILE_CLOUD.includes(codiceMeta)) {
+      avvisaRipiego(porte, `cloud_${codiceMeta}`);
+      ({ status, corpo } = await porte.cloud(corpoGraph(vecchio)));
+    }
     const esito: EsitoPorta =
       status >= 500 ? "incerto" : status >= 200 && status < 300 ? "ok" : "blocco";
     return { esito, status, corpo };
@@ -309,9 +342,11 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
    *  perché il flusso nuovo non è ancora collegato). */
   const flussoDi = async (modello: string, valori: string[]) => {
     const n = await modelloDaMandare(porte, modello, valori);
-    if (n.nuovo && n.parametri.length <= MAX_PARAMETRI) {
+    if (n.nuovo && n.parametri.length > MAX_PARAMETRI) avvisaRipiego(porte, "ripiego_campi");
+    else if (n.nuovo) {
       const nsNuovo = await porte.flusso(n.modello);
       if (nsNuovo) return { modello: n.modello, parametri: n.parametri, ns: nsNuovo };
+      avvisaRipiego(porte, "ripiego_flusso");
     }
     return { modello, parametri: valori, ns: await porte.flusso(modello) };
   };

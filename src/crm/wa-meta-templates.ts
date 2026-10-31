@@ -43,7 +43,7 @@ export interface MetaTemplate {
   /** Solo i modelli `_311026`: il nome del modello vecchio che sostituiscono. */
   sostituisce?: string;
   /** Solo i modelli `_311026`: l'immagine in testa al messaggio. */
-  header?: { tipo: "IMAGE"; file: string; url: string };
+  header?: { tipo: "IMAGE"; file: string; url: string; pronta: boolean };
   /** Solo i modelli `_311026`: il pulsante sotto il messaggio. */
   pulsante?: { testo: string; url: string; da?: "meet_link"; esempio?: string };
 }
@@ -374,14 +374,44 @@ export const MODELLI_DA_APPROVARE: MetaTemplate[] = [
  *   documento per il titolare: un testo che vuole convincere non diventa Utility cambiando le
  *   parole, e Meta lo riclassificherebbe comunque.
  *  ⚠️ `hgl_meet_domani_testo` non ha un nuovo: non è un modello Meta, è il testo libero dentro le
- *   24 ore. */
+ *   24 ore.
+ *  ⚠️ PERCHÉ NON SI PERDE MAI UN INVIO: con l'interruttore acceso, se il nuovo non si può mandare
+ *   (flusso non collegato, link non convertibile, più di 4 campi, immagine non ancora data, e sulla
+ *   Cloud API Meta che risponde 132001/132015/132016) parte il vecchio e il registro dice il codice
+ *   (`modelli311026_ripiego_…`, `modelli311026_cloud_…`).
+ *  ── DA TOGLIERE QUANDO SI CANCELLANO I VECCHI MODELLI (e il ramo resta solo coi nuovi) ──────────
+ *   · qui: `MODELLI_UTILITY_311026`, `NOME_NUOVO_311026`, `CHIAVE_INTERRUTTORE_311026`,
+ *     `interruttoreAcceso`, `suffissoMeetly`, `convertiModelloUtility`, `IMMAGINE_MODELLI*` e la riga
+ *     in `findMetaTemplate`; i vecchi nomi si sostituiscono coi nuovi nei file che li citano;
+ *   · `porta.ts`: `modelloDaMandare`, `flussoDi`, il ripiego di `viaCloud`, `modelliUtility`,
+ *     `avviso` e `immaginiModelli` di `PortePorta`;  `porta.server.ts`: le due porte omonime;
+ *   · `vista-pannello.ts`: `MODELLI_FLUSSO_UTILITY_311026`; `ManychatPannello.tsx`: la sezione
+ *     «Modelli nuovi (_311026)»;
+ *   · prove: `prove/manychat/modelli-utility.mjs` e le due righe in `prove/manychat.mjs`;
+ *   · dati: la riga `modelli_utility_311026` in `app_config`. */
 
-/** L'immagine in testa ai modelli col link: la stessa scheda di marca che Meetly mostra
- *  nell'anteprima del link quando non c'è un biglietto personale (`api.og.anteprima.ts`). */
+/** L'immagine in testa ai modelli Utility col link: un file SOLO MARCHIO «Hair Genius Labs», senza frasi
+ *  di vendita, che DEVE DARE IL TITOLARE (1200×630 circa, JPG sotto 1 MB) e che va messo in
+ *  `public/modelli-header.jpg`. Non la scheda di Meetly (`anteprima-predefinita.jpg`): ha scritto
+ *  «GRATUITA» e «Nessun impegno», e Meta riclasserebbe il modello come Marketing.
+ *  ⚠️ Finché il file non c'è, `IMMAGINE_MODELLI_PRONTA` resta `false` e i modelli con l'immagine NON
+ *   si usano: la conversione dice «ripiego: immagine» e parte il vecchio (come un flusso mancante).
+ *   Quando il file arriva: si mette in `public/`, si porta la bandiera a `true` (la prova controlla
+ *   che dica il vero). */
+export const IMMAGINE_MODELLI_PRONTA = false;
 const IMMAGINE_MODELLI = {
+  tipo: "IMAGE" as const,
+  file: "public/modelli-header.jpg",
+  url: `${SITO}/modelli-header.jpg`,
+  pronta: IMMAGINE_MODELLI_PRONTA,
+};
+
+/** L'immagine dei casi clienti (MARKETING, come il vecchio): lì la scheda di Meetly va bene. */
+const IMMAGINE_CASI = {
   tipo: "IMAGE" as const,
   file: "public/anteprima-predefinita.jpg",
   url: `${SITO}/anteprima-predefinita.jpg`,
+  pronta: true,
 };
 
 /** Il pulsante dei modelli col link del meet: la parte dopo `/meetly/` è variabile ({{1}} del pulsante). */
@@ -416,14 +446,14 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     "appuntamento_conferma",
     "conferma_appuntamento_311026",
     "UTILITY",
-    `${SALUTO_LEI}Le confermiamo l'appuntamento per la consulenza tecnica richiesta: {{appointment_date}} alle ore {{appointment_time}}. Il collegamento Le sarà inviato prima dell'orario.${CHIUSURA_CONSULENTE}`,
+    `${SALUTO_LEI}Le confermiamo l'appuntamento per la consulenza tecnica prevista: {{appointment_date}} alle ore {{appointment_time}}. Il collegamento Le sarà inviato prima dell'orario.${CHIUSURA_CONSULENTE}`,
     ["lead_name", "appointment_date", "appointment_time", "consultant_name"],
   ),
   nuovo(
     "ringraziamento_vendita",
     "conferma_incarico_311026",
     "UTILITY",
-    `${SALUTO_LEI}Le confermiamo di aver registrato la Sua richiesta di installazione. A breve La contatteremo per concordare data e modalità dell'intervento.${CHIUSURA_CONSULENTE}`,
+    `${SALUTO_LEI}Le confermiamo di aver registrato il Suo incarico per l'installazione. A breve La contatteremo per concordare data e modalità dell'intervento.${CHIUSURA_CONSULENTE}`,
     ["lead_name", "consultant_name"],
   ),
   nuovo(
@@ -469,14 +499,15 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     `${SALUTO_LEI}Come concordato, La ricontatteremo il {{recontact_date}} alle ore {{recontact_time}}. Se l'orario non fosse più adatto, può rispondere a questo messaggio per indicarcene un altro.${CHIUSURA_CONSULENTE}`,
     ["lead_name", "recontact_date", "recontact_time", "consultant_name"],
   ),
-  //  Era MARKETING («analisi tecnica gratuita»). Senza l'offerta, e riferito alla consulenza che
-  //  il cliente ha chiesto, è un messaggio di servizio: come `hgl_meet_da_fissare`, già Utility.
-  //  Onesto solo se la consulenza l'ha chiesta lui: Meta può comunque riclassificarlo.
+  //  Era MARKETING («analisi tecnica gratuita»). Senza l'offerta, e riferito alla consulenza di cui
+  //  si è parlato, è un messaggio di servizio: come `hgl_meet_da_fissare`, già Utility. ⚠️ NIENTE
+  //  «che ci ha richiesto»: i lead richiamati da un consulente (`fissa_meet_dopo`) non l'hanno chiesta.
+  //  Meta può comunque riclassificarlo.
   nuovo(
     "fissa_meet",
     "consulenza_da_fissare_311026",
     "UTILITY",
-    `${SALUTO_LEI}Per fissare la consulenza che ci ha richiesto, ci indichi il giorno e l'orario in cui è disponibile. Confermeremo la data in questa chat.${CHIUSURA_CONSULENTE}`,
+    `${SALUTO_LEI}Per fissare la consulenza di cui abbiamo parlato, ci indichi il giorno e l'orario in cui è disponibile. Confermeremo la data in questa chat.${CHIUSURA_CONSULENTE}`,
     ["lead_name", "consultant_name"],
   ),
   nuovo(
@@ -538,7 +569,7 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     "hgl_richiamo_24h",
     "hgl_richiesta_aperta_311026",
     "UTILITY",
-    `${SALUTO_BUONGIORNO}La sua richiesta di informazioni risulta ancora aperta. Per completarla ci indichi se preferisce essere contattato la mattina o la sera.${CHIUSURA}`,
+    `${SALUTO_BUONGIORNO}La sua richiesta di informazioni a Hair Genius Labs risulta registrata e ancora aperta. Per proseguire ci serve sapere se preferisce essere contattato la mattina o la sera.${CHIUSURA}`,
     ["lead_name"],
   ),
   nuovo(
@@ -558,7 +589,7 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     `${SALUTO_BUONGIORNO}Qui trova alcuni esempi di lavori già realizzati, con foto e video, relativi alla soluzione su cui ha chiesto informazioni.${CHIUSURA}`,
     ["lead_name"],
     {
-      header: IMMAGINE_MODELLI,
+      header: IMMAGINE_CASI,
       pulsante: { testo: "Vedi gli esempi", url: `${SITO}/media/DPKW-3JHV-RC77` },
     },
   ),
@@ -604,14 +635,14 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     "hgl_ricontatto_consulenza",
     "hgl_seguito_consulenza_311026",
     "UTILITY",
-    `${SALUTO_TU}Sono {{consultant_name}} di Hair Genius Labs e ti scrivo in merito alla consulenza che abbiamo svolto insieme. Se hai domande su quanto ci siamo detti, puoi rispondere a questo messaggio.${CHIUSURA}`,
+    `${SALUTO_TU}Sono {{consultant_name}} di Hair Genius Labs. La consulenza svolta insieme risulta registrata: per un chiarimento su quanto ci siamo detti puoi rispondere a questo messaggio.${CHIUSURA}`,
     ["lead_name", "consultant_name"],
   ),
   nuovo(
     "hgl_meet_da_fissare",
     "hgl_data_consulenza_311026",
     "UTILITY",
-    `${SALUTO_BUONGIORNO}Sono {{consultant_name}} di Hair Genius Labs. Per fissare la data della consulenza che ha richiesto, ci indichi se preferisce la mattina o la sera.${CHIUSURA}`,
+    `${SALUTO_BUONGIORNO}Sono {{consultant_name}} di Hair Genius Labs. Per fissare la data della consulenza ci indichi se preferisce la mattina o la sera.${CHIUSURA}`,
     ["lead_name", "consultant_name"],
   ),
   nuovo(
@@ -674,16 +705,18 @@ export const MODELLI_UTILITY_311026: MetaTemplate[] = [
     "hgl_come_eravamo_rimasti",
     "hgl_richiesta_in_sospeso_311026",
     "UTILITY",
-    `${SALUTO_BUONGIORNO}La sua richiesta di informazioni è ancora in sospeso. Ci indichi quando possiamo ricontattarla.${CHIUSURA}`,
+    `${SALUTO_BUONGIORNO}La sua richiesta di informazioni a Hair Genius Labs è registrata e in attesa del nostro contatto. Per procedere ci indichi quando possiamo chiamarla.${CHIUSURA}`,
     ["lead_name"],
   ),
 
   // ── il modello dei dati per la fattura (già in `MODELLI_DA_APPROVARE`) ──
+  //  ⚠️ Nel modello niente codice fiscale, partita IVA né documenti: Meta non li ammette. L'elenco
+  //  dei dati si manda dopo come testo libero: la risposta del cliente apre le 24 ore.
   nuovo(
     "hgl_dati_fattura",
     "hgl_dati_per_fattura_311026",
     "UTILITY",
-    `${SALUTO_TU}Abbiamo ricevuto il tuo acconto. Per preparare la fattura ci servono questi dati: nome e cognome (o ragione sociale), codice fiscale o partita IVA, indirizzo completo con CAP e città, ed eventuale PEC o codice SDI.\nPuoi scriverli qui, oppure mandarci una foto della carta d'identità o della tessera sanitaria: i dati li leggiamo noi.${CHIUSURA}`,
+    `${SALUTO_TU}Abbiamo ricevuto il tuo acconto. Per preparare la fattura ci servono i tuoi dati di fatturazione: rispondi a questo messaggio e ti indichiamo come inviarli.${CHIUSURA}`,
     ["lead_name"],
   ),
 ];
@@ -718,19 +751,28 @@ export function suffissoMeetly(link: string | null | undefined): string | null {
   return resto && !/[\s#]/.test(resto) ? resto : null;
 }
 
+/** Perché il nuovo non si può mandare (e parte il vecchio): `valori` = manca un valore, `link` = non è
+ *  una stanza nostra, `immagine` = il titolare non ha ancora dato l'immagine. */
+export type RipiegoModello = { ripiego: "valori" | "link" | "immagine" };
+
 /** I parametri del vecchio modello, convertiti per il nuovo: i valori del testo (per chiave, non
  *  per posizione) e, se il nuovo ha il pulsante, la parte variabile del link in coda.
- *  `null` se il vecchio non ha un nuovo, se manca un valore o se il link non si può convertire:
- *  chi chiama, in quel caso, manda il vecchio. */
+ *  `null` se il vecchio non ha un nuovo (niente da fare: non è un ripiego). Se il nuovo c'è ma non si
+ *  può mandare, `{ ripiego }` col motivo: chi chiama manda il vecchio e lo scrive nel registro.
+ *  `opzioni.immagini` forza lo stato dell'immagine (solo per le prove). */
 export function convertiModelloUtility(
   nome: string,
   parametri: string[],
-): { modello: string; parametri: string[] } | null {
+  opzioni: { immagini?: boolean } = {},
+): { modello: string; parametri: string[] } | RipiegoModello | null {
   const nuovoModello = MODELLI_UTILITY_311026.find((t) => t.sostituisce === nome);
   const vecchio = [...META_TEMPLATES, ...MODELLI_MANYCHAT, ...MODELLI_DA_APPROVARE].find(
     (t) => t.name === nome,
   );
   if (!nuovoModello || !vecchio) return null;
+  //  Un modello con l'immagine in testa non si usa finché l'immagine non c'è (è come un flusso mancante).
+  if (nuovoModello.header && !(opzioni.immagini ?? nuovoModello.header.pronta))
+    return { ripiego: "immagine" };
   const valore = (chiave: ParamKey) => {
     const i = vecchio.params.findIndex((p) => p.key === chiave);
     return i < 0 ? "" : String(parametri[i] ?? "").trim();
@@ -738,12 +780,12 @@ export function convertiModelloUtility(
   const fuori: string[] = [];
   for (const p of nuovoModello.params) {
     const v = valore(p.key);
-    if (!v) return null;
+    if (!v) return { ripiego: "valori" };
     fuori.push(v);
   }
   if (nuovoModello.pulsante?.da) {
     const parte = suffissoMeetly(valore(nuovoModello.pulsante.da));
-    if (!parte) return null;
+    if (!parte) return { ripiego: valore(nuovoModello.pulsante.da) ? "link" : "valori" };
     fuori.push(parte);
   }
   return { modello: nuovoModello.name, parametri: fuori };

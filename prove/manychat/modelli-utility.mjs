@@ -170,6 +170,42 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     [],
     utility.filter((t) => /https?:\/\/|www\./i.test(t.body)).map((t) => t.name),
   );
+  //  Revisione 31/10: dati sensibili e affermazioni non vere nei modelli.
+  c(
+    "nessun modello chiede codice fiscale, partita IVA, documenti o tessera (si chiedono dopo, come testo libero)",
+    [],
+    nuovi
+      .filter((t) => /codice fiscale|partita iva|identit[àa]|tessera|documento|\bSDI\b|\bPEC\b/i.test(t.body))
+      .map((t) => t.name),
+  );
+  const fattura = nuovi.find((t) => t.sostituisce === "hgl_dati_fattura");
+  c(
+    "dati per la fattura: solo la richiesta generica, poi si risponde",
+    "Ciao {{1}},\n\nAbbiamo ricevuto il tuo acconto. Per preparare la fattura ci servono i tuoi dati di fatturazione: rispondi a questo messaggio e ti indichiamo come inviarli.\n\nHair Genius Labs",
+    fattura.body,
+  );
+  const fissa = nuovi.find((t) => t.sostituisce === "fissa_meet");
+  c(
+    "fissa_meet: «di cui abbiamo parlato», mai «che ci ha richiesto» (i lead richiamati da un consulente non l'hanno chiesta)",
+    [true, false],
+    [/la consulenza di cui abbiamo parlato/.test(fissa.body), /ha richiesto|richiesta/.test(fissa.body)],
+  );
+  c(
+    "nessun Utility afferma che il cliente ha richiesto la consulenza (non sempre è vero)",
+    [],
+    utility.filter((t) => /(che|ci) ha richiesto|consulenza tecnica richiesta/i.test(t.body)).map((t) => t.name),
+  );
+  const piuARischio = ["hgl_ricontatto_consulenza", "hgl_richiamo_24h", "hgl_come_eravamo_rimasti"].map((v) => nuovi.find((t) => t.sostituisce === v));
+  c(
+    "i tre più a rischio di riclassificazione informano (stato della richiesta) e non sollecitano",
+    [],
+    piuARischio.filter((t) => /hai domande|Se hai domande|ci indichi quando possiamo ricontattarla\.\n/.test(t.body)).map((t) => t.name),
+  );
+  c(
+    "…e dicono cosa risulta registrato",
+    [true, true, true],
+    piuARischio.map((t) => /risulta registrat|è registrat/.test(t.body)),
+  );
   c("lista nera: si accorge davvero di una frase di vendita", true, LISTA_NERA.some((re) => re.test("Approfitta dello sconto: consulenza gratuita")));
 
   gruppo("MODELLI _311026 · FORMATO LEGGIBILE");
@@ -266,23 +302,39 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   const nuoviColLink = nuovi.filter((t) => colLink.includes(t.sostituisce));
   c("e hanno tutti il loro nuovo", 5, nuoviColLink.length);
   c(
-    "header di tipo IMMAGINE, con il file del repo e l'indirizzo pubblico",
+    "header di tipo IMMAGINE, con un file SOLO MARCHIO (non la scheda di Meetly) e l'indirizzo pubblico",
     [],
     nuoviColLink
       .filter(
         (t) =>
           t.header?.tipo !== "IMAGE" ||
-          t.header.file !== "public/anteprima-predefinita.jpg" ||
-          t.header.url !== "https://hair-genius-hub.hair/anteprima-predefinita.jpg",
+          t.header.file !== "public/modelli-header.jpg" ||
+          t.header.url !== "https://hair-genius-hub.hair/modelli-header.jpg",
       )
       .map((t) => t.name),
   );
-  c("il file dell'immagine esiste ed è un JPEG", [true, 0xff, 0xd8], (() => {
-    const f = join(radice, "public/anteprima-predefinita.jpg");
-    if (!existsSync(f)) return [false];
-    const b = readFileSync(f);
-    return [true, b[0], b[1]];
-  })());
+  //  ⚠️ L'IMMAGINE LA DÀ IL TITOLARE. Finché `public/modelli-header.jpg` non c'è, i cinque modelli
+  //   con l'immagine non si usano (parte il vecchio): la bandiera deve dire il vero.
+  const fileHeader = join(radice, "public/modelli-header.jpg");
+  c("la bandiera «immagine pronta» è vera solo se il file esiste", existsSync(fileHeader), T.IMMAGINE_MODELLI_PRONTA);
+  c(
+    "se il file c'è è un JPEG sotto 1 MB",
+    true,
+    !existsSync(fileHeader) ||
+      (() => {
+        const b = readFileSync(fileHeader);
+        return b[0] === 0xff && b[1] === 0xd8 && b.length < 1_000_000;
+      })(),
+  );
+  c(
+    "ogni header Utility porta la stessa bandiera",
+    [],
+    nuoviColLink.filter((t) => t.header.pronta !== T.IMMAGINE_MODELLI_PRONTA).map((t) => t.name),
+  );
+  c("la scheda di Meetly (con «GRATUITA») non si tocca e non è in nessun modello Utility", [true, []], [
+    existsSync(join(radice, "public/anteprima-predefinita.jpg")),
+    utility.filter((t) => /anteprima-predefinita/.test(t.header?.file ?? "")).map((t) => t.name),
+  ]);
   c(
     "pulsante «Entra nella consulenza» con indirizzo dinamico https://hair-genius-hub.hair/meetly/{{1}}",
     [],
@@ -310,8 +362,8 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   const casi = nuovi.find((t) => t.sostituisce === "hgl_casi_reali");
   c(
     "i casi clienti (MARKETING) tengono immagine in testa e pulsante con indirizzo fisso, come il vecchio",
-    ["IMAGE", "https://hair-genius-hub.hair/media/DPKW-3JHV-RC77", undefined],
-    [casi.header?.tipo, casi.pulsante?.url, casi.pulsante?.da],
+    ["IMAGE", "https://hair-genius-hub.hair/media/DPKW-3JHV-RC77", undefined, "public/anteprima-predefinita.jpg", true],
+    [casi.header?.tipo, casi.pulsante?.url, casi.pulsante?.da, casi.header?.file, casi.header?.pronta],
   );
   c(
     "l'immagine di Meetly: l'og:image della stanza ripiega su questo stesso file",
@@ -342,7 +394,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   c("spazi e a capo nel link: non si converte", null, T.suffissoMeetly("https://hair-genius-hub.hair/meetly/ab c"));
 
   gruppo("MODELLI _311026 · I PARAMETRI SI CONVERTONO DAL VECCHIO AL NUOVO");
-  const conv = (vecchio, par) => T.convertiModelloUtility(vecchio, par);
+  const conv = (vecchio, par) => T.convertiModelloUtility(vecchio, par, { immagini: true });
   c(
     "promemoria 20 minuti prima: nome, ora, consulente + la parte variabile del pulsante",
     { modello: "hgl_promemoria_consulenza_311026", parametri: ["Mario", "18:00", "Luca", SUFFISSO_LINK] },
@@ -368,8 +420,18 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     { modello: "hgl_richiesta_in_sospeso_311026", parametri: ["Mario"] },
     conv("hgl_come_eravamo_rimasti", ["Mario", "Luca"]),
   );
-  c("link che non si converte: niente nuovo (parte il vecchio)", null, conv("hgl_promemoria_meet", ["Mario", "18:00", "https://meet.google.com/x-y-z", "Luca"]));
-  c("un valore mancante: niente nuovo", null, conv("hgl_promemoria_meet", ["Mario", "18:00"]));
+  c("link che non si converte: niente nuovo, col motivo (parte il vecchio)", { ripiego: "link" }, conv("hgl_promemoria_meet", ["Mario", "18:00", "https://meet.google.com/x-y-z", "Luca"]));
+  c("un valore mancante: niente nuovo, col motivo", { ripiego: "valori" }, conv("hgl_promemoria_meet", ["Mario", "18:00"]));
+  c(
+    "immagine non ancora data dal titolare: i modelli con header non si usano (di serie)",
+    [{ ripiego: "immagine" }, { ripiego: "immagine" }],
+    [T.convertiModelloUtility("hgl_promemoria_meet", ["Mario", "18:00", LINK_PERSONALE, "Luca"]), T.convertiModelloUtility("hgl_meet_adesso", ["Mario", "Luca", LINK_PERSONALE])],
+  );
+  c(
+    "…ma quelli senza immagine si usano lo stesso",
+    "hgl_richiesta_in_sospeso_311026",
+    T.convertiModelloUtility("hgl_come_eravamo_rimasti", ["Mario", "Luca"])?.modello,
+  );
   c("il testo libero del giorno prima non ha un nuovo", null, conv("hgl_meet_domani_testo", ["Mario", "giovedì", "18:00", "Luca"]));
   c("un nome sconosciuto non ha un nuovo", null, conv("modello_che_non_c_e", ["Mario"]));
   c("un nome già nuovo non si converte due volte", null, conv("hgl_promemoria_consulenza_311026", ["Mario", "18:00", "Luca", SUFFISSO_LINK]));
@@ -380,7 +442,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   for (const n of nuovi) {
     const v = vecchi.find((x) => x.name === n.sostituisce);
     const r = conv(v.name, esempioDi(v));
-    if (!r) {
+    if (!r || r.ripiego) {
       falliti.push(n.name);
       continue;
     }
@@ -425,10 +487,14 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     hgl_meet_adesso: "ns-vecchio-adesso",
     hgl_consulenza_in_corso_311026: "ns-nuovo-adesso",
   };
-  function creaPorte({ acceso, flussi = FLUSSI, ultimaEntrata, interruttoreGuasto } = {}) {
+  function creaPorte({ acceso, flussi = FLUSSI, ultimaEntrata, interruttoreGuasto, immagini = true, cloudRisposte = [] } = {}) {
     const f = creaFinto().su("GET", PERCORSI.campi, esiti.successo([{ id: 501, name: "crm_telefono", type: "text" }]));
     const messaggi = [];
+    const avvisi = [];
     const porte = {
+      avviso: (codice) => void avvisi.push(codice),
+      //  Solo per le prove: finché il titolare non dà l'immagine, nel codice è «non pronta».
+      ...(immagini ? { immaginiModelli: true } : {}),
       adesso: () => f.orologio.adesso(),
       client: () => A.creaClient({ chiave: "chiave-finta", fetch: f.fetch, timeoutMs: 25 }),
       flusso: async (m) => flussi[m] ?? null,
@@ -438,7 +504,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
       registra: async (m) => void messaggi.push(m),
       cloud: async (corpo) => {
         messaggi.push({ cloud: corpo });
-        return { status: 200, corpo: { messages: [{ id: "wamid.1" }] } };
+        return cloudRisposte.shift() ?? { status: 200, corpo: { messages: [{ id: "wamid.1" }] } };
       },
       ...(ultimaEntrata ? { ultimaEntrata: async () => ultimaEntrata } : {}),
       ...(acceso === undefined
@@ -450,7 +516,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
             },
           }),
     };
-    return { porte, f, messaggi };
+    return { porte, f, messaggi, avvisi };
   }
   const campiDi = (x) =>
     Object.fromEntries(
@@ -486,25 +552,38 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
       Object.fromEntries(Object.entries(campiDi(x)).filter(([k]) => /^crm_v\d$/.test(k))),
     );
     c("…e in archivio c'è il nome nuovo", "[template:hgl_promemoria_consulenza_311026]", x.messaggi[0].corpo);
+    c("nessun ripiego, nessuna riga di registro", [], x.avvisi);
+  }
+  {
+    //  L'immagine del titolare non c'è ancora (stato vero del codice): il vecchio, e la riga lo dice.
+    const x = creaPorte({ acceso: true, immagini: false });
+    const r = await P.inviaWhatsapp(x.porte, promemoria);
+    c(
+      "acceso ma l'immagine non c'è: parte il vecchio, come un flusso mancante, e la riga di registro lo dice",
+      ["ok", "ns-vecchio-promemoria", ["modelli311026_ripiego_immagine"]],
+      [r.esito, flussoDi(x), x.avvisi],
+    );
   }
   {
     const x = creaPorte({ acceso: true });
     const r = await P.inviaWhatsapp(x.porte, { ...promemoria, modello: "hgl_non_risponde", parametri: ["Mario"] });
     c("acceso, modello senza flusso nuovo collegato: parte il vecchio, niente si perde", ["ok", "ns-vecchio-non-risponde"], [r.esito, flussoDi(x)]);
+    c("…e la riga di registro dice solo il codice", ["modelli311026_ripiego_flusso"], x.avvisi);
   }
   {
     const x = creaPorte({ acceso: true, flussi: { hgl_promemoria_meet: "ns-vecchio-promemoria" } });
     const r = await P.inviaWhatsapp(x.porte, promemoria);
     c(
       "acceso ma il flusso nuovo non è collegato: parte il vecchio, coi suoi valori",
-      ["ok", "ns-vecchio-promemoria", LINK_PERSONALE],
-      [r.esito, flussoDi(x), campiDi(x).crm_v3],
+      ["ok", "ns-vecchio-promemoria", LINK_PERSONALE, ["modelli311026_ripiego_flusso"]],
+      [r.esito, flussoDi(x), campiDi(x).crm_v3, x.avvisi],
     );
   }
   {
     const x = creaPorte({ acceso: true });
     const r = await P.inviaWhatsapp(x.porte, { ...promemoria, parametri: ["Mario", "18:00", "https://meet.google.com/a-b-c", "Luca"] });
-    c("acceso ma il link non è una stanza nostra: parte il vecchio", ["ok", "ns-vecchio-promemoria"], [r.esito, flussoDi(x)]);
+    c("acceso ma il link non è una stanza nostra: parte il vecchio, con la riga di registro", ["ok", "ns-vecchio-promemoria", ["modelli311026_ripiego_link"]], [r.esito, flussoDi(x), x.avvisi]);
+    c("la riga non contiene né numeri né link né nomi", false, /\d{6}|https?:|Mario|Luca/.test(x.avvisi.join(" ").replace(/modelli311026/g, "")));
   }
   {
     const x = creaPorte({ acceso: true, interruttoreGuasto: true });
@@ -549,7 +628,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     });
     const comp = nuovo.template.components;
     c("header immagine, body, pulsante: in quest'ordine", ["header", "body", "button"], comp.map((k) => k.type));
-    c("l'immagine è quella pubblica", [{ type: "image", image: { link: "https://hair-genius-hub.hair/anteprima-predefinita.jpg" } }], comp[0].parameters);
+    c("l'immagine è quella pubblica", [{ type: "image", image: { link: "https://hair-genius-hub.hair/modelli-header.jpg" } }], comp[0].parameters);
     c("il body ha i valori del testo e NON la parte del pulsante", ["Mario", "12/05/2026", "15:30", "Luca"], comp[1].parameters.map((q) => q.text));
     c("il pulsante URL ha la parte variabile", { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: SUFFISSO_LINK }] }, comp[2]);
     const x = creaPorte({ acceso: true });
@@ -575,6 +654,45 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
       parametri: ["Mario", "12/05/2026", "15:30", LINK_PERSONALE, "Luca"],
     });
     c("Cloud con interruttore spento: il vecchio, identico", "promemoria_meet", y.messaggi.find((m) => m.cloud)?.cloud.template.name);
+    c("…e nessuna riga di registro", [], y.avvisi);
+
+    //  ── Meta respinge il nuovo (non approvato, in pausa, disabilitato): si rimanda col vecchio. ──
+    const rimanda = (codice) => ({ status: 400, corpo: { error: { code: codice, message: "x" } } });
+    const richiesta = {
+      canale: "cloud",
+      a: "+393331234567",
+      tipo: "promemoria",
+      modello: "promemoria_meet",
+      parametri: ["Mario", "12/05/2026", "15:30", LINK_PERSONALE, "Luca"],
+    };
+    for (const codice of [132001, 132015, 132016]) {
+      const z = creaPorte({ acceso: true, cloudRisposte: [rimanda(codice)] });
+      const rz = await P.inviaWhatsapp(z.porte, richiesta);
+      const spediti = z.messaggi.filter((m) => m.cloud).map((m) => m.cloud.template.name);
+      c(
+        `Meta risponde ${codice} al nuovo: lo stesso invio riparte col vecchio, coi suoi valori, e la riga lo dice`,
+        [200, ["promemoria_collegamento_311026", "promemoria_meet"], ["modelli311026_cloud_" + codice]],
+        [rz.status, spediti, z.avvisi],
+      );
+      const vecchioInviato = z.messaggi.filter((m) => m.cloud).at(-1).cloud;
+      c(
+        "…il vecchio porta il link nel testo, come sempre",
+        [LINK_PERSONALE, "body"],
+        [vecchioInviato.template.components[0].parameters[3].text, vecchioInviato.template.components[0].type],
+      );
+    }
+    const altro = creaPorte({ acceso: true, cloudRisposte: [rimanda(131026)] });
+    const ra = await P.inviaWhatsapp(altro.porte, richiesta);
+    c("un altro errore di Meta (numero non raggiungibile): niente secondo invio", [400, 1, []], [ra.status, altro.messaggi.filter((m) => m.cloud).length, altro.avvisi]);
+    const vecchioRifiutato = creaPorte({ acceso: false, cloudRisposte: [rimanda(132001)] });
+    const rv = await P.inviaWhatsapp(vecchioRifiutato.porte, richiesta);
+    c("interruttore spento e Meta respinge il vecchio: nessun secondo invio, come prima", [400, 1], [rv.status, vecchioRifiutato.messaggi.filter((m) => m.cloud).length]);
+    const entrambi = creaPorte({ acceso: true, cloudRisposte: [rimanda(132001), rimanda(132001)] });
+    const re = await P.inviaWhatsapp(entrambi.porte, richiesta);
+    c("respinti tutti e due: l'esito è quello del vecchio, e si prova solo due volte", [400, 2], [re.status, entrambi.messaggi.filter((m) => m.cloud).length]);
+    const senzaImmagine = creaPorte({ acceso: true, immagini: false });
+    await P.inviaWhatsapp(senzaImmagine.porte, richiesta);
+    c("Cloud, immagine non pronta: parte il vecchio e la riga lo dice", ["promemoria_meet", ["modelli311026_ripiego_immagine"]], [senzaImmagine.messaggi.find((m) => m.cloud).cloud.template.name, senzaImmagine.avvisi]);
   }
 
   gruppo("MODELLI _311026 · I FLUSSI DA COLLEGARE NEL PANNELLO");
