@@ -43,6 +43,7 @@
 //  no_show resta no-show, appuntamento fissato è da fare, tutto il resto è
 //  fatto. Così non esiste il caso "meeting completato ma lead ancora da
 //  contattare": non ci sono due verità da tenere allineate.
+import { setQuoteRef } from "@/shop/quote-ref";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import {
@@ -210,6 +211,17 @@ const SPIEGAZIONE_TOTALE: Record<ChiaveEsito, (ambito: string) => string> = {
  *  Esportata e usata anche dalle pagine del consulente: due funzioni diverse
  *  per decidere se una consulenza è stata fatta produrrebbero due agende
  *  diverse per la stessa giornata. */
+
+/** L'id del cliente dell'ultima consulenza aperta da questo browser, o "". */
+function leadCorrenteId(): string {
+  try {
+    const g = JSON.parse(localStorage.getItem("hg_lead_corrente") || "null") as { id?: string } | null;
+    return g?.id ? String(g.id) : "";
+  } catch {
+    return "";
+  }
+}
+
 export function esitoDi(l: Lead): Esito {
   //  Lettura difensiva: questa funzione gira dentro conteggi al montaggio della
   //  pagina, e una scheda arrivata dall'archivio senza `data` non deve poter
@@ -591,6 +603,13 @@ export async function avviaConsulenza(l: Lead, nomeConsulenteDi?: (x: Lead) => s
     //   millisecondo e i dati del lead sono in mano: è il momento giusto.
     //   Non si aspetta e non si dice niente — vedi depositaAnteprimaPerLead.
     void depositaAnteprimaPerLead(l, String(r.code));
+    //  ── UN ALTRO CLIENTE: IL PREVENTIVO DI PRIMA NON È SUO (31/10/2026) ──
+    //   Segnalazione del titolare: il link «solo preventivo» portava ancora il
+    //   numero del preventivo della consulenza precedente (e WhatsApp ne
+    //   mostrava l'anteprima) finché non si premeva «Nuovo cliente». Cambiando
+    //   cliente il numero si azzera: il link riparte con la scheda «lo
+    //   costruiamo insieme». Stesso cliente riaperto: il suo preventivo resta.
+    if (leadCorrenteId() !== l.id) setQuoteRef(null);
     //  Il preventivo legge da qui chi ha davanti: resta finché non si apre
     //  un'altra consulenza.
     localStorage.setItem(
