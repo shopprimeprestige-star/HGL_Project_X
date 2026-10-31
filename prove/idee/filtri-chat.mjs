@@ -700,11 +700,27 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       [1, 1],
       [num(con({ consulente: "luca" }), NR), num(con({ consulente: "luca" }), DR)],
     );
-    c("si sommano alle stelle (gruppi diversi): E", [ds1], quali(F.commuta(con({ stelle: true }), DR.campo, DR.valore)));
+    //  Filtri esclusivi (main, 31/10): toccare una pastiglia spegne le altre voci; il consulente resta.
     c(
-      "si sommano alla coda «Da chiamare»: E (chi è in quello stato e anche in coda)",
-      m.filter((x) => passaFiltro(x, "da-chiamare") && x.lead?.data?.stato === "non_risponde"),
-      quali(F.commuta(con({ coda: "da-chiamare" }), NR.campo, NR.valore)),
+      "toccarla con «Con stelle» acceso spegne le stelle: restano solo le chat di quello stato",
+      [con({ fase: DR.valore })],
+      [F.commuta(con({ stelle: true }), DR.campo, DR.valore)],
+    );
+    c(
+      "toccarla con la coda «Da chiamare» accesa spegne la coda",
+      con({ fase: NR.valore }),
+      F.commuta(con({ coda: "da-chiamare" }), NR.campo, NR.valore),
+    );
+    c(
+      "il consulente scelto nel pannello resta e si somma (E)",
+      [ds2],
+      quali(F.commuta(con({ consulente: "luca" }), DR.campo, DR.valore)),
+    );
+    //  `passaFiltri` resta a gruppi in E: un filtro costruito a mano (non dal tocco) li somma ancora.
+    c(
+      "a livello di regola i gruppi diversi si sommano ancora (fase + stelle)",
+      [ds1],
+      quali(con({ fase: DR.valore, stelle: true })),
     );
     c(
       "fra loro si escludono (stessa fase): l'ultima sostituisce l'altra",
