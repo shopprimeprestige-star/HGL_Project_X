@@ -39,6 +39,11 @@
  *  a `gestisciMedia` (`media.ts`): il Worker dà un permesso e un indirizzo di
  *  carico, i byte non passano di qui. Senza `media` quei due `tipo` sono corpo non
  *  valido, come prima.
+ *
+ *  Le revoche (commessa 2026-10-31, ponte-revoche). Se la richiesta porta `revoche` (le
+ *  `PorteRevoche`), `tipo` `revoca` ({ v: 1, tipo, chiave `bw:<cifre>:<id>` }) marca come eliminata
+ *  la riga del ponte con quella chiave e il suo pari ManyChat/CRM, senza cancellare niente. Come per
+ *  le altre, solo dopo la chiave del ponte; senza `revoche` quel `tipo` è corpo non valido.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { leggiCorpoLimitato, stessaChiave } from "../manychat/ritorno";
 import { gestisciPonte } from "./invio-giro";
@@ -64,6 +69,7 @@ import {
   type NomiScrittura,
   type Origine,
   type PortePonte,
+  type PorteRevoche,
   type RigaDaAbbinare,
   type RigaScrittura,
   type RispostaLotto,
@@ -227,6 +233,20 @@ export function leggiNoti(json: unknown): string[] | null {
   if (!Array.isArray(grezzi) || grezzi.length < 1 || grezzi.length > LIMITI.numeri) return null;
   return [...new Set(grezzi.filter((n): n is string => typeof n === "string" && NUMERO.test(n)))];
 }
+
+// ── La revoca (commessa 2026-10-31, ponte-revoche) ────────────────────────
+
+const CHIAVE_REVOCA = /^bw:\d{8,15}:[A-Za-z0-9_.-]{1,128}$/;
+
+/** La chiave `bw:<cifre>:<id>` di una revoca, o `null` (400): `v`, `tipo` o chiave sbagliati. */
+export function leggiRevoca(json: unknown): string | null {
+  if (!oggetto(json) || json.v !== VERSIONE_CORPO || json.tipo !== "revoca") return null;
+  const k = json.chiave;
+  return typeof k === "string" && CHIAVE_REVOCA.test(k) ? k : null;
+}
+
+/** Un intero ≥ 0 dalla porta (un valore storto vale 0). */
+const intero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
 
 // ── Il giro ───────────────────────────────────────────────────────────────
 
@@ -460,6 +480,7 @@ export async function gestisciRichiesta(
     invii?: PorteInvio;
     avvisa?: AvvisaEntrate;
     media?: PorteMedia;
+    revoche?: PorteRevoche;
   },
 ): Promise<Response> {
   if (!i.segreto) {
@@ -492,8 +513,10 @@ export async function gestisciRichiesta(
   const invio = !!i.invii && (tipo === "prendi" || tipo === "esito");
   //  Lo stesso per i media: senza la porta `media` non esistono.
   const immagine = !!i.media && (tipo === "media_permesso" || tipo === "media_fatto");
+  //  Le revoche: senza la porta `revoche` il tipo non esiste (corpo non valido, come prima).
+  const chiaveRevoca = i.revoche && tipo === "revoca" ? leggiRevoca(json) : null;
   const numeri = tipo === "noti" ? leggiNoti(json) : null;
-  if (!lotto && !battito && !invio && !immagine && !numeri) {
+  if (!lotto && !battito && !invio && !immagine && !numeri && !chiaveRevoca) {
     porte.avviso("corpo_non_valido");
     return errore("corpo_non_valido");
   }
@@ -514,6 +537,12 @@ export async function gestisciRichiesta(
     }
     if (invio) return await gestisciPonte(i.invii!, userId, json, i.adesso);
     if (immagine) return await gestisciMedia(i.media!, userId, json);
+    if (chiaveRevoca) {
+      const e = await i.revoche!.revoca(userId, chiaveRevoca);
+      const esito = { trovate: intero(e?.trovate), marcate: intero(e?.marcate) };
+      porte.avviso("revoca", esito);
+      return risposta(200, { ok: true, ...esito });
+    }
     if (lotto) {
       const esito = await giroLotto(porte, userId, lotto, i.adesso, i.invii, i.avvisa);
       porte.avviso("lotto", {
