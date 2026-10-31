@@ -214,6 +214,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { creaScatola } from "@/shop/scatola-nera-browser";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -793,7 +794,23 @@ const PRESENTATORE_APPENA_VISTO_MS = 20_000;
 export function guestStickyOn() {
   return guestSticky;
 }
-const send = (event: string, payload: any) => chan?.send({ type: "broadcast", event, payload });
+const send = (event: string, payload: any) => {
+  scatola.segnale(String(payload?.to ?? ""), event, true); // scatola nera: conta e basta
+  return chan?.send({ type: "broadcast", event, payload });
+};
+/** ── LA SCATOLA NERA DEI COLLEGAMENTI (31/10/2026) ─────────────────────────
+ *  Solo osserva: se 15 s dopo aver incontrato qualcuno non ne arriva media
+ *  vivo, manda UN rapporto tecnico (senza dati personali né indirizzi IP) al
+ *  server, e un «esito» se poi si collega. Vedi shop/scatola-nera.ts. */
+const scatola = creaScatola({
+  stanza: () => S.sessionId,
+  ruolo: () => (S.role === "host" ? "consulente" : "ospite"),
+  iceServers: () => cachedIce,
+  peer: (pid) => peers.get(pid),
+  remoto: (pid) => remoteStreams.get(pid),
+  locale: () => localStream,
+  mediaVivo: (pid) => hasLiveMedia(pid),
+});
 //  CAUSA REALE DEL "LAMPEGGIO" DELL'OSPITE: una scheda presentatore che NON è in
 //  diretta (seconda scheda, scheda ricaricata, pagina rimasta aperta) rispondeva
 //  comunque a ogni `hello` con un callstate `active:false / sessionLive:false`.
@@ -1198,6 +1215,8 @@ function diag(s: string) {
 
 // ── candidati ICE bufferizzati PER-PEER finché non c'è remoteDescription ───
 async function addIce(pid: string, c: RTCIceCandidateInit) {
+  scatola.segnale(pid, "ice", false);
+  scatola.candidato(pid, "remoto", c?.candidate);
   const p = peers.get(pid);
   if (p && p.remoteDescription && p.remoteDescription.type) {
     try {
@@ -1569,7 +1588,10 @@ function makePeer(pid: string): RTCPeerConnection {
     /* */
   }
   p.onicecandidate = (e) => {
-    if (e.candidate) send("ice", { from: S.myPid, to: pid, c: e.candidate });
+    if (e.candidate) {
+      scatola.candidato(pid, "locale", e.candidate.candidate);
+      send("ice", { from: S.myPid, to: pid, c: e.candidate });
+    }
   };
   p.ontrack = (e) => {
     const s = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
@@ -1610,6 +1632,7 @@ function makePeer(pid: string): RTCPeerConnection {
     set({ connected: anyConnected() });
     diag(anyConnected() ? "Connesso ✓" : `Conn:${st}`);
     if (st === "connected") {
+      scatola.connesso(pid);
       badSince.delete(pid);
       startRecognition();
       annullaRipresa(pid);
@@ -2035,6 +2058,7 @@ function removePeer(pid: string, why = "unspecified") {
   badSince.delete(pid);
   deviceOf.delete(pid);
   lastIceRestart.delete(pid);
+  scatola.chiudi(pid);
   gettoneDelPid.delete(pid);
   //  Il timer di ripresa muore col peer: acceso su una connessione chiusa
   //  proverebbe a riparare qualcosa che non esiste più.
@@ -2062,6 +2086,7 @@ function resetRoster() {
   badSince.clear();
   deviceOf.clear();
   lastIceRestart.clear();
+  scatola.chiudiTutto();
   ripresaTimer.forEach((t) => clearTimeout(t));
   ripresaTimer.clear();
   set({ roster: [], connected: false, focusPid: null, activeSpeakerPid: null });
@@ -2331,6 +2356,7 @@ async function apriMedia(p: {
     }
   }
   set({ mediaAvviso: spiegaErroreMedia(ultimo) });
+  scatola.erroreMedia(ultimo); // scatola nera: solo il nome dell'errore
   throw ultimo;
 }
 /** I dispositivi scelti a mano che si sono rivelati inesistenti: si buttano,
@@ -5443,6 +5469,7 @@ function attachChannel(sessionId: string) {
     const known = S.roster.some((r) => r.pid === pid);
     lastSeen.set(pid, Date.now());
     if (!firstSeen.has(pid)) firstSeen.set(pid, Date.now());
+    scatola.incontro(pid); // scatola nera: da qui partono i 15 secondi
     /*  ── SUL RIQUADRO, IL NOME DELLA SCHEDA ────────────────────────────
         Chi è entrato scegliendo il proprio nome si annuncia con il gettone
         della sua scheda: qui diventa «Anna Verdi» sul riquadro del
@@ -5601,8 +5628,13 @@ function attachChannel(sessionId: string) {
   //  la connessione è davvero in attesa di risposta, ed eventuali errori vengono
   //  registrati in console senza allarmare nessuno.
   ch.on("broadcast", { event: "offer" }, ({ payload }: any) => {
-    if (payload?.to !== S.myPid || !localStream) return; // serve prima il consenso ai media
+    if (payload?.to !== S.myPid) return;
     const from = String(payload.from);
+    scatola.segnale(from, "offer", false);
+    if (!localStream) {
+      scatola.scartata(from); // serve prima il consenso ai media
+      return;
+    }
     const prev = offerQueue.get(from) || Promise.resolve();
     const next = prev.then(async () => {
       let p = peers.get(from);
@@ -5647,6 +5679,7 @@ function attachChannel(sessionId: string) {
   });
   ch.on("broadcast", { event: "answer" }, async ({ payload }: any) => {
     if (payload?.to !== S.myPid) return;
+    scatola.segnale(String(payload.from), "answer", false);
     const p = peers.get(String(payload.from));
     if (!p || p.signalingState === "stable") return;
     try {
@@ -5992,6 +6025,7 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
   badSince.clear();
   deviceOf.clear();
   lastIceRestart.clear();
+  scatola.chiudiTutto();
   stopBlurPipeline(); // canvas + traccia sorgente della sfocatura
   stopMicPipeline(); // grafo audio (soglia di attivazione) + sorgente microfono
   releasePlaceholders(); // tracce segnaposto (nero/silenzio)

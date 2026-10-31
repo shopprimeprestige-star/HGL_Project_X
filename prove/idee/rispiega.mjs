@@ -381,7 +381,7 @@ export async function proveRispiega(mod, { c, gruppo, radice }) {
     "il nome è il più recente fra le migrazioni",
     true,
     readdirSync(join(radice, "supabase/migrations"))
-      .filter((n) => n.endsWith(".sql") && !n.includes("eco_entrata_contatti") && !n.includes("ponte_revoche")) // l'eco sul contatto (eco-manychat-entrata) e le revoche (ponte-revoche) vengono dopo: hanno il loro ordine
+      .filter((n) => n.endsWith(".sql") && !n.includes("eco_entrata_contatti") && !n.includes("ponte_revoche") && !n.includes("meetly_diagnosi")) // la scatola nera di Meetly (meetly-scatola) viene dopo; l'eco sul contatto (eco-manychat-entrata) e le revoche (ponte-revoche) vengono dopo: hanno il loro ordine
       .sort()
       .at(-1) === nomi[0],
   );

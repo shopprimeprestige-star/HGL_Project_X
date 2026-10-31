@@ -208,6 +208,6 @@ export async function provePonteTutteMigrazione(_mod, { c, gruppo, radice }) {
   ]);
   c("l'intestazione dice che il nome del profilo non si salva e che lead_id ≠ «Con lead» (nota 6 del revisore)", true,
     /NOME DEL PROFILO/.test(grezzo) && /lead_id IS NULL/.test(grezzo) && /la chat lega la scheda per telefono/.test(grezzo));
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("ponte_immagini") && !n.includes("chat_veloce_indici") && !n.includes("rispiega") && !n.includes("eco_entrata_contatti") && !n.includes("ponte_revoche")); // revoche (ponte-revoche 31/10) e chat veloce, rispiega, immagini (ponte-storico-completo) ed eco sul contatto (eco-manychat-entrata) vengono DOPO: hanno il loro ordine
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("ponte_immagini") && !n.includes("chat_veloce_indici") && !n.includes("rispiega") && !n.includes("eco_entrata_contatti") && !n.includes("ponte_revoche") && !n.includes("meetly_diagnosi")); // la scatola nera di Meetly (meetly-scatola, 31/10) viene dopo; revoche (ponte-revoche 31/10) e chat veloce, rispiega, immagini (ponte-storico-completo) ed eco sul contatto (eco-manychat-entrata) vengono DOPO: hanno il loro ordine
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.sort().at(-1));
 }
