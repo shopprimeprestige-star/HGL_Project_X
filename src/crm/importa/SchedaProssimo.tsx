@@ -593,6 +593,7 @@ export function SchedaProssimo({
             Sul telefono è la barra fissa in basso (BarraEsiti); sul computer sta
             qui, subito sotto la sintesi: il tasto Chiama si vede senza scorrere. */}
         <BarraEsiti
+          lead={lead}
           telefono={telefono}
           linkWhatsApp={linkWhatsApp}
           onWhatsAppInviato={onWhatsAppInviato}

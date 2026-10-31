@@ -323,7 +323,9 @@ function Riga({
           </>
         ) : (
           <>
-            {lead && giorniIndietro === 0 && <TastoChiama telefono={telefono} compatto />}
+            {lead && giorniIndietro === 0 && (
+              <TastoChiama telefono={telefono} compatto lead={lead} />
+            )}
             {lead && giorniIndietro > 0 && (
               <Button
                 size="sm"

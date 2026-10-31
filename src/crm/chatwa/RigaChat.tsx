@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type PointerEvent } from "react";
+import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   AlertCircle,
   CalendarClock,
@@ -142,6 +143,8 @@ function RigaChatBase({
   const finestra =
     mostraFinestra || c.finestra?.aperta === false ? pastigliaFinestra(c.finestra) : null;
   const [cambiaStato, setCambiaStato] = useState(false);
+  //  Ogni tocco sulla cornetta si conta sulla scheda (31/10/2026).
+  const segnaChiamata = useSegnaChiamata();
   //  «Anticipa» solo a chi gestisce le installazioni (revisione di sicurezza, 31/10/2026).
   const puoInstallazioni = usePuo()("installazioni");
   /*  ── PRESSIONE LUNGA (30/10/2026) ──────────────────────────────────────────
@@ -309,9 +312,7 @@ function RigaChatBase({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
-            <span
-              className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-foreground md:text-[13px] md:leading-[18px]"
-            >
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-foreground md:text-[13px] md:leading-[18px]">
               {nome}
             </span>
             {/*  A destra della prima riga ci sta SEMPRE di chi è la palla (30/10/2026):
@@ -436,9 +437,13 @@ function RigaChatBase({
                 href={`tel:${telefono}`}
                 aria-label={`Chiama ${nome}`}
                 title={`Chiama ${nome}`}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  segnaChiamata(c.lead);
+                }}
               >
                 <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
+                <BadgeChiamate lead={c.lead} className="right-0.5 top-0.5" />
               </a>
             </Button>
           )}

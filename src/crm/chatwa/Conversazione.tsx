@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef } from "react";
+import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   ArrowLeft,
   Ban,
@@ -102,6 +103,7 @@ export function Conversazione({
   onAbbina,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
+  const segnaChiamata = useSegnaChiamata();
   const { consultants } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   //  ── SCRIVI DAL TELEFONO (30/10/2026) ───────────────────────────────────
@@ -277,14 +279,16 @@ export function Conversazione({
                 <Button
                   asChild
                   variant="outline"
-                  className="h-11 w-11 lg:w-auto px-0 lg:px-3 shrink-0 md:h-9 md:w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  className="relative h-11 w-11 lg:w-auto px-0 lg:px-3 shrink-0 md:h-9 md:w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
                 >
                   <a
                     href={`tel:${numeroDaComporre(attiva.phone)}`}
                     aria-label={`Chiama ${attiva.phone}`}
                     title={`Chiama ${attiva.phone}`}
+                    onClick={() => segnaChiamata(attiva.lead)}
                   >
                     <Phone className="h-4 w-4" />
+                    <BadgeChiamate lead={attiva.lead} />
                     <span className="hidden lg:inline">Chiama</span>
                   </a>
                 </Button>

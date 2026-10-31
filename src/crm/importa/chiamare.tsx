@@ -20,6 +20,9 @@
  *  un computer. Copiarlo nel secondo punto avrebbe voluto dire che un giorno
  *  uno dei due torna a essere un tel: cieco.
  *  ───────────────────────────────────────────────────────────────────────── */
+import type { Lead } from "@/crm/types";
+import { cn } from "@/lib/utils";
+import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Copy, Phone } from "lucide-react";
@@ -72,10 +75,14 @@ export function TastoChiama({
    *  scheda: stessa identica logica, misura da riga. Un secondo componente
    *  «piccolo» sarebbe la copia che fra un mese perde il riquadro del numero. */
   compatto,
+  lead,
 }: {
   telefono: string;
   compatto?: boolean;
+  /** La scheda: ogni tocco sulla cornetta si conta lì (31/10/2026, crm/chiamate). */
+  lead?: Lead | null;
 }) {
+  const segnaChiamata = useSegnaChiamata();
   //  Gli hook stanno tutti sopra qualunque uscita anticipata: senza numero si
   //  esce dopo, non prima (React 310 = schermata bianca in produzione).
   const daDito = useApparecchioCheChiama();
@@ -108,9 +115,14 @@ export function TastoChiama({
 
   if (daDito) {
     return (
-      <Button asChild size={misura} className={classe}>
-        <a href={`tel:${componibile}`} title={`Chiama ${telefono}`}>
+      <Button asChild size={misura} className={cn("relative", classe)}>
+        <a
+          href={`tel:${componibile}`}
+          title={`Chiama ${telefono}`}
+          onClick={() => segnaChiamata(lead)}
+        >
           <Phone className={icona} /> Chiama
+          <BadgeChiamate lead={lead} />
         </a>
       </Button>
     );
@@ -119,8 +131,14 @@ export function TastoChiama({
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
-        <Button size={misura} className={classe} title={`Chiama ${telefono}`}>
+        <Button
+          size={misura}
+          className={cn("relative", classe)}
+          title={`Chiama ${telefono}`}
+          onClick={() => segnaChiamata(lead)}
+        >
           <Phone className={icona} /> Chiama
+          <BadgeChiamate lead={lead} />
         </Button>
       </PopoverTrigger>
       <Pannello align="start" className="w-72" titolo="Il numero" contesto={telefono}>

@@ -39,6 +39,7 @@
  *  gesti aprono lui.
  *  ───────────────────────────────────────────────────────────────────────── */
 
+import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   useCallback,
   useEffect,
@@ -422,6 +423,7 @@ export function VoceDaFare({
   onScegli,
   compatta = false,
 }: ProprietaVoce) {
+  const segnaChiamata = useSegnaChiamata();
   //  ⚠️ TUTTI GLI HOOK STANNO QUI, SOPRA QUALUNQUE USCITA ANTICIPATA. Un
   //  `return` prima di un hook è l'errore React 310, che in sviluppo non si
   //  vede e in produzione è una schermata bianca.
@@ -688,12 +690,16 @@ export function VoceDaFare({
           {chiamabile(riga.lead.data.telefono) ? (
             <a
               href={`tel:${riga.lead.data.telefono}`}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                segnaChiamata(riga.lead);
+              }}
               title={`Chiama ${riga.chi}`}
               aria-label={`Chiama ${riga.chi}`}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+              className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
             >
               <Phone className="h-3.5 w-3.5" />
+              <BadgeChiamate lead={riga.lead} />
             </a>
           ) : (
             //  Numero estero: rosso e bloccato; i WhatsApp sono qui sotto.
@@ -780,13 +786,17 @@ export function VoceDaFare({
               className="h-11 px-4 text-[13px]"
             />
           ) : numeroDaComporre(riga.lead?.data?.telefono ?? "") ? (
-            <Button asChild className="h-10 shrink-0 px-4 text-[13px] font-semibold">
+            <Button asChild className="relative h-10 shrink-0 px-4 text-[13px] font-semibold">
               <a
                 href={`tel:${numeroDaComporre(riga.lead?.data?.telefono ?? "")}`}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  segnaChiamata(riga.lead);
+                }}
                 aria-label={`Chiama ${riga.chi}`}
               >
                 <Phone className="mr-1.5 h-4 w-4" /> Chiama
+                <BadgeChiamate lead={riga.lead} />
               </a>
             </Button>
           ) : (
