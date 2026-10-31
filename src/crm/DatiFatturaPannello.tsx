@@ -1,12 +1,15 @@
 /** ── IL RIQUADRO «DATI PER LA FATTURA» (Impostazioni → WhatsApp) ────────────
  *  Dopo un acconto, il CRM chiede da solo al cliente i dati per la fattura e, quando
  *  arrivano (foto o testo), prepara una BOZZA: la conferma resta sempre a mano.
- *  Spento di base. Il modello Meta da far approvare è mostrato qui sotto. */
+ *  Spento di base. Il modello Meta da far approvare è mostrato qui sotto.
+ *  Dal 31/10/2026 la richiesta si accende e si spegne in «Messaggi automatici»: qui resta
+ *  il rimando, e lo Switch «il modello è approvato» (non è un messaggio). */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { fetchCRM, usePuo } from "@/crm/AuthContext";
+import { RimandoMessaggiAutomatici } from "@/crm/MessaggiAutomaticiPannello";
 
 const ROTTA = "/api/crm/dati-fattura";
 interface Config {
@@ -73,19 +76,10 @@ export function DatiFatturaPannello() {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <label className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium">
-            {config?.acceso ? "Acceso: la richiesta parte" : "Spento: nessuna richiesta parte"}
-          </span>
-          <Switch
-            checked={!!config?.acceso}
-            disabled={salvo || !config}
-            onCheckedChange={(v) => void cambia({ acceso: v })}
-          />
-        </label>
+        <RimandoMessaggiAutomatici />
         <p className="text-[12px] text-muted-foreground">
-          Accendendo, chi ha GIÀ un acconto non riceve niente: vale solo per i nuovi acconti. Dentro
-          le 24 ore dall&apos;ultimo messaggio del cliente è un testo normale; fuori serve il
+          Accesa, la richiesta non parte per chi ha GIÀ un acconto: vale solo per i nuovi acconti.
+          Dentro le 24 ore dall&apos;ultimo messaggio del cliente è un testo normale; fuori serve il
           modello Meta qui sotto. Finché non c&apos;è, la richiesta resta in «Da fare».
         </p>
         <label className="flex items-center justify-between gap-3">

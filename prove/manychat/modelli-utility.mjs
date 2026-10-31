@@ -556,6 +556,8 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     canale: "manychat",
     a: `+${NUMERO}`,
     tipo: "promemoria",
+    //  Il controllo in porta (commessa 2026-10-31) non c'entra con la scelta del modello: messaggio a mano.
+    messaggio: "manuale",
     modello: "hgl_promemoria_meet",
     parametri: ["Mario", "18:00", LINK_PERSONALE, "Luca"],
     nome: "Mario",
@@ -737,6 +739,8 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
       canale: "cloud",
       a: "+393331234567",
       tipo: "promemoria",
+      //  Il controllo in porta (commessa 2026-10-31) non c'entra con la scelta del modello: messaggio a mano.
+      messaggio: "manuale",
       modello: "promemoria_meet",
       parametri: ["Mario", "12/05/2026", "15:30", LINK_PERSONALE, "Luca"],
     });
@@ -756,6 +760,8 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
       canale: "cloud",
       a: "+393331234567",
       tipo: "promemoria",
+      //  Il controllo in porta (commessa 2026-10-31) non c'entra con la scelta del modello: messaggio a mano.
+      messaggio: "manuale",
       modello: "promemoria_meet",
       parametri: ["Mario", "12/05/2026", "15:30", LINK_PERSONALE, "Luca"],
     });
@@ -768,6 +774,8 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
       canale: "cloud",
       a: "+393331234567",
       tipo: "promemoria",
+      //  Il controllo in porta (commessa 2026-10-31) non c'entra con la scelta del modello: messaggio a mano.
+      messaggio: "manuale",
       modello: "promemoria_meet",
       parametri: ["Mario", "12/05/2026", "15:30", LINK_PERSONALE, "Luca"],
     };

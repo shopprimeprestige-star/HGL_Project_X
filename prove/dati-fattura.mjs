@@ -368,6 +368,29 @@ async function proveGiro(mod, { c, gruppo, CF, ADESSO, ore, H }) {
   r = await G.giroDatiFattura(m.porte);
   c("una scheda che dà errore non ferma le altre", [1, 1], [r.errori, r.richieste]);
   c("il risultato del giro non porta dati (solo conteggi)", true, Object.values(r).every((v) => typeof v === "number" || typeof v === "string"));
+
+  /* ── L'«ACCESO» DEL REGISTRO (commessa interruttori, 31/10/2026) ──
+     `leggiConfig` ora dà l'«acceso» del registro dei messaggi automatici; il giro non fa
+     niente da spento e un `spento` arrivato dalla porta non è mai un guasto. */
+  gruppo("DATI FATTURA · «ACCESO» DAL REGISTRO E ESITO «SPENTO» DELLA PORTA");
+  m = mondo({ config: { acceso: false, avvio: "fatto" }, schede: [S("A")] });
+  let letture = 0;
+  const schedeOrig = m.porte.schedeConAcconto;
+  m.porte.schedeConAcconto = async () => { letture++; return schedeOrig(); };
+  r = await G.giroDatiFattura(m.porte);
+  c("registro spento: il giro esce subito (nessuna scheda letta, nessun lucchetto, nessun invio)", ["spento", 0, 0, 0, 0], [r.stato, letture, m.rilasci, m.inviati.length, m.scritture.length]);
+  c("«spento» dalla porta → riprova (mai errore o incerto)", ["riprova", "riprova", "errore", "errore"], [G.esitoRichiestaDaPorta("spento"), G.esitoRichiestaDaPorta("riprova_fra_poco"), G.esitoRichiestaDaPorta("blocco"), G.esitoRichiestaDaPorta("esito_che_non_conosco")]);
+  c("gli altri esiti della porta restano com'erano", ["ok", "gia_preso", "saltato", "stop", "incerto"], ["ok", "gia_preso", "saltato", "stop", "incerto"].map(G.esitoRichiestaDaPorta));
+  m = mondo({ schede: [S("A")], esitoInvio: G.esitoRichiestaDaPorta("spento") });
+  r = await G.giroDatiFattura(m.porte);
+  c("un «spento» arrivato comunque: la scheda torna in promemoria, nessuna richiesta, nessun errore", ["promemoria", "pausa_contatto", 0, 0], [m.schede[0].data.datiFattura.stato, m.schede[0].data.datiFattura.motivo, r.richieste, r.errori]);
+  m.esitoInvio = "ok";
+  r = await G.giroDatiFattura(m.porte);
+  await G.giroDatiFattura(m.porte);
+  c("riacceso: la richiesta parte UNA volta (2 tentativi in tutto: lo «spento» e quello vero), al giro dopo non si ripete", [1, "richiesta_inviata", 2], [r.richieste, m.schede[0].data.datiFattura.stato, m.inviati.length]);
+  m = mondo({ config: { acceso: true }, schede: [S("A"), S("B", { datiFattura: { stato: "bozza_pronta" } })] });
+  r = await G.giroDatiFattura(m.porte);
+  c("acceso senza «avvio» (JSON mancante o storto): si parte dall'avvio, chi ha l'acconto non riceve niente", ["avvio", 0, "preesistente", "fatto"], [r.stato, m.inviati.length, m.schede[0].data.datiFattura.stato, m.config.avvio]);
 }
 
 /* ═══ LA SCRITTURA DELLA SCHEDA, CON UN DATABASE CHE IMITA IL TRIGGER ═════════ */

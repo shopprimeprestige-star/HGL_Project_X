@@ -61,6 +61,7 @@ function creaDbFinto() {
     whatsapp_contacts: [],
     manychat_invii: [],
     manychat_config: [],
+    messaggi_automatici: [], // il registro dei messaggi automatici: { chiave, acceso, acceso_dal }
   };
   const registro = []; // ogni richiesta eseguita: { tabella, op, catena }
   const stato = {
@@ -508,7 +509,8 @@ export async function proveDellePortePrenota(mod, aiuti) {
     c(
       "nessuna migrazione scrive la chiave prenota_chat",
       [],
-      migrazioni.filter((n) =>
+      //  «messaggi_automatici» (31/10/2026) la legge soltanto, per l'interruttore unico: non la scrive.
+      migrazioni.filter((n) => !n.includes("messaggi_automatici") &&
         /prenota_chat/.test(readFileSync(join(radice, "supabase/migrations", n), "utf8")),
       ),
     );
@@ -793,23 +795,68 @@ export async function proveDellePortePrenota(mod, aiuti) {
         (await porte.consulenti(U)).map((x) => x.id),
       );
 
-      c("config: senza riga è spenta", null, await porte.config());
-      db.tabelle.app_config.push(config("prenota_chat", "non è json"));
-      c("config: riga illeggibile è spenta", null, await porte.config());
-      db.tabelle.app_config[0].value = '{"v":1,"acceso":false}';
-      c("config: acceso:false è spenta", null, await porte.config());
-      db.tabelle.app_config[0].value =
+      //  Commessa 2026-10-31-interruttori-automatici (T6): l'ACCESO sta nel registro dei messaggi
+      //  automatici (chiave `prenota_chat`); consulente, preavviso, giorni e durata restano nella
+      //  riga di `app_config`, il cui vecchio `acceso` non conta più.
+      const RIGA_VECCHIA_ACCESA =
         '{"v":1,"acceso":true,"consulenteId":" c1 ","preavvisoOre":5,"giorniAvanti":99,"durataMin":60}';
+      const nelRegistro = (acceso) => {
+        db.tabelle.messaggi_automatici.length = 0;
+        if (acceso !== null)
+          db.tabelle.messaggi_automatici.push({ chiave: "prenota_chat", acceso, acceso_dal: null });
+      };
+      c("config: senza registro è spenta", null, await porte.config());
+      db.tabelle.app_config.push(config("prenota_chat", RIGA_VECCHIA_ACCESA));
       c(
-        "config: accesa, con i numeri fuori scala al predefinito",
+        "config: registro senza la riga, anche con la riga vecchia accesa: spenta",
+        null,
+        await porte.config(),
+      );
+      nelRegistro(false);
+      c("config: registro spento, riga vecchia accesa: spenta", null, await porte.config());
+      nelRegistro("true");
+      c("config: nel registro vale solo true esatto", null, await porte.config());
+      nelRegistro(true);
+      c(
+        "config: registro acceso, con i numeri fuori scala al predefinito",
         { acceso: true, consulenteId: "c1", preavvisoOre: 5, giorniAvanti: 14, durataMin: 60 },
         await porte.config(),
       );
+      db.tabelle.app_config[0].value =
+        '{"v":1,"acceso":false,"consulenteId":"c1","preavvisoOre":5}';
       c(
-        "config legge la chiave prenota_chat",
-        [["eq", "key", "prenota_chat"]],
-        db.registro.at(-1).catena.filter((x) => x[0] === "eq"),
+        "config: registro acceso, vecchio acceso:false nella riga: accesa, il resto dalla riga",
+        { acceso: true, consulenteId: "c1", preavvisoOre: 5, giorniAvanti: 14, durataMin: 60 },
+        await porte.config(),
       );
+      db.tabelle.app_config[0].value = "non è json";
+      c(
+        "config: registro acceso, riga illeggibile: accesa coi predefiniti (come accendere senza riga)",
+        { acceso: true, consulenteId: "", preavvisoOre: 3, giorniAvanti: 14, durataMin: 60 },
+        await porte.config(),
+      );
+      db.tabelle.app_config.length = 0;
+      c(
+        "config: registro acceso, senza riga: accesa coi predefiniti",
+        { acceso: true, consulenteId: "", preavvisoOre: 3, giorniAvanti: 14, durataMin: 60 },
+        await porte.config(),
+      );
+      nelRegistro(false);
+      c("config: registro spento, senza riga: spenta", null, await porte.config());
+      nelRegistro(true);
+      db.tabelle.app_config.push(config("prenota_chat", RIGA_VECCHIA_ACCESA));
+      await porte.config();
+      c(
+        "config legge la chiave prenota_chat dal registro, una volta, dopo la riga",
+        [
+          ["app_config", [["eq", "key", "prenota_chat"]]],
+          ["messaggi_automatici", [["eq", "chiave", "prenota_chat"]]],
+        ],
+        db.registro.slice(-2).map((r) => [r.tabella, r.catena.filter((x) => x[0] === "eq")]),
+      );
+      db.stato.guasto = (tabella) => tabella === "messaggi_automatici";
+      c("config: registro illeggibile = spenta (non parte)", null, await porte.config());
+      db.stato.guasto = null;
 
       c("blocchi: senza riga, nessuno", [], await porte.blocchi());
       db.tabelle.app_config.push(

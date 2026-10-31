@@ -21,7 +21,9 @@ import { ultimeEntrateDaRighe } from "./finestra";
 import { entrateVereDi } from "./entrate-vere.server";
 import type { CambioContatto } from "./contatto";
 import type { AmbitoSchede, ConfigGiro, PorteGiro, RigaGiroDb, StatoGiroSalvato } from "./giro";
-import { configDaRiga, fraseModuloDa, type RigaConfig } from "./pannello";
+import { fraseModuloDa, type RigaConfig } from "./pannello";
+import { configDalRegistro } from "../messaggi-automatici/adattatore";
+import type { RigaRegistro } from "../messaggi-automatici/tipi";
 import { TABELLA_STATI } from "./stati";
 import { CASI_REALI_DAL, MEMORIA_SALTI_MIN, STATI_LEAD_NUOVO } from "./sequenze";
 import { STATI_RICONTATTO_AUTOMATICO, type InvioPerFreno } from "./regole";
@@ -59,6 +61,22 @@ const db = () =>
     };
     rpc(fn: string, a: Record<string, unknown>): Esito<unknown>;
   };
+
+/** Il registro dei messaggi automatici (`messaggi_automatici`): UNA lettura, tre colonne, venticinque
+ *  righe. È l'unica fonte dell'acceso/spento dei messaggi: l'adattatore ne ricava la configurazione
+ *  del giro (e del riquadro, in `pannello.server.ts`). `null` = non letto (tabella mancante, database
+ *  che non risponde): l'adattatore spegne tutto (fail-closed) e questo minuto non parte niente.
+ *  Nei log solo il codice dell'errore. Non scrive mai. */
+export async function leggiRegistro(): Promise<RigaRegistro[] | null> {
+  const { data, error } = await db()
+    .from("messaggi_automatici")
+    .select<RigaRegistro[]>("chiave, acceso, acceso_dal");
+  if (error) {
+    console.warn("[manychat-registro]", `registro_non_letto_${error.code ?? "?"}`);
+    return null;
+  }
+  return data ?? [];
+}
 
 /** Quanti telefoni per ogni lettura delle ultime entrate (`ultimeEntrate`). */
 const TELEFONI_PER_BLOCCO = 50;
@@ -490,7 +508,10 @@ export function porteGiro(): PorteGiro {
         return lancia(error);
       }
       if (!data?.user_id) return { fermo: "senza_configurazione" as const };
-      const c = configDaRiga(data);
+      //  I messaggi (promemoria, ricontatti, lead nuovo, giorno del meet, stati) si accendono e si
+      //  spengono SOLO nel registro: le loro colonne in `manychat_config` non si leggono più. Il
+      //  generale, il canale, i tetti, i flussi e la sede restano letti da qui.
+      const c = configDalRegistro(data, await leggiRegistro());
       return {
         userId: data.user_id,
         canale: c.canale,
@@ -501,6 +522,7 @@ export function porteGiro(): PorteGiro {
         giornoMeet: c.giornoMeet,
         leadNuovoDal: c.leadNuovoDal,
         stati: c.stati,
+        messaggiSpenti: c.messaggiSpenti,
         indirizzoSede: c.indirizzoSede,
         fraseModuloDal: fraseModuloDa(data.controlli)?.il ?? null,
         tetti: c.tetti,

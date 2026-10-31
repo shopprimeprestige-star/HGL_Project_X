@@ -45,7 +45,9 @@ import { STATI_RICONTATTO_AUTOMATICO, TIPI_AUTOMATICI, type InvioPerFreno } from
 import type { SchedaQuando } from "./quando";
 import { portePortaVere } from "./porta.server";
 import { ambitoDi, sceltaDaConfig } from "./giro";
-import { porteGiro } from "./porte.server";
+import { leggiRegistro, porteGiro } from "./porte.server";
+import { configDalRegistro } from "../messaggi-automatici/adattatore";
+import type { RigaRegistro } from "../messaggi-automatici/tipi";
 import { telefoniMeetDomani } from "./sequenze";
 import type { ClientManychat } from "./api";
 
@@ -93,6 +95,23 @@ const GIORNO_MS = 86_400_000;
    IL RIQUADRO
    ═════════════════════════════════════════════════════════════════════════ */
 
+/** La riga con i vecchi interruttori dei messaggi (promemoria, ricontatti, lead nuovo, giorno del
+ *  meet, date e stati) letti dal REGISTRO: chi la legge dopo con `configDaRiga` vede il registro,
+ *  mai le vecchie colonne (non più scritte da nessuno). Il resto della riga resta com'è. */
+function conRegistro(riga: RigaConfig, registro: RigaRegistro[] | null): RigaConfig {
+  const c = configDalRegistro(riga, registro);
+  return {
+    ...riga,
+    promemoria: c.promemoria,
+    ricontatti: c.ricontatti,
+    lead_nuovo: c.leadNuovo,
+    giorno_meet: c.giornoMeet,
+    lead_nuovo_dal: c.leadNuovoDal,
+    stati: c.stati,
+    ultima_accensione: c.ultimaAccensione,
+  };
+}
+
 /** La riga di `manychat_config`. `manca: true` = la migrazione M1 non c'è.
  *  `sequenze`: ci sono le colonne di S2? Con la riga si vede dalle colonne; senza
  *  riga (mai scritta) si prova a leggerle. */
@@ -111,7 +130,13 @@ export async function leggiRigaConfig(): Promise<{
     return lancia(error);
   }
   const riga = (data as RigaConfig | null) ?? null;
-  if (riga) return { manca: false, riga, sequenze: riga.lead_nuovo !== undefined };
+  if (riga)
+    return {
+      manca: false,
+      riga: conRegistro(riga, await leggiRegistro()),
+      //  dalle colonne vere: la riga rimessa a posto dal registro le ha sempre
+      sequenze: riga.lead_nuovo !== undefined,
+    };
   const prova = await db()
     .from("manychat_config")
     .select<unknown[]>("lead_nuovo, giorno_meet, lead_nuovo_dal, stati, indirizzo_sede")
