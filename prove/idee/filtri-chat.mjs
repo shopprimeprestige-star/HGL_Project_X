@@ -1,6 +1,8 @@
 /** ── PROVE: I FILTRI DELLA CHAT, A GRUPPI (30/10/2026) ───────────────────────
- *  Regole in src/crm/chatwa/filtri.ts: gruppi diversi si sommano (E), in un gruppo una scelta sola,
- *  numeri «cosa vedresti se la scegliessi», «Da rispondere» come filtro, valori salvati non validi.
+ *  Regole in src/crm/chatwa/filtri.ts. DAL 31/10/2026 I FILTRI SONO ESCLUSIVI: se ne accende uno solo
+ *  alla volta (toccarne un altro spegne il primo); il consulente e la ricerca non sono filtri da
+ *  azzerare e restano. Numeri «cosa vedresti se la scegliessi», «Da rispondere» come filtro, valori
+ *  salvati non validi (più filtri salvati: ne resta uno).
  *  `passaFiltro` (cercaChat.ts) non cambia: le sue prove restano dove sono e qui si controlla che
  *  ogni voce vecchia, da sola, dia ESATTAMENTE le stesse chat di prima.
  *  Dati inventati: nessun cliente vero. */
@@ -99,7 +101,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     indice(passano(con({ stelle: true }))),
   );
 
-  gruppo("FILTRI CHAT: GRUPPI DIVERSI SI SOMMANO (E)");
+  gruppo("FILTRI CHAT: IL MOTORE COMPONE ANCORA IN E (all'interfaccia ne arriva uno solo + il consulente)");
   c(
     "Attesa WhatsApp + Acconto versato: solo chi ha entrambi",
     1,
@@ -166,8 +168,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     ],
   );
 
-  gruppo("FILTRI CHAT: NELLO STESSO GRUPPO UNA SCELTA SOLA");
-  const coda1 = F.commuta(V, "coda", "non-letti");
+  gruppo("FILTRI CHAT: ESCLUSIVI, UNO SOLO ALLA VOLTA (31/10/2026)");
+  const coda1 = F.commuta(V, "coda", "da-rispondere");
   const coda2 = F.commuta(coda1, "coda", "da-chiamare");
   c(
     "la seconda della coda prende il posto della prima",
@@ -175,9 +177,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     [coda2.coda, F.contaAccesi(coda2)],
   );
   c(
-    "toccare di nuovo la voce accesa la spegne",
-    null,
-    F.commuta(coda2, "coda", "da-chiamare").coda,
+    "toccare di nuovo la voce accesa la spegne (torna «Tutte»)",
+    V,
+    F.commuta(coda2, "coda", "da-chiamare"),
   );
   c(
     "fase: Attesa WhatsApp poi Per ora no → solo l'ultima",
@@ -189,15 +191,36 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     NO_SHOW,
     F.commuta(F.commuta(V, "fase", "per-ora-no"), "fase", NO_SHOW).fase,
   );
+  // Tutte le coppie di voci di gruppi DIVERSI (e anche dello stesso): dopo la seconda ne resta una sola.
+  const tutteLeVoci = [
+    ...F.GRUPPI_FILTRI.flatMap((g) => g.voci),
+    F.voceDelloStato(P.STATI_PER_STATO[0]),
+  ];
+  let coppieSbagliate = 0;
+  for (const a1 of tutteLeVoci)
+    for (const b1 of tutteLeVoci) {
+      if (a1.campo === b1.campo && a1.valore === b1.valore) continue;
+      const f = F.commuta(F.commuta(V, a1.campo, a1.valore), b1.campo, b1.valore);
+      if (F.contaAccesi(f) !== 1 || !F.eAcceso(f, b1.campo, b1.valore) || F.eAcceso(f, a1.campo, a1.valore))
+        coppieSbagliate++;
+    }
   c(
-    "finestra: una sola",
-    "chiusa",
-    F.commuta(F.commuta(V, "finestra", "aperta"), "finestra", "chiusa").finestra,
+    `toccare un'altra voce (${tutteLeVoci.length * (tutteLeVoci.length - 1)} coppie): il primo si spegne, resta solo il secondo`,
+    0,
+    coppieSbagliate,
   );
   c(
-    "tipo di contatto: una sola",
-    "senza-scheda",
-    F.commuta(F.commuta(V, "tipo", "con-scheda"), "tipo", "senza-scheda").tipo,
+    "«Con stelle» spegne la coda (e viceversa): non si combinano",
+    [true, null, "da-chiamare", false],
+    ((a1, b1) => [a1.stelle, a1.coda, b1.coda, b1.stelle])(
+      F.commuta(F.commuta(V, "coda", "da-rispondere"), "stelle", true),
+      F.commuta(F.commuta(V, "stelle", true), "coda", "da-chiamare"),
+    ),
+  );
+  c(
+    "«Acconto versato» e «Senza scheda» (pannello) non si sommano",
+    ["senza-scheda", false],
+    ((f) => [f.tipo, f.acconto])(F.commuta(F.commuta(V, "acconto", true), "tipo", "senza-scheda")),
   );
   c(
     "«Con stelle» e «Acconto» sono interruttori: acceso/spento",
@@ -207,10 +230,20 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       F.commuta(F.commuta(V, "stelle", true), "stelle", true).stelle,
     ],
   );
+  const conLuca = con({ consulente: "luca" });
   c(
-    "«Con stelle» non spegne la coda (si combina con tutto)",
-    ["non-letti", true],
-    ((f) => [f.coda, f.stelle])(F.commuta(F.commuta(V, "coda", "non-letti"), "stelle", true)),
+    "il consulente NON si azzera toccando una voce, né toccandola di nuovo",
+    ["luca", "luca", "luca"],
+    [
+      F.commuta(conLuca, "fase", "per-ora-no").consulente,
+      F.commuta(F.commuta(conLuca, "fase", "per-ora-no"), "tipo", "cliente").consulente,
+      F.commuta(F.commuta(conLuca, "fase", "per-ora-no"), "fase", "per-ora-no").consulente,
+    ],
+  );
+  c(
+    "scegliere un consulente non spegne il filtro acceso",
+    ["per-ora-no", "luca"],
+    ((f) => [f.fase, f.consulente])(F.commuta(con({ fase: "per-ora-no" }), "consulente", "luca")),
   );
   c("commuta non muta l'ingresso", V, {
     coda: null,
@@ -221,6 +254,16 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     tipo: null,
     consulente: "",
   });
+  c(
+    "soloUno: più filtri → ne resta uno, il più specifico (fase prima di coda), consulente intatto",
+    { ...V, fase: "per-ora-no", consulente: "luca" },
+    F.soloUno(con({ coda: "da-rispondere", stelle: true, fase: "per-ora-no", acconto: true, consulente: "luca" })),
+  );
+  c(
+    "soloUno: uno solo o nessuno → uguale, e non muta l'ingresso",
+    [V, con({ stelle: true })],
+    [F.soloUno(V), F.soloUno(con({ stelle: true }))],
+  );
 
   gruppo("FILTRI CHAT: «AZZERA», IL NUMERO SUL TASTO, LE ETICHETTE CON LA ✕");
   const molti = con({ fase: "attesa-whatsapp", acconto: true });
@@ -296,7 +339,11 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   let positiviVuoti = 0;
   for (const f of partenze)
     for (const v of voci) {
-      const dopo = { ...f, [v.campo]: v.valore };
+      //  Esclusivi: la voce scelta prende il posto di quella accesa; il consulente resta.
+      const dopo =
+        v.campo === "consulente"
+          ? { ...f, consulente: v.valore }
+          : { ...V, consulente: f.consulente, [v.campo]: v.valore };
       const righe = mondo.filter((x) => F.passaFiltri(x, dopo, stelleDi));
       const numero = F.contaVoce(mondo, f, stelleDi, v.campo, v.valore);
       const attesoNumero =
@@ -313,18 +360,18 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   c("nessuna combinazione mostra un numero maggiore di zero con l'elenco vuoto", 0, positiviVuoti);
   c(
-    "«Da rispondere», poi «Con stelle» = esattamente le righe dell'elenco",
-    [indice(mondo.filter((x) => x.daRispondere.attesa && x.stelle > 0)).length, true],
+    "da «Da rispondere», il numero di «Con stelle» = le chat con stelle da sole (la scelta sostituisce, non si somma)",
+    [mondo.filter((x) => x.stelle > 0).length, true],
     [
       F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "stelle", true),
-      F.contaVisibili(mondo, con({ coda: "da-rispondere", stelle: true }), stelleDi) ===
+      F.contaVisibili(mondo, F.commuta(con({ coda: "da-rispondere" }), "stelle", true), stelleDi) ===
         F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "stelle", true),
     ],
   );
   c(
-    "il numero di una voce sostituisce il suo gruppo (non si somma a se stesso)",
+    "il numero di una voce non dipende da cosa è già acceso (tranne il consulente)",
     F.contaVoce(mondo, V, stelleDi, "coda", "da-chiamare"),
-    F.contaVoce(mondo, con({ coda: "da-rispondere" }), stelleDi, "coda", "da-chiamare"),
+    F.contaVoce(mondo, con({ coda: "da-rispondere", acconto: true }), stelleDi, "coda", "da-chiamare"),
   );
   c(
     "il numero di «Da chiamare» tiene conto degli altri gruppi (consulente Anna)",
@@ -333,15 +380,14 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     F.contaVoce(mondo, con({ consulente: "anna" }), stelleDi, "coda", "da-chiamare"),
   );
   c(
-    "una voce che si svuota resta contata a zero (non sparisce)",
+    "una voce che si svuota resta contata a zero (non sparisce): Per ora no del consulente Anna",
     0,
-    F.contaVoce(
-      mondo,
-      con({ coda: "da-chiamare", tipo: "senza-scheda" }),
-      stelleDi,
-      "fase",
-      "per-ora-no",
-    ),
+    F.contaVoce(mondo, con({ consulente: "anna" }), stelleDi, "fase", "per-ora-no"),
+  );
+  c(
+    "il numero di un consulente tiene il filtro acceso (il consulente si somma)",
+    mondo.filter((x) => passaFiltro(x, "per-ora-no") && x.lead?.data?.consulenteId === "luca").length,
+    F.contaVoce(mondo, con({ fase: "per-ora-no" }), stelleDi, "consulente", "luca"),
   );
 
   gruppo("FILTRI CHAT: «DA RISPONDERE» È ANCHE UN FILTRO");
@@ -362,9 +408,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     F.passaFiltri(mondo[7], con({ coda: "da-rispondere" }), stelleDi),
   );
   c(
-    "è una coda: una sola alla volta con Non letti e Da chiamare",
+    "è una coda: una sola alla volta con Da chiamare",
     "da-rispondere",
-    F.commuta(F.commuta(V, "coda", "non-letti"), "coda", "da-rispondere").coda,
+    F.commuta(F.commuta(V, "coda", "da-chiamare"), "coda", "da-rispondere").coda,
   );
 
   gruppo("FILTRI CHAT: NOMI, SPIEGAZIONI, ORDINE DEI GRUPPI");
@@ -435,9 +481,31 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
 
   gruppo("FILTRI CHAT: COSA SI RICORDA, E I VALORI SALVATI CHE NON ESISTONO PIÙ");
-  const salvati = con({ coda: "da-rispondere", fase: NO_SHOW, acconto: true, consulente: "luca" });
+  const salvati = con({ fase: NO_SHOW, consulente: "luca" });
   const giro = F.leggiFiltri(F.scriviFiltriSessione(salvati), "luca");
   c("scritti e riletti sono uguali", salvati, giro);
+  //  Salvati da una versione che li combinava: al caricamento ne resta uno solo, senza errori.
+  const combinati = { coda: "da-rispondere", stelle: true, fase: NO_SHOW, acconto: true, tipo: "cliente" };
+  c(
+    "più filtri salvati: ne resta uno solo (il più specifico), il consulente resta",
+    { ...V, fase: NO_SHOW, consulente: "luca" },
+    F.leggiFiltri(JSON.stringify(combinati), "luca"),
+  );
+  c(
+    "più filtri salvati senza fase: coda prima di stelle e tipo",
+    { ...V, coda: "da-rispondere" },
+    F.leggiFiltri(JSON.stringify({ coda: "da-rispondere", stelle: true, tipo: "cliente" }), null),
+  );
+  c(
+    "più filtri salvati: mai più di un filtro acceso (escluso il consulente)",
+    1,
+    F.contaAccesi({ ...F.leggiFiltri(JSON.stringify(combinati), null), consulente: "" }),
+  );
+  c(
+    "un filtro non valido salvato accanto a uno valido: vale il valido",
+    { ...V, acconto: true },
+    F.leggiFiltri(JSON.stringify({ fase: "stato:non_esiste", acconto: true }), null),
+  );
   c("un «non-letti» salvato da una versione vecchia si ignora", null, F.leggiFiltri(JSON.stringify({ coda: "non-letti" }), null).coda);
   c(
     "il consulente NON sta nella sessione (ha il suo posto, che resta dopo la chiusura)",
@@ -480,13 +548,13 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c("consulente ancora in CRM: vale", "luca", F.filtriValidi(salvati, noti).consulente);
   c(
     "consulente cancellato: non filtra (e non resta un filtro acceso che non si vede)",
-    ["", 3],
+    ["", 1],
     ((f) => [f.consulente, F.contaAccesi(f)])(F.filtriValidi(salvati, new Set(["anna"]))),
   );
   c(
     "gli altri filtri non cambiano nel controllo del consulente",
-    "da-rispondere",
-    F.filtriValidi(salvati, new Set()).coda,
+    NO_SHOW,
+    F.filtriValidi(salvati, new Set()).fase,
   );
 
   gruppo("FILTRI CHAT: COLLEGAMENTO NEI FILE");
@@ -727,6 +795,54 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       /h-11 lg:pointer-fine:h-8/.test(pannello) &&
       /min-h-11 lg:pointer-fine:min-h-8/.test(elenco) &&
       !/md:h-7|md:h-8/.test(elenco + pannello),
+  );
+
+  gruppo("FILTRI ESCLUSIVI E «TUTTE» COME WHATSAPP: COLLEGAMENTO (31/10/2026)");
+  const elencoSC = senzaCommenti(elenco);
+  c(
+    "«Tutte» non ha più il riquadro «Senza scheda»: gli sconosciuti stanno nell'elenco unico",
+    [false, false, false],
+    [/Senza scheda/.test(elencoSC), /chatSenzaScheda|senzaSchedaCon|titolo-senza-scheda/.test(elencoSC), /\.\.\.senzaScheda/.test(elencoSC)],
+  );
+  c(
+    "l'elenco «Tutte» è tutto ciò che resta dopo il blocco acconti, nell'ordine di WhatsApp",
+    true,
+    /ordinaComeWhatsapp\(\s*trovate\.filter\(\(c\) => !inBloccoTel\.has\(c\.phone\)\)/.test(elencoSC),
+  );
+  c(
+    "il blocco «Acconto, da installare» e la barra del prossimo meet restano sopra l'elenco",
+    true,
+    /Acconto, da installare/.test(elenco) &&
+      elenco.indexOf("<BarraProssimoMeet") < elenco.indexOf('id="titolo-da-installare"') &&
+      elenco.indexOf('id="titolo-da-installare"') < elenco.indexOf("Tutte le chat, dall'ultimo messaggio"),
+  );
+  c(
+    "la pastiglia «Sconosciuti» resta (il filtro per vederli a parte)",
+    true,
+    F.VOCI_RIGA.some((v) => v.nome === "Sconosciuti" && v.campo === "tipo" && v.valore === "senza-scheda"),
+  );
+  c(
+    "la riga rapida e il pannello cambiano filtro solo con commuta (esclusivo)",
+    true,
+    //  La riga rapida usa la forma di main (fix/chat-filtro-unico, stesso comportamento): parte da
+    //  FILTRI_VUOTI col consulente; il pannello passa da commuta, ora esclusiva.
+    /commuta\(\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \}, v\.campo, v\.valore\)/.test(elenco) &&
+      /onCambia\(commuta\(filtri, v\.campo, v\.valore\)\)/.test(pannello),
+  );
+  c(
+    "«Altri stati»: gli stati con chat si contano senza altri filtri (solo il consulente)",
+    true,
+    /passaFiltri\(\s*c,\s*\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \},\s*stelleDi,?\s*\)/.test(elencoSC),
+  );
+  c(
+    "il pannello lo dice: un filtro alla volta, il consulente si somma",
+    [true, false],
+    [/un filtro alla volta/i.test(pannello), /Gruppi diversi si sommano/.test(pannello)],
+  );
+  c(
+    "il salvataggio passa da leggiFiltri, che tiene un filtro solo",
+    true,
+    /leggiFiltri\(/.test(hookSalva) && /soloUno\(/.test(leggi("src/crm/chatwa/filtri.ts")),
   );
 
   gruppo("FILTRI CHAT: CARATTERI E COLORI");

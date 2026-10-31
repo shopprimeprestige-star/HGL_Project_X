@@ -117,6 +117,40 @@ export function provePannelloOggi(mod, { c, gruppo, radice }) {
   c("la chat del lead, se c'è", "39333", PO.chatDelLead(chats, "a")?.phone);
   c("nessuna chat: null (si apre la scheda)", null, PO.chatDelLead(chats, "z"));
   c("id vuoto: null", null, PO.chatDelLead(chats, ""));
+  c(
+    "nessuna chat abbinata ma stesso numero: si apre quella chat",
+    "393401234567",
+    PO.chatDelLead([...chats, { phone: "393401234567", lead: null }], "z", "+39 340 123 4567")
+      ?.phone,
+  );
+  c(
+    "numero diverso: null (si apre la scheda)",
+    null,
+    PO.chatDelLead(chats, "z", "+39 340 999 9999"),
+  );
+  c(
+    "«Tutti» mostra anche l'arretrato di mesi fa",
+    true,
+    PO.daFareDelPannello({
+      righe: [riga("vecchia", { giorno: "2026-06-01", tipo: "richiamo" })],
+      adesso,
+      oggi: g,
+      chi: "",
+      mestieri,
+      periodo: { tipo: "tutti", da: "", a: "" },
+    }).some((x) => x.righe.some((r) => r.id === "vecchia")),
+  );
+  c(
+    "«Oggi» invece non la mostra",
+    false,
+    PO.daFareDelPannello({
+      righe: [riga("vecchia", { giorno: "2026-06-01", tipo: "richiamo" })],
+      adesso,
+      oggi: g,
+      chi: "",
+      mestieri,
+    }).some((x) => x.righe.some((r) => r.id === "vecchia")),
+  );
 
   gruppo("PANNELLO OGGI · LA PAGINA CHAT");
   const pag = readFileSync(join(radice, "src/crm/chatwa/PaginaChat.tsx"), "utf8");

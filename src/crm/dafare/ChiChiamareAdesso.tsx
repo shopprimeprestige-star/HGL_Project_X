@@ -8,6 +8,7 @@
  *   sono: un elenco lungo in cima spingerebbe la giornata fuori dallo schermo.
  *  ⚠️ LA RIGA APRE LA SCHEDA, IL TELEFONO CHIAMA: due gesti, due tasti.
  *  ───────────────────────────────────────────────────────────────────────── */
+import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import { useState } from "react";
 import { Phone, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function ChiChiamareAdesso({
   /** Di chi è l'elenco: «i tuoi», «di tutti»… */
   nota: string;
 }) {
+  const segnaChiamata = useSegnaChiamata();
   const [tutte, setTutte] = useState(false);
   if (voci.length === 0) return null;
   const visibili = tutte ? voci : voci.slice(0, PRIME);
@@ -95,11 +97,12 @@ export function ChiChiamareAdesso({
                   asChild
                   size="sm"
                   variant="outline"
-                  className="h-8 shrink-0 px-2.5"
+                  className="relative h-8 shrink-0 px-2.5"
                   title={`Chiama ${nomeDi(v.lead)}`}
                 >
-                  <a href={`tel:${tel}`}>
+                  <a href={`tel:${tel}`} onClick={() => segnaChiamata(v.lead)}>
                     <Phone className="h-3.5 w-3.5" />
+                    <BadgeChiamate lead={v.lead} />
                     <span className="sr-only sm:not-sr-only sm:ml-1">Chiama</span>
                   </a>
                 </Button>

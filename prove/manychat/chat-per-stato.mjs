@@ -111,8 +111,8 @@ export function proveChatPerStato(mod, { c, gruppo, radice }) {
   const pannello = readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8");
   c("«Altri stati» sta nel gruppo della fase, dopo le due voci", true,
     pannello.indexOf('g.id === "fase"') > pannello.indexOf("g.voci.map(voce)") && /Altri stati/.test(pannello));
-  c("l'elenco degli stati si calcola sulle chat dei filtri accesi (consulente compreso) e usa gli stessi conti", true,
-    /contaPerStato\(\s*api\.chats\.filter\(\(c\) =>\s*passaFiltri\(c, \{ \.\.\.filtri, fase: null \}, stelleDi\),?\s*\),?\s*\)/.test(elenco) && /conta\("fase", `stato:\$\{v\.stato\}`\)/.test(elenco));
+  c("l'elenco degli stati si calcola sulle chat del solo consulente (31/10/2026: filtri esclusivi) e usa gli stessi conti", true,
+    /contaPerStato\(\s*api\.chats\.filter\(\(c\) =>\s*passaFiltri\(\s*c,\s*\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \},\s*stelleDi,?\s*\),?\s*\),?\s*\)/.test(elenco) && /conta\("fase", `stato:\$\{v\.stato\}`\)/.test(elenco));
   c("lo stato scelto resta visibile anche se si svuota (il filtro non resta acceso senza vedersi)", true, /vociConScelto\(stati\.voci, filtri\.fase \?\? ""\)/.test(elenco));
   const conv = readFileSync(join(radice, "src/crm/chatwa/Conversazione.tsx"), "utf8");
   c("chat aperta: il tasto WhatsApp non dipende più dalla finestra chiusa", false, /attiva\.finestra\?\.aperta === false && linkWaChat/.test(conv));

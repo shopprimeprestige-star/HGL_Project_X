@@ -147,8 +147,8 @@ export function PannelloFiltri(p: PropsPannelloFiltri) {
         {/*  Il titolo e la descrizione servono a chi usa lo screen reader; la ✕ del foglio sta
             a destra dell'intestazione (che le lascia lo spazio). */}
         <SheetDescription className="sr-only">
-          Scegli quali chat mostrare. Gruppi diversi si sommano; in uno stesso gruppo si sceglie una
-          voce sola.
+          Scegli quali chat mostrare, un filtro alla volta: toccarne un altro sostituisce il
+          primo. Il consulente si somma.
         </SheetDescription>
         {contenuto}
       </SheetContent>
@@ -295,6 +295,9 @@ function ContenutoPannello({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
+        <p className="t-nota -mb-1 text-muted-foreground">
+          Un filtro alla volta: scegliendone un altro, il primo si spegne. Il consulente si somma.
+        </p>
         {GRUPPI_FILTRI.map((g) => (
           <Gruppo key={g.id} id={g.id} titolo={g.titolo}>
             {g.voci.map(voce)}
