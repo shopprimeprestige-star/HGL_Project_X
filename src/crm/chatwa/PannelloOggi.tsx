@@ -315,7 +315,7 @@ export function PannelloOggi({
   const vista = vistaOggi(puo);
   const [scheda, setScheda] = useState<Scheda>("consulenze");
   //  ── CHI SI GUARDA (31/10/2026) ──────────────────────────────────────────
-  //  Il consulente che è dentro vede solo il suo lavoro e il menu non c'è; l'admin parte su tutti
+  //  Il consulente che è dentro vede solo il suo lavoro e il menu non c'è; l'admin col PIN parte su di sé (può scegliere)
   //  e può scegliere un altro o «Tutti»; il titolare senza consulente parte su «Tutti». `scelto`
   //  è quel che ha toccato nel menu (`null` = niente). Le regole: crm/consulente-dentro.ts.
   const dentro = useMemo(

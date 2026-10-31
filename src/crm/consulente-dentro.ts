@@ -30,11 +30,13 @@ export function consulenteDelloSchermo({
   faConsulenze: boolean;
 }): ConsulenteDentro {
   const id = String(collegatoId ?? "").trim();
-  //  Senza PIN (titolare) o senza consulenze (setter: nessun meet è «suo»): tutti, com'era.
-  //  L'admin, anche col PIN, parte su TUTTI (richiesta del titolare, 31/10/2026: «anche io vedo
-  //  solo i miei meet. Correggi»): sceglie lui dal menu se vuole vedere un consulente solo.
-  if (!id || !faConsulenze || admin) return { id: "", bloccato: false };
-  return { id, bloccato: true };
+  //  Senza PIN (titolare con email e password): tutti, com'era. Setter senza consulenze e senza
+  //  account admin: nessun meet è «suo», tutti.
+  //  CON IL PIN si parte SEMPRE sul consulente del PIN, anche sull'account amministratore del
+  //  computer in sede (decisione del titolare, 31/10/2026: «Col PIN vede solo il suo»); l'admin
+  //  può poi scegliere un altro consulente dal menu, il consulente normale no.
+  if (!id || (!faConsulenze && !admin)) return { id: "", bloccato: false };
+  return { id, bloccato: !admin };
 }
 
 /** Il consulente da usare davvero. `scelto` è quel che l'utente ha toccato nel menu: `null` =
