@@ -2198,6 +2198,11 @@ async function proveVistaSequenze({ c, gruppo, radice }) {
       "hgl_ultimo_tentativo",
       "hgl_acconto",
       "hgl_come_eravamo_rimasti",
+      //  31/10/2026: i gemelli senza link, per i consulenti che non usano Meetly.
+      "consulenza_conferma_presenza_sl",
+      "hgl_promemoria_meet_sl",
+      "hgl_meet_oggi_sl",
+      "hgl_meet_adesso_sl",
     ],
     V.MODELLI_FLUSSO_SEQUENZE.map((m) => m.modello),
   );
@@ -3210,6 +3215,20 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
           ingr({}, { leadNuovo: false, giornoMeet: true, stati: {} }),
         ),
       )["flusso:hgl_meet_oggi_link"] === "non_serve",
+    ],
+  );
+  c(
+    "i quattro flussi senza link (consulenti senza Meetly): righe presenti, mai rosse né «da verificare»; collegati e sani → verdi",
+    [["non_serve", "non_serve", "non_serve", "non_serve"], true],
+    [
+      ["consulenza_conferma_presenza_sl", "hgl_promemoria_meet_sl", "hgl_meet_oggi_sl", "hgl_meet_adesso_sl"].map(
+        (m) => colMeet[`flusso:${m}`],
+      ),
+      /Meetly/.test(
+        (await P.statoCollegamento(nuovoClientDi(A, sano()), ingr({}, { leadNuovo: false, giornoMeet: true, stati: {} }))).righe.find(
+          (r) => r.id === "flusso:hgl_promemoria_meet_sl",
+        )?.testo ?? "",
+      ),
     ],
   );
   c(

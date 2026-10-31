@@ -1012,7 +1012,7 @@ export function SchedaConsulente({
               persona. Si salva col «Salva modifiche» in fondo, come l'anagrafica. */}
           <SezioneFinestra
             titolo="Invito al meet"
-            nota="Cosa riceve il cliente quando dalla barra del prossimo meet premi «Invia invito». Vale solo per l'invito a mano: i messaggi automatici non cambiano."
+            nota="Spegni la spunta se questo consulente non usa Meetly (altre piattaforme): nessun messaggio al cliente conterrà mai il link, né l'«Invia invito» della barra né i promemoria automatici."
             classeCorpo="p-4"
           >
             <SceltaInvitoMeet

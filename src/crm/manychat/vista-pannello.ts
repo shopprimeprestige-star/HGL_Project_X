@@ -422,6 +422,16 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   //  Facoltativo: lo sceglie il consulente nella finestra dello stato, per chi non scrive da
   //  più di 24 ore. Senza flusso collegato si manda il modello dello stato.
   { modello: "hgl_come_eravamo_rimasti", etichetta: "Messaggio generico: come eravamo rimasti" },
+  //  I gemelli SENZA LINK (31/10/2026) per i consulenti che non usano Meetly (spunta in Collaboratori).
+  //  Facoltativi solo in apparenza: finché un flusso non è collegato, il messaggio corrispondente NON
+  //  parte per quei consulenti (mai il modello col link) e il giro scrive la nota.
+  {
+    modello: "consulenza_conferma_presenza_sl",
+    etichetta: "Senza Meetly: conferma della consulenza («risponda SÌ»)",
+  },
+  { modello: "hgl_promemoria_meet_sl", etichetta: "Senza Meetly: promemoria 20 minuti prima del meet" },
+  { modello: "hgl_meet_oggi_sl", etichetta: "Senza Meetly: giorno del meet, messaggio del mattino" },
+  { modello: "hgl_meet_adesso_sl", etichetta: "Senza Meetly: giorno del meet, all'ora (spento)" },
 ];
 
 /** I flussi dei modelli nuovi `_311026` (31/10/2026): uno per ogni modello che oggi passa da un flusso
