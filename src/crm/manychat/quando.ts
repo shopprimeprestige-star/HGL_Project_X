@@ -42,6 +42,7 @@ import {
   ultimeNoveCifre,
   type InvioPerFreno,
 } from "./regole";
+import { modoInvito } from "../chatwa/invito-meet";
 import { campiPerStato, campiPromemoria } from "./testi";
 
 /** Ricontatti al giorno. */
@@ -325,7 +326,13 @@ export function decidiPromemoria(
       salta("consulente non trovato");
       continue;
     }
-    const campi = campiPromemoria(d, consulente.data?.nome, scheda.id);
+    //  Chi non usa Meetly (31/10/2026) riceve il promemoria SENZA link: il link in scheda non serve.
+    const campi = campiPromemoria(
+      d,
+      consulente.data?.nome,
+      scheda.id,
+      modoInvito(consulente.data) === "senza",
+    );
     if (campi.tipo === "salta") {
       salta(campi.motivo);
       continue;

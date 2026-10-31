@@ -95,7 +95,7 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
     );
 
   gruppo("MODELLI _311026 · I NOMI");
-  c("i vecchi restano tutti: 14 + 22 + 1", [14, 22, 1], [
+  c("i vecchi restano tutti: 14 + 26 (22 + i 4 gemelli senza link) + 1", [14, 26, 1], [
     T.META_TEMPLATES.length,
     T.MODELLI_MANYCHAT.length,
     T.MODELLI_DA_APPROVARE.length,
@@ -122,7 +122,13 @@ export async function proveModelliUtility(mod, { c, gruppo, radice }) {
   c("un nuovo per ogni vecchio, mai due per lo stesso", nuovi.length, new Set(nuovi.map((t) => t.sostituisce)).size);
   //  hgl_meet_domani_testo NON è un modello Meta: è il testo libero dentro le 24 ore.
   const senzaNuovo = vecchi.filter((t) => !nuovi.some((n) => n.sostituisce === t.name)).map((t) => t.name);
-  c("l'unico vecchio senza nuovo è il testo libero «hgl_meet_domani_testo»", ["hgl_meet_domani_testo"], senzaNuovo);
+  //  I 4 gemelli `_sl` (31/10/2026, consulenti che non usano Meetly) sono modelli già "Utility" scritti
+  //  apposta: non hanno un `_311026` e partono col loro nome anche con l'interruttore acceso.
+  c(
+    "gli unici senza nuovo: il testo libero «hgl_meet_domani_testo» e i 4 gemelli senza link",
+    ["consulenza_conferma_presenza_sl", "hgl_meet_adesso_sl", "hgl_meet_domani_testo", "hgl_meet_oggi_sl", "hgl_promemoria_meet_sl"],
+    senzaNuovo.sort(),
+  );
   c("in tutto 36 modelli nuovi", 36, nuovi.length);
   c(
     "esempio del titolare: hgl_promemoria_meet → hgl_promemoria_consulenza_311026",

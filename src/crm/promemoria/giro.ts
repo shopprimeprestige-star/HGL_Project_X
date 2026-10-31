@@ -22,7 +22,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { LeadData, PromemoriaWhatsapp } from "../types";
 import { aRoma } from "./formati";
-import { decidiInvio, pezzoDaScrivere, type Decisione } from "./invio";
+import { NOME_MODELLO, NOME_MODELLO_SENZA_LINK, decidiInvio, pezzoDaScrivere, type Decisione } from "./invio";
 import { statoConferma } from "./conferma";
 import {
   esitoInvio,
@@ -61,6 +61,8 @@ export interface StatoGiro {
   confermatiOggi: number;
   senzaRisposta: number;
   inAttesa: number;
+  /** vedi `EsitoGiro.nota` */
+  nota?: string;
 }
 
 /** Una riga di whatsapp_settings, SENZA i segreti. */
@@ -82,6 +84,9 @@ export interface SchedaGiro {
   updated_at: string | null;
   /** il link per-persona (`valoriDaLead`), "" se manca */
   link: string;
+  /** il consulente della scheda non usa Meetly (`crm_consultants.data.invitoMeet = "senza"`):
+   *  la conferma parte col gemello senza link. Assente = usa Meetly. */
+  senzaMeetly?: boolean;
 }
 
 export interface Porte {
@@ -104,6 +109,8 @@ export interface Porte {
   ): Promise<boolean>;
   controllaModello(
     imp: Impostazione,
+    /** assente = `NOME_MODELLO`; i consulenti senza Meetly chiedono il gemello `_sl` */
+    modello?: string,
   ): Promise<{ trovato: boolean; stato?: string } | { errore: CodiceBlocco }>;
   /** `contesto`: la scheda e il giro, per il registro della porta ManyChat
    *  (la chiave del registro è unica per tentativo, così un nuovo tentativo
@@ -112,9 +119,16 @@ export interface Porte {
     imp: Impostazione,
     numero: string,
     parametri: string[],
-    contesto?: { leadId: string; chiave: string; giro: string },
+    contesto?: { leadId: string; chiave: string; giro: string; modello?: string },
   ): Promise<RispostaInvio>;
-  registraInvio(imp: Impostazione, id: string, numero: string, esito: EsitoInvio): Promise<void>;
+  registraInvio(
+    imp: Impostazione,
+    id: string,
+    numero: string,
+    esito: EsitoInvio,
+    /** il modello inviato (assente = `NOME_MODELLO`): serve al segnaposto nella chat */
+    modello?: string,
+  ): Promise<void>;
 }
 
 export interface EsitoGiro {
@@ -128,6 +142,9 @@ export interface EsitoGiro {
   inAttesa: number;
   partirebbero?: number;
   saltato?: string;
+  /** una frase per il titolare se qualcosa è fermo senza essere un guasto (es. il flusso senza
+   *  link non è collegato: chi non usa Meetly aspetta, mai il link) */
+  nota?: string;
 }
 
 export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promise<EsitoGiro> {
@@ -164,6 +181,8 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
   const migrazione = await porte.provaMigrazione();
   const elenco = await porte.impostazioni();
   const contatori = { inviatiOggi: 0, confermatiOggi: 0, senzaRisposta: 0 };
+  /** Le conferme dei consulenti senza Meetly ferme perché il flusso del gemello non è collegato. */
+  let nota: string | undefined;
   const chiudi = async (
     p: { pronto: boolean; blocco?: CodiceBlocco; frase: string },
     pausa = false,
@@ -172,13 +191,14 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
       await porte.scriviStato({
         giroIl: ora,
         ...p,
+        ...(nota ? { nota } : {}),
         riprovaDopo: pausa
           ? new Date(adesso.getTime() + PAUSA_DOPO_ERRORE_MIN * 60_000).toISOString()
           : null,
         ...contatori,
         inAttesa: conti.inAttesa,
       });
-    return esito(p);
+    return { ...esito(p), ...(nota ? { nota } : {}) };
   };
   const base = (imp?: Impostazione) => ({
     //  A secco l'interruttore non conta: «Controlla ora» si preme PRIMA di
@@ -212,6 +232,7 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
         numeriStop,
         adesso,
         primoGiro,
+        senzaLink: !!s.senzaMeetly,
       });
       if (dec.azione === "invia") daInviare.push({ s, dec });
       if (dec.azione !== "salta" && dec.azione !== "preesistente") continue;
@@ -226,13 +247,29 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
     //  Il controllo su Meta costa una chiamata: si fa solo se serve (o a secco,
     //  dove il titolare vuole sapere se è tutto a posto).
     if (daInviare.length === 0 && !prova) continue;
-    const m = await porte.controllaModello(imp);
+    //  Il modello col link si controlla se serve a qualcuno (o se non c'è nessuno, come prima); il
+    //  gemello senza link solo se c'è chi lo usa, e il suo guasto non ferma gli altri.
+    const serveConLink =
+      daInviare.length === 0 || daInviare.some((x) => x.dec.modello === NOME_MODELLO);
+    const m = serveConLink ? await porte.controllaModello(imp) : null;
     finale = valutaPronto({
       ...base(imp),
-      modello: "errore" in m ? null : m,
-      erroreControllo: "errore" in m ? m.errore : undefined,
+      modello: !m || "errore" in m ? null : m,
+      erroreControllo: m && "errore" in m ? m.errore : undefined,
     });
-    if (!finale.pronto) return chiudi(finale, "errore" in m);
+    if (!finale.pronto) return chiudi(finale, !!m && "errore" in m);
+    let gemelloPronto = true;
+    if (daInviare.some((x) => x.dec.modello === NOME_MODELLO_SENZA_LINK)) {
+      const g = await porte.controllaModello(imp, NOME_MODELLO_SENZA_LINK);
+      gemelloPronto = valutaPronto({
+        ...base(imp),
+        modello: "errore" in g ? null : g,
+        erroreControllo: "errore" in g ? g.errore : undefined,
+      }).pronto;
+      if (!gemelloPronto)
+        nota =
+          "Flusso senza link non collegato in ManyChat: le conferme ai consulenti che non usano Meetly aspettano (il link non parte mai)";
+    }
     if (prova) continue;
 
     const manychat = imp.canale === "manychat";
@@ -246,12 +283,22 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
         conti.inAttesa++;
         continue;
       }
+      //  Chi non usa Meetly senza il flusso del gemello: resta fermo, nessun segno sulla scheda.
+      if (dec.modello === NOME_MODELLO_SENZA_LINK && !gemelloPronto) {
+        conti.inAttesa++;
+        continue;
+      }
       //  ⚠️ IL SEGNO PRIMA DELL'INVIO. false = un altro giro l'ha già preso.
       const mio = await porte.aggancia(s.id, dec.chiave, pezzoDaScrivere(dec, ora) ?? {});
       if (!mio) continue;
       const e = esitoInvio(
         await porte
-          .invia(imp, dec.numero, dec.parametri, { leadId: s.id, chiave: dec.chiave, giro: ora })
+          .invia(imp, dec.numero, dec.parametri, {
+            leadId: s.id,
+            chiave: dec.chiave,
+            giro: ora,
+            modello: dec.modello,
+          })
           .catch(() => ({ rete: true })),
       );
       if (e.tipo === "ok") {
@@ -260,7 +307,7 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
           { stato: "inviato", inviatoIl: ora, waMessageId: e.waId },
           dec.chiave,
         );
-        await porte.registraInvio(imp, s.id, dec.numero, e);
+        await porte.registraInvio(imp, s.id, dec.numero, e, dec.modello);
         conti.inviati++;
         contatori.inviatiOggi++;
         contatori.senzaRisposta++;
@@ -272,7 +319,7 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
           { stato: "non_recapitato", motivo: e.errore.codice },
           dec.chiave,
         );
-        await porte.registraInvio(imp, s.id, dec.numero, e);
+        await porte.registraInvio(imp, s.id, dec.numero, e, dec.modello);
         continue;
       }
       if (e.tipo === "riprova") {
