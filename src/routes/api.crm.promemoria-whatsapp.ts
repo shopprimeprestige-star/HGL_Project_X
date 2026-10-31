@@ -3,10 +3,13 @@
  *
  *  Commessa 2026-10-22. Il riquadro in Impostazioni → WhatsApp parla solo con
  *  questa rotta:
- *   · GET  → l'interruttore e la frase dell'ultimo giro del cron;
- *   · POST { acceso: boolean } → accende o spegne;
+ *   · GET  → l'interruttore (quello del registro) e la frase dell'ultimo giro del cron;
  *   · POST { prova: true } → «Controlla ora»: il giro a secco (non scrive,
  *     non invia), solo conteggi.
+ *   ⚠️ L'interruttore NON si cambia più da qui (commessa 2026-10-31-interruttori-automatici):
+ *   si accende e si spegne in «Messaggi automatici», una sola fonte nel registro. Un
+ *   POST con `acceso` è rifiutato (400) e non scrive niente: una scheda Impostazioni
+ *   rimasta aperta durante la pubblicazione non può riaccendere un messaggio spento.
  *
  *  ⚠️ TUTTO DIETRO `guardiaCRM` COL PERMESSO «impostazioni» (controllo di
  *   sicurezza, MEDIUM). Prima l'interruttore scriveva `app_config` dal
@@ -18,7 +21,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { guardiaCRM } from "./api.crm.accesso";
 import { porteVere } from "./hooks/promemoria-whatsapp";
-import { giroPromemoria, type ConfigPromemoria } from "@/crm/promemoria/giro";
+import { giroPromemoria } from "@/crm/promemoria/giro";
 import { FRASI_BLOCCO } from "@/crm/promemoria/pronto";
 
 const cors = {
@@ -55,12 +58,20 @@ export const Route = createFileRoute("/api/crm/promemoria-whatsapp")({
         //  Senza il titolare dei dati non si sa di quale installazione si parla:
         //  si rifiuta invece di guardarle tutte.
         if (!g.chi.adminUserId) return json({ ok: false, error: "titolare" }, 403);
-        let b: { acceso?: unknown; prova?: unknown } = {};
+        let b: { acceso?: unknown; prova?: unknown } | null;
         try {
           b = (await request.json()) as typeof b;
         } catch {
           return json({ ok: false, error: "corpo" }, 400);
         }
+        if (!b || typeof b !== "object") return json({ ok: false, error: "corpo" }, 400);
+        //  L'interruttore sta in «Messaggi automatici»: da qui non si cambia, né si legge dal corpo.
+        if (b.acceso !== undefined)
+          return json(
+            { ok: false, error: "L'interruttore si cambia in Messaggi automatici." },
+            400,
+          );
+
         const porte = porteVere(g.chi.adminUserId);
 
         if (b.prova === true) {
@@ -70,23 +81,7 @@ export const Route = createFileRoute("/api/crm/promemoria-whatsapp")({
             return json({ ok: false, pronto: false, frase: FRASI_BLOCCO.controllo_fallito });
           }
         }
-
-        if (typeof b.acceso !== "boolean") return json({ ok: false, error: "acceso" }, 400);
-        const prima = await porte.leggiConfig();
-        //  Già acceso: riaccendere non deve rimettere `avvio: "da_fare"` né
-        //  spostare `attivoDal` (revisione finale, N2).
-        if (b.acceso && prima?.acceso) return json({ ok: true, config: prima });
-        //  Accendere = `avvio: "da_fare"`: il primo giro marca «preesistenti»
-        //  gli appuntamenti già in agenda, che così non ricevono niente.
-        const nuovo: ConfigPromemoria = b.acceso
-          ? { acceso: true, attivoDal: new Date().toISOString(), avvio: "da_fare" }
-          : { ...(prima ?? {}), acceso: false };
-        try {
-          await porte.scriviConfig(nuovo);
-        } catch {
-          return json({ ok: false, error: "Non salvato: il database non ha risposto." }, 500);
-        }
-        return json({ ok: true, config: nuovo });
+        return json({ ok: false, error: "prova" }, 400);
       },
     },
   },

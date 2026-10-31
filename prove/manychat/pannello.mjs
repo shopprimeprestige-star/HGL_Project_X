@@ -855,6 +855,14 @@ async function proveRotte(mod, { c, gruppo, radice }) {
 
   // ── leggere un comando ────────────────────────────────────────────────
   const ok = (body) => P.leggiComando(body);
+  //  Dal 31/10/2026 `leggiComando` rifiuta i comandi dei messaggi (li scrive il registro):
+  //  la scrittura interna (`patchDaComando`) si prova col comando già fatto.
+  const interno = (body) =>
+    Object.keys(body.interruttori ?? {}).some((k) => k !== "acceso")
+      ? { tipo: "interruttori", valori: body.interruttori }
+      : body.stati
+        ? { tipo: "stati", valori: body.stati }
+        : ok(body).comando;
   c(
     "comando: un interruttore alla volta, solo booleani",
     [true, false, false],
@@ -917,8 +925,7 @@ async function proveRotte(mod, { c, gruppo, radice }) {
 
   // ── cosa si scrive ────────────────────────────────────────────────────
   const T0 = new Date("2026-10-23T08:00:00.000Z");
-  const cfg = (body, prima = null, adesso = T0) =>
-    P.patchDaComando(prima, ok(body).comando, adesso);
+  const cfg = (body, prima = null, adesso = T0) => P.patchDaComando(prima, interno(body), adesso);
   const acc = cfg({ interruttori: { acceso: true } });
   c(
     "prima accensione: scrive prima e ultima accensione, toglie il fermo",
@@ -2632,6 +2639,13 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   const letto = (relativo) => readFileSync(join(radice, relativo), "utf8");
   const NOW = new Date("2026-10-26T10:00:00.000Z"); // 11:00 a Roma, ora solare
   const ok = (body) => P.leggiComando(body);
+  //  Come sopra: i comandi dei messaggi non passano più da `leggiComando`.
+  const interno = (body) =>
+    Object.keys(body.interruttori ?? {}).some((k) => k !== "acceso")
+      ? { tipo: "interruttori", valori: body.interruttori }
+      : body.stati
+        ? { tipo: "stati", valori: body.stati }
+        : ok(body).comando;
   const riga = (extra = {}) => ({
     user_id: UUID_A,
     canale: "manychat",
@@ -2713,18 +2727,29 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   );
 
   // ── leggere i comandi nuovi ───────────────────────────────────────────
+  //  ── I messaggi non si cambiano più da qui (commessa 2026-10-31, interruttori automatici) ──
   c(
-    "comando: gli interruttori nuovi, solo booleani",
-    [true, true, false],
+    "comando: gli interruttori dei messaggi (promemoria, ricontatti, lead nuovo, giorno del meet) → rifiutati, anche se booleani",
+    [false, false, false, false, false],
     [
       ok({ interruttori: { leadNuovo: true } }).ok,
       ok({ interruttori: { giornoMeet: false } }).ok,
+      ok({ interruttori: { promemoria: true } }).ok,
+      ok({ interruttori: { ricontatti: false } }).ok,
       ok({ interruttori: { leadNuovo: "si" } }).ok,
     ],
   );
   c(
-    "comando: stati accesi o spenti per nome; un nome sconosciuto, «Ricontatto fissato» o un valore non vero → no",
-    [true, true, false, false, false, false],
+    "comando: il generale con un messaggio nello stesso corpo → rifiutato tutto (non si scrive a metà)",
+    [false, true],
+    [
+      ok({ interruttori: { acceso: true, promemoria: true } }).ok,
+      ok({ interruttori: { acceso: true } }).ok,
+    ],
+  );
+  c(
+    "comando: gli stati (sempre, anche con nomi falsi o vuoti) → rifiutati",
+    [false, false, false, false, false, false],
     [
       ok({ stati: { sta_valutando: true } }).ok,
       ok({ stati: { no_show: false } }).ok,
@@ -2735,10 +2760,30 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "comando: «Ricontatto fissato» rimanda ai «Ricontatti dei consulenti»",
-    true,
-    /Ricontatti dei consulenti/.test(ok({ stati: { da_ricontattare: true } }).errore),
+    "comando: il rifiuto dice dove si cambia («Messaggi automatici») ed è un 400 per la rotta",
+    [true, true],
+    [
+      /Messaggi automatici/.test(ok({ interruttori: { leadNuovo: true } }).errore),
+      /Messaggi automatici/.test(ok({ stati: { da_ricontattare: true } }).errore),
+    ],
   );
+  {
+    //  La rotta vecchia resta dietro lo stesso permesso e rifiuta con 400 quello che `leggiComando` non accetta.
+    const rotta = letto("src/routes/api.crm.manychat.ts");
+    c(
+      "rotta vecchia: GET e POST dietro guardiaCRM col permesso «impostazioni»",
+      2,
+      (rotta.match(/guardiaCRM\(request, cors, "impostazioni"\)/g) ?? []).length,
+    );
+    c(
+      "rotta vecchia: il comando passa da leggiComando e, se rifiutato, è un 400 con la sua frase",
+      [true, true],
+      [
+        /const letto = leggiComando\(corpo\)/.test(rotta),
+        /if \(!letto\.ok\) return json\(\{ error: letto\.errore \}, 400\)/.test(rotta),
+      ],
+    );
+  }
   c(
     "comando: la data della frase è un giorno vero «AAAA-MM-GG»",
     [true, false, false, false],
@@ -2774,7 +2819,7 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
 
   // ── cosa si scrive ────────────────────────────────────────────────────
   const cfg = (body, prima = riga(), adesso = NOW) =>
-    P.patchDaComando(prima, ok(body).comando, adesso);
+    P.patchDaComando(prima, interno(body), adesso);
   c(
     "accendere «Lead nuovo»: scrive l'ora (lead_nuovo_dal), e basta (le altre accensioni non si spostano)",
     { lead_nuovo: true, lead_nuovo_dal: NOW.toISOString() },
@@ -2863,7 +2908,7 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
   // ── i rifiuti (prima di scrivere) ─────────────────────────────────────
   gruppo("MANYCHAT · RIQUADRO · SEQUENZE · RIFIUTI");
   const dc = (body, prima = riga(), s2 = true, adesso = NOW) =>
-    P.controllaComando(prima, ok(body).comando, adesso, s2);
+    P.controllaComando(prima, interno(body), adesso, s2);
   const conFrase = riga({ controlli: FRASE_OK });
   c(
     "accendere «Lead nuovo» senza la data della frase → rifiutato, e la frase dice cosa fare",
@@ -3495,16 +3540,18 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ],
   );
   const pannello = letto("src/crm/ManychatPannello.tsx");
+  //  Dal 31/10/2026 (commessa interruttori-automatici) «Lead nuovo», «Giorno del meet» e i messaggi per
+  //   stato NON si accendono più qui ma in «Messaggi automatici»: restano la frase, la sede e il foglio.
   c(
-    "il riquadro disegna «Lead nuovo», «Giorno del meet», la frase del modulo, i messaggi per stato, la sede e il foglio",
-    [true, true, true, true, true, true],
+    "il riquadro disegna la frase del modulo, la sede e il foglio; i messaggi rimandano ai Messaggi automatici",
+    [true, true, true, true, false, false],
     [
-      /Lead nuovo/.test(pannello),
-      /Giorno del meet/.test(pannello),
       /Frase del consenso nel modulo Meta/.test(pannello),
-      /Messaggi per stato/.test(pannello),
       /Indirizzo della sede/.test(pannello),
       /Foglio Google/.test(pannello),
+      /<RimandoMessaggiAutomatici/.test(pannello),
+      /etichetta="Lead nuovo"|etichetta="Giorno del meet"/.test(pannello),
+      /sequenze\.stati/.test(pannello),
     ],
   );
   c(
@@ -3513,13 +3560,13 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     /fino al giorno\s+prima del/.test(pannello),
   );
   c(
-    "accendere si conferma (lead nuovo, giorno del meet, ogni stato) e la frase si conferma prima di salvare",
-    [true, true, true, true],
+    "accendere il generale si conferma, e la frase si conferma prima di salvare (i messaggi li conferma il pannello nuovo)",
+    [true, true, true, false],
     [
-      /imposta\("leadNuovo"/.test(pannello) || /"leadNuovo"/.test(pannello),
-      /accendiStato/.test(pannello),
+      /impostaGenerale/.test(pannello),
       /confermaFrase/.test(pannello),
       /setConferma\(/.test(pannello),
+      /accendiStato/.test(pannello),
     ],
   );
   c(

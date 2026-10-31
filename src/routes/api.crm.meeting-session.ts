@@ -326,6 +326,7 @@ export const Route = createFileRoute("/api/crm/meeting-session")({
             3. un codice nuovo.
             Rigenerando si salta tutto: si vuole un codice nuovo apposta. */
         const diFascia = b.rigenera ? "" : esistente ? "" : await codiceDellaFascia(conduce, b.quando);
+        const codiceNuovo = !(esistente && !b.rigenera) && !diFascia;
         const code = esistente && !b.rigenera ? esistente.code : diFascia || nuovoCodice();
         if (b.rigenera && esistente?.code && esistente.code !== code) {
           await supabaseAdmin.from("app_config").upsert(
@@ -355,9 +356,11 @@ export const Route = createFileRoute("/api/crm/meeting-session")({
         //  dopo in una stanza vuota.
         await segnaFascia(conduce, s.quando, code);
         //  Il padrone della stanza per l'SFU: solo con l'id DIMOSTRATO (token CRM), all'«Avvia».
-        //   ⚠️ E solo se la stanza nasce adesso o è già sua: chi riapre la stanza di un collega
-        //   (codice già esistente con un altro consulente) non ne diventa il padrone.
-        if (b.conduco && cid && (!esistente || String(esistente.consultantId || "").trim() === cid))
+        //   ⚠️ Solo se la stanza è di chi chiede secondo il CRM: codice nato adesso, stanza della SUA
+        //   fascia (la chiave della fascia è per consulente) o appuntamento già intestato a lui.
+        //   Il padrone non si sovrascrive mai (vedi shop/meetly-sfu-padrone): è l'unico punto che
+        //   lo scrive, e solo con l'id del token.
+        if (b.conduco && cid && (codiceNuovo || !!diFascia || String(esistente?.consultantId || "").trim() === cid))
           await segnaPadroneDellaStanza(code, cid);
         await segnaAtteso(code, leadId);
         return json({ ok: true, ...s, link: linkDi(u.origin, code) });

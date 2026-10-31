@@ -219,6 +219,11 @@ export type Comando =
 
 export type LettoComando = { ok: true; comando: Comando } | { ok: false; errore: string };
 
+/** Il rifiuto dei comandi che ora spettano al registro dei messaggi automatici. */
+export const FRASE_MESSAGGI_ALTROVE = "Si cambia in Messaggi automatici.";
+/** Gli interruttori di `manychat_config` che sono diventati messaggi del registro (il generale resta qui). */
+const INTERRUTTORI_DEI_MESSAGGI = ["promemoria", "ricontatti", "leadNuovo", "giornoMeet"] as const;
+
 const NS_VALIDO = /^[A-Za-z0-9_.:-]{1,120}$/;
 const MODELLO_VALIDO = /^[A-Za-z0-9_]{1,64}$/;
 /** shortcut: al massimo 30 modelli con un flusso; ce ne sono 3 più quelli della
@@ -254,6 +259,9 @@ export function leggiComando(body: unknown): LettoComando {
   if (chiave === "interruttori") {
     const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
     if (!o) return no("Interruttori non validi.");
+    //  I messaggi li accende e spegne il registro (`/api/crm/messaggi-automatici`): da qui solo il generale.
+    if (INTERRUTTORI_DEI_MESSAGGI.some((k) => o[k] !== undefined))
+      return no(FRASE_MESSAGGI_ALTROVE);
     const valori: Partial<Record<NomeInterruttore, boolean>> = {};
     for (const k of Object.keys(INTERRUTTORI) as NomeInterruttore[]) {
       if (o[k] === undefined) continue;
@@ -300,22 +308,8 @@ export function leggiComando(body: unknown): LettoComando {
     return { ok: true, comando: { tipo: "flussi", valori } };
   }
 
-  if (chiave === "stati") {
-    const o = (v && typeof v === "object" && !Array.isArray(v) ? v : null) as Record<
-      string,
-      unknown
-    > | null;
-    if (!o || Object.keys(o).length === 0) return no("Stati non validi.");
-    const valori: Record<string, boolean> = {};
-    for (const [stato, acceso] of Object.entries(o)) {
-      if (stato === "da_ricontattare")
-        return no("«Ricontatto fissato» si accende con «Ricontatti dei consulenti».");
-      if (!(STATI_ACCENDIBILI as string[]).includes(stato)) return no("Stato sconosciuto.");
-      if (typeof acceso !== "boolean") return no("Gli stati sono accesi o spenti.");
-      valori[stato] = acceso;
-    }
-    return { ok: true, comando: { tipo: "stati", valori } };
-  }
+  //  Gli stati sono messaggi del registro (commessa 2026-10-31): nessun nome si scrive più da qui.
+  if (chiave === "stati") return no(FRASE_MESSAGGI_ALTROVE);
 
   if (chiave === "fraseModulo") {
     const giorno = (v as { giorno?: unknown } | null)?.giorno;

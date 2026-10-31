@@ -15,6 +15,7 @@
  *  ⚠️ L'interruttore è SPENTO di base. Quando lo si accende (`avvio: "da_fare"`), le
  *   schede che hanno GIÀ un acconto diventano «preesistenti» e non ricevono niente.
  */
+import type { EsitoPorta } from "../manychat/porta";
 import {
   bozzaDaDati,
   chiaveRichiesta,
@@ -57,6 +58,30 @@ export type EsitoInvioRichiesta =
   | "stop"
   | "incerto"
   | "errore";
+
+/** ── DALL'ESITO DELLA PORTA ALL'ESITO DEL GIRO ────────────────────────────
+ *  `"spento"` (il messaggio è spento nel registro) è `riprova`, come la pausa del contatto:
+ *  la richiesta non è partita, non è un guasto e non si segna come tale. Un esito che non
+ *  conosco resta `errore`. */
+export function esitoRichiestaDaPorta(esito: EsitoPorta): EsitoInvioRichiesta {
+  switch (esito) {
+    case "ok":
+      return "ok";
+    case "gia_preso":
+      return "gia_preso";
+    case "saltato":
+      return "saltato";
+    case "riprova_fra_poco":
+    case "spento":
+      return "riprova";
+    case "stop":
+      return "stop";
+    case "incerto":
+      return "incerto";
+    default:
+      return "errore";
+  }
+}
 
 export interface MessaggioIn {
   /** `wa_message_id` */
@@ -156,7 +181,9 @@ async function giroSottoLucchetto(
   const schede = await porte.schedeConAcconto();
 
   //  ── L'AVVIO: chi ha già un acconto non riceve niente ─────────────────
-  if (config.avvio === "da_fare") {
+  //  Tutto ciò che non è «fatto» (anche un JSON mancante o storto): l'«acceso» ora viene dal
+  //  registro, non dallo stesso JSON che dice se l'avvio è già stato fatto.
+  if (config.avvio !== "fatto") {
     let mancanti = 0;
     for (const s of schede) {
       if (s.data.datiFattura) continue;

@@ -21,6 +21,11 @@
  *   chiedono le colonne di S2 (503 se mancano); «Lead nuovo» non si accende senza
  *   la data della frase (422); la data della frase si salva in `controlli`.
  *   `controllaComando` decide PRIMA di ogni scrittura.
+ *  ⚠️ Commessa 2026-10-31 (interruttori automatici): i MESSAGGI (gli interruttori
+ *   `promemoria`, `ricontatti`, `leadNuovo`, `giornoMeet` e gli `stati`) non si scrivono
+ *   più da qui: li accende e spegne il registro (`/api/crm/messaggi-automatici`).
+ *   `leggiComando` li rifiuta con un 400 («Si cambia in Messaggi automatici.»); resta il
+ *   solo generale (`acceso`). Stesso permesso «impostazioni»: la rotta non apre niente.
  *  ⚠️ Nessuna di queste azioni manda un messaggio. La chiave di ManyChat non
  *   esce mai in una risposta; nei log solo codici, mai un numero.
  *  ───────────────────────────────────────────────────────────────────────── */

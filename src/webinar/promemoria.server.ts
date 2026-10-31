@@ -26,6 +26,11 @@ export const SILENZIO_MS = 20 * 60 * 1000;
 
 const GRUPPO = 5;
 
+/** Il messaggio automatico che sta partendo, per l'interruttore (catalogo dei messaggi
+ *  automatici). Lo passa SOLO la chiamata che parte da sola all'avvio della diretta: il tasto
+ *  a mano non lo passa e non è mai bloccato. */
+export type MessaggioWebinarAutomatico = "webinar_in_diretta";
+
 export async function mandaPromemoria(o: {
   codice: string;
   titolo: string;
@@ -37,7 +42,9 @@ export async function mandaPromemoria(o: {
   intestazioni: Record<string, string>;
   /** il template approvato da Meta, se la sala ne ha uno */
   template?: string;
-}): Promise<{ mandati: number; falliti: number; fuoriFinestra: number }> {
+  /** Se c'è, la porta controlla l'interruttore di questo messaggio; spento = nessuno viene segnato */
+  automatico?: MessaggioWebinarAutomatico;
+}): Promise<{ mandati: number; falliti: number; fuoriFinestra: number; spenti: number }> {
   const tutti = await sala.daAvvisare(o.codice, SILENZIO_MS);
   let mandati = 0;
   let falliti = 0;
@@ -46,7 +53,12 @@ export async function mandaPromemoria(o: {
    *  sembrerebbe una rete che fa i capricci, e si riproverebbe all'infinito
    *  una cosa che non può riuscire. */
   let fuoriFinestra = 0;
+  /** ⚠️ E questo è «spento dal pannello»: non è un guasto e non si segna come avvisato. Se si
+   *  riaccende, chi non ha ricevuto niente può ancora riceverlo. */
+  let spenti = 0;
   const template = String(o.template || "").trim();
+  //  Solo se c'è: l'invio a mano non porta il campo e la porta non controlla niente.
+  const campoAutomatico = o.automatico ? { automatico: o.automatico } : {};
 
   for (let i = 0; i < tutti.length; i += GRUPPO) {
     const gruppo = tutti.slice(i, i + GRUPPO);
@@ -66,18 +78,21 @@ export async function mandaPromemoria(o: {
                   to: p.contatto,
                   templateName: template,
                   templateParams: [p.nome || "", o.titolo, o.link],
+                  ...campoAutomatico,
                 }
               : {
                   to: p.contatto,
                   body: testoPromemoria({
                     tipo: o.tipo, titolo: o.titolo, link: o.link, nome: p.nome || "",
                   }),
+                  ...campoAutomatico,
                 },
           ),
         });
         if (!r.ok) {
           const perche = await r.json().catch(() => null) as { category?: string } | null;
           if (perche?.category === "outside_24h_window") fuoriFinestra += 1;
+          else if (r.status === 409 && perche?.category === "spento") spenti += 1;
           else falliti += 1;
           return;
         }
@@ -91,5 +106,5 @@ export async function mandaPromemoria(o: {
     }));
   }
 
-  return { mandati, falliti, fuoriFinestra };
+  return { mandati, falliti, fuoriFinestra, spenti };
 }
