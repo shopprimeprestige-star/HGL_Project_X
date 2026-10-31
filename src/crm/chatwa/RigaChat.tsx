@@ -44,6 +44,7 @@ import { oggiIso } from "@/crm/ui";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
 import { puoAnticipare } from "./accontiInCima";
+import { badgeAttesaPosa, type LivelloAttesa } from "./attesaPosa";
 import { TastoPriorita } from "@/crm/PrioritaPosa";
 import { inPriorita } from "@/crm/priorita";
 import type { ChatItem } from "./tipi";
@@ -75,6 +76,13 @@ function SpunteRiga({ stato }: { stato: Spunte }) {
     </>
   );
 }
+
+/** I tre colori del badge «da quanto non gli scriviamo» (soglie in attesaPosa.ts): neutro, ambra, rosso. */
+const STILE_ATTESA_POSA: Record<LivelloAttesa, string> = {
+  neutro: "border-slate-200 bg-slate-50 text-slate-600",
+  ambra: "border-amber-300 bg-amber-50 text-amber-800",
+  rosso: "border-red-300 bg-red-50 text-red-700",
+};
 
 /** Nome da mostrare: scheda, poi nome salvato, poi il numero. */
 export function nomeChat(c: ChatItem): string {
@@ -221,6 +229,11 @@ function RigaChatBase({
           testoPerWhatsapp(c, nomeConsulente, new Date(adesso)),
         )
       : "";
+  //  Finestra chiusa e link valido: in alto a destra, accanto alla cornetta, l'icona WhatsApp
+  //  (31/10/2026). Le prime due righe del testo lasciano il posto al secondo tasto.
+  const conWa = Boolean(finestra && !finestra.aperta && apriWa);
+  //  Chi aspetta la posa (acconto versato): da quanto non gli scriviamo (31/10/2026).
+  const attesaPosa = badgeAttesaPosa(c, adesso);
   //  Conferma e finestra in scadenza (30/10/2026): vedi segniRiga.ts.
   const conferma = segnoConferma(c.lead?.data, new Date(adesso));
   const scadenza = scadenzaFinestra(c, adesso);
@@ -311,7 +324,7 @@ function RigaChatBase({
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-2">
+          <span className={cn("flex items-baseline gap-2", conWa && "pr-11 md:pr-9")}>
             <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-foreground md:text-[13px] md:leading-[18px]">
               {nome}
             </span>
@@ -327,7 +340,9 @@ function RigaChatBase({
               >
                 <Hourglass aria-hidden="true" className="h-3 w-3 shrink-0" />
                 <span>
-                  <span className="md:max-lg:sr-only">Senza risposta</span>
+                  <span className={conWa ? "max-lg:sr-only" : "md:max-lg:sr-only"}>
+                    Senza risposta
+                  </span>
                   {a.senzaRisposta.daOre && ` ${a.senzaRisposta.breve}`}
                 </span>
               </span>
@@ -349,7 +364,12 @@ function RigaChatBase({
               info della chat). Sulla riga del numero c'è posto, e la riga delle
               pastiglie resta a stato, richiamo e stelle. */}
           {(numeroSotto || temperatura) && (
-            <span className="flex items-baseline justify-end gap-2 text-[12px] leading-4 md:text-[11px]">
+            <span
+              className={cn(
+                "flex items-baseline justify-end gap-2 text-[12px] leading-4 md:text-[11px]",
+                conWa && "pr-11 md:pr-9",
+              )}
+            >
               {numeroSotto && (
                 <span className="min-w-0 flex-1 truncate tabular-nums text-muted-foreground">
                   {numero}
@@ -363,18 +383,13 @@ function RigaChatBase({
           {/*  Finestra di 24 ore (29/10/2026, solo in «Da chiamare»), sotto il
               numero come chiesto dal titolare: verde = si può scrivere, rossa =
               finestra chiusa, serve un modello. Testo piccolo, non pastiglia. */}
-          {/*  Con il link (finestra chiusa) qui resta solo il posto, invisibile: il
-              link vero sta fuori dal bottone della riga (un link dentro un bottone
-              non è valido) e si appoggia esattamente su questo posto. */}
           {finestra && (
             <span
-              aria-hidden={apriWa ? true : undefined}
               className={cn(
                 "flex items-center gap-1 text-[11px] font-medium leading-4",
                 finestra.aperta ? "text-emerald-700" : "text-red-700",
-                apriWa && "invisible",
               )}
-              title={apriWa ? undefined : finestra.titolo}
+              title={finestra.titolo}
             >
               {finestra.aperta ? (
                 <LockOpen aria-hidden="true" className="h-3 w-3 shrink-0" />
@@ -382,7 +397,6 @@ function RigaChatBase({
                 <Lock aria-hidden="true" className="h-3 w-3 shrink-0" />
               )}
               {finestra.testo}
-              {apriWa && <span className="h-3.5 w-3.5 shrink-0" />}
             </span>
           )}
           {rigaAnteprima && (
@@ -450,29 +464,37 @@ function RigaChatBase({
         </>
       )}
 
-      {/*  ── FINESTRA CHIUSA: APRI WHATSAPP (29/10/2026) ──────────────────────
-          L'icona di WhatsApp e il tocco apre l'app sul numero (Business prima, su
-          Android): lì si scrive a mano. Sotto il numero, sul posto lasciato nel
-          bottone della riga: in alto 10 px + nome + numero (20+16 sul telefono,
-          18+16 dal computer). Tocco da 44 px sul telefono con `after:`. */}
-      {finestra && !finestra.aperta && apriWa && (
-        <a
-          href={apriWa}
+      {/*  ── FINESTRA CHIUSA: ICONA WHATSAPP ACCANTO ALLA CORNETTA (31/10/2026) ──
+          Richiesta del titolare: a finestra chiusa il CRM può mandare solo modelli, quindi accanto
+          alla cornetta c'è il tasto che apre l'app WhatsApp sul numero (Business prima, su Android):
+          lì si scrive a mano. Stesso link di «Apri in WhatsApp» nella Casella (con il promemoria nella
+          casella se la scheda ha tutto). Prende il posto della piccola icona accanto a «Finestra
+          chiusa», tolta per non avere due icone uguali. Vale anche per i numeri esteri: la regola
+          «chiama solo Italia» riguarda la cornetta, non WhatsApp, anzi per loro è l'unica via.
+          Fuori dal bottone della riga e con stopPropagation, così non apre la chat; 44 px sul telefono. */}
+      {conWa && (
+        <Button
+          asChild
           inert={selezione?.attiva}
-          //  wa.me in una scheda nuova (il CRM resta aperto); il link Android si apre e basta.
-          target={apriWa.startsWith("https:") ? "_blank" : undefined}
-          rel="noopener noreferrer"
-          title={`${finestra.titolo}. Tocca per aprire la chat nell'app WhatsApp`}
-          aria-label="Finestra chiusa: apri la chat nell'app WhatsApp"
+          variant="ghost"
           className={cn(
-            "absolute left-[68px] inline-flex h-4 items-center gap-1 rounded-sm text-[11px] font-medium leading-4 text-red-700 after:absolute after:-inset-x-1 after:-inset-y-3.5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:left-16 md:after:-inset-y-1",
-            numeroSotto || temperatura ? "top-[46px] md:top-[44px]" : "top-[30px] md:top-[28px]",
+            "absolute top-0 h-11 w-11 p-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 md:top-0.5 md:h-9 md:w-9",
+            //  A sinistra della cornetta (44 px + 4 di margine; 36 + 4 dal tablet); da sola, al suo posto.
+            telefono ? "right-[52px] md:right-[44px]" : "right-1",
           )}
         >
-          <Lock aria-hidden="true" className="h-3 w-3 shrink-0" />
-          {finestra.testo}
-          <IconaWhatsApp className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-        </a>
+          <a
+            href={apriWa}
+            //  wa.me in una scheda nuova (il CRM resta aperto); il link Android si apre e basta.
+            target={apriWa.startsWith("https:") ? "_blank" : undefined}
+            rel="noopener noreferrer"
+            aria-label={`Apri ${nome} su WhatsApp`}
+            title={`Finestra chiusa: apri ${nome} nell'app WhatsApp`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconaWhatsApp className="h-5 w-5 md:h-4 md:w-4" />
+          </a>
+        </Button>
       )}
 
       {/*  ── STATO, RICHIAMO, RITORNO E STELLE ─────────────────────────────────
@@ -525,6 +547,23 @@ function RigaChatBase({
                 <ChevronDown aria-hidden="true" className="h-3 w-3 shrink-0 opacity-60" />
               </span>
             </button>
+          )}
+          {/*  ── DA QUANTO NON GLI SCRIVIAMO (31/10/2026) ───────────────────────
+              Solo per chi ha lasciato l'acconto e aspetta la posa. Pillola corta con la
+              clessidra: «10 g», «3 h». Neutra sotto i 3 giorni, ambra da 3 a 7, rossa oltre
+              (vedi attesaPosa.ts). Sta nella riga delle pastiglie, in ogni elenco. */}
+          {attesaPosa && (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums",
+                STILE_ATTESA_POSA[attesaPosa.livello],
+              )}
+              title={attesaPosa.titolo}
+            >
+              <Hourglass aria-hidden="true" className="h-3 w-3 shrink-0" />
+              <span className="sr-only">{attesaPosa.titolo}: </span>
+              <span aria-hidden="true">{attesaPosa.testo}</span>
+            </span>
           )}
           {/*  ── CONFERMA E FINESTRA IN SCADENZA (30/10/2026) ───────────────────
               Solo per gli appuntamenti fissati. «Confermato» verde con la spunta,

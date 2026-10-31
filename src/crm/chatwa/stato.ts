@@ -567,3 +567,22 @@ export function ultimoDellaChat<
     created_at: il as string,
   };
 }
+
+/** La data (ISO) del più recente fra i messaggi in uscita partiti; `null` se non ce n'è.
+ *  Un messaggio non partito (`failed`) non conta: il cliente non l'ha mai visto.
+ *  Serve al badge «da quanto non gli scriviamo» (attesaPosa.ts). */
+export function ultimoNostroIl(
+  messaggi: readonly { direction: string; created_at: string; status?: string | null }[],
+): string | null {
+  let migliore: string | null = null;
+  let t = -Infinity;
+  for (const m of messaggi) {
+    if (m.direction !== "outbound" || m.status === "failed") continue;
+    const x = ms(m.created_at);
+    if (x !== null && x > t) {
+      t = x;
+      migliore = m.created_at;
+    }
+  }
+  return migliore;
+}

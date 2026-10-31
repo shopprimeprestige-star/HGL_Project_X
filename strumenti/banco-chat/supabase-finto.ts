@@ -1,13 +1,14 @@
 /** Un database finto in memoria che parla come PostgREST (solo quello che usa la chat) e conta
  *  richieste, righe e byte. Dati SINTETICI (`dati-finti.ts`): niente clienti. Solo per il banco di misura. */
 import { genera, ADESSO } from "./dati-finti";
+import { scenaRiga } from "./scena-riga";
 
 type Riga = Record<string, unknown>;
 export const stats = { richieste: 0, righe: 0, byte: 0, log: [] as { t: string; q: string; righe: number; byte: number }[] };
 export const LATENZA_MS = Number((globalThis as { __LATENZA?: number }).__LATENZA ?? 60);
 
 const P = new URLSearchParams(location.search);
-export const D = genera({
+export const D = P.get("scena") === "riga" ? scenaRiga() : genera({
   contatti: Number(P.get("contatti") ?? 2174),
   leads: Number(P.get("leads") ?? 2000),
   messaggi: Number(P.get("messaggi") ?? 45000),

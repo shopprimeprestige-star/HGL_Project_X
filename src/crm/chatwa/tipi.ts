@@ -86,6 +86,8 @@ export interface ChatItem {
   lead: Lead | null;
   contact: WaContactRow | null;
   lastMessage: WaMessageRow | null;
+  /** Il più recente messaggio NOSTRO partito fra quelli letti in pagina (attesaPosa.ts); `null` se non c'è. */
+  ultimoNostroIl?: string | null;
   /** I campi che seguono li riempie T7; finché non c'è, mancano. */
   daRispondere?: {
     attesa: boolean;

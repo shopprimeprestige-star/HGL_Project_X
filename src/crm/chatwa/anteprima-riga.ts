@@ -79,7 +79,7 @@ const ms = (x: string | null | undefined): number | null => {
 };
 
 /** «da 2 giorni» → «da 2 g», «da meno di 1 min» → «da poco»; il resto («da 3 h», «da 25 min») è già corto. */
-function inBreve(da: string): string {
+export function inBreve(da: string): string {
   if (da === "da meno di 1 min") return "da poco";
   return da.replace(/^da (\d+) giorn[oi]$/, "da $1 g");
 }

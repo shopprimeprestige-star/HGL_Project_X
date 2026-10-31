@@ -59,6 +59,7 @@ import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
+import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
@@ -741,6 +742,9 @@ const MODULI = [
   //  Acconti in cima alla chat e «Anticipa» condiviso (commessa 2026-10-30-wa-acconti-priorita):
   //   prove in prove/idee/acconti-in-cima.mjs.
   "chatwa/accontiInCima",
+  //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
+  //   prove in prove/idee/riga-attesa-wame.mjs.
+  "chatwa/attesaPosa",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21271,7 +21275,7 @@ function proveDellApriWhatsapp() {
   c("Android: WhatsApp Business per primo", true, l.startsWith("intent://send/?phone=393331234567#Intent;scheme=whatsapp;package=com.whatsapp.w4b;"));
   c("Android senza Business: torna a wa.me", true, l.includes("S.browser_fallback_url=" + encodeURIComponent("https://wa.me/393331234567") + ";end"));
   const riga = readFileSync(join(radice, "src/crm/chatwa/RigaChat.tsx"), "utf8");
-  c("la pastiglia «Finestra chiusa» è un link con l'icona WhatsApp", true,
+  c("a finestra chiusa la riga ha il tasto con l'icona WhatsApp (link di apriWa)", true,
     /href=\{apriWa\}/.test(riga) && /<IconaWhatsApp/.test(riga) && /finestra && !finestra\.aperta/.test(riga));
 }
 
@@ -21548,6 +21552,7 @@ proveInvitoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
+proveRigaAttesaWame(mod, { c, gruppo, radice });
 await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
