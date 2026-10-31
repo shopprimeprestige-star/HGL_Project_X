@@ -117,6 +117,7 @@ const MODULI = [
   //   una promessa senza giorno esce dalle code di lavoro e non ci rientra.
   //   Vedi proveDelQuandoPerStato.
   "quando-per-stato",
+  "chiamate",
   "costi-pratica",
   "kpi-netto",
   "kpi-calcoli",
@@ -21549,6 +21550,7 @@ proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
 proveDellOrdineAcconti();
 proveDeiContatoriABadge();
+proveDelContatoreChiamate();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22548,4 +22550,24 @@ function proveDeiContatoriABadge() {
   c("il contatore è un tondino con la scala t-etichetta", true, /const contatore = [\s\S]*?rounded-full[\s\S]*?t-etichetta/.test(e));
   c("stato della chiamata e «quando richiamare» usano il contatore", 2, (e.match(/className=\{contatore\(/g) || []).length);
   c("niente più numero attaccato al testo", false, /\{x\.l\} <span className="tabular-nums">/.test(e));
+}
+
+function proveDelContatoreChiamate() {
+  gruppo("CORNETTA: QUANTE VOLTE LO ABBIAMO CHIAMATO (31/10/2026)");
+  const C = mod["chiamate"];
+  const ora = new Date("2026-10-31T09:00:00Z");
+  c("mai chiamato: 0", 0, C.chiamateDi({}));
+  const p1 = C.patchChiamata({}, ora).chiamate;
+  c("primo tocco: 1, prima = ultima = adesso", [1, ora.toISOString(), ora.toISOString()], [p1.volte, p1.prima, p1.ultima]);
+  const dopo = new Date("2026-11-02T10:00:00Z");
+  const p2 = C.patchChiamata({ chiamate: p1, stato: "non_risponde" }, dopo).chiamate;
+  c("secondo tocco in un altro stato: 2, la prima resta", [2, ora.toISOString(), dopo.toISOString()], [p2.volte, p2.prima, p2.ultima]);
+  c("valori rotti: si riparte da 0, mai NaN", [0, 1], [C.chiamateDi({ chiamate: { volte: "x" } }), C.patchChiamata({ chiamate: { volte: -3 } }, ora).chiamate.volte]);
+  c("le frasi", ["Mai chiamato", "Chiamato 1 volta", "Chiamato 4 volte"], [0, 1, 4].map(C.frasiChiamate));
+  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
+  c("il conto non scende mai: un salvataggio con un numero vecchio non lo tocca", true, /if \(patch\.chiamate && chiamateDi\(\{ chiamate: patch\.chiamate \}\) <= chiamateDi\(current\.data\)\)\s*patch\.chiamate = current\.data\.chiamate;/.test(ctx));
+  const ui = readFileSync(join(radice, "src/crm/ContaChiamate.tsx"), "utf8");
+  c("il tocco si conta sulla scheda riletta (funzione)", true, /updateLead\(lead\.id, \(d\) => patchChiamata\(d\)\)/.test(ui));
+  const cornette = ["src/crm/chatwa/RigaChat.tsx", "src/crm/chatwa/Conversazione.tsx", "src/crm/dafare/VoceDaFare.tsx", "src/crm/dafare/ChiChiamareAdesso.tsx", "src/crm/LeadDialog.tsx", "src/crm/importa/chiamare.tsx"];
+  c("ogni cornetta dei lead conta e mostra il badge", [], cornette.filter((f) => { const t = readFileSync(join(radice, f), "utf8"); return !/segnaChiamata\(/.test(t) || !/<BadgeChiamate/.test(t); }));
 }

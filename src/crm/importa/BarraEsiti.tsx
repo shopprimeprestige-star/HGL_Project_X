@@ -14,6 +14,7 @@
  *   (`--barra-esiti`, vedi CRM.tsx), così il messaggio «Annulla» non ci finisce
  *   sotto.
  *  ───────────────────────────────────────────────────────────────────────── */
+import type { Lead } from "@/crm/types";
 import { useEffect, useRef, type ReactNode } from "react";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,11 @@ export function BarraEsiti({
   esiti,
   onEsito,
   inCima,
+  lead,
 }: {
   telefono: string;
+  /** La scheda: i tocchi sulla cornetta si contano lì. */
+  lead?: Lead | null;
   /** Vuoto = nessun numero o nessun messaggio: il tasto resta spento. */
   linkWhatsApp: string;
   onWhatsAppInviato?: () => void;
@@ -70,7 +74,7 @@ export function BarraEsiti({
       {inCima && <div className="md:w-full">{inCima}</div>}
       <div className="flex gap-2 md:contents">
         <div className="flex-1 md:w-44 md:flex-none [&>*]:w-full">
-          <TastoChiama telefono={telefono} />
+          <TastoChiama telefono={telefono} lead={lead} />
         </div>
         <div className="flex-1 md:w-44 md:flex-none [&>*]:w-full">
           {linkWhatsApp ? (

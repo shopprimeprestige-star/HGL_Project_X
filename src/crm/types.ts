@@ -1778,6 +1778,8 @@ export interface LeadData {
    *   questo oggetto a mano: un secondo punto che lo scrive è un secondo modo
    *   di contare le volte. */
   ricarico?: RicaricoLead;
+  /** Quante volte si è toccata la cornetta (31/10/2026, crm/chiamate): non si azzera mai. */
+  chiamate?: { volte: number; prima: string; ultima: string };
   /** quante volte non ha risposto: guida i richiami */
   noRispondeCount?: number;
   /** ── MESSO DA PARTE DALLA POSTAZIONE ────────────────────────────────────
