@@ -21,6 +21,7 @@ import type { ChatItem, ChatWaApi } from "./tipi";
 import { AbbinaScheda } from "./AbbinaScheda";
 import { StatoPonte } from "./StatoPonte";
 import { PannelloCosti, TastoCosti } from "./PannelloCosti";
+import { PannelloArchiviazione, TastoArchiviazione } from "./PannelloArchiviazione";
 import { TastoSpesaLead } from "./PannelloSpesaLead";
 import { useChatWa } from "./useChatWa";
 import { useApiElenco, useStabile } from "./apiElenco";
@@ -64,6 +65,9 @@ export function PaginaChat({
   //  «Costi WhatsApp» (29/10/2026): soldi, quindi solo a chi ha le impostazioni (come la rotta).
   const vedeCosti = usePuo()("impostazioni");
   const [costiAperti, setCostiAperti] = useState(false);
+  //  «Archiviazione» (31/10/2026): spazio dei file e liberazioni di massa, solo con le impostazioni.
+  const vedeArchivio = usePuo()("impostazioni");
+  const [archivioAperto, setArchivioAperto] = useState(false);
 
   // LeadDialog (modifica lead esistente o creazione nuovo lead da numero sconosciuto)
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
@@ -340,6 +344,7 @@ export function PaginaChat({
 
           <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
             {vedeCosti && <TastoCosti onClick={() => setCostiAperti(true)} />}
+            {vedeArchivio && <TastoArchiviazione onClick={() => setArchivioAperto(true)} />}
             {api.stato === "configura" && (
               <Badge
                 variant="outline"
@@ -483,6 +488,13 @@ export function PaginaChat({
       </div>
 
       {vedeCosti && <PannelloCosti aperto={costiAperti} onChiudi={() => setCostiAperti(false)} />}
+      {vedeArchivio && (
+        <PannelloArchiviazione
+          aperto={archivioAperto}
+          onChiudi={() => setArchivioAperto(false)}
+          chats={api.chats}
+        />
+      )}
 
       {/* Foglio «Oggi» sotto 1280 px: a tutta larghezza sul telefono. Lo spazio a
           destra della testata lascia posto alla X del foglio. */}

@@ -33,6 +33,7 @@ import { chiaveCache, controllaCache, creaCache } from "./cache.mjs";
 import { creaCollegamento } from "./collega.mjs";
 import { leggiConfig } from "./config.mjs";
 import { creaInvii } from "./invio.mjs";
+import { creaCatalogo } from "./catalogo.mjs";
 import { creaImmagini } from "./immagini.mjs";
 import { creaFila, spedisci } from "./lotti.mjs";
 import { creaQr } from "./qr.mjs";
@@ -63,6 +64,8 @@ export function percorsiDi(casa) {
     fila: join(base, "fila"),
     invii: join(base, "invii"),
     immagini: join(base, "immagini"),
+    //  DEDICATA: il catalogo cancella i file che non riconosce (mai `media/` né un'altra cartella)
+    catalogo: join(base, "media/catalogo"),
     config: join(base, "config.env"),
     stato: join(base, "stato.json"),
     lid: join(base, "lid.json"),
@@ -297,6 +300,7 @@ async function main() {
   let erroreServer = false;
   let fermo = false;
   let invii = null;
+  let catalogo = null;
   let immagini = null;
   let revoche = null;
   let inVolo = null;
@@ -393,6 +397,7 @@ async function main() {
     const r = await spedisci({ url, token, corpo });
     if (r.stato === 200) fila.segnalaBuono(); // il database risponde: un 500 ripetuto è colpa del lotto
     if (r.stato === 200) invii?.dopoBattito(r.corpo); // «ce n'è in coda» → il ciclo degli invii
+    if (r.stato === 200) immagini?.dopoBattito(r.corpo); // `media_v`, `media_auto`, `media_richieste` → categorie automatiche e «Mostra»
     if (r.stato === 200) erroreServer = false;
     else if (r.stato === 401 || r.stato === 503) erroreServer = true;
     if (r.stato !== 200) registro("battito_non_arrivato", { http: r.stato ?? 0 });
@@ -400,13 +405,17 @@ async function main() {
 
   const baileys = await import("@whiskeysockets/baileys");
 
-  //  Le immagini (commessa 2026-10-30-ponte-storico-completo, T8): mai con --senza-invio (non si
-  //  chiede niente al CRM). `scarica` è il download di Baileys, che non passa dal socket; l'host e la
-  //  copia da scaricare li decide `immagini.mjs`. Un guasto qui non deve fermare il ponte: senza
-  //  immagini le foto restano la riga di testo di sempre.
+  //  I media (commesse 2026-10-30-ponte-storico-completo T8 e 2026-10-31-media-e-archiviazione T7): foto, vocali,
+  //  video e documenti. Mai con --senza-invio (non si chiede niente al CRM). Il catalogo (`media/catalogo`) è UNO,
+  //  condiviso con `immagini.mjs`, e deve essere pronto PRIMA che il socket si colleghi: altrimenti `accoda`
+  //  risponde `non_avviato` e il media resta la sola riga di testo. `scarica` è il download di Baileys, che non
+  //  passa dal socket; l'host e la copia da scaricare li decide `immagini.mjs`. Un guasto qui non deve fermare il
+  //  ponte: senza media le righe di testo restano quelle di sempre.
   try {
     if (!senzaInvio && typeof baileys.downloadContentFromMessage === "function") {
-      immagini = creaImmagini({ url, token, cartella: P.immagini, scarica: baileys.downloadContentFromMessage, registro });
+      catalogo = creaCatalogo({ cartella: P.catalogo, registro });
+      await catalogo.avvia();
+      immagini = creaImmagini({ url, token, cartella: P.immagini, catalogo, scarica: baileys.downloadContentFromMessage, registro });
     }
   } catch {
     registro("immagini_non_avviate");
@@ -461,6 +470,8 @@ async function main() {
     //  `col.ferma()` aspetta (al massimo 6 s) lo scarico del buffer di Baileys: i messaggi
     //  arrivati a ponte spento sono già confermati a WhatsApp e chiudendo prima si perdono.
     await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma(), immagini?.ferma(), revoche?.ferma()]), pausa(10_000)]).catch(() => {});
+    //  Per ultimo il catalogo: scrive quel che ha in attesa (il socket e il ciclo dei media non lo usano più).
+    await Promise.race([catalogo?.ferma(), pausa(3_000)]).catch(() => {});
     const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori(), cache: contiCache() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });
@@ -472,7 +483,7 @@ async function main() {
 
   await col.avvia();
   void invii.avvia(); // consegna gli esiti rimasti e chiude gli invii a metà (non invia mai da sé)
-  void immagini?.avvia(); // riprende le foto rimaste in coda su disco (14 giorni, anche dopo un riavvio)
+  void immagini?.avvia(); // riprende i media rimasti in coda nel catalogo (anche dopo un riavvio)
   void battito();
   giro();
   void controllo();

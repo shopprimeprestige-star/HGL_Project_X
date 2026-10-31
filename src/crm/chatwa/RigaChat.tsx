@@ -3,6 +3,7 @@ import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   AlertCircle,
   CalendarClock,
+  CalendarX,
   Check,
   CheckCheck,
   ChevronDown,
@@ -40,6 +41,8 @@ import { eSpostamento, PRESSIONE_LUNGA_MS } from "./selezione";
 import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
+import { PastigliaEsito } from "./PastigliaEsito";
+import { datiPerData, esitoDi } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
@@ -123,6 +126,9 @@ interface RigaChatProps {
   /** Vista «Tutte» (30/10/2026): a destra sempre l'ora dell'ultimo messaggio come WhatsApp
    *  («18:03», «Ieri», «lunedì», «21/10/2026»), mai «da 5 min» né «Senza risposta». */
   comeWhatsapp?: boolean;
+  /** Dentro «Ricontatti» (31/10/2026): accanto allo stato la pastiglia dell'esito (si tocca per
+   *  cambiarlo), la data letta da `dataRicontatto` per ogni stato, e «Senza data» con la X se manca. */
+  risentire?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» sta
@@ -144,6 +150,7 @@ function RigaChatBase({
   selezione,
   prossimoMeet = false,
   comeWhatsapp = false,
+  risentire = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -250,7 +257,15 @@ function RigaChatBase({
     testoUscita: (corpo) => corpoLeggibile(corpo, c.lead?.data, nomeConsulente, c.lead?.id).testo,
   });
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
-  const richiamo = c.lead ? etichettaRichiamo(c.lead.data, oggiIso(new Date(adesso))) : null;
+  const richiamo = c.lead
+    ? etichettaRichiamo(
+        risentire ? datiPerData(c.lead.data) : c.lead.data,
+        oggiIso(new Date(adesso)),
+      )
+    : null;
+  //  «Ricontatti» (31/10/2026): senza data si vede, con la X e la parola (non basta l'assenza).
+  const senzaData = risentire && !!c.lead && !richiamo;
+  const esito = risentire ? esitoDi(c) : null;
 
   //  Nessun messaggio in archivio: si dice. Se invece la chat ha messaggi ma
   //  l'ultimo non è fra quelli letti (si leggono gli ultimi 500), la riga
@@ -532,6 +547,8 @@ function RigaChatBase({
               </span>
             </button>
           )}
+          {/*  ── L'ESITO (31/10/2026) ── solo in «Ricontatti»; pastiglia e foglio sono PastigliaEsito. */}
+          {risentire && c.lead && <PastigliaEsito leadId={c.lead.id} esito={esito} contesto={nome} />}
           {/*  Senza scheda: stessa pastiglia, neutra e tratteggiata. Scegliere uno stato crea la scheda. */}
           {!c.lead && puoiCambiareStato && (
             <button
@@ -613,6 +630,17 @@ function RigaChatBase({
                 <span className="sr-only">Richiamo </span>
                 {richiamo.testo.replace(/^Richiamo /, "")}
               </span>
+            </span>
+          )}
+          {/*  Senza data (31/10/2026, solo in «Ricontatti»): icona X + parole, neutra: è da sistemare, non
+              un allarme. Con la data c'è il calendario qui sopra. */}
+          {senzaData && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-muted-foreground/50 px-2 py-0.5 text-[11px] font-medium leading-4 text-muted-foreground"
+              title="Nessuna data di ricontatto in scheda"
+            >
+              <CalendarX aria-hidden="true" className="h-3 w-3 shrink-0" />
+              Senza data
             </span>
           )}
           {/*  Di ritorno (28/10/2026): nella riga solo «Ritorno» con l'icona, lo stato di

@@ -254,6 +254,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     tipo: null,
     consulente: "",
     ricontatti: false,
+    rStato: "",
+    rEsito: "",
+    rData: "",
     io: "",
   });
   c(
@@ -641,8 +644,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Clienti (31/10: gli stati di chiamata solo dentro «Da chiamare»)",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Clienti"],
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Da recuperare · Clienti (31/10: gli stati di chiamata solo dentro «Da chiamare»)",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Da recuperare", "Clienti"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
   {

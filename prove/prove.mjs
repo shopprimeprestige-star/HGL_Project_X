@@ -47,6 +47,7 @@ import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cli
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveRicontatti } from "./idee/ricontatti.mjs";
+import { proveRisentire } from "./idee/risentire.mjs";
 import {
   proveClienti,
   proveCreaSchedaDaChat,
@@ -57,12 +58,15 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveMessaggioIban } from "./idee/messaggio-iban.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
+import { proveTestiWame } from "./idee/testi-wame.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
+import { proveEcoFantasma } from "./idee/eco-fantasma.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
@@ -726,7 +730,8 @@ const MODULI = [
   //  Le immagini del ponte (commessa 2026-10-30-ponte-storico-completo, T5): contratti e logica
   //   del server. Entrano nel pacchetto quando il file esiste; prove in prove/ponte/immagini-*.mjs,
   //   chiamate da `proveDelPonte`.
-  ...["ponte/media-tipi", "ponte/media"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
+  //  31/10 (commessa 2026-10-31-media-e-archiviazione): anche le azioni (timer, «Mostra», libera, hook delle scadenze).
+  ...["ponte/media-tipi", "ponte/media", "ponte/media-azioni-tipi", "ponte/media-azioni"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
   //  Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale):
   //   contratti e regole pure; `ponte/invio-giro` e `chatwa/invioPonte` entrano
   //   nel pacchetto quando il file esiste (li crea il loro compito). Prove in
@@ -749,6 +754,12 @@ const MODULI = [
   //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
   //   prove in prove/idee/riga-attesa-wame.mjs.
   "chatwa/attesaPosa",
+  //  I testi precompilati nei link wa.me, formattati (31/10/2026): prove in prove/idee/testi-wame.mjs.
+  "chatwa/testoWa",
+  "preventivi/messaggi",
+  //  Messaggio «IBAN per l'acconto» con importo, causale, IBAN e intestatario dinamici (31/10/2026):
+  //   prove in prove/idee/messaggio-iban.mjs. (`chatwa/risposte-rapide` è già registrato sopra.)
+  "chatwa/dati-acconto",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21546,6 +21557,7 @@ provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveRicontatti(mod, { c, gruppo, radice });
+proveRisentire(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
@@ -21555,6 +21567,7 @@ await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveInvitoMeet(mod, { c, gruppo, radice });
+proveTestiWame(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
@@ -21568,6 +21581,8 @@ proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+proveMessaggioIban(mod, { c, gruppo, radice });
+await proveEcoFantasma(mod, { c, gruppo });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

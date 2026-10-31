@@ -26,6 +26,7 @@ import { getLiveId, setPresenterPage } from "@/shop/live";
 import { setLookup } from "@/shop/lookup";
 import { copyLink } from "@/shop/copied";
 import { linkPreventivo } from "@/shop/quote-link";
+import { testoPreventivoWa } from "@/crm/chatwa/testoWa";
 //  Il numero di un preventivo e la causale del suo bonifico: che cosa si può
 //  scrivere, e che frase ne esce. Le regole stanno lì, provate.
 import { normalizzaNumero, perchéNonVa } from "@/shop/numero-preventivo";
@@ -256,7 +257,8 @@ export function QuotesPanel({ onClose }: { onClose: () => void }) {
   const whatsapp = (r: QRow) => {
     const n = waNumero(r.telefono);
     if (!n) { toast.error("Questo preventivo non ha un numero di telefono"); return; }
-    const testo = `Ciao ${r.nome || ""}, ecco il tuo preventivo ${r.quote_ref}: ${linkOf(r.quote_ref)}`.replace(/\s+/g, " ").trim();
+    //  A blocchi, col link da solo sulla sua riga (forma in crm/chatwa/testoWa.ts).
+    const testo = testoPreventivoWa({ nome: (r.nome || "").trim(), riferimento: r.quote_ref, link: linkOf(r.quote_ref) });
     window.open(`https://wa.me/${n}?text=${encodeURIComponent(testo)}`, "_blank", "noopener");
   };
   /** ── SELEZIONE CON MAIUSC ─────────────────────────────────────────────

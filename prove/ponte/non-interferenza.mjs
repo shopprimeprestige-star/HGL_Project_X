@@ -581,7 +581,14 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     //  Una seconda lettura (30/10/2026, «la palla è al cliente»): i messaggi nostri e suoi
     //  degli ultimi 7 giorni dei soli candidati a «Da chiamare», ponte compreso, solo
     //  senza pari (`duplicato_di` nullo), per sapere chi ha scritto per ultimo. Non scrive nulla.
-    const LETTURE_COL_PONTE = { "src/routes/hooks/attesa-da-chiamare.ts": 2 };
+    //  Una terza (31/10/2026, «eco senza contenuto», voluta dal titolare): in `porte.server.ts`
+    //  `ultimeUscite` legge SOLO le uscite (`direction = outbound`) dello stesso numero degli
+    //  ultimi secondi, ponte compreso, per scartare l'eco senza testo di un messaggio scritto dal
+    //  telefono. Non scrive nulla e non guida nessuna regola di «Da rispondere», finestra o freno.
+    const LETTURE_COL_PONTE = {
+      "src/routes/hooks/attesa-da-chiamare.ts": 2,
+      "src/crm/manychat/porte.server.ts": 1,
+    };
     for (const f of file) {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
       const rel = f.slice(radice.length + 1);
@@ -629,10 +636,12 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     const invio = ["src/crm/ponte/invio-giro.ts", "src/crm/ponte/invio-tipi.ts", "src/crm/ponte/invio.server.ts", "src/crm/ponte/invio.ts"];
     //  Le immagini (commessa 2026-10-30-ponte-storico-completo, T5): tre file, alla pari dell'invio.
     invio.push("src/crm/ponte/media-tipi.ts", "src/crm/ponte/media.ts", "src/crm/ponte/media.server.ts");
+    //  31/10 (media e archiviazione): la porta del database dei media e le azioni (timer, «Mostra», libera, hook).
+    invio.push("src/crm/ponte/media-db.server.ts", "src/crm/ponte/media-azioni-tipi.ts", "src/crm/ponte/media-azioni.ts", "src/crm/ponte/media-azioni.server.ts");
     //  Le revoche (commessa 2026-10-31, ponte-revoche): un file, la porta vera (`revoche.server.ts`).
     invio.push("src/crm/ponte/revoche.server.ts");
     c("il codice del ponte: ingresso, pari, porte, tipi, rotta (ci sono tutti)", [], vecchi.filter((x) => !nomiPonte.includes(x)));
-    c("…e in più solo i file dell'invio a mano (invio-tipi, invio, invio-giro, invio.server) e delle immagini (media-tipi, media, media.server) e delle revoche (revoche.server)", [], nomiPonte.filter((x) => !vecchi.includes(x) && !invio.includes(x)));
+    c("…e in più solo i file dell'invio a mano (invio-tipi, invio, invio-giro, invio.server) e dei media (media-tipi, media, media.server, media-db.server, media-azioni-tipi, media-azioni, media-azioni.server) e delle revoche (revoche.server)", [], nomiPonte.filter((x) => !vecchi.includes(x) && !invio.includes(x)));
     c("…invio-tipi.ts e invio.ts esistono già (T0)", true, nomiPonte.includes("src/crm/ponte/invio-tipi.ts") && nomiPonte.includes("src/crm/ponte/invio.ts"));
     const nominate = ponte.flatMap((f) => {
       const codice = senzaCommenti(readFileSync(f, "utf8"));

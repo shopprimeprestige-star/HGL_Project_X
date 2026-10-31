@@ -265,6 +265,8 @@ Lo decide il telefono: anche con `Desktop` può mandare meno di quello che vedi 
 
 ## Le immagini (foto dei clienti nella chat)
 
+> **Dal 31/10/2026** questa sezione è superata dove parla di sole foto, di «Tocca per vedere» e del tetto da 0,8 GB: vale la sezione «Media» qui sotto (foto, vocali, video, PDF e documenti; si vedono da soli; tetto di serie 5 GB). Il resto (come funziona il caricamento, la cartella riservata, le difese) resta valido.
+
 Dopo l'esportazione dello storico (mai la stessa sera), il ponte può portare nel CRM anche le **foto**: solo le immagini (JPEG, PNG, WebP, al massimo 8 MiB) dei messaggi **degli ultimi 14 giorni**, in entrata e in uscita. Le più vecchie, i video, i vocali e i documenti restano il segnaposto di sempre («📷 Foto», «🎤 Vocale 0:12»). Nella chat la bolla dice «Foto · Tocca per vedere»: la foto si scarica solo al tocco. Le foto sono dati dei clienti (spesso volti): le vede chiunque entri nel CRM, come le chat.
 
 **Come funziona:** il Mac scarica la foto da WhatsApp e la carica da solo su un archivio privato (bucket `ponte-media` di Supabase Storage) con un indirizzo monouso che gli dà il CRM; sul Mac non c'è nessuna chiave di Supabase. La chat la legge con un link che vale 5 minuti e che nell'indirizzo ha solo il nome casuale del file, mai il numero del cliente. Il Mac non scarica mai un indirizzo scelto dal mittente: solo host `*.whatsapp.net`, a pezzi, con un tetto di peso e di tempo; e non chiede mai al telefono di rimandare i media scaduti.
@@ -303,6 +305,82 @@ Sul Mac, `grep " immagini " ~/Library/Logs/hgl-ponte-wa.log | tail -3` dà i con
 
 **Da guardare con la prima foto vera** (non provato contro uno Storage vero): che la foto si apra nella chat, che `select ... from storage.objects where bucket_id = 'ponte-media'` mostri il peso in `metadata`, e che il log `immagini` conti una `ok`. La procedura con le condizioni da verificare prima di accendere è `PASSI-TITOLARE.md` (Parte B) della commessa `2026-10-30-ponte-storico-completo`.
 
+## Media (foto, vocali, video, PDF e documenti · dal 31/10/2026)
+
+Oltre alle foto, il ponte porta nella chat anche **vocali, video, PDF e documenti Office**, e li mostra da soli quando la bolla entra nella vista. In più: ogni media può **eliminarsi da solo dopo un tempo** scelto da te, dal segnaposto puoi **chiedere un media che non è stato scaricato**, e un pannello **Archiviazione** dice quanto spazio occupa ogni chat e permette di liberarlo. Liberare = cancellare il **file** dall'archivio: il messaggio resta e torna il segnaposto di sempre («📷 Foto», «🎤 Vocale»); nome e anteprima del file si cancellano insieme al file.
+
+**Cosa si scarica** (il tipo lo decide l'archivio guardando i byte, non quello che dichiara chi manda):
+
+| Categoria | Tipi | Peso massimo | Automatico per i messaggi degli ultimi |
+|---|---|---|---|
+| Foto | JPEG, PNG, WebP | 8 MiB | 14 giorni |
+| Vocali e audio | OGG/Opus, M4A, MP3, AAC, AMR | 16 MiB | 14 giorni |
+| Video | MP4, 3GP, MOV, WebM | 45 MiB | 7 giorni |
+| Documenti | PDF, docx, xlsx, pptx | 25 MiB | 14 giorni |
+
+Tutto il resto (ZIP, programmi, HTML, SVG, i vecchi `doc`/`xls`/`ppt`, `txt`, `csv`, «visualizza una volta», un'immagine mandata come documento) **non si scarica mai**: resta il segnaposto con nome e peso. Il limite di 45 MiB sta sotto i 50 MB di Storage: non serve cambiare niente nel pannello Supabase.
+
+**Come si vedono**
+- Foto: prima una miniatura, poi la foto intera. Vocali: il lettore con la durata; il file si scarica al primo «play». Video: miniatura e «play»; al tocco parte il lettore con un link che vale 30 minuti (se resti in pausa a lungo se ne chiede uno nuovo da solo). PDF: si apre in una scheda nuova. docx, xlsx, pptx: si scaricano.
+- Su iPhone i vocali OGG possono non suonare in Safari: la bolla offre «Scarica il vocale».
+- I media di ManyChat (foto e vocali con un loro link) si vedevano già e non cambiano: non hanno timer, «Mostra» né posto nel pannello.
+- Ogni apertura di una foto o di un video è traffico in uscita del piano Supabase: la chat scarica solo le bolle vicine alla vista, tiene in memoria le ultime foto e non precarica vocali e video.
+
+**Tenendo premuto su un media** (sul telefono: pressione lunga; sul computer: la freccia che compare sulla bolla) si apre un foglio con: **Mostra** (se è un segnaposto) o **Apri** (documento pronto), il **Timer** (Tieni sempre, che è di serie, 5 minuti, 1 ora, 24 ore, 7 giorni, 30 giorni, oppure **Elimina ora**) e **Rispiega con AI**. Il timer parte da quando il file è pronto. Su un messaggio di solo testo la pressione lunga funziona come prima (selezione).
+
+**«Mostra» sul segnaposto.** Chiede al Mac di scaricare quel media: ci mette fino a circa un minuto, più il tempo del download (la bolla aspetta 90 secondi, poi dice «Il Mac non ha risposto» e offre «Riprova»). Il Mac prova **una volta sola** e risponde subito: «Non più disponibile su WhatsApp: aprilo dal telefono» (WhatsApp tiene i media circa due settimane; il ponte **non** chiede mai al telefono di rimandarli), «Spazio pieno: libera qualcosa da Archiviazione», o un errore con «Riprova». Funziona solo per i messaggi che il Mac ha visto **dopo l'aggiornamento** e che hanno meno di 30 giorni. **Lo storico già importato non si può recuperare così** (il Mac non ne ha tenuto i dati): lì compare «non recuperabile da qui: aprilo dal telefono». Torna richiedibile solo se arriva un nuovo storico completo (ricollegamento con codice QR) e il messaggio ha meno di 30 giorni.
+
+**Il pannello Archiviazione.** L'icona a forma di disco, nell'intestazione di **Chat**, la vede **solo chi ha il permesso «Impostazioni»**. Mostra lo spazio usato sul tetto, i file per tipo, quanti hanno un timer e le **chat dalla più pesante alla più leggera** (MB e file per tipo). Da lì: **Libera** una chat intera (con conferma nella riga), apri una chat e **scegli quali file** togliere, oppure **Libera tutto** (con una finestra di conferma che dice quanti file e quanti GB, e un pulsante che non è quello predefinito). Si lavora a passi da 500 file con una barra di avanzamento; si può fermare e riprendere. Liberare in massa (per chat, selezione, tutto) lo può fare **solo chi ha «Impostazioni»**, e lo controlla il server, non l'interfaccia. Togliere un solo file dal foglio di una bolla (**Elimina ora**) lo può fare chiunque veda la chat.
+
+**L'interruttore** è la stessa riga di `app_config` delle foto (chiave `ponte_immagini`), spenta di serie. Dal 31/10 ha anche l'elenco delle categorie che si scaricano **da sole**; senza `auto` valgono le sole foto. Le altre categorie si possono sempre chiedere con «Mostra».
+
+```sql
+-- accendi: tetto 5 GB, tutte le categorie automatiche
+update public.app_config set value = '{"acceso":true,"tettoGB":5,"auto":["foto","audio","documento","video"]}' where key = 'ponte_immagini';
+-- come prima del 31/10: solo foto da sole
+update public.app_config set value = '{"acceso":true,"tettoGB":5,"auto":["foto"]}' where key = 'ponte_immagini';
+-- spegni: nessun nuovo download, nessun «Mostra»; i file già salvati restano visibili
+update public.app_config set value = '{"acceso":false,"tettoGB":5,"auto":["foto","audio","documento","video"]}' where key = 'ponte_immagini';
+```
+
+**Il tetto: 5 GB** (somma solo il bucket `ponte-media`, con i pesi veri di Storage). Il progetto Supabase usa già circa 16,7 GB in tutto: il tetto conta solo i media del ponte, ma guarda lo spazio complessivo del tuo piano prima di accendere. A tetto pieno i download automatici si fermano per 30 minuti e poi riprovano; «Mostra» non aspetta mai (se non c'è spazio lo dice). Oltre al tetto, il Mac scarica da solo al massimo 600 file e 1 GiB all'ora, i più recenti per primi, e non scarica niente da solo nei 10 minuti dopo l'arrivo di un blocco di storico.
+
+**Controllare lo spazio e gli arrivi:**
+
+```sql
+select coalesce(sum((metadata->>'size')::bigint), 0) / 1e9 as gb from storage.objects where bucket_id = 'ponte-media';
+select categoria, stato, count(*) from public.ponte_wa_media group by 1, 2 order by 1, 2;
+select count(*) as con_timer from public.ponte_wa_media where stato = 'pronta' and scade_il is not null;
+```
+
+Sul Mac, `grep " immagini " ~/Library/Logs/hgl-ponte-wa.log | tail -3` dà gli stessi contatori delle foto (`ok`, `scadute`, `errori`, `tetto`, `in_coda`), ora per tutte le categorie. Il cron dei timer si guarda in Supabase:
+
+```sql
+select status, return_message, start_time from cron.job_run_details
+ where jobid = (select jobid from cron.job where jobname = 'media-scadute-1min') order by start_time desc limit 10;
+```
+
+**I timer.** Un lavoro del Worker (`/hooks/media-scadute`, ogni minuto, programmato dalla migrazione C) toglie i file il cui timer è scaduto: **prima cancella il file, poi segna la riga «liberato»**, e se in quei secondi scegli «Tieni sempre» il file non viene toccato. Se qualcosa si ferma a metà (Storage che non risponde) il minuto dopo riprova. Ogni 30 minuti ripulisce anche gli oggetti rimasti senza riga e le richieste vecchie. Sono circa 1.440 chiamate al giorno, anche a vuoto.
+
+**Dove sta cosa sul Mac** (cartella riservata, `~/Library/Application Support/HGL/ponte-wa/`): per poter rispondere a «Mostra» il Mac tiene in `media/catalogo/` un file (permessi 600, cartella 700) per ogni media visto negli ultimi **30 giorni** (al massimo 5.000), con la chiave di decifratura (`mediaKey`), il percorso e l'host di WhatsApp. **Queste chiavi non vanno mai nel database né nei log**; sono dati sensibili come `auth/`: non copiarle, non metterle in un messaggio. Le foto in attesa del 30/10 (`immagini/coda/`) si rileggono una volta all'aggiornamento e si trasferiscono nel catalogo.
+
+**Backup e Mac perso.** `./installa.sh` esclude la cartella dati del ponte da Time Machine (`tmutil addexclusion`, senza amministratore; se non riesce, lo dice e va avanti). Conseguenza da conoscere: **se il Mac si perde o si cancella, il ponte non si ripristina da un backup** e va ricollegato con un **codice QR nuovo**. Tieni acceso **FileVault** (Impostazioni di Sistema → Privacy e sicurezza): protegge la cartella se il Mac viene portato via.
+
+**Cancellare i file di un cliente.** Eliminare la chat dal CRM non cancella i suoi file. Dal pannello: apri Archiviazione → **Libera** sulla chat di quel cliente (o scegli i file). Il messaggio resta; file, nome e anteprima spariscono.
+
+**Messa in opera.** L'ordine conta: **codice pubblicato → migrazione A subito dopo → migrazione B → aggiornamento del Mac → migrazione C → accensione**. Il motivo di ogni passo e le query di controllo sono in `commesse/2026-10-31-media-e-archiviazione/PASSI-TITOLARE.md`. Le tre migrazioni (`20261031120000_ponte_media_tipi.sql`, `…130000_ponte_media_archivio.sql`, `…140000_ponte_media_cron.sql`) si applicano a mano dal SQL Editor, una alla volta, e hanno in cima i commenti «COME SI ANNULLA» e «VERIFICA».
+
+**Come si spegne tutto** (dal più leggero al più completo):
+1. Nessun nuovo download e nessun «Mostra»: l'interruttore con `"acceso":false` (riga qui sopra). I file già salvati restano e i timer continuano.
+2. Solo foto da sole, come prima: `"auto":["foto"]`.
+3. Fermare anche i timer: `select cron.unschedule('media-scadute-1min');` (i file con un timer restano finché non lo riaccendi con la migrazione C).
+4. Fermare il Mac: `launchctl bootout gui/$(id -u)/it.hgl.ponte-whatsapp`, oppure scollegare il dispositivo dal telefono (come in cima a questa guida).
+5. Togliere i file: pannello Archiviazione → **Libera tutto**.
+6. Togliere il catalogo dal Mac (con il ponte fermo): `rm -rf "$HOME/Library/Application Support/HGL/ponte-wa/media/catalogo"`.
+7. Annullare le migrazioni: i comandi sono nel commento «COME SI ANNULLA» in cima a ciascuna (C, poi B, poi A). Gli oggetti già in Storage non si cancellano da SQL: prima «Libera tutto».
+
+**Da guardare a mano la prima volta** (non provato contro Storage e WhatsApp veri): un messaggio vero di ogni tipo (foto, vocale, video, PDF, docx), in entrata e inviato dal telefono; «Mostra» con un timer di 5 minuti e il file che sparisce dopo; il pannello con oltre 500 file veri; un vocale OGG su iPhone; che le risposte di Storage abbiano l'intestazione `X-Content-Type-Options: nosniff` (i file che non sono PDF si scaricano comunque sempre, mai aperti nella pagina; l'intestazione protegge il PDF); `tmutil isexcluded "$HOME/Library/Application Support/HGL/ponte-wa"` deve rispondere con `[Excluded]`.
+
 ## Cosa vedi nel CRM
 
 In **Chat**, in cima, compare una fascia **solo se qualcosa non va**: «il ponte non risponde da N minuti» (Mac spento, addormentato o ponte fermo), «WhatsApp ha scollegato il ponte» (c'è un codice nuovo da inquadrare sul Mac), «lo storico è ancora in arrivo (62%)». Se non vedi niente, va tutto bene. L'avviso lo vede solo chi apre la Chat: non arriva una notifica sul telefono.
@@ -337,7 +415,7 @@ Il log: `tail -n 50 ~/Library/Logs/hgl-ponte-wa.log`. Righe tipo `battito_colleg
 
 ## Cosa non fa (per ora)
 
-- Non scarica foto, vocali o allegati: compare un segnaposto («📷 Foto», «🎤 Vocale»). Non ne manda nemmeno: scrivendo dal telefono si manda solo testo.
+- Scarica solo i media dell'elenco della sezione «Media» (foto, vocali, video, PDF, docx, xlsx, pptx, entro i limiti di peso e di età); il resto è un segnaposto («📷 Foto», «📎 Documento»). Non ne manda: scrivendo dal telefono si manda solo testo.
 - Non segue le modifiche e le cancellazioni: un messaggio modificato o cancellato per tutti resta com'era nel CRM.
 - Non salva il nome del profilo WhatsApp degli sconosciuti: si vedono col numero.
 - Non mette il codice da inquadrare nel CRM: sta solo sul Mac.

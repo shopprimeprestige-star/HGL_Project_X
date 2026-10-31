@@ -138,6 +138,8 @@ const CHIP =
 /** La fila dei suggerimenti: la matita, poi le risposte più pertinenti. */
 export function FilaSuggerimenti(p: {
   risposte: RispostaRapida[];
+  /** il testo come arriverà (anteprima al passaggio del mouse), con i dati di questa chat */
+  riempi: (testo: string) => string;
   onScegli: (r: RispostaRapida) => void;
   onGestisci: () => void;
 }) {
@@ -163,7 +165,7 @@ export function FilaSuggerimenti(p: {
           type="button"
           onMouseDown={tieniIlFuoco}
           onClick={() => p.onScegli(r)}
-          title={r.testo}
+          title={p.riempi(r.testo)}
           className={CHIP}
         >
           {r.titolo}
@@ -216,8 +218,9 @@ function CorpoFinestra(p: Parameters<typeof FinestraRisposte>[0]) {
             {modifica.id ? "Modifica risposta rapida" : "Nuova risposta rapida"}
           </DialogTitle>
           <DialogDescription>
-            Vale per tutto lo studio. {"{nome}"} e {"{consulente}"} si riempiono da soli; un
-            segnaposto come {"{indirizzo}"} la casella te lo segnala prima dell'invio.
+            Vale per tutto lo studio. {"{nome}"}, {"{consulente}"}, {"{acconto}"}, {"{iban}"},{" "}
+            {"{intestatario}"} e {"{causale}"} si riempiono da soli; un segnaposto come{" "}
+            {"{indirizzo}"} la casella te lo segnala prima dell'invio.
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">

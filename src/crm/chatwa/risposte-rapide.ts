@@ -54,6 +54,10 @@ export interface RispostaRapida {
   temi?: Tema[];
   /** Solo le predefinite: gli stati del lead in cui servono. */
   stati?: string[];
+  /** Solo le predefinite: in uno di quegli stati sale davanti alle altre (31/10/2026,
+   *  «IBAN per l'acconto» in Attesa acconto). Viene dal codice, come temi e stati: anche
+   *  chi ha un elenco salvato dove la vecchia «Acconto» sta prima la vede per prima. */
+  inEvidenza?: boolean;
 }
 
 const APPUNTAMENTO = ["appuntamento_fissato", "appuntamento_rifissato"];
@@ -79,6 +83,7 @@ export const DOPO_LA_CONSULENZA_COL_TU = [
   "domicilio",
   "installazione",
   "acconto",
+  "iban_acconto",
   "acconto_ricevuto",
   "manutenzione",
 ] as const;
@@ -183,7 +188,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "link_fra_poco",
     titolo: "Link poco prima (30 min)",
     testo:
-      "{nome}, fra poco, alle {ora}, c'è la sua consulenza online.\n\nIl link è questo: {link}\n\nSe può, si colleghi da un posto tranquillo: {consulente|il consulente} la aspetta.",
+      "{nome}, fra poco, alle {ora}, c'è la sua consulenza online.\n\nPer collegarsi:\n{link}\n\nSe può, si colleghi da un posto tranquillo: {consulente|il consulente} la aspetta.",
     temi: ["collegamento"],
     stati: APPUNTAMENTO,
   },
@@ -276,6 +281,22 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
       "Ciao {nome}, possiamo fissare l'installazione. Preferisci venire in sede o che veniamo noi da te? Dimmi qualche giorno che ti va bene.",
     temi: ["installazione"],
     stati: [...POSA, "acconto"],
+  },
+  //  ── IBAN PER L'ACCONTO (31/10/2026) ───────────────────────────────────
+  //  Richiesta del titolare: in Attesa acconto, un messaggio da cliccare con
+  //  importo, causale, IBAN e intestatario presi in dinamico (NON un modello
+  //  Meta: è un messaggio normale, dentro la finestra di 24 ore). {acconto} e
+  //  {causale} vengono dal preventivo del lead, {iban} e {intestatario} dalle
+  //  impostazioni Fatture (vedi `riempi` e ./dati-acconto). Se un dato manca il
+  //  segnaposto resta e la casella lo segnala: niente importo inventato.
+  {
+    id: "iban_acconto",
+    titolo: "IBAN per l'acconto",
+    testo:
+      "Ciao {nome}, ecco i dati per fare il bonifico dell'acconto di {acconto}:\n\nIntestatario: {intestatario}\nIBAN: {iban}\nCausale: {causale}\n\nAppena hai fatto il bonifico, mandami qui la ricevuta (anche una foto va bene), così confermiamo subito l'ordine.",
+    temi: ["acconto"],
+    stati: ["in_attesa_acconto"],
+    inEvidenza: true,
   },
   {
     id: "acconto",
@@ -512,6 +533,9 @@ export function ultimoDelCliente(
 const PESO_TEMA: Partial<Record<Tema, number>> = { saluto: 2, grazie: 4, prenota: 6, info: 6 };
 const PESO_TEMA_SPECIFICO = 10;
 const PESO_STATO = 5;
+/** Il di più di una risposta `inEvidenza` quando lo stato del lead è il suo: sta davanti a tutte,
+ *  qualunque cosa abbia scritto il cliente (il titolare la vuole sempre per prima in Attesa acconto). */
+const PESO_IN_EVIDENZA = 100;
 
 const PREDEFINITA = new Map(RISPOSTE_PREDEFINITE.map((r) => [r.id, r]));
 
@@ -528,7 +552,8 @@ export function suggerisci(
     const base = PREDEFINITA.get(r.id);
     let p = 0;
     for (const t of base?.temi ?? []) if (temi.has(t)) p += PESO_TEMA[t] ?? PESO_TEMA_SPECIFICO;
-    if (stato && base?.stati?.includes(stato)) p += PESO_STATO;
+    if (stato && base?.stati?.includes(stato))
+      p += PESO_STATO + (base.inEvidenza ? PESO_IN_EVIDENZA : 0);
     return p;
   };
   return elenco
@@ -549,11 +574,39 @@ export function nomePerMessaggio(nomeScheda?: string | null, nomeContatto?: stri
   return (nomeContatto ?? "").trim().split(/\s+/)[0] ?? "";
 }
 
+/** L'importo all'italiana per un messaggio: «300,00 €», «1.250,50 €». Vuoto se non è un
+ *  importo da chiedere (mancante, zero, negativo, non numerico): il segnaposto resta. */
+export function importoPerMessaggio(n?: number | null): string {
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return "";
+  const [intero, decimali] = n.toFixed(2).split(".");
+  return `${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${decimali} €`;
+}
+
+/** L'IBAN a blocchi di 4 («IT60 X054 2811 …»), che si legge e si copia meglio. Vuoto se non è un
+ *  IBAN valido (formato e cifre di controllo, mod 97): un IBAN sbagliato nelle impostazioni
+ *  non deve arrivare al cliente, e il segnaposto resta perché la casella lo segnali.
+ *  shortcut: controlla il formato generale, non la lunghezza per paese; basta a prendere un
+ *  refuso, da irrigidire se serve un controllo per paese. */
+export function ibanPerMessaggio(grezzo?: string | null): string {
+  const iban = (grezzo ?? "").replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return "";
+  let resto = 0;
+  for (const c of iban.slice(4) + iban.slice(0, 4)) {
+    const v = c >= "A" ? c.charCodeAt(0) - 55 : Number(c);
+    resto = Number(`${resto}${v}`) % 97;
+  }
+  return resto === 1 ? iban.replace(/(.{4})(?=.)/g, "$1 ") : "";
+}
+
 /** `{nome}` e `{consulente}` (anche `{nome|ripiego}`) riempiti con i dati della chat.
  *  - nome ignoto senza ripiego: sparisce con lo spazio davanti («Buongiorno,»);
  *  - consulente ignoto senza ripiego: resta, e la casella lo segnala;
  *  - dal 29/10/2026 anche {giorno}, {ora}, {link} e {ora_richiamo}, dalla
  *    scheda; se la scheda non li ha restano (con un ripiego, il ripiego);
+ *  - dal 31/10/2026 anche i dati del bonifico: {acconto} (importo in euro, dal
+ *    preventivo del lead), {causale}, {iban} (a blocchi di 4, solo se valido) e
+ *    {intestatario} (dalle impostazioni Fatture). Se il dato manca restano, come
+ *    gli altri: il messaggio non deve MAI partire con un importo o un IBAN vuoti;
  *  - {indirizzo} resta sempre: lo scrive l'operatore. */
 export function riempi(
   testo: string,
@@ -564,6 +617,10 @@ export function riempi(
     ora?: string | null;
     link?: string | null;
     oraRichiamo?: string | null;
+    acconto?: number | null;
+    causale?: string | null;
+    iban?: string | null;
+    intestatario?: string | null;
   },
 ): string {
   const nome = maiuscola((dati.nome ?? "").trim());
@@ -573,10 +630,14 @@ export function riempi(
     ora: (dati.ora ?? "").trim(),
     link: (dati.link ?? "").trim(),
     ora_richiamo: (dati.oraRichiamo ?? "").trim(),
+    acconto: importoPerMessaggio(dati.acconto),
+    causale: (dati.causale ?? "").trim(),
+    iban: ibanPerMessaggio(dati.iban),
+    intestatario: (dati.intestatario ?? "").trim(),
   };
   return testo
     .replace(
-      /\{(giorno|ora|link|ora_richiamo)(?:\|([^{}]*))?\}/g,
+      /\{(giorno|ora|link|ora_richiamo|acconto|causale|iban|intestatario)(?:\|([^{}]*))?\}/g,
       (tutto: string, chiave: string, ripiego?: string) =>
         valori[chiave] || (ripiego !== undefined ? ripiego : tutto),
     )
