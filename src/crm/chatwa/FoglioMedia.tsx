@@ -241,6 +241,7 @@ export function FoglioMedia({ aperto, onApertoCambia, ...corpo }: PropsFoglio) {
   //  Il foglio si apre SOTTO il dito (dal basso): il click del rilascio non deve premere la voce che ci sta sotto.
   const dentroProtetto = aperto ? (
     <div
+      className="text-foreground"
       onClickCapture={(e) => {
         if (troppoPresto()) {
           e.preventDefault();
