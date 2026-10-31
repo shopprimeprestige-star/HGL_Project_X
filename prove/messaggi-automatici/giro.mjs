@@ -650,9 +650,9 @@ export const supabaseAdminDefault = supabaseAdmin;`,
           [gx.promemoria, gx.ricontatti, gx.leadNuovo, gx.giornoMeet, gx.stati, gx.leadNuovoDal, gx.acceso, gx.canale],
         );
         c(
-          "…e nei log c'è un codice breve, senza testi del database",
+          "…e nei log c'è il codice dell'errore, senza utenti né testi",
           [true, false],
-          [avvisi.some((x) => /registro/.test(x)), avvisi.some((x) => /42P01|u-1|Via Prova/.test(x))],
+          [avvisi.some((x) => /registro_non_letto_42P01/.test(x)), avvisi.some((x) => /u-1|Via Prova/.test(x))],
         );
         imposta({ manychat_config: [CONFIG_DB], messaggi_automatici: REGISTRO }, { messaggi_automatici: "XX000" });
         const gy = await PS.porteGiro().leggiConfig();
