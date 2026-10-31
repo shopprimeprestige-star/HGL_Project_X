@@ -1615,6 +1615,12 @@ export interface LeadData {
    *  `esitoRicontattoIl` è l'ISO di quando è stato messo. Valori e nomi: chatwa/ricontatti.ts. */
   esitoRicontatto?: string;
   esitoRicontattoIl?: string;
+  /** ── LEAD NASCOSTO DA «RICONTATTI» (31/10/2026) ──────────────────────────
+   *  Lo mette l'icona «Nascondi» sulla riga della chat WhatsApp: il lead esce dall'elenco e va nel gruppo
+   *  «Nascosti». `ricontattoNascostoIl` è l'ISO di quando; `ricontattoNascostoPer` la data (e ora) di
+   *  ricontatto che aveva allora: se cambia, il lead torna da solo. Regole: chatwa/ricontatti.ts. */
+  ricontattoNascostoIl?: string;
+  ricontattoNascostoPer?: string;
   /** ── QUANDO HA DETTO «VI RICONTATTO IO» ──────────────────────────────────
    *  ISO, scritto da solo ogni volta che si mette lo stato «Ci ricontatta lui»
    *  (crm/CRMContext, updateLead): è il giorno in cui l'ha detto, e non lo

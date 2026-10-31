@@ -1,14 +1,16 @@
-/** ── LE TRE RIGHE DI «RICONTATTI»: STATO, ESITO, DATA (31/10/2026) ─────────────────────────────
- *  Richiesta del titolare: «Attesa acconto + non ha risposto», un lead che era in Attesa acconto e poi
- *  ha detto «sentiamoci più avanti»; con data icona calendario, senza data icona X.
- *  Compaiono SOLO con «Ricontatti» acceso, sotto la riga dei filtri rapidi. A differenza di quelli, qui
- *  le righe si COMBINANO: ognuna ha una pastiglia sola accesa, e passa chi le rispetta tutte.
- *  Per toglierle: si tocca di nuovo la pastiglia, o la ✕ della sua etichetta nel riepilogo (un solo
- *  «Azzera» in pagina). Telefono: ogni riga scorre di lato, pastiglie da 44 px, il numero è quello che vedresti toccando.
- *  Le regole sono in ricontatti.ts (provate in prove/idee/risentire.mjs). */
-import { CalendarClock, CalendarX } from "lucide-react";
-import type { ComponentType } from "react";
-import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
+/** ── I FILTRI DI «RICONTATTI»: ESITO IN UNA BARRA, DATA A SEGMENTI (31/10/2026) ───────────────
+ *  Richiesta del titolare (seconda versione): niente filtro per Stato, solo Esito; la barra sticky in
+ *  cima all'elenco, richiudibile e SEMPRE chiusa quando si entra; la Data più minimale e non sticky.
+ *  · BarraEsitoRicontatti: da chiusa una riga sottile («Filtri ricontatti · Non ha risposto»), da aperta
+ *    le pastiglie dell'esito. Si monta solo con «Ricontatti» acceso: ogni ingresso riparte chiusa. Sceglierne
+ *    una la richiude (il filtro acceso si legge nella riga e nel riepilogo).
+ *  · RigaDataRicontatti: Tutti / Con data / Senza data, un interruttore a segmenti in una riga che scorre
+ *    con l'elenco (non sticky).
+ *  Gli altri filtri della chat restano uno alla volta; questi due si COMBINANO (E). Per toglierli: si
+ *  tocca di nuovo la pastiglia, o la ✕ della sua etichetta nel riepilogo (un solo «Azzera» in pagina).
+ *  Telefono: tocchi da 44 px (l'area è più grande di ciò che si vede). Le regole sono in ricontatti.ts. */
+import { CalendarClock, ChevronDown, ListFilter } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BORDO_TASTO, Contatore, FUOCO } from "./PannelloFiltri";
 import {
@@ -16,86 +18,142 @@ import {
   contaRisentire,
   ESITI_RICONTATTO,
   ESITO_NESSUNO,
-  statiRisentire,
-  type CampoRisentire,
   type ChatRicontatto,
   type FiltroRisentire,
 } from "./ricontatti";
 
-const RIGA_SCORREVOLE =
-  "flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-
-interface Voce {
-  v: string;
-  nome: string;
-  icona?: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
-}
-
 interface Props {
-  /** I MIEI ricontatti (già filtrati da chi li guarda), senza ricerca: sono i numeri sulle pastiglie. */
+  /** I MIEI ricontatti non nascosti, senza ricerca: sono i numeri sulle pastiglie. */
   chats: readonly ChatRicontatto[];
   valore: FiltroRisentire;
   onCambia: (r: FiltroRisentire) => void;
 }
 
-export function RigheRisentire({ chats, valore, onCambia }: Props) {
-  const stati: Voce[] = statiRisentire(chats, valore).map((s) => ({
-    v: s,
-    nome: LEAD_STATUS_LABEL[s as LeadStatus] ?? s,
-  }));
-  const esiti: Voce[] = [
-    ...ESITI_RICONTATTO.map((e) => ({ v: e.v as string, nome: e.nome })),
-    { v: ESITO_NESSUNO, nome: "Senza esito" },
-  ];
-  const date: Voce[] = [
-    { v: "con", nome: "Con data", icona: CalendarClock },
-    { v: "senza", nome: "Senza data", icona: CalendarX },
-  ];
+const ESITI = [
+  ...ESITI_RICONTATTO.map((e) => ({ v: e.v as string, nome: e.nome })),
+  { v: ESITO_NESSUNO, nome: "Senza esito" },
+];
 
-  const riga = (titolo: string, campo: CampoRisentire, voci: Voce[]) => (
-    <div className="flex items-center gap-2">
-      <span className="t-nota w-11 shrink-0 font-medium text-muted-foreground">{titolo}</span>
+export function BarraEsitoRicontatti({ chats, valore, onCambia }: Props) {
+  const [aperta, setAperta] = useState(false);
+  const scelto = ESITI.find((e) => e.v === valore.esito)?.nome ?? null;
+  return (
+    <div className="border-b border-border bg-card">
+      {/*  Una riga sottile (36 px a vista, 44 di tocco col dito). Il nome dell'esito acceso resta leggibile. */}
+      <button
+        type="button"
+        aria-expanded={aperta}
+        aria-controls="esiti-ricontatti"
+        onClick={() => setAperta(!aperta)}
+        className={cn(
+          "t-nota relative flex h-9 w-full items-center gap-2 px-3 text-left after:absolute after:inset-x-0 after:-inset-y-1 hover:bg-muted/50 md:px-2 lg:pointer-fine:h-8 lg:pointer-fine:after:hidden",
+          FUOCO,
+        )}
+      >
+        <ListFilter aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="shrink-0 font-medium text-foreground">Filtri ricontatti</span>
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            scelto ? "font-medium text-primary" : "text-muted-foreground",
+          )}
+        >
+          {`· Esito: ${scelto ?? "tutti"}`}
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            aperta && "rotate-180",
+          )}
+        />
+      </button>
+      {aperta && (
+        <div
+          id="esiti-ricontatti"
+          role="group"
+          aria-label="Esito del ricontatto"
+          className="flex flex-wrap gap-2 px-3 pb-2.5 pt-0.5 md:px-2"
+        >
+          {ESITI.map((x) => {
+            const acceso = valore.esito === x.v;
+            return (
+              <button
+                key={x.v}
+                type="button"
+                aria-pressed={acceso}
+                onClick={() => {
+                  onCambia(commutaRisentire(valore, "esito", x.v));
+                  setAperta(false);
+                }}
+                className={cn(
+                  "t-nota relative flex h-9 items-center gap-1.5 rounded-lg border pl-3 pr-2 font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-1 lg:pointer-fine:h-8 lg:pointer-fine:after:hidden",
+                  acceso
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
+                  FUOCO,
+                )}
+              >
+                <span className="whitespace-nowrap">{x.nome}</span>
+                <Contatore n={contaRisentire(chats, valore, "esito", x.v)} acceso={acceso} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const DATE = [
+  { v: "", nome: "Tutti" },
+  { v: "con", nome: "Con data" },
+  { v: "senza", nome: "Senza data" },
+] as const;
+
+export function RigaDataRicontatti({ chats, valore, onCambia }: Props) {
+  return (
+    <div
+      className="flex items-center gap-2 border-b border-border px-3 py-1.5 md:px-2"
+      title="I tuoi lead da risentire, dalla data più recente."
+    >
+      <CalendarClock aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="sr-only">Data di ricontatto</span>
+      {/*  Interruttore a segmenti: uno acceso alla volta, «Tutti» = nessun filtro. */}
       <div
         role="group"
-        aria-label={`${titolo}: scegli una voce, si sommano alle altre righe`}
-        className={RIGA_SCORREVOLE}
+        aria-label="Data di ricontatto: scegli una voce"
+        className="inline-flex min-w-0 gap-0.5 rounded-lg bg-muted p-0.5"
       >
-        {voci.map((x) => {
-          const acceso = valore[campo] === x.v;
-          const Icona = x.icona;
+        {DATE.map((x) => {
+          const acceso = valore.data === x.v;
           return (
             <button
               key={x.v}
               type="button"
               aria-pressed={acceso}
-              onClick={() => onCambia(commutaRisentire(valore, campo, x.v))}
+              onClick={() => onCambia({ ...valore, data: x.v })}
               className={cn(
-                "t-corpo flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
+                "t-nota relative flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-2 lg:pointer-fine:after:hidden",
                 acceso
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-background",
                 FUOCO,
               )}
             >
-              {Icona && <Icona aria-hidden="true" className="h-4 w-4 shrink-0" />}
-              <span className="whitespace-nowrap">{x.nome}</span>
-              <Contatore n={contaRisentire(chats, valore, campo, x.v)} acceso={acceso} />
+              {x.nome}
+              <span
+                className={cn(
+                  "tabular-nums",
+                  acceso ? "text-primary-foreground/80" : "text-muted-foreground",
+                )}
+              >
+                {contaRisentire(chats, valore, "data", x.v)}
+              </span>
             </button>
           );
         })}
       </div>
-    </div>
-  );
-
-  return (
-    <div
-      role="region"
-      aria-label="Filtri dei ricontatti: stato, esito e data"
-      className="flex flex-col gap-1.5 border-t border-border bg-muted/30 px-3 py-2 md:px-2"
-    >
-      {riga("Stato", "stato", stati)}
-      {riga("Esito", "esito", esiti)}
-      {riga("Data", "data", date)}
     </div>
   );
 }

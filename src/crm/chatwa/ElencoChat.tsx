@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
+  EyeOff,
   ListChecks,
   Loader2,
   Search,
@@ -63,8 +64,15 @@ import {
 import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri";
 import type { ChatItem, ElencoChatProps } from "./tipi";
 import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
-import { fraseRicontattiVuoti, ordinaRicontatti } from "./ricontatti";
-import { RigheRisentire } from "./RigheRisentire";
+import {
+  dividiNascosti,
+  fraseRicontattiVuoti,
+  eNascosto,
+  ordinaRicontatti,
+  patchMostra,
+  patchNascondi,
+} from "./ricontatti";
+import { BarraEsitoRicontatti, RigaDataRicontatti } from "./RigheRisentire";
 import { oggiIso } from "@/crm/ui";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
@@ -167,7 +175,8 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       aspettano negli altri si dice. Fra le scelte i consulenti con almeno una chat, più quello
       scelto (anche se intanto le sue chat sono passate a un altro: il filtro non resta mai acceso
       senza vedersi). Dal 30/10 si ricorda sul dispositivo; se è stato cancellato dal CRM non vale. */
-  const { consultants } = useCRM();
+  const { consultants, updateLead: updateLeadCrm } = useCRM();
+  const updateLead = useStabile(updateLeadCrm);
   const consulentiNoti = useMemo(() => new Set(consultants.map((x) => x.id)), [consultants]);
   //  «Ricontatti» (31/10/2026) mostra SOLO i lead di chi è dentro, admin compreso: `io` è il consulente
   //  che ha digitato il PIN (`""` per chi è entrato con email e password). Vedi ricontatti.ts.
@@ -186,14 +195,23 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
 
   // ── Quante chat con questi filtri, e quanti numeri per ogni voce (ricerca esclusa) ────────
   const passa = (c: ChatItem) => passaFiltri(c, filtri, stelleDi);
-  //  I miei ricontatti, senza le tre righe interne: la base dei numeri sulle loro pastiglie.
+  //  I miei ricontatti NON nascosti, senza i due filtri interni: la base dei numeri sulle loro pastiglie.
   const ricontattiMiei = filtri.ricontatti
-    ? api.chats.filter((c) =>
-        passaFiltri(c, { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io }, stelleDi),
+    ? api.chats.filter(
+        (c) =>
+          !eNascosto(c) &&
+          passaFiltri(c, { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io }, stelleDi),
       )
     : [];
+  //  Il numero su «Ricontatti» non conta i nascosti (31/10/2026): sono nel loro gruppo in fondo.
   const conta = (campo: CampoFiltro, valore: string | true) =>
-    contaVoce(api.chats, filtri, stelleDi, campo, valore);
+    contaVoce(
+      campo === "ricontatti" ? api.chats.filter((c) => !eNascosto(c)) : api.chats,
+      filtri,
+      stelleDi,
+      campo,
+      valore,
+    );
 
   // I riquadri obbediscono a ricerca e filtri. «Una chat una volta sola»: sotto.
   const trovate = api.chats.filter((c) => passa(c) && combaciaRicerca(c, ricerca));
@@ -227,11 +245,20 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const inBloccoTel = new Set(daInstallareTutte.map((c) => c.phone));
   const [apertoAcconti, setApertoAcconti] = useState(true);
   //  «Ricontatti»: l'ordine è la data di ricontatto, dalla più recente (ricontatti.ts), non WhatsApp.
+  //  I lead nascosti (icona sulla riga) escono dall'elenco e vanno nel gruppo «Nascosti» in fondo; il
+  //  gruppo parte chiuso. Restano dentro i filtri (esito, data, ricerca) come gli altri.
+  const { visibili: ricPrincipali, nascosti: ricNascosti } =
+    tutte && filtri.ricontatti
+      ? dividiNascosti(ordinaRicontatti(trovate))
+      : { visibili: [], nascosti: [] };
+  const [apertoNascosti, setApertoNascosti] = useState(false);
   const elencoTutte = !tutte
     ? []
     : filtri.ricontatti
-      ? ordinaRicontatti(trovate)
+      ? ricPrincipali
       : ordinaComeWhatsapp(trovate.filter((c) => !inBloccoTel.has(c.phone)));
+  //  Quante chat si vedono davvero: in «Ricontatti» i nascosti stanno a parte e non si contano qui.
+  const nTrovate = trovate.length - ricNascosti.length;
   const inScadenza =
     filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
   const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
@@ -289,7 +316,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const mostrate = senzaDoppioni(
     filtri.coda === "da-chiamare"
       ? elencoDaChiamare
-      : [...inScadenza, ...inAttesa, ...altre],
+      : filtri.ricontatti
+        ? [...ricPrincipali, ...(apertoNascosti ? ricNascosti : [])]
+        : [...inScadenza, ...inAttesa, ...altre],
   );
   //  ── SI DISEGNANO LE PRIME RIGHE (p1-chat-veloce, 30/10/2026) ─────────────────
   //  Con 2.000+ chat le righe nella pagina erano 95.000 nodi: ora ne bastano 40, e altre 40 a ogni
@@ -460,10 +489,36 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
     soloDi,
   );
 
-  const riga = (c: ChatItem, modo: ModoRiga, mostraFinestra = filtri.finestra !== null) => (
+  //  Nasconde (o, `nascondere = false`, rimette) un lead dai ricontatti: due campi sulla scheda, vale su
+  //  tutti i dispositivi. Con «Annulla» nel messaggio: un tocco sbagliato si disfa subito.
+  const nascondi = async (c: ChatItem, nascondere: boolean) => {
+    const lead = c.lead;
+    if (!lead) return;
+    const ok = await updateLead(lead.id, nascondere ? patchNascondi(c) : patchMostra());
+    if (!ok) {
+      toast.error(nascondere ? "Lead NON nascosto" : "Lead NON rimesso", {
+        description: "La scheda è rimasta com'era. Riprova.",
+      });
+      return;
+    }
+    if (nascondere)
+      toast("Nascosto dai ricontatti", {
+        description: "Lo trovi in fondo, in «Nascosti».",
+        action: { label: "Annulla", onClick: () => void updateLead(lead.id, patchMostra()) },
+      });
+  };
+
+  const riga = (
+    c: ChatItem,
+    modo: ModoRiga,
+    mostraFinestra = filtri.finestra !== null,
+    nascosto = false,
+  ) => (
     <RigaChat
       comeWhatsapp={tutte}
       risentire={filtri.ricontatti}
+      nascosto={nascosto}
+      onNascondi={filtri.ricontatti && c.lead ? () => void nascondi(c, !nascosto) : undefined}
       prossimoMeet={meet?.chat.phone === c.phone}
       mostraFinestra={mostraFinestra}
       key={c.phone}
@@ -548,7 +603,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             {!caricamento && (
               <span className="tabular-nums text-muted-foreground">
                 {" · "}
-                {accesi > 0 ? trovate.length : api.chats.length}
+                {accesi > 0 ? nTrovate : api.chats.length}
               </span>
             )}
           </p>
@@ -587,7 +642,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           conta={conta}
           altriStati={altriStati}
           consulenti={consulenti}
-          mostra={trovate.length}
+          mostra={nTrovate}
           aperto={pannelloAperto}
           onApri={setPannelloAperto}
         />
@@ -661,22 +716,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
         })}
       </div>
 
-      {/*  ── STATO + ESITO + DATA, SOLO IN «RICONTATTI» (31/10/2026) ─────────
-          Tre righe che si combinano. I numeri sono sui MIEI ricontatti (stessa porta, `passaFiltri`),
-          ricerca esclusa come per tutte le pastiglie. Ogni riga acceso ha la sua etichetta nel riepilogo. */}
-      {filtri.ricontatti && (
-        <RigheRisentire
-          chats={ricontattiMiei}
-          valore={risentireDi(filtri)}
-          onCambia={(r) => setFiltri({ ...filtri, rStato: r.stato, rEsito: r.esito, rData: r.data })}
-        />
-      )}
-
       {/*  Il riepilogo: mai un filtro acceso che non si vede. Ogni etichetta si toglie con la sua ✕. */}
       {accesi > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 border-t border-border px-3 md:px-2">
           <p className="t-nota tabular-nums text-muted-foreground">
-            {trovate.length} di {api.chats.length} chat
+            {nTrovate} di {api.chats.length} chat
           </p>
           <button
             type="button"
@@ -755,15 +799,37 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
 
       {/*  Per chi usa lo screen reader: a ogni cambio, quante chat si vedono. */}
       <div role="status" aria-live="polite" className="sr-only">
-        {caricamento ? "" : `${trovate.length} chat`}
+        {caricamento ? "" : `${nTrovate} chat`}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
-        {!caricamento && meet && (
+        {/*  In cima, incollato: la barra dei filtri di «Ricontatti» (31/10/2026, sempre chiusa all'ingresso: si
+            monta solo qui) e sotto il prossimo meet. Un blocco solo, così non si sovrappongono. */}
+        {!caricamento && (filtri.ricontatti || meet) && (
           <div className="sticky top-0 z-10">
-            <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
-            <AzioniMeet key={meet.chat.phone} meet={meet} onCambiaStato={cambiaStatoLead} />
+            {filtri.ricontatti && (
+              <BarraEsitoRicontatti
+                chats={ricontattiMiei}
+                valore={risentireDi(filtri)}
+                onCambia={(r) => setFiltri({ ...filtri, rEsito: r.esito, rData: r.data })}
+              />
+            )}
+            {meet && (
+              <>
+                <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
+                <AzioniMeet key={meet.chat.phone} meet={meet} onCambiaStato={cambiaStatoLead} />
+              </>
+            )}
           </div>
+        )}
+        {/*  La Data (31/10/2026): una riga sottile che scorre con l'elenco, NON sticky. Fuori dall'elenco
+            perché resti anche quando i filtri non danno risultati. */}
+        {!caricamento && filtri.ricontatti && (
+          <RigaDataRicontatti
+            chats={ricontattiMiei}
+            valore={risentireDi(filtri)}
+            onCambia={(r) => setFiltri({ ...filtri, rEsito: r.esito, rData: r.data })}
+          />
         )}
         {caricamento ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
@@ -822,9 +888,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 )}
               </section>
             )}
-            {filtri.ricontatti && (
-              <p className="t-nota border-b border-border bg-muted/30 px-3 py-2 text-muted-foreground">
-                I tuoi lead da risentire, dalla data più recente.
+            {filtri.ricontatti && ricPrincipali.length === 0 && (
+              <p className="t-nota border-b border-border px-3 py-3 text-muted-foreground">
+                Tutti i ricontatti sono nascosti: aprili qui sotto.
               </p>
             )}
             <ul
@@ -837,6 +903,40 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
               {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
               {tutteVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
             </ul>
+            {/*  ── NASCOSTI (31/10/2026) ── in fondo, richiudibile, parte chiuso. Compare quando l'elenco
+                principale è disegnato tutto (le righe arrivano a 40 alla volta). Le righe qui sono tutte
+                disegnate. shortcut: nessun taglio a 40, i nascosti sono pochi; se diventano centinaia, tagliare come `visti`. */}
+            {filtri.ricontatti && ricNascosti.length > 0 && visti >= ricPrincipali.length && (
+              <section aria-labelledby="titolo-nascosti">
+                <h2 id="titolo-nascosti" className="border-y border-border bg-muted/40">
+                  <button
+                    type="button"
+                    aria-expanded={apertoNascosti}
+                    aria-controls="elenco-nascosti"
+                    onClick={() => setApertoNascosti(!apertoNascosti)}
+                    className={cn(
+                      "t-corpo flex min-h-11 w-full items-center gap-2 px-3 text-left font-medium text-muted-foreground lg:pointer-fine:min-h-8 md:px-2",
+                      FUOCO,
+                    )}
+                  >
+                    <EyeOff aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">Nascosti ({ricNascosti.length})</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-transform",
+                        apertoNascosti && "rotate-180",
+                      )}
+                    />
+                  </button>
+                </h2>
+                {apertoNascosti && (
+                  <ul id="elenco-nascosti" aria-label="Ricontatti nascosti">
+                    {ricNascosti.map((c) => riga(c, "normale", undefined, true))}
+                  </ul>
+                )}
+              </section>
+            )}
           </>
         ) : (
           <>

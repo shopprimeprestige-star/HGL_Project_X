@@ -8,6 +8,8 @@ import {
   CheckCheck,
   ChevronDown,
   Clock,
+  Eye,
+  EyeOff,
   Hourglass,
   Lock,
   LockOpen,
@@ -129,6 +131,11 @@ interface RigaChatProps {
   /** Dentro «Ricontatti» (31/10/2026): accanto allo stato la pastiglia dell'esito (si tocca per
    *  cambiarlo), la data letta da `dataRicontatto` per ogni stato, e «Senza data» con la X se manca. */
   risentire?: boolean;
+  /** Dentro «Ricontatti» (31/10/2026): l'icona per nascondere il lead dall'elenco (o, se `nascosto`, per
+   *  rimetterlo). Fuori dal bottone della riga, 44 px di tocco, ferma la propagazione. Senza, niente icona. */
+  onNascondi?: () => void;
+  /** La riga sta nel gruppo «Nascosti»: l'icona diventa «Mostra». */
+  nascosto?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» sta
@@ -151,6 +158,8 @@ function RigaChatBase({
   prossimoMeet = false,
   comeWhatsapp = false,
   risentire = false,
+  onNascondi,
+  nascosto = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -522,7 +531,7 @@ function RigaChatBase({
           ⚠️ I TOCCHI RESTANO DA 44 PX SENZA ALZARE LA RIGA: stato e stelle sono
            alti ~22 px a vista, e sul telefono un `after:` trasparente allarga
            l'area del tocco sopra e sotto (dal computer non serve). */}
-      {(puoiCambiareStato || onStelle) && (
+      {(puoiCambiareStato || onStelle || onNascondi) && (
         <div
           inert={selezione?.attiva}
           className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16"
@@ -703,6 +712,36 @@ function RigaChatBase({
                   )}
                 />
               ))}
+            </button>
+          )}
+          {/*  ── NASCONDI / MOSTRA (31/10/2026) ── solo in «Ricontatti». Occhio barrato: il lead esce
+              dall'elenco e va in «Nascosti» in fondo; nel gruppo l'occhio aperto lo rimette. Visto 24 px, tocco
+              44 (margini negativi: la riga non cresce). Fuori dal bottone della riga e senza propagazione. */}
+          {onNascondi && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNascondi();
+              }}
+              aria-label={
+                nascosto ? `Mostra ${nome} tra i ricontatti` : `Nascondi ${nome} dai ricontatti`
+              }
+              title={nascosto ? "Mostra di nuovo tra i ricontatti" : "Nascondi dai ricontatti"}
+              className={cn(
+                "t-nota -my-2.5 -mr-1.5 inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-md px-2 font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:pointer-fine:-my-1.5 lg:pointer-fine:h-8",
+                !onStelle && "ml-auto",
+                nascosto ? "min-w-11" : "w-11",
+              )}
+            >
+              {nascosto ? (
+                <>
+                  <Eye aria-hidden="true" className="h-4 w-4" />
+                  Mostra
+                </>
+              ) : (
+                <EyeOff aria-hidden="true" className="h-4 w-4" />
+              )}
             </button>
           )}
         </div>
