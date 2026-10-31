@@ -107,8 +107,15 @@ export async function segnaPadroneDellaStanza(codice: unknown, idDimostrato: unk
     const k = chiavePadrone(codice);
     const id = idAmbito(idDimostrato);
     if (!k || !id) return;
-    const riga = nuovoPadrone(await archivio.leggi(k), id, Date.now());
-    if (riga) await archivio.scrivi(k, riga);
+    const prima = await archivio.leggi(k);
+    const riga = nuovoPadrone(prima, id, Date.now());
+    if (!riga) return;
+    const ora = new Date().toISOString();
+    //  ⚠️ ATOMICO: stanza senza padrone → INSERT (se nel frattempo l'ha presa un altro, il doppione
+    //   fallisce e non si scrive); padrone scaduto o stesso → UPDATE solo se la riga è ancora quella
+    //   letta. Mai una lettura e poi una scrittura alla cieca.
+    if (prima === null) await config().insert({ key: k, value: riga, updated_at: ora });
+    else await config().update({ value: riga, updated_at: ora }).eq("key", k).eq("value", prima);
   } catch {
     /* niente: resta il collegamento diretto */
   }

@@ -355,7 +355,10 @@ export const Route = createFileRoute("/api/crm/meeting-session")({
         //  dopo in una stanza vuota.
         await segnaFascia(conduce, s.quando, code);
         //  Il padrone della stanza per l'SFU: solo con l'id DIMOSTRATO (token CRM), all'«Avvia».
-        if (b.conduco && cid) await segnaPadroneDellaStanza(code, cid);
+        //   ⚠️ E solo se la stanza nasce adesso o è già sua: chi riapre la stanza di un collega
+        //   (codice già esistente con un altro consulente) non ne diventa il padrone.
+        if (b.conduco && cid && (!esistente || String(esistente.consultantId || "").trim() === cid))
+          await segnaPadroneDellaStanza(code, cid);
         await segnaAtteso(code, leadId);
         return json({ ok: true, ...s, link: linkDi(u.origin, code) });
       },

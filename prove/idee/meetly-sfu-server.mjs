@@ -38,7 +38,9 @@ export async function proveMeetlySfuServer(mod, { c, gruppo, radice }) {
     const ses = readFileSync(join(radice, "src/routes/api.presenter.session.ts"), "utf8");
     const mee = readFileSync(join(radice, "src/routes/api.crm.meeting-session.ts"), "utf8");
     c("diretta: il padrone si scrive solo dalla sessione col PIN, mai dal corpo", true, ses.includes('if (live && chiSta?.id && chiSta.via === "pin") await segnaPadroneDellaStanza(body.code, chiSta.id);'));
-    c("Avvia dal CRM: il padrone si scrive solo con l'id del token", true, mee.includes("if (b.conduco && cid) await segnaPadroneDellaStanza(code, cid);"));
+    c("Avvia dal CRM: padrone solo con l'id del token, e solo su stanza nuova o già sua", true, mee.includes('if (b.conduco && cid && (!esistente || String(esistente.consultantId || "").trim() === cid))') && /segnaPadroneDellaStanza\(code, cid\)/.test(mee));
+    const srv = readFileSync(join(radice, "src/shop/meetly-sfu.server.ts"), "utf8");
+    c("scrittura del padrone atomica: insert se libera, update condizionato al valore letto", true, /if \(prima === null\) await config\(\)\.insert\(/.test(srv) && /\.eq\("key", k\)\.eq\("value", prima\)/.test(srv));
   }
 
   const S = mod["shop/meetly-sfu-stanza"];
