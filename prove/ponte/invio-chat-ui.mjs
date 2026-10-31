@@ -124,17 +124,17 @@ export { FormScriviDalPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa
     gruppo("PONTE · INVIO A MANO · LA CASELLA (T4)");
     const due = casella();
     const t = testoDi(due);
-    c("finestra chiusa e tasto consentito: «Invia un modello» e «Scrivi dal telefono»", [true, true], [t.includes("Invia un modello"), t.includes("Scrivi dal telefono")]);
-    c("…il modello viene prima del telefono", true, due.indexOf("Invia un modello") < due.indexOf("Scrivi dal telefono"));
+    //  31/10/2026 (richiesta del titolare): «Scrivi dal telefono» tolto. A finestra chiusa restano
+    //  solo «Invia un modello» e «Apri in WhatsApp», anche col ponte che lo consentirebbe.
+    c("finestra chiusa: «Invia un modello» c'è, «Scrivi dal telefono» non più", [true, false], [t.includes("Invia un modello"), t.includes("Scrivi dal telefono")]);
     c("…la barra dice ancora «Finestra chiusa · solo modelli approvati»", true, t.includes("Finestra chiusa · solo modelli approvati"));
     const tasti = [...due.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
-    c("…i due tasti sono da 44 px (min-h-11)", [true, true], ["Invia un modello", "Scrivi dal telefono"].map((nome) => {
-      const i = due.indexOf(nome);
+    c("…il tasto del modello è da 44 px (min-h-11)", true, (() => {
+      const i = due.indexOf("Invia un modello");
       const aperto = due.lastIndexOf("<button", i);
       return /min-h-11/.test(due.slice(aperto, due.indexOf(">", aperto)));
-    }));
-    c("…il tasto del telefono ha un'icona disegnata (lucide, outline), non un emoji", [true, false], [/lucide-smartphone/.test(due), EMOJI.test(due)]);
-    c("…e dichiara che apre un foglio", true, /aria-haspopup="dialog"/.test(due.slice(due.lastIndexOf("<button", due.indexOf("Scrivi dal telefono")), due.indexOf("Scrivi dal telefono"))));
+    })());
+    c("…nessuna icona del telefono e nessun emoji", [false, false], [/lucide-smartphone/.test(due), EMOJI.test(due)]);
     c("senza il consenso (puo.ok falso): la casella è IDENTICA a quella senza la funzione", casella({ ponte: undefined }), casella({ ponte: ponte({ puo: { ok: false, motivo: "mai_scritto" } }) }));
     c("…e non nomina il telefono", false, casella({ ponte: ponte({ puo: { ok: false, motivo: "stop" } }) }).includes("Scrivi dal telefono"));
     c("senza `ponte` (la chat di oggi): un solo tasto", [true, false], [casella({ ponte: undefined }).includes("Invia un modello"), casella({ ponte: undefined }).includes("Scrivi dal telefono")]);
@@ -145,8 +145,6 @@ export { FormScriviDalPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa
     c("stato «stop»: identica con o senza `ponte`", casella({ stato: "stop", ponte: undefined }), casella({ stato: "stop" }));
 
     const resta = (n) => testoDi(casella({ ponte: ponte({ restanti: n }) }));
-    c("restano 5 o meno: lo dice, in parole semplici", [true, true], [resta(5).includes("Dal telefono puoi mandare ancora 5 messaggi nelle prossime 24 ore."), resta(2).includes("ancora 2 messaggi")]);
-    c("…uno solo: singolare", true, resta(1).includes("ancora 1 messaggio nelle prossime 24 ore."));
     c("restano più di 5, o non si sa: nessuna riga", [false, false], [resta(6).includes("puoi mandare ancora"), resta(null).includes("puoi mandare ancora")]);
     c("la barra della casella non ha parole tecniche", null, (t.match(VIETATE) ?? [null])[0]);
 
@@ -247,8 +245,7 @@ export { FormScriviDalPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa
     c("i punti di codice: il contatore non usa .length", true, /\[\.\.\.testo\]\.length|Array\.from\(testo\)\.length/.test(foglio));
     c("nessun emoji nel codice del foglio", false, EMOJI.test(foglio));
     const cas = senzaCommenti(sorgente("src/crm/chatwa/Casella.tsx"));
-    c("la casella monta il foglio una volta, con la chiave del numero (cambiando chat si riparte)", [1, true], [(cas.match(/<ScriviDalPonte\b/g) ?? []).length, /<ScriviDalPonte[\s\S]{0,200}key=\{/.test(cas) || /key=\{[^}]*\}[\s\S]{0,200}<ScriviDalPonte/.test(cas) || /<ScriviDalPonte\s+key=/.test(cas)]);
-    c("…e solo nel ramo «solo modelli» (non tocca libera, stop, configura)", true, cas.indexOf("<ScriviDalPonte") > cas.indexOf('stato === "solo_modelli"') && cas.indexOf("<ScriviDalPonte") < cas.indexOf("const configurata"));
+    c("la casella non monta più il foglio «Scrivi dal telefono» (31/10/2026)", 0, (cas.match(/<ScriviDalPonte\b/g) ?? []).length);
     const bs = senzaCommenti(sorgente("src/crm/chatwa/BollaMessaggio.tsx"));
     c("la bolla chiede conferma per l'incerto con la frase unica (FRASE_CONFERMA_INCERTO)", [true, true], [/FRASE_CONFERMA_INCERTO/.test(bs), /useState/.test(bs)]);
     c("la bolla: stato annunciato (role=status), nessun emoji", [true, false], [/role="status"/.test(bs), EMOJI.test(bs)]);

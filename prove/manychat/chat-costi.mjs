@@ -45,7 +45,7 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
     new Date(K.UTILITY_DAL.ritorno).toISOString(),
   ]);
   c("…acconto e meet_da_fissare alle 12:30 di Roma", ["2026-10-30T11:30:00.000Z", "2026-10-30T11:30:00.000Z"], due.map((n) => new Date(K.UTILITY_DAL[n]).toISOString()));
-  c("…i due in revisione hanno data null (ancora Marketing)", [], inRevisione.filter((n) => K.UTILITY_DAL[n] !== null));
+  c("…come_eravamo_rimasti e da_riprogrammare alle 12:29 di Roma (approvati Utility dopo)", ["2026-10-30T11:29:00.000Z", "2026-10-30T11:29:00.000Z"], inRevisione.map((n) => new Date(K.UTILITY_DAL[n]).toISOString()));
   c("le dieci Utility di ManyChat (prima e dopo)", [], utility.filter((n) => cat(n, PRIMA) !== "utility" || cat(n) !== "utility"));
   c("casi_reali resta Marketing, prima e dopo", [], marketing.filter((n) => cat(n, PRIMA) !== "marketing" || cat(n) !== "marketing"));
   c("i cinque passati: Marketing prima della data", [], cinque.filter((n) => cat(n, PRIMA) !== "marketing"));
@@ -53,8 +53,9 @@ export function proveChatCosti(mod, { c, gruppo, radice }) {
   const DAL2 = Date.parse(K.UTILITY_DAL.acconto);
   c("acconto e meet_da_fissare: ancora Marketing alle 12:00, un istante prima delle 12:30 e quando erano ai flussi dei cinque", [], due.filter((n) => cat(n, DAL) !== "marketing" || cat(n, DAL2 - 1) !== "marketing"));
   c("…Utility dalle 12:30 in poi", [], due.filter((n) => cat(n, DAL2) !== "utility" || cat(n, DAL2 + 86_400_000) !== "utility"));
-  c("i due in revisione: Marketing prima, dopo e in futuro (data null)", [], inRevisione.filter((n) =>
-    [PRIMA, DOPO, Date.parse("2031-01-01T00:00:00Z")].some((t) => cat(n, t) !== "marketing")));
+  const DAL3 = Date.parse("2026-10-30T12:29:00+01:00");
+  c("gli ultimi due: Marketing un istante prima delle 12:29, Utility da lì in poi", [], inRevisione.filter((n) =>
+    cat(n, DAL3 - 1) !== "marketing" || cat(n, DAL3) !== "utility" || cat(n, Date.parse("2031-01-01T00:00:00Z")) !== "utility"));
   c("…anche con «hgl_» e «_v2»", ["marketing", "utility", "utility"], [
     K.categoriaModello("hgl_ritorno_v2", undefined, PRIMA),
     K.categoriaModello("hgl_ritorno_v2", undefined, DOPO),
