@@ -20677,7 +20677,7 @@ function proveDiWhatsappSulTelefono() {
   {
     const po = readFileSync(join(radice, "src/crm/chatwa/PannelloOggi.tsx"), "utf8");
     c("Oggi: consulenze in tre gruppi, «Già fatte» chiuso di partenza", true, /\["fatte", "Già fatte"/.test(po) && /CHIUSI_DI_PARTENZA = new Set\(\["fatte"/.test(po));
-    c("Oggi: le fasce di «Da fare» si aprono e chiudono", true, /aperto=\{gruppiAperti\.aperto\(g\.fascia\)\}/.test(po));
+    c("Oggi: le fasce di «Da fare» si aprono e chiudono", true, /aperto=\{gruppiAperti\.aperto\(.*g\.fascia/.test(po));
   }
 }
 

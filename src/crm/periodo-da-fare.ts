@@ -12,7 +12,8 @@
 import { dataPulita } from "@/crm/dafare/quando";
 import { oggiIso } from "@/crm/ui";
 
-export type TipoPeriodo = "oggi" | "ieri" | "giorno" | "intervallo";
+/** «tutti» (titolare, 31/10): ogni cosa ancora da gestire, di qualsiasi data, anche di mesi fa. */
+export type TipoPeriodo = "oggi" | "ieri" | "giorno" | "intervallo" | "tutti";
 
 export interface Periodo {
   tipo: TipoPeriodo;
@@ -24,7 +25,7 @@ export interface Periodo {
 
 export const PERIODO_DI_SERIE: Periodo = { tipo: "oggi", da: "", a: "" };
 
-const TIPI: TipoPeriodo[] = ["oggi", "ieri", "giorno", "intervallo"];
+const TIPI: TipoPeriodo[] = ["oggi", "ieri", "giorno", "intervallo", "tutti"];
 
 /** Il giorno prima di `iso` (mezzogiorno, non mezzanotte: vedi dafare/quando.ts). */
 export function giornoPrima(iso: string): string {

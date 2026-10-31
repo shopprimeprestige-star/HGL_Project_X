@@ -223,7 +223,7 @@ export function PaginaChat({
   /** Tocco su una riga del pannello «Oggi»: la sua chat se c'è, altrimenti la scheda. */
   const apriDaOggi = (lead: Lead) => {
     setFoglioOggi(false);
-    const c = chatDelLead(api.chats, lead.id);
+    const c = chatDelLead(api.chats, lead.id, lead.data.telefono);
     if (c) {
       apriChat(c.phone);
       return;
