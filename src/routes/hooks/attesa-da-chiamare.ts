@@ -1,8 +1,8 @@
 /** ── IL GIRO «ATTESA WHATSAPP» → «DA CHIAMARE» (28/10/2026) ─────────────────
  *
  *  Ogni 15 minuti (pg_cron, migrazione `attesa_da_chiamare_cron`): le schede in
- *  «Attesa WhatsApp» il cui ultimo messaggio è NOSTRO da più di 10 ore (30/10/2026,
- *  «la palla è al cliente»), senza risposta del cliente, passano a «Da chiamare».
+ *  «Attesa WhatsApp» il cui ultimo messaggio è NOSTRO e la finestra delle 24 ore si è chiusa
+ *  (31/10/2026; prima 10 ore, «la palla è al cliente»), senza risposta del cliente, passano a «Da chiamare».
  *  La regola è in crm/chatwa/daChiamare e crm/importa/attesa-da-chiamare (provate).
  *
  *  Nello stesso giro c'è anche il RITORNO (30/10/2026): chi è in «Da contattare»,
@@ -36,7 +36,7 @@ import {
   type RigaContatto,
   type RigaMessaggio,
 } from "@/crm/importa/attesa-da-chiamare";
-import { telefonoE164, type MessaggioAttesa } from "@/crm/chatwa/daChiamare";
+import { inAttesaDal, telefonoE164, type MessaggioAttesa } from "@/crm/chatwa/daChiamare";
 import { patchRitornoRimastoIndietro } from "@/crm/importa/ritorno-attesa";
 import type { LeadData } from "@/crm/types";
 
@@ -174,9 +174,10 @@ async function messaggiDi(
 export async function giroAttesaDaChiamare(adesso = new Date()) {
   const schede = await schedeInAttesa();
   if (schede.length === 0) return { inAttesa: 0, spostati: 0, cambiatiNelFrattempo: 0 };
-  //  Prima chi ha già passato le 10 ore (senza guardare la rubrica), poi i
-  //  contatti dei soli candidati.
-  const candidati = schede.filter((r) => patchDaChiamare(r.data, null, adesso));
+  //  Candidati: tutte le schede in attesa con una data d'ingresso. Non si può più scartare
+  //  prima a tempo (31/10/2026): la finestra delle 24 ore si chiude dall'ultimo messaggio
+  //  del cliente, che si sa solo dalla rubrica e dai messaggi letti qui sotto.
+  const candidati = schede.filter((r) => r.data?.stato === "attesa_whatsapp" && inAttesaDal(r.data));
   const perNumero = await contattiDi(candidati);
   const messaggi = await messaggiDi(candidati, adesso);
 
