@@ -5,7 +5,6 @@
  *  oppure finché il suo codice (?watch=) non coincide con quello della sessione.
  *  Retrocompatibile: il vecchio valore "1"/"0" viene ancora letto correttamente.
  */
-import { segnaPadroneDellaStanza } from "@/shop/meetly-sfu.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 //  Di chi è questa consulenza, in una riga che non muore con la chiamata: è
@@ -283,8 +282,6 @@ export const Route = createFileRoute("/api/presenter/session")({
         //   riga avrebbe scritto «di nessuno» e il cliente sarebbe rimasto sul
         //   listino di casa.
         if (live) await ricordaConsulenteDellaSessione(body.code, chiSta?.id || body.presenterId);
-        //  Il padrone della stanza per l'SFU: solo dalla sessione col PIN, mai dal corpo.
-        if (live && chiSta?.id && chiSta.via === "pin") await segnaPadroneDellaStanza(body.code, chiSta.id);
         /*  ── LA RIGA STORICA RESTA, MA SOLO COME SEGNAPOSTO ────────────────
             Serve a una cosa sola: al presentatore che riapre il programma su
             un altro computer e chiede «c'è una consulenza da riprendere?»
