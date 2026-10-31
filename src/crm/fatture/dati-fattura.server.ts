@@ -16,7 +16,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { leggiConfigAI } from "@/routes/api.crm.ai";
 import { classificaTesto } from "@/crm/chatwa/media";
 import { telefonoE164 } from "@/crm/chatwa/daChiamare";
-import { inviaWhatsapp } from "@/crm/manychat/porta";
+import { inviaWhatsapp, type RichiestaInvio } from "@/crm/manychat/porta";
+import type { ChiaveMessaggio } from "@/crm/messaggi-automatici/catalogo";
+import { configConAcceso } from "@/crm/promemoria/pronto";
 import { leggiCanale, portePortaVere } from "@/crm/manychat/porta.server";
 import { entrateVereDi } from "@/crm/manychat/entrate-vere.server";
 import { archivioSu, leggiAziendaSu } from "./archivio";
@@ -29,11 +31,12 @@ import {
   PROMPT_TESTO_DATI,
   type ConfigDatiFattura,
 } from "./dati-fattura";
-import type {
-  EsitoInvioRichiesta,
-  MessaggioIn,
-  PorteDatiFattura,
-  SchedaGiro,
+import {
+  esitoRichiestaDaPorta,
+  type EsitoInvioRichiesta,
+  type MessaggioIn,
+  type PorteDatiFattura,
+  type SchedaGiro,
 } from "./dati-fattura-giro";
 import type { Fattura } from "./tipi";
 import { scriviSchedaCondizionata, type ClienteSchede } from "./dati-fattura-scheda";
@@ -45,7 +48,27 @@ const MODELLO_AI = "google/gemini-2.5-flash";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => supabaseAdmin as unknown as { from: (t: string) => any; storage: any };
 
+/** L'«acceso» del messaggio nel registro. Riga mancante, tabella assente o errore = spento
+ *  (fail-closed): non parte niente finché non si sa. */
+async function accesoDalRegistro(chiave: ChiaveMessaggio): Promise<boolean> {
+  try {
+    //  shortcut: lettura diretta della riga; quando c'è `messaggioAcceso` del registro
+    //  (compito T2) si sostituisce con quello, che fa la stessa cosa.
+    const { data, error } = await db()
+      .from("messaggi_automatici")
+      .select("acceso")
+      .eq("chiave", chiave)
+      .maybeSingle();
+    return !error && data?.acceso === true;
+  } catch {
+    return false;
+  }
+}
+
+/** L'«acceso» è quello del REGISTRO; del vecchio JSON restano `modelloApprovato`, `avvio` e
+ *  `attivoDal`. L'`acceso` rimasto nel JSON non si rilegge mai. */
 export async function leggiConfigDatiFattura(): Promise<ConfigDatiFattura> {
+  const acceso = await accesoDalRegistro("dati_fattura");
   const { data } = await db()
     .from("app_config")
     .select("value")
@@ -53,14 +76,12 @@ export async function leggiConfigDatiFattura(): Promise<ConfigDatiFattura> {
     .maybeSingle();
   try {
     const c = JSON.parse(String(data?.value ?? "{}")) as Partial<ConfigDatiFattura>;
-    return {
-      acceso: c.acceso === true,
-      modelloApprovato: c.modelloApprovato === true,
-      avvio: c.avvio,
-      attivoDal: c.attivoDal,
-    };
+    return configConAcceso(
+      { modelloApprovato: c.modelloApprovato === true, avvio: c.avvio, attivoDal: c.attivoDal },
+      acceso,
+    );
   } catch {
-    return { acceso: false };
+    return configConAcceso({}, acceso);
   }
 }
 
@@ -295,7 +316,9 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
       const c = await canaleDi(i.userId);
       //  Solo ManyChat: col canale Cloud API questo giro non ha le chiavi, e non indovina.
       if (c.canale !== "manychat") return "errore";
-      const r = await inviaWhatsapp(portePortaVere(i.userId, { flussi: c.flussi }), {
+      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici). Il tipo con
+      //  `messaggio` esplicito vale anche prima che `RichiestaInvio` lo conosca (compito T3).
+      const richiesta: RichiestaInvio & { messaggio: ChiaveMessaggio } = {
         canale: "manychat",
         a: telefonoE164(i.telefono) || i.telefono,
         modello: NOME_MODELLO_DATI_FATTURA,
@@ -305,26 +328,13 @@ export function porteDatiFatturaVere(): PorteDatiFattura {
         leadId: i.leadId,
         //  «chat»: l'unico tipo del registro che non è una conferma o una sequenza (niente nuovo CHECK).
         tipo: "chat",
+        messaggio: "dati_fattura",
         chiave: i.chiave,
         //  Senza il flusso del modello, MAI come modello: o testo nelle 24 ore o niente.
         soloTesto: i.come === "testo" && !c.flussi[NOME_MODELLO_DATI_FATTURA],
-      });
-      switch (r.esito) {
-        case "ok":
-          return "ok";
-        case "gia_preso":
-          return "gia_preso";
-        case "saltato":
-          return "saltato";
-        case "riprova_fra_poco":
-          return "riprova";
-        case "stop":
-          return "stop";
-        case "incerto":
-          return "incerto";
-        default:
-          return "errore";
-      }
+      };
+      const r = await inviaWhatsapp(portePortaVere(i.userId, { flussi: c.flussi }), richiesta);
+      return esitoRichiestaDaPorta(r.esito);
     },
 
     scriviScheda: (s, d) => scriviSchedaCondizionata(db() as unknown as ClienteSchede, s, d),
