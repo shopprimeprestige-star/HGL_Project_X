@@ -49,7 +49,6 @@ import {
   proveClienti,
   proveCreaSchedaDaChat,
   proveNienteAbbinaInRiga,
-  proveRiquadroSenzaScheda,
   proveSottofiltriScorrevoli,
 } from "./idee/chat-ritocchi.mjs";
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
@@ -646,7 +645,6 @@ const MODULI = [
   "chatwa/filtri",
   //  Ritocchi alla chat (30/10/2026): prove in prove/idee/chat-ritocchi.mjs.
   "chatwa/schedaDaChat",
-  "chatwa/senzaScheda",
   "chatwa/formati",
   "chatwa/modelli-casella",
   //  I prezzi dei modelli e il calcolo dei costi per periodo (commessa 2026-10-29-chat-modelli-costi):
@@ -21535,7 +21533,6 @@ proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
 proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
-proveRiquadroSenzaScheda(mod, { c, gruppo, radice });
 proveClienti(mod, { c, gruppo, radice });
 await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
@@ -22419,14 +22416,15 @@ function proveDeiFiltriFinestra() {
 }
 
 function proveDellOsservazioneComePastiglia() {
-  //  30/10/2026 (filtri a gruppi): «In osservazione» ora è «Con stelle» e SI COMBINA con gli altri gruppi (prima accenderla
+  //  31/10/2026: i filtri sono ESCLUSIVI, «Con stelle» NON si combina più: accenderla spegne l'altro (e viceversa).
+  //  30/10/2026 (filtri a gruppi): «In osservazione» ora è «Con stelle» e SI COMBINAVA con gli altri gruppi (prima accenderla
   //   portava il filtro a «Tutte» e spegneva gli altri: la regola del guasto del 29/10 è superata da `contaVoce`, che conta
   //   esattamente le righe dell'elenco). Le prove nuove sono in prove/idee/filtri-chat.mjs; qui resta il collegamento nei file.
-  gruppo("CHAT WHATSAPP: «CON STELLE» (EX «IN OSSERVAZIONE») SI COMBINA CON GLI ALTRI FILTRI");
+  gruppo("CHAT WHATSAPP: «CON STELLE» (EX «IN OSSERVAZIONE») È ESCLUSIVA COME GLI ALTRI FILTRI");
   const src = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   const F = mod["chatwa/filtri"];
-  c("accenderla non spegne gli altri gruppi", ["non-letti", true], ((f) => [f.coda, f.stelle])(F.commuta(F.commuta(F.FILTRI_VUOTI, "coda", "non-letti"), "stelle", true)));
-  c("toccare un'altra voce del suo gruppo (la coda) non la spegne", true, F.commuta(F.commuta(F.FILTRI_VUOTI, "stelle", true), "coda", "da-chiamare").stelle);
+  c("accenderla spegne la coda", [null, true], ((f) => [f.coda, f.stelle])(F.commuta(F.commuta(F.FILTRI_VUOTI, "coda", "da-chiamare"), "stelle", true)));
+  c("toccare una coda spegne le stelle", false, F.commuta(F.commuta(F.FILTRI_VUOTI, "stelle", true), "coda", "da-chiamare").stelle);
   c("nessun interruttore a parte nell'elenco (soloStelle) e nessun reset a «Tutte»", false, /soloStelle|setFiltro\("all"\)/.test(src));
   c("il numero è calcolato con la stessa funzione dell'elenco (nessun numero diverso dall'elenco)", true, /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(src) && /passaFiltri\(c, filtri, stelleDi\)/.test(src));
 }

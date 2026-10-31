@@ -2,7 +2,7 @@
  *  1. sottofiltri di «Da chiamare» come le pillole (una riga che scorre, 44 px, più leggera)
  *  2. cornetta e stato anche sulle chat senza nome/scheda; lo stato crea la scheda
  *  3. niente «Abbina a una scheda» in riga: resta «Crea scheda»
- *  4. riquadro «Senza scheda (N)» in cima
+ *  4. (tolto il 31/10/2026: «Tutte» è identica a WhatsApp, gli sconosciuti stanno nell'elenco unico)
  *  5. pillola «Clienti» (stessa definizione dei KPI: `eConversione`)
  *  Dati inventati: nessun cliente vero. */
 import { readFileSync } from "node:fs";
@@ -72,33 +72,6 @@ export function proveNienteAbbinaInRiga(mod, { c, gruppo, radice }) {
   c("l'abbinamento resta nel menu ⋮ della conversazione aperta", true, /onSelect=\{\(\) => onAbbina\(attiva\)\}/.test(conv) && /Abbina a una scheda/.test(conv));
   c("nell'intestazione della chat non c'è un tasto «Abbina» a vista", false,
     /<Button[^>]*onClick=\{\(\) => onAbbina/.test(conv));
-}
-
-export function proveRiquadroSenzaScheda(mod, { c, gruppo, radice }) {
-  const leggi = (p) => readFileSync(join(radice, p), "utf8");
-  const Q = mod["chatwa/senzaScheda"];
-  gruppo("CHAT RITOCCHI 4: RIQUADRO «SENZA SCHEDA» IN CIMA");
-  const ora = (iso) => ({ created_at: iso });
-  const chat = (phone, o = {}) => ({
-    phone, lead: null, senzaScheda: true, schedaAmbigua: false, lastMessage: ora(o.ultimo ?? "2026-10-30T09:00:00Z"), contact: null, ...o,
-  });
-  const a = chat("+39100", { ultimo: "2026-10-28T09:00:00Z" });
-  const b = chat("+39200", { ultimo: "2026-10-30T09:00:00Z" });
-  const conScheda = chat("+39300", { lead: { id: "l", data: {} }, senzaScheda: false });
-  const ambigua = chat("+39400", { senzaScheda: false, schedaAmbigua: true });
-  const vuota = chat("+39500", { lastMessage: null });
-  c("senza scheda e con messaggi: sì; con scheda, ambigua o senza messaggi: no", [true, true, false, false, false],
-    [a, b, conScheda, ambigua, vuota].map(Q.eSenzaSchedaConMessaggi));
-  c("chat vecchie ma con data sul contatto contano", true, Q.eSenzaSchedaConMessaggi(chat("+39600", { lastMessage: null, contact: { last_message_at: "2025-01-01T10:00:00Z" } })));
-  c("nel riquadro: la più recente per prima", ["+39200", "+39100"], Q.chatSenzaScheda([a, conScheda, b, ambigua, vuota]).map((x) => x.phone));
-  c("appena ha una scheda esce dal riquadro", ["+39200"], Q.chatSenzaScheda([{ ...a, lead: { id: "n", data: {} }, senzaScheda: false }, b]).map((x) => x.phone));
-
-  const elenco = leggi("src/crm/chatwa/ElencoChat.tsx");
-  c("l'elenco «Tutte» ha il riquadro «Senza scheda (N)» sopra tutto (le altre viste restano com'erano: i numeri di «Da rispondere» devono essere quelli del pulsante)", true,
-    /Senza scheda \(\{senzaSchedaCon\.length\}\)/.test(elenco) && elenco.indexOf("titolo-senza-scheda") < elenco.indexOf("titolo-in-scadenza"));
-  c("una chat una volta sola: sotto il riquadro non si ripetono", true, /!inSenzaSchedaTel\.has\(c\.phone\)/.test(elenco));
-  c("nelle viste «Da rispondere» e «Da chiamare» il riquadro non c'è", true, /const senzaSchedaCon = tutte \?/.test(elenco));
-  c("«Seleziona tutto» comprende anche le chat del riquadro", true, /\.\.\.senzaSchedaCon,/.test(elenco));
 }
 
 export function proveClienti(mod, { c, gruppo, radice }) {
