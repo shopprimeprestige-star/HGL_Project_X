@@ -192,7 +192,7 @@ export async function provePonteServizioCollegaImmagini(_mod, { c, gruppo, radic
     await x.catalogo.svuota();
     return existsSync(x.cartella) ? readdirSync(x.cartella).filter((f) => f.endsWith(".json")).length : 0;
   };
-  const stati = (x) => Object.fromEntries(x.catalogo.voci().map((v) => [v.chiave.split(":")[2], v.stato]));
+  const stati = (x) => Object.fromEntries(x.catalogo.voci().map((v) => [v.chiave.split(":")[2], v.stato]).sort(([a], [b]) => (a < b ? -1 : 1)));
   const tipi = (x) => x.chiamate.map((k) => k.tipo);
 
   try {
