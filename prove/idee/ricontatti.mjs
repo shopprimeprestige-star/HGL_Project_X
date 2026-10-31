@@ -173,8 +173,9 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
   c("aprire e salvare il modulo non cancella la priorità", schedaDati.ricontattoPrioritaIl, salvato.ricontattoPrioritaIl);
   //  Modulo aperto su un lead SENZA priorità, poi la priorità arriva dalla lista: il salvataggio non la cancella,
   //  perché `nuovo()` non conosce il campo e il modulo non ha la chiave.
-  const formSenza = { nome: "", cognome: "", ...medioArr.lead.data };
-  const archivioDopo = { ...medioArr.lead.data, ...R.patchPriorita(true, adessoP) };
+  const daArchivio = JSON.parse(JSON.stringify(medioArr.lead.data)); // come arriva dal database: niente chiavi undefined
+  const formSenza = { nome: "", cognome: "", ...daArchivio };
+  const archivioDopo = { ...daArchivio, ...R.patchPriorita(true, adessoP) };
   c("modulo aperto prima della priorità: salvare non cancella quella messa dopo", "2026-10-31T09:00:00.000Z", { ...archivioDopo, ...formSenza, nome: "Anna" }.ricontattoPrioritaIl);
   c("e nemmeno il nascosto né l'esito (stessa regola)", true, ((x) => x.ricontattoNascostoIl === undefined)(salvato));
   const dialogo = senzaCommenti(leggi("src/crm/LeadDialog.tsx"));
