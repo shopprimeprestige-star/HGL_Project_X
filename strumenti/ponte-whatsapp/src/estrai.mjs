@@ -246,6 +246,8 @@ function durataVocale(seconds) {
   return ` ${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
+/** Il nome di un file senza i caratteri che girano il testo (U+202A–202E, U+2066–2069): «fattura‮fdp.exe» non si spaccia per un pdf. */
+const senzaBidi = (x) => (typeof x === "string" ? x.replace(/[\u202a-\u202e\u2066-\u2069]/g, "") : x);
 const conDidascalia = (base, didascalia) => (testoPieno(didascalia) ? `${base}: ${testoPieno(didascalia)}` : base);
 
 /** Il testo leggibile di un `TemplateMessage` (anche quello dentro un
@@ -385,7 +387,7 @@ function contenuto(message) {
       return { tipo: "video", testo: conDidascalia(SEGNAPOSTO.video, v?.caption) };
     case "documentMessage": {
       // «📎 Documento: <nome file>», poi la didascalia se c'è
-      const conNome = conDidascalia(SEGNAPOSTO.documento, v?.fileName ?? v?.title);
+      const conNome = conDidascalia(SEGNAPOSTO.documento, senzaBidi(v?.fileName ?? v?.title));
       return { tipo: "documento", testo: conDidascalia(conNome, v?.caption) };
     }
     case "stickerMessage":

@@ -57,11 +57,11 @@ export function categoriaDaMime(mime) {
 
 /** Il mime dichiarato dal mittente → un mime canonico DELLA CATEGORIA, oppure null. */
 export function normalizzaMime(categoria, dichiarato) {
-  const elenco = MIME_PER_CATEGORIA[categoria];
-  if (!elenco || typeof dichiarato !== "string" || dichiarato.length > 200) return null;
+  //  hasOwn: «constructor», «__proto__» esistono su ogni oggetto e non sono categorie né alias
+  if (!Object.hasOwn(MIME_PER_CATEGORIA, categoria) || typeof dichiarato !== "string" || dichiarato.length > 200) return null;
   const t = dichiarato.split(";")[0].trim().toLowerCase();
-  const m = ALIAS[t] ?? t;
-  return elenco.includes(m) ? m : null;
+  const m = Object.hasOwn(ALIAS, t) ? ALIAS[t] : t;
+  return MIME_PER_CATEGORIA[categoria].includes(m) ? m : null;
 }
 
 const uguali = (b, da, testo) => {
@@ -80,9 +80,9 @@ function foto(b) {
   return null;
 }
 
-//  shortcut: per l'audio mp4 si accettano solo le marche audio (M4A/M4B/M4P); un file Android con marca isom/mp42
-//  diventa segnaposto, non si scarica; si allarga qui se il titolare lo chiede.
-const MARCHE_AUDIO = new Set(["M4A ", "M4B ", "M4P "]);
+//  Un vocale Android è spesso un mp4 con marca isom/mp42: dentro un `audioMessage` (la categoria viene dal
+//  messaggio, non dai byte) vale come audio/mp4. Un video non passa di qui: ha la sua tabella.
+const MARCHE_AUDIO = new Set(["M4A ", "M4B ", "M4P ", "isom", "mp42"]);
 function audio(b) {
   if (b.length < 4) return null;
   if (uguali(b, 0, "OggS")) return "audio/ogg";
@@ -133,5 +133,5 @@ const LETTORI = { foto, audio, video };
 export function mimeDaByte(categoria, byte, opzioni) {
   if (!(byte instanceof Uint8Array) || byte.length === 0) return null;
   if (categoria === "documento") return documento(byte, opzioni?.nome);
-  return LETTORI[categoria]?.(byte) ?? null;
+  return Object.hasOwn(LETTORI, categoria) ? (LETTORI[categoria](byte) ?? null) : null;
 }

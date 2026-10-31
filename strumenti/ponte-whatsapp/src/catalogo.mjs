@@ -21,6 +21,10 @@
  *     `ferma()` svuota il buffer: va chiamata in chiusura (SIGTERM/SIGINT) PRIMA di uscire;
  *   · scrittura idempotente: lo storico si ripresenta, una voce già nota non si riscrive e uno storico
  *     non riporta mai a `catalogato` una voce `in_coda`.
+ *  ⚠️ CARTELLA DEDICATA. Al caricamento `carica()` cancella ogni file che non riconosce (rotti, di nome strano,
+ *     residui `.tmp`, qualunque file estraneo): la cartella passata a `creaCatalogo` non si condivide con altro. Quella
+ *     di serie è `media/catalogo` (dentro la cartella dati del ponte, accanto ad `auth/`; la passa `index.mjs`); mai la
+ *     cartella dati stessa né una che contiene altro.
  *  Il file è nostro ma si ricontrolla alla lettura: rotti, di nome strano, residui `.tmp`, scaduti → via.
  *
  *  ⚠️ Qui passano dati di clienti: il `registro` riceve solo codici fissi e conteggi, mai chiavi, nomi

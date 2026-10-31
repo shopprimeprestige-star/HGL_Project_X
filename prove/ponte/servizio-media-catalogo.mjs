@@ -358,6 +358,21 @@ export async function provePonteServizioMediaCatalogo(_mod, { c, gruppo, radice 
       await b.cat.ferma();
     }
 
+    // ── La cartella è DEDICATA al catalogo (condizione del revisore) ─────
+    {
+      //  `carica()` cancella ogni file che non riconosce: la cartella non può essere condivisa con altro.
+      //  Dichiarato nel sorgente e provato: un file estraneo dentro la cartella sparisce, uno accanto resta.
+      c("il sorgente dichiara la cartella dedicata `media/catalogo` e che i file estranei si cancellano", [true, true], [/DEDICATA/.test(sorgente) && sorgente.includes("media/catalogo"), /cancella ogni file che non riconosce|ogni file estraneo/.test(sorgente)]);
+      const radiceMedia = nuova();
+      const cartella = join(radiceMedia, "catalogo");
+      mkdirSync(cartella, { recursive: true });
+      writeFileSync(join(cartella, "appunti-del-titolare.txt"), "non è del catalogo");
+      writeFileSync(join(radiceMedia, "altro.txt"), "accanto alla cartella dedicata");
+      const a = await crea({ cartella });
+      c("un file estraneo DENTRO la cartella del catalogo viene cancellato; uno accanto (nella cartella madre) resta", [[], ["altro.txt", "catalogo"]], [readdirSync(cartella), readdirSync(radiceMedia).sort()]);
+      await a.cat.ferma();
+    }
+
     // ── Un disco che non scrive non rompe il servizio ─────────────────────
     {
       const rotto = { ...fsp, writeFile: async () => { throw Object.assign(new Error("ENOSPC: /Users/x/segreto"), { code: "ENOSPC" }); } };

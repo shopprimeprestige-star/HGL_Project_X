@@ -58,10 +58,11 @@ export async function provePonteServizioMediaFirme(_mod, { c, gruppo, radice }) 
   //  Audio.
   c("audio: OggS → ogg", "audio/ogg", da("audio", file(testo("OggS"))));
   c("audio: ftyp con marca audio (M4A, M4B) → mp4", ["audio/mp4", "audio/mp4"], [da("audio", ftyp("M4A ")), da("audio", ftyp("M4B "))]);
+  c("audio: un vocale Android ha marca isom/mp42 → mp4 (la categoria è quella del messaggio, audioMessage)", ["audio/mp4", "audio/mp4"], [da("audio", ftyp("isom")), da("audio", ftyp("mp42"))]);
   c("audio: ID3 → mpeg; sync FF FB → mpeg", ["audio/mpeg", "audio/mpeg"], [da("audio", file(testo("ID3"))), da("audio", file([0xff, 0xfb, 0x90, 0x00]))]);
   c("audio: ADTS FF F1 / FF F9 → aac (non mpeg)", ["audio/aac", "audio/aac"], [da("audio", file([0xff, 0xf1, 0x50, 0x80])), da("audio", file([0xff, 0xf9, 0x50, 0x80]))]);
   c("audio: #!AMR → amr", "audio/amr", da("audio", file(testo("#!AMR\n"))));
-  c("audio: un mp4 video (isom) o un html non è un audio → null", [null, null, null], [da("audio", ftyp("isom")), da("audio", file(testo("<html>"))), da("audio", file([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]))]);
+  c("audio: una marca che non è mp4 (heic, qt), un html o byte a caso non sono un audio → null", [null, null, null, null], [da("audio", ftyp("heic")), da("audio", ftyp("qt  ")), da("audio", file(testo("<html>"))), da("audio", file([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]))]);
   c("audio: jpeg, pdf → null", [null, null], [da("audio", file([0xff, 0xd8, 0xff, 0xe0])), da("audio", file(testo("%PDF-1.7")))]);
 
   //  Video.
@@ -81,6 +82,13 @@ export async function provePonteServizioMediaFirme(_mod, { c, gruppo, radice }) 
   c("documento: SVG chiamato .docx, byte a caso chiamati .xlsx → null", [null, null], [da("documento", file(testo("<svg/>")), "a.docx"), da("documento", file([1, 2, 3, 4, 5, 6, 7, 8]), "b.xlsx")]);
   c("documento: OLE (.doc) e testo (.txt, .csv) restano fuori (D13)", [null, null, null], [da("documento", file([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), "a.doc"), da("documento", file(testo("a;b;c\n")), "a.csv"), da("documento", file(testo("ciao ciao ciao")), "a.txt")]);
   c("documento: un'immagine ricevuta come documento non è un documento", null, da("documento", file([0xff, 0xd8, 0xff, 0xe0]), "foto.pdf"));
+
+  //  Nomi che esistono su ogni oggetto («constructor», «__proto__», «toString») non sono categorie né alias.
+  const proto = ["constructor", "__proto__", "toString", "hasOwnProperty"];
+  c("categoria «ereditata» (constructor, __proto__, toString…) → null, senza lanciare", Array(4).fill(null), proto.map((cat) => F.mimeDaByte(cat, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))));
+  c("normalizzaMime con categoria ereditata → null, senza lanciare", Array(4).fill(null), proto.map((cat) => F.normalizzaMime(cat, "image/jpeg")));
+  c("normalizzaMime con un mime che è un nome ereditato (constructor, __proto__) → null", [null, null, null], ["constructor", "__proto__", "toString"].map((m) => F.normalizzaMime("foto", m)));
+  c("categoriaDaMime con un nome ereditato → null", Array(3).fill(null), ["constructor", "__proto__", "toString"].map(F.categoriaDaMime));
 
   //  Casi limite: ingresso non valido, mai un'eccezione.
   c("non lancia: null, stringa, categoria sconosciuta, buffer vuoto", [null, null, null, null], [da("foto", null), da("foto", "ciao"), da("sticker", file([0xff, 0xd8, 0xff])), da("foto", Buffer.alloc(0))]);
