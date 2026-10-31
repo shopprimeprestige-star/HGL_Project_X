@@ -28,6 +28,7 @@
  *  di chi fissa gli appuntamenti. Vale anche la sessione di Meetly, perché la
  *  stanza si apre anche da lì.
  */
+import { segnaPadroneDellaStanza } from "@/shop/meetly-sfu.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { urlStanza } from "@/lib/sito";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -353,6 +354,8 @@ export const Route = createFileRoute("/api/crm/meeting-session")({
         //  fascia che punta a una stanza che non esiste manderebbe la persona
         //  dopo in una stanza vuota.
         await segnaFascia(conduce, s.quando, code);
+        //  Il padrone della stanza per l'SFU: solo con l'id DIMOSTRATO (token CRM), all'«Avvia».
+        if (b.conduco && cid) await segnaPadroneDellaStanza(code, cid);
         await segnaAtteso(code, leadId);
         return json({ ok: true, ...s, link: linkDi(u.origin, code) });
       },

@@ -24,3 +24,40 @@ export function eConsulenteDellaStanza(x: {
   if (x.sessioneId && x.sessioneId === padrone) return true;
   return !!x.crm && x.crm.tipo === "consulente" && x.crm.agenda && !!x.crm.consultantId && x.crm.consultantId === padrone;
 }
+
+/* ── IL PADRONE SI SCRIVE SOLO DAL SERVER (revisione di sicurezza, 31/10/2026) ──────────
+ *  `consulenteDellaSessione` (il legame che decide il listino) può nascere da un id che arriva
+ *  dal browser: va bene per i prezzi, non per decidere chi comanda una stanza. Qui c'è una riga
+ *  sua, `meetly_padrone:<codice>`, scritta SOLO con l'id di chi si è dimostrato al server (token
+ *  CRM del PIN all'«Avvia», sessione presentatore col PIN all'apertura della diretta) e mai
+ *  sovrascritta da un altro finché è fresca: chi conosce il codice di una stanza altrui non se
+ *  la prende. Un collega che riprende davvero la stanza resta, per 24 ore, sul collegamento
+ *  diretto di sempre (l'SFU non parte): un fastidio, non un buco. */
+export const PREFISSO_PADRONE = "meetly_padrone:";
+export const PADRONE_VALE_MS = 24 * 3600_000;
+
+export function chiavePadrone(codice: unknown): string {
+  const c = String(codice ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40);
+  return c ? PREFISSO_PADRONE + c : "";
+}
+
+/** Chi risulta padrone dalla riga salvata ("" = nessuno o scaduto). */
+export function padroneDa(grezzo: string | null, adesso: number): string {
+  try {
+    const o = JSON.parse(grezzo ?? "null") as { id?: unknown; il?: unknown } | null;
+    const id = typeof o?.id === "string" ? o.id : "";
+    const il = Date.parse(String(o?.il ?? ""));
+    return id && Number.isFinite(il) && adesso - il <= PADRONE_VALE_MS ? id : "";
+  } catch {
+    return "";
+  }
+}
+
+/** La riga da scrivere, o `null` se non si scrive (manca l'id, o la stanza è fresca di un altro). */
+export function nuovoPadrone(grezzo: string | null, id: string, adesso: number): string | null {
+  const chi = String(id || "").trim();
+  if (!chi) return null;
+  const ora = padroneDa(grezzo, adesso);
+  if (ora && ora !== chi) return null;
+  return JSON.stringify({ id: chi, il: new Date(adesso).toISOString() });
+}
