@@ -25,7 +25,9 @@ import type { TipoAnteprima } from "./api.anteprima";
 const senzaEstensione = (v: string) => String(v || "").replace(/\.(jpe?g|png)$/i, "");
 
 function tipoValido(v: string): TipoAnteprima | null {
-  return v === "invito" || v === "preventivo" || v === "webinar" || v === "capelli" ? v : null;
+  return v === "invito" || v === "preventivo" || v === "webinar" || v === "capelli" || v === "modello"
+    ? v
+    : null;
 }
 
 export const Route = createFileRoute("/api/og/anteprima/$tipo/$codice")({

@@ -37,6 +37,7 @@ import { DURATA_BREVE_S, quantoDuraImmagine } from "@/shop/anteprima-quanto-dura
 import { spezzaCodiceAnteprima } from "@/shop/chi-dal-link";
 import { attesoDalGettone, chiaveAttesi, consulenzaDiGruppo, leggiAttesi } from "@/crm/fascia-consulenza";
 import { chiaveInvitoDiLead } from "@/crm/invito";
+import { formaCodiceImmagineModello } from "@/crm/wa-meta-templates";
 
 /** ── IL RIPIEGO NON PUÒ ESSERE IL LOGO ────────────────────────────────────
  *  ⚠️ Qui c'era il logo dello studio, e prima ancora una figura presa da un
@@ -231,6 +232,57 @@ async function servi(request: Request, soloIntestazioni: boolean): Promise<Respo
   return serviAnteprima(tipo, codice, soloIntestazioni, request);
 }
 
+/** ── L'IMMAGINE IN TESTA AI MODELLI UTILITY (31/10/2026) ───────────────────────────────────────
+ *  GET/HEAD /api/og/anteprima/modello/<codice-meet>_<gettone>.jpg
+ *  Serve SOLO l'immagine depositata per QUESTO cliente (nome, giorno, ora, consulente, «Consulenza Hair
+ *  Genius Labs»: vedi `crm/biglietto-modello.ts`). Se non c'è, risponde 404 e basta: niente scheda
+ *  generica (ha scritto «GRATUITA», e Meta riclassificherebbe il modello), niente biglietto della stanza
+ *  (porta il nome di un altro cliente) e nessun rimando. Chi invia controlla prima che esista; se
+ *  non c'è, manda il modello vecchio.
+ *  La cache è corta: giorno e ora possono cambiare, e l'indirizzo resta lo stesso. */
+export async function serviImmagineModello(
+  codice: string,
+  soloIntestazioni: boolean,
+  richiesta?: Request | null,
+): Promise<Response> {
+  const nessuna = () =>
+    new Response("anteprima: nessuna immagine per questo cliente", {
+      status: 404,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  //  Un codice che non è «<stanza>_p<gettone>» non è l'immagine di nessun cliente.
+  if (!formaCodiceImmagineModello(codice)) return nessuna();
+  const { url, quando } = await anteprimaDepositata("modello", codice);
+  if (!url) return nessuna();
+  const marchio = `W/"modello-${codice}-${quando}"`;
+  if (nonCambiata(richiesta, marchio, quando)) {
+    return new Response(null, {
+      status: 304,
+      headers: { "Cache-Control": `public, max-age=${DURATA_BREVE_S}`, ETag: marchio },
+    });
+  }
+  try {
+    const presa = await fetch(url, { cf: { cacheTtl: 60 } } as RequestInit);
+    if (!presa.ok) return nessuna();
+    const byte = await presa.arrayBuffer();
+    //  Il tipo si riconosce dai byte (FF D8 = JPEG, 89 50 = PNG), come per le altre anteprime.
+    const testa = new Uint8Array(byte.slice(0, 2));
+    const tipoVero =
+      testa[0] === 0xff && testa[1] === 0xd8
+        ? "image/jpeg"
+        : testa[0] === 0x89 && testa[1] === 0x50
+          ? "image/png"
+          : "";
+    if (!tipoVero) return nessuna();
+    return new Response(soloIntestazioni ? null : byte, {
+      status: 200,
+      headers: intestazioniImmagine(tipoVero, byte.byteLength, DURATA_BREVE_S, marchio, quando),
+    });
+  } catch {
+    return nessuna();
+  }
+}
+
 /** Il cuore, condiviso con la forma «a percorso» (…/invito/CODICE.jpg): due
  *  indirizzi per la stessa immagine, una sola idea di come si serve. */
 export async function serviAnteprima(
@@ -250,6 +302,9 @@ export async function serviAnteprima(
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });
   }
+
+  //  L'immagine dei modelli Utility ha la sua strada, senza ripiego.
+  if (tipo === "modello") return serviImmagineModello(codice, soloIntestazioni, richiesta);
 
   /*  ── UN BIGLIETTO PER CIASCUNO ────────────────────────────────────────
       Il codice può portare in coda chi ha ricevuto il link
