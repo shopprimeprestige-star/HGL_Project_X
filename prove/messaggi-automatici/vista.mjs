@@ -264,52 +264,98 @@ export async function proveVistaMessaggi(mod, { c, gruppo, radice }) {
       })
       .map((v) => v.chiave),
   );
+  //  ⚠️ Decisione del titolare (31/10/2026): «anche gli arretrati». Riaccendendo «Primo contatto» o
+  //  «Ritorno» partono anche i lead arrivati mentre era spento, a scaglioni (150 al giorno). Le
+  //  frasi non devono dire il contrario: `decidiImportatiERitorni` non guarda la data (provato in
+  //  `giro.mjs`, «RIACCESO: GLI ARRETRATI PARTONO»).
+  const FALSO_ARRETRATI =
+    /già entrati prima non ricevono niente|entrato di notte[^.]*non riceverà il primo contatto/i;
   c(
-    "le quattro del «lead nuovo» (N1): con un'altra già accesa la conferma dice che la data riparte per tutte",
-    [true, true, true],
+    "primo contatto: la conferma dice che partono anche i lead arrivati mentre era spento, a scaglioni, 150 al giorno (da solo e con altri accesi)",
+    [true, true, true, true],
     (() => {
-      const t = testoDi(V.confermaAccensione("casi_reali", ["primo_contatto"]));
+      const t = testoDi(V.confermaAccensione("primo_contatto", []));
+      const conAltri = testoDi(V.confermaAccensione("primo_contatto", ["richiamo_24h"]));
       return [
-        /data di partenza/i.test(t),
-        /già in sequenza non riceverà il richiamo/i.test(t),
-        /entrato di notte/i.test(t),
+        /anche i lead arrivati mentre era spento/i.test(t),
+        /a scaglioni/i.test(t),
+        /150 al giorno/i.test(t),
+        /anche i lead arrivati mentre era spento/i.test(conAltri),
       ];
     })(),
   );
   c(
-    "…e nomina quelle già accese (per loro la data si sposta)",
-    true,
-    /Primo contatto/.test(testoDi(V.confermaAccensione("ritorno", ["primo_contatto"]))),
+    "ritorno: la conferma dice che partono anche i contatti tornati mentre era spento, a scaglioni, 150 al giorno",
+    [true, true, true],
+    (() => {
+      const t = testoDi(V.confermaAccensione("ritorno", []));
+      return [
+        /anche i contatti tornati mentre era spento/i.test(t),
+        /a scaglioni/i.test(t),
+        /150 al giorno/i.test(t),
+      ];
+    })(),
   );
   c(
-    "…vale per tutte e quattro, e solo per loro",
-    [LEAD.map(() => true), false, false],
-    [
-      LEAD.map((k) =>
-        /già in sequenza non riceverà il richiamo/i.test(
+    "nessuna conferma della famiglia dice più «i lead già entrati prima non ricevono niente» né che chi è entrato di notte non riceve il primo contatto",
+    LEAD.flatMap((k) => [[], ["primo_contatto"], ["richiamo_24h", "ritorno"]].map(() => false)),
+    LEAD.flatMap((k) =>
+      [[], ["primo_contatto"], ["richiamo_24h", "ritorno"]].map((accesi) =>
+        FALSO_ARRETRATI.test(
           testoDi(
             V.confermaAccensione(
               k,
-              LEAD.filter((x) => x !== k),
+              accesi.filter((x) => x !== k),
             ),
           ),
         ),
       ),
-      /già in sequenza non riceverà/i.test(
-        testoDi(V.confermaAccensione("meet_oggi", ["primo_contatto"])),
+    ),
+  );
+  c(
+    "richiamo: resta vero che chi ha già il primo contatto prima di adesso non riceve il richiamo",
+    [true, true],
+    [
+      /chi l'ha già ricevuto prima non riceve il richiamo/i.test(
+        testoDi(V.confermaAccensione("richiamo_24h", [])),
       ),
-      /data di partenza dei quattro/i.test(
-        testoDi(V.confermaAccensione("stato:no_show", ["primo_contatto"])),
+      /chi l'ha già ricevuto prima non riceve il richiamo/i.test(
+        testoDi(V.confermaAccensione("richiamo_24h", ["primo_contatto"])),
       ),
     ],
   );
   c(
-    "se nessuna della famiglia è accesa, la frase non spaventa a vuoto ma dice da quando vale",
-    [false, true],
+    "casi reali: parte a chi ha il primo contatto e aspetta ancora la risposta (non dipende dalla data)",
+    true,
+    /ha già ricevuto il primo contatto, non ha risposto e aspetta ancora/i.test(
+      testoDi(V.confermaAccensione("casi_reali", [])),
+    ),
+  );
+  c(
+    "con altri già accesi: dice che la data di tutti e quattro diventa adesso, nomina gli accesi e (se c'è il richiamo) che chi è in sequenza perde il richiamo",
+    [true, true, true, false],
     (() => {
-      const t = testoDi(V.confermaAccensione("primo_contatto", []));
-      return [/già in sequenza non riceverà il richiamo/i.test(t), /da adesso in poi/i.test(t)];
+      const t = testoDi(V.confermaAccensione("casi_reali", ["primo_contatto", "richiamo_24h"]));
+      const senzaRichiamo = testoDi(V.confermaAccensione("casi_reali", ["primo_contatto"]));
+      return [
+        /data di partenza di tutti e quattro diventa adesso/i.test(t),
+        /Primo contatto/.test(t),
+        /già in sequenza non riceverà più il richiamo/i.test(t),
+        /già in sequenza non riceverà più il richiamo/i.test(senzaRichiamo),
+      ];
     })(),
+  );
+  c(
+    "la frase sul richiamo perso compare solo per la famiglia, mai per meet o stati",
+    [false, false],
+    [
+      /già in sequenza non riceverà/i.test(
+        testoDi(V.confermaAccensione("meet_oggi", ["primo_contatto"])),
+      ),
+      /data di partenza di tutti e quattro/i.test(
+        testoDi(V.confermaAccensione("stato:no_show", ["primo_contatto"])),
+      ),
+    ],
   );
   c(
     "un messaggio per stato dice che le schede già in quello stato non ricevono niente",

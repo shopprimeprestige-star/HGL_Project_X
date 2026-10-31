@@ -792,6 +792,107 @@ export const supabaseAdminDefault = supabaseAdmin;`,
     }
   }
 
+  /* ════════════════════════════════════════════════════════════════════════
+   *  RIACCESO: GLI ARRETRATI PARTONO (decisione del titolare, 31/10/2026: «anche gli arretrati»)
+   *  Un lead (o un ritorno) arrivato MENTRE «Primo contatto» (o «Ritorno») era spento riceve il
+   *  messaggio dopo la riaccensione, anche se è entrato prima della data di partenza. A scaglioni:
+   *  il tetto dei lead nuovi, la fascia oraria e il massimo di invii per giro restano.
+   *  `decidiImportatiERitorni` non guarda `leadNuovoDal`: questa prova lo inchioda.
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MESSAGGI AUTOMATICI · GIRO · RIACCESO: GLI ARRETRATI PARTONO, A SCAGLIONI");
+  {
+    //  Riacceso alle 09:30 a Roma di martedì (la data di partenza); ora sono le 10:00.
+    const RIACCESO = "2026-10-27T08:30:00.000Z";
+    //  Entrati domenica e lunedì, mentre il messaggio era spento: PRIMA della data di partenza.
+    const ENTRATO = "2026-10-25T10:00:00.000Z";
+    const arretrati = [
+      nuovo("a-1", 1, "2026-10-25T10:00:00.000Z"),
+      nuovo("a-2", 2, "2026-10-26T09:00:00.000Z"),
+      nuovo("a-3", 3, "2026-10-26T15:00:00.000Z"),
+    ];
+    const riacceso = (schede, adesso, extra) =>
+      lead(schede, adesso, { leadNuovoDal: RIACCESO, ...extra });
+
+    c(
+      "col primo contatto SPENTO il lead arrivato nel frattempo non parte (e non lascia traccia)",
+      [],
+      sintesi(riacceso([nuovo("a-1", 1, ENTRATO)], MAR10, { messaggiSpenti: ["primo_contatto"] })),
+    );
+    c(
+      "RIACCESO: lo stesso lead, entrato PRIMA della data di partenza, riceve il primo contatto",
+      [["invia", "a-1", "primo_contatto"]],
+      sintesi(riacceso([nuovo("a-1", 1, ENTRATO)], MAR10)),
+    );
+    c(
+      "…anche un lead importato vecchio, e anche uno entrato il giorno stesso della riaccensione",
+      //  il più recente per primo: il lead di oggi, poi il vecchio importato
+      [
+        ["invia", "a-6", "primo_contatto"],
+        ["invia", "i-5", "primo_contatto"],
+      ],
+      sintesi(riacceso([imp("i-5", 5), nuovo("a-6", 6, "2026-10-27T08:45:00.000Z")], MAR10)),
+    );
+    //  A scaglioni: tre arretrati, tetto dei lead nuovi a 2 → ne partono 2 (i più recenti), uno aspetta domani.
+    c(
+      "tre arretrati e il tetto dei lead nuovi a 2: ne partono 2 (prima i più recenti), il terzo aspetta domani",
+      [
+        ["invia", "a-3", "primo_contatto"],
+        ["invia", "a-2", "primo_contatto"],
+        ["aspetta", "a-1", `da contattare: ${TETTO_LN}`],
+      ],
+      sintesi(riacceso(arretrati, MAR10, { tetti: { ricontatti: 20, leadNuovi: 2, totale: 100 } })),
+    );
+    c(
+      "…il tetto conta anche i primi contatti già partiti oggi (un posto solo: parte uno)",
+      [1, 2],
+      ((r) => [
+        r.filter((x) => x.tipo === "invia").length,
+        r.filter((x) => x.tipo === "aspetta").length,
+      ])(
+        riacceso(arretrati, MAR10, {
+          tetti: { ricontatti: 20, leadNuovi: 3, totale: 100 },
+          invii: oggi(2),
+        }),
+      ),
+    );
+    //  La fascia oraria: alle 21:00 non parte niente, tutti aspettano.
+    c(
+      "fuori dalla fascia (21:00) nessun arretrato parte: tutti aspettano",
+      [0, 3],
+      ((r) => [
+        r.filter((x) => x.tipo === "invia").length,
+        r.filter((x) => x.tipo === "aspetta").length,
+      ])(riacceso(arretrati, "2026-10-27T21:00:00+01:00")),
+    );
+    //  Il ritmo: un giro non ne manda più di MAX_INVII_PER_GIRO, gli altri vanno ai giri dopo.
+    c(
+      "il giro ne manda al massimo 2 per volta (gli altri arretrati ai giri dopo)",
+      2,
+      G.MAX_INVII_PER_GIRO,
+    );
+    //  Il ritorno.
+    c(
+      "RITORNO spento: il contatto tornato nel frattempo non parte",
+      [],
+      sintesi(riacceso([rit("r-1", 7)], MAR10, { messaggiSpenti: ["ritorno"] })),
+    );
+    c(
+      "RITORNO riacceso: parte anche il ritorno di prima della data, a scaglioni dentro il tetto",
+      [["invia", "r-1", "ritorno"]],
+      sintesi(riacceso([rit("r-1", 7)], MAR10)),
+    );
+    c(
+      "…e con il tetto dei lead nuovi pieno aspetta domani",
+      [["aspetta", "r-1", `ritorno: ${TETTO_LN}`]],
+      sintesi(
+        riacceso([rit("r-1", 7)], MAR10, {
+          tetti: { ricontatti: 20, leadNuovi: 1, totale: 100 },
+          invii: oggi(1),
+        }),
+      ),
+    );
+  }
+
   /* ── il sorgente: il giro passa la chiave a ogni invio e legge `spento` ── */
   gruppo("MESSAGGI AUTOMATICI · GIRO · IL SORGENTE");
   {

@@ -11,10 +11,12 @@
  *
  *  ⚠️ LA FAMIGLIA «LEAD NUOVO» (nota N1 del revisore). I quattro messaggi dei lead
  *   nuovi dividono UNA data di partenza: quella dell'accensione più recente fra i
- *   quattro accesi. Accendere `casi_reali` o `ritorno` con il primo contatto già
- *   acceso sposta la data a adesso per tutti: chi è già in sequenza non riceve più
- *   il richiamo, e chi è entrato di notte e aspetta le 9 non riceve il primo
- *   contatto. Non è un'ondata: è una perdita silenziosa. La finestra lo dice in chiaro.
+ *   quattro accesi. Accendere uno con altri già accesi sposta la data a adesso per
+ *   tutti: chi è già in sequenza non riceve più il richiamo. ⚠️ NON è vero che «chi è
+ *   entrato prima non riceve il primo contatto»: i lead «da contattare» (anche arrivati
+ *   mentre era spento, anche i vecchi) e i ritorni senza risposta partono comunque come
+ *   arretrati (`decidiImportatiERitorni` non guarda la data), a scaglioni entro i tetti
+ *   (150 al giorno). Decisione del titolare del 31/10: «anche gli arretrati». La finestra lo dice.
  *  ⚠️ Spegnere è immediato (un clic sbagliato per spegnere non fa danni); accendere
  *   si conferma sempre.
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -215,7 +217,23 @@ function effetto(k: ChiaveMessaggio): string {
 }
 
 const REGOLE_LEAD_NUOVO =
-  "Parte solo per i moduli compilati dopo la data della frase del consenso, dalle 9 alle 20, da lunedì a sabato. Il richiamo è un secondo messaggio a chi non ha risposto: per questo caso la regola «mai due messaggi senza risposta» non vale. Chi ricompila il modulo con un numero già in archivio non riceve il primo messaggio.";
+  "Il primo messaggio dei moduli parte solo se compilati dopo la data della frase del consenso (i lead già importati «da contattare» partono comunque, scelta del titolare del 28/10), dalle 9 alle 20, da lunedì a sabato. Il richiamo è un secondo messaggio a chi non ha risposto: per questo caso la regola «mai due messaggi senza risposta» non vale. Chi ricompila il modulo con un numero già in archivio non riceve il primo messaggio.";
+
+/** Che cosa parte, davvero, quando si accende UNO dei quattro messaggi dei lead nuovi (letto da `sequenze.ts`):
+ *  primo contatto e ritorno recuperano gli arretrati (nessuna data li ferma: `decidiImportatiERitorni`);
+ *  il richiamo guarda la data di partenza; i casi reali guardano il primo contatto già arrivato. */
+const COSA_PARTE: Readonly<Record<string, string>> = {
+  primo_contatto:
+    "Riaccendendolo partono anche i lead arrivati mentre era spento: tutti quelli ancora «da contattare» a cui nessuno ha scritto, anche i più vecchi. Partono a scaglioni, al massimo 150 al giorno, dalle 9 alle 20, da lunedì a sabato.",
+  ritorno:
+    "Riaccendendolo partono anche i contatti tornati mentre era spento e a cui nessuno ha scritto dopo il ritorno. Partono a scaglioni, al massimo 150 al giorno, dalle 9 alle 20, da lunedì a sabato.",
+  richiamo_24h:
+    "Il richiamo parte solo per chi riceve il primo contatto da adesso in poi: chi l'ha già ricevuto prima non riceve il richiamo.",
+  casi_reali:
+    "Parte una volta sola a chi ha già ricevuto il primo contatto, non ha risposto e aspetta ancora la risposta.",
+};
+const FRASE_RICHIAMO_PERSO =
+  "Con la nuova data, chi è già in sequenza non riceverà più il richiamo.";
 
 /** La finestra che si apre prima di accendere. `accesi` = i messaggi già accesi (serve alla famiglia «lead nuovo»). */
 export function confermaAccensione(
@@ -229,21 +247,25 @@ export function confermaAccensione(
     //  Le regole del primo messaggio e del richiamo (dal vecchio riquadro «Lead nuovo»).
     const regole =
       chiave === "primo_contatto" || chiave === "richiamo_24h" ? [REGOLE_LEAD_NUOVO] : [];
+    const cosa = COSA_PARTE[chiave];
     if (altri.length === 0)
       return {
         ...base,
         paragrafi: [
-          `I quattro messaggi dei lead nuovi (${FAMIGLIA_LEAD_NUOVO.map(nomeDi).join(", ")}) condividono la data di partenza. Accendendo questo, la data è adesso: parte solo per i lead che arrivano da adesso in poi.`,
-          "I lead già entrati prima non ricevono niente.",
+          `I quattro messaggi dei lead nuovi (${FAMIGLIA_LEAD_NUOVO.map(nomeDi).join(", ")}) condividono la data di partenza. Accendendo questo, la data è adesso.`,
+          cosa,
           ...regole,
         ],
         avvisi: [],
       };
+    //  La data spostata a adesso toglie il richiamo a chi è già in sequenza (solo se il richiamo resta acceso).
+    const richiamoAcceso = chiave === "richiamo_24h" || altri.includes("richiamo_24h");
     return {
       ...base,
       paragrafi: [
         "I quattro messaggi dei lead nuovi condividono una sola data di partenza. Accendendo questo, la data di partenza di tutti e quattro diventa adesso.",
-        "Chi è già in sequenza non riceverà il richiamo, e chi è entrato di notte e aspetta le 9 non riceverà il primo contatto. Partono solo i messaggi per i lead che arrivano da adesso in poi.",
+        cosa,
+        ...(richiamoAcceso && chiave !== "richiamo_24h" ? [FRASE_RICHIAMO_PERSO] : []),
         ...regole,
       ],
       avvisi: [
