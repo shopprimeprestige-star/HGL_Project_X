@@ -719,10 +719,9 @@ export function useMediaPonte(
     return () => clearInterval(giro);
   }, [inAttesa, ottimista, richiestoAlle, adesso, leggi]);
 
-  //  Finita la richiesta (pronta, o chiusa con un motivo): niente più stato provvisorio.
+  //  Arrivato il file: niente più stato provvisorio. (Una richiesta chiusa con un motivo la rilegge `richiedi`.)
   useEffect(() => {
-    if (!riga) return;
-    if (riga.stato === "pronta" || (riga.richiesta && riga.richiesta.stato === "non_disponibile")) {
+    if (riga?.stato === "pronta") {
       setRichiestoAlle(null);
       setOttimista(false);
     }
@@ -747,9 +746,17 @@ export function useMediaPonte(
         }));
         return;
       }
-      leggi(true);
+      //  Il server ha messo la richiesta «in attesa»: la riga letta ora lo dice e lo stato provvisorio finisce.
+      leggiRiga(chiave, true).then(
+        (r) => {
+          if (!vivo.current) return;
+          setRiga(r);
+          setOttimista(false);
+        },
+        () => vivo.current && setOttimista(false),
+      );
     },
-    [chiave, leggi],
+    [chiave],
   );
 
   const impostaTimer = useCallback(
@@ -854,7 +861,7 @@ export function useBlobMedia(
     setStato({ fase: "carico" });
     const p = scaricaMedia(id, categoria, {
       chiedi: fetchCRM,
-      scarica: fetch,
+      scarica: (u, i) => fetch(u, i), // senza `this` della finestra, `fetch` darebbe «Illegal invocation»
       segnale: ctrl.signal,
     }).then((e) => {
       incorso.current = null;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ExternalLink, Eye, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -181,37 +181,104 @@ export interface PropsFoglio extends PropsCorpoFoglio {
   onApertoCambia: (aperto: boolean) => void;
 }
 
+/** Dov'è il dito (o il mouse) adesso, per tutta la pagina: serve a capire se il foglio si è aperto sotto un dito ancora giù. */
+let puntatoreGiu = false;
+let tracciaInstallata = false;
+function installaTracciaPuntatore() {
+  if (tracciaInstallata || typeof document === "undefined") return;
+  tracciaInstallata = true;
+  document.addEventListener("pointerdown", () => (puntatoreGiu = true), true);
+  const su = () => {
+    puntatoreGiu = false;
+  };
+  document.addEventListener("pointerup", su, true);
+  document.addEventListener("pointercancel", su, true);
+}
+
 /** Il foglio: dal basso sul telefono, finestra compatta dal computer. */
 export function FoglioMedia({ aperto, onApertoCambia, ...corpo }: PropsFoglio) {
   const telefono = useIsMobile();
+  //  Il foglio si apre mentre il dito è ancora giù (pressione lunga): il rilascio può generare un click
+  //  che cade fuori dal foglio (con il tocco Radix chiude sul click, non sul primo contatto) o sulla voce
+  //  che ci sta sotto il dito. Quel click non vale: ~450 ms dall'apertura e, se il dito era giù
+  //  all'apertura, ~450 ms dal suo rilascio. Un tocco vero dopo non è toccato.
+  const apertoAlle = useRef(0);
+  const giuAllApertura = useRef(false);
+  useEffect(installaTracciaPuntatore, []);
+  if (aperto && apertoAlle.current === 0) {
+    apertoAlle.current = Date.now();
+    giuAllApertura.current = puntatoreGiu;
+  }
+  if (!aperto) apertoAlle.current = 0;
+  const rilasciatoAlle = useRef(0);
+  useEffect(() => {
+    rilasciatoAlle.current = 0;
+    if (!aperto || !giuAllApertura.current) return;
+    //  Il primo rilascio dopo l'apertura è quello del gesto che l'ha aperto.
+    const su = () => {
+      rilasciatoAlle.current = Date.now();
+    };
+    document.addEventListener("pointerup", su, { capture: true, once: true });
+    document.addEventListener("pointercancel", su, { capture: true, once: true });
+    return () => {
+      document.removeEventListener("pointerup", su, true);
+      document.removeEventListener("pointercancel", su, true);
+    };
+  }, [aperto]);
+  /** Troppo presto per fidarsi di un tocco. */
+  const troppoPresto = () => {
+    const ora = Date.now();
+    const dopoApertura = ora - apertoAlle.current;
+    if (dopoApertura < 450) return true;
+    if (!giuAllApertura.current) return false;
+    //  Dito ancora giù (rilascio non visto): niente click vale, ma non per sempre.
+    if (rilasciatoAlle.current === 0) return dopoApertura < 5000;
+    return ora - rilasciatoAlle.current < 450;
+  };
+  const nonSubito = (e: Event) => {
+    if (troppoPresto()) e.preventDefault();
+  };
+  //  Il foglio si apre SOTTO il dito (dal basso): il click del rilascio non deve premere la voce che ci sta sotto.
+  const dentroProtetto = aperto ? (
+    <div
+      onClickCapture={(e) => {
+        if (troppoPresto()) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
+      <CorpoFoglio {...corpo} />
+    </div>
+  ) : null;
   const titolo = NOME_TIPO[corpo.categoria];
   const descrizione = "Cosa fare con questo file";
   // Il corpo si rimonta a ogni apertura: la scelta del timer e la conferma ripartono da zero.
-  const dentro = aperto ? <CorpoFoglio {...corpo} /> : null;
   if (telefono) {
     return (
       <Sheet open={aperto} onOpenChange={onApertoCambia}>
         <SheetContent
           side="bottom"
+          onInteractOutside={nonSubito}
           className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-2 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4"
         >
           <SheetHeader className="px-3 pb-2 text-left">
             <SheetTitle className="text-[16px]">{titolo}</SheetTitle>
             <SheetDescription className="sr-only">{descrizione}</SheetDescription>
           </SheetHeader>
-          {dentro}
+          {dentroProtetto}
         </SheetContent>
       </Sheet>
     );
   }
   return (
     <Dialog open={aperto} onOpenChange={onApertoCambia}>
-      <DialogContent className="max-w-sm gap-3 p-4">
+      <DialogContent className="max-w-sm gap-3 p-4" onInteractOutside={nonSubito}>
         <DialogHeader className="px-3 text-left">
           <DialogTitle className="text-[16px]">{titolo}</DialogTitle>
           <DialogDescription className="sr-only">{descrizione}</DialogDescription>
         </DialogHeader>
-        {dentro}
+        {dentroProtetto}
       </DialogContent>
     </Dialog>
   );
