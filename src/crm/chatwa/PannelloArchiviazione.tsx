@@ -439,21 +439,25 @@ function Elenco({
             className={cn("mt-2 h-1.5", perc >= 90 && "[&>div]:bg-amber-500")}
           />
         )}
-        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5">
-          {(["foto", "audio", "video", "documento"] as const).map((t) => (
-            <div key={t}>
-              <dt className="text-[12px] text-muted-foreground">
-                {t === "audio" ? "Vocali" : t === "documento" ? "Documenti" : NOME_TIPO[t]}
-              </dt>
-              <dd className="text-[13px] tabular-nums text-foreground">
-                {fraseFile(R.perTipo[t].n)} · {formatoPeso(R.perTipo[t].byte)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-3 text-[12px] text-muted-foreground">
-          {num(R.conTimer)} con timer · {num(R.liberati)} già liberati
-        </p>
+        {R.file > 0 && (
+          <>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {(["foto", "audio", "video", "documento"] as const).map((t) => (
+                <div key={t}>
+                  <dt className="text-[12px] text-muted-foreground">
+                    {t === "audio" ? "Vocali" : t === "documento" ? "Documenti" : NOME_TIPO[t]}
+                  </dt>
+                  <dd className="text-[13px] tabular-nums text-foreground">
+                    {fraseFile(R.perTipo[t].n)} · {formatoPeso(R.perTipo[t].byte)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-[12px] text-muted-foreground">
+              {num(R.conTimer)} con timer · {num(R.liberati)} già liberati
+            </p>
+          </>
+        )}
         {R.file > 0 && (
           <Button
             type="button"
@@ -527,7 +531,7 @@ function RigaChatArchivio({
           className="flex min-h-14 min-w-0 flex-1 flex-col items-start justify-center py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="w-full truncate text-[14px] font-medium text-foreground">{nome}</span>
-          <span className="w-full truncate text-[12px] text-muted-foreground">
+          <span className="w-full text-[12px] leading-snug text-muted-foreground">
             {etichettaTipi(chat)}
           </span>
         </button>
