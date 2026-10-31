@@ -21551,11 +21551,8 @@ proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
 proveDellOrdineAcconti();
 proveDeiContatoriABadge();
-<<<<<<< HEAD
 proveAzioniMeet(mod, { c, gruppo, radice });
-=======
 proveDelContatoreChiamate();
->>>>>>> origin/main
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
