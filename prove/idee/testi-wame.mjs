@@ -70,8 +70,8 @@ export function proveTestiWame(mod, { c, gruppo, radice }) {
   forma("promemoria", pm);
   c("promemoria: «Per collegarti:» poi il link", true, pm.includes(`Per collegarti:\n${LINK}\n\n`));
   const pmSenza = WA.componiMessaggio(modello, { nome: "Giulia", consulente: "Mirko", quando: "oggi alle 10:30" });
-  c("promemoria senza link: una riga sola, senza l'introduzione appesa", true, pmSenza.includes("appuntamento di oggi alle 10:30.\n\nIl link per collegarti te lo mando poco prima.\n\n") && !pmSenza.includes("Per collegarti:"));
-  c("promemoria senza link: il senso resta (lo manda poco prima), niente buchi", true, !/\n{3,}/.test(pmSenza));
+  c("promemoria senza link: la frase resta di senso compiuto (lo manda poco prima)", true, pmSenza.includes("Per collegarti:\nti mando il link poco prima.\n\n"));
+  c("promemoria senza link: niente buchi né segnaposti", true, !/\n{3,}|\{/.test(pmSenza));
 
   gruppo("TESTI wa.me · LINK POCO PRIMA (promemoria precompilato nella chat)");
   const R = mod["chatwa/risposte-rapide"];
@@ -88,9 +88,9 @@ export function proveTestiWame(mod, { c, gruppo, radice }) {
   const invSenza = P.componiPerPreventivo("invio", { nome: "Giulia", cognome: "Verdi", consulente: "Mirko", link: "" });
   c("invio preventivo senza link: sparisce anche «Lo trova qui:»", false, /Lo trova qui/.test(invSenza));
   c("invio preventivo senza link: il resto c'è e non ci sono buchi", true, invSenza.includes("abbiamo parlato.\n\nSe lo apre con calma") && !/\n{3,}/.test(invSenza));
-  c("l'introduzione cade solo se il segnaposto è tutta la riga (con una frase intorno, quella prima resta)", "Intro:\nA presto", WA.componiMessaggio("Intro:\nVedi {link}\nA presto", {}));
-  c("un modello con un'introduzione e il link presente la tiene", "Qui:\nhttps://x.it", WA.componiMessaggio("Qui:\n{link}", { link: "https://x.it" }));
-  c("un modello con l'introduzione e il link vuoto la toglie", "Dopo", WA.componiMessaggio("Qui:\n{link}\n\nDopo", {}));
+  //  `componiMessaggio` NON cambia: una riga «…:» seguita da un segnaposto facoltativo vuoto resta com'era.
+  c("componiMessaggio invariata: «Il prossimo passo:» resta con il ripiego", "Il prossimo passo:\na breve ti scrivo", WA.componiMessaggio("Il prossimo passo:\n{quando|a breve ti scrivo}", {}));
+  c("componiMessaggio invariata: introduzione e segnaposto facoltativo vuoto", "Qui:\n\nDopo", WA.componiMessaggio("Qui:\n{link}\n\nDopo", {}));
 
   gruppo("TESTI wa.me · IL PREVENTIVO (tasto del pannello e pagina del preventivo)");
   const dalPannello = T.testoPreventivoWa({ nome: "Giulia", riferimento: "HG-1234", link: LINK });

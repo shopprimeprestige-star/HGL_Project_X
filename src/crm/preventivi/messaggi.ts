@@ -71,8 +71,9 @@ export type ChiaveMessaggio = "invio" | "valuta" | "richiamo" | "acconto" | "sil
  *  ⚠️ La riga del link è tutta e sola sua: `{link}` è FACOLTATIVO, quindi se il
  *   link non si costruisce la riga sparisce invece di arrivare come «Lo trova
  *   qui:» seguito dal nulla. */
+const RIGA_LINK = "Lo trova qui:\n{link}\n\n";
 const TESTO_INVIO =
-  "Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs: Le ho preparato il preventivo di cui abbiamo parlato.\n\nLo trova qui:\n{link}\n\nSe lo apre con calma e mi dice se è tutto chiaro, Le rispondo io direttamente qui.\n\n{firma}";
+  `Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs: Le ho preparato il preventivo di cui abbiamo parlato.\n\n${RIGA_LINK}Se lo apre con calma e mi dice se è tutto chiaro, Le rispondo io direttamente qui.\n\n{firma}`;
 
 export interface SceltaMessaggio {
   chiave: ChiaveMessaggio;
@@ -153,5 +154,8 @@ export function componiPerPreventivo(
     //  aspetta la stanza della videochiamata, non il preventivo.
     link: scelta.conLink ? valori.link : "",
   };
-  return componiMessaggio(scelta.modello(), v);
+  //  Senza link sparisce anche «Lo trova qui:», come quando era «Lo trova qui: {link}» su una
+  //  riga sola: l'introduzione non resta appesa. Solo qui, non in `componiMessaggio`.
+  const modello = scelta.conLink && !v.link ? scelta.modello().replace(RIGA_LINK, "") : scelta.modello();
+  return componiMessaggio(modello, v);
 }
