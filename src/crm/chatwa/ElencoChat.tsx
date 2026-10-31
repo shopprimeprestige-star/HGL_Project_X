@@ -206,13 +206,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  Il numero su «Ricontatti» non conta i nascosti (31/10/2026): sono nel loro gruppo in fondo.
   const conta = (campo: CampoFiltro, valore: string | true) => {
     const n = contaVoce(api.chats, filtri, stelleDi, campo, valore);
-    return campo === "ricontatti"
-      ? n - api.chats.filter(
-          (c) =>
-            eNascosto(c) &&
-            passaFiltri(c, { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io }, stelleDi),
-        ).length
-      : n;
+    if (campo !== "ricontatti") return n;
+    const miei = { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io };
+    return n - api.chats.filter((c) => eNascosto(c) && passaFiltri(c, miei, stelleDi)).length;
   };
 
   // I riquadri obbediscono a ricerca e filtri. «Una chat una volta sola»: sotto.
