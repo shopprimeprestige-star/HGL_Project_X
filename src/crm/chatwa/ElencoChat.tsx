@@ -66,7 +66,6 @@ import type { ChatItem, ElencoChatProps } from "./tipi";
 import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
 import {
   dividiNascosti,
-  eMioRicontatto,
   eNascosto,
   fraseRicontattiVuoti,
   ordinaRicontatti,
@@ -208,7 +207,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const conta = (campo: CampoFiltro, valore: string | true) => {
     const n = contaVoce(api.chats, filtri, stelleDi, campo, valore);
     return campo === "ricontatti"
-      ? n - api.chats.filter((c) => eNascosto(c) && eMioRicontatto(c, filtri.io)).length
+      ? n - api.chats.filter(
+          (c) =>
+            eNascosto(c) &&
+            passaFiltri(c, { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io }, stelleDi),
+        ).length
       : n;
   };
 
@@ -684,11 +687,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 setFiltri(
                   acceso
                     ? { ...FILTRI_VUOTI, consulente: filtri.consulente }
-                    : commuta(
-                        { ...FILTRI_VUOTI, consulente: filtri.consulente },
-                        v.campo,
-                        v.valore,
-                      ),
+                    : commuta({ ...FILTRI_VUOTI, consulente: filtri.consulente }, v.campo, v.valore),
                 )
               }
               className={cn(
