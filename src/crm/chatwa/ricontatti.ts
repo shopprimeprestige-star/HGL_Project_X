@@ -1,15 +1,22 @@
-/** ── «RICONTATTI»: I MIEI LEAD DA RISENTIRE, PER DATA (31/10/2026) ───────────
+/** ── «RICONTATTI»: I MIEI LEAD DA RISENTIRE, DAL PIÙ GIOVANE (31/10/2026) ────
  *  Richiesta del titolare: una scorciatoia fra «Sconosciuti» e «Clienti» con dentro, tutti insieme,
- *  gli attesa acconto, i da contattare, chi sta valutando… ordinati per data di ricontatto: in alto
- *  i più recenti, scendendo i meno recenti. Ognuno vede solo i SUOI, l'admin compreso.
+ *  gli attesa acconto, i da contattare, chi sta valutando… Ognuno vede solo i SUOI, l'admin compreso.
  *
  *  · CHI ENTRA: ogni stato che nel CRM porta una `dataRicontatto` (le voci di QUANDO_PER_STATO che
  *    scrivono lì: Ricontatto fissato, Sta valutando, Attesa acconto, Lead in chat, Meet da fissare,
  *    Richiamo, Per ora no, Ci ricontatta lui, Visita disdetta), più «Da contattare» e «Da
  *    riprogrammare» (`da_spostare`), che la data la portano ma la scrivono altrove. Elenco derivato,
  *    non un secondo da tenere allineato: un nuovo stato con data entra da solo.
- *  · ORDINE: data DECRESCENTE e, nello stesso giorno, ora decrescente (senza ora in fondo al
- *    giorno). Senza data in fondo a tutto. A parità l'ordine di arrivo resta (sort stabile).
+ *  · ORDINE (dal 31/10, richiesta del titolare): SEMPRE dal lead arrivato più di recente al più vecchio.
+ *    «Arrivo» = `data.createdAt`, la data di acquisizione del lead (la stessa che il CRM mostra e che
+ *    conta i «lead di oggi»); se manca, `created_at` della riga. Senza nessuna delle due, in fondo.
+ *    La data di RICONTATTO non ordina più: resta sulla riga e nei filtri Data. A parità l'ordine
+ *    dell'elenco resta (sort stabile).
+ *  · PRIORITÀ: i lead che il titolare fissa con la puntina stanno SOPRA tutti, quanti ne vuole;
+ *    fra loro valgono le stesse regole (arrivo più recente per primo), così non saltano quando se ne
+ *    aggiunge un altro. Campo suo, `ricontattoPrioritaIl` (ISO): NON è la priorità delle installazioni
+ *    (`crm/priorita.ts`, acconti in cima), le due cose non si mescolano. Un lead nascosto non è in
+ *    priorità: nascondere toglie il segno (e «Annulla» lo rimette).
  *  · SOLO I PROPRI: il consulente del lead è quello di chi è dentro (`io`, l'id di chi ha digitato
  *    il PIN: `useConsulenteCollegato`). Nessuna eccezione per l'admin. Senza `io` (titolare entrato
  *    con email e password, senza PIN) non passa nessuno: non si indovina chi sia.
@@ -39,7 +46,10 @@ export interface ChatRicontatto {
       esitoRicontatto?: string | null;
       ricontattoNascostoIl?: string | null;
       ricontattoNascostoPer?: string | null;
+      ricontattoPrioritaIl?: string | null;
+      createdAt?: string | null;
     } | null;
+    created_at?: string | null;
   } | null;
 }
 
@@ -59,11 +69,32 @@ export function chiave(c: ChatRicontatto): string {
   return `${giorno} ${oraNormale(d?.oraRicontatto) ?? ""}`;
 }
 
-/** Dalla data più recente (o futura) alla più vecchia; senza data in fondo. Non muta l'ingresso. */
+/** Quando è arrivato il lead, in millisecondi, o `null` se non si sa: `data.createdAt` (data di
+ *  acquisizione), poi `created_at` della riga. Un testo che non è una data vale «non si sa». */
+export function arrivoMs(c: ChatRicontatto): number | null {
+  for (const v of [c.lead?.data?.createdAt, c.lead?.created_at]) {
+    const t = Date.parse(String(v ?? ""));
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
+}
+
+/** È in priorità? Il segno sulla scheda c'è E il lead non è nascosto (nascosto vince: vedi sotto). */
+export const ePrioritario = (c: ChatRicontatto): boolean =>
+  !!c.lead?.data?.ricontattoPrioritaIl && !eNascosto(c);
+
+/** In cima chi è in priorità; poi dal lead arrivato più di recente al più vecchio, senza arrivo in
+ *  fondo. Non muta l'ingresso. */
 export function ordinaRicontatti<T extends ChatRicontatto>(chats: readonly T[]): T[] {
   return chats
-    .map((c) => ({ c, k: chiave(c) }))
-    .sort((a, b) => (a.k === b.k ? 0 : a.k === "" ? 1 : b.k === "" ? -1 : a.k < b.k ? 1 : -1))
+    .map((c) => ({ c, p: ePrioritario(c), t: arrivoMs(c) }))
+    .sort((a, b) => {
+      if (a.p !== b.p) return a.p ? -1 : 1;
+      if (a.t === b.t) return 0;
+      if (a.t === null) return 1;
+      if (b.t === null) return -1;
+      return b.t - a.t;
+    })
     .map((x) => x.c);
 }
 
@@ -188,16 +219,21 @@ export function eNascosto(c: ChatRicontatto): boolean {
   return !!d?.ricontattoNascostoIl && String(d.ricontattoNascostoPer ?? "") === chiave(c);
 }
 
-/** Cosa scrivere sulla scheda per nasconderlo: i due campi, e basta. */
+/** Cosa scrivere sulla scheda per nasconderlo: i due campi, e toglie la priorità (un nascosto non sta
+ *  in cima). */
 export const patchNascondi = (c: ChatRicontatto, adesso: Date = new Date()) => ({
   ricontattoNascostoIl: adesso.toISOString() as string | undefined,
   ricontattoNascostoPer: chiave(c) as string | undefined,
+  ricontattoPrioritaIl: undefined as string | undefined,
 });
 
-/** Cosa scrivere per rimetterlo: `undefined` sparisce alla serializzazione, la chiave si toglie. */
-export const patchMostra = (): ReturnType<typeof patchNascondi> => ({
-  ricontattoNascostoIl: undefined,
-  ricontattoNascostoPer: undefined,
+/** Cosa scrivere per rimetterlo: `undefined` sparisce alla serializzazione, la chiave si toglie.
+ *  Con `priorita` (l'ISO che aveva prima di essere nascosto, per «Annulla») la rimette anche lei;
+ *  senza, non la nomina: non cancella una priorità messa nel frattempo. */
+export const patchMostra = (priorita?: string | null) => ({
+  ricontattoNascostoIl: undefined as string | undefined,
+  ricontattoNascostoPer: undefined as string | undefined,
+  ...(priorita ? { ricontattoPrioritaIl: priorita } : {}),
 });
 
 /** Separa i nascosti dagli altri, ognuno nel suo ordine. Non muta l'ingresso. */
@@ -207,3 +243,10 @@ export function dividiNascosti<T extends ChatRicontatto>(chats: readonly T[]) {
   for (const c of chats) (eNascosto(c) ? nascosti : visibili).push(c);
   return { visibili, nascosti };
 }
+
+/** ── PRIORITÀ: METTI / TOGLI (31/10/2026) ───────────────────────────────────────────────────────
+ *  La puntina sulla riga. Si salva con `updateLead`, sulla scheda, senza migrazione: vale su tutti i
+ *  dispositivi. `metti = false` toglie la chiave (`undefined` sparisce alla serializzazione). */
+export const patchPriorita = (metti: boolean, adesso: Date = new Date()) => ({
+  ricontattoPrioritaIl: metti ? adesso.toISOString() : (undefined as string | undefined),
+});

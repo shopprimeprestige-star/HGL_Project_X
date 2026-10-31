@@ -115,7 +115,7 @@ export function RigaDataRicontatti({ chats, valore, onCambia }: Props) {
   return (
     <div
       className="flex items-center gap-2 border-b border-border px-3 py-1.5 md:px-2"
-      title="I tuoi lead da risentire, dalla data più recente."
+      title="I tuoi lead da risentire: in cima quelli in priorità, poi dal lead arrivato più di recente."
     >
       <CalendarClock aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span className="sr-only">Data di ricontatto</span>

@@ -14,6 +14,7 @@ import {
   Lock,
   LockOpen,
   Phone,
+  Pin,
   Star,
   Undo2,
   UserPlus,
@@ -136,6 +137,11 @@ interface RigaChatProps {
   onNascondi?: () => void;
   /** La riga sta nel gruppo «Nascosti»: l'icona diventa «Mostra». */
   nascosto?: boolean;
+  /** Dentro «Ricontatti» (31/10/2026): la puntina per fissare il lead in cima (o, se `prioritario`, per
+   *  toglierlo). Stesso tocco da 44 px dell'occhio. Senza, niente puntina (e nei «Nascosti» non c'è). */
+  onPriorita?: () => void;
+  /** Il lead è in priorità: la puntina è piena e colorata e dice «Togli priorità». */
+  prioritario?: boolean;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» sta
@@ -160,6 +166,8 @@ function RigaChatBase({
   risentire = false,
   onNascondi,
   nascosto = false,
+  onPriorita,
+  prioritario = false,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -531,7 +539,7 @@ function RigaChatBase({
           ⚠️ I TOCCHI RESTANO DA 44 PX SENZA ALZARE LA RIGA: stato e stelle sono
            alti ~22 px a vista, e sul telefono un `after:` trasparente allarga
            l'area del tocco sopra e sotto (dal computer non serve). */}
-      {(puoiCambiareStato || onStelle || onNascondi) && (
+      {(puoiCambiareStato || onStelle || onNascondi || onPriorita) && (
         <div
           inert={selezione?.attiva}
           className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 pb-2.5 pl-[68px] pr-3 md:pl-16"
@@ -714,6 +722,32 @@ function RigaChatBase({
               ))}
             </button>
           )}
+          {/*  ── PRIORITÀ (31/10/2026) ── solo in «Ricontatti». Puntina: il lead resta fisso in cima, sopra
+              l'ordine «dal più recente». Spenta è un contorno grigio; accesa, piena e nel colore primario, e
+              il tasto dice «Togli priorità» (aria-pressed, non solo il colore). Tocco 44 px come l'occhio. */}
+          {onPriorita && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPriorita();
+              }}
+              aria-pressed={prioritario}
+              aria-label={
+                prioritario
+                  ? `Togli priorità a ${nome}`
+                  : `Metti in priorità ${nome}, fisso in cima ai ricontatti`
+              }
+              title={prioritario ? "Togli priorità" : "Metti in priorità"}
+              className={cn(
+                "-my-2.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md px-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:pointer-fine:-my-1.5 lg:pointer-fine:h-8",
+                !onStelle && "ml-auto",
+                prioritario ? "text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Pin aria-hidden="true" className={cn("h-4 w-4", prioritario && "fill-current")} />
+            </button>
+          )}
           {/*  ── NASCONDI / MOSTRA (31/10/2026) ── solo in «Ricontatti». Occhio barrato: il lead esce
               dall'elenco e va in «Nascosti» in fondo; nel gruppo l'occhio aperto lo rimette. Visto 24 px, tocco
               44 (margini negativi: la riga non cresce). Fuori dal bottone della riga e senza propagazione. */}
@@ -730,7 +764,7 @@ function RigaChatBase({
               title={nascosto ? "Mostra di nuovo tra i ricontatti" : "Nascondi dai ricontatti"}
               className={cn(
                 "t-nota -my-2.5 -mr-1.5 inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-md px-2 font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:pointer-fine:-my-1.5 lg:pointer-fine:h-8",
-                !onStelle && "ml-auto",
+                !onStelle && !onPriorita && "ml-auto",
                 nascosto ? "min-w-11" : "w-11",
               )}
             >

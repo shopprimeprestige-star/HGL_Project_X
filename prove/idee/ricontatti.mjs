@@ -27,7 +27,12 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
               consulenteId: o.consulente === undefined ? "io" : o.consulente,
               dataRicontatto: o.data,
               oraRicontatto: o.ora,
+              createdAt: o.arrivo,
+              ricontattoPrioritaIl: o.priorita,
+              ricontattoNascostoIl: o.nascostoIl,
+              ricontattoNascostoPer: o.nascostoPer,
             },
+            created_at: o.creata,
           },
       finestra: null,
       daRispondere: { attesa: false },
@@ -81,23 +86,102 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
       /chiaveData === "dataRicontatto"/.test(senzaCommenti(leggi("src/crm/chatwa/ricontatti.ts"))),
   );
 
-  gruppo("RICONTATTI: ORDINE (la data più recente in alto)");
-  const a = chat({ data: "2026-11-02" });
-  const b = chat({ data: "2026-11-10" });
-  const cc = chat({ data: "2026-10-20" });
-  const senza = chat({});
-  const senzaBis = chat({});
-  c("dalla più recente alla più vecchia, senza data in fondo", tel([b, a, cc, senza, senzaBis]), tel(R.ordinaRicontatti([senza, a, cc, senzaBis, b])));
-  const m9 = chat({ data: "2026-11-05", ora: "9:30" });
-  const m15 = chat({ data: "2026-11-05", ora: "15:00" });
-  const mSenzaOra = chat({ data: "2026-11-05" });
-  const dopo = chat({ data: "2026-11-06" });
-  c("nello stesso giorno l'ora più tarda sta sopra, senza ora in fondo al giorno", tel([dopo, m15, m9, mSenzaOra]), tel(R.ordinaRicontatti([mSenzaOra, m9, dopo, m15])));
-  c("una data rotta vale «senza data»", tel([a, chat({ data: "2026-13-45" })].slice(0, 1)), tel(R.ordinaRicontatti([chat({ data: "ieri" }), a]).slice(0, 1)));
-  const ingresso = [a, b];
-  R.ordinaRicontatti(ingresso);
-  c("non muta l'ingresso", tel([a, b]), tel(ingresso));
-  c("a parità resta l'ordine di arrivo", tel([senza, senzaBis]), tel(R.ordinaRicontatti([senza, senzaBis])));
+  gruppo("RICONTATTI: ORDINE (il lead arrivato più di recente in alto)");
+  //  Dal 31/10/2026 (richiesta del titolare) NON si ordina più per data di ricontatto: conta quando è
+  //  arrivato il lead (`data.createdAt`, la «data di acquisizione»; in mancanza `created_at` della riga).
+  const nuovoArr = chat({ arrivo: "2026-10-30T10:00:00.000Z", data: "2026-11-01" });
+  const medioArr = chat({ arrivo: "2026-10-20T10:00:00.000Z", data: "2026-12-30" });
+  const vecchioArr = chat({ arrivo: "2026-09-01T10:00:00.000Z", data: "2026-11-20" });
+  const senzaArr = chat({ data: "2026-12-31" });
+  const senzaArrBis = chat({});
+  c(
+    "dal più giovane al più vecchio, anche se la data di ricontatto dice il contrario",
+    tel([nuovoArr, medioArr, vecchioArr, senzaArr, senzaArrBis]),
+    tel(R.ordinaRicontatti([senzaArr, vecchioArr, senzaArrBis, nuovoArr, medioArr])),
+  );
+  const daRiga = chat({ creata: "2026-10-25T10:00:00.000Z" });
+  c(
+    "senza `createdAt` vale `created_at` della riga",
+    tel([nuovoArr, daRiga, medioArr]),
+    tel(R.ordinaRicontatti([medioArr, daRiga, nuovoArr])),
+  );
+  const ordineIngresso = [vecchioArr, nuovoArr];
+  R.ordinaRicontatti(ordineIngresso);
+  c("non muta l'ingresso", tel([vecchioArr, nuovoArr]), tel(ordineIngresso));
+  c("senza arrivo sta in fondo, anche con la data di ricontatto più lontana", tel([nuovoArr, senzaArr]), tel(R.ordinaRicontatti([senzaArr, nuovoArr])));
+  const rotto = chat({ arrivo: "ieri" });
+  c("un arrivo illeggibile vale «senza data»: in fondo", tel([nuovoArr, rotto]), tel(R.ordinaRicontatti([rotto, nuovoArr])));
+  c("a parità resta l'ordine di arrivo in elenco", tel([senzaArr, senzaArrBis]), tel(R.ordinaRicontatti([senzaArr, senzaArrBis])));
+
+  gruppo("RICONTATTI: PRIORITÀ (restano fissi in alto, quanti ne vuole)");
+  //  Campo SEPARATO da quello delle installazioni (`priorita.ts`, acconti): `ricontattoPrioritaIl`, ISO.
+  const adessoP = new Date("2026-10-31T09:00:00Z");
+  const prioVecchio = chat({ arrivo: "2026-08-01T10:00:00.000Z", priorita: "2026-10-31T08:00:00.000Z" });
+  const prioNuovo = chat({ arrivo: "2026-10-10T10:00:00.000Z", priorita: "2026-10-29T08:00:00.000Z" });
+  const prioSenzaArrivo = chat({ priorita: "2026-10-30T08:00:00.000Z" });
+  c(
+    "i lead in priorità stanno sopra tutti, anche sopra il più recente",
+    tel([prioNuovo, prioVecchio, prioSenzaArrivo, nuovoArr, medioArr]).slice(0, 2),
+    tel(R.ordinaRicontatti([nuovoArr, medioArr, prioVecchio, prioNuovo, prioSenzaArrivo])).slice(0, 2),
+  );
+  c(
+    "fra loro seguono la regola di tutti: il più recente per arrivo, senza arrivo in fondo al gruppo",
+    tel([prioNuovo, prioVecchio, prioSenzaArrivo, nuovoArr, medioArr]),
+    tel(R.ordinaRicontatti([nuovoArr, medioArr, prioVecchio, prioNuovo, prioSenzaArrivo])),
+  );
+  c(
+    "non conta quando sono stati messi in priorità: toccare la puntina non li fa saltare",
+    tel([prioNuovo, prioVecchio]),
+    tel(R.ordinaRicontatti([prioVecchio, prioNuovo])),
+  );
+  c("ePrioritario legge il segno sulla scheda", [true, false, false], [R.ePrioritario(prioNuovo), R.ePrioritario(nuovoArr), R.ePrioritario({ lead: null })]);
+  c("un segno vuoto o rotto non è priorità", [false, false], [R.ePrioritario(chat({ priorita: "" })), R.ePrioritario(chat({ priorita: null }))]);
+  const applicaP = (ch, patch) => ({ ...ch, lead: { ...ch.lead, data: { ...ch.lead.data, ...patch } } });
+  const messo = applicaP(medioArr, R.patchPriorita(true, adessoP));
+  c("patchPriorita(true) scrive solo il segno, con l'ora", [{ ricontattoPrioritaIl: "2026-10-31T09:00:00.000Z" }], [R.patchPriorita(true, adessoP)]);
+  c("dopo averla messa il lead sale in cima", tel([medioArr, nuovoArr]), tel(R.ordinaRicontatti([nuovoArr, messo])));
+  const tolto = applicaP(messo, R.patchPriorita(false));
+  c(
+    "patchPriorita(false) toglie la chiave (undefined sparisce alla serializzazione)",
+    true,
+    "ricontattoPrioritaIl" in R.patchPriorita(false) && R.patchPriorita(false).ricontattoPrioritaIl === undefined && Object.keys(R.patchPriorita(false)).length === 1,
+  );
+  c("e il lead torna al suo posto per arrivo", tel([nuovoArr, medioArr]), tel(R.ordinaRicontatti([tolto, nuovoArr])));
+  c("la priorità non tocca gli altri campi della scheda", [medioArr.lead.data.stato, medioArr.lead.data.dataRicontatto], [messo.lead.data.stato, messo.lead.data.dataRicontatto]);
+  c("quanti ne vuole: tre in priorità, tutti sopra gli altri", 3, R.ordinaRicontatti([nuovoArr, prioVecchio, medioArr, prioNuovo, prioSenzaArrivo]).slice(0, 3).filter(R.ePrioritario).length);
+
+  gruppo("RICONTATTI: PRIORITÀ E NASCONDI (nascondere toglie la priorità)");
+  c("nascondere scrive anche il «togli priorità»", true, ((p) => "ricontattoPrioritaIl" in p && p.ricontattoPrioritaIl === undefined)(R.patchNascondi(prioNuovo, adessoP)));
+  const nascP = applicaP(prioNuovo, R.patchNascondi(prioNuovo, adessoP));
+  c("dopo nascosto non è più in priorità", [true, false], [R.eNascosto(nascP), R.ePrioritario(nascP)]);
+  const nascPrioStale = chat({ arrivo: "2026-01-01T10:00:00.000Z", priorita: "2026-10-30T08:00:00.000Z", nascostoIl: "2026-10-30T09:00:00.000Z", nascostoPer: "" });
+  c("se per un salvataggio vecchio restano tutti e due, il nascosto NON sale in cima", [false, tel([nuovoArr, nascPrioStale])], [R.ePrioritario(nascPrioStale), tel(R.ordinaRicontatti([nascPrioStale, nuovoArr]))]);
+  c("e finisce comunque nel gruppo dei nascosti", [tel([nuovoArr]), tel([nascPrioStale])], ((d) => [tel(d.visibili), tel(d.nascosti)])(R.dividiNascosti(R.ordinaRicontatti([nascPrioStale, nuovoArr]))));
+  c("«Annulla» del nascondi rimette la priorità di prima", "2026-10-29T08:00:00.000Z", R.patchMostra("2026-10-29T08:00:00.000Z").ricontattoPrioritaIl);
+  c("mostra senza priorità di prima non scrive la chiave (non cancella quella messa nel frattempo)", false, "ricontattoPrioritaIl" in R.patchMostra());
+  const rimessa = applicaP(nascP, R.patchMostra("2026-10-29T08:00:00.000Z"));
+  c("rimessa da «Annulla», la riga è di nuovo visibile, in priorità e in cima", [false, true, tel([prioNuovo, nuovoArr])], [R.eNascosto(rimessa), R.ePrioritario(rimessa), tel(R.ordinaRicontatti([nuovoArr, rimessa]))]);
+
+  gruppo("RICONTATTI: PRIORITÀ E LA SCHEDA (LeadDialog salva il modulo intero)");
+  //  Il modulo parte da `{...nuovo(), ...lead.data}` e salva `form` intero con `updateLead`, che fonde su
+  //  `{...riga.data, ...patch}`. Il segno deve attraversare il giro senza sparire, e la scheda non deve
+  //  nominarlo (nessuna riscrittura propria).
+  const schedaDati = prioNuovo.lead.data;
+  const formAperto = { nome: "", cognome: "", ...schedaDati };
+  const inArchivio = { ...schedaDati, nome: "Anna" };
+  const salvato = { ...inArchivio, ...formAperto, nome: "Anna Rossi" };
+  c("aprire e salvare il modulo non cancella la priorità", schedaDati.ricontattoPrioritaIl, salvato.ricontattoPrioritaIl);
+  //  Modulo aperto su un lead SENZA priorità, poi la priorità arriva dalla lista: il salvataggio non la cancella,
+  //  perché `nuovo()` non conosce il campo e il modulo non ha la chiave.
+  const daArchivio = JSON.parse(JSON.stringify(medioArr.lead.data)); // come arriva dal database: niente chiavi undefined
+  const formSenza = { nome: "", cognome: "", ...daArchivio };
+  const archivioDopo = { ...daArchivio, ...R.patchPriorita(true, adessoP) };
+  c("modulo aperto prima della priorità: salvare non cancella quella messa dopo", "2026-10-31T09:00:00.000Z", { ...archivioDopo, ...formSenza, nome: "Anna" }.ricontattoPrioritaIl);
+  c("e nemmeno il nascosto né l'esito (stessa regola)", true, ((x) => x.ricontattoNascostoIl === undefined)(salvato));
+  const dialogo = senzaCommenti(leggi("src/crm/LeadDialog.tsx"));
+  c("LeadDialog non scrive né azzera il campo: lo porta com'è col resto della scheda", false, /ricontattoPrioritaIl/.test(dialogo));
+  c("il campo è dichiarato sulla scheda, separato da quello delle installazioni", true, /ricontattoPrioritaIl\?: string/.test(senzaCommenti(leggi("src/crm/types.ts"))) && !/ricontattoPrioritaIl/.test(senzaCommenti(leggi("src/crm/priorita.ts"))));
+  c("il giro automatico dei messaggi non lo tocca", false, /ricontattoPrioritaIl/.test(leggi("src/crm/manychat/giro.ts")));
 
   gruppo("RICONTATTI: SOLO I PROPRI, ANCHE L'ADMIN");
   const mio = chat({ stato: "in_attesa_acconto", data: "2026-11-03", consulente: "io" });
@@ -206,4 +290,19 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
   c("niente blocco «Acconto, da installare» dentro Ricontatti (compare solo col filtro Acconto, esclusivo)", true, /tutte && filtri\.acconto/.test(elVivo));
   c("frase sincera quando non sei legato a nessun consulente", true, /fraseRicontattiVuoti\(/.test(elVivo));
   c("passaFiltri resta l'unica porta dei filtri (nessuna regola riscritta nell'elenco)", true, /passaFiltri\(c, filtri, stelleDi\)/.test(elVivo) && !/eMioRicontatto|eRicontatto\(/.test(elVivo));
+
+  gruppo("RICONTATTI: PRIORITÀ, IL TASTO E IL COLLEGAMENTO");
+  const rigaV = senzaCommenti(leggi("src/crm/chatwa/RigaChat.tsx"));
+  const tastoP = rigaV.slice(rigaV.indexOf("onPriorita && ("), rigaV.indexOf("onNascondi && ("));
+  c("la riga ha un tasto «priorità» (puntina), solo se la pagina lo chiede", true, /onPriorita\?: \(\) => void/.test(rigaV) && /<Pin\b/.test(tastoP));
+  c("ferma la propagazione, così non apre la chat", true, /e\.stopPropagation\(\)/.test(tastoP));
+  c("tocco da 44 px sul telefono (h-11 w-11, margini negativi: la riga non cresce)", true, /h-11/.test(tastoP) && /w-11/.test(tastoP) && /-my-2\.5/.test(tastoP));
+  c("dice a parole cosa fa e se è accesa (aria-pressed, «Togli priorità»)", true, /aria-pressed=\{/.test(tastoP) && /Togli priorità/.test(tastoP) && /Metti in priorità/.test(tastoP));
+  c("da accesa l'icona è piena e colorata, non solo diversa di forma", true, /fill-current/.test(tastoP) && /text-primary/.test(tastoP));
+  const elencoV = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
+  c("l'elenco passa il tasto solo in Ricontatti, per un lead con scheda e non nascosto", true, /onPriorita=\{\s*filtri\.ricontatti && c\.lead && !nascosto/.test(elencoV));
+  c("scrive con updateLead e patchPriorita (modulo puro), dice l'errore e offre «Annulla»", true, /patchPriorita\(/.test(elencoV) && /Priorità NON/.test(elencoV) && /updateLead\(lead\.id, patchPriorita\(/.test(elencoV) && /Priorità tolta|In priorità/.test(elencoV));
+  c("«Annulla» del nascondi rimette la priorità di prima", true, /patchMostra\(/.test(elencoV) && /patchMostra\(prima/.test(elencoV));
+  c("l'elenco ordina ancora con ordinaRicontatti e non con un secondo ordinamento", true, /ordinaRicontatti\(/.test(elencoV) && !/\.sort\(/.test(elencoV.slice(elencoV.indexOf("ricPrincipali"), elencoV.indexOf("ricPrincipali") + 400)));
+  c("le frasi dicono la nuova regola (non più «dalla data più recente»)", false, /dalla data più recente/.test(elencoV) || /dalla data più recente/.test(senzaCommenti(leggi("src/crm/chatwa/RigheRisentire.tsx"))));
 }

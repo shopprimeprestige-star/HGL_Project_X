@@ -133,7 +133,7 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   const adesso = new Date("2026-10-31T10:00:00Z");
   const nascosto = (ch) => applica(ch, R.patchNascondi(ch, adesso));
   c("di partenza nessuno è nascosto", false, R.eNascosto(a));
-  c("patchNascondi scrive due campi, e quando", ["2026-10-31T10:00:00.000Z", true], ((p) => [p.ricontattoNascostoIl, Object.keys(p).length === 2])(R.patchNascondi(a, adesso)));
+  c("patchNascondi scrive i due campi del nascondi, e quando, più il «togli priorità»", ["2026-10-31T10:00:00.000Z", true], ((p) => [p.ricontattoNascostoIl, Object.keys(p).length === 3 && "ricontattoPrioritaIl" in p])(R.patchNascondi(a, adesso)));
   c("dopo patchNascondi è nascosto", true, R.eNascosto(nascosto(a)));
   c("anche senza data di ricontatto", true, R.eNascosto(nascosto(b)));
   c("patchMostra toglie entrambi i campi (undefined sparisce alla serializzazione)", true, ((p) => "ricontattoNascostoIl" in p && "ricontattoNascostoPer" in p && p.ricontattoNascostoIl === undefined && p.ricontattoNascostoPer === undefined)(R.patchMostra()));
@@ -150,7 +150,7 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   c("dividiNascosti: visibili e nascosti, ognuno nel suo ordine", [tel([a, b]), tel([e, g])], [tel(split.visibili), tel(split.nascosti)]);
   c("dividiNascosti non muta l'ingresso", 4, ((l) => (R.dividiNascosti(l), l.length))([a, nasc, b, nascosto(g)]));
   const sopra = R.ordinaRicontatti(split.visibili);
-  c("l'ordine «dalla data più recente» resta sull'elenco principale", tel([a, b]), tel(sopra));
+  c("l'ordine resta sull'elenco principale (stesso arrivo: quello di ingresso)", tel([a, b]), tel(sopra));
   c("i nascosti restano dentro i filtri della chat (il gruppo «Nascosti» li rispetta)", true, F.passaFiltri(nasc, con({ ricontatti: true, io: "io" }), nessuno));
   c("i nascosti non pesano sui numeri delle pastiglie", [1, 1], ((vis) => [R.contaRisentire(vis, r(), "esito", "piu_avanti"), R.contaRisentire(vis, r(), "data", "senza")])(R.dividiNascosti([a, b, nascosto(d), nasc]).visibili));
   c("il nascondimento vale solo nella vista Ricontatti: passaFiltri di una voce qualunque non lo guarda", true, F.passaFiltri(nasc, con({ tipo: "con-scheda" }), nessuno));
@@ -171,12 +171,12 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   c("la barra non ha una riga Data (sta fuori)", false, /"con"|Con data/.test(barra));
   c("Data: interruttore a segmenti Tutti / Con data / Senza data, col numero", true, /Tutti/.test(dataRiga) && /Con data/.test(dataRiga) && /Senza data/.test(dataRiga) && /aria-pressed=\{/.test(dataRiga) && /contaRisentire\(/.test(dataRiga));
   c("Data: NON è sticky", false, /sticky/.test(dataRiga));
-  c("Data: la frase «dalla data più recente» è nel title, non una riga di testo", true, /title=/.test(dataRiga) && /dalla data più recente/.test(dataRiga));
+  c("Data: la frase sull'ordine («dal lead arrivato più di recente») è nel title, non una riga di testo", true, /title=/.test(dataRiga) && /dal lead arrivato più di recente/.test(dataRiga));
   c("un solo «Azzera» in pagina (quello del riepilogo)", false, /Azzera/.test(righe));
   const sticky = elenco.slice(elenco.indexOf("sticky top-0"), elenco.indexOf("</div>", elenco.indexOf("sticky top-0")));
   c("in ElencoChat la barra sta nel blocco sticky in cima all'elenco, la Data fuori", true, /<BarraEsitoRicontatti/.test(sticky) && !/<RigaDataRicontatti/.test(sticky) && /<RigaDataRicontatti/.test(elenco));
   c("barra e Data compaiono solo in Ricontatti", true, /filtri\.ricontatti && \([\s\S]{0,80}<RigaDataRicontatti|filtri\.ricontatti &&[\s\S]{0,200}<RigaDataRicontatti/.test(elenco) && /filtri\.ricontatti &&[\s\S]{0,80}<BarraEsitoRicontatti/.test(elenco));
-  c("la vecchia frase in riga è sparita", false, /I tuoi lead da risentire, dalla data più recente\.\s*<\/p>/.test(elenco));
+  c("la vecchia frase in riga è sparita", false, /I tuoi lead da risentire, dal(la data| lead arrivato) più (recente|di recente)\.\s*<\/p>/.test(elenco));
   c("la riga mostra «Senza data» con la X", true, /CalendarX/.test(riga) && /Senza data/.test(riga));
   c("e la data col calendario (richiamo) come prima", true, /CalendarClock/.test(riga));
   c("icona «nascondi» (occhio barrato) fuori dal bottone della riga, ferma la propagazione", true, /EyeOff/.test(riga) && /onNascondi/.test(riga) && /e\.stopPropagation\(\)/.test(riga.slice(riga.indexOf("onNascondi()") - 200, riga.indexOf("onNascondi()") + 50)));
