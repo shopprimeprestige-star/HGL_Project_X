@@ -56,6 +56,8 @@ export type MessaggioAttesa = {
   created_at: string;
   canale?: string | null;
   duplicato_di?: string | null;
+  /** Eliminato dal telefono (revoche del ponte): non è mai stato un messaggio nostro valido. */
+  eliminato_il?: string | null;
   from_number?: string | null;
   to_number?: string | null;
   body?: string | null;
@@ -107,6 +109,7 @@ export function righeEco(messaggi: readonly Messaggio[]): Set<Messaggio> {
     (m) =>
       m.direction === "outbound" &&
       !m.duplicato_di &&
+      !m.eliminato_il &&
       testo(m) &&
       Number.isFinite(ms(m.created_at)),
   );
@@ -178,7 +181,7 @@ export function calcolaDaChiamare(p: {
   const piu = (a: number, b: number) => (Number.isFinite(a) ? Math.max(a, b) : b);
   for (const m of p.messaggi) {
     const t = ms(m.created_at);
-    if (!Number.isFinite(t) || m.duplicato_di) continue;
+    if (!Number.isFinite(t) || m.duplicato_di || m.eliminato_il) continue;
     //  Un nostro invio non partito non è una risposta: il cliente non l'ha ricevuto.
     if (m.direction === "outbound" && m.status === "failed") continue;
     if (m.direction === "outbound") ultimoNostro = piu(ultimoNostro, t);

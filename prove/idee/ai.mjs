@@ -511,7 +511,7 @@ export async function proveIdeeAi(mod, { c, gruppo, radice }) {
     /SENZA QUESTA MIGRAZIONE/.test(sql),
   );
   const altre = readdirSync(join(radice, "supabase/migrations"))
-    .filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030"))
+    .filter((n) => n.endsWith(".sql") && n !== FILE && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031"))
     .sort();
   c(
     "migrazione: viene dopo tutte le altre, tranne le sorelle della risposta AI",
