@@ -118,6 +118,7 @@ export async function proveDellInterruttorePrenota(mod, { c, gruppo, radice }) {
       readFileSync(join(radice, "src/crm/PrenotaChatPannello.tsx"), "utf8"),
     );
     const albero = readFileSync(join(radice, "src/routeTree.gen.ts"), "utf8");
+    const imp = readFileSync(join(radice, "src/routes/CRM.impostazioni.tsx"), "utf8");
     c(
       "la rotta è /api/crm/prenota-chat",
       true,

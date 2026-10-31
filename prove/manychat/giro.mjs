@@ -412,6 +412,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
             cloud: async () => {
               throw new Error("il giro non usa mai il Cloud");
             },
+            //  L'interruttore del messaggio (registro): qui sempre acceso. Le prove delle chiavi
+            //  spente stanno in fondo al file e in `messaggi-automatici/giro.mjs`.
+            interruttore: async () => true,
           };
         },
         spegni: async (motivo) => {
