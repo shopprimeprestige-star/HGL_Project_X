@@ -15,7 +15,8 @@ const valore = {
   adSpending: [],
 };
 export const useCRM = () => valore as never;
-export const useAuth = () => ({ user }) as never;
+const accesso = { ruolo: "admin", puo: () => true };
+export const useAuth = () => ({ user, accesso }) as never;
 export const usePuo = () => () => true;
 export const useConsulenteCollegato = () => null;
 export const intestazioniCRM = async () => ({});

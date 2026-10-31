@@ -5,7 +5,12 @@
  *  finestra di 24 ore e STOP (le regole stanno in stato.ts), dal movimento più recente. */
 import { quandoUltimo } from "./ordineWhatsapp";
 import { calcolaDaChiamare, telefonoE164 } from "./daChiamare";
-import { daRispondere as calcolaDaRispondere, finestra24, indiceSchede } from "./stato";
+import {
+  daRispondere as calcolaDaRispondere,
+  finestra24,
+  indiceSchede,
+  ultimoNostroIl,
+} from "./stato";
 import type { Lead } from "@/crm/types";
 import type { ChatItem, WaContactRow, WaMessageRow } from "./tipi";
 
@@ -128,6 +133,7 @@ export function costruisciChat(p: {
         ? { risposto_il: risposto }
         : null;
     const messaggi = perChat.get(item.phone) ?? [];
+    item.ultimoNostroIl = ultimoNostroIl(messaggi);
     const dr = calcolaDaRispondere({ contatto, messaggi, adesso, ultimo: item.lastMessage });
     item.daRispondere = {
       attesa: dr.attesa,
