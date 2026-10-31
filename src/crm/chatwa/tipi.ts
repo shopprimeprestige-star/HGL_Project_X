@@ -49,6 +49,9 @@ export interface WaMessageRow {
   canale?: string | null;
   /** Ponte WhatsApp: id del messaggio del CRM di cui questa riga è doppione (nascosta). */
   duplicato_di?: string | null;
+  /** Revoche del ponte (31/10/2026): quando un NOSTRO messaggio è stato eliminato per tutti dal telefono.
+   *  La chat non lo mostra e non conta più come nostra uscita. Prima della migrazione manca. */
+  eliminato_il?: string | null;
   /** p1-chat-veloce: ora dell'ultima scrittura (insert o update), dal database. Vuota sulle righe vecchie. */
   cambiato_il?: string | null;
 }

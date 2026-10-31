@@ -36,6 +36,7 @@ import { creaInvii } from "./invio.mjs";
 import { creaImmagini } from "./immagini.mjs";
 import { creaFila, spedisci } from "./lotti.mjs";
 import { creaQr } from "./qr.mjs";
+import { creaRevoche } from "./revoche.mjs";
 
 /** Solo le linee LTS: le stesse di `engines` in package.json. */
 export const NODE_AMMESSI = [22, 24];
@@ -297,6 +298,7 @@ async function main() {
   let fermo = false;
   let invii = null;
   let immagini = null;
+  let revoche = null;
   let inVolo = null;
   let sveglia = null;
 
@@ -343,6 +345,7 @@ async function main() {
   /** le righe `diagnosi` e `immagini` si scrivono solo quando cambiano (il log non si gonfia) */
   let ultimaDiagnosi = "";
   let ultimeImmagini = "";
+  let ultimeRevoche = "";
 
   /** Chiede al CRM se un numero della cache è diventato noto e mette la sua
    *  cronologia in fila (storico). Uno alla volta; mai con --senza-invio. */
@@ -376,6 +379,12 @@ async function main() {
       if (firmaImmagini !== ultimeImmagini) registro("immagini", ci);
       ultimeImmagini = firmaImmagini;
     }
+    if (revoche) {
+      const cr = revoche.contatori();
+      const firmaRevoche = JSON.stringify(cr);
+      if (firmaRevoche !== ultimeRevoche) registro("revoche", cr);
+      ultimeRevoche = firmaRevoche;
+    }
     if (senzaInvio) {
       const k = corpo.contatori;
       dici(`[senza invio] messaggi letti ${k.letti}, validi ${k.validi}, chat ${k.chat}, in fila ${corpo.in_coda}, storico ${corpo.storico.avanzamento}% · stato ${corpo.stato}`);
@@ -403,11 +412,16 @@ async function main() {
     registro("immagini_non_avviate");
   }
 
+  //  Le revoche (commessa 2026-10-31): un nostro messaggio eliminato per tutti dal telefono sparisce dal CRM.
+  //  Come le immagini, mai con --senza-invio (non si chiede niente al CRM); la coda sta in memoria.
+  if (!senzaInvio) revoche = creaRevoche({ url, token, registro });
+
   const col = creaCollegamento({
     baileys: { makeWASocket: baileys.makeWASocket ?? baileys.default, useMultiFileAuthState: baileys.useMultiFileAuthState, Browsers: baileys.Browsers },
     percorsi: { auth: P.auth, lid: P.lid },
     fila,
     immagini,
+    revoche,
     qr,
     registro,
     identita,
@@ -446,7 +460,7 @@ async function main() {
     if (sveglia) clearTimeout(sveglia);
     //  `col.ferma()` aspetta (al massimo 6 s) lo scarico del buffer di Baileys: i messaggi
     //  arrivati a ponte spento sono già confermati a WhatsApp e chiudendo prima si perdono.
-    await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma(), immagini?.ferma()]), pausa(10_000)]).catch(() => {});
+    await Promise.race([Promise.all([col.ferma(), inVolo ?? Promise.resolve(), invii.ferma(), immagini?.ferma(), revoche?.ferma()]), pausa(10_000)]).catch(() => {});
     const corpo = corpoBattito(col.istantanea(), fila.contatori(), { invii: invii.contatori(), cache: contiCache() });
     scriviStato();
     if (!senzaInvio) await spedisci({ url, token, corpo, timeoutMs: 5000 });

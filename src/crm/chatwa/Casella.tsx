@@ -6,7 +6,6 @@ import {
   LayoutTemplate,
   Loader2,
   Send,
-  Smartphone,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -25,7 +24,6 @@ import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { ScegliModello } from "./ScegliModello";
-import { ScriviDalPonte } from "./ScriviDalPonte";
 import { modelloConsigliato } from "./modelli-casella";
 import { giornoPerMessaggio } from "@/crm/wa-orari";
 import { giornoParlato } from "@/crm/promemoria/formati";
@@ -86,9 +84,6 @@ export function Casella({ api, linkWa }: CasellaProps) {
   //  un pulsante. Parte sempre chiuso, e si richiude cambiando chat.
   const [modelliAperti, setModelliAperti] = useState(false);
   useEffect(() => setModelliAperti(false), [attiva?.phone]);
-  //  «Scrivi dal telefono» (30/10/2026): il foglio con il campo di testo, solo a finestra chiusa.
-  const [ponteAperto, setPonteAperto] = useState(false);
-  useEffect(() => setPonteAperto(false), [attiva?.phone]);
   const nomeConsulente =
     consultants.find((c) => c.id === attiva?.lead?.data.consulenteId)?.data.nome ?? "";
 
@@ -214,15 +209,14 @@ export function Casella({ api, linkWa }: CasellaProps) {
 
   if (stato === "solo_modelli") {
     const nomeLead = attiva?.lead?.data.nome?.trim() || attiva?.contact?.display_name?.trim() || "";
-    //  «Scrivi dal telefono»: il tasto c'è solo se la regola (usaInvioPonte) lo consente.
-    const ponteOk = api.ponte?.puo.ok === true;
-    const restanti = api.ponte?.restanti ?? null;
+    //  «Scrivi dal telefono» tolto il 31/10/2026 (richiesta del titolare): a finestra chiusa
+    //  restano solo «Invia un modello» e «Apri in WhatsApp».
     const tastoModello = (
       <Button
         type="button"
         variant="outline"
         onClick={() => setModelliAperti(true)}
-        className={cn("min-h-11 shrink-0 gap-1.5 text-[13px]", ponteOk && "flex-1 md:flex-none")}
+        className="min-h-11 shrink-0 gap-1.5 text-[13px]"
       >
         <LayoutTemplate className="h-4 w-4" />
         Invia un modello
@@ -230,17 +224,8 @@ export function Casella({ api, linkWa }: CasellaProps) {
     );
     return (
       <div className={quadro}>
-        {/* Barra compatta: la chat sopra resta tutta leggibile. I tasti sono da 44 px.
-            Con «Scrivi dal telefono» disponibile (ponte collegato, il cliente ha già scritto,
-            niente STOP) i tasti vanno su una riga a parte sul telefono: il modello prima,
-            il telefono accanto. Altrimenti la barra è quella di sempre. */}
-        <div
-          className={
-            ponteOk
-              ? "flex flex-col gap-2 px-3 py-2 md:flex-row md:items-center"
-              : "flex items-center gap-2 px-3 py-2"
-          }
-        >
+        {/* Barra compatta: la chat sopra resta tutta leggibile. I tasti sono da 44 px. */}
+        <div className="flex items-center gap-2 px-3 py-2">
           <p
             role="status"
             className="flex min-w-0 flex-1 items-center gap-2 text-[12px] leading-snug text-amber-800"
@@ -248,23 +233,7 @@ export function Casella({ api, linkWa }: CasellaProps) {
             <Clock className="h-3.5 w-3.5 shrink-0" />
             Finestra chiusa · solo modelli approvati
           </p>
-          {ponteOk ? (
-            <div className="flex gap-2 md:shrink-0">
-              {tastoModello}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setPonteAperto(true)}
-                aria-haspopup="dialog"
-                className="min-h-11 flex-1 gap-1.5 text-[13px] md:flex-none"
-              >
-                <Smartphone className="h-4 w-4" aria-hidden />
-                Scrivi dal telefono
-              </Button>
-            </div>
-          ) : (
-            tastoModello
-          )}
+          {tastoModello}
         </div>
         {/*  ── WHATSAPP NATIVO SEMPRE (30/10/2026) ───────────────────────────
             A casella bloccata il modo gratuito per scrivere a mano è l'app WhatsApp
@@ -286,11 +255,6 @@ export function Casella({ api, linkWa }: CasellaProps) {
               </a>
             </Button>
           </div>
-        )}
-        {ponteOk && restanti !== null && restanti <= 5 && (
-          <p className="px-3 pb-2 text-[11.5px] text-muted-foreground">
-            {`Dal telefono puoi mandare ancora ${restanti} ${restanti === 1 ? "messaggio" : "messaggi"} nelle prossime 24 ore.`}
-          </p>
         )}
         {bozza.trim() && (
           <p className="px-3 pb-2 text-[11.5px] text-muted-foreground">
@@ -337,15 +301,6 @@ export function Casella({ api, linkWa }: CasellaProps) {
             />
           </SheetContent>
         </Sheet>
-        {/* La chiave è il numero: cambiando chat il foglio riparte da un campo vuoto. */}
-        {api.ponte && (
-          <ScriviDalPonte
-            key={attiva?.phone ?? ""}
-            api={api.ponte}
-            aperto={ponteAperto}
-            onAperto={setPonteAperto}
-          />
-        )}
       </div>
     );
   }

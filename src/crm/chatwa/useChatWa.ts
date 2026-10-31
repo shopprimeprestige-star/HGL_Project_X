@@ -115,7 +115,7 @@ const filtroNumero = (phone: string) => {
  *  grosso, sul telefono). Se una manca (migrazioni non applicate) si ripiega su `*`. */
 const COLONNE_MSG =
   "id,user_id,lead_id,direction,from_number,to_number,body,status,wa_message_id," +
-  "error_message,created_at,delivered_at,read_at,canale,duplicato_di,cambiato_il";
+  "error_message,created_at,delivered_at,read_at,canale,duplicato_di,cambiato_il,eliminato_il";
 
 /** ── LE LETTURE A PEZZI (p1-chat-veloce, 30/10/2026) ──────────────────────
  *  Prima ogni evento rileggeva 2000 messaggi e tutti i contatti. Ora:
@@ -136,10 +136,11 @@ const PEZZO_CONTATTI = 1000;
 const RAGGRUPPA_EVENTI_MS = 250;
 const PESO: Record<Modo, number> = { pezzi: 0, completa: 1, tutto: 2 };
 
-/** Il messaggio più nuovo/i più recenti dell'utente, senza i doppioni del ponte (`duplicato_di` vuoto). */
+/** Il messaggio più nuovo/i più recenti dell'utente, senza i doppioni del ponte (`duplicato_di` vuoto)
+ *  e senza i messaggi nostri eliminati dal telefono (`eliminato_il` vuoto, revoche del 31/10/2026). */
 const messaggiRecenti = (userId: string, colonne: string, n: number) => (filtra: boolean) => {
   const q = tabella("whatsapp_messages").select(colonne).eq("user_id", userId);
-  return (filtra ? q.is("duplicato_di", null) : q)
+  return (filtra ? q.is("duplicato_di", null).is("eliminato_il", null) : q)
     .order("created_at", { ascending: false })
     .limit(n);
 };
@@ -305,7 +306,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     };
     const leggiMessaggi = async () => {
       if (tuttiMsg) return recenti();
-      //  Senza filtro sui doppioni: un doppione marcato DOPO deve arrivare, per toglierlo.
+      //  Senza filtro sui doppioni né sugli eliminati: uno marcato DOPO deve arrivare, per toglierlo.
       const r = await tabella("whatsapp_messages")
         .select(COLONNE_MSG)
         .eq("user_id", user.id)
@@ -397,8 +398,8 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     setAggiornatoIl(Date.now());
     setMessages(msgs);
     setContacts(cts);
-    //  Un doppione marcato dopo esce anche dalla chat aperta (letta a parte).
-    const doppi = new Set(righeM.filter((x) => x.duplicato_di).map((x) => x.id));
+    //  Un doppione marcato dopo, o un messaggio eliminato dal telefono, esce anche dalla chat aperta (letta a parte).
+    const doppi = new Set(righeM.filter((x) => x.duplicato_di || x.eliminato_il).map((x) => x.id));
     if (doppi.size > 0)
       setExtra((e) => (e ? { ...e, righe: e.righe.filter((x) => !doppi.has(x.id)) } : e));
     //  Se il cliente ha riscritto, il «solo modelli» forzato non vale più.
@@ -699,7 +700,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
           .select(filtra ? COLONNE_MSG : "*")
           .eq("user_id", user.id)
           .or(filtroNumero(activePhone));
-        return (filtra ? q.is("duplicato_di", null) : q)
+        return (filtra ? q.is("duplicato_di", null).is("eliminato_il", null) : q)
           .order("created_at", { ascending: false })
           .limit(500);
       });

@@ -160,7 +160,7 @@ export async function provePonteInvioMigrazione(mod, { c, gruppo, radice }) {
     ],
   );
   c("«come si annulla» elenca le tre DROP FUNCTION, solo nei commenti", [3, 0], [(grezzo.match(/--\s+DROP FUNCTION public\.ponte_wa_/g) || []).length, (sql.match(/DROP FUNCTION/g) || []).length]);
-  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.startsWith("20261030")).sort(); // le altre del 30/10 (pacchetti della commessa) hanno il loro ordine
+  const altre = readdirSync(cartella).filter((n) => n.endsWith(".sql") && n !== FILE && !n.startsWith("20261030") && !n.startsWith("20261031")).sort(); // le altre del 30/10 (pacchetti della commessa) hanno il loro ordine
   c("il nome viene dopo l'ultima migrazione esistente", true, FILE > altre.at(-1));
   c("…e dopo quella del ponte", true, FILE > "20261029120000_ponte_whatsapp.sql");
 
