@@ -261,7 +261,7 @@ export function FoglioMedia({ aperto, onApertoCambia, ...corpo }: PropsFoglio) {
         <SheetContent
           side="bottom"
           onInteractOutside={nonSubito}
-          className="max-h-[85dvh] overflow-y-auto rounded-t-2xl px-2 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4"
+          className="max-h-[85dvh] overflow-y-auto text-foreground rounded-t-2xl px-2 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4"
         >
           <SheetHeader className="px-3 pb-2 text-left">
             <SheetTitle className="text-[16px]">{titolo}</SheetTitle>
@@ -274,7 +274,7 @@ export function FoglioMedia({ aperto, onApertoCambia, ...corpo }: PropsFoglio) {
   }
   return (
     <Dialog open={aperto} onOpenChange={onApertoCambia}>
-      <DialogContent className="max-w-sm gap-3 p-4" onInteractOutside={nonSubito}>
+      <DialogContent className="max-w-sm gap-3 p-4 text-foreground" onInteractOutside={nonSubito}>
         <DialogHeader className="px-3 text-left">
           <DialogTitle className="text-[16px]">{titolo}</DialogTitle>
           <DialogDescription className="sr-only">{descrizione}</DialogDescription>
