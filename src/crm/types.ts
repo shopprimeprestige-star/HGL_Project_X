@@ -2147,6 +2147,9 @@ export interface ConsultantData {
   // Stato approvazione (default approved per consulenti creati da admin)
   approvalStatus?: ConsultantStatus;
   applicationId?: string; // se viene da una richiesta pubblica
+  // Invito al meet dalla barra delle chat: col link di Meetly (di serie) o senza link,
+  // che poi manda lui a mano (chatwa/invito-meet.ts)
+  invitoMeet?: "meetly" | "senza";
 }
 
 export interface Consultant {

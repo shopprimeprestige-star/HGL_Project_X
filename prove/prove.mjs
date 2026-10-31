@@ -55,6 +55,7 @@ import {
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
+import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
@@ -689,6 +690,9 @@ const MODULI = [
   //   prove in prove/idee/oggi-del-consulente.mjs.
   "consulente-dentro",
   "periodo-da-fare",
+  //  L'invito al meet dal tasto della barra (commessa 2026-10-31-invito-meet):
+  //   prove in prove/idee/invito-meet.mjs.
+  "chatwa/invito-meet",
   //  La vista «Tutte» nell'ordine di WhatsApp (commessa 2026-10-30-wa-ordine-come-whatsapp):
   //   prove in prove/idee/ordine-whatsapp.mjs.
   "chatwa/ordineWhatsapp",
@@ -21390,6 +21394,15 @@ function proveDeiPermessiInstallazioneChat() {
   c("Anticipa sulla riga solo con «installazioni»", true, /puoInstallazioni && c\.lead && puoAnticipare/.test(r));
 }
 
+/** ── BLOCCO ACCONTI: PRIMA SENZA GIORNO, SOTTO CON GIORNO (31/10/2026) ───── */
+function proveDellOrdineAcconti() {
+  gruppo("ACCONTI IN CIMA: PRIMA SENZA GIORNO, POI CON GIORNO");
+  const A = mod["chatwa/accontiInCima"];
+  const l = (id, inc, posa) => ({ lead: { id, data: { nome: id, cognome: "Prova", stato: "posa_in_sede", payment: { accontoPagato: 100, incassi: [{ id: "i" + id, data: inc, importo: 100 }] }, ...(posa ? { installazione: { dataInstallazione: posa } } : {}) } } });
+  const ordine = A.chatDaInstallare([l("conGiornoTardi", "2026-10-01", "2026-11-20"), l("senzaRecente", "2026-10-20"), l("conGiornoVicino", "2026-10-25", "2026-11-05"), l("senzaVecchio", "2026-09-01")]).map((c) => c.lead.id);
+  c("prima senza giorno (acconto più vecchio), poi con giorno (dal più vicino)", ["senzaVecchio", "senzaRecente", "conGiornoVicino", "conGiornoTardi"], ordine);
+}
+
 proveDeiTipi();
 proveDelFoglioInstallazioni();
 proveDelCodiceFiscale();
@@ -21526,6 +21539,7 @@ proveClienti(mod, { c, gruppo, radice });
 await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveOggiDelConsulente(mod, { c, gruppo, radice });
+proveInvitoMeet(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
@@ -21533,6 +21547,8 @@ await proveEcoManychatEntrata(mod, { c, gruppo, radice });
 proveChatVeloce(mod, { c, gruppo });
 proveDelPerOraNoSenzaData();
 proveDeiPermessiInstallazioneChat();
+proveDellOrdineAcconti();
+proveDeiContatoriABadge();
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -22524,4 +22540,12 @@ function proveDelPerOraNoSenzaData() {
   const d = readFileSync(join(radice, "src/crm/QuickStatusDialog.tsx"), "utf8");
   c("la finestra offre «Senza data» solo se la data è facoltativa", true, /richiesta\?\.dataFacoltativa && \(/.test(d) && />\s*Senza data\s*</.test(d));
   c("senza data: lo stato si salva e il giorno del ricontatto si svuota", true, /const senzaData = async/.test(d) && /patch\[richiesta\.chiaveData as "dataRicontatto"\] = ""/.test(d));
+}
+
+function proveDeiContatoriABadge() {
+  gruppo("CHAT: I NUMERI DELLE LINGUETTE SONO BADGE (31/10/2026)");
+  const e = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
+  c("il contatore è un tondino con la scala t-etichetta", true, /const contatore = [\s\S]*?rounded-full[\s\S]*?t-etichetta/.test(e));
+  c("stato della chiamata e «quando richiamare» usano il contatore", 2, (e.match(/className=\{contatore\(/g) || []).length);
+  c("niente più numero attaccato al testo", false, /\{x\.l\} <span className="tabular-nums">/.test(e));
 }
