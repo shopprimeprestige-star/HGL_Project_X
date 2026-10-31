@@ -4,7 +4,7 @@ import { oggiIso } from "../../src/crm/ui";
 const come = new URLSearchParams(location.search).get("come") ?? "consulente";
 const oggi = oggiIso(new Date());
 const consultants = [
-  { id: "m", data: { nome: "Mirko", faConsulente: true } },
+  { id: "m", data: { nome: "Mirko", faConsulente: true, ...(new URLSearchParams(location.search).get("senza") ? { invitoMeet: "senza" } : {}) } },
   { id: "f", data: { nome: "Filippo", faConsulente: true } },
   { id: "s", data: { nome: "Sara", faConsulente: true } },
 ];
