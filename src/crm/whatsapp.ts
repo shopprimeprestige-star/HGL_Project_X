@@ -599,7 +599,7 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
   //  "Partner" e non "moglie/compagno": chi decide insieme a qualcuno lo sa da
   //  sé, e "partner" non sbaglia mai destinatario.
   promemoria:
-    "Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — ti ricordo il nostro appuntamento di {quando|oggi}.\n\nLink: {link|te lo mando poco prima}\n\nSe puoi, collegati da un posto tranquillo e con una buona connessione. Se possibile, anche insieme al tuo partner.\n\nMi confermi che ci sei?",
+    "Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — ti ricordo il nostro appuntamento di {quando|oggi}.\n\nPer collegarti:\n{link|te lo mando poco prima}\n\nSe puoi, collegati da un posto tranquillo e con una buona connessione. Se possibile, anche insieme al tuo partner.\n\nMi confermi che ci sei?",
 
   /*  ── ⚠️ IL PROMEMORIA DI CHI VIENE DA NOI ───────────────────────────────
       Niente link e niente «collegati»: questa persona prende la macchina.

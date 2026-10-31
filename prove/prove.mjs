@@ -59,6 +59,7 @@ import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
+import { proveTestiWame } from "./idee/testi-wame.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
@@ -749,6 +750,9 @@ const MODULI = [
   //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
   //   prove in prove/idee/riga-attesa-wame.mjs.
   "chatwa/attesaPosa",
+  //  I testi precompilati nei link wa.me, formattati (31/10/2026): prove in prove/idee/testi-wame.mjs.
+  "chatwa/testoWa",
+  "preventivi/messaggi",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21555,6 +21559,7 @@ await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveInvitoMeet(mod, { c, gruppo, radice });
+proveTestiWame(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });

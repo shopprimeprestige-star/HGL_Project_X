@@ -52,6 +52,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { formatPrice } from "@/shop/catalog";
+import { testoPreventivoWa } from "@/crm/chatwa/testoWa";
 import {
   BASE_SOLUTIONS,
   FITTING_OPTIONS,
@@ -4373,7 +4374,7 @@ function QuoteBuilder() {
      *  Vuoto se questo vale ancora — così chi lo usa non deve ricordarsi di
      *  controllare `annullatoDa` una seconda volta. */
     const linkValido = annullatoDa ? `${origin}/preventivo?id=${annullatoDa}` : "";
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(`Preventivo Hair Genius Labs ${r.ref} — ${formatPrice(r.total)}. Aprilo qui: ${shareLink}`)}`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(testoPreventivoWa({ riferimento: r.ref, totale: formatPrice(r.total), link: shareLink }))}`;
 
     const askEdit = async () => {
       const pwd = window.prompt("Inserisci la password per modificare il preventivo:");

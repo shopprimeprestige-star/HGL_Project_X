@@ -183,7 +183,7 @@ export const RISPOSTE_PREDEFINITE: readonly RispostaRapida[] = [
     id: "link_fra_poco",
     titolo: "Link poco prima (30 min)",
     testo:
-      "{nome}, fra poco, alle {ora}, c'è la sua consulenza online.\n\nIl link è questo: {link}\n\nSe può, si colleghi da un posto tranquillo: {consulente|il consulente} la aspetta.",
+      "{nome}, fra poco, alle {ora}, c'è la sua consulenza online.\n\nPer collegarsi:\n{link}\n\nSe può, si colleghi da un posto tranquillo: {consulente|il consulente} la aspetta.",
     temi: ["collegamento"],
     stati: APPUNTAMENTO,
   },

@@ -72,7 +72,7 @@ export type ChiaveMessaggio = "invio" | "valuta" | "richiamo" | "acconto" | "sil
  *   link non si costruisce la riga sparisce invece di arrivare come «Lo trova
  *   qui:» seguito dal nulla. */
 const TESTO_INVIO =
-  "Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs: Le ho preparato il preventivo di cui abbiamo parlato.\n\nLo trova qui: {link}\n\nSe lo apre con calma e mi dice se è tutto chiaro, Le rispondo io direttamente qui.\n\n{firma}";
+  "Buongiorno {nome}, sono {consulente|un consulente} di Hair Genius Labs: Le ho preparato il preventivo di cui abbiamo parlato.\n\nLo trova qui:\n{link}\n\nSe lo apre con calma e mi dice se è tutto chiaro, Le rispondo io direttamente qui.\n\n{firma}";
 
 export interface SceltaMessaggio {
   chiave: ChiaveMessaggio;

@@ -29,10 +29,10 @@ export function proveInvitoMeet(mod, { c, gruppo, radice }) {
   c("col link, telefono e consulente: pronto", true, p.ok);
   c(
     "il testo è l'invito col tu, l'ora, il consulente e il link",
-    `Ciao Giulia, la tua consulenza con Hair Genius Labs è alle 10:30: Mirko ti aspetta. Entra da qui: ${LINK}`,
+    `Ciao Giulia!\n\nLa tua consulenza con Hair Genius Labs è alle 10:30: Mirko ti aspetta.\n\nPer collegarti:\n${LINK}\n\nA presto!`,
     p.invito?.testo,
   );
-  c("senza consulente: «ti aspettiamo»", true, /10:30: ti aspettiamo\. Entra da qui/.test(I.preparaInvito(chat(), "10:30", null).invito.testo));
+  c("senza consulente: «ti aspettiamo»", true, /10:30: ti aspettiamo\.\n\nPer collegarti:/.test(I.preparaInvito(chat(), "10:30", null).invito.testo));
   c("manca il link: spento col motivo", "Manca il link del meet", I.preparaInvito(chat({ link: "chiamo io" }), "10:30", "Mirko").motivo);
   c("manca il telefono: spento col motivo", "Manca il telefono", I.preparaInvito(chat({ phone: "" }), "10:30", "Mirko").motivo);
   c("telefono troppo corto: come mancante", false, I.preparaInvito(chat({ phone: "+39 12" }), "10:30", "Mirko").ok);
@@ -107,19 +107,19 @@ export function proveInvitoMeet(mod, { c, gruppo, radice }) {
   c("senza link: pronto", true, sen.ok);
   c(
     "senza link: il testo promette il link e non lo contiene",
-    "Ciao Giulia, la tua consulenza con Hair Genius Labs è alle 10:30: Mirko ti aspetta. Tra poco ti mando qui il link per entrare.",
+    "Ciao Giulia!\n\nLa tua consulenza con Hair Genius Labs è alle 10:30: Mirko ti aspetta.\n\nTra poco ti mando qui il link per entrare.\n\nA presto!",
     sen.invito?.testo,
   );
   c("senza link: nel testo non c'è nessun indirizzo", false, /https?:|www\./.test(sen.invito.testo));
   c("senza link: lo dice (per il promemoria)", true, sen.invito.senzaLink);
   c("col link: non è un invito senza link", false, col.invito.senzaLink);
-  c("senza consulente: «ti aspettiamo»", true, /10:30: ti aspettiamo\. Tra poco/.test(I.preparaInvito(chat(), "10:30", null, "senza").invito.testo));
+  c("senza consulente: «ti aspettiamo»", true, /10:30: ti aspettiamo\.\n\nTra poco/.test(I.preparaInvito(chat(), "10:30", null, "senza").invito.testo));
   c("senza link NON serve il link: manca il link, il tasto resta acceso", true, I.preparaInvito(chat({ link: "chiamo io" }), "10:30", "Mirko", "senza").ok);
   c("col link, senza link nel lead: resta spento col motivo", "Manca il link del meet", I.preparaInvito(chat({ link: "chiamo io" }), "10:30", "Mirko", "meetly").motivo);
   c("senza link ma senza telefono: spento", "Manca il telefono", I.preparaInvito(chat({ phone: "" }), "10:30", "Mirko", "senza").motivo);
   c("senza link ma STOP: spento", false, I.preparaInvito(chat({ stop: true }), "10:30", "Mirko", "senza").ok);
   const senzaNome = I.preparaInvito({ ...chat(), lead: { id: "l1", data: {} } }, "10:30", "Mirko", "senza");
-  c("senza link e senza nome del cliente: «Ciao,»", true, senzaNome.invito.testo.startsWith("Ciao, la tua consulenza"));
+  c("senza link e senza nome del cliente: «Ciao!»", true, senzaNome.invito.testo.startsWith("Ciao!\n\nLa tua consulenza"));
   //  «Già inviato oggi» riconosce anche l'invito senza link, dal suo segno, non dal link.
   const nostroSenza = { direction: "outbound", body: sen.invito.testo, created_at: "2026-10-31T09:40:00Z" };
   c("senza link: l'ultimo messaggio nostro di oggi con la frase del link in arrivo: già inviato", "09:40", I.invitoDiOggi(chat({ lastMessage: nostroSenza }), vuoto, OGGI, sen.invito.segno, ora, giorno)?.alle);
