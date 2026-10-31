@@ -642,6 +642,8 @@ let localStream: MediaStream | null = null;
  *  nessun dispositivo, richiesta appesa): si negozia lo stesso, in sola ricezione.
  *  Vedi shop/senza-media. */
 let mediaFallita = false;
+/** Cresce a ogni `teardownMedia`: una `openMedia` nata prima non tocca più `mediaFallita`. */
+let generazioneMedia = 0;
 /** Connessioni nate senza le mie tracce: ricevono, e appena i media arrivano si
  *  promuovono in loco (`promuoviPeerSenzaMedia`). */
 const peerSenzaMedia = new Set<string>();
@@ -2374,13 +2376,22 @@ async function openMedia(): Promise<MediaStream> {
   //  Una richiesta che non risponde mai (iPhone, permesso ignorato) non può tenere
   //  isolato chi la sta aspettando: dopo l'attesa ci si collega in sola ricezione.
   //  Se poi la richiesta riesce, le tracce si agganciano in loco (vedi sotto).
-  const attesa = setTimeout(() => apriSenzaMedia("richiesta appesa"), SENZA_MEDIA_DOPO_MS);
+  //  ⚠️ `generazione`: se nel frattempo si è chiusa la chiamata (`teardownMedia`),
+  //   né il timer né l'errore tardivo devono aprire la sola ricezione fuori chiamata.
+  const generazione = generazioneMedia;
+  const senzaMedia = (motivo: string) => {
+    if (generazione === generazioneMedia) apriSenzaMedia(motivo);
+  };
+  const attesa = setTimeout(() => senzaMedia("richiesta appesa"), SENZA_MEDIA_DOPO_MS);
   let s: MediaStream;
   try {
     s = await apriMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
       audio: S.role === "host" ? micAudioConstraints(false) : true,
     });
+  } catch (e) {
+    senzaMedia("media non disponibili"); // permesso negato, nessun dispositivo, getUserMedia assente
+    throw e;
   } finally {
     clearTimeout(attesa);
   }
@@ -3309,6 +3320,7 @@ async function sampleUsage() {
   //   onda il microfono appena staccato. Vedi `micVuole`.
   if (mine && S.micOn && !micMutoVoluto()) {
     for (const [pid, pc] of peers) {
+      if (peerSenzaMedia.has(pid)) continue; // nata in sola ricezione: la promuove promuoviPeerSenzaMedia
       const snd = pc.getSenders().find((x) => x.track?.kind === "audio");
       if (!snd) continue; // gestito da attachLocalMediaToPeers
       if (!snd.track || snd.track.readyState !== "live" || snd.track !== mine) {
@@ -6034,6 +6046,7 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
   localStream?.getTracks().forEach((t) => t.stop());
   localStream = null;
   mediaFallita = false;
+  generazioneMedia++;
   emitStreams();
   if (!keepJoined && S.joined) console.log("[GUEST] joined → false (teardown)");
   if (!keepJoined) {
@@ -6463,7 +6476,6 @@ export async function resumeCallSilently(presenterName: string) {
   } catch (e) {
     console.warn("[CALL] ripresa senza camera/microfono", e);
     set({ diag: "Camera o microfono non disponibili: sei in sola visione." });
-    apriSenzaMedia("media non disponibili");
   }
 }
 
@@ -6535,7 +6547,6 @@ export async function confirmStart(presenterName: string) {
     //  tutto indietro e sembrava che il pulsante non funzionasse.
     console.warn("[CALL] camera/microfono non disponibili: proseguo in sola visione", e);
     set({ diag: "Camera o microfono non disponibili: sei in sola visione." });
-    apriSenzaMedia("media non disponibili");
   }
   //  La risposta alla finestra di scelta, partita in cima: accessoria, mai
   //  bloccante — se l'ha annullata si registrano comunque le camere.
@@ -6909,7 +6920,6 @@ async function guestEnterApproved() {
   } catch (e) {
     console.warn("[GUEST] media NON disponibili: resto in sola visione", e);
     set({ diag: "Camera/microfono non disponibili: sei in sola visione." });
-    apriSenzaMedia("media non disponibili");
   }
 }
 /** Apre camera/mic per un ospite già entrato (col solo nome) quando la chiamata parte. */
@@ -6927,7 +6937,6 @@ async function viewerEnsureMedia() {
     console.log("[GUEST] media aperti all'avvio chiamata");
   } catch (e) {
     console.warn("[GUEST] media non disponibili", e);
-    apriSenzaMedia("media non disponibili");
   }
 }
 
@@ -7831,9 +7840,12 @@ function apriSenzaMedia(motivo: string) {
 }
 
 /** Le mie tracce sono arrivate dopo che la connessione è nata in sola ricezione:
- *  `addTrack` riusa i transceiver «recvonly» e si rinegozia sulla STESSA connessione
+ *  si decide PER TRANSCEIVER (non per `sender.track`, che può essere già pieno per
+ *  altre strade): quello «recvonly» del tipo giusto diventa `sendrecv` e prende la
+ *  traccia; se non c'è, `addTrack`. Poi si rinegozia sulla STESSA connessione
  *  (l'offerta passa la guardia «già connesso» perché dichiara `restart`). Se l'altro
- *  sta offrendo nello stesso istante si riprova fra un secondo. */
+ *  sta offrendo nello stesso istante si riprova fra un secondo; se l'offerta resta
+ *  senza risposta si rimanda (come fa `maybeInitiate`), al massimo due volte. */
 function promuoviPeerSenzaMedia(tentativo = 0) {
   const ls = localStream;
   if (!ls || !peerSenzaMedia.size) return;
@@ -7847,23 +7859,34 @@ function promuoviPeerSenzaMedia(tentativo = 0) {
       if (tentativo < 5) setTimeout(() => promuoviPeerSenzaMedia(tentativo + 1), 1000);
       continue;
     }
-    let aggiunte = 0;
-    for (const t of ls.getTracks()) {
-      if (pc.getSenders().some((x) => x.track?.kind === t.kind)) continue;
-      pc.addTrack(t, ls);
-      aggiunte++;
-    }
     if (ls.getVideoTracks().length && ls.getAudioTracks().length) peerSenzaMedia.delete(pid);
-    if (!aggiunte) continue;
-    try {
-      tuneVideoSenders();
-    } catch {
-      /* */
-    }
     void (async () => {
       try {
+        let aggiunte = 0;
+        for (const t of ls.getTracks()) {
+          const tr = pc
+            .getTransceivers()
+            .find((x) => x.receiver.track.kind === t.kind && !x.direction.includes("send"));
+          if (tr) {
+            tr.direction = "sendrecv"; // prima: una seconda chiamata non lo ripete
+            await tr.sender.replaceTrack(t);
+          } else if (!pc.getSenders().some((x) => x.track?.kind === t.kind)) pc.addTrack(t, ls);
+          else continue;
+          aggiunte++;
+        }
+        if (!aggiunte) return;
         await pc.setLocalDescription(await pc.createOffer());
+        try {
+          tuneVideoSenders(); // i tetti di banda si applicano al sender nuovo, ora che esiste la negoziazione
+        } catch {
+          /* */
+        }
         send("offer", { from: S.myPid, to: pid, sdp: pc.localDescription, restart: true });
+        for (let i = 0; i < 2; i++) {
+          await new Promise((r) => setTimeout(r, 5_000));
+          if (peers.get(pid) !== pc || pc.signalingState !== "have-local-offer") break;
+          send("offer", { from: S.myPid, to: pid, sdp: pc.localDescription, restart: true });
+        }
       } catch (e) {
         console.warn("[PEER] promozione dal solo ricevere non riuscita", pid, e);
       }
@@ -7944,6 +7967,9 @@ function setLocalTrack(kind: "video" | "audio", t: MediaStreamTrack | null) {
   );
   if (t) localStream.addTrack(t);
   emitStreams();
+  //  Unico punto da cui passano camera, microfono, schermo e segnaposto: le
+  //  connessioni nate in sola ricezione (shop/senza-media) si aggiornano qui.
+  promuoviPeerSenzaMedia();
 }
 
 // ── SFOCATURA SFONDO (presentatore) ───────────────────────────────────────
@@ -9353,7 +9379,6 @@ async function camAcquire(): Promise<boolean> {
     await replaceVideoTrackAll(track, "camera riaccesa");
     const old = localStream?.getVideoTracks() || [];
     setLocalTrack("video", track);
-    promuoviPeerSenzaMedia(); // connessioni nate in sola ricezione (shop/senza-media)
     old.forEach((t) => {
       if (!isPlaceholder(t) && t !== track && t !== blurRaw) {
         try {
@@ -10180,7 +10205,6 @@ async function micAcquire(): Promise<boolean> {
     await replaceAudioTrackAll(track);
     const old = localStream?.getAudioTracks() || [];
     setLocalTrack("audio", track);
-    promuoviPeerSenzaMedia(); // connessioni nate in sola ricezione (shop/senza-media)
     old.forEach((t) => {
       if (!isPlaceholder(t) && t !== track && t !== raw) {
         try {
