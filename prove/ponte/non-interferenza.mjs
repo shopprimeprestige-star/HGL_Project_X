@@ -581,7 +581,14 @@ export async function provePonteNonInterferenza(mod, { c, gruppo, radice }) {
     //  Una seconda lettura (30/10/2026, «la palla è al cliente»): i messaggi nostri e suoi
     //  degli ultimi 7 giorni dei soli candidati a «Da chiamare», ponte compreso, solo
     //  senza pari (`duplicato_di` nullo), per sapere chi ha scritto per ultimo. Non scrive nulla.
-    const LETTURE_COL_PONTE = { "src/routes/hooks/attesa-da-chiamare.ts": 2 };
+    //  Una terza (31/10/2026, «eco senza contenuto», voluta dal titolare): in `porte.server.ts`
+    //  `ultimeUscite` legge SOLO le uscite (`direction = outbound`) dello stesso numero degli
+    //  ultimi secondi, ponte compreso, per scartare l'eco senza testo di un messaggio scritto dal
+    //  telefono. Non scrive nulla e non guida nessuna regola di «Da rispondere», finestra o freno.
+    const LETTURE_COL_PONTE = {
+      "src/routes/hooks/attesa-da-chiamare.ts": 2,
+      "src/crm/manychat/porte.server.ts": 1,
+    };
     for (const f of file) {
       const codice = senzaCommenti(readFileSync(f, "utf8"));
       const rel = f.slice(radice.length + 1);
