@@ -8,6 +8,9 @@
  * Il CRM invia i parametri in ORDINE come array, esattamente come Meta si aspetta.
  */
 
+import { SITO } from "@/lib/sito";
+import { CHIAVE_CHI, codiceAnteprimaDi, spezzaCodiceAnteprima } from "@/shop/chi-dal-link";
+
 export interface MetaTemplateParam {
   /** Posizione 1-based del placeholder nel body ({{1}}, {{2}}, ...) */
   index: number;
@@ -38,6 +41,21 @@ export interface MetaTemplate {
   body: string;
   /** Parametri in ordine (index 1..N) */
   params: MetaTemplateParam[];
+  /** Solo i modelli `_311026`: il nome del modello vecchio che sostituiscono. */
+  sostituisce?: string;
+  /** Solo i modelli `_311026`: l'immagine in testa al messaggio. */
+  header?: {
+    tipo: "IMAGE";
+    /** Immagine fissa (solo i casi clienti): percorso nel repo e indirizzo pubblico. */
+    file?: string;
+    url?: string;
+    /** Immagine PERSONALE del cliente: a ogni invio si passa il suo indirizzo (`immagine` di
+     *  `convertiModelloUtility`). `esempio` è l'indirizzo di un'immagine finta per Meta. */
+    dinamica?: boolean;
+    esempio?: string;
+  };
+  /** Solo i modelli `_311026`: il pulsante sotto il messaggio. */
+  pulsante?: { testo: string; url: string; da?: "meet_link"; esempio?: string };
 }
 
 type ParamKey = MetaTemplateParam["key"];
@@ -65,6 +83,7 @@ function tpl(
   bodyTemplate: string,
   keys: ParamKey[],
   language = "it",
+  extra: Pick<MetaTemplate, "sostituisce" | "header" | "pulsante"> = {},
 ): MetaTemplate {
   // Sostituisco {{key}} con {{1}}, {{2}}, ... in base all'ordine in `keys`
   let body = bodyTemplate;
@@ -78,7 +97,7 @@ function tpl(
     description: DESCR[k].description,
     example: DESCR[k].example,
   }));
-  return { name, language, category, body, params };
+  return { name, language, category, body, params, ...extra };
 }
 
 // Firma: contiene {{consultant_name}} che diventerà l'ultimo placeholder numerico.
@@ -345,11 +364,496 @@ export const MODELLI_DA_APPROVARE: MetaTemplate[] = [
   ),
 ];
 
+/** ── I MODELLI NUOVI «_311026» (31/10/2026) ───────────────────────────────────
+ *  Richiesta del titolare: una copia di OGNI modello, con un nome nuovo che finisce con la data
+ *  e un testo da UTILITY (Meta li approva così e costano meno), da far approvare PRIMA di usarli.
+ *  I vecchi restano nel codice e continuano a partire: i nuovi entrano solo quando si accende
+ *  l'interruttore (riga `modelli_utility_311026` in `app_config`, spenta di serie, nessuna
+ *  migrazione). Allora la porta (`porta.ts`) manda il nuovo al posto del vecchio, con i parametri
+ *  convertiti qui sotto. Quando Meta li ha approvati e tutto va, i vecchi si cancellano a mano.
+ *
+ *  Regole di scrittura (categoria Utility di Meta):
+ *   · il messaggio riguarda una richiesta o un servizio GIÀ chiesto dal cliente: la consulenza
+ *     fissata, il promemoria, l'acconto versato, i dati per la fattura;
+ *   · niente promozioni, sconti, aggettivi di vendita, inviti a comprare (lista nera provata in
+ *     `prove/manychat/modelli-utility.mjs`);
+ *   · saluto, riga vuota, l'informazione, riga vuota, chiusura breve con la firma;
+ *   · variabili solo quelle del testo, e MAI il link nudo: i modelli col link del meet portano
+ *     l'immagine in testa e il pulsante «Entra nella consulenza» (indirizzo con parte variabile).
+ *  ⚠️ I due che restano MARKETING (`hgl_casi_reali`, `follow_up_valutazione`) sono segnalati nel
+ *   documento per il titolare: un testo che vuole convincere non diventa Utility cambiando le
+ *   parole, e Meta lo riclassificherebbe comunque.
+ *  ⚠️ `hgl_meet_domani_testo` non ha un nuovo: non è un modello Meta, è il testo libero dentro le
+ *   24 ore.
+ *  ⚠️ PERCHÉ NON SI PERDE MAI UN INVIO: con l'interruttore acceso, se il nuovo non si può mandare
+ *   (flusso non collegato, link non convertibile, più di 4 campi, immagine personale del cliente non
+ *   ancora generata, e sulla
+ *   Cloud API Meta che risponde 132001/132015/132016) parte il vecchio e il registro dice il codice
+ *   (`modelli311026_ripiego_…`, `modelli311026_cloud_…`).
+ *  ── DA TOGLIERE QUANDO SI CANCELLANO I VECCHI MODELLI (e il ramo resta solo coi nuovi) ──────────
+ *   · qui: `MODELLI_UTILITY_311026`, `NOME_NUOVO_311026`, `CHIAVE_INTERRUTTORE_311026`,
+ *     `interruttoreAcceso`, `suffissoMeetly`, `convertiModelloUtility`, `IMMAGINE_MODELLI`, `*ImmagineModello` e la riga
+ *     in `findMetaTemplate`; i vecchi nomi si sostituiscono coi nuovi nei file che li citano;
+ *   · `porta.ts`: `modelloDaMandare`, `flussoDi`, il ripiego di `viaCloud`, `modelliUtility`,
+ *     `avviso` e `immaginiModelli` di `PortePorta`;  `porta.server.ts`: le due porte omonime;
+ *   · `vista-pannello.ts`: `MODELLI_FLUSSO_UTILITY_311026`; `ManychatPannello.tsx`: la sezione
+ *     «Modelli nuovi (_311026)»;
+ *   · prove: `prove/manychat/modelli-utility.mjs` e le due righe in `prove/manychat.mjs`;
+ *   · dati: la riga `modelli_utility_311026` in `app_config`. */
+
+/** ── L'IMMAGINE IN TESTA AI MODELLI COL LINK È PERSONALE (31/10/2026) ──────────────────────────
+ *  Richiesta del titolare: nel segnaposto dell'immagine va il link di QUEL cliente, con il suo nome
+ *  (es. «Mario» → l'immagine di Mario). È un biglietto da UTILITY (marchio, «Consulenza Hair Genius
+ *  Labs», nome, giorno, ora, consulente: niente «gratuita», prezzi o prodotti) che il browser del CRM
+ *  disegna e deposita quando nasce la stanza (`src/crm/biglietto-modello.ts`, tipo «modello»); il
+ *  server lo serve a `/api/og/anteprima/modello/<codice>.jpg`. NON è la scheda di Meetly.
+ *  Se per quel cliente l'immagine non c'è, il modello nuovo non parte e parte il vecchio. */
+const IMMAGINE_MODELLI = {
+  tipo: "IMAGE" as const,
+  dinamica: true,
+  esempio: `${SITO}/api/og/anteprima/modello/esempio_pdemo.jpg`,
+};
+
+/** L'immagine dei casi clienti (MARKETING, come il vecchio): lì la scheda di Meetly va bene. */
+const IMMAGINE_CASI = {
+  tipo: "IMAGE" as const,
+  file: "public/anteprima-predefinita.jpg",
+  url: `${SITO}/anteprima-predefinita.jpg`,
+};
+
+/** Il pulsante dei modelli col link del meet: la parte dopo `/meetly/` è variabile ({{1}} del pulsante). */
+const PULSANTE_ENTRA = {
+  testo: "Entra nella consulenza",
+  url: `${SITO}/meetly/{{1}}`,
+  da: "meet_link" as const,
+  esempio: "abc-defg-hij?chi=p1a2b3c",
+};
+
+const SALUTO_LEI = "Gentile {{lead_name}},\n\n";
+const SALUTO_BUONGIORNO = "Buongiorno {{lead_name}},\n\n";
+const SALUTO_TU = "Ciao {{lead_name}},\n\n";
+/** Chiusura col nome del consulente (i modelli che lo ricevono) o solo la firma. */
+const CHIUSURA_CONSULENTE = "\n\nCordiali saluti,\n{{consultant_name}}\nHair Genius Labs";
+const CHIUSURA = "\n\nHair Genius Labs";
+
+function nuovo(
+  sostituisce: string,
+  name: string,
+  category: MetaTemplate["category"],
+  body: string,
+  keys: ParamKey[],
+  extra: Pick<MetaTemplate, "header" | "pulsante"> = {},
+): MetaTemplate {
+  return tpl(name, category, body, keys, "it", { sostituisce, ...extra });
+}
+
+export const MODELLI_UTILITY_311026: MetaTemplate[] = [
+  // ── i modelli della Cloud API (Contatti WhatsApp) ──
+  nuovo(
+    "appuntamento_conferma",
+    "conferma_appuntamento_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le confermiamo l'appuntamento per la consulenza tecnica prevista: {{appointment_date}} alle ore {{appointment_time}}. Il collegamento Le sarà inviato prima dell'orario.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "appointment_date", "appointment_time", "consultant_name"],
+  ),
+  nuovo(
+    "ringraziamento_vendita",
+    "conferma_incarico_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le confermiamo di aver registrato il Suo incarico per l'installazione. A breve La contatteremo per concordare data e modalità dell'intervento.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "acconto_ricevuto",
+    "acconto_registrato_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le confermiamo di aver ricevuto il Suo acconto. Procediamo con l'ordine relativo alla Sua installazione e La aggiorneremo sulle tempistiche.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "promemoria_acconto",
+    "acconto_da_versare_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le ricordiamo che, per bloccare la data della Sua installazione, risulta ancora da versare l'acconto concordato. Per qualsiasi chiarimento può rispondere a questo messaggio.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "conferma_sede",
+    "appuntamento_in_sede_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le confermiamo l'appuntamento presso la nostra sede il giorno {{visit_date}} alle ore {{visit_time}}.\nIndirizzo: Via degli Scipioni 132, Roma.\nPer qualsiasi necessità può rispondere a questo messaggio.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "visit_date", "visit_time", "consultant_name"],
+  ),
+  nuovo(
+    "gestire_in_chat",
+    "assistenza_in_chat_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Per la Sua richiesta può scriverci direttamente in questa chat. Le risponderemo personalmente, nel più breve tempo possibile.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  //  Resta MARKETING: chiede se il cliente ha deciso sulla proposta, cioè spinge all'acquisto.
+  nuovo(
+    "follow_up_valutazione",
+    "verifica_proposta_311026",
+    "MARKETING",
+    `${SALUTO_LEI}La contatto per sapere se ha avuto modo di valutare la proposta che Le abbiamo inviato. Per qualsiasi dubbio può rispondere a questo messaggio.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "promemoria_ricontatto",
+    "ricontatto_concordato_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Come concordato, La ricontatteremo il {{recontact_date}} alle ore {{recontact_time}}. Se l'orario non fosse più adatto, può rispondere a questo messaggio per indicarcene un altro.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "recontact_date", "recontact_time", "consultant_name"],
+  ),
+  //  Era MARKETING («analisi tecnica gratuita»). Senza l'offerta, e riferito alla consulenza di cui
+  //  si è parlato, è un messaggio di servizio: come `hgl_meet_da_fissare`, già Utility. ⚠️ NIENTE
+  //  «che ci ha richiesto»: i lead richiamati da un consulente (`fissa_meet_dopo`) non l'hanno chiesta.
+  //  Meta può comunque riclassificarlo.
+  nuovo(
+    "fissa_meet",
+    "consulenza_da_fissare_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Per fissare la consulenza di cui abbiamo parlato, ci indichi il giorno e l'orario in cui è disponibile. Confermeremo la data in questa chat.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "no_show_recover",
+    "consulenza_non_avvenuta_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Oggi non è stato possibile collegarci per la consulenza prevista. Ci indichi un nuovo giorno e orario in cui riprogrammarla: confermeremo la nuova data.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "ringraziamento_neutro",
+    "chiusura_richiesta_311026",
+    "UTILITY",
+    `${SALUTO_LEI}La informiamo che la Sua richiesta risulta chiusa. La ringraziamo per il tempo dedicato: per riaprirla può rispondere a questo messaggio.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "ringraziamento_finale",
+    "servizio_concluso_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le confermiamo che l'intervento richiesto risulta concluso. Per qualsiasi necessità legata al servizio può rispondere a questo messaggio.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  //  Col link: immagine in testa e pulsante. Tolta la frase «con Sua moglie/compagno».
+  nuovo(
+    "promemoria_meet",
+    "promemoria_collegamento_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Le ricordiamo che la Sua consulenza online è confermata per il {{appointment_date}} alle ore {{appointment_time}}.\nPer collegarsi usi il pulsante «Entra nella consulenza» qui sotto: Le consigliamo un luogo tranquillo e una buona connessione internet.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "appointment_date", "appointment_time", "consultant_name"],
+    { header: IMMAGINE_MODELLI, pulsante: PULSANTE_ENTRA },
+  ),
+  //  La conferma automatica (cron del 22/10): testo neutro, vedi il commento del modello vecchio.
+  nuovo(
+    "consulenza_conferma_presenza",
+    "conferma_consulenza_online_311026",
+    "UTILITY",
+    `${SALUTO_LEI}La Sua consulenza online con Hair Genius Labs è fissata per {{appointment_day}} alle ore {{appointment_time}}.\n\nPer collegarsi usi il pulsante «Entra nella consulenza» qui sotto. Per confermare la Sua presenza risponda SÌ a questo messaggio.${CHIUSURA}`,
+    ["lead_name", "appointment_day", "appointment_time"],
+    { header: IMMAGINE_MODELLI, pulsante: PULSANTE_ENTRA },
+  ),
+
+  // ── i modelli di ManyChat ──
+  nuovo(
+    "hgl_primo_contatto",
+    "hgl_richiesta_ricevuta_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}Abbiamo ricevuto la sua richiesta di informazioni a Hair Genius Labs. Per gestirla ci serve sapere quando contattarla: preferisce la mattina o la sera?${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_primo_contatto_tre_fasce",
+    "hgl_richiesta_fascia_oraria_311026",
+    "UTILITY",
+    `${SALUTO_LEI}La sua richiesta di informazioni a Hair Genius Labs è stata registrata. Per programmare la chiamata di risposta, indichi la fascia oraria in cui è reperibile: mattina, pomeriggio o sera.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_richiamo_24h",
+    "hgl_richiesta_aperta_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}La sua richiesta di informazioni a Hair Genius Labs risulta registrata e ancora aperta. Per proseguire ci serve sapere se preferisce essere contattato la mattina o la sera.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_ritorno",
+    "hgl_nuovo_messaggio_ricevuto_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}Abbiamo ricevuto il suo nuovo messaggio. Per riprendere la sua richiesta ci indichi se preferisce essere contattato la mattina o la sera.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  //  Resta MARKETING: foto e video di lavori già fatti sono contenuto di presentazione. Il testo è
+  //  ripulito dalle frasi di vendita (nome del protocollo, «meno di 2 ore», «da tutta Europa»).
+  //  Come il vecchio: immagine in testa e pulsante con l'indirizzo fisso della pagina dei media.
+  nuovo(
+    "hgl_casi_reali",
+    "hgl_esempi_lavori_311026",
+    "MARKETING",
+    `${SALUTO_BUONGIORNO}Qui trova alcuni esempi di lavori già realizzati, con foto e video, relativi alla soluzione su cui ha chiesto informazioni.${CHIUSURA}`,
+    ["lead_name"],
+    {
+      header: IMMAGINE_CASI,
+      pulsante: { testo: "Vedi gli esempi", url: `${SITO}/media/DPKW-3JHV-RC77` },
+    },
+  ),
+  nuovo(
+    "hgl_meet_domani",
+    "hgl_consulenza_domani_311026",
+    "UTILITY",
+    `${SALUTO_TU}Ti ricordiamo la tua consulenza online di domani, {{appointment_day}}, alle ore {{appointment_time}} con {{consultant_name}}.\nIl link per collegarti ti arriva domattina. Se non puoi esserci, rispondi qui e la spostiamo.${CHIUSURA}`,
+    ["lead_name", "appointment_day", "appointment_time", "consultant_name"],
+  ),
+  nuovo(
+    "hgl_meet_oggi",
+    "hgl_consulenza_oggi_311026",
+    "UTILITY",
+    `${SALUTO_TU}Ti ricordiamo che oggi alle ore {{appointment_time}} hai la tua consulenza online con Hair Genius Labs, con {{consultant_name}}. Poco prima dell'inizio ti arriva il link per collegarti.\nSe hai un imprevisto, rispondi qui e troviamo un altro orario.${CHIUSURA}`,
+    ["lead_name", "appointment_time", "consultant_name"],
+  ),
+  nuovo(
+    "hgl_meet_oggi_link",
+    "hgl_consulenza_oggi_con_link_311026",
+    "UTILITY",
+    `${SALUTO_TU}Ti ricordiamo che oggi alle ore {{appointment_time}} hai la tua consulenza online con {{consultant_name}}.\nPer collegarti usa il pulsante «Entra nella consulenza» qui sotto. Poco prima dell'inizio ti rimandiamo il promemoria.${CHIUSURA}`,
+    ["lead_name", "appointment_time", "consultant_name"],
+    { header: IMMAGINE_MODELLI, pulsante: PULSANTE_ENTRA },
+  ),
+  nuovo(
+    "hgl_promemoria_meet",
+    "hgl_promemoria_consulenza_311026",
+    "UTILITY",
+    `${SALUTO_TU}La tua consulenza online con Hair Genius Labs inizia oggi alle ore {{appointment_time}}, tra circa 20 minuti, con {{consultant_name}}.\nPer collegarti usa il pulsante «Entra nella consulenza» qui sotto. Se puoi, collegati da un posto tranquillo e con una buona connessione.${CHIUSURA}`,
+    ["lead_name", "appointment_time", "consultant_name"],
+    { header: IMMAGINE_MODELLI, pulsante: PULSANTE_ENTRA },
+  ),
+  nuovo(
+    "hgl_meet_adesso",
+    "hgl_consulenza_in_corso_311026",
+    "UTILITY",
+    `${SALUTO_TU}La tua consulenza con Hair Genius Labs sta iniziando e {{consultant_name}} ti sta aspettando.\nPer entrare usa il pulsante «Entra nella consulenza» qui sotto. Se hai difficoltà a collegarti, rispondi a questo messaggio.${CHIUSURA}`,
+    ["lead_name", "consultant_name"],
+    { header: IMMAGINE_MODELLI, pulsante: PULSANTE_ENTRA },
+  ),
+  nuovo(
+    "hgl_ricontatto_consulenza",
+    "hgl_seguito_consulenza_311026",
+    "UTILITY",
+    `${SALUTO_TU}Sono {{consultant_name}} di Hair Genius Labs. La consulenza svolta insieme risulta registrata: per un chiarimento su quanto ci siamo detti puoi rispondere a questo messaggio.${CHIUSURA}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "hgl_meet_da_fissare",
+    "hgl_data_consulenza_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}Sono {{consultant_name}} di Hair Genius Labs. Per fissare la data della consulenza ci indichi se preferisce la mattina o la sera.${CHIUSURA}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "hgl_richiamo_concordato",
+    "hgl_chiamata_concordata_311026",
+    "UTILITY",
+    `${SALUTO_TU}Come d'accordo, oggi alle ore {{recontact_time}} ti chiamiamo da Hair Genius Labs. Se l'orario non ti va più bene, rispondi qui e lo spostiamo.${CHIUSURA}`,
+    ["lead_name", "recontact_time"],
+  ),
+  nuovo(
+    "hgl_non_risponde",
+    "hgl_chiamata_senza_risposta_311026",
+    "UTILITY",
+    `${SALUTO_LEI}Abbiamo provato a chiamarLa da Hair Genius Labs per la Sua richiesta di informazioni, senza riuscire a raggiungerLa. Ci indichi qui un momento comodo per sentirci: va bene anche un orario serale.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_cliente_assente",
+    "hgl_consulenza_mancata_311026",
+    "UTILITY",
+    `${SALUTO_TU}Oggi non siamo riusciti a vederci per la tua consulenza online con Hair Genius Labs. Rispondi qui indicando se preferisci la mattina o la sera: ti proponiamo un nuovo orario.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_da_riprogrammare",
+    "hgl_nuova_data_consulenza_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}La sua consulenza deve essere riprogrammata. Ci indichi il giorno e l'orario che preferisce: confermeremo la nuova data.${CHIUSURA_CONSULENTE}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "hgl_promemoria_sede",
+    "hgl_appuntamento_sede_311026",
+    "UTILITY",
+    `${SALUTO_TU}Ti ricordiamo l'appuntamento in sede con Hair Genius Labs di {{appointment_day}} alle ore {{visit_time}}.\nIndirizzo: {{address}}\nSe hai un imprevisto, rispondi qui e troviamo un altro orario.${CHIUSURA}`,
+    ["lead_name", "appointment_day", "visit_time", "address"],
+  ),
+  nuovo(
+    "hgl_sede_disdetta",
+    "hgl_disdetta_sede_registrata_311026",
+    "UTILITY",
+    `${SALUTO_TU}Abbiamo registrato la disdetta del tuo appuntamento in sede con Hair Genius Labs. Quando vuoi, rispondi qui e fissiamo una nuova data.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_ultimo_tentativo",
+    "hgl_richiesta_chiusa_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}Non avendo ricevuto risposta, abbiamo chiuso la sua richiesta di informazioni. Se vuole riaprirla, ci risponda qui.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+  nuovo(
+    "hgl_acconto",
+    "hgl_dati_versamento_311026",
+    "UTILITY",
+    `${SALUTO_TU}Ti scrivo per l'acconto relativo alla soluzione concordata con {{consultant_name}}. Se vuoi, rispondi qui e ti mandiamo i dati per il versamento.${CHIUSURA}`,
+    ["lead_name", "consultant_name"],
+  ),
+  nuovo(
+    "hgl_come_eravamo_rimasti",
+    "hgl_richiesta_in_sospeso_311026",
+    "UTILITY",
+    `${SALUTO_BUONGIORNO}La sua richiesta di informazioni a Hair Genius Labs è registrata e in attesa del nostro contatto. Per procedere ci indichi quando possiamo chiamarla.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+
+  // ── il modello dei dati per la fattura (già in `MODELLI_DA_APPROVARE`) ──
+  //  ⚠️ Nel modello niente codice fiscale, partita IVA né documenti: Meta non li ammette. L'elenco
+  //  dei dati si manda dopo come testo libero: la risposta del cliente apre le 24 ore.
+  nuovo(
+    "hgl_dati_fattura",
+    "hgl_dati_per_fattura_311026",
+    "UTILITY",
+    `${SALUTO_TU}Abbiamo ricevuto il tuo acconto. Per preparare la fattura ci servono i tuoi dati di fatturazione: rispondi a questo messaggio e ti indichiamo come inviarli.${CHIUSURA}`,
+    ["lead_name"],
+  ),
+];
+
+/** Vecchio nome → nome nuovo. */
+export const NOME_NUOVO_311026: Record<string, string> = Object.fromEntries(
+  MODELLI_UTILITY_311026.map((t) => [t.sostituisce as string, t.name]),
+);
+
+/** La riga di `app_config` che accende i modelli nuovi. Senza la riga (o con un valore che non
+ *  sia «on») restano i vecchi: spento di serie, nessuna migrazione. */
+export const CHIAVE_INTERRUTTORE_311026 = "modelli_utility_311026";
+
+/** Il valore della riga dice «acceso»? Qualunque altra cosa (vuoto, «off», un refuso) è spento. */
+export function interruttoreAcceso(valore: unknown): boolean {
+  return ["on", "true", "1", "si", "sì"].includes(
+    String(valore ?? "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+/** La parte variabile del pulsante «Entra nella consulenza»: quello che sta dopo
+ *  `https://hair-genius-hub.hair/meetly/` nel link personale (codice della stanza e gettone di chi
+ *  lo riceve, es. `kfr-mbqd-tzp?chi=pAbC12`). `null` se il link non è una stanza nostra: allora
+ *  il modello nuovo non si può mandare e parte il vecchio, col link nel testo. */
+export function suffissoMeetly(link: string | null | undefined): string | null {
+  const l = String(link ?? "").trim();
+  const base = `${SITO}/meetly/`;
+  if (!l.startsWith(base)) return null;
+  const resto = l.slice(base.length);
+  return resto && !/[\s#]/.test(resto) ? resto : null;
+}
+
+/** Perché il nuovo non si può mandare (e parte il vecchio): `valori` = manca un valore, `link` = non è
+ *  una stanza nostra, `immagine` = il link non porta il gettone di chi lo riceve (nessuna immagine
+ *  personale possibile). */
+export type RipiegoModello = { ripiego: "valori" | "link" | "immagine" };
+
+/** Il codice sotto cui sta l'immagine personale: lettere, cifre, trattino, punto, trattino basso, al
+ *  massimo 64 (lo stesso ripulitore del deposito in `api.anteprima.ts`). */
+export const codiceImmagineModello = (codice: unknown) =>
+  String(codice ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "")
+    .slice(0, 64);
+
+/** Il codice ha la forma giusta: `<stanza>_p<gettone>`, già pulito (nessun carattere strano) e col
+ *  gettone di chi riceve il link, minuscolo. Lo chiedono il deposito e la rotta: un codice di altra forma
+ *  non è l'immagine di nessun cliente (sarebbe quella di una stanza, con il nome di un altro). */
+export const formaCodiceImmagineModello = (codice: unknown): boolean => {
+  const c = String(codice ?? "");
+  const { codice: stanza, gettone } = spezzaCodiceAnteprima(c);
+  return !!stanza && !!gettone && c === codiceImmagineModello(c) && /^[A-Za-z0-9-]+$/.test(stanza);
+};
+
+/** La chiave del deposito dell'immagine personale in `app_config` (come `chiaveAnteprima` del deposito). */
+export const chiaveImmagineModello = (codice: unknown) =>
+  `anteprima:modello:${codiceImmagineModello(codice)}`;
+
+/** L'indirizzo pubblico dell'immagine personale: SOLO il codice del meet e il gettone di chi lo riceve,
+ *  nessuna domanda, nessun altro dato. */
+export const urlImmagineModello = (codice: string) =>
+  `${SITO}/api/og/anteprima/modello/${codiceImmagineModello(codice)}.jpg`;
+
+/** Dal pezzo di link dopo `/meetly/` (`kfr-mbqd-tzp?chi=pb4b5c685`) al codice dell'immagine personale
+ *  (`kfr-mbqd-tzp_pb4b5c685`). `null` se il gettone non c'è o non è valido: l'immagine della sola stanza
+ *  porterebbe il nome di un altro cliente. */
+function codiceImmaginePersonale(suffisso: string): string | null {
+  const m = /^([^?#]+)(?:\?(.*))?$/.exec(suffisso);
+  if (!m) return null;
+  let stanza = "";
+  try {
+    stanza = decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+  const chi = new URLSearchParams(m[2] ?? "").get(CHIAVE_CHI) ?? "";
+  const codice = codiceImmagineModello(codiceAnteprimaDi(stanza, chi));
+  return spezzaCodiceAnteprima(codice).gettone ? codice : null;
+}
+
+/** I parametri del vecchio modello, convertiti per il nuovo: i valori del testo (per chiave, non
+ *  per posizione) e, se il nuovo ha il pulsante, la parte variabile del link in coda. Se il nuovo ha
+ *  l'immagine personale, `immagine` dice codice e indirizzo (chi invia deve controllare che esista).
+ *  `null` se il vecchio non ha un nuovo (niente da fare: non è un ripiego). Se il nuovo c'è ma non si
+ *  può mandare, `{ ripiego }` col motivo: chi chiama manda il vecchio e lo scrive nel registro. */
+export function convertiModelloUtility(
+  nome: string,
+  parametri: string[],
+): { modello: string; parametri: string[]; immagine?: { codice: string; url: string } } | RipiegoModello | null {
+  const nuovoModello = MODELLI_UTILITY_311026.find((t) => t.sostituisce === nome);
+  const vecchio = [...META_TEMPLATES, ...MODELLI_MANYCHAT, ...MODELLI_DA_APPROVARE].find(
+    (t) => t.name === nome,
+  );
+  if (!nuovoModello || !vecchio) return null;
+  const valore = (chiave: ParamKey) => {
+    const i = vecchio.params.findIndex((p) => p.key === chiave);
+    return i < 0 ? "" : String(parametri[i] ?? "").trim();
+  };
+  const fuori: string[] = [];
+  for (const p of nuovoModello.params) {
+    const v = valore(p.key);
+    if (!v) return { ripiego: "valori" };
+    fuori.push(v);
+  }
+  let parte: string | null = null;
+  if (nuovoModello.pulsante?.da) {
+    parte = suffissoMeetly(valore(nuovoModello.pulsante.da));
+    if (!parte) return { ripiego: valore(nuovoModello.pulsante.da) ? "link" : "valori" };
+    fuori.push(parte);
+  }
+  if (nuovoModello.header?.dinamica) {
+    const codice = parte ? codiceImmaginePersonale(parte) : null;
+    if (!codice) return { ripiego: "immagine" };
+    return {
+      modello: nuovoModello.name,
+      parametri: fuori,
+      immagine: { codice, url: urlImmagineModello(codice) },
+    };
+  }
+  return { modello: nuovoModello.name, parametri: fuori };
+}
+
 export function findMetaTemplate(name: string): MetaTemplate | undefined {
   return (
     META_TEMPLATES.find((t) => t.name === name) ??
     MODELLI_MANYCHAT.find((t) => t.name === name) ??
-    MODELLI_DA_APPROVARE.find((t) => t.name === name)
+    MODELLI_DA_APPROVARE.find((t) => t.name === name) ??
+    MODELLI_UTILITY_311026.find((t) => t.name === name)
   );
 }
 

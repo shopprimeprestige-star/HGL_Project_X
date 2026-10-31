@@ -27,6 +27,11 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { creaClient, type FetchManychat } from "./api";
+import {
+  CHIAVE_INTERRUTTORE_311026,
+  chiaveImmagineModello,
+  interruttoreAcceso,
+} from "../wa-meta-templates";
 import { entrateVereDi } from "./entrate-vere.server";
 import type { CanaleWhatsapp, MessaggioPorta, PortePorta, PrenotazionePorta } from "./porta";
 
@@ -131,6 +136,8 @@ export function portePortaVere(
 ): PortePorta {
   let client: ReturnType<typeof creaClient> | null | undefined;
   let flussi = o.flussi;
+  /** L'interruttore dei modelli `_311026`, letto una volta per vita delle porte. */
+  let modelliUtility: Promise<boolean> | undefined;
   return {
     adesso: () => new Date(),
     //  Un client solo per tutta la vita delle porte: tiene l'id del campo
@@ -147,6 +154,38 @@ export function portePortaVere(
       flussi ??= (await leggiCanale(userId)).flussi;
       return flussi[modello] ?? null;
     },
+    //  L'immagine personale di questo cliente c'è? Lo dice il deposito in `app_config` (la riga la scrive
+    //  `api.anteprima.ts` quando il browser del CRM la deposita): niente richieste al nostro sito.
+    //  Se la lettura non riesce, risponde «no» e parte il modello vecchio.
+    immagineModello: async (codice) => {
+      try {
+        const { data } = await db
+          .from("app_config")
+          .select<{ value?: string | null }>("value")
+          .eq("key", chiaveImmagineModello(codice))
+          .maybeSingle();
+        return /^https?:\/\//i.test(String(data?.value ?? ""));
+      } catch {
+        return false;
+      }
+    },
+    //  Le righe di registro dei modelli `_311026` (solo il codice, nessun dato del cliente).
+    avviso: (codice) => console.warn("[modelli-311026]", codice),
+    //  I modelli nuovi `_311026` (31/10/2026): una riga di `app_config`, nessuna migrazione.
+    //  Senza la riga, o se il database non risponde, è spento: partono i modelli di sempre.
+    modelliUtility: () =>
+      (modelliUtility ??= (async () => {
+        try {
+          const { data } = await db
+            .from("app_config")
+            .select<{ value?: string | null }>("value")
+            .eq("key", CHIAVE_INTERRUTTORE_311026)
+            .maybeSingle();
+          return interruttoreAcceso(data?.value);
+        } catch {
+          return false;
+        }
+      })()),
     prenota: async (p: PrenotazionePorta) => {
       const { data, error } = await db.rpc<Record<string, unknown>>("manychat_prenota_porta", {
         p_user_id: userId,
