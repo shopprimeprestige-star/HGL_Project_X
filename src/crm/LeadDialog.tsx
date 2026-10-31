@@ -124,6 +124,7 @@
  *  finestrella del «quando» lo scrive perfino a schermo.
  *  ───────────────────────────────────────────────────────────────────────── */
 
+import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   Component,
   useEffect,
@@ -1309,6 +1310,7 @@ export function LeadDialog({
               mandare stava in fondo, e per una telefonata si attraversava la
               scheda due volte. */}
           <BloccoContatto
+            lead={lead}
             form={form}
             update={update}
             rifNome={rifNome}
@@ -2166,6 +2168,7 @@ function BloccoDatiFattura({ form, update }: { form: LeadData; update: Update })
  *  Nome, cognome, telefono e i due modi di usarlo. In modalità `compatto` è la
  *  testa della scheda; nel wizard è il primo passo, con gli stessi campi. */
 function BloccoContatto({
+  lead,
   form,
   update,
   rifNome,
@@ -2176,6 +2179,8 @@ function BloccoContatto({
   doppioni = [],
   onVediDoppione,
 }: {
+  /** La scheda: i tocchi sulla cornetta si contano lì (31/10/2026). */
+  lead?: Lead | null;
   form: LeadData;
   update: Update;
   /** Le schede che hanno già questo numero. Vuoto = numero nuovo. */
@@ -2234,6 +2239,7 @@ function BloccoContatto({
             onChange={(e) => update("telefono", e.target.value)}
           />
           <TastiContatto
+            lead={lead}
             telefono={form.telefono}
             nome={form.nome}
             quandoConsulenza={form.dataMeeting}
@@ -2306,6 +2312,7 @@ function BloccoContatto({
  *  della finestra: duplicarli obbligava a chiedersi ogni volta quale dei due
  *  fosse quello aggiornato. */
 function TastiContatto({
+  lead,
   telefono,
   messaggio,
   nome,
@@ -2315,6 +2322,8 @@ function TastiContatto({
   messaggioExtra,
   etichettaExtra,
 }: {
+  /** La scheda: i tocchi sulla cornetta si contano lì (31/10/2026). */
+  lead?: Lead | null;
   telefono: string;
   messaggio: string | null;
   /** Il nome del cliente: serve al messaggio dei lavori. */
@@ -2331,6 +2340,7 @@ function TastiContatto({
   messaggioExtra?: string | null;
   etichettaExtra?: string;
 }) {
+  const segnaChiamata = useSegnaChiamata();
   const spento = !telefono;
   return (
     <>
@@ -2341,14 +2351,15 @@ function TastiContatto({
           variant="outline"
           className={cn(
             esteso ? "h-9" : "h-9 w-9",
-            "shrink-0",
+            "relative shrink-0",
             spento && "pointer-events-none opacity-40",
           )}
           title="Chiama"
         >
-          <a href={`tel:${telefono}`} aria-label="Chiama">
+          <a href={`tel:${telefono}`} aria-label="Chiama" onClick={() => segnaChiamata(lead)}>
             <Phone className="h-3.5 w-3.5 text-slate-500" />
             {esteso && "Chiama"}
+            <BadgeChiamate lead={lead} />
           </a>
         </Button>
       ) : (

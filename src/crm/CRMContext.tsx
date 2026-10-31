@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { chiamateDi } from "./chiamate";
 import { assicuraCapienza } from "./capienza";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -798,6 +799,11 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     //   `merged` tiene così il `contattoWa` riletto dal database.
     const { contattoWa: _soloServer, ...patch } = risolviModifica(modifica, current.data);
     void _soloServer;
+    //  ⚠️ Il conto delle chiamate (31/10/2026, crm/chiamate) non scende MAI: un
+    //   modulo aperto prima di una chiamata lo riporterebbe indietro salvando.
+    //   Un conto non più alto di quello in archivio si sostituisce con quello.
+    if (patch.chiamate && chiamateDi({ chiamate: patch.chiamate }) <= chiamateDi(current.data))
+      patch.chiamate = current.data.chiamate;
     let merged = applyAutoStatus({ ...current.data, ...patch } as LeadData, {
       statoScelto: patch.stato !== undefined,
     });

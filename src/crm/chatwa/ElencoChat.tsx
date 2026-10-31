@@ -37,7 +37,6 @@ import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
 import { ordinaPerScadenza } from "./segniRiga";
 import { ordinaComeWhatsapp } from "./ordineWhatsapp";
-import { chatSenzaScheda } from "./senzaScheda";
 import { chatDaInstallare, saliAcconti } from "./accontiInCima";
 import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
@@ -139,10 +138,10 @@ function useAdesso(): number {
  *  dà `PaginaChat`: larghezza e visibilità non sono affar suo (R12). Sul telefono è a tutta larghezza: bersagli da 44 px, testi
  *  della scala `t-*`, 16 px nella ricerca (altrimenti iOS ingrandisce la pagina).
  *
- *  ── I FILTRI A GRUPPI (30/10/2026) ──────────────────────────────────────
- *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti) e il
- *  tasto «Filtri» col pannello dei sei gruppi. Gruppi diversi si sommano; in uno stesso gruppo
- *  si sceglie una voce sola. Le regole sono in filtri.ts: qui si compongono e si disegnano. */
+ *  ── I FILTRI A GRUPPI (30/10/2026), ESCLUSIVI (31/10/2026) ────────────────
+ *  Una riga che scorre (Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Clienti) e
+ *  il tasto «Filtri» col pannello dei sei gruppi. Si accende UN filtro solo: toccarne un altro
+ *  spegne il primo; il consulente e la ricerca restano. Le regole sono in filtri.ts. */
 function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) {
   const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva } = api;
   //  Funzioni stabili: le righe non si ridisegnano se cambia solo la loro identità.
@@ -198,16 +197,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  Escono dagli altri riquadri (una chat una volta sola). Vedi segniRiga.ts.
   //  ── «TUTTE» (30/10/2026) ────────────────────────────────────────────────
   //  Senza una coda scelta l'elenco è UNO solo, nell'ordine di WhatsApp (ordineWhatsapp.ts): niente
-  //  riquadri, niente stelle in cima. Per questo anche il riquadro «Finestra in chiusura» (che è una
+  //  riquadri, niente stelle in cima. Dal 31/10 anche gli sconosciuti (senza scheda) stanno IN MEZZO,
+  //  all'ora del loro ultimo messaggio vero: «Tutte» è identica a WhatsApp. Per vederli a parte c'è
+  //  la pastiglia «Sconosciuti». Restano sopra l'elenco, per richiesta esplicita, solo la barra del
+  //  prossimo meet e il blocco «Acconto, da installare». Per questo anche il riquadro «Finestra in chiusura» (che è una
   //  sezione) esce: con «Si può scrivere» la riga ha comunque il suo bollino.
   const tutte = filtri.coda === null;
-  //  ── «SENZA SCHEDA» IN CIMA (30/10/2026) ────────────────────────────────
-  //  In «Tutte» le chat senza scheda (con messaggi, anche vecchi) hanno un riquadro tutto loro
-  //  sopra l'elenco: sono clienti non ancora salvati nel CRM. Non si ripetono sotto. Nelle altre
-  //  viste no: i numeri di «Da rispondere» e «Da chiamare» devono restare quelli dei pulsanti.
-  //  La pillola «Sconosciuti» resta: è il filtro che mostra SOLO queste, senza il resto.
-  const senzaSchedaCon = tutte ? chatSenzaScheda(trovate) : [];
-  const inSenzaSchedaTel = new Set(senzaSchedaCon.map((c) => c.phone));
   //  ── ACCONTO, DA INSTALLARE IN CIMA (30/10/2026) ────────────────────────
   //  In «Tutte», sotto la barra del prossimo meet, un blocco richiudibile con le chat di chi ha
   //  lasciato l'acconto e non ha ancora la posa fatta: l'acconto più vecchio per primo, e chi ha
@@ -218,9 +213,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const inBloccoTel = new Set(daInstallareTutte.map((c) => c.phone));
   const [apertoAcconti, setApertoAcconti] = useState(true);
   const elencoTutte = tutte
-    ? ordinaComeWhatsapp(
-        trovate.filter((c) => !inSenzaSchedaTel.has(c.phone) && !inBloccoTel.has(c.phone)),
-      )
+    ? ordinaComeWhatsapp(trovate.filter((c) => !inBloccoTel.has(c.phone)))
     : [];
   const inScadenza =
     filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
@@ -279,7 +272,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const mostrate = senzaDoppioni(
     filtri.coda === "da-chiamare"
       ? elencoDaChiamare
-      : [...senzaSchedaCon, ...inScadenza, ...inAttesa, ...altre],
+      : [...inScadenza, ...inAttesa, ...altre],
   );
   //  ── SI DISEGNANO LE PRIME RIGHE (p1-chat-veloce, 30/10/2026) ─────────────────
   //  Con 2.000+ chat le righe nella pagina erano 95.000 nodi: ora ne bastano 40, e altre 40 a ogni
@@ -291,7 +284,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
     setChiavePrec(chiaveVista);
     setVisti(RIGHE_INIZIALI);
   }
-  const [senzaSchedaVis, tutteVis] = tagliaSezioni(visti, senzaSchedaCon, elencoTutte);
+  const tutteVis = elencoTutte.slice(0, visti);
   const [inScadenzaVis, inAttesaVis, altreVis] = tagliaSezioni(visti, inScadenza, inAttesa, altre);
   const elencoDaChiamareVis = elencoDaChiamare.slice(0, visti);
   const fondoRef = useRef<HTMLDivElement>(null);
@@ -403,7 +396,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   // ── Le voci del pannello che cambiano con i dati ──────────────────────────────────────────
   //  «Altri stati»: gli stati con almeno una chat (con gli altri filtri accesi), più quello scelto.
   const stati = contaPerStato(
-    api.chats.filter((c) => passaFiltri(c, { ...filtri, fase: null }, stelleDi)),
+    api.chats.filter((c) =>
+      passaFiltri(c, { ...FILTRI_VUOTI, consulente: filtri.consulente }, stelleDi),
+    ),
   );
   const altriStati = vociConScelto(stati.voci, filtri.fase ?? "").map((v) => ({
     stato: v.stato,
@@ -753,24 +748,6 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           )
         ) : tutte ? (
           <>
-            {senzaSchedaCon.length > 0 && (
-              <section aria-labelledby="titolo-senza-scheda">
-                <h2
-                  id="titolo-senza-scheda"
-                  className="t-corpo border-b border-primary/20 bg-primary/5 px-3 py-2 font-semibold text-foreground"
-                >
-                  Senza scheda ({senzaSchedaCon.length})
-                  <span className="t-nota ml-2 font-normal text-muted-foreground">
-                    clienti da salvare nel CRM
-                  </span>
-                </h2>
-                <ul>
-                  {senzaSchedaVis.map((c) =>
-                    riga(c, c.daRispondere?.attesa ? "attesa" : "normale"),
-                  )}
-                </ul>
-              </section>
-            )}
             {daInstallareTutte.length > 0 && (
               <section aria-labelledby="titolo-da-installare">
                 <h2

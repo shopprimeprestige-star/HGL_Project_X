@@ -1,14 +1,18 @@
 /** ── I FILTRI DELLA CHAT, A GRUPPI (30/10/2026) ─────────────────────────────
  *
  *  Richiesta del titolare: «i filtri sono caotici, "chiuso" e "aperto" non si
- *  capisce cosa significano». Prima: dieci pastiglie in una fila, UNA sola
- *  scelta alla volta. Ora: sei gruppi, ognuno risponde a una domanda di lavoro.
+ *  capisce cosa significano». Sei gruppi, ognuno risponde a una domanda di lavoro.
  *
- *  Regola unica: **gruppi diversi si sommano (E); dentro un gruppo la scelta è
- *  una sola; «Azzera» toglie tutto.** La ricerca si somma sempre a tutto.
+ *  ── ESCLUSIVI (31/10/2026) ──────────────────────────────────────────────
+ *  Richiesta del titolare: «non si possono selezionare più filtri insieme». Se ne accende UNO
+ *  solo: toccarne un altro spegne il primo e accende quello toccato; toccare quello acceso lo
+ *  spegne (torna «Tutte»). Vale per pastiglie e pannello. Il **consulente** e la **ricerca**
+ *  non sono filtri da azzerare: restano com'erano e si sommano alla voce scelta.
+ *  Il motore (`passaFiltri`) sa ancora comporre i gruppi in E: serve per consulente + voce; ciò
+ *  che cambia è COME SI SCELGONO (`commuta`), COSA SI CONTA (`contaVoce`) e COSA SI RILEGGE dal
+ *  dispositivo (`soloUno`).
  *
- *   1. Cosa fare adesso   coda (Da rispondere · Da chiamare): una sola
- *                         + stelle (acceso/spento, si combina con tutto)
+ *   1. Cosa fare adesso   coda (Da rispondere · Da chiamare) + stelle (acceso/spento)
  *   2. Fase del lead      Attesa WhatsApp · Per ora no · un altro stato: una sola
  *   3. Finestra WhatsApp  Si può scrivere · Finestra chiusa: una sola
  *   4. Pagamento          Acconto versato (acceso/spento)
@@ -272,10 +276,14 @@ export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi
 export const eAcceso = (f: FiltriChat, campo: CampoFiltro, valore: string | true): boolean =>
   valore === true ? f[campo] === true : f[campo] === valore;
 
-/** Tocca una voce: se è accesa si spegne, altrimenti prende il posto di quella del suo gruppo. */
+/** Tocca una voce (filtri esclusivi): se è accesa si spegne; altrimenti si spegne qualunque altra e si
+ *  accende questa. Il consulente non è un filtro da azzerare: scegliere un consulente non spegne la
+ *  voce accesa, e toccare una voce non toglie il consulente. */
 export function commuta(f: FiltriChat, campo: CampoFiltro, valore: string | true): FiltriChat {
-  if (valore === true) return { ...f, [campo]: !f[campo] };
-  return { ...f, [campo]: f[campo] === valore ? (campo === "consulente" ? "" : null) : valore };
+  if (campo === "consulente")
+    return { ...f, consulente: f.consulente === valore ? "" : String(valore) };
+  if (eAcceso(f, campo, valore)) return { ...f, [campo]: FILTRI_VUOTI[campo] };
+  return { ...FILTRI_VUOTI, consulente: f.consulente, [campo]: valore };
 }
 
 /** Il gruppo `campo` torna spento. */
@@ -287,8 +295,8 @@ export function togli(f: FiltriChat, campo: CampoFiltro): FiltriChat {
 export const contaAccesi = (f: FiltriChat): number =>
   (Object.keys(FILTRI_VUOTI) as CampoFiltro[]).filter((k) => f[k] !== FILTRI_VUOTI[k]).length;
 
-/** Quante chat vedresti se accendessi `campo = valore` tenendo gli altri gruppi come sono
- *  (ricerca esclusa). Il gruppo di `campo` viene sostituito, non sommato. */
+/** Quante chat vedresti se toccassi `campo = valore`: la voce da sola (sostituisce quella accesa) più
+ *  il consulente (ricerca esclusa). Per il consulente stesso: la voce accesa resta. */
 export function contaVoce(
   chats: readonly ChatFiltrabile[],
   f: FiltriChat,
@@ -296,7 +304,11 @@ export function contaVoce(
   campo: CampoFiltro,
   valore: string | true,
 ): number {
-  const prova = { ...f, [campo]: valore } as FiltriChat;
+  const prova = (
+    campo === "consulente"
+      ? { ...f, consulente: valore }
+      : { ...FILTRI_VUOTI, consulente: f.consulente, [campo]: valore }
+  ) as FiltriChat;
   return chats.filter((c) => passaFiltri(c, prova, stelleDi)).length;
 }
 
@@ -345,6 +357,25 @@ export function etichetteAccese(
 
 const CODE: readonly string[] = ["da-rispondere", "da-chiamare"];
 
+/** Quale tenere se ne trovi più d'uno, dal più specifico al più generico. */
+const PRIORITA: readonly Exclude<CampoFiltro, "consulente">[] = [
+  "fase",
+  "finestra",
+  "acconto",
+  "coda",
+  "tipo",
+  "stelle",
+];
+
+/** Filtri esclusivi: se ne sono accesi più d'uno (salvati da una versione che li combinava) ne resta
+ *  uno solo, il più specifico. Il consulente non conta e non cambia. Non muta l'ingresso. */
+export function soloUno(f: FiltriChat): FiltriChat {
+  const tenuto = PRIORITA.find((k) => f[k] !== FILTRI_VUOTI[k]);
+  const out: FiltriChat = { ...FILTRI_VUOTI, consulente: f.consulente };
+  if (tenuto) (out as unknown as Record<string, unknown>)[tenuto] = f[tenuto];
+  return out;
+}
+
 /** Gli altri filtri, come stringa per `sessionStorage` (il consulente ha il suo posto). */
 export function scriviFiltriSessione(f: FiltriChat): string {
   const { consulente: _consulente, ...resto } = f;
@@ -360,7 +391,7 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
   } catch {
     /* testo rotto: si riparte da zero */
   }
-  return {
+  return soloUno({
     coda: typeof o.coda === "string" && CODE.includes(o.coda) ? (o.coda as CodaChat) : null,
     stelle: o.stelle === true,
     fase: faseValida(o.fase) ? o.fase : null,
@@ -369,7 +400,7 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
     tipo:
       o.tipo === "con-scheda" || o.tipo === "senza-scheda" || o.tipo === "cliente" ? o.tipo : null,
     consulente: typeof consulente === "string" ? consulente.slice(0, 80) : "",
-  };
+  });
 }
 
 /** Il consulente salvato esiste ancora? Se è stato cancellato il filtro non vale (e non si vede
