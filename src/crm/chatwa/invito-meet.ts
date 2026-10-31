@@ -13,7 +13,15 @@
  *  - «Già inviato oggi»: lo dice il registro di questo dispositivo (`registraInvito`) oppure l'ultimo
  *    messaggio della chat, se è nostro, di oggi, e contiene il link. Il tasto allora lo dice e,
  *    per rimandare, chiede conferma.
- *  - Finestra non nota (`finestra` assente) = chiusa: meglio WhatsApp che un invio rifiutato. */
+ *  - Finestra non nota (`finestra` assente) = chiusa: meglio WhatsApp che un invio rifiutato.
+ *  ── COL LINK O SENZA, PER CONSULENTE (31/10/2026, commessa invito-senza-link) ──
+ *  Ogni consulente sceglie nella sua scheda (Anagrafica → Invito al meet) se l'invito parte col
+ *  link di Meetly oppure SENZA link: allora il testo lo promette («Tra poco ti mando qui il link
+ *  per entrare») e il link lo manda lui a mano, in un secondo messaggio. La scelta sta in
+ *  `crm_consultants.data.invitoMeet` (JSON già esistente, scrittura sicura di `updateConsultant`):
+ *  nessuna migrazione. Senza scelta salvata, o con un valore strano, vale il link: è il
+ *  comportamento di prima e il più sicuro. Senza link il tasto NON si spegne se il link manca.
+ *  Valgono solo per l'invito a mano: i modelli automatici di Meta, col link come variabile, non cambiano. */
 import type { LeadData } from "../types";
 import { linkPerCliente } from "../manychat/testi";
 import { nomePerModello } from "../promemoria/formati";
@@ -29,9 +37,34 @@ export interface ChatPerInvito {
   lastMessage?: { direction: string; body: string | null; created_at: string } | null;
 }
 
+/** Come parte l'invito di un consulente: col link di Meetly (di serie) o senza link. */
+export type ModoInvito = "meetly" | "senza";
+
+/** La scelta salvata nei dati del consulente; tutto ciò che non è «senza» vale «meetly». */
+export const modoInvito = (dati: { invitoMeet?: unknown } | null | undefined): ModoInvito =>
+  dati?.invitoMeet === "senza" ? "senza" : "meetly";
+
+/** La scelta del consulente di un meet. Consulente assente o non più in archivio = col link. */
+export const modoDelConsulente = (
+  consulenti: { id: string; data?: { invitoMeet?: unknown } | null }[],
+  consulenteId: string | null | undefined,
+): ModoInvito => modoInvito(consulenti.find((x) => x.id === consulenteId)?.data);
+
+/** La frase che, nell'invito senza link, promette il link: serve anche a riconoscere l'invito
+ *  nella chat (il link lì non c'è). */
+export const SEGNO_SENZA_LINK = "Tra poco ti mando qui il link per entrare";
+
+/** Il promemoria per chi ha mandato un invito senza link. */
+export const PROMEMORIA_LINK = "Ricordati di mandare il link";
+
 export interface InvitoPreparato {
   testo: string;
-  link: string;
+  /** Il link del meet; `null` nell'invito senza link. */
+  link: string | null;
+  /** Cosa cercare nell'ultimo messaggio della chat per dire «già inviato oggi»: il link o la frase che lo promette. */
+  segno: string;
+  /** L'invito promette il link e non lo contiene: dopo l'invio va ricordato di mandarlo. */
+  senzaLink: boolean;
 }
 
 /** Il testo dell'invito, o il motivo (breve, per il tasto) per cui non si può fare. */
@@ -39,18 +72,25 @@ export function preparaInvito(
   chat: ChatPerInvito,
   ora: string,
   consulente: string | null,
+  modo: ModoInvito = "meetly",
 ): { ok: true; invito: InvitoPreparato } | { ok: false; motivo: string } {
   if (chat.stop) return { ok: false, motivo: "Il cliente ha chiesto STOP" };
   if (!linkWaMe(chat.phone)) return { ok: false, motivo: "Manca il telefono" };
-  const link = linkPerCliente(chat.lead?.data ?? {}, chat.leadId ?? chat.lead?.id ?? null);
-  if (!link) return { ok: false, motivo: "Manca il link del meet" };
+  //  Senza link il link non serve: non si cerca nemmeno (e quindi non può mancare).
+  const link =
+    modo === "senza" ? null : linkPerCliente(chat.lead?.data ?? {}, chat.leadId ?? chat.lead?.id ?? null);
+  if (modo !== "senza" && !link) return { ok: false, motivo: "Manca il link del meet" };
   //  Nel saluto basta il primo nome («Giulia», non «Giulia Verdi»).
   const nome = nomePerModello(chat.lead?.data?.nome)?.split(/\s+/)[0];
   const chi = consulente ? `${consulente} ti aspetta` : "ti aspettiamo";
-  const testo =
-    `Ciao${nome ? ` ${nome}` : ""}, la tua consulenza con Hair Genius Labs è alle ${ora}: ${chi}.` +
-    ` Entra da qui: ${link}`;
-  return { ok: true, invito: { testo, link } };
+  const inizio = `Ciao${nome ? ` ${nome}` : ""}, la tua consulenza con Hair Genius Labs è alle ${ora}: ${chi}.`;
+  if (!link) {
+    return {
+      ok: true,
+      invito: { testo: `${inizio} ${SEGNO_SENZA_LINK}.`, link: null, segno: SEGNO_SENZA_LINK, senzaLink: true },
+    };
+  }
+  return { ok: true, invito: { testo: `${inizio} Entra da qui: ${link}`, link, segno: link, senzaLink: false } };
 }
 
 /** Come parte l'invito: dal CRM (finestra aperta) o da WhatsApp (chiusa o non nota). */
@@ -105,20 +145,21 @@ export function registraInvito(
   return { ...resto, [telefono]: { giorno: oggi, alle, via } };
 }
 
-/** L'invito di oggi già fatto a questa chat, o `null`. `oraLocale` serve a leggere l'ora dell'ultimo
- *  messaggio nostro: `(iso) => "10:05"`. */
+/** L'invito di oggi già fatto a questa chat, o `null`. `segno` è quel che riconosce l'invito nell'ultimo
+ *  messaggio nostro: il link, o (senza link) la frase che lo promette. `oraLocale` serve a leggere
+ *  l'ora di quel messaggio: `(iso) => "10:05"`. */
 export function invitoDiOggi(
   chat: ChatPerInvito,
   registro: RegistroInviti,
   oggi: string,
-  link: string,
+  segno: string,
   oraLocale: (iso: string) => string,
   giornoLocale: (iso: string) => string,
 ): VoceInvito | null {
   const voce = registro[chat.phone];
   if (voce && voce.giorno === oggi) return voce;
   const m = chat.lastMessage;
-  if (m && m.direction === "outbound" && link && m.body?.includes(link) && giornoLocale(m.created_at) === oggi)
+  if (m && m.direction === "outbound" && segno && m.body?.includes(segno) && giornoLocale(m.created_at) === oggi)
     return { giorno: oggi, alle: oraLocale(m.created_at), via: "crm" };
   return null;
 }

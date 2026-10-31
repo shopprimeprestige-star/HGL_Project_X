@@ -135,6 +135,8 @@ import type {
   Lead,
 } from "@/crm/types";
 import { cn } from "@/lib/utils";
+import { SceltaInvitoMeet } from "@/crm/chatwa/SceltaInvitoMeet";
+import { modoInvito } from "@/crm/chatwa/invito-meet";
 
 const GIORNI = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
 
@@ -1003,6 +1005,20 @@ export function SchedaConsulente({
               (ADMIN) sono l&apos;unica cosa che non passa di qui: stanno in «Accesso → Che cosa può
               fare», insieme all&apos;elenco per esteso.
             </NotaFinestra>
+          </SezioneFinestra>
+
+          {/* ── INVITO AL MEET ──────────────────────────────────────────────
+              Cosa fa il tasto «Invia invito» della barra delle chat quando il meet è di questa
+              persona. Si salva col «Salva modifiche» in fondo, come l'anagrafica. */}
+          <SezioneFinestra
+            titolo="Invito al meet"
+            nota="Cosa riceve il cliente quando dalla barra del prossimo meet premi «Invia invito». Vale solo per l'invito a mano: i messaggi automatici non cambiano."
+            classeCorpo="p-4"
+          >
+            <SceltaInvitoMeet
+              valore={modoInvito(bozza)}
+              onCambio={(v) => cambia("invitoMeet", v)}
+            />
           </SezioneFinestra>
 
           <SezioneFinestra titolo="Calendario esterno" classeCorpo="p-4 space-y-2">

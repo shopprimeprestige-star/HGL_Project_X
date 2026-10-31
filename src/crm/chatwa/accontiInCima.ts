@@ -74,8 +74,21 @@ export function dataAcconto(l: Lead): string {
   return pagato || dataChiusura(l);
 }
 
-/** Anticipate prima (nel loro ordine), poi l'acconto più vecchio, poi il nome. */
+/** Il giorno (e l'ora) già fissato per la posa, «AAAA-MM-GG HH:MM»; "" se non c'è. */
+const giornoPosa = (l: Lead): string => {
+  const i = l.data?.installazione;
+  const g = String(i?.dataInstallazione ?? "").slice(0, 10);
+  return g ? `${g} ${String(i?.orarioInstallazione || "99:99")}` : "";
+};
+
+/** Ordine del blocco (richiesta del titolare, 31/10/2026): PRIMA chi non ha ancora il giorno della
+ *  posa (anticipate prima, poi l'acconto più vecchio), SOTTO chi ha già il giorno (dal più vicino). */
 function confrontaDaInstallare(a: Lead, b: Lead): number {
+  const ga = giornoPosa(a);
+  const gb = giornoPosa(b);
+  if (!ga !== !gb) return ga ? 1 : -1;
+  if (ga && gb)
+    return ga === gb ? nomeCompleto(a).localeCompare(nomeCompleto(b)) : ga.localeCompare(gb);
   const pa = daAnticipare(a);
   const pb = daAnticipare(b);
   if (pa !== pb) return pa ? -1 : 1;
