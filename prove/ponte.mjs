@@ -37,6 +37,7 @@ import { provePontePari } from "./ponte/pari.mjs";
 import { provePonteLidEPari } from "./ponte/lid-e-pari.mjs";
 import { provePonteRotta } from "./ponte/rotta.mjs";
 import { provePonteRevocheIngresso } from "./ponte/revoche-ingresso.mjs";
+import { provePonteRevocheMigrazione } from "./ponte/revoche-migrazione.mjs";
 import { provePonteRevocheServizio } from "./ponte/revoche-servizio.mjs";
 import { proveDocumentiExport } from "./ponte/documenti-export.mjs";
 import { provePonteServizioCache } from "./ponte/servizio-cache.mjs";
@@ -165,4 +166,5 @@ export async function proveDelPonte(mod, aiuti) {
   //  Le revoche (commessa 2026-10-31, ponte-revoche): un nostro messaggio eliminato per tutti sparisce dal CRM.
   await provePonteRevocheServizio(mod, aiuti);
   await provePonteRevocheIngresso(mod, aiuti);
+  await provePonteRevocheMigrazione(mod, aiuti);
 }
