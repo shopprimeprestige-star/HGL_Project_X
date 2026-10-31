@@ -21581,7 +21581,7 @@ proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
 proveMeetlySfuRegole(mod, { c, gruppo, radice });
-proveMeetlySfuServer(mod, { c, gruppo, radice });
+await proveMeetlySfuServer(mod, { c, gruppo, radice });
 proveMeetlySfuClient(mod, { c, gruppo, radice });
 proveMeetlySfuInnesti(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
