@@ -10,8 +10,8 @@
  *   · `imposta(comando, chi)`: l'UNICO scrittore. Ordine: voce nel catalogo e non bloccata →
  *     regole prima di accendere (data della frase del modulo, indirizzo della sede) →
  *     `messaggio_automatico_imposta` (compare-and-set + riga di log nella STESSA transazione:
- *     perso = 409) → per conferma e fattura, da spento ad acceso, `avvio: "da_fare"` nel loro
- *     JSON (se questo passo fallisce, il registro si rimette com'era). Mai uno stato a metà.
+ *     perso = 409). Per conferma e fattura, da spento ad acceso, PRIMA di quest'ultimo si scrive
+ *     `avvio: "da_fare"` nel loro JSON (vedi `segnaAvvio`: l'ordine è un vincolo).
  *
  *  ⚠️ NON importa `pannello.server`, `porte.server` né `porta.server`: sono loro (compito T4,
  *   T3) a importare questo file, un giro di import lo romperebbe. La riga di `manychat_config`
@@ -315,14 +315,15 @@ async function cambiaRegistro(
   return data === true;
 }
 
-/** Da spento ad acceso, la conferma e la fattura segnano `avvio: "da_fare"` nel loro JSON: chi ha
- *  già un appuntamento o un acconto non riceve niente (come faceva il vecchio riquadro).
- *  shortcut: c'è una finestra di millisecondi fra il registro acceso e questo JSON in cui un giro
- *  potrebbe vedere il vecchio `avvio`; il giro è ogni 2-5 minuti. Scrivere il JSON PRIMA la
- *  chiuderebbe, ma lascerebbe `da_fare` anche quando il compare-and-set perde. */
+/** Da spento ad acceso, la conferma e la fattura segnano `avvio: "da_fare"` e `attivoDal` nel loro JSON:
+ *  chi ha già un appuntamento o un acconto non riceve niente (come faceva il vecchio riquadro).
+ *  ⚠️ VA SCRITTO PRIMA del compare-and-set sul registro. Se fosse dopo, nel frattempo il giro vedrebbe il
+ *   messaggio «acceso» con il vecchio `avvio: "fatto"` e scriverebbe a tutti gli appuntamenti già in agenda.
+ *   Il prezzo: se il compare-and-set poi perde (o sbaglia), `da_fare` resta scritto; a registro spento il
+ *   giro non lo legge, e alla prossima accensione verrebbe riscritto comunque. Nel peggiore dei casi il
+ *   primo giro «segna come preesistenti» qualcuno in più: manda meno messaggi, mai di più. */
 async function segnaAvvio(chiave: ChiaveMessaggio, adesso: Date): Promise<void> {
-  const conferma = chiave === "conferma_consulenza";
-  const k = conferma ? CHIAVE_JSON_CONFERMA : CHIAVE_JSON_FATTURA;
+  const k = chiave === "conferma_consulenza" ? CHIAVE_JSON_CONFERMA : CHIAVE_JSON_FATTURA;
   const letto = await db()
     .from("app_config")
     .select<{ value?: string | null }[]>("value")
@@ -339,8 +340,7 @@ async function segnaAvvio(chiave: ChiaveMessaggio, adesso: Date): Promise<void> 
   const dopo = {
     ...prima,
     acceso: true,
-    // La conferma ricorda da quando è accesa; per la fattura la data la scrive il giro, come prima.
-    ...(conferma ? { attivoDal: adesso.toISOString() } : {}),
+    attivoDal: adesso.toISOString(),
     avvio: "da_fare",
   };
   const { error } = await db()
@@ -374,26 +374,21 @@ export async function imposta(
     if (impedito) return no(impedito.stato, impedito.errore);
   }
 
+  // Prima il JSON `da_fare` (vedi `segnaAvvio`), poi il registro: mai il contrario.
+  if (acceso && !prima && (chiave === "conferma_consulenza" || chiave === "dati_fattura")) {
+    try {
+      await segnaAvvio(chiave, adesso);
+    } catch (e) {
+      avvisa("avvio", e);
+      return no(500, FRASE_GUASTO);
+    }
+  }
+
   try {
     if (!(await cambiaRegistro(chiave, prima, acceso, chi))) return no(409, FRASE_PERSO);
   } catch (e) {
     avvisa("imposta", e);
     return funzioneOTabellaMancante(e) ? no(503, FRASE_MIGRAZIONE) : no(500, FRASE_GUASTO);
-  }
-
-  if (acceso && (chiave === "conferma_consulenza" || chiave === "dati_fattura")) {
-    try {
-      await segnaAvvio(chiave, adesso);
-    } catch (e) {
-      avvisa("avvio", e);
-      // Mai uno stato a metà: si rimette il registro com'era (un secondo compare-and-set, con il suo log).
-      try {
-        await cambiaRegistro(chiave, true, false, chi);
-      } catch (e2) {
-        avvisa("compensa", e2);
-      }
-      return no(500, FRASE_GUASTO);
-    }
   }
 
   try {

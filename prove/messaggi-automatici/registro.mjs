@@ -8,7 +8,7 @@
  *     mancante, errore del database, messaggio bloccato dal codice;
  *   - `imposta`: compare-and-set perso = 409 e nessuna scrittura in più, voce bloccata = 409,
  *     controlli prima di accendere (frase del modulo, indirizzo sede), `attivoDal`/`avvio` nel JSON
- *     di conferma e fattura, compensazione se questo passo fallisce, nome di chi clicca dal server;
+ *     di conferma e fattura, il JSON PRIMA del compare-and-set, nome di chi clicca dal server;
  *   - la rotta (letta nel sorgente come `prenota-interruttore.mjs`): permesso «impostazioni»
  *     su GET e POST (senza permesso = 403 dal `guardiaCRM`), il nome viene dalla sessione;
  *   - il client: l'indirizzo, il corpo, gli errori.
@@ -519,9 +519,12 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   riparti(tutteLeggibili(), () => ({ data: false, error: null }));
   const perso2 = await R.imposta(cmd("conferma_consulenza", true), "Filippo", ADESSO);
   c(
-    "…perso su «Conferma»: il JSON di app_config non si tocca",
-    [409, []],
-    [perso2.stato, finta.chiamate.filter((x) => x.tabella === "app_config" && x.op === "upsert")],
+    "…perso su «Conferma»: 409; il JSON `da_fare` era già scritto PRIMA (resta: a registro spento non fa niente e protegge la prossima accensione)",
+    [409, 1],
+    [
+      perso2.stato,
+      finta.chiamate.filter((x) => x.tabella === "app_config" && x.op === "upsert").length,
+    ],
   );
 
   riparti(tutteLeggibili());
@@ -654,8 +657,8 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   const cf = await R.imposta(cmd("conferma_consulenza", true), "Filippo", ADESSO);
   const upConf = finta.chiamate.filter((x) => x.tabella === "app_config" && x.op === "upsert");
   c(
-    "accendere «Conferma»: ok, e il JSON di app_config si riscrive UNA volta DOPO la funzione",
-    [true, 1, ["rpc", "app_config"]],
+    "ORDINE: accendere «Conferma» scrive il JSON `avvio: da_fare` UNA volta PRIMA del compare-and-set (se fosse dopo, il giro vedrebbe «acceso» col vecchio `avvio: fatto` e scriverebbe a tutti gli appuntamenti già in agenda)",
+    [true, 1, ["app_config", "rpc"]],
     [
       cf.ok,
       upConf.length,
@@ -689,13 +692,21 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   const df = await R.imposta(cmd("dati_fattura", true), "Filippo", ADESSO);
   const upDf = finta.chiamate.filter((x) => x.tabella === "app_config" && x.op === "upsert");
   c(
-    "accendere «Dati fattura»: `acceso` vero e `avvio` «da_fare»; `attivoDal` e il resto non si toccano (lo scrive il giro, come oggi)",
+    "ORDINE e contenuto per «Dati fattura»: JSON prima (`acceso` vero, `attivoDal` = adesso, `avvio` «da_fare», il resto com'era), poi il compare-and-set",
     [
       true,
       "dati_fattura_config",
-      { acceso: true, modelloApprovato: true, attivoDal: "2026-10-02T00:00:00Z", avvio: "da_fare" },
+      { acceso: true, modelloApprovato: true, attivoDal: ADESSO.toISOString(), avvio: "da_fare" },
+      ["app_config", "rpc"],
     ],
-    [df.ok, upDf[0]?.valore.key, JSON.parse(upDf[0].valore.value)],
+    [
+      df.ok,
+      upDf[0]?.valore.key,
+      JSON.parse(upDf[0].valore.value),
+      finta.chiamate
+        .filter((x) => x.op === "rpc" || (x.tabella === "app_config" && x.op === "upsert"))
+        .map((x) => (x.op === "rpc" ? "rpc" : x.tabella)),
+    ],
   );
 
   riparti(
@@ -723,7 +734,7 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   await R.imposta(cmd("dati_fattura", true), "Filippo", ADESSO);
   c(
     "JSON vecchio che non è un oggetto (lista): come assente",
-    { acceso: true, avvio: "da_fare" },
+    { acceso: true, attivoDal: ADESSO.toISOString(), avvio: "da_fare" },
     JSON.parse(finta.chiamate.find((x) => x.op === "upsert").valore.value),
   );
 
@@ -735,7 +746,7 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
     [sp.ok, rpcFatte().length, finta.chiamate.filter((x) => x.tabella === "app_config").length],
   );
 
-  // ── compensazione ──
+  // ── se il JSON non si scrive, il registro non si tocca ──
   riparti(
     tutteLeggibili({
       app_config: (ch) =>
@@ -744,14 +755,9 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   );
   const comp = await R.imposta(cmd("conferma_consulenza", true), "Filippo", ADESSO);
   c(
-    "se la scrittura del JSON fallisce: il registro si rimette com'era con un secondo compare-and-set, e la risposta è un errore (mai uno stato a metà)",
-    [
-      false,
-      500,
-      2,
-      { p_chiave: "conferma_consulenza", p_prima: true, p_dopo: false, p_da: "Filippo" },
-    ],
-    [comp.ok, comp.stato, rpcFatte().length, rpcFatte()[1]?.args],
+    "se la scrittura del JSON fallisce: errore e il registro NON si tocca (nessun compare-and-set, quindi niente da rimettere)",
+    [false, 500, 0],
+    [comp.ok, comp.stato, rpcFatte().length],
   );
   riparti(
     tutteLeggibili({
@@ -761,31 +767,15 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   const comp2 = await R.imposta(cmd("dati_fattura", true), "Filippo", ADESSO);
   c(
     "…anche se la scrittura LANCIA invece di rispondere con un errore",
-    [false, 500, 2],
+    [false, 500, 0],
     [comp2.ok, comp2.stato, rpcFatte().length],
   );
   riparti(tutteLeggibili({ app_config: () => "lancia" }));
   const comp3 = await R.imposta(cmd("dati_fattura", true), "Filippo", ADESSO);
   c(
     "…o se è la LETTURA del JSON a lanciare",
-    [false, 500, 2],
+    [false, 500, 0],
     [comp3.ok, comp3.stato, rpcFatte().length],
-  );
-  riparti(
-    tutteLeggibili({
-      app_config: (ch) =>
-        ch.op === "upsert" ? { data: null, error: { code: "08006" } } : { data: null, error: null },
-    }),
-    (fn, args, ch) =>
-      rpcFatte().length === 1
-        ? { data: true, error: null }
-        : { data: null, error: { code: "08006" } },
-  );
-  const comp4 = await R.imposta(cmd("conferma_consulenza", true), "Filippo", ADESSO);
-  c(
-    "…e se anche la compensazione fallisce: sempre una risposta d'errore, mai un'eccezione",
-    [false, 500],
-    [comp4.ok, comp4.stato],
   );
 
   // ── errori della funzione SQL ──
@@ -799,8 +789,8 @@ export async function proveRegistroMessaggi(mod, { c, gruppo, radice }) {
   riparti(tutteLeggibili(), () => ({ data: null, error: { code: "08006" } }));
   const f2 = await R.imposta(cmd("conferma_consulenza", true), "Filippo", ADESSO);
   c(
-    "altro errore della funzione → 500, e per «Conferma» il JSON non si tocca",
-    [500, 0],
+    "altro errore della funzione → 500 (il JSON `da_fare` era già scritto, come nel compare-and-set perso)",
+    [500, 1],
     [
       f2.stato,
       finta.chiamate.filter((x) => x.tabella === "app_config" && x.op === "upsert").length,
