@@ -219,12 +219,6 @@ export const VOCE_CLIENTI: VoceFiltro = {
   spiega: "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
 };
 
-/** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
- *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere ·
- *  Da chiamare · Con stelle · Sconosciuti · Clienti. «Tutte» (spenti tutti i filtri) la disegna `ElencoChat`;
- *  qui ci sono le cinque voci vere. Il consulente sta nel pannello «Filtri». */
-export const VOCI_RIGA: readonly VoceFiltro[] = [...VOCI_GRIGLIA, VOCE_SCONOSCIUTI, VOCE_CLIENTI];
-
 /** La voce di uno stato scelto da «Altri stati»: nome del CRM, nessuna spiegazione. */
 export const voceDelloStato = (stato: LeadStatus): VoceFiltro => ({
   campo: "fase",
@@ -232,6 +226,31 @@ export const voceDelloStato = (stato: LeadStatus): VoceFiltro => ({
   nome: LEAD_STATUS_LABEL[stato],
   spiega: "",
 });
+
+/** «Non risponde» e «Da riprogrammare» (31/10/2026): due stati già filtrabili da «Altri stati», portati in riga.
+ *  Sono voci della fase (`stato:<valore>`, vedi perStato.ts): nessuna regola di filtro nuova, e il nome è quello del CRM. */
+export const VOCE_NON_RISPONDE: VoceFiltro = {
+  ...voceDelloStato("non_risponde"),
+  spiega: "Tutti i lead in stato «Non risponde»: li hai chiamati e non hanno risposto, anche se poi hanno scritto.",
+};
+export const VOCE_DA_RIPROGRAMMARE: VoceFiltro = {
+  ...voceDelloStato("da_spostare"),
+  spiega: "Tutti i lead in stato «Da riprogrammare»: l'incontro è saltato e aspetta una nuova data.",
+};
+
+/** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
+ *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare ·
+ *  Non risponde · Da riprogrammare · Con stelle · Sconosciuti · Clienti. «Tutte» (spenti tutti i filtri) la
+ *  disegna `ElencoChat`; qui ci sono le sette voci vere. Il consulente sta nel pannello «Filtri».
+ *  «Non risponde» e «Da riprogrammare» sono nella stessa fase: se ne accende una sola alla volta. */
+export const VOCI_RIGA: readonly VoceFiltro[] = [
+  ...VOCI_GRIGLIA.filter((v) => v.campo !== "stelle"),
+  VOCE_NON_RISPONDE,
+  VOCE_DA_RIPROGRAMMARE,
+  ...VOCI_GRIGLIA.filter((v) => v.campo === "stelle"),
+  VOCE_SCONOSCIUTI,
+  VOCE_CLIENTI,
+];
 
 /** «Altri stati»: gli stati che hanno un filtro, nell'ordine del CRM, uno per etichetta. */
 export const STATI_ALTRI: readonly LeadStatus[] = STATI_PER_STATO;

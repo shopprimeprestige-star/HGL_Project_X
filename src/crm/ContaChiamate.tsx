@@ -5,7 +5,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useCallback } from "react";
 import { useCRM } from "./CRMContext";
-import { chiamateDi, frasiChiamate, patchChiamata } from "./chiamate";
+import { chiamateDi, patchChiamata, titoloChiamate, frasiChiamate } from "./chiamate";
 import type { Lead } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +16,9 @@ export function useSegnaChiamata() {
       if (!lead?.id) return;
       //  Non si aspetta: il tocco apre il telefono subito.
       //  Una funzione: si compone sulla scheda riletta, così due tocchi di
-      //  fila (o due telefoni) contano due.
-      void updateLead(lead.id, (d) => patchChiamata(d));
+      //  fila (o due telefoni) contano due. `registraChiamata`: senza, `updateLead`
+      //  scarta `chiamate` (la guardia contro i moduli con il conto vecchio).
+      void updateLead(lead.id, (d) => patchChiamata(d), { registraChiamata: true });
     },
     [updateLead],
   );
@@ -35,7 +36,7 @@ export function BadgeChiamate({
   return (
     <span
       aria-label={frasiChiamate(n)}
-      title={frasiChiamate(n)}
+      title={titoloChiamate(lead?.data)}
       className={cn(
         "pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 t-etichetta font-semibold leading-none tabular-nums text-white ring-2 ring-card",
         className,

@@ -470,6 +470,43 @@ export function leggiMessaggio(wamsg, opzioni = {}) {
   return nome ? { ok: true, messaggio, nome } : { ok: true, messaggio };
 }
 
+/** ── LE REVOCHE (commessa 2026-10-31, ponte-revoche) ─────────────────────────
+ *  Un messaggio NOSTRO «eliminato per tutti» dal telefono deve sparire anche dalla chat del CRM;
+ *  quello di un cliente no (richiesta del titolare). La cancellazione arriva in due forme, che
+ *  Baileys rc14 emette per lo stesso fatto (`process-message.js`, caso REVOKE):
+ *   · `messages.upsert`: il contenitore ha un `protocolMessage` REVOKE e la SUA `key`; il messaggio
+ *     cancellato sta in `protocolMessage.key.id`;
+ *   · `messages.update`: `key` = quella del contenitore con l'id del messaggio cancellato, e
+ *     `update.messageStubType` REVOKE (1).
+ *  Decide `key.fromMe === true` del CONTENITORE (cioè: l'ha fatta il nostro numero). La `key` dentro
+ *  il `protocolMessage` ha il punto di vista di chi manda e non si usa. Il numero e il LID si ricavano
+ *  come per ogni messaggio (`numeroDellaChat`), la chiave è quella di `chiaveMessaggio` (`bw:<cifre>:<id>`).
+ *  Uscita: `{ ok: true, chiave }` oppure `{ ok: false, motivo }` (`non_revoca` = non è una cancellazione,
+ *  `revoca_del_cliente`, `id_non_valido`, i motivi della chat, `se_stesso`). Non lancia mai. */
+function chiaveDiRevoca(key, idRevocato, { proprioNumero, risolviLid } = {}) {
+  if (key?.fromMe !== true) return { ok: false, motivo: "revoca_del_cliente" };
+  if (typeof idRevocato !== "string" || !ID_VALIDO.test(idRevocato)) return { ok: false, motivo: "id_non_valido" };
+  const chat = numeroDellaChat(key, risolviLid);
+  if (chat.motivo) return { ok: false, motivo: chat.motivo };
+  if (chat.numero === comeNumero(proprioNumero ?? null)) return { ok: false, motivo: "se_stesso" };
+  return { ok: true, chiave: `bw:${chat.numero}:${idRevocato}` };
+}
+
+/** La forma `messages.upsert` (vedi sopra). */
+export function revocaDa(wamsg, opzioni = {}) {
+  const m = wamsg && typeof wamsg === "object" ? apri(wamsg.message) : null;
+  const p = m && typeof m === "object" ? m.protocolMessage : null;
+  if (!p || typeof p !== "object" || PROTOCOLLO[p.type] !== "cancellazione") return { ok: false, motivo: "non_revoca" };
+  return chiaveDiRevoca(wamsg.key, p.key?.id, opzioni);
+}
+
+/** La forma `messages.update` (vedi sopra). */
+export function revocaDaAggiornamento(voce, opzioni = {}) {
+  const stub = voce?.update?.messageStubType;
+  if (stub !== 1 && stub !== "REVOKE") return { ok: false, motivo: "non_revoca" };
+  return chiaveDiRevoca(voce.key, voce.key?.id, opzioni);
+}
+
 /** Da un `WAMessage` con una foto vera a `{ chiave, ts, immagine }` per `immagini.mjs`,
  *  oppure null. Passa da `leggiMessaggio` (stesse regole di chat, numero, orario e
  *  taglio), quindi la chiave `bw:<numero>:<id>` è quella con cui la riga di testo

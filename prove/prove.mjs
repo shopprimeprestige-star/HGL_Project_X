@@ -54,6 +54,7 @@ import {
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
+import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
@@ -20923,14 +20924,16 @@ function proveDelDaChiamare() {
   const D = mod["chatwa/daChiamare"];
   const adesso = new Date("2026-10-28T20:00:00Z");
   const attesa = (iso) => ({ stato: "attesa_whatsapp", statoPrecedenteIl: iso });
-  c("stato Attesa WhatsApp da 11 ore: da chiamare", { si: true, dal: "2026-10-28T09:00:00Z" }, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], adesso }));
-  c("da 9 ore: non ancora", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T11:00:00Z"), messaggi: [], adesso }).si);
-  c("tasto WhatsApp premuto 12 ore fa e stato invariato: sì", true, D.calcolaDaChiamare({ dati: { stato: "da_contattare", whatsappInviatoIl: "2026-10-28T08:00:00Z", statoPrecedenteIl: "2026-10-27T08:00:00Z" }, messaggi: [], adesso }).si);
+  c("stato Attesa WhatsApp da 25 ore (mai scritto: 24 ore dal nostro messaggio): da chiamare", { si: true, dal: "2026-10-27T19:00:00Z" }, D.calcolaDaChiamare({ dati: attesa("2026-10-27T19:00:00Z"), messaggi: [], adesso }));
+  c("da 10 ore: non ancora (prima erano 10 ore, ora la finestra di 24)", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T10:00:00Z"), messaggi: [], adesso }).si);
+  c("tasto WhatsApp premuto 26 ore fa e stato invariato: sì", true, D.calcolaDaChiamare({ dati: { stato: "da_contattare", whatsappInviatoIl: "2026-10-27T18:00:00Z", statoPrecedenteIl: "2026-10-27T08:00:00Z" }, messaggi: [], adesso }).si);
   c("stato cambiato dopo il messaggio (es. richiamo): no", false, D.calcolaDaChiamare({ dati: { stato: "richiamo", whatsappInviatoIl: "2026-10-28T08:00:00Z", statoPrecedenteIl: "2026-10-28T09:00:00Z" }, messaggi: [], adesso }).si);
   c("primo contatto senza attesa WhatsApp: NON va in Da chiamare", false, D.calcolaDaChiamare({ dati: { stato: "da_contattare" }, messaggi: [{ direction: "outbound", created_at: "2026-10-27T08:00:00Z" }], adesso }).si);
   c("il cliente ha scritto durante l'attesa: no (è «Da rispondere»)", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T12:00:00Z" }], adesso }).si);
   c("…anche se lo dice solo la rubrica", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], ultimaEntrataIl: "2026-10-28T10:00:00Z", adesso }).si);
-  c("aveva scritto PRIMA dell'attesa: sì", true, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-27T09:00:00Z" }], adesso }).si);
+  c("aveva scritto PRIMA dell'attesa, finestra chiusa e 24 ore dal nostro: sì", true, D.calcolaDaChiamare({ dati: attesa("2026-10-27T19:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-27T09:00:00Z" }], adesso }).si);
+  c("NUOVA (31/10): ha scritto, gli abbiamo risposto, finestra ancora aperta: resta in attesa", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T08:00:00Z" }, { direction: "outbound", created_at: "2026-10-28T09:00:00Z" }], adesso }).si);
+  c("NUOVA (31/10): …appena si chiude la finestra (24 ore dal suo ultimo messaggio): da chiamare", true, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T08:00:00Z" }, { direction: "outbound", created_at: "2026-10-28T09:00:00Z" }], adesso: new Date("2026-10-29T08:00:00Z") }).si);
   c("numero in STOP: no", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], stop: true, adesso }).si);
   c("senza scheda: no", false, D.calcolaDaChiamare({ dati: null, messaggi: [], adesso }).si);
   c("numeri della scheda nel formato delle chat", ["+393331234567", "+393331234567", "+393331234567", "+447700900123", ""],
@@ -20944,7 +20947,7 @@ function proveDelDaChiamare() {
   c("chi è in attesa senza chat nel CRM compare lo stesso", true, /map\.set\(tel, \{/.test(hook) && /ultime9\.has/.test(hook));
   //  Dal 28/10 (commessa chat-da-chiamare) la fascia è sostituita dalla pillola «Da chiamare» coi sottofiltri.
   c("«Da chiamare»: la fascia non c'è più, c'è la pillola coi sottofiltri (prove/manychat/chat-sottofiltri.mjs)", true, !/titolo-da-chiamare/.test(elenco) && /chatDaChiamare\(/.test(elenco));
-  c("Attesa WhatsApp con solo l'ora del server (statoDal): sì", true, D.calcolaDaChiamare({ dati: { stato: "attesa_whatsapp", statoDal: "2026-10-28T08:00:00Z" }, messaggi: [], adesso }).si);
+  c("Attesa WhatsApp con solo l'ora del server (statoDal): sì", true, D.calcolaDaChiamare({ dati: { stato: "attesa_whatsapp", statoDal: "2026-10-27T18:00:00Z" }, messaggi: [], adesso }).si);
   const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
   c("cambio di stato dalla scheda: l'ora si aggiorna anche se il modulo rimanda quella vecchia", true,
     /patch\.statoPrecedenteIl !== current\.data\.statoPrecedenteIl/.test(ctx) && /merged\.stato !== current\.data\.stato && !dichiarato/.test(ctx));
@@ -20964,8 +20967,8 @@ function proveDelloStatoDaChiamare() {
   c("ha il suo nome", "Da chiamare", T.LEAD_STATUS_LABEL.da_chiamare);
   c("è uno stato da telefonare", true, T.eStatoDaChiamare("da_chiamare"));
   c("si sceglie sui lead importati", true, T.statiPer({ importato: true }).includes("da_chiamare"));
-  const p = A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T08:00:00Z", note: "x" }, null, adesso);
-  c("12 ore in attesa: passa a Da chiamare, con lo stato di prima e l'ora", { stato: "da_chiamare", statoPrecedente: "attesa_whatsapp", statoPrecedenteIl: adesso.toISOString(), statoDal: adesso.toISOString() }, p);
+  const p = A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-27T18:00:00Z", note: "x" }, null, adesso);
+  c("26 ore in attesa: passa a Da chiamare, con lo stato di prima e l'ora", { stato: "da_chiamare", statoPrecedente: "attesa_whatsapp", statoPrecedenteIl: adesso.toISOString(), statoDal: adesso.toISOString() }, p);
   c("…e non tocca altro (niente note nella modifica)", false, "note" in (p ?? {}));
   c("9 ore: resta in attesa", null, A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T11:00:00Z" }, null, adesso));
   c("ha scritto il cliente durante l'attesa: resta", null, A.patchDaChiamare({ stato: "attesa_whatsapp", statoPrecedenteIl: "2026-10-28T08:00:00Z" }, { ultimoInEntrataIl: "2026-10-28T09:00:00Z" }, adesso));
@@ -21005,7 +21008,7 @@ function proveDelloStatoDaChiamare() {
   c("senza statoDal: ha scritto PRIMA dell'ultima modifica della scheda → resta", null, A.patchRitornoAttesa(vecchia, entrata, adesso, "2026-10-28T19:00:00Z"));
   c("con statoDal conta lui, non la modifica della riga", "attesa_whatsapp", A.patchRitornoAttesa({ stato: "segreteria", statoDal: "2026-10-28T10:00:00Z" }, entrata, adesso, "2026-10-28T19:00:00Z")?.stato);
   c("tornato in attesa ora: l'andata non lo rimanda subito in Da chiamare", null, A.patchDaChiamare({ ...dc, ...r1 }, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, adesso));
-  c("…e dopo 10 ore senza altri messaggi, riparte come sempre per Da chiamare", "da_chiamare", A.patchDaChiamare({ ...dc, ...r1 }, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, new Date("2026-10-29T06:30:00Z"))?.stato);
+  c("…e chiusa la finestra senza altri messaggi, riparte come sempre per Da chiamare", "da_chiamare", A.patchDaChiamare({ ...dc, ...r1 }, { ultimoInEntrataIl: "2026-10-28T18:00:00Z" }, new Date("2026-10-29T20:30:00Z"))?.stato);
   const D = mod["chatwa/daChiamare"];
   c("in chat «Da chiamare» c'è anche chi ha già lo stato, da subito", true, D.calcolaDaChiamare({ dati: { stato: "da_chiamare", statoPrecedenteIl: "2026-10-28T19:50:00Z" }, messaggi: [], adesso }).si);
   const FIL = mod["importa/filtri-lista"];
@@ -21553,6 +21556,7 @@ proveDellOrdineAcconti();
 proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
+proveChiamateAzzera(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
@@ -21817,7 +21821,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 
@@ -22567,10 +22571,9 @@ function proveDelContatoreChiamate() {
   c("secondo tocco in un altro stato: 2, la prima resta", [2, ora.toISOString(), dopo.toISOString()], [p2.volte, p2.prima, p2.ultima]);
   c("valori rotti: si riparte da 0, mai NaN", [0, 1], [C.chiamateDi({ chiamate: { volte: "x" } }), C.patchChiamata({ chiamate: { volte: -3 } }, ora).chiamate.volte]);
   c("le frasi", ["Mai chiamato", "Chiamato 1 volta", "Chiamato 4 volte"], [0, 1, 4].map(C.frasiChiamate));
-  const ctx = readFileSync(join(radice, "src/crm/CRMContext.tsx"), "utf8");
-  c("il conto non scende mai: un salvataggio con un numero vecchio non lo tocca", true, /if \(patch\.chiamate && chiamateDi\(\{ chiamate: patch\.chiamate \}\) <= chiamateDi\(current\.data\)\)\s*patch\.chiamate = current\.data\.chiamate;/.test(ctx));
+  //  Il conto non scende per un modulo vecchio: ora lo garantisce `senzaChiamate` (prove/idee/chiamate-azzera.mjs).
   const ui = readFileSync(join(radice, "src/crm/ContaChiamate.tsx"), "utf8");
-  c("il tocco si conta sulla scheda riletta (funzione)", true, /updateLead\(lead\.id, \(d\) => patchChiamata\(d\)\)/.test(ui));
+  c("il tocco si conta sulla scheda riletta (funzione)", true, /updateLead\(lead\.id, \(d\) => patchChiamata\(d\), \{ registraChiamata: true \}\)/.test(ui));
   const cornette = ["src/crm/chatwa/RigaChat.tsx", "src/crm/chatwa/Conversazione.tsx", "src/crm/dafare/VoceDaFare.tsx", "src/crm/dafare/ChiChiamareAdesso.tsx", "src/crm/LeadDialog.tsx", "src/crm/importa/chiamare.tsx"];
   c("ogni cornetta dei lead conta e mostra il badge", [], cornette.filter((f) => { const t = readFileSync(join(radice, f), "utf8"); return !/segnaChiamata\(/.test(t) || !/<BadgeChiamate/.test(t); }));
 }

@@ -2120,6 +2120,8 @@ function LeadImportatiUnoAllaVolta() {
       prima: {
         stato: l.data.stato,
         noRispondeCount: Number(l.data.noRispondeCount) || 0,
+        //  Il conto delle chiamate: se l'esito l'ha azzerato (entrata in appuntamento) torna com'era.
+        chiamate: l.data.chiamate,
         //  ⚠️ Anche la data da cui valeva quello stato, o annullando si
         //   scriverebbe «in questo stato da oggi» su una scheda che ci stava
         //   da due settimane — e i filtri «da quando» direbbero il falso. È

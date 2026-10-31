@@ -110,12 +110,12 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
     si({ messaggi: caso.slice(0, 4), ultimaEntrataIl: "2026-10-28T22:01:00Z" }),
   );
 
-  gruppo("DA CHIAMARE: LE 10 ORE SI CONTANO DAL NOSTRO ULTIMO MESSAGGIO");
+  gruppo("DA CHIAMARE: SENZA FINESTRA APERTA, 24 ORE DAL NOSTRO ULTIMO MESSAGGIO");
   const fa = (ore) => new Date(adesso.getTime() - ore * 3600_000).toISOString();
   const unoNostro = (ore) => [nostro(fa(ore), "baileys", "Ci sentiamo?")];
-  c("nostro messaggio di 9 ore fa: ancora no", false, si({ messaggi: unoNostro(9) }));
-  c("…di 10 ore: sì", true, si({ messaggi: unoNostro(10) }));
-  c("…di 10 ore e 1 minuto: sì", true, si({ messaggi: unoNostro(10 + 1 / 60) }));
+  c("nostro messaggio di 23 ore fa (finestra mai aperta): ancora no", false, si({ messaggi: unoNostro(23) }));
+  c("…di 24 ore: sì", true, si({ messaggi: unoNostro(24) }));
+  c("…di 24 ore e 1 minuto: sì", true, si({ messaggi: unoNostro(24 + 1 / 60) }));
   c(
     "nostro messaggio recente, ingresso nello stato vecchio: no (conta il più recente)",
     false,
@@ -133,12 +133,12 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
   c(
     "un nostro messaggio dal ponte conta come nostro",
     true,
-    si({ messaggi: [nostro(fa(12), "baileys", "da telefono")] }),
+    si({ messaggi: [nostro(fa(25), "baileys", "da telefono")] }),
   );
   c(
     "un nostro messaggio Cloud API conta come nostro",
     true,
-    si({ messaggi: [nostro(fa(12), null, "cloud")] }),
+    si({ messaggi: [nostro(fa(25), null, "cloud")] }),
   );
   c(
     "un nostro messaggio doppione (duplicato_di) non conta: vale l'ingresso nello stato",
@@ -154,7 +154,7 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
     true,
     si({
       messaggi: [
-        nostro(fa(12), "manychat", "ciao"),
+        nostro(fa(25), "manychat", "ciao"),
         suo(fa(5), "baileys", "ok", { duplicato_di: "x" }),
       ],
     }),
@@ -259,10 +259,10 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
     A.patchDaChiamare(dati, { ultimoInEntrataIl: rubrica, stop: true }, adesso, caso),
   );
   c(
-    "nessun messaggio, attesa da 11 ore: come prima, sì",
+    "nessun messaggio, attesa da 25 ore: sì",
     true,
     D.calcolaDaChiamare({
-      dati: { stato: "attesa_whatsapp", statoPrecedenteIl: fa(11) },
+      dati: { stato: "attesa_whatsapp", statoPrecedenteIl: fa(25) },
       messaggi: [],
       adesso,
     }).si,
@@ -315,9 +315,9 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
   c(
     "legge i messaggi con le sole colonne che servono (body per l'eco, status per gli invii non partiti)",
     true,
-    /\.select\("direction, created_at, canale, duplicato_di, from_number, to_number, body, status"\)/.test(
-      giro,
-    ),
+    //  Dal 31/10 (revoche del ponte) la lettura chiede anche `eliminato_il` e, senza la migrazione (42703), ripiega sulle colonne di prima.
+    giro.includes('"direction, created_at, canale, duplicato_di, eliminato_il, from_number, to_number, body, status"') &&
+      giro.includes('"direction, created_at, canale, duplicato_di, from_number, to_number, body, status"'),
   );
   c("sempre per utente", true, /\.eq\("user_id", userId\)/.test(giro));
   c(
