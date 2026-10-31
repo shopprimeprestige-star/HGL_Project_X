@@ -356,10 +356,12 @@ export const Route = createFileRoute("/api/crm/meeting-session")({
         //  dopo in una stanza vuota.
         await segnaFascia(conduce, s.quando, code);
         //  Il padrone della stanza per l'SFU: solo con l'id DIMOSTRATO (token CRM), all'«Avvia».
-        //   ⚠️ E solo se il codice è NATO ADESSO (né quello già dato al lead, né quello della fascia):
-        //   un codice che esisteva già ha il padrone segnato quando è nato, e la riga del padrone
-        //   non si sovrascrive mai (vedi shop/meetly-sfu-padrone).
-        if (b.conduco && cid && codiceNuovo) await segnaPadroneDellaStanza(code, cid);
+        //   ⚠️ Solo se la stanza è di chi chiede secondo il CRM: codice nato adesso, stanza della SUA
+        //   fascia (la chiave della fascia è per consulente) o appuntamento già intestato a lui.
+        //   Il padrone non si sovrascrive mai (vedi shop/meetly-sfu-padrone): è l'unico punto che
+        //   lo scrive, e solo con l'id del token.
+        if (b.conduco && cid && (codiceNuovo || !!diFascia || String(esistente?.consultantId || "").trim() === cid))
+          await segnaPadroneDellaStanza(code, cid);
         await segnaAtteso(code, leadId);
         return json({ ok: true, ...s, link: linkDi(u.origin, code) });
       },

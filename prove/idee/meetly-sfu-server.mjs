@@ -39,8 +39,9 @@ export async function proveMeetlySfuServer(mod, { c, gruppo, radice }) {
     c("riga illeggibile: nessun padrone", "", P.padroneDa("{rotto", t));
     const ses = readFileSync(join(radice, "src/routes/api.presenter.session.ts"), "utf8");
     const mee = readFileSync(join(radice, "src/routes/api.crm.meeting-session.ts"), "utf8");
-    c("diretta: il padrone si scrive solo dalla sessione col PIN, mai dal corpo", true, ses.includes('if (live && chiSta?.id && chiSta.via === "pin") await segnaPadroneDellaStanza(body.code, chiSta.id);'));
-    c("Avvia dal CRM: padrone solo con l'id del token e solo per un codice nato adesso", true, mee.includes("if (b.conduco && cid && codiceNuovo) await segnaPadroneDellaStanza(code, cid);") && mee.includes("const codiceNuovo = !(esistente && !b.rigenera) && !diFascia;"));
+    c("la diretta NON scrive il padrone (chiunque abbia un PIN potrebbe prendersi un codice altrui)", false, /segnaPadroneDellaStanza/.test(ses));
+    c("Avvia dal CRM: padrone solo con l'id del token e solo per una stanza sua secondo il CRM", true, mee.includes('if (b.conduco && cid && (codiceNuovo || !!diFascia || String(esistente?.consultantId || "").trim() === cid))') && mee.includes("const codiceNuovo = !(esistente && !b.rigenera) && !diFascia;"));
+    c("un solo punto scrive il padrone", 1, (mee.match(/segnaPadroneDellaStanza\(/g) || []).length);
     const srv = readFileSync(join(radice, "src/shop/meetly-sfu.server.ts"), "utf8");
     c("scrittura del padrone atomica: insert se libera, update condizionato al valore letto", true, /if \(prima === null\) await config\(\)\.insert\(/.test(srv) && /\.eq\("key", k\)\.eq\("value", prima\)/.test(srv));
   }
