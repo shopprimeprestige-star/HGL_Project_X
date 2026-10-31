@@ -48,10 +48,10 @@ export function proveMeetlyStallo(mod, { c, gruppo, radice }) {
   c("makePeer segna il peer nato senza media, e non crea transceiver (chi risponde usa quelli dell'offerta)", [true, 0], [/peerSenzaMedia\.add\(/.test(mp), conta(mp, /addTransceiver\(/g)]);
 
   const pr = corpo("function promuoviPeerSenzaMedia(");
-  c("la promozione decide per transceiver (direzione), non per sender.track", [true, true, false], [
+  c("la promozione decide per transceiver e aggancia con addTrack (non replaceTrack: servirebbe il flusso)", [true, true, false], [
     /getTransceivers\(\)/.test(pr),
-    /direction = "sendrecv"/.test(pr),
-    /getSenders\(\)\.some\(\(x\) => x\.track\?\.kind === t\.kind\)\) continue/.test(pr),
+    /pc\.addTrack\(t, ls\)/.test(pr),
+    /replaceTrack|\.direction = /.test(pr),
   ]);
   c("la promozione rinegozia con `restart` e rimanda se resta senza risposta", [true, true], [/restart: true/.test(pr), /have-local-offer/.test(pr)]);
   c("la promozione riprova se l'altro sta offrendo (have-remote-offer)", true, /have-remote-offer/.test(pr));

@@ -7841,8 +7841,9 @@ function apriSenzaMedia(motivo: string) {
 
 /** Le mie tracce sono arrivate dopo che la connessione è nata in sola ricezione:
  *  si decide PER TRANSCEIVER (non per `sender.track`, che può essere già pieno per
- *  altre strade): quello «recvonly» del tipo giusto diventa `sendrecv` e prende la
- *  traccia; se non c'è, `addTrack`. Poi si rinegozia sulla STESSA connessione
+ *  altre strade): se c'è un «recvonly» del tipo giusto la traccia vi si aggancia con
+ *  `addTrack(t, ls)` (lo riusa e lo porta a `sendrecv`); altrimenti `addTrack` solo se
+ *  quel tipo non è già in uscita. Poi si rinegozia sulla STESSA connessione
  *  (l'offerta passa la guardia «già connesso» perché dichiara `restart`). Se l'altro
  *  sta offrendo nello stesso istante si riprova fra un secondo; se l'offerta resta
  *  senza risposta si rimanda (come fa `maybeInitiate`), al massimo due volte. */
@@ -7867,11 +7868,12 @@ function promuoviPeerSenzaMedia(tentativo = 0) {
           const tr = pc
             .getTransceivers()
             .find((x) => x.receiver.track.kind === t.kind && !x.direction.includes("send"));
-          if (tr) {
-            tr.direction = "sendrecv"; // prima: una seconda chiamata non lo ripete
-            await tr.sender.replaceTrack(t);
-          } else if (!pc.getSenders().some((x) => x.track?.kind === t.kind)) pc.addTrack(t, ls);
-          else continue;
+          //  ⚠️ `addTrack(t, ls)` e NON `replaceTrack`: solo `addTrack` associa la traccia
+          //   al MediaStream, e chi riceve (`ontrack`) senza `e.streams[0]` fa un flusso
+          //   per traccia, il secondo sovrascrive il primo e l'audio non si sente più.
+          //   `addTrack` riusa il transceiver «recvonly» (provato in Chrome).
+          if (!tr && pc.getSenders().some((x) => x.track?.kind === t.kind)) continue;
+          pc.addTrack(t, ls);
           aggiunte++;
         }
         if (!aggiunte) return;
