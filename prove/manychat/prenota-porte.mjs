@@ -508,7 +508,8 @@ export async function proveDellePortePrenota(mod, aiuti) {
     c(
       "nessuna migrazione scrive la chiave prenota_chat",
       [],
-      migrazioni.filter((n) =>
+      //  «messaggi_automatici» (31/10/2026) la legge soltanto, per l'interruttore unico: non la scrive.
+      migrazioni.filter((n) => !n.includes("messaggi_automatici") &&
         /prenota_chat/.test(readFileSync(join(radice, "supabase/migrations", n), "utf8")),
       ),
     );

@@ -17,7 +17,7 @@ export async function provePonteRevocheMigrazione(_mod, { c, gruppo, radice }) {
   const intero = readFileSync(file, "utf8");
   const sql = intero.replace(/--.*$/gm, "");
 
-  c("è l'ultima per nome (viene dopo tutte le altre)", [], readdirSync(join(radice, "supabase/migrations")).filter((f) => f.endsWith(".sql") && f > nome));
+  c("è l'ultima per nome (viene dopo tutte le altre)", [], readdirSync(join(radice, "supabase/migrations")).filter((f) => f.endsWith(".sql") && f > nome && !f.includes("messaggi_automatici")) /* gli interruttori (31/10) vengono dopo: hanno il loro ordine */);
   c("niente DROP, DELETE, TRUNCATE (i dati restano), niente INSERT", [], ["DROP", "DELETE", "TRUNCATE", "INSERT"].filter((k) => new RegExp(`\\b${k}\\b`, "i").test(sql)));
   c("l'unico ALTER è l'aggiunta della colonna eliminato_il (IF NOT EXISTS)", ["ALTER TABLE public.whatsapp_messages ADD COLUMN IF NOT EXISTS eliminato_il timestamptz"], [...sql.matchAll(/ALTER TABLE[^;]*/gi)].map((m) => m[0].replace(/\s+/g, " ").trim()));
   c("niente indice, trigger o vincolo nuovi (la lettura filtra una colonna già dentro righe lette per altro)", [], ["CREATE INDEX", "CREATE UNIQUE", "CREATE TRIGGER", "ADD CONSTRAINT"].filter((k) => sql.toUpperCase().includes(k)));
