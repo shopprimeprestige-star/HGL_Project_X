@@ -18,6 +18,9 @@
  *  `media_fatto` (il Mac chiede il permesso di caricare una foto su Storage e
  *  poi dice «fatto»; i byte non passano dal Worker). Con la migrazione non
  *  applicata rispondono 503 `migrazione` e il Mac trattiene la foto.
+ *  Dal 31/10/2026 anche «Mostra» dal segnaposto: `tipo` `media_prendi` (il Mac prende le richieste del
+ *  titolare) e `media_esito` (chiude un lavoro richiesto), e il battito risponde `media_v: 2`,
+ *  `media_auto` e, se ce ne sono, `media_richieste`. Senza la migrazione i campi si omettono.
  *  Dal 31/10/2026 anche le revoche: `tipo` `revoca` ({ v: 1, tipo, chiave `bw:<cifre>:<id>` }), un
  *  nostro messaggio «eliminato per tutti» dal telefono. Marca la riga come eliminata (mai un DELETE).
  *  ⚠️ L'utente non arriva mai dal corpo: è `manychat_config.user_id`.
@@ -28,7 +31,13 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { gestisciRichiesta } from "@/crm/ponte/ingresso";
-import { porteIngresso, porteInvio, porteMedia, porteRevoche } from "@/crm/ponte/porte.server";
+import {
+  porteIngresso,
+  porteInvio,
+  porteMedia,
+  porteMediaAzioni,
+  porteRevoche,
+} from "@/crm/ponte/porte.server";
 import { avvisaEntratePonte } from "@/crm/push/invio.server";
 
 export const Route = createFileRoute("/api/public/ponte-whatsapp")({
@@ -44,6 +53,8 @@ export const Route = createFileRoute("/api/public/ponte-whatsapp")({
           avvisa: avvisaEntratePonte,
           //  Le immagini (30/10/2026): `media_permesso` e `media_fatto`.
           media: porteMedia(),
+          //  «Mostra» (31/10/2026): `media_prendi`, `media_esito` e i campi dei media nel battito.
+          mediaAzioni: porteMediaAzioni(),
           //  Le revoche (31/10/2026): un nostro messaggio eliminato per tutti dal telefono sparisce dalla chat.
           revoche: porteRevoche(),
         }),

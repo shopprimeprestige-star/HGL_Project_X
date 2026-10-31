@@ -48,8 +48,10 @@ SELECT (SELECT count(*) FROM public.whatsapp_messages) AS msg_prima, (SELECT cou
 \echo 'ok  migrazione applicata due volte senza errori'
 
 -- ── Il bucket ────────────────────────────────────────────────────────────────
-SELECT pg_temp.uguale('bucket: ponte-media privato, 8 MiB, solo jpeg/png/webp', 'false|8388608|{image/jpeg,image/png,image/webp}',
-  (SELECT concat_ws('|', public::text, file_size_limit::text, allowed_mime_types::text) FROM storage.buckets WHERE id = 'ponte-media'));
+-- Dal 31/10 la migrazione A (media e archiviazione) allarga il bucket a 45 MiB e 16 tipi: qui si controlla che resti
+-- privato e che i tre tipi di immagine siano ancora dentro (il bucket completo lo prova ponte-media-archivio.sql).
+SELECT pg_temp.uguale('bucket: ponte-media privato, 45 MiB (dopo la migrazione dei media), con jpeg/png/webp dentro', 'false|47185920|true',
+  (SELECT concat_ws('|', public::text, file_size_limit::text, (allowed_mime_types @> ARRAY['image/jpeg', 'image/png', 'image/webp'])::text) FROM storage.buckets WHERE id = 'ponte-media'));
 SELECT pg_temp.uguale('bucket: uno solo, mai applicato due volte', '1', (SELECT count(*)::text FROM storage.buckets WHERE id = 'ponte-media'));
 SELECT pg_temp.uguale('bucket: né SVG né HTML tra i tipi ammessi', 'false',
   (SELECT (allowed_mime_types && ARRAY['image/svg+xml', 'text/html', 'image/gif'])::text FROM storage.buckets WHERE id = 'ponte-media'));

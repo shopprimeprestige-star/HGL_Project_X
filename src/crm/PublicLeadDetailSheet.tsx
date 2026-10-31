@@ -16,6 +16,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import { useEffect, useState } from "react";
 import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
+import { salutoWa, testoWa } from "@/crm/chatwa/testoWa";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -223,7 +224,11 @@ export function PublicLeadDetailSheet({ lead, open, onOpenChange, onSaved }: Pro
           <Button asChild variant="outline" size="sm">
             <LinkWhatsapp
               telefono={draft.telefono}
-              testo={`Ciao ${draft.nome}, ho ricevuto la tua richiesta per ${NOME_PRODOTTO}. Ti contatto a breve!`}
+              testo={testoWa([
+                salutoWa(draft.nome),
+                `Ho ricevuto la tua richiesta per ${NOME_PRODOTTO}.`,
+                "Ti contatto a breve!",
+              ])}
             >
               <MessageCircle className="h-3.5 w-3.5" />
               WhatsApp

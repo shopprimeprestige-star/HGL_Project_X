@@ -166,10 +166,10 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
   gruppo("RICONTATTI: LA PASTIGLIA NELLA RIGA");
   const nomiRiga = F.VOCI_RIGA.map((v) => v.nome);
   c(
-    "sta fra «Sconosciuti» e «Clienti»",
+    "sta subito dopo «Sconosciuti», prima di «Clienti» (in mezzo può esserci «Da recuperare»)",
     true,
     nomiRiga.indexOf("Sconosciuti") + 1 === nomiRiga.indexOf("Ricontatti") &&
-      nomiRiga.indexOf("Ricontatti") + 1 === nomiRiga.indexOf("Clienti"),
+      nomiRiga.indexOf("Ricontatti") < nomiRiga.indexOf("Clienti"),
   );
   c("la voce è acceso/spento sul campo ricontatti", true, F.VOCI_RIGA.some((v) => v.nome === "Ricontatti" && v.campo === "ricontatti" && v.valore === true));
   c("ogni voce della riga (tranne le pastiglie per stato) ha una voce nei gruppi (le prove esclusive le percorrono tutte)", true, F.VOCI_RIGA.filter((v) => !String(v.valore).startsWith("stato:")).every((v) => F.GRUPPI_FILTRI.some((g) => g.voci.some((x) => x.campo === v.campo && x.valore === v.valore))));

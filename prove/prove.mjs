@@ -43,6 +43,7 @@ import { proveRitornoInAttesa } from "./idee/ritorno-in-attesa.mjs";
 import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
+import { proveScatolaNera } from "./idee/scatola-nera.mjs";
 import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cliente.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
@@ -58,9 +59,16 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
+import { proveMeetlySfuRegole } from "./idee/meetly-sfu-regole.mjs";
+import { proveMeetlySfuServer } from "./idee/meetly-sfu-server.mjs";
+import { proveMeetlySfuClient } from "./idee/meetly-sfu-client.mjs";
+import { proveMeetlySfuInnesti } from "./idee/meetly-sfu-innesti.mjs";
+import { proveMeetlyLancio } from "./idee/meetly-lancio.mjs";
 import { proveMessaggioIban } from "./idee/messaggio-iban.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
+import { proveTestiWame } from "./idee/testi-wame.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
 import { proveAccontiInCima } from "./idee/acconti-in-cima.mjs";
 import { proveRigaAttesaWame } from "./idee/riga-attesa-wame.mjs";
@@ -417,6 +425,9 @@ const MODULI = [
   //  ⚠️ Che cosa si prova quando la camera non si apre: senza questa scala una
   //   webcam scollegata portava via anche la voce. Vedi proveDellAperturaCamera.
   "shop/apertura-camera",
+  //  ⚠️ Meetly «dentro ma spenti»: chi non ha camera né microfono si collega lo
+  //   stesso, in sola ricezione. Prove in prove/idee/meetly-stallo.mjs.
+  "shop/senza-media",
   //  ⚠️ Le condizioni con cui un preventivo è nato: il documento consegnato
   //   non cambia da solo, e «modifica preventivo» riparte da quelle di oggi.
   //   Vedi proveDelleCondizioni.
@@ -729,7 +740,8 @@ const MODULI = [
   //  Le immagini del ponte (commessa 2026-10-30-ponte-storico-completo, T5): contratti e logica
   //   del server. Entrano nel pacchetto quando il file esiste; prove in prove/ponte/immagini-*.mjs,
   //   chiamate da `proveDelPonte`.
-  ...["ponte/media-tipi", "ponte/media"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
+  //  31/10 (commessa 2026-10-31-media-e-archiviazione): anche le azioni (timer, «Mostra», libera, hook delle scadenze).
+  ...["ponte/media-tipi", "ponte/media", "ponte/media-azioni-tipi", "ponte/media-azioni"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
   //  Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale):
   //   contratti e regole pure; `ponte/invio-giro` e `chatwa/invioPonte` entrano
   //   nel pacchetto quando il file esiste (li crea il loro compito). Prove in
@@ -752,6 +764,20 @@ const MODULI = [
   //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
   //   prove in prove/idee/riga-attesa-wame.mjs.
   "chatwa/attesaPosa",
+  //  La scatola nera dei collegamenti Meetly (31/10/2026): prove in prove/idee/scatola-nera.mjs.
+  "shop/scatola-nera",
+  "shop/scatola-nera-browser",
+  //  Media della consulenza Meetly dall'SFU di Cloudflare, dietro interruttore (commessa
+  //   2026-10-31-meetly-connessione, Parte B). Le regole pure (T1) ci sono; gli altri tre
+  //   (nucleo del server e client Cloudflare: T2; client SFU: T3) entrano nel pacchetto quando il file esiste.
+  //   Prove in prove/idee/meetly-sfu-*.mjs (un file per compito, già registrati qui sotto).
+  "shop/meetly-sfu-regole",
+  ...["shop/meetly-sfu-stanza", "shop/meetly-sfu-cloudflare", "shop/meetly-sfu"].filter((m) =>
+    existsSync(join(radice, `src/${m}.ts`)),
+  ),
+  //  I testi precompilati nei link wa.me, formattati (31/10/2026): prove in prove/idee/testi-wame.mjs.
+  "chatwa/testoWa",
+  "preventivi/messaggi",
   //  Messaggio «IBAN per l'acconto» con importo, causale, IBAN e intestatario dinamici (31/10/2026):
   //   prove in prove/idee/messaggio-iban.mjs. (`chatwa/risposte-rapide` è già registrato sopra.)
   "chatwa/dati-acconto",
@@ -21554,6 +21580,7 @@ proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
 proveAttesaPalla(mod, { c, gruppo, radice });
+await proveScatolaNera(mod, { c, gruppo, radice });
 proveAnteprimaPreventivoCliente({ c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
@@ -21569,6 +21596,7 @@ await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
 proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveInvitoMeet(mod, { c, gruppo, radice });
+proveTestiWame(mod, { c, gruppo, radice });
 proveDelMeetAdessoSpento();
 proveOrdineWhatsapp(mod, { c, gruppo, radice });
 proveAccontiInCima(mod, { c, gruppo, radice });
@@ -21582,6 +21610,12 @@ proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+proveMeetlyStallo(mod, { c, gruppo, radice });
+proveMeetlySfuRegole(mod, { c, gruppo, radice });
+await proveMeetlySfuServer(mod, { c, gruppo, radice });
+proveMeetlySfuClient(mod, { c, gruppo, radice });
+proveMeetlySfuInnesti(mod, { c, gruppo, radice });
+await proveMeetlyLancio(mod, { c, gruppo, radice });
 proveMessaggioIban(mod, { c, gruppo, radice });
 await proveEcoFantasma(mod, { c, gruppo });
 rmSync(dove, { recursive: true, force: true });

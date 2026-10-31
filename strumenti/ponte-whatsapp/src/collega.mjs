@@ -17,6 +17,13 @@
  *  (`immagineDa`, stesse regole di `leggiMessaggio`), e il download è una funzione
  *  di Baileys che non passa dal socket (la riceve `immagini.mjs` da `index.mjs`).
  *
+ *  I MEDIA (commessa 2026-10-31-media-e-archiviazione, compito T7). Oltre alla foto, anche vocali, video e
+ *  documenti (PDF, docx, xlsx, pptx): `mediaDa` (stesse regole di `leggiMessaggio`) → `immagini.accoda`, che li
+ *  mette nel catalogo condiviso (`media/catalogo`, aperto da `index.mjs` PRIMA del socket) e, se la categoria è
+ *  automatica, in coda. Dopo un blocco di storico con dei media si chiama `immagini.dopoStorico()`: gli
+ *  automatici aspettano 10 minuti (un nuovo storico non deve riempire il tetto). Di `immagini` qui si usano
+ *  solo `accoda` e `dopoStorico`; sul socket non entra niente di nuovo.
+ *
  *  LE REVOCHE (commessa 2026-10-31, ponte-revoche). Un nostro messaggio «eliminato per tutti» dal
  *  telefono arriva in `messages.upsert` (protocolMessage REVOKE) e in `messages.update` (stub
  *  REVOKE): `estrai.mjs` (`revocaDa`, `revocaDaAggiornamento`) ne ricava la chiave `bw:` SOLO se
@@ -59,7 +66,7 @@
  *   codici fissi e contatori.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { aggiornaMappaLid, cifreDaJid, immagineDa, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, revocaDa, revocaDaAggiornamento, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
+import { aggiornaMappaLid, cifreDaJid, leggiMessaggio, mediaDa, messaggioDaNodo, nonDisponibile, nomiDaContatti, revocaDa, revocaDaAggiornamento, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
 import { codiceChiusura, decidi, STORIA_VUOTA } from "./riconnessione.mjs";
 
 const muto = () => undefined;
@@ -88,6 +95,8 @@ export const MAX_LID_CHAT = 100;
 export const ATTESA_SCARICO_MS = 6000;
 /** Segnaposto in attesa al più; oltre, si scrivono subito (mai buttati). */
 const MAX_NON_DECIFRATI = 200;
+/** i tipi di messaggio che possono portare un media da scaricare (foto, vocale/audio, video, documento) */
+const TIPI_MEDIA = new Set(["foto", "vocale", "audio", "video", "documento"]);
 /** Quanto si aspetta Baileys dopo l'invio, poi «non so se è partito». */
 const TEMPO_INVIO_MS = 30_000;
 /** Messaggi inviati tenuti in RAM per `getMessage` (mai su disco né nei log). */
@@ -147,7 +156,7 @@ function conta(mappa, chiave) {
  *   - `percorsi`: `{ auth, lid }` (cartella delle chiavi e `lid.json`);
  *   - `fila`: quella di `creaFila` (`lotti.mjs`);
  *   - `immagini`: quella di `creaImmagini` (`immagini.mjs`), oppure null (--senza-invio,
- *     guasto all'avvio): senza, le foto restano la sola riga di testo di sempre;
+ *     guasto all'avvio): senza, foto, vocali, video e documenti restano la sola riga di testo di sempre;
  *   - `qr`: quello di `creaQr` (`qr.mjs`);
  *   - `registro(codice, conteggi)`: il log (solo codici e numeri);
  *   - `storicoDal`: secondi UNIX del taglio di STORICO_GIORNI (assente = tutto);
@@ -353,15 +362,25 @@ export function creaCollegamento({
     conta(diagnosi.scarti, "non_decifrato_arrivato"); // nel log: quanti stub si sono risolti da soli
   }
 
-  /** La foto di un messaggio valido va nella coda delle immagini. Non lancia mai (il messaggio
-   *  di testo è già al sicuro in `messaggi`) e non scrive nel registro altro che un codice fisso:
-   *  è `immagini.accoda` a decidere se la foto è buona (origine, tipo, peso, età). */
-  function accodaFoto(wamsg, opzioni) {
+  /** Il media di un messaggio valido (foto, vocale, video, documento) va a `immagini.accoda`: catalogo e,
+   *  se automatico, coda. Non lancia mai (il messaggio di testo è già al sicuro in `messaggi`) e non scrive
+   *  nel registro altro che un codice fisso: è `immagini.accoda` a decidere se il media è buono (origine,
+   *  tipo, peso, età). */
+  function accodaMedia(wamsg, opzioni) {
     try {
-      const foto = immagineDa(wamsg, opzioni);
-      if (foto) immagini.accoda(foto);
+      const m = mediaDa(wamsg, opzioni);
+      if (m) immagini.accoda(m);
     } catch {
       registro("immagini_accoda_fallita");
+    }
+  }
+
+  /** Un blocco di storico con dei media: gli automatici aspettano 10 minuti. Non lancia mai. */
+  function dopoStoricoMedia() {
+    try {
+      immagini.dopoStorico?.();
+    } catch {
+      registro("immagini_storico_fallito");
     }
   }
 
@@ -389,6 +408,7 @@ export function creaCollegamento({
     const risolviLid = risolutoreLid(mappa);
     let trattenuti = 0;
     let persi = 0;
+    let conMedia = false;
     const messaggi = [];
     const nomi = {};
     let ultimo = 0;
@@ -411,7 +431,10 @@ export function creaCollegamento({
       chatViste.add(r.messaggio.numero);
       estrazione.chat = chatViste.size;
       messaggi.push(r.messaggio);
-      if (immagini && r.messaggio.tipo === "foto") accodaFoto(m, opzioni);
+      if (immagini && TIPI_MEDIA.has(r.messaggio.tipo)) {
+        accodaMedia(m, opzioni);
+        conMedia = true;
+      }
       if (r.nome && !nomi[r.messaggio.numero]) nomi[r.messaggio.numero] = r.nome;
       if (r.messaggio.ts > ultimo) ultimo = r.messaggio.ts;
     }
@@ -422,7 +445,7 @@ export function creaCollegamento({
     }
     if (persi) registro("lid_scartato", { messaggi: persi });
     if (ultimo && (!stato.ultimo_messaggio_il || ultimo * 1000 > Date.parse(stato.ultimo_messaggio_il))) stato.ultimo_messaggio_il = iso(ultimo * 1000);
-    return { messaggi, nomi };
+    return { messaggi, nomi, conMedia };
   }
 
   /** Mette in fila e dice quanti sono rimasti fuori (fila piena). */
@@ -585,10 +608,13 @@ export function creaCollegamento({
         if (Array.isArray(h?.lidPnMappings)) aggiornaLid(h.lidPnMappings);
         impara([...(Array.isArray(h?.contacts) ? h.contacts : []), ...(Array.isArray(h?.chats) ? h.chats : [])]);
         await preparaLid(questo, lista);
-        const { messaggi, nomi } = estrai(lista, storicoDal);
+        const { messaggi, nomi, conMedia } = estrai(lista, storicoDal);
         // il nome della rubrica (o quello dei contatti dello storico) vince sul pushName
         const tutti = { ...nomi, ...nomiDaContatti(h?.contacts, risolutoreLid(mappa)) };
         metti("storico", messaggi, tutti);
+        //  Subito, senza attese in mezzo: il ciclo delle immagini parte in un tick successivo ad `accoda`
+        //  e deve già trovare la pausa. Solo se il blocco aveva dei media (e solo una volta per blocco).
+        if (conMedia) dopoStoricoMedia();
         if (Number.isFinite(h?.progress)) stato.storico = { fatto: h.progress >= 100, avanzamento: Math.max(0, Math.min(100, Math.round(h.progress))) };
         //  `tipo` = syncType del telefono (un numero: 2 = FULL); se non è un numero non si scrive
         registro("storico", { letti: lista.length, validi: messaggi.length, ...(Number.isFinite(h?.syncType) ? { tipo: h.syncType } : {}) });

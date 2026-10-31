@@ -423,6 +423,70 @@ export async function provePonteIngresso(mod, { c, gruppo }) {
       prova("controllo tardivo che fallisce dopo un lotto scritto → 200 (e codice nel log)", [200, 1, true], [rh.stato, rh.json.nuovi, h.avvisi.some(([k]) => k === "database")]);
       h.porte.recentiDelPonte = orig;
     }
+    // ── «Mostra» (31/10, media-e-archiviazione T3): media_prendi, media_esito e i campi del battito ──
+    {
+      const K1 = `bw:${NUM}:3EB0A0001`;
+      const mediaFinta = (o = {}) => {
+        const chiamate = [];
+        return {
+          chiamate,
+          utente: async () => UTENTE,
+          avviso: () => {},
+          interruttore: async () => (o.interruttore === undefined ? '{"acceso":true,"tettoGB":5,"auto":["foto","audio"]}' : o.interruttore),
+          inAttesa: async (u) => (chiamate.push(["inAttesa", u]), o.inAttesa ?? 0),
+          prendi: async (u, max) => (chiamate.push(["prendi", u, max]), [K1]),
+          richiestaEsito: async (u, k, e) => void chiamate.push(["esito", u, k, e]),
+        };
+      };
+      const media = {}; // la porta `media` di T2: nel battito basta che ci sia
+      const vaiM = async (corpo, extra) => {
+        const f = finte({ P });
+        const r = await I.gestisciRichiesta(f.porte, { request: richiesta(corpo), segreto: SEGRETO, adesso: ADESSO, ...extra });
+        return { stato: r.status, json: await r.json(), f };
+      };
+      const battito = { v: 1, tipo: "battito", stato: "collegato" };
+      const senza = await vaiM({ v: 1, tipo: "media_prendi", max: 3 }, {});
+      prova("media_prendi senza la porta mediaAzioni → 400 corpo non valido (come prima)", [400, "corpo_non_valido"], [senza.stato, senza.json.errore]);
+      const senzaE = await vaiM({ v: 1, tipo: "media_esito", chiave: K1, esito: "errore" }, { media });
+      prova("media_esito senza la porta mediaAzioni → 400", 400, senzaE.stato);
+      const m1 = mediaFinta();
+      const pr = await vaiM({ v: 1, tipo: "media_prendi", max: 3, user_id: "99999999-1111-4222-8333-444444444444" }, { mediaAzioni: m1 });
+      prova("media_prendi con la porta → 200 con le richieste; l'utente è quello del server, mai quello del corpo", [200, { ok: true, richieste: [{ chiave: K1 }] }, [["prendi", UTENTE, 3]]], [pr.stato, pr.json, m1.chiamate]);
+      const m2 = mediaFinta();
+      const es = await vaiM({ v: 1, tipo: "media_esito", chiave: K1, esito: "scaduta" }, { mediaAzioni: m2 });
+      prova("media_esito con la porta → 200 {ok:true} e l'esito arriva alla porta", [200, { ok: true }, [["esito", UTENTE, K1, "scaduta"]]], [es.stato, es.json, m2.chiamate]);
+      prova("media_prendi: chiave sbagliata del segreto → 401 e la porta non si tocca", [401, 0], await (async () => {
+        const m = mediaFinta();
+        const f = finte({ P });
+        const r = await I.gestisciRichiesta(f.porte, { request: richiesta({ v: 1, tipo: "media_prendi", max: 1 }, { token: "sbagliato" }), segreto: SEGRETO, adesso: ADESSO, mediaAzioni: m });
+        return [r.status, m.chiamate.length];
+      })());
+
+      const b0 = await vaiM(battito, {});
+      prova("battito senza porte media: la risposta è IDENTICA a quella di prima", { ok: true, riconciliati: 0 }, b0.json);
+      const m3 = mediaFinta({ inAttesa: 4 });
+      const bSolo = await vaiM(battito, { mediaAzioni: m3 });
+      prova("battito con la sola porta mediaAzioni (senza `media`): nessun campo nuovo, la porta non si tocca", [{ ok: true, riconciliati: 0 }, 0], [bSolo.json, m3.chiamate.length]);
+      const bSoloMedia = await vaiM(battito, { media });
+      prova("battito con la sola porta media: identico a prima", { ok: true, riconciliati: 0 }, bSoloMedia.json);
+      const bv = await vaiM(battito, { media, mediaAzioni: mediaFinta() });
+      prova("battito con le porte: media_v 2 e media_auto, MA senza media_richieste a coda vuota", { ok: true, riconciliati: 0, media_v: 2, media_auto: ["foto", "audio"] }, bv.json);
+      const m4 = mediaFinta({ inAttesa: 3 });
+      const br = await vaiM(battito, { media, mediaAzioni: m4 });
+      prova("battito con 3 richieste: media_richieste 3 (per l'utente del server)", [{ ok: true, riconciliati: 0, media_v: 2, media_richieste: 3, media_auto: ["foto", "audio"] }, [["inAttesa", UTENTE]]], [br.json, m4.chiamate]);
+      const bsp = await vaiM(battito, { media, mediaAzioni: mediaFinta({ inAttesa: 2, interruttore: '{"acceso":false}' }) });
+      prova("battito con l'interruttore spento: risposta IDENTICA a quella di prima", { ok: true, riconciliati: 0 }, bsp.json);
+      const bi = await vaiM(battito, { media, mediaAzioni: mediaFinta({ inAttesa: 1 }), invii: { inviatiDalCrm: async () => [], inAttesa: async () => 2 } });
+      prova("battito con invii e richieste insieme: tutti e due i campi", [2, 1, 2], [bi.json.invii_in_attesa, bi.json.media_richieste, bi.json.media_v]);
+      const mr = mediaFinta();
+      mr.interruttore = async () => { throw { code: "XX000" }; };
+      const bg = await vaiM(battito, { media, mediaAzioni: mr });
+      prova("battito con l'interruttore illeggibile: 200 come prima, nessun campo nuovo", [200, { ok: true, riconciliati: 0 }], [bg.stato, bg.json]);
+      const ms = mediaFinta({ inAttesa: 1 });
+      ms.inAttesa = async () => { throw { code: "42P01" }; };
+      const bt = await vaiM(battito, { media, mediaAzioni: ms });
+      prova("battito con la tabella delle richieste assente: 200, niente media_richieste", [200, { ok: true, riconciliati: 0, media_v: 2, media_auto: ["foto", "audio"] }], [bt.stato, bt.json]);
+    }
   } finally {
     for (const k of Object.keys(originali)) console[k] = originali[k];
   }

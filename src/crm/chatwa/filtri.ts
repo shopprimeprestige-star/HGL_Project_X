@@ -288,9 +288,17 @@ export const VOCE_DA_RIPROGRAMMARE: VoceFiltro = {
     "Tutti i lead in stato «Da riprogrammare»: l'incontro è saltato e aspetta una nuova data.",
 };
 
+/** «Da recuperare» (31/10/2026, titolare: «metti il filtro da recuperare, dove dentro ci sono i clienti
+ *  assenti»): lo stato «Cliente assente» (`no_show` e `non_fatto`, una sola voce: vedi perStato.ts). */
+export const VOCE_DA_RECUPERARE: VoceFiltro = {
+  ...voceDelloStato("no_show"),
+  nome: "Da recuperare",
+  spiega: "I clienti assenti alla consulenza: da ricontattare per fissarla di nuovo.",
+};
+
 /** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
  *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare ·
- *  Con stelle · Sconosciuti · Ricontatti · Clienti. «Tutte» (spenti tutti i
+ *  Con stelle · Sconosciuti · Ricontatti · Da recuperare · Clienti. «Tutte» (spenti tutti i
  *  filtri) la disegna `ElencoChat`; qui ci sono le voci vere. Il consulente sta nel pannello «Filtri».
  *  Il pannello NON ripete le voci della riga: vedi `voceInRiga`.
  *  Gli stati di chiamata (Non risponde, Segreteria…) sono i sottofiltri di «Da chiamare». */
@@ -302,6 +310,7 @@ export const VOCI_RIGA: readonly VoceFiltro[] = [
   ...VOCI_GRIGLIA.filter((v) => v.campo === "stelle"),
   VOCE_SCONOSCIUTI,
   VOCE_RICONTATTI,
+  VOCE_DA_RECUPERARE,
   VOCE_CLIENTI,
 ];
 

@@ -122,6 +122,52 @@ export async function provePonteServizioEstrai(mod, { c, gruppo, radice }) {
   c("immagineDa: un url ostile passa così com'è (lo ferma validaOrigine, non l'estrazione)", "http://127.0.0.1/x", daFoto({ imageMessage: { ...IMG, url: "http://127.0.0.1/x" } })?.immagine.url);
   c("la foto resta «📷 Foto» per il CRM (il segnaposto non cambia)", { testo: "📷 Foto", tipo: "foto" }, solo(wa({ imageMessage: IMG })));
 
+  //  I media di ogni categoria (commessa 2026-10-31-media-e-archiviazione, T5): `mediaDa`; `immagineDa` ne è l'alias per le foto.
+  const MINI_VID = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  const MINI_DOC = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 9]);
+  const AUD = { mimetype: "audio/ogg; codecs=opus", mediaKey: new Uint8Array(32), directPath: "/v/t62/a.enc", url: "https://mmg.whatsapp.net/v/t62/a.enc", fileLength: 9000, seconds: 7, ptt: true };
+  const VID = { mimetype: "video/mp4", mediaKey: new Uint8Array(32), directPath: "/v/t62/v.enc", fileLength: 3_000_000, seconds: 14, width: 640, height: 480, jpegThumbnail: MINI_VID };
+  const DOC = { mimetype: "application/pdf", mediaKey: new Uint8Array(32), directPath: "/v/t62/d.enc", fileLength: 120_000, fileName: "Ricetta Maria.pdf", jpegThumbnail: MINI_DOC };
+  const daMedia = (m, o = {}, k = {}, altro = {}) => E.mediaDa(wa(m, k, altro), { ...opz, ...o });
+  const m1 = daMedia({ imageMessage: IMG });
+  c("mediaDa: foto → chiave, orario, categoria, il messaggio com'è", ["bw:393330000001:3EB0AA01", TS, "foto", true], [m1?.chiave, m1?.ts, m1?.categoria, m1?.media === IMG]);
+  c("mediaDa: foto → dettagli: mime canonico, peso", { mime: "image/jpeg", byte: 4000 }, m1?.dettagli);
+  const m2 = daMedia({ audioMessage: AUD });
+  c("mediaDa: vocale → categoria audio, mime normalizzato (senza codecs), durata, peso", ["audio", "audio/ogg", 7, 9000, true], [m2?.categoria, m2?.dettagli.mime, m2?.dettagli.durata_s, m2?.dettagli.byte, m2?.media === AUD]);
+  c("mediaDa: audio non vocale (ptt falso) → categoria audio", "audio", daMedia({ audioMessage: { ...AUD, ptt: false } })?.categoria);
+  const m3 = daMedia({ videoMessage: VID });
+  c("mediaDa: video → categoria, mime, durata, dimensioni, miniatura in base64", ["video", "video/mp4", 14, 640, 480, MINI_VID.toString("base64")], [m3?.categoria, m3?.dettagli.mime, m3?.dettagli.durata_s, m3?.dettagli.larghezza, m3?.dettagli.altezza, m3?.dettagli.miniatura]);
+  const m4 = daMedia({ documentMessage: DOC });
+  c("mediaDa: PDF → categoria documento, mime, nome, peso, miniatura", ["documento", "application/pdf", "Ricetta Maria.pdf", 120_000, MINI_DOC.toString("base64")], [m4?.categoria, m4?.dettagli.mime, m4?.dettagli.nome, m4?.dettagli.byte, m4?.dettagli.miniatura]);
+  c("mediaDa: la chiave coincide con quella del testo (tipi.ts), per ogni categoria", Array(4).fill(T.chiaveMessaggio(CLIENTE, "3EB0AA01")), [m1, m2, m3, m4].map((m) => m?.chiave));
+  c("mediaDa: dentro un effimero e dentro «documento con didascalia»", [true, true], [daMedia({ ephemeralMessage: { message: { audioMessage: AUD } } })?.media === AUD, daMedia({ documentWithCaptionMessage: { message: { documentMessage: DOC } } })?.media === DOC]);
+  c("mediaDa: i dettagli che mancano non compaiono (niente undefined né null)", {}, daMedia({ audioMessage: { mediaKey: new Uint8Array(32), directPath: "/x" } })?.dettagli);
+  c("mediaDa: un mime strano su un audio → dettagli senza mime (lo ferma il permesso, non l'estrazione)", {}, daMedia({ audioMessage: { ...AUD, mimetype: "text/html", fileLength: undefined, seconds: undefined } })?.dettagli);
+  c("mediaDa: miniatura che non è un jpeg o troppo grande → non entra", [false, false], [Object.hasOwn(daMedia({ videoMessage: { ...VID, jpegThumbnail: Buffer.from("<script>") } }).dettagli, "miniatura"), Object.hasOwn(daMedia({ videoMessage: { ...VID, jpegThumbnail: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(9100)]) } }).dettagli, "miniatura")]);
+
+  //  Condizione 1 del revisore: un documentMessage con mime immagine è un segnaposto, non si decifra come image.
+  c("mediaDa: documento con mime immagine (jpeg, png, webp, svg) → niente", Array(4).fill(null), ["image/jpeg", "image/png", "image/webp", "image/svg+xml"].map((mimetype) => daMedia({ documentMessage: { ...DOC, mimetype, fileName: "foto.jpg" } })));
+  c("…e immagineDa idem (non è una foto)", null, daFoto({ documentMessage: { ...DOC, mimetype: "image/jpeg" } }));
+  c("…ma per il CRM resta il segnaposto «📎 Documento: nome» (nessun messaggio perso)", { testo: "📎 Documento: foto.jpg", tipo: "documento" }, solo(wa({ documentMessage: { ...DOC, mimetype: "image/jpeg", fileName: "foto.jpg" } })));
+  c("segnaposto: bidi (U+202A–202E, U+2066–2069) tolti dal fileName anche nel testo che va al CRM", ["📎 Documento: fatturafdp.exe", "📎 Documento: ab.pdf"], [solo(wa({ documentMessage: { ...DOC, fileName: "fattura\u202efdp.exe" } })).testo, solo(wa({ documentMessage: { ...DOC, fileName: "a\u2066\u2067\u2068\u2069b.pdf" } })).testo]);
+  c("mediaDa: documento fuori elenco (zip, html, octet-stream, doc OLE, csv) → niente", Array(5).fill(null), ["application/zip", "text/html", "application/octet-stream", "application/msword", "text/csv"].map((mimetype) => daMedia({ documentMessage: { ...DOC, mimetype } })));
+  c("mediaDa: documento senza mime → niente", null, daMedia({ documentMessage: { ...DOC, mimetype: undefined } }));
+  c("mediaDa: «visualizza una volta» non si scarica per nessuna categoria", Array(6).fill(null), [daMedia({ viewOnceMessageV2: { message: { audioMessage: AUD } } }), daMedia({ viewOnceMessage: { message: { videoMessage: VID } } }), daMedia({ videoMessage: { ...VID, viewOnce: true } }), daMedia({ audioMessage: { ...AUD, viewOnce: true } }), daMedia({ viewOnceMessageV2Extension: { message: { imageMessage: IMG } } }), daMedia({ documentMessage: { ...DOC, viewOnce: true } })]);
+  c("mediaDa: sticker, posizione, contatto, testo, videomessaggio rotondo (ptv) → niente", Array(5).fill(null), [daMedia({ stickerMessage: {} }), daMedia({ locationMessage: {} }), daMedia({ contactMessage: {} }), daMedia({ conversation: "ciao" }), daMedia({ ptvMessage: VID })]);
+  c("mediaDa: gruppo, LID non risolto, non decifrato, troppo vecchio → niente (come leggiMessaggio)", Array(4).fill(null), [daMedia({ audioMessage: AUD }, {}, { remoteJid: "120363000000000000@g.us" }), daMedia({ videoMessage: VID }, {}, { remoteJid: "555@lid" }), E.mediaDa(wa(null, {}, { messageStubType: 2 }), opz), daMedia({ documentMessage: DOC }, { dal: TS + 1 })]);
+  c("mediaDa: non lancia con ingresso storto", Array(3).fill(null), [E.mediaDa(null, opz), E.mediaDa("x", opz), E.mediaDa({}, opz)]);
+  c("immagineDa è l'alias: stessa chiave e stesso imageMessage, forma di sempre { chiave, ts, immagine }", [["chiave", "immagine", "ts"], true], [Object.keys(f1 ?? {}).sort(), f1?.immagine === m1?.media && f1?.chiave === m1?.chiave && f1?.ts === m1?.ts]);
+  c("immagineDa: vocale, video, PDF non sono foto → niente (anche se mediaDa li dà)", Array(3).fill(null), [daFoto({ audioMessage: AUD }), daFoto({ videoMessage: VID }), daFoto({ documentMessage: DOC })]);
+
+  //  Il nome del documento (ripulito prima di arrivare al catalogo e alla chat).
+  const nomeDi = (fileName) => daMedia({ documentMessage: { ...DOC, fileName } })?.dettagli.nome;
+  c("nome documento: caratteri di controllo e a capo tolti", "abc.pdf", nomeDi("a\u0000b\nc\u007f.pdf"));
+  c("nome documento: bidi (U+202A–202E, U+2066–2069) tolti: «fattura‮fdp.exe» non si spaccia per pdf", "fatturafdp.exe", nomeDi("fattura‮fdp.exe"));
+  c("nome documento: isolati bidi tolti", "ab.pdf", nomeDi("a⁦⁧⁨⁩b.pdf"));
+  c("nome documento: / e \\ tolti (nessun percorso)", ["etcpasswd.pdf", "....x.pdf"], [nomeDi("/etc\\passwd.pdf"), nomeDi("../../x.pdf")]);
+  c("nome documento: 120 caratteri al massimo, senza spezzare una coppia surrogata", [120, false], [(nomeDi("x".repeat(300)) ?? "").length, /[\ud800-\udbff]$/.test(nomeDi("x".repeat(119) + "😀😀") ?? "")]);
+  c("nome documento: spazi attorno tolti; vuoto → nessun nome; fileName non stringa → si usa title", [undefined, "Titolo.pdf", "a b.pdf"], [nomeDi("   ‮  "), daMedia({ documentMessage: { ...DOC, fileName: 42, title: "Titolo.pdf" } })?.dettagli.nome, nomeDi("  a b.pdf  ")]);
+
   //  Le etichette sono quelle che la chat sa già disegnare (media.ts).
   const media = readFileSync(join(radice, "src/crm/chatwa/media.ts"), "utf8");
   const blocco = media.match(/const ETICHETTE[^{]*\{([\s\S]*?)\n\};/)?.[1] ?? "";

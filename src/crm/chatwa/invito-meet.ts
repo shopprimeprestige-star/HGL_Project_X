@@ -5,8 +5,10 @@
  *  prove/idee/invito-meet.mjs; il disegno è in BarraProssimoMeet.tsx.
  *
  *  LE REGOLE:
- *  - Il testo: «Ciao {nome}, la tua consulenza con Hair Genius Labs è alle {ora}: {consulente} ti
- *    aspetta. Entra da qui: {link}». Il link è quello personale che usano gli altri messaggi
+ *  - Il testo, a blocchi (forma in testoWa.ts, 31/10/2026): «Ciao {nome}!», riga vuota, «La tua
+ *    consulenza con Hair Genius Labs è alle {ora}: {consulente} ti aspetta.», riga vuota,
+ *    «Per collegarti:» col {link} DA SOLO sulla riga dopo, riga vuota, «A presto!». Prima era
+ *    un blocco unico col link in mezzo alla frase. Il link è quello personale che usano gli altri messaggi
  *    (`linkPerCliente`). Nessun testo esistente va bene per un invito mandato a mano: `hgl_meet_adesso`
  *    dice «inizia adesso», `hgl_meet_oggi_link` promette di ricordarlo dopo.
  *  - Senza link non si può invitare; senza telefono valido nemmeno; con STOP del cliente nemmeno.
@@ -26,6 +28,7 @@ import type { LeadData } from "../types";
 import { linkPerCliente } from "../manychat/testi";
 import { nomePerModello } from "../promemoria/formati";
 import { linkWaMe } from "./apriWhatsapp";
+import { bloccoLinkWa, salutoWa, testoWa } from "./testoWa";
 
 /** Quel che serve della chat del meet (così vale per `ChatItem` e per le chat finte delle prove). */
 export interface ChatPerInvito {
@@ -83,14 +86,29 @@ export function preparaInvito(
   //  Nel saluto basta il primo nome («Giulia», non «Giulia Verdi»).
   const nome = nomePerModello(chat.lead?.data?.nome)?.split(/\s+/)[0];
   const chi = consulente ? `${consulente} ti aspetta` : "ti aspettiamo";
-  const inizio = `Ciao${nome ? ` ${nome}` : ""}, la tua consulenza con Hair Genius Labs è alle ${ora}: ${chi}.`;
+  const saluto = salutoWa(nome);
+  const info = `La tua consulenza con Hair Genius Labs è alle ${ora}: ${chi}.`;
+  const chiusura = "A presto!";
   if (!link) {
     return {
       ok: true,
-      invito: { testo: `${inizio} ${SEGNO_SENZA_LINK}.`, link: null, segno: SEGNO_SENZA_LINK, senzaLink: true },
+      invito: {
+        testo: testoWa([saluto, info, `${SEGNO_SENZA_LINK}.`, chiusura]),
+        link: null,
+        segno: SEGNO_SENZA_LINK,
+        senzaLink: true,
+      },
     };
   }
-  return { ok: true, invito: { testo: `${inizio} Entra da qui: ${link}`, link, segno: link, senzaLink: false } };
+  return {
+    ok: true,
+    invito: {
+      testo: testoWa([saluto, info, bloccoLinkWa("Per collegarti:", link), chiusura]),
+      link,
+      segno: link,
+      senzaLink: false,
+    },
+  };
 }
 
 /** Come parte l'invito: dal CRM (finestra aperta) o da WhatsApp (chiusa o non nota). */

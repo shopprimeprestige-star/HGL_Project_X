@@ -57,6 +57,7 @@ import { Route as HooksPromemoriaWhatsappRouteImport } from './routes/hooks/prom
 import { Route as HooksMetaSpendSyncRouteImport } from './routes/hooks/meta-spend-sync'
 import { Route as HooksMetaLeadSyncRouteImport } from './routes/hooks/meta-lead-sync'
 import { Route as HooksMeetReminderRouteImport } from './routes/hooks/meet-reminder'
+import { Route as HooksMediaScaduteRouteImport } from './routes/hooks/media-scadute'
 import { Route as HooksManychatGiroRouteImport } from './routes/hooks/manychat-giro'
 import { Route as HooksFxRatesRouteImport } from './routes/hooks/fx-rates'
 import { Route as HooksDiagnosticDriftRouteImport } from './routes/hooks/diagnostic-drift'
@@ -128,6 +129,8 @@ import { Route as ApiPublicProvaAcquistoRouteImport } from './routes/api.public.
 import { Route as ApiPublicPricingRouteImport } from './routes/api.public.pricing'
 import { Route as ApiPublicPonteWhatsappRouteImport } from './routes/api.public.ponte-whatsapp'
 import { Route as ApiPublicMetaLeadgenWebhookRouteImport } from './routes/api.public.meta-leadgen-webhook'
+import { Route as ApiPublicMeetlySfuRouteImport } from './routes/api.public.meetly-sfu'
+import { Route as ApiPublicMeetlyDiagnosiRouteImport } from './routes/api.public.meetly-diagnosi'
 import { Route as ApiPublicManychatRispostaRouteImport } from './routes/api.public.manychat-risposta'
 import { Route as ApiPublicManychatPrenotaRouteImport } from './routes/api.public.manychat-prenota'
 import { Route as ApiPublicLinkOspiteRouteImport } from './routes/api.public.link-ospite'
@@ -188,6 +191,7 @@ import { Route as ApiCrmProvaCatalogoRouteImport } from './routes/api.crm.prova-
 import { Route as ApiCrmProvaCapelliRouteImport } from './routes/api.crm.prova-capelli'
 import { Route as ApiCrmPromemoriaWhatsappRouteImport } from './routes/api.crm.promemoria-whatsapp'
 import { Route as ApiCrmPrenotaChatRouteImport } from './routes/api.crm.prenota-chat'
+import { Route as ApiCrmPonteMediaAzioneRouteImport } from './routes/api.crm.ponte-media-azione'
 import { Route as ApiCrmPonteMediaRouteImport } from './routes/api.crm.ponte-media'
 import { Route as ApiCrmPonteInvioRouteImport } from './routes/api.crm.ponte-invio'
 import { Route as ApiCrmMessaggiAutomaticiRouteImport } from './routes/api.crm.messaggi-automatici'
@@ -461,6 +465,11 @@ const HooksMetaLeadSyncRoute = HooksMetaLeadSyncRouteImport.update({
 const HooksMeetReminderRoute = HooksMeetReminderRouteImport.update({
   id: '/hooks/meet-reminder',
   path: '/hooks/meet-reminder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HooksMediaScaduteRoute = HooksMediaScaduteRouteImport.update({
+  id: '/hooks/media-scadute',
+  path: '/hooks/media-scadute',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksManychatGiroRoute = HooksManychatGiroRouteImport.update({
@@ -822,6 +831,16 @@ const ApiPublicMetaLeadgenWebhookRoute =
     path: '/api/public/meta-leadgen-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMeetlySfuRoute = ApiPublicMeetlySfuRouteImport.update({
+  id: '/api/public/meetly-sfu',
+  path: '/api/public/meetly-sfu',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMeetlyDiagnosiRoute = ApiPublicMeetlyDiagnosiRouteImport.update({
+  id: '/api/public/meetly-diagnosi',
+  path: '/api/public/meetly-diagnosi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicManychatRispostaRoute =
   ApiPublicManychatRispostaRouteImport.update({
     id: '/api/public/manychat-risposta',
@@ -1132,6 +1151,11 @@ const ApiCrmPrenotaChatRoute = ApiCrmPrenotaChatRouteImport.update({
   path: '/api/crm/prenota-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmPonteMediaAzioneRoute = ApiCrmPonteMediaAzioneRouteImport.update({
+  id: '/api/crm/ponte-media-azione',
+  path: '/api/crm/ponte-media-azione',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmPonteMediaRoute = ApiCrmPonteMediaRouteImport.update({
   id: '/api/crm/ponte-media',
   path: '/api/crm/ponte-media',
@@ -1375,6 +1399,7 @@ export interface FileRoutesByFullPath {
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
+  '/hooks/media-scadute': typeof HooksMediaScaduteRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1432,6 +1457,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
+  '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
   '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
@@ -1492,6 +1518,8 @@ export interface FileRoutesByFullPath {
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
+  '/api/public/meetly-diagnosi': typeof ApiPublicMeetlyDiagnosiRoute
+  '/api/public/meetly-sfu': typeof ApiPublicMeetlySfuRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1584,6 +1612,7 @@ export interface FileRoutesByTo {
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
+  '/hooks/media-scadute': typeof HooksMediaScaduteRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1641,6 +1670,7 @@ export interface FileRoutesByTo {
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
+  '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
   '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
@@ -1701,6 +1731,8 @@ export interface FileRoutesByTo {
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
+  '/api/public/meetly-diagnosi': typeof ApiPublicMeetlyDiagnosiRoute
+  '/api/public/meetly-sfu': typeof ApiPublicMeetlySfuRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -1799,6 +1831,7 @@ export interface FileRoutesById {
   '/hooks/diagnostic-drift': typeof HooksDiagnosticDriftRoute
   '/hooks/fx-rates': typeof HooksFxRatesRoute
   '/hooks/manychat-giro': typeof HooksManychatGiroRoute
+  '/hooks/media-scadute': typeof HooksMediaScaduteRoute
   '/hooks/meet-reminder': typeof HooksMeetReminderRoute
   '/hooks/meta-lead-sync': typeof HooksMetaLeadSyncRoute
   '/hooks/meta-spend-sync': typeof HooksMetaSpendSyncRoute
@@ -1856,6 +1889,7 @@ export interface FileRoutesById {
   '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
+  '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
   '/api/crm/prenota-chat': typeof ApiCrmPrenotaChatRoute
   '/api/crm/promemoria-whatsapp': typeof ApiCrmPromemoriaWhatsappRoute
   '/api/crm/prova-capelli': typeof ApiCrmProvaCapelliRoute
@@ -1916,6 +1950,8 @@ export interface FileRoutesById {
   '/api/public/link-ospite': typeof ApiPublicLinkOspiteRoute
   '/api/public/manychat-prenota': typeof ApiPublicManychatPrenotaRoute
   '/api/public/manychat-risposta': typeof ApiPublicManychatRispostaRoute
+  '/api/public/meetly-diagnosi': typeof ApiPublicMeetlyDiagnosiRoute
+  '/api/public/meetly-sfu': typeof ApiPublicMeetlySfuRoute
   '/api/public/meta-leadgen-webhook': typeof ApiPublicMetaLeadgenWebhookRoute
   '/api/public/ponte-whatsapp': typeof ApiPublicPonteWhatsappRoute
   '/api/public/pricing': typeof ApiPublicPricingRoute
@@ -2015,6 +2051,7 @@ export interface FileRouteTypes {
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
+    | '/hooks/media-scadute'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2072,6 +2109,7 @@ export interface FileRouteTypes {
     | '/api/crm/messaggi-automatici'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
+    | '/api/crm/ponte-media-azione'
     | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
@@ -2132,6 +2170,8 @@ export interface FileRouteTypes {
     | '/api/public/link-ospite'
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
+    | '/api/public/meetly-diagnosi'
+    | '/api/public/meetly-sfu'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
@@ -2224,6 +2264,7 @@ export interface FileRouteTypes {
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
+    | '/hooks/media-scadute'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2281,6 +2322,7 @@ export interface FileRouteTypes {
     | '/api/crm/messaggi-automatici'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
+    | '/api/crm/ponte-media-azione'
     | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
@@ -2341,6 +2383,8 @@ export interface FileRouteTypes {
     | '/api/public/link-ospite'
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
+    | '/api/public/meetly-diagnosi'
+    | '/api/public/meetly-sfu'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
@@ -2438,6 +2482,7 @@ export interface FileRouteTypes {
     | '/hooks/diagnostic-drift'
     | '/hooks/fx-rates'
     | '/hooks/manychat-giro'
+    | '/hooks/media-scadute'
     | '/hooks/meet-reminder'
     | '/hooks/meta-lead-sync'
     | '/hooks/meta-spend-sync'
@@ -2495,6 +2540,7 @@ export interface FileRouteTypes {
     | '/api/crm/messaggi-automatici'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
+    | '/api/crm/ponte-media-azione'
     | '/api/crm/prenota-chat'
     | '/api/crm/promemoria-whatsapp'
     | '/api/crm/prova-capelli'
@@ -2555,6 +2601,8 @@ export interface FileRouteTypes {
     | '/api/public/link-ospite'
     | '/api/public/manychat-prenota'
     | '/api/public/manychat-risposta'
+    | '/api/public/meetly-diagnosi'
+    | '/api/public/meetly-sfu'
     | '/api/public/meta-leadgen-webhook'
     | '/api/public/ponte-whatsapp'
     | '/api/public/pricing'
@@ -2618,6 +2666,7 @@ export interface RootRouteChildren {
   HooksDiagnosticDriftRoute: typeof HooksDiagnosticDriftRoute
   HooksFxRatesRoute: typeof HooksFxRatesRoute
   HooksManychatGiroRoute: typeof HooksManychatGiroRoute
+  HooksMediaScaduteRoute: typeof HooksMediaScaduteRoute
   HooksMeetReminderRoute: typeof HooksMeetReminderRoute
   HooksMetaLeadSyncRoute: typeof HooksMetaLeadSyncRoute
   HooksMetaSpendSyncRoute: typeof HooksMetaSpendSyncRoute
@@ -2668,6 +2717,7 @@ export interface RootRouteChildren {
   ApiCrmMessaggiAutomaticiRoute: typeof ApiCrmMessaggiAutomaticiRoute
   ApiCrmPonteInvioRoute: typeof ApiCrmPonteInvioRoute
   ApiCrmPonteMediaRoute: typeof ApiCrmPonteMediaRoute
+  ApiCrmPonteMediaAzioneRoute: typeof ApiCrmPonteMediaAzioneRoute
   ApiCrmPrenotaChatRoute: typeof ApiCrmPrenotaChatRoute
   ApiCrmPromemoriaWhatsappRoute: typeof ApiCrmPromemoriaWhatsappRoute
   ApiCrmProvaCapelliRoute: typeof ApiCrmProvaCapelliRoute
@@ -2728,6 +2778,8 @@ export interface RootRouteChildren {
   ApiPublicLinkOspiteRoute: typeof ApiPublicLinkOspiteRoute
   ApiPublicManychatPrenotaRoute: typeof ApiPublicManychatPrenotaRoute
   ApiPublicManychatRispostaRoute: typeof ApiPublicManychatRispostaRoute
+  ApiPublicMeetlyDiagnosiRoute: typeof ApiPublicMeetlyDiagnosiRoute
+  ApiPublicMeetlySfuRoute: typeof ApiPublicMeetlySfuRoute
   ApiPublicMetaLeadgenWebhookRoute: typeof ApiPublicMetaLeadgenWebhookRoute
   ApiPublicPonteWhatsappRoute: typeof ApiPublicPonteWhatsappRoute
   ApiPublicPricingRoute: typeof ApiPublicPricingRoute
@@ -3083,6 +3135,13 @@ declare module '@tanstack/react-router' {
       path: '/hooks/meet-reminder'
       fullPath: '/hooks/meet-reminder'
       preLoaderRoute: typeof HooksMeetReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hooks/media-scadute': {
+      id: '/hooks/media-scadute'
+      path: '/hooks/media-scadute'
+      fullPath: '/hooks/media-scadute'
+      preLoaderRoute: typeof HooksMediaScaduteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/manychat-giro': {
@@ -3582,6 +3641,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMetaLeadgenWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/meetly-sfu': {
+      id: '/api/public/meetly-sfu'
+      path: '/api/public/meetly-sfu'
+      fullPath: '/api/public/meetly-sfu'
+      preLoaderRoute: typeof ApiPublicMeetlySfuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/meetly-diagnosi': {
+      id: '/api/public/meetly-diagnosi'
+      path: '/api/public/meetly-diagnosi'
+      fullPath: '/api/public/meetly-diagnosi'
+      preLoaderRoute: typeof ApiPublicMeetlyDiagnosiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/manychat-risposta': {
       id: '/api/public/manychat-risposta'
       path: '/api/public/manychat-risposta'
@@ -4000,6 +4073,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/prenota-chat'
       fullPath: '/api/crm/prenota-chat'
       preLoaderRoute: typeof ApiCrmPrenotaChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/ponte-media-azione': {
+      id: '/api/crm/ponte-media-azione'
+      path: '/api/crm/ponte-media-azione'
+      fullPath: '/api/crm/ponte-media-azione'
+      preLoaderRoute: typeof ApiCrmPonteMediaAzioneRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/ponte-media': {
@@ -4422,6 +4502,7 @@ const rootRouteChildren: RootRouteChildren = {
   HooksDiagnosticDriftRoute: HooksDiagnosticDriftRoute,
   HooksFxRatesRoute: HooksFxRatesRoute,
   HooksManychatGiroRoute: HooksManychatGiroRoute,
+  HooksMediaScaduteRoute: HooksMediaScaduteRoute,
   HooksMeetReminderRoute: HooksMeetReminderRoute,
   HooksMetaLeadSyncRoute: HooksMetaLeadSyncRoute,
   HooksMetaSpendSyncRoute: HooksMetaSpendSyncRoute,
@@ -4472,6 +4553,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMessaggiAutomaticiRoute: ApiCrmMessaggiAutomaticiRoute,
   ApiCrmPonteInvioRoute: ApiCrmPonteInvioRoute,
   ApiCrmPonteMediaRoute: ApiCrmPonteMediaRoute,
+  ApiCrmPonteMediaAzioneRoute: ApiCrmPonteMediaAzioneRoute,
   ApiCrmPrenotaChatRoute: ApiCrmPrenotaChatRoute,
   ApiCrmPromemoriaWhatsappRoute: ApiCrmPromemoriaWhatsappRoute,
   ApiCrmProvaCapelliRoute: ApiCrmProvaCapelliRoute,
@@ -4532,6 +4614,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicLinkOspiteRoute: ApiPublicLinkOspiteRoute,
   ApiPublicManychatPrenotaRoute: ApiPublicManychatPrenotaRoute,
   ApiPublicManychatRispostaRoute: ApiPublicManychatRispostaRoute,
+  ApiPublicMeetlyDiagnosiRoute: ApiPublicMeetlyDiagnosiRoute,
+  ApiPublicMeetlySfuRoute: ApiPublicMeetlySfuRoute,
   ApiPublicMetaLeadgenWebhookRoute: ApiPublicMetaLeadgenWebhookRoute,
   ApiPublicPonteWhatsappRoute: ApiPublicPonteWhatsappRoute,
   ApiPublicPricingRoute: ApiPublicPricingRoute,
