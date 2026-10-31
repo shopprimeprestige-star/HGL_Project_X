@@ -327,10 +327,12 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
     hgl_cliente_assente: 1, hgl_da_riprogrammare: 2, hgl_promemoria_sede: 4,
     hgl_sede_disdetta: 1, hgl_ultimo_tentativo: 1, hgl_ritorno: 1, hgl_casi_reali: 1,
     hgl_acconto: 2, hgl_come_eravamo_rimasti: 2,
+    //  i gemelli senza link (31/10/2026): gli stessi senza la variabile del link
+    consulenza_conferma_presenza_sl: 3, hgl_meet_oggi_sl: 3, hgl_promemoria_meet_sl: 3, hgl_meet_adesso_sl: 2,
   };
   //  Il giro passa il consulente (v2) anche a questi due, ma il loro testo Utility non lo nomina: un segnaposto in meno.
   const SENZA_CONSULENTE_NEL_TESTO = new Set(["hgl_da_riprogrammare", "hgl_come_eravamo_rimasti"]);
-  c("ci sono tutti i 22 modelli hgl_ di ManyChat (21 con flusso, compreso il primo contatto con tre fasce, + il testo del giorno prima)", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
+  c("ci sono tutti i 22 modelli hgl_ di ManyChat (21 con flusso, compreso il primo contatto con tre fasce, + il testo del giorno prima) e i 4 gemelli senza link", Object.keys(VARIABILI).sort(), MODELLI_MANYCHAT.map((t) => t.name).sort());
   c(
     "ogni modello ha le variabili che il CRM manda, al massimo 4, e un segnaposto per ognuna (salvo il consulente non nominato dal testo)",
     [],
@@ -338,6 +340,30 @@ export function proveProvaModelli(mod, { c, gruppo, radice }) {
       const n = (t.body.match(/\{\{\d+\}\}/g) ?? []).length;
       return t.params.length !== VARIABILI[t.name] || t.params.length > MAX_PARAMETRI || n !== t.params.length - (SENZA_CONSULENTE_NEL_TESTO.has(t.name) ? 1 : 0);
     }).map((t) => t.name),
+  );
+  //  I gemelli senza link (31/10/2026): Utility, col «tu», senza variabile né pulsante del link.
+  const SL = MODELLI_MANYCHAT.filter((t) => t.name.endsWith("_sl"));
+  c(
+    "i 4 gemelli senza link: Utility, nessuna variabile «meet_link», nessun pulsante, nessun indirizzo nel testo",
+    [4, [], "UTILITY"],
+    [
+      SL.length,
+      SL.filter((t) => t.params.some((p) => p.key === "meet_link") || t.pulsante || t.header || /https?:|meetly/i.test(t.body)).map((t) => t.name),
+      [...new Set(SL.map((t) => t.category))].join(),
+    ],
+  );
+  c(
+    "…ognuno ha il suo gemello col link (stesse variabili meno il link)",
+    [],
+    SL.filter((t) => {
+      const col = mod["wa-meta-templates"].findMetaTemplate(t.name.slice(0, -3));
+      return !col || col.params.filter((p) => p.key !== "meet_link").map((p) => p.key).sort().join() !== t.params.map((p) => p.key).sort().join();
+    }).map((t) => t.name),
+  );
+  c(
+    "…il testo della conferma è quello del titolare (il link arriva dopo, a mano)",
+    "Ciao {{1}}, la tua consulenza con Hair Genius Labs è fissata per {{2}} alle ore {{3}}.\n\nIl link per collegarti te lo manderemo qui poco prima dell'inizio.\n\nPer confermare la tua presenza rispondi SÌ a questo messaggio.\n\nHair Genius Labs",
+    SL.find((t) => t.name === "consulenza_conferma_presenza_sl")?.body,
   );
   c(
     "esempi pieni per ogni variabile, anteprima senza segnaposto",

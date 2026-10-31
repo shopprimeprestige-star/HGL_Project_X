@@ -48,6 +48,7 @@
 import { STATI_APPUNTAMENTO, STATI_PRIMO_CONTATTO, eAppuntamento } from "../types";
 import { statoPrimaDelRitorno } from "../importa/ritorno-attesa";
 import { aRoma, oraNormale } from "../promemoria/formati";
+import { modoInvito } from "../chatwa/invito-meet";
 import { istanteDiRoma, scadenzaRicontatto } from "./contatto";
 import {
   APERTURA_RICONTATTI_MIN,
@@ -791,6 +792,8 @@ export function decidiGiornoMeet(
     numero: string;
     tel9: string;
     consulente: string | undefined;
+    /** il consulente non usa Meetly: i messaggi del meet partono senza link (31/10/2026) */
+    senzaLink: boolean;
   }[] = [];
 
   for (const scheda of schede) {
@@ -835,6 +838,7 @@ export function decidiGiornoMeet(
       numero,
       tel9: ultimeNoveCifre(numero),
       consulente: consulente.data?.nome,
+      senzaLink: modoInvito(consulente.data) === "senza",
     });
   }
 
@@ -938,7 +942,7 @@ export function decidiGiornoMeet(
     const chiaveA = `a|${k.tel9}|${k.giornoMeet}T${k.ora}`;
     const dopoMin = (ora - inizio) / MIN_MS;
     oraEsatta: if (!chiaveGiaPresa(invii, chiaveA) && dopoMin <= MEMORIA_RITARDO_MIN) {
-      const campi = campiMeetAdesso(k.scheda.data, k.consulente, k.scheda.id);
+      const campi = campiMeetAdesso(k.scheda.data, k.consulente, k.scheda.id, k.senzaLink);
       if (campi.tipo === "salta") {
         saltaDati(1, campi.motivo);
         break oraEsatta;

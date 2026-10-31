@@ -38,6 +38,7 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 import type { Consultant, TipoInvio } from "../types";
 import { aRoma, nomePerModello } from "../promemoria/formati";
+import { modoDelConsulente } from "../chatwa/invito-meet";
 import { STATI_STELLA_UNO } from "../wa-orari";
 import type { ClientManychat } from "./api";
 import {
@@ -110,6 +111,15 @@ export const MODELLO_RICONTATTO = "hgl_ricontatto_consulenza";
 /** La mattina del meet col link dentro (30/10/2026). Facoltativo: serve il flusso in
  *  `config.flussi` E il link in scheda; altrimenti la mattina è `hgl_meet_oggi`. */
 export const MODELLO_MEET_OGGI_LINK = "hgl_meet_oggi_link";
+/** ── I GEMELLI SENZA LINK (31/10/2026) ───────────────────────────────────────────────────────────
+ *  Chi segue un consulente che NON usa Meetly (`crm_consultants.data.invitoMeet = "senza"`, la
+ *  spunta in Collaboratori) riceve i quattro promemoria col link con questi modelli, identici ma
+ *  senza il link (Meta non accetta una variabile vuota). La conferma «risponda SÌ»
+ *  (`consulenza_conferma_presenza_sl`) parte da `crm/promemoria`. Se il flusso del gemello non è
+ *  collegato il messaggio SALTA con una nota: mai il modello col link a chi non usa Meetly. */
+export const MODELLO_PROMEMORIA_SL = "hgl_promemoria_meet_sl";
+export const MODELLO_MEET_OGGI_SL = "hgl_meet_oggi_sl";
+export const MODELLO_MEET_ADESSO_SL = "hgl_meet_adesso_sl";
 /** Il primo contatto con le TRE fasce (mattina, pomeriggio o sera; richiesta del titolare
  *  30/10/2026). Parte appena il suo flusso è collegato in `config.flussi`; finché manca resta
  *  `hgl_primo_contatto` (mattina o sera): nessun lead nuovo resta senza messaggio. */
@@ -829,8 +839,19 @@ export function modelloETag(
   conLink = false,
   /** il primo contatto ha il flusso con le tre fasce? */
   treFasce = false,
+  /** il consulente non usa Meetly: i gemelli senza link (31/10/2026). Per la mattina `conLink`
+   *  vale «il flusso del gemello è collegato» (`mattinaColLink`). */
+  senzaLink = false,
 ): { modello: string; tag: string } | null {
-  if (tipo === "promemoria") return { modello: MODELLO_PROMEMORIA, tag: TAG_PROMEMORIA };
+  if (tipo === "promemoria")
+    return {
+      modello: senzaLink ? MODELLO_PROMEMORIA_SL : MODELLO_PROMEMORIA,
+      tag: TAG_PROMEMORIA,
+    };
+  if (tipo === "meet_adesso" && senzaLink)
+    return { ...MODELLI_SEQUENZE.meet_adesso, modello: MODELLO_MEET_ADESSO_SL };
+  if (tipo === "meet_oggi" && conLink && senzaLink)
+    return { ...MODELLI_SEQUENZE.meet_oggi, modello: MODELLO_MEET_OGGI_SL };
   if (
     tipo === "primo_contatto" ||
     tipo === "richiamo_24h" ||
@@ -840,7 +861,7 @@ export function modelloETag(
     tipo === "meet_domani" ||
     tipo === "meet_adesso"
   )
-    return tipo === "meet_oggi" && conLink
+    return tipo === "meet_oggi" && conLink && !senzaLink
       ? { ...MODELLI_SEQUENZE.meet_oggi, modello: MODELLO_MEET_OGGI_LINK }
       : tipo === "primo_contatto" && treFasce
         ? { ...MODELLI_SEQUENZE.primo_contatto, modello: MODELLO_PRIMO_CONTATTO_TRE_FASCE }
@@ -851,8 +872,21 @@ export function modelloETag(
 
 /** La mattina del meet parte col link se la scheda ha un link usabile (stessa fonte del
  *  promemoria) E il flusso col link è collegato; altrimenti col messaggio di prima. */
-const mattinaColLink = (scheda: SchedaQuando, flussi: Record<string, string>): boolean =>
-  !!flussi[MODELLO_MEET_OGGI_LINK] && !!linkPerCliente(scheda.data, scheda.id);
+const mattinaColLink = (
+  scheda: SchedaQuando,
+  flussi: Record<string, string>,
+  senzaLink = false,
+): boolean =>
+  //  Chi non usa Meetly: la mattina «col gemello» se il suo flusso è collegato (il link non serve);
+  //  altrimenti resta `hgl_meet_oggi`, che il link non lo porta mai.
+  senzaLink
+    ? !!flussi[MODELLO_MEET_OGGI_SL]
+    : !!flussi[MODELLO_MEET_OGGI_LINK] && !!linkPerCliente(scheda.data, scheda.id);
+
+/** Il consulente di questa scheda non usa Meetly? Consulente non trovato o scelta strana = usa Meetly
+ *  (il comportamento di prima); la scelta è una sola, quella dell'invito a mano. */
+const senzaMeetly = (scheda: SchedaQuando, consulenti: Pick<Consultant, "id" | "data">[]): boolean =>
+  modoDelConsulente(consulenti, scheda.data.consulenteId) === "senza";
 
 /** Le variabili del modello, nell'ordine in cui il modello le vuole. */
 function campiDi(
@@ -862,11 +896,12 @@ function campiDi(
   consulente: string | undefined,
   indirizzoSede: string | null,
   conLink = false,
+  senzaLink = false,
 ): CampiOSalta {
   const d = scheda.data;
   switch (tipo) {
     case "promemoria":
-      return campiPromemoria(d, consulente, scheda.id);
+      return campiPromemoria(d, consulente, scheda.id, senzaLink);
     case "primo_contatto":
       return campiPrimoContatto(d);
     case "richiamo_24h":
@@ -876,11 +911,14 @@ function campiDi(
     case "casi_reali":
       return campiCasiReali(d);
     case "meet_oggi":
-      return conLink ? campiMeetOggiLink(d, consulente, scheda.id) : campiMeetOggi(d, consulente);
+      //  Il gemello della mattina ha le stesse tre variabili di `hgl_meet_oggi`: mai un link.
+      return conLink && !senzaLink
+        ? campiMeetOggiLink(d, consulente, scheda.id)
+        : campiMeetOggi(d, consulente);
     case "meet_domani":
       return campiMeetDomani(d, consulente);
     case "meet_adesso":
-      return campiMeetAdesso(d, consulente, scheda.id);
+      return campiMeetAdesso(d, consulente, scheda.id, senzaLink);
     default:
       return campiPerStato(v.stato ?? "da_ricontattare", d, consulente, indirizzoSede);
   }
@@ -952,6 +990,8 @@ const qualcosaAcceso = (c: ConfigGiro) =>
 const NOME_MODELLO: Record<string, string> = {
   [MODELLO_PROMEMORIA]: "promemoria",
   [MODELLO_RICONTATTO]: "ricontatto",
+  [MODELLO_PROMEMORIA_SL]: "promemoria senza link",
+  [MODELLO_MEET_ADESSO_SL]: "messaggio all'ora senza link",
 };
 
 /** Il giro. Non lancia: ogni guasto è un `fermo` o un conteggio. */
@@ -1088,11 +1128,13 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
   const senzaFlusso = new Set<string>();
   for (const v of voci) {
     if (v.d.tipo !== "invia") continue;
+    const senzaLink = senzaMeetly(v.d.scheda, consulenti);
     const mt = modelloETag(
       v.tipo,
       v.d.extra.stato,
-      v.tipo === "meet_oggi" && mattinaColLink(v.d.scheda, config.flussi),
+      v.tipo === "meet_oggi" && mattinaColLink(v.d.scheda, config.flussi, senzaLink),
       !!config.flussi[MODELLO_PRIMO_CONTATTO_TRE_FASCE],
+      senzaLink,
     );
     if (!mt) continue;
     //  Il giorno prima, solo se gratis, parte come testo: il suo flusso non serve e non si usa.
@@ -1135,6 +1177,9 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       nomi.length === 1
         ? `Il flusso del ${nomi[0]} non è collegato in ManyChat`
         : `Il flusso non è collegato in ManyChat per: ${nomi.join(", ")}`;
+    //  I gemelli senza link: chi non usa Meetly non riceve MAI il modello col link, quindi resta fermo.
+    if ([...senzaFlusso].some((m) => m.endsWith("_sl")))
+      nota += " (il consulente non usa Meetly: il messaggio non parte col link)";
   }
 
   //  4-7. Gli invii.
@@ -1153,7 +1198,8 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       scheda,
       consulente?.data?.nome,
       config.indirizzoSede,
-      cand.modello === MODELLO_MEET_OGGI_LINK,
+      cand.modello === MODELLO_MEET_OGGI_LINK || cand.modello === MODELLO_MEET_OGGI_SL,
+      senzaMeetly(scheda, consulenti),
     );
     if (!numero || campi.tipo === "salta") return { fine: "continua" };
     //  La chiave del messaggio nel registro (un interruttore per messaggio). Senza chiave NON si
@@ -1216,12 +1262,14 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
         return false;
       //  Stessa chiave ma stato cambiato (r|tel9|giorno è uguale per quattro stati):
       //  se il modello non è più lo stesso, non si manda quello.
+      const senzaLink = senzaMeetly(buona.d.scheda, consulenti);
       return (
         modelloETag(
           buona.tipo,
           buona.d.extra.stato,
-          buona.tipo === "meet_oggi" && mattinaColLink(buona.d.scheda, config.flussi),
+          buona.tipo === "meet_oggi" && mattinaColLink(buona.d.scheda, config.flussi, senzaLink),
           !!config.flussi[MODELLO_PRIMO_CONTATTO_TRE_FASCE],
+          senzaLink,
         )?.modello === cand.modello
       );
     };

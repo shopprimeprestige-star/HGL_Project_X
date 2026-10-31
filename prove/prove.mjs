@@ -21704,7 +21704,12 @@ function proveDelPromemoriaWhatsapp() {
   c("chiave dell'appuntamento", K, I.chiaveAppuntamento(base().d));
   c("stesso numero scritto in due modi: STESSA chiave", I.chiaveAppuntamento({ ...base().d, telefono: "+39 339 1234567" }), I.chiaveAppuntamento({ ...base().d, telefono: "3391234567" }));
   c("chiave senza giorno o ora: null", null, I.chiaveAppuntamento({ telefono: "3391234567", dataMeeting: "2026-10-23" }));
-  c("(1) tutto a posto → invia con i 4 parametri esatti", { azione: "invia", chiave: K, numero: "393391234567", parametri: ["Mario", "venerdì 23 ottobre", "10:00", LINK], volte: 1 }, dec());
+  c("(1) tutto a posto → invia con i 4 parametri esatti", { azione: "invia", chiave: K, numero: "393391234567", modello: "consulenza_conferma_presenza", parametri: ["Mario", "venerdì 23 ottobre", "10:00", LINK], volte: 1 }, dec());
+  //  Consulente che non usa Meetly (31/10/2026): il gemello senza link, 3 parametri, il link non serve.
+  c("(1b) consulente senza Meetly → il gemello _sl con 3 parametri, MAI il link", { azione: "invia", chiave: K, numero: "393391234567", modello: "consulenza_conferma_presenza_sl", parametri: ["Mario", "venerdì 23 ottobre", "10:00"], volte: 1 }, dec({}, { senzaLink: true }));
+  c("(1c) …anche se la scheda ha un link: nei parametri non c'è", false, JSON.stringify(dec({}, { senzaLink: true })).includes("meetly"));
+  c("(1d) …e senza link in scheda parte lo stesso (non aspetta «manca_link»)", "invia", dec({}, { senzaLink: true, link: "" }).azione);
+  c("(1e) con Meetly e senza link in scheda: aspetta il link, come prima", { azione: "aspetta", motivo: "manca_link" }, dec({}, { link: "" }));
   c("(2) alle 23:00 → aspetta l'apertura", { azione: "aspetta", motivo: "fuori_orario" }, dec({}, { adesso: roma("2026-10-22", "23:00") }));
   c("(3) alle 08:00 del giorno dopo, appuntamento alle 10:00 → invia", "invia", dec({}, { adesso: roma("2026-10-23", "08:00") }).azione);
   c("(4) appuntamento alle 08:30, alle 08:00 → troppo vicino", { azione: "salta", chiave: "2026-10-23T08:30|391234567", stato: "non_inviato", motivo: "troppo_vicino" }, dec({ oraMeeting: "08:30" }, { adesso: roma("2026-10-23", "08:00") }));
@@ -21952,6 +21957,7 @@ async function proveDelGiroDelPromemoria() {
   function finto(o = {}) {
     const db = new Map((o.schede ?? [scheda("s1")]).map((s) => [s.id, JSON.parse(JSON.stringify(s))]));
     const log = [];
+    const inviati = [];
     let stato = o.stato ?? null;
     let config = o.config === undefined ? { acceso: true, avvio: "fatto" } : o.config;
     const porte = {
@@ -21962,7 +21968,7 @@ async function proveDelGiroDelPromemoria() {
       scriviStato: async (x) => { log.push("stato"); stato = x; },
       provaMigrazione: async () => o.migrazione ?? true,
       impostazioni: async () => o.impostazioni ?? [{ userId: "u1", haChiavi: true, haWaba: true, haAppSecret: true, mode: "live" }],
-      schede: async () => [...db.values()].map((s) => ({ ...JSON.parse(JSON.stringify(s)), link: o.link ?? LINK })),
+      schede: async () => [...db.values()].map((s) => ({ ...JSON.parse(JSON.stringify(s)), link: o.link ?? LINK, ...(o.senzaMeetly ? { senzaMeetly: true } : {}) })),
       numeriStop: async () => o.numeriStop ?? [],
       aggancia: async (id, chiave, pezzo) => {
         log.push(`aggancia:${id}`);
@@ -21976,15 +21982,20 @@ async function proveDelGiroDelPromemoria() {
         if (seChiave != null && p.chiave !== seChiave) return false;
         s.data.promemoria = { ...p, ...pezzo }; return true;
       },
-      controllaModello: async () => { log.push("modello"); return o.modello ?? { trovato: true, stato: "APPROVED" }; },
-      invia: async (imp, numero, parametri) => {
+      controllaModello: async (imp, nome) => {
+        const sl = nome === "consulenza_conferma_presenza_sl";
+        log.push(sl ? "modello_sl" : "modello");
+        return (sl ? o.modelloSl : o.modello) ?? { trovato: true, stato: "APPROVED" };
+      },
+      invia: async (imp, numero, parametri, contesto) => {
         log.push(`invia:${numero}`);
+        inviati.push({ modello: contesto?.modello, parametri });
         if (o.invia) return o.invia(numero, parametri);
         return { status: 200, corpo: { messages: [{ id: `wamid.${log.length}` }] } };
       },
       registraInvio: async (imp, id, numero, esito) => { log.push(`registra:${id}:${esito.tipo}`); },
     };
-    return { porte, db, log, get stato() { return stato; }, get config() { return config; } };
+    return { porte, db, log, inviati, get stato() { return stato; }, get config() { return config; } };
   }
   const p1 = (f, id = "s1") => f.db.get(id).data.promemoria ?? null;
 
@@ -22002,6 +22013,39 @@ async function proveDelGiroDelPromemoria() {
   f.db.get("s1").data.promemoria = { chiave: "2026-10-23T10:00|391234567", stato: "inviato", volte: 1 };
   r = await G.giroPromemoria(f.porte, { prova: false });
   c("al giro dopo: niente di doppio", [0, false], [r.inviati, f.log.some((x) => x.startsWith("invia"))]);
+
+  gruppo("PROMEMORIA WHATSAPP · CONSULENTE SENZA MEETLY (31/10/2026)");
+  f = finto();
+  await G.giroPromemoria(f.porte, { prova: false });
+  c("con Meetly: il modello di sempre, 4 parametri col link", ["consulenza_conferma_presenza", 4, LINK], [f.inviati[0].modello, f.inviati[0].parametri.length, f.inviati[0].parametri[3]]);
+  f = finto({ senzaMeetly: true });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("senza Meetly: parte il gemello _sl, 3 parametri, nessun link in nessun parametro", [1, "consulenza_conferma_presenza_sl", ["Mario", "venerdì 23 ottobre", "10:00"], false], [r.inviati, f.inviati[0].modello, f.inviati[0].parametri, JSON.stringify(f.inviati).includes("meetly")]);
+  c("…controlla il flusso del gemello, non solo quello vecchio", true, f.log.includes("modello_sl") && !f.log.includes("modello"));
+  c("…sulla scheda: inviato", "inviato", p1(f).stato);
+  f = finto({ senzaMeetly: true, modelloSl: { trovato: false } });
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("senza Meetly e gemello NON collegato: niente invio (mai il modello col link), nessun segno sulla scheda", [0, false, null], [r.inviati, f.log.some((x) => x.startsWith("invia")), p1(f)]);
+  c("…la nota lo dice, e il giro non è bloccato", [true, true], [/flusso senza link non collegato/i.test(r.nota ?? ""), r.pronto]);
+  c("…e resta in attesa (si riprova al giro dopo)", 1, r.inAttesa);
+  f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], senzaMeetly: true, modelloSl: { trovato: false } });
+  f.porte.schede = async () => [{ ...JSON.parse(JSON.stringify(f.db.get("s1"))), link: LINK, senzaMeetly: true }, { ...JSON.parse(JSON.stringify(f.db.get("s2"))), link: LINK }];
+  r = await G.giroPromemoria(f.porte, { prova: false });
+  c("uno senza Meetly (gemello non collegato) e uno con Meetly: parte solo il secondo, col suo modello", [1, ["consulenza_conferma_presenza"]], [r.inviati, f.inviati.map((x) => x.modello)]);
+  f = finto({ senzaMeetly: true, modelloSl: { trovato: false } });
+  r = await G.giroPromemoria(f.porte, { prova: true });
+  c("prova a secco: dice cosa succederebbe senza toccare niente", [1, []], [r.partirebbero, f.log.filter((x) => x.startsWith("invia") || x.startsWith("aggancia"))]);
+
+  //  La lettura dei consulenti (nella porta `schede` della rotta) si guasta: la porta lancia e il giro
+  //  non invia niente (meglio nessun messaggio che un link a chi non usa Meetly).
+  f = finto({ senzaMeetly: true });
+  f.porte.schede = async () => { throw new Error("lettura consulenti: XX000"); };
+  let lanciato = false;
+  try { await G.giroPromemoria(f.porte, { prova: false }); } catch { lanciato = true; }
+  c("lettura dei consulenti guasta: il giro lancia (la rotta risponde «controllo non riuscito»), zero invii, nessun segno", [true, false, null], [lanciato, f.log.some((x) => x.startsWith("invia") || x.startsWith("aggancia")), p1(f)]);
+  const rottaCons = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
+  c("…nella rotta l'errore di lettura di crm_consultants lancia, non viene ignorato", true, /from\("crm_consultants"\)[\s\S]*?if \(consulenti\.error\) throw new Error\(/.test(rottaCons));
+  c("…e la rotta, se il giro lancia, scrive «controllo_fallito» senza inviare", true, /catch \(e\) \{[\s\S]*?blocco: "controllo_fallito"/.test(rottaCons));
 
   gruppo("PROMEMORIA WHATSAPP · QUANDO NON PARTE NIENTE");
   for (const [nome, o, blocco] of [

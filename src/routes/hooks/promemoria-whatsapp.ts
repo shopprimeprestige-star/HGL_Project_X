@@ -38,6 +38,7 @@ import type { Lead, PromemoriaWhatsapp } from "@/crm/types";
 import { STATI_APPUNTAMENTO } from "@/crm/types";
 import { valoriDaLead } from "@/crm/whatsapp";
 import { NOME_MODELLO } from "@/crm/promemoria/invio";
+import { modoDelConsulente } from "@/crm/chatwa/invito-meet";
 import {
   classificaErroreMeta,
   configConAcceso,
@@ -219,12 +220,23 @@ export function porteVere(soloUtente: string | null): Porte {
         .in("data->>stato", STATI_APPUNTAMENTO as string[])
         .gte("data->>dataMeeting", oggi);
       if (error) throw new Error(`lettura schede: ${error.code ?? ""}`);
+      //  I consulenti che non usano Meetly (spunta in Collaboratori): per loro la conferma parte col
+      //  gemello senza link. Se la lettura si guasta il giro si ferma («controllo non riuscito»):
+      //  meglio nessun messaggio che un link a chi non lo usa.
+      const consulenti = await db
+        .from("crm_consultants")
+        .select<{ id: string; data: { invitoMeet?: unknown } | null }[]>("id, data")
+        .eq("user_id", imp.userId);
+      if (consulenti.error) throw new Error(`lettura consulenti: ${consulenti.error.code ?? ""}`);
       return (data ?? []).map((r) => ({
         id: r.id,
         data: r.data,
         updated_at: r.updated_at,
         //  Lo stesso link per-persona del resto del CRM, mai `linkMeeting` grezzo.
         link: valoriDaLead({ id: r.id, data: r.data } as Lead, "promemoria").link ?? "",
+        senzaMeetly:
+          modoDelConsulente(consulenti.data ?? [], (r.data as { consulenteId?: string }).consulenteId) ===
+          "senza",
       }));
     },
     numeriStop: async (imp) => {
@@ -239,15 +251,15 @@ export function porteVere(soloUtente: string | null): Porte {
       rpc("promemoria_aggancia", { p_id: id, p_chiave: chiave, p_patch: pezzo }),
     aggiorna: (id, pezzo: Partial<PromemoriaWhatsapp>, seChiave) =>
       rpc("promemoria_aggiorna", { p_id: id, p_patch: pezzo, p_se_chiave: seChiave }),
-    controllaModello: async (imp) => {
+    controllaModello: async (imp, nomeModello = NOME_MODELLO) => {
       //  ManyChat: il «modello» è il flusso collegato in `manychat_config.flussi`.
       if (imp.canale === "manychat")
-        return { trovato: !!flussi.get(imp.userId)?.[NOME_MODELLO], stato: "APPROVED" };
+        return { trovato: !!flussi.get(imp.userId)?.[nomeModello], stato: "APPROVED" };
       const s = segreti.get(imp.userId);
       if (!s) return { errore: "mancano_chiavi" };
       try {
         const res = await fetch(
-          `${META_API}/${s.waba}/message_templates?name=${NOME_MODELLO}&fields=name,status,category,language&limit=50`,
+          `${META_API}/${s.waba}/message_templates?name=${nomeModello}&fields=name,status,category,language&limit=50`,
           { headers: { Authorization: `Bearer ${s.token}` }, signal: AbortSignal.timeout(15_000) },
         );
         const corpo = (await res.json()) as {
@@ -260,7 +272,7 @@ export function porteVere(soloUtente: string | null): Porte {
             errore: (codice in FRASI_BLOCCO ? codice : "controllo_fallito") as CodiceBlocco,
           };
         }
-        const m = (corpo.data ?? []).find((t) => t.name === NOME_MODELLO && t.language === "it");
+        const m = (corpo.data ?? []).find((t) => t.name === nomeModello && t.language === "it");
         return m ? { trovato: true, stato: m.status } : { trovato: false };
       } catch {
         return { errore: "controllo_fallito" };
@@ -269,11 +281,12 @@ export function porteVere(soloUtente: string | null): Porte {
     //  Dalla porta unica: con `cloud` lo stesso corpo Graph di prima, con
     //  `manychat` la prenotazione, i campi e il flusso (vedi `manychat/porta.ts`).
     invia: async (imp, numero, parametri, contesto) => {
-      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici).
+      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici). Per i consulenti
+      //  senza Meetly il modello è il gemello senza link (`contesto.modello`).
       const richiesta: RichiestaInvio = {
         canale: imp.canale ?? "cloud",
         a: numero,
-        modello: NOME_MODELLO,
+        modello: contesto?.modello ?? NOME_MODELLO,
         lingua: "it",
         parametri,
         nome: parametri[0],
@@ -285,7 +298,7 @@ export function porteVere(soloUtente: string | null): Porte {
       return rispostaPerConferma(await inviaWhatsapp(portaDi(imp.userId), richiesta));
     },
     //  Ogni messaggio finisce anche nella pagina WhatsApp, con la sua scheda.
-    registraInvio: async (imp, id, numero, esito) => {
+    registraInvio: async (imp, id, numero, esito, modello = NOME_MODELLO) => {
       //  Col canale ManyChat la riga la scrive già la porta.
       if (imp.canale === "manychat") return;
       const s = segreti.get(imp.userId);
@@ -296,7 +309,7 @@ export function porteVere(soloUtente: string | null): Porte {
         direction: "outbound",
         from_number: s?.phoneNumberId ?? null,
         to_number: a,
-        body: `[template:${NOME_MODELLO}]`,
+        body: `[template:${modello}]`,
         status: esito.tipo === "ok" ? "sent" : "failed",
         wa_message_id: esito.tipo === "ok" ? esito.waId : null,
         error_message: esito.tipo === "rifiuto" ? esito.errore.codice : null,

@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useCRM } from "@/crm/CRMContext";
+import { modoDelConsulente } from "./invito-meet";
 import { modelliDaProvare } from "@/crm/prova-modelli";
 import { cn } from "@/lib/utils";
 import { IconaWhatsApp } from "./IconaWhatsApp";
@@ -178,7 +179,9 @@ export function Casella({ api, linkWa }: CasellaProps) {
       consulente: nomeConsulente,
       giorno: giornoConsulenza,
       ora: scheda?.oraMeeting,
-      link: scheda?.linkMeeting,
+      //  Consulente che non usa Meetly (31/10/2026): il link di Meetly non si propone mai; il
+      //  segnaposto {link} resta e la casella avvisa, il consulente scrive il suo.
+      link: modoDelConsulente(consultants, scheda?.consulenteId) === "senza" ? "" : scheda?.linkMeeting,
       oraRichiamo: scheda?.oraRicontatto,
       acconto: bonifico.acconto,
       causale: bonifico.causalePreventivo || causaleSenzaPreventivo(scheda?.nome, scheda?.cognome),

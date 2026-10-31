@@ -1019,6 +1019,14 @@ async function righeFlussi(
     //  La mattina col link è un'aggiunta con ripiego: mai rossa, mai «da verificare».
     if (modello === "hgl_meet_oggi_link")
       return riga(id, "non_serve", `${etichetta}: senza, la mattina parte senza il link.`);
+    //  I gemelli senza link: mai rossi (chi usa Meetly non li usa). Senza il flusso, per i consulenti
+    //  che non usano Meetly il messaggio salta: non parte mai col link.
+    if (modello.endsWith("_sl"))
+      return riga(
+        id,
+        "non_serve",
+        `${etichetta}: serve se un consulente non usa Meetly; senza, il suo messaggio non parte (mai col link).`,
+      );
     //  Il primo contatto a tre fasce è un'aggiunta con ripiego: senza, parte il vecchio.
     if (modello === "hgl_primo_contatto_tre_fasce")
       return riga(

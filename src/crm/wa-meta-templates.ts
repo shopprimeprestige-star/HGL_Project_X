@@ -348,6 +348,35 @@ export const MODELLI_MANYCHAT: MetaTemplate[] = [
     `Buongiorno {{lead_name}}, la sua richiesta di informazioni è ancora in sospeso. Ci indica quando possiamo ricontattarla?`,
     ["lead_name", "consultant_name"],
   ),
+  //  ── I GEMELLI SENZA LINK (31/10/2026, commessa promemoria-senza-meetly) ────────────────────────
+  //  Per i consulenti che NON usano Meetly (`crm_consultants.data.invitoMeet = "senza"`): stesso
+  //  messaggio dei quattro modelli col link, ma senza il link (Meta non accetta una variabile vuota,
+  //  quindi servono modelli a parte). Il giro li sceglie al posto dei vecchi; il flusso di ognuno si
+  //  collega nel riquadro ManyChat. Senza il flusso collegato NON parte il modello col link: salta.
+  tpl(
+    "consulenza_conferma_presenza_sl",
+    "UTILITY",
+    `Ciao {{lead_name}}, la tua consulenza con Hair Genius Labs è fissata per {{appointment_day}} alle ore {{appointment_time}}.\n\nIl link per collegarti te lo manderemo qui poco prima dell'inizio.\n\nPer confermare la tua presenza rispondi SÌ a questo messaggio.\n\nHair Genius Labs`,
+    ["lead_name", "appointment_day", "appointment_time"],
+  ),
+  tpl(
+    "hgl_meet_oggi_sl",
+    "UTILITY",
+    `Ciao {{lead_name}}, ci vediamo oggi alle {{appointment_time}} per la tua consulenza online con {{consultant_name}}.\n\nPoco prima ti mandiamo qui il link per collegarti.`,
+    ["lead_name", "appointment_time", "consultant_name"],
+  ),
+  tpl(
+    "hgl_promemoria_meet_sl",
+    "UTILITY",
+    `Ciao {{lead_name}}, ti ricordo la tua consulenza online con Hair Genius Labs di oggi alle ore {{appointment_time}}, tra circa 20 minuti.\n\nTi seguirà {{consultant_name}}, che ti manda qui il link per collegarti. Se puoi, collegati da un posto tranquillo e con una buona connessione.`,
+    ["lead_name", "appointment_time", "consultant_name"],
+  ),
+  tpl(
+    "hgl_meet_adesso_sl",
+    "UTILITY",
+    `Ciao {{lead_name}}, la tua consulenza con Hair Genius Labs inizia adesso e {{consultant_name}} ti sta aspettando.\n\nTi manda qui il link per entrare. Se hai difficoltà, rispondi a questo messaggio.`,
+    ["lead_name", "consultant_name"],
+  ),
 ];
 
 /** (30/10/2026) Modelli di commesse recenti, ANCORA DA FAR APPROVARE: stanno fuori da

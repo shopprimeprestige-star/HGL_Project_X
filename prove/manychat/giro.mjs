@@ -316,7 +316,10 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
           stato: JSON.parse(JSON.stringify(m.giro.stato)),
         }),
         chiaveManychat: () => !o.senzaChiave,
-        consulenti: async () => CONSULENTI,
+        consulenti: async () => {
+          if (o.guastoConsulenti) throw { code: "XX007", message: `db giù per ${cifre(1)} Anna` };
+          return o.consulenti ?? CONSULENTI;
+        },
         //  L'ultima entrata per telefono (ultime 9 cifre → ISO), una lettura per giro.
         ultimeEntrate: async (userId, telefoni) => {
           m.eventi.push("entrate");
@@ -3691,6 +3694,162 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         [await W.mettiStellaUno(porte({ sempreConflitto: true }), tel(3)), scritture.length],
       );
     }
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  CONSULENTI CHE NON USANO MEETLY (commessa 2026-10-31, promemoria-senza-meetly)
+   *  Una sola impostazione: `crm_consultants.data.invitoMeet` ("senza" = non usa Meetly).
+   *  Per loro i promemoria col link partono coi modelli gemelli `_sl`, MAI col link.
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MANYCHAT · GIRO · CONSULENTI SENZA MEETLY");
+  {
+    const consulente = (invitoMeet) => [
+      {
+        id: "cons-1",
+        data: { nome: "Giulia Demo", attivo: true, faConsulente: true, faSetter: false, invitoMeet },
+      },
+    ];
+    const SL = {
+      hgl_promemoria_meet_sl: "content-psl",
+      hgl_meet_oggi_sl: "content-osl",
+      hgl_meet_adesso_sl: "content-asl",
+    };
+    const base = {
+      leadNuovo: true,
+      giornoMeet: true,
+      leadNuovoDal: "2026-10-20T00:00:00.000Z",
+      fraseModuloDal: "2026-10-01T00:00:00.000Z",
+    };
+    const conSl = { ...base, flussi: { ...CONFIG.flussi, ...SL } };
+    const senzaSl = { ...base, flussi: { ...CONFIG.flussi } };
+    const letti = (mm) => {
+      const campi = mm.f.chiamate.find((x) => x.percorso === PERCORSI.scriviCampi)?.corpo.fields ?? [];
+      return ["crm_v1", "crm_v2", "crm_v3", "crm_v4"].map(
+        (k) => campi.find((x) => x.field_name === k)?.field_value,
+      );
+    };
+    /** Nelle chiamate a ManyChat non c'è traccia del link (né di un indirizzo) */
+    const senzaTraccia = (mm) => !/example\.test|meetly|https?:/i.test(JSON.stringify(mm.f.chiamate));
+
+    //  promemoria
+    let m = mondo({ schede: [meet("s1", 1)], consulenti: consulente("meetly"), config: conSl });
+    let e = await m.giroOra();
+    c(
+      "con Meetly (scelta esplicita): promemoria come oggi, flusso col link, 4 variabili",
+      [1, NS_PROM, ["Anna", "15:30", true]],
+      [e.promemoriInviati, m.flussi()[0]?.corpo.flow_ns, letti(m).slice(0, 2).concat(/\/meetly\/abc/.test(letti(m)[2] ?? ""))],
+    );
+    m = mondo({ schede: [meet("s1", 1)], config: conSl });
+    e = await m.giroOra();
+    c("consulente senza la scelta salvata: come oggi (col link)", [1, NS_PROM], [e.promemoriInviati, m.flussi()[0]?.corpo.flow_ns]);
+    m = mondo({ schede: [meet("s1", 1)], consulenti: consulente("boh"), config: conSl });
+    e = await m.giroOra();
+    c("valore storto: col link (mai un invito senza link per sbaglio)", [1, NS_PROM], [e.promemoriInviati, m.flussi()[0]?.corpo.flow_ns]);
+
+    m = mondo({ schede: [meet("s1", 1)], consulenti: consulente("senza"), config: conSl });
+    e = await m.giroOra();
+    c(
+      "senza Meetly: parte il gemello _sl, tag e tipo del promemoria, v1..v3 = nome, ora, consulente, niente v4",
+      [1, "content-psl", "crm-promemoria", "promemoria", ["Anna", "15:30", "Giulia Demo", undefined]],
+      [
+        e.promemoriInviati,
+        m.flussi()[0]?.corpo.flow_ns,
+        m.f.chiamate.find((x) => x.percorso === PERCORSI.tag)?.corpo.tag_name,
+        m.invii.at(-1)?.tipo,
+        letti(m),
+      ],
+    );
+    c("…e in nessuna chiamata a ManyChat c'è il link", true, senzaTraccia(m));
+    m = mondo({
+      schede: [meet("s1", 1, { linkMeeting: "" })],
+      consulenti: consulente("senza"),
+      config: conSl,
+    });
+    e = await m.giroOra();
+    c("senza Meetly il link in scheda non serve: il promemoria parte lo stesso", [1, "content-psl"], [e.promemoriInviati, m.flussi()[0]?.corpo.flow_ns]);
+    m = mondo({ schede: [meet("s1", 1)], consulenti: consulente("senza"), config: senzaSl });
+    e = await m.giroOra();
+    c(
+      "senza Meetly e gemello NON collegato: salta, nessuna chiamata, mai il modello col link, nota chiara",
+      [0, 0, 0, true, true],
+      [
+        e.promemoriInviati,
+        m.flussi().length,
+        m.f.chiamate.length,
+        /senza link/i.test(m.giro.stato.nota ?? ""),
+        /non è collegato/.test(m.giro.stato.nota ?? ""),
+      ],
+    );
+    c("…niente in registro", 0, m.invii.length);
+    //  un consulente con Meetly e uno senza, nello stesso giro
+    m = mondo({
+      schede: [meet("a", 1), meet("b", 2, { consulenteId: "cons-2" })],
+      consulenti: [...consulente("meetly"), { id: "cons-2", data: { nome: "Luca Demo", attivo: true, faConsulente: true, invitoMeet: "senza" } }],
+      config: conSl,
+    });
+    e = await m.giroOra();
+    c(
+      "due consulenti nello stesso giro: ognuno il suo flusso",
+      [2, [NS_PROM, "content-psl"]],
+      [e.promemoriInviati, m.flussi().map((x) => x.corpo.flow_ns).sort()],
+    );
+
+    //  la lettura dei consulenti si guasta: il giro si ferma, nessun messaggio (mai un link a chi non lo usa)
+    m = mondo({ schede: [meet("s1", 1)], consulenti: consulente("senza"), config: conSl, guastoConsulenti: true });
+    e = await m.giroOra();
+    c(
+      "lettura dei consulenti guasta: giro fermo («errore»), zero invii, zero chiamate a ManyChat, scheda intatta, nessun dato nei log",
+      ["errore", 0, 0, 0, false],
+      [e.fermo, e.promemoriInviati + e.nuoviInviati, m.invii.length, m.f.chiamate.length, m.avvisi.some((x) => /Anna|3330/.test(x))],
+    );
+
+    //  la mattina del meet (18:00; sono le 15:11)
+    const oggiLink = { ...conSl, flussi: { ...conSl.flussi, hgl_meet_oggi_link: "content-ml", hgl_meet_oggi: "content-m1" } };
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00" })], consulenti: consulente("senza"), config: oggiLink });
+    e = await m.giroOra();
+    c(
+      "mattina, senza Meetly, gemello collegato: hgl_meet_oggi_sl con nome, ora, consulente; non il flusso col link",
+      [1, "content-osl", ["Anna", "18:00", "Giulia Demo", undefined], true],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, letti(m), senzaTraccia(m)],
+    );
+    m = mondo({
+      schede: [meet("s1", 1, { oraMeeting: "18:00" })],
+      consulenti: consulente("senza"),
+      config: { ...oggiLink, flussi: { ...oggiLink.flussi, hgl_meet_oggi_sl: undefined } },
+    });
+    e = await m.giroOra();
+    c(
+      "mattina, senza Meetly, gemello NON collegato: il messaggio della mattina senza link (hgl_meet_oggi), mai quello col link",
+      [1, "content-m1", ["Anna", "18:00", "Giulia Demo", undefined], true],
+      [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns, letti(m), senzaTraccia(m)],
+    );
+    m = mondo({ schede: [meet("s1", 1, { oraMeeting: "18:00" })], consulenti: consulente("meetly"), config: oggiLink });
+    e = await m.giroOra();
+    c("mattina, con Meetly: come oggi (flusso col link)", [1, "content-ml"], [e.nuoviInviati, m.flussi()[0]?.corpo.flow_ns]);
+
+    //  la scelta di modello è una funzione pura: i quattro casi
+    c(
+      "modelloETag: promemoria e ora esatta passano ai gemelli solo con «senza»; il resto no",
+      ["hgl_promemoria_meet_sl", "hgl_meet_adesso_sl", "hgl_promemoria_meet", "hgl_meet_adesso", "hgl_meet_oggi_sl", "hgl_ricontatto_consulenza"],
+      [
+        G.modelloETag("promemoria", null, false, false, true)?.modello,
+        G.modelloETag("meet_adesso", null, false, false, true)?.modello,
+        G.modelloETag("promemoria", null, false, false, false)?.modello,
+        G.modelloETag("meet_adesso", null)?.modello,
+        G.modelloETag("meet_oggi", null, true, false, true)?.modello,
+        G.modelloETag("ricontatto", "da_ricontattare", false, false, true)?.modello,
+      ],
+    );
+    c(
+      "modelloETag: la mattina «senza» senza il gemello collegato resta hgl_meet_oggi (mai il modello col link)",
+      "hgl_meet_oggi",
+      G.modelloETag("meet_oggi", null, false, false, true)?.modello,
+    );
+    c(
+      "…con lo stesso tag di prima",
+      ["crm-promemoria", "crm-meet-adesso"],
+      [G.modelloETag("promemoria", null, false, false, true)?.tag, G.modelloETag("meet_adesso", null, false, false, true)?.tag],
+    );
   }
 
   /* ════════════════════════════════════════════════════════════════════════

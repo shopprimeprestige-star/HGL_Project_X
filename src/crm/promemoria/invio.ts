@@ -22,7 +22,8 @@
  *   · fuori dalle 08-21 di Roma → aspetta l'apertura; ma se all'apertura
  *     mancherebbe meno di un'ora → `troppo_vicino` subito
  *   · meno di 60 minuti all'appuntamento → `troppo_vicino`
- *   · senza link → aspetta (lo crea il browser qualche secondo dopo)
+ *   · senza link → aspetta (lo crea il browser qualche secondo dopo); MA se il consulente non usa
+ *     Meetly il link non serve e non si manda mai: parte il gemello senza link
  *   · altrimenti → invia
  *  ───────────────────────────────────────────────────────────────────────── */
 import { eAppuntamento, type LeadData, type PromemoriaWhatsapp } from "../types";
@@ -42,6 +43,9 @@ export const ANTICIPO_MIN = 60;
 export const TETTO_INVII = 3;
 export const INCERTO_DOPO_MIN = 10;
 export const NOME_MODELLO = "consulenza_conferma_presenza";
+/** Il gemello SENZA link per i consulenti che non usano Meetly (31/10/2026): stesso messaggio,
+ *  tre variabili (nome, giorno, ora). Il link per collegarsi lo manda il consulente a mano. */
+export const NOME_MODELLO_SENZA_LINK = "consulenza_conferma_presenza_sl";
 
 export type MotivoAttesa = "fuori_orario" | "manca_link" | "calma";
 export type MotivoSalto =
@@ -66,6 +70,9 @@ export interface IngressoInvio {
   adesso: Date;
   /** il primo giro dopo l'accensione: nulla di nuovo parte */
   primoGiro: boolean;
+  /** il consulente della scheda non usa Meetly (`invitoMeet = "senza"`): il gemello senza link,
+   *  mai il link. Assente = usa Meetly (come prima). */
+  senzaLink?: boolean;
 }
 
 export type Decisione =
@@ -77,7 +84,9 @@ export type Decisione =
       azione: "invia";
       chiave: string;
       numero: string;
-      parametri: [string, string, string, string];
+      /** `NOME_MODELLO` (4 parametri, l'ultimo è il link) o `NOME_MODELLO_SENZA_LINK` (3) */
+      modello: string;
+      parametri: string[];
       /** il conto dei messaggi della scheda, compreso questo */
       volte: number;
     };
@@ -150,11 +159,21 @@ export function decidiInvio(i: IngressoInvio): Decisione {
       : { azione: "aspetta", motivo: "fuori_orario" };
   }
   if (mancano < ANTICIPO_MIN) return salta("troppo_vicino");
+  if (i.senzaLink)
+    return {
+      azione: "invia",
+      chiave,
+      numero,
+      modello: NOME_MODELLO_SENZA_LINK,
+      parametri: [nome, giornoParlato(giorno) as string, ora],
+      volte: volte + 1,
+    };
   if (!i.link) return { azione: "aspetta", motivo: "manca_link" };
   return {
     azione: "invia",
     chiave,
     numero,
+    modello: NOME_MODELLO,
     parametri: [nome, giornoParlato(giorno) as string, ora, i.link],
     volte: volte + 1,
   };

@@ -49,20 +49,25 @@ export function linkPerCliente(d: Partial<LeadData>, leadId?: string | null): st
 
 /** Promemoria 20': `crm_nome`, `crm_ora_meet`, `crm_link_meet`, `crm_consulente`.
  *  `leadId` fa il link «per persona» (come la chat); senza, il link della
- *  stanza così com'è. Una variabile vuota → `salta`: Meta rifiuta i buchi. */
+ *  stanza così com'è. Una variabile vuota → `salta`: Meta rifiuta i buchi.
+ *  `senzaLink` (consulente che non usa Meetly, 31/10/2026): il gemello `hgl_promemoria_meet_sl`,
+ *  v1 nome, v2 ora, v3 consulente; il link non si cerca nemmeno e non va mai nei campi. */
 export function campiPromemoria(
   d: Partial<LeadData>,
   consulente: string | null | undefined,
   leadId?: string | null,
+  senzaLink = false,
 ): CampiOSalta {
   const nome = nomePerModello(d.nome);
   if (!nome) return salta("manca il nome");
   const ora = oraNormale(d.oraMeeting);
   if (!ora) return salta("manca l'ora del meet");
-  const link = linkPerCliente(d, leadId);
-  if (!link) return salta("manca il link del meet");
+  const link = senzaLink ? "" : linkPerCliente(d, leadId);
+  if (!senzaLink && !link) return salta("manca il link del meet");
   const chi = nomePerModello(consulente);
   if (!chi) return salta("manca il nome del consulente");
+  if (senzaLink)
+    return { tipo: "campi", campi: { crm_nome: nome, crm_ora_meet: ora, crm_consulente: chi } };
   return {
     tipo: "campi",
     campi: { crm_nome: nome, crm_ora_meet: ora, crm_link_meet: link, crm_consulente: chi },
@@ -159,16 +164,19 @@ export function campiMeetDomani(
 }
 
 /** `hgl_meet_adesso` (all'ora esatta): v1 nome, v2 consulente, v3 link. Senza
- *  link non parte: il messaggio serve proprio a farlo entrare. */
+ *  link non parte: il messaggio serve proprio a farlo entrare. Con `senzaLink` (consulente che
+ *  non usa Meetly) è il gemello `hgl_meet_adesso_sl`: v1 nome, v2 consulente, nessun link. */
 export function campiMeetAdesso(
   d: Partial<LeadData>,
   consulente: string | null | undefined,
   leadId?: string | null,
+  senzaLink = false,
 ): CampiOSalta {
   const nome = nomePerModello(d.nome);
   if (!nome) return salta("manca il nome");
   const chi = nomePerModello(consulente);
   if (!chi) return salta("manca il nome del consulente");
+  if (senzaLink) return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi } };
   const link = linkPerCliente(d, leadId);
   if (!link) return salta("manca il link del meet");
   return { tipo: "campi", campi: { crm_nome: nome, crm_consulente: chi, crm_link_meet: link } };
