@@ -316,7 +316,10 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
           stato: JSON.parse(JSON.stringify(m.giro.stato)),
         }),
         chiaveManychat: () => !o.senzaChiave,
-        consulenti: async () => o.consulenti ?? CONSULENTI,
+        consulenti: async () => {
+          if (o.guastoConsulenti) throw { code: "XX007", message: `db giù per ${cifre(1)} Anna` };
+          return o.consulenti ?? CONSULENTI;
+        },
         //  L'ultima entrata per telefono (ultime 9 cifre → ISO), una lettura per giro.
         ultimeEntrate: async (userId, telefoni) => {
           m.eventi.push("entrate");
@@ -3786,6 +3789,15 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       "due consulenti nello stesso giro: ognuno il suo flusso",
       [2, [NS_PROM, "content-psl"]],
       [e.promemoriInviati, m.flussi().map((x) => x.corpo.flow_ns).sort()],
+    );
+
+    //  la lettura dei consulenti si guasta: il giro si ferma, nessun messaggio (mai un link a chi non lo usa)
+    m = mondo({ schede: [meet("s1", 1)], consulenti: consulente("senza"), config: conSl, guastoConsulenti: true });
+    e = await m.giroOra();
+    c(
+      "lettura dei consulenti guasta: giro fermo («errore»), zero invii, zero chiamate a ManyChat, scheda intatta, nessun dato nei log",
+      ["errore", 0, 0, 0, false],
+      [e.fermo, e.promemoriInviati + e.nuoviInviati, m.invii.length, m.f.chiamate.length, m.avvisi.some((x) => /Anna|3330/.test(x))],
     );
 
     //  la mattina del meet (18:00; sono le 15:11)

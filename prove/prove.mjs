@@ -22029,6 +22029,17 @@ async function proveDelGiroDelPromemoria() {
   r = await G.giroPromemoria(f.porte, { prova: true });
   c("prova a secco: dice cosa succederebbe senza toccare niente", [1, []], [r.partirebbero, f.log.filter((x) => x.startsWith("invia") || x.startsWith("aggancia"))]);
 
+  //  La lettura dei consulenti (nella porta `schede` della rotta) si guasta: la porta lancia e il giro
+  //  non invia niente (meglio nessun messaggio che un link a chi non usa Meetly).
+  f = finto({ senzaMeetly: true });
+  f.porte.schede = async () => { throw new Error("lettura consulenti: XX000"); };
+  let lanciato = false;
+  try { await G.giroPromemoria(f.porte, { prova: false }); } catch { lanciato = true; }
+  c("lettura dei consulenti guasta: il giro lancia (la rotta risponde «controllo non riuscito»), zero invii, nessun segno", [true, false, null], [lanciato, f.log.some((x) => x.startsWith("invia") || x.startsWith("aggancia")), p1(f)]);
+  const rottaCons = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
+  c("…nella rotta l'errore di lettura di crm_consultants lancia, non viene ignorato", true, /from\("crm_consultants"\)[\s\S]*?if \(consulenti\.error\) throw new Error\(/.test(rottaCons));
+  c("…e la rotta, se il giro lancia, scrive «controllo_fallito» senza inviare", true, /catch \(e\) \{[\s\S]*?blocco: "controllo_fallito"/.test(rottaCons));
+
   gruppo("PROMEMORIA WHATSAPP · QUANDO NON PARTE NIENTE");
   for (const [nome, o, blocco] of [
     ["migrazione assente", { migrazione: false }, "manca_migrazione"],
