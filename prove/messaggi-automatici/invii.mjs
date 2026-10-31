@@ -135,16 +135,14 @@ export async function proveInviiMessaggi(mod, { c, gruppo, radice }) {
   c("l'avvio dei dati fattura parte da tutto ciò che non è «fatto»", [true, false], [/config\.avvio !== "fatto"/.test(giroFatt), /config\.avvio === "da_fare"/.test(giroFatt)]);
 
   gruppo("CONFERMA E FATTURA · LE ROTTE VECCHIE RIFIUTANO L'INTERRUTTORE");
-  const rConf = leggi("src/routes/api.crm.promemoria-whatsapp.ts");
-  const rFatt = leggi("src/routes/api.crm.dati-fattura.ts");
-  const cConf = senzaCommenti(rConf);
-  const cFatt = senzaCommenti(rFatt);
+  const cConf = senzaCommenti(leggi("src/routes/api.crm.promemoria-whatsapp.ts"));
+  const cFatt = senzaCommenti(leggi("src/routes/api.crm.dati-fattura.ts"));
   c("conferma: ogni richiesta resta dietro la guardia col permesso «impostazioni»", (cConf.match(/(GET|POST): async/g) || []).length, (cConf.match(/await guardiaCRM\(request, cors, "impostazioni"\);\s*if \(!g\.ok\) return g\.risposta;/g) || []).length);
   c("conferma: senza titolare dei dati ancora 403 (GET e POST)", 2, (cConf.match(/if \(!g\.chi\.adminUserId\) return json\(\{ ok: false, error: "titolare" \}, 403\);/g) || []).length);
   c("conferma: il campo «acceso» è rifiutato (400) PRIMA di ogni altra cosa, e la rotta non scrive più il JSON", [true, true, false, false], [/b\.acceso !== undefined/.test(cConf), cConf.indexOf("b.acceso !== undefined") < cConf.indexOf("prova === true"), /scriviConfig\(/.test(cConf), /attivoDal|avvio/.test(cConf)]);
   c("conferma: resta «Controlla ora» (prova a secco)", true, /giroPromemoria\(porte, \{ prova: true \}\)/.test(cConf));
   c("dati fattura: il permesso «impostazioni» sul POST e su GET, «pagamenti» sulle foto, come prima", [2, 1], [(cFatt.match(/guardiaCRM\(request, cors, "impostazioni"\)/g) || []).length, (cFatt.match(/guardiaCRM\(request, cors, "pagamenti"\)/g) || []).length]);
-  c("dati fattura: «acceso» rifiutato (400), niente più accensione né avvio scritti qui", [true, false, false], [/b\.acceso !== undefined/.test(cFatt), /dopo\.acceso|avvio/.test(cFatt), /b\.acceso/.test(cFatt)]);
+  c("dati fattura: «acceso» rifiutato (400), niente più accensione né avvio scritti qui", [true, false], [/b\.acceso !== undefined/.test(cFatt), /dopo\.acceso|avvio/.test(cFatt)]);
   c("dati fattura: «modelloApprovato» si salva ancora", true, /dopo\.modelloApprovato = b\.modelloApprovato/.test(cFatt));
-  c("le due rotte dicono dove si accende adesso", [true, true], [/Messaggi automatici/.test(rConf), /Messaggi automatici/.test(rFatt)]);
+  c("le due rotte dicono dove si accende adesso", [true, true], [/Messaggi automatici/.test(cConf), /Messaggi automatici/.test(cFatt)]);
 }
