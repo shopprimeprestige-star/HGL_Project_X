@@ -39,6 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { intestazioniCRM, fetchCRM } from "./AuthContext";
 import { GoogleDriveRegistrazioni } from "./GoogleDriveRegistrazioni";
+import { CollegamentiFalliti } from "./CollegamentiFalliti";
 
 type Esito =
   | { stato: "fermo" }
@@ -257,6 +258,9 @@ export function ImpostazioniMeetly() {
           </p>
         )}
       </div>
+
+      {/* ══ LA SCATOLA NERA: DOVE SI FERMANO I COLLEGAMENTI ════════════ */}
+      <CollegamentiFalliti />
 
       {/* ══ DOVE VANNO LE REGISTRAZIONI ════════════════════════════════ */}
       <GoogleDriveRegistrazioni />

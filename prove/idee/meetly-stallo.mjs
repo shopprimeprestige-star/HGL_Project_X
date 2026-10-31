@@ -41,7 +41,7 @@ export function proveMeetlyStallo(mod, { c, gruppo, radice }) {
   c("maybeInitiate non esce più per `!localStream` da solo", false, /if \(!localStream \|\|/.test(mi));
   c("maybeInitiate usa puoNegoziare; chi offre senza media crea due transceiver recvonly", [true, 2], [/puoNegoziare\(/.test(mi), conta(mi, /addTransceiver\(/g)]);
   c("il gestore dell'offerta usa puoNegoziare e non più `!localStream` da solo", [true, false], [
-    /payload\?\.to !== S\.myPid \|\| !puoNegoziare\(/.test(senza),
+    /payload\?\.to !== S\.myPid\) return;[\s\S]{0,260}if \(!puoNegoziare\(/.test(senza),
     /payload\?\.to !== S\.myPid \|\| !localStream\)/.test(senza),
   ]);
   const mp = corpo("function makePeer(");

@@ -43,6 +43,7 @@ import { proveRitornoInAttesa } from "./idee/ritorno-in-attesa.mjs";
 import { proveOrariDurata } from "./idee/orari-durata.mjs";
 import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
+import { proveScatolaNera } from "./idee/scatola-nera.mjs";
 import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cliente.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
@@ -753,6 +754,9 @@ const MODULI = [
   //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
   //   prove in prove/idee/riga-attesa-wame.mjs.
   "chatwa/attesaPosa",
+  //  La scatola nera dei collegamenti Meetly (31/10/2026): prove in prove/idee/scatola-nera.mjs.
+  "shop/scatola-nera",
+  "shop/scatola-nera-browser",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21545,6 +21549,7 @@ proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
 proveAttesaPalla(mod, { c, gruppo, radice });
+await proveScatolaNera(mod, { c, gruppo, radice });
 proveAnteprimaPreventivoCliente({ c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
