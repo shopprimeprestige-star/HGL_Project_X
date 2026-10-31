@@ -138,18 +138,20 @@ export async function proveDellInterruttorePrenota(mod, { c, gruppo, radice }) {
     );
     c("nessun console.log né numero in chiaro nei log", false, /console\./.test(rotta));
     c("la rotta è nell'albero generato", true, albero.includes("'/api/crm/prenota-chat'"));
+    //  Dal 31/10/2026 (commessa interruttori-automatici) l'interruttore sta in «Messaggi automatici»:
+    //   il riquadro resta una spiegazione con il rimando, e non scrive più niente.
     c(
-      "il riquadro passa dalla rotta e non scrive app_config dal browser",
-      [true, false],
-      [riquadro.includes("/api/crm/prenota-chat"), /app_config|supabase/.test(riquadro)],
+      "il riquadro non scrive app_config dal browser né chiama più la rotta (l'interruttore è nei Messaggi automatici)",
+      [false, false],
+      [/app_config|supabase/.test(riquadro), riquadro.includes("/api/crm/prenota-chat")],
     );
     c(
-      "il riquadro usa lo Switch, è chiuso a chi non ha «impostazioni», dice l'errore",
-      [true, true, true],
+      "il riquadro è chiuso a chi non ha «impostazioni» e rimanda ai Messaggi automatici",
+      [true, true, false],
       [
-        riquadro.includes("<Switch"),
         riquadro.includes('usePuo()("impostazioni")'),
-        riquadro.includes("toast.error"),
+        riquadro.includes("<RimandoMessaggiAutomatici"),
+        riquadro.includes("<Switch"),
       ],
     );
     c(
