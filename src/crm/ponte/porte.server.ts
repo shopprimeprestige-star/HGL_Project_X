@@ -21,7 +21,6 @@ import {
   type EsitoPromozione,
   type EsitoScrittura,
   type PortePonte,
-  type PorteRevoche,
   type RigaDaAbbinare,
 } from "./tipi";
 
@@ -77,23 +76,8 @@ const intero = (v: unknown) =>
 export { porteInvio } from "./invio.server";
 //  E quelle dei media (commessa 2026-10-30-ponte-storico-completo, T5), per lo stesso motivo.
 export { porteMedia } from "./media.server";
-
-/** Le revoche (commessa 2026-10-31, ponte-revoche): `ponte_wa_revoca` marca come eliminata la riga del
- *  ponte con quella chiave e il suo pari ManyChat/CRM (mai un DELETE), e ricalcola l'anteprima del
- *  contatto. Lancia `{ code }` se il database dice di no (migrazione non applicata = 42883). */
-export function porteRevoche(): PorteRevoche {
-  return {
-    revoca: async (userId, chiave) => {
-      const { data, error } = await db().rpc<Record<string, unknown>>("ponte_wa_revoca", {
-        p_user_id: userId,
-        p_chiave: chiave,
-      });
-      if (error) throw { code: String(error.code ?? "?") };
-      const d = data ?? {};
-      return { trovate: intero(d.trovate), marcate: intero(d.marcate) };
-    },
-  };
-}
+//  E quelle delle revoche (commessa 2026-10-31, ponte-revoche), per lo stesso motivo.
+export { porteRevoche } from "./revoche.server";
 
 export function porteIngresso(): PortePonte {
   /** Il codice dell'ultimo errore lanciato: `ingresso.ts` riconosce come

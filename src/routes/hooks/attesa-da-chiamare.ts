@@ -146,16 +146,29 @@ async function messaggiDi(
       const forme = elenco.slice(i, i + 30).flatMap((n) => [n, n.replace(/\D/g, "")]);
       const lista = `(${forme.join(",")})`;
       for (let da = 0; ; da += PAGINA) {
-        const { data, error } = await db()
-          .from("whatsapp_messages")
-          .select("direction, created_at, canale, duplicato_di, from_number, to_number, body, status")
-          .eq("user_id", userId)
-          .is("duplicato_di", null)
-          .or(`from_number.in.${lista},to_number.in.${lista}`)
-          .gte("created_at", dal)
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true })
-          .range(da, da + PAGINA - 1);
+        //  I messaggi nostri eliminati dal telefono (revoche del ponte, 31/10/2026) non sono la nostra
+        //  ultima uscita: fuori già dalla lettura. Senza la migrazione la colonna non c'è (42703): si
+        //  rilegge come prima, senza il filtro.
+        const leggi = (conFiltro: boolean) => {
+          const q = db()
+            .from("whatsapp_messages")
+            .select(
+              conFiltro
+                ? "direction, created_at, canale, duplicato_di, eliminato_il, from_number, to_number, body, status"
+                : "direction, created_at, canale, duplicato_di, from_number, to_number, body, status",
+            )
+            .eq("user_id", userId)
+            .is("duplicato_di", null);
+          return (conFiltro ? q.is("eliminato_il", null) : q)
+            .or(`from_number.in.${lista},to_number.in.${lista}`)
+            .gte("created_at", dal)
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(da, da + PAGINA - 1);
+        };
+        let { data, error } = await leggi(true);
+        if (error && String((error as { code?: string }).code) === "42703")
+          ({ data, error } = await leggi(false));
         if (error) throw error;
         const righe = (data ?? []) as MessaggioAttesa[];
         for (const m of righe) {

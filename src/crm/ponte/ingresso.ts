@@ -246,7 +246,8 @@ export function leggiRevoca(json: unknown): string | null {
 }
 
 /** Un intero ≥ 0 dalla porta (un valore storto vale 0). */
-const intero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+const intero = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
 
 // ── Il giro ───────────────────────────────────────────────────────────────
 

@@ -1863,8 +1863,8 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       const p = await monta({ messaggi: righe, contatti: [] });
       const q = richiesteMsg(p)[0];
       c(
-        "la lettura chiede `duplicato_di` vuoto e ottiene 2000 righe (tutte vere)",
-        [[["duplicato_di", null]], 2000],
+        "la lettura chiede `duplicato_di` vuoto (e `eliminato_il` vuoto, revoche 31/10) e ottiene 2000 righe (tutte vere)",
+        [[["duplicato_di", null], ["eliminato_il", null]], 2000],
         [q.is, q.n],
       );
       const ultimi = p.api().chats.map((x) => x.lastMessage?.id ?? "");
@@ -1882,11 +1882,11 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
         [aperta.length, aperta.every((x) => !x.duplicato_di), aperta.every((x) => x.canale !== "baileys")],
       );
       c(
-        "anche la lettura della chat aperta e il controllo dei 15 s chiedono `duplicato_di` vuoto",
+        "anche la lettura della chat aperta e il controllo dei 15 s chiedono `duplicato_di` ed `eliminato_il` vuoti",
         [true, true],
         [
-          p.db.log.filter((x) => x.t === "whatsapp_messages" && x.or).every((x) => x.is.length === 1),
-          p.db.log.filter((x) => x.t === "whatsapp_messages" && x.lim === 1).every((x) => x.is.length === 1),
+          p.db.log.filter((x) => x.t === "whatsapp_messages" && x.or).every((x) => x.is.length === 2),
+          p.db.log.filter((x) => x.t === "whatsapp_messages" && x.lim === 1).every((x) => x.is.length === 2),
         ],
       );
       fine(p);
@@ -1896,7 +1896,7 @@ export async function proveChatPagina(_mod, { c, gruppo, radice }) {
       const rm = r.db.log.filter((x) => x.t === "whatsapp_messages" && x.op === "select" && !x.or && x.lim !== 1);
       c(
         "errore 42703: rilegge senza filtro (stessa richiesta, niente `is`), nessun errore in pagina",
-        [[1, 0], null],
+        [[2, 0], null],
         [rm.slice(0, 2).map((x) => x.is.length), r.api().erroreLettura],
       );
       c(

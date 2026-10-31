@@ -138,7 +138,9 @@ export async function provePonteRevocheIngresso(mod, { c, gruppo, radice }) {
     const tipiSrc = readFileSync(join(radice, "src/crm/ponte/tipi.ts"), "utf8");
     c("PortePonte non cambia: la porta delle revoche è a parte (`PorteRevoche`), come media e invii", [false, true], [/\brevoca\b/.test((tipiSrc.match(/export interface PortePonte \{([\s\S]*?)\n\}/) ?? [])[1] ?? "revoca"), /export interface PorteRevoche\b/.test(tipiSrc)]);
     c("la rotta passa `revoche: porteRevoche()` e importa solo dai 4 moduli di sempre", [true, ["@/crm/ponte/ingresso", "@/crm/ponte/porte.server", "@/crm/push/invio.server", "@tanstack/react-router"]], [/revoche:\s*porteRevoche\(\)/.test(rotta), [...rotta.matchAll(/from "([^"]+)"/g)].map((m) => m[1]).sort()]);
-    c("porte.server.ts esporta porteRevoche e chiama la sola funzione ponte_wa_revoca", [true, ["ponte_wa_revoca"]], [/export function porteRevoche\(\): PorteRevoche/.test(porte), [...porte.slice(porte.indexOf("export function porteRevoche")).split("export function porteIngresso")[0].matchAll(/rpc<[^(]*\(\s*"(\w+)"/g)].map((m) => m[1])]);
+    const server = readFileSync(join(radice, "src/crm/ponte/revoche.server.ts"), "utf8");
+    c("porte.server.ts ripassa porteRevoche (la rotta importa solo quel file); revoche.server.ts chiama la sola ponte_wa_revoca", [true, true, ["ponte_wa_revoca"]], [/export \{ porteRevoche \} from "\.\/revoche\.server"/.test(porte), /export function porteRevoche\(\): PorteRevoche/.test(server), [...server.matchAll(/rpc<[^(]*\(\s*"(\w+)"/g)].map((m) => m[1])]);
+    c("porte.server.ts non nomina ponte_wa_revoca (le funzioni SQL che chiama restano quelle di sempre)", false, /ponte_wa_revoca/.test(porte));
     c("ingresso.ts: il ramo revoca sta dopo il controllo della chiave e dopo l'utente del server", true, ing.indexOf("stessaChiave(") < ing.indexOf("await porte.utente()") && ing.indexOf("await porte.utente()") < ing.indexOf("i.revoche!.revoca("));
   }
 }

@@ -36,6 +36,7 @@ import { provePonteNonInterferenza } from "./ponte/non-interferenza.mjs";
 import { provePontePari } from "./ponte/pari.mjs";
 import { provePonteLidEPari } from "./ponte/lid-e-pari.mjs";
 import { provePonteRotta } from "./ponte/rotta.mjs";
+import { provePonteRevocheChat } from "./ponte/revoche-chat.mjs";
 import { provePonteRevocheIngresso } from "./ponte/revoche-ingresso.mjs";
 import { provePonteRevocheMigrazione } from "./ponte/revoche-migrazione.mjs";
 import { provePonteRevocheServizio } from "./ponte/revoche-servizio.mjs";
@@ -167,4 +168,5 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteRevocheServizio(mod, aiuti);
   await provePonteRevocheIngresso(mod, aiuti);
   await provePonteRevocheMigrazione(mod, aiuti);
+  await provePonteRevocheChat(mod, aiuti);
 }
