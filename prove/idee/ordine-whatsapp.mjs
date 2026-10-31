@@ -179,7 +179,8 @@ export function proveOrdineWhatsapp(mod, { c, gruppo, radice }) {
   c(
     "l'elenco «Tutte» è una lista sola, con il suo nome per chi usa lo screen reader",
     true,
-    /<ul aria-label="Tutte le chat, dall'ultimo messaggio">/.test(src),
+    //  31/10/2026: con «Ricontatti» la stessa lista ha il suo nome ("Ricontatti, dalla data più recente").
+    /<ul\s+aria-label=\{[^}]*"Tutte le chat, dall'ultimo messaggio"[^}]*\}\s*>/.test(src),
   );
   c(
     "la barra del prossimo meet sta ancora in cima",

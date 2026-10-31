@@ -62,6 +62,7 @@ import {
 import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri";
 import type { ChatItem, ElencoChatProps } from "./tipi";
 import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
+import { fraseRicontattiVuoti, ordinaRicontatti } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
@@ -166,9 +167,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       senza vedersi). Dal 30/10 si ricorda sul dispositivo; se è stato cancellato dal CRM non vale. */
   const { consultants } = useCRM();
   const consulentiNoti = useMemo(() => new Set(consultants.map((x) => x.id)), [consultants]);
+  //  «Ricontatti» (31/10/2026) mostra SOLO i lead di chi è dentro, admin compreso: `io` è il consulente
+  //  che ha digitato il PIN (`""` per chi è entrato con email e password). Vedi ricontatti.ts.
+  const io = useConsulenteCollegato()?.id ?? "";
   const filtri = useMemo(
-    () => filtriValidi(filtriSalvati, consulentiNoti),
-    [filtriSalvati, consulentiNoti],
+    () => filtriValidi(filtriSalvati, consulentiNoti, io),
+    [filtriSalvati, consulentiNoti, io],
   );
   const consulente = filtri.consulente;
   const nomeConsulente = (id: string) =>
@@ -214,9 +218,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const daInstallareTutte = tutte && filtri.acconto ? chatDaInstallare(trovate) : [];
   const inBloccoTel = new Set(daInstallareTutte.map((c) => c.phone));
   const [apertoAcconti, setApertoAcconti] = useState(true);
-  const elencoTutte = tutte
-    ? ordinaComeWhatsapp(trovate.filter((c) => !inBloccoTel.has(c.phone)))
-    : [];
+  //  «Ricontatti»: l'ordine è la data di ricontatto, dalla più recente (ricontatti.ts), non WhatsApp.
+  const elencoTutte = !tutte
+    ? []
+    : filtri.ricontatti
+      ? ordinaRicontatti(trovate)
+      : ordinaComeWhatsapp(trovate.filter((c) => !inBloccoTel.has(c.phone)));
   const inScadenza =
     filtri.coda !== null && filtri.finestra === "aperta" ? ordinaPerScadenza(trovate, adesso) : [];
   const inScadenzaTel = new Set(inScadenza.map((c) => c.phone));
@@ -483,13 +490,15 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const vuoto = (
     <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
       <p className="t-nota text-muted-foreground">
-        {filtri.coda === "da-chiamare" && accesi === 1 && !cercando
-          ? "Nessuno da chiamare: tutto in ordine"
-          : accesi > 0
-            ? "Nessuna chat con questi filtri"
-            : cercando
-              ? "Nessuna chat trovata"
-              : "Nessuna chat"}
+        {filtri.ricontatti
+          ? fraseRicontattiVuoti(io, cercando)
+          : filtri.coda === "da-chiamare" && accesi === 1 && !cercando
+            ? "Nessuno da chiamare: tutto in ordine"
+            : accesi > 0
+              ? "Nessuna chat con questi filtri"
+              : cercando
+                ? "Nessuna chat trovata"
+                : "Nessuna chat"}
       </p>
       {accesi > 0 && (
         <button
@@ -791,7 +800,18 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 )}
               </section>
             )}
-            <ul aria-label="Tutte le chat, dall'ultimo messaggio">
+            {filtri.ricontatti && (
+              <p className="t-nota border-b border-border bg-muted/30 px-3 py-2 text-muted-foreground">
+                I tuoi lead da risentire, dalla data più recente.
+              </p>
+            )}
+            <ul
+              aria-label={
+                filtri.ricontatti
+                  ? "Ricontatti, dalla data più recente"
+                  : "Tutte le chat, dall'ultimo messaggio"
+              }
+            >
               {/*  Come WhatsApp: nessuna riga sbiadita, il grassetto solo per chi aspetta. */}
               {tutteVis.map((c) => riga(c, c.daRispondere?.attesa ? "attesa" : "normale"))}
             </ul>

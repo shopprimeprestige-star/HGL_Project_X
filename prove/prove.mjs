@@ -45,6 +45,7 @@ import { proveIdeeDafare } from "./idee/dafare.mjs";
 import { proveAttesaPalla } from "./idee/attesa-palla.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
+import { proveRicontatti } from "./idee/ricontatti.mjs";
 import {
   proveClienti,
   proveCreaSchedaDaChat,
@@ -646,6 +647,8 @@ const MODULI = [
   "chatwa/perStato",
   //  I filtri della chat a gruppi (30/10/2026): vedi prove/idee/filtri-chat.mjs.
   "chatwa/filtri",
+  //  «Ricontatti» (31/10/2026): prove in prove/idee/ricontatti.mjs.
+  "chatwa/ricontatti",
   //  Ritocchi alla chat (30/10/2026): prove in prove/idee/chat-ritocchi.mjs.
   "chatwa/schedaDaChat",
   "chatwa/formati",
@@ -21540,6 +21543,7 @@ proveAttesaPalla(mod, { c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
+proveRicontatti(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
@@ -22398,7 +22402,7 @@ function proveDelFiltroAcconto() {
   const elenco = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   //  30/10/2026 (filtri a gruppi): «Acconto» è «Acconto versato», gruppo Pagamento del pannello; il numero è a faccette,
   //   cioè tiene conto del consulente e di ogni altro filtro acceso (prove/idee/filtri-chat.mjs).
-  c("la voce «Acconto versato» c'è, nel gruppo Pagamento", ["Pagamento", "Acconto versato"], ((g) => [g.titolo, g.voci[0].nome])(mod["chatwa/filtri"].GRUPPI_FILTRI.find((x) => x.voci.some((v) => v.campo === "acconto"))));
+  c("la voce «Acconto versato» c'è, nel gruppo Stato (31/10/2026: il pannello è più corto)", ["Stato", "Acconto versato"], ((g) => [g.titolo, g.voci.find((v) => v.campo === "acconto").nome])(mod["chatwa/filtri"].GRUPPI_FILTRI.find((x) => x.voci.some((v) => v.campo === "acconto"))));
   c("la voce mostra il numero, calcolato con i filtri accesi (consulente compreso)", true,
     /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")) && /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(elenco));
   const tipi = readFileSync(join(radice, "src/crm/chatwa/tipi.ts"), "utf8");
