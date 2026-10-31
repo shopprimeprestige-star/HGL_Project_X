@@ -28,6 +28,7 @@
 
 import type { TipoInvio } from "../types";
 import type { ClientManychat, EsitoApi, RisultatoApi } from "./api";
+import { convertiModelloUtility, findMetaTemplate } from "../wa-meta-templates";
 import { finestraPerTesto, testoDelModello } from "./finestra";
 
 export type CanaleWhatsapp = "cloud" | "manychat";
@@ -144,6 +145,10 @@ export interface PortePorta {
   /** L'ultimo messaggio del cliente (ISO), per la finestra di 24 ore. Senza
    *  questa porta (o con un guasto) si manda il modello, come prima. */
   ultimaEntrata?(telefono: string): Promise<string | null>;
+  /** L'interruttore dei modelli `_311026` (31/10/2026): vero = al posto di ogni modello vecchio parte
+   *  il nuovo, se c'è, se il suo flusso è collegato e se i valori si convertono. Assente, falso o
+   *  guasto = spento: partono i vecchi, come sempre. Vedi `MODELLI_UTILITY_311026`. */
+  modelliUtility?(): Promise<boolean>;
 }
 
 /** Quanti parametri del modello arrivano nei campi `crm_v1…crm_v4`. */
@@ -178,14 +183,30 @@ export function corpoGraph(r: {
       language: { code: r.lingua || "it" },
     };
     const params = r.parametri;
-    if (Array.isArray(params) && params.length > 0) {
-      template.components = [
-        {
-          type: "body",
-          parameters: params.map((text) => ({ type: "text", text: String(text ?? "") })),
-        },
-      ];
-    }
+    //  I modelli `_311026` col link del meet hanno l'immagine in testa e il pulsante con l'indirizzo
+    //  variabile: l'ultimo valore è la parte variabile del pulsante, non una variabile del testo.
+    const def = findMetaTemplate(r.modello);
+    const conPulsante = !!def?.pulsante?.da && Array.isArray(params) && params.length > 0;
+    const perTesto = conPulsante ? params!.slice(0, -1) : params;
+    const componenti: Record<string, unknown>[] = [];
+    if (def?.header)
+      componenti.push({
+        type: "header",
+        parameters: [{ type: "image", image: { link: def.header.url } }],
+      });
+    if (Array.isArray(perTesto) && perTesto.length > 0)
+      componenti.push({
+        type: "body",
+        parameters: perTesto.map((text) => ({ type: "text", text: String(text ?? "") })),
+      });
+    if (conPulsante)
+      componenti.push({
+        type: "button",
+        sub_type: "url",
+        index: "0",
+        parameters: [{ type: "text", text: String(params!.at(-1) ?? "") }],
+      });
+    if (componenti.length > 0) template.components = componenti;
     payload.template = template;
   } else {
     payload.type = "text";
@@ -194,6 +215,24 @@ export function corpoGraph(r: {
     payload.text = { preview_url: haLink(r.testo), body: r.testo };
   }
   return payload;
+}
+
+/** ── I MODELLI `_311026` (31/10/2026) ──────────────────────────────────────
+ *  Il modello che parte davvero. Interruttore spento (di serie), guasto o assente: quello chiesto,
+ *  coi suoi valori. Acceso: il nuovo al posto del vecchio, coi valori convertiti (la parte
+ *  variabile del pulsante in coda al posto del link). Se il vecchio non ha un nuovo o i valori non
+ *  si convertono (link che non è una stanza nostra), resta il vecchio. Chi chiama non cambia. */
+async function modelloDaMandare(
+  porte: PortePorta,
+  modello: string,
+  parametri: string[],
+): Promise<{ modello: string; parametri: string[]; nuovo: boolean }> {
+  const com = { modello, parametri, nuovo: false };
+  if (!porte.modelliUtility) return com;
+  const acceso = await porte.modelliUtility().catch(() => false);
+  if (!acceso) return com;
+  const conv = convertiModelloUtility(modello, parametri);
+  return conv ? { ...conv, nuovo: true } : com;
 }
 
 /** Manda un messaggio WhatsApp dal canale scelto. Non lancia: ogni guasto è un
@@ -210,6 +249,10 @@ export async function inviaWhatsapp(
  *  stato e il corpo, che chi chiama legge come ha sempre fatto. `esito` serve
  *  solo ai log. */
 async function viaCloud(porte: PortePorta, r: RichiestaInvio): Promise<RisultatoPorta> {
+  if (r.modello && Array.isArray(r.parametri)) {
+    const m = await modelloDaMandare(porte, r.modello, r.parametri);
+    if (m.nuovo) r = { ...r, modello: m.modello, parametri: m.parametri };
+  }
   try {
     const { status, corpo } = await porte.cloud(corpoGraph(r));
     const esito: EsitoPorta =
@@ -236,7 +279,7 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   //  è un errore di chi chiama, non un'eccezione.
   if (r.parametri !== undefined && !Array.isArray(r.parametri))
     return { esito: "blocco", codice: "parametri_non_validi" };
-  const parametri = r.parametri ?? [];
+  let parametri = r.parametri ?? [];
   if (parametri.length > MAX_PARAMETRI) return { esito: "blocco", codice: "troppi_parametri" };
 
   //  ── DENTRO LE 24 ORE, TESTO NORMALE (29/10/2026) ─────────────────────
@@ -261,10 +304,27 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   //   comunque, e dopo si chiude «saltato» tenendo la chiave: una volta per meet.
   const senzaTesto = !!r.soloTesto && !r.testo;
 
+  /** Il modello e il flusso che partono: il nuovo (`_311026`) se l'interruttore è acceso, se ha il suo
+   *  flusso collegato e se sta nei 4 campi; altrimenti quello chiesto, come sempre (mai un invio perso
+   *  perché il flusso nuovo non è ancora collegato). */
+  const flussoDi = async (modello: string, valori: string[]) => {
+    const n = await modelloDaMandare(porte, modello, valori);
+    if (n.nuovo && n.parametri.length <= MAX_PARAMETRI) {
+      const nsNuovo = await porte.flusso(n.modello);
+      if (nsNuovo) return { modello: n.modello, parametri: n.parametri, ns: nsNuovo };
+    }
+    return { modello, parametri: valori, ns: await porte.flusso(modello) };
+  };
+
   let ns: string | null = null;
   if (r.modello && !senzaTesto) {
     try {
-      ns = await porte.flusso(r.modello);
+      const f = await flussoDi(r.modello, parametri);
+      ns = f.ns;
+      if (ns) {
+        r = { ...r, modello: f.modello };
+        parametri = f.parametri;
+      }
     } catch {
       return { esito: "blocco", codice: "configurazione" };
     }
@@ -368,11 +428,13 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   //  Il testo al posto del modello è stato rifiutato perché per ManyChat la
   //  finestra è chiusa (3011/3031: non è partito niente): parte il modello.
   if (s.esito !== "ok" && modelloDiRiserva && /_(3011|3031)$/.test(s.codice ?? "")) {
-    const nsRiserva = await porte.flusso(modelloDiRiserva).catch(() => null);
-    if (nsRiserva) {
+    const riserva = await flussoDi(modelloDiRiserva, parametri).catch(() => null);
+    const nsRiserva = riserva?.ns ?? null;
+    if (riserva && nsRiserva) {
+      parametri = riserva.parametri;
       const w = await client.scriviCampi(subscriber, campiDelFlusso());
       if (w.esito !== "ok") return fallita(w, subscriber);
-      r = { ...r, modello: modelloDiRiserva, testo: undefined };
+      r = { ...r, modello: riserva.modello, testo: undefined };
       ns = nsRiserva;
       s = await client.mandaFlusso(subscriber, nsRiserva);
     }
