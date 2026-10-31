@@ -58,6 +58,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveMessaggioIban } from "./idee/messaggio-iban.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
@@ -751,6 +752,9 @@ const MODULI = [
   //  Badge «da quanto non gli scriviamo» e icona WhatsApp nella riga (31/10/2026):
   //   prove in prove/idee/riga-attesa-wame.mjs.
   "chatwa/attesaPosa",
+  //  Messaggio «IBAN per l'acconto» con importo, causale, IBAN e intestatario dinamici (31/10/2026):
+  //   prove in prove/idee/messaggio-iban.mjs. (`chatwa/risposte-rapide` è già registrato sopra.)
+  "chatwa/dati-acconto",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21571,6 +21575,7 @@ proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+proveMessaggioIban(mod, { c, gruppo, radice });
 await proveEcoFantasma(mod, { c, gruppo });
 rmSync(dove, { recursive: true, force: true });
 
