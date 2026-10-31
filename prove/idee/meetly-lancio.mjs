@@ -56,6 +56,12 @@ export async function proveMeetlyLancio(mod, { c, gruppo, radice }) {
   const sv = corpo("function sorvegliaOspite(");
   c("la sorveglianza ripiega su mesh se l'ospite non risulta connesso", true, /connectionState !== "connected"/.test(sv) && /ripiegaSuMesh\("ospite"\)/.test(sv));
   c("l'ospite senza media, in SFU, non crea né annuncia nulla da solo (resta a mesh il compito di collegarlo)", true, /if \(!localStream\) return;/.test(ramoSfu));
+  c(
+    "senza annuncio (ospite che non pubblica) il peer SFU non risulta mai connesso, quindi la sorveglianza scatta",
+    false,
+    R.statoPeer({ adesso: t0, chiuso: false, pub: "connected", sub: "connected", disconnessoDa: 0, tracce: false, ultimoSaluto: t0 - 1000 }) === "connected",
+  );
+  c("chiudiPeerSenzaRoster svuota anche i peer in sola ricezione (ricostruzione dopo il ripiego)", true, /peerSenzaMedia\.clear\(\)/.test(corpo("function chiudiPeerSenzaRoster(")));
   const client = readFileSync(join(radice, "src/shop/meetly-sfu.ts"), "utf8");
   c("il client SFU non pubblica senza tracce (perciò la sola ricezione in SFU non esiste: scelta documentata)", true, /!mid\.audio && !mid\.video/.test(client));
 

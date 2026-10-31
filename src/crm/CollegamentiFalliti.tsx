@@ -18,7 +18,6 @@ import { fetchCRM } from "./AuthContext";
 type Riga = { creato_il: string; dati: unknown };
 type Voce = { quando: string; blocco: Rapporto | null; esito: Rapporto | null };
 
-/** Unisce blocco ed esito dello stesso collegamento; il più recente in cima. */
 /** Il motivo del ripiego da SFU a collegamento diretto, in parole da leggere in una riga. */
 const MOTIVO_RIPIEGO: Record<string, string> = {
   server: "errore del server",
@@ -32,6 +31,7 @@ const MOTIVO_RIPIEGO: Record<string, string> = {
   "host-nuovo-senza-tr": "consulente ricaricato",
 };
 
+/** Unisce blocco ed esito dello stesso collegamento; il più recente in cima. */
 function raggruppa(righe: Riga[]): Voce[] {
   const per = new Map<string, Voce>();
   for (const r of righe) {

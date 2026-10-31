@@ -1783,6 +1783,8 @@ function chiudiPeerSenzaRoster() {
     annullaRipresa(pid);
   }
   peers.clear();
+  //  Revisione finale: un ospite che torna in mesh con i media va ricostruito, non saltato.
+  peerSenzaMedia.clear();
   remoteStreams.clear();
   pendingIce.clear();
   badSince.clear();
