@@ -1619,6 +1619,12 @@ const SEGNO_RIPIEGO_MS = 30 * 60_000;
 /** Dopo «trasportofallito» di un ospite si aspetta tanto, poi si guarda se si è collegato.
  *  shortcut: cinque secondi scelti, non misurati; si cambia se il collaudo mostra ripieghi inutili. */
 const CONFERMA_OSPITE_MS = 5_000;
+/** Il consulente aspetta tanto un ospite che non si aggancia all'SFU (entrato mentre decideva,
+ *  senza permessi, scheda ferma), poi riporta tutti in mesh: meglio il sistema di sempre che uno fuori.
+ *  shortcut: trenta secondi scelti, non misurati; si cambia con i tempi veri del collaudo. */
+const ATTESA_OSPITE_MS = 30_000;
+/** Un timer per ospite (solo consulente, solo in SFU). */
+const attesaOspite = new Map<string, number>();
 /** Quanto si aspetta il «va bene» del server alla dichiarazione, prima di restare in mesh.
  *  shortcut: tre secondi, non misurati; la dichiarazione ritarda il primo hello solo in SFU. */
 const DICHIARA_MAX_MS = 3_000;
@@ -1762,8 +1768,8 @@ function passaASfu() {
       pid: S.myPid,
       ruolo: S.role === "host" ? "consulente" : "ospite",
       credenziali: () => ({ dev: myDeviceId(), segreto: mioSegreto() }),
-      ice: () => cachedIce,
-      log: (m) => console.log("[SFU]", m),
+      ice: async () => cachedIce,
+      log: console.log,
     });
   } catch (e) {
     console.warn("[SFU] modulo non disponibile: si resta in mesh", e);
@@ -1784,10 +1790,28 @@ function passaASfu() {
   S.roster.forEach((r) => maybeInitiate(r.pid));
 }
 
+/** CONSULENTE — se un ospite non si aggancia all'SFU entro `ATTESA_OSPITE_MS`, si torna in mesh. */
+function sorvegliaOspite(pid: string) {
+  if (isViewer() || attesaOspite.has(pid)) return;
+  attesaOspite.set(
+    pid,
+    window.setTimeout(() => {
+      //  la voce resta: segna «già controllato» e impedisce di riarmare il timer a ogni giro (lo toglie removePeer)
+      if (!trasportoSfu() || !S.roster.some((r) => r.pid === pid)) return;
+      if (peers.get(pid)?.connectionState !== "connected") ripiegaSuMesh("ospite");
+    }, ATTESA_OSPITE_MS),
+  );
+}
+function fermaSorveglianza() {
+  attesaOspite.forEach((t) => window.clearTimeout(t));
+  attesaOspite.clear();
+}
+
 /** Da SFU a mesh, a senso unico: chiude l'SFU (non il roster), si ricorda del ripiego e riparte
  *  dalla riconnessione di sempre. Chiamarla due volte non fa danni. */
 function ripiegaSuMesh(motivo: string) {
   if (trasporto !== "sfu" && !sfu) return;
+  fermaSorveglianza();
   chiudiPeerSenzaRoster();
   try {
     sfu?.chiudiTutto();
@@ -1824,6 +1848,7 @@ function adottaTrasportoDelHost(pid: string, payload: any) {
 
 /** Fine chiamata o nuova sessione: l'SFU si chiude e si torna al trasporto di serie. */
 function azzeraTrasporto() {
+  fermaSorveglianza();
   try {
     sfu?.chiudiTutto();
   } catch {
@@ -2107,6 +2132,7 @@ async function maybeInitiate(pid: string) {
     // in SFU non offre nessuno: basta il posto in `peers` e che le tracce siano pubblicate
     if (!localStream) return;
     makePeer(pid);
+    sorvegliaOspite(pid);
     sfu!.sincronizza();
     return;
   }
@@ -2328,6 +2354,9 @@ function removePeer(pid: string, why = "unspecified") {
     }
   }
   peers.delete(pid);
+  const attesa = attesaOspite.get(pid);
+  if (attesa !== undefined) window.clearTimeout(attesa);
+  attesaOspite.delete(pid);
   remoteStreams.delete(pid);
   pendingIce.delete(pid);
   lastSeen.delete(pid);
@@ -2650,7 +2679,7 @@ function scordaDispositivi(quali: Tentativo["scorda"]) {
 async function openMedia(): Promise<MediaStream> {
   //  ⚠️ La lettura dell'interruttore parte QUI, in parallelo a permessi, camera e `prefetchIce`,
   //   e NON si aspetta: la decisione serve solo prima del primo hello con i media (in fondo).
-  const lettura = S.role === "host" ? leggiInterruttore() : null;
+  const lettura = S.role === "host" && !trasportoDeciso ? leggiInterruttore() : null;
   await prefetchIce(); // popola cachedIce PRIMA di creare qualsiasi peer (makePeer resta sincrono)
   // RISOLUZIONE RICHIESTA ESPLICITAMENTE. Con `video: true` il browser sceglie il
   // default della camera (spesso 640×480, a volte 320×240): quella è la
@@ -6239,16 +6268,17 @@ function attachChannel(sessionId: string) {
     console.log("[PEER] ripresa chiesta da", from);
     void reoffer(from, true);
   });
-  //  L'ospite non riesce a usare l'SFU. ⚠️ Il canale non è autenticato: conta solo da un pid del
-  //   roster e una volta per pid, e dopo una breve conferma di durata: se nel frattempo
-  //   quell'ospite si è collegato (suo hello con l'annuncio e tracce arrivate) non si ripiega.
+  //  L'ospite non riesce a usare l'SFU e ha già ripiegato per conto suo: se il consulente restasse in
+  //   SFU, scarterebbe le sue offerte e quell'ospite non si collegherebbe mai. Quindi si ripiega anche
+  //   se il suo PeerSfu risulta «connected». ⚠️ Il canale non è autenticato: conta solo da un pid del
+  //   roster, una volta per pid, dopo una breve conferma.
   ch.on("broadcast", { event: "trasportofallito" }, ({ payload }: any) => {
     if (isViewer() || !trasportoSfu()) return;
     const pid = String(payload?.from || "");
     if (!pid || !S.roster.some((r) => r.pid === pid) || trasportoFallitoDa.has(pid)) return;
     trasportoFallitoDa.add(pid);
     window.setTimeout(() => {
-      if (!trasportoSfu() || peers.get(pid)?.connectionState === "connected") return;
+      if (!trasportoSfu()) return;
       ripiegaSuMesh("ospite");
     }, CONFERMA_OSPITE_MS);
   });
@@ -8162,7 +8192,7 @@ async function replaceVideoTrackAll(track: MediaStreamTrack | null, reason = "no
     track ? `(${track.label || track.kind}, readyState=${track.readyState})` : "(null)",
   );
   //  L'SFU ricorda la traccia CORRENTE (schermo, nera, sfocata): serve alla ricostruzione.
-  await sfu?.sostituisci("video", track).catch(() => {});
+  if (sfu) await sfu.sostituisci("video", track).catch(() => {});
   for (const pc of peers.values()) {
     const s = pc.getSenders().find((s) => s.track?.kind === "video");
     if (s) {
@@ -8176,7 +8206,7 @@ async function replaceVideoTrackAll(track: MediaStreamTrack | null, reason = "no
   tuneVideoSenders();
 }
 async function replaceAudioTrackAll(track: MediaStreamTrack | null) {
-  await sfu?.sostituisci("audio", track).catch(() => {});
+  if (sfu) await sfu.sostituisci("audio", track).catch(() => {});
   for (const pc of peers.values()) {
     const s = pc.getSenders().find((s) => s.track?.kind === "audio");
     if (s) {

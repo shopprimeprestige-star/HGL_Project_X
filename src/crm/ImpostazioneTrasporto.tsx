@@ -168,8 +168,8 @@ export function ImpostazioneTrasporto() {
                   Tramite i server Cloudflare (in prova)
                 </span>
                 <span className="t-nota block text-muted-foreground">
-                  Voce e immagini passano da un server intermedio. Può aiutare quando il cliente è
-                  in 4G o dietro la rete di un ufficio.
+                  Voce e immagini passano da un server intermedio. È pensato per le reti che
+                  bloccano il collegamento diretto.
                 </span>
                 {!pronto && (
                   <span className="t-nota mt-1.5 block text-amber-700 dark:text-amber-500">

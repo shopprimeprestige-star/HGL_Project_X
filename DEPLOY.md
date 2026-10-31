@@ -69,6 +69,18 @@ Espandi la sezione **Variables and Secrets** e aggiungi:
 | `GOOGLE_CLIENT_SECRET` | *(Google Cloud Console — OAuth Client Secret)* |
 | `SHEETS_INGRESSO_TOKEN` | *(chiave segreta dell'ingresso dei lead dal foglio Google: `openssl rand -hex 32`, la stessa nelle proprietà dello script del titolare; vedi `docs/google-sheets-setup.md`)* |
 | `PONTE_WA_TOKEN` | *(chiave segreta del ponte WhatsApp sul Mac, **almeno 32 caratteri**: `openssl rand -hex 32 \| pbcopy`, poi `npx wrangler secret put PONTE_WA_TOKEN` e incolla; la stessa va sul Mac con `installa.sh chiave`; vedi `docs/ponte-whatsapp-setup.md`)* |
+| `MEETLY_SFU_APP_ID` | *(Meetly via server Cloudflare: **ID** dell'app Cloudflare Realtime SFU dedicata a Meetly, **SEPARATA da quella del webinar**: si crea una app nuova in Cloudflare → Realtime. Poi `npx wrangler secret put MEETLY_SFU_APP_ID` e incolla. Senza questa e la prossima l'interruttore resta su «diretto» e il pannello delle Impostazioni lo dice)* |
+| `MEETLY_SFU_APP_TOKEN` | *(il **token** (secret) della stessa app Meetly: `npx wrangler secret put MEETLY_SFU_APP_TOKEN` e incolla. Mai nel codice, mai in un file `.env` committato)* |
+
+> ⚠️ **Meetly via server Cloudflare (SFU) — prima di accendere l'interruttore** (nota N5 del piano):
+> 1. Lo si accende solo dopo una prova a mano con un **iPhone** (Safari) e con una **rete strozzata**
+>    (circa 800 kbit/s): il comportamento con un abbonato lento non è mai stato misurato.
+> 2. **Limite noto**: «Rimuovi» (`espelli`) toglie la riga e la chiave dell'espulso ma **non chiude
+>    un abbonamento Cloudflare già negoziato**: in SFU un cliente espulso con un browser modificato
+>    potrebbe ricevere ancora l'audio finché dura la sua sessione (un browser normale chiude il
+>    collegamento e Cloudflare chiude la sessione). In diretto (mesh) non succede.
+> 3. Il nome delle chiavi non compare nel pannello delle Impostazioni (dice solo «da chi gestisce il sito»):
+>    i nomi stanno qui.
 
 > ⚠️ Le `VITE_*` servono solo al build. Le altre vengono lette **runtime** dal
 > Worker (es. `api.capi.ts`, `api.google-oauth-callback.ts`, `client.server.ts`).

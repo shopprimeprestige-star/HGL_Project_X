@@ -494,7 +494,9 @@ async function espelli(x: Ctx): Promise<Risposta> {
   if (!pidValido(b.pid)) return no(400, "pid");
   const pid: string = b.pid;
   const riga = (await righeDellaStanza(d, codice)).find((r) => r.pid === pid);
-  const dev = testoCorto(b.dev, 80) || riga?.dev || "";
+  //  Solo il pid: chi tolgo con «Rimuovi» deve poter essere riammesso (il blocco del dispositivo vero lo dà la
+  //   sala: mai «ammesso»). Il `dev` entra solo se chi chiama lo manda di proposito.
+  const dev = testoCorto(b.dev, 80);
   const prima = leggiJson(await d.archivio.leggi(chiaveEsclusi(codice)));
   const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
   const pids = [...new Set([...lista(prima?.pid), pid])].slice(-MAX_ESCLUSI);

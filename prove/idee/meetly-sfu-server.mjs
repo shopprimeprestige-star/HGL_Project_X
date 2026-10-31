@@ -260,7 +260,7 @@ export async function proveMeetlySfuServer(mod, { c, gruppo, radice }) {
     const e = await (b.vai("consulente", { azione: "espelli", codice: CODICE, pid: "ospite01" }));
     c("il consulente espelle: ok, la riga sparisce", [200, null], [e.status, riga(b, "ospite01")]);
     const esc = JSON.parse(b.righe.get(`meetly_sfu:${CODICE}:_esclusi`).valore);
-    c("_esclusi porta il pid e il dev dell'espulso", [["ospite01"], ["dev-ospite01"]], [esc.pid, esc.dev]);
+    c("_esclusi porta il pid dell'espulso e NON il suo dispositivo (si toglie la persona sbagliata, la si può riammettere)", [["ospite01"], []], [esc.pid, esc.dev]);
     const sessioniPrima = b.st.sessioni;
     const rp = await (b.vai("ospite", pubOspite("ospite01")));
     c("pubblica dopo l'espulsione: 403 escluso", [403, "escluso"], [rp.status, rp.body.error]);
@@ -276,10 +276,12 @@ export async function proveMeetlySfuServer(mod, { c, gruppo, radice }) {
     c("abbonati dopo l'espulsione, con la sua vecchia chiave: 403 escluso", [403, "escluso"], [ra.status, ra.body.error]);
     const rn = await (b.vai("ospite", { azione: "rinnova", codice: CODICE, pid: "ospite01", chiave }));
     c("rinnova dopo l'espulsione: 403 escluso", [403, "escluso"], [rn.status, rn.body.error]);
+    c("nessuna nuova sessione Cloudflare dopo l'espulsione", sessioniPrima, b.st.sessioni);
     b.st.ammessi.add("ospite77");
     const altroPid = await (b.vai("ospite", pubOspite("ospite77", { dev: "dev-ospite01" })));
-    c("lo stesso dispositivo con un pid nuovo: 403 escluso", [403, "escluso"], [altroPid.status, altroPid.body.error]);
-    c("nessuna nuova sessione Cloudflare dopo l'espulsione", sessioniPrima, b.st.sessioni);
+    c("lo stesso dispositivo con un pid nuovo (riammesso dopo la rimozione): pubblica, non resta un riquadro fantasma", 200, altroPid.status);
+    const stessoPid = await (b.vai("ospite", pubOspite("ospite01")));
+    c("il pid espulso resta escluso anche dopo che il suo dispositivo è rientrato con un altro", [403, "escluso"], [stessoPid.status, stessoPid.body.error]);
     // un altro ospite non è toccato
     const o2 = await (entra(b, "ospite02"));
     c("un altro ospite entra comunque", 200, o2.status);

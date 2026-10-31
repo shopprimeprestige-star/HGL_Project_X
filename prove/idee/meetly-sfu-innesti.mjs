@@ -94,7 +94,7 @@ export function proveMeetlySfuInnesti(mod, { c, gruppo, radice }) {
   gruppo("MEETLY SFU · INNESTI 5, 6a, 6b · le ri-offerte non esistono in SFU");
   c("maybeInitiate: la PRIMA istruzione è la guardia SFU (makePeer + sincronizza, poi esce)", true,
     inizio(corpoDi("async function maybeInitiate("), 200).startsWith(
-      norm("if (trasportoSfu()) { if (!localStream) return; makePeer(pid); sfu!.sincronizza(); return; }"),
+      norm("if (trasportoSfu()) { if (!localStream) return; makePeer(pid); sorvegliaOspite(pid); sfu!.sincronizza(); return; }"),
     ));
   const ch = corpoDi("function chiediRipresa(");
   c("chiediRipresa: nel timer la ripresa SFU sta DOPO i controlli di stato e PRIMA di reoffer/«riprova»", true,
@@ -125,11 +125,11 @@ export function proveMeetlySfuInnesti(mod, { c, gruppo, radice }) {
   c("attachLocalMediaToPeers: in SFU sincronizza ed esce, senza ricostruire pc", true,
     ha(am, ["if (trasportoSfu()) { sfu!.sincronizza(); return; }", "removePeer("], true));
   const rv = corpoDi("async function replaceVideoTrackAll(");
-  c("replaceVideoTrackAll chiama sfu?.sostituisci(\"video\") PRIMA di toccare i sender, e non lancia mai", true,
-    ha(rv, ['await sfu?.sostituisci("video", track).catch(() => {});', "for (const pc of peers.values())"], true));
+  c("replaceVideoTrackAll (solo se c'è l'SFU: in mesh nessun tick in più) chiama sostituisci(\"video\") PRIMA di toccare i sender, e non lancia mai", true,
+    ha(rv, ['if (sfu) await sfu.sostituisci("video", track).catch(() => {});', "for (const pc of peers.values())"], true));
   const ra = corpoDi("async function replaceAudioTrackAll(");
-  c("replaceAudioTrackAll chiama sfu?.sostituisci(\"audio\") PRIMA di toccare i sender, e non lancia mai", true,
-    ha(ra, ['await sfu?.sostituisci("audio", track).catch(() => {});', "for (const pc of peers.values())"], true));
+  c("replaceAudioTrackAll (solo se c'è l'SFU) chiama sostituisci(\"audio\") PRIMA di toccare i sender, e non lancia mai", true,
+    ha(ra, ['if (sfu) await sfu.sostituisci("audio", track).catch(() => {});', "for (const pc of peers.values())"], true));
 
   gruppo("MEETLY SFU · INNESTO 16 · espulsione");
   c("kickGuest chiama sfu?.espelli(pid) prima di togliere il pc (il flusso cade sul server, non solo se il browser obbedisce)", true,
@@ -229,13 +229,32 @@ export function proveMeetlySfuInnesti(mod, { c, gruppo, radice }) {
   c("il gestore esiste ed è solo del consulente, solo in SFU", true, ha(tf, ["if (isViewer() || !trasportoSfu()) return;"]));
   c("accetta solo un pid del roster, una volta per pid (il canale non è autenticato)", true,
     ha(tf, ["S.roster.some((r) => r.pid === pid)", "trasportoFallitoDa.has(pid)", "trasportoFallitoDa.add(pid)"], true));
-  c("conferma di durata: se nel frattempo l'ospite è collegato non ripiega", true,
-    ha(tf, ["setTimeout(", 'peers.get(pid)?.connectionState === "connected"', 'ripiegaSuMesh("ospite")', "CONFERMA_OSPITE_MS"], true));
+  c("conferma breve, poi ripiega: l'ospite ha già lasciato l'SFU, quindi il suo PeerSfu «connected» NON la ferma", true,
+    ha(tf, ["setTimeout(", "if (!trasportoSfu()) return;", 'ripiegaSuMesh("ospite")', "CONFERMA_OSPITE_MS"], true) &&
+      !/connectionState/.test(tf));
+
+  gruppo("MEETLY SFU · IL CONSULENTE NON ASPETTA PER SEMPRE UN OSPITE CHE NON SI AGGANCIA");
+  const sv = corpoDi("function sorvegliaOspite(");
+  c("sorvegliaOspite esiste, è solo del consulente e parte una volta per ospite", true,
+    sv.length > 50 && ha(sv, ["if (isViewer() || attesaOspite.has(pid)) return;", "attesaOspite.set(pid, window.setTimeout("], true));
+  c("controlla UNA volta per ospite: la voce non si toglie allo scatto, quindi non si riarma a ogni giro", false, /attesaOspite\.delete\(pid\);\s*if \(!trasportoSfu/.test(src));
+  c("allo scatto: se è ancora SFU, l'ospite è nel roster e non è collegato, ripiega con motivo «ospite»", true,
+    ha(sv, ["trasportoSfu()", "S.roster.some((r) => r.pid === pid)", 'peers.get(pid)?.connectionState !== "connected"', 'ripiegaSuMesh("ospite")', "ATTESA_OSPITE_MS"], true));
+  c("l'attesa è ~30 s", true, /const ATTESA_OSPITE_MS = 30_000;/.test(src));
+  c("è nel ramo SFU di maybeInitiate (una sola volta) e non nel ramo mesh", [true, 1],
+    [ha(corpoDi("async function maybeInitiate("), ["if (trasportoSfu()) {", "sorvegliaOspite(pid);", "if (!localStream || !(S.myPid < pid)) return;"], true),
+      (corpoDi("async function maybeInitiate(").match(/sorvegliaOspite\(/g) || []).length]);
+  c("removePeer ripulisce il timer di quell'ospite", true, ha(corpoDi("function removePeer("), ["attesaOspite.get(pid)", "attesaOspite.delete(pid)"]));
+  c("fermaSorveglianza ferma e svuota tutti i timer", true, ha(corpoDi("function fermaSorveglianza("), ["attesaOspite.forEach((t) => window.clearTimeout(t));", "attesaOspite.clear();"], true));
+  c("azzeraTrasporto ripulisce i timer", true, inizio(corpoDi("function azzeraTrasporto("), 60).startsWith("fermaSorveglianza();"));
+  c("ripiegaSuMesh ripulisce i timer (dopo il ripiego non servono più)", true, ha(corpoDi("function ripiegaSuMesh("), ["fermaSorveglianza();", "chiudiPeerSenzaRoster();"], true));
 
   gruppo("MEETLY SFU · INNESTI 12, 14, 18 · decisione, passaggio a SFU e ripiego");
   const om = corpoDi("async function openMedia(");
   c("openMedia: la lettura dell'interruttore parte PRIMA di prefetchIce e di apriMedia, solo per il consulente", true,
-    ha(om, ['const lettura = S.role === "host" ? leggiInterruttore() : null;', "await prefetchIce()", "apriMedia("], true));
+    ha(om, ['const lettura = S.role === "host" && !trasportoDeciso ? leggiInterruttore() : null;', "await prefetchIce()", "apriMedia("], true));
+  c("openMedia: l'interruttore non si rilegge se la decisione di questa chiamata è già presa", true,
+    ha(om, ["!trasportoDeciso ? leggiInterruttore()"]));
   c("openMedia: nessun await sulla lettura prima di apriMedia (non aggiunge attesa all'apertura)", true,
     !/await (lettura|leggiInterruttore|decidiTrasporto)/.test(om.slice(0, om.indexOf("apriMedia("))));
   c("openMedia: la decisione si attende solo subito prima dell'ULTIMO sendHello(true), dopo i media", true,
@@ -262,6 +281,8 @@ export function proveMeetlySfuInnesti(mod, { c, gruppo, radice }) {
     ha(ps, ["chiudiPeerSenzaRoster();", "S.roster.forEach((r) => maybeInitiate(r.pid));"], true) && !ps.includes("removePeer("));
   c("passaASfu: l'annuncio rimanda subito l'hello; un guasto ripiega, e l'ospite lo dice al consulente", true,
     ha(ps, ["mio.onAnnuncio(() => sendHello());", "mio.onFallito((m) => {", "if (sfu !== mio) return;", "ripiegaSuMesh(m);", 'send("trasportofallito"'], true));
+  c("passaASfu: `ice` rispetta il contratto del client (una promessa di server ICE) e `log` è console.log senza raddoppiare il prefisso", true,
+    ha(ps, ["ice: async () => cachedIce", "log: console.log"], true) && !ps.includes('console.log("[SFU]"'));
   c("passaASfu: avvia l'invio se i media ci sono già", true, ha(ps, ["if (localStream) mio.avvia(localStream);"]));
   const rm = corpoDi("function ripiegaSuMesh(");
   c("ripiegaSuMesh: si può chiamare due volte (un solo verso, senza effetti doppi)", true,
@@ -296,6 +317,15 @@ export function proveMeetlySfuInnesti(mod, { c, gruppo, radice }) {
     c(`${nome} esiste e NON nomina l'SFU (l'adattatore deve bastare)`, [true, false],
       [corpo.length > 30, /\bsfu\b|trasportoSfu|tettoSfu|PeerSfu/.test(corpo)]);
   }
+
+  gruppo("MEETLY SFU · DEPLOY.md");
+  const deploy = readFileSync(join(radice, "DEPLOY.md"), "utf8");
+  c("DEPLOY.md nomina i due segreti, con l'app SEPARATA dal webinar e il comando wrangler", true,
+    /\| `MEETLY_SFU_APP_ID` \|/.test(deploy) && /\| `MEETLY_SFU_APP_TOKEN` \|/.test(deploy) &&
+      /SEPARATA da quella del webinar/.test(deploy) && /wrangler secret put MEETLY_SFU_APP_ID/.test(deploy) && /wrangler secret put MEETLY_SFU_APP_TOKEN/.test(deploy));
+  c("DEPLOY.md dice di provare a mano iPhone e rete strozzata prima di accendere (N5)", true, /iPhone/.test(deploy) && /rete strozzata/.test(deploy));
+  c("DEPLOY.md scrive il limite noto di espelli (abbonamento già negoziato)", true, /non chiude\s+(?:>\s*)?un abbonamento Cloudflare già negoziato/.test(deploy));
+  c("DEPLOY.md non contiene valori: nessuna stringa lunga esadecimale", false, /\b[0-9a-f]{32,}\b/i.test(deploy));
 
   //  Il pannello delle Impostazioni (T4): la sua funzione sta in fondo al file.
   provePannelloTrasporto({ c, gruppo, radice });
@@ -346,6 +376,10 @@ function provePannelloTrasporto({ c, gruppo, radice }) {
   c("titolo del pannello", true, /Come viaggiano audio e video/.test(sorgente));
   c("niente pulsante «Prova»", false, />\s*Prova\b/.test(sorgente));
   c("stati: caricamento ed errore di lettura hanno la loro frase", true, /carico \?/.test(codice) && /Non riesco a leggere come viaggiano audio e video/.test(sorgente) && /Riprova/.test(sorgente));
+
+  //  5b. Nessuna promessa non provata sulle reti (il comportamento con un abbonato lento è ignoto, N5).
+  c("niente promesse sul 4G o sulle reti d'ufficio", false, /4G|\bufficio\b|può aiutare/i.test(codice));
+  c("la descrizione dice solo a cosa serve", true, /È pensato per le reti che\s+bloccano il collegamento diretto/.test(sorgente));
 
   //  6. L'innesto in ImpostazioniMeetly.tsx sono solo due righe (import e montaggio).
   c("ImpostazioniMeetly importa e monta il pannello", true, /import \{ ImpostazioneTrasporto \} from "\.\/ImpostazioneTrasporto";/.test(meetly) && /<ImpostazioneTrasporto \/>/.test(meetly));

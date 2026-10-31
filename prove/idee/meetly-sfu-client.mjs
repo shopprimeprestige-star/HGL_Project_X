@@ -487,6 +487,45 @@ async function scenari(radice, esiti) {
     c("…a 15 s: 'timeout-sub'", ["timeout-sub"], u1.fall);
   }
 
+  /* ══════════════════ 6b. LA MIA RIGA SUL SERVER È SPARITA ══════════════════ */
+  gruppo("MEETLY SFU · CLIENT · RIGA PERSA: SI RIPUBBLICA UNA VOLTA SENZA CHIAVE, POI SI RIPIEGA");
+  for (const [nome, status, errore] of [
+    ["403 chiave", 403, "chiave"],
+    ["403 sessione", 403, "sessione"],
+    ["403 traccia", 403, "traccia"],
+    ["409 riga-mancante", 409, "riga-mancante"],
+  ]) {
+    const x = await avvio({ annuncia: false, viva: false, dopoCreazione: (a) => { a.rispondi = (az, _c, n) => (az === "abbonati" && n <= 1 ? { ok: false, status, error: errore } : undefined); } });
+    x.sfu.suAnnuncio("bbbb2222", annuncioDi("bbbb2222"));
+    await x.amb.avanza(4000);
+    const pubs = x.amb.chiamate.filter((a) => a.azione === "pubblica");
+    c(`${nome} su abbonati: ripubblica UNA volta, senza chiave, e NON ripiega`, [2, false, []], [pubs.length, "chiave" in (pubs[1]?.corpo ?? { chiave: 1 }), x.fall]);
+    c(`${nome}: poi si abbona di nuovo con la chiave nuova e le tracce arrivano`, [2, "K-aaaa1111-2", 2], [quante(x.amb, "abbonati"), x.amb.chiamate.filter((a) => a.azione === "abbonati")[1]?.corpo.chiave, x.peers.get("bbbb2222").ricevute.length]);
+    c(`${nome}: il sub vecchio è chiuso e ne nasce uno nuovo senza la vecchia sessione`, [2, true, false], [x.amb.pc("sub").length, x.amb.pc("sub")[0].chiuso, "subSessionId" in (x.amb.chiamate.filter((a) => a.azione === "abbonati")[1]?.corpo ?? {})]);
+    const y = await avvio({ annuncia: false, viva: false, dopoCreazione: (a) => { a.rispondi = (az) => (az === "abbonati" ? { ok: false, status, error: errore } : undefined); } });
+    y.sfu.suAnnuncio("bbbb2222", annuncioDi("bbbb2222"));
+    await y.amb.avanza(10_000);
+    c(`${nome} che si ripete: UNA sola ripubblicazione, poi il ripiego 'server'`, [2, ["server"]], [quante(y.amb, "pubblica"), y.fall]);
+  }
+  {
+    //  un guasto vero dell'abbonamento resta un guasto: nessuna ripubblicazione
+    const x = await avvio({ annuncia: false, viva: false, dopoCreazione: (a) => { a.rispondi = (az) => (az === "abbonati" ? { ok: false, status: 502, error: "cloudflare" } : undefined); } });
+    x.sfu.suAnnuncio("bbbb2222", annuncioDi("bbbb2222"));
+    await x.amb.avanza(4000);
+    c("502 su abbonati: ripiego 'server' subito, nessuna ripubblicazione", [["server"], 1], [x.fall, quante(x.amb, "pubblica")]);
+  }
+  {
+    //  'rinnova' trova la riga sparita: nuova 'pubblica' senza chiave, non un guasto
+    const x = await avvio({ dopoCreazione: (a) => { a.rispondi = (az, _c, n) => (az === "rinnova" && n <= 1 ? { ok: false, status: 409, error: "riga-mancante" } : undefined); } });
+    await passa(x, 130_000);
+    const pubs = x.amb.chiamate.filter((a) => a.azione === "pubblica");
+    c("rinnova 409 riga-mancante: una nuova pubblica SENZA chiave, nessun ripiego", [2, false, []], [pubs.length, "chiave" in (pubs[1]?.corpo ?? { chiave: 1 }), x.fall]);
+    c("…e dopo la nuova pubblica il rinnovo riparte con la chiave nuova", true, x.amb.chiamate.filter((a) => a.azione === "rinnova").some((a) => a.corpo.chiave === "K-aaaa1111-2"));
+    const y = await avvio({ dopoCreazione: (a) => { a.rispondi = (az) => (az === "rinnova" ? { ok: false, status: 409, error: "riga-mancante" } : undefined); } });
+    await passa(y, 200_000);
+    c("rinnova 409 che si ripete: UNA sola ripubblicazione (il rinnovo non è un guasto)", [2, []], [quante(y.amb, "pubblica"), y.fall]);
+  }
+
   /* ══════════════════ 7. RICOSTRUZIONI ══════════════════ */
   gruppo("MEETLY SFU · CLIENT · UN GUASTO DEL SUB CON TRE PEER = UNA RICOSTRUZIONE");
   {

@@ -743,10 +743,41 @@ export function creaTrasportoSfu(deps: DipendenzeSfu): TrasportoSfu {
     }
   }
 
+  /** La MIA riga sul server non è più quella che il client credeva (sostituita da un'altra scheda dello
+   *  stesso browser, scaduta e ripulita, archivio perso): la chiave, la sessione o le tracce non tornano. */
+  const rigaPersa = (es: { status: number; error: string }) =>
+    (es.status === 403 && (es.error === "chiave" || es.error === "sessione" || es.error === "traccia")) ||
+    (es.status === 409 && es.error === "riga-mancante");
+
+  let rigaRipubblicata = false;
+  /** Prima di ripiegare per tutti si ripubblica UNA volta senza `chiave` (la riga si ricrea se manca;
+   *  se invece c'è ed è di un altro il server risponde 403 e allora si ripiega). Il `sub` si rifà da capo:
+   *  la riga nuova non conosce la sessione vecchia. Fuori budget; una volta sola per modulo.
+   *  `true` = ci si sta occupando (o ci pensa la pubblicazione già in corso); `false` = si ripiega. */
+  const riparaRiga = (): boolean => {
+    if (chiuso || fallito) return true;
+    if (pubInCorso) return true; // la pubblicazione in corso porta la chiave nuova e rimette in giro gli abbonamenti
+    if (rigaRipubblicata) return false;
+    rigaRipubblicata = true;
+    log("la mia riga sul server non torna: ripubblico una volta senza chiave");
+    chiave = "";
+    void (async () => {
+      await accoda(async () => buttaSub());
+      if (chiuso || fallito) return;
+      await pubblica(true);
+    })();
+    return true;
+  };
+
   const erroreSub = (pid: string, es: { status: number; error: string }) => {
     sottoscritti.delete(pid);
     if (es.error === "non-configurato") return fallisci("non-configurato");
     if (escluso(es)) return log("abbonati: escluso dalla stanza");
+    if (rigaPersa(es)) {
+      //  ⚠️ Prima di `nonAncora`: «riga-mancante» è un 409, ma qui non è un «non ancora».
+      if (riparaRiga()) return;
+      return fallisci("server");
+    }
     if (nonAncora(es)) {
       const t = primoErroreSub.get(pid) ?? adesso();
       primoErroreSub.set(pid, t);
@@ -831,15 +862,18 @@ export function creaTrasportoSfu(deps: DipendenzeSfu): TrasportoSfu {
     if (persistito && !chiuso && !fallito) guasto(quale);
   }
 
+  /** Chiude il `sub` e dimentica gli abbonamenti: il giro successivo li rifà tutti su un `sub` nuovo. */
+  const buttaSub = () => {
+    chiudiLato(sub);
+    sub = null;
+    midDi.clear();
+    sottoscritti.clear();
+    for (const pid of arrivate.keys()) arrivate.set(pid, { audio: false, video: false });
+  };
+
   /** Il `sub` nuovo, con tutti gli abbonamenti rifatti. `true` = collegato. */
   async function ricostruisciSub(): Promise<boolean> {
-    await accoda(async () => {
-      chiudiLato(sub);
-      sub = null;
-      midDi.clear();
-      sottoscritti.clear();
-      for (const pid of arrivate.keys()) arrivate.set(pid, { audio: false, video: false });
-    });
+    await accoda(async () => buttaSub());
     if (chiuso || fallito) return true;
     vaiAvanti();
     await coda;
@@ -899,7 +933,10 @@ export function creaTrasportoSfu(deps: DipendenzeSfu): TrasportoSfu {
         ultimoRinnova = adesso();
         //  Il battito tiene viva la riga sul server. Se non va non è un guasto (N4b).
         void chiedi("rinnova", { codice, pid: mioPid, chiave }).then((es) => {
-          if (!es.ok) log("rinnova: non riuscito");
+          if (es.ok) return;
+          log("rinnova: non riuscito");
+          //  Riga sparita dal server (N4): non è un guasto, ma serve una nuova `pubblica`.
+          if (es.status === 409 && es.error === "riga-mancante") riparaRiga();
         });
       }
     });
