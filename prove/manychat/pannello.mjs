@@ -3521,16 +3521,18 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     ],
   );
   const pannello = letto("src/crm/ManychatPannello.tsx");
+  //  Dal 31/10/2026 (commessa interruttori-automatici) «Lead nuovo», «Giorno del meet» e i messaggi per
+  //   stato NON si accendono più qui ma in «Messaggi automatici»: restano la frase, la sede e il foglio.
   c(
-    "il riquadro disegna «Lead nuovo», «Giorno del meet», la frase del modulo, i messaggi per stato, la sede e il foglio",
-    [true, true, true, true, true, true],
+    "il riquadro disegna la frase del modulo, la sede e il foglio; i messaggi rimandano ai Messaggi automatici",
+    [true, true, true, true, false, false],
     [
-      /Lead nuovo/.test(pannello),
-      /Giorno del meet/.test(pannello),
       /Frase del consenso nel modulo Meta/.test(pannello),
-      /Messaggi per stato/.test(pannello),
       /Indirizzo della sede/.test(pannello),
       /Foglio Google/.test(pannello),
+      /<RimandoMessaggiAutomatici/.test(pannello),
+      /etichetta="Lead nuovo"|etichetta="Giorno del meet"/.test(pannello),
+      /sequenze\.stati/.test(pannello),
     ],
   );
   c(
@@ -3539,13 +3541,13 @@ async function proveRiquadroSequenze(mod, { c, gruppo, radice }) {
     /fino al giorno\s+prima del/.test(pannello),
   );
   c(
-    "accendere si conferma (lead nuovo, giorno del meet, ogni stato) e la frase si conferma prima di salvare",
-    [true, true, true, true],
+    "accendere il generale si conferma, e la frase si conferma prima di salvare (i messaggi li conferma il pannello nuovo)",
+    [true, true, true, false],
     [
-      /imposta\("leadNuovo"/.test(pannello) || /"leadNuovo"/.test(pannello),
-      /accendiStato/.test(pannello),
+      /impostaGenerale/.test(pannello),
       /confermaFrase/.test(pannello),
       /setConferma\(/.test(pannello),
+      /accendiStato/.test(pannello),
     ],
   );
   c(

@@ -22195,7 +22195,9 @@ function proveDelRiquadroDelPromemoria() {
   const { PERMESSI_RUOLO: PR } = PRM;
   c("una setter non ha «impostazioni»: la guardia le risponde 403", false, PR.setter.includes("impostazioni"));
   c("…nemmeno il consulente; l'admin sì", [false, true], [PR.consulente.includes("impostazioni"), PR.admin.includes("impostazioni")]);
-  c("nel riquadro interruttore e «Controlla ora» solo a chi ha «impostazioni»", true, /usePuo\(\)\("impostazioni"\)/.test(pan) && (pan.match(/disabled=\{!puoCambiare/g) || []).length === 2);
+  //  Dal 31/10/2026 (commessa interruttori-automatici) l'interruttore non sta più qui ma in «Messaggi
+  //   automatici»: nel riquadro resta il solo «Controlla ora», e un rimando al pannello nuovo.
+  c("nel riquadro «Controlla ora» solo a chi ha «impostazioni», e il rimando ai Messaggi automatici", true, /usePuo\(\)\("impostazioni"\)/.test(pan) && (pan.match(/disabled=\{!puoCambiare/g) || []).length === 1 && /<RimandoMessaggiAutomatici/.test(pan) && !/<Switch/.test(pan));
   c("sta nella scheda WhatsApp delle impostazioni", true, /<WhatsAppSettingsSection \/>\s*<PromemoriaWhatsappPannello \/>/.test(imp));
   c("ricorda il consenso prima di accendere", true, /consenso|modulo di prenotazione/i.test(pan));
   const doc = readFileSync(join(radice, "docs/whatsapp-setup.md"), "utf8");
