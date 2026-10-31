@@ -103,7 +103,8 @@ export function proveChatRisposte(mod, { c, gruppo, radice }) {
     sug("https://manybot-files.s3.eu-central-1.amazonaws.com/pagina123/wa/2026/10/28/x.jpg", null)[0]);
   c("vuole spostare → sposta", "sposta", sug("non riesco domani, possiamo spostare?", null)[0]);
   c("chiede del trapianto → non chirurgico", "non_chirurgico", sug("ma è un trapianto?", null)[0]);
-  c("nessun messaggio, stato «in attesa acconto» → acconto prima", "acconto", sug(null, "in_attesa_acconto")[0]);
+  //  31/10/2026: in Attesa acconto sta davanti «IBAN per l'acconto» (prove/idee/messaggio-iban.mjs); la vecchia «Acconto» segue.
+  c("nessun messaggio, stato «in attesa acconto» → IBAN per l'acconto prima, poi acconto", ["iban_acconto", "acconto"], sug(null, "in_attesa_acconto").slice(0, 2));
   c("nessun messaggio, stato «non risponde» → non riesco a contattarla", "non_risponde", sug(null, "non_risponde")[0]);
   c("il messaggio vince sullo stato", "prezzo", sug("quanto costa?", "non_risponde")[0]);
   c("niente messaggio né stato: l'ordine salvato", ids(P.slice(0, 3)), sug(null, null));
@@ -151,7 +152,7 @@ export function proveChatRisposte(mod, { c, gruppo, radice }) {
     //  29/10/2026: chi aveva salvato prima riceve in fondo le predefinite nate dopo, una volta.
     const NUOVE = ["conferma_fissata", "promemoria_domani", "promemoria_oggi", "link_fra_poco", "meet_adesso", "in_ritardo", "richiamo_concordato"];
     const vecchio = leggi(JSON.stringify({ v: 1, risposte: [{ id: "mia-1", titolo: "Mia", testo: "ciao" }] }));
-    c("elenco salvato prima del 29/10: le sue voci, poi le 7 nuove", ["mia-1", ...NUOVE], ids(vecchio));
+    c("elenco salvato prima del 29/10: le sue voci, poi le 7 nuove e (31/10) l'IBAN per l'acconto", ["mia-1", ...NUOVE, "iban_acconto"], ids(vecchio));
     c("…le predefinite vecchie che aveva tolto non tornano", false, ids(vecchio).includes("presentazione"));
     const visto = leggi(R.scriviRisposte([{ id: "mia-1", titolo: "Mia", testo: "ciao" }]));
     c("salvato di nuovo (ha visto le nuove e le ha tolte): non tornano", ["mia-1"], ids(visto));
