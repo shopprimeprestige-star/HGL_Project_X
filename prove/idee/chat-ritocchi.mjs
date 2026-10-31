@@ -102,7 +102,7 @@ export function proveClienti(mod, { c, gruppo, radice }) {
   })) c(`non cliente: ${nome}`, false, F.passaFiltri(chat(data), fc, nessuno));
   c("senza scheda non è cliente", false, F.passaFiltri(chat(null), fc, nessuno));
   c("«Clienti» è nella riga rapida e nel pannello, dopo «Sconosciuti» (che resta: è il filtro del pannello)",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Clienti"], F.VOCI_RIGA.map((v) => v.nome));
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Clienti"], F.VOCI_RIGA.map((v) => v.nome));
   c("è nel gruppo «Tipo di contatto»: una sola scelta fra Con scheda, Senza scheda, Clienti",
     { tipo: "cliente" }, { tipo: F.commuta(F.commuta(F.FILTRI_VUOTI, "tipo", "senza-scheda"), "tipo", "cliente").tipo });
   c("si ricorda e si legge dal salvataggio", "cliente", F.leggiFiltri(F.scriviFiltriSessione(fc), null).tipo);

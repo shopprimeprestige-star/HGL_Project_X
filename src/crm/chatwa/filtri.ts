@@ -35,6 +35,7 @@ import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { eConversione } from "@/crm/kpi-calcoli";
 import { passaFiltro } from "./cercaChat";
 import { STATI_PER_STATO } from "./perStato";
+import { eMioRicontatto, type ChatRicontatto } from "./ricontatti";
 
 export type CodaChat = "da-rispondere" | "da-chiamare";
 export type FinestraChat = "aperta" | "chiusa";
@@ -51,6 +52,11 @@ export interface FiltriChat {
   tipo: TipoContatto | null;
   /** id del consulente, o `""` = tutti */
   consulente: string;
+  /** «Ricontatti» (31/10/2026): i miei lead a data. Acceso/spento, esclusivo come gli altri. */
+  ricontatti: boolean;
+  /** Chi è dentro, come consulente (id di chi ha digitato il PIN), o `""` se non lo è. NON è un
+   *  filtro e non si salva: lo mette la pagina (`filtriValidi`) a ogni disegno. Serve a «Ricontatti». */
+  io: string;
 }
 
 export const FILTRI_VUOTI: FiltriChat = {
@@ -61,16 +67,20 @@ export const FILTRI_VUOTI: FiltriChat = {
   acconto: false,
   tipo: null,
   consulente: "",
+  ricontatti: false,
+  io: "",
 };
 
-export type CampoFiltro = keyof FiltriChat;
+/** I campi che sono filtri (`io` no: dice chi sei, non cosa mostrare). */
+export type CampoFiltro = Exclude<keyof FiltriChat, "io">;
 
 /** Quello che serve di una chat per filtrarla (la riga di `ChatItem`, in piccolo). */
-export type ChatFiltrabile = Parameters<typeof passaFiltro>[0] & {
-  phone: string;
-  daRispondere?: { attesa?: boolean } | null;
-  lead?: { data?: { consulenteId?: string | null } | null } | null;
-};
+export type ChatFiltrabile = Parameters<typeof passaFiltro>[0] &
+  ChatRicontatto & {
+    phone: string;
+    daRispondere?: { attesa?: boolean } | null;
+    lead?: { data?: { consulenteId?: string | null } | null } | null;
+  };
 
 /** Le stelle di una chat (0-3): le dà `useStelle`. */
 export type StelleDi = (phone: string) => number;
@@ -94,10 +104,20 @@ export interface GruppoFiltri {
   voci: VoceFiltro[];
 }
 
+/** «Ricontatti» (31/10/2026): i MIEI lead negli stati a data, tutti insieme, dalla data più recente.
+ *  Le regole stanno in ricontatti.ts. */
+export const VOCE_RICONTATTI: VoceFiltro = {
+  campo: "ricontatti",
+  valore: true,
+  nome: "Ricontatti",
+  spiega: "I tuoi lead da risentire, dalla data più recente.",
+};
+
 /** I gruppi del pannello, nell'ordine in cui si mostrano. «Altri stati» (dopo le due voci della
  *  fase) e il consulente non stanno qui: sono dinamici e li disegna il pannello. */
 export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
   {
+    //  Tutto nella riga delle scorciatoie: il pannello non lo ripete (vedi `voceInRiga`).
     id: "coda",
     titolo: "Cosa fare adesso",
     voci: [
@@ -124,59 +144,51 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
   },
   {
     id: "fase",
-    titolo: "Fase del lead",
+    titolo: "Stato",
     voci: [
       {
         campo: "fase",
         valore: "attesa-whatsapp",
         nome: "Attesa WhatsApp",
-        spiega: "Abbiamo scritto e aspettiamo la risposta del cliente.",
+        spiega: "Abbiamo scritto, aspettiamo la risposta.",
       },
       {
         campo: "fase",
         valore: "per-ora-no",
         nome: "Per ora no",
-        spiega: "Da non disturbare fino alla data indicata nella scheda.",
+        spiega: "Da non disturbare fino alla data in scheda.",
+      },
+      {
+        campo: "acconto",
+        valore: true,
+        nome: "Acconto versato",
+        spiega: "Hanno lasciato un acconto, in qualunque stato.",
       },
     ],
   },
   {
     id: "finestra",
-    titolo: "Appuntamenti fissati: finestra WhatsApp",
+    titolo: "Finestra 24h",
     voci: [
       {
         campo: "finestra",
         valore: "aperta",
         nome: "Si può scrivere",
-        spiega:
-          "Appuntamento fissato e il cliente ha scritto nelle ultime 24 ore: rispondi gratis.",
+        spiega: "Appuntamento fissato, ha scritto da meno di 24 ore.",
         segno: "verde",
       },
       {
         campo: "finestra",
         valore: "chiusa",
         nome: "Finestra chiusa",
-        spiega:
-          "Appuntamento fissato, ma sono passate 24 ore dall'ultimo messaggio del cliente: per scrivere serve un modello a pagamento, oppure il telefono.",
+        spiega: "Appuntamento fissato, 24 ore passate: serve un modello.",
         segno: "rosso",
       },
     ],
   },
   {
-    id: "pagamento",
-    titolo: "Pagamento",
-    voci: [
-      {
-        campo: "acconto",
-        valore: true,
-        nome: "Acconto versato",
-        spiega: "Hanno lasciato un acconto, in qualunque fase siano.",
-      },
-    ],
-  },
-  {
     id: "tipo",
-    titolo: "Tipo di contatto",
+    titolo: "Chi",
     voci: [
       {
         campo: "tipo",
@@ -194,9 +206,16 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
         campo: "tipo",
         valore: "cliente",
         nome: "Clienti",
-        spiega: "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
+        spiega:
+          "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
       },
     ],
+  },
+  {
+    //  Nella riga, non nel pannello.
+    id: "ricontatti",
+    titolo: "Ricontatti",
+    voci: [VOCE_RICONTATTI],
   },
 ];
 
@@ -216,14 +235,25 @@ export const VOCE_CLIENTI: VoceFiltro = {
   campo: "tipo",
   valore: "cliente",
   nome: "Clienti",
-  spiega: "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
+  spiega:
+    "Hanno comprato: acconto incassato, oppure posa nel nostro centro, a domicilio o da spedire.",
 };
 
 /** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
  *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere ·
- *  Da chiamare · Con stelle · Sconosciuti · Clienti. «Tutte» (spenti tutti i filtri) la disegna `ElencoChat`;
- *  qui ci sono le cinque voci vere. Il consulente sta nel pannello «Filtri». */
-export const VOCI_RIGA: readonly VoceFiltro[] = [...VOCI_GRIGLIA, VOCE_SCONOSCIUTI, VOCE_CLIENTI];
+ *  Da chiamare · Con stelle · Sconosciuti · Ricontatti · Clienti. «Tutte» (spenti tutti i filtri) la
+ *  disegna `ElencoChat`; qui ci sono le voci vere. Il consulente sta nel pannello «Filtri».
+ *  Il pannello NON ripete le voci della riga: vedi `voceInRiga`. */
+export const VOCI_RIGA: readonly VoceFiltro[] = [
+  ...VOCI_GRIGLIA,
+  VOCE_SCONOSCIUTI,
+  VOCE_RICONTATTI,
+  VOCE_CLIENTI,
+];
+
+/** La voce sta già nella riga delle scorciatoie? Allora il pannello non la ripete (31/10/2026). */
+export const voceInRiga = (v: Pick<VoceFiltro, "campo" | "valore">): boolean =>
+  VOCI_RIGA.some((r) => r.campo === v.campo && r.valore === v.valore);
 
 /** La voce di uno stato scelto da «Altri stati»: nome del CRM, nessuna spiegazione. */
 export const voceDelloStato = (stato: LeadStatus): VoceFiltro => ({
@@ -268,7 +298,10 @@ export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi
     if (!c.lead || !eConversione(c.lead as Pick<Lead, "data">)) return false;
   } else if (f.tipo && !passaFiltro(c, f.tipo === "con-scheda" ? "with-lead" : "unknown"))
     return false;
-  if (f.consulente && c.lead?.data?.consulenteId !== f.consulente) return false;
+  //  «Ricontatti»: solo i MIEI, per tutti e senza eccezioni (anche l'admin). Il menu del consulente
+  //  non si somma: scegliere un altro non mostra i suoi. Senza `io` non passa nessuno.
+  if (f.ricontatti && !eMioRicontatto(c, f.io)) return false;
+  if (f.consulente && !f.ricontatti && c.lead?.data?.consulenteId !== f.consulente) return false;
   return true;
 }
 
@@ -283,7 +316,7 @@ export function commuta(f: FiltriChat, campo: CampoFiltro, valore: string | true
   if (campo === "consulente")
     return { ...f, consulente: f.consulente === valore ? "" : String(valore) };
   if (eAcceso(f, campo, valore)) return { ...f, [campo]: FILTRI_VUOTI[campo] };
-  return { ...FILTRI_VUOTI, consulente: f.consulente, [campo]: valore };
+  return { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io, [campo]: valore };
 }
 
 /** Il gruppo `campo` torna spento. */
@@ -293,7 +326,9 @@ export function togli(f: FiltriChat, campo: CampoFiltro): FiltriChat {
 
 /** Quanti filtri sono accesi (il numero sul tasto «Filtri»). */
 export const contaAccesi = (f: FiltriChat): number =>
-  (Object.keys(FILTRI_VUOTI) as CampoFiltro[]).filter((k) => f[k] !== FILTRI_VUOTI[k]).length;
+  (Object.keys(FILTRI_VUOTI) as (keyof FiltriChat)[]).filter(
+    (k) => k !== "io" && f[k] !== FILTRI_VUOTI[k],
+  ).length;
 
 /** Quante chat vedresti se toccassi `campo = valore`: la voce da sola (sostituisce quella accesa) più
  *  il consulente (ricerca esclusa). Per il consulente stesso: la voce accesa resta. */
@@ -307,7 +342,7 @@ export function contaVoce(
   const prova = (
     campo === "consulente"
       ? { ...f, consulente: valore }
-      : { ...FILTRI_VUOTI, consulente: f.consulente, [campo]: valore }
+      : { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io, [campo]: valore }
   ) as FiltriChat;
   return chats.filter((c) => passaFiltri(c, prova, stelleDi)).length;
 }
@@ -342,6 +377,7 @@ export function etichetteAccese(
   };
   if (f.coda) out.push({ campo: "coda", etichetta: nomeDi("coda", f.coda) });
   if (f.stelle) out.push({ campo: "stelle", etichetta: "Con stelle" });
+  if (f.ricontatti) out.push({ campo: "ricontatti", etichetta: "Ricontatti" });
   if (f.fase) out.push({ campo: "fase", etichetta: nomeDi("fase", f.fase) });
   if (f.finestra) out.push({ campo: "finestra", etichetta: nomeDi("finestra", f.finestra) });
   if (f.acconto) out.push({ campo: "acconto", etichetta: "Acconto versato" });
@@ -365,20 +401,22 @@ const PRIORITA: readonly Exclude<CampoFiltro, "consulente">[] = [
   "coda",
   "tipo",
   "stelle",
+  "ricontatti",
 ];
 
 /** Filtri esclusivi: se ne sono accesi più d'uno (salvati da una versione che li combinava) ne resta
  *  uno solo, il più specifico. Il consulente non conta e non cambia. Non muta l'ingresso. */
 export function soloUno(f: FiltriChat): FiltriChat {
   const tenuto = PRIORITA.find((k) => f[k] !== FILTRI_VUOTI[k]);
-  const out: FiltriChat = { ...FILTRI_VUOTI, consulente: f.consulente };
+  const out: FiltriChat = { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io };
   if (tenuto) (out as unknown as Record<string, unknown>)[tenuto] = f[tenuto];
   return out;
 }
 
 /** Gli altri filtri, come stringa per `sessionStorage` (il consulente ha il suo posto). */
 export function scriviFiltriSessione(f: FiltriChat): string {
-  const { consulente: _consulente, ...resto } = f;
+  //  `io` non si salva: lo rimette la pagina a ogni disegno (chi è dentro può cambiare).
+  const { consulente: _consulente, io: _io, ...resto } = f;
   return JSON.stringify(resto);
 }
 
@@ -399,13 +437,22 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
     acconto: o.acconto === true,
     tipo:
       o.tipo === "con-scheda" || o.tipo === "senza-scheda" || o.tipo === "cliente" ? o.tipo : null,
+    ricontatti: o.ricontatti === true,
     consulente: typeof consulente === "string" ? consulente.slice(0, 80) : "",
+    io: "",
   });
 }
 
 /** Il consulente salvato esiste ancora? Se è stato cancellato il filtro non vale (e non si vede
  *  nemmeno: sarebbe un filtro acceso senza etichetta). Con l'elenco dei consulenti ancora vuoto
  *  (CRM che si carica) vale «tutti»: non si toglie niente dal salvataggio, solo dalla vista. */
-export function filtriValidi(f: FiltriChat, consulentiNoti: ReadonlySet<string>): FiltriChat {
-  return f.consulente && !consulentiNoti.has(f.consulente) ? { ...f, consulente: "" } : f;
+export function filtriValidi(
+  f: FiltriChat,
+  consulentiNoti: ReadonlySet<string>,
+  /** Chi è dentro come consulente (`useConsulenteCollegato`); omesso = nessuno. Lo mette qui, in un
+   *  posto solo, perché `passaFiltri` lo trovi in ogni conto («Ricontatti» è sempre «i miei»). */
+  io = "",
+): FiltriChat {
+  const valido = f.consulente && !consulentiNoti.has(f.consulente) ? { ...f, consulente: "" } : f;
+  return valido.io === io ? valido : { ...valido, io };
 }

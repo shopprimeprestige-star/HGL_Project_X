@@ -1,5 +1,8 @@
-/** ── IL PANNELLO «FILTRI» (30/10/2026) ──────────────────────────────────────
- *  Sei gruppi, ogni voce con il nome, una riga che spiega cosa significa e il numero.
+/** ── IL PANNELLO «FILTRI» (30/10/2026, SEMPLIFICATO IL 31/10/2026) ─────────
+ *  Titolare: «ora mi ci perdo dentro». Adesso: Stato · Finestra 24h · Consulente, e in fondo «Altri
+ *  filtri» chiuso (Con scheda e gli altri stati del CRM). Ogni voce ha il nome, una riga corta e il
+ *  numero. Quello che la riga di scorciatoie ha già non si ripete qui (`voceInRiga`, filtri.ts); un
+ *  solo «Azzera»; una riga dice cosa è acceso.
  *  Si applica subito (nessun «Applica»): «Mostra N chat» serve solo a chiudere.
  *  · Telefono (fino a 767 px): foglio dal basso, alto al massimo l'85% dello schermo, con
  *    intestazione e piede fissi e voci da 44 px.
@@ -24,9 +27,11 @@ import {
   commuta,
   contaAccesi,
   eAcceso,
+  etichetteAccese,
   FILTRI_VUOTI,
   GRUPPI_FILTRI,
   voceDelloStato,
+  voceInRiga,
   type CampoFiltro,
   type FiltriChat,
   type VoceFiltro,
@@ -147,8 +152,8 @@ export function PannelloFiltri(p: PropsPannelloFiltri) {
         {/*  Il titolo e la descrizione servono a chi usa lo screen reader; la ✕ del foglio sta
             a destra dell'intestazione (che le lascia lo spazio). */}
         <SheetDescription className="sr-only">
-          Scegli quali chat mostrare, un filtro alla volta: toccarne un altro sostituisce il
-          primo. Il consulente si somma.
+          Scegli quali chat mostrare, un filtro alla volta: toccarne un altro sostituisce il primo.
+          Il consulente si somma, tranne in «Ricontatti».
         </SheetDescription>
         {contenuto}
       </SheetContent>
@@ -260,9 +265,27 @@ function ContenutoPannello({
   onApri,
 }: PropsPannelloFiltri) {
   const accesi = contaAccesi(filtri);
-  //  «Altri stati» si apre da solo se uno è scelto, e resta aperto finché il pannello è lì.
+  const nomeConsulente = (id: string) => consulenti.find((x) => x.id === id)?.nome ?? "";
+
+  //  ── COSA SI VEDE (31/10/2026, «mi ci perdo dentro») ──────────────────────────────────────
+  //  Tre sezioni di uso quotidiano (Stato · Finestra 24h · Consulente) e il resto chiuso in «Altri
+  //  filtri». Quello che la riga di scorciatoie ha già (Da rispondere, Da chiamare, Con stelle,
+  //  Sconosciuti, Ricontatti, Clienti, e le pastiglie che arriveranno) qui NON si ripete: sta a un
+  //  tocco, sopra, e si accende da lì. Cosa sta in riga lo dice `voceInRiga`, non un secondo elenco.
+  const fuoriRiga = (id: string) =>
+    (GRUPPI_FILTRI.find((g) => g.id === id)?.voci ?? []).filter((v) => !voceInRiga(v));
+  const sezioni = ["coda", "fase", "finestra"]
+    .map((id) => ({ g: GRUPPI_FILTRI.find((x) => x.id === id), voci: fuoriRiga(id) }))
+    .filter((x) => x.g && x.voci.length > 0);
+  const vociAltre = fuoriRiga("tipo");
+  const statiAltri = altriStati.filter((s) => !voceInRiga(voceDelloStato(s.stato)));
+  const nelleAltre = vociAltre.length + statiAltri.length;
+
+  //  «Altri filtri» si apre da solo se dentro c'è un filtro acceso, e resta aperto finché il pannello è lì.
   const [altriAperti, setAltriAperti] = useState(false);
-  const altroScelto = filtri.fase?.startsWith("stato:") === true;
+  const altroScelto =
+    vociAltre.some((v) => eAcceso(filtri, v.campo, v.valore)) ||
+    statiAltri.some((s) => filtri.fase === `stato:${s.stato}`);
   const apertoAltri = altriAperti || altroScelto;
 
   const voce = (v: VoceFiltro) => (
@@ -275,9 +298,14 @@ function ContenutoPannello({
     />
   );
 
+  //  Cosa è acceso adesso, in una riga: chi ha scelto dalla riga di sopra lo ritrova qui.
+  const acceso = etichetteAccese(filtri, nomeConsulente)
+    .map((e) => e.etichetta)
+    .join(" · ");
+
   return (
     <>
-      {/*  Intestazione fissa. `pr-12` lascia posto alla ✕ del foglio sul telefono. */}
+      {/*  Intestazione fissa. `pr-12` lascia posto alla ✕ del foglio sul telefono. L'unico «Azzera». */}
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-2 pl-4 pr-12 lg:pr-4">
         <SheetTitleOrTesto />
         <button
@@ -296,84 +324,85 @@ function ContenutoPannello({
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
         <p className="t-nota -mb-1 text-muted-foreground">
-          Un filtro alla volta: scegliendone un altro, il primo si spegne. Il consulente si somma.
+          {!acceso
+            ? "Un filtro alla volta."
+            : contaAccesi({ ...filtri, consulente: "" }) > 0
+              ? `Acceso: ${acceso}. Un altro filtro lo sostituisce.`
+              : `Acceso: ${acceso}.`}
         </p>
-        {GRUPPI_FILTRI.map((g) => (
-          <Gruppo key={g.id} id={g.id} titolo={g.titolo}>
-            {g.voci.map(voce)}
-            {g.id === "fase" && (
-              <div className="flex flex-col gap-1.5">
-                <button
-                  type="button"
-                  aria-expanded={apertoAltri}
-                  aria-controls="filtri-altri-stati"
-                  onClick={() => setAltriAperti((v) => !v)}
-                  className={cn(
-                    "t-corpo flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 text-left font-medium hover:bg-muted",
-                    BORDO_TASTO,
-                    ALTEZZA_TASTO,
-                    FUOCO,
-                  )}
-                >
-                  <span>
-                    Altri stati{" "}
-                    <span className="tabular-nums text-muted-foreground">
-                      ({altriStati.length})
-                    </span>
-                  </span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform",
-                      apertoAltri && "rotate-180",
-                    )}
-                  />
-                </button>
-                {apertoAltri && (
-                  <div id="filtri-altri-stati" className="flex flex-col gap-1.5">
-                    {altriStati.length === 0 && (
-                      <p className="t-nota text-muted-foreground">Nessun altro stato ha chat.</p>
-                    )}
-                    {altriStati.map((s) => voce({ ...voceDelloStato(s.stato), nome: s.nome }))}
-                  </div>
-                )}
-              </div>
-            )}
+
+        {sezioni.map(({ g, voci }) => (
+          <Gruppo key={g!.id} id={g!.id} titolo={g!.titolo}>
+            {voci.map(voce)}
           </Gruppo>
         ))}
 
         {consulenti.length > 0 && (
           <Gruppo id="consulente" titolo="Consulente">
-            <label className="flex flex-col gap-1">
-              <span className="sr-only">Consulente</span>
-              {/*  Nativa: sul telefono apre la rotella di sistema, la più comoda col pollice.
-                  16 px dove si tocca, altrimenti iOS ingrandisce la pagina. */}
-              <select
-                value={filtri.consulente}
-                onChange={(e) => onCambia({ ...filtri, consulente: e.target.value })}
-                className={cn(
-                  "w-full rounded-md border bg-background px-2 text-base text-foreground lg:pointer-fine:text-[13px]",
-                  "h-11 lg:pointer-fine:h-8",
-                  filtri.consulente ? "border-primary" : BORDO_TASTO,
-                  FUOCO,
-                )}
-              >
-                <option value="">Tutti i consulenti</option>
-                {consulenti.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {`${x.nome} (${x.n})`}
-                  </option>
-                ))}
-              </select>
-              <span className="t-nota text-muted-foreground">
-                Mostra solo i clienti assegnati a quel consulente.
-              </span>
-            </label>
+            {filtri.ricontatti ? (
+              //  In «Ricontatti» vale solo chi è dentro: il menu non si somma, e lo si dice.
+              <p className="t-nota text-muted-foreground">In «Ricontatti» vedi solo i tuoi lead.</p>
+            ) : (
+              <label className="flex flex-col gap-1">
+                <span className="sr-only">Consulente</span>
+                {/*  Nativa: sul telefono apre la rotella di sistema, la più comoda col pollice.
+                    16 px dove si tocca, altrimenti iOS ingrandisce la pagina. */}
+                <select
+                  value={filtri.consulente}
+                  onChange={(e) => onCambia({ ...filtri, consulente: e.target.value })}
+                  className={cn(
+                    "w-full rounded-md border bg-background px-2 text-base text-foreground lg:pointer-fine:text-[13px]",
+                    "h-11 lg:pointer-fine:h-8",
+                    filtri.consulente ? "border-primary" : BORDO_TASTO,
+                    FUOCO,
+                  )}
+                >
+                  <option value="">Tutti i consulenti</option>
+                  {consulenti.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {`${x.nome} (${x.n})`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </Gruppo>
+        )}
+
+        {nelleAltre > 0 && (
+          <section className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              aria-expanded={apertoAltri}
+              aria-controls="filtri-altri"
+              onClick={() => setAltriAperti((v) => !v)}
+              className={cn(
+                "t-corpo flex w-full items-center justify-between gap-2 rounded-md border bg-background px-3 text-left font-medium hover:bg-muted",
+                BORDO_TASTO,
+                ALTEZZA_TASTO,
+                FUOCO,
+              )}
+            >
+              <span>
+                Altri filtri{" "}
+                <span className="tabular-nums text-muted-foreground">({nelleAltre})</span>
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                className={cn("h-4 w-4 shrink-0 transition-transform", apertoAltri && "rotate-180")}
+              />
+            </button>
+            {apertoAltri && (
+              <div id="filtri-altri" className="flex flex-col gap-1.5">
+                {vociAltre.map(voce)}
+                {statiAltri.map((s) => voce({ ...voceDelloStato(s.stato), nome: s.nome }))}
+              </div>
+            )}
+          </section>
         )}
       </div>
 
-      {/*  Piede fisso. */}
+      {/*  Piede fisso: chiude il pannello, dicendo cosa vedrai. */}
       <div className="shrink-0 border-t border-border bg-white p-3">
         <button
           type="button"

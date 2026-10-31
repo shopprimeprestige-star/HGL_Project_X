@@ -253,6 +253,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     acconto: false,
     tipo: null,
     consulente: "",
+    ricontatti: false,
+    io: "",
   });
   c(
     "soloUno: più filtri → ne resta uno, il più specifico (fase prima di coda), consulente intatto",
@@ -416,13 +418,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   gruppo("FILTRI CHAT: NOMI, SPIEGAZIONI, ORDINE DEI GRUPPI");
   c(
     "i gruppi del pannello, in ordine",
-    [
-      "Cosa fare adesso",
-      "Fase del lead",
-      "Appuntamenti fissati: finestra WhatsApp",
-      "Pagamento",
-      "Tipo di contatto",
-    ],
+    //  31/10/2026 (pannello più semplice): titoli brevi, «Pagamento» confluito in «Stato», «Ricontatti» in coda.
+    ["Cosa fare adesso", "Stato", "Finestra 24h", "Chi", "Ricontatti"],
     F.GRUPPI_FILTRI.map((g) => g.titolo),
   );
   c(
@@ -644,8 +641,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Clienti",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Clienti"],
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Clienti",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Clienti"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
   {
