@@ -1546,7 +1546,26 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
           ? {}
           : { authorization: `Bearer ${o.chiave ?? "chiave-pubblicabile-di-prova"}` },
       });
-      const { esito: r, log } = await conLog(() => hookH.POST({ request }));
+      //  L'hook decide gli orfani dal minuto (`% 30`) con `new Date()`: con l'orologio vero la prova
+      //  falliva ai minuti 0 e 30 (chiamate in più nel database finto). Si ferma l'ora per la sola
+      //  chiamata (default: minuto 7, mai multiplo di 30); la produzione non cambia.
+      const DataVera = globalThis.Date;
+      const t = Date.UTC(2026, 10, 1, 10, o.minuto ?? 7, 7);
+      globalThis.Date = class extends DataVera {
+        constructor(...a) {
+          super(...(a.length ? a : [t]));
+        }
+        static now() {
+          return t;
+        }
+      };
+      let esito;
+      try {
+        esito = await conLog(() => hookH.POST({ request }));
+      } finally {
+        globalThis.Date = DataVera;
+      }
+      const { esito: r, log } = esito;
       return { r, json: await r.json(), log, m: globalThis.__mondoAzioni };
     };
     const h0 = await HOOK({ senza: true });
@@ -1608,6 +1627,14 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
         ["ponte_wa_media_scadute", "ponte_wa_media_ancora_scadute"],
       ],
       [hk.r.status, hk.json, hk.m.rimossi, hk.m.rpc.map((y) => y.fn)],
+    );
+    //  Regressione dell'orologio: ai minuti 0 e 30 l'hook fa anche pulizia e orfani; gli altri minuti no.
+    const hm = await HOOK({ minuto: 30 });
+    const h7 = await HOOK({ minuto: 7 });
+    c(
+      "hook, orologio fermo: minuto 30 → anche pulizia e orfani; minuto 7 → solo il giro delle scadute",
+      [["ponte_wa_media_scadute", "ponte_wa_media_pulizia", "ponte_wa_media_orfani"], ["ponte_wa_media_scadute"]],
+      [hm.m.rpc.map((y) => y.fn), h7.m.rpc.map((y) => y.fn)],
     );
     c(
       "hook: il corpo della risposta ha solo numeri",
