@@ -18,7 +18,8 @@ const leads = [
   lead("3", "Carla", "m", "16:00"),
   lead("4", "Dario", "s", "17:30"),
 ];
-const valore = { leads, consultants, loading: false, updateLead: async () => true, createLead: async () => null, adSpending: [] };
+const valore = { leads, consultants, loading: false, updateLead: async (id: string, patch: unknown) =>
+    (window as unknown as { __updateLead?: (i: string, p: unknown) => Promise<boolean> }).__updateLead?.(id, patch) ?? true, createLead: async () => null, adSpending: [] };
 export const useCRM = () => valore as never;
 
 const consulente = come === "titolare" ? null : { id: "m", nome: "Mirko", iniziali: "M", token: "t" };
