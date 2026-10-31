@@ -730,7 +730,8 @@ const MODULI = [
   //  Le immagini del ponte (commessa 2026-10-30-ponte-storico-completo, T5): contratti e logica
   //   del server. Entrano nel pacchetto quando il file esiste; prove in prove/ponte/immagini-*.mjs,
   //   chiamate da `proveDelPonte`.
-  ...["ponte/media-tipi", "ponte/media"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
+  //  31/10 (commessa 2026-10-31-media-e-archiviazione): anche le azioni (timer, «Mostra», libera, hook delle scadenze).
+  ...["ponte/media-tipi", "ponte/media", "ponte/media-azioni-tipi", "ponte/media-azioni"].filter((m) => existsSync(join(radice, `src/crm/${m}.ts`))),
   //  Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale):
   //   contratti e regole pure; `ponte/invio-giro` e `chatwa/invioPonte` entrano
   //   nel pacchetto quando il file esiste (li crea il loro compito). Prove in

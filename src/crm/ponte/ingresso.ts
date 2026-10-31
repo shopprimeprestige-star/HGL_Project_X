@@ -40,6 +40,13 @@
  *  carico, i byte non passano di qui. Senza `media` quei due `tipo` sono corpo non
  *  valido, come prima.
  *
+ *  «Mostra» dal segnaposto (commessa 2026-10-31-media-e-archiviazione, T3). Se la richiesta porta
+ *  `mediaAzioni` (le `PorteMediaAzioni`), `tipo` `media_prendi` ({ v: 1, tipo, max }) e `media_esito`
+ *  ({ v: 1, tipo, chiave, esito }) vanno a `gestisciMacMedia` (`media-azioni.ts`), e il battito
+ *  risponde anche `media_v: 2`, `media_auto` e, solo se > 0, `media_richieste` (solo se c'è anche la
+ *  porta `media`). Senza le porte quei `tipo` sono corpo non valido e la risposta al battito è
+ *  IDENTICA a quella di prima.
+ *
  *  Le revoche (commessa 2026-10-31, ponte-revoche). Se la richiesta porta `revoche` (le
  *  `PorteRevoche`), `tipo` `revoca` ({ v: 1, tipo, chiave `bw:<cifre>:<id>` }) marca come eliminata
  *  la riga del ponte con quella chiave e il suo pari ManyChat/CRM, senza cancellare niente. Come per
@@ -49,6 +56,8 @@ import { leggiCorpoLimitato, stessaChiave } from "../manychat/ritorno";
 import { gestisciPonte } from "./invio-giro";
 import type { PorteInvio } from "./invio-tipi";
 import { gestisciMedia } from "./media";
+import { campiBattitoMedia, gestisciMacMedia } from "./media-azioni";
+import type { PorteMediaAzioni } from "./media-azioni-tipi";
 import type { PorteMedia } from "./media-tipi";
 import { abbinaPari } from "./pari";
 import {
@@ -481,6 +490,7 @@ export async function gestisciRichiesta(
     invii?: PorteInvio;
     avvisa?: AvvisaEntrate;
     media?: PorteMedia;
+    mediaAzioni?: PorteMediaAzioni;
     revoche?: PorteRevoche;
   },
 ): Promise<Response> {
@@ -514,10 +524,12 @@ export async function gestisciRichiesta(
   const invio = !!i.invii && (tipo === "prendi" || tipo === "esito");
   //  Lo stesso per i media: senza la porta `media` non esistono.
   const immagine = !!i.media && (tipo === "media_permesso" || tipo === "media_fatto");
+  //  «Mostra»: `media_prendi` e `media_esito` esistono solo con la porta `mediaAzioni`.
+  const azioneMedia = !!i.mediaAzioni && (tipo === "media_prendi" || tipo === "media_esito");
   //  Le revoche: senza la porta `revoche` il tipo non esiste (corpo non valido, come prima).
   const chiaveRevoca = i.revoche && tipo === "revoca" ? leggiRevoca(json) : null;
   const numeri = tipo === "noti" ? leggiNoti(json) : null;
-  if (!lotto && !battito && !invio && !immagine && !numeri && !chiaveRevoca) {
+  if (!lotto && !battito && !invio && !immagine && !azioneMedia && !numeri && !chiaveRevoca) {
     porte.avviso("corpo_non_valido");
     return errore("corpo_non_valido");
   }
@@ -538,6 +550,7 @@ export async function gestisciRichiesta(
     }
     if (invio) return await gestisciPonte(i.invii!, userId, json, i.adesso);
     if (immagine) return await gestisciMedia(i.media!, userId, json);
+    if (azioneMedia) return await gestisciMacMedia(i.mediaAzioni!, userId, json);
     if (chiaveRevoca) {
       const e = await i.revoche!.revoca(userId, chiaveRevoca);
       const esito = { trovate: intero(e?.trovate), marcate: intero(e?.marcate) };
@@ -563,12 +576,14 @@ export async function gestisciRichiesta(
     //  Quante righe aspettano: il Mac chiede la coda solo se > 0. Con la coda
     //  vuota (o la tabella assente) la risposta resta quella di sempre.
     const inAttesa = i.invii ? await i.invii.inAttesa(userId).catch(() => 0) : 0;
-    return risposta(
-      200,
-      inAttesa > 0
-        ? { ok: true, riconciliati, invii_in_attesa: inAttesa }
-        : { ok: true, riconciliati },
-    );
+    //  I campi dei media (`media_v`, `media_richieste`, `media_auto`): solo con le due porte; non lanciano.
+    const media = i.media && i.mediaAzioni ? await campiBattitoMedia(i.mediaAzioni, userId) : {};
+    return risposta(200, {
+      ok: true,
+      riconciliati,
+      ...(inAttesa > 0 ? { invii_in_attesa: inAttesa } : {}),
+      ...media,
+    });
   } catch (e) {
     porte.avviso(funzioniAssenti(e) ? "funzioni_assenti" : "database");
     return errore("database");

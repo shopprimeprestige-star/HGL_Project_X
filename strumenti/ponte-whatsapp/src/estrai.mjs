@@ -29,6 +29,8 @@
  *   I motivi di scarto sono parole fisse, buone per i contatori dei log.
  *  ───────────────────────────────────────────────────────────────────────── */
 
+import { normalizzaMime } from "./firma.mjs";
+
 /** Copie dei limiti di `src/crm/ponte/tipi.ts` (`LIMITI`, `TS_MINIMO`): il
  *  servizio è JavaScript senza build e non importa il TypeScript del CRM. Le
  *  prove confrontano i valori. */
@@ -244,6 +246,8 @@ function durataVocale(seconds) {
   return ` ${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
+/** Il nome di un file senza i caratteri che girano il testo (U+202A–202E, U+2066–2069): «fattura‮fdp.exe» non si spaccia per un pdf. */
+const senzaBidi = (x) => (typeof x === "string" ? x.replace(/[\u202a-\u202e\u2066-\u2069]/g, "") : x);
 const conDidascalia = (base, didascalia) => (testoPieno(didascalia) ? `${base}: ${testoPieno(didascalia)}` : base);
 
 /** Il testo leggibile di un `TemplateMessage` (anche quello dentro un
@@ -383,7 +387,7 @@ function contenuto(message) {
       return { tipo: "video", testo: conDidascalia(SEGNAPOSTO.video, v?.caption) };
     case "documentMessage": {
       // «📎 Documento: <nome file>», poi la didascalia se c'è
-      const conNome = conDidascalia(SEGNAPOSTO.documento, v?.fileName ?? v?.title);
+      const conNome = conDidascalia(SEGNAPOSTO.documento, senzaBidi(v?.fileName ?? v?.title));
       return { tipo: "documento", testo: conDidascalia(conNome, v?.caption) };
     }
     case "stickerMessage":
@@ -507,20 +511,91 @@ export function revocaDaAggiornamento(voce, opzioni = {}) {
   return chiaveDiRevoca(voce.key, voce.key?.id, opzioni);
 }
 
-/** Da un `WAMessage` con una foto vera a `{ chiave, ts, immagine }` per `immagini.mjs`,
- *  oppure null. Passa da `leggiMessaggio` (stesse regole di chat, numero, orario e
- *  taglio), quindi la chiave `bw:<numero>:<id>` è quella con cui la riga di testo
- *  entra nel CRM. `immagine` è l'`imageMessage` com'è: NON è controllato qui (lo
- *  fa `validaOrigine` di `immagini.mjs`, prima di ogni richiesta).
- *  «Visualizza una volta» (involucro `viewOnce*` o flag `viewOnce`) non si scarica:
- *  il mittente l'ha mandata per essere vista una volta sola. */
-export function immagineDa(wamsg, opzioni = {}) {
+/** Il tipo del messaggio (`leggiMessaggio`) → categoria dei media e chiave del proto che li porta
+ *  (PIANO a.1). Il vocale e l'audio sono la stessa categoria. Sticker, posizioni, contatti e il
+ *  videomessaggio rotondo (`ptvMessage`) non ci sono: restano segnaposto. */
+const MEDIA_DEL_TIPO = {
+  foto: ["foto", "imageMessage"],
+  vocale: ["audio", "audioMessage"],
+  audio: ["audio", "audioMessage"],
+  video: ["video", "videoMessage"],
+  documento: ["documento", "documentMessage"],
+};
+
+/** Il nome di un documento come arriva al catalogo e alla chat: via i caratteri di controllo, gli
+ *  invisibili che girano il testo (U+202A–202E, U+2066–2069: «fattura‮fdp.exe» non si spaccia per un
+ *  pdf), le barre `/` e `\`; spazi attorno tolti, al più 120 caratteri. Vuoto → null. */
+function nomeDocumento(x) {
+  if (typeof x !== "string") return null;
+  const pulito = x.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069/\\]/g, "").trim();
+  return taglia(pulito, 120) || null;
+}
+
+/** La miniatura JPEG di WhatsApp in base64, solo se è un JPEG piccolo (≤ 12.000 caratteri base64, come il
+ *  CHECK della tabella), altrimenti null. */
+function miniaturaDa(x) {
+  if (!(x instanceof Uint8Array) || x.length < 4 || x.length > 9000 || x[0] !== 0xff || x[1] !== 0xd8 || x[2] !== 0xff) return null;
+  return Buffer.from(x).toString("base64");
+}
+
+/** I dati di un media utili a ridisegnare la bolla e a decidere il permesso: nessun segreto qui dentro
+ *  (la `mediaKey` e il `directPath` restano nel messaggio). Le voci che mancano non compaiono. */
+function dettagliDi(categoria, media) {
+  const d = {};
+  const mime = normalizzaMime(categoria, media.mimetype);
+  if (mime) d.mime = mime;
+  const byte = interoDa(media.fileLength);
+  if (byte !== null && byte > 0) d.byte = byte;
+  if (categoria === "documento") {
+    const nome = nomeDocumento(media.fileName) ?? nomeDocumento(media.title);
+    if (nome) d.nome = nome;
+  }
+  if (categoria === "audio" || categoria === "video") {
+    const durata = interoDa(media.seconds);
+    if (durata !== null && durata > 0) d.durata_s = durata;
+  }
+  if (categoria === "foto" || categoria === "video") {
+    const larghezza = interoDa(media.width);
+    const altezza = interoDa(media.height);
+    if (larghezza !== null && larghezza > 0) d.larghezza = larghezza;
+    if (altezza !== null && altezza > 0) d.altezza = altezza;
+  }
+  if (categoria !== "audio") {
+    const miniatura = miniaturaDa(media.jpegThumbnail);
+    if (miniatura) d.miniatura = miniatura;
+  }
+  return d;
+}
+
+/** Da un `WAMessage` con un media vero (foto, audio/vocale, video, documento) a
+ *  `{ chiave, ts, categoria, media, dettagli }` per il catalogo e la coda, oppure null. Passa da
+ *  `leggiMessaggio` (stesse regole di chat, numero, orario e taglio), quindi la chiave `bw:<numero>:<id>`
+ *  è quella con cui la riga di testo entra nel CRM. `media` è il messaggio del proto (`imageMessage`…)
+ *  com'è: NON è controllato qui (origine, tipo e peso li controlla `immagini.mjs`, prima di ogni richiesta);
+ *  `dettagli` = `{ mime?, byte?, nome?, durata_s?, larghezza?, altezza?, miniatura? }`, con il `mime`
+ *  già normalizzato (assente se non è nell'elenco della categoria).
+ *  Non si scarica: «visualizza una volta» (involucro `viewOnce*` o flag `viewOnce`) e un documento il cui
+ *  mime non è un documento ammesso: un `documentMessage` con mime immagine è un SEGNAPOSTO, non una foto
+ *  (la chiave di decifratura dipende dal tipo del messaggio, `document`, non dal mime). */
+export function mediaDa(wamsg, opzioni = {}) {
   const r = leggiMessaggio(wamsg, opzioni);
-  if (!r.ok || r.messaggio.tipo !== "foto") return null;
+  if (!r.ok) return null;
+  const voce = MEDIA_DEL_TIPO[r.messaggio.tipo];
+  if (!voce) return null;
+  const [categoria, chiaveProto] = voce;
   const visti = [];
-  const immagine = apri(wamsg.message, visti)?.imageMessage;
-  if (!immagine || typeof immagine !== "object" || immagine.viewOnce === true || visti.some((k) => k.startsWith("viewOnce"))) return null;
-  return { chiave: `bw:${r.messaggio.numero}:${r.messaggio.id}`, ts: r.messaggio.ts, immagine };
+  const media = apri(wamsg.message, visti)?.[chiaveProto];
+  if (!media || typeof media !== "object" || media.viewOnce === true || visti.some((k) => k.startsWith("viewOnce"))) return null;
+  const dettagli = dettagliDi(categoria, media);
+  if (categoria === "documento" && !dettagli.mime) return null;
+  return { chiave: `bw:${r.messaggio.numero}:${r.messaggio.id}`, ts: r.messaggio.ts, categoria, media, dettagli };
+}
+
+/** Da un `WAMessage` con una foto vera a `{ chiave, ts, immagine }` per `immagini.mjs`, oppure null:
+ *  `mediaDa` ristretta alle foto (stesse regole di sempre). `immagine` è l'`imageMessage` com'è. */
+export function immagineDa(wamsg, opzioni = {}) {
+  const m = mediaDa(wamsg, opzioni);
+  return m?.categoria === "foto" ? { chiave: m.chiave, ts: m.ts, immagine: m.media } : null;
 }
 
 /** I nomi dai contatti dello storico (`messaging-history.set` → `contacts`):

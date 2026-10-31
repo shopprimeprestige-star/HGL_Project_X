@@ -18,6 +18,11 @@
 # a mano: PONTE_NODE=/percorso/bin/node ./installa.sh. Non installa niente.
 #
 # Aggiornare non tocca auth/ (la sessione), fila/ né config.env.
+#
+# Time Machine: la cartella dati del ponte (sessione di WhatsApp in auth/, catalogo dei media in media/,
+# config.env) viene ESCLUSA dai backup con `tmutil addexclusion`. Conseguenza, da conoscere: se il Mac si
+# perde o si cancella, il ponte non si ripristina da un backup e va ricollegato con un codice QR nuovo.
+# Se l'esclusione non riesce, l'installazione va avanti lo stesso e lo dice.
 set -euo pipefail
 
 ETICHETTA="it.hgl.ponte-whatsapp"
@@ -125,6 +130,22 @@ chiedi_chiave() {
   echo "config.env scritto (permessi 600). La chiave non è stata mostrata."
 }
 
+# Time Machine non deve copiare la sessione (auth/) né il catalogo dei media (media/catalogo): si esclude la
+# cartella dati intera (con le cartelle future, come auth.scollegato-…). Senza -p: non serve l'amministratore.
+# Non è mai un errore: senza tmutil o se fallisce, si dice e si va avanti.
+escludi_dai_backup() {
+  if ! command -v tmutil >/dev/null 2>&1; then
+    echo "Backup: tmutil non c'è su questo Mac, la cartella dati non è stata esclusa da Time Machine." >&2
+    return 0
+  fi
+  if tmutil addexclusion "$BASE" >/dev/null 2>&1; then
+    echo "Backup: la cartella dati del ponte è esclusa da Time Machine (un Mac perso richiede un codice QR nuovo)."
+  else
+    echo "Backup: non sono riuscito a escluderla da Time Machine; puoi farlo a mano: tmutil addexclusion \"$BASE\"" >&2
+  fi
+  return 0
+}
+
 scrivi_plist() {
   local node="$1"
   "$node" -e '
@@ -148,6 +169,7 @@ installa() {
   umask 077
   mkdir -p "$BASE/auth" "$BASE/fila" "$(dirname "$LOG")" "$(dirname "$PLIST")"
   chmod 700 "$BASE" "$BASE/auth" "$BASE/fila"
+  escludi_dai_backup
 
   NUOVA="$BASE/app.nuova"
   rm -rf "$NUOVA"

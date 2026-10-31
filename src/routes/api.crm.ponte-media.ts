@@ -1,10 +1,14 @@
 /** ─────────────────────────────────────────────────────────────────────────
- *  LEGGERE UNA FOTO DEL PONTE WHATSAPP (LINK A TEMPO)
+ *  LEGGERE UN MEDIA DEL PONTE WHATSAPP (LINK A TEMPO)
  *
- *  Commessa 2026-10-30-ponte-storico-completo, compito T5 (PIANO c.3 punto 4).
- *  GET /api/crm/ponte-media?id=<uuid>.<ext> → { ok:true, url } con un link di
- *  Storage che vale 300 secondi, oppure { ok:false, motivo } con lo stato HTTP
- *  del motivo (400, 403, 404, 500, 503). `id` è il nome casuale del file in
+ *  Commessa 2026-10-30-ponte-storico-completo, compito T5 (PIANO c.3 punto 4),
+ *  estesa il 31/10 (commessa 2026-10-31-media-e-archiviazione, compito T2).
+ *  GET /api/crm/ponte-media?id=<uuid>.<ext>[&uso=vedi|video|apri] → { ok:true, url }
+ *  con un link di Storage che vale 300 secondi (il video 1.800), oppure
+ *  { ok:false, motivo } con lo stato HTTP del motivo (400, 403, 404, 500, 503).
+ *  Senza `uso` vale «vedi» (foto e vocali): la chiamata di prima non cambia.
+ *  `uso` è verificato contro la categoria della riga; `Content-Disposition`
+ *  (PDF inline, il resto allegato) lo decide il server dal mime, mai il browser. `id` è il nome casuale del file in
  *  Storage: nell'indirizzo (e quindi nei log di accesso) non c'è il numero del
  *  cliente. 503 `storage` = guasto passeggero di Storage (la chat lascia Riprova). La logica sta in
  *  `crm/ponte/media.ts` (provata con porte finte); la foto la carica il Mac,
@@ -44,9 +48,11 @@ export const Route = createFileRoute("/api/crm/ponte-media")({
       GET: async ({ request }) => {
         const g = await guardiaCRM(request, cors, null);
         if (!g.ok) return g.risposta;
+        const url = new URL(request.url);
         const r = await gestisciLettura(porteMedia(), {
           adminUserId: g.chi.adminUserId,
-          id: new URL(request.url).searchParams.get("id"),
+          id: url.searchParams.get("id"),
+          uso: url.searchParams.get("uso"),
         });
         return json(r.corpo, r.stato);
       },
