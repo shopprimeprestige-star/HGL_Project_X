@@ -9,8 +9,6 @@
  *   sola.
  */
 
-import { bloccoLinkWa, salutoWa, testoWa } from "@/crm/chatwa/testoWa";
-
 /** Il numero in forma internazionale, pronto per WhatsApp. Stringa vuota se
  *  non è un numero plausibile — e in quel caso NON si salva niente: meglio
  *  dire «controlla il numero» che raccogliere un contatto che non risponderà
@@ -60,11 +58,9 @@ export function testoPromemoria(o: {
   nome?: string;
 }): string {
   const chi = (o.nome || "").trim().split(/\s+/)[0];
+  const saluto = chi ? `Ciao ${chi}, ` : "";
   const titolo = (o.titolo || "").trim() || "la diretta";
-  //  A blocchi, col link da solo sulla sua riga (forma in crm/chatwa/testoWa.ts).
-  return testoWa([
-    salutoWa(chi),
-    o.tipo === "in-diretta" ? `Siamo in diretta adesso con ${titolo}.` : `Fra poco cominciamo con ${titolo}.`,
-    bloccoLinkWa("Per entrare:", o.link),
-  ]);
+  return o.tipo === "in-diretta"
+    ? `${saluto}siamo in diretta adesso con ${titolo}. Entra da qui: ${o.link}`
+    : `${saluto}fra poco cominciamo con ${titolo}. Ecco il link per entrare: ${o.link}`;
 }

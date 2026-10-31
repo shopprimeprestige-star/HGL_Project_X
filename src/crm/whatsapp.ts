@@ -599,7 +599,7 @@ export const MODELLI_ORIGINALI: Record<ChiaveModello, string> = {
   //  "Partner" e non "moglie/compagno": chi decide insieme a qualcuno lo sa da
   //  sé, e "partner" non sbaglia mai destinatario.
   promemoria:
-    "Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — ti ricordo il nostro appuntamento di {quando|oggi}.\n\nPer collegarti:\n{link|te lo mando poco prima}\n\nSe puoi, collegati da un posto tranquillo e con una buona connessione. Se possibile, anche insieme al tuo partner.\n\nMi confermi che ci sei?",
+    "Ciao {nome}, sono {consulente|un consulente} di Hair Genius Labs — ti ricordo il nostro appuntamento di {quando|oggi}.\n\nPer collegarti:\n{link|Il link per collegarti te lo mando poco prima.}\n\nSe puoi, collegati da un posto tranquillo e con una buona connessione. Se possibile, anche insieme al tuo partner.\n\nMi confermi che ci sei?",
 
   /*  ── ⚠️ IL PROMEMORIA DI CHI VIENE DA NOI ───────────────────────────────
       Niente link e niente «collegati»: questa persona prende la macchina.
@@ -847,17 +847,34 @@ export function componiMessaggio(
   const righe = base.split("\n");
   const tenute: string[] = [];
 
+  //  ── L'INTRODUZIONE DEL LINK NON RESTA APPESA (31/10/2026) ───────────────
+  //  «Per collegarti:» e il link sulla riga dopo (forma in chatwa/testoWa.ts).
+  //  Se quella riga cade (segnaposto facoltativo vuoto) o diventa il ripiego
+  //  («Il link per collegarti te lo mando poco prima.»), l'introduzione che la
+  //  precede — una riga sola, senza segnaposto, che finisce con «:» — va via
+  //  con lei: altrimenti resterebbe «Lo trova qui:» seguito dal nulla.
+  const eIntroduzione = (riga: string | undefined) =>
+    riga !== undefined && /^[^{}]*:\s*$/.test(riga) && riga.trim() !== ":";
+  let precedente: string | undefined;
   for (const riga of righe) {
     let saltaRiga = false;
+    let usataRiserva = false;
     const composta = riga.replace(RE_SEGNAPOSTO, (intero, chiave: string, riserva?: string) => {
       if (!CONOSCIUTI.has(chiave)) return intero; // sconosciuto: resta com'è, e si vede
       const valore = (valori[chiave as keyof ValoriMessaggio] ?? "").toString().trim();
       if (valore) return valore;
-      if (riserva !== undefined) return riserva;
+      if (riserva !== undefined) {
+        usataRiserva = true;
+        return riserva;
+      }
       if (FACOLTATIVI.has(chiave)) saltaRiga = true;
       return "";
     });
+    //  Vale solo se il segnaposto è TUTTA la riga: dentro una frase non c'è introduzione da togliere.
+    const soloSegnaposto = /^\s*\{[a-zA-Z]+(?:\|[^{}]*)?\}\s*$/.test(riga);
+    if ((saltaRiga || usataRiserva) && soloSegnaposto && eIntroduzione(precedente)) tenute.pop();
     if (!saltaRiga) tenute.push(composta);
+    precedente = riga;
   }
 
   return (

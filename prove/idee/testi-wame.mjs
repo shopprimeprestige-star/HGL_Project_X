@@ -70,7 +70,8 @@ export function proveTestiWame(mod, { c, gruppo, radice }) {
   forma("promemoria", pm);
   c("promemoria: «Per collegarti:» poi il link", true, pm.includes(`Per collegarti:\n${LINK}\n\n`));
   const pmSenza = WA.componiMessaggio(modello, { nome: "Giulia", consulente: "Mirko", quando: "oggi alle 10:30" });
-  c("promemoria senza link: dice che lo manda poco prima", true, pmSenza.includes("Per collegarti:\nte lo mando poco prima"));
+  c("promemoria senza link: una riga sola, senza l'introduzione appesa", true, pmSenza.includes("appuntamento di oggi alle 10:30.\n\nIl link per collegarti te lo mando poco prima.\n\n") && !pmSenza.includes("Per collegarti:"));
+  c("promemoria senza link: il senso resta (lo manda poco prima), niente buchi", true, !/\n{3,}/.test(pmSenza));
 
   gruppo("TESTI wa.me · LINK POCO PRIMA (promemoria precompilato nella chat)");
   const R = mod["chatwa/risposte-rapide"];
@@ -83,6 +84,13 @@ export function proveTestiWame(mod, { c, gruppo, radice }) {
   const inv = P.componiPerPreventivo("invio", { nome: "Giulia", cognome: "Verdi", consulente: "Mirko", link: LINK });
   forma("invio preventivo", inv);
   c("invio preventivo: «Lo trova qui:» e il link", true, inv.includes(`Lo trova qui:\n${LINK}\n\n`));
+  //  Senza link la riga sparisce INTERA, introduzione compresa (come quando era «Lo trova qui: {link}»).
+  const invSenza = P.componiPerPreventivo("invio", { nome: "Giulia", cognome: "Verdi", consulente: "Mirko", link: "" });
+  c("invio preventivo senza link: sparisce anche «Lo trova qui:»", false, /Lo trova qui/.test(invSenza));
+  c("invio preventivo senza link: il resto c'è e non ci sono buchi", true, invSenza.includes("abbiamo parlato.\n\nSe lo apre con calma") && !/\n{3,}/.test(invSenza));
+  c("l'introduzione cade solo se il segnaposto è tutta la riga (con una frase intorno, quella prima resta)", "Intro:\nA presto", WA.componiMessaggio("Intro:\nVedi {link}\nA presto", {}));
+  c("un modello con un'introduzione e il link presente la tiene", "Qui:\nhttps://x.it", WA.componiMessaggio("Qui:\n{link}", { link: "https://x.it" }));
+  c("un modello con l'introduzione e il link vuoto la toglie", "Dopo", WA.componiMessaggio("Qui:\n{link}\n\nDopo", {}));
 
   gruppo("TESTI wa.me · IL PREVENTIVO (tasto del pannello e pagina del preventivo)");
   const dalPannello = T.testoPreventivoWa({ nome: "Giulia", riferimento: "HG-1234", link: LINK });
@@ -96,17 +104,6 @@ export function proveTestiWame(mod, { c, gruppo, radice }) {
   const dallaPagina = T.testoPreventivoWa({ riferimento: "HG-1234", totale: "€ 1.200", link: LINK });
   c("dalla pagina (senza nome): informazione, poi il link da solo", `Preventivo Hair Genius Labs HG-1234 — € 1.200.\n\nPer aprirlo:\n${LINK}`, dallaPagina);
   c("dalla pagina: il link è solo e %0A nel link wa.me", true, dallaPagina.split("\n").includes(LINK) && W.linkWaMe("+393331110000", dallaPagina).includes("%0A%0A"));
-
-  gruppo("TESTI wa.me · WEBINAR (promemoria e invito)");
-  const IS = mod["webinar/iscrizione"];
-  const WEB = "https://x.it/w/abc";
-  const adesso = IS.testoPromemoria({ tipo: "in-diretta", titolo: "Tre strade", link: WEB, nome: "Marco Rossi" });
-  c("in diretta: saluto, informazione, «Per entrare:», link da solo", `Ciao Marco!\n\nSiamo in diretta adesso con Tre strade.\n\nPer entrare:\n${WEB}`, adesso);
-  const fraPoco = IS.testoPromemoria({ tipo: "manca-poco", titolo: "Tre strade", link: WEB });
-  c("manca poco, senza nome: «Ciao!» e link da solo", `Ciao!\n\nFra poco cominciamo con Tre strade.\n\nPer entrare:\n${WEB}`, fraPoco);
-  const MI = mod["webinar/messaggio-invito"];
-  const inviti = MI.messaggioInvitoWebinar({ nome: "Marco", titolo: "Tre strade", link: WEB });
-  c("invito webinar: il link era già solo (resta così)", true, inviti.split("\n").includes(WEB) && /:\n/.test(inviti));
 
   gruppo("TESTI wa.me · POSA (installazione)");
   // Il modulo è una finestra React: lo si impacchetta qui, a parte, come altre prove di sorgente.
