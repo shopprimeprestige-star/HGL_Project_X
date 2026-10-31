@@ -890,7 +890,10 @@ export function scadenzaInParole(scadeIl: string | null, adesso: number): string
   const s = Math.round((t - adesso) / 1000);
   if (s <= 0) return null;
   if (s < 60) return "Si elimina tra meno di 1 min";
-  if (s < 3600) return `Si elimina tra ${Math.ceil(s / 60)} min`;
-  if (s < 86400) return `Si elimina tra ${Math.ceil(s / 3600)} h`;
-  return `Si elimina tra ${Math.ceil(s / 86400)} g`;
+  //  Arrotondato al più vicino: subito dopo «1 ora» si legge «1 h», non «60 min».
+  const minuti = Math.round(s / 60);
+  if (minuti < 60) return `Si elimina tra ${minuti} min`;
+  const ore = Math.round(s / 3600);
+  if (ore < 24) return `Si elimina tra ${ore} h`;
+  return `Si elimina tra ${Math.round(s / 86400)} g`;
 }

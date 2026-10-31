@@ -64,6 +64,9 @@ import type { BollaProps } from "./tipi";
  *   va sempre `url.href` che ne torna, mai la stringa grezza. Niente HTML dal
  *   testo: sempre un nodo di testo. */
 
+/** Il nome di un documento nel segnaposto lo ha scelto il mittente: via i caratteri che invertono il verso del testo. */
+const senzaBidi = (t: string) => t.replace(/[\u202A-\u202E\u2066-\u2069]/g, "");
+
 /** L'ora del messaggio (sempre HH:MM: i giorni li separa la conversazione). */
 function ora(d: string): string {
   const data = new Date(d);
@@ -685,7 +688,7 @@ function BollaBase({
             media={media}
             g={g}
             inUscita={fromMe}
-            segnaposto={<p className={cn(TESTO, spazioOra(fromMe))}>{m.body ?? ""}</p>}
+            segnaposto={<p className={cn(TESTO, spazioOra(fromMe))}>{senzaBidi(m.body ?? "")}</p>}
             vocale={(p) => <Vocale {...p} />}
           />
         ) : fromMe ? (

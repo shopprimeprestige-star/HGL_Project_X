@@ -70,7 +70,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 export { React, renderToStaticMarkup };
 export { BollaMessaggio } from ${JSON.stringify(join(radice, "src/crm/chatwa/BollaMessaggio.tsx"))};
 export { VistaMediaPonte } from ${JSON.stringify(join(radice, "src/crm/chatwa/MediaPonte.tsx"))};
-export { FoglioMedia } from ${JSON.stringify(join(radice, "src/crm/chatwa/FoglioMedia.tsx"))};
+export { FoglioMedia, CorpoFoglio } from ${JSON.stringify(join(radice, "src/crm/chatwa/FoglioMedia.tsx"))};
 export * from ${JSON.stringify(join(radice, "src/crm/chatwa/usaMediaPonte.ts"))};
 export { osservaVisibile, osservatoriAttivi, contenitoreCheScorre, ATTESA_MS, MARGINE_PX } from ${JSON.stringify(join(radice, "src/crm/chatwa/usaVisibile.ts"))};`,
     );
@@ -101,7 +101,7 @@ export { osservaVisibile, osservatoriAttivi, contenitoreCheScorre, ATTESA_MS, MA
       ],
     });
     const U = richiedi(join(dir, "ui.cjs"));
-    const { React, renderToStaticMarkup, BollaMessaggio, VistaMediaPonte, FoglioMedia } = U;
+    const { React, renderToStaticMarkup, BollaMessaggio, VistaMediaPonte, CorpoFoglio } = U;
     const disegna = (el) => renderToStaticMarkup(el);
     const json = (o, status = 200) =>
       new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json" } });
@@ -884,6 +884,112 @@ export { osservaVisibile, osservatoriAttivi, contenitoreCheScorre, ATTESA_MS, MA
       let subito = 0;
       U.osservaVisibile({ parentElement: null }, () => subito++);
       c("senza IntersectionObserver si carica subito (come prima)", 1, subito);
+    }
+
+    /* ═══ Il disegno, categoria per categoria ═══ */
+    gruppo("PONTE · MEDIA · IL DISEGNO PER CATEGORIA (T8)");
+    {
+      const nulla = () => undefined;
+      const ID_OGG = `${uuid(20)}.ogg`;
+      const ID_MP4 = `${uuid(21)}.mp4`;
+      const ID_PDF = `${uuid(22)}.pdf`;
+      const RIGA = (o) => R({ stato: "pronta", byte: 1_300_000, ...o });
+      const vistaCat = (categoria, riga, fase = { fase: "pronta" }, extra = {}) => {
+        const chiamate = [];
+        const html = disegna(
+          React.createElement(VistaMediaPonte, {
+            media: { chiave: CH, categoria, didascalia: extra.didascalia ?? "" },
+            g: { fase, riga, richiedi: nulla, ricontrolla: nulla, segnaPerso: nulla },
+            segnaposto: React.createElement("p", null, "SEGNAPOSTO"),
+            inUscita: false,
+            vocale: (p) => (chiamate.push(p), React.createElement("div", { "data-vocale": p.seme }, "LETTORE")),
+          }),
+        );
+        return { html, chiamate };
+      };
+      // vocale: il lettore di BollaMessaggio riceve seme, mime e durata, e un `preparaUrl` (nessun indirizzo)
+      {
+        const { html, chiamate } = vistaCat("audio", RIGA({ id: ID_OGG, categoria: "audio", durata_s: 12 }));
+        c("vocale pronto: il lettore riceve nome del file, tipo, durata dalla riga e un preparaUrl", [1, ID_OGG, "audio/ogg; codecs=opus", 12, "function", "function"], [chiamate.length, chiamate[0].seme, chiamate[0].mime, chiamate[0].durataIniziale, typeof chiamate[0].preparaUrl, typeof chiamate[0].scarica]);
+        c("…nessun indirizzo e nessun <audio> nella pagina prima del play", [false, false], [/supabase|token=|blob:/.test(html), /<audio/.test(html)]);
+      }
+      c("il tipo del vocale viene dall'estensione (m4a, mp3, aac, amr, qualunque altra → ogg)", ["audio/mp4", "audio/mpeg", "audio/aac", "audio/amr", "audio/ogg; codecs=opus"], ["m4a", "mp3", "aac", "amr", "xyz"].map((e) => vistaCat("audio", RIGA({ id: `${uuid(23)}.${e}`, categoria: "audio" })).chiamate[0].mime));
+      // video
+      {
+        const { html } = vistaCat("video", RIGA({ id: ID_MP4, categoria: "video", durata_s: 12, byte: 3_400_000, larghezza: 1280, altezza: 720, miniatura: MINI }));
+        c("video pronto: tasto con l'icona play (data-media-pl), nome accessibile con durata e peso", [true, true, true], [/<button\b[^>]*data-media-pl/.test(html), /aria-label="Guarda il video \(0:12 · 3,2 MB\)"/.test(html), /lucide-play/.test(html)]);
+        c("…la miniatura è un `data:` locale; nessun <video> e nessun indirizzo prima del tocco", [true, false, false], [html.includes(`src="data:image/jpeg;base64,${MINI}"`), /<video\b/.test(html), /supabase|token=|blob:|GETTONE/.test(html)]);
+        c("…riquadro 16:9 dalla riga (nessun salto), durata e peso sul riquadro", [true, true], [/aspect-ratio:1\.77/.test(html), /0:12 · 3,2 MB/.test(html)]);
+      }
+      // documento
+      {
+        const { html } = vistaCat("documento", RIGA({ id: ID_PDF, categoria: "documento", nome: "Scheda cliente.pdf", byte: 1_300_000, miniatura: MINI }));
+        c("documento pronto: scheda con nome, «PDF · 1,2 MB», tasto data-media-pl", [true, true, true], [html.includes("Scheda cliente.pdf"), /PDF · 1,2 MB/.test(html), /<button\b[^>]*data-media-pl/.test(html)]);
+        c("…senza collegamenti: nessun <a>, nessun href con indirizzo", [false, false], [/<a\b/.test(html), /href=/.test(html)]);
+        const cattivo = vistaCat("documento", RIGA({ id: ID_PDF, categoria: "documento", nome: '<img src=x onerror=alert(1)>.pdf' })).html;
+        c("nome ostile: solo testo (nessun tag nato dal nome)", [true, false], [cattivo.includes("&lt;img src=x onerror=alert(1)&gt;.pdf"), /<img src=x/.test(cattivo)]);
+        const docx = vistaCat("documento", RIGA({ id: `${uuid(24)}.docx`, categoria: "documento", nome: "Preventivo.docx", byte: 40_000 })).html;
+        c("docx: «Word · 39 KB»", true, /Word · 39 KB/.test(docx));
+      }
+      // scadenza
+      {
+        const fra1h = new Date(Date.now() + 3_599_000).toISOString();
+        const { html } = vistaCat("documento", RIGA({ id: ID_PDF, categoria: "documento", nome: "a.pdf", scade_il: fra1h }));
+        c("con un timer: «Si elimina tra 1 h» sotto il media", true, /Si elimina tra 1 h/.test(html));
+        c("senza timer: nessuna riga di scadenza", false, /Si elimina/.test(vistaCat("documento", RIGA({ id: ID_PDF, categoria: "documento", nome: "a.pdf" })).html));
+        c("`scadenzaInParole`: minuti, ore, giorni, passato", ["Si elimina tra 5 min", "Si elimina tra 3 h", "Si elimina tra 7 g", null, null], [new Date(300_000).toISOString(), new Date(3 * 3600_000).toISOString(), new Date(7 * 86400_000).toISOString(), new Date(-5).toISOString(), "boh"].map((x) => U.scadenzaInParole(x, 0)));
+      }
+      // attese e motivi
+      {
+        const r = (o) => R({ stato: "liberato", ...o });
+        const rich = vistaCat("foto", r({ richiesta: { stato: "in_attesa" } }), { fase: "richiesto" }).html;
+        c("richiesto: «In arrivo dal telefono…», annunciato, rotellina", [true, true, true], [/In arrivo dal telefono…/.test(testoDi(rich)), /role="status"/.test(rich), /animate-spin/.test(rich)]);
+        const sr = testoDi(vistaCat("video", r({}), { fase: "senza_risposta" }).html);
+        c("senza risposta: «Il Mac non ha risposto.» e Riprova", "Il Mac non ha risposto. Riprova", sr);
+        const sc = vistaCat("foto", r({}), { fase: "non_disponibile", frase: "Non più disponibile su WhatsApp: aprilo dal telefono", riprova: false }).html;
+        c("scaduta: la frase e basta, nessun tasto", ["Non più disponibile su WhatsApp: aprilo dal telefono", false], [testoDi(sc), /<button\b/.test(sc)]);
+        const tt = vistaCat("foto", r({}), { fase: "non_disponibile", frase: "Spazio pieno: libera qualcosa da Archiviazione", riprova: true }).html;
+        c("tetto: la frase e Riprova da 44 px", [true, true], [testoDi(tt) === "Spazio pieno: libera qualcosa da Archiviazione Riprova", /<button\b[^>]*min-h-11/.test(tt)]);
+        c("in arrivo per ogni categoria: «<Tipo> in arrivo»", ["Foto in arrivo Ricontrolla", "Vocale in arrivo Ricontrolla", "Video in arrivo Ricontrolla", "Documento in arrivo Ricontrolla"], ["foto", "audio", "video", "documento"].map((cat) => testoDi(vistaCat(cat, r({ stato: "in_caricamento" }), { fase: "in_arrivo" }).html)));
+        c("verifica / nessuna: il testo di sempre (segnaposto passato dalla bolla)", ["SEGNAPOSTO", "SEGNAPOSTO"], ["verifica", "nessuna"].map((f) => testoDi(vistaCat("audio", null, { fase: f }).html)));
+        c("pronta ma percorso illeggibile (nessun id): ancora il testo di sempre", "SEGNAPOSTO", testoDi(vistaCat("foto", RIGA({ id: null })).html));
+      }
+    }
+
+    /* ═══ Il foglio ═══ */
+    gruppo("PONTE · MEDIA · IL FOGLIO: MOSTRA, TIMER, RISPIEGA (T8)");
+    {
+      const nulla = () => undefined;
+      const corpo = (o = {}) => disegna(React.createElement(CorpoFoglio, { modo: "mostra", categoria: "foto", scadeIl: null, onMostra: nulla, onTimer: nulla, onElimina: nulla, adesso: 0, ...o }));
+      const mostra = corpo();
+      c("segnaposto: «Mostra la foto» e le 6 scelte del timer, «Tieni sempre» scelta di serie", [true, ["Tieni sempre", "5 minuti", "1 ora", "24 ore", "7 giorni", "30 giorni"], "Tieni sempre"], [/Mostra la foto/.test(testoDi(mostra)), [...mostra.matchAll(/role="radio"[^>]*>(?:<svg[\s\S]*?<\/svg>)([^<]+)</g)].map((m) => m[1]), mostra.match(/aria-checked="true"[^>]*>(?:<svg[\s\S]*?<\/svg>)([^<]+)</)?.[1]]);
+      c("…senza «Elimina ora» (non c'è ancora un file) e senza «Rispiega» se la bolla non l'offre", [false, false], [/Elimina ora/.test(mostra), /Rispiega/.test(mostra)]);
+      c("…il gruppo del timer ha un'etichetta e ogni voce è alta almeno 44 px", [true, true], [/role="radiogroup"[^>]*aria-labelledby="titolo-timer"/.test(mostra), (mostra.match(/role="radio"/g) ?? []).length === (mostra.match(/role="radio"[^>]*min-h-11/g) ?? []).length]);
+      const pronta = corpo({ modo: "pronta", categoria: "documento", onApri: nulla, onRispiega: nulla, scadeIl: new Date(3_600_000 - 10).toISOString() });
+      c("file pronto: «Apri», timer, «Elimina ora», «Rispiega con AI»; la scadenza è detta", [true, true, true, true, true], [/>Apri</.test(pronta.replace(/<svg[\s\S]*?<\/svg>/g, "")), /Elimina ora/.test(pronta), /Rispiega con AI/.test(pronta), /Si elimina tra 1 h/.test(pronta), /Mostra/.test(pronta) === false]);
+      c("…con un timer attivo nessuna scelta è evidenziata; senza timer lo è «Tieni sempre»", [0, 1], [(pronta.match(/aria-checked="true"/g) ?? []).length, (corpo({ modo: "pronta" }).match(/aria-checked="true"/g) ?? []).length]);
+      const solo = corpo({ modo: "solo", onRispiega: nulla });
+      c("solo Rispiega (media non ancora azionabile): niente timer, niente Mostra, niente Elimina", [false, false, false, true], [/radio/.test(solo), /Mostra/.test(solo), /Elimina/.test(solo), /Rispiega con AI/.test(solo)]);
+      c("Apri solo per i documenti pronti (nessun onApri → nessun tasto)", false, />Apri</.test(corpo({ modo: "pronta" }).replace(/<svg[\s\S]*?<\/svg>/g, "")));
+      c("un errore dell'azione resta nel foglio, annunciato", [true, true], [/Non ci sono riuscito/.test(corpo({ modo: "pronta", errore: "Non ci sono riuscito" })), /role="status"[^>]*>Non ci sono riuscito/.test(corpo({ modo: "pronta", errore: "Non ci sono riuscito" }))]);
+      c("nessuna parola tecnica nel foglio", false, /\b(QR|Baileys|token|JID|sessione|server|database|API|socket|bucket|blob|HTTP)\b/i.test(testoDi(mostra + pronta + solo)));
+    }
+
+    /* ═══ La bolla intera ═══ */
+    gruppo("PONTE · MEDIA · LA BOLLA: FRECCIA, ORA, INTEGRAZIONE CON RISPIEGA (T8)");
+    {
+      const msg = (o = {}) => ({ id: "m1", user_id: "u", lead_id: null, direction: "inbound", from_number: "393330000001", to_number: "393330000002", body: "📷 Foto", status: "received", wa_message_id: CH, error_message: null, created_at: "2026-10-30T11:58:00.000Z", delivered_at: null, read_at: null, canale: "baileys", ...o });
+      const bolla = (m, rispiega) => disegna(React.createElement(BollaMessaggio, { messaggio: m, lead: null, rispiega }));
+      const sì = { onInizia: () => undefined };
+      const mediaB = bolla(msg(), sì);
+      const testoB = bolla(msg({ canale: "manychat", wa_message_id: "mc-in:t", body: "Buongiorno" }), sì);
+      c("media del ponte con Rispiega: la freccia apre il FOGLIO (pulsante «Azioni su questo file»), non il menu", [true, false], [/aria-label="Azioni su questo file"/.test(mediaB), /aria-haspopup="menu"/.test(mediaB)]);
+      c("testo con Rispiega: la freccia è il menu di sempre (aria-haspopup=menu)", [true, true], [/aria-label="Azioni su questo messaggio"/.test(testoB), /aria-haspopup="menu"/.test(testoB)]);
+      c("media senza Rispiega (es. chat già in selezione): la freccia per il foglio c'è comunque", true, /Azioni su questo file/.test(bolla(msg())));
+      c("testo senza Rispiega: nessuna freccia", false, /Azioni su/.test(bolla(msg({ canale: "manychat", wa_message_id: "mc-in:t", body: "Buongiorno" }))));
+      c("iOS: la bolla di un media ha select-none e touch-callout spenti (anche senza Rispiega)", true, /pointer-coarse:select-none/.test(bolla(msg())) && /pointer-coarse:\[-webkit-touch-callout:none\]/.test(bolla(msg())));
+      c("una riga ManyChat senza Rispiega non cambia: nessuna classe di pressione", false, /pointer-coarse:select-none/.test(bolla(msg({ canale: "manychat", wa_message_id: "mc-in:t", body: "Buongiorno" }))));
+      c("il segnaposto di un documento perde i caratteri bidi del nome (U+202E)", [true, false], [bolla(msg({ body: "📎 Documento: fa‮txt.pdf" })).includes("fatxt.pdf"), /‮/.test(bolla(msg({ body: "📎 Documento: fa‮txt.pdf" })))]);
     }
 
     /* ── Il sorgente ── */
