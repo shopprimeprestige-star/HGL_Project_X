@@ -843,9 +843,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "la riga rapida e il pannello cambiano filtro solo con commuta (esclusivo)",
     true,
-    //  La riga rapida usa la forma di main (fix/chat-filtro-unico, stesso comportamento): parte da
+    //  (31/10/2026: prettier può andare a capo, la prova tollera gli spazi.) La riga rapida usa la forma di main (fix/chat-filtro-unico, stesso comportamento): parte da
     //  FILTRI_VUOTI col consulente; il pannello passa da commuta, ora esclusiva.
-    /commuta\(\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \}, v\.campo, v\.valore\)/.test(elenco) &&
+    /commuta\(\s*\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \},\s*v\.campo,\s*v\.valore,?\s*\)/.test(elenco) &&
       /onCambia\(commuta\(filtri, v\.campo, v\.valore\)\)/.test(pannello),
   );
   c(

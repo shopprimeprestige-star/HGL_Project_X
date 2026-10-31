@@ -60,6 +60,7 @@ import {
   togli,
   VOCI_RIGA,
   type CampoFiltro,
+  type FiltriChat,
 } from "./filtri";
 import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri";
 import type { ChatItem, ElencoChatProps } from "./tipi";
@@ -154,7 +155,14 @@ function useAdesso(): number {
  *  il tasto «Filtri» col pannello dei sei gruppi. Si accende UN filtro solo: toccarne un altro
  *  spegne il primo; il consulente e la ricerca restano. Le regole sono in filtri.ts. */
 function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) {
-  const { filtri: filtriSalvati, setFiltri, ricerca, setRicerca, caricamento, attiva } = api;
+  const {
+    filtri: filtriSalvati,
+    setFiltri: salvaFiltri,
+    ricerca,
+    setRicerca,
+    caricamento,
+    attiva,
+  } = api;
   //  Funzioni stabili: le righe non si ridisegnano se cambia solo la loro identità.
   const apri = useStabile(api.apri);
   const onCreaScheda = useStabile(creaSchedaProp);
@@ -168,6 +176,16 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const [sotto, setSotto] = useState<Sottofiltro>("tutti");
   //  Quando richiamarlo (29/10/2026): Scaduti, Oggi, Domani, poi le date.
   const [quando, setQuando] = useState<FiltroRichiamo>("tutti");
+  //  Ogni cambio di filtri passa da qui (31/10/2026): se «Da chiamare» non è più acceso, i suoi due
+  //  sotto-filtri tornano a «Tutti». Così «Azzera», «Tutte», la ✕ di un'etichetta o un altro filtro non
+  //  lasciano uno stato o una data scelti di nascosto, pronti a restringere l'elenco alla prossima volta.
+  const setFiltri = (f: FiltriChat) => {
+    if (f.coda !== "da-chiamare") {
+      setSotto("tutti");
+      setQuando("tutti");
+    }
+    salvaFiltri(f);
+  };
 
   /*  ── IL CONSULENTE (28/10/2026) ────────────────────────────────────────
       Le chat dei lead assegnati a un consulente (`consulenteId` della scheda). Vale per TUTTE le
@@ -683,7 +701,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 setFiltri(
                   acceso
                     ? { ...FILTRI_VUOTI, consulente: filtri.consulente }
-                    : commuta({ ...FILTRI_VUOTI, consulente: filtri.consulente }, v.campo, v.valore),
+                    : commuta(
+                        { ...FILTRI_VUOTI, consulente: filtri.consulente },
+                        v.campo,
+                        v.valore,
+                      ),
                 )
               }
               className={cn(
