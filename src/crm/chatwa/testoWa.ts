@@ -21,7 +21,8 @@ export const salutoWa = (nome?: string | null): string => {
 };
 
 /** Introduzione e link su due righe: il link resta solo, senza punteggiatura attaccata. */
-export const bloccoLinkWa = (introduzione: string, link: string): string => `${introduzione}\n${link}`;
+export const bloccoLinkWa = (introduzione: string, link: string): string =>
+  `${introduzione}\n${link}`;
 
 /** I blocchi separati da una riga vuota; quelli vuoti (assenti) si saltano. */
 export const testoWa = (blocchi: (string | null | undefined | false)[]): string =>
