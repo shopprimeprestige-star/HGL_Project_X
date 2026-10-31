@@ -791,6 +791,21 @@ export async function provePonteServizioImmagini(_mod, { c, gruppo, radice }) {
       c("v:1: nessuna violazione", [], x.stato.violazioni);
     }
     {
+      //  T7 (nota del revisore): una sottocartella dentro `coda/` non fa fallire `avvia()` con EISDIR; i file buoni passano lo stesso.
+      const cartella = join(base, "v1-dir");
+      mkdirSync(join(cartella, "coda", "sottocartella", "dentro"), { recursive: true, mode: 0o700 });
+      mkdirSync(join(cartella, "coda", nomeFile(chiave(8))), { recursive: true, mode: 0o700 }); // una cartella col nome di un file valido
+      writeFileSync(join(cartella, "coda", nomeFile(chiave(1))), JSON.stringify({ v: 1, chiave: chiave(1), mediaKey: Buffer.alloc(32, 7).toString("base64"), directPath: DIRECT, host: "mmg.whatsapp.net", mime: "image/jpeg", byte: 4000, ts: TS, guasti: 0, prossimo_il: 0 }), { mode: 0o600 });
+      const x = await montaSu(cartella);
+      let errore = null;
+      await x.img.avvia().catch((e) => (errore = e?.code ?? String(e)));
+      c("v:1 con sottocartelle in coda/: avvia() non fallisce (niente EISDIR)", null, errore);
+      c("…il file buono è ripreso lo stesso (un permesso, un fatto)", [1, 1], [x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_permesso").length, x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_fatto").length]);
+      c("…il file buono è sparito dalla cartella vecchia e la sottocartella è rimasta (non si cancella ciò che non è nostro)", [false, true], [existsSync(join(cartella, "coda", nomeFile(chiave(1)))), existsSync(join(cartella, "coda", "sottocartella"))]);
+      await x.img.avvia().catch(() => {});
+      c("…e si rilegge una volta sola (un secondo avvia() non rifà niente)", 1, x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_permesso").length);
+    }
+    {
       //  Età: 14 giorni per foto, vocali e documenti, 7 per i video, 30 per restare nel catalogo (a.1, c2.1).
       const x = await nuovo();
       const adesso = x.stato.ora / 1000;
@@ -1062,7 +1077,20 @@ export async function provePonteServizioImmagini(_mod, { c, gruppo, radice }) {
       await y.img.avvia();
       c("Mostra su una chiave che il catalogo non ha: esito non_catalogato, nessun permesso né scarico", [[{ v: 1, tipo: "media_esito", chiave: chiave(77), esito: "non_catalogato" }], 0, 0], [esitiDi(y), permessiDi(y).length, y.stato.scarichi.length]);
       const z = await conRichiesta("video", { server: { permesso: () => ({ stato: 200, corpo: { ok: true, esito: "gia_presente" } }) } });
-      c("Mostra su un media già presente: né scarico né esito (lo mostra la bolla)", [0, 0], [z.stato.scarichi.length, esitiDi(z).length]);
+      //  T7 (nota del revisore): su `gia_presente` si manda SUBITO `media_fatto` (il Worker chiude la richiesta e imposta il timer);
+      //  senza, la richiesta resterebbe `in_corso` e il CRM la riassegnerebbe ogni 10 minuti.
+      const fattiDi = (x) => x.stato.chiamate.filter((k) => k.corpo?.tipo === "media_fatto").map((k) => k.corpo);
+      c("Mostra su un media già presente: nessuno scarico né PUT, UN media_fatto subito, nessun esito d'errore", [0, 0, [{ v: 1, tipo: "media_fatto", chiave: chiave(5) }], 0], [z.stato.scarichi.length, z.stato.put.length, fattiDi(z), esitiDi(z).length]);
+      c("…un solo permesso (col flag richiesto), nessun ritentativo, la voce resta nel catalogo, il ciclo non dorme", [1, true, 1, true], [permessiDi(z).length, permessiDi(z)[0]?.corpo?.richiesto, z.catalogo.conteggio().voci, z.stato.pause.every((ms) => ms <= 5000)]);
+      c("…e non conta come caricato da noi", 0, z.img.contatori().ok);
+      for (const [nome, fatto, atteso] of [
+        ["fatto 500", () => ({ stato: 500, corpo: null }), "errore"],
+        ["fatto: in_caricamento", () => ({ stato: 200, corpo: { ok: true, esito: "in_caricamento" } }), "errore"],
+        ["fatto: tipo", () => ({ stato: 200, corpo: { ok: true, esito: "tipo" } }), "tipo"],
+      ]) {
+        const w = await conRichiesta("video", { maxPause: 6, server: { permesso: () => ({ stato: 200, corpo: { ok: true, esito: "gia_presente" } }), fatto } });
+        c(`Mostra, già presente e ${nome}: un media_fatto, poi l'esito «${atteso}» (la richiesta non resta appesa)`, [1, [{ v: 1, tipo: "media_esito", chiave: chiave(5), esito: atteso }], 0], [fattiDi(w).length, esitiDi(w), w.stato.scarichi.length]);
+      }
     }
     {
       //  Le chiavi che il CRM consegna: al massimo 5, valide, senza doppioni; un CRM che sbaglia non fa danni.

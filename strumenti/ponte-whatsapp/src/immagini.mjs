@@ -504,6 +504,19 @@ export function creaImmagini({ url, token, cartella, catalogo, scarica, registro
       return false;
     }
     let scaricato = false;
+    //  `media_fatto` e il suo esito: il Worker chiude la richiesta (e imposta il timer) solo da qui. `caricato`: l'abbiamo
+    //  messo noi in Storage (conta come `ok`); con `gia_presente` no.
+    const concludi = async (caricato) => {
+      const f = await spedisci({ url, token, corpo: { v: 1, tipo: "media_fatto", chiave }, fetch });
+      if (f.stato === 200 && f.corpo?.ok === true && f.corpo.esito === "pronta") {
+        if (caricato) conti.ok++;
+        //  se era anche un lavoro automatico, ora è fatto
+        if (voce.stato === "in_coda") inCatalogo(voce);
+      } else if (f.stato === 200 && f.corpo?.ok === true && (f.corpo.esito === "tipo" || f.corpo.esito === "troppo_grande")) {
+        dimentica(chiave);
+        await esito(f.corpo.esito);
+      } else await esito("errore");
+    };
     try {
       const p = await spedisci({ url, token, corpo: corpoPermesso(voce, true), fetch });
       const risposta = p.corpo;
@@ -511,8 +524,12 @@ export function creaImmagini({ url, token, cartella, catalogo, scarica, registro
         await esito("errore");
         return false;
       }
-      //  già presente: lo mostra la bolla, non c'è niente da dire al CRM
-      if (risposta.esito === "gia_presente") return false;
+      //  già presente: nessun download, ma il CRM va avvertito subito (`media_fatto`), altrimenti la richiesta resta `in_corso` e
+      //  si riassegna ogni 10 minuti
+      if (risposta.esito === "gia_presente") {
+        await concludi(false);
+        return false;
+      }
       if (risposta.esito === "rifiutato") {
         const m = risposta.motivo;
         if (m === "troppo_grande" || m === "tipo") dimentica(chiave);
@@ -550,15 +567,7 @@ export function creaImmagini({ url, token, cartella, catalogo, scarica, registro
         await esito("errore");
         return true;
       }
-      const f = await spedisci({ url, token, corpo: { v: 1, tipo: "media_fatto", chiave }, fetch });
-      if (f.stato === 200 && f.corpo?.ok === true && f.corpo.esito === "pronta") {
-        conti.ok++;
-        //  se era anche un lavoro automatico, ora è fatto
-        if (voce.stato === "in_coda") inCatalogo(voce);
-      } else if (f.stato === 200 && f.corpo?.ok === true && (f.corpo.esito === "tipo" || f.corpo.esito === "troppo_grande")) {
-        dimentica(chiave);
-        await esito(f.corpo.esito);
-      } else await esito("errore");
+      await concludi(true);
       return true;
     } catch {
       registro("immagini_richiesta_fallita");
@@ -652,19 +661,24 @@ export function creaImmagini({ url, token, cartella, catalogo, scarica, registro
     }
     let scartati = 0;
     for (const nome of nomi) {
-      const percorso = join(vecchia, nome);
-      let d = null;
-      if (FILE_CODA.test(nome)) {
-        try {
-          d = JSON.parse(readFileSync(percorso, "utf8"));
-        } catch {
-          d = null;
+      //  Un guasto su UN file (una sottocartella, un permesso) non ferma gli altri né `avvia()`: quello che non è un nostro file resta dov'è.
+      try {
+        const percorso = join(vecchia, nome);
+        let d = null;
+        if (FILE_CODA.test(nome)) {
+          try {
+            d = JSON.parse(readFileSync(percorso, "utf8"));
+          } catch {
+            d = null;
+          }
         }
+        const buono = oggetto(d) && d.v === 1 && typeof d.chiave === "string" && nomeDi(d.chiave) === nome;
+        const r = buono ? catalogo.aggiungi({ ...d, categoria: "foto", stato: "in_coda" }) : { ok: false };
+        if (!r.ok) scartati++;
+        rmSync(percorso, { force: true });
+      } catch {
+        scartati++;
       }
-      const buono = oggetto(d) && d.v === 1 && typeof d.chiave === "string" && nomeDi(d.chiave) === nome;
-      const r = buono ? catalogo.aggiungi({ ...d, categoria: "foto", stato: "in_coda" }) : { ok: false };
-      if (!r.ok) scartati++;
-      rmSync(percorso, { force: true });
     }
     try {
       rmdirSync(vecchia);
