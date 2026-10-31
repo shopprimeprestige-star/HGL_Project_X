@@ -254,6 +254,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     tipo: null,
     consulente: "",
     ricontatti: false,
+    rStato: "",
+    rEsito: "",
+    rData: "",
     io: "",
   });
   c(

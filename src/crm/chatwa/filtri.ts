@@ -35,7 +35,15 @@ import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { eConversione } from "@/crm/kpi-calcoli";
 import { passaFiltro } from "./cercaChat";
 import { STATI_PER_STATO } from "./perStato";
-import { eMioRicontatto, type ChatRicontatto } from "./ricontatti";
+import {
+  eMioRicontatto,
+  ESITI_RICONTATTO,
+  ESITO_NESSUNO,
+  passaRisentire,
+  STATI_RICONTATTI,
+  type ChatRicontatto,
+  type FiltroRisentire,
+} from "./ricontatti";
 
 export type CodaChat = "da-rispondere" | "da-chiamare";
 export type FinestraChat = "aperta" | "chiusa";
@@ -54,6 +62,11 @@ export interface FiltriChat {
   consulente: string;
   /** «Ricontatti» (31/10/2026): i miei lead a data. Acceso/spento, esclusivo come gli altri. */
   ricontatti: boolean;
+  /** Dentro «Ricontatti» (31/10/2026): stato, esito e data si COMBINANO (vedi ricontatti.ts). Non sono
+   *  filtri della riga: restano vuoti se «Ricontatti» è spento e non contano sul tasto «Filtri». */
+  rStato: string;
+  rEsito: string;
+  rData: FiltroRisentire["data"];
   /** Chi è dentro, come consulente (id di chi ha digitato il PIN), o `""` se non lo è. NON è un
    *  filtro e non si salva: lo mette la pagina (`filtriValidi`) a ogni disegno. Serve a «Ricontatti». */
   io: string;
@@ -68,11 +81,26 @@ export const FILTRI_VUOTI: FiltriChat = {
   tipo: null,
   consulente: "",
   ricontatti: false,
+  rStato: "",
+  rEsito: "",
+  rData: "",
   io: "",
 };
 
-/** I campi che sono filtri (`io` no: dice chi sei, non cosa mostrare). */
-export type CampoFiltro = Exclude<keyof FiltriChat, "io">;
+/** I campi che sono filtri (`io` no: dice chi sei, non cosa mostrare; `rStato`, `rEsito`, `rData` no:
+ *  sono le righe interne di «Ricontatti», non gruppi da accendere o contare). */
+export type CampoFiltro = Exclude<keyof FiltriChat, "io" | "rStato" | "rEsito" | "rData">;
+const CAMPI_INTERNI = ["io", "rStato", "rEsito", "rData"] as const;
+
+/** Le tre righe interne di «Ricontatti»: ognuna ha la sua etichetta con la ✕ nel riepilogo. */
+export type CampoRisentireFiltri = "rStato" | "rEsito" | "rData";
+
+/** Le tre righe interne di «Ricontatti», come le vuole `passaRisentire`. */
+export const risentireDi = (f: FiltriChat): FiltroRisentire => ({
+  stato: f.rStato,
+  esito: f.rEsito,
+  data: f.rData,
+});
 
 /** Quello che serve di una chat per filtrarla (la riga di `ChatItem`, in piccolo). */
 export type ChatFiltrabile = Parameters<typeof passaFiltro>[0] &
@@ -318,6 +346,7 @@ export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi
   //  «Ricontatti»: solo i MIEI, per tutti e senza eccezioni (anche l'admin). Il menu del consulente
   //  non si somma: scegliere un altro non mostra i suoi. Senza `io` non passa nessuno.
   if (f.ricontatti && !eMioRicontatto(c, f.io)) return false;
+  if (f.ricontatti && !passaRisentire(c, risentireDi(f))) return false;
   if (f.consulente && !f.ricontatti && c.lead?.data?.consulenteId !== f.consulente) return false;
   return true;
 }
@@ -332,20 +361,27 @@ export const eAcceso = (f: FiltriChat, campo: CampoFiltro, valore: string | true
 export function commuta(f: FiltriChat, campo: CampoFiltro, valore: string | true): FiltriChat {
   if (campo === "consulente")
     return { ...f, consulente: f.consulente === valore ? "" : String(valore) };
-  if (eAcceso(f, campo, valore)) return { ...f, [campo]: FILTRI_VUOTI[campo] };
+  if (eAcceso(f, campo, valore)) return togli(f, campo);
   return { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io, [campo]: valore };
 }
 
 /** Il gruppo `campo` torna spento. */
-export function togli(f: FiltriChat, campo: CampoFiltro): FiltriChat {
-  return { ...f, [campo]: FILTRI_VUOTI[campo] };
+export function togli(f: FiltriChat, campo: CampoFiltro | CampoRisentireFiltri): FiltriChat {
+  const spento = { ...f, [campo]: FILTRI_VUOTI[campo] };
+  //  Spegnendo «Ricontatti» le sue tre righe non restano accese di nascosto.
+  return campo === "ricontatti"
+    ? { ...spento, rStato: "", rEsito: "", rData: "" }
+    : spento;
 }
 
 /** Quanti filtri sono accesi (il numero sul tasto «Filtri»). */
 export const contaAccesi = (f: FiltriChat): number =>
   (Object.keys(FILTRI_VUOTI) as (keyof FiltriChat)[]).filter(
     //  In «Ricontatti» il menu del consulente non conta: vale solo chi è dentro (vedi passaFiltri).
-    (k) => k !== "io" && !(k === "consulente" && f.ricontatti) && f[k] !== FILTRI_VUOTI[k],
+    (k) =>
+      !(CAMPI_INTERNI as readonly string[]).includes(k) &&
+      !(k === "consulente" && f.ricontatti) &&
+      f[k] !== FILTRI_VUOTI[k],
   ).length;
 
 /** Quante chat vedresti se toccassi `campo = valore`: la voce da sola (sostituisce quella accesa) più
@@ -375,7 +411,7 @@ export const contaVisibili = (
 // ── Il riepilogo sotto la griglia ─────────────────────────────────────────────────────────────
 
 export interface EtichettaAccesa {
-  campo: CampoFiltro;
+  campo: CampoFiltro | CampoRisentireFiltri;
   etichetta: string;
 }
 
@@ -396,6 +432,19 @@ export function etichetteAccese(
   if (f.coda) out.push({ campo: "coda", etichetta: nomeDi("coda", f.coda) });
   if (f.stelle) out.push({ campo: "stelle", etichetta: "Con stelle" });
   if (f.ricontatti) out.push({ campo: "ricontatti", etichetta: "Ricontatti" });
+  //  Le tre righe di «Ricontatti»: una etichetta per riga accesa, ognuna si toglie con la sua ✕.
+  if (f.ricontatti && f.rStato)
+    out.push({ campo: "rStato", etichetta: LEAD_STATUS_LABEL[f.rStato as LeadStatus] ?? f.rStato });
+  if (f.ricontatti && f.rEsito)
+    out.push({
+      campo: "rEsito",
+      etichetta:
+        f.rEsito === ESITO_NESSUNO
+          ? "Senza esito"
+          : (ESITI_RICONTATTO.find((e) => e.v === f.rEsito)?.nome ?? f.rEsito),
+    });
+  if (f.ricontatti && f.rData)
+    out.push({ campo: "rData", etichetta: f.rData === "con" ? "Con data" : "Senza data" });
   if (f.fase) out.push({ campo: "fase", etichetta: nomeDi("fase", f.fase) });
   if (f.finestra) out.push({ campo: "finestra", etichetta: nomeDi("finestra", f.finestra) });
   if (f.acconto) out.push({ campo: "acconto", etichetta: "Acconto versato" });
@@ -429,6 +478,12 @@ export function soloUno(f: FiltriChat): FiltriChat {
   const tenuto = PRIORITA.find((k) => f[k] !== FILTRI_VUOTI[k]);
   const out: FiltriChat = { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io };
   if (tenuto) (out as unknown as Record<string, unknown>)[tenuto] = f[tenuto];
+  //  Le righe interne vivono solo con «Ricontatti» acceso.
+  if (tenuto === "ricontatti") {
+    out.rStato = f.rStato;
+    out.rEsito = f.rEsito;
+    out.rData = f.rData;
+  }
   return out;
 }
 
@@ -457,6 +512,12 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
     tipo:
       o.tipo === "con-scheda" || o.tipo === "senza-scheda" || o.tipo === "cliente" ? o.tipo : null,
     ricontatti: o.ricontatti === true,
+    rStato: typeof o.rStato === "string" && STATI_RICONTATTI.has(o.rStato) ? o.rStato : "",
+    rEsito:
+      o.rEsito === ESITO_NESSUNO || ESITI_RICONTATTO.some((e) => e.v === o.rEsito)
+        ? (o.rEsito as string)
+        : "",
+    rData: o.rData === "con" || o.rData === "senza" ? o.rData : "",
     consulente: typeof consulente === "string" ? consulente.slice(0, 80) : "",
     io: "",
   });
