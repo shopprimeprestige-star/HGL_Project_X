@@ -18,7 +18,7 @@
  *  ⚠️ Nessun log: questo file non scrive niente.
  *  ⚠️ Funzioni pure (`mediaDelPonte`, `caricaBlob`, `faseDaRiga`, `azioneMedia`…) senza
  *   React né database: le prove (`prove/ponte/media-chat-ui.mjs`) le chiamano con reti finte. */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCRM } from "@/crm/AuthContext";
 
@@ -645,7 +645,17 @@ export function useMediaPonte(
   visibile: boolean,
 ): GanciMedia {
   const chiave = media?.chiave ?? null;
-  const [riga, setRiga] = useState<RigaMedia | null>(null);
+  const [rigaLetta, setRiga] = useState<RigaMedia | null>(null);
+  //  Il file che Storage ha detto «non c'è più» (404) mentre la riga dice ancora «pronta» (il cron
+  //  la segna entro il minuto): la bolla torna segnaposto subito.
+  const [perso, setPerso] = useState<string | null>(null);
+  const riga = useMemo(
+    () =>
+      rigaLetta && perso !== null && rigaLetta.id === perso
+        ? { ...rigaLetta, stato: "liberato" as const, id: null }
+        : rigaLetta,
+    [rigaLetta, perso],
+  );
   const [richiestoAlle, setRichiestoAlle] = useState<number | null>(null);
   const [ottimista, setOttimista] = useState(false);
   const [adesso, setAdesso] = useState(() => Date.now());
@@ -766,7 +776,10 @@ export function useMediaPonte(
   const segnaPerso = useCallback(() => {
     if (!chiave) return;
     const id = idFoto(chiave);
-    if (id) dimenticaBlob(id);
+    if (id) {
+      dimenticaBlob(id);
+      setPerso(id);
+    }
     dimenticaRiga(chiave);
     leggi(true);
   }, [chiave, leggi]);
