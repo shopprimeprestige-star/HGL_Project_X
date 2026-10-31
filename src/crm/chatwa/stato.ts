@@ -383,9 +383,12 @@ export async function leggiContattiAPagine(
   return { data: righe, error: null, troncato: true };
 }
 
-/** Le righe che non sono doppioni di un messaggio del CRM (`duplicato_di` vuoto). */
-export function senzaDoppioni<T extends { duplicato_di?: string | null }>(righe: T[]): T[] {
-  return righe.filter((r) => !r.duplicato_di);
+/** Le righe che si mostrano: non sono doppioni di un messaggio del CRM (`duplicato_di` vuoto) e non
+ *  sono messaggi nostri eliminati dal telefono (`eliminato_il` vuoto, revoche del ponte 31/10/2026). */
+export function senzaDoppioni<
+  T extends { duplicato_di?: string | null; eliminato_il?: string | null },
+>(righe: T[]): T[] {
+  return righe.filter((r) => !r.duplicato_di && !r.eliminato_il);
 }
 
 /** Legge i messaggi senza i doppioni del ponte. `leggi(true)` chiede al database
@@ -400,7 +403,9 @@ export async function leggiSenzaDoppioni(
   const senza = await leggi(false);
   if (senza.error) return senza;
   return {
-    data: senzaDoppioni((senza.data as { duplicato_di?: string | null }[] | null) ?? []),
+    data: senzaDoppioni(
+      (senza.data as { duplicato_di?: string | null; eliminato_il?: string | null }[] | null) ?? [],
+    ),
     error: null,
   };
 }
@@ -510,9 +515,14 @@ export function cursore(
 const tempo = (x: string | null | undefined) => ms(x) ?? 0;
 
 /** I messaggi già in pagina più quelli appena letti: per `id` vince il nuovo, i
- *  doppioni del ponte (anche marcati dopo) escono, dal più vecchio. Non muta l'ingresso. */
+ *  doppioni del ponte e i messaggi eliminati dal telefono (anche marcati dopo) escono, dal più vecchio. Non muta l'ingresso. */
 export function unisciMessaggi<
-  T extends { id: string; created_at: string; duplicato_di?: string | null },
+  T extends {
+    id: string;
+    created_at: string;
+    duplicato_di?: string | null;
+    eliminato_il?: string | null;
+  },
 >(prima: T[], nuove: readonly T[]): T[] {
   if (nuove.length === 0) return prima;
   const perId = new Map(prima.map((r) => [r.id, r]));

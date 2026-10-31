@@ -373,6 +373,7 @@ export const CODICI_AVVISO = [
   "pari_persi",
   "noti",
   "promosse",
+  "revoca",
 ] as const;
 export type CodiceAvviso = (typeof CODICI_AVVISO)[number];
 
@@ -397,4 +398,29 @@ export interface PortePonte {
   battito(userId: string, b: BattitoPulito): Promise<void>;
   /** Una riga di log: solo il codice e, se servono, contatori numerici. */
   avviso(codice: CodiceAvviso, conteggi?: Record<string, number>): void;
+}
+
+// ── 4. Le revoche (commessa 2026-10-31, ponte-revoche) ────────────────────
+
+/** Corpo di una revoca: un messaggio NOSTRO «eliminato per tutti» dal telefono. `chiave` =
+ *  `chiaveMessaggio(numero, id)` del messaggio eliminato. Il ponte la manda solo se l'ha fatta
+ *  il nostro numero (`key.fromMe`); quelle dei clienti non arrivano mai qui. */
+export interface RichiestaRevoca {
+  v: 1;
+  tipo: "revoca";
+  chiave: string;
+}
+
+/** Risposta 200 a una revoca: `trovate` = righe collegate al messaggio (la sua del ponte e il suo
+ *  pari ManyChat/CRM), `marcate` = quelle marcate eliminate ADESSO (una riga si marca una volta
+ *  sola; 0 e 0 = il messaggio non è ancora nel CRM, il Mac ripassa). Mai un DELETE. */
+export interface EsitoRevoca {
+  trovate: number;
+  marcate: number;
+}
+
+/** La porta delle revoche (come `PorteMedia` e `PorteInvio`: a parte da `PortePonte`, che resta
+ *  congelata). Lancia `{ code }` se il database dice di no. */
+export interface PorteRevoche {
+  revoca(userId: string, chiave: string): Promise<EsitoRevoca>;
 }

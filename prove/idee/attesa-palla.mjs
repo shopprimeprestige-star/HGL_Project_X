@@ -315,9 +315,9 @@ export function proveAttesaPalla(mod, { c, gruppo, radice }) {
   c(
     "legge i messaggi con le sole colonne che servono (body per l'eco, status per gli invii non partiti)",
     true,
-    /\.select\("direction, created_at, canale, duplicato_di, from_number, to_number, body, status"\)/.test(
-      giro,
-    ),
+    //  Dal 31/10 (revoche del ponte) la lettura chiede anche `eliminato_il` e, senza la migrazione (42703), ripiega sulle colonne di prima.
+    giro.includes('"direction, created_at, canale, duplicato_di, eliminato_il, from_number, to_number, body, status"') &&
+      giro.includes('"direction, created_at, canale, duplicato_di, from_number, to_number, body, status"'),
   );
   c("sempre per utente", true, /\.eq\("user_id", userId\)/.test(giro));
   c(

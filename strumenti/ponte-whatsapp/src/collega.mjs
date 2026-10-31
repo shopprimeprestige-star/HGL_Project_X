@@ -17,6 +17,12 @@
  *  (`immagineDa`, stesse regole di `leggiMessaggio`), e il download è una funzione
  *  di Baileys che non passa dal socket (la riceve `immagini.mjs` da `index.mjs`).
  *
+ *  LE REVOCHE (commessa 2026-10-31, ponte-revoche). Un nostro messaggio «eliminato per tutti» dal
+ *  telefono arriva in `messages.upsert` (protocolMessage REVOKE) e in `messages.update` (stub
+ *  REVOKE): `estrai.mjs` (`revocaDa`, `revocaDaAggiornamento`) ne ricava la chiave `bw:` SOLO se
+ *  l'ha fatta il nostro numero, e `revoche.accoda` la porta al CRM. Qui entra solo un ascolto in più
+ *  (`messages.update`, un `ev.on` come gli altri): sul socket non si chiama niente di nuovo.
+ *
  *  Baileys NON si importa qui: arriva da `index.mjs` come parametro
  *  (`{ makeWASocket, useMultiFileAuthState, Browsers }`), così le prove usano
  *  un socket finto, senza rete e senza WhatsApp.
@@ -53,7 +59,7 @@
  *   codici fissi e contatori.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { aggiornaMappaLid, cifreDaJid, immagineDa, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
+import { aggiornaMappaLid, cifreDaJid, immagineDa, leggiMessaggio, messaggioDaNodo, nonDisponibile, nomiDaContatti, revocaDa, revocaDaAggiornamento, risolutoreLid, tipoGrezzo } from "./estrai.mjs";
 import { codiceChiusura, decidi, STORIA_VUOTA } from "./riconnessione.mjs";
 
 const muto = () => undefined;
@@ -159,6 +165,7 @@ export function creaCollegamento({
   percorsi,
   fila,
   immagini = null,
+  revoche = null,
   qr,
   registro = () => {},
   identita = "Chrome",
@@ -355,6 +362,24 @@ export function creaCollegamento({
       if (foto) immagini.accoda(foto);
     } catch {
       registro("immagini_accoda_fallita");
+    }
+  }
+
+  /** Le cancellazioni per tutti di NOSTRI messaggi (upsert o update) vanno in coda al CRM; quelle dei
+   *  clienti si contano e si ignorano. Non lancia mai e non tocca la fila dei messaggi. */
+  function esaminaRevoche(lista, leggi) {
+    if (!revoche || !Array.isArray(lista)) return;
+    const opzioni = { proprioNumero, risolviLid: risolutoreLid(mappa) };
+    for (const voce of lista) {
+      try {
+        const r = leggi(voce, opzioni);
+        if (r.ok) {
+          revoche.accoda(r.chiave);
+          conta(diagnosi.scarti, "revoca_accodata");
+        } else if (r.motivo !== "non_revoca") conta(diagnosi.scarti, r.motivo === "revoca_del_cliente" ? r.motivo : `revoca_${r.motivo}`);
+      } catch {
+        registro("revoca_fallita");
+      }
     }
   }
 
@@ -577,10 +602,20 @@ export function creaCollegamento({
       ascolta(questo, g, "messages.upsert", async (u) => {
         const lista = Array.isArray(u?.messages) ? u.messages : [];
         await preparaLid(questo, lista);
+        esaminaRevoche(lista, revocaDa);
         const { messaggi, nomi } = estrai(lista, undefined, true);
         metti("vivo", messaggi, nomi);
         avvisa();
       });
+
+      //  Le cancellazioni arrivano anche come aggiornamento (stub REVOKE): stessa chiave, la coda non la ripete.
+      if (revoche) {
+        ascolta(questo, g, "messages.update", async (lista) => {
+          if (!Array.isArray(lista)) return;
+          await preparaLid(questo, lista);
+          esaminaRevoche(lista, revocaDaAggiornamento);
+        });
+      }
 
       //  La rubrica e i contatti portano la coppia lid/numero: i messaggi tenuti entrano.
       ascolta(questo, g, "contacts.upsert", impara);

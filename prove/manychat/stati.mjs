@@ -919,7 +919,7 @@ export async function proveStati(mod, { c, gruppo, radice }) {
   );
   //  Le due strade che scrivono lo stato passano da conStatoDal, DOPO applyAutoStatus.
   const contesto = leggi("src/crm/CRMContext.tsx");
-  const iAuto = contesto.indexOf("let merged = applyAutoStatus({ ...current.data, ...patch }");
+  const iAuto = contesto.indexOf("let merged = applyAutoStatus({ ...current.data, ...patchSenzaConto }");
   const iDal = contesto.indexOf(
     "merged = statoDalDopo(current.data, merged, new Date(), opzioni.annulla === true, patch.statoDal);",
   );
