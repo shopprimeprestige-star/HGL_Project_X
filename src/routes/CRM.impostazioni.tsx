@@ -10,6 +10,7 @@ import { MessaggiAutomaticiPannello } from "@/crm/MessaggiAutomaticiPannello";
 import { PromemoriaWhatsappPannello } from "@/crm/PromemoriaWhatsappPannello";
 import { DatiFatturaPannello } from "@/crm/DatiFatturaPannello";
 import { ManychatPannello } from "@/crm/ManychatPannello";
+import { AnteprimaLinkPannello } from "@/crm/AnteprimaLinkPannello";
 import { PrenotaChatPannello } from "@/crm/PrenotaChatPannello";
 import { AssenzaAutoPannello } from "@/crm/AssenzaAutoPannello";
 import { ProvaModelliWhatsapp } from "@/crm/ProvaModelliWhatsapp";
@@ -1319,6 +1320,7 @@ function ImpostazioniPage() {
             <PromemoriaWhatsappPannello />
             <DatiFatturaPannello />
             <ManychatPannello />
+            <AnteprimaLinkPannello />
             <PrenotaChatPannello />
             <AssenzaAutoPannello />
             <ProvaModelliWhatsapp />

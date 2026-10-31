@@ -63,6 +63,7 @@ import { proveMessaggioStato } from "./manychat/messaggio-stato.mjs";
 import { proveFinestraReazioni } from "./manychat/finestra-reazioni.mjs";
 import { proveMessaggiAutomatici } from "./messaggi-automatici.mjs";
 import { proveModelliUtility } from "./manychat/modelli-utility.mjs";
+import { proveAnteprimaLink } from "./manychat/anteprima-link.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -359,4 +360,6 @@ export async function proveManychat(mod, aiuti) {
   await proveMessaggiAutomatici(mod, aiuti);
   //  I modelli nuovi «_311026», tutti da Utility (commessa 2026-10-31-modelli-utility).
   await proveModelliUtility(mod, aiuti);
+  //  I messaggi manuali con un link partono dalla Cloud, per l'anteprima (commessa 2026-10-31-anteprima-link).
+  await proveAnteprimaLink(mod, aiuti);
 }

@@ -215,6 +215,7 @@ import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
 import { Route as ApiCrmAssenzaAutoRouteImport } from './routes/api.crm.assenza-auto'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
+import { Route as ApiCrmAnteprimaLinkRouteImport } from './routes/api.crm.anteprima-link'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
 import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
 import { Route as ApiConsulenteLoginRouteImport } from './routes/api.consulente.login'
@@ -1272,6 +1273,11 @@ const ApiCrmAnteprimeStatoRoute = ApiCrmAnteprimeStatoRouteImport.update({
   path: '/api/crm/anteprime-stato',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmAnteprimaLinkRoute = ApiCrmAnteprimaLinkRouteImport.update({
+  id: '/api/crm/anteprima-link',
+  path: '/api/crm/anteprima-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmAiRoute = ApiCrmAiRouteImport.update({
   id: '/api/crm/ai',
   path: '/api/crm/ai',
@@ -1434,6 +1440,7 @@ export interface FileRoutesByFullPath {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-link': typeof ApiCrmAnteprimaLinkRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
@@ -1647,6 +1654,7 @@ export interface FileRoutesByTo {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-link': typeof ApiCrmAnteprimaLinkRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
@@ -1866,6 +1874,7 @@ export interface FileRoutesById {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-link': typeof ApiCrmAnteprimaLinkRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
@@ -2086,6 +2095,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-link'
     | '/api/crm/anteprime-stato'
     | '/api/crm/assenza-auto'
     | '/api/crm/backup'
@@ -2299,6 +2309,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-link'
     | '/api/crm/anteprime-stato'
     | '/api/crm/assenza-auto'
     | '/api/crm/backup'
@@ -2517,6 +2528,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-link'
     | '/api/crm/anteprime-stato'
     | '/api/crm/assenza-auto'
     | '/api/crm/backup'
@@ -2694,6 +2706,7 @@ export interface RootRouteChildren {
   ApiConsulenteLoginRoute: typeof ApiConsulenteLoginRoute
   ApiCrmAccessoRoute: typeof ApiCrmAccessoRoute
   ApiCrmAiRoute: typeof ApiCrmAiRoute
+  ApiCrmAnteprimaLinkRoute: typeof ApiCrmAnteprimaLinkRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
   ApiCrmAssenzaAutoRoute: typeof ApiCrmAssenzaAutoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
@@ -4243,6 +4256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmAnteprimeStatoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/anteprima-link': {
+      id: '/api/crm/anteprima-link'
+      path: '/api/crm/anteprima-link'
+      fullPath: '/api/crm/anteprima-link'
+      preLoaderRoute: typeof ApiCrmAnteprimaLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/ai': {
       id: '/api/crm/ai'
       path: '/api/crm/ai'
@@ -4530,6 +4550,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConsulenteLoginRoute: ApiConsulenteLoginRoute,
   ApiCrmAccessoRoute: ApiCrmAccessoRoute,
   ApiCrmAiRoute: ApiCrmAiRoute,
+  ApiCrmAnteprimaLinkRoute: ApiCrmAnteprimaLinkRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
   ApiCrmAssenzaAutoRoute: ApiCrmAssenzaAutoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,

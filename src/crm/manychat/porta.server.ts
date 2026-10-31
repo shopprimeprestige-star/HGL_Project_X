@@ -39,7 +39,13 @@ import {
   interruttoreAcceso,
 } from "../wa-meta-templates";
 import { entrateVereDi } from "./entrate-vere.server";
-import type { CanaleWhatsapp, MessaggioPorta, PortePorta, PrenotazionePorta } from "./porta";
+import {
+  CHIAVE_ANTEPRIMA_LINK,
+  type CanaleWhatsapp,
+  type MessaggioPorta,
+  type PortePorta,
+  type PrenotazionePorta,
+} from "./porta";
 import type { ChiaveMessaggio } from "../messaggi-automatici/catalogo";
 import { messaggioAcceso } from "../messaggi-automatici/registro.server";
 
@@ -133,6 +139,43 @@ export async function nomeDelLead(userId: string, leadId: string): Promise<strin
     .eq("user_id", userId)
     .maybeSingle();
   return typeof data?.data?.nome === "string" ? data.data.nome : "";
+}
+
+/** Le chiavi della Cloud API di questa installazione (`whatsapp_settings`), o `null` se mancano.
+ *  `sandbox` = il numero è dichiarato di prova: per l'anteprima dei link non si usa.
+ *  ⚠️ Le chiavi non escono da questo file: né nei log né nelle risposte. */
+async function chiaviCloudDi(
+  userId: string,
+): Promise<{ phoneNumberId: string; token: string; sandbox: boolean } | null> {
+  const { data } = await db
+    .from("whatsapp_settings")
+    .select<{
+      phone_number_id?: string | null;
+      access_token?: string | null;
+      mode?: string | null;
+    }>("phone_number_id, access_token, mode")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const phoneNumberId = (data?.phone_number_id ?? "").trim();
+  const token = (data?.access_token ?? "").trim();
+  if (!phoneNumberId || !token) return null;
+  return { phoneNumberId, token, sandbox: data?.mode === "sandbox" };
+}
+
+/** L'interruttore dell'anteprima dei link è acceso (`app_config`, spento di serie)? */
+export async function anteprimaLinkAcceso(): Promise<boolean> {
+  const { data } = await db
+    .from("app_config")
+    .select<{ value?: string | null }>("value")
+    .eq("key", CHIAVE_ANTEPRIMA_LINK)
+    .maybeSingle();
+  return interruttoreAcceso(data?.value);
+}
+
+/** Le chiavi Meta per l'anteprima ci sono e sono utilizzabili (non di prova)? Mai le chiavi, solo sì/no. */
+export async function chiaviAnteprimaPresenti(userId: string): Promise<boolean> {
+  const k = await chiaviCloudDi(userId);
+  return !!k && !k.sandbox;
 }
 
 /** Le porte vere per un'installazione. `cloud`: le chiavi della Cloud API, se
@@ -276,19 +319,27 @@ export function portePortaVere(
           .at(-1) || null
       );
     },
+    //  L'anteprima dei link: acceso E chiavi vere. Qualunque guasto = no (parte ManyChat).
+    anteprimaLink: async () => {
+      try {
+        return (await anteprimaLinkAcceso()) && (await chiaviAnteprimaPresenti(userId));
+      } catch {
+        return false;
+      }
+    },
     registra: async (m: MessaggioPorta) => {
       await db.from("whatsapp_messages").insert({
         user_id: userId,
         lead_id: m.leadId,
         direction: "outbound",
-        from_number: "manychat",
+        from_number: m.canale === "cloud" ? "cloud" : "manychat",
         to_number: m.a,
         body: m.corpo,
         status: m.stato,
         wa_message_id: m.waId,
         error_message: m.errore,
         raw_payload: {},
-        canale: "manychat",
+        canale: m.canale ?? "manychat",
       });
       if (m.stato === "sent")
         await db.from("whatsapp_contacts").upsert(
@@ -305,16 +356,8 @@ export function portePortaVere(
     cloud: async (corpo) => {
       let cloud = o.cloud;
       if (!cloud) {
-        const { data } = await db
-          .from("whatsapp_settings")
-          .select<{
-            phone_number_id?: string | null;
-            access_token?: string | null;
-          }>("phone_number_id, access_token")
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (data?.phone_number_id && data.access_token)
-          cloud = { phoneNumberId: data.phone_number_id, token: data.access_token };
+        const k = await chiaviCloudDi(userId);
+        if (k) cloud = { phoneNumberId: k.phoneNumberId, token: k.token };
       }
       //  Senza chiavi: lo stesso rifiuto «token non valido» che il giro già conosce.
       if (!cloud) return { status: 400, corpo: { error: { code: 190 } } };

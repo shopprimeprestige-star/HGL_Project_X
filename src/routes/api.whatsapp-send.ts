@@ -16,6 +16,10 @@
  *  il controllo sta PRIMA del ramo `manychat/cloud`, perché il ramo Cloud chiama Graph
  *  senza passare da `inviaWhatsapp`. Il campo può solo FRENARE: assente, «manuale» o una
  *  chiave che non è del catalogo = invio a mano, mai bloccato.
+ *
+ *  ANTEPRIMA DEI LINK (commessa 2026-10-31-anteprima-link): un testo scritto a mano con un link
+ *  può partire dalla Cloud (`preview_url`) invece che da ManyChat. La rotta dichiara solo
+ *  `anteprimaLink`; interruttore, chiavi, finestra e ripiego li decide `inviaWhatsapp`.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
@@ -166,6 +170,9 @@ export const Route = createFileRoute("/api/whatsapp-send")({
             leadId: body.leadId ?? null,
             tipo: "chat",
             messaggio: automatico ?? "manuale",
+            //  Solo il testo scritto a mano: se ha un link e l'interruttore è acceso, parte dalla Cloud
+            //  per l'anteprima (la porta decide); un automatico o un modello non la chiedono mai.
+            anteprimaLink: !automatico && !body.templateName && !!body.body,
           });
           // Nei log solo il codice dell'esito: mai numero, testo o nome.
           if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");
