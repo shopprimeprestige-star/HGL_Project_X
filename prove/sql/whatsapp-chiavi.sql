@@ -45,6 +45,7 @@ SELECT pg_temp.atteso('il browser NON scrive webhook_verify_token', 'UPDATE publ
 SELECT pg_temp.atteso('il browser aggiorna disabled_template_statuses', 'UPDATE public.whatsapp_settings SET disabled_template_statuses = ARRAY[''x''] WHERE user_id = ''' || :'U' || '''', true);
 SELECT pg_temp.atteso('il browser aggiorna default_values e status_template_map', 'UPDATE public.whatsapp_settings SET default_values = ''{}'', status_template_map = ''{}'' WHERE user_id = ''' || :'U' || '''', true);
 SELECT pg_temp.atteso('il browser fa un upsert delle colonne non segrete', 'INSERT INTO public.whatsapp_settings (user_id, disabled_template_statuses) VALUES (''' || :'U' || ''', ARRAY[''y'']) ON CONFLICT (user_id) DO UPDATE SET disabled_template_statuses = EXCLUDED.disabled_template_statuses', true);
+SELECT pg_temp.atteso('il browser fa un upsert che nomina anche updated_at (interruttore dei template per stato)', 'INSERT INTO public.whatsapp_settings (user_id, disabled_template_statuses, updated_at) VALUES (''' || :'U' || ''', ARRAY[''z''], now()) ON CONFLICT (user_id) DO UPDATE SET disabled_template_statuses = EXCLUDED.disabled_template_statuses, updated_at = EXCLUDED.updated_at', true);
 RESET ROLE;
 
 SET LOCAL ROLE anon;

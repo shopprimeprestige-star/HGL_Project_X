@@ -2792,7 +2792,7 @@ GRANT SELECT (user_id, phone_number_id, business_account_id, mode, status_templa
   ON public.whatsapp_settings TO authenticated;
 
 GRANT INSERT (user_id, phone_number_id, business_account_id, mode, status_template_map,
-              default_values, disabled_template_statuses)
+              default_values, disabled_template_statuses, updated_at)
   ON public.whatsapp_settings TO authenticated;
 
 GRANT UPDATE (phone_number_id, business_account_id, mode, status_template_map,
