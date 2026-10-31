@@ -59,6 +59,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
 import { proveMeetlySfuRegole } from "./idee/meetly-sfu-regole.mjs";
 import { proveMeetlySfuServer } from "./idee/meetly-sfu-server.mjs";
@@ -21611,6 +21612,7 @@ proveMeetlySfuInnesti(mod, { c, gruppo, radice });
 await proveMeetlyLancio(mod, { c, gruppo, radice });
 proveMessaggioIban(mod, { c, gruppo, radice });
 await proveEcoFantasma(mod, { c, gruppo });
+proveFiltriRitocchi(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
