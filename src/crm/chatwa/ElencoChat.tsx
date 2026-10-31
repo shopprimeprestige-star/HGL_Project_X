@@ -66,8 +66,9 @@ import type { ChatItem, ElencoChatProps } from "./tipi";
 import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
 import {
   dividiNascosti,
-  fraseRicontattiVuoti,
+  eMioRicontatto,
   eNascosto,
+  fraseRicontattiVuoti,
   ordinaRicontatti,
   patchMostra,
   patchNascondi,
@@ -204,14 +205,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       )
     : [];
   //  Il numero su «Ricontatti» non conta i nascosti (31/10/2026): sono nel loro gruppo in fondo.
-  const conta = (campo: CampoFiltro, valore: string | true) =>
-    contaVoce(
-      campo === "ricontatti" ? api.chats.filter((c) => !eNascosto(c)) : api.chats,
-      filtri,
-      stelleDi,
-      campo,
-      valore,
-    );
+  const conta = (campo: CampoFiltro, valore: string | true) => {
+    const n = contaVoce(api.chats, filtri, stelleDi, campo, valore);
+    return campo === "ricontatti"
+      ? n - api.chats.filter((c) => eNascosto(c) && eMioRicontatto(c, filtri.io)).length
+      : n;
+  };
 
   // I riquadri obbediscono a ricerca e filtri. «Una chat una volta sola»: sotto.
   const trovate = api.chats.filter((c) => passa(c) && combaciaRicerca(c, ricerca));
@@ -685,7 +684,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 setFiltri(
                   acceso
                     ? { ...FILTRI_VUOTI, consulente: filtri.consulente }
-                    : commuta({ ...FILTRI_VUOTI, consulente: filtri.consulente }, v.campo, v.valore),
+                    : commuta(
+                        { ...FILTRI_VUOTI, consulente: filtri.consulente },
+                        v.campo,
+                        v.valore,
+                      ),
                 )
               }
               className={cn(

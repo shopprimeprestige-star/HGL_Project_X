@@ -254,7 +254,6 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     tipo: null,
     consulente: "",
     ricontatti: false,
-    rStato: "",
     rEsito: "",
     rData: "",
     io: "",
@@ -626,13 +625,13 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "riepilogo «n di N chat» con una ✕ per etichetta",
     true,
-    /\{trovate\.length\} di \{api\.chats\.length\} chat/.test(elenco) &&
+    /\{nTrovate\} di \{api\.chats\.length\} chat/.test(elenco) &&
       /Togli il filtro \$\{e\.etichetta\}/.test(elenco),
   );
   c(
     "annuncio per lo screen reader: aria-live educato con «N chat»",
     true,
-    /role="status" aria-live="polite"/.test(elenco) && /\$\{trovate\.length\} chat/.test(elenco),
+    /role="status" aria-live="polite"/.test(elenco) && /\$\{nTrovate\} chat/.test(elenco),
   );
   c(
     "riga unica dei filtri rapidi: scorre di lato, tasti da 44 px (h-11), aria-pressed",
