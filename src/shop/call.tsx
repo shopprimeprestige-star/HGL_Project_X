@@ -161,6 +161,7 @@ import {
   tentativiMedia,
   type Tentativo,
 } from "@/shop/apertura-camera";
+import { puoNegoziare, SENZA_MEDIA_DOPO_MS } from "@/shop/senza-media";
 import { setSpeaking } from "@/shop/duck";
 import { getPresenter } from "@/shop/presenter";
 import { BrandLogo } from "@/shop/BrandLogo";
@@ -637,6 +638,15 @@ if (typeof window !== "undefined" && inAnteprimaDispositivo()) {
 
 // ── MESH: una connessione per ogni altro partecipante ─────────────────────
 let localStream: MediaStream | null = null;
+/** I media di QUESTA scheda non ci sono e non ci saranno a breve (permesso negato,
+ *  nessun dispositivo, richiesta appesa): si negozia lo stesso, in sola ricezione.
+ *  Vedi shop/senza-media. */
+let mediaFallita = false;
+/** Cresce a ogni `teardownMedia`: una `openMedia` nata prima non tocca più `mediaFallita`. */
+let generazioneMedia = 0;
+/** Connessioni nate senza le mie tracce: ricevono, e appena i media arrivano si
+ *  promuovono in loco (`promuoviPeerSenzaMedia`). */
+const peerSenzaMedia = new Set<string>();
 const peers = new Map<string, RTCPeerConnection>();
 const remoteStreams = new Map<string, MediaStream>();
 const pendingIce = new Map<string, RTCIceCandidateInit[]>();
@@ -1562,6 +1572,7 @@ function makePeer(pid: string): RTCPeerConnection {
   const p = new RTCPeerConnection({ iceServers: cachedIce });
   peers.set(pid, p); // set PRIMA di qualsiasi await del chiamante (anti-glare/duplicati)
   if (localStream) localStream.getTracks().forEach((t) => p.addTrack(t, localStream!));
+  else peerSenzaMedia.add(pid); // nata in sola ricezione (shop/senza-media)
   // parametri encoder appena il sender esiste (e di nuovo a connessione stabilita)
   try {
     tuneVideoSenders();
@@ -1810,10 +1821,18 @@ async function reoffer(pid: string, chiestaDalPeer = false) {
 
 // regola deterministica anti-glare: offre solo il pid lessicograficamente minore
 async function maybeInitiate(pid: string) {
-  if (!localStream || !(S.myPid < pid)) return;
+  if (!puoNegoziare({ haMedia: !!localStream, mediaFallita }) || !(S.myPid < pid)) return;
   let p = peers.get(pid);
   if (!p) {
     p = makePeer(pid);
+    if (!localStream) {
+      //  Sola ricezione (shop/senza-media): senza posti per i media l'offerta sarebbe
+      //  vuota. Due transceiver «recvonly»; le mie tracce, se arrivano, li riusano.
+      //  Solo chi OFFRE li crea: chi risponde usa quelli dell'offerta (creandone
+      //  prima, Chrome ne tiene di inutilizzati: provato).
+      p.addTransceiver("audio", { direction: "recvonly" });
+      p.addTransceiver("video", { direction: "recvonly" });
+    }
     const o = await p.createOffer();
     await p.setLocalDescription(o);
     send("offer", { from: S.myPid, to: pid, sdp: p.localDescription });
@@ -2028,6 +2047,7 @@ function removePeer(pid: string, why = "unspecified") {
     }
   }
   peers.delete(pid);
+  peerSenzaMedia.delete(pid);
   remoteStreams.delete(pid);
   pendingIce.delete(pid);
   lastSeen.delete(pid);
@@ -2055,6 +2075,7 @@ function resetRoster() {
     }
   });
   peers.clear();
+  peerSenzaMedia.clear();
   remoteStreams.clear();
   pendingIce.clear();
   lastSeen.clear();
@@ -2352,11 +2373,30 @@ async function openMedia(): Promise<MediaStream> {
   // default della camera (spesso 640×480, a volte 320×240): quella è la
   // risoluzione con cui nasceva la tela del compositor di sfocatura → immagine
   // "molto spixellata" in uscita, mentre in ENTRATA arrivava un 720p perfetto.
-  const s = await apriMedia({
-    video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
-    audio: S.role === "host" ? micAudioConstraints(false) : true,
-  });
+  //  Una richiesta che non risponde mai (iPhone, permesso ignorato) non può tenere
+  //  isolato chi la sta aspettando: dopo l'attesa ci si collega in sola ricezione.
+  //  Se poi la richiesta riesce, le tracce si agganciano in loco (vedi sotto).
+  //  ⚠️ `generazione`: se nel frattempo si è chiusa la chiamata (`teardownMedia`),
+  //   né il timer né l'errore tardivo devono aprire la sola ricezione fuori chiamata.
+  const generazione = generazioneMedia;
+  const senzaMedia = (motivo: string) => {
+    if (generazione === generazioneMedia) apriSenzaMedia(motivo);
+  };
+  const attesa = setTimeout(() => senzaMedia("richiesta appesa"), SENZA_MEDIA_DOPO_MS);
+  let s: MediaStream;
+  try {
+    s = await apriMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+      audio: S.role === "host" ? micAudioConstraints(false) : true,
+    });
+  } catch (e) {
+    senzaMedia("media non disponibili"); // permesso negato, nessun dispositivo, getUserMedia assente
+    throw e;
+  } finally {
+    clearTimeout(attesa);
+  }
   localStream = s;
+  mediaFallita = false;
   emitStreams();
   // ── LE CONNESSIONI NATE PRIMA DEI MEDIA VANNO RIPARATE ────────────────────
   //  Le tracce si agganciano a una connessione nel momento in cui questa nasce.
@@ -3280,6 +3320,7 @@ async function sampleUsage() {
   //   onda il microfono appena staccato. Vedi `micVuole`.
   if (mine && S.micOn && !micMutoVoluto()) {
     for (const [pid, pc] of peers) {
+      if (peerSenzaMedia.has(pid)) continue; // nata in sola ricezione: la promuove promuoviPeerSenzaMedia
       const snd = pc.getSenders().find((x) => x.track?.kind === "audio");
       if (!snd) continue; // gestito da attachLocalMediaToPeers
       if (!snd.track || snd.track.readyState !== "live" || snd.track !== mine) {
@@ -5601,7 +5642,9 @@ function attachChannel(sessionId: string) {
   //  la connessione è davvero in attesa di risposta, ed eventuali errori vengono
   //  registrati in console senza allarmare nessuno.
   ch.on("broadcast", { event: "offer" }, ({ payload }: any) => {
-    if (payload?.to !== S.myPid || !localStream) return; // serve prima il consenso ai media
+    //  Serve prima il consenso ai media, MA solo finché si può ancora averlo: se è
+    //  negato o appeso si risponde lo stesso, in sola ricezione (shop/senza-media).
+    if (payload?.to !== S.myPid || !puoNegoziare({ haMedia: !!localStream, mediaFallita })) return;
     const from = String(payload.from);
     const prev = offerQueue.get(from) || Promise.resolve();
     const next = prev.then(async () => {
@@ -5985,6 +6028,7 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
     }
   });
   peers.clear();
+  peerSenzaMedia.clear();
   remoteStreams.clear();
   pendingIce.clear();
   lastSeen.clear();
@@ -6001,6 +6045,8 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
   }
   localStream?.getTracks().forEach((t) => t.stop());
   localStream = null;
+  mediaFallita = false;
+  generazioneMedia++;
   emitStreams();
   if (!keepJoined && S.joined) console.log("[GUEST] joined → false (teardown)");
   if (!keepJoined) {
@@ -7781,6 +7827,75 @@ function releasePlaceholders() {
   silentCtx = null;
 }
 
+/** Camera/microfono non si sono aperti (o non rispondono): da ora si negozia lo stesso,
+ *  in sola ricezione, invece di aspettare per sempre un permesso che forse non arriva.
+ *  Vedi shop/senza-media. Chi ha il pid minore offre subito; l'altro risponde alle
+ *  offerte che già gli arrivano ogni tre secondi. */
+function apriSenzaMedia(motivo: string) {
+  if (localStream || mediaFallita) return;
+  mediaFallita = true;
+  console.warn(`[PEER] niente media locali (${motivo}) → mi collego in sola ricezione`);
+  sendHello(true);
+  S.roster.forEach((r) => void maybeInitiate(r.pid));
+}
+
+/** Le mie tracce sono arrivate dopo che la connessione è nata in sola ricezione:
+ *  si decide PER TRANSCEIVER (non per `sender.track`, che può essere già pieno per
+ *  altre strade): se c'è un «recvonly» del tipo giusto la traccia vi si aggancia con
+ *  `addTrack(t, ls)` (lo riusa e lo porta a `sendrecv`); altrimenti `addTrack` solo se
+ *  quel tipo non è già in uscita. Poi si rinegozia sulla STESSA connessione
+ *  (l'offerta passa la guardia «già connesso» perché dichiara `restart`). Se l'altro
+ *  sta offrendo nello stesso istante si riprova fra un secondo; se l'offerta resta
+ *  senza risposta si rimanda (come fa `maybeInitiate`), al massimo due volte. */
+function promuoviPeerSenzaMedia(tentativo = 0) {
+  const ls = localStream;
+  if (!ls || !peerSenzaMedia.size) return;
+  for (const pid of Array.from(peerSenzaMedia)) {
+    const pc = peers.get(pid);
+    if (!pc || pc.signalingState === "closed") {
+      peerSenzaMedia.delete(pid);
+      continue;
+    }
+    if (pc.signalingState === "have-remote-offer") {
+      if (tentativo < 5) setTimeout(() => promuoviPeerSenzaMedia(tentativo + 1), 1000);
+      continue;
+    }
+    if (ls.getVideoTracks().length && ls.getAudioTracks().length) peerSenzaMedia.delete(pid);
+    void (async () => {
+      try {
+        let aggiunte = 0;
+        for (const t of ls.getTracks()) {
+          const tr = pc
+            .getTransceivers()
+            .find((x) => x.receiver.track.kind === t.kind && !x.direction.includes("send"));
+          //  ⚠️ `addTrack(t, ls)` e NON `replaceTrack`: solo `addTrack` associa la traccia
+          //   al MediaStream, e chi riceve (`ontrack`) senza `e.streams[0]` fa un flusso
+          //   per traccia, il secondo sovrascrive il primo e l'audio non si sente più.
+          //   `addTrack` riusa il transceiver «recvonly» (provato in Chrome).
+          if (!tr && pc.getSenders().some((x) => x.track?.kind === t.kind)) continue;
+          pc.addTrack(t, ls);
+          aggiunte++;
+        }
+        if (!aggiunte) return;
+        await pc.setLocalDescription(await pc.createOffer());
+        try {
+          tuneVideoSenders(); // i tetti di banda si applicano al sender nuovo, ora che esiste la negoziazione
+        } catch {
+          /* */
+        }
+        send("offer", { from: S.myPid, to: pid, sdp: pc.localDescription, restart: true });
+        for (let i = 0; i < 2; i++) {
+          await new Promise((r) => setTimeout(r, 5_000));
+          if (peers.get(pid) !== pc || pc.signalingState !== "have-local-offer") break;
+          send("offer", { from: S.myPid, to: pid, sdp: pc.localDescription, restart: true });
+        }
+      } catch (e) {
+        console.warn("[PEER] promozione dal solo ricevere non riuscita", pid, e);
+      }
+    })();
+  }
+}
+
 // sostituisce la traccia video/audio in USCITA verso TUTTI i peer del mesh
 // ── PERCHÉ LA CAMERA DEL CLIENTE SI VEDEVA NERA ─────────────────────────────
 //  Le tracce vengono agganciate a una connessione NEL MOMENTO in cui la
@@ -7795,8 +7910,10 @@ function releasePlaceholders() {
 //  questa volta le crea CON le tracce.
 function attachLocalMediaToPeers(reason: string) {
   if (!localStream) return;
+  promuoviPeerSenzaMedia();
   const missing: string[] = [];
   for (const [pid, pc] of peers) {
+    if (peerSenzaMedia.has(pid)) continue; // nata in sola ricezione: la promuove la riga sopra, non si ricostruisce
     const kinds = new Set(
       pc
         .getSenders()
@@ -7852,6 +7969,9 @@ function setLocalTrack(kind: "video" | "audio", t: MediaStreamTrack | null) {
   );
   if (t) localStream.addTrack(t);
   emitStreams();
+  //  Unico punto da cui passano camera, microfono, schermo e segnaposto: le
+  //  connessioni nate in sola ricezione (shop/senza-media) si aggiornano qui.
+  promuoviPeerSenzaMedia();
 }
 
 // ── SFOCATURA SFONDO (presentatore) ───────────────────────────────────────

@@ -57,6 +57,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
+import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
 import { proveOggiDelConsulente } from "./idee/oggi-del-consulente.mjs";
 import { proveInvitoMeet } from "./idee/invito-meet.mjs";
 import { proveOrdineWhatsapp } from "./idee/ordine-whatsapp.mjs";
@@ -414,6 +415,9 @@ const MODULI = [
   //  ⚠️ Che cosa si prova quando la camera non si apre: senza questa scala una
   //   webcam scollegata portava via anche la voce. Vedi proveDellAperturaCamera.
   "shop/apertura-camera",
+  //  ⚠️ Meetly «dentro ma spenti»: chi non ha camera né microfono si collega lo
+  //   stesso, in sola ricezione. Prove in prove/idee/meetly-stallo.mjs.
+  "shop/senza-media",
   //  ⚠️ Le condizioni con cui un preventivo è nato: il documento consegnato
   //   non cambia da solo, e «modifica preventivo» riparte da quelle di oggi.
   //   Vedi proveDelleCondizioni.
@@ -21568,6 +21572,7 @@ proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
+proveMeetlyStallo(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");
