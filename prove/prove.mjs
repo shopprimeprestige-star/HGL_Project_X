@@ -755,6 +755,13 @@ const MODULI = [
   //  Messaggio «IBAN per l'acconto» con importo, causale, IBAN e intestatario dinamici (31/10/2026):
   //   prove in prove/idee/messaggio-iban.mjs. (`chatwa/risposte-rapide` è già registrato sopra.)
   "chatwa/dati-acconto",
+  //  I messaggi automatici con un interruttore ciascuno (commessa 2026-10-31-interruttori-automatici):
+  //   prove in prove/messaggi-automatici/*.mjs, chiamate da `proveMessaggiAutomatici`
+  //   (prove/messaggi-automatici.mjs, dentro `proveManychat`). Questa riga la tocca il solo
+  //   compito T1: adattatore e vista sono file con i soli tipi finché T2 e T7 non li riempiono.
+  "messaggi-automatici/catalogo",
+  "messaggi-automatici/adattatore",
+  "messaggi-automatici/vista",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });

@@ -61,6 +61,7 @@ import { proveNoteVocali } from "./manychat/note-vocali.mjs";
 import { proveControlloNotte } from "./manychat/controllo-notte.mjs";
 import { proveMessaggioStato } from "./manychat/messaggio-stato.mjs";
 import { proveFinestraReazioni } from "./manychat/finestra-reazioni.mjs";
+import { proveMessaggiAutomatici } from "./messaggi-automatici.mjs";
 import { creaFinto, creaOrologio, esiti, PERCORSI } from "./manychat/finto.mjs";
 
 /** Il ManyChat finto deve fare quello che dice: lo si controlla qui, una volta,
@@ -353,4 +354,6 @@ export async function proveManychat(mod, aiuti) {
   proveMessaggioStato(mod, aiuti);
   //  Fix 30/10/2026: una reazione non riapre la finestra di 24 ore.
   await proveFinestraReazioni(mod, aiuti);
+  //  Commessa 2026-10-31 (interruttori dei messaggi automatici): un file per compito in prove/messaggi-automatici/.
+  await proveMessaggiAutomatici(mod, aiuti);
 }
