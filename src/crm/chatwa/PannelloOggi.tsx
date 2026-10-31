@@ -232,6 +232,15 @@ function Pastiglie({ periodo, onCambia }: { periodo: Periodo; onCambia: (p: Peri
         >
           Da… a…
         </button>
+        <button
+          type="button"
+          aria-pressed={tipo === "tutti"}
+          onClick={() => onCambia({ tipo: "tutti", da: "", a: "" })}
+          title="Tutto quello che è ancora da gestire, anche di mesi fa"
+          className={pastiglia(tipo === "tutti")}
+        >
+          Tutti
+        </button>
       </div>
       {tipo === "giorno" && (
         <div className="px-3 pb-2">
@@ -561,6 +570,8 @@ export function PannelloOggi({
                   ? "Carico le cose da fare…"
                   : periodo.tipo === "oggi"
                     ? "Niente da fare adesso."
+                    : periodo.tipo === "tutti"
+                      ? "Niente da gestire."
                     : "Niente da fare in queste date."
               }
             />
@@ -573,8 +584,11 @@ export function PannelloOggi({
                 nota={g.titolo ? undefined : NOTA_FASCIA[g.fascia as Fascia]}
                 conteggio={g.righe.length}
                 tono={TONO_FASCIA[g.fascia] ?? "neutro"}
-                aperto={gruppiAperti.aperto(g.fascia)}
-                onCambia={() => gruppiAperti.cambia(g.fascia)}
+                //  In «Tutti» i gruppi partono aperti, arretrato compreso (chiave a parte).
+                aperto={gruppiAperti.aperto(periodo.tipo === "tutti" ? `tutti:${g.fascia}` : g.fascia)}
+                onCambia={() =>
+                  gruppiAperti.cambia(periodo.tipo === "tutti" ? `tutti:${g.fascia}` : g.fascia)
+                }
               >
                 <ul className="divide-y divide-border">
                   {g.righe.map((r) => (

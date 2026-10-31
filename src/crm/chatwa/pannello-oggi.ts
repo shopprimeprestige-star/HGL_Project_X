@@ -6,6 +6,7 @@
  *  si mostrano: la colonna è stretta, e la barrata resta visibile nella pagina. */
 import { FASCE, fasciaDi, ordinaRighe, type Fascia, type RigaDaFare } from "@/crm/dafare/righe";
 import { rigaPassaChi, type MappaMestieri } from "@/crm/dafare/di-chi";
+import { stessoNumero } from "@/crm/telefono-doppio";
 import { giornoPrima, intervalloDi, type Periodo } from "@/crm/periodo-da-fare";
 
 /** Le fasce che «Da fare oggi» mostra all'apertura (vedi `passaMomento`). */
@@ -54,7 +55,7 @@ export function daFareDelPannello({
   /** il verso scelto da chi guarda per «Rimasto indietro» (crm/dafare/arretrati) */
   ordinaArretrati?: (r: RigaDaFare[]) => RigaDaFare[];
 }): GruppoPannello[] {
-  if (periodo && periodo.tipo !== "oggi") {
+  if (periodo && periodo.tipo !== "oggi" && periodo.tipo !== "tutti") {
     const { da, a } = intervalloDi(periodo, oggi);
     const perGiorno = new Map<string, RigaDaFare[]>();
     for (const r of righe) {
@@ -67,14 +68,16 @@ export function daFareDelPannello({
       righe: ordinaRighe(perGiorno.get(g) ?? []),
     }));
   }
+  //  «Tutti»: ogni fascia, anche l'arretrato dei lead di mesi fa e i prossimi giorni.
+  const fasce = periodo?.tipo === "tutti" ? FASCE : FASCE_DEL_PANNELLO;
   const mappa = new Map<Fascia, RigaDaFare[]>();
   for (const r of righe) {
     if (r.fatta || !rigaPassaChi(r, chi, mestieri)) continue;
     const f = fasciaDi(r, adesso, oggi);
-    if (!FASCE_DEL_PANNELLO.includes(f)) continue;
+    if (!fasce.includes(f)) continue;
     mappa.set(f, [...(mappa.get(f) ?? []), r]);
   }
-  return FASCE_DEL_PANNELLO.filter((f) => mappa.has(f)).map((f) => {
+  return fasce.filter((f) => mappa.has(f)).map((f) => {
     const gruppo = mappa.get(f) ?? [];
     return {
       fascia: f,
@@ -86,11 +89,18 @@ export function daFareDelPannello({
 export const contaRighe = (gruppi: GruppoPannello[]) =>
   gruppi.reduce((n, g) => n + g.righe.length, 0);
 
-/** La chat già abbinata a questo lead (l'abbinamento lo fa useChatWa). */
-export function chatDelLead<T extends { lead?: { id: string } | null }>(
+/** La chat già abbinata a questo lead (l'abbinamento lo fa useChatWa); se
+ *  nessuna è abbinata, quella con lo stesso numero (titolare, 31/10: dal
+ *  «Da fare» si apre la chat nel CRM, non la scheda). */
+export function chatDelLead<T extends { phone: string; lead?: { id: string } | null }>(
   chats: T[],
   leadId: string,
+  telefono?: string | null,
 ): T | null {
   if (!leadId) return null;
-  return chats.find((c) => c.lead?.id === leadId) ?? null;
+  return (
+    chats.find((c) => c.lead?.id === leadId) ??
+    (telefono ? chats.find((c) => stessoNumero(c.phone, telefono)) : undefined) ??
+    null
+  );
 }
