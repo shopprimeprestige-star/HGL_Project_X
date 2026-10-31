@@ -22,12 +22,22 @@
  *   da_collegare, rifiuto_contatto → rifiuto del cliente
  *   flusso_mancante, blocco → blocco tecnico
  *   incerto           → rete (solo rete giù, timeout e 5xx)
+ *   spento            → il messaggio automatico è spento in «Messaggi automatici» (o manca la
+ *                       chiave che lo dichiara): NON è partito niente e non resta nessuna
+ *                       traccia, nemmeno in `manychat_invii`. Chi chiama NON lo conta come
+ *                       rifiuto del cliente né come guasto del canale.
  *  La traduzione la fa `promemoria/pronto.ts` (`esitoInvio`), che legge
  *  `manychat?: EsitoPorta` PRIMA di `status`/`corpo`/`rete`.
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import type { TipoInvio } from "../types";
+import {
+  eChiaveMessaggio,
+  type ChiaveMessaggio,
+  type MessaggioDiInvio,
+} from "../messaggi-automatici/catalogo";
 import type { ClientManychat, EsitoApi, RisultatoApi } from "./api";
+import { convertiModelloUtility, findMetaTemplate } from "../wa-meta-templates";
 import { finestraPerTesto, testoDelModello } from "./finestra";
 
 export type CanaleWhatsapp = "cloud" | "manychat";
@@ -48,6 +58,9 @@ export type EsitoPorta =
   | "da_collegare"
   /** il numero non è su WhatsApp */
   | "rifiuto_contatto"
+  /** il messaggio automatico è spento (interruttore del registro), o non si sa: non è partito
+   *  niente e non è stata scritta nessuna riga (commessa 2026-10-31-interruttori-automatici) */
+  | "spento"
   /** il modello non ha un flusso mappato in `manychat_config.flussi` */
   | "flusso_mancante"
   /** chiave rifiutata, canale scollegato, modello in pausa, limite */
@@ -69,11 +82,20 @@ export interface RichiestaInvio {
   lingua?: string;
   /** parametri posizionali {{1}}, {{2}}… del modello */
   parametri?: string[];
+  /** Solo la porta lo imposta: l'immagine personale del cliente per i modelli `_311026` con l'header
+   *  dinamico (Cloud: parametro header; ManyChat: campo `crm_img`). Chi chiama non la passa. */
+  immagine?: string;
   /** il nome della persona: serve solo a creare il contatto in ManyChat, e ne
    *  parte la prima parola (mai il cognome) */
   nome?: string;
   leadId?: string | null;
   tipo: TipoInvioPorta;
+  /** ⚠️ CHE MESSAGGIO È (commessa 2026-10-31-interruttori-automatici). Obbligatorio: una chiave del
+   *  catalogo (`messaggi-automatici/catalogo`) oppure «manuale» (scritto da una persona: la porta
+   *  non guarda l'interruttore). Con una chiave la porta chiede `porte.interruttore(chiave)` e,
+   *  se non risponde `true`, non invia niente. Chi non ha una chiave (`chiaveDi` → `null`) NON
+   *  deve chiamare la porta: se lo fa, qualunque altro valore è «spento». */
+  messaggio: MessaggioDiInvio;
   /** chiave unica dell'invio (`p|tel9|…`, `r|tel9|…`); assente per la chat a mano */
   chiave?: string;
   /** MAI come modello (il giorno prima, 30/10/2026): parte solo il testo del modello, con la
@@ -144,6 +166,21 @@ export interface PortePorta {
   /** L'ultimo messaggio del cliente (ISO), per la finestra di 24 ore. Senza
    *  questa porta (o con un guasto) si manda il modello, come prima. */
   ultimaEntrata?(telefono: string): Promise<string | null>;
+  /** L'interruttore del messaggio (registro `messaggi_automatici`): `true` = acceso. Si chiede a OGNI
+   *  invio con una chiave del catalogo (mai per «manuale»). Qualunque cosa diversa da `true`, un
+   *  guasto o una porta assente = spento: nel dubbio non si manda. */
+  interruttore(chiave: ChiaveMessaggio): Promise<boolean>;
+  /** L'interruttore dei modelli `_311026` (31/10/2026): vero = al posto di ogni modello vecchio parte
+   *  il nuovo, se c'è, se il suo flusso è collegato e se i valori si convertono. Assente, falso o
+   *  guasto = spento: partono i vecchi, come sempre. Vedi `MODELLI_UTILITY_311026`. */
+  modelliUtility?(): Promise<boolean>;
+  /** Una riga di registro per un fatto da non perdere (solo un CODICE breve: mai numeri, nomi o link).
+   *  Qui: ogni volta che, a interruttore acceso, parte il vecchio al posto del nuovo. */
+  avviso?(codice: string): void;
+  /** L'immagine personale di questo cliente (codice = meet + gettone) è stata generata e depositata?
+   *  I modelli `_311026` con l'immagine in testa partono solo se sì. Assente o guasta = no: parte il
+   *  vecchio (mai un'immagine al buio, mai quella di un altro cliente). */
+  immagineModello?(codice: string): Promise<boolean>;
 }
 
 /** Quanti parametri del modello arrivano nei campi `crm_v1…crm_v4`. */
@@ -164,6 +201,8 @@ export function corpoGraph(r: {
   modello?: string;
   lingua?: string;
   parametri?: string[];
+  /** L'indirizzo dell'immagine personale del cliente, per i modelli con l'header dinamico. */
+  immagine?: string;
 }): Record<string, unknown> {
   const pulito = String(r.a ?? "").replace(/[^\d+]/g, "");
   const payload: Record<string, unknown> = {
@@ -178,14 +217,32 @@ export function corpoGraph(r: {
       language: { code: r.lingua || "it" },
     };
     const params = r.parametri;
-    if (Array.isArray(params) && params.length > 0) {
-      template.components = [
-        {
-          type: "body",
-          parameters: params.map((text) => ({ type: "text", text: String(text ?? "") })),
-        },
-      ];
-    }
+    //  I modelli `_311026` col link del meet hanno l'immagine in testa e il pulsante con l'indirizzo
+    //  variabile: l'ultimo valore è la parte variabile del pulsante, non una variabile del testo.
+    const def = findMetaTemplate(r.modello);
+    const conPulsante = !!def?.pulsante?.da && Array.isArray(params) && params.length > 0;
+    const perTesto = conPulsante ? params!.slice(0, -1) : params;
+    const componenti: Record<string, unknown>[] = [];
+    //  L'header dinamico porta l'immagine DI QUEL CLIENTE; senza, non si manda un header vuoto.
+    const linkImmagine = def?.header?.dinamica ? r.immagine : def?.header?.url;
+    if (def?.header && linkImmagine)
+      componenti.push({
+        type: "header",
+        parameters: [{ type: "image", image: { link: linkImmagine } }],
+      });
+    if (Array.isArray(perTesto) && perTesto.length > 0)
+      componenti.push({
+        type: "body",
+        parameters: perTesto.map((text) => ({ type: "text", text: String(text ?? "") })),
+      });
+    if (conPulsante)
+      componenti.push({
+        type: "button",
+        sub_type: "url",
+        index: "0",
+        parameters: [{ type: "text", text: String(params!.at(-1) ?? "") }],
+      });
+    if (componenti.length > 0) template.components = componenti;
     payload.template = template;
   } else {
     payload.type = "text";
@@ -196,12 +253,85 @@ export function corpoGraph(r: {
   return payload;
 }
 
+/** ── I MODELLI `_311026` (31/10/2026) ──────────────────────────────────────
+ *  Il modello che parte davvero. Interruttore spento (di serie), guasto o assente: quello chiesto,
+ *  coi suoi valori. Acceso: il nuovo al posto del vecchio, coi valori convertiti (la parte
+ *  variabile del pulsante in coda al posto del link). Se il vecchio non ha un nuovo o i valori non
+ *  si convertono (link che non è una stanza nostra), resta il vecchio. Chi chiama non cambia. */
+async function modelloDaMandare(
+  porte: PortePorta,
+  modello: string,
+  parametri: string[],
+): Promise<{ modello: string; parametri: string[]; nuovo: boolean; immagine?: string }> {
+  const com = { modello, parametri, nuovo: false };
+  if (!porte.modelliUtility) return com;
+  const acceso = await porte.modelliUtility().catch(() => false);
+  if (!acceso) return com;
+  const conv = convertiModelloUtility(modello, parametri);
+  if (!conv) return com;
+  if ("ripiego" in conv) {
+    avvisaRipiego(porte, `ripiego_${conv.ripiego}`);
+    return com;
+  }
+  //  L'immagine personale di QUEL cliente deve esistere (si genera nel browser del CRM quando nasce la
+  //  stanza): se non c'è, o non si sa, il nuovo non parte.
+  if (conv.immagine) {
+    const c = conv.immagine.codice;
+    const esiste = porte.immagineModello ? await porte.immagineModello(c).catch(() => false) : false;
+    if (!esiste) {
+      avvisaRipiego(porte, "ripiego_immagine");
+      return com;
+    }
+    return { modello: conv.modello, parametri: conv.parametri, nuovo: true, immagine: conv.immagine.url };
+  }
+  return { modello: conv.modello, parametri: conv.parametri, nuovo: true };
+}
+
+/** Il vecchio parte al posto del nuovo: una riga di registro, solo il codice. */
+function avvisaRipiego(porte: PortePorta, codice: string) {
+  try {
+    porte.avviso?.(`modelli311026_${codice}`);
+  } catch {
+    /* il registro non deve mai fermare un invio */
+  }
+}
+
+/** Meta dice che il modello non si può usare (non approvato, in pausa, disabilitato): nulla è partito. */
+const MODELLO_NON_USABILE_CLOUD = [132001, 132015, 132016];
+
+/** Il messaggio può partire? `null` = sì; altrimenti l'esito «spento» da restituire.
+ *   - «manuale»: scritto da una persona, la porta dell'interruttore non si consulta;
+ *   - una chiave del catalogo: parte solo se l'interruttore risponde esattamente `true`;
+ *   - qualunque altra cosa (assente, `null`, chiave ignota): non si sa che messaggio sia, non parte.
+ *  Un guasto del controllo = spento, con un codice suo: il giro riprova più tardi. Nei log solo
+ *  codici (mai testi dell'errore, numeri o nomi). */
+async function controllaInterruttore(
+  porte: PortePorta,
+  messaggio: unknown,
+): Promise<RisultatoPorta | null> {
+  if (messaggio === "manuale") return null;
+  if (!eChiaveMessaggio(messaggio)) return { esito: "spento", codice: "messaggio_non_valido" };
+  if (typeof porte.interruttore !== "function")
+    return { esito: "spento", codice: "interruttore_non_leggibile" };
+  try {
+    if ((await porte.interruttore(messaggio)) === true) return null;
+  } catch {
+    return { esito: "spento", codice: "interruttore_non_leggibile" };
+  }
+  return { esito: "spento", codice: `interruttore_spento_${messaggio}` };
+}
+
 /** Manda un messaggio WhatsApp dal canale scelto. Non lancia: ogni guasto è un
  *  esito. */
 export async function inviaWhatsapp(
   porte: PortePorta,
   richiesta: RichiestaInvio,
 ): Promise<RisultatoPorta> {
+  //  ⚠️ IL CONTROLLO UNICO. Prima del canale, della validazione, di ogni lettura e di ogni
+  //   prenotazione: un messaggio spento non lascia nessuna traccia (una riga «saltato» in
+  //   `manychat_invii` brucerebbe la chiave dell'evento, e riacceso non partirebbe più).
+  const fermo = await controllaInterruttore(porte, richiesta.messaggio);
+  if (fermo) return fermo;
   if (richiesta.canale === "cloud") return viaCloud(porte, richiesta);
   return viaManychat(porte, richiesta);
 }
@@ -210,8 +340,22 @@ export async function inviaWhatsapp(
  *  stato e il corpo, che chi chiama legge come ha sempre fatto. `esito` serve
  *  solo ai log. */
 async function viaCloud(porte: PortePorta, r: RichiestaInvio): Promise<RisultatoPorta> {
+  //  Il modello vecchio da rimandare se Meta rifiuta il nuovo (solo se è partito il nuovo).
+  let vecchio: RichiestaInvio | null = null;
+  if (r.modello && Array.isArray(r.parametri)) {
+    const m = await modelloDaMandare(porte, r.modello, r.parametri);
+    if (m.nuovo) {
+      vecchio = r;
+      r = { ...r, modello: m.modello, parametri: m.parametri, immagine: m.immagine };
+    }
+  }
   try {
-    const { status, corpo } = await porte.cloud(corpoGraph(r));
+    let { status, corpo } = await porte.cloud(corpoGraph(r));
+    const codiceMeta = Number((corpo as { error?: { code?: unknown } } | null)?.error?.code);
+    if (vecchio && MODELLO_NON_USABILE_CLOUD.includes(codiceMeta)) {
+      avvisaRipiego(porte, `cloud_${codiceMeta}`);
+      ({ status, corpo } = await porte.cloud(corpoGraph(vecchio)));
+    }
     const esito: EsitoPorta =
       status >= 500 ? "incerto" : status >= 200 && status < 300 ? "ok" : "blocco";
     return { esito, status, corpo };
@@ -236,7 +380,9 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   //  è un errore di chi chiama, non un'eccezione.
   if (r.parametri !== undefined && !Array.isArray(r.parametri))
     return { esito: "blocco", codice: "parametri_non_validi" };
-  const parametri = r.parametri ?? [];
+  let parametri = r.parametri ?? [];
+  /** L'immagine personale del modello nuovo, se ce l'ha: va nel campo `crm_img` prima di `sendFlow`. */
+  let immagine: string | undefined;
   if (parametri.length > MAX_PARAMETRI) return { esito: "blocco", codice: "troppi_parametri" };
 
   //  ── DENTRO LE 24 ORE, TESTO NORMALE (29/10/2026) ─────────────────────
@@ -261,10 +407,48 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   //   comunque, e dopo si chiude «saltato» tenendo la chiave: una volta per meet.
   const senzaTesto = !!r.soloTesto && !r.testo;
 
+  /** Il modello e il flusso che partono: il nuovo (`_311026`) se l'interruttore è acceso, se ha il suo
+   *  flusso collegato e se sta nei 4 campi; altrimenti quello chiesto, come sempre (mai un invio perso
+   *  perché il flusso nuovo non è ancora collegato). */
+  const flussoDi = async (modello: string, valori: string[]) => {
+    const n = await modelloDaMandare(porte, modello, valori);
+    if (n.nuovo && n.parametri.length > MAX_PARAMETRI) avvisaRipiego(porte, "ripiego_campi");
+    else if (n.nuovo) {
+      const nsNuovo = await porte.flusso(n.modello);
+      if (nsNuovo)
+        return {
+          modello: n.modello,
+          parametri: n.parametri,
+          ns: nsNuovo,
+          immagine: n.immagine,
+          //  Il vecchio, per ripiegare se la scrittura dei campi del nuovo non riesce.
+          vecchio: { modello, parametri: valori } as { modello: string; parametri: string[] } | undefined,
+        };
+      avvisaRipiego(porte, "ripiego_flusso");
+    }
+    return {
+      modello,
+      parametri: valori,
+      ns: await porte.flusso(modello),
+      immagine: undefined,
+      vecchio: undefined as { modello: string; parametri: string[] } | undefined,
+    };
+  };
+  /** Se è partito il nuovo: il vecchio da usare se i campi del nuovo non si scrivono. */
+  let vecchio: { modello: string; parametri: string[] } | undefined;
+  let ripiegatoSuiCampi = false;
+
   let ns: string | null = null;
   if (r.modello && !senzaTesto) {
     try {
-      ns = await porte.flusso(r.modello);
+      const f = await flussoDi(r.modello, parametri);
+      ns = f.ns;
+      if (ns) {
+        r = { ...r, modello: f.modello };
+        parametri = f.parametri;
+        immagine = f.immagine;
+        vecchio = f.vecchio;
+      }
     } catch {
       return { esito: "blocco", codice: "configurazione" };
     }
@@ -354,10 +538,30 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
     campi.crm_invio_id = invioId;
     if (r.leadId) campi.crm_lead_id = r.leadId;
     campi.crm_telefono = cifre;
+    if (immagine) campi.crm_img = immagine;
     return campi;
   };
-  if (ns) {
+  /** Scrive i campi del flusso. ⚠️ Se parte un modello NUOVO (`_311026`) e la scrittura non riesce
+   *  (tipicamente manca il campo `crm_img` in ManyChat, ma vale per qualunque errore, anche di rete),
+   *  l'invio ripiega sul modello VECCHIO nello stesso invio: nulla è partito, e il guasto NON deve
+   *  contare per lo spegnimento automatico di ManyChat (due falliti di fila, o un errore non HTTP).
+   *  Ripiega, quindi, e solo se anche il vecchio non si scrive è un guasto vero, come sempre. */
+  const scriviCampiFlusso = async () => {
     const w = await client.scriviCampi(subscriber, campiDelFlusso());
+    if (w.esito === "ok" || !vecchio) return w;
+    const nsVecchio = await porte.flusso(vecchio.modello).catch(() => null);
+    if (!nsVecchio) return w;
+    avvisaRipiego(porte, "ripiego_campo");
+    r = { ...r, modello: vecchio.modello };
+    parametri = vecchio.parametri;
+    immagine = undefined;
+    ns = nsVecchio;
+    vecchio = undefined;
+    ripiegatoSuiCampi = true;
+    return client.scriviCampi(subscriber, campiDelFlusso());
+  };
+  if (ns) {
+    const w = await scriviCampiFlusso();
     if (w.esito !== "ok") return fallita(w, subscriber);
   }
 
@@ -368,13 +572,17 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
   //  Il testo al posto del modello è stato rifiutato perché per ManyChat la
   //  finestra è chiusa (3011/3031: non è partito niente): parte il modello.
   if (s.esito !== "ok" && modelloDiRiserva && /_(3011|3031)$/.test(s.codice ?? "")) {
-    const nsRiserva = await porte.flusso(modelloDiRiserva).catch(() => null);
-    if (nsRiserva) {
-      const w = await client.scriviCampi(subscriber, campiDelFlusso());
-      if (w.esito !== "ok") return fallita(w, subscriber);
-      r = { ...r, modello: modelloDiRiserva, testo: undefined };
+    const riserva = await flussoDi(modelloDiRiserva, parametri).catch(() => null);
+    const nsRiserva = riserva?.ns ?? null;
+    if (riserva && nsRiserva) {
+      parametri = riserva.parametri;
+      immagine = riserva.immagine;
+      vecchio = riserva.vecchio;
+      r = { ...r, modello: riserva.modello, testo: undefined };
       ns = nsRiserva;
-      s = await client.mandaFlusso(subscriber, nsRiserva);
+      const w = await scriviCampiFlusso();
+      if (w.esito !== "ok") return fallita(w, subscriber);
+      s = await client.mandaFlusso(subscriber, ns);
     }
   }
   if (s.esito === "ok") {
@@ -386,6 +594,8 @@ async function viaManychat(porte: PortePorta, r: RichiestaInvio): Promise<Risult
         //  Partito il modello di riserva: il registro lo dice (il pannello dei
         //  costi conta a prezzo di modello solo le righe con un flusso).
         ...(modelloDiRiserva && ns ? { flow_ns: ns } : {}),
+        //  Ripiego sul vecchio per i campi: il registro dice il flusso che è partito davvero.
+        ...(ripiegatoSuiCampi && ns ? { flow_ns: ns } : {}),
       })
       .catch(() => undefined);
     await registraDi(porte, r, "sent", `mc:${invioId}`, null);
@@ -505,6 +715,12 @@ export function rispostaChat(r: RisultatoPorta): {
         400,
         "flusso_mancante",
         "Questo modello non ha ancora un flusso collegato in ManyChat.",
+      );
+    case "spento":
+      return no(
+        409,
+        "spento",
+        "Questo messaggio automatico è spento: si accende in Impostazioni, Messaggi automatici.",
       );
     case "incerto":
       return no(

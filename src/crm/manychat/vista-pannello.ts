@@ -25,6 +25,7 @@ import type {
 } from "../types";
 import type { Tono } from "../ui";
 import { aRoma } from "../promemoria/formati";
+import { NOME_NUOVO_311026 } from "../wa-meta-templates";
 import { PROMEMORIA_ACCONTO_ACCESO } from "./regole";
 import type {
   CollegamentoManychat,
@@ -422,6 +423,19 @@ export const MODELLI_FLUSSO_SEQUENZE: { modello: string; etichetta: string }[] =
   //  più di 24 ore. Senza flusso collegato si manda il modello dello stato.
   { modello: "hgl_come_eravamo_rimasti", etichetta: "Messaggio generico: come eravamo rimasti" },
 ];
+
+/** I flussi dei modelli nuovi `_311026` (31/10/2026): uno per ogni modello che oggi passa da un flusso
+ *  (più `hgl_dati_fattura`), con lo stesso nome del vecchio e la data in fondo. Si collegano PRIMA di
+ *  accendere l'interruttore `modelli_utility_311026`: senza il flusso nuovo parte il vecchio. */
+export const MODELLI_FLUSSO_UTILITY_311026: { modello: string; etichetta: string }[] = [
+  ...MODELLI_FLUSSO,
+  ...MODELLI_FLUSSO_SEQUENZE,
+  { modello: "hgl_dati_fattura", etichetta: "Dati per la fattura" },
+].flatMap((m) =>
+  NOME_NUOVO_311026[m.modello]
+    ? [{ modello: NOME_NUOVO_311026[m.modello], etichetta: `Nuovo · ${m.etichetta}` }]
+    : [],
+);
 
 /** Lead nuovi al giorno.
  *  shortcut: stesso valore di `TETTO_LEAD_NUOVI` in `quando.ts`, che lo aggiunge

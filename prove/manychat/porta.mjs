@@ -64,6 +64,8 @@ export async function provePorta(mod, { c, gruppo, radice }) {
     const cloud = [];
     const porte = {
       adesso: () => orologio.adesso(),
+      //  Il controllo in porta (commessa 2026-10-31): acceso di serie, così le prove di sempre non cambiano.
+      interruttore: async () => true,
       client: () => client,
       flusso: async (modello) => flussi[modello] ?? null,
       prenota: async (p) => {
@@ -119,7 +121,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
     return { porte, f, orologio, eventi, righe, messaggi, cloud, nuovoGiro };
   }
   const invia = (x, r) =>
-    P.inviaWhatsapp(x.porte, { canale: "manychat", a: `+${NUMERO}`, tipo: "conferma", ...r });
+    P.inviaWhatsapp(x.porte, { canale: "manychat", a: `+${NUMERO}`, tipo: "conferma", messaggio: "conferma_consulenza", ...r });
   const conferma = {
     modello: MODELLO,
     parametri: PARAMETRI,
@@ -202,6 +204,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         lingua: b.templateLang,
         parametri: b.templateParams,
         tipo: "chat",
+        messaggio: "manuale",
       });
       c(`${nome}: stesso corpo di api.whatsapp-send`, vecchioSend(b), x.cloud[0]);
       c(
@@ -218,6 +221,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       lingua: "it",
       parametri: PARAMETRI,
       tipo: "conferma",
+      messaggio: "conferma_consulenza",
     });
     c(
       "la conferma del 22/10: stesso corpo di hooks/promemoria-whatsapp",
@@ -236,6 +240,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       modello: MODELLO,
       parametri: PARAMETRI,
       tipo: "conferma",
+      messaggio: "conferma_consulenza",
     });
     c(
       "rete giù: rete, e il giro la legge come prima",
@@ -249,6 +254,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       modello: MODELLO,
       parametri: PARAMETRI,
       tipo: "conferma",
+      messaggio: "conferma_consulenza",
     });
     c(
       "rifiuto di Meta: stato e corpo intatti, senza il campo manychat",
@@ -330,7 +336,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
   {
     //  Testo libero: sendContent, senza flusso e senza i campi del modello.
     const x = creaPorte();
-    const r = await invia(x, { testo: "Buongiorno", tipo: "chat", leadId: null });
+    const r = await invia(x, { testo: "Buongiorno", tipo: "chat", messaggio: "manuale", leadId: null });
     c(
       "testo → sendContent",
       ["ok", [PERCORSI.campi, PERCORSI.perCampo, PERCORSI.testo]],
@@ -345,7 +351,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
     c(
       "né testo né modello → blocco, nessuna chiamata",
       ["blocco", 0],
-      await invia(vuota, { tipo: "chat" }).then((q) => [q.esito, vuota.f.chiamate.length]),
+      await invia(vuota, { tipo: "chat", messaggio: "manuale" }).then((q) => [q.esito, vuota.f.chiamate.length]),
     );
   }
   {
@@ -593,7 +599,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
         corpo: { status: "error", message: "x", code: 3011 },
       }),
     });
-    const rt = await invia(t, { testo: "ciao", tipo: "chat", leadId: null });
+    const rt = await invia(t, { testo: "ciao", tipo: "chat", messaggio: "manuale", leadId: null });
     c(
       "testo oltre le 24 ore → blocco col codice fuori_24h",
       ["blocco", "fuori_24h"],
@@ -698,7 +704,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
       const rs = await invia(senzaRiserva, conferma);
       c("testo rifiutato e modello senza flusso: nessun invio, esito non ok", [false, false], [rs.esito === "ok", senzaRiserva.f.percorsi().includes(PERCORSI.flusso)]);
       const chat = conEntrata(2);
-      await invia(chat, { testo: "ciao", tipo: "chat", leadId: null });
+      await invia(chat, { testo: "ciao", tipo: "chat", messaggio: "manuale", leadId: null });
       c(
         "la chat a mano col testo resta testo",
         [true, false],
@@ -862,7 +868,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
               : new Date(x.orologio.ms - ore * 3600_000).toISOString();
         return x;
       };
-      const solo = { ...conferma, soloTesto: true, chiave: "d|k1|g1", tipo: "meet_domani" };
+      const solo = { ...conferma, soloTesto: true, chiave: "d|k1|g1", tipo: "meet_domani", messaggio: "meet_domani" };
       const chiamate = (x) => x.f.percorsi().filter((p) => p.startsWith("/fb/sending"));
       const aperta = conEntrata(2, { flussi: {} });
       const ra = await invia(aperta, solo);
@@ -1292,6 +1298,7 @@ export async function provePorta(mod, { c, gruppo, radice }) {
             nome: parametri[0],
             leadId: contesto?.leadId ?? null,
             tipo: "conferma",
+            messaggio: "conferma_consulenza",
             chiave: contesto ? `c|${contesto.chiave}|${contesto.giro}` : undefined,
           }),
         );
