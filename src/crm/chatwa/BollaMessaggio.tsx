@@ -1,4 +1,12 @@
-import { memo, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import {
   AlertCircle,
   Check,
@@ -26,7 +34,17 @@ import { useCRM } from "@/crm/CRMContext";
 import { corpoLeggibile } from "@/crm/testo-modello";
 import { classificaTesto, type TestoClassificato } from "./media";
 import { IconaMedia } from "./IconaMedia";
-import { fotoDelPonte, useMediaPonte, type FaseFoto } from "./usaMediaPonte";
+import { FoglioMedia, type ModoFoglio } from "./FoglioMedia";
+import { VistaMediaPonte, type PropsVocalePonte } from "./MediaPonte";
+import {
+  ESCLUDI_PRESSIONE,
+  apriFuori,
+  mediaDelPonte,
+  nuovoSoppressoreClick,
+  useMediaPonte,
+  type ScelteTimer,
+} from "./usaMediaPonte";
+import { useVisibile } from "./usaVisibile";
 import {
   barreFinte,
   etichettaVelocita,
@@ -100,37 +118,66 @@ const BARRE = 28;
 
 type StatoVocale = "fermo" | "carica" | "suona" | "errore";
 
-/** Il vocale: lettore se il browser sa riprodurlo, altrimenti il link. */
-/** (Solo in entrata: i nostri messaggi restano sempre testo.) */
-function Vocale({ url }: { url: string }) {
+/** Il vocale: lettore se il browser sa riprodurlo, altrimenti il link.
+ *  ManyChat (solo in entrata): `url` è già l'indirizzo. Ponte (T8, 31/10/2026): non c'è un indirizzo da
+ *  tenere in pagina, quindi `mime` e `seme` (il nome del file) sostituiscono ciò che prima si ricavava
+ *  dall'estensione, `durataIniziale` viene dalla riga e `preparaUrl` scarica il vocale al PRIMO play
+ *  (≤ 16 MiB → `blob:`); `scarica` è il ripiego se il browser non sa suonarlo (R6, OGG su iPhone). */
+function Vocale({
+  url,
+  mime,
+  seme,
+  durataIniziale,
+  preparaUrl,
+  scarica,
+}: {
+  url?: string;
+  mime?: string;
+  seme?: string;
+  durataIniziale?: number | null;
+  preparaUrl?: PropsVocalePonte["preparaUrl"];
+  scarica?: () => void;
+}) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const traccia = useRef<HTMLDivElement | null>(null);
   const [riproducibile, setRiproducibile] = useState(true);
   const [stato, setStato] = useState<StatoVocale>("fermo");
   const [tempo, setTempo] = useState(0);
-  const [durata, setDurata] = useState(0);
+  const [durata, setDurata] = useState(durataIniziale ?? 0);
   const [velocita, setVelocita] = useState(1);
   //  Dopo il montaggio (non nel primo disegno, che può venire dal server).
   useEffect(() => setVelocita(velocitaSalvata()), []);
   const [partito, setPartito] = useState(false);
-  const barre = useMemo(() => barreFinte(url, BARRE), [url]);
+  const barre = useMemo(() => barreFinte(seme ?? url ?? "", BARRE), [seme, url]);
+  const tipo = mime ?? (url ? mimeAudio(url) : "");
 
   useEffect(() => {
     // Safari iOS vecchi non suonano l'.ogg: lì resta solo il link (D14).
-    if (document.createElement("audio").canPlayType(mimeAudio(url)) === "") setRiproducibile(false);
+    if (tipo && document.createElement("audio").canPlayType(tipo) === "") setRiproducibile(false);
     const a = audio.current;
     return () => {
       if (a && vocaleInCorso === a) vocaleInCorso = null;
       a?.pause();
     };
-  }, [url]);
+  }, [tipo]);
 
-  const suona = () => {
+  const suona = async () => {
     const a = audio.current;
     if (!a) return;
     if (!a.paused) {
       a.pause();
       return;
+    }
+    //  Vocale del ponte: ancora niente da suonare, si scarica ora (non prima: una chat con 40 vocali non li scarica).
+    if (!a.getAttribute("src") && preparaUrl) {
+      setPartito(true);
+      setStato("carica");
+      const u = await preparaUrl();
+      if (!u || audio.current !== a) {
+        setStato(u ? "fermo" : "errore");
+        return;
+      }
+      a.src = u;
     }
     if (vocaleInCorso && vocaleInCorso !== a) vocaleInCorso.pause();
     vocaleInCorso = a;
@@ -163,7 +210,20 @@ function Vocale({ url }: { url: string }) {
         <span className="inline-flex items-center gap-1.5">
           <IconaMedia tipo="audio" /> Vocale
         </span>
-        <Collegamento url={url} testo="Apri il vocale" />
+        {url ? (
+          <Collegamento url={url} testo="Apri il vocale" />
+        ) : (
+          scarica && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={scarica}
+              className="min-h-11 gap-1.5 self-start bg-white/70 text-[13px] md:min-h-8"
+            >
+              Scarica il vocale
+            </Button>
+          )
+        )}
       </div>
     );
   }
@@ -174,7 +234,7 @@ function Vocale({ url }: { url: string }) {
     <div className="flex w-[15.5rem] max-w-full items-center gap-2.5 py-0.5">
       <audio
         ref={audio}
-        preload="metadata"
+        preload={url ? "metadata" : "none"}
         src={url}
         onLoadedMetadata={(e) => setDurata(e.currentTarget.duration)}
         onDurationChange={(e) => setDurata(e.currentTarget.duration)}
@@ -194,7 +254,9 @@ function Vocale({ url }: { url: string }) {
         type="button"
         onPointerDown={(e) => e.preventDefault()}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={suona}
+        onClick={() => void suona()}
+        //  Vocale del ponte: la pressione lunga sul tasto apre il foglio del media (gli altri tasti restano esclusi).
+        data-media-pl={preparaUrl ? "" : undefined}
         aria-label={stato === "suona" ? "Metti in pausa il vocale" : "Ascolta il vocale"}
         className={cn(
           "grid h-10 w-10 shrink-0 place-items-center rounded-full text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
@@ -213,14 +275,24 @@ function Vocale({ url }: { url: string }) {
         {stato === "errore" ? (
           <p className="flex h-7 items-center gap-1.5 text-[13px] leading-tight">
             Vocale non disponibile ·{" "}
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium underline underline-offset-2"
-            >
-              apri
-            </a>
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline underline-offset-2"
+              >
+                apri
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setStato("fermo")}
+                className="font-medium underline underline-offset-2"
+              >
+                riprova
+              </button>
+            )}
           </p>
         ) : (
           <div
@@ -337,108 +409,6 @@ const TESTO = "whitespace-pre-wrap break-words [overflow-wrap:anywhere]";
 const SPAZIO_ORA = "after:inline-block after:h-3 after:content-['']";
 const spazioOra = (fromMe: boolean) =>
   cn(SPAZIO_ORA, fromMe ? "after:w-[4.25rem]" : "after:w-[2.75rem]");
-
-/** ── LA FOTO DEL PONTE (commessa 2026-10-30-ponte-storico-completo, T7) ─────
- *  Il ponte salva la foto e la chat la mostra al tocco (`useMediaPonte`). Cinque
- *  aspetti, tutti alti quanto un tasto (nessun salto quando cambiano):
- *   · senza riga (o lettura non riuscita): il testo «📷 Foto» di sempre;
- *   · in arrivo: «Foto in arrivo» e «Ricontrolla»;
- *   · pronta: «Foto · Tocca per vedere» (l'`<img>` non esiste ancora);
- *   · in caricamento: tasto fermo con la rotellina;
- *   · errore: la frase e «Riprova» (se ritentare ha senso).
- *  ⚠️ Nel DOM c'è solo l'indirizzo locale `blob:`: quello firmato non ci arriva mai.
- *  ⚠️ La didascalia la scrive il cliente: nodo di testo, mai HTML. */
-export function VistaFotoPonte({
-  stato,
-  corpo,
-  didascalia,
-  inUscita,
-  mostra,
-  ricontrolla,
-  nonSiApre,
-}: {
-  stato: FaseFoto;
-  /** Il testo della riga, per la fase «senza riga». */
-  corpo: string;
-  didascalia: string;
-  inUscita: boolean;
-  mostra: () => void;
-  ricontrolla: () => void;
-  nonSiApre: () => void;
-}) {
-  const tasto =
-    "inline-flex min-h-11 items-center gap-2 rounded-md bg-black/[0.04] px-3 py-2 text-left font-medium";
-  switch (stato.fase) {
-    case "verifica":
-    case "nessuna":
-      return <p className={cn(TESTO, spazioOra(inUscita))}>{corpo}</p>;
-    case "in_arrivo":
-      return (
-        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex min-h-11 items-center gap-2 font-medium text-[#54656f]">
-            <ImageIcon className="h-4 w-4 shrink-0" aria-hidden />
-            Foto in arrivo
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={ricontrolla}
-            className="min-h-11 gap-1.5 px-2 text-[13px]"
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden />
-            Ricontrolla
-          </Button>
-        </div>
-      );
-    case "pronta":
-      return (
-        <button type="button" onClick={mostra} className={cn(tasto, "hover:bg-black/[0.07]")}>
-          <ImageIcon className="h-4 w-4 shrink-0" aria-hidden />
-          Foto · Tocca per vedere
-        </button>
-      );
-    case "carico":
-      return (
-        <span role="status" aria-busy="true" className={cn(tasto, "text-[#54656f]")}>
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-          Carico la foto…
-        </span>
-      );
-    case "vista":
-      return (
-        <>
-          <img
-            src={stato.src}
-            alt={inUscita ? "Foto inviata" : "Foto inviata dal cliente"}
-            referrerPolicy="no-referrer"
-            onError={nonSiApre}
-            className="-mx-1.5 -mt-0.5 max-h-80 max-w-[calc(100%+0.75rem)] rounded-md object-contain"
-          />
-          {didascalia && <p className={cn(TESTO, "mt-1")}>{didascalia}</p>}
-        </>
-      );
-    case "errore":
-      return (
-        <div role="status" className="flex flex-col items-start gap-1.5">
-          <p className="flex items-start gap-1.5 text-[12.5px] leading-snug text-rose-800">
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            {stato.frase}
-          </p>
-          {stato.riprova && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={mostra}
-              className="min-h-11 gap-1.5 bg-white/70 text-[13px]"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden />
-              Riprova
-            </Button>
-          )}
-        </div>
-      );
-  }
-}
 
 /** Il contenuto: solo i messaggi IN ENTRATA si interpretano; quelli scritti da noi sono sempre testo. */
 function Contenuto({ messaggio: m, c }: BollaProps & { c: TestoClassificato | null }) {
@@ -587,146 +557,251 @@ function BollaBase({
   rispiega?: { onInizia: () => void };
 }) {
   const fromMe = m.direction === "outbound";
-  /*  ── PRESSIONE LUNGA (30/10/2026) ───────────────────────────────────────
+  //  Un media del ponte (foto, vocale, video, documento): vale in entrata e in uscita (dal telefono).
+  const media = coda ? null : mediaDelPonte(m);
+  /*  ── PRESSIONE LUNGA (30/10/2026; media 31/10/2026) ─────────────────────
       Come nelle righe dell'elenco (RigaChat): eventi del puntatore, si annulla se il dito
       scorre (`eSpostamento`), se lo si alza prima o se il browser prende il gesto
-      (`pointercancel`). Non parte da link, tasti, lettore del vocale: lì il tocco è loro.
+      (`pointercancel`). Un gesto solo: su un media del ponte apre il FOGLIO (Mostra · Timer ·
+      Rispiega), altrimenti accende la selezione di «Rispiega con AI» come prima.
+      Non parte da link, lettori, cursori e tasti (`ESCLUDI_PRESSIONE`), salvo i tasti del media
+      marcati `data-media-pl`. Il click che il browser può generare dopo il rilascio si ignora per
+      ~400 ms (`nuovoSoppressoreClick`), non con un flag che resta acceso: iOS spesso non lo manda.
       Sul telefono il testo non si seleziona a mano (come WhatsApp, dove la pressione lunga
       sceglie il messaggio): altrimenti iOS apre la sua selezione sopra la nostra. */
+  const conPressione = !!rispiega || !!media;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partenza = useRef<{ x: number; y: number } | null>(null);
   const tocco = useRef(false);
+  const [click] = useState(() => nuovoSoppressoreClick());
+  const [foglio, setFoglio] = useState(false);
+  const [erroreFoglio, setErroreFoglio] = useState<string | null>(null);
   const annullaPressione = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     partenza.current = null;
   };
   useEffect(() => annullaPressione, []);
+  //  Caricamento pigro: finché la bolla non è stata in vista (o vicina) non si legge niente.
+  const { ref: bollaRef, visibile } = useVisibile(!media);
+  const g = useMediaPonte(media, m.created_at, visibile);
   const iniziaPressione = (e: PointerEvent<HTMLDivElement>) => {
     tocco.current = e.pointerType === "touch" || e.pointerType === "pen";
-    if (!rispiega || (e.pointerType === "mouse" && e.button !== 0)) return;
-    if ((e.target as HTMLElement).closest("a,button,audio,video,input,[role='slider']")) return;
+    click.inizia();
+    if (!conPressione || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if ((e.target as HTMLElement).closest(ESCLUDI_PRESSIONE)) return;
     partenza.current = { x: e.clientX, y: e.clientY };
     timer.current = setTimeout(() => {
       timer.current = null;
       if (typeof navigator !== "undefined") navigator.vibrate?.(15);
-      rispiega.onInizia();
+      if (media) {
+        click.scatta();
+        setErroreFoglio(null);
+        setFoglio(true);
+      } else rispiega?.onInizia();
     }, PRESSIONE_LUNGA_MS);
   };
   const muoviPressione = (e: PointerEvent<HTMLDivElement>) => {
     const p = partenza.current;
     if (p && eSpostamento(e.clientX - p.x, e.clientY - p.y)) annullaPressione();
   };
+  const finePressione = () => {
+    annullaPressione();
+    click.rilascia();
+  };
   const { consultants } = useCRM();
   const c = fromMe ? null : classificaTesto(m.body ?? "");
-  //  La foto del ponte (in entrata o mandata dal telefono): finché è solo il testo «📷 Foto» l'ora
-  //  sta accanto, come per ogni testo; con tasto, foto o errore sta sotto.
-  const fotoPonte = coda ? null : fotoDelPonte(m);
-  const gancioFoto = useMediaPonte(fotoPonte?.chiave ?? null, m.created_at);
-  const senzaFoto = gancioFoto.stato.fase === "verifica" || gancioFoto.stato.fase === "nessuna";
+  //  Finché il media è solo il testo («📷 Foto») l'ora sta accanto, come per ogni testo; con file,
+  //  tasto, foto o errore sta sotto.
+  const senzaFile = g.fase.fase === "verifica" || g.fase.fase === "nessuna";
   //  Testo (anche illeggibile o link non riconosciuto) e vocale: l'ora si posa sull'ultima riga.
   //  La bolla della coda ha lo stato sotto il testo: l'ora sta sotto lo stato (solo «inviato» la tiene sopra).
   const oraSopra = coda
     ? coda.fase === "inviato"
-    : fotoPonte
-      ? senzaFoto
+    : media
+      ? senzaFile || (g.fase.fase === "pronta" && media.categoria === "audio" && !!g.riga?.id)
       : !c || c.tipo === "testo" || c.tipo === "illeggibile" || c.tipo === "audio" || !c.url;
+
+  //  Che cosa offre il foglio, secondo la fase del media.
+  const modoFoglio: ModoFoglio =
+    g.fase.fase === "pronta" && g.riga?.id
+      ? "pronta"
+      : g.fase.fase === "nessuna" ||
+          g.fase.fase === "senza_risposta" ||
+          (g.fase.fase === "non_disponibile" && g.fase.riprova)
+        ? "mostra"
+        : "solo";
+  const chiudiFoglio = () => setFoglio(false);
+  const scegli = async (azione: () => Promise<boolean>) => {
+    const ok = await azione();
+    if (ok) chiudiFoglio();
+    else setErroreFoglio("Non ci sono riuscito: riprova tra poco.");
+  };
   return (
-    <div
-      onPointerDown={rispiega ? iniziaPressione : undefined}
-      onPointerMove={rispiega ? muoviPressione : undefined}
-      onPointerUp={rispiega ? annullaPressione : undefined}
-      onPointerLeave={rispiega ? annullaPressione : undefined}
-      onPointerCancel={rispiega ? annullaPressione : undefined}
-      onContextMenu={
-        rispiega
-          ? (e) => {
-              //  Il menu di sistema della pressione lunga (Android) non deve coprire la nostra selezione.
-              if (tocco.current) e.preventDefault();
-            }
-          : undefined
-      }
-      className={cn(
-        "group/bolla relative min-w-0 max-w-[80%] rounded-lg px-2.5 pb-1.5 pt-1.5 md:max-w-[65%]",
-        rispiega && "pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
-        "text-[15px] leading-5 text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] md:text-[14px] md:leading-[19px]",
-        attaccata ? "mt-0.5" : "mt-2.5 first:mt-0",
-        fromMe
-          ? cn("self-end bg-[#d9fdd3]", !attaccata && "rounded-tr-none")
-          : cn("self-start bg-white", !attaccata && "rounded-tl-none"),
-      )}
-    >
-      {coda ? (
-        <>
-          <p className={cn(TESTO, coda.fase === "inviato" && spazioOra(true))}>{coda.testo}</p>
-          <StatoCoda coda={coda} />
-        </>
-      ) : fotoPonte ? (
-        <VistaFotoPonte
-          stato={gancioFoto.stato}
-          corpo={m.body ?? ""}
-          didascalia={fotoPonte.didascalia}
-          inUscita={fromMe}
-          mostra={gancioFoto.mostra}
-          ricontrolla={gancioFoto.ricontrolla}
-          nonSiApre={gancioFoto.nonSiApre}
-        />
-      ) : fromMe ? (
-        <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
-      ) : (
-        <Contenuto messaggio={m} c={c} />
-      )}
-      {rispiega && (
-        <DropdownMenu>
-          {/* Dal computer: una freccia in alto a destra che compare al passaggio del mouse o
-              con la tastiera (sul telefono c'è la pressione lunga, qui sarebbe un bersaglio invisibile). */}
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Azioni su questo messaggio"
-              title="Azioni su questo messaggio"
-              className={cn(
-                "absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-full pointer-coarse:hidden",
-                "opacity-0 shadow-sm transition-opacity group-hover/bolla:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                fromMe ? "bg-[#d9fdd3] hover:bg-[#c9f2c2]" : "bg-white hover:bg-[#f0f2f5]",
-              )}
-            >
-              <ChevronDown className="h-4 w-4 text-[#54656f]" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52">
-            <DropdownMenuItem className="gap-2" onSelect={rispiega.onInizia}>
-              <Sparkles className="text-violet-600" aria-hidden /> Rispiega con AI
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+    <>
       <div
+        ref={bollaRef}
+        onPointerDown={conPressione ? iniziaPressione : undefined}
+        onPointerMove={conPressione ? muoviPressione : undefined}
+        onPointerUp={conPressione ? finePressione : undefined}
+        onPointerLeave={conPressione ? finePressione : undefined}
+        onPointerCancel={conPressione ? finePressione : undefined}
+        onClickCapture={
+          media
+            ? (e) => {
+                //  Il click che segue la pressione lunga non deve toccare play, scheda o riprova.
+                if (click.blocca()) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }
+            : undefined
+        }
+        onContextMenu={
+          conPressione
+            ? (e) => {
+                //  Il menu di sistema della pressione lunga (Android) non deve coprire il nostro.
+                if (tocco.current) e.preventDefault();
+              }
+            : undefined
+        }
         className={cn(
-          "flex items-center justify-end gap-0.5 text-[11px] leading-4 tabular-nums text-[#54656f]",
-          oraSopra ? "absolute bottom-1 right-2" : "-mb-0.5 mt-0.5",
+          "group/bolla relative min-w-0 max-w-[80%] rounded-lg px-2.5 pb-1.5 pt-1.5 md:max-w-[65%]",
+          conPressione && "pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+          "text-[15px] leading-5 text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] md:text-[14px] md:leading-[19px]",
+          attaccata ? "mt-0.5" : "mt-2.5 first:mt-0",
+          fromMe
+            ? cn("self-end bg-[#d9fdd3]", !attaccata && "rounded-tr-none")
+            : cn("self-start bg-white", !attaccata && "rounded-tl-none"),
         )}
       >
-        <span>{ora(m.created_at)}</span>
-        {coda?.fase === "inviato" && <Check className="h-4 w-4" aria-label="Inviato" />}
-        {!coda && fromMe && m.status === "read" && (
-          <CheckCheck className="h-4 w-4 text-sky-600" aria-label="Letto" />
+        {coda ? (
+          <>
+            <p className={cn(TESTO, coda.fase === "inviato" && spazioOra(true))}>{coda.testo}</p>
+            <StatoCoda coda={coda} />
+          </>
+        ) : media ? (
+          <VistaMediaPonte
+            media={media}
+            g={g}
+            inUscita={fromMe}
+            segnaposto={<p className={cn(TESTO, spazioOra(fromMe))}>{m.body ?? ""}</p>}
+            vocale={(p) => <Vocale {...p} />}
+          />
+        ) : fromMe ? (
+          <ModelloLeggibile messaggio={m} lead={lead} consultants={consultants} />
+        ) : (
+          <Contenuto messaggio={m} c={c} />
         )}
-        {!coda && fromMe && m.status === "delivered" && (
-          <CheckCheck className="h-4 w-4" aria-label="Consegnato" />
-        )}
-        {!coda && fromMe && (m.status === "sent" || m.status === "queued") && (
-          <Check className="h-4 w-4" aria-label="Inviato" />
-        )}
-        {!coda && fromMe && m.status === "failed" && (
-          <AlertCircle
-            className="h-4 w-4 text-rose-600"
-            aria-label={m.error_message ? `Non inviato: ${m.error_message}` : "Non inviato"}
+        {(rispiega || media) && (
+          <MenuFreccia
+            fromMe={fromMe}
+            // Su un media la freccia apre lo stesso foglio della pressione lunga.
+            onFoglio={media ? () => (setErroreFoglio(null), setFoglio(true)) : undefined}
+            rispiega={rispiega}
           />
         )}
+        <div
+          className={cn(
+            "flex items-center justify-end gap-0.5 text-[11px] leading-4 tabular-nums text-[#54656f]",
+            oraSopra ? "absolute bottom-1 right-2" : "-mb-0.5 mt-0.5",
+          )}
+        >
+          <span>{ora(m.created_at)}</span>
+          {coda?.fase === "inviato" && <Check className="h-4 w-4" aria-label="Inviato" />}
+          {!coda && fromMe && m.status === "read" && (
+            <CheckCheck className="h-4 w-4 text-sky-600" aria-label="Letto" />
+          )}
+          {!coda && fromMe && m.status === "delivered" && (
+            <CheckCheck className="h-4 w-4" aria-label="Consegnato" />
+          )}
+          {!coda && fromMe && (m.status === "sent" || m.status === "queued") && (
+            <Check className="h-4 w-4" aria-label="Inviato" />
+          )}
+          {!coda && fromMe && m.status === "failed" && (
+            <AlertCircle
+              className="h-4 w-4 text-rose-600"
+              aria-label={m.error_message ? `Non inviato: ${m.error_message}` : "Non inviato"}
+            />
+          )}
+        </div>
       </div>
-    </div>
+      {/*  Il foglio sta FUORI dalla bolla: gli eventi del suo portale non risalgono alla pressione lunga. */}
+      {media && (
+        <FoglioMedia
+          aperto={foglio}
+          onApertoCambia={setFoglio}
+          modo={modoFoglio}
+          categoria={media.categoria}
+          scadeIl={g.riga?.scade_il ?? null}
+          errore={erroreFoglio}
+          onMostra={(t: ScelteTimer) => {
+            chiudiFoglio();
+            void g.richiedi(t);
+          }}
+          onTimer={(t: ScelteTimer) => void scegli(() => g.impostaTimer(t))}
+          onElimina={() => void scegli(() => g.elimina())}
+          onApri={
+            media.categoria === "documento" && g.riga?.id
+              ? () => {
+                  chiudiFoglio();
+                  void apriFuori(g.riga?.id ?? "", "documento");
+                }
+              : undefined
+          }
+          onRispiega={
+            rispiega
+              ? () => {
+                  chiudiFoglio();
+                  //  Dopo la chiusura: la selezione sposta la bolla e il foglio non deve restare a metà.
+                  setTimeout(rispiega.onInizia, 0);
+                }
+              : undefined
+          }
+        />
+      )}
+    </>
+  );
+}
+
+/** La freccia in alto a destra, dal computer (al passaggio del mouse o con la tastiera; sul telefono
+ *  c'è la pressione lunga, qui sarebbe un bersaglio invisibile). Su un media apre il foglio, altrimenti
+ *  il menu con «Rispiega con AI». */
+function MenuFreccia({
+  fromMe,
+  onFoglio,
+  rispiega,
+}: {
+  fromMe: boolean;
+  onFoglio?: () => void;
+  rispiega?: { onInizia: () => void };
+}) {
+  const tasto = (
+    <button
+      type="button"
+      aria-label={onFoglio ? "Azioni su questo file" : "Azioni su questo messaggio"}
+      title={onFoglio ? "Azioni su questo file" : "Azioni su questo messaggio"}
+      onClick={onFoglio}
+      className={cn(
+        "absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-full pointer-coarse:hidden",
+        "opacity-0 shadow-sm transition-opacity group-hover/bolla:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        fromMe ? "bg-[#d9fdd3] hover:bg-[#c9f2c2]" : "bg-white hover:bg-[#f0f2f5]",
+      )}
+    >
+      <ChevronDown className="h-4 w-4 text-[#54656f]" aria-hidden />
+    </button>
+  );
+  if (onFoglio || !rispiega) return tasto;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{tasto}</DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <DropdownMenuItem className="gap-2" onSelect={rispiega.onInizia}>
+          <Sparkles className="text-violet-600" aria-hidden /> Rispiega con AI
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
