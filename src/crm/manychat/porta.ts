@@ -22,11 +22,20 @@
  *   da_collegare, rifiuto_contatto → rifiuto del cliente
  *   flusso_mancante, blocco → blocco tecnico
  *   incerto           → rete (solo rete giù, timeout e 5xx)
+ *   spento            → il messaggio automatico è spento in «Messaggi automatici» (o manca la
+ *                       chiave che lo dichiara): NON è partito niente e non resta nessuna
+ *                       traccia, nemmeno in `manychat_invii`. Chi chiama NON lo conta come
+ *                       rifiuto del cliente né come guasto del canale.
  *  La traduzione la fa `promemoria/pronto.ts` (`esitoInvio`), che legge
  *  `manychat?: EsitoPorta` PRIMA di `status`/`corpo`/`rete`.
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import type { TipoInvio } from "../types";
+import {
+  eChiaveMessaggio,
+  type ChiaveMessaggio,
+  type MessaggioDiInvio,
+} from "../messaggi-automatici/catalogo";
 import type { ClientManychat, EsitoApi, RisultatoApi } from "./api";
 import { convertiModelloUtility, findMetaTemplate } from "../wa-meta-templates";
 import { finestraPerTesto, testoDelModello } from "./finestra";
@@ -49,6 +58,9 @@ export type EsitoPorta =
   | "da_collegare"
   /** il numero non è su WhatsApp */
   | "rifiuto_contatto"
+  /** il messaggio automatico è spento (interruttore del registro), o non si sa: non è partito
+   *  niente e non è stata scritta nessuna riga (commessa 2026-10-31-interruttori-automatici) */
+  | "spento"
   /** il modello non ha un flusso mappato in `manychat_config.flussi` */
   | "flusso_mancante"
   /** chiave rifiutata, canale scollegato, modello in pausa, limite */
@@ -78,6 +90,12 @@ export interface RichiestaInvio {
   nome?: string;
   leadId?: string | null;
   tipo: TipoInvioPorta;
+  /** ⚠️ CHE MESSAGGIO È (commessa 2026-10-31-interruttori-automatici). Obbligatorio: una chiave del
+   *  catalogo (`messaggi-automatici/catalogo`) oppure «manuale» (scritto da una persona: la porta
+   *  non guarda l'interruttore). Con una chiave la porta chiede `porte.interruttore(chiave)` e,
+   *  se non risponde `true`, non invia niente. Chi non ha una chiave (`chiaveDi` → `null`) NON
+   *  deve chiamare la porta: se lo fa, qualunque altro valore è «spento». */
+  messaggio: MessaggioDiInvio;
   /** chiave unica dell'invio (`p|tel9|…`, `r|tel9|…`); assente per la chat a mano */
   chiave?: string;
   /** MAI come modello (il giorno prima, 30/10/2026): parte solo il testo del modello, con la
@@ -148,6 +166,10 @@ export interface PortePorta {
   /** L'ultimo messaggio del cliente (ISO), per la finestra di 24 ore. Senza
    *  questa porta (o con un guasto) si manda il modello, come prima. */
   ultimaEntrata?(telefono: string): Promise<string | null>;
+  /** L'interruttore del messaggio (registro `messaggi_automatici`): `true` = acceso. Si chiede a OGNI
+   *  invio con una chiave del catalogo (mai per «manuale»). Qualunque cosa diversa da `true`, un
+   *  guasto o una porta assente = spento: nel dubbio non si manda. */
+  interruttore(chiave: ChiaveMessaggio): Promise<boolean>;
   /** L'interruttore dei modelli `_311026` (31/10/2026): vero = al posto di ogni modello vecchio parte
    *  il nuovo, se c'è, se il suo flusso è collegato e se i valori si convertono. Assente, falso o
    *  guasto = spento: partono i vecchi, come sempre. Vedi `MODELLI_UTILITY_311026`. */
@@ -277,12 +299,39 @@ function avvisaRipiego(porte: PortePorta, codice: string) {
 /** Meta dice che il modello non si può usare (non approvato, in pausa, disabilitato): nulla è partito. */
 const MODELLO_NON_USABILE_CLOUD = [132001, 132015, 132016];
 
+/** Il messaggio può partire? `null` = sì; altrimenti l'esito «spento» da restituire.
+ *   - «manuale»: scritto da una persona, la porta dell'interruttore non si consulta;
+ *   - una chiave del catalogo: parte solo se l'interruttore risponde esattamente `true`;
+ *   - qualunque altra cosa (assente, `null`, chiave ignota): non si sa che messaggio sia, non parte.
+ *  Un guasto del controllo = spento, con un codice suo: il giro riprova più tardi. Nei log solo
+ *  codici (mai testi dell'errore, numeri o nomi). */
+async function controllaInterruttore(
+  porte: PortePorta,
+  messaggio: unknown,
+): Promise<RisultatoPorta | null> {
+  if (messaggio === "manuale") return null;
+  if (!eChiaveMessaggio(messaggio)) return { esito: "spento", codice: "messaggio_non_valido" };
+  if (typeof porte.interruttore !== "function")
+    return { esito: "spento", codice: "interruttore_non_leggibile" };
+  try {
+    if ((await porte.interruttore(messaggio)) === true) return null;
+  } catch {
+    return { esito: "spento", codice: "interruttore_non_leggibile" };
+  }
+  return { esito: "spento", codice: `interruttore_spento_${messaggio}` };
+}
+
 /** Manda un messaggio WhatsApp dal canale scelto. Non lancia: ogni guasto è un
  *  esito. */
 export async function inviaWhatsapp(
   porte: PortePorta,
   richiesta: RichiestaInvio,
 ): Promise<RisultatoPorta> {
+  //  ⚠️ IL CONTROLLO UNICO. Prima del canale, della validazione, di ogni lettura e di ogni
+  //   prenotazione: un messaggio spento non lascia nessuna traccia (una riga «saltato» in
+  //   `manychat_invii` brucerebbe la chiave dell'evento, e riacceso non partirebbe più).
+  const fermo = await controllaInterruttore(porte, richiesta.messaggio);
+  if (fermo) return fermo;
   if (richiesta.canale === "cloud") return viaCloud(porte, richiesta);
   return viaManychat(porte, richiesta);
 }
@@ -666,6 +715,12 @@ export function rispostaChat(r: RisultatoPorta): {
         400,
         "flusso_mancante",
         "Questo modello non ha ancora un flusso collegato in ManyChat.",
+      );
+    case "spento":
+      return no(
+        409,
+        "spento",
+        "Questo messaggio automatico è spento: si accende in Impostazioni, Messaggi automatici.",
       );
     case "incerto":
       return no(

@@ -194,6 +194,7 @@ import { Route as ApiCrmPrenotaChatRouteImport } from './routes/api.crm.prenota-
 import { Route as ApiCrmPonteMediaAzioneRouteImport } from './routes/api.crm.ponte-media-azione'
 import { Route as ApiCrmPonteMediaRouteImport } from './routes/api.crm.ponte-media'
 import { Route as ApiCrmPonteInvioRouteImport } from './routes/api.crm.ponte-invio'
+import { Route as ApiCrmMessaggiAutomaticiRouteImport } from './routes/api.crm.messaggi-automatici'
 import { Route as ApiCrmMeetingSessionRouteImport } from './routes/api.crm.meeting-session'
 import { Route as ApiCrmMediaUploadRouteImport } from './routes/api.crm.media-upload'
 import { Route as ApiCrmMediaEliminaRouteImport } from './routes/api.crm.media-elimina'
@@ -1165,6 +1166,12 @@ const ApiCrmPonteInvioRoute = ApiCrmPonteInvioRouteImport.update({
   path: '/api/crm/ponte-invio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmMessaggiAutomaticiRoute =
+  ApiCrmMessaggiAutomaticiRouteImport.update({
+    id: '/api/crm/messaggi-automatici',
+    path: '/api/crm/messaggi-automatici',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCrmMeetingSessionRoute = ApiCrmMeetingSessionRouteImport.update({
   id: '/api/crm/meeting-session',
   path: '/api/crm/meeting-session',
@@ -1447,6 +1454,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
   '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
@@ -1659,6 +1667,7 @@ export interface FileRoutesByTo {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
   '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
@@ -1877,6 +1886,7 @@ export interface FileRoutesById {
   '/api/crm/media-elimina': typeof ApiCrmMediaEliminaRoute
   '/api/crm/media-upload': typeof ApiCrmMediaUploadRoute
   '/api/crm/meeting-session': typeof ApiCrmMeetingSessionRoute
+  '/api/crm/messaggi-automatici': typeof ApiCrmMessaggiAutomaticiRoute
   '/api/crm/ponte-invio': typeof ApiCrmPonteInvioRoute
   '/api/crm/ponte-media': typeof ApiCrmPonteMediaRoute
   '/api/crm/ponte-media-azione': typeof ApiCrmPonteMediaAzioneRoute
@@ -2096,6 +2106,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/messaggi-automatici'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
     | '/api/crm/ponte-media-azione'
@@ -2308,6 +2319,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/messaggi-automatici'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
     | '/api/crm/ponte-media-azione'
@@ -2525,6 +2537,7 @@ export interface FileRouteTypes {
     | '/api/crm/media-elimina'
     | '/api/crm/media-upload'
     | '/api/crm/meeting-session'
+    | '/api/crm/messaggi-automatici'
     | '/api/crm/ponte-invio'
     | '/api/crm/ponte-media'
     | '/api/crm/ponte-media-azione'
@@ -2701,6 +2714,7 @@ export interface RootRouteChildren {
   ApiCrmMediaEliminaRoute: typeof ApiCrmMediaEliminaRoute
   ApiCrmMediaUploadRoute: typeof ApiCrmMediaUploadRoute
   ApiCrmMeetingSessionRoute: typeof ApiCrmMeetingSessionRoute
+  ApiCrmMessaggiAutomaticiRoute: typeof ApiCrmMessaggiAutomaticiRoute
   ApiCrmPonteInvioRoute: typeof ApiCrmPonteInvioRoute
   ApiCrmPonteMediaRoute: typeof ApiCrmPonteMediaRoute
   ApiCrmPonteMediaAzioneRoute: typeof ApiCrmPonteMediaAzioneRoute
@@ -4082,6 +4096,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmPonteInvioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/messaggi-automatici': {
+      id: '/api/crm/messaggi-automatici'
+      path: '/api/crm/messaggi-automatici'
+      fullPath: '/api/crm/messaggi-automatici'
+      preLoaderRoute: typeof ApiCrmMessaggiAutomaticiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/meeting-session': {
       id: '/api/crm/meeting-session'
       path: '/api/crm/meeting-session'
@@ -4529,6 +4550,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmMediaEliminaRoute: ApiCrmMediaEliminaRoute,
   ApiCrmMediaUploadRoute: ApiCrmMediaUploadRoute,
   ApiCrmMeetingSessionRoute: ApiCrmMeetingSessionRoute,
+  ApiCrmMessaggiAutomaticiRoute: ApiCrmMessaggiAutomaticiRoute,
   ApiCrmPonteInvioRoute: ApiCrmPonteInvioRoute,
   ApiCrmPonteMediaRoute: ApiCrmPonteMediaRoute,
   ApiCrmPonteMediaAzioneRoute: ApiCrmPonteMediaAzioneRoute,

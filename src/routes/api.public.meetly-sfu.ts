@@ -24,11 +24,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MAX_CORPO_BYTE } from "@/shop/meetly-sfu-regole";
 import { statoPubblico, trattaSfu } from "@/shop/meetly-sfu-stanza";
-import { stanzaDiProduzione } from "@/shop/meetly-sfu.server";
+import { padroneDellaStanza, stanzaDiProduzione } from "@/shop/meetly-sfu.server";
 import { chiamanteCRM } from "./api.crm.accesso";
 import { sessioneDaRichiesta } from "./api.presenter.consultant";
 import { eConsulenteDellaStanza } from "@/shop/meetly-sfu-padrone";
-import { consulenteDellaSessione } from "@/crm/listino-di-chi.server";
 import { idAmbito } from "@/shop/ambito-listino";
 
 const cors = {
@@ -74,7 +73,7 @@ export const Route = createFileRoute("/api/public/meetly-sfu")({
         const consulente =
           forse &&
           eConsulenteDellaStanza({
-            padrone: codice ? await consulenteDellaSessione(codice) : "",
+            padrone: codice ? await padroneDellaStanza(codice) : "",
             sessioneId: idAmbito(sessione?.id),
             crm: crm ? { tipo: crm.tipo, consultantId: idAmbito(crm.consultantId), agenda: crm.accesso.puo("agenda") } : null,
           });

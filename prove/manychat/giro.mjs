@@ -412,6 +412,9 @@ export async function proveGiro(mod, { c, gruppo, radice }) {
             cloud: async () => {
               throw new Error("il giro non usa mai il Cloud");
             },
+            //  L'interruttore del messaggio (registro): qui sempre acceso. Le prove delle chiavi
+            //  spente stanno in fondo al file e in `messaggi-automatici/giro.mjs`.
+            interruttore: async () => true,
           };
         },
         spegni: async (motivo) => {
@@ -3687,6 +3690,238 @@ export const supabaseAdminDefault = supabaseAdmin;`,
         ["conflitto", 4],
         [await W.mettiStellaUno(porte({ sempreConflitto: true }), tel(3)), scritture.length],
       );
+    }
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+   *  GLI INTERRUTTORI PER MESSAGGIO (commessa 2026-10-31-interruttori-automatici, T4)
+   *  Le chiavi spente nel registro entrano DENTRO la scelta del giro: un messaggio spento non
+   *  consuma i due posti per giro né il ritmo di quelli accesi. E l'esito `spento` della porta
+   *  (ultima barriera, compito T3) non è un guasto. Le regole pure sono in
+   *  `prove/messaggi-automatici/giro.mjs`.
+   * ════════════════════════════════════════════════════════════════════════ */
+  gruppo("MESSAGGI AUTOMATICI · GIRO INTERO · CHIAVI SPENTE ED ESITO «SPENTO»");
+  {
+    const dir = mkdtempSync(join(tmpdir(), "giro-spento-"));
+    try {
+      //  Il giro vero, con una porta che SA dire «spento» come farà quella del compito T3:
+      //  `inviaWhatsapp` è avvolto (registra la richiesta, risponde «spento» per le chiavi in
+      //  `__spentiPorta`, altrimenti è la porta vera) e `chiaveDi` si può far tacere.
+      const portaVera = join(radice, "src/crm/manychat/porta.ts");
+      const catalogoVero = join(radice, "src/crm/messaggi-automatici/catalogo.ts");
+      const shimPorta = join(dir, "porta-shim.ts");
+      writeFileSync(
+        shimPorta,
+        `import { inviaWhatsapp as vera } from ${JSON.stringify(portaVera)};
+export * from ${JSON.stringify(portaVera)};
+export async function inviaWhatsapp(porte, r) {
+  (globalThis.__richieste ??= []).push(r);
+  if ((globalThis.__spentiPorta ?? []).includes(r.messaggio))
+    return { esito: "spento", codice: "interruttore_spento" };
+  return vera(porte, r);
+}`,
+      );
+      const shimCatalogo = join(dir, "catalogo-shim.ts");
+      writeFileSync(
+        shimCatalogo,
+        `import { chiaveDi as vera } from ${JSON.stringify(catalogoVero)};
+export * from ${JSON.stringify(catalogoVero)};
+export function chiaveDi(x) { return globalThis.__senzaChiave ? null : vera(x); }`,
+      );
+      const esbuild = createRequire(import.meta.url)("esbuild");
+      await esbuild.build({
+        entryPoints: [join(radice, "src/crm/manychat/giro.ts")],
+        bundle: true,
+        format: "cjs",
+        platform: "node",
+        outfile: join(dir, "giro.cjs"),
+        logLevel: "error",
+        loader: { ".tsx": "tsx" },
+        alias: { "@": join(radice, "src") },
+        plugins: [
+          {
+            name: "porta-e-catalogo-finti",
+            setup(b) {
+              const delGiro = (a) => a.importer.endsWith("manychat/giro.ts");
+              b.onResolve({ filter: /^\.\/porta$/ }, (a) =>
+                delGiro(a) ? { path: shimPorta } : null,
+              );
+              b.onResolve({ filter: /messaggi-automatici\/catalogo$/ }, (a) =>
+                delGiro(a) ? { path: shimCatalogo } : null,
+              );
+            },
+          },
+        ],
+      });
+      const G2 = createRequire(import.meta.url)(join(dir, "giro.cjs"));
+      const azzera = () => {
+        globalThis.__richieste = [];
+        globalThis.__spentiPorta = [];
+        globalThis.__senzaChiave = false;
+      };
+      azzera();
+
+      //  Le 11:00 di venerdì 23/10 a Roma: un meet delle 18:00 ha la sua mattina da mandare.
+      const mattina = () =>
+        creaFinto({ orologio: creaOrologio(Date.parse("2026-10-23T11:00:00+02:00")) }).su(
+          "GET",
+          PERCORSI.campi,
+          esiti.successo([{ id: 501, name: "crm_telefono", type: "text" }]),
+        );
+      const FLUSSI = { ...CONFIG.flussi, hgl_meet_oggi: "content-m1" };
+      const accesa = {
+        giornoMeet: true,
+        leadNuovoDal: "2026-10-20T00:00:00.000Z",
+        fraseModuloDal: "2026-10-01T00:00:00.000Z",
+        flussi: FLUSSI,
+      };
+      const tre = () => [
+        meet("o1", 1, { oraMeeting: "18:00" }),
+        meet("o2", 2, { oraMeeting: "18:00" }),
+        meet("o3", 3, { oraMeeting: "18:00" }),
+        ric("r9", 9),
+      ];
+      const tipiInviati = (m) => m.invii.map((x) => x.tipo);
+
+      // ── una chiave spenta NON consuma i due posti per giro di quelle accese ──
+      let m = mondo({ finto: mattina(), schede: tre(), config: accesa });
+      await G.giroManychat(m.porte(), { prova: false });
+      c(
+        "tutto acceso: tre mattine di meet davanti, ne partono due (il massimo per giro) e il ricontatto aspetta",
+        ["meet_oggi", "meet_oggi"],
+        tipiInviati(m),
+      );
+      m = mondo({
+        finto: mattina(),
+        schede: tre(),
+        config: { ...accesa, messaggiSpenti: ["meet_oggi"] },
+      });
+      const e1 = await G.giroManychat(m.porte(), { prova: false });
+      c(
+        "…con la mattina del meet SPENTA nel registro: parte il ricontatto, zero mattine, zero prenotazioni per loro",
+        [["ricontatto"], 1, 0],
+        [tipiInviati(m), e1.ricontattiInviati, m.riga("meet_oggi").length],
+      );
+      c(
+        "…e non è un guasto: nessun problema, il giro non si spegne, niente falliti",
+        [[], [], 0],
+        [m.giro.stato.problemi, m.spenti, m.giro.falliti],
+      );
+
+      // ── uno stato spento non prende il ritmo (27-33') di un ricontatto acceso ──
+      const dueRic = () => [
+        { ...ric("a1", 7), data: { ...ric("a1", 7).data, stato: "sta_valutando" } },
+        ric("b2", 8),
+      ];
+      const STATO_DAL = "2026-10-20T00:00:00.000Z";
+      m = mondo({
+        finto: mattina(),
+        schede: dueRic(),
+        config: { ...accesa, stati: { sta_valutando: STATO_DAL } },
+      });
+      await G.giroManychat(m.porte(), { prova: false });
+      c(
+        "due ricontatti accesi: ne parte UNO (il ritmo), il primo per ordine (lo stato)",
+        ["a1"],
+        m.invii.map((x) => x.leadId),
+      );
+      m = mondo({ finto: mattina(), schede: dueRic(), config: { ...accesa, stati: {} } });
+      await G.giroManychat(m.porte(), { prova: false });
+      c(
+        "«In valutazione» SPENTO (non è fra gli stati accesi): il ritmo resta libero e parte l'altro ricontatto",
+        ["b2"],
+        m.invii.map((x) => x.leadId),
+      );
+
+      // ── ogni invio porta la sua chiave del registro ──
+      azzera();
+      m = mondo({
+        finto: mattina(),
+        schede: [meet("o1", 1, { oraMeeting: "18:00" }), ric("r9", 9)],
+        config: accesa,
+      });
+      await G2.giroManychat(m.porte(), { prova: false });
+      c(
+        "ogni invio porta la sua chiave: la mattina del meet e il ricontatto fissato",
+        ["meet_oggi", "ricontatto_fissato"],
+        globalThis.__richieste.map((r) => r.messaggio),
+      );
+      azzera();
+      m = mondo({
+        finto: mattina(),
+        schede: [{ ...ric("a1", 7), data: { ...ric("a1", 7).data, stato: "sta_valutando" } }],
+        config: { ...accesa, stati: { sta_valutando: STATO_DAL } },
+      });
+      await G2.giroManychat(m.porte(), { prova: false });
+      c(
+        "…un ricontatto per stato porta la chiave del suo stato",
+        ["stato:sta_valutando"],
+        globalThis.__richieste.map((r) => r.messaggio),
+      );
+
+      // ── l'esito «spento» della porta: non parte niente e NON è un guasto ──
+      azzera();
+      globalThis.__spentiPorta = ["ricontatto_fissato"];
+      m = mondo({
+        finto: mattina(),
+        schede: [ric("r1", 1), ric("r2", 2), ric("r3", 3)],
+        config: accesa,
+        falliti: 1,
+      });
+      const e2 = await G2.giroManychat(m.porte(), { prova: false });
+      c(
+        "porta che risponde «spento» tre volte: zero invii, zero prenotazioni, zero chiamate a ManyChat",
+        [0, false, 0],
+        [m.invii.length, m.eventi.includes("prenota"), m.f.chiamate.length],
+      );
+      c(
+        "…il giro non si spegne (neppure con un fallito già in conto): nessun fermo, generale acceso, falliti ancora 1",
+        [true, [], 1, null],
+        [m.config.acceso, m.spenti, m.giro.falliti, e2.fermo],
+      );
+      c(
+        "…si conta fra i saltati, mai fra i falliti né fra gli incerti",
+        [3, 0, 0, []],
+        [e2.saltati, e2.incerti, e2.ricontattiInviati, m.giro.stato.problemi],
+      );
+      globalThis.__spentiPorta = [];
+      await G2.giroManychat(m.porte(), { prova: false });
+      c(
+        "…riacceso, il messaggio parte UNA volta: lo «spento» non ha bruciato nessuna chiave",
+        [1, 1],
+        [m.riga("ricontatto").length, m.flussi().length],
+      );
+
+      // ── senza chiave nel catalogo non si manda niente ──
+      azzera();
+      globalThis.__senzaChiave = true;
+      m = mondo({ finto: mattina(), schede: [ric("r1", 1)], config: accesa });
+      const e3 = await G2.giroManychat(m.porte(), { prova: false });
+      c(
+        "chiave sconosciuta: nessuna prenotazione né chiamata, un avviso col solo codice, il generale resta acceso",
+        [0, 0, ["giro_chiave_mancante"], 1, true],
+        [m.invii.length, m.f.chiamate.length, m.avvisi, e3.saltati, m.config.acceso],
+      );
+      azzera();
+
+      // ── la prova a secco vede anche ciò che è spento ──
+      m = mondo({
+        finto: mattina(),
+        schede: [meet("o1", 1, { oraMeeting: "18:00" })],
+        config: { ...accesa, messaggiSpenti: ["meet_oggi"] },
+      });
+      const secco = await G.giroManychat(m.porte(), { prova: true });
+      c(
+        "prova a secco con la mattina spenta: la riga c'è («scriverebbe»), nessuna scrittura",
+        [true, 0, 0],
+        [
+          secco.righe.some((r) => r.tipo === "meet_oggi" && r.esito === "scriverebbe"),
+          m.invii.length,
+          m.f.chiamate.length,
+        ],
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   }
 }

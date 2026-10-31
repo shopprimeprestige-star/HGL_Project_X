@@ -1,9 +1,11 @@
 /** ── DATI PER LA FATTURA DOPO L'ACCONTO: INTERRUTTORE E DOCUMENTI ───────────
  *
  *  GET                → { config, testoModello }   (permesso «impostazioni»)
- *  POST { acceso?, modelloApprovato? } → accende/spegne (permesso «impostazioni»);
- *       accendere da spento = `avvio: "da_fare"`: le schede che hanno GIÀ un acconto
- *       non ricevono niente (diventano «preesistenti» al primo giro).
+ *  POST { modelloApprovato } → salva il modello approvato (permesso «impostazioni»).
+ *       ⚠️ L'interruttore NON si cambia più da qui (commessa 2026-10-31-interruttori-automatici):
+ *       si accende e si spegne in «Messaggi automatici» (registro unico, e lì si imposta anche
+ *       `avvio: "da_fare"`: chi ha GIÀ un acconto non riceve niente). Un POST con `acceso` è
+ *       rifiutato (400) e non scrive niente.
  *  GET ?lead=<id>     → { file: [{ url }] }  indirizzi FIRMATI (60 s) delle foto ricevute
  *       per quella scheda (permesso «pagamenti», lo stesso delle fatture). Il bucket è
  *       privato: nessun indirizzo pubblico, e si firmano solo i file elencati sulla scheda.
@@ -74,20 +76,22 @@ export const Route = createFileRoute("/api/crm/dati-fattura")({
       POST: async ({ request }) => {
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
-        let b: { acceso?: unknown; modelloApprovato?: unknown } = {};
+        let b: { acceso?: unknown; modelloApprovato?: unknown } | null;
         try {
           b = (await request.json()) as typeof b;
         } catch {
           return json({ ok: false, error: "corpo" }, 400);
         }
+        if (!b || typeof b !== "object") return json({ ok: false, error: "corpo" }, 400);
+        //  L'interruttore sta in «Messaggi automatici»: da qui non si cambia.
+        if (b.acceso !== undefined)
+          return json(
+            { ok: false, error: "L'interruttore si cambia in Messaggi automatici." },
+            400,
+          );
         const prima = await leggiConfigDatiFattura();
         const dopo = { ...prima };
         if (typeof b.modelloApprovato === "boolean") dopo.modelloApprovato = b.modelloApprovato;
-        if (typeof b.acceso === "boolean") {
-          dopo.acceso = b.acceso;
-          //  Da spento ad acceso: chi ha già un acconto non riceve niente.
-          if (b.acceso && !prima.acceso) dopo.avvio = "da_fare";
-        }
         await scriviConfigDatiFattura(dopo);
         return json({ ok: true, config: dopo });
       },

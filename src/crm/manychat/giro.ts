@@ -49,6 +49,7 @@ import {
   type CambioContatto,
   type IngressoInvio,
 } from "./contatto";
+import { chiaveDi, type ChiaveMessaggio } from "../messaggi-automatici/catalogo";
 import { finestraPerTesto } from "./finestra";
 import {
   MODELLO_GENERICO,
@@ -309,6 +310,9 @@ export interface ConfigGiro {
   casiRealiDal?: string | null;
   /** stato → ISO dell'accensione del suo messaggio; assente = spento */
   stati: Record<string, string>;
+  /** Le chiavi dei messaggi spenti nel registro (primo contatto, richiamo, ritorno, casi reali,
+   *  mattina e giorno prima del meet), che l'adattatore ricava dal registro. Assente = nessuna. */
+  messaggiSpenti?: ChiaveMessaggio[];
   /** l'indirizzo della sede, per il promemoria «in sede» */
   indirizzoSede: string | null;
   /** `controlli.fraseModulo.il`: da quando vale il consenso del modulo Meta */
@@ -527,6 +531,9 @@ export interface SceltaDecisioni {
   giornoMeet: boolean;
   /** stato → ISO dell'accensione */
   statiAccesi: Record<string, string>;
+  /** Le chiavi spente dentro le famiglie accese («Lead nuovo», «Giorno del meet»): entrano nella
+   *  scelta, non si scartano dopo, così non consumano tetti, posti o ritmo di quelle accese. */
+  messaggiSpenti: ChiaveMessaggio[];
   leadNuovoDal: string | null;
   casiRealiDal?: string | null;
   ultimaAccensione: string | null;
@@ -544,6 +551,7 @@ export type ConfigDecisioni = Pick<
   | "leadNuovoDal"
   | "casiRealiDal"
   | "stati"
+  | "messaggiSpenti"
   | "indirizzoSede"
   | "ultimaAccensione"
   | "fraseModuloDal"
@@ -562,6 +570,7 @@ export function sceltaDaConfig(c: ConfigDecisioni, adesso: Date, prova: boolean)
       leadNuovo: c.leadNuovo,
       giornoMeet: c.giornoMeet,
       statiAccesi: c.stati,
+      messaggiSpenti: c.messaggiSpenti ?? [],
       leadNuovoDal: c.leadNuovoDal,
       casiRealiDal: c.casiRealiDal,
       ultimaAccensione: c.ultimaAccensione,
@@ -579,6 +588,7 @@ export function sceltaDaConfig(c: ConfigDecisioni, adesso: Date, prova: boolean)
     leadNuovo: true,
     giornoMeet: true,
     statiAccesi,
+    messaggiSpenti: [], // la prova a secco vede tutto, anche ciò che è spento
     leadNuovoDal: c.leadNuovoDal ?? stamattina,
     casiRealiDal: c.casiRealiDal,
     ultimaAccensione: c.ultimaAccensione,
@@ -643,7 +653,7 @@ export function decisioniDelGiro(
     );
   if (scelta.giornoMeet)
     aggiungi(
-      decidiGiornoMeet(schede, adesso, base).filter(
+      decidiGiornoMeet(schede, adesso, { ...base, messaggiSpenti: scelta.messaggiSpenti }).filter(
         (d) => MEET_ADESSO_ACCESO || !eMeetAdesso(d as Parameters<typeof eMeetAdesso>[0]),
       ),
       (x) => ({ tipo: x.quale, extra: { inizio: x.inizioMeet } }),
@@ -658,6 +668,7 @@ export function decisioniDelGiro(
   //  la finestra aperta (30/10: `MEET_DOMANI_SOLO_GRATIS`).
   if (
     scelta.giornoMeet &&
+    !scelta.messaggiSpenti.includes("meet_domani") &&
     (MEET_DOMANI_ACCESO ||
       MEET_DOMANI_SOLO_GRATIS ||
       MEET_DOMANI_A_PAGAMENTO_OLTRE_GIORNI !== null)
@@ -683,6 +694,7 @@ export function decisioniDelGiro(
         leadNuovoDal: scelta.leadNuovoDal,
         casiRealiDal: scelta.casiRealiDal,
         prossimoDopo: dati.prossimoDopo,
+        messaggiSpenti: scelta.messaggiSpenti,
       }),
       (x) => ({ tipo: x.quale, extra: {} }),
       (d) => {
@@ -1144,6 +1156,15 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       cand.modello === MODELLO_MEET_OGGI_LINK,
     );
     if (!numero || campi.tipo === "salta") return { fine: "continua" };
+    //  La chiave del messaggio nel registro (un interruttore per messaggio). Senza chiave NON si
+    //  manda (fail-closed): chi non è nel catalogo è come spento. Prima della prenotazione, quindi
+    //  senza lasciare nessuna riga nel registro degli invii.
+    const chiaveMsg = chiaveDi({ tipo: cand.tipo, stato: extra.stato });
+    if (!chiaveMsg) {
+      porte.avviso("giro_chiave_mancante");
+      esito.saltati++;
+      return { fine: "continua" };
+    }
     //  L'ordine delle variabili è quello dei campi (v1…v4 del modello): una lista sola.
     let parametri = Object.values(campi.campi);
     const previstoIl = previstoDi(cand.tipo, extra.inizio);
@@ -1261,6 +1282,7 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
       tipo: cand.tipo,
       chiave,
       ...(cand.soloTesto ? { soloTesto: true } : {}),
+      messaggio: chiaveMsg,
     });
 
     //  ── Rifiutato dalla prenotazione: non è partito niente. ──
@@ -1310,6 +1332,13 @@ async function lavora(porte: PorteGiro, prova: boolean): Promise<EsitoGiroManych
 
     //  ── Com'è andata la chiamata. ──
     const ora = porte.adesso();
+    //  Il registro ha spento questo messaggio fra la lettura del giro e l'invio (la porta è l'ultima
+    //  barriera): non è partito niente, non c'è nessuna riga e NON è un guasto: non conta fra i
+    //  falliti di fila e non spegne il generale. Il giro dopo non lo sceglie più.
+    if (r.esito === "spento") {
+      esito.saltati++;
+      return { fine: "continua" };
+    }
     switch (r.esito) {
       case "ok": {
         falliti = 0;

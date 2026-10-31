@@ -1,23 +1,22 @@
 /** ─────────────────────────────────────────────────────────────────────────
  *  L'INTERRUTTORE «PRENOTAZIONE DELLA CONSULENZA IN CHAT»
  *
- *  Il riquadro in Impostazioni → WhatsApp parla solo con questa rotta:
- *   · GET  → { ok, acceso } com'è nel database adesso (acceso = `acceso: true`
- *     esatto, come lo legge la rotta di ManyChat);
- *   · POST { acceso: boolean } → accende o spegne. Scrive la riga
- *     `prenota_chat` tenendo gli altri campi (`rigaConAcceso`); spegnere
- *     scrive `acceso: false`, la riga non si cancella mai.
+ *  Dalla commessa 2026-10-31-interruttori-automatici l'interruttore sta in
+ *  Impostazioni → WhatsApp → «Messaggi automatici» (chiave `prenota_chat` del
+ *  registro). Questa rotta resta per le schede Impostazioni vecchie e per chi la
+ *  legge:
+ *   · GET  → { ok, acceso } com'è nel registro adesso;
+ *   · POST → 400 «Si cambia in Messaggi automatici»: non scrive più niente. La riga
+ *     `app_config['prenota_chat']` tiene consulente, preavviso, giorni e durata.
  *
  *  ⚠️ TUTTO DIETRO `guardiaCRM` COL PERMESSO «impostazioni», come
  *   `/api/crm/promemoria-whatsapp`: col PIN la sessione Supabase è del
- *   proprietario per tutti, quindi una scrittura diretta di `app_config` dal
- *   browser la farebbe anche la setter. Chi non ha «impostazioni» riceve 403.
+ *   proprietario per tutti. Chi non ha «impostazioni» riceve 403.
  *  ⚠️ Nelle risposte e nei log solo codici: mai il contenuto della riga.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { guardiaCRM } from "./api.crm.accesso";
-import { leggiRiga, scriviRiga } from "@/crm/manychat/prenota.server";
-import { CHIAVE_CONFIG, leggiConfigPrenota, rigaConAcceso } from "@/crm/manychat/prenota-tipi";
+import { messaggioAcceso } from "@/crm/messaggi-automatici/registro.server";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +39,7 @@ export const Route = createFileRoute("/api/crm/prenota-chat")({
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
         try {
-          return json({ ok: true, acceso: !!leggiConfigPrenota(await leggiRiga(CHIAVE_CONFIG)) });
+          return json({ ok: true, acceso: await messaggioAcceso("prenota_chat") });
         } catch {
           return json({ ok: false, error: "Non riesco a leggere lo stato: riprova." }, 500);
         }
@@ -49,20 +48,7 @@ export const Route = createFileRoute("/api/crm/prenota-chat")({
       POST: async ({ request }) => {
         const g = await guardiaCRM(request, cors, "impostazioni");
         if (!g.ok) return g.risposta;
-        let b: { acceso?: unknown } = {};
-        try {
-          b = (await request.json()) as typeof b;
-        } catch {
-          return json({ ok: false, error: "corpo" }, 400);
-        }
-        if (typeof b.acceso !== "boolean") return json({ ok: false, error: "acceso" }, 400);
-        try {
-          const nuova = rigaConAcceso(await leggiRiga(CHIAVE_CONFIG), b.acceso);
-          await scriviRiga(CHIAVE_CONFIG, nuova);
-          return json({ ok: true, acceso: !!leggiConfigPrenota(nuova) });
-        } catch {
-          return json({ ok: false, error: "Non salvato: il database non ha risposto." }, 500);
-        }
+        return json({ ok: false, error: "Si cambia in Messaggi automatici." }, 400);
       },
     },
   },

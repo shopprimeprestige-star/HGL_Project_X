@@ -38,10 +38,16 @@ import type { Lead, PromemoriaWhatsapp } from "@/crm/types";
 import { STATI_APPUNTAMENTO } from "@/crm/types";
 import { valoriDaLead } from "@/crm/whatsapp";
 import { NOME_MODELLO } from "@/crm/promemoria/invio";
-import { classificaErroreMeta, mancaMigrazione, FRASI_BLOCCO } from "@/crm/promemoria/pronto";
+import {
+  classificaErroreMeta,
+  configConAcceso,
+  mancaMigrazione,
+  FRASI_BLOCCO,
+} from "@/crm/promemoria/pronto";
 import type { CodiceBlocco } from "@/crm/promemoria/pronto";
 import { inviaWhatsapp, rispostaPerConferma } from "@/crm/manychat/porta";
-import type { PortePorta } from "@/crm/manychat/porta";
+import type { PortePorta, RichiestaInvio } from "@/crm/manychat/porta";
+import { messaggioAcceso } from "@/crm/messaggi-automatici/registro.server";
 import { chiaveManychatPresente, leggiCanale, portePortaVere } from "@/crm/manychat/porta.server";
 import {
   giroPromemoria,
@@ -139,7 +145,16 @@ export function porteVere(soloUtente: string | null): Porte {
   };
   return {
     adesso: () => new Date(),
-    leggiConfig: () => leggiJson<ConfigPromemoria>(CHIAVE_CONFIG),
+    //  L'«acceso» è quello del REGISTRO; del vecchio JSON restano `avvio` e `attivoDal`
+    //  (il primo giro marca «preesistenti» le schede già in agenda). L'`acceso` rimasto
+    //  nel JSON non si rilegge mai, nemmeno dopo che il giro lo ha riscritto.
+    leggiConfig: async () => {
+      const [json, acceso] = await Promise.all([
+        leggiJson<Partial<ConfigPromemoria>>(CHIAVE_CONFIG),
+        messaggioAcceso("conferma_consulenza"),
+      ]);
+      return configConAcceso(json, acceso);
+    },
     scriviConfig: (c) => scriviJson(CHIAVE_CONFIG, c),
     leggiStato: () => leggiJson<StatoGiro>(CHIAVE_STATO),
     scriviStato: (s) => scriviJson(CHIAVE_STATO, s),
@@ -253,20 +268,22 @@ export function porteVere(soloUtente: string | null): Porte {
     },
     //  Dalla porta unica: con `cloud` lo stesso corpo Graph di prima, con
     //  `manychat` la prenotazione, i campi e il flusso (vedi `manychat/porta.ts`).
-    invia: async (imp, numero, parametri, contesto) =>
-      rispostaPerConferma(
-        await inviaWhatsapp(portaDi(imp.userId), {
-          canale: imp.canale ?? "cloud",
-          a: numero,
-          modello: NOME_MODELLO,
-          lingua: "it",
-          parametri,
-          nome: parametri[0],
-          leadId: contesto?.leadId ?? null,
-          tipo: "conferma",
-          chiave: contesto ? `c|${contesto.chiave}|${contesto.giro}` : undefined,
-        }),
-      ),
+    invia: async (imp, numero, parametri, contesto) => {
+      //  Il messaggio dichiara la sua chiave (registro dei messaggi automatici).
+      const richiesta: RichiestaInvio = {
+        canale: imp.canale ?? "cloud",
+        a: numero,
+        modello: NOME_MODELLO,
+        lingua: "it",
+        parametri,
+        nome: parametri[0],
+        leadId: contesto?.leadId ?? null,
+        tipo: "conferma",
+        messaggio: "conferma_consulenza",
+        chiave: contesto ? `c|${contesto.chiave}|${contesto.giro}` : undefined,
+      };
+      return rispostaPerConferma(await inviaWhatsapp(portaDi(imp.userId), richiesta));
+    },
     //  Ogni messaggio finisce anche nella pagina WhatsApp, con la sua scheda.
     registraInvio: async (imp, id, numero, esito) => {
       //  Col canale ManyChat la riga la scrive già la porta.

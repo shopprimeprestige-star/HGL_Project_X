@@ -183,7 +183,7 @@ export function esitoInvio(r: RispostaInvio): EsitoInvio {
  *  Nessun esito nuovo arriva al giro come `rete` o come corpo sconosciuto:
  *  `incerto` è SOLO rete giù, timeout e 5xx. Un esito che non conosco è
  *  `incerto`, mai `ok`. */
-function esitoDaPorta(e: EsitoPorta, waId?: string): EsitoInvio {
+function esitoDaPorta(porta: EsitoPorta, waId?: string): EsitoInvio {
   const cliente = (codice: ErroreMeta["codice"]): EsitoInvio => ({
     tipo: "rifiuto",
     errore: { tipo: "cliente", codice },
@@ -192,11 +192,14 @@ function esitoDaPorta(e: EsitoPorta, waId?: string): EsitoInvio {
     tipo: "rifiuto",
     errore: { tipo: "tecnico", codice },
   });
-  switch (e) {
+  switch (porta) {
     case "ok":
       return { tipo: "ok", waId: waId ?? "mc:ok" };
+    //  «spento» = messaggio spento nel registro: non è partito, non è un guasto e non consuma
+    //  il tentativo. Il giro toglie il segno e passa oltre (mai `incerto`, che lo fermerebbe).
     case "riprova_fra_poco":
     case "gia_preso":
+    case "spento":
       return { tipo: "riprova" };
     case "stop":
       return cliente("disiscritto");
@@ -211,6 +214,19 @@ function esitoDaPorta(e: EsitoPorta, waId?: string): EsitoInvio {
     default:
       return { tipo: "incerto" };
   }
+}
+
+/** ── L'«ACCESO» DEL REGISTRO + IL RESTO DEL VECCHIO JSON ───────────────────
+ *  Commessa 2026-10-31-interruttori-automatici. L'interruttore della conferma (e dei dati
+ *  fattura) sta nel registro `messaggi_automatici`: è l'UNICA fonte dell'«acceso». Il vecchio
+ *  JSON in `app_config` serve ancora per `avvio` e `attivoDal` (le protezioni «chi aveva già
+ *  un appuntamento non riceve niente»), ma il suo `acceso` è una riga morta: non si rilegge
+ *  mai, nemmeno quando il giro, a fine primo giro, lo riscrive. */
+export function configConAcceso<T extends object>(
+  json: T | null | undefined,
+  acceso: boolean,
+): T & { acceso: boolean } {
+  return { ...(json ?? ({} as T)), acceso };
 }
 
 /** L'errore del database dice che la migrazione non è stata applicata

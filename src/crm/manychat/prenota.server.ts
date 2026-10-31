@@ -23,11 +23,13 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CHIAVE_BLOCCHI, leggiBlocchiDaJson } from "../blocchi";
 import type { Consultant, Lead } from "../types";
+import { messaggioAcceso } from "../messaggi-automatici/registro.server";
 import { leggiPaginato } from "./prenota-lettura";
 import {
   CHIAVE_CONFIG,
   FASCE,
   leggiConfigPrenota,
+  rigaConAcceso,
   type Contatore,
   type OraProposta,
   type PortePrenota,
@@ -180,7 +182,16 @@ export function portePrenota(): PortePrenota {
     adesso: () => new Date(),
     avviso: (codice) => console.warn("[manychat-prenota]", codice),
 
-    config: async () => leggiConfigPrenota(await leggiRiga(CHIAVE_CONFIG)),
+    //  L'acceso sta nel registro dei messaggi automatici (chiave `prenota_chat`): spento = nessuno.
+    //  Consulente, preavviso, giorni e durata restano nella riga di `app_config`, dove sempre;
+    //  il suo vecchio `acceso` non conta più (è una riga morta, buona per il rollback).
+    //  La riga si legge PRIMA: un database che non risponde lancia, come prima.
+    config: async () => {
+      const riga = await leggiRiga(CHIAVE_CONFIG);
+      return (await messaggioAcceso("prenota_chat"))
+        ? leggiConfigPrenota(rigaConAcceso(riga, true))
+        : null;
+    },
 
     //  Le stesse tre porte della risposta: non si riscrivono.
     utente: () => base.utente(),
