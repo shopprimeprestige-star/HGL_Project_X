@@ -6,8 +6,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export function proveScatolaNera(mod, { c, gruppo, radice }) {
+export async function proveScatolaNera(mod, { c, gruppo, radice }) {
   const S = mod["shop/scatola-nera"];
+  const B = mod["shop/scatola-nera-browser"];
 
   gruppo("SCATOLA NERA: I CANDIDATI SENZA INDIRIZZI");
   const srflx =
@@ -195,11 +196,73 @@ export function proveScatolaNera(mod, { c, gruppo, radice }) {
   c("codice stanza valido", true, S.codiceStanzaValido("kfr-mbqd-tzp"));
   c("codice stanza con simboli = no", false, S.codiceStanzaValido("../../x"));
   c("codice stanza vuoto = no", false, S.codiceStanzaValido(""));
+  c("tetto per stanza abbastanza largo per un gruppo", true, S.LIMITE_PER_STANZA >= 30);
+  c("esiste anche un tetto globale", true, S.LIMITE_GLOBALE >= 100 && S.LIMITE_GLOBALE <= 1000);
+
+  gruppo("SCATOLA NERA: IL BROWSER NON SI FERMA MAI");
+  //  Si finge un browser: `navigator` senza `permissions` (iOS vecchi) e il timer dei 15 s accelerato.
+  const fin = { navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"), fetch: globalThis.fetch, setTimeout: globalThis.setTimeout };
+  const inviati = [];
+  const pc = { signalingState: "have-local-offer", iceConnectionState: "checking", connectionState: "connecting", iceGatheringState: "complete", getStats: async () => new Map() };
+  const dip = (extra = {}) => ({
+    stanza: () => "kfr-mbqd-tzp",
+    ruolo: () => "ospite",
+    iceServers: () => [{ urls: ["turn:t.example:3478"] }],
+    peer: () => pc,
+    remoto: () => undefined,
+    locale: () => null,
+    mediaVivo: () => false,
+    ...extra,
+  });
+  const aspetta = (ms) => new Promise((ok) => fin.setTimeout(ok, ms));
+  try {
+    Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 Version/15.0 Mobile/15E148 Safari/604.1" }, configurable: true });
+    globalThis.fetch = async (u, o) => (inviati.push(JSON.parse(o.body)), { ok: true });
+    globalThis.setTimeout = (f, ms, ...a) => fin.setTimeout(f, ms >= S.ATTESA_MS ? 5 : ms, ...a);
+    const errori = [];
+    const quando = (e) => errori.push(e);
+    process.on("unhandledRejection", quando);
+    process.on("uncaughtException", quando);
+
+    //  1) niente `navigator.permissions`: il rapporto parte lo stesso, coi permessi «ignoto»
+    const a = B.creaScatola(dip());
+    a.incontro("p1");
+    await aspetta(80);
+    c("senza navigator.permissions il rapporto parte comunque", 1, inviati.length);
+    c("…con i permessi «ignoto»", { camera: "ignoto", microfono: "ignoto" }, inviati[0]?.rapporto?.permessi);
+    a.chiudiTutto();
+
+    //  2) `permissions.query` che lancia o rifiuta: stessa cosa
+    Object.defineProperty(globalThis, "navigator", { value: { userAgent: "x", permissions: { query: () => { throw new Error("no"); } } }, configurable: true });
+    const b = B.creaScatola(dip());
+    b.incontro("p2");
+    await aspetta(80);
+    c("se permissions.query lancia, il rapporto parte comunque", 2, inviati.length);
+    b.chiudiTutto();
+
+    //  3) `mediaVivo` che lancia: nessun errore per la pagina, niente rapporto
+    const d = B.creaScatola(dip({ mediaVivo: () => { throw new Error("rotto"); } }));
+    d.incontro("p3");
+    await aspetta(80);
+    await aspetta(20);
+    c("se mediaVivo lancia, nessun errore non gestito", 0, errori.length);
+    c("…e nessun rapporto", 2, inviati.length);
+    d.chiudiTutto();
+    process.off("unhandledRejection", quando);
+    process.off("uncaughtException", quando);
+  } finally {
+    if (fin.navigator) Object.defineProperty(globalThis, "navigator", fin.navigator);
+    globalThis.fetch = fin.fetch;
+    globalThis.setTimeout = fin.setTimeout;
+  }
 
   const rotta = readFileSync(join(radice, "src/routes/api.public.meetly-diagnosi.ts"), "utf8");
   c("la rotta controlla la dimensione", true, /LIMITE_BYTE/.test(rotta));
   c("la rotta limita la frequenza per stanza", true, /LIMITE_PER_STANZA/.test(rotta));
   c("la rotta non salva il codice stanza in chiaro", false, /stanza:\s*sess\b/.test(rotta));
+  c("la rotta guarda content-length prima di leggere il corpo", true, /content-length/i.test(rotta) && rotta.indexOf("content-length") < rotta.indexOf("request.text()"));
+  c("la rotta ha il tetto globale", true, /LIMITE_GLOBALE/.test(rotta));
+  c("«tabella assente» solo coi codici 42P01 / PGRST205", false, /meetly_diagnosi\/\.test\(/.test(rotta) && /TABELLA_ASSENTE[\s\S]{0,200}message/.test(rotta));
   c("la lettura chiede le credenziali del gestionale", true, /chiamanteCRM/.test(rotta) && /puo\("consulenti"\)/.test(rotta));
   const sql = readFileSync(join(radice, "supabase/migrations/20261031120000_meetly_diagnosi.sql"), "utf8");
   c("migrazione: RLS attiva", true, /ENABLE ROW LEVEL SECURITY/.test(sql));

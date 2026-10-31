@@ -22,6 +22,7 @@ import {
   FINESTRA_MIN,
   GIORNI_CONSERVAZIONE,
   LIMITE_BYTE,
+  LIMITE_GLOBALE,
   LIMITE_PER_STANZA,
   codiceStanzaValido,
   pulisciRapporto,
@@ -50,8 +51,9 @@ async function improntaStanza(sess: string): Promise<string> {
   return Array.from(new Uint8Array(h).slice(0, 6), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-const TABELLA_ASSENTE = (e: { code?: string; message?: string } | null | undefined) =>
-  !!e && (e.code === "42P01" || e.code === "PGRST205" || /meetly_diagnosi/.test(String(e.message)));
+//  Solo i due codici di «tabella inesistente» (Postgres e PostgREST): un «permission denied» o un
+//  altro errore non deve passare per una migrazione mancante.
+const TABELLA_ASSENTE = (e: { code?: string } | null | undefined) => e?.code === "42P01" || e?.code === "PGRST205";
 
 export const Route = createFileRoute("/api/public/meetly-diagnosi")({
   server: {
@@ -59,7 +61,11 @@ export const Route = createFileRoute("/api/public/meetly-diagnosi")({
       OPTIONS: async () => new Response(null, { status: 204, headers: cors }),
 
       POST: async ({ request }) => {
-        // ── 1. dimensione: leggere un corpo enorme costa più del rapporto ──
+        // ── 1. dimensione: si guarda l'intestazione PRIMA di leggere, e di nuovo dopo ──
+        //  Senza `content-length` valido non si legge niente: un corpo enorme costa più del rapporto.
+        const lunghezza = Number(request.headers.get("content-length"));
+        if (!Number.isFinite(lunghezza) || lunghezza <= 0 || lunghezza > LIMITE_BYTE)
+          return json({ ok: false, motivo: "dimensione" }, 413);
         const testo = await request.text().catch(() => "");
         if (!testo || testo.length > LIMITE_BYTE) return json({ ok: false, motivo: "dimensione" }, 413);
         let corpo: { sess?: unknown; rapporto?: unknown } = {};
@@ -83,6 +89,12 @@ export const Route = createFileRoute("/api/public/meetly-diagnosi")({
             .eq("stanza", stanza)
             .gte("creato_il", da);
           if ((count ?? 0) >= LIMITE_PER_STANZA) return json({ ok: false, motivo: "troppi" }, 429);
+          // ── 2b. tetto globale: il codice stanza lo sceglie chi chiama, ruotarlo non deve bastare ──
+          const { count: tutti } = await db()
+            .from("meetly_diagnosi")
+            .select("id", { count: "exact", head: true })
+            .gte("creato_il", da);
+          if ((tutti ?? 0) >= LIMITE_GLOBALE) return json({ ok: false, motivo: "troppi" }, 429);
 
           // ── 3. si salva; un doppione (stesso rid+tipo) viene scartato dall'indice unico ──
           const rete = [rapporto.rete.tipo, rapporto.rete.effettiva].filter(Boolean).join(" ");

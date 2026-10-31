@@ -65,11 +65,18 @@ const idCasuale = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 16);
 
 async function permesso(nome: "camera" | "microphone"): Promise<Permesso> {
-  const s = await rapida(
-    navigator.permissions.query({ name: nome as PermissionName }).then((r) => r.state as string),
-    1000,
-    "",
-  );
+  //  ⚠️ `navigator.permissions` può non esserci (iOS vecchi) o lanciare: in quel caso il permesso è
+  //   «ignoto», MAI un'eccezione: senza questa rete il rapporto non partirebbe proprio sui telefoni.
+  let s = "";
+  try {
+    s = await rapida(
+      navigator.permissions.query({ name: nome as PermissionName }).then((r) => r.state as string),
+      1000,
+      "",
+    );
+  } catch {
+    /* ignoto */
+  }
   return s === "granted" ? "concesso" : s === "denied" ? "negato" : s === "prompt" ? "da-chiedere" : "ignoto";
 }
 
@@ -182,9 +189,13 @@ export function creaScatola(dip: DipendenzeScatola) {
         };
         st.timer = setTimeout(() => {
           st.timer = null;
-          if (stati.get(pid) !== st || dip.mediaVivo(pid)) return;
-          st.bloccoInviato = true;
-          void invia(pid, "blocco");
+          try {
+            if (stati.get(pid) !== st || dip.mediaVivo(pid)) return;
+            st.bloccoInviato = true;
+            void invia(pid, "blocco");
+          } catch {
+            /* la scatola nera non disturba mai la chiamata */
+          }
         }, ATTESA_MS);
         stati.set(pid, st);
       } catch {

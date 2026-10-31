@@ -25,8 +25,12 @@
 export const ATTESA_MS = 15_000;
 /** Un rapporto onesto sta in poche centinaia di byte: oltre, non è il nostro. */
 export const LIMITE_BYTE = 8_000;
-/** Quanti rapporti accetta una stanza in `FINESTRA_MIN` minuti. */
-export const LIMITE_PER_STANZA = 12;
+/** Quanti rapporti accetta una stanza in `FINESTRA_MIN` minuti. Largo apposta: in un gruppo di N
+ *  persone le coppie sono N·(N-1) e i «blocco» non devono mangiare il posto degli «esito». */
+export const LIMITE_PER_STANZA = 30;
+/** Quanti rapporti accetta l'INTERO archivio in `FINESTRA_MIN` minuti, qualunque sia la stanza:
+ *  il codice stanza lo sceglie chi chiama, e ruotandolo si aggirerebbe il tetto per stanza. */
+export const LIMITE_GLOBALE = 200;
 export const FINESTRA_MIN = 10;
 /** Oltre questi giorni le righe si buttano (lo fa la rotta, a ogni tanto). */
 export const GIORNI_CONSERVAZIONE = 60;

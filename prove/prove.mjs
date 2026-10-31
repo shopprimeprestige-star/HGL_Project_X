@@ -752,6 +752,7 @@ const MODULI = [
   "chatwa/attesaPosa",
   //  La scatola nera dei collegamenti Meetly (31/10/2026): prove in prove/idee/scatola-nera.mjs.
   "shop/scatola-nera",
+  "shop/scatola-nera-browser",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21544,7 +21545,7 @@ proveIdeeCosti(mod, { c, gruppo, radice });
 await proveRiepilogoSerale(mod, { c, gruppo, radice });
 proveDelleDateInCima();
 proveAttesaPalla(mod, { c, gruppo, radice });
-proveScatolaNera(mod, { c, gruppo, radice });
+await proveScatolaNera(mod, { c, gruppo, radice });
 proveAnteprimaPreventivoCliente({ c, gruppo, radice });
 provePerOraNo(mod, { c, gruppo, radice });
 proveDelPrimoContattoTreFasce();
