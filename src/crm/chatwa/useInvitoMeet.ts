@@ -13,12 +13,14 @@ import { oggiIso } from "@/crm/ui";
 import { linkApriWhatsapp } from "./apriWhatsapp";
 import {
   CHIAVE_INVITI,
+  PROMEMORIA_LINK,
   invitoDiOggi,
   leggiRegistro,
   preparaInvito,
   registraInvito,
   stradaInvito,
   type ChatPerInvito,
+  type ModoInvito,
   type RegistroInviti,
   type VoceInvito,
 } from "./invito-meet";
@@ -68,7 +70,12 @@ async function mandaDalCrm(telefono: string, leadId: string | null, testo: strin
   }
 }
 
-export function useInvitoMeet(chat: ChatPerInvito, ora: string, consulente: string | null) {
+export function useInvitoMeet(
+  chat: ChatPerInvito,
+  ora: string,
+  consulente: string | null,
+  modo: ModoInvito = "meetly",
+) {
   const [registro, setRegistro] = useState<RegistroInviti>({});
   const [inviando, setInviando] = useState(false);
   //  Il server ha detto «oltre le 24 ore» pur sapendo noi la finestra aperta: da qui si passa a WhatsApp.
@@ -111,10 +118,10 @@ export function useInvitoMeet(chat: ChatPerInvito, ora: string, consulente: stri
     [chat.phone],
   );
 
-  const preparato = preparaInvito(chat, ora, consulente);
+  const preparato = preparaInvito(chat, ora, consulente, modo);
   const strada = forzaWa ? "whatsapp" : stradaInvito(chat);
   const fatto = preparato.ok
-    ? invitoDiOggi(chat, registro, oggiIso(), preparato.invito.link, oraLocale, giornoLocale)
+    ? invitoDiOggi(chat, registro, oggiIso(), preparato.invito.segno, oraLocale, giornoLocale)
     : null;
 
   const href = preparato.ok
@@ -135,7 +142,8 @@ export function useInvitoMeet(chat: ChatPerInvito, ora: string, consulente: stri
       const esito = await mandaDalCrm(chat.phone, chat.leadId ?? chat.lead?.id ?? null, preparato.invito.testo);
       if (esito === "ok") {
         segna("crm");
-        toast.success("Invito inviato");
+        if (preparato.invito.senzaLink) toast.success("Invito inviato", { description: PROMEMORIA_LINK });
+        else toast.success("Invito inviato");
       } else if (esito === "fuori_finestra") {
         setForzaWa(true);
         toast.error("Finestra di 24 ore chiusa: scrivi da WhatsApp");
