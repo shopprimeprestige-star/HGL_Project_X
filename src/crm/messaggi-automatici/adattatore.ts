@@ -16,8 +16,8 @@
  *  ───────────────────────────────────────────────────────────────────────── */
 
 import type { ConfigManychat } from "../manychat/client-crm";
-import type { RigaConfig } from "../manychat/pannello";
-import type { ChiaveMessaggio } from "./catalogo";
+import { configDaRiga, type RigaConfig } from "../manychat/pannello";
+import { FAMIGLIA_GIORNO_MEET, FAMIGLIA_LEAD_NUOVO, type ChiaveMessaggio } from "./catalogo";
 import type { RigaRegistro } from "./tipi";
 
 export interface ConfigDalRegistro extends ConfigManychat {
@@ -32,4 +32,53 @@ export type FunzioneConfigDalRegistro = (
   registro: RigaRegistro[] | null,
 ) => ConfigDalRegistro;
 
-export {};
+/** ⚠️ TEMPORANEO (T4): versione minima, solo perché il giro compili e si provi prima della consegna
+ *  di T2. T2 la RIEMPIE con la sua: chi integra tiene il file di T2 e scarta questo commit. */
+export const configDalRegistro: FunzioneConfigDalRegistro = (riga, registro) => {
+  const base = configDaRiga(riga);
+  const spenti = [...FAMIGLIA_LEAD_NUOVO, ...FAMIGLIA_GIORNO_MEET] as ChiaveMessaggio[];
+  if (registro === null)
+    return {
+      ...base,
+      promemoria: false,
+      ricontatti: false,
+      leadNuovo: false,
+      giornoMeet: false,
+      stati: {},
+      leadNuovoDal: null,
+      messaggiSpenti: spenti,
+      avviso: "registro dei messaggi non letto: tutto spento",
+    };
+  const riga_ = (k: string) => registro.find((x) => x.chiave === k);
+  const acceso = (k: string) => riga_(k)?.acceso === true;
+  const dal = (k: string) => {
+    const il = riga_(k)?.acceso_dal;
+    return il && Number.isFinite(Date.parse(il)) ? il : null;
+  };
+  const piuRecente = (a: (string | null)[]) =>
+    a.filter((x): x is string => !!x).sort((x, y) => Date.parse(y) - Date.parse(x))[0] ?? null;
+  const lead = FAMIGLIA_LEAD_NUOVO.filter(acceso);
+  const stati: Record<string, string> = {};
+  for (const r of registro) {
+    const m = /^stato:(.+)$/.exec(r.chiave);
+    const il = dal(r.chiave);
+    if (!m || !r.acceso || !il) continue;
+    stati[m[1]] = il;
+    if (m[1] === "no_show") stati.non_fatto = il;
+  }
+  return {
+    ...base,
+    promemoria: acceso("promemoria_meet"),
+    ricontatti: acceso("ricontatto_fissato"),
+    leadNuovo: lead.length > 0,
+    giornoMeet: FAMIGLIA_GIORNO_MEET.some(acceso),
+    leadNuovoDal: piuRecente(lead.map(dal)),
+    stati,
+    ultimaAccensione: piuRecente([
+      base.ultimaAccensione,
+      acceso("ricontatto_fissato") ? dal("ricontatto_fissato") : null,
+    ]),
+    messaggiSpenti: spenti.filter((k) => !acceso(k)),
+    avviso: null,
+  };
+};
