@@ -16,7 +16,6 @@
  *  Tutto puro: niente React, niente Supabase. Provato in prove/idee/ricontatti.mjs. */
 import { giornoParlato, oraNormale } from "@/crm/promemoria/formati";
 import { QUANDO_PER_STATO } from "@/crm/quando-per-stato";
-import { LEAD_STATUS_LABEL, type LeadStatus } from "@/crm/types";
 
 /** Stati che non hanno la data nella tabella del «quando» ma la portano lo stesso. */
 const ALTRI_STATI_A_DATA: readonly string[] = ["da_contattare", "da_spostare"];
@@ -38,6 +37,8 @@ export interface ChatRicontatto {
       dataRicontatto?: string | null;
       oraRicontatto?: string | null;
       esitoRicontatto?: string | null;
+      ricontattoNascostoIl?: string | null;
+      ricontattoNascostoPer?: string | null;
     } | null;
   } | null;
 }
@@ -51,7 +52,7 @@ export const eMioRicontatto = (c: ChatRicontatto, io: string): boolean =>
   io !== "" && eRicontatto(c) && c.lead?.data?.consulenteId === io;
 
 /** «AAAA-MM-GG HH:MM» da ordinare come testo; `""` se la data manca o non è un giorno vero. */
-function chiave(c: ChatRicontatto): string {
+export function chiave(c: ChatRicontatto): string {
   const d = c.lead?.data;
   const giorno = String(d?.dataRicontatto ?? "").slice(0, 10);
   if (!giornoParlato(giorno)) return "";
@@ -73,11 +74,11 @@ export function fraseRicontattiVuoti(io: string, cercando: boolean): string {
   return cercando ? "Nessun tuo ricontatto in questa ricerca" : "Nessun tuo lead da ricontattare";
 }
 
-/** ── STATO + ESITO + DATA, FILTRI CHE SI COMBINANO (31/10/2026) ─────────────────────────────────
- *  Richiesta del titolare: «Attesa acconto + non ha risposto»; sapere che un lead era in Attesa acconto
- *  e poi ha detto «sentiamoci più avanti»; con data icona calendario, senza data icona X.
- *  Dentro «Ricontatti» (e solo lì) tre righe di pastiglie: Stato, Esito, Data. Passa chi le rispetta
- *  TUTTE (E); ogni riga ne ha una sola accesa. Il resto dei filtri della chat resta uno alla volta.
+/** ── ESITO + DATA, FILTRI CHE SI COMBINANO (31/10/2026) ─────────────────────────────────────────
+ *  Richiesta del titolare: sapere che un lead era in Attesa acconto e poi ha detto «sentiamoci più avanti»;
+ *  con data icona calendario, senza data icona X. Seconda versione: NIENTE filtro per Stato, solo Esito
+ *  (in una barra che si chiude) e Data (un interruttore a segmenti, non sticky). Passa chi rispetta
+ *  ENTRAMBI (E); ognuno ha un valore solo. Il resto dei filtri della chat resta uno alla volta.
  *  · L'ESITO sta sulla scheda (`esitoRicontatto` + `esitoRicontattoIl`, JSON libero: nessuna migrazione)
  *    e RESTA quando lo stato cambia.
  *  · «CON DATA» = `dataRicontatto` è un giorno vero: la stessa regola dell'ordinamento qui sopra.
@@ -127,8 +128,6 @@ export const datiPerData = (d?: NonNullable<NonNullable<ChatRicontatto["lead"]>[
 });
 
 export interface FiltroRisentire {
-  /** `""` = tutti, oppure uno stato di `STATI_RICONTATTI` */
-  stato: string;
   /** `""` = tutti, un esito, oppure `ESITO_NESSUNO` */
   esito: string;
   data: "" | "con" | "senza";
@@ -136,15 +135,13 @@ export interface FiltroRisentire {
 
 export type CampoRisentire = keyof FiltroRisentire;
 
-export const RISENTIRE_VUOTO: FiltroRisentire = { stato: "", esito: "", data: "" };
+export const RISENTIRE_VUOTO: FiltroRisentire = { esito: "", data: "" };
 
-/** C'è almeno una riga accesa? */
-export const risentireAcceso = (r: FiltroRisentire): boolean =>
-  r.stato !== "" || r.esito !== "" || r.data !== "";
+/** C'è almeno un filtro acceso? */
+export const risentireAcceso = (r: FiltroRisentire): boolean => r.esito !== "" || r.data !== "";
 
-/** La chat rispetta le tre righe (E)? Non guarda di chi è: lo fa `eMioRicontatto`. */
+/** La chat rispetta esito e data (E)? Non guarda di chi è: lo fa `eMioRicontatto`. */
 export function passaRisentire(c: ChatRicontatto, r: FiltroRisentire): boolean {
-  if (r.stato && String(c.lead?.data?.stato ?? "") !== r.stato) return false;
   if (r.esito) {
     const e = esitoDi(c);
     if (r.esito === ESITO_NESSUNO ? e !== null : e !== r.esito) return false;
@@ -154,8 +151,8 @@ export function passaRisentire(c: ChatRicontatto, r: FiltroRisentire): boolean {
   return true;
 }
 
-/** Quante chat vedresti toccando la pastiglia `campo = valore` (le altre due righe restano). `chats` sono
- *  già i miei ricontatti. */
+/** Quante chat vedresti toccando la pastiglia `campo = valore` (l'altro filtro resta). `chats` sono
+ *  già i miei ricontatti, nascosti esclusi. */
 export function contaRisentire(
   chats: readonly ChatRicontatto[],
   r: FiltroRisentire,
@@ -166,7 +163,7 @@ export function contaRisentire(
   return chats.filter((c) => passaRisentire(c, prova)).length;
 }
 
-/** Tocca una pastiglia: se è accesa si spegne, altrimenti sostituisce quella accesa della sua riga. */
+/** Tocca una pastiglia: se è accesa si spegne, altrimenti sostituisce quella accesa del suo filtro. */
 export function commutaRisentire(
   r: FiltroRisentire,
   campo: CampoRisentire,
@@ -175,11 +172,38 @@ export function commutaRisentire(
   return { ...r, [campo]: r[campo] === valore ? "" : valore } as FiltroRisentire;
 }
 
-/** Gli stati della prima riga: quelli con almeno un ricontatto, nell'ordine del CRM, più quello scelto
- *  (anche se intanto non ha più chat: un filtro acceso si vede sempre). */
-export function statiRisentire(chats: readonly ChatRicontatto[], r: FiltroRisentire): string[] {
-  const presenti = new Set(chats.map((c) => String(c.lead?.data?.stato ?? "")));
-  return (Object.keys(LEAD_STATUS_LABEL) as LeadStatus[]).filter(
-    (s) => STATI_RICONTATTI.has(s) && (presenti.has(s) || s === r.stato),
-  );
+/** ── NASCONDERE UN LEAD DA «RICONTATTI» (31/10/2026) ───────────────────────────────────────────
+ *  Richiesta del titolare: un'icona sul lead per toglierlo dall'elenco, in un gruppo «Nascosti (N)» in fondo
+ *  che si apre e richiude. Vale su tutti i dispositivi: sta sulla scheda (`updateLead`, nessuna migrazione).
+ *  · `ricontattoNascostoIl`: l'ISO di quando è stato nascosto. `ricontattoNascostoPer`: la data (e ora) di
+ *    ricontatto che aveva ALLORA. Il lead è nascosto finché la data di ricontatto è quella: se la si
+ *    cambia (lo si riprogramma) o gliene si mette una, torna da solo nell'elenco, perché è di nuovo vivo.
+ *  · NON torna da solo quando scrive il cliente: risponderebbe e sparirebbe di nuovo, a scatti. Chi scrive
+ *    si vede in «Da rispondere»; per rimetterlo basta «Mostra».
+ *  · Esito e stato non lo toccano: nascosto vuol dire «per ora non lo guardo». */
+
+/** Il lead è nascosto? Sì se c'è il segno E la data di ricontatto è ancora quella di quando l'hai nascosto. */
+export function eNascosto(c: ChatRicontatto): boolean {
+  const d = c.lead?.data;
+  return !!d?.ricontattoNascostoIl && String(d.ricontattoNascostoPer ?? "") === chiave(c);
+}
+
+/** Cosa scrivere sulla scheda per nasconderlo: i due campi, e basta. */
+export const patchNascondi = (c: ChatRicontatto, adesso: Date = new Date()) => ({
+  ricontattoNascostoIl: adesso.toISOString() as string | undefined,
+  ricontattoNascostoPer: chiave(c) as string | undefined,
+});
+
+/** Cosa scrivere per rimetterlo: `undefined` sparisce alla serializzazione, la chiave si toglie. */
+export const patchMostra = (): ReturnType<typeof patchNascondi> => ({
+  ricontattoNascostoIl: undefined,
+  ricontattoNascostoPer: undefined,
+});
+
+/** Separa i nascosti dagli altri, ognuno nel suo ordine. Non muta l'ingresso. */
+export function dividiNascosti<T extends ChatRicontatto>(chats: readonly T[]) {
+  const visibili: T[] = [];
+  const nascosti: T[] = [];
+  for (const c of chats) (eNascosto(c) ? nascosti : visibili).push(c);
+  return { visibili, nascosti };
 }
