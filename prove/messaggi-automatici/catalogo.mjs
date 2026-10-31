@@ -292,7 +292,7 @@ export async function proveCatalogoMessaggi(mod, { c, gruppo, radice }) {
   c("nessun'altra voce è bloccata", 2, bloccate.length);
 
   gruppo("MESSAGGI AUTOMATICI · LA MIGRAZIONE (TESTO)");
-  const FILE = "supabase/migrations/20261031130000_messaggi_automatici.sql";
+  const FILE = "supabase/migrations/20261031160000_messaggi_automatici.sql";
   c("la migrazione esiste col nome del piano", true, existsSync(join(radice, FILE)));
   const grezzo = existsSync(join(radice, FILE)) ? leggi(FILE) : "";
   const sql = senzaCommenti(grezzo);

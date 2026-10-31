@@ -3,7 +3,7 @@
 --
 -- Commessa 2026-10-31-interruttori-automatici. Ricopia nel registro `messaggi_automatici`
 -- i valori di OGGI dei vecchi interruttori (manychat_config e i JSON di app_config),
--- con le stesse regole di lettura del seme della migrazione 20261031130000.
+-- con le stesse regole di lettura del seme della migrazione 20261031160000.
 --
 -- QUANDO SERVE: tra l'applicazione della migrazione e la pubblicazione del codice sono
 -- passate ore, e nel frattempo qualcuno ha acceso o spento qualcosa dai vecchi pannelli
