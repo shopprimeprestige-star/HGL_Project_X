@@ -154,7 +154,10 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
     c(
       "ogni `messaggio:`/`automatico:` scritto a mano è una chiave del catalogo o «manuale»",
       [],
-      valori.filter(([p, v]) => !ammesse.has(v) && /^[a-z_:]+$/.test(v) && p !== "crm/messaggi-automatici/vista.ts"),
+      valori.filter(
+        ([p, v]) =>
+          !ammesse.has(v) && /^[a-z_:]+$/.test(v) && p !== "crm/messaggi-automatici/vista.ts",
+      ),
     );
 
     const giro = testo.get("crm/manychat/giro.ts");
@@ -173,7 +176,10 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
     c(
       "conferma: dichiara «conferma_consulenza» e non chiama i client",
       [true, false],
-      [/messaggio:\s*"conferma_consulenza"/.test(conferma), /\.sendFlow\(|\.sendContent\(/.test(conferma)],
+      [
+        /messaggio:\s*"conferma_consulenza"/.test(conferma),
+        /\.sendFlow\(|\.sendContent\(/.test(conferma),
+      ],
     );
     const fattura = testo.get("crm/fatture/dati-fattura.server.ts");
     c(
@@ -184,7 +190,9 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
 
     const rotta = testo.get("routes/api.whatsapp-send.ts");
     const pos = (t) => rotta.indexOf(t);
-    const primaDelRamo = Math.min(...["leggiCanale(", "inviaWhatsapp(", "/messages"].map((t) => pos(t)).filter((n) => n >= 0));
+    const primaDelRamo = Math.min(
+      ...["leggiCanale(", "inviaWhatsapp(", "/messages"].map((t) => pos(t)).filter((n) => n >= 0),
+    );
     c(
       "api.whatsapp-send: il controllo di `automatico` (messaggioAcceso) viene PRIMA del canale, della porta e della chiamata Graph",
       true,
@@ -213,9 +221,12 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
       ],
     );
     c(
-      "…e il tasto a mano `azione:\"promemoria\"` non è mai bloccato: la rotta chiama mandaPromemoria 2 volte, `automatico` compare 1",
+      '…e il tasto a mano `azione:"promemoria"` non è mai bloccato: la rotta chiama mandaPromemoria 2 volte, `automatico` compare 1',
       [2, 1],
-      [(rottaWebinar.match(/mandaPromemoria\(/g) ?? []).length, (rottaWebinar.match(/\bautomatico\b/g) ?? []).length],
+      [
+        (rottaWebinar.match(/mandaPromemoria\(/g) ?? []).length,
+        (rottaWebinar.match(/\bautomatico\b/g) ?? []).length,
+      ],
     );
 
     const prenota = testo.get("crm/manychat/prenota.server.ts");
@@ -232,7 +243,9 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
       "gli invii a mano chiamano `/api/whatsapp-send` e nel corpo che mandano non c'è `automatico` (altrimenti sarebbero frenati)",
       [],
       di("manuale").filter(
-        (p) => !/\/api\/whatsapp-send/.test(testo.get(p)) || /\bautomatico\b/.test(dopoLaRotta(testo.get(p))),
+        (p) =>
+          !/\/api\/whatsapp-send/.test(testo.get(p)) ||
+          /\bautomatico\b/.test(dopoLaRotta(testo.get(p))),
       ),
     );
     c(
@@ -255,8 +268,7 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
         //  `pannello.ts` e `pronto.ts` possono NOMINARE i percorsi come testo di una frase o di un elenco:
         //  contano solo le chiamate vere.
         return (
-          /\.sendFlow\(|\.sendContent\(|\binviaWhatsapp\(|\.cloud\(/.test(t) ||
-          TRACCE[4][1].test(t)
+          /\.sendFlow\(|\.sendContent\(|\binviaWhatsapp\(|\.cloud\(/.test(t) || TRACCE[4][1].test(t)
         );
       }),
     );
@@ -280,8 +292,17 @@ export async function proveScansioneMessaggi(mod, { c, gruppo, radice }) {
     //  scritta a mano fuori dal catalogo (fattura, webinar, prenota in chat).
     const daChiaveDi = new Set();
     const tipi = [
-      "primo_contatto", "richiamo_24h", "ritorno", "casi_reali", "meet_oggi", "meet_domani",
-      "meet_adesso", "promemoria", "promemoria_chiamata", "promemoria_sede", "conferma",
+      "primo_contatto",
+      "richiamo_24h",
+      "ritorno",
+      "casi_reali",
+      "meet_oggi",
+      "meet_domani",
+      "meet_adesso",
+      "promemoria",
+      "promemoria_chiamata",
+      "promemoria_sede",
+      "conferma",
     ];
     for (const tipo of tipi) daChiaveDi.add(cat.chiaveDi({ tipo }));
     for (const v of cat.CATALOGO)
