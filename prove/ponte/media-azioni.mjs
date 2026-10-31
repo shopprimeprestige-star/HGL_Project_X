@@ -143,6 +143,7 @@ function porteFinte(o = {}) {
     async pulizia() {
       chiamate.push(["pulizia"]);
       guasto("pulizia");
+      return o.pulizia ?? [];
     },
   };
   return porte;
@@ -1116,6 +1117,36 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
       [false, 1],
       [ge.ok, ge.orfani],
     );
+    //  La pulizia ridà i percorsi (database) delle `in_caricamento` vecchie liberate: si tolgono, se validi.
+    const pu = porteFinte({
+      pulizia: [pathDi(60), `${ALTRO}/../x.jpg`, pathDi(61)],
+      oggetti: [pathDi(60), pathDi(61)],
+      orfani: [],
+    });
+    const gu = await A.giroScadute(pu, adesso(0));
+    c(
+      "pulizia: i percorsi validi si tolgono da Storage (a gruppi), quelli storti no",
+      [[[pathDi(60), pathDi(61)]], 2, true],
+      [
+        pu.chiamate.filter((x) => x[0] === "rimuovi").map((x) => x[1]),
+        gu.orfani,
+        logPulito(pu.avvisi),
+      ],
+    );
+    const pf = porteFinte({ pulizia: [pathDi(60)], rompi: "rimuovi", orfani: [] });
+    const gf = await A.giroScadute(pf, adesso(0));
+    c(
+      "pulizia con Storage rotto: contato come non riuscito, l'hook non cade (li ritrova `orfani`)",
+      [true, 1],
+      [gf.ok, gf.non_riusciti],
+    );
+    const pn = porteFinte({ orfani: [] });
+    pn.pulizia = async () => null;
+    c(
+      "pulizia che non ridà una lista: nessuna rimozione e nessun errore",
+      [true, 0],
+      await A.giroScadute(pn, adesso(0)).then((x) => [x.ok, x.orfani]),
+    );
     const ore = porteFinte({
       rompi: "orfani",
       codice: "XX000",
@@ -1494,6 +1525,16 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
       "porta vera interruttore: il valore grezzo di ponte_immagini",
       ACCESO(["foto", "audio", "video", "documento"]),
       await vere.interruttore(),
+    );
+    globalThis.__mondoAzioni = mondo({
+      risposte: {
+        ponte_wa_media_pulizia: { richieste: 1, liberate: 2, path: [pathDi(1), 5, pathDi(2)] },
+      },
+    });
+    c(
+      "porta vera pulizia: dal jsonb prende solo i path testo",
+      [pathDi(1), pathDi(2)],
+      await vere.pulizia(),
     );
     globalThis.__mondoAzioni = mondo({ guasti: { ponte_wa_media_pulizia: "42883" } });
     let codice = null;

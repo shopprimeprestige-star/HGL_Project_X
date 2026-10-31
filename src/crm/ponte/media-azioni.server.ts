@@ -181,8 +181,10 @@ export function porteMediaAzioni(): PorteMediaAzioni {
     },
 
     pulizia: async () => {
-      const { error } = await db().rpc<unknown>("ponte_wa_media_pulizia", {});
+      const { data, error } = await db().rpc<{ path?: unknown }>("ponte_wa_media_pulizia", {});
       if (error) return lancia(error);
+      const path = data?.path;
+      return Array.isArray(path) ? path.filter((p): p is string => typeof p === "string") : [];
     },
   };
 }

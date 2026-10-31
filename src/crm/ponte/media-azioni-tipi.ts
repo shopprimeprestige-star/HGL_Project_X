@@ -127,8 +127,10 @@ export interface PorteMediaAzioni {
   scadute(limite: number): Promise<ScadutaSql[]>;
   /** `ponte_wa_media_orfani`: nomi di oggetti del bucket senza riga `pronta` / `in_caricamento`. */
   orfani(limite: number): Promise<string[]>;
-  /** `ponte_wa_media_pulizia`: richieste chiuse da più di 7 giorni, `in_caricamento` da più di 3. */
-  pulizia(): Promise<void>;
+  /** `ponte_wa_media_pulizia` → `{ richieste, liberate, path[] }`: cancella le richieste di più di 7 giorni e
+   *  libera le `in_caricamento` di più di 3. Restituisce i `path` (del database) che hanno ancora un oggetto
+   *  da togliere da Storage; se la rimozione fallisce li ritrova `orfani`. */
+  pulizia(): Promise<string[]>;
 }
 
 // ── Il browser ────────────────────────────────────────────────────────────

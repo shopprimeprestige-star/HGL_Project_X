@@ -374,6 +374,27 @@ export interface RisultatoGiro {
   non_riusciti: number;
 }
 
+/** Toglie da Storage oggetti senza riga (orfani o percorsi della pulizia): solo percorsi con la forma
+ *  `<uuid>/<uuid>.<ext>`, a gruppi; un gruppo che fallisce si conta e non ferma il resto. */
+async function rimuoviOggetti(
+  porte: PorteMediaAzioni,
+  nomi: unknown[],
+  r: RisultatoGiro,
+): Promise<void> {
+  const validi = nomi.filter((n): n is string => typeof n === "string" && PERCORSO_MEDIA.test(n));
+  if (validi.length < nomi.length)
+    porte.avviso("media_percorso", { n: nomi.length - validi.length });
+  for (const g of gruppi(validi, GRUPPO_REMOVE)) {
+    try {
+      await porte.rimuovi(g);
+      r.orfani += g.length;
+    } catch (e) {
+      r.non_riusciti += g.length;
+      porte.avviso(avvisoDi(e));
+    }
+  }
+}
+
 /** Il giro del minuto: libera i media `pronta` con timer scaduto (`scadute` → `remove` a gruppi →
  *  `liberato` con chiave e percorso letti); ai minuti 0 e 30 anche le pulizie e gli orfani (oggetti
  *  senza riga `pronta`/`in_caricamento`: rimozioni fallite). L'hook non ha memoria: lo decide
@@ -408,30 +429,21 @@ export async function giroScadute(porte: PorteMediaAzioni, adesso: Date): Promis
 
   if (adesso.getUTCMinutes() % ORFANI_OGNI_MINUTI !== 0) return r;
 
-  //  Le pulizie prima (una `in_caricamento` vecchia passa a `liberato`: il suo oggetto diventa orfano
-  //  e lo toglie il passo dopo). La funzione può non esserci ancora: non è un guasto.
+  //  Le pulizie prima (una `in_caricamento` vecchia passa a `liberato` e la funzione ridà il suo percorso:
+  //  si toglie qui; se fallisce, il passo degli orfani la ritrova). La funzione può non esserci ancora:
+  //  non è un guasto.
   try {
-    await porte.pulizia();
-    porte.avviso("media_pulizia");
+    const daTogliere = await porte.pulizia();
+    await rimuoviOggetti(porte, Array.isArray(daTogliere) ? daTogliere : [], r);
+    porte.avviso("media_pulizia", { n: r.orfani });
   } catch (e) {
     if (!CODICI_MIGRAZIONE.includes(codiceDi(e))) r.ok = false;
     porte.avviso(avvisoDi(e));
   }
 
   try {
-    const nomi = (await porte.orfani(ORFANI_PER_GIRO)).filter((n) =>
-      PERCORSO_MEDIA.test(String(n)),
-    );
-    for (const g of gruppi(nomi, GRUPPO_REMOVE)) {
-      try {
-        await porte.rimuovi(g);
-        r.orfani += g.length;
-      } catch (e) {
-        r.non_riusciti += g.length;
-        porte.avviso(avvisoDi(e));
-      }
-    }
-    if (nomi.length > 0) porte.avviso("media_orfani", { n: r.orfani });
+    await rimuoviOggetti(porte, await porte.orfani(ORFANI_PER_GIRO), r);
+    if (r.orfani > 0) porte.avviso("media_orfani", { n: r.orfani });
   } catch (e) {
     r.ok = false;
     porte.avviso(avvisoDi(e));
