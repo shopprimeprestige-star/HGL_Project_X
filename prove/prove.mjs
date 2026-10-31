@@ -22016,7 +22016,7 @@ async function proveDelGiroDelPromemoria() {
   f = finto({ senzaMeetly: true, modelloSl: { trovato: false } });
   r = await G.giroPromemoria(f.porte, { prova: false });
   c("senza Meetly e gemello NON collegato: niente invio (mai il modello col link), nessun segno sulla scheda", [0, false, null], [r.inviati, f.log.some((x) => x.startsWith("invia")), p1(f)]);
-  c("…la nota lo dice, e il giro non è bloccato", [true, true], [/senza link/i.test(r.nota ?? "") && /non è collegato/.test(r.nota ?? ""), r.pronto]);
+  c("…la nota lo dice, e il giro non è bloccato", [true, true], [/flusso senza link non collegato/i.test(r.nota ?? ""), r.pronto]);
   c("…e resta in attesa (si riprova al giro dopo)", 1, r.inAttesa);
   f = finto({ schede: [scheda("s1"), scheda("s2", { telefono: "333 000 1111" })], senzaMeetly: true, modelloSl: { trovato: false } });
   f.porte.schede = async () => [{ ...JSON.parse(JSON.stringify(f.db.get("s1"))), link: LINK, senzaMeetly: true }, { ...JSON.parse(JSON.stringify(f.db.get("s2"))), link: LINK }];

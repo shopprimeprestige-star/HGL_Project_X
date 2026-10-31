@@ -145,5 +145,7 @@ export function proveInvitoMeet(mod, { c, gruppo, radice }) {
   c("il promemoria compare solo dopo un invio senza link", true, /ricordaLink = invito\.preparato\.ok && invito\.preparato\.invito\.senzaLink && !!invito\.fatto/.test(barra) && /\{ricordaLink && \(/.test(barra));
   c("il promemoria è annunciato (role=status sempre presente)", true, /<div role="status">[\s\S]*?\{PROMEMORIA_LINK\}/.test(barra));
   c("il toast dopo l'invio ricorda il link se è senza link", true, /senzaLink\) toast\.success\("Invito inviato", \{ description: PROMEMORIA_LINK/.test(hook));
+  const casella = senzaCommenti(leggi("src/crm/chatwa/Casella.tsx"));
+  c("la casella non riempie {link} col link di Meetly per un consulente senza Meetly", true, /link: modoDelConsulente\(consultants, scheda\?\.consulenteId\) === "senza" \? "" : scheda\?\.linkMeeting/.test(casella));
   c("l'elenco chat non cambia (prossimo-meet.ts e ElencoChat.tsx intatti)", true, !/modoInvito|SceltaInvitoMeet/.test(elenco));
 }
