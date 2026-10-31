@@ -3,8 +3,9 @@
  *  riempie da solo. Le regole stanno in ./dati-acconto e ./risposte-rapide; qui
  *  solo le letture, fatte quando si apre la chat e non a ogni tasto premuto:
  *   - IBAN e intestatario: `leggiAzienda()` (impostazioni Fatture, `app_config`),
- *     UNA volta per sessione del browser, condivisa fra le chat. Se la lettura
- *     fallisce non si ricorda l'errore: la chat dopo riprova;
+ *     a OGNI chat aperta, senza cache (revisione del 31/10: un IBAN cambiato in
+ *     Fatture senza ricaricare partiva vecchio, e passando il controllo mod 97
+ *     la casella non avvisava). Una lettura di una riga: costa niente;
  *   - acconto e causale: dal preventivo del lead, una volta per lead.
  *     Il legame è `data.quoteRef`, col confronto ESATTO fatto dalla rotta.
  *     Se la scheda non l'ha dichiarato e il cliente è in Attesa acconto, si
@@ -31,20 +32,14 @@ export interface DatiBonifico {
 
 const VUOTI: DatiBonifico = { acconto: null, causalePreventivo: "", iban: "", intestatario: "" };
 
-let aziendaLetta: Promise<{ iban: string; intestatario: string }> | null = null;
-
-/** IBAN e intestatario dalle impostazioni Fatture, letti una volta per sessione. */
+/** IBAN e intestatario dalle impostazioni Fatture, riletti a ogni chat aperta. */
 function leggiBonifico() {
-  aziendaLetta ??= leggiAzienda()
+  return leggiAzienda()
     .then((a) => ({
       iban: String(a.iban ?? "").trim(),
       intestatario: String(a.denominazione ?? "").trim(),
     }))
-    .catch(() => {
-      aziendaLetta = null;
-      return { iban: "", intestatario: "" };
-    });
-  return aziendaLetta;
+    .catch(() => ({ iban: "", intestatario: "" }));
 }
 
 async function leggiPreventivo(lead: Lead): Promise<DatiAcconto | null> {
@@ -60,22 +55,30 @@ async function leggiPreventivo(lead: Lead): Promise<DatiAcconto | null> {
 }
 
 export function useDatiAcconto(lead: Lead | null | undefined): DatiBonifico {
-  const [dati, setDati] = useState<DatiBonifico>(VUOTI);
+  //  I dati portano l'id del lead a cui appartengono: dopo un cambio di chat,
+  //  per quel render che precede l'effetto, quelli dell'altro cliente non valgono.
+  const [stato, setStato] = useState<{ id: string | null; dati: DatiBonifico }>({
+    id: null,
+    dati: VUOTI,
+  });
   const id = lead?.id ?? null;
   const rif = String(lead?.data.quoteRef ?? "").trim();
   const inAttesa = lead?.data.stato === "in_attesa_acconto";
 
   useEffect(() => {
-    setDati(VUOTI);
+    setStato({ id: null, dati: VUOTI });
     if (!lead) return;
     let vivo = true;
     void Promise.all([leggiBonifico(), leggiPreventivo(lead).catch(() => null)]).then(
       ([azienda, preventivo]) => {
         if (!vivo) return;
-        setDati({
-          acconto: preventivo?.acconto ?? null,
-          causalePreventivo: preventivo?.causale ?? "",
-          ...azienda,
+        setStato({
+          id: lead.id,
+          dati: {
+            acconto: preventivo?.acconto ?? null,
+            causalePreventivo: preventivo?.causale ?? "",
+            ...azienda,
+          },
         });
       },
     );
@@ -87,5 +90,5 @@ export function useDatiAcconto(lead: Lead | null | undefined): DatiBonifico {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, rif, inAttesa]);
 
-  return dati;
+  return stato.id !== null && stato.id === id ? stato.dati : VUOTI;
 }

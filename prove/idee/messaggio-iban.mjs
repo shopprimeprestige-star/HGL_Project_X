@@ -160,9 +160,11 @@ export function proveMessaggioIban(mod, { c, gruppo, radice }) {
     c("i dati si leggono in un effetto, non a ogni render né a ogni tasto", true, /useEffect\(/.test(hook) && !/bozza/.test(hook));
     c("l'effetto riparte per chat, non a ogni salvataggio della scheda (dipendenze: id, riferimento, stato)", true,
       /\[id,\s*rif,\s*inAttesa\]/.test(hook));
-    c("IBAN e intestatario dalle impostazioni Fatture, in cache per la sessione", true,
-      /leggiAzienda\(\)/.test(hook) && /aziendaLetta\s*\?\?=/.test(hook));
-    c("un errore di lettura dell'azienda non resta in cache (la chat dopo riprova)", true, /aziendaLetta\s*=\s*null/.test(hook));
+    //  Revisione 31/10: niente cache, un IBAN cambiato in Fatture vale dalla chat dopo.
+    c("IBAN e intestatario riletti dalle impostazioni Fatture a ogni chat (nessuna cache di sessione)", [true, false],
+      [/leggiAzienda\(\)/.test(hook), /aziendaLetta|let \w+: Promise/.test(hook)]);
+    c("i dati valgono solo per il lead a cui appartengono (niente dati dell'altro cliente dopo un cambio chat)", true,
+      /stato\.id !== null && stato\.id === id \? stato\.dati : VUOTI/.test(hook));
     c("il preventivo: legame `quoteRef`, rotta pubblica, ultimo della catena (`segui=1`)", true,
       /lead\.data\.quoteRef/.test(hook) && /\/api\/public\/quote\?ref=/.test(hook) && /segui=1/.test(hook));
     c("senza `quoteRef` il telefono solo in Attesa acconto, e scartando i sostituiti (preventivoDaCitare)", true,
