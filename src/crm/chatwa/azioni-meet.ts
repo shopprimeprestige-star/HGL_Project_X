@@ -58,7 +58,10 @@ export function fraseConferma(
   //  Nessun consulente, nessuna riga: nessun messaggio automatico, quindi niente da dire.
   if (!riga || !dati.consulenteId) return testa;
   //  Come sarà la scheda dopo il cambio: `statoDal` = adesso (lo scrive `conStatoDal`).
-  const giorno = stato === "da_spostare" ? giornoADataDi({ ...dati, statoDal: adesso.toISOString() }, oggi) : null;
+  const giorno =
+    stato === "da_spostare"
+      ? giornoADataDi({ ...dati, statoDal: adesso.toISOString() }, oggi)
+      : null;
   const quando = giorno
     ? `C'è già un ricontatto per ${giornoParlato(giorno) ?? giorno}: il messaggio può partire quel giorno`
     : `Il messaggio ${MESSAGGIO[stato]} può partire non prima di ${riga.attesaMin ?? 0} minuti`;

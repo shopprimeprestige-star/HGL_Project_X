@@ -48,7 +48,8 @@ export function AzioniMeet({
   const riprendiFocus = useRef<AzioneMeet["stato"] | null>(null);
 
   const chiudi = () => {
-    if (scelta && gruppoRef.current?.contains(document.activeElement)) riprendiFocus.current = scelta.stato;
+    if (scelta && gruppoRef.current?.contains(document.activeElement))
+      riprendiFocus.current = scelta.stato;
     setScelta(null);
   };
 
@@ -117,7 +118,12 @@ export function AzioniMeet({
           >
             Annulla
           </button>
-          <button type="button" disabled={inVolo} onClick={() => void conferma()} className={TASTO_PIENO}>
+          <button
+            type="button"
+            disabled={inVolo}
+            onClick={() => void conferma()}
+            className={TASTO_PIENO}
+          >
             {inVolo && <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin" />}
             {inVolo ? "Salvo…" : "Conferma"}
           </button>

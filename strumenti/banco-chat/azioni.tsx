@@ -22,7 +22,14 @@ const consulenti = [
   { id: "m", data: { nome: "Mirko Rossi" } },
   { id: "f", data: { nome: "Filippo" } },
 ];
-const meet = (id: string, nome: string, cognome: string, ora: string, consulenteId = "m", extra = {}): ChatItem =>
+const meet = (
+  id: string,
+  nome: string,
+  cognome: string,
+  ora: string,
+  consulenteId = "m",
+  extra = {},
+): ChatItem =>
   ({
     phone: `+39320000${id.padStart(4, "0")}`,
     leadId: id,
@@ -30,8 +37,15 @@ const meet = (id: string, nome: string, cognome: string, ora: string, consulente
     lead: {
       id,
       data: {
-        nome, cognome, telefono: `+39320000${id.padStart(4, "0")}`, stato: "appuntamento_fissato", dataMeeting: OGGI, oraMeeting: ora,
-        consulenteId, linkMeeting: "https://meet.example.test/stanza-prova", ...extra,
+        nome,
+        cognome,
+        telefono: `+39320000${id.padStart(4, "0")}`,
+        stato: "appuntamento_fissato",
+        dataMeeting: OGGI,
+        oraMeeting: ora,
+        consulenteId,
+        linkMeeting: "https://meet.example.test/stanza-prova",
+        ...extra,
       },
     },
   }) as unknown as ChatItem;
@@ -41,26 +55,54 @@ const INIZIALI: ChatItem[] = [
   meet("3", "Sofia", "Neri", "18:30"),
   meet("4", "Luca", "Gialli", "16:00", "f", { dataRicontatto: "2026-11-05" }),
 ];
-const RIGHE = Array.from({ length: 28 }, (_, i) => ({ id: `r${i}`, nome: `Cliente di prova ${i + 1}`, ultimo: `Messaggio di prova numero ${i + 1}` }));
+const RIGHE = Array.from({ length: 28 }, (_, i) => ({
+  id: `r${i}`,
+  nome: `Cliente di prova ${i + 1}`,
+  ultimo: `Messaggio di prova numero ${i + 1}`,
+}));
 
 function Banco() {
   const [chat, setChat] = useState<ChatItem[]>(P.get("uno") ? INIZIALI.slice(0, 1) : INIZIALI);
   const cambiaStatoLead = async (lead: Lead, stato: LeadStatus) => {
     await new Promise((r) => setTimeout(r, P.get("lento") ? 1500 : 250));
     if (P.get("fallisce")) {
-      toast.error("Stato NON salvato", { description: "La scheda in archivio è rimasta com'era. Riprova." });
+      toast.error("Stato NON salvato", {
+        description: "La scheda in archivio è rimasta com'era. Riprova.",
+      });
       return;
     }
     const prima = lead.data.stato;
-    setChat((l) => l.map((c) => (c.lead?.id === lead.id ? ({ ...c, lead: { ...c.lead, data: { ...c.lead.data, stato } } } as ChatItem) : c)));
+    setChat((l) =>
+      l.map((c) =>
+        c.lead?.id === lead.id
+          ? ({ ...c, lead: { ...c.lead, data: { ...c.lead.data, stato } } } as ChatItem)
+          : c,
+      ),
+    );
     toast.success(`${lead.data.nome} → ${LEAD_STATUS_LABEL[stato]}`, {
-      action: { label: "Annulla", onClick: () => setChat((l) => l.map((c) => (c.lead?.id === lead.id ? ({ ...c, lead: { ...c.lead, data: { ...c.lead.data, stato: prima } } } as ChatItem) : c))) },
+      action: {
+        label: "Annulla",
+        onClick: () =>
+          setChat((l) =>
+            l.map((c) =>
+              c.lead?.id === lead.id
+                ? ({
+                    ...c,
+                    lead: { ...c.lead, data: { ...c.lead.data, stato: prima } },
+                  } as ChatItem)
+                : c,
+            ),
+          ),
+      },
     });
   };
   const m = useMemo(() => prossimoMeet(chat, OGGI, ADESSO, consulenti as never), [chat]);
   const largo = P.get("largo");
   return (
-    <div style={{ height: "100dvh", width: largo ? `${largo}px` : "100%" }} className="flex flex-col bg-white">
+    <div
+      style={{ height: "100dvh", width: largo ? `${largo}px` : "100%" }}
+      className="flex flex-col bg-white"
+    >
       <div className="border-b border-border p-3 text-sm font-semibold">Chat (banco)</div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
         {m && (
