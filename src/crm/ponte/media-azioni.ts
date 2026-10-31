@@ -257,6 +257,14 @@ function voceValida(v: unknown, userId: string): v is VoceMedia {
   return oggetto(v) && !!leggiChiave(v.chiave) && percorsoRimovibile(v.path, userId);
 }
 
+/** La risposta di `ancoraScadute`, ripulita: solo voci valide E fra quelle chieste (il database non allarga mai). */
+function ancoraFraLe(chieste: VoceMedia[], risposta: unknown, userId: string): VoceMedia[] {
+  const chiesta = new Set(chieste.map((v) => `${v.chiave}\n${v.path}`));
+  return (Array.isArray(risposta) ? risposta : []).filter(
+    (v): v is VoceMedia => voceValida(v, userId) && chiesta.has(`${v.chiave}\n${v.path}`),
+  );
+}
+
 /** UN passo di liberazione (d.3): al più `PASSO_LIBERA` file. Il pannello lo ripete finché
  *  `restano` è 0, e si ferma se `non_riusciti` > 0. */
 async function liberaPasso(
@@ -395,7 +403,7 @@ async function rimuoviOggetti(
   }
 }
 
-/** Il giro del minuto: libera i media `pronta` con timer scaduto (`scadute` → `remove` a gruppi →
+/** Il giro del minuto: libera i media `pronta` con timer scaduto (`scadute` → `ancora_scadute` → `remove` a gruppi →
  *  `liberato` con chiave e percorso letti); ai minuti 0 e 30 anche le pulizie e gli orfani (oggetti
  *  senza riga `pronta`/`in_caricamento`: rimozioni fallite). L'hook non ha memoria: lo decide
  *  l'ora. Ogni passo ha il suo `try`, e tutto è idempotente: un giro interrotto lo rifà il minuto dopo. */
@@ -415,7 +423,11 @@ export async function giroScadute(porte: PorteMediaAzioni, adesso: Date): Promis
         { chiave: s.chiave, path: s.path },
       ]);
     }
-    for (const [userId, voci] of perUtente) {
+    for (const [userId, lette] of perUtente) {
+      //  La corsa «Tieni sempre»: dalla lettura sono passati secondi. Si tolgono solo le voci che il database
+      //  conferma ANCORA scadute; se la verifica fallisce non si toglie niente (il minuto dopo si riprova).
+      const voci = ancoraFraLe(lette, await porte.ancoraScadute(userId, lette), userId);
+      if (voci.length === 0) continue;
       const e = await liberaVoci(porte, userId, voci);
       r.liberati += e.liberati;
       r.non_riusciti += e.falliti.size;

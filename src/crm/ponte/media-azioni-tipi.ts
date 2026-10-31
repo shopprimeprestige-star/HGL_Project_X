@@ -123,6 +123,10 @@ export interface PorteMediaAzioni {
   rimuovi(paths: string[]): Promise<number>;
   /** `ponte_wa_media_liberato`: segna solo `pronta` con lo stesso `path`; restituisce le righe cambiate. */
   liberato(userId: string, voci: VoceMedia[]): Promise<number>;
+  /** `ponte_wa_media_ancora_scadute`: fra le voci lette da `scadute`, quelle che lo sono ANCORA (pronta, stesso
+   *  `path`, `scade_il` passato). Si chiede un attimo prima del `remove`: il titolare può aver scelto «Tieni
+   *  sempre» (o un timer nuovo) nei secondi trascorsi. Solo il giro del cron lo usa, mai «Libera» dal pannello. */
+  ancoraScadute(userId: string, voci: VoceMedia[]): Promise<VoceMedia[]>;
   /** `ponte_wa_media_scadute`. */
   scadute(limite: number): Promise<ScadutaSql[]>;
   /** `ponte_wa_media_orfani`: nomi di oggetti del bucket senza riga `pronta` / `in_caricamento`. */

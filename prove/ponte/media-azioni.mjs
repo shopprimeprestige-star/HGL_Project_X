@@ -122,6 +122,14 @@ function porteFinte(o = {}) {
       }
       return n;
     },
+    async ancoraScadute(u, voci) {
+      chiamate.push(["ancoraScadute", u, voci.map((v) => ({ ...v }))]);
+      guasto("ancoraScadute");
+      return voci.filter((v) => {
+        const r = righe.find((x) => x.chiave === v.chiave);
+        return !!r && r.stato === "pronta" && r.scaduta === true && r.path === v.path;
+      });
+    },
     async scadute(limite) {
       chiamate.push(["scadute", limite]);
       guasto("scadute");
@@ -1001,6 +1009,86 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
       [ms.righe[0].stato, ms.righe[0].path, gm.liberati],
     );
 
+    //  La corsa «Tieni sempre»: fra `scadute` e il `remove` il titolare toglie il timer. Il file NON si toglie.
+    const tk = porteFinte({
+      righe: [
+        { chiave: k1, path: pathDi(1), scaduta: true },
+        { chiave: k2, path: pathDi(2), scaduta: true },
+      ],
+      oggetti: [pathDi(1), pathDi(2)],
+    });
+    const origT = tk.scadute;
+    tk.scadute = async (l) => {
+      const letto = await origT(l);
+      tk.righe[0].scaduta = false; // «Tieni sempre» sul primo, dopo la lettura
+      return letto;
+    };
+    const gt = await A.giroScadute(tk, adesso(5));
+    c(
+      "corsa «Tieni sempre»: il file a cui si è tolto il timer dopo la lettura NON viene rimosso; l'altro sì",
+      [[pathDi(2)], [[k2]], [pathDi(1)], "pronta", "liberato", 1, 0],
+      [
+        tk.chiamate.filter((x) => x[0] === "rimuovi").flatMap((x) => x[1]),
+        tk.chiamate.filter((x) => x[0] === "liberato").map((x) => x[2].map((v) => v.chiave)),
+        [...tk.oggetti.keys()],
+        tk.righe[0].stato,
+        tk.righe[1].stato,
+        gt.liberati,
+        gt.non_riusciti,
+      ],
+    );
+    c(
+      "…la verifica (`ancoraScadute`) viene PRIMA di ogni rimozione e solo per l'utente delle voci",
+      [true, [UTENTE]],
+      [
+        nomiChiamate(tk).indexOf("ancoraScadute") < nomiChiamate(tk).indexOf("rimuovi"),
+        tk.chiamate.filter((x) => x[0] === "ancoraScadute").map((x) => x[1]),
+      ],
+    );
+    const tt = porteFinte({
+      righe: [{ chiave: k1, path: pathDi(1), scaduta: true }],
+      oggetti: [pathDi(1)],
+    });
+    const origTt = tt.scadute;
+    tt.scadute = async (l) => {
+      const letto = await origTt(l);
+      tt.righe[0].scaduta = false;
+      return letto;
+    };
+    const gtt = await A.giroScadute(tt, adesso(5));
+    c(
+      "corsa «Tieni sempre» su tutte le voci: nessun remove, nessun liberato, niente conteggiato come guasto",
+      [{ ok: true, liberati: 0, orfani: 0, non_riusciti: 0 }, [], [], [pathDi(1)]],
+      [
+        gtt,
+        tt.chiamate.filter((x) => x[0] === "rimuovi"),
+        tt.chiamate.filter((x) => x[0] === "liberato"),
+        [...tt.oggetti.keys()],
+      ],
+    );
+    const tr = porteFinte({
+      righe: [{ chiave: k1, path: pathDi(1), scaduta: true }],
+      oggetti: [pathDi(1)],
+      rompi: "ancoraScadute",
+      codice: "XX000",
+    });
+    const gtr = await A.giroScadute(tr, adesso(5));
+    c(
+      "se la verifica non riesce (database) il file NON si toglie: ok falso, un codice nel log",
+      [false, [], true],
+      [gtr.ok, tr.chiamate.filter((x) => x[0] === "rimuovi"), logPulito(tr.avvisi)],
+    );
+    c(
+      "la verifica `ancoraScadute` non è usata dalla liberazione del pannello (libera chiave/chiavi/numero/tutto)",
+      false,
+      /ancoraScadute/.test(
+        sorgente("src/crm/ponte/media-azioni.ts").slice(
+          sorgente("src/crm/ponte/media-azioni.ts").indexOf("async function liberaPasso"),
+          sorgente("src/crm/ponte/media-azioni.ts").indexOf("export async function giroScadute"),
+        ),
+      ),
+    );
+
     //  Storage rotto: la riga resta pronta, nessuna segnatura.
     const sr = porteFinte({
       righe: [{ chiave: k1, path: pathDi(1), scaduta: true }],
@@ -1475,6 +1563,7 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
           { user_id: UTENTE, chiave: k1, path: pathDi(1) },
           { user_id: UTENTE, chiave: k2, path: pathDi(2) },
         ],
+        ponte_wa_media_ancora_scadute: (a) => a.p_voci,
         ponte_wa_media_liberato: (a) => a.p_voci.length,
       },
     });
@@ -1488,6 +1577,37 @@ export async function proveMediaAzioni(mod, { c, gruppo, radice }) {
         [{ bucket: "ponte-media", paths: [pathDi(1), pathDi(2)] }],
       ],
       [h2.r.status, h2.json, h2.m.rpc[0]?.args, h2.m.rimossi],
+    );
+    c(
+      "hook vero: scadute → ancora_scadute (stesso utente, voci con chiave e percorso) → remove → liberato",
+      [
+        ["ponte_wa_media_scadute", "ponte_wa_media_ancora_scadute", "ponte_wa_media_liberato"],
+        [
+          { chiave: k1, path: pathDi(1) },
+          { chiave: k2, path: pathDi(2) },
+        ],
+        UTENTE,
+      ],
+      [h2.m.rpc.map((y) => y.fn), h2.m.rpc[1]?.args?.p_voci, h2.m.rpc[1]?.args?.p_user_id],
+    );
+    //  La corsa «Tieni sempre» con la rotta vera: il database dice che nessuna voce è più scaduta.
+    const mk = mondo({
+      risposte: {
+        ponte_wa_media_scadute: [{ user_id: UTENTE, chiave: k1, path: pathDi(1) }],
+        ponte_wa_media_ancora_scadute: () => [],
+        ponte_wa_media_liberato: (a) => a.p_voci.length,
+      },
+    });
+    const hk = await HOOK({ mondo: mk });
+    c(
+      "hook vero, corsa «Tieni sempre»: nessun remove, nessun liberato, risposta 200 con zero",
+      [
+        200,
+        { ok: true, liberati: 0, orfani: 0, non_riusciti: 0 },
+        [],
+        ["ponte_wa_media_scadute", "ponte_wa_media_ancora_scadute"],
+      ],
+      [hk.r.status, hk.json, hk.m.rimossi, hk.m.rpc.map((y) => y.fn)],
     );
     c(
       "hook: il corpo della risposta ha solo numeri",

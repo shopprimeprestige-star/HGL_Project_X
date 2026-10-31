@@ -25,6 +25,11 @@
 --                                                                   un altro utente: NESSUN effetto
 --     ponte_wa_media_scadute(int) → (user_id, chiave, path)
 --        le righe pronta con scade_il passato, le più scadute prima (al più 500, di serie 200).
+--     ponte_wa_media_ancora_scadute(uuid, jsonb) → jsonb
+--        la corsa «Tieni sempre»: fra la lettura delle scadute e la rimozione da Storage passano secondi, e
+--        il titolare può scegliere «Tieni sempre» (o un timer nuovo). Il giro del cron, PRIMA del remove, chiede
+--        di queste voci [{"chiave","path"},…] quali sono ANCORA da togliere (pronta, stesso path, scade_il
+--        passato) e toglie solo quelle. Sola lettura; vale solo per il cron, non per «Libera» dal pannello.
 --     ponte_wa_media_da_liberare(uuid, text, text[], int) → (chiave, path)
 --        le sole righe pronta da cancellare: per numero, per chiavi, per entrambi, o tutte
 --        (numero e chiavi NULL = «tutto»; un array vuoto NON è «tutto»). Al più 500 per volta.
@@ -65,6 +70,7 @@
 --   DROP FUNCTION public.ponte_wa_archivio_riassunto();
 --   DROP FUNCTION public.ponte_wa_media_orfani(integer);
 --   DROP FUNCTION public.ponte_wa_media_liberato(uuid, jsonb);
+--   DROP FUNCTION public.ponte_wa_media_ancora_scadute(uuid, jsonb);
 --   DROP FUNCTION public.ponte_wa_media_da_liberare(uuid, text, text[], integer);
 --   DROP FUNCTION public.ponte_wa_media_scadute(integer);
 --   DROP FUNCTION public.ponte_wa_media_timer(uuid, text, integer);
@@ -130,6 +136,27 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
    WHERE m.stato = 'pronta' AND m.scade_il IS NOT NULL AND m.scade_il <= now()
    ORDER BY m.scade_il, m.chiave
    LIMIT least(greatest(coalesce(p_limite, 200), 0), 500) $$;
+
+-- ── 2b. Cosa è ANCORA scaduto, un attimo prima del remove (la corsa «Tieni sempre») ──
+-- Il cron legge scadute(), poi toglie i file da Storage (secondi), poi segna liberato. Se nel frattempo il titolare
+-- sceglie «Tieni sempre» o un altro timer, il file non va tolto: qui si rileggono le sole voci che hanno ancora
+-- lo stesso percorso, sono pronta e hanno scade_il passato. Resta una finestra di millisecondi, non di secondi.
+CREATE OR REPLACE FUNCTION public.ponte_wa_media_ancora_scadute(p_user_id uuid, p_voci jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF p_user_id IS NULL OR p_voci IS NULL OR jsonb_typeof(p_voci) <> 'array' OR jsonb_array_length(p_voci) > 1000 THEN
+    RAISE EXCEPTION 'ponte_wa_media_ancora_scadute: parametri non validi' USING ERRCODE = '22023';
+  END IF;
+  RETURN coalesce((
+    SELECT jsonb_agg(jsonb_build_object('chiave', m.chiave, 'path', m.path) ORDER BY m.scade_il, m.chiave)
+      FROM public.ponte_wa_media m
+      JOIN (SELECT DISTINCT e ->> 'chiave' AS chiave, e ->> 'path' AS path
+              FROM jsonb_array_elements(p_voci) e
+             WHERE jsonb_typeof(e) = 'object') x ON x.chiave = m.chiave AND x.path = m.path
+     WHERE m.user_id = p_user_id AND m.stato = 'pronta' AND m.scade_il IS NOT NULL AND m.scade_il <= now()
+  ), '[]'::jsonb);
+END $$;
 
 -- ── 3. Cosa liberare dal pannello ────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.ponte_wa_media_da_liberare(p_user_id uuid, p_numero text, p_chiavi text[], p_limite integer)
@@ -261,6 +288,8 @@ REVOKE ALL ON FUNCTION public.ponte_wa_media_timer(uuid, text, integer) FROM PUB
 GRANT EXECUTE ON FUNCTION public.ponte_wa_media_timer(uuid, text, integer) TO service_role;
 REVOKE ALL ON FUNCTION public.ponte_wa_media_scadute(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ponte_wa_media_scadute(integer) TO service_role;
+REVOKE ALL ON FUNCTION public.ponte_wa_media_ancora_scadute(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ponte_wa_media_ancora_scadute(uuid, jsonb) TO service_role;
 REVOKE ALL ON FUNCTION public.ponte_wa_media_da_liberare(uuid, text, text[], integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ponte_wa_media_da_liberare(uuid, text, text[], integer) TO service_role;
 REVOKE ALL ON FUNCTION public.ponte_wa_media_liberato(uuid, jsonb) FROM PUBLIC, anon, authenticated;

@@ -52,6 +52,7 @@ const FIRME_A = {
 const FIRME_B_SERVIZIO = {
   ponte_wa_media_timer: ["p_user_id uuid, p_chiave text, p_secondi integer", "jsonb"],
   ponte_wa_media_scadute: ["p_limite integer", "TABLE (user_id uuid, chiave text, path text)"],
+  ponte_wa_media_ancora_scadute: ["p_user_id uuid, p_voci jsonb", "jsonb"],
   ponte_wa_media_da_liberare: ["p_user_id uuid, p_numero text, p_chiavi text[], p_limite integer", "TABLE (chiave text, path text)"],
   ponte_wa_media_liberato: ["p_user_id uuid, p_voci jsonb", "integer"],
   ponte_wa_media_orfani: ["p_limite integer", "text[]"],
@@ -252,6 +253,9 @@ export async function provePonteMediaMigrazione(_mod, { c, gruppo, radice }) {
     /stato = 'pronta'\s+RETURNING scade_il INTO v_scade/.test(timer) && /'stato', 'richiesta'/.test(timer) && /jsonb_build_object\('ok', false, 'stato', 'assente'\)/.test(timer) && (timer.match(/\bUPDATE\b/g) ?? []).length === 2);
   c("scadute: solo pronta con scade_il passato, le più scadute prima, al più 500 (di serie 200)", true,
     /m\.stato = 'pronta' AND m\.scade_il IS NOT NULL AND m\.scade_il <= now\(\)/.test(scadute) && /ORDER BY m\.scade_il/.test(scadute) && /least\(greatest\(coalesce\(p_limite, 200\), 0\), 500\)/.test(scadute));
+  const ancora = corpoFunzione(vivo.B, "ponte_wa_media_ancora_scadute");
+  c("ancora_scadute (corsa «Tieni sempre»): solo pronta, stesso path, scade_il passato, utente dato; sola lettura", true,
+    /m\.user_id = p_user_id AND m\.stato = 'pronta' AND m\.scade_il IS NOT NULL AND m\.scade_il <= now\(\)/.test(ancora) && /x\.chiave = m\.chiave AND x\.path = m\.path/.test(ancora) && !/\b(UPDATE|DELETE|INSERT)\b/i.test(ancora) && /ERRCODE = '22023'/.test(ancora));
   c("da_liberare: solo pronta, percorso del database, «tutto» solo con numero e chiavi NULL, al più 500", true,
     /m\.stato = 'pronta'/.test(daLib) && /p_numero IS NULL OR m\.numero = p_numero/.test(daLib) && /p_chiavi IS NULL OR m\.chiave = ANY \(p_chiavi\)/.test(daLib) && /LIMIT least\(greatest\(coalesce\(p_limite, 500\), 0\), 500\)/.test(daLib) && /p_numero !~ '\^\[0-9\]\{8,15\}\$'/.test(daLib));
   c("liberato: aggiorna SOLO stato = 'pronta' E path uguale a quello letto", true, /m\.stato = 'pronta' AND m\.path = x\.path/.test(liberato));

@@ -183,11 +183,11 @@ SELECT pg_temp.uguale('le funzioni di B hanno le firme del PIANO (e)', 'p_user_i
      (6, (SELECT CASE WHEN pg_get_function_identity_arguments(oid) = '' THEN '(nessun argomento)' END FROM pg_proc WHERE proname = 'ponte_wa_archivio_riassunto')),
      (7, (SELECT CASE WHEN pg_get_function_identity_arguments(oid) = '' THEN '(nessun argomento)' END FROM pg_proc WHERE proname = 'ponte_wa_archivio_chat')),
      (8, (SELECT pg_get_function_identity_arguments(oid) FROM pg_proc WHERE proname = 'ponte_wa_archivio_media'))) v(n, a)));
-SELECT pg_temp.uguale('ogni funzione di B esiste una sola volta (nessun sovraccarico)', '12',
+SELECT pg_temp.uguale('ogni funzione di B esiste una sola volta (nessun sovraccarico)', '13',
   (SELECT count(*)::text FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN
     ('ponte_wa_media_permesso', 'ponte_wa_media_fatto', 'ponte_wa_media_dettagli', 'ponte_wa_media_richiedi', 'ponte_wa_media_prendi',
      'ponte_wa_media_richiesta_esito', 'ponte_wa_media_pulizia', 'ponte_wa_media_timer', 'ponte_wa_media_scadute', 'ponte_wa_media_da_liberare',
-     'ponte_wa_media_liberato', 'ponte_wa_media_orfani')));
+     'ponte_wa_media_liberato', 'ponte_wa_media_orfani', 'ponte_wa_media_ancora_scadute')));
 
 -- ── Aiuti ────────────────────────────────────────────────────────────────────
 CREATE FUNCTION pg_temp.permesso(p_chiave text, p_numero text, p_mime text, p_byte bigint, p_tetto bigint DEFAULT 100000000000, p_user uuid DEFAULT '00000000-0000-4000-8000-0000000000b1')
@@ -788,6 +788,43 @@ SELECT pg_temp.uguale('scadute: le più scadute prima; p_limite 1 → una sola (
   (SELECT string_agg(chiave, ',') FROM public.ponte_wa_media_scadute(1)));
 SELECT pg_temp.uguale('scadute: p_limite 0 → niente; NULL → il predefinito (3 righe)', '0|3',
   (SELECT count(*)::text FROM public.ponte_wa_media_scadute(0)) || '|' || (SELECT count(*)::text FROM public.ponte_wa_media_scadute(NULL)));
+
+-- La corsa «Tieni sempre» (nota del revisore sul T3): il giro del cron legge le scadute, il titolare sceglie «Tieni sempre»
+-- (o un nuovo timer) PRIMA che il file sia tolto da Storage. Prima del `remove` il giro chiede quali voci sono ANCORA scadute
+-- (scadute: percorso uguale, stato pronta, scade_il passato): le altre non si toccano.
+CREATE TEMP TABLE voci_giro AS
+  SELECT jsonb_agg(jsonb_build_object('chiave', chiave, 'path', path) ORDER BY chiave) AS voci
+    FROM public.ponte_wa_media_scadute(200) WHERE user_id = :'U'::uuid;
+SELECT pg_temp.uguale('ancora_scadute: le voci appena lette dalle scadute sono ancora tutte scadute (S1, S7)', 'bw:393330009901:S1,bw:393330009901:S7',
+  (SELECT string_agg(e->>'chiave', ',' ORDER BY e->>'chiave') FROM jsonb_array_elements(public.ponte_wa_media_ancora_scadute(:'U'::uuid, (SELECT voci FROM voci_giro))) e));
+SELECT pg_temp.uguale('ancora_scadute: il percorso viene dal database (le voci tornano con chiave e path)', 'true',
+  (SELECT bool_and(e->>'path' = (SELECT m.path FROM public.ponte_wa_media m WHERE m.user_id = :'U'::uuid AND m.chiave = e->>'chiave'))::text FROM jsonb_array_elements(public.ponte_wa_media_ancora_scadute(:'U'::uuid, (SELECT voci FROM voci_giro))) e));
+SELECT pg_temp.uguale('ancora_scadute: voci non scadute o non pronte (S2 futura, S3 senza timer, S4 in_caricamento, S5 liberato) → niente', '[]',
+  public.ponte_wa_media_ancora_scadute(:'U'::uuid, jsonb_build_array(
+    jsonb_build_object('chiave', 'bw:393330009901:S2', 'path', :'s2'), jsonb_build_object('chiave', 'bw:393330009901:S3', 'path', :'s3'),
+    jsonb_build_object('chiave', 'bw:393330009901:S4', 'path', :'s4'), jsonb_build_object('chiave', 'bw:393330009901:S5', 'path', :'s5')))::text);
+SELECT pg_temp.uguale('ancora_scadute: percorso diverso da quello del database (riga rimessa in coda da «Mostra») → niente', '[]',
+  public.ponte_wa_media_ancora_scadute(:'U'::uuid, jsonb_build_array(jsonb_build_object('chiave', 'bw:393330009901:S1', 'path', :'U' || '/00000000-0000-4000-8000-00000000aaaa.jpg')))::text);
+SELECT pg_temp.uguale('ancora_scadute: un altro utente non vede le righe altrui (S6 è di U2)', '[]|1',
+  public.ponte_wa_media_ancora_scadute(:'U'::uuid, jsonb_build_array(jsonb_build_object('chiave', 'bw:393330009901:S6', 'path', :'s6')))::text || '|' ||
+  jsonb_array_length(public.ponte_wa_media_ancora_scadute(:'U2'::uuid, jsonb_build_array(jsonb_build_object('chiave', 'bw:393330009901:S6', 'path', :'s6'))))::text);
+-- Il titolare sceglie «Tieni sempre» sul video S7 dopo la lettura delle scadute (la stessa funzione che chiama la rotta).
+SELECT public.ponte_wa_media_timer(:'U'::uuid, 'bw:393330009901:S7', 0) AS tieni \gset
+SELECT pg_temp.uguale('corsa «Tieni sempre»: dopo la scelta S7 non è più fra le voci da togliere, S1 sì', 'bw:393330009901:S1',
+  (SELECT string_agg(e->>'chiave', ',') FROM jsonb_array_elements(public.ponte_wa_media_ancora_scadute(:'U'::uuid, (SELECT voci FROM voci_giro))) e));
+-- …o un timer nuovo, nel futuro.
+SELECT public.ponte_wa_media_timer(:'U'::uuid, 'bw:393330009901:S1', 3600) AS nuovo_timer \gset
+SELECT pg_temp.uguale('corsa «nuovo timer»: con un timer nel futuro nessuna voce è più da togliere', '[]',
+  public.ponte_wa_media_ancora_scadute(:'U'::uuid, (SELECT voci FROM voci_giro))::text);
+SELECT pg_temp.uguale('ancora_scadute non cambia niente (sola lettura): le righe sono come prima', 'pronta|pronta',
+  (SELECT string_agg(stato, '|' ORDER BY chiave) FROM public.ponte_wa_media WHERE chiave IN ('bw:393330009901:S1', 'bw:393330009901:S7')));
+SELECT pg_temp.uguale('ancora_scadute: parametri non validi → 22023; array vuoto → []', '22023|22023|22023|[]',
+  concat_ws('|',
+    pg_temp.esito_di($q$ SELECT public.ponte_wa_media_ancora_scadute(NULL, '[]'::jsonb) $q$),
+    pg_temp.esito_di($q$ SELECT public.ponte_wa_media_ancora_scadute('00000000-0000-4000-8000-0000000000b1', NULL) $q$),
+    pg_temp.esito_di($q$ SELECT public.ponte_wa_media_ancora_scadute('00000000-0000-4000-8000-0000000000b1', '{"chiave":"a"}'::jsonb) $q$),
+    public.ponte_wa_media_ancora_scadute(:'U'::uuid, '[]'::jsonb)::text));
+DROP TABLE voci_giro;
 DELETE FROM public.ponte_wa_media;
 
 -- ── da_liberare ──────────────────────────────────────────────────────────────
@@ -955,7 +992,7 @@ DELETE FROM public.ponte_wa_media WHERE numero = '393330009204';
 DELETE FROM storage.objects WHERE name LIKE '%' AND metadata->>'size' = '10';
 
 -- ── Permessi ─────────────────────────────────────────────────────────────────
-SELECT pg_temp.uguale('funzioni del Worker (12): anon e authenticated senza EXECUTE, service_role con EXECUTE', '12|0|0|12',
+SELECT pg_temp.uguale('funzioni del Worker (13): anon e authenticated senza EXECUTE, service_role con EXECUTE', '13|0|0|13',
   (SELECT concat_ws('|', count(*)::text,
       count(*) FILTER (WHERE has_function_privilege('anon', p.oid, 'EXECUTE'))::text || '',
       count(*) FILTER (WHERE has_function_privilege('authenticated', p.oid, 'EXECUTE'))::text || '',
@@ -963,7 +1000,7 @@ SELECT pg_temp.uguale('funzioni del Worker (12): anon e authenticated senza EXEC
      FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN
     ('ponte_wa_media_permesso', 'ponte_wa_media_fatto', 'ponte_wa_media_dettagli', 'ponte_wa_media_richiedi', 'ponte_wa_media_prendi',
      'ponte_wa_media_richiesta_esito', 'ponte_wa_media_pulizia', 'ponte_wa_media_timer', 'ponte_wa_media_scadute', 'ponte_wa_media_da_liberare',
-     'ponte_wa_media_liberato', 'ponte_wa_media_orfani')));
+     'ponte_wa_media_liberato', 'ponte_wa_media_orfani', 'ponte_wa_media_ancora_scadute')));
 SELECT pg_temp.uguale('funzioni del Worker: tutte SECURITY DEFINER con lo stesso search_path fisso', 'true|1|{"search_path=public, pg_temp"}',
   (SELECT concat_ws('|', bool_and(p.prosecdef)::text, count(DISTINCT p.proconfig::text)::text, min(p.proconfig::text))
      FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'ponte\_wa\_media\_%' AND p.proname NOT IN ('ponte_wa_media_categoria', 'ponte_wa_media_limite', 'ponte_wa_media_estensione')));

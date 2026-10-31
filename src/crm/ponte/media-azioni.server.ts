@@ -164,6 +164,15 @@ export function porteMediaAzioni(): PorteMediaAzioni {
       return typeof data === "number" ? data : 0;
     },
 
+    ancoraScadute: async (userId, voci) => {
+      const { data, error } = await db().rpc<VoceMedia[]>("ponte_wa_media_ancora_scadute", {
+        p_user_id: userId,
+        p_voci: voci,
+      });
+      if (error) return lancia(error);
+      return Array.isArray(data) ? data : [];
+    },
+
     scadute: async (limite) => {
       const { data, error } = await db().rpc<ScadutaSql[]>("ponte_wa_media_scadute", {
         p_limite: limite,
