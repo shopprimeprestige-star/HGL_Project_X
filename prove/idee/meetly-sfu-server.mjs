@@ -11,6 +11,23 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 export async function proveMeetlySfuServer(mod, { c, gruppo, radice }) {
+  {
+    gruppo("MEETLY SFU · CONSULENTE SOLO NELLA PROPRIA STANZA (revisione di sicurezza 31/10)");
+    const P = mod["shop/meetly-sfu-padrone"];
+    const crm = (tipo, consultantId, agenda = true) => ({ tipo, consultantId, agenda });
+    c("il proprietario conduce ovunque", true, P.eConsulenteDellaStanza({ padrone: "", sessioneId: "", crm: crm("proprietario", "") }));
+    c("consulente CRM nella sua stanza: sì", true, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "", crm: crm("consulente", "c1") }));
+    c("consulente CRM in una stanza di un collega: no", false, P.eConsulenteDellaStanza({ padrone: "c2", sessioneId: "", crm: crm("consulente", "c1") }));
+    c("consulente CRM senza «agenda»: no", false, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "", crm: crm("consulente", "c1", false) }));
+    c("sessione presentatore col PIN nella sua stanza: sì", true, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "c1", crm: null }));
+    c("sessione presentatore in una stanza altrui: no", false, P.eConsulenteDellaStanza({ padrone: "c2", sessioneId: "c1", crm: null }));
+    c("stanza senza padrone noto: nessuno tranne il proprietario", false, P.eConsulenteDellaStanza({ padrone: "", sessioneId: "c1", crm: crm("consulente", "c1") }));
+    c("codice consulente generale (sessione senza id): no", false, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "", crm: null }));
+    const rotta = readFileSync(join(radice, "src/routes/api.public.meetly-sfu.ts"), "utf8");
+    c("la rotta non vale più «consulente» col solo permesso agenda", false, /const consulente = !!sessione \|\| !!crm\?\.accesso\.puo\("agenda"\);/.test(rotta));
+    c("la rotta usa il padrone della stanza", true, /eConsulenteDellaStanza\(/.test(rotta) && /consulenteDellaSessione\(codice\)/.test(rotta));
+  }
+
   const S = mod["shop/meetly-sfu-stanza"];
   const CF = mod["shop/meetly-sfu-cloudflare"];
   const R = mod["shop/meetly-sfu-regole"];
