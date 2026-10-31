@@ -19,14 +19,15 @@ export function proveOggiDelConsulente(mod, { c, gruppo, radice }) {
   const dentro = (o) => D.consulenteDelloSchermo({ collegatoId: "m", admin: false, faConsulenze: true, ...o });
   c("titolare con email e password (nessun consulente collegato): tutti, libero", { id: "", bloccato: false }, dentro({ collegatoId: "", admin: true }));
   c("consulente col PIN: parte su di sé e non può cambiare", { id: "m", bloccato: true }, dentro({}));
-  c("admin col PIN che fa consulenze: parte su tutti e può scegliere", { id: "", bloccato: false }, dentro({ admin: true }));
+  c("admin col PIN: parte sul consulente del PIN e può scegliere (31/10: «Col PIN vede solo il suo»)", { id: "m", bloccato: false }, dentro({ admin: true }));
+  c("admin col PIN anche senza il permesso consulenze: parte sul PIN", { id: "m", bloccato: false }, dentro({ admin: true, faConsulenze: false }));
   c("setter che non fa consulenze: niente da isolare (le consulenze non sono sue)", { id: "", bloccato: false }, dentro({ faConsulenze: false }));
   c("collegato senza id leggibile: tutti, libero", { id: "", bloccato: false }, dentro({ collegatoId: undefined }));
   const consulente = dentro({});
   const admin = dentro({ admin: true });
   c("bloccato: la scelta fatta altrove non conta mai", "m", D.chiVale(consulente, "altro"));
   c("bloccato: nemmeno «tutti»", "m", D.chiVale(consulente, ""));
-  c("admin senza scelta: tutti", "", D.chiVale(admin, null));
+  c("admin col PIN senza scelta: il suo", "m", D.chiVale(admin, null));
   c("libero che sceglie «tutti»: tutti", "", D.chiVale(admin, ""));
   c("libero che sceglie un altro: quell'altro", "f", D.chiVale(admin, "f"));
   c("titolare senza collegato: senza scelta, tutti", "", D.chiVale(dentro({ collegatoId: "", admin: true }), null));

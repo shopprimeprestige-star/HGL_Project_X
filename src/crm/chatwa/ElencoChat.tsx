@@ -440,7 +440,9 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       admin: accesso.ruolo === "admin",
       faConsulenze: faConsulenze(accesso.puo),
     }),
-    filtri.consulente || null,
+    //  Col PIN la barra mostra SEMPRE il meet di chi ha messo il PIN, anche se il filtro
+    //  «Consulente» delle chat (che si ricorda) è su un altro (31/10/2026, computer in sede).
+    meSteso?.id ? null : filtri.consulente || null,
   );
   const meet = prossimoMeet(
     filtri.coda === "da-chiamare" ? elencoDaChiamare : trovate,
