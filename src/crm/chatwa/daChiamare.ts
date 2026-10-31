@@ -27,7 +27,24 @@ import { CONFRONTO_CARATTERI } from "../ponte/tipi";
 import { normalizzaTesto } from "../ponte/pari";
 import { ultimoDellaChat } from "./stato";
 
-export const ORE_PRIMA_DI_CHIAMARE = 10;
+/** ── QUANDO SI PASSA A «DA CHIAMARE»: ALLA CHIUSURA DELLA FINESTRA (31/10/2026) ──
+ *  Richiesta del titolare: non più dopo 10 ore fisse. L'ultimo messaggio è nostro, il cliente
+ *  non risponde e si chiude la finestra delle 24 ore (24 ore dall'ultimo messaggio del cliente).
+ *  Se la finestra era già chiusa quando abbiamo scritto (primo contatto, modello a pagamento),
+ *  al cliente si lasciano 24 ore dal nostro ultimo messaggio: altrimenti passerebbe a «Da
+ *  chiamare» un istante dopo il primo messaggio. */
+export const ORE_PRIMA_DI_CHIAMARE = 24;
+const FINESTRA_MS = 24 * 3600_000;
+
+/** L'istante da cui il lead in attesa passa a «Da chiamare». `inizio`: il nostro ultimo
+ *  messaggio (o l'ingresso nello stato); `entrata`: l'ultimo messaggio del cliente, prima di
+ *  `inizio` (0 o NaN se non ha mai scritto). Pura. */
+export function scadenzaAttesa(inizio: number, entrata: number): number {
+  const chiude = Number.isFinite(entrata) && entrata > 0 ? entrata + FINESTRA_MS : NaN;
+  //  Finestra ancora aperta quando abbiamo scritto: si passa quando si chiude.
+  if (Number.isFinite(chiude) && chiude > inizio) return chiude;
+  return inizio + ORE_PRIMA_DI_CHIAMARE * 3600_000;
+}
 
 /** Un'eco arriva entro un minuto DOPO il messaggio nostro che ripete. */
 export const ECO_ENTRO_MS = 60_000;
@@ -121,7 +138,7 @@ export function righeEco(messaggi: readonly Messaggio[]): Set<Messaggio> {
  *  Un lead in attesa WhatsApp va in «Da chiamare» se:
  *   · l'ULTIMO messaggio della conversazione è NOSTRO, da qualunque canale
  *     (ManyChat, scritto dal telefono col ponte, Cloud API);
- *   · da quel messaggio sono passate almeno `ORE_PRIMA_DI_CHIAMARE` ore;
+ *   · si è chiusa la finestra delle 24 ore (`scadenzaAttesa`, 31/10/2026: non più 10 ore);
  *   · il cliente non ha scritto dopo (le eco e i doppioni non sono lui);
  *   · niente STOP.
  *  L'attesa comincia al più recente fra l'ingresso nello stato (`inAttesaDal`)
@@ -183,8 +200,8 @@ export function calcolaDaChiamare(p: {
   //  Se l'ultimo messaggio è del cliente, la palla è nostra («Da rispondere»).
   if (Number.isFinite(ultimoNostro) && entrata > ultimoNostro) return NO;
   const inizio = Math.max(Date.parse(dal), Number.isFinite(ultimoNostro) ? ultimoNostro : 0);
-  if (!giaDaChiamare && p.adesso.getTime() - inizio < ORE_PRIMA_DI_CHIAMARE * 3600_000) return NO;
   if (entrata > inizio) return NO;
+  if (!giaDaChiamare && p.adesso.getTime() < scadenzaAttesa(inizio, entrata)) return NO;
   return { si: true, dal: inizio === Date.parse(dal) ? dal : new Date(inizio).toISOString() };
 }
 
