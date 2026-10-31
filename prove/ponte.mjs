@@ -23,6 +23,7 @@ import { provePonteImmaginiMigrazione } from "./ponte/immagini-migrazione.mjs";
 import { provePonteImmaginiRegole } from "./ponte/immagini-regole.mjs";
 import { provePonteImmaginiRotta } from "./ponte/immagini-rotta.mjs";
 import { provePonteIngresso } from "./ponte/ingresso.mjs";
+import { proveMediaAzioni } from "./ponte/media-azioni.mjs";
 import { provePonteMessaggiPersi } from "./ponte/messaggi-persi.mjs";
 import { provePonteInvioChatHook } from "./ponte/invio-chat-hook.mjs";
 import { provePonteInvioChatUi } from "./ponte/invio-chat-ui.mjs";
@@ -161,6 +162,7 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteImmaginiMigrazione(mod, aiuti);
   await provePonteImmaginiRegole(mod, aiuti);
   await provePonteImmaginiRotta(mod, aiuti);
+  await proveMediaAzioni(mod, aiuti);
   await provePonteServizioImmagini(mod, aiuti);
   await provePonteServizioCollegaImmagini(mod, aiuti);
   await provePonteImmaginiChatUi(mod, aiuti);

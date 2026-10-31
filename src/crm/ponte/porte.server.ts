@@ -76,6 +76,8 @@ const intero = (v: unknown) =>
 export { porteInvio } from "./invio.server";
 //  E quelle dei media (commessa 2026-10-30-ponte-storico-completo, T5), per lo stesso motivo.
 export { porteMedia } from "./media.server";
+//  E quelle di «Mostra», timer e «Libera» (commessa 2026-10-31-media-e-archiviazione, T3), per lo stesso motivo.
+export { porteMediaAzioni } from "./media-azioni.server";
 //  E quelle delle revoche (commessa 2026-10-31, ponte-revoche), per lo stesso motivo.
 export { porteRevoche } from "./revoche.server";
 
