@@ -773,6 +773,7 @@ const MODULI = [
   //   (nucleo del server e client Cloudflare: T2; client SFU: T3) entrano nel pacchetto quando il file esiste.
   //   Prove in prove/idee/meetly-sfu-*.mjs (un file per compito, già registrati qui sotto).
   "shop/meetly-sfu-regole",
+  "shop/meetly-sfu-padrone",
   ...["shop/meetly-sfu-stanza", "shop/meetly-sfu-cloudflare", "shop/meetly-sfu"].filter((m) =>
     existsSync(join(radice, `src/${m}.ts`)),
   ),
