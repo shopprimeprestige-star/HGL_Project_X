@@ -164,7 +164,11 @@ export { CorpoArchivio, TestoConfermaTutto } from ${JSON.stringify(join(radice, 
         U.leggiTetto('{"tettoGB":9999}'),
       ],
     );
-    c("tetto: valore assente = nessun tetto da mostrare", null, U.leggiTetto(null));
+    c(
+      "tetto: riga assente (nessuno l'ha scritta) = 5 GB di serie, come il Worker",
+      [5e9, 5e9],
+      [U.leggiTetto(null), U.leggiTetto(undefined)],
+    );
 
     const grezzoRiass = {
       byte_totali: 3_400_000_000,
@@ -609,7 +613,10 @@ export { CorpoArchivio, TestoConfermaTutto } from ${JSON.stringify(join(radice, 
             }
             return { data: null, error: { code: "42883" } };
           },
-          tetto: async () => ("tetto" in o ? o.tetto : '{"acceso":true,"tettoGB":5}'),
+          tetto: async () => {
+            if (o.tettoRotto) throw new Error("lettura rotta");
+            return "tetto" in o ? o.tetto : '{"acceso":true,"tettoGB":5}';
+          },
           chiedi: serv.chiedi,
         },
         notifica: () => {
@@ -697,7 +704,16 @@ export { CorpoArchivio, TestoConfermaTutto } from ${JSON.stringify(join(radice, 
       const { a, st } = nuovo({ tetto: null });
       await a.carica();
       c(
-        "tetto illeggibile: il pannello funziona lo stesso (tetto nullo)",
+        "senza riga di tetto in app_config: la barra usa 5 GB come il Worker",
+        ["ok", 5e9],
+        [st().lettura.fase, st().lettura.tettoByte],
+      );
+    }
+    {
+      const { a, st } = nuovo({ tettoRotto: true });
+      await a.carica();
+      c(
+        "lettura del tetto rotta (errore, non riga assente): il pannello funziona lo stesso, senza barra",
         ["ok", null],
         [st().lettura.fase, st().lettura.tettoByte],
       );
@@ -938,6 +954,23 @@ export { CorpoArchivio, TestoConfermaTutto } from ${JSON.stringify(join(radice, 
         "403: errore `permesso` e NESSUN evento (non è sparito niente)",
         ["errore", "permesso", 0],
         [st().lavoro.fase, st().lavoro.motivo, f.reg.eventi],
+      );
+    }
+    for (const [stato, motivo] of [
+      [403, "permesso"],
+      [401, "sessione"],
+    ]) {
+      //  Dopo un 403 (o una sessione scaduta) rifare la stessa richiesta darebbe lo stesso errore: niente «Riprendi».
+      const { f, a, st } = nuovo({ rispondi: () => json({ ok: false, motivo }, stato) });
+      await a.carica();
+      a.chiedi({ tipo: "tutto" });
+      await a.conferma();
+      const prima = f.serv.reg.richieste.length;
+      await a.riprendi();
+      c(
+        `${stato}: riprendi() non rifà la richiesta e lo stato non cambia`,
+        [prima, "errore", motivo],
+        [f.serv.reg.richieste.length, st().lavoro.fase, st().lavoro.motivo],
       );
     }
     {
@@ -1263,6 +1296,28 @@ export { CorpoArchivio, TestoConfermaTutto } from ${JSON.stringify(join(radice, 
         "lavoro caduto: avviso con la frase, i 500 già liberati e «Riprendi»",
         [true, true, true],
         [/role="alert"/.test(html), /500 file/.test(t), /Riprendi/.test(t)],
+      );
+    }
+    for (const [stato, motivo] of [
+      [403, "permesso"],
+      [401, "sessione"],
+    ]) {
+      //  Dopo un 403 (o una sessione scaduta) rifare la stessa richiesta darebbe lo stesso errore: niente «Riprendi».
+      const { a } = nuovo({ rispondi: () => json({ ok: false, motivo }, stato) });
+      await a.carica();
+      a.chiedi({ tipo: "tutto" });
+      await a.conferma();
+      const html = corpo(a);
+      const t = testoDi(html);
+      c(
+        `${stato} (${motivo}): l'avviso c'è, ma senza «Riprendi» e solo con «Chiudi»`,
+        [true, false, true],
+        [/role="alert"/.test(html), /Riprendi/.test(t), /Chiudi/.test(t)],
+      );
+      c(
+        `${stato}: niente «Liberati finora 0 file (0 B)» (non è stato liberato niente)`,
+        false,
+        /Liberati finora/.test(t),
       );
     }
     {

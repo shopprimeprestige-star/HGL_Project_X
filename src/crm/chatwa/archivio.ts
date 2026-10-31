@@ -151,12 +151,12 @@ export function leggiMedia(grezzo: unknown): VoceMedia[] {
   return voci;
 }
 
-/** `app_config.ponte_immagini` (testo JSON, o già oggetto) → il tetto in byte. Valore assente = `null`
- *  (niente barra); rotto o assurdo = 5 GB di serie, come fa il Worker.
+/** `app_config.ponte_immagini` (testo JSON, o già oggetto) → il tetto in byte. Riga assente, rotta o assurda =
+ *  5 GB di serie, come fa il Worker (`TETTO_GB_DI_SERIE`). Una lettura che FALLISCE non arriva qui: è l'errore di
+ *  `reti.tetto()` e il pannello mostra solo lo spazio, senza barra.
  *  shortcut: copia di `leggiInterruttore` (src/crm/ponte/media.ts), che è un file server di T2; quando il
  *  tetto avrà una rotta propria, leggerlo da lì. */
-export function leggiTetto(grezzo: unknown): number | null {
-  if (grezzo === null || grezzo === undefined) return null;
+export function leggiTetto(grezzo: unknown): number {
   let v: unknown = grezzo;
   if (typeof grezzo === "string") {
     try {
@@ -172,6 +172,11 @@ export function leggiTetto(grezzo: unknown): number | null {
       : TETTO_GB_DI_SERIE;
   return Math.floor(gb * 1e9);
 }
+
+/** Un errore di `ripresa`: vale la pena rifare la stessa richiesta? Con un 403 (manca «impostazioni») o una
+ *  sessione scaduta darebbe lo stesso errore: lì si può solo chiudere. */
+export const siPuoRiprendere = (motivo: string | null | undefined) =>
+  motivo !== "permesso" && motivo !== "sessione";
 
 // ── Pesi e frasi ──────────────────────────────────────────────────────────
 

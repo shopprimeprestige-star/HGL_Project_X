@@ -26,6 +26,7 @@ import {
   leggiMedia,
   leggiRiassunto,
   leggiTetto,
+  siPuoRiprendere,
   liberaAPassi,
   type Chiedi,
   type ChatArchivio,
@@ -42,7 +43,7 @@ export interface RetiArchivio {
     fn: string,
     args?: Record<string, unknown>,
   ) => PromiseLike<{ data: unknown; error: { code?: string | null } | null }>;
-  /** Il valore di `app_config.ponte_immagini` (testo JSON) o `null`. */
+  /** Il valore di `app_config.ponte_immagini` (testo JSON), `null` se la riga non c'è; LANCIA se non si legge. */
   tetto: () => PromiseLike<unknown>;
   chiedi: Chiedi;
 }
@@ -51,6 +52,8 @@ export interface RetiArchivio {
 const FN_RIASSUNTO = "ponte_wa_archivio_riassunto";
 const FN_CHAT = "ponte_wa_archivio_chat";
 const FN_MEDIA = "ponte_wa_archivio_media";
+/** La lettura del tetto è fallita (diverso da «riga assente»). */
+const TETTO_ILLEGGIBILE = Symbol("tetto illeggibile");
 
 const db = supabase as unknown as {
   rpc: RetiArchivio["rpc"];
@@ -59,7 +62,12 @@ const db = supabase as unknown as {
       eq: (
         k: string,
         v: string,
-      ) => { maybeSingle: () => PromiseLike<{ data: { value?: unknown } | null }> };
+      ) => {
+        maybeSingle: () => PromiseLike<{
+          data: { value?: unknown } | null;
+          error?: { code?: string | null } | null;
+        }>;
+      };
     };
   };
 };
@@ -67,11 +75,13 @@ const db = supabase as unknown as {
 export const reteReale: RetiArchivio = {
   rpc: (fn, args) => db.rpc(fn, args),
   tetto: async () => {
-    const { data } = await db
+    const { data, error } = await db
       .from("app_config")
       .select("value")
       .eq("key", "ponte_immagini")
       .maybeSingle();
+    //  Un errore NON è «riga assente» (5 GB di serie): senza lettura il pannello non disegna la barra.
+    if (error) throw new Error("tetto illeggibile");
     return data?.value ?? null;
   },
   chiedi: fetchCRM,
@@ -188,7 +198,7 @@ export function creaArchivio(reti: RetiArchivio, opz: { notifica?: () => void } 
       const [r, ch, tetto] = await Promise.all([
         reti.rpc(FN_RIASSUNTO),
         reti.rpc(FN_CHAT),
-        Promise.resolve(reti.tetto()).catch(() => null),
+        Promise.resolve(reti.tetto()).catch(() => TETTO_ILLEGGIBILE),
       ]);
       if (g !== giroLettura || !vivo) return;
       const riassunto = r.error ? null : leggiRiassunto(r.data);
@@ -207,7 +217,7 @@ export function creaArchivio(reti: RetiArchivio, opz: { notifica?: () => void } 
           riassunto,
           chat: leggiChat(ch.data),
           piuDi2000: Array.isArray(ch.data) && ch.data.length >= CHAT_MAX,
-          tettoByte: leggiTetto(tetto),
+          tettoByte: tetto === TETTO_ILLEGGIBILE ? null : leggiTetto(tetto),
         },
       });
     } catch {
@@ -360,6 +370,7 @@ export function creaArchivio(reti: RetiArchivio, opz: { notifica?: () => void } 
   async function riprendi() {
     const l = stato.lavoro;
     if (!ultimo || !l || l.fase === "in_corso" || l.fase === "finito") return;
+    if (!siPuoRiprendere(l.motivo)) return; // 403 o sessione scaduta: la stessa richiesta darebbe lo stesso errore
     return lavora(ultimo.corpo, ultimo.previsti, l);
   }
 

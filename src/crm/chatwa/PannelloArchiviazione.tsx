@@ -47,6 +47,7 @@ import {
   fraseFile,
   fraseScadenza,
   numero as num,
+  siPuoRiprendere,
   type ChatArchivio,
   type Tipo,
   type VoceMedia,
@@ -372,8 +373,9 @@ function AvanzamentoLavoro({ lavoro: l, azioni }: { lavoro: Lavoro; azioni: Arch
     );
   }
 
-  //  fermato o caduto: si dice quanto è già andato e si può riprendere
+  //  fermato o caduto: si dice quanto è già andato e si può riprendere (non dopo un 403 o una sessione scaduta)
   const resto = l.restano !== null ? ` Ne restano ${fraseFile(l.restano)}.` : "";
+  const riprende = siPuoRiprendere(l.motivo);
   return (
     <div
       role="alert"
@@ -382,19 +384,23 @@ function AvanzamentoLavoro({ lavoro: l, azioni }: { lavoro: Lavoro; azioni: Arch
       <p className="text-[13px] font-medium text-amber-950">
         {l.fase === "fermato" ? "Fermato." : l.motivo ? fraseErrore(l.motivo) : "Si è interrotto."}
       </p>
-      <p className="text-[12.5px] text-amber-950">
-        Liberati finora {fraseFile(l.liberati)} ({formatoPeso(l.byte)}).{resto}
-      </p>
+      {(l.liberati > 0 || resto) && (
+        <p className="text-[12.5px] text-amber-950">
+          Liberati finora {fraseFile(l.liberati)} ({formatoPeso(l.byte)}).{resto}
+        </p>
+      )}
       {nonRiusciti}
       <div className="flex gap-2 pt-1">
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11"
-          onClick={() => void azioni.riprendi()}
-        >
-          Riprendi
-        </Button>
+        {riprende && (
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => void azioni.riprendi()}
+          >
+            Riprendi
+          </Button>
+        )}
         <Button type="button" variant="ghost" className="min-h-11" onClick={azioni.chiudiEsito}>
           Chiudi
         </Button>
