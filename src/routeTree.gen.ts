@@ -179,6 +179,7 @@ import { Route as ApiOgCardRouteImport } from './routes/api.og.card'
 import { Route as ApiOgAnteprimaRouteImport } from './routes/api.og.anteprima'
 import { Route as ApiGoogleDriveCallbackRouteImport } from './routes/api.google-drive.callback'
 import { Route as ApiCrmWhatsappCostiRouteImport } from './routes/api.crm.whatsapp-costi'
+import { Route as ApiCrmWhatsappChiaviRouteImport } from './routes/api.crm.whatsapp-chiavi'
 import { Route as ApiCrmWhatsappCanaleRouteImport } from './routes/api.crm.whatsapp-canale'
 import { Route as ApiCrmWebinarRegistrazioniRouteImport } from './routes/api.crm.webinar-registrazioni'
 import { Route as ApiCrmWebinarRouteImport } from './routes/api.crm.webinar'
@@ -215,6 +216,7 @@ import { Route as ApiCrmBlogRouteImport } from './routes/api.crm.blog'
 import { Route as ApiCrmBackupRouteImport } from './routes/api.crm.backup'
 import { Route as ApiCrmAssenzaAutoRouteImport } from './routes/api.crm.assenza-auto'
 import { Route as ApiCrmAnteprimeStatoRouteImport } from './routes/api.crm.anteprime-stato'
+import { Route as ApiCrmAnteprimaLinkRouteImport } from './routes/api.crm.anteprima-link'
 import { Route as ApiCrmAiRouteImport } from './routes/api.crm.ai'
 import { Route as ApiCrmAccessoRouteImport } from './routes/api.crm.accesso'
 import { Route as ApiConsulenteLoginRouteImport } from './routes/api.consulente.login'
@@ -1089,6 +1091,11 @@ const ApiCrmWhatsappCostiRoute = ApiCrmWhatsappCostiRouteImport.update({
   path: '/api/crm/whatsapp-costi',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmWhatsappChiaviRoute = ApiCrmWhatsappChiaviRouteImport.update({
+  id: '/api/crm/whatsapp-chiavi',
+  path: '/api/crm/whatsapp-chiavi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmWhatsappCanaleRoute = ApiCrmWhatsappCanaleRouteImport.update({
   id: '/api/crm/whatsapp-canale',
   path: '/api/crm/whatsapp-canale',
@@ -1272,6 +1279,11 @@ const ApiCrmAnteprimeStatoRoute = ApiCrmAnteprimeStatoRouteImport.update({
   path: '/api/crm/anteprime-stato',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmAnteprimaLinkRoute = ApiCrmAnteprimaLinkRouteImport.update({
+  id: '/api/crm/anteprima-link',
+  path: '/api/crm/anteprima-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmAiRoute = ApiCrmAiRouteImport.update({
   id: '/api/crm/ai',
   path: '/api/crm/ai',
@@ -1434,6 +1446,7 @@ export interface FileRoutesByFullPath {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-link': typeof ApiCrmAnteprimaLinkRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
@@ -1470,6 +1483,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
   '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
+  '/api/crm/whatsapp-chiavi': typeof ApiCrmWhatsappChiaviRoute
   '/api/crm/whatsapp-costi': typeof ApiCrmWhatsappCostiRoute
   '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
@@ -1647,6 +1661,7 @@ export interface FileRoutesByTo {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-link': typeof ApiCrmAnteprimaLinkRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
@@ -1683,6 +1698,7 @@ export interface FileRoutesByTo {
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
   '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
+  '/api/crm/whatsapp-chiavi': typeof ApiCrmWhatsappChiaviRoute
   '/api/crm/whatsapp-costi': typeof ApiCrmWhatsappCostiRoute
   '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
@@ -1866,6 +1882,7 @@ export interface FileRoutesById {
   '/api/consulente/login': typeof ApiConsulenteLoginRoute
   '/api/crm/accesso': typeof ApiCrmAccessoRoute
   '/api/crm/ai': typeof ApiCrmAiRoute
+  '/api/crm/anteprima-link': typeof ApiCrmAnteprimaLinkRoute
   '/api/crm/anteprime-stato': typeof ApiCrmAnteprimeStatoRoute
   '/api/crm/assenza-auto': typeof ApiCrmAssenzaAutoRoute
   '/api/crm/backup': typeof ApiCrmBackupRoute
@@ -1902,6 +1919,7 @@ export interface FileRoutesById {
   '/api/crm/webinar': typeof ApiCrmWebinarRoute
   '/api/crm/webinar-registrazioni': typeof ApiCrmWebinarRegistrazioniRoute
   '/api/crm/whatsapp-canale': typeof ApiCrmWhatsappCanaleRoute
+  '/api/crm/whatsapp-chiavi': typeof ApiCrmWhatsappChiaviRoute
   '/api/crm/whatsapp-costi': typeof ApiCrmWhatsappCostiRoute
   '/api/google-drive/callback': typeof ApiGoogleDriveCallbackRoute
   '/api/og/anteprima': typeof ApiOgAnteprimaRouteWithChildren
@@ -2086,6 +2104,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-link'
     | '/api/crm/anteprime-stato'
     | '/api/crm/assenza-auto'
     | '/api/crm/backup'
@@ -2122,6 +2141,7 @@ export interface FileRouteTypes {
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
     | '/api/crm/whatsapp-canale'
+    | '/api/crm/whatsapp-chiavi'
     | '/api/crm/whatsapp-costi'
     | '/api/google-drive/callback'
     | '/api/og/anteprima'
@@ -2299,6 +2319,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-link'
     | '/api/crm/anteprime-stato'
     | '/api/crm/assenza-auto'
     | '/api/crm/backup'
@@ -2335,6 +2356,7 @@ export interface FileRouteTypes {
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
     | '/api/crm/whatsapp-canale'
+    | '/api/crm/whatsapp-chiavi'
     | '/api/crm/whatsapp-costi'
     | '/api/google-drive/callback'
     | '/api/og/anteprima'
@@ -2517,6 +2539,7 @@ export interface FileRouteTypes {
     | '/api/consulente/login'
     | '/api/crm/accesso'
     | '/api/crm/ai'
+    | '/api/crm/anteprima-link'
     | '/api/crm/anteprime-stato'
     | '/api/crm/assenza-auto'
     | '/api/crm/backup'
@@ -2553,6 +2576,7 @@ export interface FileRouteTypes {
     | '/api/crm/webinar'
     | '/api/crm/webinar-registrazioni'
     | '/api/crm/whatsapp-canale'
+    | '/api/crm/whatsapp-chiavi'
     | '/api/crm/whatsapp-costi'
     | '/api/google-drive/callback'
     | '/api/og/anteprima'
@@ -2694,6 +2718,7 @@ export interface RootRouteChildren {
   ApiConsulenteLoginRoute: typeof ApiConsulenteLoginRoute
   ApiCrmAccessoRoute: typeof ApiCrmAccessoRoute
   ApiCrmAiRoute: typeof ApiCrmAiRoute
+  ApiCrmAnteprimaLinkRoute: typeof ApiCrmAnteprimaLinkRoute
   ApiCrmAnteprimeStatoRoute: typeof ApiCrmAnteprimeStatoRoute
   ApiCrmAssenzaAutoRoute: typeof ApiCrmAssenzaAutoRoute
   ApiCrmBackupRoute: typeof ApiCrmBackupRoute
@@ -2730,6 +2755,7 @@ export interface RootRouteChildren {
   ApiCrmWebinarRoute: typeof ApiCrmWebinarRoute
   ApiCrmWebinarRegistrazioniRoute: typeof ApiCrmWebinarRegistrazioniRoute
   ApiCrmWhatsappCanaleRoute: typeof ApiCrmWhatsappCanaleRoute
+  ApiCrmWhatsappChiaviRoute: typeof ApiCrmWhatsappChiaviRoute
   ApiCrmWhatsappCostiRoute: typeof ApiCrmWhatsappCostiRoute
   ApiGoogleDriveCallbackRoute: typeof ApiGoogleDriveCallbackRoute
   ApiOgAnteprimaRoute: typeof ApiOgAnteprimaRouteWithChildren
@@ -3991,6 +4017,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmWhatsappCostiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/whatsapp-chiavi': {
+      id: '/api/crm/whatsapp-chiavi'
+      path: '/api/crm/whatsapp-chiavi'
+      fullPath: '/api/crm/whatsapp-chiavi'
+      preLoaderRoute: typeof ApiCrmWhatsappChiaviRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/whatsapp-canale': {
       id: '/api/crm/whatsapp-canale'
       path: '/api/crm/whatsapp-canale'
@@ -4241,6 +4274,13 @@ declare module '@tanstack/react-router' {
       path: '/api/crm/anteprime-stato'
       fullPath: '/api/crm/anteprime-stato'
       preLoaderRoute: typeof ApiCrmAnteprimeStatoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/crm/anteprima-link': {
+      id: '/api/crm/anteprima-link'
+      path: '/api/crm/anteprima-link'
+      fullPath: '/api/crm/anteprima-link'
+      preLoaderRoute: typeof ApiCrmAnteprimaLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crm/ai': {
@@ -4530,6 +4570,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConsulenteLoginRoute: ApiConsulenteLoginRoute,
   ApiCrmAccessoRoute: ApiCrmAccessoRoute,
   ApiCrmAiRoute: ApiCrmAiRoute,
+  ApiCrmAnteprimaLinkRoute: ApiCrmAnteprimaLinkRoute,
   ApiCrmAnteprimeStatoRoute: ApiCrmAnteprimeStatoRoute,
   ApiCrmAssenzaAutoRoute: ApiCrmAssenzaAutoRoute,
   ApiCrmBackupRoute: ApiCrmBackupRoute,
@@ -4566,6 +4607,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmWebinarRoute: ApiCrmWebinarRoute,
   ApiCrmWebinarRegistrazioniRoute: ApiCrmWebinarRegistrazioniRoute,
   ApiCrmWhatsappCanaleRoute: ApiCrmWhatsappCanaleRoute,
+  ApiCrmWhatsappChiaviRoute: ApiCrmWhatsappChiaviRoute,
   ApiCrmWhatsappCostiRoute: ApiCrmWhatsappCostiRoute,
   ApiGoogleDriveCallbackRoute: ApiGoogleDriveCallbackRoute,
   ApiOgAnteprimaRoute: ApiOgAnteprimaRouteWithChildren,

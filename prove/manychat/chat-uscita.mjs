@@ -253,9 +253,11 @@ export const supabaseAdminDefault = supabaseAdmin;`,
       [Object.keys(stato).sort(), stato.modelliConFlusso, JSON.stringify(stato).includes("segretissimo")],
     );
     c(
-      "la rotta spande solo `ok` e lo stato, nient'altro",
+      "la rotta spande solo `ok`, lo stato e `chiaviMeta` (sì/no), nient'altro",
       true,
-      /json\(\{ ok: true, \.\.\.stato \}\)/.test(rotta),
+      /json\(\{ ok: true, \.\.\.stato, \.\.\.\(chiaviMeta === undefined \? \{\} : \{ chiaviMeta \}\) \}\)/.test(
+        rotta,
+      ),
     );
   }
 }

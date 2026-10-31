@@ -604,6 +604,8 @@ const MODULI = [
   "promemoria/formati",
   "promemoria/invio",
   "wa-meta-templates",
+  //  Le chiavi Meta solo sul server (commessa 2026-10-31-anteprima-link): prove in prove/manychat/anteprima-link.mjs.
+  "whatsapp-chiavi",
   "promemoria/risposta",
   "promemoria/conferma",
   "promemoria/pronto",

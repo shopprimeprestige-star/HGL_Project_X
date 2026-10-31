@@ -107,6 +107,11 @@ export interface RichiestaInvio {
    *  (finestra chiusa, porta della finestra assente o guasta) parte il modello, come sempre.
    *  Il modello resta di riserva anche se ManyChat rifiuta il testo. Serve `modello`. */
   testoLibero?: string;
+  /** ⚠️ ANTEPRIMA DEI LINK (31/10/2026). Lo dichiara SOLO la casella della chat del CRM per un testo
+   *  scritto a mano: se il testo contiene un link http(s), è dentro le 24 ore e l'interruttore con le
+   *  chiavi Meta è a posto, il messaggio parte dalla Cloud API con `preview_url` (ManyChat non sa
+   *  mostrare l'anteprima). Ogni altro chiamante (giro, promemoria, modelli, webinar) non lo passa. */
+  anteprimaLink?: boolean;
 }
 
 export interface RisultatoPorta {
@@ -120,6 +125,8 @@ export interface RisultatoPorta {
   rete?: boolean;
   /** un codice breve per i log: mai numero, testo o chiavi */
   codice?: string;
+  /** l'id del messaggio di Meta, solo se è partito dalla Cloud per l'anteprima del link */
+  waId?: string;
 }
 
 /** Cosa si chiede al database per prenotare un invio ManyChat. */
@@ -142,6 +149,8 @@ export interface MessaggioPorta {
   stato: "sent" | "failed" | "queued";
   waId: string | null;
   errore: string | null;
+  /** il canale da cui è partito; assente = `manychat` */
+  canale?: CanaleWhatsapp;
 }
 
 /** Le porte della porta (database, rete, orologio, chiavi). */
@@ -181,7 +190,15 @@ export interface PortePorta {
    *  I modelli `_311026` con l'immagine in testa partono solo se sì. Assente o guasta = no: parte il
    *  vecchio (mai un'immagine al buio, mai quella di un altro cliente). */
   immagineModello?(codice: string): Promise<boolean>;
+  /** L'anteprima dei link nei messaggi manuali può partire dalla Cloud? Vero solo se l'interruttore
+   *  (riga di `app_config`, spento di serie) è acceso E le chiavi Meta ci sono. Assente, falso o
+   *  guasto = no: parte ManyChat, come sempre. */
+  anteprimaLink?(): Promise<boolean>;
 }
+
+/** La riga di `app_config` che accende l'anteprima dei link nei messaggi manuali (valore «on»).
+ *  Senza la riga, o con qualunque altro valore, è spenta: nessuna migrazione. */
+export const CHIAVE_ANTEPRIMA_LINK = "anteprima_link_manuali";
 
 /** Quanti parametri del modello arrivano nei campi `crm_v1…crm_v4`. */
 export const MAX_PARAMETRI = 4;
@@ -289,8 +306,13 @@ async function modelloDaMandare(
 
 /** Il vecchio parte al posto del nuovo: una riga di registro, solo il codice. */
 function avvisaRipiego(porte: PortePorta, codice: string) {
+  avvisaCodice(porte, `modelli311026_${codice}`);
+}
+
+/** Una riga di registro col solo codice (mai numero, testo, nome o chiavi). */
+function avvisaCodice(porte: PortePorta, codice: string) {
   try {
-    porte.avviso?.(`modelli311026_${codice}`);
+    porte.avviso?.(codice);
   } catch {
     /* il registro non deve mai fermare un invio */
   }
@@ -333,7 +355,76 @@ export async function inviaWhatsapp(
   const fermo = await controllaInterruttore(porte, richiesta.messaggio);
   if (fermo) return fermo;
   if (richiesta.canale === "cloud") return viaCloud(porte, richiesta);
+  //  Il testo a mano con un link: prima la Cloud (anteprima); `null` = ManyChat, come sempre.
+  const conAnteprima = await viaCloudConAnteprima(porte, richiesta);
+  if (conAnteprima) return conAnteprima;
   return viaManychat(porte, richiesta);
+}
+
+/** ── L'ANTEPRIMA DEL LINK (31/10/2026) ─────────────────────────────────────
+ *  Solo un testo libero scritto a mano nella chat (`anteprimaLink`, messaggio «manuale», niente
+ *  modello) con un link, a interruttore acceso e chiavi Meta presenti, dentro le 23 ore.
+ *  Restituisce `null` se questa strada non si applica o se Meta ha rifiutato in modo DEFINITIVO
+ *  (4xx: non è partito niente): chi chiama manda allora con ManyChat, una volta sola.
+ *  ⚠️ ESITO INCERTO (rete, timeout, 5xx, risposta senza id): NON si ripiega, sarebbe un doppio invio.
+ *   La riga resta «in coda» e il risultato è `incerto`: la setter controlla su WhatsApp.
+ *  Non lancia. Nei log solo codici (`anteprima_ripiego_<codice di Meta o stato>`). */
+async function viaCloudConAnteprima(
+  porte: PortePorta,
+  r: RichiestaInvio,
+): Promise<RisultatoPorta | null> {
+  if (!r.anteprimaLink || r.messaggio !== "manuale" || r.modello || !r.testo) return null;
+  if (!haLink(r.testo) || soloCifre(r.a).length < 8) return null;
+  if (typeof porte.anteprimaLink !== "function" || typeof porte.ultimaEntrata !== "function")
+    return null;
+  try {
+    if ((await porte.anteprimaLink()) !== true) return null;
+    //  Dentro le 24 ore, come per il testo libero di ManyChat: nel dubbio (porta guasta) si manda come sempre.
+    const ultima = await porte.ultimaEntrata(soloCifre(r.a));
+    if (!finestraPerTesto(ultima, porte.adesso())) return null;
+  } catch {
+    return null;
+  }
+
+  let risposta: { status: number; corpo: unknown };
+  try {
+    risposta = await porte.cloud(corpoGraph({ a: r.a, testo: r.testo }));
+  } catch {
+    return incertaCloud(porte, r, undefined, "rete");
+  }
+  const { status, corpo } = risposta;
+  const waId = (corpo as { messages?: { id?: unknown }[] } | null)?.messages?.[0]?.id;
+  if (status >= 200 && status < 300 && typeof waId === "string" && waId) {
+    await registraDi(porte, r, "sent", waId, null, "cloud");
+    return { esito: "ok", status, waId };
+  }
+  //  Rifiuto definitivo: Meta ha risposto 4xx, il messaggio non è partito. Si manda con ManyChat.
+  if (status >= 400 && status < 500) {
+    const codiceMeta = Number((corpo as { error?: { code?: unknown } } | null)?.error?.code);
+    avvisaCodice(
+      porte,
+      `anteprima_ripiego_${Number.isSafeInteger(codiceMeta) && codiceMeta > 0 ? codiceMeta : status}`,
+    );
+    return null;
+  }
+  //  Tutto il resto (5xx, 2xx senza id, 3xx, stati strani): non si sa se è partito.
+  return incertaCloud(porte, r, status, `stato_${status}`);
+}
+
+/** L'invio dalla Cloud è dall'esito incerto: riga «in coda», niente ripiego. Mai il testo nei log. */
+async function incertaCloud(
+  porte: PortePorta,
+  r: RichiestaInvio,
+  status: number | undefined,
+  motivo: string,
+): Promise<RisultatoPorta> {
+  await registraDi(porte, r, "queued", null, "esito incerto", "cloud");
+  avvisaCodice(porte, `anteprima_incerta_${motivo}`);
+  return {
+    esito: "incerto",
+    codice: "anteprima_incerta",
+    ...(status !== undefined ? { status } : { rete: true }),
+  };
 }
 
 /** Col canale `cloud` la porta non decide niente: spedisce e restituisce lo
@@ -642,6 +733,7 @@ async function registraDi(
   stato: MessaggioPorta["stato"],
   waId: string | null,
   errore: string | null,
+  canale?: CanaleWhatsapp,
 ) {
   await porte
     .registra({
@@ -651,6 +743,7 @@ async function registraDi(
       stato,
       waId,
       errore,
+      ...(canale ? { canale } : {}),
     })
     .catch(() => undefined);
 }
@@ -691,7 +784,7 @@ export function rispostaChat(r: RisultatoPorta): {
     case "ok":
       return {
         status: 200,
-        corpo: { ok: true, waMessageId: r.invioId ? `mc:${r.invioId}` : null },
+        corpo: { ok: true, waMessageId: r.waId ?? (r.invioId ? `mc:${r.invioId}` : null) },
       };
     case "riprova_fra_poco":
     case "gia_preso":
@@ -723,6 +816,13 @@ export function rispostaChat(r: RisultatoPorta): {
         "Questo messaggio automatico è spento: si accende in Impostazioni, Messaggi automatici.",
       );
     case "incerto":
+      //  Partito (forse) dalla Cloud per l'anteprima: non è in ManyChat, si guarda su WhatsApp.
+      if (r.codice === "anteprima_incerta")
+        return no(
+          504,
+          "esito_incerto",
+          "Non so se il messaggio è partito: controlla in WhatsApp prima di rimandarlo.",
+        );
       return no(
         504,
         "esito_incerto",

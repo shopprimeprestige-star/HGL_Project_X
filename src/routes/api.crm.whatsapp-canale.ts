@@ -1,19 +1,19 @@
 /** ─────────────────────────────────────────────────────────────────────────
  *  IL CANALE WHATSAPP, IN SOLA LETTURA (riquadro «Prova i modelli»)
  *
- *  GET → { ok, canale, modelliConFlusso, chiaveManychat, migrazione }
+ *  GET → { ok, canale, modelliConFlusso, chiaveManychat, migrazione, chiaviMeta? }
  *
  *  ⚠️ DIETRO `guardiaCRM` COL PERMESSO «lead.propri» (lo stesso della voce WhatsApp
  *   del menu): la chat del CRM la usano anche i setter, e deve sapere dal canale
  *   se bloccare la casella. Esce solo il canale, i nomi dei modelli e due booleani.
  *  ⚠️ NON ESCE NIENTE DI SEGRETO: né la chiave di ManyChat (solo se c'è) né i
- *   codici dei flussi (solo i nomi dei modelli che ne hanno uno).
+ *   codici dei flussi (solo i nomi dei modelli che ne hanno uno), né il token Meta (`chiaviMeta` è sì/no).
  *  ⚠️ SENZA LA MIGRAZIONE M1 la tabella non c'è: risposta «cloud» con
  *   `migrazione: false`. Qualunque altro guasto è un 503, non un «cloud» a caso.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { chiaveManychatPresente } from "@/crm/manychat/porta.server";
+import { chiaveManychatPresente, statoChiaviMeta } from "@/crm/manychat/porta.server";
 import { statoCanaleDaRiga } from "@/crm/prova-modelli";
 import { guardiaCRM } from "./api.crm.accesso";
 
@@ -68,7 +68,15 @@ export const Route = createFileRoute("/api/crm/whatsapp-canale")({
           stato = null;
         }
         if (!stato) return json({ ok: false, error: "canale_non_leggibile" }, 503);
-        return json({ ok: true, ...stato });
+        //  Le chiavi Meta ci sono? Solo sì/no (la chat non deve più leggere `whatsapp_settings` dal browser).
+        //  Se non si sa, il campo manca e la chat non blocca niente.
+        let chiaviMeta: boolean | undefined;
+        try {
+          chiaviMeta = (await statoChiaviMeta(g.chi.adminUserId)).presenti;
+        } catch {
+          chiaviMeta = undefined;
+        }
+        return json({ ok: true, ...stato, ...(chiaviMeta === undefined ? {} : { chiaviMeta }) });
       },
     },
   },

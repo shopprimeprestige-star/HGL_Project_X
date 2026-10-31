@@ -16,6 +16,10 @@
  *  il controllo sta PRIMA del ramo `manychat/cloud`, perché il ramo Cloud chiama Graph
  *  senza passare da `inviaWhatsapp`. Il campo può solo FRENARE: assente, «manuale» o una
  *  chiave che non è del catalogo = invio a mano, mai bloccato.
+ *
+ *  ANTEPRIMA DEI LINK (commessa 2026-10-31-anteprima-link): un testo scritto a mano con un link
+ *  può partire dalla Cloud (`preview_url`) invece che da ManyChat. La rotta passa `anteprimaLink` alla
+ *  porta solo se la chat lo chiede (`anteprimaLink === true`); il resto lo decide `inviaWhatsapp`.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
@@ -61,6 +65,8 @@ interface SendBody {
   /** La chiave del messaggio automatico che sta partendo (catalogo dei messaggi automatici).
    *  Lo mette solo chi manda da solo; chi manda a mano non lo mette. Solo frena. */
   automatico?: unknown;
+  /** Lo dichiara solo la casella della chat per il testo scritto a mano: il resto (webinar, pannelli) no. */
+  anteprimaLink?: unknown;
 }
 
 interface PhoneNumberMeta {
@@ -166,6 +172,10 @@ export const Route = createFileRoute("/api/whatsapp-send")({
             leadId: body.leadId ?? null,
             tipo: "chat",
             messaggio: automatico ?? "manuale",
+            //  Solo se la chat lo dichiara (`anteprimaLink` vero) per un testo a mano: se ha un link e l'interruttore è
+            //  acceso, parte dalla Cloud (la porta decide). Webinar, pannelli, automatici e modelli non la chiedono.
+            anteprimaLink:
+              body.anteprimaLink === true && !automatico && !body.templateName && !!body.body,
           });
           // Nei log solo il codice dell'esito: mai numero, testo o nome.
           if (r.esito !== "ok") console.error("[whatsapp-send] manychat:", r.esito, r.codice ?? "");
