@@ -644,8 +644,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Non risponde · Da riprogrammare · Con stelle · Sconosciuti · Ricontatti · Clienti",
-    ["Da rispondere", "Da chiamare", "Non risponde", "Da riprogrammare", "Con stelle", "Sconosciuti", "Ricontatti", "Clienti"],
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Clienti (31/10: gli stati di chiamata solo dentro «Da chiamare»)",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Clienti"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
   {
@@ -661,8 +661,12 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   //  ── «Non risponde» e «Da riprogrammare» in riga (31/10/2026): voci di fase già esistenti, nessuna regola nuova ──
   {
     const riga = (nome) => F.VOCI_RIGA.find((v) => v.nome === nome);
-    const NR = riga("Non risponde");
-    const DR = riga("Da riprogrammare");
+    //  31/10/2026, correzione del titolare: non stanno più nella riga generale
+    //  («Non risponde» è un sottofiltro di «Da chiamare»; «Da riprogrammare» è in
+    //  Filtri → Altri stati). Le voci restano, con le loro regole.
+    c("«Non risponde» e «Da riprogrammare» NON sono nella riga generale", [undefined, undefined], [riga("Non risponde"), riga("Da riprogrammare")]);
+    const NR = F.VOCE_NON_RISPONDE;
+    const DR = F.VOCE_DA_RIPROGRAMMARE;
     const fraDue = (...v) => v.every(Boolean);
     c(
       "le due pastiglie sono voci della fase, con il valore del filtro per stato",
