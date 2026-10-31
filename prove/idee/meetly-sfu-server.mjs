@@ -11,6 +11,38 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 export async function proveMeetlySfuServer(mod, { c, gruppo, radice }) {
+  {
+    gruppo("MEETLY SFU · CONSULENTE SOLO NELLA PROPRIA STANZA (revisione di sicurezza 31/10)");
+    const P = mod["shop/meetly-sfu-padrone"];
+    const crm = (tipo, consultantId, agenda = true) => ({ tipo, consultantId, agenda });
+    c("il proprietario conduce ovunque", true, P.eConsulenteDellaStanza({ padrone: "", sessioneId: "", crm: crm("proprietario", "") }));
+    c("consulente CRM nella sua stanza: sì", true, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "", crm: crm("consulente", "c1") }));
+    c("consulente CRM in una stanza di un collega: no", false, P.eConsulenteDellaStanza({ padrone: "c2", sessioneId: "", crm: crm("consulente", "c1") }));
+    c("consulente CRM senza «agenda»: no", false, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "", crm: crm("consulente", "c1", false) }));
+    c("sessione presentatore col PIN nella sua stanza: sì", true, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "c1", crm: null }));
+    c("sessione presentatore in una stanza altrui: no", false, P.eConsulenteDellaStanza({ padrone: "c2", sessioneId: "c1", crm: null }));
+    c("stanza senza padrone noto: nessuno tranne il proprietario", false, P.eConsulenteDellaStanza({ padrone: "", sessioneId: "c1", crm: crm("consulente", "c1") }));
+    c("codice consulente generale (sessione senza id): no", false, P.eConsulenteDellaStanza({ padrone: "c1", sessioneId: "", crm: null }));
+    const rotta = readFileSync(join(radice, "src/routes/api.public.meetly-sfu.ts"), "utf8");
+    c("la rotta non vale più «consulente» col solo permesso agenda", false, /const consulente = !!sessione \|\| !!crm\?\.accesso\.puo\("agenda"\);/.test(rotta));
+    c("la rotta usa il padrone scritto dal server, non il legame del listino", true, /eConsulenteDellaStanza\(/.test(rotta) && /padroneDellaStanza\(codice\)/.test(rotta) && !/consulenteDellaSessione/.test(rotta));
+    const t = Date.parse("2026-10-31T10:00:00Z");
+    c("chiave del padrone: codice ripulito", "meetly_padrone:kfr-mbqd-tzp", P.chiavePadrone(" KFR-mbqd-tzp "));
+    c("chiave vuota senza codice", "", P.chiavePadrone(""));
+    c("stanza libera: si scrive", "c1", JSON.parse(P.nuovoPadrone(null, "c1", t)).id);
+    c("stanza fresca di un altro: NON si sovrascrive", null, P.nuovoPadrone(JSON.stringify({ id: "c2", il: new Date(t - 3600_000).toISOString() }), "c1", t));
+    c("stessa persona: si rinnova", "c1", JSON.parse(P.nuovoPadrone(JSON.stringify({ id: "c1", il: new Date(t - 3600_000).toISOString() }), "c1", t)).id);
+    c("padrone scaduto (oltre 24 h): si può riprendere", "c1", JSON.parse(P.nuovoPadrone(JSON.stringify({ id: "c2", il: new Date(t - 25 * 3600_000).toISOString() }), "c1", t)).id);
+    c("senza id dimostrato non si scrive", null, P.nuovoPadrone(null, "", t));
+    c("riga illeggibile: nessun padrone", "", P.padroneDa("{rotto", t));
+    const ses = readFileSync(join(radice, "src/routes/api.presenter.session.ts"), "utf8");
+    const mee = readFileSync(join(radice, "src/routes/api.crm.meeting-session.ts"), "utf8");
+    c("diretta: il padrone si scrive solo dalla sessione col PIN, mai dal corpo", true, ses.includes('if (live && chiSta?.id && chiSta.via === "pin") await segnaPadroneDellaStanza(body.code, chiSta.id);'));
+    c("Avvia dal CRM: padrone solo con l'id del token, e solo su stanza nuova o già sua", true, mee.includes('if (b.conduco && cid && (!esistente || String(esistente.consultantId || "").trim() === cid))') && /segnaPadroneDellaStanza\(code, cid\)/.test(mee));
+    const srv = readFileSync(join(radice, "src/shop/meetly-sfu.server.ts"), "utf8");
+    c("scrittura del padrone atomica: insert se libera, update condizionato al valore letto", true, /if \(prima === null\) await config\(\)\.insert\(/.test(srv) && /\.eq\("key", k\)\.eq\("value", prima\)/.test(srv));
+  }
+
   const S = mod["shop/meetly-sfu-stanza"];
   const CF = mod["shop/meetly-sfu-cloudflare"];
   const R = mod["shop/meetly-sfu-regole"];

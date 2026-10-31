@@ -254,7 +254,6 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     tipo: null,
     consulente: "",
     ricontatti: false,
-    rStato: "",
     rEsito: "",
     rData: "",
     io: "",
@@ -626,13 +625,13 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "riepilogo «n di N chat» con una ✕ per etichetta",
     true,
-    /\{trovate\.length\} di \{api\.chats\.length\} chat/.test(elenco) &&
+    /\{nTrovate\} di \{api\.chats\.length\} chat/.test(elenco) &&
       /Togli il filtro \$\{e\.etichetta\}/.test(elenco),
   );
   c(
     "annuncio per lo screen reader: aria-live educato con «N chat»",
     true,
-    /role="status" aria-live="polite"/.test(elenco) && /\$\{trovate\.length\} chat/.test(elenco),
+    /role="status" aria-live="polite"/.test(elenco) && /\$\{nTrovate\} chat/.test(elenco),
   );
   c(
     "riga unica dei filtri rapidi: scorre di lato, tasti da 44 px (h-11), aria-pressed",
@@ -844,9 +843,9 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "la riga rapida e il pannello cambiano filtro solo con commuta (esclusivo)",
     true,
-    //  La riga rapida usa la forma di main (fix/chat-filtro-unico, stesso comportamento): parte da
+    //  (31/10/2026: prettier può andare a capo, la prova tollera gli spazi.) La riga rapida usa la forma di main (fix/chat-filtro-unico, stesso comportamento): parte da
     //  FILTRI_VUOTI col consulente; il pannello passa da commuta, ora esclusiva.
-    /commuta\(\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \}, v\.campo, v\.valore\)/.test(elenco) &&
+    /commuta\(\s*\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \},\s*v\.campo,\s*v\.valore,?\s*\)/.test(elenco) &&
       /onCambia\(commuta\(filtri, v\.campo, v\.valore\)\)/.test(pannello),
   );
   c(

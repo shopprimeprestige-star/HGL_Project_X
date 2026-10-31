@@ -332,7 +332,7 @@ export function proveAzioniMeet(mod, { c, gruppo, radice }) {
 
   const elenco = leggi("src/crm/chatwa/ElencoChat.tsx");
   const bloccoMeet =
-    /<div[^>]*sticky top-0 z-10[^>]*>\s*<BarraProssimoMeet[\s\S]*?<AzioniMeet[\s\S]*?<\/div>/.exec(
+    /<div[^>]*sticky top-0 z-10[^>]*>[\s\S]*?<BarraProssimoMeet[\s\S]*?<AzioniMeet[\s\S]*?<\/div>/.exec(
       elenco,
     )?.[0] ?? "";
   c(
@@ -352,6 +352,6 @@ export function proveAzioniMeet(mod, { c, gruppo, radice }) {
   c(
     "la barra c'è solo a caricamento finito e con un meet",
     true,
-    /!caricamento && meet && \(\s*<div/.test(elenco),
+    /!caricamento && \((?:filtri\.ricontatti \|\| )?meet\) && \(\s*<div/.test(elenco),
   );
 }

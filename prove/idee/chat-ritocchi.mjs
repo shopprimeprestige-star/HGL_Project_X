@@ -13,7 +13,7 @@ export function proveSottofiltriScorrevoli(mod, { c, gruppo, radice }) {
   const elenco = leggi("src/crm/chatwa/ElencoChat.tsx");
   gruppo("CHAT RITOCCHI 1: SOTTOFILTRI DI «DA CHIAMARE» COME LE PILLOLE");
   c("filtri rapidi: uno alla volta (si parte da FILTRI_VUOTI, il consulente resta)", true,
-    /commuta\(\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \}, v\.campo, v\.valore\)/.test(elenco) &&
+    /commuta\(\s*\{ \.\.\.FILTRI_VUOTI, consulente: filtri\.consulente \},\s*v\.campo,\s*v\.valore,?\s*\)/.test(elenco) &&
       !/setFiltri\(commuta\(filtri, v\.campo, v\.valore\)\)/.test(elenco));
   const blocco = elenco.slice(elenco.indexOf('filtri.coda === "da-chiamare" && ('));
   const sotto = blocco.slice(0, blocco.indexOf("role=\"status\""));
