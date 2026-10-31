@@ -22173,7 +22173,9 @@ function proveDelRiquadroDelPromemoria() {
   //  prova a secco); quello di WhatsApp e la sua tabella mai.
   c("il riquadro non importa niente del server e non vede il token WhatsApp", false, /\.server"|whatsapp_settings|accessToken/.test(pan) || /access_token/.test(pan.replace(/session\?\.access_token/g, "")));
   const api = readFileSync(join(radice, "src/routes/api.crm.promemoria-whatsapp.ts"), "utf8");
-  c("all'accensione: avvio «da fare» (il primo giro non manda niente ai vecchi)", true, /acceso: true,\s*attivoDal: new Date\(\)\.toISOString\(\),\s*avvio: "da_fare"/.test(api));
+  //  Interruttori automatici (31/10/2026): l'accensione e l'`avvio: "da_fare"` li fa il registro dei messaggi
+  //  automatici, non più questa rotta (vedi prove/messaggi-automatici/invii.mjs).
+  c("la rotta non accende più né scrive l'avvio (lo fa il registro)", false, /avvio: "da_fare"|attivoDal/.test(api));
   //  Controllo di sicurezza (MEDIUM): l'interruttore scriveva app_config dal
   //  browser, e col PIN la sessione è del proprietario per tutti: anche la
   //  setter poteva accendere. Adesso passa dal server, con la guardia.
@@ -22181,7 +22183,7 @@ function proveDelRiquadroDelPromemoria() {
   c("il browser non scrive più app_config per il promemoria", false, /app_config|dbConfig|upsert\(/.test(panCodice));
   c("il riquadro parla solo con la rotta del CRM, col gettone (fetchCRM)", true, /const ROTTA = "\/api\/crm\/promemoria-whatsapp"/.test(pan) && /fetchCRM\(ROTTA/.test(pan) && !/\/hooks\//.test(panCodice));
   c("ogni richiesta alla rotta passa dalla guardia col permesso «impostazioni»", (api.match(/(GET|POST): async/g) || []).length, (api.match(/await guardiaCRM\(request, cors, "impostazioni"\);\s*if \(!g\.ok\) return g\.risposta;/g) || []).length);
-  c("…e la guardia viene prima di ogni scrittura", true, api.indexOf("guardiaCRM(request") < api.indexOf("scriviConfig("));
+  c("…e la guardia viene prima del giro a secco", true, api.indexOf("guardiaCRM(request") < api.indexOf("giroPromemoria(porte"));
   c("la scrittura la fa il server (chiave di servizio)", true, /supabaseAdmin|porteVere/.test(api));
   c("la prova a secco è dell'installazione di chi chiede (adminUserId)", true, /porteVere\(g\.chi\.adminUserId\)/.test(api) && /prova: true/.test(api));
   //  Controllo di sicurezza (MEDIUM, fail-open): senza titolare la rotta
@@ -22189,7 +22191,7 @@ function proveDelRiquadroDelPromemoria() {
   c("senza titolare dei dati la rotta risponde 403 (GET e POST)", 2, (api.match(/if \(!g\.chi\.adminUserId\) return json\(\{ ok: false, error: "titolare" \}, 403\);/g) || []).length);
   const giroSrc = readFileSync(join(radice, "src/routes/hooks/promemoria-whatsapp.ts"), "utf8");
   c("solo `null` vuol dire «tutte le installazioni», mai una stringa vuota", true, /if \(soloUtente !== null\) q = q\.eq\("user_id", soloUtente\)/.test(giroSrc));
-  c("riaccendere un interruttore già acceso non riparte da capo", true, /if \(b\.acceso && prima\?\.acceso\) return json\(\{ ok: true, config: prima \}\);/.test(api));
+  c("un POST con «acceso» è rifiutato: l'interruttore si cambia in Messaggi automatici", true, /if \(b\.acceso !== undefined\)/.test(api));
   const { PERMESSI_RUOLO: PR } = PRM;
   c("una setter non ha «impostazioni»: la guardia le risponde 403", false, PR.setter.includes("impostazioni"));
   c("…nemmeno il consulente; l'admin sì", [false, true], [PR.consulente.includes("impostazioni"), PR.admin.includes("impostazioni")]);
