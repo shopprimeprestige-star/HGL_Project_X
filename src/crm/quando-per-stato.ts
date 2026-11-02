@@ -165,13 +165,16 @@ export const QUANDO_PER_STATO: Partial<Record<LeadStatus, RichiestaQuando>> = {
     nota: "L'ora è facoltativa: qui conta il giorno",
     oraObbligatoria: false,
   },
+  //  31/10/2026 (richiesta del titolare): la data è facoltativa come per «Per ora no».
+  //  Senza data lo stato si salva e il giorno del richiamo resta vuoto.
   sta_valutando: {
     chiaveData: "dataRicontatto",
     chiaveOra: "oraRicontatto",
     nomeCampo: "Data del richiamo",
     titolo: "Quando lo risenti",
-    nota: "Sta valutando: senza una data non lo richiama nessuno",
+    nota: "Facoltativa: senza data («Senza data») resta in «Sta valutando» e non viene richiamato",
     oraObbligatoria: false,
+    dataFacoltativa: true,
   },
   gestire_in_chat: {
     chiaveData: "dataRicontatto",

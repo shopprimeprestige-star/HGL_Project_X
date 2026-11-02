@@ -22659,7 +22659,8 @@ function proveDelPerOraNoSenzaData() {
   gruppo("«PER ORA NO»: LA DATA È FACOLTATIVA ANCHE NELLA FINESTRA DELLO STATO");
   const q = readFileSync(join(radice, "src/crm/quando-per-stato.ts"), "utf8");
   c("per_ora_no ha la data facoltativa", true, /per_ora_no: \{[\s\S]*?dataFacoltativa: true/.test(q));
-  c("solo per_ora_no, per ora", 1, (q.match(/dataFacoltativa: true/g) || []).length);
+  c("per ora solo «Per ora no» e «Sta valutando» hanno la data facoltativa", 2, (q.match(/dataFacoltativa: true/g) || []).length);
+  c("«Sta valutando» con la data facoltativa", true, /sta_valutando: \{[\s\S]*?dataFacoltativa: true/.test(q));
   const d = readFileSync(join(radice, "src/crm/QuickStatusDialog.tsx"), "utf8");
   c("la finestra offre «Senza data» solo se la data è facoltativa", true, /richiesta\?\.dataFacoltativa && \(/.test(d) && />\s*Senza data\s*</.test(d));
   c("senza data: lo stato si salva e il giorno del ricontatto si svuota", true, /const senzaData = async/.test(d) && /patch\[richiesta\.chiaveData as "dataRicontatto"\] = ""/.test(d));
