@@ -398,6 +398,7 @@ export function Conversazione({
                 È la stessa finestra a griglia di tutto il CRM (rispetta `statiPer`). */}
               {attiva.lead ? (
                 <PastigliaStato
+                  inChat
                   dati={attiva.lead.data}
                   contesto={
                     `${attiva.lead.data.nome ?? ""} ${attiva.lead.data.cognome ?? ""}`.trim() ||

@@ -219,7 +219,7 @@ function RigaChatBase({
   const numeroSotto = nome.replace(/\D/g, "") !== numero.replace(/\D/g, "");
   const telefono = numeroDaComporre(c.phone);
   //  Gli stati di chiamata che la regola del CRM (`statiPer`) ammette per QUESTO lead.
-  const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data) : []);
+  const ammessi = new Set(c.lead ? statiSelezionabili(c.lead.data, { chat: true }) : []);
   //  Senza scheda: nascerà «Da contattare», quindi tutti e sette gli stati di chiamata.
   const opzioniStato = statiMenuRiga(c.lead ? c.lead.data.stato : "da_contattare", ammessi);
   //  p1-chat-veloce: l'ultimo messaggio anche delle chat vecchie (fuori dai letti),
@@ -565,7 +565,9 @@ function RigaChatBase({
             </button>
           )}
           {/*  ── L'ESITO (31/10/2026) ── solo in «Ricontatti»; pastiglia e foglio sono PastigliaEsito. */}
-          {risentire && c.lead && <PastigliaEsito leadId={c.lead.id} esito={esito} contesto={nome} />}
+          {risentire && c.lead && (
+            <PastigliaEsito leadId={c.lead.id} esito={esito} contesto={nome} />
+          )}
           {/*  Senza scheda: stessa pastiglia, neutra e tratteggiata. Scegliere uno stato crea la scheda. */}
           {!c.lead && puoiCambiareStato && (
             <button

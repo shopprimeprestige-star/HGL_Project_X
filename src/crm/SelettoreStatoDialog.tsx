@@ -112,6 +112,7 @@ import {
   LEAD_STATUS_NOTA,
   LEAD_STATUS_PHASE,
   PUNTO_PER_ORA_NO,
+  STATI_PRIMO_CONTATTO,
   statiPer,
   type ExtraDaChiedere,
   type Lead,
@@ -229,13 +230,31 @@ const SOGLIA_RICERCA = 8;
  *  la riga qui dietro sta scrivendo. Si continua a riconoscerlo, non ad
  *  assegnarlo (il suo pulsante è spento).
  *  Regge anche il dato sporco: `stato` può arrivare mancante o sconosciuto. */
-export function statiSelezionabili(d: {
-  importato?: boolean;
-  dataMeeting?: string;
-  consulenteId?: string | null;
-  stato?: LeadStatus | string | null;
-}): LeadStatus[] {
-  const base = statiPer(d ?? {});
+/** Gli stati in cui il lead è «in chiamata»: si segnano con la lista del setter. */
+const IN_CHIAMATA = [
+  "da_chiamare",
+  "non_risponde",
+  "segreteria",
+  "richiamo",
+  "ci_ricontatta_lui",
+  "attesa_whatsapp",
+  "da_contattare",
+] as const;
+
+export function statiSelezionabili(
+  d: {
+    importato?: boolean;
+    dataMeeting?: string;
+    consulenteId?: string | null;
+    stato?: LeadStatus | string | null;
+  },
+  /** La chat WhatsApp (31/10/2026): un lead in chiamata mostra solo gli stati del setter,
+   *  anche se non è un lead importato. Altrove la regola resta com'è. */
+  opzioni: { chat?: boolean } = {},
+): LeadStatus[] {
+  const inChat =
+    opzioni.chat && IN_CHIAMATA.includes(String(d?.stato) as (typeof IN_CHIAMATA)[number]);
+  const base = inChat ? STATI_PRIMO_CONTATTO : statiPer(d ?? {});
   const attuale = d?.stato as LeadStatus | undefined;
   return attuale && !base.includes(attuale) ? [attuale, ...base] : base;
 }
@@ -671,7 +690,10 @@ export function PastigliaStato({
   etichetta = etichettaDi,
   className,
   disabilitata,
+  inChat,
 }: {
+  /** la chat WhatsApp: vedi `statiSelezionabili` (31/10/2026) */
+  inChat?: boolean;
   /** i campi del lead che servono a decidere gli stati e a mostrare l'attuale */
   dati: {
     importato?: boolean;
@@ -696,7 +718,7 @@ export function PastigliaStato({
   disabilitata?: boolean;
 }) {
   const [aperta, setAperta] = useState(false);
-  const opzioni = useMemo(() => statiSelezionabili(dati ?? {}), [dati]);
+  const opzioni = useMemo(() => statiSelezionabili(dati ?? {}, { chat: inChat }), [dati, inChat]);
   const stato = dati?.stato;
 
   return (
