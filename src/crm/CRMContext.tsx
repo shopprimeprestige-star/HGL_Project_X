@@ -52,6 +52,8 @@ export interface OpzioniAggiornamento {
   annulla?: boolean;
   /** Il tocco sulla cornetta (crm/ContaChiamate): è l'unico, con `annulla`, che può scrivere `chiamate`. */
   registraChiamata?: boolean;
+  /** Interno: il tocco è già stato mostrato a schermo (vedi `updateLead`). */
+  giaMostrata?: boolean;
 }
 
 interface CRMContextValue {
@@ -650,6 +652,44 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
+  /*  ── LE SCHEDE IN TEMPO REALE (04/11/2026) ───────────────────────────
+      Richiesta del titolare: «fai che si aggiorna in tempo reale al cambio
+      stato o qualsiasi cosa, da desktop e da mobile». Prima l'elenco si
+      rileggeva solo tornando sulla pagina o una volta al minuto: uno stato
+      cambiato sul telefono arrivava sul computer fino a un minuto dopo.
+      Adesso ogni riga cambiata nell'archivio arriva subito e si fonde da
+      sola; la rilettura al ritorno e al minuto resta, per quando il telefono
+      a schermo spento perde il collegamento.
+      ⚠️ Vince la riga più nuova (`updated_at`): un evento arrivato in ritardo
+       non riporta indietro una scheda già più fresca. */
+  useEffect(() => {
+    if (!user) return;
+    const tempo = (l: { updated_at?: string } | undefined) => Date.parse(l?.updated_at ?? "") || 0;
+    const canale = supabase
+      .channel(`schede-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "crm_leads" }, (evento) => {
+        if (evento.eventType === "DELETE") {
+          const id = (evento.old as { id?: string } | null)?.id;
+          if (!id) return;
+          leadsRef.current = leadsRef.current.filter((x) => x.id !== id);
+          setLeads((prev) => prev.filter((x) => x.id !== id));
+          return;
+        }
+        const riga = evento.new as unknown as Lead & { updated_at?: string };
+        if (!riga?.id || !riga.data) return;
+        const prima = leadsRef.current.find((x) => x.id === riga.id) as
+          | (Lead & { updated_at?: string })
+          | undefined;
+        if (prima && tempo(riga) < tempo(prima)) return;
+        leadsRef.current = fondiSchede(leadsRef.current, [riga]);
+        setLeads((prev) => fondiSchede(prev, [riga]));
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(canale);
+    };
+  }, [user]);
+
   /*  ── ⚠️ QUANTE PERSONE STANNO IN UNA FASCIA, LETTO UNA VOLTA SOLA ──────
       Richiesta del committente: «fai che posso cambiare il numero dalle
       impostazioni».
@@ -730,6 +770,29 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     opzioni: OpzioniAggiornamento = {},
     tentativo = 0,
   ): Promise<boolean> => {
+    /*  ── IL TOCCO SULLA CORNETTA SI VEDE SUBITO (04/11/2026) ─────────────
+        Segnalazione del titolare: «quando clicco sull'icona chiamata non
+        traccia il numero di volte». Il conto si salvava, ma il tondino saliva
+        solo dopo rilettura e scrittura: sul telefono la pagina va in pausa
+        appena si apre il compositore, e il numero restava quello di prima.
+        Adesso sale a schermo nello stesso istante; il salvataggio vero resta
+        quello qui sotto (sulla scheda riletta) e, se fallisce, torna com'era. */
+    if (opzioni.registraChiamata && !opzioni.giaMostrata) {
+      const locale = leadsRef.current.find((x) => x.id === id);
+      if (locale) {
+        const mostra = (l: Lead) => {
+          leadsRef.current = leadsRef.current.map((x) => (x.id === id ? l : x));
+          setLeads((prev) => prev.map((x) => (x.id === id ? l : x)));
+        };
+        mostra({
+          ...locale,
+          data: { ...locale.data, ...risolviModifica(modifica, locale.data) } as LeadData,
+        });
+        const ok = await updateLead(id, modifica, { ...opzioni, giaMostrata: true }, tentativo);
+        if (!ok) mostra(locale);
+        return ok;
+      }
+    }
     /*  ── ⚠️ LA VERITÀ È L'ARCHIVIO, NON LA COPIA CHE ABBIAMO A SCHERMO ────
         Segnalazione del committente: «si sistema quel difetto, problema di
         salvataggio».
