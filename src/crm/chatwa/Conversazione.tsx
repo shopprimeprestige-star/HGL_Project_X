@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   ArrowLeft,
   Ban,
   CalendarClock,
+  ChevronDown,
   Check,
   Clock,
   Hourglass,
@@ -30,7 +31,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 //  Il selettore di stato è uno solo in tutto il CRM (crm/SelettoreStatoDialog):
 //  qui c'era una tendina che ignorava `statiPer`.
-import { PastigliaStato } from "@/crm/SelettoreStatoDialog";
+import { FinestraStati, PastigliaStato } from "@/crm/SelettoreStatoDialog";
+import { statiMenuRiga } from "./daChiamare";
 import { numeroDaComporre } from "@/crm/importa/chiamare";
 import { TemperaturaRiga } from "@/crm/Temperatura";
 import { mostraTemperatura } from "@/crm/temperatura-lead";
@@ -105,6 +107,8 @@ export function Conversazione({
   onAbbina,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
+  //  Numero senza scheda (04/11/2026): lo stato si imposta anche da qui, come nella riga.
+  const [impostaStato, setImpostaStato] = useState(false);
   const segnaChiamata = useSegnaChiamata();
   const { consultants } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -407,10 +411,37 @@ export function Conversazione({
                   onScegli={(s) => void cambiaStato(s)}
                   className="max-w-[14rem] shrink-0 min-h-11 md:min-h-0"
                 />
-              ) : (
+              ) : attiva.schedaAmbigua ? (
                 <span className="whitespace-nowrap text-[12px] text-muted-foreground">
-                  {attiva.schedaAmbigua ? "Più schede con questo numero" : "Numero senza scheda"}
+                  Più schede con questo numero
                 </span>
+              ) : (
+                <>
+                  {/*  Numero senza scheda (04/11/2026, richiesta del titolare): la stessa
+                    pastiglia tratteggiata della riga; scegliere uno stato crea la scheda. */}
+                  <button
+                    type="button"
+                    onClick={() => setImpostaStato(true)}
+                    aria-haspopup="dialog"
+                    title="Imposta lo stato · crea la scheda"
+                    className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-0"
+                  >
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-muted-foreground/50 px-2.5 py-1 text-[12px] font-medium leading-none text-muted-foreground hover:border-primary hover:text-primary">
+                      Imposta stato
+                      <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 opacity-60" />
+                    </span>
+                  </button>
+                  <FinestraStati
+                    aperta={impostaStato}
+                    onChiudi={() => setImpostaStato(false)}
+                    opzioni={statiMenuRiga("da_contattare", new Set())}
+                    contesto={`${numeroLeggibile(attiva.phone)} · senza scheda: si crea con lo stato che scegli`}
+                    onScegli={(st) => {
+                      setImpostaStato(false);
+                      void api.creaSchedaConStato(attiva, st);
+                    }}
+                  />
+                </>
               )}
               {/*  Posa, incasso e priorità «Anticipa» dalla chat (30/10/2026): un tasto solo,
                 solo per chi ha una posa in mano. Vedi GestioneInstallazione. */}
