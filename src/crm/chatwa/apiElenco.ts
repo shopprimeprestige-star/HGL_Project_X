@@ -26,6 +26,7 @@ export function useApiElenco(api: ChatWaApi): ChatWaApi {
       setRicerca: (q) => ultima.current.setRicerca(q),
       cambiaStatoLead: (l, s) => ultima.current.cambiaStatoLead(l, s),
       creaSchedaConStato: (c, s) => ultima.current.creaSchedaConStato(c, s),
+      segnaChiamataNumero: (c) => ultima.current.segnaChiamataNumero(c),
       inBlocco: conBlocco
         ? {
             segnaLetto: (t) => ultima.current.inBlocco!.segnaLetto(t),

@@ -78,6 +78,8 @@ export interface WaContactRow {
   ultimo_messaggio_il?: string | null;
   ultimo_messaggio_anteprima?: string | null;
   ultimo_messaggio_direzione?: string | null;
+  /** Il conto della cornetta per un numero senza scheda (04/11/2026): passa alla scheda quando si crea. */
+  chiamate?: unknown;
 }
 
 export interface ChatItem {
@@ -167,6 +169,8 @@ export interface ChatWaApi {
   cambiaStatoLead: (lead: Lead, s: LeadStatus) => Promise<void>;
   /** Chat senza scheda (30/10/2026): crea la scheda col numero e le dà lo stato, con lo stesso salvataggio. */
   creaSchedaConStato: (chat: ChatItem, s: LeadStatus) => Promise<void>;
+  /** Tocco sulla cornetta di un numero senza scheda: il conto va sul contatto WhatsApp. */
+  segnaChiamataNumero: (chat: ChatItem) => void;
   /** Chiavi Meta lette: `null` finché non si sa. Serve all'intestazione della pagina; T7 la sostituisce con `canale`/`stato`. */
   hasConfig: boolean | null;
   /** Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale). Facoltativo: senza, la chat è quella di prima. */

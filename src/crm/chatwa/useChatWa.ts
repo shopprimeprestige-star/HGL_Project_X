@@ -69,6 +69,7 @@ import type {
 } from "./tipi";
 import { aBlocchi } from "./selezione";
 import { schedaDaChat } from "./schedaDaChat";
+import { patchChiamata } from "@/crm/chiamate";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
@@ -1116,6 +1117,24 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
    *  salvataggio del resto del CRM. Se la scheda non nasce lo dice e non cambia niente.
    *  ⚠️ Mai doppioni: non parte se le schede non sono ancora arrivate, e prima di creare rilegge
    *  l'archivio — se quel numero ha già una scheda, il nuovo stato va su quella. */
+  /*  ── LA CORNETTA DI UN NUMERO SENZA SCHEDA (04/11/2026) ──────────────
+      Segnalazione del titolare: senza scheda il conto partiva dalla seconda
+      chiamata. Il tocco ora si conta sul contatto WhatsApp (subito a schermo,
+      poi in archivio); `schedaDaChat` lo porta sulla scheda quando si crea. */
+  const segnaChiamataNumero = (chat: ChatItem) => {
+    const contatto = chat.contact;
+    if (!user || chat.lead || !contatto?.id) return;
+    const { chiamate } = patchChiamata({ chiamate: contatto.chiamate } as never);
+    setContacts((prev) => prev.map((x) => (x.id === contatto.id ? { ...x, chiamate } : x)));
+    void tabella("whatsapp_contacts")
+      .update({ chiamate })
+      .eq("id", contatto.id)
+      .eq("user_id", user.id)
+      .then(({ error }: { error?: { message?: string } | null }) => {
+        if (error) toast.error("Chiamata non contata", { description: "Il conto non si è salvato." });
+      });
+  };
+
   const creaSchedaConStato = async (chat: ChatItem, newStatus: LeadStatus) => {
     if (chat.lead || chat.schedaAmbigua || inCreazione.current.has(chat.phone)) return;
     if (crmInCaricamento || leads.length === 0) {
@@ -1255,6 +1274,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     cambiaStato,
     cambiaStatoLead,
     creaSchedaConStato,
+    segnaChiamataNumero,
     hasConfig,
     ponte,
     inBlocco,

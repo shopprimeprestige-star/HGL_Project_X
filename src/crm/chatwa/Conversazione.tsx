@@ -291,10 +291,15 @@ export function Conversazione({
                     href={`tel:${numeroDaComporre(attiva.phone)}`}
                     aria-label={`Chiama ${attiva.phone}`}
                     title={`Chiama ${attiva.phone}`}
-                    onClick={() => segnaChiamata(attiva.lead)}
+                    onClick={() =>
+                      attiva.lead ? segnaChiamata(attiva.lead) : api.segnaChiamataNumero(attiva)
+                    }
                   >
                     <Phone className="h-4 w-4" />
-                    <BadgeChiamate lead={attiva.lead} />
+                    <BadgeChiamate
+                      lead={attiva.lead}
+                      dati={{ chiamate: attiva.contact?.chiamate } as never}
+                    />
                     <span className="hidden lg:inline">Chiama</span>
                   </a>
                 </Button>

@@ -170,6 +170,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const onCreaScheda = useStabile(creaSchedaProp);
   const cambiaStatoLead = useStabile(api.cambiaStatoLead);
   const creaSchedaConStato = useStabile(api.creaSchedaConStato);
+  const segnaChiamataNumero = useStabile(api.segnaChiamataNumero);
   const adesso = useAdesso();
   const [pannelloAperto, setPannelloAperto] = useState(false);
   //  Le stelle (28/10/2026): ordinano sempre l'elenco, prima le tre; ora sono anche un filtro.
@@ -585,6 +586,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       onStelle={() => cambiaStelle(c.phone)}
       onCambiaStato={(lead, stato) => void cambiaStatoLead(lead, stato)}
       onCreaSchedaConStato={(stato) => void creaSchedaConStato(c, stato)}
+      onChiamaSenzaScheda={() => segnaChiamataNumero(c)}
       selezione={
         blocco
           ? {
