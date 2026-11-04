@@ -356,31 +356,14 @@ function RigaChatBase({
           )}
         </span>
         <span className="min-w-0 flex-1">
-          {/*  Nome e numero per esteso (04/11/2026, richiesta del titolare): se non
-              ci stanno accanto a «Senza risposta da 5 g» vanno a capo, mai tagliati. */}
+          {/*  Nome e numero per esteso (04/11/2026, richiesta del titolare): sulla
+              prima riga solo il nome (o il numero), intero; «Senza risposta da 5 g»
+              va a capo sotto, mai accanto. */}
           <span className={cn("flex items-start gap-2", conWa && "pr-11 md:pr-9")}>
             <span className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-foreground [overflow-wrap:anywhere] md:text-[13px] md:leading-[18px]">
               {nome}
             </span>
-            {/*  A destra della prima riga ci sta SEMPRE di chi è la palla (30/10/2026):
-                «da 18 h» in ambra = tocca a noi; «Senza risposta da 2 g» in ardesia con la
-                clessidra = tocca a lui. Ardesia e non azzurro: l'azzurro è già nello stato.
-                Niente riga in più nell'elenco. Sul tablet (colonna stretta) restano
-                clessidra e durata, la frase c'è per chi legge con lo schermo. */}
-            {a.senzaRisposta && !comeWhatsapp ? (
-              <span
-                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 text-[11px] font-medium leading-5 tabular-nums text-slate-700 md:leading-[18px]"
-                title={`Hai scritto tu per ultimo e il cliente non ha ancora risposto (${a.senzaRisposta.da})`}
-              >
-                <Hourglass aria-hidden="true" className="h-3 w-3 shrink-0" />
-                <span>
-                  <span className={conWa ? "max-lg:sr-only" : "md:max-lg:sr-only"}>
-                    Senza risposta
-                  </span>
-                  {a.senzaRisposta.daOre && ` ${a.senzaRisposta.breve}`}
-                </span>
-              </span>
-            ) : (
+            {!(a.senzaRisposta && !comeWhatsapp) && (
               <span
                 className={cn(
                   "shrink-0 whitespace-nowrap text-[12px] tabular-nums md:text-[11px]",
@@ -393,6 +376,19 @@ function RigaChatBase({
               </span>
             )}
           </span>
+          {/*  Di chi è la palla (30/10/2026): «Senza risposta da 2 g» in ardesia con la
+              clessidra = tocca a lui. Ardesia e non azzurro: l'azzurro è già nello stato. */}
+          {a.senzaRisposta && !comeWhatsapp && (
+            <span className="mt-0.5 flex">
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 text-[11px] font-medium leading-5 tabular-nums text-slate-700 md:leading-[18px]"
+                title={`Hai scritto tu per ultimo e il cliente non ha ancora risposto (${a.senzaRisposta.da})`}
+              >
+                <Hourglass aria-hidden="true" className="h-3 w-3 shrink-0" />
+                Senza risposta{a.senzaRisposta.daOre && ` ${a.senzaRisposta.breve}`}
+              </span>
+            </span>
+          )}
           {/*  Il numero, e a destra sotto l'ora com'è messo il cliente (28/10/2026):
               pallino e parola, niente risposte brevi (le risposte sono nel tasto
               info della chat). Sulla riga del numero c'è posto, e la riga delle
