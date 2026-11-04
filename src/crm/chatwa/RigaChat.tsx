@@ -356,8 +356,10 @@ function RigaChatBase({
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn("flex items-baseline gap-2", conWa && "pr-11 md:pr-9")}>
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-foreground md:text-[13px] md:leading-[18px]">
+          {/*  Nome e numero per esteso (04/11/2026, richiesta del titolare): se non
+              ci stanno accanto a «Senza risposta da 5 g» vanno a capo, mai tagliati. */}
+          <span className={cn("flex items-start gap-2", conWa && "pr-11 md:pr-9")}>
+            <span className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-foreground [overflow-wrap:anywhere] md:text-[13px] md:leading-[18px]">
               {nome}
             </span>
             {/*  A destra della prima riga ci sta SEMPRE di chi è la palla (30/10/2026):
@@ -403,7 +405,7 @@ function RigaChatBase({
               )}
             >
               {numeroSotto && (
-                <span className="min-w-0 flex-1 truncate tabular-nums text-muted-foreground">
+                <span className="min-w-0 flex-1 tabular-nums text-muted-foreground [overflow-wrap:anywhere]">
                   {numero}
                 </span>
               )}
