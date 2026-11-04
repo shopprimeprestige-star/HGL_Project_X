@@ -16,7 +16,7 @@ export const ORIGINE_SCHEDA_DA_CHAT = "WhatsApp";
  *  tocca report e inserzioni), e NON «ADV» per non finire nei conti delle inserzioni; l'origine
  *  vera sta nelle note. Da cambiare se il titolare vuole «WhatsApp» come quinta fonte. */
 export function schedaDaChat(
-  chat: { phone: string; contact?: { display_name?: string | null } | null },
+  chat: { phone: string; contact?: { display_name?: string | null; chiamate?: unknown } | null },
   ora: Date = new Date(),
 ): LeadData {
   return {
@@ -29,5 +29,7 @@ export function schedaDaChat(
     highlighted: false,
     note: `Origine: ${ORIGINE_SCHEDA_DA_CHAT}`,
     createdAt: ora.toISOString(),
-  };
+    //  Le chiamate fatte quando il numero non aveva ancora la scheda (04/11/2026).
+    ...(chat.contact?.chiamate ? { chiamate: chat.contact.chiamate } : {}),
+  } as LeadData;
 }

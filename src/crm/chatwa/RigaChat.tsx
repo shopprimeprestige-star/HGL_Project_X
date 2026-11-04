@@ -110,6 +110,8 @@ interface RigaChatProps {
   onCambiaStato?: (lead: Lead, stato: LeadStatus) => void;
   /** Senza scheda (30/10/2026): la scelta dello stato crea la scheda col numero e le dà quello stato. */
   onCreaSchedaConStato?: (stato: LeadStatus) => void;
+  /** Cornetta di un numero senza scheda: il conto va sul contatto. */
+  onChiamaSenzaScheda?: () => void;
   /** Solo in «Da chiamare»: pastiglia verde se si può scrivere (finestra di 24 ore
    *  aperta), rossa se è chiusa e serve un modello approvato. */
   mostraFinestra?: boolean;
@@ -159,6 +161,7 @@ function RigaChatBase({
   onStelle,
   onCambiaStato,
   onCreaSchedaConStato,
+  onChiamaSenzaScheda,
   mostraFinestra = false,
   selezione,
   prossimoMeet = false,
@@ -483,11 +486,16 @@ function RigaChatBase({
                 title={`Chiama ${nome}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  segnaChiamata(c.lead);
+                  if (c.lead) segnaChiamata(c.lead);
+                  else onChiamaSenzaScheda?.();
                 }}
               >
                 <Phone aria-hidden="true" className="h-5 w-5 md:h-4 md:w-4" />
-                <BadgeChiamate lead={c.lead} className="right-0.5 top-0.5" />
+                <BadgeChiamate
+                  lead={c.lead}
+                  dati={{ chiamate: c.contact?.chiamate } as never}
+                  className="right-0.5 top-0.5"
+                />
               </a>
             </Button>
           )}

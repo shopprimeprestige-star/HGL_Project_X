@@ -26,17 +26,21 @@ export function useSegnaChiamata() {
 
 export function BadgeChiamate({
   lead,
+  dati,
   className,
 }: {
   lead: Lead | null | undefined;
+  /** Senza scheda: il conto del contatto WhatsApp (`{ chiamate }`). */
+  dati?: Partial<Lead["data"]> | null;
   className?: string;
 }) {
-  const n = chiamateDi(lead?.data);
+  const d = lead?.data ?? dati;
+  const n = chiamateDi(d);
   if (n === 0) return null;
   return (
     <span
       aria-label={frasiChiamate(n)}
-      title={titoloChiamate(lead?.data)}
+      title={titoloChiamate(d)}
       className={cn(
         "pointer-events-none absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-700 px-1 t-etichetta font-semibold leading-none tabular-nums text-white ring-2 ring-card",
         className,

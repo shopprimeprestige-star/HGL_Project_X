@@ -189,7 +189,7 @@ export function proveChiamateAzzera(mod, { c, gruppo, radice }) {
   c("l'opzione registraChiamata esiste", true, /registraChiamata\?: boolean/.test(ctx));
   const ui = senzaCommenti(leggi("src/crm/ContaChiamate.tsx"));
   c("il tocco sulla cornetta dichiara registraChiamata", true, /patchChiamata\(d\),\s*\{ registraChiamata: true \}/.test(ui));
-  c("il tondino dice anche «in tutto» nel title", true, /titoloChiamate\(lead\?\.data\)/.test(ui));
+  c("il tondino dice anche «in tutto» nel title", true, /titoloChiamate\(d\)/.test(ui));
   const pren = senzaCommenti(leggi("src/crm/manychat/prenota-scheda.ts"));
   c("prenota-scheda: l'azzeramento viene dopo patchChiFissa e `chiamate` si disfa con il resto", true, /patchChiFissa\([\s\S]*?patchAzzeraChiamate\(prima, nuova/.test(pren) && /"chiamate"/.test(pren));
   const az = senzaCommenti(leggi("src/routes/api.consulente.azione.ts"));
