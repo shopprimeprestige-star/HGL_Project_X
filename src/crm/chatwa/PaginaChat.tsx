@@ -58,7 +58,9 @@ export function PaginaChat({
   //  ── LA COLONNA DI DESTRA È «OGGI» (30/10/2026) ──────────────────────────
   //   Richiesta del titolare: al posto di «Lead CRM» la giornata (consulenze,
   //   cose da fare). Il vecchio elenco lead è la scheda «Lead» del pannello.
-  const [pannelloOggi, setPannelloOggi] = useState(true);
+  //   Dal 04/11/2026 parte chiuso (richiesta del titolare): si apre col tasto
+  //   «Mostra Oggi».
+  const [pannelloOggi, setPannelloOggi] = useState(false);
   //  Sotto 1280 px il pannello è un foglio che si apre a richiesta.
   const [foglioOggi, setFoglioOggi] = useState(false);
   const visibile = usaAltezzaVisibile();
