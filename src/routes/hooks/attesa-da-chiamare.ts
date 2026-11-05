@@ -236,33 +236,43 @@ async function contattiCheHannoScritto(adesso: Date): Promise<Map<string, Contat
     contatti.push(...righe);
     if (righe.length < PAGINA) break;
   }
+  //  La colonna `canale` (manychat_base) e `app_secret` possono mancare nel database: senza,
+  //  il giro NON deve fermarsi (28/10 → 05/11: il ritorno lanciava e l'andata non partiva).
+  //  Senza `canale` i messaggi sono trattati come Cloud API: contano solo se firmati, quindi
+  //  la scelta è la più prudente. Senza `app_secret` nessun Cloud API conta.
   const messaggi: RigaMessaggio[] = [];
   for (let da = 0; ; da += PAGINA) {
-    const { data, error } = await db()
-      .from("whatsapp_messages")
-      .select("user_id, from_number, direction, created_at, duplicato_di, canale")
-      .eq("direction", "inbound")
-      .is("duplicato_di", null)
-      .gte("created_at", dal)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(da, da + PAGINA - 1);
+    const leggi = (colonne: string) =>
+      db()
+        .from("whatsapp_messages")
+        .select(colonne)
+        .eq("direction", "inbound")
+        .is("duplicato_di", null)
+        .gte("created_at", dal)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(da, da + PAGINA - 1);
+    let { data, error } = await leggi("user_id, from_number, direction, created_at, duplicato_di, canale");
+    if (error && String((error as { code?: string }).code) === "42703")
+      ({ data, error } = await leggi("user_id, from_number, direction, created_at, duplicato_di"));
     if (error) throw error;
     const righe = (data ?? []) as RigaMessaggio[];
     messaggi.push(...righe);
     if (righe.length < PAGINA) break;
   }
   //  Chi ha l'App Secret: solo i suoi messaggi Cloud API sono firmati (`rigaConta`).
+  let conFirma = new Set<string>();
   const { data: imp, error: eImp } = await db()
     .from("whatsapp_settings")
     .select("user_id, app_secret")
     .not("app_secret", "is", null);
-  if (eImp) throw eImp;
-  const conFirma = new Set(
-    ((imp ?? []) as { user_id: string; app_secret: string | null }[])
-      .filter((r) => String(r.app_secret ?? "").trim() !== "")
-      .map((r) => r.user_id),
-  );
+  if (eImp && String((eImp as { code?: string }).code) !== "42703") throw eImp;
+  if (!eImp)
+    conFirma = new Set(
+      ((imp ?? []) as { user_id: string; app_secret: string | null }[])
+        .filter((r) => String(r.app_secret ?? "").trim() !== "")
+        .map((r) => r.user_id),
+    );
   return unisciEntrate(contatti, messaggi, conFirma);
 }
 
@@ -423,12 +433,23 @@ export const Route = createFileRoute("/hooks/attesa-da-chiamare")({
           return json({ error: "unauthorized" }, 401);
         try {
           const adesso = new Date();
-          //  Prima il ritorno (chi ha scritto), poi l'andata: chi torna adesso
-          //  ha `statoDal` nuovo e non riparte subito per «Da chiamare».
-          //  Prima ancora, chi era già tornato ed è rimasto nello stato di allora.
-          const rimasti = await giroRitorniRimastiIndietro(adesso);
-          const ritorno = await giroRitornoAttesa(adesso);
-          return json({ ...(await giroAttesaDaChiamare(adesso)), ritorno, rimasti });
+          //  Ogni passo è indipendente: se il ritorno fallisce, l'andata («Da chiamare»)
+          //  gira lo stesso (prima un errore nel ritorno fermava tutto il giro).
+          //  Ordine: prima chi era già tornato, poi chi ha scritto, poi l'andata: chi torna
+          //  adesso ha `statoDal` nuovo e non riparte subito per «Da chiamare».
+          const passo = async <T>(fase: string, f: () => Promise<T>) => {
+            try {
+              return await f();
+            } catch (e) {
+              const code = (e as { code?: unknown } | null)?.code;
+              console.error("[attesa-da-chiamare]", fase, typeof code === "string" ? code : "errore");
+              return { errore: typeof code === "string" ? code : "errore" };
+            }
+          };
+          const rimasti = await passo("rimasti", () => giroRitorniRimastiIndietro(adesso));
+          const ritorno = await passo("ritorno", () => giroRitornoAttesa(adesso));
+          const andata = await giroAttesaDaChiamare(adesso);
+          return json({ ...andata, ritorno, rimasti });
         } catch (e) {
           const code = (e as { code?: unknown } | null)?.code;
           console.error("[attesa-da-chiamare]", typeof code === "string" ? code : "errore");

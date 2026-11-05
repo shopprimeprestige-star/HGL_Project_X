@@ -98,8 +98,9 @@ export function proveRitornoInAttesa(mod, { c, gruppo, radice }) {
     /giroRitorniRimastiIndietro/.test(hook) && /patchRitornoRimastoIndietro\(/.test(hook) &&
     /data->ricarico->>ultimo/.test(hook) && /\.range\(da, da \+ PAGINA - 1\)/.test(hook));
   c("…e parte nello stesso POST del cron, prima del giro «Da chiamare»", true,
-    /const rimasti = await giroRitorniRimastiIndietro\(adesso\)/.test(hook) &&
-    hook.indexOf("giroRitorniRimastiIndietro(adesso)") < hook.indexOf("giroAttesaDaChiamare(adesso))"));
+    /passo\("rimasti", \(\) => giroRitorniRimastiIndietro\(adesso\)\)/.test(hook) &&
+    hook.indexOf("giroRitorniRimastiIndietro(adesso)") < hook.indexOf("giroAttesaDaChiamare(adesso)") &&
+    hook.indexOf("giroRitornoAttesa(adesso)") < hook.indexOf("giroAttesaDaChiamare(adesso)"));
 
   gruppo("RITORNO · «PRIMA: …» NEI PUNTI DOVE SI VEDE LO STATO");
   const leggi = (f) => readFileSync(join(radice, "src", f), "utf8");
