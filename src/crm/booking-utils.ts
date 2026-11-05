@@ -351,6 +351,21 @@ function getFasceForDay(consultant: Consultant, dow: number): FasciaOraria[] {
   return consultant.data.fasceOrarie || [];
 }
 
+/** Settimana del mese di una data: 1ª = giorni 1–7, 2ª = 8–14, … 5ª = 29–31. */
+export function settimanaDelMese(date: string): number {
+  return Math.ceil(Number(date.slice(8, 10)) / 7);
+}
+
+/** Lavora quel giorno, e con quali fasce? Tiene conto dei turni della settimana del mese. */
+function turnoDelGiorno(consultant: Consultant, date: string, dow: number): { lavora: boolean; fasce: FasciaOraria[] } {
+  const turno = consultant.data.turniSettimana?.[settimanaDelMese(date)];
+  if (turno?.riposo?.includes(dow)) return { lavora: false, fasce: [] };
+  const lavora = consultant.data.giorniLavorativi.includes(dow) || !!turno?.lavora?.includes(dow);
+  if (!lavora) return { lavora: false, fasce: [] };
+  if (turno?.fasce && turno.fasce.length > 0) return { lavora: true, fasce: turno.fasce };
+  return { lavora: true, fasce: getFasceForDay(consultant, dow) };
+}
+
 /** ── LE PAUSE HANNO DUE FORME NEL DATABASE ─────────────────────────────────
  *  Il tipo dichiara `Pausa[]`, ma nei dati veri convivono DUE forme:
  *   · un elenco, dove ogni pausa si porta dentro il proprio `giorno`;
@@ -550,8 +565,9 @@ function generateSlotsForDay(
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return [];
   const dow = d.getDay();
-  if (!consultant.data.giorniLavorativi.includes(dow)) return [];
-  const fasce = getFasceForDay(consultant, dow);
+  const turno = turnoDelGiorno(consultant, date, dow);
+  if (!turno.lavora) return [];
+  const fasce = turno.fasce;
   const pause = getPauseForDay(consultant, dow);
   const out: string[] = [];
   fasce.forEach((f) => {
@@ -924,14 +940,15 @@ export function liberoNellaFascia(
   const d = new Date(date + "T00:00:00");
   if (isNaN(d.getTime())) return false;
   const dow = d.getDay();
-  if (!consultant.data.giorniLavorativi.includes(dow)) return false;
+  const turno = turnoDelGiorno(consultant, date, dow);
+  if (!turno.lavora) return false;
   const inizio = minuti(ora);
   if (inizio === null || !(durata > 0)) return false;
   const fascia: Intervallo = { inizio, fine: inizio + durata };
 
   //  L'intervento deve stare DENTRO una fascia di lavoro: a cavallo di una
   //  chiusura non è "quasi dentro", è fuori.
-  const dentroOrario = getFasceForDay(consultant, dow).some((f) => {
+  const dentroOrario = turno.fasce.some((f) => {
     const fi = minuti(f.inizio);
     const ff = minuti(f.fine);
     return fi !== null && ff !== null && fascia.inizio >= fi && fascia.fine <= ff;
@@ -1038,7 +1055,7 @@ export function caricoGiorni(
     const d = new Date(date + "T00:00:00");
     const lavorativo = Number.isNaN(d.getTime())
       ? false
-      : consultant.data.giorniLavorativi.includes(d.getDay());
+      : turnoDelGiorno(consultant, date, d.getDay()).lavora;
     const totali = generateSlotsForDay(consultant, date, duration);
     const liberi = scartaOccupati(totali, duration, occupato.get(date) ?? []);
     const occupati = totali.length - liberi.length;

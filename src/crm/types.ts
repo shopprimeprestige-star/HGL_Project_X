@@ -2148,6 +2148,13 @@ export interface IndisponibilitaCustom {
   motivo?: string;
 }
 
+// Turno di una settimana del mese: 1ª = giorni 1–7, 2ª = 8–14, … 5ª = 29–31
+export interface TurnoSettimana {
+  riposo?: number[]; // 0-6: giorni di riposo in quella settimana (vincono su tutto)
+  lavora?: number[]; // 0-6: giorni in più in cui si lavora solo in quella settimana
+  fasce?: FasciaOraria[]; // orari di quella settimana; vuoto = quelli normali del consulente
+}
+
 export type ConsultantStatus = "approved" | "pending" | "rejected";
 
 export interface ConsultantData {
@@ -2160,6 +2167,8 @@ export interface ConsultantData {
   fasceOrarie: FasciaOraria[];
   // Fasce orarie per giorno della settimana (override delle generali)
   fasceOrarieGiorno?: Record<number, FasciaOraria[]>;
+  // Turni per settimana del mese (chiave 1–5). Hanno la precedenza su giorni e orari normali.
+  turniSettimana?: Record<number, TurnoSettimana>;
   pause?: Pausa[];
   indisponibilita?: IndisponibilitaCustom[];
   maxCallGiorno?: number;

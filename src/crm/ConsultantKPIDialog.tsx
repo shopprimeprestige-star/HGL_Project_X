@@ -133,6 +133,7 @@ import type {
   FasciaOraria,
   IndisponibilitaCustom,
   Lead,
+  TurnoSettimana,
 } from "@/crm/types";
 import { cn } from "@/lib/utils";
 import { SceltaInvitoMeet } from "@/crm/chatwa/SceltaInvitoMeet";
@@ -1804,6 +1805,129 @@ function SezionePermessi({
    ORARI E DISPONIBILITÀ
    ═════════════════════════════════════════════════════════════════════════ */
 
+const NOMI_SETTIMANE = ["1ª settimana (1–7)", "2ª settimana (8–14)", "3ª settimana (15–21)", "4ª settimana (22–28)", "5ª settimana (29–31)"];
+
+function SezioneTurniSettimana({
+  bozza,
+  cambia,
+}: {
+  bozza: ConsultantData;
+  cambia: <K extends keyof ConsultantData>(k: K, v: ConsultantData[K]) => void;
+}) {
+  const [settimana, setSettimana] = useState(1);
+  const turni = bozza.turniSettimana || {};
+  const turno: TurnoSettimana = turni[settimana] || {};
+  const orario = `${CLASSE_CAMPO} w-auto min-w-0 flex-1`;
+
+  const aggiorna = (patch: TurnoSettimana) => {
+    const pulito = { ...turno, ...patch };
+    const vuoto = !pulito.riposo?.length && !pulito.lavora?.length && !pulito.fasce?.length;
+    const cur = { ...turni };
+    if (vuoto) delete cur[settimana];
+    else cur[settimana] = pulito;
+    cambia("turniSettimana", cur);
+  };
+
+  const inLista = (lista: number[] | undefined, dow: number) => {
+    const base = lista || [];
+    return base.includes(dow) ? base.filter((x) => x !== dow) : [...base, dow].sort();
+  };
+
+  const fasce = turno.fasce || [];
+  const cambiaFasce = (next: FasciaOraria[]) => aggiorna({ fasce: next });
+
+  return (
+    <SezioneFinestra
+      titolo="Turni per settimana del mese"
+      nota="Valgono solo nella settimana scelta e prevalgono su giorni e orari normali. «Riposo» vince su tutto."
+      classeCorpo="p-4 space-y-4"
+    >
+      <div className="grid grid-cols-5 gap-1.5">
+        {NOMI_SETTIMANE.map((nome, i) => (
+          <Pillola key={nome} attiva={settimana === i + 1} onClick={() => setSettimana(i + 1)} className="py-2 text-[11px]">
+            {i + 1}ª
+          </Pillola>
+        ))}
+      </div>
+      <p className="text-[12px] text-slate-500">{NOMI_SETTIMANE[settimana - 1]}</p>
+
+      <div className="space-y-2">
+        <p className="text-[12px] font-medium text-slate-700">Giorni di riposo in questa settimana</p>
+        <div className="grid grid-cols-7 gap-1.5">
+          {GIORNI.map((g, i) => (
+            <Pillola key={`r${g}`} attiva={!!turno.riposo?.includes(i)} onClick={() => aggiorna({ riposo: inLista(turno.riposo, i) })} className="py-2">
+              {g}
+            </Pillola>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[12px] font-medium text-slate-700">Giorni in più da lavorare solo in questa settimana</p>
+        <div className="grid grid-cols-7 gap-1.5">
+          {GIORNI.map((g, i) => (
+            <Pillola key={`l${g}`} attiva={!!turno.lavora?.includes(i)} onClick={() => aggiorna({ lavora: inLista(turno.lavora, i) })} className="py-2">
+              {g}
+            </Pillola>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[12px] font-medium text-slate-700">Orari di questa settimana</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 border-slate-200 bg-white text-[11px] text-slate-700 hover:bg-slate-100"
+            onClick={() => cambiaFasce([...fasce, { inizio: "09:00", fine: "13:00" }])}
+          >
+            <Plus className="h-3 w-3" /> Aggiungi
+          </Button>
+        </div>
+        {fasce.length === 0 ? (
+          <p className="text-[11px] text-slate-400">Usa gli orari normali del consulente.</p>
+        ) : (
+          fasce.map((f, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={f.inizio}
+                onChange={(e) => {
+                  const next = [...fasce];
+                  next[i] = { ...next[i], inizio: e.target.value };
+                  cambiaFasce(next);
+                }}
+                className={orario}
+              />
+              <span className="text-slate-400">—</span>
+              <Input
+                type="time"
+                value={f.fine}
+                onChange={(e) => {
+                  const next = [...fasce];
+                  next[i] = { ...next[i], fine: e.target.value };
+                  cambiaFasce(next);
+                }}
+                className={orario}
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Togli la fascia"
+                className="h-8 w-8 shrink-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                onClick={() => cambiaFasce(fasce.filter((_, j) => j !== i))}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+    </SezioneFinestra>
+  );
+}
+
 function SezioneOrari({
   bozza,
   cambia,
@@ -1999,6 +2123,8 @@ function SezioneOrari({
           })
         )}
       </SezioneFinestra>
+
+      <SezioneTurniSettimana bozza={bozza} cambia={cambia} />
 
       <SezioneFinestra
         titolo="Giorni e ore non disponibili"

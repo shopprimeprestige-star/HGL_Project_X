@@ -68,12 +68,20 @@ export const Route = createFileRoute("/api/crm/disponibilita")({
         if (!cons) return json({ ok: false, reason: "consulente non trovato" }, 404);
 
         const d = cons.data as {
-          giorniLavorativi?: number[]; fasceOrarie?: Fascia[];
+          giorniLavorativi?: number[]; fasceOrarie?: Fascia[]; fasceOrarieGiorno?: Record<string, Fascia[]>;
+          turniSettimana?: Record<string, { riposo?: number[]; lavora?: number[]; fasce?: Fascia[] }>;
           pause?: Record<string, Fascia[]> | Fascia[]; attivo?: boolean;
         };
         const dow = new Date(`${giorno}T12:00:00`).getDay();
-        const lavora = (d.giorniLavorativi ?? [1, 2, 3, 4, 5]).includes(dow);
+        //  Stessa regola di crm/booking-utils (turnoDelGiorno): il turno della settimana del mese vince.
+        const turnoSettimana = d.turniSettimana?.[String(Math.ceil(Number(giorno.slice(8, 10)) / 7))];
+        const lavora = !turnoSettimana?.riposo?.includes(dow)
+          && ((d.giorniLavorativi ?? [1, 2, 3, 4, 5]).includes(dow) || !!turnoSettimana?.lavora?.includes(dow));
         if (!lavora || d.attivo === false) return json({ ok: true, giorno, slot: [], occupati: [], motivo: "giorno non lavorativo" });
+        const fasceGiorno = d.fasceOrarieGiorno?.[String(dow)];
+        const fasceDelGiorno: Fascia[] = turnoSettimana?.fasce?.length ? turnoSettimana.fasce
+          : fasceGiorno && fasceGiorno.length > 0 ? fasceGiorno
+          : d.fasceOrarie ?? [{ inizio: "09:00", fine: "19:00" }];
 
         // gli appuntamenti già presi, letti dalle schede: è la verità del CRM
         const { data: rows } = await supabaseAdmin
@@ -149,7 +157,7 @@ export const Route = createFileRoute("/api/crm/disponibilita")({
           fino?: string;
           copertoDa?: string;
         }[] = [];
-        for (const f of d.fasceOrarie ?? [{ inizio: "09:00", fine: "19:00" }]) {
+        for (const f of fasceDelGiorno) {
           for (let t = min(f.inizio); t + durata <= min(f.fine); t += 30) {
             const inPausa = pause.some((p) => t < min(p.fine) && t + durata > min(p.inizio));
             //  Il modo di QUESTA mezz'ora: «solo» = un posto, e basta.
