@@ -339,6 +339,10 @@ export function Casella({ api, linkWa }: CasellaProps) {
             setOrari(false);
           }}
           onChiudi={() => setOrari(false)}
+          onFissa={(s) => {
+            setOrari(false);
+            api.fissaDaOrari(s);
+          }}
         />
       )}
       {residuiBozza.length > 0 && (

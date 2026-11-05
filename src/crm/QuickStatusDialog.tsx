@@ -129,11 +129,22 @@ interface DefaultValues {
   noteRicontatto?: string;
 }
 
+/** Un orario già scelto altrove (la griglia «Proponi orari» della chat, 05/11/2026):
+ *  la procedura parte già al passo delle note, con giorno, ora e consulente messi. */
+export interface SceltaOrario {
+  data: string;
+  ora: string;
+  consulenteId: string | null;
+  durata?: number;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   lead: Lead | null;
   newStatus: LeadStatus | null;
+  /** vedi `SceltaOrario` */
+  scelta?: SceltaOrario | null;
   /** ── «È STATO SCRITTO» NON SI DEDUCE DALLA CHIUSURA ─────────────────────
    *  Chiamata SOLO quando l'archivio è cambiato davvero. Chi apre questa
    *  finestra vede `onOpenChange(false)` sia se si salva sia se si annulla, e
@@ -255,7 +266,14 @@ function testoDi(v: unknown): string {
   return typeof v === "string" ? v : v === null || v === undefined ? "" : String(v);
 }
 
-export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalvato }: Props) {
+export function QuickStatusDialog({
+  open,
+  onOpenChange,
+  lead,
+  newStatus,
+  onSalvato,
+  scelta,
+}: Props) {
   const { updateLead, consultants } = useCRM();
   const { user } = useAuth();
   //  Il messaggio automatico scritto qui (solo «Attesa acconto» passa da questo modulo).
@@ -576,6 +594,7 @@ export function QuickStatusDialog({ open, onOpenChange, lead, newStatus, onSalva
         onSalvato={onSalvato}
         lead={lead}
         stato={newStatus}
+        scelta={scelta}
       />
     );
   }
@@ -1732,6 +1751,7 @@ function ProceduraQuando({
   onSalvato,
   lead,
   stato,
+  scelta,
 }: {
   aperta: boolean;
   onCambio: (v: boolean) => void;
@@ -1739,6 +1759,7 @@ function ProceduraQuando({
   onSalvato?: (info?: { giorno?: string; stato?: LeadStatus }) => void;
   lead: Lead;
   stato: LeadStatus;
+  scelta?: SceltaOrario | null;
 }) {
   const { updateLead, consultants, leads } = useCRM();
   const cmd = useTastoComando();
@@ -1822,6 +1843,8 @@ function ProceduraQuando({
         ? lead.data.oraVieneInSede
         : lead.data.oraRicontatto,
   ).slice(0, 5);
+  const sceltaRef = useRef(scelta);
+  sceltaRef.current = scelta;
   const inScheda = useRef({ data: dataInScheda, ora: oraInScheda, consulente: consulenteInScheda });
   inScheda.current = { data: dataInScheda, ora: oraInScheda, consulente: consulenteInScheda };
 
@@ -1864,6 +1887,16 @@ function ProceduraQuando({
     setDurata(
       Number(lead.data.durataMeeting) > 0 ? Number(lead.data.durataMeeting) : DURATA_CONSULENZA,
     );
+    //  Orario tenuto premuto nella griglia della chat (05/11/2026): giorno, ora e
+    //  consulente sono già scelti, si va dritti alle note e alla conferma.
+    const s = sceltaRef.current;
+    if (s) {
+      setData(s.data);
+      setOra(s.ora);
+      setConsulenteId(s.consulenteId);
+      if (s.durata && s.durata > 0) setDurata(s.durata);
+      setPasso("note");
+    }
   }, [aperta, conSquadra, lead.data.durataMeeting]);
 
   //  L'ultimo passo si apre con il cursore già dentro: si scrive e si preme

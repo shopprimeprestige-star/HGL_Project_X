@@ -23,7 +23,7 @@
  *   L'ultima scelta resta nel browser; il messaggio dice la durata.
  *  ⚠️ GLI HOOK IN CIMA, nessuna uscita anticipata (prova degli hook).
  *  ───────────────────────────────────────────────────────────────────────── */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -117,7 +117,31 @@ export function OrariRapidi(p: {
   /** mette il testo nel campo di scrittura della chat (non invia) */
   onInserisci: (testo: string) => void;
   onChiudi: () => void;
+  /** Tenendo premuto un orario (05/11/2026): fissa l'appuntamento su quello. */
+  onFissa?: (s: { data: string; ora: string; consulenteId: string | null; durata: number }) => void;
 }) {
+  /*  ── TIENI PREMUTO PER FISSARE (05/11/2026) ───────────────────────────
+      Richiesta del titolare: dalla griglia delle disponibilità si fissa anche.
+      Un tocco sceglie l'orario per il messaggio, come prima; tenendo premuto
+      mezzo secondo si apre la finestra dell'appuntamento con quell'orario.
+      Il tocco che segue la pressione lunga non cambia la scelta. */
+  const premuto = useRef<{ t: ReturnType<typeof setTimeout> | null; fatto: boolean }>({
+    t: null,
+    fatto: false,
+  });
+  const lascia = () => {
+    if (premuto.current.t) clearTimeout(premuto.current.t);
+    premuto.current.t = null;
+  };
+  const tieni = (fissa: () => void) => {
+    lascia();
+    premuto.current.fatto = false;
+    premuto.current.t = setTimeout(() => {
+      premuto.current.t = null;
+      premuto.current.fatto = true;
+      fissa();
+    }, 500);
+  };
   const [durata, setDurata] = useState<number>(durataSalvata);
   //  Il campo del valore libero: aperto/chiuso e quello che c'è scritto.
   const [libero, setLibero] = useState<string | null>(null);
@@ -199,7 +223,11 @@ export function OrariRapidi(p: {
       aperta
       onCambio={(v) => !v && p.onChiudi()}
       titolo="Proponi orari"
-      contesto="Tocca gli orari da proporre, anche di più giorni e consulenti"
+      contesto={
+        p.onFissa
+          ? "Tocca gli orari da proporre · tieni premuto un orario per fissare l'appuntamento"
+          : "Tocca gli orari da proporre, anche di più giorni e consulenti"
+      }
       icona={CalendarClock}
       larghezza="xl"
       //  Sul telefono a tutto schermo (richiesta del titolare, 28/10/2026): è un
@@ -435,9 +463,33 @@ export function OrariRapidi(p: {
                             aria-pressed={si}
                             aria-label={`${fascia}, ${posti}`}
                             title={`${fascia} · ${posti}`}
-                            onClick={() =>
-                              setScelte((s) => cambiaScelta(s, { data: g.data, ora: f.ora, chi }))
+                            onClick={() => {
+                              if (premuto.current.fatto) {
+                                premuto.current.fatto = false;
+                                return;
+                              }
+                              setScelte((s) => cambiaScelta(s, { data: g.data, ora: f.ora, chi }));
+                            }}
+                            onPointerDown={
+                              p.onFissa
+                                ? () =>
+                                    tieni(() => {
+                                      //  Il consulente: quello scelto in alto; con «tutti»
+                                      //  quello del lead se è libero, se no chi ha più posti.
+                                      const liberi = [...f.chi].sort((a, b) => b.posti - a.posti);
+                                      const consulenteId =
+                                        chi !== "tutti"
+                                          ? chi
+                                          : (liberi.find((c) => c.id === p.consulenteId) ?? liberi[0])
+                                              ?.id ?? null;
+                                      p.onFissa?.({ data: g.data, ora: f.ora, consulenteId, durata });
+                                    })
+                                : undefined
                             }
+                            onPointerUp={lascia}
+                            onPointerLeave={lascia}
+                            onPointerCancel={lascia}
+                            onContextMenu={p.onFissa ? (e) => e.preventDefault() : undefined}
                             className={cn(
                               "inline-flex h-10 min-w-[4.25rem] items-center justify-center gap-1 rounded-lg border px-2 text-[14px] font-medium tabular-nums transition-colors md:h-9 md:w-full md:min-w-0 md:gap-0.5 md:px-1 md:text-[13px]",
                               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600",
