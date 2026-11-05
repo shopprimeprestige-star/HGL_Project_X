@@ -15,6 +15,7 @@ import type { StatoCasella } from "./stato";
 import type { FiltroPerStato } from "./perStato";
 import type { FiltriChat } from "./filtri";
 import type { ApiPonteInvio, BollaCoda } from "@/crm/ponte/invio-tipi";
+import type { SceltaOrario } from "@/crm/QuickStatusDialog";
 
 /** Il vocabolario di `passaFiltro` (cercaChat.ts). Dal 30/10/2026 non è più lo stato della chat:
  *  `FiltriChat` (filtri.ts) tiene un valore per gruppo e li compone in E. */
@@ -171,6 +172,8 @@ export interface ChatWaApi {
   creaSchedaConStato: (chat: ChatItem, s: LeadStatus) => Promise<void>;
   /** Tocco sulla cornetta di un numero senza scheda: il conto va sul contatto WhatsApp. */
   segnaChiamataNumero: (chat: ChatItem) => void;
+  /** Orario tenuto premuto in «Proponi orari»: fissa l'appuntamento della chat aperta. */
+  fissaDaOrari: (scelta: SceltaOrario) => void;
   /** Chiavi Meta lette: `null` finché non si sa. Serve all'intestazione della pagina; T7 la sostituisce con `canale`/`stato`. */
   hasConfig: boolean | null;
   /** Invio a mano dal ponte dopo le 24 ore (commessa 2026-10-30-ponte-invio-manuale). Facoltativo: senza, la chat è quella di prima. */
