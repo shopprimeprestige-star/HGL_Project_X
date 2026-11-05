@@ -252,7 +252,7 @@ async function proveDelloScheletroPrenota(mod, { c, gruppo }) {
     T.chiaveLucchettoConsulente("c1", "2026-10-29"));
   c("motivi del secondo stato (lista chiusa)",
     ["prenota_nessun_orario", "prenota_altri_finiti", "prenota_errore"], [...T.MOTIVI_CONTATTO]);
-  c("codici di log: 22, con «occupato» e senza «doppio_tocco»", [22, true, false], [
+  c("codici di log: 23, con «occupato» e senza «doppio_tocco»", [23, true, false], [
     T.CODICI_LOG.length, T.CODICI_LOG.includes("occupato"), T.CODICI_LOG.includes("doppio_tocco"),
   ]);
   c("fasce in minuti (inizio compreso)", { mattina: [480, 779], pomeriggio: [780, 1019], sera: [1020, 1439] },

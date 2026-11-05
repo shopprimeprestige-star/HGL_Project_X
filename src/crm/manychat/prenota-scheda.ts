@@ -72,15 +72,23 @@ const STATI_CHIUSI: string[] = ["annullato", "perdi_tempo", "concluso", "ripensa
 const testo = (v: unknown): string => String(v ?? "").trim();
 
 /** Chi può prenotare. In ordine: già cliente, storia chiusa, appuntamento in
- *  arrivo, stato non ammesso. Il nome e il numero non sono condizioni (D13: il
- *  link sta sempre nel messaggio di conferma). */
+ *  arrivo, stato non ammesso, senza nome. Il nome è obbligatorio: un appuntamento
+ *  fissato senza nome non si fa (la setter scrive il nome prima). Il numero non
+ *  è una condizione (il link sta sempre nel messaggio di conferma). */
 export function puoPrenotare(d: LeadData, adesso: Date): EsitoPrenotabile {
   if (eChiusuraVinta(d.stato) || (Number(d.payment?.accontoPagato) || 0) > 0)
     return { ok: false, motivo: "cliente" };
   if (STATI_CHIUSI.includes(testo(d.stato))) return { ok: false, motivo: "chiuso" };
   if (appuntamentoFuturo(d, adesso)) return { ok: false, motivo: "futuro" };
   if (!STATI_PRENOTABILI.includes(testo(d.stato))) return { ok: false, motivo: "stato" };
+  if (!haNome(d)) return { ok: false, motivo: "senza_nome" };
   return { ok: true };
+}
+
+/** La scheda ha il nome (quello di battesimo o il cognome). Senza, non si fissa
+ *  nessun appuntamento: né dalla chat né dal CRM della chat. */
+export function haNome(d: Partial<LeadData> | null | undefined): boolean {
+  return !!(testo(d?.nome) || testo(d?.cognome));
 }
 
 /** La scheda tiene lo slot e `dataMeeting`+`oraMeeting` è dopo adesso (Roma).

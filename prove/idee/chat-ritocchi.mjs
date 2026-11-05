@@ -50,7 +50,9 @@ export function proveCreaSchedaDaChat(mod, { c, gruppo, radice }) {
   c("il tasto stato c'è anche senza scheda (non con più schede)", true, /puoiCambiareStato/.test(riga) && /!ambigua/.test(riga));
   c("senza scheda la scelta crea la scheda (onCreaSchedaConStato)", true, /onCreaSchedaConStato\?\.\(s\)/.test(riga));
   c("l'hook crea la scheda e poi cambia stato con lo stesso salvataggio del CRM", true,
-    /creaSchedaConStato/.test(hook) && /createLead\(schedaDaChat\(/.test(hook) && /await cambiaStatoLead\(/.test(hook));
+    /creaSchedaConStato/.test(hook) && /createLead\(bozza\)/.test(hook) && /const bozza = schedaDaChat\(/.test(hook) && /await cambiaStatoLead\(/.test(hook));
+  c("senza nome non si fissa l'appuntamento né dalla scheda né dalla creazione", true,
+    /STATI_CON_APPUNTAMENTO/.test(hook) && /!haNome\(lead\.data\)/.test(hook) && /!haNome\(bozza\)/.test(hook));
   c("un secondo tocco mentre salva non crea due schede", true, /inCreazione/.test(hook));
   c("il contratto dell'api lo dichiara", true, /creaSchedaConStato: \(chat: ChatItem, s: LeadStatus\) => Promise<void>/.test(tipi));
   c("l'elenco lo passa alla riga", true, /onCreaSchedaConStato=\{/.test(leggi("src/crm/chatwa/ElencoChat.tsx")));

@@ -151,10 +151,12 @@ export async function proveDellaSchedaPrenota(mod, { c, gruppo, radice }) {
     S.puoPrenotare(sc("venduto", { dataMeeting: "2026-10-29", oraMeeting: "18:00", consulenteId: "c" }), ADESSO),
   );
   c(
-    "il nome e il numero non sono condizioni (D13): senza nome si prenota",
-    { ok: true },
+    "senza nome non si prenota (il nome è obbligatorio)",
+    { ok: false, motivo: "senza_nome" },
     S.puoPrenotare({ stato: "da_contattare" }, ADESSO),
   );
+  c("con solo il cognome si prenota", { ok: true }, S.puoPrenotare({ stato: "da_contattare", cognome: "Rossi" }, ADESSO));
+  c("nome di soli spazi: senza nome", { ok: false, motivo: "senza_nome" }, S.puoPrenotare({ stato: "da_contattare", nome: "  " }, ADESSO));
 
   // ── 2. APPUNTAMENTO FUTURO ──────────────────────────────────────────────
   gruppo("PRENOTA · SCHEDA · APPUNTAMENTO FUTURO (ora di Roma)");

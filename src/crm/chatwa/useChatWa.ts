@@ -69,6 +69,12 @@ import type {
 } from "./tipi";
 import { aBlocchi } from "./selezione";
 import { schedaDaChat } from "./schedaDaChat";
+
+/** Stati che fissano un appuntamento: senza nome non si scrivono (come in `puoPrenotare`). */
+const STATI_CON_APPUNTAMENTO: LeadStatus[] = ["appuntamento_fissato", "appuntamento_rifissato"];
+/** Ha un nome o un cognome (stessa regola di `haNome` in manychat/prenota-scheda.ts). */
+const haNome = (d: Partial<LeadData>): boolean =>
+  !!(String(d.nome ?? "").trim() || String(d.cognome ?? "").trim());
 import { patchChiamata } from "@/crm/chiamate";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
@@ -1025,6 +1031,13 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
    *  Il toast ha «Annulla»: rimette com'era, senza rinnovare `statoDal` (`annulla: true`). */
   const cambiaStatoLead = async (lead: Lead, newStatus: LeadStatus) => {
     if (newStatus === lead.data.stato) return;
+    //  Un appuntamento non si fissa senza nome: la scheda va completata prima.
+    if (STATI_CON_APPUNTAMENTO.includes(newStatus) && !haNome(lead.data)) {
+      toast.error("Scrivi prima il nome", {
+        description: "Senza nome non fisso l'appuntamento. Completa la scheda e riprova.",
+      });
+      return;
+    }
     //  Le tre chiusure vinte hanno la loro finestra, che scrive stato, importi
     //  e modo di consegna in un salvataggio solo. ⚠️ Il ramo va PRIMA di
     //  `requiresAnyDialog` e non scrive niente da sé: vedi ChiusuraDialog.
@@ -1156,7 +1169,15 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
         await cambiaStatoLead(trovata.lead, newStatus);
         return;
       }
-      const nuova = await createLead(schedaDaChat(chat));
+      const bozza = schedaDaChat(chat);
+      //  Senza nome non si crea una scheda che andrebbe in appuntamento: si avvisa il setter.
+      if (STATI_CON_APPUNTAMENTO.includes(newStatus) && !haNome(bozza)) {
+        toast.error("Scrivi prima il nome", {
+          description: "Senza nome non fisso l'appuntamento. Crea la scheda con il nome e riprova.",
+        });
+        return;
+      }
+      const nuova = await createLead(bozza);
       if (!nuova) {
         toast.error("Scheda NON creata", { description: "Riprova fra un istante." });
         return;

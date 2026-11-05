@@ -35,6 +35,7 @@ export const CODICI_LOG = [
   "senza_configurazione",
   "senza_scheda",
   "non_prenotabile",
+  "senza_nome",
   "stop",
   "non_capito",
   "proposte",
@@ -177,7 +178,7 @@ export type MotivoContatto = (typeof MOTIVI_CONTATTO)[number];
 /** `puoPrenotare`: perché no. `futuro` = ha già un appuntamento. */
 export type EsitoPrenotabile =
   | { ok: true }
-  | { ok: false; motivo: "futuro" | "cliente" | "chiuso" | "stato" };
+  | { ok: false; motivo: "futuro" | "cliente" | "chiuso" | "stato" | "senza_nome" };
 
 /** Quello che `daPrenotare` scrive sulla scheda. */
 export interface DatiPrenotazione {
