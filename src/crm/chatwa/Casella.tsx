@@ -70,7 +70,7 @@ import type { CasellaProps } from "./tipi";
 /** La casella in fondo alla chat, come nell'app WhatsApp: fissa in basso, campo a 16 px
  *  (iOS non ingrandisce la pagina), invio da 44 px. Cosa mostra lo decide `api.stato`:
  *  `libera` il testo, `solo_modelli` la scelta dei modelli, `stop` niente, `configura` il blocco. */
-export function Casella({ api, linkWa }: CasellaProps) {
+export function Casella({ api, linkWa, onFissaAppuntamento }: CasellaProps) {
   const { bozza, setBozza, residuiBozza, invia, inviando, stato, attiva, canale } = api;
   const { consultants } = useCRM();
   /*  ── PROPONI ORARI (28/10/2026) ────────────────────────────────────────
@@ -338,6 +338,14 @@ export function Casella({ api, linkWa }: CasellaProps) {
             setBozza(bozza.trim() ? `${bozza.trimEnd()}\n\n${t}` : t);
             setOrari(false);
           }}
+          onFissa={
+            onFissaAppuntamento
+              ? () => {
+                  setOrari(false);
+                  onFissaAppuntamento();
+                }
+              : undefined
+          }
           onChiudi={() => setOrari(false)}
         />
       )}

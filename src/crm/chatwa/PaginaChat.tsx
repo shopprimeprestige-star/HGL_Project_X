@@ -74,6 +74,8 @@ export function PaginaChat({
   // LeadDialog (modifica lead esistente o creazione nuovo lead da numero sconosciuto)
   const [leadDialogOpen, setLeadDialogOpen] = useState(false);
   const [leadDialogLead, setLeadDialogLead] = useState<Lead | null>(null);
+  /** La scheda si apre sulla catena dell'appuntamento (dalla finestra «Proponi orari»). */
+  const [leadDialogApriCatena, setLeadDialogApriCatena] = useState(false);
   const [leadDialogPrefill, setLeadDialogPrefill] = useState<Partial<LeadData> | undefined>(
     undefined,
   );
@@ -249,6 +251,21 @@ export function PaginaChat({
   const openHeaderEdit = () => {
     const chat = api.attiva;
     if (!chat) return;
+    if (chat.lead) {
+      setLeadDialogLead(chat.lead);
+      setLeadDialogPrefill(undefined);
+      setLeadDialogOpen(true);
+    } else {
+      creaScheda(chat);
+    }
+  };
+
+  /** «Fissa appuntamento» dalla finestra «Proponi orari» (05/11/2026): la scheda del
+   *  lead si apre direttamente sulla catena dell'appuntamento. */
+  const fissaDaOrari = () => {
+    const chat = api.attiva;
+    if (!chat) return;
+    setLeadDialogApriCatena(true);
     if (chat.lead) {
       setLeadDialogLead(chat.lead);
       setLeadDialogPrefill(undefined);
@@ -478,6 +495,7 @@ export function PaginaChat({
             onApriLead={openHeaderEdit}
             onCreaScheda={creaScheda}
             onAbbina={abbinaChat}
+            onFissaAppuntamento={fissaDaOrari}
           />
         </div>
 
@@ -526,10 +544,12 @@ export function PaginaChat({
           if (!v) {
             setLeadDialogLead(null);
             setLeadDialogPrefill(undefined);
+            setLeadDialogApriCatena(false);
           }
         }}
         lead={leadDialogLead}
         prefill={leadDialogPrefill}
+        apriCatena={leadDialogApriCatena}
       />
 
       {/* Quick status popup — stessi popup della pagina Leads, sfondo bianco coerente CRM */}

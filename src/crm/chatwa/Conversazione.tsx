@@ -105,6 +105,7 @@ export function Conversazione({
   onApriLead,
   onCreaScheda,
   onAbbina,
+  onFissaAppuntamento,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
   //  Numero senza scheda (04/11/2026): lo stato si imposta anche da qui, come nella riga.
@@ -747,7 +748,7 @@ export function Conversazione({
               <BarraRispostaAi ai={ai} />
             )
           ) : (
-            <Casella api={api} linkWa={nativo?.href} />
+            <Casella api={api} linkWa={nativo?.href} onFissaAppuntamento={onFissaAppuntamento} />
           )}
         </>
       )}

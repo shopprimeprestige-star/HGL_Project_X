@@ -190,12 +190,16 @@ export interface ConversazioneProps {
   onApriLead: () => void;
   onCreaScheda: (chat: ChatItem) => void;
   onAbbina: (chat: ChatItem) => void;
+  /** Dalla finestra «Proponi orari»: apre la scheda del lead sulla catena dell'appuntamento. */
+  onFissaAppuntamento?: () => void;
 }
 
 export interface CasellaProps {
   api: ChatWaApi;
   /** Il link per aprire la chat nell'app WhatsApp: a casella bloccata (solo modelli) è un tasto in barra. */
   linkWa?: string;
+  /** Dalla finestra «Proponi orari»: apre la scheda del lead sulla catena dell'appuntamento. */
+  onFissaAppuntamento?: () => void;
 }
 
 export interface BollaProps {

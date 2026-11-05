@@ -329,6 +329,8 @@ interface Props {
   orarioDaPortare?: OrarioScelto | null;
   /** Chiamata dopo «Salva» andato a buon fine. */
   onSalvato?: () => void;
+  /** Dalla finestra «Proponi orari»: la scheda si apre già sulla catena dell'appuntamento. */
+  apriCatena?: boolean;
 }
 
 const FONTI: LeadFonte[] = ["ADV", "Organico", "Passa parola", "Store"];
@@ -597,6 +599,7 @@ export function LeadDialog({
   nidificata,
   orarioDaPortare,
   onSalvato,
+  apriCatena,
 }: Props) {
   const { consultants, createLead, updateLead, deleteLead, leads: allLeads } = useCRM();
   //  Chi può eliminare: il pulsante non compare a chi poi si sentirebbe dire
@@ -638,9 +641,9 @@ export function LeadDialog({
      azzererebbe sotto le dita — con il wizard, che tiene anche il passo, si
      ricomincerebbe da capo a metà compilazione. Le due sorgenti si leggono da
      un riferimento sempre aggiornato. */
-  const sorgente = useRef({ lead, prefill, orarioDaPortare });
+  const sorgente = useRef({ lead, prefill, orarioDaPortare, apriCatena });
   useEffect(() => {
-    sorgente.current = { lead, prefill, orarioDaPortare };
+    sorgente.current = { lead, prefill, orarioDaPortare, apriCatena };
   });
 
   //  La chiave è l'ID, non l'oggetto: dopo un salvataggio il lead torna
@@ -649,7 +652,7 @@ export function LeadDialog({
   const idLead = lead?.id ?? null;
   useEffect(() => {
     if (!open) return;
-    const { lead: l, prefill: pf, orarioDaPortare: orario } = sorgente.current;
+    const { lead: l, prefill: pf, orarioDaPortare: orario, apriCatena: subitoCatena } = sorgente.current;
     //  `{...nuovo(), ...l.data}` NON basta a garantire i tipi: una chiave
     //  presente e messa a `null` in archivio sovrascrive il valore vuoto di
     //  partenza, e il `null` arriva intatto fino a `.trim()`. Da qui in giù il
@@ -657,7 +660,7 @@ export function LeadDialog({
     setForm(normalizza(l ? { ...nuovo(), ...l.data } : { ...nuovo(), ...(pf ?? {}) }));
     setPasso(0);
     setCreato(null);
-    setCatenaAperta(false);
+    setCatenaAperta(!!subitoCatena);
     setQuando(null);
     setAltriDati(false);
     setModificato(false);

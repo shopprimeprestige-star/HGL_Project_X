@@ -116,6 +116,8 @@ export function OrariRapidi(p: {
   consulenteId?: string | null;
   /** mette il testo nel campo di scrittura della chat (non invia) */
   onInserisci: (testo: string) => void;
+  /** Apre la scheda del lead sulla catena dell'appuntamento (richiesta del titolare, 05/11/2026). */
+  onFissa?: () => void;
   onChiudi: () => void;
 }) {
   const [durata, setDurata] = useState<number>(durataSalvata);
@@ -223,8 +225,8 @@ export function OrariRapidi(p: {
               ))}
             </div>
           )}
-          <div className="flex items-center gap-3">
-            <span className="text-[13px] text-slate-600" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <span className="min-w-0 text-[13px] text-slate-600" aria-live="polite">
               {quanti}
             </span>
             {riepilogo.length > 0 && (
@@ -236,13 +238,24 @@ export function OrariRapidi(p: {
                 Azzera
               </button>
             )}
-            <Button
-              className="ml-auto h-11 bg-emerald-600 px-5 text-white hover:bg-emerald-700 sm:h-10"
-              disabled={riepilogo.length === 0}
-              onClick={conferma}
-            >
-              Crea messaggio
-            </Button>
+            <div className="ml-auto flex shrink-0 gap-2">
+              {p.onFissa && (
+                <Button
+                  variant="outline"
+                  className="h-11 whitespace-nowrap px-4 sm:h-10"
+                  onClick={p.onFissa}
+                >
+                  Fissa appuntamento
+                </Button>
+              )}
+              <Button
+                className="h-11 whitespace-nowrap bg-emerald-600 px-5 text-white hover:bg-emerald-700 sm:h-10"
+                disabled={riepilogo.length === 0}
+                onClick={conferma}
+              >
+                Crea messaggio
+              </Button>
+            </div>
           </div>
         </div>
       }
