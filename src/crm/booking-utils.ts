@@ -362,6 +362,8 @@ function turnoDelGiorno(consultant: Consultant, date: string, dow: number): { la
   if (turno?.riposo?.includes(dow)) return { lavora: false, fasce: [] };
   const lavora = consultant.data.giorniLavorativi.includes(dow) || !!turno?.lavora?.includes(dow);
   if (!lavora) return { lavora: false, fasce: [] };
+  const fasceDelGiorno = turno?.fasceGiorno?.[dow];
+  if (fasceDelGiorno && fasceDelGiorno.length > 0) return { lavora: true, fasce: fasceDelGiorno };
   if (turno?.fasce && turno.fasce.length > 0) return { lavora: true, fasce: turno.fasce };
   return { lavora: true, fasce: getFasceForDay(consultant, dow) };
 }

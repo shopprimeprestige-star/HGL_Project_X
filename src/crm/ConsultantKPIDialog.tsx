@@ -1821,7 +1821,8 @@ function SezioneTurniSettimana({
 
   const aggiorna = (patch: TurnoSettimana) => {
     const pulito = { ...turno, ...patch };
-    const vuoto = !pulito.riposo?.length && !pulito.lavora?.length && !pulito.fasce?.length;
+    const vuoto = !pulito.riposo?.length && !pulito.lavora?.length && !pulito.fasce?.length
+      && !Object.keys(pulito.fasceGiorno || {}).length;
     const cur = { ...turni };
     if (vuoto) delete cur[settimana];
     else cur[settimana] = pulito;
@@ -1835,6 +1836,20 @@ function SezioneTurniSettimana({
 
   const fasce = turno.fasce || [];
   const cambiaFasce = (next: FasciaOraria[]) => aggiorna({ fasce: next });
+
+  const fasceGiorno = turno.fasceGiorno || {};
+  const cambiaFasceGiorno = (dow: number, next: FasciaOraria[]) => {
+    const cur = { ...fasceGiorno };
+    if (next.length === 0) delete cur[dow];
+    else cur[dow] = next;
+    aggiorna({ fasceGiorno: cur });
+  };
+  // giorni che si lavorano in questa settimana: quelli normali e quelli in più, meno i giorni di riposo
+  const giorniDiQuestaSettimana = [
+    ...new Set([...bozza.giorniLavorativi, ...(turno.lavora || [])]),
+  ]
+    .filter((dow) => !turno.riposo?.includes(dow))
+    .sort();
 
   return (
     <SezioneFinestra
@@ -1922,6 +1937,72 @@ function SezioneTurniSettimana({
               </Button>
             </div>
           ))
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[12px] font-medium text-slate-700">Orari diversi per giorno in questa settimana</p>
+        {giorniDiQuestaSettimana.length === 0 ? (
+          <VuotoFinestra testo="Nessun giorno lavorativo in questa settimana." />
+        ) : (
+          giorniDiQuestaSettimana.map((dow) => {
+            const del = fasceGiorno[dow] || [];
+            return (
+              <div key={dow} className="rounded-xl border border-slate-200 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-medium text-slate-900">{GIORNI[dow]}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px] text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    onClick={() => cambiaFasceGiorno(dow, [...del, { inizio: "09:00", fine: "13:00" }])}
+                  >
+                    <Plus className="h-3 w-3" /> Aggiungi
+                  </Button>
+                </div>
+                {del.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">Usa gli orari di questa settimana.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {del.map((f, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Input
+                          type="time"
+                          value={f.inizio}
+                          onChange={(e) => {
+                            const next = [...del];
+                            next[i] = { ...next[i], inizio: e.target.value };
+                            cambiaFasceGiorno(dow, next);
+                          }}
+                          className={orario}
+                        />
+                        <span className="text-slate-400">—</span>
+                        <Input
+                          type="time"
+                          value={f.fine}
+                          onChange={(e) => {
+                            const next = [...del];
+                            next[i] = { ...next[i], fine: e.target.value };
+                            cambiaFasceGiorno(dow, next);
+                          }}
+                          className={orario}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Togli la fascia"
+                          className="h-8 w-8 shrink-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          onClick={() => cambiaFasceGiorno(dow, del.filter((_, j) => j !== i))}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </SezioneFinestra>

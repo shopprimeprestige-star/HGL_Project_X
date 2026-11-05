@@ -2153,6 +2153,7 @@ export interface TurnoSettimana {
   riposo?: number[]; // 0-6: giorni di riposo in quella settimana (vincono su tutto)
   lavora?: number[]; // 0-6: giorni in più in cui si lavora solo in quella settimana
   fasce?: FasciaOraria[]; // orari di quella settimana; vuoto = quelli normali del consulente
+  fasceGiorno?: Record<number, FasciaOraria[]>; // 0-6: orari diversi per un singolo giorno di quella settimana (vincono su «fasce»)
 }
 
 export type ConsultantStatus = "approved" | "pending" | "rejected";

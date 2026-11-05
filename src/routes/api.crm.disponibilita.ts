@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/crm/disponibilita")({
 
         const d = cons.data as {
           giorniLavorativi?: number[]; fasceOrarie?: Fascia[]; fasceOrarieGiorno?: Record<string, Fascia[]>;
-          turniSettimana?: Record<string, { riposo?: number[]; lavora?: number[]; fasce?: Fascia[] }>;
+          turniSettimana?: Record<string, { riposo?: number[]; lavora?: number[]; fasce?: Fascia[]; fasceGiorno?: Record<string, Fascia[]> }>;
           pause?: Record<string, Fascia[]> | Fascia[]; attivo?: boolean;
         };
         const dow = new Date(`${giorno}T12:00:00`).getDay();
@@ -79,7 +79,9 @@ export const Route = createFileRoute("/api/crm/disponibilita")({
           && ((d.giorniLavorativi ?? [1, 2, 3, 4, 5]).includes(dow) || !!turnoSettimana?.lavora?.includes(dow));
         if (!lavora || d.attivo === false) return json({ ok: true, giorno, slot: [], occupati: [], motivo: "giorno non lavorativo" });
         const fasceGiorno = d.fasceOrarieGiorno?.[String(dow)];
-        const fasceDelGiorno: Fascia[] = turnoSettimana?.fasce?.length ? turnoSettimana.fasce
+        const fasceDelGiornoSettimana = turnoSettimana?.fasceGiorno?.[String(dow)];
+        const fasceDelGiorno: Fascia[] = fasceDelGiornoSettimana?.length ? fasceDelGiornoSettimana
+          : turnoSettimana?.fasce?.length ? turnoSettimana.fasce
           : fasceGiorno && fasceGiorno.length > 0 ? fasceGiorno
           : d.fasceOrarie ?? [{ inizio: "09:00", fine: "19:00" }];
 
