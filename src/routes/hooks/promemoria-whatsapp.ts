@@ -38,7 +38,7 @@ import type { Lead, PromemoriaWhatsapp } from "@/crm/types";
 import { STATI_APPUNTAMENTO } from "@/crm/types";
 import { valoriDaLead } from "@/crm/whatsapp";
 import { NOME_MODELLO } from "@/crm/promemoria/invio";
-import { modoDelConsulente } from "@/crm/chatwa/invito-meet";
+import { meetDelConsulente, modoDelConsulente } from "@/crm/chatwa/invito-meet";
 import {
   classificaErroreMeta,
   configConAcceso,
@@ -225,7 +225,7 @@ export function porteVere(soloUtente: string | null): Porte {
       //  meglio nessun messaggio che un link a chi non lo usa.
       const consulenti = await db
         .from("crm_consultants")
-        .select<{ id: string; data: { invitoMeet?: unknown } | null }[]>("id, data")
+        .select<{ id: string; data: { invitoMeet?: unknown; googleMeet?: unknown } | null }[]>("id, data")
         .eq("user_id", imp.userId);
       if (consulenti.error) throw new Error(`lettura consulenti: ${consulenti.error.code ?? ""}`);
       return (data ?? []).map((r) => ({
@@ -237,6 +237,11 @@ export function porteVere(soloUtente: string | null): Porte {
         senzaMeetly:
           modoDelConsulente(consulenti.data ?? [], (r.data as { consulenteId?: string }).consulenteId) ===
           "senza",
+        //  Il Google Meet personale del consulente: senza Meetly il promemoria lo manda al posto del link.
+        meetConsulente: meetDelConsulente(
+          consulenti.data ?? [],
+          (r.data as { consulenteId?: string }).consulenteId,
+        ),
       }));
     },
     numeriStop: async (imp) => {

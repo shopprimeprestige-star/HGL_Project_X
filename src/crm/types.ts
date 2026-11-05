@@ -2182,6 +2182,9 @@ export interface ConsultantData {
   // Invito al meet dalla barra delle chat: col link di Meetly (di serie) o senza link,
   // che poi manda lui a mano (chatwa/invito-meet.ts)
   invitoMeet?: "meetly" | "senza";
+  // Il Google Meet personale del consulente (https://meet.google.com/…): lo usano i promemoria
+  // di chi NON usa Meetly, al posto del link di Meetly (vedi chatwa/invito-meet.ts)
+  googleMeet?: string;
 }
 
 export interface Consultant {

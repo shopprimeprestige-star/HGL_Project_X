@@ -137,7 +137,7 @@ import type {
 } from "@/crm/types";
 import { cn } from "@/lib/utils";
 import { SceltaInvitoMeet } from "@/crm/chatwa/SceltaInvitoMeet";
-import { modoInvito } from "@/crm/chatwa/invito-meet";
+import { linkGoogleMeet, modoInvito } from "@/crm/chatwa/invito-meet";
 
 const GIORNI = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
 
@@ -1020,6 +1020,20 @@ export function SchedaConsulente({
               valore={modoInvito(bozza)}
               onCambio={(v) => cambia("invitoMeet", v)}
             />
+            {/* Chi non usa Meetly: il promemoria manda questo link al posto di quello di Meetly. */}
+            <CampoFinestra etichetta="Il tuo Google Meet (per chi non usa Meetly)">
+              <Input
+                value={bozza.googleMeet ?? ""}
+                onChange={(e) => cambia("googleMeet", e.target.value)}
+                placeholder="https://meet.google.com/abc-defg-hij"
+                className={CLASSE_CAMPO}
+              />
+              {!!bozza.googleMeet?.trim() && !linkGoogleMeet(bozza.googleMeet) && (
+                <p className="mt-1 text-xs text-destructive">
+                  Non è un link Google Meet valido: deve iniziare con https://meet.google.com/
+                </p>
+              )}
+            </CampoFinestra>
           </SezioneFinestra>
 
           <SezioneFinestra titolo="Calendario esterno" classeCorpo="p-4 space-y-2">

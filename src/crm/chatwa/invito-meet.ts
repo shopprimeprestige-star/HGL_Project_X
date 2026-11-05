@@ -53,6 +53,18 @@ export const modoDelConsulente = (
   consulenteId: string | null | undefined,
 ): ModoInvito => modoInvito(consulenti.find((x) => x.id === consulenteId)?.data);
 
+/** Il Google Meet del consulente, se è un indirizzo meet.google.com valido; altrimenti "". */
+export const linkGoogleMeet = (valore: unknown): string => {
+  const pulito = typeof valore === "string" ? valore.trim() : "";
+  return /^https:\/\/meet\.google\.com\/[a-z0-9-]+(\?\S*)?$/i.test(pulito) ? pulito : "";
+};
+
+/** Il Google Meet del consulente di una scheda, o "" se non ne ha uno. */
+export const meetDelConsulente = (
+  consulenti: { id: string; data?: { googleMeet?: unknown } | null }[],
+  consulenteId: string | null | undefined,
+): string => linkGoogleMeet(consulenti.find((x) => x.id === consulenteId)?.data?.googleMeet);
+
 /** La frase che, nell'invito senza link, promette il link: serve anche a riconoscere l'invito
  *  nella chat (il link lì non c'è). */
 export const SEGNO_SENZA_LINK = "Tra poco ti mando qui il link per entrare";

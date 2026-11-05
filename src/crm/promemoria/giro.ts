@@ -87,6 +87,9 @@ export interface SchedaGiro {
   /** il consulente della scheda non usa Meetly (`crm_consultants.data.invitoMeet = "senza"`):
    *  la conferma parte col gemello senza link. Assente = usa Meetly. */
   senzaMeetly?: boolean;
+  /** il Google Meet del consulente (`crm_consultants.data.googleMeet`), "" o assente se non c'è:
+   *  con `senzaMeetly` è il link che il promemoria manda al posto di quello di Meetly. */
+  meetConsulente?: string;
 }
 
 export interface Porte {
@@ -225,14 +228,16 @@ export async function giroPromemoria(porte: Porte, o: { prova: boolean }): Promi
     const daInviare: { s: SchedaGiro; dec: Extract<Decisione, { azione: "invia" }> }[] = [];
     for (const s of schede) {
       conta(s.data, oggi, adesso, contatori);
+      //  Chi non usa Meetly riceve il Google Meet del consulente, se l'ha collegato; senza, il gemello senza link.
+      const conMeet = !!s.senzaMeetly && !!s.meetConsulente;
       const dec = decidiInvio({
         d: s.data,
-        link: s.link,
+        link: conMeet ? (s.meetConsulente as string) : s.link,
         aggiornataIl: s.updated_at,
         numeriStop,
         adesso,
         primoGiro,
-        senzaLink: !!s.senzaMeetly,
+        senzaLink: !!s.senzaMeetly && !conMeet,
       });
       if (dec.azione === "invia") daInviare.push({ s, dec });
       if (dec.azione !== "salta" && dec.azione !== "preesistente") continue;
