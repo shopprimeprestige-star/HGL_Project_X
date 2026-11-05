@@ -1145,6 +1145,12 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       });
       return;
     }
+    if (!haNome(lead.data)) {
+      toast.error("Scrivi prima il nome", {
+        description: "Senza nome non si fissa l'appuntamento: completa la scheda.",
+      });
+      return;
+    }
     opz.apriStatoRapido(lead, "appuntamento_fissato", scelta);
   };
 
