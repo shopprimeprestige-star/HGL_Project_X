@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { cn } from "@/lib/utils";
 import { usePuo } from "@/crm/AuthContext";
 import { LeadDialog } from "@/crm/LeadDialog";
-import { QuickStatusDialog } from "@/crm/QuickStatusDialog";
+import { QuickStatusDialog, type SceltaOrario } from "@/crm/QuickStatusDialog";
 import { useChiusura } from "@/crm/ChiusuraDialog";
 import { Segmento } from "@/crm/ui";
 import type { Lead, LeadData, LeadStatus } from "@/crm/types";
@@ -82,14 +82,16 @@ export function PaginaChat({
   const [quickLead, setQuickLead] = useState<Lead | null>(null);
   const [quickStatus, setQuickStatus] = useState<LeadStatus | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [quickScelta, setQuickScelta] = useState<SceltaOrario | null>(null);
   //  La finestra delle tre chiusure vinte: si porta dietro i suoi stati.
   const chiusura = useChiusura();
 
   const api = useChatWa({
     intercettaChiusura: (lead, stato) => chiusura.intercetta(lead, stato),
-    apriStatoRapido: (lead, stato) => {
+    apriStatoRapido: (lead, stato, scelta) => {
       setQuickLead(lead);
       setQuickStatus(stato);
+      setQuickScelta(scelta ?? null);
       setQuickOpen(true);
     },
   });
@@ -540,10 +542,12 @@ export function PaginaChat({
           if (!v) {
             setQuickLead(null);
             setQuickStatus(null);
+            setQuickScelta(null);
           }
         }}
         lead={quickLead}
         newStatus={quickStatus}
+        scelta={quickScelta}
       />
       {chiusura.finestra}
     </div>

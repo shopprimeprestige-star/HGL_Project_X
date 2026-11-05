@@ -70,6 +70,7 @@ import type {
 import { aBlocchi } from "./selezione";
 import { schedaDaChat } from "./schedaDaChat";
 import { patchChiamata } from "@/crm/chiamate";
+import type { SceltaOrario } from "@/crm/QuickStatusDialog";
 //  Con l'alias `@` (come gli altri moduli di rete) perché la prova della pagina lo sostituisce con uno finto.
 import { useInvioPonte } from "@/crm/chatwa/usaInvioPonte";
 
@@ -174,7 +175,7 @@ export interface OpzioniChatWa {
   /** `true` se una finestra di chiusura vinta si è presa la scelta (non si scrive niente). */
   intercettaChiusura: (lead: Lead, stato: LeadStatus) => boolean;
   /** Lo stato richiede una finestra di campi extra: la pagina la apre. */
-  apriStatoRapido: (lead: Lead, stato: LeadStatus) => void;
+  apriStatoRapido: (lead: Lead, stato: LeadStatus, scelta?: SceltaOrario) => void;
 }
 
 export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
@@ -1121,6 +1122,19 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
       Segnalazione del titolare: senza scheda il conto partiva dalla seconda
       chiamata. Il tocco ora si conta sul contatto WhatsApp (subito a schermo,
       poi in archivio); `schedaDaChat` lo porta sulla scheda quando si crea. */
+  /** Orario tenuto premuto nella griglia «Proponi orari» (05/11/2026): si apre la
+   *  finestra dell'appuntamento già compilata. Senza scheda non si può fissare. */
+  const fissaDaOrari = (scelta: SceltaOrario) => {
+    const lead = attiva?.lead;
+    if (!lead) {
+      toast.error("Prima imposta lo stato", {
+        description: "Questo numero non ha ancora una scheda: l'appuntamento va sulla scheda.",
+      });
+      return;
+    }
+    opz.apriStatoRapido(lead, "appuntamento_fissato", scelta);
+  };
+
   const segnaChiamataNumero = (chat: ChatItem) => {
     const contatto = chat.contact;
     if (!user || chat.lead || !contatto?.id) return;
@@ -1275,6 +1289,7 @@ export function useChatWa(opz: OpzioniChatWa): ChatWaApi {
     cambiaStatoLead,
     creaSchedaConStato,
     segnaChiamataNumero,
+    fissaDaOrari,
     hasConfig,
     ponte,
     inBlocco,
