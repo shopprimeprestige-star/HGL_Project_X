@@ -193,6 +193,38 @@ export function OrariRapidi(p: {
   const liberoStorto = libero !== null && libero.trim() !== "" && durataValida(libero) === null;
   const durataRapida = (DURATE_RAPIDE as readonly number[]).includes(durata);
 
+  /*  ── «FISSA APPUNTAMENTO» FISSA L'ORARIO SCELTO (05/11/2026) ──────────
+      Segnalazione del titolare: il tasto apriva la scheda senza fissare niente.
+      Con un orario scelto nella griglia si apre la finestra dell'appuntamento
+      già compilata (giorno, ora, consulente, durata): note facoltative e
+      «Conferma», come fissarlo dal resto del CRM. Senza orario scelto resta la
+      strada di prima (la scheda sulla catena dell'appuntamento). */
+  const consulentePer = (data: string, ora: string, quale: string): string | null => {
+    if (quale !== "tutti") return quale;
+    const fascia = giorni.find((g) => g.data === data)?.fasce.find((f) => f.ora === ora);
+    const liberi = [...(fascia?.chi ?? [])].sort((a, b) => b.posti - a.posti);
+    return (liberi.find((c) => c.id === p.consulenteId) ?? liberi[0])?.id ?? null;
+  };
+  const fissaScelto = () => {
+    if (riepilogo.length === 0 || !p.onFissa) {
+      p.onFissaAppuntamento?.();
+      return;
+    }
+    if (scelte.length > 1) {
+      toast.error("Scegli un solo orario", {
+        description: "Per fissare l'appuntamento lascia acceso solo l'orario concordato.",
+      });
+      return;
+    }
+    const s = scelte[0];
+    p.onFissa({
+      data: s.data,
+      ora: s.ora,
+      consulenteId: consulentePer(s.data, s.ora, s.chi ?? chi),
+      durata,
+    });
+  };
+
   const conferma = () => {
     //  La finestra può restare aperta a lungo: un'ora passata o un posto preso nel frattempo esce.
     const valide = scelteAncoraLibere(scelte, giorni, oggi);
@@ -271,7 +303,7 @@ export function OrariRapidi(p: {
                 <Button
                   variant="outline"
                   className="h-11 whitespace-nowrap px-4 sm:h-10"
-                  onClick={p.onFissaAppuntamento}
+                  onClick={fissaScelto}
                 >
                   Fissa appuntamento
                 </Button>
