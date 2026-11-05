@@ -338,7 +338,7 @@ export function Casella({ api, linkWa, onFissaAppuntamento }: CasellaProps) {
             setBozza(bozza.trim() ? `${bozza.trimEnd()}\n\n${t}` : t);
             setOrari(false);
           }}
-          onFissa={
+          onFissaAppuntamento={
             onFissaAppuntamento
               ? () => {
                   setOrari(false);
