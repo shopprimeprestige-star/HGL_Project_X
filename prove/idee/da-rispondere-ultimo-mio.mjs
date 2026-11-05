@@ -148,7 +148,7 @@ export async function proveDaRispondereUltimoMio(mod, { c, gruppo, radice }) {
   const nostro = (ms, extra = {}) => ({ direction: "outbound", created_at: fa(ms), canale: "manychat", body: "Ciao, sono Elisa", from_number: "manychat", to_number: NUMERO, ...extra });
   const suo = (ms, body = "Salve, quanto costa?", extra = {}) => ({ direction: "inbound", created_at: fa(ms), canale: "manychat", body, from_number: NUMERO, to_number: "manychat", ...extra });
   const patch = (contattoWa, messaggi = []) => A.patchDaChiamare(dati2, contattoWa, adesso, messaggi)?.stato ?? null;
-  c("cliente ha scritto PRIMA dell'ingresso nello stato, nessun nostro messaggio nei 7 giorni, contatto dice «ultimo in entrata»: NON si sposta", null,
+  c("cliente ha scritto PRIMA dell'ingresso nello stato (il nostro invio), nessun nostro messaggio nei 7 giorni, contatto dice «ultimo in entrata»: SI sposta (31/10: la palla è nostra dopo il nostro invio)", "da_chiamare",
     patch({ ultimoInEntrataIl: fa(4 * GIORNO), ultimoMessaggioIl: fa(4 * GIORNO), ultimoMessaggioDirezione: "inbound" }));
   c("…stesso caso ma il contatto dice che l'ultimo è nostro: si sposta", "da_chiamare",
     patch({ ultimoInEntrataIl: fa(5 * GIORNO), ultimoMessaggioIl: fa(4 * GIORNO), ultimoMessaggioDirezione: "outbound" }));

@@ -1,11 +1,11 @@
 /** ── DA «ATTESA WHATSAPP» A «DA CHIAMARE», DA SOLO ──────────────────────────
  *
  *  Richiesta del titolare (28/10/2026): «fai che cambia stato Attesa WhatsApp
- *  in Da chiamare» quando resta in attesa più di 10 ore. Lo fa il server ogni
+ *  in Da chiamare» quando resta in attesa oltre la finestra delle 24 ore. Lo fa il server ogni
  *  15 minuti (hooks/attesa-da-chiamare), anche a CRM chiuso.
  *
  *  Chi si sposta (30/10/2026, «la palla è al cliente»): stato `attesa_whatsapp`
- *  il cui ULTIMO messaggio è nostro (qualunque canale) da almeno 10 ore, senza un
+ *  il cui ULTIMO messaggio è nostro (qualunque canale) da almeno 24 ore, senza un
  *  messaggio del cliente dopo (le eco non contano), senza STOP sul numero. Stessa
  *  regola della chat: crm/chatwa/daChiamare, `calcolaDaChiamare`.
  *  ⚠️ Solo chi è nello STATO «Attesa WhatsApp»: il solo tasto WhatsApp premuto

@@ -1,4 +1,4 @@
-/** ── «DA CHIAMARE»: IN ATTESA SU WHATSAPP DA PIÙ DI 10 ORE ───────────────────
+/** ── «DA CHIAMARE»: IN ATTESA SU WHATSAPP OLTRE LA FINESTRA DI 24 ORE ─────────
  *
  *  Richiesta del titolare (28/10/2026), corretta subito dopo: non tutti quelli
  *  che hanno ricevuto il primo messaggio, ma «solo quelli che rimangono in
@@ -13,8 +13,9 @@
  *   · il lead è «in attesa WhatsApp» come nel resto del CRM: stato
  *     `attesa_whatsapp`, oppure il tasto WhatsApp premuto e nessun cambio di
  *     stato da allora (`inAttesaWhatsapp`, crm/importa/attesa-whatsapp);
- *   · l'attesa è cominciata almeno 10 ore fa: dall'ora in cui è stato messo lo
- *     stato (`statoPrecedenteIl`), o da quando è partito il messaggio
+ *   · si è chiusa la finestra delle 24 ore (`scadenzaAttesa`): si conta dal
+ *     nostro ultimo messaggio, o dall'ora in cui è stato messo lo stato
+ *     (`statoPrecedenteIl`), o da quando è partito il messaggio
  *     (`whatsappInviatoIl`);
  *   · da allora il cliente non ha scritto (altrimenti è «Da rispondere»);
  *   · niente STOP sul numero.
@@ -192,12 +193,16 @@ export function calcolaDaChiamare(p: {
   //  Se il contatto dice che l'ultimo messaggio della chat è in entrata (e non è un'eco), il
   //  cliente aspetta noi: non è «Da chiamare» a prescindere da quanto tempo è passato e da quanti
   //  nostri messaggi stanno oltre i 7 giorni caricati. Senza questo dato vale il confronto sotto.
+  //  Il confronto è con il nostro ultimo messaggio. Se non è caricato (oltre i 7 giorni, o
+  //  fallito), il riferimento è l'ingresso in attesa: è lì che è partito il nostro messaggio.
+  //  Un dato «inbound» più vecchio di quel momento non è una risposta (screenshot 31/10/2026).
   const ult = ms(p.ultimoMessaggio?.il);
+  const riferimento = Number.isFinite(ultimoNostro) ? ultimoNostro : Date.parse(dal);
   if (
     p.ultimoMessaggio?.direzione === "inbound" &&
     Number.isFinite(ult) &&
     !eEco(ult) &&
-    (!Number.isFinite(ultimoNostro) || ult > ultimoNostro)
+    ult > riferimento
   )
     return NO;
   //  Se l'ultimo messaggio è del cliente, la palla è nostra («Da rispondere»).

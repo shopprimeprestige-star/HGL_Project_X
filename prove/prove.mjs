@@ -20983,6 +20983,10 @@ function proveDelDaChiamare() {
   c("il cliente ha scritto durante l'attesa: no (è «Da rispondere»)", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T12:00:00Z" }], adesso }).si);
   c("…anche se lo dice solo la rubrica", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], ultimaEntrataIl: "2026-10-28T10:00:00Z", adesso }).si);
   c("aveva scritto PRIMA dell'attesa, finestra chiusa e 24 ore dal nostro: sì", true, D.calcolaDaChiamare({ dati: attesa("2026-10-27T19:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-27T09:00:00Z" }], adesso }).si);
+  c("SCREENSHOT (31/10): rubrica «inbound» più vecchia del nostro messaggio, nostri messaggi non caricati, attesa da 25 ore: da chiamare", true,
+    D.calcolaDaChiamare({ dati: attesa("2026-10-27T19:00:00Z"), messaggi: [], ultimoMessaggio: { direzione: "inbound", il: "2026-10-27T09:00:00Z" }, adesso }).si);
+  c("SCREENSHOT (31/10): rubrica «inbound» DOPO l'attesa (il cliente ha scritto): resta in attesa", false,
+    D.calcolaDaChiamare({ dati: attesa("2026-10-27T19:00:00Z"), messaggi: [], ultimoMessaggio: { direzione: "inbound", il: "2026-10-28T10:00:00Z" }, adesso }).si);
   c("NUOVA (31/10): ha scritto, gli abbiamo risposto, finestra ancora aperta: resta in attesa", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T08:00:00Z" }, { direction: "outbound", created_at: "2026-10-28T09:00:00Z" }], adesso }).si);
   c("NUOVA (31/10): …appena si chiude la finestra (24 ore dal suo ultimo messaggio): da chiamare", true, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [{ direction: "inbound", created_at: "2026-10-28T08:00:00Z" }, { direction: "outbound", created_at: "2026-10-28T09:00:00Z" }], adesso: new Date("2026-10-29T08:00:00Z") }).si);
   c("numero in STOP: no", false, D.calcolaDaChiamare({ dati: attesa("2026-10-28T09:00:00Z"), messaggi: [], stop: true, adesso }).si);
