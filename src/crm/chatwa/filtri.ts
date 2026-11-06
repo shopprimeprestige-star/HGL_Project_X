@@ -102,6 +102,8 @@ export const risentireDi = (f: FiltriChat): FiltroRisentire => ({
 export type ChatFiltrabile = Parameters<typeof passaFiltro>[0] &
   ChatRicontatto & {
     phone: string;
+    /** L'ultimo messaggio della chat: serve a «In sospeso» (l'ultima parola è nostra). */
+    lastMessage?: { direction: string; status: string } | null;
     daRispondere?: { attesa?: boolean } | null;
     lead?: { data?: { consulenteId?: string | null } | null } | null;
   };
@@ -366,6 +368,12 @@ function passaCoda(c: ChatFiltrabile, coda: CodaChat): boolean {
   return c.daRispondere?.attesa === true;
 }
 
+/** L'ultimo messaggio della chat è nostro e non è fallito: il cliente non ha ancora risposto. */
+function ultimaParolaNostra(c: ChatFiltrabile): boolean {
+  const m = c.lastMessage;
+  return !!m && m.direction === "outbound" && m.status !== "failed";
+}
+
 /** La chat passa TUTTI i gruppi accesi (E)? Non guarda la ricerca. */
 export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi): boolean {
   if (f.coda && !passaCoda(c, f.coda)) return false;
@@ -375,6 +383,8 @@ export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi
     const stato = (c.lead?.data as { stato?: LeadStatus } | undefined)?.stato;
     if (!c.lead || !eConversione(c.lead as Pick<Lead, "data">)) return false;
     if (!stato || !STATI_IN_SOSPESO_CLIENTI.includes(stato)) return false;
+    //  «A chi ho risposto, ma lui non ha risposto»: l'ultima parola è nostra e non è fallita.
+    if (!ultimaParolaNostra(c)) return false;
   } else if (f.fase && (!faseValida(f.fase) || !passaFiltro(c, f.fase as "per-ora-no"))) return false;
   if (f.finestra && !passaFiltro(c, f.finestra === "aperta" ? "aperto-24h" : "chiuso-24h"))
     return false;

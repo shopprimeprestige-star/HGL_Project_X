@@ -649,7 +649,8 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   );
   {
     //  «In sospeso» (06/11/2026): solo clienti (definizione di «Clienti») con uno stato fermo in attesa.
-    const cli = (stato, extra = {}) => ({ phone: "+39" + Math.random(), lead: { id: "x", data: { stato, ...extra } }, finestra: null });
+    const ultimoNostro = { direction: "outbound", status: "sent", created_at: "2026-11-06T10:00:00Z" };
+    const cli = (stato, extra = {}, ultimo = ultimoNostro) => ({ phone: "+39" + Math.random(), lead: { id: "x", data: { stato, ...extra } }, finestra: null, lastMessage: ultimo });
     const SOSPESO = { ...F.FILTRI_VUOTI, fase: "sospeso-clienti" };
     const acconto = { payment: { accontoPagato: 200 } };
     const nessuno = () => 0;
@@ -660,6 +661,12 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       F.passaFiltri(cli("posa_in_sede", acconto), SOSPESO, nessuno));
     c("in sospeso, stato in sospeso ma non cliente (nessun acconto): non passa", false,
       F.passaFiltri(cli("attesa_whatsapp"), SOSPESO, nessuno));
+    c("in sospeso, l'ultima parola è del cliente: non passa", false,
+      F.passaFiltri(cli("attesa_whatsapp", acconto, { direction: "inbound", status: "received", created_at: "2026-11-06T10:00:00Z" }), SOSPESO, nessuno));
+    c("in sospeso, nostro messaggio fallito: non passa", false,
+      F.passaFiltri(cli("attesa_whatsapp", acconto, { direction: "outbound", status: "failed", created_at: "2026-11-06T10:00:00Z" }), SOSPESO, nessuno));
+    c("in sospeso, senza nessun messaggio: non passa", false,
+      F.passaFiltri(cli("attesa_whatsapp", acconto, null), SOSPESO, nessuno));
     c("in sospeso, senza scheda: non passa", false,
       F.passaFiltri({ phone: "+39", lead: null, finestra: null }, SOSPESO, nessuno));
     c("in sospeso è una voce sola: toccare «Clienti» lo spegne", { tipo: "cliente", fase: null },
