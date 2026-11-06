@@ -643,10 +643,30 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
       (elenco.match(/flex h-11 shrink-0/g) ?? []).length >= 2,
   );
   c(
-    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Da recuperare · Clienti (31/10: gli stati di chiamata solo dentro «Da chiamare»)",
-    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Da recuperare", "Clienti"],
+    "la riga, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare · Con stelle · Sconosciuti · Ricontatti · Da recuperare · Clienti · In sospeso (31/10: gli stati di chiamata solo dentro «Da chiamare»)",
+    ["Da rispondere", "Da chiamare", "Con stelle", "Sconosciuti", "Ricontatti", "Da recuperare", "Clienti", "In sospeso"],
     F.VOCI_RIGA.map((v) => v.nome),
   );
+  {
+    //  «In sospeso» (06/11/2026): solo clienti (definizione di «Clienti») con uno stato fermo in attesa.
+    const cli = (stato, extra = {}) => ({ phone: "+39" + Math.random(), lead: { id: "x", data: { stato, ...extra } }, finestra: null });
+    const SOSPESO = { ...F.FILTRI_VUOTI, fase: "sospeso-clienti" };
+    const acconto = { payment: { accontoPagato: 200 } };
+    const nessuno = () => 0;
+    for (const stato of ["attesa_whatsapp", "sta_valutando", "da_ricontattare", "in_attesa_acconto"]) {
+      c(`in sospeso, cliente con stato ${stato}: passa`, true, F.passaFiltri(cli(stato, acconto), SOSPESO, nessuno));
+    }
+    c("in sospeso, cliente con stato chiuso (venduto): non passa", false,
+      F.passaFiltri(cli("posa_in_sede", acconto), SOSPESO, nessuno));
+    c("in sospeso, stato in sospeso ma non cliente (nessun acconto): non passa", false,
+      F.passaFiltri(cli("attesa_whatsapp"), SOSPESO, nessuno));
+    c("in sospeso, senza scheda: non passa", false,
+      F.passaFiltri({ phone: "+39", lead: null, finestra: null }, SOSPESO, nessuno));
+    c("in sospeso è una voce sola: toccare «Clienti» lo spegne", { tipo: "cliente", fase: null },
+      (({ tipo, fase }) => ({ tipo, fase }))(F.commuta(F.commuta(F.FILTRI_VUOTI, "fase", "sospeso-clienti"), "tipo", "cliente")));
+    c("il valore è salvato e riletto dalla sessione", "sospeso-clienti",
+      F.leggiFiltri(F.scriviFiltriSessione(SOSPESO), null).fase);
+  }
   {
     const tasto = readFileSync(join(process.cwd(), "src/crm/chatwa/PannelloFiltri.tsx"), "utf8");
     c(

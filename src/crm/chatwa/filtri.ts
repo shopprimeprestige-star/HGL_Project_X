@@ -183,6 +183,13 @@ export const GRUPPI_FILTRI: readonly GruppoFiltri[] = [
         spiega: "Da non disturbare fino alla data in scheda.",
       },
       {
+        campo: "fase",
+        valore: "sospeso-clienti",
+        nome: "In sospeso",
+        spiega:
+          "Clienti fermi in attesa: attesa WhatsApp, in valutazione, da ricontattare, attesa acconto e gli altri stati in sospeso.",
+      },
+      {
         campo: "acconto",
         valore: true,
         nome: "Acconto versato",
@@ -292,6 +299,28 @@ export const VOCE_DA_RECUPERARE: VoceFiltro = {
   spiega: "I clienti assenti alla consulenza: da ricontattare per fissarla di nuovo.",
 };
 
+/** «In sospeso» (06/11/2026): clienti (stessa definizione di «Clienti») con uno stato fermo in attesa.
+ *  Elenco esplicito degli stati con fase «in sospeso» (vedi LEAD_STATUS_PHASE in crm/types.ts) più
+ *  «Attesa WhatsApp», «In valutazione» e «Da ricontattare». Se cambia la fase di uno stato, si aggiorna qui. */
+const STATI_IN_SOSPESO_CLIENTI: readonly LeadStatus[] = [
+  "non_fatto",
+  "da_spostare",
+  "in_attesa_acconto",
+  "irreperibile",
+  "ricontatto_aperto",
+  "sede_disdetta",
+  "attesa_whatsapp",
+  "sta_valutando",
+  "da_ricontattare",
+];
+export const VOCE_IN_SOSPESO_CLIENTI: VoceFiltro = {
+  campo: "fase",
+  valore: "sospeso-clienti",
+  nome: "In sospeso",
+  spiega:
+    "Clienti fermi in attesa: attesa WhatsApp, in valutazione, da ricontattare, attesa acconto e gli altri stati in sospeso.",
+};
+
 /** ── LA RIGA DEI FILTRI RAPIDI (30/10/2026) ─────────────────────────────────
  *  Sul telefono una riga sola che scorre di lato, nell'ordine d'uso: Tutte · Da rispondere · Da chiamare ·
  *  Con stelle · Sconosciuti · Ricontatti · Da recuperare · Clienti. «Tutte» (spenti tutti i
@@ -308,6 +337,7 @@ export const VOCI_RIGA: readonly VoceFiltro[] = [
   VOCE_RICONTATTI,
   VOCE_DA_RECUPERARE,
   VOCE_CLIENTI,
+  VOCE_IN_SOSPESO_CLIENTI,
 ];
 
 /** La voce sta già nella riga delle scorciatoie? Allora il pannello non la ripete (31/10/2026). */
@@ -322,6 +352,7 @@ export const STATI_ALTRI: readonly LeadStatus[] = STATI_PER_STATO;
 const FILTRO_FASE_VALIDO = new Set<string>([
   "attesa-whatsapp",
   "per-ora-no",
+  "sospeso-clienti",
   ...STATI_PER_STATO.map((s) => `stato:${s}`),
 ]);
 
@@ -339,7 +370,12 @@ function passaCoda(c: ChatFiltrabile, coda: CodaChat): boolean {
 export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi): boolean {
   if (f.coda && !passaCoda(c, f.coda)) return false;
   if (f.stelle && stelleDi(c.phone) <= 0) return false;
-  if (f.fase && (!faseValida(f.fase) || !passaFiltro(c, f.fase as "per-ora-no"))) return false;
+  if (f.fase === "sospeso-clienti") {
+    //  Cliente per la definizione del CRM, e stato fermo in attesa. Senza scheda non lo è.
+    const stato = (c.lead?.data as { stato?: LeadStatus } | undefined)?.stato;
+    if (!c.lead || !eConversione(c.lead as Pick<Lead, "data">)) return false;
+    if (!stato || !STATI_IN_SOSPESO_CLIENTI.includes(stato)) return false;
+  } else if (f.fase && (!faseValida(f.fase) || !passaFiltro(c, f.fase as "per-ora-no"))) return false;
   if (f.finestra && !passaFiltro(c, f.finestra === "aperta" ? "aperto-24h" : "chiuso-24h"))
     return false;
   if (f.acconto && !passaFiltro(c, "acconto")) return false;
