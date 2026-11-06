@@ -31,6 +31,8 @@ import {
   FilePlus2,
   FileCode2,
   FileText,
+  MessageCircle,
+  Pencil,
   Receipt,
   Save,
   Trash2,
@@ -75,6 +77,11 @@ import { FinestraAltraFattura } from "@/crm/fatture/FinestraAltraFattura";
 import { costruisciDocumento, nomeCliente } from "@/crm/fatture/documento";
 import { scaricaInFila, scaricaXml } from "@/crm/fatture/scarica";
 import { AZIENDA_VUOTA, REGIMI, type DatiAzienda, type Fattura } from "@/crm/fatture/tipi";
+import { TastoFattura } from "@/crm/fatture/TastoFattura";
+import { FinestraFattura } from "@/crm/fatture/FinestraFattura";
+import { buildWhatsAppLink } from "@/crm/whatsapp";
+import { eConversione } from "@/crm/kpi-calcoli";
+import { giaIncassato, nomeCompleto, prezzoVendita } from "@/crm/InstallationScheduleDialog";
 
 export const Route = createFileRoute("/CRM/fatture")({ component: FatturePage });
 
@@ -110,7 +117,10 @@ function FatturePage() {
   const [logo, setLogo] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [apriDati, setApriDati] = useState(false);
-  const [lente, setLente] = useState<"emesse" | "bozze">("emesse");
+  /** «Da fare ancora» non è una fattura: sono i clienti con un importo da
+   *  fatturare che non hanno né bozza né fattura. Stanno qui perché da qui si
+   *  può contattarli, non perché esista un documento da scaricare. */
+  const [lente, setLente] = useState<"emesse" | "bozze" | "daFare">("emesse");
   const [avanzamento, setAvanzamento] = useState<{ fatti: number; totale: number } | null>(null);
   /** ⚠️ IL CESTINO C'È SU TUTTE E DUE, E FA DUE COSE DIVERSE. Su una bozza
    *   cancella; su una fattura emessa la RIMETTE IN BOZZA con dentro gli stessi
@@ -131,6 +141,10 @@ function FatturePage() {
   const [daButtare, setDaButtare] = useState<Fattura[]>([]);
   /** La fattura da cui si sta facendo la successiva per lo stesso cliente. */
   const [daRifare, setDaRifare] = useState<Fattura | null>(null);
+  /** La scheda cliente la cui fattura si sta modificando: la composizione si
+   *  apre sulla bozza di quella scheda (per un'emessa, dopo averla riportata
+   *  in bozza). */
+  const [daModificare, setDaModificare] = useState<Lead | null>(null);
   /** L'emissione in blocco chiede una data sola: quella dell'incasso. */
   const [daEmettere, setDaEmettere] = useState<Fattura[]>([]);
   const [giornoBlocco, setGiornoBlocco] = useState(() => new Date().toISOString().slice(0, 10));
@@ -188,7 +202,7 @@ function FatturePage() {
    *   raggruppato, Maiusc+clic avrebbe preso righe diverse da quelle in mezzo
    *   sullo schermo. */
   const righe = useMemo(() => {
-    const base = lente === "emesse" ? emesse : bozze;
+    const base = lente === "emesse" ? emesse : lente === "bozze" ? bozze : [];
     const chiaveCliente = (f: Fattura) =>
       (f.cliente.codiceFiscale || "").trim().toUpperCase() ||
       (f.cliente.partitaIva || "").trim() ||
@@ -240,6 +254,66 @@ function FatturePage() {
     },
     [leads],
   );
+
+  /** Si può modificare solo se la fattura è collegata alla scheda che la
+   *  finestra andrebbe ad aprire. Così la bozza su cui si lavora è quella di
+   *  quella scheda, e non un'altra trovata per email. */
+  const modificabile = useCallback(
+    (f: Fattura): boolean => {
+      if (!String(f.leadId ?? "").trim()) return false;
+      return schedaDi(f)?.id === f.leadId;
+    },
+    [schedaDi],
+  );
+
+  /** Riapre la fattura nella composizione della sua scheda. Su un'emessa la
+   *  riporta prima in bozza: è un'operazione che toglie il documento emesso,
+   *  quindi si chiede conferma e si dice il numero che si perde. */
+  const modifica = async (f: Fattura) => {
+    const s = schedaDi(f);
+    if (!s || !modificabile(f)) return;
+    if (f.stato === "emessa") {
+      const ultima = eUltimaDellaSerie(f, emesse);
+      const ok = window.confirm(
+        `La fattura ${f.anno}/${f.numero} torna in bozza e il documento emesso viene tolto dall'archivio. ` +
+          `Quando la riemetti avrà un numero nuovo. ` +
+          (ultima
+            ? `Questo numero torna libero.`
+            : `Questo numero resta vuoto nella serie: è un buco che il commercialista vedrà.`) +
+          ` Continuo?`,
+      );
+      if (!ok) return;
+      const errore = await rimettiInBozza(f);
+      if (errore) {
+        toast.error("Non ho potuto riportarla in bozza", { description: errore });
+        return;
+      }
+      await ricarica();
+    }
+    setDaModificare(s);
+  };
+
+  /** I clienti da fatturare che non hanno ancora né bozza né fattura. Stessa
+   *  regola del pulsante «Fattura» della scheda: serve un importo (il prezzo
+   *  della pratica o un acconto già incassato). Una fattura collegata si
+   *  riconosce dalla scheda o, per quelle nate dal preventivo, dall'email. */
+  const daFare = useMemo(() => {
+    const coperti = new Set<string>();
+    const emailCoperte = new Set<string>();
+    for (const f of [...emesse, ...bozze]) {
+      if (f.leadId) coperti.add(f.leadId);
+      const e = String(f.emailOrigine ?? "").trim().toLowerCase();
+      if (e) emailCoperte.add(e);
+    }
+    const tutti = Array.isArray(leads) ? leads : [];
+    return tutti.filter((l) => {
+      if (!eConversione(l)) return false;
+      if (prezzoVendita(l) <= 0 && giaIncassato(l) <= 0) return false;
+      if (coperti.has(l.id)) return false;
+      const e = String(l.data?.email ?? "").trim().toLowerCase();
+      return !(e && emailCoperte.has(e));
+    });
+  }, [leads, emesse, bozze]);
 
   const totaleEmesso = useMemo(() => emesse.reduce((t, f) => t + f.totale, 0), [emesse]);
   /** Quante fatture emesse aspettano ancora il bonifico: è il numero che dice
@@ -709,6 +783,13 @@ function FatturePage() {
         >
           In bozza
         </Segmento>
+        <Segmento
+          attivo={lente === "daFare"}
+          conteggio={caricando ? undefined : daFare.length}
+          onClick={() => setLente("daFare")}
+        >
+          Da fare ancora
+        </Segmento>
         {righe.length > 0 && (
           <>
             <SepBarra />
@@ -721,6 +802,8 @@ function FatturePage() {
 
       {caricando ? (
         <p className="px-1 text-[12px] text-muted-foreground">Sto leggendo le fatture…</p>
+      ) : lente === "daFare" ? (
+        <ListaDaFare clienti={daFare} />
       ) : righe.length === 0 ? (
         <Vuoto
           titolo={lente === "emesse" ? "Nessuna fattura emessa" : "Nessuna bozza"}
@@ -859,6 +942,30 @@ function FatturePage() {
                           aria-label={`Un'altra fattura per ${nomeCliente(f)}`}
                         >
                           <FilePlus2 className="h-3.5 w-3.5" />
+                        </Button>
+                        {/*  ── MODIFICA ────────────────────────────────────────
+                        Riapre la fattura nella composizione della sua scheda
+                        cliente, con i dati che ha già. Su un'emessa la riporta
+                        prima in bozza (stessa operazione del cestino), e
+                        l'emissione successiva le dà un numero nuovo: il vecchio
+                        resta libero solo se era l'ultimo della serie, altrimenti
+                        resta un buco — la conferma lo dice. Senza scheda o senza
+                        collegamento non si fa: lì il cestino cancellerebbe. */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11.5px]"
+                          disabled={!modificabile(f)}
+                          onClick={() => void modifica(f)}
+                          title={
+                            modificabile(f)
+                              ? f.stato === "emessa"
+                                ? "Riporta in bozza e riapri per correggere: l'emissione le darà un nuovo numero"
+                                : "Riapri la bozza per correggerla"
+                              : "Questa fattura non è collegata a una scheda cliente"
+                          }
+                        >
+                          <Pencil className="mr-1 h-3.5 w-3.5" /> Modifica
                         </Button>
                         <Button
                           size="sm"
@@ -1221,6 +1328,20 @@ function FatturePage() {
         </p>
       </Finestra>
 
+      {daModificare && (
+        <FinestraFattura
+          lead={daModificare}
+          aperta={!!daModificare}
+          onCambio={(v) => {
+            if (!v) setDaModificare(null);
+          }}
+          onFatta={() => {
+            setDaModificare(null);
+            void ricarica();
+          }}
+        />
+      )}
+
       {daRifare && (
         <FinestraAltraFattura
           origine={daRifare}
@@ -1285,5 +1406,67 @@ function FatturePage() {
         )}
       </BarraSelezione>
     </Pagina>
+  );
+}
+
+/** ── DA FARE ANCORA ────────────────────────────────────────────────────────
+ *  I clienti con un importo da fatturare e né bozza né fattura. Non sono
+ *  fatture: niente numero, niente XML, niente PDF. Da qui si contatta il
+ *  cliente su WhatsApp, o si prepara la fattura dalla sua scheda (stessa
+ *  finestra del pulsante «Fattura»). */
+function ListaDaFare({ clienti }: { clienti: Lead[] }) {
+  if (clienti.length === 0) {
+    return (
+      <Vuoto
+        titolo="Nessuno da fare ancora"
+        icona={Receipt}
+        testo="Ogni cliente con un importo da fatturare ha già una bozza o una fattura."
+      />
+    );
+  }
+  return (
+    <Scheda senzaPadding>
+      <ul className="divide-y divide-border">
+        {clienti.map((l) => {
+          const nome = nomeCompleto(l);
+          const telefono = String(l.data?.telefono ?? "").trim();
+          const pratica = prezzoVendita(l);
+          const versato = giaIncassato(l);
+          const testo = `Ciao ${nome}, ti scrivo per i dati della tua fattura.`;
+          const url = telefono
+            ? buildWhatsAppLink(telefono, testo)
+            : `https://wa.me/?text=${encodeURIComponent(testo)}`;
+          return (
+            <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="flex min-w-0 flex-col">
+                <span className="flex items-center gap-2">
+                  <span className="truncate text-[13px] font-semibold">{nome}</span>
+                  <span className="shrink-0 rounded bg-slate-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                    da fare ancora
+                  </span>
+                </span>
+                <span className="truncate text-[11.5px] text-muted-foreground">
+                  pratica {eur(pratica)}
+                  {versato > 0 ? ` · versati ${eur(versato)}` : ""}
+                  {telefono ? "" : " · senza numero"}
+                </span>
+              </span>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11.5px]"
+                  onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+                  title="Apre WhatsApp con il messaggio già scritto"
+                >
+                  <MessageCircle className="mr-1 h-3.5 w-3.5" /> WhatsApp
+                </Button>
+                <TastoFattura lead={l} esteso />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Scheda>
   );
 }
