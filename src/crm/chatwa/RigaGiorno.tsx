@@ -26,7 +26,7 @@ const SFUMA = 20;
 
 export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
   const fila = useRef<HTMLDivElement>(null);
-  const acceso = useRef<HTMLButtonElement>(null);
+  const bottoneAcceso = useRef<HTMLButtonElement>(null);
   //  Dove c'è ancora da scorrere: il bordo da quel lato sfuma, così si capisce che la fila continua.
   const [lati, setLati] = useState({ sx: false, dx: false });
   const misura = useCallback(() => {
@@ -40,7 +40,7 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
   //  SOLO la fila, mai la pagina: niente scrollIntoView.
   useLayoutEffect(() => {
     const el = fila.current;
-    const b = acceso.current;
+    const b = bottoneAcceso.current;
     if (!el || !b) return;
     const sinistra = b.offsetLeft - SFUMA;
     const destra = b.offsetLeft + b.offsetWidth + SFUMA - el.clientWidth;
@@ -77,17 +77,17 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
           className="inline-flex w-max gap-0.5 rounded-lg bg-muted p-0.5"
         >
           {SEGMENTI_GIORNO.map((x) => {
-            const eAcceso = valore === x.v;
+            const acceso = valore === x.v;
             return (
               <button
                 key={x.v || "tutti"}
-                ref={eAcceso ? acceso : undefined}
+                ref={acceso ? bottoneAcceso : undefined}
                 type="button"
-                aria-pressed={eAcceso}
-                onClick={() => onCambia(eAcceso ? "" : x.v)}
+                aria-pressed={acceso}
+                onClick={() => onCambia(acceso ? "" : x.v)}
                 className={cn(
                   "t-nota relative flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-1.5 lg:pointer-fine:h-7 lg:pointer-fine:after:hidden",
-                  eAcceso
+                  acceso
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-background",
                   FUOCO,
@@ -97,7 +97,7 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
                 <span
                   className={cn(
                     "tabular-nums",
-                    eAcceso ? "text-primary-foreground/80" : "text-muted-foreground",
+                    acceso ? "text-primary-foreground/80" : "text-muted-foreground",
                   )}
                 >
                   {conta(x.v)}
