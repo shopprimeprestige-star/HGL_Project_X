@@ -83,7 +83,7 @@ export async function proveChatElenco(mod, { c, gruppo }) {
   //  30/10/2026: la «pastiglia» è l'insieme dei filtri a gruppi (`passa` = `passaFiltri`); ogni riquadro parte da `trovate`
   //   (filtri + ricerca) e passa da `fuoriScadenza`. Provato a fondo in prove/idee/filtri-chat.mjs.
   const sorgenteUsaFiltro = (nome) => new RegExp(`const ${nome} = perStelle\\(fuoriScadenza\\.filter`).test(elenco);
-  c("ElencoChat: tutto parte da chat che passano filtri e ricerca", true, /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const passa = \(c: ChatItem\) => passaFiltri\(c, filtri, stelleDi\)/.test(elenco));
+  c("ElencoChat: tutto parte da chat che passano filtri e ricerca", true, /const trovate = api\.chats\.filter\(\(c\) => passa\(c\) && combaciaRicerca\(c, ricerca\)\)/.test(elenco) && /const passa = \(c: ChatItem\) => passaFiltri\(c, filtri, stelleDi, adessoData\)/.test(elenco));
   c("ElencoChat: «Da rispondere» obbedisce ai filtri", true, sorgenteUsaFiltro("inAttesa"));
   c("ElencoChat: non c'è più il riquadro delle «vecchie» (regola unica: tutte le chat in attesa stanno in «Da rispondere»)", false, /vecchie/.test(elenco));
 

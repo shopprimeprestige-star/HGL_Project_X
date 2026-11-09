@@ -50,6 +50,7 @@ import {
 import {
   commuta,
   contaAccesi,
+  contaGiorno,
   contaVoce,
   eAcceso,
   etichetteAccese,
@@ -76,6 +77,8 @@ import {
   patchPriorita,
 } from "./ricontatti";
 import { BarraEsitoRicontatti, RigaDataRicontatti } from "./RigheRisentire";
+import { descriviDataFiltro, giornoUsatoSullaRiga } from "./giorno";
+import { RigaGiorno } from "./RigaGiorno";
 import { oggiIso } from "@/crm/ui";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
@@ -215,18 +218,25 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const soloRiga = contaAccesi({ ...filtri, consulente: "" }) === 0;
 
   // ── Quante chat con questi filtri, e quanti numeri per ogni voce (ricerca esclusa) ────────
-  const passa = (c: ChatItem) => passaFiltri(c, filtri, stelleDi);
+  //  L'ora per il filtro «giorno»: la stessa per l'elenco, per i numeri delle voci e per quelli dei segmenti.
+  const adessoData = new Date(adesso);
+  const passa = (c: ChatItem) => passaFiltri(c, filtri, stelleDi, adessoData);
   //  I miei ricontatti NON nascosti, senza i due filtri interni: la base dei numeri sulle loro pastiglie.
   const ricontattiMiei = filtri.ricontatti
     ? api.chats.filter(
         (c) =>
           !eNascosto(c) &&
-          passaFiltri(c, { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io }, stelleDi),
+          passaFiltri(
+            c,
+            { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io, giorno: filtri.giorno },
+            stelleDi,
+            adessoData,
+          ),
       )
     : [];
   //  Il numero su «Ricontatti» non conta i nascosti (31/10/2026): sono nel loro gruppo in fondo.
   const conta = (campo: CampoFiltro, valore: string | true) => {
-    const n = contaVoce(api.chats, filtri, stelleDi, campo, valore);
+    const n = contaVoce(api.chats, filtri, stelleDi, campo, valore, adessoData);
     if (campo !== "ricontatti") return n;
     const miei = { ...FILTRI_VUOTI, ricontatti: true, io: filtri.io };
     return n - api.chats.filter((c) => eNascosto(c) && passaFiltri(c, miei, stelleDi)).length;
@@ -291,7 +301,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           c.daRispondere?.attesa &&
           !inScadenzaTel.has(c.phone) &&
           combaciaRicerca(c, ricerca) &&
-          passaFiltri(c, { ...filtri, consulente: "" }, stelleDi),
+          passaFiltri(c, { ...filtri, consulente: "" }, stelleDi, adessoData),
       ).length - inAttesa.length
     : 0;
   // Una chat una volta sola: se sta fra quelle che aspettano, non si ripete fra le altre.
@@ -564,6 +574,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   ) => (
     <RigaChat
       comeWhatsapp={tutte}
+      giornoUsato={(filtri.giorno && giornoUsatoSullaRiga(c, filtri)) || undefined}
       risentire={filtri.ricontatti}
       nascosto={nascosto}
       onNascondi={filtri.ricontatti && c.lead ? () => void nascondi(c, !nascosto) : undefined}
@@ -888,6 +899,25 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             chats={ricontattiMiei}
             valore={risentireDi(filtri)}
             onCambia={(r) => setFiltri({ ...filtri, rEsito: r.esito, rData: r.data })}
+          />
+        )}
+        {/*  I giorni (09/11/2026): sotto ogni filtro acceso, non sticky come la Data. Fuori dall'elenco per la
+            stessa ragione: la fila resta anche quando il giorno scelto non dà risultati. In «Ricontatti» sta
+            sotto la Data e i tre filtri si sommano. I nascosti di «Ricontatti» non si contano, come sul tasto. */}
+        {!caricamento && !soloRiga && (
+          <RigaGiorno
+            valore={filtri.giorno}
+            data={descriviDataFiltro(filtri)}
+            conta={(g) =>
+              contaGiorno(
+                filtri.ricontatti ? api.chats.filter((c) => !eNascosto(c)) : api.chats,
+                filtri,
+                stelleDi,
+                adessoData,
+                g,
+              )
+            }
+            onCambia={(giorno) => setFiltri({ ...filtri, giorno })}
           />
         )}
         {caricamento ? (
