@@ -53,6 +53,8 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(misura);
     ro.observe(el);
+    //  Anche il contenuto: un numero che cresce («Oggi 9» → «Oggi 10») può far scorrere la fila.
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => ro.disconnect();
   }, [misura]);
   const maschera =
