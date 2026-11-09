@@ -573,7 +573,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
   c(
     "ElencoChat compone i filtri con passaFiltri (non riscrive le regole)",
     true,
-    /passaFiltri\(c, filtri, stelleDi\)/.test(elenco) &&
+    /passaFiltri\(c, filtri, stelleDi, adessoData\)/.test(elenco) &&
       !/passaFiltro\(/.test(senzaCommenti(elenco)),
   );
   c(

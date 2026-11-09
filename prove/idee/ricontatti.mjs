@@ -289,7 +289,7 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
   c("«io» è chi ha digitato il PIN (useConsulenteCollegato), senza eccezione per l'admin", true, /useConsulenteCollegato\(\)/.test(elVivo) && /filtriValidi\(\s*filtriSalvati,\s*consulentiNoti,\s*io/.test(elVivo));
   c("niente blocco «Acconto, da installare» dentro Ricontatti (compare solo col filtro Acconto, esclusivo)", true, /tutte && filtri\.acconto/.test(elVivo));
   c("frase sincera quando non sei legato a nessun consulente", true, /fraseRicontattiVuoti\(/.test(elVivo));
-  c("passaFiltri resta l'unica porta dei filtri (nessuna regola riscritta nell'elenco)", true, /passaFiltri\(c, filtri, stelleDi\)/.test(elVivo) && !/eMioRicontatto|eRicontatto\(/.test(elVivo));
+  c("passaFiltri resta l'unica porta dei filtri (nessuna regola riscritta nell'elenco)", true, /passaFiltri\(c, filtri, stelleDi, adessoData\)/.test(elVivo) && !/eMioRicontatto|eRicontatto\(/.test(elVivo));
 
   gruppo("RICONTATTI: PRIORITÀ, IL TASTO E IL COLLEGAMENTO");
   const rigaV = senzaCommenti(leggi("src/crm/chatwa/RigaChat.tsx"));

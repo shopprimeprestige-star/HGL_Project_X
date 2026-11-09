@@ -269,7 +269,7 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("la riga mostra la data usata solo quando non c'è già (consulenza, sede, arrivo)", true, /giornoUsato/.test(rigaChat) && /giornoUsato/.test(elencoSrc));
   c("passaFiltro (cercaChat.ts) non è toccata: non sa niente del giorno", false, /giorno/i.test(senzaCommenti(leggi("src/crm/chatwa/cercaChat.ts"))));
   c("la logica del giorno non legge l'orologio (niente Date.now / new Date() senza argomenti)", false, /Date\.now\(|new Date\(\)/.test(senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))));
-  c("nessun database: giorno.ts non importa Supabase", false, /supabase/i.test(leggi("src/crm/chatwa/giorno.ts")));
+  c("nessun database: giorno.ts non importa Supabase", false, /supabase/i.test(senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))));
   c("niente emoji nei file nuovi", true, ![riga, senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))].some((t) => /\p{Extended_Pictographic}/u.test(t)));
   c("il campo è dichiarato in FiltriChat ed è interno come rEsito/rData", true, /giorno: GiornoChat/.test(filtriSrc) && /CAMPI_INTERNI = \["io", "rEsito", "rData", "giorno"\]/.test(filtriSrc));
 }

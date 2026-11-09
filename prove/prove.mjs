@@ -22517,7 +22517,7 @@ function proveDelFiltroAcconto() {
   //   cioè tiene conto del consulente e di ogni altro filtro acceso (prove/idee/filtri-chat.mjs).
   c("la voce «Acconto versato» c'è, nel gruppo Stato (31/10/2026: il pannello è più corto)", ["Stato", "Acconto versato"], ((g) => [g.titolo, g.voci.find((v) => v.campo === "acconto").nome])(mod["chatwa/filtri"].GRUPPI_FILTRI.find((x) => x.voci.some((v) => v.campo === "acconto"))));
   c("la voce mostra il numero, calcolato con i filtri accesi (consulente compreso)", true,
-    /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")) && /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(elenco));
+    /conta\(v\.campo, v\.valore\)/.test(readFileSync(join(radice, "src/crm/chatwa/PannelloFiltri.tsx"), "utf8")) && /contaVoce\(api\.chats, filtri, stelleDi, campo, valore, adessoData\)/.test(elenco));
   const tipi = readFileSync(join(radice, "src/crm/chatwa/tipi.ts"), "utf8");
   c("il tipo FiltroChat conosce «acconto»", true, /\|\s*"acconto"/.test(tipi));
   //  Da «Tutte» non sparisce niente: il filtro è una pastiglia come le altre, non toglie nulla al resto.
@@ -22557,7 +22557,7 @@ function proveDellOsservazioneComePastiglia() {
   c("accenderla spegne la coda", [null, true], ((f) => [f.coda, f.stelle])(F.commuta(F.commuta(F.FILTRI_VUOTI, "coda", "da-chiamare"), "stelle", true)));
   c("toccare una coda spegne le stelle", false, F.commuta(F.commuta(F.FILTRI_VUOTI, "stelle", true), "coda", "da-chiamare").stelle);
   c("nessun interruttore a parte nell'elenco (soloStelle) e nessun reset a «Tutte»", false, /soloStelle|setFiltro\("all"\)/.test(src));
-  c("il numero è calcolato con la stessa funzione dell'elenco (nessun numero diverso dall'elenco)", true, /contaVoce\(api\.chats, filtri, stelleDi, campo, valore\)/.test(src) && /passaFiltri\(c, filtri, stelleDi\)/.test(src));
+  c("il numero è calcolato con la stessa funzione dell'elenco (nessun numero diverso dall'elenco)", true, /contaVoce\(api\.chats, filtri, stelleDi, campo, valore, adessoData\)/.test(src) && /passaFiltri\(c, filtri, stelleDi, adessoData\)/.test(src));
 }
 
 /** ── L'ANTEPRIMA DELLA RIGA È L'ULTIMO MESSAGGIO (30/10/2026) ──────────────
