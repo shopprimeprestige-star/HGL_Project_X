@@ -144,6 +144,9 @@ interface RigaChatProps {
   onPriorita?: () => void;
   /** Il lead è in priorità: la puntina è piena e colorata e dice «Togli priorità». */
   prioritario?: boolean;
+  /** Col filtro per giorno acceso (09/11/2026): la data che ha deciso, quando la riga non la mostra già
+   *  («Consulenza ven 13 nov»). L'ultimo messaggio e il ricontatto hanno già la loro. */
+  giornoUsato?: string;
 }
 
 /** Una chat nell'elenco. La riga è un solo bottone; «Crea scheda» sta
@@ -171,6 +174,7 @@ function RigaChatBase({
   nascosto = false,
   onPriorita,
   prioritario = false,
+  giornoUsato,
 }: RigaChatProps) {
   //  Con la finestra CHIUSA il bollino con l'icona di WhatsApp c'è in ogni
   //  elenco (richiesta del 29/10/2026: «ogni volta che la finestra è chiusa»);
@@ -655,6 +659,17 @@ function RigaChatBase({
                 <span className="sr-only">Richiamo </span>
                 {richiamo.testo.replace(/^Richiamo /, "")}
               </span>
+            </span>
+          )}
+          {/*  La data che ha deciso il giorno (09/11/2026): neutra, con il calendario. Solo se la riga non la
+              mostra già. */}
+          {giornoUsato && (
+            <span
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums text-muted-foreground"
+              title={giornoUsato}
+            >
+              <CalendarClock aria-hidden="true" className="h-3 w-3 shrink-0" />
+              <span className="truncate">{giornoUsato}</span>
             </span>
           )}
           {/*  Senza data (31/10/2026, solo in «Ricontatti»): icona X + parole, neutra: è da sistemare, non

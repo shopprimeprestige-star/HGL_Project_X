@@ -256,6 +256,7 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     ricontatti: false,
     rEsito: "",
     rData: "",
+    giorno: "",
     io: "",
   });
   c(

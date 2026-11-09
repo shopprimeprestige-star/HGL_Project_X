@@ -48,6 +48,7 @@ import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cli
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
 import { proveRicontatti } from "./idee/ricontatti.mjs";
+import { proveFiltroGiorno } from "./idee/filtro-giorno.mjs";
 import { proveRisentire } from "./idee/risentire.mjs";
 import {
   proveClienti,
@@ -665,6 +666,8 @@ const MODULI = [
   "chatwa/perStato",
   //  I filtri della chat a gruppi (30/10/2026): vedi prove/idee/filtri-chat.mjs.
   "chatwa/filtri",
+  //  Il filtro per giorno dentro ogni filtro (09/11/2026): prove in prove/idee/filtro-giorno.mjs.
+  "chatwa/giorno",
   //  «Ricontatti» (31/10/2026): prove in prove/idee/ricontatti.mjs.
   "chatwa/ricontatti",
   //  Ritocchi alla chat (30/10/2026): prove in prove/idee/chat-ritocchi.mjs.
@@ -21595,6 +21598,7 @@ proveDelPrimoContattoTreFasce();
 proveFiltriChat(mod, { c, gruppo, radice });
 proveRicontatti(mod, { c, gruppo, radice });
 proveRisentire(mod, { c, gruppo, radice });
+proveFiltroGiorno(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });

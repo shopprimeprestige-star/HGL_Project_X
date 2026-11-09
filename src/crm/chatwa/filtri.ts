@@ -34,6 +34,13 @@
 import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { eConversione } from "@/crm/kpi-calcoli";
 import { passaFiltro } from "./cercaChat";
+import {
+  giornoValido,
+  nomeGiorno,
+  passaGiorno,
+  type ChatPerGiorno,
+  type GiornoChat,
+} from "./giorno";
 import { STATI_PER_STATO } from "./perStato";
 import {
   eMioRicontatto,
@@ -65,6 +72,10 @@ export interface FiltriChat {
    *  filtri della riga: restano vuoti se «Ricontatti» è spento e non contano sul tasto «Filtri». */
   rEsito: string;
   rData: FiltroRisentire["data"];
+  /** Dentro OGNI filtro acceso (09/11/2026): Ieri · Oggi · Domani · Questa/Prossima settimana, `""` = Tutti.
+   *  Interno come `rEsito`: non conta sul tasto «Filtri», si azzera quando il filtro principale si spegne
+   *  o cambia. Quale data guarda dipende dal filtro: vedi giorno.ts. */
+  giorno: GiornoChat;
   /** Chi è dentro, come consulente (id di chi ha digitato il PIN), o `""` se non lo è. NON è un
    *  filtro e non si salva: lo mette la pagina (`filtriValidi`) a ogni disegno. Serve a «Ricontatti». */
   io: string;
@@ -81,16 +92,19 @@ export const FILTRI_VUOTI: FiltriChat = {
   ricontatti: false,
   rEsito: "",
   rData: "",
+  giorno: "",
   io: "",
 };
 
 /** I campi che sono filtri (`io` no: dice chi sei, non cosa mostrare; `rEsito`, `rData` no:
- *  sono i filtri interni di «Ricontatti», non gruppi da accendere o contare). */
-export type CampoFiltro = Exclude<keyof FiltriChat, "io" | "rEsito" | "rData">;
-const CAMPI_INTERNI = ["io", "rEsito", "rData"] as const;
+ *  sono i filtri interni di «Ricontatti»; `giorno` no: sta dentro il filtro acceso, qualunque sia). */
+export type CampoFiltro = Exclude<keyof FiltriChat, "io" | "rEsito" | "rData" | "giorno">;
+const CAMPI_INTERNI = ["io", "rEsito", "rData", "giorno"] as const;
 
 /** I due filtri interni di «Ricontatti»: ognuno ha la sua etichetta con la ✕ nel riepilogo. */
 export type CampoRisentireFiltri = "rEsito" | "rData";
+/** Gli interni che hanno la loro ✕ nel riepilogo: i due di «Ricontatti» e il giorno. */
+export type CampoInterno = CampoRisentireFiltri | "giorno";
 
 /** I due filtri interni di «Ricontatti», come li vuole `passaRisentire`. */
 export const risentireDi = (f: FiltriChat): FiltroRisentire => ({
@@ -100,7 +114,8 @@ export const risentireDi = (f: FiltriChat): FiltroRisentire => ({
 
 /** Quello che serve di una chat per filtrarla (la riga di `ChatItem`, in piccolo). */
 export type ChatFiltrabile = Parameters<typeof passaFiltro>[0] &
-  ChatRicontatto & {
+  ChatRicontatto &
+  ChatPerGiorno & {
     phone: string;
     /** L'ultimo messaggio della chat: serve a «In sospeso» (l'ultima parola è nostra). */
     lastMessage?: { direction: string; status: string } | null;
@@ -374,8 +389,15 @@ function ultimaParolaNostra(c: ChatFiltrabile): boolean {
   return !!m && m.direction === "outbound" && m.status !== "failed";
 }
 
-/** La chat passa TUTTI i gruppi accesi (E)? Non guarda la ricerca. */
-export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi): boolean {
+/** La chat passa TUTTI i gruppi accesi (E)? Non guarda la ricerca. Il giorno (09/11/2026) vale solo se
+ *  si dice che ora è (`adesso`): senza, non si sa che giorno sia e il giorno non filtra. L'elenco, i
+ *  numeri dei segmenti e quelli delle voci passano tutti da qui con la stessa ora. */
+export function passaFiltri(
+  c: ChatFiltrabile,
+  f: FiltriChat,
+  stelleDi: StelleDi,
+  adesso?: Date,
+): boolean {
   if (f.coda && !passaCoda(c, f.coda)) return false;
   if (f.stelle && stelleDi(c.phone) <= 0) return false;
   if (f.fase === "sospeso-clienti") {
@@ -400,6 +422,7 @@ export function passaFiltri(c: ChatFiltrabile, f: FiltriChat, stelleDi: StelleDi
   if (f.ricontatti && !eMioRicontatto(c, f.io)) return false;
   if (f.ricontatti && !passaRisentire(c, risentireDi(f))) return false;
   if (f.consulente && !f.ricontatti && c.lead?.data?.consulenteId !== f.consulente) return false;
+  if (f.giorno && adesso && !passaGiorno(c, f, adesso)) return false;
   return true;
 }
 
@@ -418,10 +441,16 @@ export function commuta(f: FiltriChat, campo: CampoFiltro, valore: string | true
 }
 
 /** Il gruppo `campo` torna spento. */
-export function togli(f: FiltriChat, campo: CampoFiltro | CampoRisentireFiltri): FiltriChat {
-  const spento = { ...f, [campo]: FILTRI_VUOTI[campo] };
+export function togli(f: FiltriChat, campo: CampoFiltro | CampoInterno): FiltriChat {
+  const spento = { ...f, [campo]: FILTRI_VUOTI[campo] } as FiltriChat;
   //  Spegnendo «Ricontatti» i suoi due filtri non restano accesi di nascosto.
-  return campo === "ricontatti" ? { ...spento, rEsito: "", rData: "" } : spento;
+  const senzaInterni: FiltriChat = campo === "ricontatti" ? { ...spento, rEsito: "", rData: "" } : spento;
+  //  Il giorno vive dentro il filtro acceso: se questo si spegne, va con lui. Il consulente non è un
+  //  filtro (resta com'è, giorno compreso).
+  //  Esito e Data di «Ricontatti» sono altri interni: toglierli lascia il giorno.
+  return campo === "consulente" || campo === "rEsito" || campo === "rData"
+    ? senzaInterni
+    : { ...senzaInterni, giorno: "" };
 }
 
 /** Quanti filtri sono accesi (il numero sul tasto «Filtri»). */
@@ -442,14 +471,27 @@ export function contaVoce(
   stelleDi: StelleDi,
   campo: CampoFiltro,
   valore: string | true,
+  /** Serve solo per il consulente, che tiene il giorno scelto; le altre voci ripartono da zero. */
+  adesso?: Date,
 ): number {
   const prova = (
     campo === "consulente"
       ? { ...f, consulente: valore }
       : { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io, [campo]: valore }
   ) as FiltriChat;
-  return chats.filter((c) => passaFiltri(c, prova, stelleDi)).length;
+  return chats.filter((c) => passaFiltri(c, prova, stelleDi, adesso)).length;
 }
+
+/** Quante chat vedresti con il segmento `giorno` (09/11/2026): i filtri accesi come sono, il giorno
+ *  sostituito (ricerca esclusa, come i numeri delle voci). È `passaFiltri` con la stessa ora
+ *  dell'elenco: il numero e l'elenco non possono dire cose diverse. */
+export const contaGiorno = (
+  chats: readonly ChatFiltrabile[],
+  f: FiltriChat,
+  stelleDi: StelleDi,
+  adesso: Date,
+  giorno: GiornoChat,
+): number => chats.filter((c) => passaFiltri(c, { ...f, giorno }, stelleDi, adesso)).length;
 
 /** Quante chat passano i filtri così come sono (ricerca esclusa). */
 export const contaVisibili = (
@@ -461,7 +503,7 @@ export const contaVisibili = (
 // ── Il riepilogo sotto la griglia ─────────────────────────────────────────────────────────────
 
 export interface EtichettaAccesa {
-  campo: CampoFiltro | CampoRisentireFiltri;
+  campo: CampoFiltro | CampoInterno;
   etichetta: string;
 }
 
@@ -497,6 +539,7 @@ export function etichetteAccese(
   if (f.finestra) out.push({ campo: "finestra", etichetta: nomeDi("finestra", f.finestra) });
   if (f.acconto) out.push({ campo: "acconto", etichetta: "Acconto versato" });
   if (f.tipo) out.push({ campo: "tipo", etichetta: nomeDi("tipo", f.tipo) });
+  if (f.giorno) out.push({ campo: "giorno", etichetta: nomeGiorno(f.giorno) });
   if (f.consulente && !f.ricontatti)
     out.push({ campo: "consulente", etichetta: nomeConsulente(f.consulente) });
   return out;
@@ -526,6 +569,8 @@ export function soloUno(f: FiltriChat): FiltriChat {
   const tenuto = PRIORITA.find((k) => f[k] !== FILTRI_VUOTI[k]);
   const out: FiltriChat = { ...FILTRI_VUOTI, consulente: f.consulente, io: f.io };
   if (tenuto) (out as unknown as Record<string, unknown>)[tenuto] = f[tenuto];
+  //  Il giorno sta dentro il filtro acceso: senza filtro non resta di nascosto.
+  if (tenuto) out.giorno = f.giorno;
   //  I filtri interni vivono solo con «Ricontatti» acceso.
   if (tenuto === "ricontatti") {
     out.rEsito = f.rEsito;
@@ -564,6 +609,7 @@ export function leggiFiltri(sessione: string | null, consulente: string | null):
         ? (o.rEsito as string)
         : "",
     rData: o.rData === "con" || o.rData === "senza" ? o.rData : "",
+    giorno: giornoValido(o.giorno) ? o.giorno : "",
     consulente: typeof consulente === "string" ? consulente.slice(0, 80) : "",
     io: "",
   });
