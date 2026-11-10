@@ -162,6 +162,14 @@ import {
   type Tentativo,
 } from "@/shop/apertura-camera";
 import { puoNegoziare, SENZA_MEDIA_DOPO_MS } from "@/shop/senza-media";
+import {
+  devoAvviareMedia,
+  haSensoChiamare,
+  inChiamataDaBattere,
+  inChiamataDichiarata,
+  puoSostituireVoceHost,
+  TIENI_IN_CHIAMATA_MS,
+} from "@/shop/scheda-ferma";
 import { setSpeaking } from "@/shop/duck";
 import { getPresenter } from "@/shop/presenter";
 import { BrandLogo } from "@/shop/BrandLogo";
@@ -661,6 +669,9 @@ let generazioneMedia = 0;
 /** Connessioni nate senza le mie tracce: ricevono, e appena i media arrivano si
  *  promuovono in loco (`promuoviPeerSenzaMedia`). */
 const peerSenzaMedia = new Set<string>();
+/** Lato cliente: pid del consulente → il suo ultimo saluto diceva «sono in chiamata»?
+ *  Assente = non si sa (scheda vecchia). Vedi shop/scheda-ferma. */
+const hostInChiamata = new Map<string, boolean>();
 const peers = new Map<string, RTCPeerConnection>();
 const remoteStreams = new Map<string, MediaStream>();
 const pendingIce = new Map<string, RTCIceCandidateInit[]>();
@@ -1228,6 +1239,8 @@ function sendHello(req = false) {
     req,
     dev: myDeviceId(),
     vp: myViewport(),
+    //  Il consulente dice se è IN CHIAMATA: la `callstate` è una sola, a perdere; questo viaggia ogni 3 s.
+    ...(S.role === "host" ? { act: S.active } : {}),
     persona: miaPersonaDi(S.sessionId) || gettoneInMemoria(),
     suo: restaSulMioPreventivo(),
     ...(S.role !== "host" ? { capSfu: true } : {}),
@@ -2178,6 +2191,8 @@ async function maybeInitiate(pid: string) {
     sfu!.sincronizza();
     return;
   }
+  //  Una scheda consulente ferma (non in chiamata) non ha media da scambiare: non le si offre.
+  if (!haSensoChiamare(hostInChiamata.get(pid))) return;
   if (!puoNegoziare({ haMedia: !!localStream, mediaFallita }) || !(S.myPid < pid)) return;
   let p = peers.get(pid);
   if (!p) {
@@ -2405,6 +2420,7 @@ function removePeer(pid: string, why = "unspecified") {
   }
   peers.delete(pid);
   peerSenzaMedia.delete(pid);
+  hostInChiamata.delete(pid);
   const attesa = attesaOspite.get(pid);
   if (attesa !== undefined) window.clearTimeout(attesa);
   attesaOspite.delete(pid);
@@ -2437,6 +2453,7 @@ function resetRoster() {
   });
   peers.clear();
   peerSenzaMedia.clear();
+  hostInChiamata.clear();
   remoteStreams.clear();
   pendingIce.clear();
   lastSeen.clear();
@@ -2735,7 +2752,6 @@ async function openMedia(): Promise<MediaStream> {
   //  ⚠️ La lettura dell'interruttore parte QUI, in parallelo a permessi, camera e `prefetchIce`,
   //   e NON si aspetta: la decisione serve solo prima del primo hello con i media (in fondo).
   const lettura = S.role === "host" && !trasportoDeciso ? leggiInterruttore() : null;
-  await prefetchIce(); // popola cachedIce PRIMA di creare qualsiasi peer (makePeer resta sincrono)
   // RISOLUZIONE RICHIESTA ESPLICITAMENTE. Con `video: true` il browser sceglie il
   // default della camera (spesso 640×480, a volte 320×240): quella è la
   // risoluzione con cui nasceva la tela del compositor di sfocatura → immagine
@@ -2749,9 +2765,13 @@ async function openMedia(): Promise<MediaStream> {
   const senzaMedia = (motivo: string) => {
     if (generazione === generazioneMedia) apriSenzaMedia(motivo);
   };
+  //  ⚠️ Il timer parte PRIMA di `prefetchIce`: la sua richiesta di rete non ha un tempo massimo, e se
+  //   restava appesa (rete mobile che non risponde) il paracadute non veniva nemmeno armato —
+  //   né permesso, né collegamento in sola ricezione, per sempre.
   const attesa = setTimeout(() => senzaMedia("richiesta appesa"), SENZA_MEDIA_DOPO_MS);
   let s: MediaStream;
   try {
+    await prefetchIce(); // popola cachedIce PRIMA di creare qualsiasi peer (makePeer resta sincrono)
     s = await apriMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
       audio: S.role === "host" ? micAudioConstraints(false) : true,
@@ -5790,6 +5810,15 @@ function attachChannel(sessionId: string) {
     if (!isViewer() && !canBroadcastState()) return;
     // il trasporto lo decide il consulente: l'ospite si allinea PRIMA di aprire qualsiasi pc
     if (isViewer() && role === "host") adottaTrasportoDelHost(pid, payload);
+    //  ── ⚠️ IL CONSULENTE DICE SE È IN CHIAMATA (vedi shop/scheda-ferma) ────────
+    //   Serve a due cose: una scheda consulente ferma non butta fuori quella in
+    //   chiamata (i due `dedupe` qui sotto), e un cliente che si è perso la
+    //   `callstate` apre comunque i media (in fondo a questo gestore).
+    const nuovoInChiamata = role === "host" ? inChiamataDichiarata(payload) : undefined;
+    if (isViewer() && role === "host") {
+      if (nuovoInChiamata === undefined) hostInChiamata.delete(pid);
+      else hostInChiamata.set(pid, nuovoInChiamata);
+    }
     // MODERAZIONE: dispositivo bloccato → kick immediato, nessun ingresso
     const dev = String(payload?.dev || "");
     if (dev) deviceOf.set(pid, dev);
@@ -5825,6 +5854,16 @@ function attachChannel(sessionId: string) {
           console.log("[PEER] dedupe-dev SKIP (peer sano)", p2);
           continue;
         }
+        if (
+          !puoSostituireVoceHost({
+            nuovoInChiamata,
+            vecchioInChiamata: hostInChiamata.get(p2),
+            vecchioSano: false,
+          })
+        ) {
+          console.log("[PEER] dedupe-dev SKIP (scheda ferma non toglie il posto a chi è in chiamata)", p2);
+          continue;
+        }
         removePeer(p2, "dedupe-dev");
       }
     // DEDUPE del PRESENTATORE (lato ospite): il presentatore è UNO. Un hello host
@@ -5839,6 +5878,16 @@ function attachChannel(sessionId: string) {
         if (r.role !== "host" || r.pid === pid) continue;
         if (peerIsHealthy(r.pid)) {
           console.log("[PEER] dedupe-host SKIP (peer sano)", r.pid);
+          continue;
+        }
+        if (
+          !puoSostituireVoceHost({
+            nuovoInChiamata,
+            vecchioInChiamata: hostInChiamata.get(r.pid),
+            vecchioSano: false,
+          })
+        ) {
+          console.log("[PEER] dedupe-host SKIP (scheda ferma non toglie il posto a chi è in chiamata)", r.pid);
           continue;
         }
         // Voce host NON sana: si rimuove SEMPRE, anche se il `dev` è diverso
@@ -5925,6 +5974,14 @@ function attachChannel(sessionId: string) {
         );
         applicaGuestViewport(vp);
       }
+    }
+    //  Il consulente è in chiamata e a me la `callstate` non è arrivata: lo stato «in chiamata»
+    //  si prende da qui e i media partono (stessa strada della `callstate` con `active:true`).
+    //  Con «solo contenuti» `act` è falso e non succede niente.
+    if (isViewer() && role === "host" && devoAvviareMedia({ hostInChiamata: nuovoInChiamata, miaAttiva: S.active })) {
+      console.log("[GUEST] active false → true (il saluto del consulente dice che è in chiamata)");
+      set({ active: true });
+      void viewerEnsureMedia();
     }
     // mi riannuncio al nuovo arrivato, oppure a chi lo chiede esplicitamente
     // (ri-sottoscrizione: il pid è già noto ma l'altro lato ha il roster vuoto)
@@ -6436,6 +6493,7 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
   });
   peers.clear();
   peerSenzaMedia.clear();
+  hostInChiamata.clear();
   remoteStreams.clear();
   pendingIce.clear();
   lastSeen.clear();
@@ -7495,6 +7553,7 @@ export async function esciDallaConsulenza() {
 //  sessione resta solo "riprendibile" e l'ospite torna in attesa (regola chiara).
 let hbTimer: ReturnType<typeof setInterval> | null = null;
 function pushHeartbeat() {
+  if (S.active) inChiamataTenutoFinoA = 0; // la chiamata è ripresa (o c'è): da qui vale la verità
   /*  ── ⚠️ IL BATTITO DICE «CI SONO», NON «SONO IN VIDEOCHIAMATA» ─────────
       Segnalazione del committente: «l'utente non riesce a entrare, fa entra
       ed esci; accetto più volte e non va».
@@ -7514,9 +7573,20 @@ function pushHeartbeat() {
     //  condivisa e lasciava credere viva la sessione di un altro.
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hbOnly: true, code: S.sessionId || readLiveId(), inChiamata: S.active }),
+    body: JSON.stringify({
+      hbOnly: true,
+      code: S.sessionId || readLiveId(),
+      inChiamata: inChiamataDaBattere({
+        attiva: S.active,
+        tenutoFinoA: inChiamataTenutoFinoA,
+        adesso: Date.now(),
+      }),
+    }),
   }).catch(() => {});
 }
+/** Dopo una ricarica in cui il server diceva «in chiamata»: fino a quando il battito lo ripete,
+ *  così PresenterBar (`resumeCallSilently`) fa in tempo a leggerlo. Vedi shop/scheda-ferma. */
+let inChiamataTenutoFinoA = 0;
 if (typeof window !== "undefined" && !hbTimer) hbTimer = setInterval(pushHeartbeat, 8000);
 /*  ── ⚠️ E QUANDO LA SCHEDA TORNA DAVANTI, SI BATTE SUBITO ──────────────────
     In una scheda nascosta i browser rallentano `setInterval` fino a uno al
@@ -7888,7 +7958,7 @@ async function riprendiConsulenzaAperta() {
   ripresaUltimoTentativo = ora;
   try {
     const r = await fetch(`/api/presenter/session?sess=${encodeURIComponent(codice)}`);
-    const j = (await r.json()) as RigaConsulenza & { presenterName?: string };
+    const j = (await r.json()) as RigaConsulenza & { presenterName?: string; inChiamata?: boolean };
     const io = readStoredPresenter();
     if (
       !siRiprendeLaConsulenza({
@@ -7906,6 +7976,10 @@ async function riprendiConsulenzaAperta() {
       //  c'è, e solo se manca si prende dalla riga del server.
       presenterName: S.presenterName || String(j.presenterName || "") || io?.name || "",
     });
+    //  ⚠️ Il battito che parte qui dice `inChiamata: S.active`, cioè «no» (la scheda è appena nata): se
+    //   il server diceva «sì», lo cancellava prima che la ripresa della chiamata lo leggesse, e la
+    //   scheda restava per sempre «presente ma non avviata». Per un minuto ripete il «sì».
+    if (j.inChiamata === true) inChiamataTenutoFinoA = Date.now() + TIENI_IN_CHIAMATA_MS;
     pushHeartbeat(); // il battito riparte subito: il cliente può entrare
     broadcastState();
     /*  ⚠️ E ANCHE IL CONSULENTE SI ANNUNCIA, senza aspettare la
