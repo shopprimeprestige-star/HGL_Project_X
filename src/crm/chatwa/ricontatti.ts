@@ -143,6 +143,31 @@ export function patchEsito(nuovo: EsitoRicontatto | null, adesso: Date = new Dat
     : { esitoRicontatto: undefined, esitoRicontattoIl: undefined };
 }
 
+/** ── ESITO + «QUANDO VUOLE ESSERE RICONTATTATO» (10/11/2026) ──────────────────────────────────
+ *  Richiesta del titolare: nello stesso foglio «Com'è andata?» mettere anche la data in cui il lead
+ *  vuole essere risentito. La data è la solita `dataRicontatto` (quella delle code di lavoro, del
+ *  filtro Data e di «Da fare»): niente campo nuovo. È facoltativa; `""` la toglie.
+ *  Si scrive SOLO quello che cambia: l'esito con il suo «quando», la data togliendo l'ora vecchia
+ *  (era di un altro giorno). Niente cambiato → `{}` (non si scrive niente). */
+export function patchEsitoEData(
+  esito: EsitoRicontatto | null,
+  giorno: string,
+  prima: { esito: EsitoRicontatto | null; giorno: string },
+  adesso: Date = new Date(),
+): Record<string, string | undefined> {
+  const g = giornoParlato(String(giorno ?? "").slice(0, 10)) ? String(giorno).slice(0, 10) : "";
+  const patch: Record<string, string | undefined> = {};
+  if (esito !== prima.esito) Object.assign(patch, patchEsito(esito, adesso));
+  if (g !== prima.giorno) Object.assign(patch, { dataRicontatto: g || undefined, oraRicontatto: undefined });
+  return patch;
+}
+
+/** Il giorno locale fra `giorni` giorni, «AAAA-MM-GG» (le scorciatoie del foglio). */
+export function giornoTra(giorni: number, adesso: Date = new Date()): string {
+  const d = new Date(adesso.getFullYear(), adesso.getMonth(), adesso.getDate() + giorni);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /** Il giorno del ricontatto «AAAA-MM-GG», o `""` se manca o non è un giorno vero. */
 export function dataDi(c: ChatRicontatto): string {
   const giorno = String(c.lead?.data?.dataRicontatto ?? "").slice(0, 10);

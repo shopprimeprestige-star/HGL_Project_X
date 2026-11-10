@@ -233,7 +233,7 @@ import { QUANDO_PER_STATO, SPOSTA_CONSULENZA, type RichiestaQuando } from "./qua
  *  e se fosse rimasta in questo file i due si importerebbero a vicenda. */
 import { PastigliaStato, etichettaDi } from "./SelettoreStatoDialog";
 import { PastigliaEsito } from "./chatwa/PastigliaEsito";
-import { eRicontatto, esitoDi } from "./chatwa/ricontatti";
+import { dataDi, eRicontatto, esitoDi } from "./chatwa/ricontatti";
 import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import {
   generateAvailability,
@@ -1573,6 +1573,7 @@ export function LeadDialog({
                     <PastigliaEsito
                       leadId={lead.id}
                       esito={esitoDi({ lead: { data: form } })}
+                      data={dataDi({ lead: { data: form } })}
                       contesto={`${form.nome ?? ""} ${form.cognome ?? ""}`.trim() || undefined}
                       className="min-h-11 after:hidden sm:min-h-0"
                       onSalvato={(patch) => setForm((f) => ({ ...f, ...patch }))}

@@ -9,11 +9,12 @@ import { toast } from "sonner";
 import { useCRM } from "@/crm/CRMContext";
 import { cn } from "@/lib/utils";
 import { FinestraEsito } from "./FinestraEsito";
-import { ESITI_RICONTATTO, patchEsito, type EsitoRicontatto } from "./ricontatti";
+import { ESITI_RICONTATTO, patchEsito, patchEsitoEData, type EsitoRicontatto } from "./ricontatti";
 
 export function PastigliaEsito({
   leadId,
   esito,
+  data = "",
   contesto,
   className,
   onSalvato,
@@ -21,21 +22,23 @@ export function PastigliaEsito({
   leadId: string;
   /** L'esito di adesso (`esitoDi`), o `null`. */
   esito: EsitoRicontatto | null;
+  /** Il giorno di ricontatto di adesso (`dataDi`), o `""`: il foglio lo mostra e lo cambia. */
+  data?: string;
   /** Una riga nel foglio: di chi si parla. */
   contesto?: string;
   /** Si somma alla pastiglia: per l'altezza del tocco dove serve più dei 44 px della riga. */
   className?: string;
   /** Dopo il salvataggio riuscito, con quello che è stato scritto (la scheda aperta si aggiorna). */
-  onSalvato?: (patch: ReturnType<typeof patchEsito>) => void;
+  onSalvato?: (patch: Partial<ReturnType<typeof patchEsito>> & Record<string, string | undefined>) => void;
 }) {
   const { updateLead } = useCRM();
   const [aperta, setAperta] = useState(false);
   const nomeEsito = ESITI_RICONTATTO.find((e) => e.v === esito)?.nome ?? null;
 
-  const salva = async (nuovo: EsitoRicontatto | null) => {
+  const salva = async (nuovo: EsitoRicontatto | null, giorno: string) => {
     setAperta(false);
-    if (nuovo === esito) return;
-    const patch = patchEsito(nuovo);
+    const patch = patchEsitoEData(nuovo, giorno, { esito, giorno: data });
+    if (Object.keys(patch).length === 0) return;
     if (await updateLead(leadId, patch)) onSalvato?.(patch);
     else toast.error("Esito NON salvato", { description: "La scheda è rimasta com'era. Riprova." });
   };
@@ -71,8 +74,9 @@ export function PastigliaEsito({
         aperta={aperta}
         onChiudi={() => setAperta(false)}
         esito={esito}
+        data={data}
         contesto={contesto}
-        onScegli={(e) => void salva(e)}
+        onSalva={(e, g) => void salva(e, g)}
       />
     </>
   );

@@ -45,7 +45,7 @@ import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { PastigliaEsito } from "./PastigliaEsito";
-import { datiPerData, esitoDi } from "./ricontatti";
+import { dataDi, datiPerData, esitoDi } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
@@ -576,7 +576,7 @@ function RigaChatBase({
           )}
           {/*  ── L'ESITO (31/10/2026) ── solo in «Ricontatti»; pastiglia e foglio sono PastigliaEsito. */}
           {risentire && c.lead && (
-            <PastigliaEsito leadId={c.lead.id} esito={esito} contesto={nome} />
+            <PastigliaEsito leadId={c.lead.id} esito={esito} data={dataDi(c)} contesto={nome} />
           )}
           {/*  Senza scheda: stessa pastiglia, neutra e tratteggiata. Scegliere uno stato crea la scheda. */}
           {!c.lead && puoiCambiareStato && (
