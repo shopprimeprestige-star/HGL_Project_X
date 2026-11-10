@@ -62,6 +62,7 @@ import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
 import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
+import { proveMeetlyAvvio } from "./idee/meetly-avvio.mjs";
 import { proveMeetlySfuRegole } from "./idee/meetly-sfu-regole.mjs";
 import { proveMeetlySfuServer } from "./idee/meetly-sfu-server.mjs";
 import { proveMeetlySfuClient } from "./idee/meetly-sfu-client.mjs";
@@ -430,6 +431,9 @@ const MODULI = [
   //  ⚠️ Meetly «dentro ma spenti»: chi non ha camera né microfono si collega lo
   //   stesso, in sola ricezione. Prove in prove/idee/meetly-stallo.mjs.
   "shop/senza-media",
+  //  ⚠️ Meetly «presente ma non avviato»: una scheda consulente ferma non ruba il
+  //   posto a quella in chiamata. Prove in prove/idee/meetly-avvio.mjs.
+  "shop/scheda-ferma",
   //  ⚠️ Le condizioni con cui un preventivo è nato: il documento consegnato
   //   non cambia da solo, e «modifica preventivo» riparte da quelle di oggi.
   //   Vedi proveDelleCondizioni.
@@ -21623,6 +21627,7 @@ proveAzioniMeet(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
 proveMeetlyStallo(mod, { c, gruppo, radice });
+proveMeetlyAvvio(mod, { c, gruppo, radice });
 proveMeetlySfuRegole(mod, { c, gruppo, radice });
 await proveMeetlySfuServer(mod, { c, gruppo, radice });
 proveMeetlySfuClient(mod, { c, gruppo, radice });
