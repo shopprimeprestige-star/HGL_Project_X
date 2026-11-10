@@ -15,8 +15,9 @@ import { chiaveSessione } from "@/shop/chiave-sessione";
 //  in shop/consulenza-aperta, provata senza database.
 import { consulenzaDaChiudere } from "@/shop/consulenza-aperta";
 //  Chi ha detto «in chiamata» per ultimo: un «no» di un'altra scheda non lo
-//  cancella (regola provata in shop/scheda-ferma).
-import { inChiamataDelBattito } from "@/shop/scheda-ferma";
+//  cancella (regola provata in shop/scheda-ferma). `schedaChiamata` e
+//  `chiamataAt` sono interni: non escono nelle risposte pubbliche.
+import { inChiamataDelBattito, schedaDelSi, senzaCampiInterni } from "@/shop/scheda-ferma";
 //  La chiave del rinvio la scrive lo spostamento di un appuntamento: vedi
 //  crm/spostamento-meet.ts e routes/api.crm.meeting-session.ts.
 import { chiaveRinvio, rinvioPerChi } from "@/crm/spostamento-meet";
@@ -215,7 +216,7 @@ export const Route = createFileRoute("/api/presenter/session")({
               altriAttesi: await altriAttesiDi(String(q || ""), rigaRinvio.leadId),
             })
           : "";
-        return json({ ...sess, callActive: vivo, inChiamata: vivo && !!sess.inChiamata, rinvio });
+        return json({ ...senzaCampiInterni(sess), callActive: vivo, inChiamata: vivo && !!sess.inChiamata, rinvio });
       },
       POST: async ({ request }) => {
         let body: Partial<Sess> & { hbOnly?: boolean; scheda?: unknown } = {};
@@ -225,11 +226,20 @@ export const Route = createFileRoute("/api/presenter/session")({
         if (body.hbOnly) {
           const { data } = await supabaseAdmin.from("app_config").select("value").eq("key", chiave).maybeSingle();
           const cur = parse((data as { value?: string | null } | null)?.value);
-          if (!cur.live) return json({ ok: true, ...cur, callActive: false });
+          if (!cur.live) return json({ ok: true, ...senzaCampiInterni(cur), callActive: false });
           //  ⚠️ «In chiamata» non è più «l'ultimo che scrive vince»: un «no» di un'altra scheda
           //   (ferma, o ricaricata) non cancella il «sì» fresco di quella che sta facendo la
           //   chiamata. Senza `scheda` (client vecchio) il comportamento è quello di prima.
-          const scheda = typeof body.scheda === "string" ? body.scheda.slice(0, 64) : "";
+          const schedaDichiarata = typeof body.scheda === "string" ? body.scheda.slice(0, 64) : "";
+          //  ⚠️ La tenuta di un «sì» è un potere: la si concede solo a chi ha la sessione del presentatore
+          //   (stesso cookie di `live:true`). Chi manda «sì» senza (un estraneo col codice stanza, il link del
+          //   collega, una pagina con la sessione scaduta) lo scrive lo stesso, come sempre, ma senza scheda: il
+          //   primo «no» del consulente lo cancella. Il controllo costa una lettura solo quando il battito dice «sì».
+          let autenticato = false;
+          if (body.inChiamata) {
+            try { autenticato = !!(await sessioneDaRichiesta(request)); } catch { /* nel dubbio: non autenticato */ }
+          }
+          const scheda = schedaDelSi({ scheda: schedaDichiarata, dichiarato: !!body.inChiamata, autenticato });
           const next: Sess = {
             ...cur,
             hb: new Date().toISOString(),
@@ -239,7 +249,7 @@ export const Route = createFileRoute("/api/presenter/session")({
             { key: chiave, value: JSON.stringify(next), updated_at: new Date().toISOString() } as never,
             { onConflict: "key" },
           );
-          return json({ ok: true, ...next, callActive: true });
+          return json({ ok: true, ...senzaCampiInterni(next), callActive: true });
         }
         const live = !!body.live;
         /*  ── ⚠️ CHI CONDUCE LO DICE IL SERVER, NON IL BROWSER ──────────────
@@ -318,7 +328,7 @@ export const Route = createFileRoute("/api/presenter/session")({
             );
           }
         }
-        return json({ ok: true, ...sess });
+        return json({ ok: true, ...senzaCampiInterni(sess) });
       },
     },
   },

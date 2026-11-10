@@ -41,6 +41,10 @@ export type DipendenzeScatola = {
   trasporto: () => "mesh" | "sfu";
   /** Il motivo dell'ultimo ripiego da SFU a mesh ("" se non c'è stato). */
   ripiego: () => string;
+  /** La videochiamata è davvero attiva per questa scheda rispetto a questo interlocutore? Se non lo è
+   *  («solo contenuti») non c'è nessun media che possa essersi bloccato: niente rapporto «blocco».
+   *  Assente = sì (come prima). */
+  videochiamataAttiva?: (pid: string) => boolean;
 };
 
 type Stato = {
@@ -49,6 +53,8 @@ type Stato = {
   timer: ReturnType<typeof setTimeout> | null;
   bloccoInviato: boolean;
   esitoInviato: boolean;
+  /** Da quando si è visto la videochiamata attiva (0 = non attiva): il blocco vale solo dopo 15 s di chiamata. */
+  attivaDal: number;
   locali: Candidato[];
   remoti: Candidato[];
   n: {
@@ -106,6 +112,14 @@ async function coppiaScelta(pc: RTCPeerConnection) {
 
 export function creaScatola(dip: DipendenzeScatola) {
   const stati = new Map<string, Stato>();
+  //  Un gancio che lancia vale «non attiva»: nel dubbio nessun rapporto, mai un errore per la pagina.
+  const attiva = (pid: string): boolean => {
+    try {
+      return dip.videochiamataAttiva ? dip.videochiamataAttiva(pid) : true;
+    } catch {
+      return false;
+    }
+  };
   let ultimoErroreMedia = "";
 
   async function componi(pid: string, tipo: "blocco" | "esito"): Promise<Rapporto | null> {
@@ -189,20 +203,35 @@ export function creaScatola(dip: DipendenzeScatola) {
           timer: null,
           bloccoInviato: false,
           esitoInviato: false,
+          attivaDal: 0,
           locali: [],
           remoti: [],
           n: { offerteInviate: 0, offerteRicevute: 0, risposteInviate: 0, risposteRicevute: 0, iceInviati: 0, iceRicevuti: 0, offerteScartate: 0 },
         };
-        st.timer = setTimeout(() => {
+        st.attivaDal = attiva(pid) ? st.inizio : 0;
+        const controlla = () => {
           st.timer = null;
           try {
             if (stati.get(pid) !== st || dip.mediaVivo(pid)) return;
+            //  Fuori dalla videochiamata («solo contenuti») non si segnala niente: si ricontrolla fra 15 s.
+            //  La prima volta che la si vede attiva si aspettano altri 15 s: il blocco mai prima di 15 s di chiamata.
+            if (!attiva(pid)) {
+              st.attivaDal = 0;
+              st.timer = setTimeout(controlla, ATTESA_MS);
+              return;
+            }
+            if (!st.attivaDal) {
+              st.attivaDal = Date.now();
+              st.timer = setTimeout(controlla, ATTESA_MS);
+              return;
+            }
             st.bloccoInviato = true;
             void invia(pid, "blocco");
           } catch {
             /* la scatola nera non disturba mai la chiamata */
           }
-        }, ATTESA_MS);
+        };
+        st.timer = setTimeout(controlla, ATTESA_MS);
         stati.set(pid, st);
       } catch {
         /* */

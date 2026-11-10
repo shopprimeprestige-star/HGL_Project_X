@@ -121,3 +121,42 @@ export function inChiamataDelBattito(p: {
   if (tenuto) return { inChiamata: true, schedaChiamata: cur.schedaChiamata!, chiamataAt: cur.chiamataAt! };
   return { inChiamata: false, schedaChiamata: "", chiamataAt: null };
 }
+
+/** ── RIFINITURE (terzo giro, 10/11/2026) ────────────────────────────────────── */
+
+/** Il battito HTTP lo cadenza il Worker (come `sendHello`, che gira ogni 3 s): uno ogni N tick.
+ *  Con N=2 sono 6 s, quattro battiti dentro i 24 s di `TENUTA_ALTRA_SCHEDA_MS`. Un Worker non viene
+ *  rallentato come i timer della scheda nascosta (uno al minuto), che prima lasciavano scadere la tenuta.
+ *  ⚠️ shortcut: tenuta lasciata a 24 s (non 70): il Worker rende il rallentamento un caso raro, e una
+ *   tenuta lunga farebbe restare «in chiamata» una chiamata finita. Allargarla solo se si misura che il
+ *   Worker non basta (CSP che vieta i `blob:` = ripiego sul vecchio timer da 8 s). */
+export const OGNI_TICK_BATTITO_HTTP = 2;
+
+/** Dalle risposte pubbliche della rotta si tolgono i campi che servono solo alla logica del server. */
+export function senzaCampiInterni<T extends { schedaChiamata?: unknown; chiamataAt?: unknown }>(
+  s: T,
+): Omit<T, "schedaChiamata" | "chiamataAt"> {
+  const { schedaChiamata: _s, chiamataAt: _c, ...pubblici } = s;
+  return pubblici;
+}
+
+/** Un rapporto «blocco» della scatola nera ha senso solo se la videochiamata è attiva per questa scheda.
+ *  Consulente: la sua. Ospite: il consulente gli ha detto `active`, oppure ha `act:true` nel saluto.
+ *  Una consulenza di «solo contenuti» non apre camere: non c'è nulla che possa essersi bloccato. */
+export function chiamataAttivaPerRapporto(p: {
+  ruolo: "host" | "viewer";
+  miaAttiva: boolean;
+  hostInChiamata: boolean | undefined;
+}): boolean {
+  if (p.miaAttiva) return true;
+  return p.ruolo === "viewer" && p.hostInChiamata === true;
+}
+
+/** Quale identificativo di scheda va registrato dal battito. Un «sì» che non arriva con la sessione
+ *  del presentatore (cookie: un estraneo con il codice stanza, il link del collega, una pagina con la
+ *  sessione scaduta) viene scritto lo stesso — come prima — ma SENZA scheda, quindi non resiste al
+ *  «no» del consulente: la tenuta di 24 s è un potere che si concede solo a chi è autenticato.
+ *  Il «no» non dà nessun potere in più e passa com'è. */
+export function schedaDelSi(p: { scheda: string; dichiarato: boolean; autenticato: boolean }): string {
+  return p.dichiarato && !p.autenticato ? "" : p.scheda;
+}

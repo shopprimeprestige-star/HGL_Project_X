@@ -163,10 +163,12 @@ import {
 } from "@/shop/apertura-camera";
 import { puoNegoziare, SENZA_MEDIA_DOPO_MS } from "@/shop/senza-media";
 import {
+  chiamataAttivaPerRapporto,
   devoAvviareMedia,
   haSensoChiamare,
   inChiamataDaBattere,
   inChiamataDichiarata,
+  OGNI_TICK_BATTITO_HTTP,
   puoSostituireVoceHost,
   TIENI_IN_CHIAMATA_MS,
 } from "@/shop/scheda-ferma";
@@ -585,9 +587,16 @@ try {
 
 // ── singleton ──────────────────────────────────────────────────────────
 const S = { ...initial };
+/** Dopo una ricarica in cui il server diceva «in chiamata»: fino a quando il battito lo ripete,
+ *  così PresenterBar (`resumeCallSilently`) fa in tempo a leggerlo. Vedi shop/scheda-ferma.
+ *  (Dichiarata qui, prima di `set`, che la azzera quando si esce dalla videochiamata.) */
+let inChiamataTenutoFinoA = 0;
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 function set(p: Partial<State>) {
+  //  Si esce dalla videochiamata senza chiudere la consulenza («solo contenuti»): il battito non deve
+  //  continuare a dire «in chiamata» per la tenuta rimasta dopo una ricarica (vedi pushHeartbeat).
+  if (p.active === false && S.active) inChiamataTenutoFinoA = 0;
   Object.assign(S, p);
   emit();
 }
@@ -870,6 +879,13 @@ const scatola = creaScatola({
   mediaVivo: (pid) => hasLiveMedia(pid),
   trasporto: () => trasporto,
   ripiego: () => ultimoRipiego,
+  //  Un rapporto «blocco» ha senso solo con la videochiamata attiva: in «solo contenuti» nessuna camera si apre.
+  videochiamataAttiva: (pid) =>
+    chiamataAttivaPerRapporto({
+      ruolo: S.role === "host" ? "host" : "viewer",
+      miaAttiva: S.active,
+      hostInChiamata: hostInChiamata.get(pid),
+    }),
 });
 //  CAUSA REALE DEL "LAMPEGGIO" DELL'OSPITE: una scheda presentatore che NON è in
 //  diretta (seconda scheda, scheda ricaricata, pagina rimasta aperta) rispondeva
@@ -2870,7 +2886,13 @@ function avviaBattito() {
     );
     const w = new Worker(battitoUrl);
     battitoWorker = w;
-    w.onmessage = () => sendHello();
+    //  Il Worker cadenza anche il battito HTTP verso il server (uno ogni OGNI_TICK_BATTITO_HTTP tick): il
+    //  timer del thread principale, in una scheda nascosta, può scendere a uno al minuto.
+    let tick = 0;
+    w.onmessage = () => {
+      sendHello();
+      if (++tick % OGNI_TICK_BATTITO_HTTP === 0) pushHeartbeat();
+    };
     w.onerror = ripiega; // il blocco arriva anche dopo, come evento
     w.postMessage(3000);
   } catch {
@@ -7589,12 +7611,10 @@ function pushHeartbeat() {
     }),
   }).catch(() => {});
 }
-/** Dopo una ricarica in cui il server diceva «in chiamata»: fino a quando il battito lo ripete,
- *  così PresenterBar (`resumeCallSilently`) fa in tempo a leggerlo. Vedi shop/scheda-ferma. */
-let inChiamataTenutoFinoA = 0;
 /** Identificativo di QUESTA scheda (nasce con la pagina, cambia a ogni ricarica): va nel battito. */
 const SCHEDA_ID = (typeof crypto !== "undefined" && crypto.randomUUID?.()) || genPid() + genPid();
-if (typeof window !== "undefined" && !hbTimer) hbTimer = setInterval(pushHeartbeat, 8000);
+//  Ripiego: finché il Worker del battito c'è è lui a battere (vedi avviaBattito); il timer da 8 s lavora solo senza.
+if (typeof window !== "undefined" && !hbTimer) hbTimer = setInterval(() => { if (!battitoWorker) pushHeartbeat(); }, 8000);
 /*  ── ⚠️ E QUANDO LA SCHEDA TORNA DAVANTI, SI BATTE SUBITO ──────────────────
     In una scheda nascosta i browser rallentano `setInterval` fino a uno al
     minuto: il battito che qui sopra è di otto secondi diventa di sessanta, e
