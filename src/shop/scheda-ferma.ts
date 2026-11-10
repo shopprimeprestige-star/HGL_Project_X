@@ -78,3 +78,46 @@ export function inChiamataDaBattere(p: {
 }): boolean {
   return p.attiva || p.adesso < p.tenutoFinoA;
 }
+
+/** ── LATO SERVER: UN «NO» DI UN'ALTRA SCHEDA NON CANCELLA UN «SÌ» RECENTE ────────
+ *  Il battito del consulente scriveva `inChiamata` con «l'ultimo che scrive vince»: una
+ *  seconda scheda ferma (`inChiamata:false` ogni 8 s) riportava a «no» la consulenza che
+ *  un'altra scheda stava facendo davvero. Conseguenza: la scheda in chiamata, ricaricata,
+ *  non si riprendeva (`resumeCallSilently`) e il cliente leggeva «non in chiamata».
+ *  Adesso il server ricorda quale scheda ha detto «sì» per ultima, e quando.
+ *  · un «no» della STESSA scheda azzera subito;
+ *  · un «no» di un'ALTRA scheda non azzera finché il «sì» è fresco;
+ *  · senza identificativo (scheda vecchia, da una parte o dall'altra): come prima.
+ *  La chiusura esplicita (`live:false`) riscrive la riga intera e non passa di qui.
+ *  ⚠️ shortcut: la tenuta è di tre battiti; una scheda in chiamata il cui battito è rallentato
+ *   (scheda nascosta: uno al minuto) può lasciarla scadere. Allargarla se si vede succedere. */
+export const TENUTA_ALTRA_SCHEDA_MS = 24_000;
+
+export interface InChiamataSalvato {
+  inChiamata?: boolean;
+  /** Identificativo della scheda che ha detto «sì» per ultima ("" = non si sa). */
+  schedaChiamata?: string;
+  /** Quando (ISO) l'ha detto. */
+  chiamataAt?: string | null;
+}
+
+export function inChiamataDelBattito(p: {
+  corrente: InChiamataSalvato;
+  dichiarato: boolean;
+  scheda?: string;
+  adesso: number;
+}): { inChiamata: boolean; schedaChiamata: string; chiamataAt: string | null } {
+  const { corrente: cur, dichiarato, adesso } = p;
+  const scheda = p.scheda || "";
+  if (dichiarato) return { inChiamata: true, schedaChiamata: scheda, chiamataAt: new Date(adesso).toISOString() };
+  const quando = Date.parse(String(cur.chiamataAt || ""));
+  const tenuto =
+    !!cur.inChiamata &&
+    !!cur.schedaChiamata &&
+    !!scheda &&
+    scheda !== cur.schedaChiamata &&
+    Number.isFinite(quando) &&
+    adesso - quando < TENUTA_ALTRA_SCHEDA_MS;
+  if (tenuto) return { inChiamata: true, schedaChiamata: cur.schedaChiamata!, chiamataAt: cur.chiamataAt! };
+  return { inChiamata: false, schedaChiamata: "", chiamataAt: null };
+}

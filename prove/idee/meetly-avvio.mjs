@@ -98,4 +98,51 @@ export function proveMeetlyAvvio(mod, { c, gruppo, radice }) {
   const ri = corpo("async function riprendiConsulenzaAperta(");
   c("la ripresa apre la finestra se il server diceva «in chiamata», PRIMA del primo battito", true,
     /inChiamataTenutoFinoA = Date\.now\(\) \+ TIENI_IN_CHIAMATA_MS/.test(ri) && ri.search(/inChiamataTenutoFinoA = /) < ri.indexOf("pushHeartbeat()"));
+
+  gruppo("MEETLY · SERVER: UN «NO» DI UN'ALTRA SCHEDA NON CANCELLA UN «SÌ» RECENTE");
+  const T0 = Date.parse("2026-11-10T10:00:00.000Z");
+  const siDi = (scheda, quando = T0) => ({ inChiamata: true, schedaChiamata: scheda, chiamataAt: new Date(quando).toISOString() });
+  const bat = (corrente, dichiarato, scheda, adesso) => M.inChiamataDelBattito({ corrente, dichiarato, scheda, adesso });
+  c("un «sì» scrive scheda e ora", { inChiamata: true, schedaChiamata: "A", chiamataAt: new Date(T0 + 8000).toISOString() },
+    bat({ inChiamata: false }, true, "A", T0 + 8000));
+  c("un «no» di un'ALTRA scheda, con il «sì» fresco: il «sì» resta (era il guasto)", siDi("A"),
+    bat(siDi("A"), false, "B", T0 + 8000));
+  c("…ancora a 2 battiti (16 s)", true, bat(siDi("A"), false, "B", T0 + 16_000).inChiamata);
+  c("…e il «sì» non si rinfresca da solo: l'ora resta quella dell'altra scheda", new Date(T0).toISOString(),
+    bat(siDi("A"), false, "B", T0 + 16_000).chiamataAt);
+  c("«sì» vecchio (oltre la tenuta): il «no» vale", false, bat(siDi("A"), false, "B", T0 + M.TENUTA_ALTRA_SCHEDA_MS).inChiamata);
+  c("la tenuta è di circa tre battiti da 8 s", 24_000, M.TENUTA_ALTRA_SCHEDA_MS);
+  c("un «no» della STESSA scheda azzera subito", { inChiamata: false, schedaChiamata: "", chiamataAt: null },
+    bat(siDi("A"), false, "A", T0 + 1000));
+  c("scheda vecchia, senza identificativo: «ultimo che scrive vince», come prima", false,
+    bat(siDi("A"), false, undefined, T0 + 1000).inChiamata);
+  c("il «sì» era di una scheda vecchia (senza id): un «no» con id vale, come prima", false,
+    bat({ inChiamata: true, schedaChiamata: "", chiamataAt: new Date(T0).toISOString() }, false, "B", T0 + 1000).inChiamata);
+  c("niente «sì» in corso: il «no» resta no", false, bat({ inChiamata: false }, false, "B", T0 + 1000).inChiamata);
+  c("data illeggibile: non si tiene niente", false, bat({ inChiamata: true, schedaChiamata: "A", chiamataAt: "boh" }, false, "B", T0).inChiamata);
+  c("un «sì» di un'altra scheda passa la mano", "B", bat(siDi("A"), true, "B", T0 + 1000).schedaChiamata);
+  c("«solo contenuti»: nessuna scheda ha detto «sì», quindi resta «no»", false,
+    bat({ inChiamata: false, schedaChiamata: "", chiamataAt: null }, false, "B", T0).inChiamata);
+
+  gruppo("MEETLY · SERVER E CLIENT: GLI INNESTI DEL «NO» CHE NON CANCELLA");
+  const srv = readFileSync(join(radice, "src/routes/api.presenter.session.ts"), "utf8");
+  const srvSenza = srv.replace(/\/\*[\s\S]*?\*\/|(^|[^:"'`])\/\/.*$/gm, "$1");
+  c("il server passa dalla regola, non più da `!!body.inChiamata`", [true, false], [
+    /inChiamataDelBattito\(/.test(srvSenza),
+    /inChiamata: !!body\.inChiamata/.test(srvSenza),
+  ]);
+  c("il server tiene scheda e ora dentro la riga già esistente (nessuna colonna nuova)", true,
+    /schedaChiamata/.test(srvSenza) && /chiamataAt/.test(srvSenza));
+  c("la chiusura esplicita (live:false) azzera tutto, senza passare dalla tenuta", true,
+    /:\s*\{ live: false, code: null, presenterId: "", presenterName: "", startedAt: null, hb: null \}/.test(srvSenza));
+  const hb2 = corpo("function pushHeartbeat(");
+  c("il battito manda l'identificativo della scheda", true, /scheda: SCHEDA_ID/.test(hb2));
+  c("l'identificativo è uno solo per tutta la vita della scheda", true, /const SCHEDA_ID\b/.test(senza));
+
+  gruppo("MEETLY · LA TENUTA DEI 60 s SI AZZERA QUANDO LA CHIAMATA SI CHIUDE DAVVERO");
+  const azzera = /inChiamataTenutoFinoA = 0/;
+  c("setSessionLive (la strada di endCall e di ogni nuovo avvio) la azzera", true, azzera.test(corpo("export function setSessionLive(")));
+  c("teardownMedia (uscita forzata e smontaggio) la azzera", true, azzera.test(corpo("function teardownMedia(")));
+  c("la chiusura vista dal server (controllaSeChiusaAltrove) la azzera", true, azzera.test(corpo("async function controllaSeChiusaAltrove(")));
+  c("riprendiConsulenzaAperta non la azzera: lì la si apre", false, /inChiamataTenutoFinoA = 0/.test(ri));
 }
