@@ -1027,6 +1027,8 @@ const broadcastState = () => {
 /** L'host apre/chiude la sessione (schermata d'attesa per il guest finché è false). */
 export function setSessionLive(v: boolean) {
   if (S.role !== "host") return;
+  //  Chiusura o nuovo avvio: la tenuta del «in chiamata» dopo una ricarica non vale più (vedi pushHeartbeat).
+  inChiamataTenutoFinoA = 0;
   set({ sessionLive: v });
   //  Consulenza aperta = ci si annuncia, anche senza videochiamata: vedi il
   //  cartello in `guestEnterApproved`.
@@ -6465,6 +6467,7 @@ function attachChannel(sessionId: string) {
 }
 
 function teardownMedia(opts?: { keepJoined?: boolean }) {
+  inChiamataTenutoFinoA = 0; // uscita forzata o smontaggio: niente «in chiamata» tenuto a vuoto
   stopSpeakingRings();
   const keepJoined = !!opts?.keepJoined && S.role === "viewer" && guestSticky;
   stopUsageTracking(); // salva il consumo dati PRIMA di chiudere le connessioni
@@ -7575,6 +7578,8 @@ function pushHeartbeat() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       hbOnly: true,
+      //  Quale scheda parla: il server non lascia che il «no» di un'altra cancelli un «sì» fresco.
+      scheda: SCHEDA_ID,
       code: S.sessionId || readLiveId(),
       inChiamata: inChiamataDaBattere({
         attiva: S.active,
@@ -7587,6 +7592,8 @@ function pushHeartbeat() {
 /** Dopo una ricarica in cui il server diceva «in chiamata»: fino a quando il battito lo ripete,
  *  così PresenterBar (`resumeCallSilently`) fa in tempo a leggerlo. Vedi shop/scheda-ferma. */
 let inChiamataTenutoFinoA = 0;
+/** Identificativo di QUESTA scheda (nasce con la pagina, cambia a ogni ricarica): va nel battito. */
+const SCHEDA_ID = (typeof crypto !== "undefined" && crypto.randomUUID?.()) || genPid() + genPid();
 if (typeof window !== "undefined" && !hbTimer) hbTimer = setInterval(pushHeartbeat, 8000);
 /*  ── ⚠️ E QUANDO LA SCHEDA TORNA DAVANTI, SI BATTE SUBITO ──────────────────
     In una scheda nascosta i browser rallentano `setInterval` fino a uno al
@@ -7939,6 +7946,7 @@ async function controllaSeChiusaAltrove() {
       return;
     console.log("[HOST] la consulenza non è più aperta sul server: chiudo anche qui");
     chiusureDiFila = 0;
+    inChiamataTenutoFinoA = 0; // chiusa altrove: la tenuta non vale più
     set({ sessionLive: false });
   } catch {
     /* rete: non si conclude niente, si riprova al giro dopo */

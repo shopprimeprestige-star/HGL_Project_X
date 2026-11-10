@@ -14,6 +14,9 @@ import { chiaveSessione } from "@/shop/chiave-sessione";
 //  Quando una consulenza rimasta aperta va considerata finita: la regola sta
 //  in shop/consulenza-aperta, provata senza database.
 import { consulenzaDaChiudere } from "@/shop/consulenza-aperta";
+//  Chi ha detto «in chiamata» per ultimo: un «no» di un'altra scheda non lo
+//  cancella (regola provata in shop/scheda-ferma).
+import { inChiamataDelBattito } from "@/shop/scheda-ferma";
 //  La chiave del rinvio la scrive lo spostamento di un appuntamento: vedi
 //  crm/spostamento-meet.ts e routes/api.crm.meeting-session.ts.
 import { chiaveRinvio, rinvioPerChi } from "@/crm/spostamento-meet";
@@ -35,6 +38,10 @@ interface Sess {
    *  chiamata. Tenendole insieme, in quei minuti il server dichiarava morta la
    *  sessione e il cliente veniva rimandato in attesa — «entra ed esci». */
   inChiamata?: boolean;
+  /** Quale scheda del consulente ha detto «in chiamata» per ultima, e quando (ISO):
+   *  dentro lo stesso json della riga, nessuna colonna nuova. Vedi inChiamataDelBattito. */
+  schedaChiamata?: string;
+  chiamataAt?: string | null;
 }
 
 /*  "Battito" della consulenza: la postazione del consulente lo aggiorna ogni
@@ -77,6 +84,8 @@ function parse(value: string | null | undefined): Sess {
       live: !!o.live, code: o.code ?? null,
       presenterId: o.presenterId ?? "", presenterName: o.presenterName ?? "",
       startedAt: o.startedAt ?? null, hb: o.hb ?? null, inChiamata: !!o.inChiamata,
+      schedaChiamata: typeof o.schedaChiamata === "string" ? o.schedaChiamata : "",
+      chiamataAt: typeof o.chiamataAt === "string" ? o.chiamataAt : null,
     };
   } catch { return empty; }
 }
@@ -209,15 +218,23 @@ export const Route = createFileRoute("/api/presenter/session")({
         return json({ ...sess, callActive: vivo, inChiamata: vivo && !!sess.inChiamata, rinvio });
       },
       POST: async ({ request }) => {
-        let body: Partial<Sess> & { hbOnly?: boolean } = {};
-        try { body = (await request.json()) as Partial<Sess> & { hbOnly?: boolean }; } catch { /* ignore */ }
+        let body: Partial<Sess> & { hbOnly?: boolean; scheda?: unknown } = {};
+        try { body = (await request.json()) as Partial<Sess> & { hbOnly?: boolean; scheda?: unknown }; } catch { /* ignore */ }
         // battito: aggiorna SOLO `hb`, senza toccare il resto della sessione
         const chiave = chiaveSessione("session_live", body.code);
         if (body.hbOnly) {
           const { data } = await supabaseAdmin.from("app_config").select("value").eq("key", chiave).maybeSingle();
           const cur = parse((data as { value?: string | null } | null)?.value);
           if (!cur.live) return json({ ok: true, ...cur, callActive: false });
-          const next: Sess = { ...cur, hb: new Date().toISOString(), inChiamata: !!body.inChiamata };
+          //  ⚠️ «In chiamata» non è più «l'ultimo che scrive vince»: un «no» di un'altra scheda
+          //   (ferma, o ricaricata) non cancella il «sì» fresco di quella che sta facendo la
+          //   chiamata. Senza `scheda` (client vecchio) il comportamento è quello di prima.
+          const scheda = typeof body.scheda === "string" ? body.scheda.slice(0, 64) : "";
+          const next: Sess = {
+            ...cur,
+            hb: new Date().toISOString(),
+            ...inChiamataDelBattito({ corrente: cur, dichiarato: !!body.inChiamata, scheda, adesso: Date.now() }),
+          };
           await supabaseAdmin.from("app_config").upsert(
             { key: chiave, value: JSON.stringify(next), updated_at: new Date().toISOString() } as never,
             { onConflict: "key" },
