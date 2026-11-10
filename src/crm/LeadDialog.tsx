@@ -233,7 +233,7 @@ import { QUANDO_PER_STATO, SPOSTA_CONSULENZA, type RichiestaQuando } from "./qua
  *  e se fosse rimasta in questo file i due si importerebbero a vicenda. */
 import { PastigliaStato, etichettaDi } from "./SelettoreStatoDialog";
 import { PastigliaEsito } from "./chatwa/PastigliaEsito";
-import { eRicontatto, esitoDi } from "./chatwa/ricontatti";
+import { dataDi, eRicontatto, esitoDi } from "./chatwa/ricontatti";
 import { PrimaDelRitorno } from "@/crm/importa/PrimaDelRitorno";
 import {
   generateAvailability,
@@ -1565,7 +1565,7 @@ export function LeadDialog({
                 <PrimaDelRitorno dati={form} className="mt-1.5 flex" />
                 {/*  L'esito del ricontatto (31/10/2026): stesso foglio «Com'è andata?» di «Ricontatti» e
                     della chat. Solo per gli stati da risentire e a scheda già salvata (serve la riga su cui
-                    scrivere). Si salva subito, da solo, come «Ok a WhatsApp»: il modulo prende il valore
+                    scrivere). Esito e data si confermano con «Salva» del foglio e si scrivono subito, da soli, come «Ok a WhatsApp»: il modulo prende il valore
                     senza segnare «modificato», e resta quando lo stato cambia. */}
                 {lead?.id && eRicontatto({ lead: { data: form } }) && (
                   <div className="mt-2 flex items-center gap-2">
@@ -1573,6 +1573,7 @@ export function LeadDialog({
                     <PastigliaEsito
                       leadId={lead.id}
                       esito={esitoDi({ lead: { data: form } })}
+                      data={dataDi({ lead: { data: form } })}
                       contesto={`${form.nome ?? ""} ${form.cognome ?? ""}`.trim() || undefined}
                       className="min-h-11 after:hidden sm:min-h-0"
                       onSalvato={(patch) => setForm((f) => ({ ...f, ...patch }))}

@@ -58,7 +58,7 @@ import { ritornoInChat, vociRitorno } from "./ritorno";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { PastigliaEsito } from "./PastigliaEsito";
-import { eRicontatto, esitoDi } from "./ricontatti";
+import { dataDi, eRicontatto, esitoDi } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { attaccataAllaPrecedente } from "./stile";
 import { ID_CODA, unisciConCoda } from "./invioPonte";
@@ -474,6 +474,7 @@ export function Conversazione({
                 <PastigliaEsito
                   leadId={attiva.lead.id}
                   esito={esitoDi(attiva)}
+                  data={dataDi(attiva)}
                   contesto={
                     `${attiva.lead.data.nome ?? ""} ${attiva.lead.data.cognome ?? ""}`.trim() ||
                     undefined

@@ -191,7 +191,7 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   const conv = senzaCommenti(leggi("src/crm/chatwa/Conversazione.tsx"));
   const scheda = senzaCommenti(leggi("src/crm/LeadDialog.tsx"));
   c("l'esito è una pastiglia che si tocca, con 44 px sul telefono (un componente solo)", true, /FinestraEsito/.test(past) && /after:-inset-y-3/.test(past) && /aria-haspopup="dialog"/.test(past));
-  c("l'esito si salva come gli altri campi della scheda (updateLead), in un posto solo", true, /updateLead\(/.test(past) && /patchEsito\(/.test(past));
+  c("l'esito si salva come gli altri campi della scheda (updateLead), in un posto solo", true, /updateLead\(/.test(past) && /patchEsito(EData)?\(/.test(past));
   c("la riga, la chat aperta e la scheda usano la stessa pastiglia, senza una scrittura propria", true, [riga, conv, scheda].every((t) => /<PastigliaEsito/.test(t)) && !/esitoRicontatto/.test(riga) && !/esitoRicontatto:/.test(conv) && !/esitoRicontatto:/.test(scheda));
   c("se il salvataggio non riesce, lo si dice", true, /toast\.error\(/.test(past));
   c("chat aperta: la pastiglia c'è solo per i lead negli stati da risentire (come Ricontatti)", true, /eRicontatto\(attiva\)[\s\S]{0,80}<PastigliaEsito|eRicontatto\(attiva\)/.test(conv) && /<PastigliaEsito/.test(conv));
@@ -200,6 +200,18 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   c("togliere l'esito lo toglie davvero", true, /esitoRicontatto: undefined/.test(senzaCommenti(leggi("src/crm/chatwa/ricontatti.ts"))));
   c("patchEsito: mette esito e quando", { esitoRicontatto: "piu_avanti", esitoRicontattoIl: "2026-10-31T10:00:00.000Z" }, R.patchEsito("piu_avanti", new Date("2026-10-31T10:00:00Z")));
   c("patchEsito: null toglie entrambi i campi", true, ((p) => "esitoRicontatto" in p && "esitoRicontattoIl" in p && p.esitoRicontatto === undefined && p.esitoRicontattoIl === undefined)(R.patchEsito(null)));
+  gruppo("RISENTIRE: ESITO + DATA NEL FOGLIO (10/11/2026)");
+  const T0 = new Date("2026-11-10T10:00:00Z");
+  c("niente cambiato: non si scrive niente", {}, R.patchEsitoEData("piu_avanti", "2026-11-20", { esito: "piu_avanti", giorno: "2026-11-20" }, T0));
+  c("solo la data: scrive la data e toglie l'ora vecchia, l'esito non si tocca", true, ((p) => p.dataRicontatto === "2026-11-20" && "oraRicontatto" in p && p.oraRicontatto === undefined && !("esitoRicontatto" in p))(R.patchEsitoEData("piu_avanti", "2026-11-20", { esito: "piu_avanti", giorno: "" }, T0)));
+  c("solo l'esito: la data non si tocca", { esitoRicontatto: "ci_sta_pensando", esitoRicontattoIl: T0.toISOString() }, R.patchEsitoEData("ci_sta_pensando", "2026-11-20", { esito: "piu_avanti", giorno: "2026-11-20" }, T0));
+  c("esito e data insieme", true, ((p) => p.esitoRicontatto === "aspetta_i_soldi" && p.dataRicontatto === "2026-12-01")(R.patchEsitoEData("aspetta_i_soldi", "2026-12-01", { esito: null, giorno: "" }, T0)));
+  c("data vuota: la toglie", true, ((p) => "dataRicontatto" in p && p.dataRicontatto === undefined)(R.patchEsitoEData(null, "", { esito: null, giorno: "2026-11-20" }, T0)));
+  c("una data non vera non cancella quella di prima", {}, R.patchEsitoEData(null, "2026-02-31", { esito: null, giorno: "2026-11-20" }, T0));
+  c("data a metà o con anno passato: resta quella di prima", true, [R.patchEsitoEData(null, "0002-11-20", { esito: null, giorno: "2026-11-20" }, T0), R.patchEsitoEData(null, "2026-11", { esito: null, giorno: "2026-11-20" }, T0)].every((p) => !("dataRicontatto" in p)));
+  c("giornoTra: domani, una settimana, un mese (giorno locale)", ["2026-11-11", "2026-11-17", "2026-12-10"], [1, 7, 30].map((n) => R.giornoTra(n, new Date(2026, 10, 10, 23, 30))));
+  c("il foglio ha «Quando vuole essere ricontattato», le scorciatoie, il campo data, «Togli la data» e Salva", true, /Quando vuole essere ricontattato/.test(finestra) && /Domani/.test(finestra) && /Tra 1 settimana/.test(finestra) && /Tra 1 mese/.test(finestra) && /type="date"/.test(finestra) && /Togli la data/.test(finestra) && />\s*Salva\s*</.test(finestra));
+  c("la pastiglia salva con patchEsitoEData e riceve la data della scheda nei tre posti", true, /patchEsitoEData\(/.test(past) && [riga, conv, scheda].every((t) => /<PastigliaEsito[\s\S]{0,200}data=\{dataDi\(/.test(t)));
   c("le altre viste non cambiano: l'esito e «Senza data» solo in Ricontatti", true, /risentire/.test(riga) && /risentire=\{filtri\.ricontatti\}/.test(elenco));
   c("la finestra dell'esito: le quattro scelte, «Nessun esito» e Annulla, tasti da 44 px", true, /ESITI_RICONTATTO/.test(finestra) && /Nessun esito/.test(finestra) && /Annulla/.test(finestra) && /min-h-11/.test(finestra));
   c("niente emoji nei file nuovi", true, ![righe, finestra, past].some((t) => /\p{Extended_Pictographic}/u.test(t)));
