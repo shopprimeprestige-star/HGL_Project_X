@@ -155,14 +155,17 @@ export function patchEsitoEData(
   prima: { esito: EsitoRicontatto | null; giorno: string },
   adesso: Date = new Date(),
 ): Record<string, string | undefined> {
-  const g = giornoParlato(String(giorno ?? "").slice(0, 10)) ? String(giorno).slice(0, 10) : "";
+  //  Una data scritta a metà o assurda (anno prima di quello di adesso) NON cancella quella che c'era.
+  const testo = String(giorno ?? "").slice(0, 10);
+  const vera = !!giornoParlato(testo) && Number(testo.slice(0, 4)) >= adesso.getFullYear();
+  const g = testo === "" ? "" : vera ? testo : prima.giorno;
   const patch: Record<string, string | undefined> = {};
   if (esito !== prima.esito) Object.assign(patch, patchEsito(esito, adesso));
   if (g !== prima.giorno) Object.assign(patch, { dataRicontatto: g || undefined, oraRicontatto: undefined });
   return patch;
 }
 
-/** Il giorno locale fra `giorni` giorni, «AAAA-MM-GG» (le scorciatoie del foglio). */
+/** Il giorno locale fra `giorni` giorni, «AAAA-MM-GG» (le scorciatoie del foglio; «Tra 1 mese» = 30 giorni). */
 export function giornoTra(giorni: number, adesso: Date = new Date()): string {
   const d = new Date(adesso.getFullYear(), adesso.getMonth(), adesso.getDate() + giorni);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

@@ -141,8 +141,9 @@ export function FinestraEsito({
             id="esito-data-ricontatto"
             type="date"
             value={giorno}
+            min={giornoTra(0)}
             onChange={(e) => setGiorno(e.target.value)}
-            className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-[15px] text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:pointer-fine:min-h-9"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900 lg:pointer-fine:text-[15px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:pointer-fine:min-h-9"
           />
           {giorno && (
             <button

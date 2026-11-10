@@ -1565,7 +1565,7 @@ export function LeadDialog({
                 <PrimaDelRitorno dati={form} className="mt-1.5 flex" />
                 {/*  L'esito del ricontatto (31/10/2026): stesso foglio «Com'è andata?» di «Ricontatti» e
                     della chat. Solo per gli stati da risentire e a scheda già salvata (serve la riga su cui
-                    scrivere). Si salva subito, da solo, come «Ok a WhatsApp»: il modulo prende il valore
+                    scrivere). Esito e data si confermano con «Salva» del foglio e si scrivono subito, da soli, come «Ok a WhatsApp»: il modulo prende il valore
                     senza segnare «modificato», e resta quando lo stato cambia. */}
                 {lead?.id && eRicontatto({ lead: { data: form } }) && (
                   <div className="mt-2 flex items-center gap-2">
