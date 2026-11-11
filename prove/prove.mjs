@@ -19647,7 +19647,7 @@ async function proveDeiTrentaSecondi() {
   const presenza = call.slice(call.indexOf("let battitoWorker"), call.indexOf("// ── UN SOLO CONTESTO AUDIO"));
   c("il battito di hello gira su un Worker inline", true,
     /new Worker\(/.test(call) && /new Blob\(/.test(call) && /URL\.createObjectURL/.test(call));
-  c("…con il ripiego su setInterval se non parte", true, /setInterval\(sendHello/.test(presenza) && /onerror/.test(call));
+  c("…con il ripiego su setInterval se non parte", true, /setInterval\(\(\) => sendHello\(false, "battito"\)/.test(presenza) && /onerror/.test(call));
   c("…e si ferma davvero", true, /\.terminate\(\)/.test(presenza));
   const gc = call.slice(call.indexOf("function gcRoster"), call.indexOf('/** "Pulisci lista"'));
   c("chi tace da troppo sparisce subito anche dalla Plancia", true, /uscitiOra\.set\(r\.leadId/.test(gc));

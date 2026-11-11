@@ -1233,7 +1233,7 @@ function helloName(): string {
 //  del canale: il presentatore conosce già il pid dell'ospite e senza questa
 //  richiesta non si riannuncerebbe mai → l'ospite resterebbe con il roster vuoto
 //  ("In attesa degli altri…") pur avendo il presentatore dall'altra parte.
-function sendHello(req = false) {
+function sendHello(req = false, chi = "altro") {
   if (!S.myPid) return;
   if (staEscendo) return; // ha premuto «Esci»: non deve riannunciarsi
   if (isViewer() && !(S.joined && guestSticky)) return; // non è ancora entrato: niente presenza
@@ -1251,6 +1251,7 @@ function sendHello(req = false) {
       modalità la rifiuta il cliente, non il server, quindi una scheda aperta
       da prima di un aggiornamento continua a cambiare schermata e da fuori
       sembra che la regola non funzioni. Vedi `statoDelloSchermo`. */
+  scatola.salutoInviato(chi); // scatola nera: chi ha mandato questo saluto (conto per chiamante)
   send("hello", {
     pid: S.myPid,
     name: helloName(),
@@ -2447,6 +2448,7 @@ function removePeer(pid: string, why = "unspecified") {
   peerSenzaMedia.delete(pid);
   hostInChiamata.delete(pid);
   offertaInviataIl.delete(pid);
+  scatola.rimosso(why); // scatola nera: perché si toglie, a conti fatti (il ciclo che azzera i rapporti)
   const attesa = attesaOspite.get(pid);
   if (attesa !== undefined) window.clearTimeout(attesa);
   attesaOspite.delete(pid);
@@ -2864,7 +2866,7 @@ async function openMedia(): Promise<MediaStream> {
   //  Ospite già passato a SFU prima dei media: l'invio parte adesso.
   if (lettura) await decidiTrasporto(lettura);
   else sfu?.avvia(s);
-  sendHello(true);
+  sendHello(true, "media");
   S.roster.forEach((r) => maybeInitiate(r.pid));
   return s;
 }
@@ -2885,7 +2887,7 @@ function avviaBattito() {
       battitoWorker.terminate();
       battitoWorker = null;
     }
-    if (!helloTimer) helloTimer = setInterval(sendHello, 3000);
+    if (!helloTimer) helloTimer = setInterval(() => sendHello(false, "battito"), 3000);
   };
   try {
     battitoUrl = URL.createObjectURL(
@@ -2899,7 +2901,7 @@ function avviaBattito() {
     //  timer del thread principale, in una scheda nascosta, può scendere a uno al minuto.
     let tick = 0;
     w.onmessage = () => {
-      sendHello();
+      sendHello(false, "battito");
       if (++tick % OGNI_TICK_BATTITO_HTTP === 0) pushHeartbeat();
     };
     w.onerror = ripiega; // il blocco arriva anche dopo, come evento
@@ -2912,7 +2914,7 @@ function avviaBattito() {
 // presenza: annuncio periodico + raccolta dei peer scomparsi
 function startPresence() {
   stopPresence();
-  sendHello();
+  sendHello(false, "presenza");
   avviaBattito();
   // il presentatore pubblica la lista autorevole ogni 5s (l'ospite riconcilia)
   if (!isViewer() && !rosterTimer) rosterTimer = setInterval(broadcastRoster, 5000);
@@ -6019,7 +6021,7 @@ function attachChannel(sessionId: string) {
     }
     // mi riannuncio al nuovo arrivato, oppure a chi lo chiede esplicitamente
     // (ri-sottoscrizione: il pid è già noto ma l'altro lato ha il roster vuoto)
-    if (!known || payload?.req === true) sendHello(false);
+    if (!known || payload?.req === true) sendHello(false, "risposta");
     if (!isViewer() && (!known || payload?.req === true)) {
       broadcastState();
       broadcastRoster();
@@ -6469,7 +6471,7 @@ function attachChannel(sessionId: string) {
     // dopo OGNI (ri)sottoscrizione l'ospite si riannuncia CHIEDENDO risposta:
     // il presentatore rimanda hello + callstate → il roster si ripopola subito.
     if (isViewer()) {
-      if (S.joined) sendHello(true);
+      if (S.joined) sendHello(true, "canale");
     } else broadcastState();
   });
   chan = ch;
@@ -8358,7 +8360,7 @@ function apriSenzaMedia(motivo: string) {
   if (localStream || mediaFallita) return;
   mediaFallita = true;
   console.warn(`[PEER] niente media locali (${motivo}) → mi collego in sola ricezione`);
-  sendHello(true);
+  sendHello(true, "media");
   S.roster.forEach((r) => void maybeInitiate(r.pid));
 }
 
@@ -8456,7 +8458,7 @@ function attachLocalMediaToPeers(reason: string) {
     `[PEER] ${missing.length} connessione/i senza posto per i media (${reason}) → le ricostruisco`,
   );
   missing.forEach((pid) => removePeer(pid, "media aperti dopo la connessione"));
-  sendHello(true); // richiede il giro di saluti: le connessioni rinascono con le tracce
+  sendHello(true, "media"); // richiede il giro di saluti: le connessioni rinascono con le tracce
 }
 
 async function replaceVideoTrackAll(track: MediaStreamTrack | null, reason = "non specificato") {
@@ -11250,7 +11252,7 @@ export function reportGuestError(msg: string, stack?: string) {
 export function requestPresenterState() {
   if (S.role !== "viewer") return;
   try {
-    sendHello(true);
+    sendHello(true, "errore-render");
   } catch {
     /* */
   }
@@ -14021,7 +14023,7 @@ function MioPreventivoInPrimoPiano({ st }: { st: State }) {
     if (!acceso) {
       //  Tornato a seguire il consulente: gli si chiede subito dov'è, invece
       //  di aspettare il prossimo giro (`req: true` = «rispondimi»).
-      if (st.joined) sendHello(true);
+      if (st.joined) sendHello(true, "velo");
       return;
     }
     if (typeof window !== "undefined" && !/^\/preventivo/.test(window.location.pathname)) {
@@ -15093,6 +15095,7 @@ class GuestErrorBoundary extends Component<
       "\n[GUEST][ERR] componentStack:",
       info?.componentStack || "(non disponibile)",
     );
+    scatola.erroreDiRender(err?.name || "Error"); // scatola nera: solo il NOME dell'errore
     if (!isGuest()) return; // presentatore: l'errore risale come sempre
     reportGuestError(
       `${err?.name || "Error"}: ${err?.message || String(err)}${where}`,

@@ -258,8 +258,8 @@ export function proveMeetlySfuInnesti(mod, { c, gruppo, radice }) {
   c("openMedia: nessun await sulla lettura prima di apriMedia (non aggiunge attesa all'apertura)", true,
     !/await (lettura|leggiInterruttore|decidiTrasporto)/.test(om.slice(0, om.indexOf("apriMedia("))));
   c("openMedia: la decisione si attende solo subito prima dell'ULTIMO sendHello(true), dopo i media", true,
-    ha(om, ['collegaVoceAlRegistratore(s, "io")', "if (lettura) await decidiTrasporto(lettura);", "sendHello(true);", "S.roster.forEach((r) => maybeInitiate(r.pid));", "return s;"], true) &&
-      norm(om.slice(om.lastIndexOf("if (lettura)"), om.lastIndexOf("sendHello(true)"))).length < 200);
+    ha(om, ['collegaVoceAlRegistratore(s, "io")', "if (lettura) await decidiTrasporto(lettura);", "sendHello(true, \"media\");", "S.roster.forEach((r) => maybeInitiate(r.pid));", "return s;"], true) &&
+      norm(om.slice(om.lastIndexOf("if (lettura)"), om.lastIndexOf("sendHello(true"))).length < 200);
   c("openMedia: un ospite già passato a SFU avvia l'invio con i media appena aperti", true, ha(om, ["else sfu?.avvia(s);"]));
   const li = corpoDi("function leggiInterruttore(");
   c("leggiInterruttore: GET dello stato, tetto LETTURA_INTERRUTTORE_MS (1,5 s), mai un'eccezione", true,

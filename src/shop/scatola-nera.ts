@@ -69,6 +69,14 @@ export type Rapporto = {
   };
   /** Ultimo stato della sottoscrizione al canale di segnalazione di QUESTA scheda ("" = mai visto). */
   canale?: string;
+  /** Rapporto «sentinella» dell'ospite: partito perché mandava troppi saluti, anche senza aver mai incontrato il consulente. */
+  sentinella?: boolean;
+  /** Saluti inviati da questa scheda, per chiamante (elenco chiuso `CHIAMANTI`). */
+  chiamanti?: Record<string, number>;
+  /** Interlocutori tolti dall'elenco da questa scheda, per motivo (elenco chiuso `RIMOZIONI`). */
+  rimossi?: Record<string, number>;
+  /** Il NOME (mai il testo) dell'ultimo errore di render dell'ospite ("" = nessuno). */
+  erroreRender?: string;
   permessi: { camera: Permesso; microfono: Permesso };
   erroreMedia: string;
   tracce: { locali: { video: number; audio: number }; remote: { video: number; audio: number; vive: number } };
@@ -172,6 +180,43 @@ const ERRORI_MEDIA = new Set([
 const PERMESSI = new Set(["concesso", "negato", "da-chiedere", "ignoto"]);
 //  Gli stati con cui Supabase chiude `subscribe`: elenco chiuso, qualsiasi altro testo non esce.
 const CANALI = new Set(["SUBSCRIBED", "TIMED_OUT", "CHANNEL_ERROR", "CLOSED"]);
+
+/** Chi ha mandato un saluto (`sendHello`): elenco chiuso, qualsiasi altro nome vale «altro». */
+export const CHIAMANTI = ["battito", "presenza", "canale", "risposta", "velo", "errore-render", "media", "altro"] as const;
+/** Perché un interlocutore è stato tolto dall'elenco: elenco chiuso, il testo libero non esce. */
+export const RIMOZIONI = [
+  "dedupe-dev", "dedupe-host", "roster-autorevole", "bye", "host-fantasma", "non-saluta", "presentatore-uscito",
+  "blocked", "media-dopo-connessione", "pulizia", "azzeramento", "altro",
+] as const;
+const ERRORI_RENDER = new Set(["Error", "TypeError", "ReferenceError", "RangeError", "SyntaxError", "EvalError", "URIError"]);
+
+/** Soglia della sentinella: più di `SOGLIA_SALUTI` saluti in `FINESTRA_SALUTI_MS`. Un battito normale ne fa uno ogni 3 s. */
+export const SOGLIA_SALUTI = 20;
+export const FINESTRA_SALUTI_MS = 10_000;
+
+/** I saluti recenti (istanti) superano la soglia? */
+export function salutiARaffica(istanti: number[], adesso: number): boolean {
+  return istanti.filter((t) => adesso - t >= 0 && adesso - t <= FINESTRA_SALUTI_MS).length > SOGLIA_SALUTI;
+}
+
+/** Il motivo libero di `removePeer` ridotto a una voce dell'elenco chiuso. */
+export function motivoRimozione(why: unknown): (typeof RIMOZIONI)[number] {
+  const w = String(why ?? "");
+  const t: [RegExp, (typeof RIMOZIONI)[number]][] = [
+    [/^dedupe-dev/, "dedupe-dev"], [/^dedupe-host/, "dedupe-host"], [/^roster-autorevole|^self-in-roster/, "roster-autorevole"],
+    [/^bye/, "bye"], [/^host-fantasma/, "host-fantasma"], [/^non saluta|^no-hello/, "non-saluta"],
+    [/^presentatore-uscito/, "presentatore-uscito"], [/^blocked/, "blocked"], [/^media aperti dopo/, "media-dopo-connessione"],
+    [/^purge/, "pulizia"],
+  ];
+  return t.find(([re]) => re.test(w))?.[1] ?? "altro";
+}
+
+const contatori = (x: unknown, elenco: readonly string[]): Record<string, number> => {
+  const o = oggetto(x);
+  return Object.fromEntries(elenco.map((k) => [k, intero(o[k], 100_000)]));
+};
+/** Contatori a zero per tutte le voci di un elenco (serve anche alle prove). */
+export const contatoriVuoti = (elenco: readonly string[]): Record<string, number> => Object.fromEntries(elenco.map((k) => [k, 0]));
 //  I motivi di ripiego su mesh: quelli del client SFU (MotivoRipiego) e due di `adottaTrasporto`.
 //  Elenco chiuso a mano: qualsiasi altro testo diventa «altro», così non esce niente di libero.
 const RIPIEGHI = new Set([
@@ -265,6 +310,10 @@ export function pulisciRapporto(x: unknown): Rapporto | null {
       offerteFuoriChiamata: intero(sg.offerteFuoriChiamata),
     },
     canale: dalElenco(o.canale, CANALI, ""),
+    sentinella: o.sentinella === true,
+    chiamanti: contatori(o.chiamanti, CHIAMANTI),
+    rimossi: contatori(o.rimossi, RIMOZIONI),
+    erroreRender: dalElenco(o.erroreRender, ERRORI_RENDER, ""),
     permessi: { camera: dalElenco(pm.camera, PERMESSI, "ignoto") as Permesso, microfono: dalElenco(pm.microfono, PERMESSI, "ignoto") as Permesso },
     erroreMedia: typeof o.erroreMedia === "string" && o.erroreMedia ? dalElenco(o.erroreMedia, ERRORI_MEDIA, "altro") : "",
     tracce: {
@@ -286,6 +335,11 @@ export function pulisciRapporto(x: unknown): Rapporto | null {
 export function diagnosi(r: Rapporto): { dove: string; frase: string } {
   const altro = r.ruolo === "consulente" ? "Il cliente" : "Il consulente";
   const sg = r.segnali;
+
+  if (r.sentinella) {
+    const n = Object.values(r.chiamanti ?? {}).reduce((a, b) => a + b, 0);
+    return { dove: "Segnalazione", frase: `${r.ruolo === "ospite" ? "L'ospite" : "Il consulente"} manda saluti a raffica (${n} registrati)` };
+  }
 
   if (r.tipo === "esito") {
     const s = Math.round((r.collegatoMs ?? r.incontroMs) / 1000);

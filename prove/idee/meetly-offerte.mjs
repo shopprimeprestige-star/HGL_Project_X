@@ -133,4 +133,93 @@ export async function proveMeetlyOfferte(mod, { c, gruppo, radice }) {
   c("call.tsx: il gestore hello conta il saluto ricevuto", true, /scatola\.hello\(pid\)/.test(hello));
   const sub = call.slice(call.indexOf("ch.subscribe((st)"), call.indexOf("ch.subscribe((st)") + 400);
   c("call.tsx: lo stato della sottoscrizione si registra PRIMA di scartare quelli diversi da SUBSCRIBED", true, sub.indexOf("scatola.canale(st)") > 0 && sub.indexOf("scatola.canale(st)") < sub.indexOf('!== "SUBSCRIBED"'));
+
+  gruppo("MEETLY OFFERTE · LA SENTINELLA: SALUTI PER CHIAMANTE, RIMOZIONI PER MOTIVO, RAPPORTO SENZA INCONTRO");
+  c("saluti a raffica: più di 20 in 10 s", [false, true], [S.salutiARaffica(Array.from({ length: 20 }, (_, i) => i * 100), 2000), S.salutiARaffica(Array.from({ length: 21 }, (_, i) => i * 100), 2100)]);
+  c("il battito normale (uno ogni 3 s) non è una raffica", false, S.salutiARaffica([0, 3000, 6000, 9000, 12000], 12000));
+  c("i saluti vecchi di più di 10 s non contano", false, S.salutiARaffica(Array.from({ length: 30 }, (_, i) => i), 20000));
+  const motivi = {
+    "dedupe-dev": "dedupe-dev", "dedupe-host": "dedupe-host", "roster-autorevole": "roster-autorevole", "self-in-roster": "roster-autorevole",
+    bye: "bye", "host-fantasma>15s": "host-fantasma", "non saluta più da 31s": "non-saluta", "no-hello": "non-saluta",
+    "presentatore-uscito(no-hello>10s + pc closed)": "presentatore-uscito", blocked: "blocked",
+    "media aperti dopo la connessione": "media-dopo-connessione", "purge-manuale": "pulizia", "Mario Rossi 203.0.113.5": "altro", [undefined]: "altro",
+  };
+  c("ogni motivo di removePeer finisce in una voce dell'elenco chiuso", Object.values(motivi), Object.keys(motivi).map((k) => S.motivoRimozione(k === "undefined" ? undefined : k)));
+  const base2 = { ...base, ruolo: "ospite", sentinella: true, canale: "SUBSCRIBED" };
+  const sen = (extra) => S.pulisciRapporto({ ...base2, ...extra });
+  c("un rapporto vecchio vale: non sentinella, tutti i contatori a zero, nessun errore di render", [false, 0, 0, ""], (() => { const r = S.pulisciRapporto({ ...base, canale: undefined }); return [r.sentinella, Object.values(r.chiamanti).reduce((a, b) => a + b, 0), Object.values(r.rimossi).reduce((a, b) => a + b, 0), r.erroreRender]; })());
+  c("la sentinella passa e resta tipo «blocco» (il CHECK della tabella non cambia)", ["blocco", true], [sen({}).tipo, sen({}).sentinella]);
+  c("i contatori passano solo per le voci dell'elenco chiuso", [7, 3, undefined], [sen({ chiamanti: { velo: 7, "Mario Rossi": 99 } }).chiamanti.velo, sen({ rimossi: { "dedupe-dev": 3 } }).rimossi["dedupe-dev"], sen({ chiamanti: { "Mario Rossi": 99 } }).chiamanti["Mario Rossi"]]);
+  c("…con tetto e senza negativi", [100000, 0], [sen({ chiamanti: { velo: 1e9 } }).chiamanti.velo, sen({ chiamanti: { velo: -5 } }).chiamanti.velo]);
+  c("l'errore di render: solo il nome, mai il testo", ["TypeError", ""], [sen({ erroreRender: "TypeError" }).erroreRender, sen({ erroreRender: "TypeError: Cannot read mario.rossi@x.it" }).erroreRender]);
+  c("la frase di diagnosi della sentinella dice raffica e quanti saluti", "L'ospite manda saluti a raffica (30 registrati)", S.diagnosi(sen({ chiamanti: { velo: 10, canale: 20 } })).frase);
+  c("…e un rapporto normale NON è letto come sentinella", false, /raffica/.test(S.diagnosi(S.pulisciRapporto(base)).frase));
+  c("pulisciRapporto resta sotto il limite di byte con tutto pieno", true, JSON.stringify(sen({ chiamanti: Object.fromEntries(S.CHIAMANTI.map((k) => [k, 99999])), rimossi: Object.fromEntries(S.RIMOZIONI.map((k) => [k, 99999])) })).length < S.LIMITE_BYTE);
+
+  //  Il browser: il ciclo vero, con ora e timer finti.
+  const fin2 = { navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"), fetch: globalThis.fetch };
+  const spediti = [];
+  let t0 = 1_000_000;
+  const dip2 = (ruolo) => ({
+    stanza: () => "kfr-mbqd-tzp", ruolo: () => ruolo, iceServers: () => [], peer: () => undefined, remoto: () => undefined,
+    locale: () => null, mediaVivo: () => false, trasporto: () => "mesh", ripiego: () => "", adesso: () => t0,
+  });
+  const attendi = (ms) => new Promise((ok) => setTimeout(ok, ms));
+  try {
+    Object.defineProperty(globalThis, "navigator", { value: { userAgent: "x" }, configurable: true });
+    globalThis.fetch = async (u, o) => (spediti.push(JSON.parse(o.body)), { ok: true });
+    const g = B.creaScatola(dip2("ospite"));
+    g.canale("SUBSCRIBED");
+    g.erroreDiRender("TypeError");
+    for (let i = 0; i < 12; i++) { g.salutoInviato("velo"); t0 += 100; }
+    for (let i = 0; i < 8; i++) { g.salutoInviato("errore-render"); t0 += 100; }
+    await attendi(20);
+    c("20 saluti in 2 s NON bastano: nessuna sentinella", 0, spediti.length);
+    g.rimosso("host-fantasma>15s");
+    g.rimosso("dedupe-dev");
+    g.rimosso("dedupe-dev");
+    g.chiudiTutto(); // un azzeramento: anche questo si conta
+    g.salutoInviato("canale"); // il 21esimo: da qui parte la sentinella, con tutto quello contato fin qui
+    await attendi(20);
+    c("21 saluti in 10 s, senza nessun incontro: parte la sentinella", 1, spediti.length);
+    const r = spediti[0]?.rapporto;
+    c("…è un «blocco» con il campo che la distingue", ["blocco", true, "ospite"], [r?.tipo, r?.sentinella, r?.ruolo]);
+    c("…porta i saluti per chiamante", [12, 8, 1, 0], [r?.chiamanti?.velo, r?.chiamanti?.["errore-render"], r?.chiamanti?.canale, r?.chiamanti?.battito]);
+    c("…le rimozioni per motivo (compreso l'azzeramento)", [1, 2], [r?.rimossi?.["host-fantasma"], r?.rimossi?.["dedupe-dev"]]);
+    c("…e l'azzeramento di chiudiTutto", 1, r?.rimossi?.azzeramento);
+    c("…lo stato del canale e il nome dell'ultimo errore di render", ["SUBSCRIBED", "TypeError"], [r?.canale, r?.erroreRender]);
+    c("…senza incontro: nessun interlocutore descritto", [0, 0], [r?.incontroMs, r?.segnali?.offerteInviate]);
+    c("…e nessun dato personale: solo campi dell'elenco", true, JSON.stringify(r) === JSON.stringify(S.pulisciRapporto(r)));
+    for (let i = 0; i < 60; i++) { g.salutoInviato("battito"); t0 += 10; }
+    await attendi(20);
+    c("UNA volta sola per collegamento, anche se la raffica continua", 1, spediti.length);
+    const cons = B.creaScatola(dip2("consulente"));
+    for (let i = 0; i < 60; i++) { cons.salutoInviato("battito"); t0 += 10; }
+    await attendi(20);
+    c("il consulente non manda sentinelle (è un rapporto dell'ospite)", 1, spediti.length);
+    const lento = B.creaScatola(dip2("ospite"));
+    for (let i = 0; i < 40; i++) { lento.salutoInviato("battito"); t0 += 3000; }
+    await attendi(20);
+    c("un battito normale per due minuti non fa partire niente", 1, spediti.length);
+    const rotto = B.creaScatola({ ...dip2("ospite"), stanza: () => { throw new Error("rotta"); } });
+    for (let i = 0; i < 30; i++) rotto.salutoInviato("velo");
+    c("un gancio che lancia non rompe la chiamata", true, true);
+    await attendi(20);
+  } finally {
+    if (fin2.navigator) Object.defineProperty(globalThis, "navigator", fin2.navigator);
+    globalThis.fetch = fin2.fetch;
+  }
+
+  gruppo("MEETLY OFFERTE · LA SENTINELLA: GLI INNESTI IN CALL.TSX");
+  const sh = corpoDi(call, "function sendHello(");
+  c("sendHello conta il saluto per chiamante, PRIMA di spedirlo", true, /scatola\.salutoInviato\(chi\)/.test(sh) && sh.indexOf("scatola.salutoInviato(chi)") < sh.indexOf('send("hello"'));
+  c("sendHello: il chiamante di default è «altro»", true, /function sendHello\(req = false, chi = "altro"\)/.test(call));
+  for (const [chi, re] of [
+    ["battito", /sendHello\(false, "battito"\)/], ["presenza", /sendHello\(false, "presenza"\)/], ["risposta", /sendHello\(false, "risposta"\)/],
+    ["canale", /sendHello\(true, "canale"\)/], ["velo", /sendHello\(true, "velo"\)/], ["errore-render", /sendHello\(true, "errore-render"\)/], ["media", /sendHello\(true, "media"\)/],
+  ])
+    c(`call.tsx: il chiamante «${chi}» è dichiarato`, true, re.test(call));
+  c("il Worker e il suo ripiego passano da «battito»", 2, (call.match(/sendHello\(false, "battito"\)/g) || []).length);
+  c("removePeer conta il motivo", true, /scatola\.rimosso\(why\)/.test(corpoDi(call, "function removePeer(")));
+  c("l'errore di render registra il NOME, prima del ritorno per il presentatore", true, call.indexOf("scatola.erroreDiRender(err?.name") > 0 && call.indexOf("scatola.erroreDiRender(err?.name") < call.indexOf("if (!isGuest()) return;"));
 }
