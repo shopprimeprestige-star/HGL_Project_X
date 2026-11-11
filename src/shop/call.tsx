@@ -169,6 +169,7 @@ import {
   inChiamataDaBattere,
   inChiamataDichiarata,
   OGNI_TICK_BATTITO_HTTP,
+  puoRimandareOfferta,
   puoSostituireVoceHost,
   TIENI_IN_CHIAMATA_MS,
 } from "@/shop/scheda-ferma";
@@ -681,6 +682,8 @@ const peerSenzaMedia = new Set<string>();
 /** Lato cliente: pid del consulente → il suo ultimo saluto diceva «sono in chiamata»?
  *  Assente = non si sa (scheda vecchia). Vedi shop/scheda-ferma. */
 const hostInChiamata = new Map<string, boolean>();
+/** Quando è partita l'ultima offerta verso quel pid (prima o rinvio): il rinvio ha un tetto di cadenza. */
+const offertaInviataIl = new Map<string, number>();
 const peers = new Map<string, RTCPeerConnection>();
 const remoteStreams = new Map<string, MediaStream>();
 const pendingIce = new Map<string, RTCIceCandidateInit[]>();
@@ -2225,16 +2228,20 @@ async function maybeInitiate(pid: string) {
     }
     const o = await p.createOffer();
     await p.setLocalDescription(o);
+    offertaInviataIl.set(pid, Date.now());
     send("offer", { from: S.myPid, to: pid, sdp: p.localDescription });
   } else if (
     !peerIsHealthy(pid) &&
     p.connectionState !== "connecting" &&
     p.localDescription &&
-    !p.currentRemoteDescription
+    !p.currentRemoteDescription &&
+    //  Il rinvio ha un tetto di cadenza: prima partiva a OGNI saluto dell'ospite, senza limite (vedi shop/scheda-ferma).
+    puoRimandareOfferta({ ultimoInvio: offertaInviataIl.get(pid), adesso: Date.now() })
   ) {
     // re-invia SOLO se l'answer NON è ancora arrivato (late joiner / offerta persa).
     // Se l'answer c'è già, un resend re-inneschererebbe la negoziazione ogni 3s
     // e la connessione non si stabilirebbe mai (causa reale schermo nero).
+    offertaInviataIl.set(pid, Date.now());
     send("offer", { from: S.myPid, to: pid, sdp: p.localDescription });
   }
 }
@@ -2439,6 +2446,7 @@ function removePeer(pid: string, why = "unspecified") {
   peers.delete(pid);
   peerSenzaMedia.delete(pid);
   hostInChiamata.delete(pid);
+  offertaInviataIl.delete(pid);
   const attesa = attesaOspite.get(pid);
   if (attesa !== undefined) window.clearTimeout(attesa);
   attesaOspite.delete(pid);
@@ -2472,6 +2480,7 @@ function resetRoster() {
   peers.clear();
   peerSenzaMedia.clear();
   hostInChiamata.clear();
+  offertaInviataIl.clear();
   remoteStreams.clear();
   pendingIce.clear();
   lastSeen.clear();
@@ -5931,6 +5940,7 @@ function attachChannel(sessionId: string) {
     lastSeen.set(pid, Date.now());
     if (!firstSeen.has(pid)) firstSeen.set(pid, Date.now());
     scatola.incontro(pid); // scatola nera: da qui partono i 15 secondi
+    scatola.hello(pid); // …e si contano i saluti sentiti (raffica o battito da 3 s?)
     /*  ── SUL RIQUADRO, IL NOME DELLA SCHEDA ────────────────────────────
         Chi è entrato scegliendo il proprio nome si annuncia con il gettone
         della sua scheda: qui diventa «Anna Verdi» sul riquadro del
@@ -6448,6 +6458,7 @@ function attachChannel(sessionId: string) {
     }, CONFERMA_OSPITE_MS);
   });
   ch.subscribe((st) => {
+    scatola.canale(st); // scatola nera: lo stato del canale, anche quando NON è agganciato
     if (st !== "SUBSCRIBED") return;
     console.log("[GUEST] canale SOTTOSCRITTO", {
       sessionId,
@@ -6519,6 +6530,7 @@ function teardownMedia(opts?: { keepJoined?: boolean }) {
   peers.clear();
   peerSenzaMedia.clear();
   hostInChiamata.clear();
+  offertaInviataIl.clear();
   remoteStreams.clear();
   pendingIce.clear();
   lastSeen.clear();

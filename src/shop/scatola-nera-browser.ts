@@ -65,6 +65,8 @@ type Stato = {
     iceInviati: number;
     iceRicevuti: number;
     offerteScartate: number;
+    helloRicevuti: number;
+    offerteFuoriChiamata: number;
   };
 };
 
@@ -121,6 +123,7 @@ export function creaScatola(dip: DipendenzeScatola) {
     }
   };
   let ultimoErroreMedia = "";
+  let statoCanale = "";
 
   async function componi(pid: string, tipo: "blocco" | "esito"): Promise<Rapporto | null> {
     const st = stati.get(pid);
@@ -157,6 +160,7 @@ export function creaScatola(dip: DipendenzeScatola) {
       remoti: contaCandidati(st.remoti),
       coppia,
       segnali: st.n,
+      canale: statoCanale,
       permessi: { camera, microfono },
       erroreMedia: ultimoErroreMedia,
       tracce: {
@@ -206,7 +210,7 @@ export function creaScatola(dip: DipendenzeScatola) {
           attivaDal: 0,
           locali: [],
           remoti: [],
-          n: { offerteInviate: 0, offerteRicevute: 0, risposteInviate: 0, risposteRicevute: 0, iceInviati: 0, iceRicevuti: 0, offerteScartate: 0 },
+          n: { offerteInviate: 0, offerteRicevute: 0, risposteInviate: 0, risposteRicevute: 0, iceInviati: 0, iceRicevuti: 0, offerteScartate: 0, helloRicevuti: 0, offerteFuoriChiamata: 0 },
         };
         st.attivaDal = attiva(pid) ? st.inizio : 0;
         const controlla = () => {
@@ -245,6 +249,17 @@ export function creaScatola(dip: DipendenzeScatola) {
       if (!k) return;
       const chiave = (k === "ice" ? (inviato ? "iceInviati" : "iceRicevuti") : `${k}${inviato ? "Inviate" : "Ricevute"}`) as keyof Stato["n"];
       st.n[chiave]++;
+      //  Un'offerta uscita mentre la videochiamata non era attiva: il consulente offre già, ma nessuno può rispondere.
+      if (k === "offerte" && inviato && !attiva(pid)) st.n.offerteFuoriChiamata++;
+    },
+    /** Un saluto sentito da questo interlocutore. */
+    hello(pid: string) {
+      const st = stati.get(pid);
+      if (st) st.n.helloRicevuti++;
+    },
+    /** Lo stato con cui si è chiusa l'ultima sottoscrizione al canale (SUBSCRIBED, TIMED_OUT, CHANNEL_ERROR, CLOSED). */
+    canale(stato: string) {
+      statoCanale = String(stato || "");
     },
     /** Un'offerta arrivata e buttata perché camera e microfono non erano aperti. */
     scartata(pid: string) {

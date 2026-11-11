@@ -62,7 +62,13 @@ export type Rapporto = {
     iceInviati: number;
     iceRicevuti: number;
     offerteScartate: number;
+    /** Saluti (`hello`) sentiti da questo interlocutore dall'incontro: raffica o battito da 3 s? (assente = rapporto vecchio) */
+    helloRicevuti?: number;
+    /** Di quelle inviate, quante partite mentre per questa scheda la videochiamata NON era attiva. */
+    offerteFuoriChiamata?: number;
   };
+  /** Ultimo stato della sottoscrizione al canale di segnalazione di QUESTA scheda ("" = mai visto). */
+  canale?: string;
   permessi: { camera: Permesso; microfono: Permesso };
   erroreMedia: string;
   tracce: { locali: { video: number; audio: number }; remote: { video: number; audio: number; vive: number } };
@@ -164,6 +170,8 @@ const ERRORI_MEDIA = new Set([
   "NotAllowedError", "SecurityError", "NotFoundError", "NotReadableError", "OverconstrainedError", "AbortError", "TypeError",
 ]);
 const PERMESSI = new Set(["concesso", "negato", "da-chiedere", "ignoto"]);
+//  Gli stati con cui Supabase chiude `subscribe`: elenco chiuso, qualsiasi altro testo non esce.
+const CANALI = new Set(["SUBSCRIBED", "TIMED_OUT", "CHANNEL_ERROR", "CLOSED"]);
 //  I motivi di ripiego su mesh: quelli del client SFU (MotivoRipiego) e due di `adottaTrasporto`.
 //  Elenco chiuso a mano: qualsiasi altro testo diventa «altro», così non esce niente di libero.
 const RIPIEGHI = new Set([
@@ -253,7 +261,10 @@ export function pulisciRapporto(x: unknown): Rapporto | null {
       iceInviati: intero(sg.iceInviati),
       iceRicevuti: intero(sg.iceRicevuti),
       offerteScartate: intero(sg.offerteScartate),
+      helloRicevuti: intero(sg.helloRicevuti),
+      offerteFuoriChiamata: intero(sg.offerteFuoriChiamata),
     },
+    canale: dalElenco(o.canale, CANALI, ""),
     permessi: { camera: dalElenco(pm.camera, PERMESSI, "ignoto") as Permesso, microfono: dalElenco(pm.microfono, PERMESSI, "ignoto") as Permesso },
     erroreMedia: typeof o.erroreMedia === "string" && o.erroreMedia ? dalElenco(o.erroreMedia, ERRORI_MEDIA, "altro") : "",
     tracce: {
