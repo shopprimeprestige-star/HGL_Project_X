@@ -352,6 +352,6 @@ export function proveAzioniMeet(mod, { c, gruppo, radice }) {
   c(
     "la barra c'è solo a caricamento finito e con un meet",
     true,
-    /!caricamento && \((?:filtri\.ricontatti \|\| )?meet\) && \(\s*<div/.test(elenco),
+    /!caricamento && \((?:filtri\.ricontatti \|\| )?meet(?: \|\| ricontatto)?\) && \(\s*<div/.test(elenco),
   );
 }

@@ -1,8 +1,10 @@
 /** ── IL PANNELLO «OGGI» DENTRO LA CHAT WHATSAPP ────────────────────────────
  *  Richiesta del titolare (30/10/2026): al posto della colonna «Lead CRM» la
  *  chat mostra la giornata — le consulenze di oggi con il filtro consulente e
- *  «Avvia» (Meetly), e tutto quello che c'è da fare. Toccando una riga si apre
- *  la sua chat, se c'è.
+ *  «Avvia» (Meetly). Toccando una riga si apre la sua chat, se c'è.
+ *  Dall'11/11/2026 (richiesta del titolare: «rimuovi tutti i promemoria, fanno solo caoticità,
+ *  lascia solo gli appuntamenti») la scheda «Da fare» non c'è più: le cose da fare restano nella
+ *  pagina «Da fare oggi», qui solo le consulenze (da fare, da recuperare, già fatte) e «Lead».
  *
  *  ⚠️ NIENTE LOGICA NUOVA. È la stessa giornata delle due pagine, guardata da
  *   una colonna stretta:
@@ -10,15 +12,11 @@
  *     «Oggi») disegnate con `RigaLead`, che porta già esiti, invii e «Avvia»;
  *     chi non fa consulenze le vede in sola lettura, con `vistaOggi`, come in
  *     «Oggi»;
- *   · le cose da fare sono le righe di «Da fare oggi» (`costruisciRighe`, le
- *     cose scritte a mano lette e scritte con `caricaTask`/`applicaGesto`)
- *     disegnate con `VoceDaFare`;
  *   · il vecchio elenco «Lead CRM» (`WhatsAppLeadsPanel`) non sparisce: è la
- *     terza scheda, «Lead».
+ *     seconda scheda, «Lead».
  *  Il pannello non scrive avvisi nella campanella (`useAvvisiTask`): lo fa la
  *  pagina «Da fare oggi», e due scrittori della stessa riga sono un doppione. */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Sun, UserRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCRM } from "@/crm/CRMContext";
@@ -26,17 +24,11 @@ import { useAuth, useConsulenteCollegato, usePuo } from "@/crm/AuthContext";
 import { vistaOggi } from "@/crm/vista-oggi";
 import { faConsulenze } from "@/crm/permessi";
 import { chiVale, consulenteDelloSchermo } from "@/crm/consulente-dentro";
-import { PERIODO_DI_SERIE, leggiPeriodo, scriviPeriodo, type Periodo } from "@/crm/periodo-da-fare";
 import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
 import { consulenzeDelGiorno } from "@/crm/consulenze-del-giorno";
 import { Elenco, RigaLead, attesaDi, esitoDi, iso, minutiDi } from "@/crm/MeetGiornalieri";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
-import { VoceDaFare } from "@/crm/dafare/VoceDaFare";
-import { NOTA_FASCIA, TITOLO_FASCIA, costruisciRighe, type Fascia } from "@/crm/dafare/righe";
 import { mappaMestieri } from "@/crm/dafare/di-chi";
-import { ordinaArretrati, useVersoArretrati } from "@/crm/dafare/arretrati";
-import { applicaGesto, caricaTask, type Gesto, type TaskManuale } from "@/crm/dafare/task-manuali";
-import { liberaAgendaDi } from "@/crm/dafare/crea-cosa";
 import { Segmento, VuotoRiga } from "@/crm/ui";
 import {
   Select,
@@ -46,10 +38,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Lead, LeadStatus } from "@/crm/types";
-import { contaRighe, daFareDelPannello } from "./pannello-oggi";
-import { BORDO_TASTO, FUOCO } from "./PannelloFiltri";
 
-type Scheda = "consulenze" | "dafare" | "lead";
+type Scheda = "consulenze" | "lead";
 
 /* ── I GRUPPI CHE SI APRONO E SI CHIUDONO (30/10/2026) ──────────────────────
  *  Richiesta del titolare: le consulenze già fatte in un gruppo richiudibile, e
@@ -57,8 +47,8 @@ type Scheda = "consulenze" | "dafare" | "lead";
  *  titolo-tasto col numero; cosa è aperto lo ricorda il dispositivo
  *  (localStorage, solo comodità: senza, valgono le aperture di partenza). */
 const CHIAVE_GRUPPI = "hgl_oggi_gruppi_v1";
-/** Chiusi di partenza: le consulenze già fatte e le fasce che non premono. */
-const CHIUSI_DI_PARTENZA = new Set(["fatte", "quandoCapita", "arretrato", "piuAvanti"]);
+/** Chiusi di partenza: le consulenze già fatte. */
+const CHIUSI_DI_PARTENZA = new Set(["fatte"]);
 
 function useGruppiAperti() {
   const [scelti, setScelti] = useState<Record<string, boolean>>(() => {
@@ -136,162 +126,6 @@ function Gruppo({
   );
 }
 
-/* ── LE DATE DI «DA FARE» (31/10/2026) ─────────────────────────────────────
- *  Richiesta del titolare: pastiglie come nelle chat, «Oggi», «Ieri», una data, da… a…. Le regole
- *  (cosa vale ogni scelta, cosa si ricorda) stanno in crm/periodo-da-fare.ts. Di serie «Oggi»,
- *  che è la giornata di sempre con il suo gruppo «Rimasto indietro»: le cose scadute prima di oggi
- *  e non spuntate NON spariscono. La scelta si ricorda sul dispositivo solo per quel giorno
- *  (localStorage: senza, vale finché la pagina è aperta). */
-const CHIAVE_PERIODO = "hgl_oggi_periodo_v1";
-
-function usePeriodo(oggi: string) {
-  const [periodo, setPeriodo] = useState<Periodo>(() => {
-    try {
-      return leggiPeriodo(window.localStorage.getItem(CHIAVE_PERIODO), oggi);
-    } catch {
-      return PERIODO_DI_SERIE;
-    }
-  });
-  const cambia = (p: Periodo) => {
-    setPeriodo(p);
-    try {
-      window.localStorage.setItem(CHIAVE_PERIODO, scriviPeriodo(p, oggi));
-    } catch {
-      /* niente: la scelta vale finché la pagina è aperta */
-    }
-  };
-  return { periodo, cambia };
-}
-
-/** La riga che scorre di lato (stessa delle chat: ElencoChat). La barra non si vede. */
-const RIGA_SCORREVOLE =
-  "flex overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-/** Pastiglia a tutta altezza di dito (44 px); più bassa solo dal computer col mouse. */
-const pastiglia = (acceso: boolean) =>
-  cn(
-    "t-corpo flex h-11 shrink-0 items-center whitespace-nowrap rounded-lg border px-3 font-medium transition-colors lg:pointer-fine:h-8",
-    acceso
-      ? "border-primary bg-primary text-primary-foreground"
-      : `${BORDO_TASTO} bg-background text-foreground hover:bg-muted`,
-    FUOCO,
-  );
-/** Il campo data: 16 px (sotto, iOS ingrandisce la pagina), alto come un tasto. */
-const CAMPO_DATA =
-  "h-11 min-w-0 flex-1 rounded-lg border border-muted-foreground/70 bg-background px-2 text-[16px] text-foreground lg:pointer-fine:h-8 lg:pointer-fine:text-[13px]";
-
-function Pastiglie({ periodo, onCambia }: { periodo: Periodo; onCambia: (p: Periodo) => void }) {
-  const { tipo } = periodo;
-  //  Una casella ancora vuota non svuota l'elenco (vale oggi, o il solo giorno scritto): lo si dice.
-  const manca =
-    tipo === "giorno" ? !periodo.da : tipo === "intervallo" && (!periodo.da || !periodo.a);
-  const nota = !manca
-    ? null
-    : tipo === "giorno" || (!periodo.da && !periodo.a)
-      ? "Scegli la data: intanto vedi oggi."
-      : "Manca una data: vedi solo il giorno scelto.";
-  return (
-    <div className="border-b border-border">
-      <div role="group" aria-label="Quando" className={cn(RIGA_SCORREVOLE, "gap-2 px-3 py-2")}>
-        <button
-          type="button"
-          aria-pressed={tipo === "oggi"}
-          onClick={() => onCambia(PERIODO_DI_SERIE)}
-          className={pastiglia(tipo === "oggi")}
-        >
-          Oggi
-        </button>
-        <button
-          type="button"
-          aria-pressed={tipo === "ieri"}
-          onClick={() => onCambia({ tipo: "ieri", da: "", a: "" })}
-          className={pastiglia(tipo === "ieri")}
-        >
-          Ieri
-        </button>
-        <button
-          type="button"
-          aria-pressed={tipo === "giorno"}
-          onClick={() =>
-            onCambia({ tipo: "giorno", da: tipo === "giorno" ? periodo.da : "", a: "" })
-          }
-          className={pastiglia(tipo === "giorno")}
-        >
-          Data
-        </button>
-        <button
-          type="button"
-          aria-pressed={tipo === "intervallo"}
-          onClick={() =>
-            onCambia({
-              tipo: "intervallo",
-              da: tipo === "intervallo" ? periodo.da : "",
-              a: tipo === "intervallo" ? periodo.a : "",
-            })
-          }
-          className={pastiglia(tipo === "intervallo")}
-        >
-          Da… a…
-        </button>
-        <button
-          type="button"
-          aria-pressed={tipo === "tutti"}
-          onClick={() => onCambia({ tipo: "tutti", da: "", a: "" })}
-          title="Tutto quello che è ancora da gestire, anche di mesi fa"
-          className={pastiglia(tipo === "tutti")}
-        >
-          Tutti
-        </button>
-      </div>
-      {tipo === "giorno" && (
-        <div className="px-3 pb-2">
-          <input
-            type="date"
-            aria-label="Giorno"
-            value={periodo.da}
-            onChange={(e) => onCambia({ tipo: "giorno", da: e.target.value, a: "" })}
-            className={cn(CAMPO_DATA, "w-full")}
-          />
-        </div>
-      )}
-      {tipo === "intervallo" && (
-        <div className="flex items-center gap-2 px-3 pb-2">
-          <input
-            type="date"
-            aria-label="Data di inizio"
-            value={periodo.da}
-            max={periodo.a || undefined}
-            onChange={(e) => onCambia({ ...periodo, da: e.target.value })}
-            className={CAMPO_DATA}
-          />
-          <span aria-hidden="true" className="t-nota text-muted-foreground">
-            –
-          </span>
-          <input
-            type="date"
-            aria-label="Data di fine"
-            value={periodo.a}
-            min={periodo.da || undefined}
-            onChange={(e) => onCambia({ ...periodo, a: e.target.value })}
-            className={CAMPO_DATA}
-          />
-        </div>
-      )}
-      {nota && <p className="t-nota px-3 pb-2 text-muted-foreground">{nota}</p>}
-    </div>
-  );
-}
-
-/** Il tono di una fascia di «Da fare»: chi preme in rosso/ambra, il resto neutro. */
-const TONO_FASCIA: Record<string, "urgente" | "attenzione" | "neutro" | "spento"> = {
-  daSentire: "urgente",
-  adesso: "urgente",
-  daIeri: "attenzione",
-  mattina: "neutro",
-  pomeriggio: "neutro",
-  quandoCapita: "spento",
-  arretrato: "attenzione",
-  piuAvanti: "spento",
-};
 /** Il valore «tutti» del Select (Radix non accetta un valore vuoto). */
 const TUTTI = "tutti";
 /** Lo stesso passo dell'orologio di «Da fare oggi». */
@@ -329,7 +163,6 @@ export function PannelloOggi({
   );
   const [scelto, setScelto] = useState<string | null>(null);
   const chi = chiVale(dentro, scelto);
-  const [verso] = useVersoArretrati();
 
   //  L'orologio: «tra 25 min» e le fasce della giornata avanzano da soli.
   const [adesso, setAdesso] = useState(() => Date.now());
@@ -339,46 +172,7 @@ export function PannelloOggi({
   }, []);
   const ora = new Date(adesso);
   const oggi = iso(ora);
-  const { periodo, cambia: cambiaPeriodo } = usePeriodo(oggi);
   const minutiAdesso = ora.getHours() * 60 + ora.getMinutes();
-
-  /* ── LE COSE SCRITTE A MANO: la stessa lista di «Da fare oggi» ── */
-  const [task, setTask] = useState<TaskManuale[]>([]);
-  const [statoTask, setStatoTask] = useState<"carico" | "pronto" | "errore">("carico");
-  const [salvando, setSalvando] = useState(false);
-  useEffect(() => {
-    let vivo = true;
-    void caricaTask().then((e) => {
-      if (!vivo) return;
-      //  Una lettura fallita NON diventa una lista vuota: lo si dice a schermo.
-      if (e.ok) setTask(e.lista);
-      setStatoTask(e.ok ? "pronto" : "errore");
-    });
-    return () => {
-      vivo = false;
-    };
-  }, []);
-  const gesto = useCallback(async (g: Gesto, successo?: string) => {
-    setSalvando(true);
-    const e = await applicaGesto(g);
-    setSalvando(false);
-    if (!e.ok) {
-      toast.error("Non sono riuscito a salvare", { description: e.errore });
-      return;
-    }
-    setTask(e.lista);
-    if (successo) toast.success(successo);
-  }, []);
-  const elimina = (id: string) =>
-    void (async () => {
-      //  Come nella pagina: prima si libera l'agenda bloccata dalla riga, poi la riga.
-      const guasto = await liberaAgendaDi(task.find((x) => x.id === id));
-      if (guasto) {
-        toast.error("Non sono riuscito a liberare l'agenda", { description: guasto });
-        return;
-      }
-      await gesto({ tipo: "elimina", id }, "Riga eliminata");
-    })();
 
   /* ── CHI ── */
   const { elenco: persone } = useMemo(
@@ -389,22 +183,8 @@ export function PannelloOggi({
   const nomeDi = (id?: string | null) => (id ? (mestieri.get(id)?.nome ?? "") : "");
   const nomeConsulente = (l: Lead) => nomeDi(l.data.consulenteId) || undefined;
 
-  /* ── LE DUE LISTE ── */
+  /* ── LE CONSULENZE ── */
   const consulenze = useMemo(() => consulenzeDelGiorno(leads, oggi, chi), [leads, oggi, chi]);
-  const gruppi = useMemo(
-    () =>
-      daFareDelPannello({
-        righe: costruisciRighe({ leads, task, ora: new Date(adesso) }),
-        adesso,
-        oggi,
-        chi,
-        mestieri,
-        ordinaArretrati: (r) => ordinaArretrati(r, verso),
-        periodo,
-      }),
-    [leads, task, adesso, oggi, chi, mestieri, verso, periodo],
-  );
-  const quanteDaFare = contaRighe(gruppi);
   //  Le consulenze di oggi in tre gruppi: da fare, da recuperare (assente o da
   //  riprogrammare), già fatte (chiuse di partenza).
   const consulenzeDivise = useMemo(() => {
@@ -418,11 +198,6 @@ export function PannelloOggi({
     return { da, recupero, fatte };
   }, [consulenze]);
   const gruppiAperti = useGruppiAperti();
-
-  const apriPerId = (id: string) => {
-    const l = leads.find((x) => x.id === id);
-    if (l) onApri(l);
-  };
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col bg-white text-foreground">
@@ -450,14 +225,6 @@ export function PannelloOggi({
           className="min-h-11 lg:pointer-fine:min-h-8"
         >
           Consulenze
-        </Segmento>
-        <Segmento
-          attivo={scheda === "dafare"}
-          onClick={() => setScheda("dafare")}
-          conteggio={quanteDaFare}
-          className="min-h-11 whitespace-nowrap lg:pointer-fine:min-h-8"
-        >
-          Da fare
         </Segmento>
         <Segmento
           attivo={scheda === "lead"}
@@ -500,8 +267,6 @@ export function PannelloOggi({
             </Select>
           </div>
         ))}
-
-      {scheda === "dafare" && <Pastiglie periodo={periodo} onCambia={cambiaPeriodo} />}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {scheda === "consulenze" &&
@@ -554,60 +319,6 @@ export function PannelloOggi({
                 </Gruppo>
               ))}
             </>
-          ))}
-
-        {scheda === "dafare" &&
-          (statoTask === "errore" ? (
-            <p role="alert" className="px-3 py-3 text-[12.5px] text-amber-800">
-              Non riesco a leggere le cose scritte a mano: qui sotto mancano. Ricarica la pagina.
-            </p>
-          ) : null)}
-        {scheda === "dafare" &&
-          (quanteDaFare === 0 ? (
-            <VuotoRiga
-              testo={
-                statoTask === "carico"
-                  ? "Carico le cose da fare…"
-                  : periodo.tipo === "oggi"
-                    ? "Niente da fare adesso."
-                    : periodo.tipo === "tutti"
-                      ? "Niente da gestire."
-                    : "Niente da fare in queste date."
-              }
-            />
-          ) : (
-            gruppi.map((g) => (
-              <Gruppo
-                key={g.fascia}
-                id={g.fascia}
-                titolo={g.titolo ?? TITOLO_FASCIA[g.fascia as Fascia]}
-                nota={g.titolo ? undefined : NOTA_FASCIA[g.fascia as Fascia]}
-                conteggio={g.righe.length}
-                tono={TONO_FASCIA[g.fascia] ?? "neutro"}
-                //  In «Tutti» i gruppi partono aperti, arretrato compreso (chiave a parte).
-                aperto={gruppiAperti.aperto(periodo.tipo === "tutti" ? `tutti:${g.fascia}` : g.fascia)}
-                onCambia={() =>
-                  gruppiAperti.cambia(periodo.tipo === "tutti" ? `tutti:${g.fascia}` : g.fascia)
-                }
-              >
-                <ul className="divide-y divide-border">
-                  {g.righe.map((r) => (
-                    <VoceDaFare
-                      key={r.id}
-                      riga={r}
-                      adesso={adesso}
-                      nomeConsulente={nomeDi}
-                      onApriLead={apriPerId}
-                      onSpunta={(id, fatta) => void gesto({ tipo: "spunta", id, fatta })}
-                      onElimina={elimina}
-                      onSposta={(id, data, ora) => void gesto({ tipo: "sposta", id, data, ora })}
-                      occupato={salvando}
-                      compatta
-                    />
-                  ))}
-                </ul>
-              </Gruppo>
-            ))
           ))}
 
         {/*  Il vecchio «Lead CRM», intero. La larghezza fissa (340 px) e il bordo

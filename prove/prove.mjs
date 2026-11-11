@@ -58,6 +58,7 @@ import {
 } from "./idee/chat-ritocchi.mjs";
 import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs";
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
+import { proveProssimoRicontatto } from "./idee/prossimo-ricontatto.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
 import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
@@ -717,6 +718,8 @@ const MODULI = [
   //  Il prossimo meet della giornata, in cima all'elenco (commessa 2026-10-30-wa-prossimo-meet):
   //   prove in prove/idee/prossimo-meet.mjs.
   "chatwa/prossimo-meet",
+  //  Il prossimo ricontatto di oggi in cima alle chat (11/11/2026): prove/idee/prossimo-ricontatto.mjs.
+  "chatwa/prossimo-ricontatto",
   //  «No show» e «Da spostare» sotto la barra del meet (commessa 2026-10-31-spostare-nonrisponde, T5):
   //   prove in prove/idee/azioni-meet.mjs.
   "chatwa/azioni-meet",
@@ -20740,7 +20743,6 @@ function proveDiWhatsappSulTelefono() {
   {
     const po = readFileSync(join(radice, "src/crm/chatwa/PannelloOggi.tsx"), "utf8");
     c("Oggi: consulenze in tre gruppi, «Già fatte» chiuso di partenza", true, /\["fatte", "Già fatte"/.test(po) && /CHIUSI_DI_PARTENZA = new Set\(\["fatte"/.test(po));
-    c("Oggi: le fasce di «Da fare» si aprono e chiudono", true, /aperto=\{gruppiAperti\.aperto\(.*g\.fascia/.test(po));
   }
 }
 
@@ -21611,6 +21613,7 @@ proveNienteAbbinaInRiga(mod, { c, gruppo, radice });
 proveClienti(mod, { c, gruppo, radice });
 await proveDaRispondereUltimoMio(mod, { c, gruppo, radice });
 proveProssimoMeet(mod, { c, gruppo, radice });
+proveProssimoRicontatto(mod, { c, gruppo, radice });
 proveOggiDelConsulente(mod, { c, gruppo, radice });
 proveInvitoMeet(mod, { c, gruppo, radice });
 proveTestiWame(mod, { c, gruppo, radice });
