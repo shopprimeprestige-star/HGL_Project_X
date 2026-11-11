@@ -81,7 +81,9 @@ const rapida = <T>(p: Promise<T>, ms: number, ripiego: T): Promise<T> =>
   Promise.race([p.catch(() => ripiego), new Promise<T>((ok) => setTimeout(() => ok(ripiego), ms))]);
 
 const idCasuale = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 16);
+  Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(36).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
 
 async function permesso(nome: "camera" | "microphone"): Promise<Permesso> {
   //  ⚠️ `navigator.permissions` può non esserci (iOS vecchi) o lanciare: in quel caso il permesso è
@@ -96,7 +98,13 @@ async function permesso(nome: "camera" | "microphone"): Promise<Permesso> {
   } catch {
     /* ignoto */
   }
-  return s === "granted" ? "concesso" : s === "denied" ? "negato" : s === "prompt" ? "da-chiedere" : "ignoto";
+  return s === "granted"
+    ? "concesso"
+    : s === "denied"
+      ? "negato"
+      : s === "prompt"
+        ? "da-chiedere"
+        : "ignoto";
 }
 
 /** Il candidato scelto dalla connessione, dallo stats (solo tipo/protocollo/porta). */
@@ -107,11 +115,13 @@ async function coppiaScelta(pc: RTCPeerConnection) {
   rep.forEach((v) => tutti.set(v.id, v));
   let coppia: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
   tutti.forEach((v) => {
-    if (v.type === "transport" && v.selectedCandidatePairId) coppia = tutti.get(v.selectedCandidatePairId);
+    if (v.type === "transport" && v.selectedCandidatePairId)
+      coppia = tutti.get(v.selectedCandidatePairId);
   });
   if (!coppia)
     tutti.forEach((v) => {
-      if (v.type === "candidate-pair" && (v.selected || (v.nominated && v.state === "succeeded"))) coppia = v;
+      if (v.type === "candidate-pair" && (v.selected || (v.nominated && v.state === "succeeded")))
+        coppia = v;
     });
   if (!coppia) return null;
   const locale = candidatoDaStat(tutti.get(coppia.localCandidateId));
@@ -163,7 +173,9 @@ export function creaScatola(dip: DipendenzeScatola) {
       browser: ua.browser,
       sistema: ua.sistema,
       rete: { tipo: conn?.type ?? "", effettiva: conn?.effectiveType ?? "" },
-      hasTurn: dip.iceServers().some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
+      hasTurn: dip
+        .iceServers()
+        .some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
       stati: {
         signaling: pc?.signalingState ?? "nessuno",
         ice: pc?.iceConnectionState ?? "nessuno",
@@ -231,12 +243,22 @@ export function creaScatola(dip: DipendenzeScatola) {
       browser: ua.browser,
       sistema: ua.sistema,
       rete: { tipo: conn?.type ?? "", effettiva: conn?.effectiveType ?? "" },
-      hasTurn: dip.iceServers().some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
+      hasTurn: dip
+        .iceServers()
+        .some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
       stati: { signaling: "nessuno", ice: "nessuno", connessione: "nessuno", raccolta: "nessuno" },
       locali: [],
       remoti: [],
       coppia: null,
-      segnali: { offerteInviate: 0, offerteRicevute: 0, risposteInviate: 0, risposteRicevute: 0, iceInviati: 0, iceRicevuti: 0, offerteScartate: 0 },
+      segnali: {
+        offerteInviate: 0,
+        offerteRicevute: 0,
+        risposteInviate: 0,
+        risposteRicevute: 0,
+        iceInviati: 0,
+        iceRicevuti: 0,
+        offerteScartate: 0,
+      },
       canale: statoCanale,
       chiamanti: { ...chiamanti },
       rimossi: { ...rimossi },
@@ -244,7 +266,10 @@ export function creaScatola(dip: DipendenzeScatola) {
       permessi: { camera: "ignoto", microfono: "ignoto" },
       erroreMedia: ultimoErroreMedia,
       tracce: {
-        locali: { video: mia?.getVideoTracks().length ?? 0, audio: mia?.getAudioTracks().length ?? 0 },
+        locali: {
+          video: mia?.getVideoTracks().length ?? 0,
+          audio: mia?.getAudioTracks().length ?? 0,
+        },
         remote: { video: 0, audio: 0, vive: 0 },
       },
       incontroMs: 0,
@@ -268,7 +293,17 @@ export function creaScatola(dip: DipendenzeScatola) {
           attivaDal: 0,
           locali: [],
           remoti: [],
-          n: { offerteInviate: 0, offerteRicevute: 0, risposteInviate: 0, risposteRicevute: 0, iceInviati: 0, iceRicevuti: 0, offerteScartate: 0, helloRicevuti: 0, offerteFuoriChiamata: 0 },
+          n: {
+            offerteInviate: 0,
+            offerteRicevute: 0,
+            risposteInviate: 0,
+            risposteRicevute: 0,
+            iceInviati: 0,
+            iceRicevuti: 0,
+            offerteScartate: 0,
+            helloRicevuti: 0,
+            offerteFuoriChiamata: 0,
+          },
         };
         st.attivaDal = attiva(pid) ? st.inizio : 0;
         const controlla = () => {
@@ -303,9 +338,22 @@ export function creaScatola(dip: DipendenzeScatola) {
     segnale(pid: string, evento: string, inviato: boolean) {
       const st = stati.get(pid);
       if (!st) return;
-      const k = evento === "offer" ? "offerte" : evento === "answer" ? "risposte" : evento === "ice" ? "ice" : "";
+      const k =
+        evento === "offer"
+          ? "offerte"
+          : evento === "answer"
+            ? "risposte"
+            : evento === "ice"
+              ? "ice"
+              : "";
       if (!k) return;
-      const chiave = (k === "ice" ? (inviato ? "iceInviati" : "iceRicevuti") : `${k}${inviato ? "Inviate" : "Ricevute"}`) as keyof Stato["n"];
+      const chiave = (
+        k === "ice"
+          ? inviato
+            ? "iceInviati"
+            : "iceRicevuti"
+          : `${k}${inviato ? "Inviate" : "Ricevute"}`
+      ) as keyof Stato["n"];
       st.n[chiave]++;
       //  Un'offerta uscita mentre la videochiamata non era attiva: il consulente offre già, ma nessuno può rispondere.
       if (k === "offerte" && inviato && !attiva(pid)) st.n.offerteFuoriChiamata++;
@@ -319,7 +367,8 @@ export function creaScatola(dip: DipendenzeScatola) {
         const adesso = ora();
         saluti.push(adesso);
         while (saluti.length && adesso - saluti[0] > 10_000) saluti.shift();
-        if (sentinellaInviata || dip.ruolo() !== "ospite" || !salutiARaffica(saluti, adesso)) return;
+        if (sentinellaInviata || dip.ruolo() !== "ospite" || !salutiARaffica(saluti, adesso))
+          return;
         sentinellaInviata = true;
         void (async () => {
           try {

@@ -53,7 +53,10 @@ export type Rapporto = {
   stati: { signaling: string; ice: string; connessione: string; raccolta: string };
   locali: CandidatoContato[];
   remoti: CandidatoContato[];
-  coppia: { locale: { tipo: string; proto: string; porta?: number }; remoto: { tipo: string; proto: string; porta?: number } } | null;
+  coppia: {
+    locale: { tipo: string; proto: string; porta?: number };
+    remoto: { tipo: string; proto: string; porta?: number };
+  } | null;
   segnali: {
     offerteInviate: number;
     offerteRicevute: number;
@@ -79,7 +82,10 @@ export type Rapporto = {
   erroreRender?: string;
   permessi: { camera: Permesso; microfono: Permesso };
   erroreMedia: string;
-  tracce: { locali: { video: number; audio: number }; remote: { video: number; audio: number; vive: number } };
+  tracce: {
+    locali: { video: number; audio: number };
+    remote: { video: number; audio: number; vive: number };
+  };
   incontroMs: number;
   collegatoMs: number | null;
   /** Come viaggiavano i media in quel momento. */
@@ -95,7 +101,9 @@ const PROTO = ["udp", "tcp", "tls"];
  *  `relayProto` (dallo stats del browser) dice se il TURN è stato raggiunto in
  *  udp, tcp o tls: la riga SDP del candidato relay non lo dice. */
 export function riduciCandidato(riga: string, relayProto?: string): Candidato | null {
-  const t = String(riga || "").trim().split(/\s+/);
+  const t = String(riga || "")
+    .trim()
+    .split(/\s+/);
   if (!/^(a=)?candidate:/.test(t[0] || "")) return null;
   const i = t.indexOf("typ");
   const tipo = t[i + 1];
@@ -140,7 +148,11 @@ export function riduciUserAgent(ua: string): { browser: string; sistema: string 
 }
 
 /** Il candidato scelto, come lo racconta `getStats()`: stesse regole di sopra. */
-export function candidatoDaStat(s: { candidateType?: string; protocol?: string; port?: number; relayProtocol?: string } | undefined) {
+export function candidatoDaStat(
+  s:
+    | { candidateType?: string; protocol?: string; port?: number; relayProtocol?: string }
+    | undefined,
+) {
   if (!s) return null;
   const tipo = String(s.candidateType || "");
   const proto = tipo === "relay" && s.relayProtocol === "tls" ? "tls" : String(s.protocol || "");
@@ -166,29 +178,85 @@ export function codiceStanzaValido(s: unknown): boolean {
 
 /* ── LA PULIZIA: si copia SOLO ciò che è in elenco ────────────────────────── */
 const STATI = new Set([
-  "nessuno", "ignoto",
+  "nessuno",
+  "ignoto",
   // signaling
-  "stable", "have-local-offer", "have-remote-offer", "have-local-pranswer", "have-remote-pranswer",
+  "stable",
+  "have-local-offer",
+  "have-remote-offer",
+  "have-local-pranswer",
+  "have-remote-pranswer",
   // ice / connessione / raccolta
-  "new", "checking", "connecting", "connected", "completed", "failed", "disconnected", "closed", "gathering", "complete",
+  "new",
+  "checking",
+  "connecting",
+  "connected",
+  "completed",
+  "failed",
+  "disconnected",
+  "closed",
+  "gathering",
+  "complete",
 ]);
-const RETI = new Set(["bluetooth", "cellular", "ethernet", "none", "wifi", "wimax", "other", "unknown"]);
+const RETI = new Set([
+  "bluetooth",
+  "cellular",
+  "ethernet",
+  "none",
+  "wifi",
+  "wimax",
+  "other",
+  "unknown",
+]);
 const EFFETTIVE = new Set(["slow-2g", "2g", "3g", "4g"]);
 const ERRORI_MEDIA = new Set([
-  "NotAllowedError", "SecurityError", "NotFoundError", "NotReadableError", "OverconstrainedError", "AbortError", "TypeError",
+  "NotAllowedError",
+  "SecurityError",
+  "NotFoundError",
+  "NotReadableError",
+  "OverconstrainedError",
+  "AbortError",
+  "TypeError",
 ]);
 const PERMESSI = new Set(["concesso", "negato", "da-chiedere", "ignoto"]);
 //  Gli stati con cui Supabase chiude `subscribe`: elenco chiuso, qualsiasi altro testo non esce.
 const CANALI = new Set(["SUBSCRIBED", "TIMED_OUT", "CHANNEL_ERROR", "CLOSED"]);
 
 /** Chi ha mandato un saluto (`sendHello`): elenco chiuso, qualsiasi altro nome vale «altro». */
-export const CHIAMANTI = ["battito", "presenza", "canale", "risposta", "velo", "errore-render", "media", "altro"] as const;
+export const CHIAMANTI = [
+  "battito",
+  "presenza",
+  "canale",
+  "risposta",
+  "velo",
+  "errore-render",
+  "media",
+  "altro",
+] as const;
 /** Perché un interlocutore è stato tolto dall'elenco: elenco chiuso, il testo libero non esce. */
 export const RIMOZIONI = [
-  "dedupe-dev", "dedupe-host", "roster-autorevole", "bye", "host-fantasma", "non-saluta", "presentatore-uscito",
-  "blocked", "media-dopo-connessione", "pulizia", "azzeramento", "altro",
+  "dedupe-dev",
+  "dedupe-host",
+  "roster-autorevole",
+  "bye",
+  "host-fantasma",
+  "non-saluta",
+  "presentatore-uscito",
+  "blocked",
+  "media-dopo-connessione",
+  "pulizia",
+  "azzeramento",
+  "altro",
 ] as const;
-const ERRORI_RENDER = new Set(["Error", "TypeError", "ReferenceError", "RangeError", "SyntaxError", "EvalError", "URIError"]);
+const ERRORI_RENDER = new Set([
+  "Error",
+  "TypeError",
+  "ReferenceError",
+  "RangeError",
+  "SyntaxError",
+  "EvalError",
+  "URIError",
+]);
 
 /** Soglia della sentinella: più di `SOGLIA_SALUTI` saluti in `FINESTRA_SALUTI_MS`. Un battito normale ne fa uno ogni 3 s. */
 export const SOGLIA_SALUTI = 20;
@@ -196,16 +264,25 @@ export const FINESTRA_SALUTI_MS = 10_000;
 
 /** I saluti recenti (istanti) superano la soglia? */
 export function salutiARaffica(istanti: number[], adesso: number): boolean {
-  return istanti.filter((t) => adesso - t >= 0 && adesso - t <= FINESTRA_SALUTI_MS).length > SOGLIA_SALUTI;
+  return (
+    istanti.filter((t) => adesso - t >= 0 && adesso - t <= FINESTRA_SALUTI_MS).length >
+    SOGLIA_SALUTI
+  );
 }
 
 /** Il motivo libero di `removePeer` ridotto a una voce dell'elenco chiuso. */
 export function motivoRimozione(why: unknown): (typeof RIMOZIONI)[number] {
   const w = String(why ?? "");
   const t: [RegExp, (typeof RIMOZIONI)[number]][] = [
-    [/^dedupe-dev/, "dedupe-dev"], [/^dedupe-host/, "dedupe-host"], [/^roster-autorevole|^self-in-roster/, "roster-autorevole"],
-    [/^bye/, "bye"], [/^host-fantasma/, "host-fantasma"], [/^non saluta|^no-hello/, "non-saluta"],
-    [/^presentatore-uscito/, "presentatore-uscito"], [/^blocked/, "blocked"], [/^media aperti dopo/, "media-dopo-connessione"],
+    [/^dedupe-dev/, "dedupe-dev"],
+    [/^dedupe-host/, "dedupe-host"],
+    [/^roster-autorevole|^self-in-roster/, "roster-autorevole"],
+    [/^bye/, "bye"],
+    [/^host-fantasma/, "host-fantasma"],
+    [/^non saluta|^no-hello/, "non-saluta"],
+    [/^presentatore-uscito/, "presentatore-uscito"],
+    [/^blocked/, "blocked"],
+    [/^media aperti dopo/, "media-dopo-connessione"],
     [/^purge/, "pulizia"],
   ];
   return t.find(([re]) => re.test(w))?.[1] ?? "altro";
@@ -216,11 +293,20 @@ const contatori = (x: unknown, elenco: readonly string[]): Record<string, number
   return Object.fromEntries(elenco.map((k) => [k, intero(o[k], 100_000)]));
 };
 /** Contatori a zero per tutte le voci di un elenco (serve anche alle prove). */
-export const contatoriVuoti = (elenco: readonly string[]): Record<string, number> => Object.fromEntries(elenco.map((k) => [k, 0]));
+export const contatoriVuoti = (elenco: readonly string[]): Record<string, number> =>
+  Object.fromEntries(elenco.map((k) => [k, 0]));
 //  I motivi di ripiego su mesh: quelli del client SFU (MotivoRipiego) e due di `adottaTrasporto`.
 //  Elenco chiuso a mano: qualsiasi altro testo diventa «altro», così non esce niente di libero.
 const RIPIEGHI = new Set([
-  "server", "timeout-pub", "timeout-sub", "ice-fallita", "ospite-vecchio", "ospite", "non-configurato", "tr-mesh", "host-nuovo-senza-tr",
+  "server",
+  "timeout-pub",
+  "timeout-sub",
+  "ice-fallita",
+  "ospite-vecchio",
+  "ospite",
+  "non-configurato",
+  "tr-mesh",
+  "host-nuovo-senza-tr",
 ]);
 
 const IP4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
@@ -237,7 +323,8 @@ const testoBreve = (x: unknown, max = 40) =>
     .slice(0, max);
 const intero = (x: unknown, max = 1_000_000) =>
   typeof x === "number" && Number.isFinite(x) ? Math.min(max, Math.max(0, Math.round(x))) : 0;
-const dalElenco = (x: unknown, ok: Set<string>, altro: string) => (typeof x === "string" && ok.has(x) ? x : altro);
+const dalElenco = (x: unknown, ok: Set<string>, altro: string) =>
+  typeof x === "string" && ok.has(x) ? x : altro;
 const oggetto = (x: unknown): Record<string, unknown> =>
   x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : {};
 
@@ -250,7 +337,10 @@ function listaCandidati(x: unknown): CandidatoContato[] {
     out.push({
       tipo: o.tipo as TipoCandidato,
       proto: o.proto as ProtoCandidato,
-      porta: typeof o.porta === "number" && o.porta >= 0 && o.porta <= 65535 ? Math.round(o.porta) : null,
+      porta:
+        typeof o.porta === "number" && o.porta >= 0 && o.porta <= 65535
+          ? Math.round(o.porta)
+          : null,
       n: Math.max(1, intero(o.n, 99)),
     });
   }
@@ -260,7 +350,11 @@ function listaCandidati(x: unknown): CandidatoContato[] {
 function latoCoppia(x: unknown) {
   const o = oggetto(x);
   if (!TIPI.includes(String(o.tipo)) || !PROTO.includes(String(o.proto))) return null;
-  return { tipo: String(o.tipo), proto: String(o.proto), ...(typeof o.porta === "number" ? { porta: intero(o.porta, 65535) } : {}) };
+  return {
+    tipo: String(o.tipo),
+    proto: String(o.proto),
+    ...(typeof o.porta === "number" ? { porta: intero(o.porta, 65535) } : {}),
+  };
 }
 
 /** Il rapporto com'è ammesso a uscire dal browser e a entrare nell'archivio.
@@ -287,7 +381,10 @@ export function pulisciRapporto(x: unknown): Rapporto | null {
     ruolo: o.ruolo,
     browser: testoBreve(o.browser),
     sistema: testoBreve(o.sistema),
-    rete: { tipo: dalElenco(rete.tipo, RETI, ""), effettiva: dalElenco(rete.effettiva, EFFETTIVE, "") },
+    rete: {
+      tipo: dalElenco(rete.tipo, RETI, ""),
+      effettiva: dalElenco(rete.effettiva, EFFETTIVE, ""),
+    },
     hasTurn: typeof o.hasTurn === "boolean" ? o.hasTurn : null,
     stati: {
       signaling: dalElenco(st.signaling, STATI, "ignoto"),
@@ -314,16 +411,27 @@ export function pulisciRapporto(x: unknown): Rapporto | null {
     chiamanti: contatori(o.chiamanti, CHIAMANTI),
     rimossi: contatori(o.rimossi, RIMOZIONI),
     erroreRender: dalElenco(o.erroreRender, ERRORI_RENDER, ""),
-    permessi: { camera: dalElenco(pm.camera, PERMESSI, "ignoto") as Permesso, microfono: dalElenco(pm.microfono, PERMESSI, "ignoto") as Permesso },
-    erroreMedia: typeof o.erroreMedia === "string" && o.erroreMedia ? dalElenco(o.erroreMedia, ERRORI_MEDIA, "altro") : "",
+    permessi: {
+      camera: dalElenco(pm.camera, PERMESSI, "ignoto") as Permesso,
+      microfono: dalElenco(pm.microfono, PERMESSI, "ignoto") as Permesso,
+    },
+    erroreMedia:
+      typeof o.erroreMedia === "string" && o.erroreMedia
+        ? dalElenco(o.erroreMedia, ERRORI_MEDIA, "altro")
+        : "",
     tracce: {
       locali: { video: intero(tl.video, 99), audio: intero(tl.audio, 99) },
-      remote: { video: intero(trm.video, 99), audio: intero(trm.audio, 99), vive: intero(trm.vive, 99) },
+      remote: {
+        video: intero(trm.video, 99),
+        audio: intero(trm.audio, 99),
+        vive: intero(trm.vive, 99),
+      },
     },
     incontroMs: intero(o.incontroMs, 86_400_000),
     collegatoMs: typeof o.collegatoMs === "number" ? intero(o.collegatoMs, 86_400_000) : null,
     trasporto: o.trasporto === "sfu" ? "sfu" : "mesh",
-    ripiego: typeof o.ripiego === "string" && o.ripiego ? dalElenco(o.ripiego, RIPIEGHI, "altro") : "",
+    ripiego:
+      typeof o.ripiego === "string" && o.ripiego ? dalElenco(o.ripiego, RIPIEGHI, "altro") : "",
   };
 }
 
@@ -338,34 +446,50 @@ export function diagnosi(r: Rapporto): { dove: string; frase: string } {
 
   if (r.sentinella) {
     const n = Object.values(r.chiamanti ?? {}).reduce((a, b) => a + b, 0);
-    return { dove: "Segnalazione", frase: `${r.ruolo === "ospite" ? "L'ospite" : "Il consulente"} manda saluti a raffica (${n} registrati)` };
+    return {
+      dove: "Segnalazione",
+      frase: `${r.ruolo === "ospite" ? "L'ospite" : "Il consulente"} manda saluti a raffica (${n} registrati)`,
+    };
   }
 
   if (r.tipo === "esito") {
     const s = Math.round((r.collegatoMs ?? r.incontroMs) / 1000);
     const dalRelay = r.coppia?.locale.tipo === "relay" || r.coppia?.remoto.tipo === "relay";
-    return { dove: "Collegato", frase: `Si è collegato dopo ${s} secondi${dalRelay ? ", passando dal server TURN" : ""}` };
+    return {
+      dove: "Collegato",
+      frase: `Si è collegato dopo ${s} secondi${dalRelay ? ", passando dal server TURN" : ""}`,
+    };
   }
 
   // 1. i permessi: senza camera e microfono non si offre né si risponde
   const senzaTracce = r.tracce.locali.video + r.tracce.locali.audio === 0;
-  const errNegato = senzaTracce && (r.erroreMedia === "NotAllowedError" || r.erroreMedia === "SecurityError");
+  const errNegato =
+    senzaTracce && (r.erroreMedia === "NotAllowedError" || r.erroreMedia === "SecurityError");
   const camNeg = r.permessi.camera === "negato" || (errNegato && r.permessi.microfono !== "negato");
   const micNeg = r.permessi.microfono === "negato";
   if (camNeg && micNeg) return { dove: "Permessi", frase: "Permesso camera e microfono negati" };
   if (camNeg) return { dove: "Permessi", frase: "Permesso camera negato" };
   if (micNeg) return { dove: "Permessi", frase: "Permesso microfono negato" };
-  if (senzaTracce && r.erroreMedia === "NotFoundError") return { dove: "Permessi", frase: "Camera o microfono non trovati" };
+  if (senzaTracce && r.erroreMedia === "NotFoundError")
+    return { dove: "Permessi", frase: "Camera o microfono non trovati" };
   if (senzaTracce && r.erroreMedia === "NotReadableError")
     return { dove: "Permessi", frase: "Camera o microfono occupati da un altro programma" };
 
   // 2. la segnalazione: offerta e risposta
   if (sg.offerteScartate > 0 && senzaTracce)
-    return { dove: "Permessi", frase: "L'offerta dell'altro è stata scartata: camera e microfono non erano aperti" };
-  if (sg.offerteInviate === 0 && sg.offerteRicevute === 0) return { dove: "Segnalazione", frase: "Nessun aggancio è mai partito" };
-  if (sg.offerteInviate > 0 && sg.risposteRicevute === 0) return { dove: "Segnalazione", frase: `${altro} non ha mai ricevuto l'aggancio` };
+    return {
+      dove: "Permessi",
+      frase: "L'offerta dell'altro è stata scartata: camera e microfono non erano aperti",
+    };
+  if (sg.offerteInviate === 0 && sg.offerteRicevute === 0)
+    return { dove: "Segnalazione", frase: "Nessun aggancio è mai partito" };
+  if (sg.offerteInviate > 0 && sg.risposteRicevute === 0)
+    return { dove: "Segnalazione", frase: `${altro} non ha mai ricevuto l'aggancio` };
   if (sg.offerteRicevute > 0 && sg.risposteInviate === 0)
-    return { dove: "Segnalazione", frase: "L'aggancio dell'altro è arrivato ma non siamo riusciti a rispondere" };
+    return {
+      dove: "Segnalazione",
+      frase: "L'aggancio dell'altro è arrivato ma non siamo riusciti a rispondere",
+    };
 
   // 3. agganciati ma senza video né audio
   if (r.stati.connessione === "connected" && r.tracce.remote.vive === 0)
@@ -373,12 +497,23 @@ export function diagnosi(r: Rapporto): { dove: string; frase: string } {
 
   // 4. la rete
   if (r.hasTurn === false)
-    return { dove: "Rete", frase: "Le credenziali TURN non sono arrivate: la rete non ha una via di scampo" };
-  if (r.locali.length === 0) return { dove: "Rete", frase: "Il browser non ha trovato nessun indirizzo di rete" };
-  if (!r.locali.some((c) => c.tipo === "relay")) return { dove: "Rete", frase: "Rete che blocca: nessun candidato relay" };
+    return {
+      dove: "Rete",
+      frase: "Le credenziali TURN non sono arrivate: la rete non ha una via di scampo",
+    };
+  if (r.locali.length === 0)
+    return { dove: "Rete", frase: "Il browser non ha trovato nessun indirizzo di rete" };
+  if (!r.locali.some((c) => c.tipo === "relay"))
+    return { dove: "Rete", frase: "Rete che blocca: nessun candidato relay" };
   if (r.remoti.length === 0 && sg.iceRicevuti === 0)
-    return { dove: "Segnalazione", frase: "Dall'altro lato non è arrivato nessun indirizzo di rete" };
+    return {
+      dove: "Segnalazione",
+      frase: "Dall'altro lato non è arrivato nessun indirizzo di rete",
+    };
   if (r.stati.connessione === "failed" || r.stati.ice === "failed")
-    return { dove: "Rete", frase: "Connessione fallita: i due dispositivi non sono riusciti a raggiungersi" };
+    return {
+      dove: "Rete",
+      frase: "Connessione fallita: i due dispositivi non sono riusciti a raggiungersi",
+    };
   return { dove: "Rete", frase: "Connessione rimasta in attesa: nessun percorso di rete trovato" };
 }
