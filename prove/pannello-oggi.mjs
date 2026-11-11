@@ -163,17 +163,11 @@ export function provePannelloOggi(mod, { c, gruppo, radice }) {
   const pan = readFileSync(join(radice, "src/crm/chatwa/PannelloOggi.tsx"), "utf8");
   c("il pannello Oggi non ha più il tasto «Pagina intera» (richiesta del titolare, 31/10/2026)", false, /Pagina intera/.test(pan));
   c(
-    "il pannello riusa i pezzi esistenti: RigaLead, VoceDaFare, WhatsAppLeadsPanel, vistaOggi",
+    "il pannello riusa i pezzi esistenti: RigaLead, WhatsAppLeadsPanel, vistaOggi (senza «Da fare» dall'11/11/2026)",
     true,
     /<RigaLead\b/.test(pan) &&
-      /<VoceDaFare\b/.test(pan) &&
       /<WhatsAppLeadsPanel\b/.test(pan) &&
       /vistaOggi\(/.test(pan),
-  );
-  c(
-    "nel pannello le righe da fare sono nella variante compatta",
-    true,
-    /<VoceDaFare[\s\S]{0,600}\bcompatta\b/.test(pan),
   );
   const dafare = readFileSync(join(radice, "src/routes/CRM.dafare.tsx"), "utf8");
   c(

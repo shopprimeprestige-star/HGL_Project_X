@@ -143,10 +143,5 @@ export function proveOggiDelConsulente(mod, { c, gruppo, radice }) {
   const pan = senzaCommenti(leggi("src/crm/chatwa/PannelloOggi.tsx"));
   const elenco = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
   c("il pannello decide chi è dentro con la funzione pura (una regola sola)", true, /consulenteDelloSchermo\(/.test(pan) && /chiVale\(/.test(pan));
-  c("il pannello passa il periodo scelto alle cose da fare", true, /periodo[,:\s]/.test(pan) && /daFareDelPannello\(/.test(pan));
-  c("il periodo si ricorda con localStorage dentro try/catch", true, /try\s*\{[^}]*localStorage[^}]*\}\s*catch/.test(pan));
-  c("quattro pastiglie: Oggi, Ieri, Data, Da… a…", true, ["Oggi", "Ieri", "Data", "Da… a…"].every((t) => new RegExp(`>\\s*${t}\\s*<`).test(pan)));
-  c("date scelte con input date nativi", true, (pan.match(/type="date"/g) ?? []).length >= 3);
-  c("le pastiglie scorrono di lato, come nelle chat", true, /overflow-x-auto/.test(pan));
   c("l'elenco delle chat dà al prossimo meet il consulente dentro", true, /prossimoMeet\([\s\S]*?consultants,\s*\w+/.test(elenco));
 }

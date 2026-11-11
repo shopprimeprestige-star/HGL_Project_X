@@ -36,6 +36,8 @@ import {
 import { AzioniMeet } from "./AzioniMeet";
 import { BarraProssimoMeet } from "./BarraProssimoMeet";
 import { prossimoMeet } from "./prossimo-meet";
+import { BarraProssimoRicontatto } from "./BarraProssimoRicontatto";
+import { prossimoRicontatto } from "./prossimo-ricontatto";
 import { ordinaPerScadenza } from "./segniRiga";
 import { ordinaComeWhatsapp } from "./ordineWhatsapp";
 import { chatDaInstallare, saliAcconti } from "./accontiInCima";
@@ -517,6 +519,15 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
     consultants,
     soloDi,
   );
+  //  Il prossimo ricontatto con l'ora concordata (11/11/2026): da TUTTE le chat, non solo quelle che
+  //  i filtri mostrano («comunque promemoria sopra»), tranne i lead nascosti. Regole: prossimo-ricontatto.ts.
+  const ricontatto = prossimoRicontatto(
+    api.chats.filter((c) => !eNascosto(c)),
+    oggi,
+    adesso,
+    consultants,
+    soloDi,
+  );
 
   //  Nasconde (o, `nascondere = false`, rimette) un lead dai ricontatti: due campi sulla scheda, vale su
   //  tutti i dispositivi. Con «Annulla» nel messaggio: un tocco sbagliato si disfa subito.
@@ -875,7 +886,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border">
         {/*  In cima, incollato: la barra dei filtri di «Ricontatti» (31/10/2026, sempre chiusa all'ingresso: si
             monta solo qui) e sotto il prossimo meet. Un blocco solo, così non si sovrappongono. */}
-        {!caricamento && (filtri.ricontatti || meet) && (
+        {!caricamento && (filtri.ricontatti || meet || ricontatto) && (
           <div className="sticky top-0 z-10">
             {filtri.ricontatti && (
               <BarraEsitoRicontatti
@@ -889,6 +900,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
                 <BarraProssimoMeet meet={meet} onApri={() => apri(meet.chat.phone)} />
                 <AzioniMeet key={meet.chat.phone} meet={meet} onCambiaStato={cambiaStatoLead} />
               </>
+            )}
+            {ricontatto && (
+              <BarraProssimoRicontatto
+                ricontatto={ricontatto}
+                onApri={() => apri(ricontatto.chat.phone)}
+              />
             )}
           </div>
         )}
