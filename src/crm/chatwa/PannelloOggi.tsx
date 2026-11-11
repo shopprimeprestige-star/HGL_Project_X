@@ -42,8 +42,8 @@ import type { Lead, LeadStatus } from "@/crm/types";
 type Scheda = "consulenze" | "lead";
 
 /* ── I GRUPPI CHE SI APRONO E SI CHIUDONO (30/10/2026) ──────────────────────
- *  Richiesta del titolare: le consulenze già fatte in un gruppo richiudibile, e
- *  «Da fare» ordinato per essere gestibile da qui. Ogni gruppo ha il suo
+ *  Richiesta del titolare: le consulenze già fatte in un gruppo richiudibile.
+ *  Ogni gruppo ha il suo
  *  titolo-tasto col numero; cosa è aperto lo ricorda il dispositivo
  *  (localStorage, solo comodità: senza, valgono le aperture di partenza). */
 const CHIAVE_GRUPPI = "hgl_oggi_gruppi_v1";
@@ -136,7 +136,7 @@ export function PannelloOggi({
   onStato,
   onClose,
 }: {
-  /** Tocco su una consulenza o una cosa da fare: la pagina apre la chat, o la scheda. */
+  /** Tocco su una consulenza: la pagina apre la chat, o la scheda. */
   onApri: (l: Lead) => void;
   onStato: (l: Lead, s: LeadStatus) => void;
   /** Solo nella colonna del computer: nasconde il pannello. */
@@ -164,7 +164,7 @@ export function PannelloOggi({
   const [scelto, setScelto] = useState<string | null>(null);
   const chi = chiVale(dentro, scelto);
 
-  //  L'orologio: «tra 25 min» e le fasce della giornata avanzano da soli.
+  //  L'orologio: «tra 25 min» avanza da solo.
   const [adesso, setAdesso] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setAdesso(Date.now()), PASSO_OROLOGIO_MS);
