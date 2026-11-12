@@ -47,6 +47,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const PREFISSO = "bulk_fatture_prova:";
 /** Lo stesso prefisso nella forma per `LIKE` (il «_» è un jolly se non lo si protegge). */
 const PREFISSO_LIKE = "bulk\\_fatture\\_prova:";
+/** Per il titolare, se restano righe di prova (prova interrotta o pulizia non riuscita). */
+const SQL_PULIZIA = "delete from app_config where key like 'bulk\\_fatture\\_prova:%';";
 
 /** UNICA funzione che dà il permesso a una chiave: rifiuta tutto ciò che non inizia con `PREFISSO`
  *  (compreso il solo prefisso e i caratteri strani). Ogni chiave dello script ci passa dentro, e
@@ -164,7 +166,7 @@ export function controllaPartenza({ env, argv, radice, leggi }) {
       return { fermo: "la chiave è di un altro progetto rispetto a supabase/config.toml" };
   } else if (!chiave.startsWith("sb_secret_"))
     return { fermo: "formato della chiave non riconosciuto: serve la chiave di servizio" };
-  return { url };
+  return { url, progetto };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -216,7 +218,7 @@ async function clienteVero(url, chiave) {
    ═════════════════════════════════════════════════════════════════════════ */
 
 const PAGINA_SCHEDE = 1000;
-const MAX_PAGINE_SCHEDE = 20; // shortcut: 20.000 schede e si smette di contare, quando il CRM ne avrà di più
+const MAX_PAGINE_SCHEDE = 2; // shortcut: per la sola forma bastano 2 pagine da 1000; il CRM intero non si legge
 const CAMPI_SCHEDA = ["id", "nome", "cognome", "codiceFiscale", "telefono"];
 
 /** Un errore da cui esce solo un codice: il testo delle risposte non si stampa. */
@@ -238,7 +240,7 @@ async function contaPrefisso(client) {
     .select("key", { count: "exact", head: true })
     .like("key", `${PREFISSO_LIKE}%`);
   if (error) throw new ErroreCodice(error.code, status);
-  return count ?? 0;
+  return count; // può essere null: significa «sconosciuto», non zero
 }
 
 const pad = (n, l = 4) => String(n).padStart(l, "0");
@@ -271,7 +273,7 @@ export async function esegui(dip) {
     leggi: dip.leggi ?? ((p) => readFileSync(p, "utf8")),
   });
   if (partenza.fermo) return fermo(partenza.fermo);
-  stampa("Guardie di partenza: ok (chiave presente e non mostrata, progetto di config.toml, chiave di servizio)");
+  stampa(`Guardie di partenza: ok (chiave presente e non mostrata, chiave di servizio). Progetto su cui scrivo: ${partenza.progetto}`);
 
   //  Da qui il client passa sempre da `guarda`, anche per il codice di emissione.
   const client = guarda(await (dip.creaClient ?? clienteVero)(partenza.url, dip.env.SUPABASE_SERVICE_ROLE_KEY));
@@ -285,9 +287,10 @@ export async function esegui(dip) {
   } catch (e) {
     return fermo(`prima lettura non riuscita (${descrivi(e)}): chiave rifiutata o rete`);
   }
+  if (gia === null) return fermo("il conteggio iniziale delle righe di prova è sconosciuto: non scrivo");
   if (gia > 0)
     return fermo(
-      `esistono già ${gia} righe con il prefisso di prova: non le tocco, controllale nel pannello Supabase`,
+      `esistono già ${gia} righe con il prefisso di prova: non le tocco. Se sono di una prova interrotta, nel pannello SQL di Supabase: ${SQL_PULIZIA}`,
     );
   stampa("Controllo iniziale: nessuna riga di prova presente");
 
@@ -298,6 +301,10 @@ export async function esegui(dip) {
   const chiaveDoppia = chiaveProva(`${PREFISSO}doppio:${lotto}`);
   const N = 1200;
   const EXTRA = 30;
+  const extra = Array.from({ length: EXTRA }, (_, i) => ({
+    key: chiaveRiga(990 + (i % 20), `extra-${pad(i, 2)}`),
+    value: "{}",
+  }));
   let iniziato = false;
   try {
     iniziato = true; // da qui, in ogni caso, si pulisce
@@ -355,10 +362,6 @@ export async function esegui(dip) {
     });
 
     await prova(`lettura paginata con ${EXTRA} inserimenti in corso`, async () => {
-      const extra = Array.from({ length: EXTRA }, (_, i) => ({
-        key: chiaveRiga(990 + (i % 20), `extra-${pad(i, 2)}`),
-        value: "{}",
-      }));
       attese += EXTRA;
       const inserisci = async () => {
         for (let i = 0; i < EXTRA; i += 10) {
@@ -439,13 +442,26 @@ export async function esegui(dip) {
       } catch (e) {
         esito += ` · conteggio: ${descrivi(e)}`;
       }
-      const pulito = rimaste === 0;
+      //  Seconda strada, senza `LIKE`: le chiavi note si rileggono una per una. Se il modello non avesse
+      //  trovato niente né in cancellazione né nel conteggio, qui le righe si vedrebbero lo stesso.
+      let note = null;
+      try {
+        const conosciute = [
+          ...Array.from({ length: N }, (_, i) => chiaveRiga(i)),
+          chiaveDoppia,
+          ...extra.map((r) => r.key),
+        ];
+        note = (await archivio.leggiMolte(conosciute)).length;
+      } catch (e) {
+        esito += ` · rilettura chiavi note: ${descrivi(e)}`;
+      }
+      //  Un conteggio che manca (null) non vale zero: pulito solo se TUTTE e due le strade dicono 0.
+      const pulito = rimaste === 0 && note === 0;
       esiti.push(pulito);
-      stampa(`${pulito ? "OK  " : "NO  "} pulizia con eliminaPerPrefisso: ${esito}; righe rimaste con il prefisso=${rimaste ?? "sconosciuto"} (${Math.round(ora() - t0)} ms)`);
-      if (!pulito)
-        stampa(
-          "ATTENZIONE: restano righe di prova. Nel pannello SQL di Supabase: delete from app_config where key like 'bulk\\_fatture\\_prova:%';",
-        );
+      stampa(
+        `${pulito ? "OK  " : "NO  "} pulizia con eliminaPerPrefisso: ${esito}; righe rimaste con il prefisso=${rimaste ?? "sconosciuto"}; chiavi note ancora presenti=${note ?? "sconosciuto"} (${Math.round(ora() - t0)} ms)`,
+      );
+      if (!pulito) stampa(`ATTENZIONE: possono restare righe di prova. Nel pannello SQL di Supabase: ${SQL_PULIZIA}`);
     }
   }
   const tutteOk = esiti.length > 0 && esiti.every(Boolean);
