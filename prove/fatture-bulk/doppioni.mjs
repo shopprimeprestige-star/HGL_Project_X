@@ -254,6 +254,13 @@ export async function prove(mod, { c, gruppo }) {
   c("CF letto vuoto: nessun confronto, nessun motivo del CF", ["scheda_solo_nome:conferma"],
     sigle(D.abbinaScheda(campi({ codiceFiscale: "" }), "", [sch("n", "Lucia", "Verdi", CF_ALTRO)]).motivi));
 
+  gruppo("BULK · T4 · CF DIVERSO DI UNA SCHEDA SCELTA A MANO (cfDiversoDellaScheda)");
+  const manCf = D.cfDiversoDellaScheda(campi({ codiceFiscale: CF_PROVA }), sch("m", "Lucia", "Verdi", CF_ALTRO));
+  c("CF della scheda diverso da quello della riga → conferma, stesso motivo e stesso testo dell'abbinamento", ["scheda_cf_diverso:conferma", true],
+    [sigle(manCf)[0], manCf[0]?.testo === D.abbinaScheda(campi({ codiceFiscale: CF_PROVA }), "", [sch("n", "Lucia", "Verdi", CF_ALTRO)]).motivi[1].testo]);
+  c("stesso CF, scheda senza CF o riga senza CF → nessun motivo", [[], [], []],
+    [D.cfDiversoDellaScheda(campi(), sch("m", "L", "V", CF_PROVA)), D.cfDiversoDellaScheda(campi(), sch("m", "L", "V", "")), D.cfDiversoDellaScheda(campi({ codiceFiscale: "" }), sch("m", "L", "V", CF_ALTRO))]);
+
   gruppo("BULK · T4 · ABBINAMENTO · ORDINE DELLE REGOLE E ASSENZA DI EFFETTI");
   const tutte = [sch("per-nome", "Lucia", "Verdi"), sch("per-tel", "L", "Verdi", "", tel), sch("per-cf", "Z", "Z", CF_PROVA)];
   c("con tutte e tre le prove vince il CF", "per-cf", D.abbinaScheda(campi(), tel, tutte).scheda?.id);

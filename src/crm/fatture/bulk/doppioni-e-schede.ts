@@ -218,6 +218,20 @@ const ultime9 = (t: string) => {
   return cifre.length >= 9 ? cifre.slice(-9) : "";
 };
 
+/** La scheda ha un codice fiscale diverso da quello della riga: `conferma` (può essere una lettura sbagliata o la scheda sbagliata).
+ *  Vale anche per una scheda scelta a mano. Vuoto da una delle due parti = nessun confronto, nessun motivo. */
+export function cfDiversoDellaScheda(campi: CampiRiga, s: SchedaPerAbbinamento): Motivo[] {
+  const mio = cf(campi.codiceFiscale);
+  return mio && cf(s.codiceFiscale) && cf(s.codiceFiscale) !== mio
+    ? [{
+        codice: "scheda_cf_diverso",
+        gravita: "conferma",
+        campo: "codiceFiscale",
+        testo: "La scheda collegata ha un codice fiscale diverso da quello letto: può essere un errore di lettura o la scheda sbagliata. Controlla, oppure cambia o togli il collegamento.",
+      }]
+    : [];
+}
+
 /** Nomi compatibili: tutte le parole del più corto stanno nell'altro («Lucia» e «Lucia Maria»); una sola iniziale («L.»)
  *  vale per una parola che comincia con quella lettera. Vuoto da una parte = non si può dire: non compatibili. */
 function nomiCompatibili(a: string, b: string): boolean {
@@ -236,15 +250,7 @@ function nomiCompatibili(a: string, b: string): boolean {
 export function abbinaScheda(campi: CampiRiga, telefono: string, schede: SchedaPerAbbinamento[]): AbbinamentoScheda {
   const miaCf = cf(campi.codiceFiscale);
   const unica = (trovate: SchedaPerAbbinamento[]) => (trovate.length === 1 ? trovate[0] : null);
-  const cfDiverso = (s: SchedaPerAbbinamento): Motivo[] =>
-    miaCf && cf(s.codiceFiscale) && cf(s.codiceFiscale) !== miaCf
-      ? [{
-          codice: "scheda_cf_diverso",
-          gravita: "conferma",
-          campo: "codiceFiscale",
-          testo: "La scheda collegata ha un codice fiscale diverso da quello letto: può essere un errore di lettura o la scheda sbagliata. Controlla, oppure cambia o togli il collegamento.",
-        }]
-      : [];
+  const cfDiverso = (s: SchedaPerAbbinamento): Motivo[] => cfDiversoDellaScheda(campi, s);
 
   // 1. Codice fiscale.
   const perCf = miaCf ? unica(schede.filter((s) => cf(s.codiceFiscale) === miaCf)) : null;
