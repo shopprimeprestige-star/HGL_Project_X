@@ -27,7 +27,7 @@
  *  `fetch` che non arriva lancia un TypeError: `chiamaRotta` lo trasforma in
  *  `ErroreCoda("rete")` (coda.ts non distingue un guasto da un nostro bug). */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { eseguiCoda, ErroreCoda, codiceDaStato, CODICI_RIPETIBILI } from "./coda";
+import { eseguiCoda, ErroreCoda, codiceDaStato } from "./coda";
 import { IN_PARALLELO, MAX_FILE } from "./chiavi";
 import { controllaFile, riduciImmagine, type ImmagineRidotta } from "./immagini";
 import { ordineEmissione } from "./emissione-bulk";
@@ -55,6 +55,13 @@ import type {
 export const ROTTA = "/api/crm/fatture-bulk";
 
 /** Gli avvisi che «Conferma questo avviso per tutte» può dare (D1b): mai un `blocca`, mai altro. */
+/** Gruppi che hanno già consumato l'AI e non migliorano da soli: «Riprendi» non li richiede, solo «Rileggi».
+ *  Credito (402), sessione (401), permesso (403), rete, limite, timeout non hanno prodotto niente: si riprovano. */
+const NON_SI_RIPAGANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>([
+  "troncata",
+  "illeggibile",
+]);
+
 export const AVVISI_PER_TUTTE: readonly string[] = ["data_anteriore", "oltre_12_giorni"];
 
 /* ══ 1. LA CHIAMATA ALLA ROTTA ═════════════════════════════════════════════ */
@@ -294,6 +301,17 @@ export type Azione =
   | { tipo: "errore"; errore: StatoLotto["errore"] }
   | { tipo: "azzera" };
 
+/** D11a: dopo emissione o scarto di una riga (o a lotto chiuso) nello stato non resta la lettura (nome, CF,
+ *  indirizzo, importo): restano impronta, stato e tipo, come sul server. `idRiga` = gli indici dei suoi file. */
+function senzaLettura(file: FileLotto[], idRiga?: string): FileLotto[] {
+  const suoi = idRiga ? new Set(idRiga.split("-").map(Number)) : null;
+  return file.map((f) => {
+    if (!("lettura" in f) || (suoi && !suoi.has(f.indice))) return f;
+    const { lettura: _lettura, ...resto } = f;
+    return resto;
+  });
+}
+
 /** Solo riporta i dati nello stato. Nessuna regola, nessuno stato di riga calcolato. */
 export function reducerLotto(s: StatoLotto, a: Azione): StatoLotto {
   switch (a.tipo) {
@@ -323,12 +341,20 @@ export function reducerLotto(s: StatoLotto, a: Azione): StatoLotto {
     }
     case "file":
       return { ...s, file: unisciFile(s.file, a.file) };
-    case "riga":
+    case "riga": {
+      const chiusa = a.riga.stato !== "aperta";
+      const lottoChiuso = s.lottoChiuso || !!a.lottoChiuso;
       return {
         ...s,
         decisioni: { ...s.decisioni, [a.riga.idRiga]: a.riga },
-        lottoChiuso: s.lottoChiuso || !!a.lottoChiuso,
+        file: lottoChiuso
+          ? senzaLettura(s.file)
+          : chiusa
+            ? senzaLettura(s.file, a.riga.idRiga)
+            : s.file,
+        lottoChiuso,
       };
+    }
     case "gruppo_fallito":
       return { ...s, erroriGruppo: { ...s.erroriGruppo, [a.gruppo]: a.codice } };
     case "gruppi_ripartiti": {
@@ -340,8 +366,15 @@ export function reducerLotto(s: StatoLotto, a: Azione): StatoLotto {
       return { ...s, fileNonValidi: a.fileNonValidi ?? [], erroriCarico: a.erroriCarico ?? [] };
     case "fermata":
       return { ...s, fermata: a.fermata };
-    case "riepilogo":
-      return { ...s, riepilogo: a.riepilogo, lottoChiuso: s.lottoChiuso || !!a.lottoChiuso };
+    case "riepilogo": {
+      const lottoChiuso = s.lottoChiuso || !!a.lottoChiuso;
+      return {
+        ...s,
+        riepilogo: a.riepilogo,
+        file: lottoChiuso ? senzaLettura(s.file) : s.file,
+        lottoChiuso,
+      };
+    }
     case "errore":
       return { ...s, errore: a.errore };
     case "azzera":
@@ -396,6 +429,7 @@ export function creaOrchestratore(p: Porte) {
 
   /** Apre un lotto (anche per riprenderlo dopo una chiusura). */
   async function apri(lotto: string): Promise<void> {
+    if (p.stato().lavoro) return;
     p.dispatch({ tipo: "lavoro", cosa: "apertura", totale: 1 });
     try {
       await caricaDettaglio(lotto);
@@ -421,10 +455,11 @@ export function creaOrchestratore(p: Porte) {
     }
   }
 
-  /** I lotti aperti (per riprendere dopo una chiusura). Accetta uno solo, una lista o niente. */
+  /** I lotti aperti, dal più recente (per riprendere dopo una chiusura): è l'apertura della pagina, quindi
+   *  PRIMA si fa la pulizia dei lotti scaduti (SPEC §5) e poi si elenca: un lotto appena mostrato non sparisce. */
   async function lottiAperti(): Promise<SintesiLotto[]> {
-    const r = await leggiRotta<SintesiLotto | SintesiLotto[] | null>(p.fetchRotta, "");
-    return r == null ? [] : Array.isArray(r) ? r : [r];
+    await pulisci();
+    return leggiRotta<SintesiLotto[]>(p.fetchRotta, "");
   }
 
   /** `files` = TUTTI i file scelti, nell'ordine di caricamento. In ripresa si rimandano gli stessi nello stesso
@@ -433,6 +468,7 @@ export function creaOrchestratore(p: Porte) {
     files: File[],
     opzioni: { descrizione?: string; dataSeManca?: string } = {},
   ): Promise<void> {
+    if (p.stato().lavoro) return;
     const nonValidi = files.flatMap((f, indice) => {
       const c = controllaFile(f);
       return c.ok ? [] : [{ indice, motivo: c.motivo }];
@@ -524,11 +560,11 @@ export function creaOrchestratore(p: Porte) {
    *  I gruppi falliti per `troncata`/`illeggibile` non si ripetono da soli: li riprende «Rileggi». */
   async function leggi(): Promise<void> {
     const s = p.stato();
-    if (!s.lotto) return;
+    if (!s.lotto || s.lavoro) return;
     const lotto = s.lotto;
     const daSaltare = new Set(
       Object.entries(s.erroriGruppo)
-        .filter(([, c]) => !CODICI_RIPETIBILI.has(c) && c !== "occupato")
+        .filter(([, c]) => NON_SI_RIPAGANO.has(c))
         .map(([g]) => Number(g)),
     );
     const gruppi = gruppiDaLeggere(s.file, daSaltare, s.totaleFile);
@@ -553,6 +589,8 @@ export function creaOrchestratore(p: Porte) {
       });
       if (r.fermataPer)
         p.dispatch({ tipo: "fermata", fermata: { per: r.fermataPer, codice: r.codiceFreno } });
+      // Come in `carica`: la verità è sul server (dopo «Interrompi» un gruppo può essere già stato letto).
+      await caricaDettaglio(lotto);
     } catch (e) {
       sbaglia(e);
     } finally {
@@ -562,10 +600,11 @@ export function creaOrchestratore(p: Porte) {
 
   /** «Rileggi» (a pagamento, gesto esplicito) per i file indicati. */
   async function rileggi(indici: number[]): Promise<void> {
-    const lotto = lottoAttuale();
+    if (p.stato().lavoro) return;
     const gruppi = [...new Set(indici.map(gruppoDi))];
     p.dispatch({ tipo: "lavoro", cosa: "rilettura", totale: 1 });
     try {
+      const lotto = lottoAttuale();
       const r = await eseguiCoda({
         elementi: [indici],
         attendi: p.attendi,
@@ -582,6 +621,8 @@ export function creaOrchestratore(p: Porte) {
           p.dispatch({ tipo: "gruppo_fallito", gruppo, codice: esito.codice }),
         );
       else p.dispatch({ tipo: "gruppi_ripartiti", gruppi });
+    } catch (e) {
+      sbaglia(e);
     } finally {
       p.dispatch({ tipo: "libero" });
     }
@@ -589,7 +630,7 @@ export function creaOrchestratore(p: Porte) {
 
   /** Salva una decisione sulla riga. Alla rotta va sempre il risultato COMPLETO (modifiche e avvisi già dati
    *  più i nuovi), così vale sia se la rotta unisce sia se sostituisce. Il server restituisce la riga intera. */
-  async function salvaRiga(
+  async function salva(
     idRiga: string,
     cambi: {
       modifiche?: Partial<CampiRiga>;
@@ -624,10 +665,23 @@ export function creaOrchestratore(p: Porte) {
     }
   }
 
+  /** Un salvataggio alla volta PER RIGA: la seconda correzione parte quando la prima ha avuto risposta, e porta
+   *  anche quella (se la rotta sostituisce, altrimenti si perderebbe). Righe diverse vanno in parallelo. */
+  const salvataggi = new Map<string, Promise<boolean>>();
+  const salvaRiga = (idRiga: string, cambi: Parameters<typeof salva>[1]): Promise<boolean> => {
+    const questo = (salvataggi.get(idRiga) ?? Promise.resolve(true)).then(() =>
+      salva(idRiga, cambi),
+    );
+    salvataggi.set(idRiga, questo);
+    void questo.then(() => salvataggi.get(idRiga) === questo && salvataggi.delete(idRiga));
+    return questo;
+  };
+
   /** Righe in coda a `salvaRiga`, 3 per volta: una chiamata ciascuna. Ritorna quante sono andate. */
   async function inBlocco(
     righe: { idRiga: string; cambi: Parameters<typeof salvaRiga>[1] }[],
   ): Promise<number> {
+    if (p.stato().lavoro) return 0;
     p.dispatch({ tipo: "lavoro", cosa: "conferme", totale: righe.length });
     try {
       let fatte = 0;
@@ -678,6 +732,8 @@ export function creaOrchestratore(p: Porte) {
    *  altre proseguono. `ferma`, o un errore (anche di rete): si ferma tutto. Dopo un errore si rilegge il lotto:
    *  la rotta riconosce una riga già emessa (`cercaPerOrigine`), quindi riprovare non emette due volte. */
   async function emettiConfermate(): Promise<RiepilogoEmissione | null> {
+    // Il doppio clic su «Emetti» è il gesto a rischio: un solo giro alla volta.
+    if (p.stato().lavoro) return null;
     const lotto = lottoAttuale();
     const da = ordineEmissione(
       p
@@ -751,6 +807,7 @@ export function creaOrchestratore(p: Porte) {
   return {
     apri,
     lottiAperti,
+    pulisci,
     carica,
     leggi,
     riprendi: leggi,

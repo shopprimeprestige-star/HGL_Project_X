@@ -1065,26 +1065,6 @@ export async function prove(mod, { c, gruppo, radice }) {
       [null, 1],
       [b.stato().errore, b.azioni("pulisci").length],
     );
-    const m = banco({
-      su: ({ url }) =>
-        !url.includes("lotto=")
-          ? {
-              corpo: {
-                lotto: "a",
-                creatoIl: "x",
-                file: 3,
-                letti: 0,
-                righeAperte: 0,
-                righeEmesse: 0,
-              },
-            }
-          : undefined,
-    });
-    c(
-      "lotti aperti: accetta uno solo, una lista o niente",
-      [1, 0],
-      [(await m.o.lottiAperti()).length, (await banco().o.lottiAperti()).length],
-    );
   }
   {
     const b = banco({
@@ -1102,6 +1082,289 @@ export async function prove(mod, { c, gruppo, radice }) {
       ["non_trovato", null, 0],
       [b.stato().errore?.codice, b.stato().lavoro, b.azioni("pulisci").length],
     );
+  }
+
+  /* ── 9. DOPO LA REVISIONE ────────────────────────────────────────────── */
+  gruppo("BULK · T11 · RIPRESA DOPO CREDITO/SESSIONE/PERMESSO, DOPPI AVVII, PULIZIA, DATI");
+  // 1. Credito, sessione e permesso non hanno consumato AI: «Riprendi» li rilegge. Solo troncata e illeggibile no.
+  for (const [stato, cod] of [
+    [402, "credito"],
+    [401, "non_autorizzato"],
+    [403, "non_permesso"],
+  ]) {
+    let rotto = true;
+    const b = banco({
+      su: ({ body }) =>
+        body?.azione === "leggi-gruppo" && rotto
+          ? { stato, corpo: { ok: false, codice: cod, messaggio: "x" } }
+          : undefined,
+    });
+    await b.o.carica(elenco(9));
+    await b.o.leggi();
+    const primo = b.stato().fermata?.codice;
+    rotto = false;
+    await b.o.riprendi();
+    c(
+      `«${cod}»: la coda si ferma, e dopo la ricarica «Riprendi» rilegge i gruppi falliti (nessuno li ha pagati)`,
+      [cod, true, {}],
+      [primo, b.stato().file.every((f) => f.stato === "letto"), b.stato().erroriGruppo],
+    );
+  }
+  {
+    const b = banco({
+      su: ({ body }) =>
+        body?.azione === "leggi-gruppo" && body.gruppo === 1
+          ? { corpo: { ok: false, codice: "illeggibile", messaggio: "x" } }
+          : undefined,
+    });
+    await b.o.carica(elenco(9));
+    await b.o.leggi();
+    await b.o.leggi();
+    c(
+      "«illeggibile»: una sola richiesta, «Riprendi» non la ripaga",
+      1,
+      b.azioni("leggi-gruppo").filter((x) => x.gruppo === 1).length,
+    );
+  }
+
+  // 2. Un doppio clic non fa partire due lavori.
+  {
+    const b = banco();
+    await b.o.carica(elenco(9));
+    await Promise.all([b.o.leggi(), b.o.leggi()]);
+    c(
+      "due «leggi» insieme: una sola serie di richieste (3 gruppi, non 6)",
+      3,
+      b.azioni("leggi-gruppo").length,
+    );
+  }
+  {
+    const b = banco();
+    await Promise.all([b.o.carica(elenco(6)), b.o.carica(elenco(6))]);
+    c(
+      "due «carica» insieme: un solo lotto creato, 6 upload",
+      [1, 6],
+      [b.azioni("crea").length, b.azioni("file").length],
+    );
+  }
+  {
+    const b = banco({
+      salvati: [0, 1, 2],
+      righe: pronteDaEmettere(),
+      su: ({ body }) =>
+        body?.azione === "emetti-riga"
+          ? {
+              corpo: {
+                ok: true,
+                azione: "emetti-riga",
+                esito: "emessa",
+                fattura: { id: "f", numero: 1, data: "2026-11-12" },
+                lottoChiuso: false,
+              },
+            }
+          : undefined,
+    });
+    await b.o.apri("lotto-0001");
+    const [r1, r2] = await Promise.all([b.o.emettiConfermate(), b.o.emettiConfermate()]);
+    c(
+      "due «emetti» insieme (doppio clic): una sola serie di 3 emissioni, la seconda non fa niente",
+      [3, 3, null],
+      [b.azioni("emetti-riga").length, r1?.emesse.length, r2],
+    );
+  }
+  {
+    const b = banco({ salvati: [0, 1, 2] });
+    await b.o.apri("lotto-0001");
+    b.conRighe([riga("R1", 1), riga("R2", 2)]);
+    const [n1, n2] = await Promise.all([b.o.confermaTutteLePronte(), b.o.confermaTutteLePronte()]);
+    c(
+      "due «conferma tutte» insieme: 2 salvataggi in tutto",
+      [2, 0, 2],
+      [n1, n2, b.azioni("salva-riga").length],
+    );
+    await b.o.carica(elenco(3));
+    const durante = banco({ salvati: [0, 1, 2, 3, 4, 5] });
+    await durante.o.apri("lotto-0001");
+    await Promise.all([durante.o.leggi(), durante.o.rileggi([0, 1, 2])]);
+    c("«rileggi» durante la lettura non parte", 0, durante.azioni("rileggi").length);
+  }
+  {
+    // «Interrompi» ferma ancora la prima esecuzione quando la seconda è stata scartata.
+    const b = banco();
+    await b.o.carica(elenco(30));
+    const primo = b.o.leggi();
+    await b.o.leggi();
+    b.o.interrompi();
+    await primo;
+    c(
+      "«Interrompi» agisce sull'esecuzione in corso (non sulla scartata)",
+      "annullata",
+      b.stato().fermata?.per,
+    );
+  }
+
+  // 3. La pulizia parte anche aprendo la pagina (elenco dei lotti), PRIMA dell'elenco: non toglie il lotto appena mostrato.
+  {
+    const b = banco({
+      su: ({ url, body }) =>
+        !body && !url.includes("lotto=")
+          ? {
+              corpo: [
+                {
+                  lotto: "lotto-0001",
+                  creatoIl: "x",
+                  file: 3,
+                  letti: 0,
+                  righeAperte: 0,
+                  righeEmesse: 0,
+                },
+              ],
+            }
+          : undefined,
+    });
+    const elencoLotti = await b.o.lottiAperti();
+    c(
+      "all'apertura della pagina: prima la pulizia, poi l'elenco (un array senza `ok`)",
+      ["pulisci", 1],
+      [b.chiamate[0].body?.azione, elencoLotti.length],
+    );
+    c(
+      "`pulisci` è esportata dall'orchestratore (T13 la può chiamare)",
+      "function",
+      typeof b.o.pulisci,
+    );
+    const vuoto = banco({
+      su: ({ url, body }) => (!body && !url.includes("lotto=") ? { corpo: [] } : undefined),
+    });
+    c("nessun lotto aperto: lista vuota", [], await vuoto.o.lottiAperti());
+  }
+
+  // 4. D11a: dopo emissione o scarto, nello stato non resta la lettura (nome, CF, indirizzo).
+  {
+    const conLettura = (i) => ({
+      ...fileLotto(i, "letto"),
+      lettura: { tipo: "altro", incerti: [] },
+    });
+    let s = U.reducerLotto(U.STATO_INIZIALE, {
+      tipo: "lotto",
+      lotto: "lotto-0001",
+      file: [0, 1, 2, 3, 4, 5].map(conLettura),
+    });
+    s = U.reducerLotto(s, {
+      tipo: "riga",
+      riga: {
+        idRiga: "0000-0001-0002",
+        stato: "emessa",
+        emessa: { id: "f", numero: 1, data: "2026-11-12" },
+      },
+    });
+    c(
+      "riga emessa: la lettura dei suoi tre file sparisce dallo stato; impronta, stato e tipo restano; gli altri file no",
+      [[false, false, false, true, true, true], "h1", "letto", "pagamento"],
+      [s.file.map((f) => "lettura" in f), s.file[1].impronta, s.file[1].stato, s.file[2].tipo],
+    );
+    const sc = U.reducerLotto(
+      U.reducerLotto(U.STATO_INIZIALE, {
+        tipo: "lotto",
+        lotto: "lotto-0001",
+        file: [0, 1, 2].map(conLettura),
+      }),
+      { tipo: "riga", riga: { idRiga: "0000-0001-0002", stato: "scartata" } },
+    );
+    c(
+      "riga scartata: lo stesso",
+      [false, false, false],
+      sc.file.map((f) => "lettura" in f),
+    );
+    const aperta = U.reducerLotto(
+      U.reducerLotto(U.STATO_INIZIALE, {
+        tipo: "lotto",
+        lotto: "lotto-0001",
+        file: [0, 1, 2].map(conLettura),
+      }),
+      { tipo: "riga", riga: { idRiga: "0000-0001-0002", stato: "aperta", confermata: true } },
+    );
+    c(
+      "riga ancora aperta: la lettura resta (serve a mostrarla)",
+      [true, true, true],
+      aperta.file.map((f) => "lettura" in f),
+    );
+    const chiuso = U.reducerLotto(
+      U.reducerLotto(U.STATO_INIZIALE, {
+        tipo: "lotto",
+        lotto: "lotto-0001",
+        file: [0, 1, 2, 3, 4, 5].map(conLettura),
+      }),
+      {
+        tipo: "riepilogo",
+        riepilogo: { emesse: [], saltate: [], saltiDiNumeri: [] },
+        lottoChiuso: true,
+      },
+    );
+    c(
+      "lotto chiuso: nessuna lettura in nessun file",
+      [false, true],
+      [chiuso.file.some((f) => "lettura" in f), chiuso.lottoChiuso],
+    );
+  }
+
+  // 5. Rileggi senza lotto: errore nello stato, come le altre azioni.
+  {
+    const b = banco();
+    let lanciato = false;
+    await b.o.rileggi([0, 1, 2]).catch(() => (lanciato = true));
+    c(
+      "«rileggi» senza lotto: nessuna eccezione, errore nello stato, nessuna chiamata",
+      [false, "non_trovato", 0],
+      [lanciato, b.stato().errore?.codice, b.chiamate.length],
+    );
+  }
+
+  // 6. Fine lettura: si riallinea al server (un gruppo letto mentre si interrompeva).
+  {
+    let b;
+    b = banco({
+      su: ({ body }) => {
+        if (body?.azione !== "leggi-gruppo" || body.gruppo !== 1) return undefined;
+        for (const i of [3, 4, 5]) b.server.set(i, fileLotto(i, "letto"));
+        return { corpo: { ok: true, azione: "leggi-gruppo", file: [] } };
+      },
+    });
+    await b.o.carica(elenco(9));
+    await b.o.leggi();
+    c(
+      "a fine lettura lo stato viene dal server: il gruppo 1 risulta letto anche se la risposta era vuota",
+      true,
+      b
+        .stato()
+        .file.slice(3, 6)
+        .every((f) => f.stato === "letto"),
+    );
+  }
+
+  // 7. Due correzioni ravvicinate sulla stessa riga: una dopo l'altra, la seconda porta anche la prima.
+  {
+    const b = banco({ salvati: [0, 1, 2] });
+    await b.o.apri("lotto-0001");
+    const nPrima = b.chiamate.length;
+    await Promise.all([
+      b.o.salvaRiga("R1", { modifiche: { comune: "Roma" } }),
+      b.o.salvaRiga("R1", { modifiche: { cap: "00100" } }),
+    ]);
+    const sr = b.azioni("salva-riga");
+    c(
+      "stessa riga: il secondo salvataggio porta anche la prima correzione",
+      [{ comune: "Roma", cap: "00100" }, 2],
+      [sr[1].modifiche, b.chiamate.length - nPrima],
+    );
+    c("e non partono insieme", 1, b.massimo());
+    const altre = banco({ salvati: [0, 1, 2] });
+    await altre.o.apri("lotto-0001");
+    await Promise.all([
+      altre.o.salvaRiga("R1", { confermaRiga: true }),
+      altre.o.salvaRiga("R2", { confermaRiga: true }),
+    ]);
+    c("righe diverse: in parallelo", 2, altre.massimo());
   }
 
   /* ── 9. SOLO COME DEVE ESSERE ────────────────────────────────────────── */
