@@ -113,6 +113,16 @@ export async function prove(mod, { c, gruppo, radice }) {
     [i({ telefono: "+39 333 111 2223" }).telefono, i({ telefono: "0039-3331112223" }).telefono, i({ telefono: "12" }).telefono]);
   c("nome e cognome in maiuscolo all'italiana, apostrofi tenuti", ["D'Angelo", "Niccolò"], [i({ cognome: "D'ANGELO" }).cognome, i({ nome: "NICCOLÒ" }).nome]);
 
+  gruppo("BULK · T1 · APOSTROFI TIPOGRAFICI (iPhone e app scrivono ’, non ')");
+  c("cognome D’Angelo (U+2019) → D'Angelo", "D'Angelo", i({ cognome: "D’Angelo" }).cognome);
+  c("indirizzo «Via dell’Olmo 3» → apostrofo dritto, nessuna lettera persa", "Via Dell'Olmo 3", i({ indirizzo: "Via dell’Olmo 3" }).indirizzo);
+  c("comune Sant’Angelo → Sant'Angelo", "Sant'Angelo", i({ comune: "Sant’Angelo" }).comune);
+  c("tutte le varianti (’ ‘ ʼ ´ `) diventano '", ["D'Angelo", "D'Angelo", "D'Angelo", "D'Angelo", "D'Angelo"],
+    ["D’Angelo", "D‘Angelo", "DʼAngelo", "D´Angelo", "D`Angelo"].map((x) => i({ cognome: x }).cognome));
+  c("anche nel nome della tessera e nel cognome del pagante", ["D'Amico", "D'Amico"],
+    [L.normalizzaLetturaFile({ tipo: "tessera", cognome: "D’AMICO" }).cognome, L.normalizzaLetturaFile({ tipo: "pagamento", paganteCognome: "D’AMICO" }).paganteCognome]);
+  c("e nel riferimento", "L'ordine 12", L.normalizzaLetturaFile({ tipo: "pagamento", riferimento: "L’ordine 12" }).riferimento);
+
   gruppo("BULK · T1 · PAGAMENTO");
   const p = (voce) => L.normalizzaLetturaFile({ tipo: "pagamento", ...voce });
   c("importi «1.250,00», «1250.00», «€ 1.250», 1250: tutti uguali", [1250, 1250, 1250, 1250],
@@ -144,6 +154,15 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("modoIncerto solo se l'AI lo dice", [true, false], [p({ modo: "pos", modoIncerto: true }).modoIncerto, p({ modo: "pos" }).modoIncerto]);
   c("riferimento: ripulito da a-capo e spazi doppi", "RF 12 34", p({ riferimento: "  RF\n 12   34 " }).riferimento);
   c("riferimento lunghissimo → tagliato (non si porta in giro un muro di testo)", 100, p({ riferimento: "A".repeat(500) }).riferimento.length);
+
+  gruppo("BULK · T1 · DEL PAGANTE SOLO IL COGNOME");
+  const pc = (x) => L.normalizzaLetturaFile({ tipo: "pagamento", paganteCognome: x }).paganteCognome;
+  c("«Rossi Mario» (cognome prima, come nelle banche) → Rossi", "Rossi", pc("ROSSI MARIO"));
+  c("«De Luca Mario» → De Luca (la particella resta)", "De Luca", pc("De Luca Mario"));
+  c("«Dal Pozzo» e «Di Stefano Anna» tengono la particella", ["Dal Pozzo", "Di Stefano"], [pc("Dal Pozzo"), pc("Di Stefano Anna")]);
+  c("un cognome solo resta com'è", "Fantasia", pc("Fantasia"));
+  c("«Mario Rossi Bianchi Verdi»: mai più del primo cognome", "Mario", pc("Mario Rossi Bianchi Verdi"));
+  c("l'apostrofo non spezza: «D’Angelo Luca» → D'Angelo", "D'Angelo", pc("D’Angelo Luca"));
 
   gruppo("BULK · T1 · PRIVACY: COSA NON ESCE");
   const sporco = L.normalizzaLetturaFile({

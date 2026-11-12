@@ -142,6 +142,8 @@ const testo = (v: unknown): string => (typeof v === "string" ? v : typeof v === 
  *  `ammessi` (un'espressione regolare dei caratteri da TENERE); poi tagliato. Un nome non ha parentesi graffe. */
 const ripulito = (v: unknown, ammessi: RegExp, max: number): string =>
   testo(v)
+    // ⚠️ iPhone e app scrivono l'apostrofo tipografico (’): senza questo il filtro lo butta e «D’Angelo» diventa «Dangelo».
+    .replace(/[\u2018\u2019\u02bc\u00b4`]/g, "'")
     .replace(/[\s\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]+/g, " ")
     .split("")
     .filter((ch) => ammessi.test(ch))
@@ -152,12 +154,28 @@ const ripulito = (v: unknown, ammessi: RegExp, max: number): string =>
 
 const PER_NOMI = /[\p{L}\p{M}' .-]/u;
 const PER_INDIRIZZI = /[\p{L}\p{M}\p{N}' .,/°ªº#-]/u;
-const PER_RIFERIMENTI = /[\p{L}\p{N} ._/:#-]/u;
+const PER_RIFERIMENTI = /[\p{L}\p{N}' ._/:#-]/u;
 
 const incertiDi = (voce: Record<string, unknown>, tipo: TipoFile): string[] =>
   Array.isArray(voce.incerti)
     ? Array.from(new Set(voce.incerti.filter((x): x is string => typeof x === "string" && CAMPI_INCERTI[tipo].includes(x))))
     : [];
+
+/** Particelle che fanno parte del cognome («De Luca», «Dal Pozzo», «Di Stefano»). */
+const PARTICELLE = new Set(["de", "di", "da", "del", "dei", "della", "delle", "dello", "degli", "dal", "dalla", "dai", "dalle", "la", "lo", "le", "li", "van", "von", "der", "den", "san", "sant", "santa", "mc", "mac"]);
+
+/** L'AI dovrebbe dare solo il cognome ma il codice non si fida: se arriva anche il nome («Rossi Mario») resta la
+ *  prima parola, più le particelle che la precedono nel cognome. Non può sapere se il nome viene prima o dopo:
+ *  «Mario Rossi» dà «Mario» e la riga risulta «pagante diverso» da confermare (direzione sicura). */
+function soloIlCognome(s: string): string {
+  const parole = s.split(" ").filter(Boolean);
+  const tenute: string[] = [];
+  for (const p of parole) {
+    tenute.push(p);
+    if (!PARTICELLE.has(p.toLowerCase())) break;
+  }
+  return tenute.join(" ");
+}
 
 /** Importo in euro, o `null` se non c'è una cifra: lo zero è un importo, il «non letto» no. */
 function importoDa(v: unknown): number | null {
@@ -280,7 +298,7 @@ export function normalizzaLetturaFile(voce: Record<string, unknown>): LetturaFil
       modoIncerto: v.modoIncerto === true,
       riferimento: ripulito(v.riferimento, PER_RIFERIMENTI, 100),
       // Del pagante SOLO il cognome (D11e): serve a confrontarlo con la tessera, il resto non si salva.
-      paganteCognome: normalizzaDocumento({ cognome: ripulito(v.paganteCognome, PER_NOMI, 40) }).cognome ?? "",
+      paganteCognome: normalizzaDocumento({ cognome: soloIlCognome(ripulito(v.paganteCognome, PER_NOMI, 40)) }).cognome ?? "",
       incerti,
     };
     return r;
