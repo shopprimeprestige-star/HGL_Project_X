@@ -48,7 +48,12 @@ import {
   totaleNelFile,
   ultimoGiornoUtile,
 } from "./da-importo-a-fattura";
-import { abbinaScheda, trovaDoppioni, type RigaPerDoppioni } from "./doppioni-e-schede";
+import {
+  abbinaScheda,
+  cfDiversoDellaScheda,
+  trovaDoppioni,
+  type RigaPerDoppioni,
+} from "./doppioni-e-schede";
 import { cercaPerOrigine, esitoOrdineDate, fattiSulleDate } from "./emissione-bulk";
 import { controllaLotto } from "./regole-lotto";
 import { esaminaRiga, proponiData, statoDi } from "./regole-riga";
@@ -368,8 +373,18 @@ function valuta(
 
   // La scheda: scelta a mano (anche «nessuna») oppure abbinata. Non si crea e non si modifica mai.
   let scheda: string | null;
-  if (decisioni && decisioni.scheda !== undefined) scheda = decisioni.scheda;
-  else {
+  if (decisioni && decisioni.scheda !== undefined) {
+    // Scelta a mano (anche «nessuna» = null, senza motivi). Resta valida solo se la scheda esiste e non è di un'altra persona.
+    scheda = decisioni.scheda;
+    const scelta = scheda === null ? null : ctx.schede.find((x) => x.id === scheda);
+    if (scheda !== null && !scelta)
+      motivi.push({
+        codice: "scheda_non_trovata",
+        gravita: "blocca",
+        testo: "La scheda scelta non esiste più: scegline un'altra oppure togli il collegamento.",
+      });
+    else if (scelta) motivi.push(...cfDiversoDellaScheda(campi, scelta));
+  } else {
     const a = abbinaScheda(campi, l.indirizzo?.telefono ?? "", ctx.schede);
     scheda = a.scheda?.id ?? null;
     motivi.push(...a.motivi);
@@ -447,6 +462,15 @@ function valuta(
             testo:
               "Il codice fiscale è valido ma ha lettere al posto di alcune cifre (omocodia), e il file della fattura per ora non lo accetta (limite noto del CRM). Fai questa fattura a mano dalla scheda del cliente.",
           });
+        else if (b.startsWith("La data della fattura è nel futuro") && campi.data <= ctx.oggi)
+          // Per le regole di riga la data va bene (oggi, in Italia): è xml.ts che guarda l'orologio UTC (D8/D9).
+          motivi.push({
+            codice: "xml_dopo_mezzanotte",
+            gravita: "blocca",
+            campo: "data",
+            testo:
+              "È appena passata la mezzanotte: il file della fattura conta ancora il giorno prima e rifiuta una data di oggi. Riprova fra un paio d'ore.",
+          });
         else
           motivi.push({
             codice: "xml_bloccante",
@@ -483,12 +507,25 @@ function valuta(
   });
 }
 
-/** Una riga. `altre` = le altre righe aperte del lotto (`righePerDoppioni`), per i doppioni fra righe; senza, la riga non le vede. */
+/** Una riga. `altre` = le altre righe aperte del lotto (`righePerDoppioni`), per i doppioni fra righe; senza, la riga non le vede.
+ *  ⚠️ IL SERVER NON LA USA DIRETTAMENTE: prima di emettere si chiama `valutaRigaNelLotto`, che le altre righe le trova da sé. */
 export const valutaRiga = ((
   riga: IngressoRiga,
   ctx: ContestoValutazione,
   altre: RigaPerDoppioni[] = [],
 ): RigaValutata => valuta(riga, ctx, altre, motiviDelLotto(ctx))) satisfies ValutaRiga;
+
+/** L'ENTRATA DEL SERVER (T12): la riga `idRiga` valutata dentro il suo lotto. Le altre righe si ricavano da `righe`, quindi non
+ *  si può dimenticare di vederle: il risultato è identico a quello di `valutaLotto` per quella riga. Un id che non c'è è un errore. */
+export function valutaRigaNelLotto(
+  idRiga: string,
+  righe: IngressoRiga[],
+  ctx: ContestoValutazione,
+): RigaValutata {
+  const riga = righe.find((r) => r.gruppo.idRiga === idRiga);
+  if (!riga) throw new Error("valutaRigaNelLotto: la riga non è nel lotto");
+  return valuta(riga, ctx, righePerDoppioni(righe, ctx), motiviDelLotto(ctx));
+}
 
 /** Tutto il lotto: le righe nell'ordine dato, i fatti sulle date (D1b) e i motivi del centro (una volta sola). */
 export function valutaLotto(
@@ -513,9 +550,9 @@ export function valutaLotto(
   };
 }
 
-/** Le decisioni dopo che la persona ha corretto dei campi: i campi si uniscono e la CONFERMA DELLA RIGA SI TOGLIE
- *  (ogni modifica toglie la conferma). Le conferme dei singoli motivi restano, perché sono per codice: se il motivo
- *  è sempre lo stesso, la persona l'aveva già visto; la riga va comunque riconfermata. Non muta l'ingresso. */
+/** Le decisioni dopo che la persona ha corretto dei campi: i campi si uniscono e TUTTE LE CONFERME SI TOLGONO, della
+ *  riga e dei singoli motivi (come fa il server). Una conferma per codice passerebbe in silenzio su un fatto nuovo:
+ *  confermato il doppione della fattura A, corretto il CF, uscirebbe un doppione della B già «confermato». Non muta l'ingresso. */
 export function conModifiche(
   decisioni: DecisioniRiga | undefined,
   modifiche: Partial<CampiRiga>,
@@ -527,5 +564,6 @@ export function conModifiche(
     ...(decisioni ?? { idRiga: id, stato: "aperta" as const }),
     modifiche: { ...decisioni?.modifiche, ...modifiche },
     confermata: false,
+    confermeAvvisi: [],
   };
 }

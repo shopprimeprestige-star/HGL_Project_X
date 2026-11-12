@@ -509,19 +509,42 @@ export async function prove(mod, { c, gruppo }) {
     [dec.confermata, dec.modifiche],
   );
   c(
-    "la conferma dei motivi resta per codice (il motivo è lo stesso), ma la riga va confermata di nuovo: non emettibile",
-    [false, "pronto"],
-    ((r) => [r.emettibile, r.stato])(una({}, ctx(), dopo)),
+    "anche le conferme dei singoli motivi si svuotano (come fa il server): niente conferme passate in silenzio",
+    [[], false],
+    [dopo.confermeAvvisi, dopo.confermata],
   );
   c(
-    "… e allora «importo_alto» è ancora lì, confermato",
-    true,
-    ha(una({}, ctx(), dopo), "importo_alto", "conferma"),
+    "senza la conferma di «importo_alto» la riga torna da controllare e non è emettibile",
+    [false, "da_controllare", true],
+    ((r) => [r.emettibile, r.stato, ha(r, "importo_alto", "conferma")])(una({}, ctx(), dopo)),
   );
   c(
-    "riconfermandola si può emettere",
+    "riconfermando motivo e riga si può emettere",
     true,
-    una({}, ctx(), { ...dopo, confermata: true }).emettibile,
+    una({}, ctx(), { ...dopo, confermata: true, confermeAvvisi: ["importo_alto"] }).emettibile,
+  );
+  // Il caso concreto: la persona conferma il doppione della fattura A, poi corregge il CF e ne esce un doppione con la fattura B.
+  const fatturaA = emessa({
+    numero: 3,
+    data: "2026-11-10",
+    campi: { nome: "Mario", cognome: "Rossi", codiceFiscale: CF_PROVA, importo: 120 },
+  });
+  const cfB = cfConControllo("VRDLCU85M41F205");
+  const fatturaB = emessa({
+    numero: 4,
+    data: "2026-11-10",
+    campi: { nome: "Luca", cognome: "Verdi", codiceFiscale: cfB, importo: 120 },
+  });
+  const cxAB = ctx({ emesse: [fatturaA, fatturaB] });
+  const confA = aperta({ confermata: true, confermeAvvisi: ["doppione_pagamento"] });
+  c("doppione confermato per la fattura A: emettibile", true, una({}, cxAB, confA).emettibile);
+  const cambiaCf = V.conModifiche(confA, { codiceFiscale: cfB, nome: "Luca", cognome: "Verdi" });
+  c(
+    "cambio il CF e riconfermo la riga: è un doppione della fattura B e RICOMPARE da confermare (nessuna conferma passata)",
+    [false, true],
+    ((r) => [r.emettibile, ha(r, "doppione_pagamento", "conferma")])(
+      una({}, cxAB, { ...cambiaCf, confermata: true }),
+    ),
   );
   c(
     "senza decisioni di partenza: crea la decisione",
@@ -861,15 +884,64 @@ export async function prove(mod, { c, gruppo }) {
       ),
     ),
   );
-  const manuale = una({}, ctx({ schede: [schedaCf] }), aperta({ scheda: "s-scelta" }));
+  const schedaScelta = {
+    id: "s-scelta",
+    nome: "Mario",
+    cognome: "Rossi",
+    codiceFiscale: "",
+    telefono: "",
+  };
+  const manuale = una(
+    {},
+    ctx({ schede: [schedaCf, schedaScelta] }),
+    aperta({ scheda: "s-scelta" }),
+  );
   c(
-    "scheda scelta a mano: vince sull'abbinamento, senza motivi di abbinamento",
+    "scheda scelta a mano (esiste, senza CF): vince sull'abbinamento, senza motivi di abbinamento",
     ["s-scelta", "s-scelta", false],
     [
       manuale.scheda,
       manuale.fattura.leadId,
       manuale.motivi.some((m) => m.codice.startsWith("scheda_")),
     ],
+  );
+  const inesistente = una(
+    {},
+    ctx({ schede: [schedaCf] }),
+    aperta({ scheda: "id-che-non-esiste", confermata: true }),
+  );
+  c(
+    "scheda scelta a mano che non esiste più → blocca «scheda_non_trovata», non emettibile",
+    [true, false, "da_controllare"],
+    [ha(inesistente, "scheda_non_trovata", "blocca"), inesistente.emettibile, inesistente.stato],
+  );
+  const cfAltro = una(
+    {},
+    ctx({ schede: [{ ...schedaScelta, codiceFiscale: cfConControllo("VRDLCU85M41F205") }] }),
+    aperta({ scheda: "s-scelta" }),
+  );
+  c(
+    "scheda scelta a mano con un CF di un'altra persona → conferma «scheda_cf_diverso»",
+    [true, "da_controllare"],
+    [ha(cfAltro, "scheda_cf_diverso", "conferma"), cfAltro.stato],
+  );
+  c(
+    "… confermata per codice si emette",
+    true,
+    una(
+      {},
+      ctx({ schede: [{ ...schedaScelta, codiceFiscale: cfConControllo("VRDLCU85M41F205") }] }),
+      aperta({ scheda: "s-scelta", confermata: true, confermeAvvisi: ["scheda_cf_diverso"] }),
+    ).emettibile,
+  );
+  c(
+    "scheda scelta a mano con lo stesso CF → nessun motivo",
+    [],
+    una(
+      {},
+      ctx({ schede: [{ ...schedaScelta, codiceFiscale: CF_PROVA }] }),
+      aperta({ scheda: "s-scelta" }),
+    ).motivi.filter((m) => m.codice.startsWith("scheda_")),
   );
   const nessuna = una({}, ctx({ schede: [schedaCf] }), aperta({ scheda: null }));
   c(
@@ -1583,4 +1655,87 @@ export async function prove(mod, { c, gruppo }) {
     lotG.righe.every((r) => r.stato === "pronto" || r.stato === "da_controllare"),
   );
   c("abbastanza veloce (sotto i 30 secondi)", true, msG < 30000);
+
+  gruppo("BULK · T10 · valutaRigaNelLotto: L'ENTRATA DEL SERVER VEDE SEMPRE I DOPPIONI FRA RIGHE");
+  const fileDoppie = [
+    ...fileDi(0, { pag: lPag({ riferimento: "CRO 1234567890" }) }),
+    ...fileDi(1, {
+      ind: lInd({ nome: "Anna", cognome: "Neri" }),
+      tes: lTes({
+        nome: "Anna",
+        cognome: "Neri",
+        codiceFiscale: cfConControllo("NRENNA90C41L219"),
+        cfLetto: cfConControllo("NRENNA90C41L219"),
+      }),
+      pag: lPag({ riferimento: "CRO 1234567890", paganteCognome: "Neri", data: "2026-11-09" }),
+    }),
+  ];
+  const righeDoppie = righeDa(fileDoppie);
+  const solo = V.valutaRigaNelLotto(righeDoppie[0].gruppo.idRiga, righeDoppie, ctx());
+  c(
+    "una riga sola, valutata nel lotto: vede il CRO uguale di un'altra riga",
+    [true, false],
+    [ha(solo, "doppione_riferimento", "blocca"), solo.emettibile],
+  );
+  c(
+    "… e coincide con quella calcolata da valutaLotto",
+    JSON.stringify(V.valutaLotto(righeDoppie, ctx()).righe[0]),
+    JSON.stringify(solo),
+  );
+  const fileImp = [...fileDi(0), ...fileDi(1, { pag: lPag({ riferimento: "ALTRO 99887766" }) })];
+  fileImp[5] = { ...fileImp[5], impronta: "imp-2" };
+  const soloImp = V.valutaRigaNelLotto(righeDa(fileImp)[0].gruppo.idRiga, righeDa(fileImp), ctx());
+  c(
+    "… e anche lo stesso screenshot del pagamento in un'altra riga",
+    true,
+    ha(soloImp, "doppione_screenshot", "blocca"),
+  );
+  c(
+    "un id che non è nel lotto è un errore, non un risultato",
+    true,
+    (() => {
+      try {
+        V.valutaRigaNelLotto("9999", righeDoppie, ctx());
+        return false;
+      } catch {
+        return true;
+      }
+    })(),
+  );
+
+  gruppo(
+    "BULK · T10 · APPENA PASSATA LA MEZZANOTTE: UN MOTIVO CHE LO DICE (OGGI() di xml.ts è in UTC)",
+  );
+  // Per T3 la data di oggi (italiana) va bene; xml.ts guarda l'orologio UTC e la vede nel futuro. Si simula con un «oggi» lontano.
+  const mezzanotte = una(
+    { pag: lPag({ data: "2098-12-31" }) },
+    ctx({ oggi: "2099-01-01" }),
+    aperta({ confermata: true, confermeAvvisi: ["anno_diverso"] }),
+  );
+  c(
+    "data = oggi per l'Italia ma futura per xml.ts: motivo dedicato, non «data nel futuro»",
+    [true, false, false],
+    [
+      ha(mezzanotte, "xml_dopo_mezzanotte", "blocca"),
+      ha(mezzanotte, "xml_bloccante"),
+      mezzanotte.emettibile,
+    ],
+  );
+  c(
+    "il testo parla di mezzanotte e dice di riprovare",
+    true,
+    /mezzanotte/.test(
+      mezzanotte.motivi.find((m) => m.codice === "xml_dopo_mezzanotte")?.testo ?? "",
+    ) &&
+      /riprova/i.test(
+        mezzanotte.motivi.find((m) => m.codice === "xml_dopo_mezzanotte")?.testo ?? "",
+      ),
+  );
+  c(
+    "una data VERAMENTE futura resta «data_futura» (regola di riga), senza il motivo della mezzanotte",
+    [true, false],
+    ((r) => [ha(r, "data_futura", "blocca"), ha(r, "xml_dopo_mezzanotte")])(
+      una({ pag: lPag({ data: "2026-11-13" }) }),
+    ),
+  );
 }
