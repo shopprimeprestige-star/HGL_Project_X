@@ -195,6 +195,29 @@ export function Screenshot({
   const { urls, errore, caricando, riprova } = useUrlFirmati(lotto, indici, true);
   // L'indirizzo firmato dura 60 secondi: se il browser lo ha scartato si chiede una sola volta di nuovo.
   const [giaRiprovato, setGiaRiprovato] = useState(false);
+  const [erroreIngrandimento, setErroreIngrandimento] = useState(false);
+
+  /** L'ingrandimento chiede un indirizzo NUOVO: quello dell'immagine in pagina può essere scaduto (60 s) e chi guarda
+   *  una riga per minuti troverebbe una pagina d'errore. La finestra si apre subito (il browser la permette solo dentro il
+   *  clic) e poi riceve l'indirizzo; senza opener, perché l'indirizzo è un altro sito. */
+  const ingrandisci = async (indice: number) => {
+    setErroreIngrandimento(false);
+    const finestra = window.open("", "_blank");
+    if (finestra) finestra.opener = null;
+    try {
+      const nuovi = await leggiRotta<RispostaMiniature>(
+        fetchCRM,
+        `?lotto=${encodeURIComponent(lotto)}&url=${quattroCifre(indice)}`,
+      );
+      const url = nuovi[quattroCifre(indice)];
+      if (!url) throw new Error("manca");
+      if (finestra) finestra.location.href = url;
+      else setErroreIngrandimento(true);
+    } catch {
+      finestra?.close();
+      setErroreIngrandimento(true);
+    }
+  };
   return (
     <div
       className={cn(grande ? "flex flex-col gap-3" : "flex flex-wrap gap-2")}
@@ -208,18 +231,23 @@ export function Screenshot({
           </button>
         </p>
       )}
+      {erroreIngrandimento && (
+        <p role="alert" className="w-full text-[12px] text-rose-700">
+          Non riesco ad aprire lo screenshot a grandezza naturale: riprova.
+        </p>
+      )}
       {indici.map((i) => {
         const url = urls[quattroCifre(i)];
         const tipo = NOME_TIPO[file.find((f) => f.indice === i)?.tipo || "altro"] ?? "Altro";
         return (
           <figure key={i} className={cn("min-w-0", grande ? "w-full" : "w-24")}>
             {url ? (
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => void ingrandisci(i)}
                 title="Apri a grandezza naturale"
-                className="block overflow-hidden rounded-lg border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                aria-label={`Apri a grandezza naturale: ${tipo.toLowerCase()}`}
+                className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 <img
                   src={url}
@@ -235,14 +263,9 @@ export function Screenshot({
                     grande ? "max-h-72 lg:max-h-[26rem]" : "h-32",
                   )}
                 />
-              </a>
+              </button>
             ) : (
-              <div
-                className={cn(
-                  "flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-slate-400",
-                  grande ? "h-32" : "h-32",
-                )}
-              >
+              <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-slate-400">
                 {caricando ? (
                   <span className="text-[11px]">Carico…</span>
                 ) : (

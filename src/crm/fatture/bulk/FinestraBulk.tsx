@@ -80,6 +80,7 @@ function useMiniatureLocali(file: File[]): string[] {
 function SceltaFile({
   ripresa,
   scelti,
+  ordinati,
   onScelti,
   criterio,
   onCriterio,
@@ -90,6 +91,8 @@ function SceltaFile({
 }: {
   ripresa: boolean;
   scelti: File[];
+  /** Gli stessi file nell'ordine scelto (li ordina il padre, una volta sola). */
+  ordinati: File[];
   onScelti: (f: File[]) => void;
   criterio: CriterioOrdine;
   onCriterio: (c: CriterioOrdine) => void;
@@ -99,14 +102,6 @@ function SceltaFile({
   oggi: string;
 }) {
   const [trascina, setTrascina] = useState(false);
-  const ordinati = useMemo(
-    () =>
-      ordinaFile(
-        scelti.map((f) => ({ nome: f.name, modificatoIl: f.lastModified, f })),
-        criterio,
-      ).map((x) => x.f),
-    [scelti, criterio],
-  );
   const primi = useMemo(() => ordinati.slice(0, 3), [ordinati]);
   const miniature = useMiniatureLocali(primi);
   const conto = contaGruppi(ordinati.length);
@@ -320,7 +315,7 @@ function SceltaFile({
                 value={dataRiserva}
                 max={oggi}
                 onChange={(e) => onDataRiserva(e.target.value)}
-                className={cn(CLASSE_CAMPO, "w-full")}
+                className={cn(CLASSE_CAMPO, "h-11 w-full sm:h-9")}
               />
             </CampoFinestra>
           </div>
@@ -447,7 +442,11 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
         s.erroriCarico.length > 0 ||
         s.fileNonValidi.length > 0;
       if (!fermo) void l.leggi();
-    } else if (s.lotto === passo.lotto) {
+    } else if (s.lotto !== passo.lotto) {
+      toast.error("Non riesco ad aprire questo caricamento, quindi non l'ho annullato.", {
+        description: "Riprova fra poco; se resta così avvisa l'assistenza.",
+      });
+    } else {
       void l.annullaLotto().then((ok) => {
         if (ok) void aggiornaAperti();
       });
@@ -515,11 +514,8 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             `${n} righe hanno un pagamento di più di 12 giorni fa, cioè oltre il termine di invio allo SDI (stima). Apri una riga per leggere l'avviso per intero.`,
         },
       ]
-        .map((a) => ({
-          codice: a.codice,
-          n: nPerAvviso(a.codice),
-          testo: a.testo(nPerAvviso(a.codice)),
-        }))
+        .map((a) => ({ codice: a.codice, n: nPerAvviso(a.codice), testo: a.testo }))
+        .map((a) => ({ codice: a.codice, n: a.n, testo: a.testo(a.n) }))
         .filter((a) => a.n >= 2),
     [nPerAvviso],
   );
@@ -618,7 +614,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
   const inMemoria = stato.lotto !== null;
   const riquadro = (
     <>
-      {inMemoria && !aperta && (
+      {inMemoria && !aperta && !stato.lottoChiuso && (
         <div
           className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2.5"
           role="status"
@@ -839,6 +835,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
         <SceltaFile
           ripresa={ripresa}
           scelti={scelti}
+          ordinati={ordinati}
           onScelti={setScelti}
           criterio={criterio}
           onCriterio={setCriterio}

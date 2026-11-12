@@ -43,6 +43,7 @@ import {
   euroEsatti,
   dataItaliana,
 } from "./AnteprimaBulk";
+import { controllaCambio, type CambioRiga } from "./cambio-riga";
 import type {
   CampiRiga,
   DecisioniRiga,
@@ -52,15 +53,6 @@ import type {
   RigaValutata,
   SchedaPerAbbinamento,
 } from "./tipi";
-
-/** Una cosa sola per richiesta (vedi la nota in cima). */
-export type CambioRiga = {
-  modifiche?: Partial<CampiRiga>;
-  scheda?: string | null;
-  confermaRiga?: boolean;
-  confermaAvvisi?: string[];
-  scarta?: boolean;
-};
 
 /* ══ 1. L'IMPORTO SCRITTO A MANO ═══════════════════════════════════════════ */
 
@@ -90,7 +82,6 @@ function CampoTesto({
   etichetta,
   valore,
   onSalva,
-  disabilitato,
   invalido,
   trasforma,
   tipo = "text",
@@ -104,7 +95,6 @@ function CampoTesto({
   valore: string;
   /** Riceve il testo già ripulito. Ritorna dopo il salvataggio. */
   onSalva: (v: string) => void;
-  disabilitato?: boolean;
   invalido?: boolean;
   trasforma?: (v: string) => string;
   tipo?: "text" | "date";
@@ -143,7 +133,6 @@ function CampoTesto({
         id={id}
         type={tipo}
         value={bozza}
-        disabled={disabilitato}
         maxLength={maxLength}
         inputMode={inputMode}
         aria-invalid={invalido || !!errore}
@@ -158,7 +147,7 @@ function CampoTesto({
         onKeyDown={(e) => e.key === "Enter" && tipo !== "date" && conferma(bozza)}
         className={cn(
           CLASSE_CAMPO,
-          "mt-1.5 w-full",
+          "mt-1.5 h-11 w-full sm:h-9",
           (invalido || errore) && "border-rose-400 focus-visible:ring-rose-300",
         )}
       />
@@ -242,7 +231,7 @@ function SceltaScheda({
             onChange={(e) => setQ(e.target.value)}
             placeholder="Cerca per nome, cognome o codice fiscale"
             aria-label="Cerca la scheda del cliente"
-            className={cn(CLASSE_CAMPO, "w-full")}
+            className={cn(CLASSE_CAMPO, "h-11 w-full sm:h-9")}
           />
           <ul className="space-y-1">
             {trovate.map((s) => (
@@ -360,6 +349,8 @@ export function PannelloRigaBulk({
   );
 
   const salva = async (cambio: CambioRiga) => {
+    const problema = controllaCambio(cambio);
+    if (problema) throw new Error(problema);
     setLavorando(true);
     try {
       return await onSalva(cambio);
@@ -503,14 +494,12 @@ export function PannelloRigaBulk({
               etichetta="Nome"
               valore={c.nome}
               onSalva={campo("nome")}
-              disabilitato={fermo}
               invalido={invalidi.has("nome")}
             />
             <CampoTesto
               etichetta="Cognome"
               valore={c.cognome}
               onSalva={campo("cognome")}
-              disabilitato={fermo}
               invalido={invalidi.has("cognome")}
             />
             <CampoTesto
@@ -518,7 +507,6 @@ export function PannelloRigaBulk({
               etichetta="Codice fiscale"
               valore={c.codiceFiscale}
               onSalva={campo("codiceFiscale")}
-              disabilitato={fermo}
               invalido={invalidi.has("codiceFiscale")}
               maxLength={16}
               trasforma={(v) => v.toUpperCase().replace(/\s/g, "")}
@@ -538,14 +526,12 @@ export function PannelloRigaBulk({
               etichetta="Indirizzo (residenza)"
               valore={c.indirizzo}
               onSalva={campo("indirizzo")}
-              disabilitato={fermo}
               invalido={invalidi.has("indirizzo")}
             />
             <CampoTesto
               etichetta="CAP"
               valore={c.cap}
               onSalva={campo("cap")}
-              disabilitato={fermo}
               invalido={invalidi.has("cap")}
               maxLength={5}
               inputMode="numeric"
@@ -555,7 +541,6 @@ export function PannelloRigaBulk({
               etichetta="Provincia"
               valore={c.provincia}
               onSalva={campo("provincia")}
-              disabilitato={fermo}
               invalido={invalidi.has("provincia")}
               maxLength={2}
               trasforma={(v) => v.toUpperCase().replace(/[^A-Z]/g, "")}
@@ -565,14 +550,12 @@ export function PannelloRigaBulk({
               etichetta="Comune"
               valore={c.comune}
               onSalva={campo("comune")}
-              disabilitato={fermo}
               invalido={invalidi.has("comune")}
             />
             <CampoTesto
               etichetta="Importo pagato (IVA compresa)"
               valore={importoScritto(c.importo)}
               inputMode="decimal"
-              disabilitato={fermo}
               invalido={invalidi.has("importo")}
               convalida={(v) => {
                 const r = leggiImportoScritto(v);
@@ -588,7 +571,6 @@ export function PannelloRigaBulk({
               tipo="date"
               valore={c.data}
               onSalva={campo("data")}
-              disabilitato={fermo}
               invalido={invalidi.has("data")}
             />
           </div>

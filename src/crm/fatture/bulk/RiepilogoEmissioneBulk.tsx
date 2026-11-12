@@ -175,6 +175,10 @@ export function csvCommercialista(fatture: Fattura[], azienda: DatiAzienda): str
 
 /* ══ 3. LA FINESTRA ════════════════════════════════════════════════════════ */
 
+/** Se l'emissione si ferma (anche per la rete) l'ultima riga può essere uscita senza che la risposta arrivasse. */
+export const AVVISO_ULTIMA_RIGA =
+  "L'ultima riga può risultare incerta se la connessione è caduta: la fattura potrebbe essere stata emessa. Controlla nell'elenco delle fatture (o riaprendo il caricamento) prima di riprovare; riprovare non ne emette una seconda.";
+
 export type FaseEmissione = "conferma" | "corso" | "finale";
 
 const euroCentesimi = (c: number) => euroEsatti(c / 100);
@@ -245,8 +249,9 @@ export function RiepilogoEmissioneBulk({
           {riepilogo.fermata && (
             <NotaFinestra tono="attenzione" icona={AlertTriangle}>
               <span role="alert" className="block">
-                {fraseDi(riepilogo.fermata.codice, riepilogo.fermata.messaggio)} Le altre righe sono
-                rimaste come prima: puoi riprendere da «Emetti le confermate».
+                {fraseDi(riepilogo.fermata.codice, riepilogo.fermata.messaggio)} Le righe non ancora
+                emesse non sono state toccate: puoi riprendere da «Emetti le confermate».
+                <span className="mt-2 block font-medium">{AVVISO_ULTIMA_RIGA}</span>
                 {riepilogo.fermata.codice === "emittente_occupato" && (
                   <span className="mt-2 block">
                     Se l&apos;altra scheda del CRM è chiusa puoi{" "}
