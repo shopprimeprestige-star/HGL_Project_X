@@ -8,7 +8,7 @@
  *   rilettura dopo la scrittura, il controllo «precedente + 1» e le regole sull'ordine delle date. */
 import { archivioSu, chiaveEmessa, emettiSu, type ArchivioDb, type EsitoCrea } from "../archivio";
 import type { DatiAzienda, Fattura } from "../tipi";
-import { GIORNI_TERMINE_SDI, RIMUOVI_A_GRUPPI } from "./chiavi";
+import { GIORNI_TERMINE_SDI } from "./chiavi";
 import { ultimoGiornoUtile } from "./da-importo-a-fattura";
 import type { FattiSulleDate, Gravita, Motivo } from "./tipi";
 
@@ -59,6 +59,9 @@ interface ClienteConfig {
   };
 }
 
+/** Chiavi per `in(...)`: finiscono nell'indirizzo della richiesta (~75 caratteri l'una), 50 stanno sotto i 4 KB. */
+const LEGGI_A_GRUPPI = 50;
+
 const proteggiLike = (p: string) => p.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 
 export function archivioProtettoSu(client: unknown): ArchivioProtetto {
@@ -95,11 +98,11 @@ export function archivioProtettoSu(client: unknown): ArchivioProtetto {
     leggiPrefissoPerChiave: leggiPerChiave,
     leggiMolte: async (chiavi) => {
       const out: { key: string; value: string }[] = [];
-      for (let i = 0; i < chiavi.length; i += RIMUOVI_A_GRUPPI) {
+      for (let i = 0; i < chiavi.length; i += LEGGI_A_GRUPPI) {
         const { data, error } = await c
           .from("app_config")
           .select("key,value")
-          .in("key", chiavi.slice(i, i + RIMUOVI_A_GRUPPI));
+          .in("key", chiavi.slice(i, i + LEGGI_A_GRUPPI));
         if (error) throw new Error(error.message);
         out.push(...comeRighe(data));
       }

@@ -355,13 +355,13 @@ export async function prove(mod, { c, gruppo }) {
     const chiavi = [...f.m.keys()];
     const molte = await a.leggiMolte([...chiavi, "bulk_fatture_f:non-esiste:0000"]);
     c(
-      "250 chiavi (più una che non c'è) → 250 righe, a gruppi di 100 = 3 sottorichieste",
-      [250, 3],
+      "251 chiavi (una non c'è) → 250 righe, a gruppi di 50 = 6 sottorichieste",
+      [250, 6],
       [molte.length, f.reg.sottorichieste],
     );
     c(
       "nessuna chiave → nessuna sottorichiesta",
-      [[], 3],
+      [[], 6],
       [await a.leggiMolte([]), f.reg.sottorichieste],
     );
   }
