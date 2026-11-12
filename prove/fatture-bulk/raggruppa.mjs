@@ -72,19 +72,26 @@ export async function prove(mod, { c, gruppo }) {
   c("un ordine diverso in mezzo a gruppi regolari tocca solo quella riga", [false, false, true, false], mista.map((r) => r.ordineDiverso));
 
   gruppo("BULK · T2 · UN FILE MANCANTE: LA RICOMPOSIZIONE PER TIPI");
-  // 299 file: manca il file 150 (che era una tessera: I T P | … | I [T mancante] P …).
-  const senza = regolari(100).filter((x) => x.indice !== 151); // 151 = tessera del cliente 51 (indice 150 è l'indirizzo)
-  // Gli indici restano quelli veri (con il buco): 0..150, 152..299.
+  // 299 file: manca la tessera del cliente 51 (indici 150 indirizzo, 151 tessera, 152 pagamento).
+  // Un file mancante NON lascia un buco negli indici: quelli dopo scalano di uno (0..298).
+  const senza = regolari(100).filter((x) => x.indice !== 151).map((x, k) => ({ ...x, indice: k }));
   const r299 = R.ricomponi(senza);
   c("299 file → 100 righe (nessun cliente perso)", 100, r299.length);
   c("fino al buco le righe sono regolari", true, r299.slice(0, 50).every((r) => !r.ricomposta && !r.incompleta));
-  c("la riga senza tessera è incompleta e dice cosa manca", [true, [T], [150, 152]], [r299[50].incompleta, r299[50].mancano, r299[50].indici]);
+  c("la riga senza tessera è incompleta e dice cosa manca", [true, [T], [150, 151]], [r299[50].incompleta, r299[50].mancano, r299[50].indici]);
   c("la riga incompleta non è «ricomposta» (è al suo posto, le manca solo un pezzo)", false, r299[50].ricomposta);
   c("tutti i clienti dopo il buco sono ricomposti (sempre da confermare)", [49, true], [r299.slice(51).length, r299.slice(51).every((r) => r.ricomposta)]);
   c("e quelli dopo il buco sono completi: nessun cliente perso in fondo", [true],
     [r299.slice(51, 99).every((r) => !r.incompleta)]);
   c("i file sono tutti dentro una riga e una sola", 299, new Set(r299.flatMap((r) => r.indici)).size);
-  c("gli id contano solo gli indici veri (con il buco)", "0150-0152", r299[50].idRiga);
+  c("l'id della riga incompleta", "0150-0151", r299[50].idRiga);
+
+  gruppo("BULK · T2 · «RICOMPOSTA» SI GIUDICA DAGLI INDICI DEI FILE, NON DALLA POSIZIONE NELL'ELENCO");
+  c("tre file consecutivi che non partono da un multiplo di 3 (1,2,3) → ricomposta, anche se sono i primi dell'elenco", true,
+    R.ricomponi(sequenza([I, T, P], 1))[0].ricomposta);
+  c("tre file con un buco negli indici (0,1,3) → ricomposta, anche se nell'elenco sono vicini", true,
+    R.ricomponi([{ indice: 0, tipo: I }, { indice: 1, tipo: T }, { indice: 3, tipo: P }])[0].ricomposta);
+  c("tre file consecutivi dal 3 (3,4,5) passati da soli → al loro posto", false, R.ricomponi(sequenza([I, T, P], 3))[0].ricomposta);
 
   gruppo("BULK · T2 · 301 FILE, DUE TESSERE, ALTRO");
   const r301 = R.ricomponi([...regolari(100), { indice: 300, tipo: I }]);

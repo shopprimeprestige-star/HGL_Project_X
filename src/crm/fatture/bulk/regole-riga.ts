@@ -119,7 +119,10 @@ export function esaminaRiga(campi: CampiRiga, ctx: ContestoRiga): Motivo[] {
   }
   if (gruppo.ricomposta)
     aggiungi("conferma", "ricomposta", "Sequenza ricomposta dai tipi dopo un file mancante o in più: controlla che i 3 screenshot siano della stessa persona.");
-  if (gruppo.ordineDiverso) aggiungi("avviso", "ordine_diverso", "Gli screenshot erano in un ordine diverso dal solito: letti comunque.");
+  // Sempre «conferma»: un file mancante o in più dà gruppi «completi» di persone diverse con l'ordine cambiato
+  // (es. un cliente senza indirizzo seguito da uno completo ne prende l'indirizzo) e niente altro li fermerebbe.
+  if (gruppo.ordineDiverso)
+    aggiungi("conferma", "ordine_diverso", "Gli screenshot erano in un ordine diverso dal solito: controlla nelle miniature che i 3 siano della stessa persona, poi conferma.");
   if (indirizzo?.indirizzoDiSpedizione)
     aggiungi("conferma", "indirizzo_di_spedizione", "Lo screenshot sembra un indirizzo di spedizione: la fattura vuole la residenza. Controlla che sia quella.", "indirizzo");
 
@@ -214,11 +217,6 @@ export function esaminaRiga(campi: CampiRiga, ctx: ContestoRiga): Motivo[] {
   // 8. Il pagamento sembra di un'altra persona (un familiare: si può confermare).
   if (pagamento && !vuoto(pagamento.paganteCognome) && !vuoto(campi.cognome) && !stessoCognome(pagamento.paganteCognome, campi.cognome))
     aggiungi("conferma", "pagante_diverso", "Il pagamento sembra fatto da una persona con un cognome diverso da quello della tessera (un familiare?). La fattura resta intestata a chi ha la tessera: confermalo.", "cognome");
-
-  // Ordine diverso dal solito + nessun cognome del pagante da confrontare: uno scorrimento di un file darebbe
-  // un gruppo «completo» di persone diverse e nessun controllo lo vedrebbe (decisione del capo progetto).
-  if (gruppo.ordineDiverso && (!pagamento || vuoto(pagamento.paganteCognome)))
-    aggiungi("conferma", "ordine_diverso_senza_pagante", "Gli screenshot erano in un ordine diverso dal solito e il pagamento non mostra il nome di chi ha pagato: controlla nelle miniature che i 3 screenshot siano della stessa persona.");
 
   // 9. Campi obbligatori che l'AI dava per incerti e che nessuno ha corretto (D7).
   const incerto = (campo: keyof CampiRiga, letti: string[], letto: unknown, valore: unknown) => {

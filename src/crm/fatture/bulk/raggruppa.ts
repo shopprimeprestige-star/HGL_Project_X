@@ -58,16 +58,16 @@ export function ricomponi(file: { indice: number; tipo: TipoFile }[]): GruppoRic
   /** Un file non ancora letto (tipo vuoto o sconosciuto) vale «altro»: la riga resta incompleta, mai pronta. */
   const tipoDi = (t: string): TipoFile => (TIPI_CLIENTE.includes(t as TipoFile) ? (t as TipoFile) : "altro");
 
-  const gruppi: { posizioni: number[]; tipi: TipoFile[] }[] = [];
-  let aperto: { posizioni: number[]; tipi: TipoFile[] } | null = null;
-  ordinati.forEach((f, posizione) => {
+  const gruppi: { indici: number[]; tipi: TipoFile[] }[] = [];
+  let aperto: { indici: number[]; tipi: TipoFile[] } | null = null;
+  ordinati.forEach((f) => {
     const tipo = tipoDi(f.tipo);
-    if (aperto && (aperto.posizioni.length >= 3 || (tipo !== "altro" && aperto.tipi.includes(tipo)))) aperto = null;
+    if (aperto && (aperto.indici.length >= 3 || (tipo !== "altro" && aperto.tipi.includes(tipo)))) aperto = null;
     if (!aperto) {
-      aperto = { posizioni: [], tipi: [] };
+      aperto = { indici: [], tipi: [] };
       gruppi.push(aperto);
     }
-    aperto.posizioni.push(posizione);
+    aperto.indici.push(f.indice);
     aperto.tipi.push(tipo);
   });
 
@@ -76,9 +76,10 @@ export function ricomponi(file: { indice: number; tipo: TipoFile }[]): GruppoRic
     .map((g, k) => {
       const mancano = TIPI_CLIENTE.filter((t) => !g.tipi.includes(t));
       const presenti = g.tipi.filter((t) => t !== "altro");
-      const indici = g.posizioni.map((p) => ordinati[p].indice);
+      const { indici } = g;
       // Al suo posto = i file consecutivi di una terna che parte da un multiplo di 3; altrimenti è stata rimessa insieme dai tipi.
-      const alSuoPosto = g.posizioni.every((p, i) => p === g.posizioni[0] + i) && g.posizioni[0] % 3 === 0;
+      // ⚠️ Si guarda l'INDICE del file (la sua posizione nel caricamento), non il posto nell'elenco passato.
+      const alSuoPosto = indici.every((x, i) => x === indici[0] + i) && indici[0] % 3 === 0;
       return {
         idRiga: idRigaDa(indici),
         indici,
