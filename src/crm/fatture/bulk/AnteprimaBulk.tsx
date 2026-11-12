@@ -302,7 +302,7 @@ function Contatore({
       onClick={onClick}
       aria-pressed={attivo}
       className={cn(
-        "flex min-h-11 min-w-0 flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors",
+        "flex min-h-11 min-w-0 shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-left transition-colors sm:flex-col sm:items-start sm:py-2",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
         attivo ? "border-slate-400 bg-slate-100" : "border-slate-200 bg-white hover:bg-slate-50",
       )}
@@ -311,7 +311,7 @@ function Contatore({
         <span className={cn("h-2 w-2 shrink-0 rounded-full", punto)} aria-hidden />
         <span className="truncate">{etichetta}</span>
       </span>
-      <span className="text-[19px] font-semibold leading-tight tabular-nums text-slate-900">
+      <span className="text-[17px] font-semibold leading-tight tabular-nums text-slate-900 sm:text-[19px]">
         {valore}
       </span>
     </button>
@@ -503,7 +503,7 @@ export function AnteprimaBulk({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0">
         <Contatore
           etichetta="Tutte"
           valore={conti.tutte}

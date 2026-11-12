@@ -746,18 +746,22 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
           </span>
         </NotaFinestra>
       )}
-      {Object.keys(stato.erroriGruppo).length > 0 && !inLettura && (
-        <NotaFinestra tono="attenzione" icona={AlertTriangle}>
-          Per{" "}
-          {Object.keys(stato.erroriGruppo).length === 1
-            ? "un cliente"
-            : `${Object.keys(stato.erroriGruppo).length} clienti`}{" "}
-          la lettura non è riuscita: {fraseDi(Object.values(stato.erroriGruppo)[0])} Sono in errore
-          nell&apos;elenco, dove li puoi rileggere uno per uno.
-        </NotaFinestra>
-      )}
     </div>
   );
+
+  /** Solo sopra l'elenco (non dentro il pannello di una riga, dove la riga stessa dice già l'errore).
+   *  Corto: su telefono la prima schermata deve far vedere le righe. */
+  const riquadroGruppi =
+    Object.keys(stato.erroriGruppo).length > 0 && !inLettura ? (
+      <NotaFinestra tono="attenzione" icona={AlertTriangle}>
+        Lettura non riuscita per{" "}
+        {Object.keys(stato.erroriGruppo).length === 1
+          ? "un cliente"
+          : `${Object.keys(stato.erroriGruppo).length} clienti`}
+        : sono righe in errore, con «Rileggi».
+        <span className="hidden sm:inline"> {fraseDi(Object.values(stato.erroriGruppo)[0])}</span>
+      </NotaFinestra>
+    ) : null;
 
   let corpo: React.ReactNode;
   let piede: React.ReactNode = null;
@@ -926,6 +930,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
     corpo = (
       <div className="space-y-3">
         {avvisi}
+        {riquadroGruppi}
         {stato.testata && (
           <p className="text-[12px] text-slate-500">
             Descrizione in fattura:{" "}
