@@ -131,7 +131,12 @@ function mondo(opz = {}) {
   const archivio = {
     leggi: async (k) => {
       sub();
-      return m.get(k) ?? null;
+      const v = m.get(k) ?? null;
+      if (w.hook.dopoLeggiRiga && k.startsWith("bulk_fatture_r:") && !w.hook.rigaFatta) {
+        w.hook.rigaFatta = true;
+        await w.hook.dopoLeggiRiga(); // una gara: qualcuno scrive la riga DOPO che l'abbiamo letta
+      }
+      return v;
     },
     leggiPrefisso: async (p) => {
       sub();
@@ -140,6 +145,10 @@ function mondo(opz = {}) {
     leggiPrefissoPerChiave: async (p) => {
       const righe = ordinate(p);
       sub(Math.max(1, Math.ceil(righe.length / 1000)));
+      if (w.hook.dopoPrimoAccesso && p === "bulk_fatture_t:" && !w.hook.primoFatto) {
+        w.hook.primoFatto = true;
+        await w.hook.dopoPrimoAccesso();
+      }
       if (w.hook.dopoPrefisso && p.startsWith("bulk_fatture_f:") && !w.hook.fatto) {
         w.hook.fatto = true;
         await w.hook.dopoPrefisso();
@@ -219,7 +228,12 @@ function mondo(opz = {}) {
       const nomi = new Set();
       for (const p of bucket.keys())
         if (p.startsWith(cartella)) nomi.add(p.slice(cartella.length).split("/")[0]);
-      return [...nomi];
+      const elenco = [...nomi];
+      if (w.hook.dopoPrimoAccesso && cartella === `${U}/bulk/` && !w.hook.primoFatto) {
+        w.hook.primoFatto = true;
+        await w.hook.dopoPrimoAccesso();
+      }
+      return elenco;
     },
     rimuovi: async (ps) => {
       sub();
@@ -787,10 +801,10 @@ export async function prove(mod, { c, gruppo }) {
       });
     const deny = await oggi(fetchFinto(risp(404, corpoDeny)));
     c(
-      "404 «data policy» → messaggio chiaro (non «non trovato» generico), codice non ripetibile",
+      "404 «data policy» → messaggio chiaro (non «non trovato» generico), codice dedicato «politica_dati»",
       [true, true, true],
       [
-        deny.errore === "interno",
+        deny.errore === "politica_dati",
         /non conservare i dati/.test(deny.messaggio),
         /tessere sanitarie/.test(deny.messaggio),
       ],
@@ -1521,6 +1535,239 @@ export async function prove(mod, { c, gruppo }) {
       "nessun «fattura:» scritto o cancellato dal magazzino (solo letture indirette: nessuna chiave fattura nel sorgente)",
       false,
       /["'`]fattura[:_]/.test(src),
+    );
+  }
+
+  /* ═════ 11. DOPO LA REVISIONE (T9 DA RIFARE) ═════ */
+  gruppo("BULK · T9 · REVISIONE · RILEGGI E SCHEDA TOLGONO LE CONFERME");
+  {
+    const w = mondo();
+    semina(w, {
+      n: 6,
+      tipi: ["indirizzo", "tessera", "pagamento", "indirizzo", "tessera", "pagamento"],
+      stato: "letto",
+      conLettura: true,
+    });
+    const id1 = "0000-0001-0002",
+      id2 = "0003-0004-0005";
+    for (const id of [id1, id2])
+      await post(w, {
+        azione: "salva-riga",
+        lotto: L,
+        idRiga: id,
+        confermaRiga: true,
+        confermaAvvisi: ["importo_alto"],
+      });
+    w.risposteAi = () => ({ testo: jsonAi(["tessera"]), fine: "stop" });
+    await post(w, { azione: "rileggi", lotto: L, indici: [1] });
+    const r1 = JSON.parse(w.m.get(kR(L, id1))),
+      r2 = JSON.parse(w.m.get(kR(L, id2)));
+    c(
+      "conferma → rileggi un file della riga → la riga NON è più confermata (né gli avvisi); l'altra riga resta confermata",
+      [false, [], true, ["importo_alto"]],
+      [r1.confermata, r1.confermeAvvisi, r2.confermata, r2.confermeAvvisi],
+    );
+    await post(w, {
+      azione: "salva-riga",
+      lotto: L,
+      idRiga: id1,
+      confermaRiga: true,
+      scheda: "scheda-aaa",
+    }).then((x) => c("scheda e conferma nella stessa richiesta → rifiutata", 400, x.stato));
+    await post(w, { azione: "salva-riga", lotto: L, idRiga: id1, scheda: "scheda-aaa" });
+    await post(w, {
+      azione: "salva-riga",
+      lotto: L,
+      idRiga: id1,
+      confermaRiga: true,
+      confermaAvvisi: ["importo_alto"],
+    });
+    const stessa = await post(w, {
+      azione: "salva-riga",
+      lotto: L,
+      idRiga: id1,
+      scheda: "scheda-aaa",
+    });
+    c(
+      "la stessa scheda riscritta → la conferma resta",
+      [true, ["importo_alto"]],
+      [stessa.corpo.riga.confermata, stessa.corpo.riga.confermeAvvisi],
+    );
+    const cambia = await post(w, {
+      azione: "salva-riga",
+      lotto: L,
+      idRiga: id1,
+      scheda: "scheda-bbb",
+    });
+    c(
+      "conferma → cambio di scheda → NON più confermata (la fattura andrebbe a un'altra persona)",
+      [false, [], "scheda-bbb"],
+      [cambia.corpo.riga.confermata, cambia.corpo.riga.confermeAvvisi, cambia.corpo.riga.scheda],
+    );
+    const nullo = await post(w, { azione: "salva-riga", lotto: L, idRiga: id2, scheda: null });
+    c(
+      "«nessuna scheda» al posto dell'abbinamento automatico è un cambio: toglie la conferma",
+      false,
+      nullo.corpo.riga.confermata,
+    );
+  }
+
+  gruppo("BULK · T9 · REVISIONE · UNA TRANSIZIONE DI STATO NON SI SOVRASCRIVE (CAS)");
+  {
+    const id1 = "0000-0001-0002";
+    const emessa = JSON.stringify({
+      idRiga: id1,
+      stato: "emessa",
+      emessa: { id: "2026-0001", numero: 1, data: "2026-10-01" },
+    });
+    const nuovaW = (esiste) => {
+      const w = mondo();
+      semina(w, { tipi: ["indirizzo", "tessera", "pagamento"], stato: "letto", conLettura: true });
+      if (esiste) w.m.set(kR(L, id1), JSON.stringify({ idRiga: id1, stato: "aperta" }));
+      w.hook.dopoLeggiRiga = async () => {
+        w.m.set(kR(L, id1), emessa);
+      };
+      return w;
+    };
+    for (const esiste of [true, false]) {
+      const w = nuovaW(esiste);
+      const x = await post(w, { azione: "salva-riga", lotto: L, idRiga: id1, confermaRiga: true });
+      c(
+        `${esiste ? "riga presente" : "riga assente"}: emessa fra la lettura e la scrittura → salva-riga risponde «conflitto» e la riga resta emessa`,
+        [409, "conflitto", emessa],
+        [x.stato, x.corpo.codice, w.m.get(kR(L, id1))],
+      );
+      const w2 = nuovaW(esiste);
+      const y = await post(w2, { azione: "salva-riga", lotto: L, idRiga: id1, scarta: true });
+      c(
+        `${esiste ? "riga presente" : "riga assente"}: stessa gara sullo SCARTO → «conflitto», riga emessa intatta, file con la loro lettura`,
+        [409, "conflitto", emessa, true, 3],
+        [
+          y.stato,
+          y.corpo.codice,
+          w2.m.get(kR(L, id1)),
+          !!JSON.parse(w2.m.get(kF(L, 0))).lettura,
+          w2.bucket.size,
+        ],
+      );
+    }
+    const w3 = mondo();
+    semina(w3, { tipi: ["indirizzo", "tessera", "pagamento"], stato: "letto", conLettura: true });
+    let esito = "";
+    try {
+      await B.chiudiRiga(w3.porte, L, id1, "emessa", {
+        id: "2026-0001",
+        numero: 1,
+        data: "2026-10-01",
+      });
+    } catch (e) {
+      esito = e.codice;
+    }
+    c(
+      "chiudiRiga (per T12) su riga aperta/assente → emessa; due volte la stessa transizione è ammessa; scartata dopo emessa → conflitto",
+      ["", "emessa"],
+      [esito, JSON.parse(w3.m.get(kR(L, id1))).stato],
+    );
+    try {
+      await B.chiudiRiga(w3.porte, L, id1, "scartata");
+    } catch (e) {
+      esito = e.codice;
+    }
+    c(
+      "…scartare una riga già emessa → «conflitto»",
+      ["conflitto", "emessa"],
+      [esito, JSON.parse(w3.m.get(kR(L, id1))).stato],
+    );
+  }
+
+  gruppo(
+    "BULK · T9 · REVISIONE · FILE CON IMPRONTA DIVERSA, PULIZIA SENZA GARA, CORPO, CODICE POLITICA_DATI",
+  );
+  {
+    const w = mondo();
+    w.m.set(
+      kT(L),
+      JSON.stringify({
+        lotto: L,
+        creatoIl: new Date(T0).toISOString(),
+        descrizione: "x",
+        dataSeManca: "",
+        firmaImpostazioni: "x",
+      }),
+    );
+    const corpo = (imp) => ({
+      azione: "file",
+      lotto: L,
+      indice: 4,
+      impronta: hex64(imp),
+      dataUrl: JPEG,
+    });
+    await post(w, corpo(5));
+    const stesso = await post(w, corpo(5));
+    const altro = await post(w, corpo(6));
+    c(
+      "stesso indice, STESSA impronta → «gia»; impronta DIVERSA → «conflitto» (409), il file di prima resta",
+      ["gia", 409, "conflitto", hex64(5)],
+      [stesso.corpo.esito, altro.stato, altro.corpo.codice, JSON.parse(w.m.get(kF(L, 4))).impronta],
+    );
+  }
+  {
+    //  `pulisci {}` elenca il bucket PRIMA di leggere le testate: un lotto nato nel mezzo non sembra orfano.
+    const w = mondo();
+    w.hook.dopoPrimoAccesso = async () => {
+      semina(w, { lotto: "lotto-nuovo01", n: 2 });
+    };
+    const x = await post(w, { azione: "pulisci" });
+    c(
+      "un lotto creato (testata + file) fra le due letture di `pulisci {}` NON viene cancellato",
+      [200, 0, true, 2],
+      [
+        x.stato,
+        x.corpo.rimossi,
+        w.m.has(kT("lotto-nuovo01")),
+        [...w.bucket.keys()].filter((p) => p.includes("lotto-nuovo01")).length,
+      ],
+    );
+  }
+  {
+    const w = mondo();
+    const grande = await B.gestisciPOST(
+      new Request("http://x/api/crm/fatture-bulk", {
+        method: "POST",
+        body: " ".repeat(13_000_000),
+      }),
+      dip(w),
+    );
+    c(
+      "corpo di 13 MB → rifiutato (400) senza toccare le porte",
+      [400, 0],
+      [grande.status, w.reg.subs],
+    );
+    const src = readFileSync(join(RADICE, "src/crm/fatture/bulk/bulk.server.ts"), "utf8");
+    c(
+      "COMANDI: i caratteri bidi sono scritti come \\u (nessun carattere invisibile nel sorgente)",
+      [false, true],
+      [/[‪-‮⁦-⁩]/.test(src), /\\u202a-\\u202e\\u2066-\\u2069/.test(src)],
+    );
+    const frasi = readFileSync(join(RADICE, "src/crm/fatture/bulk/usa-lotto.ts"), "utf8");
+    const tipi = readFileSync(join(RADICE, "src/crm/fatture/bulk/tipi.ts"), "utf8");
+    c(
+      "`politica_dati` è nei tipi, nelle frasi di usa-lotto e nei codici che fermano la coda",
+      [true, true, true],
+      [
+        /\| "politica_dati"/.test(tipi),
+        /politica_dati/.test(frasi),
+        /"politica_dati"/.test(readFileSync(join(RADICE, "src/crm/fatture/bulk/coda.ts"), "utf8")),
+      ],
+    );
+    const w2 = mondo();
+    semina(w2);
+    w2.risposteAi = () => ({ errore: "politica_dati", messaggio: B.MESSAGGIO_POLITICA_DATI });
+    const r = await post(w2, { azione: "leggi-gruppo", lotto: L, gruppo: 0 });
+    c(
+      "leggi-gruppo con 404 deny → 502, codice «politica_dati», messaggio chiaro",
+      [502, "politica_dati", true],
+      [r.stato, r.corpo.codice, /non conservare i dati/.test(r.corpo.messaggio)],
     );
   }
 }

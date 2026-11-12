@@ -148,6 +148,8 @@ const MESSAGGI: Record<CodiceErrore, string> = {
   scrittura_fallita: "Non sono riuscito a salvare: riprova.",
   conflitto: "Il dato è cambiato nel frattempo: riprova.",
   altra_origine: "La fattura risulta di un'altra origine: ci si ferma.",
+  politica_dati:
+    "Nessun fornitore dell'intelligenza artificiale accetta la regola «non conservare i dati»: le letture sono ferme, avvisa l'assistenza.",
   interno: "Errore interno: riprova; se si ripete avvisa l'assistenza.",
 };
 
@@ -171,6 +173,7 @@ const STATO_HTTP: Record<CodiceErrore, number> = {
   scrittura_fallita: 500,
   conflitto: 409,
   altra_origine: 409,
+  politica_dati: 502,
   interno: 500,
 };
 
@@ -361,7 +364,7 @@ export async function chiamaOpenRouter(o: {
     if (!r.ok) {
       if (r.status === 404)
         return /data.?polic|no endpoints/i.test(grezzo.slice(0, 600))
-          ? { errore: "interno", messaggio: MESSAGGIO_POLITICA_DATI }
+          ? { errore: "politica_dati", messaggio: MESSAGGIO_POLITICA_DATI }
           : {
               errore: "interno",
               messaggio:
@@ -542,6 +545,33 @@ export async function chiudiLottoSeConcluso(porte: PorteBulk, lotto: string): Pr
   }
 }
 
+/** Aggiorna la riga `r` con un confronto sul valore letto (compare-and-swap): riga assente → inserimento che
+ *  fallisce se esiste; presente → `sostituisciSe` sul testo letto. Se nel frattempo è cambiata (un'altra scheda,
+ *  o il ciclo di emissione della stessa scheda) si rilegge e si riprova; dopo 3 giri → `conflitto`. `cambia`
+ *  decide sul valore VISTO e può rifiutare (`conflitto`): così una transizione di stato, aperta → emessa o
+ *  scartata, non viene mai riportata indietro da una correzione partita dalla lettura vecchia. */
+async function aggiornaRiga(
+  porte: PorteBulk,
+  lotto: string,
+  idRiga: string,
+  cambia: (attuale: DecisioniRiga) => DecisioniRiga,
+): Promise<DecisioniRiga> {
+  const chiave = chiaveRiga(lotto, idRiga);
+  for (let giro = 0; giro < 3; giro++) {
+    const grezzo = await porte.archivio.leggi(chiave);
+    const attuale = leggiJson<DecisioniRiga>(grezzo) ?? { idRiga, stato: "aperta" as const };
+    const nuova = cambia(attuale);
+    const testo = JSON.stringify(nuova);
+    if (grezzo !== null && testo === grezzo) return nuova;
+    if (grezzo === null) {
+      const esito = await porte.archivio.creaSeAssente(chiave, testo);
+      if (esito.stato === "creata") return nuova;
+      if (esito.stato === "errore") throw new ErroreBulk("scrittura_fallita");
+    } else if (await porte.lucchetto.sostituisciSe(chiave, grezzo, testo)) return nuova;
+  }
+  throw new ErroreBulk("conflitto");
+}
+
 /** D11a/d: una riga emessa o scartata. PRIMA si scrive la verità (riga chiusa, file ridotti a
  *  `{indice, stato, impronta, tipo}`: senza lettura e senza percorso), POI si tolgono i file dal bucket.
  *  Se la cancellazione fallisce la riga resta chiusa e quei file diventano orfani: `pulisci` li toglie
@@ -557,8 +587,12 @@ export async function chiudiRiga(
   const attuali = (await porte.archivio.leggiMolte(indici.map((i) => chiaveFile(lotto, i))))
     .map((r) => leggiJson<FileLotto>(r.value))
     .filter((f): f is FileLotto => !!f);
-  const riga: DecisioniRiga = { idRiga, stato, ...(emessa ? { emessa } : {}) };
-  await scrivi(porte, chiaveRiga(lotto, idRiga), riga, true);
+  //  ⚠️ Solo da «aperta» (o dallo stesso stato, se si riprova): una riga già emessa non diventa scartata né viceversa.
+  const riga = await aggiornaRiga(porte, lotto, idRiga, (a) => {
+    if (a.stato === stato) return a;
+    if (a.stato !== "aperta") throw new ErroreBulk("conflitto");
+    return { idRiga, stato, ...(emessa ? { emessa } : {}) };
+  });
   const percorsi: string[] = [];
   for (const f of attuali) {
     const ok = percorsoDelLotto(porte.utente, lotto, f.percorso);
@@ -606,14 +640,17 @@ async function pulisci(porte: PorteBulk, lotto: string | undefined): Promise<num
     await chiudiLottoSeConcluso(porte, lotto);
     return tolti;
   }
+  //  ⚠️ L'ORDINE conta: prima le cartelle del bucket, poi le testate. Un lotto nasce con la testata e solo dopo
+  //   ha una cartella: se la cartella è nell'elenco, la sua testata c'era già quando si leggono le testate. Al
+  //   contrario, un lotto nato nel mezzo sembrerebbe senza testata e verrebbe cancellato mentre carica.
+  const radice = `${porte.utente}/bulk/`;
+  const cartelle = await porte.bucket.elenca(radice);
+  if (cartelle === null) throw new ErroreBulk("rete");
   const testate = (await porte.archivio.leggiPrefissoPerChiave(PREFISSO_TESTATA))
     .map((r) => leggiJson<TestataLotto>(r.value))
     .filter((t): t is TestataLotto => !!t && lottoValido(String(t.lotto)));
   const vecchio = testate.find((t) => scaduto(t, adesso));
   if (vecchio) return cancellaLotto(porte, vecchio.lotto);
-  const radice = `${porte.utente}/bulk/`;
-  const cartelle = await porte.bucket.elenca(radice);
-  if (cartelle === null) throw new ErroreBulk("rete");
   const conTestata = new Set(testate.map((t) => t.lotto));
   const senza = cartelle.find((n) => lottoValido(n) && !conTestata.has(n));
   if (!senza) return 0;
@@ -644,6 +681,9 @@ async function caricaFile(
   let scadutoVecchio: { grezzo: string; file: FileLotto } | null = null;
   const esistente = tutti.get(r.indice);
   if (esistente) {
+    //  Lo stesso indice con un altro screenshot: la persona ha scelto un altro elenco. «gia» lascerebbe la
+    //  tessera di uno sotto la posizione di un altro; si rifiuta, e si riparte con un lotto nuovo.
+    if (esistente.impronta !== r.impronta) throw new ErroreBulk("conflitto");
     if (esistente.stato !== "caricando") return { ok: true, azione: "file", esito: "gia" };
     if (Date.parse(String(esistente.scadeIl)) > adesso) throw new ErroreBulk("occupato");
     scadutoVecchio = { grezzo: (await porte.archivio.leggi(chiave)) ?? "", file: esistente };
@@ -812,6 +852,36 @@ async function leggiGruppo(porte: PorteBulk, lotto: string, gruppo: number): Pro
   });
 }
 
+/** Una rilettura cambia ciò che la persona ha confermato (CF, importo, data): le righe che contengono quei file,
+ *  prima o dopo la rilettura (un tipo diverso può spostare i raggruppamenti), tornano «da confermare». Le conferme
+ *  di un `idRiga` che non esiste più sono innocue: nessuna riga lo richiama. */
+async function togliLeConferme(
+  porte: PorteBulk,
+  lotto: string,
+  prima: Map<number, FileLotto>,
+  nuovi: FileLotto[],
+): Promise<void> {
+  const dopo = new Map(prima);
+  for (const f of nuovi) dopo.set(f.indice, f);
+  const toccati = new Set(nuovi.map((f) => f.indice));
+  const ids = new Set(
+    [...ricomponi(comeTipi(prima.values())), ...ricomponi(comeTipi(dopo.values()))]
+      .filter((g) => g.indici.some((i) => toccati.has(i)))
+      .map((g) => g.idRiga),
+  );
+  if (ids.size === 0) return;
+  const esistenti = (await porte.archivio.leggiMolte([...ids].map((id) => chiaveRiga(lotto, id))))
+    .map((r) => leggiJson<DecisioniRiga>(r.value))
+    .filter(
+      (d): d is DecisioniRiga =>
+        !!d && d.stato === "aperta" && (!!d.confermata || !!d.confermeAvvisi?.length),
+    );
+  for (const d of esistenti)
+    await aggiornaRiga(porte, lotto, d.idRiga, (a) =>
+      a.stato === "aperta" ? { ...a, confermata: false, confermeAvvisi: [] } : a,
+    );
+}
+
 /** `rileggi`: gesto esplicito, si paga. Se la nuova lettura fallisce la vecchia resta com'era (il TIPO di un file
  *  decide come si raggruppano i clienti: perderlo spostherebbe le righe). */
 async function rileggi(porte: PorteBulk, lotto: string, indici: number[]): Promise<FileLotto[]> {
@@ -835,6 +905,7 @@ async function rileggi(porte: PorteBulk, lotto: string, indici: number[]): Promi
       return { ...base, stato: "letto" as const, tipo: lettura.tipo, lettura };
     });
     for (const f of nuovi) await scrivi(porte, chiaveFile(lotto, f.indice), f, true);
+    await togliLeConferme(porte, lotto, tutti, nuovi);
     return nuovi.map(perIlBrowser);
   });
 }
@@ -849,13 +920,6 @@ async function salvaRiga(
   const file = await fileDelLotto(porte, r.lotto);
   if (!ricomponi(comeTipi(file.values())).some((c) => c.idRiga === r.idRiga))
     throw new ErroreBulk("non_trovato");
-  const chiave = chiaveRiga(r.lotto, r.idRiga);
-  const attuale = leggiJson<DecisioniRiga>(await porte.archivio.leggi(chiave)) ?? {
-    idRiga: r.idRiga,
-    stato: "aperta" as const,
-  };
-  if (attuale.stato !== "aperta") throw new ErroreBulk("conflitto");
-
   if (r.scarta) {
     const riga = await chiudiRiga(porte, r.lotto, r.idRiga, "scartata");
     return {
@@ -865,18 +929,29 @@ async function salvaRiga(
       lottoChiuso: await chiudiLottoSeConcluso(porte, r.lotto),
     };
   }
-  const nuova: DecisioniRiga = { ...attuale };
-  if (r.modifiche && Object.keys(r.modifiche).length) {
-    //  ⚠️ Ogni modifica di un campo toglie la conferma, della riga e degli avvisi: quello che si è confermato non c'è più.
-    nuova.modifiche = { ...attuale.modifiche, ...r.modifiche };
-    nuova.confermata = false;
-    nuova.confermeAvvisi = [];
-  }
-  if (r.scheda !== undefined) nuova.scheda = r.scheda;
-  if (r.confermaRiga !== undefined) nuova.confermata = r.confermaRiga;
-  if (r.confermaAvvisi !== undefined) nuova.confermeAvvisi = [...new Set(r.confermaAvvisi)];
-  await scrivi(porte, chiave, nuova);
-  return { ok: true, azione: "salva-riga", riga: nuova, lottoChiuso: false };
+  const riga = await aggiornaRiga(porte, r.lotto, r.idRiga, (attuale) => {
+    if (attuale.stato !== "aperta") throw new ErroreBulk("conflitto");
+    const nuova: DecisioniRiga = { ...attuale };
+    //  ⚠️ Quello che si è confermato vale per i dati che la persona aveva davanti: una modifica o un cambio di
+    //   scheda (a chi va la fattura) toglie la conferma della riga e degli avvisi. La stessa scheda riscritta no.
+    let azzera = false;
+    if (r.modifiche && Object.keys(r.modifiche).length) {
+      nuova.modifiche = { ...attuale.modifiche, ...r.modifiche };
+      azzera = true;
+    }
+    if (r.scheda !== undefined) {
+      if (r.scheda !== attuale.scheda) azzera = true;
+      nuova.scheda = r.scheda;
+    }
+    if (azzera) {
+      nuova.confermata = false;
+      nuova.confermeAvvisi = [];
+    }
+    if (r.confermaRiga !== undefined) nuova.confermata = r.confermaRiga;
+    if (r.confermaAvvisi !== undefined) nuova.confermeAvvisi = [...new Set(r.confermaAvvisi)];
+    return nuova;
+  });
+  return { ok: true, azione: "salva-riga", riga, lottoChiuso: false };
 }
 
 /* ══ 10. LE AZIONI POST ════════════════════════════════════════════════════ */
@@ -953,9 +1028,11 @@ export async function eseguiAzione(
 
 /* ══ 11. CONTROLLARE CIÒ CHE ARRIVA DAL BROWSER ════════════════════════════ */
 
+/** Tetto del corpo di una richiesta (caratteri). */
+const MAX_CORPO = 12_000_000;
 const NON_VALIDA = () => new ErroreBulk("richiesta_non_valida");
 // eslint-disable-next-line no-control-regex
-const COMANDI = /[\u0000-\u001f\u007f‪-‮⁦-⁩]/;
+const COMANDI = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/;
 const ID_RIGA = /^\d{4}(-\d{4}){0,2}$/;
 const ID_EMITTENTE = /^[A-Za-z0-9-]{8,64}$/;
 const CAMPI_TESTO = [
@@ -1103,8 +1180,7 @@ export function leggiRichiesta(
       }
       //  Una modifica e una conferma nella stessa richiesta: la persona non ha visto il risultato della modifica.
       if (
-        r.modifiche &&
-        Object.keys(r.modifiche).length &&
+        ((r.modifiche && Object.keys(r.modifiche).length) || r.scheda !== undefined) &&
         (r.confermaRiga !== undefined || r.confermaAvvisi !== undefined || r.scarta)
       )
         throw NON_VALIDA();
@@ -1179,9 +1255,14 @@ export async function gestisciPOST(request: Request, d: DipendenzeRotta): Promis
   const porte = d.porte(g.utente);
   let azione = "POST";
   try {
+    //  Un file ridotto pesa meno di 8 MB (circa 10,7 M caratteri in base64): oltre il tetto non si legge nemmeno.
     let corpo: unknown;
     try {
-      corpo = await request.json();
+      const lungo = Number(request.headers.get("content-length") ?? 0);
+      if (lungo > MAX_CORPO) throw NON_VALIDA();
+      const grezzo = await request.text();
+      if (grezzo.length > MAX_CORPO) throw NON_VALIDA();
+      corpo = JSON.parse(grezzo);
     } catch {
       throw NON_VALIDA();
     }
