@@ -236,7 +236,7 @@ export function RiepilogoEmissioneBulk({
         }
         contesto={saltate > 0 ? `${saltate} non emesse perché non erano più in regola` : undefined}
         azioni={
-          <Button type="button" className="h-9" onClick={() => onCambio(false)}>
+          <Button type="button" className="h-11 sm:h-9" onClick={() => onCambio(false)}>
             Chiudi
           </Button>
         }
@@ -315,7 +315,7 @@ export function RiepilogoEmissioneBulk({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fatture.length === 0}
                 onClick={() => onScaricaXml(fatture)}
                 title="L'XML è la fattura vera: è quello che il commercialista importa"
@@ -325,7 +325,7 @@ export function RiepilogoEmissioneBulk({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fatture.length === 0}
                 onClick={() =>
                   scaricaTesto(
@@ -367,7 +367,7 @@ export function RiepilogoEmissioneBulk({
         titolo="Sto emettendo le fatture"
         contesto="Una alla volta, dal pagamento più vecchio"
         azioni={
-          <Button type="button" variant="outline" className="h-9" onClick={onInterrompi}>
+          <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={onInterrompi}>
             Interrompi
           </Button>
         }
@@ -402,12 +402,17 @@ export function RiepilogoEmissioneBulk({
       contesto="Controlla i numeri: dopo non si tolgono senza lasciare un buco"
       azioni={
         <>
-          <Button type="button" variant="outline" className="h-9" onClick={() => onCambio(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 sm:h-9"
+            onClick={() => onCambio(false)}
+          >
             Non ancora
           </Button>
           <Button
             type="button"
-            className="h-9 sm:min-w-40"
+            className="h-11 sm:h-9 sm:min-w-40"
             disabled={dati.quante === 0}
             onClick={onEmetti}
           >

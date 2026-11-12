@@ -217,10 +217,18 @@ function SceltaFile({
                 <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
                   Ordina per
                 </span>
-                <Pillola attiva={criterio === "nome"} onClick={() => onCriterio("nome")}>
+                <Pillola
+                  className="min-h-11 sm:min-h-0"
+                  attiva={criterio === "nome"}
+                  onClick={() => onCriterio("nome")}
+                >
                   Nome del file
                 </Pillola>
-                <Pillola attiva={criterio === "data"} onClick={() => onCriterio("data")}>
+                <Pillola
+                  className="min-h-11 sm:min-h-0"
+                  attiva={criterio === "data"}
+                  onClick={() => onCriterio("data")}
+                >
                   Data del file
                 </Pillola>
               </div>
@@ -270,7 +278,7 @@ function SceltaFile({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="mt-2 h-9"
+                    className="mt-2 h-11 sm:h-9"
                     onClick={() => onScelti(scelti.filter((f) => controllaFile(f).ok))}
                   >
                     Togli i file che non vanno bene
@@ -283,7 +291,7 @@ function SceltaFile({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-9 text-slate-600"
+              className="h-11 sm:h-9 text-slate-600"
               onClick={() => onScelti([])}
             >
               <X className="mr-1 h-3.5 w-3.5" /> Svuota la scelta
@@ -497,6 +505,11 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             `${n} righe hanno una data di pagamento anteriore all'ultima fattura emessa: avranno un numero più alto della data. Apri una riga per leggere l'avviso per intero.`,
         },
         {
+          codice: "ordine_diverso",
+          testo: (n: number) =>
+            `${n} righe hanno gli screenshot in un ordine diverso dal solito (indirizzo, tessera, pagamento). Aprine qualcuna e controlla che le tre immagini siano della stessa persona, poi confermale tutte insieme.`,
+        },
+        {
           codice: "oltre_12_giorni",
           testo: (n: number) =>
             `${n} righe hanno un pagamento di più di 12 giorni fa, cioè oltre il termine di invio allo SDI (stima). Apri una riga per leggere l'avviso per intero.`,
@@ -623,14 +636,14 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             </span>
           </span>
           <span className="flex gap-2">
-            <Button size="sm" className="h-8" onClick={() => onCambio(true)}>
+            <Button size="sm" className="h-11 sm:h-8" onClick={() => onCambio(true)}>
               Apri
             </Button>
             {!occupato && (
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8"
+                className="h-11 sm:h-8"
                 onClick={() => setDaAnnullare({ lotto: stato.lotto!, file: stato.file.length })}
               >
                 Annulla
@@ -657,7 +670,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             <span className="flex gap-2">
               <Button
                 size="sm"
-                className="h-8"
+                className="h-11 sm:h-8"
                 disabled={occupato}
                 onClick={() => void riprendiDalBanner(a.lotto)}
               >
@@ -666,7 +679,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8"
+                className="h-11 sm:h-8"
                 disabled={occupato}
                 onClick={() => setDaAnnullare({ lotto: a.lotto, file: a.file })}
               >
@@ -717,7 +730,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={occupato}
                 onClick={() => void avvia()}
               >
@@ -728,7 +741,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 onClick={() => setRipresa(true)}
               >
                 Scegli di nuovo gli screenshot
@@ -787,13 +800,18 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
     );
     piede = lungo ? (
       <>
-        <Button type="button" variant="outline" className="h-9" onClick={() => onCambio(false)}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 sm:h-9"
+          onClick={() => onCambio(false)}
+        >
           Chiudi e continua
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="h-9"
+          className="h-11 sm:h-9"
           disabled={fermando}
           onClick={() => {
             setFermando(true);
@@ -842,14 +860,14 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
         <Button
           type="button"
           variant="outline"
-          className="h-9"
+          className="h-11 sm:h-9"
           onClick={() => (ripresa ? setRipresa(false) : onCambio(false))}
         >
           {ripresa ? "Indietro" : "Chiudi"}
         </Button>
         <Button
           type="button"
-          className="h-9 sm:min-w-40"
+          className="h-11 sm:h-9 sm:min-w-40"
           disabled={senzaFile || nonValido || (!ripresa && bloccantiCentro.length > 0)}
           onClick={() => void avvia()}
         >
@@ -867,7 +885,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
         <p className="text-[12.5px] text-slate-600">
           Gli screenshot sono stati cancellati. Se ti serve un altro elenco, ricomincia da capo.
         </p>
-        <Button type="button" className="h-9" onClick={() => void nuovoCaricamento(false)}>
+        <Button type="button" className="h-11 sm:h-9" onClick={() => void nuovoCaricamento(false)}>
           Nuovo caricamento
         </Button>
       </div>
@@ -946,7 +964,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 text-slate-600"
+            className="h-11 sm:h-9 text-slate-600"
             disabled={occupato}
             onClick={() => setNuovoElenco(true)}
           >
@@ -956,7 +974,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 text-slate-600"
+            className="h-11 sm:h-9 text-slate-600"
             disabled={occupato}
             onClick={() => setRipresa(true)}
           >
@@ -966,7 +984,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 text-rose-700 hover:text-rose-800"
+            className="h-11 sm:h-9 text-rose-700 hover:text-rose-800"
             disabled={occupato}
             onClick={() => setDaAnnullare({ lotto: stato.lotto!, file: stato.file.length })}
           >
@@ -977,12 +995,17 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
     );
     piede = (
       <>
-        <Button type="button" variant="outline" className="h-9" onClick={() => onCambio(false)}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 sm:h-9"
+          onClick={() => onCambio(false)}
+        >
           Chiudi
         </Button>
         <Button
           type="button"
-          className="h-9 sm:min-w-52"
+          className="h-11 sm:h-9 sm:min-w-52"
           disabled={occupato || nEmettibili === 0}
           onClick={() => setFaseEm("conferma")}
         >
@@ -1050,14 +1073,14 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             <Button
               type="button"
               variant="outline"
-              className="h-9"
+              className="h-11 sm:h-9"
               onClick={() => setDaAnnullare(null)}
             >
               Lascia stare
             </Button>
             <Button
               type="button"
-              className="h-9 bg-rose-600 hover:bg-rose-700"
+              className="h-11 sm:h-9 bg-rose-600 hover:bg-rose-700"
               onClick={() => void annullaConfermato()}
             >
               Sì, annulla
@@ -1083,7 +1106,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             <Button
               type="button"
               variant="outline"
-              className="h-9"
+              className="h-11 sm:h-9"
               onClick={() => setNuovoElenco(false)}
             >
               Lascia stare
@@ -1091,12 +1114,16 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
             <Button
               type="button"
               variant="outline"
-              className="h-9"
+              className="h-11 sm:h-9"
               onClick={() => void nuovoCaricamento(false)}
             >
               Tienilo aperto
             </Button>
-            <Button type="button" className="h-9" onClick={() => void nuovoCaricamento(true)}>
+            <Button
+              type="button"
+              className="h-11 sm:h-9"
+              onClick={() => void nuovoCaricamento(true)}
+            >
               Annullalo e ricomincia
             </Button>
           </>

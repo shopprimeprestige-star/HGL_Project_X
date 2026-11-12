@@ -397,7 +397,7 @@ function RigaAnteprima({
             type="button"
             size="sm"
             variant="outline"
-            className="h-9 w-9 shrink-0 p-0"
+            className="h-11 sm:h-9 w-11 sm:w-9 shrink-0 p-0"
             onClick={onMiniature}
             aria-pressed={apriMiniature}
             aria-label={`${apriMiniature ? "Nascondi" : "Mostra"} gli screenshot della riga ${riga.numero}`}
@@ -534,7 +534,13 @@ export function AnteprimaBulk({
                 : `${daLeggere} clienti non sono ancora stati letti.`}{" "}
               Quelli già letti non si pagano di nuovo.
             </span>
-            <Button type="button" size="sm" className="h-9" onClick={onLeggi} disabled={occupato}>
+            <Button
+              type="button"
+              size="sm"
+              className="h-11 sm:h-9"
+              onClick={onLeggi}
+              disabled={occupato}
+            >
               Riprendi la lettura
             </Button>
           </span>
@@ -557,7 +563,7 @@ export function AnteprimaBulk({
               type="button"
               size="sm"
               variant="outline"
-              className="h-9"
+              className="h-11 sm:h-9"
               disabled={occupato}
               onClick={() => onConfermaAvviso(a.codice)}
             >
@@ -570,7 +576,7 @@ export function AnteprimaBulk({
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
-          className="h-9"
+          className="h-11 sm:h-9"
           disabled={occupato || nPronte === 0}
           onClick={onConfermaTutte}
         >
@@ -580,7 +586,7 @@ export function AnteprimaBulk({
         <Button
           type="button"
           variant="outline"
-          className="h-9"
+          className="h-11 sm:h-9"
           disabled={conti.da_controllare === 0}
           onClick={onProssima}
         >
@@ -635,7 +641,7 @@ export function AnteprimaBulk({
           <Button
             type="button"
             variant="outline"
-            className="h-9"
+            className="h-11 sm:h-9"
             disabled={paginaOk === 0}
             onClick={() => onPagina(paginaOk - 1)}
           >
@@ -648,7 +654,7 @@ export function AnteprimaBulk({
           <Button
             type="button"
             variant="outline"
-            className="h-9"
+            className="h-11 sm:h-9"
             disabled={paginaOk >= pagine - 1}
             onClick={() => onPagina(paginaOk + 1)}
           >

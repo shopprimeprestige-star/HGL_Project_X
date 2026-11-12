@@ -217,7 +217,7 @@ function SceltaScheda({
             type="button"
             size="sm"
             variant="outline"
-            className="h-8"
+            className="h-11 sm:h-8"
             onClick={() => onApri(corrente)}
           >
             Apri scheda
@@ -227,7 +227,7 @@ function SceltaScheda({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8"
+          className="h-11 sm:h-8"
           disabled={disabilitato}
           aria-expanded={cerca}
           onClick={() => setCerca((v) => !v)}
@@ -255,7 +255,7 @@ function SceltaScheda({
                     setCerca(false);
                     setQ("");
                   }}
-                  className="flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-[13px] hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-[13px] hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
                   <span className="truncate">{`${s.nome} ${s.cognome}`.trim()}</span>
                   <span className="shrink-0 text-[11.5px] tabular-nums text-slate-500">
@@ -275,7 +275,7 @@ function SceltaScheda({
               onScegli(null);
               setCerca(false);
             }}
-            className="min-h-10 w-full rounded-lg border border-dashed border-slate-300 px-2 text-left text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg border border-dashed border-slate-300 px-2 text-left text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             Nessuna scheda: fattura senza scheda
           </button>
@@ -381,7 +381,7 @@ export function PannelloRigaBulk({
           type="button"
           size="sm"
           variant="outline"
-          className="h-9"
+          className="h-11 sm:h-9"
           disabled={fermo}
           onClick={() => void salva({ confermaAvvisi: [m.codice] })}
         >
@@ -392,7 +392,7 @@ export function PannelloRigaBulk({
             type="button"
             size="sm"
             variant="outline"
-            className="h-9"
+            className="h-11 sm:h-9"
             disabled={fermo}
             onClick={() => onConfermaPerTutte(m.codice)}
           >
@@ -409,14 +409,14 @@ export function PannelloRigaBulk({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button type="button" variant="outline" className="h-9" onClick={onIndietro}>
+        <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={onIndietro}>
           <ArrowLeft className="mr-1.5 h-4 w-4" /> Torna all&apos;elenco
         </Button>
         <div className="flex items-center gap-1.5">
           <Button
             type="button"
             variant="outline"
-            className="h-9 w-9 p-0"
+            className="h-11 sm:h-9 w-11 sm:w-9 p-0"
             disabled={!onPrecedente}
             onClick={() => onPrecedente?.()}
             aria-label="Riga precedente"
@@ -429,7 +429,7 @@ export function PannelloRigaBulk({
           <Button
             type="button"
             variant="outline"
-            className="h-9 w-9 p-0"
+            className="h-11 sm:h-9 w-11 sm:w-9 p-0"
             disabled={!onSuccessiva}
             onClick={() => onSuccessiva?.()}
             aria-label="Riga successiva"
@@ -437,7 +437,7 @@ export function PannelloRigaBulk({
             <ChevronRight className="h-4 w-4" />
           </Button>
           {onProssima && (
-            <Button type="button" variant="outline" className="h-9" onClick={onProssima}>
+            <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={onProssima}>
               Prossima da controllare
             </Button>
           )}
@@ -683,14 +683,14 @@ export function PannelloRigaBulk({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 onClick={() => setScarto(false)}
               >
                 Lascia stare
               </Button>
               <Button
                 type="button"
-                className="h-9 bg-rose-600 hover:bg-rose-700"
+                className="h-11 sm:h-9 bg-rose-600 hover:bg-rose-700"
                 disabled={fermo}
                 onClick={async () => {
                   if (await salva({ scarta: true })) onIndietro();
@@ -707,7 +707,7 @@ export function PannelloRigaBulk({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fermo}
                 onClick={() => onRileggi(indici)}
                 title="Richiama l'intelligenza artificiale su questi screenshot: si paga di nuovo"
@@ -717,7 +717,7 @@ export function PannelloRigaBulk({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fermo}
                 onClick={() => setScarto(true)}
               >
@@ -728,7 +728,7 @@ export function PannelloRigaBulk({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fermo}
                 onClick={() => void salva({ confermaRiga: false })}
               >
@@ -737,7 +737,7 @@ export function PannelloRigaBulk({
             ) : soloConferme ? (
               <Button
                 type="button"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fermo}
                 onClick={async () => {
                   // Due richieste, una dopo l'altra: gli avvisi, poi la riga.
@@ -750,7 +750,7 @@ export function PannelloRigaBulk({
             ) : (
               <Button
                 type="button"
-                className="h-9"
+                className="h-11 sm:h-9"
                 disabled={fermo || riga.stato !== "pronto"}
                 title={
                   riga.stato === "pronto"

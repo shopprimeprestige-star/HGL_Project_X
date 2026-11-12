@@ -682,7 +682,7 @@ function FatturePage() {
             <Button
               size="sm"
               variant="outline"
-              className="h-8 text-[12px]"
+              className="h-11 text-[12px] sm:h-8"
               onClick={() => setBulkAperto(true)}
             >
               <FileStack className="mr-1.5 h-3.5 w-3.5" /> Carica in blocco
