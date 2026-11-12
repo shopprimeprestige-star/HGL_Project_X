@@ -54,7 +54,10 @@ export interface ArchivioDb {
 }
 
 /** Come è andato un inserimento che non sovrascrive: scritto, già presente, oppure errore vero. */
-export type EsitoCrea = { stato: "creata" } | { stato: "esiste" } | { stato: "errore"; errore: string };
+export type EsitoCrea =
+  | { stato: "creata" }
+  | { stato: "esiste" }
+  | { stato: "errore"; errore: string };
 
 /** Costruisce l'archivio sopra un client Supabase, quale che sia: quello del
  *  browser o `supabaseAdmin`. ⚠️ Il cast è il solito — i tipi generati non
@@ -133,7 +136,8 @@ export function archivioSu(client: unknown): ArchivioDb {
       if (!error) return { stato: "creata" };
       //  23505 = violazione di chiave unica in Postgres: la chiave c'è già. Il
       //  messaggio è il ripiego se il client non riporta il codice.
-      if (error.code === "23505" || /duplicate key/i.test(error.message)) return { stato: "esiste" };
+      if (error.code === "23505" || /duplicate key/i.test(error.message))
+        return { stato: "esiste" };
       return { stato: "errore", errore: error.message };
     },
   };
@@ -413,7 +417,8 @@ export async function emettiSu(
       al secondo conflitto si rinuncia con un errore, senza scrivere niente. */
   for (let tentativo = 0; tentativo < 2; tentativo++) {
     const n = await prossimoNumeroSu(archivioScelto, a, anno);
-    if (!n.ok) return { ok: false, errore: n.errore || "non riesco a leggere le fatture già emesse" };
+    if (!n.ok)
+      return { ok: false, errore: n.errore || "non riesco a leggere le fatture già emesse" };
 
     const emessa: Fattura = {
       ...f,
