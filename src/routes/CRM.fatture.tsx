@@ -30,6 +30,7 @@ import {
   FileCheck2,
   FilePlus2,
   FileCode2,
+  FileStack,
   FileText,
   MessageCircle,
   Pencil,
@@ -55,6 +56,8 @@ import {
 } from "@/crm/ui";
 import { CLASSE_CAMPO, Finestra } from "@/crm/ui/Finestra";
 import { useCRM } from "@/crm/CRMContext";
+import { usePuo } from "@/crm/AuthContext";
+import { CaricaInBloccoFatture } from "@/crm/fatture/bulk/FinestraBulk";
 import type { Lead } from "@/crm/types";
 import { FinestraIncassoFattura } from "@/crm/fatture/FinestraIncassoFattura";
 import { RigaSelezionabile, testoSelezionaTutti, useSelezioneRighe } from "@/crm/importa/selezione";
@@ -108,6 +111,9 @@ function apriDocumento(f: Fattura, a: DatiAzienda, logo: string) {
 
 function FatturePage() {
   const { leads } = useCRM();
+  //  «Carica in blocco» emette fatture: lo vede solo chi ha il permesso «pagamenti».
+  const puoBulk = usePuo()("pagamenti");
+  const [bulkAperto, setBulkAperto] = useState(false);
   const [azienda, setAzienda] = useState<DatiAzienda>(AZIENDA_VUOTA);
   const [bozze, setBozze] = useState<Fattura[]>([]);
   const [emesse, setEmesse] = useState<Fattura[]>([]);
@@ -591,6 +597,34 @@ function FatturePage() {
     azzera();
   };
 
+  /** Gli XML delle fatture appena emesse in blocco: stesso controllo di «XML» sulla selezione (quelle che
+   *  lo SDI scarterebbe restano indietro, e si dice quante), ma sulla lista che arriva dal riepilogo. */
+  const scaricaXmlBulk = async (lista: Fattura[]) => {
+    const buone = lista.filter((f) => problemiXml(f, azienda).bloccanti.length === 0);
+    if (buone.length === 0) {
+      toast.error("Nessuna di queste fatture si può consegnare", {
+        description: "A tutte manca un dato obbligatorio: aprile dall'elenco per vedere quale.",
+      });
+      return;
+    }
+    const scartate = lista.length - buone.length;
+    toast.info(`Sto scaricando ${buone.length} file`, {
+      description:
+        (scartate > 0 ? `${scartate} sono rimaste indietro: manca un dato obbligatorio. ` : "") +
+        "Se il browser chiede il permesso per i download multipli, dagli l'ok.",
+      duration: scartate > 0 ? 12000 : 6000,
+    });
+    await scaricaInFila(
+      buone.map((f) => ({
+        nome: nomeFileXml(f, azienda),
+        contenuto: costruisciXml(f, azienda),
+        tipo: "application/xml",
+      })),
+      (fatti, totale) => setAvanzamento({ fatti, totale }),
+    );
+    setAvanzamento(null);
+  };
+
   const campo = (
     etichetta: string,
     chiave: keyof DatiAzienda,
@@ -643,7 +677,33 @@ function FatturePage() {
         testo="Fatture"
         icona={Receipt}
         nota={`${emesse.length} emesse · ${bozze.length} in bozza`}
+        azioni={
+          puoBulk ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-[12px]"
+              onClick={() => setBulkAperto(true)}
+            >
+              <FileStack className="mr-1.5 h-3.5 w-3.5" /> Carica in blocco
+            </Button>
+          ) : undefined
+        }
       />
+
+      {puoBulk && (
+        <CaricaInBloccoFatture
+          aperta={bulkAperto}
+          onCambio={setBulkAperto}
+          azienda={azienda}
+          emesse={emesse}
+          bozze={bozze}
+          leads={Array.isArray(leads) ? leads : []}
+          caricando={caricando}
+          onEmesso={() => void ricarica()}
+          onScaricaXml={(lista) => void scaricaXmlBulk(lista)}
+        />
+      )}
 
       <KpiRiga colonne={4}>
         <Kpi etichetta="Emesse" valore={emesse.length} icona={Receipt} nota="Con numero e data" />
