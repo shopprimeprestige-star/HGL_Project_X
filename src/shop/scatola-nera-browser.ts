@@ -16,8 +16,13 @@
  *   frequenza lo rimette comunque la rotta. */
 import {
   ATTESA_MS,
+  CHIAMANTI,
+  RIMOZIONI,
   candidatoDaStat,
   contaCandidati,
+  contatoriVuoti,
+  motivoRimozione,
+  salutiARaffica,
   pulisciRapporto,
   riduciCandidato,
   riduciUserAgent,
@@ -45,6 +50,8 @@ export type DipendenzeScatola = {
    *  («solo contenuti») non c'è nessun media che possa essersi bloccato: niente rapporto «blocco».
    *  Assente = sì (come prima). */
   videochiamataAttiva?: (pid: string) => boolean;
+  /** L'ora (ms): serve solo alle prove. Assente = `Date.now`. */
+  adesso?: () => number;
 };
 
 type Stato = {
@@ -65,6 +72,8 @@ type Stato = {
     iceInviati: number;
     iceRicevuti: number;
     offerteScartate: number;
+    helloRicevuti: number;
+    offerteFuoriChiamata: number;
   };
 };
 
@@ -72,7 +81,9 @@ const rapida = <T>(p: Promise<T>, ms: number, ripiego: T): Promise<T> =>
   Promise.race([p.catch(() => ripiego), new Promise<T>((ok) => setTimeout(() => ok(ripiego), ms))]);
 
 const idCasuale = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 16);
+  Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(36).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
 
 async function permesso(nome: "camera" | "microphone"): Promise<Permesso> {
   //  ⚠️ `navigator.permissions` può non esserci (iOS vecchi) o lanciare: in quel caso il permesso è
@@ -87,7 +98,13 @@ async function permesso(nome: "camera" | "microphone"): Promise<Permesso> {
   } catch {
     /* ignoto */
   }
-  return s === "granted" ? "concesso" : s === "denied" ? "negato" : s === "prompt" ? "da-chiedere" : "ignoto";
+  return s === "granted"
+    ? "concesso"
+    : s === "denied"
+      ? "negato"
+      : s === "prompt"
+        ? "da-chiedere"
+        : "ignoto";
 }
 
 /** Il candidato scelto dalla connessione, dallo stats (solo tipo/protocollo/porta). */
@@ -98,11 +115,13 @@ async function coppiaScelta(pc: RTCPeerConnection) {
   rep.forEach((v) => tutti.set(v.id, v));
   let coppia: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
   tutti.forEach((v) => {
-    if (v.type === "transport" && v.selectedCandidatePairId) coppia = tutti.get(v.selectedCandidatePairId);
+    if (v.type === "transport" && v.selectedCandidatePairId)
+      coppia = tutti.get(v.selectedCandidatePairId);
   });
   if (!coppia)
     tutti.forEach((v) => {
-      if (v.type === "candidate-pair" && (v.selected || (v.nominated && v.state === "succeeded"))) coppia = v;
+      if (v.type === "candidate-pair" && (v.selected || (v.nominated && v.state === "succeeded")))
+        coppia = v;
     });
   if (!coppia) return null;
   const locale = candidatoDaStat(tutti.get(coppia.localCandidateId));
@@ -121,6 +140,14 @@ export function creaScatola(dip: DipendenzeScatola) {
     }
   };
   let ultimoErroreMedia = "";
+  let statoCanale = "";
+  //  Di questa SCHEDA, non di un interlocutore: sopravvivono a `chiudi`/`chiudiTutto`, che è proprio il ciclo da vedere.
+  const chiamanti = contatoriVuoti(CHIAMANTI);
+  const rimossi = contatoriVuoti(RIMOZIONI);
+  let erroreRender = "";
+  const saluti: number[] = [];
+  let sentinellaInviata = false;
+  const ora = () => (dip.adesso ? dip.adesso() : Date.now());
 
   async function componi(pid: string, tipo: "blocco" | "esito"): Promise<Rapporto | null> {
     const st = stati.get(pid);
@@ -146,7 +173,9 @@ export function creaScatola(dip: DipendenzeScatola) {
       browser: ua.browser,
       sistema: ua.sistema,
       rete: { tipo: conn?.type ?? "", effettiva: conn?.effectiveType ?? "" },
-      hasTurn: dip.iceServers().some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
+      hasTurn: dip
+        .iceServers()
+        .some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
       stati: {
         signaling: pc?.signalingState ?? "nessuno",
         ice: pc?.iceConnectionState ?? "nessuno",
@@ -157,6 +186,10 @@ export function creaScatola(dip: DipendenzeScatola) {
       remoti: contaCandidati(st.remoti),
       coppia,
       segnali: st.n,
+      canale: statoCanale,
+      chiamanti: { ...chiamanti },
+      rimossi: { ...rimossi },
+      erroreRender,
       permessi: { camera, microfono },
       erroreMedia: ultimoErroreMedia,
       tracce: {
@@ -174,22 +207,76 @@ export function creaScatola(dip: DipendenzeScatola) {
     });
   }
 
+  async function spedisci(sess: string | null, rapporto: Rapporto | null) {
+    if (!sess || !rapporto) return;
+    //  text/plain: richiesta «semplice», niente preflight; `keepalive` la
+    //  lascia partire anche se la pagina si chiude subito dopo.
+    await fetch("/api/public/meetly-diagnosi", {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: JSON.stringify({ sess, rapporto }),
+    });
+  }
+
   async function invia(pid: string, tipo: "blocco" | "esito") {
     try {
-      const sess = dip.stanza();
-      const rapporto = await componi(pid, tipo);
-      if (!sess || !rapporto) return;
-      //  text/plain: richiesta «semplice», niente preflight; `keepalive` la
-      //  lascia partire anche se la pagina si chiude subito dopo.
-      await fetch("/api/public/meetly-diagnosi", {
-        method: "POST",
-        keepalive: true,
-        headers: { "Content-Type": "text/plain;charset=UTF-8" },
-        body: JSON.stringify({ sess, rapporto }),
-      });
+      await spedisci(dip.stanza(), await componi(pid, tipo));
     } catch {
       /* la scatola nera non disturba mai la chiamata */
     }
+  }
+
+  /** Il rapporto «sentinella»: nessun interlocutore da descrivere, solo i contatori della scheda.
+   *  Va come tipo «blocco» (il CHECK della tabella non cambia) con `sentinella: true`.
+   *  Nessuna attesa su permessi o statistiche: deve partire anche da una pagina che sta girando a vuoto. */
+  function componiSentinella(): Rapporto | null {
+    const ua = riduciUserAgent(navigator.userAgent);
+    const conn = (navigator as any).connection; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const mia = dip.locale();
+    return pulisciRapporto({
+      v: 1,
+      rid: idCasuale(),
+      tipo: "blocco",
+      ruolo: dip.ruolo(),
+      sentinella: true,
+      browser: ua.browser,
+      sistema: ua.sistema,
+      rete: { tipo: conn?.type ?? "", effettiva: conn?.effectiveType ?? "" },
+      hasTurn: dip
+        .iceServers()
+        .some((s) => [s.urls].flat().some((u) => /^turns?:/.test(String(u)))),
+      stati: { signaling: "nessuno", ice: "nessuno", connessione: "nessuno", raccolta: "nessuno" },
+      locali: [],
+      remoti: [],
+      coppia: null,
+      segnali: {
+        offerteInviate: 0,
+        offerteRicevute: 0,
+        risposteInviate: 0,
+        risposteRicevute: 0,
+        iceInviati: 0,
+        iceRicevuti: 0,
+        offerteScartate: 0,
+      },
+      canale: statoCanale,
+      chiamanti: { ...chiamanti },
+      rimossi: { ...rimossi },
+      erroreRender,
+      permessi: { camera: "ignoto", microfono: "ignoto" },
+      erroreMedia: ultimoErroreMedia,
+      tracce: {
+        locali: {
+          video: mia?.getVideoTracks().length ?? 0,
+          audio: mia?.getAudioTracks().length ?? 0,
+        },
+        remote: { video: 0, audio: 0, vive: 0 },
+      },
+      incontroMs: 0,
+      collegatoMs: null,
+      trasporto: dip.trasporto(),
+      ripiego: dip.ripiego(),
+    });
   }
 
   return {
@@ -206,7 +293,17 @@ export function creaScatola(dip: DipendenzeScatola) {
           attivaDal: 0,
           locali: [],
           remoti: [],
-          n: { offerteInviate: 0, offerteRicevute: 0, risposteInviate: 0, risposteRicevute: 0, iceInviati: 0, iceRicevuti: 0, offerteScartate: 0 },
+          n: {
+            offerteInviate: 0,
+            offerteRicevute: 0,
+            risposteInviate: 0,
+            risposteRicevute: 0,
+            iceInviati: 0,
+            iceRicevuti: 0,
+            offerteScartate: 0,
+            helloRicevuti: 0,
+            offerteFuoriChiamata: 0,
+          },
         };
         st.attivaDal = attiva(pid) ? st.inizio : 0;
         const controlla = () => {
@@ -241,10 +338,69 @@ export function creaScatola(dip: DipendenzeScatola) {
     segnale(pid: string, evento: string, inviato: boolean) {
       const st = stati.get(pid);
       if (!st) return;
-      const k = evento === "offer" ? "offerte" : evento === "answer" ? "risposte" : evento === "ice" ? "ice" : "";
+      const k =
+        evento === "offer"
+          ? "offerte"
+          : evento === "answer"
+            ? "risposte"
+            : evento === "ice"
+              ? "ice"
+              : "";
       if (!k) return;
-      const chiave = (k === "ice" ? (inviato ? "iceInviati" : "iceRicevuti") : `${k}${inviato ? "Inviate" : "Ricevute"}`) as keyof Stato["n"];
+      const chiave = (
+        k === "ice"
+          ? inviato
+            ? "iceInviati"
+            : "iceRicevuti"
+          : `${k}${inviato ? "Inviate" : "Ricevute"}`
+      ) as keyof Stato["n"];
       st.n[chiave]++;
+      //  Un'offerta uscita mentre la videochiamata non era attiva: il consulente offre già, ma nessuno può rispondere.
+      if (k === "offerte" && inviato && !attiva(pid)) st.n.offerteFuoriChiamata++;
+    },
+    /** Un saluto INVIATO da questa scheda, con chi l'ha mandato. Se sono più di 20 in 10 s, e questa è la scheda
+     *  di un ospite, parte UNA volta sola il rapporto «sentinella» (anche senza nessun incontro). */
+    salutoInviato(chi: string) {
+      try {
+        const k = (CHIAMANTI as readonly string[]).includes(chi) ? chi : "altro";
+        chiamanti[k]++;
+        const adesso = ora();
+        saluti.push(adesso);
+        while (saluti.length && adesso - saluti[0] > 10_000) saluti.shift();
+        if (sentinellaInviata || dip.ruolo() !== "ospite" || !salutiARaffica(saluti, adesso))
+          return;
+        sentinellaInviata = true;
+        void (async () => {
+          try {
+            await spedisci(dip.stanza(), componiSentinella());
+          } catch {
+            /* la scatola nera non disturba mai la chiamata */
+          }
+        })();
+      } catch {
+        /* */
+      }
+    },
+    /** Un interlocutore tolto dall'elenco: il motivo libero di `removePeer` si riduce a una voce dell'elenco chiuso. */
+    rimosso(why: string) {
+      try {
+        rimossi[motivoRimozione(why)]++;
+      } catch {
+        /* */
+      }
+    },
+    /** Il nome di un errore di render dell'ospite (solo il nome: il testo può contenere dati). */
+    erroreDiRender(nome: string) {
+      erroreRender = String(nome || "").slice(0, 40);
+    },
+    /** Un saluto sentito da questo interlocutore. */
+    hello(pid: string) {
+      const st = stati.get(pid);
+      if (st) st.n.helloRicevuti++;
+    },
+    /** Lo stato con cui si è chiusa l'ultima sottoscrizione al canale (SUBSCRIBED, TIMED_OUT, CHANNEL_ERROR, CLOSED). */
+    canale(stato: string) {
+      statoCanale = String(stato || "");
     },
     /** Un'offerta arrivata e buttata perché camera e microfono non erano aperti. */
     scartata(pid: string) {
@@ -279,6 +435,7 @@ export function creaScatola(dip: DipendenzeScatola) {
       stati.delete(pid);
     },
     chiudiTutto() {
+      rimossi.azzeramento++;
       stati.forEach((st) => st.timer && clearTimeout(st.timer));
       stati.clear();
     },

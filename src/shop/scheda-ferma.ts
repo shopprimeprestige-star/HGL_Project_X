@@ -160,3 +160,21 @@ export function chiamataAttivaPerRapporto(p: {
 export function schedaDelSi(p: { scheda: string; dichiarato: boolean; autenticato: boolean }): string {
   return p.dichiarato && !p.autenticato ? "" : p.scheda;
 }
+
+/** ── OFFERTE SENZA RISPOSTA (consulenza del 10/11/2026, ore 17:07) ───────────────
+ *  Dati veri: consulente in mesh, connessione «new», 53 poi 75 offerte inviate, nessuna risposta, nessun
+ *  rapporto dell'ospite. `maybeInitiate` rimanda l'offerta ancora senza risposta a OGNI saluto dell'ospite
+ *  («late joiner / offerta persa»): giusto a un saluto ogni 3 s, ma senza nessun limite se i saluti arrivano
+ *  più fitti, e senza nemmeno ricordare quando era partita l'ultima. Qui il limite: la STESSA offerta non
+ *  riparte prima di `RIMANDA_OFFERTA_OGNI_MS`. Sotto i 3 s del battito, quindi la cadenza normale non cambia.
+ *  ⚠️ Non spiega perché l'ospite non risponda: è il tetto al danno (e al rumore nella scatola nera), non la causa.
+ *  ⚠️ shortcut: tetto fisso, senza attesa crescente né rinuncia dopo N rinvii; un'offerta identica ripetuta è innocua
+ *   per l'ospite (risponde a ogni copia), quindi basta limitarne il ritmo. Aggiungere il backoff se si vede ancora rumore. */
+export const RIMANDA_OFFERTA_OGNI_MS = 2_500;
+
+export function puoRimandareOfferta(p: { ultimoInvio: number | undefined; adesso: number }): boolean {
+  if (p.ultimoInvio === undefined) return true;
+  //  L'orologio che torna indietro (sincronizzazione, cambio ora) non deve bloccare le offerte fino al sorpasso.
+  if (p.adesso < p.ultimoInvio) return true;
+  return p.adesso - p.ultimoInvio >= RIMANDA_OFFERTA_OGNI_MS;
+}

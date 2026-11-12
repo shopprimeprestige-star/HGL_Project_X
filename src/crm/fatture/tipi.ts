@@ -278,6 +278,17 @@ export interface Fattura {
    *   consulente non trova è un cliente che aspetta.
    *  Finisce nell'XML come `CodicePagamento` e sul foglio leggibile. */
   riferimentoPagamento?: string;
+  /** ── DA DOVE VIENE, SE È NATA DAL CARICAMENTO BULK ──────────────────────
+   *  Solo le fatture del caricamento da screenshot lo portano (commessa
+   *  2026-11-12-fatture-bulk); per tutte le altre manca, e va bene così: le
+   *  fatture già emesse restano valide e identiche.
+   *  Serve a due cose: riconoscere la riga già emessa se la risposta si perde
+   *  (nessun doppione alla ripresa) e ricordare quali pagamenti sono già stati
+   *  fatturati anche dopo che il lotto e i suoi file sono stati cancellati
+   *  (`impronte`).
+   *  ⚠️ Solo `lotto`, `riga`, hash e il riferimento dell'operazione: niente
+   *   percorsi di file, niente testo letto dall'AI. */
+  origineBulk?: { lotto: string; riga: string; impronte: string[]; riferimento?: string };
 }
 
 /** ── DA FATTURA EMESSA A BOZZA ─────────────────────────────────────────────
@@ -303,8 +314,12 @@ export interface Fattura {
  *   mette quello corrente solo perché il campo è un numero e non ammette il
  *   vuoto. */
 export function comeBozza(f: Fattura): Fattura {
+  //  ⚠️ `origineBulk` NON si porta dietro: una fattura riportata in bozza non è più
+  //   di quel lotto, e riemessa con la stessa origine verrebbe scambiata per
+  //   «già emessa» dal controllo della ripresa del bulk.
+  const { origineBulk: _origineBulk, ...resto } = f;
   return {
-    ...f,
+    ...resto,
     id: `bozza:${f.leadId}`,
     stato: "bozza",
     numero: 0,
