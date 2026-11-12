@@ -62,7 +62,12 @@ const NON_SI_RIPAGANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>([
   "illeggibile",
 ]);
 
-export const AVVISI_PER_TUTTE: readonly string[] = ["data_anteriore", "oltre_12_giorni"];
+export const AVVISI_PER_TUTTE: readonly string[] = [
+  "data_anteriore",
+  "oltre_12_giorni",
+  // Chi carica sempre pagamento/tessera/indirizzo avrebbe una conferma per riga: dopo aver visto le righe, un tasto (capo progetto).
+  "ordine_diverso",
+];
 
 /* ══ 1. LA CHIAMATA ALLA ROTTA ═════════════════════════════════════════════ */
 

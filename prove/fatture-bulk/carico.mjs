@@ -747,6 +747,32 @@ export async function prove(mod, { c, gruppo, radice }) {
     c("già dato: non si rimanda (A ed E ora hanno l'avviso)", 0, n2);
   }
   {
+    // «ordine_diverso» (decisione del capo progetto): il titolare lo conferma con un tasto dopo aver visto le righe.
+    const b = banco({ salvati: [0, 1, 2] });
+    await b.o.apri("lotto-0001");
+    const mot = (codice, gravita = "conferma") => ({ codice, gravita, testo: "t" });
+    b.conRighe([
+      riga("A", 1, { stato: "da_controllare", motivi: [mot("ordine_diverso")] }),
+      riga("B", 2, { stato: "da_controllare", motivi: [mot("ordine_diverso", "blocca")] }),
+      riga("C", 3, { stato: "da_controllare", motivi: [mot("persone_diverse", "blocca")] }),
+      riga("D", 4, { stato: "emessa", motivi: [mot("ordine_diverso")] }),
+      riga("E", 5, { stato: "da_controllare", motivi: [mot("ordine_diverso")] }),
+    ]);
+    const n = await b.o.confermaAvvisoPerTutte("ordine_diverso");
+    c(
+      "«ordine_diverso» in blocco: solo le righe aperte dove è un `conferma` (A, E), mai un `blocca`",
+      [2, ["A", "E"]],
+      [
+        n,
+        b
+          .azioni("salva-riga")
+          .map((x) => x.idRiga)
+          .sort(),
+      ],
+    );
+    c("`AVVISI_PER_TUTTE` ha ordine_diverso", true, U.AVVISI_PER_TUTTE.includes("ordine_diverso"));
+  }
+  {
     const b = banco({ salvati: [0, 1, 2] });
     await b.o.apri("lotto-0001");
     await b.o.salvaRiga("R1", { confermaAvvisi: ["importo_alto"] });
