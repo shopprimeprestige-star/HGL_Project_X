@@ -167,6 +167,12 @@ export async function prove(mod, { c, gruppo }) {
   c("ricomposta → conferma", ["ricomposta:conferma"], e({}, { gruppo: { ricomposta: true } }));
   c("ordine diverso → solo un avviso: la riga resta pronta", [["ordine_diverso:avviso"], "pronto"],
     (() => { const m = esame(R, {}, { gruppo: { ordineDiverso: true } }); return [codici(m), R.statoDi(m, [], false).stato]; })());
+  c("ordine diverso + pagante non letto → anche una conferma (uno scorrimento non si vedrebbe)", ["ordine_diverso:avviso", "ordine_diverso_senza_pagante:conferma"],
+    e({}, { gruppo: { ordineDiverso: true }, pagamento: { paganteCognome: "" } }));
+  c("… non emettibile finché non è confermata; confermata, sì", [false, true],
+    (() => { const m = esame(R, {}, { gruppo: { ordineDiverso: true }, pagamento: { paganteCognome: "" } }); return [R.statoDi(m, [], true).emettibile, R.statoDi(m, ["ordine_diverso_senza_pagante"], true).emettibile]; })());
+  c("ordine diverso con il pagante letto e concorde → solo l'avviso", ["ordine_diverso:avviso"], e({}, { gruppo: { ordineDiverso: true } }));
+  c("pagante non letto con l'ordine normale → nessun motivo", [], e({}, { pagamento: { paganteCognome: "" } }));
   const inc = esame(R, {}, { gruppo: { incompleta: true, mancano: ["pagamento"] } });
   c("gruppo incompleto → blocca e strutturale, e la riga è in «errore»", [["gruppo_incompleto:blocca"], true, "errore", false],
     [codici(inc), inc[0].strutturale, R.statoDi(inc, [], true).stato, R.statoDi(inc, ["gruppo_incompleto"], true).emettibile]);
