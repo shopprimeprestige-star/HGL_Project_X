@@ -52,7 +52,7 @@ import {
   rinnova,
   type PortaLucchetto,
 } from "./lucchetto.server";
-import { ricomponi } from "./raggruppa";
+import { ricomponi, tipiPerRicomporre } from "./raggruppa";
 import { controllaLotto, firmaImpostazioni } from "./regole-lotto";
 import { oggiItaliano } from "./regole-riga";
 import type {
@@ -63,7 +63,6 @@ import type {
   RispostaEmettiRiga,
   SchedaPerAbbinamento,
   TestataLotto,
-  TipoFile,
 } from "./tipi";
 import { valutaRigaNelLotto } from "./valuta";
 
@@ -275,11 +274,7 @@ async function dentroIlLucchetto(
     return dopoLaRiga(porte, lotto, mia.emessa);
   }
 
-  const tipi = [...file.values()].map((f) => ({
-    indice: f.indice,
-    tipo: (f.tipo || "altro") as TipoFile,
-  }));
-  const gruppi = ricomponi(tipi);
+  const gruppi = ricomponi(tipiPerRicomporre(file.values()));
   if (!gruppi.some((g) => g.idRiga === idRiga))
     return saltata([motivoUnico("riga_non_trovata", "Questa riga non c'è nel caricamento.")]);
 

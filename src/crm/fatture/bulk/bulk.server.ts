@@ -47,7 +47,7 @@ import {
 import type { ArchivioProtetto } from "./emissione-bulk";
 import { corpoRichiesta, leggiCorpoRisposta, leggiRispostaGruppo } from "./lettura-bulk";
 import { prendi, prendiIlControllo, rilascia, type PortaLucchetto } from "./lucchetto.server";
-import { ricomponi } from "./raggruppa";
+import { ricomponi, tipiPerRicomporre } from "./raggruppa";
 import { controllaLotto, firmaImpostazioni } from "./regole-lotto";
 import type {
   CampiRiga,
@@ -63,7 +63,6 @@ import type {
   SchedaPerAbbinamento,
   SintesiLotto,
   TestataLotto,
-  TipoFile,
 } from "./tipi";
 
 /* ══ 1. LE PORTE ═══════════════════════════════════════════════════════════ */
@@ -301,8 +300,7 @@ export async function righeDelLotto(
   return m;
 }
 
-const comeTipi = (files: Iterable<FileLotto>) =>
-  [...files].map((f) => ({ indice: f.indice, tipo: (f.tipo || "altro") as TipoFile }));
+const comeTipi = (files: Iterable<FileLotto>) => tipiPerRicomporre(files);
 
 /** Il reclamo (`bulk_fatture_c`) di uno o più gruppi, preso prima del lavoro e SEMPRE rilasciato dopo.
  *  Se è di un altro e non è scaduto → `occupato`. La scadenza (90 s) è più lunga della richiesta più lunga (55 s + giri). */

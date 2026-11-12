@@ -9,7 +9,7 @@
  *   quando arriva un tipo già presente (o quando i file sono tre), così un
  *   buco si vede (riga incompleta) e i clienti dopo restano interi. */
 import { idRigaDa, MAX_FILE } from "./chiavi";
-import type { GruppoRicomposto, TipoFile } from "./tipi";
+import type { FileLotto, GruppoRicomposto, TipoFile } from "./tipi";
 
 export type CriterioOrdine = "nome" | "data";
 
@@ -45,12 +45,29 @@ export function contaGruppi(n: number): ConteggioGruppi {
 /** I tre tipi di un cliente, nell'ordine «solito» (indirizzo, tessera, pagamento). */
 const TIPI_CLIENTE: TipoFile[] = ["indirizzo", "tessera", "pagamento"];
 
+/** I file di un lotto come li vuole `ricomponi`: browser, rotta ed emissione passano di qui, così ricompongono
+ *  allo stesso modo (stessi `idRiga`). `fallito` = lettura in errore, oppure file già chiuso (emesso o scartato)
+ *  che non ha mai avuto un tipo: la pulizia dei dati toglie lo stato «errore» ma non deve far sparire il cliente. */
+export function tipiPerRicomporre(
+  file: Iterable<Pick<FileLotto, "indice" | "stato" | "tipo">>,
+): { indice: number; tipo: TipoFile; fallito: boolean }[] {
+  return [...file].map((f) => ({
+    indice: f.indice,
+    tipo: (f.tipo || "altro") as TipoFile,
+    fallito: f.stato === "errore" || ((f.stato === "emessa" || f.stato === "scartata") && !f.tipo),
+  }));
+}
+
 /** Ricompone i clienti dai tipi: un cliente finisce quando arriva un tipo già presente
  *  o quando ha tre file. «altro» (illeggibile) occupa il suo posto senza contare come tipo;
- *  un gruppo fatto di soli «altro» non è un cliente. I file si ordinano per `indice`.
+ *  un gruppo fatto di soli «altro» non è un cliente, SALVO che un suo file sia `fallito` (la lettura è
+ *  fallita, o il file è stato chiuso senza mai essere letto): un cliente non sparisce mai, la riga c'è,
+ *  incompleta, e dice di premere «Rileggi». I file si ordinano per `indice`.
  *  ⚠️ Un file in più (non letto bene, screenshot estraneo) sposta di uno i clienti seguenti, come ogni
  *   file mancante: le righe restano incomplete o con l'ordine diverso, mai «a posto» per caso. */
-export function ricomponi(file: { indice: number; tipo: TipoFile }[]): GruppoRicomposto[] {
+export function ricomponi(
+  file: { indice: number; tipo: TipoFile; fallito?: boolean }[],
+): GruppoRicomposto[] {
   const ordinati = [...file].sort((a, b) => a.indice - b.indice);
   for (let i = 1; i < ordinati.length; i += 1)
     if (ordinati[i].indice === ordinati[i - 1].indice) throw new Error(`indice ${ordinati[i].indice} ripetuto: i file del lotto sono rovinati`);
@@ -58,21 +75,22 @@ export function ricomponi(file: { indice: number; tipo: TipoFile }[]): GruppoRic
   /** Un file non ancora letto (tipo vuoto o sconosciuto) vale «altro»: la riga resta incompleta, mai pronta. */
   const tipoDi = (t: string): TipoFile => (TIPI_CLIENTE.includes(t as TipoFile) ? (t as TipoFile) : "altro");
 
-  const gruppi: { indici: number[]; tipi: TipoFile[] }[] = [];
-  let aperto: { indici: number[]; tipi: TipoFile[] } | null = null;
+  const gruppi: { indici: number[]; tipi: TipoFile[]; fallito: boolean }[] = [];
+  let aperto: { indici: number[]; tipi: TipoFile[]; fallito: boolean } | null = null;
   ordinati.forEach((f) => {
     const tipo = tipoDi(f.tipo);
     if (aperto && (aperto.indici.length >= 3 || (tipo !== "altro" && aperto.tipi.includes(tipo)))) aperto = null;
     if (!aperto) {
-      aperto = { indici: [], tipi: [] };
+      aperto = { indici: [], tipi: [], fallito: false };
       gruppi.push(aperto);
     }
     aperto.indici.push(f.indice);
     aperto.tipi.push(tipo);
+    if (f.fallito) aperto.fallito = true;
   });
 
   return gruppi
-    .filter((g) => g.tipi.some((t) => t !== "altro"))
+    .filter((g) => g.fallito || g.tipi.some((t) => t !== "altro"))
     .map((g, k) => {
       const mancano = TIPI_CLIENTE.filter((t) => !g.tipi.includes(t));
       const presenti = g.tipi.filter((t) => t !== "altro");

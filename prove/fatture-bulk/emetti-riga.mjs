@@ -890,6 +890,17 @@ export async function prove(mod, { c, gruppo, radice }) {
       ["saltata", "riga_non_trovata"],
       [r9.r.esito, r9.r.motivi[0].codice],
     );
+    //  Un gruppo la cui lettura è fallita (tre file in errore, tipo vuoto) è una riga: non si emette, ma NON è «non trovata».
+    const wf = mondo(mod);
+    semina(wf, mod, { clienti: [{ k: 0 }, { k: 1 }] });
+    for (let i = 6; i < 9; i += 1)
+      wf.m.set(kF(L, i), JSON.stringify({ indice: i, stato: "errore", impronta: `e${i}`, tipo: "", errore: "illeggibile" }));
+    const rf = await chiamate(wf, idDi(2), "scheda-aaaa1111");
+    c(
+      "riga con la lettura fallita → saltata ma trovata (non «riga_non_trovata»), nessuna fattura",
+      ["saltata", false, 0],
+      [rf.r.esito, rf.r.motivi.some((m) => m.codice === "riga_non_trovata"), wf.emesseSalvate().length],
+    );
     const rx = await chiamate(wr, idDi(0), "scheda-aaaa1111", L2);
     c("lotto che non c'è → ferma non_trovato", ["ferma", "non_trovato"], [rx.r.esito, rx.r.codice]);
     const r1 = await chiamate(wr, idDi(1), "scheda-aaaa1111");

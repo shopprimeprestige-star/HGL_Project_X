@@ -31,7 +31,7 @@ import { eseguiCoda, ErroreCoda, codiceDaStato } from "./coda";
 import { IN_PARALLELO, MAX_FILE } from "./chiavi";
 import { controllaFile, riduciImmagine, type ImmagineRidotta } from "./immagini";
 import { ordineEmissione } from "./emissione-bulk";
-import { ricomponi } from "./raggruppa";
+import { ricomponi, tipiPerRicomporre } from "./raggruppa";
 import { valutaLotto } from "./valuta";
 import type {
   AzioneBulk,
@@ -216,13 +216,13 @@ export function unisciFile(vecchi: FileLotto[], nuovi: FileLotto[]): FileLotto[]
 }
 
 /** Le righe valutate: ricompone i clienti dai tipi e passa tutto a `valutaLotto` (T10). Né qui né nel
- *  reducer si decide uno stato. Prima della lettura i tipi sono vuoti: nessun cliente, nessuna riga. */
+ *  reducer si decide uno stato. Prima della lettura i tipi sono vuoti: nessun cliente, nessuna riga; un gruppo la cui lettura è fallita invece c'è (riga «Errore», si rilegge). */
 export function valutaIlLotto(
   stato: Pick<StatoLotto, "file" | "decisioni">,
   ctx: ContestoValutazione,
   valuta: ValutaLotto = valutaLotto,
 ): ReturnType<ValutaLotto> {
-  const gruppi = ricomponi(stato.file.map((f) => ({ indice: f.indice, tipo: f.tipo || "altro" })));
+  const gruppi = ricomponi(tipiPerRicomporre(stato.file));
   const righe: IngressoRiga[] = gruppi.map((gruppo) => ({
     gruppo,
     file: stato.file,

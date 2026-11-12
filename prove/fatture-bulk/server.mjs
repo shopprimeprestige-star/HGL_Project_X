@@ -26,7 +26,7 @@ const kR = (lotto, id) => `bulk_fatture_r:${lotto}:${id}`;
 const kT = (lotto) => `bulk_fatture_t:${lotto}`;
 const kC = (lotto, g) => `bulk_fatture_c:${lotto}:${g}`;
 
-const AZIENDA = {
+export const AZIENDA = {
   denominazione: "ESEMPIO CAPELLI S.R.L.",
   partitaIva: "12345670017",
   codiceFiscale: "12345670017",
@@ -92,7 +92,7 @@ function jsonAi(tipi) {
 }
 
 /* ═══ IL MONDO FINTO ═══════════════════════════════════════════════════════ */
-function mondo(opz = {}) {
+export function mondo(opz = {}) {
   const m = new Map(); // app_config
   const bucket = new Map(); // percorso → data URL
   const reg = {
@@ -280,7 +280,7 @@ function mondo(opz = {}) {
 }
 
 /** Un lotto di `n` file già caricati (stato «salvato») con il loro file nel bucket. */
-function semina(
+export function semina(
   w,
   {
     lotto = L,
@@ -311,7 +311,7 @@ function semina(
   }
 }
 
-const dip = (w, guardia) => ({
+export const dip = (w, guardia) => ({
   guardia: guardia ?? (async () => ({ ok: true, utente: U })),
   porte: () => w.porte,
   emettiRiga: async (_p, r) => ({
@@ -321,7 +321,7 @@ const dip = (w, guardia) => ({
     messaggio: `finto ${r.idRiga}`,
   }),
 });
-const richiesta = (metodo, corpo, query = "") =>
+export const richiesta = (metodo, corpo, query = "") =>
   new Request(`http://localhost/api/crm/fatture-bulk${query}`, {
     method: metodo,
     ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
