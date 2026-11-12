@@ -252,10 +252,15 @@ export async function prove(mod, { c, gruppo, radice }) {
   const righe = L.righeRiepilogoCommercialista([fb, bz, fa, fc]);
   c("solo le emesse, in ordine di numerazione", ["2025/0003", "2026/0007", "2026/0008"], righe.map((r) => r.numero));
   c("riga completa", {
-    numero: "2026/0007", data: "2026-10-31", cliente: "Lucia Verdi", codiceFiscale: CF_PROVA, imponibile: 819.67, iva: 180.33, totale: 1000,
+    numero: "2026/0007", data: "2026-10-31", cliente: "Lucia Verdi", codiceFiscale: CF_PROVA, imponibile: 819.67, iva: 180.33, totale: 1000, totaleNelFile: null,
     modo: "POS (SumUp)", riferimento: "OP123456", meseCompetenza: "2026-10", ultimoGiornoUtile: "2026-11-12",
   }, righe[1]);
   c("mese di competenza = mese del pagamento (31 dicembre → dicembre)", ["2025-12", "2026-01-12"], [righe[0].meseCompetenza, righe[0].ultimoGiornoUtile]);
+  // Il commercialista importa l'XML: per riconciliare riga per riga serve il totale che il FILE dice (R10, 104,00 → 104,01).
+  const conFile = L.righeRiepilogoCommercialista([fb, fa], AZIENDA);
+  c("con il centro: la colonna «totale nel file» (104,00 pagato → 104,01 nel file)", [104, 104.01, 1000, 1000], [conFile[1].totale, conFile[1].totaleNelFile, conFile[0].totale, conFile[0].totaleNelFile]);
+  c("… ed è proprio il totale scritto dall'XML", totaleDalTesto(X.costruisciXml(fb, AZIENDA)), conFile[1].totaleNelFile);
+  c("senza il centro la colonna è vuota (null), non zero", [null, null], [righe[0].totaleNelFile, righe[2].totaleNelFile]);
   c("modo scritto in chiaro", ["Contanti", "Bonifico"], [righe[0].modo, righe[2].modo]);
   c("con serie: «2026/A/0007»", "2026/A/0007", L.righeRiepilogoCommercialista([{ ...fa, serie: "A" }])[0].numero);
   c("un'azienda cliente → la denominazione", "Rossi Srl", L.righeRiepilogoCommercialista([{ ...fa, cliente: { ...fa.cliente, azienda: true, denominazione: "Rossi Srl" } }])[0].cliente);
@@ -264,6 +269,11 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("input congelato: nessuna mutazione, nemmeno nell'ordinamento", "", lancia(() => L.righeRiepilogoCommercialista(cgi)));
   c("le note per il commercialista: scontrini già emessi e fine del termine allo SdI", [true, true],
     [L.NOTE_RIEPILOGO_COMMERCIALISTA.some((n) => /scontrin/i.test(n)), L.NOTE_RIEPILOGO_COMMERCIALISTA.some((n) => /SdI/.test(n))]);
+
+  c("le note citano STS/ATECO («confermato non tenuta») e le fatture tardive (la data resta quella del pagamento)", [true, true, true],
+    [L.NOTE_RIEPILOGO_COMMERCIALISTA.some((n) => /Sistema TS|STS/.test(n) && /ATECO/.test(n) && /non tenut/i.test(n)),
+      L.NOTE_RIEPILOGO_COMMERCIALISTA.some((n) => /tardiv/i.test(n) && /data/i.test(n) && /pagamento/i.test(n)),
+      L.NOTE_RIEPILOGO_COMMERCIALISTA.every((n) => typeof n === "string" && n.trim().length > 20)]);
 
   gruppo("BULK · T5 · L'XML DI UN CAMPIONE VALIDA CONTRO LO SCHEMA UFFICIALE");
   const schema = join(radice, "prove", "fatturapa-v1.2.2.xsd");

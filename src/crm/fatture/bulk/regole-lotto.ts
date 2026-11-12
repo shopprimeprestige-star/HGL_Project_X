@@ -12,7 +12,7 @@ import { etichettaNumero, mancanzeAzienda } from "../archivio";
 import { modoDi } from "../modi-di-incasso";
 import { CLIENTE_VUOTO, type DatiAzienda, type Fattura } from "../tipi";
 import { problemiXml } from "../xml";
-import { ultimoGiornoUtile } from "./da-importo-a-fattura";
+import { totaleNelFile, ultimoGiornoUtile } from "./da-importo-a-fattura";
 import type { Motivo } from "./tipi";
 
 /** Una fattura perfetta in tutto TRANNE che per il centro: così i `bloccanti` di `problemiXml`
@@ -83,6 +83,9 @@ export interface RigaRiepilogoCommercialista {
   imponibile: number;
   iva: number;
   totale: number;
+  /** Il totale che dice il file XML che il commercialista importa (può scostarsi di un centesimo, R10).
+   *  null = non calcolato (non è stato passato il centro). */
+  totaleNelFile: number | null;
   modo: string;
   riferimento: string;
   /** Mese di competenza IVA (AAAA-MM) = mese del pagamento. */
@@ -94,11 +97,14 @@ export interface RigaRiepilogoCommercialista {
 export const NOTE_RIEPILOGO_COMMERCIALISTA: string[] = [
   "Il termine di 12 giorni finisce all'invio allo SdI, che fa il commercialista: il CRM numera e data soltanto. L'«ultimo giorno utile» è una stima in giorni di calendario; il mese di competenza IVA è il mese del pagamento.",
   "Per gli stessi incassi può essere già stato emesso uno scontrino o un documento commerciale: il CRM non lo controlla.",
-  "Il totale nel file XML può scostarsi di un centesimo dall'importo pagato, perché il file ricalcola l'IVA.",
+  "Il totale nel file XML può scostarsi di un centesimo dall'importo pagato, perché il file ricalcola l'IVA: la colonna «totale nel file» serve a riconciliare riga per riga.",
+  "Sistema TS: ATECO e categoria del centro vanno confermati come «non tenuta» all'invio dei dati al Sistema TS (e quindi senza codici di spesa sanitaria nel file); se la risposta fosse «tenuta», nessuna riga va emessa.",
+  "Fatture tardive: per i pagamenti più vecchi di 12 giorni il campo «Data» del file resta la data del pagamento e nella causale non viene scritta nessun'altra data. Se per le tardive il commercialista vuole un'altra data, o una data nella causale, va detto prima di trasmettere.",
 ];
 
-/** Una riga per fattura emessa, per numerazione: pronta da girare al commercialista. Le bozze non ci sono. */
-export function righeRiepilogoCommercialista(fatture: Fattura[]): RigaRiepilogoCommercialista[] {
+/** Una riga per fattura emessa, per numerazione: pronta da girare al commercialista. Le bozze non ci sono.
+ *  Con `azienda` ogni riga porta anche il totale che dirà il file XML (`totaleNelFile`). */
+export function righeRiepilogoCommercialista(fatture: Fattura[], azienda?: DatiAzienda): RigaRiepilogoCommercialista[] {
   return fatture
     .filter((f) => f.stato === "emessa")
     .sort((a, b) => a.anno - b.anno || a.serie.localeCompare(b.serie) || a.numero - b.numero)
@@ -112,6 +118,7 @@ export function righeRiepilogoCommercialista(fatture: Fattura[]): RigaRiepilogoC
         imponibile: f.imponibile,
         iva: f.imposta,
         totale: f.totale,
+        totaleNelFile: azienda ? totaleNelFile(f, azienda) : null,
         modo: modoDi(f.metodoPagamento).titolo,
         riferimento: f.riferimentoPagamento ?? "",
         meseCompetenza: giorno.slice(0, 7),
