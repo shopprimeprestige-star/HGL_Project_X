@@ -25,15 +25,15 @@ export const GRAVITA_DATA_ANTERIORE: Gravita = "conferma";
  *  (con la stessa protezione di «_» di `leggiPrefisso`). */
 export interface ArchivioProtetto extends ArchivioDb {
   creaSeAssente: (key: string, value: string) => Promise<EsitoCrea>;
-  /** Tutte le righe col prefisso, a pagine di 1000 per CHIAVE (mai per offset). Rilancia se una pagina fallisce. */
+  /** Tutte le righe col prefisso, a pagine per CHIAVE (mai per offset), fino a una pagina vuota. Rilancia se una pagina fallisce. */
   leggiPrefissoPerChiave: (prefisso: string) => Promise<{ key: string; value: string }[]>;
   leggiMolte: (chiavi: string[]) => Promise<{ key: string; value: string }[]>;
   /** Una sola cancellazione per tutto il prefisso. Torna il messaggio d'errore, o null. */
   eliminaPerPrefisso: (prefisso: string) => Promise<string | null>;
 }
 
-/** Pagina di PostgREST (tetto di righe per risposta). ⚠️ Si suppone che sia 1000 come in tutto il
- *  repo: la prova sul database vero (T15) lo verifica leggendo 1.200 righe. */
+/** Righe chieste per pagina. Il tetto vero del server (PostgREST) può essere più basso: non conta, si prosegue
+ *  finché una pagina torna vuota. La prova sul database vero (T15) legge 1.200 righe. */
 const PAGINA = 1000;
 /** `eliminaPerPrefisso` tocca solo le chiavi del bulk: mai `fattura:*`, mai un prefisso vuoto. */
 const PREFISSO_BULK = "bulk_fatture_";
@@ -83,7 +83,9 @@ export function archivioProtettoSu(client: unknown): ArchivioProtetto {
       if (error) throw new Error(error.message);
       const righe = comeRighe(data);
       tutte.push(...righe);
-      if (righe.length < PAGINA) return tutte;
+      //  ⚠️ Si chiude solo su una pagina VUOTA: una pagina «corta» può essere il tetto di righe del server
+      //   (più basso di PAGINA), non la fine. Costa una sottorichiesta in più.
+      if (righe.length === 0) return tutte;
       ultima = righe[righe.length - 1].key;
     }
   };

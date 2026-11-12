@@ -349,8 +349,8 @@ export async function esegui(dip) {
         .limit(1500);
       if (error) throw new ErroreCodice(error.code, status);
       const n = data?.length ?? 0;
-      const nota = n < 1000 ? "SOTTO i 1000: la pagina da 1000 di emissione-bulk.ts si fermerebbe presto" : n === 1000 ? "tetto 1000, come previsto" : "tetto sopra 1000: la pagina da 1000 resta valida";
-      return [n >= 1000, `righe=${n} (${nota})`];
+      const nota = n < 1000 ? "SOTTO i 1000: nessun problema, emissione-bulk.ts prosegue fino a una pagina vuota" : n === 1000 ? "tetto 1000, come previsto" : "tetto sopra 1000: la pagina da 1000 resta valida";
+      return [n > 0, `righe=${n} (${nota})`];
     });
 
     let attese = N + 1;

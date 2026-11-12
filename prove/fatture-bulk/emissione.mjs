@@ -236,8 +236,8 @@ export async function prove(mod, { c, gruppo }) {
       r.every((x, i) => i === 0 || r[i - 1].key < x.key),
     );
     c(
-      "pagine da 1000 e 500: due sottorichieste",
-      [[1000, 500], 2],
+      "pagine da 1000 e 500, poi una vuota che chiude: tre sottorichieste",
+      [[1000, 500, 0], 3],
       [f.reg.pagine, f.reg.sottorichieste],
     );
     c(
@@ -258,6 +258,19 @@ export async function prove(mod, { c, gruppo }) {
       1500,
       (await a.leggiPrefisso("fattura:")).length,
     );
+
+    //  Il tetto di PostgREST può essere più basso di 1000 (un'impostazione del progetto): si prosegue finché una
+    //  pagina torna VUOTA, non alla prima pagina «corta».
+    const f500 = clienteFinto({ tetto: 500 });
+    caricaEmesse(f500.m, 1200);
+    const r500 = await EB.archivioProtettoSu(f500.client).leggiPrefissoPerChiave("fattura:");
+    c(
+      "tetto del server a 500 e 1.200 emesse → tutte e 1.200, una volta sola, in ordine",
+      [1200, 1200, true],
+      [r500.length, new Set(r500.map((x) => x.key)).size, r500.every((x, i) => i === 0 || r500[i - 1].key < x.key)],
+    );
+    c("… in pagine da 500, 500, 200 e una vuota (4 sottorichieste, sotto il tetto di 40)", [[500, 500, 200, 0], 4],
+      [f500.reg.pagine, f500.reg.sottorichieste]);
 
     const f1000 = clienteFinto();
     caricaEmesse(f1000.m, 1000);
@@ -285,7 +298,7 @@ export async function prove(mod, { c, gruppo }) {
       ["bulk_fatture_f:x:0001"],
       rp.map((x) => x.key),
     );
-    c("il LIKE inviato ha il «_» protetto", ["bulk\\_fatture\\_f:x:%"], fp.reg.like);
+    c("il LIKE inviato ha il «_» protetto (in ogni pagina)", ["bulk\\_fatture\\_f:x:%"], [...new Set(fp.reg.like)]);
 
     const fg = clienteFinto({
       hook: {
@@ -639,7 +652,7 @@ export async function prove(mod, { c, gruppo }) {
     const { archivio, m } = nuovoArchivio({
       hook: {
         dopoPagina: (n, mm) => {
-          if (n === 1) gara(3)(mm);
+          if (n === 2) gara(3)(mm); // dopo la pagina vuota che chiude la lettura
         },
       },
     });
@@ -660,8 +673,10 @@ export async function prove(mod, { c, gruppo }) {
     const { archivio, m, reg } = nuovoArchivio({
       hook: {
         dopoPagina: (n, mm) => {
-          if (n === 1) gara(3)(mm);
-          if (n === 2) gara(4)(mm);
+          //  Ogni lettura sono due pagine (quella con le righe e la vuota che chiude): l'altro emettitore arriva DOPO
+          //  l'ultima pagina di ognuna (la 2ª e la 4ª), cioè fra la lettura e l'inserimento.
+          if (n === 2) gara(3)(mm);
+          if (n === 4) gara(4)(mm);
         },
       },
     });
@@ -914,7 +929,7 @@ export async function prove(mod, { c, gruppo }) {
     caricaEmesse(m, 1500);
     const r = await EB.emettiProtettoSu(archivio, daBulk("0000"), azienda, "2026-11-05");
     c("numero 1501 (non 1001)", [true, 1501], [r.ok, r.fattura?.numero]);
-    c("sottorichieste per riga: 2 pagine + 1 inserimento + 1 rilettura", 4, reg.sottorichieste);
+    c("sottorichieste per riga: 3 pagine (1000, 500, vuota) + 1 inserimento + 1 rilettura", 5, reg.sottorichieste);
   }
 
   gruppo("BULK · T7 · DOPO L'ESITO");
