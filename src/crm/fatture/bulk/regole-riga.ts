@@ -184,6 +184,8 @@ export function esaminaRiga(campi: CampiRiga, ctx: ContestoRiga): Motivo[] {
     const valuta = pagamento.valuta.trim().toUpperCase();
     if (valuta && !["EUR", "€", "EURO"].includes(valuta))
       aggiungi("blocca", "valuta_non_euro", "Il pagamento non risulta in euro: questa funzione fattura solo in euro. Scarta la riga o falla a mano.");
+    // ⚠️ Blocca SOLO `non_completato`. Un esito vuoto («» = lo screenshot non lo dice, quasi sempre al POS) non è un
+    // errore: per decisione del capo progetto non blocca, e lo dice il commento perché PIANO scrive «esito ≠ completato».
     if (pagamento.esito === "non_completato")
       aggiungi("blocca", "pagamento_non_completato", "Il pagamento risulta annullato, in attesa o rimborsato: non si fattura. Scarta la riga se è così.");
   }
