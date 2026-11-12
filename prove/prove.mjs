@@ -47,6 +47,7 @@ import { proveScatolaNera } from "./idee/scatola-nera.mjs";
 import { proveAnteprimaPreventivoCliente } from "./idee/anteprima-preventivo-cliente.mjs";
 import { provePerOraNo } from "./idee/per-ora-no.mjs";
 import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.mjs";
+import { proveLandingInvisibleDerm } from "./idee/landing-invisible-derm.mjs";
 import { proveRicontatti } from "./idee/ricontatti.mjs";
 import { proveFiltroGiorno } from "./idee/filtro-giorno.mjs";
 import { proveRisentire } from "./idee/risentire.mjs";
@@ -585,6 +586,8 @@ const MODULI = [
   //   questa regola sbaglia per eccesso, il carattere cambia in chiamata
   //   davanti al cliente.
   "lib/carattere",
+  //  Testi e chiavi dei media della landing /invisible-derm: prove in prove/idee/landing-invisible-derm.mjs.
+  "landing/testi-invisible-derm",
   //  ⚠️ La temperatura del lead (Caldo/Medio/Freddo): una regola sola per
   //   «Oggi», Lead importati e la scheda. Vedi proveDellaTemperatura.
   "temperatura-lead",
@@ -13985,7 +13988,7 @@ function proveDelCarattere() {
   c("la radice precarica CARATTERE_INTER", true, /preload\(\s*CARATTERE_INTER\s*,/.test(radice));
   c("il precaricamento ha crossOrigin anonymous", true, /preload\(\s*CARATTERE_INTER\s*,[^)]*crossOrigin:\s*"anonymous"/.test(radice));
   c("il precaricamento solo se vale Inter", true, /if\s*\(\s*inter\s*\)\s*\{?\s*preload\(/.test(radice));
-  c("l'attributo è data-carattere (mai className su <html>)", true, /<html\s+lang="en"\s+data-carattere=\{inter \? "inter" : undefined\}\s*>/.test(radice));
+  c("l'attributo è data-carattere (mai className su <html>)", true, /<html\s+lang=\{paginaInItaliano\(percorso\) \? "it" : "en"\}\s+data-carattere=\{inter \? "inter" : undefined\}\s*>/.test(radice));
   c("la pagina è quella risolta, non quella in arrivo", true, /resolvedLocation\?\.pathname\s*\?\?\s*s\.location\.pathname/.test(radice));
 }
 
@@ -21641,6 +21644,7 @@ await proveMeetlyLancio(mod, { c, gruppo, radice });
 proveMessaggioIban(mod, { c, gruppo, radice });
 await proveEcoFantasma(mod, { c, gruppo });
 proveFiltriRitocchi(mod, { c, gruppo, radice });
+proveLandingInvisibleDerm(mod, { c, gruppo, radice });
 rmSync(dove, { recursive: true, force: true });
 
 console.log("");

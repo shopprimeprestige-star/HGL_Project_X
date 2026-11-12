@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouterState } from "@tanstack/react-router";
 import { preload } from "react-dom";
-import { CARATTERE_INTER, usaInter } from "@/lib/carattere";
+import { CARATTERE_INTER, paginaInItaliano, usaInter } from "@/lib/carattere";
 /*  ── ⚠️ IL MOTORE DELLA CONSULENZA NON STA PIÙ NEL PEZZO D'AVVIO ──────────
     Misurato: 849 kB il pezzo d'avvio, di cui 400 il motore — caricato su ogni
     pagina, CRM compreso, dove non disegna niente. Adesso arriva a parte: vedi
@@ -174,7 +174,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
   const inter = usaInter(percorso);
   if (inter) preload(CARATTERE_INTER, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
   return (
-    <html lang="en" data-carattere={inter ? "inter" : undefined}>
+    <html lang={paginaInItaliano(percorso) ? "it" : "en"} data-carattere={inter ? "inter" : undefined}>
       <head>
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: SPIA_PEZZI }} />

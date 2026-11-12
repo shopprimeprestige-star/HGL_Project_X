@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
+import { ALT_ID, CAMPI_TESTO_ID, SLOT_ID } from "@/landing/testi-invisible-derm";
 
 export type Review = {
   id: string;
@@ -161,6 +162,17 @@ export const LANDING_SCHEMA: SectionDef[] = [
       { key: "slogan.eyebrow", label: "Eyebrow", type: "text", default: "— " + NOME_PRODOTTO + " —" },
       { key: "slogan.h2", label: "Titolo H2", type: "textarea", default: "Se non si vede,\n[a]è reale.[/a]" },
       { key: "slogan.body", label: "Body", type: "text", default: "Indistinguibile dalla cute. Anche a distanza di contatto." },
+    ],
+  },
+  //  Pagina /invisible-derm: solo i media (chiavi `id.*`), le descrizioni (alt) le liberatorie e le trascrizioni.
+  //  Campo vuoto = il pezzo non si disegna. I testi della pagina stanno in testi-invisible-derm.ts.
+  {
+    id: "invisible-derm",
+    title: "Landing Invisible Derm (/invisible-derm)",
+    fields: [
+      ...SLOT_ID.map((s): FieldDef => ({ key: s.chiave, label: s.label, type: s.tipo, default: "" })),
+      ...Object.entries(ALT_ID).map(([key, def]): FieldDef => ({ key, label: `Descrizione per chi non vede · ${key.replace(/\.alt$/, "")}`, type: "text", default: def })),
+      ...CAMPI_TESTO_ID.map((l): FieldDef => ({ key: l.chiave, label: l.label, type: l.tipo, default: "" })),
     ],
   },
 ];
