@@ -203,6 +203,7 @@ import { Route as ApiCrmManychatRouteImport } from './routes/api.crm.manychat'
 import { Route as ApiCrmLeadSyncRouteImport } from './routes/api.crm.lead-sync'
 import { Route as ApiCrmInvitoRouteImport } from './routes/api.crm.invito'
 import { Route as ApiCrmGoogleDriveRouteImport } from './routes/api.crm.google-drive'
+import { Route as ApiCrmFattureBulkRouteImport } from './routes/api.crm.fatture-bulk'
 import { Route as ApiCrmFasciaModoRouteImport } from './routes/api.crm.fascia-modo'
 import { Route as ApiCrmDocumentoRouteImport } from './routes/api.crm.documento'
 import { Route as ApiCrmDisponibilitaRouteImport } from './routes/api.crm.disponibilita'
@@ -1214,6 +1215,11 @@ const ApiCrmGoogleDriveRoute = ApiCrmGoogleDriveRouteImport.update({
   path: '/api/crm/google-drive',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrmFattureBulkRoute = ApiCrmFattureBulkRouteImport.update({
+  id: '/api/crm/fatture-bulk',
+  path: '/api/crm/fatture-bulk',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrmFasciaModoRoute = ApiCrmFasciaModoRouteImport.update({
   id: '/api/crm/fascia-modo',
   path: '/api/crm/fascia-modo',
@@ -1460,6 +1466,7 @@ export interface FileRoutesByFullPath {
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
+  '/api/crm/fatture-bulk': typeof ApiCrmFattureBulkRoute
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
@@ -1675,6 +1682,7 @@ export interface FileRoutesByTo {
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
+  '/api/crm/fatture-bulk': typeof ApiCrmFattureBulkRoute
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
@@ -1896,6 +1904,7 @@ export interface FileRoutesById {
   '/api/crm/disponibilita': typeof ApiCrmDisponibilitaRoute
   '/api/crm/documento': typeof ApiCrmDocumentoRoute
   '/api/crm/fascia-modo': typeof ApiCrmFasciaModoRoute
+  '/api/crm/fatture-bulk': typeof ApiCrmFattureBulkRoute
   '/api/crm/google-drive': typeof ApiCrmGoogleDriveRoute
   '/api/crm/invito': typeof ApiCrmInvitoRoute
   '/api/crm/lead-sync': typeof ApiCrmLeadSyncRoute
@@ -2118,6 +2127,7 @@ export interface FileRouteTypes {
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
+    | '/api/crm/fatture-bulk'
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
@@ -2333,6 +2343,7 @@ export interface FileRouteTypes {
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
+    | '/api/crm/fatture-bulk'
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
@@ -2553,6 +2564,7 @@ export interface FileRouteTypes {
     | '/api/crm/disponibilita'
     | '/api/crm/documento'
     | '/api/crm/fascia-modo'
+    | '/api/crm/fatture-bulk'
     | '/api/crm/google-drive'
     | '/api/crm/invito'
     | '/api/crm/lead-sync'
@@ -2732,6 +2744,7 @@ export interface RootRouteChildren {
   ApiCrmDisponibilitaRoute: typeof ApiCrmDisponibilitaRoute
   ApiCrmDocumentoRoute: typeof ApiCrmDocumentoRoute
   ApiCrmFasciaModoRoute: typeof ApiCrmFasciaModoRoute
+  ApiCrmFattureBulkRoute: typeof ApiCrmFattureBulkRoute
   ApiCrmGoogleDriveRoute: typeof ApiCrmGoogleDriveRoute
   ApiCrmInvitoRoute: typeof ApiCrmInvitoRoute
   ApiCrmLeadSyncRoute: typeof ApiCrmLeadSyncRoute
@@ -4185,6 +4198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrmGoogleDriveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crm/fatture-bulk': {
+      id: '/api/crm/fatture-bulk'
+      path: '/api/crm/fatture-bulk'
+      fullPath: '/api/crm/fatture-bulk'
+      preLoaderRoute: typeof ApiCrmFattureBulkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/crm/fascia-modo': {
       id: '/api/crm/fascia-modo'
       path: '/api/crm/fascia-modo'
@@ -4584,6 +4604,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrmDisponibilitaRoute: ApiCrmDisponibilitaRoute,
   ApiCrmDocumentoRoute: ApiCrmDocumentoRoute,
   ApiCrmFasciaModoRoute: ApiCrmFasciaModoRoute,
+  ApiCrmFattureBulkRoute: ApiCrmFattureBulkRoute,
   ApiCrmGoogleDriveRoute: ApiCrmGoogleDriveRoute,
   ApiCrmInvitoRoute: ApiCrmInvitoRoute,
   ApiCrmLeadSyncRoute: ApiCrmLeadSyncRoute,

@@ -84,6 +84,7 @@ import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
+import { proveFattureBulk } from "./fatture-bulk.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 import { proveSpesaLead } from "./spesa-lead.mjs";
 
@@ -804,6 +805,32 @@ const MODULI = [
   "messaggi-automatici/catalogo",
   "messaggi-automatici/adattatore",
   "messaggi-automatici/vista",
+  //  ── FATTURE BULK (commessa 2026-11-12-fatture-bulk) ────────────────────
+  //   ⚠️ L'elenco lo scrive il solo compito T0: gli altri aggiungono il loro
+  //   file `prove/fatture-bulk/<nome>.mjs` (trovato da `proveFattureBulk`) e
+  //   NON toccano questo. Le prove dei moduli sono in prove/fatture-bulk/.
+  //   I moduli `.server` si impacchettano come gli altri: devono restare
+  //   importabili senza ambiente (client Supabase solo dietro `supabaseAdmin`,
+  //   che è pigro; porte iniettate), altrimenti si rompe il bundle di TUTTE le prove.
+  "euro",
+  "fatture/archivio",
+  "fatture/descrizioni",
+  "fatture/bulk/tipi",
+  "fatture/bulk/chiavi",
+  "fatture/bulk/lettura-bulk",
+  "fatture/bulk/raggruppa",
+  "fatture/bulk/regole-riga",
+  "fatture/bulk/doppioni-e-schede",
+  "fatture/bulk/regole-lotto",
+  "fatture/bulk/da-importo-a-fattura",
+  "fatture/bulk/valuta",
+  "fatture/bulk/emissione-bulk",
+  "fatture/bulk/lucchetto.server",
+  "fatture/bulk/bulk.server",
+  "fatture/bulk/emissione.server",
+  "fatture/bulk/coda",
+  "fatture/bulk/immagini",
+  "fatture/bulk/usa-lotto",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21591,6 +21618,7 @@ proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
 proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
+await proveFattureBulk(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
