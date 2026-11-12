@@ -62,22 +62,8 @@ import { valutaRigaNelLotto } from "./valuta";
 const PREFISSO_EMESSE = "fattura:";
 const PREFISSO_BOZZE = "fattura_bozza:";
 
-/** Una scheda del CRM (`crm_leads`: id + `data`) nella forma che serve all'abbinamento. Del telefono bastano le
- *  ultime 9 cifre. Sta qui perché la rotta ne ha bisogno per costruire la porta `schede`. */
-export function schedaDaLead(
-  id: string,
-  d: { nome?: unknown; cognome?: unknown; codiceFiscale?: unknown; telefono?: unknown },
-): SchedaPerAbbinamento {
-  return {
-    id,
-    nome: String(d.nome ?? ""),
-    cognome: String(d.cognome ?? ""),
-    codiceFiscale: String(d.codiceFiscale ?? ""),
-    telefono: String(d.telefono ?? "")
-      .replace(/\D/g, "")
-      .slice(-9),
-  };
-}
+// La mappatura delle schede sta in un modulo puro condiviso col browser (anteprima e server abbinano uguale).
+export { schedaDaLead } from "./scheda-da-lead";
 
 const ferma = (codice: CodiceErrore, messaggio?: string): RispostaEmettiRiga => ({
   ok: true,
