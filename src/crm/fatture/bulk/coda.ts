@@ -23,6 +23,8 @@
  *  l'elemento finisce in errore `occupato`, sempre fuori dal freno.
  *
  *  ── IL FRENO ─────────────────────────────────────────────────────────────
+ *  `credito` (402), `non_autorizzato` (401) e `non_permesso` (403) fermano
+ *  subito, al primo esito: si ripresenterebbero identici a ogni gruppo.
  *  Cinque elementi di fila falliti per davvero (dopo i loro tentativi) = si
  *  ferma tutto: con un guasto vero non ha senso fare altre 195 chiamate. Un
  *  successo azzera il conto. Quelli già partiti finiscono e si registrano;
@@ -42,6 +44,10 @@ export class ErroreCoda extends Error {
 
 /** I soli guasti che passano da soli. */
 export const CODICI_RIPETIBILI: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>(["rete", "limite", "timeout"]);
+
+/** Guasti che non passano e che si ripresenterebbero identici a ogni gruppo: credito finito (402), sessione
+ *  scaduta (401), permesso mancante (403). Fermano la coda al PRIMO esito, senza aspettare i 5 errori. */
+const CODICI_CHE_FERMANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>(["credito", "non_autorizzato", "non_permesso"]);
 
 /** Quanto si aspetta fra due richieste a un gruppo occupato, e quante volte al massimo. */
 export const ATTESA_OCCUPATO_MS = 5_000;
@@ -85,6 +91,9 @@ type Esito<R> = { ok: true; valore: R } | { ok: false; codice: CodiceErrore };
 
 export async function eseguiCoda<T, R>(opzioni: OpzioniCoda<T, R>): Promise<RisultatoCoda<R>> {
   const { elementi, esegui, attendi, segnale, perOgnuno } = opzioni;
+  const operai = opzioni.inParallelo ?? IN_PARALLELO;
+  // ⚠️ Zero o meno non lancia nessun operaio: la coda sembrerebbe finita senza aver fatto niente.
+  if (!Number.isInteger(operai) || operai < 1) throw new Error("inParallelo deve essere un intero di almeno 1");
   const esiti: RisultatoCoda<R>["esiti"] = elementi.map(() => undefined);
   let prossimo = 0;
   let diFila = 0;
@@ -100,6 +109,8 @@ export async function eseguiCoda<T, R>(opzioni: OpzioniCoda<T, R>): Promise<Risu
       try {
         return { ok: true, valore: await esegui(elemento, tentativo) };
       } catch (e) {
+        // Dopo «annulla» una richiesta interrotta lancia AbortError: non è un guasto, l'elemento resta «non fatto».
+        if (segnale?.aborted) return undefined;
         const codice = e instanceof ErroreCoda ? e.codice : "interno";
         if (codice === "occupato" && attese < MAX_ATTESE_OCCUPATO) {
           attese++;
@@ -123,14 +134,14 @@ export async function eseguiCoda<T, R>(opzioni: OpzioniCoda<T, R>): Promise<Risu
       perOgnuno?.(i, esito);
       if (esito.ok) diFila = 0;
       // `occupato` non è un fallimento: non conta e non azzera.
-      else if (esito.codice !== "occupato" && ++diFila >= ERRORI_DI_FILA && !fermataPer) {
-        fermataPer = "freno";
-        codiceFreno = esito.codice;
+      else if (CODICI_CHE_FERMANO.has(esito.codice) || (esito.codice !== "occupato" && ++diFila >= ERRORI_DI_FILA)) {
+        fermataPer ??= "freno";
+        codiceFreno ??= esito.codice;
       }
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(opzioni.inParallelo ?? IN_PARALLELO, elementi.length) }, operaio));
+  await Promise.all(Array.from({ length: Math.min(operai, elementi.length) }, operaio));
   if (!fermataPer && segnale?.aborted && esiti.includes(undefined)) fermataPer = "annullata";
   return { esiti, ...(fermataPer ? { fermataPer } : {}), ...(codiceFreno ? { codiceFreno } : {}) };
 }

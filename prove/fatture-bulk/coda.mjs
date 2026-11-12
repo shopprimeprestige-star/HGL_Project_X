@@ -158,6 +158,69 @@ export async function prove(mod, { c, gruppo, radice }) {
       [x.chiamate.length, x.r.fermataPer]);
   }
 
+  gruppo("BULK · T8 · LA CODA · CREDITO, SESSIONE E PERMESSO FERMANO SUBITO");
+  for (const codice of ["credito", "non_autorizzato", "non_permesso"]) {
+    // 10 elementi, uno alla volta, il secondo fa il guasto: non parte più niente dopo.
+    const x = await corri({ n: 10, copione: (el) => { if (el === 1) throw E(codice); return "ok"; }, opz: { inParallelo: 1 } });
+    c(`«${codice}» al secondo: ferma subito (2 chiamate, 8 non fatti)`, [2, "freno", codice, 8],
+      [x.chiamate.length, x.r.fermataPer, x.r.codiceFreno, x.r.esiti.filter((e) => e === undefined).length]);
+    c(`«${codice}»: i non fatti sono in fondo, il guasto è registrato`, [{ ok: false, codice }, true],
+      [x.r.esiti[1], x.r.esiti.slice(2).every((e) => e === undefined)]);
+  }
+  {
+    // In parallelo: quelli già partiti finiscono, ma nessuno nuovo parte.
+    const attivi = [];
+    const lavoro = Q.eseguiCoda({
+      elementi: Array.from({ length: 10 }, (_, i) => i),
+      esegui: async (el) => { const d = differita(); attivi.push([el, d]); await d.p; },
+      attendi: async () => {},
+    });
+    await microtask();
+    c("partono 3", [0, 1, 2], attivi.map(([el]) => el));
+    attivi[1][1].ko(E("credito"));
+    await microtask();
+    attivi[0][1].ok(); attivi[2][1].ok();
+    const r = await lavoro;
+    c("il 402 del secondo ferma: nessun quarto elemento parte, gli altri due finiscono", [3, "freno", "credito", [true, false, true]],
+      [attivi.length, r.fermataPer, r.codiceFreno, r.esiti.slice(0, 3).map((e) => e.ok)]);
+  }
+
+  gruppo("BULK · T8 · LA CODA · ANNULLARE NON È UN GUASTO");
+  {
+    // Dopo «annulla» una fetch interrotta lancia AbortError: non è un fallimento e non conta nel freno.
+    const ctl = new AbortController();
+    const visti = [];
+    const x = await corri({
+      n: 8, opz: { inParallelo: 1, segnale: ctl.signal, perOgnuno: (i, e) => visti.push([i, e.ok]) },
+      copione: (el) => {
+        if (el < 2) return "ok";
+        ctl.abort();
+        const e = new Error("The operation was aborted"); e.name = "AbortError"; throw e;
+      },
+    });
+    c("AbortError dopo l'annulla: l'elemento resta «non fatto», non registrato, niente freno", ["annullata", undefined, [[0, true], [1, true]], undefined],
+      [x.r.fermataPer, x.r.esiti[2], visti, x.r.codiceFreno]);
+  }
+  {
+    // 4 guasti veri, poi l'annulla con AbortError: non deve essere il quinto di fila.
+    const ctl = new AbortController();
+    const x = await corri({
+      n: 8, opz: { inParallelo: 1, segnale: ctl.signal },
+      copione: (el) => {
+        if (el < 4) throw E("illeggibile");
+        ctl.abort(); const e = new Error("aborted"); e.name = "AbortError"; throw e;
+      },
+    });
+    c("4 errori veri e poi l'annulla: si ferma per annullamento, non per freno", ["annullata", undefined], [x.r.fermataPer, x.r.codiceFreno]);
+  }
+
+  gruppo("BULK · T8 · LA CODA · inParallelo NON VALIDO");
+  for (const n of [0, -1, 1.5, NaN]) {
+    let errore = null;
+    try { await Q.eseguiCoda({ elementi: [1], esegui: async () => 1, attendi: async () => {}, inParallelo: n }); } catch (e) { errore = e.message; }
+    c(`inParallelo ${n} → errore, non una coda ferma senza dirlo`, true, typeof errore === "string" && /inParallelo/.test(errore));
+  }
+
   gruppo("BULK · T8 · LA CODA · «OCCUPATO» (un'altra scheda sta già leggendo)");
   {
     const x = await corri({ copione: (_, t, n) => { if (n <= 2) throw E("occupato"); return "fatto"; } });
