@@ -19,7 +19,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { BUCKET_DATI_FATTURA } from "@/crm/fatture/dati-fattura.server";
 import { archivioProtettoSu } from "@/crm/fatture/bulk/emissione-bulk";
 import { portaLucchettoSu } from "@/crm/fatture/bulk/lucchetto.server";
-import { emettiRiga } from "@/crm/fatture/bulk/emissione.server";
+import { emettiRiga, schedaDaLead } from "@/crm/fatture/bulk/emissione.server";
 import {
   archivioSoloBulk,
   chiamaOpenRouter,
@@ -97,6 +97,46 @@ function porteVere(utente: string): PorteBulk {
     //  ⚠️ Solo codici (`"leggi-gruppo occupato"`): mai id, nomi, percorsi o testi.
     log: (codice) => console.warn(`[fatture-bulk] ${codice}`),
     utente,
+    //  Tutte le schede del titolare, a pagine di 1000 per id (ogni pagina è una sottorichiesta). Solo i quattro campi
+    //  che servono all'abbinamento, estratti dal JSON: né indirizzi né note escono dal database.
+    schede: async () => {
+      const crm = supabaseAdmin as unknown as {
+        from: (t: string) => {
+          select: (s: string) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => {
+              order: (k: string) => {
+                range: (
+                  da: number,
+                  a: number,
+                ) => PromiseLike<{
+                  data: Record<string, unknown>[] | null;
+                  error: { message: string } | null;
+                }>;
+              };
+            };
+          };
+        };
+      };
+      const tutte: ReturnType<typeof schedaDaLead>[] = [];
+      for (let da = 0; ; da += 1000) {
+        const { data, error } = await crm
+          .from("crm_leads")
+          .select(
+            "id,nome:data->>nome,cognome:data->>cognome,codiceFiscale:data->>codiceFiscale,telefono:data->>telefono",
+          )
+          .eq("user_id", utente)
+          .order("id")
+          .range(da, da + 999);
+        //  ⚠️ Un elenco a metà non deve somigliare a «tutte»: la scelta a mano di una scheda mancante si bloccherebbe.
+        if (error) throw new Error(error.message);
+        const blocco = data ?? [];
+        for (const r of blocco) tutte.push(schedaDaLead(String(r.id), r));
+        if (blocco.length < 1000) return tutte;
+      }
+    },
   };
 }
 

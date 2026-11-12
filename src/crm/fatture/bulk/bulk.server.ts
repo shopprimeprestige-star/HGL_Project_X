@@ -60,6 +60,7 @@ import type {
   RispostaBulk,
   RispostaEmettiRiga,
   RispostaErrore,
+  SchedaPerAbbinamento,
   SintesiLotto,
   TestataLotto,
   TipoFile,
@@ -97,6 +98,9 @@ export interface PorteBulk {
   log: (codice: string) => void;
   /** Utente proprietario dei dati (per i percorsi del bucket). */
   utente: string;
+  /** TUTTE le schede del CRM, nella forma dell'abbinamento (T12: la riga si rivaluta sul server prima di emettere,
+   *  e una scelta a mano su una scheda mancante dall'elenco verrebbe bloccata). Rilancia se non le legge. */
+  schede: () => Promise<SchedaPerAbbinamento[]>;
 }
 
 /** ⚠️ Scrivere e cancellare, da qui, vale SOLO per le chiavi `bulk_fatture_*`: una chiave `fattura:*` o
@@ -257,7 +261,7 @@ async function scrivi(
   if (errore) throw new ErroreBulk("scrittura_fallita");
 }
 
-async function testataDi(porte: PorteBulk, lotto: string): Promise<TestataLotto | null> {
+export async function testataDi(porte: PorteBulk, lotto: string): Promise<TestataLotto | null> {
   return leggiJson<TestataLotto>(await porte.archivio.leggi(chiaveTestata(lotto)));
 }
 
@@ -268,7 +272,10 @@ async function testataOppureErrore(porte: PorteBulk, lotto: string): Promise<Tes
 }
 
 /** Tutti i file del lotto, per indice. UNA lettura (≤ 600 chiavi). */
-async function fileDelLotto(porte: PorteBulk, lotto: string): Promise<Map<number, FileLotto>> {
+export async function fileDelLotto(
+  porte: PorteBulk,
+  lotto: string,
+): Promise<Map<number, FileLotto>> {
   const righe = await porte.archivio.leggiPrefissoPerChiave(prefissoFile(lotto));
   const m = new Map<number, FileLotto>();
   for (const r of righe) {
@@ -278,7 +285,10 @@ async function fileDelLotto(porte: PorteBulk, lotto: string): Promise<Map<number
   return m;
 }
 
-async function righeDelLotto(porte: PorteBulk, lotto: string): Promise<Map<string, DecisioniRiga>> {
+export async function righeDelLotto(
+  porte: PorteBulk,
+  lotto: string,
+): Promise<Map<string, DecisioniRiga>> {
   const righe = await porte.archivio.leggiPrefissoPerChiave(prefissoRighe(lotto));
   const m = new Map<string, DecisioniRiga>();
   for (const r of righe) {
@@ -609,7 +619,7 @@ export async function chiudiRiga(
 /** I file nel bucket che nessun file del lotto richiama (e quelli di righe chiuse): la cartella si ELENCA
  *  PRIMA e si leggono le chiavi DOPO — un file caricato nel mezzo ha già la sua chiave (creata prima
  *  dell'upload) e non sembra orfano. Torna quanti ne ha tolti. */
-async function spazzaOrfani(porte: PorteBulk, lotto: string): Promise<number> {
+export async function spazzaOrfani(porte: PorteBulk, lotto: string): Promise<number> {
   const cartella = cartellaBucket(porte.utente, lotto);
   const nomi = await porte.bucket.elenca(cartella);
   if (nomi === null) throw new ErroreBulk("rete");
