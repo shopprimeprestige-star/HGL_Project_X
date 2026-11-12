@@ -219,6 +219,30 @@ export async function prove(mod, { c, gruppo }) {
   c("CF letto vuoto non si abbina alle schede senza CF", [null],
     [D.abbinaScheda(campi({ codiceFiscale: "", nome: "Anna", cognome: "Gialli" }), "", [sch("v", "Piero", "Rossi", "")]).scheda]);
 
+  gruppo("BULK · T4 · ABBINAMENTO · TELEFONO + COGNOME CON UN NOME NON COMPATIBILE = CONFERMA (madre e figlia)");
+  // Stesso telefono e stesso cognome, ma il nome della scheda è un altro: se c'è solo la scheda della madre, la fattura
+  // della figlia non deve collegarsi in silenzio. Il collegamento resta, ma da confermare.
+  const madre = [sch("madre", "Anna", "Verdi", "", "331234567")];
+  const figlia = D.abbinaScheda(campi({ codiceFiscale: "", nome: "Lucia", cognome: "Verdi" }), tel, madre);
+  c("telefono + cognome, nome della scheda diverso → collegata, da confermare", ["madre", ["scheda_telefono_nome_diverso:conferma"]], [figlia.scheda?.id, sigle(figlia.motivi)]);
+  c("il motivo dice di controllare che sia la stessa persona", true, /stessa persona/.test(figlia.motivi[0]?.testo ?? ""));
+  c("il motivo guarda il campo nome", "nome", figlia.motivi[0]?.campo);
+  c("nome uguale con accenti e maiuscole → nessun motivo", [],
+    D.abbinaScheda(campi({ codiceFiscale: "", nome: "LUCÌA" }), tel, [sch("s", "lucia", "Verdi", "", tel)]).motivi);
+  c("nome della scheda con un secondo nome (Lucia Maria / Lucia) → compatibile", [],
+    D.abbinaScheda(campi({ codiceFiscale: "", nome: "Lucia" }), tel, [sch("s", "Lucia Maria", "Verdi", "", tel)]).motivi);
+  c("… e al contrario (la scheda ha solo Lucia, la riga Lucia Maria) → compatibile", [],
+    D.abbinaScheda(campi({ codiceFiscale: "", nome: "Lucia Maria" }), tel, [sch("s", "Lucia", "Verdi", "", tel)]).motivi);
+  c("scheda con la sola iniziale («L.») → compatibile con Lucia", [], D.abbinaScheda(campi({ codiceFiscale: "" }), tel, schede).motivi);
+  c("… ma «M.» non è compatibile con Lucia", ["scheda_telefono_nome_diverso:conferma"],
+    sigle(D.abbinaScheda(campi({ codiceFiscale: "" }), tel, [sch("s", "M.", "Verdi", "", tel)]).motivi));
+  c("nome della riga vuoto → non si può dire che sia compatibile: conferma", ["scheda_telefono_nome_diverso:conferma"],
+    sigle(D.abbinaScheda(campi({ codiceFiscale: "", nome: "" }), tel, madre).motivi));
+  c("nome diverso e CF della scheda diverso → i due motivi, il nome per primo", ["scheda_telefono_nome_diverso:conferma", "scheda_cf_diverso:conferma"],
+    sigle(D.abbinaScheda(campi({ codiceFiscale: CF_PROVA, nome: "Lucia" }), tel, [sch("s", "Anna", "Verdi", CF_ALTRO, tel)]).motivi));
+  c("per CF il nome diverso non conta (il CF identifica la persona)", ["s", []],
+    ((r) => [r.scheda?.id, r.motivi])(D.abbinaScheda(campi(), tel, [sch("s", "Anna", "Verdi", CF_PROVA, tel)])));
+
   gruppo("BULK · T4 · ABBINAMENTO · LA SCHEDA CON UN CF DIVERSO = CONFERMA");
   const cfDiv = D.abbinaScheda(campi({ codiceFiscale: CF_PROVA }), "331234567", [sch("t", "L.", "Verdi", CF_ALTRO, "331234567")]);
   c("per telefono + cognome, ma il CF della scheda è diverso → collegata, da confermare", ["t", ["scheda_cf_diverso:conferma"]], [cfDiv.scheda?.id, sigle(cfDiv.motivi)]);

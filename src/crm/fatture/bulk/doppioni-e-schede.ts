@@ -191,7 +191,10 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
   return [...bloccanti, ...conferme, ...avvisi];
 }
 
-/** Le impronte dei pagamenti già fatturati o già caricati (anche da `origineBulk.impronte`, che sopravvive al lotto cancellato). */
+/** Le impronte dei pagamenti già fatturati o già caricati (anche da `origineBulk.impronte`, che sopravvive al lotto cancellato).
+ *  ⚠️ VA USATA SOLO PER I FILE DI PAGAMENTO. Tessera e indirizzo si ricaricano legittimamente per un secondo pagamento della
+ *  stessa persona: saltarne la lettura perché «già vista» farebbe perdere righe buone. Per questo `valutaRiga` (T10) scrive
+ *  in `origineBulk.impronte` la sola impronta del pagamento, e chi decide cosa rileggere deve guardare solo i file di tipo pagamento. */
 export function impronteGiaViste(fonti: FontiDoppioni): Set<string> {
   const viste = new Set<string>();
   for (const f of [...fonti.emesse, ...fonti.bozze]) for (const i of f.origineBulk?.impronte ?? []) viste.add(i);
@@ -215,9 +218,20 @@ const ultime9 = (t: string) => {
   return cifre.length >= 9 ? cifre.slice(-9) : "";
 };
 
+/** Nomi compatibili: tutte le parole del più corto stanno nell'altro («Lucia» e «Lucia Maria»); una sola iniziale («L.»)
+ *  vale per una parola che comincia con quella lettera. Vuoto da una parte = non si può dire: non compatibili. */
+function nomiCompatibili(a: string, b: string): boolean {
+  const [pa, pb] = [parole(a), parole(b)];
+  if (!pa.length || !pb.length) return false;
+  const [corto, lungo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  const uguale = (x: string, y: string) => x === y || (x.length === 1 && y.startsWith(x)) || (y.length === 1 && x.startsWith(y));
+  return corto.every((p) => lungo.some((q) => uguale(p, q)));
+}
+
 /** SPEC §5, il primo criterio che trova UNA sola scheda vince: CF; telefono + cognome; solo nome e cognome.
  *  Più schede allo stesso criterio (omonimi, CF doppio) = quel criterio non decide, si passa al successivo;
  *  alla fine, nessuna scheda: la fattura resta senza (il caso supportato di «un'altra fattura»). Non crea e non modifica schede.
+ *  Il telefono + cognome con un nome non compatibile collega ma chiede conferma (madre e figlia con lo stesso numero).
  *  shortcut: il nome della scheda lo spezza chi chiama; qui il confronto è per parole, quindi regge «Rossi Mario» e «Mario Rossi». */
 export function abbinaScheda(campi: CampiRiga, telefono: string, schede: SchedaPerAbbinamento[]): AbbinamentoScheda {
   const miaCf = cf(campi.codiceFiscale);
@@ -248,7 +262,22 @@ export function abbinaScheda(campi: CampiRiga, telefono: string, schede: SchedaP
           }),
         )
       : null;
-  if (perTelefono) return { scheda: perTelefono, motivi: cfDiverso(perTelefono) };
+  // Stesso telefono e cognome ma nome diverso (madre e figlia, stesso numero): collegata, ma da confermare.
+  if (perTelefono)
+    return {
+      scheda: perTelefono,
+      motivi: [
+        ...(nomiCompatibili(campi.nome, perTelefono.nome)
+          ? []
+          : [{
+              codice: "scheda_telefono_nome_diverso",
+              gravita: "conferma" as const,
+              campo: "nome" as const,
+              testo: "Scheda collegata per il telefono e il cognome, ma il nome è diverso (un familiare con lo stesso numero?): controlla che sia la stessa persona, oppure cambia o togli il collegamento.",
+            }]),
+        ...cfDiverso(perTelefono),
+      ],
+    };
 
   // 3. Solo nome e cognome (almeno due parole: un cognome solo non identifica nessuno).
   const mioNome = nomeChiave(campi.nome, campi.cognome);
