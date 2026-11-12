@@ -506,6 +506,15 @@ export function LandingContentEditor() {
         >
           <ExternalLink className="h-3 w-3" /> Vedi la landing
         </a>
+        <a
+          href="/invisible-derm?modifica"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-[11.5px] text-amber-900 hover:bg-amber-100"
+          title="Apre la landing Invisible Derm: tocchi una sezione e cambi le sue immagini"
+        >
+          <ImageIcon className="h-3 w-3" /> Cambia immagini sulla pagina Invisible Derm
+        </a>
         {sporco && (
           <Button onClick={annullaTutto} size="sm" variant="ghost" className="gap-1.5 text-muted-foreground">
             <Undo2 className="h-3.5 w-3.5" /> Annulla

@@ -25,11 +25,17 @@ function normalizza(percorso: string): string {
 }
 
 /** true solo per "/", "/blog", "/blog/*", "/CRM", "/CRM/*" tranne "/CRM/webinar" e "/CRM/webinar/*",
- *  e "/chat": la chat WhatsApp del CRM da sola, che deve avere lo stesso aspetto. */
+ *  "/chat" (la chat WhatsApp del CRM da sola, che deve avere lo stesso aspetto)
+ *  e "/invisible-derm" (la landing, che ha la grammatica della home). */
 export function usaInter(percorso: string): boolean {
   const p = normalizza(percorso);
-  if (p === "/" || p === "/chat") return true;
+  if (p === "/" || p === "/chat" || p === "/invisible-derm") return true;
   if (p === "/blog" || p.startsWith("/blog/")) return true;
   if (p === "/crm/webinar" || p.startsWith("/crm/webinar/")) return false;
   return p === "/crm" || p.startsWith("/crm/");
+}
+
+/** true per le pagine scritte in italiano da capo a fondo (`lang="it"`); le altre restano come sono. */
+export function paginaInItaliano(percorso: string): boolean {
+  return normalizza(percorso) === "/invisible-derm";
 }

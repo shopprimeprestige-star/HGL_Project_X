@@ -7,6 +7,13 @@ type Props = {
   caption?: string;
   light?: boolean;
   className?: string;
+  // Opzioni per le pagine senza segnaposto (default = comportamento della home).
+  /** true = senza file non disegna niente (invece del riquadro grigio). */
+  nascondiSeVuoto?: boolean;
+  /** Classe Tailwind della proporzione (es. "aspect-[4/5]") al posto del min-h fisso. */
+  proporzione?: string;
+  /** Foto in cima alla pagina: caricata subito, mai lazy. */
+  priorita?: boolean;
 };
 
 const VIDEO_EXT = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i;
@@ -24,7 +31,11 @@ export function MediaSlot({
   caption,
   light = true,
   className = "",
+  nascondiSeVuoto = false,
+  proporzione,
+  priorita = false,
 }: Props) {
+  if (!src && nascondiSeVuoto) return null;
   if (!src) {
     return (
       <PlaceholderBox
@@ -38,7 +49,8 @@ export function MediaSlot({
   }
   const resolved = detectType(src, type);
   const wrap =
-    "relative overflow-hidden rounded-md min-h-[360px] " +
+    "relative overflow-hidden rounded-md " +
+    (proporzione ? proporzione + " " : "min-h-[360px] ") +
     (light ? "bg-light-grid" : "bg-blueprint-fine") +
     " " +
     className;
@@ -60,7 +72,8 @@ export function MediaSlot({
       <img
         src={src}
         alt={alt}
-        loading="lazy"
+        loading={priorita ? "eager" : "lazy"}
+        fetchPriority={priorita ? "high" : undefined}
         className="absolute inset-0 w-full h-full object-cover"
       />
     </div>

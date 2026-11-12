@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Plus, Minus } from "lucide-react";
 import { NOME_PRODOTTO } from "@/landing/testi-sito";
 
@@ -124,12 +124,16 @@ const FAQS: FaqItem[] = [
   },
 ];
 
-export function FaqAccordion() {
+/** `voci` = l'elenco di un'altra pagina; senza, le domande della home. Con `voci` la domanda sta dentro un titolo H3. */
+export function FaqAccordion({ voci }: { voci?: FaqItem[] } = {}) {
   const [open, setOpen] = useState<number>(-1);
+  const base = useId();
+  const elenco = voci ?? FAQS;
+  const Titolo = voci ? "h3" : "div";
 
   return (
     <div className="space-y-3 max-w-3xl mx-auto">
-      {FAQS.map((item, i) => {
+      {elenco.map((item, i) => {
         const isOpen = open === i;
         return (
           <div
@@ -138,8 +142,11 @@ export function FaqAccordion() {
               isOpen ? "border-brand/60" : "border-ink/10"
             }`}
           >
+            <Titolo>
             <button
               onClick={() => setOpen(isOpen ? -1 : i)}
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? `${base}-${i}` : undefined}
               className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
             >
               <span className="flex items-center gap-4">
@@ -168,8 +175,9 @@ export function FaqAccordion() {
                 )}
               </span>
             </button>
+            </Titolo>
             {isOpen && (
-              <div className="px-5 pb-5 pl-16 text-sm text-ink-muted leading-relaxed">
+              <div id={`${base}-${i}`} className="px-5 pb-5 pl-16 text-sm text-ink-muted leading-relaxed">
                 {item.a}
               </div>
             )}
