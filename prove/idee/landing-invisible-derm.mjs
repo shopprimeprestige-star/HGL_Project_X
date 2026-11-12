@@ -100,5 +100,12 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   c("FAQ: aria-expanded e aria-controls", true, /aria-expanded=\{isOpen\}/.test(faq) && /aria-controls=/.test(faq));
   c("FAQ: aria-controls solo con la risposta aperta (mai un id che non c'è)", true, /aria-controls=\{isOpen \?/.test(faq));
   c("FAQ: senza elenco esterno restano le domande della home", true, /voci \?\? FAQS/.test(faq));
+  /* Editor visuale delle immagini (?modifica, solo con accesso al CRM) */
+  const editor = senzaCommenti(leggi(`${cartella}/ModificaImmagini.tsx`));
+  const chiaviNeiPunti = [...rotta.matchAll(/punto\("[^"]+", \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  c("editor: ogni punto foto/video ha una sezione da cui cambiarlo", [], T.SLOT_ID.map((s) => s.chiave).filter((k) => !chiaviNeiPunti.includes(k)));
+  c("editor: nessuna chiave inventata nei bottoni", [], chiaviNeiPunti.filter((k) => !T.SLOT_ID.some((s) => s.chiave === k)));
+  c("editor: si accende solo con ?modifica e un accesso aperto", true, /has\("modifica"\)/.test(editor) && /data\.session\?\.user/.test(editor));
+  c("editor: salva un campo solo, rileggendo la riga prima", true, /salvaCampoLanding\(/.test(editor) && /export async function salvaCampoLanding[\s\S]*?\.select\("data"\)[\s\S]*?\.upsert\(/.test(leggi("src/landing/landing-content.ts")));
   c("la home non importa niente della nuova pagina", false, /invisible-derm|testi-invisible/.test(leggi("src/routes/index.tsx")));
 }

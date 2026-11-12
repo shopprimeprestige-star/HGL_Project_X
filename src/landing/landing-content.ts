@@ -264,9 +264,40 @@ export function mergeLandingContent(raw: unknown): LandingContent {
   };
 }
 
+/** Avviso che il contenuto è cambiato (editor visuale sulla pagina): la pagina si ridisegna
+ *  subito con i dati appena salvati, senza ricaricare. */
+const EVENTO_AGGIORNATO = "landing-content-aggiornato";
+
+/** Cambia UN campo (immagine, video o testo) senza toccare il resto: rilegge la riga
+ *  appena prima di scrivere, così non riporta indietro modifiche fatte altrove. */
+export async function salvaCampoLanding(tipo: "media" | "texts", chiave: string, valore: string): Promise<void> {
+  const { data, error: errLettura } = await supabase
+    .from("landing_content")
+    .select("data")
+    .eq("id", "default")
+    .maybeSingle();
+  if (errLettura) throw errLettura;
+  const attuale = data?.data && typeof data.data === "object" ? (data.data as Record<string, any>) : {};
+  const nuovo = { ...attuale, [tipo]: { ...(attuale[tipo] || {}), [chiave]: valore } };
+  const { data: u } = await supabase.auth.getUser();
+  const { error } = await supabase.from("landing_content").upsert({
+    id: "default",
+    data: nuovo as any,
+    updated_at: new Date().toISOString(),
+    updated_by: u.user?.id ?? null,
+  });
+  if (error) throw error;
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENTO_AGGIORNATO, { detail: nuovo }));
+}
+
 export function useLandingContent() {
   const [content, setContent] = useState<LandingContent>(DEFAULT_LANDING);
   const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const aggiorna = (e: Event) => setContent(mergeLandingContent((e as CustomEvent).detail));
+    window.addEventListener(EVENTO_AGGIORNATO, aggiorna);
+    return () => window.removeEventListener(EVENTO_AGGIORNATO, aggiorna);
+  }, []);
   useEffect(() => {
     let mounted = true;
     supabase

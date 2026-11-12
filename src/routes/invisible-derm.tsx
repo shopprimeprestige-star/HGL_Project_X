@@ -50,6 +50,7 @@ import { CursoreConfronto } from "@/components/landing/invisible-derm/CursoreCon
 import { FooterId } from "@/components/landing/invisible-derm/FooterId";
 import { TabellaConfronto } from "@/components/landing/invisible-derm/TabellaConfronto";
 import { VideoSlot } from "@/components/landing/invisible-derm/VideoSlot";
+import { BarraModifica, PuntoModifica, useModificaAttiva } from "@/components/landing/invisible-derm/ModificaImmagini";
 import { useLandingContent } from "@/landing/landing-content";
 import {
   BOTTONE,
@@ -218,6 +219,11 @@ function InvisibleDerm() {
   useTracciamento();
   useFocusPrenota();
   const alt = (chiave: string) => text(`${chiave}.alt`);
+  const modifica = useModificaAttiva();
+  const punto = (titolo: string, chiavi: string[], liberatoria?: { chiave: string; testo: string }) => (
+    <PuntoModifica attiva={modifica} titolo={titolo} chiavi={chiavi} media={media} text={text} liberatoria={liberatoria} />
+  );
+  const LIB = "Ho la liberatoria scritta di chi è ritratto (senza, queste foto non compaiono sulla pagina)";
 
   const titolareFoto = media("id.titolareFoto");
   const heroFoto = media("id.heroFoto");
@@ -246,11 +252,13 @@ function InvisibleDerm() {
 
   return (
     <main id="top" className="min-h-screen overflow-x-hidden">
+      {modifica && <BarraModifica />}
       {/* 0 + 1 · RIGA DEL MARCHIO E HERO */}
       <section
         aria-labelledby="titolo-principale"
         className="bg-blueprint relative overflow-hidden before:pointer-events-none before:absolute before:inset-[-20%] before:content-[''] before:bg-[radial-gradient(600px_circle_at_30%_20%,var(--brand-velo-22)_0%,transparent_60%)] before:animate-[spotlight-drift_12s_ease-in-out_infinite] motion-reduce:before:animate-none"
       >
+        {punto("Inizio pagina", ["id.heroFoto", "id.titolareFoto"])}
         <div className="relative mx-auto max-w-7xl px-6 pb-16 pt-6 lg:px-10 lg:pb-24 lg:pt-8">
           <a href="#contenuto" className="sr-only focus:not-sr-only focus:absolute focus:left-6 focus:top-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-ink">
             Vai al contenuto
@@ -310,7 +318,8 @@ function InvisibleDerm() {
       </section>
 
       {/* 2 · CHE COS'È INVISIBLE DERM */}
-      <section aria-labelledby="cose-titolo" className="bg-light-panel">
+      <section aria-labelledby="cose-titolo" className="relative bg-light-panel">
+        {punto("Che cos'è", ["id.presentazioneVideo", "id.presentazionePoster"])}
         <div className={SEZIONE}>
           <div className={videoPres ? "grid items-start gap-10 lg:grid-cols-2 lg:gap-x-16 lg:gap-y-8" : "mx-auto max-w-5xl"}>
             <div className={videoPres ? "lg:col-start-1" : "mx-auto max-w-3xl text-center"}>
@@ -347,7 +356,8 @@ function InvisibleDerm() {
       </section>
 
       {/* 3 · IL CONFRONTO (la leva centrale) */}
-      <section aria-labelledby="confronto-titolo" className="bg-blueprint">
+      <section aria-labelledby="confronto-titolo" className="relative bg-blueprint">
+        {punto("Confronto", ["id.confronto1.patch", "id.confronto1.derm", "id.confronto2.patch", "id.confronto2.derm", "id.confronto3.patchClip", "id.confronto3.dermClip", "id.confronto3.patch", "id.confronto3.derm", "id.confrontoVideo", "id.confrontoVideoPoster"], { chiave: "id.confronto.liberatoria", testo: LIB })}
         <div className={SEZIONE}>
           <Testata id="confronto-titolo" sopratitolo={CONFRONTO.sopratitolo} scuro>
             <RichText value={haConfronti ? CONFRONTO.h2 : CONFRONTO.h2SenzaFoto} highlightClass="text-aurora" />
@@ -423,7 +433,8 @@ function InvisibleDerm() {
       </section>
 
       {/* 4 · SOTTILE, MA RESISTENTE */}
-      <section aria-labelledby="resistente-titolo" className="bg-white-trama">
+      <section aria-labelledby="resistente-titolo" className="relative bg-white-trama">
+        {punto("Sottile e resistente", ["id.sottileFoto", "id.testVideo", "id.testPoster", "id.vita1", "id.vita2", "id.vita3", "id.vita4", "id.simboloFoto"], { chiave: "id.vita.liberatoria", testo: LIB })}
         <div className={SEZIONE}>
           <Testata id="resistente-titolo" sopratitolo={RESISTENTE.sopratitolo}>
             <RichText value={RESISTENTE.h2} highlightClass="text-brand" />
@@ -494,7 +505,8 @@ function InvisibleDerm() {
       </section>
 
       {/* 5 · LA TABELLA E IL LIMITE */}
-      <section aria-labelledby="tabella-titolo" className="bg-blueprint">
+      <section aria-labelledby="tabella-titolo" className="relative bg-blueprint">
+        {punto("Tabella", ["id.limiteVideo", "id.limitePoster"])}
         <div className={SEZIONE}>
           <Testata id="tabella-titolo" sopratitolo={TABELLA.sopratitolo} scuro>
             {TABELLA.h2}
@@ -520,7 +532,8 @@ function InvisibleDerm() {
       </section>
 
       {/* 7 · LO STUDIO (prima della 6, anche nel DOM) */}
-      <section aria-labelledby="studio-titolo" className="bg-white-grid">
+      <section aria-labelledby="studio-titolo" className="relative bg-white-grid">
+        {punto("Studio", ["id.titolareFoto", "id.studio1", "id.studio2", "id.studio3", "id.studioVideo"])}
         <div className={SEZIONE}>
           <div className={studio.length || studioVideo ? "grid items-start gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-16" : "mx-auto max-w-3xl text-center"}>
             <div>
@@ -564,7 +577,8 @@ function InvisibleDerm() {
       </section>
 
       {/* 6 · COME FUNZIONA */}
-      <section aria-labelledby="passi-titolo" className="bg-blueprint">
+      <section aria-labelledby="passi-titolo" className="relative bg-blueprint">
+        {punto("Come funziona", ["id.posaVideo", "id.posaPoster"])}
         <div className={SEZIONE}>
           <Testata id="passi-titolo" sopratitolo={PASSI.sopratitolo} scuro>
             {PASSI.h2}
