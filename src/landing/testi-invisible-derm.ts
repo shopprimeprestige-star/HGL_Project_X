@@ -62,7 +62,7 @@ export const CONFRONTO = {
     { titolo: "Piega e movimento", chiave: "id.confronto3", alt: "Un pettine solleva i capelli sulla patch standard e su Invisible Derm, con lo stesso gesto." },
   ],
   didascaliaCoppia3: "Il pettine solleva, il dito passa. Stesso gesto su tutte e due.",
-  riga: "La patch standard va bene per molti, e la facciamo anche noi. Qui sotto vedi dove Invisible Derm fa un passo in più: nel disegno e nella tabella.",
+  riga: "La patch standard va bene per molti, e la facciamo anche noi. Dove Invisible Derm fa un passo in più lo trovi nel disegno qui sopra e nella tabella qui sotto.",
   // Il disegno c'è sempre (niente foto, niente numeri): spiega il bordo anche senza media.
   disegno: {
     titolo: "Il bordo, visto di lato",
