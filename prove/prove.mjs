@@ -65,6 +65,7 @@ import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
 import { proveMeetlyAvvio } from "./idee/meetly-avvio.mjs";
 import { proveMeetlyRifiniture } from "./idee/meetly-rifiniture.mjs";
+import { proveMeetlyOfferte } from "./idee/meetly-offerte.mjs";
 import { proveMeetlySfuRegole } from "./idee/meetly-sfu-regole.mjs";
 import { proveMeetlySfuServer } from "./idee/meetly-sfu-server.mjs";
 import { proveMeetlySfuClient } from "./idee/meetly-sfu-client.mjs";
@@ -19676,7 +19677,7 @@ async function proveDeiTrentaSecondi() {
   const presenza = call.slice(call.indexOf("let battitoWorker"), call.indexOf("// ── UN SOLO CONTESTO AUDIO"));
   c("il battito di hello gira su un Worker inline", true,
     /new Worker\(/.test(call) && /new Blob\(/.test(call) && /URL\.createObjectURL/.test(call));
-  c("…con il ripiego su setInterval se non parte", true, /setInterval\(sendHello/.test(presenza) && /onerror/.test(call));
+  c("…con il ripiego su setInterval se non parte", true, /setInterval\(\(\) => sendHello\(false, "battito"\)/.test(presenza) && /onerror/.test(call));
   c("…e si ferma davvero", true, /\.terminate\(\)/.test(presenza));
   const gc = call.slice(call.indexOf("function gcRoster"), call.indexOf('/** "Pulisci lista"'));
   c("chi tace da troppo sparisce subito anche dalla Plancia", true, /uscitiOra\.set\(r\.leadId/.test(gc));
@@ -21661,6 +21662,7 @@ proveChiamateAzzera(mod, { c, gruppo, radice });
 proveMeetlyStallo(mod, { c, gruppo, radice });
 proveMeetlyAvvio(mod, { c, gruppo, radice });
 await proveMeetlyRifiniture(mod, { c, gruppo, radice });
+await proveMeetlyOfferte(mod, { c, gruppo, radice });
 proveMeetlySfuRegole(mod, { c, gruppo, radice });
 await proveMeetlySfuServer(mod, { c, gruppo, radice });
 proveMeetlySfuClient(mod, { c, gruppo, radice });
