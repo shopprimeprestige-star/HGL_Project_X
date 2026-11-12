@@ -30,7 +30,10 @@ export type EsitoControlloFile = { ok: true } | { ok: false; motivo: string };
 /** PNG/JPG/WebP, non vuoto, fino a 15 MB. Il motivo è una frase che dice cosa fare. */
 export function controllaFile(file: { type: string; size: number }): EsitoControlloFile {
   if (!TIPI_AMMESSI.includes(file.type)) {
-    return { ok: false, motivo: "Questo file non è un'immagine PNG, JPG o WebP: carica gli screenshot come immagini." };
+    return {
+      ok: false,
+      motivo: "Questo file non è un'immagine PNG, JPG o WebP: carica gli screenshot come immagini.",
+    };
   }
   if (!(file.size > 0)) return { ok: false, motivo: "Il file è vuoto: rifai lo screenshot." };
   if (file.size > PESO_MASSIMO_BYTE) {
@@ -40,9 +43,15 @@ export function controllaFile(file: { type: string; size: number }): EsitoContro
 }
 
 /** Le misure dopo la riduzione: lato lungo al massimo `LATO_MASSIMO_PX`, proporzioni tenute, mai ingrandita. */
-export function misureRidotte(larghezza: number, altezza: number): { larghezza: number; altezza: number } {
+export function misureRidotte(
+  larghezza: number,
+  altezza: number,
+): { larghezza: number; altezza: number } {
   const scala = Math.min(1, LATO_MASSIMO_PX / Math.max(larghezza, altezza));
-  return { larghezza: Math.max(1, Math.round(larghezza * scala)), altezza: Math.max(1, Math.round(altezza * scala)) };
+  return {
+    larghezza: Math.max(1, Math.round(larghezza * scala)),
+    altezza: Math.max(1, Math.round(altezza * scala)),
+  };
 }
 
 /** SHA-256 in esadecimale minuscolo (64 caratteri). */
@@ -82,7 +91,8 @@ export async function riduciImmagine(file: File): Promise<ImmagineRidotta> {
     const dataUrl = tela.toDataURL("image/jpeg", QUALITA_JPEG);
     // Libera subito la memoria del canvas: con 300 immagini di fila si sente.
     tela.width = tela.height = 0;
-    if (!dataUrl.startsWith("data:image/jpeg")) throw new Error("Il browser non riesce a ridurre l'immagine.");
+    if (!dataUrl.startsWith("data:image/jpeg"))
+      throw new Error("Il browser non riesce a ridurre l'immagine.");
     return { dataUrl, impronta };
   } finally {
     bitmap.close();

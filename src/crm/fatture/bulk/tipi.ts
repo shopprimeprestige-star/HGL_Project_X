@@ -99,10 +99,27 @@ export type LetturaFile = LetturaIndirizzo | LetturaTessera | LetturaPagamento |
  *  `occupato` = un'altra scheda sta già leggendo il gruppo: «riprova fra poco»,
  *  e non conta come fallimento del freno (T8/T9). */
 export type CodiceErrore =
-  | "timeout" | "limite" | "credito" | "politica_dati" | "rete" | "troncata" | "illeggibile" | "occupato"
-  | "non_autorizzato" | "non_permesso" | "richiesta_non_valida" | "non_trovato"
-  | "troppi_file" | "file_non_valido" | "impostazioni_cambiate" | "emittente_occupato"
-  | "lucchetto_occupato" | "scrittura_fallita" | "conflitto" | "altra_origine" | "interno";
+  | "timeout"
+  | "limite"
+  | "credito"
+  | "politica_dati"
+  | "rete"
+  | "troncata"
+  | "illeggibile"
+  | "occupato"
+  | "non_autorizzato"
+  | "non_permesso"
+  | "richiesta_non_valida"
+  | "non_trovato"
+  | "troppi_file"
+  | "file_non_valido"
+  | "impostazioni_cambiate"
+  | "emittente_occupato"
+  | "lucchetto_occupato"
+  | "scrittura_fallita"
+  | "conflitto"
+  | "altra_origine"
+  | "interno";
 
 /** Stato di un file nel lotto (chiave `bulk_fatture_f`).
  *  `caricando` ha una scadenza: se il Worker muore fra la chiave e l'upload, il

@@ -61,7 +61,8 @@ function dataReale(s: string): boolean {
 }
 
 /** La descrizione va bene se è vuota (si usa la predefinita) o è una di quelle pronte. */
-export const descrizioneAmmessa = (testo: string): boolean => !String(testo ?? "").trim() || DESCRIZIONI.includes(String(testo).trim());
+export const descrizioneAmmessa = (testo: string): boolean =>
+  !String(testo ?? "").trim() || DESCRIZIONI.includes(String(testo).trim());
 
 /** Un ingresso che non si può fatturare. Dichiarata `never` come funzione, così TypeScript restringe i tipi dopo ogni controllo. */
 function rifiuta(perche: string): never {
@@ -71,23 +72,33 @@ function rifiuta(perche: string): never {
 /** Una `Fattura` «unica», una riga, con `origineBulk`. Rifiuta acconto/saldo e tutto ciò che non si può fatturare. */
 export function fatturaDaRiga(i: IngressoFatturaDaRiga): Fattura {
   const c = i.campi;
-  if (i.tipo !== undefined && i.tipo !== "unica") rifiuta("il tipo è sempre «unica»: il caricamento non fa acconti né saldi");
-  if (!String(i.lotto ?? "").trim() || !String(i.idRiga ?? "").trim()) rifiuta("mancano il lotto o la riga");
-  if (!Number.isInteger(i.numeroProvvisorio) || i.numeroProvvisorio < 1) rifiuta("il numero provvisorio deve essere un intero positivo");
+  if (i.tipo !== undefined && i.tipo !== "unica")
+    rifiuta("il tipo è sempre «unica»: il caricamento non fa acconti né saldi");
+  if (!String(i.lotto ?? "").trim() || !String(i.idRiga ?? "").trim())
+    rifiuta("mancano il lotto o la riga");
+  if (!Number.isInteger(i.numeroProvvisorio) || i.numeroProvvisorio < 1)
+    rifiuta("il numero provvisorio deve essere un intero positivo");
 
   const aliquota = Number(i.azienda.aliquotaPredefinita);
-  if (!(aliquota > 0)) rifiuta("l'aliquota IVA del centro è zero o non valida: il lotto è bloccato (bollo non gestito)");
+  if (!(aliquota > 0))
+    rifiuta(
+      "l'aliquota IVA del centro è zero o non valida: il lotto è bloccato (bollo non gestito)",
+    );
 
   const importo = c.importo;
-  if (typeof importo !== "number" || !Number.isFinite(importo) || importo <= 0) rifiuta("importo mancante o non positivo");
+  if (typeof importo !== "number" || !Number.isFinite(importo) || importo <= 0)
+    rifiuta("importo mancante o non positivo");
   // Niente arrotondamenti silenziosi sui soldi: più di due decimali è una lettura sbagliata, la corregge una persona.
-  if (Math.abs(importo * 100 - Math.round(importo * 100)) > 1e-6) rifiuta("l'importo ha più di due decimali");
+  if (Math.abs(importo * 100 - Math.round(importo * 100)) > 1e-6)
+    rifiuta("l'importo ha più di due decimali");
   if (!dataReale(c.data)) rifiuta("la data del pagamento manca o non esiste");
   // Il modo viene dalla configurazione esistente: PayPal, Satispay e il resto non ci sono e si fermano qui.
-  if (!MODI_INCASSO.some((m) => m.chiave === c.modo)) rifiuta("il modo di pagamento manca o non è fra quelli gestiti");
+  if (!MODI_INCASSO.some((m) => m.chiave === c.modo))
+    rifiuta("il modo di pagamento manca o non è fra quelli gestiti");
 
   const descrizione = String(i.descrizione ?? "").trim() || DESCRIZIONI[0];
-  if (!DESCRIZIONI.includes(descrizione)) rifiuta("la descrizione non è fra quelle pronte (devono restare neutre)");
+  if (!DESCRIZIONI.includes(descrizione))
+    rifiuta("la descrizione non è fra quelle pronte (devono restare neutre)");
 
   const conto = contoDaLordo(importo, aliquota);
   const anno = Number(c.data.slice(0, 4));
@@ -114,7 +125,9 @@ export function fatturaDaRiga(i: IngressoFatturaDaRiga): Fattura {
       azienda: false,
       nome,
       cognome,
-      codiceFiscale: String(c.codiceFiscale ?? "").replace(/\s+/g, "").toUpperCase(),
+      codiceFiscale: String(c.codiceFiscale ?? "")
+        .replace(/\s+/g, "")
+        .toUpperCase(),
       // Via e civico stanno insieme nell'indirizzo, come negli altri flussi.
       indirizzo: String(c.indirizzo ?? "").trim(),
       civico: "",
@@ -125,7 +138,9 @@ export function fatturaDaRiga(i: IngressoFatturaDaRiga): Fattura {
       codiceDestinatario: "0000000",
       pec: "",
     },
-    righe: [{ descrizione, quantita: 1, prezzoUnitario: conto.imponibile, aliquota: conto.aliquota }],
+    righe: [
+      { descrizione, quantita: 1, prezzoUnitario: conto.imponibile, aliquota: conto.aliquota },
+    ],
     causale: causaleSuggerita({ metodo: c.modo || null, base: descrizione, riferimento }),
     imponibile: conto.imponibile,
     imposta: conto.imposta,
@@ -134,13 +149,20 @@ export function fatturaDaRiga(i: IngressoFatturaDaRiga): Fattura {
     emessaIl: "",
     metodoPagamento: c.modo || undefined,
     riferimentoPagamento: riferimento,
-    origineBulk: { lotto: i.lotto, riga: i.idRiga, impronte: [...i.impronte], ...(riferimento ? { riferimento } : {}) },
+    origineBulk: {
+      lotto: i.lotto,
+      riga: i.idRiga,
+      impronte: [...i.impronte],
+      ...(riferimento ? { riferimento } : {}),
+    },
   };
 }
 
 /** Il totale che finirebbe nell'XML (dal testo di `costruisciXml`, senza toccare xml.ts): per l'avviso R10. */
 export function totaleNelFile(f: Fattura, azienda: DatiAzienda): number {
-  const m = /<ImportoTotaleDocumento>(-?\d+(?:\.\d+)?)<\/ImportoTotaleDocumento>/.exec(costruisciXml(f, azienda));
+  const m = /<ImportoTotaleDocumento>(-?\d+(?:\.\d+)?)<\/ImportoTotaleDocumento>/.exec(
+    costruisciXml(f, azienda),
+  );
   if (!m) throw new Error("totaleNelFile: l'XML non ha l'importo totale del documento");
   return Number(m[1]);
 }

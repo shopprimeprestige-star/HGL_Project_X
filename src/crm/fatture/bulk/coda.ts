@@ -29,7 +29,13 @@
  *  ferma tutto: con un guasto vero non ha senso fare altre 195 chiamate. Un
  *  successo azzera il conto. Quelli già partiti finiscono e si registrano;
  *  quelli non partiti restano `undefined` e si riprendono dal primo. */
-import { ERRORI_DI_FILA, IN_PARALLELO, RITARDI_RIPETIZIONE_MS, SCADENZA_RECLAMO_MS, TENTATIVI_PER_GRUPPO } from "./chiavi";
+import {
+  ERRORI_DI_FILA,
+  IN_PARALLELO,
+  RITARDI_RIPETIZIONE_MS,
+  SCADENZA_RECLAMO_MS,
+  TENTATIVI_PER_GRUPPO,
+} from "./chiavi";
 import type { CodiceErrore } from "./tipi";
 
 /** Un fallimento con il suo codice. `esegui` lancia questo; qualunque altra eccezione è un nostro difetto
@@ -43,11 +49,20 @@ export class ErroreCoda extends Error {
 }
 
 /** I soli guasti che passano da soli. */
-export const CODICI_RIPETIBILI: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>(["rete", "limite", "timeout"]);
+export const CODICI_RIPETIBILI: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>([
+  "rete",
+  "limite",
+  "timeout",
+]);
 
 /** Guasti che non passano e che si ripresenterebbero identici a ogni gruppo: credito finito (402), sessione
  *  scaduta (401), permesso mancante (403). Fermano la coda al PRIMO esito, senza aspettare i 5 errori. */
-const CODICI_CHE_FERMANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>(["credito", "politica_dati", "non_autorizzato", "non_permesso"]);
+const CODICI_CHE_FERMANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>([
+  "credito",
+  "politica_dati",
+  "non_autorizzato",
+  "non_permesso",
+]);
 
 /** Quanto si aspetta fra due richieste a un gruppo occupato, e quante volte al massimo. */
 export const ATTESA_OCCUPATO_MS = 5_000;
@@ -76,7 +91,10 @@ export interface OpzioniCoda<T, R> {
   inParallelo?: number;
   segnale?: AbortSignal;
   /** Notifica ogni elemento finito (bene o male), nell'ordine in cui finiscono. */
-  perOgnuno?: (indice: number, esito: { ok: true; valore: R } | { ok: false; codice: CodiceErrore }) => void;
+  perOgnuno?: (
+    indice: number,
+    esito: { ok: true; valore: R } | { ok: false; codice: CodiceErrore },
+  ) => void;
 }
 
 export interface RisultatoCoda<R> {
@@ -93,7 +111,8 @@ export async function eseguiCoda<T, R>(opzioni: OpzioniCoda<T, R>): Promise<Risu
   const { elementi, esegui, attendi, segnale, perOgnuno } = opzioni;
   const operai = opzioni.inParallelo ?? IN_PARALLELO;
   // ⚠️ Zero o meno non lancia nessun operaio: la coda sembrerebbe finita senza aver fatto niente.
-  if (!Number.isInteger(operai) || operai < 1) throw new Error("inParallelo deve essere un intero di almeno 1");
+  if (!Number.isInteger(operai) || operai < 1)
+    throw new Error("inParallelo deve essere un intero di almeno 1");
   const esiti: RisultatoCoda<R>["esiti"] = elementi.map(() => undefined);
   let prossimo = 0;
   let diFila = 0;
@@ -134,7 +153,10 @@ export async function eseguiCoda<T, R>(opzioni: OpzioniCoda<T, R>): Promise<Risu
       perOgnuno?.(i, esito);
       if (esito.ok) diFila = 0;
       // `occupato` non è un fallimento: non conta e non azzera.
-      else if (CODICI_CHE_FERMANO.has(esito.codice) || (esito.codice !== "occupato" && ++diFila >= ERRORI_DI_FILA)) {
+      else if (
+        CODICI_CHE_FERMANO.has(esito.codice) ||
+        (esito.codice !== "occupato" && ++diFila >= ERRORI_DI_FILA)
+      ) {
         fermataPer ??= "freno";
         codiceFreno ??= esito.codice;
       }

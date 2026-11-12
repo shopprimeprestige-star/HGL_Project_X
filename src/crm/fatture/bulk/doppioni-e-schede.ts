@@ -49,14 +49,27 @@ const RIFERIMENTO_MINIMO = 6;
 
 /* ── piccoli attrezzi ──────────────────────────────────────────────────── */
 
-const cf = (v: string | undefined | null) => String(v ?? "").replace(/\s+/g, "").toUpperCase();
-const rifNorm = (v: string | undefined | null) => String(v ?? "").replace(/\s+/g, "").toUpperCase();
-const centesimi = (n: number | null | undefined) => (typeof n === "number" ? Math.round(n * 100) : NaN);
+const cf = (v: string | undefined | null) =>
+  String(v ?? "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+const rifNorm = (v: string | undefined | null) =>
+  String(v ?? "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+const centesimi = (n: number | null | undefined) =>
+  typeof n === "number" ? Math.round(n * 100) : NaN;
 const eur = (n: number) => n.toFixed(2).replace(".", ",");
-const dataIt = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split("-").reverse().join("/") : iso);
+const dataIt = (iso: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split("-").reverse().join("/") : iso;
 /** Le parole di un nome: minuscole, senza accenti né segni, in ordine alfabetico («Rossi Mario» = «Mario Rossi»). */
 const parole = (s: string): string[] =>
-  String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+  String(s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[^\p{L}]+/u)
+    .filter(Boolean);
 const nomeChiave = (nome: string, cognome: string) => parole(`${nome} ${cognome}`).sort().join(" ");
 const dellaRiga = (r: RigaPerDoppioni) => (r.numero ? `riga ${r.numero}` : `riga ${r.idRiga}`);
 const dataDi = (f: Fattura) => f.data || f.dataPagamento || "";
@@ -78,8 +91,16 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
 
   // Stesso riferimento: emessa, poi bozza, poi altra riga.
   if (miaRif.length >= RIFERIMENTO_MINIMO) {
-    const emessa = fonti.emesse.find((f) => rifNorm(f.riferimentoPagamento) === miaRif || rifNorm(f.origineBulk?.riferimento) === miaRif);
-    const bz = fonti.bozze.find((f) => rifNorm(f.riferimentoPagamento) === miaRif || rifNorm(f.origineBulk?.riferimento) === miaRif);
+    const emessa = fonti.emesse.find(
+      (f) =>
+        rifNorm(f.riferimentoPagamento) === miaRif ||
+        rifNorm(f.origineBulk?.riferimento) === miaRif,
+    );
+    const bz = fonti.bozze.find(
+      (f) =>
+        rifNorm(f.riferimentoPagamento) === miaRif ||
+        rifNorm(f.origineBulk?.riferimento) === miaRif,
+    );
     const altra = altre.find((r) => rifNorm(r.riferimento) === miaRif);
     const dove = emessa
       ? `sulla fattura ${etichettaNumero(emessa)}`
@@ -123,9 +144,18 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
   // Stesso CF + stesso totale + stessa data: emesse, poi altre righe. Le bozze non hanno data.
   const mioTotale = centesimi(c.importo);
   const stessoPagamento = (cfAltro: string, totale: number, data: string) =>
-    !!miaCf && cfAltro === miaCf && !Number.isNaN(mioTotale) && totale === mioTotale && !!c.data && data === c.data;
-  const doppiaEmessa = fonti.emesse.find((f) => stessoPagamento(cf(f.cliente.codiceFiscale), centesimi(f.totale), dataDi(f)));
-  const doppiaRiga = altre.find((r) => stessoPagamento(cf(r.campi.codiceFiscale), centesimi(r.campi.importo), r.campi.data));
+    !!miaCf &&
+    cfAltro === miaCf &&
+    !Number.isNaN(mioTotale) &&
+    totale === mioTotale &&
+    !!c.data &&
+    data === c.data;
+  const doppiaEmessa = fonti.emesse.find((f) =>
+    stessoPagamento(cf(f.cliente.codiceFiscale), centesimi(f.totale), dataDi(f)),
+  );
+  const doppiaRiga = altre.find((r) =>
+    stessoPagamento(cf(r.campi.codiceFiscale), centesimi(r.campi.importo), r.campi.data),
+  );
   if (doppiaEmessa || doppiaRiga)
     conferme.push({
       codice: "doppione_pagamento",
@@ -138,7 +168,12 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
   // Omonimi con CF diverso, o stesso CF con nome diverso (solo fra righe del lavoro).
   const mioNome = nomeChiave(c.nome, c.cognome);
   if (mioNome && miaCf) {
-    const omonimo = altre.find((r) => cf(r.campi.codiceFiscale) && cf(r.campi.codiceFiscale) !== miaCf && nomeChiave(r.campi.nome, r.campi.cognome) === mioNome);
+    const omonimo = altre.find(
+      (r) =>
+        cf(r.campi.codiceFiscale) &&
+        cf(r.campi.codiceFiscale) !== miaCf &&
+        nomeChiave(r.campi.nome, r.campi.cognome) === mioNome,
+    );
     if (omonimo)
       conferme.push({
         codice: "omonimo_cf_diverso",
@@ -146,7 +181,12 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
         campo: "codiceFiscale",
         testo: `Nome e cognome uguali alla ${dellaRiga(omonimo)} ma codice fiscale diverso: sono due persone o un codice fiscale è letto male? Controlla gli screenshot.`,
       });
-    const stessoCf = altre.find((r) => cf(r.campi.codiceFiscale) === miaCf && nomeChiave(r.campi.nome, r.campi.cognome) && nomeChiave(r.campi.nome, r.campi.cognome) !== mioNome);
+    const stessoCf = altre.find(
+      (r) =>
+        cf(r.campi.codiceFiscale) === miaCf &&
+        nomeChiave(r.campi.nome, r.campi.cognome) &&
+        nomeChiave(r.campi.nome, r.campi.cognome) !== mioNome,
+    );
     if (stessoCf)
       conferme.push({
         codice: "cf_nome_diverso",
@@ -159,7 +199,11 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
   // Avvisi: altre fatture dello stesso CF (senza contare il doppione già detto).
   if (miaCf) {
     const altreFatture = fonti.emesse
-      .filter((f) => cf(f.cliente.codiceFiscale) === miaCf && !stessoPagamento(cf(f.cliente.codiceFiscale), centesimi(f.totale), dataDi(f)))
+      .filter(
+        (f) =>
+          cf(f.cliente.codiceFiscale) === miaCf &&
+          !stessoPagamento(cf(f.cliente.codiceFiscale), centesimi(f.totale), dataDi(f)),
+      )
       .sort(piuRecentePrima);
     if (altreFatture.length) {
       const u = altreFatture[0];
@@ -170,7 +214,13 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
       });
     }
     // Due righe dello stesso CF e della stessa data con importi diversi.
-    const stessaData = altre.find((r) => cf(r.campi.codiceFiscale) === miaCf && !!c.data && r.campi.data === c.data && centesimi(r.campi.importo) !== mioTotale);
+    const stessaData = altre.find(
+      (r) =>
+        cf(r.campi.codiceFiscale) === miaCf &&
+        !!c.data &&
+        r.campi.data === c.data &&
+        centesimi(r.campi.importo) !== mioTotale,
+    );
     if (stessaData)
       avvisi.push({
         codice: "stesso_cf_stessa_data",
@@ -180,7 +230,11 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
   }
 
   // Bozze aperte dello stesso cliente: per scheda o per CF.
-  const bozze = fonti.bozze.filter((b) => (!!riga.schedaId && b.leadId === riga.schedaId) || (!!miaCf && cf(b.cliente.codiceFiscale) === miaCf));
+  const bozze = fonti.bozze.filter(
+    (b) =>
+      (!!riga.schedaId && b.leadId === riga.schedaId) ||
+      (!!miaCf && cf(b.cliente.codiceFiscale) === miaCf),
+  );
   if (bozze.length)
     avvisi.push({
       codice: "bozza_aperta",
@@ -197,7 +251,8 @@ export function trovaDoppioni(riga: RigaPerDoppioni, fonti: FontiDoppioni): Moti
  *  in `origineBulk.impronte` la sola impronta del pagamento, e chi decide cosa rileggere deve guardare solo i file di tipo pagamento. */
 export function impronteGiaViste(fonti: FontiDoppioni): Set<string> {
   const viste = new Set<string>();
-  for (const f of [...fonti.emesse, ...fonti.bozze]) for (const i of f.origineBulk?.impronte ?? []) viste.add(i);
+  for (const f of [...fonti.emesse, ...fonti.bozze])
+    for (const i of f.origineBulk?.impronte ?? []) viste.add(i);
   for (const r of fonti.altreRighe) viste.add(r.improntaPagamento);
   for (const i of fonti.altriLotti) viste.add(i);
   viste.delete("");
@@ -223,12 +278,15 @@ const ultime9 = (t: string) => {
 export function cfDiversoDellaScheda(campi: CampiRiga, s: SchedaPerAbbinamento): Motivo[] {
   const mio = cf(campi.codiceFiscale);
   return mio && cf(s.codiceFiscale) && cf(s.codiceFiscale) !== mio
-    ? [{
-        codice: "scheda_cf_diverso",
-        gravita: "conferma",
-        campo: "codiceFiscale",
-        testo: "La scheda collegata ha un codice fiscale diverso da quello letto: può essere un errore di lettura o la scheda sbagliata. Controlla, oppure cambia o togli il collegamento.",
-      }]
+    ? [
+        {
+          codice: "scheda_cf_diverso",
+          gravita: "conferma",
+          campo: "codiceFiscale",
+          testo:
+            "La scheda collegata ha un codice fiscale diverso da quello letto: può essere un errore di lettura o la scheda sbagliata. Controlla, oppure cambia o togli il collegamento.",
+        },
+      ]
     : [];
 }
 
@@ -238,7 +296,8 @@ function nomiCompatibili(a: string, b: string): boolean {
   const [pa, pb] = [parole(a), parole(b)];
   if (!pa.length || !pb.length) return false;
   const [corto, lungo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
-  const uguale = (x: string, y: string) => x === y || (x.length === 1 && y.startsWith(x)) || (y.length === 1 && x.startsWith(y));
+  const uguale = (x: string, y: string) =>
+    x === y || (x.length === 1 && y.startsWith(x)) || (y.length === 1 && x.startsWith(y));
   return corto.every((p) => lungo.some((q) => uguale(p, q)));
 }
 
@@ -247,7 +306,11 @@ function nomiCompatibili(a: string, b: string): boolean {
  *  alla fine, nessuna scheda: la fattura resta senza (il caso supportato di «un'altra fattura»). Non crea e non modifica schede.
  *  Il telefono + cognome con un nome non compatibile collega ma chiede conferma (madre e figlia con lo stesso numero).
  *  shortcut: il nome della scheda lo spezza chi chiama; qui il confronto è per parole, quindi regge «Rossi Mario» e «Mario Rossi». */
-export function abbinaScheda(campi: CampiRiga, telefono: string, schede: SchedaPerAbbinamento[]): AbbinamentoScheda {
+export function abbinaScheda(
+  campi: CampiRiga,
+  telefono: string,
+  schede: SchedaPerAbbinamento[],
+): AbbinamentoScheda {
   const miaCf = cf(campi.codiceFiscale);
   const unica = (trovate: SchedaPerAbbinamento[]) => (trovate.length === 1 ? trovate[0] : null);
   const cfDiverso = (s: SchedaPerAbbinamento): Motivo[] => cfDiversoDellaScheda(campi, s);
@@ -275,19 +338,24 @@ export function abbinaScheda(campi: CampiRiga, telefono: string, schede: SchedaP
       motivi: [
         ...(nomiCompatibili(campi.nome, perTelefono.nome)
           ? []
-          : [{
-              codice: "scheda_telefono_nome_diverso",
-              gravita: "conferma" as const,
-              campo: "nome" as const,
-              testo: "Scheda collegata per il telefono e il cognome, ma il nome è diverso (un familiare con lo stesso numero?): controlla che sia la stessa persona, oppure cambia o togli il collegamento.",
-            }]),
+          : [
+              {
+                codice: "scheda_telefono_nome_diverso",
+                gravita: "conferma" as const,
+                campo: "nome" as const,
+                testo:
+                  "Scheda collegata per il telefono e il cognome, ma il nome è diverso (un familiare con lo stesso numero?): controlla che sia la stessa persona, oppure cambia o togli il collegamento.",
+              },
+            ]),
         ...cfDiverso(perTelefono),
       ],
     };
 
   // 3. Solo nome e cognome (almeno due parole: un cognome solo non identifica nessuno).
   const mioNome = nomeChiave(campi.nome, campi.cognome);
-  const perNome = mioNome.includes(" ") ? unica(schede.filter((s) => nomeChiave(s.nome, s.cognome) === mioNome)) : null;
+  const perNome = mioNome.includes(" ")
+    ? unica(schede.filter((s) => nomeChiave(s.nome, s.cognome) === mioNome))
+    : null;
   if (perNome)
     return {
       scheda: perNome,
@@ -295,7 +363,8 @@ export function abbinaScheda(campi: CampiRiga, telefono: string, schede: SchedaP
         {
           codice: "scheda_solo_nome",
           gravita: "conferma",
-          testo: "Scheda collegata solo per il nome e il cognome (nessun altro dato in comune): controlla che sia la stessa persona, oppure cambia o togli il collegamento.",
+          testo:
+            "Scheda collegata solo per il nome e il cognome (nessun altro dato in comune): controlla che sia la stessa persona, oppure cambia o togli il collegamento.",
         },
         ...cfDiverso(perNome),
       ],

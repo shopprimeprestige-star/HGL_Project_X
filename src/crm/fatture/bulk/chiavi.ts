@@ -77,7 +77,8 @@ const indiceScritto = (n: number): string => {
 };
 
 export const chiaveTestata = (lotto: string) => `${PREFISSO_TESTATA}${sicuro(lotto)}`;
-export const chiaveFile = (lotto: string, indice: number) => `${prefissoFile(lotto)}${indiceScritto(indice)}`;
+export const chiaveFile = (lotto: string, indice: number) =>
+  `${prefissoFile(lotto)}${indiceScritto(indice)}`;
 export const chiaveRiga = (lotto: string, idRiga: string) => `${prefissoRighe(lotto)}${idRiga}`;
 /** Il gruppo è la posizione (0, 1, 2…) di una terna di file; si scrive com'è, senza zeri. */
 export function chiaveReclamo(lotto: string, gruppo: number): string {
@@ -98,7 +99,10 @@ export const prefissoReclami = (lotto: string) => `${PREFISSO_RECLAMI}${sicuro(l
  *  solo da quali file compongono il cliente. */
 export function idRigaDa(indici: number[]): string {
   if (indici.length === 0) throw new Error("una riga ha almeno un file");
-  return [...new Set(indici)].sort((a, b) => a - b).map(indiceScritto).join("-");
+  return [...new Set(indici)]
+    .sort((a, b) => a - b)
+    .map(indiceScritto)
+    .join("-");
 }
 
 /** La cartella del bucket `dati-fattura` per i file di un lotto: `<utente>/bulk/<lotto>/`

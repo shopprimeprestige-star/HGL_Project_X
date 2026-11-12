@@ -18,7 +18,10 @@ const confrontaNomi = new Intl.Collator("it", { numeric: true, sensitivity: "bas
 
 /** Ordine naturale dei nomi, a parità la data del file; oppure per data, a parità il nome.
  *  Non muta l'input. */
-export function ordinaFile<T extends { nome: string; modificatoIl: number }>(file: T[], criterio: CriterioOrdine): T[] {
+export function ordinaFile<T extends { nome: string; modificatoIl: number }>(
+  file: T[],
+  criterio: CriterioOrdine,
+): T[] {
   const perNome = (a: T, b: T) => confrontaNomi(a.nome, b.nome) || a.modificatoIl - b.modificatoIl;
   const perData = (a: T, b: T) => a.modificatoIl - b.modificatoIl || confrontaNomi(a.nome, b.nome);
   return [...file].sort(criterio === "data" ? perData : perNome);
@@ -37,9 +40,16 @@ export interface ConteggioGruppi {
 }
 
 export function contaGruppi(n: number): ConteggioGruppi {
-  if (!Number.isInteger(n) || n < 0) throw new Error("il numero di file deve essere un intero, zero o più");
+  if (!Number.isInteger(n) || n < 0)
+    throw new Error("il numero di file deve essere un intero, zero o più");
   const gruppiCompleti = Math.floor(n / 3);
-  return { file: n, gruppiCompleti, fileInPiu: n % 3, clienti: gruppiCompleti, oltreIlLimite: n > MAX_FILE };
+  return {
+    file: n,
+    gruppiCompleti,
+    fileInPiu: n % 3,
+    clienti: gruppiCompleti,
+    oltreIlLimite: n > MAX_FILE,
+  };
 }
 
 /** I tre tipi di un cliente, nell'ordine «solito» (indirizzo, tessera, pagamento). */
@@ -70,16 +80,19 @@ export function ricomponi(
 ): GruppoRicomposto[] {
   const ordinati = [...file].sort((a, b) => a.indice - b.indice);
   for (let i = 1; i < ordinati.length; i += 1)
-    if (ordinati[i].indice === ordinati[i - 1].indice) throw new Error(`indice ${ordinati[i].indice} ripetuto: i file del lotto sono rovinati`);
+    if (ordinati[i].indice === ordinati[i - 1].indice)
+      throw new Error(`indice ${ordinati[i].indice} ripetuto: i file del lotto sono rovinati`);
 
   /** Un file non ancora letto (tipo vuoto o sconosciuto) vale «altro»: la riga resta incompleta, mai pronta. */
-  const tipoDi = (t: string): TipoFile => (TIPI_CLIENTE.includes(t as TipoFile) ? (t as TipoFile) : "altro");
+  const tipoDi = (t: string): TipoFile =>
+    TIPI_CLIENTE.includes(t as TipoFile) ? (t as TipoFile) : "altro";
 
   const gruppi: { indici: number[]; tipi: TipoFile[]; fallito: boolean }[] = [];
   let aperto: { indici: number[]; tipi: TipoFile[]; fallito: boolean } | null = null;
   ordinati.forEach((f) => {
     const tipo = tipoDi(f.tipo);
-    if (aperto && (aperto.indici.length >= 3 || (tipo !== "altro" && aperto.tipi.includes(tipo)))) aperto = null;
+    if (aperto && (aperto.indici.length >= 3 || (tipo !== "altro" && aperto.tipi.includes(tipo))))
+      aperto = null;
     if (!aperto) {
       aperto = { indici: [], tipi: [], fallito: false };
       gruppi.push(aperto);

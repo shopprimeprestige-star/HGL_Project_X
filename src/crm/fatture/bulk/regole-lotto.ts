@@ -19,11 +19,34 @@ import type { Motivo } from "./tipi";
  *  che restano sono quelli di «CHI EMETTE» (xml.ts non li separa, e non lo si tocca).
  *  La prova «azienda a posto → nessun motivo» fa da guardia se `problemiXml` ne aggiunge di nuovi. */
 const FATTURA_PERFETTA: Fattura = {
-  id: "2000-0001", stato: "emessa", numero: 1, anno: 2000, serie: "", data: "2000-01-01", dataPagamento: "2000-01-01",
-  tipo: "unica", leadId: "x", leadNome: "X X", preventivoRef: "", causale: "X",
-  cliente: { ...CLIENTE_VUOTO, nome: "X", cognome: "X", codiceFiscale: "XXXXXX00X00X000X", indirizzo: "X", cap: "00000", comune: "X", provincia: "XX" },
+  id: "2000-0001",
+  stato: "emessa",
+  numero: 1,
+  anno: 2000,
+  serie: "",
+  data: "2000-01-01",
+  dataPagamento: "2000-01-01",
+  tipo: "unica",
+  leadId: "x",
+  leadNome: "X X",
+  preventivoRef: "",
+  causale: "X",
+  cliente: {
+    ...CLIENTE_VUOTO,
+    nome: "X",
+    cognome: "X",
+    codiceFiscale: "XXXXXX00X00X000X",
+    indirizzo: "X",
+    cap: "00000",
+    comune: "X",
+    provincia: "XX",
+  },
   righe: [{ descrizione: "X", quantita: 1, prezzoUnitario: 1, aliquota: 22 }],
-  imponibile: 1, imposta: 0.22, totale: 1.22, creataIl: "", emessaIl: "",
+  imponibile: 1,
+  imposta: 0.22,
+  totale: 1.22,
+  creataIl: "",
+  emessaIl: "",
 };
 
 const blocco = (codice: string, testo: string): Motivo => ({ codice, gravita: "blocca", testo });
@@ -32,22 +55,49 @@ const blocco = (codice: string, testo: string): Motivo => ({ codice, gravita: "b
 export function controllaLotto(azienda: DatiAzienda): Motivo[] {
   const motivi: Motivo[] = [];
   const aliquota = Number(azienda.aliquotaPredefinita);
-  const regime = String(azienda.regimeFiscale ?? "").trim().toUpperCase();
+  const regime = String(azienda.regimeFiscale ?? "")
+    .trim()
+    .toUpperCase();
 
   // R3. Il regime ordinario vuole un'IVA; forfettario e minimi no: se non si parlano, uno dei due è sbagliato.
-  if ((regime === "RF01" && !(aliquota > 0)) || ((regime === "RF19" || regime === "RF02") && aliquota > 0))
-    motivi.push(blocco("regime_aliquota", `Il regime fiscale (${regime}) e l'aliquota IVA (${Number.isFinite(aliquota) ? aliquota : "non valida"}%) non coincidono: correggi in «Dati per la fattura» prima di caricare.`));
+  if (
+    (regime === "RF01" && !(aliquota > 0)) ||
+    ((regime === "RF19" || regime === "RF02") && aliquota > 0)
+  )
+    motivi.push(
+      blocco(
+        "regime_aliquota",
+        `Il regime fiscale (${regime}) e l'aliquota IVA (${Number.isFinite(aliquota) ? aliquota : "non valida"}%) non coincidono: correggi in «Dati per la fattura» prima di caricare.`,
+      ),
+    );
 
   // R4. Senza IVA servirebbe il bollo da 2 € oltre 77,47 €: il CRM non lo sa fare, quindi non fattura.
   if (!(aliquota > 0))
-    motivi.push(blocco("aliquota_zero_bollo", "L'aliquota IVA del centro è zero: sulle operazioni senza IVA oltre 77,47 € serve il bollo da 2 €, che questo caricamento non gestisce. Non si emette finché non c'è l'IVA in «Dati per la fattura» o il bollo non è stato previsto."));
+    motivi.push(
+      blocco(
+        "aliquota_zero_bollo",
+        "L'aliquota IVA del centro è zero: sulle operazioni senza IVA oltre 77,47 € serve il bollo da 2 €, che questo caricamento non gestisce. Non si emette finché non c'è l'IVA in «Dati per la fattura» o il bollo non è stato previsto.",
+      ),
+    );
 
   // R2. shortcut: due passaggi invece di unire i due elenchi (si ripeterebbero «manca la ragione sociale»);
   // dopo aver sistemato i campi mancanti, il secondo passaggio mostra l'eventuale resto (P.IVA, CAP…).
   const mancano = mancanzeAzienda(azienda);
-  if (mancano.length) motivi.push(blocco("azienda_incompleta", `Mancano i dati del centro: ${mancano.join(", ")}. Completali in «Dati per la fattura».`));
+  if (mancano.length)
+    motivi.push(
+      blocco(
+        "azienda_incompleta",
+        `Mancano i dati del centro: ${mancano.join(", ")}. Completali in «Dati per la fattura».`,
+      ),
+    );
   else
-    for (const b of problemiXml(FATTURA_PERFETTA, azienda).bloccanti) motivi.push(blocco("azienda_xml", `${b}. Correggilo in «Dati per la fattura»: con questo dato lo SdI scarterebbe tutte le fatture.`));
+    for (const b of problemiXml(FATTURA_PERFETTA, azienda).bloccanti)
+      motivi.push(
+        blocco(
+          "azienda_xml",
+          `${b}. Correggilo in «Dati per la fattura»: con questo dato lo SdI scarterebbe tutte le fatture.`,
+        ),
+      );
 
   return motivi;
 }
@@ -58,7 +108,9 @@ export function controllaLotto(azienda: DatiAzienda): Motivo[] {
 export function firmaImpostazioni(azienda: DatiAzienda): string {
   const s = JSON.stringify([
     Number(azienda.aliquotaPredefinita),
-    String(azienda.regimeFiscale ?? "").trim().toUpperCase(),
+    String(azienda.regimeFiscale ?? "")
+      .trim()
+      .toUpperCase(),
     String(azienda.serie ?? "").trim(),
     Number(azienda.primoNumero),
     Number(azienda.annoNumerazione),
@@ -104,7 +156,10 @@ export const NOTE_RIEPILOGO_COMMERCIALISTA: string[] = [
 
 /** Una riga per fattura emessa, per numerazione: pronta da girare al commercialista. Le bozze non ci sono.
  *  Con `azienda` ogni riga porta anche il totale che dirà il file XML (`totaleNelFile`). */
-export function righeRiepilogoCommercialista(fatture: Fattura[], azienda?: DatiAzienda): RigaRiepilogoCommercialista[] {
+export function righeRiepilogoCommercialista(
+  fatture: Fattura[],
+  azienda?: DatiAzienda,
+): RigaRiepilogoCommercialista[] {
   return fatture
     .filter((f) => f.stato === "emessa")
     .sort((a, b) => a.anno - b.anno || a.serie.localeCompare(b.serie) || a.numero - b.numero)
@@ -113,7 +168,9 @@ export function righeRiepilogoCommercialista(fatture: Fattura[], azienda?: DatiA
       return {
         numero: etichettaNumero(f),
         data: f.data,
-        cliente: f.cliente.azienda ? f.cliente.denominazione : `${f.cliente.nome} ${f.cliente.cognome}`.trim(),
+        cliente: f.cliente.azienda
+          ? f.cliente.denominazione
+          : `${f.cliente.nome} ${f.cliente.cognome}`.trim(),
         codiceFiscale: f.cliente.codiceFiscale,
         imponibile: f.imponibile,
         iva: f.imposta,
