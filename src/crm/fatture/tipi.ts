@@ -314,8 +314,12 @@ export interface Fattura {
  *   mette quello corrente solo perché il campo è un numero e non ammette il
  *   vuoto. */
 export function comeBozza(f: Fattura): Fattura {
+  //  ⚠️ `origineBulk` NON si porta dietro: una fattura riportata in bozza non è più
+  //   di quel lotto, e riemessa con la stessa origine verrebbe scambiata per
+  //   «già emessa» dal controllo della ripresa del bulk.
+  const { origineBulk: _origineBulk, ...resto } = f;
   return {
-    ...f,
+    ...resto,
     id: `bozza:${f.leadId}`,
     stato: "bozza",
     numero: 0,

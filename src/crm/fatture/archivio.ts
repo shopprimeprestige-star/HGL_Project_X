@@ -47,7 +47,14 @@ export interface ArchivioDb {
   /** torna il messaggio d'errore, oppure null se è andata */
   scrivi: (key: string, value: string) => Promise<string | null>;
   elimina: (key: string) => Promise<string | null>;
+  /** ⚠️ Inserisce SOLO se la chiave non c'è: `scrivi` è un upsert e due numeri
+   *  uguali sarebbero una fattura persa. Facoltativa: i finti delle prove vecchie
+   *  non ce l'hanno e `emettiSu` ripiega su `scrivi`. */
+  creaSeAssente?: (key: string, value: string) => Promise<EsitoCrea>;
 }
+
+/** Come è andato un inserimento che non sovrascrive: scritto, già presente, oppure errore vero. */
+export type EsitoCrea = { stato: "creata" } | { stato: "esiste" } | { stato: "errore"; errore: string };
 
 /** Costruisce l'archivio sopra un client Supabase, quale che sia: quello del
  *  browser o `supabaseAdmin`. ⚠️ Il cast è il solito — i tipi generati non
@@ -74,6 +81,10 @@ export function archivioSu(client: unknown): ArchivioDb {
         v: { key: string; value: string },
         o: { onConflict: string },
       ) => Promise<{ error: { message: string } | null }>;
+      insert: (v: {
+        key: string;
+        value: string;
+      }) => Promise<{ error: { message: string; code?: string } | null }>;
       delete: () => {
         eq: (k: string, v: string) => Promise<{ error: { message: string } | null }>;
       };
@@ -116,6 +127,14 @@ export function archivioSu(client: unknown): ArchivioDb {
     elimina: async (key) => {
       const { error } = await c.from("app_config").delete().eq("key", key);
       return error?.message ?? null;
+    },
+    creaSeAssente: async (key, value) => {
+      const { error } = await c.from("app_config").insert({ key, value });
+      if (!error) return { stato: "creata" };
+      //  23505 = violazione di chiave unica in Postgres: la chiave c'è già. Il
+      //  messaggio è il ripiego se il client non riporta il codice.
+      if (error.code === "23505" || /duplicate key/i.test(error.message)) return { stato: "esiste" };
+      return { stato: "errore", errore: error.message };
     },
   };
 }
@@ -165,6 +184,10 @@ const PREFISSO_EMESSA = "fattura:";
 const PREFISSO_BOZZA = "fattura_bozza:";
 
 export const chiaveBozza = (leadId: string) => `${PREFISSO_BOZZA}${leadId}`;
+
+/** La chiave di una fattura emessa: `fattura:<id>` e, se c'è il sezionale, `-<serie>`. */
+export const chiaveEmessa = (f: Pick<Fattura, "id" | "serie">) =>
+  `${PREFISSO_EMESSA}${f.id}${f.serie ? `-${f.serie}` : ""}`;
 
 /** Il numero come si scrive: «0007», quattro cifre. Serve anche a far ordinare
  *  le chiavi alfabeticamente nell'ordine giusto — senza lo zero davanti, la
@@ -381,25 +404,51 @@ export async function emettiSu(
 ): Promise<{ ok: boolean; fattura?: Fattura; errore?: string }> {
   const oggi = dataIncasso;
   const anno = Number(oggi.slice(0, 4)) || new Date().getFullYear();
-  const n = await prossimoNumeroSu(archivioScelto, a, anno);
-  if (!n.ok) return { ok: false, errore: n.errore || "non riesco a leggere le fatture già emesse" };
 
-  const emessa: Fattura = {
-    ...f,
-    stato: "emessa",
-    numero: n.numero,
-    anno,
-    serie: a.serie || "",
-    data: oggi,
-    dataPagamento: oggi,
-    id: `${anno}-${numeroScritto(n.numero)}`,
-    emessaIl: new Date().toISOString(),
+  /*  ⚠️ IL NUMERO SI SCRIVE SENZA SOVRASCRIVERE. Fra la lettura delle emesse e
+      la scrittura può infilarsi un altro emettitore (un'altra scheda aperta, il
+      server che emette dal preventivo): con l'upsert di prima la sua fattura
+      spariva sotto la nostra, con lo stesso numero. Ora la chiave occupata
+      respinge l'inserimento, si rilegge e si riprova UNA volta col numero dopo;
+      al secondo conflitto si rinuncia con un errore, senza scrivere niente. */
+  for (let tentativo = 0; tentativo < 2; tentativo++) {
+    const n = await prossimoNumeroSu(archivioScelto, a, anno);
+    if (!n.ok) return { ok: false, errore: n.errore || "non riesco a leggere le fatture già emesse" };
+
+    const emessa: Fattura = {
+      ...f,
+      stato: "emessa",
+      numero: n.numero,
+      anno,
+      serie: a.serie || "",
+      data: oggi,
+      dataPagamento: oggi,
+      id: `${anno}-${numeroScritto(n.numero)}`,
+      emessaIl: new Date().toISOString(),
+    };
+    const chiave = chiaveEmessa(emessa);
+    const valore = JSON.stringify(emessa);
+
+    //  shortcut: i finti delle prove vecchie non hanno `creaSeAssente` e ripiegano sull'upsert di
+    //  prima; quando le prove lo avranno tutte, il ripiego si toglie.
+    let esito: EsitoCrea;
+    if (archivioScelto.creaSeAssente) {
+      esito = await archivioScelto.creaSeAssente(chiave, valore);
+    } else {
+      const errore = await archivioScelto.scrivi(chiave, valore);
+      esito = errore ? { stato: "errore", errore } : { stato: "creata" };
+    }
+    if (esito.stato === "errore") return { ok: false, errore: esito.errore };
+    if (esito.stato === "esiste") continue;
+
+    await archivioScelto.elimina(chiaveBozza(f.leadId));
+    return { ok: true, fattura: emessa };
+  }
+  return {
+    ok: false,
+    errore:
+      "un'altra fattura ha preso lo stesso numero mentre emettevo (due volte di fila): nessuna fattura scritta, riprova",
   };
-  const chiave = `${PREFISSO_EMESSA}${emessa.id}${a.serie ? `-${a.serie}` : ""}`;
-  const errore = await archivioScelto.scrivi(chiave, JSON.stringify(emessa));
-  if (errore) return { ok: false, errore };
-  await archivioScelto.elimina(chiaveBozza(f.leadId));
-  return { ok: true, fattura: emessa };
 }
 
 /** L'emissione dall'archivio del browser: è quella che usa il CRM. */
