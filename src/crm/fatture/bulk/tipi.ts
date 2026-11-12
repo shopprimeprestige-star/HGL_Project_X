@@ -321,7 +321,14 @@ export interface SintesiLotto {
   righeEmesse: number;
 }
 
-/** GET `?lotto=ID`: tutto il lotto, una lettura per famiglia. */
+/** GET senza parametri: il corpo è l'ARRAY dei lotti aperti, dal più recente (al massimo 15), senza `ok` attorno.
+ *  GET `?lotto=ID&url=0004,0005`: il corpo è la mappa «indice a 4 cifre → indirizzo firmato 60 s» (al massimo 6),
+ *  solo per i file ancora nel bucket. Gli errori sono sempre una `RispostaErrore`. */
+export type RispostaElenco = SintesiLotto[];
+export type RispostaMiniature = Record<string, string>;
+
+/** GET `?lotto=ID`: tutto il lotto, una lettura per famiglia (il corpo è questo oggetto, senza `ok`;
+ *  i file non portano percorsi del bucket né scadenze). */
 export interface DettaglioLotto {
   testata: TestataLotto;
   file: FileLotto[];
