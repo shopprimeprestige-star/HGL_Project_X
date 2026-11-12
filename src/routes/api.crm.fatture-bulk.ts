@@ -19,13 +19,11 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { BUCKET_DATI_FATTURA } from "@/crm/fatture/dati-fattura.server";
 import { archivioProtettoSu } from "@/crm/fatture/bulk/emissione-bulk";
 import { portaLucchettoSu } from "@/crm/fatture/bulk/lucchetto.server";
-import { emettiRiga, schedaDaLead } from "@/crm/fatture/bulk/emissione.server";
+import { avvolgiArchivi, emettiRiga, schedaDaLead } from "@/crm/fatture/bulk/emissione.server";
 import {
-  archivioSoloBulk,
   chiamaOpenRouter,
   gestisciGET,
   gestisciPOST,
-  lucchettoSoloBulk,
   type DipendenzeRotta,
   type PorteBulk,
 } from "@/crm/fatture/bulk/bulk.server";
@@ -53,8 +51,7 @@ function inDataUrl(byte: Uint8Array): string {
 
 function porteVere(utente: string): PorteBulk {
   return {
-    archivio: archivioSoloBulk(archivioProtettoSu(supabaseAdmin)),
-    lucchetto: lucchettoSoloBulk(portaLucchettoSu(supabaseAdmin)),
+    ...avvolgiArchivi(archivioProtettoSu(supabaseAdmin), portaLucchettoSu(supabaseAdmin)),
     bucket: {
       carica: async (percorso, dataUrl) => {
         const { error } = await storage().upload(percorso, inByte(dataUrl), {

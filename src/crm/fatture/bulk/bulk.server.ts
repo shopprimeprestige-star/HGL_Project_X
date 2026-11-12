@@ -75,6 +75,9 @@ export type EsitoAI =
 
 export interface PorteBulk {
   archivio: ArchivioProtetto;
+  /** Lo stesso archivio, avvolto per l'EMISSIONE: ammette soltanto `creaSeAssente` sulle chiavi delle fatture emesse (il numero
+   *  della fattura). Lo riceve solo `emettiProtettoSu` (T12): ogni altra azione usa `archivio`, che non scrive fatture. */
+  archivioEmissione: ArchivioProtetto;
   /** Lucchetti e reclami (compare-and-swap su `app_config`); serve anche a `file` per riprendere un `caricando` scaduto. */
   lucchetto: PortaLucchetto;
   bucket: {

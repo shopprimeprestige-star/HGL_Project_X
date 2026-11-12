@@ -11,19 +11,19 @@
  *      clic, seconda scheda) si chiude la riga e si risponde «emessa»: MAI una seconda fattura;
  *   5. `valutaRigaNelLotto` con il contesto completo (tutte le schede, tutte le emesse, la serie del centro):
  *      emette SOLO se `emettibile` (mai perché «c'è una fattura simulata»). Quel che non lo è → `saltata`;
- *   6. la scheda esiste, poi `emettiProtettoSu`;
+ *   6. `emettiProtettoSu` (sull'archivio dell'emissione: ammette solo l'inserimento di `fattura:*`);
  *   7. la riga si chiude con `chiudiRiga` (compare-and-swap, mai una scrittura a mano) che svuota letture e
  *      modifiche e toglie le foto dal bucket;
  *   8. se il lotto è concluso si chiude da solo; altrimenti `spazzaOrfani` ritenta la rimozione delle foto fallita.
  *
  *  ── COME RISPONDE ─────────────────────────────────────────────────────────
- *   `emessa` (anche per una riga già emessa: idempotente) · `saltata` (la riga, per un motivo SUO, non si può
+ *   `emessa` (anche per una riga già emessa, o la cui fattura c'è ma il lotto è già sparito: idempotente) · `saltata` (la riga, per un motivo SUO, non si può
  *   emettere: le altre proseguono) · `ferma` (errore di sistema: si ferma il lotto). Un salto di numeri
  *   (qualcuno ha emesso in mezzo) NON ferma niente: va nell'esito (D14).
  *  ⚠️ Una fattura già scritta non si perde mai per un guasto dopo: se la riga non si riesce a chiudere la
  *   risposta è `ferma`, ma la fattura c'è e la ripresa la riconosce.
  *  ⚠️ Nessun `console.` e nessun dato personale nei log: `porte.log` riceve solo codici. */
-import { cercaPerOrigine, emettiProtettoSu } from "./emissione-bulk";
+import { cercaPerOrigine, emettiProtettoSu, type ArchivioProtetto } from "./emissione-bulk";
 import { leggiAziendaSu } from "../archivio";
 import type { DatiAzienda, Fattura } from "../tipi";
 import {
@@ -36,14 +36,22 @@ import {
 import {
   chiudiLottoSeConcluso,
   chiudiRiga,
+  archivioSoloBulk,
   ErroreBulk,
   fileDelLotto,
+  lucchettoSoloBulk,
   righeDelLotto,
   spazzaOrfani,
   testataDi,
   type PorteBulk,
 } from "./bulk.server";
-import { leggiPrecedente, prendi, rilascia, rinnova } from "./lucchetto.server";
+import {
+  leggiPrecedente,
+  prendi,
+  rilascia,
+  rinnova,
+  type PortaLucchetto,
+} from "./lucchetto.server";
 import { ricomponi } from "./raggruppa";
 import { controllaLotto, firmaImpostazioni } from "./regole-lotto";
 import { oggiItaliano } from "./regole-riga";
@@ -64,6 +72,37 @@ const PREFISSO_BOZZE = "fattura_bozza:";
 
 // La mappatura delle schede sta in un modulo puro condiviso col browser (anteprima e server abbinano uguale).
 export { schedaDaLead } from "./scheda-da-lead";
+
+const SOLO_LE_FATTURE = "questo archivio ammette solo l'inserimento di una fattura (fattura:*)";
+
+/** ⚠️ L'archivio dell'emissione: l'UNICA scrittura che ammette è l'inserimento (che non sovrascrive) di una chiave
+ *  `fattura:*`. Niente `scrivi` né `elimina` né cancellazioni per prefisso, e niente su `fattura_bozza:*` (una bozza
+ *  non si tocca mai) né sulle chiavi del bulk (quelle passano da `archivioSoloBulk`). */
+export function archivioPerEmissione(a: ArchivioProtetto): ArchivioProtetto {
+  return {
+    ...a,
+    scrivi: async () => SOLO_LE_FATTURE,
+    elimina: async () => SOLO_LE_FATTURE,
+    eliminaPerPrefisso: async () => SOLO_LE_FATTURE,
+    creaSeAssente: async (k, v) =>
+      k.startsWith(PREFISSO_EMESSE)
+        ? a.creaSeAssente(k, v)
+        : { stato: "errore", errore: SOLO_LE_FATTURE },
+  };
+}
+
+/** Le porte di archivio e lucchetto come le usa la rotta, avvolte. UNA funzione sola, usata dalla rotta e dalle
+ *  prove: una prova con un finto non avvolto non vedrebbe i rifiuti (così una fattura che non nasce passerebbe). */
+export function avvolgiArchivi(
+  archivioGrezzo: ArchivioProtetto,
+  lucchettoGrezzo: PortaLucchetto,
+): Pick<PorteBulk, "archivio" | "archivioEmissione" | "lucchetto"> {
+  return {
+    archivio: archivioSoloBulk(archivioGrezzo),
+    archivioEmissione: archivioPerEmissione(archivioGrezzo),
+    lucchetto: lucchettoSoloBulk(lucchettoGrezzo),
+  };
+}
 
 const ferma = (codice: CodiceErrore, messaggio?: string): RispostaEmettiRiga => ({
   ok: true,
@@ -159,7 +198,19 @@ export async function emettiRiga(
   if (!lottoValido(lotto) || !/^\d{4}(-\d{4}){0,2}$/.test(idRiga) || !emittente)
     return ferma("richiesta_non_valida");
   const testata = await testataDi(porte, lotto);
-  if (!testata) return ferma("non_trovato");
+  if (!testata) {
+    //  Lotto sparito: forse perché questa era l'ultima riga e la risposta è andata persa (il lotto si chiude da solo).
+    //  Una sola lettura delle emesse: se la fattura di questa riga c'è, la risposta è la stessa di allora. Niente lucchetto,
+    //  niente scritture.
+    const gia = cercaPerOrigine(await leggiFatture(porte, PREFISSO_EMESSE), lotto, idRiga);
+    if (!gia) return ferma("non_trovato");
+    return {
+      ok: true,
+      esito: "emessa",
+      fattura: { id: gia.id, numero: gia.numero, data: gia.data },
+      lottoChiuso: true,
+    };
+  }
 
   //  1. L'emittente del lotto: la scheda che lo è già si rinnova; un'altra, viva, fa fermare questa.
   const preso = await prendi(
@@ -205,7 +256,24 @@ async function dentroIlLucchetto(
   if (mia?.stato === "scartata")
     return saltata([motivoUnico("riga_scartata", "Questa riga è stata scartata: non si emette.")]);
   //  Già emessa e chiusa (risposta persa, doppio clic): idempotente, e le foto rimaste si ritentano.
-  if (mia?.stato === "emessa" && mia.emessa) return dopoLaRiga(porte, lotto, mia.emessa);
+  if (mia?.stato === "emessa" && mia.emessa) {
+    //  Se la chiusura dei file si era interrotta (riga emessa, file non ancora ridotti) si completa ORA: lettura e foto
+    //  non devono restare (D11a/d). `chiudiRiga` con lo stesso stato è ammesso.
+    const daRidurre = idRiga.split("-").some((i) => {
+      const f = file.get(Number(i));
+      return (
+        !!f &&
+        (f.percorso !== undefined ||
+          f.lettura !== undefined ||
+          (f.stato !== "emessa" && f.stato !== "scartata"))
+      );
+    });
+    if (daRidurre) {
+      const errore = await chiudiComeEmessa(porte, lotto, idRiga, mia.emessa);
+      if (errore) return errore;
+    }
+    return dopoLaRiga(porte, lotto, mia.emessa);
+  }
 
   const tipi = [...file.values()].map((f) => ({
     indice: f.indice,
@@ -262,14 +330,7 @@ async function dentroIlLucchetto(
         ];
     return saltata(motivi);
   }
-  //  La scheda deve esistere davvero (finisce in `leadId`).
-  if (valutata.scheda !== null && !schede.some((s) => s.id === valutata.scheda))
-    return saltata([
-      motivoUnico(
-        "scheda_non_trovata",
-        "La scheda scelta non esiste più: scegline un'altra o togli il collegamento.",
-      ),
-    ]);
+  //  (La scheda esiste: lo dice già `valutaRigaNelLotto`, che blocca `scheda_non_trovata` con le schede del ctx.)
 
   //  6. Emissione. ⚠️ `centro.azienda` è quella appena riletta: valutazione ed emissione usano la stessa.
   const fattura: Fattura = {
@@ -286,7 +347,7 @@ async function dentroIlLucchetto(
     serie,
   );
   const esito = await emettiProtettoSu(
-    porte.archivio,
+    porte.archivioEmissione,
     fattura,
     centro.azienda,
     valutata.campi.data,
@@ -303,6 +364,8 @@ async function dentroIlLucchetto(
   //  7. La riga si chiude con `chiudiRiga` (CAS, svuotamento, foto). Poi l'emittente ricorda l'ultimo numero.
   const nonChiusa = await chiudiComeEmessa(porte, lotto, idRiga, emessa);
   if (nonChiusa) return nonChiusa;
+  //  La fattura c'è e la riga è chiusa: qualunque cosa succeda qui (anche un'eccezione di rete) la risposta resta
+  //  «emessa». Se l'emittente è passato ad altri, la riga dopo si ferma da sola.
   const rinnovato = await rinnova(
     porte.lucchetto,
     chiaveEmittente(lotto),
@@ -310,9 +373,8 @@ async function dentroIlLucchetto(
     SCADENZA_EMITTENTE_MS,
     porte.adesso(),
     { anno: esito.fattura.anno, serie, numero: esito.fattura.numero },
-  );
-  //  La fattura c'è e la riga è chiusa: si risponde «emessa». Se l'emittente è passato ad altri, la riga dopo si ferma.
-  if (!rinnovato.ok) porte.log("emittente_perso");
+  ).catch(() => null);
+  if (!rinnovato?.ok) porte.log("emittente_perso");
 
   return dopoLaRiga(porte, lotto, emessa, esito.salto ?? undefined);
 }

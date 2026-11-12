@@ -115,14 +115,22 @@ function lettureDi(k, o = {}) {
 function mondo(mod) {
   const m = new Map();
   const bucket = new Map();
-  const reg = { traccia: {}, subs: 0, log: [], byteEmesse: 0, letteEmesse: 0, rimuovi: 0 };
+  const reg = {
+    vietate: [],
+    traccia: {},
+    subs: 0,
+    log: [],
+    byteEmesse: 0,
+    letteEmesse: 0,
+    rimuovi: 0,
+  };
   const w = {
     m,
     bucket,
     reg,
     ora: T0,
     quando: {},
-    rotte: { rimuoviFallisce: 0, sostituisciFallisceSu: null },
+    rotte: { rimuoviFallisce: 0, sostituisciFallisceSu: null, scriviFallisce: null },
     n: 0,
     schede: [],
   };
@@ -162,11 +170,17 @@ function mondo(mod) {
     },
     scrivi: async (k, v) => {
       sub(1, "archivio.scrivi");
+      if (!k.startsWith("bulk_fatture_")) reg.vietate.push(`scrivi ${k}`);
+      if (w.rotte.scriviFallisce?.volte > 0 && w.rotte.scriviFallisce.re.test(k)) {
+        w.rotte.scriviFallisce.volte--;
+        return "errore finto";
+      }
       m.set(k, v);
       return null;
     },
     elimina: async (k) => {
       sub(1, "archivio.elimina");
+      if (!k.startsWith("bulk_fatture_")) reg.vietate.push(`elimina ${k}`);
       m.delete(k);
       return null;
     },
@@ -179,6 +193,7 @@ function mondo(mod) {
     },
     eliminaPerPrefisso: async (p) => {
       sub(1, "eliminaPerPrefisso");
+      if (!p.startsWith("bulk_fatture_")) reg.vietate.push(`prefisso ${p}`);
       for (const k of [...m.keys()]) if (k.startsWith(p)) m.delete(k);
       return null;
     },
@@ -234,9 +249,11 @@ function mondo(mod) {
     },
     firma: async () => null,
   };
+  //  ⚠️ Le porte sono AVVOLTE con la stessa funzione della rotta (`avvolgiArchivi`): un finto non avvolto non vede i
+  //   rifiuti di `archivioSoloBulk`, e una fattura che in produzione non nasce passerebbe lo stesso.
+  w.grezzi = { archivio, lucchetto };
   w.porte = {
-    archivio,
-    lucchetto,
+    ...mod["fatture/bulk/emissione.server"].avvolgiArchivi(archivio, lucchetto),
     bucket: buck,
     ai: async () => ({ errore: "interno" }),
     adesso: () => w.ora,
@@ -918,6 +935,210 @@ export async function prove(mod, { c, gruppo, radice }) {
       "la chiamata dopo toglie le orfane (e il lotto si chiude)",
       [0, true],
       [wg.bucket.size, g1.r.lottoChiuso],
+    );
+  }
+
+  /* ══ 7b. LE PORTE COME IN PRODUZIONE ═════════════════════════════════ */
+  gruppo(
+    "BULK · T12 · porte avvolte come nella rotta (archivioSoloBulk e archivio dell'emissione)",
+  );
+  {
+    const wa = mondo(mod);
+    const P = wa.porte;
+    const ok = { stato: "creata" };
+    const rifiuto = { stato: "errore", errore: "chiave fuori dal bulk: non ammessa" };
+    c(
+      "l'archivio delle azioni (archivioSoloBulk) rifiuta di creare fattura:*",
+      rifiuto,
+      await P.archivio.creaSeAssente("fattura:2026-0001", "{}"),
+    );
+    c(
+      "l'archivio dell'emissione crea fattura:*",
+      ok,
+      await P.archivioEmissione.creaSeAssente("fattura:2026-0001", "{}"),
+    );
+    c(
+      "…ma non una bozza",
+      "errore",
+      (await P.archivioEmissione.creaSeAssente("fattura_bozza:x", "{}")).stato,
+    );
+    c(
+      "…ma non una chiave qualunque",
+      "errore",
+      (await P.archivioEmissione.creaSeAssente("fattura_azienda", "{}")).stato,
+    );
+    const nega = (r) => typeof r === "string" && r.length > 0;
+    c(
+      "scrivi e elimina su fattura:* e fattura_bozza:* rifiutati, in tutti e due gli archivi",
+      [true, true, true, true, true, true, true, true],
+      [
+        await P.archivio.scrivi("fattura:2026-0001", "{}"),
+        await P.archivio.elimina("fattura:2026-0001"),
+        await P.archivio.scrivi("fattura_bozza:x", "{}"),
+        await P.archivio.elimina("fattura_bozza:x"),
+        await P.archivioEmissione.scrivi("fattura:2026-0001", "{}"),
+        await P.archivioEmissione.elimina("fattura:2026-0001"),
+        await P.archivioEmissione.scrivi("fattura_bozza:x", "{}"),
+        await P.archivioEmissione.eliminaPerPrefisso("fattura:"),
+      ].map(nega),
+    );
+    c(
+      "nel finto non è cambiato niente oltre alla creazione ammessa",
+      [["fattura:2026-0001"], []],
+      [[...wa.m.keys()].filter((k) => k.startsWith("fattura:")), wa.reg.vietate],
+    );
+    //  Una intera emissione con le porte avvolte: scrive solo con creaSeAssente su fattura:*, mai altro fuori dal bulk.
+    const wb = mondo(mod);
+    semina(wb, mod, { clienti: [0, 1].map((k) => ({ k, opz: { data: `2026-11-0${1 + k}` } })) });
+    const e0 = await chiamate(wb, idDi(0), "scheda-aaaa1111");
+    c(
+      "con le porte avvolte la fattura nasce",
+      ["emessa", 1],
+      [e0.r.esito, wb.emesseSalvate().length],
+    );
+    c("…e nessuna scrittura o cancellazione fuori dal bulk (bozze comprese)", [], wb.reg.vietate);
+  }
+
+  /* ══ 7c. L'ULTIMA RIGA CON LA RISPOSTA PERSA ══════════════════════════ */
+  gruppo("BULK · T12 · risposta persa dell'ultima riga: il lotto non c'è più");
+  {
+    const wl = mondo(mod);
+    semina(wl, mod, { clienti: [{ k: 0 }] });
+    const prima = await chiamate(wl, idDi(0), "scheda-aaaa1111");
+    c(
+      "l'ultima riga si emette e chiude il lotto",
+      [true, false],
+      [prima.r.lottoChiuso, wl.m.has(kT(L))],
+    );
+    const seconda = await chiamate(wl, idDi(0), "scheda-aaaa1111");
+    c(
+      "risposta persa: la seconda chiamata dà la STESSA fattura, lotto chiuso",
+      [prima.r.fattura, true, 1],
+      [seconda.r.fattura, seconda.r.lottoChiuso, wl.emesseSalvate().length],
+    );
+    c(
+      "…con una sola lettura di fattura:, senza lucchetto né scritture",
+      [1, false, false, false],
+      [
+        wl.reg.traccia["pagine fattura"],
+        "lucchetto.crea" in wl.reg.traccia,
+        "archivio.scrivi" in wl.reg.traccia,
+        wl.m.has("bulk_fatture_lock"),
+      ],
+    );
+    const altra = await chiamate(wl, idDi(3), "scheda-aaaa1111");
+    c(
+      "un'altra riga di un lotto che non c'è → ferma non_trovato",
+      ["ferma", "non_trovato"],
+      [altra.r.esito, altra.r.codice],
+    );
+  }
+
+  /* ══ 7d. RINNOVO DELL'EMITTENTE CHE CADE DOPO LA FATTURA ══════════════ */
+  gruppo("BULK · T12 · rete caduta sul rinnovo dopo la fattura");
+  {
+    const wr = mondo(mod);
+    semina(wr, mod, { clienti: [0, 1].map((k) => ({ k, opz: { data: `2026-11-0${1 + k}` } })) });
+    wr.quando.primaDiSostituire = async (k) => {
+      if (/^bulk_fatture_e:/.test(k) && wr.emesseSalvate().length > 0)
+        throw new Error("rete caduta (finta)");
+    };
+    const r0 = await chiamate(wr, idDi(0), "scheda-aaaa1111");
+    c(
+      "rinnovo che lancia dopo la fattura: la risposta resta «emessa»",
+      ["emessa", 1],
+      [r0.r.esito, r0.r.fattura?.numero],
+    );
+    c(
+      "…la riga è chiusa e il log dice solo il codice",
+      ["emessa", true],
+      [JSON.parse(wr.m.get(kR(L, idDi(0)))).stato, wr.reg.log.includes("emittente_perso")],
+    );
+  }
+
+  /* ══ 7e. CHIUSURA DEI FILE INTERROTTA A METÀ ══════════════════════════ */
+  gruppo(
+    "BULK · T12 · la riduzione dei file si interrompe dopo chiudiRiga: la ripresa la completa",
+  );
+  {
+    const wz = mondo(mod);
+    semina(wz, mod, { clienti: [0, 1].map((k) => ({ k, opz: { data: `2026-11-0${1 + k}` } })) });
+    //  La scrittura del primo file della riga fallisce (anche alla ripetizione): la riga è già `emessa` nei dati.
+    wz.rotte.scriviFallisce = { re: /^bulk_fatture_f:/, volte: 2 };
+    const z0 = await chiamate(wz, idDi(0), "scheda-aaaa1111");
+    const f0 = JSON.parse(wz.m.get(kF(L, 0)));
+    c(
+      "scrittura dei file fallita: «ferma», fattura scritta, riga emessa ma file non ridotti",
+      ["ferma", 1, "emessa", true],
+      [
+        z0.r.esito,
+        wz.emesseSalvate().length,
+        JSON.parse(wz.m.get(kR(L, idDi(0)))).stato,
+        "lettura" in f0,
+      ],
+    );
+    const z1 = await chiamate(wz, idDi(0), "scheda-aaaa1111");
+    const ridotti = [0, 1, 2].map((i) => JSON.parse(wz.m.get(kF(L, i))));
+    c(
+      "la ripresa riduce i file (niente lettura, niente percorso, stato emessa) e risponde «emessa» con lo stesso numero",
+      ["emessa", 1, true, 1],
+      [
+        z1.r.esito,
+        z1.r.fattura?.numero,
+        ridotti.every((f) => f.stato === "emessa" && !("lettura" in f) && !("percorso" in f)),
+        wz.emesseSalvate().length,
+      ],
+    );
+    c(
+      "…e le 3 foto di quella riga non sono più nel bucket (restano le 3 dell'altra)",
+      3,
+      wz.bucket.size,
+    );
+  }
+
+  /* ══ 7f. LO STESSO PAGAMENTO IN DUE LOTTI ═════════════════════════════ */
+  gruppo(
+    "BULK · T12 · stesso screenshot di pagamento in due lotti (regge impronteAltriLotti vuoto)",
+  );
+  {
+    //  Stessa impronta del file di pagamento (indice 2), tutto il resto diverso: l'unico legame è la foto.
+    const diversa = { riferimento: "CRO55555555", importo: 333, data: "2026-11-08" };
+    const wq = mondo(mod);
+    semina(wq, mod, {
+      lotto: L,
+      clienti: [
+        { k: 0, opz: { data: "2026-11-01" } },
+        { k: 1, opz: { data: "2026-11-02" } },
+      ],
+    });
+    semina(wq, mod, { lotto: L2, clienti: [{ k: 0, opz: diversa }] });
+    const a = await chiamate(wq, idDi(0), "scheda-aaaa1111", L);
+    const b = await chiamate(wq, idDi(0), "scheda-bbbb2222", L2);
+    c(
+      "due lotti aperti: la prima emette, la seconda è «saltata» con doppione_screenshot",
+      ["emessa", "saltata", true, 1],
+      [
+        a.r.esito,
+        b.r.esito,
+        b.r.motivi?.some((m) => m.codice === "doppione_screenshot"),
+        wq.emesseSalvate().length,
+      ],
+    );
+    //  D11b: il lotto si chiude ed è cancellato; un lotto nuovo con lo stesso screenshot è fermato lo stesso.
+    const wd = mondo(mod);
+    semina(wd, mod, { lotto: L, clienti: [{ k: 0, opz: { data: "2026-11-01" } }] });
+    const d0 = await chiamate(wd, idDi(0), "scheda-aaaa1111", L);
+    semina(wd, mod, { lotto: L2, clienti: [{ k: 0, opz: diversa }] });
+    const d1 = await chiamate(wd, idDi(0), "scheda-aaaa1111", L2);
+    c(
+      "D11b: lotto concluso ed eliminato, nuovo lotto con lo stesso screenshot → bloccata",
+      [true, "saltata", true, 1],
+      [
+        d0.r.lottoChiuso,
+        d1.r.esito,
+        d1.r.motivi?.some((m) => m.codice === "doppione_screenshot"),
+        wd.emesseSalvate().length,
+      ],
     );
   }
 
