@@ -59,7 +59,13 @@ export const CONFRONTO = {
     { titolo: "Piega e movimento", chiave: "id.confronto3", alt: "Un pettine solleva i capelli sulla patch standard e su Invisible Derm, con lo stesso gesto." },
   ],
   didascaliaCoppia3: "Il pettine solleva, il dito passa. Stesso gesto su tutte e due.",
-  riga: "La patch standard va bene per molti, e la facciamo anche noi. Qui vedi dove Invisible Derm fa un passo in più.",
+  riga: "La patch standard va bene per molti, e la facciamo anche noi. Qui sotto vedi dove Invisible Derm fa un passo in più: nel disegno e nella tabella.",
+  // Il disegno c'è sempre (niente foto, niente numeri): spiega il bordo anche senza media.
+  disegno: {
+    titolo: "Il bordo, visto di lato",
+    alt: "Disegno di una sezione dalla pelle alla superficie: a sinistra la patch standard ha un bordo spesso e visibile; a destra Invisible Derm ha una membrana sottile che si confonde con la pelle.",
+    didascalia: "Disegno illustrativo, non in scala.",
+  },
   videoTitolo: "Le due in mano, 40 secondi",
   videoDidascalia: "Il titolare le mette una accanto all'altra e te le spiega, senza giudicare.",
   videoAlt: "Il titolare tiene in mano una patch standard e un sistema Invisible Derm e li confronta.",
@@ -68,7 +74,7 @@ export const CONFRONTO = {
 export const RESISTENTE = {
   sopratitolo: "Sottile, ma resistente",
   h2: "[a]Sottile.[/a] E non per questo fragile.",
-  introduzione: "Sottile fa pensare a fragile. Per questo ti facciamo vedere tutte e due le cose, una alla volta.",
+  introduzione: "Sottile fa pensare a fragile. Per questo ti spieghiamo tutte e due le cose, una alla volta.",
   sottile: {
     numero: "01",
     kicker: "01 · Sottile",
@@ -81,7 +87,9 @@ export const RESISTENTE = {
     numero: "02",
     kicker: "02 · Resistente",
     titolo: "Resistente",
-    testo: "Un solo test, in una sola ripresa, senza stacchi. Lo stesso test sulla patch standard, accanto. Quello che vedi è quello che è successo.",
+    testo: "Sottile non vuol dire fragile: Invisible Derm è fatto per la vita di tutti i giorni, non per una sera. Lavoro, doccia, sport.",
+    // solo se c'è il video del test
+    testoConVideo: "Un solo test, in una sola ripresa, senza stacchi. Lo stesso test sulla patch standard, accanto. Quello che vedi è quello che è successo.",
     didascalia: "Trazione, in una ripresa unica.",
     alt: "Test di trazione ripreso senza stacchi, su Invisible Derm e sulla patch standard, una accanto all'altra.",
   },
@@ -112,11 +120,14 @@ export const TABELLA = {
   h2: "Patch standard e Invisible Derm, riga per riga.",
   caption: "Patch standard e Invisible Derm a confronto, riga per riga",
   intestazioni: ["Patch standard", "Invisible Derm"] as const,
+  // Le prime due righe sono affermazioni del titolare (ammesse dal brief); «Chirurgia» non distingue nulla, sta in fondo.
   righe: [
+    { nome: "Bordo", patch: "Più spesso, da vicino si può notare", derm: "Sottile, si confonde con la pelle" },
+    { nome: "Sottile e resistente", patch: "Di solito devi scegliere: o sottile o resistente", derm: "Tutte e due, insieme" },
     { nome: "Pronta o su misura", patch: "Pronta", derm: "Su misura: colore, densità, attaccatura" },
-    { nome: "Chirurgia", patch: "No", derm: "No" },
     { nome: "Manutenzione", patch: "Periodica", derm: "Periodica, circa 10 minuti" },
     { nome: "Solo da noi", patch: "–", derm: "Sì, abbiamo l'esclusiva" },
+    { nome: "Chirurgia", patch: "No", derm: "No" },
   ],
   limiteApertura: "Ti dico anche le cose scomode, prima che le chieda tu.",
   limite:
@@ -157,8 +168,8 @@ export const FAQ = {
   sopratitolo: "Domande",
   h2: "Le domande che ci fanno più spesso.",
   voci: [
-    { q: "Si vede?", a: "Guardalo tu. Nella sezione del confronto trovi Invisible Derm e una patch standard, con la stessa luce e a 10 centimetri. Sul tuo caso lo vediamo insieme in consulenza." },
-    { q: "Regge nella vita di tutti i giorni?", a: "Nella sezione «Sottile, ma resistente» vedi un test ripreso in un'unica scena. Non ti promettiamo niente che non abbiamo ripreso." },
+    { q: "Si vede?", a: "Guardalo tu. Nella sezione del confronto trovi Invisible Derm e una patch standard a fianco, dal bordo alla tabella. Sul tuo caso lo vediamo insieme in consulenza." },
+    { q: "Regge nella vita di tutti i giorni?", a: "Sì: è fatto per la vita di tutti i giorni, non per una sera. Lavoro, doccia, sport. In consulenza ti spieghiamo come si comporta nel tuo caso e quanta manutenzione serve." },
     { q: "Ho già provato una patch e non è andata. Perché dovrebbe andare?", a: "Non ti dico che andrà meglio: ti faccio vedere la differenza e ti spiego cosa è cambiato. In consulenza mi racconti cosa non ha funzionato. Se la strada giusta è un'altra, te lo dico." },
     { q: "Quanto costa?", a: "Dipende da cosa serve: è su misura. Te lo diciamo in consulenza, dopo aver guardato il tuo caso." },
     { q: "In cosa è diversa da una patch standard?", a: "La patch standard è pronta; Invisible Derm si prepara su misura, sul tuo colore, sulla tua densità, sulla tua attaccatura. Entrambe si fanno senza chirurgia. La patch standard la facciamo anche noi: la differenza la vedi nel confronto, riga per riga." },

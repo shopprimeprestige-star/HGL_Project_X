@@ -146,7 +146,7 @@ export function FaqAccordion({ voci }: { voci?: FaqItem[] } = {}) {
             <button
               onClick={() => setOpen(isOpen ? -1 : i)}
               aria-expanded={isOpen}
-              aria-controls={`${base}-${i}`}
+              aria-controls={isOpen ? `${base}-${i}` : undefined}
               className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
             >
               <span className="flex items-center gap-4">

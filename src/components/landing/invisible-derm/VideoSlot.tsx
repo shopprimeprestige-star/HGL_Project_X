@@ -3,7 +3,7 @@
  *  al tocco parte il video con i comandi nativi. Mai `autoplay` senza un tocco,
  *  e il file non si scarica prima (`preload="none"`). `muto` per test, posa e studio.
  *  Senza file non disegna niente. */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 
 type Props = {
@@ -20,11 +20,16 @@ type Props = {
 
 export function VideoSlot({ src, poster, alt, titolo, muto = false, className = "aspect-[4/5]" }: Props) {
   const [avviato, setAvviato] = useState(false);
+  const video = useRef<HTMLVideoElement>(null);
+  // il tasto Play sparisce al clic: il fuoco della tastiera passa al video, non si perde
+  useEffect(() => {
+    if (avviato) video.current?.focus();
+  }, [avviato]);
   if (!src) return null;
   return (
     <div className={`relative w-full overflow-hidden rounded-md bg-blueprint-fine ${className}`}>
       {avviato ? (
-        <video src={src} poster={poster || undefined} controls autoPlay playsInline muted={muto} aria-label={alt} className="absolute inset-0 h-full w-full object-cover" />
+        <video ref={video} src={src} poster={poster || undefined} controls autoPlay playsInline muted={muto} aria-label={alt} className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <>
           {poster && <img src={poster} alt="" aria-hidden="true" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}

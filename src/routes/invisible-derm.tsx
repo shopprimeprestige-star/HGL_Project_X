@@ -45,6 +45,7 @@ import { MediaSlot } from "@/components/landing/MediaSlot";
 import { RichText } from "@/components/landing/RichText";
 import { BarraPrenotaId } from "@/components/landing/invisible-derm/BarraPrenotaId";
 import { ClipLoop } from "@/components/landing/invisible-derm/ClipLoop";
+import { DisegnoConfronto } from "@/components/landing/invisible-derm/DisegnoConfronto";
 import { CursoreConfronto } from "@/components/landing/invisible-derm/CursoreConfronto";
 import { FooterId } from "@/components/landing/invisible-derm/FooterId";
 import { TabellaConfronto } from "@/components/landing/invisible-derm/TabellaConfronto";
@@ -280,11 +281,11 @@ function InvisibleDerm() {
               <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 md:text-lg">{HERO.sottotitolo}</p>
 
               {/* sul telefono il bottone viene prima delle pillole, per restare nella prima schermata */}
-              <div className="order-4 mt-8 lg:order-5">
+              <div className={`order-4 mt-8 lg:order-5 ${titolareFoto ? "" : "lg:hidden"}`}>
                 <Bottone traccia="cta_hero_clic" className="lg:hidden" />
                 <div className="mt-4 flex items-center gap-4">
                   {ritratto("h-[72px] w-[72px]")}
-                  <p className="text-sm text-white/75 md:text-base">{RIGA_BOTTONE}</p>
+                  <p className="text-sm text-white/75 md:text-base lg:hidden">{RIGA_BOTTONE}</p>
                 </div>
               </div>
               <div className="order-5 mt-8 flex flex-wrap gap-3 lg:order-4">
@@ -409,6 +410,10 @@ function InvisibleDerm() {
           </div>
           )}
 
+          <div className={haConfronti ? "mt-14" : "mt-12"}>
+            <DisegnoConfronto />
+          </div>
+
           <p className="mx-auto mt-14 max-w-2xl text-center text-lg text-white md:text-xl">{CONFRONTO.riga}</p>
           {/* il bottone chiude la sezione ed è il segnale «sezione 3 finita» per la barra del telefono */}
           <div data-barra-dopo="confronto" className="mt-8">
@@ -433,20 +438,17 @@ function InvisibleDerm() {
               testo={RESISTENTE.sottile.testo}
               kicker={RESISTENTE.sottile.kicker}
               didascalia={RESISTENTE.sottile.didascalia}
-              className={test ? "" : "md:col-span-2 md:mx-auto md:w-full md:max-w-xl"}
               media={sottileFoto ? <MediaSlot src={sottileFoto} type="image" alt={alt("id.sottileFoto")} proporzione="aspect-[4/3]" /> : null}
             />
-            {test && (
-              <Pilastro
-                n={RESISTENTE.resistente.numero}
-                Icon={Dumbbell}
-                titolo={RESISTENTE.resistente.titolo}
-                testo={RESISTENTE.resistente.testo}
-                kicker={RESISTENTE.resistente.kicker}
-                didascalia={RESISTENTE.resistente.didascalia}
-                media={<VideoSlot src={test} poster={media("id.testPoster")} alt={alt("id.testVideo")} muto className="aspect-[4/5]" />}
-              />
-            )}
+            <Pilastro
+              n={RESISTENTE.resistente.numero}
+              Icon={Dumbbell}
+              titolo={RESISTENTE.resistente.titolo}
+              testo={test ? RESISTENTE.resistente.testoConVideo : RESISTENTE.resistente.testo}
+              kicker={RESISTENTE.resistente.kicker}
+              didascalia={RESISTENTE.resistente.didascalia}
+              media={test ? <VideoSlot src={test} poster={media("id.testPoster")} alt={alt("id.testVideo")} muto className="aspect-[4/5]" /> : null}
+            />
           </div>
 
           {vitaOk && (

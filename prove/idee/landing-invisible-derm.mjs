@@ -43,8 +43,26 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   c("nessun tel:, mailto: o WhatsApp", false, /tel:|mailto:|wa\.me|whatsapp/i.test(pagina));
   c("nessun «Prima» / «Dopo» nel confronto", false, /\bPrima\b|\bDopo\b/.test(pagina));
   c("nessuna voce da confermare nei testi", false, /\{\{/.test(senzaCommenti(testi)));
-  c("la tabella ha le 4 righe sicure", 4, T.TABELLA.righe.length);
+  const righe = T.TABELLA.righe.map((r) => r.nome);
+  c("la tabella: 6 righe, «Bordo» e «Sottile e resistente» in testa, «Chirurgia» in fondo", ["Bordo", "Sottile e resistente", "Chirurgia"], [righe[0], righe[1], righe[righe.length - 1]]);
+  c("la tabella ha 6 righe", 6, righe.length);
+  c("riga «Bordo» (frasi del titolare)", ["Più spesso, da vicino si può notare", "Sottile, si confonde con la pelle"], [T.TABELLA.righe[0].patch, T.TABELLA.righe[0].derm]);
+  c("riga «Sottile e resistente» (frasi del titolare)", ["Di solito devi scegliere: o sottile o resistente", "Tutte e due, insieme"], [T.TABELLA.righe[1].patch, T.TABELLA.righe[1].derm]);
   c("non importa lo shop né la barra della consulenza", false, /StickyHeader|BarraConsulenza|PlaceholderBox|ComparisonTable|VideoReviewsSection|PopupUscita/.test(pagina));
+
+  /* Senza media la pagina regge: pilastro «Resistente», disegno, frasi che non rimandano a media assenti */
+  const vistaRotta = senzaCommenti(rotta);
+  c("il pilastro «Resistente» si disegna anche senza il video del test", false, /\{test && \(\s*<Pilastro/.test(vistaRotta));
+  c("senza video il pilastro ha un testo che non rimanda al test", true, /test \? RESISTENTE\.resistente\.testoConVideo : RESISTENTE\.resistente\.testo/.test(vistaRotta) && !/test|ripresa|vedi/i.test(T.RESISTENTE.resistente.testo));
+  const disegno = leggi(`${cartella}/DisegnoConfronto.tsx`);
+  c("il disegno SVG è in pagina fuori da ogni condizione sui media", true, /<div className=\{haConfronti \? "mt-14" : "mt-12"\}>\s*<DisegnoConfronto \/>/.test(vistaRotta));
+  c("il disegno: SVG con role=\"img\" e descrizione", true, /<svg/.test(disegno) && /role="img"/.test(disegno) && /aria-label=\{d\.alt\}/.test(disegno));
+  c("il disegno non usa foto né media del CRM", false, /<img|media\(|src=/.test(senzaCommenti(disegno)));
+  c("la descrizione del disegno dice bordo spesso e membrana sottile", true, /bordo spesso/.test(T.CONFRONTO.disegno.alt) && /sottile/.test(T.CONFRONTO.disegno.alt));
+  c("le frasi sotto il confronto, l'introduzione e la FAQ non rimandano a media assenti", [], [T.CONFRONTO.riga, T.RESISTENTE.introduzione, ...T.FAQ.voci.map((v) => v.a)].filter((t) => /ti facciamo vedere|vedi un test|ripres[ao]|stessa luce e a 10 centimetri|Qui vedi/.test(t)));
+  c("FAQ «Regge…»: risposta del titolare", "Sì: è fatto per la vita di tutti i giorni, non per una sera. Lavoro, doccia, sport. In consulenza ti spieghiamo come si comporta nel tuo caso e quanta manutenzione serve.", T.FAQ.voci[1].a);
+  c("computer: «Gratis, online…» sta solo col bottone del telefono", true, /text-base lg:hidden">\{RIGA_BOTTONE\}/.test(vistaRotta.replace(/\s+/g, " ")) || /lg:hidden">\{RIGA_BOTTONE\}/.test(vistaRotta));
+  c("il tasto Play passa il fuoco al video", true, /video\.current\?\.focus\(\)/.test(leggi(`${cartella}/VideoSlot.tsx`)));
 
   /* Hollywood, una volta; «resistente» con i testi [SE test] */
   c("Hollywood compare una sola volta in tutta la pagina", 1, (pagina.match(/Hollywood/g) || []).length);
@@ -80,6 +98,7 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   c("la radice usa paginaInItaliano", true, /lang=\{paginaInItaliano\(percorso\) \? "it" : "en"\}/.test(leggi("src/routes/__root.tsx")));
   const faq = leggi("src/components/landing/FaqAccordion.tsx");
   c("FAQ: aria-expanded e aria-controls", true, /aria-expanded=\{isOpen\}/.test(faq) && /aria-controls=/.test(faq));
+  c("FAQ: aria-controls solo con la risposta aperta (mai un id che non c'è)", true, /aria-controls=\{isOpen \?/.test(faq));
   c("FAQ: senza elenco esterno restano le domande della home", true, /voci \?\? FAQS/.test(faq));
   c("la home non importa niente della nuova pagina", false, /invisible-derm|testi-invisible/.test(leggi("src/routes/index.tsx")));
 }
