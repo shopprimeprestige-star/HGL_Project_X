@@ -85,6 +85,8 @@ const FRASI: Partial<Record<CodiceErrore, string>> = {
   timeout: "Il server ci ha messo troppo: riprova fra poco.",
   limite: "Troppe richieste in poco tempo: aspetta un attimo e riprendi.",
   credito: "Il credito dell'intelligenza artificiale è finito: ricaricalo e poi riprendi.",
+  politica_dati:
+    "Nessun fornitore dell'intelligenza artificiale accetta la regola «non conservare i dati»: le letture sono ferme, avvisa l'assistenza.",
   non_autorizzato: "La sessione è scaduta: rientra nel CRM e riprendi.",
   non_permesso: "Il tuo utente non può usare questa funzione.",
   troncata: "La lettura è venuta troncata: usa «Rileggi» su quel cliente.",

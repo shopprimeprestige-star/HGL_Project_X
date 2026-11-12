@@ -23,7 +23,7 @@
  *  l'elemento finisce in errore `occupato`, sempre fuori dal freno.
  *
  *  ── IL FRENO ─────────────────────────────────────────────────────────────
- *  `credito` (402), `non_autorizzato` (401) e `non_permesso` (403) fermano
+ *  `credito` (402), `politica_dati` (nessun fornitore AI accetta `data_collection: deny`: 404 permanente), `non_autorizzato` (401) e `non_permesso` (403) fermano
  *  subito, al primo esito: si ripresenterebbero identici a ogni gruppo.
  *  Cinque elementi di fila falliti per davvero (dopo i loro tentativi) = si
  *  ferma tutto: con un guasto vero non ha senso fare altre 195 chiamate. Un
@@ -47,7 +47,7 @@ export const CODICI_RIPETIBILI: ReadonlySet<CodiceErrore> = new Set<CodiceErrore
 
 /** Guasti che non passano e che si ripresenterebbero identici a ogni gruppo: credito finito (402), sessione
  *  scaduta (401), permesso mancante (403). Fermano la coda al PRIMO esito, senza aspettare i 5 errori. */
-const CODICI_CHE_FERMANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>(["credito", "non_autorizzato", "non_permesso"]);
+const CODICI_CHE_FERMANO: ReadonlySet<CodiceErrore> = new Set<CodiceErrore>(["credito", "politica_dati", "non_autorizzato", "non_permesso"]);
 
 /** Quanto si aspetta fra due richieste a un gruppo occupato, e quante volte al massimo. */
 export const ATTESA_OCCUPATO_MS = 5_000;

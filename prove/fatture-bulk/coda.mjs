@@ -159,7 +159,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   }
 
   gruppo("BULK · T8 · LA CODA · CREDITO, SESSIONE E PERMESSO FERMANO SUBITO");
-  for (const codice of ["credito", "non_autorizzato", "non_permesso"]) {
+  for (const codice of ["credito", "politica_dati", "non_autorizzato", "non_permesso"]) {
     // 10 elementi, uno alla volta, il secondo fa il guasto: non parte più niente dopo.
     const x = await corri({ n: 10, copione: (el) => { if (el === 1) throw E(codice); return "ok"; }, opz: { inParallelo: 1 } });
     c(`«${codice}» al secondo: ferma subito (2 chiamate, 8 non fatti)`, [2, "freno", codice, 8],
