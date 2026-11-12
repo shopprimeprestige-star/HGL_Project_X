@@ -350,9 +350,9 @@ function InvisibleDerm() {
       <section aria-labelledby="confronto-titolo" className="bg-blueprint">
         <div className={SEZIONE}>
           <Testata id="confronto-titolo" sopratitolo={CONFRONTO.sopratitolo} scuro>
-            <RichText value={CONFRONTO.h2} highlightClass="text-aurora" />
+            <RichText value={haConfronti ? CONFRONTO.h2 : CONFRONTO.h2SenzaFoto} highlightClass="text-aurora" />
           </Testata>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-base text-white/75 md:text-lg">{CONFRONTO.sottotitolo}</p>
+          <p className="mx-auto mt-4 max-w-2xl text-center text-base text-white/75 md:text-lg">{haConfronti ? CONFRONTO.sottotitolo : CONFRONTO.sottotitoloSenzaFoto}</p>
 
           {haConfronti && (
           <div className="mx-auto mt-12 max-w-5xl space-y-14">

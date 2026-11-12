@@ -51,6 +51,9 @@ export const CONFRONTO = {
   sopratitolo: "Il confronto",
   h2: "Patch standard e Invisible Derm. [a]Stessa luce, stessa distanza.[/a]",
   sottotitolo: "Non devi fidarti di una frase. Guarda.",
+  /** Senza le foto del confronto: niente promesse di immagini che non ci sono. */
+  h2SenzaFoto: "Patch standard e Invisible Derm. [a]La differenza è nel bordo.[/a]",
+  sottotitoloSenzaFoto: "È il punto che si guarda di più. Eccolo, visto di lato.",
   istruzione: "Trascina per confrontare.",
   etichette: { patch: "Patch standard", derm: "Invisible Derm" },
   coppie: [
