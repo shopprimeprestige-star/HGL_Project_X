@@ -63,7 +63,9 @@ export const rigaAperta = (r: Pick<RigaValutata, "stato">): boolean =>
 export const nomeDellaRiga = (r: RigaValutata): string =>
   `${r.campi.nome} ${r.campi.cognome}`.trim() || "Nome da leggere";
 
-const ETICHETTA_STATO: Record<StatoVisibile, string> = {
+/** `export` per la modalità «dalla chat» (commessa 2026-11-13, T0b): stesse etichette,
+ *  stessi colori — mai una copia che domani diverge. */
+export const ETICHETTA_STATO: Record<StatoVisibile, string> = {
   pronto: "Pronto",
   da_controllare: "Da controllare",
   errore: "Errore",
@@ -72,7 +74,7 @@ const ETICHETTA_STATO: Record<StatoVisibile, string> = {
   scartata: "Scartata",
 };
 
-const STILE_STATO: Record<StatoVisibile, { classe: string; icona: typeof CheckCircle2 }> = {
+export const STILE_STATO: Record<StatoVisibile, { classe: string; icona: typeof CheckCircle2 }> = {
   pronto: { classe: "border-emerald-200 bg-emerald-50 text-emerald-800", icona: CheckCircle2 },
   da_controllare: { classe: "border-amber-200 bg-amber-50 text-amber-900", icona: AlertTriangle },
   errore: { classe: "border-rose-200 bg-rose-50 text-rose-800", icona: XCircle },

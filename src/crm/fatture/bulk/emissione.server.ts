@@ -132,8 +132,10 @@ async function leggiFatture(porte: PorteBulk, prefisso: string): Promise<Fattura
   return out;
 }
 
-/** R1: il centro com'è ADESSO. Cambiato rispetto al lotto, o con dati che lo SdI scarterebbe → si ferma il lotto. */
-async function centroOk(
+/** R1: il centro com'è ADESSO. Cambiato rispetto al lotto, o con dati che lo SdI scarterebbe → si ferma il lotto.
+ *  `export` per la modalità «dalla chat» (commessa 2026-11-13, T0b): stessa regola, un solo punto di verità,
+ *  invece di duplicarla in un secondo file che domani diverge. */
+export async function centroOk(
   porte: PorteBulk,
   testata: TestataLotto,
 ): Promise<{ azienda: DatiAzienda } | { stop: RispostaEmettiRiga }> {
