@@ -83,6 +83,7 @@ import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveEcoFantasma } from "./idee/eco-fantasma.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
+import { proveIdeePonteChat } from "./idee/ponte-chat.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { proveFattureBulk } from "./fatture-bulk.mjs";
@@ -712,6 +713,10 @@ const MODULI = [
   "chatwa/apriWhatsapp",
   "chiamabile",
   "chatwa/scelta-whatsapp",
+  //  «Ha un messaggio del ponte?» (commessa 2026-11-13-chat-baileys, T2): la funzione
+  //   condivisa fra l'elenco «WhatsApp Baileys» e la terza opzione sul lead. Prove in
+  //   prove/idee/ponte-chat.mjs.
+  "chatwa/ponteChat",
   "chatwa/entrata-vera",
   "chatwa/richiamo",
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
@@ -21619,6 +21624,7 @@ proveRitornoInAttesa(mod, { c, gruppo, radice });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
+proveIdeePonteChat(mod, { c, gruppo });
 proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 await proveFattureBulk(mod, { c, gruppo, radice });
