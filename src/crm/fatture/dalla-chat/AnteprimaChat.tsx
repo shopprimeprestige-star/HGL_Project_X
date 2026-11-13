@@ -12,7 +12,7 @@
  *   bulk ma con un contratto diverso (`?miniatura=…&idRiga=…`, non per indice
  *   di file): mescolare i due contratti nella stessa lista avrebbe richiesto
  *   due codici per la stessa cosa. */
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AlertTriangle, CheckCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

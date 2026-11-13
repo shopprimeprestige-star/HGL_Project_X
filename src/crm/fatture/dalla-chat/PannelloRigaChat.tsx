@@ -15,7 +15,7 @@
  *  ⚠️ I SALVATAGGI SONO UNO ALLA VOLTA PER RIGA (lo garantisce `salvaRiga` di
  *   `usa-lotto-chat.ts`): qui si manda una cosa per richiesta, come nella
  *   bulk (`controllaCambio`, import — stesso file, stessa regola). */
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -41,7 +41,7 @@ import { controllaFile } from "../bulk/immagini";
 import { controllaCambio, type CambioRiga } from "../bulk/cambio-riga";
 import { leggiImportoScritto } from "../bulk/PannelloRigaBulk";
 import { BadgeStato, dataItaliana, euroEsatti, nomeDellaRiga } from "../bulk/AnteprimaBulk";
-import { ErroreRotta, fraseDi } from "../bulk/usa-lotto";
+import { ErroreRotta } from "../bulk/usa-lotto";
 import { leggiRottaChat } from "./usa-lotto-chat";
 import type { CampiRiga, Motivo, RigaValutata } from "../bulk/tipi";
 import type { LetturaChat, RigaChat } from "./tipi";
