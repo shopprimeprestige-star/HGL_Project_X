@@ -77,7 +77,7 @@ import {
   salvaAzienda,
   emetti,
 } from "@/crm/fatture/archivio";
-import { costruisciXml, nomeFileXml, problemiXml } from "@/crm/fatture/xml";
+import { costruisciXml, nomeFileXml, partitaIvaValida, problemiXml } from "@/crm/fatture/xml";
 import { FinestraAltraFattura } from "@/crm/fatture/FinestraAltraFattura";
 import { costruisciDocumento, nomeCliente } from "@/crm/fatture/documento";
 import { scaricaInFila, scaricaXml } from "@/crm/fatture/scarica";
@@ -1501,12 +1501,17 @@ function FatturePage() {
   );
 }
 
-/** Codice fiscale (o partita IVA per un'azienda) e indirizzo completo: con
- *  questi la bozza ha i dati del cliente che servono per emetterla. */
+/** Codice fiscale (per un'azienda: partita IVA) e indirizzo completo, negli
+ *  stessi formati che l'emissione pretende (`problemiXml` in fatture/xml.ts):
+ *  verde solo se «Emetti» non li rifiuterà. */
 function datiClienteCompleti(f: Fattura): boolean {
   const c = f.cliente;
-  const id = (c.codiceFiscale || "").trim() || (c.azienda ? (c.partitaIva || "").trim() : "");
-  return Boolean(id && c.indirizzo?.trim() && c.cap?.trim() && c.comune?.trim());
+  const id = c.azienda
+    ? partitaIvaValida((c.partitaIva || "").trim())
+    : /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/.test((c.codiceFiscale || "").trim().toUpperCase());
+  return Boolean(
+    id && c.indirizzo?.trim() && /^\d{5}$/.test((c.cap || "").trim()) && c.comune?.trim(),
+  );
 }
 
 /** ── DA FARE ANCORA ────────────────────────────────────────────────────────
