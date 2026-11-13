@@ -56,8 +56,10 @@ function mondo(opz = {}) {
     firme: [],
     scritte: [], // ⚠️ ogni scrittura, non solo lo stato finale (per la prova «mai senza scheda»)
     log: [],
+    raccoltaFirme: 0,
+    raccoltaScarichi: 0,
   };
-  const w = { m, bucket, reg, ora: T0, n: 0, schede: new Map() };
+  const w = { m, bucket, reg, ora: T0, n: 0, schede: new Map(), hook: {} };
   //  ⚠️ Forma UUID vera (esadecimale): `percorsoDelLotto` in chat.server.ts accetta solo
   //  `[0-9a-f-]{8,40}.jpg`, come `crypto.randomUUID()` produce davvero.
   w.id = () => `00000000-0000-4000-8000-${String(++w.n).padStart(12, "0")}`;
@@ -69,9 +71,20 @@ function mondo(opz = {}) {
       .map(([key, value]) => ({ key, value }));
 
   const archivio = {
+    //  ⚠️ `w.hook.dopoLeggiPagamento`: una gara ORCHESTRATA, non affidata al caso di `Promise.all`
+    //  (che con `crypto.subtle.digest` davvero asincrono finisce quasi sempre per far girare le due
+    //  chiamate in SERIE, senza mai sovrapporsi — lo stesso schema a hook già usato da
+    //  `prove/fatture-bulk/server.mjs`, `dopoLeggiRiga`). Fa finire la SECONDA richiesta per intero
+    //  (upload compreso) proprio dopo che la prima ha letto «nessun pagamento»: la prima, con quella
+    //  lettura ormai vecchia, deve trovare la chiave già presa.
     leggi: async (k) => {
       sub();
-      return m.get(k) ?? null;
+      const v = m.get(k) ?? null;
+      if (w.hook.dopoLeggiPagamento && k.startsWith("chat_fatture_p:") && !w.hook.rigaFatta) {
+        w.hook.rigaFatta = true;
+        await w.hook.dopoLeggiPagamento();
+      }
+      return v;
     },
     leggiPrefisso: async (p) => {
       sub();
@@ -163,12 +176,33 @@ function mondo(opz = {}) {
       return `https://firmato.example/${p}?s=${s}`;
     },
   };
+  //  ⚠️ Osservazione del revisore: anche i finti della porta «raccolta» contano le loro
+  //  sottorichieste come fanno già archivio/lucchetto/bucket/ai, e `opz.raccoltaMessaggi`/
+  //  `opz.raccoltaMedia` permettono a una prova di far rispondere DAVVERO 8 immagini pronte,
+  //  invece di restare a zero chiamate per costruzione.
   const raccolta = {
-    messaggi: async () => [],
-    mediaPonte: async () => [],
-    firmaPonte: async () => null,
-    scaricaPonte: async () => null,
-    scaricaManyChat: async () => null,
+    messaggi: async () => {
+      sub();
+      return opz.raccoltaMessaggi ?? [];
+    },
+    mediaPonte: async () => {
+      sub();
+      return opz.raccoltaMedia ?? [];
+    },
+    firmaPonte: async (percorso) => {
+      sub();
+      reg.raccoltaFirme++;
+      return `https://firmato.example/${percorso}`;
+    },
+    scaricaPonte: async () => {
+      sub();
+      reg.raccoltaScarichi++;
+      return JPEG;
+    },
+    scaricaManyChat: async () => {
+      sub();
+      return null;
+    },
   };
   const ai = async (corpo, timeoutMs) => {
     sub();
@@ -625,6 +659,78 @@ export async function prove(_mod, { c, gruppo, radice }) {
     c("leggi-pagamento una seconda volta: nessuna nuova chiamata AI (già letto)", 1, w.reg.ai);
   }
 
+  gruppo(
+    "DALLA CHAT · T5 · «carica-pagamento»: due caricamenti insieme sulla stessa riga → uno «occupato» (CAS)",
+  );
+  {
+    //  ⚠️ Osservazione del revisore (bloccante): senza il segnaposto «caricando» scritto con un
+    //  confronto-e-scambio PRIMA dell'upload (come `caricaFile` nella bulk), due richieste insieme
+    //  caricherebbero due file e l'ultima scrittura vincerebbe in silenzio — nessuna delle due
+    //  riceverebbe un errore. Con il CAS, una delle due deve trovare la chiave già presa.
+    const JPEG_B = `data:image/jpeg;base64,${"B".repeat(4000)}`;
+    const w = mondo({
+      risposteAi: () => ({ testo: '{"tessere":[],"indirizzi":[]}', fine: "stop" }),
+    });
+    w.m.set(
+      `chat_fatture_t:${L}`,
+      JSON.stringify({
+        lotto: L,
+        creatoIl: new Date(T0).toISOString(),
+        descrizione: "x",
+        dataSeManca: "",
+        firmaImpostazioni: "f",
+      }),
+    );
+    aggiungiScheda(w, SCHEDA_PROVA);
+    await CS.gestisciPOSTChat(
+      richiesta("POST", { azione: "aggiungi-cliente", lotto: L, schedaId: SCHEDA_PROVA }),
+      dip(w),
+    );
+    //  La «gara»: mentre la PRIMA richiesta ha appena letto «nessun pagamento» (ancora dentro
+    //  `archivio.leggi`), la SECONDA parte e finisce per intero (upload compreso) — poi la prima
+    //  riprende con quella lettura ormai vecchia.
+    let corpo2;
+    w.hook.dopoLeggiPagamento = async () => {
+      const r2 = await CS.gestisciPOSTChat(
+        richiesta("POST", {
+          azione: "carica-pagamento",
+          lotto: L,
+          idRiga: SCHEDA_PROVA,
+          dataUrl: JPEG_B,
+        }),
+        dip(w),
+      );
+      corpo2 = await r2.json();
+    };
+    const r1 = await CS.gestisciPOSTChat(
+      richiesta("POST", {
+        azione: "carica-pagamento",
+        lotto: L,
+        idRiga: SCHEDA_PROVA,
+        dataUrl: JPEG,
+      }),
+      dip(w),
+    );
+    const corpo1 = await r1.json();
+    const esiti = [corpo1, corpo2];
+    c(
+      "esattamente una delle due riesce e l'altra trova «occupato» (mai due «ok» silenziosi)",
+      true,
+      esiti.filter((x) => x.ok === true).length === 1 &&
+        esiti.filter((x) => x.codice === "occupato").length === 1,
+    );
+    c("un solo upload nel bucket (non due file che si pestano sulla stessa riga)", 1, w.reg.upload);
+    //  Chi ha vinto si legge subito: la riga ha un pagamento salvato, mai un segnaposto dimenticato.
+    const dettaglio = await (
+      await CS.gestisciGETChat(richiesta("GET", undefined, `?lotto=${L}`), dip(w))
+    ).json();
+    c(
+      "la riga finisce con un pagamento «salvato» (nessun «caricando» rimasto appeso)",
+      "salvato",
+      dettaglio.righe[0]?.pagamento?.stato,
+    );
+  }
+
   gruppo("DALLA CHAT · T5 · scarto/annullo cancellano chat_fatture_*, mai fattura:");
   {
     const w = mondo();
@@ -705,11 +811,33 @@ export async function prove(_mod, { c, gruppo, radice }) {
   }
 
   gruppo(
-    "DALLA CHAT · T5 · «cerca-chat» nel caso peggiore (8 immagini pronte) sta sotto le 40 sottorichieste",
+    "DALLA CHAT · T5 · «cerca-chat» nel caso peggiore (8 immagini pronte, con messaggi veri) sta sotto le 40 sottorichieste",
   );
   {
+    //  ⚠️ Osservazione del revisore (bloccante): il caso peggiore DAVVERO, non una porta «raccolta»
+    //  vuota — 8 righe `ponte_wa_media` pronte, ognuna legata a un messaggio in entrata vero, così
+    //  `raccogliChat` sceglie e scarica per davvero le 8 immagini (firma+scarico, come nel calcolo
+    //  del piano: 1 messaggi + 1 righe media + 8×2 + 1 AI ≈ 19), e il contatore si muove per davvero.
+    const idMsg = (n) => `msg-prova-${n}`;
+    const chiaveMedia = (n) => `bw:33312345678:${idMsg(n)}`;
+    const messaggiProva = Array.from({ length: 8 }, (_, i) => ({
+      id: idMsg(i),
+      direction: "inbound",
+      body: "",
+      mediaType: "foto",
+      duplicatoDi: null,
+      creatoIl: new Date(T0 - (8 - i) * 60_000).toISOString(),
+    }));
+    const mediaProva = Array.from({ length: 8 }, (_, i) => ({
+      chiave: chiaveMedia(i),
+      percorso: `ponte/${idMsg(i)}.jpg`,
+      stato: "pronta",
+      categoria: "foto",
+    }));
     const w = mondo({
       risposteAi: () => ({ testo: '{"tessere":[],"indirizzi":[]}', fine: "stop" }),
+      raccoltaMessaggi: messaggiProva,
+      raccoltaMedia: mediaProva,
     });
     w.m.set(
       `chat_fatture_t:${L}`,
@@ -731,12 +859,23 @@ export async function prove(_mod, { c, gruppo, radice }) {
       richiesta("POST", { azione: "cerca-chat", lotto: L, idRiga: SCHEDA_PROVA }),
       dip(w),
     );
-    await r.json();
+    const corpo = await r.json();
     c(
-      "cerca-chat (archivio/lucchetto/AI, raccolta già conta da sé in T4): ≤ 40 sottorichieste",
+      "le 8 immagini sono state davvero scaricate (8 firme, 8 scarichi)",
+      true,
+      w.reg.raccoltaFirme === 8 && w.reg.raccoltaScarichi === 8,
+    );
+    c(
+      "il conteggio misura per davvero il lavoro (non è rimasto vicino a zero)",
+      true,
+      w.reg.subs >= 18,
+    );
+    c(
+      "cerca-chat nel caso peggiore (8 immagini pronte): ≤ 40 sottorichieste",
       true,
       w.reg.subs <= 40,
     );
+    c("la riga esce comunque letta (nessun errore nel caso peggiore)", true, corpo.ok === true);
   }
 
   gruppo("DALLA CHAT · T5 · nessun «console.» con dati nel sorgente");

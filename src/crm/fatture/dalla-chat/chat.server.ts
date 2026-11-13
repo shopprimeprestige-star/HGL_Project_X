@@ -728,6 +728,17 @@ async function cercaChatAzione(
 
 /* ══ 8. IL PAGAMENTO (`carica-pagamento`/`leggi-pagamento`) ═══════════════ */
 
+/** Quanto vale un `caricando`: se il Worker muore fra la chiave e l'upload, dopo questo tempo il
+ *  caricamento si ritenta (stessa costante, non esportata, di `caricaFile` nella bulk). */
+const SCADENZA_CARICANDO_MS = 90_000;
+
+/** ⚠️ CAS, come `caricaFile` nella bulk (`bulk.server.ts`): PRIMA si riserva la chiave con un
+ *  segnaposto `{stato:"caricando", scadeIl}` (`creaSeAssente` se non c'era niente, `sostituisciSe`
+ *  sul valore letto se c'era già un pagamento — un confronto-e-scambio, non un upsert), POI si
+ *  carica nel bucket, POI si chiude il segnaposto con un altro `sostituisciSe`. Senza questo, due
+ *  richieste insieme sulla stessa riga caricherebbero due file e l'ultima scrittura vincerebbe in
+ *  silenzio: chi ha «perso» crederebbe salvato il proprio screenshot mentre la riga punta a quello
+ *  dell'altro (osservazione del revisore). Con il CAS, la seconda trova `occupato`. */
 async function caricaPagamentoAzione(
   porte: PorteChat,
   lotto: string,
@@ -738,23 +749,62 @@ async function caricaPagamentoAzione(
   const salvata = await rigaSalvataDi(porte, lotto, idRiga);
   if (!salvata) throw new ErroreChat("non_trovato");
   const impronta = await improntaSha256(inByte(dataUrl).buffer as ArrayBuffer);
-  const esistente = await pagamentoDi(porte, lotto, idRiga);
+  const chiave = chiavePagamento(lotto, idRiga);
+  const adesso = porte.adesso();
+
+  const grezzoEsistente = await porte.archivio.leggi(chiave);
+  const esistente = leggiJson<PagamentoChat>(grezzoEsistente);
+
+  // Stesso file già caricato (doppio invio): nessun secondo upload, nessuna nuova conferma persa.
+  if (esistente?.impronta === impronta && esistente.percorso && esistente.stato !== "caricando")
+    return { ok: true, azione: "carica-pagamento", riga: conPagamento(salvata, esistente) };
+  // Un caricamento (di questo o di un altro screenshot) è già in corso e non è scaduto: si aspetta.
   if (
     esistente?.stato === "caricando" &&
     esistente.scadeIl &&
-    Date.parse(esistente.scadeIl) > porte.adesso()
+    Date.parse(esistente.scadeIl) > adesso
   )
     throw new ErroreChat("occupato");
-  // Stesso file già caricato (doppio invio): nessun secondo upload.
-  if (esistente?.impronta === impronta && esistente.percorso && esistente.stato !== "caricando")
-    return { ok: true, azione: "carica-pagamento", riga: conPagamento(salvata, esistente) };
+
   const percorso = `${cartellaBucket(porte.utente, lotto)}${porte.id()}.jpg`;
+  const segnaposto: PagamentoChat = {
+    stato: "caricando",
+    impronta,
+    percorso,
+    scadeIl: iso(adesso + SCADENZA_CARICANDO_MS),
+  };
+  const testoSegnaposto = JSON.stringify(segnaposto);
+  if (grezzoEsistente === null) {
+    const esito = await porte.archivio.creaSeAssente(chiave, testoSegnaposto);
+    if (esito.stato === "errore") throw new ErroreChat("scrittura_fallita");
+    // Un'altra richiesta l'ha creata un istante prima: è lei che carica.
+    if (esito.stato === "esiste") throw new ErroreChat("occupato");
+  } else if (!(await porte.lucchetto.sostituisciSe(chiave, grezzoEsistente, testoSegnaposto))) {
+    // Confronto-e-scambio sul valore letto: nel frattempo è cambiato (un altro caricamento, una
+    // lettura, uno scarto) e chi arriva secondo trova «occupato» invece di scrivere sopra in silenzio.
+    throw new ErroreChat("occupato");
+  }
+
   const errore = await porte.bucket.carica(percorso, dataUrl);
-  if (errore) throw new ErroreChat("scrittura_fallita");
-  const vecchio = esistente ? percorsoDelLotto(porte.utente, lotto, esistente.percorso) : null;
-  if (vecchio) await porte.bucket.rimuovi([vecchio]);
+  if (errore) {
+    // Upload fallito: si toglie il segnaposto, solo se è ancora il nostro.
+    await porte.lucchetto
+      .eliminaSe(chiave, testoSegnaposto)
+      .catch(() => porte.log("segnaposto_non_tolto"));
+    throw new ErroreChat("scrittura_fallita");
+  }
   const nuovo: PagamentoChat = { stato: "salvato", impronta, percorso };
-  await scrivi(porte, chiavePagamento(lotto, idRiga), nuovo);
+  const fatto = await porte.lucchetto.sostituisciSe(chiave, testoSegnaposto, JSON.stringify(nuovo));
+  if (!fatto) {
+    // Troppo lenti: la chiave è passata a un altro nel frattempo. Il nostro file non serve.
+    await porte.bucket.rimuovi([percorso]);
+    throw new ErroreChat("occupato");
+  }
+  // Il vecchio file (se diverso) si toglie SOLO dopo aver chiuso il nostro al posto giusto.
+  const vecchioPercorso = esistente
+    ? percorsoDelLotto(porte.utente, lotto, esistente.percorso)
+    : null;
+  if (vecchioPercorso) await porte.bucket.rimuovi([vecchioPercorso]);
   // Un bonifico nuovo (o cambiato) cambia i campi che ne derivano: le conferme di prima non valgono più.
   const senzaConferme = await aggiornaRiga(porte, lotto, idRiga, salvata.scheda, (attuale) =>
     attuale.confermata || attuale.confermeAvvisi?.length
