@@ -96,6 +96,7 @@ import {
   PhoneCall,
   Search,
   Settings,
+  Smartphone,
   Store,
   Sun,
   Ticket,
@@ -693,6 +694,21 @@ export const GRUPPI_MENU: GruppoMenu[] = [
         //  mouse. Ambra perché chiede un gesto del consulente (rispondere) ma
         //  non è un ritardo contato; mai rosso, per non farsi leggere come tale.
         badge: "wa_da_rispondere",
+      },
+      {
+        //  ── «WHATSAPP BAILEYS» (commessa 2026-11-13-chat-baileys, T9) ──────
+        //   Sola lettura: le chat portate dal ponte (canale baileys), con tutto
+        //   lo storico. Stesso permesso di «WhatsApp» qui sopra (basta essere
+        //   entrati): non è un trattamento diverso, è la stessa pagina mirror.
+        //   Niente `badge`: la SPEC lo esclude di proposito — sarebbe la stessa
+        //   chat contata due volte, una per voce di menu.
+        titolo: "WhatsApp Baileys",
+        descrizione: "Le chat del tuo telefono, portate dal ponte",
+        url: "/CRM/whatsapp-baileys",
+        icon: Smartphone,
+        scheme: "leads",
+        permesso: "lead.propri",
+        alias: "ponte baileys telefono chat whatsapp business",
       },
       /*  ── ⚠️ «NOTIFICHE» NON STA PIÙ QUI ─────────────────────────────────
           Tolta su richiesta del committente, e la ragione regge: la campanella
