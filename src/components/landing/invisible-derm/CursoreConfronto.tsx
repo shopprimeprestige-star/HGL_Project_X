@@ -28,11 +28,14 @@ type Props = {
   subito?: boolean;
   /** classi Tailwind della proporzione e della larghezza */
   className?: string;
+  /** etichette sinistra/destra (di base patch standard / Invisible Derm) */
+  etichette?: { patch: string; derm: string };
+  didascalia?: string;
 };
 
 const limita = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
 
-export function CursoreConfronto({ numero, titolo, coppia, patch, derm, alt, subito, className = "aspect-[4/5]" }: Props) {
+export function CursoreConfronto({ numero, titolo, coppia, patch, derm, alt, subito, className = "aspect-[4/5]", etichette = CONFRONTO.etichette, didascalia = DIDASCALIA_COPPIA }: Props) {
   const [pos, setPos] = useState(50);
   const cornice = useRef<HTMLDivElement>(null);
   const premuto = useRef(false);
@@ -110,7 +113,7 @@ export function CursoreConfronto({ numero, titolo, coppia, patch, derm, alt, sub
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={pos}
-          aria-valuetext={`${CONFRONTO.etichette.patch} ${pos}%, ${CONFRONTO.etichette.derm} ${100 - pos}%`}
+          aria-valuetext={`${etichette.patch} ${pos}%, ${etichette.derm} ${100 - pos}%`}
           aria-label={`Confronto: ${titolo.toLowerCase()}`}
           aria-describedby={istruzione}
           onKeyDown={tasto}
@@ -120,13 +123,13 @@ export function CursoreConfronto({ numero, titolo, coppia, patch, derm, alt, sub
           <MoveHorizontal className="h-5 w-5" aria-hidden="true" />
         </div>
         <button type="button" aria-pressed={pos === 100} onPointerDown={(e) => e.stopPropagation()} onClick={() => vaiA(100)} className={`absolute left-0 top-0 rounded-br-md ${etichetta}`}>
-          {CONFRONTO.etichette.patch}
+          {etichette.patch}
         </button>
         <button type="button" aria-pressed={pos === 0} onPointerDown={(e) => e.stopPropagation()} onClick={() => vaiA(0)} className={`absolute right-0 top-0 rounded-bl-md ${etichetta}`}>
-          {CONFRONTO.etichette.derm}
+          {etichette.derm}
         </button>
       </div>
-      <figcaption className="mt-3 text-center text-sm text-white/75">{DIDASCALIA_COPPIA}</figcaption>
+      <figcaption className="mt-3 text-center text-sm text-white/75">{didascalia}</figcaption>
     </figure>
   );
 }
