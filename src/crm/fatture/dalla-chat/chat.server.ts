@@ -123,6 +123,7 @@ import {
   schedaIdValido,
 } from "./chiavi";
 import { cercabileDaLead, haPagamentoSenzaFattura } from "./candidati";
+import { pagamentoManualeValido } from "./pagamento-manuale";
 import {
   corpoRichiestaChat,
   immagineDi,
@@ -931,6 +932,58 @@ async function leggiPagamentoAzione(
   return { ok: true, azione: "leggi-pagamento", riga: conPagamento(senzaConferme, pagamentoLetto) };
 }
 
+/** ── `scrivi-pagamento` (Via 2, T11.2, SPEC §9.3 passo 7) ──────────────────
+ *  I 4 campi scritti a mano → `pagamentoManualeValido` (T11.2) → `richiesta_non_valida`, ZERO
+ *  scritture se uno dei 3 campi obbligatori non supera il controllo minimo. Qui NON c'è nessun
+ *  file da riservare (niente upload, niente stato `caricando` da attraversare, a differenza di
+ *  `carica-pagamento`): un solo `creaSeAssente`/`sostituisciSe` (CAS) basta. Un pagamento già
+ *  caricato come screenshot (col suo file nel bucket) che viene sovrascritto a mano: il vecchio
+ *  file diventa orfano e si toglie subito (stesso principio di `caricaPagamentoAzione`), non
+ *  resta appeso finché non passa `pulisci`. */
+async function scriviPagamentoAzione(
+  porte: PorteChat,
+  r: {
+    lotto: string;
+    idRiga: string;
+    importo: number;
+    data: string;
+    modo: string;
+    riferimento: string;
+  },
+): Promise<RispostaChat> {
+  await testataOppureErrore(porte, r.lotto);
+  const salvata = await rigaSalvataDi(porte, r.lotto, r.idRiga);
+  if (!salvata) throw new ErroreChat("non_trovato");
+  const lettura = pagamentoManualeValido(r);
+  if (!lettura) throw new ErroreChat("richiesta_non_valida");
+  const chiave = chiavePagamento(r.lotto, r.idRiga);
+  const nuovo: PagamentoChat = { stato: "letto", impronta: "", lettura };
+  const testoNuovo = JSON.stringify(nuovo);
+  const grezzo = await porte.archivio.leggi(chiave);
+  if (grezzo === null) {
+    const esito = await porte.archivio.creaSeAssente(chiave, testoNuovo);
+    if (esito.stato === "errore") throw new ErroreChat("scrittura_fallita");
+    // Un'altra richiesta l'ha creata un istante prima (stessa chiave): si rilegge, non si scrive sopra.
+    if (esito.stato === "esiste") throw new ErroreChat("occupato");
+  } else if (!(await porte.lucchetto.sostituisciSe(chiave, grezzo, testoNuovo))) {
+    throw new ErroreChat("occupato");
+  }
+  // Un pagamento precedente (screenshot caricato, poi sovrascritto a mano) lascia un file orfano
+  // nel bucket: si toglie SOLO dopo aver vinto la chiave, come fa `caricaPagamentoAzione`.
+  const precedente = leggiJson<PagamentoChat>(grezzo);
+  const vecchioPercorso = precedente
+    ? percorsoDelLotto(porte.utente, r.lotto, precedente.percorso)
+    : null;
+  if (vecchioPercorso && (await porte.bucket.rimuovi([vecchioPercorso])))
+    porte.log("rimozione_file_fallita");
+  const senzaConferme = await aggiornaRiga(porte, r.lotto, r.idRiga, salvata.scheda, (attuale) =>
+    attuale.confermata || attuale.confermeAvvisi?.length
+      ? { ...attuale, confermata: false, confermeAvvisi: [] }
+      : attuale,
+  );
+  return { ok: true, azione: "scrivi-pagamento", riga: conPagamento(senzaConferme, nuovo) };
+}
+
 /* ══ 9. `salva-riga` ═══════════════════════════════════════════════════════ */
 
 async function salvaRigaAzione(
@@ -1051,6 +1104,8 @@ export async function eseguiAzioneChat(
       return caricaPagamentoAzione(porte, richiesta.lotto, richiesta.idRiga, richiesta.dataUrl);
     case "leggi-pagamento":
       return leggiPagamentoAzione(porte, richiesta.lotto, richiesta.idRiga);
+    case "scrivi-pagamento":
+      return scriviPagamentoAzione(porte, richiesta);
     case "salva-riga":
       return salvaRigaAzione(porte, richiesta);
     case "prendi-controllo": {
@@ -1187,6 +1242,28 @@ export function leggiRichiestaChat(corpo: unknown): RichiestaChat {
     }
     case "leggi-pagamento":
       return { azione: "leggi-pagamento", lotto: lottoDi(b.lotto), idRiga: idRigaDi(b.idRiga) };
+    case "scrivi-pagamento": {
+      // Solo un controllo di FORMA (numero finito, stringhe entro una lunghezza sensata): il
+      // controllo di CONTENUTO (intero positivo, giorno vero, modo ammesso) è di
+      // `pagamentoManualeValido` (T11.2), unico posto che lo decide.
+      const importo = b.importo;
+      if (
+        typeof importo !== "number" ||
+        !Number.isFinite(importo) ||
+        importo < 0 ||
+        importo > 1_000_000
+      )
+        throw NON_VALIDA();
+      return {
+        azione: "scrivi-pagamento",
+        lotto: lottoDi(b.lotto),
+        idRiga: idRigaDi(b.idRiga),
+        importo,
+        data: testo(b.data ?? "", 10),
+        modo: testo(b.modo ?? "", 20),
+        riferimento: testo(b.riferimento ?? "", 120),
+      };
+    }
     case "salva-riga": {
       const lotto = lottoDi(b.lotto);
       const idRiga = idRigaDi(b.idRiga);

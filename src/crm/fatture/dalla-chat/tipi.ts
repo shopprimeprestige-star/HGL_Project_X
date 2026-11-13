@@ -170,6 +170,17 @@ export type RichiestaChat =
   /** Il bonifico ricevuto (data URL), una riga alla volta. */
   | { azione: "carica-pagamento"; lotto: string; idRiga: string; dataUrl: string }
   | { azione: "leggi-pagamento"; lotto: string; idRiga: string }
+  /** Via 2 (SPEC §9.3 passo 7, T11.2): i 4 campi del pagamento scritti a mano, screenshot
+   *  facoltativo — qui, a differenza della Via 1/bulk, bastano da soli a sbloccare la riga. */
+  | {
+      azione: "scrivi-pagamento";
+      lotto: string;
+      idRiga: string;
+      importo: number;
+      data: string;
+      modo: string;
+      riferimento: string;
+    }
   /** Gesto esplicito, si paga (come «Rileggi» nella bulk): la lettura della chat si rifà. */
   | { azione: "rileggi-chat"; lotto: string; idRiga: string }
   /** Niente `scheda` qui (a differenza della bulk): in questa modalità la scheda
@@ -195,7 +206,11 @@ export type RispostaChat =
   | { ok: true; azione: "crea"; lotto: string }
   | { ok: true; azione: "aggiungi-cliente"; riga: RigaChat }
   | { ok: true; azione: "cerca-chat" | "rileggi-chat"; riga: RigaChat }
-  | { ok: true; azione: "carica-pagamento" | "leggi-pagamento"; riga: RigaChat }
+  | {
+      ok: true;
+      azione: "carica-pagamento" | "leggi-pagamento" | "scrivi-pagamento";
+      riga: RigaChat;
+    }
   | { ok: true; azione: "salva-riga"; riga: RigaChat; lottoChiuso: boolean }
   | ({ azione: "emetti-riga" } & RispostaEmettiRiga)
   | { ok: true; azione: "prendi-controllo" | "annulla" | "pulisci"; rimossi?: number }
