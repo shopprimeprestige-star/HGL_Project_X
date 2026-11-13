@@ -4,6 +4,8 @@
  *  pannello con tutti i punti foto/video di QUELLA sezione (anche quelli
  *  ancora vuoti, che sulla pagina non si vedono), con anteprima, «Carica» e
  *  «Togli». Salvare pubblica subito, come l'editor del CRM: non c'è bozza.
+ *  In modifica OGNI punto foto/video compare al suo posto anche se vuoto (un riquadro
+ *  tratteggiato con il nome del punto), e toccare qualsiasi immagine apre il suo pannello.
  *  Il cliente non vede niente di tutto questo (senza accesso il componente
  *  non disegna nulla).
  *  ───────────────────────────────────────────────────────────────────────── */
@@ -40,13 +42,73 @@ async function caricaFile(file: File): Promise<string> {
   return supabase.storage.from("landing-media").getPublicUrl(path).data.publicUrl;
 }
 
-/** La striscia in cima alla pagina: ricorda che si è in modifica e che si pubblica subito. */
-export function BarraModifica() {
+/** Il riquadro che sta al posto di un punto vuoto, solo in modifica. */
+export function segnaposto(chiave: string): string {
+  const slot = SLOT_ID.find((x) => x.chiave === chiave);
+  const nome = (slot?.label ?? chiave).split(",")[0];
+  const righe: string[] = [];
+  for (const parola of nome.split(" ")) {
+    const ultima = righe[righe.length - 1];
+    if (ultima && (ultima + " " + parola).length <= 26) righe[righe.length - 1] = ultima + " " + parola;
+    else righe.push(parola);
+  }
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const testo = [...righe, `Tocca per caricare ${slot?.tipo === "video" ? "il video" : "la foto"}`]
+    .map((t, i, a) => `<text x="200" y="${150 - (a.length - 1) * 11 + i * 22}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="${i === a.length - 1 ? 13 : 17}" font-weight="${i === a.length - 1 ? 400 : 700}" fill="#0a1a3a">${esc(t)}</text>`)
+    .join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice"><rect width="400" height="300" fill="#fde68a"/><rect x="8" y="8" width="384" height="284" fill="none" stroke="#b45309" stroke-width="3" stroke-dasharray="10 8"/>${testo}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/** Un'immagine toccata → le chiavi che le stanno insieme (la foto e la sua compagna, il video e la sua copertina). */
+function chiaviVicine(chiave: string): string[] {
+  const base = chiave.replace(/(Poster|\.patchClip|\.dermClip|\.patch|\.derm|\.prima|\.dopo)$/, "");
+  return SLOT_ID.filter((x) => x.chiave === chiave || x.chiave.startsWith(base)).map((x) => x.chiave);
+}
+
+function liberatoriaDi(chiave: string): { chiave: string; testo: string } | undefined {
+  const testo = "Ho la liberatoria scritta di chi è ritratto (senza, queste foto non compaiono sulla pagina)";
+  if (chiave.startsWith("id.confronto")) return { chiave: "id.confronto.liberatoria", testo };
+  if (chiave.startsWith("id.vita")) return { chiave: "id.vita.liberatoria", testo };
+  if (chiave.startsWith("id.primaDopo")) return { chiave: "id.primaDopo.liberatoria", testo };
+  return undefined;
+}
+
+/** La striscia in cima alla pagina, e il tocco su qualsiasi immagine che apre il suo pannello.
+ *  `vista(k)` = quello che la pagina mostra per la chiave k (file vero o riquadro). */
+export function BarraModifica({ vista, media, text }: { vista: (k: string) => string; media: (k: string) => string; text: (k: string) => string }) {
+  const [scelta, setScelta] = useState<string | null>(null);
+  useEffect(() => {
+    const tocco = (e: MouseEvent) => {
+      const bersaglio = e.target as HTMLElement | null;
+      if (!bersaglio || bersaglio.closest("[data-pannello-modifica]")) return;
+      let el: HTMLElement | null = bersaglio;
+      for (let i = 0; el && i < 5; i++, el = el.parentElement) {
+        const m = el.matches("img,video") ? el : el.querySelector("img,video");
+        if (!m) continue;
+        const indirizzi = [m.getAttribute("src"), m.getAttribute("poster")].filter(Boolean);
+        const trovata = SLOT_ID.find((x) => indirizzi.includes(vista(x.chiave)));
+        if (trovata) {
+          e.preventDefault();
+          e.stopPropagation();
+          setScelta(trovata.chiave);
+          return;
+        }
+      }
+    };
+    document.addEventListener("click", tocco, true);
+    return () => document.removeEventListener("click", tocco, true);
+  }, [vista]);
   return (
+    <>
+    {scelta && (
+      <Pannello titolo="Questo punto" chiavi={chiaviVicine(scelta)} media={media} text={text} liberatoria={liberatoriaDi(scelta)} chiudi={() => setScelta(null)} />
+    )}
     <div className="sticky top-0 z-[60] flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-amber-400 px-4 py-2 text-center text-sm font-medium text-black">
-      <span>Modalità modifica · tocca «Cambia immagini» in una sezione. Ogni modifica va online subito.</span>
+      <span>Modalità modifica · tocca un'immagine o un riquadro giallo per cambiarlo. Ogni modifica va online subito.</span>
       <a href="/invisible-derm" className="underline underline-offset-2">Esci</a>
     </div>
+    </>
   );
 }
 
@@ -170,7 +232,6 @@ export function PuntoModifica({
 }) {
   const [aperto, setAperto] = useState(false);
   if (!attiva) return null;
-  const punti = SLOT_ID.filter((s) => chiavi.includes(s.chiave));
   return (
     <>
       <button
@@ -180,36 +241,53 @@ export function PuntoModifica({
       >
         <ImagePlus className="h-4 w-4" /> Cambia immagini · {titolo}
       </button>
-      {aperto && (
-        <div className="fixed inset-0 z-[70] flex justify-end bg-black/40" onClick={() => setAperto(false)}>
-          <aside
-            role="dialog"
-            aria-label={`Immagini della sezione ${titolo}`}
-            className="h-full w-full max-w-md overflow-y-auto bg-neutral-50 p-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-black">Immagini · {titolo}</h2>
-              <button type="button" onClick={() => setAperto(false)} className="rounded-md p-2 text-black hover:bg-black/5" aria-label="Chiudi">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mb-3 text-xs text-neutral-600">
-              I punti vuoti sulla pagina non si vedono: appena carichi il file compaiono.
-            </p>
-            {liberatoria && (
-              <div className="mb-3">
-                <Liberatoria chiave={liberatoria.chiave} testo={liberatoria.testo} valore={text(liberatoria.chiave)} />
-              </div>
-            )}
-            <ul className="space-y-3">
-              {punti.map((p) => (
-                <Punto key={p.chiave} chiave={p.chiave} label={p.label} tipo={p.tipo} valore={media(p.chiave)} />
-              ))}
-            </ul>
-          </aside>
-        </div>
-      )}
+      {aperto && <Pannello titolo={titolo} chiavi={chiavi} media={media} text={text} liberatoria={liberatoria} chiudi={() => setAperto(false)} />}
     </>
+  );
+}
+
+function Pannello({
+  titolo,
+  chiavi,
+  media,
+  text,
+  liberatoria,
+  chiudi,
+}: {
+  titolo: string;
+  chiavi: string[];
+  media: (k: string) => string;
+  text: (k: string) => string;
+  liberatoria?: { chiave: string; testo: string };
+  chiudi: () => void;
+}) {
+  const punti = SLOT_ID.filter((s) => chiavi.includes(s.chiave));
+  return (
+    <div data-pannello-modifica className="fixed inset-0 z-[70] flex justify-end bg-black/40" onClick={chiudi}>
+      <aside
+        role="dialog"
+        aria-label={`Immagini · ${titolo}`}
+        className="h-full w-full max-w-md overflow-y-auto bg-neutral-50 p-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-black">Immagini · {titolo}</h2>
+          <button type="button" onClick={chiudi} className="rounded-md p-2 text-black hover:bg-black/5" aria-label="Chiudi">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-neutral-600">I riquadri gialli sulla pagina li vedi solo tu: ai clienti compare solo quello che carichi.</p>
+        {liberatoria && (
+          <div className="mb-3">
+            <Liberatoria chiave={liberatoria.chiave} testo={liberatoria.testo} valore={text(liberatoria.chiave)} />
+          </div>
+        )}
+        <ul className="space-y-3">
+          {punti.map((p) => (
+            <Punto key={p.chiave} chiave={p.chiave} label={p.label} tipo={p.tipo} valore={media(p.chiave)} />
+          ))}
+        </ul>
+      </aside>
+    </div>
   );
 }
