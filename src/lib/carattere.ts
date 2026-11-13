@@ -29,7 +29,7 @@ function normalizza(percorso: string): string {
  *  e "/invisible-derm" (la landing, che ha la grammatica della home). */
 export function usaInter(percorso: string): boolean {
   const p = normalizza(percorso);
-  if (p === "/" || p === "/chat" || p === "/invisible-derm") return true;
+  if (p === "/" || p === "/chat" || p === "/invisible-derm" || p === "/invisible-derm-v1") return true;
   if (p === "/blog" || p.startsWith("/blog/")) return true;
   if (p === "/crm/webinar" || p.startsWith("/crm/webinar/")) return false;
   return p === "/crm" || p.startsWith("/crm/");
@@ -37,5 +37,6 @@ export function usaInter(percorso: string): boolean {
 
 /** true per le pagine scritte in italiano da capo a fondo (`lang="it"`); le altre restano come sono. */
 export function paginaInItaliano(percorso: string): boolean {
-  return normalizza(percorso) === "/invisible-derm";
+  const p = normalizza(percorso);
+  return p === "/invisible-derm" || p === "/invisible-derm-v1";
 }

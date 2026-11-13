@@ -103,13 +103,18 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   c("FAQ: senza elenco esterno restano le domande della home", true, /voci \?\? FAQS/.test(faq));
   /* Editor visuale delle immagini (?modifica, solo con accesso al CRM) */
   const editor = senzaCommenti(leggi(`${cartella}/ModificaImmagini.tsx`));
-  const chiaviNeiPunti = [...rotta.matchAll(/punto\("[^"]+", \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]))
+  const rottaV1 = leggi("src/routes/invisible-derm-v1.tsx");
+  const chiaviNeiPunti = [...(rotta + rottaV1).matchAll(/punto\("[^"]+", \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]))
     .concat(/punto\("Prima e dopo", SLOT_PRIMA_DOPO\.map/.test(rotta) ? T.SLOT_PRIMA_DOPO.map((s) => s.chiave) : []);
   c("prima e dopo: 3 coppie e 2 video, con liberatoria", [10, true], [T.SLOT_PRIMA_DOPO.length, /primaDopoOk = libOk\("id\.primaDopo\.liberatoria"\)/.test(rotta) && /libOk = \(k: string\) => modifica \|\| liberatoriaOk\(text\(k\)\)/.test(rotta)]);
   c("editor: ogni punto foto/video ha una sezione da cui cambiarlo", [], T.SLOT_ID.map((s) => s.chiave).filter((k) => !chiaviNeiPunti.includes(k)));
   c("editor: nessuna chiave inventata nei bottoni", [], chiaviNeiPunti.filter((k) => !T.SLOT_ID.some((s) => s.chiave === k)));
   c("editor: si accende solo con ?modifica e un accesso aperto", true, /has\("modifica"\)/.test(editor) && /data\.session\?\.user/.test(editor));
   c("editor: salva un campo solo, rileggendo la riga prima", true, /salvaCampoLanding\(/.test(editor) && /export async function salvaCampoLanding[\s\S]*?\.select\("data"\)[\s\S]*?\.upsert\(/.test(leggi("src/landing/landing-content.ts")));
+  c("v1: rotta propria, noindex, canonico suo", true, /createFileRoute\("\/invisible-derm-v1"\)/.test(rottaV1) && /noindex,follow/.test(rottaV1) && /\/invisible-derm-v1` \}/.test(rottaV1));
+  c("v1: niente calendario fisso nell'hero, si apre nel popup", [false, true], [/prenota-hero/.test(rottaV1), /function PopupPrenota[\s\S]*?<BookingFunnel/.test(rottaV1)]);
+  c("v1: hero col prima/dopo", true, /coppia="id\.primaDopoHero"/.test(rottaV1));
+  c("v1: Inter e lang it", [true, true], [CAR.usaInter("/invisible-derm-v1"), CAR.paginaInItaliano("/invisible-derm-v1")]);
   c("nessun indirizzo della sede sulla landing (titolare, 13/11/2026)", false, /Scipioni/i.test(pagina));
   c("la home non importa niente della nuova pagina", false, /invisible-derm|testi-invisible/.test(leggi("src/routes/index.tsx")));
 }
