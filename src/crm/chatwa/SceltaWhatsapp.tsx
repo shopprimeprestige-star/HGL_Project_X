@@ -26,7 +26,7 @@ import {
   type ReactNode,
 } from "react";
 import { Link } from "@tanstack/react-router";
-import { Lock, MessagesSquare } from "lucide-react";
+import { Lock, MessagesSquare, Smartphone } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -35,15 +35,22 @@ import { IconaWhatsApp } from "./IconaWhatsApp";
 import { anteprimaSenzaTesto, type MessaggioEntrata } from "./entrata-vera";
 import {
   FRASE_FINESTRA_CHIUSA,
+  FRASE_PONTE_SPENTA,
   contattoDelNumero,
   filtroNumero,
   linkNativo,
   sceltaCrm,
+  sceltaPonte,
   type ContattoPerScelta,
   type SceltaCrm,
+  type SceltaPonte,
 } from "./scelta-whatsapp";
 
-type Lettura = { stato: "leggo" } | { stato: "errore" } | SceltaCrm;
+//  La terza opzione («Baileys») è pura funzione del contatto: niente data né
+//  messaggi in più, quindi viaggia appesa alla stessa lettura del CRM invece
+//  di un secondo stato (un `useState` in più per un calcolo che non legge
+//  niente di nuovo sarebbe solo più codice).
+type Lettura = { stato: "leggo" } | { stato: "errore" } | (SceltaCrm & { ponte: SceltaPonte });
 
 /** Il tipo minimo della catena di Supabase che serve qui (la tabella non è nei tipi generati). */
 type Catena = {
@@ -98,24 +105,26 @@ function useSceltaCrm(
   const cId = contatto?.id ?? null;
   const cUltima = contatto?.ultimo_in_entrata_il ?? null;
   const cAnteprima = contatto?.ultimo_in_entrata_anteprima ?? null;
+  const cPonte = contatto?.ha_messaggio_ponte ?? null;
 
   useEffect(() => {
     if (!aperto) return;
     //  Il contatto c'è già (la pagina l'ha caricato): nessuna lettura.
     if (dato) {
-      setLettura(
-        sceltaCrm(
-          cId
-            ? { id: cId, ultimo_in_entrata_il: cUltima, ultimo_in_entrata_anteprima: cAnteprima }
-            : null,
-          new Date(),
-        ),
-      );
+      const risolto = cId
+        ? {
+            id: cId,
+            ultimo_in_entrata_il: cUltima,
+            ultimo_in_entrata_anteprima: cAnteprima,
+            ha_messaggio_ponte: cPonte,
+          }
+        : null;
+      setLettura({ ...sceltaCrm(risolto, new Date()), ponte: sceltaPonte(risolto) });
       return;
     }
     const filtro = filtroNumero(telefono);
     if (!userId || !filtro) {
-      setLettura(sceltaCrm(null, new Date()));
+      setLettura({ ...sceltaCrm(null, new Date()), ponte: sceltaPonte(null) });
       return;
     }
     let vivo = true;
@@ -124,7 +133,9 @@ function useSceltaCrm(
       try {
         const { data, error } = await (supabase as unknown as { from: (t: string) => Catena })
           .from("whatsapp_contacts")
-          .select("id,phone_e164,ultimo_in_entrata_il,ultimo_in_entrata_anteprima")
+          .select(
+            "id,phone_e164,ultimo_in_entrata_il,ultimo_in_entrata_anteprima,ha_messaggio_ponte",
+          )
           .eq("user_id", userId)
           .like("phone_e164", filtro)
           .limit(10);
@@ -136,7 +147,8 @@ function useSceltaCrm(
           trovato && anteprimaSenzaTesto(trovato.ultimo_in_entrata_anteprima)
             ? await messaggiRecenti(userId, trovato.phone_e164 ?? telefono)
             : [];
-        if (vivo) setLettura(sceltaCrm(trovato, new Date(), messaggi));
+        if (vivo)
+          setLettura({ ...sceltaCrm(trovato, new Date(), messaggi), ponte: sceltaPonte(trovato) });
       } catch {
         if (vivo) setLettura({ stato: "errore" });
       }
@@ -144,7 +156,7 @@ function useSceltaCrm(
     return () => {
       vivo = false;
     };
-  }, [aperto, telefono, dato, cId, cUltima, cAnteprima, userId]);
+  }, [aperto, telefono, dato, cId, cUltima, cAnteprima, cPonte, userId]);
 
   return lettura;
 }
@@ -183,6 +195,8 @@ export function LinkWhatsapp({
   );
   const crm = useSceltaCrm(aperto, tel, contatto);
   const chiusa = crm.stato === "chiusa";
+  const ponte: SceltaPonte =
+    crm.stato === "aperta" || crm.stato === "chiusa" ? crm.ponte : { stato: "spenta" };
 
   const tocco = (e: MouseEvent<HTMLAnchorElement>) => {
     //  Chi usa il tasto può fermare il menu (TastoMessaggio dopo la pressione lunga).
@@ -263,6 +277,29 @@ export function LinkWhatsapp({
               <span className="min-w-0">
                 <span className="t-riga block font-medium">WhatsApp</span>
                 <span className="t-nota block">Numero non valido</span>
+              </span>
+            </div>
+          )}
+
+          {ponte.stato === "aperta" ? (
+            <Link
+              to="/CRM/whatsapp-baileys"
+              search={{ chat: ponte.contattoId }}
+              onClick={() => setAperto(false)}
+              className={cn(voce, "hover:bg-slate-50 focus-visible:bg-slate-100")}
+            >
+              <Smartphone aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" />
+              <span className="min-w-0">
+                <span className="t-riga block font-medium">Baileys</span>
+                <span className="t-nota block text-slate-500">Apre la chat del ponte</span>
+              </span>
+            </Link>
+          ) : (
+            <div aria-disabled="true" className={cn(voce, "cursor-not-allowed text-slate-400")}>
+              <Smartphone aria-hidden="true" className="h-5 w-5 shrink-0" />
+              <span className="min-w-0">
+                <span className="t-riga block font-medium">Baileys</span>
+                <span className="t-nota block text-slate-500">{FRASE_PONTE_SPENTA}</span>
               </span>
             </div>
           )}

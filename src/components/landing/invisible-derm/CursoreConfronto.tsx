@@ -71,7 +71,7 @@ export function CursoreConfronto({ numero, titolo, coppia, patch, derm, alt, sub
   return (
     <figure className="mx-auto w-full">
       <h3 className="mb-3 text-center text-xl font-bold text-white md:text-2xl">
-        <span className="text-brand">{numero} ·</span> {titolo}
+        {numero > 0 && <span className="text-brand">{numero} ·</span>} {titolo}
       </h3>
       <p id={istruzione} className="mb-2 flex items-center justify-center gap-2 text-sm text-white/75">
         <MoveHorizontal className="h-4 w-4" aria-hidden="true" />

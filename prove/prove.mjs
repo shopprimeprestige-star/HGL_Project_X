@@ -83,6 +83,9 @@ import { proveEcoManychatEntrata } from "./idee/eco-manychat-entrata.mjs";
 import { proveEcoFantasma } from "./idee/eco-fantasma.mjs";
 import { proveChatVeloce } from "./idee/chat-veloce.mjs";
 import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
+import { proveIdeePonteChat } from "./idee/ponte-chat.mjs";
+import { proveModoPonte } from "./idee/modo-ponte.mjs";
+import { proveElencoChatBaileys } from "./idee/elenco-chat-baileys.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { proveFattureBulk } from "./fatture-bulk.mjs";
@@ -713,6 +716,10 @@ const MODULI = [
   "chatwa/apriWhatsapp",
   "chiamabile",
   "chatwa/scelta-whatsapp",
+  //  «Ha un messaggio del ponte?» (commessa 2026-11-13-chat-baileys, T2): la funzione
+  //   condivisa fra l'elenco «WhatsApp Baileys» e la terza opzione sul lead. Prove in
+  //   prove/idee/ponte-chat.mjs.
+  "chatwa/ponteChat",
   "chatwa/entrata-vera",
   "chatwa/richiamo",
   //  Le tre idee per le righe della chat (commessa 2026-10-30-idee-chat):
@@ -21626,6 +21633,9 @@ proveRitornoInAttesa(mod, { c, gruppo, radice });
 proveOrariDurata(mod, { c, gruppo });
 proveIdeeDafare(mod, { c, gruppo, radice });
 proveSceltaWhatsapp(mod, { c, gruppo, radice });
+proveIdeePonteChat(mod, { c, gruppo });
+proveModoPonte(mod, { c, gruppo, radice });
+proveElencoChatBaileys(mod, { c, gruppo, radice });
 proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 await proveFattureBulk(mod, { c, gruppo, radice });
@@ -21952,7 +21962,7 @@ function proveDelleMigrazioniDelPromemoria() {
   const cron = readFileSync(f2, "utf8");
   c("il cron: una sola chiamata, ogni 2 minuti, sulla rotta giusta", 1, (cron.replace(/--.*$/gm, "").match(/SELECT public\.programma_hook_cron\('promemoria-whatsapp-2min', '\*\/2 \* \* \* \*', '\/hooks\/promemoria-whatsapp'\);/g) || []).length);
   c("come si spegne: scritto", true, /cron\.unschedule\('promemoria-whatsapp-2min'\)/.test(cron));
-  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda")).sort();
+  const ultime = readdirSync(cartella).filter((n) => n.endsWith(".sql") && !n.includes("promemoria_whatsapp") && !n.includes("manychat_") && !n.includes("sheets_ingresso") && !n.includes("chat_whatsapp_crm") && !n.includes("attesa_da_chiamare") && !n.includes("push_iscrizioni") && !n.includes("ponte_whatsapp") && !n.includes("risposte_ai") && !n.includes("riepilogo_serale") && !n.includes("ponte_invio_manuale") && !n.startsWith("20261030") && !n.startsWith("20261031") && !n.includes("chiamate_numeri_senza_scheda") && !n.includes("ponte_chat_flag")).sort();
   c("vengono dopo l'ultima migrazione esistente", true, "20261022140000" > ultime.at(-1).slice(0, 14));
 }
 

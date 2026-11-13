@@ -11,24 +11,37 @@ import { finestraPerTesto } from "@/crm/manychat/finestra";
 import { ultimeNoveCifre } from "@/crm/manychat/regole";
 import { entrataPerFinestra, type MessaggioEntrata } from "./entrata-vera";
 import { linkApriWhatsapp } from "./apriWhatsapp";
+import { haMessaggioPonte } from "./ponteChat";
 
 /** La frase sopra le opzioni quando la finestra è chiusa (stesso tono di Casella). */
 export const FRASE_FINESTRA_CHIUSA =
   "Finestra di 24 ore chiusa: dal CRM si può mandare solo un modello approvato";
 
-/** Quanto serve di una riga di `whatsapp_contacts`. */
+/** La frase della terza opzione («Baileys») quando il numero non ha nessuna chat del ponte. */
+export const FRASE_PONTE_SPENTA = "Nessuna chat del ponte per questo numero";
+
+/** Quanto serve di una riga di `whatsapp_contacts`.
+ *  ⚠️ `ha_messaggio_ponte`: chi passa un `contatto` già in mano a `LinkWhatsapp`
+ *   SENZA questo campo vede la terza opzione «spenta» anche quando non lo è —
+ *   mai l'opposto (nessun falso «aperta»): un degrado sicuro, non un errore
+ *   pericoloso (oggi nessuno dei punti d'uso lo fa, vedi PIANO.md). */
 export interface ContattoPerScelta {
   id: string;
   phone_e164?: string | null;
   ultimo_in_entrata_il?: string | null;
   /** Per capire se l'ultima entrata era una reazione (senza testo): non riapre la finestra. */
   ultimo_in_entrata_anteprima?: string | null;
+  /** Almeno un messaggio `canale='baileys'` per questo numero (colonna del ponte). */
+  ha_messaggio_ponte?: boolean | null;
 }
 
 /** L'opzione «WhatsApp del CRM»: accesa sulla chat del contatto, o spenta. */
 export type SceltaCrm =
   | { stato: "aperta"; contattoId: string }
   | { stato: "chiusa"; contattoId: string | null };
+
+/** La terza opzione, «Baileys»: accesa sulla chat del contatto, o spenta. */
+export type SceltaPonte = { stato: "aperta"; contattoId: string } | { stato: "spenta" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -80,6 +93,23 @@ export function linkChatCrm(contattoId?: string | null, testo?: string | null): 
   if (!UUID.test(id)) return "";
   const t = String(testo ?? "").trim();
   return `/CRM/whatsapp?chat=${id.toLowerCase()}${t ? `&testo=${encodeURIComponent(t)}` : ""}`;
+}
+
+/** Accesa solo se il numero combacia con una chat che ha almeno un messaggio del ponte
+ *  (`haMessaggioPonte`, la stessa regola condivisa con l'elenco «WhatsApp Baileys»):
+ *  vince la stessa regola di oggi (`contattoDelNumero`), qui applicata al contatto già scelto. */
+export function sceltaPonte(contatto: ContattoPerScelta | null): SceltaPonte {
+  if (contatto?.id && haMessaggioPonte(contatto))
+    return { stato: "aperta", contattoId: contatto.id };
+  return { stato: "spenta" };
+}
+
+/** La sezione «WhatsApp Baileys» con aperta la chat del contatto (`?chat=` vuole un uuid);
+ *  niente `&testo=` (non richiesto dalla SPEC per questa voce: sola lettura). */
+export function linkChatBaileys(contattoId?: string | null): string {
+  const id = String(contattoId ?? "");
+  if (!UUID.test(id)) return "";
+  return `/CRM/whatsapp-baileys?chat=${id.toLowerCase()}`;
 }
 
 /** L'app del telefono: Business prima su Android, altrove wa.me; vuoto se il numero è rotto. */

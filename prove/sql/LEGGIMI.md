@@ -111,6 +111,18 @@ Le due prove vecchie passano **identiche** salvo quel nome: è la conferma che `
 
 Eseguito il 30/10/2026 su un Postgres 16 locale usa-e-getta con tutte le 74 migrazioni di prima: `ponte-tutte.sql` 43 `ok`; `ponte-wa-v2` 25 `ok`; `ponte-invio-v2` 73 `ok`.
 
+## `ponte-chat-flag.sql` (commessa 2026-11-13-chat-baileys, filo A, T1: il segno «ha_messaggio_ponte»)
+
+Serve un database di prova con **tutte** le migrazioni applicate in ordine (la migrazione nuova, `20261113120000_ponte_chat_flag.sql`, la applica lo script stesso, più volte: due di seguito all'inizio, e una terza volta dopo aver aggiunto un contatto con una cronologia del ponte già scritta, per provare il riempimento una tantum). Lo stesso comando di `ponte-tutte.sql`, con `prove/sql/ponte-chat-flag.sql`. Gira in una transazione che finisce con `ROLLBACK`. Uscita attesa: tutte righe `ok` e in fondo `TUTTI I CONTROLLI DEL SEGNO HA_MESSAGGIO_PONTE PASSANO`.
+
+Cosa prova: `ponte_wa_scrivi` segna `ha_messaggio_ponte` sia per un contatto che esiste già sia per un numero che nasce SOLO dal ponte (messaggi scritti prima del contatto, lo scenario dello storico); `ponte_wa_invio_esito` segna il contatto della chat su cui si è "scritto dal telefono" (ramo UPDATE e ramo INSERT); una chat solo ManyChat resta `false`; un altro utente (stesso numero) non viene toccato; un numero senza «+» combacia con un messaggio che ha il «+»; rilanciare la migrazione non spegne un segno già acceso; il riempimento una tantum segna un contatto con una cronologia baileys scritta PRIMA della migrazione; il trigger (seconda rete) segna un contatto esistente con un `INSERT` diretto su `whatsapp_messages`, e NON scatta per un messaggio non-baileys; `anon`/`authenticated` senza `EXECUTE` sul trigger; **`ponte_wa_scrivi`, chiamata con 50.000 righe di cronologia già presenti per un numero NON toccato dalla chiamata, non fa una scansione** (verificato con `EXPLAIN (ANALYZE, BUFFERS)`: il piano non mostra `Seq Scan` né `Index Scan` su `whatsapp_messages` per la parte nuova).
+
+Il confronto del testo di `ponte_wa_scrivi`/`ponte_wa_invio_esito` con le versioni già in produzione (che questa commessa non tocca) lo fa `prove/ponte/chat-flag-migrazione.mjs` (entra in `npm test`).
+
+Se un controllo dice `KO`, **la migrazione del segno non va applicata in produzione**: l'uscita va in LAVAGNA.
+
+Eseguito il 13/11/2026 su un Postgres 16 locale usa-e-getta con tutte le 89 migrazioni (`pg-prova.sh`): tutte le righe `ok`, compreso il controllo `EXPLAIN (ANALYZE, BUFFERS)` (nessun `Seq Scan`/`Index Scan` su `whatsapp_messages`, solo `Buffers: shared hit=129`).
+
 ## `ponte-immagini.sql` (T4 della commessa 2026-10-30-ponte-storico-completo, le immagini del ponte)
 
 Serve un database di prova con **tutte** le migrazioni applicate in ordine, compresa `20261030170000_ponte_immagini.sql` (lo script la riapplica altre due volte), e con lo schema `storage` (`buckets` e `objects`: `supabase start` ce l'ha; il banco usa-e-getta `commesse/2026-10-30-ottimizzazioni/strumenti/pg-prova.sh` lo imita). Un solo passo, dalla radice del repo:

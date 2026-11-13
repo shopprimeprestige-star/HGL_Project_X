@@ -82,7 +82,7 @@ import { scaricaInFila, scaricaXml } from "@/crm/fatture/scarica";
 import { AZIENDA_VUOTA, REGIMI, type DatiAzienda, type Fattura } from "@/crm/fatture/tipi";
 import { TastoFattura } from "@/crm/fatture/TastoFattura";
 import { FinestraFattura } from "@/crm/fatture/FinestraFattura";
-import { buildWhatsAppLink } from "@/crm/whatsapp";
+import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { eConversione } from "@/crm/kpi-calcoli";
 import { giaIncassato, nomeCompleto, prezzoVendita } from "@/crm/InstallationScheduleDialog";
 
@@ -1493,9 +1493,6 @@ function ListaDaFare({ clienti }: { clienti: Lead[] }) {
           const pratica = prezzoVendita(l);
           const versato = giaIncassato(l);
           const testo = `Ciao ${nome}, ti scrivo per i dati della tua fattura.`;
-          const url = telefono
-            ? buildWhatsAppLink(telefono, testo)
-            : `https://wa.me/?text=${encodeURIComponent(testo)}`;
           return (
             <li key={l.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <span className="flex min-w-0 flex-col">
@@ -1512,15 +1509,30 @@ function ListaDaFare({ clienti }: { clienti: Lead[] }) {
                 </span>
               </span>
               <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-[11.5px]"
-                  onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-                  title="Apre WhatsApp con il messaggio già scritto"
-                >
-                  <MessageCircle className="mr-1 h-3.5 w-3.5" /> WhatsApp
-                </Button>
+                {telefono ? (
+                  //  Stesso menu del lead: WhatsApp, WhatsApp del CRM, Baileys.
+                  <Button asChild size="sm" variant="outline" className="h-7 px-2 text-[11.5px]">
+                    <LinkWhatsapp telefono={telefono} testo={testo} allinea="end">
+                      <MessageCircle className="mr-1 h-3.5 w-3.5" /> WhatsApp
+                    </LinkWhatsapp>
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-[11.5px]"
+                    onClick={() =>
+                      window.open(
+                        `https://wa.me/?text=${encodeURIComponent(testo)}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      )
+                    }
+                    title="Apre WhatsApp con il messaggio già scritto"
+                  >
+                    <MessageCircle className="mr-1 h-3.5 w-3.5" /> WhatsApp
+                  </Button>
+                )}
                 <TastoFattura lead={l} esteso />
               </div>
             </li>

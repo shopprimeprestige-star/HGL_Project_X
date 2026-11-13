@@ -106,6 +106,9 @@ export function Conversazione({
   onCreaScheda,
   onAbbina,
   onFissaAppuntamento,
+  //  Sezione «WhatsApp Baileys» (commessa 2026-11-13): sola lettura, niente AI né casella.
+  //  Facoltativo: `undefined` (il caso di /CRM/whatsapp) = tutto come prima di questo campo.
+  modoPonte,
 }: ConversazioneProps) {
   const { attiva, messaggi, cambiaStato, elimina, segnaFatto } = api;
   //  Numero senza scheda (04/11/2026): lo stato si imposta anche da qui, come nella riga.
@@ -224,7 +227,9 @@ export function Conversazione({
             </div>
             <h2 className="text-foreground text-base font-semibold">Seleziona una chat</h2>
             <p className="mt-1.5 text-muted-foreground text-[13px] leading-relaxed">
-              Scegli una conversazione dall&apos;elenco per leggerla e rispondere dal CRM.
+              {modoPonte
+                ? "Scegli una conversazione dall'elenco per leggerla."
+                : "Scegli una conversazione dall'elenco per leggerla e rispondere dal CRM."}
             </p>
           </div>
         </div>
@@ -697,7 +702,10 @@ export function Conversazione({
                                   !nuovoGiorno && attaccataAllaPrecedente(m, voci[i - 1] ?? null)
                                 }
                                 rispiega={
-                                  !ai.attivo && !bolla && selezionabile(m)
+                                  //  Sezione «WhatsApp Baileys» (modoPonte): il tocco lungo non fa
+                                  //  niente, come su una bolla non selezionabile. Senza `BarraRispiega`
+                                  //  (spenta più sotto) non ci sarebbe modo di uscire dalla selezione.
+                                  !modoPonte && !ai.attivo && !bolla && selezionabile(m)
                                     ? {
                                         onInizia: () => {
                                           lungo.current = true;
@@ -719,7 +727,7 @@ export function Conversazione({
 
             {/*  Il tasto della risposta AI: in basso a destra sopra i messaggi,
               per non togliere spazio alla barra in alto sul telefono. */}
-            {!ai.attivo && messaggi.some((m) => m.body?.trim()) && (
+            {!modoPonte && !ai.attivo && messaggi.some((m) => m.body?.trim()) && (
               <Button
                 onClick={ai.apri}
                 className="absolute bottom-3 right-3 z-20 h-11 rounded-full bg-violet-600 px-4 text-white shadow-lg hover:bg-violet-700 md:h-9"
@@ -732,7 +740,7 @@ export function Conversazione({
             )}
           </div>
 
-          {!ai.attivo && bozzaAi.bozza?.risposta && (
+          {!modoPonte && !ai.attivo && bozzaAi.bozza?.risposta && (
             <BozzaAiPronta
               testo={bozzaAi.bozza.risposta}
               onUsa={() => {
@@ -742,7 +750,15 @@ export function Conversazione({
               onScarta={bozzaAi.scarta}
             />
           )}
-          {ai.attivo ? (
+          {modoPonte ? (
+            //  Sezione «WhatsApp Baileys»: sola lettura (SPEC, risposta del titolare 13/11/2026).
+            //  Niente `api.ponte`, niente eleggibilità: la casella è sempre spenta.
+            <div className="shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]">
+              <p className="px-3 py-3 text-center text-[13px] text-muted-foreground md:px-4">
+                Per rispondere usa WhatsApp sul telefono o la chat del CRM
+              </p>
+            </div>
+          ) : ai.attivo ? (
             ai.modo === "rispiega" ? (
               <BarraRispiega ai={ai} messaggi={messaggi} />
             ) : (

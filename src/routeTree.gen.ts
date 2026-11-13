@@ -27,6 +27,7 @@ import { Route as PercorsoRouteImport } from './routes/percorso'
 import { Route as NuovaRouteImport } from './routes/nuova'
 import { Route as MeetlyRouteImport } from './routes/meetly'
 import { Route as MediaDirettaRouteImport } from './routes/media-diretta'
+import { Route as InvisibleDermV1RouteImport } from './routes/invisible-derm-v1'
 import { Route as InvisibleDermRouteImport } from './routes/invisible-derm'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
 import { Route as ConsulenteRouteImport } from './routes/consulente'
@@ -78,6 +79,7 @@ import { Route as ApiProxyRouteImport } from './routes/api.proxy'
 import { Route as ApiMagicRouteImport } from './routes/api.magic'
 import { Route as ApiIndirizziRouteImport } from './routes/api.indirizzi'
 import { Route as ApiAnteprimaRouteImport } from './routes/api.anteprima'
+import { Route as CRMWhatsappBaileysRouteImport } from './routes/CRM.whatsapp-baileys'
 import { Route as CRMWhatsappRouteImport } from './routes/CRM.whatsapp'
 import { Route as CRMWebinarRouteImport } from './routes/CRM.webinar'
 import { Route as CRMTrattativePerseRouteImport } from './routes/CRM.trattative-perse'
@@ -319,6 +321,11 @@ const MeetlyRoute = MeetlyRouteImport.update({
 const MediaDirettaRoute = MediaDirettaRouteImport.update({
   id: '/media-diretta',
   path: '/media-diretta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvisibleDermV1Route = InvisibleDermV1RouteImport.update({
+  id: '/invisible-derm-v1',
+  path: '/invisible-derm-v1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvisibleDermRoute = InvisibleDermRouteImport.update({
@@ -576,6 +583,11 @@ const ApiAnteprimaRoute = ApiAnteprimaRouteImport.update({
   id: '/api/anteprima',
   path: '/api/anteprima',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CRMWhatsappBaileysRoute = CRMWhatsappBaileysRouteImport.update({
+  id: '/whatsapp-baileys',
+  path: '/whatsapp-baileys',
+  getParentRoute: () => CRMRoute,
 } as any)
 const CRMWhatsappRoute = CRMWhatsappRouteImport.update({
   id: '/whatsapp',
@@ -1361,6 +1373,7 @@ export interface FileRoutesByFullPath {
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/invisible-derm': typeof InvisibleDermRoute
+  '/invisible-derm-v1': typeof InvisibleDermV1Route
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
   '/nuova': typeof NuovaRoute
@@ -1411,6 +1424,7 @@ export interface FileRoutesByFullPath {
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
   '/CRM/whatsapp': typeof CRMWhatsappRoute
+  '/CRM/whatsapp-baileys': typeof CRMWhatsappBaileysRoute
   '/api/anteprima': typeof ApiAnteprimaRoute
   '/api/indirizzi': typeof ApiIndirizziRoute
   '/api/magic': typeof ApiMagicRoute
@@ -1582,6 +1596,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/invisible-derm': typeof InvisibleDermRoute
+  '/invisible-derm-v1': typeof InvisibleDermV1Route
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
   '/nuova': typeof NuovaRoute
@@ -1629,6 +1644,7 @@ export interface FileRoutesByTo {
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
   '/CRM/whatsapp': typeof CRMWhatsappRoute
+  '/CRM/whatsapp-baileys': typeof CRMWhatsappBaileysRoute
   '/api/anteprima': typeof ApiAnteprimaRoute
   '/api/indirizzi': typeof ApiIndirizziRoute
   '/api/magic': typeof ApiMagicRoute
@@ -1803,6 +1819,7 @@ export interface FileRoutesById {
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/invisible-derm': typeof InvisibleDermRoute
+  '/invisible-derm-v1': typeof InvisibleDermV1Route
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
   '/nuova': typeof NuovaRoute
@@ -1853,6 +1870,7 @@ export interface FileRoutesById {
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
   '/CRM/whatsapp': typeof CRMWhatsappRoute
+  '/CRM/whatsapp-baileys': typeof CRMWhatsappBaileysRoute
   '/api/anteprima': typeof ApiAnteprimaRoute
   '/api/indirizzi': typeof ApiIndirizziRoute
   '/api/magic': typeof ApiMagicRoute
@@ -2028,6 +2046,7 @@ export interface FileRouteTypes {
     | '/consulente'
     | '/cookie-policy'
     | '/invisible-derm'
+    | '/invisible-derm-v1'
     | '/media-diretta'
     | '/meetly'
     | '/nuova'
@@ -2078,6 +2097,7 @@ export interface FileRouteTypes {
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
     | '/CRM/whatsapp'
+    | '/CRM/whatsapp-baileys'
     | '/api/anteprima'
     | '/api/indirizzi'
     | '/api/magic'
@@ -2249,6 +2269,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/cookie-policy'
     | '/invisible-derm'
+    | '/invisible-derm-v1'
     | '/media-diretta'
     | '/meetly'
     | '/nuova'
@@ -2296,6 +2317,7 @@ export interface FileRouteTypes {
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
     | '/CRM/whatsapp'
+    | '/CRM/whatsapp-baileys'
     | '/api/anteprima'
     | '/api/indirizzi'
     | '/api/magic'
@@ -2469,6 +2491,7 @@ export interface FileRouteTypes {
     | '/consulente'
     | '/cookie-policy'
     | '/invisible-derm'
+    | '/invisible-derm-v1'
     | '/media-diretta'
     | '/meetly'
     | '/nuova'
@@ -2519,6 +2542,7 @@ export interface FileRouteTypes {
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
     | '/CRM/whatsapp'
+    | '/CRM/whatsapp-baileys'
     | '/api/anteprima'
     | '/api/indirizzi'
     | '/api/magic'
@@ -2693,6 +2717,7 @@ export interface RootRouteChildren {
   ConsulenteRoute: typeof ConsulenteRouteWithChildren
   CookiePolicyRoute: typeof CookiePolicyRoute
   InvisibleDermRoute: typeof InvisibleDermRoute
+  InvisibleDermV1Route: typeof InvisibleDermV1Route
   MediaDirettaRoute: typeof MediaDirettaRoute
   MeetlyRoute: typeof MeetlyRoute
   NuovaRoute: typeof NuovaRoute
@@ -2990,6 +3015,13 @@ declare module '@tanstack/react-router' {
       path: '/media-diretta'
       fullPath: '/media-diretta'
       preLoaderRoute: typeof MediaDirettaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invisible-derm-v1': {
+      id: '/invisible-derm-v1'
+      path: '/invisible-derm-v1'
+      fullPath: '/invisible-derm-v1'
+      preLoaderRoute: typeof InvisibleDermV1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invisible-derm': {
@@ -3348,6 +3380,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/anteprima'
       preLoaderRoute: typeof ApiAnteprimaRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/CRM/whatsapp-baileys': {
+      id: '/CRM/whatsapp-baileys'
+      path: '/whatsapp-baileys'
+      fullPath: '/CRM/whatsapp-baileys'
+      preLoaderRoute: typeof CRMWhatsappBaileysRouteImport
+      parentRoute: typeof CRMRoute
     }
     '/CRM/whatsapp': {
       id: '/CRM/whatsapp'
@@ -4475,6 +4514,7 @@ interface CRMRouteChildren {
   CRMTrattativePerseRoute: typeof CRMTrattativePerseRoute
   CRMWebinarRoute: typeof CRMWebinarRoute
   CRMWhatsappRoute: typeof CRMWhatsappRoute
+  CRMWhatsappBaileysRoute: typeof CRMWhatsappBaileysRoute
   CRMIndexRoute: typeof CRMIndexRoute
 }
 
@@ -4511,6 +4551,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMTrattativePerseRoute: CRMTrattativePerseRoute,
   CRMWebinarRoute: CRMWebinarRoute,
   CRMWhatsappRoute: CRMWhatsappRoute,
+  CRMWhatsappBaileysRoute: CRMWhatsappBaileysRoute,
   CRMIndexRoute: CRMIndexRoute,
 }
 
@@ -4569,6 +4610,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConsulenteRoute: ConsulenteRouteWithChildren,
   CookiePolicyRoute: CookiePolicyRoute,
   InvisibleDermRoute: InvisibleDermRoute,
+  InvisibleDermV1Route: InvisibleDermV1Route,
   MediaDirettaRoute: MediaDirettaRoute,
   MeetlyRoute: MeetlyRoute,
   NuovaRoute: NuovaRoute,

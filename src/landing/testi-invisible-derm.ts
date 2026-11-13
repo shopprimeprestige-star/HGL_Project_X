@@ -240,10 +240,19 @@ export const SLOT_PRIMA_DOPO: SlotId[] = [
 ];
 SLOT_ID.push(...SLOT_PRIMA_DOPO);
 
+/** Solo /invisible-derm-v1: il prima/dopo al posto del calendario nell'hero. */
+export const HERO_V1 = { titolo: "Prima e dopo" };
+export const SLOT_HERO_V1: SlotId[] = [
+  { chiave: "id.primaDopoHero.prima", label: "Hero v1 · foto PRIMA, 4:5 (al posto del calendario)", tipo: "image" },
+  { chiave: "id.primaDopoHero.dopo", label: "Hero v1 · foto DOPO, 4:5 (stessa inquadratura)", tipo: "image" },
+];
+SLOT_ID.push(...SLOT_HERO_V1);
+
 /** Le descrizioni (alt) modificabili dal CRM: chiave `<slot>.alt` → valore di partenza. */
 export const ALT_ID: Record<string, string> = {
   ...Object.fromEntries(SLOT_ID.filter((s) => s.alt).map((s) => [`${s.chiave}.alt`, s.alt as string])),
   ...Object.fromEntries(CONFRONTO.coppie.map((c) => [`${c.chiave}.alt`, c.alt])),
+  "id.primaDopoHero.alt": "Lo stesso cliente prima e dopo Invisible Derm.",
   ...Object.fromEntries(PRIMA_DOPO.casi.map((c, i) => [`${c.chiave}.alt`, `Caso ${i + 1}: lo stesso cliente prima e dopo Invisible Derm.`])),
 };
 
