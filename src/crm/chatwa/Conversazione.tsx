@@ -227,7 +227,9 @@ export function Conversazione({
             </div>
             <h2 className="text-foreground text-base font-semibold">Seleziona una chat</h2>
             <p className="mt-1.5 text-muted-foreground text-[13px] leading-relaxed">
-              Scegli una conversazione dall&apos;elenco per leggerla e rispondere dal CRM.
+              {modoPonte
+                ? "Scegli una conversazione dall'elenco per leggerla."
+                : "Scegli una conversazione dall'elenco per leggerla e rispondere dal CRM."}
             </p>
           </div>
         </div>
