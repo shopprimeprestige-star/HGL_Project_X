@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarClock,
+  CheckCircle2,
   Download,
   FileCheck2,
   FilePlus2,
@@ -37,6 +38,7 @@ import {
   Receipt,
   Save,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +77,7 @@ import {
   salvaAzienda,
   emetti,
 } from "@/crm/fatture/archivio";
-import { costruisciXml, nomeFileXml, problemiXml } from "@/crm/fatture/xml";
+import { costruisciXml, nomeFileXml, partitaIvaValida, problemiXml } from "@/crm/fatture/xml";
 import { FinestraAltraFattura } from "@/crm/fatture/FinestraAltraFattura";
 import { costruisciDocumento, nomeCliente } from "@/crm/fatture/documento";
 import { scaricaInFila, scaricaXml } from "@/crm/fatture/scarica";
@@ -216,6 +218,9 @@ function FatturePage() {
     //  La data su cui si ordina: quella del documento, o la creazione per le
     //  bozze — che una data non ce l'hanno ancora.
     const quando = (f: Fattura) => f.data || f.creataIl || "";
+    //  Bozze: dalla più recente alla più vecchia, una dopo l'altra, senza gruppi
+    //  per cliente (richiesta del titolare, 13/11/2026).
+    if (lente === "bozze") return [...base].sort((a, b) => quando(b).localeCompare(quando(a)));
     const gruppi = new Map<string, Fattura[]>();
     for (const f of base) {
       const k = chiaveCliente(f);
@@ -312,13 +317,22 @@ function FatturePage() {
       if (e) emailCoperte.add(e);
     }
     const tutti = Array.isArray(leads) ? leads : [];
-    return tutti.filter((l) => {
-      if (!eConversione(l)) return false;
-      if (prezzoVendita(l) <= 0 && giaIncassato(l) <= 0) return false;
-      if (coperti.has(l.id)) return false;
-      const e = String(l.data?.email ?? "").trim().toLowerCase();
-      return !(e && emailCoperte.has(e));
-    });
+    //  Dalla più recente alla più vecchia (richiesta del titolare, 13/11/2026):
+    //  conta l'ultimo incasso, poi la data del pagamento, poi la nascita della scheda.
+    const quando = (l: Lead) => {
+      const p = l.data?.payment;
+      const incassi = (p?.incassi ?? []).map((r) => r.data || "").sort();
+      return incassi[incassi.length - 1] || p?.dataPagamento || l.created_at || "";
+    };
+    return tutti
+      .filter((l) => {
+        if (!eConversione(l)) return false;
+        if (prezzoVendita(l) <= 0 && giaIncassato(l) <= 0) return false;
+        if (coperti.has(l.id)) return false;
+        const e = String(l.data?.email ?? "").trim().toLowerCase();
+        return !(e && emailCoperte.has(e));
+      })
+      .sort((a, b) => quando(b).localeCompare(quando(a)));
   }, [leads, emesse, bozze]);
 
   const totaleEmesso = useMemo(() => emesse.reduce((t, f) => t + f.totale, 0), [emesse]);
@@ -897,7 +911,7 @@ function FatturePage() {
                   nomeCliente(b).toLowerCase());
               const primo = i === 0 || !stesso(righe[i - 1], f);
               const delGruppo = righe.filter((x) => stesso(x, f));
-              const intestazione = primo && delGruppo.length > 1;
+              const intestazione = lente === "emesse" && primo && delGruppo.length > 1;
               return (
                 <Fragment key={f.id}>
                   {intestazione && (
@@ -1044,6 +1058,24 @@ function FatturePage() {
                   >
                     <span className="flex min-w-0 flex-col">
                       <span className="flex items-center gap-2">
+                        {f.stato !== "emessa" &&
+                          (datiClienteCompleti(f) ? (
+                            <span
+                              className="shrink-0"
+                              title="Codice fiscale e indirizzo presenti"
+                              aria-label="Codice fiscale e indirizzo presenti"
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+                            </span>
+                          ) : (
+                            <span
+                              className="shrink-0"
+                              title="Mancano codice fiscale o indirizzo"
+                              aria-label="Mancano codice fiscale o indirizzo"
+                            >
+                              <XCircle className="h-4 w-4 text-red-600" aria-hidden />
+                            </span>
+                          ))}
                         <span className="truncate text-[13px] font-semibold">{nomeCliente(f)}</span>
                         <span
                           className={cn(
@@ -1466,6 +1498,19 @@ function FatturePage() {
         )}
       </BarraSelezione>
     </Pagina>
+  );
+}
+
+/** Codice fiscale (per un'azienda: partita IVA) e indirizzo completo, negli
+ *  stessi formati che l'emissione pretende (`problemiXml` in fatture/xml.ts):
+ *  verde solo se «Emetti» non li rifiuterà. */
+function datiClienteCompleti(f: Fattura): boolean {
+  const c = f.cliente;
+  const id = c.azienda
+    ? partitaIvaValida((c.partitaIva || "").trim())
+    : /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/.test((c.codiceFiscale || "").trim().toUpperCase());
+  return Boolean(
+    id && c.indirizzo?.trim() && /^\d{5}$/.test((c.cap || "").trim()) && c.comune?.trim(),
   );
 }
 
