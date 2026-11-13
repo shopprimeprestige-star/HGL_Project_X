@@ -295,7 +295,7 @@ export function violazioniSpec6(radice) {
   const v = [];
   const dentro = [
     ...["src/crm/manychat", "src/crm/promemoria", "src/routes/hooks"].flatMap((d) => fileSotto(join(radice, d), [".ts", ".tsx"])),
-    ...fileSotto(join(radice, "supabase"), [".sql", ".toml"]).filter((f) => !f.endsWith("20261030120000_ponte_invio_manuale.sql")),
+    ...fileSotto(join(radice, "supabase"), [".sql", ".toml"]).filter((f) => !f.endsWith("20261030120000_ponte_invio_manuale.sql") && !f.endsWith("20261113120000_ponte_chat_flag.sql")),
   ];
   for (const f of dentro) {
     const t = senzaCommenti(readFileSync(f, "utf8"));

@@ -368,7 +368,11 @@ export async function prove(mod, { c, gruppo }) {
     ["CAP del cliente di 4 cifre", { ind: lInd({ cap: "1234" }) }],
     // IL DOCUMENTO
     ["data mancante", { pag: lPag({ data: "" }) }],
-    ["data nel futuro", { pag: lPag({ data: "2026-11-13" }) }],
+    //  Sempre fra due giorni (margine sul fuso orario): una data fissa smette di essere «futura».
+    [
+      "data nel futuro",
+      { pag: lPag({ data: new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10) }) },
+    ],
     ["data che non esiste", { pag: lPag({ data: "2027-02-29" }) }],
     ["importo zero", { pag: lPag({ importo: 0 }) }],
     ["importo mancante", { pag: lPag({ importo: null }) }],

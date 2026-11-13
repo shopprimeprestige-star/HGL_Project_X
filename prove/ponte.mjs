@@ -57,6 +57,7 @@ import { provePonteServizioMediaCatalogo } from "./ponte/servizio-media-catalogo
 import { provePonteServizioMediaFirme } from "./ponte/servizio-media-firme.mjs";
 import { provePonteStatoChat } from "./ponte/stato-chat.mjs";
 import { provePonteTutteMigrazione } from "./ponte/tutte-migrazione.mjs";
+import { provePonteChatFlagMigrazione } from "./ponte/chat-flag-migrazione.mjs";
 import { provePonteVecchieMigrazioni } from "./ponte/vecchie-migrazioni.mjs";
 
 /** I campi di un'interfaccia (o i metodi), letti dal sorgente, in ordine. */
@@ -188,4 +189,6 @@ export async function proveDelPonte(mod, aiuti) {
   await provePonteRevocheIngresso(mod, aiuti);
   await provePonteRevocheMigrazione(mod, aiuti);
   await provePonteRevocheChat(mod, aiuti);
+  //  Il segno «ha un messaggio del ponte» (commessa 2026-11-13-chat-baileys, filo A, T1).
+  await provePonteChatFlagMigrazione(mod, aiuti);
 }
