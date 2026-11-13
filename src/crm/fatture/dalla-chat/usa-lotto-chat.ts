@@ -159,24 +159,51 @@ export function schedaVuota(id: string): SchedaChat {
   return { id, nome: "", cognome: "", codiceFiscale: "", telefono: "", importoScheda: null };
 }
 
-/** Via 2 (T17, SPEC §9.3 passo 7): il corpo di `scrivi-pagamento` dai `CampiRiga` GIÀ mostrati
- *  nel pannello — gli stessi 4 campi di correzione condivisi con la bulk (importo, data, modo,
- *  riferimento): nessun campo nuovo da duplicare, si riusano quelli (vedi LAVAGNA, T17). Quando
- *  l'importo è stato scritto con la virgola («45,50»), a questo punto è già un numero (`45.5`):
- *  la conversione la fa `leggiImportoScritto` (bulk/PannelloRigaBulk.tsx) al salvataggio del
- *  campo, PRIMA che `CampiRiga.importo` esista — qui non si rifà.
- *  `null` se uno dei 3 campi obbligatori è ancora vuoto: è solo un CANCELLO per non spendere una
- *  richiesta a vuoto (disabilita il tasto «Salva pagamento»). Il controllo di CONTENUTO vero
+/** Via 2 (T17, SPEC §9.3 passo 7): il CANCELLO di `scrivi-pagamento` — i 3 campi obbligatori
+ *  (importo, data, modo) completi? Il riferimento resta l'unico facoltativo. `null` se uno dei
+ *  3 manca: non vale la richiesta (disabilita il tasto). Il controllo di CONTENUTO vero
  *  (centesimi, giorno che esiste, modo ammesso) resta tutto a `pagamentoManualeValido`, lato
  *  server — un input che supera questo cancello ma non quello può ancora tornare
- *  `richiesta_non_valida`, mostrato onestamente dall'avviso già esistente (`stato.errore`). */
-export function corpoPagamentoManuale(
-  c: Pick<CampiRiga, "importo" | "data" | "modo" | "riferimento">,
-): { importo: number; data: string; modo: string; riferimento: string } | null {
+ *  `richiesta_non_valida`, mostrato onestamente dall'avviso già esistente (`stato.errore`).
+ *  ⚠️ Accetta QUALUNQUE `{importo,data,modo,riferimento}`, non solo `CampiRiga`: dal correzione
+ *  del revisore su T17 (`CampiRiga` si aggiorna solo DOPO il giro di rete dell'`onBlur`, mai
+ *  come fonte per questo tasto — vedi `corpoPagamentoDaBozze` sotto, che è la fonte vera usata
+ *  dal pannello). */
+export function corpoPagamentoManuale(c: {
+  importo: number | null;
+  data: string;
+  modo: string;
+  riferimento: string;
+}): { importo: number; data: string; modo: string; riferimento: string } | null {
   if (c.importo === null || !(c.importo > 0)) return null;
   if (!c.data) return null;
   if (!c.modo) return null;
   return { importo: c.importo, data: c.data, modo: c.modo, riferimento: c.riferimento };
+}
+
+/** Via 2 (T17, correzione dopo il DA RIFARE del revisore): la stessa cosa di sopra, ma a
+ *  partire dalle BOZZE locali dei 4 campi — il testo scritto ad OGNI tasto nei campi
+ *  (`onBozza`, `PannelloRigaChat.tsx`), non `CampiRiga` (`riga.campi`), che si aggiorna solo
+ *  dopo che il giro di rete del salvataggio-per-campo (`onBlur`) è tornato. Il revisore aveva
+ *  trovato una gara vera: scrivere il CRO e cliccare subito «Salva pagamento» spediva ancora il
+ *  valore VECCHIO, perché il tasto leggeva `riga.campi` (non ancora aggiornato dalla fetch in
+ *  corso). Leggendo le bozze invece di `CampiRiga`, il tasto vede sempre e SOLO quello che è
+ *  scritto davvero nei campi in quel momento: la gara non può più esistere, per costruzione (non
+ *  per tempismo). `leggiImporto` è `leggiImportoScritto` (bulk/PannelloRigaBulk.tsx), passata
+ *  come parametro per non importare un file `.tsx` in questo modulo di sola orchestrazione. */
+export function corpoPagamentoDaBozze(
+  b: { importoTesto: string; data: string; modo: string; riferimento: string },
+  leggiImporto: (
+    s: string,
+  ) => { ok: true; valore: number | null } | { ok: false; messaggio: string },
+): { importo: number; data: string; modo: string; riferimento: string } | null {
+  const letto = leggiImporto(b.importoTesto);
+  return corpoPagamentoManuale({
+    importo: letto.ok ? letto.valore : null,
+    data: b.data,
+    modo: b.modo,
+    riferimento: b.riferimento,
+  });
 }
 
 /** Quali clienti scelti (`schedaId`, = `idRiga`) vanno cercati: non quelli con

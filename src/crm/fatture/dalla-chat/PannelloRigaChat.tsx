@@ -13,14 +13,21 @@
  *   3. Il bonifico è UN file solo, non tre: «Carica/Cambia screenshot» al
  *      posto dei tre screenshot della bulk.
  *   4. (T17) Lo screenshot è FACOLTATIVO qui: finché `pagamento.lettura` non
- *      c'è, un tasto «Salva pagamento» chiama `scrivi-pagamento` (T11.2) coi
- *      4 campi di correzione QUI SOTTO (importo/data/modo/riferimento) —
- *      GLI STESSI della bulk, non duplicati: sono «le modifiche» che già
- *      finiscono in `CampiRiga` (vedi `corpoPagamentoManuale`,
- *      `usa-lotto-chat.ts`); la decisione di riusarli, non duplicarli, è in
- *      LAVAGNA (T17). Il collaudo di T9 aveva trovato che scriverli da soli
- *      NON sblocca la riga (nessun componente chiamava `scrivi-pagamento`):
- *      questo è il punto che T17 chiude.
+ *      c'è (o c'è ma viene da una scrittura a mano precedente, `impronta===
+ *      ""`), un tasto «Salva pagamento»/«Aggiorna pagamento» chiama
+ *      `scrivi-pagamento` (T11.2) coi 4 campi di correzione QUI SOTTO
+ *      (importo/data/modo/riferimento) — GLI STESSI della bulk, non
+ *      duplicati: la decisione di riusarli è in LAVAGNA (T17). Il tasto
+ *      legge le loro BOZZE (`onBozza`/`pagamentoModoBozza`), non
+ *      `riga.campi`: quello si aggiorna solo DOPO il giro di rete del
+ *      salvataggio-per-campo, e leggerlo apriva una gara vera (scrivi e
+ *      clicchi subito → parte il valore vecchio), trovata dal revisore sul
+ *      primo commit di T17 e chiusa qui (`corpoPagamentoDaBozze`,
+ *      `usa-lotto-chat.ts`). A differenza dello screenshot («Cambia
+ *      screenshot» sempre visibile), questo tasto resta disponibile anche
+ *      DOPO un primo salvataggio a mano riuscito, per correggerlo — mai però
+ *      quando il pagamento viene da un vero screenshot letto (lì la via di
+ *      correzione resta «Rileggi il bonifico»/«Cambia screenshot»).
  *
  *  ⚠️ I SALVATAGGI SONO UNO ALLA VOLTA PER RIGA (lo garantisce `salvaRiga` di
  *   `usa-lotto-chat.ts`): qui si manda una cosa per richiesta, come nella
@@ -52,7 +59,7 @@ import { controllaCambio, type CambioRiga } from "../bulk/cambio-riga";
 import { leggiImportoScritto } from "../bulk/PannelloRigaBulk";
 import { BadgeStato, dataItaliana, euroEsatti, nomeDellaRiga } from "../bulk/AnteprimaBulk";
 import { ErroreRotta } from "../bulk/usa-lotto";
-import { corpoPagamentoManuale, leggiRottaChat } from "./usa-lotto-chat";
+import { corpoPagamentoDaBozze, leggiRottaChat } from "./usa-lotto-chat";
 import type { CampiRiga, Motivo, RigaValutata } from "../bulk/tipi";
 import type { LetturaChat, RigaChat } from "./tipi";
 
@@ -194,6 +201,7 @@ function CampoTesto({
   nota,
   className,
   convalida,
+  onBozza,
 }: {
   etichetta: string;
   valore: string;
@@ -206,6 +214,10 @@ function CampoTesto({
   nota?: React.ReactNode;
   className?: string;
   convalida?: (v: string) => string | null;
+  /** Via 2 (T17, correzione dopo il DA RIFARE del revisore): il testo scritto ad OGNI tasto,
+   *  non solo quello COMMESSO a `onBlur`/Invio — serve a chi deve leggere il valore vero senza
+   *  aspettare il giro di rete del salvataggio (vedi `PannelloRigaChat`, «Salva pagamento»). */
+  onBozza?: (v: string) => void;
 }) {
   const [bozza, setBozza] = useState(valore);
   const [errore, setErrore] = useState<string | null>(null);
@@ -242,6 +254,7 @@ function CampoTesto({
         onChange={(e) => {
           const v = trasforma ? trasforma(e.target.value) : e.target.value;
           setBozza(v);
+          onBozza?.(v);
           if (tipo === "date" && (v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v))) conferma(v);
         }}
         onBlur={() => tipo !== "date" && conferma(bozza)}
@@ -376,11 +389,35 @@ export function PannelloRigaChat({
   };
   const [erroreFile, setErroreFile] = useState<string | null>(null);
 
-  /** Via 2 (T17): «Salva pagamento» riusa i 4 campi di correzione qui sotto (già scritti a
-   *  mano, già salvati come `modifiche` dal loro stesso `onBlur`): niente campi nuovi da
-   *  duplicare (vedi LAVAGNA). `corpoPagamentoManuale` è il solo cancello client (per non
-   *  spendere una richiesta a vuoto): il controllo vero resta lato server. */
-  const corpoPagamento = corpoPagamentoManuale(c);
+  /** Via 2 (T17): «Salva pagamento» riusa i 4 campi di correzione qui sotto, non li duplica
+   *  (vedi LAVAGNA) — ma legge le loro BOZZE (il testo scritto ad ogni tasto, `onBozza`/
+   *  `setPagamentoModoBozza`), non `riga.campi`: quello si aggiorna solo DOPO il giro di rete
+   *  del salvataggio-per-campo (`onBlur`), e leggerlo qui apriva la gara segnalata dal revisore
+   *  su T17 (scrivere il CRO e cliccare subito spediva il valore vecchio). Le bozze si
+   *  riallineano da sole quando il campo cambia da fuori (screenshot letto, altra scheda che
+   *  scrive): stesso `useEffect` di `rif` qui sotto. */
+  const [pagamentoImportoBozza, setPagamentoImportoBozza] = useState(importoScritto(c.importo));
+  useEffect(() => setPagamentoImportoBozza(importoScritto(c.importo)), [c.importo]);
+  const [pagamentoDataBozza, setPagamentoDataBozza] = useState(c.data);
+  useEffect(() => setPagamentoDataBozza(c.data), [c.data]);
+  const [pagamentoModoBozza, setPagamentoModoBozza] = useState(c.modo);
+  useEffect(() => setPagamentoModoBozza(c.modo), [c.modo]);
+
+  const corpoPagamento = corpoPagamentoDaBozze(
+    {
+      importoTesto: pagamentoImportoBozza,
+      data: pagamentoDataBozza,
+      modo: pagamentoModoBozza,
+      riferimento: rif,
+    },
+    leggiImportoScritto,
+  );
+  // Scritto a mano (non da screenshot): `pagamento-manuale.ts` lascia sempre `impronta:""`. Un
+  // pagamento già scritto a mano resta correggibile — stesso principio di «Cambia screenshot»,
+  // sempre visibile — a differenza di un pagamento letto da uno screenshot vero, dove la via di
+  // correzione resta «Rileggi il bonifico»/«Cambia screenshot» qui a fianco, non questo tasto.
+  const pagamentoScrittoAMano = pagamento?.impronta === "";
+  const mostraPagamentoAMano = !pagamento?.lettura || pagamentoScrittoAMano;
   const [inviandoPagamento, setInviandoPagamento] = useState(false);
   const salvaPagamento = async () => {
     // Guardia sul tasto: niente doppio invio, né per un doppio clic né mentre un'altra
@@ -670,6 +707,7 @@ export function PannelloRigaChat({
                 const r = leggiImportoScritto(v);
                 if (r.ok) void salva({ modifiche: { importo: r.valore } });
               }}
+              onBozza={setPagamentoImportoBozza}
             />
             <CampoTesto
               etichetta="Data del pagamento"
@@ -677,6 +715,7 @@ export function PannelloRigaChat({
               valore={c.data}
               onSalva={campo("data")}
               invalido={invalidi.has("data")}
+              onBozza={setPagamentoDataBozza}
             />
           </div>
 
@@ -688,9 +727,10 @@ export function PannelloRigaChat({
           >
             <SceltaModoIncasso
               metodo={c.modo || null}
-              onMetodo={(m: MetodoPagamento) =>
-                m !== c.modo && void salva({ modifiche: { modo: m } })
-              }
+              onMetodo={(m: MetodoPagamento) => {
+                setPagamentoModoBozza(m);
+                m !== c.modo && void salva({ modifiche: { modo: m } });
+              }}
               riferimento={rif}
               onRiferimento={setRif}
             />
@@ -699,13 +739,27 @@ export function PannelloRigaChat({
             )}
           </div>
 
-          {!pagamento?.lettura && (
+          {mostraPagamentoAMano && (
             <div className="space-y-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2.5">
               <p className="text-[12.5px] leading-snug text-slate-700">
-                <strong className="font-medium text-slate-900">Scrivi il pagamento a mano:</strong>{" "}
-                compila importo, data e modo qui sopra (il riferimento/CRO è facoltativo), poi premi
-                «Salva pagamento». Lo screenshot del bonifico resta facoltativo: non serve per
-                sbloccare questa riga.
+                {pagamentoScrittoAMano ? (
+                  <>
+                    <strong className="font-medium text-slate-900">
+                      Pagamento scritto a mano.
+                    </strong>{" "}
+                    Puoi correggere importo, data, modo o riferimento qui sopra e premere di nuovo
+                    «Aggiorna pagamento».
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-medium text-slate-900">
+                      Scrivi il pagamento a mano:
+                    </strong>{" "}
+                    compila importo, data e modo qui sopra (il riferimento/CRO è facoltativo), poi
+                    premi «Salva pagamento». Lo screenshot del bonifico resta facoltativo: non serve
+                    per sbloccare questa riga.
+                  </>
+                )}
               </p>
               <Button
                 type="button"
@@ -719,7 +773,11 @@ export function PannelloRigaChat({
                 }
                 onClick={() => void salvaPagamento()}
               >
-                {inviandoPagamento ? "Salvo…" : "Salva pagamento"}
+                {inviandoPagamento
+                  ? "Salvo…"
+                  : pagamentoScrittoAMano
+                    ? "Aggiorna pagamento"
+                    : "Salva pagamento"}
               </Button>
             </div>
           )}

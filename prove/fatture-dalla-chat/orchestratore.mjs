@@ -584,6 +584,50 @@ export async function prove(_mod, { c, gruppo, radice }) {
     );
   }
 
+  /* ── corpoPagamentoDaBozze (correzione del DA RIFARE: NIENTE gara con l'onBlur asincrono) ── */
+  gruppo(
+    "DALLA CHAT · T17 (correzione) · corpoPagamentoDaBozze legge le BOZZE, mai i CampiRiga vecchi",
+  );
+  {
+    const leggiImportoFinto = (s) => {
+      const n = Number(s.replace(",", "."));
+      return Number.isFinite(n) ? { ok: true, valore: n } : { ok: false, messaggio: "x" };
+    };
+    c(
+      "4 bozze complete → lo stesso corpo di corpoPagamentoManuale",
+      { importo: 45.5, data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" },
+      U.corpoPagamentoDaBozze(
+        { importoTesto: "45,5", data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" },
+        leggiImportoFinto,
+      ),
+    );
+    c(
+      // Lo scenario ESATTO del DA RIFARE: il titolare scrive il CRO e clicca subito. `riga.campi`
+      // (qui simulato con un ipotetico valore «vecchio», mai passato a questa funzione) non
+      // interviene: la funzione non accetta `CampiRiga` come input, SOLO le bozze — la gara non
+      // può esistere per costruzione, non per tempismo fortunato.
+      "la bozza appena scritta (non ancora salvata lato server) è quella che parte, non un valore «vecchio» di CampiRiga",
+      "CRO-APPENA-SCRITTO",
+      U.corpoPagamentoDaBozze(
+        {
+          importoTesto: "10",
+          data: "2026-11-10",
+          modo: "bonifico",
+          riferimento: "CRO-APPENA-SCRITTO",
+        },
+        leggiImportoFinto,
+      )?.riferimento,
+    );
+    c(
+      "importo scritto male (testo non numerico) → null, stesso cancello di corpoPagamentoManuale",
+      null,
+      U.corpoPagamentoDaBozze(
+        { importoTesto: "abc", data: "2026-11-10", modo: "bonifico", riferimento: "" },
+        leggiImportoFinto,
+      ),
+    );
+  }
+
   /* ── la conversione con la virgola arriva dallo stesso convertitore della bulk (leggiImportoScritto) ── */
   gruppo("DALLA CHAT · T17 · 45,50 scritto a mano → 45.5 nel corpo della richiesta (integrazione)");
   {
@@ -618,6 +662,16 @@ export async function prove(_mod, { c, gruppo, radice }) {
         modo: "bonifico",
         riferimento: "CRO123",
       }),
+    );
+    c(
+      // Stesso giro, ma con la funzione VERA usata dal pannello (`corpoPagamentoDaBozze` +
+      // `leggiImportoScritto` reale, non finta): «45,50» scritto nel campo (bozza) → 45.5 spedito.
+      "la stessa conversione passando per corpoPagamentoDaBozze (quella usata davvero dal pannello)",
+      { importo: 45.5, data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" },
+      U.corpoPagamentoDaBozze(
+        { importoTesto: "45,50", data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" },
+        B.leggiImportoScritto,
+      ),
     );
   }
 

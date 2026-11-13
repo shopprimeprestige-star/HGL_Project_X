@@ -156,9 +156,34 @@ export { PannelloRigaChat } from ${JSON.stringify(
       ),
     );
     c(
-      "pagamento.lettura già presente (screenshot letto, o scritto a mano in precedenza): il tasto NON compare più",
+      "pagamento.lettura già presente DA UNO SCREENSHOT (impronta non vuota): il tasto a mano NON compare — resta «Cambia screenshot»/«Rileggi il bonifico»",
       false,
-      /Salva pagamento/.test(conPagamentoScreenshot),
+      /Salva pagamento|Aggiorna pagamento/.test(conPagamentoScreenshot),
+    );
+
+    const conPagamentoAMano = disegna(
+      React.createElement(
+        PannelloRigaChat,
+        props({
+          riga: { ...rigaBase, motivi: [] },
+          rigaChat: {
+            idRiga: "riga-1",
+            scheda: "scheda-1",
+            stato: "aperta",
+            pagamento: { stato: "letto", impronta: "", lettura: { tipo: "pagamento" } },
+          },
+        }),
+      ),
+    );
+    c(
+      // Correzione del DA RIFARE (punto 2): un pagamento già scritto a mano (impronta vuota)
+      // resta correggibile, come «Cambia screenshot» per la via dello screenshot.
+      "pagamento.lettura scritto A MANO (impronta vuota): il tasto resta, ma diventa «Aggiorna pagamento»",
+      [true, false],
+      [
+        /Aggiorna pagamento/.test(conPagamentoAMano),
+        />\s*Salva pagamento\s*</.test(conPagamentoAMano),
+      ],
     );
   }
 
@@ -200,9 +225,39 @@ export { PannelloRigaChat } from ${JSON.stringify(
     );
     c("nessun console.* nel pannello", false, /console\./.test(src));
     c(
-      "corpoPagamentoManuale importato da usa-lotto-chat.ts, non ridefinito qui (zero secondo motore di validazione)",
+      "corpoPagamentoDaBozze importato da usa-lotto-chat.ts, non ridefinito qui (zero secondo motore di validazione)",
       true,
-      /import\s*\{\s*corpoPagamentoManuale[,\s]/.test(src) || /corpoPagamentoManuale,/.test(src),
+      /import\s*\{\s*corpoPagamentoDaBozze,\s*leggiRottaChat\s*\}\s*from\s*"\.\/usa-lotto-chat"/.test(
+        src,
+      ),
+    );
+    c(
+      // Correzione del DA RIFARE (punto 1, bloccante): il corpo per `scrivi-pagamento` deve
+      // leggere le BOZZE dei campi (`pagamentoImportoBozza`/`pagamentoDataBozza`/
+      // `pagamentoModoBozza`), mai `c.importo`/`c.data`/`c.modo` (che si aggiornano solo dopo
+      // il giro di rete dell'onBlur) — altrimenti la gara segnalata dal revisore torna.
+      "corpoPagamento è calcolato dalle BOZZE (corpoPagamentoDaBozze), non direttamente da c.importo/c.data/c.modo",
+      [true, false, false, false],
+      [
+        /const corpoPagamento = corpoPagamentoDaBozze\(\s*\{\s*importoTesto:\s*pagamentoImportoBozza,\s*data:\s*pagamentoDataBozza,\s*modo:\s*pagamentoModoBozza,\s*riferimento:\s*rif,/.test(
+          src,
+        ),
+        /corpoPagamentoDaBozze\([^)]*c\.importo/.test(src),
+        /corpoPagamentoDaBozze\([^)]*c\.data/.test(src),
+        /corpoPagamentoDaBozze\([^)]*c\.modo/.test(src),
+      ],
+    );
+    c(
+      // Ogni campo che alimenta il corpo ha una bozza AGGIORNATA AD OGNI TASTO (`onBozza`/la
+      // selezione del modo), non solo al commit: altrimenti la gara resterebbe aperta su quel
+      // campo specifico.
+      "ogni bozza si aggiorna ad ogni tasto (onBozza sui 2 CampoTesto, setPagamentoModoBozza sulla pillola), non solo al commit",
+      [true, true, true],
+      [
+        /onBozza=\{setPagamentoImportoBozza\}/.test(src),
+        /onBozza=\{setPagamentoDataBozza\}/.test(src),
+        /setPagamentoModoBozza\(m\)/.test(src),
+      ],
     );
   }
 }
