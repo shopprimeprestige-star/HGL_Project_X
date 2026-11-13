@@ -15,11 +15,17 @@
  *  `data_futura`, `modo_non_ammesso`…) — quelli restano gli UNICI che decidono
  *  se la riga è «pronta» o «da controllare». Qui si controlla solo che
  *  l'INPUT grezzo (dal corpo della richiesta) sia nella forma minima che
- *  SERVE per costruire l'oggetto: importo intero positivo, data di un giorno
- *  che esiste davvero nel calendario, modo nell'elenco chiuso
- *  `MetodoPagamento` (mai un bonifico di ripiego). Un valore che non supera
- *  questo controllo non vale un bonifico malletto: è un INPUT scartato,
- *  `richiesta_non_valida`, zero scritture (chi chiama, `chat.server.ts`).
+ *  SERVE per costruire l'oggetto: importo positivo con al più 2 decimali
+ *  (STESSO controllo di `bulk/regole-riga.ts:322-337`, non un intero — «importo
+ *  sempre intero», decisione del titolare in SPEC, vuol dire che il pagamento
+ *  si fattura PER INTERO, una fattura = un pagamento, mai acconto+saldo nella
+ *  stessa fattura: non che l'importo in euro non abbia centesimi. Corretto dopo
+ *  l'osservazione del revisore su questo stesso file: un importo come 45,50 €
+ *  deve restare valido), data di un giorno che esiste davvero nel calendario,
+ *  modo nell'elenco chiuso `MetodoPagamento` (mai un bonifico di ripiego). Un
+ *  valore che non supera questo controllo non vale un bonifico malletto: è un
+ *  INPUT scartato, `richiesta_non_valida`, zero scritture (chi chiama,
+ *  `chat.server.ts`).
  *
  *  ⚠️ Il riferimento è l'UNICO campo facoltativo (`modi-di-incasso.ts`: «IL
  *  DATO NON È MAI OBBLIGATORIO» — una fattura senza CRO è comunque valida). */
@@ -63,9 +69,10 @@ function riferimentoPulito(v: unknown): string {
  *  zero scritture). Il riferimento, da solo, non può mai far fallire la costruzione. */
 export function pagamentoManualeValido(v: PagamentoManuale): LetturaPagamento | null {
   const importo = v.importo;
-  if (typeof importo !== "number" || !Number.isFinite(importo) || !Number.isInteger(importo))
-    return null;
-  if (importo <= 0) return null;
+  if (typeof importo !== "number" || !Number.isFinite(importo) || importo <= 0) return null;
+  // Al più 2 decimali (centesimi): stessa tolleranza di `bulk/regole-riga.ts` (`importo_non_valido`),
+  // non richiesto un numero intero — vedi l'intestazione del file sul perché.
+  if (Math.abs(importo * 100 - Math.round(importo * 100)) > 1e-7) return null;
   const data = typeof v.data === "string" ? v.data : "";
   if (!giornoVero(data)) return null;
   const modo = typeof v.modo === "string" ? v.modo : "";

@@ -1,10 +1,16 @@
 /** ── FATTURE DALLA CHAT · T11.2 · IL PAGAMENTO SCRITTO A MANO ───────────────
  *  Commessa 2026-11-13-fatture-dalla-chat (SPEC §9.3 passo 7, §9.7 criterio 3,
  *  PIANO T11.2). `pagamentoManualeValido({importo,data,modo,riferimento})`:
- *  puro, nessuna rete. I controlli minimi (importo intero positivo, data
- *  AAAA-MM-GG di un giorno vero, modo in `MetodoPagamento`) sono quelli che
- *  decidono se il chiamante può scrivere `chat_fatture_p` o deve rispondere
- *  `richiesta_non_valida` senza scrivere nulla. */
+ *  puro, nessuna rete. I controlli minimi (importo positivo con al più 2
+ *  decimali — STESSA tolleranza di `bulk/regole-riga.ts`, NON un intero: vedi
+ *  sotto —, data AAAA-MM-GG di un giorno vero, modo in `MetodoPagamento`) sono
+ *  quelli che decidono se il chiamante può scrivere `chat_fatture_p` o deve
+ *  rispondere `richiesta_non_valida` senza scrivere nulla.
+ *  ⚠️ Correzione del revisore (DA RIFARE su T11.2): «importo sempre intero»
+ *  (SPEC, decisione del titolare) vuol dire che il pagamento si fattura PER
+ *  INTERO — una fattura = un pagamento, mai acconto+saldo nella stessa
+ *  fattura — non che l'importo in euro non abbia centesimi: 45,50 € deve
+ *  restare un importo valido, esattamente come nella bulk. */
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { LOTTO_PROVA, SCHEDA_PROVA, SCHEDA_PROVA_ALTRA } from "./dati.mjs";
@@ -54,15 +60,25 @@ export async function prove(_mod, { c, gruppo, radice }) {
   }
 
   gruppo(
-    "DALLA CHAT · T11.2 · importo: deve essere un intero positivo (decisione del titolare: fattura sempre un importo intero)",
+    "DALLA CHAT · T11.2 · importo: positivo, al più 2 decimali (STESSA tolleranza della bulk — «intero» = una sola fattura, non un numero senza centesimi)",
   );
   {
     c("importo 0 → non valido", null, P.pagamentoManualeValido({ ...BASE, importo: 0 }));
     c("importo negativo → non valido", null, P.pagamentoManualeValido({ ...BASE, importo: -50 }));
     c(
-      "importo con decimali → non valido (qui, non nella bulk)",
+      "importo con 2 decimali (45,50 €) → VALIDO (correzione del revisore: non deve essere un intero)",
+      45.5,
+      P.pagamentoManualeValido({ ...BASE, importo: 45.5 })?.importo,
+    );
+    c(
+      "importo con 1 decimale (99,90 €) → valido",
+      99.9,
+      P.pagamentoManualeValido({ ...BASE, importo: 99.9 })?.importo,
+    );
+    c(
+      "importo con più di 2 decimali (99,505 €) → non valido (stesso tetto della bulk)",
       null,
-      P.pagamentoManualeValido({ ...BASE, importo: 99.5 }),
+      P.pagamentoManualeValido({ ...BASE, importo: 99.505 }),
     );
     c("importo stringa → non valido", null, P.pagamentoManualeValido({ ...BASE, importo: "100" }));
     c(

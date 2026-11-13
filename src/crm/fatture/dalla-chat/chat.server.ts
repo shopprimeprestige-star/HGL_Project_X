@@ -1359,7 +1359,7 @@ export function leggiRichiestaChat(corpo: unknown): RichiestaChat {
       return { azione: "leggi-pagamento", lotto: lottoDi(b.lotto), idRiga: idRigaDi(b.idRiga) };
     case "scrivi-pagamento": {
       // Solo un controllo di FORMA (numero finito, stringhe entro una lunghezza sensata): il
-      // controllo di CONTENUTO (intero positivo, giorno vero, modo ammesso) è di
+      // controllo di CONTENUTO (positivo con al più 2 decimali, giorno vero, modo ammesso) è di
       // `pagamentoManualeValido` (T11.2), unico posto che lo decide.
       const importo = b.importo;
       if (
