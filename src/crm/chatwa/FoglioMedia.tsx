@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ExternalLink, Eye, Sparkles, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Eye, Receipt, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,6 +62,9 @@ export interface PropsCorpoFoglio {
   onApri?: () => void;
   /** Se c'è, la voce «Rispiega con AI». */
   onRispiega?: () => void;
+  /** Se c'è, la voce «Scegli per la fattura» (commessa 2026-11-13-fatture-dalla-chat, T15, Via 2:
+   *  solo in modoPonte/Baileys — lo decide chi monta il foglio, non questo componente). */
+  onFattura?: () => void;
   /** Un'azione precedente è fallita: la frase resta nel foglio. */
   errore?: string | null;
   adesso?: number;
@@ -162,15 +165,21 @@ export function CorpoFoglio(p: PropsCorpoFoglio) {
           {p.errore}
         </p>
       )}
-      {p.onRispiega && (
-        <button
-          type="button"
-          onClick={p.onRispiega}
-          className={cn(voce, "border-t border-border pt-0 hover:bg-accent/60")}
-        >
-          <Sparkles className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
-          Rispiega con AI
-        </button>
+      {(p.onRispiega || p.onFattura) && (
+        <div className="flex flex-col border-t border-border pt-1">
+          {p.onRispiega && (
+            <button type="button" onClick={p.onRispiega} className={cn(voce, "hover:bg-accent/60")}>
+              <Sparkles className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
+              Rispiega con AI
+            </button>
+          )}
+          {p.onFattura && (
+            <button type="button" onClick={p.onFattura} className={cn(voce, "hover:bg-accent/60")}>
+              <Receipt className="h-4 w-4 shrink-0 text-sky-600" aria-hidden />
+              Scegli per la fattura
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

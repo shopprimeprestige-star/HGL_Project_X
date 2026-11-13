@@ -18,6 +18,7 @@ import {
   Loader2,
   Pause,
   Play,
+  Receipt,
   RotateCcw,
   Sparkles,
 } from "lucide-react";
@@ -553,11 +554,16 @@ function BollaBase({
   coda,
   attaccata = false,
   rispiega,
+  fattura,
 }: BollaProps & {
   attaccata?: boolean;
   /** «Rispiega con AI» (30/10/2026): se c'è, la bolla si può scegliere con la pressione lunga
    *  (telefono e mouse) o dal menu che compare al passaggio del mouse. `onInizia` accende la selezione. */
   rispiega?: { onInizia: () => void };
+  /** «Usa per fattura» (commessa 2026-11-13-fatture-dalla-chat, T15, Via 2): gemella di `rispiega`,
+   *  stesso schema — ma chi la passa (Conversazione.tsx) decide da sola quando, senza mai cambiare
+   *  il comportamento di `rispiega` quando `fattura` non c'è (vedi `!modoPonte`/`!ai.attivo` lì). */
+  fattura?: { onInizia: () => void };
 }) {
   const fromMe = m.direction === "outbound";
   //  Un media del ponte (foto, vocale, video, documento): vale in entrata e in uscita (dal telefono).
@@ -572,7 +578,7 @@ function BollaBase({
       ~400 ms (`nuovoSoppressoreClick`), non con un flag che resta acceso: iOS spesso non lo manda.
       Sul telefono il testo non si seleziona a mano (come WhatsApp, dove la pressione lunga
       sceglie il messaggio): altrimenti iOS apre la sua selezione sopra la nostra. */
-  const conPressione = !!rispiega || !!media;
+  const conPressione = !!rispiega || !!fattura || !!media;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partenza = useRef<{ x: number; y: number } | null>(null);
   const tocco = useRef(false);
@@ -601,7 +607,8 @@ function BollaBase({
         click.scatta();
         setErroreFoglio(null);
         setFoglio(true);
-      } else rispiega?.onInizia();
+      } else if (rispiega) rispiega.onInizia();
+      else fattura?.onInizia();
     }, PRESSIONE_LUNGA_MS);
   };
   const muoviPressione = (e: PointerEvent<HTMLDivElement>) => {
@@ -696,12 +703,13 @@ function BollaBase({
         ) : (
           <Contenuto messaggio={m} c={c} />
         )}
-        {(rispiega || media) && (
+        {(rispiega || fattura || media) && (
           <MenuFreccia
             fromMe={fromMe}
             // Su un media la freccia apre lo stesso foglio della pressione lunga.
             onFoglio={media ? () => (setErroreFoglio(null), setFoglio(true)) : undefined}
             rispiega={rispiega}
+            fattura={fattura}
           />
         )}
         <div
@@ -761,6 +769,14 @@ function BollaBase({
                 }
               : undefined
           }
+          onFattura={
+            fattura
+              ? () => {
+                  chiudiFoglio();
+                  setTimeout(fattura.onInizia, 0);
+                }
+              : undefined
+          }
         />
       )}
     </>
@@ -774,10 +790,13 @@ function MenuFreccia({
   fromMe,
   onFoglio,
   rispiega,
+  fattura,
 }: {
   fromMe: boolean;
   onFoglio?: () => void;
   rispiega?: { onInizia: () => void };
+  /** «Usa per fattura» (T15, Via 2): stesso schema di `rispiega`, voce in più nel menu. */
+  fattura?: { onInizia: () => void };
 }) {
   const classe = cn(
     "absolute right-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-full pointer-coarse:hidden",
@@ -785,7 +804,7 @@ function MenuFreccia({
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     fromMe ? "bg-[#d9fdd3] hover:bg-[#c9f2c2]" : "bg-white hover:bg-[#f0f2f5]",
   );
-  if (onFoglio || !rispiega)
+  if (onFoglio || (!rispiega && !fattura))
     return (
       <button
         type="button"
@@ -810,9 +829,16 @@ function MenuFreccia({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52">
-        <DropdownMenuItem className="gap-2" onSelect={rispiega.onInizia}>
-          <Sparkles className="text-violet-600" aria-hidden /> Rispiega con AI
-        </DropdownMenuItem>
+        {rispiega && (
+          <DropdownMenuItem className="gap-2" onSelect={rispiega.onInizia}>
+            <Sparkles className="text-violet-600" aria-hidden /> Rispiega con AI
+          </DropdownMenuItem>
+        )}
+        {fattura && (
+          <DropdownMenuItem className="gap-2" onSelect={fattura.onInizia}>
+            <Receipt className="text-sky-600" aria-hidden /> Usa per fattura
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -45,9 +45,11 @@ export function proveModoPonte(_mod, { c, gruppo, radice }) {
     ),
   );
   c(
-    "ogni bolla riceve rispiega={undefined} a modoPonte vero: !modoPonte è la PRIMA condizione, le altre tre restano identiche a prima",
+    "ogni bolla riceve rispiega={undefined} a modoPonte vero: !modoPonte è la PRIMA condizione, le tre di prima restano identiche; la quinta (!fattura.fatturaAttiva, T15) è la mutua esclusione nuova con «Usa per fattura», vera sempre a !modoPonte (fatturaAttiva non si accende mai lì)",
     true,
-    /rispiega=\{\s*!modoPonte && !ai\.attivo && !bolla && selezionabile\(m\)\s*\?\s*\{/.test(conv),
+    /!modoPonte &&\s*!ai\.attivo &&\s*!bolla &&\s*selezionabile\(m\) &&\s*!fattura\.fatturaAttiva\s*\?\s*\{/.test(
+      conv,
+    ),
   );
   c(
     "il tasto flottante «Rispondi con AI» si spegne con !modoPonte davanti alla condizione di oggi",

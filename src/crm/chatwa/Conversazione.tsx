@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { BadgeChiamate, useSegnaChiamata } from "@/crm/ContaChiamate";
 import {
   ArrowLeft,
@@ -8,9 +9,11 @@ import {
   Check,
   Clock,
   Hourglass,
+  Loader2,
   MessageCircle,
   MoreVertical,
   Phone,
+  Receipt,
   Sparkles,
   Trash2,
   Undo2,
@@ -62,6 +65,14 @@ import { dataDi, eRicontatto, esitoDi } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { attaccataAllaPrecedente } from "./stile";
 import { ID_CODA, unisciConCoda } from "./invioPonte";
+import { mediaDelPonte } from "./usaMediaPonte";
+import { usePuo } from "@/crm/AuthContext";
+//  ── «USA PER FATTURA» (commessa 2026-11-13-fatture-dalla-chat, T15, Via 2): seconda
+//  selezione, indipendente da «Rispiega con AI» (PIANO §0bis.1) — attiva solo in
+//  modoPonte (Baileys), nella chat normale non cambia nulla (vedi i punti di gate sotto).
+import { useSelezioneFattura } from "@/crm/fatture/dalla-chat/useSelezioneFattura";
+import { selezionabileFattura } from "@/crm/fatture/dalla-chat/selezione-fattura";
+import type { Lead } from "@/crm/types";
 import type { ConversazioneProps } from "./tipi";
 
 /** Il giorno di calendario a Roma («2026-10-28»): il CRM si legge con l'ora italiana da qualunque fuso. */
@@ -114,8 +125,24 @@ export function Conversazione({
   //  Numero senza scheda (04/11/2026): lo stato si imposta anche da qui, come nella riga.
   const [impostaStato, setImpostaStato] = useState(false);
   const segnaChiamata = useSegnaChiamata();
-  const { consultants } = useCRM();
+  const { consultants, leads } = useCRM();
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  //  ── «USA PER FATTURA» (T15, Via 2) ──────────────────────────────────────
+  //  Attiva SOLO in modoPonte (Baileys): fuori da lì il telefono resta `null`, l'hook non
+  //  accende mai `fatturaAttiva` e nella chat normale non cambia nulla (punto 2 del compito).
+  const puoFatturare = usePuo()("pagamenti");
+  const fattura = useSelezioneFattura(modoPonte ? (attiva?.phone ?? null) : null);
+  const navigate = useNavigate();
+  /** Dopo «aggiungi-da-chat»+«leggi-bolle»: naviga sulla riga appena creata (T16 apre quel
+   *  lotto/quella riga) e azzera la selezione — nota del revisore su T14 (LAVAGNA): una
+   *  selezione vecchia non deve restare visibile dopo una navigazione riuscita. */
+  const fatturaCompletata = (r: { lotto: string; idRiga: string }) => {
+    fattura.azzera();
+    void navigate({
+      to: "/CRM/fatture",
+      search: { apriLotto: r.lotto, apriRiga: r.idRiga } as never,
+    });
+  };
   //  ── SCRIVI DAL TELEFONO (30/10/2026) ───────────────────────────────────
   //  I messaggi messi in coda e non ancora arrivati si mescolano ai messaggi
   //  veri SOLO per disegnarli (`voci`). `messaggi` resta quello di prima: la
@@ -693,6 +720,55 @@ export function Conversazione({
                                   />
                                 </div>
                               </div>
+                            ) : modoPonte &&
+                              puoFatturare &&
+                              fattura.fatturaAttiva &&
+                              !bolla &&
+                              !mediaDelPonte(m) &&
+                              selezionabileFattura(m) ? (
+                              //  T15, Via 2: dopo la prima bolla, le altre bolle di TESTO si
+                              //  aggiungono con un tocco (stessa idea di «Rispiega», sola
+                              //  selezione indipendente — §0bis.1). Le immagini restano nel loro
+                              //  foglio («Scegli per la fattura»): qui non entrano mai.
+                              <div
+                                role="checkbox"
+                                aria-checked={fattura.scelti.includes(m.id)}
+                                aria-label="Scegli questo messaggio per la fattura"
+                                tabIndex={0}
+                                onClick={() => fattura.commuta(m)}
+                                onKeyDown={(e) => {
+                                  if (e.key === " " || e.key === "Enter") {
+                                    e.preventDefault();
+                                    fattura.commuta(m);
+                                  }
+                                }}
+                                className={cn(
+                                  "-mx-2.5 flex cursor-pointer items-center gap-2 px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 md:-mx-3 md:px-3",
+                                  fattura.scelti.includes(m.id) && "bg-sky-500/15",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border-2",
+                                    fattura.scelti.includes(m.id)
+                                      ? "border-sky-600 bg-sky-600 text-white"
+                                      : "border-[#8696a0] bg-white",
+                                  )}
+                                  aria-hidden
+                                >
+                                  {fattura.scelti.includes(m.id) && <Check className="h-3 w-3" />}
+                                </span>
+                                <div className="pointer-events-none min-w-0 flex-1 flex flex-col">
+                                  <BollaMessaggio
+                                    messaggio={m}
+                                    lead={attiva.lead}
+                                    attaccata={
+                                      !nuovoGiorno &&
+                                      attaccataAllaPrecedente(m, voci[i - 1] ?? null)
+                                    }
+                                  />
+                                </div>
+                              </div>
                             ) : (
                               <BollaMessaggio
                                 messaggio={m}
@@ -705,13 +781,32 @@ export function Conversazione({
                                   //  Sezione «WhatsApp Baileys» (modoPonte): il tocco lungo non fa
                                   //  niente, come su una bolla non selezionabile. Senza `BarraRispiega`
                                   //  (spenta più sotto) non ci sarebbe modo di uscire dalla selezione.
-                                  !modoPonte && !ai.attivo && !bolla && selezionabile(m)
+                                  //  `!fattura.fatturaAttiva` (T15): mutua esclusione nei due sensi con
+                                  //  «Usa per fattura» — una selezione-fattura già iniziata non deve
+                                  //  lasciare che il tocco lungo accenda ANCHE «Rispiega con AI».
+                                  !modoPonte &&
+                                  !ai.attivo &&
+                                  !bolla &&
+                                  selezionabile(m) &&
+                                  !fattura.fatturaAttiva
                                     ? {
                                         onInizia: () => {
                                           lungo.current = true;
                                           ai.apriRispiega(m.id);
                                         },
                                       }
+                                    : undefined
+                                }
+                                fattura={
+                                  //  T15, Via 2: solo in modoPonte (punto 2 del compito), e mai
+                                  //  mentre «Rispiega con AI» è già attiva (`!ai.attivo`, mutua
+                                  //  esclusione nei due sensi con la riga sopra).
+                                  modoPonte &&
+                                  puoFatturare &&
+                                  !ai.attivo &&
+                                  !bolla &&
+                                  selezionabileFattura(m)
+                                    ? { onInizia: () => fattura.commuta(m) }
                                     : undefined
                                 }
                               />
@@ -751,13 +846,22 @@ export function Conversazione({
             />
           )}
           {modoPonte ? (
-            //  Sezione «WhatsApp Baileys»: sola lettura (SPEC, risposta del titolare 13/11/2026).
-            //  Niente `api.ponte`, niente eleggibilità: la casella è sempre spenta.
-            <div className="shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]">
-              <p className="px-3 py-3 text-center text-[13px] text-muted-foreground md:px-4">
-                Per rispondere usa WhatsApp sul telefono o la chat del CRM
-              </p>
-            </div>
+            puoFatturare && fattura.fatturaAttiva ? (
+              <BarraFattura
+                fattura={fattura}
+                leads={leads}
+                onCreaScheda={() => onCreaScheda(attiva)}
+                onFinita={fatturaCompletata}
+              />
+            ) : (
+              //  Sezione «WhatsApp Baileys»: sola lettura (SPEC, risposta del titolare 13/11/2026).
+              //  Niente `api.ponte`, niente eleggibilità: la casella è sempre spenta.
+              <div className="shrink-0 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]">
+                <p className="px-3 py-3 text-center text-[13px] text-muted-foreground md:px-4">
+                  Per rispondere usa WhatsApp sul telefono o la chat del CRM
+                </p>
+              </div>
+            )
           ) : ai.attivo ? (
             ai.modo === "rispiega" ? (
               <BarraRispiega ai={ai} messaggi={messaggi} />
@@ -770,5 +874,100 @@ export function Conversazione({
         </>
       )}
     </section>
+  );
+}
+
+/** ── LA BARRA DI «USA PER FATTURA» (T15, Via 2) ────────────────────────────
+ *  Sostituisce la fascia «sola lettura» (modoPonte) mentre almeno una bolla è scelta.
+ *  I due bivi del passo 4 di SPEC §9.3 non scelgono mai da soli (PIANO T12/T14,
+ *  LAVAGNA): zero schede chiede di crearne una (lo stesso tasto «Crea scheda» già
+ *  nella chat — si preme di nuovo «Usa per fattura» una volta creata), più schede
+ *  le elenca e aspetta il tocco del titolare. Esportata per le prove (component
+ *  isolato, stesso schema di `VistaMediaPonte`/`CorpoFoglio`). */
+export function BarraFattura({
+  fattura,
+  leads,
+  onCreaScheda,
+  onFinita,
+}: {
+  fattura: ReturnType<typeof useSelezioneFattura>;
+  leads: Lead[];
+  onCreaScheda: () => void;
+  onFinita: (r: { lotto: string; idRiga: string }) => void;
+}) {
+  const inLavoro = fattura.fase.tipo === "lavoro";
+  const vai = async (azione: () => Promise<{ lotto: string; idRiga: string } | null>) => {
+    const risultato = await azione();
+    if (risultato) onFinita(risultato);
+  };
+  return (
+    <div className="shrink-0 bg-card border-t border-sky-200 pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center gap-2 px-3 py-2 md:px-4">
+        <Receipt className="h-4 w-4 shrink-0 text-sky-600" aria-hidden />
+        <span className="min-w-0 flex-1 text-[13px] text-foreground">
+          {fattura.scelti.length} {fattura.scelti.length === 1 ? "bolla scelta" : "bolle scelte"}{" "}
+          per la fattura
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={inLavoro}
+          onClick={fattura.azzera}
+          className="h-11 md:h-9 shrink-0 text-[13px]"
+        >
+          Annulla
+        </Button>
+        <Button
+          size="sm"
+          disabled={inLavoro}
+          onClick={() => void vai(() => fattura.usaPerFattura(leads))}
+          className="h-11 md:h-9 shrink-0 gap-1.5 bg-sky-600 text-[13px] text-white hover:bg-sky-700"
+        >
+          {inLavoro && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+          Usa per fattura
+        </Button>
+      </div>
+      {fattura.fase.tipo === "errore" && (
+        <p role="alert" className="px-3 pb-2 text-[12.5px] text-rose-700 md:px-4">
+          {fattura.fase.messaggio}
+        </p>
+      )}
+      {fattura.fase.tipo === "zero-schede" && (
+        <div className="flex flex-col gap-2 px-3 pb-3 md:px-4">
+          <p className="text-[12.5px] text-muted-foreground">
+            Nessuna scheda con questo numero: crea la scheda, poi tocca di nuovo «Usa per fattura».
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onCreaScheda}
+            className="h-11 md:h-9 w-fit gap-1.5 text-[13px]"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden /> Crea scheda
+          </Button>
+        </div>
+      )}
+      {fattura.fase.tipo === "scegli-scheda" && (
+        <div className="flex flex-col gap-1.5 px-3 pb-3 md:px-4">
+          <p className="text-[12.5px] text-muted-foreground">
+            Più schede con questo numero: scegli quella giusta.
+          </p>
+          <div className="flex flex-col gap-1">
+            {fattura.fase.schede.map((l) => (
+              <Button
+                key={l.id}
+                size="sm"
+                variant="outline"
+                disabled={inLavoro}
+                onClick={() => void vai(() => fattura.continua(l.id))}
+                className="h-11 md:h-9 w-fit justify-start text-[13px]"
+              >
+                {`${l.data.nome ?? ""} ${l.data.cognome ?? ""}`.trim() || "Senza nome"}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
