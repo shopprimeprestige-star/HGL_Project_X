@@ -754,6 +754,69 @@ export async function prove(_mod, { c, gruppo, radice }) {
     );
   }
 
+  /* ── scrivere un campo e cliccare SUBITO «Salva pagamento»: non si pestano (collaudo c6bd1e2) ── */
+  gruppo(
+    "DALLA CHAT · T17 (correzione) · salvaRiga (il campo) e scriviPagamento in parallelo, stessa riga: nessuno dei due si perde",
+  );
+  {
+    // Lo scenario esatto del collaudo: il titolare scrive il CRO (→ `salva-riga` parte
+    // sull'onBlur) e clicca SUBITO «Salva pagamento» (→ `scriviPagamento`), senza aspettare che
+    // il primo torni. `salva-riga` scrive `chat_fatture_r` (via `salvaRiga`, la coda PER RIGA di
+    // questo hook); `scriviPagamento` scrive `chat_fatture_p` (via `unaVolta`, lo slot globale di
+    // lavoro) — chiavi diverse, nessuna delle due deve bloccare o scartare l'altra.
+    const b = banco();
+    await b.o.crea("prova");
+    await b.o.aggiungiCliente(S1);
+    const corpo = { importo: 45.5, data: "2026-11-10", modo: "bonifico", riferimento: "CRO-X" };
+    const [okCampo, okPagamento] = await Promise.all([
+      b.o.salvaRiga(S1, { modifiche: { riferimento: "CRO-X" } }),
+      b.o.scriviPagamento(S1, corpo),
+    ]);
+    const riga = b.stato().righe.find((r) => r.idRiga === S1);
+    c(
+      "entrambi riescono: nessuno dei due viene scartato o bloccato dall'altro",
+      [true, true],
+      [okCampo, okPagamento],
+    );
+    c(
+      "il campo (modifiche.riferimento) e il pagamento (pagamento.lettura) arrivano ENTRAMBI sulla riga finale",
+      ["CRO-X", true],
+      [riga.modifiche?.riferimento, !!riga.pagamento?.lettura],
+    );
+    c(
+      "una chiamata sola per ciascuna azione: nessuna ripetuta, nessuna persa",
+      [1, 1],
+      [b.azioni("salva-riga").length, b.azioni("scrivi-pagamento").length],
+    );
+  }
+  {
+    // Stesso scenario, ma lo «stato.lavoro» globale è già occupato da un'altra riga che sta
+    // caricando/leggendo un bonifico (`cosa:"pagamento"` di un'ALTRA riga): `scriviPagamento`
+    // su QUESTA riga deve aspettare in coda, non sparire — stesso schema di «occupato» di
+    // `caricaPagamento`/`leggiPagamento` (eredita i ritentativi di `eseguiCoda`).
+    let primaVolta = true;
+    const b = banco({
+      su: ({ body }) =>
+        body?.azione === "scrivi-pagamento" && primaVolta
+          ? ((primaVolta = false),
+            { stato: 200, corpo: { ok: false, codice: "occupato", messaggio: "x" } })
+          : undefined,
+    });
+    await b.o.crea("prova");
+    await b.o.aggiungiCliente(S1);
+    const ok = await b.o.scriviPagamento(S1, {
+      importo: 10,
+      data: "2026-11-10",
+      modo: "contanti",
+      riferimento: "",
+    });
+    c(
+      "«occupato» (lotto impegnato altrove) non perde il clic: si ritenta da sola e arriva comunque",
+      true,
+      ok,
+    );
+  }
+
   /* ── rileggiChat ───────────────────────────────────────────────────── */
   gruppo("DALLA CHAT · T7 · rileggiChat (gesto esplicito, mai saltato)");
   {

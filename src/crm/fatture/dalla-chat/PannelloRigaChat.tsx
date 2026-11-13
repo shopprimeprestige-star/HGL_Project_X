@@ -420,9 +420,16 @@ export function PannelloRigaChat({
   const mostraPagamentoAMano = !pagamento?.lettura || pagamentoScrittoAMano;
   const [inviandoPagamento, setInviandoPagamento] = useState(false);
   const salvaPagamento = async () => {
-    // Guardia sul tasto: niente doppio invio, né per un doppio clic né mentre un'altra
-    // operazione sulla riga è già in corso.
-    if (inviandoPagamento || fermo || !corpoPagamento) return;
+    // Guardia sul tasto: niente doppio invio (`inviandoPagamento`, più `unaVolta("pagamento",…)`
+    // lato hook) né mentre il LOTTO è davvero occupato (`occupato`: ricerca/conferme/emissione,
+    // o un'altra riga che sta caricando/leggendo un bonifico — stesso slot di `unaVolta`, quindi
+    // mai un disallineamento). Non si usa `lavorando`/`fermo`: quello segue il salvataggio
+    // ASINCRONO di un campo per `onBlur` (nessun flag sul lotto), e scrivere un campo poi
+    // cliccare SUBITO disabilitava il tasto un istante prima del clic — un clic perso in
+    // silenzio, zero richieste, zero avviso (trovato dal collaudo Playwright su `c6bd1e2`).
+    // `salva-riga` (il campo) e `scrivi-pagamento` (questo tasto) scrivono chiavi DIVERSE
+    // (`chat_fatture_r` contro `chat_fatture_p`): corrono in parallelo senza pestarsi.
+    if (inviandoPagamento || occupato || !corpoPagamento) return;
     setInviandoPagamento(true);
     try {
       await onScriviPagamento(corpoPagamento);
@@ -765,7 +772,7 @@ export function PannelloRigaChat({
                 type="button"
                 size="sm"
                 className="h-11 w-full sm:h-9 sm:w-auto"
-                disabled={fermo || inviandoPagamento || !corpoPagamento}
+                disabled={occupato || inviandoPagamento || !corpoPagamento}
                 title={
                   corpoPagamento
                     ? undefined

@@ -216,6 +216,44 @@ export { PannelloRigaChat } from ${JSON.stringify(
     );
   }
 
+  gruppo(
+    "DALLA CHAT · T17 (correzione) · il clic su «Salva/Aggiorna pagamento» non si perde più dietro l'onBlur di un campo",
+  );
+  {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(
+      join(radice, "src/crm/fatture/dalla-chat/PannelloRigaChat.tsx"),
+      "utf8",
+    );
+    // Il collaudo Playwright su `c6bd1e2` ha trovato il clic perso: scrivere un campo (es. il
+    // CRO) e cliccare SUBITO disabilitava il tasto un istante prima (l'onBlur del campo fa
+    // `setLavorando(true)` in modo sincrono, `fermo = occupato || lavorando`). La correzione:
+    // il gestore e il `disabled` del tasto non leggono più `fermo`/`lavorando` per NIENTE — solo
+    // `occupato` (il lotto davvero impegnato altrove, visibile anche al resto del pannello) e il
+    // proprio `inviandoPagamento`.
+    const bloccoPagamento = src
+      .slice(src.indexOf("const salvaPagamento = async"), src.indexOf("const azioneMotivo"))
+      .replace(/\/\/.*$/gm, ""); // via i commenti: parlano apposta di «fermo»/«lavorando» (il perché del cambio)
+    c(
+      "il gestore salvaPagamento NON usa più fermo/lavorando nel CODICE per decidere se partire",
+      [false, false],
+      [/\bfermo\b/.test(bloccoPagamento), /setLavorando/.test(bloccoPagamento)],
+    );
+    c(
+      "salvaPagamento esce presto solo per inviandoPagamento, occupato o campi incompleti",
+      true,
+      /if \(inviandoPagamento \|\| occupato \|\| !corpoPagamento\) return;/.test(src),
+    );
+    c(
+      "il `disabled` del tasto usa occupato, non fermo/lavorando",
+      [true, false],
+      [
+        /disabled=\{occupato \|\| inviandoPagamento \|\| !corpoPagamento\}/.test(src),
+        /disabled=\{fermo \|\| inviandoPagamento/.test(src),
+      ],
+    );
+  }
+
   gruppo("DALLA CHAT · T17 · niente dato personale nei log (sorgente)");
   {
     const { readFileSync } = await import("node:fs");
