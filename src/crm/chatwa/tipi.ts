@@ -81,6 +81,10 @@ export interface WaContactRow {
   ultimo_messaggio_direzione?: string | null;
   /** Il conto della cornetta per un numero senza scheda (04/11/2026): passa alla scheda quando si crea. */
   chiamate?: unknown;
+  /** Ponte, sezione «WhatsApp Baileys» (commessa 2026-11-13): `true` appena esiste un messaggio
+   *  `canale='baileys'` per questo numero. Lo scrivono `ponte_wa_scrivi`/`ponte_wa_invio_esito`
+   *  (migrazione), non torna mai a `false`. Prima della migrazione manca. */
+  ha_messaggio_ponte?: boolean | null;
 }
 
 export interface ChatItem {
@@ -195,6 +199,9 @@ export interface ConversazioneProps {
   onAbbina: (chat: ChatItem) => void;
   /** Dalla finestra «Proponi orari»: apre la scheda del lead sulla catena dell'appuntamento. */
   onFissaAppuntamento?: () => void;
+  /** Sezione «WhatsApp Baileys» (commessa 2026-11-13): sola lettura, niente AI né casella.
+   *  Facoltativo: `undefined`/`false` = comportamento di oggi, immutato. */
+  modoPonte?: boolean;
 }
 
 export interface CasellaProps {
