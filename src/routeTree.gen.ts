@@ -79,6 +79,7 @@ import { Route as ApiProxyRouteImport } from './routes/api.proxy'
 import { Route as ApiMagicRouteImport } from './routes/api.magic'
 import { Route as ApiIndirizziRouteImport } from './routes/api.indirizzi'
 import { Route as ApiAnteprimaRouteImport } from './routes/api.anteprima'
+import { Route as CRMWhatsappBaileysRouteImport } from './routes/CRM.whatsapp-baileys'
 import { Route as CRMWhatsappRouteImport } from './routes/CRM.whatsapp'
 import { Route as CRMWebinarRouteImport } from './routes/CRM.webinar'
 import { Route as CRMTrattativePerseRouteImport } from './routes/CRM.trattative-perse'
@@ -581,6 +582,11 @@ const ApiAnteprimaRoute = ApiAnteprimaRouteImport.update({
   id: '/api/anteprima',
   path: '/api/anteprima',
   getParentRoute: () => rootRouteImport,
+} as any)
+const CRMWhatsappBaileysRoute = CRMWhatsappBaileysRouteImport.update({
+  id: '/whatsapp-baileys',
+  path: '/whatsapp-baileys',
+  getParentRoute: () => CRMRoute,
 } as any)
 const CRMWhatsappRoute = CRMWhatsappRouteImport.update({
   id: '/whatsapp',
@@ -1412,6 +1418,7 @@ export interface FileRoutesByFullPath {
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
   '/CRM/whatsapp': typeof CRMWhatsappRoute
+  '/CRM/whatsapp-baileys': typeof CRMWhatsappBaileysRoute
   '/api/anteprima': typeof ApiAnteprimaRoute
   '/api/indirizzi': typeof ApiIndirizziRoute
   '/api/magic': typeof ApiMagicRoute
@@ -1630,6 +1637,7 @@ export interface FileRoutesByTo {
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
   '/CRM/whatsapp': typeof CRMWhatsappRoute
+  '/CRM/whatsapp-baileys': typeof CRMWhatsappBaileysRoute
   '/api/anteprima': typeof ApiAnteprimaRoute
   '/api/indirizzi': typeof ApiIndirizziRoute
   '/api/magic': typeof ApiMagicRoute
@@ -1854,6 +1862,7 @@ export interface FileRoutesById {
   '/CRM/trattative-perse': typeof CRMTrattativePerseRoute
   '/CRM/webinar': typeof CRMWebinarRoute
   '/CRM/whatsapp': typeof CRMWhatsappRoute
+  '/CRM/whatsapp-baileys': typeof CRMWhatsappBaileysRoute
   '/api/anteprima': typeof ApiAnteprimaRoute
   '/api/indirizzi': typeof ApiIndirizziRoute
   '/api/magic': typeof ApiMagicRoute
@@ -2079,6 +2088,7 @@ export interface FileRouteTypes {
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
     | '/CRM/whatsapp'
+    | '/CRM/whatsapp-baileys'
     | '/api/anteprima'
     | '/api/indirizzi'
     | '/api/magic'
@@ -2297,6 +2307,7 @@ export interface FileRouteTypes {
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
     | '/CRM/whatsapp'
+    | '/CRM/whatsapp-baileys'
     | '/api/anteprima'
     | '/api/indirizzi'
     | '/api/magic'
@@ -2520,6 +2531,7 @@ export interface FileRouteTypes {
     | '/CRM/trattative-perse'
     | '/CRM/webinar'
     | '/CRM/whatsapp'
+    | '/CRM/whatsapp-baileys'
     | '/api/anteprima'
     | '/api/indirizzi'
     | '/api/magic'
@@ -3355,6 +3367,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/anteprima'
       preLoaderRoute: typeof ApiAnteprimaRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/CRM/whatsapp-baileys': {
+      id: '/CRM/whatsapp-baileys'
+      path: '/whatsapp-baileys'
+      fullPath: '/CRM/whatsapp-baileys'
+      preLoaderRoute: typeof CRMWhatsappBaileysRouteImport
+      parentRoute: typeof CRMRoute
     }
     '/CRM/whatsapp': {
       id: '/CRM/whatsapp'
@@ -4475,6 +4494,7 @@ interface CRMRouteChildren {
   CRMTrattativePerseRoute: typeof CRMTrattativePerseRoute
   CRMWebinarRoute: typeof CRMWebinarRoute
   CRMWhatsappRoute: typeof CRMWhatsappRoute
+  CRMWhatsappBaileysRoute: typeof CRMWhatsappBaileysRoute
   CRMIndexRoute: typeof CRMIndexRoute
 }
 
@@ -4511,6 +4531,7 @@ const CRMRouteChildren: CRMRouteChildren = {
   CRMTrattativePerseRoute: CRMTrattativePerseRoute,
   CRMWebinarRoute: CRMWebinarRoute,
   CRMWhatsappRoute: CRMWhatsappRoute,
+  CRMWhatsappBaileysRoute: CRMWhatsappBaileysRoute,
   CRMIndexRoute: CRMIndexRoute,
 }
 

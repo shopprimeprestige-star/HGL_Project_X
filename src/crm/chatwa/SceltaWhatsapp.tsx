@@ -283,11 +283,8 @@ export function LinkWhatsapp({
 
           {ponte.stato === "aperta" ? (
             <Link
-              //  shortcut: "as any" perché la rotta non esiste ancora in questo worktree
-              //  (la crea T11, filo E, dopo T4): togliere il cast quando routeTree.gen.ts
-              //  la conosce, cioè appena il file src/routes/CRM.whatsapp-baileys.tsx esiste.
-              to={"/CRM/whatsapp-baileys" as any}
-              search={{ chat: ponte.contattoId } as any}
+              to="/CRM/whatsapp-baileys"
+              search={{ chat: ponte.contattoId }}
               onClick={() => setAperto(false)}
               className={cn(voce, "hover:bg-slate-50 focus-visible:bg-slate-100")}
             >
