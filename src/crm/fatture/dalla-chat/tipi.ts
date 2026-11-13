@@ -164,6 +164,10 @@ export type RichiestaChat =
   /** Spunta un candidato o un cliente trovato con la ricerca: la riga nasce
    *  SUBITO con `scheda: schedaId` scritto (PIANO §0.1 punto 2). */
   | { azione: "aggiungi-cliente"; lotto: string; schedaId: string }
+  /** Via 2 (SPEC §9.3 passo 4, §10, T11.4): SENZA `lotto` — chi arriva dalla chat non ne ha ancora
+   *  uno. Il server trova il lotto «dalla chat» aperto più di recente o ne crea uno; la stessa
+   *  scheda passata due volte non duplica la riga. */
+  | { azione: "aggiungi-da-chat"; schedaId: string }
   /** Una riga per chiamata (come `leggi-gruppo` nella bulk): raccoglie la chat
    *  del numero della scheda e chiama l'AI una volta. */
   | { azione: "cerca-chat"; lotto: string; idRiga: string }
@@ -213,6 +217,9 @@ export type AzioneChat = RichiestaChat["azione"];
 export type RispostaChat =
   | { ok: true; azione: "crea"; lotto: string }
   | { ok: true; azione: "aggiungi-cliente"; riga: RigaChat }
+  /** Via 2 (T11.4): a differenza di `aggiungi-cliente`, torna anche il `lotto` (trovato o creato
+   *  al volo: il browser, arrivando dalla chat, non lo conosceva ancora). */
+  | { ok: true; azione: "aggiungi-da-chat"; lotto: string; riga: RigaChat }
   | { ok: true; azione: "cerca-chat" | "rileggi-chat" | "leggi-bolle"; riga: RigaChat }
   | {
       ok: true;

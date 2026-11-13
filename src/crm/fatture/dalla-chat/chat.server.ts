@@ -1094,6 +1094,65 @@ async function aggiungiClienteAzione(
   return { ok: true, azione: "aggiungi-cliente", riga: conPagamento(salvata, pagamento) };
 }
 
+/* ══ 10bis. `aggiungi-da-chat` (Via 2, T11.4, SPEC §9.3 passo 4, PIANO §10) ═
+ *  A differenza della Via 1 (dove il lotto lo si è già scelto o creato al passo 1), chi arriva
+ *  dalla chat non ha ancora un lotto: SENZA `lotto` nel contratto (PIANO §3bis). Il server trova
+ *  il lotto «dalla chat» aperto più di recente (stessa famiglia `chat_fatture_t`, lo stesso elenco
+ *  che risponde a GET `?`), o ne crea uno se non ce n'è nessuno — poi riusa, TALE E QUALE,
+ *  `aggiungiClienteAzione`: la stessa scrittura atomica (`scheda` nella stessa operazione che crea
+ *  la riga) e la stessa idempotenza (la stessa scheda due volte non duplica la riga, torna quella
+ *  già esistente). */
+
+/** Il lotto «dalla chat» aperto creato più di recente, o `null` se non ce n'è nessuno — stesso
+ *  criterio di ordinamento di `elencoLotti` (`creatoIl` decrescente): un lotto il cui lavoro è
+ *  concluso (tutte le righe emesse/scartate) si cancella da sé (`chiudiLottoSeConcluso`), quindi
+ *  ogni testata ancora presente qui rappresenta, per costruzione, un lotto davvero aperto. */
+async function lottoChatPiuRecente(porte: PorteChat): Promise<string | null> {
+  const testate = (await porte.archivio.leggiPrefissoPerChiave(PREFISSO_TESTATA))
+    .map((r) => leggiJson<TestataLottoChat>(r.value))
+    .filter((t): t is TestataLottoChat => !!t && lottoValido(String(t.lotto)))
+    .sort((a, b) => String(b.creatoIl).localeCompare(String(a.creatoIl)));
+  return testate[0]?.lotto ?? null;
+}
+
+/** Un lotto nuovo, MAI chiesto al titolare (SPEC §9.3: la Via 2 è un tocco solo). ⚠️ `descrizione`
+ *  resta VUOTA apposta, non la frase illustrativa del piano («Dalla chat · 13/11/2026»): verificato
+ *  in `bulk/da-importo-a-fattura.ts` che `descrizioneAmmessa` accetta SOLO la stringa vuota o una
+ *  delle `DESCRIZIONI` pronte — qualunque altro testo bloccherebbe PER SEMPRE ogni riga di questo
+ *  lotto con `descrizione_non_ammessa` (non esiste un'azione che corregga la descrizione di un
+ *  lotto dopo la creazione). Vuota è l'unica forma che non sceglie per il titolare e non rompe
+ *  niente: in emissione userà `DESCRIZIONI[0]` (`fatturaDaRiga`, bulk, non toccata). */
+async function creaLottoChatAlVolo(porte: PorteChat): Promise<string> {
+  const azienda = await leggiAziendaSu(porte.archivio);
+  const motivi = controllaLotto(azienda);
+  if (motivi.length)
+    throw new ErroreChat("richiesta_non_valida", motivi.map((m) => m.testo).join(" "));
+  const lotto = porte.id();
+  const testata: TestataLottoChat = {
+    lotto,
+    creatoIl: iso(porte.adesso()),
+    descrizione: "",
+    dataSeManca: "",
+    firmaImpostazioni: firmaImpostazioni(azienda),
+  };
+  const esito = await porte.archivio.creaSeAssente(chiaveTestata(lotto), JSON.stringify(testata));
+  if (esito.stato !== "creata") throw new ErroreChat("scrittura_fallita");
+  return lotto;
+}
+
+async function aggiungiDaChatAzione(porte: PorteChat, schedaId: string): Promise<RispostaChat> {
+  // La scheda si controlla PRIMA di creare (o toccare) qualunque lotto: una scheda inesistente non
+  // deve lasciare appeso un lotto vuoto, nemmeno nel caso raro «nessun lotto aperto + scheda sbagliata».
+  if (!(await porte.scheda(schedaId)))
+    throw new ErroreChat("richiesta_non_valida", "Questa scheda non esiste più.");
+  const lotto = (await lottoChatPiuRecente(porte)) ?? (await creaLottoChatAlVolo(porte));
+  const r = await aggiungiClienteAzione(porte, lotto, schedaId);
+  // `aggiungiClienteAzione` non torna mai `{ok:false}` (lancia `ErroreChat`): la guardia qui sotto
+  // è solo per i tipi, non un ramo raggiungibile davvero.
+  if (!r.ok || r.azione !== "aggiungi-cliente") throw new ErroreChat("interno");
+  return { ok: true, azione: "aggiungi-da-chat", lotto, riga: r.riga };
+}
+
 /* ══ 11. LE AZIONI POST (tranne `emetti-riga`, vedi intestazione) ══════════ */
 
 export async function eseguiAzioneChat(
@@ -1124,6 +1183,8 @@ export async function eseguiAzioneChat(
     }
     case "aggiungi-cliente":
       return aggiungiClienteAzione(porte, richiesta.lotto, richiesta.schedaId);
+    case "aggiungi-da-chat":
+      return aggiungiDaChatAzione(porte, richiesta.schedaId);
     case "cerca-chat":
       return cercaChatAzione(porte, richiesta.lotto, richiesta.idRiga, false);
     case "rileggi-chat":
@@ -1266,6 +1327,8 @@ export function leggiRichiestaChat(corpo: unknown): RichiestaChat {
         lotto: lottoDi(b.lotto),
         schedaId: schedaIdDi(b.schedaId),
       };
+    case "aggiungi-da-chat":
+      return { azione: "aggiungi-da-chat", schedaId: schedaIdDi(b.schedaId) };
     case "cerca-chat":
       return { azione: "cerca-chat", lotto: lottoDi(b.lotto), idRiga: idRigaDi(b.idRiga) };
     case "rileggi-chat":

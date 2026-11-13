@@ -9,9 +9,10 @@
  *  GET ?lotto=ID                                   → testata + righe
  *  GET ?lotto=ID&miniatura=pagamento&idRiga=…      → indirizzo firmato (60 s, bucket dati-fattura)
  *  GET ?lotto=ID&miniatura=tessera|indirizzo&idRiga=… → indirizzo firmato (300 s, bucket ponte-media; T11.1)
- *  POST { azione, … }  → crea, aggiungi-cliente, cerca-chat, carica-pagamento,
- *                         leggi-pagamento, scrivi-pagamento (Via 2, T11.2),
- *                         rileggi-chat, leggi-bolle (Via 2, T11.3), salva-riga,
+ *  POST { azione, … }  → crea, aggiungi-cliente, aggiungi-da-chat (Via 2, T11.4),
+ *                         cerca-chat, carica-pagamento, leggi-pagamento,
+ *                         scrivi-pagamento (Via 2, T11.2), rileggi-chat,
+ *                         leggi-bolle (Via 2, T11.3), salva-riga,
  *                         prendi-controllo, annulla, pulisci
  *
  *  ⚠️ Un GET non cancella mai niente. ⚠️ Nessuna intestazione CORS (stessa
