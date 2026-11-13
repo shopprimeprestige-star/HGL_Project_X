@@ -231,15 +231,41 @@ export const SLOT_ID: SlotId[] = [
   { chiave: "id.posaPoster", label: "Come funziona · copertina della posa, 16:9", tipo: "image", alt: PASSI.videoAlt },
 ];
 
+/** Prima e dopo: clienti veri, senza e con Invisible Derm. Chiesto dal titolare il 13/11/2026.
+ *  Tutta la sezione si vede solo con la liberatoria e almeno una coppia completa o un video. */
+export const PRIMA_DOPO = {
+  sopratitolo: "Prima e dopo",
+  h2: "Clienti veri. [a]Prima e dopo Invisible Derm.[/a]",
+  sottotitolo: "Foto e video dei nostri clienti, pubblicati con il loro consenso scritto.",
+  etichette: { prima: "Prima", dopo: "Dopo" },
+  didascalia: "Stessa persona, prima e dopo la posa.",
+  casi: [1, 2, 3].map((n) => ({ titolo: `Caso ${n}`, chiave: `id.primaDopo${n}` })),
+  video: [1, 2].map((n) => ({ titolo: `Video prima e dopo ${n}`, chiave: `id.primaDopoVideo${n}` })),
+};
+
+export const SLOT_PRIMA_DOPO: SlotId[] = [
+  ...PRIMA_DOPO.casi.flatMap((c, i): SlotId[] => [
+    { chiave: `${c.chiave}.prima`, label: `Prima e dopo · caso ${i + 1} · foto PRIMA, 4:5`, tipo: "image" },
+    { chiave: `${c.chiave}.dopo`, label: `Prima e dopo · caso ${i + 1} · foto DOPO, 4:5 (stessa inquadratura)`, tipo: "image" },
+  ]),
+  ...PRIMA_DOPO.video.flatMap((v, i): SlotId[] => [
+    { chiave: v.chiave, label: `Prima e dopo · video ${i + 1}, 9:16 o 4:5`, tipo: "video", alt: `Video di un cliente prima e dopo Invisible Derm.` },
+    { chiave: `${v.chiave}Poster`, label: `Prima e dopo · copertina del video ${i + 1}, 4:5`, tipo: "image" },
+  ]),
+];
+SLOT_ID.push(...SLOT_PRIMA_DOPO);
+
 /** Le descrizioni (alt) modificabili dal CRM: chiave `<slot>.alt` → valore di partenza. */
 export const ALT_ID: Record<string, string> = {
   ...Object.fromEntries(SLOT_ID.filter((s) => s.alt).map((s) => [`${s.chiave}.alt`, s.alt as string])),
   ...Object.fromEntries(CONFRONTO.coppie.map((c) => [`${c.chiave}.alt`, c.alt])),
+  ...Object.fromEntries(PRIMA_DOPO.casi.map((c, i) => [`${c.chiave}.alt`, `Caso ${i + 1}: lo stesso cliente prima e dopo Invisible Derm.`])),
 };
 
 /** Gli altri campi di testo del CRM. Le liberatorie sono un campo in cui si scrive «sì» (il CRM non ha ancora un vero interruttore). */
 export const CAMPI_TESTO_ID = [
   { chiave: "id.confronto.liberatoria", tipo: "text", label: "Confronti e clip con persone: scrivi «sì» solo se hai la liberatoria scritta di chi è ritratto" },
+  { chiave: "id.primaDopo.liberatoria", tipo: "text", label: "Prima e dopo: scrivi «sì» solo se hai la liberatoria scritta dei clienti ritratti" },
   { chiave: "id.vita.liberatoria", tipo: "text", label: "Clip «Per ogni giorno»: scrivi «sì» solo se hai la liberatoria scritta di chi è ritratto" },
   { chiave: "id.presentazioneTrascrizione", tipo: "textarea", label: "Testo parlato del video del titolare (per «Leggi il testo del video»)" },
   { chiave: "id.confrontoVideoTrascrizione", tipo: "textarea", label: "Testo parlato del video «Le due in mano» (per «Leggi il testo del video»)" },

@@ -62,6 +62,8 @@ import {
   META,
   PASSI,
   PRENOTA,
+  PRIMA_DOPO,
+  SLOT_PRIMA_DOPO,
   RESISTENTE,
   RIGA_BOTTONE,
   STUDIO,
@@ -243,6 +245,10 @@ function InvisibleDerm() {
   const vitaOk = liberatoriaOk(text("id.vita.liberatoria")) && vita.length >= 2;
   const studio = [1, 2, 3].map((n) => ({ src: media(`id.studio${n}`), chiave: `id.studio${n}`, i: n - 1 })).filter((s) => s.src);
   const studioVideo = media("id.studioVideo");
+  const primaDopoOk = liberatoriaOk(text("id.primaDopo.liberatoria"));
+  const casi = PRIMA_DOPO.casi.filter((c) => primaDopoOk && !!media(`${c.chiave}.prima`) && !!media(`${c.chiave}.dopo`));
+  const videoPD = PRIMA_DOPO.video.filter((v) => primaDopoOk && !!media(v.chiave));
+  const haPrimaDopo = casi.length > 0 || videoPD.length > 0;
   const ritratto = (px: string) =>
     titolareFoto ? (
       <div className={`${px} shrink-0 overflow-hidden rounded-full border-2 border-white/20`}>
@@ -431,6 +437,31 @@ function InvisibleDerm() {
           </div>
         </div>
       </section>
+
+      {/* 3b · PRIMA E DOPO (clienti veri; tutta la sezione sparisce senza liberatoria o senza file, tranne in modifica) */}
+      {(haPrimaDopo || modifica) && (
+        <section aria-labelledby="primadopo-titolo" className="relative border-t border-white/10 bg-blueprint">
+          {punto("Prima e dopo", SLOT_PRIMA_DOPO.map((s) => s.chiave), { chiave: "id.primaDopo.liberatoria", testo: LIB })}
+          <div className={SEZIONE}>
+            <Testata id="primadopo-titolo" sopratitolo={PRIMA_DOPO.sopratitolo} scuro>
+              <RichText value={PRIMA_DOPO.h2} highlightClass="text-aurora" />
+            </Testata>
+            <p className="mx-auto mt-4 max-w-2xl text-center text-base text-white/75 md:text-lg">{PRIMA_DOPO.sottotitolo}</p>
+            {!haPrimaDopo && <p className="mx-auto mt-8 max-w-xl rounded-md border border-dashed border-white/30 p-6 text-center text-sm text-white/75">Sezione vuota: i clienti non la vedono. Carica le foto o i video e spunta la liberatoria.</p>}
+            <div className="mx-auto mt-12 grid max-w-5xl gap-14 md:grid-cols-2">
+              {casi.map((c, i) => (
+                <CursoreConfronto key={c.chiave} numero={i + 1} titolo={c.titolo} coppia={c.chiave} patch={media(`${c.chiave}.prima`)} derm={media(`${c.chiave}.dopo`)} alt={alt(c.chiave)} etichette={{ patch: PRIMA_DOPO.etichette.prima, derm: PRIMA_DOPO.etichette.dopo }} didascalia={PRIMA_DOPO.didascalia} className="aspect-[4/5]" />
+              ))}
+              {videoPD.map((v) => (
+                <VideoSlot key={v.chiave} src={media(v.chiave)} poster={media(`${v.chiave}Poster`)} alt={alt(v.chiave)} titolo={v.titolo} className="mx-auto aspect-[4/5] w-full max-w-[400px]" />
+              ))}
+            </div>
+            <div className="mt-12">
+              <Cta traccia="cta_primadopo_clic" />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 4 · SOTTILE, MA RESISTENTE */}
       <section aria-labelledby="resistente-titolo" className="relative bg-white-trama">

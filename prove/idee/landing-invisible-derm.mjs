@@ -41,7 +41,8 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   c("nessun prezzo (€, euro, 47)", false, /€|\beuro\b|\b47\b|prezzo/i.test(pagina.replace(/Quanto costa\?/, "")));
   c("nessun conto alla rovescia", false, /countdown|getCountdown|Scade entro|ultimi \$?\{?[\w.]*\}? giorni|line-through/i.test(pagina));
   c("nessun tel:, mailto: o WhatsApp", false, /tel:|mailto:|wa\.me|whatsapp/i.test(pagina));
-  c("nessun «Prima» / «Dopo» nel confronto", false, /\bPrima\b|\bDopo\b/.test(pagina));
+  // «Prima/Dopo» vale solo per la sezione dei clienti (titolare, 13/11/2026), mai nel confronto patch / Invisible Derm
+  c("nessun «Prima» / «Dopo» nel confronto", false, /\bPrima\b|\bDopo\b/.test(JSON.stringify(T.CONFRONTO)));
   c("nessuna voce da confermare nei testi", false, /\{\{/.test(senzaCommenti(testi)));
   const righe = T.TABELLA.righe.map((r) => r.nome);
   c("la tabella: 6 righe, «Bordo» e «Sottile e resistente» in testa, «Chirurgia» in fondo", ["Bordo", "Sottile e resistente", "Chirurgia"], [righe[0], righe[1], righe[righe.length - 1]]);
@@ -102,7 +103,9 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   c("FAQ: senza elenco esterno restano le domande della home", true, /voci \?\? FAQS/.test(faq));
   /* Editor visuale delle immagini (?modifica, solo con accesso al CRM) */
   const editor = senzaCommenti(leggi(`${cartella}/ModificaImmagini.tsx`));
-  const chiaviNeiPunti = [...rotta.matchAll(/punto\("[^"]+", \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  const chiaviNeiPunti = [...rotta.matchAll(/punto\("[^"]+", \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]))
+    .concat(/punto\("Prima e dopo", SLOT_PRIMA_DOPO\.map/.test(rotta) ? T.SLOT_PRIMA_DOPO.map((s) => s.chiave) : []);
+  c("prima e dopo: 3 coppie e 2 video, con liberatoria", [10, true], [T.SLOT_PRIMA_DOPO.length, /primaDopoOk = liberatoriaOk\(text\("id\.primaDopo\.liberatoria"\)\)/.test(rotta)]);
   c("editor: ogni punto foto/video ha una sezione da cui cambiarlo", [], T.SLOT_ID.map((s) => s.chiave).filter((k) => !chiaviNeiPunti.includes(k)));
   c("editor: nessuna chiave inventata nei bottoni", [], chiaviNeiPunti.filter((k) => !T.SLOT_ID.some((s) => s.chiave === k)));
   c("editor: si accende solo con ?modifica e un accesso aperto", true, /has\("modifica"\)/.test(editor) && /data\.session\?\.user/.test(editor));
