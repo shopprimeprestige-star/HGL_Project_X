@@ -1810,6 +1810,7 @@ function CaricaDallaChat(
           nPerAvviso={nPerAvviso}
           onSalva={(c) => lotto.salvaRiga(riga.idRiga, c)}
           onCaricaPagamento={(file) => lotto.caricaPagamento(riga.idRiga, file)}
+          onScriviPagamento={(corpo) => lotto.scriviPagamento(riga.idRiga, corpo)}
           onRileggiPagamento={() => void lotto.leggiPagamento(riga.idRiga)}
           onRileggiChat={() => void lotto.rileggiChat(riga.idRiga)}
           onConfermaPerTutte={(c) => void confermaAvviso(c)}

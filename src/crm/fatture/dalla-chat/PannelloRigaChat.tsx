@@ -1,6 +1,7 @@
-/** ── FATTURE DALLA CHAT · T8 · LA RIGA APERTA (PannelloRigaChat.tsx) ───────
- *  Commessa 2026-11-13-fatture-dalla-chat, T8 (SPEC §3 passo 3-4, §6.3-§6.5).
- *  Mirror di `bulk/PannelloRigaBulk.tsx`, con tre differenze reali:
+/** ── FATTURE DALLA CHAT · T8/T17 · LA RIGA APERTA (PannelloRigaChat.tsx) ────
+ *  Commessa 2026-11-13-fatture-dalla-chat, T8 (SPEC §3 passo 3-4, §6.3-§6.5) +
+ *  T17 (collaudo T9, SPEC §9.3 passo 7/§9.7 criterio 3). Mirror di
+ *  `bulk/PannelloRigaBulk.tsx`, con quattro differenze reali:
  *   1. Le miniature di tessera/indirizzo vengono dalla chat (`?miniatura=
  *      tessera|indirizzo&idRiga=…`), e si vedono SOLO quando la riga porta
  *      davvero la provenienza (`tesseraImmagine`/`indirizzoImmagine`, PIANO
@@ -11,6 +12,15 @@
  *      è già dato»): qui c'è solo «Apri scheda», non «Cambia».
  *   3. Il bonifico è UN file solo, non tre: «Carica/Cambia screenshot» al
  *      posto dei tre screenshot della bulk.
+ *   4. (T17) Lo screenshot è FACOLTATIVO qui: finché `pagamento.lettura` non
+ *      c'è, un tasto «Salva pagamento» chiama `scrivi-pagamento` (T11.2) coi
+ *      4 campi di correzione QUI SOTTO (importo/data/modo/riferimento) —
+ *      GLI STESSI della bulk, non duplicati: sono «le modifiche» che già
+ *      finiscono in `CampiRiga` (vedi `corpoPagamentoManuale`,
+ *      `usa-lotto-chat.ts`); la decisione di riusarli, non duplicarli, è in
+ *      LAVAGNA (T17). Il collaudo di T9 aveva trovato che scriverli da soli
+ *      NON sblocca la riga (nessun componente chiamava `scrivi-pagamento`):
+ *      questo è il punto che T17 chiude.
  *
  *  ⚠️ I SALVATAGGI SONO UNO ALLA VOLTA PER RIGA (lo garantisce `salvaRiga` di
  *   `usa-lotto-chat.ts`): qui si manda una cosa per richiesta, come nella
@@ -42,7 +52,7 @@ import { controllaCambio, type CambioRiga } from "../bulk/cambio-riga";
 import { leggiImportoScritto } from "../bulk/PannelloRigaBulk";
 import { BadgeStato, dataItaliana, euroEsatti, nomeDellaRiga } from "../bulk/AnteprimaBulk";
 import { ErroreRotta } from "../bulk/usa-lotto";
-import { leggiRottaChat } from "./usa-lotto-chat";
+import { corpoPagamentoManuale, leggiRottaChat } from "./usa-lotto-chat";
 import type { CampiRiga, Motivo, RigaValutata } from "../bulk/tipi";
 import type { LetturaChat, RigaChat } from "./tipi";
 
@@ -274,6 +284,7 @@ export function PannelloRigaChat({
   nPerAvviso,
   onSalva,
   onCaricaPagamento,
+  onScriviPagamento,
   onRileggiPagamento,
   onRileggiChat,
   onConfermaPerTutte,
@@ -295,6 +306,14 @@ export function PannelloRigaChat({
   nPerAvviso: (codice: string) => number;
   onSalva: (cambio: CambioRiga) => Promise<boolean>;
   onCaricaPagamento: (file: File) => Promise<boolean>;
+  /** Via 2 (T17, SPEC §9.3 passo 7/§9.7 criterio 3): i 4 campi scritti a mano, screenshot
+   *  facoltativo — vedi `corpoPagamentoManuale` sul perché sono gli stessi campi qui sotto. */
+  onScriviPagamento: (corpo: {
+    importo: number;
+    data: string;
+    modo: string;
+    riferimento: string;
+  }) => Promise<boolean>;
   onRileggiPagamento: () => void;
   onRileggiChat: () => void;
   onConfermaPerTutte: (codice: string) => void;
@@ -356,6 +375,24 @@ export function PannelloRigaChat({
     }
   };
   const [erroreFile, setErroreFile] = useState<string | null>(null);
+
+  /** Via 2 (T17): «Salva pagamento» riusa i 4 campi di correzione qui sotto (già scritti a
+   *  mano, già salvati come `modifiche` dal loro stesso `onBlur`): niente campi nuovi da
+   *  duplicare (vedi LAVAGNA). `corpoPagamentoManuale` è il solo cancello client (per non
+   *  spendere una richiesta a vuoto): il controllo vero resta lato server. */
+  const corpoPagamento = corpoPagamentoManuale(c);
+  const [inviandoPagamento, setInviandoPagamento] = useState(false);
+  const salvaPagamento = async () => {
+    // Guardia sul tasto: niente doppio invio, né per un doppio clic né mentre un'altra
+    // operazione sulla riga è già in corso.
+    if (inviandoPagamento || fermo || !corpoPagamento) return;
+    setInviandoPagamento(true);
+    try {
+      await onScriviPagamento(corpoPagamento);
+    } finally {
+      setInviandoPagamento(false);
+    }
+  };
 
   const azioneMotivo = (m: Motivo) => {
     if (m.gravita !== "conferma" || confermati.includes(m.codice)) return null;
@@ -500,7 +537,8 @@ export function PannelloRigaChat({
             ) : (
               <NotaFinestra tono="attenzione" icona={AlertTriangle}>
                 Manca lo screenshot del bonifico ricevuto: finché non lo carichi questa riga resta
-                in errore e non si può emettere.
+                in errore e non si può emettere. Oppure scrivi il pagamento a mano qui a destra,
+                senza bisogno dello screenshot.
               </NotaFinestra>
             )}
             <input
@@ -660,6 +698,31 @@ export function PannelloRigaChat({
               <p className="mt-1 text-[11.5px] text-rose-700">Scegli come ha pagato.</p>
             )}
           </div>
+
+          {!pagamento?.lettura && (
+            <div className="space-y-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2.5">
+              <p className="text-[12.5px] leading-snug text-slate-700">
+                <strong className="font-medium text-slate-900">Scrivi il pagamento a mano:</strong>{" "}
+                compila importo, data e modo qui sopra (il riferimento/CRO è facoltativo), poi premi
+                «Salva pagamento». Lo screenshot del bonifico resta facoltativo: non serve per
+                sbloccare questa riga.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="h-11 w-full sm:h-9 sm:w-auto"
+                disabled={fermo || inviandoPagamento || !corpoPagamento}
+                title={
+                  corpoPagamento
+                    ? undefined
+                    : "Compila almeno importo, data e modo di pagamento qui sopra."
+                }
+                onClick={() => void salvaPagamento()}
+              >
+                {inviandoPagamento ? "Salvo…" : "Salva pagamento"}
+              </Button>
+            </div>
+          )}
 
           <CampoFinestra etichetta="Scheda cliente collegata">
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">

@@ -159,6 +159,26 @@ export function schedaVuota(id: string): SchedaChat {
   return { id, nome: "", cognome: "", codiceFiscale: "", telefono: "", importoScheda: null };
 }
 
+/** Via 2 (T17, SPEC §9.3 passo 7): il corpo di `scrivi-pagamento` dai `CampiRiga` GIÀ mostrati
+ *  nel pannello — gli stessi 4 campi di correzione condivisi con la bulk (importo, data, modo,
+ *  riferimento): nessun campo nuovo da duplicare, si riusano quelli (vedi LAVAGNA, T17). Quando
+ *  l'importo è stato scritto con la virgola («45,50»), a questo punto è già un numero (`45.5`):
+ *  la conversione la fa `leggiImportoScritto` (bulk/PannelloRigaBulk.tsx) al salvataggio del
+ *  campo, PRIMA che `CampiRiga.importo` esista — qui non si rifà.
+ *  `null` se uno dei 3 campi obbligatori è ancora vuoto: è solo un CANCELLO per non spendere una
+ *  richiesta a vuoto (disabilita il tasto «Salva pagamento»). Il controllo di CONTENUTO vero
+ *  (centesimi, giorno che esiste, modo ammesso) resta tutto a `pagamentoManualeValido`, lato
+ *  server — un input che supera questo cancello ma non quello può ancora tornare
+ *  `richiesta_non_valida`, mostrato onestamente dall'avviso già esistente (`stato.errore`). */
+export function corpoPagamentoManuale(
+  c: Pick<CampiRiga, "importo" | "data" | "modo" | "riferimento">,
+): { importo: number; data: string; modo: string; riferimento: string } | null {
+  if (c.importo === null || !(c.importo > 0)) return null;
+  if (!c.data) return null;
+  if (!c.modo) return null;
+  return { importo: c.importo, data: c.data, modo: c.modo, riferimento: c.riferimento };
+}
+
 /** Quali clienti scelti (`schedaId`, = `idRiga`) vanno cercati: non quelli con
  *  una riga già chiusa, non quelli con la chat già letta (ripresa dopo un
  *  ricaricamento: non si ripaga l'AI due volte), non quelli falliti in modo
@@ -499,6 +519,21 @@ export function creaOrchestratoreChat(p: PorteChatBrowser) {
       p.dispatch({ tipo: "riga", riga: r.riga });
     });
 
+  /** Via 2 (T17, SPEC §9.3 passo 7/§9.7 criterio 3): i 4 campi scritti a mano, senza nessuno
+   *  screenshot. Stesso schema di `caricaPagamento`/`leggiPagamento` (`unaVolta("pagamento", …)`:
+   *  un solo tentativo in corsa, «occupato» riprovato da sola, nessun doppio invio). Il corpo
+   *  arriva già pronto da `corpoPagamentoManuale` (vedi sotto): qui non si convalida di nuovo
+   *  niente, il contenuto resta deciso una volta sola da `pagamento-manuale.ts`, lato server. */
+  const scriviPagamento = (
+    idRiga: string,
+    corpo: { importo: number; data: string; modo: string; riferimento: string },
+  ): Promise<boolean> =>
+    unaVolta("pagamento", async (segnale) => {
+      const lotto = lottoAttuale();
+      const r = await chiama({ azione: "scrivi-pagamento", lotto, idRiga, ...corpo }, segnale);
+      p.dispatch({ tipo: "riga", riga: r.riga });
+    });
+
   /** «Rileggi» la chat di UNA riga (a pagamento, gesto esplicito): a differenza di
    *  `cercaNelleChat` non salta mai, nemmeno se già fallita in modo definitivo. */
   async function rileggiChat(idRiga: string): Promise<boolean> {
@@ -713,6 +748,7 @@ export function creaOrchestratoreChat(p: PorteChatBrowser) {
     cercaNelleChat,
     caricaPagamento,
     leggiPagamento,
+    scriviPagamento,
     rileggiChat,
     salvaRiga,
     confermaTutteLePronte,

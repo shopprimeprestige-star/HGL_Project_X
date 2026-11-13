@@ -228,6 +228,27 @@ export async function prove(_mod, { c, gruppo, radice }) {
           server.set(body.idRiga, aggiornata);
           return { corpo: { ok: true, azione: "leggi-pagamento", riga: aggiornata } };
         }
+        case "scrivi-pagamento": {
+          // Stessa forma del server vero (T11.2): zero controllo di CONTENUTO qui (la rotta
+          // finta non è `pagamentoManualeValido`), basta a provare l'orchestrazione.
+          const r = server.get(body.idRiga) ?? rigaVuota(body.idRiga);
+          const aggiornata = {
+            ...r,
+            pagamento: {
+              stato: "letto",
+              impronta: "",
+              lettura: {
+                tipo: "pagamento",
+                importo: body.importo,
+                data: body.data,
+                modo: body.modo,
+                riferimento: body.riferimento,
+              },
+            },
+          };
+          server.set(body.idRiga, aggiornata);
+          return { corpo: { ok: true, azione: "scrivi-pagamento", riga: aggiornata } };
+        }
         case "salva-riga": {
           const r = server.get(body.idRiga) ?? rigaVuota(body.idRiga);
           const aggiornata = { ...r };
@@ -507,6 +528,175 @@ export async function prove(_mod, { c, gruppo, radice }) {
       "leggiPagamento da sola: una sola chiamata",
       [true, 1],
       [ok, b.azioni("leggi-pagamento").length],
+    );
+  }
+
+  /* ── corpoPagamentoManuale (T17, SPEC §9.3 passo 7/§9.7 criterio 3) ─── */
+  gruppo(
+    "DALLA CHAT · T17 · corpoPagamentoManuale (dai CampiRiga già mostrati, nessun campo nuovo)",
+  );
+  {
+    c(
+      "i 4 campi completi (importo già numero, come dopo leggiImportoScritto) → il corpo esatto per scrivi-pagamento",
+      { importo: 45.5, data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" },
+      U.corpoPagamentoManuale({
+        importo: 45.5,
+        data: "2026-11-10",
+        modo: "bonifico",
+        riferimento: "CRO123",
+      }),
+    );
+    c(
+      "il riferimento vuoto non blocca: resta l'unico campo facoltativo",
+      { importo: 10, data: "2026-11-10", modo: "contanti", riferimento: "" },
+      U.corpoPagamentoManuale({
+        importo: 10,
+        data: "2026-11-10",
+        modo: "contanti",
+        riferimento: "",
+      }),
+    );
+    c(
+      "importo null/0/negativo, data vuota, modo vuoto → null (uno dei 3 campi obbligatori manca)",
+      [null, null, null, null, null],
+      [
+        U.corpoPagamentoManuale({
+          importo: null,
+          data: "2026-11-10",
+          modo: "bonifico",
+          riferimento: "",
+        }),
+        U.corpoPagamentoManuale({
+          importo: 0,
+          data: "2026-11-10",
+          modo: "bonifico",
+          riferimento: "",
+        }),
+        U.corpoPagamentoManuale({
+          importo: -5,
+          data: "2026-11-10",
+          modo: "bonifico",
+          riferimento: "",
+        }),
+        U.corpoPagamentoManuale({ importo: 10, data: "", modo: "bonifico", riferimento: "" }),
+        U.corpoPagamentoManuale({ importo: 10, data: "2026-11-10", modo: "", riferimento: "" }),
+      ],
+    );
+  }
+
+  /* ── la conversione con la virgola arriva dallo stesso convertitore della bulk (leggiImportoScritto) ── */
+  gruppo("DALLA CHAT · T17 · 45,50 scritto a mano → 45.5 nel corpo della richiesta (integrazione)");
+  {
+    const esbuildBulk = createRequire(import.meta.url)("esbuild");
+    const impacchettatoBulk = esbuildBulk.buildSync({
+      entryPoints: [join(radice, "src/crm/fatture/bulk/PannelloRigaBulk.tsx")],
+      bundle: true,
+      format: "esm",
+      platform: "node",
+      write: false,
+      logLevel: "silent",
+      jsx: "automatic",
+      loader: { ".tsx": "tsx" },
+      alias: { "@": join(radice, "src") },
+      nodePaths: [join(radice, "node_modules")],
+    }).outputFiles[0].text;
+    const B = await import(
+      `data:text/javascript;base64,${Buffer.from(impacchettatoBulk).toString("base64")}`
+    );
+    const letto = B.leggiImportoScritto("45,50");
+    c(
+      "leggiImportoScritto('45,50') legge 45.5, non una stringa",
+      [true, 45.5],
+      [letto.ok, letto.valore],
+    );
+    c(
+      "quel valore, nei CampiRiga, produce il corpo giusto per scrivi-pagamento",
+      { importo: 45.5, data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" },
+      U.corpoPagamentoManuale({
+        importo: letto.valore,
+        data: "2026-11-10",
+        modo: "bonifico",
+        riferimento: "CRO123",
+      }),
+    );
+  }
+
+  /* ── scriviPagamento (T17): una sola chiamata, il corpo giusto, la riga si aggiorna ── */
+  gruppo("DALLA CHAT · T17 · scriviPagamento: chiama la rotta e aggiorna la riga (si sblocca)");
+  {
+    const b = banco();
+    await b.o.crea("prova");
+    await b.o.aggiungiCliente(S1);
+    const corpo = { importo: 45.5, data: "2026-11-10", modo: "bonifico", riferimento: "CRO123" };
+    const ok = await b.o.scriviPagamento(S1, corpo);
+    const riga = b.stato().righe.find((r) => r.idRiga === S1);
+    c(
+      "una sola chiamata scrivi-pagamento, col lotto/idRiga/i 4 campi esatti",
+      [true, 1, { lotto: L, idRiga: S1, ...corpo }],
+      [
+        ok,
+        b.azioni("scrivi-pagamento").length,
+        (() => {
+          const { azione, ...resto } = b.azioni("scrivi-pagamento")[0];
+          return resto;
+        })(),
+      ],
+    );
+    c(
+      "la riga torna con `pagamento.lettura` presente: si sblocca (zero tocchi a valuta-chat.ts)",
+      true,
+      !!riga.pagamento?.lettura,
+    );
+  }
+  {
+    // Doppio tocco sul tasto «Salva pagamento», prima che il primo finisca: nessuna seconda chiamata.
+    const b = banco();
+    await b.o.crea("prova");
+    await b.o.aggiungiCliente(S1);
+    const corpo = { importo: 10, data: "2026-11-10", modo: "contanti", riferimento: "" };
+    const [ok1, ok2] = await Promise.all([
+      b.o.scriviPagamento(S1, corpo),
+      b.o.scriviPagamento(S1, corpo),
+    ]);
+    c(
+      "doppio invio concorrente: solo uno dei due parte davvero (guardia sul tasto/sull'orchestratore)",
+      [true, 1],
+      [ok1 === true || ok2 === true, b.azioni("scrivi-pagamento").length],
+    );
+  }
+  {
+    // La rotta finta risponde `richiesta_non_valida` (es. data del 31 febbraio): nessuna riga
+    // aggiornata, l'errore resta visibile (`stato.errore`), mostrato in modo onesto dall'avviso già esistente.
+    const b = banco({
+      su: ({ body }) =>
+        body?.azione === "scrivi-pagamento"
+          ? {
+              stato: 400,
+              corpo: {
+                ok: false,
+                codice: "richiesta_non_valida",
+                messaggio: "Richiesta non valida.",
+              },
+            }
+          : undefined,
+    });
+    await b.o.crea("prova");
+    await b.o.aggiungiCliente(S1);
+    const ok = await b.o.scriviPagamento(S1, {
+      importo: 10,
+      data: "2026-02-31",
+      modo: "bonifico",
+      riferimento: "",
+    });
+    c(
+      // Stesso schema di OGNI altra azione di questo hook (caricaPagamento, leggi-pagamento…):
+      // `unaVolta` non porta il messaggio del server nell'errore, usa `fraseDi(codice)` (bulk/
+      // usa-lotto.ts) — per `richiesta_non_valida` non c'è una frase propria, quindi il fallback
+      // generico. Non è un buco di questo compito: non è mai swallowed (lo stato.errore si popola
+      // sempre), è lo stesso comportamento di sempre per questo codice su questa rotta.
+      "richiesta_non_valida: nessun blocco silenzioso, l'errore arriva allo stato (stesso fallback generico di ogni altra azione di questo hook)",
+      [false, "richiesta_non_valida", "Qualcosa non ha funzionato: riprova."],
+      [ok, b.stato().errore?.codice, b.stato().errore?.messaggio],
     );
   }
 
