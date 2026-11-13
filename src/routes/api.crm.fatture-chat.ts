@@ -20,11 +20,10 @@
  *   persona. Le immagini della chat (tessera/indirizzo) non toccano MAI
  *   questo bucket: si leggono e si scartano (`porteRaccoltaChatVere`).
  *
- *  ── `emetti-riga`: SEGNAPOSTO, IN ATTESA DI T6 ────────────────────────────
- *  `emissione-chat.server.ts` (T6) non esiste ancora in questo commit: fino a
- *  quando non sostituisce questa riga, l'azione risponde onestamente «ferma»
- *  (mai una fattura finta). È l'UNICA riga che T6 dovrà cambiare qui: il resto
- *  della rotta non la tocca. */
+ *  ── `emetti-riga`: ORA VA A `emissione-chat.server.ts` (T6) ───────────────
+ *  Unica riga cambiata da T6 in questo file (oltre a leggere il CF della
+ *  scheda, che l'emissione usa per `cfDiversoDellaScheda` e che T5 non
+ *  leggeva mai): il resto della rotta non cambia. */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { BUCKET_DATI_FATTURA } from "@/crm/fatture/dati-fattura.server";
@@ -39,6 +38,7 @@ import {
   type PorteChat,
   type SchedaChatRiga,
 } from "@/crm/fatture/dalla-chat/chat.server";
+import { emettiRigaChat } from "@/crm/fatture/dalla-chat/emissione-chat.server";
 import { schedaIdValido } from "@/crm/fatture/dalla-chat/chiavi";
 import type { PaymentInfo } from "@/crm/types";
 import { guardiaCRM } from "./api.crm.accesso";
@@ -92,6 +92,8 @@ function schedaChatDaRiga(r: Record<string, unknown>): SchedaChatRiga {
     cognome: String(r.cognome ?? ""),
     telefono: String(r.telefono ?? ""),
     payment,
+    //  Il CF già scritto a mano sulla scheda (T6, `cfDiversoDellaScheda` in emissione).
+    codiceFiscale: String(r.codiceFiscale ?? ""),
   };
 }
 
@@ -193,7 +195,7 @@ function porteVere(utente: string): PorteChat {
         const { data, error } = await crm
           .from("crm_leads")
           .select(
-            "id,nome:data->>nome,cognome:data->>cognome,telefono:data->>telefono,payment:data->payment",
+            "id,nome:data->>nome,cognome:data->>cognome,telefono:data->>telefono,payment:data->payment,codiceFiscale:data->>codiceFiscale",
           )
           .eq("user_id", utente)
           .order("id")
@@ -211,7 +213,7 @@ function porteVere(utente: string): PorteChat {
       const { data, error } = await crm
         .from("crm_leads")
         .select(
-          "id,nome:data->>nome,cognome:data->>cognome,telefono:data->>telefono,payment:data->payment",
+          "id,nome:data->>nome,cognome:data->>cognome,telefono:data->>telefono,payment:data->payment,codiceFiscale:data->>codiceFiscale",
         )
         .eq("user_id", utente)
         .eq("id", id)
@@ -245,14 +247,7 @@ const dipendenze: DipendenzeRottaChat = {
     return { ok: true, utente: g.chi.adminUserId };
   },
   porte: porteVere,
-  //  T6 (emissione-chat.server.ts) non è stato ancora scritto in questo commit: nessuna fattura
-  //  finta, solo un «ferma» onesto. L'unica riga che T6 dovrà sostituire in questo file.
-  emettiRiga: async () => ({
-    ok: true,
-    esito: "ferma",
-    codice: "interno",
-    messaggio: "L'emissione dalla chat non è ancora disponibile in questa versione.",
-  }),
+  emettiRiga: emettiRigaChat,
 };
 
 export const Route = createFileRoute("/api/crm/fatture-chat")({

@@ -65,10 +65,15 @@
  *  della bulk (bucket `dati-fattura`, URL firmato a 60 s).
  *
  *  ── ⚠️ `emetti-riga` NON È QUI ─────────────────────────────────────────────
- *  Come nella bulk, l'emissione (T6, `emissione-chat.server.ts`) non esiste
- *  ancora in questo commit: `eseguiAzioneChat` non la smista (arriva alla
- *  rotta, che la passa a `DipendenzeRottaChat.emettiRiga`, iniettata — per ora
- *  un segnaposto onesto nella rotta vera, finché T6 non lo sostituisce). */
+ *  Come nella bulk, `eseguiAzioneChat` non la smista: arriva alla rotta, che
+ *  la passa a `DipendenzeRottaChat.emettiRiga`, iniettata. `emissione-chat.
+ *  server.ts` (T6) la implementa riusando le funzioni di magazzino di QUESTO
+ *  file (`testataDi`, `righeSalvateDelLotto`, `pagamentiDelLotto`,
+ *  `conPagamento`, `chiudiRigaChat`, `spazzaOrfani`, `chiudiLottoSeConcluso`,
+ *  `RigaSalvata`), per questo sono `export` — nessun'altra riga di
+ *  comportamento qui è cambiata per T6. `SchedaChatRiga` porta anche
+ *  `codiceFiscale` (aggiunto da T6): serve a `cfDiversoDellaScheda` in
+ *  emissione, che T5 non chiamava mai. */
 import { classificaTesto } from "../../chatwa/media";
 import { combaciaRicerca } from "../../chatwa/cercaChat";
 import type { Lead, PaymentInfo } from "../../types";
@@ -154,6 +159,12 @@ export interface SchedaChatRiga {
   /** Come scritto in scheda: `raccogliChat` ne ricava le ultime 9 cifre da sé. */
   telefono: string;
   payment: Pick<PaymentInfo, "accontoPagato" | "statoPagamento" | "dataPagamento"> | null;
+  /** Il CF già scritto a mano sulla scheda (può essere vuoto): T5 non lo usava (non chiamava
+   *  `valuta-chat.ts`), ma `emettiRigaChat` (T6) ne ha bisogno per `cfDiversoDellaScheda`/
+   *  `scheda_cf_diverso` — lo stesso controllo che SPEC §5 chiede («CF diverso da quello già
+   *  scritto sulla scheda»). Aggiunto qui, non copiato altrove, perché `SchedaChatRiga` è già
+   *  il contratto fra la rotta vera e questo file (T6, aggancio minimo). */
+  codiceFiscale: string;
 }
 
 export interface PorteChat {
@@ -321,12 +332,12 @@ async function togliDalBucket(porte: PorteChat, percorsi: string[]): Promise<boo
  *  `chat_fatture_r` porta tutto di `RigaChat` TRANNE il pagamento (che vive da
  *  solo in `chat_fatture_p`, PIANO §2): questo file li unisce solo quando deve
  *  rispondere al client. */
-type RigaSalvata = Omit<RigaChat, "pagamento">;
+export type RigaSalvata = Omit<RigaChat, "pagamento">;
 
-const conPagamento = (riga: RigaSalvata, pagamento?: PagamentoChat): RigaChat =>
+export const conPagamento = (riga: RigaSalvata, pagamento?: PagamentoChat): RigaChat =>
   pagamento ? { ...riga, pagamento } : { ...riga };
 
-async function testataDi(porte: PorteChat, lotto: string): Promise<TestataLottoChat | null> {
+export async function testataDi(porte: PorteChat, lotto: string): Promise<TestataLottoChat | null> {
   return leggiJson<TestataLottoChat>(await porte.archivio.leggi(chiaveTestata(lotto)));
 }
 async function testataOppureErrore(porte: PorteChat, lotto: string): Promise<TestataLottoChat> {
@@ -351,7 +362,7 @@ async function pagamentoDi(
 }
 
 /** Tutte le righe del lotto, per idRiga. UNA lettura. */
-async function righeSalvateDelLotto(
+export async function righeSalvateDelLotto(
   porte: PorteChat,
   lotto: string,
 ): Promise<Map<string, RigaSalvata>> {
@@ -364,7 +375,7 @@ async function righeSalvateDelLotto(
   return m;
 }
 /** Tutti i pagamenti del lotto, per idRiga (ricavato dalla chiave: `PagamentoChat` non lo porta). */
-async function pagamentiDelLotto(
+export async function pagamentiDelLotto(
   porte: PorteChat,
   lotto: string,
 ): Promise<Map<string, PagamentoChat>> {
@@ -435,7 +446,7 @@ async function conReclamo<T>(
  *  `{stato, impronta}`, senza percorso né lettura), POI il file tolto dal bucket. `chat` (la
  *  lettura della chat: CF, indirizzo…) si svuota come `lettura` nella bulk — stessa disciplina
  *  di minimizzazione: niente dati di persona restano su una riga chiusa. */
-async function chiudiRigaChat(
+export async function chiudiRigaChat(
   porte: PorteChat,
   lotto: string,
   idRiga: string,
@@ -499,7 +510,7 @@ export async function chiudiLottoSeConcluso(porte: PorteChat, lotto: string): Pr
 }
 
 /** I file nel bucket che nessun pagamento del lotto richiama (e quelli di righe chiuse). */
-async function spazzaOrfani(porte: PorteChat, lotto: string): Promise<number> {
+export async function spazzaOrfani(porte: PorteChat, lotto: string): Promise<number> {
   const cartella = cartellaBucket(porte.utente, lotto);
   const nomi = await porte.bucket.elenca(cartella);
   if (nomi === null) throw new ErroreChat("rete");
