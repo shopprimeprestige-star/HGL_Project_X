@@ -1529,6 +1529,11 @@ function CaricaDallaChat(
    *  ⚠️ `tentatoApriLotto` fa partire `riprendiDalBanner` UNA sola volta per ogni valore di
    *   `apriLotto`: senza questa guardia, ogni nuovo render richiamerebbe `apri` da capo. */
   const tentatoApriLotto = useRef<string | null>(null);
+  //  ⚠️ Catturato qui, non letto dal prop più avanti: `CRM.fatture.tsx` toglie `apriLotto`/
+  //   `apriRiga` dall'URL appena li ha consumati (per non riaprire la finestra da sola a ogni
+  //   remontaggio), quindi quando il secondo effetto gira il prop `apriRigaLink` può già
+  //   essere `undefined` — il ref tiene il valore vero per tutta la durata di questo flusso.
+  const rigaDelLinkRef = useRef<string | undefined>(undefined);
   const [apriLottoFinito, setApriLottoFinito] = useState(false);
   const [rigaLinkMancante, setRigaLinkMancante] = useState(false);
   const [rigaEvidenziata, setRigaEvidenziata] = useState<string | null>(null);
@@ -1536,6 +1541,7 @@ function CaricaDallaChat(
   useEffect(() => {
     if (!apriLotto || tentatoApriLotto.current === apriLotto) return;
     tentatoApriLotto.current = apriLotto;
+    rigaDelLinkRef.current = apriRigaLink;
     void riprendiDalBanner(apriLotto).then(() => setApriLottoFinito(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apriLotto]);
@@ -1549,10 +1555,11 @@ function CaricaDallaChat(
       setMostraCandidati(true);
       return;
     }
-    const trovata = rigaApribileDelLink(righe, apriRigaLink);
-    if (apriRigaLink && !trovata) setRigaLinkMancante(true);
+    const idRigaDelLink = rigaDelLinkRef.current;
+    const trovata = rigaApribileDelLink(righe, idRigaDelLink);
+    if (idRigaDelLink && !trovata) setRigaLinkMancante(true);
     else if (trovata) setRigaEvidenziata(trovata.idRiga);
-  }, [apriLottoFinito, stato.lotto, righe, apriRigaLink]);
+  }, [apriLottoFinito, stato.lotto, righe]);
 
   // La riga da evidenziare può essere su una pagina diversa da quella corrente: si porta lì
   // PRIMA, così il bottone esiste davvero nel DOM quando il prossimo effetto lo cerca.
@@ -2005,8 +2012,21 @@ function nomiSchedeDaLeads(leads: Lead[]): Map<string, string> {
  *  lavoro che continua in background, come già faceva la bulk con la finestra
  *  chiusa. Firma identica a prima (`PropsCaricaInBlocco`): zero cambi per chi
  *  la chiama (`src/routes/CRM.fatture.tsx`). */
+/** La modalità INIZIALE di «Carica in blocco» (T16, correzione del revisore su `523eb98`,
+ *  punto 2): «chat» da subito se si arriva con un lotto dal link della chat, altrimenti «Da
+ *  screenshot» come sempre. Pura e nominata apposta, si prova senza montare niente. */
+export function modalitaAllArrivo(apriLotto: string | undefined): Modalita {
+  return apriLotto ? "chat" : "screenshot";
+}
+
 export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
-  const [modalita, setModalita] = useState<Modalita>("screenshot");
+  //  Il link dalla chat (T15 → T16, SPEC §9.3 passo 6): con `apriLotto` già nel primo render
+  //  si parte direttamente su «Dalla chat», non su «Da screenshot» — altrimenti il titolare
+  //  dovrebbe cambiare modalità a mano per vedere la riga che è venuto a controllare. Lazy
+  //  init: valutata una volta sola, su `p.apriLotto` COM'ERA al montaggio (vedi `CaricaDallaChat`
+  //  per il motivo per cui l'URL perde quel parametro poco dopo, e perché qui non serve
+  //  rincorrerlo con un effetto).
+  const [modalita, setModalita] = useState<Modalita>(() => modalitaAllArrivo(p.apriLotto));
   return (
     <>
       <CaricaBulkDaScreenshot {...p} modalita={modalita} onModalita={setModalita} />

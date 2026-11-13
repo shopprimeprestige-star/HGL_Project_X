@@ -18,7 +18,12 @@
  *     se la riga del link è ancora apribile (per lo scroll/l'evidenziazione)
  *     o se il link è vecchio (riga mai esistita, già emessa, già scartata) —
  *     in quel caso chi chiama mostra l'avviso onesto invece di evidenziare
- *     niente. */
+ *     niente.
+ *  3. `apertaAllArrivo`/`modalitaAllArrivo`: lo stato INIZIALE della finestra
+ *     («Carica in blocco» aperta, già su «Dalla chat») quando si arriva dal
+ *     link — correzione del revisore su `523eb98`: la finestra non si apriva
+ *     da sola, e nessuna prova lo misurava. Pure, senza montare React (il
+ *     revisore accetta questa via in alternativa a un render). */
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
@@ -155,5 +160,31 @@ export async function prove(_mod, { c, gruppo, radice }) {
       ],
       RIGA,
     )?.idRiga,
+  );
+
+  gruppo("DALLA CHAT · T16 · lo stato INIZIALE della finestra, quando si arriva dal link");
+
+  c(
+    "apriLotto presente → la finestra parte già aperta (bulkAperto), non chiusa",
+    true,
+    Rotta.apertaAllArrivo(LOTTO),
+  );
+
+  c(
+    "nessun apriLotto (la pagina si apre normale) → la finestra parte chiusa, come sempre",
+    false,
+    Rotta.apertaAllArrivo(undefined),
+  );
+
+  c(
+    "apriLotto presente → la modalità parte già su «chat», non su «screenshot»",
+    "chat",
+    Finestra.modalitaAllArrivo(LOTTO),
+  );
+
+  c(
+    "nessun apriLotto → la modalità parte su «screenshot», come sempre (SPEC §3, invariata)",
+    "screenshot",
+    Finestra.modalitaAllArrivo(undefined),
   );
 }

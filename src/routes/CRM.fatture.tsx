@@ -20,7 +20,7 @@
  *  terzo modo di selezionare in un terzo posto è come si perde l'abitudine.
  *  ───────────────────────────────────────────────────────────────────────── */
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -111,6 +111,15 @@ export function leggiRicercaFatture(raw: unknown): { apriLotto?: string; apriRig
   return { ...(lotto ? { apriLotto: lotto } : {}), ...(riga ? { apriRiga: riga } : {}) };
 }
 
+/** Lo stato INIZIALE di «Carica in blocco» quando si arriva dal link della chat (SPEC §9.3
+ *  passo 6): aperta da subito se c'è un lotto da mostrare, altrimenti chiusa come sempre.
+ *  Pura e nominata apposta (non un `Boolean(...)` anonimo dentro la `useState`): si prova senza
+ *  montare niente — correzione del revisore su `523eb98`, punto 2 (nessuna prova misurava
+ *  davvero l'apertura della finestra). */
+export function apertaAllArrivo(apriLotto: string | undefined): boolean {
+  return Boolean(apriLotto);
+}
+
 export const Route = createFileRoute("/CRM/fatture")({
   validateSearch: (raw) => leggiRicercaFatture(raw),
   component: FatturePage,
@@ -141,9 +150,22 @@ function FatturePage() {
   const { leads } = useCRM();
   //  Il link dalla chat (T15 → T16): già validato da `leggiRicercaFatture`, sopra.
   const { apriLotto, apriRiga } = Route.useSearch();
+  const navigate = useNavigate({ from: "/CRM/fatture" });
   //  «Carica in blocco» emette fatture: lo vede solo chi ha il permesso «pagamenti».
   const puoBulk = usePuo()("pagamenti");
-  const [bulkAperto, setBulkAperto] = useState(false);
+  //  ⚠️ APERTA DA SUBITO SE IL LINK C'È (lazy init, valutata una volta sola: SPEC §9.3 passo 6,
+  //   correzione del revisore su 523eb98). Senza questo, la finestra restava chiusa: il titolare
+  //   doveva aprirla lui e cambiare modalità a mano per vedere la riga.
+  const [bulkAperto, setBulkAperto] = useState(() => apertaAllArrivo(apriLotto));
+  //  Consumato una volta: si toglie `apriLotto`/`apriRiga` dall'URL appena usati, così un
+  //  secondo montaggio della pagina (tasto indietro, un link salvato, un refresh più tardi)
+  //  non riapre da solo una finestra che il titolare ha già chiuso. `[]`: il valore del PRIMO
+  //  render basta, l'init pigro sopra l'ha già catturato prima che questo effetto giri.
+  useEffect(() => {
+    if (!apriLotto) return;
+    void navigate({ search: {}, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [azienda, setAzienda] = useState<DatiAzienda>(AZIENDA_VUOTA);
   const [bozze, setBozze] = useState<Fattura[]>([]);
   const [emesse, setEmesse] = useState<Fattura[]>([]);
