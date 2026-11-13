@@ -19,12 +19,21 @@
  *  ⚠️ Nessun dato personale in console, in localStorage o nei titoli: i nomi
  *   stanno solo a schermo. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, FileStack, ImageUp, RefreshCw, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  FileStack,
+  ImageUp,
+  MessageCircle,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { fetchCRM } from "@/crm/AuthContext";
 import { useRicerca } from "@/crm/ui";
 import {
   CLASSE_CAMPO,
@@ -43,11 +52,13 @@ import { contaGruppi, ordinaFile, type CriterioOrdine } from "./raggruppa";
 import { schedaDaLead } from "./scheda-da-lead";
 import { controllaLotto } from "./regole-lotto";
 import { oggiItaliano } from "./regole-riga";
+import { fattiSulleDate } from "./emissione-bulk";
 import {
   AVVISI_PER_TUTTE,
   fraseDi,
   gruppiDaLeggere,
   useLotto,
+  ErroreRotta,
   type RiepilogoEmissione,
 } from "./usa-lotto";
 import type { ContestoValutazione, SchedaPerAbbinamento, SintesiLotto } from "./tipi";
@@ -55,12 +66,23 @@ import {
   AnteprimaBulk,
   contaPerStato,
   filtraRighe,
+  nomeDellaRiga,
   rigaAperta,
   RIGHE_PER_PAGINA,
   type FiltroRighe,
 } from "./AnteprimaBulk";
 import { PannelloRigaBulk } from "./PannelloRigaBulk";
 import { RiepilogoEmissioneBulk, type FaseEmissione } from "./RiepilogoEmissioneBulk";
+import {
+  AVVISI_PER_TUTTE as AVVISI_PER_TUTTE_CHAT,
+  leggiRottaChat,
+  useLottoChat,
+} from "../dalla-chat/usa-lotto-chat";
+import { schedeChatDaLeads } from "../dalla-chat/schede-chat-da-lead";
+import { ListaClientiChat } from "../dalla-chat/ListaClientiChat";
+import { AnteprimaChat } from "../dalla-chat/AnteprimaChat";
+import { PannelloRigaChat } from "../dalla-chat/PannelloRigaChat";
+import type { CandidatoChat, SintesiLottoChat } from "../dalla-chat/tipi";
 
 /* ══ 1. SCEGLIERE I FILE ═══════════════════════════════════════════════════ */
 
@@ -348,8 +370,56 @@ export interface PropsCaricaInBlocco {
 
 type Passo = { cosa: "leggi" } | { cosa: "annulla"; lotto: string } | null;
 
-export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
-  const { aperta, onCambio, azienda, emesse, bozze, leads, caricando } = p;
+/** Le due porte d'ingresso della stessa fattura (SPEC `2026-11-13-fatture-dalla-chat`
+ *  §1, §3 passo 1): «Da screenshot» (questa, invariata) e «Dalla chat» (nuova). Un
+ *  selettore solo, condiviso dalle due finestre — mai due selettori che potrebbero
+ *  disallinearsi. */
+type Modalita = "screenshot" | "chat";
+
+/** Pillola «Da screenshot / Dalla chat», in cima alla finestra (SPEC §3 passo 1).
+ *  Disattivata mentre è in corso un lavoro: cambiare modalità non lo interrompe (lo
+ *  stato di entrambe le modalità resta in memoria, PIANO T8 — «CaricaDallaChat sempre
+ *  montato»), ma nasconderne l'avanzamento a metà sarebbe confuso. */
+function SelettoreModalita({
+  modalita,
+  onModalita,
+  disabilitato,
+}: {
+  modalita: Modalita;
+  onModalita: (m: Modalita) => void;
+  disabilitato?: boolean;
+}) {
+  return (
+    <div
+      className="flex flex-wrap gap-1.5"
+      role="group"
+      aria-label="Come vuoi caricare i dati di questi clienti"
+    >
+      <Pillola
+        attiva={modalita === "screenshot"}
+        disabilitata={disabilitato}
+        onClick={() => onModalita("screenshot")}
+      >
+        Da screenshot
+      </Pillola>
+      <Pillola
+        attiva={modalita === "chat"}
+        disabilitata={disabilitato}
+        onClick={() => onModalita("chat")}
+      >
+        Dalla chat
+      </Pillola>
+    </div>
+  );
+}
+
+function CaricaBulkDaScreenshot(
+  p: PropsCaricaInBlocco & { modalita: Modalita; onModalita: (m: Modalita) => void },
+) {
+  const { onCambio, azienda, emesse, bozze, leads, caricando, modalita, onModalita } = p;
+  // Una sola delle due finestre è visivamente aperta alla volta: l'altra resta montata
+  // (il suo lavoro continua) ma la sua Finestra (Radix Dialog) è chiusa (PIANO T8).
+  const aperta = p.aperta && modalita === "screenshot";
   const { apriLead } = useRicerca();
 
   /* ── il contesto delle regole ─────────────────────────────────────────── */
@@ -835,6 +905,9 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
     titoloContesto = ripresa ? "Riprendi il caricamento dei file" : "Scegli gli screenshot";
     corpo = (
       <div className="space-y-3">
+        {!ripresa && (
+          <SelettoreModalita modalita={modalita} onModalita={onModalita} disabilitato={occupato} />
+        )}
         {avvisi}
         <SceltaFile
           ripresa={ripresa}
@@ -929,6 +1002,7 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
     titoloContesto = `${conti.tutte} ${conti.tutte === 1 ? "cliente" : "clienti"} · ${conti.pronto} pronte · ${conti.da_controllare} da controllare · ${conti.errore} errori`;
     corpo = (
       <div className="space-y-3">
+        <SelettoreModalita modalita={modalita} onModalita={onModalita} disabilitato={occupato} />
         {avvisi}
         {riquadroGruppi}
         {stato.testata && (
@@ -1137,6 +1211,712 @@ export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
           righe e screenshot vengono cancellati subito.
         </p>
       </Finestra>
+    </>
+  );
+}
+
+/* ══ 3. «DALLA CHAT» (commessa 2026-11-13-fatture-dalla-chat, T8) ══════════
+ *  Stesso schema di `CaricaBulkDaScreenshot`: il lavoro vive qui (`useLottoChat`,
+ *  T7), non nella finestra — si chiude la finestra a metà ricerca/emissione e non
+ *  si ferma niente, il riquadro in cima dice a che punto è (PIANO T8, come la
+ *  bulk). Qui NON c'è «ricompone i file in gruppi»: ogni cliente arriva già con
+ *  la sua scheda (SPEC §5, «l'abbinamento non si indovina, è già dato»), quindi
+ *  non c'è una `SceltaFile`: il passo 1 è `ListaClientiChat` (candidati + ricerca
+ *  manuale, SPEC §3 passo 1). */
+function CaricaDallaChat(
+  p: PropsCaricaInBlocco & { modalita: Modalita; onModalita: (m: Modalita) => void },
+) {
+  const { onCambio, azienda, emesse, bozze, leads, caricando, modalita, onModalita } = p;
+  const aperta = p.aperta && modalita === "chat";
+  const { apriLead } = useRicerca();
+
+  /* ── il contesto delle regole (stessa mappatura di CaricaBulkDaScreenshot: anteprima
+   *   ed emissione devono abbinare le stesse schede, PIANO §0bis.2) ────────────────── */
+  const schede = useMemo<SchedaPerAbbinamento[]>(
+    () => (Array.isArray(leads) ? leads : []).map((l) => schedaDaLead(l.id, l.data ?? {})),
+    [leads],
+  );
+  const schedeChat = useMemo(() => schedeChatDaLeads(Array.isArray(leads) ? leads : []), [leads]);
+  const oggi = oggiItaliano();
+  const costruito = useMemo<Omit<ContestoValutazione, "lotto">>(
+    () => ({ azienda, oggi, emesse, bozze, schede, impronteAltriLotti: [] }),
+    [azienda, oggi, emesse, bozze, schede],
+  );
+  const ultimoContesto = useRef<Omit<ContestoValutazione, "lotto"> | null>(null);
+  if (!caricando) ultimoContesto.current = costruito;
+  const lotto = useLottoChat({ contesto: ultimoContesto.current, schedeChat });
+  const ultimo = useRef(lotto);
+  ultimo.current = lotto;
+  const { stato, righe } = lotto;
+
+  /* ── stato della finestra ─────────────────────────────────────────────── */
+  const [scelti, setScelti] = useState<Set<string>>(new Set());
+  const [ricerca, setRicerca] = useState("");
+  const [candidati, setCandidati] = useState<CandidatoChat[]>([]);
+  const [caricandoCandidati, setCaricandoCandidati] = useState(false);
+  const [erroreCandidati, setErroreCandidati] = useState<string | null>(null);
+  // Vero finché non si è ancora premuto «Cerca nelle chat» almeno una volta su questo lotto
+  // (o appena annullato/concluso): è il passo 1 della SPEC, prima dell'anteprima.
+  const [mostraCandidati, setMostraCandidati] = useState(true);
+  const [rigaSel, setRigaSel] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<FiltroRighe>("tutte");
+  const [pagina, setPagina] = useState(0);
+  const [aperti, setAperti] = useState<SintesiLottoChat[]>([]);
+  const [daAnnullare, setDaAnnullare] = useState<{ lotto: string; clienti: number } | null>(null);
+  const [faseEm, setFaseEm] = useState<FaseEmissione | null>(null);
+  const [riepilogoFinale, setRiepilogoFinale] = useState<RiepilogoEmissione | null>(null);
+  const [erroreChiuso, setErroreChiuso] = useState<unknown>(null);
+  const ultimaRiga = useRef<string | null>(null);
+
+  /* ── i candidati (passo 1): si leggono solo quando questa modalità è davvero
+   *   aperta e non c'è ancora un lotto — niente richieste sprecate se non si
+   *   apre mai «Dalla chat» (PIANO T8). Ricerca con un piccolo debounce. ───── */
+  useEffect(() => {
+    if (!aperta || stato.lotto) return;
+    let vivo = true;
+    setCaricandoCandidati(true);
+    const attesa = ricerca.trim() ? 300 : 0;
+    const t = setTimeout(() => {
+      leggiRottaChat<CandidatoChat[]>(
+        fetchCRM,
+        `?candidati=1&q=${encodeURIComponent(ricerca.trim())}`,
+      )
+        .then((c) => {
+          if (!vivo) return;
+          setCandidati(c);
+          setErroreCandidati(null);
+        })
+        .catch((e: unknown) => {
+          if (!vivo) return;
+          setCandidati([]);
+          setErroreCandidati(
+            e instanceof ErroreRotta ? e.messaggio : "Non riesco a leggere i clienti.",
+          );
+        })
+        .finally(() => vivo && setCaricandoCandidati(false));
+    }, attesa);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [aperta, ricerca, stato.lotto]);
+
+  /* ── i lotti «dalla chat» rimasti aperti (alla prima apertura della pagina) ─ */
+  const aggiornaAperti = useCallback(async () => {
+    try {
+      setAperti(await ultimo.current.lottiAperti());
+    } catch {
+      // Il riquadro semplicemente non compare: non è un errore da mostrare ogni volta.
+    }
+  }, []);
+  const partito = useRef(false);
+  useEffect(() => {
+    if (caricando || partito.current) return;
+    partito.current = true;
+    void aggiornaAperti();
+  }, [caricando, aggiornaAperti]);
+
+  /* ── dati derivati ────────────────────────────────────────────────────── */
+  const conti = useMemo(() => contaPerStato(righe), [righe]);
+  const visibili = useMemo(() => filtraRighe(righe, filtro), [righe, filtro]);
+  const apribili = useMemo(() => visibili.filter(rigaAperta), [visibili]);
+  const nPronte = conti.pronto;
+  const nEmettibili = useMemo(
+    () => righe.filter((r) => r.emettibile && rigaAperta(r)).length,
+    [righe],
+  );
+  const lavoro = stato.lavoro;
+  const occupato = !!lavoro;
+  const riga = rigaSel ? righe.find((r) => r.idRiga === rigaSel) : undefined;
+  const rigaGrezza = rigaSel ? stato.righe.find((r) => r.idRiga === rigaSel) : undefined;
+  const fatti = useMemo(
+    () =>
+      righe.length > 0
+        ? fattiSulleDate(
+            righe.map((r) => ({ idRiga: r.idRiga, data: r.campi.data })),
+            emesse,
+            azienda,
+            oggi,
+          )
+        : null,
+    [righe, emesse, azienda, oggi],
+  );
+
+  useEffect(() => {
+    if (rigaSel && !riga && !occupato) setRigaSel(null);
+  }, [rigaSel, riga, occupato]);
+  useEffect(() => {
+    if (rigaSel === null && ultimaRiga.current) {
+      document.getElementById(`riga-chat-${ultimaRiga.current}`)?.focus();
+      ultimaRiga.current = null;
+    }
+  }, [rigaSel]);
+
+  const nPerAvviso = useCallback(
+    (codice: string) =>
+      !AVVISI_PER_TUTTE_CHAT.includes(codice)
+        ? 0
+        : righe.filter(
+            (r) =>
+              rigaAperta(r) &&
+              r.motivi.some((m) => m.codice === codice && m.gravita === "conferma") &&
+              !stato.righe.find((x) => x.idRiga === r.idRiga)?.confermeAvvisi?.includes(codice),
+          ).length,
+    [righe, stato.righe],
+  );
+  const avvisiPerTutte = useMemo(
+    () =>
+      [
+        {
+          codice: "data_anteriore",
+          testo: (n: number) =>
+            `${n} righe hanno una data di pagamento anteriore all'ultima fattura emessa: avranno un numero più alto della data. Apri una riga per leggere l'avviso per intero.`,
+        },
+        {
+          codice: "oltre_12_giorni",
+          testo: (n: number) =>
+            `${n} righe hanno un pagamento di più di 12 giorni fa, cioè oltre il termine di invio allo SDI (stima). Apri una riga per leggere l'avviso per intero.`,
+        },
+      ]
+        .map((a) => ({ codice: a.codice, n: nPerAvviso(a.codice), testo: a.testo }))
+        .map((a) => ({ codice: a.codice, n: a.n, testo: a.testo(a.n) }))
+        .filter((a) => a.n >= 2),
+    [nPerAvviso],
+  );
+  const decisioni = useMemo(
+    () =>
+      Object.fromEntries(
+        stato.righe.map((r) => [r.idRiga, { confermeAvvisi: r.confermeAvvisi, emessa: r.emessa }]),
+      ),
+    [stato.righe],
+  );
+
+  /* ── azioni ───────────────────────────────────────────────────────────── */
+  const cercaNelleChatOra = async () => {
+    const ids = [...scelti];
+    if (ids.length === 0) return;
+    let idLotto = stato.lotto;
+    if (!idLotto) idLotto = await lotto.crea(DESCRIZIONI[0]);
+    if (!idLotto) return;
+    setScelti(new Set());
+    setMostraCandidati(false);
+    await lotto.cercaNelleChat(ids);
+  };
+  const riprendiDalBanner = async (id: string) => {
+    onCambio(true);
+    onModalita("chat");
+    setMostraCandidati(false);
+    await lotto.apri(id);
+  };
+  const apriRiga = (id: string) => {
+    ultimaRiga.current = id;
+    setRigaSel(id);
+  };
+  const tornaAllElenco = () => {
+    const i = visibili.findIndex((r) => r.idRiga === rigaSel);
+    if (i >= 0) setPagina(Math.floor(i / RIGHE_PER_PAGINA));
+    setRigaSel(null);
+  };
+  const vaiAllaProssima = (dopo?: string) => {
+    const i = dopo ? righe.findIndex((r) => r.idRiga === dopo) : -1;
+    const giro = [...righe.slice(i + 1), ...righe.slice(0, i + 1)];
+    const t = giro.find((r) => r.stato === "da_controllare" && r.idRiga !== dopo);
+    if (t) apriRiga(t.idRiga);
+    else toast.info("Non ce ne sono altre da controllare.");
+  };
+  const confermaTutte = async () => {
+    const attese = nPronte;
+    const n = await lotto.confermaTutteLePronte();
+    if (n === 0 && attese > 0)
+      toast.info("Non è partito: c'è un altro lavoro in corso. Riprova fra poco.");
+    else if (n < attese)
+      toast.warning(`Confermate ${n} righe su ${attese}`, {
+        description: "Le altre restano da confermare: riprova.",
+      });
+    else toast.success(`Confermate ${n} ${n === 1 ? "riga" : "righe"}`);
+  };
+  const confermaAvviso = async (codice: string) => {
+    const attese = nPerAvviso(codice);
+    const n = await lotto.confermaAvvisoPerTutte(codice);
+    if (n === 0 && attese > 0)
+      toast.info("Non è partito: c'è un altro lavoro in corso. Riprova fra poco.");
+    else if (n < attese) toast.warning(`Confermato su ${n} righe di ${attese}`);
+    else toast.success(`Avviso confermato su ${n} righe`);
+  };
+  const emettiOra = async () => {
+    setFaseEm("corso");
+    const r = await lotto.emettiConfermate();
+    if (r === null) {
+      toast.info("Non è partito: c'è un altro lavoro in corso. Aspetta che finisca e riprova.");
+      setFaseEm("conferma");
+      return;
+    }
+    setRiepilogoFinale(r);
+    setFaseEm("finale");
+    p.onEmesso();
+  };
+  const nuovoCaricamento = () => {
+    lotto.nuovoLotto();
+    setScelti(new Set());
+    setRicerca("");
+    setMostraCandidati(true);
+    setRigaSel(null);
+    setFiltro("tutte");
+    setPagina(0);
+    void aggiornaAperti();
+  };
+  const annullaConfermato = async () => {
+    if (!daAnnullare) return;
+    const { lotto: id } = daAnnullare;
+    setDaAnnullare(null);
+    if (stato.lotto === id) {
+      if (await lotto.annullaLotto()) {
+        setScelti(new Set());
+        setMostraCandidati(true);
+        void aggiornaAperti();
+      }
+      return;
+    }
+    // Un lotto che non è in memoria si apre, e si annulla subito dopo: a differenza della
+    // bulk (che aspetta un giro di render per leggere lo stato nuovo) l'orchestratore
+    // aggiorna il suo specchio interno in modo sincrono dentro `apri`, quindi si può
+    // incatenare `annullaLotto` senza un passo intermedio.
+    await lotto.apri(id);
+    await lotto.annullaLotto();
+    void aggiornaAperti();
+  };
+
+  /* ── il riquadro in cima alla pagina ──────────────────────────────────── */
+  const inMemoria = stato.lotto !== null;
+  const letti = (c: typeof conti) =>
+    c.pronto + c.da_controllare + c.errore + c.confermata + c.emessa;
+  const riquadro = (
+    <>
+      {inMemoria && !aperta && !stato.lottoChiuso && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2.5"
+          role="status"
+        >
+          <span className="flex min-w-0 items-center gap-2 text-[12.5px]">
+            <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0">
+              {lavoro?.cosa === "ricerca"
+                ? `Sto cercando nelle chat: letti ${lavoro.fatti} di ${lavoro.totale} clienti.`
+                : lavoro?.cosa === "emissione"
+                  ? `Sto emettendo le fatture: ${lavoro.fatti} di ${lavoro.totale}.`
+                  : `Caricamento dalla chat in corso: ${conti.tutte} clienti, ${letti(conti)} letti, ${conti.da_controllare} da controllare.`}
+            </span>
+          </span>
+          <span className="flex gap-2">
+            <Button
+              size="sm"
+              className="h-11 sm:h-8"
+              onClick={() => {
+                onCambio(true);
+                onModalita("chat");
+              }}
+            >
+              Apri
+            </Button>
+            {!occupato && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 sm:h-8"
+                onClick={() => setDaAnnullare({ lotto: stato.lotto!, clienti: conti.tutte })}
+              >
+                Annulla
+              </Button>
+            )}
+          </span>
+        </div>
+      )}
+      {!inMemoria &&
+        aperti.map((a) => (
+          <div
+            key={a.lotto}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2.5"
+            role="status"
+          >
+            <span className="flex min-w-0 items-center gap-2 text-[12.5px]">
+              <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0">
+                Caricamento dalla chat in corso: {a.clienti} clienti, {a.letti} letti,{" "}
+                {a.righeAperte} da emettere
+                {a.righeEmesse > 0 ? `, ${a.righeEmesse} già emesse` : ""}.
+              </span>
+            </span>
+            <span className="flex gap-2">
+              <Button
+                size="sm"
+                className="h-11 sm:h-8"
+                disabled={occupato}
+                onClick={() => void riprendiDalBanner(a.lotto)}
+              >
+                Riprendi
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-11 sm:h-8"
+                disabled={occupato}
+                onClick={() => setDaAnnullare({ lotto: a.lotto, clienti: a.clienti })}
+              >
+                Annulla
+              </Button>
+            </span>
+          </div>
+        ))}
+    </>
+  );
+
+  /* ── il corpo della finestra ──────────────────────────────────────────── */
+  const erroreMostrato = stato.errore && stato.errore !== erroreChiuso ? stato.errore : null;
+  const avvisi = (
+    <div className="space-y-2">
+      {erroreMostrato && (
+        <NotaFinestra tono="attenzione" icona={AlertTriangle}>
+          <span role="alert" className="flex items-start justify-between gap-2">
+            <span>{fraseDi(erroreMostrato.codice, erroreMostrato.messaggio)}</span>
+            <button
+              type="button"
+              className="shrink-0 font-medium underline"
+              onClick={() => setErroreChiuso(stato.errore)}
+            >
+              Chiudi
+            </button>
+          </span>
+        </NotaFinestra>
+      )}
+      {stato.fermata && (
+        <NotaFinestra tono="attenzione" icona={AlertTriangle}>
+          {stato.fermata.per === "annullata"
+            ? "Hai interrotto: quello che era già stato fatto resta."
+            : `Mi sono fermato da solo dopo troppi errori di fila. ${stato.fermata.codice ? fraseDi(stato.fermata.codice) : ""}`}
+        </NotaFinestra>
+      )}
+    </div>
+  );
+
+  let corpo: React.ReactNode;
+  let piede: React.ReactNode = null;
+  let titoloContesto = "";
+
+  if (lavoro && lavoro.cosa !== "emissione" && lavoro.cosa !== "pagamento") {
+    const etichette: Record<string, string> = {
+      apertura: "Preparo il caricamento…",
+      ricerca: `Letti ${lavoro.fatti} di ${lavoro.totale} clienti`,
+      conferme: `Confermate ${lavoro.fatti} di ${lavoro.totale} righe`,
+    };
+    const v = lavoro.totale > 0 ? Math.round((lavoro.fatti / lavoro.totale) * 100) : 0;
+    titoloContesto = etichette[lavoro.cosa] ?? "";
+    corpo = (
+      <div className="mx-auto max-w-xl space-y-4 py-6" aria-live="polite">
+        <p className="text-[15px] font-semibold tabular-nums text-slate-900">
+          {etichette[lavoro.cosa]}
+        </p>
+        <Progress
+          value={v}
+          aria-label="Avanzamento"
+          className="h-2 bg-slate-200 [&>div]:bg-slate-700"
+        />
+        {lavoro.cosa === "ricerca" && (
+          <p className="text-[12.5px] leading-relaxed text-slate-600">
+            Possono passare alcuni minuti. Puoi chiudere questa finestra e fare altro nel CRM, ma la
+            pagina deve restare aperta: il riquadro in cima dice a che punto siamo. Se la chiudi, si
+            riprende da dove eri arrivato senza ripagare quello che è già stato letto.
+          </p>
+        )}
+        {avvisi}
+      </div>
+    );
+    piede =
+      lavoro.cosa === "ricerca" ? (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 sm:h-9"
+            onClick={() => onCambio(false)}
+          >
+            Chiudi e continua
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 sm:h-9"
+            onClick={() => lotto.interrompi()}
+          >
+            Interrompi
+          </Button>
+        </>
+      ) : null;
+  } else if (mostraCandidati) {
+    titoloContesto = "Scegli i clienti";
+    corpo = (
+      <div className="space-y-3">
+        <SelettoreModalita modalita={modalita} onModalita={onModalita} disabilitato={occupato} />
+        {avvisi}
+        <ListaClientiChat
+          candidati={candidati}
+          caricando={caricandoCandidati}
+          errore={erroreCandidati}
+          ricerca={ricerca}
+          onRicerca={setRicerca}
+          scelti={scelti}
+          onScelti={setScelti}
+          occupato={occupato}
+          onCerca={() => void cercaNelleChatOra()}
+        />
+        {righe.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-11 sm:h-9 text-slate-600"
+            onClick={() => setMostraCandidati(false)}
+          >
+            Torna all&apos;elenco di questo caricamento
+          </Button>
+        )}
+      </div>
+    );
+    piede = (
+      <Button
+        type="button"
+        variant="outline"
+        className="h-11 sm:h-9"
+        onClick={() => onCambio(false)}
+      >
+        Chiudi
+      </Button>
+    );
+  } else if (riga && rigaAperta(riga)) {
+    const i = apribili.findIndex((r) => r.idRiga === riga.idRiga);
+    titoloContesto = nomeDellaRiga(riga);
+    corpo = (
+      <div className="space-y-3">
+        {avvisi}
+        <PannelloRigaChat
+          key={riga.idRiga}
+          riga={riga}
+          rigaChat={rigaGrezza}
+          posizione={i + 1}
+          totale={apribili.length}
+          lotto={stato.lotto!}
+          nomeScheda={nomiSchedeDaLeads(leads).get(riga.scheda ?? "") ?? "Scheda non trovata"}
+          occupato={occupato}
+          nPerAvviso={nPerAvviso}
+          onSalva={(c) => lotto.salvaRiga(riga.idRiga, c)}
+          onCaricaPagamento={(file) => lotto.caricaPagamento(riga.idRiga, file)}
+          onRileggiPagamento={() => void lotto.leggiPagamento(riga.idRiga)}
+          onRileggiChat={() => void lotto.rileggiChat(riga.idRiga)}
+          onConfermaPerTutte={(c) => void confermaAvviso(c)}
+          onApriScheda={() => {
+            onCambio(false);
+            if (riga.scheda) apriLead(riga.scheda);
+          }}
+          onIndietro={tornaAllElenco}
+          onPrecedente={i > 0 ? () => apriRiga(apribili[i - 1].idRiga) : null}
+          onSuccessiva={
+            i >= 0 && i < apribili.length - 1 ? () => apriRiga(apribili[i + 1].idRiga) : null
+          }
+          onProssima={conti.da_controllare > 0 ? () => vaiAllaProssima(riga.idRiga) : null}
+        />
+      </div>
+    );
+  } else if (stato.lottoChiuso) {
+    titoloContesto = "Caricamento concluso";
+    corpo = (
+      <div className="mx-auto max-w-md space-y-3 py-8 text-center">
+        <p className="text-[15px] font-semibold text-slate-900">
+          Tutte le righe sono emesse o scartate.
+        </p>
+        <p className="text-[12.5px] text-slate-600">
+          Lo screenshot del bonifico è stato cancellato. Se ti serve un altro caricamento,
+          ricomincia da capo.
+        </p>
+        <Button type="button" className="h-11 sm:h-9" onClick={nuovoCaricamento}>
+          Nuovo caricamento
+        </Button>
+      </div>
+    );
+  } else {
+    titoloContesto = `${conti.tutte} ${conti.tutte === 1 ? "cliente" : "clienti"} · ${conti.pronto} pronte · ${conti.da_controllare} da controllare · ${conti.errore} errori`;
+    corpo = (
+      <div className="space-y-3">
+        <SelettoreModalita modalita={modalita} onModalita={onModalita} disabilitato={occupato} />
+        {avvisi}
+        <AnteprimaChat
+          righe={righe}
+          decisioni={decisioni}
+          filtro={filtro}
+          onFiltro={(f) => {
+            setFiltro(f);
+            setPagina(0);
+          }}
+          pagina={pagina}
+          onPagina={setPagina}
+          occupato={occupato}
+          nPronte={nPronte}
+          avvisiPerTutte={avvisiPerTutte}
+          onApri={apriRiga}
+          onProssima={() => vaiAllaProssima()}
+          onConfermaTutte={() => void confermaTutte()}
+          onConfermaAvviso={(c) => void confermaAvviso(c)}
+        />
+        <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-11 sm:h-9 text-slate-600"
+            disabled={occupato}
+            onClick={() => setMostraCandidati(true)}
+          >
+            Aggiungi altri clienti
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-11 sm:h-9 text-rose-700 hover:text-rose-800"
+            disabled={occupato}
+            onClick={() => setDaAnnullare({ lotto: stato.lotto!, clienti: conti.tutte })}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Annulla questo caricamento
+          </Button>
+        </div>
+      </div>
+    );
+    piede = (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 sm:h-9"
+          onClick={() => onCambio(false)}
+        >
+          Chiudi
+        </Button>
+        <Button
+          type="button"
+          className="h-11 sm:h-9 sm:min-w-52"
+          disabled={occupato || nEmettibili === 0}
+          onClick={() => setFaseEm("conferma")}
+        >
+          Emetti le confermate ({nEmettibili})
+        </Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {riquadro}
+
+      <Finestra
+        aperta={aperta}
+        onCambio={onCambio}
+        larghezza="xl"
+        icona={MessageCircle}
+        titolo="Carica in blocco"
+        contesto={titoloContesto || undefined}
+        azioni={piede}
+        classeCorpo="min-h-[50vh]"
+      >
+        {corpo}
+      </Finestra>
+
+      {faseEm && (
+        <RiepilogoEmissioneBulk
+          aperta
+          onCambio={(v) => {
+            if (!v && faseEm !== "corso") setFaseEm(null);
+          }}
+          fase={faseEm}
+          righe={righe}
+          fatti={fatti}
+          emesse={emesse}
+          azienda={azienda}
+          avanzamento={
+            lavoro?.cosa === "emissione" ? { fatti: lavoro.fatti, totale: lavoro.totale } : null
+          }
+          riepilogo={riepilogoFinale}
+          lottoChiuso={stato.lottoChiuso}
+          oggi={oggi}
+          onEmetti={() => void emettiOra()}
+          onInterrompi={() => lotto.interrompi()}
+          onPrendiControllo={() => {
+            void lotto
+              .prendiIlControllo()
+              .then((ok) => ok && toast.success("Hai il controllo: puoi emettere di nuovo"));
+          }}
+          onScaricaXml={p.onScaricaXml}
+        />
+      )}
+
+      <Finestra
+        aperta={!!daAnnullare}
+        onCambio={(v) => !v && setDaAnnullare(null)}
+        larghezza="sm"
+        bloccante
+        icona={Trash2}
+        titolo="Annullo questo caricamento?"
+        contesto={daAnnullare ? `${daAnnullare.clienti} clienti` : undefined}
+        azioni={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 sm:h-9"
+              onClick={() => setDaAnnullare(null)}
+            >
+              Lascia stare
+            </Button>
+            <Button
+              type="button"
+              className="h-11 sm:h-9 bg-rose-600 hover:bg-rose-700"
+              onClick={() => void annullaConfermato()}
+            >
+              Sì, annulla
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[13.5px] leading-relaxed text-slate-700">
+          Le righe e lo screenshot del bonifico di questo caricamento vengono cancellati. Le fatture
+          già emesse restano dove sono. Per riprendere dovrai scegliere di nuovo i clienti.
+        </p>
+      </Finestra>
+    </>
+  );
+}
+
+/** `nome cognome` per ogni lead, per l'etichetta «Scheda cliente collegata» del pannello
+ *  (SPEC §5): qui serve solo per mostrare un nome, non per abbinare — l'abbinamento vero
+ *  (per CF diverso dalla scheda) resta quello di `bulk/valuta.ts`, non toccato. */
+function nomiSchedeDaLeads(leads: Lead[]): Map<string, string> {
+  return new Map(
+    (Array.isArray(leads) ? leads : []).map((l) => [
+      l.id,
+      `${l.data?.nome ?? ""} ${l.data?.cognome ?? ""}`.trim() || "senza nome",
+    ]),
+  );
+}
+
+/* ══ 4. IL COMPONENTE DELLA PAGINA (le due porte d'ingresso, SPEC §1/§3) ═══
+ *  `CaricaInBloccoFatture` non ha più corpo proprio: sceglie solo la modalità e
+ *  monta SEMPRE entrambe le finestre (PIANO T8) — una visibile, l'altra con il
+ *  lavoro che continua in background, come già faceva la bulk con la finestra
+ *  chiusa. Firma identica a prima (`PropsCaricaInBlocco`): zero cambi per chi
+ *  la chiama (`src/routes/CRM.fatture.tsx`). */
+export function CaricaInBloccoFatture(p: PropsCaricaInBlocco) {
+  const [modalita, setModalita] = useState<Modalita>("screenshot");
+  return (
+    <>
+      <CaricaBulkDaScreenshot {...p} modalita={modalita} onModalita={setModalita} />
+      <CaricaDallaChat {...p} modalita={modalita} onModalita={setModalita} />
     </>
   );
 }

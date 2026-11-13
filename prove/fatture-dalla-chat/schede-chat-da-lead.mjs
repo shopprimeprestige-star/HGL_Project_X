@@ -46,7 +46,12 @@ export async function prove(_mod, { c, gruppo, radice }) {
           telefono: "+39 333 1234567",
         }),
       );
-      return { nome: s.nome, cognome: s.cognome, codiceFiscale: s.codiceFiscale, telefono: s.telefono };
+      return {
+        nome: s.nome,
+        cognome: s.cognome,
+        codiceFiscale: s.codiceFiscale,
+        telefono: s.telefono,
+      };
     })(),
   );
 
