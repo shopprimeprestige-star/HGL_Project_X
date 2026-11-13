@@ -105,10 +105,11 @@ export function proveLandingInvisibleDerm(mod, { c, gruppo, radice }) {
   const editor = senzaCommenti(leggi(`${cartella}/ModificaImmagini.tsx`));
   const chiaviNeiPunti = [...rotta.matchAll(/punto\("[^"]+", \[([^\]]*)\]/g)].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]))
     .concat(/punto\("Prima e dopo", SLOT_PRIMA_DOPO\.map/.test(rotta) ? T.SLOT_PRIMA_DOPO.map((s) => s.chiave) : []);
-  c("prima e dopo: 3 coppie e 2 video, con liberatoria", [10, true], [T.SLOT_PRIMA_DOPO.length, /primaDopoOk = liberatoriaOk\(text\("id\.primaDopo\.liberatoria"\)\)/.test(rotta)]);
+  c("prima e dopo: 3 coppie e 2 video, con liberatoria", [10, true], [T.SLOT_PRIMA_DOPO.length, /primaDopoOk = libOk\("id\.primaDopo\.liberatoria"\)/.test(rotta) && /libOk = \(k: string\) => modifica \|\| liberatoriaOk\(text\(k\)\)/.test(rotta)]);
   c("editor: ogni punto foto/video ha una sezione da cui cambiarlo", [], T.SLOT_ID.map((s) => s.chiave).filter((k) => !chiaviNeiPunti.includes(k)));
   c("editor: nessuna chiave inventata nei bottoni", [], chiaviNeiPunti.filter((k) => !T.SLOT_ID.some((s) => s.chiave === k)));
   c("editor: si accende solo con ?modifica e un accesso aperto", true, /has\("modifica"\)/.test(editor) && /data\.session\?\.user/.test(editor));
   c("editor: salva un campo solo, rileggendo la riga prima", true, /salvaCampoLanding\(/.test(editor) && /export async function salvaCampoLanding[\s\S]*?\.select\("data"\)[\s\S]*?\.upsert\(/.test(leggi("src/landing/landing-content.ts")));
+  c("nessun indirizzo della sede sulla landing (titolare, 13/11/2026)", false, /Scipioni/i.test(pagina));
   c("la home non importa niente della nuova pagina", false, /invisible-derm|testi-invisible/.test(leggi("src/routes/index.tsx")));
 }

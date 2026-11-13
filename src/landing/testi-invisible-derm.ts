@@ -19,7 +19,7 @@ export const META = {
 };
 
 export const MARCHIO = {
-  indirizzo: "Studio a Roma · Via degli Scipioni 132",
+  indirizzo: "Studio a Roma",
   altLogo: "Hair Genius Labs",
 };
 
@@ -138,20 +138,9 @@ export const TABELLA = {
   chiusura: "In consulenza valutiamo anche trapianto e patch standard. Se per te è meglio un'altra strada, te lo diciamo.",
 };
 
+/** La sezione «Chi siamo» con l'indirizzo è stata tolta dalla landing (titolare, 13/11/2026): resta solo l'alt del ritratto. */
 export const STUDIO = {
-  sopratitolo: "Chi siamo",
-  h2: "Uno studio vero, a Roma.",
-  corpo:
-    "Hair Genius Labs. Via degli Scipioni 132, Roma. Qui facciamo la posa di Invisible Derm, di cui abbiamo l'esclusiva. La consulenza la fai prima, online, da casa.",
-  indirizzo: ["Hair Genius Labs", "Via degli Scipioni 132 · Roma"],
   altTitolare: "Il titolare di Hair Genius Labs nello studio di Roma.",
-  didascalie: ["Ingresso, via degli Scipioni 132", "La sala interna", "La postazione di posa", "Lo studio in 20 secondi"],
-  alt: [
-    "Ingresso dello studio Hair Genius Labs con il numero civico 132 in via degli Scipioni, a Roma.",
-    "La sala interna dello studio.",
-    "La postazione dove si fa la posa di Invisible Derm.",
-    "Un giro dello studio di Roma, in 20 secondi.",
-  ],
 };
 
 export const PASSI = {
@@ -194,7 +183,7 @@ export const PRENOTA = {
 export const BARRA = { chiudi: "Chiudi la barra" };
 
 export const FOOTER = {
-  riga: "Hair Genius Labs · Via degli Scipioni 132, Roma",
+  riga: "Hair Genius Labs · Roma",
   // Gli stessi dati già pubblici nel Footer della home (4.13 del documento).
   ragioneSociale: "HAIR GENIUS LABS SRLS · P.IVA 18486531009",
 };
@@ -223,10 +212,6 @@ export const SLOT_ID: SlotId[] = [
   { chiave: "id.testPoster", label: "Pilastro Resistente · copertina del test, 4:5", tipo: "image", alt: RESISTENTE.resistente.alt },
   ...RESISTENTE.ogniGiorno.clip.map((c, i): SlotId => ({ chiave: `id.vita${i + 1}`, label: `Per ogni giorno · clip ${c.etichetta}, 3:4, muta, 6-8 s, ≤ 2,5 MB`, tipo: "video", alt: c.alt })),
   { chiave: "id.simboloFoto", label: "Immagine-simbolo, membrana tesa controfuoco, 21:9", tipo: "image", alt: RESISTENTE.simbolo.alt },
-  { chiave: "id.studio1", label: "Studio · ingresso col civico 132, 16:10", tipo: "image", alt: STUDIO.alt[0] },
-  { chiave: "id.studio2", label: "Studio · sala interna, 4:3", tipo: "image", alt: STUDIO.alt[1] },
-  { chiave: "id.studio3", label: "Studio · postazione di posa, 4:3", tipo: "image", alt: STUDIO.alt[2] },
-  { chiave: "id.studioVideo", label: "Studio · giro di 20 s, 16:9, muto, ≤ 8 MB", tipo: "video", alt: STUDIO.alt[3] },
   { chiave: "id.posaVideo", label: "Come funziona · posa accelerata, 16:9, 30 s, muta", tipo: "video", alt: PASSI.videoAlt },
   { chiave: "id.posaPoster", label: "Come funziona · copertina della posa, 16:9", tipo: "image", alt: PASSI.videoAlt },
 ];

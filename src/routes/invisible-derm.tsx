@@ -13,7 +13,7 @@
  *   recensione; aggiungerla quando arrivano video e consensi. L'`og:image` (`id.heroFoto`) non c'è:
  *   la testata è statica e il file vive nel CRM; servirebbe un loader. */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   CalendarCheck,
   Check,
@@ -50,7 +50,7 @@ import { CursoreConfronto } from "@/components/landing/invisible-derm/CursoreCon
 import { FooterId } from "@/components/landing/invisible-derm/FooterId";
 import { TabellaConfronto } from "@/components/landing/invisible-derm/TabellaConfronto";
 import { VideoSlot } from "@/components/landing/invisible-derm/VideoSlot";
-import { BarraModifica, PuntoModifica, useModificaAttiva } from "@/components/landing/invisible-derm/ModificaImmagini";
+import { BarraModifica, PuntoModifica, segnaposto, useModificaAttiva } from "@/components/landing/invisible-derm/ModificaImmagini";
 import { useLandingContent } from "@/landing/landing-content";
 import {
   BOTTONE,
@@ -216,21 +216,24 @@ function Trascrizione({ testo }: { testo: string }) {
 }
 
 function InvisibleDerm() {
-  const { text, media } = useLandingContent();
+  const { text, media: mediaVero } = useLandingContent();
+  const modifica = useModificaAttiva();
+  // in modifica ogni punto vuoto si disegna come riquadro giallo, al suo posto, e le liberatorie non nascondono niente
+  const media = useCallback((k: string) => mediaVero(k) || (modifica ? segnaposto(k) : ""), [mediaVero, modifica]);
+  const libOk = (k: string) => modifica || liberatoriaOk(text(k));
   const largo = useSchermoLargo();
   useTracciamento();
   useFocusPrenota();
   const alt = (chiave: string) => text(`${chiave}.alt`);
-  const modifica = useModificaAttiva();
   const punto = (titolo: string, chiavi: string[], liberatoria?: { chiave: string; testo: string }) => (
-    <PuntoModifica attiva={modifica} titolo={titolo} chiavi={chiavi} media={media} text={text} liberatoria={liberatoria} />
+    <PuntoModifica attiva={modifica} titolo={titolo} chiavi={chiavi} media={mediaVero} text={text} liberatoria={liberatoria} />
   );
   const LIB = "Ho la liberatoria scritta di chi è ritratto (senza, queste foto non compaiono sulla pagina)";
 
   const titolareFoto = media("id.titolareFoto");
   const heroFoto = media("id.heroFoto");
   const videoPres = media("id.presentazioneVideo");
-  const confrontoOk = liberatoriaOk(text("id.confronto.liberatoria"));
+  const confrontoOk = libOk("id.confronto.liberatoria");
   // una coppia incompleta (manca un file) o senza liberatoria sparisce intera
   const coppia = (k: string) => confrontoOk && !!media(`${k}.patch`) && !!media(`${k}.derm`);
   const c1 = coppia("id.confronto1");
@@ -242,10 +245,8 @@ function InvisibleDerm() {
   const test = media("id.testVideo");
   const sottileFoto = media("id.sottileFoto");
   const vita = ICONE_VITA.map((Icona, i) => ({ Icona, i, src: media(`id.vita${i + 1}`) })).filter((v) => v.src);
-  const vitaOk = liberatoriaOk(text("id.vita.liberatoria")) && vita.length >= 2;
-  const studio = [1, 2, 3].map((n) => ({ src: media(`id.studio${n}`), chiave: `id.studio${n}`, i: n - 1 })).filter((s) => s.src);
-  const studioVideo = media("id.studioVideo");
-  const primaDopoOk = liberatoriaOk(text("id.primaDopo.liberatoria"));
+  const vitaOk = libOk("id.vita.liberatoria") && vita.length >= 2;
+  const primaDopoOk = libOk("id.primaDopo.liberatoria");
   const casi = PRIMA_DOPO.casi.filter((c) => primaDopoOk && !!media(`${c.chiave}.prima`) && !!media(`${c.chiave}.dopo`));
   const videoPD = PRIMA_DOPO.video.filter((v) => primaDopoOk && !!media(v.chiave));
   const haPrimaDopo = casi.length > 0 || videoPD.length > 0;
@@ -258,7 +259,7 @@ function InvisibleDerm() {
 
   return (
     <main id="top" className="min-h-screen overflow-x-hidden">
-      {modifica && <BarraModifica />}
+      {modifica && <BarraModifica vista={media} media={mediaVero} text={text} />}
       {/* 0 + 1 · RIGA DEL MARCHIO E HERO */}
       <section
         aria-labelledby="titolo-principale"
@@ -558,51 +559,6 @@ function InvisibleDerm() {
           <p className="mx-auto mt-12 max-w-2xl text-center text-base text-white/75 md:text-lg">{TABELLA.chiusura}</p>
           <div className="mt-8">
             <Cta traccia="cta_tabella_clic" />
-          </div>
-        </div>
-      </section>
-
-      {/* 7 · LO STUDIO (prima della 6, anche nel DOM) */}
-      <section aria-labelledby="studio-titolo" className="relative bg-white-grid">
-        {punto("Studio", ["id.titolareFoto", "id.studio1", "id.studio2", "id.studio3", "id.studioVideo"])}
-        <div className={SEZIONE}>
-          <div className={studio.length || studioVideo ? "grid items-start gap-10 lg:grid-cols-[1fr_1.1fr] lg:gap-16" : "mx-auto max-w-3xl text-center"}>
-            <div>
-              <div className="eyebrow">{STUDIO.sopratitolo}</div>
-              <h2 id="studio-titolo" className={`${H2} text-ink`}>{STUDIO.h2}</h2>
-              <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg">{STUDIO.corpo}</p>
-              {/* l'indirizzo è testo: non un link, non una mappa */}
-              <div className="brackets mt-8 inline-flex items-center gap-3 px-6 py-4 text-left">
-                <span className="br-tr" />
-                <span className="br-bl" />
-                <MapPin className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                <p className="text-base text-ink">
-                  <strong>{STUDIO.indirizzo[0]}</strong>
-                  <br />
-                  {STUDIO.indirizzo[1]}
-                </p>
-              </div>
-              {titolareFoto && (
-                <div className="mt-8 max-w-xs">
-                  <MediaSlot src={titolareFoto} type="image" alt={alt("id.titolareFoto")} proporzione="aspect-[4/5]" />
-                </div>
-              )}
-            </div>
-            {(studio.length > 0 || studioVideo) && (
-              <div className="grid grid-cols-2 gap-4">
-                {studio.map((s) => (
-                  <figure key={s.chiave} className={s.i === 0 ? "col-span-2" : ""}>
-                    <MediaSlot src={s.src} type="image" alt={alt(s.chiave)} proporzione={s.i === 0 ? "aspect-[16/10]" : "aspect-[4/3]"} />
-                    <figcaption className="mt-2 text-sm text-ink-muted">{STUDIO.didascalie[s.i]}</figcaption>
-                  </figure>
-                ))}
-                {studioVideo && (
-                  <figure className="col-span-2">
-                    <VideoSlot src={studioVideo} alt={alt("id.studioVideo")} titolo={STUDIO.didascalie[3]} muto className="aspect-video" />
-                  </figure>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </section>

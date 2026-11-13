@@ -48,7 +48,7 @@ export function ClipLoop({ clips, className = "", classeClip = "", nome, scorre 
       {clips.map((c, i) => (
         <figure key={i} className={classeClip}>
           {c.sopra}
-          <video src={c.src} muted loop playsInline preload="metadata" controls={fermo} aria-label={c.alt} className="aspect-[3/4] w-full rounded-md bg-blueprint-fine object-cover" />
+          <video src={c.src} poster={c.src.startsWith("data:image") ? c.src : undefined} muted loop playsInline preload="metadata" controls={fermo} aria-label={c.alt} className="aspect-[3/4] w-full rounded-md bg-blueprint-fine object-cover" />
           {c.sotto}
         </figure>
       ))}
