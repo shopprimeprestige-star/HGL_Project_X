@@ -1237,6 +1237,7 @@ function CaricaDallaChat(
     [leads],
   );
   const schedeChat = useMemo(() => schedeChatDaLeads(Array.isArray(leads) ? leads : []), [leads]);
+  const nomiSchede = useMemo(() => nomiSchedeDaLeads(leads), [leads]);
   const oggi = oggiItaliano();
   const costruito = useMemo<Omit<ContestoValutazione, "lotto">>(
     () => ({ azienda, oggi, emesse, bozze, schede, impronteAltriLotti: [] }),
@@ -1704,7 +1705,7 @@ function CaricaDallaChat(
           posizione={i + 1}
           totale={apribili.length}
           lotto={stato.lotto!}
-          nomeScheda={nomiSchedeDaLeads(leads).get(riga.scheda ?? "") ?? "Scheda non trovata"}
+          nomeScheda={nomiSchede.get(riga.scheda ?? "") ?? "Scheda non trovata"}
           occupato={occupato}
           nPerAvviso={nPerAvviso}
           onSalva={(c) => lotto.salvaRiga(riga.idRiga, c)}
