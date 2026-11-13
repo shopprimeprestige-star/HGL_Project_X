@@ -3825,6 +3825,15 @@ function QuoteBuilder() {
     }
   };
 
+  /** Toglie il codice sconto messo per sbaglio: campo vuoto, prezzo di nuovo
+   *  senza lo sconto. Richiesta del titolare: «se metto codice sconto ci sia
+   *  una x per rimuoverlo». */
+  const togliCodice = () => {
+    setManual(null);
+    setCodeInput("");
+    setCodeErr(null);
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     /*  ── ⚠️ CONFERMA IL CONSULENTE, NON IL CLIENTE ────────────────────────
@@ -6544,6 +6553,7 @@ function QuoteBuilder() {
                   offertaGaranzia,
                   setCodeInput,
                   applyCode,
+                  togliCodice,
                   checking,
                   codeErr,
                   manual,
@@ -6594,6 +6604,7 @@ function QuoteBuilder() {
                   offertaGaranzia,
                   setCodeInput,
                   applyCode,
+                  togliCodice,
                   checking,
                   codeErr,
                   manual,
@@ -8637,6 +8648,7 @@ function Summary(p: any) {
     codeInput,
     setCodeInput,
     applyCode,
+    togliCodice,
     checking,
     codeErr,
     manual,
@@ -8738,8 +8750,19 @@ function Summary(p: any) {
               value={codeInput}
               onChange={(e: any) => setCodeInput(e.target.value.toUpperCase())}
               placeholder="ES. H7135X"
-              className={`${inputCls} pl-8 uppercase`}
+              className={`${inputCls} pl-8 uppercase ${codeInput || manual ? "pr-8" : ""}`}
             />
+            {(codeInput || manual) && togliCodice && (
+              <button
+                type="button"
+                onClick={togliCodice}
+                aria-label="Togli il codice sconto"
+                title="Togli il codice sconto"
+                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <button
             type="button"
