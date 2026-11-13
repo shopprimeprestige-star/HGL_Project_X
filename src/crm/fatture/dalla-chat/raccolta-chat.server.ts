@@ -277,3 +277,114 @@ export async function percorsoPontePerMiniatura(
   );
   return riga ? riga.percorso : null;
 }
+
+/* ══ 7. LE BOLLE SCELTE (Via 2, T11.3, SPEC §9.3 passo 5, §9.6) ═══════════
+ *  `raccogliBolle(porte, userId, telefono, bolle)`: l'OPPOSTO di `raccogliChat` — SOLO le bolle
+ *  scelte a mano (fino a 10, validato da chi chiama: `chat.server.ts`), non tutta la chat. Ogni
+ *  id si VERIFICA (chiave di servizio) prima di fidarsene: deve appartenere DAVVERO a quel numero
+ *  (lo stesso elenco filtrato per numero che già usa `raccogliChat`) ed essere `inbound` —
+ *  altrimenti si scarta IN SILENZIO, zero sottorichieste sprecate per quell'id, nessun errore che
+ *  confermi o neghi l'esistenza di un id a chi lo indovina (lo stesso principio di `raccogliChat`,
+ *  mai fidarsi di un valore che arriva dal browser). */
+export interface BollaScelta {
+  tipo: "testo" | "immagine";
+  /** `wa_message_id`: per il testo è il messaggio stesso; per un'immagine, del ponte o di
+   *  ManyChat, è il messaggio che la porta (il ponte la trova per chiave `bw:<numero>:<id>`,
+   *  ManyChat per il link dentro `body`). */
+  id: string;
+}
+
+export interface RaccoltaBolle {
+  /** Pronto per `corpoRichiestaChat` (T2): solo i testi delle bolle scelte, uniti con «\n», nello
+   *  stesso ordine cronologico delle bolle (non dell'elenco inviato dal browser). */
+  testo: string;
+  /** Solo le immagini delle bolle scelte (al più quante bolle-immagine sono state scelte). */
+  immagini: string[];
+  /** PARALLELO a `immagini` (T11.1, stesso principio di `raccogliChat`). */
+  fonti: FonteChatGrezza[];
+}
+
+export async function raccogliBolle(
+  porte: PorteRaccoltaChat,
+  userId: string,
+  telefono: string,
+  bolle: BollaScelta[],
+): Promise<RaccoltaBolle> {
+  const VUOTA_BOLLE: RaccoltaBolle = { testo: "", immagini: [], fonti: [] };
+  const nove = ultime9(telefono);
+  if (!nove || bolle.length === 0) return VUOTA_BOLLE;
+
+  const grezzi = await porte.messaggi(userId, nove);
+  const inbound = grezzi.filter((m) => m.direction === "inbound" && !m.duplicatoDi);
+  const perId = new Map(inbound.map((m) => [m.id, m]));
+
+  // Solo gli id che corrispondono DAVVERO a un messaggio in entrata di QUESTO numero: un id
+  // manomesso (di un altro numero, o un nostro messaggio) non entra nemmeno nell'elenco — scartato
+  // qui, prima di spendere qualunque altra sottorichiesta per lui.
+  const scelte = bolle
+    .map((b) => ({ ...b, msg: perId.get(b.id) }))
+    .filter((b): b is BollaScelta & { msg: MessaggioChatGrezzo } => !!b.msg);
+
+  const righeTesto = scelte
+    .filter((b) => b.tipo === "testo")
+    .sort((a, b) => perData(a.msg, b.msg))
+    .map((b) => String(b.msg.body ?? "").trim())
+    .filter(Boolean);
+  const testo = righeTesto.join("\n");
+
+  const immaginiScelte = scelte.filter((b) => b.tipo === "immagine");
+  if (immaginiScelte.length === 0) return { testo, immagini: [], fonti: [] };
+
+  // La porta `mediaPonte` si interroga UNA volta sola (come in `raccogliChat`), non una per bolla.
+  const grezziMedia = await porte.mediaPonte(userId, nove);
+  const prontePerId = new Map<string, MediaPonteGrezzo>();
+  for (const r of grezziMedia) {
+    if (r.stato !== "pronta" || r.categoria !== "foto") continue;
+    const id = idDaChiave(r.chiave);
+    if (id) prontePerId.set(id, r);
+  }
+
+  interface Candidata {
+    creatoIl: string;
+    fonte: FonteChatGrezza;
+    scarica: () => Promise<string | null>;
+  }
+  const candidate: Candidata[] = [];
+  for (const b of immaginiScelte) {
+    const ponte = prontePerId.get(b.id);
+    if (ponte) {
+      candidate.push({
+        creatoIl: b.msg.creatoIl,
+        fonte: { tipo: "ponte", chiave: b.id },
+        scarica: async () => {
+          const url = await porte.firmaPonte(ponte.percorso);
+          return url ? porte.scaricaPonte(url) : null;
+        },
+      });
+      continue;
+    }
+    const k = classificaTesto(b.msg.body);
+    if (k.tipo === "immagine" && k.url) {
+      const url = k.url;
+      candidate.push({
+        creatoIl: b.msg.creatoIl,
+        fonte: { tipo: "manychat", chiave: url },
+        scarica: () => porte.scaricaManyChat(url),
+      });
+    }
+    // Né un ponte PRONTO né un link ManyChat riconosciuto: l'immagine scelta non si legge (un
+    // segnaposto non ancora scaricato, o non era affatto un'immagine) — si scarta in silenzio,
+    // nessuna sottorichiesta sprecata (niente firma, niente scarico per questa bolla).
+  }
+
+  const immagini: string[] = [];
+  const fonti: FonteChatGrezza[] = [];
+  for (const cand of candidate.sort((a, b) => perData(a, b))) {
+    const dataUrl = await cand.scarica();
+    if (dataUrl) {
+      immagini.push(dataUrl);
+      fonti.push(cand.fonte);
+    }
+  }
+  return { testo, immagini, fonti };
+}

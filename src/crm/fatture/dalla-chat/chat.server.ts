@@ -135,7 +135,9 @@ import {
 } from "./lettura-chat";
 import {
   percorsoPontePerMiniatura,
+  raccogliBolle,
   raccogliChat,
+  type BollaScelta,
   type MediaPonteGrezzo,
   type MessaggioChatGrezzo,
   type PorteRaccoltaChat,
@@ -802,6 +804,32 @@ async function cercaChatAzione(
   };
 }
 
+/** `leggi-bolle` (Via 2, T11.3, SPEC §9.3 passo 5): legge SOLO le bolle scelte in chat, mai tutta
+ *  la cronologia — l'opposto di `cerca-chat`. Un gesto esplicito come «Rileggi»: si paga sempre
+ *  (nessuno «già letta» da saltare, a differenza di `cerca-chat`), perché il titolare ha scelto
+ *  bolle precise e vuole che siano proprio quelle a essere lette, non una lettura vecchia. */
+async function leggiBolleAzione(
+  porte: PorteChat,
+  lotto: string,
+  idRiga: string,
+  bolle: BollaScelta[],
+): Promise<RispostaChat> {
+  await testataOppureErrore(porte, lotto);
+  const salvata = await rigaSalvataDi(porte, lotto, idRiga);
+  if (!salvata) throw new ErroreChat("non_trovato");
+  const scheda = await porte.scheda(salvata.scheda);
+  if (!scheda)
+    throw new ErroreChat("non_trovato", "La scheda collegata a questa riga non esiste più.");
+  const schedaFallback = salvata.scheda;
+  const rigaLetta = await conReclamo(porte, lotto, idRiga, async () => {
+    const raccolta = await raccogliBolle(porte.raccolta, porte.utente, scheda.telefono, bolle);
+    const chat = await letturaDaPacchetto(porte, scheda, raccolta, false);
+    return aggiornaRiga(porte, lotto, idRiga, schedaFallback, (attuale) => ({ ...attuale, chat }));
+  });
+  const pagamento = (await pagamentoDi(porte, lotto, idRiga)) ?? undefined;
+  return { ok: true, azione: "leggi-bolle", riga: conPagamento(rigaLetta, pagamento) };
+}
+
 /* ══ 8. IL PAGAMENTO (`carica-pagamento`/`leggi-pagamento`) ═══════════════ */
 
 /** Quanto vale un `caricando`: se il Worker muore fra la chiave e l'upload, dopo questo tempo il
@@ -1100,6 +1128,8 @@ export async function eseguiAzioneChat(
       return cercaChatAzione(porte, richiesta.lotto, richiesta.idRiga, false);
     case "rileggi-chat":
       return cercaChatAzione(porte, richiesta.lotto, richiesta.idRiga, true);
+    case "leggi-bolle":
+      return leggiBolleAzione(porte, richiesta.lotto, richiesta.idRiga, richiesta.bolle);
     case "carica-pagamento":
       return caricaPagamentoAzione(porte, richiesta.lotto, richiesta.idRiga, richiesta.dataUrl);
     case "leggi-pagamento":
@@ -1183,6 +1213,21 @@ function emittenteDi(v: unknown): string {
   return v;
 }
 
+/** Via 2 (SPEC §9.6, T11.3): fino a 10 bolle per chiamata — stesso tetto del client (T13,
+ *  `MAX_BOLLE_FATTURA`), ricontrollato qui perché arriva dal browser e non ci si fida mai di un
+ *  solo controllo lato client. */
+const MAX_BOLLE_LETTURA = 10;
+const ID_BOLLA = /^[A-Za-z0-9_.:-]{1,128}$/;
+function bolleDi(v: unknown): { tipo: "testo" | "immagine"; id: string }[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > MAX_BOLLE_LETTURA) throw NON_VALIDA();
+  return v.map((x) => {
+    const o = oggetto(x);
+    if (o.tipo !== "testo" && o.tipo !== "immagine") throw NON_VALIDA();
+    if (typeof o.id !== "string" || !ID_BOLLA.test(o.id)) throw NON_VALIDA();
+    return { tipo: o.tipo, id: o.id };
+  });
+}
+
 function modificheDi(v: unknown): Partial<CampiRiga> {
   const o = oggetto(v);
   const out: Record<string, string | number | null> = {};
@@ -1225,6 +1270,13 @@ export function leggiRichiestaChat(corpo: unknown): RichiestaChat {
       return { azione: "cerca-chat", lotto: lottoDi(b.lotto), idRiga: idRigaDi(b.idRiga) };
     case "rileggi-chat":
       return { azione: "rileggi-chat", lotto: lottoDi(b.lotto), idRiga: idRigaDi(b.idRiga) };
+    case "leggi-bolle":
+      return {
+        azione: "leggi-bolle",
+        lotto: lottoDi(b.lotto),
+        idRiga: idRigaDi(b.idRiga),
+        bolle: bolleDi(b.bolle),
+      };
     case "carica-pagamento": {
       // Solo JPEG (lo produce la riduzione del browser), stessi limiti di sempre (2 KB-8 MB).
       if (

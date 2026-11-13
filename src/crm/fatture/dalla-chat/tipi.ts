@@ -183,6 +183,14 @@ export type RichiestaChat =
     }
   /** Gesto esplicito, si paga (come «Rileggi» nella bulk): la lettura della chat si rifà. */
   | { azione: "rileggi-chat"; lotto: string; idRiga: string }
+  /** Via 2 (SPEC §9.3 passo 5, §9.6, T11.3): legge SOLO le bolle scelte in chat (1-10), non tutta
+   *  la cronologia — l'opposto di `cerca-chat`. */
+  | {
+      azione: "leggi-bolle";
+      lotto: string;
+      idRiga: string;
+      bolle: { tipo: "testo" | "immagine"; id: string }[];
+    }
   /** Niente `scheda` qui (a differenza della bulk): in questa modalità la scheda
    *  si fissa una sola volta, con `aggiungi-cliente`, mai riassegnata (PIANO §0.1 punto 2). */
   | {
@@ -205,7 +213,7 @@ export type AzioneChat = RichiestaChat["azione"];
 export type RispostaChat =
   | { ok: true; azione: "crea"; lotto: string }
   | { ok: true; azione: "aggiungi-cliente"; riga: RigaChat }
-  | { ok: true; azione: "cerca-chat" | "rileggi-chat"; riga: RigaChat }
+  | { ok: true; azione: "cerca-chat" | "rileggi-chat" | "leggi-bolle"; riga: RigaChat }
   | {
       ok: true;
       azione: "carica-pagamento" | "leggi-pagamento" | "scrivi-pagamento";
