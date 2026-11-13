@@ -61,7 +61,7 @@ import {
   ErroreRotta,
   type RiepilogoEmissione,
 } from "./usa-lotto";
-import type { ContestoValutazione, SchedaPerAbbinamento, SintesiLotto } from "./tipi";
+import type { ContestoValutazione, RigaValutata, SchedaPerAbbinamento, SintesiLotto } from "./tipi";
 import {
   AnteprimaBulk,
   contaPerStato,
@@ -366,6 +366,14 @@ export interface PropsCaricaInBlocco {
   onEmesso: () => void;
   /** Scarica gli XML (stessi controlli della pagina: quelle che verrebbero scartate restano indietro). */
   onScaricaXml: (fatture: Fattura[]) => void;
+  /** ── IL LINK DALLA CHAT (T15 → T16, SPEC §9.3 passo 6, §9.6) ─────────────
+   *  Già validati dalla rotta (`CRM.fatture.tsx`, `leggiRicercaFatture`): se presenti,
+   *  «Dalla chat» si apre da sola su questo lotto, con questa riga scorsa in vista ed
+   *  evidenziata (`CaricaDallaChat`, sotto). Un link vecchio (lotto annullato o concluso,
+   *  riga già emessa o scartata) non è un errore: si apre comunque la lista, con un avviso
+   *  onesto — vedi `rigaApribileDelLink`. */
+  apriLotto?: string;
+  apriRiga?: string;
 }
 
 type Passo = { cosa: "leggi" } | { cosa: "annulla"; lotto: string } | null;
@@ -1223,10 +1231,36 @@ function CaricaBulkDaScreenshot(
  *  la sua scheda (SPEC §5, «l'abbinamento non si indovina, è già dato»), quindi
  *  non c'è una `SceltaFile`: il passo 1 è `ListaClientiChat` (candidati + ricerca
  *  manuale, SPEC §3 passo 1). */
+/** Per T16 (SPEC §9.3 passo 6, §9.6): la riga del link che arriva dalla chat, se è ANCORA
+ *  apribile — `undefined` se il link è vecchio (nessuna riga con quell'id in questo lotto, o
+ *  una riga che c'è ma è già `emessa`/`scartata`): in quel caso chi chiama mostra l'avviso
+ *  onesto («questa riga non c'è più…») invece di evidenziare niente. Pura: guarda solo
+ *  l'elenco già valutato, non tocca lo stato né rifà i conti di `valutaLottoChat`. */
+export function rigaApribileDelLink(
+  righe: RigaValutata[],
+  idRiga: string | undefined,
+): RigaValutata | undefined {
+  if (!idRiga) return undefined;
+  return righe.find((r) => r.idRiga === idRiga && rigaAperta(r));
+}
+
 function CaricaDallaChat(
   p: PropsCaricaInBlocco & { modalita: Modalita; onModalita: (m: Modalita) => void },
 ) {
-  const { onCambio, azienda, emesse, bozze, leads, caricando, modalita, onModalita } = p;
+  const {
+    onCambio,
+    azienda,
+    emesse,
+    bozze,
+    leads,
+    caricando,
+    modalita,
+    onModalita,
+    apriLotto,
+    //  Rinominata: questo componente ha già una funzione locale `apriRiga` (apre il
+    //  pannello di una riga, più sotto) — stesso nome, cosa diversa, nessuna relazione.
+    apriRiga: apriRigaLink,
+  } = p;
   const aperta = p.aperta && modalita === "chat";
   const { apriLead } = useRicerca();
 
@@ -1487,6 +1521,57 @@ function CaricaDallaChat(
     void aggiornaAperti();
   };
 
+  /* ── IL LINK DALLA CHAT (T15 → T16) ──────────────────────────────────────
+   *  SPEC §9.3 passo 6, §9.6: con `apriLotto`/`apriRiga` (già validati dalla rotta) si apre
+   *  da sola questa finestra, su quel lotto, con quella riga scorsa in vista. Un link
+   *  vecchio (lotto annullato/concluso, riga già emessa/scartata) non è un errore bloccante:
+   *  si apre comunque la lista, con l'avviso onesto (`rigaLinkMancante`).
+   *  ⚠️ `tentatoApriLotto` fa partire `riprendiDalBanner` UNA sola volta per ogni valore di
+   *   `apriLotto`: senza questa guardia, ogni nuovo render richiamerebbe `apri` da capo. */
+  const tentatoApriLotto = useRef<string | null>(null);
+  const [apriLottoFinito, setApriLottoFinito] = useState(false);
+  const [rigaLinkMancante, setRigaLinkMancante] = useState(false);
+  const [rigaEvidenziata, setRigaEvidenziata] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!apriLotto || tentatoApriLotto.current === apriLotto) return;
+    tentatoApriLotto.current = apriLotto;
+    void riprendiDalBanner(apriLotto).then(() => setApriLottoFinito(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apriLotto]);
+
+  // Il lotto non si è aperto (link vecchio): niente errore bloccante, solo l'avviso onesto,
+  // e si torna alla lista dei candidati (qui non c'è nessun lotto da mostrare in anteprima).
+  useEffect(() => {
+    if (!apriLottoFinito || tentatoApriLotto.current === null) return;
+    if (stato.lotto !== tentatoApriLotto.current) {
+      setRigaLinkMancante(true);
+      setMostraCandidati(true);
+      return;
+    }
+    const trovata = rigaApribileDelLink(righe, apriRigaLink);
+    if (apriRigaLink && !trovata) setRigaLinkMancante(true);
+    else if (trovata) setRigaEvidenziata(trovata.idRiga);
+  }, [apriLottoFinito, stato.lotto, righe, apriRigaLink]);
+
+  // La riga da evidenziare può essere su una pagina diversa da quella corrente: si porta lì
+  // PRIMA, così il bottone esiste davvero nel DOM quando il prossimo effetto lo cerca.
+  useEffect(() => {
+    if (!rigaEvidenziata) return;
+    const i = visibili.findIndex((r) => r.idRiga === rigaEvidenziata);
+    if (i >= 0) setPagina(Math.floor(i / RIGHE_PER_PAGINA));
+  }, [rigaEvidenziata, visibili]);
+
+  // Scroll ed evidenziazione (SPEC §9.6): stesso meccanismo già in uso per tornare sulla riga
+  // dopo aver chiuso il pannello (`ultimaRiga`/`document.getElementById`), non uno nuovo — il
+  // contorno visibile è lo stesso `focus-visible:ring-…` già sul bottone della riga.
+  useEffect(() => {
+    if (!rigaEvidenziata) return;
+    const el = document.getElementById(`riga-chat-${rigaEvidenziata}`);
+    el?.scrollIntoView({ block: "center" });
+    el?.focus({ preventScroll: true });
+  }, [rigaEvidenziata, pagina]);
+
   /* ── il riquadro in cima alla pagina ──────────────────────────────────── */
   const inMemoria = stato.lotto !== null;
   const letti = (c: typeof conti) =>
@@ -1575,6 +1660,14 @@ function CaricaDallaChat(
   const erroreMostrato = stato.errore && stato.errore !== erroreChiuso ? stato.errore : null;
   const avvisi = (
     <div className="space-y-2">
+      {/*  ── IL LINK DALLA CHAT, VECCHIO (T16) ───────────────────────────────
+          Non è un errore che blocca niente: la lista si apre comunque (qui, o nei
+          candidati se il lotto stesso non c'è più) con un avviso onesto. */}
+      {rigaLinkMancante && (
+        <NotaFinestra tono="attenzione" icona={AlertTriangle}>
+          Questa riga non c&apos;è più: probabilmente è già stata emessa o scartata.
+        </NotaFinestra>
+      )}
       {erroreMostrato && (
         <NotaFinestra tono="attenzione" icona={AlertTriangle}>
           <span role="alert" className="flex items-start justify-between gap-2">

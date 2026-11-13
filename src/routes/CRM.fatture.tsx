@@ -60,6 +60,8 @@ import { CLASSE_CAMPO, Finestra } from "@/crm/ui/Finestra";
 import { useCRM } from "@/crm/CRMContext";
 import { usePuo } from "@/crm/AuthContext";
 import { CaricaInBloccoFatture } from "@/crm/fatture/bulk/FinestraBulk";
+import { lottoValido } from "@/crm/fatture/bulk/chiavi";
+import { idRigaValido } from "@/crm/fatture/dalla-chat/chiavi";
 import type { Lead } from "@/crm/types";
 import { FinestraIncassoFattura } from "@/crm/fatture/FinestraIncassoFattura";
 import { RigaSelezionabile, testoSelezionaTutti, useSelezioneRighe } from "@/crm/importa/selezione";
@@ -88,7 +90,31 @@ import { LinkWhatsapp } from "@/crm/chatwa/SceltaWhatsapp";
 import { eConversione } from "@/crm/kpi-calcoli";
 import { giaIncassato, nomeCompleto, prezzoVendita } from "@/crm/InstallationScheduleDialog";
 
-export const Route = createFileRoute("/CRM/fatture")({ component: FatturePage });
+/** ── IL LINK CHE ARRIVA DALLA CHAT (T15 → T16) ─────────────────────────────
+ *  SPEC `2026-11-13-fatture-dalla-chat` §9.3 passo 6, §9.6: dopo «Usa per
+ *  fattura» in chat si arriva qui con `?apriLotto=<id>&apriRiga=<id scheda>`,
+ *  e «Carica in blocco» si apre da sola su quel lotto con quella riga in
+ *  vista. I due valori arrivano dal browser (query string): si validano QUI,
+ *  PRIMA che finiscano in un fetch o in una chiave, riusando gli stessi
+ *  controlli già scritti per quelle chiavi (`lottoValido`/`idRigaValido`) —
+ *  nessuna regex nuova, nessun valore arbitrario che arrivi al DOM o a una
+ *  richiesta di rete. Un valore che non supera il controllo si scarta IN
+ *  SILENZIO (stesso principio di `leggiRicercaChat`, `chatwa/stato.ts`): non è
+ *  un errore, la pagina si apre comunque come se il parametro non ci fosse —
+ *  è il caso del link vecchio (lotto annullato, riga già emessa) descritto in
+ *  `CaricaDallaChat` (`FinestraBulk.tsx`). */
+export function leggiRicercaFatture(raw: unknown): { apriLotto?: string; apriRiga?: string } {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const lotto =
+    typeof r.apriLotto === "string" && lottoValido(r.apriLotto) ? r.apriLotto : undefined;
+  const riga = typeof r.apriRiga === "string" && idRigaValido(r.apriRiga) ? r.apriRiga : undefined;
+  return { ...(lotto ? { apriLotto: lotto } : {}), ...(riga ? { apriRiga: riga } : {}) };
+}
+
+export const Route = createFileRoute("/CRM/fatture")({
+  validateSearch: (raw) => leggiRicercaFatture(raw),
+  component: FatturePage,
+});
 
 const dataBreve = (iso: string) => {
   const d = new Date(`${iso}T12:00:00`);
@@ -113,6 +139,8 @@ function apriDocumento(f: Fattura, a: DatiAzienda, logo: string) {
 
 function FatturePage() {
   const { leads } = useCRM();
+  //  Il link dalla chat (T15 → T16): già validato da `leggiRicercaFatture`, sopra.
+  const { apriLotto, apriRiga } = Route.useSearch();
   //  «Carica in blocco» emette fatture: lo vede solo chi ha il permesso «pagamenti».
   const puoBulk = usePuo()("pagamenti");
   const [bulkAperto, setBulkAperto] = useState(false);
@@ -716,6 +744,8 @@ function FatturePage() {
           caricando={caricando}
           onEmesso={() => void ricarica()}
           onScaricaXml={(lista) => void scaricaXmlBulk(lista)}
+          apriLotto={apriLotto}
+          apriRiga={apriRiga}
         />
       )}
 
