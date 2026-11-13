@@ -27,6 +27,7 @@ import { Route as PercorsoRouteImport } from './routes/percorso'
 import { Route as NuovaRouteImport } from './routes/nuova'
 import { Route as MeetlyRouteImport } from './routes/meetly'
 import { Route as MediaDirettaRouteImport } from './routes/media-diretta'
+import { Route as InvisibleDermV1RouteImport } from './routes/invisible-derm-v1'
 import { Route as InvisibleDermRouteImport } from './routes/invisible-derm'
 import { Route as CookiePolicyRouteImport } from './routes/cookie-policy'
 import { Route as ConsulenteRouteImport } from './routes/consulente'
@@ -318,6 +319,11 @@ const MeetlyRoute = MeetlyRouteImport.update({
 const MediaDirettaRoute = MediaDirettaRouteImport.update({
   id: '/media-diretta',
   path: '/media-diretta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvisibleDermV1Route = InvisibleDermV1RouteImport.update({
+  id: '/invisible-derm-v1',
+  path: '/invisible-derm-v1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvisibleDermRoute = InvisibleDermRouteImport.update({
@@ -1355,6 +1361,7 @@ export interface FileRoutesByFullPath {
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/invisible-derm': typeof InvisibleDermRoute
+  '/invisible-derm-v1': typeof InvisibleDermV1Route
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
   '/nuova': typeof NuovaRoute
@@ -1575,6 +1582,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/cookie-policy': typeof CookiePolicyRoute
   '/invisible-derm': typeof InvisibleDermRoute
+  '/invisible-derm-v1': typeof InvisibleDermV1Route
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
   '/nuova': typeof NuovaRoute
@@ -1795,6 +1803,7 @@ export interface FileRoutesById {
   '/consulente': typeof ConsulenteRouteWithChildren
   '/cookie-policy': typeof CookiePolicyRoute
   '/invisible-derm': typeof InvisibleDermRoute
+  '/invisible-derm-v1': typeof InvisibleDermV1Route
   '/media-diretta': typeof MediaDirettaRoute
   '/meetly': typeof MeetlyRoute
   '/nuova': typeof NuovaRoute
@@ -2019,6 +2028,7 @@ export interface FileRouteTypes {
     | '/consulente'
     | '/cookie-policy'
     | '/invisible-derm'
+    | '/invisible-derm-v1'
     | '/media-diretta'
     | '/meetly'
     | '/nuova'
@@ -2239,6 +2249,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/cookie-policy'
     | '/invisible-derm'
+    | '/invisible-derm-v1'
     | '/media-diretta'
     | '/meetly'
     | '/nuova'
@@ -2458,6 +2469,7 @@ export interface FileRouteTypes {
     | '/consulente'
     | '/cookie-policy'
     | '/invisible-derm'
+    | '/invisible-derm-v1'
     | '/media-diretta'
     | '/meetly'
     | '/nuova'
@@ -2681,6 +2693,7 @@ export interface RootRouteChildren {
   ConsulenteRoute: typeof ConsulenteRouteWithChildren
   CookiePolicyRoute: typeof CookiePolicyRoute
   InvisibleDermRoute: typeof InvisibleDermRoute
+  InvisibleDermV1Route: typeof InvisibleDermV1Route
   MediaDirettaRoute: typeof MediaDirettaRoute
   MeetlyRoute: typeof MeetlyRoute
   NuovaRoute: typeof NuovaRoute
@@ -2977,6 +2990,13 @@ declare module '@tanstack/react-router' {
       path: '/media-diretta'
       fullPath: '/media-diretta'
       preLoaderRoute: typeof MediaDirettaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invisible-derm-v1': {
+      id: '/invisible-derm-v1'
+      path: '/invisible-derm-v1'
+      fullPath: '/invisible-derm-v1'
+      preLoaderRoute: typeof InvisibleDermV1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invisible-derm': {
@@ -4549,6 +4569,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConsulenteRoute: ConsulenteRouteWithChildren,
   CookiePolicyRoute: CookiePolicyRoute,
   InvisibleDermRoute: InvisibleDermRoute,
+  InvisibleDermV1Route: InvisibleDermV1Route,
   MediaDirettaRoute: MediaDirettaRoute,
   MeetlyRoute: MeetlyRoute,
   NuovaRoute: NuovaRoute,
