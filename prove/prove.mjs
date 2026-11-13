@@ -86,6 +86,7 @@ import { proveSceltaWhatsapp } from "./idee/scelta-whatsapp.mjs";
 import { proveSelezioneChat } from "./idee/selezione-chat.mjs";
 import { proveDatiFattura } from "./dati-fattura.mjs";
 import { proveFattureBulk } from "./fatture-bulk.mjs";
+import { proveFattureDallaChat } from "./fatture-dalla-chat.mjs";
 import { provePannelloOggi } from "./pannello-oggi.mjs";
 import { proveSpesaLead } from "./spesa-lead.mjs";
 
@@ -834,6 +835,12 @@ const MODULI = [
   "fatture/bulk/coda",
   "fatture/bulk/immagini",
   "fatture/bulk/usa-lotto",
+  //  ── FATTURE DALLA CHAT (commessa 2026-11-13-fatture-dalla-chat) ─────────
+  //   ⚠️ L'elenco lo scrive il solo compito T0: gli altri aggiungono il loro
+  //   file `prove/fatture-dalla-chat/<nome>.mjs` (trovato da `proveFattureDallaChat`)
+  //   e NON toccano questo. Le prove dei moduli sono in prove/fatture-dalla-chat/.
+  "fatture/dalla-chat/tipi",
+  "fatture/dalla-chat/chiavi",
 ];
 rmSync(dove, { recursive: true, force: true });
 mkdirSync(dove, { recursive: true });
@@ -21622,6 +21629,7 @@ proveSceltaWhatsapp(mod, { c, gruppo, radice });
 proveSelezioneChat(mod, { c, gruppo, radice });
 await proveDatiFattura(mod, { c, gruppo, radice });
 await proveFattureBulk(mod, { c, gruppo, radice });
+await proveFattureDallaChat(mod, { c, gruppo, radice });
 provePannelloOggi(mod, { c, gruppo, radice });
 proveSpesaLead(mod, { c, gruppo, radice });
 await proveIdeeAi(mod, { c, gruppo, radice });
