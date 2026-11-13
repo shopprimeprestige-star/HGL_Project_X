@@ -57,6 +57,17 @@ export type TestataLottoChat = TestataLotto;
 
 /* ══ 3. LA RIGA (chiave `chat_fatture_r`) ═══════════════════════════════════ */
 
+/** La provenienza di UNA immagine mandata all'AI (PIANO §0bis.1, T11.1): la chiave del ponte
+ *  (`wa_message_id`, per ritrovare poi il percorso Storage e firmare la miniatura) o l'URL
+ *  ManyChat — mai il file stesso: si legge e si scarta (SPEC §4/§5), solo la provenienza resta
+ *  finché la riga non si chiude. Tipo PROPRIO di questa cartella, mai dentro `LetturaTessera`/
+ *  `LetturaIndirizzo` (tipi della bulk, mai toccati). */
+export interface FonteChat {
+  tipo: "ponte" | "manychat";
+  /** Ponte: `wa_message_id`. ManyChat: l'URL originale dell'immagine. */
+  chiave: string;
+}
+
 /** Cosa si è letto nella chat per una riga: tessera e/o indirizzo trovati (o
  *  nessuno, con il perché nei `motivi`), e se ci sono foto non ancora scaricate
  *  dal ponte (segnaposto, SPEC §5) che potrebbero contenere il documento che
@@ -66,6 +77,15 @@ export interface LetturaChat {
   letta: boolean;
   tessera?: LetturaTessera;
   indirizzo?: LetturaIndirizzo;
+  /** Indice 1-based (nello stesso ordine di `fonti`) dell'immagine da cui si è letta la tessera/
+   *  l'indirizzo: assente se il campo è stato letto da testo, scritto a mano, o non trovato (SPEC
+   *  §3 passo 4, PIANO §0bis.1) — serve SOLO a risolvere la miniatura, mai alla valutazione. */
+  tesseraImmagine?: number;
+  indirizzoImmagine?: number;
+  /** Le immagini mandate all'AI per questa lettura (fino a 8, stesso ordine di `raccogliChat`/
+   *  `raccogliBolle`): `tesseraImmagine`/`indirizzoImmagine` vi puntano. Nessuna copia del file,
+   *  solo la provenienza (PIANO §0bis.1). */
+  fonti?: FonteChat[];
   /** «più CF diversi», «più indirizzi diversi», «nessuna chat trovata»… (SPEC §5). */
   motivi: Motivo[];
   /** Vero se, dopo la lettura, resta un segnaposto («Foto · Tocca per vedere») che

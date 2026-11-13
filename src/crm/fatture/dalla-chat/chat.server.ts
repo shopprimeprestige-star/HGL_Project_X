@@ -50,19 +50,20 @@
  *  sola lettura FUORI da quel prefisso è `leadGiaEmessi` (prefisso `fattura:`,
  *  candidati del passo 1): mai una scrittura.
  *
- *  ── ⚠️ LA MINIATURA DI TESSERA/INDIRIZZO NON È ANCORA DISPONIBILE ─────────
- *  PIANO §3 chiede, per `miniatura=tessera|indirizzo`, di rimandare al
- *  percorso Storage del `ponte_wa_media` corrispondente (come fa già
- *  `/api/crm/ponte-media` per le bolle immagine). Per farlo serve sapere DA
- *  QUALE messaggio/media è arrivata quella lettura (il suo `wa_message_id`),
- *  ma `LetturaChat`/`RigaChat` (T0, congelati) non portano quel riferimento:
- *  `raccogliChat` (T4) restituisce le immagini già come data URL, senza
- *  tenere il legame con la riga di `ponte_wa_media` di provenienza. Aggiungere
- *  quel riferimento è una modifica ai TIPI di T0, quindi la decide
- *  l'architetto (lavagna), non questo compito: finché non c'è, questa
- *  miniatura risponde `richiesta_non_valida` con un messaggio onesto. La
- *  miniatura del bonifico (`miniatura=pagamento`) funziona già, stesso schema
- *  della bulk (bucket `dati-fattura`, URL firmato a 60 s).
+ *  ── LA MINIATURA DI TESSERA/INDIRIZZO (T11.1, PIANO §0bis.1) ──────────────
+ *  `miniatura=tessera|indirizzo` risolve `LetturaChat.tesseraImmagine`/
+ *  `.indirizzoImmagine` dentro `fonti` (entrambi tipi propri di `tipi.ts`,
+ *  T11.1, mai dentro `LetturaTessera`/`LetturaIndirizzo` della bulk): se la
+ *  fonte è `"ponte"`, si ritrova il percorso Storage ancora `pronta` in
+ *  `ponte_wa_media` (`percorsoPontePerMiniatura`, `raccolta-chat.server.ts`) e
+ *  si firma con LO STESSO meccanismo di `/api/crm/ponte-media`
+ *  (`gestisciLettura`/`FIRMA_LETTURA_S`, 300 s, import — non una costante
+ *  propria). Se la fonte è `"manychat"` (niente percorso Storage: è un link
+ *  diretto) o l'indice è assente (campo letto da testo o scritto a mano, o
+ *  nessuna lettura), `richiesta_non_valida` con un messaggio onesto: non è un
+ *  buco, è la verità. La miniatura del bonifico (`miniatura=pagamento`)
+ *  resta quella di sempre, stesso schema della bulk (bucket `dati-fattura`,
+ *  URL firmato a 60 s).
  *
  *  ── ⚠️ `emetti-riga` NON È QUI ─────────────────────────────────────────────
  *  Come nella bulk, `eseguiAzioneChat` non la smista: arriva alla rotta, che
@@ -103,6 +104,9 @@ import type {
 } from "../bulk/tipi";
 import { documentoAccettabile } from "../lettura-documento";
 import { mimeDaUrl, PESO_MASSIMO_FILE } from "../dati-fattura";
+// ⚠️ T11.1: stesso meccanismo di firma di `/api/crm/ponte-media` (`gestisciLettura`), stessa
+// scadenza — import, non una costante propria (correzione del revisore su PIANO v3: 300s, non 60s).
+import { FIRMA_LETTURA_S } from "../../ponte/media-tipi";
 import {
   cartellaBucket,
   chiaveEmittente,
@@ -121,6 +125,7 @@ import {
 import { cercabileDaLead, haPagamentoSenzaFattura } from "./candidati";
 import {
   corpoRichiestaChat,
+  immagineDi,
   leggiRispostaChat,
   normalizzaIndirizzo,
   normalizzaTessera,
@@ -128,6 +133,7 @@ import {
   sceglindirizzo,
 } from "./lettura-chat";
 import {
+  percorsoPontePerMiniatura,
   raccogliChat,
   type MediaPonteGrezzo,
   type MessaggioChatGrezzo,
@@ -136,6 +142,7 @@ import {
 import type {
   CandidatoChat,
   DettaglioLottoChat,
+  FonteChat,
   LetturaChat,
   PagamentoChat,
   RichiestaChat,
@@ -648,8 +655,8 @@ async function candidatiElenco(porte: PorteChat, ricerca: string): Promise<Candi
   }));
 }
 
-/** Indirizzo FIRMATO (60 s) per una miniatura. Solo `pagamento` è disponibile oggi: vedi
- *  l'intestazione del file sul perché `tessera`/`indirizzo` non lo sono ancora. */
+/** Indirizzo firmato per una miniatura: `pagamento` (bucket `dati-fattura`, 60 s, come la bulk) o
+ *  `tessera`/`indirizzo` (bucket `ponte-media`, 300 s — `FIRMA_LETTURA_S`, T11.1). */
 async function urlMiniatura(
   porte: PorteChat,
   lotto: string,
@@ -657,15 +664,35 @@ async function urlMiniatura(
   tipo: string,
 ): Promise<Record<string, string>> {
   if (!lottoValido(lotto) || !idRigaValido(idRiga)) throw new ErroreChat("richiesta_non_valida");
-  if (tipo !== "pagamento")
+  if (tipo === "pagamento") {
+    const pagamento = await pagamentoDi(porte, lotto, idRiga);
+    const percorso = pagamento ? percorsoDelLotto(porte.utente, lotto, pagamento.percorso) : null;
+    if (!percorso || pagamento?.stato === "emessa" || pagamento?.stato === "scartata") return {};
+    const url = await porte.bucket.firma(percorso, URL_FIRMATI_SECONDI);
+    return url ? { [idRiga]: url } : {};
+  }
+  if (tipo !== "tessera" && tipo !== "indirizzo") throw new ErroreChat("richiesta_non_valida");
+  const salvata = await rigaSalvataDi(porte, lotto, idRiga);
+  const indice =
+    tipo === "tessera" ? salvata?.chat?.tesseraImmagine : salvata?.chat?.indirizzoImmagine;
+  const fonte: FonteChat | undefined = indice ? salvata?.chat?.fonti?.[indice - 1] : undefined;
+  // Niente fonte (campo letto da testo/scritto a mano, o nessuna lettura) o una fonte ManyChat (link
+  // diretto, nessun percorso Storage da firmare): messaggio onesto, non un buco (PIANO §0bis.1).
+  if (!fonte || fonte.tipo !== "ponte")
     throw new ErroreChat(
       "richiesta_non_valida",
-      "Questa miniatura non è ancora disponibile da questa rotta.",
+      "Questa miniatura non è disponibile per questa riga.",
     );
-  const pagamento = await pagamentoDi(porte, lotto, idRiga);
-  const percorso = pagamento ? percorsoDelLotto(porte.utente, lotto, pagamento.percorso) : null;
-  if (!percorso || pagamento?.stato === "emessa" || pagamento?.stato === "scartata") return {};
-  const url = await porte.bucket.firma(percorso, URL_FIRMATI_SECONDI);
+  const scheda = await porte.scheda(salvata!.scheda);
+  if (!scheda) return {};
+  const percorso = await percorsoPontePerMiniatura(
+    porte.raccolta,
+    porte.utente,
+    scheda.telefono,
+    fonte.chiave,
+  );
+  if (!percorso) return {};
+  const url = await porte.raccolta.firmaPonte(percorso, FIRMA_LETTURA_S);
   return url ? { [idRiga]: url } : {};
 }
 
@@ -673,28 +700,65 @@ async function urlMiniatura(
  *  Una riga per chiamata (come `leggi-gruppo` nella bulk). `lettura-chat.ts`
  *  (T2) sceglie cosa entra in `LetturaChat`; questo file non chiama
  *  `valuta-chat.ts` (vedi l'intestazione del file). */
-async function letturaChatDi(porte: PorteChat, scheda: SchedaChatRiga): Promise<LetturaChat> {
-  const raccolta = await raccogliChat(porte.raccolta, porte.utente, scheda.telefono);
-  const corpo = corpoRichiestaChat(raccolta.testo, raccolta.immagini);
+
+/** Un pacchetto già pronto (testo+immagini+fonti): la stessa forma che tornano sia `raccogliChat`
+ *  (T4, TUTTA la chat) sia `raccogliBolle` (T11.3, SOLO le bolle scelte in Via 2) — un terzo campo,
+ *  `fonti`, parallelo a `immagini` (T11.1). */
+interface PacchettoChat {
+  testo: string;
+  immagini: string[];
+  fonti: FonteChat[];
+}
+
+/** La chiamata AI + la scelta (T2), DA UN PACCHETTO GIÀ PRONTO: comune a `cerca-chat`/`rileggi-chat`
+ *  (tutta la chat, T4) e a `leggi-bolle` (le sole bolle scelte, Via 2/T11.3) — stessa chiamata,
+ *  stessa scelta, stessa provenienza: la Via 2 non è un secondo motore (PIANO §3bis). `segnaposto`
+ *  grezzo arriva da chi chiama: `raccogliBolle` non ne ha uno (bolle scelte a mano, non tutta la
+ *  chat), quindi `leggiBolleAzione` passa sempre `false`. */
+async function letturaDaPacchetto(
+  porte: PorteChat,
+  scheda: SchedaChatRiga,
+  pacchetto: PacchettoChat,
+  segnapostoGrezzo: boolean,
+): Promise<LetturaChat> {
+  const corpo = corpoRichiestaChat(pacchetto.testo, pacchetto.immagini);
   const esito = await porte.ai(corpo, TIMEOUT_AI_MS);
   if ("errore" in esito) throw new ErroreChat(esito.errore, esito.messaggio);
   const risposta = leggiRispostaChat(esito.testo, esito.fine);
   if (!risposta.ok) throw new ErroreChat(risposta.codice);
-  const sTessera = sceglici(risposta.tessere.map(normalizzaTessera), {
-    nome: scheda.nome,
-    cognome: scheda.cognome,
-  });
-  const sIndirizzo = sceglindirizzo(risposta.indirizzi.map(normalizzaIndirizzo));
+  const sTessera = sceglici(
+    risposta.tessere.map(normalizzaTessera),
+    { nome: scheda.nome, cognome: scheda.cognome },
+    risposta.tessere.map(immagineDi),
+  );
+  const sIndirizzo = sceglindirizzo(
+    risposta.indirizzi.map(normalizzaIndirizzo),
+    risposta.indirizzi.map(immagineDi),
+  );
   const motivi = [sTessera.avviso, sIndirizzo.avviso].filter((m): m is Motivo => !!m);
+  // Un indice che l'AI ha dichiarato ma che non sta nelle immagini DAVVERO mandate (un numero
+  // inventato) non si salva: niente miniatura è meglio di una miniatura sbagliata (T11.1).
+  const entroIlPacchetto = (n: number | undefined): number | undefined =>
+    n !== undefined && n >= 1 && n <= pacchetto.immagini.length ? n : undefined;
+  const tesseraImmagine = entroIlPacchetto(sTessera.immagine);
+  const indirizzoImmagine = entroIlPacchetto(sIndirizzo.immagine);
   // SPEC §5: il segnaposto si dice solo se resta CF o indirizzo vuoto (altrimenti è solo rumore).
-  const segnaposto = raccolta.segnaposto && (!sTessera.campo || !sIndirizzo.campo);
+  const segnaposto = segnapostoGrezzo && (!sTessera.campo || !sIndirizzo.campo);
   return {
     letta: true,
     ...(sTessera.campo ? { tessera: sTessera.campo } : {}),
     ...(sIndirizzo.campo ? { indirizzo: sIndirizzo.campo } : {}),
+    ...(tesseraImmagine !== undefined ? { tesseraImmagine } : {}),
+    ...(indirizzoImmagine !== undefined ? { indirizzoImmagine } : {}),
+    ...(pacchetto.fonti.length ? { fonti: pacchetto.fonti } : {}),
     motivi,
     segnaposto,
   };
+}
+
+async function letturaChatDi(porte: PorteChat, scheda: SchedaChatRiga): Promise<LetturaChat> {
+  const raccolta = await raccogliChat(porte.raccolta, porte.utente, scheda.telefono);
+  return letturaDaPacchetto(porte, scheda, raccolta, raccolta.segnaposto);
 }
 
 async function cercaChatAzione(
@@ -1398,8 +1462,9 @@ function inBase64(byte: Uint8Array): string {
 export function porteRaccoltaChatVere(
   client: unknown,
   opz: {
-    /** Indirizzo firmato di lettura di un file del bucket `ponte-media`. */
-    firmaPonte: (percorso: string) => Promise<string | null>;
+    /** Indirizzo firmato di lettura di un file del bucket `ponte-media` (`secondi` opzionale: 300
+     *  per la miniatura, T11.1 — vedi `PorteRaccoltaChat.firmaPonte`). */
+    firmaPonte: (percorso: string, secondi?: number) => Promise<string | null>;
     fetch: typeof fetch;
   },
 ): PorteRaccoltaChat {
@@ -1445,7 +1510,7 @@ export function porteRaccoltaChatVere(
         }),
       );
     },
-    firmaPonte: (percorso) => opz.firmaPonte(percorso),
+    firmaPonte: (percorso, secondi) => opz.firmaPonte(percorso, secondi),
     scaricaPonte: async (url) => {
       try {
         const r = await opz.fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000) });

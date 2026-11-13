@@ -310,8 +310,10 @@ export async function prove(mod, { c, gruppo, radice }) {
     });
     const r = await R.raccogliChat(porte, "u1", "123");
     c(
+      // ⚠️ T11.1 (provenienza delle miniature): `RaccoltaChat` guadagna `fonti` (array parallelo a
+      // `immagini`, qui vuoto come lei) — tocco minimo a questa prova, non al comportamento.
       "risultato vuoto, senza indovinare niente",
-      { testo: "", immagini: [], segnaposto: false },
+      { testo: "", immagini: [], fonti: [], segnaposto: false },
       r,
     );
     c(

@@ -85,8 +85,11 @@ export interface PorteRaccoltaChat {
   messaggi(userId: string, ultime9: string): Promise<MessaggioChatGrezzo[]>;
   /** Righe di `ponte_wa_media` di quel numero, qualunque stato/categoria. */
   mediaPonte(userId: string, ultime9: string): Promise<MediaPonteGrezzo[]>;
-  /** L'URL firmata di lettura di un file già pronto, o null se non si legge. */
-  firmaPonte(percorso: string): Promise<string | null>;
+  /** L'URL firmata di lettura di un file già pronto, o null se non si legge. `secondi` opzionale
+   *  (default della cablatura vera: 60 — basta a scaricarla subito per l'AI, T4); la miniatura
+   *  (T11.1) passa `FIRMA_LETTURA_S` (300, `ponte/media-tipi.ts`, import) perché quell'indirizzo lo
+   *  usa il BROWSER, non il server: stesso meccanismo di firma di `/api/crm/ponte-media`, tempo diverso. */
+  firmaPonte(percorso: string, secondi?: number): Promise<string | null>;
   /** Il file dietro quell'URL, come data URL (mai salvato); null se non si scarica. */
   scaricaPonte(url: string): Promise<string | null>;
   /** Il file dietro un link ManyChat riconosciuto, come data URL (mai salvato,
@@ -96,11 +99,24 @@ export interface PorteRaccoltaChat {
 
 /* ══ 2. IL RISULTATO ════════════════════════════════════════════════════ */
 
+/** La provenienza di UNA immagine scelta (PIANO §0bis.1, T11.1): per il ponte, il solo
+ *  `wa_message_id` (non la chiave `bw:…` intera: quella si ritrova da sé, vedi
+ *  `percorsoPontePerMiniatura`); per ManyChat, l'URL originale. Stessa forma di `FonteChat`
+ *  (`dalla-chat/tipi.ts`), ma definita QUI (non importata): questo file resta generico, come
+ *  `MessaggioChatGrezzo`/`MediaPonteGrezzo`, e non si lega ai tipi della rotta. */
+export interface FonteChatGrezza {
+  tipo: "ponte" | "manychat";
+  chiave: string;
+}
+
 export interface RaccoltaChat {
   /** Pronto per `corpoRichiestaChat(testo, immagini)` (T2): già tagliato e ordinato. */
   testo: string;
   /** Fino a `MAX_IMMAGINI_CHAT` data URL, le più recenti, in ordine cronologico. */
   immagini: string[];
+  /** PARALLELO a `immagini` (stessa lunghezza, stesso ordine, T11.1): la provenienza di ciascuna,
+   *  per risolvere poi la miniatura — mai una copia del file. */
+  fonti: FonteChatGrezza[];
   /** Vero se c'è almeno una foto non ancora scaricata dal ponte (SPEC §5). */
   segnaposto: boolean;
 }
@@ -152,7 +168,7 @@ const perData = (a: { creatoIl: string }, b: { creatoIl: string }) =>
 
 /* ══ 5. LA RACCOLTA ═══════════════════════════════════════════════════════ */
 
-const VUOTA: RaccoltaChat = { testo: "", immagini: [], segnaposto: false };
+const VUOTA: RaccoltaChat = { testo: "", immagini: [], fonti: [], segnaposto: false };
 
 export async function raccogliChat(
   porte: PorteRaccoltaChat,
@@ -185,6 +201,8 @@ export async function raccogliChat(
 
   interface Candidata {
     creatoIl: string;
+    /** La provenienza (T11.1), stessa posizione finale di `immagini`. */
+    fonte: FonteChatGrezza;
     scarica: () => Promise<string | null>;
   }
   const candidatePonte: Candidata[] = [];
@@ -194,6 +212,7 @@ export async function raccogliChat(
     if (!msg) continue; // non confermata come messaggio in entrata: non si scarica, non si indovina
     candidatePonte.push({
       creatoIl: msg.creatoIl,
+      fonte: { tipo: "ponte", chiave: id! },
       scarica: async () => {
         const url = await porte.firmaPonte(r.percorso);
         return url ? porte.scaricaPonte(url) : null;
@@ -206,7 +225,11 @@ export async function raccogliChat(
     const k = classificaTesto(m.body);
     if (k.tipo !== "immagine" || !k.url) continue;
     const url = k.url;
-    candidateManyChat.push({ creatoIl: m.creatoIl, scarica: () => porte.scaricaManyChat(url) });
+    candidateManyChat.push({
+      creatoIl: m.creatoIl,
+      fonte: { tipo: "manychat", chiave: url },
+      scarica: () => porte.scaricaManyChat(url),
+    });
   }
 
   const scelte = [...candidatePonte, ...candidateManyChat]
@@ -215,9 +238,13 @@ export async function raccogliChat(
     .sort(perData);
 
   const immagini: string[] = [];
+  const fonti: FonteChatGrezza[] = [];
   for (const cand of scelte) {
     const dataUrl = await cand.scarica();
-    if (dataUrl) immagini.push(dataUrl);
+    if (dataUrl) {
+      immagini.push(dataUrl);
+      fonti.push(cand.fonte);
+    }
   }
 
   /* ── (c) IL SEGNAPOSTO ────────────────────────────────────────────────── */
@@ -226,5 +253,27 @@ export async function raccogliChat(
   );
   const segnaposto = inbound.some((m) => m.mediaType === "foto" && !idConFotoPronta.has(m.id));
 
-  return { testo, immagini, segnaposto };
+  return { testo, immagini, fonti, segnaposto };
+}
+
+/* ══ 6. LA MINIATURA: DA UNA FONTE «ponte» AL SUO PERCORSO STORAGE (T11.1) ══
+ *  `tesseraImmagine`/`indirizzoImmagine` (T2/T3) puntano dentro `fonti`, che per il ponte porta
+ *  solo il `wa_message_id` (mai la chiave `bw:…` intera, mai il percorso: non si salva nessuna
+ *  copia, SPEC §5): per firmare la miniatura serve ritrovare la riga `ponte_wa_media` ancora
+ *  `pronta` con quella chiave — stessa porta `mediaPonte` già usata da `raccogliChat`, nessuna
+ *  query nuova. `null` = la foto non è (più) pronta: nessuna miniatura, non un errore
+ *  (`chat.server.ts` risponde con un oggetto vuoto, come già fa per il pagamento). */
+export async function percorsoPontePerMiniatura(
+  porte: PorteRaccoltaChat,
+  userId: string,
+  telefono: string,
+  waMessageId: string,
+): Promise<string | null> {
+  const nove = ultime9(telefono);
+  if (!nove) return null;
+  const righe = await porte.mediaPonte(userId, nove);
+  const riga = righe.find(
+    (r) => r.stato === "pronta" && r.categoria === "foto" && idDaChiave(r.chiave) === waMessageId,
+  );
+  return riga ? riga.percorso : null;
 }

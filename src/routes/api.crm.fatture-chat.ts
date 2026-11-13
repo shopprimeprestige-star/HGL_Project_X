@@ -168,8 +168,10 @@ function porteVere(utente: string): PorteChat {
       },
     },
     raccolta: porteRaccoltaChatVere(supabaseAdmin, {
-      firmaPonte: async (percorso) => {
-        const { data } = await storagePonte().createSignedUrl(percorso, 60);
+      // Senza `secondi`: 60 (basta a scaricarla subito per l'AI, T4). Con `secondi` (la miniatura,
+      // T11.1, `FIRMA_LETTURA_S` = 300): quell'indirizzo lo usa il browser, non il server.
+      firmaPonte: async (percorso, secondi) => {
+        const { data } = await storagePonte().createSignedUrl(percorso, secondi ?? 60);
         return (data?.signedUrl as string | undefined) ?? null;
       },
       fetch,

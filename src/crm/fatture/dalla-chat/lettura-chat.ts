@@ -62,12 +62,15 @@ export const PROMPT_CHAT =
   "and house number EXACTLY AS WRITTEN — do not translate, expand abbreviations or infer anything), " +
   '"cap" (the 5-digit postal code), "comune" (town), "provincia" (the 2-letter province code, ' +
   "uppercase).\n" +
+  "If you read a card or an address from one of the IMAGES (not from the text), also return " +
+  '"immagine": the 1-based position of that image, counting oldest first (1 = the first image, ' +
+  "2 = the second, …) — omit this field entirely if you read it from the text instead.\n" +
   "List each kind in the ORDER you find it, oldest first (same order as the chat and the images): " +
   "if the same person gives two different addresses (or two different cards) at different times, " +
   "the LAST one in your list must be the most recent one.\n" +
   'Return STRICT JSON, no prose, no markdown fence: {"tessere":[{"nome":"","cognome":"",' +
-  '"codiceFiscale":"","incerti":[]}],"indirizzi":[{"indirizzo":"","cap":"","comune":"",' +
-  '"provincia":"","incerti":[]}]}\n' +
+  '"codiceFiscale":"","immagine":0,"incerti":[]}],"indirizzi":[{"indirizzo":"","cap":"","comune":"",' +
+  '"provincia":"","immagine":0,"incerti":[]}]}\n' +
   'Rules: use "" for anything you cannot read with certainty — never guess, never invent, and ' +
   "never add a field that is not in the lists above. If you read a value but are not fully sure " +
   "(blurry, cropped, ambiguous, or a scrolled screenshot), fill it AND add the field name to " +
@@ -238,27 +241,43 @@ export interface SchedaPerSceltaChat {
 
 const comeConfronto = (s: string): string => s.trim().toLocaleLowerCase("it-IT");
 
+/** ── LA PROVENIENZA (PIANO §0bis.1, T11.1) ─────────────────────────────────
+ *  Il numero (1-based) dell'immagine da cui l'AI dichiara di aver letto un campo (`PROMPT_CHAT`),
+ *  omesso se letto da testo: un intero valido, altrimenti `undefined` — non si inventa mai
+ *  un'origine che l'AI non ha dichiarato. Proprio di questo modulo: non entra mai dentro
+ *  `LetturaTessera`/`LetturaIndirizzo` (tipi della bulk, mai toccati) — lo tiene `sceglici`/
+ *  `sceglindirizzo` come terzo valore a parte (`immagine?`), e lo porta avanti chi chiama
+ *  (`chat.server.ts`, dentro `LetturaChat.tesseraImmagine`/`.indirizzoImmagine`, tipo proprio). */
+export function immagineDi(v: Record<string, unknown>): number | undefined {
+  const n = (v as { immagine?: unknown }).immagine;
+  return typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : undefined;
+}
+
 /** Fra più tessere nella stessa chat (SPEC §5): CF valido e UNICO → trovato (il nome/cognome letto
  *  sulla foto resta nella lettura come traccia interna, non esce mai da qui come dato di fattura:
  *  lo sovrascrive sempre `valuta-chat.ts`, PIANO §0.1); più CF validi e DIVERSI → nessuno, avviso;
  *  CF ripetuto non è un conflitto. Nessuna tessera leggibile → nessuno, avviso (due testi diversi
- *  secondo se è stata letta almeno una tessera con un CF non valido, o proprio nessuna). */
+ *  secondo se è stata letta almeno una tessera con un CF non valido, o proprio nessuna).
+ *  `immagini`, se passato, è PARALLELO a `tessere` (stessa posizione): l'indice dell'immagine di
+ *  provenienza (T11.1), tornato nel terzo valore SOLO per la tessera scelta. */
 export function sceglici(
   tessere: LetturaTessera[],
   scheda: SchedaPerSceltaChat,
-): { campo?: LetturaTessera; avviso?: Motivo } {
+  immagini: (number | undefined)[] = [],
+): { campo?: LetturaTessera; avviso?: Motivo; immagine?: number } {
   const validi = Array.from(new Set(tessere.map((t) => t.codiceFiscale).filter((cf) => cf)));
 
   if (validi.length === 1) {
     const [cf] = validi;
-    const candidate = tessere.filter((t) => t.codiceFiscale === cf);
+    const candidate = tessere.map((t, i) => ({ t, i })).filter(({ t }) => t.codiceFiscale === cf);
     // Euristica facoltativa: fra equivalenti (stesso CF), preferisce quella il cui cognome somiglia
-    // a quello della scheda — serve solo a scegliere QUALE lettura portare come traccia.
+    // a quello della scheda — serve solo a scegliere QUALE lettura (e quindi quale provenienza) portare avanti.
     const preferita =
       candidate.find(
-        (t) => t.cognome && comeConfronto(t.cognome) === comeConfronto(scheda.cognome),
+        ({ t }) => t.cognome && comeConfronto(t.cognome) === comeConfronto(scheda.cognome),
       ) ?? candidate[0];
-    return { campo: preferita };
+    const immagine = immagini[preferita.i];
+    return { campo: preferita.t, ...(immagine !== undefined ? { immagine } : {}) };
   }
 
   if (validi.length >= 2) {
@@ -299,12 +318,19 @@ export function sceglici(
  *  «più recente» è l'ULTIMO della lista, perché `leggiRispostaChat` la restituisce nello stesso
  *  ordine cronologico in cui `PROMPT_CHAT` chiede di elencarla (vedi il prompt: «the LAST one in
  *  your list must be the most recent one»); comuni DIVERSI → nessuno, avviso; niente di completo →
- *  nessuno, avviso. */
-export function sceglindirizzo(indirizzi: LetturaIndirizzo[]): {
+ *  nessuno, avviso. `immagini`, se passato, è PARALLELO a `indirizzi` (T11.1, stesso principio di
+ *  `sceglici`). */
+export function sceglindirizzo(
+  indirizzi: LetturaIndirizzo[],
+  immagini: (number | undefined)[] = [],
+): {
   campo?: LetturaIndirizzo;
   avviso?: Motivo;
+  immagine?: number;
 } {
-  const validi = indirizzi.filter((i) => i.indirizzo && i.cap && i.comune);
+  const validi = indirizzi
+    .map((i, idx) => ({ i, idx }))
+    .filter(({ i }) => i.indirizzo && i.cap && i.comune);
   if (validi.length === 0) {
     return {
       avviso: {
@@ -316,7 +342,7 @@ export function sceglindirizzo(indirizzi: LetturaIndirizzo[]): {
     };
   }
 
-  const comuni = new Set(validi.map((i) => comeConfronto(i.comune)));
+  const comuni = new Set(validi.map(({ i }) => comeConfronto(i.comune)));
   if (comuni.size > 1) {
     return {
       avviso: {
@@ -328,5 +354,7 @@ export function sceglindirizzo(indirizzi: LetturaIndirizzo[]): {
     };
   }
 
-  return { campo: validi[validi.length - 1] };
+  const ultimo = validi[validi.length - 1];
+  const immagine = immagini[ultimo.idx];
+  return { campo: ultimo.i, ...(immagine !== undefined ? { immagine } : {}) };
 }
