@@ -221,6 +221,9 @@ export function FinestraFattura({
    *   una data comoda.
    *  Si propone oggi perché nove volte su dieci è oggi, e si corregge. */
   const [dataIncasso, setDataIncasso] = useState(giornoISO());
+  /** La data del pagamento si tiene nella bozza solo se qualcuno l'ha scritta
+   *  (o c'era già): la proposta «oggi» non è un incasso dichiarato. */
+  const dataScritta = useRef(false);
   const [numeroInAttesa, setNumeroInAttesa] = useState(0);
   const [bozzaEsistente, setBozzaEsistente] = useState<Fattura | null>(null);
   /** ⚠️ A QUESTO CLIENTE È GIÀ STATO FATTURATO UN ACCONTO? Serve a un avviso
@@ -606,6 +609,7 @@ export function FinestraFattura({
     setInCorso(null);
     setConferma(false);
     setDataIncasso(giornoISO());
+    dataScritta.current = false;
     void (async () => {
       const [a, bozza] = await Promise.all([leggiAzienda(), leggiBozzaDi(lead.id)]);
       if (!vivo) return;
@@ -613,6 +617,12 @@ export function FinestraFattura({
       setBozzaEsistente(bozza);
       if (bozza) {
         setCliente(bozza.cliente);
+        //  ⚠️ La data del pagamento già scritta torna com'era: prima si perdeva
+        //   a ogni chiusura e ripartiva da oggi.
+        if (bozza.dataPagamento) {
+          setDataIncasso(bozza.dataPagamento.slice(0, 10));
+          dataScritta.current = true;
+        }
         setTipo(bozza.tipo);
         setTestoImporto(scriviEuro(bozza.totale));
         setCausale(bozza.causale);
@@ -749,9 +759,10 @@ export function FinestraFattura({
     anno: new Date().getFullYear(),
     serie: azienda.serie || "",
     data: "",
-    //  Una bozza non ha ancora incassato niente: la data si dichiara al momento
-    //  di emettere, ed è quella che diventa la data del documento.
-    dataPagamento: "",
+    //  La data del pagamento scritta a mano resta nella bozza (prima si perdeva
+    //  chiudendo). All'emissione `emettiSu` la riscrive comunque con quella
+    //  scelta, che diventa la data del documento.
+    dataPagamento: dataScritta.current ? dataIncasso : "",
     tipo,
     leadId: lead.id,
     leadNome: nomeCompleto(lead),
@@ -1226,7 +1237,10 @@ export function FinestraFattura({
               type="date"
               value={dataIncasso}
               max={giornoISO()}
-              onChange={(e) => setDataIncasso(e.target.value)}
+              onChange={(e) => {
+                dataScritta.current = true;
+                setDataIncasso(e.target.value);
+              }}
               className="w-full bg-transparent text-[13px] tabular-nums text-slate-900 outline-none"
             />
           </span>
