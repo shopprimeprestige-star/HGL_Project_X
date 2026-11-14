@@ -37,7 +37,9 @@ import {
   Pencil,
   Receipt,
   Save,
+  Search,
   Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -129,6 +131,8 @@ function FatturePage() {
    *  fatturare che non hanno né bozza né fattura. Stanno qui perché da qui si
    *  può contattarli, non perché esista un documento da scaricare. */
   const [lente, setLente] = useState<"emesse" | "bozze" | "daFare">("emesse");
+  /** Ricerca per nome, cognome o telefono, su tutte e tre le liste. */
+  const [cerca, setCerca] = useState("");
   const [avanzamento, setAvanzamento] = useState<{ fatti: number; totale: number } | null>(null);
   /** ⚠️ IL CESTINO C'È SU TUTTE E DUE, E FA DUE COSE DIVERSE. Su una bozza
    *   cancella; su una fattura emessa la RIMETTE IN BOZZA con dentro gli stessi
@@ -209,8 +213,29 @@ function FatturePage() {
    *   «da qui a lì» sull'elenco che riceve: passandogli l'elenco non
    *   raggruppato, Maiusc+clic avrebbe preso righe diverse da quelle in mezzo
    *   sullo schermo. */
+  /** Il telefono della scheda dietro una fattura (per id, poi per email): serve
+   *  a riconoscere il cliente a colpo d'occhio e a cercarlo. */
+  const telefonoDi = useMemo(() => {
+    const tutti = Array.isArray(leads) ? leads : [];
+    const perId = new Map(tutti.map((l) => [l.id, l]));
+    const perEmail = new Map(
+      tutti
+        .map((l) => [String(l.data?.email ?? "").trim().toLowerCase(), l] as const)
+        .filter(([e]) => e),
+    );
+    return (f: Fattura): string => {
+      const l =
+        (f.leadId ? perId.get(f.leadId) : undefined) ??
+        perEmail.get(String(f.emailOrigine ?? "").trim().toLowerCase());
+      return String(l?.data?.telefono ?? "").trim();
+    };
+  }, [leads]);
+
   const righe = useMemo(() => {
-    const base = lente === "emesse" ? emesse : lente === "bozze" ? bozze : [];
+    const tutte = lente === "emesse" ? emesse : lente === "bozze" ? bozze : [];
+    const base = tutte.filter((f) =>
+      corrispondeRicerca(cerca, [nomeCliente(f), f.leadNome ?? "", telefonoDi(f)]),
+    );
     const chiaveCliente = (f: Fattura) =>
       (f.cliente.codiceFiscale || "").trim().toUpperCase() ||
       (f.cliente.partitaIva || "").trim() ||
@@ -218,9 +243,10 @@ function FatturePage() {
     //  La data su cui si ordina: quella del documento, o la creazione per le
     //  bozze — che una data non ce l'hanno ancora.
     const quando = (f: Fattura) => f.data || f.creataIl || "";
-    //  Bozze: dalla più recente alla più vecchia, una dopo l'altra, senza gruppi
-    //  per cliente (richiesta del titolare, 13/11/2026).
-    if (lente === "bozze") return [...base].sort((a, b) => quando(b).localeCompare(quando(a)));
+    //  Bozze: prima quelle con la data del pagamento, dal pagamento più vecchio
+    //  al più recente; poi quelle senza data, dalla più recente (richiesta del
+    //  titolare, 14/11/2026).
+    if (lente === "bozze") return [...base].sort(perDataPagamento((f) => f.dataPagamento, quando));
     const gruppi = new Map<string, Fattura[]>();
     for (const f of base) {
       const k = chiaveCliente(f);
@@ -232,7 +258,7 @@ function FatturePage() {
       .map((g) => [...g].sort((a, b) => quando(b).localeCompare(quando(a))))
       .sort((a, b) => quando(b[0]).localeCompare(quando(a[0])))
       .flat();
-  }, [lente, emesse, bozze]);
+  }, [lente, emesse, bozze, cerca, telefonoDi]);
   //  L'elenco vuole un `id`, e le fatture ce l'hanno: la selezione è la stessa
   //  dei lead importati (vedi la nota in cima).
   const {
@@ -317,12 +343,13 @@ function FatturePage() {
       if (e) emailCoperte.add(e);
     }
     const tutti = Array.isArray(leads) ? leads : [];
-    //  Dalla più recente alla più vecchia (richiesta del titolare, 13/11/2026):
-    //  conta l'ultimo incasso, poi la data del pagamento, poi la nascita della scheda.
-    const quando = (l: Lead) => {
+    //  Dal pagamento più vecchio al più recente (richiesta del titolare,
+    //  14/11/2026); chi non ha ancora una data di pagamento va in fondo, dalla
+    //  scheda più recente.
+    const pagato = (l: Lead) => {
       const p = l.data?.payment;
-      const incassi = (p?.incassi ?? []).map((r) => r.data || "").sort();
-      return incassi[incassi.length - 1] || p?.dataPagamento || l.created_at || "";
+      const incassi = (p?.incassi ?? []).map((r) => r.data || "").filter(Boolean).sort();
+      return p?.dataPagamento || incassi[0] || "";
     };
     return tutti
       .filter((l) => {
@@ -332,8 +359,11 @@ function FatturePage() {
         const e = String(l.data?.email ?? "").trim().toLowerCase();
         return !(e && emailCoperte.has(e));
       })
-      .sort((a, b) => quando(b).localeCompare(quando(a)));
-  }, [leads, emesse, bozze]);
+      .filter((l) =>
+        corrispondeRicerca(cerca, [nomeCompleto(l), String(l.data?.telefono ?? "")]),
+      )
+      .sort(perDataPagamento(pagato, (l) => l.created_at || ""));
+  }, [leads, emesse, bozze, cerca]);
 
   const totaleEmesso = useMemo(() => emesse.reduce((t, f) => t + f.totale, 0), [emesse]);
   /** Quante fatture emesse aspettano ancora il bonifico: è il numero che dice
@@ -874,6 +904,27 @@ function FatturePage() {
         )}
       </BarraAzioni>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={cerca}
+          onChange={(e) => setCerca(e.target.value)}
+          placeholder="Cerca per nome, cognome o telefono"
+          aria-label="Cerca per nome, cognome o telefono"
+          className="h-9 pl-8 pr-8 text-[13px]"
+        />
+        {cerca && (
+          <button
+            type="button"
+            onClick={() => setCerca("")}
+            aria-label="Svuota la ricerca"
+            className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {caricando ? (
         <p className="px-1 text-[12px] text-muted-foreground">Sto leggendo le fatture…</p>
       ) : lente === "daFare" ? (
@@ -1059,24 +1110,28 @@ function FatturePage() {
                     <span className="flex min-w-0 flex-col">
                       <span className="flex items-center gap-2">
                         {f.stato !== "emessa" &&
-                          (datiClienteCompleti(f) ? (
-                            <span
-                              className="shrink-0"
-                              title="Codice fiscale e indirizzo presenti"
-                              aria-label="Codice fiscale e indirizzo presenti"
-                            >
-                              <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
-                            </span>
-                          ) : (
-                            <span
-                              className="shrink-0"
-                              title="Mancano codice fiscale o indirizzo"
-                              aria-label="Mancano codice fiscale o indirizzo"
-                            >
-                              <XCircle className="h-4 w-4 text-red-600" aria-hidden />
-                            </span>
-                          ))}
+                          (() => {
+                            const manca = mancaPerEmettere(f);
+                            const testo =
+                              manca.length === 0
+                                ? "Bozza completa: pronta da emettere"
+                                : `Manca: ${manca.join(", ")}`;
+                            return (
+                              <span className="shrink-0" title={testo} aria-label={testo}>
+                                {manca.length === 0 ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-red-600" aria-hidden />
+                                )}
+                              </span>
+                            );
+                          })()}
                         <span className="truncate text-[13px] font-semibold">{nomeCliente(f)}</span>
+                        {telefonoDi(f) && (
+                          <span className="shrink-0 text-[11.5px] tabular-nums text-muted-foreground">
+                            {telefonoDi(f)}
+                          </span>
+                        )}
                         <span
                           className={cn(
                             "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold",
@@ -1097,7 +1152,12 @@ function FatturePage() {
                         )}
                       </span>
                       <span className="truncate text-[11.5px] text-muted-foreground">
-                        {f.stato === "emessa" ? dataBreve(f.data) : "senza numero"} ·{" "}
+                        {f.stato === "emessa"
+                          ? dataBreve(f.data)
+                          : f.dataPagamento
+                            ? `pagata il ${dataBreve(f.dataPagamento)}`
+                            : "senza numero"}{" "}
+                        ·{" "}
                         {eur(f.totale)} ·{" "}
                         {f.stato === "emessa" && (
                           <>
@@ -1425,7 +1485,12 @@ function FatturePage() {
           lead={daModificare}
           aperta={!!daModificare}
           onCambio={(v) => {
-            if (!v) setDaModificare(null);
+            if (!v) {
+              setDaModificare(null);
+              //  La bozza si salva chiudendo: si rilegge, così spunta e ordine
+              //  si aggiornano subito.
+              void ricarica();
+            }
           }}
           onFatta={() => {
             setDaModificare(null);
@@ -1501,6 +1566,46 @@ function FatturePage() {
   );
 }
 
+/** Nome, cognome o telefono: ogni parola cercata deve comparire. Il telefono
+ *  si confronta solo con le cifre, così «333 12» trova «+39 3331234567». */
+function corrispondeRicerca(cerca: string, campi: string[]): boolean {
+  const parole = cerca.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (parole.length === 0) return true;
+  const testo = campi.join(" ").toLowerCase();
+  const cifre = campi.join(" ").replace(/\D/g, "");
+  const soloCifre = cerca.replace(/\D/g, "");
+  if (soloCifre.length >= 3 && /^[\d\s+()./-]+$/.test(cerca.trim())) return cifre.includes(soloCifre);
+  return parole.every((p) => testo.includes(p));
+}
+
+/** Prima chi ha la data del pagamento, dal più vecchio al più recente; poi chi
+ *  non ce l'ha, dal più recente. */
+function perDataPagamento<T>(pagato: (x: T) => string | undefined, ripiego: (x: T) => string) {
+  return (a: T, b: T) => {
+    const pa = String(pagato(a) ?? "").slice(0, 10);
+    const pb = String(pagato(b) ?? "").slice(0, 10);
+    if (pa && pb) return pa.localeCompare(pb) || ripiego(b).localeCompare(ripiego(a));
+    if (pa) return -1;
+    if (pb) return 1;
+    return ripiego(b).localeCompare(ripiego(a));
+  };
+}
+
+/** Cosa manca a una bozza per poterla emettere: gli stessi dati che chiede la
+ *  finestra della fattura, più la data del pagamento. Vuoto = spunta verde. */
+function mancaPerEmettere(f: Fattura): string[] {
+  const c = f.cliente;
+  const out: string[] = [];
+  if (c.azienda) {
+    if (!(c.denominazione || "").trim()) out.push("ragione sociale");
+  } else if (!(c.nome || "").trim() && !(c.cognome || "").trim()) out.push("nome");
+  if (!datiClienteCompleti(f)) out.push(c.azienda ? "partita IVA o indirizzo" : "codice fiscale o indirizzo");
+  if (!(c.provincia || "").trim()) out.push("provincia");
+  if (!(f.totale > 0)) out.push("importo");
+  if (!(f.dataPagamento || "").trim()) out.push("data del pagamento");
+  return out;
+}
+
 /** Codice fiscale (per un'azienda: partita IVA) e indirizzo completo, negli
  *  stessi formati che l'emissione pretende (`problemiXml` in fatture/xml.ts):
  *  verde solo se «Emetti» non li rifiuterà. */
@@ -1543,6 +1648,11 @@ function ListaDaFare({ clienti }: { clienti: Lead[] }) {
               <span className="flex min-w-0 flex-col">
                 <span className="flex items-center gap-2">
                   <span className="truncate text-[13px] font-semibold">{nome}</span>
+                  {telefono && (
+                    <span className="shrink-0 text-[11.5px] tabular-nums text-muted-foreground">
+                      {telefono}
+                    </span>
+                  )}
                   <span className="shrink-0 rounded bg-slate-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
                     da fare ancora
                   </span>
