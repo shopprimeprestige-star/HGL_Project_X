@@ -992,7 +992,7 @@ export function FinestraFattura({
       larghezza="md"
       icona={Receipt}
       titolo={bozzaEsistente ? "Riprendi la fattura" : "Prepara la fattura"}
-      contesto={`${nomeCompleto(lead)}${rif ? ` · preventivo ${rif}` : ""}`}
+      contesto={`${nomeCompleto(lead)}${String(lead.data?.telefono ?? "").trim() ? ` · ${String(lead.data?.telefono).trim()}` : ""}${rif ? ` · preventivo ${rif}` : ""}`}
       classeCorpo="space-y-3"
       azioni={
         <>
