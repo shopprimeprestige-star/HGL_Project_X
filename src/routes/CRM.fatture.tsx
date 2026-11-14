@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Building2,
   CalendarClock,
+  Check,
   CheckCircle2,
   Download,
   FileCheck2,
@@ -1176,6 +1177,29 @@ function FatturePage() {
                         )}
                         {f.causale}
                       </span>
+                      {f.stato !== "emessa" && (
+                        //  Una spunta per dato (richiesta del titolare, 14/11/2026):
+                        //  si vede subito cosa c'è e cosa manca, senza frasi.
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                          {controlliBozza(f).map((c) => (
+                            <span
+                              key={c.etichetta}
+                              className={cn(
+                                "inline-flex items-center gap-0.5 text-[11px] font-medium",
+                                c.ok ? "text-emerald-700" : "text-red-600",
+                              )}
+                              aria-label={`${c.etichetta}: ${c.ok ? "presente" : "manca"}`}
+                            >
+                              {c.ok ? (
+                                <Check className="h-3 w-3" aria-hidden />
+                              ) : (
+                                <X className="h-3 w-3" aria-hidden />
+                              )}
+                              {c.etichetta}
+                            </span>
+                          ))}
+                        </span>
+                      )}
                     </span>
                   </RigaSelezionabile>
                 </Fragment>
@@ -1603,12 +1627,34 @@ function mancaPerEmettere(f: Fattura): string[] {
   if (!(c.provincia || "").trim()) out.push("provincia");
   if (!(f.totale > 0)) out.push("importo");
   if (!(f.dataPagamento || "").trim()) out.push("data del pagamento");
+  if (!(f.causale || "").trim()) out.push("causale");
   return out;
 }
 
 /** Codice fiscale (per un'azienda: partita IVA) e indirizzo completo, negli
  *  stessi formati che l'emissione pretende (`problemiXml` in fatture/xml.ts):
  *  verde solo se «Emetti» non li rifiuterà. */
+/** Le spunte della bozza, una per dato. Etichette brevi: si leggono al volo. */
+function controlliBozza(f: Fattura): { etichetta: string; ok: boolean }[] {
+  const c = f.cliente;
+  const id = c.azienda
+    ? partitaIvaValida((c.partitaIva || "").trim())
+    : /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/.test((c.codiceFiscale || "").trim().toUpperCase());
+  const indirizzo = Boolean(
+    c.indirizzo?.trim() &&
+      /^\d{5}$/.test((c.cap || "").trim()) &&
+      c.comune?.trim() &&
+      c.provincia?.trim(),
+  );
+  return [
+    { etichetta: c.azienda ? "P.IVA" : "CF", ok: Boolean(id) },
+    { etichetta: "Indirizzo", ok: indirizzo },
+    { etichetta: "Importo", ok: f.totale > 0 },
+    { etichetta: "Pagamento", ok: Boolean((f.dataPagamento || "").trim()) },
+    { etichetta: "Causale", ok: Boolean((f.causale || "").trim()) },
+  ];
+}
+
 function datiClienteCompleti(f: Fattura): boolean {
   const c = f.cliente;
   const id = c.azienda
