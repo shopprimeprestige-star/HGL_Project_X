@@ -16,14 +16,15 @@
  *        dataMeeting o dataVieneInSede). Prima correggeva D1: un lead «Da riprogrammare»
  *        (`da_spostare`) dentro «Ricontatti» guardava sempre `dataRicontatto`, anche se la sua
  *        promessa — la nuova consulenza — è scritta in `dataMeeting`.
- *      Lo stato non ha una regola (es. «Attesa WhatsApp», «Segreteria», «Non risponde»): dentro una
- *        fase o «Da chiamare» si cade sull'ULTIMO MESSAGGIO (la stessa ora che ordina l'elenco:
- *        `quandoUltimo`), poi l'arrivo del lead (`data.createdAt`, poi `created_at`); dentro
- *        «Ricontatti» no, resta «senza data» (sarebbe un «oggi» inventato, come già per ogni altro
- *        filtro: la lista di «Ricontatti» include anche «Da contattare», che una data non la chiede).
+ *      Lo stato non ha una regola (es. «Attesa WhatsApp», «Segreteria», «Non risponde», «Da
+ *        contattare»): se c'è una `dataRicontatto` scritta a mano VINCE (revisione del 16/11/2026,
+ *        decisione del capo progetto); se no, dentro una fase o «Da chiamare» si cade sull'ULTIMO
+ *        MESSAGGIO (la stessa ora che ordina l'elenco: `quandoUltimo`), poi l'arrivo del lead
+ *        (`data.createdAt`, poi `created_at`); dentro «Ricontatti» no, resta «senza data» (sarebbe un
+ *        «oggi» inventato).
  *      Ogni altro filtro (Da rispondere, con stelle, finestra, acconto, tipo…)                 → il
  *        giorno dell'ultimo messaggio, poi l'arrivo, come sopra.
- *  · I GIORNI SONO QUELLI DI ROMA (Europe/Rome), la settimana va da lunedì a domenica. Il Worker gira in
+ *  · I GIORNI SONO QUELLI DI ROMA (Europe/Rome). Il Worker gira in
  *    UTC: un messaggio delle 23:30Z è già il giorno dopo a Roma. Si usa `aRoma` (formati.ts), mai
  *    l'orologio del server.
  *  · L'ORA «ADESSO» È UN PARAMETRO: niente orologio qui dentro, le prove la fissano.
@@ -177,13 +178,18 @@ export function dataEFonte(
       const giorno = giornoScheda(d?.[regola.chiaveData]);
       return { giorno, fonte: giorno ? CAMPO_DELLA_FONTE[regola.chiaveData] : null };
     }
-    //  «Ricontatti» non ripiega sull'ultimo messaggio: ci sono dentro anche stati senza regola
-    //  (es. «Da contattare»), e inventargli una data sarebbe il D1 di nuovo, da un altro lato.
-    //  «Da chiamare» e le fasi invece cadono nel caso sotto, come sempre (Attesa WhatsApp, Segreteria…).
+    //  Stato senza regola (Da contattare, Non risponde, Segreteria…). Revisione del 16/11/2026,
+    //  decisione del capo progetto: una data di ricontatto/richiamo scritta a mano vince SEMPRE sul
+    //  ripiego dell'ultimo messaggio (un «Non risponde» richiamato venerdì sta in «Prossimi giorni»,
+    //  non in «Scaduti»; un «Da contattare» con ricontatto domani sta in «Domani», come la pastiglia).
+    const scritto = giornoScheda(d?.dataRicontatto);
+    if (scritto) return { giorno: scritto, fonte: "ricontatto" };
+    //  Senza data scritta, «Ricontatti» non ripiega sull'ultimo messaggio (inventare una data sarebbe
+    //  il D1 di nuovo); «Da chiamare» e le fasi cadono nel caso sotto, come sempre.
     if (f.ricontatti) return { giorno: "", fonte: null };
   }
-  //  Tutti gli altri (compresi gli stati senza regola, dentro una fase o «Da chiamare»): l'ultimo
-  //  messaggio, poi l'arrivo del lead.
+  //  Tutti gli altri (compresi gli stati senza regola e senza data scritta, dentro una fase o «Da
+  //  chiamare»): l'ultimo messaggio, poi l'arrivo del lead.
   const ultimo = quandoUltimo(c);
   if (ultimo > 0) return { giorno: giornoDiRoma(new Date(ultimo)), fonte: "messaggio" };
   const arrivo = arrivoMs(c);
@@ -212,6 +218,8 @@ const COSA_DICE = {
   dataVieneInSede: "il giorno della visita in sede",
 } as const;
 const DATA_ULTIMO = "il giorno dell'ultimo messaggio";
+/** Stati senza regola dentro Da chiamare / una fase: la data scritta vince, se no l'ultimo messaggio. */
+const RICONTATTO_O_ULTIMO = `${COSA_DICE.dataRicontatto} se è scritto, se no ${DATA_ULTIMO}`;
 
 /** Quale data guarda il filtro, a parole (per la fila dei giorni): la stessa scelta di `dataEFonte`,
  *  letta dal filtro invece che dalla chat. */
@@ -222,13 +230,14 @@ export function descriviDataFiltro(f: FiltroPerData): string {
     return `${COSA_DICE.dataRicontatto}, o ${COSA_DICE.dataMeeting} se il lead è da riprogrammare`;
   //  «Da chiamare»: solo richiamo e ci ricontatta lui hanno un giorno di richiamo (QUANDO_PER_STATO);
   //  gli altri tre stati della coda (da chiamare, non risponde, segreteria) non ne hanno uno.
-  if (f.coda === "da-chiamare")
-    return `${COSA_DICE.dataRicontatto} (non tutti gli stati ne hanno uno), o ${DATA_ULTIMO}`;
+  if (f.coda === "da-chiamare") return RICONTATTO_O_ULTIMO;
   if (f.fase === "per-ora-no") return COSA_DICE.dataRicontatto;
-  if (f.fase === "sospeso-clienti") return `${COSA_DICE.dataRicontatto}, o ${DATA_ULTIMO} se lo stato non ha data`;
+  if (f.fase === "sospeso-clienti") return RICONTATTO_O_ULTIMO;
   const stato = f.fase?.startsWith("stato:") ? f.fase.slice(6) : "";
   const regola = QUANDO_PER_STATO[stato as LeadStatus];
-  return regola ? COSA_DICE[regola.chiaveData] : DATA_ULTIMO;
+  if (regola) return COSA_DICE[regola.chiaveData];
+  //  Una fase senza regola (Segreteria, Attesa WhatsApp…): la data scritta vince, come in dataEFonte.
+  return f.fase ? RICONTATTO_O_ULTIMO : DATA_ULTIMO;
 }
 
 // ── La data sulla riga ──────────────────────────────────────────────────────────────────────────
@@ -253,5 +262,12 @@ export function giornoUsatoSullaRiga(c: ChatPerGiorno, f: FiltroPerData): string
   if (fonte === "consulenza") return `Consulenza ${breve}`;
   if (fonte === "sede") return `In sede ${breve}`;
   if (fonte === "arrivo") return `Arrivato ${breve}`;
+  //  Un ricontatto scritto su uno stato SENZA regola (es. «Non risponde» richiamato venerdì): la
+  //  pastiglia del richiamo non c'è (richiamoDi vale solo per gli stati con regola), quindi lo si dice
+  //  qui. In «Ricontatti» no: lì la pastiglia della riga lo mostra già (etichettaDataRicontatto).
+  if (fonte === "ricontatto" && !f.ricontatti) {
+    const stato = String(c.lead?.data?.stato ?? "") as LeadStatus;
+    if (!QUANDO_PER_STATO[stato]) return `Richiamo ${breve}`;
+  }
   return null;
 }

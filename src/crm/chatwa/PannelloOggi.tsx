@@ -31,6 +31,7 @@ import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { mappaMestieri } from "@/crm/dafare/di-chi";
 import { Segmento, VuotoRiga } from "@/crm/ui";
 import { giornoDiRoma } from "./giorno";
+import { aRoma } from "@/crm/promemoria/formati";
 import {
   Select,
   SelectContent,
@@ -175,7 +176,8 @@ export function PannelloOggi({
   //  Il giorno di Roma (16/11/2026, D6 dell'analisi), non quello dell'orologio del dispositivo: lo
   //  stesso «oggi» della fila dei giorni e del resto della chat (giorno.ts).
   const oggi = giornoDiRoma(ora);
-  const minutiAdesso = ora.getHours() * 60 + ora.getMinutes();
+  //  Anche l'ora (revisione 16/11/2026): quella di Roma, come il giorno; mai getHours() del dispositivo.
+  const minutiAdesso = aRoma(ora).minuti;
 
   /* ── CHI ── */
   const { elenco: persone } = useMemo(

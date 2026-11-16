@@ -45,6 +45,7 @@ import { LEAD_STATUS_LABEL } from "@/crm/types";
 import { contaPerStato, vociConScelto } from "./perStato";
 import {
   chatDaChiamare,
+  delSottofiltro,
   contaSottofiltri,
   STATI_SOTTOFILTRI,
   type Sottofiltro,
@@ -890,7 +891,13 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             data={descriviDataFiltro(filtri)}
             conta={(g) =>
               contaGiorno(
-                filtri.ricontatti ? api.chats.filter((c) => !eNascosto(c)) : api.chats,
+                //  In «Da chiamare» con un chip acceso (revisione 16/11/2026) contano solo le chat di
+                //  quel chip, come l'elenco (`chatDaChiamare(…, sottoAttivo)`).
+                filtri.ricontatti
+                  ? api.chats.filter((c) => !eNascosto(c))
+                  : filtri.coda === "da-chiamare"
+                    ? delSottofiltro(api.chats, sottoAttivo)
+                    : api.chats,
                 filtri,
                 stelleDi,
                 adessoData,

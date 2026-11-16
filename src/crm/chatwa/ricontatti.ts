@@ -10,7 +10,7 @@
  *  · ORDINE (dal 31/10, richiesta del titolare): SEMPRE dal lead arrivato più di recente al più vecchio.
  *    «Arrivo» = `data.createdAt`, la data di acquisizione del lead (la stessa che il CRM mostra e che
  *    conta i «lead di oggi»); se manca, `created_at` della riga. Senza nessuna delle due, in fondo.
- *    La data di RICONTATTO non ordina più: resta sulla riga e nei filtri Data. A parità l'ordine
+ *    La data di RICONTATTO non ordina più: resta sulla riga e nella fila dei giorni. A parità l'ordine
  *    dell'elenco resta (sort stabile).
  *  · PRIORITÀ: i lead che il titolare fissa con la puntina stanno SOPRA tutti, quanti ne vuole;
  *    fra loro valgono le stesse regole (arrivo più recente per primo), così non saltano quando se ne
@@ -109,14 +109,14 @@ export function fraseRicontattiVuoti(io: string, cercando: boolean): string {
   return cercando ? "Nessun tuo ricontatto in questa ricerca" : "Nessun tuo lead da ricontattare";
 }
 
-/** ── ESITO + DATA, FILTRI CHE SI COMBINANO (31/10/2026) ─────────────────────────────────────────
+/** ── L'ESITO, IL FILTRO INTERNO DI «RICONTATTI» (31/10/2026, rifatto il 16/11/2026) ──────────────
  *  Richiesta del titolare: sapere che un lead era in Attesa acconto e poi ha detto «sentiamoci più avanti»;
- *  con data icona calendario, senza data icona X. Seconda versione: NIENTE filtro per Stato, solo Esito
- *  (in una barra che si chiude) e Data (un interruttore a segmenti, non sticky). Passa chi rispetta
- *  ENTRAMBI (E); ognuno ha un valore solo. Il resto dei filtri della chat resta uno alla volta.
+ *  con data icona calendario, senza data icona X (sulla riga). Seconda versione: NIENTE filtro per Stato,
+ *  solo l'Esito, in una barra che si chiude. La data non è più un filtro qui (tolto «Con/Senza data» il
+ *  16/11/2026): la fa la fila generica dei giorni (giorno.ts), che si combina con l'Esito (E). Il resto
+ *  dei filtri della chat resta uno alla volta.
  *  · L'ESITO sta sulla scheda (`esitoRicontatto` + `esitoRicontattoIl`, JSON libero: nessuna migrazione)
  *    e RESTA quando lo stato cambia.
- *  · «CON DATA» = `dataRicontatto` è un giorno vero: la stessa regola dell'ordinamento qui sopra.
  *  Puro, provato in prove/idee/risentire.mjs. */
 
 /** Gli esiti, nell'ordine in cui si propongono. `nome` è corto (sta in una pastiglia a 375 px). */

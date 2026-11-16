@@ -41,6 +41,9 @@ export function proveOggiDiRoma(mod, { c, gruppo, radice }) {
   c("ElencoChat: «oggi» per prossimo meet e prossimo ricontatto = giornoDiRoma(new Date(adesso))", true, /const oggi = giornoDiRoma\(new Date\(adesso\)\)/.test(elenco));
   c("ElencoChat: niente più oggiIso", false, /oggiIso/.test(elenco));
   c("PannelloOggi: «oggi» delle consulenze del giorno = giornoDiRoma(ora)", true, /const oggi = giornoDiRoma\(ora\)/.test(pannello));
+  //  Revisione 16/11/2026, punto 4: anche l'ora («tra 25 min») è quella di Roma, come il giorno.
+  c("PannelloOggi: minutiAdesso = aRoma(ora).minuti, niente getHours()/getMinutes() del dispositivo", [true, false],
+    [/const minutiAdesso = aRoma\(ora\)\.minuti/.test(pannello), /getHours\(\)|getMinutes\(\)/.test(pannello)]);
   c("PannelloOggi: niente più iso(ora) di MeetGiornalieri", true, !/\biso\(ora\)/.test(pannello) && !/, iso,|, iso }/.test(pannello));
   //  16/11/2026 (coordinatore): anche la pastiglia del richiamo nell'intestazione della chat.
   const conv = senzaCommenti(leggi("src/crm/chatwa/Conversazione.tsx"));
