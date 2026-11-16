@@ -255,7 +255,6 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     consulente: "",
     ricontatti: false,
     rEsito: "",
-    rData: "",
     giorno: "",
     io: "",
   });
@@ -782,12 +781,14 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     ],
   );
   c(
-    "stato della chiamata e quando richiamare: ci sono, in righe che scorrono (30/10/2026)",
+    "stato della chiamata: c'è, in una riga che scorre (30/10/2026)",
     true,
-    /aria-label="Stato della chiamata"/.test(elenco) &&
-      /RIGA_SCORREVOLE/.test(elenco) &&
-      /Quando richiamare/.test(elenco) &&
-      /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(elenco),
+    /aria-label="Stato della chiamata"/.test(elenco) && /RIGA_SCORREVOLE/.test(elenco),
+  );
+  c(
+    "«Quando richiamare» non c'è più come riga sua (16/11/2026): la fila generica dei giorni fa lo stesso lavoro",
+    false,
+    /aria-label="Quando richiamare"/.test(elenco),
   );
   c(
     "il tasto Filtri porta il numero dei filtri accesi",
@@ -929,10 +930,13 @@ export function proveFiltriChat(mod, { c, gruppo, radice }) {
     /urgente && n > 0\s*\? "bg-amber-100 text-amber-900"/.test(pannello) &&
       /border-amber-200 bg-amber-50 text-amber-900/.test(elenco),
   );
+  //  16/11/2026: tolta la riga «Quando richiamare» (e il suo chip rosso «Scaduti» in ElencoChat): la
+  //  fila generica dei giorni la sostituisce (nessun colore speciale lì, è una scelta di disegno a
+  //  parte). Il rosso per un richiamo scaduto resta sulla pastiglia della riga (`stileRichiamo`).
   c(
-    "rosso: pallino «Finestra chiusa» e richiami «Scaduti»",
+    "rosso: pallino «Finestra chiusa» e la pastiglia del richiamo scaduto",
     true,
-    /bg-red-600/.test(pannello) && /x\.v === "scaduti"/.test(elenco) && /allarme[\s\S]{0,80}red-700/.test(elenco),
+    /bg-red-600/.test(pannello) && /r\.scaduto[\s\S]{0,20}\?[\s\S]{0,20}"border-red-300 bg-red-50 text-red-700"/.test(leggi("src/crm/chatwa/richiamo.ts")),
   );
   c(
     "il fuoco è un contorno pieno (non l'anello al 40%)",

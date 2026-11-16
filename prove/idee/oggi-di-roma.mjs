@@ -42,6 +42,10 @@ export function proveOggiDiRoma(mod, { c, gruppo, radice }) {
   c("ElencoChat: niente più oggiIso", false, /oggiIso/.test(elenco));
   c("PannelloOggi: «oggi» delle consulenze del giorno = giornoDiRoma(ora)", true, /const oggi = giornoDiRoma\(ora\)/.test(pannello));
   c("PannelloOggi: niente più iso(ora) di MeetGiornalieri", true, !/\biso\(ora\)/.test(pannello) && !/, iso,|, iso }/.test(pannello));
+  //  16/11/2026 (coordinatore): anche la pastiglia del richiamo nell'intestazione della chat.
+  const conv = senzaCommenti(leggi("src/crm/chatwa/Conversazione.tsx"));
+  c("Conversazione: la pastiglia del richiamo usa giornoDiRoma(adesso), niente più oggiIso", [true, false],
+    [/etichettaRichiamo\(attiva\.lead\.data, giornoDiRoma\(adesso\)\)/.test(conv), /oggiIso/.test(conv)]);
   c("crm/ui.tsx: oggiIso resta com'era (lo usa tutto il resto del CRM)", true, /export const oggiIso/.test(leggi("src/crm/ui.tsx")));
   c("crm/MeetGiornalieri.tsx: iso resta com'era (lo usa tutto il resto del CRM)", true, /export const iso =/.test(leggi("src/crm/MeetGiornalieri.tsx")));
 }

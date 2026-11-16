@@ -220,8 +220,11 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("si somma al consulente (E)", [1], ix(elenco({ ...daRisp, giorno: "oggi", consulente: "luca" })));
   c("In valutazione + Oggi usa il RICONTATTO (non l'ultimo messaggio)", [9], ix(elenco(con({ fase: "stato:sta_valutando", giorno: "oggi" }))));
   c("In valutazione + Domani", [8], ix(elenco(con({ fase: "stato:sta_valutando", giorno: "domani" }))));
-  c("Ricontatti usa il ricontatto (oltre i 2 giorni = Prossimi giorni), e convive con Esito/Data esistenti", [10], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "prossimi-giorni", rData: "con" }))));
-  c("Ricontatti + giorno + Senza data: nessuno (senza data non cade in un giorno)", [], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "oggi", rData: "senza" }))));
+  c("Ricontatti usa il ricontatto (oltre i 2 giorni = Prossimi giorni)", [10], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "prossimi-giorni" }))));
+  //  D4 dell'analisi risolto (16/11/2026): senza più un secondo controllo «Con/Senza data» indipendente
+  //  dalla fila dei giorni, «Senza data» dentro Ricontatti è solo un segmento di quella fila: non può
+  //  più contraddirsi con un giorno specifico (prima: scegliere i due insieme dava sempre zero, senza dirlo).
+  c("Ricontatti + Senza data: chi non ha un ricontatto, nessun doppio controllo che si annulla", [11], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "senza-data" }))));
   c("senza «adesso» il giorno non filtra (non si sa che giorno è)", ix(elenco(daRisp)), ix(mondo.filter((x) => F.passaFiltri(x, { ...daRisp, giorno: "oggi" }, stelle0))));
   c("spostando l'ora, il giorno si sposta con lei (domani diventa oggi)", [3], ix(elenco({ ...daRisp, giorno: "oggi" }, quando("2026-11-10T09:00:00Z"))));
 
@@ -234,6 +237,34 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("contaVoce del consulente tiene conto del giorno scelto", 1, F.contaVoce(mondo, { ...daRisp, giorno: "oggi" }, stelle0, "consulente", "luca", adesso));
   c("contaVoce di un'altra voce parte da zero: il giorno non si porta dietro", mondo.filter((x) => F.passaFiltri(x, con({ fase: "stato:sta_valutando" }), stelle0)).length, F.contaVoce(mondo, { ...daRisp, giorno: "oggi" }, stelle0, "fase", "stato:sta_valutando", adesso));
 
+  gruppo("FILTRO GIORNO: «DA CHIAMARE» CON LA FILA GENERICA (16/11/2026, Compito 4, corregge D2/D3)");
+  //  Tolto «Quando richiamare» (una fila sua, un secondo «Oggi», un secondo conteggio): «Da chiamare»
+  //  usa ORA la stessa fila generica di ogni altro filtro, con la stessa garanzia di sempre (il numero
+  //  del segmento è esattamente quello che l'elenco mostrerebbe).
+  const daChiamare = con({ coda: "da-chiamare" });
+  const mondoChiamare = [
+    chat({ stato: "richiamo", ricontatto: "2026-11-09" }), //  oggi (sul richiamo)
+    chat({ stato: "ci_ricontatta_lui", ricontatto: "2026-11-10" }), //  domani (sul richiamo)
+    chat({ stato: "richiamo", ricontatto: "2026-10-01" }), //  scaduti (sul richiamo)
+    chat({ stato: "non_risponde", ultimo: msg("2026-11-09") }), //  oggi (sull'ultimo messaggio: nessuna regola)
+    chat({ stato: "segreteria", ultimo: msg("2026-10-01") }), //  scaduti (sull'ultimo messaggio)
+    chat({ stato: "da_chiamare" }), //  senza data (nessuna regola, nessun messaggio)
+    chat({ stato: "richiamo" }), //  senza data (regola c'è, manca il valore)
+  ];
+  const elencoChiamare = (f, ora = adesso) => mondoChiamare.filter((x) => F.passaFiltri(x, f, stelle0, ora));
+  c("ogni segmento, dentro «Da chiamare», conta ESATTAMENTE le chat che l'elenco mostrerebbe", true,
+    SEGMENTI.every((g) => F.contaGiorno(mondoChiamare, daChiamare, stelle0, adesso, g) === elencoChiamare({ ...daChiamare, giorno: g }).length));
+  c("Richiamo e Ci ricontatta lui leggono la data del richiamo (Oggi/Domani/Scaduti)", [true, true, true], [
+    elencoChiamare({ ...daChiamare, giorno: "oggi" }).includes(mondoChiamare[0]),
+    elencoChiamare({ ...daChiamare, giorno: "domani" }).includes(mondoChiamare[1]),
+    elencoChiamare({ ...daChiamare, giorno: "scaduti" }).includes(mondoChiamare[2]),
+  ]);
+  c("gli stati senza regola (Non risponde, Segreteria) cadono sull'ultimo messaggio, non su una data di richiamo inesistente", [true, true], [
+    elencoChiamare({ ...daChiamare, giorno: "oggi" }).includes(mondoChiamare[3]),
+    elencoChiamare({ ...daChiamare, giorno: "scaduti" }).includes(mondoChiamare[4]),
+  ]);
+  c("chi non ha né richiamo né messaggio resta «Senza data» (anche con la regola, se manca il valore)", 2, elencoChiamare({ ...daChiamare, giorno: "senza-data" }).length);
+
   gruppo("FILTRO GIORNO: CAMPO INTERNO (non conta sul tasto «Filtri», si azzera col filtro)");
   c("il campo c'è ed è vuoto di partenza", "", V.giorno);
   c("non conta sul tasto «Filtri»", 1, F.contaAccesi(con({ coda: "da-rispondere", giorno: "oggi" })));
@@ -242,10 +273,10 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("…e anche toccare un altro valore dello stesso gruppo", "", F.commuta(con({ coda: "da-rispondere", giorno: "oggi" }), "coda", "da-chiamare").giorno);
   c("spegnere il filtro (toccarlo di nuovo) azzera il giorno", "", F.commuta(con({ coda: "da-rispondere", giorno: "oggi" }), "coda", "da-rispondere").giorno);
   c("togli() del filtro principale azzera il giorno", "", F.togli(con({ stelle: true, giorno: "domani" }), "stelle").giorno);
-  c("spegnere «Ricontatti» azzera esito, data e giorno", ["", "", ""], ((f) => [f.rEsito, f.rData, f.giorno])(F.togli(con({ ricontatti: true, rEsito: "piu_avanti", rData: "con", giorno: "oggi" }), "ricontatti")));
+  c("spegnere «Ricontatti» azzera esito e giorno", ["", ""], ((f) => [f.rEsito, f.giorno])(F.togli(con({ ricontatti: true, rEsito: "piu_avanti", giorno: "oggi" }), "ricontatti")));
   c("scegliere un consulente NON toglie il giorno", "oggi", F.commuta(con({ coda: "da-rispondere", giorno: "oggi" }), "consulente", "luca").giorno);
   c("togliere il consulente NON toglie il giorno", "oggi", F.togli(con({ coda: "da-rispondere", giorno: "oggi", consulente: "luca" }), "consulente").giorno);
-  c("togliere Esito o Data di Ricontatti NON toglie il giorno", ["oggi", "oggi"], [F.togli(con({ ricontatti: true, rEsito: "piu_avanti", giorno: "oggi" }), "rEsito").giorno, F.togli(con({ ricontatti: true, rData: "con", giorno: "oggi" }), "rData").giorno]);
+  c("togliere l'Esito di Ricontatti NON toglie il giorno", "oggi", F.togli(con({ ricontatti: true, rEsito: "piu_avanti", giorno: "oggi" }), "rEsito").giorno);
   c("togli(\"giorno\") toglie solo il giorno", { ...con({ coda: "da-rispondere" }) }, F.togli(con({ coda: "da-rispondere", giorno: "oggi" }), "giorno"));
   c("«Azzera» (FILTRI_VUOTI) lo azzera", "", V.giorno);
   c("l'etichetta con la ✕ c'è e si toglie col suo campo", [{ campo: "coda", etichetta: "Da rispondere" }, { campo: "giorno", etichetta: "Prossimi giorni" }], F.etichetteAccese(con({ coda: "da-rispondere", giorno: "prossimi-giorni" }), () => ""));
@@ -265,7 +296,7 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("un giorno senza filtro acceso non resta di nascosto", "", rileggi({ giorno: "oggi" }).giorno);
   c("…nemmeno col solo consulente salvato", "", rileggi({ giorno: "oggi" }, "luca").giorno);
   c("più filtri salvati: ne resta uno e il giorno va con lui", ["fase", "oggi"], ((f) => [f.fase ? "fase" : "?", f.giorno])(rileggi({ coda: "da-rispondere", fase: "per-ora-no", giorno: "oggi" })));
-  c("con Ricontatti il giorno convive con esito e data", ["oggi", "piu_avanti", "con"], ((f) => [f.giorno, f.rEsito, f.rData])(rileggi({ ricontatti: true, rEsito: "piu_avanti", rData: "con", giorno: "oggi" })));
+  c("con Ricontatti il giorno convive con l'esito", ["oggi", "piu_avanti"], ((f) => [f.giorno, f.rEsito])(rileggi({ ricontatti: true, rEsito: "piu_avanti", giorno: "oggi" })));
   c("scrivi + rileggi: il giorno resta", "ieri", F.leggiFiltri(F.scriviFiltriSessione(con({ finestra: "chiusa", giorno: "ieri" })), null).giorno);
   c("testo rotto: tutto spento, nessun errore", "", F.leggiFiltri("{rotto", null).giorno);
   c("soloUno non muta l'ingresso e tiene il giorno col filtro scelto", "oggi", F.soloUno(con({ acconto: true, giorno: "oggi" })).giorno);
@@ -285,7 +316,7 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("ritoccare il segmento acceso torna a «Tutti»", true, /acceso\s*\?\s*""\s*:/.test(riga));
   c("tocco da 44 px sul telefono come le altre righe", true, /after:-inset-y-/.test(riga) || /h-11/.test(riga));
   c("la pagina la disegna con un filtro acceso (non con la sola riga «Tutte»), a caricamento finito", true, /<RigaGiorno/.test(elencoSrc) && /!caricamento\s*&&\s*!soloRiga/.test(elencoSrc));
-  c("sta vicino alla Data di Ricontatti, fuori dall'elenco (resta con zero risultati)", true, elencoSrc.indexOf("<RigaGiorno") > elencoSrc.indexOf("<RigaDataRicontatti") && elencoSrc.indexOf("<RigaGiorno") < elencoSrc.indexOf("trovate.length === 0"));
+  c("sta dopo la barra sticky (Esito, prossimo meet…) e fuori dall'elenco (resta con zero risultati)", true, elencoSrc.indexOf("<RigaGiorno") > elencoSrc.indexOf("sticky top-0") && elencoSrc.indexOf("<RigaGiorno") < elencoSrc.indexOf("trovate.length === 0"));
   c("i numeri della fila usano contaGiorno e l'elenco la stessa passaFiltri, con la stessa ora", true, /contaGiorno\(/.test(elencoSrc) && /passaFiltri\(c, filtri, stelleDi, adessoData\)/.test(elencoSrc));
   c("il giorno è nel salvataggio della vista (si torna in cima se cambia)", true, /JSON\.stringify\(\[filtri,/.test(elencoSrc));
   c("la riga mostra la data usata solo quando non c'è già (consulenza, sede, arrivo)", true, /giornoUsato/.test(rigaChat) && /giornoUsato/.test(elencoSrc));
@@ -293,5 +324,5 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("la logica del giorno non legge l'orologio (niente Date.now / new Date() senza argomenti)", false, /Date\.now\(|new Date\(\)/.test(senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))));
   c("nessun database: giorno.ts non importa Supabase", false, /supabase/i.test(senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))));
   c("niente emoji nei file nuovi", true, ![riga, senzaCommenti(leggi("src/crm/chatwa/giorno.ts"))].some((t) => /\p{Extended_Pictographic}/u.test(t)));
-  c("il campo è dichiarato in FiltriChat ed è interno come rEsito/rData", true, /giorno: GiornoChat/.test(filtriSrc) && /CAMPI_INTERNI = \["io", "rEsito", "rData", "giorno"\]/.test(filtriSrc));
+  c("il campo è dichiarato in FiltriChat ed è interno come rEsito", true, /giorno: GiornoChat/.test(filtriSrc) && /CAMPI_INTERNI = \["io", "rEsito", "giorno"\]/.test(filtriSrc));
 }

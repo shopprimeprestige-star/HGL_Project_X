@@ -26,8 +26,11 @@ export function proveSottofiltriScorrevoli(mod, { c, gruppo, radice }) {
     /h-11/.test(tasto) && /aria-pressed=\{sottoAttivo === x\.v\}/.test(sotto) && /conti\[x\.v\]/.test(sotto) && /sottoTasto\(/.test(sotto));
   c("più leggeri: testo piccolo (t-nota), solo linea sotto, nessun pieno primario", true,
     /t-nota/.test(tasto) && /border-b-2/.test(tasto) && !/bg-primary/.test(tasto));
-  c("«Quando richiamare» (Scaduti/Oggi/Domani…) diventa una riga uguale, senza il menu a tendina", true,
-    /Quando richiamare/.test(sotto) && !/<select/.test(sotto) && /aria-pressed=\{quandoAttivo === x\.v\}/.test(sotto));
+  //  16/11/2026: «Quando richiamare» non è più una riga a parte sotto «Stato della chiamata» (Compito
+  //  4, D2/D3 dell'analisi): la fila generica dei giorni, sotto l'intero blocco, fa lo stesso lavoro
+  //  con lo stesso nome («Scaduti», «Oggi»…) di ogni altro filtro, un solo conteggio.
+  c("niente menu a tendina nel blocco di «Da chiamare» (nessun <select> residuo)", false, /<select/.test(sotto));
+  c("«Quando richiamare» non è più una riga sua", false, /Quando richiamare/.test(sotto));
 }
 
 export function proveCreaSchedaDaChat(mod, { c, gruppo, radice }) {

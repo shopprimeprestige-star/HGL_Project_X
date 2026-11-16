@@ -59,7 +59,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { PastigliaEsito } from "./PastigliaEsito";
 import { dataDi, eRicontatto, esitoDi } from "./ricontatti";
-import { oggiIso } from "@/crm/ui";
+import { giornoDiRoma } from "./giorno";
 import { attaccataAllaPrecedente } from "./stile";
 import { ID_CODA, unisciConCoda } from "./invioPonte";
 import type { ConversazioneProps } from "./tipi";
@@ -215,7 +215,8 @@ export function Conversazione({
       )
     : null;
   const ritorno = attiva?.lead ? ritornoInChat(attiva.lead.data) : null;
-  const richiamo = attiva?.lead ? etichettaRichiamo(attiva.lead.data, oggiIso(adesso)) : null;
+  //  Il giorno di Roma (16/11/2026, D6 dell'analisi), lo stesso «oggi» della riga dell'elenco.
+  const richiamo = attiva?.lead ? etichettaRichiamo(attiva.lead.data, giornoDiRoma(adesso)) : null;
 
   return (
     <section className="w-full h-full flex flex-col min-w-0 bg-muted/30">

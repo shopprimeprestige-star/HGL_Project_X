@@ -216,27 +216,28 @@ export function etichettaDataRicontatto(
   };
 }
 
+/** ⚠️ 16/11/2026: tolto il campo `data` («Con data»/«Senza data», un interruttore a parte che
+ *  chiedeva la stessa cosa della fila generica dei giorni, §1.3 dell'ANALISI, D4). La fila di
+ *  `giorno.ts` ha già «Senza data» (e «Tutti» meno «Senza data» è già «con data»): un secondo
+ *  controllo per la stessa domanda non aiutava la chiarezza, restava un doppione. */
 export interface FiltroRisentire {
   /** `""` = tutti, un esito, oppure `ESITO_NESSUNO` */
   esito: string;
-  data: "" | "con" | "senza";
 }
 
 export type CampoRisentire = keyof FiltroRisentire;
 
-export const RISENTIRE_VUOTO: FiltroRisentire = { esito: "", data: "" };
+export const RISENTIRE_VUOTO: FiltroRisentire = { esito: "" };
 
 /** C'è almeno un filtro acceso? */
-export const risentireAcceso = (r: FiltroRisentire): boolean => r.esito !== "" || r.data !== "";
+export const risentireAcceso = (r: FiltroRisentire): boolean => r.esito !== "";
 
-/** La chat rispetta esito e data (E)? Non guarda di chi è: lo fa `eMioRicontatto`. */
+/** La chat rispetta l'esito? Non guarda di chi è: lo fa `eMioRicontatto`. */
 export function passaRisentire(c: ChatRicontatto, r: FiltroRisentire): boolean {
   if (r.esito) {
     const e = esitoDi(c);
     if (r.esito === ESITO_NESSUNO ? e !== null : e !== r.esito) return false;
   }
-  if (r.data === "con" && dataDi(c) === "") return false;
-  if (r.data === "senza" && dataDi(c) !== "") return false;
   return true;
 }
 

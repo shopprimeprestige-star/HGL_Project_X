@@ -1,8 +1,12 @@
-/** ── PROVE: «RICONTATTI» CON ESITO + DATA, E LEAD NASCOSTI (31/10/2026) ─────────────────────────
+/** ── PROVE: «RICONTATTI» CON ESITO, E LEAD NASCOSTI (31/10/2026, rifatto il 16/11/2026) ───────────
  *  Regole in src/crm/chatwa/ricontatti.ts e filtri.ts; il disegno in RigheRisentire.tsx, RigaChat.tsx,
  *  ElencoChat.tsx e FinestraEsito.tsx. Prima versione: «Attesa acconto + non ha risposto»; con data icona
  *  calendario, senza data icona X. Seconda versione (titolare): niente filtro per Stato, solo Esito, in una
- *  barra che si chiude; Data minimale e non sticky; un'icona per nascondere un lead (gruppo «Nascosti»).
+ *  barra che si chiude; un'icona per nascondere un lead (gruppo «Nascosti»).
+ *  ⚠️ 16/11/2026 (Compito 4, D4 dell'analisi): tolto il campo Data (Tutti/Con data/Senza data), un
+ *  secondo interruttore indipendente che chiedeva la stessa cosa della fila generica dei giorni e poteva
+ *  contraddirla in silenzio. La data vive solo nella fila generica (`filtri.giorno`, prove in
+ *  filtro-giorno.mjs); qui resta solo l'Esito.
  *  Dati inventati: nessun cliente vero. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -33,7 +37,7 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
     };
   };
   const nessuno = () => 0;
-  const r = (o = {}) => ({ esito: "", data: "", ...o });
+  const r = (o = {}) => ({ esito: "", ...o });
   const tel = (l) => l.map((x) => x.phone);
 
   // Il mondo: sei lead miei
@@ -71,62 +75,55 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
     ),
   );
 
-  gruppo("RISENTIRE: ESITO E DATA SI COMBINANO (E), NIENTE STATO");
+  gruppo("RISENTIRE: SOLO L'ESITO (16/11/2026: la data vive nella fila generica dei giorni, non più qui)");
   c("nessun filtro: tutti", tel(mondo), vedo(r()));
-  c("solo esito: Sentiamoci più avanti", tel([b, d]), vedo(r({ esito: "piu_avanti" })));
-  c("solo data: con data", tel([a, d, f]), vedo(r({ data: "con" })));
-  c("solo data: senza data", tel([b, e, g]), vedo(r({ data: "senza" })));
-  c("esito + data", tel([d]), vedo(r({ esito: "piu_avanti", data: "con" })));
-  c("esito + senza data", tel([b]), vedo(r({ esito: "piu_avanti", data: "senza" })));
-  c("una combinazione vuota dà zero", [], vedo(r({ esito: "non_ha_risposto", data: "senza" })));
+  c("un esito: Sentiamoci più avanti", tel([b, d]), vedo(r({ esito: "piu_avanti" })));
   c("«Senza esito» prende chi non ne ha", tel([e]), vedo(r({ esito: "nessuno" })));
-  c("il filtro non ha più il campo «stato»", false, "stato" in R.RISENTIRE_VUOTO);
-  c("uno stato passato di nascosto non filtra", tel(mondo), tel(mondo.filter((ch) => R.passaRisentire(ch, { ...r(), stato: "per_ora_no" }))));
+  c("il filtro non ha più i campi «stato» e «data»", [false, false], ["stato" in R.RISENTIRE_VUOTO, "data" in R.RISENTIRE_VUOTO]);
+  c("uno stato o una data passati di nascosto non filtrano (passaRisentire guarda solo l'esito)", tel(mondo), tel(mondo.filter((ch) => R.passaRisentire(ch, { ...r(), stato: "per_ora_no", data: "con" }))));
   c("la riga «Stato» non esiste più: niente statiRisentire", "undefined", typeof R.statiRisentire);
 
   gruppo("RISENTIRE: I NUMERI SULLE PASTIGLIE (cosa vedresti toccando)");
   const conta = (x, campo, v) => R.contaRisentire(mondo, x, campo, v);
   c("senza altro, «più avanti» = 2", 2, conta(r(), "esito", "piu_avanti"));
-  c("con «con data» già scelto, «più avanti» = 1", 1, conta(r({ data: "con" }), "esito", "piu_avanti"));
-  c("senza esito: conta chi non ne ha", 1, conta(r({ data: "senza" }), "esito", "nessuno"));
-  c("con data / senza data / tutti", [3, 3, 6], [conta(r(), "data", "con"), conta(r(), "data", "senza"), conta(r(), "data", "")]);
+  c("senza esito: conta chi non ne ha", 1, conta(r(), "esito", "nessuno"));
   c("il numero della pastiglia scelta è quello che si vede", vedo(r({ esito: "piu_avanti" })).length, conta(r({ esito: "piu_avanti" }), "esito", "piu_avanti"));
-  c("il numero di «Tutti» è quello senza il filtro data", 2, conta(r({ esito: "piu_avanti", data: "con" }), "data", "") );
 
   gruppo("RISENTIRE: TOCCARE UNA PASTIGLIA");
   c("la accende", "piu_avanti", R.commutaRisentire(r(), "esito", "piu_avanti").esito);
   c("toccarla di nuovo la spegne", "", R.commutaRisentire(r({ esito: "piu_avanti" }), "esito", "piu_avanti").esito);
   c("sceglierne un'altra della stessa riga sostituisce", "non_ha_risposto", R.commutaRisentire(r({ esito: "piu_avanti" }), "esito", "non_ha_risposto").esito);
-  c("le due righe combinano", ["piu_avanti", "senza"], ((x) => [x.esito, x.data])(R.commutaRisentire(R.commutaRisentire(r(), "esito", "piu_avanti"), "data", "senza")));
-  c("«acceso» dice se c'è qualcosa", [false, true], [R.risentireAcceso(r()), R.risentireAcceso(r({ data: "con" }))]);
+  c("«acceso» dice se c'è qualcosa", [false, true], [R.risentireAcceso(r()), R.risentireAcceso(r({ esito: "piu_avanti" }))]);
 
   gruppo("RISENTIRE: DENTRO I FILTRI DELLA CHAT");
   const con = (o) => ({ ...F.FILTRI_VUOTI, ...o });
   const dentro = (o) => tel(mondo.filter((ch) => F.passaFiltri(ch, con({ ricontatti: true, io: "io", ...o }), nessuno)));
   c("Ricontatti da solo: tutti i miei", tel(mondo), dentro({}));
   c("Ricontatti + non ha risposto", tel([a]), dentro({ rEsito: "non_ha_risposto" }));
-  c("Ricontatti + senza data", tel([b, e, g]), dentro({ rData: "senza" }));
-  c("spento Ricontatti, i campi non filtrano", tel(mondo), tel(mondo.filter((ch) => F.passaFiltri(ch, con({ rData: "senza" }), nessuno))));
-  c("i filtri interni non contano sul tasto «Filtri»", 1, F.contaAccesi(con({ ricontatti: true, rEsito: "piu_avanti", rData: "con" })));
+  c("spento Ricontatti, l'esito non filtra", tel(mondo), tel(mondo.filter((ch) => F.passaFiltri(ch, con({ rEsito: "piu_avanti" }), nessuno))));
+  c("il filtro interno non conta sul tasto «Filtri»", 1, F.contaAccesi(con({ ricontatti: true, rEsito: "piu_avanti" })));
   c("il numero di «Ricontatti» in riga resta quello di prima", mondo.length, F.contaVoce(mondo, con({ io: "io", rEsito: "piu_avanti" }), nessuno, "ricontatti", true));
-  const acceso = con({ ricontatti: true, io: "io", rEsito: "nessuno", rData: "senza" });
-  c("spegnere Ricontatti azzera anche i due", ["", ""], ((x) => [x.rEsito, x.rData])(F.commuta(acceso, "ricontatti", true)));
-  c("accendere un'altra voce li azzera", ["", ""], ((x) => [x.rEsito, x.rData])(F.commuta(acceso, "coda", "da-rispondere")));
-  c("la ✕ del riepilogo (togli) azzera anche i due", ["", ""], ((x) => [x.rEsito, x.rData])(F.togli(acceso, "ricontatti")));
-  const etich = F.etichetteAccese(con({ ricontatti: true, rEsito: "non_ha_risposto", rData: "senza" }), (x) => x);
-  c("ogni riga accesa ha la sua etichetta con la ✕, dopo «Ricontatti»", ["Ricontatti", "Non ha risposto", "Senza data"], etich.map((e) => e.etichetta));
-  c("e la ✕ toglie solo quella riga", ["", "senza", true], ((x) => [x.rEsito, x.rData, x.ricontatti])(F.togli(con({ ricontatti: true, rEsito: "non_ha_risposto", rData: "senza" }), "rEsito")));
+  const acceso = con({ ricontatti: true, io: "io", rEsito: "nessuno" });
+  c("spegnere Ricontatti azzera anche l'esito", "", F.commuta(acceso, "ricontatti", true).rEsito);
+  c("accendere un'altra voce lo azzera", "", F.commuta(acceso, "coda", "da-rispondere").rEsito);
+  c("la ✕ del riepilogo (togli) azzera anche l'esito", "", F.togli(acceso, "ricontatti").rEsito);
+  const etich = F.etichetteAccese(con({ ricontatti: true, rEsito: "non_ha_risposto" }), (x) => x);
+  c("ogni riga accesa ha la sua etichetta con la ✕, dopo «Ricontatti»", ["Ricontatti", "Non ha risposto"], etich.map((e) => e.etichetta));
+  c("e la ✕ toglie solo quella riga", ["", true], ((x) => [x.rEsito, x.ricontatti])(F.togli(con({ ricontatti: true, rEsito: "non_ha_risposto" }), "rEsito")));
   c("«Senza esito» si legge così nel riepilogo", "Senza esito", F.etichetteAccese(con({ ricontatti: true, rEsito: "nessuno" }), (x) => x)[1].etichetta);
-  c("«Tutte» (FILTRI_VUOTI) li ha vuoti, e non ha rStato", [["", ""], false], [[F.FILTRI_VUOTI.rEsito, F.FILTRI_VUOTI.rData], "rStato" in F.FILTRI_VUOTI]);
+  c("«Tutte» (FILTRI_VUOTI) lo ha vuoto, e non ha rStato né rData", [false, false, ""], ["rStato" in F.FILTRI_VUOTI, "rData" in F.FILTRI_VUOTI, F.FILTRI_VUOTI.rEsito]);
 
   gruppo("RISENTIRE: SALVATAGGIO NEL BROWSER");
   const salvato = F.leggiFiltri(F.scriviFiltriSessione(acceso), null);
-  c("si ricordano", ["nessuno", "senza", true], [salvato.rEsito, salvato.rData, salvato.ricontatti]);
-  c("un valore strano si ignora", ["", ""], ((x) => [x.rEsito, x.rData])(F.leggiFiltri(JSON.stringify({ ricontatti: true, rEsito: "boh", rData: "forse" }), null)));
+  c("si ricorda", ["nessuno", true], [salvato.rEsito, salvato.ricontatti]);
+  c("un valore strano si ignora", "", F.leggiFiltri(JSON.stringify({ ricontatti: true, rEsito: "boh" }), null).rEsito);
   c("uno stato salvato da una versione vecchia si ignora, senza errori", ["", true], ((x) => [x.rEsito, x.ricontatti])(F.leggiFiltri(JSON.stringify({ ricontatti: true, rStato: "per_ora_no" }), null)));
-  c("senza Ricontatti acceso non restano", ["", ""], ((x) => [x.rEsito, x.rData])(F.leggiFiltri(JSON.stringify({ coda: "da-chiamare", rData: "con" }), null)));
-  c("soloUno li porta con Ricontatti", "nessuno", F.soloUno(acceso).rEsito);
-  c("soloUno li toglie se vince un altro filtro", "", F.soloUno(con({ fase: "per-ora-no", ricontatti: true, rEsito: "piu_avanti" })).rEsito);
+  //  Rischio del piano (Compito 4): una sessione salvata prima del 16/11 con «rData» (e magari il
+  //  vecchio «giorno: "questa-settimana"») torna a «Tutti» senza errori, come un valore sconosciuto.
+  c("un vecchio «rData» (sessione salvata prima del 16/11) si ignora: niente «rData» nel filtro letto, Ricontatti resta acceso", [true, false], ((f) => [f.ricontatti, "rData" in f])(F.leggiFiltri(JSON.stringify({ ricontatti: true, rData: "con", giorno: "questa-settimana" }), null)));
+  c("senza Ricontatti acceso non resta", "", F.leggiFiltri(JSON.stringify({ coda: "da-chiamare", rEsito: "piu_avanti" }), null).rEsito);
+  c("soloUno lo porta con Ricontatti", "nessuno", F.soloUno(acceso).rEsito);
+  c("soloUno lo toglie se vince un altro filtro", "", F.soloUno(con({ fase: "per-ora-no", ricontatti: true, rEsito: "piu_avanti" })).rEsito);
 
   gruppo("RISENTIRE: NASCONDERE UN LEAD (campo sulla scheda, nessuna migrazione)");
   const applica = (ch, patch) => ({ ...ch, lead: { data: { ...ch.lead.data, ...patch } } });
@@ -152,7 +149,7 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   const sopra = R.ordinaRicontatti(split.visibili);
   c("l'ordine resta sull'elenco principale (stesso arrivo: quello di ingresso)", tel([a, b]), tel(sopra));
   c("i nascosti restano dentro i filtri della chat (il gruppo «Nascosti» li rispetta)", true, F.passaFiltri(nasc, con({ ricontatti: true, io: "io" }), nessuno));
-  c("i nascosti non pesano sui numeri delle pastiglie", [1, 1], ((vis) => [R.contaRisentire(vis, r(), "esito", "piu_avanti"), R.contaRisentire(vis, r(), "data", "senza")])(R.dividiNascosti([a, b, nascosto(d), nasc]).visibili));
+  c("i nascosti non pesano sul numero della pastiglia", 1, R.contaRisentire(R.dividiNascosti([a, b, nascosto(d), nasc]).visibili, r(), "esito", "piu_avanti"));
   c("il nascondimento vale solo nella vista Ricontatti: passaFiltri di una voce qualunque non lo guarda", true, F.passaFiltri(nasc, con({ tipo: "con-scheda" }), nessuno));
 
   gruppo("RISENTIRE: IL DISEGNO");
@@ -160,22 +157,21 @@ export function proveRisentire(mod, { c, gruppo, radice }) {
   const riga = senzaCommenti(leggi("src/crm/chatwa/RigaChat.tsx"));
   const elenco = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
   const finestra = senzaCommenti(leggi("src/crm/chatwa/FinestraEsito.tsx"));
-  const barra = righe.slice(righe.indexOf("export function BarraEsitoRicontatti"), righe.indexOf("const DATE"));
-  const dataRiga = righe.slice(righe.indexOf("const DATE"));
+  const barra = righe.slice(righe.indexOf("export function BarraEsitoRicontatti"));
   c("niente riga «Stato» nel pannello", false, /"Stato"|statiRisentire|LEAD_STATUS_LABEL/.test(righe));
   c("la barra dei filtri è chiusa all'ingresso (useState(false)) e si apre con un tasto che dice aria-expanded", true, /useState\(false\)/.test(barra) && /aria-expanded=\{/.test(barra) && /aria-controls=/.test(barra));
   c("da chiusa è una riga sottile con il nome «Filtri ricontatti»", true, /Filtri ricontatti/.test(barra) && /h-9/.test(barra));
   c("da chiusa dice quale esito è acceso", true, /nomeScelto|scelto/.test(barra));
   c("da aperta ha le pastiglie dell'esito (le quattro e «Senza esito») col numero", true, /ESITI_RICONTATTO/.test(righe) && /ESITO_NESSUNO/.test(righe) && /ESITI\.map/.test(barra) && /Contatore/.test(barra) && /contaRisentire\(/.test(barra));
   c("ogni pastiglia dice se è accesa (aria-pressed), non solo col colore", true, /aria-pressed=\{/.test(barra));
-  c("la barra non ha una riga Data (sta fuori)", false, /"con"|Con data/.test(barra));
-  c("Data: interruttore a segmenti Tutti / Con data / Senza data, col numero", true, /Tutti/.test(dataRiga) && /Con data/.test(dataRiga) && /Senza data/.test(dataRiga) && /aria-pressed=\{/.test(dataRiga) && /contaRisentire\(/.test(dataRiga));
-  c("Data: NON è sticky", false, /sticky/.test(dataRiga));
-  c("Data: la frase sull'ordine («dal lead arrivato più di recente») è nel title, non una riga di testo", true, /title=/.test(dataRiga) && /dal lead arrivato più di recente/.test(dataRiga));
+  //  D4 dell'analisi (16/11/2026): niente più una riga Data a parte (Tutti/Con data/Senza data), un
+  //  secondo interruttore che poteva contraddire la fila generica dei giorni in silenzio.
+  c("niente più RigaDataRicontatti né «Con data»: la fila generica dei giorni (RigaGiorno) la sostituisce", false, /RigaDataRicontatti|Con data/.test(righe));
   c("un solo «Azzera» in pagina (quello del riepilogo)", false, /Azzera/.test(righe));
   const sticky = elenco.slice(elenco.indexOf("sticky top-0"), elenco.indexOf("</div>", elenco.indexOf("sticky top-0")));
-  c("in ElencoChat la barra sta nel blocco sticky in cima all'elenco, la Data fuori", true, /<BarraEsitoRicontatti/.test(sticky) && !/<RigaDataRicontatti/.test(sticky) && /<RigaDataRicontatti/.test(elenco));
-  c("barra e Data compaiono solo in Ricontatti", true, /filtri\.ricontatti && \([\s\S]{0,80}<RigaDataRicontatti|filtri\.ricontatti &&[\s\S]{0,200}<RigaDataRicontatti/.test(elenco) && /filtri\.ricontatti &&[\s\S]{0,80}<BarraEsitoRicontatti/.test(elenco));
+  c("in ElencoChat la barra sta nel blocco sticky in cima all'elenco", true, /<BarraEsitoRicontatti/.test(sticky));
+  c("niente più RigaDataRicontatti importato o montato in ElencoChat", false, /RigaDataRicontatti/.test(elenco));
+  c("la barra compare solo in Ricontatti", true, /filtri\.ricontatti &&[\s\S]{0,80}<BarraEsitoRicontatti/.test(elenco));
   c("la vecchia frase in riga è sparita", false, /I tuoi lead da risentire, dal(la data| lead arrivato) più (recente|di recente)\.\s*<\/p>/.test(elenco));
   c("la riga mostra «Senza data» con la X", true, /CalendarX/.test(riga) && /Senza data/.test(riga));
   c("e la data col calendario (richiamo) come prima", true, /CalendarClock/.test(riga));

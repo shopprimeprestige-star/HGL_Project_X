@@ -1,15 +1,20 @@
-/** ── I FILTRI DI «RICONTATTI»: ESITO IN UNA BARRA, DATA A SEGMENTI (31/10/2026) ───────────────
+/** ── I FILTRI DI «RICONTATTI»: ESITO IN UNA BARRA (31/10/2026, rifatto il 16/11/2026) ────────────
  *  Richiesta del titolare (seconda versione): niente filtro per Stato, solo Esito; la barra sticky in
- *  cima all'elenco, richiudibile e SEMPRE chiusa quando si entra; la Data più minimale e non sticky.
+ *  cima all'elenco, richiudibile e SEMPRE chiusa quando si entra.
  *  · BarraEsitoRicontatti: da chiusa una riga sottile («Filtri ricontatti · Non ha risposto»), da aperta
  *    le pastiglie dell'esito. Si monta solo con «Ricontatti» acceso: ogni ingresso riparte chiusa. Sceglierne
  *    una la richiude (il filtro acceso si legge nella riga e nel riepilogo).
- *  · RigaDataRicontatti: Tutti / Con data / Senza data, un interruttore a segmenti in una riga che scorre
- *    con l'elenco (non sticky).
- *  Gli altri filtri della chat restano uno alla volta; questi due si COMBINANO (E). Per toglierli: si
- *  tocca di nuovo la pastiglia, o la ✕ della sua etichetta nel riepilogo (un solo «Azzera» in pagina).
- *  Telefono: tocchi da 44 px (l'area è più grande di ciò che si vede). Le regole sono in ricontatti.ts. */
-import { CalendarClock, ChevronDown, ListFilter } from "lucide-react";
+ *  ⚠️ 16/11/2026: tolta `RigaDataRicontatti` (Tutti/Con data/Senza data, D4 dell'analisi): chiedeva la
+ *  stessa cosa della fila generica dei giorni (`RigaGiorno`, sotto questa barra), con un secondo
+ *  interruttore indipendente che poteva contraddirla (scegliere «Senza data» qui e «Oggi» là dava
+ *  sempre zero, senza dirlo). La fila generica ha già «Senza data»; «Con data» non serve più: con
+ *  Scaduti/Ieri/Oggi/Domani/Prossimi giorni/Senza data, scegliere «Tutti» e togliere «Senza data» a
+ *  mente è già «con data».
+ *  Gli altri filtri della chat restano uno alla volta; l'Esito si combina col giorno. Per togliere
+ *  l'Esito: si tocca di nuovo la pastiglia, o la ✕ della sua etichetta nel riepilogo (un solo «Azzera»
+ *  in pagina). Telefono: tocchi da 44 px (l'area è più grande di ciò che si vede). Le regole sono in
+ *  ricontatti.ts. */
+import { ChevronDown, ListFilter } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BORDO_TASTO, Contatore, FUOCO } from "./PannelloFiltri";
@@ -101,59 +106,6 @@ export function BarraEsitoRicontatti({ chats, valore, onCambia }: Props) {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-const DATE = [
-  { v: "", nome: "Tutti" },
-  { v: "con", nome: "Con data" },
-  { v: "senza", nome: "Senza data" },
-] as const;
-
-export function RigaDataRicontatti({ chats, valore, onCambia }: Props) {
-  return (
-    <div
-      className="flex items-center gap-2 border-b border-border px-3 py-1.5 md:px-2"
-      title="I tuoi lead da risentire: in cima quelli in priorità, poi dal lead arrivato più di recente."
-    >
-      <CalendarClock aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="sr-only">Data di ricontatto</span>
-      {/*  Interruttore a segmenti: uno acceso alla volta, «Tutti» = nessun filtro. */}
-      <div
-        role="group"
-        aria-label="Data di ricontatto: scegli una voce"
-        className="inline-flex min-w-0 gap-0.5 rounded-lg bg-muted p-0.5"
-      >
-        {DATE.map((x) => {
-          const acceso = valore.data === x.v;
-          return (
-            <button
-              key={x.v}
-              type="button"
-              aria-pressed={acceso}
-              onClick={() => onCambia({ ...valore, data: x.v })}
-              className={cn(
-                "t-nota relative flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-2 lg:pointer-fine:after:hidden",
-                acceso
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-background",
-                FUOCO,
-              )}
-            >
-              {x.nome}
-              <span
-                className={cn(
-                  "tabular-nums",
-                  acceso ? "text-primary-foreground/80" : "text-muted-foreground",
-                )}
-              >
-                {contaRisentire(chats, valore, "data", x.v)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }

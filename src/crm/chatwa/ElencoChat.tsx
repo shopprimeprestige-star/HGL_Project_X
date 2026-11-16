@@ -67,7 +67,6 @@ import {
 } from "./filtri";
 import { BORDO_TASTO, Contatore, FUOCO, PannelloFiltri } from "./PannelloFiltri";
 import type { ChatItem, ElencoChatProps } from "./tipi";
-import { chiaveOrdine, passaRichiamo, vociFiltro, type FiltroRichiamo } from "./richiamo";
 import {
   dividiNascosti,
   eNascosto,
@@ -78,7 +77,7 @@ import {
   patchNascondi,
   patchPriorita,
 } from "./ricontatti";
-import { BarraEsitoRicontatti, RigaDataRicontatti } from "./RigheRisentire";
+import { BarraEsitoRicontatti } from "./RigheRisentire";
 import { descriviDataFiltro, giornoDiRoma, giornoUsatoSullaRiga } from "./giorno";
 import { RigaGiorno } from "./RigaGiorno";
 
@@ -179,18 +178,15 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   const [pannelloAperto, setPannelloAperto] = useState(false);
   //  Le stelle (28/10/2026): ordinano sempre l'elenco, prima le tre; ora sono anche un filtro.
   const { di: stelleDi, cambia: cambiaStelle, metti: mettiStelle } = useStelle();
-  //  Il sottofiltro di «Da chiamare» (28/10/2026): UN elenco, ordinato per stato.
+  //  Il sottofiltro di «Da chiamare» (28/10/2026): UN elenco, ordinato per stato. «Quando richiamare»
+  //  (29/10/2026) non c'è più dal 16/11/2026: lo stesso lavoro lo fa la fila generica dei giorni
+  //  (`filtri.giorno`, RigaGiorno), che da Compito 2 legge la regola giusta anche per «Da chiamare».
   const [sotto, setSotto] = useState<Sottofiltro>("tutti");
-  //  Quando richiamarlo (29/10/2026): Scaduti, Oggi, Domani, poi le date.
-  const [quando, setQuando] = useState<FiltroRichiamo>("tutti");
-  //  Ogni cambio di filtri passa da qui (31/10/2026): se «Da chiamare» non è più acceso, i suoi due
-  //  sotto-filtri tornano a «Tutti». Così «Azzera», «Tutte», la ✕ di un'etichetta o un altro filtro non
-  //  lasciano uno stato o una data scelti di nascosto, pronti a restringere l'elenco alla prossima volta.
+  //  Ogni cambio di filtri passa da qui (31/10/2026): se «Da chiamare» non è più acceso, il suo
+  //  sotto-filtro torna a «Tutti». Così «Azzera», «Tutte», la ✕ di un'etichetta o un altro filtro non
+  //  lasciano uno stato scelto di nascosto, pronto a restringere l'elenco alla prossima volta.
   const setFiltri = (f: FiltriChat) => {
-    if (f.coda !== "da-chiamare") {
-      setSotto("tutti");
-      setQuando("tutti");
-    }
+    if (f.coda !== "da-chiamare") setSotto("tutti");
     salvaFiltri(f);
   };
 
@@ -312,29 +308,19 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  Con «Da chiamare» acceso NON ci sono riquadri: un elenco solo, ordinato per stato (non
   //  risponde, segreteria…) e dentro ogni stato dal cambio più vecchio. I chip scelgono uno stato
   //  solo; quelli a zero spariscono. Ora ubbidisce anche agli altri gruppi (30/10/2026).
-  const daChiamareTutte = filtri.coda === "da-chiamare" ? trovate : [];
-  const conti = contaSottofiltri(daChiamareTutte);
-  //  Un chip scelto che nel frattempo si svuota (stato cambiato dalla riga) torna a «Tutti».
-  const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
-  const perStato = chatDaChiamare(daChiamareTutte, sottoAttivo);
-  /*  ── QUANDO RICHIAMARLO (29/10/2026) ───────────────────────────────────
-      Le voci si contano sulle chat del chip scelto; una voce scelta che si svuota torna a
-      «Tutti». Con una voce scelta l'elenco va per data e ora del richiamo (prima gli scaduti). */
   //  Il giorno di Roma (16/11/2026, D6 dell'analisi), non quello dell'orologio del dispositivo: lo
   //  stesso «oggi» della fila dei giorni (giorno.ts), della barra del prossimo meet, di quella del
   //  prossimo ricontatto e della pastiglia del richiamo sulla riga.
   const oggi = giornoDiRoma(new Date(adesso));
-  const vociQuando = vociFiltro(
-    perStato.map((c) => c.lead?.data),
-    oggi,
-  );
-  const quandoAttivo: FiltroRichiamo = vociQuando.some((x) => x.v === quando) ? quando : "tutti";
-  const elencoDaChiamare =
-    quandoAttivo === "tutti"
-      ? perStato
-      : perStato
-          .filter((c) => passaRichiamo(c.lead?.data, quandoAttivo, oggi))
-          .sort((a, b) => chiaveOrdine(a.lead?.data).localeCompare(chiaveOrdine(b.lead?.data)));
+  //  `trovate` ha già applicato `filtri.giorno` (anche qui, via `passaFiltri`/`passaGiorno`: dal
+  //  Compito 2 «Da chiamare» legge la stessa regola di ogni altro filtro). «Quando richiamare»
+  //  (29/10/2026, tolto il 16/11/2026) non serve più: lo stesso lavoro lo fa la fila generica dei
+  //  giorni (RigaGiorno), con un solo conteggio invece di due diversi (D2/D3 dell'analisi).
+  const daChiamareTutte = filtri.coda === "da-chiamare" ? trovate : [];
+  const conti = contaSottofiltri(daChiamareTutte);
+  //  Un chip scelto che nel frattempo si svuota (stato cambiato dalla riga) torna a «Tutti».
+  const sottoAttivo: Sottofiltro = sotto === "tutti" || conti[sotto] > 0 ? sotto : "tutti";
+  const elencoDaChiamare = chatDaChiamare(daChiamareTutte, sottoAttivo);
 
   /*  ── SELEZIONE TENENDO PREMUTO (30/10/2026) ───────────────────────────────
       Le chat «visibili» sono quelle che l'elenco mostra ORA, riquadri compresi: «Seleziona tutto» e le azioni valgono per loro, mai per chat nascoste
@@ -357,7 +343,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   //  Con 2.000+ chat le righe nella pagina erano 95.000 nodi: ora ne bastano 40, e altre 40 a ogni
   //  discesa verso il fondo. I numeri, «Seleziona tutto» e `mostrate` restano sugli elenchi interi.
   const [visti, setVisti] = useState(RIGHE_INIZIALI);
-  const chiaveVista = JSON.stringify([filtri, ricerca, sottoAttivo, quandoAttivo]);
+  const chiaveVista = JSON.stringify([filtri, ricerca, sottoAttivo]);
   const [chiavePrec, setChiavePrec] = useState(chiaveVista);
   if (chiavePrec !== chiaveVista) {
     setChiavePrec(chiaveVista);
@@ -833,9 +819,11 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
         </div>
       )}
 
-      {/*  Sotto «Da chiamare» (30/10/2026): lo stato della chiamata e, se serve, quando richiamare.
-          Righe che scorrono di lato come le pillole sopra, ma più leggere (solo testo, linea sotto
-          quella scelta). I numeri sono quelli che vedrai toccando. */}
+      {/*  Sotto «Da chiamare» (30/10/2026): lo stato della chiamata. «Quando richiamare» (tolto il
+          16/11/2026) non c'è più come riga sua: la fila generica dei giorni, poco più sotto
+          (`!soloRiga`), fa lo stesso lavoro con lo stesso nome di ogni altro filtro. Riga che scorre
+          di lato come le pillole sopra, ma più leggera (solo testo, linea sotto quella scelta). I
+          numeri sono quelli che vedrai toccando. */}
       {filtri.coda === "da-chiamare" && (
         <div className="border-y border-border bg-muted/30 px-3 md:px-2">
           <div
@@ -856,27 +844,6 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
               </button>
             ))}
           </div>
-          {vociQuando.length > 1 && (
-            <div
-              role="group"
-              aria-label="Quando richiamare"
-              className={cn(RIGA_SCORREVOLE, "gap-1 border-t border-border/60")}
-            >
-              {/*  «Scaduti» in rosso. */}
-              {vociQuando.map((x) => (
-                <button
-                  key={x.v}
-                  type="button"
-                  aria-pressed={quandoAttivo === x.v}
-                  onClick={() => setQuando(x.v)}
-                  className={sottoTasto(quandoAttivo === x.v, x.v === "scaduti")}
-                >
-                  {x.l}
-                  <span className={contatore(quandoAttivo === x.v, x.v === "scaduti")}>{x.n}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
@@ -894,7 +861,7 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
               <BarraEsitoRicontatti
                 chats={ricontattiMiei}
                 valore={risentireDi(filtri)}
-                onCambia={(r) => setFiltri({ ...filtri, rEsito: r.esito, rData: r.data })}
+                onCambia={(r) => setFiltri({ ...filtri, rEsito: r.esito })}
               />
             )}
             {meet && (
@@ -911,18 +878,12 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
             )}
           </div>
         )}
-        {/*  La Data (31/10/2026): una riga sottile che scorre con l'elenco, NON sticky. Fuori dall'elenco
-            perché resti anche quando i filtri non danno risultati. */}
-        {!caricamento && filtri.ricontatti && (
-          <RigaDataRicontatti
-            chats={ricontattiMiei}
-            valore={risentireDi(filtri)}
-            onCambia={(r) => setFiltri({ ...filtri, rEsito: r.esito, rData: r.data })}
-          />
-        )}
-        {/*  I giorni (09/11/2026): sotto ogni filtro acceso, non sticky come la Data. Fuori dall'elenco per la
-            stessa ragione: la fila resta anche quando il giorno scelto non dà risultati. In «Ricontatti» sta
-            sotto la Data e i tre filtri si sommano. I nascosti di «Ricontatti» non si contano, come sul tasto. */}
+        {/*  I giorni (09/11/2026, rifatto il 16/11/2026): sotto ogni filtro acceso, non sticky. Fuori
+            dall'elenco perché la fila resti anche quando il giorno scelto non dà risultati. Dentro
+            «Ricontatti» sta sotto la barra dell'Esito e i due filtri si sommano: la vecchia riga
+            «Con data/Senza data» a parte (D4 dell'analisi) non c'è più, «Senza data» è un segmento di
+            questa fila come per ogni altro filtro. I nascosti di «Ricontatti» non si contano, come sul
+            tasto. */}
         {!caricamento && !soloRiga && (
           <RigaGiorno
             valore={filtri.giorno}

@@ -21347,17 +21347,18 @@ function proveDelRichiamoInChat() {
   c("scaduto: lo dice ed è rosso", ["Richiamo scaduto 27 ott 09:30", true, true],
     [sc.testo, sc.scaduto, /red/.test(R.stileRichiamo(sc))]);
   c("il tooltip dice il giorno per esteso", "Da richiamare martedì 27 ottobre alle 09:30", sc.titolo);
-  c("le voci: scaduti, oggi, domani, date, senza data", ["tutti:5", "scaduti:1", "oggi:1", "domani:1", "2026-11-02:1", "senza:1"],
-    R.vociFiltro([d("2026-10-27", ""), d(oggi, "15:00"), d("2026-10-30", ""), d("2026-11-02", ""), d("", ""), { stato: "non_risponde" }, null], oggi).map((x) => `${x.v}:${x.n}`));
-  c("la voce di una data si legge", "Lunedì 2 novembre", R.vociFiltro([d("2026-11-02", "")], oggi).find((x) => x.v === "2026-11-02").l);
-  c("«Oggi» prende solo quelli di oggi", [true, false], [R.passaRichiamo(d(oggi, ""), "oggi", oggi), R.passaRichiamo(d("2026-10-30", ""), "oggi", oggi)]);
-  c("«Tutti» non toglie nessuno", true, R.passaRichiamo({ stato: "non_risponde" }, "tutti", oggi));
-  c("in ordine: prima gli scaduti, poi per ora", ["a", "c", "b"],
-    [{ k: "b", d: d(oggi, "") }, { k: "c", d: d(oggi, "10:00") }, { k: "a", d: d("2026-10-27", "18:00") }]
-      .sort((x, y) => R.chiaveOrdine(x.d).localeCompare(R.chiaveOrdine(y.d))).map((x) => x.k));
+  //  ⚠️ 16/11/2026: tolti vocePer/vociFiltro/passaRichiamo/chiaveOrdine e il filtro «Quando richiamare»
+  //  (Scaduti/Oggi/Domani/una voce per data/Senza data): lo stesso lavoro lo fa la fila generica dei
+  //  giorni (RigaGiorno, filtri.ts, giorno.ts), estesa dal Compito 2 a leggere la stessa regola anche
+  //  per «Da chiamare» (D2/D3 dell'analisi). Restano qui richiamoDi/etichettaRichiamo/stileRichiamo:
+  //  servono ancora alla pastiglia della riga, mai toccata da questo cambio.
+  c("vocePer/vociFiltro/passaRichiamo/chiaveOrdine non esistono più", ["undefined", "undefined", "undefined", "undefined"],
+    [typeof R.vocePer, typeof R.vociFiltro, typeof R.passaRichiamo, typeof R.chiaveOrdine]);
   const el = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
-  //  30/10/2026: «Richiamo» si chiama «Quando richiamare» e sta sotto la griglia con «Da chiamare» acceso (filtri.coda).
-  c("il filtro «Quando richiamare» sta in «Da chiamare»", true, /filtri\.coda === "da-chiamare"/.test(el) && /vociQuando\.length > 1/.test(el) && /Quando richiamare/.test(el) && /passaRichiamo\(c\.lead\?\.data, quandoAttivo, oggi\)/.test(el));
+  c("niente più stato locale «quando»/«Quando richiamare»: la fila generica dei giorni fa lo stesso lavoro", true,
+    /filtri\.coda === "da-chiamare"/.test(el) && !/setQuando/.test(el) && !/aria-label="Quando richiamare"/.test(el) && !/from "\.\/richiamo"/.test(el));
+  c("«Da chiamare» legge filtri.giorno con la stessa fila generica (RigaGiorno) di ogni altro filtro", true,
+    /<RigaGiorno/.test(el) && /!caricamento && !soloRiga/.test(el));
   c("la data nella riga e nell'intestazione", true,
     ["RigaChat.tsx", "Conversazione.tsx"].every((f) => /etichettaRichiamo\(/.test(readFileSync(join(radice, "src/crm/chatwa", f), "utf8"))));
 }
@@ -22733,7 +22734,8 @@ function proveDeiContatoriABadge() {
   gruppo("CHAT: I NUMERI DELLE LINGUETTE SONO BADGE (31/10/2026)");
   const e = readFileSync(join(radice, "src/crm/chatwa/ElencoChat.tsx"), "utf8");
   c("il contatore è un tondino con la scala t-etichetta", true, /const contatore = [\s\S]*?rounded-full[\s\S]*?t-etichetta/.test(e));
-  c("stato della chiamata e «quando richiamare» usano il contatore", 2, (e.match(/className=\{contatore\(/g) || []).length);
+  //  16/11/2026 (Compito 4): «Quando richiamare» tolto, resta solo lo stato della chiamata.
+  c("lo stato della chiamata usa il contatore («Quando richiamare» non c'è più)", 1, (e.match(/className=\{contatore\(/g) || []).length);
   c("niente più numero attaccato al testo", false, /\{x\.l\} <span className="tabular-nums">/.test(e));
 }
 
