@@ -79,9 +79,8 @@ import {
   patchPriorita,
 } from "./ricontatti";
 import { BarraEsitoRicontatti, RigaDataRicontatti } from "./RigheRisentire";
-import { descriviDataFiltro, giornoUsatoSullaRiga } from "./giorno";
+import { descriviDataFiltro, giornoDiRoma, giornoUsatoSullaRiga } from "./giorno";
 import { RigaGiorno } from "./RigaGiorno";
-import { oggiIso } from "@/crm/ui";
 
 /** I chip dello «Stato della chiamata» (con «Da chiamare» acceso): «Tutti» + uno per stato. */
 const CHIP_SOTTOFILTRI: { v: Sottofiltro; l: string }[] = [
@@ -321,7 +320,10 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
   /*  ── QUANDO RICHIAMARLO (29/10/2026) ───────────────────────────────────
       Le voci si contano sulle chat del chip scelto; una voce scelta che si svuota torna a
       «Tutti». Con una voce scelta l'elenco va per data e ora del richiamo (prima gli scaduti). */
-  const oggi = oggiIso(new Date(adesso));
+  //  Il giorno di Roma (16/11/2026, D6 dell'analisi), non quello dell'orologio del dispositivo: lo
+  //  stesso «oggi» della fila dei giorni (giorno.ts), della barra del prossimo meet, di quella del
+  //  prossimo ricontatto e della pastiglia del richiamo sulla riga.
+  const oggi = giornoDiRoma(new Date(adesso));
   const vociQuando = vociFiltro(
     perStato.map((c) => c.lead?.data),
     oggi,

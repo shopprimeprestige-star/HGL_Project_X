@@ -50,6 +50,7 @@ import { proveFiltriChat, proveSconosciutiDaChiamare } from "./idee/filtri-chat.
 import { proveLandingInvisibleDerm } from "./idee/landing-invisible-derm.mjs";
 import { proveRicontatti } from "./idee/ricontatti.mjs";
 import { proveFiltroGiorno } from "./idee/filtro-giorno.mjs";
+import { proveOggiDiRoma } from "./idee/oggi-di-roma.mjs";
 import { proveRisentire } from "./idee/risentire.mjs";
 import {
   proveClienti,
@@ -21648,6 +21649,7 @@ proveFiltriChat(mod, { c, gruppo, radice });
 proveRicontatti(mod, { c, gruppo, radice });
 proveRisentire(mod, { c, gruppo, radice });
 proveFiltroGiorno(mod, { c, gruppo, radice });
+proveOggiDiRoma(mod, { c, gruppo, radice });
 proveSconosciutiDaChiamare(mod, { c, gruppo, radice });
 proveSottofiltriScorrevoli(mod, { c, gruppo, radice });
 proveCreaSchedaDaChat(mod, { c, gruppo, radice });
