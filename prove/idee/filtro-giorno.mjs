@@ -117,7 +117,8 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("Da riprogrammare: la nuova data della consulenza", "2026-11-17", giornoDi(chat({ stato: "da_spostare", meeting: "2026-11-17", ricontatto: "2026-11-10" }), con({ fase: "stato:da_spostare" })));
   c("Appuntamento in sede: il giorno della visita in sede", "2026-11-14", giornoDi(chat({ stato: "viene_in_sede", sede: "2026-11-14", meeting: "2026-11-13", ultimo: "2026-11-09T09:00:00Z" }), con({ fase: "stato:viene_in_sede" })));
   c("Da rispondere: il giorno dell'ultimo messaggio", "2026-11-09", giornoDi(tutte, con({ coda: "da-rispondere" })));
-  c("Da chiamare: il giorno dell'ultimo messaggio", "2026-11-09", giornoDi(tutte, con({ coda: "da-chiamare" })));
+  c("Da chiamare, stato con una regola: la data di quella regola (16/11/2026)", "2026-11-12", giornoDi(tutte, con({ coda: "da-chiamare" })));
+  c("Da chiamare, stato senza regola (Non risponde): l'ultimo messaggio", "2026-11-09", giornoDi(chat({ stato: "non_risponde", ultimo: "2026-11-09T09:00:00Z", ricontatto: "2026-11-20" }), con({ coda: "da-chiamare" })));
   c("Con stelle: il giorno dell'ultimo messaggio", "2026-11-09", giornoDi(tutte, con({ stelle: true })));
   c("Finestra: il giorno dell'ultimo messaggio", "2026-11-09", giornoDi(tutte, con({ finestra: "aperta" })));
   c("Acconto: il giorno dell'ultimo messaggio", "2026-11-09", giornoDi(tutte, con({ acconto: true })));
@@ -128,7 +129,8 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("In sospeso, stato senza data: l'ultimo messaggio", "2026-11-09", giornoDi(chat({ stato: "attesa_whatsapp", ultimo: "2026-11-09T09:00:00Z" }), con({ fase: "sospeso-clienti" })));
 
   gruppo("FILTRO GIORNO: DICE A PAROLE QUALE DATA GUARDA");
-  c("Ricontatti", "il giorno del ricontatto", G.descriviDataFiltro(con({ ricontatti: true })));
+  c("Ricontatti: dice anche la consulenza dei da riprogrammare", "il giorno del ricontatto, o il giorno della consulenza se il lead è da riprogrammare", G.descriviDataFiltro(con({ ricontatti: true })));
+  c("Da chiamare: dice che non tutti gli stati hanno un giorno di richiamo", "il giorno del ricontatto (non tutti gli stati ne hanno uno), o il giorno dell'ultimo messaggio", G.descriviDataFiltro(con({ coda: "da-chiamare" })));
   c("Per ora no", "il giorno del ricontatto", G.descriviDataFiltro(con({ fase: "per-ora-no" })));
   c("stato con la consulenza", "il giorno della consulenza", G.descriviDataFiltro(con({ fase: "stato:appuntamento_fissato" })));
   c("stato in sede", "il giorno della visita in sede", G.descriviDataFiltro(con({ fase: "stato:viene_in_sede" })));
@@ -143,6 +145,22 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
     G.giornoUsatoSullaRiga(tutte, con({ coda: "da-rispondere" })),
   ]);
   c("giornoBreve: giorno della settimana, numero, mese (senza lingua del server)", ["lun 9 nov", "gio 31 dic", ""], [G.giornoBreve("2026-11-09"), G.giornoBreve("2026-12-31"), G.giornoBreve("2026-02-30")]);
+
+  gruppo("FILTRO GIORNO: UNA REGOLA SOLA, LO STATO VERO DEL LEAD (16/11/2026, D1 e D2)");
+  {
+    const ora = quando("2026-11-16T09:00:00Z"); //  lunedì 16/11/2026 a Roma
+    const passa = (ch, f, g) => G.passaGiorno(ch, { ...f, giorno: g }, ora);
+    const daSpostare = chat({ stato: "da_spostare", meeting: "2026-11-16", ultimo: "2026-11-01T09:00:00Z" });
+    c("D1: Da riprogrammare dentro Ricontatti guarda la consulenza rifissata (dataMeeting)", ["2026-11-16", "consulenza"], [giornoDi(daSpostare, con({ ricontatti: true })), G.fonteDellaData(daSpostare, con({ ricontatti: true }))]);
+    c("…e passa «Oggi», non «Senza data»", [true, false], [passa(daSpostare, con({ ricontatti: true }), "oggi"), passa(daSpostare, con({ ricontatti: true }), "senza-data")]);
+    const richiamo = chat({ stato: "richiamo", ricontatto: "2026-11-16", ultimo: "2026-11-10T09:00:00Z" });
+    c("Da chiamare: un Richiamo con la data di oggi passa «Oggi» (data del richiamo, non del messaggio)", [true, false], [passa(richiamo, con({ coda: "da-chiamare" }), "oggi"), passa(richiamo, con({ coda: "da-chiamare" }), "scaduti")]);
+    const nonRisponde = chat({ stato: "non_risponde", ultimo: "2026-11-13T09:00:00Z" });
+    c("Da chiamare: Non risponde con l'ultimo messaggio di 3 giorni fa passa «Scaduti» (sull'ultimo messaggio)", [true, "messaggio"], [passa(nonRisponde, con({ coda: "da-chiamare" }), "scaduti"), G.fonteDellaData(nonRisponde, con({ coda: "da-chiamare" }))]);
+    const daContattare = chat({ stato: "da_contattare", ultimo: "2026-11-16T08:00:00Z" });
+    c("Ricontatti: Da contattare (nessuna regola) resta «Senza data», mai un giorno dall'ultimo messaggio", ["", true, false], [giornoDi(daContattare, con({ ricontatti: true })), passa(daContattare, con({ ricontatti: true }), "senza-data"), passa(daContattare, con({ ricontatti: true }), "oggi")]);
+    c("senza coda nel filtro (chi non la passa) vale come prima: ultimo messaggio", "2026-11-13", G.dataPerGiorno(nonRisponde, { fase: null, ricontatti: false }));
+  }
 
   gruppo("FILTRO GIORNO: SENZA DATA, FUORI DA OGNI GIORNO");
   c("Ricontatti senza giorno di ricontatto: nessuna data (niente ripiego sull'ultimo messaggio)", "", giornoDi(chat({ stato: "sta_valutando", ultimo: "2026-11-09T09:00:00Z" }), con({ ricontatti: true })));

@@ -9,16 +9,20 @@
  *  giorni» ogni data da dopodomani in avanti senza limite, «Senza data» è qui, nella stessa fila, per
  *  ogni filtro.
  *
- *  · LA DATA DIPENDE DAL FILTRO (`dataPerGiorno`):
- *      Ricontatti, e gli stati che chiedono un ricontatto (QUANDO_PER_STATO → dataRicontatto)  → il giorno
- *        del ricontatto;
- *      gli stati con un appuntamento (dataMeeting, e dataVieneInSede per la visita in sede)    → il giorno
- *        dell'appuntamento;
- *      ogni altro filtro (Da rispondere, Da chiamare, stelle, finestra, acconto, tipo…)        → il giorno
- *        dell'ULTIMO MESSAGGIO (la stessa ora che ordina l'elenco: `quandoUltimo`); se manca, l'arrivo del
- *        lead (`data.createdAt`, poi `created_at`).
- *    Uno stato che chiede una data ma non ce l'ha NON ripiega sull'ultimo messaggio: senza data resta
- *    solo in «Tutti». Sarebbe un «oggi» inventato.
+ *  · LA DATA DIPENDE DALLO STATO VERO DEL LEAD, non dal filtro che lo ha portato in vista
+ *    (`dataEFonte`, UNA regola sola, dal 16/11/2026):
+ *      Ricontatti, una fase (uno stato) o la coda «Da chiamare» → prima la regola del SUO stato
+ *        (QUANDO_PER_STATO[stato]): il campo che quello stato scrive davvero (dataRicontatto,
+ *        dataMeeting o dataVieneInSede). Prima correggeva D1: un lead «Da riprogrammare»
+ *        (`da_spostare`) dentro «Ricontatti» guardava sempre `dataRicontatto`, anche se la sua
+ *        promessa — la nuova consulenza — è scritta in `dataMeeting`.
+ *      Lo stato non ha una regola (es. «Attesa WhatsApp», «Segreteria», «Non risponde»): dentro una
+ *        fase o «Da chiamare» si cade sull'ULTIMO MESSAGGIO (la stessa ora che ordina l'elenco:
+ *        `quandoUltimo`), poi l'arrivo del lead (`data.createdAt`, poi `created_at`); dentro
+ *        «Ricontatti» no, resta «senza data» (sarebbe un «oggi» inventato, come già per ogni altro
+ *        filtro: la lista di «Ricontatti» include anche «Da contattare», che una data non la chiede).
+ *      Ogni altro filtro (Da rispondere, con stelle, finestra, acconto, tipo…)                 → il
+ *        giorno dell'ultimo messaggio, poi l'arrivo, come sopra.
  *  · I GIORNI SONO QUELLI DI ROMA (Europe/Rome), la settimana va da lunedì a domenica. Il Worker gira in
  *    UTC: un messaggio delle 23:30Z è già il giorno dopo a Roma. Si usa `aRoma` (formati.ts), mai
  *    l'orologio del server.
@@ -148,7 +152,9 @@ export type ChatPerGiorno = ChatConOra & {
   } | null;
 };
 
-type FiltroPerData = Pick<FiltriChat, "fase" | "ricontatti">;
+/** `coda` conta solo per sapere se applicare questa regola quando NON c'è uno stato scelto come fase
+ *  (cioè: «Da chiamare»). Facoltativo: chi non lo passa si comporta come prima del 16/11/2026. */
+type FiltroPerData = Pick<FiltriChat, "fase" | "ricontatti"> & { coda?: FiltriChat["coda"] };
 
 const CAMPO_DELLA_FONTE = {
   dataRicontatto: "ricontatto",
@@ -156,27 +162,28 @@ const CAMPO_DELLA_FONTE = {
   dataVieneInSede: "sede",
 } as const;
 
-/** La data del filtro e da dove viene. `giorno === ""`: la chat non ha una data per questo filtro. */
+/** La data del filtro e da dove viene. `giorno === ""`: la chat non ha una data per questo filtro.
+ *  UNA regola sola (16/11/2026, corregge D1 e D2): Ricontatti, una fase o «Da chiamare» guardano
+ *  prima la regola del VERO stato del lead (`QUANDO_PER_STATO`), non quella che il filtro
+ *  presupporrebbe. */
 export function dataEFonte(
   c: ChatPerGiorno,
   f: FiltroPerData,
 ): { giorno: string; fonte: FonteData | null } {
   const d = c.lead?.data;
-  //  1. «Ricontatti»: sempre la data del ricontatto (le regole di chi entra sono in ricontatti.ts).
-  if (f.ricontatti) {
-    const giorno = giornoScheda(d?.dataRicontatto);
-    return { giorno, fonte: giorno ? "ricontatto" : null };
-  }
-  //  2. Fasi/stati con una data: quella che lo stato scrive (QUANDO_PER_STATO), letta dallo stato della
-  //     chat. «Attesa WhatsApp» non ne ha, quindi cade nel caso 3.
-  if (f.fase) {
+  if (f.ricontatti || f.fase || f.coda === "da-chiamare") {
     const regola = QUANDO_PER_STATO[String(d?.stato ?? "") as LeadStatus];
     if (regola) {
       const giorno = giornoScheda(d?.[regola.chiaveData]);
       return { giorno, fonte: giorno ? CAMPO_DELLA_FONTE[regola.chiaveData] : null };
     }
+    //  «Ricontatti» non ripiega sull'ultimo messaggio: ci sono dentro anche stati senza regola
+    //  (es. «Da contattare»), e inventargli una data sarebbe il D1 di nuovo, da un altro lato.
+    //  «Da chiamare» e le fasi invece cadono nel caso sotto, come sempre (Attesa WhatsApp, Segreteria…).
+    if (f.ricontatti) return { giorno: "", fonte: null };
   }
-  //  3. Tutti gli altri: l'ultimo messaggio, poi l'arrivo del lead.
+  //  Tutti gli altri (compresi gli stati senza regola, dentro una fase o «Da chiamare»): l'ultimo
+  //  messaggio, poi l'arrivo del lead.
   const ultimo = quandoUltimo(c);
   if (ultimo > 0) return { giorno: giornoDiRoma(new Date(ultimo)), fonte: "messaggio" };
   const arrivo = arrivoMs(c);
@@ -209,7 +216,14 @@ const DATA_ULTIMO = "il giorno dell'ultimo messaggio";
 /** Quale data guarda il filtro, a parole (per la fila dei giorni): la stessa scelta di `dataEFonte`,
  *  letta dal filtro invece che dalla chat. */
 export function descriviDataFiltro(f: FiltroPerData): string {
-  if (f.ricontatti) return COSA_DICE.dataRicontatto;
+  //  «Ricontatti» include anche stati senza una regola propria (es. «Da riprogrammare», «Da
+  //  contattare»): dice la verità, non solo «il giorno del ricontatto» come se valesse per tutti.
+  if (f.ricontatti)
+    return `${COSA_DICE.dataRicontatto}, o ${COSA_DICE.dataMeeting} se il lead è da riprogrammare`;
+  //  «Da chiamare»: solo richiamo e ci ricontatta lui hanno un giorno di richiamo (QUANDO_PER_STATO);
+  //  gli altri tre stati della coda (da chiamare, non risponde, segreteria) non ne hanno uno.
+  if (f.coda === "da-chiamare")
+    return `${COSA_DICE.dataRicontatto} (non tutti gli stati ne hanno uno), o ${DATA_ULTIMO}`;
   if (f.fase === "per-ora-no") return COSA_DICE.dataRicontatto;
   if (f.fase === "sospeso-clienti") return `${COSA_DICE.dataRicontatto}, o ${DATA_ULTIMO} se lo stato non ha data`;
   const stato = f.fase?.startsWith("stato:") ? f.fase.slice(6) : "";
