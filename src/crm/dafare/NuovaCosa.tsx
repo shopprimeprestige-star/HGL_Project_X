@@ -204,7 +204,6 @@ export function NuovaCosa({
           <Input
             type="date"
             value={giorno}
-            min={oggi}
             onChange={(e) => setData(e.target.value)}
             className="h-9 w-[9.5rem] text-[13px] tabular-nums"
             aria-label="Giorno"

@@ -277,6 +277,10 @@ function DaFareOggiPage() {
    *  chi la apre alle nove del mattino deve trovare la sua giornata, non quella
    *  dopo. Aperta resta finché non si cambia pagina. */
   const [apriDomani, setApriDomani] = useState(false);
+  /** Il giorno che si sta guardando nel riquadro in cima: domani di partenza,
+   *  ma si può scegliere qualsiasi giorno, anche passato (richiesta del
+   *  titolare, 16/11/2026: «quello che devo gestire quel giorno»). */
+  const [giornoScelto, setGiornoScelto] = useState("");
   const [soloMie, setSoloMie] = useState(false);
   /** Il foglio dei filtri: solo sotto i 1024 punti. */
   const [foglioFiltri, setFoglioFiltri] = useState(false);
@@ -793,21 +797,39 @@ function DaFareOggiPage() {
    *  setter» non vuole vedere domani il lavoro di tutti — ma NON quelli del
    *  momento: «anche l'arretrato» e «nei prossimi giorni» parlano di oggi.
    *  Le spuntate non ci sono: domani non si è ancora fatto niente. */
+  const giornoVisto = giornoScelto || fraGiorni(1);
   const giornoDomani = useMemo(
     () =>
-      new Date(`${fraGiorni(1)}T12:00:00`).toLocaleDateString("it-IT", {
+      new Date(`${giornoVisto}T12:00:00`).toLocaleDateString("it-IT", {
         weekday: "long",
         day: "numeric",
         month: "long",
       }),
-    [],
+    [giornoVisto],
   );
-  const domani = useMemo(() => {
-    const g = fraGiorni(1);
-    return ordinaRighe(
-      righe.filter((r) => !r.fatta && r.giorno === g && passaTipo(r) && passaChi(r)),
-    );
-  }, [righe, passaTipo, passaChi]);
+  //  Per un giorno passato si vedono anche le righe già spuntate: serve a
+  //  rivedere quello che c'era da gestire quel giorno, fatto o no.
+  const domani = useMemo(
+    () =>
+      ordinaRighe(
+        righe.filter(
+          (r) =>
+            (!r.fatta || giornoVisto <= oggi) &&
+            r.giorno === giornoVisto &&
+            passaTipo(r) &&
+            passaChi(r),
+        ),
+      ),
+    [righe, passaTipo, passaChi, giornoVisto, oggi],
+  );
+  const nomeGiornoVisto =
+    giornoVisto === fraGiorni(1)
+      ? "Domani"
+      : giornoVisto === oggi
+        ? "Oggi"
+        : giornoVisto === fraGiorni(-1)
+          ? "Ieri"
+          : "Giorno scelto";
 
   /* ── I TRE GESTI SULLE RIGHE CHE VENGONO DA UNA SCHEDA ──────────────────
      Questa pagina non scriveva niente sui lead, e la regola resta buona per il
@@ -1190,11 +1212,9 @@ function DaFareOggiPage() {
             <Input
               type="date"
               value={dataNuova || oggi}
-              //  Non si può scegliere un giorno passato: una cosa da fare per
-              //  l'altro ieri nasce già in ritardo, e nove volte su dieci è un
-              //  anno battuto male. Le righe vecchie restano leggibili — il
-              //  limite è sul campo, non sul dato.
-              min={oggi}
+              //  Si può scegliere anche un giorno passato (richiesta del titolare,
+              //  16/11/2026): la riga nasce fra le cose rimaste indietro, e la
+              //  frase qui sotto lo dice prima di premere.
               onChange={(e) => setDataNuova(e.target.value)}
               className="h-9 w-[9.5rem] text-[13px] tabular-nums"
               aria-label="Giorno in cui ricordare questa cosa da fare"
@@ -1326,28 +1346,49 @@ function DaFareOggiPage() {
           ore. Non entra nei conteggi di oggi e non si mescola ai gruppi: è
           un'anteprima, e una lista di oggi che contiene domani non è più una
           lista di oggi. */}
-      {domani.length > 0 && (
+      {(
         <div className="rounded-2xl border border-border bg-card">
-          <button
-            type="button"
-            onClick={() => setApriDomani((v) => !v)}
-            className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-accent/40"
-          >
-            <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="text-[13.5px] font-semibold text-foreground">Domani</span>
-            <span className="truncate text-[12px] text-muted-foreground">{giornoDomani}</span>
-            <Badge
-              n={domani.length}
-              urgenza="info"
-              className="ml-auto"
-              titolo="Cose da fare domani"
+          <div className="flex w-full items-center gap-2 px-3.5 py-2">
+            <button
+              type="button"
+              onClick={() => setApriDomani((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-0.5 text-left transition-colors hover:bg-accent/40"
+            >
+              <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-[13.5px] font-semibold text-foreground">{nomeGiornoVisto}</span>
+              <span className="truncate text-[12px] text-muted-foreground">{giornoDomani}</span>
+              <Badge
+                n={domani.length}
+                urgenza="info"
+                className="ml-auto"
+                titolo={`Cose da fare ${giornoDomani}`}
+              />
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                  apriDomani ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {/*  Qualsiasi giorno, anche passato: con il filtro «di chi» acceso
+                mostra i lead di quella persona da gestire quel giorno. */}
+            <Input
+              type="date"
+              value={giornoVisto}
+              onChange={(e) => {
+                setGiornoScelto(e.target.value);
+                setApriDomani(true);
+              }}
+              className="h-8 w-[9.5rem] shrink-0 text-[12.5px] tabular-nums"
+              aria-label="Scegli il giorno da guardare"
+              title="Scegli il giorno da guardare, anche passato"
             />
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-                apriDomani ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+          </div>
+          {apriDomani && domani.length === 0 && (
+            <p className="border-t border-border px-3.5 py-2.5 text-[12px] text-muted-foreground">
+              Niente da gestire {giornoDomani}
+              {chi ? " per il filtro scelto" : ""}.
+            </p>
+          )}
           {apriDomani && (
             <ul className="divide-y divide-border border-t border-border">
               {domani.map((r) => (
