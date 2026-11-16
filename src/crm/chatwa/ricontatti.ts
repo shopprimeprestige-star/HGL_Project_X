@@ -23,6 +23,8 @@
  *  Tutto puro: niente React, niente Supabase. Provato in prove/idee/ricontatti.mjs. */
 import { giornoParlato, oraNormale } from "@/crm/promemoria/formati";
 import { QUANDO_PER_STATO } from "@/crm/quando-per-stato";
+import type { LeadStatus } from "@/crm/types";
+import { etichettaRichiamo } from "./richiamo";
 
 /** Stati che non hanno la data nella tabella del «quando» ma la portano lo stesso. */
 const ALTRI_STATI_A_DATA: readonly string[] = ["da_contattare", "da_spostare"];
@@ -43,6 +45,8 @@ export interface ChatRicontatto {
       consulenteId?: string | null;
       dataRicontatto?: string | null;
       oraRicontatto?: string | null;
+      dataMeeting?: string | null;
+      oraMeeting?: string | null;
       esitoRicontatto?: string | null;
       ricontattoNascostoIl?: string | null;
       ricontattoNascostoPer?: string | null;
@@ -178,13 +182,39 @@ export function dataDi(c: ChatRicontatto): string {
 }
 
 /** I dati della scheda letti come «richiamo» per disegnare la data sulla riga: `etichettaRichiamo`
- *  guarda solo gli stati che nel CRM chiedono la data, mentre in «Ricontatti» ci sono anche
- *  «Da contattare» e «Da riprogrammare», e la data di un ricontatto è sempre `dataRicontatto`. */
-export const datiPerData = (d?: NonNullable<NonNullable<ChatRicontatto["lead"]>["data"]>) => ({
-  stato: "richiamo",
-  dataRicontatto: d?.dataRicontatto,
-  oraRicontatto: d?.oraRicontatto,
-});
+ *  guarda solo gli stati che nel CRM chiedono la data, mentre in «Ricontatti» c'è anche «Da
+ *  contattare» (nessuna regola: si legge `dataRicontatto`).
+ *  ⚠️ 16/11/2026 (D1): la data è quella della regola dello STATO VERO (la stessa di `dataEFonte` in
+ *   giorno.ts). «Da riprogrammare» (`da_spostare`) promette la consulenza rifissata, scritta in
+ *   `dataMeeting`/`oraMeeting`: prima la riga diceva «Senza data» a un lead con la consulenza di oggi.
+ *   `consulenza` lo dice a chi disegna, che la chiama «Consulenza», non «Richiamo». */
+export const datiPerData = (d?: NonNullable<NonNullable<ChatRicontatto["lead"]>["data"]>) => {
+  const regola = QUANDO_PER_STATO[String(d?.stato ?? "") as LeadStatus];
+  const consulenza = regola?.chiaveData === "dataMeeting";
+  return {
+    stato: "richiamo",
+    dataRicontatto: consulenza ? d?.dataMeeting : d?.dataRicontatto,
+    oraRicontatto: consulenza ? d?.oraMeeting : d?.oraRicontatto,
+    consulenza,
+  };
+};
+
+/** La pastiglia della data sulla riga di «Ricontatti» (`null` = «Senza data»): quella di
+ *  `etichettaRichiamo`, detta «Consulenza» quando la data è la consulenza rifissata. */
+export function etichettaDataRicontatto(
+  d: NonNullable<NonNullable<ChatRicontatto["lead"]>["data"]> | null | undefined,
+  oggi: string,
+): ReturnType<typeof etichettaRichiamo> {
+  if (!d) return null;
+  const dati = datiPerData(d);
+  const r = etichettaRichiamo(dati, oggi);
+  if (!r || !dati.consulenza) return r;
+  return {
+    ...r,
+    testo: r.testo.replace(/^Richiamo /, "Consulenza "),
+    titolo: r.titolo.replace(/^Da richiamare /, "Consulenza "),
+  };
+}
 
 export interface FiltroRisentire {
   /** `""` = tutti, un esito, oppure `ESITO_NESSUNO` */

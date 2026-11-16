@@ -45,7 +45,7 @@ import { testoPerWhatsapp } from "./testoWhatsapp";
 import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { PastigliaEsito } from "./PastigliaEsito";
-import { dataDi, datiPerData, esitoDi } from "./ricontatti";
+import { dataDi, esitoDi, etichettaDataRicontatto } from "./ricontatti";
 import { oggiIso } from "@/crm/ui";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
@@ -281,11 +281,12 @@ function RigaChatBase({
     testoUscita: (corpo) => corpoLeggibile(corpo, c.lead?.data, nomeConsulente, c.lead?.id).testo,
   });
   const ritorno = c.lead ? ritornoInChat(c.lead.data) : null;
+  //  In «Ricontatti» la data segue lo stato vero (16/11/2026): «Da riprogrammare» mostra la consulenza
+  //  rifissata («Consulenza ven 20 nov»), non «Senza data». Vedi ricontatti.ts.
   const richiamo = c.lead
-    ? etichettaRichiamo(
-        risentire ? datiPerData(c.lead.data) : c.lead.data,
-        oggiIso(new Date(adesso)),
-      )
+    ? risentire
+      ? etichettaDataRicontatto(c.lead.data, oggiIso(new Date(adesso)))
+      : etichettaRichiamo(c.lead.data, oggiIso(new Date(adesso)))
     : null;
   //  «Ricontatti» (31/10/2026): senza data si vede, con la X e la parola (non basta l'assenza).
   const senzaData = risentire && !!c.lead && !richiamo;
@@ -656,8 +657,15 @@ function RigaChatBase({
             >
               <CalendarClock aria-hidden="true" className="h-3 w-3 shrink-0" />
               <span className="truncate">
-                <span className="sr-only">Richiamo </span>
-                {richiamo.testo.replace(/^Richiamo /, "")}
+                {/*  «Consulenza …» resta scritto: non è un richiamo, e il calendario da solo lo farebbe credere. */}
+                {richiamo.testo.startsWith("Consulenza ") ? (
+                  richiamo.testo
+                ) : (
+                  <>
+                    <span className="sr-only">Richiamo </span>
+                    {richiamo.testo.replace(/^Richiamo /, "")}
+                  </>
+                )}
               </span>
             </span>
           )}
