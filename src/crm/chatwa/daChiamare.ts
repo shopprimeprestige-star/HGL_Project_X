@@ -328,6 +328,13 @@ export function contaSottofiltri(chats: ChatConStato[]): Record<Sottofiltro, num
   return n;
 }
 
+/** Le chat di un chip (stesso `statoChiamata` di `chatDaChiamare`), nell'ordine d'ingresso; «tutti» =
+ *  tutte, senza toccarle. Serve ai numeri della fila dei giorni (revisione 16/11/2026): con un chip
+ *  acceso contano solo le chat di quel chip, come l'elenco. */
+export function delSottofiltro<T extends ChatConStato>(chats: T[], sotto: Sottofiltro): T[] {
+  return sotto === "tutti" ? chats : chats.filter((c) => statoChiamata(c) === sotto);
+}
+
 /** Dal cambio di stato (ISO) per ordinare; senza data valida = «non si sa», in fondo al suo stato. */
 const quandoCambiato = (c: ChatConStato): number => {
   const d = c.lead?.data;

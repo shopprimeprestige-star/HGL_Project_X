@@ -10,7 +10,7 @@
  *  · ORDINE (dal 31/10, richiesta del titolare): SEMPRE dal lead arrivato più di recente al più vecchio.
  *    «Arrivo» = `data.createdAt`, la data di acquisizione del lead (la stessa che il CRM mostra e che
  *    conta i «lead di oggi»); se manca, `created_at` della riga. Senza nessuna delle due, in fondo.
- *    La data di RICONTATTO non ordina più: resta sulla riga e nei filtri Data. A parità l'ordine
+ *    La data di RICONTATTO non ordina più: resta sulla riga e nella fila dei giorni. A parità l'ordine
  *    dell'elenco resta (sort stabile).
  *  · PRIORITÀ: i lead che il titolare fissa con la puntina stanno SOPRA tutti, quanti ne vuole;
  *    fra loro valgono le stesse regole (arrivo più recente per primo), così non saltano quando se ne
@@ -23,6 +23,8 @@
  *  Tutto puro: niente React, niente Supabase. Provato in prove/idee/ricontatti.mjs. */
 import { giornoParlato, oraNormale } from "@/crm/promemoria/formati";
 import { QUANDO_PER_STATO } from "@/crm/quando-per-stato";
+import type { LeadStatus } from "@/crm/types";
+import { etichettaRichiamo } from "./richiamo";
 
 /** Stati che non hanno la data nella tabella del «quando» ma la portano lo stesso. */
 const ALTRI_STATI_A_DATA: readonly string[] = ["da_contattare", "da_spostare"];
@@ -43,6 +45,8 @@ export interface ChatRicontatto {
       consulenteId?: string | null;
       dataRicontatto?: string | null;
       oraRicontatto?: string | null;
+      dataMeeting?: string | null;
+      oraMeeting?: string | null;
       esitoRicontatto?: string | null;
       ricontattoNascostoIl?: string | null;
       ricontattoNascostoPer?: string | null;
@@ -105,14 +109,14 @@ export function fraseRicontattiVuoti(io: string, cercando: boolean): string {
   return cercando ? "Nessun tuo ricontatto in questa ricerca" : "Nessun tuo lead da ricontattare";
 }
 
-/** ── ESITO + DATA, FILTRI CHE SI COMBINANO (31/10/2026) ─────────────────────────────────────────
+/** ── L'ESITO, IL FILTRO INTERNO DI «RICONTATTI» (31/10/2026, rifatto il 16/11/2026) ──────────────
  *  Richiesta del titolare: sapere che un lead era in Attesa acconto e poi ha detto «sentiamoci più avanti»;
- *  con data icona calendario, senza data icona X. Seconda versione: NIENTE filtro per Stato, solo Esito
- *  (in una barra che si chiude) e Data (un interruttore a segmenti, non sticky). Passa chi rispetta
- *  ENTRAMBI (E); ognuno ha un valore solo. Il resto dei filtri della chat resta uno alla volta.
+ *  con data icona calendario, senza data icona X (sulla riga). Seconda versione: NIENTE filtro per Stato,
+ *  solo l'Esito, in una barra che si chiude. La data non è più un filtro qui (tolto «Con/Senza data» il
+ *  16/11/2026): la fa la fila generica dei giorni (giorno.ts), che si combina con l'Esito (E). Il resto
+ *  dei filtri della chat resta uno alla volta.
  *  · L'ESITO sta sulla scheda (`esitoRicontatto` + `esitoRicontattoIl`, JSON libero: nessuna migrazione)
  *    e RESTA quando lo stato cambia.
- *  · «CON DATA» = `dataRicontatto` è un giorno vero: la stessa regola dell'ordinamento qui sopra.
  *  Puro, provato in prove/idee/risentire.mjs. */
 
 /** Gli esiti, nell'ordine in cui si propongono. `nome` è corto (sta in una pastiglia a 375 px). */
@@ -178,35 +182,62 @@ export function dataDi(c: ChatRicontatto): string {
 }
 
 /** I dati della scheda letti come «richiamo» per disegnare la data sulla riga: `etichettaRichiamo`
- *  guarda solo gli stati che nel CRM chiedono la data, mentre in «Ricontatti» ci sono anche
- *  «Da contattare» e «Da riprogrammare», e la data di un ricontatto è sempre `dataRicontatto`. */
-export const datiPerData = (d?: NonNullable<NonNullable<ChatRicontatto["lead"]>["data"]>) => ({
-  stato: "richiamo",
-  dataRicontatto: d?.dataRicontatto,
-  oraRicontatto: d?.oraRicontatto,
-});
+ *  guarda solo gli stati che nel CRM chiedono la data, mentre in «Ricontatti» c'è anche «Da
+ *  contattare» (nessuna regola: si legge `dataRicontatto`).
+ *  ⚠️ 16/11/2026 (D1): la data è quella della regola dello STATO VERO (la stessa di `dataEFonte` in
+ *   giorno.ts). «Da riprogrammare» (`da_spostare`) promette la consulenza rifissata, scritta in
+ *   `dataMeeting`/`oraMeeting`: prima la riga diceva «Senza data» a un lead con la consulenza di oggi.
+ *   `consulenza` lo dice a chi disegna, che la chiama «Consulenza», non «Richiamo». */
+export const datiPerData = (d?: NonNullable<NonNullable<ChatRicontatto["lead"]>["data"]>) => {
+  const regola = QUANDO_PER_STATO[String(d?.stato ?? "") as LeadStatus];
+  const consulenza = regola?.chiaveData === "dataMeeting";
+  return {
+    stato: "richiamo",
+    dataRicontatto: consulenza ? d?.dataMeeting : d?.dataRicontatto,
+    oraRicontatto: consulenza ? d?.oraMeeting : d?.oraRicontatto,
+    consulenza,
+  };
+};
 
+/** La pastiglia della data sulla riga di «Ricontatti» (`null` = «Senza data»): quella di
+ *  `etichettaRichiamo`, detta «Consulenza» quando la data è la consulenza rifissata. */
+export function etichettaDataRicontatto(
+  d: NonNullable<NonNullable<ChatRicontatto["lead"]>["data"]> | null | undefined,
+  oggi: string,
+): ReturnType<typeof etichettaRichiamo> {
+  if (!d) return null;
+  const dati = datiPerData(d);
+  const r = etichettaRichiamo(dati, oggi);
+  if (!r || !dati.consulenza) return r;
+  return {
+    ...r,
+    testo: r.testo.replace(/^Richiamo /, "Consulenza "),
+    titolo: r.titolo.replace(/^Da richiamare /, "Consulenza "),
+  };
+}
+
+/** ⚠️ 16/11/2026: tolto il campo `data` («Con data»/«Senza data», un interruttore a parte che
+ *  chiedeva la stessa cosa della fila generica dei giorni, §1.3 dell'ANALISI, D4). La fila di
+ *  `giorno.ts` ha già «Senza data» (e «Tutti» meno «Senza data» è già «con data»): un secondo
+ *  controllo per la stessa domanda non aiutava la chiarezza, restava un doppione. */
 export interface FiltroRisentire {
   /** `""` = tutti, un esito, oppure `ESITO_NESSUNO` */
   esito: string;
-  data: "" | "con" | "senza";
 }
 
 export type CampoRisentire = keyof FiltroRisentire;
 
-export const RISENTIRE_VUOTO: FiltroRisentire = { esito: "", data: "" };
+export const RISENTIRE_VUOTO: FiltroRisentire = { esito: "" };
 
 /** C'è almeno un filtro acceso? */
-export const risentireAcceso = (r: FiltroRisentire): boolean => r.esito !== "" || r.data !== "";
+export const risentireAcceso = (r: FiltroRisentire): boolean => r.esito !== "";
 
-/** La chat rispetta esito e data (E)? Non guarda di chi è: lo fa `eMioRicontatto`. */
+/** La chat rispetta l'esito? Non guarda di chi è: lo fa `eMioRicontatto`. */
 export function passaRisentire(c: ChatRicontatto, r: FiltroRisentire): boolean {
   if (r.esito) {
     const e = esitoDi(c);
     if (r.esito === ESITO_NESSUNO ? e !== null : e !== r.esito) return false;
   }
-  if (r.data === "con" && dataDi(c) === "") return false;
-  if (r.data === "senza" && dataDi(c) !== "") return false;
   return true;
 }
 

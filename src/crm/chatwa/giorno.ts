@@ -1,20 +1,30 @@
-/** ── IL FILTRO PER GIORNO, DENTRO OGNI FILTRO DELLA CHAT (09/11/2026) ──────────
+/** ── IL FILTRO PER GIORNO, DENTRO OGNI FILTRO DELLA CHAT (09/11/2026, rifatto il 16/11/2026) ──
  *  Richiesta del titolare: «quando sono dentro il filtro posso mettere tutti quelli di oggi o quelli di
- *  domani, eccetera, così li lavoro meglio». Sotto il filtro acceso compare una fila: Tutti · Ieri · Oggi ·
- *  Domani · Questa settimana · Prossima settimana. Uno solo alla volta, in E col filtro, col consulente e
- *  con la ricerca.
+ *  domani, eccetera, così li lavoro meglio». Sotto il filtro acceso compare una fila: Tutti · Scaduti ·
+ *  Ieri · Oggi · Domani · Prossimi giorni · Senza data. Uno solo alla volta, in E col filtro, col
+ *  consulente e con la ricerca.
+ *  ⚠️ 16/11/2026: tolte «Questa settimana»/«Prossima settimana» (mescolavano arretrato e futuro nella
+ *  stessa settimana: D5 dell'analisi) e il controllo a parte «Con/Senza data» di Ricontatti, che diceva
+ *  la stessa cosa con un interruttore in più. «Scaduti» copre ogni arretrato senza limite, «Prossimi
+ *  giorni» ogni data da dopodomani in avanti senza limite, «Senza data» è qui, nella stessa fila, per
+ *  ogni filtro.
  *
- *  · LA DATA DIPENDE DAL FILTRO (`dataPerGiorno`):
- *      Ricontatti, e gli stati che chiedono un ricontatto (QUANDO_PER_STATO → dataRicontatto)  → il giorno
- *        del ricontatto;
- *      gli stati con un appuntamento (dataMeeting, e dataVieneInSede per la visita in sede)    → il giorno
- *        dell'appuntamento;
- *      ogni altro filtro (Da rispondere, Da chiamare, stelle, finestra, acconto, tipo…)        → il giorno
- *        dell'ULTIMO MESSAGGIO (la stessa ora che ordina l'elenco: `quandoUltimo`); se manca, l'arrivo del
- *        lead (`data.createdAt`, poi `created_at`).
- *    Uno stato che chiede una data ma non ce l'ha NON ripiega sull'ultimo messaggio: senza data resta
- *    solo in «Tutti». Sarebbe un «oggi» inventato.
- *  · I GIORNI SONO QUELLI DI ROMA (Europe/Rome), la settimana va da lunedì a domenica. Il Worker gira in
+ *  · LA DATA DIPENDE DALLO STATO VERO DEL LEAD, non dal filtro che lo ha portato in vista
+ *    (`dataEFonte`, UNA regola sola, dal 16/11/2026):
+ *      Ricontatti, una fase (uno stato) o la coda «Da chiamare» → prima la regola del SUO stato
+ *        (QUANDO_PER_STATO[stato]): il campo che quello stato scrive davvero (dataRicontatto,
+ *        dataMeeting o dataVieneInSede). Prima correggeva D1: un lead «Da riprogrammare»
+ *        (`da_spostare`) dentro «Ricontatti» guardava sempre `dataRicontatto`, anche se la sua
+ *        promessa — la nuova consulenza — è scritta in `dataMeeting`.
+ *      Lo stato non ha una regola (es. «Attesa WhatsApp», «Segreteria», «Non risponde», «Da
+ *        contattare»): se c'è una `dataRicontatto` scritta a mano VINCE (revisione del 16/11/2026,
+ *        decisione del capo progetto); se no, dentro una fase o «Da chiamare» si cade sull'ULTIMO
+ *        MESSAGGIO (la stessa ora che ordina l'elenco: `quandoUltimo`), poi l'arrivo del lead
+ *        (`data.createdAt`, poi `created_at`); dentro «Ricontatti» no, resta «senza data» (sarebbe un
+ *        «oggi» inventato).
+ *      Ogni altro filtro (Da rispondere, con stelle, finestra, acconto, tipo…)                 → il
+ *        giorno dell'ultimo messaggio, poi l'arrivo, come sopra.
+ *  · I GIORNI SONO QUELLI DI ROMA (Europe/Rome). Il Worker gira in
  *    UTC: un messaggio delle 23:30Z è già il giorno dopo a Roma. Si usa `aRoma` (formati.ts), mai
  *    l'orologio del server.
  *  · L'ORA «ADESSO» È UN PARAMETRO: niente orologio qui dentro, le prove la fissano.
@@ -26,23 +36,27 @@ import type { FiltriChat } from "./filtri";
 import { quandoUltimo, type ChatConOra } from "./ordineWhatsapp";
 import { arrivoMs } from "./ricontatti";
 
-/** `""` = «Tutti» (spento). */
+/** `""` = «Tutti» (spento). «Scaduti»: ogni data prima di ieri, senza limite. «Prossimi giorni»: ogni
+ *  data da dopodomani in avanti, senza limite. «Senza data»: la chat non ha una data per questo filtro
+ *  (non è un intervallo di calendario: vedi `inGiorno`). */
 export type GiornoChat =
   | ""
+  | "scaduti"
   | "ieri"
   | "oggi"
   | "domani"
-  | "questa-settimana"
-  | "prossima-settimana";
+  | "prossimi-giorni"
+  | "senza-data";
 
 /** I segmenti, nell'ordine in cui si mostrano. Una sola fonte per la fila, il riepilogo e il salvataggio. */
 export const SEGMENTI_GIORNO: readonly { v: GiornoChat; nome: string }[] = [
   { v: "", nome: "Tutti" },
+  { v: "scaduti", nome: "Scaduti" },
   { v: "ieri", nome: "Ieri" },
   { v: "oggi", nome: "Oggi" },
   { v: "domani", nome: "Domani" },
-  { v: "questa-settimana", nome: "Questa settimana" },
-  { v: "prossima-settimana", nome: "Prossima settimana" },
+  { v: "prossimi-giorni", nome: "Prossimi giorni" },
+  { v: "senza-data", nome: "Senza data" },
 ];
 
 /** Il valore è uno dei segmenti? (Dal dispositivo può arrivare qualunque cosa.) */
@@ -78,43 +92,46 @@ const giornoScheda = (v: unknown): string => {
   return GIORNO_VERO.test(g) && giornoParlato(g) ? g : "";
 };
 
-/** Dal lunedì alla domenica che contengono `giorno`. */
-function settimanaDi(giorno: string): { da: string; a: string } {
-  const dalLunedi = (new Date(unGiorno(giorno)).getUTCDay() + 6) % 7;
-  const da = aggiungiGiorni(giorno, -dalLunedi);
-  return { da, a: aggiungiGiorni(da, 6) };
-}
-
-/** Da quale a quale giorno (compresi) vale il segmento, visto da `adesso`; `null` per «Tutti» o per un
- *  valore che non si conosce. */
+/** Da quale a quale giorno vale il segmento, visto da `adesso`; `null` dal lato che non ha limite
+ *  («Scaduti» non ha un `da`, «Prossimi giorni» non ha un `a`); l'intervallo intero è `null` per
+ *  «Tutti», per «Senza data» (non è un intervallo di calendario: vedi `inGiorno`) o per un valore che
+ *  non si conosce. */
 export function intervalloGiorno(
   scelta: GiornoChat,
   adesso: Date,
-): { da: string; a: string } | null {
+): { da: string | null; a: string | null } | null {
   const oggi = giornoDiRoma(adesso);
   if (!oggi) return null;
   switch (scelta) {
+    //  «Scaduti» = prima di ieri (ANALISI §3): oggi-2 e tutto il passato prima. «Ieri» (oggi-1) resta
+    //  solo suo, nessuna sovrapposizione fra i due segmenti.
+    case "scaduti":
+      return { da: null, a: aggiungiGiorni(oggi, -2) };
     case "ieri":
       return { da: aggiungiGiorni(oggi, -1), a: aggiungiGiorni(oggi, -1) };
     case "oggi":
       return { da: oggi, a: oggi };
     case "domani":
       return { da: aggiungiGiorni(oggi, 1), a: aggiungiGiorni(oggi, 1) };
-    case "questa-settimana":
-      return settimanaDi(oggi);
-    case "prossima-settimana":
-      return settimanaDi(aggiungiGiorni(oggi, 7));
+    case "prossimi-giorni":
+      return { da: aggiungiGiorni(oggi, 2), a: null };
     default:
       return null;
   }
 }
 
-/** Il giorno cade nel segmento? «Tutti» fa passare tutti (anche chi non ha giorno); ogni altro segmento
- *  esclude chi non ha giorno. */
+/** Il giorno cade nel segmento? «Tutti» fa passare tutti (anche chi non ha giorno); «Senza data» vuole
+ *  esattamente chi non ne ha; ogni altro segmento esclude chi non ha giorno, e un lato `null`
+ *  dell'intervallo non pone limite da quella parte (es. «Scaduti»: tutto il passato, senza fondo). */
 export function inGiorno(giorno: string, scelta: GiornoChat, adesso: Date): boolean {
   if (scelta === "") return true;
+  if (scelta === "senza-data") return giorno === "";
+  if (!giorno) return false;
   const r = intervalloGiorno(scelta, adesso);
-  return !!giorno && !!r && giorno >= r.da && giorno <= r.a;
+  if (!r) return false;
+  if (r.da !== null && giorno < r.da) return false;
+  if (r.a !== null && giorno > r.a) return false;
+  return true;
 }
 
 // ── Quale data per quale filtro ─────────────────────────────────────────────────────────────────
@@ -136,7 +153,9 @@ export type ChatPerGiorno = ChatConOra & {
   } | null;
 };
 
-type FiltroPerData = Pick<FiltriChat, "fase" | "ricontatti">;
+/** `coda` conta solo per sapere se applicare questa regola quando NON c'è uno stato scelto come fase
+ *  (cioè: «Da chiamare»). Facoltativo: chi non lo passa si comporta come prima del 16/11/2026. */
+type FiltroPerData = Pick<FiltriChat, "fase" | "ricontatti"> & { coda?: FiltriChat["coda"] };
 
 const CAMPO_DELLA_FONTE = {
   dataRicontatto: "ricontatto",
@@ -144,27 +163,33 @@ const CAMPO_DELLA_FONTE = {
   dataVieneInSede: "sede",
 } as const;
 
-/** La data del filtro e da dove viene. `giorno === ""`: la chat non ha una data per questo filtro. */
+/** La data del filtro e da dove viene. `giorno === ""`: la chat non ha una data per questo filtro.
+ *  UNA regola sola (16/11/2026, corregge D1 e D2): Ricontatti, una fase o «Da chiamare» guardano
+ *  prima la regola del VERO stato del lead (`QUANDO_PER_STATO`), non quella che il filtro
+ *  presupporrebbe. */
 export function dataEFonte(
   c: ChatPerGiorno,
   f: FiltroPerData,
 ): { giorno: string; fonte: FonteData | null } {
   const d = c.lead?.data;
-  //  1. «Ricontatti»: sempre la data del ricontatto (le regole di chi entra sono in ricontatti.ts).
-  if (f.ricontatti) {
-    const giorno = giornoScheda(d?.dataRicontatto);
-    return { giorno, fonte: giorno ? "ricontatto" : null };
-  }
-  //  2. Fasi/stati con una data: quella che lo stato scrive (QUANDO_PER_STATO), letta dallo stato della
-  //     chat. «Attesa WhatsApp» non ne ha, quindi cade nel caso 3.
-  if (f.fase) {
+  if (f.ricontatti || f.fase || f.coda === "da-chiamare") {
     const regola = QUANDO_PER_STATO[String(d?.stato ?? "") as LeadStatus];
     if (regola) {
       const giorno = giornoScheda(d?.[regola.chiaveData]);
       return { giorno, fonte: giorno ? CAMPO_DELLA_FONTE[regola.chiaveData] : null };
     }
+    //  Stato senza regola (Da contattare, Non risponde, Segreteria…). Revisione del 16/11/2026,
+    //  decisione del capo progetto: una data di ricontatto/richiamo scritta a mano vince SEMPRE sul
+    //  ripiego dell'ultimo messaggio (un «Non risponde» richiamato venerdì sta in «Prossimi giorni»,
+    //  non in «Scaduti»; un «Da contattare» con ricontatto domani sta in «Domani», come la pastiglia).
+    const scritto = giornoScheda(d?.dataRicontatto);
+    if (scritto) return { giorno: scritto, fonte: "ricontatto" };
+    //  Senza data scritta, «Ricontatti» non ripiega sull'ultimo messaggio (inventare una data sarebbe
+    //  il D1 di nuovo); «Da chiamare» e le fasi cadono nel caso sotto, come sempre.
+    if (f.ricontatti) return { giorno: "", fonte: null };
   }
-  //  3. Tutti gli altri: l'ultimo messaggio, poi l'arrivo del lead.
+  //  Tutti gli altri (compresi gli stati senza regola e senza data scritta, dentro una fase o «Da
+  //  chiamare»): l'ultimo messaggio, poi l'arrivo del lead.
   const ultimo = quandoUltimo(c);
   if (ultimo > 0) return { giorno: giornoDiRoma(new Date(ultimo)), fonte: "messaggio" };
   const arrivo = arrivoMs(c);
@@ -193,16 +218,26 @@ const COSA_DICE = {
   dataVieneInSede: "il giorno della visita in sede",
 } as const;
 const DATA_ULTIMO = "il giorno dell'ultimo messaggio";
+/** Stati senza regola dentro Da chiamare / una fase: la data scritta vince, se no l'ultimo messaggio. */
+const RICONTATTO_O_ULTIMO = `${COSA_DICE.dataRicontatto} se è scritto, se no ${DATA_ULTIMO}`;
 
 /** Quale data guarda il filtro, a parole (per la fila dei giorni): la stessa scelta di `dataEFonte`,
  *  letta dal filtro invece che dalla chat. */
 export function descriviDataFiltro(f: FiltroPerData): string {
-  if (f.ricontatti) return COSA_DICE.dataRicontatto;
+  //  «Ricontatti» include anche stati senza una regola propria (es. «Da riprogrammare», «Da
+  //  contattare»): dice la verità, non solo «il giorno del ricontatto» come se valesse per tutti.
+  if (f.ricontatti)
+    return `${COSA_DICE.dataRicontatto}, o ${COSA_DICE.dataMeeting} se il lead è da riprogrammare`;
+  //  «Da chiamare»: solo richiamo e ci ricontatta lui hanno un giorno di richiamo (QUANDO_PER_STATO);
+  //  gli altri tre stati della coda (da chiamare, non risponde, segreteria) non ne hanno uno.
+  if (f.coda === "da-chiamare") return RICONTATTO_O_ULTIMO;
   if (f.fase === "per-ora-no") return COSA_DICE.dataRicontatto;
-  if (f.fase === "sospeso-clienti") return `${COSA_DICE.dataRicontatto}, o ${DATA_ULTIMO} se lo stato non ha data`;
+  if (f.fase === "sospeso-clienti") return RICONTATTO_O_ULTIMO;
   const stato = f.fase?.startsWith("stato:") ? f.fase.slice(6) : "";
   const regola = QUANDO_PER_STATO[stato as LeadStatus];
-  return regola ? COSA_DICE[regola.chiaveData] : DATA_ULTIMO;
+  if (regola) return COSA_DICE[regola.chiaveData];
+  //  Una fase senza regola (Segreteria, Attesa WhatsApp…): la data scritta vince, come in dataEFonte.
+  return f.fase ? RICONTATTO_O_ULTIMO : DATA_ULTIMO;
 }
 
 // ── La data sulla riga ──────────────────────────────────────────────────────────────────────────
@@ -227,5 +262,12 @@ export function giornoUsatoSullaRiga(c: ChatPerGiorno, f: FiltroPerData): string
   if (fonte === "consulenza") return `Consulenza ${breve}`;
   if (fonte === "sede") return `In sede ${breve}`;
   if (fonte === "arrivo") return `Arrivato ${breve}`;
+  //  Un ricontatto scritto su uno stato SENZA regola (es. «Non risponde» richiamato venerdì): la
+  //  pastiglia del richiamo non c'è (richiamoDi vale solo per gli stati con regola), quindi lo si dice
+  //  qui. In «Ricontatti» no: lì la pastiglia della riga lo mostra già (etichettaDataRicontatto).
+  if (fonte === "ricontatto" && !f.ricontatti) {
+    const stato = String(c.lead?.data?.stato ?? "") as LeadStatus;
+    if (!QUANDO_PER_STATO[stato]) return `Richiamo ${breve}`;
+  }
   return null;
 }

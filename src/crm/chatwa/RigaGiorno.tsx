@@ -1,7 +1,7 @@
-/** ── LA FILA DEI GIORNI, SOTTO OGNI FILTRO ACCESO (09/11/2026) ───────────────────────────────────
+/** ── LA FILA DEI GIORNI, SOTTO OGNI FILTRO ACCESO (09/11/2026, rifatta il 16/11/2026) ─────────────
  *  Richiesta del titolare: dentro un filtro, vedere solo quelli di oggi, di domani, eccetera.
- *  Tutti · Ieri · Oggi · Domani · Questa settimana · Prossima settimana, un interruttore a segmenti come
- *  la «Data» di Ricontatti ma che scorre di lato (sul telefono col dito): sei voci non stanno in 375 px,
+ *  Tutti · Scaduti · Ieri · Oggi · Domani · Prossimi giorni · Senza data, un interruttore a segmenti
+ *  che scorre di lato (sul telefono col dito): sette voci non stanno in 375 px,
  *  e la PAGINA non deve scorrere, solo la fila. Uno acceso alla volta; ritoccare quello acceso torna a
  *  «Tutti». Il numero su ogni voce lo calcola la pagina (`conta`, la stessa funzione dell'elenco).
  *  Telefono: il segmento è alto 32 px a vista e 44 di tocco (l'area si allunga dentro la fila, che ha
@@ -36,7 +36,7 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
     const dx = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
     setLati((p) => (p.sx === sx && p.dx === dx ? p : { sx, dx }));
   }, []);
-  //  Il segmento acceso sempre in vista (anche «Prossima settimana» riletto dal dispositivo). Si sposta
+  //  Il segmento acceso sempre in vista (anche «Senza data», l'ultimo, riletto dal dispositivo). Si sposta
   //  SOLO la fila, mai la pagina: niente scrollIntoView.
   useLayoutEffect(() => {
     const el = fila.current;

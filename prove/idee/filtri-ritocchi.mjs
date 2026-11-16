@@ -3,8 +3,8 @@
  *     la ✕ di serie (16 px, «Close») è nascosta e `ui/sheet.tsx` (condiviso) NON cambia.
  *  2. «Da rispondere»: tasto, riepilogo ed elenco dicono lo stesso numero. Il filtro mostra TUTTE le
  *     chat che aspettano, anche ferme da mesi, e non c'è più un riquadro a parte «oltre 7 giorni».
- *  3. «Azzera» (e ogni modo di spegnere «Da chiamare») riporta anche Stato della chiamata e
- *     Quando richiamare a «Tutti».
+ *  3. «Azzera» (e ogni modo di spegnere «Da chiamare») riporta anche Stato della chiamata a «Tutti».
+ *     (16/11/2026: «Quando richiamare» non è più un sotto-filtro suo, vedi prove/idee/filtro-giorno.mjs.)
  *  Le parti di disegno si leggono dal sorgente, come nelle altre prove di questa cartella.
  *  Dati inventati: nessun cliente vero. */
 import { readFileSync } from "node:fs";
@@ -110,11 +110,9 @@ export function proveFiltriRitocchi(mod, { c, gruppo, radice }) {
     true,
     /f\.coda !== "da-chiamare"[\s\S]*setSotto\("tutti"\)/.test(wrapper),
   );
-  c(
-    "fuori da «Da chiamare» riporta «Quando richiamare» a «Tutti»",
-    true,
-    /f\.coda !== "da-chiamare"[\s\S]*setQuando\("tutti"\)/.test(wrapper),
-  );
+  //  16/11/2026: niente più «Quando richiamare» (e il suo setQuando) da riportare a «Tutti»: non è
+  //  più un sotto-filtro suo, la fila generica dei giorni (filtri.giorno) se ne occupa da sola.
+  c("niente più stato locale «quando»/setQuando in ElencoChat", false, /setQuando/.test(elenco));
   c("poi salva i filtri", true, /salvaFiltri\(f\)/.test(wrapper));
   c(
     "«Azzera» (riepilogo, elenco vuoto, pannello), «Tutte» e le ✕ usano quel punto, non il salvataggio diretto",

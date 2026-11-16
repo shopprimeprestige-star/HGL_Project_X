@@ -3,15 +3,20 @@
  *  mi dà quando richiamarlo; devo avere il filtro di quando richiamarlo, oggi,
  *  domani ecc. con le date, da WhatsApp».
  *  La data la chiede già la finestra dello stato (QUANDO_PER_STATO →
- *  `dataRicontatto` / `oraRicontatto`): qui si legge e si mostra
- *   · nella riga dell'elenco e nell'intestazione della chat
- *     («Richiamo oggi 15:00», rosso se è passato);
- *   · nel filtro di «Da chiamare»: Scaduti, Oggi, Domani, poi una voce per data.
+ *  `dataRicontatto` / `oraRicontatto`): qui si legge e si mostra nella riga
+ *  dell'elenco e nell'intestazione della chat («Richiamo oggi 15:00», rosso se
+ *  è passato).
  *  ⚠️ VALE SOLO PER GLI STATI CHE QUELLA DATA LA CHIEDONO (richiamo, ci
  *   ricontatta lui, sta valutando…): una `dataRicontatto` rimasta da uno stato
  *   di prima non è un appuntamento, e mostrarla manderebbe a chiamare a vuoto.
- *  ⚠️ I GIORNI SONO STRINGHE «AAAA-MM-GG» DELL'OROLOGIO LOCALE, come tutte le
- *   date del CRM (`oggiIso`): si confrontano come testo.
+ *  ⚠️ I GIORNI SONO STRINGHE «AAAA-MM-GG», come tutte le date del CRM: si
+ *   confrontano come testo.
+ *  ⚠️ 16/11/2026: tolto il filtro «Quando richiamare» (Scaduti/Oggi/Domani/una voce per data/Senza
+ *   data) che stava dentro «Da chiamare»: era un secondo modo di chiedere «quando», con un secondo
+ *   «Oggi» e un secondo «Scaduti» diversi da quelli della fila generica sotto ogni filtro (D2/D3
+ *   dell'analisi). La fila generica (`giorno.ts`, `RigaGiorno`), estesa dal Compito 2 a leggere la
+ *   stessa regola per «Da chiamare», fa lo stesso lavoro con un conteggio solo. Restano qui
+ *   `richiamoDi`/`etichettaRichiamo`/`stileRichiamo`: servono ancora alla pastiglia della riga.
  *  Tutto puro, provato in prove/prove.mjs (proveDelRichiamoInChat).
  *  ───────────────────────────────────────────────────────────────────────── */
 import { QUANDO_PER_STATO } from "@/crm/quando-per-stato";
@@ -46,81 +51,6 @@ const piu = (data: string, giorni: number): string => {
   d.setUTCDate(d.getUTCDate() + giorni);
   return d.toISOString().slice(0, 10);
 };
-
-/** Il filtro: «tutti», «scaduti», «oggi», «domani», «senza» (in uno stato di
- *  richiamo ma senza data: va sistemato) oppure un giorno «AAAA-MM-GG». */
-export type FiltroRichiamo = "tutti" | "scaduti" | "oggi" | "domani" | "senza" | string;
-
-/** In quale voce del filtro cade un richiamo. `null` = la chat non ha un
- *  richiamo da fare (stato che non lo prevede). */
-export function vocePer(
-  d: DatiConRichiamo | null | undefined,
-  oggi: string,
-): Exclude<FiltroRichiamo, "tutti"> | null {
-  const r = richiamoDi(d);
-  if (!r) {
-    const regola = QUANDO_PER_STATO[String(d?.stato ?? "") as LeadStatus];
-    return regola?.chiaveData === "dataRicontatto" ? "senza" : null;
-  }
-  if (r.data < oggi) return "scaduti";
-  if (r.data === oggi) return "oggi";
-  if (r.data === piu(oggi, 1)) return "domani";
-  return r.data;
-}
-
-/** Passa il filtro? Con «tutti» passa tutto, anche chi un richiamo non ce l'ha. */
-export function passaRichiamo(
-  d: DatiConRichiamo | null | undefined,
-  filtro: FiltroRichiamo,
-  oggi: string,
-): boolean {
-  return filtro === "tutti" || vocePer(d, oggi) === filtro;
-}
-
-export interface VoceFiltro {
-  v: FiltroRichiamo;
-  l: string;
-  n: number;
-}
-
-const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-
-/** Le voci del filtro con quante chat ci sono, nell'ordine in cui si lavorano:
- *  Scaduti, Oggi, Domani, i giorni dopo in ordine, Senza data. Le voci a zero
- *  non ci sono (tranne «Tutti»). */
-export function vociFiltro(
-  dati: (DatiConRichiamo | null | undefined)[],
-  oggi: string,
-): VoceFiltro[] {
-  const conti = new Map<string, number>();
-  for (const d of dati) {
-    const v = vocePer(d, oggi);
-    if (v) conti.set(v, (conti.get(v) ?? 0) + 1);
-  }
-  const fissi: VoceFiltro[] = [
-    { v: "scaduti", l: "Scaduti", n: conti.get("scaduti") ?? 0 },
-    { v: "oggi", l: "Oggi", n: conti.get("oggi") ?? 0 },
-    { v: "domani", l: "Domani", n: conti.get("domani") ?? 0 },
-  ];
-  const giorni = [...conti.keys()]
-    .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
-    .sort()
-    .map((k) => ({ v: k, l: maiuscola(giornoParlato(k) ?? k), n: conti.get(k)! }));
-  const totale = [...conti.values()].reduce((a, b) => a + b, 0);
-  return [
-    { v: "tutti", l: "Tutti", n: totale },
-    ...fissi,
-    ...giorni,
-    { v: "senza", l: "Senza data", n: conti.get("senza") ?? 0 },
-  ].filter((x) => x.v === "tutti" || x.n > 0);
-}
-
-/** Per ordinare: prima i richiami più vecchi (gli scaduti), dentro il giorno
- *  per ora (senza ora = in fondo al giorno); chi non ha data in fondo. */
-export function chiaveOrdine(d?: DatiConRichiamo | null): string {
-  const r = richiamoDi(d);
-  return r ? `${r.data} ${r.ora ?? "99:99"}` : "9999-99-99";
-}
 
 /** Il testo della pastiglia: «Richiamo oggi 15:00», «Richiamo domani»,
  *  «Richiamo ven 31 ott», «Richiamo scaduto 27 ott». `scaduto` = da fare subito. */

@@ -26,10 +26,12 @@ import { faConsulenze } from "@/crm/permessi";
 import { chiVale, consulenteDelloSchermo } from "@/crm/consulente-dentro";
 import { consulentiPerConsulenza } from "@/crm/chi-fa-la-consulenza";
 import { consulenzeDelGiorno } from "@/crm/consulenze-del-giorno";
-import { Elenco, RigaLead, attesaDi, esitoDi, iso, minutiDi } from "@/crm/MeetGiornalieri";
+import { Elenco, RigaLead, attesaDi, esitoDi, minutiDi } from "@/crm/MeetGiornalieri";
 import { WhatsAppLeadsPanel } from "@/crm/WhatsAppLeadsPanel";
 import { mappaMestieri } from "@/crm/dafare/di-chi";
 import { Segmento, VuotoRiga } from "@/crm/ui";
+import { giornoDiRoma } from "./giorno";
+import { aRoma } from "@/crm/promemoria/formati";
 import {
   Select,
   SelectContent,
@@ -171,8 +173,11 @@ export function PannelloOggi({
     return () => window.clearInterval(id);
   }, []);
   const ora = new Date(adesso);
-  const oggi = iso(ora);
-  const minutiAdesso = ora.getHours() * 60 + ora.getMinutes();
+  //  Il giorno di Roma (16/11/2026, D6 dell'analisi), non quello dell'orologio del dispositivo: lo
+  //  stesso «oggi» della fila dei giorni e del resto della chat (giorno.ts).
+  const oggi = giornoDiRoma(ora);
+  //  Anche l'ora (revisione 16/11/2026): quella di Roma, come il giorno; mai getHours() del dispositivo.
+  const minutiAdesso = aRoma(ora).minuti;
 
   /* ── CHI ── */
   const { elenco: persone } = useMemo(

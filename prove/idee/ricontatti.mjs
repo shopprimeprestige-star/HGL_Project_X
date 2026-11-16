@@ -86,6 +86,21 @@ export function proveRicontatti(mod, { c, gruppo, radice }) {
       /chiaveData === "dataRicontatto"/.test(senzaCommenti(leggi("src/crm/chatwa/ricontatti.ts"))),
   );
 
+  gruppo("RICONTATTI: LA PASTIGLIA DELLA DATA SEGUE LO STATO VERO (16/11/2026, D1 sulla riga)");
+  {
+    const Rch = mod["chatwa/richiamo"];
+    const oggi = "2026-11-16";
+    const pastiglia = (data) => R.etichettaDataRicontatto(data, oggi);
+    const sposta = { stato: "da_spostare", dataMeeting: "2026-11-20", oraMeeting: "15:00", dataRicontatto: null };
+    c("Da riprogrammare con la consulenza rifissata: la pastiglia ha quella data, detta «Consulenza»", ["Consulenza ven 20 nov 15:00", "Consulenza venerdì 20 novembre alle 15:00"], ((x) => (x ? [x.testo, x.titolo] : null))(pastiglia(sposta)));
+    c("…e quindi la riga non dice «Senza data»", true, pastiglia(sposta) !== null);
+    c("Da riprogrammare senza consulenza fissata: nessuna pastiglia (la riga dice «Senza data»)", null, pastiglia({ stato: "da_spostare", dataRicontatto: "2026-11-18" }));
+    c("Da riprogrammare oggi: «Consulenza oggi», col colore di oggi", ["Consulenza oggi", true], ((x) => [x.testo, /amber/.test(Rch.stileRichiamo(x))])(pastiglia({ stato: "da_spostare", dataMeeting: oggi })));
+    c("gli stati a ricontatto restano «Richiamo …» come prima", "Richiamo domani", pastiglia({ stato: "sta_valutando", dataRicontatto: "2026-11-17" })?.testo);
+    c("Da contattare (nessuna regola) legge ancora dataRicontatto, come prima", "Richiamo domani", pastiglia({ stato: "da_contattare", dataRicontatto: "2026-11-17" })?.testo);
+    c("senza scheda: nessuna pastiglia", null, pastiglia(undefined));
+  }
+
   gruppo("RICONTATTI: ORDINE (il lead arrivato più di recente in alto)");
   //  Dal 31/10/2026 (richiesta del titolare) NON si ordina più per data di ricontatto: conta quando è
   //  arrivato il lead (`data.createdAt`, la «data di acquisizione»; in mancanza `created_at` della riga).
