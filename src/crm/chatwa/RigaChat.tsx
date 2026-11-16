@@ -46,7 +46,7 @@ import { IconaWhatsApp } from "./IconaWhatsApp";
 import { etichettaRichiamo, stileRichiamo } from "./richiamo";
 import { PastigliaEsito } from "./PastigliaEsito";
 import { dataDi, esitoDi, etichettaDataRicontatto } from "./ricontatti";
-import { oggiIso } from "@/crm/ui";
+import { giornoDiRoma } from "./giorno";
 import { formatOraWhatsapp, formatTimeIT, initials, numeroLeggibile } from "./formati";
 import { quandoUltimo } from "./ordineWhatsapp";
 import { puoAnticipare } from "./accontiInCima";
@@ -285,8 +285,8 @@ function RigaChatBase({
   //  rifissata («Consulenza ven 20 nov»), non «Senza data». Vedi ricontatti.ts.
   const richiamo = c.lead
     ? risentire
-      ? etichettaDataRicontatto(c.lead.data, oggiIso(new Date(adesso)))
-      : etichettaRichiamo(c.lead.data, oggiIso(new Date(adesso)))
+      ? etichettaDataRicontatto(c.lead.data, giornoDiRoma(new Date(adesso)))
+      : etichettaRichiamo(c.lead.data, giornoDiRoma(new Date(adesso)))
     : null;
   //  «Ricontatti» (31/10/2026): senza data si vede, con la X e la parola (non basta l'assenza).
   const senzaData = risentire && !!c.lead && !richiamo;
