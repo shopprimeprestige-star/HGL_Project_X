@@ -1,6 +1,7 @@
-/** ── PROVE: IL FILTRO PER GIORNO DENTRO OGNI FILTRO DELLA CHAT (09/11/2026) ──────────────────
- *  Regole in src/crm/chatwa/giorno.ts (data per filtro, fuso di Roma, settimana lun-dom) e filtri.ts
- *  (il campo interno `giorno`, i conteggi). Il disegno è in RigaGiorno.tsx e ElencoChat.tsx.
+/** ── PROVE: IL FILTRO PER GIORNO DENTRO OGNI FILTRO DELLA CHAT (09/11/2026, rifatto il 16/11/2026) ──
+ *  Regole in src/crm/chatwa/giorno.ts (data per filtro, fuso di Roma; Tutti · Scaduti · Ieri · Oggi ·
+ *  Domani · Prossimi giorni · Senza data) e filtri.ts (il campo interno `giorno`, i conteggi). Il
+ *  disegno è in RigaGiorno.tsx e ElencoChat.tsx.
  *  L'ora «adesso» è sempre un parametro: ogni prova la fissa, niente orologio vero.
  *  Dati inventati: nessun cliente vero. */
 import { readFileSync } from "node:fs";
@@ -38,34 +39,34 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("…e 23:30Z del 25/10 è il 26", "2026-10-26", G.giornoDiRoma(quando("2026-10-25T23:30:00Z")));
   c("un istante che non è una data non ha giorno", "", G.giornoDiRoma(quando("non-una-data")));
 
-  gruppo("FILTRO GIORNO: GLI INTERVALLI (lunedì-domenica)");
-  const lun = quando("2026-11-09T10:00:00Z");
+  gruppo("FILTRO GIORNO: GLI INTERVALLI (scaduti e prossimi giorni sono aperti, senza limite)");
+  const lun = quando("2026-11-09T10:00:00Z"); //  lunedì 9/11/2026, le 11:00 a Roma
   c("oggi", { da: "2026-11-09", a: "2026-11-09" }, G.intervalloGiorno("oggi", lun));
   c("ieri", { da: "2026-11-08", a: "2026-11-08" }, G.intervalloGiorno("ieri", lun));
   c("domani", { da: "2026-11-10", a: "2026-11-10" }, G.intervalloGiorno("domani", lun));
-  c("questa settimana di lunedì: lun 9 - dom 15", { da: "2026-11-09", a: "2026-11-15" }, G.intervalloGiorno("questa-settimana", lun));
-  c("prossima settimana di lunedì: lun 16 - dom 22", { da: "2026-11-16", a: "2026-11-22" }, G.intervalloGiorno("prossima-settimana", lun));
-  const dom = quando("2026-11-15T12:00:00Z");
-  c("di domenica la settimana è ancora quella (lun 9 - dom 15)", { da: "2026-11-09", a: "2026-11-15" }, G.intervalloGiorno("questa-settimana", dom));
-  c("di domenica «domani» è già la settimana dopo", { da: "2026-11-16", a: "2026-11-16" }, G.intervalloGiorno("domani", dom));
-  c("di domenica la prossima è lun 16 - dom 22", { da: "2026-11-16", a: "2026-11-22" }, G.intervalloGiorno("prossima-settimana", dom));
-  const domNotte = quando("2026-11-15T23:30:00Z"); //  lunedì 16 alle 00:30 a Roma
-  c("domenica 23:30 UTC è lunedì a Roma: la settimana cambia", { da: "2026-11-16", a: "2026-11-22" }, G.intervalloGiorno("questa-settimana", domNotte));
-  const mer = quando("2026-12-30T09:00:00Z"); //  mercoledì, a cavallo dell'anno
-  c("settimana a cavallo dell'anno", { da: "2026-12-28", a: "2027-01-03" }, G.intervalloGiorno("questa-settimana", mer));
-  c("…e la prossima è tutta nel nuovo anno", { da: "2027-01-04", a: "2027-01-10" }, G.intervalloGiorno("prossima-settimana", mer));
+  c("scaduti: nessun limite inferiore, fino a due giorni fa (ieri è un segmento suo)", { da: null, a: "2026-11-07" }, G.intervalloGiorno("scaduti", lun));
+  c("prossimi giorni: da dopodomani, nessun limite superiore (domani è un segmento suo)", { da: "2026-11-11", a: null }, G.intervalloGiorno("prossimi-giorni", lun));
   c("«Tutti» non ha intervallo", null, G.intervalloGiorno("", lun));
+  c("«Senza data» non è un intervallo di calendario", null, G.intervalloGiorno("senza-data", lun));
   c("un valore sconosciuto non ha intervallo", null, G.intervalloGiorno("tra-un-mese", lun));
 
   gruppo("FILTRO GIORNO: «IN QUALE GIORNO CADE»");
   c("lo stesso giorno è «oggi»", true, G.inGiorno("2026-11-09", "oggi", lun));
-  c("il giorno prima è «ieri», non «oggi»", [true, false], [G.inGiorno("2026-11-08", "ieri", lun), G.inGiorno("2026-11-08", "oggi", lun)]);
   c("il giorno dopo è «domani»", true, G.inGiorno("2026-11-10", "domani", lun));
-  c("domenica 15 è ancora questa settimana, lunedì 16 no", [true, false], [G.inGiorno("2026-11-15", "questa-settimana", lun), G.inGiorno("2026-11-16", "questa-settimana", lun)]);
-  c("lunedì 16 è la prossima settimana, lunedì 23 no", [true, false], [G.inGiorno("2026-11-16", "prossima-settimana", lun), G.inGiorno("2026-11-23", "prossima-settimana", lun)]);
-  c("domenica 8 non è questa settimana (è la scorsa)", false, G.inGiorno("2026-11-08", "questa-settimana", lun));
-  c("senza giorno non cade in nessun segmento", [false, false, false, false, false], ["ieri", "oggi", "domani", "questa-settimana", "prossima-settimana"].map((s) => G.inGiorno("", s, lun)));
   c("«Tutti» fa passare anche chi non ha giorno", true, G.inGiorno("", "", lun));
+
+  gruppo("FILTRO GIORNO: I CONFINI ESATTI DI «SCADUTI» E «PROSSIMI GIORNI» (ANALISI D5)");
+  c("oggi-1 è «Ieri», non «Scaduti»", [true, false], [G.inGiorno("2026-11-08", "ieri", lun), G.inGiorno("2026-11-08", "scaduti", lun)]);
+  c("oggi-2 è «Scaduti», non «Ieri»", [false, true], [G.inGiorno("2026-11-07", "ieri", lun), G.inGiorno("2026-11-07", "scaduti", lun)]);
+  c("un arretrato di 6 mesi è ancora «Scaduti»: nessun limite inferiore", true, G.inGiorno("2026-05-09", "scaduti", lun));
+  c("oggi stesso non è «Scaduti»", false, G.inGiorno("2026-11-09", "scaduti", lun));
+  c("oggi+1 è «Domani», non «Prossimi giorni»", [true, false], [G.inGiorno("2026-11-10", "domani", lun), G.inGiorno("2026-11-10", "prossimi-giorni", lun)]);
+  c("oggi+2 è «Prossimi giorni», non «Domani»", [false, true], [G.inGiorno("2026-11-11", "domani", lun), G.inGiorno("2026-11-11", "prossimi-giorni", lun)]);
+  c("una data di 6 mesi avanti è ancora «Prossimi giorni»: nessun limite superiore", true, G.inGiorno("2027-05-09", "prossimi-giorni", lun));
+
+  gruppo("FILTRO GIORNO: «SENZA DATA» NON È UN GIORNO DEL CALENDARIO");
+  c("senza giorno passa SOLO «Tutti» e «Senza data», nessun altro segmento (nemmeno «Scaduti»)", [true, false, false, false, false, false, true], ["", "scaduti", "ieri", "oggi", "domani", "prossimi-giorni", "senza-data"].map((s) => G.inGiorno("", s, lun)));
+  c("con un giorno vero non passa «Senza data»", false, G.inGiorno("2026-11-09", "senza-data", lun));
 
   // ── Quale data per quale filtro ──────────────────────────────────────────────────────────────
   let n = 0;
@@ -177,9 +178,9 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
     chat({ attesa: true, ultimo: msg("2026-11-09"), stato: "attesa_whatsapp", consulente: "luca" }), //  oggi
     chat({ attesa: true, ultimo: msg("2026-11-09"), stato: "sta_valutando", consulente: "anna" }), //  oggi
     chat({ attesa: true, ultimo: msg("2026-11-10"), stato: "attesa_whatsapp", consulente: "luca" }), //  domani (dato di prova)
-    chat({ attesa: true, ultimo: msg("2026-11-13"), stato: "sta_valutando" }), //  questa settimana
-    chat({ attesa: true, ultimo: msg("2026-11-17"), stato: "sta_valutando" }), //  prossima
-    chat({ attesa: true, ultimo: msg("2026-10-01"), stato: "sta_valutando" }), //  vecchia
+    chat({ attesa: true, ultimo: msg("2026-11-13"), stato: "sta_valutando" }), //  prossimi giorni
+    chat({ attesa: true, ultimo: msg("2026-11-17"), stato: "sta_valutando" }), //  prossimi giorni
+    chat({ attesa: true, ultimo: msg("2026-10-01"), stato: "sta_valutando" }), //  scaduti (vecchia)
     chat({ attesa: true, stato: "sta_valutando" }), //  senza data
     chat({ attesa: false, ultimo: msg("2026-11-09"), stato: "sta_valutando", ricontatto: "2026-11-10", consulente: "luca" }),
     chat({ attesa: false, ultimo: msg("2026-11-01"), stato: "sta_valutando", ricontatto: "2026-11-09", consulente: "luca" }),
@@ -191,28 +192,26 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   const ix = (righe) => righe.map((x) => mondo.indexOf(x));
   const daRisp = con({ coda: "da-rispondere" });
   c("giorno spento: l'elenco è quello di prima (Tutti)", ix(mondo.filter((x) => x.daRispondere.attesa)), ix(elenco(daRisp)));
-  c("Da rispondere + Oggi: solo quelli che hanno scritto oggi", [1, 2], ix(elenco({ ...daRisp, giorno: "oggi" })));
+  c("Da rispondere + Scaduti: solo quello fermo da mesi", [6], ix(elenco({ ...daRisp, giorno: "scaduti" })));
   c("Da rispondere + Ieri", [0], ix(elenco({ ...daRisp, giorno: "ieri" })));
+  c("Da rispondere + Oggi: solo quelli che hanno scritto oggi", [1, 2], ix(elenco({ ...daRisp, giorno: "oggi" })));
   c("Da rispondere + Domani", [3], ix(elenco({ ...daRisp, giorno: "domani" })));
-  c("Da rispondere + Questa settimana (lun 9 - dom 15)", [1, 2, 3, 4], ix(elenco({ ...daRisp, giorno: "questa-settimana" })));
-  c("Da rispondere + Prossima settimana", [5], ix(elenco({ ...daRisp, giorno: "prossima-settimana" })));
-  c("chi non ha una data resta fuori da ogni giorno, ma è in «Tutti»", [false, true], [
-    ["ieri", "oggi", "domani", "questa-settimana", "prossima-settimana"].some((g) => elenco({ ...daRisp, giorno: g }).includes(mondo[7])),
-    elenco(daRisp).includes(mondo[7]),
-  ]);
+  c("Da rispondere + Prossimi giorni: oltre domani, senza limite", [4, 5], ix(elenco({ ...daRisp, giorno: "prossimi-giorni" })));
+  c("Da rispondere + Senza data", [7], ix(elenco({ ...daRisp, giorno: "senza-data" })));
+  c("chi non ha una data passa SOLO «Tutti» e «Senza data», nessun altro segmento (nemmeno «Scaduti»)", [true, false, false, false, false, false, true], ["", "scaduti", "ieri", "oggi", "domani", "prossimi-giorni", "senza-data"].map((g) => elenco({ ...daRisp, giorno: g }).includes(mondo[7])));
   c("si somma al consulente (E)", [1], ix(elenco({ ...daRisp, giorno: "oggi", consulente: "luca" })));
   c("In valutazione + Oggi usa il RICONTATTO (non l'ultimo messaggio)", [9], ix(elenco(con({ fase: "stato:sta_valutando", giorno: "oggi" }))));
   c("In valutazione + Domani", [8], ix(elenco(con({ fase: "stato:sta_valutando", giorno: "domani" }))));
-  c("Ricontatti usa il ricontatto, e convive con Esito/Data esistenti", [8, 9], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "questa-settimana", rData: "con" }))));
+  c("Ricontatti usa il ricontatto (oltre i 2 giorni = Prossimi giorni), e convive con Esito/Data esistenti", [10], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "prossimi-giorni", rData: "con" }))));
   c("Ricontatti + giorno + Senza data: nessuno (senza data non cade in un giorno)", [], ix(elenco(con({ ricontatti: true, io: "luca", giorno: "oggi", rData: "senza" }))));
   c("senza «adesso» il giorno non filtra (non si sa che giorno è)", ix(elenco(daRisp)), ix(mondo.filter((x) => F.passaFiltri(x, { ...daRisp, giorno: "oggi" }, stelle0))));
   c("spostando l'ora, il giorno si sposta con lei (domani diventa oggi)", [3], ix(elenco({ ...daRisp, giorno: "oggi" }, quando("2026-11-10T09:00:00Z"))));
 
-  const SEGMENTI = ["", "ieri", "oggi", "domani", "questa-settimana", "prossima-settimana"];
+  const SEGMENTI = ["", "scaduti", "ieri", "oggi", "domani", "prossimi-giorni", "senza-data"];
   const conta = (f, g) => F.contaGiorno(mondo, f, stelle0, adesso, g);
   c("ogni segmento conta ESATTAMENTE le chat che l'elenco mostrerebbe", true, SEGMENTI.every((g) => conta(daRisp, g) === elenco({ ...daRisp, giorno: g }).length));
   c("…anche con un altro filtro acceso, il consulente e Ricontatti", true, [con({ fase: "stato:sta_valutando" }), con({ coda: "da-rispondere", consulente: "luca" }), con({ ricontatti: true, io: "luca" })].every((f) => SEGMENTI.every((g) => conta(f, g) === elenco({ ...f, giorno: g }).length)));
-  c("i numeri dei segmenti: Tutti 8, Ieri 1, Oggi 2, Domani 1, Settimana 4, Prossima 1", [8, 1, 2, 1, 4, 1], [conta(daRisp, ""), conta(daRisp, "ieri"), conta(daRisp, "oggi"), conta(daRisp, "domani"), conta(daRisp, "questa-settimana"), conta(daRisp, "prossima-settimana")]);
+  c("i numeri dei segmenti: Tutti 8, Scaduti 1, Ieri 1, Oggi 2, Domani 1, Prossimi giorni 2, Senza data 1", [8, 1, 1, 2, 1, 2, 1], [conta(daRisp, ""), conta(daRisp, "scaduti"), conta(daRisp, "ieri"), conta(daRisp, "oggi"), conta(daRisp, "domani"), conta(daRisp, "prossimi-giorni"), conta(daRisp, "senza-data")]);
   c("il conto di un segmento ignora il giorno già scelto (è «cosa vedresti se lo tocchi»)", conta({ ...daRisp, giorno: "ieri" }, "oggi"), conta(daRisp, "oggi"));
   c("contaVoce del consulente tiene conto del giorno scelto", 1, F.contaVoce(mondo, { ...daRisp, giorno: "oggi" }, stelle0, "consulente", "luca", adesso));
   c("contaVoce di un'altra voce parte da zero: il giorno non si porta dietro", mondo.filter((x) => F.passaFiltri(x, con({ fase: "stato:sta_valutando" }), stelle0)).length, F.contaVoce(mondo, { ...daRisp, giorno: "oggi" }, stelle0, "fase", "stato:sta_valutando", adesso));
@@ -231,7 +230,7 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("togliere Esito o Data di Ricontatti NON toglie il giorno", ["oggi", "oggi"], [F.togli(con({ ricontatti: true, rEsito: "piu_avanti", giorno: "oggi" }), "rEsito").giorno, F.togli(con({ ricontatti: true, rData: "con", giorno: "oggi" }), "rData").giorno]);
   c("togli(\"giorno\") toglie solo il giorno", { ...con({ coda: "da-rispondere" }) }, F.togli(con({ coda: "da-rispondere", giorno: "oggi" }), "giorno"));
   c("«Azzera» (FILTRI_VUOTI) lo azzera", "", V.giorno);
-  c("l'etichetta con la ✕ c'è e si toglie col suo campo", [{ campo: "coda", etichetta: "Da rispondere" }, { campo: "giorno", etichetta: "Questa settimana" }], F.etichetteAccese(con({ coda: "da-rispondere", giorno: "questa-settimana" }), () => ""));
+  c("l'etichetta con la ✕ c'è e si toglie col suo campo", [{ campo: "coda", etichetta: "Da rispondere" }, { campo: "giorno", etichetta: "Prossimi giorni" }], F.etichetteAccese(con({ coda: "da-rispondere", giorno: "prossimi-giorni" }), () => ""));
   c("senza giorno nessuna etichetta in più", [{ campo: "coda", etichetta: "Da rispondere" }], F.etichetteAccese(con({ coda: "da-rispondere" }), () => ""));
 
   gruppo("FILTRO GIORNO: DAL DISPOSITIVO SI RILEGGE SOLO QUELLO CHE SI CONOSCE");
@@ -239,6 +238,11 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("un giorno valido con un filtro acceso si rilegge", "domani", rileggi({ coda: "da-rispondere", giorno: "domani" }).giorno);
   c("tutti i segmenti si rileggono", true, SEGMENTI.slice(1).every((g) => rileggi({ stelle: true, giorno: g }).giorno === g));
   c("un valore sconosciuto è vuoto", "", rileggi({ coda: "da-rispondere", giorno: "tra-un-mese" }).giorno);
+  //  Rischio del piano (Compito 1): chi ha una sessione vecchia con «Questa/Prossima settimana» o la
+  //  vecchia «Con/Senza data» di Ricontatti torna a «Tutti», senza errori: lo stesso meccanismo che già
+  //  ignora un valore sconosciuto, non una migrazione.
+  c("un valore vecchio («questa-settimana»/«prossima-settimana»), salvato prima del 16/11, torna a «Tutti»", ["", ""], ["questa-settimana", "prossima-settimana"].map((g) => rileggi({ coda: "da-rispondere", giorno: g }).giorno));
+  c("giornoValido scarta i vecchi valori di settimana", [false, false], ["questa-settimana", "prossima-settimana"].map((g) => G.giornoValido(g)));
   c("un numero, un oggetto, null: vuoto", ["", "", ""], [rileggi({ stelle: true, giorno: 3 }).giorno, rileggi({ stelle: true, giorno: {} }).giorno, rileggi({ stelle: true, giorno: null }).giorno]);
   c("un giorno senza filtro acceso non resta di nascosto", "", rileggi({ giorno: "oggi" }).giorno);
   c("…nemmeno col solo consulente salvato", "", rileggi({ giorno: "oggi" }, "luca").giorno);
@@ -254,8 +258,8 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   const elencoSrc = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
   const filtriSrc = senzaCommenti(leggi("src/crm/chatwa/filtri.ts"));
   const rigaChat = senzaCommenti(leggi("src/crm/chatwa/RigaChat.tsx"));
-  c("i segmenti sono quelli della spec, in ordine", ["Tutti", "Ieri", "Oggi", "Domani", "Questa settimana", "Prossima settimana"], G.SEGMENTI_GIORNO.map((s) => s.nome));
-  c("«Tutti» vale vuoto, gli altri hanno un valore ciascuno", ["", "ieri", "oggi", "domani", "questa-settimana", "prossima-settimana"], G.SEGMENTI_GIORNO.map((s) => s.v));
+  c("i segmenti sono quelli della spec, in ordine", ["Tutti", "Scaduti", "Ieri", "Oggi", "Domani", "Prossimi giorni", "Senza data"], G.SEGMENTI_GIORNO.map((s) => s.nome));
+  c("«Tutti» vale vuoto, gli altri hanno un valore ciascuno", ["", "scaduti", "ieri", "oggi", "domani", "prossimi-giorni", "senza-data"], G.SEGMENTI_GIORNO.map((s) => s.v));
   c("la fila è un gruppo con nome e ogni segmento è aria-pressed", true, /role="group"/.test(riga) && /aria-label="Giorno/.test(riga) && /aria-pressed=\{/.test(riga));
   c("scorre di lato su telefono (overflow-x-auto) e la pagina no", true, /overflow-x-auto/.test(riga) && /overscroll-x-contain/.test(riga) && /min-w-0/.test(riga));
   c("i segmenti non si schiacciano né vanno a capo", true, /shrink-0/.test(riga) && /whitespace-nowrap/.test(riga));

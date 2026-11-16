@@ -1,8 +1,13 @@
-/** ── IL FILTRO PER GIORNO, DENTRO OGNI FILTRO DELLA CHAT (09/11/2026) ──────────
+/** ── IL FILTRO PER GIORNO, DENTRO OGNI FILTRO DELLA CHAT (09/11/2026, rifatto il 16/11/2026) ──
  *  Richiesta del titolare: «quando sono dentro il filtro posso mettere tutti quelli di oggi o quelli di
- *  domani, eccetera, così li lavoro meglio». Sotto il filtro acceso compare una fila: Tutti · Ieri · Oggi ·
- *  Domani · Questa settimana · Prossima settimana. Uno solo alla volta, in E col filtro, col consulente e
- *  con la ricerca.
+ *  domani, eccetera, così li lavoro meglio». Sotto il filtro acceso compare una fila: Tutti · Scaduti ·
+ *  Ieri · Oggi · Domani · Prossimi giorni · Senza data. Uno solo alla volta, in E col filtro, col
+ *  consulente e con la ricerca.
+ *  ⚠️ 16/11/2026: tolte «Questa settimana»/«Prossima settimana» (mescolavano arretrato e futuro nella
+ *  stessa settimana: D5 dell'analisi) e il controllo a parte «Con/Senza data» di Ricontatti, che diceva
+ *  la stessa cosa con un interruttore in più. «Scaduti» copre ogni arretrato senza limite, «Prossimi
+ *  giorni» ogni data da dopodomani in avanti senza limite, «Senza data» è qui, nella stessa fila, per
+ *  ogni filtro.
  *
  *  · LA DATA DIPENDE DAL FILTRO (`dataPerGiorno`):
  *      Ricontatti, e gli stati che chiedono un ricontatto (QUANDO_PER_STATO → dataRicontatto)  → il giorno
@@ -26,23 +31,27 @@ import type { FiltriChat } from "./filtri";
 import { quandoUltimo, type ChatConOra } from "./ordineWhatsapp";
 import { arrivoMs } from "./ricontatti";
 
-/** `""` = «Tutti» (spento). */
+/** `""` = «Tutti» (spento). «Scaduti»: ogni data prima di ieri, senza limite. «Prossimi giorni»: ogni
+ *  data da dopodomani in avanti, senza limite. «Senza data»: la chat non ha una data per questo filtro
+ *  (non è un intervallo di calendario: vedi `inGiorno`). */
 export type GiornoChat =
   | ""
+  | "scaduti"
   | "ieri"
   | "oggi"
   | "domani"
-  | "questa-settimana"
-  | "prossima-settimana";
+  | "prossimi-giorni"
+  | "senza-data";
 
 /** I segmenti, nell'ordine in cui si mostrano. Una sola fonte per la fila, il riepilogo e il salvataggio. */
 export const SEGMENTI_GIORNO: readonly { v: GiornoChat; nome: string }[] = [
   { v: "", nome: "Tutti" },
+  { v: "scaduti", nome: "Scaduti" },
   { v: "ieri", nome: "Ieri" },
   { v: "oggi", nome: "Oggi" },
   { v: "domani", nome: "Domani" },
-  { v: "questa-settimana", nome: "Questa settimana" },
-  { v: "prossima-settimana", nome: "Prossima settimana" },
+  { v: "prossimi-giorni", nome: "Prossimi giorni" },
+  { v: "senza-data", nome: "Senza data" },
 ];
 
 /** Il valore è uno dei segmenti? (Dal dispositivo può arrivare qualunque cosa.) */
@@ -78,43 +87,46 @@ const giornoScheda = (v: unknown): string => {
   return GIORNO_VERO.test(g) && giornoParlato(g) ? g : "";
 };
 
-/** Dal lunedì alla domenica che contengono `giorno`. */
-function settimanaDi(giorno: string): { da: string; a: string } {
-  const dalLunedi = (new Date(unGiorno(giorno)).getUTCDay() + 6) % 7;
-  const da = aggiungiGiorni(giorno, -dalLunedi);
-  return { da, a: aggiungiGiorni(da, 6) };
-}
-
-/** Da quale a quale giorno (compresi) vale il segmento, visto da `adesso`; `null` per «Tutti» o per un
- *  valore che non si conosce. */
+/** Da quale a quale giorno vale il segmento, visto da `adesso`; `null` dal lato che non ha limite
+ *  («Scaduti» non ha un `da`, «Prossimi giorni» non ha un `a`); l'intervallo intero è `null` per
+ *  «Tutti», per «Senza data» (non è un intervallo di calendario: vedi `inGiorno`) o per un valore che
+ *  non si conosce. */
 export function intervalloGiorno(
   scelta: GiornoChat,
   adesso: Date,
-): { da: string; a: string } | null {
+): { da: string | null; a: string | null } | null {
   const oggi = giornoDiRoma(adesso);
   if (!oggi) return null;
   switch (scelta) {
+    //  «Scaduti» = prima di ieri (ANALISI §3): oggi-2 e tutto il passato prima. «Ieri» (oggi-1) resta
+    //  solo suo, nessuna sovrapposizione fra i due segmenti.
+    case "scaduti":
+      return { da: null, a: aggiungiGiorni(oggi, -2) };
     case "ieri":
       return { da: aggiungiGiorni(oggi, -1), a: aggiungiGiorni(oggi, -1) };
     case "oggi":
       return { da: oggi, a: oggi };
     case "domani":
       return { da: aggiungiGiorni(oggi, 1), a: aggiungiGiorni(oggi, 1) };
-    case "questa-settimana":
-      return settimanaDi(oggi);
-    case "prossima-settimana":
-      return settimanaDi(aggiungiGiorni(oggi, 7));
+    case "prossimi-giorni":
+      return { da: aggiungiGiorni(oggi, 2), a: null };
     default:
       return null;
   }
 }
 
-/** Il giorno cade nel segmento? «Tutti» fa passare tutti (anche chi non ha giorno); ogni altro segmento
- *  esclude chi non ha giorno. */
+/** Il giorno cade nel segmento? «Tutti» fa passare tutti (anche chi non ha giorno); «Senza data» vuole
+ *  esattamente chi non ne ha; ogni altro segmento esclude chi non ha giorno, e un lato `null`
+ *  dell'intervallo non pone limite da quella parte (es. «Scaduti»: tutto il passato, senza fondo). */
 export function inGiorno(giorno: string, scelta: GiornoChat, adesso: Date): boolean {
   if (scelta === "") return true;
+  if (scelta === "senza-data") return giorno === "";
+  if (!giorno) return false;
   const r = intervalloGiorno(scelta, adesso);
-  return !!giorno && !!r && giorno >= r.da && giorno <= r.a;
+  if (!r) return false;
+  if (r.da !== null && giorno < r.da) return false;
+  if (r.a !== null && giorno > r.a) return false;
+  return true;
 }
 
 // ── Quale data per quale filtro ─────────────────────────────────────────────────────────────────
