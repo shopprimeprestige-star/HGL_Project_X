@@ -924,12 +924,14 @@ function ElencoChatBase({ api, onCreaScheda: creaSchedaProp }: ElencoChatProps) 
           Revisione (17/11/2026): con una ricerca attiva, la base si filtra anche con `combaciaRicerca`
           (`combaciaRicerca(c, "")` vale sempre vero, quindi senza ricerca non cambia niente) — senza
           questo i numeri della fila divergevano da quelli delle sezioni raggruppate, che la ricerca
-          la vedono già (`trovate`). */}
+          la vedono già (`trovate`). Seconda revisione (17/11/2026, titolare dal telefono): la fila non
+          scorre più di lato (tagliava «Prossimi giorni»/«Senza data» a 375 px); l'etichetta è
+          «Scadenza:» per i filtri a richiamo (RigaGiorno.tsx). */}
       {!caricamento && !soloRiga && (
         <RigaGiorno
           valore={filtri.giorno}
           data={descriviDataFiltro(filtri)}
-          etichetta={filaCorta ? "Ultimo messaggio" : "Da richiamare"}
+          etichetta={filaCorta ? "Ultimo messaggio:" : "Scadenza:"}
           segmenti={filaCorta ? SEGMENTI_FILA_CORTA : undefined}
           conta={(g) =>
             contaGiorno(

@@ -393,7 +393,7 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("soloUno non muta l'ingresso e tiene il giorno col filtro scelto", "oggi", F.soloUno(con({ acconto: true, giorno: "oggi" })).giorno);
 
   // ── Il disegno e i paletti ───────────────────────────────────────────────────────────────────
-  gruppo("FILTRO GIORNO: L'INTERFACCIA (fila a segmenti, scorrevole, coerente con le altre)");
+  gruppo("FILTRO GIORNO: L'INTERFACCIA (fila a segmenti, a capo su più righe, coerente con le altre)");
   const riga = senzaCommenti(leggi("src/crm/chatwa/RigaGiorno.tsx"));
   const elencoSrc = senzaCommenti(leggi("src/crm/chatwa/ElencoChat.tsx"));
   const filtriSrc = senzaCommenti(leggi("src/crm/chatwa/filtri.ts"));
@@ -401,11 +401,15 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   c("i segmenti sono quelli della spec, in ordine", ["Tutti", "Scaduti", "Ieri", "Oggi", "Domani", "Prossimi giorni", "Senza data"], G.SEGMENTI_GIORNO.map((s) => s.nome));
   c("«Tutti» vale vuoto, gli altri hanno un valore ciascuno", ["", "scaduti", "ieri", "oggi", "domani", "prossimi-giorni", "senza-data"], G.SEGMENTI_GIORNO.map((s) => s.v));
   c("la fila è un gruppo con nome e ogni segmento è aria-pressed", true, /role="group"/.test(riga) && /aria-label="Giorno/.test(riga) && /aria-pressed=\{/.test(riga));
-  c("scorre di lato su telefono (overflow-x-auto) e la pagina no", true, /overflow-x-auto/.test(riga) && /overscroll-x-contain/.test(riga) && /min-w-0/.test(riga));
-  c("i segmenti non si schiacciano né vanno a capo", true, /shrink-0/.test(riga) && /whitespace-nowrap/.test(riga));
+  //  Seconda revisione (17/11/2026, titolare dal telefono): niente più scorrimento di lato (a 375 px
+  //  tagliava «Prossimi giorni»/«Senza data» fuori dalla vista) — i segmenti vanno a capo, TUTTI
+  //  sempre in vista, con `flex-wrap`.
+  c("i segmenti vanno a capo su più righe (flex-wrap), non scorrono più di lato", true, /flex-wrap/.test(riga) && !/overflow-x-auto/.test(riga));
+  c("ogni segmento non si rompe a metà (il suo testo resta su una riga)", true, /shrink-0/.test(riga) && /whitespace-nowrap/.test(riga));
   c("ogni segmento mostra il suo numero (dal conto condiviso, non calcolato qui)", true, /conta\(/.test(riga) && !/passaFiltri|filter\(/.test(riga));
   c("ritoccare il segmento acceso torna a «Tutti»", true, /acceso\s*\?\s*""\s*:/.test(riga));
-  c("tocco da 44 px sul telefono come le altre righe", true, /after:-inset-y-/.test(riga) || /h-11/.test(riga));
+  c("tocco da 44 px sul telefono (h-11) su ogni segmento, più piccolo solo col mouse", true, /h-11/.test(riga) && /lg:pointer-fine:h-8/.test(riga));
+  c("il segmento acceso resta ben distinto: pieno primario, come le pillole sopra", true, /bg-primary text-primary-foreground/.test(riga));
   c("la pagina la disegna con un filtro acceso (non con la sola riga «Tutte»), a caricamento finito", true, /<RigaGiorno/.test(elencoSrc) && /!caricamento\s*&&\s*!soloRiga/.test(elencoSrc));
   //  Compito 2 (17/11/2026): sale sopra l'elenco, fuori dall'area che scorre — subito dopo le pillole
   //  (e dopo «Stato della chiamata» in «Da chiamare»), prima dell'area con `overflow-y-auto`. Le barre
@@ -428,8 +432,10 @@ export function proveFiltroGiorno(mod, { c, gruppo, radice }) {
   gruppo("FILTRO GIORNO: L'ETICHETTA DAVANTI ALLA FILA, E LA FILA CORTA (Compito 3, nel disegno)");
   c("RigaGiorno riceve e mostra l'etichetta", true, /etichetta/.test(riga) && /\{etichetta\}/.test(riga));
   c("senza `segmenti` mostra i sette di sempre (il valore di default è SEGMENTI_GIORNO)", true, /segmenti\s*=\s*SEGMENTI_GIORNO/.test(riga));
-  c("ElencoChat passa «Ultimo messaggio» o «Da richiamare», e la fila corta solo per i filtri «a messaggio»", true,
-    /etichetta=\{filaCorta \? "Ultimo messaggio" : "Da richiamare"\}/.test(elencoSrc) &&
+  //  Seconda revisione (17/11/2026): «Scadenza:» (non più «Da richiamare») per i filtri a richiamo,
+  //  con i due punti — parole al posto della sola icona (tolta dal disegno).
+  c("ElencoChat passa «Ultimo messaggio:» o «Scadenza:», e la fila corta solo per i filtri «a messaggio»", true,
+    /etichetta=\{filaCorta \? "Ultimo messaggio:" : "Scadenza:"\}/.test(elencoSrc) &&
     /segmenti=\{filaCorta \? SEGMENTI_FILA_CORTA : undefined\}/.test(elencoSrc) &&
     /const filaCorta = eFiltroAMessaggio\(filtri\)/.test(elencoSrc));
 
