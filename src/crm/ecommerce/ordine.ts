@@ -90,7 +90,11 @@ function numero(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const euro = (n: number): number => Math.round(n * 100) / 100;
+/** Arrotonda al centesimo; mai Infinity (con importi enormi n*100 straborda: si tiene n). */
+const euro = (n: number): number => {
+  const r = Math.round(n * 100) / 100;
+  return Number.isFinite(r) ? r : Number.isFinite(n) ? n : 0;
+};
 
 /** Data valida (testo che il browser sa leggere) o null. */
 const data = (v: unknown): string | null => {
@@ -112,13 +116,16 @@ function leggiRiga(v: unknown): RigaOrdine | null {
   if (!eOggetto(v)) return null;
   const prezzo = numero(v.unit_price);
   const qty = numero(v.qty);
+  const q = qty !== null && qty > 0 ? Math.floor(qty) : 0;
+  const pz = prezzo !== null && prezzo > 0 ? prezzo : 0;
+  const finito = Number.isFinite(q * pz); // 1e308 × 1e308 sarebbe Infinity: la riga vale 0
   return {
     prodottoId: testoOnull(v.product_id),
     nome: testo(v.name) || "Prodotto senza nome",
     slug: testoOnull(v.slug),
     variante: variante(v.variant),
-    qty: qty !== null && qty > 0 ? Math.floor(qty) : 0,
-    prezzo: prezzo !== null && prezzo > 0 ? prezzo : 0,
+    qty: finito ? q : 0,
+    prezzo: finito ? pz : 0,
   };
 }
 
@@ -135,10 +142,13 @@ export function normalizzaOrdine(riga: unknown): Ordine | null {
   const items = Array.isArray(riga.items) ? riga.items : [];
   const righe: RigaOrdine[] = [];
   let somma = 0;
+  let letti = 0; // righe valide: gli elementi scartati non contano per «troncate»
   for (const it of items) {
     const r = leggiRiga(it);
     if (!r) continue;
-    somma += r.qty * r.prezzo;
+    const p = r.qty * r.prezzo;
+    if (Number.isFinite(somma + p)) somma += p; // mai Infinity, nemmeno con tante righe enormi
+    letti++;
     if (righe.length < MAX_RIGHE) righe.push(r);
   }
   somma = euro(somma);
@@ -166,7 +176,7 @@ export function normalizzaOrdine(riga: unknown): Ordine | null {
     cap: testo(riga.cap),
     note: testoOnull(riga.note),
     righe,
-    righeTroncate: items.length > MAX_RIGHE,
+    righeTroncate: letti > MAX_RIGHE,
     subtotale,
     spedizione,
     totale,

@@ -85,6 +85,21 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("200 righe esatte: non troncate", [200, false], [giusto.righe.length, giusto.righeTroncate]);
   c("500 righe, importi illeggibili: la somma conta tutte le righe, non solo le 200 tenute", [500, 500], (() => { const g = N(rigaOrdineProva({ items: mille(500), subtotal: null, total: null, shipping: 0 })); return [g.subtotale, g.totale]; })());
 
+  //  ── revisione T3 (note 1-3) ──
+  const gemelli = O.normalizzaTutti([
+    rigaOrdineProva({ id: "00000000-0000-4000-8000-0000000000b1", order_ref: "HG-DOPPIO" }),
+    rigaOrdineProva({ id: "00000000-0000-4000-8000-0000000000b2", order_ref: "HG-DOPPIO" }),
+  ]);
+  c("stesso order_ref, id diversi: due ordini distinti", [2, 0, true, "HG-DOPPIO"],
+    [gemelli.ordini.length, gemelli.scartati, gemelli.ordini[0].id !== gemelli.ordini[1].id, gemelli.ordini[1].ref]);
+  const enorme = N(rigaOrdineProva({ subtotal: null, total: null, shipping: 0, items: [{ name: "A", qty: 1e308, unit_price: 1e308 }, { name: "B", qty: 2, unit_price: 5 }] }));
+  c("qty × prezzo non finito: la riga vale 0, i totali restano finiti", [true, true, 10, 10], [Number.isFinite(enorme.subtotale), Number.isFinite(enorme.totale), enorme.subtotale, enorme.totale]);
+  const molti = N(rigaOrdineProva({ subtotal: null, total: null, shipping: 0, items: [{ name: "A", qty: 1, unit_price: 1e308 }, { name: "B", qty: 1, unit_price: 1e308 }] }));
+  c("righe finite ma somma non finita: i totali restano finiti", [true, true], [Number.isFinite(molti.subtotale), Number.isFinite(molti.totale)]);
+  const sporche = N(rigaOrdineProva({ items: [...mille(150), ...Array(60).fill(null)], subtotal: 150, shipping: 0, total: 150 }));
+  c("150 righe vere + 60 scartate: non troncate, controllo righe attivo", [150, false, true], [sporche.righe.length, sporche.righeTroncate, O.totaleCoerente(sporche)]);
+  c("201 righe vere: troncate", [200, true], (() => { const t = N(rigaOrdineProva({ items: mille(201) })); return [t.righe.length, t.righeTroncate]; })());
+
   //  ── testo gigante ──
   const cinqueMb = "x".repeat(5 * 1024 * 1024);
   let lanciato = null;
