@@ -35,6 +35,8 @@ import { LEAD_STATUS_LABEL, type Lead, type LeadStatus } from "@/crm/types";
 import { eConversione } from "@/crm/kpi-calcoli";
 import { passaFiltro } from "./cercaChat";
 import {
+  eFiltroAMessaggio,
+  giornoNellaFilaCorta,
   giornoValido,
   nomeGiorno,
   passaGiorno,
@@ -496,6 +498,15 @@ export const contaVisibili = (
   stelleDi: StelleDi,
 ): number => chats.filter((c) => passaFiltri(c, f, stelleDi)).length;
 
+/** L'unico filtro acceso è una pillola della riga (Compito 4, 17/11/2026)? Allora il riepilogo sopra
+ *  l'elenco (N di M · Azzera · chip ✕) non si mostra: lo stesso numero sta già nel titolo, e la
+ *  pillola si spegne da sola ritoccandola o con «Tutte» — la fascia non direbbe niente di nuovo. Un
+ *  filtro del pannello (anche uno stato scelto da «Altri stati», non in `VOCI_RIGA`) o il consulente
+ *  NON sono una pillola: con loro accesi il riepilogo torna a mostrarsi, perché sono scelte che non
+ *  si vedono già altrove sullo schermo. */
+export const soloPillolaAccesa = (f: FiltriChat): boolean =>
+  contaAccesi(f) === 1 && VOCI_RIGA.some((v) => eAcceso(f, v.campo, v.valore));
+
 // ── Il riepilogo sotto la griglia ─────────────────────────────────────────────────────────────
 
 export interface EtichettaAccesa {
@@ -616,5 +627,11 @@ export function filtriValidi(
   io = "",
 ): FiltriChat {
   const valido = f.consulente && !consulentiNoti.has(f.consulente) ? { ...f, consulente: "" } : f;
-  return valido.io === io ? valido : { ...valido, io };
+  const conIo = valido.io === io ? valido : { ...valido, io };
+  //  Compito 3 (17/11/2026): i filtri «a messaggio» hanno solo Tutti/Oggi/Ieri/Più vecchi (la fila
+  //  corta, RigaGiorno). Un giorno salvato da prima di questo compito, o restato da un filtro «a
+  //  richiamo» appena cambiato, con un valore che lì non c'è (Domani, Prossimi giorni, Senza data)
+  //  vale «Tutti»: niente errore, nessuna migrazione.
+  const giornoGiusto = eFiltroAMessaggio(conIo) ? giornoNellaFilaCorta(conIo.giorno) : conIo.giorno;
+  return giornoGiusto === conIo.giorno ? conIo : { ...conIo, giorno: giornoGiusto };
 }

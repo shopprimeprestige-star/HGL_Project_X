@@ -1,11 +1,14 @@
-/** ── LA FILA DEI GIORNI, SOTTO OGNI FILTRO ACCESO (09/11/2026, rifatta il 16/11/2026) ─────────────
+/** ── LA FILA DEI GIORNI, SOTTO OGNI FILTRO ACCESO (09/11/2026, rifatta il 16/11 e il 17/11/2026) ──
  *  Richiesta del titolare: dentro un filtro, vedere solo quelli di oggi, di domani, eccetera.
  *  Tutti · Scaduti · Ieri · Oggi · Domani · Prossimi giorni · Senza data, un interruttore a segmenti
  *  che scorre di lato (sul telefono col dito): sette voci non stanno in 375 px,
  *  e la PAGINA non deve scorrere, solo la fila. Uno acceso alla volta; ritoccare quello acceso torna a
  *  «Tutti». Il numero su ogni voce lo calcola la pagina (`conta`, la stessa funzione dell'elenco).
  *  Telefono: il segmento è alto 32 px a vista e 44 di tocco (l'area si allunga dentro la fila, che ha
- *  il suo respiro: nella fila che scorre quello che esce viene tagliato). Quale data guarda: giorno.ts. */
+ *  il suo respiro: nella fila che scorre quello che esce viene tagliato). Quale data guarda: giorno.ts.
+ *  ⚠️ 17/11/2026 (Compito 3, secondo giro): davanti alla fila, un'etichetta corta dice cosa guarda
+ *  («Ultimo messaggio» o «Da richiamare»); i filtri «a messaggio» mostrano `segmenti` ridotti (la
+ *  fila corta di giorno.ts), passati da chi disegna. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,12 +22,18 @@ interface Props {
   onCambia: (giorno: GiornoChat) => void;
   /** A parole, quale data guarda il filtro («il giorno del ricontatto»): sta nel tooltip e per chi legge. */
   data: string;
+  /** Il nome davanti alla fila («Ultimo messaggio» o «Da richiamare», Compito 3 del 17/11/2026): in
+   *  due parole, dice quale «quando» guarda questo filtro — più chiaro della sola icona. */
+  etichetta: string;
+  /** I segmenti da mostrare: i sette di sempre, o solo Tutti/Oggi/Ieri/Più vecchi per i filtri «a
+   *  messaggio» (Compito 3). Omesso = i sette di sempre. */
+  segmenti?: readonly { v: GiornoChat; nome: string }[];
 }
 
 /** Quanto sfuma il bordo della fila dove c'è altro da scorrere (px). */
 const SFUMA = 20;
 
-export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
+export function RigaGiorno({ valore, conta, onCambia, data, etichetta, segmenti = SEGMENTI_GIORNO }: Props) {
   const fila = useRef<HTMLDivElement>(null);
   const bottoneAcceso = useRef<HTMLButtonElement>(null);
   //  Dove c'è ancora da scorrere: il bordo da quel lato sfuma, così si capisce che la fila continua.
@@ -63,7 +72,10 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
       : undefined;
   return (
     <div className="flex items-center gap-2 border-b border-border px-3 md:px-2" title={`Conta ${data}`}>
-      <CalendarDays aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="t-nota flex shrink-0 items-center gap-1.5 font-medium text-muted-foreground">
+        <CalendarDays aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+        {etichetta}
+      </span>
       {/*  La fila che scorre: la barra non si vede, il resto della pagina sta fermo (`min-w-0`). Il respiro
        *   ai lati (`px-1`) lascia intero l'anello di fuoco del primo e dell'ultimo segmento. */}
       <div
@@ -78,7 +90,7 @@ export function RigaGiorno({ valore, conta, onCambia, data }: Props) {
           aria-description={`Conta ${data}`}
           className="inline-flex w-max gap-0.5 rounded-lg bg-muted p-0.5"
         >
-          {SEGMENTI_GIORNO.map((x) => {
+          {segmenti.map((x) => {
             const acceso = valore === x.v;
             return (
               <button
