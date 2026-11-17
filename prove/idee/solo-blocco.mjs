@@ -110,20 +110,22 @@ export function proveSoloBlocco(mod, { c, gruppo, radice }) {
     gen([...veri, ...senzaSpunta]).lead > gen(veri).lead &&
       gen([...veri, ...senzaSpunta]).appuntamenti > gen(veri).appuntamenti &&
       gen([...veri, ...senzaSpunta]).conversioni > gen(veri).conversioni);
-  c("numeri di riferimento dell'insieme senza blocchi: 5 lead, 3 appuntamenti validi, 1 cliente",
-    [5, 3, 1], [gen(veri).lead, gen(veri).appuntamenti, gen(veri).conversioni]);
+  c("numeri di riferimento dell'insieme senza blocchi: 4 lead (il no-show non conta), 3 appuntamenti validi, 1 cliente",
+    [4, 3, 1], [gen(veri).lead, gen(veri).appuntamenti, gen(veri).conversioni]);
   c("toglierla riporta il lead a contare (reversibile)", true, B.contaNeiKpi(senzaSpunta[0]));
 
   gruppo("SOLO BLOCCO · LO SLOT RESTA OCCUPATO");
   const cons = consulente("m");
   const libere = (leads) => BKG.getFreeSlotsForDate(cons, GIORNO, 45, leads);
-  const liberiPrima = libere([]);
-  const conBlocco = libere([blocchi[0]]);
-  const conVeroStessoOrario = libere([{ ...blocchi[0], data: { ...blocchi[0].data, soloBlocco: undefined } }]);
-  c("senza lead lo slot delle 09:45 è libero", true, liberiPrima.includes("09:45"));
-  c("col blocco alle 09:45 quello slot NON è più libero", false, conBlocco.includes("09:45"));
-  c("gli slot liberi col blocco sono identici a quelli con una consulenza vera allo stesso orario", conVeroStessoOrario, conBlocco);
-  c("il blocco occupa anche quando è l'unico lead del giorno (non serve altro)", true, conBlocco.length < liberiPrima.length);
+  const griglia = (leads) => BKG.slotDelGiorno(cons, GIORNO, 45, leads).find((x) => x.ora === "09:45");
+  const comeVero = (l) => ({ ...l, data: { ...l.data, soloBlocco: undefined } });
+  c("senza lead la fascia delle 09:45 ha 0 presi", 0, griglia([]).presi);
+  c("col blocco alle 09:45 la fascia ha 1 preso: lo slot è occupato", 1, griglia([blocchi[0]]).presi);
+  c("la griglia col blocco è identica a quella con una consulenza vera allo stesso orario", griglia([comeVero(blocchi[0])]), griglia([blocchi[0]]));
+  //  La fascia regge più consulenze (capienza): per vederla PIENA se ne riempie la capienza.
+  const tre = [0, 1, 2].map((i) => ({ ...blocchi[0], id: `bb${i}` }));
+  c("riempita la capienza di blocchi, 09:45 non è più fra gli orari liberi", [true, false], [libere([]).includes("09:45"), libere(tre).includes("09:45")]);
+  c("gli orari liberi con blocchi sono identici a quelli con consulenze vere", libere(tre.map(comeVero)), libere(tre));
 
   gruppo("SOLO BLOCCO · AGENDA E PROMEMORIA NON LA CONOSCONO");
   for (const f of ["src/crm/booking-utils.ts", "src/crm/doppione-orario.ts", "src/crm/chatwa/prossimo-meet.ts", "src/crm/promemoria/invio.ts", "src/crm/consulenze-del-giorno.ts"]) {
