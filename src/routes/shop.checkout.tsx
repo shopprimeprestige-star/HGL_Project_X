@@ -76,18 +76,23 @@ function CheckoutPage() {
     e.preventDefault();
     setSubmitting(true);
     setErrore(null);
-    const dati = { form, items, subtotal, shipping, total };
-    tentativo.current = tentativoPer(tentativo.current, firmaOrdine(dati));
-    const t = tentativo.current;
-    const esito = await inviaOrdine(rigaOrdine(t, dati), async (riga) => await supabase.from("shop_orders").insert(riga as never));
-    if (esito === "salvato") {
-      setOrderId(t.orderRef);
-      tentativo.current = null;
-      clear();
-    } else {
+    try {
+      const dati = { form, items, subtotal, shipping, total };
+      tentativo.current = tentativoPer(tentativo.current, firmaOrdine(dati));
+      const t = tentativo.current;
+      const esito = await inviaOrdine(rigaOrdine(t, dati), async (riga) => await supabase.from("shop_orders").insert(riga as never));
+      if (esito === "salvato") {
+        setOrderId(t.orderRef);
+        tentativo.current = null;
+        clear();
+      } else {
+        setErrore(MESSAGGIO_ERRORE_ORDINE);
+      }
+    } catch {
       setErrore(MESSAGGIO_ERRORE_ORDINE);
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   // conferma ordine

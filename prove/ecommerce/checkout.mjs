@@ -126,7 +126,7 @@ export async function prove(mod, { c, gruppo, radice }) {
   c("il checkout non genera id/riferimento da sé (niente randomUUID, niente Date.now)", false, /randomUUID|Date\.now\(/.test(src));
   c("l'invio passa da inviaOrdine e rigaOrdine", [true, true], [/inviaOrdine\(/.test(src), /rigaOrdine\(/.test(src)]);
   c("l'esito non si legge dal testo dell'errore (niente `.message` nel checkout)", false, /\.message/.test(src));
-  const rami = src.match(/if \(esito === "salvato"\) \{([\s\S]*?)\n\s{4}\} else \{([\s\S]*?)\n\s{4}\}/);
+  const rami = src.match(/if \(esito === "salvato"\) \{([\s\S]*?)\n\s+\} else \{([\s\S]*?)\n\s+\}/);
   c("c'è un ramo «salvato» e uno «errore»", true, !!rami);
   if (rami) {
     c("ramo salvato: conferma e svuota il carrello", [true, true], [/setOrderId\(/.test(rami[1]), /clear\(\)/.test(rami[1])]);
