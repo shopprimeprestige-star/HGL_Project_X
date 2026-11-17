@@ -62,6 +62,7 @@ import { proveDaRispondereUltimoMio } from "./idee/da-rispondere-ultimo-mio.mjs"
 import { proveProssimoMeet } from "./idee/prossimo-meet.mjs";
 import { proveProssimoRicontatto } from "./idee/prossimo-ricontatto.mjs";
 import { proveAzioniMeet } from "./idee/azioni-meet.mjs";
+import { proveSoloBlocco } from "./idee/solo-blocco.mjs";
 import { proveChiamateAzzera } from "./idee/chiamate-azzera.mjs";
 import { proveFiltriRitocchi } from "./idee/filtri-ritocchi.mjs";
 import { proveMeetlyStallo } from "./idee/meetly-stallo.mjs";
@@ -148,6 +149,9 @@ const MODULI = [
   "costi-pratica",
   "kpi-netto",
   "kpi-calcoli",
+  //  «Solo blocco orario» (commessa 2026-11-17-meet-solo-blocco): prove in prove/idee/solo-blocco.mjs.
+  "conta-nei-kpi",
+  "kpi-setter",
   //  ⚠️ Non sta in `src/crm` ma in `src/webinar`: vedi il ramo qui sotto sul
   //   percorso. È l'unica regola del webinar che decide una cosa che si vede,
   //   e vale la pena tenerla ferma.
@@ -21673,6 +21677,7 @@ proveDeiPermessiInstallazioneChat();
 proveDellOrdineAcconti();
 proveDeiContatoriABadge();
 proveAzioniMeet(mod, { c, gruppo, radice });
+proveSoloBlocco(mod, { c, gruppo, radice });
 proveDelContatoreChiamate();
 proveChiamateAzzera(mod, { c, gruppo, radice });
 proveMeetlyStallo(mod, { c, gruppo, radice });
